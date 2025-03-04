@@ -4,17 +4,17 @@
 #include <IO/ReadHelpers.h>
 
 #include <boost/noncopyable.hpp>
-#include <Poco/Net/HTTPRequest.h>
-#include <Poco/Net/NameValueCollection.h>
-#include <Poco/Net/PartSource.h>
-#include <Poco/URI.h>
+#include <DBPoco/Net/HTTPRequest.h>
+#include <DBPoco/Net/NameValueCollection.h>
+#include <DBPoco/Net/PartSource.h>
+#include <DBPoco/URI.h>
 
 namespace DB
 {
 
 struct Settings;
 
-class HTMLForm : public Poco::Net::NameValueCollection, private boost::noncopyable
+class HTMLForm : public DBPoco::Net::NameValueCollection, private boost::noncopyable
 {
 public:
     class PartHandler;
@@ -34,18 +34,18 @@ public:
 
     /// Creates a HTMLForm from the given HTTP request.
     /// Uploaded files are passed to the given PartHandler.
-    HTMLForm(const Settings & settings, const Poco::Net::HTTPRequest & request, ReadBuffer & requestBody, PartHandler & handler);
+    HTMLForm(const Settings & settings, const DBPoco::Net::HTTPRequest & request, ReadBuffer & requestBody, PartHandler & handler);
 
     /// Creates a HTMLForm from the given HTTP request.
     /// Uploaded files are silently discarded.
-    HTMLForm(const Settings & settings, const Poco::Net::HTTPRequest & request, ReadBuffer & requestBody);
+    HTMLForm(const Settings & settings, const DBPoco::Net::HTTPRequest & request, ReadBuffer & requestBody);
 
     /// Creates a HTMLForm from the given HTTP request.
     /// The request must be a GET request and the form data must be in the query string (URL encoded).
     /// For POST requests, you must use one of the constructors taking an additional input stream for the request body.
-    explicit HTMLForm(const Settings & settings, const Poco::Net::HTTPRequest & request);
+    explicit HTMLForm(const Settings & settings, const DBPoco::Net::HTTPRequest & request);
 
-    explicit HTMLForm(const Settings & settings, const Poco::URI & uri);
+    explicit HTMLForm(const Settings & settings, const DBPoco::URI & uri);
 
     template <typename T>
     T getParsed(const std::string & key, T default_value)
@@ -56,15 +56,19 @@ public:
 
     /// Reads the form data from the given HTTP request.
     /// Uploaded files are passed to the given PartHandler.
-    void load(const Poco::Net::HTTPRequest & request, ReadBuffer & requestBody, PartHandler & handler);
+    void load(const DBPoco::Net::HTTPRequest & request, ReadBuffer & requestBody, PartHandler & handler);
 
     /// Reads the form data from the given HTTP request.
     /// Uploaded files are silently discarded.
-    void load(const Poco::Net::HTTPRequest & request, ReadBuffer & requestBody);
+    void load(const DBPoco::Net::HTTPRequest & request, ReadBuffer & requestBody);
 
     /// Reads the URL-encoded form data from the given input stream.
     /// Note that read() does not clear the form before reading the new values.
     void read(ReadBuffer & in);
+
+    /// Returns all values of all name-value pairs with the given name.
+    /// Returns an empty vector if there are no name-value pairs with the given name.
+    std::vector<std::string> getAll(const std::string & name) const;
 
     static const std::string ENCODING_URL; /// "application/x-www-form-urlencoded"
     static const std::string ENCODING_MULTIPART; /// "multipart/form-data"
@@ -81,7 +85,7 @@ private:
     struct Part
     {
         std::string name;
-        std::unique_ptr<Poco::Net::PartSource> source;
+        std::unique_ptr<DBPoco::Net::PartSource> source;
     };
 
     using PartVec = std::vector<Part>;
@@ -97,7 +101,7 @@ class HTMLForm::PartHandler
 {
 public:
     virtual ~PartHandler() = default;
-    virtual void handlePart(const Poco::Net::MessageHeader &, ReadBuffer &) = 0;
+    virtual void handlePart(const DBPoco::Net::MessageHeader &, ReadBuffer &) = 0;
 };
 
 class HTMLForm::MultipartReadBuffer : public ReadBuffer

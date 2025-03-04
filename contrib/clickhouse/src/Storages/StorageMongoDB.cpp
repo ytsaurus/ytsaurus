@@ -5,9 +5,9 @@
 #include <Storages/checkAndGetLiteralArgument.h>
 #include <Storages/NamedCollectionsHelpers.h>
 
-#include <Poco/MongoDB/Connection.h>
-#include <Poco/MongoDB/Cursor.h>
-#include <Poco/MongoDB/Database.h>
+#error #include <DBPoco/MongoDB/Connection.h>
+#error #include <DBPoco/MongoDB/Cursor.h>
+#error #include <DBPoco/MongoDB/Database.h>
 #include <Interpreters/evaluateConstantExpression.h>
 #include <Core/Settings.h>
 #include <Interpreters/Context.h>
@@ -18,7 +18,6 @@
 #include <QueryPipeline/Pipe.h>
 #include <Processors/Sources/MongoDBSource.h>
 #include <Processors/Sinks/SinkToStorage.h>
-#include <unordered_set>
 
 #include <DataTypes/DataTypeArray.h>
 
@@ -64,12 +63,12 @@ void StorageMongoDB::connectIfNotConnected()
     if (!connection)
     {
         StorageMongoDBSocketFactory factory;
-        connection = std::make_shared<Poco::MongoDB::Connection>(uri, factory);
+        connection = std::make_shared<DBPoco::MongoDB::Connection>(uri, factory);
     }
 
     if (!authenticated)
     {
-        Poco::URI poco_uri(uri);
+        DBPoco::URI poco_uri(uri);
         auto query_params = poco_uri.getQueryParameters();
         auto auth_source = std::find_if(query_params.begin(), query_params.end(),
                                         [&](const std::pair<std::string, std::string> & param) { return param.first == "authSource"; });
@@ -79,8 +78,8 @@ void StorageMongoDB::connectIfNotConnected()
 
         if (!username.empty() && !password.empty())
         {
-            Poco::MongoDB::Database poco_db(auth_db);
-            if (!poco_db.authenticate(*connection, username, password, Poco::MongoDB::Database::AUTH_SCRAM_SHA1))
+            DBPoco::MongoDB::Database poco_db(auth_db);
+            if (!poco_db.authenticate(*connection, username, password, DBPoco::MongoDB::Database::AUTH_SCRAM_SHA1))
                 throw Exception(ErrorCodes::MONGODB_CANNOT_AUTHENTICATE, "Cannot authenticate in MongoDB, incorrect user or password");
         }
 
@@ -96,7 +95,7 @@ public:
         const std::string & collection_name_,
         const std::string & db_name_,
         const StorageMetadataPtr & metadata_snapshot_,
-        std::shared_ptr<Poco::MongoDB::Connection> connection_)
+        std::shared_ptr<DBPoco::MongoDB::Connection> connection_)
         : SinkToStorage(metadata_snapshot_->getSampleBlock())
         , collection_name(collection_name_)
         , db_name(db_name_)
@@ -108,12 +107,12 @@ public:
 
     String getName() const override { return "StorageMongoDBSink"; }
 
-    void consume(Chunk chunk) override
+    void consume(Chunk & chunk) override
     {
-        Poco::MongoDB::Database db(db_name);
-        Poco::MongoDB::Document::Vector documents;
+        DBPoco::MongoDB::Database db(db_name);
+        DBPoco::MongoDB::Document::Vector documents;
 
-        auto block = getHeader().cloneWithColumns(chunk.detachColumns());
+        auto block = getHeader().cloneWithColumns(chunk.getColumns());
 
         size_t num_rows = block.rows();
         size_t num_cols = block.columns();
@@ -126,7 +125,7 @@ public:
 
         for (const auto i : collections::range(0, num_rows))
         {
-            Poco::MongoDB::Document::Ptr document = new Poco::MongoDB::Document();
+            DBPoco::MongoDB::Document::Ptr document = new DBPoco::MongoDB::Document();
 
             for (const auto j : collections::range(0, num_cols))
             {
@@ -138,14 +137,14 @@ public:
 
         if (is_wire_protocol_old)
         {
-            Poco::SharedPtr<Poco::MongoDB::InsertRequest> insert_request = db.createInsertRequest(collection_name);
+            DBPoco::SharedPtr<DBPoco::MongoDB::InsertRequest> insert_request = db.createInsertRequest(collection_name);
             insert_request->documents() = std::move(documents);
             connection->sendRequest(*insert_request);
         }
         else
         {
-            Poco::SharedPtr<Poco::MongoDB::OpMsgMessage> insert_request = db.createOpMsgMessage(collection_name);
-            insert_request->setCommandName(Poco::MongoDB::OpMsgMessage::CMD_INSERT);
+            DBPoco::SharedPtr<DBPoco::MongoDB::OpMsgMessage> insert_request = db.createOpMsgMessage(collection_name);
+            insert_request->setCommandName(DBPoco::MongoDB::OpMsgMessage::CMD_INSERT);
             insert_request->documents() = std::move(documents);
             connection->sendRequest(*insert_request);
         }
@@ -154,7 +153,7 @@ public:
 private:
 
     void insertValueIntoMongoDB(
-        Poco::MongoDB::Document & document,
+        DBPoco::MongoDB::Document & document,
         const std::string & name,
         const IDataType & data_type,
         const IColumn & column,
@@ -175,10 +174,10 @@ private:
             const auto * array_type = assert_cast<const DataTypeArray *>(&data_type);
             const DataTypePtr & nested_type = array_type->getNestedType();
 
-            Poco::MongoDB::Array::Ptr array = new Poco::MongoDB::Array();
+            DBPoco::MongoDB::Array::Ptr array = new DBPoco::MongoDB::Array();
             for (size_t i = 0; i + offset < next_offset; ++i)
             {
-                insertValueIntoMongoDB(*array, Poco::NumberFormatter::format(i), *nested_type, nested_column, i + offset);
+                insertValueIntoMongoDB(*array, DBPoco::NumberFormatter::format(i), *nested_type, nested_column, i + offset);
             }
 
             document.add(name, array);
@@ -187,17 +186,17 @@ private:
 
         /// MongoDB does not support UInt64 type, so just cast it to Int64
         if (which.isNativeUInt())
-            document.add(name, static_cast<Poco::Int64>(column.getUInt(idx)));
+            document.add(name, static_cast<DBPoco::Int64>(column.getUInt(idx)));
         else if (which.isNativeInt())
-            document.add(name, static_cast<Poco::Int64>(column.getInt(idx)));
+            document.add(name, static_cast<DBPoco::Int64>(column.getInt(idx)));
         else if (which.isFloat32())
             document.add(name, static_cast<Float64>(column.getFloat32(idx)));
         else if (which.isFloat64())
-            document.add(name, static_cast<Float64>(column.getFloat64(idx)));
+            document.add(name, column.getFloat64(idx));
         else if (which.isDate())
-            document.add(name, Poco::Timestamp(DateLUT::instance().fromDayNum(DayNum(column.getUInt(idx))) * 1000000));
+            document.add(name, DBPoco::Timestamp(DateLUT::instance().fromDayNum(DayNum(column.getUInt(idx))) * 1000000));
         else if (which.isDateTime())
-            document.add(name, Poco::Timestamp(column.getUInt(idx) * 1000000));
+            document.add(name, DBPoco::Timestamp(column.getUInt(idx) * 1000000));
         else
         {
             WriteBufferFromOwnString ostr;
@@ -209,7 +208,7 @@ private:
     String collection_name;
     String db_name;
     StorageMetadataPtr metadata_snapshot;
-    std::shared_ptr<Poco::MongoDB::Connection> connection;
+    std::shared_ptr<DBPoco::MongoDB::Connection> connection;
 
     const bool is_wire_protocol_old;
 };
@@ -235,7 +234,7 @@ Pipe StorageMongoDB::read(
         sample_block.insert({ column_data.type, column_data.name });
     }
 
-    return Pipe(std::make_shared<MongoDBSource>(connection, database_name, collection_name, Poco::MongoDB::Document{}, sample_block, max_block_size));
+    return Pipe(std::make_shared<MongoDBSource>(connection, database_name, collection_name, DBPoco::MongoDB::Document{}, sample_block, max_block_size));
 }
 
 SinkToStoragePtr StorageMongoDB::write(const ASTPtr & /* query */, const StorageMetadataPtr & metadata_snapshot, ContextPtr /* context */, bool /*async_insert*/)

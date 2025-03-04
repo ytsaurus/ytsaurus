@@ -21,15 +21,13 @@
 #include <Backups/BackupEntriesCollector.h>
 #include <Backups/RestorerFromBackup.h>
 #include <Core/Settings.h>
-#include <Storages/MergeTree/MergeTreeSettings.h>
 #include <base/defines.h>
 #include <IO/Operators.h>
-#include <Poco/AccessExpireCache.h>
+#include <Common/re2.h>
+#include <DBPoco/AccessExpireCache.h>
 #include <boost/algorithm/string/join.hpp>
-#include <re2/re2.h>
 #include <filesystem>
 #include <mutex>
-
 
 namespace DB
 {
@@ -45,10 +43,10 @@ namespace ErrorCodes
 namespace
 {
     void checkForUsersNotInMainConfig(
-        const Poco::Util::AbstractConfiguration & config,
+        const DBPoco::Util::AbstractConfiguration & config,
         const std::string & config_path,
         const std::string & users_config_path,
-        Poco::Logger * log)
+        LoggerPtr log)
     {
         if (config.getBool("skip_check_for_incorrect_settings", false))
             return;
@@ -92,7 +90,7 @@ public:
 
 private:
     const AccessControl & access_control;
-    Poco::AccessExpireCache<ContextAccess::Params, std::shared_ptr<const ContextAccess>> cache;
+    DBPoco::AccessExpireCache<ContextAccess::Params, std::shared_ptr<const ContextAccess>> cache;
     std::mutex mutex;
 };
 
@@ -147,7 +145,7 @@ private:
 class AccessControl::PasswordComplexityRules
 {
 public:
-    void setPasswordComplexityRulesFromConfig(const Poco::Util::AbstractConfiguration & config_)
+    void setPasswordComplexityRulesFromConfig(const DBPoco::Util::AbstractConfiguration & config_)
     {
         std::lock_guard lock{mutex};
 
@@ -155,7 +153,7 @@ public:
 
         if (config_.has("password_complexity"))
         {
-            Poco::Util::AbstractConfiguration::Keys password_complexity;
+            DBPoco::Util::AbstractConfiguration::Keys password_complexity;
             config_.keys("password_complexity", password_complexity);
 
             for (const auto & key : password_complexity)
@@ -282,7 +280,7 @@ void AccessControl::shutdown()
 }
 
 
-void AccessControl::setUpFromMainConfig(const Poco::Util::AbstractConfiguration & config_, const String & config_path_,
+void AccessControl::setUpFromMainConfig(const DBPoco::Util::AbstractConfiguration & config_, const String & config_path_,
                                         const zkutil::GetZooKeeper & get_zookeeper_function_)
 {
     if (config_.has("custom_settings_prefixes"))
@@ -298,11 +296,12 @@ void AccessControl::setUpFromMainConfig(const Poco::Util::AbstractConfiguration 
 
     /// Optional improvements in access control system.
     /// The default values are false because we need to be compatible with earlier access configurations
-    setEnabledUsersWithoutRowPoliciesCanReadRows(config_.getBool("access_control_improvements.users_without_row_policies_can_read_rows", false));
-    setOnClusterQueriesRequireClusterGrant(config_.getBool("access_control_improvements.on_cluster_queries_require_cluster_grant", false));
-    setSelectFromSystemDatabaseRequiresGrant(config_.getBool("access_control_improvements.select_from_system_db_requires_grant", false));
-    setSelectFromInformationSchemaRequiresGrant(config_.getBool("access_control_improvements.select_from_information_schema_requires_grant", false));
-    setSettingsConstraintsReplacePrevious(config_.getBool("access_control_improvements.settings_constraints_replace_previous", false));
+    setEnabledUsersWithoutRowPoliciesCanReadRows(config_.getBool("access_control_improvements.users_without_row_policies_can_read_rows", true));
+    setOnClusterQueriesRequireClusterGrant(config_.getBool("access_control_improvements.on_cluster_queries_require_cluster_grant", true));
+    setSelectFromSystemDatabaseRequiresGrant(config_.getBool("access_control_improvements.select_from_system_db_requires_grant", true));
+    setSelectFromInformationSchemaRequiresGrant(config_.getBool("access_control_improvements.select_from_information_schema_requires_grant", true));
+    setSettingsConstraintsReplacePrevious(config_.getBool("access_control_improvements.settings_constraints_replace_previous", true));
+    setTableEnginesRequireGrant(config_.getBool("access_control_improvements.table_engines_require_grant", false));
 
     addStoragesFromMainConfig(config_, config_path_, get_zookeeper_function_);
 
@@ -310,7 +309,7 @@ void AccessControl::setUpFromMainConfig(const Poco::Util::AbstractConfiguration 
 }
 
 
-void AccessControl::setUsersConfig(const Poco::Util::AbstractConfiguration & users_config_)
+void AccessControl::setUsersConfig(const DBPoco::Util::AbstractConfiguration & users_config_)
 {
     auto storages = getStoragesPtr();
     for (const auto & storage : *storages)
@@ -324,7 +323,7 @@ void AccessControl::setUsersConfig(const Poco::Util::AbstractConfiguration & use
     addUsersConfigStorage(UsersConfigAccessStorage::STORAGE_TYPE, users_config_, false);
 }
 
-void AccessControl::addUsersConfigStorage(const String & storage_name_, const Poco::Util::AbstractConfiguration & users_config_, bool allow_backup_)
+void AccessControl::addUsersConfigStorage(const String & storage_name_, const DBPoco::Util::AbstractConfiguration & users_config_, bool allow_backup_)
 {
     auto new_storage = std::make_shared<UsersConfigAccessStorage>(storage_name_, *this, allow_backup_);
     new_storage->setConfig(users_config_);
@@ -409,7 +408,7 @@ void AccessControl::addMemoryStorage(const String & storage_name_, bool allow_ba
 }
 
 
-void AccessControl::addLDAPStorage(const String & storage_name_, const Poco::Util::AbstractConfiguration & config_, const String & prefix_)
+void AccessControl::addLDAPStorage(const String & storage_name_, const DBPoco::Util::AbstractConfiguration & config_, const String & prefix_)
 {
     auto new_storage = std::make_shared<LDAPAccessStorage>(storage_name_, *this, config_, prefix_);
     addStorage(new_storage);
@@ -418,7 +417,7 @@ void AccessControl::addLDAPStorage(const String & storage_name_, const Poco::Uti
 
 
 void AccessControl::addStoragesFromUserDirectoriesConfig(
-    const Poco::Util::AbstractConfiguration & config,
+    const DBPoco::Util::AbstractConfiguration & config,
     const String & key,
     const String & config_dir,
     const String & dbms_dir,
@@ -481,7 +480,7 @@ void AccessControl::addStoragesFromUserDirectoriesConfig(
 
 
 void AccessControl::addStoragesFromMainConfig(
-    const Poco::Util::AbstractConfiguration & config,
+    const DBPoco::Util::AbstractConfiguration & config,
     const String & config_path,
     const zkutil::GetZooKeeper & get_zookeeper_function)
 {
@@ -545,9 +544,9 @@ scope_guard AccessControl::subscribeForChanges(const std::vector<UUID> & ids, co
     return changes_notifier->subscribeForChanges(ids, handler);
 }
 
-bool AccessControl::insertImpl(const UUID & id, const AccessEntityPtr & entity, bool replace_if_exists, bool throw_if_exists)
+bool AccessControl::insertImpl(const UUID & id, const AccessEntityPtr & entity, bool replace_if_exists, bool throw_if_exists, UUID * conflicting_id)
 {
-    if (MultipleAccessStorage::insertImpl(id, entity, replace_if_exists, throw_if_exists))
+    if (MultipleAccessStorage::insertImpl(id, entity, replace_if_exists, throw_if_exists, conflicting_id))
     {
         changes_notifier->sendNotifications();
         return true;
@@ -577,12 +576,33 @@ AccessChangesNotifier & AccessControl::getChangesNotifier()
 }
 
 
-UUID AccessControl::authenticate(const Credentials & credentials, const Poco::Net::IPAddress & address) const
+AuthResult AccessControl::authenticate(const Credentials & credentials, const DBPoco::Net::IPAddress & address, const String & forwarded_address) const
 {
+    // NOTE: In the case where the user has never been logged in using LDAP,
+    // Then user_id is not generated, and the authentication quota will always be nullptr.
+    auto authentication_quota = getAuthenticationQuota(credentials.getUserName(), address, forwarded_address);
+    if (authentication_quota)
+    {
+        /// Reserve a single try from the quota to check whether we have another authentication try.
+        /// This is required for correct behavior in this situation:
+        /// User has 1 login failures quota.
+        /// * At the first login with an invalid password: Increase the quota counter. 1 (used) > 1 (max) is false.
+        ///   Then try to authenticate the user and throw an AUTHENTICATION_FAILED error.
+        /// * In case of the second try: increase quota counter, 2 (used) > 1 (max), then throw QUOTA_EXCEED
+        ///   and don't let the user authenticate.
+        ///
+        /// The authentication failures counter will be reset after successful authentication.
+        authentication_quota->used(QuotaType::FAILED_SEQUENTIAL_AUTHENTICATIONS, 1);
+    }
+
     try
     {
-        return MultipleAccessStorage::authenticate(credentials, address, *external_authenticators, allow_no_password,
-                                                   allow_plaintext_password);
+        const auto auth_result = MultipleAccessStorage::authenticate(credentials, address, *external_authenticators, allow_no_password,
+                                                                     allow_plaintext_password);
+        if (authentication_quota)
+            authentication_quota->reset(QuotaType::FAILED_SEQUENTIAL_AUTHENTICATIONS);
+
+        return auth_result;
     }
     catch (...)
     {
@@ -603,7 +623,8 @@ UUID AccessControl::authenticate(const Credentials & credentials, const Poco::Ne
         /// We use the same message for all authentication failures because we don't want to give away any unnecessary information for security reasons,
         /// only the log will show the exact reason.
         throw Exception(PreformattedMessage{message.str(),
-                                            "{}: Authentication failed: password is incorrect, or there is no user with such name.{}"},
+                                            "{}: Authentication failed: password is incorrect, or there is no user with such name.{}",
+                                            std::vector<std::string>{credentials.getUserName()}},
                         ErrorCodes::AUTHENTICATION_FAILED);
     }
 }
@@ -614,7 +635,7 @@ void AccessControl::restoreFromBackup(RestorerFromBackup & restorer)
     changes_notifier->sendNotifications();
 }
 
-void AccessControl::setExternalAuthenticatorsConfig(const Poco::Util::AbstractConfiguration & config)
+void AccessControl::setExternalAuthenticatorsConfig(const DBPoco::Util::AbstractConfiguration & config)
 {
     external_authenticators->setConfiguration(config, getLogger());
 }
@@ -699,7 +720,7 @@ AuthenticationType AccessControl::getDefaultPasswordType() const
     return default_password_type;
 }
 
-void AccessControl::setPasswordComplexityRulesFromConfig(const Poco::Util::AbstractConfiguration & config_)
+void AccessControl::setPasswordComplexityRulesFromConfig(const DBPoco::Util::AbstractConfiguration & config_)
 {
     password_rules->setPasswordComplexityRulesFromConfig(config_);
 }
@@ -777,11 +798,38 @@ std::shared_ptr<const EnabledQuota> AccessControl::getEnabledQuota(
     const UUID & user_id,
     const String & user_name,
     const boost::container::flat_set<UUID> & enabled_roles,
-    const Poco::Net::IPAddress & address,
+    const DBPoco::Net::IPAddress & address,
     const String & forwarded_address,
     const String & custom_quota_key) const
 {
-    return quota_cache->getEnabledQuota(user_id, user_name, enabled_roles, address, forwarded_address, custom_quota_key);
+    return quota_cache->getEnabledQuota(user_id, user_name, enabled_roles, address, forwarded_address, custom_quota_key, true);
+}
+
+std::shared_ptr<const EnabledQuota> AccessControl::getAuthenticationQuota(
+    const String & user_name, const DBPoco::Net::IPAddress & address, const std::string & forwarded_address) const
+{
+    auto user_id = find<User>(user_name);
+    UserPtr user;
+    if (user_id && (user = tryRead<User>(*user_id)))
+    {
+        const auto new_current_roles = user->granted_roles.findGranted(user->default_roles);
+        const auto roles_info = getEnabledRolesInfo(new_current_roles, {});
+
+        // client_key is not received at the moment of authentication during TCP connection
+        // if key type is set to QuotaKeyType::CLIENT_KEY
+        // QuotaCache::QuotaInfo::calculateKey will throw exception without throw_if_client_key_empty = false
+        String quota_key;
+        bool throw_if_client_key_empty = false;
+        return quota_cache->getEnabledQuota(*user_id,
+                                            user->getName(),
+                                            roles_info->enabled_roles,
+                                            address,
+                                            forwarded_address,
+                                            quota_key,
+                                            throw_if_client_key_empty);
+    }
+    else
+        return nullptr;
 }
 
 

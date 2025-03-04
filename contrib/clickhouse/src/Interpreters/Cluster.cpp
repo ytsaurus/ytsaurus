@@ -2,20 +2,22 @@
 #include <Common/DNSResolver.h>
 #include <Common/escapeForFileName.h>
 #include <Common/isLocalAddress.h>
-#include <Common/StringUtils/StringUtils.h>
+#include <Common/StringUtils.h>
 #include <Common/parseAddress.h>
+#include <Common/randomSeed.h>
 #include <Common/Config/AbstractConfigurationComparison.h>
 #include <Common/Config/ConfigHelper.h>
 #include <Core/Settings.h>
 #include <IO/WriteHelpers.h>
 #include <IO/ReadHelpers.h>
-#include <Poco/Util/AbstractConfiguration.h>
-#include <Poco/Util/Application.h>
+#include <DBPoco/Util/AbstractConfiguration.h>
+#include <DBPoco/Util/Application.h>
 #include <base/range.h>
 #include <base/sort.h>
 #include <boost/range/algorithm_ext/erase.hpp>
 
 #include <span>
+#include <pcg_random.hpp>
 
 namespace DB
 {
@@ -39,7 +41,7 @@ namespace
 /// Default shard weight.
 constexpr UInt32 default_weight = 1;
 
-inline bool isLocalImpl(const Cluster::Address & address, const Poco::Net::SocketAddress & resolved_address, UInt16 clickhouse_port)
+inline bool isLocalImpl(const Cluster::Address & address, const DBPoco::Net::SocketAddress & resolved_address, UInt16 clickhouse_port)
 {
     /// If there is replica, for which:
     /// - its port is the same that the server is listening;
@@ -66,7 +68,7 @@ void concatInsertPath(std::string & insert_path, const std::string & dir_name)
 
 /// Implementation of Cluster::Address class
 
-std::optional<Poco::Net::SocketAddress> Cluster::Address::getResolvedAddress() const
+std::optional<DBPoco::Net::SocketAddress> Cluster::Address::getResolvedAddress() const
 {
     try
     {
@@ -90,7 +92,7 @@ bool Cluster::Address::isLocal(UInt16 clickhouse_port) const
 
 
 Cluster::Address::Address(
-        const Poco::Util::AbstractConfiguration & config,
+        const DBPoco::Util::AbstractConfiguration & config,
         const String & config_prefix,
         const String & cluster_,
         const String & cluster_secret_,
@@ -285,7 +287,7 @@ Cluster::Address Cluster::Address::fromFullString(const String & full_string)
 
 /// Implementation of Clusters class
 
-Clusters::Clusters(const Poco::Util::AbstractConfiguration & config, const Settings & settings, MultiVersion<Macros>::Version macros, const String & config_prefix)
+Clusters::Clusters(const DBPoco::Util::AbstractConfiguration & config, const Settings & settings, MultiVersion<Macros>::Version macros, const String & config_prefix)
 {
     this->macros_ = macros;
     updateClusters(config, settings, config_prefix);
@@ -309,19 +311,19 @@ void Clusters::setCluster(const String & cluster_name, const std::shared_ptr<Clu
 }
 
 
-void Clusters::updateClusters(const Poco::Util::AbstractConfiguration & new_config, const Settings & settings, const String & config_prefix, Poco::Util::AbstractConfiguration * old_config)
+void Clusters::updateClusters(const DBPoco::Util::AbstractConfiguration & new_config, const Settings & settings, const String & config_prefix, DBPoco::Util::AbstractConfiguration * old_config)
 {
-    Poco::Util::AbstractConfiguration::Keys new_config_keys;
+    DBPoco::Util::AbstractConfiguration::Keys new_config_keys;
     new_config.keys(config_prefix, new_config_keys);
 
     /// If old config is set, we will update only clusters with updated config.
     /// In this case, we first need to find clusters that were deleted from config.
-    Poco::Util::AbstractConfiguration::Keys deleted_keys;
+    DBPoco::Util::AbstractConfiguration::Keys deleted_keys;
     if (old_config)
     {
         ::sort(new_config_keys.begin(), new_config_keys.end());
 
-        Poco::Util::AbstractConfiguration::Keys old_config_keys;
+        DBPoco::Util::AbstractConfiguration::Keys old_config_keys;
         old_config->keys(config_prefix, old_config_keys);
         ::sort(old_config_keys.begin(), old_config_keys.end());
 
@@ -377,23 +379,23 @@ Clusters::Impl Clusters::getContainer() const
 
 /// Implementation of `Cluster` class
 
-Cluster::Cluster(const Poco::Util::AbstractConfiguration & config,
+Cluster::Cluster(const DBPoco::Util::AbstractConfiguration & config,
                  const Settings & settings,
                  const String & config_prefix_,
                  const String & cluster_name) : name(cluster_name)
 {
     auto config_prefix = config_prefix_ + "." + cluster_name;
 
-    Poco::Util::AbstractConfiguration::Keys config_keys;
+    DBPoco::Util::AbstractConfiguration::Keys config_keys;
     config.keys(config_prefix, config_keys);
 
     config_prefix += ".";
 
     secret = config.getString(config_prefix + "secret", "");
-    boost::range::remove_erase(config_keys, "secret");
+    std::erase(config_keys, "secret");
 
     allow_distributed_ddl_queries = config.getBool(config_prefix + "allow_distributed_ddl_queries", true);
-    boost::range::remove_erase(config_keys, "allow_distributed_ddl_queries");
+    std::erase(config_keys, "allow_distributed_ddl_queries");
 
     if (config_keys.empty())
         throw Exception(ErrorCodes::SHARD_HAS_NO_CONNECTIONS, "No cluster elements (shard, node) specified in config at path {}", config_prefix);
@@ -420,8 +422,6 @@ Cluster::Cluster(const Poco::Util::AbstractConfiguration & config,
             if (address.is_local)
                 info.local_addresses.push_back(address);
 
-            info.all_addresses.push_back(address);
-
             auto pool = ConnectionPoolFactory::instance().get(
                 static_cast<unsigned>(settings.distributed_connections_pool_size),
                 address.host_name, address.port,
@@ -444,7 +444,7 @@ Cluster::Cluster(const Poco::Util::AbstractConfiguration & config,
         {
             /// Shard with replicas.
 
-            Poco::Util::AbstractConfiguration::Keys replica_keys;
+            DBPoco::Util::AbstractConfiguration::Keys replica_keys;
             config.keys(config_prefix + key, replica_keys);
 
             addresses_with_failover.emplace_back();
@@ -488,8 +488,14 @@ Cluster::Cluster(const Poco::Util::AbstractConfiguration & config,
                     throw Exception(ErrorCodes::UNKNOWN_ELEMENT_IN_CONFIG, "Unknown element in config: {}", replica_key);
             }
 
-            addShard(settings, std::move(replica_addresses), /* treat_local_as_remote = */ false, current_shard_num,
-                     std::move(insert_paths), weight, internal_replication);
+            addShard(
+                settings,
+                replica_addresses,
+                /* treat_local_as_remote = */ false,
+                current_shard_num,
+                weight,
+                std::move(insert_paths),
+                internal_replication);
         }
         else
             throw Exception(ErrorCodes::UNKNOWN_ELEMENT_IN_CONFIG, "Unknown element in config: {}", key);
@@ -525,7 +531,7 @@ Cluster::Cluster(
 
         addresses_with_failover.emplace_back(current);
 
-        addShard(settings, std::move(current), params.treat_local_as_remote, current_shard_num, /* insert_paths= */ {}, /* weight= */ 1);
+        addShard(settings, std::move(current), params.treat_local_as_remote, current_shard_num, /* weight= */ 1);
         ++current_shard_num;
     }
 
@@ -553,18 +559,23 @@ Cluster::Cluster(
 
         addresses_with_failover.emplace_back(current);
 
-        addShard(settings, std::move(current), params.treat_local_as_remote, current_shard_num, /* insert_paths= */ {}, /* weight= */ 1);
+        addShard(settings, std::move(current), params.treat_local_as_remote, current_shard_num, /* weight= */ 1);
         ++current_shard_num;
     }
 
     initMisc();
 }
 
-void Cluster::addShard(const Settings & settings, Addresses && addresses, bool treat_local_as_remote, UInt32 current_shard_num,
-                       ShardInfoInsertPathForInternalReplication && insert_paths, UInt32 weight, bool internal_replication)
+void Cluster::addShard(
+    const Settings & settings,
+    Addresses addresses,
+    bool treat_local_as_remote,
+    UInt32 current_shard_num,
+    UInt32 weight,
+    ShardInfoInsertPathForInternalReplication insert_paths,
+    bool internal_replication)
 {
     Addresses shard_local_addresses;
-    Addresses shard_all_addresses;
 
     ConnectionPoolPtrs all_replicas_pools;
     all_replicas_pools.reserve(addresses.size());
@@ -573,20 +584,28 @@ void Cluster::addShard(const Settings & settings, Addresses && addresses, bool t
     {
         auto replica_pool = ConnectionPoolFactory::instance().get(
             static_cast<unsigned>(settings.distributed_connections_pool_size),
-            replica.host_name, replica.port,
-            replica.default_database, replica.user, replica.password, replica.quota_key,
-            replica.cluster, replica.cluster_secret,
-            "server", replica.compression,
-            replica.secure, replica.priority);
+            replica.host_name,
+            replica.port,
+            replica.default_database,
+            replica.user,
+            replica.password,
+            replica.quota_key,
+            replica.cluster,
+            replica.cluster_secret,
+            "server",
+            replica.compression,
+            replica.secure,
+            replica.priority);
 
         all_replicas_pools.emplace_back(replica_pool);
         if (replica.is_local && !treat_local_as_remote)
             shard_local_addresses.push_back(replica);
-        shard_all_addresses.push_back(replica);
     }
     ConnectionPoolWithFailoverPtr shard_pool = std::make_shared<ConnectionPoolWithFailover>(
-        all_replicas_pools, settings.load_balancing,
-        settings.distributed_replica_error_half_life.totalSeconds(), settings.distributed_replica_error_cap);
+        all_replicas_pools,
+        settings.load_balancing,
+        settings.distributed_replica_error_half_life.totalSeconds(),
+        settings.distributed_replica_error_cap);
 
     if (weight)
         slot_to_shard.insert(std::end(slot_to_shard), weight, shards_info.size());
@@ -596,7 +615,6 @@ void Cluster::addShard(const Settings & settings, Addresses && addresses, bool t
         current_shard_num,
         weight,
         std::move(shard_local_addresses),
-        std::move(shard_all_addresses),
         std::move(shard_pool),
         std::move(all_replicas_pools),
         internal_replication
@@ -604,7 +622,7 @@ void Cluster::addShard(const Settings & settings, Addresses && addresses, bool t
 }
 
 
-Poco::Timespan Cluster::saturate(Poco::Timespan v, Poco::Timespan limit)
+DBPoco::Timespan Cluster::saturate(DBPoco::Timespan v, DBPoco::Timespan limit)
 {
     if (limit.totalMicroseconds() == 0)
         return v;
@@ -665,8 +683,7 @@ namespace
 
 void shuffleReplicas(std::vector<Cluster::Address> & replicas, const Settings & settings, size_t replicas_needed)
 {
-    std::random_device rd;
-    std::mt19937 gen{rd()};
+    pcg64_fast gen{randomSeed()};
 
     if (settings.prefer_localhost_replica)
     {
@@ -719,8 +736,6 @@ Cluster::Cluster(Cluster::ReplicasAsShardsTag, const Cluster & from, const Setti
 
                 if (address.is_local)
                     info.local_addresses.push_back(address);
-
-                info.all_addresses.push_back(address);
 
                 auto pool = ConnectionPoolFactory::instance().get(
                     static_cast<unsigned>(settings.distributed_connections_pool_size),

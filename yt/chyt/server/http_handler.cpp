@@ -6,7 +6,7 @@
 
 #include <yt/yt/library/re2/re2.h>
 
-#include <Poco/Util/LayeredConfiguration.h>
+#include <DBPoco/Util/LayeredConfiguration.h>
 #include <Server/HTTPHandler.h>
 #include <Server/NotFoundHandler.h>
 #include <Server/StaticRequestHandler.h>
@@ -14,7 +14,7 @@
 #include <Access/AccessControl.h>
 #include <Access/User.h>
 
-#include <Poco/URI.h>
+#include <DBPoco/URI.h>
 
 #include <base/getFQDNOrHostName.h>
 
@@ -37,7 +37,8 @@ public:
 
     void handleRequest(
         DB::HTTPServerRequest& /*request*/,
-        DB::HTTPServerResponse& response) override
+        DB::HTTPServerResponse& response,
+        const ProfileEvents::Event& /*write_event*/) override
     {
         try {
             response.set("X-ClickHouse-Server-Display-Name", Server_.config().getString("display_name", getFQDNOrHostName()));
@@ -104,13 +105,16 @@ public:
         SetupHostContext(Host_, context, QueryId_, TraceContext_, DataLensRequestId_, YqlOperationId_, nullptr, std::move(httpHeaders));
     }
 
-    void handleRequest(DB::HTTPServerRequest& request, DB::HTTPServerResponse& response) override
+    void handleRequest(
+        DB::HTTPServerRequest& request,
+        DB::HTTPServerResponse& response,
+        const ProfileEvents::Event& writeEvent) override
     {
         const auto& Logger = ClickHouseYtLogger;
 
         response.set("X-Yt-Trace-Id", ToString(TraceContext_->GetTraceId()));
 
-        auto replyError = [&] (Poco::Net::HTTPResponse::HTTPStatus statusCode, const TError& error) {
+        auto replyError = [&] (DBPoco::Net::HTTPResponse::HTTPStatus statusCode, const TError& error) {
             YT_LOG_INFO(error, "Replying with error");
             // Without this header proxy thinks that the response is not from clickhouse instance.
             response.set("X-ClickHouse-Server-Display-Name", Server_.config().getString("display_name", getFQDNOrHostName()));
@@ -154,7 +158,7 @@ public:
             Host_->HasUserDefinedSqlObjectStorage());
         YT_LOG_DEBUG("User registered");
 
-        DB::HTTPHandler::handleRequest(request, response);
+        DB::HTTPHandler::handleRequest(request, response, writeEvent);
     }
 
 private:
@@ -249,7 +253,7 @@ public:
 
     std::unique_ptr<DB::HTTPRequestHandler> createRequestHandler(const DB::HTTPServerRequest& request) override
     {
-        Poco::URI uri(request.getURI());
+        DBPoco::URI uri(request.getURI());
 
         const auto& Logger = ClickHouseYtLogger;
         YT_LOG_INFO("HTTP request received (Method: %v, URI: %v, Address: %v, UserAgent: %v)",
@@ -263,7 +267,10 @@ public:
             request.getMethod() == DB::HTTPServerRequest::HTTP_GET)
         {
             if (uri == "/" || uri == "/ping") {
-                return std::make_unique<DB::StaticRequestHandler>(Server_, "Ok.\n");
+                return std::make_unique<DB::StaticRequestHandler>(
+                    Server_,
+                    "Ok.\n",
+                    std::unordered_map<DB::String, DB::String>{});
             }
         }
 

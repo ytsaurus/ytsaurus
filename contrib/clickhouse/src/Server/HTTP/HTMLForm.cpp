@@ -5,14 +5,14 @@
 #include <IO/ReadBufferFromString.h>
 #include <Server/HTTP/ReadHeaders.h>
 
-#include <Poco/CountingStream.h>
-#include <Poco/Net/MultipartReader.h>
-#include <Poco/Net/MultipartWriter.h>
-#include <Poco/Net/NetException.h>
-#include <Poco/Net/NullPartHandler.h>
-#include <Poco/NullStream.h>
-#include <Poco/StreamCopier.h>
-#include <Poco/UTF8String.h>
+#include <DBPoco/CountingStream.h>
+#include <DBPoco/Net/MultipartReader.h>
+#include <DBPoco/Net/MultipartWriter.h>
+#include <DBPoco/Net/NetException.h>
+#include <DBPoco/Net/NullPartHandler.h>
+#include <DBPoco/NullStream.h>
+#include <DBPoco/StreamCopier.h>
+#include <DBPoco/UTF8String.h>
 
 #include <sstream>
 
@@ -31,7 +31,7 @@ namespace
 class NullPartHandler : public HTMLForm::PartHandler
 {
 public:
-    void handlePart(const Poco::Net::MessageHeader &, ReadBuffer &) override {}
+    void handlePart(const DBPoco::Net::MessageHeader &, ReadBuffer &) override {}
 };
 
 }
@@ -56,35 +56,35 @@ HTMLForm::HTMLForm(const Settings & settings, const std::string & encoding_) : H
 }
 
 
-HTMLForm::HTMLForm(const Settings & settings, const Poco::Net::HTTPRequest & request, ReadBuffer & requestBody, PartHandler & handler)
+HTMLForm::HTMLForm(const Settings & settings, const DBPoco::Net::HTTPRequest & request, ReadBuffer & requestBody, PartHandler & handler)
     : HTMLForm(settings)
 {
     load(request, requestBody, handler);
 }
 
 
-HTMLForm::HTMLForm(const Settings & settings, const Poco::Net::HTTPRequest & request, ReadBuffer & requestBody) : HTMLForm(settings)
+HTMLForm::HTMLForm(const Settings & settings, const DBPoco::Net::HTTPRequest & request, ReadBuffer & requestBody) : HTMLForm(settings)
 {
     load(request, requestBody);
 }
 
 
-HTMLForm::HTMLForm(const Settings & settings, const Poco::Net::HTTPRequest & request) : HTMLForm(settings, Poco::URI(request.getURI()))
+HTMLForm::HTMLForm(const Settings & settings, const DBPoco::Net::HTTPRequest & request) : HTMLForm(settings, DBPoco::URI(request.getURI()))
 {
 }
 
-HTMLForm::HTMLForm(const Settings & settings, const Poco::URI & uri) : HTMLForm(settings)
+HTMLForm::HTMLForm(const Settings & settings, const DBPoco::URI & uri) : HTMLForm(settings)
 {
     ReadBufferFromString istr(uri.getRawQuery());  // STYLE_CHECK_ALLOW_STD_STRING_STREAM
     readQuery(istr);
 }
 
 
-void HTMLForm::load(const Poco::Net::HTTPRequest & request, ReadBuffer & requestBody, PartHandler & handler)
+void HTMLForm::load(const DBPoco::Net::HTTPRequest & request, ReadBuffer & requestBody, PartHandler & handler)
 {
     clear();
 
-    Poco::URI uri(request.getURI());
+    DBPoco::URI uri(request.getURI());
     const std::string & query = uri.getRawQuery();
     if (!query.empty())
     {
@@ -92,11 +92,11 @@ void HTMLForm::load(const Poco::Net::HTTPRequest & request, ReadBuffer & request
         readQuery(istr);
     }
 
-    if (request.getMethod() == Poco::Net::HTTPRequest::HTTP_POST || request.getMethod() == Poco::Net::HTTPRequest::HTTP_PUT)
+    if (request.getMethod() == DBPoco::Net::HTTPRequest::HTTP_POST || request.getMethod() == DBPoco::Net::HTTPRequest::HTTP_PUT)
     {
         std::string media_type;
         NameValueCollection params;
-        Poco::Net::MessageHeader::splitParameters(request.getContentType(), media_type, params);
+        DBPoco::Net::MessageHeader::splitParameters(request.getContentType(), media_type, params);
         encoding = media_type;
         if (encoding == ENCODING_MULTIPART)
         {
@@ -111,7 +111,7 @@ void HTMLForm::load(const Poco::Net::HTTPRequest & request, ReadBuffer & request
 }
 
 
-void HTMLForm::load(const Poco::Net::HTTPRequest & request, ReadBuffer & requestBody)
+void HTMLForm::load(const DBPoco::Net::HTTPRequest & request, ReadBuffer & requestBody)
 {
     NullPartHandler nah;
     load(request, requestBody, nah);
@@ -121,6 +121,17 @@ void HTMLForm::load(const Poco::Net::HTTPRequest & request, ReadBuffer & request
 void HTMLForm::read(ReadBuffer & in)
 {
     readQuery(in);
+}
+
+std::vector<std::string> HTMLForm::getAll(const std::string& name) const
+{
+    std::vector<std::string> values;
+    for (ConstIterator it = find(name); it != end(); it++) {
+        if (it->first == name) {
+            values.push_back(it->second);
+        }
+    }
+    return values;
 }
 
 
@@ -133,7 +144,7 @@ void HTMLForm::readQuery(ReadBuffer & in)
     while (true)
     {
         if (max_fields_number > 0 && fields == max_fields_number)
-            throw Poco::Net::HTMLFormException("Too many form fields");
+            throw DBPoco::Net::HTMLFormException("Too many form fields");
 
         std::string name;
         std::string value;
@@ -145,7 +156,7 @@ void HTMLForm::readQuery(ReadBuffer & in)
             if (name.size() < max_field_name_size)
                 name += ch;
             else
-                throw Poco::Net::HTMLFormException("Field name too long");
+                throw DBPoco::Net::HTMLFormException("Field name too long");
         }
 
         if (ch == '=')
@@ -157,18 +168,18 @@ void HTMLForm::readQuery(ReadBuffer & in)
                 if (value.size() < max_field_value_size)
                     value += ch;
                 else
-                    throw Poco::Net::HTMLFormException("Field value too long");
+                    throw DBPoco::Net::HTMLFormException("Field value too long");
             }
         }
 
         // Remove UTF-8 BOM from first name, if present
         if (is_first)
-            Poco::UTF8::removeBOM(name);
+            DBPoco::UTF8::removeBOM(name);
 
         std::string decoded_name;
         std::string decoded_value;
-        Poco::URI::decode(name, decoded_name);
-        Poco::URI::decode(value, decoded_value);
+        DBPoco::URI::decode(name, decoded_name);
+        DBPoco::URI::decode(value, decoded_value);
         add(decoded_name, decoded_value);
         ++fields;
 
@@ -189,15 +200,15 @@ void HTMLForm::readMultipart(ReadBuffer & in_, PartHandler & handler)
     MultipartReadBuffer in(in_, boundary);
 
     if (!in.skipToNextBoundary())
-        throw Poco::Net::HTMLFormException("No boundary line found");
+        throw DBPoco::Net::HTMLFormException("No boundary line found");
 
     /// Read each part until next boundary (or last boundary)
     while (!in.eof())
     {
         if (max_fields_number && fields > max_fields_number)
-            throw Poco::Net::HTMLFormException("Too many form fields");
+            throw DBPoco::Net::HTMLFormException("Too many form fields");
 
-        Poco::Net::MessageHeader header;
+        DBPoco::Net::MessageHeader header;
         readHeaders(header, in, max_fields_number, max_field_name_size, max_field_value_size);
         skipToNextLineOrEOF(in);
 
@@ -205,7 +216,7 @@ void HTMLForm::readMultipart(ReadBuffer & in_, PartHandler & handler)
         if (header.has("Content-Disposition"))
         {
             std::string unused;
-            Poco::Net::MessageHeader::splitParameters(header.get("Content-Disposition"), unused, params);
+            DBPoco::Net::MessageHeader::splitParameters(header.get("Content-Disposition"), unused, params);
         }
 
         if (params.has("filename"))
@@ -219,7 +230,7 @@ void HTMLForm::readMultipart(ReadBuffer & in_, PartHandler & handler)
             while (in.read(ch))
             {
                 if (value.size() > max_field_value_size)
-                    throw Poco::Net::HTMLFormException("Field value too long");
+                    throw DBPoco::Net::HTMLFormException("Field value too long");
                 value += ch;
             }
 

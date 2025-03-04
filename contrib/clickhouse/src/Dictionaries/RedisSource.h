@@ -4,8 +4,8 @@
 
 #include <Core/ExternalResultDescription.h>
 #include <Processors/ISource.h>
-#include <Poco/Redis/Array.h>
-#include <Poco/Redis/Type.h>
+#include <DBPoco/Redis/Array.h>
+#include <DBPoco/Redis/Type.h>
 #include <Storages/RedisCommon.h>
 
 
@@ -29,7 +29,7 @@ namespace DB
         Chunk generate() override;
 
         RedisConnectionPtr connection;
-        Poco::Redis::Array keys;
+        DBPoco::Redis::Array keys;
         RedisStorageType storage_type;
         const size_t max_block_size;
         ExternalResultDescription description;

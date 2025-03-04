@@ -35,15 +35,15 @@ public:
         , Server_(server)
     { }
 
-    Poco::Net::TCPServerConnection* createConnection(
-        const Poco::Net::StreamSocket& socket,
+    DBPoco::Net::TCPServerConnection* createConnection(
+        const DBPoco::Net::StreamSocket& socket,
         DB::TCPServer& tcpServer) override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-Poco::Net::TCPServerConnection* TTcpHandlerFactory::createConnection(
-    const Poco::Net::StreamSocket& socket,
+DBPoco::Net::TCPServerConnection* TTcpHandlerFactory::createConnection(
+    const DBPoco::Net::StreamSocket& socket,
     DB::TCPServer& tcpServer)
 {
     class TTcpHandler
@@ -54,13 +54,14 @@ Poco::Net::TCPServerConnection* TTcpHandlerFactory::createConnection(
             THost* host,
             DB::IServer& server,
             DB::TCPServer& tcpServer,
-            const Poco::Net::StreamSocket& socket)
+            const DBPoco::Net::StreamSocket& socket)
             : DB::TCPHandler(
                 server,
                 tcpServer,
                 socket,
                 false /*parse_proxy_protocol*/,
-                "" /*server_display_name*/)
+                "" /*server_display_name*/,
+                "" /*host_name_*/)
             , Host_(host)
         { }
 

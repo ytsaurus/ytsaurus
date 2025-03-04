@@ -1,25 +1,25 @@
 #pragma once
 #include <string>
 
-namespace Poco
+namespace DBPoco
 {
 class Message;
 }
 
 namespace DB
 {
-/// Poco::Message with more ClickHouse-specific info
-/// NOTE: Poco::Message is not polymorphic class, so we can't use inheritance in couple with dynamic_cast<>()
+/// DBPoco::Message with more ClickHouse-specific info
+/// NOTE: DBPoco::Message is not polymorphic class, so we can't use inheritance in couple with dynamic_cast<>()
 class ExtendedLogMessage
 {
 public:
-    explicit ExtendedLogMessage(const Poco::Message & base_) : base(base_) {}
+    explicit ExtendedLogMessage(const DBPoco::Message & base_) : base(base_) {}
 
     /// Attach additional data to the message
-    static ExtendedLogMessage getFrom(const Poco::Message & base);
+    static ExtendedLogMessage getFrom(const DBPoco::Message & base);
 
     // Do not copy for efficiency reasons
-    const Poco::Message & base;
+    const DBPoco::Message & base;
 
     uint32_t time_seconds = 0;
     uint32_t time_microseconds = 0;
@@ -30,7 +30,7 @@ public:
 };
 
 
-/// Interface extension of Poco::Channel
+/// Interface extension of DBPoco::Channel
 class ExtendedLogChannel
 {
 public:

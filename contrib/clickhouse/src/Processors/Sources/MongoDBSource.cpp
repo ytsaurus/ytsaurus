@@ -4,12 +4,13 @@
 #include <string>
 #include <vector>
 
-#include <Poco/MongoDB/Array.h>
-#include <Poco/MongoDB/Database.h>
-#include <Poco/MongoDB/Connection.h>
-#include <Poco/MongoDB/Cursor.h>
-#error #include <Poco/MongoDB/OpMsgCursor.h>
-#include <Poco/MongoDB/ObjectId.h>
+#error #include <DBPoco/MongoDB/Array.h>
+#error #include <DBPoco/MongoDB/Binary.h>
+#error #include <DBPoco/MongoDB/Database.h>
+#error #include <DBPoco/MongoDB/Connection.h>
+#error #include <DBPoco/MongoDB/Cursor.h>
+#error #include <DBPoco/MongoDB/OpMsgCursor.h>
+#error #include <DBPoco/MongoDB/ObjectId.h>
 
 #include <Columns/ColumnArray.h>
 #include <Columns/ColumnNullable.h>
@@ -18,8 +19,9 @@
 #include <IO/ReadHelpers.h>
 #include <Common/assert_cast.h>
 #include <Common/quoteString.h>
+#include "base/types.h"
 #include <base/range.h>
-#include <Poco/URI.h>
+#include <DBPoco/URI.h>
 
 #include <DataTypes/DataTypeArray.h>
 #include <DataTypes/DataTypeNullable.h>
@@ -44,27 +46,47 @@ namespace ErrorCodes
 namespace
 {
     using ValueType = ExternalResultDescription::ValueType;
-    using ObjectId = Poco::MongoDB::ObjectId;
-    using MongoArray = Poco::MongoDB::Array;
+    using ObjectId = DBPoco::MongoDB::ObjectId;
+    using MongoArray = DBPoco::MongoDB::Array;
+    using MongoUUID = DBPoco::MongoDB::Binary::Ptr;
 
+
+    UUID parsePocoUUID(const DBPoco::UUID & src)
+    {
+        UUID uuid;
+
+        std::array<DBPoco::UInt8, 6> src_node = src.getNode();
+        UInt64 node = 0;
+        node |= UInt64(src_node[0]) << 40;
+        node |= UInt64(src_node[1]) << 32;
+        node |= UInt64(src_node[2]) << 24;
+        node |= UInt64(src_node[3]) << 16;
+        node |= UInt64(src_node[4]) << 8;
+        node |= src_node[5];
+
+        UUIDHelpers::getHighBytes(uuid) = UInt64(src.getTimeLow()) << 32 | UInt32(src.getTimeMid() << 16 | src.getTimeHiAndVersion());
+        UUIDHelpers::getLowBytes(uuid) = UInt64(src.getClockSeq()) << 48 | node;
+
+        return uuid;
+    }
 
     template <typename T>
-    Field getNumber(const Poco::MongoDB::Element & value, const std::string & name)
+    Field getNumber(const DBPoco::MongoDB::Element & value, const std::string & name)
     {
         switch (value.type())
         {
-            case Poco::MongoDB::ElementTraits<Int32>::TypeId:
-                return static_cast<T>(static_cast<const Poco::MongoDB::ConcreteElement<Int32> &>(value).value());
-            case Poco::MongoDB::ElementTraits<Poco::Int64>::TypeId:
-                return static_cast<T>(static_cast<const Poco::MongoDB::ConcreteElement<Poco::Int64> &>(value).value());
-            case Poco::MongoDB::ElementTraits<Float64>::TypeId:
-                return static_cast<T>(static_cast<const Poco::MongoDB::ConcreteElement<Float64> &>(value).value());
-            case Poco::MongoDB::ElementTraits<bool>::TypeId:
-                return static_cast<T>(static_cast<const Poco::MongoDB::ConcreteElement<bool> &>(value).value());
-            case Poco::MongoDB::ElementTraits<Poco::MongoDB::NullValue>::TypeId:
+            case DBPoco::MongoDB::ElementTraits<Int32>::TypeId:
+                return static_cast<T>(static_cast<const DBPoco::MongoDB::ConcreteElement<Int32> &>(value).value());
+            case DBPoco::MongoDB::ElementTraits<DBPoco::Int64>::TypeId:
+                return static_cast<T>(static_cast<const DBPoco::MongoDB::ConcreteElement<DBPoco::Int64> &>(value).value());
+            case DBPoco::MongoDB::ElementTraits<Float64>::TypeId:
+                return static_cast<T>(static_cast<const DBPoco::MongoDB::ConcreteElement<Float64> &>(value).value());
+            case DBPoco::MongoDB::ElementTraits<bool>::TypeId:
+                return static_cast<T>(static_cast<const DBPoco::MongoDB::ConcreteElement<bool> &>(value).value());
+            case DBPoco::MongoDB::ElementTraits<DBPoco::MongoDB::NullValue>::TypeId:
                 return Field();
-            case Poco::MongoDB::ElementTraits<String>::TypeId:
-                return parse<T>(static_cast<const Poco::MongoDB::ConcreteElement<String> &>(value).value());
+            case DBPoco::MongoDB::ElementTraits<String>::TypeId:
+                return parse<T>(static_cast<const DBPoco::MongoDB::ConcreteElement<String> &>(value).value());
             default:
                 throw Exception(ErrorCodes::TYPE_MISMATCH, "Type mismatch, expected a number, got type id = {} for column {}",
                     toString(value.type()), name);
@@ -89,39 +111,39 @@ namespace
             nested = assert_cast<const DataTypeNullable *>(nested.get())->getNestedType();
 
         WhichDataType which(nested);
-        std::function<Field(const Poco::MongoDB::Element & value, const std::string & name)> parser;
+        std::function<Field(const DBPoco::MongoDB::Element & value, const std::string & name)> parser;
 
         if (which.isUInt8())
-            parser = [](const Poco::MongoDB::Element & value, const std::string & name) -> Field { return getNumber<UInt8>(value, name); };
+            parser = [](const DBPoco::MongoDB::Element & value, const std::string & name) -> Field { return getNumber<UInt8>(value, name); };
         else if (which.isUInt16())
-            parser = [](const Poco::MongoDB::Element & value, const std::string & name) -> Field { return getNumber<UInt16>(value, name); };
+            parser = [](const DBPoco::MongoDB::Element & value, const std::string & name) -> Field { return getNumber<UInt16>(value, name); };
         else if (which.isUInt32())
-            parser = [](const Poco::MongoDB::Element & value, const std::string & name) -> Field { return getNumber<UInt32>(value, name); };
+            parser = [](const DBPoco::MongoDB::Element & value, const std::string & name) -> Field { return getNumber<UInt32>(value, name); };
         else if (which.isUInt64())
-            parser = [](const Poco::MongoDB::Element & value, const std::string & name) -> Field { return getNumber<UInt64>(value, name); };
+            parser = [](const DBPoco::MongoDB::Element & value, const std::string & name) -> Field { return getNumber<UInt64>(value, name); };
         else if (which.isInt8())
-            parser = [](const Poco::MongoDB::Element & value, const std::string & name) -> Field { return getNumber<Int8>(value, name); };
+            parser = [](const DBPoco::MongoDB::Element & value, const std::string & name) -> Field { return getNumber<Int8>(value, name); };
         else if (which.isInt16())
-            parser = [](const Poco::MongoDB::Element & value, const std::string & name) -> Field { return getNumber<Int16>(value, name); };
+            parser = [](const DBPoco::MongoDB::Element & value, const std::string & name) -> Field { return getNumber<Int16>(value, name); };
         else if (which.isInt32())
-            parser = [](const Poco::MongoDB::Element & value, const std::string & name) -> Field { return getNumber<Int32>(value, name); };
+            parser = [](const DBPoco::MongoDB::Element & value, const std::string & name) -> Field { return getNumber<Int32>(value, name); };
         else if (which.isInt64())
-            parser = [](const Poco::MongoDB::Element & value, const std::string & name) -> Field { return getNumber<Int64>(value, name); };
+            parser = [](const DBPoco::MongoDB::Element & value, const std::string & name) -> Field { return getNumber<Int64>(value, name); };
         else if (which.isFloat32())
-            parser = [](const Poco::MongoDB::Element & value, const std::string & name) -> Field { return getNumber<Float32>(value, name); };
+            parser = [](const DBPoco::MongoDB::Element & value, const std::string & name) -> Field { return getNumber<Float32>(value, name); };
         else if (which.isFloat64())
-            parser = [](const Poco::MongoDB::Element & value, const std::string & name) -> Field { return getNumber<Float64>(value, name); };
+            parser = [](const DBPoco::MongoDB::Element & value, const std::string & name) -> Field { return getNumber<Float64>(value, name); };
         else if (which.isString() || which.isFixedString())
-            parser = [](const Poco::MongoDB::Element & value, const std::string & name) -> Field
+            parser = [](const DBPoco::MongoDB::Element & value, const std::string & name) -> Field
             {
-                if (value.type() == Poco::MongoDB::ElementTraits<ObjectId::Ptr>::TypeId)
+                if (value.type() == DBPoco::MongoDB::ElementTraits<ObjectId::Ptr>::TypeId)
                 {
                     String string_id = value.toString();
                     return Field(string_id.data(), string_id.size());
                 }
-                else if (value.type() == Poco::MongoDB::ElementTraits<String>::TypeId)
+                else if (value.type() == DBPoco::MongoDB::ElementTraits<String>::TypeId)
                 {
-                    String string = static_cast<const Poco::MongoDB::ConcreteElement<String> &>(value).value();
+                    String string = static_cast<const DBPoco::MongoDB::ConcreteElement<String> &>(value).value();
                     return Field(string.data(), string.size());
                 }
 
@@ -129,33 +151,41 @@ namespace
                                 toString(value.type()), name);
             };
         else if (which.isDate())
-            parser = [](const Poco::MongoDB::Element & value, const std::string & name) -> Field
+            parser = [](const DBPoco::MongoDB::Element & value, const std::string & name) -> Field
             {
-                if (value.type() != Poco::MongoDB::ElementTraits<Poco::Timestamp>::TypeId)
+                if (value.type() != DBPoco::MongoDB::ElementTraits<DBPoco::Timestamp>::TypeId)
                     throw Exception(ErrorCodes::TYPE_MISMATCH, "Type mismatch, expected Timestamp, got type id = {} for column {}",
                                     toString(value.type()), name);
 
                 return static_cast<UInt16>(DateLUT::instance().toDayNum(
-                    static_cast<const Poco::MongoDB::ConcreteElement<Poco::Timestamp> &>(value).value().epochTime()));
+                    static_cast<const DBPoco::MongoDB::ConcreteElement<DBPoco::Timestamp> &>(value).value().epochTime()));
             };
         else if (which.isDateTime())
-            parser = [](const Poco::MongoDB::Element & value, const std::string & name) -> Field
+            parser = [](const DBPoco::MongoDB::Element & value, const std::string & name) -> Field
             {
-                if (value.type() != Poco::MongoDB::ElementTraits<Poco::Timestamp>::TypeId)
+                if (value.type() != DBPoco::MongoDB::ElementTraits<DBPoco::Timestamp>::TypeId)
                     throw Exception(ErrorCodes::TYPE_MISMATCH, "Type mismatch, expected Timestamp, got type id = {} for column {}",
                                     toString(value.type()), name);
 
-                return static_cast<UInt32>(static_cast<const Poco::MongoDB::ConcreteElement<Poco::Timestamp> &>(value).value().epochTime());
+                return static_cast<UInt32>(static_cast<const DBPoco::MongoDB::ConcreteElement<DBPoco::Timestamp> &>(value).value().epochTime());
             };
         else if (which.isUUID())
-            parser = [](const Poco::MongoDB::Element & value, const std::string & name) -> Field
+            parser = [](const DBPoco::MongoDB::Element & value, const std::string & name) -> Field
             {
-                if (value.type() != Poco::MongoDB::ElementTraits<String>::TypeId)
-                    throw Exception(ErrorCodes::TYPE_MISMATCH, "Type mismatch, expected String (UUID), got type id = {} for column {}",
+                if (value.type() == DBPoco::MongoDB::ElementTraits<String>::TypeId)
+                {
+                    String string = static_cast<const DBPoco::MongoDB::ConcreteElement<String> &>(value).value();
+                    return parse<UUID>(string);
+                }
+                else if (value.type() == DBPoco::MongoDB::ElementTraits<MongoUUID>::TypeId)
+                {
+                    const DBPoco::UUID & poco_uuid = static_cast<const DBPoco::MongoDB::ConcreteElement<MongoUUID> &>(value).value()->uuid();
+                    return parsePocoUUID(poco_uuid);
+                }
+                else
+                    throw Exception(ErrorCodes::TYPE_MISMATCH, "Type mismatch, expected String/UUID, got type id = {} for column {}",
                                         toString(value.type()), name);
 
-                String string = static_cast<const Poco::MongoDB::ConcreteElement<String> &>(value).value();
-                return parse<UUID>(string);
             };
         else
             throw Exception(ErrorCodes::BAD_ARGUMENTS, "Type conversion to {} is not supported", nested->getName());
@@ -164,32 +194,32 @@ namespace
     }
 
     template <typename T>
-    void insertNumber(IColumn & column, const Poco::MongoDB::Element & value, const std::string & name)
+    void insertNumber(IColumn & column, const DBPoco::MongoDB::Element & value, const std::string & name)
     {
         switch (value.type())
         {
-            case Poco::MongoDB::ElementTraits<Int32>::TypeId:
+            case DBPoco::MongoDB::ElementTraits<Int32>::TypeId:
                 assert_cast<ColumnVector<T> &>(column).getData().push_back(
-                    static_cast<const Poco::MongoDB::ConcreteElement<Int32> &>(value).value());
+                    static_cast<const DBPoco::MongoDB::ConcreteElement<Int32> &>(value).value());
                 break;
-            case Poco::MongoDB::ElementTraits<Poco::Int64>::TypeId:
+            case DBPoco::MongoDB::ElementTraits<DBPoco::Int64>::TypeId:
                 assert_cast<ColumnVector<T> &>(column).getData().push_back(
-                    static_cast<T>(static_cast<const Poco::MongoDB::ConcreteElement<Poco::Int64> &>(value).value()));
+                    static_cast<T>(static_cast<const DBPoco::MongoDB::ConcreteElement<DBPoco::Int64> &>(value).value()));
                 break;
-            case Poco::MongoDB::ElementTraits<Float64>::TypeId:
+            case DBPoco::MongoDB::ElementTraits<Float64>::TypeId:
                 assert_cast<ColumnVector<T> &>(column).getData().push_back(static_cast<T>(
-                    static_cast<const Poco::MongoDB::ConcreteElement<Float64> &>(value).value()));
+                    static_cast<const DBPoco::MongoDB::ConcreteElement<Float64> &>(value).value()));
                 break;
-            case Poco::MongoDB::ElementTraits<bool>::TypeId:
+            case DBPoco::MongoDB::ElementTraits<bool>::TypeId:
                 assert_cast<ColumnVector<T> &>(column).getData().push_back(
-                    static_cast<const Poco::MongoDB::ConcreteElement<bool> &>(value).value());
+                    static_cast<const DBPoco::MongoDB::ConcreteElement<bool> &>(value).value());
                 break;
-            case Poco::MongoDB::ElementTraits<Poco::MongoDB::NullValue>::TypeId:
+            case DBPoco::MongoDB::ElementTraits<DBPoco::MongoDB::NullValue>::TypeId:
                 assert_cast<ColumnVector<T> &>(column).getData().emplace_back();
                 break;
-            case Poco::MongoDB::ElementTraits<String>::TypeId:
+            case DBPoco::MongoDB::ElementTraits<String>::TypeId:
                 assert_cast<ColumnVector<T> &>(column).getData().push_back(
-                    parse<T>(static_cast<const Poco::MongoDB::ConcreteElement<String> &>(value).value()));
+                    parse<T>(static_cast<const DBPoco::MongoDB::ConcreteElement<String> &>(value).value()));
                 break;
             default:
                 throw Exception(ErrorCodes::TYPE_MISMATCH, "Type mismatch, expected a number, got type id = {} for column {}",
@@ -200,7 +230,7 @@ namespace
     void insertValue(
         IColumn & column,
         const ValueType type,
-        const Poco::MongoDB::Element & value,
+        const DBPoco::MongoDB::Element & value,
         const std::string & name,
         std::unordered_map<size_t, MongoDBArrayInfo> & array_info,
         size_t idx)
@@ -242,15 +272,15 @@ namespace
             case ValueType::vtEnum16:
             case ValueType::vtString:
             {
-                if (value.type() == Poco::MongoDB::ElementTraits<ObjectId::Ptr>::TypeId)
+                if (value.type() == DBPoco::MongoDB::ElementTraits<ObjectId::Ptr>::TypeId)
                 {
                     std::string string_id = value.toString();
                     assert_cast<ColumnString &>(column).insertData(string_id.data(), string_id.size());
                     break;
                 }
-                else if (value.type() == Poco::MongoDB::ElementTraits<String>::TypeId)
+                else if (value.type() == DBPoco::MongoDB::ElementTraits<String>::TypeId)
                 {
-                    String string = static_cast<const Poco::MongoDB::ConcreteElement<String> &>(value).value();
+                    String string = static_cast<const DBPoco::MongoDB::ConcreteElement<String> &>(value).value();
                     assert_cast<ColumnString &>(column).insertData(string.data(), string.size());
                     break;
                 }
@@ -261,40 +291,46 @@ namespace
 
             case ValueType::vtDate:
             {
-                if (value.type() != Poco::MongoDB::ElementTraits<Poco::Timestamp>::TypeId)
+                if (value.type() != DBPoco::MongoDB::ElementTraits<DBPoco::Timestamp>::TypeId)
                     throw Exception(ErrorCodes::TYPE_MISMATCH, "Type mismatch, expected Timestamp, got type id = {} for column {}",
                                     toString(value.type()), name);
 
                 assert_cast<ColumnUInt16 &>(column).getData().push_back(static_cast<UInt16>(DateLUT::instance().toDayNum(
-                    static_cast<const Poco::MongoDB::ConcreteElement<Poco::Timestamp> &>(value).value().epochTime())));
+                    static_cast<const DBPoco::MongoDB::ConcreteElement<DBPoco::Timestamp> &>(value).value().epochTime())));
                 break;
             }
 
             case ValueType::vtDateTime:
             {
-                if (value.type() != Poco::MongoDB::ElementTraits<Poco::Timestamp>::TypeId)
+                if (value.type() != DBPoco::MongoDB::ElementTraits<DBPoco::Timestamp>::TypeId)
                     throw Exception(ErrorCodes::TYPE_MISMATCH, "Type mismatch, expected Timestamp, got type id = {} for column {}",
                                     toString(value.type()), name);
 
                 assert_cast<ColumnUInt32 &>(column).getData().push_back(
-                    static_cast<UInt32>(static_cast<const Poco::MongoDB::ConcreteElement<Poco::Timestamp> &>(value).value().epochTime()));
+                    static_cast<UInt32>(static_cast<const DBPoco::MongoDB::ConcreteElement<DBPoco::Timestamp> &>(value).value().epochTime()));
                 break;
             }
             case ValueType::vtUUID:
             {
-                if (value.type() == Poco::MongoDB::ElementTraits<String>::TypeId)
+                if (value.type() == DBPoco::MongoDB::ElementTraits<String>::TypeId)
                 {
-                    String string = static_cast<const Poco::MongoDB::ConcreteElement<String> &>(value).value();
+                    String string = static_cast<const DBPoco::MongoDB::ConcreteElement<String> &>(value).value();
                     assert_cast<ColumnUUID &>(column).getData().push_back(parse<UUID>(string));
                 }
+                else if (value.type() == DBPoco::MongoDB::ElementTraits<MongoUUID>::TypeId)
+                {
+                    const DBPoco::UUID & poco_uuid = static_cast<const DBPoco::MongoDB::ConcreteElement<MongoUUID> &>(value).value()->uuid();
+                    UUID uuid = parsePocoUUID(poco_uuid);
+                    assert_cast<ColumnUUID &>(column).getData().push_back(uuid);
+                }
                 else
-                    throw Exception(ErrorCodes::TYPE_MISMATCH, "Type mismatch, expected String (UUID), got type id = {} for column {}",
+                    throw Exception(ErrorCodes::TYPE_MISMATCH, "Type mismatch, expected String/UUID, got type id = {} for column {}",
                                         toString(value.type()), name);
                 break;
             }
             case ValueType::vtArray:
             {
-                if (value.type() != Poco::MongoDB::ElementTraits<MongoArray::Ptr>::TypeId)
+                if (value.type() != DBPoco::MongoDB::ElementTraits<MongoArray::Ptr>::TypeId)
                     throw Exception(ErrorCodes::TYPE_MISMATCH, "Type mismatch, expected Array, got type id = {} for column {}",
                                     toString(value.type()), name);
 
@@ -302,9 +338,9 @@ namespace
                 const auto parse_value = array_info[idx].parser;
                 std::vector<Row> dimensions(expected_dimensions + 1);
 
-                auto array = static_cast<const Poco::MongoDB::ConcreteElement<MongoArray::Ptr> &>(value).value();
+                auto array = static_cast<const DBPoco::MongoDB::ConcreteElement<MongoArray::Ptr> &>(value).value();
 
-                std::vector<std::pair<const Poco::MongoDB::Element *, size_t>> arrays;
+                std::vector<std::pair<const DBPoco::MongoDB::Element *, size_t>> arrays;
                 arrays.emplace_back(&value, 0);
 
                 while (!arrays.empty())
@@ -315,7 +351,7 @@ namespace
                         throw Exception(ErrorCodes::BAD_ARGUMENTS, "Got more dimensions than expected");
 
                     auto [parent_ptr, child_idx] = arrays.back();
-                    auto parent = static_cast<const Poco::MongoDB::ConcreteElement<MongoArray::Ptr> &>(*parent_ptr).value();
+                    auto parent = static_cast<const DBPoco::MongoDB::ConcreteElement<MongoArray::Ptr> &>(*parent_ptr).value();
 
                     if (child_idx >= parent->size())
                     {
@@ -330,14 +366,14 @@ namespace
                         continue;
                     }
 
-                    Poco::MongoDB::Element::Ptr child = parent->get(static_cast<int>(child_idx));
+                    DBPoco::MongoDB::Element::Ptr child = parent->get(static_cast<int>(child_idx));
                     arrays.back().second += 1;
 
-                    if (child->type() == Poco::MongoDB::ElementTraits<MongoArray::Ptr>::TypeId)
+                    if (child->type() == DBPoco::MongoDB::ElementTraits<MongoArray::Ptr>::TypeId)
                     {
                         arrays.emplace_back(child.get(), 0);
                     }
-                    else if (child->type() == Poco::MongoDB::ElementTraits<Poco::MongoDB::NullValue>::TypeId)
+                    else if (child->type() == DBPoco::MongoDB::ElementTraits<DBPoco::MongoDB::NullValue>::TypeId)
                     {
                         if (dimension_idx + 1 == expected_dimensions)
                             dimensions[dimension_idx + 1].emplace_back(array_info[idx].default_value);
@@ -368,22 +404,22 @@ namespace
 }
 
 
-bool isMongoDBWireProtocolOld(Poco::MongoDB::Connection & connection_, const std::string & database_name_)
+bool isMongoDBWireProtocolOld(DBPoco::MongoDB::Connection & connection_, const std::string & database_name_)
 {
-    Poco::MongoDB::Database db(database_name_);
-    Poco::MongoDB::Document::Ptr doc = db.queryServerHello(connection_, false);
+    DBPoco::MongoDB::Database db(database_name_);
+    DBPoco::MongoDB::Document::Ptr doc = db.queryServerHello(connection_, false);
 
     if (doc->exists("maxWireVersion"))
     {
         auto wire_version = doc->getInteger("maxWireVersion");
-        return wire_version < Poco::MongoDB::Database::WireVersion::VER_36;
+        return wire_version < DBPoco::MongoDB::Database::WireVersion::VER_36;
     }
 
     doc = db.queryServerHello(connection_, true);
     if (doc->exists("maxWireVersion"))
     {
         auto wire_version = doc->getInteger("maxWireVersion");
-        return wire_version < Poco::MongoDB::Database::WireVersion::VER_36;
+        return wire_version < DBPoco::MongoDB::Database::WireVersion::VER_36;
     }
 
     return true;
@@ -394,11 +430,11 @@ MongoDBCursor::MongoDBCursor(
     const std::string & database,
     const std::string & collection,
     const Block & sample_block_to_select,
-    const Poco::MongoDB::Document & query,
-    Poco::MongoDB::Connection & connection)
+    const DBPoco::MongoDB::Document & query,
+    DBPoco::MongoDB::Connection & connection)
     : is_wire_protocol_old(isMongoDBWireProtocolOld(connection, database))
 {
-    Poco::MongoDB::Document projection;
+    DBPoco::MongoDB::Document projection;
 
     /// Looks like selecting _id column is implicit by default.
     if (!sample_block_to_select.has("_id"))
@@ -409,20 +445,20 @@ MongoDBCursor::MongoDBCursor(
 
     if (is_wire_protocol_old)
     {
-        old_cursor = std::make_unique<Poco::MongoDB::Cursor>(database, collection);
+        old_cursor = std::make_unique<DBPoco::MongoDB::Cursor>(database, collection);
         old_cursor->query().selector() = query;
         old_cursor->query().returnFieldSelector() = projection;
     }
     else
     {
-        new_cursor = std::make_unique<Poco::MongoDB::OpMsgCursor>(database, collection);
-        new_cursor->query().setCommandName(Poco::MongoDB::OpMsgMessage::CMD_FIND);
+        new_cursor = std::make_unique<DBPoco::MongoDB::OpMsgCursor>(database, collection);
+        new_cursor->query().setCommandName(DBPoco::MongoDB::OpMsgMessage::CMD_FIND);
         new_cursor->query().body().addNewDocument("filter") = query;
         new_cursor->query().body().addNewDocument("projection") = projection;
     }
 }
 
-Poco::MongoDB::Document::Vector MongoDBCursor::nextDocuments(Poco::MongoDB::Connection & connection)
+DBPoco::MongoDB::Document::Vector MongoDBCursor::nextDocuments(DBPoco::MongoDB::Connection & connection)
 {
     if (is_wire_protocol_old)
     {
@@ -445,10 +481,10 @@ Int64 MongoDBCursor::cursorID() const
 
 
 MongoDBSource::MongoDBSource(
-    std::shared_ptr<Poco::MongoDB::Connection> & connection_,
+    std::shared_ptr<DBPoco::MongoDB::Connection> & connection_,
     const String & database_name_,
     const String & collection_name_,
-    const Poco::MongoDB::Document & query_,
+    const DBPoco::MongoDB::Document & query_,
     const Block & sample_block,
     UInt64 max_block_size_)
     : ISource(sample_block.cloneEmpty())
@@ -488,8 +524,8 @@ Chunk MongoDBSource::generate()
                 && document->exists("code") && document->getInteger("ok") == 0)
             {
                 auto code = document->getInteger("code");
-                const Poco::MongoDB::Element::Ptr value = document->get("$err");
-                auto message = static_cast<const Poco::MongoDB::ConcreteElement<String> &>(*value).value();
+                const DBPoco::MongoDB::Element::Ptr value = document->get("$err");
+                auto message = static_cast<const DBPoco::MongoDB::ConcreteElement<String> &>(*value).value();
                 throw Exception(ErrorCodes::MONGODB_ERROR, "Got error from MongoDB: {}, code: {}", message, code);
             }
             ++num_rows;
@@ -505,9 +541,9 @@ Chunk MongoDBSource::generate()
                     continue;
                 }
 
-                const Poco::MongoDB::Element::Ptr value = document->get(name);
+                const DBPoco::MongoDB::Element::Ptr value = document->get(name);
 
-                if (value.isNull() || value->type() == Poco::MongoDB::ElementTraits<Poco::MongoDB::NullValue>::TypeId)
+                if (value.isNull() || value->type() == DBPoco::MongoDB::ElementTraits<DBPoco::MongoDB::NullValue>::TypeId)
                 {
                     insertDefaultValue(*columns[idx], *description.sample_block.getByPosition(idx).column);
                 }

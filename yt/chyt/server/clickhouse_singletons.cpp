@@ -5,6 +5,7 @@
 #include <Formats/registerFormats.h>
 #include <Functions/registerFunctions.h>
 #include <Interpreters/SystemLog.h>
+#include <Interpreters/registerInterpreters.h>
 #include <Storages/StorageFactory.h>
 #include <TableFunctions/registerTableFunctions.h>
 
@@ -20,6 +21,7 @@ namespace NYT::NClickHouseServer {
 
 void RegisterClickHouseSingletons()
 {
+    DB::registerInterpreters();
     DB::registerFormats();
     DB::registerFunctions();
     DB::registerAggregateFunctions();

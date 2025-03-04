@@ -9,12 +9,6 @@
 namespace DB
 {
 
-
-namespace ErrorCodes
-{
-    extern const int CORRUPTED_DATA;
-}
-
 CompressionCodecMultiple::CompressionCodecMultiple(Codecs codecs_)
     : codecs(codecs_)
 {
@@ -74,7 +68,7 @@ UInt32 CompressionCodecMultiple::doCompressData(const char * source, UInt32 sour
 void CompressionCodecMultiple::doDecompressData(const char * source, UInt32 source_size, char * dest, UInt32 decompressed_size) const
 {
     if (source_size < 1 || !source[0])
-        throw Exception(ErrorCodes::CORRUPTED_DATA, "Wrong compression methods list");
+        throw Exception(decompression_error_code, "Wrong compression methods list");
 
     UInt8 compression_methods_size = source[0];
 
@@ -90,12 +84,12 @@ void CompressionCodecMultiple::doDecompressData(const char * source, UInt32 sour
         auto additional_size_at_the_end_of_buffer = codec->getAdditionalSizeAtTheEndOfBuffer();
 
         if (compressed_buf.size() >= 1_GiB)
-            throw Exception(ErrorCodes::CORRUPTED_DATA, "Too large compressed size: {}", compressed_buf.size());
+            throw Exception(decompression_error_code, "Too large compressed size: {}", compressed_buf.size());
 
         {
             UInt32 bytes_to_resize;
             if (common::addOverflow(static_cast<UInt32>(compressed_buf.size()), additional_size_at_the_end_of_buffer, bytes_to_resize))
-                throw Exception(ErrorCodes::CORRUPTED_DATA, "Too large compressed size: {}", compressed_buf.size());
+                throw Exception(decompression_error_code, "Too large compressed size: {}", compressed_buf.size());
 
             compressed_buf.resize(compressed_buf.size() + additional_size_at_the_end_of_buffer);
         }
@@ -103,16 +97,16 @@ void CompressionCodecMultiple::doDecompressData(const char * source, UInt32 sour
         UInt32 uncompressed_size = readDecompressedBlockSize(compressed_buf.data());
 
         if (uncompressed_size >= 1_GiB)
-            throw Exception(ErrorCodes::CORRUPTED_DATA, "Too large uncompressed size: {}", uncompressed_size);
+            throw Exception(decompression_error_code, "Too large uncompressed size: {}", uncompressed_size);
 
         if (idx == 0 && uncompressed_size != decompressed_size)
-            throw Exception(ErrorCodes::CORRUPTED_DATA, "Wrong final decompressed size in codec Multiple, got {}, expected {}",
+            throw Exception(decompression_error_code, "Wrong final decompressed size in codec Multiple, got {}, expected {}",
                 uncompressed_size, decompressed_size);
 
         {
             UInt32 bytes_to_resize;
             if (common::addOverflow(uncompressed_size, additional_size_at_the_end_of_buffer, bytes_to_resize))
-                throw Exception(ErrorCodes::CORRUPTED_DATA, "Too large uncompressed size: {}", uncompressed_size);
+                throw Exception(decompression_error_code, "Too large uncompressed size: {}", uncompressed_size);
 
             uncompressed_buf.resize(bytes_to_resize);
         }

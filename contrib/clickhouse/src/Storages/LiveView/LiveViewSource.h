@@ -36,7 +36,7 @@ public:
 
     String getName() const override { return "LiveViewSource"; }
 
-    void onCancel() override
+    void onCancel() noexcept override
     {
         if (storage->shutdown_called)
             return;
@@ -140,7 +140,7 @@ protected:
                     }
                     while (true)
                     {
-                        UInt64 timestamp_usec = static_cast<UInt64>(Poco::Timestamp().epochMicroseconds());
+                        UInt64 timestamp_usec = static_cast<UInt64>(DBPoco::Timestamp().epochMicroseconds());
 
                         /// Or spurious wakeup.
                         bool signaled = std::cv_status::no_timeout == storage->condition.wait_for(lock,
@@ -156,7 +156,7 @@ protected:
                         else
                         {
                             // heartbeat
-                            last_event_timestamp_usec = static_cast<UInt64>(Poco::Timestamp().epochMicroseconds());
+                            last_event_timestamp_usec = static_cast<UInt64>(DBPoco::Timestamp().epochMicroseconds());
                             return { getPort().getHeader(), true };
                         }
                     }
@@ -175,7 +175,7 @@ protected:
             num_updates += 1;
         }
 
-        last_event_timestamp_usec = static_cast<UInt64>(Poco::Timestamp().epochMicroseconds());
+        last_event_timestamp_usec = static_cast<UInt64>(DBPoco::Timestamp().epochMicroseconds());
         return { res, true };
     }
 

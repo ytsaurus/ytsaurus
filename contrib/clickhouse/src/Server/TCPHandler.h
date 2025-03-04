@@ -1,13 +1,12 @@
 #pragma once
 
 #include <optional>
-#include <Poco/Net/TCPServerConnection.h>
+#include <DBPoco/Net/TCPServerConnection.h>
 
 #include <base/getFQDNOrHostName.h>
 #include <Common/ProfileEvents.h>
 #include <Common/CurrentMetrics.h>
 #include <Common/Stopwatch.h>
-#include <Common/ThreadStatus.h>
 #include <Core/Protocol.h>
 #include <Core/QueryProcessingStage.h>
 #include <IO/Progress.h>
@@ -20,7 +19,9 @@
 #include <Formats/NativeReader.h>
 #include <Formats/NativeWriter.h>
 
+#include "Core/Types.h"
 #include "IServer.h"
+#include "Interpreters/AsynchronousInsertQueue.h"
 #include "Server/TCPProtocolStackData.h"
 #include "Storages/MergeTree/RequestResponse.h"
 #include "base/types.h"
@@ -31,7 +32,7 @@ namespace CurrentMetrics
     extern const Metric TCPConnection;
 }
 
-namespace Poco { class Logger; }
+namespace DBPoco { class Logger; }
 
 namespace DB
 {
@@ -73,6 +74,8 @@ struct QueryState
 
     /// Query text.
     String query;
+    /// Parsed query
+    ASTPtr parsed_query;
     /// Streams of blocks, that are processing the query.
     BlockIO io;
 
@@ -133,7 +136,7 @@ struct LastBlockInputParameters
     Protocol::Compression compression = Protocol::Compression::Disable;
 };
 
-class TCPHandler : public Poco::Net::TCPServerConnection
+class TCPHandler : public DBPoco::Net::TCPServerConnection
 {
 public:
     /** parse_proxy_protocol_ - if true, expect and parse the header of PROXY protocol in every connection
@@ -144,8 +147,24 @@ public:
       *  because it allows to check the IP ranges of the trusted proxy.
       * Proxy-forwarded (original client) IP address is used for quota accounting if quota is keyed by forwarded IP.
       */
-    TCPHandler(IServer & server_, TCPServer & tcp_server_, const Poco::Net::StreamSocket & socket_, bool parse_proxy_protocol_, std::string server_display_name_);
-    TCPHandler(IServer & server_, TCPServer & tcp_server_, const Poco::Net::StreamSocket & socket_, TCPProtocolStackData & stack_data, std::string server_display_name_);
+    TCPHandler(
+        IServer & server_,
+        TCPServer & tcp_server_,
+        const DBPoco::Net::StreamSocket & socket_,
+        bool parse_proxy_protocol_,
+        String server_display_name_,
+        String host_name_,
+        const ProfileEvents::Event & read_event_ = ProfileEvents::end(),
+        const ProfileEvents::Event & write_event_ = ProfileEvents::end());
+    TCPHandler(
+        IServer & server_,
+        TCPServer & tcp_server_,
+        const DBPoco::Net::StreamSocket & socket_,
+        TCPProtocolStackData & stack_data,
+        String server_display_name_,
+        String host_name_,
+        const ProfileEvents::Event & read_event_ = ProfileEvents::end(),
+        const ProfileEvents::Event & write_event_ = ProfileEvents::end());
     ~TCPHandler() override;
 
     void run() override;
@@ -157,7 +176,7 @@ private:
     IServer & server;
     TCPServer & tcp_server;
     bool parse_proxy_protocol = false;
-    Poco::Logger * log;
+    LoggerPtr log;
 
     String forwarded_for;
     String certificate;
@@ -171,14 +190,14 @@ private:
 
     /// Connection settings, which are extracted from a context.
     bool send_exception_with_stack_trace = true;
-    Poco::Timespan send_timeout = Poco::Timespan(DBMS_DEFAULT_SEND_TIMEOUT_SEC, 0);
-    Poco::Timespan receive_timeout = Poco::Timespan(DBMS_DEFAULT_RECEIVE_TIMEOUT_SEC, 0);
+    DBPoco::Timespan send_timeout = DBPoco::Timespan(DBMS_DEFAULT_SEND_TIMEOUT_SEC, 0);
+    DBPoco::Timespan receive_timeout = DBPoco::Timespan(DBMS_DEFAULT_RECEIVE_TIMEOUT_SEC, 0);
     UInt64 poll_interval = DBMS_DEFAULT_POLL_INTERVAL;
     UInt64 idle_connection_timeout = 3600;
     UInt64 interactive_delay = 100000;
-    Poco::Timespan sleep_in_send_tables_status;
+    DBPoco::Timespan sleep_in_send_tables_status;
     UInt64 unknown_packet_in_send_data = 0;
-    Poco::Timespan sleep_after_receiving_query;
+    DBPoco::Timespan sleep_after_receiving_query;
 
     std::unique_ptr<Session> session;
     ContextMutablePtr query_context;
@@ -188,12 +207,16 @@ private:
     std::shared_ptr<ReadBuffer> in;
     std::shared_ptr<WriteBuffer> out;
 
+    ProfileEvents::Event read_event;
+    ProfileEvents::Event write_event;
+
     /// Time after the last check to stop the request and send the progress.
     Stopwatch after_check_cancelled;
     Stopwatch after_send_progress;
 
     String default_database;
 
+    bool is_ssh_based_auth = false; /// authentication is via SSH pub-key challenge
     /// For inter-server secret (remote_server.*.secret)
     bool is_interserver_mode = false;
     bool is_interserver_authenticated = false;
@@ -203,8 +226,13 @@ private:
     std::optional<UInt64> nonce;
     String cluster;
 
+    /// `out_mutex` protects `out` (WriteBuffer).
+    /// So it is used for method sendData(), sendProgress(), sendLogs(), etc.
+    std::mutex out_mutex;
+    /// `task_callback_mutex` protects tasks callbacks.
+    /// Inside these callbacks we might also change cancellation status,
+    /// so it also protects cancellation status checks.
     std::mutex task_callback_mutex;
-    std::mutex fatal_error_mutex;
 
     /// At the moment, only one ongoing query in the connection is supported at a time.
     QueryState state;
@@ -218,6 +246,7 @@ private:
 
     /// It is the name of the server that will be sent to the client.
     String server_display_name;
+    String host_name;
 
     void runImpl();
 
@@ -246,12 +275,12 @@ private:
     [[noreturn]] void receiveUnexpectedTablesStatusRequest();
 
     /// Process INSERT query
+    void startInsertQuery();
     void processInsertQuery();
+    AsynchronousInsertQueue::PushResult processAsyncInsertQuery(AsynchronousInsertQueue & insert_queue);
 
     /// Process a request that does not require the receiving of data blocks from the client
     void processOrdinaryQuery();
-
-    void processOrdinaryQueryWithProcessors();
 
     void processTablesStatusRequest();
 
@@ -265,7 +294,7 @@ private:
     void sendEndOfStream();
     void sendPartUUIDs();
     void sendReadTaskRequestAssumeLocked();
-    void sendMergeTreeAllRangesAnnounecementAssumeLocked(InitialAllRangesAnnouncement announcement);
+    void sendMergeTreeAllRangesAnnouncementAssumeLocked(InitialAllRangesAnnouncement announcement);
     void sendMergeTreeReadTaskRequestAssumeLocked(ParallelReadRequest request);
     void sendProfileInfo(const ProfileInfo & info);
     void sendTotals(const Block & totals);
@@ -289,7 +318,7 @@ private:
     /// This function is called from different threads.
     void updateProgress(const Progress & value);
 
-    Poco::Net::SocketAddress getClientAddress(const ClientInfo & client_info);
+    DBPoco::Net::SocketAddress getClientAddress(const ClientInfo & client_info);
 };
 
 }

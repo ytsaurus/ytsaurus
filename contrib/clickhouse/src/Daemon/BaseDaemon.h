@@ -9,11 +9,11 @@
 #include <condition_variable>
 #include <atomic>
 #include <chrono>
-#include <Poco/Process.h>
-#include <Poco/ThreadPool.h>
-#include <Poco/Util/Application.h>
-#include <Poco/Util/ServerApplication.h>
-#include <Poco/Net/SocketAddress.h>
+#include <DBPoco/Process.h>
+#include <DBPoco/ThreadPool.h>
+#include <DBPoco/Util/Application.h>
+#include <DBPoco/Util/ServerApplication.h>
+#include <DBPoco/Net/SocketAddress.h>
 #include <base/types.h>
 #include <base/getThreadId.h>
 #include <Daemon/GraphiteWriter.h>
@@ -35,23 +35,23 @@
 ///
 /// You can configure different log options for different loggers used inside program
 ///  by providing subsections to "logger" in configuration file.
-class BaseDaemon : public Poco::Util::ServerApplication, public Loggers
+class BaseDaemon : public DBPoco::Util::ServerApplication, public Loggers
 {
     friend class SignalListener;
 
 public:
-    static inline constexpr char DEFAULT_GRAPHITE_CONFIG_NAME[] = "graphite";
+    static constexpr char DEFAULT_GRAPHITE_CONFIG_NAME[] = "graphite";
 
     BaseDaemon();
     ~BaseDaemon() override;
 
     /// Load configuration, prepare loggers, etc.
-    void initialize(Poco::Util::Application &) override;
+    void initialize(DBPoco::Util::Application &) override;
 
     void reloadConfiguration();
 
     /// Process command line parameters
-    void defineOptions(Poco::Util::OptionSet & new_options) override;
+    void defineOptions(DBPoco::Util::OptionSet & new_options) override;
 
     /// Graceful shutdown
     static void terminate();
@@ -67,7 +67,7 @@ public:
 
     static BaseDaemon & instance()
     {
-        return dynamic_cast<BaseDaemon &>(Poco::Util::Application::instance());
+        return dynamic_cast<BaseDaemon &>(DBPoco::Util::Application::instance());
     }
 
     /// return none if daemon doesn't exist, reference to the daemon otherwise
@@ -103,7 +103,7 @@ public:
 
     GraphiteWriter * getGraphiteWriter(const std::string & config_name = DEFAULT_GRAPHITE_CONFIG_NAME)
     {
-        if (graphite_writers.count(config_name))
+        if (graphite_writers.contains(config_name))
             return graphite_writers[config_name].get();
         return nullptr;
     }
@@ -151,8 +151,8 @@ protected:
     bool log_to_console = false;
 
     /// A thread that acts on HUP and USR1 signal (close logs).
-    Poco::Thread signal_listener_thread;
-    std::unique_ptr<Poco::Runnable> signal_listener;
+    DBPoco::Thread signal_listener_thread;
+    std::unique_ptr<DBPoco::Runnable> signal_listener;
 
     std::map<std::string, std::unique_ptr<GraphiteWriter>> graphite_writers;
 
@@ -162,13 +162,11 @@ protected:
 
     std::string config_path;
     DB::ConfigProcessor::LoadedConfig loaded_config;
-    Poco::Util::AbstractConfiguration * last_configuration = nullptr;
+    DBPoco::Util::AbstractConfiguration * last_configuration = nullptr;
 
     String build_id;
     String git_hash;
     String stored_binary_hash;
-
-    std::vector<int> handled_signals;
 
     bool should_setup_watchdog = false;
     char * argv0 = nullptr;
@@ -181,9 +179,9 @@ std::optional<std::reference_wrapper<Daemon>> BaseDaemon::tryGetInstance()
     Daemon * ptr = nullptr;
     try
     {
-        ptr = dynamic_cast<Daemon *>(&Poco::Util::Application::instance());
+        ptr = dynamic_cast<Daemon *>(&DBPoco::Util::Application::instance());
     }
-    catch (const Poco::NullPointerException &)
+    catch (const DBPoco::NullPointerException &) /// NOLINT(bugprone-empty-catch)
     {
         /// if daemon doesn't exist than instance() throw NullPointerException
     }

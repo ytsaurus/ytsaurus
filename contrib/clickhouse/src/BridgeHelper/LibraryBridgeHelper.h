@@ -2,9 +2,9 @@
 
 #include <Interpreters/Context.h>
 #include <IO/ReadWriteBufferFromHTTP.h>
-#include <Poco/Logger.h>
-#include <Poco/Net/HTTPRequest.h>
-#include <Poco/URI.h>
+#include <DBPoco/Logger.h>
+#include <DBPoco/Net/HTTPRequest.h>
+#include <DBPoco/URI.h>
 #include <BridgeHelper/IBridgeHelper.h>
 #include <Common/BridgeProtocolVersion.h>
 
@@ -29,23 +29,23 @@ protected:
 
     String configPrefix() const override { return "library_bridge"; }
 
-    const Poco::Util::AbstractConfiguration & getConfig() const override { return config; }
+    const DBPoco::Util::AbstractConfiguration & getConfig() const override { return config; }
 
-    Poco::Logger * getLog() const override { return log; }
+    LoggerPtr getLog() const override { return log; }
 
-    Poco::Timespan getHTTPTimeout() const override { return http_timeout; }
+    DBPoco::Timespan getHTTPTimeout() const override { return http_timeout; }
 
-    Poco::URI createBaseURI() const override;
+    DBPoco::URI createBaseURI() const override;
 
-    static constexpr inline size_t DEFAULT_PORT = 9012;
+    static constexpr size_t DEFAULT_PORT = 9012;
 
-    const Poco::Util::AbstractConfiguration & config;
-    Poco::Logger * log;
-    const Poco::Timespan http_timeout;
+    const DBPoco::Util::AbstractConfiguration & config;
+    LoggerPtr log;
+    const DBPoco::Timespan http_timeout;
     std::string bridge_host;
     size_t bridge_port;
     ConnectionTimeouts http_timeouts;
-    Poco::Net::HTTPBasicCredentials credentials{};
+    DBPoco::Net::HTTPBasicCredentials credentials{};
 };
 
 }

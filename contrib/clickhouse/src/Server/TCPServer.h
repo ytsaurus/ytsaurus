@@ -1,6 +1,6 @@
 #pragma once
 
-#include <Poco/Net/TCPServer.h>
+#include <DBPoco/Net/TCPServer.h>
 
 #include <base/types.h>
 #include <Server/TCPServerConnectionFactory.h>
@@ -10,19 +10,19 @@ namespace DB
 {
 class Context;
 
-class TCPServer : public Poco::Net::TCPServer
+class TCPServer : public DBPoco::Net::TCPServer
 {
 public:
     explicit TCPServer(
         TCPServerConnectionFactory::Ptr factory,
-        Poco::ThreadPool & thread_pool,
-        Poco::Net::ServerSocket & socket,
-        Poco::Net::TCPServerParams::Ptr params = new Poco::Net::TCPServerParams);
+        DBPoco::ThreadPool & thread_pool,
+        DBPoco::Net::ServerSocket & socket,
+        DBPoco::Net::TCPServerParams::Ptr params = new DBPoco::Net::TCPServerParams);
 
     /// Close the socket and ask existing connections to stop serving queries
     void stop()
     {
-        Poco::Net::TCPServer::stop();
+        DBPoco::Net::TCPServer::stop();
         // This notifies already established connections that they should stop serving
         // queries and close their socket as soon as they can.
         is_open = false;
@@ -39,7 +39,7 @@ public:
 
 private:
     TCPServerConnectionFactory::Ptr factory;
-    Poco::Net::ServerSocket socket;
+    DBPoco::Net::ServerSocket socket;
     std::atomic<bool> is_open;
     UInt16 port_number;
 };

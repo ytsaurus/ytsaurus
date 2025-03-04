@@ -21,6 +21,7 @@
 #include <library/cpp/yt/memory/intrusive_ptr.h>
 
 #include <Core/Types.h>
+#include <Common/CurrentThread.h>
 #include <Common/ThreadPool.h>
 #include <Common/SettingsChanges.h>
 #include <Interpreters/Context.h>
@@ -127,7 +128,7 @@ private:
 
         // Query context is inherited from session context like it was made in ClickHouse gRPC server.
         DB::Session session(Host_->GetContext(), DB::ClientInfo::Interface::GRPC);
-        session.authenticate(User_, /*password=*/ "", Poco::Net::SocketAddress());
+        session.authenticate(User_, /*password=*/ "", DBPoco::Net::SocketAddress());
         QueryContext_ = session.makeQueryContext();
 
         QueryContext_->setInitialQueryId(ToString(QueryId_));
@@ -150,7 +151,7 @@ private:
 
     void BuildPipeline()
     {
-        BlockIO_ = DB::executeQuery(Query_, QueryContext_);
+        BlockIO_ = DB::executeQuery(Query_, QueryContext_).second;
     }
 
     void ProcessPipeline()

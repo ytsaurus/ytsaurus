@@ -4,11 +4,12 @@
 #include <IO/ReadBuffer.h>
 #include <Server/HTTP/HTTPRequest.h>
 #include <Server/HTTP/HTTPContext.h>
+#include <Common/ProfileEvents.h>
 #include "clickhouse_config.h"
 
-#include <Poco/Net/HTTPServerSession.h>
+#include <DBPoco/Net/HTTPServerSession.h>
 
-namespace Poco::Net { class X509Certificate; }
+namespace DBPoco::Net { class X509Certificate; }
 
 namespace DB
 {
@@ -19,7 +20,7 @@ class ReadBufferFromPocoSocket;
 class HTTPServerRequest : public HTTPRequest
 {
 public:
-    HTTPServerRequest(HTTPContextPtr context, HTTPServerResponse & response, Poco::Net::HTTPServerSession & session);
+    HTTPServerRequest(HTTPContextPtr context, HTTPServerResponse & response, DBPoco::Net::HTTPServerSession & session, const ProfileEvents::Event & read_event = ProfileEvents::end());
 
     /// FIXME: it's a little bit inconvenient interface. The rationale is that all other ReadBuffer's wrap each other
     ///        via unique_ptr - but we can't inherit HTTPServerRequest from ReadBuffer and pass it around,
@@ -28,7 +29,7 @@ public:
     /// Returns the input stream for reading the request body.
     ReadBuffer & getStream()
     {
-        poco_check_ptr(stream);
+        DB_poco_check_ptr(stream);
         return *stream;
     }
 
@@ -37,14 +38,14 @@ public:
     bool isSecure() const { return secure; }
 
     /// Returns the client's address.
-    const Poco::Net::SocketAddress & clientAddress() const { return client_address; }
+    const DBPoco::Net::SocketAddress & clientAddress() const { return client_address; }
 
     /// Returns the server's address.
-    const Poco::Net::SocketAddress & serverAddress() const { return server_address; }
+    const DBPoco::Net::SocketAddress & serverAddress() const { return server_address; }
 
 #if USE_SSL
     bool havePeerCertificate() const;
-    Poco::Net::X509Certificate peerCertificate() const;
+    DBPoco::Net::X509Certificate peerCertificate() const;
 #endif
 
 private:
@@ -61,9 +62,9 @@ private:
     const size_t max_field_value_size;
 
     std::unique_ptr<ReadBuffer> stream;
-    Poco::Net::SocketImpl * socket;
-    Poco::Net::SocketAddress client_address;
-    Poco::Net::SocketAddress server_address;
+    DBPoco::Net::SocketImpl * socket;
+    DBPoco::Net::SocketAddress client_address;
+    DBPoco::Net::SocketAddress server_address;
 
     bool secure;
 

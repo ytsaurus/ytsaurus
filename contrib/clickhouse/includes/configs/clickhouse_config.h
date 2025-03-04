@@ -3,8 +3,9 @@
 #pragma once
 
 #define USE_CPUID 1
-#define USE_BASE64 1
+#define USE_BASE64 0
 #define USE_SSL 1
+#define USE_SSH 0
 #define USE_HDFS 0
 #define USE_AWS_S3 1
 #define USE_AZURE_BLOB_STORAGE 0
@@ -27,8 +28,12 @@
 #define USE_H3 1
 #define USE_S2_GEOMETRY 0
 #define USE_FASTOPS 1
+#define USE_SQIDS 0
+#define USE_IDNA 0
 #define USE_NLP 0
 #define USE_VECTORSCAN 0
+#define USE_QPL 0
+#define USE_QATLIB 0
 #define USE_LIBURING 0
 #define USE_AVRO 1
 #define USE_CAPNP 0
@@ -43,6 +48,7 @@
 #define USE_AMQPCPP 0
 #define USE_NATSIO 0
 #define USE_EMBEDDED_COMPILER 0
+#define USE_DWARF_PARSER 0
 #define USE_LDAP 0
 #define USE_ROCKSDB 0
 #define USE_LIBPQXX 0
@@ -51,15 +57,17 @@
 #define USE_KRB5 0
 #define USE_FILELOG defined(OS_LINUX)
 #define USE_ODBC 0
-#define USE_BORINGSSL 0
 #define USE_BLAKE3 0
+#define USE_USEARCH 0
 #define USE_SKIM 0
 #define USE_PRQL 0
-#define USE_OPENSSL_INTREE 0
 #define USE_ULID 0
-#define FIU_ENABLE 0
+#define USE_LIBFIU 0
 #define USE_BCRYPT 0
 #define USE_LIBARCHIVE 0
+#define USE_POCKETFFT 0
+#define USE_PROMETHEUS_PROTOBUFS 0
+#define USE_NUMACTL 0
 
 /// This is needed for .incbin in assembly. For some reason, include paths don't work there in presence of LTO.
 /// That's why we use absolute paths.

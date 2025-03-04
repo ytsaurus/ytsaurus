@@ -5,6 +5,7 @@
 #include "query_context.h"
 #include "secondary_query_header.h"
 
+#include <Core/Settings.h>
 #include <Parsers/ASTInsertQuery.h>
 #include <Parsers/ASTSelectQuery.h>
 #include <Parsers/queryToString.h>
@@ -87,7 +88,7 @@ public:
     }
 
 
-    void setRowsBeforeLimitCounter(DB::RowsBeforeLimitCounterPtr counter) override
+    void setRowsBeforeLimitCounter(DB::RowsBeforeStepCounterPtr counter) override
     {
         Source_->setRowsBeforeLimitCounter(counter);
     }

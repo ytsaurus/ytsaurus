@@ -15,6 +15,8 @@
 #include <DataTypes/DataTypesNumber.h>
 #include <DataTypes/DataTypeString.h>
 
+#include <Processors/Sources/SourceFromSingleChunk.h>
+#include <Storages/VirtualColumnsDescription.h>
 #include <Storages/System/IStorageSystemOneBlock.h>
 
 #include <Core/NamesAndTypes.h>
@@ -42,6 +44,15 @@ DB::NamesAndTypesList MakeTypesNullable(DB::NamesAndTypesList list)
         elem = {std::move(elem.name), DB::makeNullable(std::move(elem.type))};
     }
     return list;
+}
+
+DB::VirtualColumnsDescription MakeVirtualColumnsDescription(DB::NamesAndTypesList list)
+{
+    DB::VirtualColumnsDescription virtualColumns;
+    for (auto& elem : list) {
+        virtualColumns.addPersistent(elem.name, std::move(elem.type), /*codec*/ nullptr, /*comment*/ "");
+    }
+    return virtualColumns;
 }
 
 //! Returns a list of table paths from provided dirs with its attributes.
@@ -281,6 +292,7 @@ public:
         DB::StorageInMemoryMetadata storageMetadata;
         storageMetadata.setColumns(DB::ColumnsDescription(ExplicitColumns));
         setInMemoryMetadata(storageMetadata);
+        setVirtuals(MakeVirtualColumnsDescription(ImplicitColumns));
     }
 
     std::string getName() const override
@@ -393,11 +405,6 @@ public:
         DB::Chunk chunk(std::move(resultColumns), rowCount);
 
         return DB::Pipe(std::make_shared<DB::SourceFromSingleChunk>(std::move(header), std::move(chunk)));
-    }
-
-    DB::NamesAndTypesList getVirtuals() const override
-    {
-        return ImplicitColumns;
     }
 
 protected:

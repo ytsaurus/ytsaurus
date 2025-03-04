@@ -1,7 +1,7 @@
 #include <Access/KerberosInit.h>
 #include <Common/Exception.h>
 #include <Common/logger_useful.h>
-#include <Poco/Logger.h>
+#include <DBPoco/Logger.h>
 #include <Loggers/Loggers.h>
 #include <filesystem>
 #include <boost/core/noncopyable.hpp>
@@ -63,7 +63,7 @@ String KerberosInit::fmtError(krb5_error_code code) const
 
 void KerberosInit::init(const String & keytab_file, const String & principal, const String & cache_name)
 {
-    auto * log = &Poco::Logger::get("KerberosInit");
+    auto log = getLogger("KerberosInit");
     LOG_TRACE(log,"Trying to authenticate with Kerberos v5");
 
     krb5_error_code ret;

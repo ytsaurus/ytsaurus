@@ -12,6 +12,8 @@
 #include <Core/ColumnWithTypeAndName.h>
 #include <base/types.h>
 
+#include <DBPoco/String.h>
+
 namespace DB
 {
 
@@ -152,13 +154,13 @@ IProcessor::Status FilterBySetOnTheFlyTransform::prepare()
         if (has_filter)
         {
             LOG_DEBUG(log, "Finished {} by [{}]: consumed {} rows in total, {} rows bypassed, result {} rows, {:.2f}% filtered",
-                Poco::toLower(getDescription()), fmt::join(column_names, ", "),
+                DBPoco::toLower(getDescription()), fmt::join(column_names, ", "),
                 stat.consumed_rows, stat.consumed_rows_before_set, stat.result_rows,
                 stat.consumed_rows > 0 ? (100 - 100.0 * stat.result_rows / stat.consumed_rows) : 0);
         }
         else
         {
-            LOG_DEBUG(log, "Finished {}: bypass {} rows", Poco::toLower(getDescription()), stat.consumed_rows);
+            LOG_DEBUG(log, "Finished {}: bypass {} rows", DBPoco::toLower(getDescription()), stat.consumed_rows);
         }
 
         /// Release set to free memory

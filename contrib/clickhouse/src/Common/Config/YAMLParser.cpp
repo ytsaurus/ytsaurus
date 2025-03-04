@@ -5,17 +5,17 @@
 
 #include <vector>
 
-#include <Poco/DOM/Document.h>
-#include <Poco/DOM/NodeList.h>
-#include <Poco/DOM/Element.h>
-#include <Poco/DOM/AutoPtr.h>
-#include <Poco/DOM/NamedNodeMap.h>
-#include <Poco/DOM/Text.h>
+#include <DBPoco/DOM/Document.h>
+#include <DBPoco/DOM/NodeList.h>
+#include <DBPoco/DOM/Element.h>
+#include <DBPoco/DOM/AutoPtr.h>
+#include <DBPoco/DOM/NamedNodeMap.h>
+#include <DBPoco/DOM/Text.h>
 #include <Common/Exception.h>
 
 #error #include <yaml-cpp/yaml.h>
 
-using namespace Poco::XML;
+using namespace DBPoco::XML;
 
 namespace DB
 {
@@ -34,14 +34,14 @@ namespace
     /// by YAML standard, so we need to write a key-value pair like this: "@attribute": attr_value
     const char YAML_ATTRIBUTE_PREFIX = '@';
 
-    Poco::AutoPtr<Poco::XML::Element> cloneXMLNode(const Poco::XML::Element & original_node)
+    DBPoco::AutoPtr<DBPoco::XML::Element> cloneXMLNode(const DBPoco::XML::Element & original_node)
     {
-        Poco::AutoPtr<Poco::XML::Element> clone_node = original_node.ownerDocument()->createElement(original_node.nodeName());
+        DBPoco::AutoPtr<DBPoco::XML::Element> clone_node = original_node.ownerDocument()->createElement(original_node.nodeName());
         original_node.parentNode()->appendChild(clone_node);
         return clone_node;
     }
 
-    void processNode(const YAML::Node & node, Poco::XML::Element & parent_xml_node)
+    void processNode(const YAML::Node & node, DBPoco::XML::Element & parent_xml_node)
     {
         auto * xml_document = parent_xml_node.ownerDocument();
         switch (node.Type())
@@ -49,7 +49,7 @@ namespace
             case YAML::NodeType::Scalar:
             {
                 std::string value = node.as<std::string>();
-                Poco::AutoPtr<Poco::XML::Text> xml_value = xml_document->createTextNode(value);
+                DBPoco::AutoPtr<DBPoco::XML::Text> xml_value = xml_document->createTextNode(value);
                 parent_xml_node.appendChild(xml_value);
                 break;
             }
@@ -118,12 +118,12 @@ namespace
                                                     "YAMLParser has encountered node with several text nodes "
                                                     "and cannot continue parsing of the file");
                             std::string value = value_node.as<std::string>();
-                            Poco::AutoPtr<Poco::XML::Text> xml_value = xml_document->createTextNode(value);
+                            DBPoco::AutoPtr<DBPoco::XML::Text> xml_value = xml_document->createTextNode(value);
                             parent_xml_node.appendChild(xml_value);
                         }
                         else
                         {
-                            Poco::AutoPtr<Poco::XML::Element> xml_key = xml_document->createElement(key);
+                            DBPoco::AutoPtr<DBPoco::XML::Element> xml_key = xml_document->createElement(key);
                             parent_xml_node.appendChild(xml_key);
                             processNode(value_node, *xml_key);
                         }
@@ -144,7 +144,7 @@ namespace
 }
 
 
-Poco::AutoPtr<Poco::XML::Document> YAMLParser::parse(const String& path)
+DBPoco::AutoPtr<DBPoco::XML::Document> YAMLParser::parse(const String& path)
 {
     YAML::Node node_yml;
     try
@@ -161,8 +161,8 @@ Poco::AutoPtr<Poco::XML::Document> YAMLParser::parse(const String& path)
         /// yaml-cpp cannot open the file even though it exists
         throw Exception(ErrorCodes::CANNOT_OPEN_FILE, "Unable to open YAML configuration file {}", path);
     }
-    Poco::AutoPtr<Poco::XML::Document> xml = new Document;
-    Poco::AutoPtr<Poco::XML::Element> root_node = xml->createElement("clickhouse");
+    DBPoco::AutoPtr<DBPoco::XML::Document> xml = new Document;
+    DBPoco::AutoPtr<DBPoco::XML::Element> root_node = xml->createElement("clickhouse");
     xml->appendChild(root_node);
     try
     {

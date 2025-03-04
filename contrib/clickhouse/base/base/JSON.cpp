@@ -1,8 +1,8 @@
 #include <string>
 #include <cstring>
 
-#include <Poco/UTF8Encoding.h>
-#include <Poco/NumberParser.h>
+#include <DBPoco/UTF8Encoding.h>
+#include <DBPoco/NumberParser.h>
 #include <base/JSON.h>
 #include <base/find_symbols.h>
 #include <base/preciseExp10.h>
@@ -10,14 +10,10 @@
 #define JSON_MAX_DEPTH 100
 
 
-#ifdef __clang__
-#  pragma clang diagnostic push
-#  pragma clang diagnostic ignored "-Wdeprecated-dynamic-exception-spec"
-#endif
-POCO_IMPLEMENT_EXCEPTION(JSONException, Poco::Exception, "JSONException") // NOLINT(cert-err60-cpp, modernize-use-noexcept, hicpp-use-noexcept)
-#ifdef __clang__
-#  pragma clang diagnostic pop
-#endif
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-dynamic-exception-spec"
+DB_POCO_IMPLEMENT_EXCEPTION(JSONException, DBPoco::Exception, "JSONException") // NOLINT(cert-err60-cpp, modernize-use-noexcept, hicpp-use-noexcept)
+#pragma clang diagnostic pop
 
 
 /// Read unsigned integer in a simple form from a non-0-terminated string.
@@ -606,7 +602,7 @@ std::string JSON::getString() const
                         break;
                     case 'u':
                     {
-                        Poco::UTF8Encoding utf8;
+                        DBPoco::UTF8Encoding utf8;
 
                         ++s;
                         checkPos(s + 4);
@@ -615,9 +611,9 @@ std::string JSON::getString() const
                         int unicode;
                         try
                         {
-                            unicode = Poco::NumberParser::parseHex(hex);
+                            unicode = DBPoco::NumberParser::parseHex(hex);
                         }
-                        catch (const Poco::SyntaxException &)
+                        catch (const DBPoco::SyntaxException &)
                         {
                             throw JSONException("JSON: incorrect syntax: incorrect HEX code.");
                         }
@@ -655,7 +651,9 @@ std::string_view JSON::getRawString() const
     Pos s = ptr_begin;
     if (*s != '"')
         throw JSONException(std::string("JSON: expected \", got ") + *s);
-    while (++s != ptr_end && *s != '"');
+    ++s;
+    while (s != ptr_end && *s != '"')
+        ++s;
     if (s != ptr_end)
         return std::string_view(ptr_begin + 1, s - ptr_begin - 1);
     throw JSONException("JSON: incorrect syntax (expected end of string, found end of JSON).");

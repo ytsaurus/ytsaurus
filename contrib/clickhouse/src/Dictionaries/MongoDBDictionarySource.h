@@ -6,7 +6,7 @@
 #include "DictionaryStructure.h"
 #include "IDictionarySource.h"
 
-namespace Poco
+namespace DBPoco
 {
 namespace Util
 {
@@ -83,7 +83,7 @@ private:
     const std::string options;
     Block sample_block;
 
-    std::shared_ptr<Poco::MongoDB::Connection> connection;
+    std::shared_ptr<DBPoco::MongoDB::Connection> connection;
 };
 
 }

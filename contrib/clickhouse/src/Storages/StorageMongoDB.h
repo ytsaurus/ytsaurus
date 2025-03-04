@@ -1,6 +1,6 @@
 #pragma once
 
-#include <Poco/MongoDB/Connection.h>
+#error #include <DBPoco/MongoDB/Connection.h>
 
 #include <Storages/IStorage.h>
 
@@ -66,7 +66,7 @@ private:
     const std::string password;
     const std::string uri;
 
-    std::shared_ptr<Poco::MongoDB::Connection> connection;
+    std::shared_ptr<DBPoco::MongoDB::Connection> connection;
     bool authenticated = false;
     std::mutex connection_mutex; /// Protects the variables `connection` and `authenticated`.
 };

@@ -5,7 +5,7 @@
 #include <IO/WriteHelpers.h>
 #include <IO/ReadHelpers.h>
 #include <Interpreters/DatabaseAndTableWithAlias.h>
-#include <Poco/Util/AbstractConfiguration.h>
+#include <DBPoco/Util/AbstractConfiguration.h>
 
 namespace DB
 {
@@ -85,7 +85,7 @@ String StorageID::getFullNameNotQuoted() const
     return getDatabaseName() + "." + table_name;
 }
 
-StorageID StorageID::fromDictionaryConfig(const Poco::Util::AbstractConfiguration & config,
+StorageID StorageID::fromDictionaryConfig(const DBPoco::Util::AbstractConfiguration & config,
                                           const String & config_prefix)
 {
     StorageID res = StorageID::createEmpty();

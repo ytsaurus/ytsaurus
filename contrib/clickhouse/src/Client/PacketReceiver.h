@@ -5,7 +5,6 @@
 #include <variant>
 
 #include <Client/IConnections.h>
-#include <Common/FiberStack.h>
 #include <Common/Fiber.h>
 #include <Common/Epoll.h>
 #include <Common/TimerDescriptor.h>
@@ -32,9 +31,9 @@ public:
     std::exception_ptr getException() const { return exception; }
 
     bool isTimeoutExpired() const { return is_timeout_expired; }
-    Poco::Timespan getTimeout() const { return timeout; }
+    DBPoco::Timespan getTimeout() const { return timeout; }
 
-    void setTimeout(const Poco::Timespan & timeout_)
+    void setTimeout(const DBPoco::Timespan & timeout_)
     {
         timeout_descriptor.setRelative(timeout_);
         timeout = timeout_;
@@ -46,14 +45,14 @@ private:
     bool checkBeforeTaskResume() override;
     void afterTaskResume() override {}
 
-    void processAsyncEvent(int fd, Poco::Timespan socket_timeout, AsyncEventTimeoutType, const std::string &, uint32_t) override;
+    void processAsyncEvent(int fd, DBPoco::Timespan socket_timeout, AsyncEventTimeoutType, const std::string &, uint32_t) override;
     void clearAsyncEvent() override;
 
     void processException(std::exception_ptr e) override { exception = e; }
 
     struct Task : public AsyncTask
     {
-        Task(PacketReceiver & receiver_) : receiver(receiver_) {}
+        explicit Task(PacketReceiver & receiver_) : receiver(receiver_) {}
 
         PacketReceiver & receiver;
 
@@ -70,7 +69,7 @@ private:
 
     /// We use timer descriptor for checking socket timeouts.
     TimerDescriptor timeout_descriptor;
-    Poco::Timespan timeout;
+    DBPoco::Timespan timeout;
     bool is_timeout_expired = false;
 
     /// In read callback we add socket file descriptor and timer descriptor with receive timeout

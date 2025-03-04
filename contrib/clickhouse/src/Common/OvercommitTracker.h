@@ -3,7 +3,7 @@
 #include <base/types.h>
 #include <Core/Types.h>
 #include <boost/core/noncopyable.hpp>
-#include <Poco/Logger.h>
+#include <DBPoco/Logger.h>
 #include <cassert>
 #include <chrono>
 #include <condition_variable>
@@ -42,7 +42,7 @@ namespace DB
     struct ProcessListForUser;
 }
 
-enum class OvercommitResult
+enum class OvercommitResult : uint8_t
 {
     NONE,
     DISABLED,
@@ -52,7 +52,7 @@ enum class OvercommitResult
     NOT_ENOUGH_FREED,
 };
 
-enum class QueryCancellationState
+enum class QueryCancellationState : uint8_t
 {
     NONE     = 0,  // Hard limit is not reached, there is no selected query to kill.
     SELECTED = 1,  // Hard limit is reached, query to stop was chosen but it still is not aware of cancellation.

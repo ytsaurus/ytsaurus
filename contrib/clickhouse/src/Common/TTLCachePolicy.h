@@ -38,27 +38,37 @@ public:
     bool approveWrite(const UUID & user_id, size_t entry_size_in_bytes) const override
     {
         auto it_actual = actual.find(user_id);
-        Resources actual_for_user{.size_in_bytes = 0, .num_items = 0}; /// assume zero actual resource consumption is user isn't found
+        Resources actual_for_user{.size_in_bytes = 0, .num_items = 0}; /// if no user is found, the default is no resource consumption
         if (it_actual != actual.end())
             actual_for_user = it_actual->second;
 
         auto it_quota = quotas.find(user_id);
-        Resources quota_for_user{.size_in_bytes = std::numeric_limits<size_t>::max(), .num_items = std::numeric_limits<size_t>::max()}; /// assume no threshold if no quota is found
+        Resources quota_for_user{.size_in_bytes = std::numeric_limits<size_t>::max(), .num_items = std::numeric_limits<size_t>::max()}; /// if no user is found, the default is no threshold
         if (it_quota != quotas.end())
             quota_for_user = it_quota->second;
+
         /// Special case: A quota configured as 0 means no threshold
         if (quota_for_user.size_in_bytes == 0)
             quota_for_user.size_in_bytes = std::numeric_limits<UInt64>::max();
         if (quota_for_user.num_items == 0)
             quota_for_user.num_items = std::numeric_limits<UInt64>::max();
+
         /// Check size quota
-        if (actual_for_user.size_in_bytes + entry_size_in_bytes >= quota_for_user.size_in_bytes)
+        if (actual_for_user.size_in_bytes + entry_size_in_bytes > quota_for_user.size_in_bytes)
             return false;
+
         /// Check items quota
-        if (quota_for_user.num_items + 1 >= quota_for_user.num_items)
+        if (actual_for_user.num_items + 1 > quota_for_user.num_items)
             return false;
+
         return true;
     }
+
+    void clear() override
+    {
+        actual.clear();
+    }
+
     struct Resources
     {
         size_t size_in_bytes = 0;
@@ -120,6 +130,7 @@ public:
     void clear() override
     {
         cache.clear();
+        Base::user_quotas->clear();
     }
 
     void remove(const Key & key) override
@@ -132,6 +143,23 @@ public:
             Base::user_quotas->decreaseActual(*it->first.user_id, sz);
         cache.erase(it);
         size_in_bytes -= sz;
+    }
+
+    void remove(std::function<bool(const Key &, const MappedPtr &)> predicate) override
+    {
+        for (auto it = cache.begin(); it != cache.end();)
+        {
+            if (predicate(it->first, it->second))
+            {
+                size_t sz = weight_function(*it->second);
+                if (it->first.user_id.has_value())
+                    Base::user_quotas->decreaseActual(*it->first.user_id, sz);
+                it = cache.erase(it);
+                size_in_bytes -= sz;
+            }
+            else
+                ++it;
+        }
     }
 
     MappedPtr get(const Key & key) override
@@ -209,6 +237,7 @@ public:
     std::vector<KeyMapped> dump() const override
     {
         std::vector<KeyMapped> res;
+        res.reserve(cache.size());
         for (const auto & [key, mapped] : cache)
             res.push_back({key, mapped});
         return res;

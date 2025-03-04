@@ -16,7 +16,12 @@ namespace ErrorCodes
 namespace details
 {
 
-enum class ContainerType : uint8_t { SMALL = 1, MEDIUM = 2, LARGE = 3 };
+enum class ContainerType : uint8_t
+{
+    SMALL = 1,
+    MEDIUM = 2,
+    LARGE = 3
+};
 
 static inline ContainerType max(const ContainerType & lhs, const ContainerType & rhs)
 {
@@ -121,7 +126,7 @@ public:
         else if (container_type == details::ContainerType::LARGE)
             return getContainer<Large>().size();
         else
-            throw Poco::Exception("Internal error", ErrorCodes::LOGICAL_ERROR);
+            throw DBPoco::Exception("Internal error", ErrorCodes::LOGICAL_ERROR);
     }
 
     void merge(const Self & rhs)
@@ -231,7 +236,7 @@ private:
     void toMedium()
     {
         if (getContainerType() != details::ContainerType::SMALL)
-            throw Poco::Exception("Internal error", ErrorCodes::LOGICAL_ERROR);
+            throw DBPoco::Exception("Internal error", ErrorCodes::LOGICAL_ERROR);
 
         auto tmp_medium = std::make_unique<Medium>();
 
@@ -247,7 +252,7 @@ private:
         auto container_type = getContainerType();
 
         if ((container_type != details::ContainerType::SMALL) && (container_type != details::ContainerType::MEDIUM))
-            throw Poco::Exception("Internal error", ErrorCodes::LOGICAL_ERROR);
+            throw DBPoco::Exception("Internal error", ErrorCodes::LOGICAL_ERROR);
 
         auto tmp_large = std::make_unique<Large>();
 
@@ -287,13 +292,13 @@ private:
     }
 
     template <typename T>
-    inline T & getContainer()
+    T & getContainer()
     {
         return *reinterpret_cast<T *>(address & mask);
     }
 
     template <typename T>
-    inline const T & getContainer() const
+    const T & getContainer() const
     {
         return *reinterpret_cast<T *>(address & mask);
     }
@@ -304,7 +309,7 @@ private:
         address |= static_cast<UInt8>(t);
     }
 
-    inline details::ContainerType getContainerType() const
+    details::ContainerType getContainerType() const
     {
         return static_cast<details::ContainerType>(address & ~mask);
     }

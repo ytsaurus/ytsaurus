@@ -283,12 +283,17 @@ class IDatabase;
 class KeyCondition;
 class NamesAndTypesList;
 class StorageFactory;
+class VirtualColumnsDescription;
+class ActionsDAG;
 
 struct ASTTableExpression;
 struct ProcessListForUserInfo;
 struct QueryStatusInfo;
 struct SelectQueryInfo;
 struct Settings;
+
+class IQueryTreeNode;
+using QueryTreeNodePtr = std::shared_ptr<IQueryTreeNode>;
 
 class IDataType;
 using DataTypePtr = std::shared_ptr<const IDataType>;
@@ -304,6 +309,9 @@ using ExpressionActionsPtr = std::shared_ptr<ExpressionActions>;
 
 struct PrewhereInfo;
 using PrewhereInfoPtr = std::shared_ptr<PrewhereInfo>;
+
+class IDatabase;
+using DatabasePtr = std::shared_ptr<IDatabase>;
 
 // TODO(max42): get rid of this!
 void registerStorageMemory(StorageFactory& factory);

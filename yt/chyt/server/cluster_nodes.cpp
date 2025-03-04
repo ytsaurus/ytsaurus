@@ -1,6 +1,7 @@
 #include "cluster_nodes.h"
 
 #include <Common/Exception.h>
+#include <Core/Settings.h>
 
 namespace NYT::NClickHouseServer {
 
@@ -64,9 +65,10 @@ IClusterNodePtr CreateClusterNode(
     }
 
     ConnectionPoolPtrs pools;
-    ConnectionTimeouts timeouts(Cluster::saturate(settings.connect_timeout, settings.max_execution_time),
-        Cluster::saturate(settings.receive_timeout, settings.max_execution_time),
-        Cluster::saturate(settings.send_timeout, settings.max_execution_time));
+    auto timeouts = ConnectionTimeouts()
+        .withConnectionTimeout(Cluster::saturate(settings.connect_timeout, settings.max_execution_time))
+        .withReceiveTimeout(Cluster::saturate(settings.receive_timeout, settings.max_execution_time))
+        .withSendTimeout(Cluster::saturate(settings.send_timeout, settings.max_execution_time));
 
     pools.push_back(std::make_shared<ConnectionPool>(
         settings.distributed_connections_pool_size,

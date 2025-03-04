@@ -1,9 +1,9 @@
 #include "PinnedPartUUIDs.h"
 #include <IO/ReadHelpers.h>
 #include <IO/WriteHelpers.h>
-#include <Poco/JSON/JSON.h>
-#include <Poco/JSON/Object.h>
-#include <Poco/JSON/Parser.h>
+#include <DBPoco/JSON/JSON.h>
+#include <DBPoco/JSON/Object.h>
+#include <DBPoco/JSON/Parser.h>
 
 namespace DB
 {
@@ -12,7 +12,7 @@ String PinnedPartUUIDs::toString() const
 {
     std::vector<UUID> vec(part_uuids.begin(), part_uuids.end());
 
-    Poco::JSON::Object json;
+    DBPoco::JSON::Object json;
     json.set(JSON_KEY_UUIDS, DB::toString(vec));
 
     std::ostringstream oss; // STYLE_CHECK_ALLOW_STD_STRING_STREAM
@@ -24,8 +24,8 @@ String PinnedPartUUIDs::toString() const
 
 void PinnedPartUUIDs::fromString(const String & buf)
 {
-    Poco::JSON::Parser parser;
-    auto json = parser.parse(buf).extract<Poco::JSON::Object::Ptr>();
+    DBPoco::JSON::Parser parser;
+    auto json = parser.parse(buf).extract<DBPoco::JSON::Object::Ptr>();
 
     std::vector<UUID> vec = parseFromString<std::vector<UUID>>(json->getValue<std::string>(PinnedPartUUIDs::JSON_KEY_UUIDS));
 

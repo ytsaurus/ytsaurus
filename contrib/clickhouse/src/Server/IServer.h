@@ -2,7 +2,7 @@
 
 #include <Interpreters/Context_fwd.h>
 
-namespace Poco
+namespace DBPoco
 {
 
 namespace Util
@@ -22,10 +22,10 @@ class IServer
 {
 public:
     /// Returns the application's configuration.
-    virtual Poco::Util::LayeredConfiguration & config() const = 0;
+    virtual DBPoco::Util::LayeredConfiguration & config() const = 0;
 
     /// Returns the application's logger.
-    virtual Poco::Logger & logger() const = 0;
+    virtual DBPoco::Logger & logger() const = 0;
 
     /// Returns global application's context.
     virtual ContextMutablePtr context() const = 0;

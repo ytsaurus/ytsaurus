@@ -29,8 +29,7 @@ DB::IndexDescription CreateClickHouseIndexDescription(
 
     // We support only indexes on columns, not on complex expressions (e.g. 'a * b').
     // So create an identity transformation for columns (x -> x).
-    description.expression = std::make_shared<DB::ExpressionActions>(
-        std::make_shared<DB::ActionsDAG>(namesAndTypes));
+    description.expression = std::make_shared<DB::ExpressionActions>(DB::ActionsDAG(namesAndTypes));
 
     if (indexType == "set") {
         // 'max_rows' - how many different values one granule can contain. 0 stands for unlimited.
@@ -54,12 +53,12 @@ TClickHouseIndex::TClickHouseIndex(
     DB::ContextPtr context)
     : Description_(std::move(description))
     , Index_(DB::MergeTreeIndexFactory::instance().get(Description_))
-    , Condition_(Index_->createIndexCondition(query, context))
+    , Condition_(Index_->createIndexCondition(query.filter_actions_dag.get(), context))
 { }
 
 DB::MergeTreeIndexAggregatorPtr TClickHouseIndex::CreateAggregator() const
 {
-    return Index_->createIndexAggregator();
+    return Index_->createIndexAggregator({} /*settings*/);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

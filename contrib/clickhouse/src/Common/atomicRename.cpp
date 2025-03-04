@@ -1,7 +1,7 @@
 #include <Common/atomicRename.h>
 #include <Common/Exception.h>
 #include <Common/VersionNumber.h>
-#include <Poco/Environment.h>
+#include <DBPoco/Environment.h>
 #include <filesystem>
 
 namespace fs = std::filesystem;
@@ -46,6 +46,8 @@ namespace ErrorCodes
         #define __NR_renameat2 357
     #elif defined(__riscv)
         #define __NR_renameat2 276
+    #elif defined(__loongarch64)
+        #define __NR_renameat2 276
     #else
         #error "Unsupported architecture"
     #endif
@@ -58,7 +60,7 @@ namespace DB
 static bool supportsAtomicRenameImpl()
 {
     VersionNumber renameat2_minimal_version(3, 15, 0);
-    VersionNumber linux_version(Poco::Environment::osVersion());
+    VersionNumber linux_version(DBPoco::Environment::osVersion());
     return linux_version >= renameat2_minimal_version;
 }
 
@@ -87,10 +89,12 @@ static bool renameat2(const std::string & old_path, const std::string & new_path
         return false;
 
     if (errno == EEXIST)
-        throwFromErrno(fmt::format("Cannot rename {} to {} because the second path already exists", old_path, new_path), ErrorCodes::ATOMIC_RENAME_FAIL);
+        throw ErrnoException(
+            ErrorCodes::ATOMIC_RENAME_FAIL, "Cannot rename {} to {} because the second path already exists", old_path, new_path);
     if (errno == ENOENT)
-        throwFromErrno(fmt::format("Paths cannot be exchanged because {} or {} does not exist", old_path, new_path), ErrorCodes::ATOMIC_RENAME_FAIL);
-    throwFromErrnoWithPath(fmt::format("Cannot rename {} to {}", old_path, new_path), new_path, ErrorCodes::SYSTEM_ERROR);
+        throw ErrnoException(
+            ErrorCodes::ATOMIC_RENAME_FAIL, "Paths cannot be exchanged because {} or {} does not exist", old_path, new_path);
+    ErrnoException::throwFromPath(ErrorCodes::SYSTEM_ERROR, new_path, "Cannot rename {} to {}", old_path, new_path);
 }
 
 bool supportsAtomicRename()
@@ -139,11 +143,12 @@ static bool renameat2(const std::string & old_path, const std::string & new_path
     if (errnum == ENOTSUP || errnum == EINVAL)
         return false;
     if (errnum == EEXIST)
-        throwFromErrno(fmt::format("Cannot rename {} to {} because the second path already exists", old_path, new_path), ErrorCodes::ATOMIC_RENAME_FAIL);
+        throw ErrnoException(
+            ErrorCodes::ATOMIC_RENAME_FAIL, "Cannot rename {} to {} because the second path already exists", old_path, new_path);
     if (errnum == ENOENT)
-        throwFromErrno(fmt::format("Paths cannot be exchanged because {} or {} does not exist", old_path, new_path), ErrorCodes::ATOMIC_RENAME_FAIL);
-    throwFromErrnoWithPath(
-        fmt::format("Cannot rename {} to {}: {}", old_path, new_path, strerror(errnum)), new_path, ErrorCodes::SYSTEM_ERROR);
+        throw ErrnoException(
+            ErrorCodes::ATOMIC_RENAME_FAIL, "Paths cannot be exchanged because {} or {} does not exist", old_path, new_path);
+    ErrnoException::throwFromPath(ErrorCodes::SYSTEM_ERROR, new_path, "Cannot rename {} to {}", old_path, new_path);
 }
 
 

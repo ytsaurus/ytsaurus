@@ -7,30 +7,32 @@
 #include <vector>
 #include <memory>
 
-#include <Poco/DOM/Document.h>
-#include <Poco/DOM/DOMParser.h>
-#include <Poco/DOM/DOMWriter.h>
-#include <Poco/DOM/NodeList.h>
-#include <Poco/DOM/NamedNodeMap.h>
-#include <Poco/AutoPtr.h>
-#include <Poco/DirectoryIterator.h>
-#include <Poco/ConsoleChannel.h>
-#include <Poco/Util/AbstractConfiguration.h>
+#include <Common/Logger.h>
+
+#include <DBPoco/DOM/Document.h>
+#include <DBPoco/DOM/DOMParser.h>
+#include <DBPoco/DOM/DOMWriter.h>
+#include <DBPoco/DOM/NodeList.h>
+#include <DBPoco/DOM/NamedNodeMap.h>
+#include <DBPoco/AutoPtr.h>
+#include <DBPoco/DirectoryIterator.h>
+#include <DBPoco/ConsoleChannel.h>
+#include <DBPoco/Util/AbstractConfiguration.h>
 
 
-namespace Poco { class Logger; }
+namespace DBPoco { class Logger; }
 
 namespace zkutil
 {
     class ZooKeeperNodeCache;
-    using EventPtr = std::shared_ptr<Poco::Event>;
+    using EventPtr = std::shared_ptr<DBPoco::Event>;
 }
 
 namespace DB
 {
 
-using ConfigurationPtr = Poco::AutoPtr<Poco::Util::AbstractConfiguration>;
-using XMLDocumentPtr = Poco::AutoPtr<Poco::XML::Document>;
+using ConfigurationPtr = DBPoco::AutoPtr<DBPoco::Util::AbstractConfiguration>;
+using XMLDocumentPtr = DBPoco::AutoPtr<DBPoco::XML::Document>;
 
 class ConfigProcessor
 {
@@ -43,8 +45,6 @@ public:
         bool throw_on_bad_incl = false,
         bool log_to_console = false,
         const Substitutions & substitutions = Substitutions());
-
-    ~ConfigProcessor();
 
     /// Perform config includes and substitutions and return the resulting XML-document.
     ///
@@ -65,11 +65,13 @@ public:
         zkutil::ZooKeeperNodeCache * zk_node_cache = nullptr,
         const zkutil::EventPtr & zk_changed_event = nullptr);
 
+    XMLDocumentPtr parseConfig(const std::string & config_path);
+
     /// These configurations will be used if there is no configuration file.
     static void registerEmbeddedConfig(std::string name, std::string_view content);
 
 
-    /// loadConfig* functions apply processConfig and create Poco::Util::XMLConfiguration.
+    /// loadConfig* functions apply processConfig and create DBPoco::Util::XMLConfiguration.
     /// The resulting XML document is saved into a file with the name
     /// resulting from adding "-preprocessed" suffix to the path file name.
     /// E.g., config.xml -> config-preprocessed.xml
@@ -125,27 +127,27 @@ private:
 
     bool throw_on_bad_incl;
 
-    Poco::Logger * log;
-    Poco::AutoPtr<Poco::Channel> channel_ptr;
+    LoggerPtr log;
+    DBPoco::AutoPtr<DBPoco::Channel> channel_ptr;
 
     Substitutions substitutions;
 
-    Poco::AutoPtr<Poco::XML::NamePool> name_pool;
-    Poco::XML::DOMParser dom_parser;
+    DBPoco::AutoPtr<DBPoco::XML::NamePool> name_pool;
+    DBPoco::XML::DOMParser dom_parser;
 
-    using NodePtr = Poco::AutoPtr<Poco::XML::Node>;
+    using NodePtr = DBPoco::AutoPtr<DBPoco::XML::Node>;
 
 #if USE_SSL
-    void decryptRecursive(Poco::XML::Node * config_root);
+    void decryptRecursive(DBPoco::XML::Node * config_root);
 
     /// Decrypt elements in config with specified encryption attributes
     void decryptEncryptedElements(LoadedConfig & loaded_config);
 #endif
 
-    void hideRecursive(Poco::XML::Node * config_root);
+    void hideRecursive(DBPoco::XML::Node * config_root);
     XMLDocumentPtr hideElements(XMLDocumentPtr xml_tree);
 
-    void mergeRecursive(XMLDocumentPtr config, Poco::XML::Node * config_root, const Poco::XML::Node * with_root);
+    void mergeRecursive(XMLDocumentPtr config, DBPoco::XML::Node * config_root, const DBPoco::XML::Node * with_root);
 
     /// If config root node name is not 'clickhouse' and merging config's root node names doesn't match, bypasses merging and returns false.
     /// For compatibility root node 'yandex' considered equal to 'clickhouse'.
@@ -154,7 +156,7 @@ private:
     void doIncludesRecursive(
             XMLDocumentPtr config,
             XMLDocumentPtr include_from,
-            Poco::XML::Node * node,
+            DBPoco::XML::Node * node,
             zkutil::ZooKeeperNodeCache * zk_node_cache,
             const zkutil::EventPtr & zk_changed_event,
             std::unordered_set<std::string> & contributing_zk_paths);

@@ -5,7 +5,7 @@
 #if USE_NLP
 
 #include <base/types.h>
-#include <Poco/Util/Application.h>
+#include <DBPoco/Util/Application.h>
 
 #include <memory>
 #include <mutex>
@@ -31,7 +31,7 @@ class SynonymsExtensions
 public:
     using ExtPtr = std::shared_ptr<ISynonymsExtension>;
 
-    explicit SynonymsExtensions(const Poco::Util::AbstractConfiguration & config);
+    explicit SynonymsExtensions(const DBPoco::Util::AbstractConfiguration & config);
 
     ExtPtr getExtension(const String & name);
 

@@ -3,9 +3,10 @@
 #include <Parsers/ASTLiteral.h>
 #include <Parsers/ASTSubquery.h>
 #include <Parsers/ASTTablesInSelectQuery.h>
-#include <Poco/String.h>
+#include <DBPoco/String.h>
 #include <Common/typeid_cast.h>
 #include <Common/checkStackSize.h>
+#include <Core/Settings.h>
 #include <Interpreters/Context.h>
 
 
@@ -31,7 +32,7 @@ void RewriteCountVariantsVisitor::visit(ASTFunction & func)
     if (!func.arguments || func.arguments->children.empty() || func.arguments->children.size() > 1 || !func.arguments->children[0])
         return;
 
-    auto name = Poco::toLower(func.name);
+    auto name = DBPoco::toLower(func.name);
 
     if (name != "sum" && name != "count")
         return;
@@ -52,7 +53,7 @@ void RewriteCountVariantsVisitor::visit(ASTFunction & func)
     {
         if (first_arg_literal->value.getType() == Field::Types::UInt64)
         {
-            auto constant = first_arg_literal->value.get<UInt64>();
+            auto constant = first_arg_literal->value.safeGet<UInt64>();
             if (constant == 1 && !context->getSettingsRef().aggregate_functions_null_for_empty)
                 transform = true;
         }

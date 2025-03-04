@@ -1,11 +1,17 @@
 #pragma once
 
 #include <Core/UUID.h>
-#include <Poco/Net/SocketAddress.h>
+#include <DBPoco/Net/SocketAddress.h>
 #include <base/types.h>
 #include <Common/OpenTelemetryTraceContext.h>
 #include <Common/VersionNumber.h>
 #include <boost/algorithm/string/trim.hpp>
+
+
+namespace DBPoco::Net
+{
+    class HTTPRequest;
+}
 
 namespace DB
 {
@@ -32,6 +38,7 @@ public:
         POSTGRESQL = 5,
         LOCAL = 6,
         TCP_INTERSERVER = 7,
+        PROMETHEUS = 8,
     };
 
     enum class HTTPMethod : uint8_t
@@ -54,12 +61,12 @@ public:
     /// Current values are not serialized, because it is passed separately.
     String current_user;
     String current_query_id;
-    Poco::Net::SocketAddress current_address;
+    DBPoco::Net::SocketAddress current_address;
 
     /// When query_kind == INITIAL_QUERY, these values are equal to current.
     String initial_user;
     String initial_query_id;
-    Poco::Net::SocketAddress initial_address;
+    DBPoco::Net::SocketAddress initial_address;
     time_t initial_query_start_time{};
     Decimal64 initial_query_start_time_microseconds{};
 
@@ -93,6 +100,7 @@ public:
     HTTPMethod http_method = HTTPMethod::UNKNOWN;
     String http_user_agent;
     String http_referer;
+    std::unordered_map<String, String> http_headers;
 
     /// For mysql and postgresql
     UInt64 connection_id = 0;
@@ -120,8 +128,18 @@ public:
 
     /// For parallel processing on replicas
     bool collaborate_with_initiator{false};
-    UInt64 count_participating_replicas{0};
+    UInt64 obsolete_count_participating_replicas{0};
     UInt64 number_of_current_replica{0};
+
+    enum class BackgroundOperationType : uint8_t
+    {
+        NOT_A_BACKGROUND_OPERATION = 0,
+        MERGE = 1,
+        MUTATION = 2,
+    };
+
+    /// It's ClientInfo and context created for background operation (not real query)
+    BackgroundOperationType background_operation_type{BackgroundOperationType::NOT_A_BACKGROUND_OPERATION};
 
     bool empty() const { return query_kind == QueryKind::NO_QUERY; }
 
@@ -134,6 +152,9 @@ public:
 
     /// Initialize parameters on client initiating query.
     void setInitialQuery();
+
+    /// Initialize parameters related to HTTP request.
+    void setFromHTTPRequest(const DBPoco::Net::HTTPRequest & request);
 
     bool clientVersionEquals(const ClientInfo & other, bool compare_patch) const;
 

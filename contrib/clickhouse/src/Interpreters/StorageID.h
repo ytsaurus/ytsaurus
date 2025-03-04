@@ -1,12 +1,11 @@
 #pragma once
 #include <base/types.h>
 #include <Core/UUID.h>
-#include <tuple>
 #include <Parsers/IAST_fwd.h>
 #include <Core/QualifiedTableName.h>
 #include <Common/Exception.h>
 
-namespace Poco
+namespace DBPoco
 {
 namespace Util
 {
@@ -89,7 +88,7 @@ struct StorageID
 
     QualifiedTableName getQualifiedName() const { return {database_name, getTableName()}; }
 
-    static StorageID fromDictionaryConfig(const Poco::Util::AbstractConfiguration & config,
+    static StorageID fromDictionaryConfig(const DBPoco::Util::AbstractConfiguration & config,
                                           const String & config_prefix);
 
     /// If dictionary has UUID, then use it as dictionary name in ExternalLoader to allow dictionary renaming.

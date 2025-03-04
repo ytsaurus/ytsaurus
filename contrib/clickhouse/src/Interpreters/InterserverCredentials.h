@@ -1,6 +1,6 @@
 #pragma once
 
-#include <Poco/Util/AbstractConfiguration.h>
+#include <DBPoco/Util/AbstractConfiguration.h>
 #include <Common/Exception.h>
 #include <unordered_set>
 
@@ -34,7 +34,7 @@ public:
 
     InterserverCredentials(const InterserverCredentials &) = delete;
 
-    static std::unique_ptr<InterserverCredentials> make(const Poco::Util::AbstractConfiguration & config, const std::string & root_tag);
+    static std::unique_ptr<InterserverCredentials> make(const DBPoco::Util::AbstractConfiguration & config, const std::string & root_tag);
 
     InterserverCredentials(const std::string & current_user_, const std::string & current_password_, const CurrentCredentials & all_users_store_)
         : current_user(current_user_)
@@ -60,7 +60,7 @@ private:
     static CurrentCredentials parseCredentialsFromConfig(
         const std::string & current_user_,
         const std::string & current_password_,
-        const Poco::Util::AbstractConfiguration & config,
+        const DBPoco::Util::AbstractConfiguration & config,
         const std::string & root_tag);
 };
 

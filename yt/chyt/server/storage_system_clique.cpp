@@ -51,10 +51,10 @@ public:
     {
         auto nodes = Discovery_->List();
 
-        auto metadataSnapshot = storageSnapshot->getMetadataForQuery();
+        auto metadataSnapshot = storageSnapshot->metadata;
         auto header = metadataSnapshot->getSampleBlock();
 
-        DB::MutableColumns resultColumns = metadataSnapshot->getSampleBlock().cloneEmptyColumns();
+        DB::MutableColumns resultColumns = header.cloneEmptyColumns();
         for (const auto& [name, attributes] : nodes) {
             if (!attributes || !attributes->Contains("clique_id")) {
                 continue;

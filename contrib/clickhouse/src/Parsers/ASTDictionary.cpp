@@ -1,5 +1,5 @@
 #include <Parsers/ASTDictionary.h>
-#include <Poco/String.h>
+#include <DBPoco/String.h>
 #include <IO/Operators.h>
 #include <Common/FieldVisitorToString.h>
 
@@ -82,7 +82,7 @@ void ASTDictionaryLayout::formatImpl(const FormatSettings & settings,
                   << (settings.hilite ? hilite_none : "")
                   << "("
                   << (settings.hilite ? hilite_keyword : "")
-                  << Poco::toUpper(layout_type)
+                  << DBPoco::toUpper(layout_type)
                   << (settings.hilite ? hilite_none : "");
 
     if (has_brackets)

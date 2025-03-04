@@ -1,11 +1,10 @@
-#include <re2/re2.h>
-#include <Poco/URI.h>
-#include <Poco/Util/AbstractConfiguration.h>
+#include <DBPoco/URI.h>
+#include <DBPoco/Util/AbstractConfiguration.h>
 #include <Common/RemoteHostFilter.h>
-#include <Common/StringUtils/StringUtils.h>
+#include <Common/StringUtils.h>
 #include <Common/Exception.h>
+#include <Common/re2.h>
 #include <IO/WriteHelpers.h>
-
 
 namespace DB
 {
@@ -14,7 +13,7 @@ namespace ErrorCodes
     extern const int UNACCEPTABLE_URL;
 }
 
-void RemoteHostFilter::checkURL(const Poco::URI & uri) const
+void RemoteHostFilter::checkURL(const DBPoco::URI & uri) const
 {
     if (!checkForDirectEntry(uri.getHost()) &&
         !checkForDirectEntry(uri.getHost() + ":" + toString(uri.getPort())))
@@ -30,7 +29,7 @@ void RemoteHostFilter::checkHostAndPort(const std::string & host, const std::str
                                                       "see <remote_url_allow_hosts>", host, port);
 }
 
-void RemoteHostFilter::setValuesFromConfig(const Poco::Util::AbstractConfiguration & config)
+void RemoteHostFilter::setValuesFromConfig(const DBPoco::Util::AbstractConfiguration & config)
 {
     if (config.has("remote_url_allow_hosts"))
     {

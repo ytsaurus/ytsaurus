@@ -6,13 +6,13 @@
 #include <Common/MultiVersion.h>
 #include <Common/Priority.h>
 
-#include <Poco/Net/SocketAddress.h>
+#include <DBPoco/Net/SocketAddress.h>
 
 #include <map>
 #include <string>
 #include <unordered_set>
 
-namespace Poco
+namespace DBPoco
 {
     namespace Util
     {
@@ -57,7 +57,7 @@ struct ClusterConnectionParameters
 class Cluster
 {
 public:
-    Cluster(const Poco::Util::AbstractConfiguration & config,
+    Cluster(const DBPoco::Util::AbstractConfiguration & config,
             const Settings & settings,
             const String & config_prefix_,
             const String & cluster_name);
@@ -84,7 +84,7 @@ public:
     Cluster & operator=(const Cluster &) = delete;
 
     /// is used to set a limit on the size of the timeout
-    static Poco::Timespan saturate(Poco::Timespan v, Poco::Timespan limit);
+    static DBPoco::Timespan saturate(DBPoco::Timespan v, DBPoco::Timespan limit);
 
     using SlotToShard = std::vector<UInt64>;
 
@@ -137,7 +137,7 @@ public:
         Address() = default;
 
         Address(
-            const Poco::Util::AbstractConfiguration & config,
+            const DBPoco::Util::AbstractConfiguration & config,
             const String & config_prefix,
             const String & cluster_,
             const String & cluster_secret_,
@@ -169,7 +169,7 @@ public:
         static Address fromFullString(const String & address_full_string);
 
         /// Returns resolved address if it does resolve.
-        std::optional<Poco::Net::SocketAddress> getResolvedAddress() const;
+        std::optional<DBPoco::Net::SocketAddress> getResolvedAddress() const;
 
         auto tuple() const { return std::tie(host_name, port, secure, user, password, default_database); }
         bool operator==(const Address & other) const { return tuple() == other.tuple(); }
@@ -217,7 +217,6 @@ public:
         UInt32 shard_num = 0;
         UInt32 weight = 1;
         Addresses local_addresses;
-        Addresses all_addresses;
         /// nullptr if there are no remote addresses
         ConnectionPoolWithFailoverPtr pool;
         /// Connection pool for each replica, contains nullptr for local replicas
@@ -292,8 +291,14 @@ private:
     struct ReplicasAsShardsTag {};
     Cluster(ReplicasAsShardsTag, const Cluster & from, const Settings & settings, size_t max_replicas_from_shard);
 
-    void addShard(const Settings & settings, Addresses && addresses, bool treat_local_as_remote, UInt32 current_shard_num,
-                  ShardInfoInsertPathForInternalReplication && insert_paths = {}, UInt32 weight = 1, bool internal_replication = false);
+    void addShard(
+        const Settings & settings,
+        Addresses addresses,
+        bool treat_local_as_remote,
+        UInt32 current_shard_num,
+        UInt32 weight = 1,
+        ShardInfoInsertPathForInternalReplication insert_paths = {},
+        bool internal_replication = false);
 
     /// Inter-server secret
     String secret;
@@ -323,7 +328,7 @@ using ClusterPtr = std::shared_ptr<Cluster>;
 class Clusters
 {
 public:
-    Clusters(const Poco::Util::AbstractConfiguration & config, const Settings & settings, MultiVersion<Macros>::Version macros, const String & config_prefix = "remote_servers");
+    Clusters(const DBPoco::Util::AbstractConfiguration & config, const Settings & settings, MultiVersion<Macros>::Version macros, const String & config_prefix = "remote_servers");
 
     Clusters(const Clusters &) = delete;
     Clusters & operator=(const Clusters &) = delete;
@@ -331,7 +336,7 @@ public:
     ClusterPtr getCluster(const std::string & cluster_name) const;
     void setCluster(const String & cluster_name, const ClusterPtr & cluster);
 
-    void updateClusters(const Poco::Util::AbstractConfiguration & new_config, const Settings & settings, const String & config_prefix, Poco::Util::AbstractConfiguration * old_config = nullptr);
+    void updateClusters(const DBPoco::Util::AbstractConfiguration & new_config, const Settings & settings, const String & config_prefix, DBPoco::Util::AbstractConfiguration * old_config = nullptr);
 
     using Impl = std::map<String, ClusterPtr>;
 

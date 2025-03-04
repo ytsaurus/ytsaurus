@@ -7,7 +7,7 @@
 #include <Parsers/ASTTablesInSelectQuery.h>
 #include <Interpreters/ArithmeticOperationsInAgrFuncOptimize.h>
 
-#include <Poco/String.h>
+#include <DBPoco/String.h>
 
 namespace DB
 {
@@ -82,7 +82,7 @@ ASTPtr tryExchangeFunctions(const ASTFunction & func)
            {"avg", {"multiply", "divide", "plus", "minus"}}};
 
     /// Aggregate functions[sum|min|max|avg] is case-insensitive, so we use lower cases name
-    auto lower_name = Poco::toLower(func.name);
+    auto lower_name = DBPoco::toLower(func.name);
 
     const ASTFunction * child_func = getInternalFunction(func);
     if (!child_func || !child_func->arguments || child_func->arguments->children.size() != 2 || !supported.contains(lower_name)

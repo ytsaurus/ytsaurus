@@ -4,7 +4,7 @@
 #include <base/types.h>
 
 #include <Common/ProxyConfigurationResolver.h>
-#include <Poco/URI.h>
+#include <DBPoco/URI.h>
 
 namespace DB
 {
@@ -15,14 +15,19 @@ namespace DB
 class ProxyListConfigurationResolver : public ProxyConfigurationResolver
 {
 public:
-    explicit ProxyListConfigurationResolver(std::vector<Poco::URI> proxies_);
+    ProxyListConfigurationResolver(
+        std::vector<DBPoco::URI> proxies_,
+        Protocol request_protocol_,
+        const std::string & no_proxy_hosts_,
+        bool disable_tunneling_for_https_requests_over_http_proxy_ = false);
 
     ProxyConfiguration resolve() override;
 
     void errorReport(const ProxyConfiguration &) override {}
 
 private:
-    std::vector<Poco::URI> proxies;
+    std::vector<DBPoco::URI> proxies;
+    std::string no_proxy_hosts;
 
     /// Access counter to get proxy using round-robin strategy.
     std::atomic<size_t> access_counter;

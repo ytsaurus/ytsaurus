@@ -44,10 +44,10 @@
 #include <Storages/System/StorageSystemMetrics.h>
 #include <Storages/System/StorageSystemProcesses.h>
 
-#include <Poco/DirectoryIterator.h>
-#include <Poco/ThreadPool.h>
-#include <Poco/Util/LayeredConfiguration.h>
-#include <Poco/Util/ServerApplication.h>
+#include <DBPoco/DirectoryIterator.h>
+#include <DBPoco/ThreadPool.h>
+#include <DBPoco/Util/LayeredConfiguration.h>
+#include <DBPoco/Util/ServerApplication.h>
 
 #include <util/system/env.h>
 
@@ -75,7 +75,7 @@ public:
         , SharedContext_(DB::Context::createShared())
         , ServerContext_(DB::Context::createGlobal(SharedContext_.get()))
         , LayeredConfig_(ConvertToLayeredConfig(ConvertToNode(Config_)))
-        , PocoApplication_(std::make_unique<Poco::Util::ServerApplication>())
+        , PocoApplication_(std::make_unique<DBPoco::Util::ServerApplication>())
     {
         // NOTE(dakovalkov): We do not use Poco's Application class directly, but it is used via
         // Application::instance() in Poco's SSLManager to obtain a config for initialization.
@@ -131,14 +131,14 @@ public:
 
     // DB::Server overrides:
 
-    Poco::Logger& logger() const override
+    DBPoco::Logger& logger() const override
     {
-        return Poco::Logger::root();
+        return DBPoco::Logger::root();
     }
 
-    Poco::Util::LayeredConfiguration& config() const override
+    DBPoco::Util::LayeredConfiguration& config() const override
     {
-        return *const_cast<Poco::Util::LayeredConfiguration*>(LayeredConfig_.get());
+        return *const_cast<DBPoco::Util::LayeredConfiguration*>(LayeredConfig_.get());
     }
 
     DB::ContextMutablePtr context() const override
@@ -158,16 +158,16 @@ private:
     DB::ContextMutablePtr ServerContext_;
 
     // Poco representation of Config_.
-    Poco::AutoPtr<Poco::Util::LayeredConfiguration> LayeredConfig_;
+    DBPoco::AutoPtr<DBPoco::Util::LayeredConfiguration> LayeredConfig_;
 
-    // Fake Poco::Util::Application instance for proper SSLManager initialization.
-    std::unique_ptr<Poco::Util::ServerApplication> PocoApplication_;
+    // Fake DBPoco::Util::Application instance for proper SSLManager initialization.
+    std::unique_ptr<DBPoco::Util::ServerApplication> PocoApplication_;
 
-    Poco::AutoPtr<Poco::Channel> LogChannel_;
+    DBPoco::AutoPtr<DBPoco::Channel> LogChannel_;
 
     std::unique_ptr<DB::ServerAsynchronousMetrics> AsynchronousMetrics_;
 
-    std::unique_ptr<Poco::ThreadPool> ServerPool_;
+    std::unique_ptr<DBPoco::ThreadPool> ServerPool_;
     std::vector<std::unique_ptr<DB::TCPServer>> Servers_;
 
     std::atomic<bool> Cancelled_ = false;
@@ -180,7 +180,7 @@ private:
     {
         LogChannel_ = CreateLogChannel(ClickHouseNativeLogger());
 
-        auto& rootLogger = Poco::Logger::root();
+        auto& rootLogger = DBPoco::Logger::root();
         rootLogger.close();
         rootLogger.setChannel(LogChannel_);
         rootLogger.setLevel(Config_->LogLevel);
@@ -255,10 +255,7 @@ private:
 
         DB::DatabaseCatalog::instance().attachDatabase(DB::DatabaseCatalog::SYSTEM_DATABASE, SystemDatabase_);
 
-        DB::attach<DB::StorageSystemProcesses>(ServerContext_, *SystemDatabase_, "processes");
-        DB::attach<DB::StorageSystemMetrics>(ServerContext_, *SystemDatabase_, "metrics");
-        DB::attach<DB::StorageSystemDictionaries>(ServerContext_, *SystemDatabase_, "dictionaries");
-        DB::attachSystemTablesLocal(ServerContext_, *SystemDatabase_);
+        DB::attachSystemTablesServer(ServerContext_, *SystemDatabase_, /*has_zookeeper*/ false);
         DB::attachSystemTablesAsync(ServerContext_, *SystemDatabase_, *AsynchronousMetrics_);
 
         Host_->PopulateSystemDatabase(SystemDatabase_.get());
@@ -365,6 +362,13 @@ private:
         // {} here is to force a value (i.e. zero) initialization instead of a default initialization.
         DB::SystemLogSettings settings{};
         settings.engine = Config_->QueryLog->Engine;
+
+        // At each flush, the engine monitors changes in the query_log table schema.
+        // In case of changes, it tries to recreate the table. The comparison does not ignore atlering commnets:
+        // https://github.com/ClickHouse/ClickHouse/pull/48350/files#diff-02543fded55c372fe0f4b432547d205ef3ed48b55717659c7e34d29550c8d9eaR557
+        // So we need to duplicate the original comment.
+        settings.engine += " COMMENT \'Contains information about executed queries, for example, start time, duration of processing, error messages.\'";
+
         settings.queue_settings.database = "system";
         settings.queue_settings.table = "query_log";
 
@@ -385,12 +389,12 @@ private:
 
         const auto& settings = ServerContext_->getSettingsRef();
 
-        ServerPool_ = std::make_unique<Poco::ThreadPool>(3, Config_->MaxConnections);
+        ServerPool_ = std::make_unique<DBPoco::ThreadPool>(3, Config_->MaxConnections);
 
         auto setupSocket = [&] (UInt16 port) {
-            Poco::Net::SocketAddress socketAddress;
-            socketAddress = Poco::Net::SocketAddress(Poco::Net::SocketAddress::Family::IPv6, port);
-            Poco::Net::ServerSocket socket(socketAddress);
+            DBPoco::Net::SocketAddress socketAddress;
+            socketAddress = DBPoco::Net::SocketAddress(DBPoco::Net::SocketAddress::Family::IPv6, port);
+            DBPoco::Net::ServerSocket socket(socketAddress);
             socket.setReceiveTimeout(settings.receive_timeout);
             socket.setSendTimeout(settings.send_timeout);
 
@@ -402,9 +406,9 @@ private:
             YT_LOG_INFO("Setting up HTTP server");
             auto socket = setupSocket(Config_->HttpPort);
 
-            Poco::Timespan keepAliveTimeout(Config_->KeepAliveTimeout, 0);
+            DBPoco::Timespan keepAliveTimeout(Config_->KeepAliveTimeout, 0);
 
-            Poco::Net::HTTPServerParams::Ptr httpParams = new Poco::Net::HTTPServerParams();
+            DBPoco::Net::HTTPServerParams::Ptr httpParams = new DBPoco::Net::HTTPServerParams();
             httpParams->setTimeout(settings.receive_timeout);
             httpParams->setKeepAliveTimeout(keepAliveTimeout);
 

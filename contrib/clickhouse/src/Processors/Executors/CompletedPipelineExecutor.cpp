@@ -2,7 +2,7 @@
 #include <Processors/Executors/PipelineExecutor.h>
 #include <QueryPipeline/QueryPipeline.h>
 #include <QueryPipeline/ReadProgressCallback.h>
-#include <Poco/Event.h>
+#include <DBPoco/Event.h>
 #include <Common/setThreadName.h>
 #include <Common/ThreadPool.h>
 #include <Common/scope_guard_safe.h>
@@ -23,7 +23,7 @@ struct CompletedPipelineExecutor::Data
     std::atomic_bool is_finished = false;
     std::atomic_bool has_exception = false;
     ThreadFromGlobalPool thread;
-    Poco::Event finish_event;
+    DBPoco::Event finish_event;
 
     ~Data()
     {
@@ -97,7 +97,9 @@ void CompletedPipelineExecutor::execute()
                 break;
 
             if (is_cancelled_callback())
+            {
                 data->executor->cancel();
+            }
         }
 
         if (data->has_exception)
@@ -116,7 +118,9 @@ CompletedPipelineExecutor::~CompletedPipelineExecutor()
     try
     {
         if (data && data->executor)
+        {
             data->executor->cancel();
+        }
     }
     catch (...)
     {

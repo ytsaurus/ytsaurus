@@ -2,7 +2,7 @@
 
 #include "clickhouse_config.h"
 
-#include <Poco/Util/AbstractConfiguration.h>
+#include <DBPoco/Util/AbstractConfiguration.h>
 #include <Common/MultiVersion.h>
 #include <Common/Macros.h>
 
@@ -12,8 +12,6 @@
 #include <Common/ConcurrentBoundedQueue.h>
 #include <Common/ThreadPool.h>
 
-
-#include <string>
 #endif
 
 namespace DB
@@ -26,14 +24,14 @@ public:
     KeeperSnapshotManagerS3();
 
     /// 'macros' are used to substitute macros in endpoint of disks
-    void updateS3Configuration(const Poco::Util::AbstractConfiguration & config, const MultiVersion<Macros>::Version & macros);
-    void uploadSnapshot(const SnapshotFileInfo & file_info, bool async_upload = true);
+    void updateS3Configuration(const DBPoco::Util::AbstractConfiguration & config, const MultiVersion<Macros>::Version & macros);
+    void uploadSnapshot(const SnapshotFileInfoPtr & file_info, bool async_upload = true);
 
     /// 'macros' are used to substitute macros in endpoint of disks
-    void startup(const Poco::Util::AbstractConfiguration & config, const MultiVersion<Macros>::Version & macros);
+    void startup(const DBPoco::Util::AbstractConfiguration & config, const MultiVersion<Macros>::Version & macros);
     void shutdown();
 private:
-    using SnapshotS3Queue = ConcurrentBoundedQueue<SnapshotFileInfo>;
+    using SnapshotS3Queue = ConcurrentBoundedQueue<SnapshotFileInfoPtr>;
     SnapshotS3Queue snapshots_s3_queue;
 
     /// Upload new snapshots to S3
@@ -45,7 +43,7 @@ private:
 
     std::atomic<bool> shutdown_called{false};
 
-    Poco::Logger * log;
+    LoggerPtr log;
 
     UUID uuid;
 
@@ -62,10 +60,10 @@ class KeeperSnapshotManagerS3
 public:
     KeeperSnapshotManagerS3() = default;
 
-    void updateS3Configuration(const Poco::Util::AbstractConfiguration &, const MultiVersion<Macros>::Version &) {}
-    void uploadSnapshot(const SnapshotFileInfo &, [[maybe_unused]] bool async_upload = true) {}
+    void updateS3Configuration(const DBPoco::Util::AbstractConfiguration &, const MultiVersion<Macros>::Version &) {}
+    void uploadSnapshot(const SnapshotFileInfoPtr &, [[maybe_unused]] bool async_upload = true) {}
 
-    void startup(const Poco::Util::AbstractConfiguration &, const MultiVersion<Macros>::Version &) {}
+    void startup(const DBPoco::Util::AbstractConfiguration &, const MultiVersion<Macros>::Version &) {}
 
     void shutdown() {}
 };

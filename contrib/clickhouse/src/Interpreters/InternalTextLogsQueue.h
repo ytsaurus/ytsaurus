@@ -1,8 +1,8 @@
 #pragma once
 #include <Common/ConcurrentBoundedQueue.h>
 #include <Common/OvercommitTracker.h>
+#include <Common/re2.h>
 #include <Core/Block.h>
-#include <re2/re2.h>
 
 namespace DB
 {
@@ -23,7 +23,7 @@ public:
     /// Is used to pass block from remote server to the client
     void pushBlock(Block && log_block);
 
-    /// Converts priority from Poco::Message::Priority to a string
+    /// Converts priority from DBPoco::Message::Priority to a string
     static std::string_view getPriorityName(int priority);
 
     void setSourceRegexp(const String & regexp);

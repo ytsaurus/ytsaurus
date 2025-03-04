@@ -1,27 +1,23 @@
 #pragma once
-#include "clickhouse_config.h"
 
 #include <Common/Exception.h>
 #include <Core/Types.h>
+#include <DBPoco/Util/AbstractConfiguration.h>
 
-#if FIU_ENABLE
+#include "clickhouse_config.h"
 
-#ifdef __clang__
+#if USE_LIBFIU
+
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wdocumentation"
 #pragma clang diagnostic ignored "-Wreserved-macro-identifier"
-#endif
-
-#error #include <fiu.h>
-#error #include <fiu-control.h>
-
-#ifdef __clang__
+#  error #include <fiu.h>
+#  error #include <fiu-control.h>
 #pragma clang diagnostic pop
-#endif
-
 #else
 #define fiu_do_on(name, action)
 #endif
+
 
 namespace DB
 {
@@ -47,5 +43,7 @@ public:
     static void disableFailPoint(const String & fail_point_name);
 
     static void wait(const String & fail_point_name);
+
+    static void enableFromGlobalConfig(const DBPoco::Util::AbstractConfiguration & config);
 };
 }

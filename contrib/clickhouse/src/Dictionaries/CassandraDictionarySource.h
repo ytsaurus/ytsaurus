@@ -9,7 +9,7 @@
 #include "ExternalQueryBuilder.h"
 #include <Core/Block.h>
 #include <Interpreters/Context_fwd.h>
-#include <Poco/Logger.h>
+#include <DBPoco/Logger.h>
 #include <mutex>
 
 namespace DB
@@ -36,7 +36,7 @@ public:
         size_t max_threads;
         String where;
 
-        Configuration(const Poco::Util::AbstractConfiguration & config, const String & config_prefix);
+        Configuration(const DBPoco::Util::AbstractConfiguration & config, const String & config_prefix);
 
         void setConsistency(const String & config_str);
     };
@@ -48,7 +48,7 @@ public:
 
     CassandraDictionarySource(
             const DictionaryStructure & dict_struct,
-            const Poco::Util::AbstractConfiguration & config,
+            const DBPoco::Util::AbstractConfiguration & config,
             const String & config_prefix,
             Block & sample_block);
 
@@ -77,7 +77,7 @@ private:
     void maybeAllowFiltering(String & query) const;
     CassSessionShared getSession();
 
-    Poco::Logger * log;
+    LoggerPtr log;
     const DictionaryStructure dict_struct;
     const Configuration configuration;
     Block sample_block;

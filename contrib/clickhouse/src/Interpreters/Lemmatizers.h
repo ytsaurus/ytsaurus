@@ -5,7 +5,7 @@
 #if USE_NLP
 
 #include <base/types.h>
-#include <Poco/Util/Application.h>
+#include <DBPoco/Util/Application.h>
 
 #include <mutex>
 #include <unordered_map>
@@ -36,7 +36,7 @@ private:
     std::unordered_map<String, String> paths;
 
 public:
-    explicit Lemmatizers(const Poco::Util::AbstractConfiguration & config);
+    explicit Lemmatizers(const DBPoco::Util::AbstractConfiguration & config);
 
     LemmPtr getLemmatizer(const String & name);
 };
