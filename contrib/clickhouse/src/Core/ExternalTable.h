@@ -12,7 +12,7 @@
 #include <vector>
 
 
-namespace Poco::Net
+namespace DBPoco::Net
 {
 class NameValueCollection;
 class MessageHeader;
@@ -83,12 +83,12 @@ public:
 class ExternalTablesHandler : public HTMLForm::PartHandler, BaseExternalTable, WithMutableContext
 {
 public:
-    ExternalTablesHandler(ContextMutablePtr context_, const Poco::Net::NameValueCollection & params_) : WithMutableContext(context_), params(params_) {}
+    ExternalTablesHandler(ContextMutablePtr context_, const DBPoco::Net::NameValueCollection & params_) : WithMutableContext(context_), params(params_) {}
 
-    void handlePart(const Poco::Net::MessageHeader & header, ReadBuffer & stream) override;
+    void handlePart(const DBPoco::Net::MessageHeader & header, ReadBuffer & stream) override;
 
 private:
-    const Poco::Net::NameValueCollection & params;
+    const DBPoco::Net::NameValueCollection & params;
 };
 
 

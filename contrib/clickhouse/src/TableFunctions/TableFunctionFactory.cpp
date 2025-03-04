@@ -4,6 +4,7 @@
 #include <Common/CurrentThread.h>
 #include <Common/Exception.h>
 #include <Common/KnownObjectNames.h>
+#include <Core/Settings.h>
 #include <IO/WriteHelpers.h>
 #include <Parsers/ASTFunction.h>
 
@@ -18,17 +19,17 @@ namespace ErrorCodes
 }
 
 void TableFunctionFactory::registerFunction(
-    const std::string & name, Value value, CaseSensitiveness case_sensitiveness)
+    const std::string & name, Value value, Case case_sensitiveness)
 {
     if (!table_functions.emplace(name, value).second)
         throw Exception(ErrorCodes::LOGICAL_ERROR, "TableFunctionFactory: the table function name '{}' is not unique", name);
 
-    if (case_sensitiveness == CaseInsensitive
-        && !case_insensitive_table_functions.emplace(Poco::toLower(name), value).second)
+    if (case_sensitiveness == Case::Insensitive
+        && !case_insensitive_table_functions.emplace(DBPoco::toLower(name), value).second)
         throw Exception(ErrorCodes::LOGICAL_ERROR, "TableFunctionFactory: "
                         "the case insensitive table function name '{}' is not unique", name);
 
-    KnownTableFunctionNames::instance().add(name, (case_sensitiveness == CaseInsensitive));
+    KnownTableFunctionNames::instance().add(name, (case_sensitiveness == Case::Insensitive));
 }
 
 TableFunctionPtr TableFunctionFactory::get(
@@ -64,7 +65,7 @@ TableFunctionPtr TableFunctionFactory::tryGet(
     }
     else
     {
-        it = case_insensitive_table_functions.find(Poco::toLower(name));
+        it = case_insensitive_table_functions.find(DBPoco::toLower(name));
         if (case_insensitive_table_functions.end() != it)
             res = it->second.creator();
     }
@@ -103,7 +104,7 @@ std::optional<TableFunctionProperties> TableFunctionFactory::tryGetPropertiesImp
         found = it->second;
     }
 
-    if (auto jt = case_insensitive_table_functions.find(Poco::toLower(name)); jt != case_insensitive_table_functions.end())
+    if (auto jt = case_insensitive_table_functions.find(DBPoco::toLower(name)); jt != case_insensitive_table_functions.end())
         found = jt->second;
 
     if (found.creator)

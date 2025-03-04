@@ -1,8 +1,8 @@
 #pragma once
 #include <IO/ReadHelpers.h>
 #include <Common/Exception.h>
-#include <Common/StringUtils/StringUtils.h>
-#include <Poco/Util/AbstractConfiguration.h>
+#include <Common/StringUtils.h>
+#include <DBPoco/Util/AbstractConfiguration.h>
 #include <Compression/ICompressionCodec.h>
 #include <Compression/CompressionFactory.h>
 #include <Compression/CompressionInfo.h>
@@ -49,7 +49,7 @@ private:
         std::optional<int> level;
 
 
-        Element(const Poco::Util::AbstractConfiguration & config, const std::string & config_prefix)
+        Element(const DBPoco::Util::AbstractConfiguration & config, const std::string & config_prefix)
         {
             min_part_size = config.getUInt64(config_prefix + ".min_part_size", 0);
             min_part_size_ratio = config.getDouble(config_prefix + ".min_part_size_ratio", 0);
@@ -71,9 +71,9 @@ private:
 public:
     CompressionCodecSelector() = default;    /// Always returns the default method.
 
-    CompressionCodecSelector(const Poco::Util::AbstractConfiguration & config, const std::string & config_prefix)
+    CompressionCodecSelector(const DBPoco::Util::AbstractConfiguration & config, const std::string & config_prefix)
     {
-        Poco::Util::AbstractConfiguration::Keys keys;
+        DBPoco::Util::AbstractConfiguration::Keys keys;
         config.keys(config_prefix, keys);
 
         for (const auto & name : keys)

@@ -5,8 +5,8 @@
 #include <IO/ReadHelpers.h>
 #include <IO/WriteBufferFromPocoSocket.h>
 #include <IO/WriteHelpers.h>
-#include <Poco/Net/NetException.h>
-#include <Poco/Net/StreamSocket.h>
+#include <DBPoco/Net/NetException.h>
+#include <DBPoco/Net/StreamSocket.h>
 #include <Common/Exception.h>
 #include <Common/NetException.h>
 #include <Core/MySQL/IMySQLWritePacket.h>
@@ -54,8 +54,8 @@ private:
     MySQLFlavor replication;
     std::shared_ptr<ReadBuffer> in;
     std::shared_ptr<WriteBuffer> out;
-    std::unique_ptr<Poco::Net::StreamSocket> socket;
-    std::optional<Poco::Net::SocketAddress> address;
+    std::unique_ptr<DBPoco::Net::StreamSocket> socket;
+    std::optional<DBPoco::Net::SocketAddress> address;
     MySQLProtocol::PacketEndpointPtr packet_endpoint;
 
     void handshake();

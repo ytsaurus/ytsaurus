@@ -1,15 +1,14 @@
 #include <string>
 #include <Common/XMLUtils.h>
-#include <Poco/DOM/Document.h>
-#include <Poco/Util/AbstractConfiguration.h>
+#include <DBPoco/DOM/Document.h>
+#include <DBPoco/Util/AbstractConfiguration.h>
 
 namespace DB::XMLUtils
 {
 
-using namespace Poco;
-using namespace Poco::XML;
+using namespace DBPoco::XML;
 
-using XMLDocumentPtr = Poco::AutoPtr<Document>;
+using XMLDocumentPtr = DBPoco::AutoPtr<Document>;
 
 Node * getRootNode(Document * document)
 {
@@ -21,21 +20,21 @@ Node * getRootNode(Document * document)
             return child;
     }
 
-    throw Poco::Exception("No root node in document");
+    throw DBPoco::Exception("No root node in document");
 }
 
 
 /// This class is used to access protected parseXXX static methods from AbstractConfiguration
-class ParseHelper : private Util::AbstractConfiguration
+class ParseHelper : private DBPoco::Util::AbstractConfiguration
 {
 public:
     ParseHelper() = delete;
 
-    using Util::AbstractConfiguration::parseInt;
-    using Util::AbstractConfiguration::parseUInt;
-    using Util::AbstractConfiguration::parseInt64;
-    using Util::AbstractConfiguration::parseUInt64;
-    using Util::AbstractConfiguration::parseBool;
+    using DBPoco::Util::AbstractConfiguration::parseInt;
+    using DBPoco::Util::AbstractConfiguration::parseUInt;
+    using DBPoco::Util::AbstractConfiguration::parseInt64;
+    using DBPoco::Util::AbstractConfiguration::parseUInt64;
+    using DBPoco::Util::AbstractConfiguration::parseBool;
 
     static std::string parseString(const std::string & s)
     {
@@ -52,7 +51,7 @@ public:
             if constexpr (ReturnDefault)
                 return default_value;
             else
-                throw Poco::NotFoundException(path);
+                throw DBPoco::NotFoundException(path);
         }
         return parse_function(value_node->innerText());
     }

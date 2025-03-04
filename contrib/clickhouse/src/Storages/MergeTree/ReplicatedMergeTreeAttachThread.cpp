@@ -1,3 +1,4 @@
+#include <Storages/MergeTree/MergeTreeSettings.h>
 #include <Storages/MergeTree/ReplicatedMergeTreeAttachThread.h>
 #include <Storages/StorageReplicatedMergeTree.h>
 #include <Common/ZooKeeper/IKeeper.h>
@@ -19,7 +20,7 @@ namespace ErrorCodes
 ReplicatedMergeTreeAttachThread::ReplicatedMergeTreeAttachThread(StorageReplicatedMergeTree & storage_)
     : storage(storage_)
     , log_name(storage.getStorageID().getFullTableName() + " (ReplicatedMergeTreeAttachThread)")
-    , log(&Poco::Logger::get(log_name))
+    , log(getLogger(log_name))
 {
     task = storage.getContext()->getSchedulePool().createTask(log_name, [this] { run(); });
     const auto storage_settings = storage.getSettings();
@@ -192,7 +193,6 @@ void ReplicatedMergeTreeAttachThread::runImpl()
     /// Temporary directories contain uninitialized results of Merges or Fetches (after forced restart),
     /// don't allow to reinitialize them, delete each of them immediately.
     storage.clearOldTemporaryDirectories(0, {"tmp_", "delete_tmp_", "tmp-fetch_"});
-    storage.clearOldWriteAheadLogs();
 
     storage.createNewZooKeeperNodes();
     storage.syncPinnedPartUUIDs();

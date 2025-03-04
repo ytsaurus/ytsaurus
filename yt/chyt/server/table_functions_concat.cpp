@@ -30,7 +30,7 @@
 #include <TableFunctions/ITableFunction.h>
 #include <TableFunctions/TableFunctionFactory.h>
 
-#include <Poco/Glob.h>
+#include <DBPoco/Glob.h>
 
 namespace NYT::NClickHouseServer {
 
@@ -414,14 +414,14 @@ public:
     }
 
 private:
-    mutable std::unique_ptr<Poco::Glob> Matcher_;
+    mutable std::unique_ptr<DBPoco::Glob> Matcher_;
 
     void parsePathArguments(DB::ASTs& arguments, ContextPtr context) override
     {
         // 1) directory 2) pattern
         ValidateNumberOfArguments(arguments, 2);
         auto pattern = EvaluateArgument<std::string>(arguments[1], context);
-        Matcher_ = std::make_unique<Poco::Glob>(pattern);
+        Matcher_ = std::make_unique<DBPoco::Glob>(pattern);
     }
 
     bool IsPathAllowed(const TYPath& path) const override

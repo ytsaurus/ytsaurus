@@ -1,5 +1,5 @@
 #include <Common/TLDListsHolder.h>
-#include <Common/StringUtils/StringUtils.h>
+#include <Common/StringUtils.h>
 #include <Common/logger_useful.h>
 #include <IO/ReadBufferFromFile.h>
 #include <IO/ReadHelpers.h>
@@ -50,12 +50,12 @@ TLDListsHolder & TLDListsHolder::getInstance()
 }
 TLDListsHolder::TLDListsHolder() = default;
 
-void TLDListsHolder::parseConfig(const std::string & top_level_domains_path, const Poco::Util::AbstractConfiguration & config)
+void TLDListsHolder::parseConfig(const std::string & top_level_domains_path, const DBPoco::Util::AbstractConfiguration & config)
 {
-    Poco::Util::AbstractConfiguration::Keys config_keys;
+    DBPoco::Util::AbstractConfiguration::Keys config_keys;
     config.keys("top_level_domains_lists", config_keys);
 
-    Poco::Logger * log = &Poco::Logger::get("TLDListsHolder");
+    LoggerPtr log = getLogger("TLDListsHolder");
 
     for (const auto & key : config_keys)
     {

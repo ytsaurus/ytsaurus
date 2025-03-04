@@ -1,4 +1,4 @@
-#include <Poco/String.h>
+#include <DBPoco/String.h>
 #include <Core/Names.h>
 #include <Interpreters/QueryNormalizer.h>
 #include <Interpreters/IdentifierSemantic.h>
@@ -10,7 +10,7 @@
 #include <Parsers/ASTQueryParameter.h>
 #include <Parsers/ASTTablesInSelectQuery.h>
 #include <Parsers/ASTInterpolateElement.h>
-#include <Common/StringUtils/StringUtils.h>
+#include <Common/StringUtils.h>
 #include <Common/quoteString.h>
 #include <IO/WriteHelpers.h>
 

@@ -8,7 +8,7 @@
 #include <Common/CurrentThread.h>
 #include <Common/HashTable/Hash.h>
 
-OwnJSONPatternFormatter::OwnJSONPatternFormatter(Poco::Util::AbstractConfiguration & config)
+OwnJSONPatternFormatter::OwnJSONPatternFormatter(DBPoco::Util::AbstractConfiguration & config)
 {
     if (config.has("logger.formatting.names.date_time"))
         date_time = config.getString("logger.formatting.names.date_time", "");
@@ -59,7 +59,7 @@ void OwnJSONPatternFormatter::formatExtended(const DB::ExtendedLogMessage & msg_
     DB::FormatSettings settings;
     bool print_comma = false;
 
-    const Poco::Message & msg = msg_ext.base;
+    const DBPoco::Message & msg = msg_ext.base;
     DB::writeChar('{', wb);
 
     if (!date_time.empty())
@@ -118,7 +118,7 @@ void OwnJSONPatternFormatter::formatExtended(const DB::ExtendedLogMessage & msg_
         writeJSONString(level, wb, settings);
         DB::writeChar(':', wb);
         int priority = static_cast<int>(msg.getPriority());
-        writeJSONString(std::to_string(priority), wb, settings);
+        writeJSONString(getPriorityName(priority), wb, settings);
     }
 
     if (!query_id.empty())
@@ -191,7 +191,7 @@ void OwnJSONPatternFormatter::formatExtended(const DB::ExtendedLogMessage & msg_
     DB::writeChar('}', wb);
 }
 
-void OwnJSONPatternFormatter::format(const Poco::Message & msg, std::string & text)
+void OwnJSONPatternFormatter::format(const DBPoco::Message & msg, std::string & text)
 {
     formatExtended(DB::ExtendedLogMessage::getFrom(msg), text);
 }

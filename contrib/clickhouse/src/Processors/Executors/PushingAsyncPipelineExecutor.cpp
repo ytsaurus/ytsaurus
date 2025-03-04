@@ -7,7 +7,7 @@
 #include <Common/setThreadName.h>
 #include <Common/scope_guard_safe.h>
 #include <Common/CurrentThread.h>
-#include <Poco/Event.h>
+#include <DBPoco/Event.h>
 
 namespace DB
 {
@@ -80,7 +80,7 @@ struct PushingAsyncPipelineExecutor::Data
     std::atomic_bool is_finished = false;
     std::atomic_bool has_exception = false;
     ThreadFromGlobalPool thread;
-    Poco::Event finish_event;
+    DBPoco::Event finish_event;
 
     ~Data()
     {
@@ -90,11 +90,8 @@ struct PushingAsyncPipelineExecutor::Data
 
     void rethrowExceptionIfHas()
     {
-        if (has_exception)
-        {
-            has_exception = false;
+        if (has_exception.exchange(false))
             std::rethrow_exception(exception);
-        }
     }
 };
 

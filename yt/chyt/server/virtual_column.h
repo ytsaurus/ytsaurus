@@ -10,7 +10,7 @@ extern const TString TableIndexColumnName;
 extern const TString TableKeyColumnName;
 extern const TString TablePathColumnName;
 
-extern const DB::NamesAndTypesList VirtualColumnNamesAndTypes;
+extern const DB::VirtualColumnsDescription VirtualColumns;
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -1,7 +1,7 @@
 #pragma once
 
 #include <string>
-#include <Poco/Net/StreamSocket.h>
+#include <DBPoco/Net/StreamSocket.h>
 
 namespace DB
 {
@@ -10,7 +10,7 @@ namespace DB
 struct TCPProtocolStackData
 {
     // socket implementation can be replaced by some layer - TLS as an example
-    Poco::Net::StreamSocket socket;
+    DBPoco::Net::StreamSocket socket;
     // host from PROXY layer
     std::string forwarded_for;
     // certificate path from TLS layer to TCP layer

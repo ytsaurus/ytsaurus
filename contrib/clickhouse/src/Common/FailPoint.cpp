@@ -1,12 +1,13 @@
 #include <Common/Exception.h>
 #include <Common/FailPoint.h>
+#include <Common/Config/ConfigHelper.h>
 
 #include <boost/core/noncopyable.hpp>
 #include <chrono>
 #include <condition_variable>
 #include <mutex>
-#include <optional>
-#include <unordered_map>
+
+#include "clickhouse_config.h"
 
 namespace DB
 {
@@ -16,7 +17,7 @@ namespace ErrorCodes
 extern const int LOGICAL_ERROR;
 };
 
-#if FIU_ENABLE
+#if USE_LIBFIU
 static struct InitFiu
 {
     InitFiu()
@@ -24,20 +25,46 @@ static struct InitFiu
         fiu_init(0);
     }
 } init_fiu;
+#endif
 
 /// We should define different types of failpoints here. There are four types of them:
 /// - ONCE: the failpoint will only be triggered once.
-/// - REGULAR: the failpoint will always be triggered util disableFailPoint is called.
-/// - PAUSAEBLE_ONCE: the failpoint will be blocked one time when pauseFailPoint is called, util disableFailPoint is called.
-/// - PAUSAEBLE: the failpoint will be blocked every time when pauseFailPoint is called, util disableFailPoint is called.
+/// - REGULAR: the failpoint will always be triggered until disableFailPoint is called.
+/// - PAUSEABLE_ONCE: the failpoint will be blocked one time when pauseFailPoint is called, util disableFailPoint is called.
+/// - PAUSEABLE: the failpoint will be blocked every time when pauseFailPoint is called, util disableFailPoint is called.
 
 #define APPLY_FOR_FAILPOINTS(ONCE, REGULAR, PAUSEABLE_ONCE, PAUSEABLE) \
     ONCE(replicated_merge_tree_commit_zk_fail_after_op) \
+    ONCE(replicated_queue_fail_next_entry) \
+    REGULAR(replicated_queue_unfail_entries) \
     ONCE(replicated_merge_tree_insert_quorum_fail_0) \
+    REGULAR(replicated_merge_tree_commit_zk_fail_when_recovering_from_hw_fault) \
     REGULAR(use_delayed_remote_source) \
+    REGULAR(cluster_discovery_faults) \
+    REGULAR(replicated_sends_failpoint) \
+    REGULAR(stripe_log_sink_write_fallpoint)\
+    ONCE(smt_commit_merge_mutate_zk_fail_after_op) \
+    ONCE(smt_commit_merge_mutate_zk_fail_before_op) \
+    ONCE(smt_commit_write_zk_fail_after_op) \
+    ONCE(smt_commit_write_zk_fail_before_op) \
+    ONCE(smt_commit_merge_change_version_before_op) \
+    ONCE(smt_merge_mutate_intention_freeze_in_destructor) \
+    ONCE(meta_in_keeper_create_metadata_failure) \
+    REGULAR(cache_warmer_stall) \
+    REGULAR(check_table_query_delay_for_part) \
     REGULAR(dummy_failpoint) \
-    PAUSEABLE_ONCE(dummy_pausable_failpoint_once) \
-    PAUSEABLE(dummy_pausable_failpoint)
+    REGULAR(prefetched_reader_pool_failpoint) \
+    PAUSEABLE_ONCE(replicated_merge_tree_insert_retry_pause) \
+    PAUSEABLE_ONCE(finish_set_quorum_failed_parts) \
+    PAUSEABLE_ONCE(finish_clean_quorum_failed_parts) \
+    PAUSEABLE(dummy_pausable_failpoint) \
+    ONCE(execute_query_calling_empty_set_result_func_on_exception) \
+    ONCE(receive_timeout_on_table_status_response) \
+    REGULAR(keepermap_fail_drop_data) \
+    REGULAR(lazy_pipe_fds_fail_close) \
+    PAUSEABLE(infinite_sleep) \
+    PAUSEABLE(stop_moving_part_before_swap_with_active) \
+
 
 namespace FailPoints
 {
@@ -45,9 +72,6 @@ namespace FailPoints
 APPLY_FOR_FAILPOINTS(M, M, M, M)
 #undef M
 }
-
-static std::unordered_map<String, std::shared_ptr<FailPointChannel>> fail_point_wait_channels;
-static std::mutex mu;
 
 class FailPointChannel : private boost::noncopyable
 {
@@ -80,6 +104,10 @@ private:
     std::condition_variable cv;
 };
 
+#if USE_LIBFIU
+static std::unordered_map<String, std::shared_ptr<FailPointChannel>> fail_point_wait_channels;
+static std::mutex fail_point_injection_mu;
+
 void FailPointInjection::enablePauseFailPoint(const String & fail_point_name, UInt64 time_ms)
 {
 #define SUB_M(NAME, flags)                                                                                  \
@@ -87,7 +115,7 @@ void FailPointInjection::enablePauseFailPoint(const String & fail_point_name, UI
     {                                                                                                       \
         /* FIU_ONETIME -- Only fail once; the point of failure will be automatically disabled afterwards.*/ \
         fiu_enable(FailPoints::NAME, 1, nullptr, flags);                                                    \
-        std::lock_guard lock(mu);                                                                           \
+        std::lock_guard lock(fail_point_injection_mu);                                                                           \
         fail_point_wait_channels.try_emplace(FailPoints::NAME, std::make_shared<FailPointChannel>(time_ms));   \
         return;                                                                                             \
     }
@@ -112,7 +140,6 @@ void FailPointInjection::pauseFailPoint(const String & fail_point_name)
 
 void FailPointInjection::enableFailPoint(const String & fail_point_name)
 {
-#if FIU_ENABLE
 #define SUB_M(NAME, flags, pause)                                                                               \
     if (fail_point_name == FailPoints::NAME)                                                                    \
     {                                                                                                           \
@@ -120,7 +147,7 @@ void FailPointInjection::enableFailPoint(const String & fail_point_name)
         fiu_enable(FailPoints::NAME, 1, nullptr, flags);                                                        \
         if (pause)                                                                                               \
         {                                                                                                       \
-            std::lock_guard lock(mu);                                                                           \
+            std::lock_guard lock(fail_point_injection_mu);                                                                           \
             fail_point_wait_channels.try_emplace(FailPoints::NAME, std::make_shared<FailPointChannel>());       \
         }                                                                                                       \
         return;                                                                                                 \
@@ -135,14 +162,11 @@ void FailPointInjection::enableFailPoint(const String & fail_point_name)
 #undef REGULAR
 #undef PAUSEABLE_ONCE
 #undef PAUSEABLE
-
-#endif
-    throw Exception(ErrorCodes::LOGICAL_ERROR, "Cannot find fail point {}", fail_point_name);
 }
 
 void FailPointInjection::disableFailPoint(const String & fail_point_name)
 {
-    std::lock_guard lock(mu);
+    std::lock_guard lock(fail_point_injection_mu);
     if (auto iter = fail_point_wait_channels.find(fail_point_name); iter != fail_point_wait_channels.end())
     {
         /// can not rely on deconstruction to do the notify_all things, because
@@ -155,7 +179,7 @@ void FailPointInjection::disableFailPoint(const String & fail_point_name)
 
 void FailPointInjection::wait(const String & fail_point_name)
 {
-    std::unique_lock lock(mu);
+    std::unique_lock lock(fail_point_injection_mu);
     if (auto iter = fail_point_wait_channels.find(fail_point_name); iter == fail_point_wait_channels.end())
         throw Exception(ErrorCodes::LOGICAL_ERROR, "Can not find channel for fail point {}", fail_point_name);
     else
@@ -164,8 +188,21 @@ void FailPointInjection::wait(const String & fail_point_name)
         auto ptr = iter->second;
         ptr->wait();
     }
-};
+}
 
+void FailPointInjection::enableFromGlobalConfig(const DBPoco::Util::AbstractConfiguration & config)
+{
+    String root_key = "fail_points_active";
+
+    DBPoco::Util::AbstractConfiguration::Keys fail_point_names;
+    config.keys(root_key, fail_point_names);
+
+    for (const auto & fail_point_name : fail_point_names)
+    {
+        if (ConfigHelper::getBool(config, root_key + "." + fail_point_name))
+            FailPointInjection::enableFailPoint(fail_point_name);
+    }
+}
 #else
 
 void FailPointInjection::pauseFailPoint(const String & /*fail_point_name*/) {}
@@ -173,7 +210,9 @@ void FailPointInjection::enableFailPoint(const String & /*fail_point_name*/) {}
 void FailPointInjection::enablePauseFailPoint(const String & /*fail_point_name*/, UInt64 /*time*/) {}
 void FailPointInjection::disableFailPoint(const String & /*fail_point_name*/) {}
 void FailPointInjection::wait(const String & /*fail_point_name*/) {}
+void FailPointInjection::enableFromGlobalConfig(const DBPoco::Util::AbstractConfiguration & /*config*/) {}
 
 #endif
+
 
 }

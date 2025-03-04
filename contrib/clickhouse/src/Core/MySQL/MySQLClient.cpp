@@ -7,7 +7,7 @@
 #include <Core/MySQL/PacketsReplication.h>
 #include <Core/MySQL/MySQLReplication.h>
 #include <Common/DNSResolver.h>
-#include <Poco/String.h>
+#include <DBPoco/String.h>
 
 
 namespace DB
@@ -42,11 +42,11 @@ void MySQLClient::connect()
         disconnect();
     }
 
-    const Poco::Timespan connection_timeout(10'000'000'000);
-    const Poco::Timespan receive_timeout(5'000'000'000);
-    const Poco::Timespan send_timeout(5'000'000'000);
+    const DBPoco::Timespan connection_timeout(10'000'000'000);
+    const DBPoco::Timespan receive_timeout(5'000'000'000);
+    const DBPoco::Timespan send_timeout(5'000'000'000);
 
-    socket = std::make_unique<Poco::Net::StreamSocket>();
+    socket = std::make_unique<DBPoco::Net::StreamSocket>();
     address = DNSResolver::instance().resolveAddress(host, port);
     socket->connect(*address, connection_timeout);
     socket->setReceiveTimeout(receive_timeout);
@@ -138,7 +138,7 @@ void MySQLClient::ping()
 
 void MySQLClient::setBinlogChecksum(const String & binlog_checksum)
 {
-    replication.setChecksumSignatureLength(Poco::toUpper(binlog_checksum) == "NONE" ? 0 : 4);
+    replication.setChecksumSignatureLength(DBPoco::toUpper(binlog_checksum) == "NONE" ? 0 : 4);
 }
 
 void MySQLClient::startBinlogDumpGTID(UInt32 slave_id, String replicate_db, std::unordered_set<String> replicate_tables, String gtid_str, const String & binlog_checksum)

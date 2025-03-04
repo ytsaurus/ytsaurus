@@ -371,7 +371,7 @@ public:
         return "SystemLogTableExporterSink";
     }
 
-    void consume(DB::Chunk chunk) override
+    void consume(DB::Chunk& chunk) override
     {
         NewChunks_.push_back(std::move(chunk));
     }

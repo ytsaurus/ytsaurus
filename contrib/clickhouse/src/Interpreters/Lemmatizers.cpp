@@ -39,10 +39,10 @@ static bool startsWith(const std::string & s, const char * prefix)
     return s.size() >= strlen(prefix) && 0 == memcmp(s.data(), prefix, strlen(prefix));
 }
 
-Lemmatizers::Lemmatizers(const Poco::Util::AbstractConfiguration & config)
+Lemmatizers::Lemmatizers(const DBPoco::Util::AbstractConfiguration & config)
 {
     String prefix = "lemmatizers";
-    Poco::Util::AbstractConfiguration::Keys keys;
+    DBPoco::Util::AbstractConfiguration::Keys keys;
 
     if (!config.has(prefix))
         throw Exception(ErrorCodes::INVALID_CONFIG_PARAMETER, "No lemmatizers specified in server config on prefix '{}'", prefix);

@@ -12,13 +12,6 @@
 # Please refer to the build instructions in the repository for more information about manual
 # changes in this file.
 
+add_subdirectory(MongoDB)
 add_subdirectory(Foundation)
 add_subdirectory(Net)
-add_subdirectory(Util)
-add_subdirectory(JSON)
-add_subdirectory(XML)
-add_subdirectory(Crypto)
-add_subdirectory(NetSSL_OpenSSL)
-add_subdirectory(Data)
-add_subdirectory(MongoDB)
-add_subdirectory(Redis)

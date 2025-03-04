@@ -4,9 +4,11 @@
 #include <cstring>
 #include <optional>
 #include <base/types.h>
+#include <boost/core/noncopyable.hpp>
 #include <Common/Exception.h>
-#include <Poco/Net/IPAddress.h>
-#include <Poco/Net/SocketAddress.h>
+#include <Common/levenshteinDistance.h>
+#include <DBPoco/Net/IPAddress.h>
+#include <DBPoco/Net/SocketAddress.h>
 
 
 namespace DB
@@ -20,18 +22,16 @@ namespace ErrorCodes
 namespace
 {
 
-struct NetworkInterfaces
+struct NetworkInterfaces : public boost::noncopyable
 {
     ifaddrs * ifaddr;
     NetworkInterfaces()
     {
         if (getifaddrs(&ifaddr) == -1)
-        {
-            throwFromErrno("Cannot getifaddrs", ErrorCodes::SYSTEM_ERROR);
-        }
+            throw ErrnoException(ErrorCodes::SYSTEM_ERROR, "Cannot getifaddrs");
     }
 
-    bool hasAddress(const Poco::Net::IPAddress & address) const
+    bool hasAddress(const DBPoco::Net::IPAddress & address) const
     {
         ifaddrs * iface;
         for (iface = ifaddr; iface != nullptr; iface = iface->ifa_next)
@@ -41,7 +41,7 @@ struct NetworkInterfaces
                 continue;
 
             auto family = iface->ifa_addr->sa_family;
-            std::optional<Poco::Net::IPAddress> interface_address;
+            std::optional<DBPoco::Net::IPAddress> interface_address;
             switch (family)
             {
                 /// We interested only in IP-addresses
@@ -79,7 +79,7 @@ struct NetworkInterfaces
 }
 
 
-bool isLocalAddress(const Poco::Net::IPAddress & address)
+bool isLocalAddress(const DBPoco::Net::IPAddress & address)
 {
     /** 127.0.0.1 is treat as local address unconditionally.
       * ::1 is also treat as local address unconditionally.
@@ -92,7 +92,7 @@ bool isLocalAddress(const Poco::Net::IPAddress & address)
       */
     if (address.isLoopback())
     {
-        if (address.family() == Poco::Net::AddressFamily::IPv4)
+        if (address.family() == DBPoco::Net::AddressFamily::IPv4)
         {
             /// The address is located in memory in big endian form (network byte order).
             const unsigned char * digits = static_cast<const unsigned char *>(address.addr());
@@ -105,31 +105,34 @@ bool isLocalAddress(const Poco::Net::IPAddress & address)
                 return true;
             }
         }
-        else if (address.family() == Poco::Net::AddressFamily::IPv6)
+        else if (address.family() == DBPoco::Net::AddressFamily::IPv6)
         {
             return true;
         }
     }
 
-    NetworkInterfaces interfaces;
-    return interfaces.hasAddress(address);
+    static NetworkInterfaces network_interfaces;
+    return network_interfaces.hasAddress(address);
 }
 
 
-bool isLocalAddress(const Poco::Net::SocketAddress & address, UInt16 clickhouse_port)
+bool isLocalAddress(const DBPoco::Net::SocketAddress & address, UInt16 clickhouse_port)
 {
     return clickhouse_port == address.port() && isLocalAddress(address.host());
 }
 
-
-size_t getHostNameDifference(const std::string & local_hostname, const std::string & host)
+size_t getHostNamePrefixDistance(const std::string & local_hostname, const std::string & host)
 {
-    /// FIXME should we replace it with Levenstein distance? (we already have it in NamePrompter)
     size_t hostname_difference = 0;
     for (size_t i = 0; i < std::min(local_hostname.length(), host.length()); ++i)
         if (local_hostname[i] != host[i])
             ++hostname_difference;
     return hostname_difference;
+}
+
+size_t getHostNameLevenshteinDistance(const std::string & local_hostname, const std::string & host)
+{
+    return levenshteinDistance(local_hostname, host);
 }
 
 }

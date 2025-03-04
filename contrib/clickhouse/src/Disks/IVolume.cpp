@@ -1,6 +1,6 @@
 #include "IVolume.h"
 
-#include <Common/StringUtils/StringUtils.h>
+#include <Common/StringUtils.h>
 #include <Common/quoteString.h>
 
 #include <memory>
@@ -27,13 +27,13 @@ VolumeLoadBalancing parseVolumeLoadBalancing(const String & config)
 
 IVolume::IVolume(
     String name_,
-    const Poco::Util::AbstractConfiguration & config,
+    const DBPoco::Util::AbstractConfiguration & config,
     const String & config_prefix,
     DiskSelectorPtr disk_selector)
     : name(std::move(name_))
     , load_balancing(parseVolumeLoadBalancing(config.getString(config_prefix + ".load_balancing", "round_robin")))
 {
-    Poco::Util::AbstractConfiguration::Keys keys;
+    DBPoco::Util::AbstractConfiguration::Keys keys;
     config.keys(config_prefix, keys);
 
     for (const auto & disk : keys)
@@ -46,7 +46,7 @@ IVolume::IVolume(
     }
 
     if (disks.empty())
-        throw Exception(ErrorCodes::NO_ELEMENTS_IN_CONFIG, "Volume must contain at least one disk");
+        throw Exception(ErrorCodes::NO_ELEMENTS_IN_CONFIG, "Volume {} must contain at least one disk", name);
 }
 
 std::optional<UInt64> IVolume::getMaxUnreservedFreeSpace() const

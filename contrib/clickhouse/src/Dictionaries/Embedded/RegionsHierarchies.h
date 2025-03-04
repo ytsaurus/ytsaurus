@@ -1,10 +1,12 @@
 #pragma once
 
 #include <unordered_map>
-#include <Poco/Exception.h>
+#include <DBPoco/Exception.h>
 #include "GeodataProviders/IHierarchiesProvider.h"
 #include "RegionsHierarchy.h"
 
+namespace DB
+{
 
 /** Contains several hierarchies of regions.
   * Used to support several different perspectives on the ownership of regions by countries.
@@ -32,8 +34,10 @@ public:
         auto it = data.find(key);
 
         if (data.end() == it)
-            throw Poco::Exception("There is no regions hierarchy for key " + key);
+            throw DBPoco::Exception("There is no regions hierarchy for key " + key);
 
         return it->second;
     }
 };
+
+}

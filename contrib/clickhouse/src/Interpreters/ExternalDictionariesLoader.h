@@ -33,15 +33,21 @@ public:
 
     void assertDictionaryStructureExists(const std::string & dictionary_name, ContextPtr context) const;
 
-    static DictionaryStructure getDictionaryStructure(const Poco::Util::AbstractConfiguration & config, const std::string & key_in_config = "dictionary");
+    static DictionaryStructure getDictionaryStructure(const DBPoco::Util::AbstractConfiguration & config, const std::string & key_in_config = "dictionary");
 
     static DictionaryStructure getDictionaryStructure(const ObjectConfig & config);
 
     static void resetAll();
 
 protected:
-    LoadablePtr create(const std::string & name, const Poco::Util::AbstractConfiguration & config,
-            const std::string & key_in_config, const std::string & repository_name) const override;
+    LoadableMutablePtr createObject(const std::string & name, const DBPoco::Util::AbstractConfiguration & config,
+                                    const std::string & key_in_config, const std::string & repository_name) const override;
+
+    bool doesConfigChangeRequiresReloadingObject(const DBPoco::Util::AbstractConfiguration & old_config, const String & old_key_in_config,
+                                                 const DBPoco::Util::AbstractConfiguration & new_config, const String & new_key_in_config) const override;
+
+    void updateObjectFromConfigWithoutReloading(
+        IExternalLoadable & object, const DBPoco::Util::AbstractConfiguration & config, const String & key_in_config) const override;
 
     std::string resolveDictionaryName(const std::string & dictionary_name, const std::string & current_database_name) const;
 

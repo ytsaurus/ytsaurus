@@ -1,7 +1,7 @@
 #pragma once
 
-#include <Poco/Net/StreamSocket.h>
-#include <Poco/Timespan.h>
+#include <DBPoco/Net/StreamSocket.h>
+#include <DBPoco/Timespan.h>
 
 
 namespace DB
@@ -10,25 +10,25 @@ namespace DB
 /// If "limit_max_timeout" is true, timeouts could be only decreased (maxed by previous value).
 struct TimeoutSetter
 {
-    TimeoutSetter(Poco::Net::StreamSocket & socket_,
-        Poco::Timespan send_timeout_,
-        Poco::Timespan receive_timeout_,
+    TimeoutSetter(DBPoco::Net::StreamSocket & socket_,
+        DBPoco::Timespan send_timeout_,
+        DBPoco::Timespan receive_timeout_,
         bool limit_max_timeout = false);
 
-    TimeoutSetter(Poco::Net::StreamSocket & socket_, Poco::Timespan timeout_, bool limit_max_timeout = false);
+    TimeoutSetter(DBPoco::Net::StreamSocket & socket_, DBPoco::Timespan timeout_, bool limit_max_timeout = false);
 
     ~TimeoutSetter();
 
     /// Reset timeouts back.
     void reset();
 
-    Poco::Net::StreamSocket & socket;
+    DBPoco::Net::StreamSocket & socket;
 
-    Poco::Timespan send_timeout;
-    Poco::Timespan receive_timeout;
+    DBPoco::Timespan send_timeout;
+    DBPoco::Timespan receive_timeout;
 
-    Poco::Timespan old_send_timeout;
-    Poco::Timespan old_receive_timeout;
+    DBPoco::Timespan old_send_timeout;
+    DBPoco::Timespan old_receive_timeout;
     bool was_reset = false;
 };
 }

@@ -225,7 +225,7 @@ TEST_F(TCHToYTConversionTest, String)
 
 TEST_F(TCHToYTConversionTest, Interval)
 {
-    auto dataType = std::make_shared<DB::DataTypeInterval>(DB::IntervalKind::Microsecond);
+    auto dataType = std::make_shared<DB::DataTypeInterval>(DB::IntervalKind::Kind::Microsecond);
 
     auto column = MakeColumn(dataType, {
         DB::Int64(42),

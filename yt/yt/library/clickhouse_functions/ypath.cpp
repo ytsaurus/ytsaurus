@@ -14,9 +14,10 @@
 #include <DataTypes/DataTypeNullable.h>
 #include <DataTypes/DataTypesNumber.h>
 #include <DataTypes/DataTypeString.h>
+#include <DataTypes/DataTypeFactory.h>
+#include <Formats/JSONExtractTree.h>
 #include <Functions/FunctionFactory.h>
 #include <Functions/FunctionHelpers.h>
-#include <Functions/FunctionsJSON.h>
 #include <Functions/IFunction.h>
 
 namespace DB {
@@ -566,7 +567,7 @@ public:
             columnPath = &nullableColumnPath->getNestedColumn();
         }
 
-        auto extractTree = JSONExtractTree<TYsonParserAdapter>::build(name, returnType);
+        auto extractTree = buildJSONExtractTree<TYsonParserAdapter>(returnType, nullptr /*source_for_exception_message*/);
 
         auto columnTo = returnType->createColumn();
         columnTo->reserve(inputRowCount);
@@ -601,7 +602,8 @@ public:
                 subNode = WalkNodeByYPath(node, TString(path.data, path.size), options);
             }
 
-            if (!subNode || !extractTree->insertResultToColumn(*columnTo, subNode)) {
+            std::string errorStub;
+            if (!subNode || !extractTree->insertResultToColumn(*columnTo, subNode, {}, {}, errorStub)) {
                 if constexpr (Strict) {
                     THROW_ERROR_EXCEPTION("Error converting extracted value")
                         << TErrorAttribute("yson", TStringBuf(yson.data, yson.size))

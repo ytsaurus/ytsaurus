@@ -3,14 +3,14 @@
 #include <IO/ReadBufferFromFile.h>
 #include <Compression/CompressedReadBuffer.h>
 #include <Formats/NativeReader.h>
-#include <Poco/Logger.h>
+#include <DBPoco/Logger.h>
 
 namespace DB
 {
 
 struct DistributedAsyncInsertSource::Data
 {
-    Poco::Logger * log = nullptr;
+    LoggerPtr log = nullptr;
 
     ReadBufferFromFile in;
     CompressedReadBuffer decompressing_in;
@@ -19,7 +19,7 @@ struct DistributedAsyncInsertSource::Data
     Block first_block;
 
     explicit Data(const String & file_name)
-        : log(&Poco::Logger::get("DistributedAsyncInsertSource"))
+        : log(getLogger("DistributedAsyncInsertSource"))
         , in(file_name)
         , decompressing_in(in)
         , block_in(decompressing_in, DistributedAsyncInsertHeader::read(in, log).revision)

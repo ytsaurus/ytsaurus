@@ -6,7 +6,7 @@
 #include <Interpreters/ProcessList.h>
 #include <Interpreters/Context.h>
 #include <base/getThreadId.h>
-#include <Poco/Logger.h>
+#include <DBPoco/Logger.h>
 
 
 namespace DB
@@ -95,6 +95,14 @@ ThreadGroupPtr CurrentThread::getGroup()
         return nullptr;
 
     return current_thread->getThreadGroup();
+}
+
+ContextPtr CurrentThread::getQueryContext()
+{
+    if (unlikely(!current_thread))
+        return {};
+
+    return current_thread->getQueryContext();
 }
 
 std::string_view CurrentThread::getQueryId()

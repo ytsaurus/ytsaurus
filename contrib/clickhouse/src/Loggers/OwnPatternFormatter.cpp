@@ -8,7 +8,7 @@
 
 
 OwnPatternFormatter::OwnPatternFormatter(bool color_)
-    : Poco::PatternFormatter(""), color(color_)
+    : DBPoco::PatternFormatter(""), color(color_)
 {
 }
 
@@ -17,7 +17,7 @@ void OwnPatternFormatter::formatExtended(const DB::ExtendedLogMessage & msg_ext,
 {
     DB::WriteBufferFromString wb(text);
 
-    const Poco::Message & msg = msg_ext.base;
+    const DBPoco::Message & msg = msg_ext.base;
 
     /// Change delimiters in date for compatibility with old logs.
     DB::writeDateTimeText<'.', ':'>(msg_ext.time_seconds, wb, server_timezone);
@@ -65,7 +65,7 @@ void OwnPatternFormatter::formatExtended(const DB::ExtendedLogMessage & msg_ext,
     DB::writeString(msg.getText(), wb);
 }
 
-void OwnPatternFormatter::format(const Poco::Message & msg, std::string & text)
+void OwnPatternFormatter::format(const DBPoco::Message & msg, std::string & text)
 {
     formatExtended(DB::ExtendedLogMessage::getFrom(msg), text);
 }

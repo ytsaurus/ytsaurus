@@ -5,7 +5,7 @@
 #include <DataTypes/DataTypesNumber.h>
 #include <Common/logger_useful.h>
 
-#include <Poco/Message.h>
+#include <DBPoco/Message.h>
 
 
 namespace DB
@@ -13,7 +13,7 @@ namespace DB
 
 InternalTextLogsQueue::InternalTextLogsQueue()
         : ConcurrentBoundedQueue<MutableColumns>(std::numeric_limits<int>::max()),
-          max_priority(Poco::Message::Priority::PRIO_INFORMATION) {}
+          max_priority(DBPoco::Message::Priority::PRIO_INFORMATION) {}
 
 
 Block InternalTextLogsQueue::getSampleBlock()
@@ -43,14 +43,14 @@ void InternalTextLogsQueue::pushBlock(Block && log_block)
     if (blocksHaveEqualStructure(sample_block, log_block))
         (void)(emplace(log_block.mutateColumns()));
     else
-        LOG_WARNING(&Poco::Logger::get("InternalTextLogsQueue"), "Log block have different structure");
+        LOG_WARNING(getLogger("InternalTextLogsQueue"), "Log block have different structure");
 }
 
 std::string_view InternalTextLogsQueue::getPriorityName(int priority)
 {
     using namespace std::literals;
 
-    /// See Poco::Message::Priority
+    /// See DBPoco::Message::Priority
     static constexpr std::array PRIORITIES =
     {
         "Unknown"sv,

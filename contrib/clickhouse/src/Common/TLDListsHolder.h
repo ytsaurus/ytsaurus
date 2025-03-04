@@ -3,7 +3,7 @@
 #include <base/defines.h>
 #include <base/StringRef.h>
 #include <Common/HashTable/StringHashMap.h>
-#include <Poco/Util/AbstractConfiguration.h>
+#include <DBPoco/Util/AbstractConfiguration.h>
 #include <mutex>
 #include <string>
 #include <unordered_map>
@@ -52,7 +52,7 @@ public:
 
     /// Parse "top_level_domains_lists" section,
     /// And add each found dictionary.
-    void parseConfig(const std::string & top_level_domains_path, const Poco::Util::AbstractConfiguration & config);
+    void parseConfig(const std::string & top_level_domains_path, const DBPoco::Util::AbstractConfiguration & config);
 
     /// Parse file and add it as a Set to the list of TLDs
     /// - "//" -- comment,

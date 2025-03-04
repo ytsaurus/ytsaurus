@@ -22,16 +22,13 @@ target_compile_options(clickhouse-src-Parsers PUBLIC
 )
 
 target_compile_options(clickhouse-src-Parsers PRIVATE
-  -DAWS_SDK_VERSION_MAJOR=1
-  -DAWS_SDK_VERSION_MINOR=10
-  -DAWS_SDK_VERSION_PATCH=36
+  -DPOCO_HAVE_FD_EPOLL
   -DBOOST_ASIO_HAS_STD_INVOKE_RESULT=1
   -DBOOST_ASIO_STANDALONE=1
   -DBOOST_TIMER_ENABLE_DEPRECATED=1
   -DENABLE_MULTITARGET_CODE=1
   -DINCBIN_SILENCE_BITCODE_WARNING
   -DPOCO_ENABLE_CPP11
-  -DPOCO_HAVE_FD_EPOLL
   -DPOCO_OS_FAMILY_UNIX
   -DUNALIGNED_OK
   -DWITH_COVERAGE=0
@@ -39,17 +36,23 @@ target_compile_options(clickhouse-src-Parsers PRIVATE
   -DX86_64
   -DZLIB_COMPAT
   -D_LIBCPP_ENABLE_THREAD_SAFETY_ANNOTATIONS
+  -D_LIBUNWIND_IS_NATIVE_ONLY
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
 
 target_include_directories(clickhouse-src-Parsers PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/base
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/base/pcg-random
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/base/poco/Crypto/include
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/base/poco/Foundation/include
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/base/poco/Net/include
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/base/poco/NetSSL_OpenSSL/include
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/base/poco/Util/include
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/contrib/pdqsort
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/includes/configs
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src
   ${PROJECT_SOURCE_DIR}/contrib/libs/double-conversion
   ${PROJECT_SOURCE_DIR}/contrib/libs/miniselect/include
-  ${PROJECT_SOURCE_DIR}/contrib/libs/pdqsort
   ${PROJECT_SOURCE_DIR}/contrib/libs/sparsehash/src
   ${PROJECT_SOURCE_DIR}/contrib/restricted/cityhash-1.0.2
 )
@@ -57,16 +60,15 @@ target_include_directories(clickhouse-src-Parsers PRIVATE
 target_link_libraries(clickhouse-src-Parsers PUBLIC
   linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
+  base-poco-Crypto
+  base-poco-Foundation
+  base-poco-Net
+  base-poco-NetSSL_OpenSSL
+  base-poco-Util
   clickhouse-src-Common
   contrib-libs-double-conversion
   contrib-libs-fmt
   contrib-libs-miniselect
-  contrib-libs-pdqsort
-  libs-poco-Foundation
-  libs-poco-JSON
-  libs-poco-Net
-  libs-poco-Util
-  libs-poco-XML
   contrib-libs-re2
   contrib-libs-sparsehash
   restricted-boost-circular_buffer
@@ -97,8 +99,10 @@ target_sources(clickhouse-src-Parsers PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Parsers/ASTCreateIndexQuery.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Parsers/ASTCreateNamedCollectionQuery.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Parsers/ASTCreateQuery.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Parsers/ASTDataType.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Parsers/ASTDatabaseOrNone.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Parsers/ASTDeleteQuery.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Parsers/ASTDescribeCacheQuery.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Parsers/ASTDictionary.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Parsers/ASTDictionaryAttributeDeclaration.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Parsers/ASTDropFunctionQuery.cpp
@@ -115,6 +119,7 @@ target_sources(clickhouse-src-Parsers PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Parsers/ASTKillQueryQuery.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Parsers/ASTLiteral.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Parsers/ASTNameTypePair.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Parsers/ASTObjectTypeArgument.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Parsers/ASTOptimizeQuery.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Parsers/ASTOrderByElement.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Parsers/ASTPartition.cpp
@@ -125,21 +130,28 @@ target_sources(clickhouse-src-Parsers PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Parsers/ASTQueryWithOnCluster.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Parsers/ASTQueryWithOutput.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Parsers/ASTQueryWithTableAndOutput.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Parsers/ASTRefreshStrategy.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Parsers/ASTSQLSecurity.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Parsers/ASTSampleRatio.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Parsers/ASTSelectIntersectExceptQuery.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Parsers/ASTSelectQuery.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Parsers/ASTSelectWithUnionQuery.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Parsers/ASTSetQuery.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Parsers/ASTShowColumnsQuery.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Parsers/ASTShowFunctionsQuery.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Parsers/ASTShowIndexesQuery.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Parsers/ASTShowSettingQuery.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Parsers/ASTShowTablesQuery.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Parsers/ASTStatisticsDeclaration.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Parsers/ASTSubquery.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Parsers/ASTSystemQuery.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Parsers/ASTTTLElement.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Parsers/ASTTableOverrides.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Parsers/ASTTablesInSelectQuery.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Parsers/ASTTimeInterval.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Parsers/ASTTransactionControl.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Parsers/ASTUndropQuery.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Parsers/ASTViewTargets.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Parsers/ASTWindowDefinition.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Parsers/ASTWithAlias.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Parsers/ASTWithElement.cpp
@@ -152,6 +164,7 @@ target_sources(clickhouse-src-Parsers PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Parsers/Access/ASTDropAccessEntityQuery.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Parsers/Access/ASTGrantQuery.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Parsers/Access/ASTMoveAccessEntityQuery.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Parsers/Access/ASTPublicSSHKey.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Parsers/Access/ASTRolesOrUsersSet.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Parsers/Access/ASTRowPolicyName.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Parsers/Access/ASTSetRoleQuery.cpp
@@ -168,6 +181,7 @@ target_sources(clickhouse-src-Parsers PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Parsers/Access/ParserDropAccessEntityQuery.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Parsers/Access/ParserGrantQuery.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Parsers/Access/ParserMoveAccessEntityQuery.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Parsers/Access/ParserPublicSSHKey.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Parsers/Access/ParserRolesOrUsersSet.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Parsers/Access/ParserRowPolicyName.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Parsers/Access/ParserSetRoleQuery.cpp
@@ -179,23 +193,46 @@ target_sources(clickhouse-src-Parsers PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Parsers/Access/ParserUserNameWithHost.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Parsers/Access/parseUserName.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Parsers/CommonParsers.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Parsers/CreateQueryUUIDs.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Parsers/ExpressionElementParsers.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Parsers/ExpressionListParsers.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Parsers/FieldFromAST.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Parsers/FunctionParameterValuesVisitor.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Parsers/IAST.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Parsers/IParser.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Parsers/IParserBase.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Parsers/InsertQuerySettingsPushDownVisitor.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Parsers/Kusto/Formatters.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Parsers/Kusto/KustoFunctions/IParserKQLFunction.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Parsers/Kusto/KustoFunctions/KQLAggregationFunctions.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Parsers/Kusto/KustoFunctions/KQLBinaryFunctions.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Parsers/Kusto/KustoFunctions/KQLCastingFunctions.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Parsers/Kusto/KustoFunctions/KQLDataTypeFunctions.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Parsers/Kusto/KustoFunctions/KQLDateTimeFunctions.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Parsers/Kusto/KustoFunctions/KQLDynamicFunctions.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Parsers/Kusto/KustoFunctions/KQLFunctionFactory.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Parsers/Kusto/KustoFunctions/KQLGeneralFunctions.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Parsers/Kusto/KustoFunctions/KQLIPFunctions.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Parsers/Kusto/KustoFunctions/KQLMathematicalFunctions.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Parsers/Kusto/KustoFunctions/KQLStringFunctions.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Parsers/Kusto/KustoFunctions/KQLTimeSeriesFunctions.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Parsers/Kusto/ParserKQLDateTypeTimespan.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Parsers/Kusto/ParserKQLDistinct.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Parsers/Kusto/ParserKQLExtend.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Parsers/Kusto/ParserKQLFilter.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Parsers/Kusto/ParserKQLLimit.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Parsers/Kusto/ParserKQLMVExpand.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Parsers/Kusto/ParserKQLMakeSeries.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Parsers/Kusto/ParserKQLOperators.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Parsers/Kusto/ParserKQLPrint.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Parsers/Kusto/ParserKQLProject.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Parsers/Kusto/ParserKQLQuery.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Parsers/Kusto/ParserKQLSort.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Parsers/Kusto/ParserKQLStatement.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Parsers/Kusto/ParserKQLSummarize.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Parsers/Kusto/ParserKQLTable.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Parsers/Kusto/Utilities.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Parsers/Kusto/parseKQLQuery.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Parsers/Lexer.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Parsers/MySQL/ASTAlterCommand.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Parsers/MySQL/ASTAlterQuery.cpp
@@ -241,21 +278,27 @@ target_sources(clickhouse-src-Parsers PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Parsers/ParserProjectionSelectQuery.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Parsers/ParserQuery.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Parsers/ParserQueryWithOutput.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Parsers/ParserRefreshStrategy.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Parsers/ParserRenameQuery.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Parsers/ParserSampleRatio.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Parsers/ParserSelectQuery.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Parsers/ParserSelectWithUnionQuery.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Parsers/ParserSetQuery.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Parsers/ParserShowColumnsQuery.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Parsers/ParserShowFunctionsQuery.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Parsers/ParserShowIndexesQuery.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Parsers/ParserShowSettingQuery.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Parsers/ParserShowTablesQuery.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Parsers/ParserStringAndSubstitution.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Parsers/ParserSystemQuery.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Parsers/ParserTablePropertiesQuery.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Parsers/ParserTablesInSelectQuery.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Parsers/ParserTimeInterval.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Parsers/ParserTransactionControl.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Parsers/ParserUndropQuery.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Parsers/ParserUnionQueryElement.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Parsers/ParserUseQuery.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Parsers/ParserViewTargets.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Parsers/ParserWatchQuery.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Parsers/ParserWithElement.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Parsers/QueryParameterVisitor.cpp
@@ -265,14 +308,15 @@ target_sources(clickhouse-src-Parsers PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Parsers/formatAST.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Parsers/formatSettingName.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Parsers/getInsertQuery.cpp
-  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Parsers/iostream_debug_helpers.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Parsers/isDiskFunction.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Parsers/isUnquotedIdentifier.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Parsers/makeASTForLogicalFunction.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Parsers/obfuscateQueries.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Parsers/parseDatabaseAndTableName.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Parsers/parseIdentifierOrStringLiteral.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Parsers/parseIntervalKind.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Parsers/parseQuery.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Parsers/queryNormalization.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Parsers/queryToString.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Parsers/toOneLineQuery.cpp
 )

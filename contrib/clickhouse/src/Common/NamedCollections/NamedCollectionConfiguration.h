@@ -1,12 +1,13 @@
 #pragma once
-#include <Poco/Util/AbstractConfiguration.h>
 #include <queue>
 #include <set>
+#include <Core/Field.h>
+#include <DBPoco/Util/AbstractConfiguration.h>
 
 namespace DB
 {
 
-using ConfigurationPtr = Poco::AutoPtr<Poco::Util::AbstractConfiguration>;
+using ConfigurationPtr = DBPoco::AutoPtr<DBPoco::Util::AbstractConfiguration>;
 class SettingsChanges;
 
 namespace NamedCollectionConfiguration
@@ -15,35 +16,38 @@ namespace NamedCollectionConfiguration
 ConfigurationPtr createEmptyConfiguration(const std::string & root_name);
 
 bool hasConfigValue(
-    const Poco::Util::AbstractConfiguration & config,
+    const DBPoco::Util::AbstractConfiguration & config,
     const std::string & path);
 
 template <typename T> T getConfigValue(
-    const Poco::Util::AbstractConfiguration & config,
+    const DBPoco::Util::AbstractConfiguration & config,
     const std::string & path);
 
 template <typename T> T getConfigValueOrDefault(
-    const Poco::Util::AbstractConfiguration & config,
+    const DBPoco::Util::AbstractConfiguration & config,
     const std::string & path,
     const T * default_value = nullptr);
 
-template<typename T> void setConfigValue(
-    Poco::Util::AbstractConfiguration & config,
+template <typename T>
+void setConfigValue(
+    DBPoco::Util::AbstractConfiguration & config,
     const std::string & path,
     const T & value,
-    bool update = false);
+    bool update = false,
+    std::optional<bool> is_overridable = {});
 
 template <typename T> void copyConfigValue(
-    const Poco::Util::AbstractConfiguration & from_config,
+    const DBPoco::Util::AbstractConfiguration & from_config,
     const std::string & from_path,
-    Poco::Util::AbstractConfiguration & to_config,
+    DBPoco::Util::AbstractConfiguration & to_config,
     const std::string & to_path);
 
 void removeConfigValue(
-    Poco::Util::AbstractConfiguration & config,
+    DBPoco::Util::AbstractConfiguration & config,
     const std::string & path);
 
-ConfigurationPtr createConfiguration(const std::string & root_name, const SettingsChanges & settings);
+ConfigurationPtr createConfiguration(
+    const std::string & root_name, const SettingsChanges & settings, const std::unordered_map<std::string, bool> & overridability);
 
 /// Enumerate keys paths of the config recursively.
 /// E.g. if `enumerate_paths` = {"root.key1"} and config like
@@ -63,10 +67,12 @@ ConfigurationPtr createConfiguration(const std::string & root_name, const Settin
 /// depth == 1 means: "root.key0", "root.key1.key2" and "root.key1.key3"
 /// and so on.
 void listKeys(
-    const Poco::Util::AbstractConfiguration & config,
+    const DBPoco::Util::AbstractConfiguration & config,
     std::queue<std::string> enumerate_paths,
     std::set<std::string, std::less<>> & result,
     ssize_t depth);
+
+std::optional<bool> isOverridable(const DBPoco::Util::AbstractConfiguration & config, const std::string & path);
 }
 
 }

@@ -8,21 +8,23 @@
 #include <Server/HTTP/HTTPServerResponse.h>
 #include <Server/HTTP/ReadHeaders.h>
 
-#include <Poco/Net/HTTPHeaderStream.h>
-#include <Poco/Net/HTTPStream.h>
-#include <Poco/Net/NetException.h>
+#include <DBPoco/Net/HTTPHeaderStream.h>
+#include <DBPoco/Net/HTTPStream.h>
+#include <DBPoco/Net/NetException.h>
 
 #include <Common/logger_useful.h>
 
 #if USE_SSL
-#include <Poco/Net/SecureStreamSocketImpl.h>
-#include <Poco/Net/SSLException.h>
-#include <Poco/Net/X509Certificate.h>
+#include <DBPoco/Net/SecureStreamSocketImpl.h>
+#include <DBPoco/Net/SSLException.h>
+#include <DBPoco/Net/X509Certificate.h>
 #endif
+
+static constexpr UInt64 HTTP_MAX_CHUNK_SIZE = 100ULL << 30;
 
 namespace DB
 {
-HTTPServerRequest::HTTPServerRequest(HTTPContextPtr context, HTTPServerResponse & response, Poco::Net::HTTPServerSession & session)
+HTTPServerRequest::HTTPServerRequest(HTTPContextPtr context, HTTPServerResponse & response, DBPoco::Net::HTTPServerSession & session, const ProfileEvents::Event & read_event)
     : max_uri_size(context->getMaxUriSize())
     , max_fields_number(context->getMaxFields())
     , max_field_name_size(context->getMaxFieldNameSize())
@@ -41,7 +43,7 @@ HTTPServerRequest::HTTPServerRequest(HTTPContextPtr context, HTTPServerResponse 
     session.socket().setReceiveTimeout(receive_timeout);
     session.socket().setSendTimeout(send_timeout);
 
-    auto in = std::make_unique<ReadBufferFromPocoSocket>(session.socket());
+    auto in = std::make_unique<ReadBufferFromPocoSocket>(session.socket(), read_event);
     socket = session.socket().impl();
 
     readRequest(*in);  /// Try parse according to RFC7230
@@ -54,7 +56,7 @@ HTTPServerRequest::HTTPServerRequest(HTTPContextPtr context, HTTPServerResponse 
     /// and retry with exactly the same (incomplete) set of rows.
     /// That's why we have to check body size if it's provided.
     if (getChunkedTransferEncoding())
-        stream = std::make_unique<HTTPChunkedReadBuffer>(std::move(in), context->getMaxChunkSize());
+        stream = std::make_unique<HTTPChunkedReadBuffer>(std::move(in), HTTP_MAX_CHUNK_SIZE);
     else if (hasContentLength())
     {
         size_t content_length = getContentLength();
@@ -65,7 +67,7 @@ HTTPServerRequest::HTTPServerRequest(HTTPContextPtr context, HTTPServerResponse 
     {
         stream = std::move(in);
         if (!startsWith(getContentType(), "multipart/form-data"))
-            LOG_WARNING(LogFrequencyLimiter(&Poco::Logger::get("HTTPServerRequest"), 10), "Got an HTTP request with no content length "
+            LOG_WARNING(LogFrequencyLimiter(getLogger("HTTPServerRequest"), 10), "Got an HTTP request with no content length "
                 "and no chunked/multipart encoding, it may be impossible to distinguish graceful EOF from abnormal connection loss");
     }
     else
@@ -81,7 +83,7 @@ bool HTTPServerRequest::checkPeerConnected() const
         if (!socket->receiveBytes(&b, 1, MSG_DONTWAIT | MSG_PEEK))
             return false;
     }
-    catch (Poco::TimeoutException &)
+    catch (DBPoco::TimeoutException &) // NOLINT(bugprone-empty-catch)
     {
     }
     catch (...)
@@ -98,22 +100,22 @@ bool HTTPServerRequest::havePeerCertificate() const
     if (!secure)
         return false;
 
-    const Poco::Net::SecureStreamSocketImpl * secure_socket = dynamic_cast<const Poco::Net::SecureStreamSocketImpl *>(socket);
+    const DBPoco::Net::SecureStreamSocketImpl * secure_socket = dynamic_cast<const DBPoco::Net::SecureStreamSocketImpl *>(socket);
     if (!secure_socket)
         return false;
 
     return secure_socket->havePeerCertificate();
 }
 
-Poco::Net::X509Certificate HTTPServerRequest::peerCertificate() const
+DBPoco::Net::X509Certificate HTTPServerRequest::peerCertificate() const
 {
     if (secure)
     {
-        const Poco::Net::SecureStreamSocketImpl * secure_socket = dynamic_cast<const Poco::Net::SecureStreamSocketImpl *>(socket);
+        const DBPoco::Net::SecureStreamSocketImpl * secure_socket = dynamic_cast<const DBPoco::Net::SecureStreamSocketImpl *>(socket);
         if (secure_socket)
             return secure_socket->peerCertificate();
     }
-    throw Poco::Net::SSLException("No certificate available");
+    throw DBPoco::Net::SSLException("No certificate available");
 }
 #endif
 
@@ -129,34 +131,34 @@ void HTTPServerRequest::readRequest(ReadBuffer & in)
     version.reserve(16);
 
     if (in.eof())
-        throw Poco::Net::NoMessageException();
+        throw DBPoco::Net::NoMessageException();
 
     skipWhitespaceIfAny(in);
 
     if (in.eof())
-        throw Poco::Net::MessageException("No HTTP request header");
+        throw DBPoco::Net::MessageException("No HTTP request header");
 
-    while (in.read(ch) && !Poco::Ascii::isSpace(ch) && method.size() <= MAX_METHOD_LENGTH)
+    while (in.read(ch) && !DBPoco::Ascii::isSpace(ch) && method.size() <= MAX_METHOD_LENGTH)
         method += ch;
 
     if (method.size() > MAX_METHOD_LENGTH)
-        throw Poco::Net::MessageException("HTTP request method invalid or too long");
+        throw DBPoco::Net::MessageException("HTTP request method invalid or too long");
 
     skipWhitespaceIfAny(in);
 
-    while (in.read(ch) && !Poco::Ascii::isSpace(ch) && uri.size() <= max_uri_size)
+    while (in.read(ch) && !DBPoco::Ascii::isSpace(ch) && uri.size() <= max_uri_size)
         uri += ch;
 
     if (uri.size() > max_uri_size)
-        throw Poco::Net::MessageException("HTTP request URI invalid or too long");
+        throw DBPoco::Net::MessageException("HTTP request URI invalid or too long");
 
     skipWhitespaceIfAny(in);
 
-    while (in.read(ch) && !Poco::Ascii::isSpace(ch) && version.size() <= MAX_VERSION_LENGTH)
+    while (in.read(ch) && !DBPoco::Ascii::isSpace(ch) && version.size() <= MAX_VERSION_LENGTH)
         version += ch;
 
     if (version.size() > MAX_VERSION_LENGTH)
-        throw Poco::Net::MessageException("Invalid HTTP version string");
+        throw DBPoco::Net::MessageException("Invalid HTTP version string");
 
     // since HTTP always use Windows-style EOL '\r\n' we always can safely skip to '\n'
 

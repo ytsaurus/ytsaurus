@@ -2,22 +2,24 @@
 #include "IServer.h"
 
 #include "HTTPHandlerFactory.h"
-#include "HTTPHandlerRequestFilter.h"
+#include "HTTPResponseHeaderWriter.h"
 
+#include <Core/ServerSettings.h>
 #include <IO/HTTPCommon.h>
 #include <IO/ReadBufferFromFile.h>
 #include <IO/WriteBufferFromString.h>
-#include <IO/copyData.h>
 #include <IO/WriteHelpers.h>
-#include <Server/HTTP/WriteBufferFromHTTPServerResponse.h>
+#include <IO/copyData.h>
 #include <Interpreters/Context.h>
+#include <Server/HTTP/WriteBufferFromHTTPServerResponse.h>
 
 #include <Common/Exception.h>
 
-#include <Poco/Net/HTTPServerRequest.h>
-#include <Poco/Net/HTTPServerResponse.h>
-#include <Poco/Net/HTTPRequestHandlerFactory.h>
-#include <Poco/Util/LayeredConfiguration.h>
+#include <unordered_map>
+#include <DBPoco/Net/HTTPServerRequest.h>
+#include <DBPoco/Net/HTTPServerResponse.h>
+#include <DBPoco/Net/HTTPRequestHandlerFactory.h>
+#include <DBPoco/Util/LayeredConfiguration.h>
 #include <filesystem>
 
 
@@ -33,9 +35,10 @@ namespace ErrorCodes
     extern const int INVALID_CONFIG_PARAMETER;
 }
 
-static inline WriteBufferPtr
-responseWriteBuffer(HTTPServerRequest & request, HTTPServerResponse & response, unsigned int keep_alive_timeout)
+static inline std::unique_ptr<WriteBuffer> responseWriteBuffer(HTTPServerRequest & request, HTTPServerResponse & response)
 {
+    auto buf = std::unique_ptr<WriteBuffer>(new WriteBufferFromHTTPServerResponse(response, request.getMethod() == HTTPRequest::HTTP_HEAD));
+
     /// The client can pass a HTTP header indicating supported compression method (gzip or deflate).
     String http_response_compression_methods = request.get("Accept-Encoding", "");
     CompressionMethod http_response_compression_method = CompressionMethod::None;
@@ -43,14 +46,11 @@ responseWriteBuffer(HTTPServerRequest & request, HTTPServerResponse & response, 
     if (!http_response_compression_methods.empty())
         http_response_compression_method = chooseHTTPCompressionMethod(http_response_compression_methods);
 
-    bool client_supports_http_compression = http_response_compression_method != CompressionMethod::None;
+    if (http_response_compression_method == CompressionMethod::None)
+        return buf;
 
-    return std::make_shared<WriteBufferFromHTTPServerResponse>(
-        response,
-        request.getMethod() == Poco::Net::HTTPRequest::HTTP_HEAD,
-        keep_alive_timeout,
-        client_supports_http_compression,
-        http_response_compression_method);
+    response.set("Content-Encoding", toContentEncodingName(http_response_compression_method));
+    return wrapWriteBufferWithCompressionMethod(std::move(buf), http_response_compression_method, 1);
 }
 
 static inline void trySendExceptionToClient(
@@ -62,14 +62,14 @@ static inline void trySendExceptionToClient(
 
         /// If HTTP method is POST and Keep-Alive is turned on, we should read the whole request body
         /// to avoid reading part of the current request body in the next request.
-        if (request.getMethod() == Poco::Net::HTTPRequest::HTTP_POST
+        if (request.getMethod() == DBPoco::Net::HTTPRequest::HTTP_POST
             && response.getKeepAlive() && !request.getStream().eof() && exception_code != ErrorCodes::HTTP_LENGTH_REQUIRED)
             request.getStream().ignore(std::numeric_limits<std::streamsize>::max());
 
-        response.setStatusAndReason(Poco::Net::HTTPResponse::HTTP_INTERNAL_SERVER_ERROR);
+        response.setStatusAndReason(DBPoco::Net::HTTPResponse::HTTP_INTERNAL_SERVER_ERROR);
 
         if (!response.sent())
-            *response.send() << s << std::endl;
+            *response.send() << s << '\n';
         else
         {
             if (out.count() != out.offset())
@@ -88,26 +88,25 @@ static inline void trySendExceptionToClient(
     }
 }
 
-void StaticRequestHandler::handleRequest(HTTPServerRequest & request, HTTPServerResponse & response)
+void StaticRequestHandler::handleRequest(HTTPServerRequest & request, HTTPServerResponse & response, const ProfileEvents::Event & /*write_event*/)
 {
-    auto keep_alive_timeout = server.config().getUInt("keep_alive_timeout", 10);
-    const auto & out = responseWriteBuffer(request, response, keep_alive_timeout);
+    auto out = responseWriteBuffer(request, response);
 
     try
     {
-        response.setContentType(content_type);
+        applyHTTPResponseHeaders(response, http_response_headers_override);
 
-        if (request.getVersion() == Poco::Net::HTTPServerRequest::HTTP_1_1)
+        if (request.getVersion() == DBPoco::Net::HTTPServerRequest::HTTP_1_1)
             response.setChunkedTransferEncoding(true);
 
         /// Workaround. Poco does not detect 411 Length Required case.
-        if (request.getMethod() == Poco::Net::HTTPRequest::HTTP_POST && !request.getChunkedTransferEncoding() && !request.hasContentLength())
+        if (request.getMethod() == DBPoco::Net::HTTPRequest::HTTP_POST && !request.getChunkedTransferEncoding() && !request.hasContentLength())
             throw Exception(ErrorCodes::HTTP_LENGTH_REQUIRED,
                             "The Transfer-Encoding is not chunked and there "
                             "is no Content-Length header for POST request");
 
-        setResponseDefaultHeaders(response, keep_alive_timeout);
-        response.setStatusAndReason(Poco::Net::HTTPResponse::HTTPStatus(status));
+        setResponseDefaultHeaders(response);
+        response.setStatusAndReason(DBPoco::Net::HTTPResponse::HTTPStatus(status));
         writeResponse(*out);
     }
     catch (...)
@@ -156,20 +155,26 @@ void StaticRequestHandler::writeResponse(WriteBuffer & out)
         writeString(response_expression, out);
 }
 
-StaticRequestHandler::StaticRequestHandler(IServer & server_, const String & expression, int status_, const String & content_type_)
-    : server(server_), status(status_), content_type(content_type_), response_expression(expression)
+StaticRequestHandler::StaticRequestHandler(
+    IServer & server_, const String & expression, const std::unordered_map<String, String> & http_response_headers_override_, int status_)
+    : server(server_), status(status_), http_response_headers_override(http_response_headers_override_), response_expression(expression)
 {
 }
 
 HTTPRequestHandlerFactoryPtr createStaticHandlerFactory(IServer & server,
-    const Poco::Util::AbstractConfiguration & config,
+    const DBPoco::Util::AbstractConfiguration & config,
     const std::string & config_prefix)
 {
     int status = config.getInt(config_prefix + ".handler.status", 200);
     std::string response_content = config.getRawString(config_prefix + ".handler.response_content", "Ok.\n");
-    std::string response_content_type = config.getString(config_prefix + ".handler.content_type", "text/plain; charset=UTF-8");
-    auto factory = std::make_shared<HandlingRuleHTTPHandlerFactory<StaticRequestHandler>>(
-        server, std::move(response_content), std::move(status), std::move(response_content_type));
+
+    std::unordered_map<String, String> http_response_headers_override
+        = parseHTTPResponseHeaders(config, config_prefix, "text/plain; charset=UTF-8");
+
+    auto creator = [&server, http_response_headers_override, response_content, status]() -> std::unique_ptr<StaticRequestHandler>
+    { return std::make_unique<StaticRequestHandler>(server, response_content, http_response_headers_override, status); };
+
+    auto factory = std::make_shared<HandlingRuleHTTPHandlerFactory<StaticRequestHandler>>(std::move(creator));
 
     factory->addFiltersFromConfig(config, config_prefix);
 

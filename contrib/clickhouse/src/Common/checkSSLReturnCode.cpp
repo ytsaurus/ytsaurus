@@ -2,7 +2,7 @@
 #include "clickhouse_config.h"
 
 #if USE_SSL
-#include <Poco/Net/SecureStreamSocket.h>
+#include <DBPoco/Net/SecureStreamSocket.h>
 #endif
 
 namespace DB
@@ -11,7 +11,7 @@ namespace DB
 bool checkSSLWantRead([[maybe_unused]] ssize_t ret)
 {
 #if USE_SSL
-    return ret == Poco::Net::SecureStreamSocket::ERR_SSL_WANT_READ;
+    return ret == DBPoco::Net::SecureStreamSocket::ERR_SSL_WANT_READ;
 #else
     return false;
 #endif
@@ -20,7 +20,7 @@ bool checkSSLWantRead([[maybe_unused]] ssize_t ret)
 bool checkSSLWantWrite([[maybe_unused]] ssize_t ret)
 {
 #if USE_SSL
-    return ret == Poco::Net::SecureStreamSocket::ERR_SSL_WANT_WRITE;
+    return ret == DBPoco::Net::SecureStreamSocket::ERR_SSL_WANT_WRITE;
 #else
     return false;
 #endif

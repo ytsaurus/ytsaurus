@@ -11,12 +11,13 @@
 #include <Parsers/ASTLiteral.h>
 #include <Parsers/parseQuery.h>
 #include <Parsers/ParserCreateQuery.h>
-#include <Storages/HDFS/HDFSCommon.h>
+#include <Storages/ObjectStorage/HDFS/HDFSCommon.h>
 #include <Storages/IStorage.h>
 #include <TableFunctions/TableFunctionFactory.h>
+#include <Common/re2.h>
+#include <Core/Settings.h>
 
-#include <Poco/URI.h>
-#include <re2/re2.h>
+#include <DBPoco/URI.h>
 
 #include <filesystem>
 
@@ -45,15 +46,15 @@ DatabaseHDFS::DatabaseHDFS(const String & name_, const String & source_url, Cont
     : IDatabase(name_)
     , WithContext(context_->getGlobalContext())
     , source(source_url)
-    , log(&Poco::Logger::get("DatabaseHDFS(" + name_ + ")"))
+    , log(getLogger("DatabaseHDFS(" + name_ + ")"))
 {
     if (!source.empty())
     {
         if (!re2::RE2::FullMatch(source, std::string(HDFS_HOST_REGEXP)))
-            throw Exception(ErrorCodes::BAD_ARGUMENTS, "Bad hdfs host: {}. "
+            throw Exception(ErrorCodes::BAD_ARGUMENTS, "Bad HDFS host: {}. "
                             "It should have structure 'hdfs://<host_name>:<port>'", source);
 
-        context_->getGlobalContext()->getRemoteHostFilter().checkURL(Poco::URI(source));
+        context_->getGlobalContext()->getRemoteHostFilter().checkURL(DBPoco::URI(source));
     }
 }
 
@@ -74,8 +75,8 @@ std::string DatabaseHDFS::getTablePath(const std::string & table_name) const
         return table_name;
 
     if (source.empty())
-        throw Exception(ErrorCodes::BAD_ARGUMENTS, "Bad hdfs url: {}. "
-                        "It should have structure 'hdfs://<host_name>:<port>/path'", table_name);
+        throw Exception(ErrorCodes::BAD_ARGUMENTS, "Bad HDFS URL: {}. "
+            "It should have the following structure 'hdfs://<host_name>:<port>/path'", table_name);
 
     return fs::path(source) / table_name;
 }
@@ -85,7 +86,7 @@ bool DatabaseHDFS::checkUrl(const std::string & url, ContextPtr context_, bool t
     try
     {
         checkHDFSURL(url);
-        context_->getGlobalContext()->getRemoteHostFilter().checkURL(Poco::URI(url));
+        context_->getGlobalContext()->getRemoteHostFilter().checkURL(DBPoco::URI(url));
     }
     catch (...)
     {
@@ -165,7 +166,7 @@ StoragePtr DatabaseHDFS::tryGetTable(const String & name, ContextPtr context_) c
         }
         throw;
     }
-    catch (const Poco::URISyntaxException &)
+    catch (const DBPoco::URISyntaxException &)
     {
         return nullptr;
     }
@@ -183,7 +184,7 @@ ASTPtr DatabaseHDFS::getCreateDatabaseQuery() const
     ParserCreateQuery parser;
 
     const String query = fmt::format("CREATE DATABASE {} ENGINE = HDFS('{}')", backQuoteIfNeed(getDatabaseName()), source);
-    ASTPtr ast = parseQuery(parser, query.data(), query.data() + query.size(), "", 0, settings.max_parser_depth);
+    ASTPtr ast = parseQuery(parser, query.data(), query.data() + query.size(), "", 0, settings.max_parser_depth, settings.max_parser_backtracks);
 
     if (const auto database_comment = getDatabaseComment(); !database_comment.empty())
     {
@@ -225,7 +226,7 @@ std::vector<std::pair<ASTPtr, StoragePtr>> DatabaseHDFS::getTablesForBackup(cons
  * Returns an empty iterator because the database does not have its own tables
  * But only caches them for quick access
  */
-DatabaseTablesIteratorPtr DatabaseHDFS::getTablesIterator(ContextPtr, const FilterByNameFunction &) const
+DatabaseTablesIteratorPtr DatabaseHDFS::getTablesIterator(ContextPtr, const FilterByNameFunction &, bool) const
 {
     return std::make_unique<DatabaseTablesSnapshotIterator>(Tables{}, getDatabaseName());
 }

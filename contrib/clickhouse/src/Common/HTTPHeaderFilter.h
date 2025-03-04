@@ -1,7 +1,7 @@
 #pragma once
 
 #include <IO/HTTPHeaderEntries.h>
-#include <Poco/Util/AbstractConfiguration.h>
+#include <DBPoco/Util/AbstractConfiguration.h>
 #include <vector>
 #include <unordered_set>
 #include <mutex>
@@ -14,7 +14,7 @@ class HTTPHeaderFilter
 {
 public:
 
-    void setValuesFromConfig(const Poco::Util::AbstractConfiguration & config);
+    void setValuesFromConfig(const DBPoco::Util::AbstractConfiguration & config);
     void checkHeaders(const HTTPHeaderEntries & entries) const;
 
 private:

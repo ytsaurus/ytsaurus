@@ -3,7 +3,7 @@
 #include <Interpreters/StorageID.h>
 #include <Common/Stopwatch.h>
 #include <Common/CurrentMetrics.h>
-#include <Poco/URI.h>
+#include <DBPoco/URI.h>
 #include <boost/noncopyable.hpp>
 
 namespace CurrentMetrics

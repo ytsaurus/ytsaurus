@@ -30,10 +30,10 @@ target_include_directories(yt-chyt-server PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/base
   ${PROJECT_SOURCE_DIR}/contrib/libs/double-conversion
-  ${PROJECT_SOURCE_DIR}/contrib/libs/poco/Foundation/include
-  ${PROJECT_SOURCE_DIR}/contrib/libs/poco/Net/include
-  ${PROJECT_SOURCE_DIR}/contrib/libs/poco/Util/include
-  ${PROJECT_SOURCE_DIR}/contrib/libs/poco/XML/include
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/base/poco/Foundation/include
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/base/poco/Net/include
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/base/poco/Util/include
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/base/poco/XML/include
   ${PROJECT_SOURCE_DIR}/contrib/libs/re2
   ${PROJECT_SOURCE_DIR}/contrib/libs/rapidjson/include
 )
@@ -149,10 +149,10 @@ target_include_directories(yt-chyt-server.global PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/base
   ${PROJECT_SOURCE_DIR}/contrib/libs/double-conversion
-  ${PROJECT_SOURCE_DIR}/contrib/libs/poco/Foundation/include
-  ${PROJECT_SOURCE_DIR}/contrib/libs/poco/Net/include
-  ${PROJECT_SOURCE_DIR}/contrib/libs/poco/Util/include
-  ${PROJECT_SOURCE_DIR}/contrib/libs/poco/XML/include
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/base/poco/Foundation/include
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/base/poco/Net/include
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/base/poco/Util/include
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/base/poco/XML/include
   ${PROJECT_SOURCE_DIR}/contrib/libs/re2
   ${PROJECT_SOURCE_DIR}/contrib/libs/rapidjson/include
 )

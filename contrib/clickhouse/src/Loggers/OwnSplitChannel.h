@@ -1,11 +1,12 @@
 #pragma once
+
 #include <atomic>
-#include <vector>
+#include <memory>
 #include <map>
-#include <mutex>
-#include <Poco/AutoPtr.h>
-#include <Poco/Channel.h>
+#include <DBPoco/AutoPtr.h>
+#include <DBPoco/Channel.h>
 #include "ExtendedLogChannel.h"
+
 
 #ifndef WITHOUT_TEXT_LOG
 namespace DB
@@ -18,19 +19,19 @@ namespace DB
 
 namespace DB
 {
-/// Works as Poco::SplitterChannel, but performs additional work:
+/// Works as DBPoco::SplitterChannel, but performs additional work:
 ///  passes logs to Client via TCP interface
 ///  tries to use extended logging interface of child for more comprehensive logging
-class OwnSplitChannel : public Poco::Channel
+class OwnSplitChannel : public DBPoco::Channel
 {
 public:
     /// Makes an extended message from msg and passes it to the client logs queue and child (if possible)
-    void log(const Poco::Message & msg) override;
+    void log(const DBPoco::Message & msg) override;
 
     void setChannelProperty(const std::string& channel_name, const std::string& name, const std::string& value);
 
     /// Adds a child channel
-    void addChannel(Poco::AutoPtr<Poco::Channel> channel, const std::string & name);
+    void addChannel(DBPoco::AutoPtr<DBPoco::Channel> channel, const std::string & name);
 
 #ifndef WITHOUT_TEXT_LOG
     void addTextLog(std::shared_ptr<DB::TextLogQueue> log_queue, int max_priority);
@@ -39,10 +40,10 @@ public:
     void setLevel(const std::string & name, int level);
 
 private:
-    void logSplit(const Poco::Message & msg);
-    void tryLogSplit(const Poco::Message & msg);
+    void logSplit(const DBPoco::Message & msg);
+    void tryLogSplit(const DBPoco::Message & msg);
 
-    using ChannelPtr = Poco::AutoPtr<Poco::Channel>;
+    using ChannelPtr = DBPoco::AutoPtr<DBPoco::Channel>;
     /// Handler and its pointer casted to extended interface
     using ExtendedChannelPtrPair = std::pair<ChannelPtr, ExtendedLogChannel *>;
     std::map<std::string, ExtendedChannelPtrPair> channels;

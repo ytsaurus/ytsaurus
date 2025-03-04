@@ -1,16 +1,16 @@
 #include "argsToConfig.h"
 
-#include <Poco/Util/LayeredConfiguration.h>
-#include <Poco/Util/MapConfiguration.h>
+#include <DBPoco/Util/LayeredConfiguration.h>
+#include <DBPoco/Util/MapConfiguration.h>
 
-void argsToConfig(const Poco::Util::Application::ArgVec & argv,
-                  Poco::Util::LayeredConfiguration & config,
+void argsToConfig(const DBPoco::Util::Application::ArgVec & argv,
+                  DBPoco::Util::LayeredConfiguration & config,
                   int priority,
                   const std::unordered_set<std::string>* alias_names)
 {
     /// Parsing all args and converting to config layer
     /// Test: -- --1=1 --1=2 --3 5 7 8 -9 10 -11=12 14= 15== --16==17 --=18 --19= --20 21 22 --23 --24 25 --26 -27 28 ---29=30 -- ----31 32 --33 3-4
-    Poco::AutoPtr<Poco::Util::MapConfiguration> map_config = new Poco::Util::MapConfiguration;
+    DBPoco::AutoPtr<DBPoco::Util::MapConfiguration> map_config = new DBPoco::Util::MapConfiguration;
     std::string key;
 
     auto add_arg = [&map_config, &alias_names](const std::string & k, const std::string & v)
@@ -75,7 +75,7 @@ void argsToConfig(const Poco::Util::Application::ArgVec & argv,
         key = "";
     }
 
-    Poco::Util::MapConfiguration::Keys keys;
+    DBPoco::Util::MapConfiguration::Keys keys;
     map_config->keys(keys);
 
     config.add(map_config, priority);

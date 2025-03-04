@@ -5,6 +5,7 @@
 #include <Processors/QueryPlan/ReadFromMergeTree.h>
 
 #include <Common/logger_useful.h>
+#include <Core/Settings.h>
 #include <DataTypes/DataTypeNullable.h>
 #include <Functions/IFunctionAdaptors.h>
 #include <Functions/FunctionsLogical.h>
@@ -25,8 +26,7 @@ namespace QueryPlanOptimizations
 
 bool canUseProjectionForReadingStep(ReadFromMergeTree * reading)
 {
-    /// Probably some projection already was applied.
-    if (reading->hasAnalyzedResult())
+    if (reading->getAnalyzedResult() && reading->getAnalyzedResult()->readFromProjection())
         return false;
 
     if (reading->isQueryWithFinal())
@@ -65,12 +65,12 @@ std::shared_ptr<PartitionIdToMaxBlock> getMaxAddedBlocks(ReadFromMergeTree * rea
     return {};
 }
 
-void QueryDAG::appendExpression(const ActionsDAGPtr & expression)
+void QueryDAG::appendExpression(const ActionsDAG & expression)
 {
     if (dag)
-        dag->mergeInplace(std::move(*expression->clone()));
+        dag->mergeInplace(expression.clone());
     else
-        dag = expression->clone();
+        dag = expression.clone();
 }
 
 const ActionsDAG::Node * findInOutputs(ActionsDAG & dag, const std::string & name, bool remove)
@@ -121,22 +121,19 @@ bool QueryDAG::buildImpl(QueryPlan::Node & node, ActionsDAG::NodeRawConstPtrs & 
         {
             if (prewhere_info->row_level_filter)
             {
-                appendExpression(prewhere_info->row_level_filter);
+                appendExpression(*prewhere_info->row_level_filter);
                 if (const auto * filter_expression = findInOutputs(*dag, prewhere_info->row_level_column_name, false))
                     filter_nodes.push_back(filter_expression);
                 else
                     return false;
             }
 
-            if (prewhere_info->prewhere_actions)
-            {
-                appendExpression(prewhere_info->prewhere_actions);
-                if (const auto * filter_expression
-                    = findInOutputs(*dag, prewhere_info->prewhere_column_name, prewhere_info->remove_prewhere_column))
-                    filter_nodes.push_back(filter_expression);
-                else
-                    return false;
-            }
+            appendExpression(prewhere_info->prewhere_actions);
+            if (const auto * filter_expression
+                = findInOutputs(*dag, prewhere_info->prewhere_column_name, prewhere_info->remove_prewhere_column))
+                filter_nodes.push_back(filter_expression);
+            else
+                return false;
         }
         return true;
     }
@@ -150,7 +147,7 @@ bool QueryDAG::buildImpl(QueryPlan::Node & node, ActionsDAG::NodeRawConstPtrs & 
     if (auto * expression = typeid_cast<ExpressionStep *>(step))
     {
         const auto & actions = expression->getExpression();
-        if (actions->hasArrayJoin())
+        if (actions.hasArrayJoin())
             return false;
 
         appendExpression(actions);
@@ -160,7 +157,7 @@ bool QueryDAG::buildImpl(QueryPlan::Node & node, ActionsDAG::NodeRawConstPtrs & 
     if (auto * filter = typeid_cast<FilterStep *>(step))
     {
         const auto & actions = filter->getExpression();
-        if (actions->hasArrayJoin())
+        if (actions.hasArrayJoin())
             return false;
 
         appendExpression(actions);
@@ -210,56 +207,58 @@ bool analyzeProjectionCandidate(
     const ReadFromMergeTree & reading,
     const MergeTreeDataSelectExecutor & reader,
     const Names & required_column_names,
-    const MergeTreeData::DataPartsVector & parts,
-    const StorageMetadataPtr & metadata,
+    const RangesInDataParts & parts_with_ranges,
     const SelectQueryInfo & query_info,
     const ContextPtr & context,
     const std::shared_ptr<PartitionIdToMaxBlock> & max_added_blocks,
-    const ActionDAGNodes & added_filter_nodes)
+    const ActionsDAG * dag)
 {
     MergeTreeData::DataPartsVector projection_parts;
     MergeTreeData::DataPartsVector normal_parts;
-    for (const auto & part : parts)
+    std::vector<AlterConversionsPtr> alter_conversions;
+    for (const auto & part_with_ranges : parts_with_ranges)
     {
-        const auto & created_projections = part->getProjectionParts();
+        const auto & created_projections = part_with_ranges.data_part->getProjectionParts();
         auto it = created_projections.find(candidate.projection->name);
-        if (it != created_projections.end())
+        if (it != created_projections.end() && !it->second->is_broken)
+        {
             projection_parts.push_back(it->second);
+        }
         else
-            normal_parts.push_back(part);
+        {
+            normal_parts.push_back(part_with_ranges.data_part);
+            alter_conversions.push_back(part_with_ranges.alter_conversions);
+        }
     }
 
     if (projection_parts.empty())
         return false;
 
+    auto projection_query_info = query_info;
+    projection_query_info.prewhere_info = nullptr;
+    if (dag)
+        projection_query_info.filter_actions_dag = std::make_unique<ActionsDAG>(dag->clone());
+
     auto projection_result_ptr = reader.estimateNumMarksToRead(
         std::move(projection_parts),
-        nullptr,
         required_column_names,
-        metadata,
         candidate.projection->metadata,
-        query_info, /// How it is actually used? I hope that for index we need only added_filter_nodes
-        added_filter_nodes,
+        projection_query_info,
         context,
         context->getSettingsRef().max_threads,
         max_added_blocks);
 
-    if (projection_result_ptr->error())
-        return false;
-
     candidate.merge_tree_projection_select_result_ptr = std::move(projection_result_ptr);
-    candidate.sum_marks += candidate.merge_tree_projection_select_result_ptr->marks();
+    candidate.sum_marks += candidate.merge_tree_projection_select_result_ptr->selected_marks;
 
     if (!normal_parts.empty())
     {
-        auto normal_result_ptr = reading.selectRangesToRead(std::move(normal_parts), /* alter_conversions = */ {});
+        /// TODO: We can reuse existing analysis_result by filtering out projection parts
+        auto normal_result_ptr = reading.selectRangesToRead(std::move(normal_parts), std::move(alter_conversions));
 
-        if (normal_result_ptr->error())
-            return false;
-
-        if (normal_result_ptr->marks() != 0)
+        if (normal_result_ptr->selected_marks != 0)
         {
-            candidate.sum_marks += normal_result_ptr->marks();
+            candidate.sum_marks += normal_result_ptr->selected_marks;
             candidate.merge_tree_ordinary_select_result_ptr = std::move(normal_result_ptr);
         }
     }

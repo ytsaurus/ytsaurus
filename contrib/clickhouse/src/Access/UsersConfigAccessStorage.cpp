@@ -1,4 +1,5 @@
 #include <Access/UsersConfigAccessStorage.h>
+#include <Access/Common/SSLCertificateSubjects.h>
 #include <Access/Quota.h>
 #include <Access/RowPolicy.h>
 #include <Access/User.h>
@@ -9,20 +10,21 @@
 #include <Access/AccessChangesNotifier.h>
 #include <Dictionaries/IDictionary.h>
 #include <Common/Config/ConfigReloader.h>
-#include <Common/StringUtils/StringUtils.h>
+#include <Common/SSHWrapper.h>
+#include <Common/StringUtils.h>
 #include <Common/quoteString.h>
-#include <Common/TransformEndianness.hpp>
+#include <Common/transformEndianness.h>
 #include <Core/Settings.h>
 #include <Interpreters/executeQuery.h>
 #include <Parsers/Access/ASTGrantQuery.h>
 #include <Parsers/Access/ASTRolesOrUsersSet.h>
 #include <Parsers/Access/ParserGrantQuery.h>
 #include <Parsers/parseQuery.h>
-#include <Poco/Util/AbstractConfiguration.h>
-#include <Poco/MD5Engine.h>
-#include <Poco/JSON/JSON.h>
-#include <Poco/JSON/Object.h>
-#include <Poco/JSON/Stringifier.h>
+#include <DBPoco/Util/AbstractConfiguration.h>
+#include <DBPoco/MD5Engine.h>
+#include <DBPoco/JSON/JSON.h>
+#include <DBPoco/JSON/Object.h>
+#include <DBPoco/JSON/Stringifier.h>
 #include <cstring>
 #include <filesystem>
 #include <base/FnTraits.h>
@@ -36,6 +38,7 @@ namespace ErrorCodes
     extern const int UNKNOWN_ADDRESS_PATTERN_TYPE;
     extern const int THERE_IS_NO_PROFILE;
     extern const int NOT_IMPLEMENTED;
+    extern const int SUPPORT_IS_DISABLED;
 }
 
 namespace
@@ -43,7 +46,7 @@ namespace
 
     UUID generateID(AccessEntityType type, const String & name)
     {
-        Poco::MD5Engine md5;
+        DBPoco::MD5Engine md5;
         md5.update(name);
         char type_storage_chars[] = " USRSXML";
         type_storage_chars[0] = AccessEntityTypeInfo::get(type).unique_char;
@@ -64,7 +67,7 @@ namespace
 
         String error_message;
         const char * pos = string_query.data();
-        auto ast = tryParseQuery(parser, pos, pos + string_query.size(), error_message, false, "", false, 0, 0);
+        auto ast = tryParseQuery(parser, pos, pos + string_query.size(), error_message, false, "", false, 0, DBMS_DEFAULT_MAX_PARSER_DEPTH, DBMS_DEFAULT_MAX_PARSER_BACKTRACKS, true);
 
         if (!ast)
             throw Exception(ErrorCodes::BAD_ARGUMENTS, "Failed to parse grant query. Error: {}", error_message);
@@ -110,7 +113,7 @@ namespace
     }
 
     UserPtr parseUser(
-        const Poco::Util::AbstractConfiguration & config,
+        const DBPoco::Util::AbstractConfiguration & config,
         const String & user_name,
         const std::unordered_set<UUID> & allowed_profile_ids,
         const std::unordered_set<UUID> & allowed_role_ids,
@@ -130,18 +133,25 @@ namespace
         const auto certificates_config = user_config + ".ssl_certificates";
         bool has_certificates = config.has(certificates_config);
 
-        size_t num_password_fields = has_no_password + has_password_plaintext + has_password_sha256_hex + has_password_double_sha1_hex + has_ldap + has_kerberos + has_certificates;
+        const auto ssh_keys_config = user_config + ".ssh_keys";
+        bool has_ssh_keys = config.has(ssh_keys_config);
+
+        const auto http_auth_config = user_config + ".http_authentication";
+        bool has_http_auth = config.has(http_auth_config);
+
+        size_t num_password_fields = has_no_password + has_password_plaintext + has_password_sha256_hex + has_password_double_sha1_hex
+            + has_ldap + has_kerberos + has_certificates + has_ssh_keys + has_http_auth;
 
         if (num_password_fields > 1)
             throw Exception(ErrorCodes::BAD_ARGUMENTS, "More than one field of 'password', 'password_sha256_hex', "
-                            "'password_double_sha1_hex', 'no_password', 'ldap', 'kerberos', 'ssl_certificates' "
-                            "are used to specify authentication info for user {}. "
+                            "'password_double_sha1_hex', 'no_password', 'ldap', 'kerberos', 'ssl_certificates', 'ssh_keys', "
+                            "'http_authentication' are used to specify authentication info for user {}. "
                             "Must be only one of them.", user_name);
 
         if (num_password_fields < 1)
             throw Exception(ErrorCodes::BAD_ARGUMENTS, "Either 'password' or 'password_sha256_hex' "
-                            "or 'password_double_sha1_hex' or 'no_password' or 'ldap' or 'kerberos' "
-                            "or 'ssl_certificates' must be specified for user {}.", user_name);
+                            "or 'password_double_sha1_hex' or 'no_password' or 'ldap' or 'kerberos "
+                            "or 'ssl_certificates' or 'ssh_keys' or 'http_authentication' must be specified for user {}.", user_name);
 
         if (has_password_plaintext)
         {
@@ -183,20 +193,77 @@ namespace
             user->auth_data = AuthenticationData{AuthenticationType::SSL_CERTIFICATE};
 
             /// Fill list of allowed certificates.
-            Poco::Util::AbstractConfiguration::Keys keys;
+            DBPoco::Util::AbstractConfiguration::Keys keys;
             config.keys(certificates_config, keys);
-            boost::container::flat_set<String> common_names;
             for (const String & key : keys)
             {
                 if (key.starts_with("common_name"))
                 {
                     String value = config.getString(certificates_config + "." + key);
-                    common_names.insert(std::move(value));
+                    user->auth_data.addSSLCertificateSubject(SSLCertificateSubjects::Type::CN, std::move(value));
+                }
+                else if (key.starts_with("subject_alt_name"))
+                {
+                    String value = config.getString(certificates_config + "." + key);
+                    if (value.empty())
+                        throw Exception(ErrorCodes::BAD_ARGUMENTS, "Expected ssl_certificates.subject_alt_name to not be empty");
+                    user->auth_data.addSSLCertificateSubject(SSLCertificateSubjects::Type::SAN, std::move(value));
                 }
                 else
                     throw Exception(ErrorCodes::BAD_ARGUMENTS, "Unknown certificate pattern type: {}", key);
             }
-            user->auth_data.setSSLCertificateCommonNames(std::move(common_names));
+        }
+        else if (has_ssh_keys)
+        {
+#if USE_SSH
+            user->auth_data = AuthenticationData{AuthenticationType::SSH_KEY};
+
+            DBPoco::Util::AbstractConfiguration::Keys entries;
+            config.keys(ssh_keys_config, entries);
+            std::vector<SSHKey> keys;
+            for (const String& entry : entries)
+            {
+                const auto conf_pref = ssh_keys_config + "." + entry + ".";
+                if (entry.starts_with("ssh_key"))
+                {
+                    String type, base64_key;
+                    if (config.has(conf_pref + "type"))
+                    {
+                        type = config.getString(conf_pref + "type");
+                    }
+                    else
+                        throw Exception(ErrorCodes::BAD_ARGUMENTS, "Expected type field in {} entry", entry);
+                    if (config.has(conf_pref + "base64_key"))
+                    {
+                        base64_key = config.getString(conf_pref + "base64_key");
+                    }
+                    else
+                        throw Exception(ErrorCodes::BAD_ARGUMENTS, "Expected base64_key field in {} entry", entry);
+
+
+                    try
+                    {
+                        keys.emplace_back(SSHKeyFactory::makePublicKeyFromBase64(base64_key, type));
+                    }
+                    catch (const std::invalid_argument &)
+                    {
+                        throw Exception(ErrorCodes::BAD_ARGUMENTS, "Bad SSH key in entry: {}", entry);
+                    }
+                }
+                else
+                    throw Exception(ErrorCodes::BAD_ARGUMENTS, "Unknown ssh_key entry pattern type: {}", entry);
+            }
+            user->auth_data.setSSHKeys(std::move(keys));
+#else
+            throw Exception(ErrorCodes::SUPPORT_IS_DISABLED, "SSH is disabled, because ClickHouse is built without libssh");
+#endif
+        }
+        else if (has_http_auth)
+        {
+            user->auth_data = AuthenticationData{AuthenticationType::HTTP};
+            user->auth_data.setHTTPAuthenticationServerName(config.getString(http_auth_config + ".server"));
+            auto scheme = config.getString(http_auth_config + ".scheme");
+            user->auth_data.setHTTPAuthenticationScheme(parseHTTPAuthenticationScheme(scheme));
         }
 
         auto auth_type = user->auth_data.getType();
@@ -224,7 +291,7 @@ namespace
         const auto networks_config = user_config + ".networks";
         if (config.has(networks_config))
         {
-            Poco::Util::AbstractConfiguration::Keys keys;
+            DBPoco::Util::AbstractConfiguration::Keys keys;
             config.keys(networks_config, keys);
             user->allowed_client_hosts.clear();
             for (const String & key : keys)
@@ -246,7 +313,7 @@ namespace
         std::optional<Strings> databases;
         if (config.has(databases_config))
         {
-            Poco::Util::AbstractConfiguration::Keys keys;
+            DBPoco::Util::AbstractConfiguration::Keys keys;
             config.keys(databases_config, keys);
             databases.emplace();
             databases->reserve(keys.size());
@@ -262,7 +329,7 @@ namespace
         std::optional<Strings> dictionaries;
         if (config.has(dictionaries_config))
         {
-            Poco::Util::AbstractConfiguration::Keys keys;
+            DBPoco::Util::AbstractConfiguration::Keys keys;
             config.keys(dictionaries_config, keys);
             dictionaries.emplace();
             dictionaries->reserve(keys.size());
@@ -277,7 +344,7 @@ namespace
         std::optional<Strings> grant_queries;
         if (config.has(grants_config))
         {
-            Poco::Util::AbstractConfiguration::Keys keys;
+            DBPoco::Util::AbstractConfiguration::Keys keys;
             config.keys(grants_config, keys);
             grant_queries.emplace();
             grant_queries->reserve(keys.size());
@@ -310,6 +377,7 @@ namespace
             if (databases)
             {
                 user->access.revoke(AccessFlags::allFlags() - AccessFlags::allGlobalFlags());
+                user->access.grantWithGrantOption(AccessType::TABLE_ENGINE);
                 user->access.grantWithGrantOption(AccessFlags::allDictionaryFlags(), IDictionary::NO_DATABASE_TAG);
                 for (const String & database : *databases)
                     user->access.grantWithGrantOption(AccessFlags::allFlags(), database);
@@ -347,13 +415,13 @@ namespace
 
 
     std::vector<AccessEntityPtr> parseUsers(
-        const Poco::Util::AbstractConfiguration & config,
+        const DBPoco::Util::AbstractConfiguration & config,
         const std::unordered_set<UUID> & allowed_profile_ids,
         const std::unordered_set<UUID> & allowed_role_ids,
         bool allow_no_password,
         bool allow_plaintext_password)
     {
-        Poco::Util::AbstractConfiguration::Keys user_names;
+        DBPoco::Util::AbstractConfiguration::Keys user_names;
         config.keys("users", user_names);
 
         std::vector<AccessEntityPtr> users;
@@ -375,7 +443,7 @@ namespace
     }
 
     RolePtr parseRole(
-        const Poco::Util::AbstractConfiguration & config,
+        const DBPoco::Util::AbstractConfiguration & config,
         const String & role_name,
         const std::unordered_set<UUID> & allowed_role_ids)
     {
@@ -386,7 +454,7 @@ namespace
         const auto grants_config = role_config + ".grants";
         if (config.has(grants_config))
         {
-            Poco::Util::AbstractConfiguration::Keys keys;
+            DBPoco::Util::AbstractConfiguration::Keys keys;
             config.keys(grants_config, keys);
             for (const auto & key : keys)
             {
@@ -399,10 +467,10 @@ namespace
     }
 
     std::vector<AccessEntityPtr> parseRoles(
-        const Poco::Util::AbstractConfiguration & config,
+        const DBPoco::Util::AbstractConfiguration & config,
         const std::unordered_set<UUID> & allowed_role_ids)
     {
-        Poco::Util::AbstractConfiguration::Keys role_names;
+        DBPoco::Util::AbstractConfiguration::Keys role_names;
         config.keys("roles", role_names);
 
         std::vector<AccessEntityPtr> roles;
@@ -424,7 +492,7 @@ namespace
     }
 
 
-    QuotaPtr parseQuota(const Poco::Util::AbstractConfiguration & config, const String & quota_name, const std::vector<UUID> & user_ids)
+    QuotaPtr parseQuota(const DBPoco::Util::AbstractConfiguration & config, const String & quota_name, const std::vector<UUID> & user_ids)
     {
         auto quota = std::make_shared<Quota>();
         quota->setName(quota_name);
@@ -439,7 +507,7 @@ namespace
         else
             quota->key_type = QuotaKeyType::USER_NAME;
 
-        Poco::Util::AbstractConfiguration::Keys interval_keys;
+        DBPoco::Util::AbstractConfiguration::Keys interval_keys;
         config.keys(quota_config, interval_keys);
 
         for (const String & interval_key : interval_keys)
@@ -471,9 +539,9 @@ namespace
     }
 
 
-    std::vector<AccessEntityPtr> parseQuotas(const Poco::Util::AbstractConfiguration & config)
+    std::vector<AccessEntityPtr> parseQuotas(const DBPoco::Util::AbstractConfiguration & config)
     {
-        Poco::Util::AbstractConfiguration::Keys user_names;
+        DBPoco::Util::AbstractConfiguration::Keys user_names;
         config.keys("users", user_names);
         std::unordered_map<String, std::vector<UUID>> quota_to_user_ids;
         for (const auto & user_name : user_names)
@@ -482,7 +550,7 @@ namespace
                 quota_to_user_ids[config.getString("users." + user_name + ".quota")].push_back(generateID(AccessEntityType::USER, user_name));
         }
 
-        Poco::Util::AbstractConfiguration::Keys quota_names;
+        DBPoco::Util::AbstractConfiguration::Keys quota_names;
         config.keys("quotas", quota_names);
 
         std::vector<AccessEntityPtr> quotas;
@@ -507,11 +575,11 @@ namespace
     }
 
 
-    std::vector<AccessEntityPtr> parseRowPolicies(const Poco::Util::AbstractConfiguration & config, bool users_without_row_policies_can_read_rows)
+    std::vector<AccessEntityPtr> parseRowPolicies(const DBPoco::Util::AbstractConfiguration & config, bool users_without_row_policies_can_read_rows)
     {
         std::map<std::pair<String /* database */, String /* table */>, std::unordered_map<String /* user */, String /* filter */>> all_filters_map;
 
-        Poco::Util::AbstractConfiguration::Keys user_names;
+        DBPoco::Util::AbstractConfiguration::Keys user_names;
         config.keys("users", user_names);
 
         for (const String & user_name : user_names)
@@ -519,7 +587,7 @@ namespace
             const String databases_config = "users." + user_name + ".databases";
             if (config.has(databases_config))
             {
-                Poco::Util::AbstractConfiguration::Keys database_keys;
+                DBPoco::Util::AbstractConfiguration::Keys database_keys;
                 config.keys(databases_config, database_keys);
 
                 /// Read tables within databases
@@ -535,7 +603,7 @@ namespace
                     else
                         database_name = database_key;
 
-                    Poco::Util::AbstractConfiguration::Keys table_keys;
+                    DBPoco::Util::AbstractConfiguration::Keys table_keys;
                     config.keys(database_config, table_keys);
 
                     /// Read table properties
@@ -588,12 +656,12 @@ namespace
     }
 
 
-    SettingsProfileElements parseSettingsConstraints(const Poco::Util::AbstractConfiguration & config,
+    SettingsProfileElements parseSettingsConstraints(const DBPoco::Util::AbstractConfiguration & config,
                                                      const String & path_to_constraints,
                                                      const AccessControl & access_control)
     {
         SettingsProfileElements profile_elements;
-        Poco::Util::AbstractConfiguration::Keys keys;
+        DBPoco::Util::AbstractConfiguration::Keys keys;
         config.keys(path_to_constraints, keys);
 
         for (const String & setting_name : keys)
@@ -602,7 +670,7 @@ namespace
 
             SettingsProfileElement profile_element;
             profile_element.setting_name = setting_name;
-            Poco::Util::AbstractConfiguration::Keys constraint_types;
+            DBPoco::Util::AbstractConfiguration::Keys constraint_types;
             String path_to_name = path_to_constraints + "." + setting_name;
             config.keys(path_to_name, constraint_types);
 
@@ -641,7 +709,7 @@ namespace
     }
 
     std::shared_ptr<SettingsProfile> parseSettingsProfile(
-        const Poco::Util::AbstractConfiguration & config,
+        const DBPoco::Util::AbstractConfiguration & config,
         const String & profile_name,
         const std::unordered_set<UUID> & allowed_parent_profile_ids,
         const AccessControl & access_control)
@@ -650,7 +718,7 @@ namespace
         profile->setName(profile_name);
         String profile_config = "profiles." + profile_name;
 
-        Poco::Util::AbstractConfiguration::Keys keys;
+        DBPoco::Util::AbstractConfiguration::Keys keys;
         config.keys(profile_config, keys);
 
         for (const std::string & key : keys)
@@ -687,11 +755,11 @@ namespace
 
 
     std::vector<AccessEntityPtr> parseSettingsProfiles(
-        const Poco::Util::AbstractConfiguration & config,
+        const DBPoco::Util::AbstractConfiguration & config,
         const std::unordered_set<UUID> & allowed_parent_profile_ids,
         const AccessControl & access_control)
     {
-        Poco::Util::AbstractConfiguration::Keys profile_names;
+        DBPoco::Util::AbstractConfiguration::Keys profile_names;
         config.keys("profiles", profile_names);
 
         std::vector<AccessEntityPtr> profiles;
@@ -714,11 +782,11 @@ namespace
     }
 
     std::unordered_set<UUID> getAllowedIDs(
-        const Poco::Util::AbstractConfiguration & config,
+        const DBPoco::Util::AbstractConfiguration & config,
         const String & configuration_key,
         const AccessEntityType type)
     {
-        Poco::Util::AbstractConfiguration::Keys keys;
+        DBPoco::Util::AbstractConfiguration::Keys keys;
         config.keys(configuration_key, keys);
         std::unordered_set<UUID> ids;
         for (const auto & key : keys)
@@ -741,12 +809,12 @@ UsersConfigAccessStorage::~UsersConfigAccessStorage() = default;
 String UsersConfigAccessStorage::getStorageParamsJSON() const
 {
     std::lock_guard lock{load_mutex};
-    Poco::JSON::Object json;
+    DBPoco::JSON::Object json;
     if (!path.empty())
         json.set("path", path);
     std::ostringstream oss;     // STYLE_CHECK_ALLOW_STD_STRING_STREAM
     oss.exceptions(std::ios::failbit);
-    Poco::JSON::Stringifier::stringify(json, oss);
+    DBPoco::JSON::Stringifier::stringify(json, oss);
     return oss.str();
 }
 
@@ -761,7 +829,7 @@ bool UsersConfigAccessStorage::isPathEqual(const String & path_) const
     return getPath() == path_;
 }
 
-void UsersConfigAccessStorage::setConfig(const Poco::Util::AbstractConfiguration & config)
+void UsersConfigAccessStorage::setConfig(const DBPoco::Util::AbstractConfiguration & config)
 {
     std::lock_guard lock{load_mutex};
     path.clear();
@@ -769,7 +837,7 @@ void UsersConfigAccessStorage::setConfig(const Poco::Util::AbstractConfiguration
     parseFromConfig(config);
 }
 
-void UsersConfigAccessStorage::parseFromConfig(const Poco::Util::AbstractConfiguration & config)
+void UsersConfigAccessStorage::parseFromConfig(const DBPoco::Util::AbstractConfiguration & config)
 {
     try
     {
@@ -812,14 +880,13 @@ void UsersConfigAccessStorage::load(
         std::vector{{include_from_path}},
         preprocessed_dir,
         zkutil::ZooKeeperNodeCache(get_zookeeper_function),
-        std::make_shared<Poco::Event>(),
-        [&](Poco::AutoPtr<Poco::Util::AbstractConfiguration> new_config, bool /*initial_loading*/)
+        std::make_shared<DBPoco::Event>(),
+        [&](DBPoco::AutoPtr<DBPoco::Util::AbstractConfiguration> new_config, bool /*initial_loading*/)
         {
             Settings::checkNoSettingNamesAtTopLevel(*new_config, users_config_path);
             parseFromConfig(*new_config);
             access_control.getChangesNotifier().sendNotifications();
-        },
-        /* already_loaded = */ false);
+        });
 }
 
 void UsersConfigAccessStorage::startPeriodicReloading()

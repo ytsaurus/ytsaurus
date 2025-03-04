@@ -1,6 +1,6 @@
 #include "FileDictionarySource.h"
 #include <Common/logger_useful.h>
-#include <Common/StringUtils/StringUtils.h>
+#include <Common/StringUtils.h>
 #include <Common/filesystemHelpers.h>
 #include <IO/ReadBufferFromFile.h>
 #include <Interpreters/Context.h>
@@ -48,7 +48,7 @@ FileDictionarySource::FileDictionarySource(const FileDictionarySource & other)
 
 QueryPipeline FileDictionarySource::loadAll()
 {
-    LOG_TRACE(&Poco::Logger::get("FileDictionary"), "loadAll {}", toString());
+    LOG_TRACE(getLogger("FileDictionary"), "loadAll {}", toString());
     auto in_ptr = std::make_unique<ReadBufferFromFile>(filepath);
     auto source = context->getInputFormat(format, *in_ptr, sample_block, max_block_size);
     source->addBuffer(std::move(in_ptr));
@@ -64,7 +64,7 @@ std::string FileDictionarySource::toString() const
 }
 
 
-Poco::Timestamp FileDictionarySource::getLastModification() const
+DBPoco::Timestamp FileDictionarySource::getLastModification() const
 {
     return FS::getModificationTimestamp(filepath);
 }
@@ -73,7 +73,7 @@ Poco::Timestamp FileDictionarySource::getLastModification() const
 void registerDictionarySourceFile(DictionarySourceFactory & factory)
 {
     auto create_table_source = [=](const DictionaryStructure & dict_struct,
-                                 const Poco::Util::AbstractConfiguration & config,
+                                 const DBPoco::Util::AbstractConfiguration & config,
                                  const std::string & config_prefix,
                                  Block & sample_block,
                                  ContextPtr global_context,

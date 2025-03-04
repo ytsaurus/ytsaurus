@@ -9,9 +9,9 @@
 #include <Common/MemorySanitizer.h>
 #include <Common/CurrentThread.h>
 #include <Common/ThreadPool.h>
-#include <Poco/Environment.h>
+#include <DBPoco/Environment.h>
 #include <base/errnoToString.h>
-#include <Poco/Event.h>
+#include <DBPoco/Event.h>
 #include <future>
 #include <unistd.h>
 #include <fcntl.h>
@@ -36,6 +36,8 @@
         #define SYS_preadv2 380
     #elif defined(__riscv)
         #define SYS_preadv2 286
+    #elif defined(__loongarch64)
+        #define SYS_preadv2 286
     #else
         #error "Unsupported architecture"
     #endif
@@ -52,6 +54,7 @@ namespace ProfileEvents
     extern const Event ThreadPoolReaderPageCacheMiss;
     extern const Event ThreadPoolReaderPageCacheMissBytes;
     extern const Event ThreadPoolReaderPageCacheMissElapsedMicroseconds;
+    extern const Event AsynchronousReaderIgnoredBytes;
 
     extern const Event ReadBufferFromFileDescriptorRead;
     extern const Event ReadBufferFromFileDescriptorReadFailed;
@@ -64,6 +67,7 @@ namespace CurrentMetrics
     extern const Metric Read;
     extern const Metric ThreadPoolFSReaderThreads;
     extern const Metric ThreadPoolFSReaderThreadsActive;
+    extern const Metric ThreadPoolFSReaderThreadsScheduled;
 }
 
 
@@ -82,13 +86,13 @@ namespace ErrorCodes
 /// We also disable it for older Linux kernels, because according to user's reports, RedHat-patched kernels might be also affected.
 static bool hasBugInPreadV2()
 {
-    VersionNumber linux_version(Poco::Environment::osVersion());
+    VersionNumber linux_version(DBPoco::Environment::osVersion());
     return linux_version < VersionNumber{5, 11, 0};
 }
 #endif
 
 ThreadPoolReader::ThreadPoolReader(size_t pool_size, size_t queue_size_)
-    : pool(std::make_unique<ThreadPool>(CurrentMetrics::ThreadPoolFSReaderThreads, CurrentMetrics::ThreadPoolFSReaderThreadsActive, pool_size, pool_size, queue_size_))
+    : pool(std::make_unique<ThreadPool>(CurrentMetrics::ThreadPoolFSReaderThreads, CurrentMetrics::ThreadPoolFSReaderThreadsActive, CurrentMetrics::ThreadPoolFSReaderThreadsScheduled, pool_size, pool_size, queue_size_))
 {
 }
 
@@ -173,9 +177,8 @@ std::future<IAsynchronousReader::Result> ThreadPoolReader::submit(Request reques
                 else
                 {
                     ProfileEvents::increment(ProfileEvents::ReadBufferFromFileDescriptorReadFailed);
-                    promise.set_exception(std::make_exception_ptr(ErrnoException(
-                        fmt::format("Cannot read from file {}, {}", fd, errnoToString()),
-                        ErrorCodes::CANNOT_READ_FROM_FILE_DESCRIPTOR, errno)));
+                    promise.set_exception(std::make_exception_ptr(
+                        ErrnoException(ErrorCodes::CANNOT_READ_FROM_FILE_DESCRIPTOR, "Cannot read from file {}", fd)));
                     return future;
                 }
             }
@@ -192,6 +195,7 @@ std::future<IAsynchronousReader::Result> ThreadPoolReader::submit(Request reques
             ProfileEvents::increment(ProfileEvents::ThreadPoolReaderPageCacheHit);
             ProfileEvents::increment(ProfileEvents::ThreadPoolReaderPageCacheHitBytes, bytes_read);
             ProfileEvents::increment(ProfileEvents::ReadBufferFromFileDescriptorReadBytes, bytes_read);
+            ProfileEvents::increment(ProfileEvents::AsynchronousReaderIgnoredBytes, request.ignore);
 
             promise.set_value({bytes_read, request.ignore, nullptr});
             return future;
@@ -201,7 +205,7 @@ std::future<IAsynchronousReader::Result> ThreadPoolReader::submit(Request reques
 
     ProfileEvents::increment(ProfileEvents::ThreadPoolReaderPageCacheMiss);
 
-    auto schedule = threadPoolCallbackRunner<Result>(*pool, "ThreadPoolRead");
+    auto schedule = threadPoolCallbackRunnerUnsafe<Result>(*pool, "ThreadPoolRead");
 
     return schedule([request, fd]() -> Result
     {
@@ -230,7 +234,7 @@ std::future<IAsynchronousReader::Result> ThreadPoolReader::submit(Request reques
             if (-1 == res && errno != EINTR)
             {
                 ProfileEvents::increment(ProfileEvents::ReadBufferFromFileDescriptorReadFailed);
-                throwFromErrno(fmt::format("Cannot read from file {}", fd), ErrorCodes::CANNOT_READ_FROM_FILE_DESCRIPTOR);
+                throw ErrnoException(ErrorCodes::CANNOT_READ_FROM_FILE_DESCRIPTOR, "Cannot read from file {}", fd);
             }
 
             bytes_read += res;
@@ -240,6 +244,7 @@ std::future<IAsynchronousReader::Result> ThreadPoolReader::submit(Request reques
 
         ProfileEvents::increment(ProfileEvents::ThreadPoolReaderPageCacheMissBytes, bytes_read);
         ProfileEvents::increment(ProfileEvents::ReadBufferFromFileDescriptorReadBytes, bytes_read);
+        ProfileEvents::increment(ProfileEvents::AsynchronousReaderIgnoredBytes, request.ignore);
 
         return Result{ .size = bytes_read, .offset = request.ignore };
     }, request.priority);
