@@ -1533,55 +1533,6 @@ static bool TryParseField(const TVector<TString>& fields, int index, TDuration& 
     return false;
 }
 
-TDiskStat ParseDiskStat(const TString& statLine)
-{
-    auto buffer = SplitString(statLine, " ");
-    TDiskStat result;
-    TryParseField(buffer, 0, result.MajorNumber);
-    TryParseField(buffer, 1, result.MinorNumber);
-    TryParseField(buffer, 2, result.DeviceName);
-    TryParseField(buffer, 3, result.ReadsCompleted);
-    TryParseField(buffer, 4, result.ReadsMerged);
-    TryParseField(buffer, 5, result.SectorsRead);
-    TryParseField(buffer, 6, result.TimeSpentReading);
-    TryParseField(buffer, 7, result.WritesCompleted);
-    TryParseField(buffer, 8, result.WritesMerged);
-    TryParseField(buffer, 9, result.SectorsWritten);
-    TryParseField(buffer, 10, result.TimeSpentWriting);
-    TryParseField(buffer, 11, result.IOCurrentlyInProgress);
-    TryParseField(buffer, 12, result.TimeSpentDoingIO);
-    TryParseField(buffer, 13, result.WeightedTimeSpentDoingIO);
-    TryParseField(buffer, 14, result.DiscardsCompleted);
-    TryParseField(buffer, 15, result.DiscardsMerged);
-    TryParseField(buffer, 16, result.SectorsDiscarded);
-    TryParseField(buffer, 17, result.TimeSpentDiscarding);
-    return result;
-}
-
-THashMap<TString, TDiskStat> GetDiskStats()
-{
-#ifdef _linux_
-    THashMap<TString, TDiskStat> result;
-    static const TString path("/proc/diskstats");
-    TFileInput diskStatsFile(path);
-    auto data = diskStatsFile.ReadAll();
-    auto lines = SplitString(data, "\n");
-
-    for (const auto& line : lines) {
-        auto strippedLine = Strip(line);
-        if (strippedLine.empty()) {
-            continue;
-        }
-        auto parsed = ParseDiskStat(line);
-        result[parsed.DeviceName] = parsed;
-    }
-
-    return result;
-#else
-    return {};
-#endif
-}
-
 TBlockDeviceStat ParseBlockDeviceStat(const TString& statLine)
 {
     auto buffer = SplitString(statLine, " ");

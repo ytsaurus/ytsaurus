@@ -302,36 +302,6 @@ std::vector<TMemoryMapping> GetProcessMemoryMappings(int pid);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// See https://www.kernel.org/doc/Documentation/ABI/testing/procfs-diskstats
-// for fields info.
-struct TDiskStat
-{
-    i32 MajorNumber = 0;
-    i32 MinorNumber = 0;
-    TString DeviceName;
-
-    i64 ReadsCompleted = 0;
-    i64 ReadsMerged = 0;
-    i64 SectorsRead = 0;
-    TDuration TimeSpentReading;
-
-    i64 WritesCompleted = 0;
-    i64 WritesMerged = 0;
-    i64 SectorsWritten = 0;
-    TDuration TimeSpentWriting;
-
-    i64 IOCurrentlyInProgress = 0;
-    TDuration TimeSpentDoingIO;
-    TDuration WeightedTimeSpentDoingIO;
-
-    i64 DiscardsCompleted = 0;
-    i64 DiscardsMerged = 0;
-    i64 SectorsDiscarded = 0;
-    TDuration TimeSpentDiscarding;
-};
-
-TDiskStat ParseDiskStat(const TString& statLine);
-
 // See https://docs.kernel.org/block/stat.html for more info.
 struct TBlockDeviceStat
 {
@@ -360,8 +330,6 @@ struct TBlockDeviceStat
 
 TBlockDeviceStat ParseBlockDeviceStat(const TString& statLine);
 
-//! DeviceName to stat info
-THashMap<TString, TDiskStat> GetDiskStats();
 std::optional<TBlockDeviceStat> GetBlockDeviceStat(const TString& deviceName);
 std::vector<TString> ListDisks();
 
