@@ -48,7 +48,6 @@
     #include <grp.h>
     #include <utmp.h>
     #include <sys/prctl.h>
-    #include <sys/sysmacros.h>
     #include <sys/ttydefaults.h>
     #include <sys/utsname.h>
 #endif
@@ -1475,13 +1474,15 @@ std::vector<TMemoryMapping> ParseMemoryMappings(const TString& rawSMaps)
                 TStringBuf majorStr;
                 TStringBuf minorStr;
                 verify(device.TrySplit(':', majorStr, minorStr));
-                ui16 major;
-                ui16 minor;
-                verify(TryIntFromString<16>(majorStr, major));
-                verify(TryIntFromString<16>(minorStr, minor));
-                if (major != 0 || minor != 0) {
+                ui32 deviceMajor;
+                ui32 deviceMinor;
+                verify(TryIntFromString<16>(majorStr, deviceMajor));
+                verify(TryIntFromString<16>(minorStr, deviceMinor));
+                // NB: 0:0 - anonymous, 0:m - virtual fs (tmpfs, overlayfs, etc)
+                // TODO(khlebnikov): Remove std::optional
+                if (deviceMajor != 0 || deviceMinor != 0) {
 #ifdef _linux_
-                    memoryMapping.DeviceId = makedev(major, minor);
+                    memoryMapping.DeviceId = {deviceMajor, deviceMinor};
 #endif
                 }
             }

@@ -77,7 +77,7 @@ TEST(TProcTest, TestParseMemoryMappings)
     EXPECT_EQ(smaps[1].End, 0x7fbb7b278000u);
     EXPECT_EQ(smaps[1].Permissions, EMemoryMappingPermission::Read | EMemoryMappingPermission::Execute | EMemoryMappingPermission::Private);
     EXPECT_EQ(smaps[1].Offset, 0xffu);
-    EXPECT_EQ(smaps[1].DeviceId, 1048637);
+    EXPECT_EQ(smaps[1].DeviceId, NFS::TDeviceId(0, 0x13d));
     EXPECT_EQ(*smaps[1].INode, 406536u);
     EXPECT_EQ(*smaps[1].Path, "/lib/x86_64-linux-gnu/ld-2.28.so");
     EXPECT_EQ(smaps[1].Statistics.Size, 156_KB);
