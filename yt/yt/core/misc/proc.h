@@ -8,6 +8,8 @@
 
 #include <util/system/file.h>
 
+#include <yt/yt/core/misc/fs.h>
+
 namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -280,7 +282,7 @@ struct TMemoryMapping
 
     ui64 Offset = 0;
 
-    std::optional<int> DeviceId;
+    std::optional<NFS::TDeviceId> DeviceId;
 
     std::optional<ui64> INode;
 

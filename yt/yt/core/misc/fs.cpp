@@ -383,7 +383,7 @@ TPathStatistics GetPathStatistics(const TString& path)
     statistics.ModificationTime = TInstant::Seconds(fileStat.st_mtime);
     statistics.AccessTime = TInstant::Seconds(fileStat.st_atime);
     statistics.INode = fileStat.st_ino;
-    statistics.DeviceId = fileStat.st_dev;
+    statistics.DeviceId = {major(fileStat.st_dev), minor(fileStat.st_dev)};
 
     return statistics;
 #else
@@ -1158,10 +1158,11 @@ TError AttachFindOutput(TError error, const TString& path)
         << TErrorAttribute("find_output", findOutput);
 }
 
-int GetDeviceId(const TString& path)
+TDeviceId GetDeviceId(const TString& path)
 {
 #ifdef _linux_
-    return Stat(path).st_dev;
+    auto deviceId = Stat(path).st_dev;
+    return {major(deviceId), minor(deviceId)};
 #else
     Y_UNUSED(path);
     YT_UNIMPLEMENTED();

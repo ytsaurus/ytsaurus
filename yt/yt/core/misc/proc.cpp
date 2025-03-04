@@ -1475,13 +1475,14 @@ std::vector<TMemoryMapping> ParseMemoryMappings(const TString& rawSMaps)
                 TStringBuf majorStr;
                 TStringBuf minorStr;
                 verify(device.TrySplit(':', majorStr, minorStr));
-                ui16 major;
-                ui16 minor;
+                ui32 major;
+                ui32 minor;
                 verify(TryIntFromString<16>(majorStr, major));
                 verify(TryIntFromString<16>(minorStr, minor));
                 if (major != 0 || minor != 0) {
+                    // FIXME(khlebnikov): 0:0 is anon VMAs, why they so special?
 #ifdef _linux_
-                    memoryMapping.DeviceId = makedev(major, minor);
+                    memoryMapping.DeviceId = {major, minor};
 #endif
                 }
             }
