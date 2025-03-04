@@ -335,7 +335,8 @@ public:
         return orchid
             ->AddChild("transactions", TransactionManager_->GetOrchidService())
             ->AddChild("chaos_manager", ChaosManager_->GetOrchidService())
-            ->AddChild("coordinator_manager", CoordinatorManager_->GetOrchidService());
+            ->AddChild("coordinator_manager", CoordinatorManager_->GetOrchidService())
+            ->AddChild("replicated_table_tracker", ReplicatedTableTracker_->GetOrchidService());
     }
 
     NProfiling::TRegistry GetProfiler() override
