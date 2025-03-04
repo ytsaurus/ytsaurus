@@ -157,6 +157,8 @@ struct IReplicatedTableTracker
 
     // For unittesting.
     virtual int GetIterationCount() const = 0;
+
+    virtual NYTree::IYPathServicePtr GetOrchidService() const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IReplicatedTableTracker)
