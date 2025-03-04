@@ -638,6 +638,20 @@ void TQueueAgent::Pass()
         appendRegistration(freshObjects[EObjectKind::Consumer], registration.Consumer);
     }
 
+    // Then, find and stop to-be-deleted controllers.
+
+    {
+        auto guard = ReaderGuard(ObjectLock_);
+
+        for (auto objectKind : {EObjectKind::Queue, EObjectKind::Consumer}) {
+            for (const auto& [ref, object] : Objects_[objectKind]) {
+                if (!freshObjects[objectKind].contains(ref)) {
+                    object.Controller->Stop();
+                }
+            }
+        }
+    }
+
     // Then, replace old objects with fresh ones.
 
     {

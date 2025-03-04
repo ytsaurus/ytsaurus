@@ -1053,6 +1053,11 @@ public:
         DynamicConfig_ = newDynamicConfig;
     }
 
+    void Stop() override
+    {
+        AlertCollector_->Stop();
+    }
+
 private:
     TSpinLock Lock_;
     TQueueStaticExportConfigPtr ExportConfig_;
