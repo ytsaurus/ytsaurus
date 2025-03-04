@@ -705,14 +705,14 @@ private:
 
     TFairThrottlerPtr InThrottler_;
     IThroughputThrottlerPtr DefaultInThrottler_;
-    THashSet<TString> EnabledInThrottlers_;
+    THashSet<std::string> EnabledInThrottlers_;
 
     IReconfigurableThroughputThrottlerPtr LegacyRawTotalOutThrottler_;
     IThroughputThrottlerPtr LegacyTotalOutThrottler_;
 
     TFairThrottlerPtr OutThrottler_;
     IThroughputThrottlerPtr DefaultOutThrottler_;
-    THashSet<TString> EnabledOutThrottlers_;
+    THashSet<std::string> EnabledOutThrottlers_;
 
     IReconfigurableThroughputThrottlerPtr RawReadRpsOutThrottler_;
     IThroughputThrottlerPtr ReadRpsOutThrottler_;
@@ -1361,7 +1361,7 @@ private:
         auto throttlerConfig = New<TFairThrottlerConfig>();
         throttlerConfig->TotalLimit = GetNetworkThrottlerLimit(newConfig, netRxLimit);
 
-        THashMap<TString, TFairThrottlerBucketConfigPtr> inBucketsConfig;
+        THashMap<std::string, TFairThrottlerBucketConfigPtr> inBucketsConfig;
         for (const auto& bucket : EnabledInThrottlers_) {
             inBucketsConfig[bucket] = Config_->InThrottlers[bucket];
             if (newConfig->InThrottlers[bucket]) {
@@ -1371,7 +1371,7 @@ private:
         InThrottler_->Reconfigure(throttlerConfig, inBucketsConfig);
 
         throttlerConfig->TotalLimit = GetNetworkThrottlerLimit(newConfig, netTxLimit);
-        THashMap<TString, TFairThrottlerBucketConfigPtr> outBucketsConfig;
+        THashMap<std::string, TFairThrottlerBucketConfigPtr> outBucketsConfig;
         for (const auto& bucket : EnabledOutThrottlers_) {
             outBucketsConfig[bucket] = Config_->OutThrottlers[bucket];
             if (newConfig->OutThrottlers[bucket]) {
