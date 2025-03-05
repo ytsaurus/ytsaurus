@@ -219,7 +219,7 @@ TOutputResult GetWrittenChunksBoundaryKeys(const ISchemalessMultiChunkWriterPtr&
         return result;
     }
 
-    result.set_unique_keys(writer->GetSchema()->GetUniqueKeys());
+    result.set_unique_keys(writer->GetSchema()->IsUniqueKeys());
 
     auto frontBoundaryKeys = GetProtoExtension<NProto::TBoundaryKeysExt>(chunks.front().chunk_meta().extensions());
     result.set_min(frontBoundaryKeys.min());
@@ -522,7 +522,7 @@ TColumnarStatistics GetColumnarStatistics(
     THashSet<std::string_view> visitedColumnGroups;
     for (const auto& columnName : columnNames) {
         const auto* column = tableSchema->FindColumnByStableName(columnName);
-        if (!column && !tableSchema->GetStrict()) {
+        if (!column && !tableSchema->IsStrict()) {
             shouldCountOtherColumns = true;
         } else if (column && !column->Group()) {
             uncompressedReadDataSizeEstimate += estimateColumnDataWeight(columnName);
@@ -576,7 +576,7 @@ std::optional<i64> EstimateReadDataSizeForColumns(
     const auto& columnMeta = *optionalColumnMetaExt;
 
     int expectedColumnSize = std::ssize(schema->Columns());
-    if (!schema->GetStrict()) {
+    if (!schema->IsStrict()) {
         ++expectedColumnSize;
     }
 
@@ -584,7 +584,7 @@ std::optional<i64> EstimateReadDataSizeForColumns(
         YT_LOG_ALERT("Unexpected chunk columns size in column meta "
             "(ChunkId: %v, SchemaStrict: %v, ExpectedColumnSize: %v, ActualColumnSize: %v)",
             chunkId,
-            schema->GetStrict(),
+            schema->IsStrict(),
             expectedColumnSize,
             columnMeta.columns_size());
         return compressedDataSize;
@@ -598,7 +598,7 @@ std::optional<i64> EstimateReadDataSizeForColumns(
         int columnIndex;
         const auto* columnSchema = schema->FindColumnByStableName(columnName);
         if (!columnSchema) {
-            if (otherColumnsBlocksAdded || schema->GetStrict()) {
+            if (otherColumnsBlocksAdded || schema->IsStrict()) {
                 continue;
             }
             otherColumnsBlocksAdded = true;

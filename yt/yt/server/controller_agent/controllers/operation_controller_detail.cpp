@@ -6843,7 +6843,7 @@ void TOperationControllerBase::LockOutputTablesAndGetAttributes()
 
             if (table->TableUploadOptions.TableSchema->IsSorted()) {
                 table->TableWriterOptions->ValidateSorted = true;
-                table->TableWriterOptions->ValidateUniqueKeys = table->TableUploadOptions.TableSchema->GetUniqueKeys();
+                table->TableWriterOptions->ValidateUniqueKeys = table->TableUploadOptions.TableSchema->IsUniqueKeys();
             } else {
                 table->TableWriterOptions->ValidateSorted = false;
             }
@@ -6861,8 +6861,8 @@ void TOperationControllerBase::LockOutputTablesAndGetAttributes()
             table->TableWriterOptions->MaxHeavyColumns = maxHeavyColumns;
 
             // Workaround for YT-5827.
-            if (table->TableUploadOptions.TableSchema->Columns().empty() &&
-                table->TableUploadOptions.TableSchema->GetStrict())
+            if (table->TableUploadOptions.TableSchema->IsEmpty() &&
+                table->TableUploadOptions.TableSchema->IsStrict())
             {
                 table->TableWriterOptions->OptimizeFor = EOptimizeFor::Lookup;
                 table->TableWriterOptions->ChunkFormat = {};
@@ -10476,7 +10476,7 @@ void TOperationControllerBase::InferSchemaFromInput(const TSortColumns& sortColu
         for (auto& newColumn : newColumns) {
             newColumn.SetStableName(TColumnStableName(newColumn.Name()));
         }
-        return New<TTableSchema>(std::move(newColumns), schema->GetStrict(), schema->IsUniqueKeys());
+        return New<TTableSchema>(std::move(newColumns), schema->IsStrict(), schema->IsUniqueKeys());
     };
 
     if (OutputTables_[0]->TableUploadOptions.SchemaMode == ETableSchemaMode::Weak) {

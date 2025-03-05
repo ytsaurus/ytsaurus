@@ -1269,8 +1269,8 @@ private:
         }
         return New<NTableClient::TTableSchema>(
             std::move(columns),
-            schema->GetStrict(),
-            schema->GetUniqueKeys(),
+            schema->IsStrict(),
+            schema->IsUniqueKeys(),
             schema->GetSchemaModification());
     }
 

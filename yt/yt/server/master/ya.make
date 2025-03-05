@@ -342,6 +342,7 @@ SRCS(
     sequoia_server/proto/ground_update_queue_manager.proto
 
     table_server/config.cpp
+    table_server/compact_table_schema.cpp
     table_server/cypress_integration.cpp
     table_server/helpers.cpp
     table_server/master_table_schema_proxy.cpp

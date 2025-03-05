@@ -58,7 +58,7 @@ private:
 
             case EInternedAttributeKey::MemoryUsage:
                 BuildYsonFluently(consumer)
-                    .Value(schema->AsTableSchema()->GetMemoryUsage());
+                    .Value(schema->AsCompactTableSchema()->GetMemoryUsage());
                 return true;
 
             case EInternedAttributeKey::ReferencingAccounts:

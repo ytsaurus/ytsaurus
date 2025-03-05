@@ -95,7 +95,7 @@ std::optional<TColumnSchema> InferCommonColumnSchema(
             // there is a type mismatch, so column can be read only as Nullable(Any).
             // We will handle type mismatch later, now we only handle missing columns in
             // strict schemas.
-            if (tableSchema->GetStrict()) {
+            if (tableSchema->IsStrict()) {
                 onColumnMiss(tableIndex);
             }
         } else {
@@ -158,7 +158,7 @@ std::optional<TColumnSchema> InferCommonColumnSchema(
         if (columnIndex == -1) {
             // Missed columns in non-strict schema can be read only as Any, because
             // they can actually be present in chunks with any type.
-            if (!tableSchema->GetStrict() && *commonType != *OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Any))) {
+            if (!tableSchema->IsStrict() && *commonType != *OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Any))) {
                 onTypeMismatch(
                     TError("Column %Qv is missing in input table %v with non-strict schema; "
                         "read of the column is forbidden because it may be present in data with a mismatched type; "
@@ -310,7 +310,7 @@ TTableSchemaPtr InferCommonTableSchema(
         isSortedPrefix = false;
         // If at least one input schema is not strict,
         // the common schema is not strict too.
-        if (!schema->GetStrict()) {
+        if (!schema->IsStrict()) {
             strict = false;
         }
     }

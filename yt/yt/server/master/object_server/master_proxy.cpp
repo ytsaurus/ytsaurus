@@ -486,14 +486,6 @@ private:
                     return FromProto<TMasterTableSchemaId>(entry.schema_id());
                 }));
 
-        // Doing this just to offload schema destruction to other thread.
-        std::vector<NTableClient::TTableSchema> processedSchemas;
-        processedSchemas.reserve(request->schema_id_to_schema_mapping_size());
-        auto offloadSchemaDestruction = Finally([&] {
-            NRpc::TDispatcher::Get()->GetHeavyInvoker()
-                ->Invoke(BIND([processedSchemas = std::move(processedSchemas)] { }));
-        });
-
         const auto& transactionManager = Bootstrap_->GetTransactionManager();
         auto* transaction = transactionManager->GetTransactionOrThrow(transactionId);
 
@@ -504,7 +496,7 @@ private:
             // Out of love for paranoia.
             YT_VERIFY(oldSchemaId);
 
-            auto schema = FromProto<NTableClient::TTableSchema>(entry.schema());
+            auto schema = FromProto<TCompactTableSchema>(entry.schema());
 
             // NB: Schema lifetime is managed by cross-cell copy transaction.
             auto masterTableSchema = tableManager->GetOrCreateNativeMasterTableSchema(schema, transaction);
@@ -512,8 +504,6 @@ private:
             auto* rspEntry = response->add_updated_schema_id_mapping();
             ToProto(rspEntry->mutable_old_schema_id(), oldSchemaId);
             ToProto(rspEntry->mutable_new_schema_id(), masterTableSchema->GetId());
-
-            processedSchemas.push_back(std::move(schema));
         }
 
         context->SetResponseInfo("SchemaIdMapping: %v",
@@ -759,14 +749,14 @@ private:
             request->schema(),
             request->transaction_id());
 
-        auto schema = FromProto<NTableClient::TTableSchemaPtr>(request->schema());
+        auto schema = FromProto<TCompactTableSchema>(request->schema());
 
         auto transactionId = FromProto<TTransactionId>(request->transaction_id());
         const auto& transactionManager = Bootstrap_->GetTransactionManager();
         auto* transaction = transactionManager->GetTransactionOrThrow(transactionId);
 
         const auto& tableManager = Bootstrap_->GetTableManager();
-        auto result = tableManager->GetOrCreateNativeMasterTableSchema(*schema, transaction);
+        auto result = tableManager->GetOrCreateNativeMasterTableSchema(schema, transaction);
         ToProto(response->mutable_schema_id(), result->GetId());
 
         context->SetResponseInfo(

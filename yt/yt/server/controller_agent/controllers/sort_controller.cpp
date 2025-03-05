@@ -4194,7 +4194,7 @@ private:
                             columns.push_back(TColumnSchema(sortColumn.Name, optionalAnyType));
                         }
                     }
-                    return New<TTableSchema>(std::move(columns), schema->GetStrict())->ToSorted(sortColumns);
+                    return New<TTableSchema>(std::move(columns), schema->IsStrict())->ToSorted(sortColumns);
                 };
 
                 const auto& columns = inputTable->Path.GetColumns();

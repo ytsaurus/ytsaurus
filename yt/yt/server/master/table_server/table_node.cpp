@@ -278,7 +278,7 @@ void TTableNode::ParseCommonUploadContext(const TCommonUploadContext& context)
         auto contextMode = context.SchemaMode;
         auto* contextSchema = context.TableSchema;
         if ((contextMode && SchemaMode_ != contextMode) ||
-            (contextSchema && *GetSchema()->AsTableSchema() != *contextSchema->AsTableSchema()))
+            (contextSchema && *GetSchema()->AsCompactTableSchema() != *contextSchema->AsCompactTableSchema()))
         {
             YT_LOG_ALERT("Schema of a dynamic table changed during upload (TableId: %v, TransactionId: %v, "
                 "OriginalSchemaMode: %v, NewSchemaMode: %v, OriginalSchema: %v, NewSchema: %v)",
@@ -286,8 +286,8 @@ void TTableNode::ParseCommonUploadContext(const TCommonUploadContext& context)
                 GetTransaction()->GetId(),
                 SchemaMode_,
                 context.SchemaMode,
-                GetSchema()->AsTableSchema(),
-                context.TableSchema->AsTableSchema());
+                GetSchema()->AsCompactTableSchema(),
+                context.TableSchema->AsCompactTableSchema());
         }
     }
 
@@ -336,12 +336,7 @@ TDetailedMasterMemory TTableNode::GetDetailedMasterMemoryUsage() const
 
 bool TTableNode::IsSorted() const
 {
-    return GetSchema()->AsTableSchema()->IsSorted();
-}
-
-bool TTableNode::IsUniqueKeys() const
-{
-    return GetSchema()->AsTableSchema()->IsUniqueKeys();
+    return GetSchema()->AsCompactTableSchema()->IsSorted();
 }
 
 TAccount* TTableNode::GetAccount() const
@@ -757,7 +752,7 @@ void TTableNode::ValidateReshard(
 
             // Validate pivot keys against table schema.
             for (const auto& pivotKey : pivotKeys) {
-                ValidatePivotKey(pivotKey, *GetSchema()->AsTableSchema());
+                ValidatePivotKey(pivotKey, GetSchema()->AsTableSchema());
             }
         }
 

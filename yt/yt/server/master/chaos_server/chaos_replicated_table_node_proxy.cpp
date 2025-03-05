@@ -604,7 +604,7 @@ DEFINE_YPATH_SERVICE_METHOD(TChaosReplicatedTableNodeProxy, GetMountInfo)
     const auto* trunkTable = GetThisImpl();
 
     auto schema = trunkTable->GetSchema();
-    if (!schema || schema->AsTableSchema()->Columns().empty()) {
+    if (!schema || schema->AsCompactTableSchema()->IsEmpty()) {
         THROW_ERROR_EXCEPTION("Table schema is not specified");
     }
 
@@ -616,7 +616,7 @@ DEFINE_YPATH_SERVICE_METHOD(TChaosReplicatedTableNodeProxy, GetMountInfo)
     ToProto(response->mutable_upstream_replica_id(), NTabletClient::TTableReplicaId());
     ToProto(response->mutable_replication_card_id(), trunkTable->GetReplicationCardId());
     response->set_dynamic(true);
-    ToProto(response->mutable_schema(), *trunkTable->GetSchema()->AsTableSchema());
+    ToProto(response->mutable_schema(), trunkTable->GetSchema()->AsCompactTableSchema());
 
     if (trunkTable->IsQueue()) {
         auto tabletCountFuture = TChaosReplicatedTableTabletsCountGetter::GetTabletCount(
@@ -641,11 +641,11 @@ DEFINE_YPATH_SERVICE_METHOD(TChaosReplicatedTableNodeProxy, Alter)
 {
     DeclareMutating();
 
-    NTableClient::TTableSchemaPtr schema;
+    TCompactTableSchemaPtr schema;
     TMasterTableSchemaId schemaId;
 
     if (request->has_schema()) {
-        schema = New<TTableSchema>(FromProto<TTableSchema>(request->schema()));
+        schema = New<TCompactTableSchema>(request->schema());
     }
     if (request->has_schema_id()) {
         schemaId = FromProto<TMasterTableSchemaId>(request->schema_id());
@@ -673,17 +673,17 @@ DEFINE_YPATH_SERVICE_METHOD(TChaosReplicatedTableNodeProxy, Alter)
             schemaId);
     }
 
-    TTableSchemaPtr effectiveSchema;
+    TCompactTableSchemaPtr effectiveSchema;
     if (schema) {
         effectiveSchema = schema;
     } else if (schemaId) {
-        effectiveSchema = tableManager->GetMasterTableSchemaOrThrow(schemaId)->AsTableSchema();
+        effectiveSchema = tableManager->GetMasterTableSchemaOrThrow(schemaId)->AsCompactTableSchema();
     } else {
-        effectiveSchema = table->GetSchema()->AsTableSchema();
+        effectiveSchema = table->GetSchema()->AsCompactTableSchema();
     }
 
     // NB: Sorted dynamic tables contain unique keys, set this for user.
-    if (schemaReceived && effectiveSchema->IsSorted() && !effectiveSchema->GetUniqueKeys()) {
+    if (schemaReceived && effectiveSchema->IsSorted() && !effectiveSchema->IsUniqueKeys()) {
         effectiveSchema = effectiveSchema->ToUniqueKeys();
     }
 
@@ -691,7 +691,7 @@ DEFINE_YPATH_SERVICE_METHOD(TChaosReplicatedTableNodeProxy, Alter)
         const auto& config = Bootstrap_->GetConfigManager()->GetConfig();
 
         if (!config->EnableDescendingSortOrder || !config->EnableDescendingSortOrderDynamic) {
-            ValidateNoDescendingSortOrder(*effectiveSchema);
+            ValidateNoDescendingSortOrder(effectiveSchema->GetSortOrders(), effectiveSchema->GetKeyColumns());
         }
     }
 

@@ -1,9 +1,8 @@
 #include "table_manager.h"
-#include "private.h"
+
 #include "config.h"
+#include "private.h"
 #include "master_table_schema_proxy.h"
-#include "mount_config_attributes.h"
-#include "replicated_table_node.h"
 #include "schemaful_node.h"
 #include "secondary_index.h"
 #include "secondary_index_type_handler.h"
@@ -80,6 +79,8 @@ using namespace NYson;
 using namespace NYTree;
 
 using NCypressServer::TNodeId;
+using NYT::ToProto;
+using NYT::FromProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -245,11 +246,9 @@ public:
         ongoingUpdate.EffectiveRequest |= statistics;
     }
 
-
     DECLARE_ENTITY_MAP_ACCESSORS_OVERRIDE(MasterTableSchema, TMasterTableSchema);
     DECLARE_ENTITY_MAP_ACCESSORS_OVERRIDE(TableCollocation, TTableCollocation);
     DECLARE_ENTITY_MAP_ACCESSORS_OVERRIDE(SecondaryIndex, TSecondaryIndex);
-
 
     TTableNode* GetTableNodeOrThrow(TTableId id) override
     {
@@ -318,12 +317,6 @@ public:
         securityManager->UpdateMasterMemoryUsage(schema, tableAccount, 1);
     }
 
-    void SetTableSchemaOrThrow(TSchemafulNode* table, TMasterTableSchemaId schemaId) override
-    {
-        auto* existingSchema = GetMasterTableSchemaOrThrow(schemaId);
-        SetTableSchema(table, existingSchema);
-    }
-
     void SetTableSchemaOrCrash(TSchemafulNode* table, TMasterTableSchemaId schemaId) override
     {
         auto* existingSchema = GetMasterTableSchema(schemaId);
@@ -381,7 +374,7 @@ public:
         return schema;
     }
 
-    TMasterTableSchema* FindNativeMasterTableSchema(const TTableSchema& tableSchema) const override
+    TMasterTableSchema* FindNativeMasterTableSchema(const TCompactTableSchema& tableSchema) const override
     {
         auto it = NativeTableSchemaToObjectMap_.find(tableSchema);
         return it != NativeTableSchemaToObjectMap_.end()
@@ -391,7 +384,7 @@ public:
 
     // COMPAT(h0pless): AddChunkSchemas
     TMasterTableSchema* CreateImportedMasterTableSchema(
-        const NTableClient::TTableSchema& tableSchema,
+        const TCompactTableSchema& tableSchema,
         TMasterTableSchemaId hintId) override
     {
         // NB: An existing schema can be recreated without resurrection.
@@ -406,7 +399,7 @@ public:
     }
 
     TMasterTableSchema* CreateImportedTemporaryMasterTableSchema(
-        const NTableClient::TTableSchema& tableSchema,
+        const TCompactTableSchema& tableSchema,
         TTransaction* schemaHolder,
         TMasterTableSchemaId hintId) override
     {
@@ -417,7 +410,7 @@ public:
             schema = DoCreateMasterTableSchema(tableSchema, hintId, /*isNative*/ false);
         } else if (!IsObjectAlive(schema)) {
             ResurrectMasterTableSchema(schema);
-            YT_VERIFY(*schema->TableSchema_ == tableSchema);
+            YT_VERIFY(*schema->CompactTableSchema_ == tableSchema);
         }
 
         if (!schemaHolder->StagedObjects().contains(schema)) {
@@ -430,7 +423,7 @@ public:
     }
 
     TMasterTableSchema* GetOrCreateNativeMasterTableSchema(
-        const TTableSchema& schema,
+        const TCompactTableSchema& schema,
         TSchemafulNode* schemaHolder) override
     {
         auto* masterTableSchema = FindNativeMasterTableSchema(schema);
@@ -445,7 +438,7 @@ public:
     }
 
     TMasterTableSchema* GetOrCreateNativeMasterTableSchema(
-        const TTableSchema& schema,
+        const TCompactTableSchema& schema,
         TTransaction* schemaHolder) override
     {
         YT_VERIFY(IsObjectAlive(schemaHolder));
@@ -465,7 +458,7 @@ public:
     }
 
     TMasterTableSchema* GetOrCreateNativeMasterTableSchema(
-        const NTableClient::TTableSchema& schema,
+        const TCompactTableSchema& schema,
         TChunk* schemaHolder) override
     {
         // NB: A newly created chunk in operation can have zero reference count.
@@ -484,7 +477,7 @@ public:
     }
 
     TMasterTableSchema* CreateMasterTableSchema(
-        const TTableSchema& tableSchema,
+        const TCompactTableSchema& tableSchema,
         bool isNative,
         TMasterTableSchemaId hintId = NObjectClient::NullObjectId)
     {
@@ -493,24 +486,24 @@ public:
             schema = DoCreateMasterTableSchema(tableSchema, hintId, isNative);
         } else if (!IsObjectAlive(schema)) {
             ResurrectMasterTableSchema(schema);
-            YT_VERIFY(*schema->TableSchema_ == tableSchema);
+            YT_VERIFY(*schema->CompactTableSchema_ == tableSchema);
         } else {
             // Just a sanity check.
-            YT_ASSERT(*schema->TableSchema_ == tableSchema);
+            YT_VERIFY(*schema->CompactTableSchema_ == tableSchema);
         }
 
         return schema;
     }
 
     TMasterTableSchema* DoCreateMasterTableSchema(
-        const TTableSchema& tableSchema,
+        const TCompactTableSchema& tableSchema,
         TMasterTableSchemaId hintId,
         bool isNative)
     {
         const auto& objectManager = Bootstrap_->GetObjectManager();
         auto id = objectManager->GenerateId(EObjectType::MasterTableSchema, hintId);
 
-        auto sharedTableSchema = New<TTableSchema>(tableSchema);
+        auto sharedTableSchema = New<TCompactTableSchema>(tableSchema);
 
         TMasterTableSchema* schema;
         if (isNative) {
@@ -572,7 +565,7 @@ public:
         YT_LOG_DEBUG("Resurrecting master table schema object (SchemaId: %v)",
             schema->GetId());
 
-        const auto& tableSchema = schema->AsTableSchema(/*crashOnZombie*/ false);
+        const auto& tableSchema = schema->AsCompactTableSchema(/*crashOnZombie*/ false);
         if (schema->IsNative()) {
             auto it = EmplaceOrCrash(
                 NativeTableSchemaToObjectMap_,
@@ -585,13 +578,13 @@ public:
 
     TMasterTableSchema::TNativeTableSchemaToObjectMapIterator RegisterNativeSchema(
         TMasterTableSchema* schema,
-        TTableSchema tableSchema) override
+        TCompactTableSchema tableSchema) override
     {
         YT_VERIFY(IsObjectAlive(schema));
-        auto sharedTableSchema = New<TTableSchema>(std::move(tableSchema));
+        auto sharedTableSchema = New<TCompactTableSchema>(std::move(tableSchema));
         return EmplaceOrCrash(
             NativeTableSchemaToObjectMap_,
-            sharedTableSchema,
+            std::move(sharedTableSchema),
             schema);
     }
 
@@ -605,7 +598,7 @@ public:
             ToProto(request.mutable_schema_id(), schema->GetId());
             // NB: This sometimes will lead to a synchronous serialization of
             // schemas in automaton thread. This is unavoidable.
-            ToProto(request.mutable_schema(), schema->AsTableSchema());
+            ToProto(request.mutable_schema(), schema->AsCompactTableSchema());
 
             YT_LOG_DEBUG("Exporting schema to another cell (SchemaId: %v, DestinationCellTag: %v)",
                 schema->GetId(),
@@ -639,7 +632,7 @@ public:
 
     void ValidateTableSchemaCorrespondence(
         TVersionedNodeId nodeId,
-        const TTableSchemaPtr& schema,
+        const TCompactTableSchemaPtr& schema,
         TMasterTableSchemaId schemaId,
         bool isChunkSchema = false) override
     {
@@ -650,11 +643,10 @@ public:
         auto nativeCellTag = CellTagFromId(nodeId.ObjectId);
         auto native = nativeCellTag == multicellManager->GetCellTag();
 
-        const auto& tableManager = Bootstrap_->GetTableManager();
         TMasterTableSchema* schemaById = nullptr;
         if (schemaId) {
             if (native) {
-                schemaById = tableManager->GetMasterTableSchemaOrThrow(schemaId);
+                schemaById = GetMasterTableSchemaOrThrow(schemaId);
             } else {
                 schemaById = FindMasterTableSchema(schemaId);
 
@@ -674,21 +666,21 @@ public:
         }
 
         if (schema && schemaById && schemaById->IsNative()) {
-            auto* schemaByYson = tableManager->FindNativeMasterTableSchema(*schema);
+            auto* schemaByYson = FindNativeMasterTableSchema(*schema);
             if (IsObjectAlive(schemaByYson)) {
                 if (schemaById != schemaByYson) {
                     THROW_ERROR_EXCEPTION("Both \"schema\" and \"schema_id\" specified and they refer to different schemas");
                 }
             } else {
-                if (*schemaById->AsTableSchema(/*crashOnZombie*/ false) != *schema) {
+                if (*schemaById->AsCompactTableSchema(/*crashOnZombie*/ false) != *schema) {
                     THROW_ERROR_EXCEPTION("Both \"schema\" and \"schema_id\" specified and the schemas do not match");
                 }
             }
         }
     }
 
-    const TTableSchema* ProcessSchemaFromAttributes(
-        TTableSchemaPtr& tableSchema,
+    const TCompactTableSchema* ProcessSchemaFromAttributes(
+        TCompactTableSchemaPtr& tableSchema,
         TMasterTableSchemaId schemaId,
         bool dynamic,
         bool chaos,
@@ -705,11 +697,10 @@ public:
             tableSchema,
             schemaId);
 
-        const auto& tableManager = Bootstrap_->GetTableManager();
-        const TTableSchema* effectiveTableSchema = nullptr;
-        auto* schemaById = tableManager->FindMasterTableSchema(schemaId);
+        const TCompactTableSchema* effectiveTableSchema = nullptr;
+        auto* schemaById = FindMasterTableSchema(schemaId);
         if (schemaById) {
-            effectiveTableSchema = schemaById->AsTableSchema(/*crashOnZombie*/ false).Get();
+            effectiveTableSchema = schemaById->AsCompactTableSchema(/*crashOnZombie*/ false).Get();
         } else if (tableSchema) {
             effectiveTableSchema = tableSchema.Get();
         } else {
@@ -720,7 +711,7 @@ public:
         auto native = CellTagFromId(nodeId.ObjectId) == multicellManager->GetCellTag();
 
         // NB: Sorted dynamic tables contain unique keys, set this for user.
-        if (dynamic && effectiveTableSchema->IsSorted() && !effectiveTableSchema->GetUniqueKeys()) {
+        if (dynamic && effectiveTableSchema->IsSorted() && !effectiveTableSchema->IsUniqueKeys()) {
             if (!native) {
                 // COMPAT(h0pless): Change this to YT_VERIFY after schema migration is complete.
                 YT_LOG_ALERT("Schema doesn't have \"unique_keys\" set to true on the external cell for a dynamic table (TableId: %v, Schema: %v)",
@@ -737,15 +728,16 @@ public:
         }
 
         const auto& dynamicConfig = Bootstrap_->GetConfigManager()->GetConfig();
-        ValidateTableSchemaUpdateInternal(TTableSchema(), *effectiveTableSchema, GetSchemaUpdateEnabledFeatures(dynamicConfig), dynamic, true);
+        const auto& deserializedEffectiveTableSchema = effectiveTableSchema->AsHeavyTableSchema();
+        ValidateTableSchemaUpdateInternal(TTableSchema(), deserializedEffectiveTableSchema, GetSchemaUpdateEnabledFeatures(dynamicConfig), dynamic, true);
 
         if (!dynamicConfig->EnableDescendingSortOrder || (dynamic && !dynamicConfig->EnableDescendingSortOrderDynamic)) {
-            ValidateNoDescendingSortOrder(*effectiveTableSchema);
+            ValidateNoDescendingSortOrder(effectiveTableSchema->GetSortOrders(), effectiveTableSchema->GetKeyColumns());
         }
 
         if (!dynamicConfig->EnableTableColumnRenaming ||
             dynamic && !dynamicConfig->EnableDynamicTableColumnRenaming) {
-            ValidateNoRenamedColumns(*effectiveTableSchema);
+            ValidateNoRenamedColumns(deserializedEffectiveTableSchema);
         }
 
         if (type == EObjectType::ReplicationLogTable && !effectiveTableSchema->IsSorted()) {
@@ -771,10 +763,8 @@ public:
             kind,
             predicate);
 
-        const auto& tableManager = Bootstrap_->GetTableManager();
-
-        auto* table = tableManager->GetTableNodeOrThrow(tableId);
-        auto* indexTable = tableManager->FindTableNode(indexTableId);
+        auto* table = GetTableNodeOrThrow(tableId);
+        auto* indexTable = FindTableNode(indexTableId);
 
         if (table->IsNative()) {
             THROW_ERROR_EXCEPTION_IF(!indexTable, "Index table not found by id %v",
@@ -839,8 +829,8 @@ public:
 
             table->ValidateAllTabletsUnmounted("Cannot create index on a mounted table");
 
-            const auto& tableSchema = *table->GetSchema()->AsTableSchema();
-            const auto& indexTableSchema = *indexTable->GetSchema()->AsTableSchema();
+            const auto& tableSchema = table->GetSchema()->AsTableSchema();
+            const auto& indexTableSchema = indexTable->GetSchema()->AsTableSchema();
 
             switch(kind) {
                 case ESecondaryIndexKind::FullSync:
@@ -1380,19 +1370,18 @@ private:
 
     friend class TMasterTableSchemaTypeHandler;
 
-    static const TTableSchema EmptyTableSchema;
-    static const NYson::TYsonString EmptyYsonTableSchema;
+    static const TCompactTableSchema EmptyTableSchema;
 
-    NHydra::TEntityMap<TMasterTableSchema> MasterTableSchemaMap_;
+    TEntityMap<TMasterTableSchema> MasterTableSchemaMap_;
 
     TMasterTableSchema::TNativeTableSchemaToObjectMap NativeTableSchemaToObjectMap_;
 
     TMasterTableSchemaId EmptyMasterTableSchemaId_;
     TMasterTableSchema* EmptyMasterTableSchema_ = nullptr;
 
-    NHydra::TEntityMap<TTableCollocation> TableCollocationMap_;
+    TEntityMap<TTableCollocation> TableCollocationMap_;
 
-    NHydra::TEntityMap<TSecondaryIndex> SecondaryIndexMap_;
+    TEntityMap<TSecondaryIndex> SecondaryIndexMap_;
 
     TRandomAccessQueue<TNodeId, TStatisticsUpdateRequest> StatisticsUpdateRequests_;
     THashMap<TNodeId, TOngoingStatisticsUpdate> NodeIdToOngoingStatisticsUpdate_;
@@ -1413,7 +1402,6 @@ private:
 
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 
-
     const TDynamicTablesMulticellGossipConfigPtr& GetGossipConfig()
     {
         const auto& configManager = Bootstrap_->GetConfigManager();
@@ -1422,14 +1410,16 @@ private:
 
     void OnDynamicConfigChanged(TDynamicClusterConfigPtr /*oldConfig*/)
     {
+        const auto& dynamicConfig = Bootstrap_->GetConfigManager()->GetConfig()->TableManager;
         const auto& gossipConfig = GetGossipConfig();
         StatisticsGossipThrottler_->Reconfigure(gossipConfig->TableStatisticsGossipThrottler);
 
         if (StatisticsGossipExecutor_) {
             StatisticsGossipExecutor_->SetPeriod(gossipConfig->TableStatisticsGossipPeriod);
         }
-    }
 
+        TCompactTableSchema::CacheExpirationTimeout.Store(dynamicConfig->CompactTableCacheExpirationTimeout);
+    }
 
     static bool IsSupportedNodeType(EObjectType type)
     {
@@ -1466,7 +1456,6 @@ private:
         YT_VERIFY(EmptyMasterTableSchema_->RefObject() == 1);
     }
 
-
     void OnLeaderActive() override
     {
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
@@ -1495,7 +1484,6 @@ private:
             YT_UNUSED_FUTURE(StatisticsGossipExecutor_->Stop());
         }
     }
-
 
     void OnStatisticsGossip()
     {
@@ -1606,7 +1594,7 @@ private:
             externalCellTag = chunkOwner->GetExternalCellTag();
 
             if (entry.has_expected_content_revision() &&
-                chunkOwner->GetContentRevision() != FromProto<NHydra::TRevision>(entry.expected_content_revision()))
+                chunkOwner->GetContentRevision() != FromProto<TRevision>(entry.expected_content_revision()))
             {
                 nodeIdsToRetry.push_back(nodeId);
                 auto* retryEntry = confirmRequest.add_content_revision_cas_failed_nodes();
@@ -1674,7 +1662,7 @@ private:
             YT_VERIFY(IsSupportedNodeType(node->GetType()));
             auto* chunkOwner = node->As<TChunkOwnerBase>();
 
-            auto actualContentRevision = FromProto<NHydra::TRevision>(entry.actual_content_revision());
+            auto actualContentRevision = FromProto<TRevision>(entry.actual_content_revision());
             if (actualContentRevision >= chunkOwner->GetNativeContentRevision()) {
                 chunkOwner->SetNativeContentRevision(actualContentRevision);
             } else {
@@ -1710,7 +1698,7 @@ private:
 
     void HydraImportMasterTableSchema(NProto::TReqImportMasterTableSchema* request)
     {
-        auto schema = FromProto<TTableSchema>(request->schema());
+        auto schema = FromProto<TCompactTableSchema>(request->schema());
         auto schemaId = FromProto<TMasterTableSchemaId>(request->schema_id());
         CreateImportedMasterTableSchema(schema, schemaId);
     }
@@ -1986,13 +1974,9 @@ private:
         if (NeedToFindUnfoldedColumnName_) {
             for (const auto& [id, secondaryIndex] : SecondaryIndexMap_) {
                 if (secondaryIndex->GetKind() == ESecondaryIndexKind::Unfolding) {
-                    const auto& indexUnfoldedColumn = FindUnfoldedColumnAndValidate(
-                        *GetTableNodeOrThrow(secondaryIndex->GetTableId())
-                        ->GetSchema()
-                        ->AsTableSchema(),
-                        *GetTableNodeOrThrow(secondaryIndex->GetIndexTableId())
-                        ->GetSchema()
-                        ->AsTableSchema());
+                    const auto& tableSchema = GetTableNodeOrThrow(secondaryIndex->GetTableId())->GetSchema();
+                    const auto& indexTableSchema = GetTableNodeOrThrow(secondaryIndex->GetIndexTableId())->GetSchema();
+                    const auto& indexUnfoldedColumn = FindUnfoldedColumnAndValidate(tableSchema->AsTableSchema(), indexTableSchema->AsTableSchema());
 
                     secondaryIndex->UnfoldedColumn() = indexUnfoldedColumn.Name();
                 }
@@ -2136,7 +2120,7 @@ private:
 
     // COMPAT(h0pless): AddChunkSchemas
     TMasterTableSchema* CreateImportedMasterTableSchema(
-        const NTableClient::TTableSchema& tableSchema,
+        const TCompactTableSchema& tableSchema,
         TSchemafulNode* schemaHolder,
         TMasterTableSchemaId hintId) override
     {
@@ -2145,7 +2129,7 @@ private:
             schema = DoCreateMasterTableSchema(tableSchema, hintId, /*isNative*/ false);
         } else if (!IsObjectAlive(schema)) {
             ResurrectMasterTableSchema(schema);
-            YT_VERIFY(*schema->TableSchema_ == tableSchema);
+            YT_VERIFY(*schema->CompactTableSchema_ == tableSchema);
         }
         SetTableSchema(schemaHolder, schema);
         YT_VERIFY(IsObjectAlive(schema));
@@ -2160,8 +2144,7 @@ DEFINE_ENTITY_MAP_ACCESSORS(TTableManager, SecondaryIndex, TSecondaryIndex, Seco
 
 ////////////////////////////////////////////////////////////////////////////////
 
-const TTableSchema TTableManager::EmptyTableSchema;
-const NYson::TYsonString TTableManager::EmptyYsonTableSchema = BuildYsonStringFluently().Value(EmptyTableSchema);
+const TCompactTableSchema TTableManager::EmptyTableSchema;
 
 ////////////////////////////////////////////////////////////////////////////////
 
