@@ -9516,13 +9516,11 @@ TJobStartInfo TOperationControllerBase::SafeSettleJob(TAllocationId allocationId
     }
 
     {
-        auto requestIsStale = [&] {
-            return !allocation.Joblet && !lastJobId;
-        }();
+        bool requestIsStale = !allocation.Joblet && !lastJobId;
 
         THROW_ERROR_EXCEPTION_IF(
             requestIsStale,
-            "Settle job requets looks like retry");
+            "Settle job request looks like retry");
     }
 
     if (!allocation.Joblet) {
