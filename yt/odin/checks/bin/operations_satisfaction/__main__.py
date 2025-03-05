@@ -26,17 +26,10 @@ def run_check(yt_client, logger, options, states):
         if not err.is_resolve_error():
             raise
 
-    # COMPAT. Old version of check worked only for one fair-share tree and
-    # state was a simple mapping "<operation id> -> <number>". Consider state empty
-    # in that case.
-    for value in state.values():
-        if isinstance(value, int):
-            state = {}
-            break
-
     trees = set(yt_client.list(SCHEDULING_INFO_ORCHID_PATH))
     operations = set(yt_client.list(OPERATIONS_ORCHID_PATH))
 
+    # TODO: Optimize operations orchid, it's huge.
     fair_share_info_per_pool_tree = {}
     for tree in trees:
         fair_share_info_per_pool_tree[tree] = yt_client.get(
@@ -47,22 +40,14 @@ def run_check(yt_client, logger, options, states):
         if operation not in operations:
             del state[operation]
 
-    # Remove unexisting trees from state.
-    for operation_state in state.values():
-        for tree in list(operation_state):
-            if tree not in trees:
-                del operation_state[tree]
-
     for operation in operations:
-        operation_state = state.setdefault(operation, {})  # Map "<tree> -> <unsatisfied minute count>".
+        operation_state = state.get(operation, {})  # Map "<tree> -> <unsatisfied minute count>".
+        new_operation_state = {}
 
         for tree in trees:
             if operation not in fair_share_info_per_pool_tree[tree]:
                 # Operation was removed from tree, perhaps this tree was tentative.
                 # Or operation just finished, nothing to do here.
-                if tree in operation_state:
-                    del operation_state[tree]
-
                 continue
 
             info = fair_share_info_per_pool_tree[tree][operation]
@@ -74,10 +59,10 @@ def run_check(yt_client, logger, options, states):
             # is also considered here.
             if satisfaction_ratio < options["min_satisfaction_ratio"] and fair_share_ratio > EPS:
                 count += 1
-            else:
-                count = 0
+                new_operation_state[tree] = count
 
-            operation_state[tree] = count
+        if new_operation_state:
+            state[operation] = new_operation_state
 
     unsatisfied_operations = []
     for operation, operation_state in state.items():
