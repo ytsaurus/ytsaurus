@@ -2,7 +2,7 @@ GO_LIBRARY()
 
 LICENSE(BSD-3-Clause)
 
-VERSION(v0.8.1)
+VERSION(v0.12.1)
 
 SRCS(
     flock.go
@@ -29,7 +29,6 @@ ENDIF()
 
 IF (OS_WINDOWS)
     SRCS(
-        flock_winapi.go
         flock_windows.go
     )
 ENDIF()
