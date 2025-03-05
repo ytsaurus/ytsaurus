@@ -10124,6 +10124,8 @@ void TOperationControllerBase::InitUserJobSpecTemplate(
     jobSpec->set_enable_rpc_proxy_in_job_proxy(jobSpecConfig->EnableRpcProxyInJobProxy);
     jobSpec->set_rpc_proxy_worker_thread_pool_size(jobSpecConfig->RpcProxyWorkerThreadPoolSize);
 
+    jobSpec->set_start_queue_consumer_registration_manager(jobSpecConfig->StartQueueConsumerRegistrationManager);
+
     // Pass external docker image into job spec as is.
     if (jobSpecConfig->DockerImage) {
         TDockerImageSpec dockerImageSpec(*jobSpecConfig->DockerImage, Config->DockerRegistry);
