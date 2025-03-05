@@ -28,13 +28,18 @@ public:
     {
         RegisterMutationHandlers();
 
+        // COMPAT(koloshmet): remove when 25.1 is deployed.
         RegisterLoader(
             "TMulticellStatisticsCollector.Values",
             BIND_NO_PROPAGATE(&TMulticellStatisticsCollector::LoadValues, Unretained(this)));
 
+        RegisterLoader(
+            "MulticellStatisticsCollector.Values",
+            BIND_NO_PROPAGATE(&TMulticellStatisticsCollector::LoadValues, Unretained(this)));
+
         RegisterSaver(
             NHydra::ESyncSerializationPriority::Values,
-            "TMulticellStatisticsCollector.Values",
+            "MulticellStatisticsCollector.Values",
             BIND_NO_PROPAGATE(&TMulticellStatisticsCollector::SaveValues, Unretained(this)));
     }
 
