@@ -44,7 +44,6 @@ void Main(const TConfigPtr& config)
     auto threadPool = CreateThreadPool(/*threadCount*/ 2, "Nbd");
     auto nbdServer = CreateNbdServer(
         config->NbdServer,
-        nullptr /* client */,
         poller,
         threadPool->GetInvoker());
 

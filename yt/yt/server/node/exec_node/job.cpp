@@ -3183,7 +3183,7 @@ void TJob::BuildVirtualSandbox()
             << TErrorAttribute("export_id", VirtualSandboxData_->NbdExportId);
     }
 
-    auto readerHost = nbdServer->GetFileReaderHost();
+    auto readerHost = Bootstrap_->GetFileReaderHost();
     auto inThrottler = Bootstrap_->GetDefaultInThrottler();
     auto outRpsThrottler = Bootstrap_->GetReadRpsOutThrottler();
     auto logger = nbdServer->GetLogger();
