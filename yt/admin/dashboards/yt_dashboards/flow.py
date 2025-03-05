@@ -282,6 +282,11 @@ def build_epoch_timings():
                     .all("computation_id")
                     .unit("UNIT_COUNT")
                     .stack(False))
+            .cell(
+                "Controller iteration duration",
+                MonitoringExpr(FlowController("yt.flow.controller.*iteration_time.max"))
+                    .stack(False)
+                    .unit("UNIT_SECONDS"))
     )
 
 def build_logging():
