@@ -42,7 +42,7 @@ public:
     std::optional<TDuration> GetUpdatePeriod();
 
 private:
-    NCellMaster::TBootstrap* Bootstrap_;
+    NCellMaster::TBootstrap* const Bootstrap_;
 
     TLostVitalChunksSampleMap LostVitalChunksSample_;
 };

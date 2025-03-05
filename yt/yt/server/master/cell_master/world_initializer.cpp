@@ -571,6 +571,15 @@ private:
                 transactionId,
                 EObjectType::LostVitalChunkMap);
 
+            // COMPAT(koloshmet)
+            const auto& dynamicConfig = Bootstrap_->GetConfigManager()->GetConfig();
+            if (dynamicConfig->CellMaster->CreateLostVitalChunksSampleMap) {
+                ScheduleCreateNode(
+                    "//sys/lost_vital_chunks_sample",
+                    transactionId,
+                    EObjectType::LostVitalChunksSampleMap);
+            }
+
             ScheduleCreateNode(
                 "//sys/precarious_chunks",
                 transactionId,

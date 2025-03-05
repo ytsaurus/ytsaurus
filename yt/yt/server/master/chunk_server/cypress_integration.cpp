@@ -114,14 +114,14 @@ INodeTypeHandlerPtr CreateChunkLocationMapTypeHandler(TBootstrap* bootstrap)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TVirtualLostVitalChunksSampleMap
-    : public TVirtualSinglecellMapBase
+    : public TVirtualSinglecellWithRemoteItemsMapBase
 {
 public:
     TVirtualLostVitalChunksSampleMap(
         TBootstrap* bootstrap,
         INodePtr owningNode,
         std::reference_wrapper<const TLostVitalChunksSampleMap> chunksSample)
-        : TVirtualSinglecellMapBase(bootstrap, std::move(owningNode))
+        : TVirtualSinglecellWithRemoteItemsMapBase(bootstrap, std::move(owningNode))
         , LostVitalChunksSample_(chunksSample)
     { }
 
@@ -130,35 +130,10 @@ private:
 
     std::vector<std::string> GetKeys(i64 limit) const override
     {
-        std::vector<TCellTag> cellTags;
-        cellTags.resize(LostVitalChunksSample_.size());
-        std::ranges::copy(LostVitalChunksSample_ | std::views::keys, cellTags.begin());
-        std::ranges::sort(cellTags, [this] (const auto& cellTag1, const auto& cellTag2) {
-            auto cellTag1SampleSize = GetOrCrash(LostVitalChunksSample_, cellTag1).size();
-            auto cellTag2SampleSize = GetOrCrash(LostVitalChunksSample_, cellTag2).size();
-            return cellTag1SampleSize > cellTag2SampleSize;
-        });
-
-        std::ptrdiff_t maxChunks = 0;
-        if (!cellTags.empty()) {
-            maxChunks = std::ranges::min(std::ssize(GetOrCrash(LostVitalChunksSample_, cellTags.front())), limit);
-        }
         std::vector<std::string> keys;
         keys.reserve(std::min(limit, GetSize()));
-        for (std::ptrdiff_t i = 0; i < maxChunks; ++i) {
-            for (auto cellTag : cellTags) {
-                if (std::ssize(keys) >= limit) {
-                    return keys;
-                }
-
-                const auto& cellChunks = GetOrCrash(LostVitalChunksSample_, cellTag);
-                // CellTags are descending sorted by the number of chunks.
-                if (std::ssize(cellChunks) <= i) {
-                    break;
-                }
-
-                keys.push_back(ToString(cellChunks[i]));
-            }
+        for (const auto& [cellTag, items] : GetItems(limit)) {
+            std::ranges::transform(items, std::back_inserter(keys), [] (auto key) { return ToString(key); });
         }
 
         return keys;
@@ -186,13 +161,60 @@ private:
             }
 
             auto* object = objectManager->GetObjectOrThrow(objectId);
-
             return objectManager->GetProxy(object, nullptr);
         } else {
             THROW_ERROR_EXCEPTION("Incorrect object id, no such cell");
         }
 
         THROW_ERROR_EXCEPTION("Incorrect object id, no such object");
+    }
+
+    TCellItemsMap GetItems(i64 limit) const override
+    {
+        TCellItemsMap result;
+
+        std::vector<TCellTag> cellTags;
+        cellTags.resize(LostVitalChunksSample_.size());
+        std::ranges::copy(LostVitalChunksSample_ | std::views::keys, cellTags.begin());
+        std::ranges::sort(cellTags, [this] (auto lhs, auto rhs) {
+            auto lhsSize = GetOrCrash(LostVitalChunksSample_, lhs).size();
+            auto rhsSize = GetOrCrash(LostVitalChunksSample_, rhs).size();
+            return lhsSize > rhsSize;
+        });
+
+        i64 maxChunks = 0;
+        if (!cellTags.empty()) {
+            maxChunks = std::ranges::min(std::ssize(GetOrCrash(LostVitalChunksSample_, cellTags.front())), limit);
+        }
+
+        for (i64 i = 0; i < maxChunks; ++i) {
+            for (auto cellTag : cellTags) {
+                if (limit == 0) {
+                    return result;
+                }
+
+                const auto& cellChunks = GetOrCrash(LostVitalChunksSample_, cellTag);
+                // CellTags are descending sorted by the number of chunks.
+                if (std::ssize(cellChunks) <= i) {
+                    break;
+                }
+
+                result[cellTag].push_back(cellChunks[i]);
+                --limit;
+            }
+        }
+
+        return result;
+    }
+
+    bool NeedSuppressUpstreamSync(const NRpc::NProto::TRequestHeader& /*requestHeader*/) const override
+    {
+        return true;
+    }
+
+    bool NeedSuppressTransactionCoordinatorSync(const NRpc::NProto::TRequestHeader& /*requestHeader*/) const override
+    {
+        return true;
     }
 };
 

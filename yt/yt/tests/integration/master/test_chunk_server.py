@@ -942,8 +942,6 @@ class TestChunkServerMulticell(TestChunkServer):
 
     @authors("koloshmet")
     def test_lost_vital_chunks_sample(self):
-        pytest.skip()
-
         set("//sys/@config/chunk_manager/lost_vital_chunks_sample_update_period", 1000)
 
         create("table", "//tmp/t0", attributes={"external": False})
@@ -967,7 +965,36 @@ class TestChunkServerMulticell(TestChunkServer):
 
         wait(lambda: get("//sys/@lost_vital_chunk_count") == 4)
         wait(lambda: get("//sys/lost_vital_chunks_sample/@count") == 4)
+
+        lost_vital_chunks_sample = ls("//sys/lost_vital_chunks_sample")
+        assert chunk_id0 in lost_vital_chunks_sample
+        assert chunk_id1 in lost_vital_chunks_sample
+        assert chunk_id2 in lost_vital_chunks_sample
+        assert chunk_id3 in lost_vital_chunks_sample
+
         lost_vital_chunks_sample = get("//sys/lost_vital_chunks_sample")
+        for chunk in lost_vital_chunks_sample:
+            assert lost_vital_chunks_sample[chunk] == yson.YsonEntity()
+        assert chunk_id0 in lost_vital_chunks_sample
+        assert chunk_id1 in lost_vital_chunks_sample
+        assert chunk_id2 in lost_vital_chunks_sample
+        assert chunk_id3 in lost_vital_chunks_sample
+
+        assert get(f"//sys/lost_vital_chunks_sample/{chunk_id0}/@id") == chunk_id0
+
+        lost_vital_chunks_sample = ls("//sys/lost_vital_chunks_sample", attributes=["id"])
+        lost_vital_chunks_sample_list = []
+        for chunk in lost_vital_chunks_sample:
+            assert chunk.attributes.get("id") == str(chunk)
+            lost_vital_chunks_sample_list.append(str(chunk))
+        assert chunk_id0 in lost_vital_chunks_sample_list
+        assert chunk_id1 in lost_vital_chunks_sample_list
+        assert chunk_id2 in lost_vital_chunks_sample_list
+        assert chunk_id3 in lost_vital_chunks_sample_list
+
+        lost_vital_chunks_sample = get("//sys/lost_vital_chunks_sample", attributes=["id"])
+        for chunk in lost_vital_chunks_sample:
+            assert lost_vital_chunks_sample[chunk].attributes.get("id") == chunk
         assert chunk_id0 in lost_vital_chunks_sample
         assert chunk_id1 in lost_vital_chunks_sample
         assert chunk_id2 in lost_vital_chunks_sample

@@ -231,6 +231,7 @@ DEFINE_ENUM(EMasterReign,
     ((PrepareModifyReplicasRefreshFlagsChecks)                      (2841))  // babenko
     ((PersistAuxiliaryNodeStatistics)                               (2842))  // ifsmirnov
     ((GlobalObjectReplicationRespectsTypeHandlers)                  (2843))  // shakurov
+    ((LostVitalChunksSample_25_1)                                   (2844))  // koloshmet
 );
 
 static_assert(TEnumTraits<EMasterReign>::IsMonotonic, "Master reign enum is not monotonic");

@@ -368,6 +368,8 @@ public:
 
     TDuration ExpectedMutationCommitDuration;
 
+    bool CreateLostVitalChunksSampleMap;
+
     TDynamicResponseKeeperConfigPtr ResponseKeeper;
 
     REGISTER_YSON_STRUCT(TDynamicCellMasterConfig);

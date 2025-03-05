@@ -86,6 +86,7 @@ target_sources(yt-server-master PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/cell_master/multi_phase_cell_sync_session.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/cell_master/multicell_manager.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/cell_master/multicell_node_statistics.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/master/cell_master/multicell_statistics_collector_detail.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/cell_master/multicell_statistics_collector.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/cell_master/program.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/cell_master/response_keeper_manager.cpp
