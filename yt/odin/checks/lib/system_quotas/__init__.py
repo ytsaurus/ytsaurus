@@ -84,12 +84,6 @@ def get_resource_usage_in_percents(usage, limit):
     return round(usage / float(limit) * 100, 2)
 
 
-def is_resource_exhausted(used_percent, threshold):
-    if used_percent >= threshold:
-        return True
-    return False
-
-
 def fetch_quota_holders(client, holder_map_name, all_possible_holders):
     responses = {}
     batch_client = client.create_batch_client()
@@ -195,7 +189,24 @@ def do_run_check(yt_client, logger, states, options, facade, config):
         options["all_possible_names"])
 
     exhausted_resources = defaultdict(lambda: defaultdict(float))
+
     for holder, resources_info in resource_usage_info.items():
+        def check_resource(key_list):
+            def resolve_key_list(d):
+                for k in key_list:
+                    d = d.get(k, None)
+                    if d is None:
+                        return 0
+                return d
+
+            limit = resolve_key_list(resources_info.limits)
+            usage = resolve_key_list(resources_info.usage)
+            used_percent = get_resource_usage_in_percents(usage, limit)
+            key_list_str = "/".join(key_list)
+            logger.info(f"Resource {facade.holder_type} {holder} {key_list_str} usage: {used_percent}; threshold: {threshold}")
+            if used_percent >= threshold:
+                exhausted_resources[holder][key_list_str] = used_percent
+
         threshold = get_quota_holder_threshold(
             holder,
             config.DEFAULT_THRESHOLD,
@@ -204,18 +215,10 @@ def do_run_check(yt_client, logger, states, options, facade, config):
             now_time=_get_now_time())
         for resource in config.SUBKEY_RESOURCES:
             for subkey in resources_info.limits.get(resource, {}):
-                limit = resources_info.limits.get(resource, {}).get(subkey, 0)
-                usage = resources_info.usage.get(resource, {}).get(subkey, 0)
-                used_percent = get_resource_usage_in_percents(usage, limit)
-                if is_resource_exhausted(used_percent, threshold):
-                    exhausted_resources[holder][f"{resource}/{subkey}"] = used_percent
+                check_resource([resource, subkey])
 
         for resource in config.get_flat_resources(options["enable_tablet_resource_validation"]):
-            limit = resources_info.limits.get(resource, 0)
-            usage = resources_info.usage.get(resource, 0)
-            used_percent = get_resource_usage_in_percents(usage, limit)
-            if is_resource_exhausted(used_percent, threshold):
-                exhausted_resources[holder][resource] = used_percent
+            check_resource([resource])
 
     if exhausted_resources:
         descriptions = []
