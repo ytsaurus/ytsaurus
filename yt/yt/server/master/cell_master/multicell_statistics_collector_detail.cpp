@@ -1,0 +1,24 @@
+#include "multicell_statistics_collector_detail.h"
+#include "private.h"
+
+namespace NYT::NCellMaster {
+
+////////////////////////////////////////////////////////////////////////////////
+
+namespace {
+
+constexpr auto& Logger = CellMasterLogger;
+
+} // namespace
+
+////////////////////////////////////////////////////////////////////////////////
+
+void NDetail::LogGetLocalCellUpdateError(const TError& error)
+{
+    YT_LOG_ERROR(error, "Error collecting statistics update from local cell");
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NYT::NCellMaster
+

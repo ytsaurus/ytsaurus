@@ -42,6 +42,8 @@
 
 #include <yt/yt/core/concurrency/scheduler.h>
 
+#include <library/cpp/iterator/zip.h>
+
 namespace NYT::NCypressServer {
 
 using namespace NYTree;
@@ -86,6 +88,309 @@ std::optional<TVirtualCompositeNodeReadOffloadParams> TVirtualSinglecellMapBase:
         .WaitForStrategy = EWaitForStrategy::Get,
         .BatchSize = *config->CypressManager->VirtualMapReadOffloadBatchSize,
     };
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TVirtualSinglecellWithRemoteItemsMapBase::TVirtualSinglecellWithRemoteItemsMapBase(
+    NCellMaster::TBootstrap* bootstrap,
+    NYTree::INodePtr owningNode)
+    : TVirtualMapBase(std::move(owningNode))
+    , Bootstrap_(bootstrap)
+{ }
+
+bool TVirtualSinglecellWithRemoteItemsMapBase::NeedSuppressUpstreamSync(
+    const NRpc::NProto::TRequestHeader& requestHeader) const
+{
+    return NObjectClient::GetSuppressUpstreamSync(requestHeader);
+}
+
+bool TVirtualSinglecellWithRemoteItemsMapBase::NeedSuppressTransactionCoordinatorSync(
+    const NRpc::NProto::TRequestHeader& requestHeader) const
+{
+    return NObjectClient::GetSuppressTransactionCoordinatorSync(requestHeader);
+}
+
+void TVirtualSinglecellWithRemoteItemsMapBase::GetSelf(
+    TReqGet* request,
+    TRspGet* response,
+    const TCtxGetPtr& context)
+{
+    const auto& requestHeader = context->GetRequestHeader();
+
+    auto isEmptyYpathInHeader = [&] {
+        NYPath::TTokenizer tokenizer(GetRequestTargetYPath(requestHeader));
+        return tokenizer.Advance() == NYPath::ETokenType::EndOfStream;
+    };
+    YT_ASSERT(isEmptyYpathInHeader());
+
+    auto attributeFilter = request->has_attributes()
+        ? FromProto<TAttributeFilter>(request->attributes())
+        : TAttributeFilter();
+
+    if (!attributeFilter || attributeFilter.IsEmpty()) {
+        SetOpaque(true);
+        TVirtualMapBase::GetSelf(request, response, context);
+        return;
+    }
+
+    i64 limit = request->has_limit()
+        ? request->limit()
+        : DefaultVirtualChildLimit;
+
+    context->SetRequestInfo("Limit: %v, AttributeFilter: %v", limit, attributeFilter);
+
+    if (limit < 0) {
+        THROW_ERROR_EXCEPTION("Limit is negative")
+            << TErrorAttribute("limit", limit);
+    }
+
+    auto items = GetItems(limit);
+    auto session = New<TFetchItemsSession>();
+    const auto& multicellManager = Bootstrap_->GetMulticellManager();
+
+    std::vector<TFuture<void>> asyncItems;
+    asyncItems.reserve(items.size());
+    asyncItems.push_back(
+        FetchLocalItems(session, GetOrDefault(items, multicellManager->GetCellTag()), attributeFilter));
+
+    for (const auto& [cellTag, cellItems] : items) {
+        if (cellTag != multicellManager->GetCellTag() && !cellItems.empty()) {
+            asyncItems.push_back(
+                FetchRemoteItems(
+                    session,
+                    cellTag,
+                    cellItems,
+                    attributeFilter,
+                    NeedSuppressUpstreamSync(requestHeader),
+                    NeedSuppressTransactionCoordinatorSync(requestHeader)));
+        }
+    }
+
+    AllSucceeded(std::move(asyncItems))
+        .Subscribe(BIND([session = std::move(session), context, response, limit] (const TError& error) {
+            if (!error.IsOK()) {
+                context->Reply(error);
+                return;
+            }
+
+            TStringStream stream;
+            TBufferedBinaryYsonWriter writer(&stream);
+
+            writer.OnBeginMap();
+            for (const auto& [key, attributes] : session->Items) {
+                writer.OnKeyedItem(key);
+                writer.OnBeginAttributes();
+                writer.OnRaw(attributes);
+                writer.OnEndAttributes();
+                writer.OnEntity();
+            }
+            writer.OnEndMap();
+            writer.Flush();
+
+            auto strLength = stream.Str().length();
+            response->set_value(std::move(stream).Str());
+
+            context->SetResponseInfo("Count: %v, Limit: %v, ByteSize: %v",
+                session->Items.size(),
+                limit,
+                strLength);
+            context->Reply();
+        }).Via(NRpc::TDispatcher::Get()->GetHeavyInvoker()));
+}
+
+void TVirtualSinglecellWithRemoteItemsMapBase::ListSelf(
+    TReqList* request,
+    TRspList* response,
+    const TCtxListPtr& context)
+{
+    const auto& requestHeader = context->GetRequestHeader();
+
+    auto attributeFilter = request->has_attributes()
+        ? FromProto<TAttributeFilter>(request->attributes())
+        : TAttributeFilter();
+
+    if (!attributeFilter || attributeFilter.IsEmpty()) {
+        TVirtualMapBase::ListSelf(request, response, context);
+        return;
+    }
+
+    i64 limit = request->has_limit()
+        ? request->limit()
+        : DefaultVirtualChildLimit;
+
+    context->SetRequestInfo("AttributeFilter: %v, Limit: %v",
+        attributeFilter,
+        limit);
+
+    if (limit < 0) {
+        THROW_ERROR_EXCEPTION("Limit is negative")
+            << TErrorAttribute("limit", limit);
+    }
+
+    auto items = GetItems(limit);
+    auto session = New<TFetchItemsSession>();
+    const auto& multicellManager = Bootstrap_->GetMulticellManager();
+
+    std::vector<TFuture<void>> asyncItems;
+    asyncItems.reserve(items.size());
+    asyncItems.push_back(
+        FetchLocalItems(session, GetOrDefault(items, multicellManager->GetCellTag()), attributeFilter));
+
+    for (const auto& [cellTag, cellItems] : items) {
+        if (cellTag != multicellManager->GetCellTag()) {
+            asyncItems.push_back(
+                FetchRemoteItems(
+                    session,
+                    cellTag,
+                    cellItems,
+                    attributeFilter,
+                    NeedSuppressUpstreamSync(requestHeader),
+                    NeedSuppressTransactionCoordinatorSync(requestHeader)));
+        }
+    }
+
+    AllSucceeded(std::move(asyncItems))
+        .Subscribe(BIND([session = std::move(session), context, response, limit] (const TError& error) {
+            if (!error.IsOK()) {
+                context->Reply(error);
+                return;
+            }
+
+            TStringStream stream;
+            TBufferedBinaryYsonWriter writer(&stream);
+
+            writer.OnBeginList();
+            for (const auto& [key, attributes] : session->Items) {
+                writer.OnListItem();
+                writer.OnBeginAttributes();
+                writer.OnRaw(attributes);
+                writer.OnEndAttributes();
+                writer.OnStringScalar(key);
+            }
+            writer.OnEndList();
+            writer.Flush();
+
+            auto strLength = stream.Str().length();
+            response->set_value(std::move(stream).Str());
+
+            context->SetResponseInfo("Count: %v, Limit: %v, ByteSize: %v",
+                session->Items.size(),
+                limit,
+                strLength);
+            context->Reply();
+        }).Via(NRpc::TDispatcher::Get()->GetHeavyInvoker()));
+}
+
+TFuture<void> TVirtualSinglecellWithRemoteItemsMapBase::FetchLocalItems(
+    const TFetchItemsSessionPtr& session,
+    const std::vector<NObjectClient::TObjectId>& items,
+    const NYTree::TAttributeFilter& attributeFilter)
+{
+    YT_ASSERT(attributeFilter && !attributeFilter.IsEmpty());
+
+    const auto& objectManager = Bootstrap_->GetObjectManager();
+
+    std::vector<TFuture<TYsonString>> asyncAttributes;
+    for (const auto& item : items) {
+        auto* object = objectManager->FindObject(item);
+        if (!IsObjectAlive(object)) {
+            continue;
+        }
+
+        TAsyncYsonWriter writer(EYsonType::MapFragment);
+        auto proxy = objectManager->GetProxy(object, nullptr);
+        proxy->WriteAttributesFragment(&writer, attributeFilter, false);
+        asyncAttributes.emplace_back(writer.Finish());
+    }
+
+    std::vector<TString> keys(items.size());
+    std::ranges::transform(items, keys.begin(), [] (auto objectId) {
+        return ToString(objectId);
+    });
+
+    return AllSucceeded(asyncAttributes)
+        .ApplyUnique(BIND([keys = std::move(keys), session] (std::vector<TYsonString>&& attributes) mutable {
+            for (auto&& [key, attributes] : Zip(keys, attributes)) {
+                session->Items.emplace_back(std::move(key), TYsonString(attributes));
+            }
+        }).AsyncVia(NRpc::TDispatcher::Get()->GetHeavyInvoker()));
+}
+
+TFuture<void> TVirtualSinglecellWithRemoteItemsMapBase::FetchRemoteItems(
+    const TFetchItemsSessionPtr& session,
+    NObjectClient::TCellTag cellTag,
+    const std::vector<NObjectClient::TObjectId>& items,
+    const NYTree::TAttributeFilter& attributeFilter,
+    bool suppressUpstreamSync,
+    bool suppressTransactionCoordinatorSync)
+{
+    YT_ASSERT(attributeFilter && !attributeFilter.IsEmpty());
+
+    const auto& securityManager = Bootstrap_->GetSecurityManager();
+    const auto* user = securityManager->GetAuthenticatedUser();
+
+    auto invoker = NRpc::TDispatcher::Get()->GetHeavyInvoker();
+    const auto& multicellManager = Bootstrap_->GetMulticellManager();
+    auto proxy = TObjectServiceProxy::FromDirectMasterChannel(
+        multicellManager->GetMasterChannelOrThrow(cellTag, NHydra::EPeerKind::Follower));
+    auto batchReq = proxy.ExecuteBatch();
+    batchReq->SetUser(user->GetName());
+
+    batchReq->SetSuppressUpstreamSync(suppressUpstreamSync);
+    batchReq->SetSuppressTransactionCoordinatorSync(suppressTransactionCoordinatorSync);
+
+    for (const auto& item : items) {
+        auto req = TYPathProxy::Get(FromObjectId(item) + "/@");
+        ToProto(req->mutable_attributes(), attributeFilter);
+
+        batchReq->AddRequest(req);
+    }
+
+    std::vector<TString> keys(items.size());
+    std::ranges::transform(items, keys.begin(), [] (auto objectId) {
+        return ToString(objectId);
+    });
+
+    return batchReq->Invoke()
+        .ApplyUnique(BIND([
+            keys = std::move(keys),
+            attributeFilter,
+            session,
+            cellTag
+        ] (TObjectServiceProxy::TErrorOrRspExecuteBatchPtr&& batchRspOrError) mutable
+        {
+            if (!batchRspOrError.IsOK()) {
+                THROW_ERROR_EXCEPTION("Error fetching content of virtual map from cell %v",
+                    cellTag)
+                    << batchRspOrError;
+            }
+
+            const auto& batchRsp = batchRspOrError.Value();
+
+            std::vector<TYsonString> attributes;
+
+            for (auto&& [key, rspOrError] : Zip(keys, batchRsp->GetResponses<TYPathProxy::TRspGet>())) {
+                if (!rspOrError.IsOK()) {
+                    continue;
+                }
+
+                TStringStream stream;
+                TBufferedBinaryYsonWriter writer(&stream, EYsonType::MapFragment);
+
+                const auto& rsp = rspOrError.Value();
+                auto attributeMap = ConvertToNode(TYsonString(rsp->value()))->AsMap();
+
+                for (const auto& [key, value] : attributeMap->GetChildren()) {
+                    writer.OnKeyedItem(key);
+                    writer.OnRaw(ConvertToYsonString(value));
+                }
+
+                writer.Flush();
+
+                session->Items.emplace_back(std::move(key), TYsonString(stream.Str(), EYsonType::MapFragment));
+            }
+        }).AsyncVia(invoker));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -160,7 +465,11 @@ void TVirtualMulticellMapBase::GetSelf(
     TRspGet* response,
     const TCtxGetPtr& context)
 {
-    YT_ASSERT(!NYson::TTokenizer(GetRequestTargetYPath(context->RequestHeader())).ParseNext());
+    auto isEmptyYpathInHeader = [&context] {
+        NYPath::TTokenizer tokenizer(GetRequestTargetYPath(context->RequestHeader()));
+        return tokenizer.Advance() == NYPath::ETokenType::EndOfStream;
+    };
+    YT_ASSERT(isEmptyYpathInHeader());
 
     auto attributeFilter = request->has_attributes()
         ? FromProto<TAttributeFilter>(request->attributes())
@@ -218,13 +527,13 @@ void TVirtualMulticellMapBase::GetSelf(
             writer.OnEndMap();
             writer.Flush();
 
-            const auto& str = stream.Str();
-            response->set_value(str);
+            auto strLength = stream.Str().length();
+            response->set_value(std::move(stream).Str());
 
             context->SetResponseInfo("Count: %v, Limit: %v, ByteSize: %v",
                 session->Items.size(),
                 limit,
-                str.length());
+                strLength);
             context->Reply();
         }).Via(NRpc::TDispatcher::Get()->GetHeavyInvoker()));
 }
@@ -279,13 +588,13 @@ void TVirtualMulticellMapBase::ListSelf(
             writer.OnEndList();
             writer.Flush();
 
-            const auto& str = stream.Str();
-            response->set_value(str);
+            auto strLength = stream.Str().length();
+            response->set_value(std::move(stream).Str());
 
             context->SetResponseInfo("Count: %v, Limit: %v, ByteSize: %v",
                 session->Items.size(),
                 limit,
-                str.length());
+                strLength);
             context->Reply();
         }).Via(NRpc::TDispatcher::Get()->GetHeavyInvoker()));
 }
