@@ -1,3 +1,5 @@
+IF (NOT EXPORT_CMAKE OR NOT OPENSOURCE OR OPENSOURCE_PROJECT != "yt")
+
 YQL_UDF(yql_language_udf)
 
 YQL_ABI_VERSION(
@@ -23,6 +25,8 @@ PEERDIR(
 )
 
 END()
+
+ENDIF()
 
 RECURSE_FOR_TESTS(
     test

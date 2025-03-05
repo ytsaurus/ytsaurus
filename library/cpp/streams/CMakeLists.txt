@@ -15,7 +15,7 @@
 add_subdirectory(brotli)
 add_subdirectory(bzip2)
 add_subdirectory(lzma)
-add_subdirectory(zc_memory_input)
 add_subdirectory(lz)
 add_subdirectory(zstd)
 add_subdirectory(xz)
+add_subdirectory(zc_memory_input)

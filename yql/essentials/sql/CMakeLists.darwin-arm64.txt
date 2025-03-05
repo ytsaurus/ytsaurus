@@ -13,9 +13,6 @@
 # changes in this file.
 
 add_subdirectory(settings)
-add_subdirectory(v1)
-add_subdirectory(pg)
-add_subdirectory(pg_dummy)
 
 add_library(yql-essentials-sql)
 

@@ -12,8 +12,8 @@
 # Please refer to the build instructions in the repository for more information about manual
 # changes in this file.
 
-add_subdirectory(dynamic_counters)
-add_subdirectory(encode)
 add_subdirectory(metrics)
+add_subdirectory(encode)
 add_subdirectory(exception)
+add_subdirectory(dynamic_counters)
 add_subdirectory(service)
