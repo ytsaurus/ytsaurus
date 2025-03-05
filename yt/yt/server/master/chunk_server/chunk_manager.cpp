@@ -3272,6 +3272,9 @@ private:
     {
         YT_VERIFY(request->replicas_size() > 0);
 
+        const auto& config = GetDynamicConfig()->SequoiaChunkReplicas;
+        const auto& retriableErrorCodes = config->RetriableErrorCodes;
+
         return Bootstrap_
             ->GetSequoiaClient()
             ->StartTransaction(ESequoiaTransactionType::ChunkConfirmation, {.CellTag = Bootstrap_->GetCellTag()})
@@ -3301,7 +3304,7 @@ private:
                 };
 
                 auto result = WaitFor(transaction->Commit(commitOptions));
-                if (IsRetriableSequoiaReplicasError(result)) {
+                if (IsRetriableSequoiaReplicasError(result, retriableErrorCodes)) {
                     THROW_ERROR_EXCEPTION(
                         NRpc::EErrorCode::TransientFailure,
                         "Sequoia retriable error")
@@ -3323,6 +3326,7 @@ private:
         auto processRemovedSequoiaReplicasOnMaster = sequoiaConfig->ProcessRemovedSequoiaReplicasOnMaster;
         auto storeSequoiaReplicasOnMaster = sequoiaConfig->StoreSequoiaReplicasOnMaster;
         auto clearMasterRequest = sequoiaConfig->ClearMasterRequest;
+        auto retriableErrorCodes = sequoiaConfig->RetriableErrorCodes;
 
         return Bootstrap_
             ->GetSequoiaClient()
@@ -3381,7 +3385,7 @@ private:
 
                 auto replicasFuture = transaction->LookupRows(keys);
                 auto removedReplicasOrError = WaitFor(replicasFuture);
-                if (IsRetriableSequoiaReplicasError(removedReplicasOrError)) {
+                if (IsRetriableSequoiaReplicasError(removedReplicasOrError, retriableErrorCodes)) {
                     THROW_ERROR_EXCEPTION(
                         NRpc::EErrorCode::TransientFailure,
                         "Sequoia retriable error")
@@ -3500,7 +3504,7 @@ private:
                 };
 
                 auto result = WaitFor(transaction->Commit(commitOptions));
-                if (IsRetriableSequoiaReplicasError(result)) {
+                if (IsRetriableSequoiaReplicasError(result, retriableErrorCodes)) {
                     THROW_ERROR_EXCEPTION(
                         NRpc::EErrorCode::TransientFailure,
                         "Sequoia retriable error")
