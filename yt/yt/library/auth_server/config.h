@@ -478,6 +478,34 @@ DEFINE_REFCOUNTED_TYPE(TCypressCookieManagerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TYCIAMTokenAuthenticatorConfig
+    : public virtual NYTree::TYsonStruct
+{
+public:
+    NHttp::TRetryingClientConfigPtr RetryingClient;
+    NHttps::TClientConfigPtr HttpClient;
+
+    TString Host;
+    int Port;
+    bool Secure;
+
+    bool CheckUserExists;
+    bool CreateUserIfNotExists;
+
+    bool RetryAllServerErrors;
+    std::vector<int> RetryStatusCodes;
+
+    std::string AuthenticateLoginField;
+
+    REGISTER_YSON_STRUCT(TYCIAMTokenAuthenticatorConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TYCIAMTokenAuthenticatorConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TAuthenticationManagerConfig
     : public virtual NYT::NYTree::TYsonStruct
 {
@@ -492,6 +520,7 @@ public:
     TCachingOAuthCookieAuthenticatorConfigPtr OAuthCookieAuthenticator;
     TCachingOAuthTokenAuthenticatorConfigPtr OAuthTokenAuthenticator;
     TOAuthServiceConfigPtr OAuthService;
+    TYCIAMTokenAuthenticatorConfigPtr YCIAMTokenAuthenticator;
 
     TCypressCookieManagerConfigPtr CypressCookieManager;
     TCachingCypressUserManagerConfigPtr CypressUserManager;

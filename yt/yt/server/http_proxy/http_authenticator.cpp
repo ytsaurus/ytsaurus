@@ -117,15 +117,22 @@ TErrorOr<TAuthenticationResultAndToken> THttpAuthenticator::Authenticate(
     constexpr TStringBuf AuthorizationHeaderName = "Authorization";
     const THashSet<TStringBuf> UserImpersonationWhitelist{"yql_agent"};
     if (auto authorizationHeader = request->GetHeaders()->Find(AuthorizationHeaderName)) {
-        static const TStringBuf Prefix = "OAuth ";
-        if (!authorizationHeader->StartsWith(Prefix)) {
+        static const TStringBuf OAuthPrefix = "OAuth ";
+        static const TStringBuf BearerPrefix = "Bearer ";
+        TString prefix;
+
+        if (authorizationHeader->StartsWith(OAuthPrefix)) {
+            prefix = OAuthPrefix;
+        } else if (authorizationHeader->StartsWith(BearerPrefix)) {
+            prefix = BearerPrefix;
+        } else {
             return TError(
                 NRpc::EErrorCode::InvalidCredentials,
                 "Malformed Authorization header");
         }
 
         TTokenCredentials credentials{
-            .Token = authorizationHeader->substr(Prefix.size()),
+            .Token = authorizationHeader->substr(prefix.size()),
             .UserIP = userIP
         };
 

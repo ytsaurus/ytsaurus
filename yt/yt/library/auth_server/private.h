@@ -18,6 +18,8 @@ inline const NProfiling::TProfiler AuthProfiler("/auth");
 constexpr TStringBuf OAuthCookieRealm = "oauth:cookie";
 constexpr TStringBuf OAuthTokenRealm = "oauth:token";
 
+constexpr TStringBuf YCIAMTokenRealm = "yciam:token";
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NAuth
