@@ -31,9 +31,15 @@ TString ToStringLiteral(TStringBuf key);
 
 ////////////////////////////////////////////////////////////////////////////////
 
+constexpr TErrorCode RetriableSequoiaErrorCodes[] = {
+    NTabletClient::EErrorCode::TransactionLockConflict,
+    NTabletClient::EErrorCode::BlockedRowWaitTimeout,
+    NTabletClient::EErrorCode::NoSuchTablet,
+};
+
 bool IsRetriableSequoiaError(const TError& error);
 
-bool IsRetriableSequoiaReplicasError(const TError& error);
+bool IsRetriableSequoiaReplicasError(const TError& error, const std::vector<TErrorCode>& retriableErrorCodes);
 
 bool IsMethodShouldBeHandledByMaster(const std::string& method);
 
