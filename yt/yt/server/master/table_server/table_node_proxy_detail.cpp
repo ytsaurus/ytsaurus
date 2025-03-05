@@ -25,6 +25,11 @@
 
 #include <yt/yt/server/master/node_tracker_server/node_directory_builder.h>
 
+#include <yt/yt/server/master/object_server/object_manager.h>
+
+#include <yt/yt/server/master/security_server/access_log.h>
+#include <yt/yt/server/master/security_server/security_manager.h>
+
 #include <yt/yt/server/master/tablet_server/backup_manager.h>
 #include <yt/yt/server/master/tablet_server/chaos_helpers.h>
 #include <yt/yt/server/master/tablet_server/config.h>
@@ -34,11 +39,6 @@
 #include <yt/yt/server/master/tablet_server/table_replica.h>
 #include <yt/yt/server/master/tablet_server/tablet_manager.h>
 #include <yt/yt/server/master/tablet_server/hunk_storage_node.h>
-
-#include <yt/yt/server/master/security_server/access_log.h>
-#include <yt/yt/server/master/security_server/security_manager.h>
-
-#include <yt/yt/server/master/object_server/object_manager.h>
 
 #include <yt/yt/server/lib/misc/interned_attributes.h>
 
@@ -58,6 +58,8 @@
 #include <yt/yt/ytlib/tablet_client/backup.h>
 #include <yt/yt/ytlib/tablet_client/config.h>
 
+#include <yt/yt/library/erasure/impl/codec.h>
+
 #include <yt/yt/library/heavy_schema_validation/schema_validation.h>
 
 #include <yt/yt/library/query/secondary_index/schema.h>
@@ -65,13 +67,13 @@
 #include <yt/yt/client/chaos_client/replication_card_serialization.h>
 #include <yt/yt/client/chaos_client/helpers.h>
 
+#include <yt/yt/client/chunk_client/read_limit.h>
+
 #include <yt/yt/client/transaction_client/helpers.h>
 #include <yt/yt/client/transaction_client/timestamp_provider.h>
 
 #include <yt/yt/client/table_client/schema.h>
 #include <yt/yt/client/table_client/helpers.h>
-
-#include <yt/yt/client/chunk_client/read_limit.h>
 
 #include <yt/yt/core/misc/serialize.h>
 
@@ -82,8 +84,6 @@
 #include <yt/yt/core/ytree/fluent.h>
 
 #include <yt/yt/core/yson/async_consumer.h>
-
-#include <yt/yt/library/erasure/impl/codec.h>
 
 namespace NYT::NTableServer {
 
@@ -110,6 +110,9 @@ using namespace NYson;
 using namespace NYTree;
 using namespace NServer;
 
+using NYT::ToProto;
+using NYT::FromProto;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 static constexpr auto& Logger = TableServerLogger;
@@ -119,13 +122,21 @@ static constexpr auto& Logger = TableServerLogger;
 void TTableNodeProxy::GetBasicAttributes(TGetBasicAttributesContext* context)
 {
     if (context->Permission == EPermission::Read) {
+        const auto& securityManager = Bootstrap_->GetSecurityManager();
+        auto* user = securityManager->GetAuthenticatedUser();
         // We shall take care of reads ourselves.
         TPermissionCheckOptions checkOptions;
         auto* table = GetThisImpl();
         if (context->Columns) {
             checkOptions.Columns = std::move(context->Columns);
-        } else {
-            const auto& tableSchema = *table->GetSchema()->AsTableSchema();
+        } else if (!securityManager->IsFastCheckPermissionAvailable(user, EPermission::Read)
+            && securityManager->HasColumnarAce(Object_, user))
+        {
+            // Otherwise:
+            // 1) fast check permission is available, then we will receive either allow, either deny as check response
+            // and we don't have further need to iterate through columns and check per-column response.
+            // 2) object has no columnar ace, so inside permission check columns won't be used.
+            const auto& tableSchema = table->GetSchema()->AsTableSchema();
             checkOptions.Columns.emplace();
             checkOptions.Columns->reserve(tableSchema.Columns().size());
             for (const auto& columnSchema : tableSchema.Columns()) {
@@ -133,8 +144,6 @@ void TTableNodeProxy::GetBasicAttributes(TGetBasicAttributesContext* context)
             }
         }
 
-        const auto& securityManager = Bootstrap_->GetSecurityManager();
-        auto* user = securityManager->GetAuthenticatedUser();
         auto checkResponse = securityManager->CheckPermission(
             Object_,
             user,
@@ -486,12 +495,12 @@ bool TTableNodeProxy::GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsum
 
         case EInternedAttributeKey::Sorted:
             BuildYsonFluently(consumer)
-                .Value(table->GetSchema()->AsTableSchema()->IsSorted());
+                .Value(table->GetSchema()->AsCompactTableSchema()->IsSorted());
             return true;
 
         case EInternedAttributeKey::KeyColumns:
             BuildYsonFluently(consumer)
-                .Value(table->GetSchema()->AsTableSchema()->GetKeyColumns());
+                .Value(table->GetSchema()->AsCompactTableSchema()->GetKeyColumns());
             return true;
 
         case EInternedAttributeKey::SchemaId: {
@@ -518,7 +527,7 @@ bool TTableNodeProxy::GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsum
                 break;
             }
             BuildYsonFluently(consumer)
-                .Value(table->GetSchema()->AsTableSchema()->GetKeyColumns());
+                .Value(table->GetSchema()->AsCompactTableSchema()->GetKeyColumns());
             return true;
 
         case EInternedAttributeKey::Dynamic:
@@ -1867,7 +1876,7 @@ void TTableNodeProxy::ValidateReadLimit(const NChunkClient::NProto::TReadLimit& 
 TComparator TTableNodeProxy::GetComparator() const
 {
     auto schema = GetThisImpl()->GetSchema();
-    return schema->AsTableSchema()->ToComparator();
+    return schema->AsCompactTableSchema()->ToComparator();
 }
 
 bool TTableNodeProxy::DoInvoke(const IYPathServiceContextPtr& context)
@@ -1890,7 +1899,7 @@ void TTableNodeProxy::ValidateBeginUpload()
     TBase::ValidateBeginUpload();
     const auto* table = GetThisImpl();
 
-    if (table->IsDynamic() && !table->GetSchema()->AsTableSchema()->IsSorted()) {
+    if (table->IsDynamic() && !table->GetSchema()->AsCompactTableSchema()->IsSorted()) {
         THROW_ERROR_EXCEPTION("Cannot upload into ordered dynamic table");
     }
 
@@ -1980,7 +1989,7 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, GetMountInfo)
     ToProto(response->mutable_table_id(), trunkTable->GetId());
     response->set_dynamic(trunkTable->IsDynamic());
     ToProto(response->mutable_upstream_replica_id(), trunkTable->GetUpstreamReplicaId());
-    ToProto(response->mutable_schema(), *trunkTable->GetSchema()->AsTableSchema());
+    ToProto(response->mutable_schema(), trunkTable->GetSchema()->AsCompactTableSchema());
     response->set_enable_detailed_profiling(trunkTable->GetEnableDetailedProfiling());
     response->set_serialization_type(ToProto(trunkTable->GetSerializationType()));
 
@@ -2045,7 +2054,7 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, Alter)
 
     struct TAlterTableOptions
     {
-        NTableClient::TTableSchemaPtr Schema;
+        TCompactTableSchemaPtr Schema;
         std::optional<bool> Dynamic;
         std::optional<TTableReplicaId> UpstreamReplicaId;
         std::optional<ETableSchemaModification> SchemaModification;
@@ -2062,7 +2071,7 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, Alter)
     });
 
     if (request->has_schema()) {
-        options.Schema = FromProto<TTableSchemaPtr>(request->schema());
+        options.Schema = New<TCompactTableSchema>(request->schema());
     }
     if (request->has_dynamic()) {
         options.Dynamic = request->dynamic();
@@ -2080,11 +2089,6 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, Alter)
         options.SchemaId = FromProto<TObjectId>(request->schema_id());
     }
 
-    auto maxSchemaMemoryUsageToLog = Bootstrap_
-        ->GetDynamicConfig()
-        ->TableManager
-        ->MaxSchemaMemoryUsageToLog;
-
     context->SetRequestInfo("Dynamic: %v, UpstreamReplicaId: %v, SchemaModification: %v, ReplicationProgress: %v, SchemaId: %v, SchemaMemoryUsage: %v, Schema: %v",
         options.Dynamic,
         options.UpstreamReplicaId,
@@ -2092,7 +2096,7 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, Alter)
         options.ReplicationProgress,
         options.SchemaId,
         options.Schema ? options.Schema->GetMemoryUsage() : 0,
-        MakeTableSchemaTruncatedFormatter(options.Schema, maxSchemaMemoryUsageToLog));
+        options.Schema);
 
     const auto& tabletManager = Bootstrap_->GetTabletManager();
     const auto& tableManager = Bootstrap_->GetTableManager();
@@ -2108,19 +2112,19 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, Alter)
             options.SchemaId);
     }
 
-    TTableSchemaPtr schema;
+    TCompactTableSchemaPtr schema;
     if (options.Schema) {
         schema = options.Schema;
     } else if (options.SchemaId) {
-        schema = tableManager->GetMasterTableSchemaOrThrow(options.SchemaId)->AsTableSchema();
+        schema = tableManager->GetMasterTableSchemaOrThrow(options.SchemaId)->AsCompactTableSchema();
     } else {
-        schema = table->GetSchema()->AsTableSchema();
+        schema = table->GetSchema()->AsCompactTableSchema();
     }
 
     bool isQueueObjectBefore = table->IsTrackedQueueObject();
 
     // NB: Sorted dynamic tables contain unique keys, set this for user.
-    if (dynamic && schemaReceived  && schema->IsSorted() && !schema->GetUniqueKeys()) {
+    if (dynamic && schemaReceived  && schema->IsSorted() && !schema->IsUniqueKeys()) {
         // COMPAT(h0pless): Change this to YT_VERIFY after schema migration is complete.
         YT_LOG_ALERT_IF(
             !schema->IsUniqueKeys() && table->IsForeign(),
@@ -2134,7 +2138,7 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, Alter)
     if (table->IsNative()) {
         ValidatePermission(EPermissionCheckScope::This, EPermission::Write);
 
-        if (table->GetSchema()->AsTableSchema()->HasNontrivialSchemaModification()) {
+        if (table->GetSchema()->AsCompactTableSchema()->HasNontrivialSchemaModification()) {
             THROW_ERROR_EXCEPTION("Cannot alter table with nontrivial schema modification");
         }
 
@@ -2186,7 +2190,7 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, Alter)
             if (!schema->IsSorted()) {
                 THROW_ERROR_EXCEPTION("Schema modification can only be applied to sorted schema");
             }
-            if (!schema->GetStrict()) {
+            if (!schema->IsStrict()) {
                 THROW_ERROR_EXCEPTION("Schema modification can only be applied to strict schema");
             }
         }
@@ -2220,10 +2224,11 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, Alter)
         }
 
         const auto& config = Bootstrap_->GetConfigManager()->GetConfig();
+        const auto& newTableSchema = schema->AsHeavyTableSchema();
 
         ValidateTableSchemaUpdateInternal(
-            *table->GetSchema()->AsTableSchema(),
-            *schema,
+            table->GetSchema()->AsTableSchema(),
+            newTableSchema,
             GetSchemaUpdateEnabledFeatures(config),
             dynamic,
             table->IsEmpty() && !table->IsDynamic(),
@@ -2236,15 +2241,15 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, Alter)
                 const auto& indexTableSchema = indexTable->GetSchema()->AsTableSchema();
                 switch (index->GetKind()) {
                     case ESecondaryIndexKind::FullSync:
-                        ValidateFullSyncIndexSchema(*schema, *indexTableSchema);
+                        ValidateFullSyncIndexSchema(newTableSchema, indexTableSchema);
                         break;
 
                     case ESecondaryIndexKind::Unfolding:
-                        ValidateUnfoldingIndexSchema(*schema, *indexTableSchema, *index->UnfoldedColumn());
+                        ValidateUnfoldingIndexSchema(newTableSchema, indexTableSchema, *index->UnfoldedColumn());
                         break;
 
                     case ESecondaryIndexKind::Unique:
-                        ValidateUniqueIndexSchema(*schema, *indexTableSchema);
+                        ValidateUniqueIndexSchema(newTableSchema, indexTableSchema);
                         break;
 
                     default:
@@ -2257,15 +2262,15 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, Alter)
                 const auto& tableSchema = indexTable->GetSchema()->AsTableSchema();
                 switch (index->GetKind()) {
                     case ESecondaryIndexKind::FullSync:
-                        ValidateFullSyncIndexSchema(*tableSchema, *schema);
+                        ValidateFullSyncIndexSchema(tableSchema, newTableSchema);
                         break;
 
                     case ESecondaryIndexKind::Unfolding:
-                        ValidateUnfoldingIndexSchema(*tableSchema, *schema, *index->UnfoldedColumn());
+                        ValidateUnfoldingIndexSchema(tableSchema, newTableSchema, *index->UnfoldedColumn());
                         break;
 
                     case ESecondaryIndexKind::Unique:
-                        ValidateUniqueIndexSchema(*tableSchema, *schema);
+                        ValidateUniqueIndexSchema(tableSchema, newTableSchema);
                         break;
 
                     default:
@@ -2277,13 +2282,13 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, Alter)
         if (!config->EnableDescendingSortOrder ||
             dynamic && !config->EnableDescendingSortOrderDynamic)
         {
-            ValidateNoDescendingSortOrder(*schema);
+            ValidateNoDescendingSortOrder(schema->GetSortOrders(), schema->GetKeyColumns());
         }
 
         if (!config->EnableTableColumnRenaming ||
             dynamic && !config->EnableDynamicTableColumnRenaming)
         {
-            ValidateNoRenamedColumns(*schema);
+            ValidateNoRenamedColumns(newTableSchema);
         }
 
         if (options.Dynamic) {
@@ -2311,7 +2316,7 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, Alter)
     if (schemaReceived || options.SchemaModification) {
         auto setCorrespondingTableSchema = [] (
             TTableNode* table,
-            const TTableSchemaPtr& schema,
+            const TCompactTableSchemaPtr& schema,
             const TAlterTableOptions& options,
             const auto& tableManager)
         {

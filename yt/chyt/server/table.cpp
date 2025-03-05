@@ -104,7 +104,7 @@ void RemoveIncompatibleSortOrder(TTablePtr& table)
         }
     }
 
-    table->Schema = New<TTableSchema>(std::move(columns), schema->GetStrict(), /* uniqueKeys*/ false);
+    table->Schema = New<TTableSchema>(std::move(columns), schema->IsStrict(), /* uniqueKeys*/ false);
     table->Comparator = table->Schema->ToComparator();
 }
 

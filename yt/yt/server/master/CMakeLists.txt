@@ -372,6 +372,7 @@ target_sources(yt-server-master PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/sequoia_server/sequoia_manager.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/sequoia_server/sequoia_transaction_service.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/table_server/config.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/master/table_server/compact_table_schema.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/table_server/cypress_integration.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/table_server/helpers.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/table_server/master_table_schema_proxy.cpp

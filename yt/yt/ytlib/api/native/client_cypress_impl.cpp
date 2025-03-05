@@ -2203,7 +2203,7 @@ private:
                     << TErrorAttribute("output_table_key_column_count", OutputTableSchema_->GetKeyColumnCount());
             }
 
-            if (OutputTableSchema_->GetUniqueKeys() && !chunkSchema.GetUniqueKeys()) {
+            if (OutputTableSchema_->IsUniqueKeys() && !chunkSchema.IsUniqueKeys()) {
                 THROW_ERROR_EXCEPTION(
                     NTableClient::EErrorCode::SchemaViolation,
                     "Output table schema forces keys to be unique while chunk %v schema does not",
@@ -2253,7 +2253,7 @@ private:
                     << TErrorAttribute("current_chunk_max_key", currentChunkMaxKey)
                     << TErrorAttribute("next_chunk_min_key", nextChunkMinKey)
                     << TErrorAttribute("comparator", comparator);
-            } else if (comparisonResult == 0 && OutputTableSchema_->GetUniqueKeys()) {
+            } else if (comparisonResult == 0 && OutputTableSchema_->IsUniqueKeys()) {
                 THROW_ERROR_EXCEPTION(
                     NTableClient::EErrorCode::UniqueKeyViolation,
                     "Key appears in two chunks but output table schema requires unique keys")
@@ -2323,7 +2323,7 @@ private:
                     << TErrorAttribute("table_max_key", tableMaxKey)
                     << TErrorAttribute("first_chunk_min_key", firstChunkMinKey)
                     << TErrorAttribute("comparator", comparator);
-            } else if (comparisonResult == 0 && OutputTableSchema_->GetUniqueKeys()) {
+            } else if (comparisonResult == 0 && OutputTableSchema_->IsUniqueKeys()) {
                 THROW_ERROR_EXCEPTION(
                     NTableClient::EErrorCode::UniqueKeyViolation,
                     "First key of chunk to append equals to last key in table")

@@ -652,7 +652,7 @@ TFetchInputTablesStatistics TInputManager::FetchInputTables()
 
             if (hasColumnSelectors) {
                 inputChunk->SetValuesPerRow(table->Path.GetColumns()->size());
-            } else if (table->Schema && table->Schema->GetStrict()) {
+            } else if (table->Schema && table->Schema->IsStrict()) {
                 inputChunk->SetValuesPerRow(table->Schema->Columns().size());
             }
         }

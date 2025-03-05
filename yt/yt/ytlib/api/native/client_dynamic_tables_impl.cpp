@@ -2082,7 +2082,7 @@ std::vector<TLegacyOwningKey> TClient::PickUniformPivotKeys(
 
     auto schema = ConvertTo<TTableSchemaPtr>(TYsonString(rspOrError.Value()->value()));
 
-    if (schema->Columns().empty()) {
+    if (schema->IsEmpty()) {
         THROW_ERROR_EXCEPTION("Table schema is empty");
     }
 

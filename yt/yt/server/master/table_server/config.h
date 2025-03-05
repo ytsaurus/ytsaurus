@@ -12,6 +12,7 @@ struct TDynamicTableManagerConfig
     : public NYTree::TYsonStruct
 {
     i64 MaxSchemaMemoryUsageToLog;
+    TDuration CompactTableCacheExpirationTimeout;
 
     // COMPAT(cherepashka, aleksandra-zh).
     bool MakeSchemaAttributeOpaque;

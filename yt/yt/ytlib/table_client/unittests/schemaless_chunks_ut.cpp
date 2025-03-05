@@ -733,7 +733,6 @@ protected:
 
     void InitChunk()
     {
-
         Y_UNUSED(ChunkWriter_->Write(Rows_));
         EXPECT_TRUE(ChunkWriter_->Close().Get().IsOK());
 
@@ -744,7 +743,6 @@ protected:
         ToProto(ChunkSpec_.mutable_chunk_id(), NullChunkId);
         ChunkSpec_.set_table_row_index(42);
     }
-
 
     TUnversionedRow ExtractKeyPrefix(const TUnversionedRow& row, int prefixLength)
     {
@@ -804,7 +802,6 @@ protected:
             /*columnFilter*/ {},
             keys);
     }
-
 
     ISchemalessChunkReaderPtr LookupRanges(
         TSharedRange<TLegacyKey> keys,

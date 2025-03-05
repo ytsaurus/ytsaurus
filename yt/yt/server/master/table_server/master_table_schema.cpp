@@ -1,6 +1,7 @@
 #include "master_table_schema.h"
 
 #include "private.h"
+#include "table_manager.h"
 
 #include <yt/yt/server/master/cell_master/automaton.h>
 #include <yt/yt/server/master/cell_master/bootstrap.h>
@@ -9,10 +10,6 @@
 #include <yt/yt/server/master/object_server/object_manager.h>
 
 #include <yt/yt/server/master/security_server/account.h>
-
-#include <yt/yt/server/master/table_server/table_manager.h>
-
-#include "private.h"
 
 namespace NYT::NTableServer {
 
@@ -33,9 +30,9 @@ TMasterTableSchema::TMasterTableSchema(TMasterTableSchemaId id, TNativeTableSche
     SetNativeTableSchemaToObjectMapIterator(it);
 }
 
-TMasterTableSchema::TMasterTableSchema(TMasterTableSchemaId id, TTableSchemaPtr schema)
+TMasterTableSchema::TMasterTableSchema(TMasterTableSchemaId id, TCompactTableSchemaPtr schema)
     : TBase(id)
-    , TableSchema_(std::move(schema))
+    , CompactTableSchema_(std::move(schema))
 {
     SetForeign();
 }
@@ -46,7 +43,7 @@ void TMasterTableSchema::Save(NCellMaster::TSaveContext& context) const
 
     using NYT::Save;
 
-    Save(context, *TableSchema_);
+    Save(context, *CompactTableSchema_);
     Save(context, CellTagToExportCount_);
     Save(context, ReferencingAccounts_);
 }
@@ -57,7 +54,12 @@ void TMasterTableSchema::Load(NCellMaster::TLoadContext& context)
 
     using NYT::Load;
 
-    auto tableSchema = Load<TTableSchema>(context);
+    TCompactTableSchema tableSchema;
+    if (context.GetVersion() >= EMasterReign::MasterCompactTableSchema) {
+        Load(context, tableSchema);
+    } else {
+        tableSchema = TCompactTableSchema(Load<TTableSchema>(context));
+    }
 
     if (IsObjectAlive(this)) {
         const auto& tableManager = context.GetBootstrap()->GetTableManager();
@@ -67,39 +69,47 @@ void TMasterTableSchema::Load(NCellMaster::TLoadContext& context)
         } else {
             // Imported schemas require no registration because reverse
             // index for imported schemas is not necessary.
-            TableSchema_ = New<TTableSchema>(std::move(tableSchema));
+            CompactTableSchema_ = New<TCompactTableSchema>(std::move(tableSchema));
         }
     } else {
-        TableSchema_ = New<TTableSchema>(std::move(tableSchema));
+        CompactTableSchema_ = New<TCompactTableSchema>(std::move(tableSchema));
     }
 
     Load(context, CellTagToExportCount_);
     Load(context, ReferencingAccounts_);
 }
 
-const NTableClient::TTableSchemaPtr& TMasterTableSchema::AsTableSchema(bool crashOnZombie) const
+const TCompactTableSchemaPtr& TMasterTableSchema::AsCompactTableSchema(bool crashOnZombie) const
 {
     YT_VERIFY(IsObjectAlive(this) || !crashOnZombie);
 
-    return TableSchema_;
+    return CompactTableSchema_;
+}
+
+TTableSchema TMasterTableSchema::AsTableSchema(bool crashOnZombie) const
+{
+    YT_VERIFY(IsObjectAlive(this) || !crashOnZombie);
+
+    return CompactTableSchema_->AsHeavyTableSchema();
 }
 
 const TFuture<TYsonString>& TMasterTableSchema::AsYsonAsync() const
 {
-    // NB: Can be called from local read threads.
-    auto readerGuard = ReaderGuard(MemoizedYsonLock_);
-    if (MemoizedYson_) {
-        return MemoizedYson_;
+    {
+        // NB: Can be called from local read threads.
+        auto readerGuard = ReaderGuard(MemoizedYsonLock_);
+        if (MemoizedYson_) {
+            return MemoizedYson_;
+        }
     }
 
-    readerGuard.Release();
     auto writerGuard = WriterGuard(MemoizedYsonLock_);
     if (MemoizedYson_) {
         return MemoizedYson_;
     }
 
     MemoizedYson_ = BIND([schema = AsTableSchema()] {
-        return NYson::ConvertToYsonString(schema);
+        return ConvertToYsonString(schema);
     })
         .AsyncVia(NRpc::TDispatcher::Get()->GetHeavyInvoker())
         .Run();
@@ -117,7 +127,7 @@ TYsonString TMasterTableSchema::AsYsonSync() const
     }
 
     // There's no escape - serialize it right here and now.
-    return NYson::ConvertToYsonString(*AsTableSchema());
+    return ConvertToYsonString(AsTableSchema());
 }
 
 bool TMasterTableSchema::RefBy(TAccount* account, int delta)
@@ -178,7 +188,7 @@ void TMasterTableSchema::AlertIfNonEmptyExportCount()
 
 i64 TMasterTableSchema::GetMasterMemoryUsage(TAccount* account) const
 {
-    return ReferencingAccounts_.contains(account) ? AsTableSchema()->GetMemoryUsage() : 0;
+    return ReferencingAccounts_.contains(account) ? AsCompactTableSchema()->GetMemoryUsage() : 0;
 }
 
 i64 TMasterTableSchema::GetChargedMasterMemoryUsage(TAccount* account) const
@@ -212,13 +222,13 @@ void TMasterTableSchema::SetNativeTableSchemaToObjectMapIterator(TNativeTableSch
 {
     YT_VERIFY(IsNative());
     NativeTableSchemaToObjectMapIterator_ = it;
-    TableSchema_ = it->first;
+    CompactTableSchema_ = it->first;
 }
 
 void TMasterTableSchema::ResetNativeTableSchemaToObjectMapIterator()
 {
     NativeTableSchemaToObjectMapIterator_ = {};
-    // NB: Retain TableSchema_ for possible future snapshot serialization.
+    // NB: Retain CompactTableSchema_ for possible future snapshot serialization.
 }
 
 void TMasterTableSchema::ExportRef(TCellTag cellTag)

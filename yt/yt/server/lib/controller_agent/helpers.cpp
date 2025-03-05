@@ -129,7 +129,7 @@ TTableSchemaPtr RenameColumnsInSchema(
                 << TErrorAttribute("failed_rename_descriptors", columnMapping)
                 << TErrorAttribute("schema", schema);
         }
-        schema = New<TTableSchema>(newColumns, schema->GetStrict(), schema->GetUniqueKeys());
+        schema = New<TTableSchema>(newColumns, schema->IsStrict(), schema->IsUniqueKeys());
         ValidateColumnUniqueness(*schema);
         return schema;
     } catch (const std::exception& ex) {

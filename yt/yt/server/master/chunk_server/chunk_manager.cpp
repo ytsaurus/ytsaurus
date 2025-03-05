@@ -897,7 +897,7 @@ public:
         chunk->Confirm(chunkInfo, chunkMeta);
 
         if (temporarySchema) {
-            tableManager->GetOrCreateNativeMasterTableSchema(*temporarySchema->AsTableSchema(), chunk);
+            tableManager->GetOrCreateNativeMasterTableSchema(*temporarySchema->AsCompactTableSchema(), chunk);
         }
 
         UpdateChunkWeightStatisticsHistogram(chunk, /*add*/ true);

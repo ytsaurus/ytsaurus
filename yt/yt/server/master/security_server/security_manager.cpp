@@ -42,46 +42,45 @@
 #include <yt/yt/server/master/incumbent_server/incumbent_detail.h>
 #include <yt/yt/server/master/incumbent_server/incumbent_manager.h>
 
-#include <yt/yt/server/master/tablet_server/tablet.h>
+#include <yt/yt/server/master/object_server/map_object_type_handler.h>
+#include <yt/yt/server/master/object_server/map_object.h>
+#include <yt/yt/server/master/object_server/object_manager.h>
+#include <yt/yt/server/master/object_server/type_handler_detail.h>
 
 #include <yt/yt/server/master/sequoia_server/context.h>
+
+#include <yt/yt/server/master/security_server/proto/security_manager.pb.h>
+
+#include <yt/yt/server/master/table_server/master_table_schema.h>
+#include <yt/yt/server/master/table_server/table_manager.h>
+#include <yt/yt/server/master/table_server/table_node.h>
+
+#include <yt/yt/server/master/tablet_server/tablet.h>
+
+#include <yt/yt/server/master/transaction_server/transaction.h>
 
 #include <yt/yt/server/lib/hive/hive_manager.h>
 
 #include <yt/yt/server/lib/hydra/composite_automaton.h>
 #include <yt/yt/server/lib/hydra/entity_map.h>
 
-#include <yt/yt/server/master/object_server/map_object_type_handler.h>
-#include <yt/yt/server/master/object_server/map_object.h>
-#include <yt/yt/server/master/object_server/type_handler_detail.h>
-
-#include <yt/yt/server/master/table_server/master_table_schema.h>
-#include <yt/yt/server/master/table_server/table_manager.h>
-#include <yt/yt/server/master/table_server/table_node.h>
-
-#include <yt/yt/server/master/transaction_server/transaction.h>
-
-#include <yt/yt/server/master/object_server/object_manager.h>
-
-#include <yt/yt/server/master/security_server/proto/security_manager.pb.h>
+#include <yt/yt/ytlib/security_client/group_ypath_proxy.h>
 
 #include <yt/yt/client/object_client/helpers.h>
-
-#include <yt/yt/ytlib/security_client/group_ypath_proxy.h>
 
 #include <yt/yt/client/security_client/helpers.h>
 
 #include <yt/yt/core/concurrency/fls.h>
-
-#include <yt/yt/library/erasure/impl/codec.h>
-
-#include <yt/yt/library/profiling/producer.h>
 
 #include <yt/yt/core/misc/intern_registry.h>
 
 #include <yt/yt/core/logging/fluent_log.h>
 
 #include <yt/yt/core/ypath/token.h>
+
+#include <yt/yt/library/erasure/impl/codec.h>
+
+#include <yt/yt/library/profiling/producer.h>
 
 #include <optional>
 
@@ -2171,7 +2170,6 @@ public:
         return result;
     }
 
-
     void SetAuthenticatedUser(TUser* user) override
     {
         *AuthenticatedUserSlot = user;
@@ -2193,10 +2191,39 @@ public:
         return result ? result : RootUser_;
     }
 
-
-    bool IsSafeMode() override
+    bool IsSafeMode() const override
     {
         return Bootstrap_->GetConfigManager()->GetConfig()->EnableSafeMode;
+    }
+
+    bool IsFastCheckPermissionAvailable(TUser* user, EPermission permission) const override
+    {
+        if (Any(permission & EPermission::FullRead)) {
+            permission = (permission & ~EPermission::FullRead | EPermission::Read);
+        }
+        return FastCheckPermission(user, permission) != ESecurityAction::Undefined;
+    }
+
+    bool HasColumnarAce(TObject* object, TUser* user, TAcdOverride firstObjectAcdOverride) const override
+    {
+        const auto& dynamicConfig = GetDynamicConfig();
+        auto* userTags = dynamicConfig->EnableSubjectTagFilters ? &user->Tags() : nullptr;
+
+        TTagFilteringAceIterator aceIter(
+            Bootstrap_->GetObjectManager().Get(),
+            object,
+            userTags,
+            std::move(firstObjectAcdOverride));
+        auto aceEndIter = TTagFilteringAceIterator();
+
+        for (; aceIter != aceEndIter; ++aceIter) {
+            auto value = *aceIter;
+            auto* currentAce = value.Ace;
+            if (currentAce->Columns) {
+                return true;
+            }
+        }
+        return false;
     }
 
     TPermissionCheckResponse CheckPermission(
@@ -4627,6 +4654,31 @@ private:
         }
     }
 
+    ESecurityAction FastCheckPermission(TUser* user, EPermission permission) const
+    {
+        // "replicator", though being superuser, can only read in safe mode.
+        if (user == ReplicatorUser_ && permission != EPermission::Read && IsSafeMode()) {
+            return ESecurityAction::Deny;
+        }
+
+        // Banned users are denied any permission.
+        if (user->GetBanned()) {
+            return ESecurityAction::Deny;
+        }
+
+        // "root" and "superusers" need no authorization.
+        if (IsSuperuser(user)) {
+            return ESecurityAction::Allow;
+        }
+
+        // Non-reads are forbidden in safe mode.
+        if (permission != EPermission::Read && IsSafeMode()) {
+            return ESecurityAction::Deny;
+        }
+
+        return ESecurityAction::Undefined;
+    }
+
     class TPermissionChecker
     {
     public:
@@ -4643,7 +4695,7 @@ private:
                 : permission)
             , Options_(options)
         {
-            auto fastAction = FastCheckPermission();
+            auto fastAction = SecurityManager_->FastCheckPermission(User_, permission);
             if (fastAction != ESecurityAction::Undefined) {
                 Response_ = MakeFastCheckPermissionResponse(fastAction, options);
                 Proceed_ = false;
@@ -4796,36 +4848,6 @@ private:
 
         bool Proceed_;
         TPermissionCheckResponse Response_;
-
-        ESecurityAction FastCheckPermission()
-        {
-            // "replicator", though being superuser, can only read in safe mode.
-            if (User_ == SecurityManager_->ReplicatorUser_ &&
-                Permission_ != EPermission::Read &&
-                SecurityManager_->IsSafeMode())
-            {
-                return ESecurityAction::Deny;
-            }
-
-            // Banned users are denied any permission.
-            if (User_->GetBanned()) {
-                return ESecurityAction::Deny;
-            }
-
-            // "root" and "superusers" need no authorization.
-            if (SecurityManager_->IsSuperuser(User_)) {
-                return ESecurityAction::Allow;
-            }
-
-            // Non-reads are forbidden in safe mode.
-            if (Permission_ != EPermission::Read &&
-                SecurityManager_->Bootstrap_->GetConfigManager()->GetConfig()->EnableSafeMode)
-            {
-                return ESecurityAction::Deny;
-            }
-
-            return ESecurityAction::Undefined;
-        }
 
         static bool CheckSubjectMatch(TSubject* subject, TUser* user)
         {
