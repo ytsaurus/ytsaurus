@@ -40,11 +40,19 @@ public:
 
     TRspJoinGroup JoinGroup(const NKafka::TReqJoinGroup& request, const NLogging::TLogger& Logger) override
     {
+        auto rebalanceTimeout = GetDynamicConfig()->RebalanceTimeout;
+
         auto checkState = [&] {
             auto state = State_.load();
             auto acceptNew = AcceptNew_.load();
+            auto joinDeadline = JoinDeadline_.load();
 
             if (state == EGroupCoordinatorState::Ok || (state == EGroupCoordinatorState::JoinInProgress && acceptNew)) {
+                return std::optional<TRspJoinGroup>(std::nullopt);
+            }
+
+            if (state == EGroupCoordinatorState::JoinFinished && TInstant::Now() > joinDeadline + rebalanceTimeout) {
+                YT_LOG_DEBUG("Join finished too long ago, start new join phase (JoinDeadline: %v)", joinDeadline);
                 return std::optional<TRspJoinGroup>(std::nullopt);
             }
 
@@ -63,7 +71,6 @@ public:
         TDuration waitDuration = TDuration::Zero();
         TString memberId;
         bool isLeader = false;
-        auto rebalanceTimeout = GetDynamicConfig()->RebalanceTimeout;
 
         {
             auto guard = WaitFor(TAsyncLockWriterGuard::Acquire(&Lock_))
@@ -83,13 +90,13 @@ public:
             // First member resets everything, becomes a new leader and waits JoinGroup request from the rest of the members.
             if (State_ == EGroupCoordinatorState::Ok) {
                 Reset();
-                JoinDeadline_ = TInstant::Now() + rebalanceTimeout;
+                JoinDeadline_.store(TInstant::Now() + rebalanceTimeout);
                 State_ = EGroupCoordinatorState::JoinInProgress;
                 AcceptNew_ = true;
                 LeaderMemberId_ = memberId;
                 isLeader = true;
             }
-            waitDuration = JoinDeadline_ - TInstant::Now();
+            waitDuration = JoinDeadline_.load() - TInstant::Now();
 
             JoinedMembers_[memberId] = TMember{
                 .Protocols = request.Protocols,
@@ -101,7 +108,7 @@ public:
 
             YT_LOG_DEBUG("Group member joined (MemberId: %v, JoinDeadline: %v)",
                 memberId,
-                JoinDeadline_);
+                JoinDeadline_.load());
         }
 
         YT_LOG_DEBUG("Waiting for the rest of the members to join (MemberId: %v, WaitDuration: %v)", memberId, waitDuration);
@@ -363,7 +370,7 @@ private:
 
     TPromise<TRspJoinGroup> JoinGroupResponsePromise_;
 
-    TInstant JoinDeadline_ = TInstant::Max();
+    std::atomic<TInstant> JoinDeadline_ = TInstant::Max();
     TInstant SyncDeadline_ = TInstant::Max();
 
     struct TMember
