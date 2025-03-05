@@ -965,7 +965,7 @@ void TVanillaController::RestartAllRunningJobsPreservingAllocations(bool operati
             allocationsToRestartJobs.push_back(GetPtr(allocation));
 
             // NB(pogorelov): We abort job with requestNewJob even if we aren't able to schedule new job since:
-            // 1) Job aborting causes immedeate job releasing.
+            // 1) Job aborting causes immediate job releasing.
             // 2) Job tracker doesn't expect running job releasing (intentionally).
             // 3) We can't schedule new job before aborting old one.
             // TODO(pogorelov): It could be fixed by defering job releasing untill the end of method, think about it.
