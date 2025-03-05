@@ -1230,6 +1230,9 @@ void TUserJobSpec::Register(TRegistrar registrar)
         .Default(1)
         .GreaterThan(0);
 
+    registrar.Parameter("start_queue_consumer_registration_manager", &TThis::StartQueueConsumerRegistrationManager)
+        .Default(true);
+
     registrar.Parameter("fail_on_job_restart", &TThis::FailOnJobRestart)
         .Default(false);
 

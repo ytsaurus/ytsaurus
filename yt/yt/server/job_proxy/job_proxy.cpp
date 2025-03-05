@@ -769,7 +769,9 @@ void TJobProxy::EnableRpcProxyInJobProxy(int rpcProxyWorkerThreadPoolSize)
     auto connection = CreateNativeConnection(Config_->OriginalClusterConnection);
     connection->GetClusterDirectorySynchronizer()->Start();
     connection->GetNodeDirectorySynchronizer()->Start();
-    connection->GetQueueConsumerRegistrationManager()->StartSync();
+    if (Config_->StartQueueConsumerRegistrationManager) {
+        connection->GetQueueConsumerRegistrationManager()->StartSync();
+    }
     connection->GetMasterCellDirectorySynchronizer()->Start();
 
     auto rootClient = connection->CreateNativeClient(TClientOptions::FromUser(NSecurityClient::RootUserName));

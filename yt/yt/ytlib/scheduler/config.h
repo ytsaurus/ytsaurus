@@ -1417,6 +1417,8 @@ public:
     bool EnableRpcProxyInJobProxy;
     int RpcProxyWorkerThreadPoolSize;
 
+    bool StartQueueConsumerRegistrationManager;
+
     bool FailOnJobRestart;
 
     THashSet<EExtraEnvironment> ExtraEnvironment;
