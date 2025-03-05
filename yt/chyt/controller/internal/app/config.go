@@ -26,6 +26,10 @@ type Config struct {
 	// Strawberry contains strawberry-specific configuration.
 	Strawberry agent.Config `yson:"strawberry"`
 
+	// LocationStrawberryOverrides contains overrides of Strawberry configuration
+	// for specified location from LocationProxies.
+	LocationStrawberryOverrides map[string]agent.ConfigOverrides `yson:"location_strawberry_overrides"`
+
 	// Controllers contains a mapping from controller family to opaque controller configs.
 	Controllers map[string]yson.RawValue `yson:"controllers"`
 

@@ -110,12 +110,14 @@ func New(config *Config, options *Options, cfs map[string]strawberry.ControllerF
 			l.Fatal("error creating YT client", log.Error(err), log.String("proxy", proxy))
 		}
 
+		locCfg := config.Strawberry.ApplyOverrides(config.LocationStrawberryOverrides[proxy])
+
 		loc.as = map[string]*agent.Agent{}
 		for family, cf := range cfs {
 			l := withName(loc.l, family)
-			l.Debug("instantiating controller for location", log.String("location", proxy), log.String("family", family))
+			l.Debug("instantiating controller for lyaocation", log.String("location", proxy), log.String("family", family))
 			c := cf.Ctor(withName(l, "c"), loc.ytc, config.Strawberry.Root.Child(family), proxy, cf.Config)
-			a := agent.NewAgent(proxy, loc.ytc, withName(l, "a"), c, &config.Strawberry)
+			a := agent.NewAgent(proxy, loc.ytc, withName(l, "a"), c, &locCfg)
 			loc.as[family] = a
 		}
 
