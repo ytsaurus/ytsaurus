@@ -42,6 +42,7 @@ INCLUDE(${ARCADIA_ROOT}/yt/recipe/basic/recipe.inc)
 
 REQUIREMENTS(
     cpu:4
+    ram:32
     ram_disk:32
 )
 
