@@ -98,7 +98,6 @@ struct TNbdServerConfig
     bool TestAbortConnectionOnRead;
 
     int ThreadCount;
-    i64 BlockCacheCompressedDataCapacity;
 
     REGISTER_YSON_STRUCT(TNbdServerConfig);
 
