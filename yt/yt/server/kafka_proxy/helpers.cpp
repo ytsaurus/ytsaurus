@@ -14,10 +14,13 @@
 
 #include <yt/yt/core/yson/writer.h>
 
+#include <library/cpp/iterator/enumerate.h>
+
 namespace NYT::NKafkaProxy {
 
 using namespace NApi;
 using namespace NComplexTypes;
+using namespace NKafka;
 using namespace NTableClient;
 using namespace NYson;
 
@@ -50,7 +53,7 @@ bool IsKafkaQueue(const TTableSchemaPtr& schema)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::vector<NKafka::TMessage> ConvertKafkaQueueRowsToMessages(
+std::vector<TRecord> ConvertKafkaQueueRowsToRecords(
     const IUnversionedRowsetPtr& rowset)
 {
     auto nameTable = rowset->GetNameTable();
@@ -60,25 +63,25 @@ std::vector<NKafka::TMessage> ConvertKafkaQueueRowsToMessages(
 
     auto rows = rowset->GetRows();
 
-    std::vector<NKafka::TMessage> messages;
-    messages.reserve(rows.size());
+    std::vector<TRecord> records;
+    records.reserve(rows.size());
 
-    for (auto row : rows) {
+    for (auto [offset, row] : Enumerate(rows)) {
         if (!row) {
-            messages.emplace_back();
-            continue;
+            records.emplace_back();
+        } else {
+            records.push_back({
+                .Key = row[*keyColumnId].AsString(),
+                .Value = row[*valueColumnId].AsString(),
+            });
         }
-
-        messages.push_back({
-            .Key = row[*keyColumnId].AsString(),
-            .Value = row[*valueColumnId].AsString(),
-        });
+        records.back().OffsetDelta = static_cast<i32>(offset);
     }
 
-    return messages;
+    return records;
 }
 
-std::vector<NKafka::TMessage> ConvertGenericQueueRowsToMessages(
+std::vector<TRecord> ConvertGenericQueueRowsToRecords(
     const IUnversionedRowsetPtr& rowset)
 {
     auto nameTable = rowset->GetNameTable();
@@ -104,72 +107,72 @@ std::vector<NKafka::TMessage> ConvertGenericQueueRowsToMessages(
         EYsonType::Node,
         /*enableRaw*/ true);
 
-    std::vector<NKafka::TMessage> messages;
-    messages.reserve(rows.size());
+    std::vector<TRecord> records;
+    records.reserve(rows.size());
 
     int columnCount = schema->GetColumnCount();
-    for (auto row : rows) {
+    for (auto [offset, row] : Enumerate(rows)) {
         if (!row) {
             writer.OnEntity();
-            continue;
-        }
+        } else {
+            YT_VERIFY(static_cast<int>(row.GetCount()) >= columnCount);
+            writer.OnBeginMap();
+            for (int index = 0; index < columnCount; ++index) {
+                const auto& value = row[index];
 
-        YT_VERIFY(static_cast<int>(row.GetCount()) >= columnCount);
-        writer.OnBeginMap();
-        for (int index = 0; index < columnCount; ++index) {
-            const auto& value = row[index];
+                const auto& column = schema->Columns()[index];
+                writer.OnKeyedItem(column.Name());
 
-            const auto& column = schema->Columns()[index];
-            writer.OnKeyedItem(column.Name());
-
-            switch (value.Type) {
-                case EValueType::Int64:
-                    writer.OnInt64Scalar(value.Data.Int64);
-                    break;
-                case EValueType::Uint64:
-                    writer.OnUint64Scalar(value.Data.Uint64);
-                    break;
-                case EValueType::Double:
-                    writer.OnDoubleScalar(value.Data.Double);
-                    break;
-                case EValueType::Boolean:
-                    writer.OnBooleanScalar(value.Data.Boolean);
-                    break;
-                case EValueType::String:
-                    writer.OnStringScalar(value.AsStringBuf());
-                    break;
-                case EValueType::Null:
-                    writer.OnEntity();
-                    break;
-                case EValueType::Any:
-                    writer.OnRaw(value.AsStringBuf(), EYsonType::Node);
-                    break;
-
-                case EValueType::Composite: {
-                    if (auto it = columnConverters.find(value.Id); it != columnConverters.end()) {
-                        it->second(value, &writer);
-                    } else {
+                switch (value.Type) {
+                    case EValueType::Int64:
+                        writer.OnInt64Scalar(value.Data.Int64);
+                        break;
+                    case EValueType::Uint64:
+                        writer.OnUint64Scalar(value.Data.Uint64);
+                        break;
+                    case EValueType::Double:
+                        writer.OnDoubleScalar(value.Data.Double);
+                        break;
+                    case EValueType::Boolean:
+                        writer.OnBooleanScalar(value.Data.Boolean);
+                        break;
+                    case EValueType::String:
+                        writer.OnStringScalar(value.AsStringBuf());
+                        break;
+                    case EValueType::Null:
+                        writer.OnEntity();
+                        break;
+                    case EValueType::Any:
                         writer.OnRaw(value.AsStringBuf(), EYsonType::Node);
-                    }
-                    break;
-                }
+                        break;
 
-                case EValueType::Min:
-                case EValueType::Max:
-                case EValueType::TheBottom:
-                    ThrowUnexpectedValueType(value.Type);
+                    case EValueType::Composite: {
+                        if (auto it = columnConverters.find(value.Id); it != columnConverters.end()) {
+                            it->second(value, &writer);
+                        } else {
+                            writer.OnRaw(value.AsStringBuf(), EYsonType::Node);
+                        }
+                        break;
+                    }
+
+                    case EValueType::Min:
+                    case EValueType::Max:
+                    case EValueType::TheBottom:
+                        ThrowUnexpectedValueType(value.Type);
+                }
             }
+            writer.OnEndMap();
         }
-        writer.OnEndMap();
 
         writer.Flush();
         auto buffer = blobOutput.Flush();
-        messages.push_back({
+        records.push_back({
+            .OffsetDelta = static_cast<i32>(offset),
             .Value = TString(buffer.data(), buffer.size()),
         });
     }
 
-    return messages;
+    return records;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -178,14 +181,14 @@ std::vector<NKafka::TMessage> ConvertGenericQueueRowsToMessages(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::vector<NKafka::TMessage> ConvertQueueRowsToMessages(
+std::vector<TRecord> ConvertQueueRowsToRecords(
     const IUnversionedRowsetPtr& rowset)
 {
     if (IsKafkaQueue(rowset->GetSchema())) {
-        return ConvertKafkaQueueRowsToMessages(rowset);
+        return ConvertKafkaQueueRowsToRecords(rowset);
     }
 
-    return ConvertGenericQueueRowsToMessages(rowset);
+    return ConvertGenericQueueRowsToRecords(rowset);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
