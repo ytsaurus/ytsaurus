@@ -519,6 +519,8 @@ struct TDynamicSequoiaChunkReplicasConfig
 
     bool ClearMasterRequest;
 
+    std::vector<TErrorCode> RetriableErrorCodes;
+
     REGISTER_YSON_STRUCT(TDynamicSequoiaChunkReplicasConfig);
 
     static void Register(TRegistrar registrar);

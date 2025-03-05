@@ -404,6 +404,7 @@ private:
                         participant,
                         generatePrepareTimestamp,
                         inheritCommitTimestamp);
+
                     return participant->PrepareTransaction(
                         transactionId,
                         prepareTimestamp,
