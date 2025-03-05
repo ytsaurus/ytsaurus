@@ -1,6 +1,6 @@
 from ...serializer import SerializerBase
 from ...sensor import Sensor, MultiSensor, EmptyCell, Text, Title
-from ...specific_tags.tags import BackendTag, SpecificTag, TemplateTag
+from ...specific_tags.tags import BackendTag, SpecificTag, TemplateTag, DuplicateTag
 from ...postprocessors import MustacheTemplateTagPostprocessor
 from ...taggable import SystemFields, NotEquals
 
@@ -94,7 +94,8 @@ class MonitoringProxy():
         request["dashboard_id"] = dashboard_id
         request["etag"] = current.etag
         request.setdefault("title", current.title)
-        request.setdefault("name", current.name)
+        if current.name:
+            request["name"] = current.name
         request.setdefault("description", current.description)
         request.setdefault("parametrization", MessageToDict(current)["parametrization"])
 
@@ -136,10 +137,16 @@ class MonitoringSerializerBase(SerializerBase):
         string_tags = []
         other_tags = {}
         for k, v in tags:
-            if isinstance(k, MonitoringTag):
-                k = str(k)
+            while True:
+                if isinstance(k, MonitoringTag):
+                    k = k.value
+                elif isinstance(k, DuplicateTag):
+                    k = k.tag
+                else:
+                    break
+
             # TODO: rewrite system tag expansion.
-            elif isinstance(k, SpecificTag) and not isinstance(k, TemplateTag):
+            if isinstance(k, SpecificTag) and not isinstance(k, TemplateTag):
                 continue
 
             if isinstance(k, str):
@@ -164,7 +171,8 @@ class MonitoringSerializerBase(SerializerBase):
 
         if SystemFields.Top in other_tags:
             limit, aggregation = other_tags[SystemFields.Top]
-            query = "top({}, '{}', {})".format(limit, aggregation, query)
+            if limit:
+                query = "top({}, '{}', {})".format(limit, aggregation, query)
 
         if SystemFields.NanAsZero in other_tags:
             query = "replace_nan({}, 0)".format(query)
@@ -321,6 +329,9 @@ class MonitoringDictSerializer(MonitoringSerializerBase):
 
         if cell.display_legend is not None:
             chart["displayLegend"] = cell.display_legend
+
+        if cell.description is not None:
+            chart["description"] = cell.description
 
         for axis, label in cell.yaxis_to_label.items():
             assert axis in (SystemFields.LeftAxis, SystemFields.RightAxis)
