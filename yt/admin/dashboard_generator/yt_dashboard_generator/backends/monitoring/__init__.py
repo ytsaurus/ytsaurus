@@ -212,7 +212,10 @@ class MonitoringDictSerializer(MonitoringSerializerBase):
             return {"text": {"text": content.text.strip().replace("<EOLN>", "  ")}}
 
         if issubclass(type(content), Title):
-            return {"title": {"text": content.title}}
+            title_content = {"text": content.title}
+            if content.size != "None":
+                title_content["size"] = content.size
+            return {"title": title_content}
 
         sensors = []
         if issubclass(type(content), (Sensor, MonitoringExpr)):
