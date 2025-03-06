@@ -89,6 +89,36 @@ TEST(TParallelFileReaderTest, ReadEmptyFileMultiThread)
     EXPECT_EQ(file.Content, result);
 }
 
+TEST(TParallelFileReaderTest, ReadFileWithLength)
+{
+    TTestFixture fixture;
+    auto client = fixture.GetClient();
+    auto file = GetTestFile(fixture, client, 10_KB);
+
+    auto options = TFileReaderOptions().Length(1_KB);
+    auto reader = CreateParallelFileReader(client, file.Path, TParallelFileReaderOptions().ThreadCount(1).ReaderOptions(options));
+
+    auto result = reader->ReadAll();
+
+    auto fileContent = TStringBuf(file.Content.begin(), file.Content.begin() + 1_KB);
+
+    EXPECT_EQ(fileContent, result);
+}
+
+TEST(TParallelFileReaderTest, ReadFileWithExceededLength)
+{
+    TTestFixture fixture;
+    auto client = fixture.GetClient();
+    auto file = GetTestFile(fixture, client, 15_KB);
+
+    auto options = TFileReaderOptions().Length(100_KB);
+    auto reader = CreateParallelFileReader(client, file.Path, TParallelFileReaderOptions().ThreadCount(1).BatchSize(10_KB).ReaderOptions(options));
+
+    auto result = reader->ReadAll();
+
+    EXPECT_EQ(file.Content, result);
+}
+
 TEST(TParallelFileReaderTest, ReadAllMultiThread)
 {
     TTestFixture fixture;
