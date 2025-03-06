@@ -25,16 +25,18 @@
 
 #include <yt/yt/client/object_client/public.h>
 
-#include <yt/yt/core/misc/collection_helpers.h>
+#include <yt/yt/core/concurrency/periodic_executor.h>
+#include <yt/yt/core/concurrency/thread_pool.h>
 
-#include <yt/yt/core/ytree/fluent.h>
-#include <yt/yt/core/ytree/virtual.h>
+#include <yt/yt/core/misc/collection_helpers.h>
 
 #include <yt/yt/core/rpc/bus/channel.h>
 #include <yt/yt/core/rpc/caching_channel_factory.h>
 
-#include <yt/yt/core/concurrency/periodic_executor.h>
-#include <yt/yt/core/concurrency/thread_pool.h>
+#include <yt/yt/core/ypath/token.h>
+
+#include <yt/yt/core/ytree/fluent.h>
+#include <yt/yt/core/ytree/virtual.h>
 
 namespace NYT::NQueueAgent {
 
@@ -67,39 +69,62 @@ class TObjectMapBoundService
 public:
     TObjectMapBoundService(
         const TQueueAgent* owner,
-        EObjectKind objectKind)
+        EObjectKind objectKind,
+        bool enableProxy)
         : Owner_(owner)
         , ObjectKind_(objectKind)
-        , QueryRoot_(Format("//queue_agent/%lvs", ObjectKind_))
+        , ProxyConfig_{
+            .Enable = enableProxy,
+            .RemoteQueryRoot = Format("//queue_agent/owned_%lvs", ObjectKind_)
+        }
     {
-        SetOpaque(false);
+        // NB(apachee): Prevent requests to foreign objects.
+        SetOpaque(ProxyConfig_.Enable);
     }
 
     i64 GetSize() const override
     {
         auto guard = ReaderGuard(Owner_->ObjectLock_);
 
-        return Owner_->LeadingObjectCount_[ObjectKind_];
+        return ProxyConfig_.Enable
+            ? std::ssize(Owner_->ObjectsWithOurStage_[ObjectKind_])
+            : Owner_->LeadingObjectCount_[ObjectKind_];
     }
 
     std::vector<std::string> GetKeys(i64 limit) const override
     {
         auto guard = ReaderGuard(Owner_->ObjectLock_);
 
-        const auto& objectMap = Owner_->Objects_[ObjectKind_];
-        const auto& objectToHost = Owner_->ObjectToHost_;
-
         std::vector<std::string> keys;
-        keys.reserve(std::min(std::ssize(objectMap), limit));
-        for (const auto& [key, _] : objectMap) {
-            if (std::ssize(keys) >= limit) {
-                break;
-            }
-            if (auto it = objectToHost.find(key); it == objectToHost.end() || it->second != Owner_->AgentId_) {
-                continue;
-            }
 
-            keys.push_back(ToString(key));
+        if (ProxyConfig_.Enable) {
+            const auto& objectsWithOurStage = Owner_->ObjectsWithOurStage_[ObjectKind_];
+
+            keys.reserve(std::min(std::ssize(objectsWithOurStage), limit));
+
+            for (const auto& key : objectsWithOurStage) {
+                keys.push_back(ToString(key));
+                if (std::ssize(keys) == limit) {
+                    break;
+                }
+            }
+        } else {
+            const auto& objectMap = Owner_->Objects_[ObjectKind_];
+            const auto& objectToHost = Owner_->ObjectToHost_;
+
+            keys.reserve(std::min(Owner_->LeadingObjectCount_[ObjectKind_], limit));
+
+            for (const auto& [key, _] : objectMap) {
+                // Show only queues of this instance.
+                if (auto it = objectToHost.find(key); it == objectToHost.end() || it->second != Owner_->AgentId_) {
+                    continue;
+                }
+
+                keys.push_back(ToString(key));
+                if (std::ssize(keys) == limit) {
+                    break;
+                }
+            }
         }
         return keys;
     }
@@ -116,8 +141,28 @@ public:
             THROW_ERROR_EXCEPTION("Object %Qv is not mapped to any queue agent", objectRef);
         }
 
-        if (objectToHostIt->second != Owner_->AgentId_) {
-            return Owner_->RedirectYPathRequest(objectToHostIt->second, QueryRoot_, key);
+        if (!Owner_->ObjectsWithOurStage_[ObjectKind_].contains(objectRef)) {
+            // NB(apachee): It is possible to try to access queue using consumers orchid (and vice versa), e.g.
+            // //queue_agent/consumers/<queue>, and previously that would've let to redirect, but
+            // this condition short-circuits resolving of such paths.
+            THROW_ERROR_EXCEPTION("Type of the object %Qv does not match with the path used", objectRef);
+        }
+
+        const auto& objectAgentId = objectToHostIt->second;
+        if (objectAgentId != Owner_->AgentId_) {
+            if (!ProxyConfig_.Enable) {
+                // COMPAT(apachee): Remove RPC error after native connection is updated in master.
+                THROW_ERROR_EXCEPTION(NRpc::EErrorCode::Unavailable, "Unavailable, retry later")
+                    << TError(
+                        NQueueClient::EErrorCode::QueueAgentRetriableError,
+                        "Object %v is not available from this instance (InstanceAgentId: %v, CachedObjectAgentId: %v)",
+                        objectRef,
+                        Owner_->AgentId_,
+                        objectAgentId);
+            }
+
+            auto remoteRoot = Format("%v/%v", ProxyConfig_.RemoteQueryRoot, ToYPathLiteral(key));
+            return Owner_->RedirectYPathRequest(objectAgentId, remoteRoot);
         }
 
         const auto& objectMap = Owner_->Objects_[ObjectKind_];
@@ -133,8 +178,14 @@ public:
 private:
     // The queue agent is not supposed to be destroyed, so raw pointer is fine.
     const TQueueAgent* Owner_;
-    EObjectKind ObjectKind_;
-    TString QueryRoot_;
+    const EObjectKind ObjectKind_;
+
+    struct TProxyConfig
+    {
+        bool Enable;
+        TString RemoteQueryRoot;
+    };
+    const TProxyConfig ProxyConfig_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -182,7 +233,14 @@ TQueueAgent::TQueueAgent(
         ObjectServiceNodes_[objectKind] = CreateVirtualNode(
             New<TObjectMapBoundService>(
                 this,
-                objectKind));
+                objectKind,
+                /*enableProxy*/ true));
+
+        OwnedObjectServiceNodes_[objectKind] = CreateVirtualNode(
+            New<TObjectMapBoundService>(
+                this,
+                objectKind,
+                /*enableProxy*/ false));
     }
 }
 
@@ -213,6 +271,8 @@ IMapNodePtr TQueueAgent::GetOrchidNode() const
     node->AddChild("pass_error", virtualScalarNode([&] { return PassError_; }));
     node->AddChild("queues", ObjectServiceNodes_[EObjectKind::Queue]);
     node->AddChild("consumers", ObjectServiceNodes_[EObjectKind::Consumer]);
+    node->AddChild("owned_queues", OwnedObjectServiceNodes_[EObjectKind::Queue]);
+    node->AddChild("owned_consumers", OwnedObjectServiceNodes_[EObjectKind::Consumer]);
     node->AddChild("controller_info", GetControllerInfoNode());
 
     return node;
@@ -487,6 +547,20 @@ void TQueueAgent::Pass()
     auto allQueues = getHashTable(queueRows);
     auto allConsumers = getHashTable(consumerRows);
 
+    auto getObjectsWithOurStage = [&, this] <class T>(const std::vector<T>& rowList) {
+        THashSet<NQueueClient::TCrossClusterReference> result;
+        for (const auto& row : rowList) {
+            if (!row.QueueAgentStage || *row.QueueAgentStage != Config_->Stage) {
+                continue;
+            }
+            result.insert(row.Ref);
+        }
+        return result;
+    };
+
+    auto queuesWithOurStage = getObjectsWithOurStage(queueRows);
+    auto consumersWithOurStage = getObjectsWithOurStage(consumerRows);
+
     // Fresh queue/consumer -> responsible queue agent mapping.
     auto objectMapping = TQueueAgentObjectMappingTable::ToMapping(objectMappingRows);
 
@@ -664,6 +738,9 @@ void TQueueAgent::Pass()
         LeadingObjectCount_[EObjectKind::Queue] = std::ssize(leaderQueueRows);
         LeadingObjectCount_[EObjectKind::Consumer] = std::ssize(leaderConsumerRows);
 
+        ObjectsWithOurStage_[EObjectKind::Queue].swap(queuesWithOurStage);
+        ObjectsWithOurStage_[EObjectKind::Consumer].swap(consumersWithOurStage);
+
         ObjectToHost_.swap(objectMapping);
     }
 
@@ -771,16 +848,15 @@ void TQueueAgent::Profile()
     }
 }
 
-NYTree::IYPathServicePtr TQueueAgent::RedirectYPathRequest(const TString& host, TStringBuf queryRoot, TStringBuf key) const
+NYTree::IYPathServicePtr TQueueAgent::RedirectYPathRequest(const TString& host, TStringBuf remoteRoot) const
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
 
-    YT_LOG_DEBUG("Redirecting orchid request (QueueAgentHost: %v, QueryRoot: %v, Key: %v)", host, queryRoot, key);
+    YT_LOG_DEBUG("Redirecting orchid request (QueueAgentHost: %v, RemoteRoot: %v)", host, remoteRoot);
     auto leaderChannel = QueueAgentChannelFactory_->CreateChannel(host);
-    auto remoteRoot = Format("%v/%v", queryRoot, ToYPathLiteral(key));
     return CreateOrchidYPathService({
         .Channel = std::move(leaderChannel),
-        .RemoteRoot = std::move(remoteRoot),
+        .RemoteRoot = TString(remoteRoot),
     });
 }
 

@@ -1092,11 +1092,16 @@ private:
                 endpointDescription,
                 std::move(endpointAttributes));
 
-            channel = CreateRetryingChannel(channelConfig, std::move(channel));
+            auto retryChecker = BIND([] (const TError& error) -> bool {
+                if (NRpc::IsRetriableError(error)) {
+                    return true;
+                }
 
-            // TODO(max42): make customizable.
-            constexpr auto timeout = TDuration::Minutes(1);
-            channel = CreateDefaultTimeoutChannel(std::move(channel), timeout);
+                return error.FindMatching(NQueueClient::EErrorCode::QueueAgentRetriableError).has_value();
+            });
+
+            channel = CreateRetryingChannel(channelConfig, std::move(channel), std::move(retryChecker));
+            channel = CreateDefaultTimeoutChannel(std::move(channel), channelConfig->DefaultRequestTimeout);
 
             QueueAgentChannels_[stage] = std::move(channel);
         }
