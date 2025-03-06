@@ -624,13 +624,8 @@ DEFINE_YPATH_SERVICE_METHOD(TChaosReplicatedTableNodeProxy, GetMountInfo)
             Bootstrap_->GetClusterConnection());
 
         context->ReplyFrom(tabletCountFuture.ApplyUnique(BIND(
-            [context, response] (TErrorOr<int>&& result) {
-                if (!result.IsOK()) {
-                    return TError(std::move(result));
-                }
-
-                response->set_tablet_count(result.Value());
-                return TError();
+            [context, response] (int&& result) {
+                response->set_tablet_count(result);
             })));
     } else {
         context->Reply();
