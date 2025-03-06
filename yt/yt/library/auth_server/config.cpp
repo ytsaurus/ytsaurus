@@ -340,8 +340,6 @@ void TYCIAMTokenAuthenticatorConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("retry_all_server_errors", &TThis::RetryAllServerErrors)
         .Default(true);
-    registrar.Parameter("retry_status_codes", &TThis::RetryStatusCodes)
-        .Default();
 
     registrar.Parameter("authenticate_login_field", &TThis::AuthenticateLoginField)
         .Default("subject");

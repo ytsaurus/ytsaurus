@@ -1,7 +1,6 @@
 #include "yc_iam_token_authenticator.h"
 
 #include "config.h"
-#include "credentials.h"
 #include "cypress_user_manager.h"
 #include "helpers.h"
 #include "private.h"
@@ -288,10 +287,6 @@ private:
     bool IsRetryableHttpError(const NHttp::EStatusCode& code) const
     {
         if (Config_->RetryAllServerErrors && IsServerHttpError(code)) {
-            return true;
-        }
-        const auto& retryStatusCodes = Config_->RetryStatusCodes;
-        if (std::find(retryStatusCodes.begin(), retryStatusCodes.end(), static_cast<i64>(code)) != retryStatusCodes.end()) {
             return true;
         }
         return false;

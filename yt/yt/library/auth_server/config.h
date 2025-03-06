@@ -493,9 +493,8 @@ public:
     bool CreateUserIfNotExists;
 
     bool RetryAllServerErrors;
-    std::vector<int> RetryStatusCodes;
 
-    std::string AuthenticateLoginField;
+    TString AuthenticateLoginField;
 
     REGISTER_YSON_STRUCT(TYCIAMTokenAuthenticatorConfig);
 

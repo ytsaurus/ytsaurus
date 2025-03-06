@@ -72,7 +72,7 @@ class TNullCypressUserManager
     : public ICypressUserManager
 {
 public:
-    TFuture<TObjectId> CreateUser(const TString& /*name*/) override
+    TFuture<NObjectClient::TObjectId> CreateUser(const TString& /*name*/) override
     {
         YT_UNIMPLEMENTED();
     }
