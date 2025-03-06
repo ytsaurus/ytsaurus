@@ -8,6 +8,7 @@ SRCS(
     abort.cpp
     config.cpp
     commit.cpp
+    serialize.cpp
     transaction_manager.cpp
     transaction_manager_detail.cpp
     transaction_lease_tracker.cpp
