@@ -12,6 +12,7 @@ from yt_dashboards.chyt import build_chyt_monitoring
 from yt_dashboards.key_filter import build_key_filter
 from yt_dashboards.exe_nodes import build_exe_nodes
 from yt_dashboards.data_nodes import build_data_nodes_common
+from yt_dashboards.user_load import build_user_load
 
 from yt_dashboards.bundle_ui import (
     build_bundle_ui_user_load, build_bundle_ui_lsm, build_bundle_ui_rpc_resource_overview,
@@ -177,6 +178,10 @@ dashboards = {
         "grafana": {
             "args": ["grafana"]
         },
+    },
+    "user-load": {
+        "func": build_user_load,
+        "monitoring": {},
     },
 }
 
