@@ -744,6 +744,8 @@ private:
 
         auto originalTargetPath = TRawYPath(GetRequestTargetYPath(*subrequest->RequestHeader));
         auto cypressTransactionId = GetTransactionId(*subrequest->RequestHeader);
+        auto isMutating = IsRequestMutating(*subrequest->RequestHeader);
+        auto prerequisiteTransactionIds = ParsePrerequisiteTransactionIds(*subrequest->RequestHeader);
 
         if (cypressTransactionId && !IsCypressTransactionType(TypeFromId(cypressTransactionId))) {
             // Requests with system transactions cannot be handled in Sequoia.
@@ -751,10 +753,15 @@ private:
             return std::nullopt;
         }
 
+        THROW_ERROR_EXCEPTION_IF(
+            !isMutating && !prerequisiteTransactionIds.empty(),
+            "Read requests with prerequisites are forbidden in Sequoia");
+
         TSequoiaSessionPtr session;
         TResolveResult resolveResult;
+
         try {
-            session = TSequoiaSession::Start(Owner_->Bootstrap_, cypressTransactionId);
+            session = TSequoiaSession::Start(Owner_->Bootstrap_, cypressTransactionId, prerequisiteTransactionIds);
             resolveResult = ResolvePath(
                 session,
                 originalTargetPath,

@@ -546,6 +546,13 @@ public:
         return ReplaceCellTagInId(GetPrimaryMasterCellId(), cellTag);
     }
 
+    IChannelPtr FindMasterChannel(
+        EMasterChannelKind kind,
+        TCellTag cellTag = PrimaryMasterCellTagSentinel) override
+    {
+        return MasterCellDirectory_->FindMasterChannel(kind, cellTag);
+    }
+
     IChannelPtr GetMasterChannelOrThrow(
         EMasterChannelKind kind,
         TCellTag cellTag = PrimaryMasterCellTagSentinel) override

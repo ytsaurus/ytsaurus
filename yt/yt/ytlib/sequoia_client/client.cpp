@@ -23,6 +23,7 @@ namespace NYT::NSequoiaClient {
 
 using namespace NApi;
 using namespace NApi::NNative;
+using namespace NObjectClient;
 using namespace NQueryClient;
 using namespace NLogging;
 using namespace NYPath;
@@ -118,9 +119,10 @@ public:
     virtual TFuture<ISequoiaTransactionPtr> StartTransaction(
         ESequoiaTransactionType type,
         const NApi::TTransactionStartOptions& options,
+        const std::vector<NObjectClient::TTransactionId>& cypressPrerequisiteTransactionIds,
         const TSequoiaTransactionSequencingOptions& sequencingOptions) override
     {
-        XX(StartTransaction, (type, options, sequencingOptions))
+        XX(StartTransaction, (type, options, cypressPrerequisiteTransactionIds, sequencingOptions))
     }
 
 #undef XX
@@ -230,6 +232,7 @@ private:
     TFuture<ISequoiaTransactionPtr> DoStartTransaction(
         ESequoiaTransactionType type,
         const NApi::TTransactionStartOptions& options,
+        const std::vector<TTransactionId>& cypressPrerequisiteTransactionIds,
         const TSequoiaTransactionSequencingOptions& sequencingOptions)
     {
         return NDetail::StartSequoiaTransaction(
@@ -237,6 +240,7 @@ private:
             type,
             NativeClient_,
             GetGroundClient(),
+            cypressPrerequisiteTransactionIds,
             options,
             sequencingOptions);
     }

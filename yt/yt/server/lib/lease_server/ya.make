@@ -8,6 +8,7 @@ SRCS(
     config.cpp
     lease_manager.cpp
     serialize.cpp
+    helpers.cpp
 
     proto/lease_manager.proto
 )

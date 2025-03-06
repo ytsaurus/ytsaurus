@@ -121,6 +121,7 @@ using namespace NTabletServer::NProto;
 using namespace NTransactionClient;
 using namespace NTransactionServer;
 using namespace NTransactionSupervisor;
+using namespace NLeaseServer;
 using namespace NYPath;
 using namespace NYTree;
 using namespace NYson;
@@ -959,7 +960,7 @@ public:
                 continue;
             }
 
-            transactionManager->UnregisterTransactionLease(transaction, cell);
+            transactionManager->UnregisterTransactionLease(transaction, cell->GetId(), &cell->LeaseTransactionIds());
         }
 
         cell->SetCellLifeStage(ECellLifeStage::Decommissioned);

@@ -50,6 +50,7 @@
 #include <yt/yt/server/lib/hydra/mutation_context.h>
 
 #include <yt/yt/server/lib/lease_server/lease_manager.h>
+#include <yt/yt/server/lib/lease_server/helpers.h>
 
 #include <yt/yt/server/lib/misc/profiling_helpers.h>
 
@@ -3860,45 +3861,29 @@ private:
         return false;
     }
 
-    const NLeaseServer::ILeaseManagerPtr& GetLeaseManager() const final
+    const ILeaseManagerPtr& GetLeaseManager() const final
     {
         return Slot_->GetLeaseManager();
     }
 
     TFuture<void> IssueLeases(const std::vector<TLeaseId>& leaseIds) override
     {
-        THashMap<TCellTag, std::vector<TLeaseId>> cellTagToLeaseIds;
-
         const auto& leaseManager = Slot_->GetLeaseManager();
-        for (auto leaseId : leaseIds) {
-            if (!leaseManager->FindLease(leaseId)) {
-                auto cellTag = CellTagFromId(leaseId);
-                cellTagToLeaseIds[cellTag].push_back(leaseId);
-            }
-        }
-
         const auto& connection = Bootstrap_->GetConnection();
         const auto& hiveManager = Slot_->GetHiveManager();
 
-        std::vector<TFuture<void>> futures;
-        futures.reserve(cellTagToLeaseIds.size());
-        for (const auto& [cellTag, leaseIds] : cellTagToLeaseIds) {
-            auto cellId = connection->GetMasterCellId(cellTag);
-            auto masterChannel = connection->GetMasterChannelOrThrow(
-                EMasterChannelKind::Leader,
-                cellTag);
-            TTransactionServiceProxy proxy(std::move(masterChannel));
-            auto req = proxy.IssueLeases();
-            ToProto(req->mutable_transaction_ids(), leaseIds);
-            ToProto(req->mutable_cell_id(), GetCellId());
-
-            auto future = req->Invoke().AsVoid().Apply(BIND([=] {
-                return hiveManager->SyncWith(cellId, /*enableBatching*/ true);
+        return IssueLeasesForCell(
+            leaseIds,
+            leaseManager,
+            hiveManager,
+            GetCellId(),
+            /*synWithAllLeaseTransactionCoordinators*/ false,
+            BIND([connection] (TCellTag cellTag) {
+                return connection->GetMasterCellId(cellTag);
+            }),
+            BIND([connection] (TCellTag cellTag) {
+                return connection->FindMasterChannel(EMasterChannelKind::Leader, cellTag);
             }));
-            futures.push_back(std::move(future));
-        }
-
-        return AllSucceeded(std::move(futures));
     }
 
     void SetTabletOrphaned(std::unique_ptr<TTablet> tabletHolder)

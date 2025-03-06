@@ -74,6 +74,13 @@ const NNodeTrackerClient::TNodeDirectoryPtr& TTestConnection::GetNodeDirectory()
     return NodeDirectory_;
 }
 
+NRpc::IChannelPtr TTestConnection::FindMasterChannel(
+    EMasterChannelKind kind,
+    NObjectClient::TCellTag cellTag)
+{
+    return ChannelFactory_->CreateChannel(Format("master-%v-tag-%v", kind, cellTag));
+}
+
 NRpc::IChannelPtr TTestConnection::GetMasterChannelOrThrow(
     EMasterChannelKind kind,
     NObjectClient::TCellTag cellTag)

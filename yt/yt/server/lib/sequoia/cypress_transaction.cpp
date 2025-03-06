@@ -1482,7 +1482,7 @@ private:
 /*!
  *  When transaction is finished (because of commit or abort) every descendant
  *  and dependent transaction has to be aborted. On transaction coordinator it's
- *  handled in commit/abort mutation but we still need to clean Sequoia tables
+ *  handled in commit/abort mutation, but we still need to clean Sequoia tables
  *  and replicate abort mutations to all participants.
  *  1. Fetch target transaction (and validate it);
  *  2. Fetch all descendant and dependent transactions (transitively);
@@ -1716,7 +1716,8 @@ public:
     TAbortCypressTransaction(
         ISequoiaClientPtr sequoiaClient,
         TCellId cypressTransactionCoordinatorCellId,
-        const NCypressTransactionClient::NProto::TReqAbortTransaction& request,
+        TTransactionId transactionId,
+        bool force,
         NRpc::TAuthenticationIdentity authenticationIdentity,
         IInvokerPtr invoker,
         TLogger logger)
@@ -1724,11 +1725,11 @@ public:
             std::move(sequoiaClient),
             cypressTransactionCoordinatorCellId,
             "abort",
-            FromProto<TTransactionId>(request.transaction_id()),
+            transactionId,
             std::move(authenticationIdentity),
             std::move(invoker),
             std::move(logger))
-        , Force_(request.force())
+        , Force_(force)
     { }
 
     TAbortCypressTransaction(
@@ -2014,7 +2015,8 @@ TFuture<TTransactionId> StartCypressTransaction(
 TFuture<void> AbortCypressTransaction(
     ISequoiaClientPtr sequoiaClient,
     TCellId cypressTransactionCoordinatorCellId,
-    NCypressTransactionClient::NProto::TReqAbortTransaction* request,
+    TTransactionId transactionId,
+    bool force,
     TAuthenticationIdentity authenticationIdentity,
     IInvokerPtr invoker,
     TLogger logger)
@@ -2022,7 +2024,8 @@ TFuture<void> AbortCypressTransaction(
     return New<TAbortCypressTransaction>(
         std::move(sequoiaClient),
         cypressTransactionCoordinatorCellId,
-        std::move(*request),
+        transactionId,
+        force,
         std::move(authenticationIdentity),
         std::move(invoker),
         std::move(logger))

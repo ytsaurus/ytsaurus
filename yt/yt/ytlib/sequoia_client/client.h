@@ -81,6 +81,7 @@ struct ISequoiaClient
     virtual TFuture<ISequoiaTransactionPtr> StartTransaction(
         ESequoiaTransactionType type,
         const NApi::TTransactionStartOptions& options = {},
+        const std::vector<NObjectClient::TTransactionId>& cypressPrerequisiteTransactionIds = {},
         const TSequoiaTransactionSequencingOptions& sequencingOptions = {}) = 0;
 
     virtual const NLogging::TLogger& GetLogger() const = 0;

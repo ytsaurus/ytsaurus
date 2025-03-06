@@ -47,6 +47,9 @@ void TObjectServiceDynamicConfig::Register(TRegistrar registrar)
     registrar.Parameter("default_per_user_write_request_weight_throttler", &TThis::DefaultPerUserWriteRequestWeightThrottler)
         .DefaultNew();
 
+    registrar.Parameter("enable_fast_path_prerequisite_transaction_check", &TThis::EnableFastPathPrerequisiteTransactionCheck)
+        .Default(true);
+
     registrar.Postprocessor([] (TThis* config) {
         THROW_ERROR_EXCEPTION_IF(
             config->DistributedThrottler->Mode == NDistributedThrottler::EDistributedThrottlerMode::Precise,

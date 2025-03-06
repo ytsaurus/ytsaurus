@@ -1776,7 +1776,7 @@ void TObjectManager::ValidatePrerequisites(
     const auto& transactionManager = Bootstrap_->GetTransactionManager();
     const auto& cypressManager = Bootstrap_->GetCypressManager();
 
-    auto getPrerequisiteTransaction = [&] (TTransactionId transactionId) {
+    auto validatePrerequisiteTransaction = [&] (TTransactionId transactionId) {
         auto* transaction = transactionManager->FindTransaction(transactionId);
         if (!IsObjectAlive(transaction)) {
             ThrowPrerequisiteCheckFailedNoSuchTransaction(transactionId);
@@ -1787,12 +1787,11 @@ void TObjectManager::ValidatePrerequisites(
                 "Prerequisite check failed: transaction %v is not active",
                 transactionId);
         }
-        return transaction;
     };
 
     for (const auto& prerequisite : prerequisites.transactions()) {
         auto transactionId = FromProto<TTransactionId>(prerequisite.transaction_id());
-        getPrerequisiteTransaction(transactionId);
+        validatePrerequisiteTransaction(transactionId);
     }
 
     for (const auto& prerequisite : prerequisites.revisions()) {

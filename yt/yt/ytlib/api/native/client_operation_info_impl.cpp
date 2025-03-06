@@ -6,7 +6,7 @@
 #include "rpc_helpers.h"
 
 #include <yt/yt/ytlib/scheduler/records/operation_alias.record.h>
-#include <yt/ytlib/scheduler/records/ordered_by_start_time.record.h>
+#include <yt/yt/ytlib/scheduler/records/ordered_by_start_time.record.h>
 
 #include <yt/yt/ytlib/object_client/object_service_proxy.h>
 

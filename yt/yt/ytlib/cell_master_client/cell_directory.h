@@ -40,6 +40,9 @@ struct ICellDirectory
     virtual NObjectClient::TCellTagList GetSecondaryMasterCellTags() = 0;
     virtual THashSet<NObjectClient::TCellId> GetSecondaryMasterCellIds() = 0;
 
+    virtual NRpc::IChannelPtr FindMasterChannel(
+        NApi::EMasterChannelKind kind,
+        NObjectClient::TCellTag cellTag = NObjectClient::PrimaryMasterCellTagSentinel) = 0;
     virtual NRpc::IChannelPtr GetMasterChannelOrThrow(
         NApi::EMasterChannelKind kind,
         NObjectClient::TCellTag cellTag = NObjectClient::PrimaryMasterCellTagSentinel) = 0;
