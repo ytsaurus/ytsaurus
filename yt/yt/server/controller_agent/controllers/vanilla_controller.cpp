@@ -66,7 +66,9 @@ public:
         TVanillaController* controller,
         const TVanillaOperationOptionsPtr& config);
 
-    const TOperationIncarnation& GetCurrentIncanation() const noexcept;
+    const TOperationIncarnation& GetCurrentIncarnation() const noexcept;
+
+    bool IsEnabled() const noexcept;
 
     void TrySwitchToNewIncarnation(bool operationIsReviving, EOperationIncarnationSwitchReason reason);
 
@@ -77,13 +79,15 @@ public:
 
     void UpdateConfig(const TVanillaOperationOptionsPtr& config) noexcept;
 
+    // COMPAT(pogorelov)
+    void SetVanillaController(TVanillaController* controller) noexcept;
+
 private:
     bool Enabled_ = false;
     TOperationIncarnation Incarnation_;
 
     TVanillaController* VanillaOperationController_ = nullptr;
 
-    bool IsEnabled() const noexcept;
     TOperationIncarnation GenerateNewIncarnation();
 
     PHOENIX_DECLARE_TYPE(TGangManager, 0xa01a5a9b);
@@ -311,14 +315,9 @@ void TGangManager::RegisterMetadata(auto&& registrar)
 
     PHOENIX_REGISTER_FIELD(3, VanillaOperationController_,
         .SinceVersion(ESnapshotVersion::MonitoringDescriptorsPreserving));
-
-    registrar.AfterLoad([] (TThis* this_, auto& /*context*/) {
-        const auto& Logger = this_->VanillaOperationController_->GetLogger();
-        YT_LOG_INFO("Gang manager loaded (Incarnation: %v, Enabled: %v)", this_->Incarnation_, this_->Enabled_);
-    });
 }
 
-const TOperationIncarnation& TGangManager::GetCurrentIncanation() const noexcept
+const TOperationIncarnation& TGangManager::GetCurrentIncarnation() const noexcept
 {
     return Incarnation_;
 }
@@ -368,6 +367,11 @@ void TGangManager::UpdateConfig(const TVanillaOperationOptionsPtr& config) noexc
 
         Enabled_ = config->GangManager->Enabled;
     }
+}
+
+void TGangManager::SetVanillaController(TVanillaController* controller) noexcept
+{
+    VanillaOperationController_ = controller;
 }
 
 bool TGangManager::IsEnabled() const noexcept
@@ -637,6 +641,20 @@ void TVanillaController::RegisterMetadata(auto&& registrar)
                 }
             }
         }));
+
+    registrar.AfterLoad([] (TThis* this_, auto& /*context*/) {
+        if (this_->GangManager_) {
+            // COMPAT(pogorelov)
+            this_->GangManager_->SetVanillaController(this_);
+
+            const auto& Logger = this_->GetLogger();
+
+            YT_LOG_INFO(
+                "Gang manager loaded (Incarnation: %v, Enabled: %v)",
+                this_->GangManager_->GetCurrentIncarnation(),
+                this_->GangManager_->IsEnabled());
+        }
+    });
 }
 
 void TVanillaController::CustomMaterialize()
@@ -899,7 +917,7 @@ TJobletPtr TVanillaController::CreateJoblet(
         treeIsTentative);
 
     if (GangManager_) {
-        joblet->OperationIncarnation = GangManager_->GetCurrentIncanation();
+        joblet->OperationIncarnation = GangManager_->GetCurrentIncarnation();
     }
 
     return joblet;
@@ -1155,7 +1173,7 @@ void TVanillaController::BuildControllerInfoYson(TFluentMap fluent) const
     TOperationControllerBase::BuildControllerInfoYson(fluent);
 
     if (GangManager_) {
-        fluent.Item("operation_incarnation").Value(GangManager_->GetCurrentIncanation());
+        fluent.Item("operation_incarnation").Value(GangManager_->GetCurrentIncarnation());
     }
 }
 
