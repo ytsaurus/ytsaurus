@@ -76,7 +76,7 @@ i64 TTmpfsManager::GetAggregatedTmpfsUsage() const
     return aggregatedTmpfsUsage;
 }
 
-bool TTmpfsManager::IsTmpfsDevice(int deviceId) const
+bool TTmpfsManager::IsTmpfsDevice(NFS::TDeviceId deviceId) const
 {
     return TmpfsDeviceIds.contains(deviceId);
 }
