@@ -148,10 +148,14 @@ class TestCypress(YTEnvSetup):
         for path in [
             "//tmp/@test_attribute",
             "//tmp/@test_attribute/inner",
+        ]:
+            with raises_yt_error("Attribute \"test_attribute\" is not found"):
+                remove(path)
+        for path in [
             "//tmp/@recursive_resource_usage/disk_space_per_medium",
             "//tmp/@recursive_resource_usage/missing",
         ]:
-            with pytest.raises(YtError):
+            with raises_yt_error("Attribute \"recursive_resource_usage\" cannot be removed"):
                 remove(path)
 
         for path in ["//tmp/@test_attribute", "//tmp/@test_attribute/inner"]:
@@ -207,8 +211,9 @@ class TestCypress(YTEnvSetup):
         assert exists("//tmp/list/-7")
         assert not exists("//tmp/list/42")
         assert not exists("//tmp/list/-42")
-        with pytest.raises(YtError):
+        with raises_yt_error("has no child with index"):
             get("//tmp/list/42")
+        with raises_yt_error("has no child with index"):
             get("//tmp/list/-42")
 
     @authors("kvk1920")
@@ -290,7 +295,7 @@ class TestCypress(YTEnvSetup):
         remove("//tmp/map/list")
         assert get("//tmp/map") == {}
 
-        with pytest.raises(YtError):
+        with raises_yt_error("has no child with key"):
             set("//tmp/missing/node", {})
 
         set("//tmp/missing/node", {}, recursive=True)
@@ -314,9 +319,9 @@ class TestCypress(YTEnvSetup):
         assert attrs["path"] == "//tmp/t"
 
         remove("//tmp/t/@*")
-        with pytest.raises(YtError):
+        with raises_yt_error("Attribute \"attr\" is not found"):
             get("//tmp/t/@attr")
-        with pytest.raises(YtError):
+        with raises_yt_error("Attribute \"mode\" is not found"):
             get("//tmp/t/@mode")
 
         # changing attributes
@@ -345,17 +350,15 @@ class TestCypress(YTEnvSetup):
         assert get("//tmp/t/@key2") == "value2"
 
         # error cases
-        # typo (extra slash)
-        with pytest.raises(YtError):
+        with raises_yt_error("Expected \"literal\" in YPath but found \"slash\" token"):
             get("//tmp/t/@/key1")
-        # change type
-        with pytest.raises(YtError):
+        with raises_yt_error("Attributes can only be set from a map"):
             set("//tmp/t/@", 1)
-        with pytest.raises(YtError):
+        with raises_yt_error("Attributes can only be set from a map"):
             set("//tmp/t/@", "a")
-        with pytest.raises(YtError):
+        with raises_yt_error("Attributes can only be set from a map"):
             set("//tmp/t/@", [])
-        with pytest.raises(YtError):
+        with raises_yt_error("Attributes can only be set from a map"):
             set("//tmp/t/@", [1, 2, 3])
 
     @authors("danilalexeev")
@@ -514,9 +517,9 @@ class TestCypress(YTEnvSetup):
         # remove items from attributes
         set("//tmp/attr", b"<_foo=bar;_key=value>42", is_raw=True)
         remove("//tmp/attr/@*")
-        with pytest.raises(YtError):
+        with raises_yt_error("is not found"):
             get("//tmp/attr/@_foo")
-        with pytest.raises(YtError):
+        with raises_yt_error("is not found"):
             get("//tmp/attr/@_key")
 
     @authors("babenko", "ignat")
@@ -526,14 +529,14 @@ class TestCypress(YTEnvSetup):
         tx = start_transaction()
         set("//tmp/@b", 2, tx=tx)
         remove("//tmp/@*", tx=tx)
-        with pytest.raises(YtError):
+        with raises_yt_error("is not found"):
             get("//tmp/@a", tx=tx)
-        with pytest.raises(YtError):
+        with raises_yt_error("is not found"):
             get("//tmp/@b", tx=tx)
         commit_transaction(tx)
-        with pytest.raises(YtError):
+        with raises_yt_error("is not found"):
             get("//tmp/@a")
-        with pytest.raises(YtError):
+        with raises_yt_error("is not found"):
             get("//tmp/@b")
 
     @authors("babenko", "ignat")
