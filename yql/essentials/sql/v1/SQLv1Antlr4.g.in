@@ -1775,9 +1775,7 @@ bool_value: (TRUE | FALSE);
 real: REAL;
 integer: DIGITS | INTEGER_VALUE;
 
-//
-// Lexer
-//
+//! reflect:punctuation
 
 EQUALS:        '=';
 EQUALS2:       '==';
@@ -1823,6 +1821,8 @@ fragment QUOTE_SINGLE:  '\'';
 fragment BACKTICK:      '`';
 fragment DOUBLE_COMMAT: '@@';
 
+//! reflect:case-insensitive-letter
+
 // http://www.antlr.org/wiki/pages/viewpage.action?pageId=1782
 fragment A:('a'|'A');
 fragment B:('b'|'B');
@@ -1850,6 +1850,8 @@ fragment W:('w'|'W');
 fragment X:('x'|'X');
 fragment Y:('y'|'Y');
 fragment Z:('z'|'Z');
+
+//! reflect:keyword
 
 ABORT: A B O R T;
 ACTION: A C T I O N;
@@ -2090,7 +2092,7 @@ SEMI: S E M I;
 SET: S E T;
 SETS: S E T S;
 SHOW: S H O W;
-TSKIP: S K I P;
+SKIP: S K I P;
 SEQUENCE: S E Q U E N C E;
 SOURCE: S O U R C E;
 START: S T A R T;
@@ -2143,6 +2145,8 @@ WITHOUT: W I T H O U T;
 WRAPPER: W R A P P E R;
 //WRITE: W R I T E;
 XOR: X O R;
+
+//! reflect:other
 
 // YQL Default Lexer:
 // GRAMMAR_STRING_CORE_SINGLE = ~(QUOTE_SINGLE | BACKSLASH) | (BACKSLASH .)
