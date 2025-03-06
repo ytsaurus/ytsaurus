@@ -165,7 +165,7 @@ public:
                 config->YCIAMTokenAuthenticator,
                 poller,
                 CypressUserManager_,
-                AuthProfiler().WithPrefix("/yc_iam_token")));
+                AuthProfiler.WithPrefix("/yc_iam_token")));
         }
 
         if (!tokenAuthenticators.empty()) {
