@@ -175,6 +175,14 @@ class QueueOrchid(ObjectOrchid):
         return result["status"], result["partitions"]
 
 
+class OwnedQueueOrchid(ObjectOrchid):
+    OBJECT_TYPE = "owned_queue"
+
+
+class OwnedConsumerOrchid(ObjectOrchid):
+    OBJECT_TYPE = "owned_consumer"
+
+
 class ConsumerOrchid(ObjectOrchid):
     OBJECT_TYPE = "consumer"
 
@@ -190,25 +198,71 @@ class ConsumerOrchid(ObjectOrchid):
 class QueueAgentOrchid(OrchidWithRegularPasses):
     ENTITY_NAME = "queue_agent"
 
-    def get_queues(self):
+    def list_queues(self):
+        """
+        List all queues from all instances.
+        """
         self.wait_fresh_pass()
-        return get(self.orchid_path() + "/queues")
+        return ls(self.orchid_path() + "/queues")
 
-    def get_consumers(self):
+    def list_consumers(self):
+        """
+        List all consumers from all instances.
+        """
         self.wait_fresh_pass()
-        return get(self.orchid_path() + "/consumers")
+        return ls(self.orchid_path() + "/consumers")
+
+    def list_instance_queues(self):
+        """
+        List all queues from this instance.
+        """
+        self.wait_fresh_pass()
+        return ls(self.orchid_path() + "/owned_queues")
+
+    def list_instance_consumers(self):
+        """
+        List all consumers from this instance.
+        """
+        self.wait_fresh_pass()
+        return ls(self.orchid_path() + "/owned_consumers")
+
+    def get_instance_queues(self):
+        """
+        Get all queues from this instance.
+        """
+        self.wait_fresh_pass()
+        return get(self.orchid_path() + "/owned_queues")
+
+    def get_instance_consumers(self):
+        """
+        Get all consumers from this instance.
+        """
+        self.wait_fresh_pass()
+        return get(self.orchid_path() + "/owned_consumers")
 
     def get_queue_orchid(self, queue_ref):
         return QueueOrchid(queue_ref, self.agent_id)
 
+    def get_owned_queue_orchid(self, queue_ref):
+        return OwnedQueueOrchid(queue_ref, self.agent_id)
+
     def get_queue_orchids(self):
-        return [self.get_queue_orchid(queue) for queue in self.get_queues()]
+        return [self.get_queue_orchid(queue) for queue in self.list_queues()]
+
+    def get_owned_queue_orchids(self):
+        return [self.get_owned_queue_orchid(queue) for queue in self.list_queues()]
 
     def get_consumer_orchid(self, consumer_ref):
         return ConsumerOrchid(consumer_ref, self.agent_id)
 
+    def get_owned_consumer_orchid(self, consumer_ref):
+        return OwnedConsumerOrchid(consumer_ref, self.agent_id)
+
     def get_consumer_orchids(self):
-        return [self.get_consumer_orchid(consumer) for consumer in self.get_consumers()]
+        return [self.get_consumer_orchid(consumer) for consumer in self.list_consumers()]
+
+    def get_owned_consumer_orchids(self):
+        return [self.get_consumer_orchid(consumer) for consumer in self.list_consumers()]
 
     def get_controller_info(self):
         return get(f"{self.orchid_path()}/controller_info")

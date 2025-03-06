@@ -91,6 +91,8 @@ private:
     //! Objects available in this queue agent.
     //! NB: Holds objects with both leading and following controllers.
     TEnumIndexedArray<EObjectKind, TObjectMap> Objects_;
+    //! All objects with the queue agent stage corresponding to the stage of this queue agent.
+    TEnumIndexedArray<EObjectKind, THashSet<NQueueClient::TCrossClusterReference>> ObjectsWithOurStage_;
     //! The number of objects (per object type) with leading controllers.
     //! In other words, this map accounts for the number of objects that are actually served by this queue agent.
     TEnumIndexedArray<EObjectKind, i64> LeadingObjectCount_;
@@ -107,10 +109,11 @@ private:
     NRpc::IChannelFactoryPtr QueueAgentChannelFactory_;
 
     TEnumIndexedArray<EObjectKind, NYTree::INodePtr> ObjectServiceNodes_;
+    TEnumIndexedArray<EObjectKind, NYTree::INodePtr> OwnedObjectServiceNodes_;
 
     IQueueExportManagerPtr QueueExportManager_;
 
-    NYTree::IYPathServicePtr RedirectYPathRequest(const TString& host, TStringBuf queryRoot, TStringBuf key) const;
+    NYTree::IYPathServicePtr RedirectYPathRequest(const TString& host, TStringBuf remoteRoot) const;
 
     NYTree::INodePtr GetControllerInfoNode() const;
 
