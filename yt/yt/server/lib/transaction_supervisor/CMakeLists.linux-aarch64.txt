@@ -54,6 +54,7 @@ target_sources(server-lib-transaction_supervisor PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/transaction_supervisor/abort.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/transaction_supervisor/config.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/transaction_supervisor/commit.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/transaction_supervisor/serialize.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/transaction_supervisor/transaction_manager.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/transaction_supervisor/transaction_manager_detail.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/transaction_supervisor/transaction_lease_tracker.cpp
