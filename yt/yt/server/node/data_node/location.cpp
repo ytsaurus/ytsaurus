@@ -1743,8 +1743,7 @@ public:
         TClusterNodeDynamicConfigManagerPtr dynamicConfigManager,
         NProfiling::TProfiler profiler,
         TLogger logger)
-        : DeviceName_(config->DeviceName)
-        , MaxWriteRateByDwpd_(config->MaxWriteRateByDwpd)
+        : MaxWriteRateByDwpd_(config->MaxWriteRateByDwpd)
         , IOEngine_(std::move(ioEngine))
         , Logger(std::move(logger))
         , LastUpdateTime_(TInstant::Now())
@@ -1754,6 +1753,18 @@ public:
             BIND(&TIOStatisticsProvider::OnDynamicConfigChanged, MakeWeak(this)));
 
         profiler.AddProducer("", MakeStrong(this));
+
+        try {
+            if (config->DeviceName != TStoreLocationConfig::UnknownDeviceName) {
+                DeviceId_ = GetBlockDeviceId(config->DeviceName);
+            } else {
+                DeviceId_ = NFS::GetDeviceId(config->Path);
+            }
+        } catch (const std::exception& ex) {
+            YT_LOG_WARNING(ex, "Failed to get location device id (LocationPath: %v, DeviceName: %v)",
+                config->Path,
+                config->DeviceName);
+        }
     }
 
     TIOStatistics Get()
@@ -1768,7 +1779,6 @@ public:
     }
 
 private:
-    const TString DeviceName_;
     const i64 MaxWriteRateByDwpd_;
     const NIO::IIOEnginePtr IOEngine_;
     const TLogger Logger;
@@ -1784,6 +1794,7 @@ private:
     };
 
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, CountersLock_);
+    std::optional<NFS::TDeviceId> DeviceId_;
     TInstant LastUpdateTime_;
     std::optional<TCounters> LastCounters_;
     TIOStatistics Statistics_;
@@ -1797,14 +1808,14 @@ private:
             .FilesystemWritten = IOEngine_->GetTotalWrittenBytes(),
         };
 
-        if (DeviceName_ != TStoreLocationConfig::UnknownDeviceName) {
+        if (DeviceId_) {
             try {
-                if (auto stat = GetBlockDeviceStat(DeviceName_)) {
+                if (auto stat = NYT::GetBlockDeviceStat(*DeviceId_)) {
                     counters.DiskRead = stat->SectorsRead * UnixSectorSize;
                     counters.DiskWritten = stat->SectorsWritten * UnixSectorSize;
                 } else {
-                    YT_LOG_WARNING("Missing disk statistics (DeviceName: %v, Func: GetCounters)",
-                        DeviceName_);
+                    YT_LOG_WARNING("Missing disk statistics (DeviceId: %v, Func: GetCounters)",
+                        *DeviceId_);
                 }
             } catch (const std::exception& ex) {
                 YT_LOG_WARNING(ex, "Failed to get disk statistics (Func: GetCounters)");
@@ -1851,9 +1862,9 @@ private:
 
     void CollectSensors(ISensorWriter* writer) override
     {
-        if (DeviceName_ != TStoreLocationConfig::UnknownDeviceName) {
+        if (DeviceId_) {
             try {
-                if (auto stat = GetBlockDeviceStat(DeviceName_)) {
+                if (auto stat = GetBlockDeviceStat(*DeviceId_)) {
                     writer->AddCounter(
                         "/disk/read_bytes",
                         stat->SectorsRead * UnixSectorSize);
@@ -1866,8 +1877,8 @@ private:
                         "/disk/io_in_progress",
                         stat->IOCurrentlyInProgress);
                 } else {
-                    YT_LOG_WARNING("Missing disk statistics (DeviceName: %v, Func: CollectSensors)",
-                        DeviceName_);
+                    YT_LOG_WARNING("Missing disk statistics (DeviceId: %v, Func: CollectSensors)",
+                        *DeviceId_);
                 }
             } catch (const std::exception& ex) {
                 if (!ErrorLogged_) {
