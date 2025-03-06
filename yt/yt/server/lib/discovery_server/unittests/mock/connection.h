@@ -142,6 +142,13 @@ public:
         YT_UNIMPLEMENTED();
     }
 
+    NRpc::IChannelPtr FindMasterChannel(
+        NApi::EMasterChannelKind /*kind*/,
+        NObjectClient::TCellTag /*cellTag*/) override
+    {
+        YT_UNIMPLEMENTED();
+    }
+
     NRpc::IChannelPtr GetMasterChannelOrThrow(
         NApi::EMasterChannelKind /*kind*/,
         NObjectClient::TCellTag /*cellTag*/) override

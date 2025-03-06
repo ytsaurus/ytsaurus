@@ -3,6 +3,7 @@
 #include "actions.h"
 #include "action_helpers.h"
 #include "bootstrap.h"
+#include "dynamic_config_manager.h"
 #include "helpers.h"
 
 #include <yt/yt/server/lib/sequoia/cypress_transaction.h>
@@ -423,9 +424,19 @@ NCypressClient::TTransactionId TSequoiaSession::GetCurrentCypressTransactionId()
 
 TSequoiaSessionPtr TSequoiaSession::Start(
     IBootstrap* bootstrap,
-    TTransactionId cypressTransactionId)
+    TTransactionId cypressTransactionId,
+    const std::vector<TTransactionId>& cypressPrerequisiteTransactionIds)
 {
-    auto sequoiaTransaction = WaitFor(StartCypressProxyTransaction(bootstrap->GetSequoiaClient(), ESequoiaTransactionType::CypressModification))
+    auto sequoiaClient = bootstrap->GetSequoiaClient();
+    const auto& dynamicConfig = bootstrap->GetDynamicConfigManager()->GetConfig();
+
+    // Best effort pre-check for mutating requests before starting execution of master commit sessions,
+    // doesn't guarantee that prerequisite transactions will be alive during execution on master.
+    if (dynamicConfig->ObjectService->EnableFastPathPrerequisiteTransactionCheck) {
+        ValidatePrerequisites(sequoiaClient, cypressPrerequisiteTransactionIds);
+    }
+
+    auto sequoiaTransaction = WaitFor(StartCypressProxyTransaction(sequoiaClient, ESequoiaTransactionType::CypressModification, cypressPrerequisiteTransactionIds))
         .ValueOrThrow();
 
     std::vector<TTransactionId> cypressTransactions;

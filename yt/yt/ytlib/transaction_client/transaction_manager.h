@@ -60,7 +60,6 @@ public:
     //! Sends an asynchronous ping.
     TFuture<void> Ping(const TTransactionPingOptions& options = {});
 
-
     //! Returns the transaction type.
     ETransactionType GetType() const;
 
@@ -89,7 +88,6 @@ public:
     //! Only supported for master transactions that are created locally, not attached.
     NObjectClient::TCellTagList GetReplicatedToCellTags() const;
 
-
     //! Once a participant is registered, it will be pinged.
     void RegisterParticipant(NObjectClient::TCellId cellId);
 
@@ -98,7 +96,6 @@ public:
 
     //! Check that all participants are healthy.
     TFuture<void> ValidateNoDownedParticipants();
-
 
     //! Raised when the transaction is committed.
     DECLARE_SIGNAL(NApi::ITransaction::TCommittedHandlerSignature, Committed);

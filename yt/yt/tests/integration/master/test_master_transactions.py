@@ -820,7 +820,6 @@ class TestMasterTransactionsShardedTx(TestMasterTransactionsMulticell):
 
     @authors("shakurov")
     def test_object_prerequisite_transactions(self):
-        get("//sys/@config/multicell_manager/cell_descriptors")
         create_group("g")
 
         tx = start_transaction(timeout=60000)

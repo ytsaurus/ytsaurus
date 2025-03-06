@@ -523,7 +523,6 @@ public:
             Id_);
     }
 
-
     ETransactionType GetType() const
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
@@ -575,7 +574,6 @@ public:
     {
         return ReplicatedToMasterCellTags_;
     }
-
 
     void RegisterParticipant(TCellId cellId)
     {
@@ -635,7 +633,6 @@ public:
         return CheckDownedParticipants(participantIds);
     }
 
-
     void SubscribeCommitted(const ITransaction::TCommittedHandler& handler)
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
@@ -649,7 +646,6 @@ public:
 
         Committed_.Unsubscribe(handler);
     }
-
 
     void SubscribeAborted(const ITransaction::TAbortedHandler& handler)
     {
@@ -832,7 +828,6 @@ private:
     {
         ValidateMasterTransactionId(id);
     }
-
 
     void Register()
     {

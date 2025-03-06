@@ -2701,7 +2701,6 @@ class TestCypress(YTEnvSetup):
         wait(lambda: get("//tmp/m/@recursive_resource_usage/master_memory") > 0)
 
     @authors("ignat")
-    @not_implemented_in_sequoia
     def test_prerequisite_transactions(self):
         with raises_yt_error("Unknown transaction cell tag"):
             set("//tmp/test_node", {}, prerequisite_transaction_ids=["a-b-c-d"])

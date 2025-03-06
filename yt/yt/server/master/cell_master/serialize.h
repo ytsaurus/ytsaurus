@@ -238,6 +238,7 @@ DEFINE_ENUM(EMasterReign,
     ((PersistAuxiliaryNodeStatistics)                               (2903))  // ifsmirnov
     ((LostVitalChunksSample)                                        (2904))  // koloshmet
     ((MasterCompactTableSchema)                                     (2905))  // cherepashka
+    ((PrerequisiteTransactionsInSequoia)                            (2906))  // cherepashka
 );
 
 static_assert(TEnumTraits<EMasterReign>::IsMonotonic, "Master reign enum is not monotonic");

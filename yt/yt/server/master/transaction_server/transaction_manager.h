@@ -2,20 +2,23 @@
 
 #include "public.h"
 
-#include <yt/yt/server/master/transaction_server/proto/transaction_manager.pb.h>
-
 #include <yt/yt/server/master/cell_master/public.h>
 
 #include <yt/yt/server/master/cell_server/public.h>
 
 #include <yt/yt/server/master/cypress_server/public.h>
 
+#include <yt/yt/server/master/object_server/public.h>
+#include <yt/yt/server/master/object_server/object.h>
+
+#include <yt/yt/server/master/transaction_server/proto/transaction_manager.pb.h>
+
+#include <yt/yt/server/lib/lease_server/public.h>
+
 #include <yt/yt/server/lib/transaction_supervisor/transaction_action.h>
 #include <yt/yt/server/lib/transaction_supervisor/transaction_manager.h>
 
 #include <yt/yt/server/lib/hydra/entity_map.h>
-
-#include <yt/yt/server/master/object_server/public.h>
 
 #include <yt/yt/client/election/public.h>
 
@@ -147,12 +150,10 @@ struct ITransactionManager
         TTransaction* transaction,
         NObjectServer::TObject* object) = 0;
 
-    virtual bool RegisterTransactionLease(
-        TTransaction* transaction,
-        NCellServer::TCellBase* cell) = 0;
     virtual bool UnregisterTransactionLease(
         TTransaction* transaction,
-        NCellServer::TCellBase* cell) = 0;
+        NElection::TCellId cellId,
+        THashSet<TTransactionId>* cellLeaseTransactionIds) = 0;
 
     template <class TProto>
     void RegisterTransactionActionHandlers(

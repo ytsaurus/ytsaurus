@@ -87,6 +87,9 @@ struct IConnection
 
     virtual const NHiveClient::TDownedCellTrackerPtr& GetDownedCellTracker() = 0;
 
+    virtual NRpc::IChannelPtr FindMasterChannel(
+        EMasterChannelKind kind,
+        NObjectClient::TCellTag cellTag = NObjectClient::PrimaryMasterCellTagSentinel) = 0;
     virtual NRpc::IChannelPtr GetMasterChannelOrThrow(
         EMasterChannelKind kind,
         NObjectClient::TCellTag cellTag = NObjectClient::PrimaryMasterCellTagSentinel) = 0;
