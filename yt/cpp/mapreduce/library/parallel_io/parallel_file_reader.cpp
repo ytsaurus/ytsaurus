@@ -217,10 +217,9 @@ void TParallelFileReader::LazyInit()
         ToReadPath_ = Path_.Path_;
     }
 
+    FileSize_ = GetFileSize(ToReadPath_.value(), Client_);
     if (Options_.ReaderOptions_.GetOrElse({}).Length_) {
-        FileSize_ = *Options_.ReaderOptions_->Length_;
-    } else {
-        FileSize_ = GetFileSize(ToReadPath_.value(), Client_);
+        FileSize_ = std::min<i64>(*FileSize_, *Options_.ReaderOptions_->Length_);
     }
 
     Supervisor_.Start();
