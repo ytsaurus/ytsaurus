@@ -16,28 +16,44 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Set up Go
-        uses: actions/setup-go@v5
-        with:
-          go-version: 1.22.1
+      - name: Prepare Dockerfile
+        shell: bash
+        run: |
+          echo "FROM ubuntu:20.04 " > Dockerfile
+          echo "WORKDIR /home/ytsaurus " >> Dockerfile
+          echo "RUN apt update && apt install -y ca-certificates wget build-essential curl" >> Dockerfile
+          echo "RUN wget https://go.dev/dl/go1.22.1.linux-amd64.tar.gz && tar -C /usr/local -xzf go1.22.1.linux-amd64.tar.gz" >> Dockerfile
+          echo "COPY . /home/ytsaurus/ " >> Dockerfile
+          echo "ENTRYPOINT [\"tail\", \"-f\", \"/dev/null\"]" >> Dockerfile
+
+      - name: Build Docker image
+        shell: bash
+        run: |
+          docker build -t test-image .
+
+      - name: Run Docker container
+        working-directory: ${{ matrix.module }}
+        shell: bash
+        run: |
+          docker run --privileged -v "/var/run/docker.sock":"/var/run/docker.sock" --network host -d --name test-container test-image
 
       - name: Build
         working-directory: ${{ matrix.module }}
         shell: bash
         run: |
-          go build -v -mod=readonly ./...
+          docker exec test-container /bin/bash -c "export PATH=\$PATH:/usr/local/go/bin && cd ${{ matrix.module }} && go build -v -mod=readonly ./..."
 
       - name: Run tests
         working-directory: ${{ matrix.module }}
         shell: bash
         run: |
-          go test -v -mod=readonly ./...
+          docker exec test-container /bin/bash -c "export PATH=\$PATH:/usr/local/go/bin && cd ${{ matrix.module }} && go test -v -mod=readonly ./..."
 
       - name: Run tests with race detector
         working-directory: ${{ matrix.module }}
         shell: bash
         run: |
-          go test -v -mod=readonly -race ./...
+          docker exec test-container /bin/bash -c "export PATH=\$PATH:/usr/local/go/bin && cd ${{ matrix.module }} && go test -v -mod=readonly -race ./..."
 
   send-notifications:
     name: Send notifications
