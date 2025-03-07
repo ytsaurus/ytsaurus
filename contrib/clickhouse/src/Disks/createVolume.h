@@ -9,14 +9,14 @@ VolumePtr createVolumeFromReservation(const ReservationPtr & reservation, Volume
 
 VolumePtr createVolumeFromConfig(
     String name_,
-    const Poco::Util::AbstractConfiguration & config,
+    const DBPoco::Util::AbstractConfiguration & config,
     const String & config_prefix,
     DiskSelectorPtr disk_selector
 );
 
 VolumePtr updateVolumeFromConfig(
     VolumePtr volume,
-    const Poco::Util::AbstractConfiguration & config,
+    const DBPoco::Util::AbstractConfiguration & config,
     const String & config_prefix,
     DiskSelectorPtr & disk_selector
 );

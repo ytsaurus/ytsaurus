@@ -1,28 +1,32 @@
 #include "DateLUT.h"
 
-#include <Poco/DigestStream.h>
-#include <Poco/Exception.h>
-#include <Poco/SHA1Engine.h>
+#include <Interpreters/Context.h>
+#include <Common/CurrentThread.h>
+#include <Common/DateLUTImpl.h>
 #include <Common/filesystemHelpers.h>
+#include <Core/Settings.h>
+
+#include <DBPoco/DigestStream.h>
+#include <DBPoco/Exception.h>
+#include <DBPoco/SHA1Engine.h>
 
 #include <filesystem>
 #include <fstream>
-#include <Interpreters/Context.h>
 
 
 namespace
 {
 
-Poco::DigestEngine::Digest calcSHA1(const std::string & path)
+DBPoco::DigestEngine::Digest calcSHA1(const std::string & path)
 {
     std::ifstream stream(path);
     if (!stream)
-        throw Poco::Exception("Error while opening file: '" + path + "'.");
-    Poco::SHA1Engine digest_engine;
-    Poco::DigestInputStream digest_stream(digest_engine, stream);
+        throw DBPoco::Exception("Error while opening file: '" + path + "'.");
+    DBPoco::SHA1Engine digest_engine;
+    DBPoco::DigestInputStream digest_stream(digest_engine, stream);
     digest_stream.ignore(std::numeric_limits<std::streamsize>::max());
     if (!stream.eof())
-        throw Poco::Exception("Error while reading file: '" + path + "'.");
+        throw DBPoco::Exception("Error while reading file: '" + path + "'.");
     return digest_engine.digest();
 }
 
@@ -104,7 +108,7 @@ std::string determineDefaultTimeZone()
         /// and try to find the file with exact same contents in the database.
 
         size_t tzfile_size = fs::file_size(tz_file_path);
-        Poco::SHA1Engine::Digest tzfile_sha1 = calcSHA1(tz_file_path.string());
+        DBPoco::SHA1Engine::Digest tzfile_sha1 = calcSHA1(tz_file_path.string());
 
         fs::recursive_directory_iterator begin(tz_database_path);
         fs::recursive_directory_iterator end;
@@ -126,18 +130,50 @@ std::string determineDefaultTimeZone()
                 return path.lexically_relative(tz_database_path).string();
         }
     }
-    catch (const Poco::Exception & ex)
+    catch (const DBPoco::Exception & ex)
     {
-        throw Poco::Exception(error_prefix + ex.message(), ex);
+        throw DBPoco::Exception(error_prefix + ex.message(), ex);
     }
     catch (const std::exception & ex)
     {
-        throw Poco::Exception(error_prefix + ex.what());
+        throw DBPoco::Exception(error_prefix + ex.what());
     }
 
-    throw Poco::Exception(error_prefix + "custom time zone file used.");
+    throw DBPoco::Exception(error_prefix + "custom time zone file used.");
 }
 
+}
+
+const DateLUTImpl & DateLUT::instance()
+{
+    const auto & date_lut = getInstance();
+
+    if (DB::CurrentThread::isInitialized())
+    {
+        std::string timezone_from_context;
+        const DB::ContextPtr query_context = DB::CurrentThread::get().getQueryContext();
+
+        if (query_context)
+        {
+            timezone_from_context = extractTimezoneFromContext(query_context);
+
+            if (!timezone_from_context.empty())
+                return date_lut.getImplementation(timezone_from_context);
+        }
+
+        /// On the server side, timezone is passed in query_context,
+        /// but on CH-client side we have no query context,
+        /// and each time we modify client's global context
+        const DB::ContextPtr global_context = DB::CurrentThread::get().getGlobalContext();
+        if (global_context)
+        {
+            timezone_from_context = extractTimezoneFromContext(global_context);
+
+            if (!timezone_from_context.empty())
+                return date_lut.getImplementation(timezone_from_context);
+        }
+    }
+    return serverTimezoneInstance();
 }
 
 DateLUT::DateLUT()

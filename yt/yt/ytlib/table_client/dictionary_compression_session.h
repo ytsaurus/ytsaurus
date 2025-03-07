@@ -105,7 +105,8 @@ struct IDictionaryCompressionFactory
     : public TRefCounted
 {
     virtual TFuture<IDictionaryCompressionSessionPtr> MaybeCreateDictionaryCompressionSession(
-        const NChunkClient::TClientChunkReadOptions& chunkReadOptions) const = 0;
+        const NChunkClient::TClientChunkReadOptions& chunkReadOptions,
+        std::optional<NChunkClient::TChunkId> presetCompressionDictionaryId) const = 0;
 
     virtual IDictionaryDecompressionSessionPtr CreateDictionaryDecompressionSession() = 0;
 

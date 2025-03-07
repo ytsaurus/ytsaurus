@@ -706,8 +706,8 @@ static NTableClient::TTableSchemaPtr SetStableNames(
     }
     return New<NTableClient::TTableSchema>(
         std::move(columns),
-        schema->GetStrict(),
-        schema->GetUniqueKeys(),
+        schema->IsStrict(),
+        schema->IsUniqueKeys(),
         schema->GetSchemaModification(),
         schema->DeletedColumns());
 }
@@ -1641,7 +1641,7 @@ TFuture<std::vector<TJob>> TClient::DoListJobsFromArchiveAsync(
         builder.AddWhereConjunct(Format("start_time >= %v", options.FromTime->MicroSeconds()));
     }
     if (options.ToTime) {
-        builder.AddWhereConjunct(Format("finish_time >= %v", options.ToTime->MicroSeconds()));
+        builder.AddWhereConjunct(Format("finish_time <= %v", options.ToTime->MicroSeconds()));
     }
 
     if (options.TaskName) {

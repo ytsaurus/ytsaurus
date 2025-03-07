@@ -488,6 +488,7 @@ private:
         NProto::TReqRegisterLease req;
         ToProto(req.mutable_lease_id(), leaseId);
         auto mutation = CreateMutation(TCompositeAutomatonPart::HydraManager_, req);
+        mutation->SetCurrentTraceContext();
         YT_UNUSED_FUTURE(mutation->CommitAndReply(context));
     }
 
@@ -505,6 +506,7 @@ private:
         ToProto(req.mutable_lease_id(), leaseId);
         req.set_force(force);
         auto mutation = CreateMutation(TCompositeAutomatonPart::HydraManager_, req);
+        mutation->SetCurrentTraceContext();
         YT_UNUSED_FUTURE(mutation->CommitAndReply(context));
     }
 
@@ -526,6 +528,7 @@ private:
             req.set_reference(true);
             req.set_force(force);
             auto mutation = CreateMutation(TCompositeAutomatonPart::HydraManager_, req);
+            mutation->SetCurrentTraceContext();
             YT_UNUSED_FUTURE(mutation->CommitAndReply(context));
         } else {
             auto* lease = GetLeaseOrThrow(leaseId);
@@ -549,6 +552,7 @@ private:
             ToProto(req.mutable_lease_id(), leaseId);
             req.set_reference(false);
             auto mutation = CreateMutation(TCompositeAutomatonPart::HydraManager_, req);
+            mutation->SetCurrentTraceContext();
             YT_UNUSED_FUTURE(mutation->CommitAndReply(context));
         } else {
             auto* lease = GetLeaseOrThrow(leaseId);

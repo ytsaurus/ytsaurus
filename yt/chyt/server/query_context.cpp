@@ -112,7 +112,7 @@ TStorageContext::TStorageContext(int index, DB::ContextPtr context, TQueryContex
 {
     YT_LOG_INFO("Storage context created");
 
-    Settings = ParseCustomSettings(queryContext->Host->GetConfig()->QuerySettings, context->getSettings().allCustom(), Logger);
+    Settings = ParseCustomSettings(queryContext->Host->GetConfig()->QuerySettings, context->getSettingsRef().allCustom(), Logger);
 }
 
 TStorageContext::~TStorageContext()
@@ -178,7 +178,7 @@ TQueryContext::TQueryContext(
         HttpUserAgent = clientInfo.http_user_agent;
     }
 
-    Settings = ParseCustomSettings(Host->GetConfig()->QuerySettings, context->getSettings().allCustom(), Logger);
+    Settings = ParseCustomSettings(Host->GetConfig()->QuerySettings, context->getSettingsRef().allCustom(), Logger);
 
     YT_LOG_INFO(
         "Query client info (CurrentUser: %v, CurrentAddress: %v, InitialUser: %v, InitialAddress: %v, "

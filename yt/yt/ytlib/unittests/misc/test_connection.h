@@ -225,6 +225,9 @@ public:
     const NHiveClient::TDownedCellTrackerPtr& GetDownedCellTracker() override;
     const NChunkClient::TMediumDirectoryPtr& GetMediumDirectory() override;
 
+    NRpc::IChannelPtr FindMasterChannel(
+        EMasterChannelKind kind,
+        NObjectClient::TCellTag cellTag = NObjectClient::PrimaryMasterCellTagSentinel) override;
     NRpc::IChannelPtr GetMasterChannelOrThrow(
         EMasterChannelKind kind,
         NObjectClient::TCellTag cellTag = NObjectClient::PrimaryMasterCellTagSentinel) override;

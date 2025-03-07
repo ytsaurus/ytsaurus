@@ -1,10 +1,13 @@
 #include "GeoDictionariesLoader.h"
 
-#include <Poco/Util/AbstractConfiguration.h>
+#include <DBPoco/Util/AbstractConfiguration.h>
 #include "GeodataProviders/HierarchiesProvider.h"
 #include "GeodataProviders/NamesProvider.h"
 
-std::unique_ptr<RegionsHierarchies> GeoDictionariesLoader::reloadRegionsHierarchies(const Poco::Util::AbstractConfiguration & config)
+namespace DB
+{
+
+std::unique_ptr<RegionsHierarchies> GeoDictionariesLoader::reloadRegionsHierarchies(const DBPoco::Util::AbstractConfiguration & config)
 {
     static constexpr auto config_key = "path_to_regions_hierarchy_file";
 
@@ -16,7 +19,7 @@ std::unique_ptr<RegionsHierarchies> GeoDictionariesLoader::reloadRegionsHierarch
     return std::make_unique<RegionsHierarchies>(std::move(data_provider));
 }
 
-std::unique_ptr<RegionsNames> GeoDictionariesLoader::reloadRegionsNames(const Poco::Util::AbstractConfiguration & config)
+std::unique_ptr<RegionsNames> GeoDictionariesLoader::reloadRegionsNames(const DBPoco::Util::AbstractConfiguration & config)
 {
     static constexpr auto config_key = "path_to_regions_names_files";
 
@@ -26,4 +29,6 @@ std::unique_ptr<RegionsNames> GeoDictionariesLoader::reloadRegionsNames(const Po
     const auto directory = config.getString(config_key);
     auto data_provider = std::make_unique<RegionsNamesDataProvider>(directory);
     return std::make_unique<RegionsNames>(std::move(data_provider));
+}
+
 }

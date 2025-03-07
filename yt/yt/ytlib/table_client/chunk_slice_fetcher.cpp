@@ -79,7 +79,8 @@ public:
         TLegacyDataSlicePtr dataSlice,
         const TComparator& comparator,
         i64 sliceDataWeight,
-        bool sliceByKeys) override
+        bool sliceByKeys,
+        std::optional<i64> minManiacDataWeight) override
     {
         YT_VERIFY(sliceDataWeight > 0);
 
@@ -112,6 +113,7 @@ public:
             .ChunkSliceDataWeight = sliceDataWeight,
             .SliceByKeys = sliceByKeys,
             .DataSlice = dataSliceCopy,
+            .MinManiacDataWeight = std::move(minManiacDataWeight),
         };
         YT_VERIFY(ChunkToChunkSliceRequest_.emplace(chunk, chunkSliceRequest).second);
     }
@@ -154,6 +156,7 @@ private:
         i64 ChunkSliceDataWeight;
         bool SliceByKeys;
         TLegacyDataSlicePtr DataSlice;
+        std::optional<i64> MinManiacDataWeight;
     };
     THashMap<TInputChunkPtr, TChunkSliceRequest> ChunkToChunkSliceRequest_;
 
@@ -226,6 +229,7 @@ private:
             auto maxKey = chunk->BoundaryKeys()->MaxKey;
             auto chunkSliceDataWeight = sliceRequest.ChunkSliceDataWeight;
             auto sliceByKeys = sliceRequest.SliceByKeys;
+            auto minManiacDataWeight = sliceRequest.MinManiacDataWeight;
 
             // TODO(gritukan): Comparing rows using == here is ok, but quite ugly.
             if (chunkDataSize < chunkSliceDataWeight || (sliceByKeys && minKey == maxKey)) {
@@ -250,6 +254,9 @@ private:
                 protoSliceRequest->set_slice_data_weight(chunkSliceDataWeight);
                 protoSliceRequest->set_slice_by_keys(sliceByKeys);
                 protoSliceRequest->set_key_column_count(comparator.GetLength());
+                if (minManiacDataWeight) {
+                    protoSliceRequest->set_min_maniac_data_weight(*minManiacDataWeight);
+                }
             }
 
             if (req->slice_requests_size() >= Config_->MaxSlicesPerFetch) {
@@ -453,12 +460,13 @@ public:
         NChunkClient::TLegacyDataSlicePtr dataSlice,
         const TComparator& comparator,
         i64 sliceDataWeight,
-        bool sliceByKeys) override
+        bool sliceByKeys,
+        std::optional<i64> minManiacDataWeight) override
     {
         YT_VERIFY(dataSlice->GetTableIndex() < std::ssize(TableIndexToFetcherIndex_));
         auto fetcherIndex = TableIndexToFetcherIndex_[dataSlice->GetTableIndex()];
         YT_VERIFY(fetcherIndex < std::ssize(ChunkSliceFetchers_));
-        ChunkSliceFetchers_[fetcherIndex]->AddDataSliceForSlicing(dataSlice, comparator, sliceDataWeight, sliceByKeys);
+        ChunkSliceFetchers_[fetcherIndex]->AddDataSliceForSlicing(dataSlice, comparator, sliceDataWeight, sliceByKeys, std::move(minManiacDataWeight));
     }
 
     i64 GetChunkSliceCount() const override

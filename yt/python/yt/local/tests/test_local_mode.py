@@ -644,7 +644,7 @@ class TestLocalMode(object):
         ) as environment:
             proxy_port = environment.get_proxy_address().rsplit(":", 1)[1]
             client = YtClient(proxy="localhost:{0}".format(proxy_port))
-            with pytest.raises(yt.errors.YtTokenError):
+            with pytest.raises((yt.errors.YtTokenError, yt.errors.YtAuthenticationError)):
                 client.list("/")
 
             client.config["token"] = "password"

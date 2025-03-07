@@ -48,7 +48,7 @@ TPlanFragmentPtr PreparePlanFragment(
 
 TPlanFragmentPtr PreparePlanFragment(
     IPrepareCallbacks* callbacks,
-    const TString& source,
+    TStringBuf source,
     const NAst::TQuery& query,
     const NAst::TAliasMap& aliasMap,
     IMemoryUsageTrackerPtr memoryTracker = nullptr,

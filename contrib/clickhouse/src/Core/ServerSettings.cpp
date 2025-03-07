@@ -1,12 +1,12 @@
-#include "ServerSettings.h"
-#include <Poco/Util/AbstractConfiguration.h>
+#include <Core/ServerSettings.h>
+#include <DBPoco/Util/AbstractConfiguration.h>
 
 namespace DB
 {
 
 IMPLEMENT_SETTINGS_TRAITS(ServerSettingsTraits, SERVER_SETTINGS)
 
-void ServerSettings::loadSettingsFromConfig(const Poco::Util::AbstractConfiguration & config)
+void ServerSettings::loadSettingsFromConfig(const DBPoco::Util::AbstractConfiguration & config)
 {
     // settings which can be loaded from the the default profile, see also MAKE_DEPRECATED_BY_SERVER_CONFIG in src/Core/Settings.h
     std::unordered_set<std::string> settings_from_profile_allowlist = {
@@ -25,7 +25,7 @@ void ServerSettings::loadSettingsFromConfig(const Poco::Util::AbstractConfigurat
         "max_remote_write_network_bandwidth_for_server",
     };
 
-    for (auto setting : all())
+    for (const auto & setting : all())
     {
         const auto & name = setting.getName();
         if (config.has(name))

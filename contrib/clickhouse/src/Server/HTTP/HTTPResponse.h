@@ -1,10 +1,10 @@
 #pragma once
 
-#include <Poco/Net/HTTPResponse.h>
+#include <DBPoco/Net/HTTPResponse.h>
 
 namespace DB
 {
 
-using HTTPResponse = Poco::Net::HTTPResponse;
+using HTTPResponse = DBPoco::Net::HTTPResponse;
 
 }

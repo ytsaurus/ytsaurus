@@ -1,7 +1,7 @@
 #include <Daemon/GraphiteWriter.h>
 #include <Daemon/BaseDaemon.h>
-#include <Poco/Util/LayeredConfiguration.h>
-#include <Poco/Util/Application.h>
+#include <DBPoco/Util/LayeredConfiguration.h>
+#include <DBPoco/Util/Application.h>
 #include <base/getFQDNOrHostName.h>
 
 #include <mutex>
@@ -10,7 +10,7 @@
 
 GraphiteWriter::GraphiteWriter(const std::string & config_name, const std::string & sub_path)
 {
-    Poco::Util::LayeredConfiguration & config = Poco::Util::Application::instance().config();
+    DBPoco::Util::LayeredConfiguration & config = DBPoco::Util::Application::instance().config();
     port = config.getInt(config_name + ".port", 42000);
     host = config.getString(config_name + ".host", "localhost");
     timeout = config.getDouble(config_name + ".timeout", 0.1);

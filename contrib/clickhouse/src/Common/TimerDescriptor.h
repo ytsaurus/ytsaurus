@@ -1,6 +1,6 @@
 #pragma once
 #if defined(OS_LINUX)
-#include <Poco/Timespan.h>
+#include <DBPoco/Timespan.h>
 
 namespace DB
 {
@@ -12,20 +12,20 @@ private:
     int timer_fd;
 
 public:
-    explicit TimerDescriptor(int clockid = CLOCK_MONOTONIC, int flags = 0);
+    TimerDescriptor();
     ~TimerDescriptor();
 
     TimerDescriptor(const TimerDescriptor &) = delete;
     TimerDescriptor & operator=(const TimerDescriptor &) = delete;
     TimerDescriptor(TimerDescriptor && other) noexcept;
-    TimerDescriptor & operator=(TimerDescriptor &&) = default;
+    TimerDescriptor & operator=(TimerDescriptor &&) noexcept;
 
     int getDescriptor() const { return timer_fd; }
 
     void reset() const;
     void drain() const;
     void setRelative(uint64_t usec) const;
-    void setRelative(Poco::Timespan timespan) const;
+    void setRelative(DBPoco::Timespan timespan) const;
 };
 
 }

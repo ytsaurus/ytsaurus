@@ -4,8 +4,12 @@
 
 #include <yt/yt/client/table_client/schema.h>
 
+#include <Columns/ColumnVector.h>
+#include <Columns/ColumnNullable.h>
+#include <Core/Settings.h>
 #include <Functions/IFunction.h>
-#include <Storages/MergeTree/MergeTreeBaseSelectProcessor.h>
+#include <Storages/MergeTree/MergeTreeSelectProcessor.h>
+#include <Interpreters/ActionsDAG.h>
 
 namespace NYT::NClickHouseServer {
 
@@ -33,12 +37,9 @@ DB::DataTypesWithConstInfo GetDataTypesWithConstInfo(const DB::ActionsDAG::NodeR
     return types;
 }
 
-bool HasShortCircuitActions(const DB::ActionsDAGPtr& actionsDag)
+bool HasShortCircuitActions(const DB::ActionsDAG& actionsDag)
 {
-    if (!actionsDag) {
-        return false;
-    }
-    for (const auto& node : actionsDag->getNodes()) {
+    for (const auto& node : actionsDag.getNodes()) {
         if (node.type == DB::ActionsDAG::ActionType::FUNCTION) {
             auto arguments = GetDataTypesWithConstInfo(node.children);
             if (node.function_base->isSuitableForShortCircuitArgumentsExecution(arguments)) {
@@ -82,12 +83,12 @@ void TFilterInfo::Execute(TBlockWithFilter& blockWithFilter) const
     // Combine current filter and filter column.
     // Note that filter column is either UInt8 or Nullable(UInt8).
     if (const auto* nullableFilterColumn = DB::checkAndGetColumn<DB::ColumnNullable>(filterColumn.get())) {
-        const auto* nullMapColumn = DB::checkAndGetColumn<DB::ColumnVector<DB::UInt8>>(nullableFilterColumn->getNullMapColumn());
+        const auto* nullMapColumn = DB::checkAndGetColumn<DB::ColumnVector<DB::UInt8>>(&nullableFilterColumn->getNullMapColumn());
         YT_VERIFY(nullMapColumn);
         const auto& nullMap = nullMapColumn->getData();
         YT_VERIFY(std::ssize(nullMap) == rowCount);
 
-        const auto* nestedColumn = DB::checkAndGetColumn<DB::ColumnVector<DB::UInt8>>(nullableFilterColumn->getNestedColumn());
+        const auto* nestedColumn = DB::checkAndGetColumn<DB::ColumnVector<DB::UInt8>>(&nullableFilterColumn->getNestedColumn());
         if (!nestedColumn) {
             throwIllegalType();
         }
@@ -156,7 +157,7 @@ TReadPlanWithFilterPtr BuildReadPlanWithPrewhere(
         enableMultiplePrewhereReadSteps = false;
     }
 
-    auto prewhereActions = DB::IMergeTreeSelectAlgorithm::getPrewhereActions(
+    auto prewhereActions = DB::MergeTreeSelectProcessor::getPrewhereActions(
         prewhereInfo,
         DB::ExpressionActionsSettings::fromSettings(settings, DB::CompileExpressions::yes),
         enableMultiplePrewhereReadSteps);

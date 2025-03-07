@@ -315,8 +315,6 @@ class TestIoEngine(YTEnvSetup):
                         "memory_limit_fraction_for_starting_new_sessions": 1.0,
                         "read_memory_limit": 10000000,
                         "write_memory_limit": 10000000,
-                        "pending_io_read_limit": 10000000,
-                        "pending_io_write_limit": 10000000,
                         "session_count_limit": 10000000,
                     }
                 }
@@ -353,7 +351,7 @@ class TestIoEngine(YTEnvSetup):
             "data_node": {
                 "store_location_config_per_medium": {
                     "default": {
-                        "pending_io_write_limit": -1,
+                        "write_memory_limit": -1,
                     }
                 }
             }
@@ -381,7 +379,7 @@ class TestIoEngine(YTEnvSetup):
             "data_node": {
                 "store_location_config_per_medium": {
                     "default": {
-                        'pending_io_read_limit': -1,
+                        'read_memory_limit': -1,
                     }
                 }
             }

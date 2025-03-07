@@ -28,8 +28,8 @@ public:
     void reloadFunction(const std::string & user_defined_function_name) const;
 
 protected:
-    LoadablePtr create(const std::string & name,
-        const Poco::Util::AbstractConfiguration & config,
+    LoadableMutablePtr createObject(const std::string & name,
+        const DBPoco::Util::AbstractConfiguration & config,
         const std::string & key_in_config,
         const std::string & repository_name) const override;
 

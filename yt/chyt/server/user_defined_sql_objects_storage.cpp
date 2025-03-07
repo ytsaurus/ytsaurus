@@ -15,6 +15,7 @@
 
 #include <yt/yt/library/re2/re2.h>
 
+#include <Core/Settings.h>
 #include <Functions/UserDefined/UserDefinedSQLFunctionFactory.h>
 #include <Functions/UserDefined/UserDefinedSQLObjectsStorageBase.h>
 #include <Functions/UserDefined/UserDefinedSQLObjectType.h>
@@ -67,7 +68,8 @@ public:
         DB::ContextPtr globalContext,
         TUserDefinedSqlObjectsStorageConfigPtr config,
         THost* host)
-        : GlobalContext_(std::move(globalContext))
+        : DB::UserDefinedSQLObjectsStorageBase(globalContext)
+        , GlobalContext_(std::move(globalContext))
         , Config_(std::move(config))
         , Host_(host)
         , Client_(Host_->CreateClient(ChytSqlObjectsUserName))
@@ -366,7 +368,8 @@ private:
                 createObjectQuery.data() + createObjectQuery.size(),
                 "" /*description*/,
                 0 /*maxQuerySize*/,
-                GlobalContext_->getSettingsRef().max_parser_depth);
+                GlobalContext_->getSettingsRef().max_parser_depth,
+                GlobalContext_->getSettingsRef().max_parser_backtracks);
         } catch (const std::exception& ex) {
             auto errorStatement = Format("create function %v as () -> throwIf(true, 'Failed to parse user defined function %v: %v')", objectName, objectName, ex.what());
             ast = DB::parseQuery(
@@ -375,7 +378,8 @@ private:
                 errorStatement.data() + errorStatement.size(),
                 "" /*description*/,
                 0 /*maxQuerySize*/,
-                GlobalContext_->getSettingsRef().max_parser_depth);
+                GlobalContext_->getSettingsRef().max_parser_depth,
+                GlobalContext_->getSettingsRef().max_parser_backtracks);
         }
         return ast;
     }

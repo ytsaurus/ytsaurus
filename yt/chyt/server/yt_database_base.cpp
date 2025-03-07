@@ -185,7 +185,9 @@ DB::ASTPtr TYtDatabaseBase::getCreateTableQueryImpl(const String& name, DB::Cont
         "(n/a)",
         false /*allow_multi_statements*/,
         0 /*max_query_size*/,
-        DBMS_DEFAULT_MAX_PARSER_DEPTH);
+        DB::DBMS_DEFAULT_MAX_PARSER_DEPTH,
+        DB::DBMS_DEFAULT_MAX_PARSER_BACKTRACKS,
+        true /*skip_insignificant*/);
 
     if (!ast && throwOnError) {
         THROW_ERROR_EXCEPTION("Caught following error while parsing table creation query: %v", errorMessage);

@@ -430,12 +430,12 @@ TEST_F(TYTToCHConversionTest, SimpleTypes)
         ExpectDataConversion(descriptor, ytColumnRequired, expectedFields);
     };
 
-    testAsType(ysonsInt8, ESimpleLogicalValueType::Int8, std::make_shared<DB::DataTypeNumber<i8>>(), i8(), i8());
+    testAsType(ysonsInt8, ESimpleLogicalValueType::Int8, std::make_shared<DB::DataTypeNumber<DB::Int8>>(), i8(), i8());
     testAsType(ysonsInt16, ESimpleLogicalValueType::Int16, std::make_shared<DB::DataTypeNumber<i16>>(), i16(), i16());
     testAsType(ysonsInt32, ESimpleLogicalValueType::Int32, std::make_shared<DB::DataTypeNumber<i32>>(), i32(), i32());
     testAsType(ysonsInt64, ESimpleLogicalValueType::Int64, std::make_shared<DB::DataTypeNumber<i64>>(), i64(), i64());
-    testAsType(ysonsInt64, ESimpleLogicalValueType::Interval, std::make_shared<DB::DataTypeInterval>(DB::IntervalKind::Microsecond), i64(), i64());
-    testAsType(ysonsInt64, ESimpleLogicalValueType::Interval64, std::make_shared<DB::DataTypeInterval>(DB::IntervalKind::Microsecond), i64(), i64());
+    testAsType(ysonsInt64, ESimpleLogicalValueType::Interval, std::make_shared<DB::DataTypeInterval>(DB::IntervalKind::Kind::Microsecond), i64(), i64());
+    testAsType(ysonsInt64, ESimpleLogicalValueType::Interval64, std::make_shared<DB::DataTypeInterval>(DB::IntervalKind::Kind::Microsecond), i64(), i64());
     testAsType(ysonsUint8, ESimpleLogicalValueType::Uint8, std::make_shared<DB::DataTypeNumber<DB::UInt8>>(), DB::UInt8(), DB::UInt8());
     testAsType(ysonsBool, ESimpleLogicalValueType::Boolean, GetDataTypeBoolean(), bool(), DB::UInt8());
     testAsType(ysonsUint16, ESimpleLogicalValueType::Uint16, std::make_shared<DB::DataTypeNumber<ui16>>(), ui16(), ui16());

@@ -1,10 +1,10 @@
 #pragma once
 
 #include <cstring>
-#include <string>
-#include <sstream>
 #include <exception>
+#include <string>
 #include <Common/DateLUT.h>
+#include <Common/DateLUTImpl.h>
 
 
 /** Stores a calendar date in broken-down form (year, month, day-in-month).
@@ -150,19 +150,6 @@ public:
     bool operator!= (const LocalDate & other) const
     {
         return !(*this == other);
-    }
-
-    /// NOTE Inefficient.
-    std::string toString(char separator = '-') const
-    {
-        std::stringstream ss;
-        if (separator)
-            ss << year() << separator << (month() / 10) << (month() % 10)
-                << separator << (day() / 10) << (day() % 10);
-        else
-            ss << year() << (month() / 10) << (month() % 10)
-                << (day() / 10) << (day() % 10);
-        return ss.str();
     }
 };
 

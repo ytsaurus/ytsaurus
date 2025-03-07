@@ -13,8 +13,6 @@ class TYtStorageBase
 public:
     explicit TYtStorageBase(DB::StorageID storageId);
 
-    virtual DB::NamesAndTypesList getVirtuals() const override;
-
 protected:
     struct TRealAndVirtualColumnNames
     {

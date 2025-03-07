@@ -3,13 +3,13 @@
 #include <IO/ReadBuffer.h>
 #include <IO/ReadHelpers.h>
 
-#include <Poco/Net/NetException.h>
+#include <DBPoco/Net/NetException.h>
 
 namespace DB
 {
 
 void readHeaders(
-    Poco::Net::MessageHeader & headers, ReadBuffer & in, size_t max_fields_number, size_t max_name_length, size_t max_value_length)
+    DBPoco::Net::MessageHeader & headers, ReadBuffer & in, size_t max_fields_number, size_t max_name_length, size_t max_value_length)
 {
     char ch = 0;  // silence uninitialized warning from gcc-*
     std::string name;
@@ -23,20 +23,20 @@ void readHeaders(
     while (true)
     {
         if (fields > max_fields_number)
-            throw Poco::Net::MessageException("Too many header fields");
+            throw DBPoco::Net::MessageException("Too many header fields");
 
         name.clear();
         value.clear();
 
         /// Field name
-        while (in.peek(ch) && ch != ':' && !Poco::Ascii::isSpace(ch) && name.size() <= max_name_length)
+        while (in.peek(ch) && ch != ':' && !DBPoco::Ascii::isSpace(ch) && name.size() <= max_name_length)
         {
             name += ch;
             in.ignore();
         }
 
         if (in.eof())
-            throw Poco::Net::MessageException("Field is invalid");
+            throw DBPoco::Net::MessageException("Field is invalid");
 
         if (name.empty())
         {
@@ -44,14 +44,14 @@ void readHeaders(
                 /// Start of the empty-line delimiter
                 break;
             if (ch == ':')
-                throw Poco::Net::MessageException("Field name is empty");
+                throw DBPoco::Net::MessageException("Field name is empty");
         }
         else
         {
             if (name.size() > max_name_length)
-                throw Poco::Net::MessageException("Field name is too long");
+                throw DBPoco::Net::MessageException("Field name is too long");
             if (ch != ':')
-                throw Poco::Net::MessageException(fmt::format("Field name is invalid or no colon found: \"{}\"", name));
+                throw DBPoco::Net::MessageException(fmt::format("Field name is invalid or no colon found: \"{}\"", name));
         }
 
         in.ignore();
@@ -59,25 +59,25 @@ void readHeaders(
         skipWhitespaceIfAny(in, true);
 
         if (in.eof())
-            throw Poco::Net::MessageException("Field is invalid");
+            throw DBPoco::Net::MessageException("Field is invalid");
 
         /// Field value - folded values not supported.
         while (in.read(ch) && ch != '\r' && ch != '\n' && value.size() <= max_value_length)
             value += ch;
 
         if (in.eof())
-            throw Poco::Net::MessageException("Field is invalid");
+            throw DBPoco::Net::MessageException("Field is invalid");
 
         if (ch == '\n')
-            throw Poco::Net::MessageException("No CRLF found");
+            throw DBPoco::Net::MessageException("No CRLF found");
 
         if (value.size() > max_value_length)
-            throw Poco::Net::MessageException("Field value is too long");
+            throw DBPoco::Net::MessageException("Field value is too long");
 
         skipToNextLineOrEOF(in);
 
-        Poco::trimRightInPlace(value);
-        headers.add(name, headers.decodeWord(value));
+        DBPoco::trimRightInPlace(value);
+        headers.add(name, DBPoco::Net::MessageHeader::decodeWord(value));
         ++fields;
     }
 }

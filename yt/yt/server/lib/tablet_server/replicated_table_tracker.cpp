@@ -2,6 +2,8 @@
 
 #include "config.h"
 
+#include <yt/yt/server/lib/misc/interned_attributes.h>
+
 #include <yt/yt/ytlib/api/native/client.h>
 
 #include <yt/yt/ytlib/replicated_table_tracker_client/proto/replicated_table_tracker_client.pb.h>
@@ -19,6 +21,7 @@
 #include <yt/yt/core/yson/string.h>
 
 #include <yt/yt/core/ytree/ypath_client.h>
+#include <yt/yt/core/ytree/virtual.h>
 
 #include <library/cpp/yt/threading/spin_lock.h>
 
@@ -35,6 +38,7 @@ using namespace NApi;
 using namespace NObjectClient;
 using namespace NTracing;
 using namespace NProfiling;
+using namespace NServer;
 
 using NYT::FromProto;
 using NYT::ToProto;
@@ -500,6 +504,7 @@ public:
         , RttThread_(New<TActionQueue>("NewRtt"))
         , RttInvoker_(RttThread_->GetInvoker())
         , Profiler_(std::move(profiler))
+        , OrchidService_(CreateOrchidService())
         , Config_(std::move(config))
         , ClusterClientCache_(CreateClusterClientCache())
         , ClusterLivenessChecker_(Config_->ClusterStateCache, ClusterClientCache_)
@@ -560,6 +565,8 @@ public:
 
     int GetIterationCount() const override
     {
+        YT_ASSERT_THREAD_AFFINITY_ANY();
+
         return IterationCount_;
     }
 
@@ -1154,6 +1161,7 @@ private:
     const TActionQueuePtr RttThread_;
     const IInvokerPtr RttInvoker_;
     const TProfiler Profiler_;
+    const TCompositeMapServicePtr OrchidService_;
 
     std::atomic<bool> Initialized_ = false;
     std::atomic<bool> TrackingEnabled_ = false;
@@ -1926,6 +1934,32 @@ private:
     bool UseNewReplicatedTableTracker(const TDynamicReplicatedTableTrackerConfigPtr& config) const
     {
         return Host_->AlwaysUseNewReplicatedTableTracker() || config->UseNewReplicatedTableTracker;
+    }
+
+    IYPathServicePtr GetOrchidService() const override
+    {
+        return OrchidService_;
+    }
+
+    TCompositeMapServicePtr CreateOrchidService()
+    {
+        return New<TCompositeMapService>()
+            ->AddAttribute(EInternedAttributeKey::Opaque, BIND([] (IYsonConsumer* consumer) {
+                    BuildYsonFluently(consumer)
+                        .Value(true);
+                }))
+            ->AddChild("internal", IYPathService::FromMethod(
+                &TNewReplicatedTableTracker::BuildInternalOrchid,
+                MakeWeak(this))
+                ->Via(RttInvoker_));
+    }
+
+    void BuildInternalOrchid(IYsonConsumer* consumer) const
+    {
+        BuildYsonFluently(consumer)
+            .BeginMap()
+                .Item("iteration_count").Value(IterationCount_)
+            .EndMap();
     }
 };
 

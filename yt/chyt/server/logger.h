@@ -4,14 +4,14 @@
 
 #include <yt/yt/core/logging/log.h>
 
-#include <Poco/AutoPtr.h>
-#include <Poco/Logger.h>
+#include <DBPoco/AutoPtr.h>
+#include <DBPoco/Logger.h>
 
 namespace NYT::NClickHouseServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-Poco::AutoPtr<Poco::Channel> CreateLogChannel(const NLogging::TLogger& logger);
+DBPoco::AutoPtr<DBPoco::Channel> CreateLogChannel(const NLogging::TLogger& logger);
 
 ////////////////////////////////////////////////////////////////////////////////
 

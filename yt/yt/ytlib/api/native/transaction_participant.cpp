@@ -80,6 +80,7 @@ public:
         const std::vector<TCellId>& cellIdsToSyncWith,
         const NRpc::TAuthenticationIdentity& identity) override
     {
+        auto supportsStronglyOrderedTransactions = SupportsStronglyOrderedTransactions();
         return SendRequest<TTransactionParticipantServiceProxy::TReqPrepareTransaction>(
             [=, this] (TTransactionParticipantServiceProxy* proxy) {
                 YT_ASSERT_THREAD_AFFINITY_ANY();
@@ -91,7 +92,7 @@ public:
                 ToProto(req->mutable_transaction_id(), transactionId);
                 req->set_prepare_timestamp(prepareTimestamp);
                 req->set_prepare_timestamp_cluster_tag(ToProto(prepareTimestampClusterTag));
-                req->set_strongly_ordered(stronglyOrdered);
+                req->set_strongly_ordered(supportsStronglyOrderedTransactions && stronglyOrdered);
                 ToProto(req->mutable_cell_ids_to_sync_with(), cellIdsToSyncWith);
                 return req;
             });
@@ -103,6 +104,11 @@ public:
         TClusterTag commitTimestampClusterTag,
         const NRpc::TAuthenticationIdentity& identity) override
     {
+        auto supportsStronglyOrderedTransactions = SupportsStronglyOrderedTransactions();
+        if (!supportsStronglyOrderedTransactions) {
+            return VoidFuture;
+        }
+
         return SendRequest<TTransactionParticipantServiceProxy::TReqMakeTransactionReadyToCommit>(
             [=, this] (TTransactionParticipantServiceProxy* proxy) {
                 YT_ASSERT_THREAD_AFFINITY_ANY();
@@ -126,6 +132,7 @@ public:
         bool stronglyOrdered,
         const NRpc::TAuthenticationIdentity& identity) override
     {
+        auto supportsStronglyOrderedTransactions = SupportsStronglyOrderedTransactions();
         return SendRequest<TTransactionParticipantServiceProxy::TReqCommitTransaction>(
             [=, this] (TTransactionParticipantServiceProxy* proxy) {
                 YT_ASSERT_THREAD_AFFINITY_ANY();
@@ -137,7 +144,7 @@ public:
                 ToProto(req->mutable_transaction_id(), transactionId);
                 req->set_commit_timestamp(commitTimestamp);
                 req->set_commit_timestamp_cluster_tag(ToProto(commitTimestampClusterTag));
-                req->set_strongly_ordered(stronglyOrdered);
+                req->set_strongly_ordered(supportsStronglyOrderedTransactions && stronglyOrdered);
 
                 return req;
             });
@@ -148,6 +155,7 @@ public:
         bool stronglyOrdered,
         const NRpc::TAuthenticationIdentity& identity) override
     {
+        auto supportsStronglyOrderedTransactions = SupportsStronglyOrderedTransactions();
         return SendRequest<TTransactionParticipantServiceProxy::TReqAbortTransaction>(
             [=, this] (TTransactionParticipantServiceProxy* proxy) {
                 YT_ASSERT_THREAD_AFFINITY_ANY();
@@ -157,7 +165,7 @@ public:
                 PrepareRequest(req);
                 NRpc::SetAuthenticationIdentity(req, identity);
                 ToProto(req->mutable_transaction_id(), transactionId);
-                req->set_strongly_ordered(stronglyOrdered);
+                req->set_strongly_ordered(supportsStronglyOrderedTransactions && stronglyOrdered);
                 return req;
             });
     }
@@ -180,6 +188,11 @@ private:
     const TCellId CellId_;
     const TTransactionParticipantOptions Options_;
 
+
+    bool SupportsStronglyOrderedTransactions() const
+    {
+        return TypeFromId(CellId_) == EObjectType::MasterCell;
+    }
 
     template <class TRequest>
     TFuture<void> SendRequest(std::function<TIntrusivePtr<TRequest>(TTransactionParticipantServiceProxy*)> builder)

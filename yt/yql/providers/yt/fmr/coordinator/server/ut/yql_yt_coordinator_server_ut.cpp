@@ -8,15 +8,15 @@
 
 namespace NYql::NFmr {
 
-TDownloadTaskParams downloadTaskParams{
+TDownloadOperationParams downloadOperationParams{
     .Input = TYtTableRef{"Path","Cluster"},
     .Output = TFmrTableRef{"TableId"}
 };
 
-TStartOperationRequest CreateOperationRequest(ETaskType taskType = ETaskType::Download, TTaskParams taskParams = downloadTaskParams) {
+TStartOperationRequest CreateOperationRequest(ETaskType taskType = ETaskType::Download, TOperationParams operationParams = downloadOperationParams) {
     return TStartOperationRequest{
         .TaskType = taskType,
-        .TaskParams = taskParams,
+        .OperationParams = operationParams,
         .IdempotencyKey = "IdempotencyKey",
         .ClusterConnection = TClusterConnection{.TransactionId = "transaction_id", .YtServerName = "hahn.yt.yandex.net", .Token = "token"}
     };

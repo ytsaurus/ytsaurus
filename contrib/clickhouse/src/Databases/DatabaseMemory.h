@@ -5,7 +5,7 @@
 #include <Parsers/ASTCreateQuery.h>
 
 
-namespace Poco { class Logger; }
+namespace DBPoco { class Logger; }
 
 
 namespace DB

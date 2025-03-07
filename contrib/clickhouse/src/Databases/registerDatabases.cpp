@@ -19,13 +19,13 @@ void registerDatabaseMaterializedMySQL(DatabaseFactory & factory);
 #endif
 
 #if USE_LIBPQXX
-#error void registerDatabasePostgreSQL(DatabaseFactory & factory);
+void registerDatabasePostgreSQL(DatabaseFactory & factory);
 
-#error void registerDatabaseMaterializedPostgreSQL(DatabaseFactory & factory);
+void registerDatabaseMaterializedPostgreSQL(DatabaseFactory & factory);
 #endif
 
 #if USE_SQLITE
-#error void registerDatabaseSQLite(DatabaseFactory & factory);
+void registerDatabaseSQLite(DatabaseFactory & factory);
 #endif
 
 #if USE_AWS_S3
@@ -53,12 +53,12 @@ void registerDatabases()
 #endif
 
 #if USE_LIBPQXX
-    #error registerDatabasePostgreSQL(factory);
-    #error registerDatabaseMaterializedPostgreSQL(factory);
+    registerDatabasePostgreSQL(factory);
+    registerDatabaseMaterializedPostgreSQL(factory);
 #endif
 
 #if USE_SQLITE
-    #error registerDatabaseSQLite(factory);
+    registerDatabaseSQLite(factory);
 #endif
 
 #if USE_AWS_S3

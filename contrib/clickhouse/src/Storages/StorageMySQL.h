@@ -8,7 +8,7 @@
 #include <Storages/MySQL/MySQLSettings.h>
 #error #include <mysqlxx/PoolWithFailover.h>
 
-namespace Poco
+namespace DBPoco
 {
 class Logger;
 }
@@ -20,7 +20,6 @@ class NamedCollection;
 
 /** Implements storage in the MySQL database.
   * Use ENGINE = mysql(host_port, database_name, table_name, user_name, password)
-  * Read only.
   */
 class StorageMySQL final : public IStorage, WithContext
 {
@@ -93,7 +92,7 @@ private:
 
     mysqlxx::PoolWithFailoverPtr pool;
 
-    Poco::Logger * log;
+    LoggerPtr log;
 };
 
 }

@@ -9,6 +9,7 @@
 #include <Parsers/ASTSubquery.h>
 #include <Parsers/ASTSelectQuery.h>
 #include <Parsers/ASTSelectWithUnionQuery.h>
+#include <Parsers/ASTSetQuery.h>
 #include <IO/WriteBuffer.h>
 #include <IO/WriteHelpers.h>
 #include <IO/ReadBuffer.h>
@@ -49,6 +50,56 @@ ColumnDescription::ColumnDescription(String name_, DataTypePtr type_)
 {
 }
 
+ColumnDescription::ColumnDescription(String name_, DataTypePtr type_, String comment_)
+    : name(std::move(name_)), type(std::move(type_)), comment(comment_)
+{
+}
+
+ColumnDescription::ColumnDescription(String name_, DataTypePtr type_, ASTPtr codec_, String comment_)
+    : name(std::move(name_)), type(std::move(type_)), comment(comment_), codec(codec_)
+{
+}
+
+ColumnDescription & ColumnDescription::operator=(const ColumnDescription & other)
+{
+    if (this == &other)
+        return *this;
+
+    name = other.name;
+    type = other.type;
+    default_desc = other.default_desc;
+    comment = other.comment;
+    codec = other.codec ? other.codec->clone() : nullptr;
+    settings = other.settings;
+    ttl = other.ttl ? other.ttl->clone() : nullptr;
+    statistics = other.statistics;
+
+    return *this;
+}
+
+ColumnDescription & ColumnDescription::operator=(ColumnDescription && other) noexcept
+{
+    if (this == &other)
+        return *this;
+
+    name = std::move(other.name);
+    type = std::move(other.type);
+    default_desc = std::move(other.default_desc);
+    comment = std::move(other.comment);
+
+    codec = other.codec ? other.codec->clone() : nullptr;
+    other.codec.reset();
+
+    settings = std::move(other.settings);
+
+    ttl = other.ttl ? other.ttl->clone() : nullptr;
+    other.ttl.reset();
+
+    statistics = std::move(other.statistics);
+
+    return *this;
+}
+
 bool ColumnDescription::operator==(const ColumnDescription & other) const
 {
     auto ast_to_str = [](const ASTPtr & ast) { return ast ? queryToString(ast) : String{}; };
@@ -56,12 +107,21 @@ bool ColumnDescription::operator==(const ColumnDescription & other) const
     return name == other.name
         && type->equals(*other.type)
         && default_desc == other.default_desc
-        && comment == other.comment
+        && statistics == other.statistics
         && ast_to_str(codec) == ast_to_str(other.codec)
+        && settings == other.settings
         && ast_to_str(ttl) == ast_to_str(other.ttl);
 }
 
-void ColumnDescription::writeText(WriteBuffer & buf) const
+String formatASTStateAware(IAST & ast, IAST::FormatState & state)
+{
+    WriteBufferFromOwnString buf;
+    IAST::FormatSettings settings(buf, true, false);
+    ast.formatImpl(settings, state, IAST::FormatStateStacked());
+    return buf.str();
+}
+
+void ColumnDescription::writeText(WriteBuffer & buf, IAST::FormatState & state, bool include_comment) const
 {
     /// NOTE: Serialization format is insane.
 
@@ -74,27 +134,46 @@ void ColumnDescription::writeText(WriteBuffer & buf) const
         writeChar('\t', buf);
         DB::writeText(DB::toString(default_desc.kind), buf);
         writeChar('\t', buf);
-        writeEscapedString(queryToString(default_desc.expression), buf);
+        writeEscapedString(formatASTStateAware(*default_desc.expression, state), buf);
     }
 
-    if (!comment.empty())
+    if (!comment.empty() && include_comment)
     {
         writeChar('\t', buf);
         DB::writeText("COMMENT ", buf);
-        writeEscapedString(queryToString(ASTLiteral(Field(comment))), buf);
+        auto ast = ASTLiteral(Field(comment));
+        writeEscapedString(formatASTStateAware(ast, state), buf);
     }
 
     if (codec)
     {
         writeChar('\t', buf);
-        writeEscapedString(queryToString(codec), buf);
+        writeEscapedString(formatASTStateAware(*codec, state), buf);
+    }
+
+    if (!settings.empty())
+    {
+        writeChar('\t', buf);
+        DB::writeText("SETTINGS ", buf);
+        DB::writeText("(", buf);
+        ASTSetQuery ast;
+        ast.is_standalone = false;
+        ast.changes = settings;
+        writeEscapedString(formatASTStateAware(ast, state), buf);
+        DB::writeText(")", buf);
+    }
+
+    if (!statistics.empty())
+    {
+        writeChar('\t', buf);
+        writeEscapedString(formatASTStateAware(*statistics.getAST(), state), buf);
     }
 
     if (ttl)
     {
         writeChar('\t', buf);
         DB::writeText("TTL ", buf);
-        writeEscapedString(queryToString(ttl), buf);
+        writeEscapedString(formatASTStateAware(*ttl, state), buf);
     }
 
     writeChar('\n', buf);
@@ -115,7 +194,7 @@ void ColumnDescription::readText(ReadBuffer & buf)
         readEscapedStringUntilEOL(modifiers, buf);
 
         ParserColumnDeclaration column_parser(/* require type */ true);
-        ASTPtr ast = parseQuery(column_parser, "x T " + modifiers, "column parser", 0, DBMS_DEFAULT_MAX_PARSER_DEPTH);
+        ASTPtr ast = parseQuery(column_parser, "x T " + modifiers, "column parser", 0, DBMS_DEFAULT_MAX_PARSER_DEPTH, DBMS_DEFAULT_MAX_PARSER_BACKTRACKS);
 
         if (auto * col_ast = ast->as<ASTColumnDeclaration>())
         {
@@ -127,19 +206,42 @@ void ColumnDescription::readText(ReadBuffer & buf)
             }
 
             if (col_ast->comment)
-                comment = col_ast->comment->as<ASTLiteral &>().value.get<String>();
+                comment = col_ast->comment->as<ASTLiteral &>().value.safeGet<String>();
 
             if (col_ast->codec)
-                codec = CompressionCodecFactory::instance().validateCodecAndGetPreprocessedAST(col_ast->codec, type, false, true, true);
+                codec = CompressionCodecFactory::instance().validateCodecAndGetPreprocessedAST(col_ast->codec, type, false, true, true, true);
 
             if (col_ast->ttl)
                 ttl = col_ast->ttl;
+
+            if (col_ast->settings)
+                settings = col_ast->settings->as<ASTSetQuery &>().changes;
+
+            if (col_ast->statistics_desc)
+            {
+                statistics = ColumnStatisticsDescription::fromColumnDeclaration(*col_ast, type);
+                /// every column has name `x` here, so we have to set the name manually.
+                statistics.column_name = name;
+            }
         }
         else
             throw Exception(ErrorCodes::CANNOT_PARSE_TEXT, "Cannot parse column description");
     }
 }
 
+ColumnsDescription::ColumnsDescription(std::initializer_list<ColumnDescription> ordinary)
+{
+    for (auto && elem : ordinary)
+        add(elem);
+}
+
+ColumnsDescription ColumnsDescription::fromNamesAndTypes(NamesAndTypes ordinary)
+{
+    ColumnsDescription result;
+    for (auto & elem : ordinary)
+        result.add(ColumnDescription(std::move(elem.name), std::move(elem.type)));
+    return result;
+}
 
 ColumnsDescription::ColumnsDescription(NamesAndTypesList ordinary)
 {
@@ -152,6 +254,11 @@ ColumnsDescription::ColumnsDescription(NamesAndTypesList ordinary, NamesAndAlias
     for (auto & elem : ordinary)
         add(ColumnDescription(std::move(elem.name), std::move(elem.type)));
 
+    setAliases(std::move(aliases));
+}
+
+void ColumnsDescription::setAliases(NamesAndAliases aliases)
+{
     for (auto & alias : aliases)
     {
         ColumnDescription description(std::move(alias.name), std::move(alias.type));
@@ -160,7 +267,7 @@ ColumnsDescription::ColumnsDescription(NamesAndTypesList ordinary, NamesAndAlias
         const char * alias_expression_pos = alias.expression.data();
         const char * alias_expression_end = alias_expression_pos + alias.expression.size();
         ParserExpression expression_parser;
-        description.default_desc.expression = parseQuery(expression_parser, alias_expression_pos, alias_expression_end, "expression", 0, DBMS_DEFAULT_MAX_PARSER_DEPTH);
+        description.default_desc.expression = parseQuery(expression_parser, alias_expression_pos, alias_expression_end, "expression", 0, DBMS_DEFAULT_MAX_PARSER_DEPTH, DBMS_DEFAULT_MAX_PARSER_BACKTRACKS);
 
         add(std::move(description));
     }
@@ -427,6 +534,10 @@ NamesAndTypesList ColumnsDescription::get(const GetColumnsOptions & options) con
     NamesAndTypesList res;
     switch (options.kind)
     {
+        case GetColumnsOptions::None:
+        {
+            break;
+        }
         case GetColumnsOptions::All:
         {
             res = getAll();
@@ -492,7 +603,19 @@ bool ColumnsDescription::hasNested(const String & column_name) const
 
 bool ColumnsDescription::hasSubcolumn(const String & column_name) const
 {
-    return subcolumns.get<0>().count(column_name);
+    if (subcolumns.get<0>().count(column_name))
+        return true;
+
+    /// Check for dynamic subcolumns
+    auto [ordinary_column_name, dynamic_subcolumn_name] = Nested::splitName(column_name);
+    auto it = columns.get<1>().find(ordinary_column_name);
+    if (it != columns.get<1>().end() && it->type->hasDynamicSubcolumns())
+    {
+        if (auto dynamic_subcolumn_type = it->type->tryGetSubcolumnType(dynamic_subcolumn_name))
+            return true;
+    }
+
+    return false;
 }
 
 const ColumnDescription & ColumnsDescription::get(const String & column_name) const
@@ -502,6 +625,12 @@ const ColumnDescription & ColumnsDescription::get(const String & column_name) co
         throw Exception(ErrorCodes::NO_SUCH_COLUMN_IN_TABLE, "There is no column {} in table.", column_name);
 
     return *it;
+}
+
+const ColumnDescription * ColumnsDescription::tryGet(const String & column_name) const
+{
+    auto it = columns.get<1>().find(column_name);
+    return it == columns.get<1>().end() ? nullptr : &(*it);
 }
 
 static GetColumnsOptions::Kind defaultKindToGetKind(ColumnDefaultKind kind)
@@ -517,7 +646,8 @@ static GetColumnsOptions::Kind defaultKindToGetKind(ColumnDefaultKind kind)
         case ColumnDefaultKind::Ephemeral:
             return GetColumnsOptions::Ephemeral;
     }
-    UNREACHABLE();
+
+    return GetColumnsOptions::None;
 }
 
 NamesAndTypesList ColumnsDescription::getByNames(const GetColumnsOptions & options, const Names & names) const
@@ -580,6 +710,15 @@ std::optional<NameAndTypePair> ColumnsDescription::tryGetColumn(const GetColumns
         auto jt = subcolumns.get<0>().find(column_name);
         if (jt != subcolumns.get<0>().end())
             return *jt;
+
+        /// Check for dynamic subcolumns.
+        auto [ordinary_column_name, dynamic_subcolumn_name] = Nested::splitName(column_name);
+        it = columns.get<1>().find(ordinary_column_name);
+        if (it != columns.get<1>().end() && it->type->hasDynamicSubcolumns())
+        {
+            if (auto dynamic_subcolumn_type = it->type->tryGetSubcolumnType(dynamic_subcolumn_name))
+                return NameAndTypePair(ordinary_column_name, dynamic_subcolumn_name, it->type, dynamic_subcolumn_type);
+        }
     }
 
     return {};
@@ -653,6 +792,12 @@ bool ColumnsDescription::hasPhysical(const String & column_name) const
         it->default_desc.kind != ColumnDefaultKind::Alias && it->default_desc.kind != ColumnDefaultKind::Ephemeral;
 }
 
+bool ColumnsDescription::hasNotAlias(const String & column_name) const
+{
+    auto it = columns.get<1>().find(column_name);
+    return it != columns.get<1>().end() && it->default_desc.kind != ColumnDefaultKind::Alias;
+}
+
 bool ColumnsDescription::hasAlias(const String & column_name) const
 {
     auto it = columns.get<1>().find(column_name);
@@ -662,9 +807,19 @@ bool ColumnsDescription::hasAlias(const String & column_name) const
 bool ColumnsDescription::hasColumnOrSubcolumn(GetColumnsOptions::Kind kind, const String & column_name) const
 {
     auto it = columns.get<1>().find(column_name);
-    return (it != columns.get<1>().end()
-        && (defaultKindToGetKind(it->default_desc.kind) & kind))
-            || hasSubcolumn(column_name);
+    if ((it != columns.get<1>().end() && (defaultKindToGetKind(it->default_desc.kind) & kind)) || hasSubcolumn(column_name))
+        return true;
+
+    /// Check for dynamic subcolumns.
+    auto [ordinary_column_name, dynamic_subcolumn_name] = Nested::splitName(column_name);
+    it = columns.get<1>().find(ordinary_column_name);
+    if (it != columns.get<1>().end() && it->type->hasDynamicSubcolumns())
+    {
+        if (auto dynamic_subcolumn_type = it->type->hasSubcolumn(dynamic_subcolumn_name))
+            return true;
+    }
+
+    return false;
 }
 
 bool ColumnsDescription::hasColumnOrNested(GetColumnsOptions::Kind kind, const String & column_name) const
@@ -680,6 +835,14 @@ bool ColumnsDescription::hasDefaults() const
         if (column.default_desc.expression)
             return true;
     return false;
+}
+
+bool ColumnsDescription::hasOnlyOrdinary() const
+{
+    for (const auto & column : columns)
+        if (column.default_desc.kind != ColumnDefaultKind::Default)
+            return false;
+    return true;
 }
 
 ColumnDefaults ColumnsDescription::getDefaults() const
@@ -715,31 +878,6 @@ bool ColumnsDescription::hasCompressionCodec(const String & column_name) const
     return it != columns.get<1>().end() && it->codec != nullptr;
 }
 
-CompressionCodecPtr ColumnsDescription::getCodecOrDefault(const String & column_name, CompressionCodecPtr default_codec) const
-{
-    const auto it = columns.get<1>().find(column_name);
-
-    if (it == columns.get<1>().end() || !it->codec)
-        return default_codec;
-
-    return CompressionCodecFactory::instance().get(it->codec, it->type, default_codec);
-}
-
-CompressionCodecPtr ColumnsDescription::getCodecOrDefault(const String & column_name) const
-{
-    return getCodecOrDefault(column_name, CompressionCodecFactory::instance().getDefaultCodec());
-}
-
-ASTPtr ColumnsDescription::getCodecDescOrDefault(const String & column_name, CompressionCodecPtr default_codec) const
-{
-    const auto it = columns.get<1>().find(column_name);
-
-    if (it == columns.get<1>().end() || !it->codec)
-        return default_codec->getFullCodecDesc();
-
-    return it->codec;
-}
-
 ColumnsDescription::ColumnTTLs ColumnsDescription::getColumnTTLs() const
 {
     ColumnTTLs ret;
@@ -766,16 +904,17 @@ void ColumnsDescription::resetColumnTTLs()
 }
 
 
-String ColumnsDescription::toString() const
+String ColumnsDescription::toString(bool include_comments) const
 {
     WriteBufferFromOwnString buf;
+    IAST::FormatState ast_format_state;
 
     writeCString("columns format version: 1\n", buf);
     DB::writeText(columns.size(), buf);
     writeCString(" columns:\n", buf);
 
     for (const ColumnDescription & column : columns)
-        column.writeText(buf);
+        column.writeText(buf, ast_format_state, include_comments);
 
     return buf.str();
 }

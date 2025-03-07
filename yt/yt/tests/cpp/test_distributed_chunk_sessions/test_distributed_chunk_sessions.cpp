@@ -135,6 +135,13 @@ protected:
     {
         return ChunkNameTable_->GetIdOrRegisterName(columnName);
     }
+
+    static void EnsureControllerIsDestroyed(IDistributedChunkSessionControllerPtr controller)
+    {
+        auto controllerWeakPtr = TWeakPtr(controller);
+        controller.Reset();
+        EXPECT_TRUE(controllerWeakPtr.IsExpired());
+    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -180,6 +187,8 @@ TEST_F(TDistributedChunkSessionTest, SingleWriter)
         .ThrowOnError();
 
     EXPECT_EQ(ReadAllChunkRows(controller->GetSessionId().ChunkId), rows);
+
+    EnsureControllerIsDestroyed(std::move(controller));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -239,6 +248,8 @@ TEST_F(TDistributedChunkSessionTest, MultipleWriters)
     EXPECT_THAT(
         resultRows,
         UnorderedElementsAreArray(rows));
+
+    EnsureControllerIsDestroyed(std::move(controller));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -282,6 +293,8 @@ TEST_F(TDistributedChunkSessionTest, CoordinatorLeaseExpired)
         .ThrowOnError();
 
     EXPECT_EQ(std::ssize(ReadAllChunkRows(controller->GetSessionId().ChunkId)), 0);
+
+    EnsureControllerIsDestroyed(std::move(controller));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -333,6 +346,8 @@ TEST_F(TDistributedChunkSessionTest, CoordinatorLeaseExpiredWithDataOnNodes)
 
     auto resultRows = ReadAllChunkRows(controller->GetSessionId().ChunkId);
     EXPECT_EQ(resultRows, std::vector{row});
+
+    EnsureControllerIsDestroyed(std::move(controller));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

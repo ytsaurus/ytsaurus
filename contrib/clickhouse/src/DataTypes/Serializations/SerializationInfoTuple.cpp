@@ -70,13 +70,15 @@ void SerializationInfoTuple::add(const SerializationInfo & other)
 
 void SerializationInfoTuple::addDefaults(size_t length)
 {
+    SerializationInfo::addDefaults(length);
+
     for (const auto & elem : elems)
         elem->addDefaults(length);
 }
 
 void SerializationInfoTuple::replaceData(const SerializationInfo & other)
 {
-    SerializationInfo::add(other);
+    SerializationInfo::replaceData(other);
 
     const auto & other_info = assert_cast<const SerializationInfoTuple &>(other);
     for (const auto & [name, elem] : name_to_elem)
@@ -94,7 +96,9 @@ MutableSerializationInfoPtr SerializationInfoTuple::clone() const
     for (const auto & elem : elems)
         elems_cloned.push_back(elem->clone());
 
-    return std::make_shared<SerializationInfoTuple>(std::move(elems_cloned), names, settings);
+    auto ret = std::make_shared<SerializationInfoTuple>(std::move(elems_cloned), names, settings);
+    ret->data = data;
+    return ret;
 }
 
 MutableSerializationInfoPtr SerializationInfoTuple::createWithType(
@@ -133,10 +137,10 @@ void SerializationInfoTuple::deserializeFromKindsBinary(ReadBuffer & in)
         elem->deserializeFromKindsBinary(in);
 }
 
-Poco::JSON::Object SerializationInfoTuple::toJSON() const
+DBPoco::JSON::Object SerializationInfoTuple::toJSON() const
 {
     auto object = SerializationInfo::toJSON();
-    Poco::JSON::Array subcolumns;
+    DBPoco::JSON::Array subcolumns;
     for (const auto & elem : elems)
         subcolumns.add(elem->toJSON());
 
@@ -144,7 +148,7 @@ Poco::JSON::Object SerializationInfoTuple::toJSON() const
     return object;
 }
 
-void SerializationInfoTuple::fromJSON(const Poco::JSON::Object & object)
+void SerializationInfoTuple::fromJSON(const DBPoco::JSON::Object & object)
 {
     SerializationInfo::fromJSON(object);
 

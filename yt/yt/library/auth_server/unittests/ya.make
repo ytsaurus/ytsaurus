@@ -2,6 +2,7 @@ GTEST(unittester-library-auth_server)
 
 SRCS(
     blackbox_ut.cpp
+    yc_iam_token_ut.cpp
     mock_http_server.cpp
     secret_vault_ut.cpp
 )

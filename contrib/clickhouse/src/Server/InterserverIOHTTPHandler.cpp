@@ -3,16 +3,17 @@
 #include <Server/IServer.h>
 
 #include <Compression/CompressedWriteBuffer.h>
+#include <Core/ServerSettings.h>
 #include <IO/ReadBufferFromIStream.h>
 #include <Interpreters/Context.h>
 #include <Interpreters/InterserverIOHandler.h>
 #include <Server/HTTP/HTMLForm.h>
 #include <Server/HTTP/WriteBufferFromHTTPServerResponse.h>
-#include <Common/setThreadName.h>
 #include <Common/logger_useful.h>
+#include <Common/setThreadName.h>
 
-#include <Poco/Net/HTTPBasicCredentials.h>
-#include <Poco/Util/LayeredConfiguration.h>
+#include <DBPoco/Net/HTTPBasicCredentials.h>
+#include <DBPoco/Util/LayeredConfiguration.h>
 
 namespace DB
 {
@@ -37,7 +38,7 @@ std::pair<String, bool> InterserverIOHTTPHandler::checkAuthentication(HTTPServer
         if (scheme != "Basic")
             return {"Server requires HTTP Basic authentication but client provides another method", false};
 
-        Poco::Net::HTTPBasicCredentials credentials(info);
+        DBPoco::Net::HTTPBasicCredentials credentials(info);
         return server_credentials->isValidUser(credentials.getUsername(), credentials.getPassword());
     }
     else if (request.hasCredentials())
@@ -77,39 +78,47 @@ void InterserverIOHTTPHandler::processQuery(HTTPServerRequest & request, HTTPSer
 }
 
 
-void InterserverIOHTTPHandler::handleRequest(HTTPServerRequest & request, HTTPServerResponse & response)
+void InterserverIOHTTPHandler::handleRequest(HTTPServerRequest & request, HTTPServerResponse & response, const ProfileEvents::Event & write_event)
 {
     setThreadName("IntersrvHandler");
-    ThreadStatus thread_status;
 
     /// In order to work keep-alive.
     if (request.getVersion() == HTTPServerRequest::HTTP_1_1)
         response.setChunkedTransferEncoding(true);
 
     Output used_output;
-    const auto & config = server.config();
-    unsigned keep_alive_timeout = config.getUInt("keep_alive_timeout", 10);
     used_output.out = std::make_shared<WriteBufferFromHTTPServerResponse>(
-        response, request.getMethod() == Poco::Net::HTTPRequest::HTTP_HEAD, keep_alive_timeout);
+        response, request.getMethod() == DBPoco::Net::HTTPRequest::HTTP_HEAD, write_event);
+
+    auto finalize_output = [&]
+    {
+        try
+        {
+            used_output.out->finalize();
+        }
+        catch (...)
+        {
+            tryLogCurrentException(log, "Failed to finalize response write buffer");
+        }
+    };
 
     auto write_response = [&](const std::string & message)
     {
-        auto & out = *used_output.out;
         if (response.sent())
         {
-            out.finalize();
+            finalize_output();
             return;
         }
 
         try
         {
-            writeString(message, out);
-            out.finalize();
+            writeString(message, *used_output.out);
+            finalize_output();
         }
         catch (...)
         {
             tryLogCurrentException(log);
-            out.finalize();
+            finalize_output();
         }
     };
 
@@ -118,7 +127,7 @@ void InterserverIOHTTPHandler::handleRequest(HTTPServerRequest & request, HTTPSe
         if (auto [message, success] = checkAuthentication(request); success)
         {
             processQuery(request, response, used_output);
-            used_output.out->finalize();
+            finalize_output();
             LOG_DEBUG(log, "Done processing query");
         }
         else
@@ -136,7 +145,7 @@ void InterserverIOHTTPHandler::handleRequest(HTTPServerRequest & request, HTTPSe
             return;
         }
 
-        response.setStatusAndReason(Poco::Net::HTTPResponse::HTTP_INTERNAL_SERVER_ERROR);
+        response.setStatusAndReason(DBPoco::Net::HTTPResponse::HTTP_INTERNAL_SERVER_ERROR);
 
         /// Sending to remote server was cancelled due to server shutdown or drop table.
         bool is_real_error = e.code() != ErrorCodes::ABORTED;
@@ -151,7 +160,7 @@ void InterserverIOHTTPHandler::handleRequest(HTTPServerRequest & request, HTTPSe
     }
     catch (...)
     {
-        response.setStatusAndReason(Poco::Net::HTTPResponse::HTTP_INTERNAL_SERVER_ERROR);
+        response.setStatusAndReason(DBPoco::Net::HTTPResponse::HTTP_INTERNAL_SERVER_ERROR);
         PreformattedMessage message = getCurrentExceptionMessageAndPattern(/* with_stacktrace */ false);
         write_response(message.text);
 

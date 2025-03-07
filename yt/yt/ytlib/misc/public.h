@@ -48,6 +48,7 @@ DEFINE_ENUM(EMemoryCategory,
     ((Logging)                    (33))
     ((ChunkReplicaCache)          (34))
     ((HeavyRequest)               (35))
+    ((Http)                       (36))
 );
 
 ////////////////////////////////////////////////////////////////////////////////

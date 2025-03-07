@@ -1,6 +1,7 @@
 #include <yt/yt/orm/library/query/expression_evaluator.h>
 #include <yt/yt/orm/library/query/helpers.h>
 
+#include <yt/yt/client/table_client/row_buffer.h>
 #include <yt/yt/client/table_client/schema.h>
 #include <yt/yt/client/table_client/unversioned_value.h>
 
@@ -16,35 +17,45 @@ using namespace NYT::NConcurrency;
 
 using NTableClient::EValueType;
 
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TEST(TExpressionEvaluatorTest, OrmSimple)
 {
+    auto rowBuffer = New<NTableClient::TRowBuffer>();
     auto evaluator = CreateOrmExpressionEvaluator("double([/meta/x]) + 5 * double([/meta/y])", {"/meta"});
     auto value = evaluator->Evaluate(
         BuildYsonStringFluently().BeginMap()
             .Item("x").Value(1.0)
             .Item("y").Value(100.0)
-        .EndMap()).ValueOrThrow();
+        .EndMap(),
+        rowBuffer)
+        .ValueOrThrow();
     EXPECT_EQ(value.Type, EValueType::Double);
     EXPECT_EQ(value.Data.Double, 501);
 }
 
 TEST(TExpressionEvaluatorTest, OrmManyArguments)
 {
+    auto rowBuffer = New<NTableClient::TRowBuffer>();
     auto evaluator = CreateOrmExpressionEvaluator(
         "int64([/meta/x]) + int64([/lambda/y/z]) + 16 + int64([/theta])",
         {"/meta", "/lambda/y", "/theta"});
     auto value = evaluator->Evaluate({
-        BuildYsonStringFluently().BeginMap()
-            .Item("x").Value(1)
-        .EndMap(),
-        BuildYsonStringFluently().BeginMap()
-            .Item("z").Value(10)
-            .Item("y").Value(100)
-        .EndMap(),
-        BuildYsonStringFluently().Value(1000)
-    }).ValueOrThrow();
+            BuildYsonStringFluently()
+                .BeginMap()
+                    .Item("x").Value(1)
+                .EndMap(),
+            BuildYsonStringFluently()
+                .BeginMap()
+                    .Item("z").Value(10)
+                    .Item("y").Value(100)
+                .EndMap(),
+            BuildYsonStringFluently()
+                .Value(1000)
+        },
+        rowBuffer)
+        .ValueOrThrow();
     EXPECT_EQ(value.Type, EValueType::Int64);
     EXPECT_EQ(value.Data.Int64, 1 + 10 + 16 + 1000);
 }
@@ -106,6 +117,7 @@ TEST(TExpressionEvaluatorTest, OrmTypedAttributePaths)
     EXPECT_THROW(createEvaluator("[/spec/weight] = \"10\""), TErrorException);
     EXPECT_THROW(createEvaluator("[/status/read_count] = %true"), TErrorException);
 
+    auto rowBuffer = New<NTableClient::TRowBuffer>();
     auto evaluator = createEvaluator(
         "(is_prefix(\"abc\", [/meta/id]) OR (int64([/spec/weight] * 100) > [/status/read_count])) AND "
         "([/extras/special] OR try_get_string([/labels/details], \"/color\") IN (\"blue\", \"purple\", \"orange\"))");
@@ -128,7 +140,7 @@ TEST(TExpressionEvaluatorTest, OrmTypedAttributePaths)
             .EndMap(),
             BuildYsonStringFluently().Value(special),
         };
-        auto value = evaluator->Evaluate({valueList.begin(), valueList.end()}).ValueOrThrow();
+        auto value = evaluator->Evaluate({valueList.begin(), valueList.end()}, rowBuffer).ValueOrThrow();
 
         EXPECT_EQ(value.Type, EValueType::Boolean);
         return value.Data.Boolean;
@@ -143,6 +155,7 @@ TEST(TExpressionEvaluatorTest, OrmTypedAttributePaths)
 
 TEST(TExpressionEvaluatorTest, OrmManyFunctions)
 {
+    auto rowBuffer = New<NTableClient::TRowBuffer>();
     auto evaluator = CreateOrmExpressionEvaluator(
         "((((string([/meta/str_id]))||(\";\"))||(numeric_to_string(int64([/meta/i64_id]))))||(\";\"))||(regex_replace_first(\"u\", numeric_to_string(uint64([/meta/ui64_id])), \"\"))",
         {"/meta"});
@@ -152,7 +165,10 @@ TEST(TExpressionEvaluatorTest, OrmManyFunctions)
             .Item("str_id").Value("abacaba")
             .Item("i64_id").Value(25)
             .Item("ui64_id").Value(315u)
-        .EndMap()).ValueOrThrow().AsString();
+        .EndMap(),
+        rowBuffer)
+        .ValueOrThrow()
+        .AsString();
     EXPECT_EQ(value, TString("abacaba;25;315"));
 }
 
@@ -170,15 +186,18 @@ TEST(TExpressionEvaluatorTest, Simple)
         }
     };
 
+    auto rowBuffer = New<NTableClient::TRowBuffer>();
     auto evaluator = CreateExpressionEvaluator(
         "[meta.x] + int64([lambda.y.z]) + 16 + int64([theta])",
         std::move(columns));
 
     auto value = evaluator->Evaluate({
-        BuildYsonStringFluently().Value(1),
-        BuildYsonStringFluently().Value(10.0),
-        BuildYsonStringFluently().Value(1000u)
-    }).ValueOrThrow();
+            BuildYsonStringFluently().Value(1),
+            BuildYsonStringFluently().Value(10.0),
+            BuildYsonStringFluently().Value(1000u)
+        },
+        rowBuffer)
+        .ValueOrThrow();
 
     EXPECT_EQ(value.Type, EValueType::Int64);
     EXPECT_EQ(value.Data.Int64, 1 + 10 + 16 + 1000);
@@ -198,15 +217,19 @@ TEST(TExpressionEvaluatorTest, TableName)
         }
     };
 
+    auto rowBuffer = New<NTableClient::TRowBuffer>();
     auto evaluator = CreateExpressionEvaluator(
         "((((p.`meta.str_id`)||(\";\"))||(numeric_to_string(p.`meta.i64_id`)))||(\";\"))||(regex_replace_first(\"u\", numeric_to_string(p.`meta.ui64_id`), \"\"))",
         columns);
 
     auto value = evaluator->Evaluate({
-        BuildYsonStringFluently().Value("abacaba"),
-        BuildYsonStringFluently().Value(25),
-        BuildYsonStringFluently().Value(315u)
-    }).ValueOrThrow().AsString();
+            BuildYsonStringFluently().Value("abacaba"),
+            BuildYsonStringFluently().Value(25),
+            BuildYsonStringFluently().Value(315u)
+        },
+        rowBuffer)
+        .ValueOrThrow()
+        .AsString();
 
     EXPECT_EQ(value, TString("abacaba;25;315"));
 

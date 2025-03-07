@@ -3,7 +3,7 @@
 #include <vector>
 
 #include <base/types.h>
-#include <Poco/Util/AbstractConfiguration.h>
+#include <DBPoco/Util/AbstractConfiguration.h>
 #include <Processors/ISimpleTransform.h>
 #include <Columns/IColumn.h>
 #include <Core/Block.h>
@@ -30,8 +30,8 @@ Block blockForKeys(
     const std::vector<size_t> & requested_rows);
 
 /// Used for applying settings to copied context in some register[...]Source functions
-SettingsChanges readSettingsFromDictionaryConfig(const Poco::Util::AbstractConfiguration & config, const std::string & config_prefix);
-ContextMutablePtr copyContextAndApplySettingsFromDictionaryConfig(const ContextPtr & context, const Poco::Util::AbstractConfiguration & config, const std::string & config_prefix);
+SettingsChanges readSettingsFromDictionaryConfig(const DBPoco::Util::AbstractConfiguration & config, const std::string & config_prefix);
+ContextMutablePtr copyContextAndApplySettingsFromDictionaryConfig(const ContextPtr & context, const DBPoco::Util::AbstractConfiguration & config, const std::string & config_prefix);
 
 /** A stream, adds additional columns to each block that it will read from inner stream.
      *

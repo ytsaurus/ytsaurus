@@ -2898,10 +2898,6 @@ private:
                 THROW_ERROR(error);
             }
 
-            // TODO(yuryalekseev): user
-            auto clientOptions =  NYT::NApi::TClientOptions::FromUser(NSecurityClient::RootUserName);
-            auto client = nbdServer->GetConnection()->CreateNativeClient(clientOptions);
-
             auto device = CreateFileSystemBlockDevice(
                 Bootstrap_->GetDynamicConfig()->ExecNode->Nbd,
                 std::move(reader),
@@ -2969,7 +2965,7 @@ private:
 
         return CreateCypressFileImageReader(
             artifactKey,
-            nbdServer->GetLayerReaderHost(),
+            Bootstrap_->GetLayerReaderHost(),
             Bootstrap_->GetDefaultInThrottler(),
             Bootstrap_->GetReadRpsOutThrottler(),
             nbdServer->GetInvoker(),

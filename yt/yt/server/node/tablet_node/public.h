@@ -15,11 +15,6 @@ class TReqReplicateTabletContent;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-bool IsInUnmountWorkflow(ETabletState state);
-bool IsInFreezeWorkflow(ETabletState state);
-
-////////////////////////////////////////////////////////////////////////////////
-
 DEFINE_ENUM(ETabletDistributedThrottlerKind,
     // RPS throttlers.
     (StoresUpdate)

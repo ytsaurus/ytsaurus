@@ -50,6 +50,8 @@ import tech.ytsaurus.client.request.ConcatenateNodes;
 import tech.ytsaurus.client.request.CopyNode;
 import tech.ytsaurus.client.request.CreateNode;
 import tech.ytsaurus.client.request.CreateObject;
+import tech.ytsaurus.client.request.CreateShuffleReader;
+import tech.ytsaurus.client.request.CreateShuffleWriter;
 import tech.ytsaurus.client.request.ExistsNode;
 import tech.ytsaurus.client.request.FreezeTable;
 import tech.ytsaurus.client.request.GcCollect;
@@ -106,9 +108,11 @@ import tech.ytsaurus.client.request.ReshardTable;
 import tech.ytsaurus.client.request.ResumeOperation;
 import tech.ytsaurus.client.request.SelectRowsRequest;
 import tech.ytsaurus.client.request.SetNode;
+import tech.ytsaurus.client.request.ShuffleHandle;
 import tech.ytsaurus.client.request.SortOperation;
 import tech.ytsaurus.client.request.StartOperation;
 import tech.ytsaurus.client.request.StartQuery;
+import tech.ytsaurus.client.request.StartShuffle;
 import tech.ytsaurus.client.request.StartTransaction;
 import tech.ytsaurus.client.request.SuspendOperation;
 import tech.ytsaurus.client.request.TableReplicaMode;
@@ -127,6 +131,7 @@ import tech.ytsaurus.client.rows.ConsumerSource;
 import tech.ytsaurus.client.rows.ConsumerSourceRet;
 import tech.ytsaurus.client.rows.EntitySkiffSerializer;
 import tech.ytsaurus.client.rows.QueueRowset;
+import tech.ytsaurus.client.rows.UnversionedRow;
 import tech.ytsaurus.client.rows.UnversionedRowset;
 import tech.ytsaurus.client.rows.VersionedRowset;
 import tech.ytsaurus.client.rpc.RpcClient;
@@ -155,16 +160,20 @@ import tech.ytsaurus.rpcproxy.TCheckPermissionResult;
 import tech.ytsaurus.rpcproxy.TReqGetInSyncReplicas;
 import tech.ytsaurus.rpcproxy.TReqModifyRows;
 import tech.ytsaurus.rpcproxy.TReqReadFile;
+import tech.ytsaurus.rpcproxy.TReqReadShuffleData;
 import tech.ytsaurus.rpcproxy.TReqStartTransaction;
 import tech.ytsaurus.rpcproxy.TReqWriteFile;
+import tech.ytsaurus.rpcproxy.TReqWriteShuffleData;
 import tech.ytsaurus.rpcproxy.TRowsetDescriptor;
 import tech.ytsaurus.rpcproxy.TRspLookupRows;
 import tech.ytsaurus.rpcproxy.TRspMultiLookup;
 import tech.ytsaurus.rpcproxy.TRspReadFile;
+import tech.ytsaurus.rpcproxy.TRspReadShuffleData;
 import tech.ytsaurus.rpcproxy.TRspSelectRows;
 import tech.ytsaurus.rpcproxy.TRspStartTransaction;
 import tech.ytsaurus.rpcproxy.TRspVersionedLookupRows;
 import tech.ytsaurus.rpcproxy.TRspWriteFile;
+import tech.ytsaurus.rpcproxy.TRspWriteShuffleData;
 import tech.ytsaurus.ysontree.YTree;
 import tech.ytsaurus.ysontree.YTreeBinarySerializer;
 import tech.ytsaurus.ysontree.YTreeBuilder;
@@ -910,6 +919,50 @@ public class ApiServiceClientImpl implements ApiServiceClient, Closeable {
         return onStarted(req, RpcUtil.apply(
                 sendRequest(req, ApiServiceMethodTable.START_OPERATION.createRequestBuilder(rpcOptions)),
                 response -> RpcUtil.fromProto(response.body().getOperationId())));
+    }
+
+    @Override
+    public CompletableFuture<ShuffleHandle> startShuffle(StartShuffle req) {
+        return onStarted(req, RpcUtil.apply(
+                sendRequest(req, ApiServiceMethodTable.START_SHUFFLE.createRequestBuilder(rpcOptions)),
+                response -> new ShuffleHandle(response.body().getShuffleHandle())
+        ));
+    }
+
+    @Override
+    public CompletableFuture<AsyncWriter<UnversionedRow>> createShuffleWriter(CreateShuffleWriter req) {
+        RpcClientRequestBuilder<TReqWriteShuffleData.Builder, TRspWriteShuffleData> builder =
+                ApiServiceMethodTable.WRITE_SHUFFLE_DATA.createRequestBuilder(rpcOptions);
+
+        req.writeHeaderTo(builder.header());
+        req.writeTo(builder.body());
+
+        ShuffleDataWriterImpl shuffleDataWriter = new ShuffleDataWriterImpl(
+                req.getWindowSize(),
+                req.getPacketSize(),
+                req.getPartitionColumn()
+        );
+        CompletableFuture<RpcClientStreamControl> streamControlFuture = startStream(builder, shuffleDataWriter);
+        CompletableFuture<AsyncWriter<UnversionedRow>> result =
+                streamControlFuture.thenCompose(control -> shuffleDataWriter.startUpload());
+        RpcUtil.relayCancel(result, streamControlFuture);
+        return result;
+    }
+
+    @Override
+    public CompletableFuture<AsyncReader<UnversionedRow>> createShuffleReader(CreateShuffleReader req) {
+        RpcClientRequestBuilder<TReqReadShuffleData.Builder, TRspReadShuffleData> builder =
+                ApiServiceMethodTable.READ_SHUFFLE_DATA.createRequestBuilder(rpcOptions);
+
+        req.writeHeaderTo(builder.header());
+        req.writeTo(builder.body());
+
+        ShuffleDataReaderImpl shuffleDataReader = new ShuffleDataReaderImpl();
+        CompletableFuture<RpcClientStreamControl> streamControlFuture = startStream(builder, shuffleDataReader);
+        CompletableFuture<AsyncReader<UnversionedRow>> result =
+                streamControlFuture.thenCompose(control -> shuffleDataReader.startRead());
+        RpcUtil.relayCancel(result, streamControlFuture);
+        return result;
     }
 
     YTreeMapNode patchSpec(YTreeMapNode spec) {

@@ -10,10 +10,10 @@ PEERDIR(
 ADDINCL(
     contrib/clickhouse/src
     contrib/libs/double-conversion
-    contrib/libs/poco/Foundation/include
-    contrib/libs/poco/Net/include
-    contrib/libs/poco/Util/include
-    contrib/libs/poco/XML/include
+    contrib/clickhouse/base/poco/Foundation/include
+    contrib/clickhouse/base/poco/Net/include
+    contrib/clickhouse/base/poco/Util/include
+    contrib/clickhouse/base/poco/XML/include
     contrib/libs/re2
     contrib/libs/rapidjson/include
 )

@@ -1,19 +1,19 @@
 #pragma once
 
 
-#include <Poco/PatternFormatter.h>
+#include <DBPoco/PatternFormatter.h>
 #include <Common/DateLUT.h>
 #include "ExtendedLogChannel.h"
 
 
 /** Format log messages own way.
-  * We can't obtain some details using Poco::PatternFormatter.
+  * We can't obtain some details using DBPoco::PatternFormatter.
   *
-  * Firstly, the thread number here is peaked not from Poco::Thread
+  * Firstly, the thread number here is peaked not from DBPoco::Thread
   * threads only, but from all threads with number assigned (see ThreadNumber.h)
   *
   * Secondly, the local date and time are correctly displayed.
-  * Poco::PatternFormatter does not work well with local time,
+  * DBPoco::PatternFormatter does not work well with local time,
   * when timestamps are close to DST timeshift moments.
   * - see Poco sources and http://thread.gmane.org/gmane.comp.time.tz/8883
   *
@@ -22,12 +22,12 @@
 
 class Loggers;
 
-class OwnPatternFormatter : public Poco::PatternFormatter
+class OwnPatternFormatter : public DBPoco::PatternFormatter
 {
 public:
-    OwnPatternFormatter(bool color_ = false);
+    explicit OwnPatternFormatter(bool color_ = false);
 
-    void format(const Poco::Message & msg, std::string & text) override;
+    void format(const DBPoco::Message & msg, std::string & text) override;
     virtual void formatExtended(const DB::ExtendedLogMessage & msg_ext, std::string & text) const;
 
 private:

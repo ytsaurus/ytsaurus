@@ -302,7 +302,7 @@ public:
 
             SortUnique(chunksOrViews, TObjectIdComparer());
 
-            auto keyColumnCount = table->GetSchema()->AsTableSchema()->GetKeyColumnCount();
+            auto keyColumnCount = table->GetSchema()->AsCompactTableSchema()->GetKeyColumnCount();
 
             // Create new tablet chunk lists.
             for (int index = 0; index < newTabletCount; ++index) {

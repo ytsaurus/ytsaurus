@@ -12,7 +12,7 @@ from yt_commands import (
 from yt_helpers import profiler_factory
 
 from yt.environment.helpers import assert_items_equal
-from yt.common import YtError, WaitFailed
+from yt.common import WaitFailed
 import yt.yson as yson
 
 import pytest
@@ -810,14 +810,14 @@ class TestChunkServerMulticell(TestChunkServer):
     @authors("babenko")
     def test_validate_chunk_host_cell_role1(self):
         set("//sys/@config/multicell_manager/cell_descriptors", {"11": {"roles": ["cypress_node_host"]}})
-        with pytest.raises(YtError):
+        with raises_yt_error("cannot host chunks"):
             create("table", "//tmp/t", attributes={"external": True, "external_cell_tag": 11})
 
     @authors("aleksandra-zh")
     def test_validate_chunk_host_cell_role2(self):
         set("//sys/@config/multicell_manager/remove_secondary_cell_default_roles", True)
         set("//sys/@config/multicell_manager/cell_descriptors", {})
-        with pytest.raises(YtError):
+        with raises_yt_error("cannot host chunks"):
             create("table", "//tmp/t", attributes={"external": True, "external_cell_tag": 11})
 
         set("//sys/@config/multicell_manager/remove_secondary_cell_default_roles", False)
@@ -879,7 +879,7 @@ class TestChunkServerMulticell(TestChunkServer):
             "11": {"roles": ["dedicated_chunk_host"]},
             "12": {"roles": ["dedicated_chunk_host"]}})
 
-        with pytest.raises(YtError, match="No secondary masters with a chunk host role were found"):
+        with raises_yt_error("No secondary masters with a chunk host role were found"):
             create("table", "//tmp/t", attributes={
                 "schema": [
                     {"name": "a", "type": "int64"},
@@ -950,8 +950,6 @@ class TestChunkServerMulticell(TestChunkServer):
 
     @authors("koloshmet")
     def test_lost_vital_chunks_sample(self):
-        pytest.skip()
-
         set("//sys/@config/chunk_manager/lost_vital_chunks_sample_update_period", 1000)
 
         create("table", "//tmp/t0", attributes={"external": False})
@@ -975,7 +973,36 @@ class TestChunkServerMulticell(TestChunkServer):
 
         wait(lambda: get("//sys/@lost_vital_chunk_count") == 4)
         wait(lambda: get("//sys/lost_vital_chunks_sample/@count") == 4)
+
+        lost_vital_chunks_sample = ls("//sys/lost_vital_chunks_sample")
+        assert chunk_id0 in lost_vital_chunks_sample
+        assert chunk_id1 in lost_vital_chunks_sample
+        assert chunk_id2 in lost_vital_chunks_sample
+        assert chunk_id3 in lost_vital_chunks_sample
+
         lost_vital_chunks_sample = get("//sys/lost_vital_chunks_sample")
+        for chunk in lost_vital_chunks_sample:
+            assert lost_vital_chunks_sample[chunk] == yson.YsonEntity()
+        assert chunk_id0 in lost_vital_chunks_sample
+        assert chunk_id1 in lost_vital_chunks_sample
+        assert chunk_id2 in lost_vital_chunks_sample
+        assert chunk_id3 in lost_vital_chunks_sample
+
+        assert get(f"//sys/lost_vital_chunks_sample/{chunk_id0}/@id") == chunk_id0
+
+        lost_vital_chunks_sample = ls("//sys/lost_vital_chunks_sample", attributes=["id"])
+        lost_vital_chunks_sample_list = []
+        for chunk in lost_vital_chunks_sample:
+            assert chunk.attributes.get("id") == str(chunk)
+            lost_vital_chunks_sample_list.append(str(chunk))
+        assert chunk_id0 in lost_vital_chunks_sample_list
+        assert chunk_id1 in lost_vital_chunks_sample_list
+        assert chunk_id2 in lost_vital_chunks_sample_list
+        assert chunk_id3 in lost_vital_chunks_sample_list
+
+        lost_vital_chunks_sample = get("//sys/lost_vital_chunks_sample", attributes=["id"])
+        for chunk in lost_vital_chunks_sample:
+            assert lost_vital_chunks_sample[chunk].attributes.get("id") == chunk
         assert chunk_id0 in lost_vital_chunks_sample
         assert chunk_id1 in lost_vital_chunks_sample
         assert chunk_id2 in lost_vital_chunks_sample
@@ -1722,7 +1749,7 @@ class TestChunkServerCypressIntegration(YTEnvSetup):
         set_node_banned(node, True)
         wait(lambda: chunk_id in get("//sys/lost_chunks"))
 
-        with pytest.raises(YtError, match="Mutating request through virtual map is forbidden"):
+        with raises_yt_error("Mutating request through virtual map is forbidden"):
             set(f"//sys/lost_chunks/{chunk_id}/@a", "a")
 
         # Should not raise

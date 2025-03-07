@@ -2,8 +2,8 @@
 
 #include <Common/Exception.h>
 #include <Client/ConnectionParameters.h>
-#include <Poco/Exception.h>
-#include <Poco/URI.h>
+#include <DBPoco/Exception.h>
+#include <DBPoco/URI.h>
 
 #include <array>
 #include <string>
@@ -38,11 +38,11 @@ const std::unordered_map<std::string_view, std::string_view> PROHIBITED_CLIENT_O
 std::string uriDecode(const std::string & uri_encoded_string, bool plus_as_space)
 {
     std::string decoded_string;
-    Poco::URI::decode(uri_encoded_string, decoded_string, plus_as_space);
+    DBPoco::URI::decode(uri_encoded_string, decoded_string, plus_as_space);
     return decoded_string;
 }
 
-void getHostAndPort(const Poco::URI & uri, std::vector<std::vector<std::string>> & hosts_and_ports_arguments)
+void getHostAndPort(const DBPoco::URI & uri, std::vector<std::vector<std::string>> & hosts_and_ports_arguments)
 {
     std::vector<std::string> host_and_port;
     const std::string & host = uri.getHost();
@@ -63,7 +63,7 @@ void getHostAndPort(const Poco::URI & uri, std::vector<std::vector<std::string>>
 void buildConnectionString(
     std::string_view host_and_port,
     std::string_view right_part,
-    Poco::URI & uri,
+    DBPoco::URI & uri,
     std::vector<std::vector<std::string>> & hosts_and_ports_arguments)
 {
     // User info does not matter in sub URI
@@ -78,9 +78,9 @@ void buildConnectionString(
     uri_string.append(right_part);
     try
     {
-        uri = Poco::URI(uri_string);
+        uri = DBPoco::URI(uri_string);
     }
-    catch (const Poco::URISyntaxException & invalid_uri_exception)
+    catch (const DBPoco::URISyntaxException & invalid_uri_exception)
     {
         throw DB::Exception(DB::ErrorCodes::BAD_ARGUMENTS,
                             "Invalid connection string syntax {}: {}", uri_string, invalid_uri_exception.what());
@@ -141,14 +141,14 @@ bool tryParseConnectionString(
 
     try
     {
-        /** Poco::URI doesn't support several hosts in URI.
+        /** DBPoco::URI doesn't support several hosts in URI.
           * Split string clickhouse:[user[:password]@]host1:port1, ... , hostN:portN[database]?[query_parameters]
           * into multiple string for each host:
           * clickhouse:[user[:password]@]host1:port1[database]?[query_parameters]
           * ...
           * clickhouse:[user[:password]@]hostN:portN[database]?[query_parameters]
           */
-        Poco::URI uri;
+        DBPoco::URI uri;
         const auto * last_host_begin = connection_string.begin() + offset;
         for (const auto * it = last_host_begin; it != hosts_end; ++it)
         {
@@ -168,7 +168,7 @@ bool tryParseConnectionString(
         else
             buildConnectionString({last_host_begin, hosts_end}, {hosts_end, connection_string.end()}, uri, hosts_and_ports_arguments);
 
-        Poco::URI::QueryParameters params = uri.getQueryParameters();
+        DBPoco::URI::QueryParameters params = uri.getQueryParameters();
         for (const auto & param : params)
         {
             if (param.first == "secure" || param.first == "s")
@@ -185,7 +185,7 @@ bool tryParseConnectionString(
         auto user_info = uri.getUserInfo();
         if (!user_info.empty())
         {
-            // Poco::URI doesn't decode user name/password by default.
+            // DBPoco::URI doesn't decode user name/password by default.
             // But ClickHouse allows to have users with email user name like: 'john@some_mail.com'
             // john@some_mail.com should be percent-encoded: 'john%40some_mail.com'
             size_t pos = user_info.find(':');
@@ -220,7 +220,7 @@ bool tryParseConnectionString(
             common_arguments.push_back(start_symbol == 0u ? database_name : database_name.substr(start_symbol));
         }
     }
-    catch (const Poco::URISyntaxException & invalid_uri_exception)
+    catch (const DBPoco::URISyntaxException & invalid_uri_exception)
     {
         throw DB::Exception(DB::ErrorCodes::BAD_ARGUMENTS,
                             "Invalid connection string '{}': {}", connection_string, invalid_uri_exception.what());

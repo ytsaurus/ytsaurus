@@ -11,7 +11,7 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License. */
 
-#include <Poco/Condition.h>
+#include <DBPoco/Condition.h>
 #include <DataTypes/DataTypesNumber.h>
 #include <DataTypes/DataTypeString.h>
 #include <Columns/ColumnString.h>
@@ -54,7 +54,7 @@ public:
 
     String getName() const override { return "LiveViewEventsSource"; }
 
-    void onCancel() override
+    void onCancel() noexcept override
     {
         if (storage->shutdown_called)
             return;
@@ -224,7 +224,7 @@ private:
     bool end_of_blocks = false;
     UInt64 heartbeat_interval_usec;
     UInt64 last_event_timestamp_usec = 0;
-    Poco::Timestamp timestamp;
+    DBPoco::Timestamp timestamp;
 };
 
 }

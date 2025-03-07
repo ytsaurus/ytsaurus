@@ -98,7 +98,7 @@ static void ValidateColumnRemoval(
     TSchemaUpdateEnabledFeatures enabledFeatures,
     bool isTableDynamic)
 {
-    YT_VERIFY(newSchema.GetStrict());
+    YT_VERIFY(newSchema.IsStrict());
     for (const auto& oldColumn : oldSchema.Columns()) {
         if (newSchema.FindColumnByStableName(oldColumn.StableName())) {
             continue;
@@ -151,7 +151,7 @@ static void ValidateColumnRemoval(
 //! Validates that all columns from the new schema are present in the old schema.
 void ValidateColumnsNotInserted(const TTableSchema& oldSchema, const TTableSchema& newSchema)
 {
-    YT_VERIFY(!oldSchema.GetStrict());
+    YT_VERIFY(!oldSchema.IsStrict());
     for (const auto& newColumn : newSchema.Columns()) {
         if (!oldSchema.FindColumnByStableName(newColumn.StableName())) {
             THROW_ERROR_EXCEPTION("Cannot insert a new column %v into non-strict schema",
@@ -202,7 +202,7 @@ void ValidateColumnsMatch(const TTableSchema& oldSchema, const TTableSchema& new
         }
     }
 
-    if (commonKeyColumnPrefix < oldSchema.GetKeyColumnCount() && newSchema.GetUniqueKeys()) {
+    if (commonKeyColumnPrefix < oldSchema.GetKeyColumnCount() && newSchema.IsUniqueKeys()) {
         THROW_ERROR_EXCEPTION("Table cannot have unique keys since some of its key columns were removed");
     }
 }
@@ -392,21 +392,21 @@ void ValidateTableSchemaUpdateInternal(
         if (oldSchema.GetKeyColumnCount() == 0 && newSchema.GetKeyColumnCount() > 0) {
             THROW_ERROR_EXCEPTION("Cannot change schema from unsorted to sorted");
         }
-        if (!oldSchema.GetStrict() && newSchema.GetStrict()) {
+        if (!oldSchema.IsStrict() && newSchema.IsStrict()) {
             THROW_ERROR_EXCEPTION("Changing \"strict\" from \"false\" to \"true\" is not allowed");
         }
-        if (!oldSchema.GetUniqueKeys() && newSchema.GetUniqueKeys()) {
+        if (!oldSchema.IsUniqueKeys() && newSchema.IsUniqueKeys()) {
             THROW_ERROR_EXCEPTION("Changing \"unique_keys\" from \"false\" to \"true\" is not allowed");
         }
 
-        if (oldSchema.GetStrict() && !newSchema.GetStrict()) {
+        if (oldSchema.IsStrict() && !newSchema.IsStrict()) {
             if (oldSchema.Columns() != newSchema.Columns()) {
                 THROW_ERROR_EXCEPTION("Changing columns is not allowed while changing \"strict\" from \"true\" to \"false\"");
             }
             return;
         }
 
-        if (oldSchema.GetStrict()) {
+        if (oldSchema.IsStrict()) {
             ValidateColumnRemoval(oldSchema, newSchema, enabledFeatures, isTableDynamic);
         } else {
             ValidateColumnsNotInserted(oldSchema, newSchema);
@@ -414,7 +414,7 @@ void ValidateTableSchemaUpdateInternal(
         ValidateColumnsMatch(oldSchema, newSchema);
 
         // We allow adding computed columns only on creation of the table.
-        if (!oldSchema.Columns().empty() || !isTableEmpty) {
+        if (!oldSchema.IsEmpty() || !isTableEmpty) {
             for (const auto& newColumn : newSchema.Columns()) {
                 if (newColumn.Expression() && !oldSchema.FindColumnByStableName(newColumn.StableName())) {
                     THROW_ERROR_EXCEPTION("Cannot introduce a new computed column %v after creation",

@@ -1,7 +1,7 @@
 #pragma once
 
 #include <Access/EnabledSettings.h>
-#include <Poco/LRUCache.h>
+#include <DBPoco/LRUCache.h>
 #include <base/scope_guard.h>
 #include <map>
 #include <unordered_map>
@@ -37,7 +37,11 @@ private:
     void profileRemoved(const UUID & profile_id);
     void mergeSettingsAndConstraints();
     void mergeSettingsAndConstraintsFor(EnabledSettings & enabled) const;
-    void substituteProfiles(SettingsProfileElements & elements, std::vector<UUID> & substituted_profiles, std::unordered_map<UUID, String> & names_of_substituted_profiles) const;
+
+    void substituteProfiles(SettingsProfileElements & elements,
+        std::vector<UUID> & profiles,
+        std::vector<UUID> & substituted_profiles,
+        std::unordered_map<UUID, String> & names_of_substituted_profiles) const;
 
     const AccessControl & access_control;
     std::unordered_map<UUID, SettingsProfilePtr> all_profiles;
@@ -46,7 +50,7 @@ private:
     scope_guard subscription;
     std::map<EnabledSettings::Params, std::weak_ptr<EnabledSettings>> enabled_settings;
     std::optional<UUID> default_profile_id;
-    Poco::LRUCache<UUID, std::shared_ptr<const SettingsProfilesInfo>> profile_infos_cache;
+    DBPoco::LRUCache<UUID, std::shared_ptr<const SettingsProfilesInfo>> profile_infos_cache;
     mutable std::mutex mutex;
 };
 }

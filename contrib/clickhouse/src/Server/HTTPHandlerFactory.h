@@ -1,13 +1,11 @@
 #pragma once
 
-#include <Common/AsynchronousMetrics.h>
-#include <Server/HTTP/HTMLForm.h>
 #include <Server/HTTP/HTTPRequestHandlerFactory.h>
 #include <Server/HTTPHandlerRequestFilter.h>
 #include <Server/HTTPRequestHandlerFactoryMain.h>
-#include <Common/StringUtils/StringUtils.h>
+#include <Common/StringUtils.h>
+#include <DBPoco/Util/AbstractConfiguration.h>
 
-#include <Poco/Util/AbstractConfiguration.h>
 
 namespace DB
 {
@@ -18,6 +16,7 @@ namespace ErrorCodes
 }
 
 class IServer;
+class AsynchronousMetrics;
 
 template <typename TEndpoint>
 class HandlingRuleHTTPHandlerFactory : public HTTPRequestHandlerFactory
@@ -25,16 +24,14 @@ class HandlingRuleHTTPHandlerFactory : public HTTPRequestHandlerFactory
 public:
     using Filter = std::function<bool(const HTTPServerRequest &)>;
 
-    template <typename... TArgs>
-    explicit HandlingRuleHTTPHandlerFactory(TArgs &&... args)
+    using Creator = std::function<std::unique_ptr<TEndpoint>()>;
+    explicit HandlingRuleHTTPHandlerFactory(Creator && creator_)
+        : creator(std::move(creator_))
+    {}
+
+    explicit HandlingRuleHTTPHandlerFactory(IServer & server)
     {
-        creator = [my_args = std::tuple<TArgs...>(std::forward<TArgs>(args) ...)]()
-        {
-            return std::apply([&](auto && ... endpoint_args)
-            {
-                return std::make_unique<TEndpoint>(std::forward<decltype(endpoint_args)>(endpoint_args)...);
-            }, std::move(my_args));
-        };
+        creator = [&server]() -> std::unique_ptr<TEndpoint> { return std::make_unique<TEndpoint>(server); };
     }
 
     void addFilter(Filter cur_filter)
@@ -46,9 +43,9 @@ public:
         };
     }
 
-    void addFiltersFromConfig(const Poco::Util::AbstractConfiguration & config, const std::string & prefix)
+    void addFiltersFromConfig(const DBPoco::Util::AbstractConfiguration & config, const std::string & prefix)
     {
-        Poco::Util::AbstractConfiguration::Keys filters_type;
+        DBPoco::Util::AbstractConfiguration::Keys filters_type;
         config.keys(prefix, filters_type);
 
         for (const auto & filter_type : filters_type)
@@ -57,6 +54,8 @@ public:
                 continue;
             else if (filter_type == "url")
                 addFilter(urlFilter(config, prefix + ".url"));
+            else if (filter_type == "empty_query_string")
+                addFilter(emptyQueryStringFilter());
             else if (filter_type == "headers")
                 addFilter(headersFilter(config, prefix + ".headers"));
             else if (filter_type == "methods")
@@ -81,8 +80,8 @@ public:
     {
         addFilter([](const auto & request)
         {
-            return request.getMethod() == Poco::Net::HTTPRequest::HTTP_GET
-                || request.getMethod() == Poco::Net::HTTPRequest::HTTP_HEAD;
+            return request.getMethod() == DBPoco::Net::HTTPRequest::HTTP_GET
+                || request.getMethod() == DBPoco::Net::HTTPRequest::HTTP_HEAD;
         });
     }
 
@@ -92,10 +91,10 @@ public:
         addFilter([](const auto & request)
         {
             return (request.getURI().find('?') != std::string::npos
-                && (request.getMethod() == Poco::Net::HTTPRequest::HTTP_GET
-                || request.getMethod() == Poco::Net::HTTPRequest::HTTP_HEAD))
-                || request.getMethod() == Poco::Net::HTTPRequest::HTTP_OPTIONS
-                || request.getMethod() == Poco::Net::HTTPRequest::HTTP_POST;
+                && (request.getMethod() == DBPoco::Net::HTTPRequest::HTTP_GET
+                || request.getMethod() == DBPoco::Net::HTTPRequest::HTTP_HEAD))
+                || request.getMethod() == DBPoco::Net::HTTPRequest::HTTP_OPTIONS
+                || request.getMethod() == DBPoco::Net::HTTPRequest::HTTP_POST;
         });
     }
 
@@ -110,38 +109,26 @@ private:
 };
 
 HTTPRequestHandlerFactoryPtr createStaticHandlerFactory(IServer & server,
-    const Poco::Util::AbstractConfiguration & config,
+    const DBPoco::Util::AbstractConfiguration & config,
     const std::string & config_prefix);
 
 HTTPRequestHandlerFactoryPtr createDynamicHandlerFactory(IServer & server,
-    const Poco::Util::AbstractConfiguration & config,
+    const DBPoco::Util::AbstractConfiguration & config,
     const std::string & config_prefix);
 
 HTTPRequestHandlerFactoryPtr createPredefinedHandlerFactory(IServer & server,
-    const Poco::Util::AbstractConfiguration & config,
+    const DBPoco::Util::AbstractConfiguration & config,
     const std::string & config_prefix);
 
 HTTPRequestHandlerFactoryPtr createReplicasStatusHandlerFactory(IServer & server,
-    const Poco::Util::AbstractConfiguration & config,
+    const DBPoco::Util::AbstractConfiguration & config,
     const std::string & config_prefix);
-
-HTTPRequestHandlerFactoryPtr
-createPrometheusHandlerFactory(IServer & server,
-    const Poco::Util::AbstractConfiguration & config,
-    AsynchronousMetrics & async_metrics,
-    const std::string & config_prefix);
-
-HTTPRequestHandlerFactoryPtr
-createPrometheusMainHandlerFactory(IServer & server,
-    const Poco::Util::AbstractConfiguration & config,
-    AsynchronousMetrics & async_metrics,
-    const std::string & name);
 
 /// @param server - used in handlers to check IServer::isCancelled()
 /// @param config - not the same as server.config(), since it can be newer
 /// @param async_metrics - used for prometheus (in case of prometheus.asynchronous_metrics=true)
 HTTPRequestHandlerFactoryPtr createHandlerFactory(IServer & server,
-    const Poco::Util::AbstractConfiguration & config,
+    const DBPoco::Util::AbstractConfiguration & config,
     AsynchronousMetrics & async_metrics,
     const std::string & name);
 

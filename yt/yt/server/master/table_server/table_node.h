@@ -185,7 +185,6 @@ public:
     bool IsTrackedQueueProducerObject() const;
     bool IsEmpty() const;
     bool IsLogicallyEmpty() const;
-    bool IsUniqueKeys() const;
     bool IsReplicated() const;
     bool IsPhysicallyLog() const;
     bool IsPhysicallySorted() const;

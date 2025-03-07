@@ -5,10 +5,10 @@
 #include <Interpreters/Context.h>
 #include <Access/Common/AccessType.h>
 #include <Parsers/IdentifierQuotingStyle.h>
-#include <Poco/Logger.h>
-#include <Poco/Net/HTTPRequest.h>
-#include <Poco/URI.h>
-#include <Poco/Util/AbstractConfiguration.h>
+#include <DBPoco/Logger.h>
+#include <DBPoco/Net/HTTPRequest.h>
+#include <DBPoco/URI.h>
+#include <DBPoco/Util/AbstractConfiguration.h>
 #include <Common/BridgeProtocolVersion.h>
 #include <Common/ShellCommand.h>
 #include <IO/ConnectionTimeouts.h>
@@ -35,7 +35,7 @@ public:
 
     virtual std::vector<std::pair<std::string, std::string>> getURLParams(UInt64 max_block_size) const = 0;
 
-    virtual Poco::URI getColumnsInfoURI() const = 0;
+    virtual DBPoco::URI getColumnsInfoURI() const = 0;
 
     virtual IdentifierQuotingStyle getIdentifierQuotingStyle() = 0;
 
@@ -52,20 +52,20 @@ class XDBCBridgeHelper : public IXDBCBridgeHelper
 {
 
 public:
-    static constexpr inline auto DEFAULT_PORT = BridgeHelperMixin::DEFAULT_PORT;
-    static constexpr inline auto PING_HANDLER = "/ping";
-    static constexpr inline auto MAIN_HANDLER = "/";
-    static constexpr inline auto COL_INFO_HANDLER = "/columns_info";
-    static constexpr inline auto IDENTIFIER_QUOTE_HANDLER = "/identifier_quote";
-    static constexpr inline auto SCHEMA_ALLOWED_HANDLER = "/schema_allowed";
+    static constexpr auto DEFAULT_PORT = BridgeHelperMixin::DEFAULT_PORT;
+    static constexpr auto PING_HANDLER = "/ping";
+    static constexpr auto MAIN_HANDLER = "/";
+    static constexpr auto COL_INFO_HANDLER = "/columns_info";
+    static constexpr auto IDENTIFIER_QUOTE_HANDLER = "/identifier_quote";
+    static constexpr auto SCHEMA_ALLOWED_HANDLER = "/schema_allowed";
 
     XDBCBridgeHelper(
             ContextPtr context_,
-            Poco::Timespan http_timeout_,
+            DBPoco::Timespan http_timeout_,
             const std::string & connection_string_,
             bool use_connection_pooling_)
         : IXDBCBridgeHelper(context_->getGlobalContext())
-        , log(&Poco::Logger::get(BridgeHelperMixin::getName() + "BridgeHelper"))
+        , log(getLogger(BridgeHelperMixin::getName() + "BridgeHelper"))
         , connection_string(connection_string_)
         , use_connection_pooling(use_connection_pooling_)
         , http_timeout(http_timeout_)
@@ -76,7 +76,7 @@ public:
     }
 
 protected:
-    Poco::URI getPingURI() const override
+    DBPoco::URI getPingURI() const override
     {
         auto uri = createBaseURI();
         uri.setPath(PING_HANDLER);
@@ -84,7 +84,7 @@ protected:
     }
 
 
-    Poco::URI getMainURI() const override
+    DBPoco::URI getMainURI() const override
     {
         auto uri = createBaseURI();
         uri.setPath(MAIN_HANDLER);
@@ -97,8 +97,12 @@ protected:
     {
         try
         {
-            ReadWriteBufferFromHTTP buf(getPingURI(), Poco::Net::HTTPRequest::HTTP_GET, {}, getHTTPTimeouts(), credentials);
-            return checkString(PING_OK_ANSWER, buf);
+            auto buf = BuilderRWBufferFromHTTP(getPingURI())
+                           .withConnectionGroup(HTTPConnectionGroupType::STORAGE)
+                           .withTimeouts(getHTTPTimeouts())
+                           .create(credentials);
+
+            return checkString(PING_OK_ANSWER, *buf);
         }
         catch (...)
         {
@@ -119,17 +123,17 @@ protected:
 
     String configPrefix() const override { return BridgeHelperMixin::configPrefix(); }
 
-    Poco::Timespan getHTTPTimeout() const override { return http_timeout; }
+    DBPoco::Timespan getHTTPTimeout() const override { return http_timeout; }
 
-    const Poco::Util::AbstractConfiguration & getConfig() const override { return config; }
+    const DBPoco::Util::AbstractConfiguration & getConfig() const override { return config; }
 
-    Poco::Logger * getLog() const override { return log; }
+    LoggerPtr getLog() const override { return log; }
 
     bool startBridgeManually() const override { return BridgeHelperMixin::startBridgeManually(); }
 
-    Poco::URI createBaseURI() const override
+    DBPoco::URI createBaseURI() const override
     {
-        Poco::URI uri;
+        DBPoco::URI uri;
         uri.setHost(bridge_host);
         uri.setPort(bridge_port);
         uri.setScheme("http");
@@ -144,12 +148,12 @@ protected:
 
 
 private:
-    using Configuration = Poco::Util::AbstractConfiguration;
+    using Configuration = DBPoco::Util::AbstractConfiguration;
 
-    Poco::Logger * log;
+    LoggerPtr log;
     std::string connection_string;
     bool use_connection_pooling;
-    Poco::Timespan http_timeout;
+    DBPoco::Timespan http_timeout;
     std::string bridge_host;
     size_t bridge_port;
 
@@ -158,17 +162,17 @@ private:
     std::optional<IdentifierQuotingStyle> quote_style;
     std::optional<bool> is_schema_allowed;
 
-    Poco::Net::HTTPBasicCredentials credentials{};
+    DBPoco::Net::HTTPBasicCredentials credentials{};
 
     ConnectionTimeouts getHTTPTimeouts()
     {
-        return ConnectionTimeouts::getHTTPTimeouts(getContext()->getSettingsRef(), {getContext()->getConfigRef().getUInt("keep_alive_timeout", DEFAULT_HTTP_KEEP_ALIVE_TIMEOUT), 0});
+        return ConnectionTimeouts::getHTTPTimeouts(getContext()->getSettingsRef(), getContext()->getServerSettings().keep_alive_timeout);
     }
 
 protected:
     using URLParams = std::vector<std::pair<std::string, std::string>>;
 
-    Poco::URI getColumnsInfoURI() const override
+    DBPoco::URI getColumnsInfoURI() const override
     {
         auto uri = createBaseURI();
         uri.setPath(COL_INFO_HANDLER);
@@ -198,10 +202,14 @@ protected:
             uri.addQueryParameter("connection_string", getConnectionString());
             uri.addQueryParameter("use_connection_pooling", toString(use_connection_pooling));
 
-            ReadWriteBufferFromHTTP buf(uri, Poco::Net::HTTPRequest::HTTP_POST, {}, getHTTPTimeouts(), credentials);
+            auto buf = BuilderRWBufferFromHTTP(uri)
+                           .withConnectionGroup(HTTPConnectionGroupType::STORAGE)
+                           .withMethod(DBPoco::Net::HTTPRequest::HTTP_POST)
+                           .withTimeouts(getHTTPTimeouts())
+                           .create(credentials);
 
-            bool res;
-            readBoolText(res, buf);
+            bool res = false;
+            readBoolText(res, *buf);
             is_schema_allowed = res;
         }
 
@@ -220,14 +228,18 @@ protected:
             uri.addQueryParameter("connection_string", getConnectionString());
             uri.addQueryParameter("use_connection_pooling", toString(use_connection_pooling));
 
-            ReadWriteBufferFromHTTP buf(uri, Poco::Net::HTTPRequest::HTTP_POST, {}, getHTTPTimeouts(), credentials);
+            auto buf = BuilderRWBufferFromHTTP(uri)
+                           .withConnectionGroup(HTTPConnectionGroupType::STORAGE)
+                           .withMethod(DBPoco::Net::HTTPRequest::HTTP_POST)
+                           .withTimeouts(getHTTPTimeouts())
+                           .create(credentials);
 
             std::string character;
-            readStringBinary(character, buf);
+            readStringBinary(character, *buf);
             if (character.length() > 1)
                 throw Exception(ErrorCodes::ILLEGAL_TYPE_OF_ARGUMENT, "Failed to parse quoting style from '{}' for service {}",
                     character, BridgeHelperMixin::serviceAlias());
-            else if (character.length() == 0)
+            else if (character.empty())
                 quote_style = IdentifierQuotingStyle::None;
             else if (character[0] == '`')
                 quote_style = IdentifierQuotingStyle::Backticks;
@@ -244,7 +256,7 @@ protected:
 
 struct JDBCBridgeMixin
 {
-    static constexpr inline auto DEFAULT_PORT = 9019;
+    static constexpr auto DEFAULT_PORT = 9019;
 
     static String configPrefix()
     {
@@ -275,7 +287,7 @@ struct JDBCBridgeMixin
 
 struct ODBCBridgeMixin
 {
-    static constexpr inline auto DEFAULT_PORT = 9018;
+    static constexpr auto DEFAULT_PORT = 9018;
 
     static String configPrefix()
     {

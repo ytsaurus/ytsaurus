@@ -82,15 +82,12 @@ private:
     TConstTypeInferrerMapPtr TypeInferrers_;
 };
 
-TKeyColumns GetSampleKeyColumns();
-TKeyColumns GetSampleKeyColumns2();
-TKeyColumns GetSampleKeyColumns3();
 TTableSchemaPtr GetSampleTableSchema();
 
-TDataSplit MakeSimpleSplit(const TYPath& path, ui64 counter = 0);
-TDataSplit MakeSplit(const std::vector<TColumnSchema>& columns, ui64 counter = 0);
-
 TFuture<TDataSplit> RaiseTableNotFound(const TYPath& path);
+
+TDataSplit MakeSimpleSplit();
+TDataSplit MakeSplit(const std::vector<TColumnSchema>& columns);
 
 ////////////////////////////////////////////////////////////////////////////////
 

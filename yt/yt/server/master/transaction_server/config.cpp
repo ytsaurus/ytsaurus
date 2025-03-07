@@ -83,6 +83,9 @@ void TDynamicTransactionManagerConfig::Register(TRegistrar registrar)
         .Default(false)
         .DontSerializeDefault();
 
+    registrar.Parameter("enable_prerequisite_transaction_validation_via_leases", &TThis::EnablePrerequisiteTransactionValidationViaLeases)
+        .Default(false);
+
     registrar.Parameter("enable_non_strict_externalized_transaction_usage", &TThis::EnableNonStrictExternalizedTransactionUsage)
         .Default(true);
 }

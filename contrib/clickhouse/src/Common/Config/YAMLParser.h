@@ -5,8 +5,8 @@
 #include <Common/ErrorCodes.h>
 #include <Common/Exception.h>
 #include <base/types.h>
-#include <Poco/DOM/Document.h>
-#include <Poco/DOM/AutoPtr.h>
+#include <DBPoco/DOM/Document.h>
+#include <DBPoco/DOM/AutoPtr.h>
 
 #if USE_YAML_CPP
 
@@ -17,7 +17,7 @@ namespace DB
 class YAMLParserImpl
 {
 public:
-    static Poco::AutoPtr<Poco::XML::Document> parse(const String& path);
+    static DBPoco::AutoPtr<DBPoco::XML::Document> parse(const String& path);
 };
 
 using YAMLParser = YAMLParserImpl;
@@ -38,9 +38,9 @@ namespace ErrorCodes
 class DummyYAMLParser
 {
 public:
-    static Poco::AutoPtr<Poco::XML::Document> parse(const String& path)
+    static DBPoco::AutoPtr<DBPoco::XML::Document> parse(const String& path)
     {
-        Poco::AutoPtr<Poco::XML::Document> xml = new Poco::XML::Document;
+        DBPoco::AutoPtr<DBPoco::XML::Document> xml = new DBPoco::XML::Document;
         throw Exception(ErrorCodes::CANNOT_PARSE_YAML, "Unable to parse YAML configuration file {} without usage of yaml-cpp library", path);
         return xml;
     }

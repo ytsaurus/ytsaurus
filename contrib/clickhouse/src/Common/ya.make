@@ -4,15 +4,23 @@ LIBRARY()
 
 LICENSE(
     Apache-2.0 AND
+    BSL-1.0 AND
+    CC0-1.0 AND
     MIT
 )
 
 LICENSE_TEXTS(.yandex_meta/licenses.list.txt)
 
-VERSION(23.8.16.40)
+VERSION(24.8.5.115)
 
 PEERDIR(
     contrib/clickhouse/base/base
+    contrib/clickhouse/base/poco/Crypto
+    contrib/clickhouse/base/poco/Foundation
+    contrib/clickhouse/base/poco/Net
+    contrib/clickhouse/base/poco/NetSSL_OpenSSL
+    contrib/clickhouse/base/poco/Util
+    contrib/clickhouse/base/poco/XML
     contrib/clickhouse/base/widechar_width
     contrib/libs/aws-sdk-cpp/aws-cpp-sdk-core
     contrib/libs/aws-sdk-cpp/aws-cpp-sdk-s3
@@ -25,14 +33,6 @@ PEERDIR(
     contrib/libs/lz4
     contrib/libs/lzma
     contrib/libs/miniselect
-    contrib/libs/pdqsort
-    contrib/libs/poco/Crypto
-    contrib/libs/poco/Foundation
-    contrib/libs/poco/JSON
-    contrib/libs/poco/Net
-    contrib/libs/poco/NetSSL_OpenSSL
-    contrib/libs/poco/Util
-    contrib/libs/poco/XML
     contrib/libs/re2
     contrib/libs/snappy
     contrib/libs/sparsehash
@@ -56,7 +56,6 @@ PEERDIR(
     contrib/restricted/dragonbox
     contrib/restricted/fast_float
     contrib/restricted/magic_enum
-    library/cpp/clickhouse_deps/re2_st_stub
     library/cpp/sanitizer/include
 )
 
@@ -65,12 +64,18 @@ ADDINCL(
     GLOBAL contrib/clickhouse/includes/configs
     GLOBAL contrib/clickhouse/src
     contrib/clickhouse/base
+    contrib/clickhouse/base/poco/Crypto/include
+    contrib/clickhouse/base/poco/Foundation/include
+    contrib/clickhouse/base/poco/Net/include
+    contrib/clickhouse/base/poco/NetSSL_OpenSSL/include
+    contrib/clickhouse/base/poco/Util/include
+    contrib/clickhouse/base/poco/XML/include
     contrib/clickhouse/base/widechar_width
+    contrib/clickhouse/contrib/pdqsort
     contrib/libs/double-conversion
     contrib/libs/libunwind/include
     contrib/libs/lz4
     contrib/libs/miniselect/include
-    contrib/libs/pdqsort
     contrib/libs/sparsehash/src
     contrib/libs/zstd/include
     contrib/restricted/cityhash-1.0.2
@@ -91,10 +96,13 @@ ELSEIF (OS_LINUX)
     )
 ENDIF()
 
+IF (OS_LINUX)
+    CFLAGS(
+        -DPOCO_HAVE_FD_EPOLL
+    )
+ENDIF()
+
 CFLAGS(
-    -DAWS_SDK_VERSION_MAJOR=1
-    -DAWS_SDK_VERSION_MINOR=10
-    -DAWS_SDK_VERSION_PATCH=36
     -DBOOST_ASIO_HAS_STD_INVOKE_RESULT=1
     -DBOOST_ASIO_STANDALONE=1
     -DBOOST_TIMER_ENABLE_DEPRECATED=1
@@ -104,7 +112,6 @@ CFLAGS(
     -DLZ4_DISABLE_DEPRECATE_WARNINGS=1
     -DLZ4_FAST_DEC_LOOP=1
     -DPOCO_ENABLE_CPP11
-    -DPOCO_HAVE_FD_EPOLL
     -DPOCO_OS_FAMILY_UNIX
     -DUNALIGNED_OK
     -DWITH_COVERAGE=0
@@ -113,6 +120,7 @@ CFLAGS(
     -DZLIB_COMPAT
     -DZOOKEEPER_LOG
     -D_LIBCPP_ENABLE_THREAD_SAFETY_ANNOTATIONS
+    -D_LIBUNWIND_IS_NATIVE_ONLY
 )
 
 IF (MUSL)
@@ -133,9 +141,12 @@ SRCS(
     src/Common/AsynchronousMetrics.cpp
     src/Common/Base58.cpp
     src/Common/Base64.cpp
+    src/Common/BufferAllocationPolicy.cpp
+    src/Common/CalendarTimeInterval.cpp
     src/Common/CancelToken.cpp
     src/Common/CancelableSharedMutex.cpp
     src/Common/CaresPTRResolver.cpp
+    src/Common/CgroupsMemoryUsageObserver.cpp
     src/Common/ClickHouseRevision.cpp
     src/Common/ConcurrencyControl.cpp
     src/Common/Config/AbstractConfigurationComparison.cpp
@@ -143,24 +154,31 @@ SRCS(
     src/Common/Config/ConfigProcessor.cpp
     src/Common/Config/ConfigReloader.cpp
     src/Common/Config/YAMLParser.cpp
-    src/Common/Config/configReadClient.cpp
+    src/Common/Config/getClientConfigPath.cpp
+    src/Common/Config/getLocalConfigPath.cpp
+    src/Common/Coverage.cpp
     src/Common/CurrentMemoryTracker.cpp
     src/Common/CurrentMetrics.cpp
     src/Common/CurrentThread.cpp
+    src/Common/CurrentThreadHelpers.cpp
     src/Common/DNSPTRResolverProvider.cpp
     src/Common/DNSResolver.cpp
     src/Common/DateLUT.cpp
     src/Common/DateLUTImpl.cpp
     src/Common/Dwarf.cpp
     src/Common/Elf.cpp
+    src/Common/EnvironmentChecks.cpp
     src/Common/EnvironmentProxyConfigurationResolver.cpp
     src/Common/Epoll.cpp
     src/Common/ErrorCodes.cpp
     src/Common/EventFD.cpp
     src/Common/EventNotifier.cpp
     src/Common/Exception.cpp
+    src/Common/ExternalLoaderStatus.cpp
     src/Common/FST.cpp
     src/Common/FailPoint.cpp
+    src/Common/FieldBinaryEncoding.cpp
+    src/Common/FieldVisitorConvertToNumber.cpp
     src/Common/FieldVisitorDump.cpp
     src/Common/FieldVisitorHash.cpp
     src/Common/FieldVisitorSum.cpp
@@ -170,8 +188,11 @@ SRCS(
     src/Common/FileRenamer.cpp
     src/Common/FrequencyHolder.cpp
     src/Common/FunctionDocumentation.cpp
+    src/Common/GWPAsan.cpp
     src/Common/GetPriorityForLoadBalancing.cpp
+    src/Common/HTTPConnectionPool.cpp
     src/Common/HTTPHeaderFilter.cpp
+    src/Common/HostResolvePool.cpp
     src/Common/IO.cpp
     src/Common/IPv6ToBinary.cpp
     src/Common/IntervalKind.cpp
@@ -179,18 +200,23 @@ SRCS(
     src/Common/Jemalloc.cpp
     src/Common/KnownObjectNames.cpp
     src/Common/LockMemoryExceptionInThread.cpp
+    src/Common/Logger.cpp
     src/Common/LoggingFormatStringHelpers.cpp
     src/Common/Macros.cpp
+    src/Common/MatchGenerator.cpp
     src/Common/MemoryStatisticsOS.cpp
     src/Common/MemoryTracker.cpp
     src/Common/MemoryTrackerBlockerInThread.cpp
     src/Common/NamePrompter.cpp
     src/Common/NetlinkMetricsProvider.cpp
+    src/Common/ObjectStorageKey.cpp
+    src/Common/ObjectStorageKeyGenerator.cpp
     src/Common/OpenSSLHelpers.cpp
     src/Common/OpenTelemetryTraceContext.cpp
     src/Common/OptimizedRegularExpression.cpp
     src/Common/OvercommitTracker.cpp
     src/Common/PODArray.cpp
+    src/Common/PageCache.cpp
     src/Common/PipeFDs.cpp
     src/Common/ProcfsMetricsProvider.cpp
     src/Common/ProfileEvents.cpp
@@ -198,19 +224,32 @@ SRCS(
     src/Common/ProgressIndication.cpp
     src/Common/ProxyConfigurationResolverProvider.cpp
     src/Common/ProxyListConfigurationResolver.cpp
+    src/Common/QueryFuzzer.cpp
     src/Common/QueryProfiler.cpp
     src/Common/RWLock.cpp
     src/Common/RemoteHostFilter.cpp
     src/Common/RemoteProxyConfigurationResolver.cpp
+    src/Common/SSHWrapper.cpp
+    src/Common/Scheduler/Nodes/ClassifiersConfig.cpp
+    src/Common/Scheduler/Nodes/DynamicResourceManager.cpp
+    src/Common/Scheduler/Nodes/FairPolicy.cpp
+    src/Common/Scheduler/Nodes/FifoQueue.cpp
+    src/Common/Scheduler/Nodes/PriorityPolicy.cpp
+    src/Common/Scheduler/Nodes/SemaphoreConstraint.cpp
+    src/Common/Scheduler/Nodes/ThrottlerConstraint.cpp
+    src/Common/Scheduler/Nodes/registerResourceManagers.cpp
+    src/Common/Scheduler/Nodes/registerSchedulerNodes.cpp
+    src/Common/Scheduler/ResouceLink.cpp
+    src/Common/Scheduler/ResourceRequest.cpp
     src/Common/SensitiveDataMasker.cpp
     src/Common/SettingsChanges.cpp
     src/Common/SharedMutex.cpp
     src/Common/ShellCommand.cpp
     src/Common/ShellCommandSettings.cpp
+    src/Common/SignalHandlers.cpp
     src/Common/StackTrace.cpp
     src/Common/StatusFile.cpp
-    src/Common/StatusInfo.cpp
-    src/Common/StringUtils/StringUtils.cpp
+    src/Common/StringUtils.cpp
     src/Common/StudentTTest.cpp
     src/Common/SymbolIndex.cpp
     src/Common/SystemLogBase.cpp
@@ -219,6 +258,7 @@ SRCS(
     src/Common/TerminalSize.cpp
     src/Common/ThreadFuzzer.cpp
     src/Common/ThreadPool.cpp
+    src/Common/ThreadPoolTaskTracker.cpp
     src/Common/ThreadProfileEvents.cpp
     src/Common/ThreadStatus.cpp
     src/Common/Throttler.cpp
@@ -241,6 +281,7 @@ SRCS(
     src/Common/ZooKeeper/ZooKeeperImpl.cpp
     src/Common/ZooKeeper/ZooKeeperLock.cpp
     src/Common/ZooKeeper/ZooKeeperNodeCache.cpp
+    src/Common/ZooKeeper/ZooKeeperWithFaultInjection.cpp
     src/Common/assertProcessUserMatchesDataOwner.cpp
     src/Common/atomicRename.cpp
     src/Common/checkSSLReturnCode.cpp
@@ -249,7 +290,9 @@ SRCS(
     src/Common/clickhouse_malloc.cpp
     src/Common/createHardLink.cpp
     src/Common/escapeForFileName.cpp
+    src/Common/escapeString.cpp
     src/Common/filesystemHelpers.cpp
+    src/Common/findExtreme.cpp
     src/Common/formatIPv6.cpp
     src/Common/formatReadable.cpp
     src/Common/getCurrentProcessFDCount.cpp
@@ -261,24 +304,32 @@ SRCS(
     src/Common/getNumberOfPhysicalCPUCores.cpp
     src/Common/getRandomASCIIString.cpp
     src/Common/hasLinuxCapability.cpp
+    src/Common/iota.cpp
     src/Common/isLocalAddress.cpp
     src/Common/isValidUTF8.cpp
+    src/Common/levenshteinDistance.cpp
     src/Common/likePatternToRegexp.cpp
     src/Common/makeSocketAddress.cpp
     src/Common/new_delete.cpp
     src/Common/parseAddress.cpp
     src/Common/parseGlobs.cpp
     src/Common/parseRemoteDescription.cpp
+    src/Common/proxyConfigurationToPocoProxyConfig.cpp
     src/Common/quoteString.cpp
+    src/Common/randomDelay.cpp
     src/Common/randomSeed.cpp
     src/Common/register_objects.cpp
     src/Common/remapExecutable.cpp
     src/Common/setThreadName.cpp
     src/Common/thread_local_rng.cpp
+    src/Common/tryGetFileNameByFileDescriptor.cpp
     src/Common/waitForPid.cpp
     src/Coordination/KeeperFeatureFlags.cpp
     src/IO/AIO.cpp
+    src/IO/Archives/ArchiveUtils.cpp
     src/IO/Archives/LibArchiveReader.cpp
+    src/IO/Archives/LibArchiveWriter.cpp
+    src/IO/Archives/TarArchiveWriter.cpp
     src/IO/Archives/ZipArchiveReader.cpp
     src/IO/Archives/ZipArchiveWriter.cpp
     src/IO/Archives/createArchiveReader.cpp
@@ -287,11 +338,14 @@ SRCS(
     src/IO/AsyncReadCounters.cpp
     src/IO/AsynchronousReadBufferFromFile.cpp
     src/IO/AsynchronousReadBufferFromFileDescriptor.cpp
+    src/IO/AzureBlobStorage/copyAzureBlobStorageFile.cpp
+    src/IO/AzureBlobStorage/isRetryableAzureException.cpp
     src/IO/BoundedReadBuffer.cpp
     src/IO/BrotliReadBuffer.cpp
     src/IO/BrotliWriteBuffer.cpp
     src/IO/Bzip2ReadBuffer.cpp
     src/IO/Bzip2WriteBuffer.cpp
+    src/IO/CachedInMemoryReadBufferFromFile.cpp
     src/IO/CascadeWriteBuffer.cpp
     src/IO/CompressionMethod.cpp
     src/IO/ConcatSeekableReadBuffer.cpp
@@ -324,6 +378,8 @@ SRCS(
     src/IO/PeekableReadBuffer.cpp
     src/IO/PeekableWriteBuffer.cpp
     src/IO/Progress.cpp
+    src/IO/Protobuf/ProtobufZeroCopyInputStreamFromReadBuffer.cpp
+    src/IO/Protobuf/ProtobufZeroCopyOutputStreamFromWriteBuffer.cpp
     src/IO/ReadBuffer.cpp
     src/IO/ReadBufferFromEncryptedFile.cpp
     src/IO/ReadBufferFromFile.cpp
@@ -336,16 +392,8 @@ SRCS(
     src/IO/ReadBufferFromS3.cpp
     src/IO/ReadHelpers.cpp
     src/IO/ReadWriteBufferFromHTTP.cpp
-    src/IO/Resource/ClassifiersConfig.cpp
-    src/IO/Resource/DynamicResourceManager.cpp
-    src/IO/Resource/FairPolicy.cpp
-    src/IO/Resource/FifoQueue.cpp
-    src/IO/Resource/PriorityPolicy.cpp
-    src/IO/Resource/SemaphoreConstraint.cpp
-    src/IO/Resource/StaticResourceManager.cpp
-    src/IO/Resource/registerResourceManagers.cpp
-    src/IO/Resource/registerSchedulerNodes.cpp
     src/IO/S3/AWSLogger.cpp
+    src/IO/S3/BlobStorageLogWriter.cpp
     src/IO/S3/Client.cpp
     src/IO/S3/Credentials.cpp
     src/IO/S3/PocoHTTPClient.cpp
@@ -356,6 +404,7 @@ SRCS(
     src/IO/S3/copyS3File.cpp
     src/IO/S3/getObjectInfo.cpp
     src/IO/S3Common.cpp
+    src/IO/S3Settings.cpp
     src/IO/SeekableReadBuffer.cpp
     src/IO/SharedThreadPools.cpp
     src/IO/SnappyReadBuffer.cpp
@@ -365,6 +414,7 @@ SRCS(
     src/IO/SwapHelper.cpp
     src/IO/SynchronousReader.cpp
     src/IO/TimeoutSetter.cpp
+    src/IO/UncompressedCache.cpp
     src/IO/UseSSL.cpp
     src/IO/VarInt.cpp
     src/IO/WithFileName.cpp
@@ -380,8 +430,6 @@ SRCS(
     src/IO/WriteBufferFromOStream.cpp
     src/IO/WriteBufferFromPocoSocket.cpp
     src/IO/WriteBufferFromS3.cpp
-    src/IO/WriteBufferFromS3BufferAllocationPolicy.cpp
-    src/IO/WriteBufferFromS3TaskTracker.cpp
     src/IO/WriteBufferValidUTF8.cpp
     src/IO/WriteHelpers.cpp
     src/IO/ZlibDeflatingWriteBuffer.cpp

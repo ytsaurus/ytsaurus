@@ -1,6 +1,6 @@
 #include <Parsers/ASTFunctionWithKeyValueArguments.h>
 
-#include <Poco/String.h>
+#include <DBPoco/String.h>
 #include <Common/SipHash.h>
 #include <IO/Operators.h>
 
@@ -24,7 +24,7 @@ ASTPtr ASTPair::clone() const
 
 void ASTPair::formatImpl(const FormatSettings & settings, FormatState & state, FormatStateStacked frame) const
 {
-    settings.ostr << (settings.hilite ? hilite_keyword : "") << Poco::toUpper(first) << " " << (settings.hilite ? hilite_none : "");
+    settings.ostr << (settings.hilite ? hilite_keyword : "") << DBPoco::toUpper(first) << " " << (settings.hilite ? hilite_none : "");
 
     if (second_with_brackets)
         settings.ostr << (settings.hilite ? hilite_keyword : "") << "(";
@@ -53,12 +53,12 @@ bool ASTPair::hasSecretParts() const
 }
 
 
-void ASTPair::updateTreeHashImpl(SipHash & hash_state) const
+void ASTPair::updateTreeHashImpl(SipHash & hash_state, bool ignore_aliases) const
 {
     hash_state.update(first.size());
     hash_state.update(first);
     hash_state.update(second_with_brackets);
-    IAST::updateTreeHashImpl(hash_state);
+    IAST::updateTreeHashImpl(hash_state, ignore_aliases);
 }
 
 
@@ -85,19 +85,19 @@ ASTPtr ASTFunctionWithKeyValueArguments::clone() const
 
 void ASTFunctionWithKeyValueArguments::formatImpl(const FormatSettings & settings, FormatState & state, FormatStateStacked frame) const
 {
-    settings.ostr << (settings.hilite ? hilite_keyword : "") << Poco::toUpper(name) << (settings.hilite ? hilite_none : "") << (has_brackets ? "(" : "");
+    settings.ostr << (settings.hilite ? hilite_keyword : "") << DBPoco::toUpper(name) << (settings.hilite ? hilite_none : "") << (has_brackets ? "(" : "");
     elements->formatImpl(settings, state, frame);
     settings.ostr << (has_brackets ? ")" : "");
     settings.ostr << (settings.hilite ? hilite_none : "");
 }
 
 
-void ASTFunctionWithKeyValueArguments::updateTreeHashImpl(SipHash & hash_state) const
+void ASTFunctionWithKeyValueArguments::updateTreeHashImpl(SipHash & hash_state, bool ignore_aliases) const
 {
     hash_state.update(name.size());
     hash_state.update(name);
     hash_state.update(has_brackets);
-    IAST::updateTreeHashImpl(hash_state);
+    IAST::updateTreeHashImpl(hash_state, ignore_aliases);
 }
 
 }

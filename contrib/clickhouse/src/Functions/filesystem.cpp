@@ -5,7 +5,7 @@
 #include <Functions/FunctionFactory.h>
 #include <Functions/IFunction.h>
 #include <Interpreters/Context.h>
-#include <Poco/Util/AbstractConfiguration.h>
+#include <DBPoco/Util/AbstractConfiguration.h>
 
 namespace DB
 {
@@ -91,7 +91,7 @@ public:
 
                 auto col_res = ColumnVector<UInt64>::create(col_str->size());
                 auto & data = col_res->getData();
-                for (size_t i = 0; i < col_str->size(); ++i)
+                for (size_t i = 0; i < input_rows_count; ++i)
                 {
                     auto disk_name = col_str->getDataAt(i).toString();
                     if (auto it = disk_map.find(disk_name); it != disk_map.end())

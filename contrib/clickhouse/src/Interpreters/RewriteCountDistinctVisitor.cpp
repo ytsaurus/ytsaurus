@@ -26,7 +26,7 @@ void RewriteCountDistinctFunctionMatcher::visit(ASTPtr & ast, Data & /*data*/)
     if (!expr_list || expr_list->children.size() != 1)
         return;
     auto * func = expr_list->children[0]->as<ASTFunction>();
-    if (!func || (Poco::toLower(func->name) != "countdistinct" && Poco::toLower(func->name) != "uniqexact"))
+    if (!func || (DBPoco::toLower(func->name) != "countdistinct" && DBPoco::toLower(func->name) != "uniqexact"))
         return;
     auto arg = func->arguments->children;
     if (arg.size() != 1)
@@ -42,7 +42,6 @@ void RewriteCountDistinctFunctionMatcher::visit(ASTPtr & ast, Data & /*data*/)
     auto cloned_select_query = selectq->clone();
     expr_list->children[0] = makeASTFunction("count");
 
-    auto table_name = table_expr->database_and_table_name->as<ASTTableIdentifier>()->name();
     table_expr->children.clear();
     table_expr->children.emplace_back(std::make_shared<ASTSubquery>());
     table_expr->database_and_table_name = nullptr;

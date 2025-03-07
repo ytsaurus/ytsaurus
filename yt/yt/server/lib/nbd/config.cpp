@@ -67,8 +67,6 @@ void TNbdServerConfig::Register(TRegistrar registrar)
         .Default();
     registrar.Parameter("thread_count", &TThis::ThreadCount)
         .Default(1);
-    registrar.Parameter("block_cache_compressed_data_capacity", &TThis::BlockCacheCompressedDataCapacity)
-        .Default(512_MB);
 
     registrar.Postprocessor([] (TThis* config) {
         if (config->InternetDomainSocket && config->UnixDomainSocket) {

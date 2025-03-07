@@ -68,6 +68,7 @@ func (c *FuncCounter) MarshalJSON() ([]byte, error) {
 		Labels    map[string]string `json:"labels"`
 		Value     int64             `json:"value"`
 		Timestamp *int64            `json:"ts,omitempty"`
+		MemOnly   bool              `json:"memOnly,omitempty"`
 	}{
 		Type:  c.metricType.String(),
 		Value: c.function(),
@@ -80,6 +81,7 @@ func (c *FuncCounter) MarshalJSON() ([]byte, error) {
 			return labels
 		}(),
 		Timestamp: tsAsRef(c.timestamp),
+		MemOnly:   c.memOnly,
 	})
 }
 

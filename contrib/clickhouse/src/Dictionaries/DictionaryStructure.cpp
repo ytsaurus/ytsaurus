@@ -7,7 +7,7 @@
 #include <IO/WriteHelpers.h>
 #include <IO/Operators.h>
 
-#include <Common/StringUtils/StringUtils.h>
+#include <Common/StringUtils.h>
 
 #include <Formats/FormatSettings.h>
 #include <Columns/IColumn.h>
@@ -31,13 +31,13 @@ namespace
 {
 
 DictionaryTypedSpecialAttribute makeDictionaryTypedSpecialAttribute(
-    const Poco::Util::AbstractConfiguration & config, const std::string & config_prefix, const std::string & default_type)
+    const DBPoco::Util::AbstractConfiguration & config, const std::string & config_prefix, const std::string & default_type)
 {
     auto name = config.getString(config_prefix + ".name", "");
     auto expression = config.getString(config_prefix + ".expression", "");
 
     if (name.empty() && !expression.empty())
-        throw Exception(ErrorCodes::BAD_ARGUMENTS, "Element {}.name is empty");
+        throw Exception(ErrorCodes::BAD_ARGUMENTS, "Element {}.name is empty", config_prefix);
 
     const auto type_name = config.getString(config_prefix + ".type", default_type);
     return DictionaryTypedSpecialAttribute{std::move(name), std::move(expression), DataTypeFactory::instance().get(type_name)};
@@ -58,16 +58,7 @@ std::optional<AttributeUnderlyingType> tryGetAttributeUnderlyingType(TypeIndex i
 
 }
 
-
-DictionarySpecialAttribute::DictionarySpecialAttribute(const Poco::Util::AbstractConfiguration & config, const std::string & config_prefix)
-    : name{config.getString(config_prefix + ".name", "")}, expression{config.getString(config_prefix + ".expression", "")}
-{
-    if (name.empty() && !expression.empty())
-        throw Exception(ErrorCodes::BAD_ARGUMENTS, "Element {}.name is empty", config_prefix);
-}
-
-
-DictionaryStructure::DictionaryStructure(const Poco::Util::AbstractConfiguration & config, const std::string & config_prefix)
+DictionaryStructure::DictionaryStructure(const DBPoco::Util::AbstractConfiguration & config, const std::string & config_prefix)
 {
     std::string structure_prefix = config_prefix + ".structure";
 
@@ -79,7 +70,8 @@ DictionaryStructure::DictionaryStructure(const Poco::Util::AbstractConfiguration
 
     if (has_id)
     {
-        id.emplace(config, structure_prefix + ".id");
+        static constexpr auto id_default_type = "UInt64";
+        id.emplace(makeDictionaryTypedSpecialAttribute(config, structure_prefix + ".id", id_default_type));
     }
     else if (has_key)
     {
@@ -159,12 +151,12 @@ void DictionaryStructure::validateKeyTypes(const DataTypes & key_types) const
         const auto & expected_type = key_attributes_types[i];
         const auto & actual_type = key_types[i];
 
-        if (!areTypesEqual(expected_type, actual_type))
+        if (!expected_type->equals(*actual_type))
             throw Exception(ErrorCodes::TYPE_MISMATCH,
-            "Key type for complex key at position {} does not match, expected {}, found {}",
-            i,
-            expected_type->getName(),
-            actual_type->getName());
+                "Key type for complex key at position {} does not match, expected {}, found {}",
+                i,
+                expected_type->getName(),
+                actual_type->getName());
     }
 }
 
@@ -198,7 +190,7 @@ const DictionaryAttribute & DictionaryStructure::getAttribute(const std::string 
 {
     const auto & attribute = getAttribute(attribute_name);
 
-    if (!areTypesEqual(attribute.type, type))
+    if (!attribute.type->equals(*type))
         throw Exception(ErrorCodes::TYPE_MISMATCH,
             "Attribute type does not match, expected {}, found {}",
             attribute.type->getName(),
@@ -256,7 +248,7 @@ Strings DictionaryStructure::getKeysNames() const
     return keys_names;
 }
 
-static void checkAttributeKeys(const Poco::Util::AbstractConfiguration::Keys & keys)
+static void checkAttributeKeys(const DBPoco::Util::AbstractConfiguration::Keys & keys)
 {
     static const std::unordered_set<std::string_view> valid_keys
         = {"name", "type", "expression", "null_value", "hierarchical", "bidirectional", "injective", "is_object_id"};
@@ -269,7 +261,7 @@ static void checkAttributeKeys(const Poco::Util::AbstractConfiguration::Keys & k
 }
 
 std::vector<DictionaryAttribute> DictionaryStructure::getAttributes(
-    const Poco::Util::AbstractConfiguration & config,
+    const DBPoco::Util::AbstractConfiguration & config,
     const std::string & config_prefix,
     bool complex_key_attributes)
 {
@@ -277,7 +269,7 @@ std::vector<DictionaryAttribute> DictionaryStructure::getAttributes(
     const bool hierarchy_allowed = !complex_key_attributes;
     const bool allow_null_values = !complex_key_attributes;
 
-    Poco::Util::AbstractConfiguration::Keys config_elems;
+    DBPoco::Util::AbstractConfiguration::Keys config_elems;
     config.keys(config_prefix, config_elems);
     bool has_hierarchy = false;
 
@@ -292,7 +284,7 @@ std::vector<DictionaryAttribute> DictionaryStructure::getAttributes(
             continue;
 
         const auto prefix = config_prefix + '.' + config_elem + '.';
-        Poco::Util::AbstractConfiguration::Keys attribute_keys;
+        DBPoco::Util::AbstractConfiguration::Keys attribute_keys;
         config.keys(config_prefix + '.' + config_elem, attribute_keys);
 
         checkAttributeKeys(attribute_keys);
@@ -392,7 +384,7 @@ std::vector<DictionaryAttribute> DictionaryStructure::getAttributes(
     return res_attributes;
 }
 
-void DictionaryStructure::parseRangeConfiguration(const Poco::Util::AbstractConfiguration & config, const std::string & structure_prefix)
+void DictionaryStructure::parseRangeConfiguration(const DBPoco::Util::AbstractConfiguration & config, const std::string & structure_prefix)
 {
     static constexpr auto range_default_type = "Date";
 

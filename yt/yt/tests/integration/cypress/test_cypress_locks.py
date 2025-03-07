@@ -768,7 +768,7 @@ class TestCypressLocks(YTEnvSetup):
         set("//tmp/a", [1])
         tx = start_transaction()
         lock("//tmp/a/0", mode="exclusive", tx=tx)
-        with pytest.raises(YtError):
+        with raises_yt_error("\"exclusive\" lock is taken by concurrent transaction"):
             remove("//tmp/a")
 
     @authors("babenko", "ignat")

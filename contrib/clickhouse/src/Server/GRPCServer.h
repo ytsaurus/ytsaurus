@@ -3,11 +3,13 @@
 #include "clickhouse_config.h"
 
 #if USE_GRPC
-#include <Poco/Net/SocketAddress.h>
-#include <base/types.h>
-#error #include "clickhouse_grpc.grpc.pb.h"
 
-namespace Poco { class Logger; }
+#error #include "clickhouse_grpc.grpc.pb.h"
+#include <DBPoco/Net/SocketAddress.h>
+#include <base/types.h>
+#include <Common/Logger.h>
+
+namespace DBPoco { class Logger; }
 
 namespace grpc
 {
@@ -22,7 +24,7 @@ class IServer;
 class GRPCServer
 {
 public:
-    GRPCServer(IServer & iserver_, const Poco::Net::SocketAddress & address_to_listen_);
+    GRPCServer(IServer & iserver_, const DBPoco::Net::SocketAddress & address_to_listen_);
     ~GRPCServer();
 
     /// Starts the server. A new thread will be created that waits for and accepts incoming connections.
@@ -45,8 +47,8 @@ private:
     class Runner;
 
     IServer & iserver;
-    const Poco::Net::SocketAddress address_to_listen;
-    Poco::Logger * log;
+    const DBPoco::Net::SocketAddress address_to_listen;
+    LoggerRawPtr log;
     GRPCService grpc_service;
     std::unique_ptr<grpc::Server> grpc_server;
     std::unique_ptr<grpc::ServerCompletionQueue> queue;

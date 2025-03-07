@@ -1301,6 +1301,38 @@ class TestHttpProxyFormatConfig(HttpProxyTestBase, _TestProxyFormatConfigBase):
                 output_format=self.YSON,
             )
 
+    @authors("nadya02")
+    @pytest.mark.timeout(120)
+    def test_http_drop_write_request(self):
+        wait(lambda: requests.get(f"{self._get_proxy_address()}/api/v4/get?path=//@").ok)
+
+        create("table", "//tmp/t")
+
+        total_memory_limit = 2000
+
+        set("//sys/http_proxies/@config", {"memory_limits": {"total": total_memory_limit}})
+
+        monitoring_port = self.Env.configs["http_proxy"][0]["monitoring_port"]
+        config_url = "http://localhost:{}/orchid/dynamic_config_manager/effective_config".format(monitoring_port)
+
+        def config_updated():
+            config = requests.get(config_url).json()
+            return config.get("memory_limits", {}).get("total", 0) == total_memory_limit
+        wait(config_updated)
+
+        with pytest.raises(YtResponseError):
+            content = [{"foo": "bar"}, {"foo": "baz"}, {"foo": "qux"}] * 10
+            format = "yson"
+            user = "root"
+
+            self._execute_command(
+                "put",
+                "write_table",
+                {"path": "//tmp/t", "input_format": format},
+                user=user,
+                data=self._write_format(format, content),
+            )
+
     def _test_format_defaults_cypress(self, format, user, content, expected_content):
         set("//sys/@config/cypress_manager/forbid_list_node_creation", False)
         set("//tmp/list_node", content, force=True)

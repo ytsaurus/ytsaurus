@@ -1,12 +1,10 @@
 from yt_env_setup import YTEnvSetup, with_additional_threads
 
 from yt_commands import (
-    alter_table, authors, concatenate, create, get_driver, get, insert_rows, map as yt_map, write_table,
+    alter_table, authors, concatenate, create, get_driver, get, insert_rows, map as yt_map, raises_yt_error, write_table,
     map_reduce as yt_map_reduce, merge, read_table, reduce as yt_reduce, set as yt_set, set_node_banned,
     sort as yt_sort, sync_create_cells, sync_freeze_table, sync_mount_table, wait, write_file,
     multicell_sleep, remove)
-
-from yt.common import YtError
 
 import pytest
 
@@ -70,7 +68,7 @@ class TestChunkSchemas(YTEnvSetup):
         write_file("//tmp/file", content)
         chunk_ids = get("//tmp/file/@chunk_ids")
         for chunk_id in chunk_ids:
-            with pytest.raises(YtError, match="Attribute \"schema_id\" is not found"):
+            with raises_yt_error("Attribute \"schema_id\" is not found"):
                 get("#{}/@schema_id".format(chunk_id))
 
     @authors("h0pless")

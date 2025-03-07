@@ -1,6 +1,6 @@
 #pragma once
-#include <Poco/Net/IPAddress.h>
-#include <Poco/Net/SocketAddress.h>
+#include <DBPoco/Net/IPAddress.h>
+#include <DBPoco/Net/SocketAddress.h>
 #include <memory>
 #include <base/types.h>
 #include <Core/Names.h>
@@ -8,7 +8,7 @@
 #include <Common/LoggingFormatStringHelpers.h>
 
 
-namespace Poco { class Logger; }
+namespace DBPoco { class Logger; }
 
 namespace DB
 {
@@ -19,34 +19,44 @@ namespace DB
 class DNSResolver : private boost::noncopyable
 {
 public:
-    using IPAddresses = std::vector<Poco::Net::IPAddress>;
-    using IPAddressesPtr = std::shared_ptr<IPAddresses>;
+    using IPAddresses = std::vector<DBPoco::Net::IPAddress>;
+    using CacheEntry = struct
+    {
+        IPAddresses addresses;
+        std::chrono::system_clock::time_point cached_at;
+    };
 
     static DNSResolver & instance();
 
     DNSResolver(const DNSResolver &) = delete;
 
     /// Accepts host names like 'example.com' or '127.0.0.1' or '::1' and resolves its IP
-    Poco::Net::IPAddress resolveHost(const std::string & host);
+    DBPoco::Net::IPAddress resolveHost(const std::string & host);
 
     /// Accepts host names like 'example.com' or '127.0.0.1' or '::1' and resolves all its IPs
+    /// resolveHostAllInOriginOrder returns addresses with the same order as system call returns it
+    IPAddresses resolveHostAllInOriginOrder(const std::string & host);
+    /// resolveHostAll returns addresses in random order
     IPAddresses resolveHostAll(const std::string & host);
 
     /// Accepts host names like 'example.com:port' or '127.0.0.1:port' or '[::1]:port' and resolves its IP and port
-    Poco::Net::SocketAddress resolveAddress(const std::string & host_and_port);
+    DBPoco::Net::SocketAddress resolveAddress(const std::string & host_and_port);
 
-    Poco::Net::SocketAddress resolveAddress(const std::string & host, UInt16 port);
+    DBPoco::Net::SocketAddress resolveAddress(const std::string & host, UInt16 port);
 
-    std::vector<Poco::Net::SocketAddress> resolveAddressList(const std::string & host, UInt16 port);
+    std::vector<DBPoco::Net::SocketAddress> resolveAddressList(const std::string & host, UInt16 port);
 
     /// Accepts host IP and resolves its host names
-    std::unordered_set<String> reverseResolve(const Poco::Net::IPAddress & address);
+    std::unordered_set<String> reverseResolve(const DBPoco::Net::IPAddress & address);
 
     /// Get this server host name
     String getHostName();
 
     /// Disables caching
     void setDisableCacheFlag(bool is_disabled = true);
+
+    /// Set a limit of entries in cache
+    void setCacheMaxEntries(UInt64 cache_max_entries);
 
     /// Drops all caches
     void dropCache();
@@ -57,6 +67,9 @@ public:
     /// Updates all known hosts in cache.
     /// Returns true if IP of any host has been changed or an element was dropped (too many failures)
     bool updateCache(UInt32 max_consecutive_failures);
+
+    /// Returns a copy of cache entries
+    std::vector<std::pair<std::string, CacheEntry>> cacheEntries() const;
 
     ~DNSResolver();
 
@@ -73,14 +86,14 @@ private:
 
     struct Impl;
     std::unique_ptr<Impl> impl;
-    Poco::Logger * log;
+    LoggerPtr log;
 
     /// Updates cached value and returns true it has been changed.
     bool updateHost(const String & host);
-    bool updateAddress(const Poco::Net::IPAddress & address);
+    bool updateAddress(const DBPoco::Net::IPAddress & address);
 
     void addToNewHosts(const String & host);
-    void addToNewAddresses(const Poco::Net::IPAddress & address);
+    void addToNewAddresses(const DBPoco::Net::IPAddress & address);
 };
 
 }

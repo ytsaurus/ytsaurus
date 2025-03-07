@@ -23,6 +23,18 @@ from collections import Counter
 ##################################################################
 
 
+def _get_controller_profiler():
+    agent_addresses = ls("//sys/controller_agents/instances")
+    assert len(agent_addresses) == 1
+
+    return profiler_factory().at_controller_agent(agent_addresses[0])
+
+
+def _get_job_tracker_orchid_path(op):
+    controller_agent_address = op.get_controller_agent_address()
+    return f"//sys/controller_agents/instances/{controller_agent_address}/orchid/controller_agent/job_tracker"
+
+
 class TestSchedulerVanillaCommands(YTEnvSetup):
     ENABLE_MULTIDAEMON = False  # There are component restarts.
     NUM_TEST_PARTITIONS = 3
@@ -661,6 +673,140 @@ class TestSchedulerVanillaCommandsMulticell(TestSchedulerVanillaCommands):
 
 ##################################################################
 
+
+class TestVanillaOperationRevival(YTEnvSetup):
+    ENABLE_MULTIDAEMON = False  # There are component restarts.
+
+    NUM_MASTERS = 1
+    NUM_NODES = 3
+    NUM_SCHEDULERS = 1
+
+    DELTA_CONTROLLER_AGENT_CONFIG = {
+        "controller_agent": {
+            "gang_manager": {
+                "enabled": True,
+            },
+
+            "snapshot_period": 200,
+        },
+    }
+
+    DELTA_NODE_CONFIG = {
+        "job_resource_manager": {
+            "resource_limits": {
+                "cpu": 1,
+                "user_slots": 1,
+            },
+        },
+    }
+
+    @authors("pogorelov")
+    def test_simple_revive(self):
+        started_job_profiler = JobCountProfiler(
+            "started",
+            tags={"tree": "default", "job_type": "vanilla"},
+        )
+
+        incarnation_switch_counter = _get_controller_profiler().counter("controller_agent/gang_operations/incarnation_switch_count")
+
+        op = vanilla(
+            track=False,
+            spec={
+                "tasks": {
+                    "task_a": {
+                        "job_count": 1,
+                        "command": with_breakpoint("BREAKPOINT", breakpoint_name="task_a"),
+                    },
+                    "task_b": {
+                        "job_count": 1,
+                        "command": with_breakpoint("BREAKPOINT", breakpoint_name="task_b"),
+                    },
+                },
+                "fail_on_job_restart": False,
+            },
+        )
+
+        wait_breakpoint(breakpoint_name="task_a")
+        wait_breakpoint(breakpoint_name="task_b")
+
+        op.wait_for_fresh_snapshot()
+
+        assert incarnation_switch_counter.get_delta() == 0
+
+        wait(lambda: started_job_profiler.get_job_count_delta() == 2)
+        started_job_profiler = JobCountProfiler(
+            "started",
+            tags={"tree": "default", "job_type": "vanilla"},
+        )
+
+        with Restarter(self.Env, SCHEDULERS_SERVICE):
+            pass
+
+        release_breakpoint(breakpoint_name="task_a")
+        release_breakpoint(breakpoint_name="task_b")
+
+        op.track()
+
+        assert started_job_profiler.get_job_count_delta() == 0
+        assert incarnation_switch_counter.get_delta() == 0
+
+    @authors("pogorelov")
+    @pytest.mark.parametrize("jobs_were_scheduled", [0, 1])
+    def test_revive_before_jobs_scheduled(self, jobs_were_scheduled):
+        incarnation_switch_counter = _get_controller_profiler().with_tags({"reason": "job_lack_after_revival"}).counter(
+            "controller_agent/gang_operations/incarnation_switch_count")
+
+        started_job_profiler = JobCountProfiler(
+            "started",
+            tags={"tree": "default", "job_type": "vanilla"},
+        )
+
+        total_cpu_limit = get("//sys/scheduler/orchid/scheduler/cluster/resource_limits/cpu")
+        create_pool("test_pool", attributes={"min_share_resources": {"cpu": total_cpu_limit}})
+
+        sleeping_op = run_sleeping_vanilla(spec={"pool": "test_pool"}, job_count=(3 - jobs_were_scheduled))
+        wait(lambda: len(get(_get_job_tracker_orchid_path(sleeping_op) + f"/operations/{sleeping_op.id}/allocations")) == 3 - jobs_were_scheduled)
+
+        # Will not start jobs while sleeping_op is running.
+        op = run_test_vanilla(
+            with_breakpoint("BREAKPOINT"),
+            job_count=3,
+            spec={"pool": "fake_pool"},
+        )
+
+        if jobs_were_scheduled:
+            wait(lambda: len(get(_get_job_tracker_orchid_path(op) + f"/operations/{op.id}/allocations")) == jobs_were_scheduled)
+        else:
+            assert len(get(_get_job_tracker_orchid_path(op) + f"/operations/{op.id}/allocations")) == 0
+
+        op.wait_for_fresh_snapshot()
+
+        wait(lambda: started_job_profiler.get_job_count_delta() == 3)
+
+        assert incarnation_switch_counter.get_delta() == 0
+
+        with Restarter(self.Env, CONTROLLER_AGENTS_SERVICE):
+            sleeping_op.abort()
+
+        incarnation_switch_counter = _get_controller_profiler().with_tags({"reason": "job_lack_after_revival"}).counter(
+            "controller_agent/gang_operations/incarnation_switch_count")
+
+        started_job_profiler = JobCountProfiler(
+            "started",
+            tags={"tree": "default", "job_type": "vanilla"},
+        )
+
+        wait_breakpoint(job_count=3)
+        release_breakpoint()
+
+        op.track()
+
+        assert incarnation_switch_counter.get() == 0
+        assert started_job_profiler.get() == 3 - jobs_were_scheduled
+
+
+##################################################################
+
 @pytest.mark.enabled_multidaemon
 class TestSchedulerVanillaInterrupts(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
@@ -788,7 +934,6 @@ class TestSchedulerVanillaInterruptsPorto(TestSchedulerVanillaInterrupts):
 
 ##################################################################
 
-
 class TestGangManager(YTEnvSetup):
     ENABLE_MULTIDAEMON = False  # There are component restarts.
     NUM_MASTERS = 1
@@ -826,12 +971,10 @@ class TestGangManager(YTEnvSetup):
 
         return incarnation_id
 
-    def _get_job_tracker_orchid_path(self, op):
-        controller_agent_address = op.get_controller_agent_address()
-        return f"//sys/controller_agents/instances/{controller_agent_address}/orchid/controller_agent/job_tracker"
-
     @authors("pogorelov", "arkady-e1ppa")
     def test_operation_incarnation_is_set(self):
+        started_gang_counter = _get_controller_profiler().counter("controller_agent/gang_operations/started_count")
+
         # NB(arkady-e1ppa): Die with code 42 if variable is not set.
         command = '[[ -z "$YT_OPERATION_INCARNATION" ]] && exit 42 || exit 0'
         op = vanilla(
@@ -849,6 +992,8 @@ class TestGangManager(YTEnvSetup):
         op.wait_for_state("completed")
         op.track()
 
+        wait(lambda: started_gang_counter.get_delta() == 1)
+
     @authors("pogorelov")
     def test_restart_on_abortion(self):
         restarted_job_profiler = JobCountProfiler(
@@ -859,6 +1004,8 @@ class TestGangManager(YTEnvSetup):
             "aborted",
             tags={"tree": "default", "job_type": "vanilla", "abort_reason": "user_request"},
         )
+
+        incarnation_switch_counter = _get_controller_profiler().with_tags({"reason": "job_aborted"}).counter("controller_agent/gang_operations/incarnation_switch_count")
 
         op = run_test_vanilla(
             with_breakpoint("BREAKPOINT"),
@@ -890,6 +1037,8 @@ class TestGangManager(YTEnvSetup):
 
         new_job_ids = wait_breakpoint(job_count=3)
 
+        wait(lambda: incarnation_switch_counter.get_delta() == 1)
+
         assert len(set(job_ids) & set(new_job_ids)) == 0
 
         allocation_ids = set([get_allocation_id_from_job_id(job_id) for job_id in job_ids])
@@ -906,7 +1055,9 @@ class TestGangManager(YTEnvSetup):
     def test_restart_disabled_in_config(self):
         update_controller_agent_config("vanilla_operation_options/gang_manager/enabled", False)
 
-        restarted_job_profiler = JobCountProfiler(
+        incarnation_switch_counter = _get_controller_profiler().counter("controller_agent/gang_operations/incarnation_switch_count")
+
+        aborted_job_profiler = JobCountProfiler(
             "aborted",
             tags={"tree": "default", "job_type": "vanilla"},
         )
@@ -935,12 +1086,16 @@ class TestGangManager(YTEnvSetup):
 
         release_breakpoint()
 
-        op.track()
+        op.wait_for_state("failed")
 
-        assert restarted_job_profiler.get_job_count_delta() == 1
+        assert aborted_job_profiler.get_job_count_delta() == 3
+
+        assert incarnation_switch_counter.get_delta() == 0
 
     @authors("pogorelov")
     def test_restart_on_job_failure(self):
+        incarnation_switch_counter = _get_controller_profiler().with_tags({"reason": "job_failed"}).counter("controller_agent/gang_operations/incarnation_switch_count")
+
         restarted_job_profiler = JobCountProfiler(
             "aborted",
             tags={"tree": "default", "job_type": "vanilla", "abort_reason": "operation_incarnation_changed"},
@@ -979,6 +1134,8 @@ class TestGangManager(YTEnvSetup):
         wait(lambda: failed_job_profiler.get_job_count_delta() == 1)
         wait(lambda: restarted_job_profiler.get_job_count_delta() == 2)
 
+        wait(lambda: incarnation_switch_counter.get_delta() == 1)
+
         for job_orchid_address in job_orchid_addresses:
             wait(lambda: not exists(job_orchid_address))
 
@@ -1007,6 +1164,8 @@ class TestGangManager(YTEnvSetup):
             "aborted",
             tags={"tree": "default", "job_type": "vanilla", "abort_reason": "operation_incarnation_changed"},
         )
+
+        incarnation_switch_counter = _get_controller_profiler().counter("controller_agent/gang_operations/incarnation_switch_count")
 
         op = vanilla(
             track=False,
@@ -1056,12 +1215,18 @@ class TestGangManager(YTEnvSetup):
         if task_to_abort_job_of == "task_b":
             assert aborted_job_profiler.get_job_count_delta() == 2
             assert restarted_job_profiler.get_job_count_delta() == 1
+
+            wait(lambda: incarnation_switch_counter.get_delta() == 1)
         else:
             assert aborted_job_profiler.get_job_count_delta() == 1
             assert restarted_job_profiler.get_job_count_delta() == 0
 
+            assert incarnation_switch_counter.get_delta() == 0
+
     @authors("pogorelov")
     def test_multiple_incarnation_switches(self):
+        incarnation_switch_counter = _get_controller_profiler().with_tags({"reason": "job_aborted"}).counter("controller_agent/gang_operations/incarnation_switch_count")
+
         incarnation_switch_count = 3
 
         restarted_job_profiler = JobCountProfiler(
@@ -1111,6 +1276,8 @@ class TestGangManager(YTEnvSetup):
 
             previous_job_ids = last_job_ids
 
+            wait(lambda: incarnation_switch_counter.get_delta() == iteration + 1)
+
             last_job_ids = wait_breakpoint(job_count=3)
             assert len(set(last_job_ids) & all_started_jobs) == 0
 
@@ -1135,6 +1302,8 @@ class TestGangManager(YTEnvSetup):
             tags={"tree": "default", "job_type": "vanilla"},
         )
 
+        incarnation_switch_counter = _get_controller_profiler().counter("controller_agent/gang_operations/incarnation_switch_count")
+
         op = vanilla(
             track=False,
             spec={
@@ -1158,6 +1327,8 @@ class TestGangManager(YTEnvSetup):
 
         op.wait_for_fresh_snapshot()
 
+        assert incarnation_switch_counter.get_delta() == 0
+
         with Restarter(self.Env, SCHEDULERS_SERVICE):
             pass
 
@@ -1167,15 +1338,19 @@ class TestGangManager(YTEnvSetup):
         op.track()
 
         assert aborted_job_profiler.get_job_count_delta() == 0
+        assert incarnation_switch_counter.get_delta() == 0
 
     @authors("pogorelov")
     @pytest.mark.parametrize("jobs_were_scheduled", [0, 1])
     def test_revive_before_jobs_scheduled(self, jobs_were_scheduled):
+        incarnation_switch_counter = _get_controller_profiler().with_tags({"reason": "job_lack_after_revival"}).counter(
+            "controller_agent/gang_operations/incarnation_switch_count")
+
         total_cpu_limit = get("//sys/scheduler/orchid/scheduler/cluster/resource_limits/cpu")
         create_pool("test_pool", attributes={"min_share_resources": {"cpu": total_cpu_limit}})
 
         sleeping_op = run_sleeping_vanilla(spec={"pool": "test_pool"}, job_count=(3 - jobs_were_scheduled))
-        wait(lambda: len(get(self._get_job_tracker_orchid_path(sleeping_op) + f"/operations/{sleeping_op.id}/allocations")) == 3 - jobs_were_scheduled)
+        wait(lambda: len(get(_get_job_tracker_orchid_path(sleeping_op) + f"/operations/{sleeping_op.id}/allocations")) == 3 - jobs_were_scheduled)
 
         # Will not start jobs while sleeping_op is running.
         op = run_test_vanilla(
@@ -1188,14 +1363,23 @@ class TestGangManager(YTEnvSetup):
         first_incarnation_id = self._get_operation_incarnation(op)
 
         if jobs_were_scheduled:
-            wait(lambda: len(get(self._get_job_tracker_orchid_path(op) + f"/operations/{op.id}/allocations")) == jobs_were_scheduled)
+            wait(lambda: len(get(_get_job_tracker_orchid_path(op) + f"/operations/{op.id}/allocations")) == jobs_were_scheduled)
         else:
-            assert len(get(self._get_job_tracker_orchid_path(op) + f"/operations/{op.id}/allocations")) == 0
+            assert len(get(_get_job_tracker_orchid_path(op) + f"/operations/{op.id}/allocations")) == 0
+
+        op.wait_for_fresh_snapshot()
+
+        assert incarnation_switch_counter.get_delta() == 0
 
         with Restarter(self.Env, CONTROLLER_AGENTS_SERVICE):
             sleeping_op.abort()
 
+        incarnation_switch_counter = _get_controller_profiler().with_tags({"reason": "job_lack_after_revival"}).counter(
+            "controller_agent/gang_operations/incarnation_switch_count")
+
         second_incarnation_id = self._get_operation_incarnation(op)
+
+        print_debug(f"First incarnation id: {first_incarnation_id}, second incarnation id: {second_incarnation_id}")
 
         assert first_incarnation_id != second_incarnation_id
 
@@ -1204,12 +1388,17 @@ class TestGangManager(YTEnvSetup):
 
         op.track()
 
+        wait(lambda: incarnation_switch_counter.get() == 1)
+
     @authors("pogorelov")
     def test_restart_completed_jobs(self):
         completed_job_profiler = JobCountProfiler(
             "completed",
             tags={"tree": "default", "job_type": "vanilla"},
         )
+
+        incarnation_switch_counter = _get_controller_profiler().with_tags({"reason": "job_aborted"}).counter(
+            "controller_agent/gang_operations/incarnation_switch_count")
 
         op = run_test_vanilla(
             with_breakpoint("BREAKPOINT"),
@@ -1230,6 +1419,8 @@ class TestGangManager(YTEnvSetup):
         release_breakpoint(job_id=job_ids[2])
 
         # wait(lambda: restarted_job_profiler.get_job_count_delta() == 2)
+
+        wait(lambda: incarnation_switch_counter.get() == 1)
 
         job_ids = wait_breakpoint(job_count=3)
         release_breakpoint()
@@ -1450,6 +1641,9 @@ class TestGangManager(YTEnvSetup):
             tags={"tree": "default", "job_type": "vanilla", "abort_reason": "operation_incarnation_changed"},
         )
 
+        incarnation_switch_counter = _get_controller_profiler().with_tags({"reason": "job_interrupted"}).counter(
+            "controller_agent/gang_operations/incarnation_switch_count")
+
         exit_code = 17
         command = f"""(trap "exit {exit_code}" SIGINT; BREAKPOINT)"""
 
@@ -1487,6 +1681,8 @@ class TestGangManager(YTEnvSetup):
 
         for job_id in first_job_ids:
             release_breakpoint(job_id=job_id)
+
+        wait(lambda: incarnation_switch_counter.get_delta() == 1)
 
         second_job_ids = wait_breakpoint(job_count=3)
 

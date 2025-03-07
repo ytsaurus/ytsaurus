@@ -42,7 +42,7 @@ namespace
     }
 
     /// Reads encryption keys from the configuration.
-    void getKeysFromConfig(const Poco::Util::AbstractConfiguration & config, const String & config_prefix,
+    void getKeysFromConfig(const DBPoco::Util::AbstractConfiguration & config, const String & config_prefix,
                            std::map<UInt64, String> & out_keys_by_id, Strings & out_keys_without_id)
     {
         Strings config_keys;
@@ -94,7 +94,7 @@ namespace
     }
 
     /// Reads the current encryption key from the configuration.
-    String getCurrentKeyFromConfig(const Poco::Util::AbstractConfiguration & config, const String & config_prefix,
+    String getCurrentKeyFromConfig(const DBPoco::Util::AbstractConfiguration & config, const String & config_prefix,
                                    const std::map<UInt64, String> & keys_by_id, const Strings & keys_without_id)
     {
         String key_path = config_prefix + ".current_key";
@@ -151,7 +151,7 @@ namespace
     }
 
     /// Reads the current encryption algorithm from the configuration.
-    Algorithm getCurrentAlgorithmFromConfig(const Poco::Util::AbstractConfiguration & config, const String & config_prefix)
+    Algorithm getCurrentAlgorithmFromConfig(const DBPoco::Util::AbstractConfiguration & config, const String & config_prefix)
     {
         String path = config_prefix + ".algorithm";
         if (!config.has(path))
@@ -160,7 +160,7 @@ namespace
     }
 
     /// Reads the name of a wrapped disk & the path on the wrapped disk and then finds that disk in a disk map.
-    void getDiskAndPathFromConfig(const Poco::Util::AbstractConfiguration & config, const String & config_prefix, const DisksMap & map,
+    void getDiskAndPathFromConfig(const DBPoco::Util::AbstractConfiguration & config, const String & config_prefix, const DisksMap & map,
                                   DiskPtr & out_disk, String & out_path)
     {
         String disk_name = config.getString(config_prefix + ".disk", "");
@@ -183,7 +183,7 @@ namespace
     /// Parses the settings of an ecnrypted disk from the configuration.
     std::unique_ptr<const DiskEncryptedSettings> parseDiskEncryptedSettings(
         const String & disk_name,
-        const Poco::Util::AbstractConfiguration & config,
+        const DBPoco::Util::AbstractConfiguration & config,
         const String & config_prefix,
         const DisksMap & disk_map)
     {
@@ -285,13 +285,13 @@ private:
 };
 
 DiskEncrypted::DiskEncrypted(
-    const String & name_, const Poco::Util::AbstractConfiguration & config_, const String & config_prefix_, const DisksMap & map_)
+    const String & name_, const DBPoco::Util::AbstractConfiguration & config_, const String & config_prefix_, const DisksMap & map_)
     : DiskEncrypted(name_, parseDiskEncryptedSettings(name_, config_, config_prefix_, map_), config_, config_prefix_)
 {
 }
 
 DiskEncrypted::DiskEncrypted(const String & name_, std::unique_ptr<const DiskEncryptedSettings> settings_,
-                             const Poco::Util::AbstractConfiguration & config_, const String & config_prefix_)
+                             const DBPoco::Util::AbstractConfiguration & config_, const String & config_prefix_)
     : IDisk(name_, config_, config_prefix_)
     , delegate(settings_->wrapped_disk)
     , encrypted_name(name_)
@@ -324,7 +324,13 @@ ReservationPtr DiskEncrypted::reserve(UInt64 bytes)
 }
 
 
-void DiskEncrypted::copyDirectoryContent(const String & from_dir, const std::shared_ptr<IDisk> & to_disk, const String & to_dir)
+void DiskEncrypted::copyDirectoryContent(
+    const String & from_dir,
+    const std::shared_ptr<IDisk> & to_disk,
+    const String & to_dir,
+    const ReadSettings & read_settings,
+    const WriteSettings & write_settings,
+    const std::function<void()> & cancellation_hook)
 {
     /// Check if we can copy the file without deciphering.
     if (isSameDiskType(*this, *to_disk))
@@ -340,14 +346,14 @@ void DiskEncrypted::copyDirectoryContent(const String & from_dir, const std::sha
                 auto wrapped_from_path = wrappedPath(from_dir);
                 auto to_delegate = to_disk_enc->delegate;
                 auto wrapped_to_path = to_disk_enc->wrappedPath(to_dir);
-                delegate->copyDirectoryContent(wrapped_from_path, to_delegate, wrapped_to_path);
+                delegate->copyDirectoryContent(wrapped_from_path, to_delegate, wrapped_to_path, read_settings, write_settings, cancellation_hook);
                 return;
             }
         }
     }
 
     /// Copy the file through buffers with deciphering.
-    IDisk::copyDirectoryContent(from_dir, to_disk, to_dir);
+    IDisk::copyDirectoryContent(from_dir, to_disk, to_dir, read_settings, write_settings, cancellation_hook);
 }
 
 std::unique_ptr<ReadBufferFromFileBase> DiskEncrypted::readFile(
@@ -426,7 +432,7 @@ std::unordered_map<String, String> DiskEncrypted::getSerializedMetadata(const st
 }
 
 void DiskEncrypted::applyNewSettings(
-    const Poco::Util::AbstractConfiguration & config,
+    const DBPoco::Util::AbstractConfiguration & config,
     ContextPtr context,
     const String & config_prefix,
     const DisksMap & disk_map)
@@ -446,10 +452,11 @@ void registerDiskEncrypted(DiskFactory & factory, bool global_skip_access_check)
 {
     auto creator = [global_skip_access_check](
         const String & name,
-        const Poco::Util::AbstractConfiguration & config,
+        const DBPoco::Util::AbstractConfiguration & config,
         const String & config_prefix,
         ContextPtr context,
-        const DisksMap & map) -> DiskPtr
+        const DisksMap & map,
+        bool, bool) -> DiskPtr
     {
         bool skip_access_check = global_skip_access_check || config.getBool(config_prefix + ".skip_access_check", false);
         DiskPtr disk = std::make_shared<DiskEncrypted>(name, config, config_prefix, map);

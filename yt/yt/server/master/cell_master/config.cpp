@@ -357,6 +357,10 @@ void TDynamicCellMasterConfig::Register(TRegistrar registrar)
     registrar.Parameter("expected_mutation_commit_duration", &TThis::ExpectedMutationCommitDuration)
         .Default(TDuration::Zero());
 
+    // COMPAT(koloshmet)
+    registrar.Parameter("create_lost_vital_chunks_sample_map", &TThis::CreateLostVitalChunksSampleMap)
+        .Default(true);
+
     registrar.Parameter("response_keeper", &TThis::ResponseKeeper)
         .DefaultNew();
 }

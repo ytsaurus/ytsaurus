@@ -2940,6 +2940,7 @@ TJobProxyInternalConfigPtr TJob::CreateConfig()
     if (UserJobSpec_) {
         proxyInternalConfig->MemoryTracker->IncludeMemoryMappedFiles = UserJobSpec_->include_memory_mapped_files();
         proxyInternalConfig->MemoryTracker->UseSMapsMemoryTracker = UserJobSpec_->use_smaps_memory_tracker();
+        proxyInternalConfig->StartQueueConsumerRegistrationManager = UserJobSpec_->start_queue_consumer_registration_manager();
     } else {
         proxyInternalConfig->MemoryTracker->IncludeMemoryMappedFiles = true;
         proxyInternalConfig->MemoryTracker->UseSMapsMemoryTracker = false;
@@ -3182,7 +3183,7 @@ void TJob::BuildVirtualSandbox()
             << TErrorAttribute("export_id", VirtualSandboxData_->NbdExportId);
     }
 
-    auto readerHost = nbdServer->GetFileReaderHost();
+    auto readerHost = Bootstrap_->GetFileReaderHost();
     auto inThrottler = Bootstrap_->GetDefaultInThrottler();
     auto outRpsThrottler = Bootstrap_->GetReadRpsOutThrottler();
     auto logger = nbdServer->GetLogger();

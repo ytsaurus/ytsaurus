@@ -7,7 +7,7 @@
 #include <string>
 #include <unordered_map>
 #include <unordered_set>
-#include <Poco/Logger.h>
+#include <DBPoco/Logger.h>
 #include "Core/ColumnWithTypeAndName.h"
 #include "DataTypes/DataTypeArray.h"
 
@@ -41,7 +41,7 @@
 #include <Interpreters/Context.h>
 #include <Processors/Sources/SourceFromSingleChunk.h>
 
-#include <Poco/Util/AbstractConfiguration.h>
+#include <DBPoco/Util/AbstractConfiguration.h>
 
 #include <Common/filesystemHelpers.h>
 #include <Common/logger_useful.h>
@@ -66,7 +66,7 @@ namespace ErrorCodes
 void registerDictionarySourceYAMLRegExpTree(DictionarySourceFactory & factory)
 {
     auto create_table_source = [=]([[maybe_unused]] const DictionaryStructure & dict_struct,
-                                   [[maybe_unused]] const Poco::Util::AbstractConfiguration & config,
+                                   [[maybe_unused]] const DBPoco::Util::AbstractConfiguration & config,
                                    [[maybe_unused]] const String & config_prefix,
                                    Block & ,
                                    [[maybe_unused]] ContextPtr global_context,
@@ -227,7 +227,7 @@ void parseMatchNode(UInt64 parent_id, UInt64 & id, const YAML::Node & node, Resu
 
     if (!match.contains(key_name))
     {
-        throw Exception(ErrorCodes::INVALID_CONFIG_PARAMETER, "Yaml match rule must contain key {}", key_name);
+        throw Exception(ErrorCodes::INVALID_CONFIG_PARAMETER, "YAML match rule must contain key {}", key_name);
     }
     for (const auto & [key, node_] : match)
     {
@@ -284,7 +284,7 @@ Block parseYAMLAsRegExpTree(const YAML::Node & node, const String & key_name, co
 
 YAMLRegExpTreeDictionarySource::YAMLRegExpTreeDictionarySource(
     const String & filepath_, const DictionaryStructure & dict_struct, ContextPtr context_, bool created_from_ddl)
-    : filepath(filepath_), structure(dict_struct), context(context_), logger(&Poco::Logger::get(kYAMLRegExpTreeDictionarySource))
+    : filepath(filepath_), structure(dict_struct), context(context_), logger(getLogger(kYAMLRegExpTreeDictionarySource))
 {
     key_name = (*structure.key)[0].name;
 
@@ -331,7 +331,7 @@ String YAMLRegExpTreeDictionarySource::toString() const
     return fmt::format("{} with path: {}", kYAMLRegExpTree, filepath);
 }
 
-Poco::Timestamp YAMLRegExpTreeDictionarySource::getLastModification() const
+DBPoco::Timestamp YAMLRegExpTreeDictionarySource::getLastModification() const
 {
     return FS::getModificationTimestamp(filepath);
 }

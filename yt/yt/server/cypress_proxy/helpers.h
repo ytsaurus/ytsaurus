@@ -27,6 +27,12 @@ void ValidateLinkNodeCreation(
     NSequoiaClient::TRawYPath targetPath,
     const TResolveResult& resolveResult);
 
+std::vector<NObjectClient::TTransactionId> ParsePrerequisiteTransactionIds(const NRpc::NProto::TRequestHeader& header);
+
+void ValidatePrerequisites(
+    const NSequoiaClient::ISequoiaClientPtr& sequoiaClient,
+    const std::vector<NObjectClient::TTransactionId>& prerequisiteTransactionIds);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 std::vector<std::string> TokenizeUnresolvedSuffix(NSequoiaClient::TYPathBuf unresolvedSuffix);

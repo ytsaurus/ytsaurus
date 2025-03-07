@@ -1,8 +1,8 @@
 #pragma once
 
-#include <Poco/AutoPtr.h>
-#include <Poco/Util/AbstractConfiguration.h>
-#include <Poco/Timestamp.h>
+#include <DBPoco/AutoPtr.h>
+#include <DBPoco/Util/AbstractConfiguration.h>
+#include <DBPoco/Timestamp.h>
 
 #include <atomic>
 #include <memory>
@@ -11,7 +11,7 @@
 
 namespace DB
 {
-using LoadablesConfigurationPtr = Poco::AutoPtr<Poco::Util::AbstractConfiguration>;
+using LoadablesConfigurationPtr = DBPoco::AutoPtr<DBPoco::Util::AbstractConfiguration>;
 
 /// Base interface for configurations source for Loadble objects, which can be
 /// loaded with ExternalLoader. Configurations may came from filesystem (XML-files),
@@ -37,7 +37,7 @@ public:
     virtual bool exists(const std::string & path) = 0;
 
     /// Returns entity last update time
-    virtual Poco::Timestamp getUpdateTime(const std::string & path) = 0;
+    virtual std::optional<DBPoco::Timestamp> getUpdateTime(const std::string & /* path */) { return {}; }
 
     /// Load configuration from some concrete source to AbstractConfiguration
     virtual LoadablesConfigurationPtr load(const std::string & path) = 0;

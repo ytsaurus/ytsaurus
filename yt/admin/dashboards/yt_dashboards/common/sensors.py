@@ -121,6 +121,7 @@ RpcProxy = ProjectSensor("rpc_proxy", "yt_rpc_proxies")
 RpcProxyRpc = ProjectSensor("rpc_proxy_rpc", "yt_rpc_proxies", base=RpcBase)
 RpcProxyInternal = ProjectSensor("rpc_proxy_internal", "yt_rpc_proxies")
 RpcProxyCpu = ProjectSensor("rpc_proxy_cpu", "yt_rpc_proxies")
+RpcProxyMemory =  ProjectSensor("rpc_proxy_memory", "yt_rpc_proxies")  # noqa: E222
 RpcProxyPorto =  ProjectSensor("rpc_proxy_porto", base=RpcBase)  # noqa: E222
 
 # BundleController

@@ -49,7 +49,7 @@ public:
     //! Looks up a table schema. Returns an existing schema object or nullptr if no such schema exists.
     //! This is the means of schema deduplication.
     virtual TMasterTableSchema* FindNativeMasterTableSchema(
-        const NTableClient::TTableSchema& tableSchema) const = 0;
+        const TCompactTableSchema& tableSchema) const = 0;
 
     //! Creates an imported schema with the specified id.
     /*!
@@ -58,7 +58,7 @@ public:
      *  NB: This is the means of schema deduplication.
      */
     virtual TMasterTableSchema* CreateImportedMasterTableSchema(
-        const NTableClient::TTableSchema& tableSchema,
+        const TCompactTableSchema& tableSchema,
         TMasterTableSchemaId hintId) = 0;
 
     //! Creates a foreign schema with the specified id.
@@ -69,16 +69,17 @@ public:
      *  NB: This is the means of schema deduplication.
      */
     virtual TMasterTableSchema* CreateImportedTemporaryMasterTableSchema(
-        const NTableClient::TTableSchema& tableSchema,
+        const TCompactTableSchema& tableSchema,
         NTransactionServer::TTransaction* schemaHolder,
         TMasterTableSchemaId hintId) = 0;
 
     // COMPAT(h0pless): RefactorSchemaExport
     virtual TMasterTableSchema* CreateImportedMasterTableSchema(
-        const NTableClient::TTableSchema& tableSchema,
+        const TCompactTableSchema& tableSchema,
         TSchemafulNode* schemaHolder,
         TMasterTableSchemaId hintId) = 0;
 
+    // TODO(cherepashka): make `schema` argument rvalue in functions below (YT-22285).
     //! Looks up a schema or creates one if no such schema exists.
     /*!
      *  #schemaHolder will have its schema set to the resulting schema.
@@ -87,30 +88,29 @@ public:
      *  NB: This is the means of schema deduplication.
      */
     virtual TMasterTableSchema* GetOrCreateNativeMasterTableSchema(
-        const NTableClient::TTableSchema& schema,
+        const TCompactTableSchema& schema,
         TSchemafulNode* schemaHolder) = 0;
 
     //! Same as above but associates resulting schema with a transaction instead
     //! of a schemaful node.
     virtual TMasterTableSchema* GetOrCreateNativeMasterTableSchema(
-        const NTableClient::TTableSchema& schema,
+        const TCompactTableSchema& schema,
         NTransactionServer::TTransaction* schemaHolder) = 0;
 
     //! Same as above but associates resulting schema with a chunk instead
     //! of a transaction.
     virtual TMasterTableSchema* GetOrCreateNativeMasterTableSchema(
-        const NTableClient::TTableSchema& schema,
+        const TCompactTableSchema& schema,
         NChunkServer::TChunk* schemaHolder) = 0;
 
     // For loading from snapshot.
     virtual TMasterTableSchema::TNativeTableSchemaToObjectMapIterator RegisterNativeSchema(
         TMasterTableSchema* schema,
-        NTableClient::TTableSchema tableSchema) = 0;
+        TCompactTableSchema tableSchema) = 0;
 
     virtual TMasterTableSchema* GetEmptyMasterTableSchema() const = 0;
 
     virtual void SetTableSchema(TSchemafulNode* table, TMasterTableSchema* schema) = 0;
-    virtual void SetTableSchemaOrThrow(TSchemafulNode* table, TMasterTableSchemaId schemaId) = 0;
     virtual void SetTableSchemaOrCrash(TSchemafulNode* table, TMasterTableSchemaId schemaId) = 0;
     virtual void ResetTableSchema(TSchemafulNode* table) = 0;
 
@@ -138,12 +138,12 @@ public:
     // COMPAT(h0pless): Remove isChunkSchema flag after chunk schemas are introduced.
     virtual void ValidateTableSchemaCorrespondence(
         NCypressClient::TVersionedNodeId nodeId,
-        const NTableClient::TTableSchemaPtr& tableSchema,
+        const TCompactTableSchemaPtr& tableSchema,
         TMasterTableSchemaId schemaId,
         bool isChunkSchema = false) = 0;
 
-    virtual const NTableClient::TTableSchema* ProcessSchemaFromAttributes(
-        NTableClient::TTableSchemaPtr& tableSchema,
+    virtual const TCompactTableSchema* ProcessSchemaFromAttributes(
+        TCompactTableSchemaPtr& tableSchema,
         TMasterTableSchemaId schemaId,
         bool dynamic,
         bool chaos,

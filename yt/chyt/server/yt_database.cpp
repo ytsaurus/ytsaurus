@@ -47,7 +47,8 @@ public:
 
     DB::DatabaseTablesIteratorPtr getTablesIterator(
         DB::ContextPtr context,
-        const FilterByNameFunction& filterByTableName) const override
+        const FilterByNameFunction & filterByTableName,
+        bool /*skipNotLoaded*/) const override
     {
         auto* queryContext = GetQueryContext(context);
         auto timerGuard = queryContext->CreateStatisticsTimerGuard("/yt_database/get_tables_iterator"_SP);
@@ -89,7 +90,8 @@ public:
             query.data() + query.size(),
             "",
             0 /*maxQuerySize*/,
-            0 /*maxQueryDepth*/);
+            0 /*maxQueryDepth*/,
+            0 /*max_parser_backtracks*/);
     }
 
     String getEngineName() const override

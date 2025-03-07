@@ -36,6 +36,22 @@ using NYT::ToProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+namespace {
+
+DEFINE_ENUM(EOperationIncarnationSwitchReason,
+    (JobAborted)
+    (JobFailed)
+    (JobInterrupted)
+    (JobIncarnationsDifferAfterRevival)
+    (JobLackAfterRevival)
+);
+
+TEnumIndexedArray<EOperationIncarnationSwitchReason, NProfiling::TCounter> OperationIncarnationSwitchCounters;
+
+NProfiling::TCounter GangOperationStartedCounter;
+
+} // namespace
+
 class TVanillaController;
 
 class TGangManager
@@ -50,13 +66,21 @@ public:
         TVanillaController* controller,
         const TVanillaOperationOptionsPtr& config);
 
-    const TOperationIncarnation& GetCurrentIncanation() const noexcept;
+    const TOperationIncarnation& GetCurrentIncarnation() const noexcept;
 
-    void TrySwitchToNewIncarnation(bool operationIsReviving);
+    bool IsEnabled() const noexcept;
 
-    void TrySwitchToNewIncarnation(const std::optional<TOperationIncarnation>& consideredIncarnation, bool operationIsReviving);
+    void TrySwitchToNewIncarnation(bool operationIsReviving, EOperationIncarnationSwitchReason reason);
+
+    void TrySwitchToNewIncarnation(
+        const std::optional<TOperationIncarnation>& consideredIncarnation,
+        bool operationIsReviving,
+        EOperationIncarnationSwitchReason reason);
 
     void UpdateConfig(const TVanillaOperationOptionsPtr& config) noexcept;
+
+    // COMPAT(pogorelov)
+    void SetVanillaController(TVanillaController* controller) noexcept;
 
 private:
     bool Enabled_ = false;
@@ -64,7 +88,6 @@ private:
 
     TVanillaController* VanillaOperationController_ = nullptr;
 
-    bool IsEnabled() const noexcept;
     TOperationIncarnation GenerateNewIncarnation();
 
     PHOENIX_DECLARE_TYPE(TGangManager, 0xa01a5a9b);
@@ -112,7 +135,10 @@ public:
 
     bool IsJobInterruptible() const override;
 
-    void TrySwitchToNewOperationIncarnation(const TJobletPtr& joblet, bool operationIsReviving);
+    void TrySwitchToNewOperationIncarnation(
+        const TJobletPtr& joblet,
+        bool operationIsReviving,
+        EOperationIncarnationSwitchReason reason);
 
     bool IsJobRestartingEnabled() const noexcept;
 
@@ -223,9 +249,12 @@ public:
 
     void UpdateConfig(const TControllerAgentConfigPtr& config) final;
 
-    void TrySwitchToNewOperationIncarnation(const TJobletPtr& joblet, bool operationIsReviving);
+    void TrySwitchToNewOperationIncarnation(
+        const TJobletPtr& joblet,
+        bool operationIsReviving,
+        EOperationIncarnationSwitchReason reason);
 
-    void OnOperationIncarnationChanged(bool operationIsReviving);
+    void OnOperationIncarnationChanged(bool operationIsReviving, EOperationIncarnationSwitchReason reason);
 
     TOperationSpecBasePtr ParseTypedSpec(const INodePtr& spec) const override
     {
@@ -252,12 +281,12 @@ private:
 
     TError CheckJobsIncarnationsEqual() const;
 
-    bool ShouldRestartJobsOnRevival() const;
+    std::optional<EOperationIncarnationSwitchReason> ShouldRestartJobsOnRevival() const;
 
     void OnOperationRevived() final;
     void BuildControllerInfoYson(NYTree::TFluentMap fluent) const final;
 
-    void TrySwitchToNewOperationIncarnation(bool operationIsReviving);
+    void TrySwitchToNewOperationIncarnation(bool operationIsReviving, EOperationIncarnationSwitchReason reason);
 
     void RestartAllRunningJobsPreservingAllocations(bool operationIsReviving);
 
@@ -298,34 +327,41 @@ void TGangManager::RegisterMetadata(auto&& registrar)
         .SinceVersion(ESnapshotVersion::MonitoringDescriptorsPreserving));
 }
 
-const TOperationIncarnation& TGangManager::GetCurrentIncanation() const noexcept
+const TOperationIncarnation& TGangManager::GetCurrentIncarnation() const noexcept
 {
     return Incarnation_;
 }
 
-void TGangManager::TrySwitchToNewIncarnation(bool operationIsReviving)
+void TGangManager::TrySwitchToNewIncarnation(bool operationIsReviving, EOperationIncarnationSwitchReason reason)
 {
     const auto& Logger = VanillaOperationController_->GetLogger();
 
     if (!IsEnabled()) {
-        YT_LOG_INFO("Switching operation to new incarnation is disabled by config");
+        YT_LOG_INFO("Switching operation to new incarnation is disabled by config; fail operation");
+        VanillaOperationController_->OnOperationFailed(
+            TError("Switching gang operation to new incarnation is disabled by config")
+            << TErrorAttribute("incarnation_switch_reason", reason));
         return;
     }
 
     auto oldIncarnation = std::exchange(Incarnation_, GenerateNewIncarnation());
 
     YT_LOG_INFO(
-        "Switching operation to new incarnation (From: %v, To: %v)",
+        "Switching operation to new incarnation (From: %v, To: %v, Reason: %v)",
         oldIncarnation,
-        Incarnation_);
+        Incarnation_,
+        reason);
 
-    VanillaOperationController_->OnOperationIncarnationChanged(operationIsReviving);
+    VanillaOperationController_->OnOperationIncarnationChanged(operationIsReviving, reason);
 }
 
-void TGangManager::TrySwitchToNewIncarnation(const std::optional<TOperationIncarnation>& consideredIncarnation, bool operationIsReviving)
+void TGangManager::TrySwitchToNewIncarnation(
+    const std::optional<TOperationIncarnation>& consideredIncarnation,
+    bool operationIsReviving,
+    EOperationIncarnationSwitchReason reason)
 {
     if (consideredIncarnation == Incarnation_) {
-        TrySwitchToNewIncarnation(operationIsReviving);
+        TrySwitchToNewIncarnation(operationIsReviving, reason);
     }
 }
 
@@ -341,6 +377,11 @@ void TGangManager::UpdateConfig(const TVanillaOperationOptionsPtr& config) noexc
 
         Enabled_ = config->GangManager->Enabled;
     }
+}
+
+void TGangManager::SetVanillaController(TVanillaController* controller) noexcept
+{
+    VanillaOperationController_ = controller;
 }
 
 bool TGangManager::IsEnabled() const noexcept
@@ -478,14 +519,17 @@ bool TVanillaTask::IsJobInterruptible() const
     return Spec_->InterruptionSignal.has_value();
 }
 
-void TVanillaTask::TrySwitchToNewOperationIncarnation(const TJobletPtr& joblet, bool operationIsReviving)
+void TVanillaTask::TrySwitchToNewOperationIncarnation(
+    const TJobletPtr& joblet,
+    bool operationIsReviving,
+    EOperationIncarnationSwitchReason reason)
 {
     if (IsJobRestartingEnabled()) {
         YT_LOG_DEBUG("Trying to switch operation to new incarnation");
 
         auto* vanillaController = dynamic_cast<TVanillaController*>(TaskHost_);
         YT_VERIFY(vanillaController);
-        vanillaController->TrySwitchToNewOperationIncarnation(joblet, operationIsReviving);
+        vanillaController->TrySwitchToNewOperationIncarnation(joblet, operationIsReviving, reason);
     } else {
         YT_LOG_DEBUG("Job restarting is disabled, skip new incarnation operation switch");
     }
@@ -582,6 +626,8 @@ TVanillaController::TVanillaController(
             break;
         }
     }
+
+    GangOperationStartedCounter.Increment();
 }
 
 void TVanillaController::RegisterMetadata(auto&& registrar)
@@ -605,6 +651,20 @@ void TVanillaController::RegisterMetadata(auto&& registrar)
                 }
             }
         }));
+
+    registrar.AfterLoad([] (TThis* this_, auto& /*context*/) {
+        if (this_->GangManager_) {
+            // COMPAT(pogorelov)
+            this_->GangManager_->SetVanillaController(this_);
+
+            const auto& Logger = this_->GetLogger();
+
+            YT_LOG_INFO(
+                "Gang manager loaded (Incarnation: %v, Enabled: %v)",
+                this_->GangManager_->GetCurrentIncarnation(),
+                this_->GangManager_->IsEnabled());
+        }
+    });
 }
 
 void TVanillaController::CustomMaterialize()
@@ -799,7 +859,10 @@ bool TVanillaController::OnJobCompleted(
     }
 
     if (joblet->JobType == EJobType::Vanilla && interruptionReason != EInterruptionReason::None) {
-        static_cast<TVanillaTask*>(joblet->Task)->TrySwitchToNewOperationIncarnation(joblet, /*operationIsReviving*/ false);
+        static_cast<TVanillaTask*>(joblet->Task)->TrySwitchToNewOperationIncarnation(
+            joblet,
+            /*operationIsReviving*/ false,
+            EOperationIncarnationSwitchReason::JobInterrupted);
     }
 
     return true;
@@ -816,7 +879,10 @@ bool TVanillaController::OnJobFailed(
     }
 
     if (joblet->JobType == EJobType::Vanilla) {
-        static_cast<TVanillaTask*>(joblet->Task)->TrySwitchToNewOperationIncarnation(joblet, /*operationIsReviving*/ false);
+        static_cast<TVanillaTask*>(joblet->Task)->TrySwitchToNewOperationIncarnation(
+            joblet,
+            /*operationIsReviving*/ false,
+            EOperationIncarnationSwitchReason::JobFailed);
     }
 
     return true;
@@ -833,7 +899,10 @@ bool TVanillaController::OnJobAborted(
     }
 
     if (joblet->JobType == EJobType::Vanilla) {
-        static_cast<TVanillaTask*>(joblet->Task)->TrySwitchToNewOperationIncarnation(joblet, /*operationIsReviving*/ false);
+        static_cast<TVanillaTask*>(joblet->Task)->TrySwitchToNewOperationIncarnation(
+            joblet,
+            /*operationIsReviving*/ false,
+            EOperationIncarnationSwitchReason::JobAborted);
     }
 
     return true;
@@ -858,7 +927,7 @@ TJobletPtr TVanillaController::CreateJoblet(
         treeIsTentative);
 
     if (GangManager_) {
-        joblet->OperationIncarnation = GangManager_->GetCurrentIncanation();
+        joblet->OperationIncarnation = GangManager_->GetCurrentIncarnation();
     }
 
     return joblet;
@@ -873,7 +942,10 @@ void TVanillaController::UpdateConfig(const TControllerAgentConfigPtr& config)
     }
 }
 
-void TVanillaController::TrySwitchToNewOperationIncarnation(const TJobletPtr& joblet, bool operationIsReviving)
+void TVanillaController::TrySwitchToNewOperationIncarnation(
+    const TJobletPtr& joblet,
+    bool operationIsReviving,
+    EOperationIncarnationSwitchReason reason)
 {
     YT_ASSERT_INVOKER_AFFINITY(GetCancelableInvoker(Config->JobEventsControllerQueue));
 
@@ -884,7 +956,7 @@ void TVanillaController::TrySwitchToNewOperationIncarnation(const TJobletPtr& jo
 
     YT_VERIFY(GangManager_);
 
-    GangManager_->TrySwitchToNewIncarnation(joblet->OperationIncarnation, operationIsReviving);
+    GangManager_->TrySwitchToNewIncarnation(joblet->OperationIncarnation, operationIsReviving, reason);
 }
 
 // NB(pogorelov): In case of restarting job during operation revival, we do not know the latest job id, started on node in the allocation,
@@ -911,7 +983,7 @@ void TVanillaController::RestartAllRunningJobsPreservingAllocations(bool operati
             allocationsToRestartJobs.push_back(GetPtr(allocation));
 
             // NB(pogorelov): We abort job with requestNewJob even if we aren't able to schedule new job since:
-            // 1) Job aborting causes immedeate job releasing.
+            // 1) Job aborting causes immediate job releasing.
             // 2) Job tracker doesn't expect running job releasing (intentionally).
             // 3) We can't schedule new job before aborting old one.
             // TODO(pogorelov): It could be fixed by defering job releasing untill the end of method, think about it.
@@ -942,6 +1014,16 @@ void TVanillaController::RestartAllRunningJobsPreservingAllocations(bool operati
 
         UpdateAllTasks();
 
+        // NB(pogorelov): We can not just do nothing here with job constraints
+        // because current and new allocation can conflict over job cookie, for example.
+        // We could preserve allocation alive resetting job constraints.
+        // But the occurrence is not so frequent.
+        // And to not violate some convenient invariants (like preserving job cookie for allocation),
+        // we just finish current allocations.
+        for (auto& [allocationId, allocation] : AllocationMap_) {
+            allocation.NewJobsForbiddenReason = EScheduleFailReason::AllocationFinishRequested;
+        }
+
         return;
     }
 
@@ -961,11 +1043,13 @@ void TVanillaController::RestartAllRunningJobsPreservingAllocations(bool operati
     UpdateAllTasks();
 }
 
-void TVanillaController::OnOperationIncarnationChanged(bool operationIsReviving)
+void TVanillaController::OnOperationIncarnationChanged(bool operationIsReviving, EOperationIncarnationSwitchReason reason)
 {
     YT_ASSERT_INVOKER_POOL_AFFINITY(InvokerPool);
 
     TForbidContextSwitchGuard guard;
+
+    OperationIncarnationSwitchCounters[reason].Increment();
 
     RestartAllRunningJobsPreservingAllocations(operationIsReviving);
 }
@@ -1025,7 +1109,7 @@ TError TVanillaController::CheckJobsIncarnationsEqual() const
     return TError();
 }
 
-bool TVanillaController::ShouldRestartJobsOnRevival() const
+std::optional<EOperationIncarnationSwitchReason> TVanillaController::ShouldRestartJobsOnRevival() const
 {
     YT_ASSERT_INVOKER_POOL_AFFINITY(InvokerPool);
 
@@ -1035,7 +1119,7 @@ bool TVanillaController::ShouldRestartJobsOnRevival() const
             error,
             "Some of revived jobs are in different operation incarnations, switching to new incarnation");
 
-        return true;
+        return EOperationIncarnationSwitchReason::JobIncarnationsDifferAfterRevival;
     }
 
     THashMap<TTask*, int> jobCountByTasks;
@@ -1056,7 +1140,7 @@ bool TVanillaController::ShouldRestartJobsOnRevival() const
                 "No jobs started in task, switching to new incarnation (TaskName: %v)",
                 task->GetTitle());
 
-            return true;
+            return EOperationIncarnationSwitchReason::JobLackAfterRevival;
         }
 
         if (auto jobCount = jobCountIt->second;
@@ -1068,11 +1152,11 @@ bool TVanillaController::ShouldRestartJobsOnRevival() const
                 jobCount,
                 task->GetTargetJobCount());
 
-            return true;
+            return EOperationIncarnationSwitchReason::JobLackAfterRevival;
         }
     }
 
-    return false;
+    return std::nullopt;
 }
 
 void TVanillaController::OnOperationRevived()
@@ -1081,8 +1165,14 @@ void TVanillaController::OnOperationRevived()
 
     TOperationControllerBase::OnOperationRevived();
 
-    if (ShouldRestartJobsOnRevival()) {
-        TrySwitchToNewOperationIncarnation(/*operationIsReviving*/ true);
+    if (IsOperationGang()) {
+        if (auto maybeIncarnationSwitchReason = ShouldRestartJobsOnRevival()) {
+            YT_LOG_DEBUG(
+                "Switching to new operation incarnation during revival (Reason: %v)",
+                *maybeIncarnationSwitchReason);
+
+            TrySwitchToNewOperationIncarnation(/*operationIsReviving*/ true, *maybeIncarnationSwitchReason);
+        }
     }
 }
 
@@ -1093,17 +1183,17 @@ void TVanillaController::BuildControllerInfoYson(TFluentMap fluent) const
     TOperationControllerBase::BuildControllerInfoYson(fluent);
 
     if (GangManager_) {
-        fluent.Item("operation_incarnation").Value(GangManager_->GetCurrentIncanation());
+        fluent.Item("operation_incarnation").Value(GangManager_->GetCurrentIncarnation());
     }
 }
 
-void TVanillaController::TrySwitchToNewOperationIncarnation(bool operationIsReviving)
+void TVanillaController::TrySwitchToNewOperationIncarnation(bool operationIsReviving, EOperationIncarnationSwitchReason reason)
 {
     YT_ASSERT_INVOKER_AFFINITY(GetCancelableInvoker(Config->JobEventsControllerQueue));
 
     YT_VERIFY(GangManager_);
 
-    GangManager_->TrySwitchToNewIncarnation(operationIsReviving);
+    GangManager_->TrySwitchToNewIncarnation(operationIsReviving, reason);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1116,6 +1206,19 @@ IOperationControllerPtr CreateVanillaController(
     auto options = config->VanillaOperationOptions;
     auto spec = ParseOperationSpec<TVanillaOperationSpec>(UpdateSpec(options->SpecTemplate, operation->GetSpec()));
     return New<TVanillaController>(std::move(spec), std::move(config), std::move(options), std::move(host), operation);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void InitVanillaProfilers(const NProfiling::TProfiler& profiler)
+{
+    for (auto reason : TEnumTraits<EOperationIncarnationSwitchReason>::GetDomainValues()) {
+        OperationIncarnationSwitchCounters[reason] = profiler
+            .WithTag("reason", FormatEnum(reason))
+            .Counter("/gang_operations/incarnation_switch_count");
+    }
+
+    GangOperationStartedCounter = profiler.Counter("/gang_operations/started_count");
 }
 
 ////////////////////////////////////////////////////////////////////////////////

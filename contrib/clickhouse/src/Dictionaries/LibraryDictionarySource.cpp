@@ -25,12 +25,12 @@ namespace ErrorCodes
 
 LibraryDictionarySource::LibraryDictionarySource(
     const DictionaryStructure & dict_struct_,
-    const Poco::Util::AbstractConfiguration & config,
+    const DBPoco::Util::AbstractConfiguration & config,
     const std::string & config_prefix_,
     Block & sample_block_,
     ContextPtr context_,
     bool created_from_ddl)
-    : log(&Poco::Logger::get("LibraryDictionarySource"))
+    : log(getLogger("LibraryDictionarySource"))
     , dict_struct{dict_struct_}
     , config_prefix{config_prefix_}
     , path{config.getString(config_prefix + ".path", "")}
@@ -78,7 +78,7 @@ LibraryDictionarySource::~LibraryDictionarySource()
 
 
 LibraryDictionarySource::LibraryDictionarySource(const LibraryDictionarySource & other)
-    : log(&Poco::Logger::get("LibraryDictionarySource"))
+    : log(getLogger("LibraryDictionarySource"))
     , dict_struct{other.dict_struct}
     , config_prefix{other.config_prefix}
     , path{other.path}
@@ -139,9 +139,9 @@ std::string LibraryDictionarySource::toString() const
 }
 
 
-String LibraryDictionarySource::getLibrarySettingsString(const Poco::Util::AbstractConfiguration & config, const std::string & config_root)
+String LibraryDictionarySource::getLibrarySettingsString(const DBPoco::Util::AbstractConfiguration & config, const std::string & config_root)
 {
-    Poco::Util::AbstractConfiguration::Keys config_keys;
+    DBPoco::Util::AbstractConfiguration::Keys config_keys;
     config.keys(config_root, config_keys);
     WriteBufferFromOwnString out;
     std::vector<std::string> settings;
@@ -177,7 +177,7 @@ String LibraryDictionarySource::getDictAttributesString()
 void registerDictionarySourceLibrary(DictionarySourceFactory & factory)
 {
     auto create_table_source = [=](const DictionaryStructure & dict_struct,
-                                 const Poco::Util::AbstractConfiguration & config,
+                                 const DBPoco::Util::AbstractConfiguration & config,
                                  const std::string & config_prefix,
                                  Block & sample_block,
                                  ContextPtr global_context,

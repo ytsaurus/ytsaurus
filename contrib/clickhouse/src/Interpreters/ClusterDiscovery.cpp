@@ -7,13 +7,15 @@
 #include <unordered_set>
 
 #include <base/getFQDNOrHostName.h>
-#include <Common/logger_useful.h>
 
-#include <Common/Exception.h>
-#include <Common/StringUtils/StringUtils.h>
-#include <Common/ZooKeeper/Types.h>
-#include <Common/setThreadName.h>
 #include <Common/Config/ConfigHelper.h>
+#include <Common/Exception.h>
+#include <Common/FailPoint.h>
+#include <Common/logger_useful.h>
+#include <Common/setThreadName.h>
+#include <Common/StringUtils.h>
+#include <Common/thread_local_rng.h>
+#include <Common/ZooKeeper/Types.h>
 
 #include <Core/ServerUUID.h>
 
@@ -21,17 +23,24 @@
 #include <Interpreters/ClusterDiscovery.h>
 #include <Interpreters/Context.h>
 
-#include <Poco/Exception.h>
-#include <Poco/JSON/JSON.h>
-#include <Poco/JSON/Object.h>
-#include <Poco/JSON/Parser.h>
+#include <DBPoco/Exception.h>
+#include <DBPoco/JSON/JSON.h>
+#include <DBPoco/JSON/Object.h>
+#include <DBPoco/JSON/Parser.h>
 
 namespace DB
 {
 
 namespace ErrorCodes
 {
+    extern const int KEEPER_EXCEPTION;
     extern const int LOGICAL_ERROR;
+    extern const int NO_ELEMENTS_IN_CONFIG;
+}
+
+namespace FailPoints
+{
+    extern const char cluster_discovery_faults[];
 }
 
 namespace
@@ -102,35 +111,47 @@ private:
 };
 
 ClusterDiscovery::ClusterDiscovery(
-    const Poco::Util::AbstractConfiguration & config,
+    const DBPoco::Util::AbstractConfiguration & config,
     ContextPtr context_,
     const String & config_prefix)
     : context(Context::createCopy(context_))
     , current_node_name(toString(ServerUUID::get()))
-    , log(&Poco::Logger::get("ClusterDiscovery"))
+    , log(getLogger("ClusterDiscovery"))
 {
     LOG_DEBUG(log, "Cluster discovery is enabled");
 
-    Poco::Util::AbstractConfiguration::Keys config_keys;
+    DBPoco::Util::AbstractConfiguration::Keys config_keys;
     config.keys(config_prefix, config_keys);
 
     for (const auto & key : config_keys)
     {
-        String prefix = config_prefix + "." + key + ".discovery";
-        if (!config.has(prefix))
+        String cluster_config_prefix = config_prefix + "." + key + ".discovery";
+        if (!config.has(cluster_config_prefix))
             continue;
+
+        String zk_root = config.getString(cluster_config_prefix + ".path");
+        if (zk_root.empty())
+            throw Exception(ErrorCodes::NO_ELEMENTS_IN_CONFIG, "ZooKeeper path for cluster '{}' is empty", key);
+
+        const auto & password = config.getString(cluster_config_prefix + ".password", "");
+        const auto & cluster_secret = config.getString(cluster_config_prefix + ".secret", "");
+        if (!password.empty() && !cluster_secret.empty())
+            throw Exception(ErrorCodes::NO_ELEMENTS_IN_CONFIG, "Both 'password' and 'secret' are specified for cluster '{}', only one option can be used at the same time", key);
 
         clusters_info.emplace(
             key,
             ClusterInfo(
                 /* name_= */ key,
-                /* zk_root_= */ config.getString(prefix + ".path"),
-                /* host_name= */ config.getString(prefix + ".my_hostname", getFQDNOrHostName()),
+                /* zk_root_= */ zk_root,
+                /* host_name= */ config.getString(cluster_config_prefix + ".my_hostname", getFQDNOrHostName()),
+                /* username= */ config.getString(cluster_config_prefix + ".user", context->getUserName()),
+                /* password= */ password,
+                /* cluster_secret= */ cluster_secret,
                 /* port= */ context->getTCPPort(),
-                /* secure= */ config.getBool(prefix + ".secure", false),
-                /* shard_id= */ config.getUInt(prefix + ".shard", 0),
-                /* observer_mode= */ ConfigHelper::getBool(config, prefix + ".observer"),
-                /* invisible= */ ConfigHelper::getBool(config, prefix + ".invisible")
+                /* secure= */ config.getBool(cluster_config_prefix + ".secure", false),
+                /* shard_id= */ config.getUInt(cluster_config_prefix + ".shard", 0),
+                /* observer_mode= */ ConfigHelper::getBool(config, cluster_config_prefix + ".observer"),
+                /* invisible= */ ConfigHelper::getBool(config, cluster_config_prefix + ".invisible")
             )
         );
     }
@@ -240,15 +261,15 @@ ClusterPtr ClusterDiscovery::makeCluster(const ClusterInfo & cluster_info)
 
     bool secure = cluster_info.current_node.secure;
     ClusterConnectionParameters params{
-        /* username= */ context->getUserName(),
-        /* password= */ "",
+        /* username= */ cluster_info.username,
+        /* password= */ cluster_info.password,
         /* clickhouse_port= */ secure ? context->getTCPPortSecure().value_or(DBMS_DEFAULT_SECURE_PORT) : context->getTCPPort(),
         /* treat_local_as_remote= */ false,
         /* treat_local_port_as_remote= */ false, /// should be set only for clickhouse-local, but cluster discovery is not used there
         /* secure= */ secure,
         /* priority= */ Priority{1},
-        /* cluster_name= */ "",
-        /* password= */ ""};
+        /* cluster_name= */ cluster_info.name,
+        /* cluster_secret= */ cluster_info.cluster_secret};
     auto cluster = std::make_shared<Cluster>(
         context->getSettingsRef(),
         shards,
@@ -298,7 +319,7 @@ bool ClusterDiscovery::updateCluster(ClusterInfo & cluster_info)
 
     if (cluster_info.current_cluster_is_invisible)
     {
-        LOG_DEBUG(log, "cluster '{}' is invisible!", cluster_info.name);
+        LOG_DEBUG(log, "Cluster '{}' is invisible.", cluster_info.name);
         return true;
     }
 
@@ -347,6 +368,19 @@ void ClusterDiscovery::registerInZk(zkutil::ZooKeeperPtr & zk, ClusterInfo & inf
 
 void ClusterDiscovery::initialUpdate()
 {
+    LOG_DEBUG(log, "Initializing");
+
+    fiu_do_on(FailPoints::cluster_discovery_faults,
+    {
+        constexpr UInt8 success_chance = 4;
+        static size_t fail_count = 0;
+        fail_count++;
+        /// strict limit on fail count to avoid flaky tests
+        auto is_failed = fail_count < success_chance && std::uniform_int_distribution<>(0, success_chance)(thread_local_rng) != 0;
+        if (is_failed)
+            throw Exception(ErrorCodes::KEEPER_EXCEPTION, "Failpoint cluster_discovery_faults is triggered");
+    });
+
     auto zk = context->getZooKeeper();
     for (auto & [_, info] : clusters_info)
     {
@@ -357,6 +391,8 @@ void ClusterDiscovery::initialUpdate()
             clusters_to_update->set(info.name);
         }
     }
+    LOG_DEBUG(log, "Initialized");
+    is_initialized = true;
 }
 
 void ClusterDiscovery::start()
@@ -414,6 +450,10 @@ bool ClusterDiscovery::runMainThread(std::function<void()> up_to_date_callback)
     using namespace std::chrono_literals;
 
     constexpr auto force_update_interval = 2min;
+
+    if (!is_initialized)
+        initialUpdate();
+
     bool finished = false;
     while (!finished)
     {
@@ -500,8 +540,8 @@ bool ClusterDiscovery::NodeInfo::parse(const String & data, NodeInfo & result)
 {
     try
     {
-        Poco::JSON::Parser parser;
-        auto json = parser.parse(data).extract<Poco::JSON::Object::Ptr>();
+        DBPoco::JSON::Parser parser;
+        auto json = parser.parse(data).extract<DBPoco::JSON::Object::Ptr>();
 
         size_t ver = json->optValue<size_t>("version", data_ver);
         if (ver == data_ver)
@@ -513,15 +553,15 @@ bool ClusterDiscovery::NodeInfo::parse(const String & data, NodeInfo & result)
         else
         {
             LOG_ERROR(
-                &Poco::Logger::get("ClusterDiscovery"),
+                getLogger("ClusterDiscovery"),
                 "Unsupported version '{}' of data in zk node '{}'",
                 ver, data.size() < 1024 ? data : "[data too long]");
         }
     }
-    catch (Poco::Exception & e)
+    catch (DBPoco::Exception & e)
     {
         LOG_WARNING(
-            &Poco::Logger::get("ClusterDiscovery"),
+            getLogger("ClusterDiscovery"),
             "Can't parse '{}' from node: {}",
             data.size() < 1024 ? data : "[data too long]", e.displayText());
         return false;
@@ -531,14 +571,14 @@ bool ClusterDiscovery::NodeInfo::parse(const String & data, NodeInfo & result)
 
 String ClusterDiscovery::NodeInfo::serialize() const
 {
-    Poco::JSON::Object json;
+    DBPoco::JSON::Object json;
     json.set("version", data_ver);
     json.set("address", address);
     json.set("shard_id", shard_id);
 
     std::ostringstream oss;     // STYLE_CHECK_ALLOW_STD_STRING_STREAM
     oss.exceptions(std::ios::failbit);
-    Poco::JSON::Stringifier::stringify(json, oss);
+    DBPoco::JSON::Stringifier::stringify(json, oss);
     return oss.str();
 }
 

@@ -6,10 +6,10 @@
 #include <Core/Block.h>
 #include <base/EnumReflection.h>
 
-#include <Poco/JSON/JSON.h>
-#include <Poco/JSON/Object.h>
-#include <Poco/JSON/Stringifier.h>
-#include <Poco/JSON/Parser.h>
+#include <DBPoco/JSON/JSON.h>
+#include <DBPoco/JSON/Object.h>
+#include <DBPoco/JSON/Stringifier.h>
+#include <DBPoco/JSON/Parser.h>
 
 
 namespace DB
@@ -148,16 +148,16 @@ void SerializationInfo::deserializeFromKindsBinary(ReadBuffer & in)
     kind = *maybe_kind;
 }
 
-Poco::JSON::Object SerializationInfo::toJSON() const
+DBPoco::JSON::Object SerializationInfo::toJSON() const
 {
-    Poco::JSON::Object object;
+    DBPoco::JSON::Object object;
     object.set(KEY_KIND, ISerialization::kindToString(kind));
     object.set(KEY_NUM_DEFAULTS, data.num_defaults);
     object.set(KEY_NUM_ROWS, data.num_rows);
     return object;
 }
 
-void SerializationInfo::fromJSON(const Poco::JSON::Object & object)
+void SerializationInfo::fromJSON(const DBPoco::JSON::Object & object)
 {
     if (!object.has(KEY_KIND) || !object.has(KEY_NUM_DEFAULTS) || !object.has(KEY_NUM_ROWS))
         throw Exception(ErrorCodes::CORRUPTED_DATA,
@@ -226,10 +226,10 @@ void SerializationInfoByName::replaceData(const SerializationInfoByName & other)
 
 void SerializationInfoByName::writeJSON(WriteBuffer & out) const
 {
-    Poco::JSON::Object object;
+    DBPoco::JSON::Object object;
     object.set(KEY_VERSION, SERIALIZATION_INFO_VERSION);
 
-    Poco::JSON::Array column_infos;
+    DBPoco::JSON::Array column_infos;
     for (const auto & [name, info] : *this)
     {
         auto info_json = info->toJSON();
@@ -241,9 +241,9 @@ void SerializationInfoByName::writeJSON(WriteBuffer & out) const
 
     std::ostringstream oss;     // STYLE_CHECK_ALLOW_STD_STRING_STREAM
     oss.exceptions(std::ios::failbit);
-    Poco::JSON::Stringifier::stringify(object, oss);
+    DBPoco::JSON::Stringifier::stringify(object, oss);
 
-    return writeString(oss.str(), out);
+    writeString(oss.str(), out);
 }
 
 SerializationInfoByName SerializationInfoByName::readJSON(
@@ -252,8 +252,8 @@ SerializationInfoByName SerializationInfoByName::readJSON(
     String json_str;
     readString(json_str, in);
 
-    Poco::JSON::Parser parser;
-    auto object = parser.parse(json_str).extract<Poco::JSON::Object::Ptr>();
+    DBPoco::JSON::Parser parser;
+    auto object = parser.parse(json_str).extract<DBPoco::JSON::Object::Ptr>();
 
     if (!object->has(KEY_VERSION))
         throw Exception(ErrorCodes::CORRUPTED_DATA, "Missed version of serialization infos");
@@ -273,7 +273,7 @@ SerializationInfoByName SerializationInfoByName::readJSON(
         auto array = object->getArray(KEY_COLUMNS);
         for (const auto & elem : *array)
         {
-            auto elem_object = elem.extract<Poco::JSON::Object::Ptr>();
+            auto elem_object = elem.extract<DBPoco::JSON::Object::Ptr>();
 
             if (!elem_object->has(KEY_NAME))
                 throw Exception(ErrorCodes::CORRUPTED_DATA,

@@ -332,7 +332,7 @@ protected:
     {
         auto& miscExt = EncodingChunkWriter_->MiscExt();
         miscExt.set_sorted(IsSorted());
-        miscExt.set_unique_keys(Schema_->GetUniqueKeys());
+        miscExt.set_unique_keys(Schema_->IsUniqueKeys());
         miscExt.set_row_count(RowCount_);
         miscExt.set_data_weight(DataWeight_);
 
@@ -523,7 +523,10 @@ private:
 
     void EmitSample(TUnversionedRow row)
     {
-        auto sampleValues = TruncateUnversionedValues(row.Elements(), TruncatedSampleValueBuffer_, {.ClipAfterOverflow = false, .MaxTotalSize = MaxSampleSize});
+        auto sampleValues = TruncateUnversionedValues(row.Elements(), TruncatedSampleValueBuffer_, {
+            .ClipAfterOverflow = false,
+            .UseOriginalDataWeightInSamples = Config_->UseOriginalDataWeightInSamples,
+            .MaxTotalSize = MaxSampleSize});
 
         auto entry = SerializeToString(sampleValues.Values);
         SamplesExt_.add_entries(entry);
@@ -683,7 +686,7 @@ public:
                 Options_->MemoryUsageTracker));
         }
 
-        if (!Schema_->GetStrict() || BlockWriters_.empty()) {
+        if (!Schema_->IsStrict() || BlockWriters_.empty()) {
             // When we have empty strict schema, we create schemaless writer (trash writer) to fullfill the invariant
             // that at least one writer should be present.
             auto blockWriter = std::make_unique<TDataBlockWriter>();
@@ -1115,7 +1118,7 @@ protected:
             ValidateDuplicateIds(row);
 
             int columnCount = Schema_->GetColumnCount();
-            int additionalColumnCount = Schema_->GetStrict()
+            int additionalColumnCount = Schema_->IsStrict()
                 ? (Options_->VersionedWriteOptions.WriteMode == EVersionedIOMode::LatestTimestamp
                        ? Schema_->GetValueColumnCount()
                        : 0)
@@ -1146,8 +1149,9 @@ protected:
                     mutableRow[id].Id = id;
                 } else {
                     // Validate non-schema columns for
-                    if (Schema_->GetStrict() && id >= maxColumnCount) {
-                        THROW_ERROR_EXCEPTION(NTableClient::EErrorCode::SchemaViolation,
+                    if (Schema_->IsStrict() && id >= maxColumnCount) {
+                        THROW_ERROR_EXCEPTION(
+                            EErrorCode::SchemaViolation,
                             "Unknown column %Qv in strict schema",
                             NameTable_->GetName(valueIt->Id));
                     }

@@ -42,46 +42,45 @@
 #include <yt/yt/server/master/incumbent_server/incumbent_detail.h>
 #include <yt/yt/server/master/incumbent_server/incumbent_manager.h>
 
-#include <yt/yt/server/master/tablet_server/tablet.h>
+#include <yt/yt/server/master/object_server/map_object_type_handler.h>
+#include <yt/yt/server/master/object_server/map_object.h>
+#include <yt/yt/server/master/object_server/object_manager.h>
+#include <yt/yt/server/master/object_server/type_handler_detail.h>
 
 #include <yt/yt/server/master/sequoia_server/context.h>
+
+#include <yt/yt/server/master/security_server/proto/security_manager.pb.h>
+
+#include <yt/yt/server/master/table_server/master_table_schema.h>
+#include <yt/yt/server/master/table_server/table_manager.h>
+#include <yt/yt/server/master/table_server/table_node.h>
+
+#include <yt/yt/server/master/tablet_server/tablet.h>
+
+#include <yt/yt/server/master/transaction_server/transaction.h>
 
 #include <yt/yt/server/lib/hive/hive_manager.h>
 
 #include <yt/yt/server/lib/hydra/composite_automaton.h>
 #include <yt/yt/server/lib/hydra/entity_map.h>
 
-#include <yt/yt/server/master/object_server/map_object_type_handler.h>
-#include <yt/yt/server/master/object_server/map_object.h>
-#include <yt/yt/server/master/object_server/type_handler_detail.h>
-
-#include <yt/yt/server/master/table_server/master_table_schema.h>
-#include <yt/yt/server/master/table_server/table_manager.h>
-#include <yt/yt/server/master/table_server/table_node.h>
-
-#include <yt/yt/server/master/transaction_server/transaction.h>
-
-#include <yt/yt/server/master/object_server/object_manager.h>
-
-#include <yt/yt/server/master/security_server/proto/security_manager.pb.h>
+#include <yt/yt/ytlib/security_client/group_ypath_proxy.h>
 
 #include <yt/yt/client/object_client/helpers.h>
-
-#include <yt/yt/ytlib/security_client/group_ypath_proxy.h>
 
 #include <yt/yt/client/security_client/helpers.h>
 
 #include <yt/yt/core/concurrency/fls.h>
-
-#include <yt/yt/library/erasure/impl/codec.h>
-
-#include <yt/yt/library/profiling/producer.h>
 
 #include <yt/yt/core/misc/intern_registry.h>
 
 #include <yt/yt/core/logging/fluent_log.h>
 
 #include <yt/yt/core/ypath/token.h>
+
+#include <yt/yt/library/erasure/impl/codec.h>
+
+#include <yt/yt/library/profiling/producer.h>
 
 #include <optional>
 
@@ -1647,7 +1646,7 @@ public:
         if (!user) {
             THROW_ERROR_EXCEPTION(
                 NSecurityClient::EErrorCode::AuthenticationError,
-                "No such user %Qv; create user by requesting any IDM role on this cluster",
+                "No such user %Qv",
                 name);
         }
     }
@@ -1979,7 +1978,7 @@ public:
         networkProject->SetName(newName);
     }
 
-    TProxyRole* CreateProxyRole(const std::string& name, EProxyKind proxyKind, TObjectId hintId)
+    TProxyRole* CreateProxyRole(const std::string& name, NApi::EProxyKind proxyKind, TObjectId hintId)
     {
         if (ProxyRoleNameMaps_[proxyKind].contains(name)) {
             THROW_ERROR_EXCEPTION(
@@ -2024,7 +2023,7 @@ public:
             .Item("proxy_kind").Value(proxyKind);
     }
 
-    const THashMap<std::string, TProxyRole*>& GetProxyRolesWithProxyKind(EProxyKind proxyKind) const override
+    const THashMap<std::string, TProxyRole*>& GetProxyRolesWithProxyKind(NApi::EProxyKind proxyKind) const override
     {
         return ProxyRoleNameMaps_[proxyKind];
     }
@@ -2171,7 +2170,6 @@ public:
         return result;
     }
 
-
     void SetAuthenticatedUser(TUser* user) override
     {
         *AuthenticatedUserSlot = user;
@@ -2193,10 +2191,31 @@ public:
         return result ? result : RootUser_;
     }
 
-
-    bool IsSafeMode() override
+    bool IsSafeMode() const override
     {
         return Bootstrap_->GetConfigManager()->GetConfig()->EnableSafeMode;
+    }
+
+    bool HasColumnarAce(TObject* object, TUser* user, TAcdOverride firstObjectAcdOverride) const override
+    {
+        const auto& dynamicConfig = GetDynamicConfig();
+        auto* userTags = dynamicConfig->EnableSubjectTagFilters ? &user->Tags() : nullptr;
+
+        TTagFilteringAceIterator aceIter(
+            Bootstrap_->GetObjectManager().Get(),
+            object,
+            userTags,
+            std::move(firstObjectAcdOverride));
+        auto aceEndIter = TTagFilteringAceIterator();
+
+        for (; aceIter != aceEndIter; ++aceIter) {
+            auto value = *aceIter;
+            auto* currentAce = value.Ace;
+            if (currentAce->Columns) {
+                return true;
+            }
+        }
+        return false;
     }
 
     TPermissionCheckResponse CheckPermission(
@@ -2943,7 +2962,7 @@ private:
     THashMap<std::string, TNetworkProject*> NetworkProjectNameMap_;
 
     NHydra::TEntityMap<TProxyRole> ProxyRoleMap_;
-    TEnumIndexedArray<EProxyKind, THashMap<std::string, TProxyRole*>> ProxyRoleNameMaps_;
+    TEnumIndexedArray<NApi::EProxyKind, THashMap<std::string, TProxyRole*>> ProxyRoleNameMaps_;
 
     TSyncMap<TString, TProfilerTagPtr> CpuProfilerTags_;
 
@@ -3143,7 +3162,7 @@ private:
         return networkProject;
     }
 
-    TProxyRole* DoCreateProxyRole(TProxyRoleId id, const std::string& name, EProxyKind proxyKind)
+    TProxyRole* DoCreateProxyRole(TProxyRoleId id, const std::string& name, NApi::EProxyKind proxyKind)
     {
         auto proxyRoleHolder = TPoolAllocator::New<TProxyRole>(id);
         proxyRoleHolder->SetName(name);
@@ -3348,7 +3367,7 @@ private:
             YT_VERIFY(NetworkProjectNameMap_.emplace(networkProject->GetName(), networkProject).second);
         }
 
-        for (auto proxyKind : TEnumTraits<EProxyKind>::GetDomainValues()) {
+        for (auto proxyKind : TEnumTraits<NApi::EProxyKind>::GetDomainValues()) {
             ProxyRoleNameMaps_[proxyKind].clear();
         }
         for (auto [proxyRoleId, proxyRole] : ProxyRoleMap_) {
@@ -3761,7 +3780,7 @@ private:
         NetworkProjectNameMap_.clear();
 
         ProxyRoleMap_.Clear();
-        for (auto proxyKind : TEnumTraits<EProxyKind>::GetDomainValues()) {
+        for (auto proxyKind : TEnumTraits<NApi::EProxyKind>::GetDomainValues()) {
             ProxyRoleNameMaps_[proxyKind].clear();
         }
 
@@ -5218,7 +5237,7 @@ TObject* TProxyRoleTypeHandler::CreateObject(
     IAttributeDictionary* attributes)
 {
     auto name = attributes->GetAndRemove<std::string>("name");
-    auto proxyKind = attributes->GetAndRemove<EProxyKind>("proxy_kind");
+    auto proxyKind = attributes->GetAndRemove<NApi::EProxyKind>("proxy_kind");
 
     return Owner_->CreateProxyRole(name, proxyKind, hintId);
 }

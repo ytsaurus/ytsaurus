@@ -1,18 +1,18 @@
 #include <Common/makeSocketAddress.h>
 #include <Common/logger_useful.h>
-#include <Poco/Net/NetException.h>
+#include <DBPoco/Net/NetException.h>
 
 namespace DB
 {
 
-Poco::Net::SocketAddress makeSocketAddress(const std::string & host, uint16_t port, Poco::Logger * log)
+DBPoco::Net::SocketAddress makeSocketAddress(const std::string & host, uint16_t port, DBPoco::Logger * log)
 {
-    Poco::Net::SocketAddress socket_address;
+    DBPoco::Net::SocketAddress socket_address;
     try
     {
-        socket_address = Poco::Net::SocketAddress(host, port);
+        socket_address = DBPoco::Net::SocketAddress(host, port);
     }
-    catch (const Poco::Net::DNSException & e)
+    catch (const DBPoco::Net::DNSException & e)
     {
         const auto code = e.code();
         if (code == EAI_FAMILY
@@ -31,6 +31,11 @@ Poco::Net::SocketAddress makeSocketAddress(const std::string & host, uint16_t po
         throw;
     }
     return socket_address;
+}
+
+DBPoco::Net::SocketAddress makeSocketAddress(const std::string & host, uint16_t port, LoggerPtr log)
+{
+    return makeSocketAddress(host, port, log.get());
 }
 
 }

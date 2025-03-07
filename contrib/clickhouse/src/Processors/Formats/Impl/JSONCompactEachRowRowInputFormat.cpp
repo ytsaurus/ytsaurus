@@ -13,7 +13,7 @@
 #include <DataTypes/Serializations/SerializationNullable.h>
 #include <DataTypes/DataTypeFactory.h>
 #include <DataTypes/DataTypeNullable.h>
-#include <Poco/JSON/Parser.h>
+#include <DBPoco/JSON/Parser.h>
 
 namespace DB
 {
@@ -75,7 +75,7 @@ void JSONCompactEachRowFormatReader::skipRowBetweenDelimiter()
 void JSONCompactEachRowFormatReader::skipField()
 {
     skipWhitespaceIfAny(*in);
-    skipJSONField(*in, "skipped_field");
+    skipJSONField(*in, "skipped_field", format_settings.json);
 }
 
 void JSONCompactEachRowFormatReader::skipHeaderRow()
@@ -114,7 +114,7 @@ std::vector<String> JSONCompactEachRowFormatReader::readHeaderRow()
     do
     {
         skipWhitespaceIfAny(*in);
-        readJSONString(field, *in);
+        readJSONString(field, *in, format_settings.json);
         fields.push_back(field);
         skipWhitespaceIfAny(*in);
     }
@@ -235,9 +235,14 @@ void JSONCompactEachRowRowSchemaReader::transformTypesIfNeeded(DataTypePtr & typ
     transformInferredJSONTypesIfNeeded(type, new_type, format_settings, &inference_info);
 }
 
+void JSONCompactEachRowRowSchemaReader::transformTypesFromDifferentFilesIfNeeded(DataTypePtr & type, DataTypePtr & new_type)
+{
+    transformInferredJSONTypesFromDifferentFilesIfNeeded(type, new_type, format_settings);
+}
+
 void JSONCompactEachRowRowSchemaReader::transformFinalTypeIfNeeded(DataTypePtr & type)
 {
-    transformJSONTupleToArrayIfPossible(type, format_settings, &inference_info);
+    transformFinalInferredJSONTypeIfNeeded(type, format_settings, &inference_info);
 }
 
 void registerInputFormatJSONCompactEachRow(FormatFactory & factory)

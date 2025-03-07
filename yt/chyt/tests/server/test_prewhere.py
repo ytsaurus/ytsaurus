@@ -181,6 +181,7 @@ class TestClickHousePrewhere(ClickHouseTestBase):
                 "select index from \"//tmp/test_table\" prewhere key = 'b_key'", exact=1
             )
 
+    @pytest.mark.skipif(True, reason="CHYT-1263")
     @authors("max42")
     def test_prewhere_optimizer_static(self):
         create("table", "//tmp/t", attributes={

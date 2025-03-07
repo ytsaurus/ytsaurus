@@ -50,11 +50,11 @@ public:
         , OnFinished_(std::move(onFinished))
     { }
 
-    void consume(DB::Chunk chunk) override
+    void consume(DB::Chunk& chunk) override
     {
         YT_LOG_TRACE("Writing block (RowCount: %v, ColumnCount: %v, ByteCount: %v)", chunk.getNumRows(), chunk.getNumColumns(), chunk.bytes());
 
-        // TODO(buyval01): Rewrite ToRowRange to work with chunks to avoid cloning.
+        // TODO(buyval01): refactor ToRowRange to work with chunks to avoid cloning.
         auto rowRange = ToRowRange(getHeader().cloneWithColumns(chunk.detachColumns()), DataTypes_, ColumnIndexToId_, CompositeSettings_);
 
         DoWriteRows(std::move(rowRange));

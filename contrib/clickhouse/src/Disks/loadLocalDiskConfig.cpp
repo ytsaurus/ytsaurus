@@ -1,5 +1,5 @@
 #include <Disks/loadLocalDiskConfig.h>
-#include <Poco/Util/AbstractConfiguration.h>
+#include <DBPoco/Util/AbstractConfiguration.h>
 #include <Interpreters/Context.h>
 #include <Disks/DiskLocal.h>
 #include <Common/Exception.h>
@@ -14,7 +14,7 @@ namespace ErrorCodes
 }
 
 void loadDiskLocalConfig(const String & name,
-                      const Poco::Util::AbstractConfiguration & config,
+                      const DBPoco::Util::AbstractConfiguration & config,
                       const String & config_prefix,
                       ContextPtr context,
                       String & path,

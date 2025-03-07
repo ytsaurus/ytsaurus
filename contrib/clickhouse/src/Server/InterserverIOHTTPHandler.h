@@ -4,7 +4,7 @@
 #include <Server/HTTP/HTTPRequestHandler.h>
 #include <Common/CurrentMetrics.h>
 
-#include <Poco/Logger.h>
+#include <DBPoco/Logger.h>
 
 #include <memory>
 #include <string>
@@ -26,11 +26,11 @@ class InterserverIOHTTPHandler : public HTTPRequestHandler
 public:
     explicit InterserverIOHTTPHandler(IServer & server_)
         : server(server_)
-        , log(&Poco::Logger::get("InterserverIOHTTPHandler"))
+        , log(getLogger("InterserverIOHTTPHandler"))
     {
     }
 
-    void handleRequest(HTTPServerRequest & request, HTTPServerResponse & response) override;
+    void handleRequest(HTTPServerRequest & request, HTTPServerResponse & response, const ProfileEvents::Event & write_event) override;
 
 private:
     struct Output
@@ -39,7 +39,7 @@ private:
     };
 
     IServer & server;
-    Poco::Logger * log;
+    LoggerPtr log;
 
     CurrentMetrics::Increment metric_increment{CurrentMetrics::InterserverConnection};
 

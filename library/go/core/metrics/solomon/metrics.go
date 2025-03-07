@@ -131,21 +131,21 @@ func Rated(s interface{}) interface{} {
 func MemOnly(m interface{}) interface{} {
 	switch st := m.(type) {
 	case *Counter:
-		st.memOnly = true
+		st.setMemOnly()
 	case *FuncCounter:
-		st.memOnly = true
+		st.setMemOnly()
 	case *Histogram:
-		st.memOnly = true
+		st.setMemOnly()
 	case *Gauge:
-		st.memOnly = true
+		st.setMemOnly()
 	case *IntGauge:
-		st.memOnly = true
+		st.setMemOnly()
 	case *Timer:
-		st.memOnly = true
+		st.setMemOnly()
 	case *FuncGauge:
-		st.memOnly = true
+		st.setMemOnly()
 	case *FuncIntGauge:
-		st.memOnly = true
+		st.setMemOnly()
 	}
 	return m
 }

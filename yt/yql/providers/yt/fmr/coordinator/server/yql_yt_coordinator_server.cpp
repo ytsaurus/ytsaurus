@@ -16,7 +16,8 @@ enum class EOperationHandler {
     StartOperation,
     GetOperation,
     DeleteOperation,
-    SendHeartbeatResponse
+    SendHeartbeatResponse,
+    GetFmrTableInfo
 };
 
 class TReplier: public TRequestReplier {
@@ -43,11 +44,9 @@ private:
     std::unordered_map<EOperationHandler, THandler> Handlers_;
 
     TMaybe<EOperationHandler> GetHandlerName(TParsedHttpFull httpRequest) {
-        TStringBuf queryPath, queryId;
+        TStringBuf queryPath;
         httpRequest.Path.SkipPrefix("/");
         queryPath = httpRequest.Path.NextTok('/');
-        queryId = httpRequest.Path.NextTok('/');
-
         if (queryPath == "operation") {
             if (httpRequest.Method == "POST") {
                 return EOperationHandler::StartOperation;
@@ -60,6 +59,9 @@ private:
         } else if (queryPath == "worker_heartbeat") {
             YQL_ENSURE(httpRequest.Method == "POST");
             return EOperationHandler::SendHeartbeatResponse;
+        } else if (queryPath == "fmr_table_info") {
+            YQL_ENSURE(httpRequest.Method == "GET");
+            return EOperationHandler::GetFmrTableInfo;
         }
         return Nothing();
     }
@@ -78,12 +80,15 @@ public:
         THandler getOperationHandler = std::bind(&TFmrCoordinatorServer::GetOperationHandler, this, std::placeholders::_1);
         THandler deleteOperationHandler = std::bind(&TFmrCoordinatorServer::DeleteOperationHandler, this, std::placeholders::_1);
         THandler sendHeartbeatResponseHandler = std::bind(&TFmrCoordinatorServer::SendHeartbeatResponseHandler, this, std::placeholders::_1);
+        THandler getFmrTableInfoHandler = std::bind(&TFmrCoordinatorServer::GetFmrTableInfoHandler, this, std::placeholders::_1);
+
 
         Handlers_ = std::unordered_map<EOperationHandler, THandler>{
             {EOperationHandler::StartOperation, startOperationHandler},
             {EOperationHandler::GetOperation, getOperationHandler},
             {EOperationHandler::DeleteOperation, deleteOperationHandler},
-            {EOperationHandler::SendHeartbeatResponse, sendHeartbeatResponseHandler}
+            {EOperationHandler::SendHeartbeatResponse, sendHeartbeatResponseHandler},
+            {EOperationHandler::GetFmrTableInfo, getFmrTableInfoHandler}
         };
     }
 
@@ -161,6 +166,19 @@ private:
         THttpResponse httpResponse(HTTP_OK);
         httpResponse.SetContentType("application/x-protobuf");
         httpResponse.SetContent(protoSendHeartbeatResponse.SerializeAsString());
+        return httpResponse;
+    }
+
+    THttpResponse GetFmrTableInfoHandler(THttpInput& input) {
+        NProto::TGetFmrTableInfoRequest protoGetFmrTableInfoRequest;
+        YQL_ENSURE(protoGetFmrTableInfoRequest.ParseFromString(input.ReadAll()));
+
+        auto fmrTableInfoResponse = Coordinator_->GetFmrTableInfo(GetFmrTableInfoRequestFromProto(protoGetFmrTableInfoRequest)).GetValueSync();
+        auto protoFmrTableInfoResponse = GetFmrTableInfoResponseToProto(fmrTableInfoResponse);
+
+        THttpResponse httpResponse(HTTP_OK);
+        httpResponse.SetContentType("application/x-protobuf");
+        httpResponse.SetContent(protoFmrTableInfoResponse.SerializeAsString());
         return httpResponse;
     }
 };

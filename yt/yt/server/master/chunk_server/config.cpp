@@ -2,11 +2,17 @@
 
 #include "helpers.h"
 
+#include <yt/yt/ytlib/sequoia_client/helpers.h>
+
 #include <yt/yt/client/job_tracker_client/helpers.h>
 
 #include <yt/yt/core/concurrency/config.h>
 
+#include <yt/yt/core/misc/error_code.h>
+
 namespace NYT::NChunkServer {
+
+using namespace NSequoiaClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -433,6 +439,9 @@ void TDynamicSequoiaChunkReplicasConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("clear_master_request", &TThis::ClearMasterRequest)
         .Default(true);
+
+    registrar.Parameter("retriable_error_codes", &TThis::RetriableErrorCodes)
+        .Default(std::vector<TErrorCode>(std::begin(RetriableSequoiaErrorCodes), std::end(RetriableSequoiaErrorCodes)));
 
     registrar.Postprocessor([] (TThis* config) {
         if (config->StoreSequoiaReplicasOnMaster && !config->ProcessRemovedSequoiaReplicasOnMaster) {

@@ -30,6 +30,8 @@ import tech.ytsaurus.client.request.ConcatenateNodes;
 import tech.ytsaurus.client.request.CopyNode;
 import tech.ytsaurus.client.request.CreateNode;
 import tech.ytsaurus.client.request.CreateObject;
+import tech.ytsaurus.client.request.CreateShuffleReader;
+import tech.ytsaurus.client.request.CreateShuffleWriter;
 import tech.ytsaurus.client.request.ExistsNode;
 import tech.ytsaurus.client.request.FreezeTable;
 import tech.ytsaurus.client.request.GcCollect;
@@ -82,9 +84,11 @@ import tech.ytsaurus.client.request.ReshardTable;
 import tech.ytsaurus.client.request.ResumeOperation;
 import tech.ytsaurus.client.request.SelectRowsRequest;
 import tech.ytsaurus.client.request.SetNode;
+import tech.ytsaurus.client.request.ShuffleHandle;
 import tech.ytsaurus.client.request.SortOperation;
 import tech.ytsaurus.client.request.StartOperation;
 import tech.ytsaurus.client.request.StartQuery;
+import tech.ytsaurus.client.request.StartShuffle;
 import tech.ytsaurus.client.request.StartTransaction;
 import tech.ytsaurus.client.request.SuspendOperation;
 import tech.ytsaurus.client.request.TabletInfo;
@@ -97,6 +101,7 @@ import tech.ytsaurus.client.request.WriteFile;
 import tech.ytsaurus.client.request.WriteTable;
 import tech.ytsaurus.client.rows.ConsumerSource;
 import tech.ytsaurus.client.rows.QueueRowset;
+import tech.ytsaurus.client.rows.UnversionedRow;
 import tech.ytsaurus.client.rows.UnversionedRowset;
 import tech.ytsaurus.client.rows.VersionedRowset;
 import tech.ytsaurus.core.GUID;
@@ -604,6 +609,21 @@ public class MockYTsaurusClient implements BaseYTsaurusClient {
     @Override
     public CompletableFuture<PutFileToCacheResult> putFileToCache(PutFileToCache req) {
         return (CompletableFuture<PutFileToCacheResult>) callMethod("putFileToCache");
+    }
+
+    @Override
+    public CompletableFuture<ShuffleHandle> startShuffle(StartShuffle req) {
+        return (CompletableFuture<ShuffleHandle>) callMethod("startShuffle");
+    }
+
+    @Override
+    public CompletableFuture<AsyncWriter<UnversionedRow>> createShuffleWriter(CreateShuffleWriter req) {
+        return (CompletableFuture<AsyncWriter<UnversionedRow>>) callMethod("createShuffleWriter");
+    }
+
+    @Override
+    public CompletableFuture<AsyncReader<UnversionedRow>> createShuffleReader(CreateShuffleReader req) {
+        return (CompletableFuture<AsyncReader<UnversionedRow>>) callMethod("createShuffleReader");
     }
 
     private CompletableFuture<?> callMethod(String methodName) {

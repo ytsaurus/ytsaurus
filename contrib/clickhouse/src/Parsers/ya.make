@@ -4,25 +4,25 @@ LIBRARY()
 
 LICENSE(
     Apache-2.0 AND
-    MIT AND
-    Public-Domain
+    BSL-1.0 AND
+    CC0-1.0 AND
+    MIT
 )
 
 LICENSE_TEXTS(.yandex_meta/licenses.list.txt)
 
-VERSION(23.8.16.40)
+VERSION(24.8.5.115)
 
 PEERDIR(
+    contrib/clickhouse/base/poco/Crypto
+    contrib/clickhouse/base/poco/Foundation
+    contrib/clickhouse/base/poco/Net
+    contrib/clickhouse/base/poco/NetSSL_OpenSSL
+    contrib/clickhouse/base/poco/Util
     contrib/clickhouse/src/Common
     contrib/libs/double-conversion
     contrib/libs/fmt
     contrib/libs/miniselect
-    contrib/libs/pdqsort
-    contrib/libs/poco/Foundation
-    contrib/libs/poco/JSON
-    contrib/libs/poco/Net
-    contrib/libs/poco/Util
-    contrib/libs/poco/XML
     contrib/libs/re2
     contrib/libs/sparsehash
     contrib/restricted/boost/circular_buffer
@@ -42,11 +42,16 @@ PEERDIR(
 ADDINCL(
     contrib/clickhouse/base
     contrib/clickhouse/base/pcg-random
+    contrib/clickhouse/base/poco/Crypto/include
+    contrib/clickhouse/base/poco/Foundation/include
+    contrib/clickhouse/base/poco/Net/include
+    contrib/clickhouse/base/poco/NetSSL_OpenSSL/include
+    contrib/clickhouse/base/poco/Util/include
+    contrib/clickhouse/contrib/pdqsort
     contrib/clickhouse/includes/configs
     contrib/clickhouse/src
     contrib/libs/double-conversion
     contrib/libs/miniselect/include
-    contrib/libs/pdqsort
     contrib/libs/sparsehash/src
     contrib/restricted/cityhash-1.0.2
 )
@@ -65,17 +70,19 @@ ELSEIF (OS_LINUX)
     )
 ENDIF()
 
+IF (OS_LINUX)
+    CFLAGS(
+        -DPOCO_HAVE_FD_EPOLL
+    )
+ENDIF()
+
 CFLAGS(
-    -DAWS_SDK_VERSION_MAJOR=1
-    -DAWS_SDK_VERSION_MINOR=10
-    -DAWS_SDK_VERSION_PATCH=36
     -DBOOST_ASIO_HAS_STD_INVOKE_RESULT=1
     -DBOOST_ASIO_STANDALONE=1
     -DBOOST_TIMER_ENABLE_DEPRECATED=1
     -DENABLE_MULTITARGET_CODE=1
     -DINCBIN_SILENCE_BITCODE_WARNING
     -DPOCO_ENABLE_CPP11
-    -DPOCO_HAVE_FD_EPOLL
     -DPOCO_OS_FAMILY_UNIX
     -DUNALIGNED_OK
     -DWITH_COVERAGE=0
@@ -83,6 +90,7 @@ CFLAGS(
     -DX86_64
     -DZLIB_COMPAT
     -D_LIBCPP_ENABLE_THREAD_SAFETY_ANNOTATIONS
+    -D_LIBUNWIND_IS_NATIVE_ONLY
 )
 
 SRCS(
@@ -99,8 +107,10 @@ SRCS(
     ASTCreateIndexQuery.cpp
     ASTCreateNamedCollectionQuery.cpp
     ASTCreateQuery.cpp
+    ASTDataType.cpp
     ASTDatabaseOrNone.cpp
     ASTDeleteQuery.cpp
+    ASTDescribeCacheQuery.cpp
     ASTDictionary.cpp
     ASTDictionaryAttributeDeclaration.cpp
     ASTDropFunctionQuery.cpp
@@ -117,6 +127,7 @@ SRCS(
     ASTKillQueryQuery.cpp
     ASTLiteral.cpp
     ASTNameTypePair.cpp
+    ASTObjectTypeArgument.cpp
     ASTOptimizeQuery.cpp
     ASTOrderByElement.cpp
     ASTPartition.cpp
@@ -127,21 +138,28 @@ SRCS(
     ASTQueryWithOnCluster.cpp
     ASTQueryWithOutput.cpp
     ASTQueryWithTableAndOutput.cpp
+    ASTRefreshStrategy.cpp
+    ASTSQLSecurity.cpp
     ASTSampleRatio.cpp
     ASTSelectIntersectExceptQuery.cpp
     ASTSelectQuery.cpp
     ASTSelectWithUnionQuery.cpp
     ASTSetQuery.cpp
     ASTShowColumnsQuery.cpp
+    ASTShowFunctionsQuery.cpp
     ASTShowIndexesQuery.cpp
+    ASTShowSettingQuery.cpp
     ASTShowTablesQuery.cpp
+    ASTStatisticsDeclaration.cpp
     ASTSubquery.cpp
     ASTSystemQuery.cpp
     ASTTTLElement.cpp
     ASTTableOverrides.cpp
     ASTTablesInSelectQuery.cpp
+    ASTTimeInterval.cpp
     ASTTransactionControl.cpp
     ASTUndropQuery.cpp
+    ASTViewTargets.cpp
     ASTWindowDefinition.cpp
     ASTWithAlias.cpp
     ASTWithElement.cpp
@@ -154,6 +172,7 @@ SRCS(
     Access/ASTDropAccessEntityQuery.cpp
     Access/ASTGrantQuery.cpp
     Access/ASTMoveAccessEntityQuery.cpp
+    Access/ASTPublicSSHKey.cpp
     Access/ASTRolesOrUsersSet.cpp
     Access/ASTRowPolicyName.cpp
     Access/ASTSetRoleQuery.cpp
@@ -170,6 +189,7 @@ SRCS(
     Access/ParserDropAccessEntityQuery.cpp
     Access/ParserGrantQuery.cpp
     Access/ParserMoveAccessEntityQuery.cpp
+    Access/ParserPublicSSHKey.cpp
     Access/ParserRolesOrUsersSet.cpp
     Access/ParserRowPolicyName.cpp
     Access/ParserSetRoleQuery.cpp
@@ -181,23 +201,46 @@ SRCS(
     Access/ParserUserNameWithHost.cpp
     Access/parseUserName.cpp
     CommonParsers.cpp
+    CreateQueryUUIDs.cpp
     ExpressionElementParsers.cpp
     ExpressionListParsers.cpp
     FieldFromAST.cpp
     FunctionParameterValuesVisitor.cpp
     IAST.cpp
+    IParser.cpp
     IParserBase.cpp
     InsertQuerySettingsPushDownVisitor.cpp
     Kusto/Formatters.cpp
+    Kusto/KustoFunctions/IParserKQLFunction.cpp
+    Kusto/KustoFunctions/KQLAggregationFunctions.cpp
+    Kusto/KustoFunctions/KQLBinaryFunctions.cpp
+    Kusto/KustoFunctions/KQLCastingFunctions.cpp
+    Kusto/KustoFunctions/KQLDataTypeFunctions.cpp
+    Kusto/KustoFunctions/KQLDateTimeFunctions.cpp
+    Kusto/KustoFunctions/KQLDynamicFunctions.cpp
+    Kusto/KustoFunctions/KQLFunctionFactory.cpp
+    Kusto/KustoFunctions/KQLGeneralFunctions.cpp
+    Kusto/KustoFunctions/KQLIPFunctions.cpp
+    Kusto/KustoFunctions/KQLMathematicalFunctions.cpp
+    Kusto/KustoFunctions/KQLStringFunctions.cpp
+    Kusto/KustoFunctions/KQLTimeSeriesFunctions.cpp
+    Kusto/ParserKQLDateTypeTimespan.cpp
+    Kusto/ParserKQLDistinct.cpp
+    Kusto/ParserKQLExtend.cpp
     Kusto/ParserKQLFilter.cpp
     Kusto/ParserKQLLimit.cpp
+    Kusto/ParserKQLMVExpand.cpp
+    Kusto/ParserKQLMakeSeries.cpp
     Kusto/ParserKQLOperators.cpp
+    Kusto/ParserKQLPrint.cpp
     Kusto/ParserKQLProject.cpp
     Kusto/ParserKQLQuery.cpp
     Kusto/ParserKQLSort.cpp
     Kusto/ParserKQLStatement.cpp
     Kusto/ParserKQLSummarize.cpp
     Kusto/ParserKQLTable.cpp
+    Kusto/Utilities.cpp
+    Kusto/parseKQLQuery.cpp
     Lexer.cpp
     MySQL/ASTAlterCommand.cpp
     MySQL/ASTAlterQuery.cpp
@@ -243,21 +286,27 @@ SRCS(
     ParserProjectionSelectQuery.cpp
     ParserQuery.cpp
     ParserQueryWithOutput.cpp
+    ParserRefreshStrategy.cpp
     ParserRenameQuery.cpp
     ParserSampleRatio.cpp
     ParserSelectQuery.cpp
     ParserSelectWithUnionQuery.cpp
     ParserSetQuery.cpp
     ParserShowColumnsQuery.cpp
+    ParserShowFunctionsQuery.cpp
     ParserShowIndexesQuery.cpp
+    ParserShowSettingQuery.cpp
     ParserShowTablesQuery.cpp
+    ParserStringAndSubstitution.cpp
     ParserSystemQuery.cpp
     ParserTablePropertiesQuery.cpp
     ParserTablesInSelectQuery.cpp
+    ParserTimeInterval.cpp
     ParserTransactionControl.cpp
     ParserUndropQuery.cpp
     ParserUnionQueryElement.cpp
     ParserUseQuery.cpp
+    ParserViewTargets.cpp
     ParserWatchQuery.cpp
     ParserWithElement.cpp
     QueryParameterVisitor.cpp
@@ -267,14 +316,15 @@ SRCS(
     formatAST.cpp
     formatSettingName.cpp
     getInsertQuery.cpp
-    iostream_debug_helpers.cpp
     isDiskFunction.cpp
+    isUnquotedIdentifier.cpp
     makeASTForLogicalFunction.cpp
     obfuscateQueries.cpp
     parseDatabaseAndTableName.cpp
     parseIdentifierOrStringLiteral.cpp
     parseIntervalKind.cpp
     parseQuery.cpp
+    queryNormalization.cpp
     queryToString.cpp
     toOneLineQuery.cpp
 )

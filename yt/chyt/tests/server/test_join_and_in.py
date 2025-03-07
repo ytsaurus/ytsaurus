@@ -33,26 +33,26 @@ class TestJoinAndIn(ClickHouseTestBase):
         write_table("//tmp/t3", [{"a": 42, "e": 3.14}, {"a": 27, "e": 2.718}])
         with Clique(1) as clique:
             expected = [{"a": 42, "b": "qwe", "c": 42, "d": "asd"}]
-            assert clique.make_query('select * from "//tmp/t1" t1 global join "//tmp/t2" t2 on t1.a = t2.c') == expected
-            assert clique.make_query('select * from "//tmp/t1" t1 global join "//tmp/t2" t2 on t2.c = t1.a') == expected
+            assert clique.make_query('select * from "//tmp/t1" t1 global join (select * from "//tmp/t2") t2 on t1.a = t2.c') == expected
+            assert clique.make_query('select * from "//tmp/t1" t1 global join (select * from "//tmp/t2") t2 on t2.c = t1.a') == expected
 
             expected_on = [{"a": 27, "b": "xyz", "t3.a": 27, "e": 2.718}, {"a": 42, "b": "qwe", "t3.a": 42, "e": 3.14}]
             expected_using = [{"a": 27, "b": "xyz", "e": 2.718}, {"a": 42, "b": "qwe", "e": 3.14}]
-            assert clique.make_query('select * from "//tmp/t1" t1 global join "//tmp/t3" t3'
+            assert clique.make_query('select * from "//tmp/t1" t1 global join (select * from "//tmp/t3") t3'
                                      ' using a order by a') == expected_using
-            assert clique.make_query('select * from "//tmp/t1" t1 global join "//tmp/t3" t3'
+            assert clique.make_query('select * from "//tmp/t1" t1 global join (select * from "//tmp/t3") t3'
                                      ' on t1.a = t3.a order by a') == expected_on
-            assert clique.make_query('select * from "//tmp/t1" t1 global join "//tmp/t3" t3 '
+            assert clique.make_query('select * from "//tmp/t1" t1 global join (select * from "//tmp/t3") t3 '
                                      'on t3.a = t1.a order by a') == expected_on
-            assert clique.make_query('select * from "//tmp/t1" t1 global join "//tmp/t3" t3 '
+            assert clique.make_query('select * from "//tmp/t1" t1 global join (select * from "//tmp/t3") t3 '
                                      'on t1.a = t3.a order by t1.a') == expected_on
-            assert clique.make_query('select * from "//tmp/t1" t1 global join "//tmp/t3" t3 '
+            assert clique.make_query('select * from "//tmp/t1" t1 global join (select * from "//tmp/t3") t3 '
                                      'on t3.a = t1.a order by t3.a') == expected_on
 
-            assert clique.make_query('select * from "//tmp/t1" global join "//tmp/t2" on a = c') == expected
-            assert clique.make_query('select * from "//tmp/t1" global join "//tmp/t2" on c = a') == expected
+            assert clique.make_query('select * from "//tmp/t1" t1 global join (select * from "//tmp/t2") t2 on t1.a = t2.c') == expected
+            assert clique.make_query('select * from "//tmp/t1" t1 global join (select * from "//tmp/t2") t2 on t2.c = t1.a') == expected
             assert (
-                clique.make_query('select * from "//tmp/t1" global join "//tmp/t3" using a order by a')
+                clique.make_query('select * from "//tmp/t1" t1 global join (select * from "//tmp/t3") t3 using a order by a')
                 == expected_using
             )
 

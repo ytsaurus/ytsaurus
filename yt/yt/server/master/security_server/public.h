@@ -41,7 +41,6 @@ using NYTree::EPermissionSet;
 
 using NSecurityClient::ESecurityAction;
 using NSecurityClient::EAceInheritanceMode;
-using NSecurityClient::EProxyKind;
 
 using NSecurityClient::TSecurityTag;
 

@@ -476,7 +476,7 @@ class TestKafkaProxy(TestQueueAgentBase, YTEnvSetup):
                 "sasl.username": "u",
                 "sasl.password": token,
                 "partition.assignment.strategy": "range",
-                "heartbeat.interval.ms": 300,
+                "heartbeat.interval.ms": 150,
             }
 
             c = Consumer(consumer_config)
@@ -491,17 +491,17 @@ class TestKafkaProxy(TestQueueAgentBase, YTEnvSetup):
 
         for consumer_index, consumer in enumerate(consumers):
             while True:
-                msg = consumer.poll(1.0)
+                msg = consumer.poll(0.3)
 
                 if msg is None:
                     none_message_count += 1
-                    if none_message_count > 10:
+                    if none_message_count > 20:
                         break
                     continue
 
                 if msg.error():
                     error_count += 1
-                    if error_count > 10:
+                    if error_count > 20:
                         assert not msg.error()
                     continue
 
@@ -558,7 +558,7 @@ class TestKafkaProxy(TestQueueAgentBase, YTEnvSetup):
             if none_message_count > 30:
                 break
             for consumer_index, consumer in enumerate(consumers):
-                msg = consumer.poll(0.5)
+                msg = consumer.poll(0.3)
 
                 if msg is None:
                     none_message_count += 1

@@ -19,8 +19,8 @@
 
 #if USE_SSL
     #include <openssl/x509v3.h>
-    #include "Poco/Net/SSLManager.h"
-    #include "Poco/Crypto/X509Certificate.h"
+    #include "DBPoco/Net/SSLManager.h"
+    #include "DBPoco/Crypto/X509Certificate.h"
 #endif
 
 namespace DB
@@ -69,13 +69,13 @@ public:
         if (input_rows_count)
         {
 #if USE_SSL
-            std::unique_ptr<Poco::Crypto::X509Certificate> x509_cert;
+            std::unique_ptr<DBPoco::Crypto::X509Certificate> x509_cert;
             if (!certificate.empty())
-                x509_cert = std::make_unique<Poco::Crypto::X509Certificate>(certificate);
+                x509_cert = std::make_unique<DBPoco::Crypto::X509Certificate>(certificate);
 
             const X509 * cert = x509_cert ?
                 x509_cert->certificate() :
-                SSL_CTX_get0_certificate(Poco::Net::SSLManager::instance().defaultServerContext()->sslContext());
+                SSL_CTX_get0_certificate(DBPoco::Net::SSLManager::instance().defaultServerContext()->sslContext());
 
             if (cert)
             {

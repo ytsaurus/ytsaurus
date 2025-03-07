@@ -1066,19 +1066,21 @@ public:
             GetDynamicConfig());
         ValidateTableMountConfig(table, tableSettings.EffectiveMountConfig, GetDynamicConfig());
 
+        const auto& schema = table->GetSchema()->AsTableSchema();
+
         if (table->GetReplicationCardId() && !table->IsSorted()) {
             if (table->GetCommitOrdering() != ECommitOrdering::Strong) {
                 THROW_ERROR_EXCEPTION("Ordered dynamic table bound for chaos replication should have %Qlv commit ordering",
                     ECommitOrdering::Strong);
             }
 
-            if (!table->GetSchema()->AsTableSchema()->FindColumn(TimestampColumnName)) {
+            if (!schema.FindColumn(TimestampColumnName)) {
                 THROW_ERROR_EXCEPTION("Ordered dynamic table bound for chaos replication should have %Qlv column",
                     TimestampColumnName);
             }
         }
 
-        for (const auto& column : table->GetSchema()->AsTableSchema()->Columns()) {
+        for (const auto& column : schema.Columns()) {
             if (column.GetWireType() == EValueType::Null) {
                 THROW_ERROR_EXCEPTION("Cannot mount table since it has column %Qv with value type %Qlv",
                     column.Name(),
@@ -2363,7 +2365,7 @@ public:
 
         table->ValidateAllTabletsUnmounted("Cannot switch mode from dynamic to static");
 
-        if (table->GetSchema()->AsTableSchema()->HasHunkColumns()) {
+        if (table->GetSchema()->AsCompactTableSchema()->HasHunkColumns()) {
             THROW_ERROR_EXCEPTION("Cannot switch mode from dynamic to static: table schema contains hunk columns");
         }
     }
@@ -3820,7 +3822,7 @@ private:
         req.set_serialization_type(ToProto(table->GetSerializationType()));
 
         ToProto(reqEssential.mutable_schema_id(), table->GetSchema()->GetId());
-        ToProto(reqEssential.mutable_schema(), *table->GetSchema()->AsTableSchema());
+        ToProto(reqEssential.mutable_schema(), table->GetSchema()->AsCompactTableSchema());
 
         FillTableSettings(req.mutable_replicatable_content(), serializedTableSettings);
 

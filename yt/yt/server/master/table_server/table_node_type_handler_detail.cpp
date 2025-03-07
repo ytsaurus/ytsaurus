@@ -152,7 +152,10 @@ std::unique_ptr<TImpl> TTableNodeTypeHandlerBase<TImpl>::DoCreate(
             type);
     }
 
-    auto tableSchema = combinedAttributes->FindAndRemove<TTableSchemaPtr>("schema");
+    // TODO(cherepashka): offload from Automaton thread (YT-22284).
+    // TODO(cherepashka): add parsing NProto::TTableSchemaExt from Yson.
+    auto schemaFromAttributes = combinedAttributes->FindAndRemove<TTableSchema>("schema");
+    auto tableSchema = schemaFromAttributes ? New<TCompactTableSchema>(*schemaFromAttributes) : nullptr;
     auto schemaId = combinedAttributes->GetAndRemove<TObjectId>("schema_id", NullObjectId);
     auto schemaMode = combinedAttributes->GetAndRemove<ETableSchemaMode>("schema_mode", ETableSchemaMode::Weak);
 
@@ -627,7 +630,7 @@ bool TTableNodeTypeHandlerBase<TImpl>::IsSupportedInheritableAttribute(const std
 template <class TImpl>
 std::optional<std::vector<std::string>> TTableNodeTypeHandlerBase<TImpl>::DoListColumns(TImpl* node) const
 {
-    const auto& schema = *node->GetSchema()->AsTableSchema();
+    const auto& schema = node->GetSchema()->AsTableSchema();
 
     std::vector<std::string> result;
     result.reserve(schema.Columns().size());

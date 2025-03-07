@@ -109,6 +109,8 @@ struct IQueueExporter
 
     virtual void OnExportConfigChanged(const NQueueClient::TQueueStaticExportConfigPtr& newExportConfig) = 0;
     virtual void OnDynamicConfigChanged(const TQueueExporterDynamicConfig& newDynamicConfig) = 0;
+
+    virtual void Stop() = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IQueueExporter)

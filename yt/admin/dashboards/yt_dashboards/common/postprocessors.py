@@ -2,7 +2,7 @@ from yt_dashboard_generator.taggable import SystemFields, NotEquals, ContainerTe
 from yt_dashboard_generator.specific_tags.tags import TemplateTag
 from yt_dashboard_generator.postprocessors import TagPostprocessorBase
 from yt_dashboard_generator.backends.grafana import GrafanaSystemTags
-from yt_dashboard_generator.specific_tags.tags import SpecificTag, Regex
+from yt_dashboard_generator.specific_tags.tags import SpecificTag, DuplicateTag, Regex
 
 from . import sensors
 
@@ -50,8 +50,13 @@ class SortingTagPostprocessor(TagPostprocessorBase):
     ]
 
     def _key(self, x):
-        if isinstance(x, SpecificTag):
-            x = x.value
+        while True:
+            if isinstance(x, SpecificTag):
+                x = x.value
+            elif isinstance(x, DuplicateTag):
+                x = x.tag
+            else:
+                break
         if type(x) is not str:
             return 0
         if x.startswith("l."):

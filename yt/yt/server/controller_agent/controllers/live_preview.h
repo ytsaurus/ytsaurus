@@ -12,6 +12,8 @@
 
 #include <yt/yt/client/table_client/public.h>
 
+#include <yt/yt/core/logging/serializable_logger.h>
+
 #include <yt/yt/core/ytree/public.h>
 
 #include <yt/yt/core/ypath/public.h>
@@ -34,6 +36,7 @@ public:
     TLivePreview(
         NTableClient::TTableSchemaPtr schema,
         NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
+        NLogging::TLogger logger,
         NJobTrackerClient::TOperationId operationId = NJobTrackerClient::NullOperationId,
         TString name = "",
         NYTree::TYPath path = "");
@@ -48,8 +51,10 @@ private:
     NJobTrackerClient::TOperationId OperationId_;
     TString Name_;
     NYTree::TYPath Path_;
+    NLogging::TSerializableLogger Logger;
 
     void Initialize();
+    void ValidateChunks();
 };
 
 DEFINE_REFCOUNTED_TYPE(TLivePreview)

@@ -2,6 +2,10 @@
 
 #include <yt/yt/client/api/rpc_proxy/public.h>
 
+#include <yt/yt/core/logging/log.h>
+
+#include <yt/yt/library/profiling/sensor.h>
+
 namespace NYT::NRpcProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -20,6 +24,11 @@ DECLARE_REFCOUNTED_STRUCT(IProxyCoordinator)
 DECLARE_REFCOUNTED_STRUCT(ISecurityManager)
 DECLARE_REFCOUNTED_STRUCT(IApiService)
 DECLARE_REFCOUNTED_STRUCT(IQueryCorpusReporter)
+
+////////////////////////////////////////////////////////////////////////////////
+
+YT_DEFINE_GLOBAL(const NProfiling::TProfiler, RpcProxyProfiler, "/rpc_proxy");
+YT_DEFINE_GLOBAL(const NLogging::TLogger, RpcProxyLogger, "RpcProxy");
 
 ////////////////////////////////////////////////////////////////////////////////
 

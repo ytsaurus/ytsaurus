@@ -18,6 +18,14 @@ DB::ASTPtr PopulatePredicateWithComputedColumns(
     const TQuerySettingsPtr& settings,
     NLogging::TLogger logger);
 
+DB::QueryTreeNodePtr PopulatePredicateWithComputedColumns(
+    DB::QueryTreeNodePtr ast,
+    const NTableClient::TTableSchemaPtr& schema,
+    DB::ContextPtr context,
+    DB::PreparedSets& preparedSets,
+    const TQuerySettingsPtr& settings,
+    NLogging::TLogger logger);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NClickHouseServer

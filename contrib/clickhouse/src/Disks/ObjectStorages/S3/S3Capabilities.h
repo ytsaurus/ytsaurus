@@ -1,7 +1,7 @@
 #pragma once
 
 #include <string>
-#include <Poco/Util/AbstractConfiguration.h>
+#include <DBPoco/Util/AbstractConfiguration.h>
 
 namespace DB
 {
@@ -21,6 +21,6 @@ struct S3Capabilities
     bool support_proxy{false};
 };
 
-S3Capabilities getCapabilitiesFromConfig(const Poco::Util::AbstractConfiguration & config, const std::string & config_prefix);
+S3Capabilities getCapabilitiesFromConfig(const DBPoco::Util::AbstractConfiguration & config, const std::string & config_prefix);
 
 }

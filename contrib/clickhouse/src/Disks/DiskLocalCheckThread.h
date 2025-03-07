@@ -3,7 +3,7 @@
 #include <Core/BackgroundSchedulePool.h>
 #include <Interpreters/Context_fwd.h>
 
-namespace Poco
+namespace DBPoco
 {
 class Logger;
 }
@@ -29,7 +29,7 @@ private:
 
     DiskLocal * disk;
     size_t check_period_ms;
-    Poco::Logger * log;
+    LoggerPtr log;
     std::atomic<bool> need_stop{false};
 
     BackgroundSchedulePool::TaskHolder task;

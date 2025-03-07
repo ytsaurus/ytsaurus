@@ -1,11 +1,15 @@
 #pragma once
-#include <Poco/Net/SocketAddress.h>
 
-namespace Poco { class Logger; }
+#include <DBPoco/Net/SocketAddress.h>
+#include <Common/Logger.h>
+
+namespace DBPoco { class Logger; }
 
 namespace DB
 {
 
-Poco::Net::SocketAddress makeSocketAddress(const std::string & host, uint16_t port, Poco::Logger * log);
+DBPoco::Net::SocketAddress makeSocketAddress(const std::string & host, uint16_t port, DBPoco::Logger * log);
+
+DBPoco::Net::SocketAddress makeSocketAddress(const std::string & host, uint16_t port, LoggerPtr log);
 
 }

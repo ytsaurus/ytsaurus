@@ -279,6 +279,10 @@ DEFINE_RPC_SERVICE_METHOD(TCachingObjectService, Execute)
             auto& responseAttachments = response->Attachments();
             for (int subrequestIndex = 0; subrequestIndex < request->part_counts_size(); ++subrequestIndex) {
                 const auto& cacheEntry = cacheEntries[subrequestIndex];
+
+                auto* subresponse = response->add_subresponses();
+                subresponse->set_index(subrequestIndex);
+
                 if (request->has_current_sticky_group_size()) {
                     auto currentSize = request->current_sticky_group_size();
                     Cache_->UpdateAdvisedEntryStickyGroupSize(cacheEntry, currentSize);
@@ -288,16 +292,24 @@ DEFINE_RPC_SERVICE_METHOD(TCachingObjectService, Execute)
                         cacheEntry->GetKey(),
                         currentSize,
                         advisedSize);
+                    // COMPAT(babenko)
                     response->add_advised_sticky_group_size(advisedSize);
+                    subresponse->set_advised_sticky_group_size(advisedSize);
                 }
+
                 const auto& responseMessage = cacheEntry->GetResponseMessage();
+                subresponse->set_part_count(responseMessage.Size());
+                subresponse->set_revision(ToProto(cacheEntry->GetRevision()));
+                // COMPAT(babenko)
                 response->add_part_counts(responseMessage.Size());
+
                 responseAttachments.insert(
                     responseAttachments.end(),
                     responseMessage.Begin(),
                     responseMessage.End());
             }
 
+            // COMPAT(babenko)
             for (const auto& cacheEntry : cacheEntries) {
                 if (cacheEntry->GetRevision() == NHydra::NullRevision) {
                     response->clear_revisions();

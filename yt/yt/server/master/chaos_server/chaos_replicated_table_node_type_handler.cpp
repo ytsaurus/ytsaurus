@@ -98,8 +98,8 @@ private:
         }
 
         auto ownsReplicationCard = combinedAttributes->GetAndRemove<bool>("owns_replication_card", true);
-
-        auto tableSchema = combinedAttributes->FindAndRemove<TTableSchemaPtr>("schema");
+        auto schemaFromAttributes = combinedAttributes->FindAndRemove<TTableSchema>("schema");
+        auto tableSchema = schemaFromAttributes ? New<TCompactTableSchema>(*schemaFromAttributes) : nullptr;
         auto schemaId = combinedAttributes->GetAndRemove<TObjectId>("schema_id", NullObjectId);
 
         const auto& tableManager = this->GetBootstrap()->GetTableManager();
