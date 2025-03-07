@@ -48,7 +48,7 @@ jobs:
     runs-on: ${{ inputs.runs-on-value }}
     strategy:
       matrix:
-        build-type: [release, relwithdebinfo]
+        build-type: [release]
 
     steps:
       - name: Calculate variables
