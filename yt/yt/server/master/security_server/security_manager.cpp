@@ -2196,14 +2196,6 @@ public:
         return Bootstrap_->GetConfigManager()->GetConfig()->EnableSafeMode;
     }
 
-    bool IsFastCheckPermissionAvailable(TUser* user, EPermission permission) const override
-    {
-        if (Any(permission & EPermission::FullRead)) {
-            permission = (permission & ~EPermission::FullRead | EPermission::Read);
-        }
-        return FastCheckPermission(user, permission) != ESecurityAction::Undefined;
-    }
-
     bool HasColumnarAce(TObject* object, TUser* user, TAcdOverride firstObjectAcdOverride) const override
     {
         const auto& dynamicConfig = GetDynamicConfig();
@@ -4654,31 +4646,6 @@ private:
         }
     }
 
-    ESecurityAction FastCheckPermission(TUser* user, EPermission permission) const
-    {
-        // "replicator", though being superuser, can only read in safe mode.
-        if (user == ReplicatorUser_ && permission != EPermission::Read && IsSafeMode()) {
-            return ESecurityAction::Deny;
-        }
-
-        // Banned users are denied any permission.
-        if (user->GetBanned()) {
-            return ESecurityAction::Deny;
-        }
-
-        // "root" and "superusers" need no authorization.
-        if (IsSuperuser(user)) {
-            return ESecurityAction::Allow;
-        }
-
-        // Non-reads are forbidden in safe mode.
-        if (permission != EPermission::Read && IsSafeMode()) {
-            return ESecurityAction::Deny;
-        }
-
-        return ESecurityAction::Undefined;
-    }
-
     class TPermissionChecker
     {
     public:
@@ -4695,7 +4662,7 @@ private:
                 : permission)
             , Options_(options)
         {
-            auto fastAction = SecurityManager_->FastCheckPermission(User_, permission);
+            auto fastAction = FastCheckPermission();
             if (fastAction != ESecurityAction::Undefined) {
                 Response_ = MakeFastCheckPermissionResponse(fastAction, options);
                 Proceed_ = false;
@@ -4848,6 +4815,36 @@ private:
 
         bool Proceed_;
         TPermissionCheckResponse Response_;
+
+        ESecurityAction FastCheckPermission()
+        {
+            // "replicator", though being superuser, can only read in safe mode.
+            if (User_ == SecurityManager_->ReplicatorUser_ &&
+                Permission_ != EPermission::Read &&
+                SecurityManager_->IsSafeMode())
+            {
+                return ESecurityAction::Deny;
+            }
+
+            // Banned users are denied any permission.
+            if (User_->GetBanned()) {
+                return ESecurityAction::Deny;
+            }
+
+            // "root" and "superusers" need no authorization.
+            if (SecurityManager_->IsSuperuser(User_)) {
+                return ESecurityAction::Allow;
+            }
+
+            // Non-reads are forbidden in safe mode.
+            if (Permission_ != EPermission::Read &&
+                SecurityManager_->Bootstrap_->GetConfigManager()->GetConfig()->EnableSafeMode)
+            {
+                return ESecurityAction::Deny;
+            }
+
+            return ESecurityAction::Undefined;
+        }
 
         static bool CheckSubjectMatch(TSubject* subject, TUser* user)
         {
