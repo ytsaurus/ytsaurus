@@ -167,8 +167,8 @@ static TError ValidatePrerequisiteRevisionPaths(
         }
         return TError(
             NObjectClient::EErrorCode::PrerequisitePathDifferFromExecutionPaths,
-            "Requests with prerequisitive paths different from target paths are prohibited in Cypress "
-            "(PrerequisitivePath: %v, TargetPath: %v, AdditionalPaths: %v)",
+            "Requests with prerequisite paths different from target paths are prohibited in Cypress "
+            "(PrerequisitePath: %v, TargetPath: %v, AdditionalPaths: %v)",
             prerequisitePath,
             originalTargetPath,
             originalAdditionalPaths);
