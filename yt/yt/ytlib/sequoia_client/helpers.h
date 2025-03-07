@@ -39,7 +39,7 @@ constexpr TErrorCode RetriableSequoiaErrorCodes[] = {
 
 bool IsRetriableSequoiaError(const TError& error);
 
-bool IsRetriableSequoiaReplicasError(const TError& error, const std::vector<TErrorCode>& retriableErrorCodes);
+void ThrowOnSequoiaReplicasError(const TError& error, const std::vector<TErrorCode>& retriableErrorCodes);
 
 bool IsMethodShouldBeHandledByMaster(const std::string& method);
 

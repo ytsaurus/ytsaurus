@@ -69,6 +69,19 @@ bool IsRetriableSequoiaReplicasError(
     });
 }
 
+void ThrowOnSequoiaReplicasError(
+    const TError& error,
+    const std::vector<TErrorCode>& retriableErrorCodes)
+{
+    if (IsRetriableSequoiaReplicasError(error, retriableErrorCodes)) {
+        THROW_ERROR_EXCEPTION(
+            NRpc::EErrorCode::TransientFailure,
+            "Sequoia retriable error")
+            << std::move(error);
+    }
+    error.ThrowOnError();
+}
+
 bool IsMethodShouldBeHandledByMaster(const std::string& method)
 {
     return
