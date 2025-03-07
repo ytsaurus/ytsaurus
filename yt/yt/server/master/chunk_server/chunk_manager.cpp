@@ -3303,12 +3303,7 @@ private:
                 };
 
                 auto result = WaitFor(transaction->Commit(commitOptions));
-                if (IsRetriableSequoiaReplicasError(result, retriableErrorCodes)) {
-                    THROW_ERROR_EXCEPTION(
-                        NRpc::EErrorCode::TransientFailure,
-                        "Sequoia retriable error")
-                        << std::move(result);
-                }
+                ThrowOnSequoiaReplicasError(result, retriableErrorCodes);
             }).AsyncVia(NRpc::TDispatcher::Get()->GetHeavyInvoker()));
     }
 
@@ -3384,12 +3379,8 @@ private:
 
                 auto replicasFuture = transaction->LookupRows(keys);
                 auto removedReplicasOrError = WaitFor(replicasFuture);
-                if (IsRetriableSequoiaReplicasError(removedReplicasOrError, retriableErrorCodes)) {
-                    THROW_ERROR_EXCEPTION(
-                        NRpc::EErrorCode::TransientFailure,
-                        "Sequoia retriable error")
-                        << std::move(removedReplicasOrError);
-                }
+                ThrowOnSequoiaReplicasError(removedReplicasOrError, retriableErrorCodes);
+
                 const auto& removedReplicas = removedReplicasOrError
                     .ValueOrThrow();
 
@@ -3503,12 +3494,7 @@ private:
                 };
 
                 auto result = WaitFor(transaction->Commit(commitOptions));
-                if (IsRetriableSequoiaReplicasError(result, retriableErrorCodes)) {
-                    THROW_ERROR_EXCEPTION(
-                        NRpc::EErrorCode::TransientFailure,
-                        "Sequoia retriable error")
-                        << std::move(result);
-                }
+                ThrowOnSequoiaReplicasError(result, retriableErrorCodes);
 
                 // TODO(aleksandra-zh): add ally replica info.
                 TRspModifyReplicas response;
