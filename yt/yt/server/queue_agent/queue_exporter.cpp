@@ -1143,6 +1143,11 @@ private:
             auto guard = Guard(Lock_);
             if (exportConfig->ExportDirectory == ExportConfig_->ExportDirectory && newExportProgress) {
                 ExportProgress_ = std::move(newExportProgress);
+                // NB(apachee): Since we calculate export unix ts in export task separately, the one in
+                // export task might be greater, and that is why we need to update the value here.
+                // Even in case of 1 min / 5 min exports this matters, since throttling happens after the first export unix ts
+                // calculation and before the second one.
+                exportUnixTs = std::max(exportUnixTs, ExportProgress_->LastExportUnixTs);
             }
             if (!exportTaskError.IsOK() || !exportTask->GetExportError().IsOK()) {
                 THROW_ERROR_EXCEPTION("Export task has errors")
