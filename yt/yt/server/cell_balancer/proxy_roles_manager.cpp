@@ -37,13 +37,10 @@ TPerDataCenterSpareProxiesInfo GetSpareProxiesInfo(
         auto& spareProxies = result[dataCenterName];
         for (const auto& spareProxy : aliveProxies) {
             auto proxyInfo = GetOrCrash(input.RpcProxies, spareProxy);
-            std::string bundleName;
 
             if (auto it = proxyRoleToBundle.find(proxyInfo->Role); it != proxyRoleToBundle.end()) {
-                bundleName = it->second;
-            }
-
-            if (!bundleName.empty()) {
+                const auto& bundleName = it->second;
+                YT_VERIFY(!bundleName.empty());
                 spareProxies.UsedByBundle[bundleName].push_back(spareProxy);
             } else {
                 spareProxies.FreeProxies.push_back(spareProxy);
@@ -103,7 +100,7 @@ void TryAssignSpareProxies(
 
 struct TDataCenterOrderForProxies
 {
-    // Data center does not have enough alive rpc proxy (even with spare proxies).
+    // Data center does not have enough alive RPC proxy (even with spare proxies).
     bool Unfeasible = false;
 
     // Data center is forbidden by admin.
@@ -111,7 +108,7 @@ struct TDataCenterOrderForProxies
 
     int AssignedProxyCount = 0;
 
-    // How many rpc proxies we have to assign to bundle, i.e. how many proxies do not have needed proxy role.
+    // How many RPC proxies we have to assign to bundle, i.e. how many proxies do not have needed proxy role.
     int RequiredRpcProxyAssignmentCount = 0;
 
     // Just dc name alphabetical order for predictability.
@@ -236,7 +233,7 @@ THashSet<std::string> GetDataCentersToPopulate(
         const auto& status = dataCentersOrder.back();
 
         YT_LOG_DEBUG(
-            "Bundle rpc proxy data center status "
+            "Bundle RPC proxy data center status "
             "(Bundle: %v, DataCenter: %v, Unfeasible: %v, Forbidden: %v, RequiredPerDataCenterProxyCount: %v,"
             " RequiredRpcProxyAssignmentCount: %v, AvailableRpcProxyCount: %v)",
             bundleName,
@@ -278,7 +275,7 @@ void AssignProxyRoleForDataCenter(
     for (const auto& proxyName : aliveProxies) {
         auto proxyInfo = GetOrCrash(input.RpcProxies, proxyName);
         if (proxyInfo->Role != rpcProxyRole) {
-            YT_LOG_INFO("Assigning proxy role for bundle rpc proxy (Bundle: %v, DataCenter: %v, ProxyName: %v, Role: %v)",
+            YT_LOG_INFO("Assigning proxy role for bundle RPC proxy (Bundle: %v, DataCenter: %v, ProxyName: %v, Role: %v)",
                 bundleName,
                 dataCenterName,
                 proxyName,
@@ -300,7 +297,7 @@ void AssignProxyRoleForDataCenter(
 
     int proxyBalance = usedSpareProxyCount + aliveBundleProxyCount - requiredRpcProxyCount;
 
-    YT_LOG_DEBUG("Checking rpc proxies role for bundle in data center (Bundle: %v, DataCenter: %v, "
+    YT_LOG_DEBUG("Checking RPC proxies role for bundle in data center (Bundle: %v, DataCenter: %v, "
         " RpcProxyRole: %v, ProxyBalance: %v, SpareProxyCount: %v, BundleProxyCount: %v, RequiredRpcProxyCount: %v)",
         bundleName,
         dataCenterName,
@@ -340,7 +337,7 @@ void ReleaseProxyRoleForDataCenter(
     for (const auto& proxyName : aliveProxies) {
         auto proxyInfo = GetOrCrash(input.RpcProxies, proxyName);
         if (proxyInfo->Role != releasedProxyRole) {
-            YT_LOG_INFO("Releasing proxy role for bundle rpc proxy (Bundle: %v, DataCenter: %v, ProxyName: %v, Role: %v)",
+            YT_LOG_INFO("Releasing proxy role for bundle RPC proxy (Bundle: %v, DataCenter: %v, ProxyName: %v, Role: %v)",
                 bundleName,
                 dataCenterName,
                 proxyName,
@@ -382,7 +379,7 @@ void SetProxyRole(
 
         mutations->AlertsToFire.push_back({
             .Id = "invalid_proxy_role_value",
-            .Description = Format("Empty string assigned as proxy role name for bundle %v.",
+            .Description = Format("Empty string assigned as proxy role name for bundle %Qv.",
                 bundleName),
         });
         return;
@@ -455,7 +452,7 @@ void InitializeZoneToSpareProxies(TSchedulerInputState& input, TSchedulerMutatio
 
                 mutations->AlertsToFire.push_back({
                     .Id = "no_free_spare_proxies",
-                    .Description = Format("No free spare proxies available in zone: %v in datacenter: %v.",
+                    .Description = Format("No free spare proxies available in zone %Qv in datacenter %Qv.",
                         zoneName,
                         dataCenterName),
                 });
