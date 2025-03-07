@@ -124,7 +124,7 @@ class TestPortals(YTEnvSetup):
     def test_cannot_enable_acl_inheritance(self):
         create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 11})
         get("//tmp/p&/@exit_node_id")
-        with pytest.raises(YtError):
+        with raises_yt_error("Node //tmp has no child with key \"p\""):
             set("//tmp/p/@inherit_acl", True, driver=get_driver(1))
 
     @authors("babenko")
@@ -560,7 +560,7 @@ class TestPortals(YTEnvSetup):
 
         set("//tmp/p1/@opaque", True)
         assert get("//tmp/p1/@opaque")
-        with pytest.raises(YtError):
+        with raises_yt_error("Portal entrances cannot be made non-opaque"):
             set("//tmp/p1&/@opaque", False)
 
     # This test seems broken
@@ -611,7 +611,7 @@ class TestPortals(YTEnvSetup):
         remove_tablet_cell_bundle("b")
         wait(lambda: get("//sys/tablet_cell_bundles/b/@life_stage") == "removal_pre_committed")
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Tablet cell bundle \"b\" cannot be used"):
             copy("//tmp/p1/t", "//tmp/p2/t")
 
         remove("//tmp/p1/t")
@@ -687,7 +687,7 @@ class TestPortals(YTEnvSetup):
         mutation_id = generate_uuid()
 
         create("table", "//tmp/p/t", mutation_id=mutation_id)
-        with pytest.raises(YtError):
+        with raises_yt_error("Duplicate request is not marked as \"retry\""):
             remove("//tmp/p/t", mutation_id=mutation_id)
 
     @authors("babenko")
