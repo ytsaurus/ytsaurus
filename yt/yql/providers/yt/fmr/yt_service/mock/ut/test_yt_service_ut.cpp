@@ -23,7 +23,8 @@ Y_UNIT_TEST_SUITE(TLocalTableServiceTest)
         ytUploadedTablesMock->AddTable(ytTable, TableContent);
         NYql::NFmr::IYtService::TPtr ytService = MakeYtServiceMock(ytUploadedTablesMock);
 
-        auto res = ytService->Download(ytTable);
+        ui64 rowsCount;
+        auto res = ytService->Download(ytTable, rowsCount);
 
         auto* err = std::get_if<TError>(&res);
         UNIT_ASSERT_C(!err,err->ErrorMessage);
@@ -34,6 +35,7 @@ Y_UNIT_TEST_SUITE(TLocalTableServiceTest)
         TString localContent = inputStream.ReadAll();
 
         UNIT_ASSERT_NO_DIFF(TableContent, localContent);
+        UNIT_ASSERT_EQUAL(rowsCount, 4);
     }
     Y_UNIT_TEST(DownloadNonExistentTable) {
         TYtTableRef ytTable = TYtTableRef{"test_path","test_cluster"};
@@ -42,7 +44,8 @@ Y_UNIT_TEST_SUITE(TLocalTableServiceTest)
         // ytUploadedTablesMock->AddTable(ytTable, TableContent);
         NYql::NFmr::IYtService::TPtr ytService = MakeYtServiceMock(ytUploadedTablesMock);
 
-        auto res = ytService->Download(ytTable);
+        ui64 rowsCount;
+        auto res = ytService->Download(ytTable, rowsCount);
 
         TError* err = std::get_if<TError>(&res);
         UNIT_ASSERT_C(err,"No error was returned");
