@@ -91,7 +91,6 @@ private:
         TPromise<void> DiskFetchPromise;
         NIO::TBlocksExtPtr BlocksExt;
         TLocationMemoryGuard LocationMemoryGuard;
-        TPendingIOGuard PendingIOGuard;
         std::atomic<bool> Finished = false;
     };
 

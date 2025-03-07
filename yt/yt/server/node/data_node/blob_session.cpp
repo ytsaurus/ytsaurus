@@ -331,6 +331,7 @@ TFuture<void> TBlobSession::DoStart()
     PendingBlockMemoryGuard_ = TMemoryUsageTrackerGuard::Build(Location_->GetWriteMemoryTracker());
 
     PendingBlockLocationMemoryGuard_ = Location_->AcquireLocationMemory(
+        {},
         EIODirection::Write,
         Options_.WorkloadDescriptor,
         /*delta*/ 0);
@@ -638,6 +639,7 @@ TFuture<NIO::TIOCounters> TBlobSession::DoPerformPutBlocks(
 
             // Track memory per location - without memory tracker.
             locationMemoryGuards.push_back(Location_->AcquireLocationMemory(
+                {},
                 EIODirection::Write,
                 Options_.WorkloadDescriptor,
                 blockSize));
@@ -709,11 +711,6 @@ TFuture<NIO::TIOCounters> TBlobSession::DoPerformPutBlocks(
         }
 
         slot.LocationMemoryGuard = std::move(locationMemoryGuards[WindowIndex_ - startBlockIndex]);
-        slot.PendingIOGuard = Location_->AcquirePendingIO(
-            {},
-            EIODirection::Write,
-            Options_.WorkloadDescriptor,
-            slot.Block.Size());
 
         if (auto error = slot.Block.ValidateChecksum(); !error.IsOK()) {
             auto blockId = TBlockId(GetChunkId(), WindowIndex_);
@@ -771,8 +768,6 @@ void TBlobSession::OnBlocksWritten(int beginBlockIndex, int endBlockIndex, const
 
     for (int blockIndex = beginBlockIndex; blockIndex < endBlockIndex; ++blockIndex) {
         auto& slot = GetSlot(blockIndex);
-        slot.MemoryUsageGuard = slot.PendingIOGuard.MoveMemoryTrackerGuard();
-        slot.PendingIOGuard = {};
         if (error.IsOK()) {
             YT_VERIFY(slot.State == ESlotState::Received);
             slot.State = ESlotState::Written;
@@ -780,7 +775,6 @@ void TBlobSession::OnBlocksWritten(int beginBlockIndex, int endBlockIndex, const
 
             // Checking for a state is necessary because the subscriber may trigger after calling slot.WrittenPromise.TrySet().
             if (Options_.DisableSendBlocks && slot.State == ESlotState::Written) {
-                YT_VERIFY(slot.MemoryUsageGuard.GetSize() == 0);
                 ReleaseBlockSlot(slot);
             }
         }
@@ -913,7 +907,6 @@ void TBlobSession::ReleaseBlockSlot(TSlot& slot)
 
     MemoryUsage_.fetch_sub(slot.Block.Size());
     slot.Block = {};
-    slot.MemoryUsageGuard.Release();
     slot.LocationMemoryGuard.Release();
     slot.State = EBlobSessionSlotState::Released;
 }
@@ -930,8 +923,6 @@ void TBlobSession::ReleaseBlocks(int flushedBlockIndex)
         YT_VERIFY(slot.State == ESlotState::Written || slot.State == EBlobSessionSlotState::Released);
 
         if (slot.State == ESlotState::Written) {
-            YT_VERIFY(slot.MemoryUsageGuard.GetSize() == 0);
-
             if (delayBeforeFree) {
                 YT_LOG_DEBUG("Simulate delay before blob write session block free (BlockSize: %v, Delay: %v)", slot.Block.Size(), *delayBeforeFree);
 
@@ -948,7 +939,6 @@ void TBlobSession::ReleaseBlocks(int flushedBlockIndex)
             }
         }
 
-        slot.PendingIOGuard.Release();
         slot.WrittenPromise.Reset();
         slot.ReceivedPromise.Reset();
         ++WindowStartBlockIndex_;

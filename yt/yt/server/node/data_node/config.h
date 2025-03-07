@@ -122,12 +122,6 @@ struct TChunkLocationConfig
     //! Limit on the maximum memory used of location writes.
     i64 WriteMemoryLimit;
 
-    //! Limit on the maximum IO in bytes used of location reads.
-    i64 PendingReadIOLimit;
-
-    //! Limit on the maximum IO in bytes used of location writes.
-    i64 PendingWriteIOLimit;
-
     //! Limit on the maximum count of location write sessions.
     i64 SessionCountLimit;
 
@@ -164,12 +158,6 @@ struct TChunkLocationDynamicConfig
 
     //! Limit on the maximum memory used by location writes.
     std::optional<i64> WriteMemoryLimit;
-
-    //! Limit on the maximum IO in bytes used by location reads.
-    std::optional<i64> PendingReadIOLimit;
-
-    //! Limit on the maximum IO in bytes used by location writes.
-    std::optional<i64> PendingWriteIOLimit;
 
     //! Limit on the maximum count of location write sessions.
     std::optional<i64> SessionCountLimit;
@@ -1091,13 +1079,6 @@ struct TDataNodeDynamicConfig
 
     std::optional<i64> DiskWriteThrottlingLimit;
     std::optional<i64> DiskReadThrottlingLimit;
-
-    //! If the total pending read size exceeds the limit, all writes to this location become disabled.
-    std::optional<i64> DisableLocationWritesPendingReadSizeHighLimit;
-
-    //! If writes to the location were earlier disabled due to #DisableLocationWritesPendingReadSizeHighLimit,
-    //! writes are re-enabled once the total pending read size drops below this limit.
-    std::optional<i64> DisableLocationWritesPendingReadSizeLowLimit;
 
     //! Testing options.
     TDataNodeTestingOptionsPtr TestingOptions;
