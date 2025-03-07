@@ -129,13 +129,9 @@ void TTableNodeProxy::GetBasicAttributes(TGetBasicAttributesContext* context)
         auto* table = GetThisImpl();
         if (context->Columns) {
             checkOptions.Columns = std::move(context->Columns);
-        } else if (!securityManager->IsFastCheckPermissionAvailable(user, EPermission::Read)
-            && securityManager->HasColumnarAce(Object_, user))
-        {
-            // Otherwise:
-            // 1) fast check permission is available, then we will receive either allow, either deny as check response
-            // and we don't have further need to iterate through columns and check per-column response.
-            // 2) object has no columnar ace, so inside permission check columns won't be used.
+        } else if (securityManager->HasColumnarAce(Object_, user)) {
+            // If the object lacks a columnar ACE, column-level permissions
+            // are skipped during the permission check.
             const auto& tableSchema = table->GetSchema()->AsTableSchema();
             checkOptions.Columns.emplace();
             checkOptions.Columns->reserve(tableSchema.Columns().size());
