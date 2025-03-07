@@ -533,7 +533,7 @@ private:
                 index,
                 endpoint.KeyBound,
                 endpoint.Type,
-                endpoint.DataSlice.Get());
+                GetDataSliceDebugString(endpoint.DataSlice));
         }
     }
 
@@ -804,8 +804,10 @@ private:
 
         auto lowerBound = endpoints[0].KeyBound;
 
+        // TODO(coteeq): Do Max's todo.
         // TODO(max42): describe this situation, refer to RowSlicingCorrectnessCustom unittest.
         if (!lowerBound.Invert().IsInclusive && lowerBound.Prefix.GetCount() == static_cast<ui32>(PrimaryComparator_.GetLength())) {
+            YT_LOG_TRACE("Weird max42 case (LowerBound: %v)", lowerBound);
             StagingArea_->PromoteUpperBound(endpoints[0].KeyBound.Invert().ToggleInclusiveness());
         }
 

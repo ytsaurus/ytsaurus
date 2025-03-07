@@ -347,7 +347,7 @@ private:
                             keyColumnCount,
                             sliceByKeys);
                         TComparator comparator(std::vector<ESortOrder>(keyColumnCount, ESortOrder::Ascending));
-                        chunkSliceFetcher->AddDataSliceForSlicing(dataSlice, comparator, sliceSize, sliceByKeys);
+                        chunkSliceFetcher->AddDataSliceForSlicing(dataSlice, comparator, sliceSize, sliceByKeys, /*minManiacDataWeight*/ std::nullopt);
                     } else if (!isPrimary) {
                         // Take foreign slice as-is.
                         processDataSlice(dataSlice, inputCookie);

@@ -8005,7 +8005,7 @@ std::vector<TLegacyDataSlicePtr> TOperationControllerBase::CollectPrimaryVersion
                 auto dataSlice = CreateUnversionedInputDataSlice(chunkSlice);
                 dataSlice->SetInputStreamIndex(InputStreamDirectory_.GetInputStreamIndex(dataSlice->GetTableIndex(), dataSlice->GetRangeIndex()));
                 dataSlice->TransformToNew(RowBuffer, table->Comparator.GetLength());
-                fetcher->AddDataSliceForSlicing(dataSlice, table->Comparator, sliceSize, true);
+                fetcher->AddDataSliceForSlicing(dataSlice, table->Comparator, sliceSize, true, /*minManiacDataWeight*/ std::nullopt);
                 totalDataWeightBefore += dataSlice->GetDataWeight();
             }
 

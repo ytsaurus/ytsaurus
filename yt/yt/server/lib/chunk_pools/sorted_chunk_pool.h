@@ -28,6 +28,9 @@ struct TSortedChunkPoolOptions
     NTableClient::TRowBufferPtr RowBuffer;
     NLogging::TLogger Logger;
     NLogging::TLogger StructuredLogger;
+
+    // Only for new pool.
+    std::optional<i64> MinManiacDataWeight;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

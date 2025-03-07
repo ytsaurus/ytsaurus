@@ -1744,6 +1744,7 @@ class TSortedOperationSpec
 public:
     bool UseNewSortedPool;
     NTableClient::TSortColumns MergeBy;
+    std::optional<i64> MinManiacDataWeight;
 
     REGISTER_YSON_STRUCT(TSortedOperationSpec);
 

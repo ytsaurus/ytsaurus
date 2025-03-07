@@ -1600,6 +1600,14 @@ void TSortedOperationSpec::Register(TRegistrar registrar)
         .Default(false);
     registrar.Parameter("merge_by", &TThis::MergeBy)
         .Default();
+    registrar.Parameter("min_maniac_data_weight", &TThis::MinManiacDataWeight)
+        .Default();
+
+    registrar.Postprocessor([] (TSortedOperationSpec* spec) {
+        if (spec->MinManiacDataWeight && !spec->UseNewSortedPool) {
+            THROW_ERROR_EXCEPTION("\"min_maniac_data_weight\" is only allowed for new sorted pool");
+        }
+    });
 }
 
 ////////////////////////////////////////////////////////////////////////////////
