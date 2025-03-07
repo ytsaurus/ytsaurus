@@ -84,8 +84,8 @@ jobs:
         include:
           - build-type: "release"
             cmake-build-type: "Release"
-          - build-type: "relwithdebinfo"
-            cmake-build-type: "RelWithDebInfo"
+          # - build-type: "relwithdebinfo"
+          #   cmake-build-type: "RelWithDebInfo"
     steps:
       - name: Create build directories
         run: |
@@ -224,7 +224,7 @@ jobs:
     if: ${{ inputs.cpp-build-system == 'ya-make' }}
     strategy:
       matrix:
-        build-type: [release, relwithdebinfo]
+        build-type: [release]
     steps:
       - name: Calculate variables
         id: vars
