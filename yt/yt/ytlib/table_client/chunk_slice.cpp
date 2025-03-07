@@ -74,6 +74,10 @@ public:
                     chunkId);
         }
 
+        if (sliceReq.has_min_maniac_data_weight()) {
+            MinManiacDataWeight_ = sliceReq.min_maniac_data_weight();
+        }
+
         TComparator chunkComparator;
         if (auto schemaExt = FindProtoExtension<TTableSchemaExt>(Meta_.extensions())) {
             chunkComparator = FromProto<TTableSchema>(*schemaExt).ToComparator();
@@ -113,6 +117,7 @@ public:
             const auto& block = blockMetaExt.data_blocks(blockIndex);
             YT_VERIFY(block.block_index() == blockIndex);
 
+            // TODO(coteeq): All these bounds could've been stored in a TRowBuffer.
             auto blockLastKey = FromProto<TUnversionedOwningRow>(block.last_key());
             TUnversionedOwningRow trimmedBlockLastKey(blockLastKey.FirstNElements(SliceComparator_.GetLength()));
             auto blockUpperBound = TOwningKeyBound::FromRow(
@@ -123,7 +128,7 @@ public:
             i64 chunkRowCount = block.chunk_row_count();
             i64 rowCount = BlockDescriptors_.empty()
                 ? chunkRowCount
-                : chunkRowCount - BlockDescriptors_.back().RowCount;
+                : chunkRowCount - BlockDescriptors_.back().ChunkRowCount;
 
             TBlockDescriptor blockDescriptor{
                 .UpperBound = blockUpperBound,
@@ -152,6 +157,7 @@ public:
 
         SliceStartRowIndex_ = sliceLowerLimit.GetRowIndex().value_or(0);
         SliceEndRowIndex_ = sliceUpperLimit.GetRowIndex().value_or(chunkRowCount);
+        HasRowLimits_ = sliceLowerLimit.GetRowIndex() || sliceUpperLimit.GetRowIndex();
     }
 
     void Clear()
@@ -164,8 +170,123 @@ public:
         }
     }
 
+    struct TFinishManiacKeyResult
+    {
+        TCompactVector<TChunkSlice, 2> Slices = {};
+        int LastProcessedBlockIndex = -1;
+    };
+
+    //! Prerequisites:
+    //! 1. block.UpperBound.Key should be allowed by sliceReq's ranges.
+    //! 2. sliceStarted = true.
+    std::optional<TFinishManiacKeyResult> TryFinishManiacKey(
+        int blockIndex,
+        const TOwningKeyBound& currentSliceLowerBound,
+        i64 currentSliceStartRowIndex)
+    {
+        if (!MinManiacDataWeight_) {
+            return {};
+        }
+        YT_VERIFY(SliceReq_.slice_by_keys());
+        // Construct up to two chunks:
+        // the maniac one and the preceeding one.
+        //
+        // Let the maniac key be 'M' and we have such blocks:
+        //
+        // leftSlice     maniacSlice
+        // <------><------------------------>
+        // |ABCD|EEMMM|MMMMM|MMMMM|MMMMM|MMMMZZZ|
+        //      ^                 ^
+        //      |                 |
+        //      |                 ` lastFullManiacBlockIndex
+        //      |
+        //      ` blockIndex is here
+        //
+        //             ^^^^^^^^^^^^^^^^^ fullManiacBlocksAhead
+        //
+        // BlockDescriptors_[blockIndex].UpperBound is our maniac candidate.
+        const auto& block = BlockDescriptors_[blockIndex];
+        const auto& maniacKeyAsUpperBound = block.UpperBound;
+        int fullManiacBlocksAhead = 0;
+        while (blockIndex + fullManiacBlocksAhead + 1 < std::ssize(BlockDescriptors_)
+            && maniacKeyAsUpperBound == BlockDescriptors_[blockIndex + fullManiacBlocksAhead + 1].UpperBound)
+        {
+            ++fullManiacBlocksAhead;
+        }
+
+        // We are definitely not a maniac if we can fit in a block.
+        if (fullManiacBlocksAhead == 0) {
+            return {};
+        }
+
+        int lastFullManiacBlockIndex = blockIndex + fullManiacBlocksAhead;
+        const auto& lastFullManiacBlock = BlockDescriptors_[lastFullManiacBlockIndex];
+
+        i64 fullManiacRowCount = lastFullManiacBlock.ChunkRowCount - block.ChunkRowCount;
+        i64 nextChunkRowCount = lastFullManiacBlockIndex + 1 < std::ssize(BlockDescriptors_)
+            ? BlockDescriptors_[lastFullManiacBlockIndex + 1].RowCount
+            : i64(0);
+
+        i64 maniacPessimisticRowCount = block.RowCount + fullManiacRowCount + nextChunkRowCount;
+        i64 maniacPessimisticDataWeight = maniacPessimisticRowCount * DataWeightPerRow_;
+
+        TFinishManiacKeyResult result;
+        result.LastProcessedBlockIndex = lastFullManiacBlockIndex;
+
+        // NB(coteeq): We compare opimistic estimate on purpose.
+        // Hopefully, the caller knows what he is doing and will ensure that
+        // MinManiacDataWeight_ >> blockSize, reducing the error margin.
+        if (fullManiacRowCount < *MinManiacDataWeight_) {
+            // We still need to advance blockIndex, otherwise the algorithm will
+            // be O(n^2).
+            // NB: It is safe to just jump to the last maniac block, because
+            // we know for sure, that there is no RowIndex in SliceReq_'s limits
+            // and the key does not change. So internal structures of |Slice|
+            // method will not be spoiled by this jump.
+            return result;
+        }
+
+        // We found a maniac key!
+
+        YT_VERIFY(maniacKeyAsUpperBound.IsUpper);
+        // If the range specified by client does not allow maniac key, we
+        // should've stopped processing the chunk (and never even enter tryFinishManiacSlice).
+        // Otherwise, maniacKeyAsUpperBound must have been taken from
+        // block's last_key, so it must be inclusive by construction.
+        YT_VERIFY(maniacKeyAsUpperBound.IsInclusive);
+
+        // Flush leftSlice.
+
+        auto leftSliceUpperBound = maniacKeyAsUpperBound.ToggleInclusiveness();
+
+        // If maniac is the first key in the flushing slice, the leftSlice will be empty.
+        if (!SliceComparator_.IsRangeEmpty(currentSliceLowerBound, leftSliceUpperBound)) {
+            TChunkSlice slice;
+            slice.LowerLimit.KeyBound() = currentSliceLowerBound;
+            slice.UpperLimit.KeyBound() = leftSliceUpperBound;
+            slice.RowCount = block.ChunkRowCount - currentSliceStartRowIndex;
+            slice.DataWeight = slice.RowCount * DataWeightPerRow_;
+            result.Slices.push_back(std::move(slice));
+        }
+
+        // Flush maniac slice.
+
+        TChunkSlice maniacSlice;
+        maniacSlice.LowerLimit.KeyBound() = maniacKeyAsUpperBound;
+        maniacSlice.LowerLimit.KeyBound().IsUpper = false;
+        maniacSlice.UpperLimit.KeyBound() = maniacKeyAsUpperBound;
+
+        // We do not know how many rows have the maniac key, so take a pessimistic estimate
+        maniacSlice.RowCount = maniacPessimisticRowCount;
+        maniacSlice.DataWeight = maniacPessimisticDataWeight;
+        result.Slices.push_back(std::move(maniacSlice));
+
+        return result;
+    }
+
     std::vector<TChunkSlice> Slice()
     {
+        // TODO(coteeq): Extract this state machine at the class level.
         i64 sliceDataWeight = SliceReq_.slice_data_weight();
         bool sliceByKeys = SliceReq_.slice_by_keys();
 
@@ -224,7 +345,7 @@ public:
                 blockLowerBound = blockLowerBound.ToggleInclusiveness();
             }
 
-            // This might happen if block consisnts of single key.
+            // This might happen if block consists of a single key.
             if (SliceComparator_.IsRangeEmpty(blockLowerBound, blockUpperBound)) {
                 blockLowerBound = blockLowerBound.ToggleInclusiveness();
                 YT_VERIFY(!SliceComparator_.IsRangeEmpty(blockLowerBound, blockUpperBound));
@@ -239,7 +360,7 @@ public:
             if (SliceComparator_.IsRangeEmpty(SliceLowerBound_, blockUpperBound)) {
                 continue;
             }
-            // Block is completely to the right of the request by row indices.
+            // Block is completely to the left of the request by row indices.
             if (SliceStartRowIndex_ >= blockEndRowIndex) {
                 continue;
             }
@@ -254,11 +375,15 @@ public:
             }
 
             // Intersect block's ranges with request's ranges.
-            const auto& lowerBound = SliceComparator_.CompareKeyBounds(blockLowerBound, SliceLowerBound_) > 0
+            const auto& lowerBound = SliceComparator_.CompareKeyBounds(blockLowerBound, SliceLowerBound_) >= 0
                 ? blockLowerBound
                 : SliceLowerBound_;
 
-            const auto& upperBound = SliceComparator_.CompareKeyBounds(blockUpperBound, SliceUpperBound_) < 0
+            // If it is not, there is no point in checking for maniac key, since
+            // the whole slicing will just end at the current block.
+            bool upperBoundIsInRange = SliceComparator_.CompareKeyBounds(blockUpperBound, SliceUpperBound_) <= 0;
+
+            const auto& upperBound = upperBoundIsInRange
                 ? blockUpperBound
                 : SliceUpperBound_;
 
@@ -270,11 +395,34 @@ public:
             }
 
             if (sliceByKeys) {
+                // TODO(coteeq): Isolate maniac even if row limits are specified.
+                if (upperBoundIsInRange && !HasRowLimits_) {
+                    auto finishManiacKeyResult = TryFinishManiacKey(
+                        blockIndex,
+                        currentSliceLowerBound,
+                        currentSliceStartRowIndex);
+                    if (finishManiacKeyResult) {
+                        for (auto&& slice : finishManiacKeyResult->Slices) {
+                            slices.push_back(std::move(slice));
+                        }
+                        blockIndex = finishManiacKeyResult->LastProcessedBlockIndex;
+
+                        // If we did not flush the maniac, we still need to apply non-maniac logic.
+                        if (!finishManiacKeyResult->Slices.empty()) {
+                            sliceStarted = false;
+                            // Do not apply other logic. Just go straight to the next block.
+                            continue;
+                        } else {
+                            endRowIndex = BlockDescriptors_[blockIndex].ChunkRowCount;
+                        }
+                    }
+                }
+
                 bool canSliceHere = true;
                 i64 currentSliceRowCount = endRowIndex - currentSliceStartRowIndex;
                 if (blockIndex + 1 < std::ssize(BlockDescriptors_)) {
                     const auto& nextBlock = BlockDescriptors_[blockIndex + 1];
-                    // We are inside maniac key, so can't slice chunk here.
+                    // We are inside of a huge key, so can't slice chunk here.
                     if (upperBound == nextBlock.UpperBound) {
                         canSliceHere = false;
                     }
@@ -343,6 +491,9 @@ private:
     TOwningKeyBound ChunkUpperBound_;
 
     i64 DataWeightPerRow_ = 0;
+
+    std::optional<i64> MinManiacDataWeight_ = {};
+    bool HasRowLimits_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

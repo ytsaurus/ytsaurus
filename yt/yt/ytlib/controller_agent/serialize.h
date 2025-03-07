@@ -47,6 +47,7 @@ DEFINE_ENUM(ESnapshotVersion,
     ((GroupedNeededResources)                (301707))
     ((MonitoringDescriptorsPreserving)       (301708))
     ((ValidateLivePreviewChunks)             (301709))
+    ((IsolateManiacsInSlicing)               (301710))
 );
 
 ////////////////////////////////////////////////////////////////////////////////
