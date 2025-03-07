@@ -24,7 +24,6 @@ struct TChunkDescriptor;
 struct TSessionOptions;
 struct TChunkReadOptions;
 
-class TPendingIOGuard;
 class TChunkReadGuard;
 
 struct TArtifactKey;
