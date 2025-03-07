@@ -8,6 +8,54 @@ Availabe as a package in [PyPI](https://pypi.org/project/ytsaurus-client/).
 
 **Releases:**
 
+{% cut "**0.13.24**" %}
+
+**Release date:** 2025-03-02
+
+
+### Features
+* Replace `include_scheduler` option with `include_runtime` option in `get_operation` command (it is backward incompatible change)
+* Request `type` attributes instead of `operation_type` attribute in `get_operation` command
+* Add `redirect_stdout_to_stderr` support
+* Support `require_sync_replica` in `push_queue_producer`
+* Add `is_prerequisite_check_fail` method to error, add `YtAuthenticationError`
+* Support operation suspend reason
+
+### Fixes
+* Drop python2 related code in `_py_runner.py`
+* Add `python_requires=">=3.8"` to package setup
+* Do not request all attributes in operation exists check
+* Fix handling request timeout of `start_operation` command 
+
+{% endcut %}
+
+
+{% cut "**0.13.23**" %}
+
+**Release date:** 2025-02-04
+
+
+### Features
+  * Add `min_batch_row_count` option to dump parquet
+  * Add `patch_operation_spec` method
+  * Add queue producer methods in YT cli
+  * Add `trimmed_row_counts` parameter
+  * Add `versioned_read_options` parameter
+  * Add `ignore_type_mismatch` parameter
+  * Do not write command line into started_by (by default)
+  * Show native libraries version in CLI
+  * Make pickling->dynamic_libraries->enable_auto_collection remote patchable
+  * Apply destination path attributes to temporary objects within parallel upload
+
+### Fixes
+  * YSON: unescape invalid seqs as in bingings implementation.
+  * Fix `generate_traceparent`
+  * Remove `typing_extensions` module imports for newer python versions
+  * Fix native driver configuration
+
+{% endcut %}
+
+
 {% cut "**0.13.22**" %}
 
 **Release date:** 2025-01-10
