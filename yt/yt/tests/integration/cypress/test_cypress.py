@@ -3256,7 +3256,7 @@ class TestCypress(YTEnvSetup):
         create("map_node", "//tmp/dir2")
         create("map_node", "//tmp/dir3")
 
-        with pytest.raises(YtError):
+        with raises_yt_error("No such tablet cell bundle"):
             set("//tmp/dir1/@tablet_cell_bundle", "non_existent")
 
         create_tablet_cell_bundle("b1")
@@ -3277,9 +3277,9 @@ class TestCypress(YTEnvSetup):
 
         assert get("//tmp/dir3_copy/@tablet_cell_bundle", tx=tx) == "b1"
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Operation cannot be performed in transaction"):
             set("//tmp/dir3_copy/@tablet_cell_bundle", "b2", tx=tx)
-        with pytest.raises(YtError):
+        with raises_yt_error("Operation cannot be performed in transaction"):
             remove("//tmp/dir3_copy/@tablet_cell_bundle", tx=tx)
 
         set("//tmp/dir1/@tablet_cell_bundle", "b2")
@@ -3356,9 +3356,9 @@ class TestCypress(YTEnvSetup):
     @authors("savrus")
     @not_implemented_in_sequoia
     def test_create_invalid_type(self):
-        with pytest.raises(YtError):
+        with raises_yt_error("Error parsing EObjectType value"):
             create("some_invalid_type", "//tmp/s")
-        with pytest.raises(YtError):
+        with raises_yt_error("cannot be created explicitly"):
             create("sorted_dynamic_tablet_store", "//tmp/s")
 
     @authors("shakurov")
@@ -3516,7 +3516,7 @@ class TestCypress(YTEnvSetup):
         create("map_node", "//tmp/test_node")
         create("table", "//tmp/test_node/child", tx=tx1)
         remove("//tmp/test_node/child", tx=tx2)
-        with pytest.raises(YtError):
+        with raises_yt_error("has no child with key"):
             remove("//tmp/test_node/child", tx=tx3)
         assert not exists("//tmp/test_node/child", tx=tx3)
 
@@ -3647,9 +3647,9 @@ class TestCypress(YTEnvSetup):
         create("map_node", "//tmp/test_node")
         assert get("//tmp/test_node/@annotation") == yson.YsonEntity()
         assert get("//tmp/test_node/@annotation_path") == yson.YsonEntity()
-        with pytest.raises(YtError):
+        with raises_yt_error("Annotation is too long"):
             set("//tmp/test_node/@annotation", "a" * 1025)
-        with pytest.raises(YtError):
+        with raises_yt_error("Only ASCII alphanumeric, white-space and punctuation characters are allowed in annotations"):
             set("//tmp/test_node/@annotation", chr(255))
         set("//tmp/test_node/@annotation", printable)
 
@@ -3762,9 +3762,9 @@ class TestCypress(YTEnvSetup):
         set("//tmp/t1/@acl", acl)
 
         access_denied = 'Access denied for user "u": "administer" permission for node //tmp/test is not allowed'
-        with pytest.raises(YtError, match=access_denied):
+        with raises_yt_error(access_denied):
             copy("//tmp/t1", "//tmp/test/t2", preserve_acl=True, authenticated_user="u")
-        with pytest.raises(YtError, match=access_denied):
+        with raises_yt_error(access_denied):
             move("//tmp/t1", "//tmp/test/t2", preserve_acl=True, authenticated_user="u")
 
         # COMPAT(koloshmet)
@@ -3797,9 +3797,9 @@ class TestCypress(YTEnvSetup):
     def test_lock_existing_errors(self):
         create("table", "//tmp/x")
         create("table", "//tmp/x1")
-        with pytest.raises(YtError):
+        with raises_yt_error("Cannot specify \"lock_existing\" without \"ignore_existing\""):
             create("map_node", "//tmp/x", lock_existing=True)
-        with pytest.raises(YtError):
+        with raises_yt_error("already exists"):
             move("//tmp/x", "//tmp/x1", ignore_existing=True, lock_existing=True)
 
     @authors("babenko")
@@ -3809,11 +3809,11 @@ class TestCypress(YTEnvSetup):
         create("table", "//tmp/m/t1")
         copy("//tmp/m&/t1", "//tmp/t2", force=True)
         copy("//tmp/m/t1&", "//tmp/t2", force=True)
-        with pytest.raises(YtError):
+        with raises_yt_error("has unexpected suffix"):
             copy("//tmp/m//t1", "//tmp/t2", force=True)
-        with pytest.raises(YtError):
+        with raises_yt_error("has unexpected suffix"):
             copy("//tmp/m/t1/", "//tmp/t2", force=True)
-        with pytest.raises(YtError):
+        with raises_yt_error("has unexpected suffix"):
             copy("//tmp/m/t1/@attr", "//tmp/t2", force=True)
 
     @authors("gritukan")
@@ -3899,7 +3899,7 @@ class TestCypress(YTEnvSetup):
         multiset_attributes("//tmp/doc/@", {"a": 1}, authenticated_user="u1")
         assert get("//tmp/doc/@a") == 1
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Access denied for user"):
             multiset_attributes("//tmp/doc/@", {"a": 2}, authenticated_user="u2")
         assert get("//tmp/doc/@a") == 1
 
@@ -3921,7 +3921,7 @@ class TestCypress(YTEnvSetup):
         tx3 = start_transaction()
         tx4 = start_transaction()
         multiset_attributes("//tmp/@", {"a": 3}, tx=tx3)
-        with pytest.raises(YtError):
+        with raises_yt_error("since this attribute is locked by concurrent transaction"):
             multiset_attributes("//tmp/@", {"a": 4}, tx=tx4)
         commit_transaction(tx3)
         assert get("//tmp/@a") == 3
@@ -3932,11 +3932,11 @@ class TestCypress(YTEnvSetup):
     @not_implemented_in_sequoia
     def test_deprecated_compression_codec(self):
         create("table", "//tmp/t1")
-        with pytest.raises(YtError):
+        with raises_yt_error("is forbidden, use \"zlib_6\" instead"):
             set("//tmp/t1/@compression_codec", "gzip_normal")
         remove("//tmp/t1")
 
-        with pytest.raises(YtError):
+        with raises_yt_error("is forbidden, use \"zlib_6\" instead"):
             create("table", "//tmp/t1", attributes={"compression_codec": "gzip_normal"})
 
         set("//sys/@config/chunk_manager/deprecated_codec_ids", [])
@@ -3955,11 +3955,11 @@ class TestCypress(YTEnvSetup):
     @not_implemented_in_sequoia
     def test_forbidden_compression_codec(self):
         create("table", "//tmp/t1")
-        with pytest.raises(YtError):
+        with raises_yt_error("is forbidden, use \"zlib_6\" instead"):
             set("//tmp/t1/@compression_codec", "gzip_normal")
         remove("//tmp/t1")
 
-        with pytest.raises(YtError):
+        with raises_yt_error("is forbidden, use \"zlib_6\" instead"):
             create("table", "//tmp/t1", attributes={"compression_codec": "gzip_normal"})
 
         set("//sys/@config/chunk_manager/forbidden_compression_codec_ids", [])
@@ -3981,15 +3981,15 @@ class TestCypress(YTEnvSetup):
 
         set("//sys/@config/chunk_manager/forbidden_erasure_codecs", [1])  # forbid reed_solomon_6_3
         create("table", "//tmp/t1")
-        with pytest.raises(YtError):
+        with raises_yt_error("Erasure codec \"reed_solomon_6_3\" is forbidden"):
             set("//tmp/t1/@erasure_codec", "reed_solomon_6_3")
         set("//tmp/t1/@erasure_codec", "reed_solomon_3_3")
         remove("//tmp/t1")
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Erasure codec \"reed_solomon_6_3\" is forbidden"):
             create("table", "//tmp/t1", attributes={"erasure_codec": "reed_solomon_6_3"})
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Erasure codec \"reed_solomon_6_3\" is forbidden"):
             create("map_node", "//tmp/ec2", attributes={"erasure_codec": "reed_solomon_6_3"})
 
         create("table", "//tmp/t1", attributes={"erasure_codec": "reed_solomon_3_3"})
@@ -4014,18 +4014,18 @@ class TestCypress(YTEnvSetup):
     @not_implemented_in_sequoia
     def test_abc(self, create_object, object_map):
         create_object("sample")
-        with pytest.raises(YtError):
+        with raises_yt_error("Missing required parameter /slug"):
             set("{}/sample/@abc".format(object_map), {"id": 42})
         set("{}/sample/@abc".format(object_map), {"id": 42, "slug": "text"})
-        with pytest.raises(YtError):
+        with raises_yt_error("Missing required parameter /id"):
             remove("{}/sample/@abc/id".format(object_map))
-        with pytest.raises(YtError):
+        with raises_yt_error("Missing required parameter /slug"):
             remove("{}/sample/@abc/slug".format(object_map))
-        with pytest.raises(YtError):
+        with raises_yt_error("Validation failed at /id"):
             set("{}/sample/@abc/id".format(object_map), -1)
-        with pytest.raises(YtError):
+        with raises_yt_error("Validation failed at /id"):
             set("{}/sample/@abc/id".format(object_map), 0)
-        with pytest.raises(YtError):
+        with raises_yt_error("Validation failed at /name"):
             set("{}/sample/@abc/name".format(object_map), "")
         set("{}/sample/@abc/name".format(object_map), "abacaba")
         remove("{}/sample/@abc/name".format(object_map))
@@ -4050,10 +4050,10 @@ class TestCypress(YTEnvSetup):
     @not_implemented_in_sequoia
     def test_folder_id(self, create_object, object_map):
         create_object("sample")
-        with pytest.raises(YtError):
+        with raises_yt_error("is too long"):
             set("{}/sample/@folder_id".format(object_map), "abacaba" * 42)
         set("{}/sample/@folder_id".format(object_map), "b7189bb3-fcf3-46da-accf-52be0d4148f0")
-        with pytest.raises(YtError):
+        with raises_yt_error("Cannot parse \"string\"; expected \"string_value\", actual \"int64_value\""):
             set("{}/sample/@folder_id".format(object_map), 0)
 
     @authors("cookiedoth")
@@ -4086,7 +4086,7 @@ class TestCypress(YTEnvSetup):
     @not_implemented_in_sequoia
     def test_force(self):
         create("map_node", "//tmp/a")
-        with pytest.raises(YtError):
+        with raises_yt_error("\"set\" command without \"force\" flag is forbidden; use \"create\" instead"):
             set("//tmp/a", {"x": "y"})
         set("//tmp/a", {"x": "y"}, force=True)
 
@@ -4144,7 +4144,7 @@ class TestCypress(YTEnvSetup):
     @authors("kivedernikov")
     def test_touch_time_without_expiration_timeout(self):
         create("table", "//tmp/t")
-        with pytest.raises(YtError):
+        with raises_yt_error("Attribute \"touch_time\" is not found"):
             get("//tmp/t/@touch_time")
 
     @authors("kivedernikov")
@@ -4554,7 +4554,7 @@ class TestCypressForbidSet(YTEnvSetup):
     @authors("shakurov")
     def test_map(self):
         create("map_node", "//tmp/d")
-        with pytest.raises(YtError):
+        with raises_yt_error("\"set\" command without \"force\" flag is forbidden; use \"create\" instead"):
             set("//tmp/d", {})
 
     @authors("shakurov")
@@ -4666,7 +4666,7 @@ class TestCypressApiVersion4(YTEnvSetup):
         lock_result = self._execute("lock", path="//tmp/a", transaction_id=tx)
         assert "lock_id" in lock_result and "node_id" in lock_result
         assert len(get("//tmp/a/@locks")) == 1
-        with pytest.raises(YtError):
+        with raises_yt_error("lock is taken by concurrent transaction"):
             self._execute("set", path="//tmp/a", input=b'{"a"=2}', force=True)
         self._execute("unlock", path="//tmp/a", transaction_id=tx)
         assert len(get("//tmp/a/@locks")) == 0
@@ -4865,7 +4865,7 @@ class TestAccessControlObjects(YTEnvSetup):
     @authors("shakurov")
     def test_access_control_object_creation(self):
         # Namespace is required.
-        with pytest.raises(YtError):
+        with raises_yt_error("Attribute \"namespace\" is not found"):
             execute_command("create", {
                 "type": "access_control_object",
                 "attributes": {
@@ -4873,7 +4873,7 @@ class TestAccessControlObjects(YTEnvSetup):
                 }
             })
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Access control object namespace \"bears\" not found"):
             create_access_control_object("garfield", "bears")
 
         create_access_control_object_namespace("cats")
@@ -4890,7 +4890,7 @@ class TestAccessControlObjects(YTEnvSetup):
 
         # @namespace is read-only.
         create_access_control_object_namespace("dogs")
-        with pytest.raises(YtError):
+        with raises_yt_error("Builtin attribute \"namespace\" cannot be set"):
             set("//sys/access_control_object_namespaces/cats/garfield/@namespace", "dogs")
 
         create_access_control_object("tom", "cats")
@@ -4958,7 +4958,7 @@ class TestAccessControlObjects(YTEnvSetup):
         assert check_permission("rat", "read", "//sys/access_control_object_namespaces/animal_shelters/dogs_house")["action"] == "allow"
 
         assert not get("//sys/access_control_object_namespaces/animal_shelters/dogs_house/principal/@inherit_acl")
-        with pytest.raises(YtError):
+        with raises_yt_error("Builtin attribute \"inherit_acl\" cannot be set"):
             set("//sys/access_control_object_namespaces/animal_shelters/dogs_house/principal/@inherit_acl", True)
 
         # Principal ACL inherits nothing, so this should still be denied.
