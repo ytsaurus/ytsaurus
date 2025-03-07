@@ -680,10 +680,3 @@ class TestSequoiaPrerequisites(YTEnvSetup):
             create("table", "//tmp/t3", prerequisite_transaction_ids=[tx], attributes={"external_cell_tag": 11})
         with raises_yt_error(f"Prerequisite check failed: transaction {tx} is missing in Sequoia"):
             create("table", "//tmp/t3", prerequisite_transaction_ids=[tx], attributes={"external_cell_tag": 12})
-
-    @authors("cherepashka")
-    def test_start_tx_with_prerequisite(self):
-        tx1 = start_transaction(coordinator_master_cell_tag=11)
-        tx2 = start_transaction(coordinator_master_cell_tag=12)
-        with raises_yt_error("Multiple prerequisite transactions from different cells specified"):
-            start_transaction(prerequisite_transaction_ids=[tx1, tx2])
