@@ -355,7 +355,7 @@ public:
     TSnapshotOutThrottlerProvider GetSnapshotOutThrottlerProvider() const
     {
         return [this, weakThis = MakeWeak(this)] () -> IThroughputThrottlerPtr {
-            if (auto strongThis = weakThis.Lock() && EnableSnapshotNetworkThrottling_) {
+            if (auto strongThis = weakThis.Lock(); strongThis && EnableSnapshotNetworkThrottling_) {
                 return Bootstrap_->GetSnapshotOutThrottler();
             }
 
