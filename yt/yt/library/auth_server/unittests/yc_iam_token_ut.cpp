@@ -13,7 +13,6 @@
 #include <yt/yt/core/test_framework/framework.h>
 
 #include <yt/yt/library/auth_server/config.h>
-#include <yt/yt/library/auth_server/credentials.h>
 #include <yt/yt/library/auth_server/cypress_user_manager.h>
 #include <yt/yt/library/auth_server/yc_iam_token_authenticator.h>
 
