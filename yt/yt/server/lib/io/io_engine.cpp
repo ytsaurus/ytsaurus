@@ -27,20 +27,10 @@
 
 #include <array>
 
-#ifdef _linux_
-    #include <sys/uio.h>
-#endif
-
 namespace NYT::NIO {
 
 using namespace NConcurrency;
 using namespace NProfiling;
-
-////////////////////////////////////////////////////////////////////////////////
-
-struct TInternalReadResponse {
-    i64 IORequests = 0;
-};
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -95,12 +85,11 @@ TFuture<IIOEngine::TReadResponse> IIOEngine::ReadAll(
 DECLARE_REFCOUNTED_STRUCT(TThreadPoolIOEngineConfig)
 
 struct TThreadPoolIOEngineConfig
-    : public TIOEngineConfigBase
+    : public TIOEngineBaseCommonConfig
 {
     int ReadThreadCount;
     int WriteThreadCount;
 
-    bool EnablePwritev;
     bool FlushAfterWrite;
     bool AsyncFlushAfterWrite;
     bool EnableSyncOnCloseWithWrite;
@@ -124,8 +113,6 @@ struct TThreadPoolIOEngineConfig
             .GreaterThanOrEqual(1)
             .Default(1);
 
-        registrar.Parameter("enable_pwritev", &TThis::EnablePwritev)
-            .Default(true);
         registrar.Parameter("flush_after_write", &TThis::FlushAfterWrite)
             .Default(false);
         registrar.Parameter("async_flush_after_write", &TThis::AsyncFlushAfterWrite)
@@ -277,7 +264,7 @@ private:
 
 template <typename TThreadPool, typename TRequestSlicer>
 class TThreadPoolIOEngine
-    : public TIOEngineBase
+    : public TIOEngineBaseCommon
 {
 public:
     using TConfig = TThreadPoolIOEngineConfig;
@@ -288,7 +275,7 @@ public:
         TString locationId,
         TProfiler profiler,
         NLogging::TLogger logger)
-        : TIOEngineBase(
+        : TIOEngineBaseCommon(
             config,
             std::move(locationId),
             std::move(profiler),
@@ -306,7 +293,7 @@ public:
         TSessionId sessionId,
         bool useDedicatedAllocations) override
     {
-        std::vector<TFuture<TInternalReadResponse>> futures;
+        std::vector<TFuture<TCommonReadResponse>> futures;
         futures.reserve(requests.size());
 
         auto invoker = ThreadPool_.GetReadInvoker(category, sessionId);
@@ -342,7 +329,7 @@ public:
         return AllSucceeded(std::move(futures))
             .Apply(BIND([
                 response = std::move(response)
-            ] (const std::vector<TInternalReadResponse>& subresponses) mutable {
+            ] (const std::vector<TCommonReadResponse>& subresponses) mutable {
                 for (const auto& subresponse: subresponses) {
                     response.IORequests += subresponse.IORequests;
                 }
@@ -367,7 +354,7 @@ public:
         std::vector<TFuture<TWriteResponse>> futures;
         for (auto& slice : RequestSlicer_.Slice(std::move(request))) {
             auto future = BIND(
-                &TThreadPoolIOEngine::DoWrite,
+                &TThreadPoolIOEngine::DoWriteImpl,
                 MakeStrong(this),
                 std::move(slice),
                 TWallTimer(),
@@ -432,150 +419,13 @@ private:
     TThreadPool ThreadPool_;
     TRequestSlicer RequestSlicer_;
 
-
-    std::vector<TSharedMutableRef> AllocateReadBuffers(
-        const std::vector<TReadRequest>& requests,
-        TRefCountedTypeCookie tagCookie,
-        bool useDedicatedAllocations)
-    {
-        bool shouldBeAligned = std::any_of(
-            requests.begin(),
-            requests.end(),
-            [] (const TReadRequest& request) {
-                return request.Handle->IsOpenForDirectIO();
-            });
-
-        auto allocate = [&] (size_t size) {
-            TSharedMutableRefAllocateOptions options{
-                .InitializeStorage = false
-            };
-            return shouldBeAligned
-                ? TSharedMutableRef::AllocatePageAligned(size, options, tagCookie)
-                : TSharedMutableRef::Allocate(size, options, tagCookie);
-        };
-
-        std::vector<TSharedMutableRef> results;
-        results.reserve(requests.size());
-
-        if (useDedicatedAllocations) {
-            for (const auto& request : requests) {
-                results.push_back(allocate(request.Size));
-            }
-            return results;
-        }
-
-        // Collocate blocks in single buffer.
-        i64 totalSize = 0;
-        for (const auto& request : requests) {
-            totalSize += shouldBeAligned
-                ? AlignUp<i64>(request.Size, DefaultPageSize)
-                : request.Size;
-        }
-
-        auto buffer = allocate(totalSize);
-        i64 offset = 0;
-        for (const auto& request : requests) {
-            results.push_back(buffer.Slice(offset, offset + request.Size));
-            offset += shouldBeAligned
-                ? AlignUp<i64>(request.Size, DefaultPageSize)
-                : request.Size;
-        }
-        return results;
-    }
-
-    TInternalReadResponse DoRead(
-        const TReadRequest& request,
-        TSharedMutableRef buffer,
-        TWallTimer timer,
-        EWorkloadCategory category,
-        TSessionId sessionId,
-        TRequestCounterGuard requestCounterGuard)
-    {
-        YT_VERIFY(std::ssize(buffer) == request.Size);
-
-        Y_UNUSED(requestCounterGuard);
-
-        const auto readWaitTime = timer.GetElapsedTime();
-        AddReadWaitTimeSample(readWaitTime);
-        Sensors_->UpdateKernelStatistics();
-
-        auto toReadRemaining = std::ssize(buffer);
-        auto fileOffset = request.Offset;
-        i64 bufferOffset = 0;
-
-        YT_LOG_DEBUG_IF(category == EWorkloadCategory::UserInteractive,
-            "Started reading from disk (Handle: %v, RequestSize: %v, ReadSessionId: %v, ReadWaitTime: %v)",
-            static_cast<FHANDLE>(*request.Handle),
-            request.Size,
-            sessionId,
-            readWaitTime);
-
-        TInternalReadResponse response;
-
-        NFS::WrapIOErrors([&] {
-            auto config = Config_.Acquire();
-
-            while (toReadRemaining > 0) {
-                auto toRead = static_cast<ui32>(Min(toReadRemaining, config->MaxBytesPerRead));
-
-                i64 reallyRead;
-                {
-                    TRequestStatsGuard statsGuard(Sensors_->ReadSensors);
-                    NTracing::TNullTraceContextGuard nullTraceContextGuard;
-                    reallyRead = HandleEintr(::pread, *request.Handle, buffer.Begin() + bufferOffset, toRead, fileOffset);
-                    ++response.IORequests;
-
-                    YT_LOG_DEBUG_IF(category == EWorkloadCategory::UserInteractive,
-                        "Finished reading from disk (Handle: %v, ReadBytes: %v, ReadSessionId: %v, ReadTime: %v)",
-                        static_cast<FHANDLE>(*request.Handle),
-                        reallyRead,
-                        sessionId,
-                        statsGuard.GetElapsedTime());
-                }
-
-                if (reallyRead < 0) {
-                    // TODO(aozeritsky): ythrow is placed here consciously.
-                    // WrapIOErrors rethrows some kind of arcadia-style exception.
-                    // So in order to keep the old behaviour we should use ythrow or
-                    // rewrite WrapIOErrors.
-                    ythrow TFileError();
-                }
-
-                if (reallyRead == 0) {
-                    break;
-                }
-
-                Sensors_->RegisterReadBytes(reallyRead);
-                if (StaticConfig_->SimulatedMaxBytesPerRead) {
-                    reallyRead = Min(reallyRead, *StaticConfig_->SimulatedMaxBytesPerRead);
-                }
-
-                fileOffset += reallyRead;
-                bufferOffset += reallyRead;
-                toReadRemaining -= reallyRead;
-            }
-        });
-
-        if (toReadRemaining > 0) {
-            THROW_ERROR_EXCEPTION(NFS::EErrorCode::IOError, "Unexpected end-of-file in read request")
-                << TErrorAttribute("to_read_remaining", toReadRemaining)
-                << TErrorAttribute("max_bytes_per_read", StaticConfig_->MaxBytesPerRead)
-                << TErrorAttribute("request_size", request.Size)
-                << TErrorAttribute("request_offset", request.Offset)
-                << TErrorAttribute("file_size", request.Handle->GetLength())
-                << TErrorAttribute("handle", static_cast<FHANDLE>(*request.Handle));
-        }
-
-        return response;
-    }
-
-    TWriteResponse DoWrite(
+    TWriteResponse DoWriteImpl(
         const TWriteRequest& request,
         TWallTimer timer,
         TRequestCounterGuard requestCounterGuard)
     {
         auto guard = std::move(requestCounterGuard);
-        auto writeResponse = DoWriteImpl(request, timer);
+        auto writeResponse = DoWrite(request, timer);
 
         auto config = Config_.Acquire();
         auto syncFlush = config->FlushAfterWrite && request.Flush;
@@ -595,215 +445,10 @@ private:
         return writeResponse;
     }
 
-    TWriteResponse DoWriteImpl(
-        const TWriteRequest& request,
-        TWallTimer timer)
-    {
-        AddWriteWaitTimeSample(timer.GetElapsedTime());
-        Sensors_->UpdateKernelStatistics();
-
-        auto fileOffset = request.Offset;
-
-        TWriteResponse response;
-
-        NFS::WrapIOErrors([&] {
-            NTracing::TNullTraceContextGuard nullTraceContextGuard;
-
-            auto toWriteRemaining = static_cast<i64>(GetByteSize(request.Buffers));
-
-            int bufferIndex = 0;
-            i64 bufferOffset = 0; // within current buffer
-
-            auto config = Config_.Acquire();
-            while (toWriteRemaining > 0) {
-                auto isPwritevSupported = [&] {
-#ifdef _linux_
-                    return true;
-#else
-                    return false;
-#endif
-                };
-
-                auto pwritev = [&] {
-#ifdef _linux_
-                    std::array<iovec, MaxIovCountPerRequest> iov;
-                    int iovCount = 0;
-                    i64 toWrite = 0;
-                    while (bufferIndex + iovCount < std::ssize(request.Buffers) &&
-                           iovCount < std::ssize(iov) &&
-                           toWrite < config->MaxBytesPerWrite)
-                    {
-                        const auto& buffer = request.Buffers[bufferIndex + iovCount];
-                        auto& iovPart = iov[iovCount];
-                        iovPart = {
-                            .iov_base = const_cast<char*>(buffer.Begin()),
-                            .iov_len = buffer.Size()
-                        };
-                        if (iovCount == 0) {
-                            iovPart.iov_base = static_cast<char*>(iovPart.iov_base) + bufferOffset;
-                            iovPart.iov_len -= bufferOffset;
-                        }
-                        if (toWrite + static_cast<i64>(iovPart.iov_len) > config->MaxBytesPerWrite) {
-                            iovPart.iov_len = config->MaxBytesPerWrite - toWrite;
-                        }
-                        toWrite += iovPart.iov_len;
-                        ++iovCount;
-                    }
-
-                    i64 reallyWritten;
-                    {
-                        TRequestStatsGuard statsGuard(Sensors_->WriteSensors);
-                        NTracing::TNullTraceContextGuard nullTraceContextGuard;
-                        reallyWritten = HandleEintr(::pwritev, *request.Handle, iov.data(), iovCount, fileOffset);
-                    }
-
-                    if (reallyWritten < 0) {
-                        ythrow TFileError();
-                    }
-
-                    Sensors_->RegisterWrittenBytes(reallyWritten);
-                    if (StaticConfig_->SimulatedMaxBytesPerWrite) {
-                        reallyWritten = Min(reallyWritten, *StaticConfig_->SimulatedMaxBytesPerWrite);
-                    }
-
-                    while (reallyWritten > 0) {
-                        const auto& buffer = request.Buffers[bufferIndex];
-                        i64 toAdvance = Min(std::ssize(buffer) - bufferOffset, reallyWritten);
-                        fileOffset += toAdvance;
-                        bufferOffset += toAdvance;
-                        reallyWritten -= toAdvance;
-                        toWriteRemaining -= toAdvance;
-                        if (bufferOffset == std::ssize(buffer)) {
-                            ++bufferIndex;
-                            bufferOffset = 0;
-                        }
-                    }
-#else
-                    YT_ABORT();
-#endif
-                };
-
-                auto pwrite = [&] {
-                    const auto& buffer = request.Buffers[bufferIndex];
-                    auto toWrite = static_cast<ui32>(Min(toWriteRemaining, config->MaxBytesPerWrite, std::ssize(buffer) - bufferOffset));
-
-                    i32 reallyWritten;
-                    {
-                        TRequestStatsGuard statsGuard(Sensors_->WriteSensors);
-                        NTracing::TNullTraceContextGuard nullTraceContextGuard;
-                        reallyWritten = HandleEintr(::pwrite, *request.Handle, const_cast<char*>(buffer.Begin()) + bufferOffset, toWrite, fileOffset);
-                    }
-
-                    if (reallyWritten < 0) {
-                        ythrow TFileError();
-                    }
-
-                    Sensors_->RegisterWrittenBytes(reallyWritten);
-                    fileOffset += reallyWritten;
-                    bufferOffset += reallyWritten;
-                    toWriteRemaining -= reallyWritten;
-                    if (bufferOffset == std::ssize(buffer)) {
-                        ++bufferIndex;
-                        bufferOffset = 0;
-                    }
-                };
-
-                if (config->EnablePwritev && isPwritevSupported()) {
-                    pwritev();
-                } else {
-                    pwrite();
-                }
-
-                ++response.IOWriteRequests;
-            }
-        });
-
-        response.WrittenBytes = fileOffset - request.Offset;
-
-        return response;
-    }
-
-    TFlushFileResponse DoFlushFile(const TFlushFileRequest& request)
-    {
-        TFlushFileResponse response;
-
-        Sensors_->UpdateKernelStatistics();
-        if (!StaticConfig_->EnableSync) {
-            return response;
-        }
-
-        auto doFsync = [&] {
-            TRequestStatsGuard statsGuard(Sensors_->SyncSensors);
-            return HandleEintr(::fsync, *request.Handle);
-        };
-
-#ifdef _linux_
-        auto doFdatasync = [&] {
-            TRequestStatsGuard statsGuard(Sensors_->DataSyncSensors);
-            return HandleEintr(::fdatasync, *request.Handle);
-        };
-#else
-        auto doFdatasync = doFsync;
-#endif
-
-        NFS::WrapIOErrors([&] {
-            NTracing::TNullTraceContextGuard nullTraceContextGuard;
-            int result;
-            switch (request.Mode) {
-                case EFlushFileMode::All:
-                    result = doFsync();
-                    break;
-                case EFlushFileMode::Data:
-                    result = doFdatasync();
-                    break;
-                default:
-                    YT_ABORT();
-            }
-            if (result != 0) {
-                ythrow TFileError();
-            }
-
-            response.IOSyncRequests = 1;
-        });
-
-        return response;
-    }
-
-    TFlushFileRangeResponse DoFlushFileRange(const TFlushFileRangeRequest& request)
-    {
-        TFlushFileRangeResponse response;
-
-        Sensors_->UpdateKernelStatistics();
-        if (!StaticConfig_->EnableSync) {
-            return response;
-        }
-
-#ifdef _linux_
-        NFS::WrapIOErrors([&] {
-            NTracing::TNullTraceContextGuard nullTraceContextGuard;
-            int result = 0;
-            {
-                TRequestStatsGuard statsGuard(Sensors_->DataSyncSensors);
-                const auto flags = request.Async
-                    ? SYNC_FILE_RANGE_WRITE
-                    : SYNC_FILE_RANGE_WAIT_BEFORE | SYNC_FILE_RANGE_WRITE | SYNC_FILE_RANGE_WAIT_AFTER;
-                result = HandleEintr(::sync_file_range, *request.Handle, request.Offset, request.Size, flags);
-            };
-            if (result != 0) {
-                ythrow TFileError();
-            }
-
-            response.IOSyncRequests = 1;
-        });
-#else
-        Y_UNUSED(request);
-#endif
-
-        return response;
-    }
-
     void DoReconfigure(const NYTree::INodePtr& node) override
     {
+        TIOEngineBaseCommon::DoReconfigure(node);
+
         auto config = UpdateYsonStruct(StaticConfig_, node);
 
         ThreadPool_.Reconfigure(config);

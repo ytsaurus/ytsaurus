@@ -155,6 +155,7 @@ class TRequestCounterGuard;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! Provides implementation for filesystem methods. Has threadpools to serve them.
 class TIOEngineBase
     : public IIOEngine
 {
@@ -251,6 +252,64 @@ private:
     void SetSickFlag(const TError& error);
     void ResetSickFlag();
     virtual void DoReconfigure(const NYTree::INodePtr& node) = 0;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TCommonReadResponse {
+    i64 IORequests = 0;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TIOEngineBaseCommonConfig
+    : public TIOEngineConfigBase
+{
+public:
+    bool EnablePwritev;
+
+    REGISTER_YSON_STRUCT(TIOEngineBaseCommonConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+//! Provides helpers for read, write and flush methods.
+class TIOEngineBaseCommon
+    : public TIOEngineBase
+{
+protected:
+    using TConfig = TIOEngineBaseCommonConfig;
+    using TConfigPtr = TIntrusivePtr<TConfig>;
+
+    TIOEngineBaseCommon(
+        TConfigPtr config,
+        TString locationId,
+        NProfiling::TProfiler profiler,
+        NLogging::TLogger logger);
+
+    std::vector<TSharedMutableRef> AllocateReadBuffers(
+        const std::vector<TReadRequest>& requests,
+        TRefCountedTypeCookie tagCookie,
+        bool useDedicatedAllocations);
+    TCommonReadResponse DoRead(
+        const TReadRequest& request,
+        TSharedMutableRef buffer,
+        NProfiling::TWallTimer timer,
+        EWorkloadCategory category,
+        TSessionId sessionId,
+        TRequestCounterGuard requestCounterGuard);
+
+    TWriteResponse DoWrite(
+        const TWriteRequest& request,
+        NProfiling::TWallTimer timer);
+
+    TFlushFileResponse DoFlushFile(const TFlushFileRequest& request);
+    TFlushFileRangeResponse DoFlushFileRange(const TFlushFileRangeRequest& request);
+    void DoReconfigure(const NYTree::INodePtr& node) override;
+
+private:
+    const TConfigPtr StaticConfig_;
+    TAtomicIntrusivePtr<TConfig> Config_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
