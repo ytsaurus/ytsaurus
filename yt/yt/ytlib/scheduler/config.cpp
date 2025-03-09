@@ -1230,6 +1230,9 @@ void TUserJobSpec::Register(TRegistrar registrar)
         .Default(1)
         .GreaterThan(0);
 
+    registrar.Parameter("start_queue_consumer_registration_manager", &TThis::StartQueueConsumerRegistrationManager)
+        .Default(true);
+
     registrar.Parameter("fail_on_job_restart", &TThis::FailOnJobRestart)
         .Default(false);
 
@@ -1597,6 +1600,14 @@ void TSortedOperationSpec::Register(TRegistrar registrar)
         .Default(false);
     registrar.Parameter("merge_by", &TThis::MergeBy)
         .Default();
+    registrar.Parameter("min_maniac_data_weight", &TThis::MinManiacDataWeight)
+        .Default();
+
+    registrar.Postprocessor([] (TSortedOperationSpec* spec) {
+        if (spec->MinManiacDataWeight && !spec->UseNewSortedPool) {
+            THROW_ERROR_EXCEPTION("\"min_maniac_data_weight\" is only allowed for new sorted pool");
+        }
+    });
 }
 
 ////////////////////////////////////////////////////////////////////////////////

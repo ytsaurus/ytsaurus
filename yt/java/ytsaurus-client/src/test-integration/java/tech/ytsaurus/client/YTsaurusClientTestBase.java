@@ -65,6 +65,7 @@ public class YTsaurusClientTestBase {
                     .withNetwork(Network.newNetwork())
                     .withCommand(
                             "--proxy-config", "/tmp/proxy_config.yson",
+                            "--rpc-proxy-config", "/tmp/rpc_proxy_config.yson",
                             "--rpc-proxy-count", "1",
                             "--rpc-proxy-port", "10111",
                             "--queue-agent-count", "1",
@@ -75,6 +76,9 @@ public class YTsaurusClientTestBase {
                     .withCopyFileToContainer(
                             MountableFile.forClasspathResource("/proxy_config.yson"),
                             "/tmp/proxy_config.yson"
+                    ).withCopyFileToContainer(
+                            MountableFile.forClasspathResource("/rpc_proxy_config.yson"),
+                            "/tmp/rpc_proxy_config.yson"
                     ).waitingFor(Wait.forLogMessage(".*Local YT started.*", 1));
             localYTsaurus.start();
         }

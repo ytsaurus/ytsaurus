@@ -289,7 +289,7 @@ private:
         DB::NamesAndTypesList namesAndTypes;
 
         for (const auto& column : VirtualColumnNames_) {
-            auto nameAndType = VirtualColumnNamesAndTypes.tryGetByName(column);
+            auto nameAndType = VirtualColumns.tryGet(column);
             YT_VERIFY(nameAndType);
             namesAndTypes.emplace_back(*nameAndType);
         }

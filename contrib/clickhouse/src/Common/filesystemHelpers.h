@@ -7,14 +7,14 @@
 #include <memory>
 #include <string>
 #include <sys/statvfs.h>
-#include <Poco/TemporaryFile.h>
+#include <DBPoco/TemporaryFile.h>
 
 namespace fs = std::filesystem;
 
 namespace DB
 {
 
-using PocoTemporaryFile = Poco::TemporaryFile;
+using PocoTemporaryFile = DBPoco::TemporaryFile;
 
 bool enoughSpaceInDirectory(const std::string & path, size_t data_size);
 std::unique_ptr<PocoTemporaryFile> createTemporaryFile(const std::string & folder_path);
@@ -28,7 +28,7 @@ String getBlockDeviceId([[maybe_unused]] const String & path);
 
 std::optional<String> tryGetBlockDeviceId([[maybe_unused]] const String & path);
 
-enum class BlockDeviceType
+enum class BlockDeviceType : uint8_t
 {
     UNKNOWN = 0, // we were unable to determine device type
     NONROT = 1, // not a rotational device (SSD, NVME, etc)
@@ -56,7 +56,7 @@ std::filesystem::path getMountPoint(std::filesystem::path absolute_path);
 #endif
 String getFilesystemName([[maybe_unused]] const String & mount_point);
 
-struct statvfs getStatVFS(const String & path);
+struct statvfs getStatVFS(String path);
 
 /// Returns true if path starts with prefix path
 bool pathStartsWith(const std::filesystem::path & path, const std::filesystem::path & prefix_path);
@@ -89,7 +89,7 @@ bool canExecute(const std::string & path);
 
 /// st_mtime
 time_t getModificationTime(const std::string & path);
-Poco::Timestamp getModificationTimestamp(const std::string & path);
+DBPoco::Timestamp getModificationTimestamp(const std::string & path);
 void setModificationTime(const std::string & path, time_t time);
 /// st_ctime
 time_t getChangeTime(const std::string & path);

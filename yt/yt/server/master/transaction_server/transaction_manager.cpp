@@ -33,7 +33,9 @@
 #include <yt/yt/server/lib/hydra/composite_automaton.h>
 #include <yt/yt/server/lib/hydra/mutation.h>
 
+#include <yt/yt/server/lib/lease_server/helpers.h>
 #include <yt/yt/server/lib/lease_server/lease_manager.h>
+
 #include <yt/yt/server/lib/lease_server/proto/lease_manager.pb.h>
 
 #include <yt/yt/server/lib/transaction_server/helpers.h>
@@ -584,7 +586,7 @@ public:
 
             if (upload) {
                 transaction->ReplicatedToCellTags() = replicatedToCellTags;
-            } else if (IsMirroringToSequoiaEnabled() && IsMirroredToSequoia(transactionId)) {
+            } else if (IsMirroringToSequoiaEnabled() && IsCypressTransactionMirroredToSequoia(transactionId)) {
                 MarkTransactionReplicated(transaction, replicatedToCellTags);
             } else {
                 ReplicateTransaction(transaction, replicatedToCellTags);
@@ -611,7 +613,7 @@ public:
             user->GetName(),
             title,
             time,
-            IsMirroredToSequoia(transactionId),
+            IsCypressTransactionMirroredToSequoia(transactionId),
             transaction->IsNativeTxExternalizationEnabled());
 
         securityManager->ChargeUser(user, {EUserWorkloadType::Write, 1, time});
@@ -1313,7 +1315,6 @@ public:
     }
 
     // ITransactionManager implementation.
-
     TFuture<void> GetReadyToPrepareTransactionCommit(
         const std::vector<TTransactionId>& prerequisiteTransactionIds,
         const std::vector<TCellId>& cellIdsToSyncWith) override
@@ -1339,13 +1340,44 @@ public:
         }
 
         std::vector<TFuture<void>> asyncResults;
-        asyncResults.reserve(cellIdsToSyncWith.size() + 2);
+        asyncResults.reserve(cellIdsToSyncWith.size() + 3);
 
         if (!prerequisiteTransactionIds.empty()) {
+            const auto& hiveManager = Bootstrap_->GetHiveManager();
+            const auto& leaseManager = Bootstrap_->GetLeaseManager();
+            const auto& multicellManager = Bootstrap_->GetMulticellManager();
+
+            std::vector<TTransactionId> leaseAgnosticPrerequisiteTransactionIds;
+            std::vector<TTransactionId> leaseAwarePrerequisiteTransactionIds;
+            leaseAgnosticPrerequisiteTransactionIds.reserve(prerequisiteTransactionIds.size());
+            leaseAwarePrerequisiteTransactionIds.reserve(prerequisiteTransactionIds.size());
+            for (auto transactionId : prerequisiteTransactionIds) {
+                if (IsMirroringToSequoiaEnabled() && IsCypressTransactionMirroredToSequoia(transactionId)
+                    && GetDynamicConfig()->EnablePrerequisiteTransactionValidationViaLeases )
+                {
+                    leaseAwarePrerequisiteTransactionIds.push_back(transactionId);
+                } else {
+                    leaseAgnosticPrerequisiteTransactionIds.push_back(transactionId);
+                }
+            }
+
+            asyncResults.push_back(IssueLeasesForCell(
+                leaseAwarePrerequisiteTransactionIds,
+                leaseManager,
+                hiveManager,
+                multicellManager->GetCellId(),
+                /*synWithAllLeaseTransactionCoordinators*/ true,
+                BIND([multicellManager] (TCellTag cellTag) {
+                    return multicellManager->GetCellId(cellTag);
+                }),
+                BIND([multicellManager] (TCellTag cellTag) {
+                    return multicellManager->FindMasterChannel(cellTag, EPeerKind::Leader);
+                })));
+
             asyncResults.push_back(RunTransactionReplicationSession(
                 /*syncWithUpstream*/ false,
                 Bootstrap_,
-                prerequisiteTransactionIds,
+                leaseAgnosticPrerequisiteTransactionIds,
                 IsMirroringToSequoiaEnabled()));
         }
 
@@ -1510,7 +1542,7 @@ public:
         auto onCypressTransaction = [&] (TTransactionId transactionId) {
             YT_ASSERT(IsCypressTransactionType(TypeFromId(transactionId)));
 
-            if (IsMirroredToSequoia(transactionId)) {
+            if (IsCypressTransactionMirroredToSequoia(transactionId)) {
                 mirroredSample = transactionId;
             } else {
                 nonMirroredSample = transactionId;
@@ -1592,6 +1624,7 @@ public:
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         const auto& request = context->Request();
+        const auto& mutationId = context->GetMutationId();
 
         auto transactionId = FromProto<TTransactionId>(request.transaction_id());
         auto* transaction = GetTransactionOrThrow(transactionId);
@@ -1611,7 +1644,8 @@ public:
             }
         }
 
-        auto revokeLeases = transaction->GetSuccessorTransactionLeaseCount() > 0;
+        auto revokeLeases = transaction->GetSuccessorTransactionLeaseCount() > 0
+            || GetDynamicConfig()->EnablePrerequisiteTransactionValidationViaLeases;
 
         auto readyEvent = GetReadyToPrepareTransactionCommit(
             prerequisiteTransactionIds,
@@ -1624,7 +1658,7 @@ public:
             responseFuture = DoCommitTransaction(
                 transactionId,
                 prerequisiteTransactionIds,
-                context->GetMutationId(),
+                mutationId,
                 context->IsRetry(),
                 /*prepareError*/ {});
         } else {
@@ -1634,7 +1668,7 @@ public:
                     MakeStrong(this),
                     transactionId,
                     prerequisiteTransactionIds,
-                    context->GetMutationId(),
+                    mutationId,
                     context->IsRetry())
                     .AsyncVia(EpochAutomatonInvoker_));
         }
@@ -1684,7 +1718,8 @@ public:
             }
         }
 
-        auto revokeLeases = transaction->GetSuccessorTransactionLeaseCount() > 0;
+        auto revokeLeases = transaction->GetSuccessorTransactionLeaseCount() > 0
+            || GetDynamicConfig()->EnablePrerequisiteTransactionValidationViaLeases;
 
         auto readyEvent = GetReadyToPrepareTransactionCommit(
             prerequisiteTransactionIds,
@@ -1761,7 +1796,7 @@ public:
             transactionId,
             commitTimestamp);
 
-        if (IsMirroringToSequoiaEnabled() && IsMirroredToSequoia(transactionId)) {
+        if (IsMirroringToSequoiaEnabled() && IsCypressTransactionMirroredToSequoia(transactionId)) {
             return CommitCypressTransactionInSequoia(
                 Bootstrap_,
                 transactionId,
@@ -1788,13 +1823,22 @@ public:
     {
         const auto& rpcRequest = context->Request();
         auto transactionId = FromProto<TTransactionId>(rpcRequest.transaction_id());
+        auto force = rpcRequest.force();
+        auto authenticationIdentity = context->GetAuthenticationIdentity();
 
-        if (IsMirroringToSequoiaEnabled() && IsMirroredToSequoia(transactionId)) {
-            AbortCypressTransactionInSequoiaAndReply(Bootstrap_, context);
+        if (IsMirroringToSequoiaEnabled() && IsCypressTransactionMirroredToSequoia(transactionId)) {
+            if (GetDynamicConfig()->EnablePrerequisiteTransactionValidationViaLeases) {
+                context->ReplyFrom(
+                    RevokeTransactionLeases(transactionId)
+                    .Apply(BIND([transactionId, force, authenticationIdentity, this, this_ = MakeStrong(this)] {
+                        return AbortCypressTransactionInSequoia(Bootstrap_, transactionId, force, authenticationIdentity);
+                    })));
+                return;
+            }
+            context->ReplyFrom(AbortCypressTransactionInSequoia(Bootstrap_, transactionId, force, authenticationIdentity));
             return;
         }
 
-        auto force = rpcRequest.force();
         auto* transaction = GetTransactionOrThrow(transactionId);
 
         YT_VERIFY(transaction->GetIsCypressTransaction());
@@ -2319,10 +2363,11 @@ private:
         NProto::TReqCommitCypressTransaction* request,
         const TTransactionPrepareOptions& options)
     {
+        YT_VERIFY(HasHydraContext());
         YT_VERIFY(options.LatePrepare);
 
         auto transactionId = FromProto<TTransactionId>(request->transaction_id());
-        YT_VERIFY(IsMirroredToSequoia(transactionId));
+        YT_VERIFY(IsCypressTransactionMirroredToSequoia(transactionId));
 
         auto identity = NRpc::ParseAuthenticationIdentityFromProto(*request);
         NRpc::TCurrentAuthenticationIdentityGuard identityGuard(&identity);
@@ -2340,6 +2385,9 @@ private:
         } catch (const std::exception& ex) {
             // Abort it reliably.
             // TODO(kvk1920): proper way to abort mirrored tx from master.
+            YT_LOG_WARNING(ex,
+                "Failed to commit transaction (TransactionId: %v)",
+                transaction->GetId());
             SetTransactionTimeout(transaction, TDuration::Zero());
         }
     }
@@ -2350,6 +2398,8 @@ private:
         TTimestamp commitTimestamp,
         bool replicateViaHive)
     {
+        YT_VERIFY(HasHydraContext());
+
         TTransactionPrepareOptions prepareOptions{
             .Persistent = true,
             .LatePrepare = true, // Technically true.
@@ -2412,7 +2462,7 @@ private:
         YT_VERIFY(options.LatePrepare);
 
         auto transactionId = FromProto<TTransactionId>(request->transaction_id());
-        YT_VERIFY(IsMirroredToSequoia(transactionId));
+        YT_VERIFY(IsCypressTransactionMirroredToSequoia(transactionId));
         YT_VERIFY(!request->replicate_via_hive());
 
         HydraAbortCypressTransaction(/*context*/ nullptr, request, /*response*/ nullptr);
@@ -2613,13 +2663,33 @@ private:
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(HasHydraContext());
 
-        auto transactionIds = FromProto<std::vector<TTransactionId>>(request->transaction_ids());
-
         const auto& cellManager = Bootstrap_->GetTamedCellManager();
-        auto cellId = FromProto<TCellId>(request->cell_id());
-        auto* cell = cellManager->GetCellOrThrow(cellId);
-
         const auto& hiveManager = Bootstrap_->GetHiveManager();
+        const auto& multicellManager = Bootstrap_->GetMulticellManager();
+
+        auto transactionIds = FromProto<std::vector<TTransactionId>>(request->transaction_ids());
+        auto cellId = FromProto<TCellId>(request->cell_id());
+        auto cellType = TypeFromId(cellId);
+
+        THashSet<TTransactionId>* cellLeaseTransactionIds;
+        switch (cellType) {
+            case EObjectType::TabletCell: {
+                auto* cell = cellManager->GetCellOrThrow(cellId);
+                cellLeaseTransactionIds = &cell->LeaseTransactionIds();
+                break;
+            }
+            case EObjectType::MasterCell: {
+                cellLeaseTransactionIds = &multicellManager->GetLocalMasterIssuedLeaseIds(CellTagFromId(cellId));
+                break;
+            }
+            default: {
+                YT_LOG_ALERT(
+                    "Requested to issue leases for unknown cell type, ignored (TransactionIds: %v, CellType: %v)",
+                    transactionIds,
+                    cellType);
+                return;
+            }
+        }
 
         for (auto transactionId : transactionIds) {
             auto* transaction = GetTransactionOrThrow(transactionId);
@@ -2636,7 +2706,7 @@ private:
                     << TErrorAttribute("transaction_leases_state", transaction->GetTransactionLeasesState());
             }
 
-            if (RegisterTransactionLease(transaction, cell)) {
+            if (RegisterTransactionLease(transaction, cellId, cellLeaseTransactionIds)) {
                 NLeaseServer::NProto::TReqRegisterLease message;
                 ToProto(message.mutable_lease_id(), transaction->GetId());
 
@@ -2657,6 +2727,7 @@ private:
             YT_LOG_DEBUG(
                 "Requested to revoke leases for non-existent transaction, ignored (TransactionId: %v)",
                 transactionId);
+            return;
         }
 
         RevokeLeases(transaction, /*force*/ false);
@@ -2669,6 +2740,7 @@ private:
 
         const auto& hiveManager = Bootstrap_->GetHiveManager();
         const auto& cellManager = Bootstrap_->GetTamedCellManager();
+        const auto& multicellManager = Bootstrap_->GetMulticellManager();
 
         auto revokeTransaction = [&] (TTransaction* transaction) {
             YT_LOG_DEBUG(
@@ -2685,6 +2757,8 @@ private:
                 transaction->LeaseCellIds().end());
             Sort(leaseCellIds);
             for (auto cellId : leaseCellIds) {
+                auto cellType = TypeFromId(cellId);
+
                 NLeaseServer::NProto::TReqRevokeLease message;
                 ToProto(message.mutable_lease_id(), transaction->GetId());
                 message.set_force(force);
@@ -2693,8 +2767,26 @@ private:
                 hiveManager->PostMessage(mailbox, message);
 
                 if (force) {
-                    auto* cell = cellManager->GetCell(cellId);
-                    UnregisterTransactionLease(transaction, cell);
+                    THashSet<TTransactionId>* cellLeaseTransactionIds;
+                    switch (cellType) {
+                        case EObjectType::TabletCell: {
+                            auto* cell = cellManager->GetCell(cellId);
+                            cellLeaseTransactionIds = &cell->LeaseTransactionIds();
+                            break;
+                        }
+                        case EObjectType::MasterCell: {
+                            cellLeaseTransactionIds = &multicellManager->GetLocalMasterIssuedLeaseIds(CellTagFromId(cellId));
+                            break;
+                        }
+                        default: {
+                            YT_LOG_ALERT(
+                                "Requested to revoke leases for unknown cell type, ignored (TransactionId: %v, CellType: %v)",
+                                transaction->GetId(),
+                                cellType);
+                            return;
+                        }
+                    }
+                    UnregisterTransactionLease(transaction, cellId, cellLeaseTransactionIds);
                 }
             }
         };
@@ -2765,7 +2857,7 @@ public:
             // Ground so their abort have to be replicated via Hive.
             bool suppressReplicationViaHive =
                 IsMirroringToSequoiaEnabled() &&
-                IsMirroredToSequoia(dependentTransaction->GetId());
+                IsCypressTransactionMirroredToSequoia(dependentTransaction->GetId());
             AbortTransaction(
                 dependentTransaction,
                 options,
@@ -2832,16 +2924,18 @@ private:
 
     bool RegisterTransactionLease(
         TTransaction* transaction,
-        TCellBase* cell) override
+        TCellId cellId,
+        THashSet<TTransactionId>* cellLeaseTransactionIds)
     {
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(HasHydraContext());
+        YT_VERIFY(cellLeaseTransactionIds);
 
-        if (!transaction->LeaseCellIds().insert(cell->GetId()).second) {
+        if (!transaction->LeaseCellIds().insert(cellId).second) {
             return false;
         }
 
-        InsertOrCrash(cell->LeaseTransactionIds(), transaction->GetId());
+        InsertOrCrash(*cellLeaseTransactionIds, transaction->GetId());
 
         auto accountTransactionLease = [&] (TTransaction* transaction) {
             transaction->SetSuccessorTransactionLeaseCount(
@@ -2852,23 +2946,25 @@ private:
         YT_LOG_DEBUG(
             "Transaction lease registered (TransactionId: %v, CellId: %v)",
             transaction->GetId(),
-            cell->GetId());
+            cellId);
 
         return true;
     }
 
     bool UnregisterTransactionLease(
         TTransaction* transaction,
-        TCellBase* cell) override
+        TCellId cellId,
+        THashSet<TTransactionId>* cellLeaseTransactionIds) override
     {
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(HasHydraContext());
+        YT_VERIFY(cellLeaseTransactionIds);
 
-        if (!transaction->LeaseCellIds().erase(cell->GetId())) {
+        if (!transaction->LeaseCellIds().erase(cellId)) {
             return false;
         }
 
-        EraseOrCrash(cell->LeaseTransactionIds(), transaction->GetId());
+        EraseOrCrash(*cellLeaseTransactionIds, transaction->GetId());
 
         auto discountTransactionLease = [&] (TTransaction* transaction) {
             transaction->SetSuccessorTransactionLeaseCount(
@@ -2879,7 +2975,7 @@ private:
         YT_LOG_DEBUG(
             "Transaction lease unregistered (TransactionId: %v, CellId: %v)",
             transaction->GetId(),
-            cell->GetId());
+            cellId);
 
         return true;
     }
@@ -3104,7 +3200,7 @@ private:
         if (transaction->GetIsCypressTransaction()) {
             TFuture<TSharedRefArray> response;
             if (IsMirroringToSequoiaEnabled() &&
-                IsMirroredToSequoia(transaction->GetId()))
+                IsCypressTransactionMirroredToSequoia(transaction->GetId()))
             {
                 response = AbortExpiredCypressTransactionInSequoia(
                     Bootstrap_,
@@ -3287,17 +3383,38 @@ private:
             return;
         }
 
-        const auto& cellManager = Bootstrap_->GetTamedCellManager();
-        auto* cell = cellManager->FindCell(cellId);
-        if (!cell) {
-            YT_LOG_DEBUG(
-                "Lease was revoked on unknown cell, ignored (LeaseId: %v, CellId: %v)",
-                leaseId,
-                cellId);
-            return;
+        auto cellType = TypeFromId(cellId);
+        THashSet<TTransactionId>* cellLeaseTransactionIds;
+
+        switch (cellType) {
+            case EObjectType::TabletCell: {
+                const auto& cellManager = Bootstrap_->GetTamedCellManager();
+                auto* cell = cellManager->FindCell(cellId);
+                if (!cell) {
+                    YT_LOG_DEBUG(
+                        "Lease was revoked on unknown cell, ignored (LeaseId: %v, CellId: %v)",
+                        leaseId,
+                        cellId);
+                    return;
+                }
+                cellLeaseTransactionIds = &cell->LeaseTransactionIds();
+                break;
+            }
+            case EObjectType::MasterCell: {
+                const auto& multicellManager = Bootstrap_->GetMulticellManager();
+                cellLeaseTransactionIds = &multicellManager->GetLocalMasterIssuedLeaseIds(CellTagFromId(cellId));
+                break;
+            }
+            default: {
+                YT_LOG_ALERT(
+                    "Lease revoked for unknown cell type, ignored (TransactionId: %v, CellType: %v)",
+                    transaction->GetId(),
+                    cellType);
+                return;
+            }
         }
 
-        if (!UnregisterTransactionLease(transaction, cell)) {
+        if (!UnregisterTransactionLease(transaction, cellId, cellLeaseTransactionIds)) {
             YT_LOG_DEBUG(
                 "Unregistered lease was revoked, ignored (LeaseId: %v, CellId: %v)",
                 leaseId,
@@ -3367,13 +3484,6 @@ private:
 
         const auto& config = Bootstrap_->GetConfigManager()->GetConfig()->SequoiaManager;
         return config->Enable && config->EnableCypressTransactionsInSequoia;
-    }
-
-    // NB: This function doesn't work properly if Cypress transaction service is
-    // not used.
-    static bool IsMirroredToSequoia(TTransactionId transactionId)
-    {
-        return IsCypressTransactionType(TypeFromId(transactionId)) && IsSequoiaId(transactionId);
     }
 };
 

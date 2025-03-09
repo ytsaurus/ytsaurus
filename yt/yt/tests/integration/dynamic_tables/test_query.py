@@ -2528,6 +2528,7 @@ class TestQuery(DynamicTablesBase):
             ]},
             {"path": "//tmp/d", "schema": [
                 {"name": "k", "type": "int64", "sort_order": "ascending"},
+                {"name": "k_", "type": "int64", "sort_order": "ascending"},
                 {"name": "k_extra", "type": "int64", "sort_order": "ascending"},
                 {"name": "clicks", "type": "int64"},
             ]},
@@ -2553,10 +2554,10 @@ class TestQuery(DynamicTablesBase):
             sync_mount_table(f"{path}_replica")
 
         insert_rows("//tmp/t", [{"k": i, "v": 0} for i in range(10)])
-        insert_rows("//tmp/d", [{"k": i // 10, "k_extra": i % 10, "clicks": i} for i in range(66)])
+        insert_rows("//tmp/d", [{"k": i // 10, "k_": i // 10, "k_extra": i % 10, "clicks": i} for i in range(66)])
 
         query = """
-            k, sum(D.clicks) AS sum FROM [//tmp/t] T
+            k, first(D.k_) AS k_, sum(D.clicks) AS sum FROM [//tmp/t] T
             LEFT JOIN [//tmp/d] D WITH HINT \"{push_down_group_by=%true}\" on T.k = D.k
             GROUP BY T.k AS k
             ORDER BY sum DESC LIMIT 2000"""
@@ -2565,7 +2566,7 @@ class TestQuery(DynamicTablesBase):
             result[i // 10] += i
         for i in range(7, 10):
             result[i] = None
-        assert_items_equal(select_rows(query), [{"k": k, "sum": v} for k, v in result.items()])
+        assert_items_equal(select_rows(query), [{"k": k, "k_": k if k < 7 else None, "sum": v} for k, v in result.items()])
 
     @authors("nadya73")
     @skip_if_rpc_driver_backend

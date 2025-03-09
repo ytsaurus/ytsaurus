@@ -1,19 +1,19 @@
 #pragma once
 
-#include <Poco/MongoDB/Connection.h>
+#error #include <DBPoco/MongoDB/Connection.h>
 
 
 namespace DB
 {
 
-class StorageMongoDBSocketFactory : public Poco::MongoDB::Connection::SocketFactory
+class StorageMongoDBSocketFactory : public DBPoco::MongoDB::Connection::SocketFactory
 {
 public:
-    virtual Poco::Net::StreamSocket createSocket(const std::string & host, int port, Poco::Timespan connectTimeout, bool secure) override;
+    DBPoco::Net::StreamSocket createSocket(const std::string & host, int port, DBPoco::Timespan connectTimeout, bool secure) override;
 
 private:
-    static Poco::Net::StreamSocket createPlainSocket(const std::string & host, int port, Poco::Timespan connectTimeout);
-    static Poco::Net::StreamSocket createSecureSocket(const std::string & host, int port, Poco::Timespan connectTimeout);
+    static DBPoco::Net::StreamSocket createPlainSocket(const std::string & host, int port, DBPoco::Timespan connectTimeout);
+    static DBPoco::Net::StreamSocket createSecureSocket(const std::string & host, int port, DBPoco::Timespan connectTimeout);
 };
 
 }

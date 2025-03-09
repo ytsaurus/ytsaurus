@@ -5,6 +5,7 @@
 #include "transaction_manager.h"
 #include "transaction_participant_provider.h"
 #include "private.h"
+#include "serialize.h"
 
 #include <yt/yt/server/lib/transaction_supervisor/proto/transaction_supervisor.pb.h>
 
@@ -404,6 +405,7 @@ private:
                         participant,
                         generatePrepareTimestamp,
                         inheritCommitTimestamp);
+
                     return participant->PrepareTransaction(
                         transactionId,
                         prepareTimestamp,
@@ -3078,19 +3080,12 @@ private:
 
     bool ValidateSnapshotVersion(int version) override
     {
-        return
-            version == 10 || // babenko: YTINCIDENTS-56: Add CellIdsToSyncWithBeforePrepare
-            version == 11 || // ifsmirnov: YT-15025: MaxAllowedCommitTimestamp
-            version == 12 || // gritukan: YT-16858: Coordinator prepare mode.
-            version == 13 || // gritukan: Abort failed simple transactions.
-            version == 14 || // aleksandra-zh: Sequencer
-            version == 15 || // aleksandra-zh: Sequencer fixes
-            false;
+        return ValidateSnapshotReign(version);
     }
 
     int GetCurrentSnapshotVersion() override
     {
-        return 14;
+        return GetCurrentReign();
     }
 
 
@@ -3205,7 +3200,7 @@ private:
         Load(context, Decommissioned_);
 
         // COMPAT(aleksandra-zh).
-        if (context.GetVersion() >= 14) {
+        if (static_cast<ETransactionSupervisorReign>(context.GetVersion()) >= ETransactionSupervisorReign::Sequencer) {
             auto guard = Guard(SequencerLock_);
             Load(context, NextStronglyOrderedTransactionSequenceNumber_);
             Load(context, UncommittedTransactionSequenceNumbers_);
@@ -3215,7 +3210,8 @@ private:
             Load(context, ReadyToCommitTransactions_);
         }
 
-        if (context.GetVersion() >= 15) {
+        // COMPAT(aleksandra-zh).
+        if (static_cast<ETransactionSupervisorReign>(context.GetVersion()) >= ETransactionSupervisorReign::SequencerFixes) {
             Load(context, ExternalReadyToCommitTransactions_);
             Load(context, ExternalReadyToCommitTransactionToCommitTimestamp_);
             Load(context, StronglyOrderedTransactionToState_);

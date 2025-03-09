@@ -594,7 +594,7 @@ std::unique_ptr<IUniversalReader> CreateVersionedUniversalReader(
     if (!schema) {
         schema = GetMergedSchema(ioEngine, chunkFileNames);
     }
-    if (!schema->GetStrict()) {
+    if (!schema->IsStrict()) {
         THROW_ERROR_EXCEPTION("Versioned chunk schema should be strict");
     }
 

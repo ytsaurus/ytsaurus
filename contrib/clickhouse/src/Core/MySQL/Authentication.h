@@ -32,7 +32,7 @@ public:
 
     virtual void authenticate(
         const String & user_name, Session & session, std::optional<String> auth_response,
-        std::shared_ptr<PacketEndpoint> packet_endpoint, bool is_secure_connection, const Poco::Net::SocketAddress & address) = 0;
+        std::shared_ptr<PacketEndpoint> packet_endpoint, bool is_secure_connection, const DBPoco::Net::SocketAddress & address) = 0;
 };
 
 /// https://dev.mysql.com/doc/internals/en/secure-password-authentication.html
@@ -49,7 +49,7 @@ public:
 
     void authenticate(
         const String & user_name, Session & session, std::optional<String> auth_response,
-        std::shared_ptr<PacketEndpoint> packet_endpoint, bool /* is_secure_connection */, const Poco::Net::SocketAddress & address) override;
+        std::shared_ptr<PacketEndpoint> packet_endpoint, bool /* is_secure_connection */, const DBPoco::Net::SocketAddress & address) override;
 
 private:
     String scramble;
@@ -61,7 +61,7 @@ private:
 class Sha256Password : public IPlugin
 {
 public:
-    Sha256Password(RSA & public_key_, RSA & private_key_, Poco::Logger * log_);
+    Sha256Password(RSA & public_key_, RSA & private_key_, LoggerPtr log_);
 
     String getName() override { return "sha256_password"; }
 
@@ -69,12 +69,12 @@ public:
 
     void authenticate(
         const String & user_name, Session & session, std::optional<String> auth_response,
-        std::shared_ptr<PacketEndpoint> packet_endpoint, bool is_secure_connection, const Poco::Net::SocketAddress & address) override;
+        std::shared_ptr<PacketEndpoint> packet_endpoint, bool is_secure_connection, const DBPoco::Net::SocketAddress & address) override;
 
 private:
     RSA & public_key;
     RSA & private_key;
-    Poco::Logger * log;
+    LoggerPtr log;
     String scramble;
 };
 #endif

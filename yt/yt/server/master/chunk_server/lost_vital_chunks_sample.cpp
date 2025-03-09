@@ -19,7 +19,7 @@ namespace {
 
 constexpr auto& Logger = ChunkServerLogger;
 
-}
+} // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -69,8 +69,8 @@ void TLostVitalChunksSample::HydraApplyMulticellStatisticsUpdate(NProto::TReqLos
 
     const auto& multicellManager = Bootstrap_->GetMulticellManager();
     YT_VERIFY(multicellManager->IsPrimaryMaster());
-    using NYT::FromProto;
 
+    using NYT::FromProto;
     auto cellTag = FromProto<TCellTag>(request->cell_tag());
     LostVitalChunksSample_[cellTag] = FromProto<std::vector<TObjectId>>(request->chunk_ids());
 
@@ -122,16 +122,16 @@ TFuture<NProto::TReqLostVitalChunksSample> TLostVitalChunksSample::GetLocalCellU
         std::vector<TRspEnumeratePtr> batchResponses(batchRsps.size());
         std::ranges::transform(batchRsps, batchResponses.begin(), extractResponse);
 
-        std::ranges::sort(batchResponses, [&] (const auto& batchRsp1, const auto& batchRsp2) {
-            if (!batchRsp1) {
+        std::ranges::sort(batchResponses, [&] (const auto& lhs, const auto& rhs) {
+            if (!lhs) {
                 return false;
             }
 
-            if (!batchRsp2) {
+            if (!rhs) {
                 return true;
             }
 
-            return batchRsp1->items_size() > batchRsp2->items_size();
+            return lhs->items_size() > rhs->items_size();
         });
 
         int maxResponses = 0;

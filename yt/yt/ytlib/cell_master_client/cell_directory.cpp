@@ -123,10 +123,25 @@ public:
         return SecondaryMasterConnectionConfigs_;
     }
 
+    IChannelPtr FindMasterChannel(EMasterChannelKind kind, TCellTag cellTag) override
+    {
+        cellTag = cellTag == PrimaryMasterCellTagSentinel ? GetPrimaryMasterCellTag() : cellTag;
+        auto guard = ReaderGuard(SpinLock_);
+        auto it = CellChannelMap_.find(cellTag);
+        if (it == CellChannelMap_.end()) {
+            return nullptr;
+        }
+        return it->second[kind];
+    }
+
     IChannelPtr GetMasterChannelOrThrow(EMasterChannelKind kind, TCellTag cellTag) override
     {
         cellTag = cellTag == PrimaryMasterCellTagSentinel ? GetPrimaryMasterCellTag() : cellTag;
-        return GetCellChannelOrThrow(cellTag, kind);
+        auto channel = FindMasterChannel(kind, cellTag);
+        if (!channel) {
+            ThrowUnknownMasterCellTag(cellTag);
+        }
+        return channel;
     }
 
     IChannelPtr GetMasterChannelOrThrow(EMasterChannelKind kind, TCellId cellId) override
@@ -412,16 +427,6 @@ private:
             newSecondaryMasterConfigs,
             changedSecondaryMasterConfigs,
             removedSecondaryMasterCellTags);
-    }
-
-    IChannelPtr GetCellChannelOrThrow(TCellTag cellTag, EMasterChannelKind kind) const
-    {
-        auto guard = ReaderGuard(SpinLock_);
-        auto it = CellChannelMap_.find(cellTag);
-        if (it == CellChannelMap_.end()) {
-            ThrowUnknownMasterCellTag(cellTag);
-        }
-        return it->second[kind];
     }
 
     void ThrowUnknownMasterCellTag(TCellTag cellTag) const

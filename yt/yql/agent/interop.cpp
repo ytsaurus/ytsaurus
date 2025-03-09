@@ -219,8 +219,8 @@ TYqlRowset BuildRowset(const TBuildingValueConsumer& consumer, int resultIndex, 
 
         return New<TTableSchema>(
             std::move(reorderedColumns),
-            schema->GetStrict(),
-            schema->GetUniqueKeys(),
+            schema->IsStrict(),
+            schema->IsUniqueKeys(),
             schema->GetSchemaModification(),
             schema->DeletedColumns());
     };

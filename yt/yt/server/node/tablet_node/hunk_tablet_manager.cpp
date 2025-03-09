@@ -4,6 +4,7 @@
 #include "bootstrap.h"
 #include "hunk_store.h"
 #include "hunk_tablet_scanner.h"
+#include "tablet.h"
 #include "tablet_slot.h"
 #include "transaction.h"
 #include "transaction_manager.h"

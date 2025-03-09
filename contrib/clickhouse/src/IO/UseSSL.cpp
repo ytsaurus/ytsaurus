@@ -3,7 +3,7 @@
 #include "clickhouse_config.h"
 
 #if USE_SSL
-#    include <Poco/Net/SSLManager.h>
+#    include <DBPoco/Net/SSLManager.h>
 #endif
 
 namespace DB
@@ -11,14 +11,14 @@ namespace DB
 UseSSL::UseSSL()
 {
 #if USE_SSL
-    Poco::Net::initializeSSL();
+    DBPoco::Net::initializeSSL();
 #endif
 }
 
 UseSSL::~UseSSL()
 {
 #if USE_SSL
-    Poco::Net::uninitializeSSL();
+    DBPoco::Net::uninitializeSSL();
 #endif
 }
 }

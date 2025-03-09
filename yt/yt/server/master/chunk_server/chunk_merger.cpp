@@ -296,7 +296,7 @@ public:
         }
 
         auto* table = Node_->As<TTableNode>();
-        const auto& schema = table->GetSchema()->AsTableSchema();
+        const auto& schema = table->GetSchema()->AsCompactTableSchema();
         YT_VERIFY(schema);
 
         TTraverserTestingOptions testingOptions;
@@ -465,7 +465,7 @@ private:
         }
 
         auto* table = Node_->As<TTableNode>();
-        auto schema = table->GetSchema()->AsTableSchema();
+        auto schema = table->GetSchema()->AsCompactTableSchema();
         return !table->IsDynamic() && !schema->HasHunkColumns();
     }
 
@@ -596,8 +596,6 @@ private:
                 CurrentUncompressedDataSize_,
                 chunk->GetUncompressedDataSize(),
                 mergerCriteria.MaxUncompressedDataSize));
-
-
 
         if (ParentChunkListId_ == NullObjectId || ParentChunkListId_ == parent->GetId()) {
             ++satisfiedCriteriaCount;
@@ -742,7 +740,7 @@ bool TChunkMerger::CanRegisterMergeSession(TChunkOwnerBase* trunkChunkOwner)
         return false;
     }
 
-    auto schema = table->GetSchema()->AsTableSchema();
+    auto schema = table->GetSchema()->AsCompactTableSchema();
     if (schema->HasHunkColumns()) {
         YT_LOG_DEBUG("Chunk merging is not supported for tables with hunk columns (ChunkOwnerId: %v)",
             trunkChunkOwner->GetId());
@@ -1678,8 +1676,8 @@ bool TChunkMerger::TryScheduleMergeJob(IJobSchedulingContext* context, const TMe
     TChunkMergerWriterOptions chunkMergerWriterOptions;
     if (chunkOwner->GetType() == EObjectType::Table) {
         const auto* table = chunkOwner->As<TTableNode>();
-        auto schema = table->GetSchema();
-        ToProto(chunkMergerWriterOptions.mutable_schema(), *schema->AsTableSchema());
+        const auto schema = table->GetSchema();
+        ToProto(chunkMergerWriterOptions.mutable_schema(), schema->AsCompactTableSchema());
         ToProto(chunkMergerWriterOptions.mutable_schema_id(), schema->GetId());
         chunkMergerWriterOptions.set_optimize_for(ToProto(table->GetOptimizeFor()));
     }

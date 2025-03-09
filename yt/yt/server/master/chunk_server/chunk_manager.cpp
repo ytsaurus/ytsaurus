@@ -142,6 +142,7 @@
 #include <yt/yt/core/compression/codec.h>
 
 #include <yt/yt/core/rpc/dispatcher.h>
+#include <yt/yt/core/rpc/retrying_channel.h>
 
 #include <yt/yt/core/logging/log.h>
 
@@ -896,7 +897,7 @@ public:
         chunk->Confirm(chunkInfo, chunkMeta);
 
         if (temporarySchema) {
-            tableManager->GetOrCreateNativeMasterTableSchema(*temporarySchema->AsTableSchema(), chunk);
+            tableManager->GetOrCreateNativeMasterTableSchema(*temporarySchema->AsCompactTableSchema(), chunk);
         }
 
         UpdateChunkWeightStatisticsHistogram(chunk, /*add*/ true);
@@ -3271,6 +3272,9 @@ private:
     {
         YT_VERIFY(request->replicas_size() > 0);
 
+        const auto& config = GetDynamicConfig()->SequoiaChunkReplicas;
+        const auto& retriableErrorCodes = config->RetriableErrorCodes;
+
         return Bootstrap_
             ->GetSequoiaClient()
             ->StartTransaction(ESequoiaTransactionType::ChunkConfirmation, {.CellTag = Bootstrap_->GetCellTag()})
@@ -3300,12 +3304,7 @@ private:
                 };
 
                 auto result = WaitFor(transaction->Commit(commitOptions));
-                if (IsRetriableSequoiaReplicasError(result)) {
-                    THROW_ERROR_EXCEPTION(
-                        NRpc::EErrorCode::TransientFailure,
-                        "Sequoia retriable error")
-                        << std::move(result);
-                }
+                ThrowOnSequoiaReplicasError(result, retriableErrorCodes);
             }).AsyncVia(NRpc::TDispatcher::Get()->GetHeavyInvoker()));
     }
 
@@ -3322,6 +3321,7 @@ private:
         auto processRemovedSequoiaReplicasOnMaster = sequoiaConfig->ProcessRemovedSequoiaReplicasOnMaster;
         auto storeSequoiaReplicasOnMaster = sequoiaConfig->StoreSequoiaReplicasOnMaster;
         auto clearMasterRequest = sequoiaConfig->ClearMasterRequest;
+        auto retriableErrorCodes = sequoiaConfig->RetriableErrorCodes;
 
         return Bootstrap_
             ->GetSequoiaClient()
@@ -3380,12 +3380,8 @@ private:
 
                 auto replicasFuture = transaction->LookupRows(keys);
                 auto removedReplicasOrError = WaitFor(replicasFuture);
-                if (IsRetriableSequoiaReplicasError(removedReplicasOrError)) {
-                    THROW_ERROR_EXCEPTION(
-                        NRpc::EErrorCode::TransientFailure,
-                        "Sequoia retriable error")
-                        << std::move(removedReplicasOrError);
-                }
+                ThrowOnSequoiaReplicasError(removedReplicasOrError, retriableErrorCodes);
+
                 const auto& removedReplicas = removedReplicasOrError
                     .ValueOrThrow();
 
@@ -3499,12 +3495,7 @@ private:
                 };
 
                 auto result = WaitFor(transaction->Commit(commitOptions));
-                if (IsRetriableSequoiaReplicasError(result)) {
-                    THROW_ERROR_EXCEPTION(
-                        NRpc::EErrorCode::TransientFailure,
-                        "Sequoia retriable error")
-                        << std::move(result);
-                }
+                ThrowOnSequoiaReplicasError(result, retriableErrorCodes);
 
                 // TODO(aleksandra-zh): add ally replica info.
                 TRspModifyReplicas response;
@@ -6317,7 +6308,11 @@ private:
 
         const auto& channelFactory = Bootstrap_->GetClusterConnection()->GetChannelFactory();
         auto channel = channelFactory->CreateChannel(*address);
-        return CreateRealmChannel(std::move(channel), Bootstrap_->GetCellId());
+        channel = CreateRealmChannel(std::move(channel), Bootstrap_->GetCellId());
+
+        const auto& masterConnection = Bootstrap_->GetConfig()->MulticellManager->MasterConnection;
+        channel = CreateRetryingChannel(masterConnection, std::move(channel));
+        return CreateDefaultTimeoutChannel(std::move(channel), masterConnection->RpcTimeout);
     }
 
     NRpc::IChannelPtr GetChunkReplicatorChannelOrThrow(TChunk* chunk) override

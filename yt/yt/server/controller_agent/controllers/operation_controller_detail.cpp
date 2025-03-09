@@ -263,6 +263,7 @@ TOperationControllerBase::TOperationControllerBase(
     , JobSpecBuildInvoker_(Host->GetJobSpecBuildPoolInvoker())
     , RowBuffer(New<TRowBuffer>(TRowBufferTag(), Config->ControllerRowBufferChunkSize))
     , InputManager(New<TInputManager>(this, Logger))
+    , DataFlowGraph_(New<TDataFlowGraph>(Logger))
     , LivePreviews_(std::make_shared<TLivePreviewMap>())
     , PoolTreeControllerSettingsMap_(operation->PoolTreeControllerSettingsMap())
     , Spec_(std::move(spec))
@@ -6250,6 +6251,7 @@ void TOperationControllerBase::CreateLivePreviewTables()
         (*LivePreviews_)[name] = New<TLivePreview>(
             New<TTableSchema>(),
             OutputNodeDirectory_,
+            Logger,
             OperationId,
             name);
     }
@@ -6841,7 +6843,7 @@ void TOperationControllerBase::LockOutputTablesAndGetAttributes()
 
             if (table->TableUploadOptions.TableSchema->IsSorted()) {
                 table->TableWriterOptions->ValidateSorted = true;
-                table->TableWriterOptions->ValidateUniqueKeys = table->TableUploadOptions.TableSchema->GetUniqueKeys();
+                table->TableWriterOptions->ValidateUniqueKeys = table->TableUploadOptions.TableSchema->IsUniqueKeys();
             } else {
                 table->TableWriterOptions->ValidateSorted = false;
             }
@@ -6859,8 +6861,8 @@ void TOperationControllerBase::LockOutputTablesAndGetAttributes()
             table->TableWriterOptions->MaxHeavyColumns = maxHeavyColumns;
 
             // Workaround for YT-5827.
-            if (table->TableUploadOptions.TableSchema->Columns().empty() &&
-                table->TableUploadOptions.TableSchema->GetStrict())
+            if (table->TableUploadOptions.TableSchema->IsEmpty() &&
+                table->TableUploadOptions.TableSchema->IsStrict())
             {
                 table->TableWriterOptions->OptimizeFor = EOptimizeFor::Lookup;
                 table->TableWriterOptions->ChunkFormat = {};
@@ -8003,7 +8005,7 @@ std::vector<TLegacyDataSlicePtr> TOperationControllerBase::CollectPrimaryVersion
                 auto dataSlice = CreateUnversionedInputDataSlice(chunkSlice);
                 dataSlice->SetInputStreamIndex(InputStreamDirectory_.GetInputStreamIndex(dataSlice->GetTableIndex(), dataSlice->GetRangeIndex()));
                 dataSlice->TransformToNew(RowBuffer, table->Comparator.GetLength());
-                fetcher->AddDataSliceForSlicing(dataSlice, table->Comparator, sliceSize, true);
+                fetcher->AddDataSliceForSlicing(dataSlice, table->Comparator, sliceSize, true, /*minManiacDataWeight*/ std::nullopt);
                 totalDataWeightBefore += dataSlice->GetDataWeight();
             }
 
@@ -8439,7 +8441,7 @@ void TOperationControllerBase::RegisterLivePreviewTable(TString name, const TOut
     auto schema = table->TableUploadOptions.TableSchema.Get();
     LivePreviews_->emplace(
         name,
-        New<TLivePreview>(std::move(schema), OutputNodeDirectory_, OperationId, name, table->Path.GetPath()));
+        New<TLivePreview>(std::move(schema), OutputNodeDirectory_, Logger, OperationId, name, table->Path.GetPath()));
     table->LivePreviewTableName = std::move(name);
 }
 
@@ -9514,13 +9516,11 @@ TJobStartInfo TOperationControllerBase::SafeSettleJob(TAllocationId allocationId
     }
 
     {
-        auto requestIsStale = [&] {
-            return !allocation.Joblet && !lastJobId;
-        }();
+        bool requestIsStale = !allocation.Joblet && !lastJobId;
 
         THROW_ERROR_EXCEPTION_IF(
             requestIsStale,
-            "Settle job requets looks like retry");
+            "Settle job request looks like retry");
     }
 
     if (!allocation.Joblet) {
@@ -10124,6 +10124,8 @@ void TOperationControllerBase::InitUserJobSpecTemplate(
     jobSpec->set_enable_rpc_proxy_in_job_proxy(jobSpecConfig->EnableRpcProxyInJobProxy);
     jobSpec->set_rpc_proxy_worker_thread_pool_size(jobSpecConfig->RpcProxyWorkerThreadPoolSize);
 
+    jobSpec->set_start_queue_consumer_registration_manager(jobSpecConfig->StartQueueConsumerRegistrationManager);
+
     // Pass external docker image into job spec as is.
     if (jobSpecConfig->DockerImage) {
         TDockerImageSpec dockerImageSpec(*jobSpecConfig->DockerImage, Config->DockerRegistry);
@@ -10474,7 +10476,7 @@ void TOperationControllerBase::InferSchemaFromInput(const TSortColumns& sortColu
         for (auto& newColumn : newColumns) {
             newColumn.SetStableName(TColumnStableName(newColumn.Name()));
         }
-        return New<TTableSchema>(std::move(newColumns), schema->GetStrict(), schema->IsUniqueKeys());
+        return New<TTableSchema>(std::move(newColumns), schema->IsStrict(), schema->IsUniqueKeys());
     };
 
     if (OutputTables_[0]->TableUploadOptions.SchemaMode == ETableSchemaMode::Weak) {

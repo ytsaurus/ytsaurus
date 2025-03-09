@@ -1,5 +1,6 @@
 #pragma once
 
+#include <atomic>
 #include <string>
 #include <vector>
 #include <mutex>
@@ -7,8 +8,8 @@
 #include <base/defines.h>
 
 
-namespace Poco { class URI; }
-namespace Poco { namespace Util { class AbstractConfiguration; } }
+namespace DBPoco { class URI; }
+namespace DBPoco { namespace Util { class AbstractConfiguration; } }
 
 namespace DB
 {
@@ -19,9 +20,9 @@ class RemoteHostFilter
  * If primary_hosts and regexp_hosts are empty all urls are allowed.
  */
 public:
-    void checkURL(const Poco::URI & uri) const; /// If URL not allowed in config.xml throw UNACCEPTABLE_URL Exception
+    void checkURL(const DBPoco::URI & uri) const; /// If URL not allowed in config.xml throw UNACCEPTABLE_URL Exception
 
-    void setValuesFromConfig(const Poco::Util::AbstractConfiguration & config);
+    void setValuesFromConfig(const DBPoco::Util::AbstractConfiguration & config);
 
     void checkHostAndPort(const std::string & host, const std::string & port) const; /// Does the same as checkURL, but for host and port.
 

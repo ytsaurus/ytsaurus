@@ -1585,7 +1585,7 @@ void TChunkOwnerNodeProxy::ReplicateBeginUploadRequestToExternalCell(
 
     if (uploadContext.ChunkSchema) {
         if (!uploadContext.ChunkSchema->IsExported(externalCellTag)) {
-            ToProto(replicationRequest->mutable_chunk_schema(), uploadContext.ChunkSchema->AsTableSchema());
+            ToProto(replicationRequest->mutable_chunk_schema(), uploadContext.ChunkSchema->AsCompactTableSchema());
         }
 
         auto chunkSchemaId = uploadContext.ChunkSchema->GetId();
@@ -1649,7 +1649,7 @@ void TChunkOwnerNodeProxy::ReplicateEndUploadRequestToExternalCell(
 
 TMasterTableSchema* TChunkOwnerNodeProxy::CalculateEffectiveMasterTableSchema(
     TChunkOwnerBase* node,
-    TTableSchemaPtr schema,
+    const TCompactTableSchemaPtr& schema,
     TMasterTableSchemaId schemaId,
     TTransaction* schemaHolder)
 {
@@ -1748,13 +1748,13 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, BeginUpload)
         : std::nullopt;
 
     auto tableSchema = request->has_table_schema()
-        ? FromProto<TTableSchemaPtr>(request->table_schema())
+        ? New<TCompactTableSchema>(request->table_schema())
         : nullptr;
 
     auto tableSchemaId = FromProto<TMasterTableSchemaId>(request->table_schema_id());
 
     auto chunkSchema = request->has_chunk_schema()
-        ? FromProto<TTableSchemaPtr>(request->chunk_schema())
+        ? New<TCompactTableSchema>(request->chunk_schema())
         : nullptr;
 
     auto offloadedSchemaDestruction = Finally([&] {
@@ -2112,7 +2112,7 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, EndUpload)
 
     // COMPAT(h0pless): remove this when clients will send table schema options during begin upload.
     auto tableSchema = request->has_table_schema()
-        ? FromProto<TTableSchemaPtr>(request->table_schema())
+        ? New<TCompactTableSchema>(request->table_schema())
         : nullptr;
 
     auto offloadedSchemaDestruction = Finally([&] {

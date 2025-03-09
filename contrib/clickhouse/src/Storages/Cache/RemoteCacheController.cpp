@@ -6,8 +6,8 @@
 #include <Storages/Cache/ExternalDataSourceCache.h>
 #include <Storages/Cache/RemoteCacheController.h>
 #include <Storages/Cache/RemoteFileMetadataFactory.h>
-#include <Poco/JSON/JSON.h>
-#include <Poco/JSON/Parser.h>
+#include <DBPoco/JSON/JSON.h>
+#include <DBPoco/JSON/Parser.h>
 
 namespace DB
 {
@@ -20,7 +20,7 @@ namespace ErrorCodes
 
 std::shared_ptr<RemoteCacheController> RemoteCacheController::recover(const std::filesystem::path & local_path_)
 {
-    auto * log = &Poco::Logger::get("RemoteCacheController");
+    auto log = getLogger("RemoteCacheController");
 
     if (!std::filesystem::exists(local_path_ / "data.bin"))
     {
@@ -92,8 +92,8 @@ RemoteCacheController::RemoteCacheController(
         if (fs::exists(info_path))
         {
             std::ifstream info_file(info_path);
-            Poco::JSON::Parser info_parser;
-            auto info_json = info_parser.parse(info_file).extract<Poco::JSON::Object::Ptr>();
+            DBPoco::JSON::Parser info_parser;
+            auto info_json = info_parser.parse(info_file).extract<DBPoco::JSON::Object::Ptr>();
             file_status = static_cast<LocalFileStatus>(info_json->get("file_status").convert<Int32>());
             metadata_class = info_json->get("metadata_class").convert<String>();
             info_file.close();
@@ -185,7 +185,7 @@ void RemoteCacheController::flush(bool need_flush_status)
     if (need_flush_status)
     {
         auto file_writer = std::make_unique<WriteBufferFromFile>(local_path / "info.txt");
-        Poco::JSON::Object jobj;
+        DBPoco::JSON::Object jobj;
         jobj.set("file_status", static_cast<Int32>(file_status));
         jobj.set("metadata_class", metadata_class);
         std::stringstream buf; // STYLE_CHECK_ALLOW_STD_STRING_STREAM
@@ -206,7 +206,7 @@ void RemoteCacheController::close()
     // delete directory
     LOG_TRACE(log, "Removing the local cache. local path: {}", local_path.string());
     if (fs::exists(local_path))
-        fs::remove_all(local_path);
+        (void)fs::remove_all(local_path);
 }
 
 std::unique_ptr<ReadBufferFromFileBase> RemoteCacheController::allocFile()

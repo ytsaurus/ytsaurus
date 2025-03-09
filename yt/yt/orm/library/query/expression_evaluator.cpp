@@ -155,12 +155,9 @@ public:
 
     TErrorOr<NQueryClient::TValue> Evaluate(
         const std::vector<TNonOwningAttributePayload>& attributePayloads,
-        TRowBufferPtr rowBuffer) override
+        const TRowBufferPtr& rowBuffer) override
     {
         try {
-            if (!rowBuffer) {
-                rowBuffer = New<TRowBuffer>(TRowBufferTag());
-            }
             if (attributePayloads.size() != Columns_.size()) {
                 THROW_ERROR_EXCEPTION("Invalid number of attributes: expected %v, but got %v",
                     Columns_.size(),
@@ -190,20 +187,15 @@ public:
 
     TErrorOr<NQueryClient::TValue> Evaluate(
         const TNonOwningAttributePayload& attributePayload,
-        TRowBufferPtr rowBuffer) override
+        const TRowBufferPtr& rowBuffer) override
     {
-        return Evaluate(
-            std::vector<TNonOwningAttributePayload>{attributePayload},
-            std::move(rowBuffer));
+        return Evaluate(std::vector<TNonOwningAttributePayload>{attributePayload}, rowBuffer);
     }
 
 private:
     const std::unique_ptr<NQueryClient::TParsedSource> ParsedQuery_;
     const std::vector<TColumnSchema> Columns_;
     const std::unique_ptr<TQueryEvaluationContext> EvaluationContext_;
-
-    struct TRowBufferTag
-    { };
 
     TTableSchemaPtr CreateTableSchema()
     {
@@ -352,9 +344,7 @@ IExpressionEvaluatorPtr CreateOrmExpressionEvaluator(
         std::move(columns));
 }
 
-IExpressionEvaluatorPtr CreateOrmExpressionEvaluator(
-    std::string query,
-    std::vector<TYPath> attributePaths)
+IExpressionEvaluatorPtr CreateOrmExpressionEvaluator(std::string query, std::vector<TYPath> attributePaths)
 {
     std::vector<TTypedAttributePath> typedAttributePaths;
     typedAttributePaths.reserve(attributePaths.size());

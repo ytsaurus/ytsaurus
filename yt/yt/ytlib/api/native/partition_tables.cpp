@@ -298,7 +298,7 @@ void TMultiTablePartitioner::RequestVersionedDataSlices(const TInputTable& input
         YT_LOG_TRACE("Add data slice for slicing (TableIndex: %v, DataSlice: %v)",
             tableIndex,
             dataSlice);
-        fetcher->AddDataSliceForSlicing(dataSlice, comparator, Options_.DataWeightPerPartition, /*sliceByKeys*/ true);
+        fetcher->AddDataSliceForSlicing(dataSlice, comparator, Options_.DataWeightPerPartition, /*sliceByKeys*/ true, /*minManiacDataWeight*/ std::nullopt);
     }
 
     FetchState_.TableFetchers.push_back(std::move(fetcher));

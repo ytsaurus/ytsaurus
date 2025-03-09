@@ -3,7 +3,7 @@
 #include <boost/noncopyable.hpp>
 #include <Storages/MergeTree/BackgroundProcessList.h>
 #include <Common/Stopwatch.h>
-#include <Poco/URI.h>
+#include <DBPoco/URI.h>
 
 
 namespace CurrentMetrics
@@ -73,7 +73,7 @@ struct ReplicatedFetchListElement : private boost::noncopyable
         const std::string & database_, const std::string & table_,
         const std::string & partition_id_, const std::string & result_part_name_,
         const std::string & result_part_path_, const std::string & source_replica_path_,
-        const Poco::URI & uri, UInt8 to_detached_, UInt64 total_size_bytes_compressed_);
+        const DBPoco::URI & uri, UInt8 to_detached_, UInt64 total_size_bytes_compressed_);
 
     ReplicatedFetchInfo getInfo() const;
 };

@@ -148,10 +148,14 @@ class TestCypress(YTEnvSetup):
         for path in [
             "//tmp/@test_attribute",
             "//tmp/@test_attribute/inner",
+        ]:
+            with raises_yt_error("Attribute \"test_attribute\" is not found"):
+                remove(path)
+        for path in [
             "//tmp/@recursive_resource_usage/disk_space_per_medium",
             "//tmp/@recursive_resource_usage/missing",
         ]:
-            with pytest.raises(YtError):
+            with raises_yt_error("Attribute \"recursive_resource_usage\" cannot be removed"):
                 remove(path)
 
         for path in ["//tmp/@test_attribute", "//tmp/@test_attribute/inner"]:
@@ -207,8 +211,9 @@ class TestCypress(YTEnvSetup):
         assert exists("//tmp/list/-7")
         assert not exists("//tmp/list/42")
         assert not exists("//tmp/list/-42")
-        with pytest.raises(YtError):
+        with raises_yt_error("has no child with index"):
             get("//tmp/list/42")
+        with raises_yt_error("has no child with index"):
             get("//tmp/list/-42")
 
     @authors("kvk1920")
@@ -290,7 +295,7 @@ class TestCypress(YTEnvSetup):
         remove("//tmp/map/list")
         assert get("//tmp/map") == {}
 
-        with pytest.raises(YtError):
+        with raises_yt_error("has no child with key"):
             set("//tmp/missing/node", {})
 
         set("//tmp/missing/node", {}, recursive=True)
@@ -314,9 +319,9 @@ class TestCypress(YTEnvSetup):
         assert attrs["path"] == "//tmp/t"
 
         remove("//tmp/t/@*")
-        with pytest.raises(YtError):
+        with raises_yt_error("Attribute \"attr\" is not found"):
             get("//tmp/t/@attr")
-        with pytest.raises(YtError):
+        with raises_yt_error("Attribute \"mode\" is not found"):
             get("//tmp/t/@mode")
 
         # changing attributes
@@ -345,17 +350,15 @@ class TestCypress(YTEnvSetup):
         assert get("//tmp/t/@key2") == "value2"
 
         # error cases
-        # typo (extra slash)
-        with pytest.raises(YtError):
+        with raises_yt_error("Expected \"literal\" in YPath but found \"slash\" token"):
             get("//tmp/t/@/key1")
-        # change type
-        with pytest.raises(YtError):
+        with raises_yt_error("Attributes can only be set from a map"):
             set("//tmp/t/@", 1)
-        with pytest.raises(YtError):
+        with raises_yt_error("Attributes can only be set from a map"):
             set("//tmp/t/@", "a")
-        with pytest.raises(YtError):
+        with raises_yt_error("Attributes can only be set from a map"):
             set("//tmp/t/@", [])
-        with pytest.raises(YtError):
+        with raises_yt_error("Attributes can only be set from a map"):
             set("//tmp/t/@", [1, 2, 3])
 
     @authors("danilalexeev")
@@ -514,9 +517,9 @@ class TestCypress(YTEnvSetup):
         # remove items from attributes
         set("//tmp/attr", b"<_foo=bar;_key=value>42", is_raw=True)
         remove("//tmp/attr/@*")
-        with pytest.raises(YtError):
+        with raises_yt_error("is not found"):
             get("//tmp/attr/@_foo")
-        with pytest.raises(YtError):
+        with raises_yt_error("is not found"):
             get("//tmp/attr/@_key")
 
     @authors("babenko", "ignat")
@@ -526,14 +529,14 @@ class TestCypress(YTEnvSetup):
         tx = start_transaction()
         set("//tmp/@b", 2, tx=tx)
         remove("//tmp/@*", tx=tx)
-        with pytest.raises(YtError):
+        with raises_yt_error("is not found"):
             get("//tmp/@a", tx=tx)
-        with pytest.raises(YtError):
+        with raises_yt_error("is not found"):
             get("//tmp/@b", tx=tx)
         commit_transaction(tx)
-        with pytest.raises(YtError):
+        with raises_yt_error("is not found"):
             get("//tmp/@a")
-        with pytest.raises(YtError):
+        with raises_yt_error("is not found"):
             get("//tmp/@b")
 
     @authors("babenko", "ignat")
@@ -787,7 +790,7 @@ class TestCypress(YTEnvSetup):
         remove("//sys/accounts/a")
         wait(lambda: get("//sys/accounts/a/@life_stage") in ["removal_started", "removal_pre_committed"])
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Account \"a\" cannot be used"):
             copy("//tmp/p1/f", "//tmp/p2/f", preserve_account=True)
 
         remove("//tmp/p1/f")
@@ -805,7 +808,7 @@ class TestCypress(YTEnvSetup):
         remove_tablet_cell_bundle("b")
         wait(lambda: get("//sys/tablet_cell_bundles/b/@life_stage") in ["removal_started", "removal_pre_committed"])
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Tablet cell bundle \"b\" cannot be used"):
             copy("//tmp/p1/t", "//tmp/p2/t")
 
         remove("//tmp/p1/t")
@@ -1325,7 +1328,7 @@ class TestCypress(YTEnvSetup):
     @not_implemented_in_sequoia
     def test_create_ignore_type_mismatch_without_ignore_existing_fail(self):
         create("map_node", "//tmp/a/b", recursive=True)
-        with pytest.raises(YtError):
+        with raises_yt_error("Cannot specify \"ignore_type_mismatch\" without \"ignore_existing\""):
             create("map_node", "//tmp/a/b", ignore_type_mismatch=True)
 
     @authors("babenko")
@@ -1358,12 +1361,12 @@ class TestCypress(YTEnvSetup):
     @not_implemented_in_sequoia
     def test_remove_from_virtual_map(self):
         create_user("u")
-        with pytest.raises(YtError):
+        with raises_yt_error("Expected \"literal\" in YPath but found \"asterisk\""):
             remove("//sys/users/*")
         assert exists("//sys/users/u")
         remove_user("u")
         assert not exists("//sys/users/u")
-        with pytest.raises(YtError):
+        with raises_yt_error("Node has no child with key \"u\""):
             remove_user("u", sync=False)
         remove_user("u", force=True)
 
@@ -1410,14 +1413,14 @@ class TestCypress(YTEnvSetup):
 
         assert get("#%s" % id, tx=tx) == 1
         assert get("//tmp/t2&/@broken")
-        with pytest.raises(YtError):
+        with raises_yt_error("has no child with key"):
             read_table("//tmp/t2")
 
     @authors("babenko", "danilalexeev")
     def test_link5(self):
         set("//tmp/t1", 1)
         set("//tmp/t2", 2)
-        with pytest.raises(YtError):
+        with raises_yt_error("already exists"):
             link("//tmp/t1", "//tmp/t2")
 
     @authors("babenko", "danilalexeev")
@@ -1479,7 +1482,7 @@ class TestCypress(YTEnvSetup):
         link("//tmp/t1", "//tmp/l")
         # TODO(danilalexeev): Change to 'assert' once the GUQM sync is implemented.
         wait(lambda: get("//tmp/l/@id") == id1)
-        with pytest.raises(YtError):
+        with raises_yt_error("already exists"):
             link("//tmp/t2", "//tmp/l")
 
     @authors("babenko", "danilalexeev")
@@ -1515,7 +1518,7 @@ class TestCypress(YTEnvSetup):
     @authors("babenko", "danilalexeev")
     def test_link_ignore_existing_force_fail(self):
         create("table", "//tmp/t")
-        with pytest.raises(YtError):
+        with raises_yt_error("Cannot specify both \"ignore_existing\" and \"force\" options simultaneously"):
             link("//tmp/t", "//tmp/l", ignore_existing=True, force=True)
 
     @authors("babenko", "danilalexeev")
@@ -1534,7 +1537,7 @@ class TestCypress(YTEnvSetup):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
         link("//tmp/t1", "//tmp/l")
-        with pytest.raises(YtError):
+        with raises_yt_error("already exists"):
             copy("//tmp/t2", "//tmp/l")
 
     @authors("babenko", "danilalexeev")
@@ -1552,7 +1555,7 @@ class TestCypress(YTEnvSetup):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
         link("//tmp/t1", "//tmp/l")
-        with pytest.raises(YtError):
+        with raises_yt_error("already exists"):
             move("//tmp/t2", "//tmp/l")
 
     @authors("babenko", "danilalexeev")
@@ -1855,7 +1858,7 @@ class TestCypress(YTEnvSetup):
         create("map_node", "//tmp/test_node")
         for i in range(100):
             create("map_node", "//tmp/test_node/" + str(i))
-        with pytest.raises(YtError):
+        with raises_yt_error("is not allowed to contain more than"):
             create("map_node", "//tmp/test_node/100")
 
     @authors("babenko")
@@ -1865,13 +1868,13 @@ class TestCypress(YTEnvSetup):
         set("//tmp/test_node", "x" * 300)
         remove("//tmp/test_node")
 
-        with pytest.raises(YtError):
+        with raises_yt_error("String node length limit exceeded"):
             set("//tmp/test_node", "x" * 301)
 
-        with pytest.raises(YtError):
+        with raises_yt_error("String node length limit exceeded"):
             set("//tmp/test_node", {"key": "x" * 301})
 
-        with pytest.raises(YtError):
+        with raises_yt_error("List nodes are deprecated"):
             set("//tmp/test_node", ["x" * 301])
 
     @authors("babenko")
@@ -1883,7 +1886,7 @@ class TestCypress(YTEnvSetup):
         # The limit is 300 but this is for binary YSON.
         set("//tmp/test_node/@test_attr", "x" * 290)
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Attribute size limit exceeded"):
             # This must definitely exceed the limit of 300.
             set("//tmp/test_node/@test_attr", "x" * 301)
 
@@ -1892,20 +1895,20 @@ class TestCypress(YTEnvSetup):
     def test_map_node_key_length_limits(self):
         set("//sys/@config/cypress_manager/max_map_node_key_length", 300)
         set("//tmp/" + "a" * 300, 0)
-        with pytest.raises(YtError):
+        with raises_yt_error("is not allowed to contain items with keys longer than"):
             set("//tmp/" + "a" * 301, 0)
 
     @authors("babenko")
     def test_invalid_external_cell_bias(self):
-        with pytest.raises(YtError):
+        with raises_yt_error("must be in range [0, 16"):
             create("table", "//tmp/t", attributes={"external_cell_bias": -1.0})
-        with pytest.raises(YtError):
+        with raises_yt_error("must be in range [0, 16"):
             create("table", "//tmp/t", attributes={"external_cell_bias": 100.0})
 
     @authors("babenko")
     def test_expiration_time_validation(self):
         create("table", "//tmp/t")
-        with pytest.raises(YtError):
+        with raises_yt_error("Error setting builtin attribute"):
             set("//tmp/t/@expiration_time", "hello")
 
     @authors("babenko")
@@ -1918,7 +1921,7 @@ class TestCypress(YTEnvSetup):
             "//tmp/t/@acl",
             [make_ace("allow", "u", "write"), make_ace("deny", "u", "remove")],
         )
-        with pytest.raises(YtError):
+        with raises_yt_error("Access denied for user"):
             set(
                 "//tmp/t/@" + expiration[0],
                 expiration[1],
@@ -1952,7 +1955,7 @@ class TestCypress(YTEnvSetup):
             attributes={expiration[0]: expiration[1]},
         )
         set("//tmp/t/@acl", [make_ace("deny", "u", "write")])
-        with pytest.raises(YtError):
+        with raises_yt_error("Access denied for user"):
             remove("//tmp/t/@" + expiration[0], authenticated_user="u")
 
     @authors("babenko")
@@ -2018,7 +2021,7 @@ class TestCypress(YTEnvSetup):
         create("table", "//tmp/t")
         tx = start_transaction()
         lock("//tmp/t", tx=tx)
-        with pytest.raises(YtError):
+        with raises_yt_error("since this attribute is locked by concurrent transaction"):
             set("//tmp/t/@expiration_time", str(get_current_time()))
         unlock("//tmp/t", tx=tx)
         set("//tmp/t/@expiration_time", str(get_current_time()))
@@ -2622,9 +2625,9 @@ class TestCypress(YTEnvSetup):
             ]
         )
         assert len(results) == 2
-        with pytest.raises(YtError):
+        with raises_yt_error("Error resolving path"):
             get_batch_output(results[0])
-        with pytest.raises(YtError):
+        with raises_yt_error("Error resolving path"):
             get_batch_output(results[1])
 
     @authors("babenko")
@@ -2653,7 +2656,7 @@ class TestCypress(YTEnvSetup):
     @authors("babenko")
     @not_implemented_in_sequoia
     def test_batch_with_concurrency_failure(self):
-        with pytest.raises(YtError):
+        with raises_yt_error("Validation failed at /concurrency"):
             execute_batch([], concurrency=-1)
 
     @authors("babenko")
@@ -2701,7 +2704,6 @@ class TestCypress(YTEnvSetup):
         wait(lambda: get("//tmp/m/@recursive_resource_usage/master_memory") > 0)
 
     @authors("ignat")
-    @not_implemented_in_sequoia
     def test_prerequisite_transactions(self):
         with raises_yt_error("Unknown transaction cell tag"):
             set("//tmp/test_node", {}, prerequisite_transaction_ids=["a-b-c-d"])
@@ -2716,7 +2718,7 @@ class TestCypress(YTEnvSetup):
         create("map_node", "//tmp/test_node")
         revision = get("//tmp/test_node/@revision")
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Prerequisite check failed"):
             create(
                 "map_node",
                 "//tmp/test_node/inner_node",
@@ -2749,7 +2751,7 @@ class TestCypress(YTEnvSetup):
         create("map_node", "//home/test_node", recursive=True, force=True)
         revision = get("//home/revision_node/@revision")
 
-        with raises_yt_error("Requests with prerequisitive paths different from target paths are prohibited in Cypress"):
+        with raises_yt_error("Requests with prerequisite paths different from target paths are prohibited in Cypress"):
             create(
                 "map_node",
                 "//tmp/test_node",
@@ -2761,7 +2763,7 @@ class TestCypress(YTEnvSetup):
                     }
                 ],
             )
-        with raises_yt_error("Requests with prerequisitive paths different from target paths are prohibited in Cypress"):
+        with raises_yt_error("Requests with prerequisite paths different from target paths are prohibited in Cypress"):
             copy(
                 "//home/test_node",
                 "//home/test_node2",
@@ -2844,22 +2846,22 @@ class TestCypress(YTEnvSetup):
         revision7 = get("//tmp/d1/@revision")
         assert revision7 > revision6
 
-        with pytest.raises(YtError):
+        with raises_yt_error("has no child with key \"i\""):
             remove("//tmp/d1/f/i")
         revision8 = get("//tmp/d1/@revision")
         assert revision8 == revision7
 
-        with pytest.raises(YtError):
+        with raises_yt_error("has no child with key \"i\""):
             remove("//tmp/d1/@value/f/i")
         revision9 = get("//tmp/d1/@revision")
         assert revision9 == revision7
 
-        with pytest.raises(YtError):
+        with raises_yt_error("has no child with key \"g\""):
             set("//tmp/d1/f/g/h", ["q", "r", "s"])
         revision10 = get("//tmp/d1/@revision")
         assert revision10 == revision7
 
-        with pytest.raises(YtError):
+        with raises_yt_error("has no child with key \"g\""):
             set("//tmp/d1/@value/f/g/h", ["q", "r", "s"])
         revision11 = get("//tmp/d1/@revision")
         assert revision11 == revision7
@@ -3025,7 +3027,7 @@ class TestCypress(YTEnvSetup):
         get(f"{child_path}/@effective_inheritable_attributes", tx=tx) == {"chunk_merger_mode": "shallow", "compression_codec": "zlib_4"}
 
         create("table", f"{child_path}/grandchild")
-        with pytest.raises(YtError):
+        with raises_yt_error("Attribute \"effective_inheritable_attributes\" is not found"):
             get(f"{child_path}/grandchild/@effective_inheritable_attributes")
 
     @authors("shakurov")
@@ -3044,7 +3046,7 @@ class TestCypress(YTEnvSetup):
         create("table", "//tmp/dir1/t2")
         assert get("//tmp/dir1/t2/@compression_codec") == "lz4"
 
-        with pytest.raises(YtError):
+        with raises_yt_error("since this attribute is locked by concurrent transaction"):
             set("//tmp/dir1/@compression_codec", "snappy")
 
         set("//tmp/dir1/@erasure_codec", "reed_solomon_6_3")
@@ -3066,7 +3068,7 @@ class TestCypress(YTEnvSetup):
             dir_name = "//tmp/" + dir_base_name
             create("map_node", dir_name)
             set(dir_name + "/@compression_codec", "lz4", tx=tx)
-            with pytest.raises(YtError):
+            with raises_yt_error("Cannot parse \"enum\"; expected \"string_value\", actual \"entity_value\""):
                 set(dir_name + "/@erasure_codec", None, tx=tx)
             remove(dir_name + "/@erasure_codec", tx=tx)
 
@@ -3099,12 +3101,12 @@ class TestCypress(YTEnvSetup):
         assert not exists("//tmp/dir1/@media")
 
         # media - primary_medium - replication_factor
-        with pytest.raises(YtError):
+        with raises_yt_error("At least one medium should store replicas (including parity parts); configuring otherwise would result in a data loss"):
             set(
                 "//tmp/dir1/@media",
                 {"default": {"replication_factor": 0, "data_parts_only": False}},
             )
-        with pytest.raises(YtError):
+        with raises_yt_error("At least one medium should store replicas (including parity parts); configuring otherwise would result in a data loss"):
             set(
                 "//tmp/dir1/@media",
                 {"default": {"replication_factor": 5, "data_parts_only": True}},
@@ -3138,7 +3140,7 @@ class TestCypress(YTEnvSetup):
         set("//tmp/dir1/@primary_medium", "ssd")
         assert get("//tmp/dir1/@media") == {"ssd": {"replication_factor": 5, "data_parts_only": False}}
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Attributes \"media\" and \"replication_factor\" have contradicting values for medium \"ssd\""):
             set("//tmp/dir1/@replication_factor", 3)
         assert not exists("//tmp/dir1/@replication_factor")
         set("//tmp/dir1/@replication_factor", 5)
@@ -3159,18 +3161,18 @@ class TestCypress(YTEnvSetup):
         }
         set("//tmp/dir2/@replication_factor", 5)
         assert get("//tmp/dir2/@replication_factor") == 5
-        with pytest.raises(YtError):
+        with raises_yt_error("Attributes \"media\" and \"replication_factor\" have contradicting values for medium \"default\""):
             set("//tmp/dir2/@primary_medium", "default")
         set("//tmp/dir2/@primary_medium", "ssd")
         assert get("//tmp/dir2/@primary_medium") == "ssd"
 
         # primary_medium - media - replication_factor
         create("map_node", "//tmp/dir3")
-        with pytest.raises(YtError):
+        with raises_yt_error("No such medium"):
             set("//tmp/dir3/@primary_medium", "non_existent")
         set("//tmp/dir3/@primary_medium", "ssd")
         assert get("//tmp/dir3/@primary_medium") == "ssd"
-        with pytest.raises(YtError):
+        with raises_yt_error("At least one medium should store replicas (including parity parts); configuring otherwise would result in a data loss"):
             set(
                 "//tmp/dir3/@media",
                 {
@@ -3189,7 +3191,7 @@ class TestCypress(YTEnvSetup):
             "default": {"replication_factor": 5, "data_parts_only": True},
             "ssd": {"replication_factor": 3, "data_parts_only": False},
         }
-        with pytest.raises(YtError):
+        with raises_yt_error("Attributes \"media\" and \"replication_factor\" have contradicting values for medium \"ssd\""):
             set("//tmp/dir3/@replication_factor", 5)
         set("//tmp/dir3/@replication_factor", 3)
         assert get("//tmp/dir3/@replication_factor") == 3
@@ -3200,15 +3202,15 @@ class TestCypress(YTEnvSetup):
         # are pretty much the same
         create("map_node", "//tmp/dir4")
         set("//tmp/dir4/@primary_medium", "ssd")
-        with pytest.raises(YtError):
+        with raises_yt_error("Replication factor 0 is out of range [1,"):
             set("//tmp/dir4/@replication_factor", 0)
         set("//tmp/dir4/@replication_factor", 3)
-        with pytest.raises(YtError):
+        with raises_yt_error("Attributes \"media\" and \"replication_factor\" have contradicting values for medium \"ssd\""):
             set(
                 "//tmp/dir4/@media",
                 {"default": {"replication_factor": 3, "data_parts_only": False}},
             )
-        with pytest.raises(YtError):
+        with raises_yt_error("Attributes \"media\" and \"replication_factor\" have contradicting values for medium \"ssd\""):
             set(
                 "//tmp/dir4/@media",
                 {
@@ -3234,9 +3236,9 @@ class TestCypress(YTEnvSetup):
                 "ssd": {"replication_factor": 4, "data_parts_only": False},
             },
         )
-        with pytest.raises(YtError):
+        with raises_yt_error("Attributes \"media\" and \"replication_factor\" have contradicting values for medium \"default\""):
             set("//tmp/dir5/@primary_medium", "default")
-        with pytest.raises(YtError):
+        with raises_yt_error("Attributes \"media\" and \"replication_factor\" have contradicting values for medium \"ssd\""):
             set("//tmp/dir5/@primary_medium", "ssd")
         set(
             "//tmp/dir5/@media",
@@ -3254,7 +3256,7 @@ class TestCypress(YTEnvSetup):
         create("map_node", "//tmp/dir2")
         create("map_node", "//tmp/dir3")
 
-        with pytest.raises(YtError):
+        with raises_yt_error("No such tablet cell bundle"):
             set("//tmp/dir1/@tablet_cell_bundle", "non_existent")
 
         create_tablet_cell_bundle("b1")
@@ -3275,9 +3277,9 @@ class TestCypress(YTEnvSetup):
 
         assert get("//tmp/dir3_copy/@tablet_cell_bundle", tx=tx) == "b1"
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Operation cannot be performed in transaction"):
             set("//tmp/dir3_copy/@tablet_cell_bundle", "b2", tx=tx)
-        with pytest.raises(YtError):
+        with raises_yt_error("Operation cannot be performed in transaction"):
             remove("//tmp/dir3_copy/@tablet_cell_bundle", tx=tx)
 
         set("//tmp/dir1/@tablet_cell_bundle", "b2")
@@ -3354,9 +3356,9 @@ class TestCypress(YTEnvSetup):
     @authors("savrus")
     @not_implemented_in_sequoia
     def test_create_invalid_type(self):
-        with pytest.raises(YtError):
+        with raises_yt_error("Error parsing EObjectType value"):
             create("some_invalid_type", "//tmp/s")
-        with pytest.raises(YtError):
+        with raises_yt_error("cannot be created explicitly"):
             create("sorted_dynamic_tablet_store", "//tmp/s")
 
     @authors("shakurov")
@@ -3514,7 +3516,7 @@ class TestCypress(YTEnvSetup):
         create("map_node", "//tmp/test_node")
         create("table", "//tmp/test_node/child", tx=tx1)
         remove("//tmp/test_node/child", tx=tx2)
-        with pytest.raises(YtError):
+        with raises_yt_error("has no child with key"):
             remove("//tmp/test_node/child", tx=tx3)
         assert not exists("//tmp/test_node/child", tx=tx3)
 
@@ -3645,9 +3647,9 @@ class TestCypress(YTEnvSetup):
         create("map_node", "//tmp/test_node")
         assert get("//tmp/test_node/@annotation") == yson.YsonEntity()
         assert get("//tmp/test_node/@annotation_path") == yson.YsonEntity()
-        with pytest.raises(YtError):
+        with raises_yt_error("Annotation is too long"):
             set("//tmp/test_node/@annotation", "a" * 1025)
-        with pytest.raises(YtError):
+        with raises_yt_error("Only ASCII alphanumeric, white-space and punctuation characters are allowed in annotations"):
             set("//tmp/test_node/@annotation", chr(255))
         set("//tmp/test_node/@annotation", printable)
 
@@ -3760,9 +3762,9 @@ class TestCypress(YTEnvSetup):
         set("//tmp/t1/@acl", acl)
 
         access_denied = 'Access denied for user "u": "administer" permission for node //tmp/test is not allowed'
-        with pytest.raises(YtError, match=access_denied):
+        with raises_yt_error(access_denied):
             copy("//tmp/t1", "//tmp/test/t2", preserve_acl=True, authenticated_user="u")
-        with pytest.raises(YtError, match=access_denied):
+        with raises_yt_error(access_denied):
             move("//tmp/t1", "//tmp/test/t2", preserve_acl=True, authenticated_user="u")
 
         # COMPAT(koloshmet)
@@ -3795,9 +3797,9 @@ class TestCypress(YTEnvSetup):
     def test_lock_existing_errors(self):
         create("table", "//tmp/x")
         create("table", "//tmp/x1")
-        with pytest.raises(YtError):
+        with raises_yt_error("Cannot specify \"lock_existing\" without \"ignore_existing\""):
             create("map_node", "//tmp/x", lock_existing=True)
-        with pytest.raises(YtError):
+        with raises_yt_error("already exists"):
             move("//tmp/x", "//tmp/x1", ignore_existing=True, lock_existing=True)
 
     @authors("babenko")
@@ -3807,11 +3809,11 @@ class TestCypress(YTEnvSetup):
         create("table", "//tmp/m/t1")
         copy("//tmp/m&/t1", "//tmp/t2", force=True)
         copy("//tmp/m/t1&", "//tmp/t2", force=True)
-        with pytest.raises(YtError):
+        with raises_yt_error("has unexpected suffix"):
             copy("//tmp/m//t1", "//tmp/t2", force=True)
-        with pytest.raises(YtError):
+        with raises_yt_error("has unexpected suffix"):
             copy("//tmp/m/t1/", "//tmp/t2", force=True)
-        with pytest.raises(YtError):
+        with raises_yt_error("has unexpected suffix"):
             copy("//tmp/m/t1/@attr", "//tmp/t2", force=True)
 
     @authors("gritukan")
@@ -3897,7 +3899,7 @@ class TestCypress(YTEnvSetup):
         multiset_attributes("//tmp/doc/@", {"a": 1}, authenticated_user="u1")
         assert get("//tmp/doc/@a") == 1
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Access denied for user"):
             multiset_attributes("//tmp/doc/@", {"a": 2}, authenticated_user="u2")
         assert get("//tmp/doc/@a") == 1
 
@@ -3919,7 +3921,7 @@ class TestCypress(YTEnvSetup):
         tx3 = start_transaction()
         tx4 = start_transaction()
         multiset_attributes("//tmp/@", {"a": 3}, tx=tx3)
-        with pytest.raises(YtError):
+        with raises_yt_error("since this attribute is locked by concurrent transaction"):
             multiset_attributes("//tmp/@", {"a": 4}, tx=tx4)
         commit_transaction(tx3)
         assert get("//tmp/@a") == 3
@@ -3930,11 +3932,11 @@ class TestCypress(YTEnvSetup):
     @not_implemented_in_sequoia
     def test_deprecated_compression_codec(self):
         create("table", "//tmp/t1")
-        with pytest.raises(YtError):
+        with raises_yt_error("is forbidden, use \"zlib_6\" instead"):
             set("//tmp/t1/@compression_codec", "gzip_normal")
         remove("//tmp/t1")
 
-        with pytest.raises(YtError):
+        with raises_yt_error("is forbidden, use \"zlib_6\" instead"):
             create("table", "//tmp/t1", attributes={"compression_codec": "gzip_normal"})
 
         set("//sys/@config/chunk_manager/deprecated_codec_ids", [])
@@ -3953,11 +3955,11 @@ class TestCypress(YTEnvSetup):
     @not_implemented_in_sequoia
     def test_forbidden_compression_codec(self):
         create("table", "//tmp/t1")
-        with pytest.raises(YtError):
+        with raises_yt_error("is forbidden, use \"zlib_6\" instead"):
             set("//tmp/t1/@compression_codec", "gzip_normal")
         remove("//tmp/t1")
 
-        with pytest.raises(YtError):
+        with raises_yt_error("is forbidden, use \"zlib_6\" instead"):
             create("table", "//tmp/t1", attributes={"compression_codec": "gzip_normal"})
 
         set("//sys/@config/chunk_manager/forbidden_compression_codec_ids", [])
@@ -3979,15 +3981,15 @@ class TestCypress(YTEnvSetup):
 
         set("//sys/@config/chunk_manager/forbidden_erasure_codecs", [1])  # forbid reed_solomon_6_3
         create("table", "//tmp/t1")
-        with pytest.raises(YtError):
+        with raises_yt_error("Erasure codec \"reed_solomon_6_3\" is forbidden"):
             set("//tmp/t1/@erasure_codec", "reed_solomon_6_3")
         set("//tmp/t1/@erasure_codec", "reed_solomon_3_3")
         remove("//tmp/t1")
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Erasure codec \"reed_solomon_6_3\" is forbidden"):
             create("table", "//tmp/t1", attributes={"erasure_codec": "reed_solomon_6_3"})
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Erasure codec \"reed_solomon_6_3\" is forbidden"):
             create("map_node", "//tmp/ec2", attributes={"erasure_codec": "reed_solomon_6_3"})
 
         create("table", "//tmp/t1", attributes={"erasure_codec": "reed_solomon_3_3"})
@@ -4012,18 +4014,18 @@ class TestCypress(YTEnvSetup):
     @not_implemented_in_sequoia
     def test_abc(self, create_object, object_map):
         create_object("sample")
-        with pytest.raises(YtError):
+        with raises_yt_error("Missing required parameter /slug"):
             set("{}/sample/@abc".format(object_map), {"id": 42})
         set("{}/sample/@abc".format(object_map), {"id": 42, "slug": "text"})
-        with pytest.raises(YtError):
+        with raises_yt_error("Missing required parameter /id"):
             remove("{}/sample/@abc/id".format(object_map))
-        with pytest.raises(YtError):
+        with raises_yt_error("Missing required parameter /slug"):
             remove("{}/sample/@abc/slug".format(object_map))
-        with pytest.raises(YtError):
+        with raises_yt_error("Validation failed at /id"):
             set("{}/sample/@abc/id".format(object_map), -1)
-        with pytest.raises(YtError):
+        with raises_yt_error("Validation failed at /id"):
             set("{}/sample/@abc/id".format(object_map), 0)
-        with pytest.raises(YtError):
+        with raises_yt_error("Validation failed at /name"):
             set("{}/sample/@abc/name".format(object_map), "")
         set("{}/sample/@abc/name".format(object_map), "abacaba")
         remove("{}/sample/@abc/name".format(object_map))
@@ -4048,10 +4050,10 @@ class TestCypress(YTEnvSetup):
     @not_implemented_in_sequoia
     def test_folder_id(self, create_object, object_map):
         create_object("sample")
-        with pytest.raises(YtError):
+        with raises_yt_error("is too long"):
             set("{}/sample/@folder_id".format(object_map), "abacaba" * 42)
         set("{}/sample/@folder_id".format(object_map), "b7189bb3-fcf3-46da-accf-52be0d4148f0")
-        with pytest.raises(YtError):
+        with raises_yt_error("Cannot parse \"string\"; expected \"string_value\", actual \"int64_value\""):
             set("{}/sample/@folder_id".format(object_map), 0)
 
     @authors("cookiedoth")
@@ -4084,7 +4086,7 @@ class TestCypress(YTEnvSetup):
     @not_implemented_in_sequoia
     def test_force(self):
         create("map_node", "//tmp/a")
-        with pytest.raises(YtError):
+        with raises_yt_error("\"set\" command without \"force\" flag is forbidden; use \"create\" instead"):
             set("//tmp/a", {"x": "y"})
         set("//tmp/a", {"x": "y"}, force=True)
 
@@ -4142,7 +4144,7 @@ class TestCypress(YTEnvSetup):
     @authors("kivedernikov")
     def test_touch_time_without_expiration_timeout(self):
         create("table", "//tmp/t")
-        with pytest.raises(YtError):
+        with raises_yt_error("Attribute \"touch_time\" is not found"):
             get("//tmp/t/@touch_time")
 
     @authors("kivedernikov")
@@ -4552,7 +4554,7 @@ class TestCypressForbidSet(YTEnvSetup):
     @authors("shakurov")
     def test_map(self):
         create("map_node", "//tmp/d")
-        with pytest.raises(YtError):
+        with raises_yt_error("\"set\" command without \"force\" flag is forbidden; use \"create\" instead"):
             set("//tmp/d", {})
 
     @authors("shakurov")
@@ -4664,7 +4666,7 @@ class TestCypressApiVersion4(YTEnvSetup):
         lock_result = self._execute("lock", path="//tmp/a", transaction_id=tx)
         assert "lock_id" in lock_result and "node_id" in lock_result
         assert len(get("//tmp/a/@locks")) == 1
-        with pytest.raises(YtError):
+        with raises_yt_error("lock is taken by concurrent transaction"):
             self._execute("set", path="//tmp/a", input=b'{"a"=2}', force=True)
         self._execute("unlock", path="//tmp/a", transaction_id=tx)
         assert len(get("//tmp/a/@locks")) == 0
@@ -4863,7 +4865,7 @@ class TestAccessControlObjects(YTEnvSetup):
     @authors("shakurov")
     def test_access_control_object_creation(self):
         # Namespace is required.
-        with pytest.raises(YtError):
+        with raises_yt_error("Attribute \"namespace\" is not found"):
             execute_command("create", {
                 "type": "access_control_object",
                 "attributes": {
@@ -4871,7 +4873,7 @@ class TestAccessControlObjects(YTEnvSetup):
                 }
             })
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Access control object namespace \"bears\" not found"):
             create_access_control_object("garfield", "bears")
 
         create_access_control_object_namespace("cats")
@@ -4888,7 +4890,7 @@ class TestAccessControlObjects(YTEnvSetup):
 
         # @namespace is read-only.
         create_access_control_object_namespace("dogs")
-        with pytest.raises(YtError):
+        with raises_yt_error("Builtin attribute \"namespace\" cannot be set"):
             set("//sys/access_control_object_namespaces/cats/garfield/@namespace", "dogs")
 
         create_access_control_object("tom", "cats")
@@ -4956,7 +4958,7 @@ class TestAccessControlObjects(YTEnvSetup):
         assert check_permission("rat", "read", "//sys/access_control_object_namespaces/animal_shelters/dogs_house")["action"] == "allow"
 
         assert not get("//sys/access_control_object_namespaces/animal_shelters/dogs_house/principal/@inherit_acl")
-        with pytest.raises(YtError):
+        with raises_yt_error("Builtin attribute \"inherit_acl\" cannot be set"):
             set("//sys/access_control_object_namespaces/animal_shelters/dogs_house/principal/@inherit_acl", True)
 
         # Principal ACL inherits nothing, so this should still be denied.

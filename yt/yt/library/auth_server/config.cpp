@@ -346,6 +346,36 @@ void TCypressCookieManagerConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TYCIAMTokenAuthenticatorConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("retrying_client",  &TThis::RetryingClient)
+        .DefaultNew();
+    registrar.Parameter("http_client",  &TThis::HttpClient)
+        .DefaultNew();
+
+    registrar.Parameter("host", &TThis::Host)
+        .NonEmpty();
+    registrar.Parameter("port", &TThis::Port)
+        .Default(80);
+    registrar.Parameter("secure", &TThis::Secure)
+        .Default(false);
+
+    registrar.Parameter("check_user_exists", &TThis::CheckUserExists)
+        .Default(true);
+    registrar.Parameter("create_user_if_not_exists", &TThis::CreateUserIfNotExists)
+        .Default(true);
+
+    registrar.Parameter("retry_all_server_errors", &TThis::RetryAllServerErrors)
+        .Default(true);
+    registrar.Parameter("retry_status_codes", &TThis::RetryStatusCodes)
+        .Default();
+
+    registrar.Parameter("authenticate_login_field", &TThis::AuthenticateLoginField)
+        .Default("subject");
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TString TAuthenticationManagerConfig::GetCsrfSecret() const
 {
     if (BlackboxCookieAuthenticator &&
@@ -394,6 +424,8 @@ void TAuthenticationManagerConfig::Register(TRegistrar registrar)
     registrar.Parameter("oauth_token_authenticator", &TThis::OAuthTokenAuthenticator)
         .Optional();
     registrar.Parameter("oauth_service", &TThis::OAuthService)
+        .Optional();
+    registrar.Parameter("yc_iam_token_authenticator", &TThis::YCIAMTokenAuthenticator)
         .Optional();
     registrar.Parameter("cypress_user_manager", &TThis::CypressUserManager)
         .Optional();

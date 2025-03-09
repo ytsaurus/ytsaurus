@@ -154,7 +154,7 @@ private:
     CSN getCSNImpl(const TIDHash & tid_hash, const std::atomic<CSN> * failback_with_strict_load_csn = nullptr) const;
 
     const ContextPtr global_context;
-    Poco::Logger * const log;
+    LoggerPtr const log;
 
     /// The newest snapshot available for reading
     std::atomic<CSN> latest_snapshot;
@@ -192,7 +192,7 @@ private:
     /// The oldest CSN such that we store in log entries with TransactionIDs containing this CSN.
     std::atomic<CSN> tail_ptr = Tx::UnknownCSN;
 
-    zkutil::EventPtr log_updated_event = std::make_shared<Poco::Event>();
+    zkutil::EventPtr log_updated_event = std::make_shared<DBPoco::Event>();
 
     std::atomic_bool stop_flag = false;
     ThreadFromGlobalPool updating_thread;

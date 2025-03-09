@@ -605,7 +605,7 @@ public:
 
             auto nameTable = TNameTable::FromKeyColumns(keyColumns);
             nameTable->SetEnableColumnNameValidation();
-            if (tableSchema->Columns().empty()) {
+            if (tableSchema->IsEmpty()) {
                 tableSchema = TTableSchema::FromSortColumns(sortColumns);
             }
 

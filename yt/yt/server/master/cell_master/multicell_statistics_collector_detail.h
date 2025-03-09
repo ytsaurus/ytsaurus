@@ -14,6 +14,14 @@ using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+namespace NDetail {
+
+void LogGetLocalCellUpdateError(const TError& error);
+
+} // namespace NDetail
+
+////////////////////////////////////////////////////////////////////////////////
+
 template <CMulticellStatisticsValue... TMulticellStatisticsValues>
 class TMulticellStatisticsCollectorCommon
     : public IMulticellStatisticsCollector

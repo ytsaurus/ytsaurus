@@ -36,6 +36,7 @@ class TReplicatedTableNodeTypeHandler;
 
 DECLARE_REFCOUNTED_STRUCT(ITableManager)
 
+DECLARE_REFCOUNTED_CLASS(TCompactTableSchema)
 DECLARE_REFCOUNTED_CLASS(TVirtualStaticTable)
 DECLARE_REFCOUNTED_STRUCT(TTableManagerConfig)
 DECLARE_REFCOUNTED_STRUCT(TDynamicTableManagerConfig)

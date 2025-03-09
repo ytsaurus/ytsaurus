@@ -391,6 +391,9 @@ void TJobProxyInternalConfig::Register(TRegistrar registrar)
     registrar.Parameter("adaptive_row_count_upper_bound", &TThis::AdaptiveRowCountUpperBound)
         .Default(std::numeric_limits<i64>::max());
 
+    registrar.Parameter("start_queue_consumer_registration_manager", &TThis::StartQueueConsumerRegistrationManager)
+        .Default(true);
+
     registrar.Preprocessor([] (TThis* config) {
         config->SolomonExporter->EnableSelfProfiling = false;
         config->SolomonExporter->WindowSize = 1;

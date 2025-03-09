@@ -124,6 +124,11 @@ public:
 
         const auto& alertManager = Bootstrap_->GetAlertManager();
         alertManager->RegisterAlertSource(BIND_NO_PROPAGATE(&TMulticellManager::GetAlerts, MakeWeak(this)));
+
+        LocalMasterIssuedLeaseIds_.insert({Bootstrap_->GetPrimaryCellTag(), {}});
+        for (auto cellTag : Bootstrap_->GetSecondaryCellTags()) {
+            LocalMasterIssuedLeaseIds_.insert({cellTag, {}});
+        }
     }
 
     bool IsPrimaryMaster() const override
@@ -313,6 +318,14 @@ public:
 
         auto it = MasterCellRolesMap_.find(cellTag);
         return it == MasterCellRolesMap_.end() ? EMasterCellRoles::None : it->second;
+    }
+
+    THashSet<TTransactionId>& GetLocalMasterIssuedLeaseIds(TCellTag cellTag) override
+    {
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
+        YT_VERIFY(HasHydraContext());
+
+        return GetOrCrash(LocalMasterIssuedLeaseIds_, cellTag);
     }
 
     TCellTagList GetRoleMasterCells(EMasterCellRole cellRole) const override
@@ -537,9 +550,11 @@ private:
     TCellTagList RegisteredMasterCellTags_;
     EPrimaryRegisterState RegisterState_ = EPrimaryRegisterState::None;
     // NB: After registration on primary, the current cell doesn't add itself into RegisteredMasterMap_,
-    // so after loading from snapshot it will consider itself as "in process of dynamic propogation" even if it was already propagated or statically known,
+    // so after loading from snapshot it will consider itself as "in process of dynamic propagation" even if it was already propagated or statically known,
     // to differ that cases this flag is used.
     bool EverRegistered_ = false;
+
+    THashMap<TCellTag, THashSet<TTransactionId>> LocalMasterIssuedLeaseIds_;
 
     NProto::TCellStatistics LocalCellStatistics_;
     NProto::TCellStatistics ClusterCellStatisics_;
@@ -714,6 +729,9 @@ private:
         ClusterCellStatisics_ = {};
         DynamicallyPropagated_.store(false);
         EverRegistered_ = false;
+        for (auto& [_, leaseIds] : LocalMasterIssuedLeaseIds_) {
+            leaseIds.clear();
+        }
     }
 
     void LoadValues(TLoadContext& context)
@@ -727,10 +745,16 @@ private:
             Load(context, LocalCellStatistics_);
             Load(context, ClusterCellStatisics_);
         }
+        // COMPAT(cherepashka)
         if (context.GetVersion() >= EMasterReign::DynamicMasterCellReconfigurationOnNodes) {
             Load(context, EverRegistered_);
         } else {
             EverRegistered_ = IsSecondaryMaster();
+        }
+
+        // COMPAT(cherepashka)
+        if (context.GetVersion() >= EMasterReign::PrerequisiteTransactionsInSequoia) {
+            Load(context, LocalMasterIssuedLeaseIds_);
         }
     }
 
@@ -741,6 +765,7 @@ private:
         Save(context, RegisteredMasterMap_);
         Save(context, RegisterState_);
         Save(context, EverRegistered_);
+        Save(context, LocalMasterIssuedLeaseIds_);
     }
 
     void OnRecoveryComplete() override

@@ -22,7 +22,9 @@
 #include <Columns/ColumnString.h>
 #include <Columns/ColumnTuple.h>
 #include <Columns/ColumnVector.h>
+#include <Columns/ColumnMap.h>
 #include <Columns/IColumn.h>
+#include <Columns/ColumnStringHelpers.h>
 #include <Common/formatIPv6.h>
 #include <Core/Types.h>
 #include <DataTypes/DataTypeArray.h>
@@ -42,7 +44,6 @@
 #include <DataTypes/DataTypeTuple.h>
 #include <DataTypes/IDataType.h>
 #include <Functions/FunctionHelpers.h>
-#include <Functions/FunctionsConversion.h>
 
 #include <library/cpp/iterator/functools.h>
 
@@ -813,14 +814,18 @@ public:
 
     void InitColumn(const DB::IColumn* column) override
     {
-        DB::ColumnsWithTypeAndName args{
-            DB::ColumnWithTypeAndName(column->getPtr(), DataType_, ""),
-        };
+        static DB::FormatSettings formatSettings;
 
-        StringColumn_ = DB::ConvertImplGenericToString<DB::ColumnString>::execute(
-            args,
-            std::make_shared<DB::DataTypeString>(),
-            column->size());
+        StringColumn_ = DB::ColumnString::create();
+        const auto serialization = DataType_->getDefaultSerialization();
+
+        DB::ColumnStringHelpers::WriteHelper writeHelper(*StringColumn_, column->size());
+        auto& writeBuffer = writeHelper.getWriteBuffer();
+        for (size_t index = 0; index < column->size(); ++index) {
+            serialization->serializeText(*column, index, writeBuffer, formatSettings);
+            writeHelper.rowWritten();
+        }
+        writeHelper.finalize();
 
         UnderlyingConverter_->InitColumn(StringColumn_.get());
     }
@@ -844,7 +849,7 @@ private:
     const DB::DataTypePtr DataType_;
     const IConverterPtr UnderlyingConverter_;
 
-    DB::ColumnPtr StringColumn_;
+    DB::ColumnString::MutablePtr StringColumn_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

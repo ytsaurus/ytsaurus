@@ -65,7 +65,7 @@ std::vector<TString> ExtractPathsFromSubquery(
 
     // See getSubqueryContext in Interpreters/InterpreterSelectQuery.cpp.
     auto subqueryContext = DB::Context::createCopy(context);
-    DB::Settings subquerySettings = context->getSettings();
+    DB::Settings subquerySettings = context->getSettingsCopy();
     subquerySettings.max_result_rows = 0;
     subquerySettings.max_result_bytes = 0;
     subquerySettings.extremes = false;

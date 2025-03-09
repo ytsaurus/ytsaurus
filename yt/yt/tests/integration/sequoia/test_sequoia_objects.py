@@ -12,7 +12,7 @@ from yt_sequoia_helpers import (
 from yt.sequoia_tools import DESCRIPTORS
 
 from yt_commands import (
-    authors, create, get, remove, get_singular_chunk_id, write_table, read_table, wait,
+    authors, commit_transaction, create, get, raises_yt_error, remove, get_singular_chunk_id, write_table, read_table, wait,
     exists, create_domestic_medium, ls, set, get_account_disk_space_limit, set_account_disk_space_limit,
     link, build_master_snapshots, start_transaction, abort_transaction, get_active_primary_master_leader_address,
     sync_mount_table, sync_unmount_table, sync_compact_table)
@@ -594,3 +594,89 @@ class TestSequoiaQueues(YTEnvSetup):
             return lookup_rows_in_ground(DESCRIPTORS.path_to_node_id.get_default_path(), [{"path": mangle_sequoia_path(path)}])
 
         assert len(get_row('//tmp/m2')) == 0
+
+
+class TestSequoiaPrerequisites(YTEnvSetup):
+    USE_SEQUOIA = True
+    ENABLE_TMP_ROOTSTOCK = True
+    NUM_CYPRESS_PROXIES = 1
+    NUM_SECONDARY_MASTER_CELLS = 2
+
+    ENABLE_CYPRESS_TRANSACTIONS_IN_SEQUOIA = True
+    DRIVER_BACKEND = "rpc"
+    ENABLE_RPC_PROXY = True
+
+    DELTA_RPC_PROXY_CONFIG = {
+        "cluster_connection": {
+            "transaction_manager": {
+                "use_cypress_transaction_service": True,
+            },
+        },
+    }
+
+    MASTER_CELL_DESCRIPTORS = {
+        "10": {"roles": ["sequoia_node_host"]},
+        "11": {"roles": ["sequoia_node_host", "chunk_host", "transaction_coordinator"]},
+        "12": {"roles": ["sequoia_node_host", "chunk_host", "transaction_coordinator"]},
+    }
+
+    DELTA_CYPRESS_PROXY_DYNAMIC_CONFIG = {
+        "object_service": {
+            "allow_bypass_master_resolve": True,
+        },
+    }
+
+    DELTA_DYNAMIC_MASTER_CONFIG = {
+        "transaction_manager": {
+            "enable_prerequisite_transaction_validation_via_leases": True,
+        },
+    }
+
+    @authors("cherepashka")
+    def test_read_with_prerequisite_transactions_is_forbidden(self):
+        tx = start_transaction()
+
+        with raises_yt_error("Read requests with prerequisites are forbidden"):
+            get("//tmp/@id", prerequisite_transaction_ids=[tx])
+        with raises_yt_error("Read requests with prerequisites are forbidden"):
+            exists("//tmp", prerequisite_transaction_ids=[tx])
+        with raises_yt_error("Read requests with prerequisites are forbidden"):
+            ls("//tmp", prerequisite_transaction_ids=[tx])
+
+        commit_transaction(tx)
+
+    @authors("cherepashka")
+    @pytest.mark.parametrize("finish_tx", [commit_transaction, abort_transaction])
+    def test_write_with_prerequisites(self, finish_tx):
+        tx = start_transaction()
+        create("table", "//tmp/t", prerequisite_transaction_ids=[tx])
+        tx2 = start_transaction(prerequisite_transaction_ids=[tx])
+        commit_transaction(tx2, prerequisite_transaction_ids=[tx])
+
+        finish_tx(tx)
+        assert not exists(f"//sys/transactions/{tx}")
+
+    @authors("cherepashka")
+    def test_commited_prerequisite_tx(self):
+        tx = start_transaction()
+        commit_transaction(tx)
+
+        tx2 = start_transaction()
+
+        with raises_yt_error("No such transaction"):
+            commit_transaction(tx2, prerequisite_transaction_ids=[tx])
+
+        with raises_yt_error(f"Prerequisite check failed: transaction {tx} is missing in Sequoia"):
+            create("table", "//tmp/d", prerequisite_transaction_ids=[tx])
+
+    @authors("cherepashka")
+    @pytest.mark.parametrize("finish_tx", [commit_transaction, abort_transaction])
+    def test_leases_revokation(self, finish_tx):
+        tx = start_transaction()
+        create("table", "//tmp/t1", prerequisite_transaction_ids=[tx], attributes={"external_cell_tag": 11})
+        create("table", "//tmp/t2", prerequisite_transaction_ids=[tx], attributes={"external_cell_tag": 12})
+        finish_tx(tx)
+        with raises_yt_error(f"Prerequisite check failed: transaction {tx} is missing in Sequoia"):
+            create("table", "//tmp/t3", prerequisite_transaction_ids=[tx], attributes={"external_cell_tag": 11})
+        with raises_yt_error(f"Prerequisite check failed: transaction {tx} is missing in Sequoia"):
+            create("table", "//tmp/t3", prerequisite_transaction_ids=[tx], attributes={"external_cell_tag": 12})

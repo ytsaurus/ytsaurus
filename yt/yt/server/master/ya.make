@@ -18,6 +18,7 @@ SRCS(
     cell_master/multi_phase_cell_sync_session.cpp
     cell_master/multicell_manager.cpp
     cell_master/multicell_node_statistics.cpp
+    cell_master/multicell_statistics_collector_detail.cpp
     cell_master/multicell_statistics_collector.cpp
     cell_master/program.cpp
     cell_master/proto/alert_manager.proto
@@ -341,6 +342,7 @@ SRCS(
     sequoia_server/proto/ground_update_queue_manager.proto
 
     table_server/config.cpp
+    table_server/compact_table_schema.cpp
     table_server/cypress_integration.cpp
     table_server/helpers.cpp
     table_server/master_table_schema_proxy.cpp

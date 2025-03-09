@@ -4,28 +4,27 @@
 #include <Common/MultiVersion.h>
 #include <Common/ThreadPool.h>
 
-#include <Poco/Event.h>
+#include <DBPoco/Event.h>
 
 #include <thread>
 #include <functional>
 
 
-namespace Poco { class Logger; namespace Util { class AbstractConfiguration; } }
+namespace DBPoco { class Logger; namespace Util { class AbstractConfiguration; } }
+
+namespace DB
+{
 
 class RegionsHierarchies;
 class RegionsNames;
 class GeoDictionariesLoader;
-
-
-namespace DB
-{
 
 /// Metrica's Dictionaries which can be used in functions.
 
 class EmbeddedDictionaries : WithContext
 {
 private:
-    Poco::Logger * log;
+    LoggerPtr log;
 
     MultiVersion<RegionsHierarchies> regions_hierarchies;
     MultiVersion<RegionsNames> regions_names;
@@ -40,7 +39,7 @@ private:
     mutable std::mutex mutex;
 
     ThreadFromGlobalPool reloading_thread;
-    Poco::Event destroy;
+    DBPoco::Event destroy;
 
 
     void handleException(bool throw_on_error) const;
@@ -55,7 +54,7 @@ private:
     bool reloadImpl(bool throw_on_error, bool force_reload = false);
 
     template <typename Dictionary>
-    using DictionaryReloader = std::function<std::unique_ptr<Dictionary>(const Poco::Util::AbstractConfiguration & config)>;
+    using DictionaryReloader = std::function<std::unique_ptr<Dictionary>(const DBPoco::Util::AbstractConfiguration & config)>;
 
     template <typename Dictionary>
     bool reloadDictionary(

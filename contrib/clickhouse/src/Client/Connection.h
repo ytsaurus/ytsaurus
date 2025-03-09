@@ -1,9 +1,9 @@
 #pragma once
 
+#include <DBPoco/Net/StreamSocket.h>
 
-#include <Poco/Net/StreamSocket.h>
-
-#include "clickhouse_config.h"
+#include <Common/callOnce.h>
+#include <Common/SSHWrapper.h>
 #include <Client/IServerConnection.h>
 #include <Core/Defines.h>
 
@@ -18,8 +18,9 @@
 
 #include <Storages/MergeTree/RequestResponse.h>
 
-#include <atomic>
 #include <optional>
+
+#include "clickhouse_config.h"
 
 namespace DB
 {
@@ -51,6 +52,8 @@ public:
     Connection(const String & host_, UInt16 port_,
         const String & default_database_,
         const String & user_, const String & password_,
+        const SSHKey & ssh_private_key_,
+        const String & jwt_,
         const String & quota_key_,
         const String & cluster_,
         const String & cluster_secret_,
@@ -86,7 +89,7 @@ public:
     const String & getServerDisplayName(const ConnectionTimeouts & timeouts) override;
 
     /// For log and exception messages.
-    const String & getDescription() const override;
+    const String & getDescription(bool with_extra = false) const override; /// NOLINT
     const String & getHost() const;
     UInt16 getPort() const;
     const String & getDefaultDatabase() const;
@@ -147,7 +150,7 @@ public:
     size_t outBytesCount() const { return out ? out->count() : 0; }
     size_t inBytesCount() const { return in ? in->count() : 0; }
 
-    Poco::Net::Socket * getSocket() { return socket.get(); }
+    DBPoco::Net::Socket * getSocket() { return socket.get(); }
 
     /// Each time read from socket blocks and async_callback is set, it will be called. You can poll socket inside it.
     void setAsyncCallback(AsyncCallback async_callback_)
@@ -167,7 +170,11 @@ private:
     String default_database;
     String user;
     String password;
+#if USE_SSH
+    SSHKey ssh_private_key;
+#endif
     String quota_key;
+    String jwt;
 
     /// For inter-server authorization
     String cluster;
@@ -179,14 +186,15 @@ private:
 
     /// Address is resolved during the first connection (or the following reconnects)
     /// Use it only for logging purposes
-    std::optional<Poco::Net::SocketAddress> current_resolved_address;
+    std::optional<DBPoco::Net::SocketAddress> current_resolved_address;
 
     /// For messages in log and in exceptions.
     String description;
+    String full_description;
     void setDescription();
 
     /// Returns resolved address if it was resolved.
-    std::optional<Poco::Net::SocketAddress> getResolvedAddress() const;
+    std::optional<DBPoco::Net::SocketAddress> getResolvedAddress() const;
 
     String client_name;
 
@@ -200,7 +208,7 @@ private:
     String server_timezone;
     String server_display_name;
 
-    std::unique_ptr<Poco::Net::StreamSocket> socket;
+    std::unique_ptr<DBPoco::Net::StreamSocket> socket;
     std::shared_ptr<ReadBufferFromPocoSocket> in;
     std::shared_ptr<WriteBufferFromPocoSocket> out;
     std::optional<UInt64> last_input_packet_type;
@@ -240,16 +248,18 @@ private:
         {
         }
 
-        Poco::Logger * get()
+        LoggerPtr get()
         {
-            if (!log)
-                log = &Poco::Logger::get("Connection (" + parent.getDescription() + ")");
+            callOnce(log_initialized, [&] {
+                log = getLogger("Connection (" + parent.getDescription() + ")");
+            });
 
             return log;
         }
 
     private:
-        std::atomic<Poco::Logger *> log;
+        OnceFlag log_initialized;
+        LoggerPtr log;
         Connection & parent;
     };
 
@@ -259,8 +269,13 @@ private:
 
     void connect(const ConnectionTimeouts & timeouts);
     void sendHello();
+
+#if USE_SSH
+    void performHandshakeForSSHAuth();
+#endif
+
     void sendAddendum();
-    void receiveHello(const Poco::Timespan & handshake_timeout);
+    void receiveHello(const DBPoco::Timespan & handshake_timeout);
 
 #if USE_SSL
     void sendClusterNameAndSalt();
@@ -276,7 +291,7 @@ private:
     std::unique_ptr<Exception> receiveException() const;
     Progress receiveProgress() const;
     ParallelReadRequest receiveParallelReadRequest() const;
-    InitialAllRangesAnnouncement receiveInitialParallelReadAnnounecement() const;
+    InitialAllRangesAnnouncement receiveInitialParallelReadAnnouncement() const;
     ProfileInfo receiveProfileInfo() const;
 
     void initInputBuffers();

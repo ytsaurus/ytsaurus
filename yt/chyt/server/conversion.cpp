@@ -178,27 +178,27 @@ void ToUnversionedValue(const DB::Field& field, TUnversionedValue* value)
     value->Type = ToValueType(field.getType());
     switch (value->Type) {
         case EValueType::Int64: {
-            value->Data.Int64 = field.get<i64>();
+            value->Data.Int64 = field.safeGet<i64>();
             break;
         }
         case EValueType::Uint64: {
-            value->Data.Uint64 = field.get<ui64>();
+            value->Data.Uint64 = field.safeGet<ui64>();
             break;
         }
         case EValueType::Double: {
-            value->Data.Double = field.get<double>();
+            value->Data.Double = field.safeGet<double>();
             break;
         }
         case EValueType::Boolean: {
-            ui64 fieldValue = field.get<ui64>();
+            ui64 fieldValue = field.safeGet<ui64>();
             if (fieldValue > 1) {
-                THROW_ERROR_EXCEPTION("Cannot convert value %v to boolean", field.get<ui64>());
+                THROW_ERROR_EXCEPTION("Cannot convert value %v to boolean", field.safeGet<ui64>());
             }
             value->Data.Boolean = fieldValue;
             break;
         }
         case EValueType::String: {
-            const auto& str = field.get<std::string>();
+            const auto& str = field.safeGet<std::string>();
             value->Data.String = str.data();
             value->Length = str.size();
             break;

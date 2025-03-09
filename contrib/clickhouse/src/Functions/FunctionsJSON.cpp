@@ -1,6 +1,4 @@
 #include <Functions/FunctionsJSON.h>
-#include <Functions/FunctionFactory.h>
-
 
 namespace DB
 {
@@ -26,3 +24,4 @@ REGISTER_FUNCTION(JSON)
 }
 
 }
+

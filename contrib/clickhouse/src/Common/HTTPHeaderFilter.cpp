@@ -1,8 +1,7 @@
 #include <Common/HTTPHeaderFilter.h>
-#include <Common/StringUtils/StringUtils.h>
+#include <Common/StringUtils.h>
 #include <Common/Exception.h>
-
-#include <re2/re2.h>
+#include <Common/re2.h>
 
 namespace DB
 {
@@ -32,7 +31,7 @@ void HTTPHeaderFilter::checkHeaders(const HTTPHeaderEntries & entries) const
     }
 }
 
-void HTTPHeaderFilter::setValuesFromConfig(const Poco::Util::AbstractConfiguration & config)
+void HTTPHeaderFilter::setValuesFromConfig(const DBPoco::Util::AbstractConfiguration & config)
 {
     std::lock_guard guard(mutex);
 

@@ -201,7 +201,7 @@ ConstStoragePtr MultipleAccessStorage::getStorage(const UUID & id) const
     return const_cast<MultipleAccessStorage *>(this)->getStorage(id);
 }
 
-StoragePtr MultipleAccessStorage::findStorageByName(const DB::String & storage_name)
+StoragePtr MultipleAccessStorage::findStorageByName(const String & storage_name)
 {
     auto storages = getStoragesInternal();
     for (const auto & storage : *storages)
@@ -214,13 +214,13 @@ StoragePtr MultipleAccessStorage::findStorageByName(const DB::String & storage_n
 }
 
 
-ConstStoragePtr MultipleAccessStorage::findStorageByName(const DB::String & storage_name) const
+ConstStoragePtr MultipleAccessStorage::findStorageByName(const String & storage_name) const
 {
     return const_cast<MultipleAccessStorage *>(this)->findStorageByName(storage_name);
 }
 
 
-StoragePtr MultipleAccessStorage::getStorageByName(const DB::String & storage_name)
+StoragePtr MultipleAccessStorage::getStorageByName(const String & storage_name)
 {
     auto storage = findStorageByName(storage_name);
     if (storage)
@@ -230,12 +230,12 @@ StoragePtr MultipleAccessStorage::getStorageByName(const DB::String & storage_na
 }
 
 
-ConstStoragePtr MultipleAccessStorage::getStorageByName(const DB::String & storage_name) const
+ConstStoragePtr MultipleAccessStorage::getStorageByName(const String & storage_name) const
 {
     return const_cast<MultipleAccessStorage *>(this)->getStorageByName(storage_name);
 }
 
-StoragePtr MultipleAccessStorage::findExcludingStorage(AccessEntityType type, const DB::String & name, DB::MultipleAccessStorage::StoragePtr exclude) const
+StoragePtr MultipleAccessStorage::findExcludingStorage(AccessEntityType type, const String & name, DB::MultipleAccessStorage::StoragePtr exclude) const
 {
     auto storages = getStoragesInternal();
     for (const auto & storage : *storages)
@@ -260,7 +260,7 @@ void MultipleAccessStorage::moveAccessEntities(const std::vector<UUID> & ids, co
 
     try
     {
-        source_storage->remove(ids);
+        source_storage->remove(ids); // NOLINT
         need_rollback = true;
         destination_storage->insert(to_move, ids);
     }
@@ -353,7 +353,7 @@ void MultipleAccessStorage::reload(ReloadMode reload_mode)
 }
 
 
-bool MultipleAccessStorage::insertImpl(const UUID & id, const AccessEntityPtr & entity, bool replace_if_exists, bool throw_if_exists)
+bool MultipleAccessStorage::insertImpl(const UUID & id, const AccessEntityPtr & entity, bool replace_if_exists, bool throw_if_exists, UUID * conflicting_id)
 {
     std::shared_ptr<IAccessStorage> storage_for_insertion;
 
@@ -376,7 +376,7 @@ bool MultipleAccessStorage::insertImpl(const UUID & id, const AccessEntityPtr & 
             getStorageName());
     }
 
-    if (storage_for_insertion->insert(id, entity, replace_if_exists, throw_if_exists))
+    if (storage_for_insertion->insert(id, entity, replace_if_exists, throw_if_exists, conflicting_id))
     {
         std::lock_guard lock{mutex};
         ids_cache.set(id, storage_for_insertion);
@@ -437,8 +437,8 @@ bool MultipleAccessStorage::updateImpl(const UUID & id, const UpdateFunc & updat
 }
 
 
-std::optional<UUID>
-MultipleAccessStorage::authenticateImpl(const Credentials & credentials, const Poco::Net::IPAddress & address,
+std::optional<AuthResult>
+MultipleAccessStorage::authenticateImpl(const Credentials & credentials, const DBPoco::Net::IPAddress & address,
                                         const ExternalAuthenticators & external_authenticators,
                                         bool throw_if_user_not_exists,
                                         bool allow_no_password, bool allow_plaintext_password) const
@@ -448,14 +448,14 @@ MultipleAccessStorage::authenticateImpl(const Credentials & credentials, const P
     {
         const auto & storage = (*storages)[i];
         bool is_last_storage = (i == storages->size() - 1);
-        auto id = storage->authenticate(credentials, address, external_authenticators,
+        auto auth_result = storage->authenticate(credentials, address, external_authenticators,
                                         (throw_if_user_not_exists && is_last_storage),
                                         allow_no_password, allow_plaintext_password);
-        if (id)
+        if (auth_result)
         {
             std::lock_guard lock{mutex};
-            ids_cache.set(*id, storage);
-            return id;
+            ids_cache.set(auth_result->user_id, storage);
+            return auth_result;
         }
     }
 

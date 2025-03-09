@@ -88,96 +88,96 @@ EOF
 while [[ $# -gt 0 ]]; do
     key="$1"
     case $key in
-        --proxy-port)
+    --proxy-port)
         proxy_port="$2"
         shift 2
         ;;
-        --docker-hostname)
+    --docker-hostname)
         docker_hostname="$2"
         shift 2
         ;;
-        --interface-port)
+    --interface-port)
         interface_port="$2"
         shift 2
         ;;
-        --yt-version)
+    --yt-version)
         yt_version="$2"
         shift 2
         ;;
-        --ui-version)
+    --ui-version)
         ui_version="$2"
         shift 2
         ;;
-        --ui-network)
+    --ui-network)
         ui_network="$2"
         shift 2
         ;;
-        --ui-proxy-internal)
+    --ui-proxy-internal)
         ui_proxy_internal="$2"
         shift 2
         ;;
-        --yt-skip-pull)
+    --yt-skip-pull)
         yt_skip_pull="$2"
         shift 2
         ;;
-        --ui-skip-pull)
+    --ui-skip-pull)
         ui_skip_pull="$2"
         shift 2
         ;;
-        --ui-app-installation)
+    --ui-app-installation)
         app_installation="$2"
         shift 2
         ;;
-        --local-cypress-dir)
+    --local-cypress-dir)
         local_cypress_dir="$2"
         shift 2
         ;;
-        --rpc-proxy-count)
+    --rpc-proxy-count)
         rpc_proxy_count="$2"
         shift 2
         ;;
-        --rpc-proxy-port)
+    --rpc-proxy-port)
         rpc_proxy_port="$2"
         shift 2
         ;;
-        --node-count)
+    --node-count)
         node_count="$2"
         shift 2
         ;;
-        --queue-agent-count)
+    --queue-agent-count)
         queue_agent_count="$2"
         shift 2
         ;;
-        --with-auth)
+    --with-auth)
         with_auth="$2"
         shift 2
         ;;
-        --enable-debug-logging)
+    --enable-debug-logging)
         enable_debug_logging="$2"
         shift 2
         ;;
-        --extra-yt-docker-opts)
+    --extra-yt-docker-opts)
         extra_yt_docker_opts="$2"
         shift 2
         ;;
-        --init-operations-archive)
+    --init-operations-archive)
         init_operations_archive=true
         shift
         ;;
-        --fqdn)
+    --fqdn)
         yt_fqdn="$2"
         shift 2
         ;;
 
-        -h|--help)
+    -h | --help)
         print_usage
         shift
         ;;
-        --stop)
+    --stop)
         docker stop $ui_container_name $yt_container_name
         exit
         ;;
-        *) # unknown option
+    *) # unknown option
         echo "Unknown argument $1"
         print_usage
         ;;
@@ -221,9 +221,21 @@ if [ -z "$(docker network ls | grep $network_name)" ]; then
     docker network create $network_name
 fi
 
+yt_run_params=""
 params=""
 if [ ${enable_debug_logging} == "true" ]; then
     params="--enable-debug-logging"
+    ytBackendTmp=$(readlink -f ~/yt.backend_tmp_$(date +%Y%m%d_%H%M%S))
+    yt_run_params="-v ${ytBackendTmp}:/tmp"
+    (
+        echo
+        echo "    Debug logging is enabled, you can find log-files in:"
+        echo "        $ytBackendTmp"
+        echo
+        echo "    Additionally you may want to watch output of the command bellow:"
+        echo "        docker logs -f yt.backend"
+        echo
+    ) >&2
 fi
 
 if [ ${with_auth} == "true" ]; then
@@ -245,6 +257,7 @@ cluster_container=$(
         --rm \
         $local_cypress_dir \
         $extra_yt_docker_opts \
+        $yt_run_params \
         $yt_image \
         --fqdn "${yt_fqdn:-${docker_hostname}}" \
         --proxy-config "{coordinator={public_fqdn=\"${docker_hostname}:${proxy_port}\"}}" \
@@ -256,7 +269,7 @@ cluster_container=$(
         --native-client-supported \
         --id primary \
         -c '{name=query-tracker}' -c '{name=yql-agent;config={path="/usr/bin";count=1;artifacts_path="/usr/bin"}}' \
-        ${params} \
+        ${params}
 )
 
 if [ "$?" != "0" ]; then
@@ -274,7 +287,7 @@ interface_container=$(
         -e APP_ENV=local \
         -e APP_INSTALLATION=${app_installation} \
         --rm \
-       $ui_image \
+        $ui_image
 )
 if [ "$?" != "0" ]; then
     die "Image $ui_image failed to run. Most likely that was because the port $interface_port is \

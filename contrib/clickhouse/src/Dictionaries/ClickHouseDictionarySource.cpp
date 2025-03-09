@@ -168,8 +168,7 @@ QueryPipeline ClickHouseDictionarySource::createStreamForQuery(const String & qu
 
     if (configuration.is_local)
     {
-        pipeline = executeQuery(query, context_copy, true).pipeline;
-
+        pipeline = executeQuery(query, context_copy, QueryFlags{ .internal = true }).second.pipeline;
         pipeline.convertStructureTo(empty_sample_block.getColumnsWithTypeAndName());
     }
     else
@@ -191,7 +190,7 @@ std::string ClickHouseDictionarySource::doInvalidateQuery(const std::string & re
 
     if (configuration.is_local)
     {
-        return readInvalidateQuery(executeQuery(request, context_copy, true).pipeline);
+        return readInvalidateQuery(executeQuery(request, context_copy, QueryFlags{ .internal = true }).second.pipeline);
     }
     else
     {
@@ -206,7 +205,7 @@ std::string ClickHouseDictionarySource::doInvalidateQuery(const std::string & re
 void registerDictionarySourceClickHouse(DictionarySourceFactory & factory)
 {
     auto create_table_source = [=](const DictionaryStructure & dict_struct,
-                                 const Poco::Util::AbstractConfiguration & config,
+                                 const DBPoco::Util::AbstractConfiguration & config,
                                  const std::string & config_prefix,
                                  Block & sample_block,
                                  ContextPtr global_context,
@@ -223,7 +222,7 @@ void registerDictionarySourceClickHouse(DictionarySourceFactory & factory)
         {
             validateNamedCollection(
                 *named_collection, {}, ValidateKeysMultiset<ExternalDatabaseEqualKeysSet>{
-                    "secure", "host", "hostnmae", "port", "user", "username", "password", "quota_key", "name",
+                    "secure", "host", "hostname", "port", "user", "username", "password", "quota_key", "name",
                     "db", "database", "table","query", "where", "invalidate_query", "update_field", "update_lag"});
 
             const auto secure = named_collection->getOrDefault("secure", false);
@@ -278,7 +277,7 @@ void registerDictionarySourceClickHouse(DictionarySourceFactory & factory)
         {
             /// We should set user info even for the case when the dictionary is loaded in-process (without TCP communication).
             Session session(global_context, ClientInfo::Interface::LOCAL);
-            session.authenticate(configuration->user, configuration->password, Poco::Net::SocketAddress{});
+            session.authenticate(configuration->user, configuration->password, DBPoco::Net::SocketAddress{});
             context = session.makeQueryContext();
         }
         else

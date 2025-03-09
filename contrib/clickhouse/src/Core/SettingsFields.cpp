@@ -1,8 +1,7 @@
 #include <Core/SettingsFields.h>
-
 #include <Core/Field.h>
+#include <Core/AccurateComparison.h>
 #include <Common/getNumberOfPhysicalCPUCores.h>
-#include <Common/FieldVisitorConvertToNumber.h>
 #include <Common/logger_useful.h>
 #include <DataTypes/DataTypeMap.h>
 #include <DataTypes/DataTypeString.h>
@@ -15,6 +14,7 @@
 
 #include <cmath>
 
+
 namespace DB
 {
 namespace ErrorCodes
@@ -22,6 +22,8 @@ namespace ErrorCodes
     extern const int SIZE_OF_FIXED_STRING_DOESNT_MATCH;
     extern const int CANNOT_PARSE_BOOL;
     extern const int CANNOT_PARSE_NUMBER;
+    extern const int CANNOT_CONVERT_TYPE;
+    extern const int BAD_ARGUMENTS;
 }
 
 
@@ -50,9 +52,51 @@ namespace
     T fieldToNumber(const Field & f)
     {
         if (f.getType() == Field::Types::String)
-            return stringToNumber<T>(f.get<const String &>());
+        {
+            return stringToNumber<T>(f.safeGet<const String &>());
+        }
+        else if (f.getType() == Field::Types::UInt64)
+        {
+            T result;
+            if (!accurate::convertNumeric(f.safeGet<UInt64>(), result))
+                throw Exception(ErrorCodes::CANNOT_CONVERT_TYPE, "Field value {} is out of range of {} type", f, demangle(typeid(T).name()));
+            return result;
+        }
+        else if (f.getType() == Field::Types::Int64)
+        {
+            T result;
+            if (!accurate::convertNumeric(f.safeGet<Int64>(), result))
+                throw Exception(ErrorCodes::CANNOT_CONVERT_TYPE, "Field value {} is out of range of {} type", f, demangle(typeid(T).name()));
+            return result;
+        }
+        else if (f.getType() == Field::Types::Bool)
+        {
+            return T(f.safeGet<bool>());
+        }
+        else if (f.getType() == Field::Types::Float64)
+        {
+            Float64 x = f.safeGet<Float64>();
+            if constexpr (std::is_floating_point_v<T>)
+            {
+                return T(x);
+            }
+            else
+            {
+                if (!isFinite(x))
+                {
+                    /// Conversion of infinite values to integer is undefined.
+                    throw Exception(ErrorCodes::CANNOT_CONVERT_TYPE, "Cannot convert infinite value to integer type");
+                }
+                else if (x > Float64(std::numeric_limits<T>::max()) || x < Float64(std::numeric_limits<T>::lowest()))
+                {
+                    throw Exception(ErrorCodes::CANNOT_CONVERT_TYPE, "Cannot convert out of range floating point value to integer type");
+                }
+                else
+                    return T(x);
+            }
+        }
         else
-            return applyVisitor(FieldVisitorConvertToNumber<T>(), f);
+            throw Exception(ErrorCodes::CANNOT_CONVERT_TYPE, "Invalid value {} of the setting, which needs {}", f, demangle(typeid(T).name()));
     }
 
     Map stringToMap(const String & str)
@@ -76,7 +120,7 @@ namespace
         if (f.getType() == Field::Types::String)
         {
             /// Allow to parse Map from string field. For the convenience.
-            const auto & str = f.get<const String &>();
+            const auto & str = f.safeGet<const String &>();
             return stringToMap(str);
         }
 
@@ -174,9 +218,9 @@ namespace
     UInt64 fieldToMaxThreads(const Field & f)
     {
         if (f.getType() == Field::Types::String)
-            return stringToMaxThreads(f.get<const String &>());
+            return stringToMaxThreads(f.safeGet<const String &>());
         else
-            return applyVisitor(FieldVisitorConvertToNumber<UInt64>(), f);
+            return fieldToNumber<UInt64>(f);
     }
 }
 
@@ -222,19 +266,26 @@ UInt64 SettingFieldMaxThreads::getAuto()
 
 namespace
 {
-    Poco::Timespan::TimeDiff float64AsSecondsToTimespan(Float64 d)
+    DBPoco::Timespan::TimeDiff float64AsSecondsToTimespan(Float64 d)
     {
         if (d != 0.0 && !std::isnormal(d))
             throw Exception(
                 ErrorCodes::CANNOT_PARSE_NUMBER, "A setting's value in seconds must be a normal floating point number or zero. Got {}", d);
-        return static_cast<Poco::Timespan::TimeDiff>(d * 1000000);
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wimplicit-const-int-float-conversion"
+        if (d * 1000000 > std::numeric_limits<DBPoco::Timespan::TimeDiff>::max() || d * 1000000 < std::numeric_limits<DBPoco::Timespan::TimeDiff>::min())
+            throw Exception(
+                ErrorCodes::BAD_ARGUMENTS, "Cannot convert seconds to microseconds: the setting's value in seconds is too big: {}", d);
+#pragma clang diagnostic pop
+
+        return static_cast<DBPoco::Timespan::TimeDiff>(d * 1000000);
     }
 
 }
 
 template <>
 SettingFieldSeconds::SettingFieldTimespan(const Field & f)
-    : SettingFieldTimespan(Poco::Timespan{float64AsSecondsToTimespan(fieldToNumber<Float64>(f))})
+    : SettingFieldTimespan(DBPoco::Timespan{float64AsSecondsToTimespan(fieldToNumber<Float64>(f))})
 {
 }
 
@@ -246,7 +297,7 @@ SettingFieldMilliseconds::SettingFieldTimespan(const Field & f) : SettingFieldTi
 template <>
 SettingFieldTimespan<SettingFieldTimespanUnit::Second> & SettingFieldSeconds::operator=(const Field & f)
 {
-    *this = Poco::Timespan{float64AsSecondsToTimespan(fieldToNumber<Float64>(f))};
+    *this = DBPoco::Timespan{float64AsSecondsToTimespan(fieldToNumber<Float64>(f))};
     return *this;
 }
 
@@ -285,7 +336,7 @@ template <>
 void SettingFieldSeconds::parseFromString(const String & str)
 {
     Float64 n = parse<Float64>(str.data(), str.size());
-    *this = Poco::Timespan{static_cast<Poco::Timespan::TimeDiff>(n * microseconds_per_unit)};
+    *this = DBPoco::Timespan{static_cast<DBPoco::Timespan::TimeDiff>(n * microseconds_per_unit)};
 }
 
 template <>
@@ -332,15 +383,6 @@ void SettingFieldString::readBinary(ReadBuffer & in)
     *this = std::move(str);
 }
 
-/// Unbeautiful workaround for clickhouse-keeper standalone build ("-DBUILD_STANDALONE_KEEPER=1").
-/// In this build, we don't build and link library dbms (to which SettingsField.cpp belongs) but
-/// only build SettingsField.cpp. Further dependencies, e.g. DataTypeString and DataTypeMap below,
-/// require building of further files for clickhouse-keeper. To keep dependencies slim, we don't do
-/// that. The linker does not complain only because clickhouse-keeper does not call any of below
-/// functions. A cleaner alternative would be more modular libraries, e.g. one for data types, which
-/// could then be linked by the server and the linker.
-#ifndef CLICKHOUSE_KEEPER_STANDALONE_BUILD
-
 SettingFieldMap::SettingFieldMap(const Field & f) : value(fieldToMap(f)) {}
 
 String SettingFieldMap::toString() const
@@ -379,42 +421,6 @@ void SettingFieldMap::readBinary(ReadBuffer & in)
     DB::readBinary(map, in);
     *this = map;
 }
-
-#else
-
-namespace ErrorCodes
-{
-    extern const int LOGICAL_ERROR;
-}
-
-SettingFieldMap::SettingFieldMap(const Field &) : value(Map()) {}
-String SettingFieldMap::toString() const
-{
-    throw DB::Exception(DB::ErrorCodes::LOGICAL_ERROR, "Setting of type Map not supported");
-}
-
-
-SettingFieldMap & SettingFieldMap::operator =(const Field &)
-{
-    throw DB::Exception(DB::ErrorCodes::LOGICAL_ERROR, "Setting of type Map not supported");
-}
-
-void SettingFieldMap::parseFromString(const String &)
-{
-    throw DB::Exception(DB::ErrorCodes::LOGICAL_ERROR, "Setting of type Map not supported");
-}
-
-void SettingFieldMap::writeBinary(WriteBuffer &) const
-{
-    throw DB::Exception(DB::ErrorCodes::LOGICAL_ERROR, "Setting of type Map not supported");
-}
-
-void SettingFieldMap::readBinary(ReadBuffer &)
-{
-    throw DB::Exception(DB::ErrorCodes::LOGICAL_ERROR, "Setting of type Map not supported");
-}
-
-#endif
 
 namespace
 {
@@ -470,7 +476,7 @@ void SettingFieldURI::readBinary(ReadBuffer & in)
 {
     String str;
     readStringBinary(str, in);
-    *this = Poco::URI{str};
+    *this = DBPoco::URI{str};
 }
 
 
@@ -525,6 +531,42 @@ void SettingFieldCustom::readBinary(ReadBuffer & in)
     String str;
     readStringBinary(str, in);
     parseFromString(str);
+}
+
+SettingFieldNonZeroUInt64::SettingFieldNonZeroUInt64(UInt64 x) : SettingFieldUInt64(x)
+{
+    checkValueNonZero();
+}
+
+SettingFieldNonZeroUInt64::SettingFieldNonZeroUInt64(const DB::Field & f) : SettingFieldUInt64(f)
+{
+    checkValueNonZero();
+}
+
+SettingFieldNonZeroUInt64 & SettingFieldNonZeroUInt64::operator=(UInt64 x)
+{
+    SettingFieldUInt64::operator=(x);
+    checkValueNonZero();
+    return *this;
+}
+
+SettingFieldNonZeroUInt64 & SettingFieldNonZeroUInt64::operator=(const DB::Field & f)
+{
+    SettingFieldUInt64::operator=(f);
+    checkValueNonZero();
+    return *this;
+}
+
+void SettingFieldNonZeroUInt64::parseFromString(const String & str)
+{
+    SettingFieldUInt64::parseFromString(str);
+    checkValueNonZero();
+}
+
+void SettingFieldNonZeroUInt64::checkValueNonZero() const
+{
+    if (value == 0)
+        throw Exception(ErrorCodes::BAD_ARGUMENTS, "A setting's value has to be greater than 0");
 }
 
 }

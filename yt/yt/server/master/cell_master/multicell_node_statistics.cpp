@@ -124,7 +124,7 @@ void TMulticellNodeStatistics::HydraApplyMulticellStatisticsUpdate(NProto::TReqS
         // NB: alerting this cell is not having the 'Cypress node host' role would
         // probably be a bit too fragile.
         YT_LOG_INFO(
-            "Received node multicell statistics but cell doesn't have %v role", EMasterCellRoles::CypressNodeHost);
+            "Received node multicell statistics but cell doesn't have %Qlv role", EMasterCellRoles::CypressNodeHost);
     }
 
     YT_LOG_INFO("Received multicell statistics gossip message (%v)",

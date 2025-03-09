@@ -2,7 +2,7 @@
 #include <Common/TransactionID.h>
 #include <Interpreters/StorageID.h>
 
-namespace Poco
+namespace DBPoco
 {
 class Logger;
 }
@@ -72,7 +72,7 @@ struct VersionMetadata
 
     String toString(bool one_line = true) const;
 
-    Poco::Logger * log;
+    LoggerPtr log;
     VersionMetadata();
 };
 

@@ -77,8 +77,8 @@ namespace {
 
 bool ValidateSchema(const TTableSchema& original, const TTableSchema& query)
 {
-    if (original.GetStrict() != query.GetStrict() ||
-        original.GetUniqueKeys() != query.GetUniqueKeys() ||
+    if (original.IsStrict() != query.IsStrict() ||
+        original.IsUniqueKeys() != query.IsUniqueKeys() ||
         original.GetSchemaModification() != query.GetSchemaModification() ||
         original.DeletedColumns() != query.DeletedColumns())
     {

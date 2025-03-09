@@ -152,7 +152,8 @@ private:
 
     //! Fetches all chunks in |NodeToChunkIndexesToFetch_| via calls to |FetchFromNode|.
     //! Timeouts are retried until they result in success or another error.
-    void PerformFetchingRoundFromNode(NNodeTrackerClient::TNodeId nodeId);
+    TFuture<void> PerformFetchingRoundFromNode(NNodeTrackerClient::TNodeId nodeId);
+    void PerformFetchingRoundStep(TPromise<void> fetchingRoundPromise, NNodeTrackerClient::TNodeId nodeId);
 };
 
 DEFINE_REFCOUNTED_TYPE(IFetcherChunkScraper)

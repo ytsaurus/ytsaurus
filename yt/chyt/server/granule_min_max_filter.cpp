@@ -11,6 +11,7 @@
 
 #include <yt/yt/ytlib/table_client/granule_filter.h>
 
+#include <Interpreters/ExpressionActions.h>
 #include <Storages/MergeTree/KeyCondition.h>
 
 namespace NYT::NClickHouseServer {
@@ -29,11 +30,13 @@ public:
         DB::KeyCondition keyCondition,
         TTableSchemaPtr queryRealColumnsSchema,
         TCompositeSettingsPtr settings,
-        TCallback<void(const TStatisticPath&, i64)> statisticsSampleCallback)
+        TCallback<void(const TStatisticPath&, i64)> statisticsSampleCallback,
+        std::shared_ptr<DB::ActionsDAG> filterActions)
         : KeyCondition_(std::move(keyCondition))
         , QueryRealColumnsSchema_(std::move(queryRealColumnsSchema))
         , ColumnDataTypes_(ToDataTypes(*QueryRealColumnsSchema_, settings))
         , StatisticsSampleCallback_(std::move(statisticsSampleCallback))
+        , FilterActions_(std::move(filterActions))
     { }
 
     bool CanSkip(
@@ -92,6 +95,7 @@ private:
     const TTableSchemaPtr QueryRealColumnsSchema_;
     const DB::DataTypes ColumnDataTypes_;
     const TCallback<void(const TStatisticPath&, i64)> StatisticsSampleCallback_;
+    std::shared_ptr<DB::ActionsDAG> FilterActions_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -104,11 +108,29 @@ IGranuleFilterPtr CreateGranuleMinMaxFilter(
     const std::vector<std::string>& realColumnNames)
 {
     auto filteredSchema = schema->Filter(realColumnNames);
+    std::vector<std::string> columnNames;
+    columnNames.reserve(filteredSchema->GetColumnCount());
+    for (const auto& columnSchema : filteredSchema->Columns()) {
+        columnNames.push_back(columnSchema.Name());
+    }
 
-    auto primaryKeyExpression = std::make_shared<DB::ExpressionActions>(std::make_shared<DB::ActionsDAG>(
+    auto primaryKeyExpression = std::make_shared<DB::ExpressionActions>(DB::ActionsDAG(
         ToNamesAndTypesList(*filteredSchema, compositeSettings)));
 
-    DB::KeyCondition keyCondition(queryInfo, context, realColumnNames, primaryKeyExpression);
+    std::shared_ptr<DB::ActionsDAG> whereFilters = (queryInfo.filter_actions_dag != nullptr) ?
+        std::make_shared<DB::ActionsDAG>(queryInfo.filter_actions_dag->clone())
+        : nullptr;
+    std::shared_ptr<DB::ActionsDAG> prewhereFilters = (queryInfo.prewhere_info != nullptr) ?
+        std::make_shared<DB::ActionsDAG>(queryInfo.prewhere_info->prewhere_actions.clone())
+        : nullptr;
+    std::shared_ptr<DB::ActionsDAG> mergedFilters;
+    if (whereFilters && prewhereFilters) {
+        mergedFilters = std::make_shared<DB::ActionsDAG>(DB::ActionsDAG::merge(std::move(*whereFilters.get()), std::move(*prewhereFilters.get())));
+    } else {
+        mergedFilters = whereFilters ? whereFilters : prewhereFilters;
+    }
+
+    DB::KeyCondition keyCondition(mergedFilters.get(), context, std::move(columnNames), primaryKeyExpression);
 
     auto statisticsSampleCallback = BIND([weakContext = MakeWeak(GetQueryContext(context))] (const TStatisticPath& path, i64 sample) {
         if (auto queryContext = weakContext.Lock()) {
@@ -120,7 +142,8 @@ IGranuleFilterPtr CreateGranuleMinMaxFilter(
         std::move(keyCondition),
         std::move(filteredSchema),
         std::move(compositeSettings),
-        std::move(statisticsSampleCallback));
+        std::move(statisticsSampleCallback),
+        std::move(mergedFilters));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

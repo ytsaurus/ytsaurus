@@ -1,5 +1,5 @@
 #include <yt/yt/tests/cpp/test_base/api_test_base.h>
-#include "yt/yt/tests/cpp/modify_rows_test.h"
+#include <yt/yt/tests/cpp/modify_rows_test.h>
 
 #include <yt/yt/client/api/rowset.h>
 #include <yt/yt/client/api/transaction.h>
@@ -814,7 +814,7 @@ TEST_F(TAlterTableTest, TestUnknownType)
 
         EXPECT_THROW_THAT(
             AlterTable("//tmp/t1", schema),
-            testing::HasSubstr("has no corresponding logical type"));
+            testing::HasSubstr("required fileds are not set"));
     }
 
     {

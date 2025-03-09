@@ -8,6 +8,7 @@
 #include <Common/filesystemHelpers.h>
 #include <Common/quoteString.h>
 #include <Common/atomicRename.h>
+#include <Common/formatReadable.h>
 #include <Disks/IO/createReadBufferFromFileBase.h>
 #include <Disks/loadLocalDiskConfig.h>
 #include <Disks/TemporaryFileOnDisk.h>
@@ -17,7 +18,6 @@
 #include <fcntl.h>
 #include <sys/stat.h>
 
-#include <Disks/DiskFactory.h>
 #include <Disks/IO/WriteBufferFromTemporaryFile.h>
 
 #include <Common/randomSeed.h>
@@ -105,7 +105,7 @@ public:
             if (disk->reserved_bytes < size)
             {
                 disk->reserved_bytes = 0;
-                LOG_ERROR(&Poco::Logger::get("DiskLocal"), "Unbalanced reservations size for disk '{}'.", disk->getName());
+                LOG_ERROR(getLogger("DiskLocal"), "Unbalanced reservations size for disk '{}'.", disk->getName());
             }
             else
             {
@@ -113,7 +113,7 @@ public:
             }
 
             if (disk->reservation_count == 0)
-                LOG_ERROR(&Poco::Logger::get("DiskLocal"), "Unbalanced reservation count for disk '{}'.", disk->getName());
+                LOG_ERROR(getLogger("DiskLocal"), "Unbalanced reservation count for disk '{}'.", disk->getName());
             else
                 --disk->reservation_count;
         }
@@ -151,7 +151,6 @@ public:
         else
             return dir_path / entry->path().filename();
     }
-
 
     String name() const override { return entry->path().filename(); }
 
@@ -224,7 +223,7 @@ static UInt64 getTotalSpaceByName(const String & name, const String & disk_path,
 {
     struct statvfs fs;
     if (name == "default") /// for default disk we get space from path/data/
-        fs = getStatVFS((fs::path(disk_path) / "data/").string());
+        fs = getStatVFS((fs::path(disk_path) / "data" / "").string());
     else
         fs = getStatVFS(disk_path);
     UInt64 total_size = fs.f_blocks * fs.f_frsize;
@@ -248,7 +247,7 @@ std::optional<UInt64> DiskLocal::getAvailableSpace() const
     /// available for superuser only and for system purposes
     struct statvfs fs;
     if (name == "default") /// for default disk we get space from path/data/
-        fs = getStatVFS((fs::path(disk_path) / "data/").string());
+        fs = getStatVFS((fs::path(disk_path) / "data" / "").string());
     else
         fs = getStatVFS(disk_path);
     UInt64 total_size = fs.f_bavail * fs.f_frsize;
@@ -298,7 +297,7 @@ void DiskLocal::createDirectories(const String & path)
 void DiskLocal::clearDirectory(const String & path)
 {
     for (const auto & entry : fs::directory_iterator(fs::path(disk_path) / path))
-        fs::remove(entry.path());
+        (void)fs::remove(entry.path());
 }
 
 void DiskLocal::moveDirectory(const String & from_path, const String & to_path)
@@ -359,26 +358,26 @@ void DiskLocal::removeFile(const String & path)
 {
     auto fs_path = fs::path(disk_path) / path;
     if (0 != unlink(fs_path.c_str()))
-        throwFromErrnoWithPath("Cannot unlink file " + fs_path.string(), fs_path, ErrorCodes::CANNOT_UNLINK);
+        ErrnoException::throwFromPath(ErrorCodes::CANNOT_UNLINK, fs_path, "Cannot unlink file {}", fs_path);
 }
 
 void DiskLocal::removeFileIfExists(const String & path)
 {
     auto fs_path = fs::path(disk_path) / path;
     if (0 != unlink(fs_path.c_str()) && errno != ENOENT)
-        throwFromErrnoWithPath("Cannot unlink file " + fs_path.string(), fs_path, ErrorCodes::CANNOT_UNLINK);
+        ErrnoException::throwFromPath(ErrorCodes::CANNOT_UNLINK, fs_path, "Cannot unlink file {}", fs_path);
 }
 
 void DiskLocal::removeDirectory(const String & path)
 {
     auto fs_path = fs::path(disk_path) / path;
     if (0 != rmdir(fs_path.c_str()))
-        throwFromErrnoWithPath("Cannot rmdir " + fs_path.string(), fs_path, ErrorCodes::CANNOT_RMDIR);
+        ErrnoException::throwFromPath(ErrorCodes::CANNOT_RMDIR, fs_path, "Cannot remove directory {}", fs_path);
 }
 
 void DiskLocal::removeRecursive(const String & path)
 {
-    fs::remove_all(fs::path(disk_path) / path);
+    (void)fs::remove_all(fs::path(disk_path) / path);
 }
 
 void DiskLocal::listFiles(const String & path, std::vector<String> & file_names) const
@@ -388,12 +387,12 @@ void DiskLocal::listFiles(const String & path, std::vector<String> & file_names)
         file_names.emplace_back(entry.path().filename());
 }
 
-void DiskLocal::setLastModified(const String & path, const Poco::Timestamp & timestamp)
+void DiskLocal::setLastModified(const String & path, const DBPoco::Timestamp & timestamp)
 {
     FS::setModificationTime(fs::path(disk_path) / path, timestamp.epochTime());
 }
 
-Poco::Timestamp DiskLocal::getLastModified(const String & path) const
+DBPoco::Timestamp DiskLocal::getLastModified(const String & path) const
 {
     return FS::getModificationTimestamp(fs::path(disk_path) / path);
 }
@@ -412,7 +411,7 @@ void DiskLocal::truncateFile(const String & path, size_t size)
 {
     int res = truncate((fs::path(disk_path) / path).string().data(), size);
     if (-1 == res)
-        throwFromErrnoWithPath("Cannot truncate file " + path, path, ErrorCodes::CANNOT_TRUNCATE_FILE);
+        ErrnoException::throwFromPath(ErrorCodes::CANNOT_TRUNCATE_FILE, path, "Cannot truncate {}", path);
 }
 
 void DiskLocal::createFile(const String & path)
@@ -432,12 +431,19 @@ bool inline isSameDiskType(const IDisk & one, const IDisk & another)
     return typeid(one) == typeid(another);
 }
 
-void DiskLocal::copyDirectoryContent(const String & from_dir, const std::shared_ptr<IDisk> & to_disk, const String & to_dir)
+void DiskLocal::copyDirectoryContent(
+    const String & from_dir,
+    const std::shared_ptr<IDisk> & to_disk,
+    const String & to_dir,
+    const ReadSettings & read_settings,
+    const WriteSettings & write_settings,
+    const std::function<void()> & cancellation_hook)
 {
-    if (isSameDiskType(*this, *to_disk))
+    /// If throttling was configured we cannot use copying directly.
+    if (isSameDiskType(*this, *to_disk) && !read_settings.local_throttler && !write_settings.local_throttler)
         fs::copy(fs::path(disk_path) / from_dir, fs::path(to_disk->getPath()) / to_dir, fs::copy_options::recursive | fs::copy_options::overwrite_existing); /// Use more optimal way.
     else
-        IDisk::copyDirectoryContent(from_dir, to_disk, to_dir);
+        IDisk::copyDirectoryContent(from_dir, to_disk, to_dir, read_settings, write_settings, cancellation_hook);
 }
 
 SyncGuardPtr DiskLocal::getDirectorySyncGuard(const String & path) const
@@ -446,7 +452,7 @@ SyncGuardPtr DiskLocal::getDirectorySyncGuard(const String & path) const
 }
 
 
-void DiskLocal::applyNewSettings(const Poco::Util::AbstractConfiguration & config, ContextPtr context, const String & config_prefix, const DisksMap & disk_map)
+void DiskLocal::applyNewSettings(const DBPoco::Util::AbstractConfiguration & config, ContextPtr context, const String & config_prefix, const DisksMap & disk_map)
 {
     String new_disk_path;
     UInt64 new_keep_free_space_bytes;
@@ -463,18 +469,18 @@ void DiskLocal::applyNewSettings(const Poco::Util::AbstractConfiguration & confi
 }
 
 DiskLocal::DiskLocal(const String & name_, const String & path_, UInt64 keep_free_space_bytes_,
-                     const Poco::Util::AbstractConfiguration & config, const String & config_prefix)
+                     const DBPoco::Util::AbstractConfiguration & config, const String & config_prefix)
     : IDisk(name_, config, config_prefix)
     , disk_path(path_)
     , keep_free_space_bytes(keep_free_space_bytes_)
-    , logger(&Poco::Logger::get("DiskLocal"))
+    , logger(getLogger("DiskLocal"))
     , data_source_description(getLocalDataSourceDescription(disk_path))
 {
 }
 
 DiskLocal::DiskLocal(
     const String & name_, const String & path_, UInt64 keep_free_space_bytes_, ContextPtr context,
-    const Poco::Util::AbstractConfiguration & config, const String & config_prefix)
+    const DBPoco::Util::AbstractConfiguration & config, const String & config_prefix)
     : DiskLocal(name_, path_, keep_free_space_bytes_, config, config_prefix)
 {
     auto local_disk_check_period_ms = config.getUInt("local_disk_check_period_ms", 0);
@@ -486,7 +492,7 @@ DiskLocal::DiskLocal(const String & name_, const String & path_)
     : IDisk(name_)
     , disk_path(path_)
     , keep_free_space_bytes(0)
-    , logger(&Poco::Logger::get("DiskLocal"))
+    , logger(getLogger("DiskLocal"))
     , data_source_description(getLocalDataSourceDescription(disk_path))
 {
 }
@@ -574,7 +580,7 @@ try
         auto disk_ptr = std::static_pointer_cast<DiskLocal>(shared_from_this());
         auto tmp_file = std::make_unique<TemporaryFileOnDisk>(disk_ptr);
         auto buf = std::make_unique<WriteBufferFromTemporaryFile>(std::move(tmp_file));
-        buf->write(data.data, data.PAGE_SIZE_IN_BYTES);
+        buf->write(data.data, DiskWriteCheckData::PAGE_SIZE_IN_BYTES);
         buf->finalize();
         buf->sync();
     }
@@ -702,7 +708,7 @@ struct stat DiskLocal::stat(const String & path) const
     auto full_path = fs::path(disk_path) / path;
     if (::stat(full_path.string().c_str(), &st) == 0)
         return st;
-    DB::throwFromErrnoWithPath("Cannot stat file: " + path, path, DB::ErrorCodes::CANNOT_STAT);
+    DB::ErrnoException::throwFromPath(DB::ErrorCodes::CANNOT_STAT, path, "Cannot stat file: {}", path);
 }
 
 void DiskLocal::chmod(const String & path, mode_t mode)
@@ -710,17 +716,18 @@ void DiskLocal::chmod(const String & path, mode_t mode)
     auto full_path = fs::path(disk_path) / path;
     if (::chmod(full_path.string().c_str(), mode) == 0)
         return;
-    DB::throwFromErrnoWithPath("Cannot chmod file: " + path, path, DB::ErrorCodes::PATH_ACCESS_DENIED);
+    DB::ErrnoException::throwFromPath(DB::ErrorCodes::PATH_ACCESS_DENIED, path, "Cannot chmod file: {}", path);
 }
 
 void registerDiskLocal(DiskFactory & factory, bool global_skip_access_check)
 {
     auto creator = [global_skip_access_check](
         const String & name,
-        const Poco::Util::AbstractConfiguration & config,
+        const DBPoco::Util::AbstractConfiguration & config,
         const String & config_prefix,
         ContextPtr context,
-        const DisksMap & map) -> DiskPtr
+        const DisksMap & map,
+        bool, bool) -> DiskPtr
     {
         String path;
         UInt64 keep_free_space_bytes;

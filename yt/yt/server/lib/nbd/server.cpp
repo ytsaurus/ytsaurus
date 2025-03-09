@@ -42,11 +42,9 @@ class TNbdServer
 public:
     TNbdServer(
         TNbdServerConfigPtr config,
-        NApi::NNative::IConnectionPtr connection,
         IPollerPtr poller,
         IInvokerPtr invoker)
         : Config_(std::move(config))
-        , Connection_(std::move(connection))
         , Poller_(std::move(poller))
         , Invoker_(std::move(invoker))
     {
@@ -65,8 +63,6 @@ public:
     void Start()
     {
         YT_LOG_INFO("Starting NBD server");
-
-        InitializeReaderHosts();
 
         try {
             int maxBacklogSize = 0;
@@ -156,24 +152,9 @@ public:
         return Logger;
     }
 
-    NApi::NNative::IConnectionPtr GetConnection() const override
-    {
-        return Connection_;
-    }
-
     IInvokerPtr GetInvoker() const override
     {
         return Invoker_;
-    }
-
-    TChunkReaderHostPtr GetLayerReaderHost() const override
-    {
-        return LayerReaderHost_;
-    }
-
-    TChunkReaderHostPtr GetFileReaderHost() const override
-    {
-        return FileReaderHost_;
     }
 
     const TNbdServerConfigPtr& GetConfig() const
@@ -188,7 +169,6 @@ private:
         .WithTag("ServerId: %v", TGuid::Create());
 
     const TNbdServerConfigPtr Config_;
-    const NApi::NNative::IConnectionPtr Connection_;
     const IPollerPtr Poller_;
     const IInvokerPtr Invoker_;
 
@@ -196,9 +176,6 @@ private:
 
     mutable YT_DECLARE_SPIN_LOCK(TReaderWriterSpinLock, NameToDeviceLock_);
     THashMap<TString, IBlockDevicePtr> NameToDevice_;
-
-    TChunkReaderHostPtr LayerReaderHost_;
-    TChunkReaderHostPtr FileReaderHost_;
 
     std::vector<std::pair<TString, IBlockDevicePtr>> ListDevices()
     {
@@ -744,47 +721,6 @@ private:
         auto handler = New<TConnectionHandler>(this, connection);
         handler->Run();
     }
-
-    void InitializeReaderHosts()
-    {
-        // TODO(yuryalekseev): user
-        auto clientOptions =  NYT::NApi::TClientOptions::FromUser(NSecurityClient::RootUserName);
-        auto client = Connection_->CreateNativeClient(clientOptions);
-        const auto& connection = client->GetNativeConnection();
-
-        auto blockCacheConfig = New<TBlockCacheConfig>();
-        blockCacheConfig->CompressedData->Capacity = Config_->BlockCacheCompressedDataCapacity;
-
-        auto layerBlockCache = CreateClientBlockCache(
-            blockCacheConfig,
-            NChunkClient::EBlockType::CompressedData,
-            GetNullMemoryUsageTracker());
-        LayerReaderHost_ = New<TChunkReaderHost>(
-            client,
-            /*localDescriptor*/ NNodeTrackerClient::TNodeDescriptor{},
-            std::move(layerBlockCache),
-            connection->GetChunkMetaCache(),
-            /*nodeStatusDirectory*/ nullptr,
-            /*bandwidthThrottler*/ GetUnlimitedThrottler(),
-            /*rpsThrottler*/ GetUnlimitedThrottler(),
-            /*mediumThrottler*/ GetUnlimitedThrottler(),
-            /*trafficMeter*/ nullptr);
-
-        auto fileBlockCache = CreateClientBlockCache(
-            std::move(blockCacheConfig),
-            NChunkClient::EBlockType::CompressedData,
-            GetNullMemoryUsageTracker());
-        FileReaderHost_ = New<TChunkReaderHost>(
-            client,
-            /*localDescriptor*/ NNodeTrackerClient::TNodeDescriptor{},
-            std::move(fileBlockCache),
-            connection->GetChunkMetaCache(),
-            /*nodeStatusDirectory*/ nullptr,
-            /*bandwidthThrottler*/ GetUnlimitedThrottler(),
-            /*rpsThrottler*/ GetUnlimitedThrottler(),
-            /*mediumThrottler*/ GetUnlimitedThrottler(),
-            /*trafficMeter*/ nullptr);
-    }
 };
 
 DEFINE_REFCOUNTED_TYPE(TNbdServer)
@@ -797,13 +733,11 @@ std::atomic<int> TNbdServer::NbdServerCount_;
 
 INbdServerPtr CreateNbdServer(
     TNbdServerConfigPtr config,
-    NApi::NNative::IConnectionPtr connection,
     IPollerPtr poller,
     IInvokerPtr invoker)
 {
     auto server = New<TNbdServer>(
         std::move(config),
-        std::move(connection),
         std::move(poller),
         std::move(invoker));
     server->Start();

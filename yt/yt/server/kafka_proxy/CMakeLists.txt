@@ -40,6 +40,7 @@ target_link_libraries(yt-server-kafka_proxy PUBLIC
   yt-library-program
   yt-library-server_program
   library-cpp-getopt
+  library-cpp-iterator
 )
 
 target_sources(yt-server-kafka_proxy PRIVATE

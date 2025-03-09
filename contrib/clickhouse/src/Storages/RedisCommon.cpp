@@ -65,7 +65,7 @@ RedisConnectionPtr getRedisConnection(RedisPoolPtr pool, const RedisConfiguratio
 {
     RedisClientPtr client;
     bool ok = pool->tryBorrowObject(client,
-        [] { return std::make_unique<Poco::Redis::Client>(); },
+        [] { return std::make_unique<DBPoco::Redis::Client>(); },
         REDIS_LOCK_ACQUIRE_TIMEOUT_MS);
 
     if (!ok)

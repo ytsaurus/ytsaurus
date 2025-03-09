@@ -46,7 +46,7 @@ abstract class TableAttachmentRowsetReader<T> implements TableAttachmentReader<T
         bb.position(endPosition);
     }
 
-    private List<T> parseRowData(ByteBuffer bb, int size) throws Exception {
+    protected List<T> parseRowData(ByteBuffer bb, int size) throws Exception {
         int endPosition = bb.position() + size;
 
         int parts = bb.getInt();

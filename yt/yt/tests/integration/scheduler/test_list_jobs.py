@@ -17,7 +17,7 @@ import yt.yson as yson
 import yt.environment.init_operations_archive as init_operations_archive
 from yt.wrapper.operation_commands import add_failed_operation_stderrs_to_error_message
 from yt.wrapper.common import uuid_hash_pair, YtError
-from yt.common import date_string_to_datetime
+from yt.common import date_string_to_datetime, datetime_to_string, utcnow
 
 import os
 import time
@@ -1061,6 +1061,64 @@ class TestListJobs(TestListJobsBase):
         assert frozenset(job["id"] for job in jobs) == frozenset(new_job_ids)
         assert all([job["operation_incarnation"] == new_incarnation for job in jobs])
 
+    @authors("bystrovserg")
+    def test_from_time_and_to_time_filters(self):
+        def check_filter(expected_job_count, from_time=None, to_time=None):
+            filters = {}
+            if from_time is not None:
+                filters["from_time"] = from_time
+            if to_time is not None:
+                filters["to_time"] = to_time
+            wait(lambda: len(list_jobs(op.id, **filters)["jobs"]) == expected_job_count)
+
+        start_time = datetime_to_string(utcnow())
+        op = vanilla(
+            track=False,
+            spec={
+                "tasks": {
+                    "a": {
+                        "job_count": 1,
+                        "command": with_breakpoint("BREAKPOINT", breakpoint_name="a"),
+                    },
+                    "b": {
+                        "job_count": 1,
+                        "command": with_breakpoint("BREAKPOINT", breakpoint_name="b"),
+                    },
+                },
+            },
+        )
+
+        wait_breakpoint(breakpoint_name="a", job_count=1)
+        wait_breakpoint(breakpoint_name="b", job_count=1)
+
+        # For running jobs to_time filter uses start_time attribute for comparison
+        # so we expect both jobs to be detected
+        middle_time_before_breakpoint = datetime_to_string(utcnow())
+        check_filter(2, from_time=start_time, to_time=middle_time_before_breakpoint)
+
+        release_breakpoint(breakpoint_name="a")
+        wait(lambda: len(list_jobs(op.id, state="completed")["jobs"]) == 1)
+
+        # Now we expect only running job to be detected
+        check_filter(1, from_time=start_time, to_time=middle_time_before_breakpoint)
+
+        middle_time_after_breakpoint = datetime_to_string(utcnow())
+        check_filter(2, from_time=start_time, to_time=middle_time_after_breakpoint)
+
+        release_breakpoint(breakpoint_name="b")
+
+        op.track()
+        end_time = datetime_to_string(utcnow())
+
+        check_filter(2, from_time=start_time, to_time=end_time)
+        check_filter(1, from_time=start_time, to_time=middle_time_after_breakpoint)
+
+        check_filter(2, from_time=start_time)
+        check_filter(0, from_time=end_time)
+
+        check_filter(0, to_time=start_time)
+        check_filter(1, to_time=middle_time_after_breakpoint)
+        check_filter(2, to_time=end_time)
 
 ##################################################################
 

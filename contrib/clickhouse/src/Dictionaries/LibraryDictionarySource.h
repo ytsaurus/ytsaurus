@@ -9,7 +9,7 @@
 #include <Interpreters/Context_fwd.h>
 
 
-namespace Poco
+namespace DBPoco
 {
 class Logger;
 
@@ -35,7 +35,7 @@ class LibraryDictionarySource final : public IDictionarySource
 public:
     LibraryDictionarySource(
         const DictionaryStructure & dict_struct_,
-        const Poco::Util::AbstractConfiguration & config,
+        const DBPoco::Util::AbstractConfiguration & config,
         const std::string & config_prefix_,
         Block & sample_block_,
         ContextPtr context_,
@@ -71,11 +71,11 @@ public:
 private:
     String getDictAttributesString();
 
-    static String getLibrarySettingsString(const Poco::Util::AbstractConfiguration & config, const std::string & config_root);
+    static String getLibrarySettingsString(const DBPoco::Util::AbstractConfiguration & config, const std::string & config_root);
 
     static Field getDictID() { return UUIDHelpers::generateV4(); }
 
-    Poco::Logger * log;
+    LoggerPtr log;
 
     const DictionaryStructure dict_struct;
     const std::string config_prefix;

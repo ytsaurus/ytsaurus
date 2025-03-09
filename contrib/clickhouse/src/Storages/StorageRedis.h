@@ -1,6 +1,6 @@
 #pragma once
 
-#include <Poco/Redis/Redis.h>
+#include <DBPoco/Redis/Redis.h>
 #include <Storages/IStorage.h>
 #include <Storages/RedisCommon.h>
 #include <Interpreters/IKeyValueEntity.h>
@@ -74,7 +74,7 @@ private:
     StorageID table_id;
     RedisConfiguration configuration;
 
-    Poco::Logger * log;
+    LoggerPtr log;
     RedisPoolPtr pool;
 
     const String primary_key;

@@ -1,5 +1,5 @@
 #include <Common/KnownObjectNames.h>
-#include <Poco/String.h>
+#include <DBPoco/String.h>
 
 
 namespace DB
@@ -13,7 +13,7 @@ bool KnownObjectNames::exists(const String & name) const
 
     if (!case_insensitive_names.empty())
     {
-        String lower_name = Poco::toLower(name);
+        String lower_name = DBPoco::toLower(name);
         if (case_insensitive_names.contains(lower_name))
             return true;
     }
@@ -26,7 +26,7 @@ void KnownObjectNames::add(const String & name, bool case_insensitive)
 {
     std::lock_guard lock{mutex};
     if (case_insensitive)
-        case_insensitive_names.emplace(Poco::toLower(name));
+        case_insensitive_names.emplace(DBPoco::toLower(name));
     else
         names.emplace(name);
 }

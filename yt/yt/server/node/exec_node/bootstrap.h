@@ -61,6 +61,10 @@ struct IBootstrap
 
     virtual NYT::NNbd::INbdServerPtr GetNbdServer() const = 0;
 
+    virtual NChunkClient::TChunkReaderHostPtr GetLayerReaderHost() const = 0;
+
+    virtual NChunkClient::TChunkReaderHostPtr GetFileReaderHost() const = 0;
+
     virtual const IJobProxyLogManagerPtr& GetJobProxyLogManager() const = 0;
 
     virtual IThrottlerManagerPtr GetThrottlerManager() const = 0;

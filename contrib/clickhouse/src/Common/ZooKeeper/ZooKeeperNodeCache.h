@@ -5,7 +5,7 @@
 #include <mutex>
 #include <memory>
 #include <optional>
-#include <Poco/Event.h>
+#include <DBPoco/Event.h>
 #include "ZooKeeper.h"
 #include "Common.h"
 

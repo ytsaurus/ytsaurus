@@ -1130,8 +1130,8 @@ public:
         RegisterHandler(CreateUserMapTypeHandler(Bootstrap_));
         RegisterHandler(CreateGroupMapTypeHandler(Bootstrap_));
         RegisterHandler(CreateNetworkProjectMapTypeHandler(Bootstrap_));
-        RegisterHandler(CreateProxyRoleMapTypeHandler(Bootstrap_, EProxyKind::Http));
-        RegisterHandler(CreateProxyRoleMapTypeHandler(Bootstrap_, EProxyKind::Rpc));
+        RegisterHandler(CreateProxyRoleMapTypeHandler(Bootstrap_, NApi::EProxyKind::Http));
+        RegisterHandler(CreateProxyRoleMapTypeHandler(Bootstrap_, NApi::EProxyKind::Rpc));
         RegisterHandler(CreatePoolTreeMapTypeHandler(Bootstrap_));
         RegisterHandler(CreateCellNodeTypeHandler(Bootstrap_));
         RegisterHandler(CreateCellBundleMapTypeHandler(Bootstrap_, ECellarType::Chaos));

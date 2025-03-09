@@ -23,6 +23,7 @@ struct User : public IAccessEntity
     SettingsProfileElements settings;
     RolesOrUsersSet grantees = RolesOrUsersSet::AllTag{};
     String default_database;
+    time_t valid_until = 0;
 
     bool equal(const IAccessEntity & other) const override;
     std::shared_ptr<IAccessEntity> clone() const override { return cloneImpl<User>(); }
@@ -31,7 +32,7 @@ struct User : public IAccessEntity
     void setName(const String & name_) override;
 
     std::vector<UUID> findDependencies() const override;
-    void replaceDependencies(const std::unordered_map<UUID, UUID> & old_to_new_ids) override;
+    void doReplaceDependencies(const std::unordered_map<UUID, UUID> & old_to_new_ids) override;
     bool isBackupAllowed() const override { return settings.isBackupAllowed(); }
 };
 

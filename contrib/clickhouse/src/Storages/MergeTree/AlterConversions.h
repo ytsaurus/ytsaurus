@@ -8,7 +8,6 @@
 namespace DB
 {
 
-
 /// Alter conversions which should be applied on-fly for part.
 /// Built from of the most recent mutation commands for part.
 /// Now only ALTER RENAME COLUMN is applied.
@@ -34,6 +33,8 @@ public:
     bool isColumnRenamed(const std::string & new_name) const;
     /// Get column old name before rename (lookup by key in rename_map)
     std::string getColumnOldName(const std::string & new_name) const;
+
+    static bool supportsMutationCommandType(MutationCommand::Type);
 
 private:
     /// Rename map new_name -> old_name.

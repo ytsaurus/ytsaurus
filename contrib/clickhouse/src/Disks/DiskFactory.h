@@ -5,7 +5,7 @@
 #include <base/types.h>
 
 #include <boost/noncopyable.hpp>
-#include <Poco/Util/AbstractConfiguration.h>
+#include <DBPoco/Util/AbstractConfiguration.h>
 
 #include <functional>
 #include <map>
@@ -24,10 +24,12 @@ class DiskFactory final : private boost::noncopyable
 public:
     using Creator = std::function<DiskPtr(
         const String & name,
-        const Poco::Util::AbstractConfiguration & config,
+        const DBPoco::Util::AbstractConfiguration & config,
         const String & config_prefix,
         ContextPtr context,
-        const DisksMap & map)>;
+        const DisksMap & map,
+        bool attach,
+        bool custom_disk)>;
 
     static DiskFactory & instance();
 
@@ -35,10 +37,13 @@ public:
 
     DiskPtr create(
         const String & name,
-        const Poco::Util::AbstractConfiguration & config,
+        const DBPoco::Util::AbstractConfiguration & config,
         const String & config_prefix,
         ContextPtr context,
-        const DisksMap & map) const;
+        const DisksMap & map,
+        bool attach = false,
+        bool custom_disk = false,
+        const std::unordered_set<String> & skip_types = {}) const;
 
 private:
     using DiskTypeRegistry = std::unordered_map<String, Creator>;

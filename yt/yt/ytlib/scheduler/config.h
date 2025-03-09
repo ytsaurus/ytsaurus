@@ -1417,6 +1417,8 @@ public:
     bool EnableRpcProxyInJobProxy;
     int RpcProxyWorkerThreadPoolSize;
 
+    bool StartQueueConsumerRegistrationManager;
+
     bool FailOnJobRestart;
 
     THashSet<EExtraEnvironment> ExtraEnvironment;
@@ -1742,6 +1744,7 @@ class TSortedOperationSpec
 public:
     bool UseNewSortedPool;
     NTableClient::TSortColumns MergeBy;
+    std::optional<i64> MinManiacDataWeight;
 
     REGISTER_YSON_STRUCT(TSortedOperationSpec);
 

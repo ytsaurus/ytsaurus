@@ -467,6 +467,8 @@ struct TJobProxyInternalConfig
     //! Apply the quota to the entire RootFs instead of the sandbox and tmp folders individually.
     bool EnableRootVolumeDiskQuota;
 
+    bool StartQueueConsumerRegistrationManager;
+
     REGISTER_YSON_STRUCT(TJobProxyInternalConfig);
 
     static void Register(TRegistrar registrar);

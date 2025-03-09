@@ -3033,6 +3033,8 @@ void BuildTableSettingsOrchidYson(const TTableSettings& options, NYTree::TFluent
             .Value(options.HunkReaderConfig);
 }
 
+////////////////////////////////////////////////////////////////////////////////
+
 IThroughputThrottlerPtr GetBlobMediumWriteThrottler(
     const NClusterNode::TClusterNodeDynamicConfigManagerPtr& dynamicConfigManager,
     const TTabletSnapshotPtr& tabletSnapshot)
@@ -3055,6 +3057,22 @@ IThroughputThrottlerPtr GetBlobMediumReadThrottler(
     }
 
     return tabletSnapshot->DistributedThrottlers[ETabletDistributedThrottlerKind::BlobMediumRead];
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+bool IsInUnmountWorkflow(ETabletState state)
+{
+    return
+        state >= ETabletState::UnmountFirst &&
+        state <= ETabletState::UnmountLast;
+}
+
+bool IsInFreezeWorkflow(ETabletState state)
+{
+    return
+        state >= ETabletState::FreezeFirst &&
+        state <= ETabletState::FreezeLast;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

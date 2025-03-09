@@ -126,6 +126,7 @@ TFuture<ISequoiaTransactionPtr> StartSequoiaTransaction(
     ESequoiaTransactionType type,
     NApi::NNative::IClientPtr nativeRootClient,
     NApi::NNative::IClientPtr groundRootClient,
+    const std::vector<NObjectClient::TTransactionId>& cypressPrerequisiteTransactionIds,
     const NApi::TTransactionStartOptions& options,
     const TSequoiaTransactionSequencingOptions& sequencingOptions);
 

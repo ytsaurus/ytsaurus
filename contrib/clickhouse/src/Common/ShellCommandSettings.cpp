@@ -1,7 +1,7 @@
 #include <Common/ShellCommandSettings.h>
 
 #include <magic_enum.hpp>
-#include <Poco/String.h>
+#include <DBPoco/String.h>
 #include <Common/Exception.h>
 
 namespace DB
@@ -14,7 +14,7 @@ namespace ErrorCodes
 
 ExternalCommandStderrReaction parseExternalCommandStderrReaction(const std::string & config)
 {
-    auto reaction = magic_enum::enum_cast<ExternalCommandStderrReaction>(Poco::toUpper(config));
+    auto reaction = magic_enum::enum_cast<ExternalCommandStderrReaction>(DBPoco::toUpper(config));
     if (!reaction)
         throw Exception(
             ErrorCodes::BAD_ARGUMENTS,

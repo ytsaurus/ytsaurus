@@ -419,8 +419,8 @@ private:
             },
             TRspApiKey{
                 .ApiKey = static_cast<int>(ERequestType::Fetch),
-                .MinVersion = 0,
-                .MaxVersion = 0,
+                .MinVersion = 2,
+                .MaxVersion = 2,
             },
             TRspApiKey{
                 .ApiKey = static_cast<int>(ERequestType::FindCoordinator),
@@ -928,7 +928,6 @@ private:
             for (const auto& partition : topic.Partitions) {
                 auto& topicPartitionResponse = topicResponse.Partitions.emplace_back();
                 topicPartitionResponse.PartitionIndex = partition.Partition;
-                topicPartitionResponse.HighWatermark = 0;  // TODO(nadya73): fill it with normal data.
 
                 auto rowsetOrError = WaitFor(client->PullQueue(
                     topic.Topic,
@@ -941,27 +940,26 @@ private:
                 } else {
                     auto rowset = rowsetOrError.Value();
 
-                    YT_LOG_DEBUG("Rows were fetched (Topic: %v, PartitionIndex: %v, Count: %v)",
+                    auto offset = rowset->GetStartOffset();
+                    auto records = ConvertQueueRowsToRecords(rowset);
+
+                    topicPartitionResponse.HighWatermark = offset + records.size();
+
+                    YT_LOG_DEBUG("Rows were fetched (Topic: %v, PartitionIndex: %v, Count: %v, RecordCount: %v, Offset: %v)",
                         topic.Topic,
                         partition.Partition,
-                        rowset->GetRows().size());
+                        rowset->GetRows().size(),
+                        records.size(),
+                        offset);
 
-                    auto messages = ConvertQueueRowsToMessages(rowset);
+                    if (records.size() > 0) {
+                        topicPartitionResponse.RecordBatches = std::vector<TRecordBatch>(1);
+                        auto& recordBatch = (*topicPartitionResponse.RecordBatches)[0];
 
-                    if (messages.size() > 0) {
-                        topicPartitionResponse.Records = std::vector<TRecord>{};
-                        topicPartitionResponse.Records->reserve(messages.size());
-
-                        auto offset = rowsetOrError.Value()->GetStartOffset();
-
-                        for (auto& message : messages) {
-                            topicPartitionResponse.Records->push_back(TRecord{
-                                .FirstOffset = offset,
-                                .MagicByte = 1,
-                                .Messages = {std::move(message)},
-                            });
-                            ++offset;
-                        }
+                        recordBatch.BaseOffset = offset;
+                        recordBatch.MagicByte = 2;
+                        recordBatch.LastOffsetDelta = records.size();
+                        recordBatch.Records = {std::move(records)};
                     }
                 }
             }
@@ -1014,13 +1012,14 @@ private:
 
             for (const auto& partition : topic.PartitionData) {
                 std::vector<NKafka::NRecords::TKafkaMessagePartial> messages;
-                messages.reserve(partition.Records.size());
-                for (const auto& record : partition.Records) {
-                    for (const auto& message : record.Messages) {
+                messages.reserve(partition.RecordBatches.size());
+
+                for (const auto& recordBatch : partition.RecordBatches) {
+                    for (const auto& record : recordBatch.Records) {
                         messages.push_back(NKafka::NRecords::TKafkaMessagePartial{
                             .TabletIndex = partition.Index,
-                            .MessageKey = message.Key,
-                            .MessageValue = message.Value,
+                            .MessageKey = record.Key,
+                            .MessageValue = record.Value,
                         });
                     }
                 }

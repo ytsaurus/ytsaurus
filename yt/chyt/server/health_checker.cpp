@@ -41,12 +41,12 @@ DB::ContextMutablePtr PrepareContextForQuery(
 {
     session->authenticate(dataBaseUser,
         /*password*/ "",
-        Poco::Net::SocketAddress());
+        DBPoco::Net::SocketAddress());
 
     auto contextForQuery = session->makeQueryContext();
 
-    auto settings = contextForQuery->getSettings();
-    settings.max_execution_time = Poco::Timespan(timeout.Seconds(), timeout.MicroSecondsOfSecond());
+    auto settings = contextForQuery->getSettingsCopy();
+    settings.max_execution_time = DBPoco::Timespan(timeout.Seconds(), timeout.MicroSecondsOfSecond());
     contextForQuery->setSettings(settings);
 
     auto queryId = TQueryId::Create();
@@ -84,7 +84,7 @@ void THealthChecker::ExecuteQuery(const TString& query)
 {
     auto session = std::make_shared<DB::Session>(getContext(), DB::ClientInfo::Interface::TCP);
     auto context = NDetail::PrepareContextForQuery(session, DatabaseUser_, Config_->Timeout, Host_);
-    auto blockIO = DB::executeQuery(query, context, true /*internal*/);
+    auto blockIO = DB::executeQuery(query, context, {.internal=true}).second;
     NDetail::ValidateQueryResult(blockIO);
 }
 

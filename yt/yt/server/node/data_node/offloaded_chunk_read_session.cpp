@@ -93,11 +93,11 @@ public:
 
         // NB: TableSchema is assumed to be fetched upon calling LookupSession.
         YT_VERIFY(TableSchema_);
-        if (!TableSchema_->GetUniqueKeys()) {
+        if (!TableSchema_->IsUniqueKeys()) {
             THROW_ERROR_EXCEPTION("Table schema for chunk %v must have unique keys", ChunkId_)
                 << TErrorAttribute("read_session_id", readSessionId);
         }
-        if (!TableSchema_->GetStrict()) {
+        if (!TableSchema_->IsStrict()) {
             THROW_ERROR_EXCEPTION("Table schema for chunk %v must be strict", ChunkId_)
                 << TErrorAttribute("read_session_id", readSessionId);
         }

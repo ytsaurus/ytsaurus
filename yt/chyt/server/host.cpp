@@ -53,7 +53,7 @@
 
 #include <Common/DateLUT.h>
 #include <Common/Exception.h>
-#include <Common/StringUtils/StringUtils.h>
+#include <Common/StringUtils.h>
 #include <Interpreters/ProcessList.h>
 #include <IO/HTTPCommon.h>
 

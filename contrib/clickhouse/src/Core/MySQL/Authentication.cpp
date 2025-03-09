@@ -1,7 +1,7 @@
 #include <Core/MySQL/Authentication.h>
 #include <Core/MySQL/PacketsConnection.h>
-#include <Poco/RandomStream.h>
-#include <Poco/SHA1Engine.h>
+#include <DBPoco/RandomStream.h>
+#include <DBPoco/SHA1Engine.h>
 #include <Interpreters/Session.h>
 #include <Access/Credentials.h>
 
@@ -9,6 +9,11 @@
 #include <Common/OpenSSLHelpers.h>
 
 #include <base/scope_guard.h>
+#include <base/defines.h>
+#include <string_view>
+
+
+using namespace std::literals;
 
 namespace DB
 {
@@ -38,7 +43,7 @@ static String generateScramble()
 {
     String scramble;
     scramble.resize(SCRAMBLE_LENGTH + 1, 0);
-    Poco::RandomInputStream generator;
+    DBPoco::RandomInputStream generator;
 
     for (size_t i = 0; i < SCRAMBLE_LENGTH; ++i)
     {
@@ -57,18 +62,18 @@ Native41::Native41(const String & password_, const String & scramble_)
 {
     /// https://dev.mysql.com/doc/internals/en/secure-password-authentication.html
     /// SHA1( password ) XOR SHA1( "20-bytes random data from server" <concat> SHA1( SHA1( password ) ) )
-    Poco::SHA1Engine engine1;
+    DBPoco::SHA1Engine engine1;
     engine1.update(password_);
-    const Poco::SHA1Engine::Digest & password_sha1 = engine1.digest();
+    const DBPoco::SHA1Engine::Digest & password_sha1 = engine1.digest();
 
-    Poco::SHA1Engine engine2;
+    DBPoco::SHA1Engine engine2;
     engine2.update(password_sha1.data(), password_sha1.size());
-    const Poco::SHA1Engine::Digest & password_double_sha1 = engine2.digest();
+    const DBPoco::SHA1Engine::Digest & password_double_sha1 = engine2.digest();
 
-    Poco::SHA1Engine engine3;
+    DBPoco::SHA1Engine engine3;
     engine3.update(scramble_.data(), scramble_.size());
     engine3.update(password_double_sha1.data(), password_double_sha1.size());
-    const Poco::SHA1Engine::Digest & digest = engine3.digest();
+    const DBPoco::SHA1Engine::Digest & digest = engine3.digest();
 
     scramble.resize(SCRAMBLE_LENGTH);
     for (size_t i = 0; i < SCRAMBLE_LENGTH; ++i)
@@ -77,7 +82,7 @@ Native41::Native41(const String & password_, const String & scramble_)
 
 void Native41::authenticate(
     const String & user_name, Session & session, std::optional<String> auth_response,
-    std::shared_ptr<PacketEndpoint> packet_endpoint, bool, const Poco::Net::SocketAddress & address)
+    std::shared_ptr<PacketEndpoint> packet_endpoint, bool, const DBPoco::Net::SocketAddress & address)
 {
     if (!auth_response)
     {
@@ -93,16 +98,16 @@ void Native41::authenticate(
         return;
     }
 
-    if (auth_response->size() != Poco::SHA1Engine::DIGEST_SIZE)
+    if (auth_response->size() != DBPoco::SHA1Engine::DIGEST_SIZE)
         throw Exception(ErrorCodes::UNKNOWN_EXCEPTION, "Wrong size of auth response. Expected: {} bytes, received: {} bytes.",
-            std::to_string(Poco::SHA1Engine::DIGEST_SIZE), std::to_string(auth_response->size()));
+            std::to_string(DBPoco::SHA1Engine::DIGEST_SIZE), std::to_string(auth_response->size()));
 
     session.authenticate(MySQLNative41Credentials{user_name, scramble, *auth_response}, address);
 }
 
 #if USE_SSL
 
-Sha256Password::Sha256Password(RSA & public_key_, RSA & private_key_, Poco::Logger * log_)
+Sha256Password::Sha256Password(RSA & public_key_, RSA & private_key_, LoggerPtr log_)
     : public_key(public_key_), private_key(private_key_), log(log_)
 {
     /** Native authentication sent 20 bytes + '\0' character = 21 bytes.
@@ -114,7 +119,7 @@ Sha256Password::Sha256Password(RSA & public_key_, RSA & private_key_, Poco::Logg
 
 void Sha256Password::authenticate(
     const String & user_name, Session & session, std::optional<String> auth_response,
-    std::shared_ptr<PacketEndpoint> packet_endpoint, bool is_secure_connection, const Poco::Net::SocketAddress & address)
+    std::shared_ptr<PacketEndpoint> packet_endpoint, bool is_secure_connection, const DBPoco::Net::SocketAddress & address)
 {
     if (!auth_response)
     {
@@ -179,11 +184,7 @@ void Sha256Password::authenticate(
         const auto * ciphertext = reinterpret_cast<const unsigned char *>(unpack_auth_response.data());
 
         unsigned char plaintext[RSA_size(&private_key)];
-#if USE_BORINGSSL
-        int plaintext_size = RSA_private_decrypt(unpack_auth_response.size(), ciphertext, plaintext, &private_key, RSA_PKCS1_OAEP_PADDING);
-#else
         int plaintext_size = RSA_private_decrypt(static_cast<int>(unpack_auth_response.size()), ciphertext, plaintext, &private_key, RSA_PKCS1_OAEP_PADDING);
-#endif
         if (plaintext_size == -1)
         {
             if (!sent_public_key)

@@ -6,6 +6,7 @@
 
 #error #include <pqxx/pqxx>
 #include <Core/Types.h>
+#include <Common/Logger.h>
 #include <boost/noncopyable.hpp>
 
 /** Methods to work with PostgreSQL connection object.
@@ -13,7 +14,7 @@
  * is long-lived and there are no concurrent connection queries.
  */
 
-namespace Poco { class Logger; }
+namespace DBPoco { class Logger; }
 
 namespace pqxx
 {
@@ -61,7 +62,7 @@ private:
     bool replication;
     size_t num_tries;
 
-    Poco::Logger * log;
+    LoggerPtr log;
 };
 
 using ConnectionPtr = std::unique_ptr<Connection>;

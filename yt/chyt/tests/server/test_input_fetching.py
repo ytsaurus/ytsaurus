@@ -24,7 +24,7 @@ import pytest
 
 
 class TestInputFetching(ClickHouseTestBase):
-    NUM_TEST_PARTITIONS = 4
+    NUM_TEST_PARTITIONS = 6
 
     @authors("max42", "evgenstf")
     @pytest.mark.parametrize("where_prewhere", ["where", "prewhere"])
@@ -60,7 +60,8 @@ class TestInputFetching(ClickHouseTestBase):
             )
 
     @authors("max42")
-    def test_computed_column_chunk_filter(self):
+    @pytest.mark.parametrize("enable_computed_column_deduction", [False, True])
+    def test_computed_column_chunk_filter(self, enable_computed_column_deduction):
         # See also: computed_columns_ut.cpp.
 
         create(
@@ -68,7 +69,7 @@ class TestInputFetching(ClickHouseTestBase):
             "//tmp/t",
             attributes={
                 "schema": [
-                    {"name": "c", "type": "int64", "sort_order": "ascending", "expression": "i *  2"},
+                    {"name": "c", "type": "int64", "sort_order": "ascending", "expression": "i * 2"},
                     {"name": "i", "type": "int64", "sort_order": "ascending"},
                 ]
             },
@@ -76,42 +77,41 @@ class TestInputFetching(ClickHouseTestBase):
         for i in range(5):
             write_table("<append=%true>//tmp/t", [{"i": 2 * i}, {"i": 2 * i + 1}])
 
-        for enable_computed_column_deduction in (False, True):
-            with Clique(
-                    1,
-                    config_patch={
-                        "yt": {"settings": {"enable_computed_column_deduction": enable_computed_column_deduction,
-                                            "execution": {"enable_min_max_filtering": False}}},
-                        "clickhouse": {"settings": {"optimize_move_to_prewhere": 0}},
-                    },
-            ) as clique:
-                def correct_row_count(row_count):
-                    return row_count if enable_computed_column_deduction else 10
+        with Clique(
+                1,
+                config_patch={
+                    "yt": {"settings": {"enable_computed_column_deduction": enable_computed_column_deduction,
+                                        "execution": {"enable_min_max_filtering": False}}},
+                    "clickhouse": {"settings": {"optimize_move_to_prewhere": 0}},
+                },
+        ) as clique:
+            def correct_row_count(row_count):
+                return row_count if enable_computed_column_deduction else 10
 
-                clique.make_query_and_validate_read_row_count(
-                    'select * from "//tmp/t" where i == 3', exact=correct_row_count(2)
-                )
-                clique.make_query_and_validate_read_row_count(
-                    'select * from "//tmp/t" where i == 6 or i == 7', exact=correct_row_count(2)
-                )
-                clique.make_query_and_validate_read_row_count(
-                    'select * from "//tmp/t" where i == 0 or i == 9', exact=correct_row_count(4)
-                )
-                clique.make_query_and_validate_read_row_count(
-                    'select * from "//tmp/t" where i in (-1, 2, 8, 8, 15)', exact=correct_row_count(4)
-                )
-                clique.make_query_and_validate_read_row_count(
-                    'select * from "//tmp/t" where i in tuple(-1, 2, 8, 8, 15)', exact=correct_row_count(4)
-                )
-                clique.make_query_and_validate_read_row_count(
-                    'select * from "//tmp/t" where i in (1)', exact=correct_row_count(2)
-                )
-                clique.make_query_and_validate_read_row_count(
-                    'select * from "//tmp/t" where i in tuple(1)', exact=correct_row_count(2)
-                )
+            clique.make_query_and_validate_read_row_count(
+                'select * from "//tmp/t" where i == 3', exact=correct_row_count(2)
+            )
+            clique.make_query_and_validate_read_row_count(
+                'select * from "//tmp/t" where i == 6 or i == 7', exact=correct_row_count(2)
+            )
+            clique.make_query_and_validate_read_row_count(
+                'select * from "//tmp/t" where i == 0 or i == 9', exact=correct_row_count(4)
+            )
+            clique.make_query_and_validate_read_row_count(
+                'select * from "//tmp/t" where i in (-1, 2, 8, 8, 15)', exact=correct_row_count(4)
+            )
+            clique.make_query_and_validate_read_row_count(
+                'select * from "//tmp/t" where i in tuple(-1, 2, 8, 8, 15)', exact=correct_row_count(4)
+            )
+            clique.make_query_and_validate_read_row_count(
+                'select * from "//tmp/t" where i in (1)', exact=correct_row_count(2)
+            )
+            clique.make_query_and_validate_read_row_count(
+                'select * from "//tmp/t" where i in tuple(1)', exact=correct_row_count(2)
+            )
 
-                # This case should not be optimized.
-                clique.make_query_and_validate_read_row_count('select * from "//tmp/t" where 5 <= i and i <= 8', exact=10)
+            # This case should not be optimized.
+            clique.make_query_and_validate_read_row_count('select * from "//tmp/t" where 5 <= i and i <= 8', exact=10)
 
     @authors("max42")
     def test_dynamic_table_farm_hash(self):
@@ -220,7 +220,9 @@ class TestInputFetching(ClickHouseTestBase):
                 len(
                     clique.make_query_and_validate_read_row_count(
                         "select * from `//tmp/t` where "
-                        "(key, subkey) == ('k1', 'sk1') or (key, subkey) = ('k3', 'sk3')",
+                        # TODO (buyval01): CHYT-1254
+                        # "(key, subkey) == ('k1', 'sk1') or (key, subkey) = ('k3', 'sk3')",
+                        "(key, subkey) in (('k1', 'sk1')) or (key, subkey) in (('k3', 'sk3'))",
                         exact=2,
                     )
                 )
@@ -229,7 +231,9 @@ class TestInputFetching(ClickHouseTestBase):
             assert (
                 len(
                     clique.make_query_and_validate_read_row_count(
-                        "select * from (select * from `//tmp/t` where (key, subkey) == ('k4', 'sk4'))", exact=1
+                        # TODO (buyval01): CHYT-1254
+                        # "select * from (select * from `//tmp/t` where (key, subkey) == ('k4', 'sk4'))", exact=1
+                        "select * from (select * from `//tmp/t` where (key, subkey) in (('k4', 'sk4')))", exact=1
                     )
                 )
                 == 1
@@ -1087,6 +1091,65 @@ class TestInputFetching(ClickHouseTestBase):
             clique.make_query_and_validate_read_row_count(f'select b from "{table_path}" where e is null', exact=1)
             clique.make_query_and_validate_read_row_count(f'select b from "{table_path}" where e is not null', exact=4)
 
+    @authors("buyval01")
+    def test_timestamp_key_filtering(self):
+        create(
+            "table",
+            "//tmp/t-ts",
+            attributes={
+                "schema": [{
+                    "name": "ts",
+                    "type": "timestamp",
+                    "sort_order": "ascending",
+                }]
+            }
+        )
+
+        write_table(
+            "<append=%true>//tmp/t-ts",
+            [
+                {"ts": int(datetime.datetime(2023, 1, 1).timestamp() * 10**6)},
+                {"ts": int(datetime.datetime(2023, 5, 5).timestamp() * 10**6)},
+                {"ts": int(datetime.datetime(2023, 10, 10).timestamp() * 10**6)},
+            ]
+        )
+        write_table(
+            "<append=%true>//tmp/t-ts",
+            [
+                {"ts": int(datetime.datetime(2023, 12, 12).timestamp() * 10**6)},
+                {"ts": int(datetime.datetime(2024, 2, 2).timestamp() * 10**6)},
+            ]
+        )
+        write_table(
+            "<append=%true>//tmp/t-ts",
+            [
+                {"ts": int(datetime.datetime(2024, 5, 5).timestamp() * 10**6)},
+                {"ts": int(datetime.datetime(2024, 10, 10).timestamp() * 10**6)}
+            ]
+        )
+
+        config_patch = {
+            "yt": {
+                "settings": {
+                    "execution": {
+                        "enable_min_max_filtering": False,
+                    }
+                }
+            },
+        }
+        with Clique(1, config_patch=config_patch) as clique:
+            query = "select * from '//tmp/t-ts' where ts > toDateTime('2024-01-01T00:00:00')"
+            # the first chunk must be filtered and not read
+            assert_items_equal(
+                clique.make_query_and_validate_read_row_count(query, exact=4),
+                [
+                    {"ts": "2024-02-02 00:00:00.000000"},
+                    {"ts": "2024-05-05 00:00:00.000000"},
+                    {"ts": "2024-10-10 00:00:00.000000"},
+                ])
+
+
+class TestReadInOrder(ClickHouseTestBase):
     @staticmethod
     def make_query(clique, query, **kwargs):
         kwargs["full_response"] = True
@@ -1107,11 +1170,11 @@ class TestInputFetching(ClickHouseTestBase):
 
     @staticmethod
     def wait_for_query_in_log(log_table, query_id=None, query_ids=tuple()):
-        wait(lambda: len(TestInputFetching.get_log_messages(log_table, query_id=query_id, query_ids=query_ids)) == (1 if query_id is not None else len(query_ids)))
+        wait(lambda: len(TestReadInOrder.get_log_messages(log_table, query_id=query_id, query_ids=query_ids)) == (1 if query_id is not None else len(query_ids)))
 
     @staticmethod
     def get_total_block_rows_read(log_table, query_id):
-        secondary_queries = TestInputFetching.get_log_messages(log_table, query_id=query_id, is_initial_query=0)
+        secondary_queries = TestReadInOrder.get_log_messages(log_table, query_id=query_id, is_initial_query=0)
 
         block_rows = 0
 
@@ -1121,7 +1184,7 @@ class TestInputFetching(ClickHouseTestBase):
                 for secondary_query in secondary_queries
             ])
         else:
-            initial_query = TestInputFetching.get_log_messages(log_table, query_id=query_id, is_initial_query=1)
+            initial_query = TestReadInOrder.get_log_messages(log_table, query_id=query_id, is_initial_query=1)
             block_rows = initial_query["chyt_query_statistics"]["secondary_query_source"]["steps"]["0"]["block_rows"]["sum"]
 
         print_debug(f"Block rows read by query {query_id}: {block_rows}")
@@ -1130,7 +1193,7 @@ class TestInputFetching(ClickHouseTestBase):
     @staticmethod
     def get_read_in_order_modes(log_table, query_ids):
         read_in_order_modes = {}
-        for log_message in TestInputFetching.get_log_messages(log_table, query_ids=query_ids):
+        for log_message in TestReadInOrder.get_log_messages(log_table, query_ids=query_ids):
             assert log_message["is_initial_query"] == 1
             assert log_message["type"] == "QueryFinish"
             read_in_order_modes[log_message["query_id"]] = log_message["chyt_query_runtime_variables"].get("read_in_order_mode", "none")
@@ -1244,15 +1307,15 @@ class TestInputFetching(ClickHouseTestBase):
             settings=query_settings or {})
         if expected_result is not None:
             assert result == expected_result
-        expected_read_in_order_modes[query_id] = expected_read_in_order_mode
+        expected_read_in_order_modes[query_id] = (query, expected_read_in_order_mode)
 
     def _check_read_in_order_modes(self, log_table, expected_read_in_order_modes):
         self.wait_for_query_in_log(log_table, query_ids=tuple(expected_read_in_order_modes.keys()))
         read_in_order_modes = self.get_read_in_order_modes(log_table, query_ids=tuple(expected_read_in_order_modes.keys()))
         print_debug(expected_read_in_order_modes)
         print_debug(read_in_order_modes)
-        for query_id, expected_read_in_order_mode in expected_read_in_order_modes.items():
-            assert read_in_order_modes[query_id] == expected_read_in_order_mode, f"Mode differs from expected for query {query_id}"
+        for query_id, query_and_expected_result in expected_read_in_order_modes.items():
+            assert read_in_order_modes[query_id] == query_and_expected_result[1], f"Mode differs from expected for query {query_and_expected_result[0]}"
 
     @authors("achulkov2")
     def test_optimize_read_in_order_nulls_and_nans(self):
@@ -1507,63 +1570,6 @@ class TestInputFetching(ClickHouseTestBase):
             register_query_check('select message from "//tmp/table-0" order by ts, ts_2, message limit 1', read_in_order_mode="none")
 
             self._check_read_in_order_modes(log_table, expected_read_in_order_modes)
-
-    @authors("buyval01")
-    def test_timestamp_key_filtering(self):
-        create(
-            "table",
-            "//tmp/t-ts",
-            attributes={
-                "schema": [{
-                    "name": "ts",
-                    "type": "timestamp",
-                    "sort_order": "ascending",
-                }]
-            }
-        )
-
-        write_table(
-            "<append=%true>//tmp/t-ts",
-            [
-                {"ts": int(datetime.datetime(2023, 1, 1).timestamp() * 10**6)},
-                {"ts": int(datetime.datetime(2023, 5, 5).timestamp() * 10**6)},
-                {"ts": int(datetime.datetime(2023, 10, 10).timestamp() * 10**6)},
-            ]
-        )
-        write_table(
-            "<append=%true>//tmp/t-ts",
-            [
-                {"ts": int(datetime.datetime(2023, 12, 12).timestamp() * 10**6)},
-                {"ts": int(datetime.datetime(2024, 2, 2).timestamp() * 10**6)},
-            ]
-        )
-        write_table(
-            "<append=%true>//tmp/t-ts",
-            [
-                {"ts": int(datetime.datetime(2024, 5, 5).timestamp() * 10**6)},
-                {"ts": int(datetime.datetime(2024, 10, 10).timestamp() * 10**6)}
-            ]
-        )
-
-        config_patch = {
-            "yt": {
-                "settings": {
-                    "execution": {
-                        "enable_min_max_filtering": False,
-                    }
-                }
-            },
-        }
-        with Clique(1, config_patch=config_patch) as clique:
-            query = "select * from '//tmp/t-ts' where ts > toDateTime('2024-01-01T00:00:00')"
-            # the first chunk must be filtered and not read
-            assert_items_equal(
-                clique.make_query_and_validate_read_row_count(query, exact=4),
-                [
-                    {"ts": "2024-02-02 00:00:00.000000"},
-                    {"ts": "2024-05-05 00:00:00.000000"},
-                    {"ts": "2024-10-10 00:00:00.000000"},
-                ])
 
 
 class TestInputFetchingYPath(ClickHouseTestBase):

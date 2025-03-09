@@ -1,7 +1,8 @@
 #include <Server/HTTP/HTTPServerConnection.h>
 #include <Server/TCPServer.h>
 
-#include <Poco/Net/NetException.h>
+#include <DBPoco/Net/NetException.h>
+#include <Common/logger_useful.h>
 
 namespace DB
 {
@@ -9,18 +10,20 @@ namespace DB
 HTTPServerConnection::HTTPServerConnection(
     HTTPContextPtr context_,
     TCPServer & tcp_server_,
-    const Poco::Net::StreamSocket & socket,
-    Poco::Net::HTTPServerParams::Ptr params_,
-    HTTPRequestHandlerFactoryPtr factory_)
-    : TCPServerConnection(socket), context(std::move(context_)), tcp_server(tcp_server_), params(params_), factory(factory_), stopped(false)
+    const DBPoco::Net::StreamSocket & socket,
+    DBPoco::Net::HTTPServerParams::Ptr params_,
+    HTTPRequestHandlerFactoryPtr factory_,
+    const ProfileEvents::Event & read_event_,
+    const ProfileEvents::Event & write_event_)
+    : TCPServerConnection(socket), context(std::move(context_)), tcp_server(tcp_server_), params(params_), factory(factory_), read_event(read_event_), write_event(write_event_), stopped(false)
 {
-    poco_check_ptr(factory);
+    DB_poco_check_ptr(factory);
 }
 
 void HTTPServerConnection::run()
 {
     std::string server = params->getSoftwareVersion();
-    Poco::Net::HTTPServerSession session(socket(), params);
+    DBPoco::Net::HTTPServerSession session(socket(), params);
 
     while (!stopped && tcp_server.isOpen() && session.hasMoreRequests() && session.connected())
     {
@@ -30,9 +33,9 @@ void HTTPServerConnection::run()
             if (!stopped && tcp_server.isOpen() && session.connected())
             {
                 HTTPServerResponse response(session);
-                HTTPServerRequest request(context, response, session);
+                HTTPServerRequest request(context, response, session, read_event);
 
-                Poco::Timestamp now;
+                DBPoco::Timestamp now;
 
                 if (!forwarded_for.empty())
                     request.set("X-Forwarded-For", forwarded_for);
@@ -55,31 +58,31 @@ void HTTPServerConnection::run()
                 {
                     if (!tcp_server.isOpen())
                     {
-                        sendErrorResponse(session, Poco::Net::HTTPResponse::HTTP_SERVICE_UNAVAILABLE);
+                        sendErrorResponse(session, DBPoco::Net::HTTPResponse::HTTP_SERVICE_UNAVAILABLE);
                         break;
                     }
                     std::unique_ptr<HTTPRequestHandler> handler(factory->createRequestHandler(request));
 
                     if (handler)
                     {
-                        if (request.getExpectContinue() && response.getStatus() == Poco::Net::HTTPResponse::HTTP_OK)
+                        if (request.getExpectContinue() && response.getStatus() == DBPoco::Net::HTTPResponse::HTTP_OK)
                             response.sendContinue();
 
-                        handler->handleRequest(request, response);
+                        handler->handleRequest(request, response, write_event);
                         session.setKeepAlive(params->getKeepAlive() && response.getKeepAlive() && session.canKeepAlive());
                     }
                     else
-                        sendErrorResponse(session, Poco::Net::HTTPResponse::HTTP_NOT_IMPLEMENTED);
+                        sendErrorResponse(session, DBPoco::Net::HTTPResponse::HTTP_NOT_IMPLEMENTED);
                 }
-                catch (Poco::Exception &)
+                catch (DBPoco::Exception &)
                 {
                     if (!response.sent())
                     {
                         try
                         {
-                            sendErrorResponse(session, Poco::Net::HTTPResponse::HTTP_INTERNAL_SERVER_ERROR);
+                            sendErrorResponse(session, DBPoco::Net::HTTPResponse::HTTP_INTERNAL_SERVER_ERROR);
                         }
-                        catch (...)
+                        catch (...) // NOLINT(bugprone-empty-catch)
                         {
                         }
                     }
@@ -87,15 +90,30 @@ void HTTPServerConnection::run()
                 }
             }
         }
-        catch (const Poco::Net::NoMessageException &)
+        catch (const DBPoco::Net::NoMessageException &)
         {
             break;
         }
-        catch (const Poco::Net::MessageException &)
+        catch (const DBPoco::Net::MessageException &)
         {
-            sendErrorResponse(session, Poco::Net::HTTPResponse::HTTP_BAD_REQUEST);
+            sendErrorResponse(session, DBPoco::Net::HTTPResponse::HTTP_BAD_REQUEST);
         }
-        catch (const Poco::Exception &)
+        catch (const DBPoco::Net::NetException & e)
+        {
+            /// Do not spam logs with messages related to connection reset by peer.
+            if (e.code() == DB_POCO_ENOTCONN)
+            {
+                LOG_DEBUG(LogFrequencyLimiter(getLogger("HTTPServerConnection"), 10), "Connection reset by peer while processing HTTP request: {}", e.message());
+                break;
+            }
+
+            if (session.networkException())
+                session.networkException()->rethrow();
+            else
+                throw;
+        }
+
+        catch (const DBPoco::Exception &)
         {
             if (session.networkException())
             {
@@ -108,10 +126,10 @@ void HTTPServerConnection::run()
 }
 
 // static
-void HTTPServerConnection::sendErrorResponse(Poco::Net::HTTPServerSession & session, Poco::Net::HTTPResponse::HTTPStatus status)
+void HTTPServerConnection::sendErrorResponse(DBPoco::Net::HTTPServerSession & session, DBPoco::Net::HTTPResponse::HTTPStatus status)
 {
     HTTPServerResponse response(session);
-    response.setVersion(Poco::Net::HTTPMessage::HTTP_1_1);
+    response.setVersion(DBPoco::Net::HTTPMessage::HTTP_1_1);
     response.setStatusAndReason(status);
     response.setKeepAlive(false);
     response.send();

@@ -1040,10 +1040,10 @@ using TCypressMapNodeTypeHandler = TCypressMapNodeTypeHandlerImpl<TCypressMapNod
 // (E.g. branching is similar in both cases).
 template <class TImpl = TSequoiaMapNode>
 class TSequoiaMapNodeTypeHandlerImpl
-    : public TCypressNodeTypeHandlerBase<TImpl>
+    : public TCompositeNodeTypeHandler<TImpl>
 {
 public:
-    using TBase = TCypressNodeTypeHandlerBase<TImpl>;
+    using TBase = TCompositeNodeTypeHandler<TImpl>;
 
     using TBase::TBase;
 

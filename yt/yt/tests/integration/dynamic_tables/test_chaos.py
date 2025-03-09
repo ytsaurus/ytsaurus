@@ -3755,6 +3755,12 @@ class TestChaos(ChaosTestBase):
         alter_replication_card(card2, enable_replicated_table_tracker=True)
         alter_replication_card(card3, enable_replicated_table_tracker=True)
 
+        rtt_iteration_count = (f"//sys/cluster_nodes/{address}/orchid/chaos_cells/{dst_cell_id}/replicated_table_tracker/internal/iteration_count")
+
+        current_iteration_count = get(rtt_iteration_count)
+        # Second iteration is to ensure that RTT commands are actually executed.
+        wait(lambda: get(rtt_iteration_count) > current_iteration_count + 2)
+
         def _get_sync_replica_clusters(crt):
             def valid(replica):
                 return replica["mode"] == "sync" and replica["content_type"] == "data"

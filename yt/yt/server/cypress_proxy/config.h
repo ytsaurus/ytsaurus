@@ -90,6 +90,9 @@ struct TObjectServiceDynamicConfig
     NConcurrency::TThroughputThrottlerConfigPtr DefaultPerUserReadRequestWeightThrottler;
     NConcurrency::TThroughputThrottlerConfigPtr DefaultPerUserWriteRequestWeightThrottler;
 
+    // For testing purposes.
+    bool EnableFastPathPrerequisiteTransactionCheck;
+
     REGISTER_YSON_STRUCT(TObjectServiceDynamicConfig);
 
     static void Register(TRegistrar registrar);

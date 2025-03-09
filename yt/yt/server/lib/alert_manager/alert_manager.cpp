@@ -181,20 +181,47 @@ public:
         : AlertManager_(alertManager)
         , AlertProfiler_(alertManager->GetAlertProfiler())
         , Logger(alertManager->GetLogger())
+    { }
+
+    void Initialize() const
     {
-        alertManager->SubscribePopulateAlerts(PopulateAlertsCallback_);
+        // XXX(apachee): Kind of a waste since initialize is called right after ctor,
+        // but otherwise it is even more awkward, and overhead is negligible.
+        if (auto alertManager = AlertManager_.Lock()) {
+            alertManager->SubscribePopulateAlerts(PopulateAlertsCallback_);
+        }
     }
 
     ~TAlertCollector()
     {
+        Stop();
+    }
+
+    void Stop() override
+    {
         if (auto alertManager = AlertManager_.Lock()) {
             alertManager->UnsubscribePopulateAlerts(PopulateAlertsCallback_);
         }
+
+        {
+            auto guard = WriterGuard(SpinLock_);
+
+            Stopped_ = true;
+            Alerts_.clear();
+            StagedAlerts_.clear();
+            CategoryToGauges_.clear();
+        }
+
+        YT_LOG_DEBUG("Alert collector is stopped");
     }
 
     void StageAlert(TAlert alert) override
     {
         auto guard = WriterGuard(SpinLock_);
+
+        if (Y_UNLIKELY(Stopped_)) {
+            return;
+        }
 
         EmplaceOrCrash(StagedAlerts_[alert.Category], alert.Tags, alert);
         CategoryToGauges_[alert.Category].try_emplace(
@@ -207,6 +234,10 @@ public:
     void PublishAlerts() override
     {
         auto guard = WriterGuard(SpinLock_);
+
+        if (Y_UNLIKELY(Stopped_)) {
+            return;
+        }
 
         for (const auto& [category, tagsToGauges] : CategoryToGauges_) {
             auto tagsToAlertsIt = StagedAlerts_.find(category);
@@ -241,6 +272,7 @@ private:
     std::vector<TAlert> Alerts_;
     THashMap<TString, THashMap<NProfiling::TTagList, TAlert>> StagedAlerts_;
     THashMap<TString, THashMap<NProfiling::TTagList, NProfiling::TGauge>> CategoryToGauges_;
+    bool Stopped_ = false;
 
     void DoPopulateAlerts(std::vector<TAlert>* alerts)
     {
@@ -254,7 +286,9 @@ DEFINE_REFCOUNTED_TYPE(TAlertCollector)
 
 IAlertCollectorPtr CreateAlertCollector(IAlertManagerPtr alertManager)
 {
-    return New<TAlertCollector>(std::move(alertManager));
+    auto alertCollector = New<TAlertCollector>(std::move(alertManager));
+    alertCollector->Initialize();
+    return alertCollector;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

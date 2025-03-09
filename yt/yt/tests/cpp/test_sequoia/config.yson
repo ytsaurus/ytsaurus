@@ -7,6 +7,11 @@
         "12" = {roles = ["transaction_coordinator"; "cypress_node_host"]};
         "13" = {roles = ["chunk_host"; "cypress_node_host"]};
     };
+    DELTA_DYNAMIC_MASTER_CONFIG = {
+        transaction_manager = {
+            enable_prerequisite_transaction_validation_via_leases = %true;
+        };
+    };
 
     NUM_NODES = 3;
 
@@ -28,4 +33,12 @@
     USE_SEQUOIA = %true;
     ENABLE_CYPRESS_TRANSACTIONS_IN_SEQUOIA = %true;
     NUM_CYPRESS_PROXIES = 2;
+
+    ENABLE_LOG_COMPRESSION = %false;
+
+    DELTA_CYPRESS_PROXY_DYNAMIC_CONFIG = {
+        object_service = {
+            allow_bypass_master_resolve = %true;
+        };
+    };
 }

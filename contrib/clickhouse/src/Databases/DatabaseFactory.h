@@ -25,7 +25,7 @@ static inline ValueType safeGetLiteralValue(const ASTPtr &ast, const String &eng
     return ast->as<ASTLiteral>()->value.safeGet<ValueType>();
 }
 
-class DatabaseFactory : private boost::noncopyable, public IHints<1, DatabaseFactory>
+class DatabaseFactory : private boost::noncopyable, public IHints<>
 {
 public:
 

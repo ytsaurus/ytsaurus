@@ -609,6 +609,7 @@ struct TNbdConfig
     bool Enabled;
     TNbdClientConfigPtr Client;
     NNbd::TNbdServerConfigPtr Server;
+    i64 BlockCacheCompressedDataCapacity;
 
     REGISTER_YSON_STRUCT(TNbdConfig);
 

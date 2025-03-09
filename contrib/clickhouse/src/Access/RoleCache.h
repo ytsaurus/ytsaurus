@@ -1,7 +1,7 @@
 #pragma once
 
 #include <Access/EnabledRoles.h>
-#include <Poco/AccessExpireCache.h>
+#include <DBPoco/AccessExpireCache.h>
 #include <boost/container/flat_set.hpp>
 #include <map>
 #include <mutex>
@@ -34,7 +34,7 @@ private:
 
     const AccessControl & access_control;
 
-    Poco::AccessExpireCache<UUID, std::pair<RolePtr, std::shared_ptr<scope_guard>>> TSA_GUARDED_BY(mutex) cache;
+    DBPoco::AccessExpireCache<UUID, std::pair<RolePtr, std::shared_ptr<scope_guard>>> TSA_GUARDED_BY(mutex) cache;
 
     struct EnabledRolesWithSubscriptions
     {

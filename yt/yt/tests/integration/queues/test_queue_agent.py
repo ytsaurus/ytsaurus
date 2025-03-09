@@ -153,7 +153,7 @@ class TestQueueAgentNoSynchronizer(TestQueueAgentBase):
         orchid = QueueAgentOrchid()
 
         self._wait_for_component_passes(skip_cypress_synchronizer=True)
-        queues = orchid.get_queues()
+        queues = orchid.list_queues()
         assert len(queues) == 0
 
         # Missing row revision.
@@ -206,7 +206,7 @@ class TestQueueAgentNoSynchronizer(TestQueueAgentBase):
         delete_rows("//sys/queue_agents/queues", [{"cluster": "primary", "path": "//tmp/q"}])
         self._wait_for_component_passes(skip_cypress_synchronizer=True)
 
-        queues = orchid.get_queues()
+        queues = orchid.list_queues()
         assert len(queues) == 0
 
     @authors("max42", "nadya73")
@@ -214,8 +214,8 @@ class TestQueueAgentNoSynchronizer(TestQueueAgentBase):
         orchid = QueueAgentOrchid()
 
         self._wait_for_component_passes(skip_cypress_synchronizer=True)
-        queues = orchid.get_queues()
-        consumers = orchid.get_consumers()
+        queues = orchid.list_queues()
+        consumers = orchid.list_consumers()
         assert len(queues) == 0
         assert len(consumers) == 0
 
@@ -251,8 +251,8 @@ class TestQueueAgentNoSynchronizer(TestQueueAgentBase):
         orchid = QueueAgentOrchid()
 
         self._wait_for_component_passes(skip_cypress_synchronizer=True)
-        queues = orchid.get_queues()
-        consumers = orchid.get_consumers()
+        queues = orchid.list_queues()
+        consumers = orchid.list_consumers()
         assert len(queues) == 0
         assert len(consumers) == 0
 
@@ -1367,9 +1367,9 @@ class TestMultipleAgents(TestQueueAgentBase):
 
         queue_agent_orchids = {instance: QueueAgentOrchid(instance) for instance in instances}
         for instance, orchid in queue_agent_orchids.items():
-            instance_queues = orchid.get_queues()
-            instance_consumers = orchid.get_consumers()
-            all_instance_objects = instance_queues.keys() | instance_consumers.keys()
+            instance_queues = orchid.list_instance_queues()
+            instance_consumers = orchid.list_instance_consumers()
+            all_instance_objects = builtins.set(instance_queues + instance_consumers)
             assert all_instance_objects == objects_by_host[instance]
 
         def perform_checks(ignore_instances=()):
@@ -1545,6 +1545,83 @@ class TestMultipleAgents(TestQueueAgentBase):
 
         print_debug("final mapping: ", get_mapping())
         assert mapping == get_mapping()
+
+
+@pytest.mark.enabled_multidaemon
+class TestOrchid(TestMultipleAgents):
+    NUM_QUEUE_AGENTS = 2
+
+    ENABLE_MULTIDAEMON = True
+
+    @authors("apachee")
+    def test_queue_agent_orchid_for_queues_and_consumers(self):
+        queues = []
+        consumers = []
+        for i in range(10):
+            queue = f"//tmp/queue_{i}"
+            consumer = f"//tmp/consumer_{i}"
+            self._create_queue(queue)
+            self._create_consumer(consumer)
+            queues.append(f"primary:{queue}")
+            consumers.append(f"primary:{consumer}")
+
+        self._wait_for_component_passes()
+
+        instances = ls("//sys/queue_agents/instances")
+        mapping = list(select_rows("* from [//sys/queue_agents/queue_agent_object_mapping]"))
+        queues_by_host = defaultdict(builtins.set)
+        for row in mapping:
+            if "queue" in row["object"]:
+                queues_by_host[row["host"]].add(row["object"])
+        consumers_by_host = defaultdict(builtins.set)
+        for row in mapping:
+            if "consumer" in row["object"]:
+                consumers_by_host[row["host"]].add(row["object"])
+
+        for instance in instances:
+            orchid = QueueAgentOrchid(agent_id=instance)
+
+            assert builtins.set(orchid.list_queues()) == builtins.set(queues)
+            assert builtins.set(orchid.list_consumers()) == builtins.set(consumers)
+            assert builtins.set(orchid.list_instance_queues()) == builtins.set(queues_by_host[instance])
+            assert builtins.set(orchid.list_instance_consumers()) == builtins.set(consumers_by_host[instance])
+
+            path = orchid.orchid_path()
+
+            queues = get(f"{path}/queues")
+            assert builtins.set(queues.keys()) == builtins.set(queues)
+            assert all(value == YsonEntity() for value in queues.values())
+            consumers = get(f"{path}/consumers")
+            assert builtins.set(consumers.keys()) == builtins.set(consumers)
+            assert all(value == YsonEntity() for value in consumers.values())
+
+            for queue in queues:
+                queue_orchid = orchid.get_queue_orchid(queue)
+                owned_queue_orchid = orchid.get_owned_queue_orchid(queue)
+
+                # Should not throw
+                queue_orchid.get()
+
+                if queue in queues_by_host[instance]:
+                    # Shoult not throw
+                    owned_queue_orchid.get()
+                else:
+                    with raises_yt_error(code=yt_error_codes.QueueAgentRetriableError):
+                        owned_queue_orchid.get()
+
+            for consumer in consumers:
+                consumer_orchid = orchid.get_consumer_orchid(consumer)
+                owned_consumer_orchid = orchid.get_owned_consumer_orchid(consumer)
+
+                # Should not throw
+                consumer_orchid.get()
+
+                if consumer in consumers_by_host[instance]:
+                    # Shoult not throw
+                    owned_consumer_orchid.get()
+                else:
+                    with raises_yt_error(code=yt_error_codes.QueueAgentRetriableError):
+                        owned_consumer_orchid.get()
 
 
 @pytest.mark.enabled_multidaemon

@@ -6,6 +6,8 @@ from yt_commands import (authors, create, write_table, read_table, get, set)
 
 from yt_env_setup import YTEnvSetup
 
+import pytest
+
 
 class TestQueriesYqlBase(YTEnvSetup):
     NUM_YQL_AGENTS = 1
@@ -120,6 +122,7 @@ class TestUdfsWithDynamicConfig(TestQueriesYqlBase):
         wait_for_dynamic_config_update(yql_agent.yql_agent.client, config, "//sys/yql_agent/instances")
 
     @authors("lucius")
+    @pytest.mark.timeout(180)
     def test_simple_udf_dyn_config(self, query_tracker, yql_agent):
         self._update_dyn_config(yql_agent, {
             "gateways_config": {
@@ -142,6 +145,7 @@ class TestUdfsWithDynamicConfig(TestQueriesYqlBase):
         assert_items_equal(result, [{"a": "a meow"}, {"a": "homeowner"}])
 
     @authors("lucius")
+    @pytest.mark.timeout(180)
     def test_simple_python_udf_dyn_config(self, query_tracker, yql_agent):
         self._update_dyn_config(yql_agent, {
             "gateways_config": {

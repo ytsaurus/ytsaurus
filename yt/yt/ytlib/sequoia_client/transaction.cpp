@@ -1,6 +1,7 @@
 #include "transaction.h"
 
 #include "client.h"
+#include "table_descriptor.h"
 #include "transaction_service_proxy.h"
 #include "write_set.h"
 #include "private.h"
@@ -17,7 +18,6 @@
 
 #include <yt/yt/ytlib/cypress_server/proto/sequoia_actions.pb.h>
 
-#include <yt/yt/ytlib/sequoia_client/table_descriptor.h>
 #include <yt/yt/ytlib/sequoia_client/proto/transaction_client.pb.h>
 
 #include <yt/yt/ytlib/tablet_client/tablet_service_proxy.h>
@@ -119,6 +119,7 @@ public:
         ESequoiaTransactionType type,
         IClientPtr nativeRootClient,
         IClientPtr groundRootClient,
+        const std::vector<TTransactionId>& cypressPrerequisiteTransactionIds,
         const TSequoiaTransactionSequencingOptions& sequencingOptions)
         : SequoiaClient_(std::move(sequoiaClient))
         , Type_(type)
@@ -127,6 +128,7 @@ public:
         , SerializedInvoker_(CreateSerializedInvoker(
             NativeRootClient_->GetConnection()->GetInvoker()))
         , SequencingOptions_(sequencingOptions)
+        , CypressPrerequisiteTransactionIds_(cypressPrerequisiteTransactionIds)
         , Logger(SequoiaClient_->GetLogger())
     { }
 
@@ -392,6 +394,7 @@ private:
     const NApi::NNative::IClientPtr GroundRootClient_;
     const IInvokerPtr SerializedInvoker_;
     const TSequoiaTransactionSequencingOptions SequencingOptions_;
+    const std::vector<TTransactionId> CypressPrerequisiteTransactionIds_;
 
     TLogger Logger;
 
@@ -524,8 +527,9 @@ private:
 
         Logger.AddTag("TransactionId: %v", Transaction_->GetId());
 
-        YT_LOG_DEBUG("Transaction started (StartTimestamp: %v)",
-            Transaction_->GetStartTimestamp());
+        YT_LOG_DEBUG("Transaction started (StartTimestamp: %v, PrerequisiteTransactionIds: %v)",
+            Transaction_->GetStartTimestamp(),
+            CypressPrerequisiteTransactionIds_);
 
         return MakeStrong(this);
     }
@@ -591,10 +595,8 @@ private:
         const TTableCommitSessionPtr& session,
         const TTableMountInfoPtr& tableMountInfo,
         const TColumnEvaluatorPtr& evaluator,
-        ETableSchemaKind /*schemaKind*/,
         TUnversionedRow row)
     {
-        // Maybe change ETableSchemaKind::Primary to schemaKind.
         const auto& primarySchema = tableMountInfo->Schemas[ETableSchemaKind::Primary];
         const auto& modificationIdMapping = session->ColumnIdMappings[ETableSchemaKind::Primary];
         auto capturedRow = RowBuffer_->CaptureAndPermuteRow(
@@ -626,7 +628,9 @@ private:
         if (!tableMountInfo->IsSorted()) {
             tabletIndexColumnId = nameTable->GetIdOrRegisterName(TabletIndexColumnName);
         }
-        for (auto schemaKind : {ETableSchemaKind::Primary, ETableSchemaKind::Write, ETableSchemaKind::Delete, ETableSchemaKind::Lock}) {
+
+        for (auto schemaKind : {ETableSchemaKind::Primary, ETableSchemaKind::Write, ETableSchemaKind::Delete, ETableSchemaKind::Lock})
+        {
             session->ColumnIdMappings[schemaKind] = BuildColumnIdMapping(
                 *tableMountInfo->Schemas[schemaKind],
                 // nameTable here can differ from
@@ -641,6 +645,7 @@ private:
                 /*allowMissingKeyColumns*/ false);
         }
 
+        const auto& primaryIdMapping = session->ColumnIdMappings[ETableSchemaKind::Primary];
         const auto& writeIdMapping = session->ColumnIdMappings[ETableSchemaKind::Write];
         const auto& deleteIdMapping = session->ColumnIdMappings[ETableSchemaKind::Delete];
         const auto& lockIdMapping = session->ColumnIdMappings[ETableSchemaKind::Lock];
@@ -667,7 +672,6 @@ private:
                         session,
                         tableMountInfo,
                         evaluator,
-                        ETableSchemaKind::Lock,
                         request.Key);
 
                     YT_VERIFY(tableMountInfo->IsSorted());
@@ -713,7 +717,6 @@ private:
                         session,
                         tableMountInfo,
                         evaluator,
-                        ETableSchemaKind::Lock,
                         request.Key);
 
                     YT_VERIFY(tableMountInfo->IsSorted());
@@ -747,7 +750,6 @@ private:
                         session,
                         tableMountInfo,
                         evaluator,
-                        ETableSchemaKind::Write,
                         request.Row);
 
                     TLockMask lockMask;
@@ -759,7 +761,8 @@ private:
                             /*validateWrite*/ true);
 
                         for (const auto& value : request.Row) {
-                            if (auto lockIndex = columnIndexToLockIndex[value.Id]; lockIndex != -1) {
+                            auto mappedId = ApplyIdMapping(value, &primaryIdMapping);
+                            if (auto lockIndex = columnIndexToLockIndex[mappedId]; lockIndex != -1) {
                                 lockMask.Set(lockIndex, request.LockType);
                             }
                         }
@@ -794,7 +797,6 @@ private:
                         session,
                         tableMountInfo,
                         evaluator,
-                        ETableSchemaKind::Delete,
                         request.Key);
 
                     TTabletInfoPtr tabletInfo;
@@ -851,7 +853,7 @@ private:
         futures.reserve(MasterCellCommitSessions_.size());
         for (const auto& [cellTag, session] : MasterCellCommitSessions_) {
             auto channel = NativeRootClient_->GetNativeConnection()->GetMasterChannelOrThrow(
-                NApi::EMasterChannelKind::Leader,
+                EMasterChannelKind::Leader,
                 cellTag);
             TSequoiaTransactionServiceProxy proxy(std::move(channel));
             auto req = proxy.StartTransaction();
@@ -868,6 +870,7 @@ private:
             }
             WriteAuthenticationIdentityToProto(req->mutable_identity(), session->UserIdentity);
             req->set_sequoia_reign(NYT::ToProto(GetCurrentSequoiaReign()));
+            ToProto(req->mutable_prerequisite_transaction_ids(), CypressPrerequisiteTransactionIds_);
 
             futures.push_back(req->Invoke().AsVoid());
         }
@@ -925,6 +928,7 @@ TFuture<ISequoiaTransactionPtr> StartSequoiaTransaction(
     ESequoiaTransactionType type,
     IClientPtr nativeRootClient,
     IClientPtr groundRootClient,
+    const std::vector<TTransactionId>& cypressPrerequisiteTransactionIds,
     const TTransactionStartOptions& options,
     const TSequoiaTransactionSequencingOptions& sequencingOptions)
 {
@@ -933,6 +937,7 @@ TFuture<ISequoiaTransactionPtr> StartSequoiaTransaction(
         type,
         std::move(nativeRootClient),
         std::move(groundRootClient),
+        cypressPrerequisiteTransactionIds,
         sequencingOptions);
     return transaction->Start(options);
 }

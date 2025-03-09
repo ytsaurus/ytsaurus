@@ -122,13 +122,13 @@ void TPocoOpenSslConfig::Register(TRegistrar registrar)
 void TQueryCacheConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("max_size_in_bytes", &TThis::MaxSizeInBytes)
-        .Default(DEFAULT_QUERY_CACHE_MAX_SIZE);
+        .Default(DB::DEFAULT_QUERY_CACHE_MAX_SIZE);
     registrar.Parameter("max_entries", &TThis::MaxEntries)
-        .Default(DEFAULT_QUERY_CACHE_MAX_ENTRIES);
+        .Default(DB::DEFAULT_QUERY_CACHE_MAX_ENTRIES);
     registrar.Parameter("max_entry_size_in_bytes", &TThis::MaxEntrySizeInBytes)
-        .Default(DEFAULT_QUERY_CACHE_MAX_ENTRY_SIZE_IN_BYTES);
+        .Default(DB::DEFAULT_QUERY_CACHE_MAX_ENTRY_SIZE_IN_BYTES);
     registrar.Parameter("max_entry_size_in_rows", &TThis::MaxEntrySizeInRows)
-        .Default(DEFAULT_QUERY_CACHE_MAX_ENTRY_SIZE_IN_ROWS);
+        .Default(DB::DEFAULT_QUERY_CACHE_MAX_ENTRY_SIZE_IN_ROWS);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -1,8 +1,8 @@
 #include <Common/ErrorCodes.h>
 #include <Disks/IO/getThreadPoolReader.h>
 #include <IO/AsynchronousReader.h>
-#include <Poco/Util/AbstractConfiguration.h>
-#include <Poco/Util/Application.h>
+#include <DBPoco/Util/AbstractConfiguration.h>
+#include <DBPoco/Util/Application.h>
 #include <IO/SynchronousReader.h>
 #include <Disks/IO/ThreadPoolRemoteFSReader.h>
 #include <Disks/IO/ThreadPoolReader.h>
@@ -26,7 +26,7 @@ IAsynchronousReader & getThreadPoolReader(FilesystemReaderType type)
 }
 
 std::unique_ptr<IAsynchronousReader> createThreadPoolReader(
-    FilesystemReaderType type, const Poco::Util::AbstractConfiguration & config)
+    FilesystemReaderType type, const DBPoco::Util::AbstractConfiguration & config)
 {
     switch (type)
     {

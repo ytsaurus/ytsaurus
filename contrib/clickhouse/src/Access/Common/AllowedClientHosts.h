@@ -1,7 +1,7 @@
 #pragma once
 
 #include <base/types.h>
-#include <Poco/Net/IPAddress.h>
+#include <DBPoco/Net/IPAddress.h>
 #include <vector>
 
 
@@ -13,7 +13,7 @@ using Strings = std::vector<String>;
 class AllowedClientHosts
 {
 public:
-    using IPAddress = Poco::Net::IPAddress;
+    using IPAddress = DBPoco::Net::IPAddress;
 
     class IPSubnet
     {

@@ -270,7 +270,7 @@ class Clique(object):
         result = self.make_query(query, verbose=verbose, only_rows=False, **kwargs)
         assert (exact is not None) ^ (min is not None and max is not None)
         if exact is not None:
-            assert result["statistics"]["rows_read"] == exact
+            assert result["statistics"]["rows_read"] == exact, f"Expected {exact}, but got {result['statistics']['rows_read']}"
         else:
             assert min <= result["statistics"]["rows_read"] <= max
         return result["data"]

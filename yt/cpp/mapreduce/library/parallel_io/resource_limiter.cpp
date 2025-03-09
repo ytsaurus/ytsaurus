@@ -4,11 +4,13 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void IResourceLimiter::Acquire(size_t lockAmount) {
+void IResourceLimiter::Acquire(size_t lockAmount)
+{
     return Acquire(lockAmount, EResourceLimiterLockType::SOFT);
 }
 
-void IResourceLimiter::Release(size_t lockAmount) {
+void IResourceLimiter::Release(size_t lockAmount)
+{
     return Release(lockAmount, EResourceLimiterLockType::SOFT);
 }
 
@@ -19,15 +21,18 @@ TResourceLimiter::TResourceLimiter(size_t limit, const TString &name)
     Y_ENSURE(Limit_ > 0);
 }
 
-bool TResourceLimiter::HasEnoughHardMemoryLimit(size_t lockAmount) {
+bool TResourceLimiter::HasEnoughHardMemoryLimit(size_t lockAmount)
+{
     return lockAmount <= Limit_ - CurrentHardUsage_;
 }
 
-bool TResourceLimiter::CanLock(size_t lockAmount) {
+bool TResourceLimiter::CanLock(size_t lockAmount)
+{
     return CurrentSoftUsage_ + lockAmount <= Limit_ - CurrentHardUsage_;
 }
 
-void TResourceLimiter::Acquire(size_t lockAmount, EResourceLimiterLockType lockType) {
+void TResourceLimiter::Acquire(size_t lockAmount, EResourceLimiterLockType lockType)
+{
     with_lock(Mutex_) {
         CondVar_.Wait(Mutex_, [this, lockAmount]{
             return CanLock(lockAmount) || !HasEnoughHardMemoryLimit(lockAmount);
@@ -55,7 +60,8 @@ void TResourceLimiter::Acquire(size_t lockAmount, EResourceLimiterLockType lockT
     }
 }
 
-void TResourceLimiter::Release(size_t lockAmount, EResourceLimiterLockType lockType) {
+void TResourceLimiter::Release(size_t lockAmount, EResourceLimiterLockType lockType)
+{
     with_lock(Mutex_) {
         switch (lockType) {
             case EResourceLimiterLockType::SOFT: {
@@ -75,11 +81,13 @@ void TResourceLimiter::Release(size_t lockAmount, EResourceLimiterLockType lockT
     CondVar_.BroadCast();
 }
 
-size_t TResourceLimiter::GetLimit() const noexcept {
+size_t TResourceLimiter::GetLimit() const noexcept
+{
     return Limit_;
 }
 
-const TString& TResourceLimiter::GetName() const noexcept {
+const TString& TResourceLimiter::GetName() const noexcept
+{
     return Name_;
 }
 
@@ -88,8 +96,7 @@ const TString& TResourceLimiter::GetName() const noexcept {
 TResourceGuard::TResourceGuard(
     const IResourceLimiterPtr& limiter,
     size_t lockAmount,
-    EResourceLimiterLockType lockType
-)
+    EResourceLimiterLockType lockType)
     : Limiter_(limiter)
     , LockAmount_(lockAmount)
     , LockType_(lockType)
@@ -97,20 +104,23 @@ TResourceGuard::TResourceGuard(
     Limiter_->Acquire(LockAmount_, LockType_);
 }
 
-TResourceGuard::TResourceGuard(TResourceGuard&& other) {
+TResourceGuard::TResourceGuard(TResourceGuard&& other)
+{
     Limiter_ = other.Limiter_;
     LockAmount_ = other.LockAmount_;
     LockType_ = other.LockType_;
     other.LockAmount_ = 0;
 }
 
-TResourceGuard::~TResourceGuard() {
+TResourceGuard::~TResourceGuard()
+{
     if (LockAmount_ > 0) {
         Limiter_->Release(LockAmount_, LockType_);
     }
 }
 
-size_t TResourceGuard::GetLockedAmount() const {
+size_t TResourceGuard::GetLockedAmount() const
+{
     return LockAmount_;
 }
 

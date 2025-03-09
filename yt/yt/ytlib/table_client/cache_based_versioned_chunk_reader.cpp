@@ -499,7 +499,7 @@ IVersionedReaderPtr CreateCacheBasedVersionedChunkReader(
                 return CreateEmptyVersionedReader(keys.Size());
             }
 
-            YT_VERIFY(chunkState->TableSchema->GetUniqueKeys());
+            YT_VERIFY(chunkState->TableSchema->IsUniqueKeys());
             return New<TCacheBasedSimpleVersionedLookupChunkReader<THorizontalSchemalessVersionedBlockReader>>(
                 chunkId,
                 chunkState,

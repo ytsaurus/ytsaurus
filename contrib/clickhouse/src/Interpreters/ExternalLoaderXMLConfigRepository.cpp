@@ -2,10 +2,10 @@
 
 #include <filesystem>
 
-#include <Common/StringUtils/StringUtils.h>
+#include <Common/StringUtils.h>
 #include <Common/Config/ConfigProcessor.h>
 #include <Common/getMultipleKeysFromConfig.h>
-#include <Poco/Glob.h>
+#include <DBPoco/Glob.h>
 #include <Common/filesystemHelpers.h>
 
 
@@ -24,7 +24,7 @@ ExternalLoaderXMLConfigRepository::ExternalLoaderXMLConfigRepository(
 {
 }
 
-Poco::Timestamp ExternalLoaderXMLConfigRepository::getUpdateTime(const std::string & definition_entity_name)
+std::optional<DBPoco::Timestamp> ExternalLoaderXMLConfigRepository::getUpdateTime(const std::string & definition_entity_name)
 {
     return FS::getModificationTimestamp(definition_entity_name);
 }
@@ -50,12 +50,12 @@ std::set<std::string> ExternalLoaderXMLConfigRepository::getAllLoadablesDefiniti
         {
             const String absolute_path = fs::path(config_dir) / pattern;
 
-            Poco::Glob::glob(absolute_path, files, 0);
+            DBPoco::Glob::glob(absolute_path, files, 0);
             if (!files.empty())
                 continue;
         }
 
-        Poco::Glob::glob(pattern, files, 0);
+        DBPoco::Glob::glob(pattern, files, 0);
     }
 
     for (auto it = files.begin(); it != files.end();)
@@ -84,7 +84,7 @@ bool ExternalLoaderXMLConfigRepository::exists(const std::string & definition_en
     return fs::exists(fs::path(definition_entity_name));
 }
 
-Poco::AutoPtr<Poco::Util::AbstractConfiguration> ExternalLoaderXMLConfigRepository::load(
+DBPoco::AutoPtr<DBPoco::Util::AbstractConfiguration> ExternalLoaderXMLConfigRepository::load(
     const std::string & config_file)
 {
     ConfigProcessor config_processor{config_file};

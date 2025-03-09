@@ -15,7 +15,7 @@ class ContextAccessParams
 {
 public:
     ContextAccessParams(
-        const std::optional<UUID> user_id_,
+        std::optional<UUID> user_id_,
         bool full_access_,
         bool use_default_roles_,
         const std::shared_ptr<const std::vector<UUID>> & current_roles_,
@@ -40,7 +40,7 @@ public:
 
     const ClientInfo::Interface interface;
     const ClientInfo::HTTPMethod http_method;
-    const Poco::Net::IPAddress address;
+    const DBPoco::Net::IPAddress address;
 
     /// The last entry from comma separated list of X-Forwarded-For addresses.
     /// Only the last proxy can be trusted (if any).
