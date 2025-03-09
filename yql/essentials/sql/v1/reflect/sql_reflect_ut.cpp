@@ -16,6 +16,7 @@ Y_UNIT_TEST_SUITE(SqlReflectTests) {
         UNIT_ASSERT_VALUES_EQUAL(meta.Punctuation.contains("LPAREN"), true);
         UNIT_ASSERT_VALUES_EQUAL(meta.Punctuation.contains("MINUS"), true);
         UNIT_ASSERT_VALUES_EQUAL(meta.Punctuation.contains("NAMESPACE"), true);
+
         UNIT_ASSERT_VALUES_EQUAL(meta.Other.contains("REAL"), true);
         UNIT_ASSERT_VALUES_EQUAL(meta.Other.contains("STRING_VALUE"), true);
         UNIT_ASSERT_VALUES_EQUAL(meta.Other.contains("STRING_MULTILINE"), false);
