@@ -33,8 +33,10 @@ IJobSizeConstraintsPtr CreateUserJobSizeConstraints(
     double dataWeightRatio,
     i64 inputChunkCount,
     i64 primaryInputDataWeight,
+    i64 primaryInputCompressedDataSize,
     i64 inputRowCount = std::numeric_limits<i64>::max() / 4,
     i64 foreignInputDataWeight = 0,
+    i64 foreignInputCompressedDataSize = 0,
     int inputTableCount = 1,
     int primaryInputTableCount = 1,
     bool sortedOperation = false);
@@ -46,6 +48,7 @@ IJobSizeConstraintsPtr CreateMergeJobSizeConstraints(
     NLogging::TLogger logger,
     i64 inputChunkCount,
     i64 inputDataWeight,
+    i64 inputCompressedDataSize,
     double dataWeightRatio,
     double compressionRatio,
     int inputTableCount = 1,
@@ -56,13 +59,14 @@ IJobSizeConstraintsPtr CreateSimpleSortJobSizeConstraints(
     const NScheduler::TSortOperationSpecBasePtr& spec,
     const NControllerAgent::TSortOperationOptionsBasePtr& options,
     NLogging::TLogger logger,
-    i64 inputDataWeight);
+    i64 inputDataWeight,
+    i64 inputCompressedDataSize);
 
 IJobSizeConstraintsPtr CreatePartitionJobSizeConstraints(
     const NScheduler::TSortOperationSpecBasePtr& spec,
     const NControllerAgent::TSortOperationOptionsBasePtr& options,
     NLogging::TLogger logger,
-    i64 inputDataSize,
+    i64 inputUncompressedDataSize,
     i64 inputDataWeight,
     i64 inputRowCount,
     double compressionRatio);

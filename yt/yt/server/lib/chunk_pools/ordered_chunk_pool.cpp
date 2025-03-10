@@ -74,7 +74,7 @@ public:
         , MaxTotalSliceCount_(options.MaxTotalSliceCount)
         , ShouldSliceByRowIndices_(options.ShouldSliceByRowIndices)
         , EnablePeriodicYielder_(options.EnablePeriodicYielder)
-        , OutputOrder_(options.KeepOutputOrder ? New<TOutputOrder>() : nullptr)
+        , OutputOrder_(options.BuildOutputOrder ? New<TOutputOrder>() : nullptr)
     {
         Logger = options.Logger;
 
@@ -334,11 +334,11 @@ private:
         for (const auto& dataSlice : unreadInputDataSlices) {
             dataSize += dataSlice->GetDataWeight();
         }
-        i64 dataSizePerJob;
+        i64 dataWeightPerJob;
         if (splitJobCount == 1) {
-            dataSizePerJob = std::numeric_limits<i64>::max() / 4;
+            dataWeightPerJob = std::numeric_limits<i64>::max() / 4;
         } else {
-            dataSizePerJob = DivCeil(dataSize, static_cast<i64>(splitJobCount));
+            dataWeightPerJob = DivCeil(dataSize, static_cast<i64>(splitJobCount));
         }
 
         // Teleport chunks do not affect the job split process since each original
@@ -350,7 +350,7 @@ private:
         std::vector<IChunkPoolOutput::TCookie> childCookies;
         for (const auto& dataSlice : unreadInputDataSlices) {
             int inputCookie = *dataSlice->Tag;
-            auto outputCookie = AddUnsplittablePrimaryDataSlice(dataSlice, inputCookie, dataSizePerJob);
+            auto outputCookie = AddUnsplittablePrimaryDataSlice(dataSlice, inputCookie, dataWeightPerJob);
             if (outputCookie != IChunkPoolOutput::NullCookie) {
                 childCookies.push_back(outputCookie);
             }
@@ -382,7 +382,7 @@ private:
     IChunkPoolOutput::TCookie AddUnsplittablePrimaryDataSlice(
         const TLegacyDataSlicePtr& dataSlice,
         IChunkPoolInput::TCookie cookie,
-        i64 dataSizePerJob)
+        i64 dataWeightPerJob)
     {
         YT_VERIFY(!dataSlice->IsLegacy);
 
@@ -395,7 +395,7 @@ private:
 
         bool jobIsLargeEnough =
             CurrentJob()->GetPreliminarySliceCount() >= JobSizeConstraints_->GetMaxDataSlicesPerJob() ||
-            GetCurrentJobDataWeight() >= dataSizePerJob;
+            GetCurrentJobDataWeight() >= dataWeightPerJob;
         if (jobIsLargeEnough && !SingleJob_) {
             return EndJob();
         }
@@ -422,12 +422,12 @@ private:
     void AddPrimaryDataSlice(
         const TLegacyDataSlicePtr& dataSlice,
         IChunkPoolInput::TCookie cookie,
-        i64 dataSizePerJob)
+        i64 dataWeightPerJob)
     {
         if (IsDataSliceSplittable(dataSlice)) {
-            AddSplittablePrimaryDataSlice(dataSlice, cookie, dataSizePerJob);
+            AddSplittablePrimaryDataSlice(dataSlice, cookie, dataWeightPerJob);
         } else {
-            AddUnsplittablePrimaryDataSlice(dataSlice, cookie, dataSizePerJob);
+            AddUnsplittablePrimaryDataSlice(dataSlice, cookie, dataWeightPerJob);
         }
     }
 
@@ -442,7 +442,7 @@ private:
     void AddSplittablePrimaryDataSlice(
         const TLegacyDataSlicePtr& dataSlice,
         IChunkPoolInput::TCookie cookie,
-        i64 dataSizePerJob)
+        i64 dataWeightPerJob)
     {
         YT_VERIFY(IsDataSliceSplittable(dataSlice));
 
@@ -480,10 +480,10 @@ private:
                 JobCarryOverDataWeight_ = -chunkSlice->GetDataWeight();
             }
 
-            if (RowCountUntilJobSplit_ == 0 && GetCurrentJobDataWeight() + chunkSlice->GetDataWeight() >= dataSizePerJob) {
+            if (RowCountUntilJobSplit_ == 0 && GetCurrentJobDataWeight() + chunkSlice->GetDataWeight() >= dataWeightPerJob) {
                 // Taking this maximum is needed if jobs of batch row count rows are significantly larger than data size per job.
                 // In these cases we simply try to end the jobs as soon as we can hit an acceptable split.
-                auto dataWeightUntilSplit = std::max<i64>(dataSizePerJob - GetCurrentJobDataWeight(), 0);
+                auto dataWeightUntilSplit = std::max<i64>(dataWeightPerJob - GetCurrentJobDataWeight(), 0);
 
                 RowCountUntilJobSplit_ = DivCeil(dataWeightUntilSplit * chunkSlice->GetRowCount(), chunkSlice->GetDataWeight());
                 YT_VERIFY(RowCountUntilJobSplit_ <= chunkSlice->GetRowCount());

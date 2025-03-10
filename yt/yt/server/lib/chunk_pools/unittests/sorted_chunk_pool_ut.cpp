@@ -68,6 +68,7 @@ protected:
         MaxDataSlicesPerJob_ = Inf32;
         MaxDataWeightPerJob_ = Inf64;
         MaxPrimaryDataWeightPerJob_ = Inf64;
+        MaxCompressedDataSizePerJob_ = Inf64;
         InputSliceDataWeight_ = Inf64;
     }
 
@@ -82,6 +83,7 @@ protected:
             MaxDataSlicesPerJob_,
             MaxDataWeightPerJob_,
             MaxPrimaryDataWeightPerJob_,
+            MaxCompressedDataSizePerJob_,
             InputSliceDataWeight_,
             Inf64 /*inputSliceRowCount*/,
             {} /*batchRowCount*/,
@@ -255,7 +257,8 @@ protected:
         TInputChunkPtr chunk,
         std::vector<TLegacyKey> internalPoints,
         std::vector<i64> sliceSizes = std::vector<i64>(),
-        std::vector<i64> sliceRowCounts = std::vector<i64>())
+        std::vector<i64> sliceRowCounts = std::vector<i64>(),
+        std::vector<i64> sliceCompressedDataSizes = std::vector<i64>())
     {
         if (sliceSizes.empty()) {
             sliceSizes.assign(internalPoints.size() + 1, chunk->GetUncompressedDataSize() / (internalPoints.size() + 1));
@@ -268,7 +271,13 @@ protected:
             sliceRowCounts.assign(internalPoints.size() + 1, chunk->GetRowCount() / (internalPoints.size() + 1));
             sliceRowCounts[0] += chunk->GetRowCount() - (internalPoints.size() + 1) * sliceRowCounts[0];
         } else {
-            YT_VERIFY(internalPoints.size() + 1 == sliceSizes.size());
+            YT_VERIFY(internalPoints.size() + 1 == sliceRowCounts.size());
+        }
+        if (sliceCompressedDataSizes.empty()) {
+            sliceCompressedDataSizes.assign(internalPoints.size() + 1, chunk->GetCompressedDataSize() / (internalPoints.size() + 1));
+            sliceCompressedDataSizes[0] += chunk->GetRowCount() - (internalPoints.size() + 1) * sliceRowCounts[0];
+        } else {
+            YT_VERIFY(internalPoints.size() + 1 == sliceCompressedDataSizes.size());
         }
 
         YT_VERIFY(!InputTables_[chunk->GetTableIndex()].IsVersioned());
@@ -289,7 +298,7 @@ protected:
                 currentRow += sliceRowCounts[index];
                 slices.back()
                     ->LegacyUpperLimit().RowIndex = currentRow;
-                slices.back()->OverrideSize(sliceRowCounts[index], sliceSizes[index]);
+                slices.back()->OverrideSize(sliceRowCounts[index], sliceSizes[index], sliceCompressedDataSizes[index]);
             }
             lastKey = upperLimit;
         }
@@ -682,6 +691,8 @@ protected:
     i64 MaxBuildRetryCount_;
 
     i32 MaxDataSlicesPerJob_;
+
+    i64 MaxCompressedDataSizePerJob_;
 
     i64 InputSliceDataWeight_;
 
@@ -2199,7 +2210,7 @@ TEST_F(TSortedChunkPoolTest, TestCorrectOrderInsideStripe)
     auto chunk = CreateChunk(BuildRow({10}), BuildRow({20}), 0);
     std::vector<TInputChunkSlicePtr> slices;
     for (int index = 0; index < 100; ++index) {
-        slices.emplace_back(New<TInputChunkSlice>(chunk, 0 /*partIndex*/, 10 * index, 10 * (index + 1), 1_KB));
+        slices.emplace_back(New<TInputChunkSlice>(chunk, 0 /*partIndex*/, 10 * index, 10 * (index + 1), 1_KB, 1_KB));
         slices.back()
             ->LegacyLowerLimit().Key = BuildRow({10});
         slices.back()

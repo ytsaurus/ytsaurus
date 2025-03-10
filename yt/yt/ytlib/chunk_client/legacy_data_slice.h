@@ -49,6 +49,7 @@ public:
     i64 GetRowCount() const;
     i64 GetMaxBlockSize() const;
     i64 GetValueCount() const;
+    i64 GetCompressedDataSize() const;
 
     int GetTableIndex() const;
     int GetRangeIndex() const;

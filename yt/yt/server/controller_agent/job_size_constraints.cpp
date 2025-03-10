@@ -22,6 +22,11 @@ using namespace NLogging;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+static constexpr i64 InfiniteSize = std::numeric_limits<i64>::max() / 4;
+static constexpr i64 InfiniteCount = std::numeric_limits<i64>::max() / 4;
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TJobSizeConstraintsBase
     : public IJobSizeConstraints
 {
@@ -31,23 +36,27 @@ public:
 
     TJobSizeConstraintsBase(
         i64 inputDataWeight,
+        i64 inputCompressedDataSize,
         i64 primaryInputDataWeight,
+        i64 primaryInputCompressedDataSize,
         TOperationSpecBasePtr spec,
         TOperationOptionsPtr options,
         TLogger logger,
         i64 inputRowCount = -1,
-        i64 inputChunkCount = std::numeric_limits<i64>::max() / 4,
+        i64 inputChunkCount = InfiniteCount,
         int mergeInputTableCount = 1,
         int mergePrimaryInputTableCount = 1,
         TSamplingConfigPtr samplingConfig = nullptr)
         : InputDataWeight_(inputDataWeight)
+        , InputCompressedDataSize_(inputCompressedDataSize)
         , PrimaryInputDataWeight_(primaryInputDataWeight)
+        , PrimaryInputCompressedDataSize_(primaryInputCompressedDataSize)
         , ForeignInputDataWeight_(InputDataWeight_ - PrimaryInputDataWeight_)
         , InputChunkCount_(inputChunkCount)
         , InputRowCount_(inputRowCount)
         , MergeInputTableCount_(mergeInputTableCount)
         , MergePrimaryInputTableCount_(mergePrimaryInputTableCount)
-        , Logger(logger)
+        , Logger(std::move(logger))
         , InitialInputDataWeight_(inputDataWeight)
         , InitialPrimaryInputDataWeight_(primaryInputDataWeight)
         , Options_(std::move(options))
@@ -143,9 +152,10 @@ public:
 
     i64 GetInputSliceRowCount() const override
     {
-        return JobCount_ > 0
-            ? DivCeil(InputRowCount_, JobCount_)
-            : 1;
+        if (JobCount_ == 0) {
+            return 1;
+        }
+        return std::max<i64>(DivCeil(InputRowCount_, JobCount_), 1);
     }
 
     std::optional<i64> GetBatchRowCount() const override
@@ -181,7 +191,9 @@ public:
 
 protected:
     i64 InputDataWeight_ = -1;
+    i64 InputCompressedDataSize_ = -1;
     i64 PrimaryInputDataWeight_ = -1;
+    i64 PrimaryInputCompressedDataSize_ = -1;
     i64 ForeignInputDataWeight_ = -1;
     i64 InputChunkCount_ = -1;
     i64 JobCount_ = -1;
@@ -207,10 +219,14 @@ private:
     void InitializeSampling()
     {
         YT_VERIFY(SamplingConfig_->MaxTotalSliceCount);
+        YT_VERIFY(InputCompressedDataSize_ >= 0);
+        YT_VERIFY(PrimaryInputCompressedDataSize_ >= 0);
         // Replace input data weight and input row count with their expected values after the sampling.
         InputDataWeight_ *= *SamplingConfig_->SamplingRate;
         PrimaryInputDataWeight_ *= *SamplingConfig_->SamplingRate;
         InputRowCount_ *= *SamplingConfig_->SamplingRate;
+        InputCompressedDataSize_ *= *SamplingConfig_->SamplingRate;
+        PrimaryInputCompressedDataSize_ *= *SamplingConfig_->SamplingRate;
         // We do not want jobs to read less than `ioBlockSize` from each table.
         i64 minSamplingJobDataWeightForIOEfficiency = MergeInputTableCount_ * SamplingConfig_->IOBlockSize;
         i64 minSamplingJobPrimaryDataWeightForIOEfficiency = MergePrimaryInputTableCount_ * SamplingConfig_->IOBlockSize;
@@ -259,6 +275,10 @@ void TJobSizeConstraintsBase::RegisterMetadata(auto&& registrar)
     PHOENIX_REGISTER_FIELD(14, SamplingDataWeightPerJob_);
     PHOENIX_REGISTER_FIELD(15, SamplingPrimaryDataWeightPerJob_);
     PHOENIX_REGISTER_FIELD(16, SamplingConfig_);
+    PHOENIX_REGISTER_FIELD(17, InputCompressedDataSize_,
+        .SinceVersion(ESnapshotVersion::MaxCompressedDataSizePerJob));
+    PHOENIX_REGISTER_FIELD(18, PrimaryInputCompressedDataSize_,
+        .SinceVersion(ESnapshotVersion::MaxCompressedDataSizePerJob));
 }
 
 PHOENIX_DEFINE_TYPE(TJobSizeConstraintsBase);
@@ -279,17 +299,21 @@ public:
         double dataWeightRatio,
         i64 inputChunkCount,
         i64 primaryInputDataWeight,
+        i64 primaryInputCompressedDataSize,
         i64 inputRowCount,
         i64 foreignInputDataWeight,
+        i64 foreignInputCompressedDataSize,
         int inputTableCount,
         int primaryInputTableCount,
         bool sortedOperation)
         : TJobSizeConstraintsBase(
             primaryInputDataWeight + foreignInputDataWeight,
+            primaryInputCompressedDataSize + foreignInputCompressedDataSize,
             primaryInputDataWeight,
+            primaryInputCompressedDataSize,
             spec,
             options,
-            logger,
+            std::move(logger),
             inputRowCount,
             inputChunkCount,
             inputTableCount,
@@ -312,11 +336,13 @@ public:
 
             if (IsSmallForeignRatio()) {
                 // Since foreign tables are quite small, we use primary table to estimate job count.
-                JobCount_ = std::max(
+                JobCount_ = std::max({
                     DivCeil(PrimaryInputDataWeight_, dataWeightPerJob),
-                    DivCeil(InputDataWeight_, DivCeil<i64>(Spec_->MaxDataWeightPerJob, 2)));
+                    DivCeil(InputDataWeight_, DivCeil<i64>(Spec_->MaxDataWeightPerJob, 2)),
+                    DivCeil(PrimaryInputCompressedDataSize_, GetMaxCompressedDataSizePerJob())});
             } else {
                 JobCount_ = DivCeil(InputDataWeight_, dataWeightPerJob);
+                // TODO(apollo1321): Add JobCount estimation by CompressedDataSize and write tests on this, YT-10317.
             }
         } else {
             JobCount_ = 0;
@@ -404,6 +430,11 @@ public:
         return TJobSizeConstraintsBase::GetSortedOperationInputSliceDataWeight();
     }
 
+    i64 GetMaxCompressedDataSizePerJob() const override
+    {
+        return Spec_->MaxCompressedDataSizePerJob.value_or(InfiniteSize);
+    }
+
 private:
     TSimpleOperationSpecBasePtr Spec_;
     TSimpleOperationOptionsPtr Options_;
@@ -457,6 +488,7 @@ public:
         TLogger logger,
         i64 inputChunkCount,
         i64 inputDataWeight,
+        i64 inputCompressedDataSize,
         double dataWeightRatio,
         double compressionRatio,
         int mergeInputTableCount,
@@ -464,10 +496,12 @@ public:
         EDataSizePerMergeJobHint dataSizeHint)
         : TJobSizeConstraintsBase(
             inputDataWeight,
+            inputCompressedDataSize,
             inputDataWeight,
+            inputCompressedDataSize,
             spec,
             options,
-            logger,
+            std::move(logger),
             /*inputRowCount*/ std::numeric_limits<i64>::max() / 4,
             inputChunkCount,
             mergeInputTableCount,
@@ -485,7 +519,9 @@ public:
                 // which may happen for very sparse data. Than, adjust data weight accordingly.
                 dataWeightPerJob = std::max(static_cast<i64>(dataWeightPerJob * dataWeightRatio * 2), (i64)1);
             }
-            JobCount_ = DivCeil(InputDataWeight_, dataWeightPerJob);
+            JobCount_ = std::max(
+                DivCeil(InputDataWeight_, dataWeightPerJob),
+                DivCeil(InputCompressedDataSize_, GetMaxCompressedDataSizePerJob()));
         } else {
             i64 dataWeightPerJob;
             switch (dataSizeHint) {
@@ -504,7 +540,9 @@ public:
                 // so we would like to limit uncompressed data size per job.
                 dataWeightPerJob = Options_->DataWeightPerJob * dataWeightRatio;
             }
-            JobCount_ = DivCeil(InputDataWeight_, dataWeightPerJob);
+            JobCount_ = std::max(
+                DivCeil(InputDataWeight_, dataWeightPerJob),
+                DivCeil(InputCompressedDataSize_, GetMaxCompressedDataSizePerJob()));
         }
 
         i64 maxJobCount = Options_->MaxJobCount;
@@ -555,6 +593,11 @@ public:
             : 1);
     }
 
+    i64 GetMaxCompressedDataSizePerJob() const override
+    {
+        return Spec_->MaxCompressedDataSizePerJob.value_or(InfiniteSize);
+    }
+
     i64 GetInputSliceRowCount() const override
     {
         return std::numeric_limits<i64>::max() / 4;
@@ -600,8 +643,16 @@ public:
         const TSortOperationSpecBasePtr& spec,
         const TSortOperationOptionsBasePtr& options,
         TLogger logger,
-        i64 inputDataWeight)
-        : TJobSizeConstraintsBase(inputDataWeight, inputDataWeight, spec, options, logger)
+        i64 inputDataWeight,
+        i64 inputCompressedDataSize)
+        : TJobSizeConstraintsBase(
+            inputDataWeight,
+            inputCompressedDataSize,
+            inputDataWeight,
+            inputCompressedDataSize,
+            spec,
+            options,
+            std::move(logger))
         , Spec_(spec)
         , Options_(options)
     {
@@ -642,6 +693,11 @@ public:
         return std::numeric_limits<i64>::max() / 4;
     }
 
+    i64 GetMaxCompressedDataSizePerJob() const override
+    {
+        return InfiniteSize;
+    }
+
 private:
     TSortOperationSpecBasePtr Spec_;
     TSortOperationOptionsBasePtr Options_;
@@ -673,18 +729,20 @@ public:
         const TSortOperationSpecBasePtr& spec,
         const TSortOperationOptionsBasePtr& options,
         TLogger logger,
-        i64 inputDataSize,
+        i64 inputUncompressedDataSize,
         i64 inputDataWeight,
         i64 inputRowCount,
         double compressionRatio)
         : TJobSizeConstraintsBase(
             inputDataWeight,
+            inputUncompressedDataSize * compressionRatio,
             inputDataWeight,
+            inputUncompressedDataSize * compressionRatio,
             spec,
             options,
-            logger,
+            std::move(logger),
             inputRowCount,
-            /*inputChunkCount*/ std::numeric_limits<i64>::max() / 4,
+            /*inputChunkCount*/ InfiniteCount,
             /*mergeInputTableCount*/ 1,
             /*primaryMergeInputTableCount*/ 1,
             spec->Sampling)
@@ -718,12 +776,11 @@ public:
         YT_VERIFY(JobCount_ >= 0);
         YT_VERIFY(JobCount_ != 0 || InputDataWeight_ == 0);
 
-        if (JobCount_ > 0 && inputDataSize / JobCount_ > Spec_->MaxDataWeightPerJob) {
+        if (JobCount_ > 0 && inputUncompressedDataSize / JobCount_ > Spec_->MaxDataWeightPerJob) {
             // Sometimes (but rarely) data weight can be smaller than data size. Let's protect from
             // unreasonable huge jobs.
-            JobCount_ = DivCeil(inputDataSize, 2 * Spec_->MaxDataWeightPerJob);
+            JobCount_ = DivCeil(inputUncompressedDataSize, 2 * Spec_->MaxDataWeightPerJob);
         }
-
 
         JobCount_ = std::min(JobCount_, static_cast<i64>(Options_->MaxPartitionJobCount));
         JobCount_ = std::min(JobCount_, InputRowCount_);
@@ -756,6 +813,11 @@ public:
         return Options_->MaxDataSlicesPerJob;
     }
 
+    i64 GetMaxCompressedDataSizePerJob() const override
+    {
+        return InfiniteSize;
+    }
+
 private:
     TSortOperationSpecBasePtr Spec_;
     TSortOperationOptionsBasePtr Options_;
@@ -785,8 +847,10 @@ IJobSizeConstraintsPtr CreateUserJobSizeConstraints(
     double dataWeightRatio,
     i64 inputChunkCount,
     i64 primaryInputDataSize,
+    i64 primaryInputCompressedDataSize,
     i64 inputRowCount,
     i64 foreignInputDataSize,
+    i64 foreignInputCompressedDataSize,
     int mergeInputTableCount,
     int mergePrimaryInputTableCount,
     bool sortedOperation)
@@ -794,13 +858,15 @@ IJobSizeConstraintsPtr CreateUserJobSizeConstraints(
     return New<TUserJobSizeConstraints>(
         spec,
         options,
-        logger,
+        std::move(logger),
         outputTableCount,
         dataWeightRatio,
         inputChunkCount,
         primaryInputDataSize,
+        primaryInputCompressedDataSize,
         inputRowCount,
         foreignInputDataSize,
+        foreignInputCompressedDataSize,
         mergeInputTableCount,
         mergePrimaryInputTableCount,
         sortedOperation);
@@ -812,6 +878,7 @@ IJobSizeConstraintsPtr CreateMergeJobSizeConstraints(
     TLogger logger,
     i64 inputChunkCount,
     i64 inputDataWeight,
+    i64 inputCompressedDataSize,
     double dataWeightRatio,
     double compressionRatio,
     int mergeInputTableCount,
@@ -821,9 +888,10 @@ IJobSizeConstraintsPtr CreateMergeJobSizeConstraints(
     return New<TMergeJobSizeConstraints>(
         spec,
         options,
-        logger,
+        std::move(logger),
         inputChunkCount,
         inputDataWeight,
+        inputCompressedDataSize,
         dataWeightRatio,
         compressionRatio,
         mergeInputTableCount,
@@ -835,21 +903,34 @@ IJobSizeConstraintsPtr CreateSimpleSortJobSizeConstraints(
     const TSortOperationSpecBasePtr& spec,
     const TSortOperationOptionsBasePtr& options,
     TLogger logger,
-    i64 inputDataWeight)
+    i64 inputDataWeight,
+    i64 inputCompressedDataSize)
 {
-    return New<TSimpleSortJobSizeConstraints>(spec, options, logger, inputDataWeight);
+    return New<TSimpleSortJobSizeConstraints>(
+        spec,
+        options,
+        std::move(logger),
+        inputDataWeight,
+        inputCompressedDataSize);
 }
 
 IJobSizeConstraintsPtr CreatePartitionJobSizeConstraints(
     const TSortOperationSpecBasePtr& spec,
     const TSortOperationOptionsBasePtr& options,
     TLogger logger,
-    i64 inputDataSize,
+    i64 inputUncompressedDataSize,
     i64 inputDataWeight,
     i64 inputRowCount,
     double compressionRatio)
 {
-    return New<TPartitionJobSizeConstraints>(spec, options, logger, inputDataSize, inputDataWeight, inputRowCount, compressionRatio);
+    return New<TPartitionJobSizeConstraints>(
+        spec,
+        options,
+        std::move(logger),
+        inputUncompressedDataSize,
+        inputDataWeight,
+        inputRowCount,
+        compressionRatio);
 }
 
 IJobSizeConstraintsPtr CreatePartitionBoundSortedJobSizeConstraints(
@@ -877,8 +958,9 @@ IJobSizeConstraintsPtr CreatePartitionBoundSortedJobSizeConstraints(
         options->MaxDataSlicesPerJob,
         spec->MaxDataWeightPerJob,
         spec->MaxPrimaryDataWeightPerJob,
-        /*inputSliceDataSize*/ std::numeric_limits<i64>::max() / 4,
-        /*inputSliceRowCount*/ std::numeric_limits<i64>::max() / 4,
+        /*maxCompressedDataSizePerJob*/ InfiniteSize,
+        /*inputSliceDataSize*/ InfiniteSize,
+        /*inputSliceRowCount*/ InfiniteCount,
         /*batchRowCount*/ {},
         /*foreignSliceDataWeight*/ 0,
         /*samplingRate*/ std::nullopt);
