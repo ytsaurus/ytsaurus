@@ -3912,7 +3912,7 @@ IOperationControllerPtr CreateSortController(
     IOperationControllerHostPtr host,
     TOperation* operation)
 {
-    auto options = config->SortOperationOptions;
+    auto options = CreateOperationOptions(config->SortOperationOptions, operation->GetOptionsPatch());
     auto spec = ParseOperationSpec<TSortOperationSpec>(UpdateSpec(options->SpecTemplate, operation->GetSpec()));
     return New<TSortController>(spec, config, options, host, operation);
 }
@@ -4907,7 +4907,7 @@ IOperationControllerPtr CreateMapReduceController(
     IOperationControllerHostPtr host,
     TOperation* operation)
 {
-    auto options = config->MapReduceOperationOptions;
+    auto options = CreateOperationOptions(config->MapReduceOperationOptions, operation->GetOptionsPatch());
     auto spec = ParseOperationSpec<TMapReduceOperationSpec>(UpdateSpec(options->SpecTemplate, operation->GetSpec()));
     AdjustSamplingFromConfig(spec, config);
     return New<TMapReduceController>(spec, config, options, host, operation);
