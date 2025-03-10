@@ -91,6 +91,15 @@ i64 TLegacyDataSlice::GetValueCount() const
     return result;
 }
 
+i64 TLegacyDataSlice::GetCompressedDataSize() const
+{
+    i64 result = 0;
+    for (const auto& chunkSlice : ChunkSlices) {
+        result += chunkSlice->GetCompressedDataSize();
+    }
+    return result;
+}
+
 i64 TLegacyDataSlice::GetMaxBlockSize() const
 {
     i64 result = 0;

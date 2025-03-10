@@ -303,6 +303,7 @@ protected:
                     Logger,
                     TotalEstimatedInputChunkCount,
                     PrimaryInputDataWeight,
+                    PrimaryInputCompressedDataSize,
                     DataWeightRatio,
                     InputCompressionRatio);
                 break;
@@ -316,6 +317,7 @@ protected:
                     DataWeightRatio,
                     TotalEstimatedInputChunkCount,
                     PrimaryInputDataWeight,
+                    PrimaryInputCompressedDataSize,
                     TotalEstimatedInputRowCount);
                 break;
 
@@ -325,10 +327,11 @@ protected:
 
         YT_LOG_INFO(
             "Calculated operation parameters (JobCount: %v, DataWeightPerJob: %v, MaxDataWeightPerJob: %v, "
-            "InputSliceDataWeight: %v, InputSliceRowCount: %v, IsExplicitJobCount: %v)",
+            "MaxCompressedDataSizePerJob: %v, InputSliceDataWeight: %v, InputSliceRowCount: %v, IsExplicitJobCount: %v)",
             JobSizeConstraints_->GetJobCount(),
             JobSizeConstraints_->GetDataWeightPerJob(),
             JobSizeConstraints_->GetMaxDataWeightPerJob(),
+            JobSizeConstraints_->GetMaxCompressedDataSizePerJob(),
             JobSizeConstraints_->GetInputSliceDataWeight(),
             JobSizeConstraints_->GetInputSliceRowCount(),
             JobSizeConstraints_->IsExplicitJobCount());

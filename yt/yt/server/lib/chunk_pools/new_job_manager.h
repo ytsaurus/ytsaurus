@@ -43,6 +43,9 @@ public:
 
     DEFINE_BYVAL_RO_PROPERTY(TChunkStripeListPtr, StripeList, New<TChunkStripeList>());
 
+    DEFINE_BYVAL_RO_PROPERTY(i64, PrimaryCompressedDataSize, 0);
+    DEFINE_BYVAL_RO_PROPERTY(i64, ForeignCompressedDataSize, 0);
+
     friend class TNewJobManager;
 
 public:
@@ -57,6 +60,7 @@ public:
     void Finalize();
 
     i64 GetDataWeight() const;
+    i64 GetCompressedDataSize() const;
     i64 GetRowCount() const;
     int GetSliceCount() const;
 

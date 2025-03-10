@@ -7748,8 +7748,10 @@ void TOperationControllerBase::CollectTotals()
 
             if (table->IsPrimary()) {
                 PrimaryInputDataWeight += inputChunk->GetDataWeight();
+                PrimaryInputCompressedDataSize += inputChunk->GetCompressedDataSize();
             } else {
                 ForeignInputDataWeight += inputChunk->GetDataWeight();
+                ForeignInputCompressedDataSize += inputChunk->GetCompressedDataSize();
             }
 
             totalInputDataWeight += inputChunk->GetTotalDataWeight();

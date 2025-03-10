@@ -80,10 +80,13 @@ private:
             const auto* partitionsExt = chunk->PartitionsExt().get();
             i64 rowCount = partitionsExt->row_counts()[partitionIndex];
             i64 dataSize = partitionsExt->uncompressed_data_sizes()[partitionIndex];
+            i64 compressedDataSize = DivCeil(
+                chunk->GetCompressedDataSize(),
+                chunk->GetRowCount()) * rowCount;
 
             if (rowCount > 0) {
                 result.push_back(New<TInputChunkSlice>(chunk));
-                result.back()->OverrideSize(rowCount, dataSize);
+                result.back()->OverrideSize(rowCount, dataSize, compressedDataSize);
             }
         }
 

@@ -63,6 +63,7 @@ void TLegacyJobStub::Finalize(bool sortByPosition)
         StripeList_->TotalDataWeight += statistics.DataWeight;
         StripeList_->TotalRowCount += statistics.RowCount;
         StripeList_->TotalChunkCount += statistics.ChunkCount;
+        StripeList_->TotalCompressedDataSize += statistics.CompressedDataSize;
         if (sortByPosition) {
             // This is done to ensure that all the data slices inside a stripe
             // are not only sorted by key, but additionally by their position

@@ -39,6 +39,9 @@ struct IJobSizeConstraints
     //! Can be overflown if exact job count is provided.
     virtual i64 GetMaxPrimaryDataWeightPerJob() const = 0;
 
+    //! Approximate read data weight provided via operation spec.
+    virtual i64 GetMaxCompressedDataSizePerJob() const = 0;
+
     virtual i64 GetInputSliceDataWeight() const = 0;
     virtual i64 GetInputSliceRowCount() const = 0;
 
@@ -89,6 +92,7 @@ IJobSizeConstraintsPtr CreateExplicitJobSizeConstraints(
     i64 maxDataSlicesPerJob,
     i64 maxDataWeightPerJob,
     i64 maxPrimaryDataWeightPerJob,
+    i64 maxCompressedDataSizePerJob,
     i64 inputSliceDataWeight,
     i64 inputSliceRowCount,
     std::optional<i64> batchRowCount,
@@ -97,7 +101,7 @@ IJobSizeConstraintsPtr CreateExplicitJobSizeConstraints(
     i64 samplingDataWeightPerJob = -1,
     i64 samplingPrimaryDataWeightPerJob = -1,
     i64 maxBuildRetryCount = 5,
-    double dataWeightPerJobBuildRetryFactor = 2.0,
+    double dataWeightPerJobRetryFactor = 2.0,
     bool forceAllowJobInterruption = false);
 
 ////////////////////////////////////////////////////////////////////////////////
