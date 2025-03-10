@@ -2928,20 +2928,13 @@ private:
         TRange<TChunkLocationRawPtr> locationDirectory,
         const std::vector<TChunk*>& chunks)
     {
-        auto isSequoia = chunks.empty() ? false : chunks[0]->IsSequoia();
-        for (auto* chunk : chunks) {
-            YT_VERIFY(chunk->IsSequoia() == isSequoia);
-        }
-
         auto* replicaAnnouncements = response->mutable_replica_announcements();
         bool clusterIsStableEnough = IsClusterStableEnoughForImmediateReplicaAnnounces();
         if (Bootstrap_->IsPrimaryMaster()) {
             replicaAnnouncements->set_enable_lazy_replica_announcements(clusterIsStableEnough);
         }
 
-        auto* announcements = isSequoia ?
-            replicaAnnouncements->mutable_sequoia_announcements() :
-            replicaAnnouncements->mutable_non_sequoia_announcements();
+        auto* announcements = replicaAnnouncements->mutable_non_sequoia_announcements();
         announcements->set_revision(ToProto(GetCurrentMutationContext()->GetVersion().ToRevision()));
 
         auto onChunk = [&] (TChunk* chunk, bool confirmationNeeded) {
