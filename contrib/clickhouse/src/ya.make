@@ -2547,6 +2547,8 @@ SRCS(
     TableFunctions/registerTableFunctions.cpp
 )
 
+SRC(Functions/divide/divideImpl.cpp -DNAMESPACE=Generic)
+
 SRC_C_SSE2(Functions/divide/divideImpl.cpp -DNAMESPACE=SSE2)
 
 SRC_C_AVX2(Functions/divide/divideImpl.cpp -DNAMESPACE=AVX2)
