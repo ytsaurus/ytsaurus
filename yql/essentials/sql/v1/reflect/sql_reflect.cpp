@@ -128,6 +128,7 @@ namespace NSQLReflect {
                 colonPos < semiPos);
     
             TString content = line.substr(colonPos + 2, semiPos - colonPos - 2);
+            SubstGlobal(content, "\\\\", "\\");
     
             TString name = std::move(line);
             name.resize(colonPos);
@@ -137,7 +138,10 @@ namespace NSQLReflect {
     
         void ParsePunctuationLine(TString&& line, TGrammarMeta& meta) {
             auto [name, content] = ParseLexerRule(std::move(line));
-            SubstGlobal(content, "'", "");
+            content = content.erase(std::begin(content));
+            content.pop_back();
+
+            SubstGlobal(content, "\\\'", "\'");
     
             if (!name.StartsWith(FragmentPrefix)) {
                 meta.Punctuation.emplace(name);
@@ -146,7 +150,7 @@ namespace NSQLReflect {
             SubstGlobal(name, FragmentPrefix, "");
             meta.ContentByName.emplace(std::move(name), std::move(content));
         }
-    
+
         void ParseKeywordLine(TString&& line, TGrammarMeta& meta) {
             auto [name, content] = ParseLexerRule(std::move(line));
             SubstGlobal(content, "'", "");
@@ -155,15 +159,16 @@ namespace NSQLReflect {
             Y_ENSURE(name == content);
             meta.Keywords.emplace(std::move(name));
         }
-    
+
         void ParseOtherLine(TString&& line, TGrammarMeta& meta) {
             auto [name, content] = ParseLexerRule(std::move(line));
     
             if (!name.StartsWith(FragmentPrefix)) {
                 meta.Other.emplace(name);
             }
-    
+
             SubstGlobal(name, FragmentPrefix, "");
+            SubstGlobal(content, " -> channel(HIDDEN)", "");
             meta.ContentByName.emplace(std::move(name), std::move(content));
         }
     } // namespace
