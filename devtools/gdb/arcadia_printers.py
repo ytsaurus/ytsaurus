@@ -28,6 +28,8 @@ from libstdcpp_printers import imap, izip, Iterator, Printer, \
 
 from libcxx_printers import StdPairPrinter, StdVectorPrinter, FilteringTypePrinter, StdStringPrinter
 
+from arcadia_helpers import hasCowInString
+
 class PtrPrinter:
     'Print an Arcadia smart pointer'
 
@@ -151,11 +153,11 @@ class TStringPrinter:
         if type.code == gdb.TYPE_CODE_REF:
             type = type.target()
 
-        if 'Storage_' in type.keys():
+        if 'Storage_' in type.keys() or 'TBasicStringStorage<char, std::__y1::char_traits<char>, true>' in type.keys():
             std_str = self.val['Storage_']
             return StdStringPrinter(std_str.type, std_str).to_string()
 
-        if 'S_' in type.keys():
+        if hasCowInString(type):
             std_str = self.val['S_']['T_'].dereference()
             return StdStringPrinter(std_str.type, std_str).to_string()
 
@@ -191,7 +193,7 @@ class TUtf16StringPrinter:
         if type.code == gdb.TYPE_CODE_REF:
             type = type.target()
 
-        if 'S_' in type.keys():
+        if hasCowInString(type, 'char16_t'):
             std_str = self.val['S_']['T_'].dereference()
             return 'L"' + StdStringPrinter(std_str.type, std_str).to_string() + '"'
         ptr = self.val['Data_']
@@ -504,12 +506,14 @@ def build_printer():
     printer.add('TString', TStringPrinter)  # <r5448720
     printer.add('TBasicString<char, TCharTraits<char> >', TStringPrinter)  # <r7721263
     printer.add('TBasicString<char, std::__y1::char_traits<char> >', TStringPrinter)  # >=r7721263
+    printer.add('TBasicString<char, std::__y1::char_traits<char>, false>', TStringPrinter)
     printer.add('TBasicString<char, std::char_traits<char> >', TStringPrinter)
     printer.add('TUtf16String', TUtf16StringPrinter)  # <r5448720
     printer.add('TBasicString<unsigned short, TCharTraits<unsigned short> >', TUtf16StringPrinter)  # <r5520905
     printer.add('TBasicString<char16_t, TCharTraits<char16_t> >', TUtf16StringPrinter)  # <r7339064
     printer.add('TBasicString<char16_t, TCharTraits<wchar16> >', TUtf16StringPrinter) # <r7721263
     printer.add('TBasicString<char16_t, std::__y1::char_traits<char16_t> >', TUtf16StringPrinter) # >=r7721263
+    printer.add('TBasicString<char16_t, std::__y1::char_traits<char16_t>, false>', TUtf16StringPrinter) # >=r7721263
     printer.add('TBasicString<char16_t, std::char_traits<char16_t> >', TUtf16StringPrinter)
     printer.add('TBasicStringBuf', TStringBufPrinter)
     printer.add('TMsString', TStringBufPrinter)
