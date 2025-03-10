@@ -1982,7 +1982,7 @@ private:
     {
         YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
-        ValidateConfig();
+        CheckConfigForUnrecognizedOptions();
 
         {
             YT_LOG_INFO("Connecting node manager");
@@ -2295,7 +2295,7 @@ private:
             const auto& rsp = rspOrError.Value();
             auto configFromCypress = ConvertToNode(TYsonString(rsp->value()));
             try {
-                newConfig->Load(configFromCypress, /*validate*/ true, /*setDefaults*/ false);
+                newConfig->Load(configFromCypress, /*postprocess*/ true, /*setDefaults*/ false);
             } catch (const std::exception& ex) {
                 auto error = TError(NScheduler::EErrorCode::WatcherHandlerFailed, "Error updating scheduler configuration")
                     << ex;
@@ -2314,7 +2314,7 @@ private:
             YT_LOG_INFO("Scheduler configuration updated");
 
             Config_ = newConfig;
-            ValidateConfig();
+            CheckConfigForUnrecognizedOptions();
 
             SpecTemplate_ = CloneNode(Config_->SpecTemplate);
 
@@ -3706,7 +3706,7 @@ private:
             .ValueOrThrow();
     }
 
-    void ValidateConfig()
+    void CheckConfigForUnrecognizedOptions()
     {
         // First reset the alert.
         SetSchedulerAlert(ESchedulerAlertType::UnrecognizedConfigOptions, TError());

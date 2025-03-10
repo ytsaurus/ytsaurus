@@ -348,8 +348,13 @@ void TTreeTestingOptions::Register(TRegistrar registrar)
 
 void TFairShareStrategyTreeConfig::Register(TRegistrar registrar)
 {
+    registrar.UnrecognizedStrategy(NYTree::EUnrecognizedStrategy::KeepRecursive);
+
     registrar.Parameter("nodes_filter", &TThis::NodesFilter)
         .Default();
+
+    registrar.Parameter("enable_unrecognized_alert", &TThis::EnableUnrecognizedAlert)
+        .Default(true);
 
     registrar.Parameter("fair_share_starvation_timeout", &TThis::FairShareStarvationTimeout)
         .Alias("fair_share_preemption_timeout")

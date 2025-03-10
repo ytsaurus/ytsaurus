@@ -299,6 +299,8 @@ public:
     // Specifies nodes that are served by this tree.
     TSchedulingTagFilter NodesFilter;
 
+    bool EnableUnrecognizedAlert;
+
     // The following settings can be overridden in operation spec.
     TDuration FairShareStarvationTimeout;
     TDuration FairShareAggressiveStarvationTimeout;

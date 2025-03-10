@@ -63,6 +63,7 @@ DEFINE_ENUM(ESchedulerAlertType,
     ((FoundNodesWithUnsupportedPreemption)          (17))
     ((ArchiveIsOutdated)                            (18))
     ((ExperimentAssignmentError)                    (19))
+    ((UnrecognizedPoolTreeConfigOptions)            (20))
 );
 
 DEFINE_ENUM(EOperationAlertType,
