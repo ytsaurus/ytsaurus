@@ -1118,7 +1118,7 @@ private:
     THashSet<TString> BannedTreeIds_;
 
     TOperationSpecBasePtr Spec_;
-    TOperationOptionsPtr Options;
+    TOperationOptionsPtr Options_;
 
     TSpecManagerPtr SpecManager_;
 

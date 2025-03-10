@@ -607,12 +607,29 @@ class TestContainerCpuProperties(YTEnvSetup):
 
     DELTA_CONTROLLER_AGENT_CONFIG = {
         "controller_agent": {
-            "map_operation_options": {
+            "vanilla_operation_options": {
                 "set_container_cpu_limit": True,
                 "cpu_limit_overcommit_multiplier": 2,
                 "initial_cpu_limit_overcommit": 0.05,
             },
         }
+    }
+
+    DELTA_SCHEDULER_CONFIG = {
+        "scheduler": {
+            "experiments": {
+                "exp_cpu_overcommit": {
+                    "fraction": 0.0,
+                    "ticket": "YTEXP-1",
+                    "ab_treatment_group": {
+                        "fraction": 1.0,
+                        "controller_options_patch": {
+                            "initial_cpu_limit_overcommit": 0.5,
+                        },
+                    },
+                },
+            },
+        },
     }
 
     def get_job_container_property(self, property):
@@ -630,50 +647,51 @@ class TestContainerCpuProperties(YTEnvSetup):
 
     @authors("psushin", "max42")
     def test_container_cpu_limit_spec(self):
-        create("table", "//tmp/t1", attributes={"replication_factor": 1})
-        write_table("//tmp/t1", [{"foo": 1}])
-
-        create("table", "//tmp/t2", attributes={"replication_factor": 1})
-
-        op = map(
+        run_test_vanilla(
             wait_for_jobs=True,
-            track=False,
             command=with_breakpoint("BREAKPOINT ; cat"),
-            in_="//tmp/t1",
-            out="//tmp/t2",
-            spec={
-                "mapper": {
-                    "cpu_limit": 0.1,
-                    "set_container_cpu_limit": True,
-                }
+            task_patch={
+                "cpu_limit": 0.1,
+                "set_container_cpu_limit": True,
             },
         )
 
         wait_breakpoint()
         assert self.get_job_container_property("cpu_limit") == "0.1c"
         release_breakpoint()
-        op.track()
 
     @authors("psushin")
     def test_container_cpu_limit_no_spec(self):
-        create("table", "//tmp/t1", attributes={"replication_factor": 1})
-        write_table("//tmp/t1", [{"foo": 1}])
-
-        create("table", "//tmp/t2", attributes={"replication_factor": 1})
-
-        op = map(
+        run_test_vanilla(
             wait_for_jobs=True,
-            track=False,
             command=with_breakpoint("BREAKPOINT ; cat"),
-            in_="//tmp/t1",
-            out="//tmp/t2",
-            spec={"mapper": {"cpu_limit": 0.1}},
+            task_patch={"cpu_limit": 0.1},
         )
         wait_breakpoint()
-        # Cpu limit is set due to map_operation_options.
+        # Cpu limit is set due to vanilla_operation_options.
+        # Explanation:
+        #   - Overcommit multiplier equals 2
+        #   - Initial overcommit equals 0.05
+        #   - Resulting limit equals 0.25 = 0.1 * 2 + 0.05
         assert self.get_job_container_property("cpu_limit") == "0.25c"
         release_breakpoint()
-        op.track()
+
+    @authors("ignat")
+    def test_operation_options_experiment_override(self):
+        run_test_vanilla(
+            wait_for_jobs=True,
+            command=with_breakpoint("BREAKPOINT ; cat"),
+            task_patch={"cpu_limit": 0.1},
+            spec={"experiment_overrides": ["exp_cpu_overcommit"]},
+        )
+        wait_breakpoint()
+        # Cpu limit is set due to operation_options experiment override.
+        # Explanation:
+        #   - Overcommit multiplier equals 2
+        #   - Initial overcommit equals 0.5 (overwritten by experiment)
+        #   - Resulting limit equals 0.7 = 0.1 * 2 + 0.5
+        assert self.get_job_container_property("cpu_limit") == "0.7c"
+        release_breakpoint()
 
     @authors("prime")
     def test_force_idle_cpu_policy(self):

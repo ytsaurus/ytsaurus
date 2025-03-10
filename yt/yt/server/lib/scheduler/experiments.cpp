@@ -36,6 +36,9 @@ void TExperimentEffectConfig::Register(TRegistrar registrar)
     registrar.Parameter("controller_job_io_patch", &TThis::ControllerJobIOPatch)
         .Default();
 
+    registrar.Parameter("controller_options_patch", &TThis::ControllerOptionsPatch)
+        .Default();
+
     registrar.Parameter("controller_agent_tag", &TThis::ControllerAgentTag)
         .Default()
         .NonEmpty();
