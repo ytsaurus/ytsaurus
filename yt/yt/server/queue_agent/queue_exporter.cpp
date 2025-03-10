@@ -25,8 +25,6 @@
 
 #include <yt/yt/client/queue_client/config.h>
 
-#include <yt/yt/core/concurrency/scheduled_executor.h>
-
 #include <util/generic/map.h>
 
 namespace NYT::NQueueAgent {
@@ -996,6 +994,7 @@ public:
         : ExportConfig_(std::move(exportConfig))
         , DynamicConfig_(std::move(dynamicConfig))
         , ExportProgress_(New<TQueueExportProgress>())
+        , RetryBackoff_(DynamicConfig_.RetryBackoff)
         , ExportName_(std::move(exportName))
         , Queue_(std::move(queue))
         , ClientDirectory_(std::move(clientDirectory))
@@ -1008,9 +1007,8 @@ public:
             BIND_NO_PROPAGATE(
                 &TQueueExporter::Pass,
                 MakeWeak(this)),
-                    /*interval*/ DynamicConfig_.Enable
-                        ? std::optional(DynamicConfig_.PassPeriod)
-                        : std::nullopt))
+            DynamicConfig_.GetPeriodicExecutorOptions()
+        ))
         , Logger(QueueExporterLogger().WithTag("%v, ExportName: %v",
             logger.GetTag(),
             ExportName_))
@@ -1035,6 +1033,10 @@ public:
 
         if (ExportConfig_->ExportDirectory != newExportConfig->ExportDirectory) {
             ExportProgress_ = New<TQueueExportProgress>();
+
+            // NB(apachee): Restart retries from the start, since new export directory
+            // might be properly configured (or become so soon).
+            RetryBackoff_.Restart();
         }
 
         ExportConfig_ = newExportConfig;
@@ -1044,10 +1046,12 @@ public:
     {
         auto guard = Guard(Lock_);
 
-        if (DynamicConfig_ != newDynamicConfig) {
-            Executor_->SetPeriod(newDynamicConfig.Enable
-                ? std::optional(newDynamicConfig.PassPeriod)
-                : std::nullopt);
+        if (DynamicConfig_.GetPeriodicExecutorOptions() != newDynamicConfig.GetPeriodicExecutorOptions()) {
+            Executor_->SetOptions(DynamicConfig_.GetPeriodicExecutorOptions());
+        }
+        if (RetryBackoff_.GetOptions() != newDynamicConfig.RetryBackoff) {
+            RetryBackoff_.UpdateOptions(newDynamicConfig.RetryBackoff);
+            RetryBackoff_.Restart();
         }
 
         DynamicConfig_ = newDynamicConfig;
@@ -1058,14 +1062,35 @@ public:
         AlertCollector_->Stop();
     }
 
+    void BuildOrchidYson(NYTree::TFluentAny fluent) const override
+    {
+        auto guard = Guard(Lock_);
+
+        fluent
+            .BeginMap()
+                .Item("export_config").Value(ExportConfig_)
+                .Item("progress").Value(ExportProgress_)
+                .Item("last_successful_export_unix_ts").Value(LastSuccessfulExportUnixTs_.load())
+                .Item("export_task_invocation_index").Value(ExportTaskInvocationIndex_)
+                .Item("export_task_invocation_instant").Value(ExportTaskInvocationInstant_)
+                .Item("retry_index").Value(RetryBackoff_.GetInvocationIndex())
+                .Item("retry_backoff_duration").Value(RetryBackoff_.GetBackoff())
+            .EndMap();
+    }
+
 private:
     TSpinLock Lock_;
     TQueueStaticExportConfigPtr ExportConfig_;
     TQueueExporterDynamicConfig DynamicConfig_;
     TQueueExportProgressPtr ExportProgress_;
-
+    //! Number of times export task was invoked regardless of its result.
+    i64 ExportTaskInvocationIndex_ = 0;
+    //! Instant of last export task invocation.
+    TInstant ExportTaskInvocationInstant_;
     //! Export unix timestamp corresponding to the last successful export.
-    ui64 LastSuccessfulExportUnixTs_ = 0;
+    TBackoffStrategy RetryBackoff_;
+
+    std::atomic<ui64> LastSuccessfulExportUnixTs_ = 0;
 
     const TString ExportName_;
     const TCrossClusterReference Queue_;
@@ -1082,6 +1107,10 @@ private:
     //!
     //! Default period is a second, so by default between consecutive export tasks there is at least 1 second delay.
     //! Furthermore, all exports within one instance share the same throttler to limit number of exports started per second.
+    //!
+    //! In case export task failed with any error, we use backoff to artifically increase pass period.
+    //! Period is increased exponentially until it reaches 5 minutes (by default), and is reset
+    //! in case of a successful export task.
     void Pass()
     {
         auto traceContextGuard = TTraceContextGuard(TTraceContext::NewRoot("QueueExporterPass"));
@@ -1091,12 +1120,12 @@ private:
         auto exportConfig = GetExportConfig();
         auto exportUnixTs = GetExportUnixTsRange(now.Seconds(), exportConfig->ExportPeriod).first;
 
-        if (exportUnixTs <= LastSuccessfulExportUnixTs_) {
+        if (exportUnixTs <= LastSuccessfulExportUnixTs_.load()) {
             // Too early to run new export task.
             return;
         }
 
-        int exportTaskErrors = 0;
+        TError passError;
 
         try {
             GuardedExport(exportConfig, exportUnixTs);
@@ -1106,12 +1135,28 @@ private:
                 "Failed to perform static export for queue",
                 /*tags*/ {{"export_name", ExportName_}},
                 ex));
-            exportTaskErrors = 1;
+            passError = ex;
         }
 
         AlertCollector_->PublishAlerts();
 
-        ProfileExport(exportConfig, exportTaskErrors);
+        ProfileExport(exportConfig, !passError.IsOK());
+
+        TDuration backoffDuration;
+        {
+            auto guard = Guard(Lock_);
+            if (passError.IsOK()) {
+                RetryBackoff_.Restart();
+                return;
+            }
+            RetryBackoff_.Next();
+
+            backoffDuration = RetryBackoff_.GetBackoff();
+        }
+
+        // TODO(apachee): Think of a way to ignore misconfigured exports completely
+        // instead of artificially increasing pass period using retry backoff.
+        TDelayedExecutor::WaitForDuration(backoffDuration);
     }
 
     void GuardedExport(const TQueueStaticExportConfigPtr& exportConfig, ui64 exportUnixTs)
@@ -1124,6 +1169,12 @@ private:
             .ThrowOnError();
 
         auto dynamicConfig = GetDynamicConfig();
+
+        {
+            auto guard = Guard(Lock_);
+            ++ExportTaskInvocationIndex_;
+            ExportTaskInvocationInstant_ = TInstant::Now();
+        }
 
         TQueueExportTaskPtr exportTask = New<TQueueExportTask>(
             ClientDirectory_->GetClientOrThrow(Queue_.Cluster),
@@ -1160,10 +1211,10 @@ private:
         }
         YT_VERIFY(exportTaskError.IsOK() && exportTask->GetExportError().IsOK());
 
-        LastSuccessfulExportUnixTs_ = exportUnixTs;
+        LastSuccessfulExportUnixTs_.store(exportUnixTs);
     }
 
-    void ProfileExport(const TQueueStaticExportConfigPtr& exportConfig, int exportTaskErrors)
+    void ProfileExport(const TQueueStaticExportConfigPtr& exportConfig, bool hasError)
     {
         auto now = TInstant::Now();
         auto exportUnixTsUpperBound = GetExportUnixTsUpperBound(now, exportConfig->ExportPeriod);
@@ -1179,8 +1230,8 @@ private:
         auto exportPeriodSeconds = exportConfig->ExportPeriod.Seconds();
         ui64 tableLag = (timeLagSeconds + exportPeriodSeconds - 1) / exportPeriodSeconds;
 
-        if (exportTaskErrors) {
-            ProfilingCounters_->ExportTaskErrors.Increment(exportTaskErrors);
+        if (hasError) {
+            ProfilingCounters_->ExportTaskErrors.Increment();
         }
         ProfilingCounters_->TimeLag.Update(TDuration::Seconds(timeLagSeconds));
         ProfilingCounters_->TableLag.Update(tableLag);

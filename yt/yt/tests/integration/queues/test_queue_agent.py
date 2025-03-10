@@ -3169,6 +3169,7 @@ class TestQueueAgentBannedAttribute(TestQueueStaticExportBase):
         self.remove_export_destination(export_dir)
 
 
+# XXX(apachee): Maybe split TestQueueStaticExport in TestQueueStaticExportCommon and TestQueueStaticExportNoPortals.
 @pytest.mark.enabled_multidaemon
 class TestQueueStaticExport(TestQueueStaticExportBase):
     NUM_TEST_PARTITIONS = 3
@@ -3974,6 +3975,166 @@ class TestQueueStaticExport(TestQueueStaticExportBase):
         assert_exported_table_count(2)
 
         self.remove_export_destination(export_dir)
+
+
+@pytest.mark.enabled_multidaemon
+class TestQueueExporterRetries(TestQueueStaticExportBase):
+    ENABLE_MULTIDAEMON = True
+
+    @authors("apachee")
+    @pytest.mark.parametrize("should_retry", [False, True])
+    def test_backoff(self, should_retry):
+        self._apply_dynamic_config_patch({
+            "queue_agent": {
+                "controller": {
+                    "queue_exporter": {
+                        "retry_backoff": {
+                            "min_backoff": 15_000,
+                            "max_backoff": 15_000,
+                            "backoff_jitter": 0.0,
+                        }
+                    }
+                }
+            }
+        })
+
+        orchid = QueueAgentOrchid()
+
+        _, queue_id = self._create_queue("//tmp/q")
+        queue_orchid = orchid.get_queue_orchid("primary://tmp/q")
+
+        self._wait_for_global_sync()
+
+        export_dir = "//tmp/export"
+        if not should_retry:
+            self._create_export_destination(export_dir, queue_id)
+
+        export_period_seconds = 3
+        set("//tmp/q/@static_export_config", {
+            "default": {
+                "export_directory": export_dir,
+                "export_period": export_period_seconds * 1000,
+            },
+        })
+
+        exporter_orchid = queue_orchid.get_exporter_orchid()
+
+        if should_retry:
+            wait(lambda: exists(exporter_orchid.orchid_path()))
+            wait(lambda: exporter_orchid.get_retry_index() == 1)
+            time.sleep(20)
+            assert exporter_orchid.get_retry_index() == 2
+        else:
+            exported_table_count = 2
+            expected = []
+
+            for i in range(exported_table_count):
+                rows = [{"$tablet_index": 0, "data": str(i)}] * 3
+                expected += [rows]
+                insert_rows("//tmp/q", rows)
+                self._flush_table("//tmp/q")
+
+                self._sleep_until_next_export_instant(export_period_seconds)
+                wait(lambda: len(ls(export_dir)) == i + 1, timeout=5)
+
+                assert exporter_orchid.get_retry_index() == 0
+
+            self.remove_export_destination(export_dir)
+
+    @authors("apachee")
+    def test_backoff_reset(self):
+        self._apply_dynamic_config_patch({
+            "queue_agent": {
+                "controller": {
+                    "queue_exporter": {
+                        "retry_backoff": {
+                            "min_backoff": 100,
+                            "max_backoff": 100,
+                            "backoff_jitter": 0.0,
+                        }
+                    }
+                }
+            }
+        })
+
+        orchid = QueueAgentOrchid()
+
+        _, queue_id = self._create_queue("//tmp/q")
+
+        self._wait_for_global_sync()
+
+        queue_orchid = orchid.get_queue_orchid("primary://tmp/q")
+
+        # Non-existent to force retries
+        export_dir = "//tmp/export"
+
+        export_period_seconds = 1
+        set("//tmp/q/@static_export_config", {
+            "default": {
+                "export_directory": export_dir,
+                "export_period": export_period_seconds * 1000,
+            },
+        })
+
+        exporter_orchid = queue_orchid.get_exporter_orchid()
+        wait(lambda: exists(exporter_orchid.orchid_path()))
+
+        wait(lambda: exporter_orchid.get_retry_index() > 0, timeout=5)
+
+        self._create_export_destination(export_dir, queue_id)
+
+        exporter_orchid.wait_fresh_invocation()
+        assert exporter_orchid.get_retry_index() == 0
+
+        self.remove_export_destination(export_dir)
+
+    @authors("apachee")
+    def test_exponential_backoff(self):
+        self._apply_dynamic_config_patch({
+            "queue_agent": {
+                "controller": {
+                    "queue_exporter": {
+                        "retry_backoff": {
+                            "min_backoff": 3_000,
+                            "max_backoff": 12_000,
+                            "backoff_multiplier": 2.0,
+                            "backoff_jitter": 0.0,
+                        }
+                    }
+                }
+            }
+        })
+
+        orchid = QueueAgentOrchid()
+
+        self._create_queue("//tmp/q")
+
+        self._wait_for_global_sync()
+
+        queue_orchid = orchid.get_queue_orchid("primary://tmp/q")
+
+        # Non-existent to force retries
+        export_dir = "//tmp/export"
+
+        export_period_seconds = 1
+        set("//tmp/q/@static_export_config", {
+            "default": {
+                "export_directory": export_dir,
+                "export_period": export_period_seconds * 1000,
+            },
+        })
+
+        exporter_orchid = queue_orchid.get_exporter_orchid()
+        wait(lambda: exists(exporter_orchid.orchid_path()))
+
+        timeouts = [5] + [1 + 3 * (2 ** i) for i in range(3)] + [12 + 1]
+
+        for i, timeout in enumerate(timeouts):
+            # Accept range [i + 1; i + 2] instead of only i + 1 in case of system lags
+            wait(lambda: i + 1 <= exporter_orchid.get_retry_index() <= i + 2, timeout=timeout)
+
+        exporter_orchid_value = exporter_orchid.get()
+        assert abs(exporter_orchid_value["retry_index"] - exporter_orchid_value["export_task_invocation_index"]) <= 1
 
 
 class TestQueueExportTaskConfig(TestQueueStaticExportBase):
