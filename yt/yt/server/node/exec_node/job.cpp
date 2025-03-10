@@ -2391,6 +2391,7 @@ void TJob::OnWorkspacePreparationFinished(const TErrorOr<TJobWorkspaceBuildingRe
             RootVolume_ = result.RootVolume;
             // Workspace builder may add or replace docker image.
             DockerImage_ = result.DockerImage;
+            DockerImageId_ = result.DockerImageId;
             SetupCommandCount_ = result.SetupCommandCount;
 
             THROW_ERROR_EXCEPTION_IF_FAILED(
@@ -2970,6 +2971,7 @@ TJobProxyInternalConfigPtr TJob::CreateConfig()
     } else {
         // Pass docker image if root volume is not materialized yet.
         proxyInternalConfig->DockerImage = DockerImage_;
+        proxyInternalConfig->DockerImageId = DockerImageId_;
     }
 
     if (RootVolume_ || DockerImage_) {
