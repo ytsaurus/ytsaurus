@@ -10,10 +10,12 @@
 namespace NSQLReflect {
     namespace {
         const TStringBuf ReflectPrefix = "//!";
-        const TStringBuf ReflectPunctuation = "//! reflect:punctuation";
-        const TStringBuf ReflectLetter = "//! reflect:letter";
-        const TStringBuf ReflectKeyword = "//! reflect:keyword";
-        const TStringBuf ReflectOther = "//! reflect:other";
+        const TStringBuf SectionPrefix = "//! section:";
+        const TStringBuf SectionPunctuation = "//! section:punctuation";
+        const TStringBuf SectionLetter = "//! section:letter";
+        const TStringBuf SectionKeyword = "//! section:keyword";
+        const TStringBuf SectionOther = "//! section:other";
+        const TStringBuf SubstPrefix = "//! subst:";
         const TStringBuf FragmentPrefix = "fragment ";
 
         TVector<TString> GetResourceLines(const TStringBuf key) {
@@ -25,7 +27,7 @@ namespace NSQLReflect {
             return lines;
         }
 
-        TVector<TString> Format(TVector<TString>&& lines) {
+        void Format(TVector<TString>& lines) {
             for (size_t i = 0; i < lines.size(); ++i) {
                 auto& line = lines[i];
 
@@ -52,32 +54,56 @@ namespace NSQLReflect {
                 SubstGlobal(line, " )", ")");
                 SubstGlobal(line, "( ", "(");
             }
-
-            return lines;
         }
 
-        TVector<TString> Purify(TVector<TString>&& lines) {
+        void Purify(TVector<TString>& lines) {
             const auto [first, last] = std::ranges::remove_if(lines, [](const TString& line) {
                 return (line.StartsWith("//") && !line.StartsWith(ReflectPrefix)) || line.empty();
             });
             lines.erase(first, last);
-            return lines;
+        }
+
+        THashMap<TString, THashMap<TString, TString>> ExtractSubstitutions(TVector<TString>& lines) {
+            THashMap<TString, THashMap<TString, TString>> substitutions;
+
+            for (auto& line : lines) {
+                if (!line.StartsWith(SubstPrefix)) {
+                    continue;
+                }
+                
+                SubstGlobal(line, SubstPrefix, "");
+                SubstGlobal(line, " GRAMMAR", "$$GRAMMAR");
+                SubstGlobal(line, " = ", "$$");
+
+                TVector<TString> parts;
+                Split(line, "$$", parts);
+                Y_ENSURE(parts.size() == 3);
+
+                substitutions[std::move(parts[0])][std::move(parts[1])] = std::move(parts[2]);
+            }
+
+            const auto [first, last] = std::ranges::remove_if(lines, [](const TString& line) {
+                return line.Contains("$$");
+            });
+            lines.erase(first, last);
+
+            return substitutions;
         }
 
         THashMap<TStringBuf, TVector<TString>> GroupBySection(TVector<TString>&& lines) {
             TVector<TStringBuf> sections = {
                 "",
-                ReflectPunctuation,
-                ReflectLetter,
-                ReflectKeyword,
-                ReflectOther,
+                SectionPunctuation,
+                SectionLetter,
+                SectionKeyword,
+                SectionOther,
             };
 
             size_t section = 0;
 
             THashMap<TStringBuf, TVector<TString>> groups;
             for (auto& line : lines) {
-                if (line.StartsWith(ReflectPrefix)) {
+                if (line.StartsWith(SectionPrefix)) {
                     Y_ENSURE(sections.at(section + 1) == line);
                     section += 1;
                     continue;
@@ -87,7 +113,7 @@ namespace NSQLReflect {
             }
 
             groups.erase("");
-            groups.erase(ReflectLetter);
+            groups.erase(SectionLetter);
 
             return groups;
         }
@@ -143,24 +169,27 @@ namespace NSQLReflect {
     } // namespace
 
     TGrammarMeta GetGrammarMeta() {
-        TVector<TString> lines;
-        lines = GetResourceLines("SQLv1Antlr4.g.in");
-        lines = Purify(std::move(lines));
-        lines = Format(std::move(lines));
-        lines = Purify(std::move(lines));
+        TVector<TString> lines = GetResourceLines("SQLv1Antlr4.g.in");
+        Purify(lines);
+        Format(lines);
+        Purify(lines);
+
+        auto substitutions = ExtractSubstitutions(lines);
 
         THashMap<TStringBuf, TVector<TString>> sections;
         sections = GroupBySection(std::move(lines));
 
         TGrammarMeta meta;
 
+        meta.Substitutions = std::move(substitutions);
+
         for (auto& [section, lines] : sections) {
             for (auto& line : lines) {
-                if (section == ReflectPunctuation) {
+                if (section == SectionPunctuation) {
                     ParsePunctuationLine(std::move(line), meta);
-                } else if (section == ReflectKeyword) {
+                } else if (section == SectionKeyword) {
                     ParseKeywordLine(std::move(line), meta);
-                } else if (section == ReflectOther) {
+                } else if (section == SectionOther) {
                     ParseOtherLine(std::move(line), meta);
                 } else {
                     Y_ABORT("Unexpected section %s", section);
@@ -196,6 +225,13 @@ namespace NSQLReflect {
                 continue;
             }
             std::cout << "- " << name << ": " << content << std::endl;
+        }
+        std::cout << "Substitutions:" << std::endl;
+        for (const auto& [mode, dict] : meta.Substitutions) {
+            std::cout << "- " << mode << std::endl;
+            for (const auto& [k, v] : dict) {
+                std::cout << "  - " << k << ": " << v << std::endl;
+            }
         }
         std::cout << std::endl;
 

@@ -1775,7 +1775,7 @@ bool_value: (TRUE | FALSE);
 real: REAL;
 integer: DIGITS | INTEGER_VALUE;
 
-//! reflect:punctuation
+//! section:punctuation
 
 EQUALS:        '=';
 EQUALS2:       '==';
@@ -1821,7 +1821,7 @@ fragment QUOTE_SINGLE:  '\'';
 fragment BACKTICK:      '`';
 fragment DOUBLE_COMMAT: '@@';
 
-//! reflect:letter
+//! section:letter
 
 // http://www.antlr.org/wiki/pages/viewpage.action?pageId=1782
 fragment A:('a'|'A');
@@ -1851,7 +1851,7 @@ fragment X:('x'|'X');
 fragment Y:('y'|'Y');
 fragment Z:('z'|'Z');
 
-//! reflect:keyword
+//! section:keyword
 
 ABORT: A B O R T;
 ACTION: A C T I O N;
@@ -2146,15 +2146,13 @@ WRAPPER: W R A P P E R;
 //WRITE: W R I T E;
 XOR: X O R;
 
-//! reflect:other
+//! section:other
 
-// YQL Default Lexer:
-// GRAMMAR_STRING_CORE_SINGLE = ~(QUOTE_SINGLE | BACKSLASH) | (BACKSLASH .)
-// GRAMMAR_STRING_CORE_DOUBLE = ~(QUOTE_DOUBLE | BACKSLASH) | (BACKSLASH .)
+//! subst:default GRAMMAR_STRING_CORE_SINGLE = ~(QUOTE_SINGLE | BACKSLASH) | (BACKSLASH .)
+//! subst:default GRAMMAR_STRING_CORE_DOUBLE = ~(QUOTE_DOUBLE | BACKSLASH) | (BACKSLASH .)
 
-// ANSI Lexer:
-// GRAMMAR_STRING_CORE_SINGLE = ~QUOTE_SINGLE | (QUOTE_SINGLE QUOTE_SINGLE)
-// GRAMMAR_STRING_CORE_DOUBLE = ~QUOTE_DOUBLE | (QUOTE_DOUBLE QUOTE_DOUBLE)
+//! subst:ansi GRAMMAR_STRING_CORE_SINGLE = ~QUOTE_SINGLE | (QUOTE_SINGLE QUOTE_SINGLE)
+//! subst:ansi GRAMMAR_STRING_CORE_DOUBLE = ~QUOTE_DOUBLE | (QUOTE_DOUBLE QUOTE_DOUBLE)
 
 fragment STRING_CORE_SINGLE: @GRAMMAR_STRING_CORE_SINGLE@;
 fragment STRING_CORE_DOUBLE: @GRAMMAR_STRING_CORE_DOUBLE@;
@@ -2192,10 +2190,9 @@ REAL:
 
 BLOB: X QUOTE_SINGLE HEXDIGIT+ QUOTE_SINGLE;
 
-// YQL Default Lexer:
-// GRAMMAR_MULTILINE_COMMENT_CORE = .
-// ANSI Lexer:
-// GRAMMAR_MULTILINE_COMMENT_CORE = MULTILINE_COMMENT | .
+//! subst:default GRAMMAR_MULTILINE_COMMENT_CORE = .
+
+//! subst:ansi GRAMMAR_MULTILINE_COMMENT_CORE = MULTILINE_COMMENT | .
 
 fragment MULTILINE_COMMENT: '/*' ( @GRAMMAR_MULTILINE_COMMENT_CORE@ )*? '*/';
 fragment LINE_COMMENT: '--' ~('\n' | '\r')* ('\r' '\n'? | '\n' | EOF);

@@ -11,6 +11,7 @@ namespace NSQLReflect {
         THashSet<TString> Punctuation;
         THashSet<TString> Other;
         THashMap<TString, TString> ContentByName;
+        THashMap<TString, THashMap<TString, TString>> Substitutions;
     };
 
     TGrammarMeta GetGrammarMeta();
