@@ -15,6 +15,7 @@ struct TChunkWriterStatistics
     : public TRefCounted
 {
     std::atomic<i64> DataBytesWrittenToDisk = 0;
+    std::atomic<i64> DataBlocksWrittenToDisk = 0;
     std::atomic<i64> DataIOWriteRequests = 0;
     std::atomic<i64> DataIOSyncRequests = 0;
     std::atomic<i64> MetaBytesWrittenToDisk = 0;
@@ -55,6 +56,7 @@ public:
 
 private:
     NProfiling::TCounter DataBytesWrittenToDisk_;
+    NProfiling::TCounter DataBlocksWrittenToDisk_;
     NProfiling::TCounter DataIOWriteRequests_;
     NProfiling::TCounter DataIOSyncRequests_;
 

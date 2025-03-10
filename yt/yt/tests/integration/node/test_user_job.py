@@ -4340,6 +4340,7 @@ class TestJobStatistics(YTEnvSetup):
 
         for output in [0, 1]:
             assert get_statistics("data_bytes_written_to_disk", output) > 0
+            assert get_statistics("data_blocks_written_to_disk", output) == upload_replication_factor
             assert get_statistics("data_io_write_requests", output) == upload_replication_factor
             assert get_statistics("data_io_sync_requests", output) == upload_replication_factor
             assert get_statistics("meta_bytes_written_to_disk", output) > 0
