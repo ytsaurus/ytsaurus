@@ -35,7 +35,6 @@ PEERDIR(
     contrib/libs/croaring
     contrib/libs/double-conversion
     contrib/libs/farmhash
-    contrib/libs/fastops/fastops
     contrib/libs/fmt
     contrib/libs/icu
     contrib/libs/libc_compat
@@ -120,6 +119,12 @@ ADDINCL(
     library/cpp/clickhouse_deps/incbin_stub
     library/cpp/consistent_hashing
 )
+
+IF (ARCH_X86_64)
+    PEERDIR(
+        contrib/libs/fastops/fastops
+    )
+ENDIF()
 
 NO_COMPILER_WARNINGS()
 

@@ -27,7 +27,7 @@
 #define USE_GWP_ASAN 0
 #define USE_H3 1
 #define USE_S2_GEOMETRY 0
-#define USE_FASTOPS 1
+#define USE_FASTOPS defined(__x86_64__)
 #define USE_SQIDS 0
 #define USE_IDNA 0
 #define USE_NLP 0
