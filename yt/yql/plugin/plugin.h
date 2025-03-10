@@ -19,9 +19,8 @@ using TQueryId = TGuid;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TYqlPluginOptions
+struct TYqlPluginOptions
 {
-public:
     NYson::TYsonString SingletonsConfig;
     NYson::TYsonString GatewayConfig;
     NYson::TYsonString DqGatewayConfig;
