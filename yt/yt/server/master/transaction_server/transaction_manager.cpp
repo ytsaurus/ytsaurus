@@ -1353,7 +1353,7 @@ public:
             leaseAwarePrerequisiteTransactionIds.reserve(prerequisiteTransactionIds.size());
             for (auto transactionId : prerequisiteTransactionIds) {
                 if (IsMirroringToSequoiaEnabled() && IsCypressTransactionMirroredToSequoia(transactionId)
-                    && GetDynamicConfig()->EnablePrerequisiteTransactionValidationViaLeases )
+                    && GetDynamicConfig()->EnableCypressMirroredToSequoiaPrerequisiteTransactionValidationViaLeases)
                 {
                     leaseAwarePrerequisiteTransactionIds.push_back(transactionId);
                 } else {
@@ -1645,7 +1645,8 @@ public:
         }
 
         auto revokeLeases = transaction->GetSuccessorTransactionLeaseCount() > 0
-            || GetDynamicConfig()->EnablePrerequisiteTransactionValidationViaLeases;
+            || (GetDynamicConfig()->EnableCypressMirroredToSequoiaPrerequisiteTransactionValidationViaLeases
+            && IsMirroringToSequoiaEnabled() && IsCypressTransactionMirroredToSequoia(transactionId));
 
         auto readyEvent = GetReadyToPrepareTransactionCommit(
             prerequisiteTransactionIds,
@@ -1719,7 +1720,8 @@ public:
         }
 
         auto revokeLeases = transaction->GetSuccessorTransactionLeaseCount() > 0
-            || GetDynamicConfig()->EnablePrerequisiteTransactionValidationViaLeases;
+            || (GetDynamicConfig()->EnableCypressMirroredToSequoiaPrerequisiteTransactionValidationViaLeases
+            && IsMirroringToSequoiaEnabled() && IsCypressTransactionMirroredToSequoia(transactionId));
 
         auto readyEvent = GetReadyToPrepareTransactionCommit(
             prerequisiteTransactionIds,
@@ -1827,7 +1829,7 @@ public:
         auto authenticationIdentity = context->GetAuthenticationIdentity();
 
         if (IsMirroringToSequoiaEnabled() && IsCypressTransactionMirroredToSequoia(transactionId)) {
-            if (GetDynamicConfig()->EnablePrerequisiteTransactionValidationViaLeases) {
+            if (GetDynamicConfig()->EnableCypressMirroredToSequoiaPrerequisiteTransactionValidationViaLeases) {
                 context->ReplyFrom(
                     RevokeTransactionLeases(transactionId)
                     .Apply(BIND([transactionId, force, authenticationIdentity, this, this_ = MakeStrong(this)] {
