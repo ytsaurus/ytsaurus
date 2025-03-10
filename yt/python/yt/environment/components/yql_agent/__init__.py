@@ -2,8 +2,6 @@ from yt.common import wait, YtError
 
 from yt.environment import YTServerComponentBase, YTComponent
 
-import yt.yson as yson
-
 import logging
 import os
 
@@ -50,7 +48,7 @@ class YqlAgent(YTServerComponentBase, YTComponent):
 
         self.client.create("document", "//sys/yql_agent/config", recursive=True, force=True, attributes={"value": {}})
 
-        yql_agent_token = yson.loads(self.client.issue_token(self.USER_NAME))
+        yql_agent_token = self.client.issue_token(self.USER_NAME)
         with open(self.token_path, "w") as file:
             file.write(yql_agent_token)
 
