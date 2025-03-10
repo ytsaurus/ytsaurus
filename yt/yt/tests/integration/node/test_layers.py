@@ -1391,8 +1391,18 @@ class TestNbdSquashFSLayers(YTEnvSetup):
         set("//tmp/squashfs.img/@filesystem", "squashfs")
 
     @authors("yuryalekseev")
-    def test_squashfs_layer(self):
-        self.setup_files()
+    @pytest.mark.parametrize("access_method", ["from_user_spec", "from_cypress"])
+    def test_squashfs_layer(self, access_method):
+        # Set up image file.
+        create("file", "//tmp/squashfs.img")
+        write_file("//tmp/squashfs.img", open("layers/squashfs.img", "rb").read())
+        set("//tmp/squashfs.img/@filesystem", "squashfs")
+
+        layer_paths = ["//tmp/squashfs.img"]
+        if access_method == "from_cypress":
+            set("//tmp/squashfs.img/@access_method", "nbd")
+        else:
+            layer_paths = ["<access_method=nbd>//tmp/squashfs.img"]
 
         create("table", "//tmp/t_in")
         create("table", "//tmp/t_out")
@@ -1406,7 +1416,7 @@ class TestNbdSquashFSLayers(YTEnvSetup):
             spec={
                 "max_failed_job_count": 1,
                 "mapper": {
-                    "layer_paths": ["//tmp/squashfs.img"],
+                    "layer_paths": layer_paths,
                 },
             },
         )
@@ -1445,63 +1455,6 @@ class TestNbdSquashFSLayers(YTEnvSetup):
 
         wait(lambda: profiler.get("volumes/removed", tags) is not None)
         wait(lambda: profiler.get("volumes/remove_time", tags) is not None)
-
-    @authors("yuryalekseev")
-    def test_job_spec_access_method(self):
-        create("file", "//tmp/squashfs.img")
-        write_file("//tmp/squashfs.img", open("layers/squashfs.img", "rb").read())
-        set("//tmp/squashfs.img/@filesystem", "squashfs")
-
-        create("table", "//tmp/t_in")
-        create("table", "//tmp/t_out")
-
-        write_table("//tmp/t_in", [{"k": 0, "u": 1, "v": 2}])
-
-        op = map(
-            in_="//tmp/t_in",
-            out="//tmp/t_out",
-            command="ls $YT_ROOT_FS/dir 1>&2",
-            spec={
-                "max_failed_job_count": 1,
-                "mapper": {
-                    "layer_paths": ["<access_method=nbd>//tmp/squashfs.img"],
-                },
-            },
-        )
-
-        job_ids = op.list_jobs()
-        assert len(job_ids) == 1
-        for job_id in job_ids:
-            assert b"squash_file" in op.read_stderr(job_id)
-
-        # Check solomon counters.
-        job = get_job(op.id, job_id)
-        profiler = profiler_factory().at_node(job["address"])
-        tags = {'file_path': '//tmp/squashfs.img'}
-
-        wait(lambda: profiler.get("nbd/server/count") is not None)
-        wait(lambda: profiler.get("nbd/server/created") is not None)
-        wait(lambda: profiler.get("nbd/device/count", tags) is not None)
-
-        wait(lambda: profiler.get("nbd/device/created", tags) is not None)
-        wait(lambda: profiler.get("nbd/device/removed", tags) is not None)
-
-        wait(lambda: profiler.get("nbd/device/registered", tags) is not None)
-        wait(lambda: profiler.get("nbd/device/unregistered", tags) is not None)
-
-        wait(lambda: profiler.get("nbd/device/read_count", tags) is not None)
-        wait(lambda: profiler.get("nbd/device/read_bytes", tags) is not None)
-        wait(lambda: profiler.get("nbd/device/read_time", tags) is not None)
-
-        wait(lambda: profiler.get("nbd/device/read_block_bytes_from_cache", tags) is not None)
-        wait(lambda: profiler.get("nbd/device/read_block_bytes_from_disk", tags) is not None)
-
-        tags = {'type': 'nbd', 'file_path': '//tmp/squashfs.img'}
-
-        wait(lambda: profiler.get("volumes/created", tags) is not None)
-        wait(lambda: profiler.get("volumes/create_time", tags) is not None)
-
-        wait(lambda: profiler.get("volumes/removed", tags) is not None)
 
     @authors("yuryalekseev")
     @pytest.mark.timeout(150)
