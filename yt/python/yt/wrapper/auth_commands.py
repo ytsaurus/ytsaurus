@@ -1,4 +1,4 @@
-from .driver import make_request
+from .driver import make_request, make_formatted_request
 
 from hashlib import sha256
 
@@ -25,11 +25,7 @@ def issue_token(user, password=None,
     params = {"user": user}
     if password:
         params["password_sha256"] = encode_sha256(password)
-    params["output_format"] = "yson"
-    return make_request(
-        "issue_token",
-        params=params,
-        client=client)
+    return make_formatted_request("issue_token", params, format=None, client=client)
 
 
 def revoke_token(user, password=None, token=None, token_sha256=None,
