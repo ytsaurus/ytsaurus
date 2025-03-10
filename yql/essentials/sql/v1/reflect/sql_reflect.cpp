@@ -5,163 +5,201 @@
 #include <util/string/split.h>
 #include <util/string/strip.h>
 
+#include <iostream>
+
 namespace NSQLReflect {
+    namespace {
+        const TStringBuf ReflectPrefix = "//!";
+        const TStringBuf ReflectPunctuation = "//! reflect:punctuation";
+        const TStringBuf ReflectLetter = "//! reflect:letter";
+        const TStringBuf ReflectKeyword = "//! reflect:keyword";
+        const TStringBuf ReflectOther = "//! reflect:other";
+        const TStringBuf FragmentPrefix = "fragment ";
 
-    class TGrammarMetaParser {
-    public:
-        explicit TGrammarMetaParser(TString text) {
-            Split(text, "\n", Lines_);
-            for (auto& line : Lines_) {
+        TVector<TString> GetResourceLines(const TStringBuf key) {
+            TString text;
+            Y_ENSURE(NResource::FindExact(key, &text));
+
+            TVector<TString> lines;
+            Split(text, "\n", lines);
+            return lines;
+        }
+
+        TVector<TString> Format(TVector<TString>&& lines) {
+            for (size_t i = 0; i < lines.size(); ++i) {
+                auto& line = lines[i];
+
                 StripInPlace(line);
+
+                if (line.StartsWith("//") || (line.Contains(':') && line.Contains(';'))) {
+                    continue;
+                }
+
+                size_t j = i + 1;
+                do {
+                    line += lines.at(j);
+                } while (!lines.at(j++).Contains(';'));
+
+                auto first = std::next(std::begin(lines), i + 1);
+                auto last = std::next(std::begin(lines), j);
+                lines.erase(first, last);
+            }
+
+            for (auto& line : lines) {
                 CollapseInPlace(line);
+                SubstGlobal(line, " ;", ";");
+                SubstGlobal(line, " :", ":");
+                SubstGlobal(line, " )", ")");
+                SubstGlobal(line, "( ", "(");
             }
 
-            CollectFragments();
-
-            Line_ = std::begin(Lines_);
-
-            ParsePrefix();
-            ParsePunctuation();
-            ParseCaseInsensitiveLetter();
-            ParseKeyword();
-            ParseOther();
+            return lines;
         }
 
-        TGrammarMeta&& ExtractMeta() && {
-            return std::move(Meta_);
+        TVector<TString> Purify(TVector<TString>&& lines) {
+            const auto [first, last] = std::ranges::remove_if(lines, [](const TString& line) {
+                return (line.StartsWith("//") && !line.StartsWith(ReflectPrefix)) || line.empty();
+            });
+            lines.erase(first, last);
+            return lines;
         }
 
-    private:
-        bool ParseTrivialLexerRule(TString&& line, TString& name, TString& content) {
+        THashMap<TStringBuf, TVector<TString>> GroupBySection(TVector<TString>&& lines) {
+            TVector<TStringBuf> sections = {
+                "",
+                ReflectPunctuation,
+                ReflectLetter,
+                ReflectKeyword,
+                ReflectOther,
+            };
+
+            size_t section = 0;
+
+            THashMap<TStringBuf, TVector<TString>> groups;
+            for (auto& line : lines) {
+                if (line.StartsWith(ReflectPrefix)) {
+                    Y_ENSURE(sections.at(section + 1) == line);
+                    section += 1;
+                    continue;
+                }
+
+                groups[sections.at(section)].emplace_back(std::move(line));
+            }
+
+            groups.erase("");
+            groups.erase(ReflectLetter);
+
+            return groups;
+        }
+
+        std::tuple<TString, TString> ParseLexerRule(TString&& line) {
             size_t colonPos = line.find(':');
-            size_t semiPos = line.find(';');
-
-            if (colonPos == TString::npos || semiPos == TString::npos ||
-                semiPos < colonPos + 2) {
-                return false;
-            }
-
-            content = line.substr(colonPos + 1, semiPos - colonPos - 1);
-            StripInPlace(content);
-
-            name = std::move(line);
+            size_t semiPos = line.rfind(';');
+    
+            Y_ENSURE(
+                colonPos != TString::npos &&
+                semiPos != TString::npos &&
+                colonPos < semiPos);
+    
+            TString content = line.substr(colonPos + 2, semiPos - colonPos - 2);
+    
+            TString name = std::move(line);
             name.resize(colonPos);
-            StripInPlace(name);
-
-            return true;
+    
+            return std::make_tuple(std::move(name), std::move(content));
         }
-
-        void CollectFragments() {
-            for (auto& line : Lines_) {
-                if (!line.StartsWith("fragment ")) {
-                    continue;
-                }
-                line.erase(0, sizeof("fragment ") - 1);
-
-                TString name, content;
-                Y_ENSURE(ParseTrivialLexerRule(std::move(line), name, content));
-
-                Meta_.ContentByName.emplace(std::move(name), std::move(content));
+    
+        void ParsePunctuationLine(TString&& line, TGrammarMeta& meta) {
+            auto [name, content] = ParseLexerRule(std::move(line));
+            SubstGlobal(content, "'", "");
+    
+            if (!name.StartsWith(FragmentPrefix)) {
+                meta.Punctuation.emplace(name);
             }
+    
+            SubstGlobal(name, FragmentPrefix, "");
+            meta.ContentByName.emplace(std::move(name), std::move(content));
         }
-
-        void ParsePrefix() {
-            for (; !Line_->StartsWith("//!"); ++Line_) {
-                // Skip
+    
+        void ParseKeywordLine(TString&& line, TGrammarMeta& meta) {
+            auto [name, content] = ParseLexerRule(std::move(line));
+            SubstGlobal(content, "'", "");
+            SubstGlobal(content, " ", "");
+    
+            Y_ENSURE(name == content);
+            meta.Keywords.emplace(std::move(name));
+        }
+    
+        void ParseOtherLine(TString&& line, TGrammarMeta& meta) {
+            auto [name, content] = ParseLexerRule(std::move(line));
+    
+            if (!name.StartsWith(FragmentPrefix)) {
+                meta.Other.emplace(name);
             }
+    
+            SubstGlobal(name, FragmentPrefix, "");
+            meta.ContentByName.emplace(std::move(name), std::move(content));
         }
-
-        void ParsePunctuation() {
-            Y_ENSURE(*(Line_++) == "//! reflect:punctuation");
-            for (; !Line_->StartsWith("//!"); ++Line_) {
-                if (Line_->empty() || Line_->StartsWith("//")) {
-                    continue;
-                }
-
-                TString name, content;
-                Y_ENSURE(ParseTrivialLexerRule(std::move(*Line_), name, content));
-
-                SubstGlobal(content, " ", "");
-                SubstGlobal(content, "'", "");
-
-                Meta_.ContentByName[name] = std::move(content);
-                Meta_.Punctuation.emplace(std::move(name));
-            }
-        }
-
-        void ParseCaseInsensitiveLetter() {
-            Y_ENSURE(*(Line_++) == "//! reflect:case-insensitive-letter");
-            for (; !Line_->StartsWith("//!"); ++Line_) {
-                // Skip
-            }
-        }
-
-        void ParseKeyword() {
-            Y_ENSURE(*(Line_++) == "//! reflect:keyword");
-            for (; !Line_->StartsWith("//!"); ++Line_) {
-                if (Line_->empty() || Line_->StartsWith("//")) {
-                    continue;
-                }
-
-                TString name, content;
-                Y_ENSURE(ParseTrivialLexerRule(std::move(*Line_), name, content));
-
-                SubstGlobal(content, " ", "");
-                SubstGlobal(content, "'", "");
-
-                Y_ENSURE(name == content);
-                Meta_.Keywords.emplace(std::move(name));
-            }
-        }
-
-        void ParseOther() {
-            Y_ENSURE(*(Line_++) == "//! reflect:other");
-            for (; Line_ != std::end(Lines_); ++Line_) {
-                if (Line_->empty() || Line_->StartsWith("//")) {
-                    continue;
-                }
-
-                TString name, content;
-                ParseStatement(name, content);
-
-                Meta_.Other.emplace(name);
-                Meta_.ContentByName.emplace(std::move(name), std::move(content));
-            }
-        }
-
-        void ParseStatement(TString& name, TString& content) {
-            if (!ParseTrivialLexerRule(TString(*Line_), name, content)) {
-                TString multiline = ParseMultilineStatement();
-                Y_ENSURE(ParseTrivialLexerRule(std::move(multiline), name, content));
-            }
-        }
-
-        TString ParseMultilineStatement() {
-            TString multiline = std::move(*Line_);
-            for (; *Line_ != ";"; ++Line_) {
-                if (Line_->empty() || Line_->StartsWith("//")) {
-                    continue;
-                }
-
-                multiline += std::move(*Line_);
-                multiline += ' ';
-            }
-            multiline += ";";
-
-            Y_ENSURE(*(Line_++) == ";");
-            return multiline;
-        }
-
-        TVector<TString> Lines_;
-        TVector<TString>::iterator Line_;
-        TGrammarMeta Meta_;
-    };
+    } // namespace
 
     TGrammarMeta GetGrammarMeta() {
-        TString grammar;
-        Y_ENSURE(NResource::FindExact("SQLv1Antlr4.g.in", &grammar));
+        TVector<TString> lines;
+        lines = GetResourceLines("SQLv1Antlr4.g.in");
+        lines = Purify(std::move(lines));
+        lines = Format(std::move(lines));
+        lines = Purify(std::move(lines));
 
-        return TGrammarMetaParser(std::move(grammar)).ExtractMeta();
+        THashMap<TStringBuf, TVector<TString>> sections;
+        sections = GroupBySection(std::move(lines));
+
+        TGrammarMeta meta;
+
+        for (auto& [section, lines] : sections) {
+            for (auto& line : lines) {
+                if (section == ReflectPunctuation) {
+                    ParsePunctuationLine(std::move(line), meta);
+                } else if (section == ReflectKeyword) {
+                    ParseKeywordLine(std::move(line), meta);
+                } else if (section == ReflectOther) {
+                    ParseOtherLine(std::move(line), meta);
+                } else {
+                    Y_ABORT("Unexpected section %s", section);
+                }
+            }
+        }
+
+        std::cout << ">> Remaining content <<" << std::endl;
+        for (auto& [section, lines] : sections) {
+            std::cout << ">> Section " << section << std::endl;
+            for (auto& line : lines) {
+                std::cout << line << std::endl;
+            }
+        }
+        std::cout << std::endl;
+
+        std::cout << ">> Meta <<" << std::endl;
+        std::cout << "Keywords:" << std::endl;
+        for (const auto& token : meta.Keywords) {
+            std::cout << "- " << token << std::endl;
+        }
+        std::cout << "Punctuation:" << std::endl;
+        for (const auto& token : meta.Punctuation) {
+            std::cout << "- " << token << ": " << meta.ContentByName.at(token) << std::endl;
+        }
+        std::cout << "Other:" << std::endl;
+        for (const auto& token : meta.Other) {
+            std::cout << "- " << token << ": " << meta.ContentByName.at(token) << std::endl;
+        }
+        std::cout << "Fragment:" << std::endl;
+        for (const auto& [name, content] : meta.ContentByName) {
+            if (meta.Punctuation.contains(name) || meta.Other.contains(name)) {
+                continue;
+            }
+            std::cout << "- " << name << ": " << content << std::endl;
+        }
+        std::cout << std::endl;
+
+        return meta;
     }
 
 } // namespace NSQLReflect

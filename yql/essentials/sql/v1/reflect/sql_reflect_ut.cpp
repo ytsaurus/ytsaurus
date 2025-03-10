@@ -29,6 +29,6 @@ Y_UNIT_TEST_SUITE(SqlReflectTests) {
         UNIT_ASSERT_VALUES_EQUAL(meta.ContentByName.at("STRING_MULTILINE"), "(DOUBLE_COMMAT .*? DOUBLE_COMMAT)+ COMMAT?");
         UNIT_ASSERT_VALUES_EQUAL(
             meta.ContentByName.at("REAL"),
-            "( DECDIGITS DOT DIGIT* FLOAT_EXP? | DECDIGITS FLOAT_EXP ) (F | P (F ('4' | '8') | N)?)?");
+            "(DECDIGITS DOT DIGIT* FLOAT_EXP? | DECDIGITS FLOAT_EXP) (F | P (F ('4' | '8') | N)?)?");
     }
 } // Y_UNIT_TEST_SUITE(SqlReflectTests)

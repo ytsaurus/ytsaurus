@@ -1821,7 +1821,7 @@ fragment QUOTE_SINGLE:  '\'';
 fragment BACKTICK:      '`';
 fragment DOUBLE_COMMAT: '@@';
 
-//! reflect:case-insensitive-letter
+//! reflect:letter
 
 // http://www.antlr.org/wiki/pages/viewpage.action?pageId=1782
 fragment A:('a'|'A');
@@ -2181,7 +2181,7 @@ DIGITS: DECDIGITS | HEXDIGITS | OCTDIGITS | BINDIGITS;
 // not all combinations of P/U with L/S/T/I/B/N are actually valid - this is resolved in sql.cpp
 INTEGER_VALUE: DIGITS ((P | U)? (L | S | T | I | B | N)?);
 
-fragment FLOAT_EXP : E (PLUS | MINUS)? DECDIGITS ;
+fragment FLOAT_EXP: E (PLUS | MINUS)? DECDIGITS;
 REAL:
     (
         DECDIGITS DOT DIGIT* FLOAT_EXP?
