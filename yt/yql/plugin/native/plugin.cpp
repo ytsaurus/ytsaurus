@@ -343,7 +343,7 @@ public:
 
             OperationAttributes_ = options.OperationAttributes;
 
-            DynamicConfig_ = CreateDynamicConfig(NYql::TGatewaysConfig(GatewaysConfigInitial_));
+            DynamicConfig_.Store(CreateDynamicConfig(NYql::TGatewaysConfig(GatewaysConfigInitial_)));
 
             if (options.YTTokenPath) {
                 TFsPath path(options.YTTokenPath);
@@ -374,11 +374,7 @@ public:
         TYsonString settings,
         std::vector<TQueryFile> files)
     {
-        TDynamicConfigPtr dynamicConfig;
-        {
-            auto guard = ReaderGuard(DynamicConfigSpinLock);
-            dynamicConfig = DynamicConfig_;
-        }
+        auto dynamicConfig = DynamicConfig_.Acquire();
         auto factory = CreateProgramFactory(*dynamicConfig);
         auto program = factory->Create("-memory-", queryText);
 
@@ -442,16 +438,12 @@ public:
         std::vector<TQueryFile> files,
         int executeMode)
     {
-        TDynamicConfigPtr dynamicConfig;
-        {
-            auto guard = ReaderGuard(DynamicConfigSpinLock);
-            dynamicConfig = DynamicConfig_;
-        }
+        auto dynamicConfig = DynamicConfig_.Acquire();
         auto factory = CreateProgramFactory(*dynamicConfig);
         auto program = factory->Create("-memory-", queryText);
         auto pipelineConfigurator = New<TQueryPipelineConfigurator>(program);
         {
-            auto guard = WriterGuard(ProgressSpinLock);
+            auto guard = WriterGuard(ProgressSpinLock_);
             auto& query = ActiveQueriesProgress_[queryId];
             query.Program = program;
             query.PipelineConfigurator = pipelineConfigurator;
@@ -489,7 +481,7 @@ public:
                 plan.swap(queryPlan->Plan);
             }
 
-            auto guard = WriterGuard(ProgressSpinLock);
+            auto guard = WriterGuard(ProgressSpinLock_);
             if (ActiveQueriesProgress_.contains(queryId)) {
                 ActiveQueriesProgress_[queryId].ProgressMerger.MergeWith(progress);
                 if (plan) {
@@ -513,19 +505,21 @@ public:
         }
 
         if (!program->ParseSql(sqlSettings)) {
+            ExtractQuery(queryId, /*force*/ true);
             return TQueryResult{
                 .YsonError = IssuesToYtErrorYson(program->Issues()),
             };
         }
 
         if (!program->Compile(user)) {
+            ExtractQuery(queryId, /*force*/ true);
             return TQueryResult{
                 .YsonError = IssuesToYtErrorYson(program->Issues()),
             };
         }
 
         {
-            auto guard = WriterGuard(ProgressSpinLock);
+            auto guard = WriterGuard(ProgressSpinLock_);
             ActiveQueriesProgress_[queryId].Compiled = true;
         }
 
@@ -543,12 +537,14 @@ public:
             status = program->RunWithConfig(user, *pipelineConfigurator);
             break;
         default: // Unknown.
+            ExtractQuery(queryId, /*force*/ true);
             return TQueryResult{
                 .YsonError = MessageToYtErrorYson(Format("Unknown execution mode: %v", executeMode)),
             };
         }
 
         if (status == NYql::TProgram::TStatus::Error) {
+            ExtractQuery(queryId, /*force*/ true);
             return TQueryResult{
                 .YsonError = IssuesToYtErrorYson(program->Issues()),
             };
@@ -565,7 +561,7 @@ public:
             yson.OnEndList();
         }
 
-        TString progress = ExtractQuery(queryId, /*force*/true).value_or(TActiveQuery{}).ProgressMerger.ToYsonString();
+        TString progress = ExtractQuery(queryId, /*force*/ true).value_or(TActiveQuery{}).ProgressMerger.ToYsonString();
         YQL_LOG(DEBUG) << "Query: " << ToString(queryId) << " finished successfully";
 
         return {
@@ -601,7 +597,8 @@ public:
         int executeMode) noexcept override
     {
         auto finalCleaning = Finally([&] {
-            auto guard = WriterGuard(ProgressSpinLock);
+            auto guard = WriterGuard(ProgressSpinLock_);
+            // throwing of FiberCancellationException should keep queryId in ActiveQueriesProgress_
             if (ActiveQueriesProgress_.contains(queryId)) {
                 ActiveQueriesProgress_[queryId].Finished = true;
             }
@@ -612,7 +609,7 @@ public:
             return GuardedRun(queryId, user, credentials, queryText, settings, files, executeMode);
         } catch (const std::exception& ex) {
             YQL_LOG(DEBUG) << "Query: " << ToString(queryId) << " finished with errors";
-            ExtractQuery(queryId, /*force*/true);
+            ExtractQuery(queryId, /*force*/ true);
             return TQueryResult{
                 .YsonError = MessageToYtErrorYson(ex.what()),
             };
@@ -621,7 +618,7 @@ public:
 
     TQueryResult GetProgress(TQueryId queryId) noexcept override
     {
-        auto guard = ReaderGuard(ProgressSpinLock);
+        auto guard = ReaderGuard(ProgressSpinLock_);
         if (ActiveQueriesProgress_.contains(queryId)) {
             TQueryResult result;
             if (ActiveQueriesProgress_[queryId].ProgressMerger.HasChangesSinceLastFlush()) {
@@ -640,7 +637,7 @@ public:
     {
         NYql::TProgramPtr program;
         {
-            auto guard = WriterGuard(ProgressSpinLock);
+            auto guard = WriterGuard(ProgressSpinLock_);
             if (!ActiveQueriesProgress_.contains(queryId)) {
                 return TAbortResult{
                     .YsonError = MessageToYtErrorYson(Format("Query %v is not found", queryId)),
@@ -696,11 +693,7 @@ public:
         YQL_LOG(DEBUG) << __FUNCTION__ << ": dynamicGatewaysConfig = " << dynamicGatewaysConfig.ShortDebugString();
         YQL_LOG(DEBUG) << __FUNCTION__ << ": newGatewaysConfig = " << newGatewaysConfig.ShortDebugString();
 
-        auto dynamicConfig = CreateDynamicConfig(std::move(newGatewaysConfig));
-        {
-            auto guard = WriterGuard(DynamicConfigSpinLock);
-            DynamicConfig_ = dynamicConfig;
-        }
+        DynamicConfig_.Store(CreateDynamicConfig(std::move(newGatewaysConfig)));
         YQL_LOG(INFO) << "Dynamic config update finished";
     }
 
@@ -709,14 +702,13 @@ private:
     TDqManagerPtr DqManager_;
     NYql::TFileStoragePtr FileStorage_;
     ::TIntrusivePtr<NKikimr::NMiniKQL::IMutableFunctionRegistry> FuncRegistry_;
-    TDynamicConfigPtr DynamicConfig_;
+    TAtomicIntrusivePtr<TDynamicConfig> DynamicConfig_;
     NYql::TGatewaysConfig GatewaysConfigInitial_;
     THashMap<TString, TString> Modules_;
     TYsonString OperationAttributes_;
     TString YqlAgentToken_;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, ProgressSpinLock);
-    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, DynamicConfigSpinLock);
+    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, ProgressSpinLock_);
     THashMap<TQueryId, TActiveQuery> ActiveQueriesProgress_;
     TUserDataTable UserDataTable_;
 
@@ -724,7 +716,7 @@ private:
         // NB: TProgram destructor must be called without locking.
         std::optional<TActiveQuery> query;
         {
-            auto guard = WriterGuard(ProgressSpinLock);
+            auto guard = WriterGuard(ProgressSpinLock_);
             auto it = ActiveQueriesProgress_.find(queryId);
             if (it != ActiveQueriesProgress_.end() &&
                     (force | it->second.Finished)) {
@@ -815,8 +807,7 @@ private:
             dynamicConfig->ExprContext.IssueManager
                 .GetIssues()
                 .PrintTo(err);
-            YQL_LOG(FATAL) << "Failed to compile modules:\n"
-                           << err.Str();
+            YQL_LOG(FATAL) << "Failed to compile modules:\n" << err.Str();
             exit(1);
         }
         YQL_LOG(DEBUG) << __FUNCTION__ << ": CompileLibraries ready";

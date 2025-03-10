@@ -243,7 +243,7 @@ class TestYqlAgentDynConfig(TestQueriesYqlBase):
         self._test_simple_query("select * from primary.`//tmp/t`", rows)
 
         self._update_dyn_config(yql_agent, {
-            "gateways_config": {
+            "gateways": {
                 "yt": {
                     "cluster_mapping": [
                     ],
@@ -263,7 +263,7 @@ class TestYqlAgentDynConfig(TestQueriesYqlBase):
         self._test_simple_query("select * from primary.`//tmp/t`", rows)
 
         self._update_dyn_config(yql_agent, {
-            "gateways_config": {
+            "gateways": {
                 "yt": {
                     "cluster_mapping": [
                         {
@@ -277,7 +277,7 @@ class TestYqlAgentDynConfig(TestQueriesYqlBase):
             self._test_simple_query("select * from primary.`//tmp/t`", rows)
 
         self._update_dyn_config(yql_agent, {
-            "gateways_config": {
+            "gateways": {
                 "yt": {
                     "cluster_mapping": [
                     ],

@@ -107,7 +107,7 @@ class TestUdfsWithDynamicConfig(TestQueriesYqlBase):
     @pytest.mark.timeout(180)
     def test_simple_udf_dyn_config(self, query_tracker, yql_agent):
         self._update_dyn_config(yql_agent, {
-            "gateways_config": {
+            "gateways": {
                 "yt": {
                     "cluster_mapping": [
                     ],
@@ -130,7 +130,7 @@ class TestUdfsWithDynamicConfig(TestQueriesYqlBase):
     @pytest.mark.timeout(180)
     def test_simple_python_udf_dyn_config(self, query_tracker, yql_agent):
         self._update_dyn_config(yql_agent, {
-            "gateways_config": {
+            "gateways": {
                 "yt": {
                     "cluster_mapping": [
                     ],
