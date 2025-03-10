@@ -660,7 +660,46 @@ message TGeohashOption
     optional string source_geo_point_path = 2;
 }
 
-// Next field 31049.
+message TJoinCondition
+{
+    optional string object_attribute = 1;
+    optional string table_column = 2;
+}
+
+message TJoinOption
+{
+    // Name of the table to join with.
+    optional string table = 1;
+    // List of attributes of the left table and columns of the right table to join on.
+    repeated TJoinCondition on = 2;
+    // Additional predicate to check for the joined rows.
+    // Use "r" to refer to the joined table and "p" to refer to the primary table.
+    optional string predicate = 3;
+    // Do not require joined table to be in sync mode.
+    optional bool async = 4;
+}
+
+enum EFilterPlace
+{
+    FILTER_PROHIBITED = 0;
+    FILTER_WHERE = 1;
+    FILTER_HAVING = 2;
+    FILTER_JOIN_PREDICATE = 3;
+}
+
+message TJoinedColumnOption
+{
+    optional bool select_allowed = 1;
+    optional EFilterPlace filter_place = 2;
+    // Field evaluation expression. Mutually exlusive with name and aggregation.
+    optional string expression = 3;
+    // Column name.
+    optional string name = 4;
+    // Aggregation function name.
+    optional string aggregation = 5;
+}
+
+// Next field 31051.
 extend google.protobuf.FieldOptions
 {
     optional bool column = 31001;
@@ -788,6 +827,10 @@ extend google.protobuf.FieldOptions
     // Does not cause parent message to become composite.
     // Exists for compatibility with old behaviour of computed.
     optional bool computed_compat = 31048;
+
+    optional TJoinOption join = 31049;
+
+    optional TJoinedColumnOption joined_column = 31050;
 }
 
 // Next field 32014.
