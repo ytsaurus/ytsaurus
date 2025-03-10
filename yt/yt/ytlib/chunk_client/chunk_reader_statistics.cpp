@@ -56,9 +56,12 @@ void TChunkReaderStatistics::RecordPass()
 void ToProto(NProto::TChunkReaderStatistics* protoChunkReaderStatistics, const TChunkReaderStatisticsPtr& chunkReaderStatistics)
 {
     protoChunkReaderStatistics->set_data_bytes_read_from_disk(chunkReaderStatistics->DataBytesReadFromDisk.load(std::memory_order::relaxed));
+    protoChunkReaderStatistics->set_data_blocks_read_from_disk(chunkReaderStatistics->DataBlocksReadFromDisk.load(std::memory_order::relaxed));
     protoChunkReaderStatistics->set_data_io_requests(chunkReaderStatistics->DataIORequests.load(std::memory_order::relaxed));
     protoChunkReaderStatistics->set_data_bytes_transmitted(chunkReaderStatistics->DataBytesTransmitted.load(std::memory_order::relaxed));
     protoChunkReaderStatistics->set_data_bytes_read_from_cache(chunkReaderStatistics->DataBytesReadFromCache.load(std::memory_order::relaxed));
+    protoChunkReaderStatistics->set_wasted_data_bytes_read_from_disk(chunkReaderStatistics->WastedDataBytesReadFromDisk.load(std::memory_order::relaxed));
+    protoChunkReaderStatistics->set_wasted_data_blocks_read_from_disk(chunkReaderStatistics->WastedDataBlocksReadFromDisk.load(std::memory_order::relaxed));
     protoChunkReaderStatistics->set_meta_bytes_transmitted(chunkReaderStatistics->MetaBytesTransmitted.load(std::memory_order::relaxed));
     protoChunkReaderStatistics->set_meta_bytes_read_from_disk(chunkReaderStatistics->MetaBytesReadFromDisk.load(std::memory_order::relaxed));
     protoChunkReaderStatistics->set_meta_io_requests(chunkReaderStatistics->MetaIORequests.load(std::memory_order::relaxed));
@@ -82,8 +85,11 @@ void FromProto(TChunkReaderStatisticsPtr* chunkReaderStatisticsPtr, const NProto
     chunkReaderStatistics = New<TChunkReaderStatistics>();
     chunkReaderStatistics->DataBytesReadFromDisk.store(protoChunkReaderStatistics.data_bytes_read_from_disk(), std::memory_order::relaxed);
     chunkReaderStatistics->DataIORequests.store(protoChunkReaderStatistics.data_io_requests(), std::memory_order::relaxed);
+    chunkReaderStatistics->DataBlocksReadFromDisk.store(protoChunkReaderStatistics.data_blocks_read_from_disk(), std::memory_order::relaxed);
     chunkReaderStatistics->DataBytesTransmitted.store(protoChunkReaderStatistics.data_bytes_transmitted(), std::memory_order::relaxed);
     chunkReaderStatistics->DataBytesReadFromCache.store(protoChunkReaderStatistics.data_bytes_read_from_cache(), std::memory_order::relaxed);
+    chunkReaderStatistics->WastedDataBytesReadFromDisk.store(protoChunkReaderStatistics.wasted_data_bytes_read_from_disk(), std::memory_order::relaxed);
+    chunkReaderStatistics->WastedDataBlocksReadFromDisk.store(protoChunkReaderStatistics.wasted_data_blocks_read_from_disk(), std::memory_order::relaxed);
     chunkReaderStatistics->MetaBytesTransmitted.store(protoChunkReaderStatistics.meta_bytes_transmitted(), std::memory_order::relaxed);
     chunkReaderStatistics->MetaBytesReadFromDisk.store(protoChunkReaderStatistics.meta_bytes_read_from_disk(), std::memory_order::relaxed);
     chunkReaderStatistics->MetaIORequests.store(protoChunkReaderStatistics.meta_io_requests(), std::memory_order::relaxed);
@@ -106,8 +112,11 @@ void UpdateFromProto(const TChunkReaderStatisticsPtr* chunkReaderStatisticsPtr, 
     const auto& chunkReaderStatistics = *chunkReaderStatisticsPtr;
     chunkReaderStatistics->DataBytesReadFromDisk.fetch_add(protoChunkReaderStatistics.data_bytes_read_from_disk(), std::memory_order::relaxed);
     chunkReaderStatistics->DataIORequests.fetch_add(protoChunkReaderStatistics.data_io_requests(), std::memory_order::relaxed);
+    chunkReaderStatistics->DataBlocksReadFromDisk.fetch_add(protoChunkReaderStatistics.data_blocks_read_from_disk(), std::memory_order::relaxed);
     chunkReaderStatistics->DataBytesTransmitted.fetch_add(protoChunkReaderStatistics.data_bytes_transmitted(), std::memory_order::relaxed);
     chunkReaderStatistics->DataBytesReadFromCache.fetch_add(protoChunkReaderStatistics.data_bytes_read_from_cache(), std::memory_order::relaxed);
+    chunkReaderStatistics->WastedDataBytesReadFromDisk.fetch_add(protoChunkReaderStatistics.wasted_data_bytes_read_from_disk(), std::memory_order::relaxed);
+    chunkReaderStatistics->WastedDataBlocksReadFromDisk.fetch_add(protoChunkReaderStatistics.wasted_data_blocks_read_from_disk(), std::memory_order::relaxed);
     chunkReaderStatistics->MetaBytesTransmitted.fetch_add(protoChunkReaderStatistics.meta_bytes_transmitted(), std::memory_order::relaxed);
     chunkReaderStatistics->MetaBytesReadFromDisk.fetch_add(protoChunkReaderStatistics.meta_bytes_read_from_disk(), std::memory_order::relaxed);
     chunkReaderStatistics->MetaIORequests.fetch_add(protoChunkReaderStatistics.meta_io_requests(), std::memory_order::relaxed);
@@ -132,8 +141,11 @@ void DumpChunkReaderStatistics(
 {
     jobStatistics->AddSample(prefixPath / "data_bytes_read_from_disk"_L, chunkReaderStatisticsPtr->DataBytesReadFromDisk.load(std::memory_order::relaxed));
     jobStatistics->AddSample(prefixPath / "data_io_requests"_L, chunkReaderStatisticsPtr->DataIORequests.load(std::memory_order::relaxed));
+    jobStatistics->AddSample(prefixPath / "data_blocks_read_from_disk"_L, chunkReaderStatisticsPtr->DataBlocksReadFromDisk.load(std::memory_order::relaxed));
     jobStatistics->AddSample(prefixPath / "data_bytes_transmitted"_L, chunkReaderStatisticsPtr->DataBytesTransmitted.load(std::memory_order::relaxed));
     jobStatistics->AddSample(prefixPath / "data_bytes_read_from_cache"_L, chunkReaderStatisticsPtr->DataBytesReadFromCache.load(std::memory_order::relaxed));
+    jobStatistics->AddSample(prefixPath / "wasted_data_bytes_read_from_disk"_L, chunkReaderStatisticsPtr->WastedDataBytesReadFromDisk.load(std::memory_order::relaxed));
+    jobStatistics->AddSample(prefixPath / "wasted_data_blocks_read_from_disk"_L, chunkReaderStatisticsPtr->WastedDataBlocksReadFromDisk.load(std::memory_order::relaxed));
     jobStatistics->AddSample(prefixPath / "meta_bytes_transmitted"_L, chunkReaderStatisticsPtr->MetaBytesTransmitted.load(std::memory_order::relaxed));
     jobStatistics->AddSample(prefixPath / "meta_bytes_read_from_disk"_L, chunkReaderStatisticsPtr->MetaBytesReadFromDisk.load(std::memory_order::relaxed));
     jobStatistics->AddSample(prefixPath / "meta_io_requests"_L, chunkReaderStatisticsPtr->MetaIORequests.load(std::memory_order::relaxed));
@@ -182,9 +194,11 @@ TChunkReaderStatisticsCounters::TChunkReaderStatisticsCounters(
     const NProfiling::TProfiler& histogramProfiler)
     : DataBytesReadFromDisk_(profiler.Counter("/data_bytes_read_from_disk"))
     , DataIORequests_(profiler.Counter("/data_io_requests"))
+    , DataBlocksReadFromDisk_(profiler.Counter("/data_blocks_read_from_disk"))
     , DataBytesTransmitted_(profiler.Counter("/data_bytes_transmitted"))
     , DataBytesReadFromCache_(profiler.Counter("/data_bytes_read_from_cache"))
     , WastedDataBytesReadFromDisk_(profiler.Counter("/wasted_data_bytes_read_from_disk"))
+    , WastedDataBlocksReadFromDisk_(profiler.Counter("/wasted_data_blocks_read_from_disk"))
     , WastedDataBytesTransmitted_(profiler.Counter("/wasted_data_bytes_transmitted"))
     , WastedDataBytesReadFromCache_(profiler.Counter("/wasted_data_bytes_read_from_cache"))
     , MetaBytesReadFromDisk_(profiler.Counter("/meta_bytes_read_from_disk"))
@@ -212,8 +226,11 @@ void TChunkReaderStatisticsCounters::Increment(
 {
     DataBytesReadFromDisk_.Increment(chunkReaderStatistics->DataBytesReadFromDisk.load(std::memory_order::relaxed));
     DataIORequests_.Increment(chunkReaderStatistics->DataIORequests.load(std::memory_order::relaxed));
+    DataBlocksReadFromDisk_.Increment(chunkReaderStatistics->DataBlocksReadFromDisk.load(std::memory_order::relaxed));
     DataBytesTransmitted_.Increment(chunkReaderStatistics->DataBytesTransmitted.load(std::memory_order::relaxed));
     DataBytesReadFromCache_.Increment(chunkReaderStatistics->DataBytesReadFromCache.load(std::memory_order::relaxed));
+    WastedDataBytesReadFromDisk_.Increment(chunkReaderStatistics->WastedDataBytesReadFromDisk.load(std::memory_order::relaxed));
+    WastedDataBlocksReadFromDisk_.Increment(chunkReaderStatistics->WastedDataBlocksReadFromDisk.load(std::memory_order::relaxed));
 
     MetaBytesTransmitted_.Increment(chunkReaderStatistics->MetaBytesTransmitted.load(std::memory_order::relaxed));
     MetaBytesReadFromDisk_.Increment(chunkReaderStatistics->MetaBytesReadFromDisk.load(std::memory_order::relaxed));
