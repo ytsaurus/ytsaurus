@@ -1193,7 +1193,7 @@ IOperationControllerPtr CreateVanillaController(
     IOperationControllerHostPtr host,
     TOperation* operation)
 {
-    auto options = config->VanillaOperationOptions;
+    auto options = CreateOperationOptions(config->VanillaOperationOptions, operation->GetOptionsPatch());
     auto spec = ParseOperationSpec<TVanillaOperationSpec>(UpdateSpec(options->SpecTemplate, operation->GetSpec()));
     return New<TVanillaController>(std::move(spec), std::move(config), std::move(options), std::move(host), operation);
 }

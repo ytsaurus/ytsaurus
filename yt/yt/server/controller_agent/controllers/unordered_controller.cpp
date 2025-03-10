@@ -764,7 +764,7 @@ IOperationControllerPtr CreateUnorderedMapController(
     IOperationControllerHostPtr host,
     TOperation* operation)
 {
-    auto options = config->MapOperationOptions;
+    auto options = CreateOperationOptions(config->MapOperationOptions, operation->GetOptionsPatch());
     auto spec = ParseOperationSpec<TMapOperationSpec>(UpdateSpec(options->SpecTemplate, operation->GetSpec()));
     AdjustSamplingFromConfig(spec, config);
     return New<TMapController>(spec, config, options, host, operation);
@@ -955,7 +955,7 @@ IOperationControllerPtr CreateUnorderedMergeController(
     IOperationControllerHostPtr host,
     TOperation* operation)
 {
-    auto options = config->UnorderedMergeOperationOptions;
+    auto options = CreateOperationOptions(config->UnorderedMergeOperationOptions, operation->GetOptionsPatch());
     auto spec = ParseOperationSpec<TUnorderedMergeOperationSpec>(UpdateSpec(options->SpecTemplate, operation->GetSpec()));
     AdjustSamplingFromConfig(spec, config);
     return New<TUnorderedMergeController>(spec, config, options, host, operation);

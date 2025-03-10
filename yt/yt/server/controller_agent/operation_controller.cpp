@@ -637,6 +637,8 @@ void ApplyExperiments(TOperation* operation)
         }
     }
 
+    INodePtr optionsPatch;
+
     for (const auto& experiment : operation->ExperimentAssignments()) {
         for (const auto& path : userJobPaths) {
             ApplyPatch(
@@ -652,7 +654,14 @@ void ApplyExperiments(TOperation* operation)
                 experiment->Effect->ControllerJobIOTemplatePatch,
                 experiment->Effect->ControllerJobIOPatch);
         }
+        if (const auto& node = experiment->Effect->ControllerOptionsPatch; node) {
+            optionsPatch = optionsPatch
+                ? PatchNode(optionsPatch, node)
+                : node;
+        }
     }
+
+    operation->SetOptionsPatch(std::move(optionsPatch));
 }
 
 IOperationControllerPtr CreateControllerForOperation(

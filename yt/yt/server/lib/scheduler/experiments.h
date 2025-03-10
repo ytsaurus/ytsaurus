@@ -37,6 +37,9 @@ struct TExperimentEffectConfig
     //! Job IO spec patches applied for all job IO configs in controller agent before controller instantiation.
     NYTree::INodePtr ControllerJobIOPatch;
 
+    //! Patch to operation options in controller agent.
+    NYTree::INodePtr ControllerOptionsPatch;
+
     //! If set, only controller agents with this tag may be assigned to operations of this group.
     std::optional<TString> ControllerAgentTag;
 

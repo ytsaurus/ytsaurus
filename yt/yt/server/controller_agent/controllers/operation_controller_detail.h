@@ -1108,7 +1108,7 @@ private:
     THashSet<TString> BannedTreeIds_;
 
     TOperationSpecBasePtr Spec_;
-    TOperationOptionsPtr Options;
+    TOperationOptionsPtr Options_;
 
     NObjectClient::TCellTagList IntermediateOutputCellTagList;
     TChunkListPoolPtr OutputChunkListPool_;

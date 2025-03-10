@@ -1012,7 +1012,8 @@ IOperationControllerPtr CreateSortedMergeController(
     IOperationControllerHostPtr host,
     TOperation* operation)
 {
-    auto options = config->SortedMergeOperationOptions;
+    auto options = CreateOperationOptions(config->SortedMergeOperationOptions, operation->GetOptionsPatch());
+
     auto spec = ParseOperationSpec<TSortedMergeOperationSpec>(UpdateSpec(options->SpecTemplate, operation->GetSpec()));
     AdjustSamplingFromConfig(spec, config);
     return New<TSortedMergeController>(spec, config, options, host, operation);
@@ -1413,7 +1414,9 @@ IOperationControllerPtr CreateReduceController(
     TOperation* operation,
     bool isJoinReduce)
 {
-    auto options = isJoinReduce ? config->JoinReduceOperationOptions : config->ReduceOperationOptions;
+    auto options = CreateOperationOptions(
+        isJoinReduce ? config->JoinReduceOperationOptions : config->ReduceOperationOptions,
+        operation->GetOptionsPatch());
     auto mergedSpec = UpdateSpec(options->SpecTemplate, operation->GetSpec());
     auto spec = ParseOperationSpec<TReduceOperationSpec>(mergedSpec);
     AdjustSamplingFromConfig(spec, config);
