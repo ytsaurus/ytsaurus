@@ -2937,24 +2937,27 @@ private:
                 if (!transaction->GetParent()) {
                     InsertOrCrash(NativeTopmostTransactions_, transaction);
                 }
-
-                if (FixExportedObjectsRefs_) {
-                    if (transaction->GetPersistentState() == ETransactionState::Active) {
-                        for (const auto& exportEntry : transaction->ExportedObjects()) {
-                            objectManager->RefObject(exportEntry.Object);
-                        }
-                    }
-
-                    if (!transaction->ExportedObjects().empty() && transaction->GetPersistentState() == ETransactionState::PersistentCommitPrepared) {
-                        YT_LOG_ALERT("Found exported objects for transaction in PersistentCommitPrepared state (TransactionId: %v)",
-                            transaction->GetId());
-                        for (const auto& exportEntry : transaction->ExportedObjects()) {
-                            objectManager->RefObject(exportEntry.Object);
-                        }
-                    }
-                }
             } else {
                 InsertOrCrash(ForeignTransactions_, transaction);
+            }
+
+            if (FixExportedObjectsRefs_) {
+                if (transaction->GetPersistentState() == ETransactionState::Active) {
+                    for (const auto& exportEntry : transaction->ExportedObjects()) {
+                        YT_LOG_ALERT("Found exported objects for transaction (TransactionId: %v, ObjectId: %v)",
+                            transaction->GetId(),
+                            exportEntry.Object->GetId());
+                        objectManager->RefObject(exportEntry.Object);
+                    }
+                }
+
+                if (!transaction->ExportedObjects().empty() && transaction->GetPersistentState() == ETransactionState::PersistentCommitPrepared) {
+                    YT_LOG_ALERT("Found exported objects for transaction in PersistentCommitPrepared state (TransactionId: %v)",
+                        transaction->GetId());
+                    for (const auto& exportEntry : transaction->ExportedObjects()) {
+                        objectManager->RefObject(exportEntry.Object);
+                    }
+                }
             }
         }
 
