@@ -3,7 +3,9 @@
 #include <library/cpp/testing/unittest/registar.h>
 
 #include <regex>
-#include <iostream>
+
+// TODO(vityaman): remove before a code review.
+// #include <iostream>
 
 using namespace NSQLReflect;
 
@@ -87,14 +89,15 @@ THashMap<TString, TString> GetRewriteRules(const TStringBuf mode, const TGrammar
 
     rules[R"(\((\\\\|.)\))"] = "$1";
     rules[R"(~\((\\\\|\\\w|.) \| (\\\\|\\\w|.)\))"] = "[^$1$2]";
-    rules[R"('(.)'\.\.'(.)')"]= "[$1-$2]";
-    rules[R"(\(\[([^\]\[\(\)]+)\]\))"]= "[$1]";
+    rules[R"('(.)'\.\.'(.)')"] = "[$1-$2]";
+    rules[R"(\(\[([^\]\[\(\)]+)\]\))"] = "[$1]";
     rules[R"('(\d)')"] = "$1";
 
-    std::cout << "Rewrite: " << std::endl;
-    for (const auto& [k, v] : rules) {
-        std::cout << k << ": " << v << std::endl;
-    }
+    // TODO(vityaman): remove before a code review.
+    // std::cout << "Rewrite: " << std::endl;
+    // for (const auto& [k, v] : rules) {
+    //     std::cout << k << ": " << v << std::endl;
+    // }
 
     return rules;
 }
@@ -102,8 +105,9 @@ THashMap<TString, TString> GetRewriteRules(const TStringBuf mode, const TGrammar
 TString ToRegex(const TString& name, const TStringBuf mode, const TGrammarMeta& meta) {
     TString regex = meta.ContentByName.at(name);
 
-    std::cerr << "Input: " << regex << std::endl;
-    
+    // TODO(vityaman): remove before a code review.
+    // std::cerr << "Input: " << regex << std::endl;
+
     THashMap<TString, TString> rules = GetRewriteRules(mode, meta);
 
     TString prev;
@@ -111,13 +115,15 @@ TString ToRegex(const TString& name, const TStringBuf mode, const TGrammarMeta& 
         prev = regex;
         for (const auto& [k, v] : rules) {
             RegexReplace(regex, k, v);
-            std::cerr << "Input: " << regex << std::endl;
+            // TODO(vityaman): remove before a code review.
+            // std::cerr << "Input: " << regex << std::endl;
         }
     }
 
     SubstGlobal(regex, " ", "");
 
-    std::cerr << "Final: " << regex << std::endl;
+    // TODO(vityaman): remove before a code review.
+    // std::cerr << "Final: " << regex << std::endl;
 
     Y_ENSURE(!regex.Contains("~"));
     return regex;
@@ -129,32 +135,26 @@ Y_UNIT_TEST_SUITE(SqlRegexTests) {
 
         UNIT_ASSERT_VALUES_EQUAL(
             ToRegex("STRING_VALUE", "default", meta),
-            "(((('([^'\\\\]|(\\\\.))*'))|((\"([^\"\\\\]|(\\\\.))*\"))|(((@@).*?(@@))+@?))([sS]|[uU]|[yY]|[jJ]|[pP]([tT]|[bB]|[vV])?)?)"
-        );
+            "(((('([^'\\\\]|(\\\\.))*'))|((\"([^\"\\\\]|(\\\\.))*\"))|(((@@).*?(@@))+@?))([sS]|[uU]|[yY]|[jJ]|[pP]([tT]|[bB]|[vV])?)?)");
 
         UNIT_ASSERT_VALUES_EQUAL(
             ToRegex("ID_PLAIN", "default", meta),
-            "([a-z]|[A-Z]|'_')([a-z]|[A-Z]|'_'|[0-9])*"
-        );
+            "([a-z]|[A-Z]|'_')([a-z]|[A-Z]|'_'|[0-9])*");
 
         UNIT_ASSERT_VALUES_EQUAL(
             ToRegex("ID_QUOTED", "default", meta),
-            "`(\\\\.|``|[^`\\\\])*`"
-        );
+            "`(\\\\.|``|[^`\\\\])*`");
 
         UNIT_ASSERT_VALUES_EQUAL(
             ToRegex("DIGITS", "default", meta),
-            "([0-9]+)|(0[xX]([0-9]|[a-f]|[A-F])+)|(0[oO][0-8]+)|(0[bB](0|1)+)"
-        );
+            "([0-9]+)|(0[xX]([0-9]|[a-f]|[A-F])+)|(0[oO][0-8]+)|(0[bB](0|1)+)");
 
         UNIT_ASSERT_VALUES_EQUAL(
             ToRegex("REAL", "default", meta),
-            "(([0-9]+)(\\.)[0-9]*([eE]((\\+)|-)?([0-9]+))?|([0-9]+)([eE]((\\+)|-)?([0-9]+)))([fF]|[pP]([fF](4|8)|[nN])?)?"
-        );
+            "(([0-9]+)(\\.)[0-9]*([eE]((\\+)|-)?([0-9]+))?|([0-9]+)([eE]((\\+)|-)?([0-9]+)))([fF]|[pP]([fF](4|8)|[nN])?)?");
 
         UNIT_ASSERT_VALUES_EQUAL(
             ToRegex("COMMENT", "default", meta),
-            "((\\/\\*.*?\\*\\/)|(--[^\\n\\r]*(\\r\\n?|\\n|$)))"
-        );
+            "((\\/\\*.*?\\*\\/)|(--[^\\n\\r]*(\\r\\n?|\\n|$)))");
     }
-}
+} // Y_UNIT_TEST_SUITE(SqlRegexTests)

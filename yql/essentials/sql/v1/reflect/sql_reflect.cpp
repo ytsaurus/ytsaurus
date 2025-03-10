@@ -5,7 +5,8 @@
 #include <util/string/split.h>
 #include <util/string/strip.h>
 
-#include <iostream>
+// TODO(vityaman): remove before a code review.
+// #include <iostream>
 
 namespace NSQLReflect {
     namespace {
@@ -70,7 +71,7 @@ namespace NSQLReflect {
                 if (!line.StartsWith(SubstPrefix)) {
                     continue;
                 }
-                
+
                 SubstGlobal(line, SubstPrefix, "");
                 SubstGlobal(line, " GRAMMAR", "$$GRAMMAR");
                 SubstGlobal(line, " = ", "$$");
@@ -121,32 +122,32 @@ namespace NSQLReflect {
         std::tuple<TString, TString> ParseLexerRule(TString&& line) {
             size_t colonPos = line.find(':');
             size_t semiPos = line.rfind(';');
-    
+
             Y_ENSURE(
                 colonPos != TString::npos &&
                 semiPos != TString::npos &&
                 colonPos < semiPos);
-    
+
             TString content = line.substr(colonPos + 2, semiPos - colonPos - 2);
             SubstGlobal(content, "\\\\", "\\");
-    
+
             TString name = std::move(line);
             name.resize(colonPos);
-    
+
             return std::make_tuple(std::move(name), std::move(content));
         }
-    
+
         void ParsePunctuationLine(TString&& line, TGrammarMeta& meta) {
             auto [name, content] = ParseLexerRule(std::move(line));
             content = content.erase(std::begin(content));
             content.pop_back();
 
             SubstGlobal(content, "\\\'", "\'");
-    
+
             if (!name.StartsWith(FragmentPrefix)) {
                 meta.Punctuation.emplace(name);
             }
-    
+
             SubstGlobal(name, FragmentPrefix, "");
             meta.ContentByName.emplace(std::move(name), std::move(content));
         }
@@ -155,14 +156,14 @@ namespace NSQLReflect {
             auto [name, content] = ParseLexerRule(std::move(line));
             SubstGlobal(content, "'", "");
             SubstGlobal(content, " ", "");
-    
+
             Y_ENSURE(name == content);
             meta.Keywords.emplace(std::move(name));
         }
 
         void ParseOtherLine(TString&& line, TGrammarMeta& meta) {
             auto [name, content] = ParseLexerRule(std::move(line));
-    
+
             if (!name.StartsWith(FragmentPrefix)) {
                 meta.Other.emplace(name);
             }
@@ -202,43 +203,43 @@ namespace NSQLReflect {
             }
         }
 
-        std::cout << ">> Remaining content <<" << std::endl;
-        for (auto& [section, lines] : sections) {
-            std::cout << ">> Section " << section << std::endl;
-            for (auto& line : lines) {
-                std::cout << line << std::endl;
-            }
-        }
-        std::cout << std::endl;
-
-        std::cout << ">> Meta <<" << std::endl;
-        std::cout << "Keywords:" << std::endl;
-        for (const auto& token : meta.Keywords) {
-            std::cout << "- " << token << std::endl;
-        }
-        std::cout << "Punctuation:" << std::endl;
-        for (const auto& token : meta.Punctuation) {
-            std::cout << "- " << token << ": " << meta.ContentByName.at(token) << std::endl;
-        }
-        std::cout << "Other:" << std::endl;
-        for (const auto& token : meta.Other) {
-            std::cout << "- " << token << ": " << meta.ContentByName.at(token) << std::endl;
-        }
-        std::cout << "Fragment:" << std::endl;
-        for (const auto& [name, content] : meta.ContentByName) {
-            if (meta.Punctuation.contains(name) || meta.Other.contains(name)) {
-                continue;
-            }
-            std::cout << "- " << name << ": " << content << std::endl;
-        }
-        std::cout << "Substitutions:" << std::endl;
-        for (const auto& [mode, dict] : meta.Substitutions) {
-            std::cout << "- " << mode << std::endl;
-            for (const auto& [k, v] : dict) {
-                std::cout << "  - " << k << ": " << v << std::endl;
-            }
-        }
-        std::cout << std::endl;
+        // TODO(vityaman): remove before a code review.
+        // std::cout << ">> Remaining content <<" << std::endl;
+        // for (auto& [section, lines] : sections) {
+        //     std::cout << ">> Section " << section << std::endl;
+        //     for (auto& line : lines) {
+        //         std::cout << line << std::endl;
+        //     }
+        // }
+        // std::cout << std::endl;
+        // std::cout << ">> Meta <<" << std::endl;
+        // std::cout << "Keywords:" << std::endl;
+        // for (const auto& token : meta.Keywords) {
+        //     std::cout << "- " << token << std::endl;
+        // }
+        // std::cout << "Punctuation:" << std::endl;
+        // for (const auto& token : meta.Punctuation) {
+        //     std::cout << "- " << token << ": " << meta.ContentByName.at(token) << std::endl;
+        // }
+        // std::cout << "Other:" << std::endl;
+        // for (const auto& token : meta.Other) {
+        //     std::cout << "- " << token << ": " << meta.ContentByName.at(token) << std::endl;
+        // }
+        // std::cout << "Fragment:" << std::endl;
+        // for (const auto& [name, content] : meta.ContentByName) {
+        //     if (meta.Punctuation.contains(name) || meta.Other.contains(name)) {
+        //         continue;
+        //     }
+        //     std::cout << "- " << name << ": " << content << std::endl;
+        // }
+        // std::cout << "Substitutions:" << std::endl;
+        // for (const auto& [mode, dict] : meta.Substitutions) {
+        //     std::cout << "- " << mode << std::endl;
+        //     for (const auto& [k, v] : dict) {
+        //         std::cout << "  - " << k << ": " << v << std::endl;
+        //     }
+        // }
+        // std::cout << std::endl;
 
         return meta;
     }
