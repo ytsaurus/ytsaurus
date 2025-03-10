@@ -99,21 +99,27 @@ std::optional<TString> MaybeToOptional(const TMaybe<TString>& maybeStr)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TQueryPlan
+    : public TRefCounted
+{
+    std::optional<TString> Plan;
+    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, PlanSpinLock);
+};
+DECLARE_REFCOUNTED_TYPE(TQueryPlan)
+DEFINE_REFCOUNTED_TYPE(TQueryPlan)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TQueryPipelineConfigurator
     : public NYql::IPipelineConfigurator
     , public TRefCounted
 {
 public:
-    struct TQueryPlan
-    {
-        std::optional<TString> Plan;
-        YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, PlanSpinLock);
-    };
-    NYql::TProgramPtr Program_;
-    mutable TQueryPlan Plan_;
+    const TQueryPlanPtr Plan;
 
     TQueryPipelineConfigurator(NYql::TProgramPtr program)
-        : Program_(std::move(program))
+        : Plan(New<TQueryPlan>())
+        , Program_(std::move(program))
     { }
 
     void AfterCreate(NYql::TTransformationPipeline* /*pipeline*/) const override
@@ -127,14 +133,17 @@ public:
         auto transformer = [this](NYql::TExprNode::TPtr input, NYql::TExprNode::TPtr& output, NYql::TExprContext& /*ctx*/) {
             output = input;
 
-            auto guard = WriterGuard(Plan_.PlanSpinLock);
-            Plan_.Plan = MaybeToOptional(Program_->GetQueryPlan());
+            auto guard = WriterGuard(Plan->PlanSpinLock);
+            Plan->Plan = MaybeToOptional(Program_->GetQueryPlan());
 
             return NYql::IGraphTransformer::TStatus::Ok;
         };
 
         pipeline->Add(NYql::CreateFunctorTransformer(transformer), "PlanOutput");
     }
+
+private:
+    NYql::TProgramPtr Program_;
 };
 DECLARE_REFCOUNTED_TYPE(TQueryPipelineConfigurator)
 DEFINE_REFCOUNTED_TYPE(TQueryPipelineConfigurator)
@@ -472,17 +481,20 @@ public:
         auto userDataTable = FilesToUserTable(files);
         program->AddUserDataTable(userDataTable);
 
-        program->SetProgressWriter([pipelineConfigurator, queryId, this] (const NYql::TOperationProgress& progress) {
+        auto queryPlan = pipelineConfigurator->Plan;
+        program->SetProgressWriter([queryPlan, queryId, this] (const NYql::TOperationProgress& progress) {
             std::optional<TString> plan;
             {
-                auto guard = ReaderGuard(pipelineConfigurator->Plan_.PlanSpinLock);
-                plan.swap(pipelineConfigurator->Plan_.Plan);
+                auto guard = ReaderGuard(queryPlan->PlanSpinLock);
+                plan.swap(queryPlan->Plan);
             }
 
             auto guard = WriterGuard(ProgressSpinLock);
-            ActiveQueriesProgress_[queryId].ProgressMerger.MergeWith(progress);
-            if (plan) {
-                ActiveQueriesProgress_[queryId].Plan.swap(plan);
+            if (ActiveQueriesProgress_.contains(queryId)) {
+                ActiveQueriesProgress_[queryId].ProgressMerger.MergeWith(progress);
+                if (plan) {
+                    ActiveQueriesProgress_[queryId].Plan.swap(plan);
+                }
             }
         });
 
