@@ -16,6 +16,7 @@ from yt_helpers import get_current_time
 
 from yt.common import YtError
 from yt.test_helpers import assert_items_equal
+from flaky import flaky
 import yt.yson as yson
 
 from datetime import timedelta
@@ -620,6 +621,36 @@ class TestPortals(YTEnvSetup):
         # XXX(babenko): cleanup is weird
         remove("//tmp/p1")
         remove("//tmp/p2")
+
+    @authors("koloshmet")
+    @flaky(max_runs=3)
+    def test_force_link_through_portal(self):
+        create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 11})
+
+        create("map_node", "//tmp/p/d")
+        create("map_node", "//tmp/p/d1")
+        create("map_node", "//tmp/d")
+
+        set("//sys/@config/object_manager/gc_sweep_period", 15000)
+
+        start = time.time()
+
+        time.sleep(2)
+
+        link("//tmp/p/d", "//tmp/d/l")
+
+        for i in range(10):
+            get("//tmp/d/l/@")
+        assert get("//tmp/d/@resolve_cached") and get("//tmp/d/l&/@resolve_cached")
+
+        link("//tmp/p/d1", "//tmp/d/l", force=True)
+        assert get("//tmp/d/l&/@target_path") == "//tmp/p/d1"
+
+        for i in range(10):
+            get("//tmp/d/l/@")
+        assert get("//tmp/d/@resolve_cached") and get("//tmp/d/l&/@resolve_cached")
+
+        assert time.time() - start < 15
 
     @authors("babenko")
     def test_create_portal_in_tx_commit(self):
