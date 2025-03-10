@@ -478,7 +478,7 @@ public:
 
     void Stop() override
     {
-        auto guard = WriterGuard(QueueExportsLock_);
+        auto guard = ReaderGuard(QueueExportsLock_);
 
         if (QueueExports_.IsOK()) {
             for (const auto& [_, exporter] : QueueExports_.Value()) {
