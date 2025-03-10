@@ -1608,13 +1608,16 @@ TUnversionedValueRangeTruncationResult TruncateUnversionedValues(
     std::vector<TUnversionedValue> truncatedValues;
     truncatedValues.reserve(values.size());
 
+    i64 inputSize = 0;
     int truncatableValueCount = 0;
     i64 remainingSize = options.MaxTotalSize;
     for (const auto& value : values) {
+        auto valueSize = EstimateRowValueSize(value);
+        inputSize += valueSize;
         if (IsStringLikeType(value.Type)) {
             ++truncatableValueCount;
         } else {
-            remainingSize -= EstimateRowValueSize(value);
+            remainingSize -= valueSize;
         }
     }
 
@@ -1657,7 +1660,9 @@ TUnversionedValueRangeTruncationResult TruncateUnversionedValues(
         }
     }
 
-    return {MakeSharedRange(std::move(truncatedValues), rowBuffer), resultSize, clipped};
+    auto sampleSize = options.UseOriginalDataWeightInSamples ? inputSize : resultSize;
+
+    return {MakeSharedRange(std::move(truncatedValues), rowBuffer), sampleSize, clipped};
 }
 
 ////////////////////////////////////////////////////////////////////////////////
