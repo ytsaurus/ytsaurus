@@ -2,6 +2,9 @@
 
 #include <regex>
 
+// TODO(vityaman): remove before a code review.
+// #include <iostream>
+
 namespace NSQLTranslationV1 {
 
     namespace {
@@ -28,10 +31,14 @@ namespace NSQLTranslationV1 {
             SubstGlobal(text, "'\\'", "\\\\");
             SubstGlobal(text, "'``'", "``");
             SubstGlobal(text, "'`'", "`");
+            SubstGlobal(text, "'_'", "_");
             SubstGlobal(text, "'/*'", "\\/\\*");
             SubstGlobal(text, "'*/'", "\\*\\/");
             SubstGlobal(text, "'\\n'", "\\n");
             SubstGlobal(text, "'\\r'", "\\r");
+            SubstGlobal(text, "'\\t'", "\\t");
+            SubstGlobal(text, "'\\u000C' |", "");
+            SubstGlobal(text, "' '", "$$$");
             SubstGlobal(text, "'--'", "--");
             return text;
         }
@@ -73,6 +80,8 @@ namespace NSQLTranslationV1 {
         TString ToRegex(const TString& name, const TStringBuf mode, const NSQLReflect::TGrammarMeta& meta) {
             TString regex = meta.ContentByName.at(name);
 
+            regex = ReEscaped(std::move(regex));
+
             // TODO(vityaman): remove before a code review.
             // std::cerr << "Input: " << regex << std::endl;
 
@@ -89,6 +98,7 @@ namespace NSQLTranslationV1 {
             }
 
             SubstGlobal(regex, " ", "");
+            SubstGlobal(regex, "$$$", " ");
 
             // TODO(vityaman): remove before a code review.
             // std::cerr << "Final: " << regex << std::endl;
@@ -112,4 +122,4 @@ namespace NSQLTranslationV1 {
         return regexes;
     }
 
-}
+} // namespace NSQLTranslationV1

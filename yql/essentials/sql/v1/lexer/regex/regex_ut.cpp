@@ -15,7 +15,7 @@ Y_UNIT_TEST_SUITE(SqlRegexTests) {
 
         UNIT_ASSERT_VALUES_EQUAL(
             regexes.at("ID_PLAIN"),
-            "([a-z]|[A-Z]|'_')([a-z]|[A-Z]|'_'|[0-9])*");
+            "([a-z]|[A-Z]|_)([a-z]|[A-Z]|_|[0-9])*");
 
         UNIT_ASSERT_VALUES_EQUAL(
             regexes.at("ID_QUOTED"),
@@ -30,8 +30,11 @@ Y_UNIT_TEST_SUITE(SqlRegexTests) {
             "(([0-9]+)(\\.)[0-9]*([eE]((\\+)|-)?([0-9]+))?|([0-9]+)([eE]((\\+)|-)?([0-9]+)))([fF]|[pP]([fF](4|8)|[nN])?)?");
 
         UNIT_ASSERT_VALUES_EQUAL(
+            regexes.at("WS"),
+            "( |\\r|\\t|\\n)");
+
+        UNIT_ASSERT_VALUES_EQUAL(
             regexes.at("COMMENT"),
             "((\\/\\*.*?\\*\\/)|(--[^\\n\\r]*(\\r\\n?|\\n|$)))");
     }
 } // Y_UNIT_TEST_SUITE(SqlRegexTests)
-
