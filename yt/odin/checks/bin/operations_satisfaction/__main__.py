@@ -3,11 +3,41 @@ from yt_odin_checks.lib.check_runner import main
 import yt.wrapper as yt
 
 
+def update_state(state, operations, trees, fair_share_info_per_pool_tree, options):
+    EPS = 1e-9
+
+    new_state = {}
+    for operation in operations:
+        operation_state = state.get(operation, {})  # Map "<tree> -> <unsatisfied minute count>".
+
+        new_operation_state = {}
+        for tree in trees:
+            if operation not in fair_share_info_per_pool_tree[tree]:
+                # Operation was removed from tree, perhaps this tree was tentative.
+                # Or operation just finished, nothing to do here.
+                continue
+
+            info = fair_share_info_per_pool_tree[tree][operation]
+            satisfaction_ratio, fair_share_ratio = info["satisfaction_ratio"], info["fair_share_ratio"]
+
+            count = operation_state.get(tree, 0)
+
+            # satisfaction_ratio can be less than zero, this case
+            # is also considered here.
+            if satisfaction_ratio < options["min_satisfaction_ratio"] and fair_share_ratio > EPS:
+                count += 1
+                new_operation_state[tree] = count
+
+        if new_operation_state:
+            state[operation] = new_operation_state
+
+    return new_state
+
+
 def run_check(yt_client, logger, options, states):
     SCHEDULING_INFO_ORCHID_PATH = "//sys/scheduler/orchid/scheduler/scheduling_info_per_pool_tree"
     OPERATIONS_ORCHID_PATH = "//sys/scheduler/orchid/scheduler/operations"
     OUTPUT_LIMIT = 10  # Max number of operations to print in this check.
-    EPS = 1e-9
 
     # This check persists its state on cluster.
     # State is number of continuous minutes during which operation's satisfaction
@@ -35,34 +65,7 @@ def run_check(yt_client, logger, options, states):
         fair_share_info_per_pool_tree[tree] = yt_client.get(
             yt.ypath_join(SCHEDULING_INFO_ORCHID_PATH, tree, "fair_share_info", "operations"))
 
-    # Removing finished operations from state.
-    for operation in list(state):
-        if operation not in operations:
-            del state[operation]
-
-    for operation in operations:
-        operation_state = state.get(operation, {})  # Map "<tree> -> <unsatisfied minute count>".
-        new_operation_state = {}
-
-        for tree in trees:
-            if operation not in fair_share_info_per_pool_tree[tree]:
-                # Operation was removed from tree, perhaps this tree was tentative.
-                # Or operation just finished, nothing to do here.
-                continue
-
-            info = fair_share_info_per_pool_tree[tree][operation]
-            satisfaction_ratio, fair_share_ratio = info["satisfaction_ratio"], info["fair_share_ratio"]
-
-            count = operation_state.get(tree, 0)
-
-            # satisfaction_ratio can be less than zero, this case
-            # is also considered here.
-            if satisfaction_ratio < options["min_satisfaction_ratio"] and fair_share_ratio > EPS:
-                count += 1
-                new_operation_state[tree] = count
-
-        if new_operation_state:
-            state[operation] = new_operation_state
+    state = update_state(state, operations, trees, fair_share_info_per_pool_tree, options)
 
     unsatisfied_operations = []
     for operation, operation_state in state.items():
