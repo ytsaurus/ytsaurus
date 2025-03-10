@@ -775,10 +775,15 @@ public:
     i64 GetMetaSize() const override
     {
         i64 metaSize = 0;
-        for (const auto& valueColumnWriter : ValueColumnWriters_) {
-            metaSize += valueColumnWriter->GetMetaSize();
+        if (Options_->EnableColumnMetaInChunkMeta) {
+            for (const auto& valueColumnWriter : ValueColumnWriters_) {
+                metaSize += valueColumnWriter->GetMetaSize();
+            }
+            metaSize += TimestampWriter_->GetMetaSize();
         }
-        metaSize += TimestampWriter_->GetMetaSize();
+        if (Options_->EnableSegmentMetaInBlocks) {
+            metaSize += ColumnGroupInfosExt_.ByteSizeLong();
+        }
 
         return metaSize + TVersionedChunkWriterBase::GetMetaSize();
     }
