@@ -298,6 +298,8 @@ public:
 
         TreeProfileManager_->RegisterPool(RootElement_);
 
+        CheckConfigForUnrecognizedOptions();
+
         YT_LOG_INFO("Fair share tree created");
     }
 
@@ -320,12 +322,36 @@ public:
         return treeSnapshot->TreeConfig();
     }
 
+    void CheckConfigForUnrecognizedOptions()
+    {
+        // First reset the alert.
+        StrategyHost_->SetSchedulerAlert(ESchedulerAlertType::UnrecognizedPoolTreeConfigOptions, TError());
+
+        if (!Config_->EnableUnrecognizedAlert) {
+            return;
+        }
+
+        auto unrecognized = Config_->GetRecursiveUnrecognized();
+        if (unrecognized && unrecognized->GetChildCount() > 0) {
+            YT_LOG_WARNING("Pool tree config contains unrecognized options (Unrecognized: %v)",
+                ConvertToYsonString(unrecognized, EYsonFormat::Text));
+            StrategyHost_->SetSchedulerAlert(
+                ESchedulerAlertType::UnrecognizedPoolTreeConfigOptions,
+                TError("Pool tree config contains unrecognized options")
+                    << TErrorAttribute("unrecognized", unrecognized));
+        }
+    }
+
     bool UpdateConfig(const TFairShareStrategyTreeConfigPtr& config) override
     {
         YT_ASSERT_INVOKERS_AFFINITY(FeasibleInvokers_);
 
         auto configNode = ConvertToNode(config);
-        if (AreNodesEqual(configNode, ConfigNode_)) {
+        bool hasUnrecognizedOptionsForAlert =
+            config->EnableUnrecognizedAlert &&
+            config->GetRecursiveUnrecognized()->GetChildCount() > 0;
+        if (AreNodesEqual(configNode, ConfigNode_) && !hasUnrecognizedOptionsForAlert)
+        {
             // Offload destroying config node.
             StrategyHost_->GetBackgroundInvoker()->Invoke(BIND([configNode = std::move(configNode)] { }));
 
@@ -343,6 +369,8 @@ public:
             auto error = TError("Default parent pool %Qv in tree %Qv is not registered", Config_->DefaultParentPool, TreeId_);
             StrategyHost_->SetSchedulerAlert(ESchedulerAlertType::UpdatePools, error);
         }
+
+        CheckConfigForUnrecognizedOptions();
 
         YT_LOG_INFO("Tree has updated with new config");
 
