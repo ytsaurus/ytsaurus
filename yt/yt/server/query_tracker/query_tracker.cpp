@@ -216,7 +216,7 @@ private:
             // TODO(max42): select as little fields as possible; lookup full row in TryAcquireQuery instead.
             // Select queries with expired leases.
             auto selectQuery = Format(
-                "[query_id], [incarnation], [assigned_tracker], [lease_transaction_id], [engine], [user], [query], [settings], [files] from [%v]",
+                "[query_id], [incarnation], [assigned_tracker], [lease_transaction_id], [engine], [user], [query], [settings], [files], [secrets] from [%v]",
                 StateRoot_ + "/active_queries");
             auto selectResult = WaitFor(StateClient_->SelectRows(selectQuery))
                 .ValueOrThrow();
@@ -611,7 +611,7 @@ private:
                     .ResultCount = activeQueryRecord->ResultCount,
                     .FinishTime = activeQueryRecord->FinishTime,
                     .Annotations = activeQueryRecord->Annotations,
-                    .Secrets = activeQueryRecord->Secrets.value_or(TYsonString(TString("{}"))),
+                    .Secrets = activeQueryRecord->Secrets,
                 };
                 std::vector newRows = {
                     newRecord.ToUnversionedRow(rowBuffer, TFinishedQueryDescriptor::Get()->GetIdMapping()),

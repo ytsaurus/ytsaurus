@@ -137,7 +137,7 @@ types:
 
       # YSON dictionary.
       - cpp_name: Secrets
-        cpp_type: std::optional<NYson::TYsonString>
+        cpp_type: NYson::TYsonString
         column_name: secrets
         column_type: Any
         lock: client
@@ -227,7 +227,7 @@ types:
 
       # YSON dictionary.
       - cpp_name: Secrets
-        cpp_type: std::optional<NYson::TYsonString>
+        cpp_type: NYson::TYsonString
         column_name: secrets
         column_type: Any
         lock: client
