@@ -1,6 +1,5 @@
 pragma AnsiInForEmptyOrNullableItemsCollections;
 pragma AnsiOptionalAs;
-pragma CompactGroupBy;
 pragma TablePathPrefix = "home/tpcds/3Tb";
 pragma EmitUnionMerge;
 pragma yt.UseIntermediateStreams;
