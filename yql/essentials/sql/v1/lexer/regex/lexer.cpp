@@ -12,13 +12,10 @@
 
 namespace NSQLTranslationV1 {
 
-    class TRegexLexer: public NSQLTranslation::ILexer {
-    private:
-        struct TMatchedToken {
-            TString Name;
-            TString Content;
-        };
+    using NSQLTranslation::TParsedToken;
+    using NSQLTranslation::TParsedTokenList;
 
+    class TRegexLexer: public NSQLTranslation::ILexer {
     public:
         TRegexLexer(bool ansi, NSQLReflect::TGrammarMeta meta)
             : Meta_(std::move(meta))
@@ -34,26 +31,25 @@ namespace NSQLTranslationV1 {
             const TTokenCallback& onNextToken,
             NYql::TIssues& issues,
             size_t maxErrors) override {
-            Y_UNUSED(queryName, issues, maxErrors, onNextToken);
+            Y_UNUSED(queryName, issues, maxErrors);
+
             for (size_t pos = 0; pos < query.size();) {
-                TMatchedToken matched = Match(query, pos);
+                TParsedToken matched = Match(query, pos);
                 pos += matched.Content.length();
-                onNextToken({
-                    .Name = std::move(matched.Name),
-                    .Content = std::move(matched.Content),
-                });
+                onNextToken(std::move(matched));
             }
+
             return true;
         }
 
     private:
-        TMatchedToken Match(const TString& query, size_t pos) {
-            TVector<TMatchedToken> matches;
+        TParsedToken Match(const TString& query, size_t pos) {
+            TParsedTokenList matches;
             MatchKeyword(query, pos, matches);
             MatchPunctuation(query, pos, matches);
             MatchRegex(query, pos, matches);
 
-            auto it = MaxElementBy(matches, [](const TMatchedToken& matched) {
+            auto it = MaxElementBy(matches, [](const TParsedToken& matched) {
                 return matched.Content.length();
             });
             Y_ENSURE(it != std::end(matches));
@@ -61,7 +57,7 @@ namespace NSQLTranslationV1 {
             return *it;
         }
 
-        void MatchKeyword(const TString& query, size_t pos, TVector<TMatchedToken>& matches) {
+        void MatchKeyword(const TString& query, size_t pos, TParsedTokenList& matches) {
             for (const auto& keyword : Meta_.Keywords) {
                 if (query.substr(pos, keyword.length()) == keyword) {
                     if (pos + keyword.length() >= query.length() ||
@@ -72,7 +68,7 @@ namespace NSQLTranslationV1 {
             }
         }
 
-        void MatchPunctuation(const TString& query, size_t pos, TVector<TMatchedToken>& matches) {
+        void MatchPunctuation(const TString& query, size_t pos, TParsedTokenList& matches) {
             for (const auto& name : Meta_.Punctuation) {
                 const auto& content = Meta_.ContentByName.at(name);
                 if (query.substr(pos, content.length()) == content) {
@@ -81,7 +77,7 @@ namespace NSQLTranslationV1 {
             }
         }
 
-        void MatchRegex(const TString& query, size_t pos, TVector<TMatchedToken>& matches) {
+        void MatchRegex(const TString& query, size_t pos, TParsedTokenList& matches) {
             for (const auto& [token, regex] : Regexes_) {
                 std::smatch match;
                 std::string substring = query.substr(pos);

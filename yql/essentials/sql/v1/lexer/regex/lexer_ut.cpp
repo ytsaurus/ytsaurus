@@ -47,7 +47,7 @@ Y_UNIT_TEST_SUITE(RegexLexerTests) {
             Tokenized("SELECT *"), 
             "(SELECT) (WS ' ') (ASTERISK '*')");
         UNIT_ASSERT_VALUES_EQUAL(
-            Tokenized("SELECT*"), 
+            Tokenized("SELECT*"),
             "(SELECT) (ASTERISK '*')");
         UNIT_ASSERT_VALUES_EQUAL(
             Tokenized("SELECT * /* yql */ FROM"), 
