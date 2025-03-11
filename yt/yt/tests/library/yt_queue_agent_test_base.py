@@ -531,7 +531,13 @@ class TestQueueAgentBase(YTEnvSetup):
                     "pass_period": 100,
                     # Fixate greater value for tests in case default decreases in the future.
                     "max_exported_table_count_per_task": 10,
-                }
+                    # Retry backoffs should be enabled explicitly in tests
+                    "retry_backoff": {
+                        "min_backoff": 1,
+                        "max_backoff": 1,
+                        "backoff_jitter": 0.0,
+                    },
+                },
             },
             "queue_export_manager": {
                 "export_rate_limit": 100.0,
