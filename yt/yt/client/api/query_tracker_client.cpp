@@ -24,12 +24,10 @@ void TQueryFile::Register(TRegistrar registrar)
 
 void TQuerySecret::Register(TRegistrar registrar)
 {
-    registrar.Parameter("id", &TThis::Id)
-        .NonEmpty();
+    registrar.Parameter("id", &TThis::Id).NonEmpty();
     registrar.Parameter("category", &TThis::Category).Optional(true);
     registrar.Parameter("subcategory", &TThis::Subcategory).Optional(true);
-    registrar.Parameter("ypath", &TThis::YPath)
-        .NonEmpty();
+    registrar.Parameter("ypath", &TThis::YPath).NonEmpty();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

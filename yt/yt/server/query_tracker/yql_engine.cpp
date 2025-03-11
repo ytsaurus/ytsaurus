@@ -180,7 +180,7 @@ private:
             protoCred->set_id(secret->Id);
             protoCred->set_category(secret->Category);
             protoCred->set_subcategory(secret->Subcategory);
-            protoCred->set_content(secret->YPath);
+            protoCred->set_ypath(secret->YPath);
         }
 
         startQueryReq->set_build_rowsets(true);

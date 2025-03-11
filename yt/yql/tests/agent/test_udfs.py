@@ -124,8 +124,8 @@ def get_secure_param(key):
 
 select $get_secure_param(SecureParam("token:geheim")) as sp;
 """
-        path = "//tmp/secret_path_to_secret_value";
-        set(path, "test");
+        path = "//tmp/secret_path_to_secret_value"
+        set(path, "test")
         query = start_query("yql", yql_with_python, secrets=[{"id": "geheim", "ypath": path}])
         query.track()
         result = query.read_result(0)

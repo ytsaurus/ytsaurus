@@ -26,7 +26,7 @@ message TYqlCredentials
     optional string id = 1;
     optional string category = 2;
     optional string subcategory = 3;
-    optional string content = 4;
+    optional string ypath = 4;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
