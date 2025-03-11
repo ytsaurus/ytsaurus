@@ -21,6 +21,7 @@ PEERDIR(
     yt/yql/providers/yt/fmr/job/impl
     yt/yql/providers/yt/fmr/table_data_service/local
     yt/yql/providers/yt/fmr/yt_service/impl
+    yql/essentials/utils/log
 )
 
 YQL_LAST_ABI_VERSION()
