@@ -27,7 +27,7 @@ PEERDIR(
     yt/yt/core/http
 
     yt/yt/library/huggingface_client
-    yt/yt/library/arrow_parquet_adapter
+    yt/yt/library/arrow_adapter
 
     yt/yt/tools/import_table/lib
 

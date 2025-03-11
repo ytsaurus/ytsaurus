@@ -15,6 +15,10 @@ namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+using namespace NArrow;
+
+////////////////////////////////////////////////////////////////////////////////
+
 NTi::TTypePtr GetYTType(const std::shared_ptr<arrow::Field>& arrowType);
 
 NTi::TTypePtr GetYTType(const std::shared_ptr<arrow::DataType>& arrowType)
@@ -111,7 +115,7 @@ NTi::TTypePtr GetYTType(const std::shared_ptr<arrow::Field>& arrowField)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TTableSchema CreateYTTableSchemaFromArrowSchema(const std::shared_ptr<arrow::Schema>& arrowSchema)
+TTableSchema CreateYTTableSchemaFromArrowSchema(const TArrowSchemaPtr& arrowSchema)
 {
     TTableSchema resultSchema;
     for (const auto& field : arrowSchema->fields()) {
