@@ -20,14 +20,13 @@ TString Tokenized(const TString& query) {
 
     TString out;
     for (auto& token : tokens) {
-        out += "(";
         out += token.Name;
         if (token.Name != token.Content) {
-            out += " '";
+            out += "(";
             out += token.Content;
-            out += "'";
+            out += ")";
         }
-        out += ") ";
+        out += " ";
     }
     if (!out.empty()) {
         out.pop_back();
@@ -42,18 +41,18 @@ Y_UNIT_TEST_SUITE(RegexLexerTests) {
             "");
         UNIT_ASSERT_VALUES_EQUAL(
             Tokenized("SELECT"), 
-            "(SELECT)");
+            "SELECT");
         UNIT_ASSERT_VALUES_EQUAL(
             Tokenized("SELECT *"), 
-            "(SELECT) (WS ' ') (ASTERISK '*')");
+            "SELECT WS( ) ASTERISK(*)");
         UNIT_ASSERT_VALUES_EQUAL(
             Tokenized("SELECT*"),
-            "(SELECT) (ASTERISK '*')");
+            "SELECT ASTERISK(*)");
         UNIT_ASSERT_VALUES_EQUAL(
             Tokenized("SELECT * /* yql */ FROM"), 
-            "(SELECT) (WS ' ') (ASTERISK '*') (WS ' ') (COMMENT '/* yql */') (WS ' ') (FROM)");
+            "SELECT WS( ) ASTERISK(*) WS( ) COMMENT(/* yql */) WS( ) FROM");
         UNIT_ASSERT_VALUES_EQUAL(
             Tokenized("SELECT `a` FROM my_table"), 
-            "(SELECT) (WS ' ') (ID_QUOTED '`a`') (WS ' ') (FROM) (WS ' ') (ID_PLAIN 'my_table')");
+            "SELECT WS( ) ID_QUOTED(`a`) WS( ) FROM WS( ) ID_PLAIN(my_table)");
     }
 } // Y_UNIT_TEST_SUITE(RegexLexerTests)
