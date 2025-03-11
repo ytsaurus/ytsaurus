@@ -2745,11 +2745,11 @@ class TestCypress(YTEnvSetup):
     @not_implemented_in_sequoia
     def test_prerequisite_revisions_restriction(self):
         set("//sys/@config/object_manager/prohibit_prerequisite_revisions_differ_from_execution_paths", True)
-        create("map_node", "//home/revision_node", recursive=True, force=True)
+        create("table", "//home/revision_node", recursive=True, force=True)
         create("map_node", "//home/test_node", recursive=True, force=True)
         revision = get("//home/revision_node/@revision")
 
-        with raises_yt_error("Requests with prerequisitive paths different from target paths are prohibited in Cypress"):
+        with raises_yt_error("Requests with prerequisite paths different from target paths are prohibited in Cypress"):
             create(
                 "map_node",
                 "//tmp/test_node",
@@ -2761,7 +2761,7 @@ class TestCypress(YTEnvSetup):
                     }
                 ],
             )
-        with raises_yt_error("Requests with prerequisitive paths different from target paths are prohibited in Cypress"):
+        with raises_yt_error("Requests with prerequisite paths different from target paths are prohibited in Cypress"):
             copy(
                 "//home/test_node",
                 "//home/test_node2",
@@ -2773,6 +2773,22 @@ class TestCypress(YTEnvSetup):
                     }
                 ],
             )
+
+        fine_paths = [
+            "//home/revision_node", "//home/revision_node&",
+        ]
+
+        for path in fine_paths:
+            for prerequitise_path in fine_paths:
+                prerequisite_revisions = [
+                    {
+                        "path": prerequitise_path,
+                        "transaction_id": "0-0-0-0",
+                        "revision": revision,
+                    },
+                ]
+                # Shouldn't throw.
+                get(path, prerequisite_revisions=prerequisite_revisions)
 
         set("//sys/@config/object_manager/prohibit_prerequisite_revisions_differ_from_execution_paths", False)
 

@@ -152,26 +152,51 @@ TPathResolver::TResolveResult ResolvePath(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+static bool PrerequisitePathIsValidForExecution(const TProtobufString& prerequisitePath, const TProtobufString& path)
+{
+    auto maybeCropPath = [] (std::string_view path) {
+        auto pathLength = std::ssize(path);
+        // It is considered that path is a valid YPath.
+        for (int i = 0; i < pathLength; ++i) {
+            if (path[i] == '@') {
+                // Since it is valid YPath, `/` precedes `@`.
+                return path.substr(0, i - 1);
+            }
+            if (path[i] == '&') {
+                // Path either ends with `&`, either have attributes straight after `&`.
+                if (i + 1 == pathLength || (i + 3 <= pathLength && path.substr(i, 3) == "&/@")) {
+                    return path.substr(0, i);
+                }
+            }
+        }
+        return path;
+    };
+
+    auto croppedPrerequisitePath = maybeCropPath(prerequisitePath);
+    auto croppedPath = maybeCropPath(path);
+    return croppedPrerequisitePath == croppedPath;
+}
+
 static TError ValidatePrerequisiteRevisionPaths(
     TYPathMaybeRef originalTargetPath,
     const google::protobuf::RepeatedPtrField<TProtobufString>& originalAdditionalPaths,
     const TProtobufString& prerequisitePath)
 {
-    if (prerequisitePath == originalTargetPath) {
+    if (PrerequisitePathIsValidForExecution(prerequisitePath, originalTargetPath)) {
         return TError();
     }
-        for (const auto& additionalPath : originalAdditionalPaths) {
-            if (prerequisitePath == additionalPath) {
-                return TError();
-            }
+    for (const auto& additionalPath : originalAdditionalPaths) {
+        if (PrerequisitePathIsValidForExecution(prerequisitePath, additionalPath)) {
+            return TError();
         }
-        return TError(
-            NObjectClient::EErrorCode::PrerequisitePathDifferFromExecutionPaths,
-            "Requests with prerequisitive paths different from target paths are prohibited in Cypress "
-            "(PrerequisitivePath: %v, TargetPath: %v, AdditionalPaths: %v)",
-            prerequisitePath,
-            originalTargetPath,
-            originalAdditionalPaths);
+    }
+    return TError(
+        NObjectClient::EErrorCode::PrerequisitePathDifferFromExecutionPaths,
+        "Requests with prerequisite paths different from target paths are prohibited in Cypress "
+        "(PrerequisitePath: %v, TargetPath: %v, AdditionalPaths: %v)",
+        prerequisitePath,
+        originalTargetPath,
+        originalAdditionalPaths);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
