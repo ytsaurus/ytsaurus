@@ -2875,7 +2875,7 @@ class YtClient(ClientState):
             self,
             engine, query,
             settings=None, files=None, stage=None, annotations=None, access_control_object=None,
-            access_control_objects=None):
+            access_control_objects=None, secrets=None):
         """
         Start query.
 
@@ -2895,13 +2895,16 @@ class YtClient(ClientState):
         :type access_control_object: str or None
         :param access_control_objects: list access control object names
         :type access_control_objects: list or None
+        :param secrets: list of secrets
+        :type secrets: list or None
 
         """
+        print("Secrets:", secrets)
         return client_api.start_query(
             engine, query,
             client=self,
             settings=settings, files=files, stage=stage, annotations=annotations, access_control_object=access_control_object,
-            access_control_objects=access_control_objects)
+            access_control_objects=access_control_objects, secrets=secrets)
 
     def start_transaction(
             self,
