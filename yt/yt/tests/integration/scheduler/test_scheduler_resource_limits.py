@@ -3,7 +3,7 @@ from yt_env_setup import YTEnvSetup, is_asan_build, is_debug_build, Restarter, N
 from yt_commands import (
     authors, print_debug, wait, wait_breakpoint, release_breakpoint, with_breakpoint, create,
     ls, get, set, create_pool, write_file, read_table, write_table, map, vanilla, get_job,
-    update_nodes_dynamic_config, update_controller_agent_config,
+    update_nodes_dynamic_config, update_controller_agent_config, remember_controller_agent_config,
     run_test_vanilla, sync_create_cells)
 
 from yt_scheduler_helpers import scheduler_orchid_pool_path
@@ -692,6 +692,27 @@ class TestContainerCpuProperties(YTEnvSetup):
         #   - Resulting limit equals 0.7 = 0.1 * 2 + 0.5
         assert self.get_job_container_property("cpu_limit") == "0.7c"
         release_breakpoint()
+
+    @authors("ignat")
+    def test_container_cpu_limit_with_minimum_mode(self):
+        with remember_controller_agent_config():
+            update_controller_agent_config(
+                "vanilla_operation_options/cpu_limit_overcommit_mode",
+                "minimum")
+
+            run_test_vanilla(
+                wait_for_jobs=True,
+                command=with_breakpoint("BREAKPOINT ; cat"),
+                task_patch={"cpu_limit": 0.1},
+            )
+            wait_breakpoint()
+            # Cpu limit is set due to vanilla_operation_options.
+            # Explanation:
+            #   - Overcommit multiplier equals 2
+            #   - Initial overcommit equals 0.05
+            #   - Resulting limit equals 0.15 = min(0.1 * 2, 0.1 + 0.05)
+            assert self.get_job_container_property("cpu_limit") == "0.15c"
+            release_breakpoint()
 
     @authors("prime")
     def test_force_idle_cpu_policy(self):

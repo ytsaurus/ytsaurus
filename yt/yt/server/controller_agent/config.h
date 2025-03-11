@@ -338,10 +338,15 @@ public:
     TJobSplitterConfigPtr JobSplitter;
 
     //! This flags currently makes sense only for Porto environment.
-    //! It forces setting container CPU limit on slot container calculated as
-    //! JobCpuLimit * CpuLimitOvercommitMultiplier + InitialCpuLimitOvercommit
+    //! It forces setting container CPU limit on slot container.
+    //!
+    //! If CpuLimitOvercommitMode is Linear than cpu limit calculated as
+    //! JobCpuLimit * CpuLimitOvercommitMultiplier + InitialCpuLimitOvercommit,
+    //! if CpuLimitOvercommitMode is minimum than cpu limit calculated as
+    //! Min(JobCpuLimit * CpuLimitOvercommitMultiplier, JobCpuLimit + InitialCpuLimitOvercommit)
     bool SetContainerCpuLimit;
 
+    ECpuLimitOvercommitMode CpuLimitOvercommitMode;
     double CpuLimitOvercommitMultiplier;
     double InitialCpuLimitOvercommit;
 
