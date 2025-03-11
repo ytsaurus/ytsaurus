@@ -7,9 +7,20 @@
 
 using namespace NSQLTranslationV1;
 using NSQLTranslation::Tokenize;
+using NSQLTranslation::TParsedToken;
 using NSQLTranslation::TParsedTokenList;
 using NYql::TIssues;
 using NSQLTranslation::SQL_MAX_PARSER_ERRORS;
+
+TString ToString(TParsedToken token) {
+    TString& string = token.Name;
+    if (token.Name != token.Content) {
+        string += "(";
+        string += token.Content;
+        string += ")";
+    }
+    return string;
+}
 
 TString Tokenized(const TString& query) {
     static auto Lexer = MakeRegexLexer(/* ansi = */ false);
@@ -20,12 +31,7 @@ TString Tokenized(const TString& query) {
 
     TString out;
     for (auto& token : tokens) {
-        out += token.Name;
-        if (token.Name != token.Content) {
-            out += "(";
-            out += token.Content;
-            out += ")";
-        }
+        out += ToString(std::move(token));
         out += " ";
     }
     if (!out.empty()) {
@@ -34,14 +40,41 @@ TString Tokenized(const TString& query) {
     return out;
 }
 
+void Check(TString input, TString expected) {
+    TString actual = Tokenized(input);
+    UNIT_ASSERT_VALUES_EQUAL(actual, expected);
+}
+
+// TODO(vityaman): create some common test suite parametrized by a ILexer
 Y_UNIT_TEST_SUITE(RegexLexerTests) {
-    Y_UNIT_TEST(Sandbox) {
-        UNIT_ASSERT_VALUES_EQUAL(
-            Tokenized(""), 
-            "");
-        UNIT_ASSERT_VALUES_EQUAL(
-            Tokenized("SELECT"), 
-            "SELECT");
+    Y_UNIT_TEST(Whitespace) {
+        Check("", "");
+        Check(" ", "WS( )");
+        Check("  ", "WS( ) WS( )");
+        Check("\n", "WS(\n)");
+    }
+
+    Y_UNIT_TEST(SinleLineComment) {
+        Check("--yql", "COMMENT(--yql)");
+        Check("--  yql ", "COMMENT(--  yql )");
+        Check("-- yql\nSELECT", "COMMENT(-- yql\n) SELECT");
+        Check("-- yql --", "COMMENT(-- yql --)");
+    }
+
+    Y_UNIT_TEST(MultiLineComment) {
+        Check("/* yql */", "COMMENT(/* yql */)");
+        Check("/* yql */ */", "COMMENT(/* yql */) WS( ) ASTERISK(*) SLASH(/)");
+        Check("/* /* yql */", "COMMENT(/* /* yql */)");
+        Check("/* yql\n * yql\n */", "COMMENT(/* yql\n * yql\n */)");
+    }
+
+    Y_UNIT_TEST(Keyword) {
+        Check("SELECT", "SELECT");
+        Check("INSERT", "INSERT");
+        Check("FROM", "FROM");
+    }
+
+    Y_UNIT_TEST(TODORemove) {
         UNIT_ASSERT_VALUES_EQUAL(
             Tokenized("SELECT *"), 
             "SELECT WS( ) ASTERISK(*)");

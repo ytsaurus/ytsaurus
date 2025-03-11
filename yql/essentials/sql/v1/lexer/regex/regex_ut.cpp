@@ -35,6 +35,6 @@ Y_UNIT_TEST_SUITE(SqlRegexTests) {
 
         UNIT_ASSERT_VALUES_EQUAL(
             regexes.at("COMMENT"),
-            "((\\/\\*.*?\\*\\/)|(--[^\\n\\r]*(\\r\\n?|\\n|$)))");
+            "((\\/\\*(.|\\n)*?\\*\\/)|(--[^\\n\\r]*(\\r\\n?|\\n|$)))");
     }
 } // Y_UNIT_TEST_SUITE(SqlRegexTests)

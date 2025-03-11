@@ -53,6 +53,7 @@ namespace NSQLTranslationV1 {
                 return matched.Content.length();
             });
             Y_ENSURE(it != std::end(matches));
+            Y_ENSURE(!it->Content.empty());
 
             return *it;
         }
