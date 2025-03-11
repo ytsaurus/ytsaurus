@@ -1142,6 +1142,7 @@ private:
         ProfileExport(exportConfig, !passError.IsOK());
 
         TDuration backoffDuration;
+        int retryIndex = 0;
         {
             auto guard = Guard(Lock_);
             if (passError.IsOK()) {
@@ -1151,7 +1152,12 @@ private:
             RetryBackoff_.Next();
 
             backoffDuration = RetryBackoff_.GetBackoff();
+            retryIndex = RetryBackoff_.GetInvocationIndex();
         }
+
+        YT_LOG_INFO("Doing retry backoff (BackoffDuration: %v, RetryIndex: %v)",
+            backoffDuration,
+            retryIndex);
 
         // TODO(apachee): Think of a way to ignore misconfigured exports completely
         // instead of artificially increasing pass period using retry backoff.
