@@ -52,6 +52,8 @@ using namespace NRpc;
 using NYT::ToProto;
 using NYT::FromProto;
 
+namespace {
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TTestDataNodeService
@@ -329,6 +331,8 @@ struct TTestCase
 };
 
 ////////////////////////////////////////////////////////////////////////////////
+
+} // namespace
 
 class TReplicationReaderTest
     : public ::testing::Test
