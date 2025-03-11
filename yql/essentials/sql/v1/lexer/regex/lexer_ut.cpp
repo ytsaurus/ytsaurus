@@ -6,11 +6,11 @@
 #include <library/cpp/testing/unittest/registar.h>
 
 using namespace NSQLTranslationV1;
+using NSQLTranslation::SQL_MAX_PARSER_ERRORS;
 using NSQLTranslation::Tokenize;
 using NSQLTranslation::TParsedToken;
 using NSQLTranslation::TParsedTokenList;
 using NYql::TIssues;
-using NSQLTranslation::SQL_MAX_PARSER_ERRORS;
 
 TString ToString(TParsedToken token) {
     TString& string = token.Name;
@@ -76,10 +76,9 @@ Y_UNIT_TEST_SUITE(RegexLexerTests) {
 
     Y_UNIT_TEST(Punctuation) {
         Check(
-            "* / + - <|", 
+            "* / + - <|",
             "ASTERISK(*) WS( ) SLASH(/) WS( ) "
-            "PLUS(+) WS( ) MINUS(-) WS( ) STRUCT_OPEN(<|)"
-        );
+            "PLUS(+) WS( ) MINUS(-) WS( ) STRUCT_OPEN(<|)");
         (Check("SELECT*FROM", "SELECT ASTERISK(*) FROM"));
     }
 
@@ -110,7 +109,7 @@ Y_UNIT_TEST_SUITE(RegexLexerTests) {
     }
 
     Y_UNIT_TEST(Query) {
-        TString query = 
+        TString query =
             "SELECT\n"
             "  123467,\n"
             "  \"Hello, {name}!\",\n"
@@ -120,7 +119,7 @@ Y_UNIT_TEST_SUITE(RegexLexerTests) {
             "  Math::Sin(var)\n"
             "FROM `local/test/space/table`\n"
             "JOIN test;";
-        
+
         TString expected =
             "SELECT WS(\n) "
             "WS( ) WS( ) INTEGER_VALUE(123467) COMMA(,) WS(\n) "
