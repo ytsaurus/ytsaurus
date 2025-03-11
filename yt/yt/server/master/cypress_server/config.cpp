@@ -118,6 +118,11 @@ void TDynamicCypressManagerConfig::Register(TRegistrar registrar)
     registrar.Parameter("enable_preserve_acl_during_move", &TThis::EnablePreserveAclDuringMove)
         .Default(true);
 
+    registrar.Parameter("max_attribute_filter_size_to_log", &TThis::MaxAttributeFilterSizeToLog)
+        .Default(20)
+        .GreaterThan(0)
+        .DontSerializeDefault();
+
     registrar.Postprocessor([] (TThis* config) {
         NJournalClient::ValidateJournalAttributes(
             config->DefaultJournalErasureCodec,

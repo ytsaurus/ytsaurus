@@ -1137,7 +1137,9 @@ void TNontemplateCypressNodeProxyBase::GetSelf(
         : std::nullopt;
 
     context->SetRequestInfo("AttributeFilter: %v, Limit: %v",
-        attributeFilter,
+        MakeShrunkFormattableView(
+            attributeFilter,
+            GetDynamicCypressManagerConfig()->MaxAttributeFilterSizeToLog),
         limit);
 
     ValidatePermission(EPermissionCheckScope::This, EPermission::Read);
@@ -1191,6 +1193,15 @@ void TNontemplateCypressNodeProxyBase::GetAttribute(
     TRspGet* response,
     const TCtxGetPtr& context)
 {
+    auto attributeFilter = request->has_attributes()
+        ? FromProto<TAttributeFilter>(request->attributes())
+        : TAttributeFilter();
+
+    context->SetRequestInfo("AttributeFilter: %v",
+        MakeShrunkFormattableView(
+            attributeFilter,
+            GetDynamicCypressManagerConfig()->MaxAttributeFilterSizeToLog));
+
     SuppressAccessTracking();
     TObjectProxyBase::GetAttribute(path, request, response, context);
 }
@@ -3339,7 +3350,9 @@ void TCypressMapNodeProxy::ListSelf(
         : std::nullopt;
 
     context->SetRequestInfo("AttributeFilter: %v, Limit: %v",
-        attributeFilter,
+        MakeShrunkFormattableView(
+            attributeFilter,
+            GetDynamicCypressManagerConfig()->MaxAttributeFilterSizeToLog),
         limit);
 
     TLimitedAsyncYsonWriter writer(context->GetReadRequestComplexityLimiter());
@@ -3459,7 +3472,9 @@ void TSequoiaMapNodeProxy::GetSelf(
     // NB: Since Sequoia tree cannot be traversed on master side (due to the fact that nodes live on different cells),
     // limit field in request does nothing.
     context->SetRequestInfo("AttributeFilter: %v",
-        attributeFilter);
+        MakeShrunkFormattableView(
+            attributeFilter,
+            GetDynamicCypressManagerConfig()->MaxAttributeFilterSizeToLog));
 
     TLimitedAsyncYsonWriter writer(context->GetReadRequestComplexityLimiter());
     WriteAttributes(&writer, attributeFilter, false);
