@@ -31,15 +31,27 @@ namespace NSQLTranslationV1 {
             const TTokenCallback& onNextToken,
             NYql::TIssues& issues,
             size_t maxErrors) override {
-            Y_UNUSED(queryName, issues, maxErrors);
-
+            Y_UNUSED(queryName, issues);
+                
+            size_t errors = 0;
             for (size_t pos = 0; pos < query.size();) {
                 TParsedToken matched = Match(query, pos);
+
+                if (matched.Name.empty()) {
+                    if (maxErrors == errors) {
+                        return false;
+                    }
+
+                    pos += 1;
+                    errors += 1;
+                    continue;
+                }
+
                 pos += matched.Content.length();
                 onNextToken(std::move(matched));
             }
 
-            return true;
+            return errors == 0;
         }
 
     private:
@@ -52,9 +64,12 @@ namespace NSQLTranslationV1 {
             auto it = MaxElementBy(matches, [](const TParsedToken& matched) {
                 return matched.Content.length();
             });
-            Y_ENSURE(it != std::end(matches));
-            Y_ENSURE(!it->Content.empty());
 
+            if (it == std::end(matches)) {
+                return {};
+            }
+
+            Y_ENSURE(!it->Content.empty());
             return *it;
         }
 

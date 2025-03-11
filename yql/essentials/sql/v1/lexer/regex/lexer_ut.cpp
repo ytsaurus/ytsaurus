@@ -27,9 +27,13 @@ TString Tokenized(const TString& query) {
 
     TParsedTokenList tokens;
     TIssues issues;
-    Y_ENSURE(Tokenize(*Lexer, query, "Test", tokens, issues, SQL_MAX_PARSER_ERRORS));
-
+    bool ok = Tokenize(*Lexer, query, "Test", tokens, issues, SQL_MAX_PARSER_ERRORS);
+    
     TString out;
+    if (!ok) {
+        out = "[INVALID] ";
+    }
+
     for (auto& token : tokens) {
         out += ToString(std::move(token));
         out += " ";
@@ -135,4 +139,10 @@ Y_UNIT_TEST_SUITE(RegexLexerTests) {
 
         Check(query, expected);
     }
+
+    Y_UNIT_TEST(Invalid) {
+        Check("\"", "[INVALID]");
+        Check("\" SELECT", "[INVALID] WS( ) SELECT");
+    }
+
 } // Y_UNIT_TEST_SUITE(RegexLexerTests)
