@@ -516,9 +516,7 @@ private:
         }
         if (ColumnarStatistics_) {
             SetProtoExtension(ChunkMeta_->mutable_extensions(), ToProto<TColumnarStatisticsExt>(*ColumnarStatistics_));
-            if (!ColumnarStatistics_->LargeStatistics.IsEmpty()) {
-                SetProtoExtension(ChunkMeta_->mutable_extensions(), ToProto<TLargeColumnarStatisticsExt>(ColumnarStatistics_->LargeStatistics));
-            }
+            SetProtoExtension(ChunkMeta_->mutable_extensions(), ToProto<TLargeColumnarStatisticsExt>(ColumnarStatistics_->LargeStatistics));
         }
         if (Options_->MaxHeavyColumns > 0 && ColumnarStatistics_) {
             auto heavyColumnStatisticsExt = GetHeavyColumnStatisticsExt(
