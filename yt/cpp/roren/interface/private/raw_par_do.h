@@ -88,7 +88,7 @@ public:
         TInputRow* end = current + count;
 
         for (; current < end; ++current) {
-            InvokeUnordered<GetMemberPointerClass<decltype(&TFunction::Do)>>(&TFunction::Do, Func_.Get(), *current, GetOutput());
+            InvokeUnordered<GetMemberPointerClass<decltype(&TFunction::Do)>>(&TFunction::Do, Func_.Get(), std::move(*current), GetOutput());
         }
     }
 
