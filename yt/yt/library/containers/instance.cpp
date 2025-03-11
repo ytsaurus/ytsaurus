@@ -111,8 +111,7 @@ std::vector<TResourceUsage::TTaggedStat> ExtractIOStatsPerDevice(
         if (deviceName != "hw") {
             result.emplace_back(
                 std::move(deviceName),
-                statisticsValue
-            );
+                statisticsValue);
         }
     }
 
@@ -531,7 +530,7 @@ public:
 
         TResourceUsage result;
 
-        auto handleProperties = [&](const auto& statRules, auto& outputContainer) {
+        auto handleProperties = [&] (const auto& statRules, auto& outputContainer) {
             for (auto field : fields) {
                 auto ruleIt = statRules.find(field);
                 if (ruleIt == statRules.end()) {
