@@ -2338,7 +2338,7 @@ class TestCypress(YTEnvSetup):
     def test_expiration_timeout1(self):
         create("table", "//tmp/t", attributes={"expiration_timeout": 1000})
         # Accessing a node may affect its lifetime. Hence no waiting here.
-        time.sleep(1.5)
+        time.sleep(2.0)
         assert not exists("//tmp/t")
 
     @authors("shakurov")
@@ -2392,12 +2392,12 @@ class TestCypress(YTEnvSetup):
 
         lock("//tmp/t", tx=tx, mode="snapshot")
 
-        time.sleep(1.5)
+        time.sleep(2.0)
         assert exists("//tmp/t")
 
         abort_transaction(tx)
 
-        time.sleep(1.5)
+        time.sleep(2.0)
         assert not exists("//tmp/t")
 
     @authors("shakurov")
@@ -2411,12 +2411,12 @@ class TestCypress(YTEnvSetup):
 
         set("//tmp/t/@expiration_timeout", 1000)
 
-        time.sleep(1.5)
+        time.sleep(2.0)
         assert exists("//tmp/t")
 
         abort_transaction(tx)
 
-        time.sleep(1.5)
+        time.sleep(2.0)
         assert not exists("//tmp/t")
 
     @authors("shakurov")
@@ -2425,7 +2425,7 @@ class TestCypress(YTEnvSetup):
         create("table", "//tmp/t", attributes={"expiration_timeout": 1000})
         set("//tmp/t/@expiration_timeout", 3000)
 
-        time.sleep(1.5)
+        time.sleep(2.0)
         assert exists("//tmp/t")
 
         remove("//tmp/t/@expiration_timeout")
@@ -2444,14 +2444,14 @@ class TestCypress(YTEnvSetup):
         assert get("//tmp/t/@expiration_timeout", tx=tx) == 1000
 
         # Uncommitted expiration timeout has no effect.
-        time.sleep(1.5)
+        time.sleep(2.0)
         assert exists("//tmp/t")
 
         commit_transaction(tx)
 
         assert get("//tmp/t/@expiration_timeout") == 1000
 
-        time.sleep(1.5)
+        time.sleep(2.0)
         assert not exists("//tmp/t")
 
     @authors("shakurov")
@@ -2466,7 +2466,7 @@ class TestCypress(YTEnvSetup):
         create("table", "//tmp/t4")
         set("//tmp/t4/@expiration_timeout", 10)
         # Accessing a node may affect its lifetime. Hence no waiting here.
-        time.sleep(1.5)
+        time.sleep(2.0)
         assert not exists("//tmp/t1")
         assert not exists("//tmp/t2")
         assert not exists("//tmp/t3")
