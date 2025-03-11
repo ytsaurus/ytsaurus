@@ -109,18 +109,31 @@ Y_UNIT_TEST_SUITE(RegexLexerTests) {
         Check("@@line1\nline2@@", "STRING_VALUE(@@line1\nline2@@)");
     }
 
-    Y_UNIT_TEST(TODORemove) {
-        UNIT_ASSERT_VALUES_EQUAL(
-            Tokenized("SELECT *"), 
-            "SELECT WS( ) ASTERISK(*)");
-        UNIT_ASSERT_VALUES_EQUAL(
-            Tokenized("SELECT*"),
-            "SELECT ASTERISK(*)");
-        UNIT_ASSERT_VALUES_EQUAL(
-            Tokenized("SELECT * /* yql */ FROM"), 
-            "SELECT WS( ) ASTERISK(*) WS( ) COMMENT(/* yql */) WS( ) FROM");
-        UNIT_ASSERT_VALUES_EQUAL(
-            Tokenized("SELECT `a` FROM my_table"), 
-            "SELECT WS( ) ID_QUOTED(`a`) WS( ) FROM WS( ) ID_PLAIN(my_table)");
+    Y_UNIT_TEST(Query) {
+        TString query = 
+            "SELECT\n"
+            "  123467,\n"
+            "  \"Hello, {name}!\",\n"
+            "  (1 + (5 * 1 / 0)),\n"
+            "  MIN(identifier),\n"
+            "  Bool(field),\n"
+            "  Math::Sin(var)\n"
+            "FROM `local/test/space/table`\n"
+            "JOIN test;";
+        
+        TString expected =
+            "SELECT WS(\n) "
+            "WS( ) WS( ) INTEGER_VALUE(123467) COMMA(,) WS(\n) "
+            "WS( ) WS( ) STRING_VALUE(\"Hello, {name}!\") COMMA(,) WS(\n) "
+            "WS( ) WS( ) LPAREN(() INTEGER_VALUE(1) WS( ) PLUS(+) WS( ) LPAREN(() INTEGER_VALUE(5) WS( ) "
+            "ASTERISK(*) WS( ) INTEGER_VALUE(1) WS( ) SLASH(/) WS( ) INTEGER_VALUE(0) RPAREN()) "
+            "RPAREN()) COMMA(,) WS(\n) "
+            "WS( ) WS( ) ID_PLAIN(MIN) LPAREN(() ID_PLAIN(identifier) RPAREN()) COMMA(,) WS(\n) "
+            "WS( ) WS( ) ID_PLAIN(Bool) LPAREN(() ID_PLAIN(field) RPAREN()) COMMA(,) WS(\n) "
+            "WS( ) WS( ) ID_PLAIN(Math) NAMESPACE(::) ID_PLAIN(Sin) LPAREN(() ID_PLAIN(var) RPAREN()) WS(\n) "
+            "FROM WS( ) ID_QUOTED(`local/test/space/table`) WS(\n) "
+            "JOIN WS( ) ID_PLAIN(test) SEMICOLON(;)";
+
+        Check(query, expected);
     }
 } // Y_UNIT_TEST_SUITE(RegexLexerTests)
