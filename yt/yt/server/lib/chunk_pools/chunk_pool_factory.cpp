@@ -89,6 +89,11 @@ public:
         return InfiniteWeight;
     }
 
+    i64 GetMaxCompressedDataSizePerJob() const override
+    {
+        return InfiniteWeight;
+    }
+
     i64 GetInputSliceDataWeight() const override
     {
         return std::clamp<i64>(SliceDataWeightMultiplier * DataWeightPerPartition_, 1, DataWeightPerPartition_);

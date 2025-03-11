@@ -112,7 +112,8 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct SpytQueryResult {
+struct TSpytQueryResult
+{
     const bool IsTruncated;
     const TSharedRef WireData;
 };
@@ -198,7 +199,7 @@ private:
     const TPeriodicExecutorPtr RefreshTokenExecutor_;
     const bool SessionReuse_;
     ISpytDiscoveryPtr Discovery_;
-    TFuture<SpytQueryResult> AsyncQueryResult_;
+    TFuture<TSpytQueryResult> AsyncQueryResult_;
     TString SessionUrl_;
     TString StatementUrl_;
     std::optional<TString> Token_;
@@ -407,7 +408,7 @@ private:
         return result;
     }
 
-    SpytQueryResult ExtractTableBytes(const TString& queryResult) const
+    TSpytQueryResult ExtractTableBytes(const TString& queryResult) const
     {
         auto encodedChunks = StringSplitter(queryResult).Split('\n').ToList<TString>();
         YT_LOG_DEBUG("Raw result received (LineCount: %v)", encodedChunks.size());
@@ -610,7 +611,7 @@ private:
         YT_UNUSED_FUTURE(RefreshTokenExecutor_->Stop());
     }
 
-    SpytQueryResult Execute()
+    TSpytQueryResult Execute()
     {
         UpdateMasterWebUIUrl();
         SetProgress(0.0, std::nullopt);
@@ -630,7 +631,7 @@ private:
         }
     }
 
-    void OnSpytResponse(const TErrorOr<SpytQueryResult>& queryResultOrError)
+    void OnSpytResponse(const TErrorOr<TSpytQueryResult>& queryResultOrError)
     {
         StopBackgroundExecutors();
         if (queryResultOrError.FindMatching(NYT::EErrorCode::Canceled)) {
@@ -643,7 +644,7 @@ private:
         auto result = queryResultOrError.Value();
         OnQueryCompletedWire({TWireRowset{
             .Rowset = result.WireData,
-            .IsTruncated = result.IsTruncated
+            .IsTruncated = result.IsTruncated,
         }});
     }
 };

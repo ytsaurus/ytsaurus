@@ -20,6 +20,9 @@ TIntrusivePtr<TSpec> ParseOperationSpec(NYTree::INodePtr specNode);
 
 NYTree::INodePtr UpdateSpec(NYTree::INodePtr templateSpec, NYTree::INodePtr originalSpec);
 
+template <class TOptions>
+TOptions CreateOperationOptions(const TOptions& options, const NYTree::INodePtr& patch);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TString TrimCommandForBriefSpec(const TString& command);

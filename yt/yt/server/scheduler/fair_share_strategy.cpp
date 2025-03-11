@@ -323,7 +323,7 @@ public:
         YT_ASSERT_INVOKERS_AFFINITY(FeasibleInvokers_);
 
         if (poolTreesYson == LastPoolTreesYson_ && ConvertToYsonString(Config_->TemplatePoolTreeConfigMap) == LastTemplatePoolTreeConfigMapYson_) {
-            YT_LOG_INFO("Pool trees and pools did not change, skipping update");
+            YT_LOG_INFO("Pool trees and pools are not changed, skipping update");
             return;
         }
 

@@ -183,6 +183,7 @@ bool TChunkFileWriter::WriteBlocks(
             this,
             this_ = MakeStrong(this),
             newDataSize = currentOffset,
+            blockCount = blocks.size(),
             chunkWriterStatistics = options.ClientOptions.ChunkWriterStatistics
         ] (const TErrorOr<IIOEngine::TWriteResponse>& rspOrError) {
             YT_VERIFY(State_.load() == EState::WritingBlocks);
@@ -198,6 +199,7 @@ bool TChunkFileWriter::WriteBlocks(
             YT_VERIFY(newDataSize - DataSize_ == rsp.WrittenBytes);
 
             chunkWriterStatistics->DataBytesWrittenToDisk.fetch_add(rsp.WrittenBytes, std::memory_order::relaxed);
+            chunkWriterStatistics->DataBlocksWrittenToDisk.fetch_add(blockCount, std::memory_order::relaxed);
             chunkWriterStatistics->DataIOWriteRequests.fetch_add(rsp.IOWriteRequests, std::memory_order::relaxed);
             chunkWriterStatistics->DataIOSyncRequests.fetch_add(rsp.IOSyncRequests, std::memory_order::relaxed);
 

@@ -40,10 +40,12 @@ void TNewJobStub::AddDataSlice(const TLegacyDataSlicePtr& dataSlice, IChunkPoolI
         ++PrimarySliceCount_;
         PrimaryDataWeight_ += dataSlice->GetDataWeight();
         PrimaryRowCount_ += dataSlice->GetRowCount();
+        PrimaryCompressedDataSize_ += dataSlice->GetCompressedDataSize();
     } else {
         ++ForeignSliceCount_;
         ForeignDataWeight_ += dataSlice->GetDataWeight();
         ForeignRowCount_ += dataSlice->GetRowCount();
+        ForeignCompressedDataSize_ += dataSlice->GetCompressedDataSize();
     }
 }
 
@@ -64,6 +66,7 @@ void TNewJobStub::Finalize()
         StripeList_->TotalDataWeight += statistics.DataWeight;
         StripeList_->TotalRowCount += statistics.RowCount;
         StripeList_->TotalChunkCount += statistics.ChunkCount;
+        StripeList_->TotalCompressedDataSize += statistics.CompressedDataSize;
         StripeList_->Stripes.emplace_back(std::move(stripe));
     }
     StripeMap_.clear();
@@ -95,6 +98,11 @@ void TNewJobStub::Finalize()
 i64 TNewJobStub::GetDataWeight() const
 {
     return PrimaryDataWeight_ + ForeignDataWeight_;
+}
+
+i64 TNewJobStub::GetCompressedDataSize() const
+{
+    return PrimaryCompressedDataSize_ + ForeignCompressedDataSize_;
 }
 
 i64 TNewJobStub::GetRowCount() const
@@ -175,6 +183,8 @@ void Serialize(const TNewJobStub& jobStub, IYsonConsumer* consumer)
             .Item("foreign_row_count").Value(jobStub.GetForeignRowCount())
             .Item("primary_data_weight").Value(jobStub.GetPrimaryDataWeight())
             .Item("foreign_data_weight").Value(jobStub.GetForeignDataWeight())
+            .Item("primary_compressed_data_size").Value(jobStub.GetPrimaryCompressedDataSize())
+            .Item("foreign_compressed_data_size").Value(jobStub.GetForeignCompressedDataSize())
         .EndMap();
 }
 

@@ -46,6 +46,8 @@ public:
     DEFINE_BYREF_RO_PROPERTY(std::vector<NScheduler::TExperimentAssignmentPtr>, ExperimentAssignments);
     DEFINE_BYVAL_RW_PROPERTY(NScheduler::TJobShellOptionsMap, OptionsPerJobShell);
 
+    DEFINE_BYVAL_RW_PROPERTY(NYTree::INodePtr, OptionsPatch);
+
 public:
     explicit TOperation(const NProto::TOperationDescriptor& descriptor);
 

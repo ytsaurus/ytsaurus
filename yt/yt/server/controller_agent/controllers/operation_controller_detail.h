@@ -580,7 +580,9 @@ protected:
     // Total uncompressed data size for input tables.
     // Used only during preparation, not persisted.
     i64 PrimaryInputDataWeight = 0;
+    i64 PrimaryInputCompressedDataSize = 0;
     i64 ForeignInputDataWeight = 0;
+    i64 ForeignInputCompressedDataSize = 0;
 
     int UnavailableIntermediateChunkCount = 0;
 
@@ -1116,7 +1118,7 @@ private:
     THashSet<TString> BannedTreeIds_;
 
     TOperationSpecBasePtr Spec_;
-    TOperationOptionsPtr Options;
+    TOperationOptionsPtr Options_;
 
     TSpecManagerPtr SpecManager_;
 

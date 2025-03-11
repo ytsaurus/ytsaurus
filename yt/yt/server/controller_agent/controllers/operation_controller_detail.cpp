@@ -267,7 +267,7 @@ TOperationControllerBase::TOperationControllerBase(
     , LivePreviews_(std::make_shared<TLivePreviewMap>())
     , PoolTreeControllerSettingsMap_(operation->PoolTreeControllerSettingsMap())
     , Spec_(std::move(spec))
-    , Options(std::move(options))
+    , Options_(std::move(options))
     , SpecManager_(New<TSpecManager>(this, Spec_, Logger))
     , CachedRunningJobs_(
         Config->CachedRunningJobsUpdatePeriod,
@@ -850,7 +850,7 @@ void TOperationControllerBase::InitializeStructures()
         BaseLayer_ = TUserFile(path, InputTransactions->GetLocalInputTransactionId(), true);
     }
 
-    auto maxInputTableCount = std::min(Config->MaxInputTableCount, Options->MaxInputTableCount);
+    auto maxInputTableCount = std::min(Config->MaxInputTableCount, Options_->MaxInputTableCount);
     if (std::ssize(InputManager->GetInputTables()) > maxInputTableCount) {
         THROW_ERROR_EXCEPTION(
             "Too many input tables: maximum allowed %v, actual %v",
@@ -4691,11 +4691,11 @@ bool TOperationControllerBase::ShouldSkipScheduleAllocationRequest() const noexc
         auto buildingJobSpecCount = BuildingJobSpecCount_.load();
         auto totalBuildingJobSpecSliceCount = TotalBuildingJobSpecSliceCount_.load();
         auto avgSliceCount = totalBuildingJobSpecSliceCount / std::max<double>(1.0, buildingJobSpecCount);
-        if (Options->ControllerBuildingJobSpecCountLimit) {
-            jobSpecThrottlingActive |= buildingJobSpecCount > *Options->ControllerBuildingJobSpecCountLimit;
+        if (Options_->ControllerBuildingJobSpecCountLimit) {
+            jobSpecThrottlingActive |= buildingJobSpecCount > *Options_->ControllerBuildingJobSpecCountLimit;
         }
-        if (Options->ControllerTotalBuildingJobSpecSliceCountLimit) {
-            jobSpecThrottlingActive |= totalBuildingJobSpecSliceCount > *Options->ControllerTotalBuildingJobSpecSliceCountLimit;
+        if (Options_->ControllerTotalBuildingJobSpecSliceCountLimit) {
+            jobSpecThrottlingActive |= totalBuildingJobSpecSliceCount > *Options_->ControllerTotalBuildingJobSpecSliceCountLimit;
         }
 
         if (jobSpecThrottlingActive || forceLogging) {
@@ -4703,9 +4703,9 @@ bool TOperationControllerBase::ShouldSkipScheduleAllocationRequest() const noexc
                 "Throttling status for building job specs (JobSpecCount: %v, JobSpecCountLimit: %v, TotalJobSpecSliceCount: %v, "
                 "TotalJobSpecSliceCountLimit: %v, AvgJobSpecSliceCount: %v, JobSpecThrottlingActive: %v)",
                 buildingJobSpecCount,
-                Options->ControllerBuildingJobSpecCountLimit,
+                Options_->ControllerBuildingJobSpecCountLimit,
                 totalBuildingJobSpecSliceCount,
-                Options->ControllerTotalBuildingJobSpecSliceCountLimit,
+                Options_->ControllerTotalBuildingJobSpecSliceCountLimit,
                 avgSliceCount,
                 jobSpecThrottlingActive);
         }
@@ -7517,8 +7517,13 @@ void TOperationControllerBase::GetUserFilesAttributes()
                                     THROW_ERROR_EXCEPTION("File %v is empty", file.Path);
                                 }
 
+                                auto access_method = file.Path.GetAccessMethod();
+                                if (!access_method) {
+                                    access_method = attributes.Find<TString>("access_method");
+                                }
+
                                 std::tie(file.AccessMethod, file.Filesystem) = GetAccessMethodAndFilesystemFromStrings(
-                                    attributes.Find<TString>("access_method").value_or(ToString(ELayerAccessMethod::Local)),
+                                    access_method.value_or(ToString(ELayerAccessMethod::Local)),
                                     attributes.Find<TString>("filesystem").value_or(ToString(ELayerFilesystem::Archive)));
                             }
                             break;
@@ -7748,8 +7753,10 @@ void TOperationControllerBase::CollectTotals()
 
             if (table->IsPrimary()) {
                 PrimaryInputDataWeight += inputChunk->GetDataWeight();
+                PrimaryInputCompressedDataSize += inputChunk->GetCompressedDataSize();
             } else {
                 ForeignInputDataWeight += inputChunk->GetDataWeight();
+                ForeignInputCompressedDataSize += inputChunk->GetCompressedDataSize();
             }
 
             totalInputDataWeight += inputChunk->GetTotalDataWeight();
@@ -9638,7 +9645,7 @@ void TOperationControllerBase::UpdateSuspiciousJobsYson()
 
 void TOperationControllerBase::UpdateAggregatedRunningJobStatistics()
 {
-    auto statisticsLimit = Options->CustomStatisticsCountLimit;
+    auto statisticsLimit = Options_->CustomStatisticsCountLimit;
 
     YT_LOG_DEBUG(
         "Updating aggregated running job statistics (StatisticsLimit: %v, RunningJobCount: %v)",
@@ -9792,7 +9799,7 @@ void TOperationControllerBase::AnalyzeBriefStatistics(
 
 void TOperationControllerBase::UpdateAggregatedFinishedJobStatistics(const TJobletPtr& joblet, const TJobSummary& jobSummary)
 {
-    i64 statisticsLimit = Options->CustomStatisticsCountLimit;
+    i64 statisticsLimit = Options_->CustomStatisticsCountLimit;
     bool isLimitExceeded = false;
 
     SafeUpdateAggregatedJobStatistics(
@@ -9891,7 +9898,7 @@ const TOperationSpecBasePtr& TOperationControllerBase::GetSpec() const
 
 const TOperationOptionsPtr& TOperationControllerBase::GetOptions() const
 {
-    return Options;
+    return Options_;
 }
 
 const TOutputTablePtr& TOperationControllerBase::StderrTable() const
@@ -9959,7 +9966,7 @@ void TOperationControllerBase::InitUserJobSpecTemplate(
     const std::vector<TUserFile>& files,
     const TString& debugArtifactsAccount)
 {
-    const auto& userJobOptions = Options->UserJobOptions;
+    const auto& userJobOptions = Options_->UserJobOptions;
 
     jobSpec->set_shell_command(jobSpecConfig->Command);
     if (jobSpecConfig->JobTimeLimit) {
@@ -9974,12 +9981,23 @@ void TOperationControllerBase::InitUserJobSpecTemplate(
     jobSpec->set_custom_statistics_count_limit(jobSpecConfig->CustomStatisticsCountLimit);
     jobSpec->set_copy_files(jobSpecConfig->CopyFiles);
     jobSpec->set_debug_artifacts_account(debugArtifactsAccount);
-    jobSpec->set_set_container_cpu_limit(jobSpecConfig->SetContainerCpuLimit || Options->SetContainerCpuLimit);
+    jobSpec->set_set_container_cpu_limit(jobSpecConfig->SetContainerCpuLimit || Options_->SetContainerCpuLimit);
     jobSpec->set_redirect_stdout_to_stderr(jobSpecConfig->RedirectStdoutToStderr);
 
     // This is common policy for all operations of given type.
-    if (Options->SetContainerCpuLimit) {
-        jobSpec->set_container_cpu_limit(Options->CpuLimitOvercommitMultiplier * jobSpecConfig->CpuLimit + Options->InitialCpuLimitOvercommit);
+    if (Options_->SetContainerCpuLimit) {
+        double cpuLimit;
+        switch (Options_->CpuLimitOvercommitMode) {
+            case ECpuLimitOvercommitMode::Linear:
+                cpuLimit = Options_->CpuLimitOvercommitMultiplier * jobSpecConfig->CpuLimit + Options_->InitialCpuLimitOvercommit;
+                break;
+            case ECpuLimitOvercommitMode::Minimum:
+                cpuLimit = std::min(
+                    jobSpecConfig->CpuLimit * Options_->CpuLimitOvercommitMultiplier,
+                    jobSpecConfig->CpuLimit + Options_->InitialCpuLimitOvercommit);
+                break;
+        }
+        jobSpec->set_container_cpu_limit(cpuLimit);
     }
 
     // This is common policy for all operations of given type.
@@ -10162,12 +10180,12 @@ void TOperationControllerBase::InitUserJobSpec(
         joblet->EstimatedResourceUsage.GetFootprintMemory() +
         joblet->EstimatedResourceUsage.GetJobProxyMemory() * joblet->JobProxyMemoryReserveFactor.value());
 
-    if (Options->SetSlotContainerMemoryLimit) {
+    if (Options_->SetSlotContainerMemoryLimit) {
         jobSpec->set_slot_container_memory_limit(
             jobSpec->memory_limit() +
             joblet->EstimatedResourceUsage.GetJobProxyMemory() +
             joblet->EstimatedResourceUsage.GetFootprintMemory() +
-            Options->SlotContainerMemoryOverhead);
+            Options_->SlotContainerMemoryOverhead);
     }
 
     jobSpec->add_environment(Format("YT_JOB_INDEX=%v", joblet->JobIndex));
@@ -11241,7 +11259,7 @@ std::vector<TRichYPath> TOperationControllerBase::GetLayerPaths(
         TDockerImageSpec dockerImage(*userJobSpec->DockerImage, Config->DockerRegistry);
 
         // External docker images are not compatible with any additional layers.
-        if (!dockerImage.IsInternal()) {
+        if (!dockerImage.IsInternal() || !Config->DockerRegistry->TranslateInternalImagesIntoLayers) {
             return {};
         }
 
@@ -11328,7 +11346,7 @@ const NChunkClient::TMediumDirectoryPtr& TOperationControllerBase::GetMediumDire
 
 TJobSplitterConfigPtr TOperationControllerBase::GetJobSplitterConfigTemplate() const
 {
-    auto config = CloneYsonStruct(Options->JobSplitter);
+    auto config = CloneYsonStruct(Options_->JobSplitter);
 
     if (!Spec_->EnableJobSplitting || !Config->EnableJobSplitting) {
         config->EnableJobSplitting = false;

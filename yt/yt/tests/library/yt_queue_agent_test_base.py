@@ -7,6 +7,8 @@ from yt_commands import (freeze_table, get, read_table, set, ls, unfreeze_table,
                          sync_freeze_table, sync_unfreeze_table, create_table_replica, sync_enable_table_replica,
                          advance_consumer, insert_rows, wait_for_tablet_state)
 
+from yt_helpers import parse_yt_time
+
 from yt.common import YtError, update_inplace, update
 
 import builtins
@@ -20,6 +22,9 @@ import yt.environment.init_queue_agent_state as init_queue_agent_state
 
 ##################################################################
 
+
+# TODO(apachee): Simplify code for get_xxx method by generating them from
+# field names (and maybe post-processing functions).
 
 class OrchidBase:
     ENTITY_NAME = None
@@ -167,12 +172,46 @@ class ObjectOrchid(OrchidWithRegularPasses):
         return get(f"{self.orchid_path()}/row")
 
 
+class QueueExporterOrchid(OrchidBase):
+    def __init__(self, queue_orchid: "QueueOrchid", export_name: str):
+        self.queue_orchid = queue_orchid
+        self.export_name = export_name
+
+    def queue_agent_orchid_path(self):
+        return self.queue_orchid.queue_agent_orchid_path()
+
+    def orchid_path(self):
+        return f"{self.queue_orchid.orchid_path()}/exporters/{self.export_name}"
+
+    def get(self):
+        return get(self.orchid_path())
+
+    def get_export_task_invocation_index(self):
+        return get(f"{self.orchid_path()}/export_task_invocation_index")
+
+    def get_export_task_invocation_instant(self):
+        return parse_yt_time(get(f"{self.orchid_path()}/export_task_invocation_instant"))
+
+    def get_retry_index(self):
+        return get(f"{self.orchid_path()}/retry_index")
+
+    def get_retry_backoff_duration_seconds(self):
+        return get(f"{self.orchid_path()}/retry_backoff_duration") / 1000
+
+    def wait_fresh_invocation(self):
+        invocation_index = self.get_export_task_invocation_index()
+        wait(lambda: self.get_export_task_invocation_index() >= invocation_index + 2, sleep_backoff=0.15)
+
+
 class QueueOrchid(ObjectOrchid):
     OBJECT_TYPE = "queue"
 
     def get_queue(self):
         result = self.get()
         return result["status"], result["partitions"]
+
+    def get_exporter_orchid(self, export_name: str = "default"):
+        return QueueExporterOrchid(self, export_name)
 
 
 class OwnedQueueOrchid(ObjectOrchid):

@@ -27,6 +27,11 @@ DEFINE_ENUM(EFailOnJobRestartReason,
     (JobRevivalDisabled)
 );
 
+DEFINE_ENUM(ECpuLimitOvercommitMode,
+    (Linear)
+    (Minimum)
+);
+
 DECLARE_REFCOUNTED_STRUCT(IOperationControllerSchedulerHost)
 DECLARE_REFCOUNTED_STRUCT(IOperationControllerSnapshotBuilderHost)
 

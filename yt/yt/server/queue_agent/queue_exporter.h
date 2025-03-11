@@ -102,6 +102,9 @@ using TQueueExportProfilingCountersPtr = TIntrusivePtr<TQueueExportProfilingCoun
 
 ////////////////////////////////////////////////////////////////////////////////
 
+/*!
+ * \note Thread affinity: any.
+*/
 struct IQueueExporter
     : public virtual TRefCounted
 {
@@ -111,6 +114,8 @@ struct IQueueExporter
     virtual void OnDynamicConfigChanged(const TQueueExporterDynamicConfig& newDynamicConfig) = 0;
 
     virtual void Stop() = 0;
+
+    virtual void BuildOrchidYson(NYTree::TFluentAny fluent) const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IQueueExporter)

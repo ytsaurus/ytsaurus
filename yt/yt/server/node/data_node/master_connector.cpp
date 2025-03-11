@@ -585,7 +585,9 @@ public:
             }
 
             controlInvoker->Invoke(BIND([this, weakThis = MakeWeak(this), cellTag] {
-                StartNodeHeartbeatsToCell(cellTag);
+                if (auto strongThis = weakThis.Lock()) {
+                    StartNodeHeartbeatsToCell(cellTag);
+                }
             }));
         }
     }

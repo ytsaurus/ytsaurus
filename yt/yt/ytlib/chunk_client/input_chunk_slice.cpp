@@ -3,6 +3,8 @@
 #include "private.h"
 #include "input_chunk.h"
 
+#include <yt/yt/ytlib/controller_agent/serialize.h>
+
 #include <yt/yt/client/chunk_client/helpers.h>
 
 #include <yt/yt/client/table_client/row_buffer.h>
@@ -21,10 +23,11 @@
 
 namespace NYT::NChunkClient {
 
-using namespace NTableClient;
+using namespace NControllerAgent;
 using namespace NTableClient::NProto;
-using namespace NYson;
+using namespace NTableClient;
 using namespace NYTree;
+using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -373,7 +376,8 @@ TInputChunkSlice::TInputChunkSlice(
     const TInputChunkSlice& chunkSlice,
     i64 lowerRowIndex,
     std::optional<i64> upperRowIndex,
-    i64 dataWeight)
+    i64 dataWeight,
+    i64 compressedDataSize)
     : InputChunk_(chunkSlice.GetInputChunk())
     , LegacyLowerLimit_(chunkSlice.LegacyLowerLimit())
     , LegacyUpperLimit_(chunkSlice.LegacyUpperLimit())
@@ -391,7 +395,7 @@ TInputChunkSlice::TInputChunkSlice(
     }
 
     if (upperRowIndex) {
-        OverrideSize(*upperRowIndex - lowerRowIndex, dataWeight);
+        OverrideSize(*upperRowIndex - lowerRowIndex, dataWeight, compressedDataSize);
     }
 }
 
@@ -400,7 +404,8 @@ TInputChunkSlice::TInputChunkSlice(
     int partIndex,
     i64 lowerRowIndex,
     std::optional<i64> upperRowIndex,
-    i64 dataWeight)
+    i64 dataWeight,
+    i64 compressedDataSize)
     : InputChunk_(inputChunk)
     , PartIndex_(partIndex)
 {
@@ -417,7 +422,10 @@ TInputChunkSlice::TInputChunkSlice(
     }
 
     if (LegacyUpperLimit_.RowIndex) {
-        OverrideSize(*LegacyUpperLimit_.RowIndex - *LegacyLowerLimit_.RowIndex, std::max<i64>(1, dataWeight * inputChunk->GetDataWeightSelectivityFactor()));
+        OverrideSize(
+            *LegacyUpperLimit_.RowIndex - *LegacyLowerLimit_.RowIndex,
+            std::max<i64>(1, dataWeight * inputChunk->GetDataWeightSelectivityFactor()),
+            compressedDataSize);
     }
 }
 
@@ -432,10 +440,7 @@ TInputChunkSlice::TInputChunkSlice(
     LegacyUpperLimit_.MergeUpperLimit(TLegacyInputSliceLimit(protoChunkSlice.upper_limit(), rowBuffer, keySet));
     PartIndex_ = DefaultPartIndex;
 
-    if (protoChunkSlice.has_row_count_override() || protoChunkSlice.has_data_weight_override()) {
-        YT_VERIFY((protoChunkSlice.has_row_count_override() && protoChunkSlice.has_data_weight_override()));
-        OverrideSize(protoChunkSlice.row_count_override(), std::max<i64>(1, protoChunkSlice.data_weight_override() * inputChunk->GetDataWeightSelectivityFactor()));
-    }
+    OverrideSize(inputChunk, protoChunkSlice);
 }
 
 TInputChunkSlice::TInputChunkSlice(
@@ -455,10 +460,7 @@ TInputChunkSlice::TInputChunkSlice(
 
     PartIndex_ = DefaultPartIndex;
 
-    if (protoChunkSlice.has_row_count_override() || protoChunkSlice.has_data_weight_override()) {
-        YT_VERIFY(protoChunkSlice.has_row_count_override() && protoChunkSlice.has_data_weight_override());
-        OverrideSize(protoChunkSlice.row_count_override(), std::max<i64>(1, protoChunkSlice.data_weight_override() * chunkSlice.GetInputChunk()->GetDataWeightSelectivityFactor()));
-    }
+    OverrideSize(chunkSlice.GetInputChunk(), protoChunkSlice);
 }
 
 TInputChunkSlice::TInputChunkSlice(
@@ -480,10 +482,7 @@ TInputChunkSlice::TInputChunkSlice(
 
     PartIndex_ = DefaultPartIndex;
 
-    if (protoChunkSlice.has_row_count_override() || protoChunkSlice.has_data_weight_override()) {
-        YT_VERIFY(protoChunkSlice.has_row_count_override() && protoChunkSlice.has_data_weight_override());
-        OverrideSize(protoChunkSlice.row_count_override(), std::max<i64>(1, protoChunkSlice.data_weight_override() * chunkSlice.GetInputChunk()->GetDataWeightSelectivityFactor()));
-    }
+    OverrideSize(chunkSlice.GetInputChunk(), protoChunkSlice);
 }
 
 TInputChunkSlice::TInputChunkSlice(
@@ -497,10 +496,31 @@ TInputChunkSlice::TInputChunkSlice(
     LegacyUpperLimit_.MergeUpperLimit(TLegacyInputSliceLimit(protoChunkSpec.upper_limit(), rowBuffer, DummyKeys));
     PartIndex_ = DefaultPartIndex;
 
-    if (protoChunkSpec.has_row_count_override() || protoChunkSpec.has_data_weight_override()) {
-        YT_VERIFY((protoChunkSpec.has_row_count_override() && protoChunkSpec.has_data_weight_override()));
-        OverrideSize(protoChunkSpec.row_count_override(), std::max<i64>(1, protoChunkSpec.data_weight_override() * inputChunk->GetDataWeightSelectivityFactor()));
+    OverrideSize(inputChunk, protoChunkSpec);
+}
+
+template<class TProtoChunkSpec>
+void TInputChunkSlice::OverrideSize(const TInputChunkPtr& inputChunk, const TProtoChunkSpec& protoChunkSpec)
+{
+    if (!protoChunkSpec.has_row_count_override() && !protoChunkSpec.has_data_weight_override()) {
+        return;
     }
+    YT_VERIFY((protoChunkSpec.has_row_count_override() && protoChunkSpec.has_data_weight_override()));
+
+    i64 dataWeightOverride = std::max<i64>(1, protoChunkSpec.data_weight_override() * inputChunk->GetDataWeightSelectivityFactor());
+    i64 compressedDataSizeOverride;
+    if (protoChunkSpec.has_compressed_data_size_override()) {
+        compressedDataSizeOverride = protoChunkSpec.compressed_data_size_override() * inputChunk->GetReadSizeSelectivityFactor();
+    } else {
+        double dataWeightOverrideFactor = static_cast<double>(protoChunkSpec.data_weight_override()) / inputChunk->GetDataWeight();
+        // COMPAT(apollo1321): make compressed_data_size required field after 25.1 release.
+        compressedDataSizeOverride = inputChunk->GetCompressedDataSize() * dataWeightOverrideFactor;
+    }
+    OverrideSize(
+        protoChunkSpec.row_count_override(),
+        dataWeightOverride,
+        compressedDataSizeOverride);
+
 }
 
 std::vector<TInputChunkSlicePtr> TInputChunkSlice::SliceEvenly(i64 sliceDataWeight, i64 sliceRowCount, TRowBufferPtr rowBuffer) const
@@ -539,17 +559,21 @@ std::vector<TInputChunkSlicePtr> TInputChunkSlice::SliceEvenly(i64 sliceDataWeig
     count = std::max(std::min(count, rowCount), static_cast<i64>(1));
 
     std::vector<TInputChunkSlicePtr> result;
+    result.reserve(count);
     for (i64 i = 0; i < count; ++i) {
         i64 sliceLowerRowIndex = lowerRowIndex + rowCount * i / count;
         i64 sliceUpperRowIndex = lowerRowIndex + rowCount * (i + 1) / count;
         i64 sliceLowerDataWeight = GetDataWeight() * i / count;
         i64 sliceUpperDataWeight = GetDataWeight() * (i + 1) / count;
+        i64 sliceLowerCompressedDataSize = GetCompressedDataSize() * i / count;
+        i64 sliceUpperCompressedDataSize = GetCompressedDataSize() * (i + 1) / count;
         YT_VERIFY(sliceLowerRowIndex < sliceUpperRowIndex);
         result.push_back(New<TInputChunkSlice>(
             *this,
             sliceLowerRowIndex,
             sliceUpperRowIndex,
-            sliceUpperDataWeight - sliceLowerDataWeight));
+            sliceUpperDataWeight - sliceLowerDataWeight,
+            sliceUpperCompressedDataSize - sliceLowerCompressedDataSize));
     }
     if (rowBuffer) {
         result.front()
@@ -589,12 +613,14 @@ std::pair<TInputChunkSlicePtr, TInputChunkSlicePtr> TInputChunkSlice::SplitByRow
             *this,
             lowerRowIndex,
             lowerRowIndex + splitRow,
-            std::max<i64>(1, GetDataWeight() * 1.0 / rowCount * splitRow)),
+            std::max<i64>(1, GetDataWeight() * 1.0 / rowCount * splitRow),
+            std::max<i64>(1, GetCompressedDataSize() * 1.0 / rowCount * splitRow)),
         New<TInputChunkSlice>(
             *this,
             lowerRowIndex + splitRow,
             upperRowIndex,
-            std::max<i64>(1, GetDataWeight() * 1.0 / rowCount * (rowCount - splitRow))));
+            std::max<i64>(1, GetDataWeight() * 1.0 / rowCount * (rowCount - splitRow)),
+            std::max<i64>(1, GetCompressedDataSize() * 1.0 / rowCount * (rowCount - splitRow))));
 }
 
 i64 TInputChunkSlice::GetLocality(int replicaPartIndex) const
@@ -647,10 +673,16 @@ i64 TInputChunkSlice::GetRowCount() const
     return SizeOverridden_ ? RowCount_ : InputChunk_->GetRowCount();
 }
 
-void TInputChunkSlice::OverrideSize(i64 rowCount, i64 dataWeight)
+i64 TInputChunkSlice::GetCompressedDataSize() const
+{
+    return SizeOverridden_ ? CompressedDataSize_ : InputChunk_->GetCompressedDataSize();
+}
+
+void TInputChunkSlice::OverrideSize(i64 rowCount, i64 dataWeight, i64 compressedDataSize)
 {
     RowCount_ = rowCount;
     DataWeight_ = dataWeight;
+    CompressedDataSize_ = compressedDataSize;
     SizeOverridden_ = true;
 }
 
@@ -658,7 +690,8 @@ void TInputChunkSlice::ApplySamplingSelectivityFactor(double samplingSelectivity
 {
     i64 rowCount = std::max<i64>(1, GetRowCount() * samplingSelectivityFactor);
     i64 dataWeight = std::max<i64>(1, GetDataWeight() * samplingSelectivityFactor);
-    OverrideSize(rowCount, dataWeight);
+    i64 compressedDataSize = std::max<i64>(1, GetCompressedDataSize() * samplingSelectivityFactor);
+    OverrideSize(rowCount, dataWeight, compressedDataSize);
 }
 
 void TInputChunkSlice::TransformToLegacy(const TRowBufferPtr& rowBuffer)
@@ -731,6 +764,8 @@ void TInputChunkSlice::RegisterMetadata(auto&& registrar)
     PHOENIX_REGISTER_FIELD(9, RowCount_);
     PHOENIX_REGISTER_FIELD(10, DataWeight_);
     PHOENIX_REGISTER_FIELD(11, SliceIndex_);
+    PHOENIX_REGISTER_FIELD(12, CompressedDataSize_,
+        .SinceVersion(static_cast<int>(ESnapshotVersion::MaxCompressedDataSizePerJob)));
 }
 
 PHOENIX_DEFINE_TYPE(TInputChunkSlice);
@@ -797,6 +832,7 @@ std::vector<TInputChunkSlicePtr> CreateErasureInputChunkSlices(
     std::vector<TInputChunkSlicePtr> slices;
 
     i64 dataSize = inputChunk->GetUncompressedDataSize();
+    i64 compressedDataSize = inputChunk->GetCompressedDataSize();
     i64 rowCount = inputChunk->GetRowCount();
 
     auto* codec = NErasure::GetCodec(codecId);
@@ -811,7 +847,8 @@ std::vector<TInputChunkSlicePtr> CreateErasureInputChunkSlices(
                 partIndex,
                 sliceLowerRowIndex,
                 sliceUpperRowIndex,
-                (dataSize + dataPartCount - 1) / dataPartCount);
+                (dataSize + dataPartCount - 1) / dataPartCount,
+                (compressedDataSize + dataPartCount - 1) / dataPartCount);
             slices.emplace_back(std::move(chunkSlice));
         }
     }
@@ -953,6 +990,9 @@ void ToProto(NProto::TChunkSpec* chunkSpec, const TInputChunkSlicePtr& inputSlic
 
     // NB(psushin): always setting row_count_override is important for GetJobInputPaths handle to work properly.
     chunkSpec->set_row_count_override(inputSlice->GetRowCount());
+
+    chunkSpec->set_compressed_data_size_override(inputSlice->GetCompressedDataSize());
+
     if (inputSlice->GetInputChunk()->IsDynamicStore()) {
         SetTabletId(chunkSpec, inputSlice->GetInputChunk()->GetTabletId());
     }

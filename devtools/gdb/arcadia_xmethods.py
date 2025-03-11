@@ -2,6 +2,7 @@ import gdb
 import gdb.xmethod
 import re
 from libcxx_xmethods import StringSizeWorker, StringIndexWorker, StringDataWorker
+from arcadia_helpers import hasCowInString
 
 class PtrGetWorker(gdb.xmethod.XMethodWorker):
     def __init__(self, class_type, pointer_type):
@@ -138,7 +139,7 @@ class TStringSizeWorker(gdb.xmethod.XMethodWorker):
         return self.result_type
 
     def __call__(self, obj):
-        if 'S_' in self.class_type.keys():
+        if hasCowInString(self.class_type):
             std_str = obj['S_']['T_'].dereference()
             return StringSizeWorker(self.class_type, self.element_type)(std_str)
         return obj['Data_'].cast(gdb.lookup_type('NDetail::TStringData').pointer())[-1]['Length']
@@ -158,7 +159,7 @@ class TStringIndexWorker(gdb.xmethod.XMethodWorker):
         return self.result_type
 
     def __call__(self, obj, idx):
-        if 'S_' in self.class_type.keys():
+        if hasCowInString(self.class_type):
             std_str = obj['S_']['T_'].dereference()
             return StringIndexWorker(self.class_type, self.result_type.target())(std_str, idx)
         return obj['Data_'][idx].reference_value()
@@ -177,7 +178,7 @@ class TStringDataWorker(gdb.xmethod.XMethodWorker):
         return self.result_type
 
     def __call__(self, obj):
-        if 'S_' in self.class_type.keys():
+        if hasCowInString(self.class_type):
             std_str = obj['S_']['T_'].dereference()
             return StringDataWorker(self.class_type, self.result_type.target())(std_str)
         return obj['Data_'].cast(self.result_type)
@@ -213,7 +214,11 @@ class TStringMatcher(gdb.xmethod.XMethodMatcher):
             return None
         try:
             class_type.template_argument(2)
-            element_type = class_type.template_argument(1)
+            # Next to adding TCowstring TBasicString gets back 3 template argument
+            if str(class_type.template_argument(2)) in ['true', 'false']:
+                element_type = class_type.template_argument(0)
+            else:
+                element_type = class_type.template_argument(1)
         except:
             # Since r5448720 TBasicString has 2 template arguments.
             try:

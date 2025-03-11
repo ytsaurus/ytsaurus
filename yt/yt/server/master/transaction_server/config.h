@@ -75,7 +75,7 @@ struct TDynamicTransactionManagerConfig
     bool EnableStartForeignTransactionFixes;
 
     // COMPAT(cherepashka)
-    bool EnablePrerequisiteTransactionValidationViaLeases;
+    bool EnableCypressMirroredToSequoiaPrerequisiteTransactionValidationViaLeases;
 
     REGISTER_YSON_STRUCT(TDynamicTransactionManagerConfig);
 

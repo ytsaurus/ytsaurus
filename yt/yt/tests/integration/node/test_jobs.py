@@ -256,7 +256,10 @@ class TestJobStatistics(YTEnvSetup):
 
         assert extract_statistic_v2(chunk_reader_statistics, "data_bytes_transmitted") > 0
         assert extract_statistic_v2(chunk_reader_statistics, "data_bytes_read_from_disk") > 0
+        assert extract_statistic_v2(chunk_reader_statistics, "data_blocks_read_from_disk") > 0
         assert extract_statistic_v2(chunk_reader_statistics, "data_io_requests") > 0
+        assert extract_statistic_v2(chunk_reader_statistics, "wasted_data_bytes_read_from_disk", summary_type="count") > 0
+        assert extract_statistic_v2(chunk_reader_statistics, "wasted_data_blocks_read_from_disk", summary_type="count") > 0
         assert extract_statistic_v2(chunk_reader_statistics, "meta_bytes_read_from_disk", summary_type="count") > 0
         assert extract_statistic_v2(chunk_reader_statistics, "meta_bytes_transmitted", summary_type="count") > 0
         assert extract_statistic_v2(chunk_reader_statistics, "meta_io_requests", summary_type="count") > 0

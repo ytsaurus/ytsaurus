@@ -353,6 +353,7 @@ protected:
                     Logger,
                     TotalEstimatedInputChunkCount,
                     PrimaryInputDataWeight,
+                    PrimaryInputCompressedDataSize,
                     DataWeightRatio,
                     InputCompressionRatio,
                     /*inputTableCount*/ 1,
@@ -368,7 +369,8 @@ protected:
                     OutputTables_.size(),
                     DataWeightRatio,
                     TotalEstimatedInputChunkCount,
-                    PrimaryInputDataWeight);
+                    PrimaryInputDataWeight,
+                    PrimaryInputCompressedDataSize);
                 break;
 
             default:
@@ -495,7 +497,7 @@ protected:
         chunkPoolOptions.EnablePeriodicYielder = true;
         chunkPoolOptions.MinTeleportChunkSize = GetMinTeleportChunkSize();
         chunkPoolOptions.JobSizeConstraints = JobSizeConstraints_;
-        chunkPoolOptions.KeepOutputOrder = OrderedOutputRequired_;
+        chunkPoolOptions.BuildOutputOrder = OrderedOutputRequired_;
         chunkPoolOptions.ShouldSliceByRowIndices = GetJobType() != EJobType::RemoteCopy;
         chunkPoolOptions.Logger = Logger().WithTag("Name: Root");
         return chunkPoolOptions;
@@ -768,7 +770,7 @@ IOperationControllerPtr CreateOrderedMergeController(
     IOperationControllerHostPtr host,
     TOperation* operation)
 {
-    auto options = config->OrderedMergeOperationOptions;
+    auto options = CreateOperationOptions(config->OrderedMergeOperationOptions, operation->GetOptionsPatch());
     auto spec = ParseOperationSpec<TOrderedMergeOperationSpec>(UpdateSpec(options->SpecTemplate, operation->GetSpec()));
     AdjustSamplingFromConfig(spec, config);
     return New<TOrderedMergeController>(spec, config, options, host, operation);
@@ -982,7 +984,7 @@ IOperationControllerPtr CreateOrderedMapController(
     IOperationControllerHostPtr host,
     TOperation* operation)
 {
-    auto options = config->MapOperationOptions;
+    auto options = CreateOperationOptions(config->MapOperationOptions, operation->GetOptionsPatch());
     auto spec = ParseOperationSpec<TMapOperationSpec>(UpdateSpec(options->SpecTemplate, operation->GetSpec()));
     AdjustSamplingFromConfig(spec, config);
     return New<TOrderedMapController>(spec, config, options, host, operation);
@@ -1208,7 +1210,7 @@ IOperationControllerPtr CreateEraseController(
     IOperationControllerHostPtr host,
     TOperation* operation)
 {
-    auto options = config->EraseOperationOptions;
+    auto options = CreateOperationOptions(config->EraseOperationOptions, operation->GetOptionsPatch());
     auto spec = ParseOperationSpec<TEraseOperationSpec>(UpdateSpec(options->SpecTemplate, operation->GetSpec()));
     AdjustSamplingFromConfig(spec, config);
     return New<TEraseController>(spec, config, options, host, operation);
@@ -2030,7 +2032,7 @@ IOperationControllerPtr CreateRemoteCopyController(
     IOperationControllerHostPtr host,
     TOperation* operation)
 {
-    auto options = config->RemoteCopyOperationOptions;
+    auto options = CreateOperationOptions(config->RemoteCopyOperationOptions, operation->GetOptionsPatch());
     auto spec = ParseOperationSpec<TRemoteCopyOperationSpec>(UpdateSpec(options->SpecTemplate, operation->GetSpec()));
     return New<TRemoteCopyController>(spec, config, options, host, operation);
 }

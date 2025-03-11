@@ -382,6 +382,9 @@ void TOperationOptions::Register(TRegistrar registrar)
         .Default(2.0)
         .GreaterThan(1.0);
 
+    registrar.Parameter("cpu_limit_overcommit_mode", &TThis::CpuLimitOvercommitMode)
+        .Default(ECpuLimitOvercommitMode::Linear);
+
     registrar.Parameter("initial_cpu_limit_overcommit", &TThis::InitialCpuLimitOvercommit)
         .Default(2.0)
         .GreaterThanOrEqual(0);
@@ -699,6 +702,14 @@ void TDockerRegistryConfig::Register(TRegistrar registrar)
         .Default(false);
     registrar.Parameter("forward_internal_images_to_job_specs", &TThis::ForwardInternalImagesToJobSpecs)
         .Default(false);
+    registrar.Parameter("translate_internal_images_into_layers", &TThis::TranslateInternalImagesIntoLayers)
+        .Default(true);
+
+    registrar.Postprocessor([&] (TDockerRegistryConfig* options) {
+        if (!options->TranslateInternalImagesIntoLayers && !options->ForwardInternalImagesToJobSpecs) {
+            THROW_ERROR_EXCEPTION("At least one of forward_internal_images_to_job_specs or translate_internal_images_into_layers must be enabled");
+        }
+    });
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -802,6 +802,17 @@ void TBlobChunkBase::OnBlocksRead(
         gapBlockSize,
         gapBlockCount);
 
+    auto& chunkReaderStatistics = session->Options.ChunkReaderStatistics;
+
+    chunkReaderStatistics->WastedDataBytesReadFromDisk.fetch_add(
+        gapBlockSize, std::memory_order::relaxed);
+
+    chunkReaderStatistics->DataBlocksReadFromDisk.fetch_add(
+        blocksToRead, std::memory_order::relaxed);
+
+    chunkReaderStatistics->WastedDataBlocksReadFromDisk.fetch_add(
+        gapBlockCount, std::memory_order::relaxed);
+
     auto& performanceCounters = Location_->GetPerformanceCounters();
     auto category = session->Options.WorkloadDescriptor.Category;
     performanceCounters.BlobBlockReadSize[category].Record(bytesRead);

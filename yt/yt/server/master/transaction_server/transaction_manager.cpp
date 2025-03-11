@@ -1353,7 +1353,7 @@ public:
             leaseAwarePrerequisiteTransactionIds.reserve(prerequisiteTransactionIds.size());
             for (auto transactionId : prerequisiteTransactionIds) {
                 if (IsMirroringToSequoiaEnabled() && IsCypressTransactionMirroredToSequoia(transactionId)
-                    && GetDynamicConfig()->EnablePrerequisiteTransactionValidationViaLeases )
+                    && GetDynamicConfig()->EnableCypressMirroredToSequoiaPrerequisiteTransactionValidationViaLeases)
                 {
                     leaseAwarePrerequisiteTransactionIds.push_back(transactionId);
                 } else {
@@ -1645,7 +1645,8 @@ public:
         }
 
         auto revokeLeases = transaction->GetSuccessorTransactionLeaseCount() > 0
-            || GetDynamicConfig()->EnablePrerequisiteTransactionValidationViaLeases;
+            || (GetDynamicConfig()->EnableCypressMirroredToSequoiaPrerequisiteTransactionValidationViaLeases
+            && IsMirroringToSequoiaEnabled() && IsCypressTransactionMirroredToSequoia(transactionId));
 
         auto readyEvent = GetReadyToPrepareTransactionCommit(
             prerequisiteTransactionIds,
@@ -1719,7 +1720,8 @@ public:
         }
 
         auto revokeLeases = transaction->GetSuccessorTransactionLeaseCount() > 0
-            || GetDynamicConfig()->EnablePrerequisiteTransactionValidationViaLeases;
+            || (GetDynamicConfig()->EnableCypressMirroredToSequoiaPrerequisiteTransactionValidationViaLeases
+            && IsMirroringToSequoiaEnabled() && IsCypressTransactionMirroredToSequoia(transactionId));
 
         auto readyEvent = GetReadyToPrepareTransactionCommit(
             prerequisiteTransactionIds,
@@ -1827,7 +1829,7 @@ public:
         auto authenticationIdentity = context->GetAuthenticationIdentity();
 
         if (IsMirroringToSequoiaEnabled() && IsCypressTransactionMirroredToSequoia(transactionId)) {
-            if (GetDynamicConfig()->EnablePrerequisiteTransactionValidationViaLeases) {
+            if (GetDynamicConfig()->EnableCypressMirroredToSequoiaPrerequisiteTransactionValidationViaLeases) {
                 context->ReplyFrom(
                     RevokeTransactionLeases(transactionId)
                     .Apply(BIND([transactionId, force, authenticationIdentity, this, this_ = MakeStrong(this)] {
@@ -3032,24 +3034,27 @@ private:
                 if (!transaction->GetParent()) {
                     InsertOrCrash(NativeTopmostTransactions_, transaction);
                 }
-
-                if (FixExportedObjectsRefs_) {
-                    if (transaction->GetPersistentState() == ETransactionState::Active) {
-                        for (const auto& exportEntry : transaction->ExportedObjects()) {
-                            objectManager->RefObject(exportEntry.Object);
-                        }
-                    }
-
-                    if (!transaction->ExportedObjects().empty() && transaction->GetPersistentState() == ETransactionState::PersistentCommitPrepared) {
-                        YT_LOG_ALERT("Found exported objects for transaction in PersistentCommitPrepared state (TransactionId: %v)",
-                            transaction->GetId());
-                        for (const auto& exportEntry : transaction->ExportedObjects()) {
-                            objectManager->RefObject(exportEntry.Object);
-                        }
-                    }
-                }
             } else {
                 InsertOrCrash(ForeignTransactions_, transaction);
+            }
+
+            if (FixExportedObjectsRefs_) {
+                if (transaction->GetPersistentState() == ETransactionState::Active) {
+                    for (const auto& exportEntry : transaction->ExportedObjects()) {
+                        YT_LOG_ALERT("Found exported objects for transaction (TransactionId: %v, ObjectId: %v)",
+                            transaction->GetId(),
+                            exportEntry.Object->GetId());
+                        objectManager->RefObject(exportEntry.Object);
+                    }
+                }
+
+                if (!transaction->ExportedObjects().empty() && transaction->GetPersistentState() == ETransactionState::PersistentCommitPrepared) {
+                    YT_LOG_ALERT("Found exported objects for transaction in PersistentCommitPrepared state (TransactionId: %v)",
+                        transaction->GetId());
+                    for (const auto& exportEntry : transaction->ExportedObjects()) {
+                        objectManager->RefObject(exportEntry.Object);
+                    }
+                }
             }
         }
 

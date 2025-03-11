@@ -8,6 +8,26 @@ Is released as helm charts on [Github Packages](https://github.com/ytsaurus/ytsa
 
 **Releases:**
 
+{% cut "**0.21.0**" %}
+
+**Release date:** 2025-02-10
+
+
+## Features
+* Support the ability to deploy a Kafka proxy by @savnadya in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/407
+
+## Minor
+* Add config for kind with audit log by @koct9i in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/441
+
+## Bugfix
+* Preserve object finalizers by @koct9i in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/440
+* Set quota and min_disk_space for locations by @koct9i in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/445
+* Fix zero port if no monitoring port configured by @l0kix2 in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/447
+
+
+{% endcut %}
+
+
 {% cut "**0.20.0**" %}
 
 **Release date:** 2025-01-20
