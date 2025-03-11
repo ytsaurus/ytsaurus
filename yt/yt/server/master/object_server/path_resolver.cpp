@@ -110,17 +110,23 @@ TPathResolver::TResolveResult TPathResolver::Resolve(const TPathResolverOptions&
     bool canCacheResolve = true;
     int symlinksPassed = 0;
     TYPath rewrittenPath;
+    bool isLink = false;
 
-    for (int resolveDepth = options.InitialResolveDepth; ; ++resolveDepth) {
-        ValidateYPathResolutionDepth(Path_, resolveDepth);
-
+    for (int resolveDepth = options.InitialResolveDepth; resolveDepth <= MaxYPathResolveIterations; ++resolveDepth) {
         if (!currentObject) {
-            auto rootPayload = ResolveRoot(options);
+            const auto& multicellManager = Bootstrap_->GetMulticellManager();
+            bool treatCypressRootAsRemoteOnSecondaryMaster = !multicellManager->IsPrimaryMaster() && isLink;
+
+            auto resolveOptions = options;
+            resolveOptions.InitialResolveDepth = resolveDepth;
+
+            auto rootPayload = ResolveRoot(resolveOptions, treatCypressRootAsRemoteOnSecondaryMaster);
+
             if (!std::holds_alternative<TLocalObjectPayload>(rootPayload)) {
                 return {
                     TYPath(Tokenizer_.GetInput()),
                     std::move(rootPayload),
-                    false,
+                    canCacheResolve && treatCypressRootAsRemoteOnSecondaryMaster,
                     resolveDepth
                 };
             }
@@ -145,7 +151,7 @@ TPathResolver::TResolveResult TPathResolver::Resolve(const TPathResolverOptions&
                     GetTransaction()
                 },
                 false,
-                resolveDepth
+                resolveDepth,
             };
         };
 
@@ -267,6 +273,7 @@ TPathResolver::TResolveResult TPathResolver::Resolve(const TPathResolverOptions&
 
             // Reset currentObject to request root resolve at the beginning of the next iteration.
             currentObject = nullptr;
+            isLink = true;
         } else if (currentNode->GetType() == EObjectType::PortalEntrance) {
             if (ampersandSkipped) {
                 return makeCurrentLocalObjectResult();
@@ -293,6 +300,9 @@ TPathResolver::TResolveResult TPathResolver::Resolve(const TPathResolverOptions&
             return makeCurrentLocalObjectResult();
         }
     }
+
+    ValidateYPathResolutionDepth(Path_, MaxYPathResolveIterations + 1);
+    YT_UNREACHABLE();
 }
 
 TTransaction* TPathResolver::GetTransaction()
@@ -319,7 +329,8 @@ bool TPathResolver::IsBackupMethod() noexcept
     return BackupMethods.contains(Method_);
 }
 
-TPathResolver::TResolvePayload TPathResolver::ResolveRoot(const TPathResolverOptions& options)
+TPathResolver::TResolvePayload TPathResolver::ResolveRoot(
+    const TPathResolverOptions& options, bool treatCypressRootAsRemoteOnSecondaryMaster)
 {
     Tokenizer_.Advance();
     auto ampersandSkipped = Tokenizer_.Skip(NYPath::ETokenType::Ampersand);
@@ -330,6 +341,16 @@ TPathResolver::TResolvePayload TPathResolver::ResolveRoot(const TPathResolverOpt
 
         case ETokenType::Slash: {
             Tokenizer_.Advance();
+
+            if (treatCypressRootAsRemoteOnSecondaryMaster) {
+                const auto& multicellManager = Bootstrap_->GetMulticellManager();
+
+                return TRemoteObjectPayload{
+                    .ObjectId = MakeWellKnownId(EObjectType::MapNode, multicellManager->GetPrimaryCellTag()),
+                    .ResolveDepth = options.InitialResolveDepth,
+                };
+            }
+
             return TLocalObjectPayload{
                 Bootstrap_->GetCypressManager()->GetRootNode(),
                 GetTransaction(),
