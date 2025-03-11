@@ -12,5 +12,15 @@
 # Please refer to the build instructions in the repository for more information about manual
 # changes in this file.
 
-add_subdirectory(bind)
-add_subdirectory(timers)
+add_library(roren-library-bind)
+
+
+target_link_libraries(roren-library-bind PUBLIC
+  contrib-libs-cxxsupp
+  yutil
+)
+
+target_sources(roren-library-bind PRIVATE
+  ${PROJECT_SOURCE_DIR}/yt/cpp/roren/library/bind/bind.cpp
+)
+

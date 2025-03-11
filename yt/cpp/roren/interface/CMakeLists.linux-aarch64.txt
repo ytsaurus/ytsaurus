@@ -32,6 +32,7 @@ target_link_libraries(cpp-roren-interface PUBLIC
   library-cpp-iterator
   cpp-yson-node
   cpp-yt-string
+  roren-library-bind
   library-timers-timer
   yt-yt-core
   yt-library-profiling

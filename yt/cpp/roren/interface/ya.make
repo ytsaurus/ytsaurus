@@ -35,6 +35,7 @@ PEERDIR(
     library/cpp/iterator
     library/cpp/yson/node
     library/cpp/yt/string
+    yt/cpp/roren/library/bind
     yt/cpp/roren/library/timers/timer
     yt/yt/core
     yt/yt/library/profiling
