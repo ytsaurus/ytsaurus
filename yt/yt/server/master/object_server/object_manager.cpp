@@ -132,7 +132,8 @@ TPathResolver::TResolveResult ResolvePath(
         GetTransactionId(context));
 
     auto options = TPathResolverOptions{
-        .AllowResolveFromSequoiaObject = GetAllowResolveFromSequoiaObject(context->RequestHeader())
+        .InitialResolveDepth = GetResolveDepth(context->RequestHeader()),
+        .AllowResolveFromSequoiaObject = GetAllowResolveFromSequoiaObject(context->RequestHeader()),
     };
     auto result = resolver.Resolve(options);
     if (result.CanCacheResolve) {
@@ -242,7 +243,7 @@ public:
         EObjectType type,
         const IAttributeDictionary* attributes) override;
 
-    IYPathServicePtr CreateRemoteProxy(TObjectId id) override;
+    IYPathServicePtr CreateRemoteProxy(TObjectId id, int resolveDepth = 0) override;
     IYPathServicePtr CreateRemoteProxy(TCellTag cellTag) override;
 
     IObjectProxyPtr GetProxy(
@@ -443,15 +444,17 @@ class TObjectManager::TRemoteProxy
     : public IYPathService
 {
 public:
-    TRemoteProxy(TBootstrap* bootstrap, TObjectId objectId)
+    TRemoteProxy(TBootstrap* bootstrap, TObjectId objectId, int resolveDepth = 0)
         : Bootstrap_(bootstrap)
         , ObjectId_(objectId)
         , ForwardedCellTag_(CellTagFromId(ObjectId_))
+        , ResolveDepth_(resolveDepth)
     { }
 
     TRemoteProxy(TBootstrap* bootstrap, TCellTag forwardedCellTag)
         : Bootstrap_(bootstrap)
         , ForwardedCellTag_(forwardedCellTag)
+        , ResolveDepth_(0)
     { }
 
     TResolveResult Resolve(const TYPath& path, const IYPathServiceContextPtr& /*context*/) override
@@ -568,6 +571,10 @@ public:
             SetMutationId(&forwardedRequestHeader, GenerateNextForwardedMutationId(mutationId), forwardedRequestHeader.retry());
         }
 
+        if (ResolveDepth_ > 0) {
+            SetResolveDepth(&forwardedRequestHeader, ResolveDepth_);
+        }
+
         auto forwardedMessage = SetRequestHeader(requestMessage, forwardedRequestHeader);
 
         auto channelKind = isMutating ? NApi::EMasterChannelKind::Leader : NApi::EMasterChannelKind::Follower;
@@ -674,6 +681,7 @@ private:
     TBootstrap* const Bootstrap_;
     const TObjectId ObjectId_;
     const TCellTag ForwardedCellTag_;
+    const int ResolveDepth_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -768,7 +776,7 @@ private:
                 return objectManager->GetProxy(targetPayload.Object, targetPayload.Transaction);
             },
             [&] (const TPathResolver::TRemoteObjectPayload& payload) -> IYPathServicePtr  {
-                return objectManager->CreateRemoteProxy(payload.ObjectId);
+                return objectManager->CreateRemoteProxy(payload.ObjectId, payload.ResolveDepth);
             },
             [&] (const TPathResolver::TMissingObjectPayload& /*payload*/) -> IYPathServicePtr {
                 return TNonexistingService::Get();
@@ -1381,9 +1389,9 @@ void TObjectManager::RemoveObject(TObject* object)
     }
 }
 
-IYPathServicePtr TObjectManager::CreateRemoteProxy(TObjectId id)
+IYPathServicePtr TObjectManager::CreateRemoteProxy(TObjectId id, int resolveDepth)
 {
-    return New<TRemoteProxy>(Bootstrap_, id);
+    return New<TRemoteProxy>(Bootstrap_, id, resolveDepth);
 }
 
 IYPathServicePtr TObjectManager::CreateRemoteProxy(TCellTag cellTag)

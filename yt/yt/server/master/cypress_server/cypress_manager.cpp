@@ -2583,6 +2583,11 @@ public:
             return FromObjectId(portalExit->GetId()) + *optionalSuffix;
         }
 
+        // No need to validate that object is from this cell.
+        if (GetDynamicConfig()->EnableCrossCellLinks) {
+            return targetPath;
+        }
+
         NYPath::TTokenizer tokenizer(targetPath);
         tokenizer.Advance();
         auto token = tokenizer.GetToken();
@@ -2593,7 +2598,6 @@ public:
                 CellTagFromId(objectId) == multicellManager->GetCellTag())
             {
                 return targetPath;
-
             }
         }
 

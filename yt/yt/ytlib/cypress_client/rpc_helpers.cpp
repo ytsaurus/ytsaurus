@@ -101,6 +101,23 @@ bool GetAllowResolveFromSequoiaObject(const NRpc::NProto::TRequestHeader& header
         : false;
 }
 
+void SetResolveDepth(NRpc::NProto::TRequestHeader* header, int value)
+{
+    header->SetExtension(TResolveDepthExt::resolve_depth, value);
+}
+
+void SetResolveDepth(const NRpc::IClientRequestPtr& request, int value)
+{
+    SetResolveDepth(&request->Header(), value);
+}
+
+int GetResolveDepth(const NRpc::NProto::TRequestHeader& header)
+{
+    return header.HasExtension(TResolveDepthExt::resolve_depth)
+        ? header.GetExtension(TResolveDepthExt::resolve_depth)
+        : 0;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NCypressClient

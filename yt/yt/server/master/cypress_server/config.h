@@ -90,6 +90,9 @@ public:
     bool EnableIntraCellCrossShardLinks;
 
     // COMPAT(koloshmet)
+    bool EnableCrossCellLinks;
+
+    // COMPAT(koloshmet)
     bool EnablePreserveAclDuringMove;
 
     REGISTER_YSON_STRUCT(TDynamicCypressManagerConfig);

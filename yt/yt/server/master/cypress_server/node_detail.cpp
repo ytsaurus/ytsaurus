@@ -116,6 +116,16 @@ const TDynamicCypressManagerConfigPtr& TNontemplateCypressNodeTypeHandlerBase::G
     return Bootstrap_->GetConfigManager()->GetConfig()->CypressManager;
 }
 
+void TNontemplateCypressNodeTypeHandlerBase::ZombifyCorePrologue(TCypressNode* node)
+{
+    if (node->IsTrunk()) {
+        // Invalidate resolve cache.
+        const auto& cypressManager = Bootstrap_->GetCypressManager();
+        const auto& resolveCache = cypressManager->GetResolveCache();
+        resolveCache->InvalidateNode(node);
+    }
+}
+
 void TNontemplateCypressNodeTypeHandlerBase::DestroyCorePrologue(TCypressNode* node)
 {
     // Reset parent links from immediate descendants.
@@ -129,10 +139,6 @@ void TNontemplateCypressNodeTypeHandlerBase::DestroyCorePrologue(TCypressNode* n
         // Reset reference to shard.
         const auto& cypressManager = Bootstrap_->GetCypressManager();
         cypressManager->ResetShard(node);
-
-        // Invalidate resolve cache.
-        const auto& resolveCache = cypressManager->GetResolveCache();
-        resolveCache->InvalidateNode(node);
     }
 
     // Clear ACDs to unregister the node from linked objects.
