@@ -21,7 +21,6 @@ SRCS(
     operations.cpp
     prepare_operation.cpp
     raw_operations.cpp
-    remote_clusters.cpp
 )
 
 PEERDIR(
@@ -36,7 +35,6 @@ PEERDIR(
     yt/cpp/mapreduce/util
 )
 
-SET(YT_CLUSTER_NAMES first,second,third)
 SET(YT_CONFIG_PATCH {init_operations_archive=%true;})
 INCLUDE(${ARCADIA_ROOT}/yt/recipe/basic/recipe.inc)
 
@@ -56,3 +54,7 @@ SPLIT_FACTOR(8)
 INCLUDE(${ARCADIA_ROOT}/devtools/large_on_multi_slots.inc)
 
 END()
+
+RECURSE(
+    remote
+)
