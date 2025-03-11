@@ -9928,7 +9928,18 @@ void TOperationControllerBase::InitUserJobSpecTemplate(
 
     // This is common policy for all operations of given type.
     if (Options_->SetContainerCpuLimit) {
-        jobSpec->set_container_cpu_limit(Options_->CpuLimitOvercommitMultiplier * jobSpecConfig->CpuLimit + Options_->InitialCpuLimitOvercommit);
+        double cpuLimit;
+        switch (Options_->CpuLimitOvercommitMode) {
+            case ECpuLimitOvercommitMode::Linear:
+                cpuLimit = Options_->CpuLimitOvercommitMultiplier * jobSpecConfig->CpuLimit + Options_->InitialCpuLimitOvercommit;
+                break;
+            case ECpuLimitOvercommitMode::Minimum:
+                cpuLimit = std::min(
+                    jobSpecConfig->CpuLimit * Options_->CpuLimitOvercommitMultiplier,
+                    jobSpecConfig->CpuLimit + Options_->InitialCpuLimitOvercommit);
+                break;
+        }
+        jobSpec->set_container_cpu_limit(cpuLimit);
     }
 
     // This is common policy for all operations of given type.
