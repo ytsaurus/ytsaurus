@@ -42,13 +42,14 @@ public:
 
     struct TLocalObjectPayload
     {
-        TObject* Object;
-        NTransactionServer::TTransaction* Transaction;
+        TObject* Object = nullptr;
+        NTransactionServer::TTransaction* Transaction = nullptr;
     };
 
     struct TRemoteObjectPayload
     {
         NObjectClient::TObjectId ObjectId;
+        int ResolveDepth = 0;
     };
 
     struct TSequoiaRedirectPayload
@@ -92,7 +93,7 @@ private:
     std::optional<NTransactionServer::TTransaction*> Transaction_;
 
     NTransactionServer::TTransaction* GetTransaction();
-    TResolvePayload ResolveRoot(const TPathResolverOptions& options);
+    TResolvePayload ResolveRoot(const TPathResolverOptions& options, bool treatCypressRootAsRemoteOnSecondaryMaster);
 
     // COMPAT(kvk1920): remove after 24.2.
     bool IsBackupMethod() noexcept;

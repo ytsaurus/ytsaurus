@@ -115,6 +115,11 @@ void TDynamicCypressManagerConfig::Register(TRegistrar registrar)
         .Default(true);
 
     // COMPAT(koloshmet)
+    registrar.Parameter("enable_cross_cell_links", &TThis::EnableCrossCellLinks)
+        .Default(false)
+        .DontSerializeDefault();
+
+    // COMPAT(koloshmet)
     registrar.Parameter("enable_preserve_acl_during_move", &TThis::EnablePreserveAclDuringMove)
         .Default(true);
 

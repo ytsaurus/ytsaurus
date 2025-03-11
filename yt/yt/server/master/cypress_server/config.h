@@ -89,6 +89,9 @@ struct TDynamicCypressManagerConfig
     bool EnableIntraCellCrossShardLinks;
 
     // COMPAT(koloshmet)
+    bool EnableCrossCellLinks;
+
+    // COMPAT(koloshmet)
     bool EnablePreserveAclDuringMove;
 
     i64 MaxAttributeFilterSizeToLog;

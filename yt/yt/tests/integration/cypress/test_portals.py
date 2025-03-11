@@ -652,6 +652,87 @@ class TestPortals(YTEnvSetup):
 
         assert time.time() - start < 15
 
+    @authors("koloshmet")
+    @pytest.mark.parametrize("purge_resolve_cache", [False, True])
+    @pytest.mark.parametrize("target_on_primary", [False, True])
+    def test_cross_cell_links_resolve(self, purge_resolve_cache, target_on_primary):
+        set("//sys/@config/cypress_manager/enable_cross_cell_links", True)
+
+        create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 11})
+        create("map_node", "//tmp/p/d")
+        create("table", "//tmp/p/d/p")
+
+        target = "//tmp" if target_on_primary else "//tmp/p/d"
+        link(target, "//tmp/p/l")
+        _maybe_purge_resolve_cache(purge_resolve_cache, "//tmp/p/l&")
+
+        assert ls("//tmp/p/l") == ["p"]
+
+    @authors("koloshmet")
+    @pytest.mark.parametrize("purge_resolve_cache", [False, True])
+    def test_cross_cell_links_resolve_multiportal(self, purge_resolve_cache):
+        set("//sys/@config/cypress_manager/enable_cross_cell_links", True)
+
+        create("portal_entrance", "//tmp/p1", attributes={"exit_cell_tag": 11})
+        create("portal_entrance", "//tmp/p2", attributes={"exit_cell_tag": 12})
+
+        link("//tmp", "//tmp/p1/l")
+        link("//tmp/p1/l", "//tmp/p2/l")
+        link("//tmp/p2/l", "//tmp/p1/l2")
+        _maybe_purge_resolve_cache(purge_resolve_cache, "//tmp/p1/l&")
+        _maybe_purge_resolve_cache(purge_resolve_cache, "//tmp/p1/l2&")
+        _maybe_purge_resolve_cache(purge_resolve_cache, "//tmp/p2/l&")
+
+        assert sorted(ls("//tmp/p1/l2")) == ["p1", "p2"]
+
+    @authors("koloshmet")
+    @pytest.mark.parametrize("purge_resolve_cache", [False, True])
+    @pytest.mark.parametrize("target_on_primary", [False, True])
+    def test_cross_cell_links_resolve_cycle(self, purge_resolve_cache, target_on_primary):
+        set("//sys/@config/cypress_manager/enable_cross_cell_links", True)
+
+        create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 11})
+        create("map_node", "//tmp/p/d")
+
+        target_dir = "//tmp" if target_on_primary else "//tmp/p/d"
+        target_link = target_dir + "/l"
+
+        link(target_dir, "//tmp/p/l")
+        link("//tmp/p/l", target_link)
+
+        if not target_on_primary:
+            with raises_yt_error("link is cyclic"):
+                link(target_link, "//tmp/p/l", force=True)
+            return
+
+        link(target_link, "//tmp/p/l", force=True)
+
+        _maybe_purge_resolve_cache(purge_resolve_cache, "//tmp/p/l&")
+        _maybe_purge_resolve_cache(purge_resolve_cache, target_link + '&')
+
+        with raises_yt_error("exceeds resolve depth limit"):
+            ls("//tmp/p/l")
+
+    @authors("koloshmet")
+    @pytest.mark.parametrize("purge_resolve_cache", [False, True])
+    def test_cross_cell_links_resolve_broken(self, purge_resolve_cache):
+        set("//sys/@config/cypress_manager/enable_cross_cell_links", True)
+
+        create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 11})
+        create("table", "//tmp/t")
+        link("//tmp/t", "//tmp/p/l")
+
+        _maybe_purge_resolve_cache(purge_resolve_cache, "//tmp/p/l&")
+
+        assert not get("//tmp/p/l&/@broken")
+
+        move("//tmp/t", "//tmp/t1")
+
+        _maybe_purge_resolve_cache(purge_resolve_cache, "//tmp/p/l&")
+
+        assert get("//tmp/p/l&/@broken")
+        assert get("//tmp/p/l&/@target_path") == "//tmp/t"
+
     @authors("babenko")
     def test_create_portal_in_tx_commit(self):
         tx = start_transaction()

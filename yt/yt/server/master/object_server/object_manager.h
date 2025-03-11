@@ -113,7 +113,7 @@ struct IObjectManager
     virtual void RemoveObject(TObject* object) = 0;
 
     //! Creates a cross-cell proxy for the object with the given #id.
-    virtual NYTree::IYPathServicePtr CreateRemoteProxy(TObjectId id) = 0;
+    virtual NYTree::IYPathServicePtr CreateRemoteProxy(TObjectId id, int resolveDepth = 0) = 0;
 
     //! Creates a cross-cell proxy to forward the request to a given master cell.
     virtual NYTree::IYPathServicePtr CreateRemoteProxy(TCellTag cellTag) = 0;
