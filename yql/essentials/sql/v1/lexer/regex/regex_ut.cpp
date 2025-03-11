@@ -6,7 +6,7 @@ using namespace NSQLTranslationV1;
 
 Y_UNIT_TEST_SUITE(SqlRegexTests) {
     Y_UNIT_TEST(Sandbox) {
-        auto meta = NSQLReflect::GetGrammarMeta();
+        auto meta = NSQLReflect::GetLexerGrammar();
         auto regexes = GetRegexByComplexTokenMap(meta, /* ansi = */ false);
 
         UNIT_ASSERT_VALUES_EQUAL(

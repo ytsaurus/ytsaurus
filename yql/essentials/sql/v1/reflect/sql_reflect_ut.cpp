@@ -9,7 +9,7 @@ using namespace NSQLReflect;
 
 Y_UNIT_TEST_SUITE(SqlReflectTests) {
     Y_UNIT_TEST(Sandbox) {
-        auto meta = GetGrammarMeta();
+        auto meta = GetLexerGrammar();
 
         UNIT_ASSERT_VALUES_EQUAL(meta.Keywords.contains("SELECT"), true);
         UNIT_ASSERT_VALUES_EQUAL(meta.Keywords.contains("INSERT"), true);

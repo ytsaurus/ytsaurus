@@ -17,7 +17,7 @@ namespace NSQLTranslationV1 {
 
     class TRegexLexer: public NSQLTranslation::ILexer {
     public:
-        TRegexLexer(bool ansi, NSQLReflect::TGrammarMeta meta)
+        TRegexLexer(bool ansi, NSQLReflect::TLexerGrammar meta)
             : Meta_(std::move(meta))
         {
             for (auto& [token, regex] : GetRegexByComplexTokenMap(Meta_, ansi)) {
@@ -88,13 +88,13 @@ namespace NSQLTranslationV1 {
             }
         }
 
-        NSQLReflect::TGrammarMeta Meta_;
+        NSQLReflect::TLexerGrammar Meta_;
         THashMap<TString, std::regex> Regexes_;
     };
 
     NSQLTranslation::ILexer::TPtr MakeRegexLexer(bool ansi) {
         return NSQLTranslation::ILexer::TPtr(
-            new TRegexLexer(ansi, NSQLReflect::GetGrammarMeta()));
+            new TRegexLexer(ansi, NSQLReflect::GetLexerGrammar()));
     }
 
 } // namespace NSQLTranslationV1

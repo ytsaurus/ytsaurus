@@ -6,7 +6,7 @@
 
 namespace NSQLReflect {
 
-    struct TGrammarMeta {
+    struct TLexerGrammar {
         THashSet<TString> Keywords;
         THashSet<TString> Punctuation;
         THashSet<TString> Other;
@@ -14,6 +14,6 @@ namespace NSQLReflect {
         THashMap<TString, THashMap<TString, TString>> Substitutions;
     };
 
-    TGrammarMeta GetGrammarMeta();
+    TLexerGrammar GetLexerGrammar();
 
 } // namespace NSQLReflect

@@ -43,7 +43,7 @@ namespace NSQLTranslationV1 {
             return text;
         }
 
-        THashMap<TString, TString> GetRewriteRules(const TStringBuf mode, const NSQLReflect::TGrammarMeta& meta) {
+        THashMap<TString, TString> GetRewriteRules(const TStringBuf mode, const NSQLReflect::TLexerGrammar& meta) {
             THashMap<TString, TString> rules;
 
             for (auto& [k, v] : meta.ContentByName) {
@@ -80,7 +80,7 @@ namespace NSQLTranslationV1 {
             return rules;
         }
 
-        TString ToRegex(const TString& name, const TStringBuf mode, const NSQLReflect::TGrammarMeta& meta) {
+        TString ToRegex(const TString& name, const TStringBuf mode, const NSQLReflect::TLexerGrammar& meta) {
             TString regex = meta.ContentByName.at(name);
 
             regex = ReEscaped(std::move(regex));
@@ -112,7 +112,7 @@ namespace NSQLTranslationV1 {
 
     } // namespace
 
-    THashMap<TString, TString> GetRegexByComplexTokenMap(const NSQLReflect::TGrammarMeta& meta, bool ansi) {
+    THashMap<TString, TString> GetRegexByComplexTokenMap(const NSQLReflect::TLexerGrammar& meta, bool ansi) {
         TString mode = "default";
         if (ansi) {
             mode = "ansi";

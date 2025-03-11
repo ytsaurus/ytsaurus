@@ -4,6 +4,6 @@
 
 namespace NSQLTranslationV1 {
 
-    THashMap<TString, TString> GetRegexByComplexTokenMap(const NSQLReflect::TGrammarMeta& meta, bool ansi);
+    THashMap<TString, TString> GetRegexByComplexTokenMap(const NSQLReflect::TLexerGrammar& meta, bool ansi);
 
 } // namespace NSQLTranslationV1

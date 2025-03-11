@@ -137,7 +137,7 @@ namespace NSQLReflect {
             return std::make_tuple(std::move(name), std::move(content));
         }
 
-        void ParsePunctuationLine(TString&& line, TGrammarMeta& meta) {
+        void ParsePunctuationLine(TString&& line, TLexerGrammar& meta) {
             auto [name, content] = ParseLexerRule(std::move(line));
             content = content.erase(std::begin(content));
             content.pop_back();
@@ -152,7 +152,7 @@ namespace NSQLReflect {
             meta.ContentByName.emplace(std::move(name), std::move(content));
         }
 
-        void ParseKeywordLine(TString&& line, TGrammarMeta& meta) {
+        void ParseKeywordLine(TString&& line, TLexerGrammar& meta) {
             auto [name, content] = ParseLexerRule(std::move(line));
             SubstGlobal(content, "'", "");
             SubstGlobal(content, " ", "");
@@ -161,7 +161,7 @@ namespace NSQLReflect {
             meta.Keywords.emplace(std::move(name));
         }
 
-        void ParseOtherLine(TString&& line, TGrammarMeta& meta) {
+        void ParseOtherLine(TString&& line, TLexerGrammar& meta) {
             auto [name, content] = ParseLexerRule(std::move(line));
 
             if (!name.StartsWith(FragmentPrefix)) {
@@ -174,7 +174,7 @@ namespace NSQLReflect {
         }
     } // namespace
 
-    TGrammarMeta GetGrammarMeta() {
+    TLexerGrammar GetLexerGrammar() {
         TVector<TString> lines = GetResourceLines("SQLv1Antlr4.g.in");
         Purify(lines);
         Format(lines);
@@ -185,7 +185,7 @@ namespace NSQLReflect {
         THashMap<TStringBuf, TVector<TString>> sections;
         sections = GroupBySection(std::move(lines));
 
-        TGrammarMeta meta;
+        TLexerGrammar meta;
 
         meta.Substitutions = std::move(substitutions);
 
