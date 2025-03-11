@@ -58,6 +58,15 @@ void SetAllowResolveFromSequoiaObject(const NRpc::IClientRequestPtr& request, bo
 //! Gets allow resolve from Sequoia object flag.
 bool GetAllowResolveFromSequoiaObject(const NRpc::NProto::TRequestHeader& header);
 
+//! Sets resolve depth value.
+void SetResolveDepth(NRpc::NProto::TRequestHeader* header, int value);
+
+//! Sets resolve depth value.
+void SetResolveDepth(const NRpc::IClientRequestPtr& request, int value);
+
+//! Gets resolve depth value.
+int GetResolveDepth(const NRpc::NProto::TRequestHeader& header);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NCypressClient

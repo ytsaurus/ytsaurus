@@ -796,8 +796,8 @@ public:
 
     IReconfigurableThroughputThrottlerPtr GetChunkFragmentReaderMediumThrottler(TTablet* tablet) const
     {
-        auto throttlersConfig = Bootstrap_->GetDynamicConfigManager()->GetConfig()
-            ->TabletNode->MediumThrottlers;
+        auto config = Bootstrap_->GetDynamicConfigManager()->GetConfig();
+        const auto& throttlersConfig = config->TabletNode->MediumThrottlers;
 
         if (!throttlersConfig->EnableBlobThrottling) {
             return GetUnlimitedThrottler();
@@ -819,7 +819,8 @@ public:
             std::move(mediumThrottler),
             [bootstrap = Bootstrap_] (EWorkloadCategory category) -> const IThroughputThrottlerPtr& {
                 const auto& dynamicConfigManager = bootstrap->GetDynamicConfigManager();
-                auto tabletNodeConfig = dynamicConfigManager->GetConfig()->TabletNode;
+                auto config = dynamicConfigManager->GetConfig();
+                const auto& tabletNodeConfig = config->TabletNode;
 
                 if (!tabletNodeConfig->EnableChunkFragmentReaderThrottling) {
                     static const IThroughputThrottlerPtr NullThrottler;

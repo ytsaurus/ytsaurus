@@ -94,6 +94,12 @@ concept CMoveRow = CRow<T> && std::same_as<T, std::decay_t<T>&&>;
 template <CRow T>
 using TDoFnInput = std::conditional_t<CMoveRow<T>, std::decay_t<T>&&, const std::decay_t<T>&>;
 
+template <typename T>
+using TDoFnTemplateArgument = std::conditional_t<
+    std::same_as<T, std::decay_t<T>&&>,
+    std::decay_t<T>&&,
+    std::decay_t<T>>;
+
 template <CRow TInput_, typename TOutput_>
 class IDoFn
     : public IFnBase

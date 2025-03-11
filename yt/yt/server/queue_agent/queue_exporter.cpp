@@ -1007,8 +1007,7 @@ public:
             BIND_NO_PROPAGATE(
                 &TQueueExporter::Pass,
                 MakeWeak(this)),
-            DynamicConfig_.GetPeriodicExecutorOptions()
-        ))
+            DynamicConfig_.GetPeriodicExecutorOptions()))
         , Logger(QueueExporterLogger().WithTag("%v, ExportName: %v",
             logger.GetTag(),
             ExportName_))

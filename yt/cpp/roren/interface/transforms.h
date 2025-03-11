@@ -30,6 +30,9 @@
 #include "private/stateful_timer_par_do.h"
 #include "private/flatten.h"
 
+#include <yt/cpp/roren/library/bind/bind.h>
+
+#include <library/cpp/yt/misc/variant.h>
 #include <util/stream/input.h>
 #include <util/stream/output.h>
 #include <util/system/type_name.h>
@@ -60,13 +63,13 @@ namespace NRoren {
 /// Function with signature `TOutput (const T&/T&&, TOutput<TOutput>&)`
 /// Example:
 ///
-///     auto transform = data.ParDo([] (const TString& in, TOutput<TString>& out) {
+///     auto transform = ParDo([] (const TString& in, TOutput<TString>& out) {
 ///         if (!in.empty()) {
 ///             out.Add(in);
 ///         }
 ///     });
 ///
-///     auto transform = data.ParDo([] (TString&& in, TOutput<TString>& out) {
+///     auto transform = ParDo([] (TString&& in, TOutput<TString>& out) {
 ///         if (!in.empty()) {
 ///             out.Add(std::move(in));
 ///         }
@@ -86,14 +89,15 @@ namespace NRoren {
 /// Example:
 ///
 ///     TString badId = "42";
-///     auto transform = data.ParDo([] (const TString& in, TOutput<TString>& out, IExecutionContext*, const TString& badId) {
-///         if (in != badId) {
-///             out.Add(in);
-///         }
-///     }, std::move(badId));
+///     auto transform = ParDo(
+///         [] (const TString& in, TOutput<TString>& out, IExecutionContext*, const TString& badId) {
+///             if (in != badId) {
+///                 out.Add(in);
+///             }
+///         },
+///         std::move(badId));
 template <typename F, typename... TArgs>
-    requires (!std::is_pointer_v<F>)
-auto ParDo(F&& lambda, TArgs&&... args);
+auto ParDo(F&& func, TArgs&&... args);
 
 template <NPrivate::CDoFn TFunc>
 auto ParDo(TIntrusivePtr<TFunc> func);
@@ -292,62 +296,46 @@ auto ParDo(TIntrusivePtr<TFunc> func)
     return TParDoTransform<TInputRow, TOutputRow>(std::move(rawParDo));
 }
 
-template <NPrivate::CDoFn F, typename... Args>
-auto MakeParDo(Args... args)
+template <NPrivate::CDoFn F, typename... TArgs>
+auto MakeParDo(TArgs&&... args)
 {
-    return ParDo(::MakeIntrusive<F>(args...));
-}
-
-template <typename TInputRow, typename TOutputRow, typename... TArgs>
-auto ParDo(void(*callback)(TInputRow, NRoren::TOutput<TOutputRow>&, IExecutionContext*, TArgs... args), TFnAttributes fnAttributes = {}, std::decay_t<TArgs>... args)
-{
-    using TState = NPrivate::TLambdaState<TInputRow, TOutputRow, TArgs...>;
-    auto rawParDo = NPrivate::MakeRawParDo(TState(callback, std::move(args)...), std::move(fnAttributes));
-    return TParDoTransform<std::decay_t<TInputRow>, TOutputRow>(std::move(rawParDo));
-}
-
-template <typename TInputRow, typename TOutputRow, typename TFirstBind, typename... TArgs>
-    requires (!std::same_as<TFirstBind, TFnAttributes>)
-auto ParDo(void(*callback)(TInputRow, NRoren::TOutput<TOutputRow>&, IExecutionContext*, TFirstBind bind, TArgs... args), std::decay_t<TFirstBind> firstBind, std::decay_t<TArgs>... args)
-{
-    return ParDo(callback, TFnAttributes{}, std::move(firstBind), std::move(args)...);
-}
-
-template <typename TInputRow, typename TOutputRow>
-auto ParDo(void(*callback)(TInputRow, NRoren::TOutput<TOutputRow>&), TFnAttributes attributes = {})
-{
-    auto casted = NPrivate::SaveLoadablePointer(callback);
-    return ParDo(
-        +[] (TInputRow input, NRoren::TOutput<TOutputRow>& output, IExecutionContext*, decltype(casted) callback) {
-            callback.Value(std::forward<TInputRow>(input), output);
-        },
-        std::move(attributes),
-        casted);
-}
-
-template <typename TInputRow, typename TOutputRow>
-auto ParDo(TOutputRow(*callback)(TInputRow), TFnAttributes attributes = {})
-{
-    auto casted = NPrivate::SaveLoadablePointer(callback);
-    return ParDo(
-        +[] (TInputRow input, NRoren::TOutput<TOutputRow>& output, IExecutionContext*, decltype(casted) callback) {
-            if constexpr (std::same_as<TOutputRow, void>) {
-                callback.Value(std::forward<TInputRow>(input));
-            } else {
-                output.Add(callback.Value(std::forward<TInputRow>(input)));
-            }
-        },
-        std::move(attributes),
-        casted);
+    return ParDo(::MakeIntrusive<F>(std::forward<TArgs>(args)...));
 }
 
 template <typename F, typename... TArgs>
-    requires (!std::is_pointer_v<F>)
-auto ParDo(F&& lambda, TArgs&&... args)
+auto ParDo(F&& func, TArgs&&... args)
 {
-    return ParDo(+lambda, std::forward<TArgs>(args)...);
+    auto bind = BindBack(std::forward<F>(func), std::forward<TArgs>(args)...);
+    using TFunctor = std::decay_t<decltype(bind)>;
+    using TInputRowArg = TFunctionArg<TFunctor, 0>;
+    using TInputRow = TDoFnTemplateArgument<TInputRowArg>;
+    return std::invoke(
+        NYT::TOverloaded{
+            [&] <typename TOutputRow, typename... Ts> (
+                std::type_identity<void(TInputRowArg, TOutput<TOutputRow>&, Ts...)>)
+            {
+                using TDoFn = NPrivate::TFunctorDoFn<TFunctor, TInputRow, TOutputRow>;
+                return MakeParDo<TDoFn>(std::move(bind));
+            },
+            [&] <typename TOutputRow, typename... Ts> (
+                std::type_identity<TOutputRow(TInputRowArg, Ts...)>)
+                requires (!std::disjunction_v<TIsTemplateBaseOf<TOutput, std::decay_t<Ts>>...>)
+            {
+                auto wrapped = BindBack(
+                    [] (TInputRowArg input, TOutput<TOutputRow>& output, Ts... args, const TFunctor& fn) {
+                        if constexpr (std::same_as<TOutputRow, void>) {
+                            std::invoke(fn, std::forward<TInputRowArg>(input), std::forward<Ts>(args)...);
+                        } else {
+                            output.Add(std::invoke(fn, std::forward<TInputRowArg>(input), std::forward<Ts>(args)...));
+                        }
+                    },
+                    std::move(bind));
+                using TDoFn = NPrivate::TFunctorDoFn<std::decay_t<decltype(wrapped)>, TInputRow, TOutputRow>;
+                return MakeParDo<TDoFn>(std::move(wrapped));
+            },
+        },
+        std::type_identity<TFunctionSignature<TFunctor>>{});
 }
-
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -1824,8 +1824,8 @@ i64 TStoreLocation::GetMaxWriteRateByDwpd() const
 
 bool TStoreLocation::IsTrashScanStopped() const
 {
-    const auto dynamicValue = DynamicConfigManager_->GetConfig()->DataNode->TestingOptions->EnableTrashScanningBarrier;
-    const auto staticValue = ChunkStore_->GetStaticDataNodeConfig()->EnableTrashScanningBarrier;
+    auto dynamicValue = DynamicConfigManager_->GetConfig()->DataNode->TestingOptions->EnableTrashScanningBarrier;
+    auto staticValue = ChunkStore_->GetStaticDataNodeConfig()->EnableTrashScanningBarrier;
     return dynamicValue.value_or(staticValue);
 }
 
@@ -2358,15 +2358,15 @@ void TStoreLocation::DoScanTrash()
 void TStoreLocation::DoAsyncScanTrash()
 {
     BIND(&TStoreLocation::DoScanTrash, MakeStrong(this))
-    .AsyncVia(GetAuxPoolInvoker())
-    .Run()
-    .Subscribe(BIND([this, this_ = MakeStrong(this)] (const TErrorOr<void>& err) {
-        if (err.IsOK()) {
-            TrashCheckExecutor_->Start();
-        } else {
-            YT_LOG_ERROR(err, "Error scanning location trash");
-        }
-    }));
+        .AsyncVia(GetAuxPoolInvoker())
+        .Run()
+        .Subscribe(BIND([this, this_ = MakeStrong(this)] (const TError& error) {
+            if (error.IsOK()) {
+                TrashCheckExecutor_->Start();
+            } else {
+                YT_LOG_ERROR(error, "Error scanning location trash");
+            }
+        }));
 }
 
 std::vector<TChunkDescriptor> TStoreLocation::DoScan()

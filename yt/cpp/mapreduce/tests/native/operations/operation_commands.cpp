@@ -138,16 +138,16 @@ TEST(OperationCommands, JobCount)
 
     for (const auto& runOperationFunc : runOperationFunctionList) {
         auto opId = runOperationFunc(1, 0);
-        EXPECT_EQ(static_cast<i64>(getJobCount(opId)), 1);
+        EXPECT_EQ(getJobCount(opId), 1);
 
         opId = runOperationFunc(3, 0);
-        EXPECT_EQ(static_cast<i64>(getJobCount(opId)), 3);
+        EXPECT_EQ(getJobCount(opId), 3);
 
         opId = runOperationFunc(0, 1);
-        EXPECT_EQ(static_cast<i64>(getJobCount(opId)), 3);
+        EXPECT_EQ(getJobCount(opId), 3);
 
         opId = runOperationFunc(0, 100500);
-        EXPECT_EQ(static_cast<i64>(getJobCount(opId)), 1);
+        EXPECT_EQ(getJobCount(opId), 1);
     }
 }
 
@@ -199,7 +199,7 @@ void TestGetOperation_Completed(bool useClientGetOperation)
 
     EXPECT_TRUE(attrs.BriefProgress);
     EXPECT_TRUE(attrs.BriefProgress->Completed > 0);
-    EXPECT_EQ(static_cast<i64>(attrs.BriefProgress->Failed), 0);
+    EXPECT_EQ(attrs.BriefProgress->Failed, 0);
 
     auto stripEmptyAttributesInList = [] (auto list) {
         for (auto& node : list) {
@@ -317,8 +317,8 @@ void TestGetOperation_Failed(bool useClientGetOperation)
     EXPECT_EQ(*attrs.BriefState, EOperationBriefState::Failed);
 
     EXPECT_TRUE(attrs.BriefProgress);
-    EXPECT_EQ(static_cast<i64>(attrs.BriefProgress->Completed), 0);
-    EXPECT_EQ(static_cast<i64>(attrs.BriefProgress->Failed), 2);
+    EXPECT_EQ(attrs.BriefProgress->Completed, 0);
+    EXPECT_EQ(attrs.BriefProgress->Failed, 2);
 
     EXPECT_TRUE(attrs.Result);
     EXPECT_TRUE(attrs.Result->Error);
