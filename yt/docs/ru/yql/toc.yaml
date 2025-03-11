@@ -3,23 +3,7 @@ items:
   - name: Введение
     href: index.md
   - name: Типы данных
-    items:
-      - name: Обзор
-        href: types/index.md
-      - name: Простые
-        href: types/primitive.md
-      - name: Опциональные
-        href: types/optional.md
-      - name: Контейнеры
-        href: types/containers.md
-      - name: Специальные
-        href: types/special.md
-      - name: Преобразования типов
-        href: types/cast.md
-      - name: Текстовое представление типов данных
-        href: types/type_string.md
-      - name: JSON
-        href: types/json.md
+    include: { mode: link, path: types/toc_i.yaml }
   - name: Синтаксис
     items:
       - name: Обзор
