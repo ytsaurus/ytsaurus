@@ -115,16 +115,27 @@ int ImportFilesFromS3(int argc, const char** argv)
     NLastGetopt::TOptsParseResult parseResult(&opts.Opts, argc, argv);
 
     if (opts.Format == "parquet") {
-        ImportParquetFilesFromS3(
+        ImportFilesFromS3(
             opts.Proxy,
             opts.Url,
             opts.Region,
             opts.Bucket,
             opts.Prefix,
             opts.ResultTable,
+            EFileFormat::Parquet,
+            LoadConfig(opts.Config));
+    } else if (opts.Format == "orc") {
+         ImportFilesFromS3(
+            opts.Proxy,
+            opts.Url,
+            opts.Region,
+            opts.Bucket,
+            opts.Prefix,
+            opts.ResultTable,
+            EFileFormat::ORC,
             LoadConfig(opts.Config));
     } else {
-        THROW_ERROR_EXCEPTION("Unsupported format, only Parquet is supported now");
+        THROW_ERROR_EXCEPTION("Unsupported format, Parquet and ORC are supported now");
     }
 
     return 0;
@@ -136,16 +147,27 @@ int ImportFilesFromHuggingface(int argc, const char** argv)
     NLastGetopt::TOptsParseResult parseResult(&opts.Opts, argc, argv);
 
     if (opts.Format == "parquet") {
-        ImportParquetFilesFromHuggingface(
+        ImportFilesFromHuggingface(
             opts.Proxy,
             opts.Dataset,
             opts.Subset,
             opts.Split,
             opts.ResultTable,
+             EFileFormat::Parquet,
+            /*urlOverride*/ std::nullopt,
+            LoadConfig(opts.Config));
+    } else  if (opts.Format == "orc") {
+        ImportFilesFromHuggingface(
+            opts.Proxy,
+            opts.Dataset,
+            opts.Subset,
+            opts.Split,
+            opts.ResultTable,
+            EFileFormat::ORC,
             /*urlOverride*/ std::nullopt,
             LoadConfig(opts.Config));
     } else {
-        THROW_ERROR_EXCEPTION("Unsupported format, only Parquet is supported now");
+        THROW_ERROR_EXCEPTION("Unsupported format, Parquet and ORC are supported now");
     }
 
     return 0;

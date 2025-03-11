@@ -14,10 +14,10 @@
 
 find_package(linux-headers-generic REQUIRED)
 
-add_library(yt-library-arrow_parquet_adapter)
+add_library(yt-library-arrow_adapter)
 
 
-target_link_libraries(yt-library-arrow_parquet_adapter PUBLIC
+target_link_libraries(yt-library-arrow_adapter PUBLIC
   linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   yutil
@@ -25,7 +25,7 @@ target_link_libraries(yt-library-arrow_parquet_adapter PUBLIC
   libs-apache-arrow
 )
 
-target_sources(yt-library-arrow_parquet_adapter PRIVATE
-  ${PROJECT_SOURCE_DIR}/yt/yt/library/arrow_parquet_adapter/arrow.cpp
+target_sources(yt-library-arrow_adapter PRIVATE
+  ${PROJECT_SOURCE_DIR}/yt/yt/library/arrow_adapter/arrow.cpp
 )
 
