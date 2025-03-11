@@ -9,6 +9,7 @@
 namespace NYT::NControllerAgent::NControllers {
 
 using namespace NChunkClient;
+using namespace NLogging;
 using namespace NNodeTrackerClient;
 using namespace NTableClient;
 using namespace NYTree;
@@ -18,6 +19,7 @@ using namespace NYTree;
 TLivePreview::TLivePreview(
     TTableSchemaPtr schema,
     TNodeDirectoryPtr nodeDirectory,
+    TLogger logger,
     TOperationId operationId,
     TString name,
     TYPath path)
@@ -26,6 +28,7 @@ TLivePreview::TLivePreview(
     , OperationId_(operationId)
     , Name_(std::move(name))
     , Path_(std::move(path))
+    , Logger(std::move(logger))
 {
     Initialize();
 }
@@ -65,7 +68,14 @@ void TLivePreview::Persist(const TPersistenceContext& context)
     Persist(context, Name_);
     Persist(context, Path_);
 
+    if (context.GetVersion() >= ESnapshotVersion::ValidateLivePreviewChunks) {
+        Persist(context, Logger);
+    } else {
+        Logger = ControllerLogger().WithTag("OperationId: %v", OperationId_);
+    }
+
     if (context.IsLoad()) {
+        ValidateChunks();
         Initialize();
     }
 }
@@ -73,6 +83,23 @@ void TLivePreview::Persist(const TPersistenceContext& context)
 void TLivePreview::Initialize()
 {
     Service_ = New<TVirtualStaticTable>(Chunks_, Schema_, NodeDirectory_, OperationId_, Name_, Path_);
+}
+
+void TLivePreview::ValidateChunks()
+{
+    THashSet<TInputChunkPtr> chunks;
+    std::swap(chunks, Chunks_);
+
+    for (auto chunk : chunks) {
+        auto error = TryInsertChunk(chunk);
+        YT_LOG_ALERT_UNLESS(
+            error.IsOK(),
+            error,
+            "Error validating a chunk in a live preview (ChunkId: %v, Name: %v, Path: %v)",
+            chunk->GetChunkId(),
+            Name_,
+            Path_);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

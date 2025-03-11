@@ -630,7 +630,7 @@ protected:
     //! Whether auto-merge is enabled for particular output table.
     std::vector<bool> AutoMergeEnabled_;
 
-    TDataFlowGraphPtr DataFlowGraph_ = New<TDataFlowGraph>();
+    TDataFlowGraphPtr DataFlowGraph_;
 
     using TLivePreviewMap = THashMap<TString, TLivePreviewPtr>;
     std::shared_ptr<TLivePreviewMap> LivePreviews_;
