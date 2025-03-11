@@ -74,6 +74,41 @@ Y_UNIT_TEST_SUITE(RegexLexerTests) {
         Check("FROM", "FROM");
     }
 
+    Y_UNIT_TEST(Punctuation) {
+        Check(
+            "* / + - <|", 
+            "ASTERISK(*) WS( ) SLASH(/) WS( ) "
+            "PLUS(+) WS( ) MINUS(-) WS( ) STRUCT_OPEN(<|)"
+        );
+        (Check("SELECT*FROM", "SELECT ASTERISK(*) FROM"));
+    }
+
+    Y_UNIT_TEST(IdPlain) {
+        Check("variable my_table", "ID_PLAIN(variable) WS( ) ID_PLAIN(my_table)");
+    }
+
+    Y_UNIT_TEST(IdQuoted) {
+        Check("``", "ID_QUOTED(``)");
+        Check("` `", "ID_QUOTED(` `)");
+        Check("` `", "ID_QUOTED(` `)");
+        Check("`local/table`", "ID_QUOTED(`local/table`)");
+    }
+
+    Y_UNIT_TEST(SinleLineString) {
+        Check("\"\"", "STRING_VALUE(\"\")");
+        Check("\' \'", "STRING_VALUE(\' \')");
+        Check("\" \"", "STRING_VALUE(\" \")");
+        Check("\"test\"", "STRING_VALUE(\"test\")");
+        Check("\"\\\"\"", "STRING_VALUE(\"\\\"\")");
+    }
+
+    Y_UNIT_TEST(MultiLineString) {
+        Check("@@@@", "STRING_VALUE(@@@@)");
+        Check("@@ @@@", "STRING_VALUE(@@ @@@)");
+        Check("@@test@@", "STRING_VALUE(@@test@@)");
+        Check("@@line1\nline2@@", "STRING_VALUE(@@line1\nline2@@)");
+    }
+
     Y_UNIT_TEST(TODORemove) {
         UNIT_ASSERT_VALUES_EQUAL(
             Tokenized("SELECT *"), 

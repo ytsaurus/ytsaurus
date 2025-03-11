@@ -67,7 +67,9 @@ namespace NSQLTranslationV1 {
             rules[R"('(.)'\.\.'(.)')"] = "[$1-$2]";
             rules[R"(\(\[([^\]\[\(\)]+)\]\))"] = "[$1]";
             rules[R"('(\d)')"] = "$1";
-            rules[R"((\\\\\.)|(\(\.\)))"] = "(.|\\n)";            
+            rules[R"(\\\\ \.)"]= "\\\\ (.|\\n)";
+            rules[R"(\(\.\))"] = "(.|\\n)";
+            rules[R"(([^\\\(\.])\.([^\.]))"] = "$1(.|\\n)$2";
 
             // TODO(vityaman): remove before a code review.
             // std::cout << "Rewrite: " << std::endl;
