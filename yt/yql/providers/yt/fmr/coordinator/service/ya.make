@@ -16,6 +16,7 @@ PEERDIR(
     library/cpp/getopt
     yt/yql/providers/yt/fmr/coordinator/server
     yt/yql/providers/yt/fmr/coordinator/impl
+    yql/essentials/utils/log
 )
 
 YQL_LAST_ABI_VERSION()

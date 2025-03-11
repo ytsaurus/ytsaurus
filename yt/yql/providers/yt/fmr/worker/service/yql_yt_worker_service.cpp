@@ -8,15 +8,28 @@
 #include <yt/yql/providers/yt/fmr/table_data_service/local/table_data_service.h>
 #include <yt/yql/providers/yt/fmr/worker/impl/yql_yt_worker_impl.h>
 #include <yt/yql/providers/yt/fmr/yt_service/impl/yql_yt_yt_service_impl.h>
+#include <yql/essentials/utils/log/log.h>
+#include <yql/essentials/utils/log/log_component.h>
+#include <yql/essentials/utils/mem_limit.h>
+
 
 
 using namespace NYql::NFmr;
+using namespace NYql;
 
 volatile sig_atomic_t isInterrupted = 0;
 
 struct TWorkerRunOptions {
     TString CoordinatorUrl;
-    ui32 WorkerId = 0;
+    ui32 WorkerId;
+    int Verbosity;
+
+    void InitLogger() {
+        NLog::ELevel level = NLog::ELevelHelpers::FromInt(Verbosity);
+        NLog::EComponentHelpers::ForEach([level](NLog::EComponent c) {
+            NYql::NLog::YqlLogger().SetComponentLevel(c, level);
+        });
+    }
 };
 
 void SignalHandler(int) {
@@ -26,13 +39,19 @@ void SignalHandler(int) {
 int main(int argc, const char *argv[]) {
     try {
         SetInterruptSignalsHandler(SignalHandler);
+        NYql::NLog::YqlLoggerScope logger(&Cerr);
         TWorkerRunOptions options;
         NLastGetopt::TOpts opts = NLastGetopt::TOpts::Default();
         opts.AddHelpOption();
         opts.AddLongOption("coordinator-url", "Fast map reduce coordinator server url").Required().StoreResult(&options.CoordinatorUrl);
-        opts.AddLongOption("worker-id", "Fast map reduce worker id").Required().StoreResult(&options.WorkerId);
+        opts.AddLongOption('w', "worker-id", "Fast map reduce worker id").Required().StoreResult(&options.WorkerId);
+        opts.AddLongOption('v', "verbosity", "Logging verbosity level").StoreResult(&options.Verbosity).DefaultValue(static_cast<int>(TLOG_ERR));
+        opts.AddLongOption("mem-limit", "Set memory limit in megabytes").Handler1T<ui32>(0, SetAddressSpaceLimit);
+        opts.SetFreeArgsMax(0);
 
         auto res = NLastGetopt::TOptsParseResult(&opts, argc, argv);
+
+        options.InitLogger();
 
         TFmrWorkerSettings workerSettings{};
         workerSettings.WorkerId = options.WorkerId;
