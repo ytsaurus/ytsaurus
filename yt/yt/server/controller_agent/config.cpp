@@ -382,6 +382,9 @@ void TOperationOptions::Register(TRegistrar registrar)
         .Default(2.0)
         .GreaterThan(1.0);
 
+    registrar.Parameter("cpu_limit_overcommit_mode", &TThis::CpuLimitOvercommitMode)
+        .Default(ECpuLimitOvercommitMode::Linear);
+
     registrar.Parameter("initial_cpu_limit_overcommit", &TThis::InitialCpuLimitOvercommit)
         .Default(2.0)
         .GreaterThanOrEqual(0);
