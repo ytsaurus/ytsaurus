@@ -261,7 +261,7 @@ DEFINE_REFCOUNTED_TYPE(TTestConnection)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-NApi::NNative::IConnectionPtr CreateConnection(
+TTestConnectionPtr CreateConnection(
     NRpc::IChannelFactoryPtr channelFactory,
     NNodeTrackerClient::TNetworkPreferenceList networkPreferenceList,
     NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
