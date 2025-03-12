@@ -1805,9 +1805,11 @@ void TChunkMerger::OnJobFinished(const TMergeJobPtr& job)
         auto validateError = [&, this_ = MakeStrong(this)] (auto error, auto message) {
             if (!error.IsOK()) {
                 YT_VERIFY(job->GetState() == EJobState::Failed);
-                YT_LOG_ALERT(error, "%v (JobId: %v)",
+                YT_LOG_ALERT(error, "%v (JobId: %v, NodeId: %v, AccountId: %v)",
                     message,
-                    job->GetJobId());
+                    job->GetJobId(),
+                    job->JobInfo().NodeId,
+                    job->JobInfo().AccountId);
                 NRpc::TDispatcher::Get()->GetHeavyInvoker()->Invoke(
                     BIND(&TChunkMerger::DisableChunkMerger, MakeStrong(this)));
             }
