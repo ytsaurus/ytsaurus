@@ -10,11 +10,11 @@ namespace NSQLReflect {
     public:
         using TPtr = THolder<ILexerGrammar>;
 
-        virtual const THashSet<TString>& GetKeywordTokenNames() const = 0;
-        virtual const THashSet<TString>& GetPunctuationTokenNames() const = 0;
-        virtual const THashSet<TString>& GetOtherTokenNames() const = 0;
+        virtual const THashSet<TString>& GetKeywordNames() const = 0;
+        virtual const THashSet<TString>& GetPunctuationNames() const = 0;
+        virtual const THashSet<TString>& GetOtherNames() const = 0;
 
-        virtual const TString& GetRuleBlockByTokenName(const TString& name) const = 0;
+        virtual const TString& GetBlockByName(const TString& name) const = 0;
 
         virtual ~ILexerGrammar() = default;
     };

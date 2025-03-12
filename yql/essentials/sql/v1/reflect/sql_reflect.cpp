@@ -17,31 +17,31 @@ namespace NSQLReflect {
 
     class TLexerGrammar: public ILexerGrammar {
     public:
-        const THashSet<TString>& GetKeywordTokenNames() const override {
-            return Keywords;
+        const THashSet<TString>& GetKeywordNames() const override {
+            return KeywordNames;
         }
 
-        const THashSet<TString>& GetPunctuationTokenNames() const override {
-            return Punctuation;
+        const THashSet<TString>& GetPunctuationNames() const override {
+            return PunctuationNames;
         }
 
-        const THashSet<TString>& GetOtherTokenNames() const override {
-            return Other;
+        const THashSet<TString>& GetOtherNames() const override {
+            return OtherNames;
         }
 
-        const TString& GetRuleBlockByTokenName(const TString& name) const override {
-            auto it = ContentByName.find(name);
-            if (it != ContentByName.end()) {
+        const TString& GetBlockByName(const TString& name) const override {
+            auto it = BlockByName.find(name);
+            if (it != BlockByName.end()) {
                 return it->second;
             }
-            Y_ENSURE(GetKeywordTokenNames().contains(name));
+            Y_ENSURE(GetKeywordNames().contains(name));
             return name;
         }
 
-        THashSet<TString> Keywords;
-        THashSet<TString> Punctuation;
-        THashSet<TString> Other;
-        THashMap<TString, TString> ContentByName;
+        THashSet<TString> KeywordNames;
+        THashSet<TString> PunctuationNames;
+        THashSet<TString> OtherNames;
+        THashMap<TString, TString> BlockByName;
     };
 
     TVector<TString> GetResourceLines(const TStringBuf key) {
@@ -126,49 +126,49 @@ namespace NSQLReflect {
             semiPos != TString::npos &&
             colonPos < semiPos);
 
-        TString content = line.substr(colonPos + 2, semiPos - colonPos - 2);
-        SubstGlobal(content, "\\\\", "\\");
+        TString block = line.substr(colonPos + 2, semiPos - colonPos - 2);
+        SubstGlobal(block, "\\\\", "\\");
 
         TString name = std::move(line);
         name.resize(colonPos);
 
-        return std::make_tuple(std::move(name), std::move(content));
+        return std::make_tuple(std::move(name), std::move(block));
     }
 
     void ParsePunctuationLine(TString&& line, TLexerGrammar& grammar) {
-        auto [name, content] = ParseLexerRule(std::move(line));
-        content = content.erase(std::begin(content));
-        content.pop_back();
+        auto [name, block] = ParseLexerRule(std::move(line));
+        block = block.erase(std::begin(block));
+        block.pop_back();
 
-        SubstGlobal(content, "\\\'", "\'");
+        SubstGlobal(block, "\\\'", "\'");
 
         if (!name.StartsWith(FragmentPrefix)) {
-            grammar.Punctuation.emplace(name);
+            grammar.PunctuationNames.emplace(name);
         }
 
         SubstGlobal(name, FragmentPrefix, "");
-        grammar.ContentByName.emplace(std::move(name), std::move(content));
+        grammar.BlockByName.emplace(std::move(name), std::move(block));
     }
 
     void ParseKeywordLine(TString&& line, TLexerGrammar& grammar) {
-        auto [name, content] = ParseLexerRule(std::move(line));
-        SubstGlobal(content, "'", "");
-        SubstGlobal(content, " ", "");
+        auto [name, block] = ParseLexerRule(std::move(line));
+        SubstGlobal(block, "'", "");
+        SubstGlobal(block, " ", "");
 
-        Y_ENSURE(name == content);
-        grammar.Keywords.emplace(std::move(name));
+        Y_ENSURE(name == block);
+        grammar.KeywordNames.emplace(std::move(name));
     }
 
     void ParseOtherLine(TString&& line, TLexerGrammar& grammar) {
-        auto [name, content] = ParseLexerRule(std::move(line));
+        auto [name, block] = ParseLexerRule(std::move(line));
 
         if (!name.StartsWith(FragmentPrefix)) {
-            grammar.Other.emplace(name);
+            grammar.OtherNames.emplace(name);
         }
 
         SubstGlobal(name, FragmentPrefix, "");
-        SubstGlobal(content, " -> channel(HIDDEN)", "");
-        grammar.ContentByName.emplace(std::move(name), std::move(content));
+        SubstGlobal(block, " -> channel(HIDDEN)", "");
+        grammar.BlockByName.emplace(std::move(name), std::move(block));
     }
 
     ILexerGrammar::TPtr LoadLexerGrammar() {
