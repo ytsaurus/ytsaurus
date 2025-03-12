@@ -49,7 +49,6 @@ void Check(TString input, TString expected) {
     UNIT_ASSERT_VALUES_EQUAL(actual, expected);
 }
 
-// TODO(vityaman): create some common test suite parametrized by a ILexer
 Y_UNIT_TEST_SUITE(RegexLexerTests) {
     Y_UNIT_TEST(Whitespace) {
         Check("", "");

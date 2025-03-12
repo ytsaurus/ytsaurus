@@ -2663,7 +2663,6 @@ private:
                 VisitAllFields(TRule_table_setting_value::GetDescriptor(), msg);
         }
     }
-    
 
     void VisitTtlTierAction(const TRule_ttl_tier_action& msg) {
         switch (msg.GetAltCase()) {
