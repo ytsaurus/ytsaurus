@@ -3671,7 +3671,7 @@ bool TOperationControllerBase::OnJobAborted(
     if (auto it = JobAbortsUntilOperationFailure_.find(abortReason); it != JobAbortsUntilOperationFailure_.end()) {
         if (--it->second == 0) {
             JobAbortsUntilOperationFailure_.clear();
-            auto wrappedError = TError("Operaiton failed due to excessive successive job aborts");
+            auto wrappedError = TError("Operation failed due to excessive successive job aborts");
             if (error) {
                 wrappedError <<= *error;
             }
