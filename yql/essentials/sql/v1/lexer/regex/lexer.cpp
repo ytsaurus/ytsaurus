@@ -20,8 +20,8 @@ namespace NSQLTranslationV1 {
         TRegexLexer(bool ansi, NSQLReflect::TLexerGrammar grammar)
             : Grammar_(std::move(grammar))
         {
-            for (auto& [token, regex] : GetRegexByComplexTokenMap(Grammar_, ansi)) {
-                Regexes_.emplace(std::move(token), std::string(regex));
+            for (auto& [token, regex] : MakeRegexByTokenNameMap(Grammar_, ansi)) {
+                OtherRegexes_.emplace(std::move(token), std::string(regex));
             }
         }
 
@@ -94,7 +94,7 @@ namespace NSQLTranslationV1 {
         }
 
         void MatchRegex(const TString& query, size_t pos, TParsedTokenList& matches) {
-            for (const auto& [token, regex] : Regexes_) {
+            for (const auto& [token, regex] : OtherRegexes_) {
                 std::smatch match;
                 std::string substring = query.substr(pos);
                 if (std::regex_search(substring, match, regex, std::regex_constants::match_continuous)) {
@@ -104,7 +104,7 @@ namespace NSQLTranslationV1 {
         }
 
         NSQLReflect::TLexerGrammar Grammar_;
-        THashMap<TString, std::regex> Regexes_;
+        THashMap<TString, std::regex> OtherRegexes_;
     };
 
     NSQLTranslation::ILexer::TPtr MakeRegexLexer(bool ansi) {

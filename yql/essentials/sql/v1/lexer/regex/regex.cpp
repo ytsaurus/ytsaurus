@@ -1,5 +1,7 @@
 #include "regex.h"
 
+#include <util/generic/vector.h>
+
 #include <regex>
 
 #define SUBSTITUTION(name, mode) \
@@ -16,13 +18,10 @@
 
 namespace NSQLTranslationV1 {
 
-    void RegexReplace(TString& input, const TStringBuf pattern, const TStringBuf value) {
-        std::string patternStr(pattern);
-        std::string valueStr(value);
-
-        std::regex re(patternStr);
-        input = std::regex_replace(input.data(), re, valueStr);
-    }
+    struct TRewriteRule {
+        std::regex Regex;
+        std::string Format;
+    };
 
     TString ReEscaped(TString text) {
         if (text == "\\") {
@@ -50,13 +49,13 @@ namespace NSQLTranslationV1 {
         return text;
     }
 
-    THashMap<TString, TString> GetRewriteRules(const TStringBuf mode, const NSQLReflect::TLexerGrammar& grammar) {
+    TVector<TRewriteRule> GetRewriteRules(const TStringBuf mode, const NSQLReflect::TLexerGrammar& grammar) {
         THashMap<TString, THashMap<TString, TString>> Substitutions = {
             SUBSTITUTIONS(DEFAULT),
             SUBSTITUTIONS(ANSI),
         };
 
-        THashMap<TString, TString> rules;
+        THashMap<std::string, std::string> rules;
 
         for (auto& [k, v] : grammar.BlockByName) {
             rules["(\\b" + k + "\\b)"] = "(" + ReEscaped(v) + ")";
@@ -83,32 +82,39 @@ namespace NSQLTranslationV1 {
         rules[R"(\(\.\))"] = "(.|\\n)";
         rules[R"(([^\\\(\.])\.([^\.]))"] = "$1(.|\\n)$2";
 
-        return rules;
+        TVector<TRewriteRule> result;
+        for (auto& [regex, fmt] : rules) {
+            result.push_back({
+                .Regex = std::regex(regex),
+                .Format = fmt,
+            });
+        }
+        return result;
     }
 
     TString ToRegex(const TString& name, const TStringBuf mode, const NSQLReflect::TLexerGrammar& grammar) {
-        TString regex = grammar.BlockByName.at(name);
+        TVector<TRewriteRule> rules = GetRewriteRules(mode, grammar);
 
-        regex = ReEscaped(std::move(regex));
+        TString next = grammar.BlockByName.at(name);
 
-        THashMap<TString, TString> rules = GetRewriteRules(mode, grammar);
+        next = ReEscaped(std::move(next));
 
         TString prev;
-        while (prev != regex) {
-            prev = regex;
-            for (const auto& [k, v] : rules) {
-                RegexReplace(regex, k, v);
+        while (prev != next) {
+            prev = next;
+            for (const auto& [regex, fmt] : rules) {
+                next = std::regex_replace(next.data(), regex, fmt);
             }
         }
 
-        SubstGlobal(regex, " ", "");
-        SubstGlobal(regex, "$$$", " ");
+        SubstGlobal(next, " ", "");
+        SubstGlobal(next, "$$$", " ");
 
-        Y_ENSURE(!regex.Contains("~"));
-        return regex;
+        Y_ENSURE(!next.Contains("~"));
+        return next;
     }
 
-    THashMap<TString, TString> GetRegexByComplexTokenMap(const NSQLReflect::TLexerGrammar& grammar, bool ansi) {
+    THashMap<TString, TString> MakeRegexByTokenNameMap(const NSQLReflect::TLexerGrammar& grammar, bool ansi) {
         TString mode = "DEFAULT";
         if (ansi) {
             mode = "ANSI";

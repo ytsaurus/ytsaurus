@@ -6,7 +6,7 @@ using namespace NSQLTranslationV1;
 
 namespace {
     auto grammar = NSQLReflect::LoadLexerGrammar();
-    auto regexes = GetRegexByComplexTokenMap(grammar, /* ansi = */ false);
+    auto regexes = MakeRegexByTokenNameMap(grammar, /* ansi = */ false);
 } // namespace
 
 Y_UNIT_TEST_SUITE(SqlRegexTests) {
