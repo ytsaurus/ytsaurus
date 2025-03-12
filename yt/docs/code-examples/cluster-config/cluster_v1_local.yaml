@@ -1,0 +1,164 @@
+apiVersion: cluster.ytsaurus.tech/v1
+kind: Ytsaurus
+metadata:
+  name: minisaurus
+spec:
+  coreImage: ghcr.io/ytsaurus/ytsaurus:stable-24.1.0-relwithdebinfo
+
+  discovery:
+    instanceCount: 1
+
+    # Make reusable loggers config with yaml anchor.
+    loggers: &loggers
+      - name: debug
+        compression: zstd
+        minLogLevel: debug
+        writerType: file
+        rotationPolicy: &rotationPolicy
+          maxTotalSizeToKeep: 10000000
+          rotationPeriodMilliseconds: 900000
+        categoriesFilter:
+          type: exclude
+          values: [ "Bus", "Concurrency" ]
+      - name: info
+        minLogLevel: info
+        writerType: file
+        rotationPolicy: *rotationPolicy
+      - name: error
+        minLogLevel: error
+        writerType: stderr
+
+  primaryMasters:
+    instanceCount: 1
+    cellTag: 1
+    loggers: *loggers
+    locations:
+      - locationType: MasterChangelogs
+        path: /yt/master-data/master-changelogs
+      - locationType: MasterSnapshots
+        path: /yt/master-data/master-snapshots
+
+    volumeMounts:
+      - name: master-data
+        mountPath: /yt/master-data
+
+    volumeClaimTemplates:
+      - metadata:
+          name: master-data
+        spec:
+          accessModes: [ "ReadWriteOnce" ]
+          resources:
+            requests:
+              storage: 5Gi
+
+  httpProxies:
+    - serviceType: NodePort
+      loggers: *loggers
+      instanceCount: 1
+      role: default
+    - serviceType: NodePort
+      loggers: *loggers
+      instanceCount: 1
+      role: control
+
+  rpcProxies:
+    - instanceCount: 1
+      loggers: *loggers
+      role: default
+    - instanceCount: 1
+      loggers: *loggers
+      role: heavy
+
+  dataNodes:
+    - instanceCount: 3
+      loggers: *loggers
+
+      volumeMounts:
+        - name: node-data
+          mountPath: /yt/node-data
+
+      locations:
+        - locationType: ChunkStore
+          path: /yt/node-data/chunk-store
+
+      volumeClaimTemplates:
+        - metadata:
+            name: node-data
+          spec:
+            accessModes: [ "ReadWriteOnce" ]
+            resources:
+              requests:
+                storage: 5Gi
+
+  execNodes:
+    - instanceCount: 1
+      loggers: *loggers
+      resources:
+        limits:
+          cpu: 1
+          memory: 2Gi
+
+      volumeMounts:
+        - name: node-data
+          mountPath: /yt/node-data
+
+      volumes:
+        - name: node-data
+          emptyDir:
+            sizeLimit: 5Gi
+
+      locations:
+        - locationType: ChunkCache
+          path: /yt/node-data/chunk-cache
+        - locationType: Slots
+          path: /yt/node-data/slots
+
+      jobProxyLoggers:
+        - name: debug
+          compression: zstd
+          minLogLevel: debug
+          writerType: file
+          useTimestampSuffix: true
+          rotationPolicy: &rotationPolicy
+            maxTotalSizeToKeep: 10000000
+            rotationPeriodMilliseconds: 900000
+          categoriesFilter:
+            type: exclude
+            values: [ "Bus", "Concurrency" ]
+        - name: info
+          minLogLevel: info
+          writerType: file
+          rotationPolicy: *rotationPolicy
+        - name: error
+          minLogLevel: error
+          writerType: stderr
+
+  schedulers:
+    instanceCount: 1
+    loggers: *loggers
+
+  controllerAgents:
+    instanceCount: 1
+    loggers: *loggers
+
+  ui:
+    image: ghcr.io/ytsaurus/ui:stable
+    serviceType: NodePort
+    instanceCount: 1
+
+  strawberry:
+    resources:
+      limits:
+        memory: 100Mi
+    image: ghcr.io/ytsaurus/strawberry:0.0.12
+
+  tabletNodes:
+    - instanceCount: 1
+
+  yqlAgents:
+    instanceCount: 1
+    image: ghcr.io/ytsaurus/query-tracker:0.0.8
+
+  queryTrackers:
+    instanceCount: 1
+    image: ghcr.io/ytsaurus/query-tracker:0.0.8
