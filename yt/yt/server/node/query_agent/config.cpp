@@ -50,6 +50,9 @@ void TQueryAgentConfig::Register(TRegistrar registrar)
     registrar.Parameter("use_query_pool_for_lookups", &TThis::UseQueryPoolForLookups)
         .Default(false);
 
+    registrar.Parameter("use_query_pool_for_in_memory_lookups", &TThis::UseQueryPoolForInMemoryLookups)
+        .Default(false);
+
     registrar.Parameter("pull_rows_timeout_share", &TThis::PullRowsTimeoutShare)
         .Default(0.9)
         .GreaterThan(0.1)
