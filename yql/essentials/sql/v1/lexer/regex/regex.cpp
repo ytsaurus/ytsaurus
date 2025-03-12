@@ -54,6 +54,8 @@ namespace NSQLTranslationV1 {
             SUBSTITUTIONS(DEFAULT),
             SUBSTITUTIONS(ANSI),
         };
+        Substitutions["ANSI"]["GRAMMAR_MULTILINE_COMMENT_CORE"] =
+            Substitutions["DEFAULT"]["GRAMMAR_MULTILINE_COMMENT_CORE"];
 
         THashMap<std::string, std::string> rules;
 
@@ -75,6 +77,7 @@ namespace NSQLTranslationV1 {
 
         rules[R"(\((\\\\|.)\))"] = "$1";
         rules[R"(~\((\\\\|\\\w|.) \| (\\\\|\\\w|.)\))"] = "[^$1$2]";
+        rules[R"(~(.) )"] = "[^$1]";
         rules[R"('(.)'\.\.'(.)')"] = "[$1-$2]";
         rules[R"(\(\[([^\]\[\(\)]+)\]\))"] = "[$1]";
         rules[R"('(\d)')"] = "$1";
@@ -100,7 +103,7 @@ namespace NSQLTranslationV1 {
         next = ReEscaped(std::move(next));
 
         TString prev;
-        while (prev != next) {
+        for (size_t i = 0; i < 16 && prev != next; ++i) {
             prev = next;
             for (const auto& [regex, fmt] : rules) {
                 next = std::regex_replace(next.data(), regex, fmt);
