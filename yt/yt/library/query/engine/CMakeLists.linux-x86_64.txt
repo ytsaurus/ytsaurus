@@ -61,6 +61,7 @@ target_link_libraries(library-query-engine PUBLIC
   cpp-yt-memory
   cpp-xdelta3-state
   contrib-libs-sparsehash
+  contrib-libs-xxhash
   library-cpp-resource
 )
 
@@ -119,6 +120,7 @@ target_link_libraries(library-query-engine.global PUBLIC
   cpp-yt-memory
   cpp-xdelta3-state
   contrib-libs-sparsehash
+  contrib-libs-xxhash
   library-cpp-resource
 )
 
