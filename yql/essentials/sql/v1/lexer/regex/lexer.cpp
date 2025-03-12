@@ -17,10 +17,10 @@ namespace NSQLTranslationV1 {
 
     class TRegexLexer: public NSQLTranslation::ILexer {
     public:
-        TRegexLexer(bool ansi, NSQLReflect::TLexerGrammar meta)
-            : Meta_(std::move(meta))
+        TRegexLexer(bool ansi, NSQLReflect::TLexerGrammar grammar)
+            : Grammar_(std::move(grammar))
         {
-            for (auto& [token, regex] : GetRegexByComplexTokenMap(Meta_, ansi)) {
+            for (auto& [token, regex] : GetRegexByComplexTokenMap(Grammar_, ansi)) {
                 Regexes_.emplace(std::move(token), std::string(regex));
             }
         }
@@ -32,7 +32,7 @@ namespace NSQLTranslationV1 {
             NYql::TIssues& issues,
             size_t maxErrors) override {
             Y_UNUSED(queryName, issues);
-                
+
             size_t errors = 0;
             for (size_t pos = 0; pos < query.size();) {
                 TParsedToken matched = Match(query, pos);
@@ -74,7 +74,7 @@ namespace NSQLTranslationV1 {
         }
 
         void MatchKeyword(const TString& query, size_t pos, TParsedTokenList& matches) {
-            for (const auto& keyword : Meta_.Keywords) {
+            for (const auto& keyword : Grammar_.KeywordNames) {
                 if (query.substr(pos, keyword.length()) == keyword) {
                     if (pos + keyword.length() >= query.length() ||
                         !std::isalnum(query[pos + keyword.length()])) {
@@ -85,8 +85,8 @@ namespace NSQLTranslationV1 {
         }
 
         void MatchPunctuation(const TString& query, size_t pos, TParsedTokenList& matches) {
-            for (const auto& name : Meta_.Punctuation) {
-                const auto& content = Meta_.ContentByName.at(name);
+            for (const auto& name : Grammar_.PunctuationNames) {
+                const auto& content = Grammar_.BlockByName.at(name);
                 if (query.substr(pos, content.length()) == content) {
                     matches.emplace_back(name, content);
                 }
@@ -103,13 +103,13 @@ namespace NSQLTranslationV1 {
             }
         }
 
-        NSQLReflect::TLexerGrammar Meta_;
+        NSQLReflect::TLexerGrammar Grammar_;
         THashMap<TString, std::regex> Regexes_;
     };
 
     NSQLTranslation::ILexer::TPtr MakeRegexLexer(bool ansi) {
         return NSQLTranslation::ILexer::TPtr(
-            new TRegexLexer(ansi, NSQLReflect::GetLexerGrammar()));
+            new TRegexLexer(ansi, NSQLReflect::LoadLexerGrammar()));
     }
 
 } // namespace NSQLTranslationV1

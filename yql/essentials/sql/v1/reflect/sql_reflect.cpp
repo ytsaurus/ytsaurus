@@ -15,35 +15,6 @@ namespace NSQLReflect {
     const TStringBuf SectionOther = "//! section:other";
     const TStringBuf FragmentPrefix = "fragment ";
 
-    class TLexerGrammar: public ILexerGrammar {
-    public:
-        const THashSet<TString>& GetKeywordNames() const override {
-            return KeywordNames;
-        }
-
-        const THashSet<TString>& GetPunctuationNames() const override {
-            return PunctuationNames;
-        }
-
-        const THashSet<TString>& GetOtherNames() const override {
-            return OtherNames;
-        }
-
-        const TString& GetBlockByName(const TString& name) const override {
-            auto it = BlockByName.find(name);
-            if (it != BlockByName.end()) {
-                return it->second;
-            }
-            Y_ENSURE(GetKeywordNames().contains(name));
-            return name;
-        }
-
-        THashSet<TString> KeywordNames;
-        THashSet<TString> PunctuationNames;
-        THashSet<TString> OtherNames;
-        THashMap<TString, TString> BlockByName;
-    };
-
     TVector<TString> GetResourceLines(const TStringBuf key) {
         TString text;
         Y_ENSURE(NResource::FindExact(key, &text));
@@ -171,7 +142,7 @@ namespace NSQLReflect {
         grammar.BlockByName.emplace(std::move(name), std::move(block));
     }
 
-    ILexerGrammar::TPtr LoadLexerGrammar() {
+    TLexerGrammar LoadLexerGrammar() {
         TVector<TString> lines = GetResourceLines("SQLv1Antlr4.g.in");
         Purify(lines);
         Format(lines);
@@ -180,16 +151,16 @@ namespace NSQLReflect {
         THashMap<TStringBuf, TVector<TString>> sections;
         sections = GroupBySection(std::move(lines));
 
-        auto grammar = MakeHolder<TLexerGrammar>();
+        TLexerGrammar grammar;
 
         for (auto& [section, lines] : sections) {
             for (auto& line : lines) {
                 if (section == SectionPunctuation) {
-                    ParsePunctuationLine(std::move(line), *grammar);
+                    ParsePunctuationLine(std::move(line), grammar);
                 } else if (section == SectionKeyword) {
-                    ParseKeywordLine(std::move(line), *grammar);
+                    ParseKeywordLine(std::move(line), grammar);
                 } else if (section == SectionOther) {
-                    ParseOtherLine(std::move(line), *grammar);
+                    ParseOtherLine(std::move(line), grammar);
                 } else {
                     Y_ABORT("Unexpected section %s", section);
                 }

@@ -5,8 +5,8 @@
 using namespace NSQLTranslationV1;
 
 namespace {
-    auto meta = NSQLReflect::GetLexerGrammar();
-    auto regexes = GetRegexByComplexTokenMap(meta, /* ansi = */ false);
+    auto grammar = NSQLReflect::LoadLexerGrammar();
+    auto regexes = GetRegexByComplexTokenMap(grammar, /* ansi = */ false);
 } // namespace
 
 Y_UNIT_TEST_SUITE(SqlRegexTests) {

@@ -6,19 +6,13 @@
 
 namespace NSQLReflect {
 
-    class ILexerGrammar {
-    public:
-        using TPtr = THolder<ILexerGrammar>;
-
-        virtual const THashSet<TString>& GetKeywordNames() const = 0;
-        virtual const THashSet<TString>& GetPunctuationNames() const = 0;
-        virtual const THashSet<TString>& GetOtherNames() const = 0;
-
-        virtual const TString& GetBlockByName(const TString& name) const = 0;
-
-        virtual ~ILexerGrammar() = default;
+    struct TLexerGrammar {
+        THashSet<TString> KeywordNames;
+        THashSet<TString> PunctuationNames;
+        THashSet<TString> OtherNames;
+        THashMap<TString, TString> BlockByName;
     };
 
-    ILexerGrammar::TPtr LoadLexerGrammar();
+    TLexerGrammar LoadLexerGrammar();
 
 } // namespace NSQLReflect

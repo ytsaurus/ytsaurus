@@ -28,7 +28,7 @@ TString Tokenized(const TString& query) {
     TParsedTokenList tokens;
     TIssues issues;
     bool ok = Tokenize(*Lexer, query, "Test", tokens, issues, SQL_MAX_PARSER_ERRORS);
-    
+
     TString out;
     if (!ok) {
         out = "[INVALID] ";

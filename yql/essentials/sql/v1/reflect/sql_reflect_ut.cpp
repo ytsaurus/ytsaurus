@@ -5,41 +5,41 @@
 using namespace NSQLReflect;
 
 namespace {
-    auto grammar = LoadLexerGrammar();
+    TLexerGrammar grammar = LoadLexerGrammar();
 } // namespace
 
 Y_UNIT_TEST_SUITE(SqlReflectTests) {
     Y_UNIT_TEST(Keywords) {
-        UNIT_ASSERT_VALUES_EQUAL(grammar->GetKeywordNames().contains("SELECT"), true);
-        UNIT_ASSERT_VALUES_EQUAL(grammar->GetKeywordNames().contains("INSERT"), true);
-        UNIT_ASSERT_VALUES_EQUAL(grammar->GetKeywordNames().contains("WHERE"), true);
-        UNIT_ASSERT_VALUES_EQUAL(grammar->GetKeywordNames().contains("COMMIT"), true);
+        UNIT_ASSERT_VALUES_EQUAL(grammar.KeywordNames.contains("SELECT"), true);
+        UNIT_ASSERT_VALUES_EQUAL(grammar.KeywordNames.contains("INSERT"), true);
+        UNIT_ASSERT_VALUES_EQUAL(grammar.KeywordNames.contains("WHERE"), true);
+        UNIT_ASSERT_VALUES_EQUAL(grammar.KeywordNames.contains("COMMIT"), true);
     }
 
     Y_UNIT_TEST(Punctuation) {
-        UNIT_ASSERT_VALUES_EQUAL(grammar->GetPunctuationNames().contains("LPAREN"), true);
-        UNIT_ASSERT_VALUES_EQUAL(grammar->GetBlockByName("LPAREN"), "(");
+        UNIT_ASSERT_VALUES_EQUAL(grammar.PunctuationNames.contains("LPAREN"), true);
+        UNIT_ASSERT_VALUES_EQUAL(grammar.BlockByName.at("LPAREN"), "(");
 
-        UNIT_ASSERT_VALUES_EQUAL(grammar->GetPunctuationNames().contains("MINUS"), true);
-        UNIT_ASSERT_VALUES_EQUAL(grammar->GetBlockByName("MINUS"), "-");
+        UNIT_ASSERT_VALUES_EQUAL(grammar.PunctuationNames.contains("MINUS"), true);
+        UNIT_ASSERT_VALUES_EQUAL(grammar.BlockByName.at("MINUS"), "-");
 
-        UNIT_ASSERT_VALUES_EQUAL(grammar->GetPunctuationNames().contains("NAMESPACE"), true);
-        UNIT_ASSERT_VALUES_EQUAL(grammar->GetBlockByName("NAMESPACE"), "::");
+        UNIT_ASSERT_VALUES_EQUAL(grammar.PunctuationNames.contains("NAMESPACE"), true);
+        UNIT_ASSERT_VALUES_EQUAL(grammar.BlockByName.at("NAMESPACE"), "::");
     }
 
     Y_UNIT_TEST(Other) {
-        UNIT_ASSERT_VALUES_EQUAL(grammar->GetOtherNames().contains("REAL"), true);
-        UNIT_ASSERT_VALUES_EQUAL(grammar->GetOtherNames().contains("STRING_VALUE"), true);
-        UNIT_ASSERT_VALUES_EQUAL(grammar->GetOtherNames().contains("STRING_MULTILINE"), false);
+        UNIT_ASSERT_VALUES_EQUAL(grammar.OtherNames.contains("REAL"), true);
+        UNIT_ASSERT_VALUES_EQUAL(grammar.OtherNames.contains("STRING_VALUE"), true);
+        UNIT_ASSERT_VALUES_EQUAL(grammar.OtherNames.contains("STRING_MULTILINE"), false);
 
         UNIT_ASSERT_VALUES_EQUAL(
-            grammar->GetBlockByName("FLOAT_EXP"),
+            grammar.BlockByName.at("FLOAT_EXP"),
             "E (PLUS | MINUS)? DECDIGITS");
         UNIT_ASSERT_VALUES_EQUAL(
-            grammar->GetBlockByName("STRING_MULTILINE"),
+            grammar.BlockByName.at("STRING_MULTILINE"),
             "(DOUBLE_COMMAT .*? DOUBLE_COMMAT)+ COMMAT?");
         UNIT_ASSERT_VALUES_EQUAL(
-            grammar->GetBlockByName("REAL"),
+            grammar.BlockByName.at("REAL"),
             "(DECDIGITS DOT DIGIT* FLOAT_EXP? | DECDIGITS FLOAT_EXP) (F | P (F ('4' | '8') | N)?)?");
     }
 
