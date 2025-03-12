@@ -12,6 +12,9 @@ using NSQLTranslation::TParsedToken;
 using NSQLTranslation::TParsedTokenList;
 using NYql::TIssues;
 
+auto DefaultLexer = MakeRegexLexer(/* ansi = */ false);
+auto AnsiLexer = MakeRegexLexer(/* ansi = */ true);
+
 TString ToString(TParsedToken token) {
     TString& string = token.Name;
     if (token.Name != token.Content) {
@@ -22,12 +25,10 @@ TString ToString(TParsedToken token) {
     return string;
 }
 
-TString Tokenized(const TString& query) {
-    static auto Lexer = MakeRegexLexer(/* ansi = */ false);
-
+TString Tokenized(NSQLTranslation::ILexer& lexer, const TString& query) {
     TParsedTokenList tokens;
     TIssues issues;
-    bool ok = Tokenize(*Lexer, query, "Test", tokens, issues, SQL_MAX_PARSER_ERRORS);
+    bool ok = Tokenize(lexer, query, "Test", tokens, issues, SQL_MAX_PARSER_ERRORS);
 
     TString out;
     if (!ok) {
@@ -44,9 +45,17 @@ TString Tokenized(const TString& query) {
     return out;
 }
 
+void Check(TString input, TString expected, bool ansi) {
+    auto* lexer = DefaultLexer.Get();
+    if (ansi) {
+        lexer = AnsiLexer.Get();
+    }
+    UNIT_ASSERT_VALUES_EQUAL(Tokenized(*lexer, input), expected);
+}
+
 void Check(TString input, TString expected) {
-    TString actual = Tokenized(input);
-    UNIT_ASSERT_VALUES_EQUAL(actual, expected);
+    Check(input, expected, /* ansi = */ false);
+    Check(input, expected, /* ansi = */ true);
 }
 
 Y_UNIT_TEST_SUITE(RegexLexerTests) {
@@ -101,7 +110,12 @@ Y_UNIT_TEST_SUITE(RegexLexerTests) {
         Check("\' \'", "STRING_VALUE(\' \')");
         Check("\" \"", "STRING_VALUE(\" \")");
         Check("\"test\"", "STRING_VALUE(\"test\")");
-        Check("\"\\\"\"", "STRING_VALUE(\"\\\"\")");
+
+        Check("\"\\\"\"", "STRING_VALUE(\"\\\"\")", /* ansi = */ false);
+        Check("\"\\\"\"", "[INVALID] STRING_VALUE(\"\\\")", /* ansi = */ true);
+
+        Check("\"\"\"\"", "STRING_VALUE(\"\") STRING_VALUE(\"\")", /* ansi = */ false);
+        Check("\"\"\"\"", "STRING_VALUE(\"\"\"\")", /* ansi = */ true);
     }
 
     Y_UNIT_TEST(MultiLineString) {
