@@ -5,243 +5,198 @@
 #include <util/string/split.h>
 #include <util/string/strip.h>
 
-// TODO(vityaman): remove before a code review.
-// #include <iostream>
-
 namespace NSQLReflect {
-    namespace {
-        const TStringBuf ReflectPrefix = "//!";
-        const TStringBuf SectionPrefix = "//! section:";
-        const TStringBuf SectionPunctuation = "//! section:punctuation";
-        const TStringBuf SectionLetter = "//! section:letter";
-        const TStringBuf SectionKeyword = "//! section:keyword";
-        const TStringBuf SectionOther = "//! section:other";
-        const TStringBuf SubstPrefix = "//! subst:";
-        const TStringBuf FragmentPrefix = "fragment ";
 
-        TVector<TString> GetResourceLines(const TStringBuf key) {
-            TString text;
-            Y_ENSURE(NResource::FindExact(key, &text));
+    const TStringBuf ReflectPrefix = "//!";
+    const TStringBuf SectionPrefix = "//! section:";
+    const TStringBuf SectionPunctuation = "//! section:punctuation";
+    const TStringBuf SectionLetter = "//! section:letter";
+    const TStringBuf SectionKeyword = "//! section:keyword";
+    const TStringBuf SectionOther = "//! section:other";
+    const TStringBuf FragmentPrefix = "fragment ";
 
-            TVector<TString> lines;
-            Split(text, "\n", lines);
-            return lines;
+    class TLexerGrammar: public ILexerGrammar {
+    public:
+        const THashSet<TString>& GetKeywords() const override {
+            return Keywords;
         }
 
-        void Format(TVector<TString>& lines) {
-            for (size_t i = 0; i < lines.size(); ++i) {
-                auto& line = lines[i];
-
-                StripInPlace(line);
-
-                if (line.StartsWith("//") || (line.Contains(':') && line.Contains(';'))) {
-                    continue;
-                }
-
-                size_t j = i + 1;
-                do {
-                    line += lines.at(j);
-                } while (!lines.at(j++).Contains(';'));
-
-                auto first = std::next(std::begin(lines), i + 1);
-                auto last = std::next(std::begin(lines), j);
-                lines.erase(first, last);
-            }
-
-            for (auto& line : lines) {
-                CollapseInPlace(line);
-                SubstGlobal(line, " ;", ";");
-                SubstGlobal(line, " :", ":");
-                SubstGlobal(line, " )", ")");
-                SubstGlobal(line, "( ", "(");
-            }
+        const THashSet<TString>& GetPunctuation() const override {
+            return Punctuation;
         }
 
-        void Purify(TVector<TString>& lines) {
-            const auto [first, last] = std::ranges::remove_if(lines, [](const TString& line) {
-                return (line.StartsWith("//") && !line.StartsWith(ReflectPrefix)) || line.empty();
-            });
+        const THashSet<TString>& GetOther() const override {
+            return Other;
+        }
+
+        const TString& GetContentByName(const TString& name) const override {
+            auto it = ContentByName.find(name);
+            if (it != ContentByName.end()) {
+                return it->second;
+            }
+            Y_ENSURE(GetKeywords().contains(name));
+            return name;
+        }
+
+        THashSet<TString> Keywords;
+        THashSet<TString> Punctuation;
+        THashSet<TString> Other;
+        THashMap<TString, TString> ContentByName;
+    };
+
+    TVector<TString> GetResourceLines(const TStringBuf key) {
+        TString text;
+        Y_ENSURE(NResource::FindExact(key, &text));
+
+        TVector<TString> lines;
+        Split(text, "\n", lines);
+        return lines;
+    }
+
+    void Format(TVector<TString>& lines) {
+        for (size_t i = 0; i < lines.size(); ++i) {
+            auto& line = lines[i];
+
+            StripInPlace(line);
+
+            if (line.StartsWith("//") || (line.Contains(':') && line.Contains(';'))) {
+                continue;
+            }
+
+            size_t j = i + 1;
+            do {
+                line += lines.at(j);
+            } while (!lines.at(j++).Contains(';'));
+
+            auto first = std::next(std::begin(lines), i + 1);
+            auto last = std::next(std::begin(lines), j);
             lines.erase(first, last);
         }
 
-        THashMap<TString, THashMap<TString, TString>> ExtractSubstitutions(TVector<TString>& lines) {
-            THashMap<TString, THashMap<TString, TString>> substitutions;
+        for (auto& line : lines) {
+            CollapseInPlace(line);
+            SubstGlobal(line, " ;", ";");
+            SubstGlobal(line, " :", ":");
+            SubstGlobal(line, " )", ")");
+            SubstGlobal(line, "( ", "(");
+        }
+    }
 
-            for (auto& line : lines) {
-                if (!line.StartsWith(SubstPrefix)) {
-                    continue;
-                }
+    void Purify(TVector<TString>& lines) {
+        const auto [first, last] = std::ranges::remove_if(lines, [](const TString& line) {
+            return (line.StartsWith("//") && !line.StartsWith(ReflectPrefix)) || line.empty();
+        });
+        lines.erase(first, last);
+    }
 
-                SubstGlobal(line, SubstPrefix, "");
-                SubstGlobal(line, " GRAMMAR", "$$GRAMMAR");
-                SubstGlobal(line, " = ", "$$");
+    THashMap<TStringBuf, TVector<TString>> GroupBySection(TVector<TString>&& lines) {
+        TVector<TStringBuf> sections = {
+            "",
+            SectionPunctuation,
+            SectionLetter,
+            SectionKeyword,
+            SectionOther,
+        };
 
-                TVector<TString> parts;
-                Split(line, "$$", parts);
-                Y_ENSURE(parts.size() == 3);
+        size_t section = 0;
 
-                substitutions[std::move(parts[0])][std::move(parts[1])] = std::move(parts[2]);
+        THashMap<TStringBuf, TVector<TString>> groups;
+        for (auto& line : lines) {
+            if (line.StartsWith(SectionPrefix)) {
+                Y_ENSURE(sections.at(section + 1) == line);
+                section += 1;
+                continue;
             }
 
-            const auto [first, last] = std::ranges::remove_if(lines, [](const TString& line) {
-                return line.Contains("$$");
-            });
-            lines.erase(first, last);
-
-            return substitutions;
+            groups[sections.at(section)].emplace_back(std::move(line));
         }
 
-        THashMap<TStringBuf, TVector<TString>> GroupBySection(TVector<TString>&& lines) {
-            TVector<TStringBuf> sections = {
-                "",
-                SectionPunctuation,
-                SectionLetter,
-                SectionKeyword,
-                SectionOther,
-            };
+        groups.erase("");
+        groups.erase(SectionLetter);
 
-            size_t section = 0;
+        return groups;
+    }
 
-            THashMap<TStringBuf, TVector<TString>> groups;
-            for (auto& line : lines) {
-                if (line.StartsWith(SectionPrefix)) {
-                    Y_ENSURE(sections.at(section + 1) == line);
-                    section += 1;
-                    continue;
-                }
+    std::tuple<TString, TString> ParseLexerRule(TString&& line) {
+        size_t colonPos = line.find(':');
+        size_t semiPos = line.rfind(';');
 
-                groups[sections.at(section)].emplace_back(std::move(line));
-            }
+        Y_ENSURE(
+            colonPos != TString::npos &&
+            semiPos != TString::npos &&
+            colonPos < semiPos);
 
-            groups.erase("");
-            groups.erase(SectionLetter);
+        TString content = line.substr(colonPos + 2, semiPos - colonPos - 2);
+        SubstGlobal(content, "\\\\", "\\");
 
-            return groups;
+        TString name = std::move(line);
+        name.resize(colonPos);
+
+        return std::make_tuple(std::move(name), std::move(content));
+    }
+
+    void ParsePunctuationLine(TString&& line, TLexerGrammar& grammar) {
+        auto [name, content] = ParseLexerRule(std::move(line));
+        content = content.erase(std::begin(content));
+        content.pop_back();
+
+        SubstGlobal(content, "\\\'", "\'");
+
+        if (!name.StartsWith(FragmentPrefix)) {
+            grammar.Punctuation.emplace(name);
         }
 
-        std::tuple<TString, TString> ParseLexerRule(TString&& line) {
-            size_t colonPos = line.find(':');
-            size_t semiPos = line.rfind(';');
+        SubstGlobal(name, FragmentPrefix, "");
+        grammar.ContentByName.emplace(std::move(name), std::move(content));
+    }
 
-            Y_ENSURE(
-                colonPos != TString::npos &&
-                semiPos != TString::npos &&
-                colonPos < semiPos);
+    void ParseKeywordLine(TString&& line, TLexerGrammar& grammar) {
+        auto [name, content] = ParseLexerRule(std::move(line));
+        SubstGlobal(content, "'", "");
+        SubstGlobal(content, " ", "");
 
-            TString content = line.substr(colonPos + 2, semiPos - colonPos - 2);
-            SubstGlobal(content, "\\\\", "\\");
+        Y_ENSURE(name == content);
+        grammar.Keywords.emplace(std::move(name));
+    }
 
-            TString name = std::move(line);
-            name.resize(colonPos);
+    void ParseOtherLine(TString&& line, TLexerGrammar& grammar) {
+        auto [name, content] = ParseLexerRule(std::move(line));
 
-            return std::make_tuple(std::move(name), std::move(content));
+        if (!name.StartsWith(FragmentPrefix)) {
+            grammar.Other.emplace(name);
         }
 
-        void ParsePunctuationLine(TString&& line, TLexerGrammar& meta) {
-            auto [name, content] = ParseLexerRule(std::move(line));
-            content = content.erase(std::begin(content));
-            content.pop_back();
+        SubstGlobal(name, FragmentPrefix, "");
+        SubstGlobal(content, " -> channel(HIDDEN)", "");
+        grammar.ContentByName.emplace(std::move(name), std::move(content));
+    }
 
-            SubstGlobal(content, "\\\'", "\'");
-
-            if (!name.StartsWith(FragmentPrefix)) {
-                meta.Punctuation.emplace(name);
-            }
-
-            SubstGlobal(name, FragmentPrefix, "");
-            meta.ContentByName.emplace(std::move(name), std::move(content));
-        }
-
-        void ParseKeywordLine(TString&& line, TLexerGrammar& meta) {
-            auto [name, content] = ParseLexerRule(std::move(line));
-            SubstGlobal(content, "'", "");
-            SubstGlobal(content, " ", "");
-
-            Y_ENSURE(name == content);
-            meta.Keywords.emplace(std::move(name));
-        }
-
-        void ParseOtherLine(TString&& line, TLexerGrammar& meta) {
-            auto [name, content] = ParseLexerRule(std::move(line));
-
-            if (!name.StartsWith(FragmentPrefix)) {
-                meta.Other.emplace(name);
-            }
-
-            SubstGlobal(name, FragmentPrefix, "");
-            SubstGlobal(content, " -> channel(HIDDEN)", "");
-            meta.ContentByName.emplace(std::move(name), std::move(content));
-        }
-    } // namespace
-
-    TLexerGrammar GetLexerGrammar() {
+    ILexerGrammar::TPtr LoadLexerGrammar() {
         TVector<TString> lines = GetResourceLines("SQLv1Antlr4.g.in");
         Purify(lines);
         Format(lines);
         Purify(lines);
 
-        auto substitutions = ExtractSubstitutions(lines);
-
         THashMap<TStringBuf, TVector<TString>> sections;
         sections = GroupBySection(std::move(lines));
 
-        TLexerGrammar meta;
-
-        meta.Substitutions = std::move(substitutions);
+        auto grammar = MakeHolder<TLexerGrammar>();
 
         for (auto& [section, lines] : sections) {
             for (auto& line : lines) {
                 if (section == SectionPunctuation) {
-                    ParsePunctuationLine(std::move(line), meta);
+                    ParsePunctuationLine(std::move(line), *grammar);
                 } else if (section == SectionKeyword) {
-                    ParseKeywordLine(std::move(line), meta);
+                    ParseKeywordLine(std::move(line), *grammar);
                 } else if (section == SectionOther) {
-                    ParseOtherLine(std::move(line), meta);
+                    ParseOtherLine(std::move(line), *grammar);
                 } else {
                     Y_ABORT("Unexpected section %s", section);
                 }
             }
         }
 
-        // TODO(vityaman): remove before a code review.
-        // std::cout << ">> Remaining content <<" << std::endl;
-        // for (auto& [section, lines] : sections) {
-        //     std::cout << ">> Section " << section << std::endl;
-        //     for (auto& line : lines) {
-        //         std::cout << line << std::endl;
-        //     }
-        // }
-        // std::cout << std::endl;
-        // std::cout << ">> Meta <<" << std::endl;
-        // std::cout << "Keywords:" << std::endl;
-        // for (const auto& token : meta.Keywords) {
-        //     std::cout << "- " << token << std::endl;
-        // }
-        // std::cout << "Punctuation:" << std::endl;
-        // for (const auto& token : meta.Punctuation) {
-        //     std::cout << "- " << token << ": " << meta.ContentByName.at(token) << std::endl;
-        // }
-        // std::cout << "Other:" << std::endl;
-        // for (const auto& token : meta.Other) {
-        //     std::cout << "- " << token << ": " << meta.ContentByName.at(token) << std::endl;
-        // }
-        // std::cout << "Fragment:" << std::endl;
-        // for (const auto& [name, content] : meta.ContentByName) {
-        //     if (meta.Punctuation.contains(name) || meta.Other.contains(name)) {
-        //         continue;
-        //     }
-        //     std::cout << "- " << name << ": " << content << std::endl;
-        // }
-        // std::cout << "Substitutions:" << std::endl;
-        // for (const auto& [mode, dict] : meta.Substitutions) {
-        //     std::cout << "- " << mode << std::endl;
-        //     for (const auto& [k, v] : dict) {
-        //         std::cout << "  - " << k << ": " << v << std::endl;
-        //     }
-        // }
-        // std::cout << std::endl;
-
-        return meta;
+        return grammar;
     }
 
 } // namespace NSQLReflect
