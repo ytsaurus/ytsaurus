@@ -44,7 +44,9 @@ public:
     TReplicationLogBatchDescriptor ReadReplicationBatch(
         i64 startRowIndex,
         NTransactionClient::TTimestamp upperTimestamp,
-        i64 maxDataWeight);
+        i64 maxDataWeight,
+        i64 readDataWeightLimit,
+        TInstant requestDeadLine);
 
 protected:
     const NTabletNode::TTableMountConfigPtr TableMountConfig_;

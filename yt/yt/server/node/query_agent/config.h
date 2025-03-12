@@ -34,6 +34,8 @@ public:
     bool UseQueryPoolForLookups;
 
     i64 MaxPullQueueResponseDataWeight;
+    double PullRowsTimeoutShare;
+    i64 PullRowsReadDataWeightLimit;
 
     REGISTER_YSON_STRUCT(TQueryAgentConfig);
 

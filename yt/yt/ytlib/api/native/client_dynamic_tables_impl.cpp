@@ -3170,7 +3170,8 @@ private:
                 networks);
 
             TQueryServiceProxy proxy(channel);
-            proxy.SetDefaultTimeout(Options_.Timeout.value_or(connection->GetConfig()->DefaultPullRowsTimeout));
+            auto timeout = Options_.Timeout.value_or(connection->GetConfig()->DefaultPullRowsTimeout);
+            proxy.SetDefaultTimeout(timeout);
             auto req = proxy.PullRows();
             req->set_request_codec(ToProto(connection->GetConfig()->LookupRowsRequestCodec));
             req->set_response_codec(ToProto(connection->GetConfig()->LookupRowsResponseCodec));
@@ -3178,6 +3179,7 @@ private:
             req->set_max_rows_per_read(Options_.TabletRowsPerRead);
             req->set_max_data_weight(MaxDataWeight_);
             req->set_upper_timestamp(Options_.UpperTimestamp);
+            req->set_request_timeout(ToProto(timeout));
             ToProto(req->mutable_tablet_id(), TabletInfo_->TabletId);
             ToProto(req->mutable_cell_id(), TabletInfo_->CellId);
             ToProto(req->mutable_start_replication_progress(), ReplicationProgress_);

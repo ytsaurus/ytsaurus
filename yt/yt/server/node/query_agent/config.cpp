@@ -50,6 +50,15 @@ void TQueryAgentConfig::Register(TRegistrar registrar)
     registrar.Parameter("use_query_pool_for_lookups", &TThis::UseQueryPoolForLookups)
         .Default(false);
 
+    registrar.Parameter("pull_rows_timeout_share", &TThis::PullRowsTimeoutShare)
+        .Default(0.9)
+        .GreaterThan(0.1)
+        .LessThanOrEqual(1.);
+
+    registrar.Parameter("pull_rows_read_data_weight_limit", &TThis::PullRowsReadDataWeightLimit)
+        .GreaterThan(0)
+        .Default(8_GB);
+
     registrar.Preprocessor([] (TThis* config) {
         config->FunctionImplCache->Capacity = 100;
     });
