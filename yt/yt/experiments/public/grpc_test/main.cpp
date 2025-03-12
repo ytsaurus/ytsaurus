@@ -112,7 +112,7 @@ void RunClient(const TString& address, int numIter)
         if (i % 10000 == 0 || i == numIter - 1) {
             Cout << "iteration " << i << Endl;
             auto response = result.Get().ValueOrThrow();
-            Y_ASSERT(response->b() == i + 42);
+            YT_ASSERT(response->b() == i + 42);
         }
     }
     result.Get();
