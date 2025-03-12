@@ -645,23 +645,16 @@ private:
         int splitJobCount)
     {
         i64 dataWeight = 0;
-        i64 compressedDataSize = 0;
         for (auto& dataSlice : unreadInputDataSlices) {
             dataWeight += dataSlice->GetDataWeight();
-            compressedDataSize += dataSlice->GetCompressedDataSize();
         }
 
         for (const auto& dataSlice : foreignInputDataSlices) {
             dataWeight += dataSlice->GetDataWeight();
-            compressedDataSize += dataSlice->GetCompressedDataSize();
         }
         i64 dataWeightPerJob = splitJobCount == 1
             ? std::numeric_limits<i64>::max() / 4
             : DivCeil(dataWeight, static_cast<i64>(splitJobCount));
-
-        i64 maxCompressedDataSizePerJob = splitJobCount == 1
-            ? std::numeric_limits<i64>::max() / 4
-            : DivCeil(compressedDataSize, static_cast<i64>(splitJobCount));
 
         i64 maxDataSlicesPerJob = splitJobCount == 1
             ? std::numeric_limits<i64>::max() / 4
@@ -678,7 +671,7 @@ private:
             maxDataSlicesPerJob,
             JobSizeConstraints_->GetMaxDataWeightPerJob(),
             JobSizeConstraints_->GetMaxPrimaryDataWeightPerJob(),
-            maxCompressedDataSizePerJob,
+            JobSizeConstraints_->GetMaxCompressedDataSizePerJob(),
             JobSizeConstraints_->GetInputSliceDataWeight(),
             JobSizeConstraints_->GetInputSliceRowCount(),
             JobSizeConstraints_->GetBatchRowCount(),

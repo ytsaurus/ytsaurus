@@ -688,11 +688,9 @@ private:
         }
 
         i64 dataWeight = 0;
-        i64 compressedDataSize = 0;
         for (auto& dataSlice : unreadInputDataSlices) {
             YT_VERIFY(!dataSlice->IsLegacy);
             dataWeight += dataSlice->GetDataWeight();
-            compressedDataSize += dataSlice->GetCompressedDataSize();
         }
 
         for (const auto& dataSlice : foreignInputDataSlices) {
@@ -701,9 +699,6 @@ private:
         i64 dataWeightPerJob = splitJobCount == 1
             ? std::numeric_limits<i64>::max() / 4
             : DivCeil(dataWeight, static_cast<i64>(splitJobCount));
-        i64 maxCompressedDataSizePerJob = splitJobCount == 1
-            ? std::numeric_limits<i64>::max() / 4
-            : DivCeil(compressedDataSize, static_cast<i64>(splitJobCount));
 
         // We create new job size constraints by incorporating the new desired data size per job
         // into the old job size constraints.
@@ -716,7 +711,7 @@ private:
             JobSizeConstraints_->GetMaxDataSlicesPerJob(),
             JobSizeConstraints_->GetMaxDataWeightPerJob(),
             JobSizeConstraints_->GetMaxPrimaryDataWeightPerJob(),
-            maxCompressedDataSizePerJob,
+            JobSizeConstraints_->GetMaxCompressedDataSizePerJob(),
             JobSizeConstraints_->GetInputSliceDataWeight(),
             JobSizeConstraints_->GetInputSliceRowCount(),
             JobSizeConstraints_->GetBatchRowCount(),
