@@ -1015,6 +1015,7 @@ public:
 
         Y_ABORT_UNLESS(outputs.size() == 0);
         Processed_ = false;
+        RawCombine_->Start(context);
     }
 
     void Do(const void* rows, int count) override
@@ -1113,6 +1114,7 @@ public:
         Y_ABORT_UNLESS(outputs.size() == 1);
         Processed_ = false;
         Output_ = outputs[0];
+        RawCombine_->Start(context);
     }
 
     void Do(const void* rows, int count) override
