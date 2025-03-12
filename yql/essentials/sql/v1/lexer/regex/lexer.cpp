@@ -57,46 +57,75 @@ namespace NSQLTranslationV1 {
     private:
         TParsedToken Match(const TStringBuf prefix) {
             TParsedTokenList matches;
-            MatchKeyword(prefix, matches);
-            MatchPunctuation(prefix, matches);
-            MatchRegex(prefix, matches);
 
-            auto it = MaxElementBy(matches, [](const TParsedToken& matched) {
-                return matched.Content.length();
+            size_t keywordCount = MatchKeyword(prefix, matches);
+            MatchPunctuation(prefix, matches);
+            size_t otherCount = MatchRegex(prefix, matches);
+
+            auto max = MaxElementBy(matches, [](const TParsedToken& m) {
+                return m.Content.length();
             });
 
-            if (it == std::end(matches)) {
+            if (max == std::end(matches)) {
                 return {};
             }
 
-            Y_ENSURE(!it->Content.empty());
-            return *it;
+            auto isMatched = [&](const TStringBuf name) {
+                return std::end(matches) != FindIf(matches, [&](const auto& m) {
+                           return m.Name == name;
+                       });
+            };
+
+            Y_ENSURE(
+                otherCount <= 1 ||
+                (otherCount == 2 && isMatched("DIGITS") && isMatched("INTEGER_VALUE")));
+
+            size_t conflicts = CountIf(matches, [&](const TParsedToken& m) {
+                return m.Content.length() == max->Content.length();
+            });
+            conflicts -= 1;
+            Y_ENSURE(
+                conflicts == 0 ||
+                (conflicts == 1 && keywordCount != 0 && isMatched("ID_PLAIN")) ||
+                (conflicts == 1 && isMatched("DIGITS") && isMatched("INTEGER_VALUE")));
+
+            Y_ENSURE(!max->Content.empty());
+            return *max;
         }
 
-        void MatchKeyword(const TStringBuf prefix, TParsedTokenList& matches) {
+        bool MatchKeyword(const TStringBuf prefix, TParsedTokenList& matches) {
+            size_t count = 0;
             for (const auto& keyword : Grammar_.KeywordNames) {
                 if (prefix.substr(0, keyword.length()) == keyword) {
                     matches.emplace_back(keyword, keyword);
+                    count += 1;
                 }
             }
+            return count;
         }
 
-        void MatchPunctuation(const TStringBuf prefix, TParsedTokenList& matches) {
+        size_t MatchPunctuation(const TStringBuf prefix, TParsedTokenList& matches) {
+            size_t count = 0;
             for (const auto& name : Grammar_.PunctuationNames) {
                 const auto& content = Grammar_.BlockByName.at(name);
                 if (prefix.substr(0, content.length()) == content) {
                     matches.emplace_back(name, content);
+                    count += 1;
                 }
             }
+            return count;
         }
 
-        void MatchRegex(const TStringBuf prefix, TParsedTokenList& matches) {
+        size_t MatchRegex(const TStringBuf prefix, TParsedTokenList& matches) {
+            size_t count = 0;
             for (const auto& [token, regex] : OtherRegexes_) {
                 std::smatch match;
                 if (std::regex_search(prefix.data(), match, regex, std::regex_constants::match_continuous)) {
                     matches.emplace_back(token, match.str(0));
+                    count += 1;
                 }
             }
+            return count;
         }
 
         NSQLReflect::TLexerGrammar Grammar_;
