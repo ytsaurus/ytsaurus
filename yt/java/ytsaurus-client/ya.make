@@ -57,4 +57,5 @@ END()
 RECURSE_FOR_TESTS(
     src/test
     src/test-integration
+    src/test-multicell
 )

@@ -3,7 +3,7 @@ package tech.ytsaurus.client;
 import java.net.InetSocketAddress;
 import java.util.Objects;
 
-class HostPort {
+public class HostPort {
     final String host;
     final int port;
 

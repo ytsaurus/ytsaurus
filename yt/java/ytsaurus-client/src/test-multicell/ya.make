@@ -9,9 +9,9 @@ JDK_VERSION(11)
 ENV(YT_STUFF_MAX_START_RETRIES=10)
 
 IF(OS_LINUX AND NOT OPENSOURCE)
-    SET(YT_CONFIG_PATCH {wait_tablet_cell_initialization=%true;node_count=2;node_config={bus_server={bind_retry_count=1}};rpc_proxy_count=1;rpc_proxy_config={enable_shuffle_service=%true}})
+    SET(YT_CONFIG_PATCH {wait_tablet_cell_initialization=%true;node_count=2;node_config={bus_server={bind_retry_count=1}};rpc_proxy_count=1})
 
-    INCLUDE(${ARCADIA_ROOT}/yt/recipe/basic/recipe.inc)
+    INCLUDE(${ARCADIA_ROOT}/mapreduce/yt/python/recipe/recipe_with_multicells.inc)
 
     REQUIREMENTS(
         ram_disk:4
@@ -28,6 +28,7 @@ PEERDIR(
     contrib/java/junit/junit
     contrib/java/org/apache/logging/log4j/log4j-core
     contrib/java/org/apache/logging/log4j/log4j-slf4j-impl
+    contrib/java/org/testcontainers/testcontainers
     contrib/java/javax/persistence/persistence-api/1.0
     contrib/java/com/fasterxml/jackson/core/jackson-core
     contrib/java/com/fasterxml/jackson/core/jackson-databind
@@ -45,6 +46,7 @@ DEPENDENCY_MANAGEMENT(
     contrib/java/org/apache/logging/log4j/log4j-core/2.13.1
     contrib/java/org/apache/logging/log4j/log4j-slf4j-impl/2.13.1
     contrib/java/org/hamcrest/hamcrest/2.2
+    contrib/java/org/testcontainers/testcontainers/1.17.0
 )
 
 LINT(extended)

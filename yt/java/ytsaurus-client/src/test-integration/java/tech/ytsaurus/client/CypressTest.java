@@ -32,8 +32,8 @@ public class CypressTest extends YTsaurusClientTestBase {
         TestingOptions testingOptions = new TestingOptions().setOutageController(outageController);
 
         var ytFixture = createYtFixture(new RpcOptions().setTestingOptions(testingOptions));
-        var tablePath = ytFixture.testDirectory.child("static-table");
-        var yt = ytFixture.yt;
+        var tablePath = ytFixture.getTestDirectory().child("static-table");
+        var yt = ytFixture.getYt();
 
         yt.existsNode(tablePath.toString()).get(2, TimeUnit.SECONDS);
 
@@ -60,8 +60,8 @@ public class CypressTest extends YTsaurusClientTestBase {
         TestingOptions testingOptions = new TestingOptions().setOutageController(outageController);
 
         var ytFixture = createYtFixture(new RpcOptions().setTestingOptions(testingOptions));
-        var tablePath = ytFixture.testDirectory.child("static-table");
-        var yt = ytFixture.yt;
+        var tablePath = ytFixture.getTestDirectory().child("static-table");
+        var yt = ytFixture.getYt();
 
         yt.existsNode(tablePath.toString()).get(2, TimeUnit.SECONDS);
 
@@ -87,8 +87,8 @@ public class CypressTest extends YTsaurusClientTestBase {
     @Test(timeout = 1000000)
     public void testBanningProxyReadingWritingTable() throws Exception {
         var ytFixture = createYtFixture();
-        var tablePath = ytFixture.testDirectory.child("static-table");
-        var yt = ytFixture.yt;
+        var tablePath = ytFixture.getTestDirectory().child("static-table");
+        var yt = ytFixture.getYt();
 
         // Create some test data.
         List<TableRow> data = new ArrayList<>();
@@ -162,8 +162,8 @@ public class CypressTest extends YTsaurusClientTestBase {
     @Test(timeout = 1000000)
     public void testBanningProxyReadingWritingFile() throws Exception {
         var ytFixture = createYtFixture();
-        var tablePath = ytFixture.testDirectory.child("static-table");
-        var yt = ytFixture.yt;
+        var tablePath = ytFixture.getTestDirectory().child("static-table");
+        var yt = ytFixture.getYt();
 
         yt.createNode(tablePath.toString(), CypressNodeType.FILE).get(2, TimeUnit.SECONDS);
         var writer = yt.writeFile(
@@ -240,9 +240,9 @@ public class CypressTest extends YTsaurusClientTestBase {
     @Test
     public void testMutationId() {
         var fixture = createYtFixture();
-        var yt = fixture.yt;
+        var yt = fixture.getYt();
 
-        var testPath = fixture.testDirectory.child("some-document");
+        var testPath = fixture.getTestDirectory().child("some-document");
 
         yt.createNode(CreateNode.builder()
                 .setPath(testPath)
@@ -266,8 +266,8 @@ public class CypressTest extends YTsaurusClientTestBase {
         rpcOptions.setChannelPoolSize(1);
 
         var fixture = createYtFixture();
-        var yt = fixture.yt;
-        var testPath = fixture.testDirectory.child("value");
+        var yt = fixture.getYt();
+        var testPath = fixture.getTestDirectory().child("value");
         final var expectedValue = YTree.integerNode(42);
         yt.setNode(testPath.toString(), expectedValue).join();
         var aliveDestinations = yt.getAliveDestinations();

@@ -40,6 +40,9 @@ public class MoveNode
                 .setPreserveAccount(preserveAccount)
                 .setPreserveExpirationTime(preserveExpirationTime);
 
+        if (enableCrossCellCopying != null) {
+            builder.setEnableCrossCellCopying(enableCrossCellCopying);
+        }
         if (transactionalOptions != null) {
             builder.setTransactionalOptions(transactionalOptions.writeTo(TTransactionalOptions.newBuilder()));
         }
@@ -63,6 +66,7 @@ public class MoveNode
                 .setPreserveExpirationTime(preserveExpirationTime)
                 .setPreserveCreationTime(preserveCreationTime)
                 .setIgnoreExisting(ignoreExisting)
+                .setEnableCrossCellCopying(enableCrossCellCopying)
                 .setTransactionalOptions(transactionalOptions != null
                         ? new TransactionalOptions(transactionalOptions)
                         : null)
