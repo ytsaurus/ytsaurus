@@ -114,7 +114,7 @@ namespace NSQLTranslationV1 {
         return next;
     }
 
-    THashMap<TString, TString> MakeRegexByTokenNameMap(const NSQLReflect::TLexerGrammar& grammar, bool ansi) {
+    THashMap<TString, TString> MakeRegexByOtherNameMap(const NSQLReflect::TLexerGrammar& grammar, bool ansi) {
         TString mode = "DEFAULT";
         if (ansi) {
             mode = "ANSI";

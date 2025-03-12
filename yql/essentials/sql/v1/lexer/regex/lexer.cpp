@@ -20,7 +20,7 @@ namespace NSQLTranslationV1 {
         TRegexLexer(bool ansi, NSQLReflect::TLexerGrammar grammar)
             : Grammar_(std::move(grammar))
         {
-            for (auto& [token, regex] : MakeRegexByTokenNameMap(Grammar_, ansi)) {
+            for (auto& [token, regex] : MakeRegexByOtherNameMap(Grammar_, ansi)) {
                 OtherRegexes_.emplace(std::move(token), std::string(std::move(regex)));
             }
         }

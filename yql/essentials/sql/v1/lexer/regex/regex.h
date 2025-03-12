@@ -6,6 +6,9 @@
 
 namespace NSQLTranslationV1 {
 
-    THashMap<TString, TString> MakeRegexByTokenNameMap(const NSQLReflect::TLexerGrammar& grammar, bool ansi);
+    // Makes regexes only for tokens from OtherNames,
+    // as keywords and punctuation are trivially matched.
+    THashMap<TString, TString> MakeRegexByOtherNameMap(
+        const NSQLReflect::TLexerGrammar& grammar, bool ansi);
 
 } // namespace NSQLTranslationV1
