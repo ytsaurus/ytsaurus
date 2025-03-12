@@ -95,6 +95,8 @@ public:
     // COMPAT(koloshmet)
     bool EnablePreserveAclDuringMove;
 
+    i64 MaxAttributeFilterSizeToLog;
+
     REGISTER_YSON_STRUCT(TDynamicCypressManagerConfig);
 
     static void Register(TRegistrar registrar);
