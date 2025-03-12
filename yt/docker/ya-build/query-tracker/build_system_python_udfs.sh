@@ -4,12 +4,14 @@
 # It is a separate script because it depends on environment(local pythons).
 
 # Required environment variables:
+# YTSAURUS_SOURCE_PATH - path to the ytsaurus source root.
 # YQL_BUILD_PATH - path to the build directory. All artifacts will be placed here.
 # BUILD_FLAGS - flags to pass to ya make when building.
 
 set -eux
 shopt -s expand_aliases
 
+export YTSAURUS_SOURCE_PATH=$(realpath $YTSAURUS_SOURCE_PATH)
 export YQL_BUILD_PATH=$(realpath $YQL_BUILD_PATH)
 
 mkdir -p $YQL_BUILD_PATH
