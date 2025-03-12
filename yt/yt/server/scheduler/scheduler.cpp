@@ -1486,69 +1486,46 @@ public:
                 .Item("source_wt").Value((finishTime - TInstant()).Seconds());
         };
 
-        if (Config_->ResourceMetering->EnableSeparateSchemaForAllocation) {
-            for (auto [startTime, finishTime] : SplitTimeIntervalByHours(previousLogTime, currentTime)) {
-                auto usageQuantity = (finishTime - startTime).MilliSeconds();
-                buildCommonLogEventPart("yt.scheduler.pools.compute_guarantee.v1", usageQuantity, startTime, finishTime)
-                    .Item("tags").BeginMap()
-                        .Item("strong_guarantee_resources").Value(statistics.StrongGuaranteeResources())
-                        .Item("resource_flow").Value(statistics.ResourceFlow())
-                        .Item("burst_guarantee_resources").Value(statistics.BurstGuaranteeResources())
-                        .Item("cluster").Value(ClusterName_)
-                        .Item("gpu_type").Value(GuessGpuType(key.TreeId))
-                        .DoFor(otherTags, [] (TFluentMap fluent, const std::pair<TString, TString>& pair) {
-                            fluent.Item(pair.first).Value(pair.second);
-                        })
-                        .DoFor(key.MeteringTags, [] (TFluentMap fluent, const std::pair<TString, TString>& pair) {
-                            fluent.Item(pair.first).Value(pair.second);
-                        })
-                    .EndMap();
-                GuaranteesMeteringRecordCountCounter_.Increment();
-                GuaranteesMeteringUsageQuantityCounter_.Increment(usageQuantity);
-            }
+        for (auto [startTime, finishTime] : SplitTimeIntervalByHours(previousLogTime, currentTime)) {
+            auto usageQuantity = (finishTime - startTime).MilliSeconds();
+            buildCommonLogEventPart("yt.scheduler.pools.compute_guarantee.v1", usageQuantity, startTime, finishTime)
+                .Item("tags").BeginMap()
+                    .Item("strong_guarantee_resources").Value(statistics.StrongGuaranteeResources())
+                    .Item("resource_flow").Value(statistics.ResourceFlow())
+                    .Item("burst_guarantee_resources").Value(statistics.BurstGuaranteeResources())
+                    .Item("cluster").Value(ClusterName_)
+                    .Item("gpu_type").Value(GuessGpuType(key.TreeId))
+                    .DoFor(otherTags, [] (TFluentMap fluent, const std::pair<TString, TString>& pair) {
+                        fluent.Item(pair.first).Value(pair.second);
+                    })
+                    .DoFor(key.MeteringTags, [] (TFluentMap fluent, const std::pair<TString, TString>& pair) {
+                        fluent.Item(pair.first).Value(pair.second);
+                    })
+                .EndMap();
+            GuaranteesMeteringRecordCountCounter_.Increment();
+            GuaranteesMeteringUsageQuantityCounter_.Increment(usageQuantity);
+        }
 
-            auto usageLogStartTime = std::max(previousLogTime, connectionTime);
-            auto usageDuration = (currentTime - usageLogStartTime).SecondsFloat();
-            auto averageAllocatedResources = statistics.AccumulatedResourceUsage() / usageDuration;
-            for (auto [startTime, finishTime] : SplitTimeIntervalByHours(usageLogStartTime, currentTime)) {
-                double timeRatio = (finishTime - startTime).SecondsFloat() / usageDuration;
-                auto usageQuantity = (finishTime - startTime).MilliSeconds();
-                buildCommonLogEventPart("yt.scheduler.pools.compute_allocation.v1", usageQuantity, startTime, finishTime)
-                    .Item("tags").BeginMap()
-                        .Item("allocated_resources").Value(averageAllocatedResources * timeRatio)
-                        .Item("cluster").Value(ClusterName_)
-                        .Item("gpu_type").Value(GuessGpuType(key.TreeId))
-                        .DoFor(otherTags, [] (TFluentMap fluent, const std::pair<TString, TString>& pair) {
-                            fluent.Item(pair.first).Value(pair.second);
-                        })
-                        .DoFor(key.MeteringTags, [] (TFluentMap fluent, const std::pair<TString, TString>& pair) {
-                            fluent.Item(pair.first).Value(pair.second);
-                        })
-                    .EndMap();
-                AllocationMeteringRecordCountCounter_.Increment();
-                AllocationMeteringUsageQuantityCounter_.Increment(usageQuantity);
-            }
-        } else {
-            for (auto [startTime, finishTime] : SplitTimeIntervalByHours(previousLogTime, currentTime)) {
-                auto usageQuantity = (finishTime - startTime).MilliSeconds();
-                buildCommonLogEventPart("yt.scheduler.pools.compute.v1", usageQuantity, startTime, finishTime)
-                    .Item("tags").BeginMap()
-                        .Item("strong_guarantee_resources").Value(statistics.StrongGuaranteeResources())
-                        .Item("resource_flow").Value(statistics.ResourceFlow())
-                        .Item("burst_guarantee_resources").Value(statistics.BurstGuaranteeResources())
-                        .Item("allocated_resources").Value(statistics.AllocatedResources())
-                        .Item("cluster").Value(ClusterName_)
-                        .Item("gpu_type").Value(GuessGpuType(key.TreeId))
-                        .DoFor(otherTags, [] (TFluentMap fluent, const std::pair<TString, TString>& pair) {
-                            fluent.Item(pair.first).Value(pair.second);
-                        })
-                        .DoFor(key.MeteringTags, [] (TFluentMap fluent, const std::pair<TString, TString>& pair) {
-                            fluent.Item(pair.first).Value(pair.second);
-                        })
-                    .EndMap();
-                MeteringRecordCountCounter_.Increment();
-                MeteringUsageQuantityCounter_.Increment(usageQuantity);
-            }
+        auto usageLogStartTime = std::max(previousLogTime, connectionTime);
+        auto usageDuration = (currentTime - usageLogStartTime).SecondsFloat();
+        auto averageAllocatedResources = statistics.AccumulatedResourceUsage() / usageDuration;
+        for (auto [startTime, finishTime] : SplitTimeIntervalByHours(usageLogStartTime, currentTime)) {
+            double timeRatio = (finishTime - startTime).SecondsFloat() / usageDuration;
+            auto usageQuantity = (finishTime - startTime).MilliSeconds();
+            buildCommonLogEventPart("yt.scheduler.pools.compute_allocation.v1", usageQuantity, startTime, finishTime)
+                .Item("tags").BeginMap()
+                    .Item("allocated_resources").Value(averageAllocatedResources * timeRatio)
+                    .Item("cluster").Value(ClusterName_)
+                    .Item("gpu_type").Value(GuessGpuType(key.TreeId))
+                    .DoFor(otherTags, [] (TFluentMap fluent, const std::pair<TString, TString>& pair) {
+                        fluent.Item(pair.first).Value(pair.second);
+                    })
+                    .DoFor(key.MeteringTags, [] (TFluentMap fluent, const std::pair<TString, TString>& pair) {
+                        fluent.Item(pair.first).Value(pair.second);
+                    })
+                .EndMap();
+            AllocationMeteringRecordCountCounter_.Increment();
+            AllocationMeteringUsageQuantityCounter_.Increment(usageQuantity);
         }
     }
 

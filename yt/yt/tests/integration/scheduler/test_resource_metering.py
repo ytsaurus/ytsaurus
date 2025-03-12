@@ -6,7 +6,7 @@ from yt_env_setup import (
 from yt_commands import (
     authors, print_debug, wait, wait_no_assert,
     create, ls, get, set, exists, create_pool, create_pool_tree,
-    write_table, run_test_vanilla, update_scheduler_config)
+    write_table, run_test_vanilla)
 
 from yt_helpers import profiler_factory, read_structured_log, write_log_barrier
 
@@ -495,57 +495,3 @@ class TestResourceMetering(YTEnvSetup):
         metering_count_sensor = profiler_factory().at_scheduler().counter("scheduler/metering/guarantees/record_count")
 
         wait(lambda: metering_count_sensor.get_delta() > 0)
-
-    @authors("ignat")
-    def test_separate_schema_for_allocation(self):
-        # NB(eshcherbin): Increase metering period to ensure accumulated usage value is averaged over the period.
-        update_scheduler_config("resource_metering_period", 2000)
-        update_scheduler_config("resource_metering/enable_separate_schema_for_allocation", True)
-        set("//sys/pool_trees/default/@config/accumulated_resource_usage_update_period", 100)
-
-        create_pool(
-            "my_pool",
-            pool_tree="default",
-            attributes={
-                "strong_guarantee_resources": {"cpu": 4},
-                "abc": {"id": 1, "slug": "my", "name": "MyService"},
-            },
-            wait_for_orchid=False,
-        )
-
-        op = run_test_vanilla("sleep 2000", job_count=1, spec={"pool": "my_pool"})
-        wait(lambda: op.get_job_count("running") == 1)
-
-        root_key = (42, "default", "<Root>")
-
-        desired_guarantees_metering_data = {
-            root_key: {
-                "strong_guarantee_resources/cpu": 0,
-                "resource_flow/cpu": 0,
-                "burst_guarantee_resources/cpu": 0,
-            },
-            (1, "default", "my_pool"): {
-                "strong_guarantee_resources/cpu": 4,
-                "resource_flow/cpu": 0,
-                "burst_guarantee_resources/cpu": 0,
-            },
-        }
-
-        desired_allocation_metering_data = {
-            root_key: {
-                "allocated_resources/cpu": 0,
-            },
-            (1, "default", "my_pool"): {
-                "allocated_resources/cpu": 1.0,
-            },
-        }
-
-        @wait_no_assert
-        def check_expected_guarantee_records():
-            event_key_to_last_record = self._extract_metering_records_from_log(schema=self.GUARANTEE_SCHEMA)
-            return self._validate_metering_records(root_key, desired_guarantees_metering_data, event_key_to_last_record, schema=self.GUARANTEE_SCHEMA)
-
-        @wait_no_assert
-        def check_expected_allocation_records():
-            event_key_to_last_record = self._extract_metering_records_from_log(schema=self.ALLOCATION_SCHEMA)
-            self._validate_metering_records(root_key, desired_allocation_metering_data, event_key_to_last_record, schema=self.ALLOCATION_SCHEMA)
