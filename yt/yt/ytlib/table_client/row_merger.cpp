@@ -122,6 +122,8 @@ void TSchemafulRowMerger::AddPartialRow(TVersionedRow row, TTimestamp upperTimes
             if (int columnId = ColumnIds_[columnIndex]; columnId >= KeyColumnCount_) {
                 MergedTimestamps_[columnIndex] = NullTimestamp;
                 MergedRow_[columnIndex] = MakeUnversionedNullValue(columnId);
+            } else {
+                MergedRow_[columnIndex] = MakeUnversionedSentinelValue(EValueType::TheBottom);
             }
         }
 
@@ -130,6 +132,10 @@ void TSchemafulRowMerger::AddPartialRow(TVersionedRow row, TTimestamp upperTimes
                 MergedTimestamps_[columnIndex] = MaxTimestamp;
                 MergedRow_[columnIndex] = key;
             }
+        }
+
+        for (int columnIndex = 0; columnIndex < std::ssize(ColumnIds_); ++columnIndex) {
+            YT_VERIFY(MergedRow_[columnIndex].Type != EValueType::TheBottom);
         }
 
         Started_ = true;

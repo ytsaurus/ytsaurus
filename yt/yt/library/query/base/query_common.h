@@ -140,6 +140,10 @@ struct TDataSource
     TSharedRange<TRow> Keys;
 };
 
+void VerifyIdsInRange(const TRowRange& range);
+void VerifyIdsInRanges(TRange<TRowRange> ranges);
+void VerifyIdsInKeys(TRange<TRow> keys);
+
 struct TQueryBaseOptions
 {
     i64 InputRowLimit = std::numeric_limits<i64>::max();
