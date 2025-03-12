@@ -204,7 +204,7 @@ void TControllerFeatures::AddCounted(TStringBuf name, double value)
     Features_[countFeature] += 1;
 }
 
-void TControllerFeatures::CalculateJobSatisticsAverage()
+void TControllerFeatures::CalculateJobStatisticsAverage()
 {
     static const TString SumSuffix = ".sum";
     static const TString CountSuffix = ".count";
