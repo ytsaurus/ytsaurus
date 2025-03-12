@@ -2,6 +2,18 @@
 
 #include <regex>
 
+#define SUBSTITUTION(name, mode) \
+    {#name, name##_##mode}
+
+#define SUBSTITUTIONS(mode)                                         \
+    {                                                               \
+        #mode, {                                                    \
+            SUBSTITUTION(GRAMMAR_STRING_CORE_SINGLE, mode),         \
+                SUBSTITUTION(GRAMMAR_STRING_CORE_DOUBLE, mode),     \
+                SUBSTITUTION(GRAMMAR_MULTILINE_COMMENT_CORE, mode), \
+        }                                                           \
+    }
+
 namespace NSQLTranslationV1 {
 
     void RegexReplace(TString& input, const TStringBuf pattern, const TStringBuf value) {
@@ -40,16 +52,8 @@ namespace NSQLTranslationV1 {
 
     THashMap<TString, TString> GetRewriteRules(const TStringBuf mode, const NSQLReflect::TLexerGrammar& grammar) {
         THashMap<TString, THashMap<TString, TString>> Substitutions = {
-            {"default", {
-                            {"GRAMMAR_STRING_CORE_SINGLE", "~(QUOTE_SINGLE | BACKSLASH) | (BACKSLASH .)"},
-                            {"GRAMMAR_STRING_CORE_DOUBLE", "~(QUOTE_DOUBLE | BACKSLASH) | (BACKSLASH .)"},
-                            {"GRAMMAR_MULTILINE_COMMENT_CORE", "(.)"},
-                        }},
-            {"ansi", {
-                         {"GRAMMAR_STRING_CORE_SINGLE", "~QUOTE_SINGLE | (QUOTE_SINGLE QUOTE_SINGLE)"},
-                         {"GRAMMAR_STRING_CORE_DOUBLE", "~QUOTE_DOUBLE | (QUOTE_DOUBLE QUOTE_DOUBLE)"},
-                         {"GRAMMAR_MULTILINE_COMMENT_CORE", "MULTILINE_COMMENT | ."},
-                     }},
+            SUBSTITUTIONS(DEFAULT),
+            SUBSTITUTIONS(ANSI),
         };
 
         THashMap<TString, TString> rules;
@@ -105,9 +109,9 @@ namespace NSQLTranslationV1 {
     }
 
     THashMap<TString, TString> GetRegexByComplexTokenMap(const NSQLReflect::TLexerGrammar& grammar, bool ansi) {
-        TString mode = "default";
+        TString mode = "DEFAULT";
         if (ansi) {
-            mode = "ansi";
+            mode = "ANSI";
         }
 
         THashMap<TString, TString> regexes;
