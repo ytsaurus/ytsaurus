@@ -37,7 +37,7 @@ public class SelfCheckingClientTest extends YTsaurusClientTestBase {
     public void test() {
         RpcOptions rpcOptions = new RpcOptions();
         var ytFixture = createYtFixture(rpcOptions);
-        var yt = ytFixture.yt;
+        var yt = ytFixture.getYt();
 
         var sysRpcProxies = YPath.simple("//sys/rpc_proxies");
         var rpcProxies = yt.listNode(sysRpcProxies.toString()).join().asList();
@@ -54,7 +54,7 @@ public class SelfCheckingClientTest extends YTsaurusClientTestBase {
 
             assertThrows(RuntimeException.class, () -> FutureUtils.waitFuture(statusFuture, 1000));
 
-            var httpClient = new SimpleHttpClient(ytFixture.address);
+            var httpClient = new SimpleHttpClient(ytFixture.getAddress());
             httpClient.banProxy(proxyAddress, true).join();
             try {
                 FutureUtils.waitFuture(statusFuture, 50000);

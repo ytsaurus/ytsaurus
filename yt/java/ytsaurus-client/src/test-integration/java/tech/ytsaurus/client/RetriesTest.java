@@ -52,11 +52,11 @@ public class RetriesTest extends YTsaurusClientTestBase {
                     }
                 }));
 
-        var yt = ytFixture.yt;
+        var yt = ytFixture.getYt();
 
         // One successfully retry after fail.
 
-        var tablePath = ytFixture.testDirectory.child("static-table-1");
+        var tablePath = ytFixture.getTestDirectory().child("static-table-1");
 
         rpcRequestsTestingController.clear();
         outageController.addFails("ExistsNode", 1, error100);
@@ -109,10 +109,10 @@ public class RetriesTest extends YTsaurusClientTestBase {
                     }
                 }));
 
-        var yt = ytFixture.yt;
+        var yt = ytFixture.getYt();
 
         // One successfully retry after fail.
-        var firstTablePath = ytFixture.testDirectory.child("static-table-1");
+        var firstTablePath = ytFixture.getTestDirectory().child("static-table-1");
 
         rpcRequestsTestingController.clear();
         outageController.addFails("CreateNode", 1, error100);
@@ -136,7 +136,7 @@ public class RetriesTest extends YTsaurusClientTestBase {
         assertThat("Second with retry", firstCreateRequests.get(1).getHeader().getRetry());
 
         // One successfully retry after two fails.
-        var secondTablePath = ytFixture.testDirectory.child("static-table-2");
+        var secondTablePath = ytFixture.getTestDirectory().child("static-table-2");
 
         rpcRequestsTestingController.clear();
         outageController.addFails("CreateNode", 2, error100);
@@ -171,7 +171,7 @@ public class RetriesTest extends YTsaurusClientTestBase {
         assertThat("Third with retry", secondCreateRequests.get(2).getHeader().getRetry());
 
         // Three fails.
-        var thirdTablePath = ytFixture.testDirectory.child("static-table-3");
+        var thirdTablePath = ytFixture.getTestDirectory().child("static-table-3");
 
         rpcRequestsTestingController.clear();
         outageController.addFails("CreateNode", 3, error100);
@@ -227,11 +227,11 @@ public class RetriesTest extends YTsaurusClientTestBase {
                 .setMaxBackoffTime(Duration.ofMillis(1000))
                 .setRetryPolicyFactory(() -> RetryPolicy.forCodes(100)));
 
-        var yt = ytFixture.yt;
+        var yt = ytFixture.getYt();
 
         outageController.addFails("ExistsNode", 2, error100);
 
-        var tablePath = ytFixture.testDirectory.child("static-table");
+        var tablePath = ytFixture.getTestDirectory().child("static-table");
 
         long startTime = System.currentTimeMillis();
         yt.existsNode(tablePath.toString()).join();

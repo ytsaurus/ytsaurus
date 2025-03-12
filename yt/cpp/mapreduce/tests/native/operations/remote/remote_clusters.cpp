@@ -1,4 +1,4 @@
-#include "jobs.h"
+#include <yt/cpp/mapreduce/tests/native/operations/jobs.h>
 
 #include <yt/cpp/mapreduce/tests/native/proto_lib/row.pb.h>
 
@@ -14,6 +14,13 @@
 
 using namespace NYT;
 using namespace NYT::NTesting;
+
+////////////////////////////////////////////////////////////////////////////////
+
+REGISTER_MAPPER(TIdMapper)
+REGISTER_REDUCER(TIdReducer)
+REGISTER_MAPPER(TIdProtoMapper)
+REGISTER_REDUCER(TIdProtoReducer)
 
 ////////////////////////////////////////////////////////////////////////////////
 

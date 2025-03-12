@@ -11,6 +11,8 @@
 #include <yt/cpp/roren/interface/private/row_vtable.h>
 #include <yt/cpp/roren/interface/type_tag.h>
 
+#include <yt/cpp/roren/library/unordered_invoker/unordered_invoker.h>
+
 namespace NRoren::NPrivate {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -18,6 +20,34 @@ namespace NRoren::NPrivate {
 template <typename T>
 concept CStatefulDoFn = std::default_initializable<T>
     && std::derived_from<T, IStatefulDoFn<typename T::TInputRow, typename T::TOutputRow, typename T::TState>>;
+
+template <typename TFunc, typename TInputRow, typename TOutputRow, typename TState>
+class TFunctorStatefulDoFn final
+    : public IStatefulDoFn<TInputRow, TOutputRow, TState>
+{
+public:
+    TFunctorStatefulDoFn() = default;
+
+    template <typename F>
+    TFunctorStatefulDoFn(F&& func)
+        : Func_(std::forward<F>(func))
+    { }
+
+    void Do(TDoFnInput<TInputRow> input, TOutput<TOutputRow>& output, TState& state)
+    {
+        InvokeUnordered(
+            Func_,
+            std::forward<TDoFnInput<TInputRow>>(input),
+            output,
+            state,
+            this->GetExecutionContext().Get());
+    }
+
+    Y_SAVELOAD_DEFINE_OVERRIDE(Func_);
+
+private:
+    TFunc Func_ = {};
+};
 
 template <CStatefulDoFn TFunction>
 class TRawStatefulParDo
@@ -32,11 +62,10 @@ class TRawStatefulParDo
 public:
     TRawStatefulParDo() = default;
 
-    TRawStatefulParDo(TIntrusivePtr<TFunction> func, std::vector<TDynamicTypeTag> outputTags, TFnAttributes fnAttributes)
+    TRawStatefulParDo(TIntrusivePtr<TFunction> func)
         : Func_(std::move(func))
         , InputTag_("stateful-do-fn-input", MakeRowVtable<TInputRow>())
-        , OutputTags_(std::move(outputTags))
-        , FnAttributes_(std::move(fnAttributes))
+        , OutputTags_(Func_->GetOutputTags())
     {
         TFnAttributesOps::SetIsMove(FnAttributes_, IsMove);
     }
@@ -67,9 +96,19 @@ public:
             auto* rawState = RawStateMap_->GetStateRaw(key);
             if constexpr (IsMove) {
                 TInputRow copy(*current);
-                Func_->Do(std::move(copy), GetOutput(), *static_cast<TState*>(rawState));
+                InvokeUnordered<GetMemberPointerClass<decltype(&TFunction::Do)>>(
+                    &TFunction::Do,
+                    Func_.Get(),
+                    std::move(copy),
+                    GetOutput(),
+                    *static_cast<TState*>(rawState));
             } else {
-                Func_->Do(*current, GetOutput(), *static_cast<TState*>(rawState));
+                InvokeUnordered<GetMemberPointerClass<decltype(&TFunction::Do)>>(
+                    &TFunction::Do,
+                    Func_.Get(),
+                    *current,
+                    GetOutput(),
+                    *static_cast<TState*>(rawState));
             }
         }
     }
@@ -82,7 +121,12 @@ public:
         for (; current < end; ++current) {
             const auto* key = &current->Key();
             auto* rawState = RawStateMap_->GetStateRaw(key);
-            Func_->Do(std::move(*current), GetOutput(), *static_cast<TState*>(rawState));
+            InvokeUnordered<GetMemberPointerClass<decltype(&TFunction::Do)>>(
+                &TFunction::Do,
+                Func_.Get(),
+                std::move(*current),
+                GetOutput(),
+                *static_cast<TState*>(rawState));
         }
     }
 
@@ -160,117 +204,10 @@ private:
 };
 
 template <typename TFunction>
-IRawStatefulParDoPtr MakeRawStatefulParDo(TIntrusivePtr<TFunction> fn, TFnAttributes fnAttributes)
+IRawStatefulParDoPtr MakeRawStatefulParDo(TIntrusivePtr<TFunction> fn)
 {
-    return ::MakeIntrusive<TRawStatefulParDo<TFunction>>(fn, fn->GetOutputTags(), std::move(fnAttributes));
+    return ::MakeIntrusive<TRawStatefulParDo<TFunction>>(fn);
 }
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TLambdaStatefulParDo
-    : public IRawStatefulParDo
-{
-public:
-    enum class EWrapperType : ui8
-    {
-        SingleOutputWrapper,
-        MultiOutputWrapper,
-    };
-
-    using TWrapperFunction = void (TLambdaStatefulParDo*, const void*, int);
-
-    template <typename TInputRow, typename TOutputRow, typename TState>
-    using TUnderlyingFunction = void (*)(const TInputRow&, TOutput<TOutputRow>&, TState&);
-
-public:
-    TLambdaStatefulParDo() = default;
-    TLambdaStatefulParDo(
-        TWrapperFunction* wrapperFunction,
-        void* underlyingFunction,
-        TRowVtable inputRowVtable,
-        std::vector<TDynamicTypeTag> outputTags,
-        TRowVtable stateVtable,
-        TFnAttributes fnAttributes);
-
-    template <typename TInputRow, typename TOutputRow, typename TState>
-    static TIntrusivePtr<TLambdaStatefulParDo> MakeIntrusive(
-        TUnderlyingFunction<TInputRow, TOutputRow, TState> underlyingFunction,
-        TFnAttributes fnAttributes)
-    {
-        return ::MakeIntrusive<TLambdaStatefulParDo>(
-            &RawWrapperFunc<TInputRow, TOutputRow, TState>,
-            reinterpret_cast<void*>(underlyingFunction),
-            MakeRowVtable<TInputRow>(),
-            MakeTags<TOutputRow>(),
-            MakeRowVtable<TState>(),
-            std::move(fnAttributes)
-        );
-    }
-
-    void Start(const IExecutionContextPtr& context, IRawStateStorePtr stateStore, const std::vector<IRawOutputPtr>& outputs) override;
-    void Do(const void* rows, int count) override;
-    void Finish() override;
-
-    [[nodiscard]] TDefaultFactoryFunc GetDefaultFactory() const override;
-
-    [[nodiscard]] std::vector<TDynamicTypeTag> GetInputTags() const override;
-    [[nodiscard]] std::vector<TDynamicTypeTag> GetOutputTags() const override;
-    [[nodiscard]] const TFnAttributes& GetFnAttributes() const override;
-    [[nodiscard]] TRowVtable GetStateVtable() const override;
-
-private:
-    template <typename TInputRow, typename TOutputRow, typename TState>
-    static void RawWrapperFunc(TLambdaStatefulParDo* pThis, const void* rows, int count)
-    {
-        auto span = std::span(static_cast<const TInputRow*>(rows), count);
-        auto underlyingFunction = reinterpret_cast<TUnderlyingFunction<TInputRow, TOutputRow, TState>>(pThis->UnderlyingFunction_);
-        TOutput<TOutputRow>* output;
-
-        if constexpr (std::is_same_v<TOutputRow, void>) {
-            output = &VoidOutput;
-        } else {
-            output = pThis->SingleOutput_->Upcast<TOutputRow>();
-        }
-
-        for (const auto& row : span) {
-            const auto* key = &row.Key();
-            auto* rawState = pThis->StateStore_->GetStateRaw(key);
-            TState* state = static_cast<TState*>(rawState);
-            underlyingFunction(row, *output, *state);
-        }
-    }
-
-    template <typename TOutput>
-    static std::vector<TDynamicTypeTag> MakeTags()
-    {
-        if constexpr (std::is_same_v<TOutput, void>) {
-            return {};
-        } else {
-            static_assert(!CMultiRow<TOutput>);
-            return std::vector<TDynamicTypeTag>{TTypeTag<TOutput>("stateful-map-output")};
-        }
-    }
-
-private:
-    TWrapperFunction* WrapperFunction_ = nullptr;
-    void* UnderlyingFunction_ = nullptr;
-    TDynamicTypeTag InputTag_;
-    std::vector<TDynamicTypeTag> OutputTags_;
-    TRowVtable StateVtable_;
-    TFnAttributes FnAttributes_;
-
-    Y_SAVELOAD_DEFINE_OVERRIDE(
-        SaveLoadablePointer(WrapperFunction_),
-        SaveLoadablePointer(UnderlyingFunction_),
-        InputTag_,
-        OutputTags_,
-        StateVtable_,
-        FnAttributes_
-    );
-
-    IRawOutputPtr SingleOutput_;
-    IRawStateStorePtr StateStore_;
-};
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -14,6 +14,8 @@
 
 find_package(linux-headers-generic REQUIRED)
 
+add_subdirectory(remote)
+
 add_executable(yt-cpp-mapreduce-tests-native-operations)
 
 
@@ -64,7 +66,6 @@ target_sources(yt-cpp-mapreduce-tests-native-operations PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/tests/native/operations/operations.cpp
   ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/tests/native/operations/prepare_operation.cpp
   ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/tests/native/operations/raw_operations.cpp
-  ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/tests/native/operations/remote_clusters.cpp
 )
 
 

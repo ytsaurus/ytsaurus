@@ -1227,6 +1227,18 @@ class TestSchedulerOperationLimits(YTEnvSetup):
 
         op = run_test_vanilla(with_breakpoint("BREAKPOINT; sleep 0.5"), job_count=10, pool="test_pool")
 
+        # Temporary, see: YT-24377.
+        update_op_parameters(
+            op.id,
+            parameters={
+                "scheduling_options_per_pool_tree": {
+                    "default": {
+                        "enable_detailed_logs": True,
+                    }
+                }
+            },
+        )
+
         wait_breakpoint()
 
         rename_test_pool(check_usage=True)

@@ -29,7 +29,7 @@ def update_state(state, operations, trees, fair_share_info_per_pool_tree, option
                 new_operation_state[tree] = count
 
         if new_operation_state:
-            state[operation] = new_operation_state
+            new_state[operation] = new_operation_state
 
     return new_state
 

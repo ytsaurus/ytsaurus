@@ -47,7 +47,6 @@ dependencies {
     testImplementation("org.apache.logging.log4j:log4j-core:2.13.1")
     testImplementation("org.apache.logging.log4j:log4j-slf4j-impl:2.13.1")
     testImplementation("org.hamcrest:hamcrest:2.2")
-    testImplementation("org.testcontainers:testcontainers:1.17.0")
 }
 
 tasks.test {
@@ -64,6 +63,13 @@ sourceSets.create("testIntegration") {
     runtimeClasspath += output + compileClasspath + sourceSets["test"].runtimeClasspath
 }
 
+sourceSets.create("testMulticellIntegration") {
+    java.srcDir("src/test-multicell/java")
+    resources.srcDir("src/test-multicell/resources")
+    compileClasspath += sourceSets["main"].output + configurations["testRuntimeClasspath"]
+    runtimeClasspath += output + compileClasspath + sourceSets["test"].runtimeClasspath
+}
+
 tasks {
     task<Test>("testIntegration") {
         description = "Runs the integration tests"
@@ -76,6 +82,18 @@ tasks {
         }
         useJUnit()
     }.mustRunAfter("test")
+
+    task<Test>("testMulticellIntegration") {
+        description = "Runs the multicell integration tests"
+        group = "verification"
+        testClassesDirs = sourceSets["testMulticellIntegration"].output.classesDirs
+        classpath = sourceSets["testMulticellIntegration"].runtimeClasspath
+        testLogging {
+            showStandardStreams = true
+            events("passed", "skipped", "failed")
+        }
+        useJUnit()
+    }.mustRunAfter("testIntegration")
 }
 
 version = project.properties["version"]

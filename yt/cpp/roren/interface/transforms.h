@@ -393,46 +393,38 @@ private:
     const NPrivate::TRawPStateNodePtr RawPStateNode_;
 };
 
-template <typename TFn, typename TKey, typename TState>
-auto StatefulParDo(TPState<TKey, TState> pState, TFn fn, const TFnAttributes& attributes = {})
+template <NPrivate::CStatefulDoFn TFunc, typename TKey, typename TState>
+auto StatefulParDo(TPState<TKey, TState> pState, TIntrusivePtr<TFunc> func)
 {
-    using TDecayedF = std::decay_t<TFn>;
+    static_assert(
+        std::is_same_v<TState, typename TFunc::TState>,
+        "Type of PState doesn't match StatefulDoFn");
+    using TInputRow = std::decay_t<typename TFunc::TInputRow>;
+    using TOutputRow = typename TFunc::TOutputRow;
+    static_assert(NTraits::IsTKV<TInputRow>, "Input row of transform must be TKV");
+    static_assert(std::is_same_v<typename TInputRow::TKey, TKey>, "Key of input row must match key of PState");
+    auto rawFn = NPrivate::MakeRawStatefulParDo(std::move(func));
     auto rawState = NPrivate::GetRawPStateNode(pState);
-    if constexpr (NPrivate::CIntrusivePtr<TDecayedF>) {
-        static_assert(std::is_same_v<TState, typename TDecayedF::TValueType::TState>, "Type of PState doesn't match StatefulDoFn");
-
-        using TInputRow = std::decay_t<typename TDecayedF::TValueType::TInputRow>;
-        using TOutputRow = typename TDecayedF::TValueType::TOutputRow;
-        static_assert(NTraits::IsTKV<TInputRow>, "Input row of transform must be TKV");
-        static_assert(std::is_same_v<typename TInputRow::TKey, TKey>, "Key of input row must match key of PState");
-        auto rawFn = NPrivate::MakeRawStatefulParDo(fn, attributes);
-        return TStatefulParDoTransform<TInputRow, TOutputRow, TState>(rawFn, rawState);
-    } else {
-        static_assert(TFunctionArgs<TDecayedF>::Length == 3, "Stateful function must accept exactly 3 args");
-        using TInputRow = typename std::decay_t<TFunctionArg<TDecayedF, 0>>;
-        using TOutputRow = typename std::decay_t<TFunctionArg<TDecayedF, 1>>::TRowType;
-        static_assert(NTraits::IsTKV<TInputRow>, "Input row of transform must be TKV");
-        static_assert(std::is_same_v<typename TInputRow::TKey, TKey>, "Key of input row must match key of PState");
-
-        if constexpr (std::is_same_v<TOutputRow, TMultiRow>) {
-            static_assert(
-                TDependentFalse<TFn>,
-                "Creating StatefulParDo's with multiple output from function is not supported, create class implementing IStatefulDoFn<TInputRow, TMultiRow, TState>");
-        } else {
-            static_assert(
-                std::is_convertible_v<TFn, void(*)(const TInputRow&, TOutput<TOutputRow>&, TState&)>,
-                "Incorrect function signature, or lambda with variable capturing");
-
-            auto rawStatefulParDo = NPrivate::TLambdaStatefulParDo::MakeIntrusive<TInputRow, TOutputRow, TState>(fn, attributes);
-            return TStatefulParDoTransform<TInputRow, TOutputRow, TState>(rawStatefulParDo, rawState);
-        }
-    }
+    return TStatefulParDoTransform<TInputRow, TOutputRow, TState>(rawFn, rawState);
 }
 
-template <typename T, typename... Args>
-auto MakeStatefulParDo(TPState<typename std::decay_t<typename T::TInputRow>::TKey, typename T::TState> pState, Args... args)
+template <typename T, typename... TArgs>
+auto MakeStatefulParDo(
+    TPState<typename std::decay_t<typename T::TInputRow>::TKey, typename T::TState> pState,
+    TArgs&&... args)
 {
-    return StatefulParDo(pState, MakeIntrusive<T>(args...));
+    return StatefulParDo(pState, MakeIntrusive<T>(std::forward<TArgs>(args)...));
+}
+
+template <typename TKey, typename TState, typename F, typename... TArgs>
+auto StatefulParDo(TPState<TKey, TState> pState, F&& func, TArgs&&... args)
+{
+    auto bind = BindBack(std::forward<F>(func), std::forward<TArgs>(args)...);
+    using TFunctor = std::decay_t<decltype(bind)>;
+    using TInputRow = TDoFnTemplateArgument<TFunctionArg<TFunctor, 0>>;
+    using TOutputRow = typename std::decay_t<TFunctionArg<TFunctor, 1>>::TRowType;
+    using TDoFn = NPrivate::TFunctorStatefulDoFn<TFunctor, TInputRow, TOutputRow, TState>;
+    return MakeStatefulParDo<TDoFn>(pState, std::move(bind));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -621,13 +613,16 @@ auto CombinePerKey(TFnPtr combineFn)
     return TCombinePerKeyTransform{std::move(combineFn)};
 }
 
-template <typename F>
+template <typename F, typename... TArgs>
     requires (!CCombineFnPtr<F>)
-auto CombinePerKey(F&& func)
+auto CombinePerKey(F&& func, TArgs&&... args)
 {
-    return [] <typename TRow> (void (*func)(TRow*, const TRow&)) {
-        return CombinePerKey(::MakeIntrusive<TLambdaCombineFn<TRow>>(func));
-    } (+func);
+    auto bind = BindBack(std::forward<F>(func), std::forward<TArgs>(args)...);
+    using TFunctor = std::decay_t<decltype(bind)>;
+    using TRow = std::decay_t<std::remove_pointer_t<TFunctionArg<TFunctor, 0>>>;
+    static_assert(std::same_as<TFunctionArg<TFunctor, 0>, TRow*>);
+    static_assert(std::same_as<TFunctionArg<TFunctor, 1>, const TRow&>);
+    return CombinePerKey(::MakeIntrusive<TFunctorCombineFn<TFunctor, TRow>>(std::move(bind)));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

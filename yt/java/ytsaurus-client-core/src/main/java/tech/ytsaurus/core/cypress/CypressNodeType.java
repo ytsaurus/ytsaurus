@@ -27,7 +27,11 @@ public enum CypressNodeType implements StringValueEnum {
     TABLET_CELL(700, "tablet_cell"),
     TABLET(702, "tablet"),
     TABLET_CELL_BUNDLE(706, "tablet_cell_bundle"),
-    TABLE_REPLICA(709, "table_replica");
+    TABLE_REPLICA(709, "table_replica"),
+
+    // Portals.
+    PORTAL_ENTRANCE(11000, "portal_entrance"),
+    PORTAL_EXIT(11001, "portal_exit");
 
     public static final StringValueEnumResolver<CypressNodeType> R = StringValueEnumResolver.of(CypressNodeType.class);
 

@@ -20,6 +20,7 @@ import tech.ytsaurus.client.discovery.ListMembers;
 import tech.ytsaurus.client.discovery.ListMembersOptions;
 import tech.ytsaurus.client.discovery.MemberInfo;
 import tech.ytsaurus.client.discovery.StaticDiscoverer;
+import tech.ytsaurus.testlib.YTsaurusFixture;
 import tech.ytsaurus.ysontree.YTree;
 import tech.ytsaurus.ysontree.YTreeNode;
 
@@ -29,9 +30,9 @@ public class DiscoveryClientTest extends YTsaurusClientTestBase {
     @Before
     public void setup() {
         YTsaurusFixture ytFixture = createYtFixture();
-        ytFixture.yt.waitProxies().join();
+        ytFixture.getYt().waitProxies().join();
 
-        YTreeNode node = ytFixture.yt.getNode("//sys/@cluster_connection/discovery_connection/addresses").join();
+        YTreeNode node = ytFixture.getYt().getNode("//sys/@cluster_connection/discovery_connection/addresses").join();
         Discoverer discoverer = new StaticDiscoverer(node);
         this.discoveryClient = DiscoveryClient.builder()
                 .setDiscoverer(discoverer)

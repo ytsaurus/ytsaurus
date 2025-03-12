@@ -16,6 +16,8 @@ DECLARE_REFCOUNTED_STRUCT(IChunkPoolInput)
 DECLARE_REFCOUNTED_STRUCT(IChunkPoolOutput)
 DECLARE_REFCOUNTED_STRUCT(IChunkPool)
 
+struct TPersistentChunkStripeStatistics;
+
 constexpr double ApproximateSizesBoostFactor = 1.3;
 
 ////////////////////////////////////////////////////////////////////////////////

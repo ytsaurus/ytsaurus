@@ -19,6 +19,7 @@ import tech.ytsaurus.core.tables.ColumnSchema;
 import tech.ytsaurus.core.tables.ColumnSortOrder;
 import tech.ytsaurus.core.tables.ColumnValueType;
 import tech.ytsaurus.core.tables.TableSchema;
+import tech.ytsaurus.testlib.YTsaurusFixture;
 import tech.ytsaurus.ysontree.YTreeBuilder;
 import tech.ytsaurus.ysontree.YTreeNode;
 
@@ -28,16 +29,16 @@ public class QueuesAPITest extends YTsaurusClientTestBase {
     @Before
     public void setup() {
         this.ytFixture = createYtFixture();
-        ytFixture.yt.waitProxies().join();
-        waitTabletCells(ytFixture.yt);
+        ytFixture.getYt().waitProxies().join();
+        waitTabletCells(ytFixture.getYt());
     }
 
     @Test
     public void testPullConsumer() {
-        YTsaurusClient yt = ytFixture.yt;
+        YTsaurusClient yt = ytFixture.getYt();
 
-        YPath queuePath = ytFixture.testDirectory.child("queue");
-        YPath consumerPath = ytFixture.testDirectory.child("consumer");
+        YPath queuePath = ytFixture.getTestDirectory().child("queue");
+        YPath consumerPath = ytFixture.getTestDirectory().child("consumer");
 
         createAndFillQueue(yt, queuePath);
         createConsumer(yt, consumerPath);

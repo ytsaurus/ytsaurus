@@ -2549,7 +2549,7 @@ void TTask::FinalizeFeatures()
     ControllerFeatures_.AddSingular("exhaust_time", GetExhaustTime().MilliSeconds());
     ControllerFeatures_.AddSingular("job_statistics", BuildStatisticsNode());
 
-    ControllerFeatures_.CalculateJobSatisticsAverage();
+    ControllerFeatures_.CalculateJobStatisticsAverage();
 }
 
 void TTask::OnPendingJobCountUpdated()

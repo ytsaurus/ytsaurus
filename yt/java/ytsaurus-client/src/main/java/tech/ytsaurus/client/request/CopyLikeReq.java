@@ -1,6 +1,7 @@
 package tech.ytsaurus.client.request;
 
 import java.util.Objects;
+import java.util.Optional;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -23,6 +24,8 @@ public abstract class CopyLikeReq<
     protected final boolean preserveExpirationTime;
     protected final boolean preserveCreationTime;
     protected final boolean ignoreExisting;
+    @Nullable
+    protected final Boolean enableCrossCellCopying;
 
     protected CopyLikeReq(Builder<?, ?> builder) {
         super(builder);
@@ -34,6 +37,7 @@ public abstract class CopyLikeReq<
         preserveExpirationTime = builder.preserveExpirationTime;
         preserveCreationTime = builder.preserveCreationTime;
         ignoreExisting = builder.ignoreExisting;
+        enableCrossCellCopying = builder.enableCrossCellCopying;
     }
 
     public YPath getSource() {
@@ -68,6 +72,10 @@ public abstract class CopyLikeReq<
         return ignoreExisting;
     }
 
+    public Optional<Boolean> getEnableCrossCellCopying() {
+        return Optional.ofNullable(enableCrossCellCopying);
+    }
+
     @Override
     protected void writeArgumentsLogString(@Nonnull StringBuilder sb) {
         sb.append("Source: ").append(source).append("; Destination: ").append(destination).append("; ");
@@ -89,6 +97,9 @@ public abstract class CopyLikeReq<
         if (preserveExpirationTime) {
             sb.append("PreserveExpirationTime: true; ");
         }
+        if (enableCrossCellCopying != null) {
+            sb.append("EnableCrossCellCopying: ").append(enableCrossCellCopying).append("; ");
+        }
         super.writeArgumentsLogString(sb);
     }
 
@@ -107,7 +118,9 @@ public abstract class CopyLikeReq<
                 .key("preserve_account").value(preserveAccount)
                 .key("preserve_expiration_time").value(preserveExpirationTime)
                 .key("preserve_creation_time").value(preserveCreationTime)
-                .key("ignore_existing").value(ignoreExisting);
+                .key("ignore_existing").value(ignoreExisting)
+                .when(enableCrossCellCopying != null,
+                        b -> b.key("enable_cross_cell_copying").value(enableCrossCellCopying));
     }
 
     public abstract static class Builder<
@@ -125,6 +138,8 @@ public abstract class CopyLikeReq<
         protected boolean preserveExpirationTime = false;
         protected boolean preserveCreationTime = false;
         protected boolean ignoreExisting = false;
+        @Nullable
+        protected Boolean enableCrossCellCopying;
 
         protected Builder() {
         }
@@ -139,6 +154,7 @@ public abstract class CopyLikeReq<
             this.preserveCreationTime = builder.preserveCreationTime;
             this.preserveExpirationTime = builder.preserveExpirationTime;
             this.ignoreExisting = builder.ignoreExisting;
+            this.enableCrossCellCopying = builder.enableCrossCellCopying;
         }
 
         public TBuilder setSource(String source) {
@@ -181,6 +197,16 @@ public abstract class CopyLikeReq<
             return self();
         }
 
+        /**
+         * EnableCrossCellCopying option is managed internally by the library.
+         *
+         * @return self
+         */
+        public TBuilder setEnableCrossCellCopying(@Nullable Boolean enableCrossCellCopying) {
+            this.enableCrossCellCopying = enableCrossCellCopying;
+            return self();
+        }
+
         public YPath getSource() {
             return YPath.simple(source);
         }
@@ -213,6 +239,10 @@ public abstract class CopyLikeReq<
             return ignoreExisting;
         }
 
+        public Optional<Boolean> getEnableCrossCellCopying() {
+            return Optional.ofNullable(enableCrossCellCopying);
+        }
+
         @Override
         public YTreeBuilder toTree(YTreeBuilder builder) {
             return toTree(builder, "source_path", "destination_path");
@@ -228,7 +258,9 @@ public abstract class CopyLikeReq<
                     .key("preserve_account").value(preserveAccount)
                     .key("preserve_expiration_time").value(preserveExpirationTime)
                     .key("preserve_creation_time").value(preserveCreationTime)
-                    .key("ignore_existing").value(ignoreExisting);
+                    .key("ignore_existing").value(ignoreExisting)
+                    .when(enableCrossCellCopying != null,
+                            b -> b.key("enable_cross_cell_copying").value(enableCrossCellCopying));
         }
 
         @Override
@@ -251,6 +283,9 @@ public abstract class CopyLikeReq<
             }
             if (preserveExpirationTime) {
                 sb.append("PreserveExpirationTime: true; ");
+            }
+            if (enableCrossCellCopying != null) {
+                sb.append("EnableCrossCellCopying: ").append(enableCrossCellCopying).append("; ");
             }
             super.writeArgumentsLogString(sb);
         }

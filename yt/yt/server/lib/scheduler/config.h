@@ -801,9 +801,6 @@ struct TResourceMeteringConfig
     //! Default ABC id for use in resource metering
     int DefaultAbcId;
 
-    //! Enable separate schemas for guarantees and allocations.
-    bool EnableSeparateSchemaForAllocation;
-
     REGISTER_YSON_STRUCT(TResourceMeteringConfig);
 
     static void Register(TRegistrar registrar);
