@@ -86,7 +86,7 @@ const TCompactTableSchemaPtr& TMasterTableSchema::AsCompactTableSchema(bool cras
     return CompactTableSchema_;
 }
 
-TTableSchema TMasterTableSchema::AsTableSchema(bool crashOnZombie) const
+const TTableSchema& TMasterTableSchema::AsTableSchema(bool crashOnZombie) const
 {
     YT_VERIFY(IsObjectAlive(this) || !crashOnZombie);
 
