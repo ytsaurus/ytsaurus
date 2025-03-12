@@ -498,6 +498,34 @@ TEST(TArrowWriterTest, SimpleInteger)
     EXPECT_EQ(ReadInteger64Array(batch->column(0)), column);
 }
 
+TEST(TArrowWriterTest2, Json)
+{
+    std::vector<TTableSchemaPtr> tableSchemas;
+    std::vector<std::string> columnNames = {"json"};
+
+    tableSchemas.push_back(New<TTableSchema>(std::vector{
+        TColumnSchema(columnNames[0], ESimpleLogicalValueType::Json),
+    }));
+
+    TStringStream outputStream;
+
+    ColumnString column = {"42", "true"};
+
+    auto rows = MakeUnversionedStringRows({column}, columnNames);
+    auto writer = CreateArrowWriter(rows.NameTable, &outputStream, tableSchemas);
+
+    EXPECT_TRUE(writer->Write(rows.Rows));
+
+    writer->Close()
+        .Get()
+        .ThrowOnError();
+
+    auto batch = MakeBatch(outputStream);
+
+    CheckColumnNames(batch, columnNames);
+    EXPECT_EQ(ReadAnyStringArray(batch->column(0)), column);
+}
+
 TEST(TArrowWriterTest, YT_20699_WrongAlign)
 {
     std::vector<TTableSchemaPtr> tableSchemas;
