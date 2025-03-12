@@ -17,24 +17,24 @@ namespace NSQLReflect {
 
     class TLexerGrammar: public ILexerGrammar {
     public:
-        const THashSet<TString>& GetKeywords() const override {
+        const THashSet<TString>& GetKeywordTokenNames() const override {
             return Keywords;
         }
 
-        const THashSet<TString>& GetPunctuation() const override {
+        const THashSet<TString>& GetPunctuationTokenNames() const override {
             return Punctuation;
         }
 
-        const THashSet<TString>& GetOther() const override {
+        const THashSet<TString>& GetOtherTokenNames() const override {
             return Other;
         }
 
-        const TString& GetContentByName(const TString& name) const override {
+        const TString& GetRuleBlockByTokenName(const TString& name) const override {
             auto it = ContentByName.find(name);
             if (it != ContentByName.end()) {
                 return it->second;
             }
-            Y_ENSURE(GetKeywords().contains(name));
+            Y_ENSURE(GetKeywordTokenNames().contains(name));
             return name;
         }
 
