@@ -76,10 +76,7 @@ namespace NSQLTranslationV1 {
         void MatchKeyword(const TString& query, size_t pos, TParsedTokenList& matches) {
             for (const auto& keyword : Grammar_.KeywordNames) {
                 if (query.substr(pos, keyword.length()) == keyword) {
-                    if (pos + keyword.length() >= query.length() ||
-                        !std::isalnum(query[pos + keyword.length()])) {
-                        matches.emplace_back(keyword, keyword);
-                    }
+                    matches.emplace_back(keyword, keyword);
                 }
             }
         }
