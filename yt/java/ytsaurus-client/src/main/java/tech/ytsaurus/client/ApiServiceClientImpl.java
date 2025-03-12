@@ -16,6 +16,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.function.BiFunction;
 import java.util.function.Function;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
@@ -119,6 +120,7 @@ import tech.ytsaurus.client.request.TableReplicaMode;
 import tech.ytsaurus.client.request.TableReq;
 import tech.ytsaurus.client.request.TabletInfo;
 import tech.ytsaurus.client.request.TabletInfoReplica;
+import tech.ytsaurus.client.request.TransactionType;
 import tech.ytsaurus.client.request.TransactionalOptions;
 import tech.ytsaurus.client.request.TrimTable;
 import tech.ytsaurus.client.request.UnfreezeTable;
@@ -144,6 +146,8 @@ import tech.ytsaurus.client.rpc.RpcStreamConsumer;
 import tech.ytsaurus.client.rpc.RpcUtil;
 import tech.ytsaurus.core.GUID;
 import tech.ytsaurus.core.YtTimestamp;
+import tech.ytsaurus.core.common.YTsaurusError;
+import tech.ytsaurus.core.common.YTsaurusErrorCode;
 import tech.ytsaurus.core.cypress.RichYPathParser;
 import tech.ytsaurus.core.cypress.YPath;
 import tech.ytsaurus.core.request.LockMode;
@@ -246,7 +250,7 @@ public class ApiServiceClientImpl implements ApiServiceClient, Closeable {
         return this;
     }
 
-    YTsaurusClientConfig getConfig() {
+    public YTsaurusClientConfig getConfig() {
         return config;
     }
 
@@ -486,9 +490,26 @@ public class ApiServiceClientImpl implements ApiServiceClient, Closeable {
      */
     @Override
     public CompletableFuture<GUID> copyNode(CopyNode req) {
+        return onStarted(req,
+                copyMoveNode(
+                        () -> copyNode(req.toBuilder().setEnableCrossCellCopying(false).build(), false),
+                        (tx) -> copyNode(req.toBuilder()
+                                .setEnableCrossCellCopying(true)
+                                .setTransactionalOptions(tx.getTransactionalOptions())
+                                .build(), true)
+                )
+        );
+    }
+
+    private CompletableFuture<GUID> copyNode(CopyNode req, boolean disableRetries) {
+        RpcOptions reqRpcOptions = rpcOptions;
+        if (disableRetries) {
+            reqRpcOptions = new RpcOptions(reqRpcOptions).setRetryPolicyFactory(RetryPolicy::noRetries);
+        }
         return onStarted(req, RpcUtil.apply(
-                sendRequest(req, ApiServiceMethodTable.COPY_NODE.createRequestBuilder(rpcOptions)),
-                response -> RpcUtil.fromProto(response.body().getNodeId())));
+                sendRequest(req, ApiServiceMethodTable.COPY_NODE.createRequestBuilder(reqRpcOptions)),
+                response -> RpcUtil.fromProto(response.body().getNodeId())
+        ));
     }
 
     /**
@@ -498,9 +519,51 @@ public class ApiServiceClientImpl implements ApiServiceClient, Closeable {
      */
     @Override
     public CompletableFuture<GUID> moveNode(MoveNode req) {
+        return onStarted(req,
+                copyMoveNode(
+                        () -> moveNode(req.toBuilder().setEnableCrossCellCopying(false).build(), false),
+                        (tx) -> moveNode(req.toBuilder()
+                                .setEnableCrossCellCopying(true)
+                                .setTransactionalOptions(tx.getTransactionalOptions())
+                                .build(), true)
+                )
+        );
+    }
+
+    private CompletableFuture<GUID> moveNode(MoveNode req, boolean disableRetries) {
+        RpcOptions reqRpcOptions = rpcOptions;
+        if (disableRetries) {
+            reqRpcOptions = new RpcOptions(reqRpcOptions).setRetryPolicyFactory(RetryPolicy::noRetries);
+        }
         return onStarted(req, RpcUtil.apply(
-                sendRequest(req, ApiServiceMethodTable.MOVE_NODE.createRequestBuilder(rpcOptions)),
-                response -> RpcUtil.fromProto(response.body().getNodeId())));
+                sendRequest(req, ApiServiceMethodTable.MOVE_NODE.createRequestBuilder(reqRpcOptions)),
+                response -> RpcUtil.fromProto(response.body().getNodeId())
+        ));
+    }
+
+    private CompletableFuture<GUID> copyMoveNode(
+            Supplier<CompletableFuture<GUID>> sendReqWithDisabledCrossCellCopying,
+            Function<ApiServiceTransaction, CompletableFuture<GUID>> sendReqWithEnabledCrossCellCopying
+    ) {
+        return sendReqWithDisabledCrossCellCopying.get()
+                .handle((guid, error) -> {
+                    if (error == null) {
+                        return CompletableFuture.completedFuture(guid);
+                    }
+                    if ((error instanceof YTsaurusError) &&
+                            ((YTsaurusError) error).matches(YTsaurusErrorCode.CrossCellAdditionalPath.getCode())) {
+                        return new TransactionRetrier<>(
+                                TransactionType.Master,
+                                this,
+                                executorService,
+                                sendReqWithEnabledCrossCellCopying,
+                                executorService,
+                                rpcOptions.getRetryPolicyFactory().get(),
+                                rpcOptions
+                        ).run();
+                    }
+                    throw new RuntimeException(error);
+                }).thenCompose(Function.identity());
     }
 
     /**

@@ -18,8 +18,8 @@ public class UnmountWaitTest extends YTsaurusClientTestBase {
     @Test
     public void createUnmountAndWait() {
         var ytFixture = createYtFixture();
-        var yt = ytFixture.yt;
-        var testDirectory = ytFixture.testDirectory;
+        var yt = ytFixture.getYt();
+        var testDirectory = ytFixture.getTestDirectory();
 
         while (!yt.getNode("//sys/tablet_cell_bundles/default/@health").join().stringValue().equals("good")) {
             try {

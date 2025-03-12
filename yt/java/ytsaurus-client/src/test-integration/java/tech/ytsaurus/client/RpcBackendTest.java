@@ -25,6 +25,7 @@ import tech.ytsaurus.core.cypress.YPath;
 import tech.ytsaurus.core.tables.ColumnValueType;
 import tech.ytsaurus.core.tables.TableSchema;
 import tech.ytsaurus.rpcproxy.ETransactionType;
+import tech.ytsaurus.testlib.LocalYTsaurus;
 import tech.ytsaurus.ysontree.YTreeBuilder;
 import tech.ytsaurus.ysontree.YTreeNode;
 
@@ -33,14 +34,15 @@ public class RpcBackendTest extends YTsaurusClientTestBase {
 
     @Before
     public void setup() throws IOException {
-        final int proxyPort = localYTsaurus != null ? localYTsaurus.getMappedPort(80) :
-                Integer.parseInt(
+        final int proxyPort = LocalYTsaurus.getContainer() != null
+                ? LocalYTsaurus.getContainer().getMappedPort(80)
+                : Integer.parseInt(
                         System.getenv("YT_PROXY").split(":")[1]
                 );
 
         final BusConnector connector = new DefaultBusConnector(new NioEventLoopGroup(0));
 
-        final String host = localYTsaurus != null ? localYTsaurus.getHost() : "localhost";
+        final String host = LocalYTsaurus.getContainer() != null ? LocalYTsaurus.getContainer().getHost() : "localhost";
 
         final String user = "root";
         final String token = "";
