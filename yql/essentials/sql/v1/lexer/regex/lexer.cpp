@@ -21,7 +21,7 @@ namespace NSQLTranslationV1 {
             : Grammar_(std::move(grammar))
         {
             for (auto& [token, regex] : MakeRegexByTokenNameMap(Grammar_, ansi)) {
-                OtherRegexes_.emplace(std::move(token), std::string(regex));
+                OtherRegexes_.emplace(std::move(token), std::string(std::move(regex)));
             }
         }
 
@@ -35,13 +35,13 @@ namespace NSQLTranslationV1 {
 
             size_t errors = 0;
             for (size_t pos = 0; pos < query.size();) {
-                TParsedToken matched = Match(query, pos);
+                TParsedToken matched = Match(TStringBuf(query, pos));
+
+                if (matched.Name.empty() && maxErrors == errors) {
+                    break;
+                }
 
                 if (matched.Name.empty()) {
-                    if (maxErrors == errors) {
-                        return false;
-                    }
-
                     pos += 1;
                     errors += 1;
                     continue;
@@ -55,11 +55,11 @@ namespace NSQLTranslationV1 {
         }
 
     private:
-        TParsedToken Match(const TString& query, size_t pos) {
+        TParsedToken Match(const TStringBuf prefix) {
             TParsedTokenList matches;
-            MatchKeyword(query, pos, matches);
-            MatchPunctuation(query, pos, matches);
-            MatchRegex(query, pos, matches);
+            MatchKeyword(prefix, matches);
+            MatchPunctuation(prefix, matches);
+            MatchRegex(prefix, matches);
 
             auto it = MaxElementBy(matches, [](const TParsedToken& matched) {
                 return matched.Content.length();
@@ -73,28 +73,27 @@ namespace NSQLTranslationV1 {
             return *it;
         }
 
-        void MatchKeyword(const TString& query, size_t pos, TParsedTokenList& matches) {
+        void MatchKeyword(const TStringBuf prefix, TParsedTokenList& matches) {
             for (const auto& keyword : Grammar_.KeywordNames) {
-                if (query.substr(pos, keyword.length()) == keyword) {
+                if (prefix.substr(0, keyword.length()) == keyword) {
                     matches.emplace_back(keyword, keyword);
                 }
             }
         }
 
-        void MatchPunctuation(const TString& query, size_t pos, TParsedTokenList& matches) {
+        void MatchPunctuation(const TStringBuf prefix, TParsedTokenList& matches) {
             for (const auto& name : Grammar_.PunctuationNames) {
                 const auto& content = Grammar_.BlockByName.at(name);
-                if (query.substr(pos, content.length()) == content) {
+                if (prefix.substr(0, content.length()) == content) {
                     matches.emplace_back(name, content);
                 }
             }
         }
 
-        void MatchRegex(const TString& query, size_t pos, TParsedTokenList& matches) {
+        void MatchRegex(const TStringBuf prefix, TParsedTokenList& matches) {
             for (const auto& [token, regex] : OtherRegexes_) {
                 std::smatch match;
-                std::string substring = query.substr(pos);
-                if (std::regex_search(substring, match, regex, std::regex_constants::match_continuous)) {
+                if (std::regex_search(prefix.data(), match, regex, std::regex_constants::match_continuous)) {
                     matches.emplace_back(token, match.str(0));
                 }
             }
