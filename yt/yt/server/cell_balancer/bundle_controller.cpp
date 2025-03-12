@@ -970,6 +970,18 @@ private:
                 .WithTag("alarm_id", alert.Id)
                 .Counter("/scan_bundles_alarms_count");
             it = bundle.IdToCounter.insert({bundleName, std::move(counter)}).first;
+
+            YT_LOG_DEBUG("Register alert: constructing (Id: %v, BundleName: %v, CounterAddress: %x, Description: %v)",
+                alert.Id,
+                bundleName,
+                &it->second,
+                alert.Description);
+        } else {
+            YT_LOG_DEBUG("Register alert: incrementing (Id: %v, BundleName: %v, CounterAddress: %x, Description: %v)",
+                alert.Id,
+                bundleName,
+                &it->second,
+                alert.Description);
         }
 
         it->second.Increment(1);
