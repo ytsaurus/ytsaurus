@@ -9,10 +9,11 @@ namespace NRoren {
 template <typename T>
 auto Sum()
 {
-    return MakeIntrusive<TLambdaCombineFn<T>>(
+    auto f = WrapToSerializableFunctor(
         [] (T* accum, const T& current) {
             *accum += current;
         });
+    return MakeIntrusive<TFunctorCombineFn<std::decay_t<decltype(f)>, T>>(f);
 }
 
 class TSumPerKeyTransform
