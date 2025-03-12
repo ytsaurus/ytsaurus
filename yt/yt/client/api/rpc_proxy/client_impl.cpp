@@ -2242,7 +2242,7 @@ TFuture<NQueryTrackerClient::TQueryId> TClient::StartQuery(
     }
 
     for (const auto& sec : options.Secrets) {
-        const auto secret = req->add_secrets();
+        auto* secret = req->add_secrets();
         secret->set_id(sec->Id);
         if (!sec->Category.empty()) {
             secret->set_category(sec->Category);

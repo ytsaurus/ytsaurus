@@ -2899,7 +2899,6 @@ class YtClient(ClientState):
         :type secrets: list or None
 
         """
-        print("Secrets:", secrets)
         return client_api.start_query(
             engine, query,
             client=self,

@@ -88,7 +88,7 @@ public:
         , Settings_(ConvertTo<TYqlSettingsPtr>(SettingsNode_))
         , Stage_(Settings_->Stage.value_or(Config_->Stage))
         , ExecuteMode_(Settings_->ExecuteMode)
-        , Secrets_(ConvertTo<std::optional<std::vector<TQuerySecret::TPtr>>>(activeQuery.Secrets).value_or(std::vector<TQuerySecret::TPtr>()))
+        , Secrets_(ConvertTo<std::optional<std::vector<TQuerySecretPtr>>>(activeQuery.Secrets).value_or(std::vector<TQuerySecretPtr>()))
         , ProgressGetterExecutor_(New<TPeriodicExecutor>(controlInvoker, BIND(&TYqlQueryHandler::GetProgress, MakeWeak(this)), Config_->QueryProgressGetPeriod))
     { }
 
@@ -136,7 +136,7 @@ private:
     const TString Stage_;
     const EExecuteMode ExecuteMode_;
     const IInvokerPtr ProgressInvoker_;
-    const std::vector<TQuerySecret::TPtr> Secrets_;
+    const std::vector<TQuerySecretPtr> Secrets_;
 
     IRoamingChannelProviderPtr YqlAgentChannelProvider_;
     TString YqlServiceName_;

@@ -42,8 +42,6 @@ struct TQuerySecret
     TString Subcategory;
     TString YPath;
 
-    using TPtr = NYT::TIntrusivePtr<TQuerySecret>;
-
     REGISTER_YSON_STRUCT(TQuerySecret);
 
     static void Register(TRegistrar registrar);
@@ -61,7 +59,7 @@ struct TStartQueryOptions
     std::vector<TQueryFilePtr> Files;
     std::optional<TString> AccessControlObject; // COMPAT(mpereskokova)
     std::optional<std::vector<TString>> AccessControlObjects;
-    std::vector<TQuerySecret::TPtr> Secrets;
+    std::vector<TQuerySecretPtr> Secrets;
 };
 
 struct TAbortQueryOptions
