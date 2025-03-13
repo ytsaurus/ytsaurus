@@ -42,7 +42,7 @@ func TestInfer(t *testing.T) {
 	s, err := Infer(&testBasicTypes{})
 	require.NoError(t, err)
 
-	require.Equal(t, s, Schema{
+	require.Equal(t, Schema{
 		Columns: []Column{
 			{Name: "I", Type: TypeInt64, Required: true},
 			{Name: "I64", Type: TypeInt64, Required: true},
@@ -63,7 +63,7 @@ func TestInfer(t *testing.T) {
 			{Name: "A3", Type: TypeAny},
 			{Name: "T0", Type: TypeString, Required: true},
 		},
-	})
+	}, s)
 }
 
 type InnerA struct {
@@ -89,14 +89,14 @@ func TestInferEmbedding(t *testing.T) {
 	s, err := Infer(&testEmbedding{})
 	require.NoError(t, err)
 
-	require.Equal(t, s, Schema{
+	require.Equal(t, Schema{
 		Columns: []Column{
 			{Name: "A", Type: TypeInt64, Required: true},
 			{Name: "B", Type: TypeInt64, Required: false},
 			{Name: "C", Type: TypeString, Required: false},
 			{Name: "D", Type: TypeString, Required: false},
 		},
-	})
+	}, s)
 }
 
 func TestInfer_nonStructEmbedding(t *testing.T) {
@@ -121,11 +121,11 @@ func TestPrivateFields(t *testing.T) {
 	s, err := Infer(&testPrivateFields{i: 1})
 	require.NoError(t, err)
 
-	require.Equal(t, s, Schema{
+	require.Equal(t, Schema{
 		Columns: []Column{
 			{Name: "I", Type: TypeInt64, Required: true},
 		},
-	})
+	}, s)
 }
 
 func TestInferType(t *testing.T) {
@@ -188,7 +188,7 @@ func TestInferMarshalerTypes(t *testing.T) {
 	s, err := Infer(v)
 	require.NoError(t, err)
 
-	require.Equal(t, s, Schema{
+	require.Equal(t, Schema{
 		Columns: []Column{
 			{Name: "M0", Type: TypeString, Required: true},
 			{Name: "M1", Type: TypeString, Required: true},
@@ -200,7 +200,7 @@ func TestInferMarshalerTypes(t *testing.T) {
 			{Name: "O2", Type: TypeBytes},
 			{Name: "O3", Type: TypeBytes},
 		},
-	})
+	}, s)
 }
 
 type tagStruct struct {
@@ -212,11 +212,11 @@ func TestInferTags(t *testing.T) {
 	s, err := Infer(&tagStruct{})
 	require.NoError(t, err)
 
-	require.Equal(t, s, Schema{
+	require.Equal(t, Schema{
 		Columns: []Column{
 			{Name: "a", Type: TypeInt64, Required: true},
 		},
-	})
+	}, s)
 }
 
 type keyStruct struct {
@@ -228,12 +228,12 @@ func TestInferKeyColumns(t *testing.T) {
 	s, err := Infer(&keyStruct{})
 	require.NoError(t, err)
 
-	require.Equal(t, s, Schema{
+	require.Equal(t, Schema{
 		Columns: []Column{
 			{Name: "a", Type: TypeInt64, Required: true, SortOrder: SortAscending},
 			{Name: "b", Type: TypeInt64, Required: true},
 		},
-	})
+	}, s)
 }
 
 type keyDefaultStruct struct {
@@ -244,11 +244,11 @@ func TestInferKeyWithDefaultName(t *testing.T) {
 	s, err := Infer(&keyDefaultStruct{})
 	require.NoError(t, err)
 
-	require.Equal(t, s, Schema{
+	require.Equal(t, Schema{
 		Columns: []Column{
 			{Name: "A", Type: TypeInt64, Required: true, SortOrder: SortAscending},
 		},
-	})
+	}, s)
 }
 
 type orderedTableStruct struct {
@@ -261,11 +261,11 @@ func TestInferOrderedTable(t *testing.T) {
 	s, err := Infer(&orderedTableStruct{})
 	require.NoError(t, err)
 
-	require.Equal(t, s, Schema{
+	require.Equal(t, Schema{
 		Columns: []Column{
 			{Name: "value", Type: TypeString, Required: true},
 		},
-	})
+	}, s)
 }
 
 func TestInferMapType(t *testing.T) {
@@ -287,11 +287,103 @@ func TestInferMapType(t *testing.T) {
 
 func TestInferMapNonStringKeys(t *testing.T) {
 	a := make(map[int]any)
-	_, err := Infer(a)
+	// Notice if map is empty it will be interface(map[int]any) type and InferMap will return nil instead of error.
+	a[1] = "some"
+	_, err := InferMap(a)
 	require.Error(t, err)
 }
 
 func TestInferMap(t *testing.T) {
+	testMap := generateMapStringToAny()
+
+	s, err := InferMap(testMap)
+	require.NoError(t, err)
+
+	columnsExpected := []Column{
+		{Name: "I", Type: TypeInt64, Required: true},
+		{Name: "I64", Type: TypeInt64, Required: true},
+		{Name: "I32", Type: TypeInt32, Required: true},
+		{Name: "I16", Type: TypeInt16, Required: true},
+		{Name: "U", Type: TypeUint64, Required: true},
+		{Name: "U64", Type: TypeUint64, Required: true},
+		{Name: "U32", Type: TypeUint32, Required: true},
+		{Name: "U16", Type: TypeUint16, Required: true},
+		{Name: "S", Type: TypeString, Required: true},
+		{Name: "B", Type: TypeBytes, Required: true},
+		{Name: "A0", Type: TypeAny},
+		{Name: "A1", Type: TypeAny},
+		{Name: "A2", Type: TypeAny},
+	}
+	sort.Slice(columnsExpected, func(i, j int) bool {
+		return columnsExpected[i].Name < columnsExpected[j].Name
+	})
+
+	require.Equal(t, Schema{Columns: columnsExpected}, s)
+}
+
+type testTimeTypes struct {
+	D0 Date
+	D1 Datetime
+	D2 Timestamp
+	D3 Interval
+}
+
+func TestInferTime(t *testing.T) {
+	s, err := Infer(&testTimeTypes{})
+	require.NoError(t, err)
+
+	require.Equal(t, Schema{
+		Columns: []Column{
+			{Name: "D0", Type: TypeDate, Required: true},
+			{Name: "D1", Type: TypeDatetime, Required: true},
+			{Name: "D2", Type: TypeTimestamp, Required: true},
+			{Name: "D3", Type: TypeInterval, Required: true},
+		},
+	}, s)
+}
+
+func TestInferError(t *testing.T) {
+	s, err := Infer(&withYTError{})
+	require.NoError(t, err)
+
+	require.Equal(t, Schema{
+		Columns: []Column{
+			{Name: "error", Type: TypeAny},
+		},
+	}, s)
+}
+
+func TestInferSpecial(t *testing.T) {
+	s, err := Infer(&specialStruct{})
+	require.NoError(t, err)
+
+	require.Equal(t, Schema{
+		Columns: []Column{
+			{Name: "role", Type: TypeAny},
+		},
+	}, s)
+}
+
+type testColumnGroup struct {
+	C0 int `ytgroup:"a"`
+	C1 int `ytgroup:"b"`
+	C2 int
+}
+
+func TestInferColumnGroup(t *testing.T) {
+	s, err := Infer(&testColumnGroup{})
+	require.NoError(t, err)
+
+	require.Equal(t, Schema{
+		Columns: []Column{
+			{Name: "C0", Type: TypeInt64, Required: true, Group: "a"},
+			{Name: "C1", Type: TypeInt64, Required: true, Group: "b"},
+			{Name: "C2", Type: TypeInt64, Required: true},
+		},
+	}, s)
+}
+
+func generateMapStringToAny() map[string]any {
 	var I int
 	var I64 int64
 	var I32 int32
@@ -326,68 +418,5 @@ func TestInferMap(t *testing.T) {
 	testMap["A0"] = A0
 	testMap["A1"] = A1
 	testMap["A2"] = A2
-
-	s, err := InferMap(testMap)
-	require.NoError(t, err)
-
-	columnsExpected := []Column{
-		{Name: "I", Type: TypeInt64, Required: true},
-		{Name: "I64", Type: TypeInt64, Required: true},
-		{Name: "I32", Type: TypeInt32, Required: true},
-		{Name: "I16", Type: TypeInt16, Required: true},
-		{Name: "U", Type: TypeUint64, Required: true},
-		{Name: "U64", Type: TypeUint64, Required: true},
-		{Name: "U32", Type: TypeUint32, Required: true},
-		{Name: "U16", Type: TypeUint16, Required: true},
-		{Name: "S", Type: TypeString, Required: true},
-		{Name: "B", Type: TypeBytes, Required: true},
-		{Name: "A0", Type: TypeAny},
-		{Name: "A1", Type: TypeAny},
-		{Name: "A2", Type: TypeAny},
-	}
-	sort.Slice(columnsExpected, func(i, j int) bool {
-		return columnsExpected[i].Name < columnsExpected[j].Name
-	})
-
-	require.Equal(t, s, Schema{Columns: columnsExpected})
-}
-
-type testTimeTypes struct {
-	D0 Date
-	D1 Datetime
-	D2 Timestamp
-	D3 Interval
-}
-
-func TestInferTime(t *testing.T) {
-	s, err := Infer(&testTimeTypes{})
-	require.NoError(t, err)
-
-	require.Equal(t, s, Schema{
-		Columns: []Column{
-			{Name: "D0", Type: TypeDate, Required: true},
-			{Name: "D1", Type: TypeDatetime, Required: true},
-			{Name: "D2", Type: TypeTimestamp, Required: true},
-			{Name: "D3", Type: TypeInterval, Required: true},
-		},
-	})
-}
-
-type testColumnGroup struct {
-	C0 int `ytgroup:"a"`
-	C1 int `ytgroup:"b"`
-	C2 int
-}
-
-func TestInferColumnGroup(t *testing.T) {
-	s, err := Infer(&testColumnGroup{})
-	require.NoError(t, err)
-
-	require.Equal(t, s, Schema{
-		Columns: []Column{
-			{Name: "C0", Type: TypeInt64, Required: true, Group: "a"},
-			{Name: "C1", Type: TypeInt64, Required: true, Group: "b"},
-			{Name: "C2", Type: TypeInt64, Required: true},
-		},
-	})
+	return testMap
 }
