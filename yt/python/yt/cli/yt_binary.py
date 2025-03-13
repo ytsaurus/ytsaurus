@@ -2157,6 +2157,7 @@ def add_list_jobs_parser(add_parser):
     parser.add_argument("--with-fail-context", default=None, action="store_true")
     parser.add_argument("--with-competitors", default=None, action="store_true", help="with competitive jobs")
     parser.add_argument("--with-monitoring-descriptor", default=None, action="store_true")
+    parser.add_argument("--with-interruption-info", default=None, action="store_true")
     parser.add_argument(
         "--include-cypress", action="store_true",
         help='include jobs from Cypress in result. Have effect only if --data-source is set to "manual"')
