@@ -10,7 +10,7 @@
 #include <contrib/ydb/core/protos/msgbus.pb.h>
 #include <contrib/ydb/core/protos/schemeshard/operations.pb.h>
 #include <contrib/ydb/core/util/pb.h>
-#include <ydb-cpp-sdk/library/operation_id/operation_id.h>
+#include <contrib/ydb/public/sdk/cpp/include/ydb-cpp-sdk/library/operation_id/operation_id.h>
 
 #if defined BLOG_D || defined BLOG_I || defined BLOG_ERROR || defined BLOG_NOTICE
 #error log macro definition clash

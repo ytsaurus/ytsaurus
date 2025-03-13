@@ -26,7 +26,7 @@
 #include <contrib/ydb/core/ydb_convert/ydb_convert.h>
 #include <contrib/ydb/core/tx/schemeshard/schemeshard.h>
 #include <contrib/ydb/core/kqp/rm_service/kqp_rm_service.h>
-#include <ydb-cpp-sdk/library/operation_id/operation_id.h>
+#include <contrib/ydb/public/sdk/cpp/include/ydb-cpp-sdk/library/operation_id/operation_id.h>
 #include <contrib/ydb/core/kqp/common/kqp_yql.h>
 
 #include <contrib/ydb/core/util/ulid.h>

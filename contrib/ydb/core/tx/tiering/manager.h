@@ -12,7 +12,7 @@
 #include <contrib/ydb/services/metadata/secret/snapshot.h>
 #include <contrib/ydb/services/metadata/service.h>
 
-#include <ydb-cpp-sdk/client/types/s3_settings.h>
+#include <contrib/ydb/public/sdk/cpp/include/ydb-cpp-sdk/client/types/s3_settings.h>
 
 #include <functional>
 

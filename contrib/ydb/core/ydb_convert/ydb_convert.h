@@ -10,7 +10,7 @@
 #include <contrib/ydb/public/api/protos/ydb_scheme.pb.h>
 #include <contrib/ydb/core/protos/flat_scheme_op.pb.h>
 
-#include <ydb-cpp-sdk/client/value/value.h>
+#include <contrib/ydb/public/sdk/cpp/include/ydb-cpp-sdk/client/value/value.h>
 
 #include <util/memory/pool.h>
 

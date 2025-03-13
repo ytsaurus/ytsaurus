@@ -6,8 +6,8 @@
 #include <contrib/ydb/library/services/services.pb.h>
 
 #include <contrib/ydb/public/api/protos/ydb_discovery.pb.h>
-#include <ydb-cpp-sdk/client/extensions/discovery_mutator/discovery_mutator.h>
-#include <ydb-cpp-sdk/client/extensions/solomon_stats/pull_client.h>
+#include <contrib/ydb/public/sdk/cpp/include/ydb-cpp-sdk/client/extensions/discovery_mutator/discovery_mutator.h>
+#include <contrib/ydb/public/sdk/cpp/include/ydb-cpp-sdk/client/extensions/solomon_stats/pull_client.h>
 
 #include <util/generic/cast.h>
 #include <util/generic/strbuf.h>

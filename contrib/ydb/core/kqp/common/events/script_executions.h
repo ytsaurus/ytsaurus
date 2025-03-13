@@ -7,7 +7,7 @@
 #include <contrib/ydb/public/api/protos/ydb_operation.pb.h>
 #include <contrib/ydb/public/api/protos/ydb_query.pb.h>
 #include <contrib/ydb/public/api/protos/ydb_status_codes.pb.h>
-#include <ydb-cpp-sdk/library/operation_id/operation_id.h>
+#include <contrib/ydb/public/sdk/cpp/include/ydb-cpp-sdk/library/operation_id/operation_id.h>
 
 #include <contrib/ydb/library/actors/core/event_local.h>
 

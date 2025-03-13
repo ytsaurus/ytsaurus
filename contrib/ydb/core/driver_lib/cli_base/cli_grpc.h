@@ -2,7 +2,7 @@
 
 #include "cli_command.h"
 
-#include <ydb-cpp-sdk/client/resources/ydb_resources.h>
+#include <contrib/ydb/public/sdk/cpp/include/ydb-cpp-sdk/client/resources/ydb_resources.h>
 #include <contrib/ydb/public/lib/deprecated/client/grpc_client.h>
 #include <contrib/ydb/public/sdk/cpp/src/library/grpc/client/grpc_client_low.h>
 #include <contrib/ydb/public/api/protos/ydb_operation.pb.h>
