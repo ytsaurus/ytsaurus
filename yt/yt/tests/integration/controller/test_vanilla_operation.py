@@ -2,7 +2,7 @@ from yt_env_setup import YTEnvSetup, Restarter, SCHEDULERS_SERVICE, CONTROLLER_A
 
 from yt_commands import (
     authors, print_debug, wait, wait_breakpoint, release_breakpoint, with_breakpoint, events_on_fs,
-    raises_yt_error, update_controller_agent_config, update_nodes_dynamic_config,
+    raises_yt_error, update_controller_agent_config, update_nodes_dynamic_config, update_scheduler_config,
     create, ls, exists, sorted_dicts, create_pool,
     get, write_file, read_table, write_table, vanilla, run_test_vanilla, abort_job, abandon_job,
     interrupt_job, dump_job_context, run_sleeping_vanilla, get_allocation_id_from_job_id)
@@ -1821,5 +1821,78 @@ class TestGangManager(YTEnvSetup):
                 }
             )
 
+    @authors("pogorelov")
+    def test_gang_manager_job_hanging(self):
+        # YT-24448
+        # In this test we want to switch operation incarnation having postpone finshed allocation event.
+        # So we kill one node and increase node_registration_timeout for CA.
+        # And after that abort some jobs.
+        update_scheduler_config("node_registration_timeout", 500)
+
+        update_controller_agent_config("job_tracker/node_disconnection_timeout", 30000)
+
+        op = run_test_vanilla(
+            with_breakpoint("BREAKPOINT"),
+            job_count=3,
+            task_patch={
+                "gang_manager": {},
+            },
+        )
+
+        first_job_ids = wait_breakpoint(job_count=3)
+        assert len(first_job_ids) == 3
+
+        first_job_id = first_job_ids[0]
+        first_job_allocation_id = get_allocation_id_from_job_id(first_job_id)
+        first_job_node = op.get_node(first_job_id)
+
+        print_debug(f"Node address of job {first_job_id} is {first_job_node}")
+
+        op.wait_for_fresh_snapshot()
+        with Restarter(self.Env, CONTROLLER_AGENTS_SERVICE):
+            self.Env.kill_nodes(addresses=[first_job_node])
+
+        # In case of test failure we must start killed node again.
+        try:
+            # We create it after CA restart to not compare new value of sensor with value before restart.
+            incarnation_switch_counter = _get_controller_profiler().counter(
+                "controller_agent/gang_operations/incarnation_switch_count")
+
+            second_job_id = first_job_ids[1]
+            second_job_node = op.get_node(second_job_id)
+            assert first_job_node != second_job_node
+
+            controller_agent_address = get(op.get_path() + "/@controller_agent_address")
+            wait(lambda: exists(f"//sys/controller_agents/instances/{controller_agent_address}/orchid/controller_agent/job_tracker/allocations/{first_job_allocation_id}"))
+
+            def _check_allocation_finished():
+                allocation_orchid = get(f"//sys/controller_agents/instances/{controller_agent_address}/orchid/controller_agent/job_tracker/allocations/{first_job_allocation_id}")
+                if not allocation_orchid["finished"]:
+                    return False
+
+                assert allocation_orchid["jobs"][first_job_id]["stage"] == "waiting_for_confirmation"
+
+                return True
+            wait(_check_allocation_finished)
+
+            print_debug(f"Aborting job {second_job_id}")
+
+            abort_job(second_job_id)
+
+            # Allocation abort was postponed.
+            # After incarnation switching, postponed allocation abort will be processed and it led to new incarnation switch.
+            wait(lambda: incarnation_switch_counter.get() >= 1)
+        finally:
+            self.Env.start_nodes(addresses=[first_job_node])
+
+        release_breakpoint(job_id=first_job_ids[0])
+        release_breakpoint(job_id=first_job_ids[1])
+        release_breakpoint(job_id=first_job_ids[2])
+
+        wait_breakpoint(job_count=3)
+
+        release_breakpoint()
+
+        op.track()
 
 ##################################################################

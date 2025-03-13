@@ -2419,6 +2419,7 @@ void TJobTracker::RequestJobAbortion(
             .AbortReason = reason,
             .RequestNewJob = requestNewJob,
         });
+    ProcessOperationContext(std::move(context));
 }
 
 std::optional<TJobTracker::TAllocationInfo> TJobTracker::EraseAllocationIfNeeded(
