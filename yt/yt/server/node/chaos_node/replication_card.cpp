@@ -78,6 +78,7 @@ void TReplicationCard::Save(TSaveContext& context) const
     Save(context, *ReplicatedTableOptions_);
     Save(context, Collocation_);
     Save(context, AwaitingCollocationId_);
+    Save(context, MigrationToken_);
 }
 
 void TReplicationCard::Load(TLoadContext& context)
@@ -99,6 +100,10 @@ void TReplicationCard::Load(TLoadContext& context)
     // COMPAT(savrus)
     if (context.GetVersion() >= EChaosReign::AttachDistributedCollocation) {
         Load(context, AwaitingCollocationId_);
+    }
+    // COMPAT(gryzlov-ad)
+    if (context.GetVersion() >= EChaosReign::PersistMigrationToken) {
+        Load(context, MigrationToken_);
     }
 }
 
