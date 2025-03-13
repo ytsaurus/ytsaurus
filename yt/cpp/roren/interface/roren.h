@@ -354,6 +354,8 @@ TRenamedTransform<TTransform> operator>>(TString name, TTransform transform)
     return TRenamedTransform{std::move(name), std::move(transform)};
 }
 
+NPrivate::TAttributeSetter Name(TString trnasformName);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 template <typename TRow, typename TTransform>

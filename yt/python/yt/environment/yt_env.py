@@ -934,7 +934,19 @@ class YTInstance(object):
                 ])
             )
 
-    def kill_nodes(self, indexes=None, wait_offline=True):
+    def get_node_index_by_address(self, address):
+        for index in range(len(self._service_processes["node"])):
+            if self.get_node_address(index) == address:
+                return index
+
+        raise YtError(f"Node with address {address} not found")
+
+    def kill_nodes(self, indexes=None, addresses=None, wait_offline=True):
+        assert indexes is None or addresses is None
+
+        if indexes is None and addresses is not None:
+            indexes = [self.get_node_index_by_address(address) for address in addresses]
+
         self.kill_service("node", indexes=indexes)
 
         addresses = None
@@ -1265,7 +1277,7 @@ class YTInstance(object):
 
             return p
 
-    def run_yt_component(self, component, config_paths, name=None, config_option=None, custom_paths=None):
+    def run_yt_component(self, component, config_paths, name=None, indexes=None, config_option=None, custom_paths=None):
         if config_option is None:
             config_option = "--config"
         if name is None:
@@ -1279,6 +1291,9 @@ class YTInstance(object):
 
         pids = []
         for index in xrange(len(config_paths)):
+            if indexes is not None and index not in indexes:
+                continue
+
             with push_front_env_path(self.bin_path):
                 binary_path = _get_yt_binary_path("ytserver-" + component, custom_paths=custom_paths)
                 if binary_path is None:
@@ -1298,7 +1313,7 @@ class YTInstance(object):
                     pids.append(run_result.pid)
         return pids
 
-    def _run_builtin_yt_component(self, component, name=None, config_option=None, custom_paths=None):
+    def _run_builtin_yt_component(self, component, name=None, indexes=None, config_option=None, custom_paths=None):
         if name is None:
             name = component
 
@@ -1306,7 +1321,8 @@ class YTInstance(object):
             logger.info("Skip starting %s process as it was run before as multidaemon", name)
             return
 
-        self.run_yt_component(component, self.config_paths[name], name=name, config_option=config_option, custom_paths=custom_paths)
+        self.run_yt_component(
+            component, self.config_paths[name], name=name, indexes=indexes, config_option=config_option, custom_paths=custom_paths)
 
     def _prepare_multi(self, multi_config, force_overwrite=False):
         name = "multi"
@@ -1666,8 +1682,13 @@ class YTInstance(object):
             self.config_paths["node"].append(config_path)
             self._service_processes["node"].append(None)
 
-    def start_nodes(self, sync=True):
-        self._run_builtin_yt_component("node")
+    def start_nodes(self, indexes=None, addresses=None, sync=True):
+        assert indexes is None or addresses is None
+
+        if indexes is None and addresses is not None:
+            indexes = [self.get_node_index_by_address(address) for address in addresses]
+
+        self._run_builtin_yt_component("node", indexes=indexes)
 
         def nodes_ready():
             self._validate_processes_are_running("node")

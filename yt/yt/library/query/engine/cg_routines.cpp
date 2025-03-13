@@ -49,6 +49,8 @@
 
 #include <contrib/libs/re2/re2/re2.h>
 
+#include <contrib/libs/xxhash/xxhash.h>
+
 #include <library/cpp/yt/memory/chunked_memory_pool_output.h>
 
 #include <library/cpp/yt/farmhash/farm_hash.h>
@@ -2005,6 +2007,11 @@ size_t StringHash(
     return FarmFingerprint(ConvertPointerFromWasmToHost(data, length), length);
 }
 
+ui64 StringXxHash64(const char* data, ui32 length)
+{
+    return XXH_INLINE_XXH64(ConvertPointerFromWasmToHost(data, length), length, 0);
+}
+
 // FarmHash and MurmurHash hybrid to hash TRow.
 ui64 SimpleHash(const TUnversionedValue* begin, const TUnversionedValue* end)
 {
@@ -3882,6 +3889,7 @@ REGISTER_ROUTINE(ArrayJoinOpHelper);
 REGISTER_ROUTINE(GroupOpHelper);
 REGISTER_ROUTINE(GroupTotalsOpHelper);
 REGISTER_ROUTINE(StringHash);
+REGISTER_ROUTINE(StringXxHash64);
 REGISTER_ROUTINE(AllocatePermanentRow);
 REGISTER_ROUTINE(AllocateBytes);
 REGISTER_ROUTINE(IsRowInRowset);

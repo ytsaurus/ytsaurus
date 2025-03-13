@@ -3136,6 +3136,9 @@ private:
         if (request->has_with_monitoring_descriptor()) {
             options.WithMonitoringDescriptor = request->with_monitoring_descriptor();
         }
+        if (request->has_with_interruption_info()) {
+            options.WithInterruptionInfo = request->with_interruption_info();
+        }
         if (request->has_task_name()) {
             options.TaskName = request->task_name();
         }
@@ -3167,7 +3170,7 @@ private:
 
         context->SetRequestInfo(
             "OperationIdOrAlias: %v, Type: %v, State: %v, Address: %v, IncludeCypress: %v, "
-            "IncludeControllerAgent: %v, IncludeArchive: %v, JobCompetitionId: %v, WithCompetitors: %v, WithMonitoringDescriptor: %v",
+            "IncludeControllerAgent: %v, IncludeArchive: %v, JobCompetitionId: %v, WithCompetitors: %v, WithMonitoringDescriptor: %v, WithInterruptionInfo: %v",
             operationIdOrAlias,
             options.Type,
             options.State,
@@ -3177,7 +3180,8 @@ private:
             options.IncludeArchive,
             options.JobCompetitionId,
             options.WithCompetitors,
-            options.WithMonitoringDescriptor);
+            options.WithMonitoringDescriptor,
+            options.WithInterruptionInfo);
 
         ExecuteCall(
             context,

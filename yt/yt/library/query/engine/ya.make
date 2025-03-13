@@ -63,6 +63,7 @@ PEERDIR(
     library/cpp/yt/memory
     library/cpp/xdelta3/state
     contrib/libs/sparsehash
+    contrib/libs/xxhash
 )
 
 USE_LLVM_BC18()

@@ -1019,27 +1019,63 @@ TRANSFORMS[11] = [
         table_info=ACTIVE_QUERIES_V11,
     ),]
 
+FINISHED_QUERY_RESULTS_V12 = TableInfo(
+    [
+        ("query_id", "string"),
+        ("result_index", "int64"),
+    ],
+    [
+        ("error", "any"),
+        ("schema", "any"),
+        ("data_statistics", "any"),
+        ("rowset", "string"),
+        ("is_truncated", "boolean"),
+        ("full_result", "any"),
+    ],
+    optimize_for="lookup",
+    attributes={
+        "tablet_cell_bundle": SYS_BUNDLE_NAME,
+    },
+)
+
 TRANSFORMS[12] = [
     Conversion(
         "finished_query_results",
-        table_info=TableInfo(
-            [
-                ("query_id", "string"),
-                ("result_index", "int64"),
-            ],
-            [
-                ("error", "any"),
-                ("schema", "any"),
-                ("data_statistics", "any"),
-                ("rowset", "string"),
-                ("is_truncated", "boolean"),
-                ("full_result", "any"),
-            ],
-            optimize_for="lookup",
-            attributes={
-                "tablet_cell_bundle": SYS_BUNDLE_NAME,
-            },
-        )
+        table_info=FINISHED_QUERY_RESULTS_V12,
+    ),
+]
+
+FINISHED_QUERY_RESULTS_V13 = TableInfo(
+    [
+        ("query_id", "string"),
+        ("result_index", "int64"),
+    ],
+    [
+        ("error", "any"),
+        ("schema", "any"),
+        ("data_statistics", "any"),
+        ("rowset", "string"),
+        ("is_truncated", "boolean"),
+        ("full_result", "any"),
+    ],
+    optimize_for="lookup",
+    attributes={
+        "tablet_cell_bundle": SYS_BUNDLE_NAME,
+        "min_data_ttl": 60000,
+        "merge_rows_on_flush": True,
+        "auto_compaction_period": 3600000,
+    },
+)
+
+# YT-24065
+TRANSFORMS[13] = [
+    Conversion(
+        "finished_queries_results",
+        remove_table=True,
+    ),
+    Conversion(
+        "finished_query_results",
+        table_info=FINISHED_QUERY_RESULTS_V13,
     ),
 ]
 

@@ -3,6 +3,7 @@
     "fintech/uservices": "fintech/uservices/pyproject.toml",
     "insurance/": "insurance/pyproject.toml",
     "maps/garden/": "maps/garden/pyproject.toml",
+    "maps/infra/": "maps/infra/pyproject.toml",
     "maps/sprav/": "maps/sprav/pyproject.toml",
     "sprav/": "sprav/pyproject.toml",
     "taxi/": "taxi/pyproject.toml",

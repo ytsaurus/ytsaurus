@@ -1637,6 +1637,14 @@ TFuture<std::vector<TJob>> TClient::DoListJobsFromArchiveAsync(
         }
     }
 
+    if (options.WithInterruptionInfo) {
+        if (*options.WithInterruptionInfo) {
+            builder.AddWhereConjunct("not is_null(interruption_info)");
+        } else {
+            builder.AddWhereConjunct("is_null(interruption_info)");
+        }
+    }
+
     if (options.FromTime) {
         builder.AddWhereConjunct(Format("start_time >= %v", options.FromTime->MicroSeconds()));
     }
@@ -1854,6 +1862,7 @@ static void ParseJobsFromControllerAgentResponse(
         auto hasCompetitors = jobMap->GetChildValueOrThrow<bool>("has_competitors");
         auto taskName = jobMap->GetChildValueOrThrow<TString>("task_name");
         auto monitoringDescriptor = jobMap->FindChildValue<TString>("monitoring_descriptor");
+        auto interruptionInfo = jobMap->FindChildValue<TString>("interruption_info");
         auto startTime = jobMap->GetChildValueOrThrow<TInstant>("start_time");
         auto operationIncarnation = jobMap->FindChildValue<std::string>("operation_incarnation");
         return
@@ -1866,6 +1875,7 @@ static void ParseJobsFromControllerAgentResponse(
             (!options.WithCompetitors || options.WithCompetitors == hasCompetitors) &&
             (!options.TaskName || options.TaskName == taskName) &&
             (!options.WithMonitoringDescriptor || *options.WithMonitoringDescriptor == monitoringDescriptor.has_value()) &&
+            (!options.WithInterruptionInfo || *options.WithInterruptionInfo == interruptionInfo.has_value()) &&
             (!options.FromTime || startTime >= *options.FromTime) &&
             (!options.ToTime || startTime <= *options.ToTime) &&
             (!options.OperationIncarnation || options.OperationIncarnation == operationIncarnation);
