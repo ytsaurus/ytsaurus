@@ -150,6 +150,7 @@ The following attributes are supported for operations' output tables (default va
 - `sorted_by` — set of columns by which to sort the table.
 - `append` (false) — determines if data is appended to a given output table. If `append` is set to `false`, the data in the table is overwritten.
 - `row_count_limit` — finishes the operation ahead of time as soon as the output table reaches at least `row_count_limit` rows. Can only be set for one table.
+- `create` (false) - scheduler will create the table described by this path if it does not exist (it will execute `create` command with parameters `{ "path" = "//path/from/spec" ; "type" = "table" }`)
 
 The following attributes are supported on operations' input tables:
 - Standard [modifiers for selecting rows and columns](../../../../user-guide/storage/ypath.md#rich_ypath_suffix).
