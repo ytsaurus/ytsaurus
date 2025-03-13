@@ -8,6 +8,30 @@ Is released as helm charts on [Github Packages](https://github.com/ytsaurus/ytsa
 
 **Releases:**
 
+{% cut "**0.22.0**" %}
+
+**Release date:** 2025-03-07
+
+
+## Features
+* Update to YTsaurus 24.2 is supported
+
+## Minor
+* Add lost CA bundle and TLS secrets VolumeMounts for jobs container by @imakunin in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/449
+* Add bus client configuration by @imakunin in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/450
+
+## Experimental
+* Add multiple update selectors by @wilwell in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/383
+* Add blocked components column to kubectl output by @l0kix2 in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/459
+
+## New Contributors
+* @imakunin made their first contribution in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/449
+
+**Full Changelog**: https://github.com/ytsaurus/ytsaurus-k8s-operator/compare/release/0.21.0...release/0.22.0
+
+{% endcut %}
+
+
 {% cut "**0.21.0**" %}
 
 **Release date:** 2025-02-10
