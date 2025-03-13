@@ -19,6 +19,10 @@
 
 #include <yt/yt/library/dynamic_config/config.h>
 
+#include <yt/yt/core/concurrency/config.h>
+
+#include <yt/yt/core/misc/config.h>
+
 namespace NYT::NQueueAgent {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -103,12 +107,22 @@ class TQueueExporterDynamicConfig
     : public NYTree::TYsonStructLite
 {
 public:
+    static const TExponentialBackoffOptions DefaultRetryBackoff;
+
     bool Enable;
 
     //! Queue exporter pass period. Defines the minimum duration between 2 consecutive export iterations.
     TDuration PassPeriod;
     //! Maximum number of static tables exported per single export iteration.
     int MaxExportedTableCountPerTask;
+
+    //! Retry backoff options in case export task fails.
+    /*!
+     * \note #InvocationCount must be int max as exports are retried indefinitely.
+    */
+    TExponentialBackoffOptions RetryBackoff;
+
+    NConcurrency::TPeriodicExecutorOptions GetPeriodicExecutorOptions() const;
 
     bool operator==(const TQueueExporterDynamicConfig&) const = default;
 

@@ -429,6 +429,7 @@ public:
             .Item("replicated_table_mapping_row").Value(queueSnapshot->ReplicatedTableMappingRow)
             .Item("status").Do(std::bind(BuildQueueStatusYson, queueSnapshot, AlertManager_, queueExportsProgressOrError, _1))
             .Item("partitions").Do(std::bind(BuildQueuePartitionListYson, queueSnapshot, _1))
+            .Item("exporters").Do(std::bind(&TOrderedDynamicTableController::BuildExporterMappingYson, this, _1))
         .EndMap();
     }
 
@@ -461,7 +462,7 @@ public:
         AlertManager_->Reconfigure(oldConfig->AlertManager, newConfig->AlertManager);
 
         {
-            auto guard = WriterGuard(QueueExportsLock_);
+            auto guard = ReaderGuard(QueueExportsLock_);
             if (QueueExports_.IsOK()) {
                 for (const auto& exporter : GetValues(QueueExports_.Value())) {
                     exporter->OnDynamicConfigChanged(newConfig->QueueExporter);
@@ -473,6 +474,17 @@ public:
             "Updated queue controller dynamic config (OldConfig: %v, NewConfig: %v)",
             ConvertToYsonString(oldConfig, EYsonFormat::Text),
             ConvertToYsonString(newConfig, EYsonFormat::Text));
+    }
+
+    void Stop() override
+    {
+        auto guard = ReaderGuard(QueueExportsLock_);
+
+        if (QueueExports_.IsOK()) {
+            for (const auto& [_, exporter] : QueueExports_.Value()) {
+                exporter->Stop();
+            }
+        }
     }
 
     TRefCountedPtr GetLatestSnapshot() const override
@@ -652,7 +664,11 @@ private:
             }
         }
         for (const auto& name : unusedExportNames) {
-            queueExports.erase(name);
+            auto it = queueExports.find(name);
+            YT_VERIFY(it != queueExports.end());
+            it->second->Stop();
+
+            queueExports.erase(it);
         }
     }
 
@@ -1457,6 +1473,24 @@ private:
             }
         }
     };
+
+    void BuildExporterMappingYson(TFluentAny fluent) const
+    {
+        auto guard = ReaderGuard(QueueExportsLock_);
+
+        if (!QueueExports_.IsOK()) {
+            fluent
+                .BeginAttributes()
+                    .Item("error").Value(TError(QueueExports_))
+                .EndAttributes()
+                .Entity();
+            return;
+        }
+
+        fluent.DoMapFor(QueueExports_.Value(), [] (TFluentMap fluent, const auto& pair) {
+            fluent.Item(pair.first).Do(std::bind(&IQueueExporter::BuildOrchidYson, pair.second.Get(), _1));
+        });
+    }
 };
 
 DEFINE_REFCOUNTED_TYPE(TOrderedDynamicTableController)
@@ -1493,6 +1527,9 @@ public:
     {
         // Row update is handled in UpdateQueueController.
     }
+
+    void Stop() override
+    { }
 
     TRefCountedPtr GetLatestSnapshot() const override
     {

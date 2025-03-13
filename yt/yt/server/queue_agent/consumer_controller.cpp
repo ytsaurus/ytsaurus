@@ -507,6 +507,9 @@ public:
             ConvertToYsonString(newConfig, EYsonFormat::Text));
     }
 
+    void Stop() override
+    { }
+
     TRefCountedPtr GetLatestSnapshot() const override
     {
         return ConsumerSnapshot_.Acquire();
