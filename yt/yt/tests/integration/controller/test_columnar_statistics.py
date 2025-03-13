@@ -1117,6 +1117,16 @@ class TestReadSizeEstimation(_TestColumnarStatisticsBase):
     def make_random_string(size) -> str:
         return ''.join(random.choice(string.ascii_letters) for _ in range(size))
 
+    @staticmethod
+    def get_completed_summary(summaries):
+        result = None
+        for summary in summaries:
+            if summary["tags"]["job_state"] == "completed":
+                assert not result
+                result = summary
+        assert result
+        return result["summary"]
+
     @authors("apollo1321")
     @pytest.mark.parametrize("strict", [False, True])
     @pytest.mark.parametrize("mode", ["from_nodes", "from_master"])
@@ -1203,8 +1213,9 @@ class TestReadSizeEstimation(_TestColumnarStatisticsBase):
             )
 
             progress = get(op.get_path() + "/@progress")
-            actual_uncompressed_data_size = progress["job_statistics_v2"]["data"]["input"]["uncompressed_data_size"][0]["summary"]["sum"]
-            actual_compressed_data_size = progress["job_statistics_v2"]["data"]["input"]["compressed_data_size"][0]["summary"]["sum"]
+            input_statistics = progress["job_statistics_v2"]["data"]["input"]
+            actual_uncompressed_data_size = self.get_completed_summary(input_statistics["uncompressed_data_size"])["sum"]
+            actual_compressed_data_size = self.get_completed_summary(input_statistics["compressed_data_size"])["sum"]
 
             estimated_uncompressed_data_size = progress["estimated_input_statistics"]["uncompressed_data_size"]
             estimated_compressed_data_size = progress["estimated_input_statistics"]["compressed_data_size"]
@@ -1255,7 +1266,7 @@ class TestReadSizeEstimation(_TestColumnarStatisticsBase):
         )
 
         progress = get(op.get_path() + "/@progress")
-        actual_compressed_data_size = progress["job_statistics_v2"]["data"]["input"]["compressed_data_size"][0]["summary"]["sum"]
+        actual_compressed_data_size = self.get_completed_summary(progress["job_statistics_v2"]["data"]["input"]["compressed_data_size"])["sum"]
         estimated_compressed_data_size = progress["estimated_input_statistics"]["compressed_data_size"]
 
         assert 4 * 2**20 < actual_compressed_data_size < 7 * 2**20
