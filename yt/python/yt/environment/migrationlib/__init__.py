@@ -208,15 +208,20 @@ class Conversion(object):
     :param filter_callback:
         a callback called with "client" and "table_path" arguments used to ignore some conversions
         for re-using migration in different environments
+    :param remove_table:
+        whether to remove table_name if it exists
     """
 
-    def __init__(self, table, table_info=None, mapper=None, source=None, use_default_mapper=False, filter_callback=None):
+    def __init__(self, table, table_info=None, mapper=None, source=None, use_default_mapper=False, filter_callback=None, remove_table=False):
         self.table = table
         self.table_info = table_info
         self.mapper = mapper
         self.source = source
         self.use_default_mapper = use_default_mapper
         self.filter_callback = filter_callback
+        self.remove_table = remove_table
+        if self.remove_table:
+            assert self.table_info is None
 
     def __call__(self, client, table_info, target_table, source_table, tables_path, shard_count):
         if self.table_info:
@@ -324,6 +329,8 @@ class Migration(object):
             for conversion in self.transforms.get(version, []):
                 if conversion.table_info:
                     table_infos[conversion.table] = conversion.table_info
+                elif conversion.remove_table:
+                    table_infos.pop(conversion.table, None)
 
         for table_name, table_info in table_infos.items():
             if tablet_cell_bundle is not None:
@@ -350,6 +357,8 @@ class Migration(object):
             for conversion in self.transforms.get(version, []):
                 if conversion.table_info:
                     table_infos[conversion.table] = conversion.table_info
+                elif conversion.remove_table:
+                    table_infos.pop(conversion.table, None)
 
         # NB(omgronny): Allow retransform to the current version.
         if retransform:
@@ -368,6 +377,12 @@ class Migration(object):
                         continue
 
                     table_exists = client.exists(table_path)
+
+                    if conversion.remove_table:
+                        table_infos.pop(table, None)
+                        if table_exists:
+                            client.remove(table_path)
+                        continue
 
                     shard_count = shard_count
                     if table_exists:
@@ -425,6 +440,8 @@ class Migration(object):
                     del table_infos[conversion.source]
                 if conversion.table_info:
                     table_infos[conversion.table] = copy.deepcopy(conversion.table_info)
+                elif conversion.remove_table:
+                    table_infos.pop(conversion.table, None)
 
         return {table: table_info.schema for table, table_info in table_infos.items()}
 
@@ -453,6 +470,8 @@ class Migration(object):
             for conversion in self.transforms.get(version, []):
                 if conversion.table_info:
                     table_infos[conversion.table] = conversion.table_info
+                elif conversion.remove_table:
+                    table_infos.pop(conversion.table, None)
 
         for table, table_info in table_infos.items():
             table_path = ypath_join(tables_path, table)
