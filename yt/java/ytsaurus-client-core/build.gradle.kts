@@ -17,11 +17,11 @@ java {
 }
 
 dependencies {
-    api(project(":yt:java:type-info"))
-    api(project(":yt:java:yson"))
-    api(project(":yt:java:yson-tree"))
-    api(project(":yt:yt_proto:yt:core"))
-    api(project(":yt:yt_proto:yt:formats"))
+    implementation(project(":yt:java:type-info"))
+    implementation(project(":yt:java:yson"))
+    implementation(project(":yt:java:yson-tree"))
+    implementation(project(":yt:yt_proto:yt:core"))
+    implementation(project(":yt:yt_proto:yt:formats"))
     api("com.google.protobuf:protobuf-java:3.25.5")
     testImplementation("com.google.protobuf:protobuf-java:3.25.5")
     testImplementation("junit:junit:4.13")

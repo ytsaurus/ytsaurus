@@ -17,8 +17,8 @@ java {
 }
 
 dependencies {
-    api(project(":yt:java:annotations"))
-    api(project(":yt:java:yson"))
+    implementation(project(":yt:java:annotations"))
+    implementation(project(":yt:java:yson"))
     testImplementation("junit:junit:4.13")
 }
 
