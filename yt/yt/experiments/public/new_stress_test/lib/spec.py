@@ -449,10 +449,7 @@ class Spec():
     # Helpers for accessing attributes that may be calculated implicitly.
     def get_write_user_slot_count(self):
         if self.size.write_user_slot_count is not None:
-            return self.size.write_user_slot_count,
-
-
-
+            return self.size.write_user_slot_count
         if self.size.bundle_node_count is not None:
             return self.size.bundle_node_count * self.write_user_slots_per_node
         return None
