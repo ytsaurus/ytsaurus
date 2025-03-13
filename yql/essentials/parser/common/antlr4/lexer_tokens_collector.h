@@ -1,43 +1,13 @@
 #pragma once
 
+#include "error_listener.h"
+
 #include <yql/essentials/parser/common/error.h>
 #include <yql/essentials/parser/lexer_common/lexer.h>
 
 #include <contrib/libs/antlr4_cpp_runtime/src/antlr4-runtime.h>
 
-namespace antlr4 {
-
-    class ANTLR4CPP_PUBLIC YqlErrorListener: public BaseErrorListener {
-        NAST::IErrorCollector* errors;
-        bool* error;
-
-    public:
-        YqlErrorListener(NAST::IErrorCollector* errors, bool* error);
-
-        virtual void syntaxError(
-            Recognizer* recognizer, Token* offendingSymbol,
-            size_t line, size_t charPositionInLine,
-            const std::string& msg, std::exception_ptr e) override;
-    };
-
-} // namespace antlr4
-
 namespace NAST {
-
-    template <>
-    inline void InvalidToken<antlr4::Token>(IOutputStream& err, const antlr4::Token* token) {
-        if (token) {
-            if (token->getInputStream()) {
-                err << " '" << token->getText() << "'";
-            } else {
-                err << ABSENCE;
-            }
-        }
-    }
-
-} // namespace NAST
-
-namespace NAntlrAST {
 
     template <typename TLexer>
     class TLexerTokensCollector4 {
@@ -90,4 +60,4 @@ namespace NAntlrAST {
         TLexer Lexer;
     };
 
-} // namespace NAntlrAST
+} // namespace NAST

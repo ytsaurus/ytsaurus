@@ -2,10 +2,11 @@ LIBRARY()
 
 PEERDIR(
     contrib/libs/antlr4_cpp_runtime
+    yql/essentials/parser/common
 )
 
 SRCS(
-    antlr_ast_antlr4.cpp
+    error_listener.cpp
 )
 
 END()

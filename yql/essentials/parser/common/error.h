@@ -7,12 +7,6 @@ namespace NAST {
     static const char* INVALID_TOKEN_NAME = "nothing";
     static const char* ABSENCE = " absence";
 
-    template <typename InputType>
-    void InvalidCharacter(IOutputStream& err, const InputType* input);
-
-    template <typename TokenType>
-    inline void InvalidToken(IOutputStream& err, const TokenType* token);
-
     class TTooManyErrors: public yexception {
     };
 

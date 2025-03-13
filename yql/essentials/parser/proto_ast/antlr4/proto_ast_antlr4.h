@@ -1,8 +1,10 @@
 #pragma once
 
-#include <yql/essentials/parser/proto_ast/common.h>
+#include <yql/essentials/parser/common/error.h>
+#include <yql/essentials/parser/common/antlr4/error_listener.h>
+#include <yql/essentials/parser/common/antlr4/lexer_tokens_collector.h>
 
-#include <yql/essentials/parser/antlr_ast/antlr4/antlr_ast_antlr4.h>
+#include <yql/essentials/parser/proto_ast/common.h>
 
 #ifdef ERROR
 #undef ERROR
@@ -11,6 +13,23 @@
 
 namespace NProtoAST {
     using namespace NAST;
+
+    template <typename InputType>
+    void InvalidCharacter(IOutputStream& err, const InputType* input);
+
+    template <typename TokenType>
+    inline void InvalidToken(IOutputStream& err, const TokenType* token);
+
+    template <>
+    inline void InvalidToken<antlr4::Token>(IOutputStream& err, const antlr4::Token* token) {
+        if (token) {
+            if (token->getInputStream()) {
+                err << " '" << token->getText() << "'";
+            } else {
+                err << ABSENCE;
+            }
+        }
+    }
 
     template <typename TParser, typename TLexer>
     class TProtoASTBuilder4 {
