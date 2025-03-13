@@ -100,6 +100,7 @@ if [ "$build_python_udfs" == "yes" ]; then
   docker container run --rm --name yql-python-udfs-build \
     -v $YTSAURUS_SOURCE_PATH:/ytsaurus \
     -v $YQL_BUILD_PATH:/yql_build \
+    --env YTSAURUS_SOURCE_PATH=/ytsaurus \
     --env YQL_BUILD_PATH=/yql_build \
     --env "BUILD_FLAGS=$BUILD_FLAGS" \
     mirror.gcr.io/ubuntu:focal \
