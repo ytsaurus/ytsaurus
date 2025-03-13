@@ -32,6 +32,8 @@ public:
     using TExitNodeMap = THashMap<TNodeId, TPortalExitNodeRawPtr>;
     virtual const TExitNodeMap& GetExitNodes() = 0;
 
+    virtual int CountPortalsLeadingToCell(NObjectClient::TCellTag cellTag) const = 0;
+
     virtual void ValidateNoNodesBehindRemovedMastersPortal(const THashSet<NObjectClient::TCellTag>& removedMasterCellTags) const = 0;
 };
 

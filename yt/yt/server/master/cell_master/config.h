@@ -222,6 +222,7 @@ struct TDynamicMulticellManagerConfig
 
     // COMPAT(aleksandra-zh)
     bool RemoveSecondaryCellDefaultRoles;
+    bool AllowMasterCellRoleInvariantCheck;
 
     TDuration SyncHiveClocksPeriod;
 

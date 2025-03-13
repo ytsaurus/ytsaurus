@@ -807,6 +807,13 @@ class TestChunkServerMulticell(TestChunkServer):
     NUM_SECONDARY_MASTER_CELLS = 2
     NUM_SCHEDULERS = 1
 
+    DELTA_DYNAMIC_MASTER_CONFIG = {
+        "multicell_manager": {
+            # NB: Allow to remove secondary cell default roles from cells with chunks and nodes behind portal.
+            "allow_master_cell_role_invariant_check": False,
+        },
+    }
+
     @authors("babenko")
     def test_validate_chunk_host_cell_role1(self):
         set("//sys/@config/multicell_manager/cell_descriptors", {"11": {"roles": ["cypress_node_host"]}})
@@ -866,17 +873,17 @@ class TestChunkServerMulticell(TestChunkServer):
             return False
 
         set("//sys/@config/multicell_manager/cell_descriptors",
-            {"11": {"roles": ["chunk_host", "dedicated_chunk_host"]}})
+            {"12": {"roles": ["chunk_host", "dedicated_chunk_host"]}})
         wait(lambda: has_alert('Cell received conflicting "chunk_host" and "dedicated_chunk_host" roles'))
 
         set("//sys/@config/multicell_manager/cell_descriptors",
-            {"11": {"roles": ["chunk_host"]}})
+            {"12": {"roles": ["chunk_host"]}})
         wait(lambda: not has_alert('Cell received conflicting "chunk_host" and "dedicated_chunk_host" roles'))
 
     @authors("h0pless")
     def test_dedicated_chunk_host_roles_only(self):
         set("//sys/@config/multicell_manager/cell_descriptors", {
-            "11": {"roles": ["dedicated_chunk_host"]},
+            "11": {"roles": ["dedicated_chunk_host", "cypress_node_host"]},
             "12": {"roles": ["dedicated_chunk_host"]}})
 
         with raises_yt_error("No secondary masters with a chunk host role were found"):
@@ -889,12 +896,12 @@ class TestChunkServerMulticell(TestChunkServer):
 
     @authors("h0pless")
     def test_dedicated_chunk_host_role(self):
-        dedicated_host_cell_tag = 11
-        chunk_host_cell_tag = 12
+        dedicated_host_cell_tag = 12
+        chunk_host_cell_tag = 11
 
         set("//sys/@config/multicell_manager/cell_descriptors", {
-            "11": {"roles": ["dedicated_chunk_host"]},
-            "12": {"roles": ["chunk_host"]}})
+            "11": {"roles": ["chunk_host", "cypress_node_host"]},
+            "12": {"roles": ["dedicated_chunk_host"]}})
 
         create("table", "//tmp/t1", attributes={
             "schema": [
@@ -1021,6 +1028,16 @@ class TestChunkServerMulticell(TestChunkServer):
 
         wait(lambda: get("//sys/@lost_vital_chunk_count") == 0)
         wait(lambda: get("//sys/lost_vital_chunks_sample/@count") == 0)
+
+    @authors("cherepashka")
+    def test_revoke_chunk_host_role_validation(self):
+        set("//sys/@config/multicell_manager/allow_master_cell_role_invariant_check", True)
+        set("//sys/@config/multicell_manager/cell_descriptors", {"11": {"roles": ["chunk_host", "cypress_node_host"]}})
+        create("table", "//tmp/t")
+        for i in range(200):
+            write_table("<append=%true>//tmp/t", [{"a": i}], attributes={"external_cell_tag": 11})
+        with raises_yt_error("it still hosts chunks"):
+            set("//sys/@config/multicell_manager/cell_descriptors", {"11": {"roles": ["cypress_node_host"]}})
 
 
 ##################################################################
