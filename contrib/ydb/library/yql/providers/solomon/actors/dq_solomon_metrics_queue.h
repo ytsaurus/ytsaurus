@@ -3,7 +3,7 @@
 #include "dq_solomon_actors_util.h"
 
 #include <contrib/ydb/library/actors/core/actor.h>
-#include <ydb-cpp-sdk/client/types/credentials/credentials.h>
+#include <contrib/ydb/public/sdk/cpp/include/ydb-cpp-sdk/client/types/credentials/credentials.h>
 
 namespace NYql::NDq {
 

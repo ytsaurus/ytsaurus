@@ -9,7 +9,7 @@
 #include <contrib/ydb/core/grpc_services/grpc_integrity_trails.h>
 #include <contrib/ydb/core/kqp/common/kqp.h>
 #include <contrib/ydb/public/api/protos/ydb_query.pb.h>
-#include <ydb-cpp-sdk/library/operation_id/operation_id.h>
+#include <contrib/ydb/public/sdk/cpp/include/ydb-cpp-sdk/library/operation_id/operation_id.h>
 
 #include <contrib/ydb/library/actors/core/actor_bootstrapped.h>
 #include <contrib/ydb/library/actors/core/hfunc.h>

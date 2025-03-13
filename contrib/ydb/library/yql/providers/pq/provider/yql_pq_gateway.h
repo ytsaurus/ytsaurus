@@ -4,9 +4,9 @@
 
 #include <yql/essentials/providers/common/proto/gateways_config.pb.h>
 #include <contrib/ydb/library/yql/providers/pq/cm_client/client.h>
-#include <ydb-cpp-sdk/client/datastreams/datastreams.h>
+#include <contrib/ydb/public/sdk/cpp/include/ydb-cpp-sdk/client/datastreams/datastreams.h>
 
-#include <ydb-cpp-sdk/client/driver/driver.h>
+#include <contrib/ydb/public/sdk/cpp/include/ydb-cpp-sdk/client/driver/driver.h>
 #include <library/cpp/threading/future/core/future.h>
 
 #include <util/generic/ptr.h>

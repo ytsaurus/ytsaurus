@@ -26,7 +26,7 @@
 #include <contrib/ydb/library/aclib/aclib.h>
 #include <contrib/ydb/library/ydb_issue/issue_helpers.h>
 #include <contrib/ydb/public/lib/base/msgbus_status.h>
-#include <ydb-cpp-sdk/client/params/params.h>
+#include <contrib/ydb/public/sdk/cpp/include/ydb-cpp-sdk/client/params/params.h>
 #include <contrib/ydb/services/metadata/abstract/kqp_common.h>
 #include <contrib/ydb/services/persqueue_v1/rpc_calls.h>
 

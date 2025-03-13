@@ -14,7 +14,7 @@
 #include <contrib/ydb/public/api/protos/ydb_common.pb.h>
 #include <contrib/ydb/public/api/protos/ydb_discovery.pb.h>
 
-#include <ydb-cpp-sdk/client/resources/ydb_resources.h>
+#include <contrib/ydb/public/sdk/cpp/include/ydb-cpp-sdk/client/resources/ydb_resources.h>
 
 #include <yql/essentials/public/issue/yql_issue.h>
 #include <yql/essentials/public/issue/yql_issue_message.h>

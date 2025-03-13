@@ -13,7 +13,7 @@
 #include <contrib/ydb/library/wilson_ids/wilson.h>
 #include <contrib/ydb/library/ydb_issue/issue_helpers.h>
 #include <contrib/ydb/public/api/protos/ydb_status_codes.pb.h>
-#include <ydb-cpp-sdk/library/operation_id/operation_id.h>
+#include <contrib/ydb/public/sdk/cpp/include/ydb-cpp-sdk/library/operation_id/operation_id.h>
 
 #include <contrib/ydb/core/actorlib_impl/long_timer.h>
 

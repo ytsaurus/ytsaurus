@@ -12,7 +12,7 @@
 #include <contrib/ydb/core/protos/console_config.pb.h>
 #include <contrib/ydb/core/ydb_convert/ydb_convert.h>
 #include <contrib/ydb/core/protos/query_stats.pb.h>
-#include <ydb-cpp-sdk/library/operation_id/operation_id.h>
+#include <contrib/ydb/public/sdk/cpp/include/ydb-cpp-sdk/library/operation_id/operation_id.h>
 
 #include <contrib/ydb/core/kqp/executer_actor/kqp_executer.h>
 

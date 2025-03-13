@@ -17,10 +17,10 @@
 
 #include <contrib/ydb/public/api/protos/ydb_status_codes.pb.h>
 #include <contrib/ydb/public/api/protos/ydb_table.pb.h>
-#include <ydb-cpp-sdk/client/params/params.h>
-#include <ydb-cpp-sdk/client/proto/accessor.h>
-#include <ydb-cpp-sdk/client/result/result.h>
-#include <ydb-cpp-sdk/client/types/fluent_settings_helpers.h>
+#include <contrib/ydb/public/sdk/cpp/include/ydb-cpp-sdk/client/params/params.h>
+#include <contrib/ydb/public/sdk/cpp/include/ydb-cpp-sdk/client/proto/accessor.h>
+#include <contrib/ydb/public/sdk/cpp/include/ydb-cpp-sdk/client/result/result.h>
+#include <contrib/ydb/public/sdk/cpp/include/ydb-cpp-sdk/client/types/fluent_settings_helpers.h>
 
 
 namespace NKikimr {

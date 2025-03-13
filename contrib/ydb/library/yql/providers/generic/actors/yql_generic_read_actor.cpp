@@ -2,7 +2,7 @@
 #include "yql_generic_read_actor.h"
 #include "yql_generic_token_provider.h"
 
-#include <ydb-cpp-sdk/client/types/credentials/credentials.h>
+#include <contrib/ydb/public/sdk/cpp/include/ydb-cpp-sdk/client/types/credentials/credentials.h>
 #include <contrib/ydb/library/actors/core/actor_bootstrapped.h>
 #include <contrib/ydb/library/actors/core/actorsystem.h>
 #include <contrib/ydb/library/actors/core/event_local.h>

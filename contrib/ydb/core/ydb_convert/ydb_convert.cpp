@@ -6,7 +6,7 @@
 #include <contrib/ydb/core/protos/table_stats.pb.h>
 #include <contrib/ydb/core/protos/subdomains.pb.h>
 
-#include <ydb-cpp-sdk/client/value/value.h>
+#include <contrib/ydb/public/sdk/cpp/include/ydb-cpp-sdk/client/value/value.h>
 
 #include <yql/essentials/types/binary_json/read.h>
 #include <yql/essentials/types/binary_json/write.h>

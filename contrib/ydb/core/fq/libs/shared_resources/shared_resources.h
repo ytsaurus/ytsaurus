@@ -1,7 +1,7 @@
 #pragma once
 #include <contrib/ydb/library/db_pool/db_pool.h>
 
-#include <ydb-cpp-sdk/client/driver/driver.h>
+#include <contrib/ydb/public/sdk/cpp/include/ydb-cpp-sdk/client/driver/driver.h>
 #include <contrib/ydb/core/fq/libs/config/protos/fq_config.pb.h>
 #include <contrib/ydb/core/fq/libs/shared_resources/interface/shared_resources.h>
 

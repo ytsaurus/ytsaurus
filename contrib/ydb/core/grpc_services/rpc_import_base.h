@@ -4,7 +4,7 @@
 
 #include <contrib/ydb/core/protos/import.pb.h>
 #include <contrib/ydb/public/api/protos/ydb_import.pb.h>
-#include <ydb-cpp-sdk/library/operation_id/operation_id.h>
+#include <contrib/ydb/public/sdk/cpp/include/ydb-cpp-sdk/library/operation_id/operation_id.h>
 #include <contrib/ydb/public/sdk/cpp/src/library/operation_id/protos/operation_id.pb.h>
 
 #include <util/string/cast.h>

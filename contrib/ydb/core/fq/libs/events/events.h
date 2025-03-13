@@ -9,7 +9,7 @@
 
 #include <contrib/ydb/core/fq/libs/graph_params/proto/graph_params.pb.h>
 #include <contrib/ydb/core/fq/libs/protos/fq_private.pb.h>
-#include <ydb-cpp-sdk/client/table/table.h>
+#include <contrib/ydb/public/sdk/cpp/include/ydb-cpp-sdk/client/table/table.h>
 
 #include <contrib/ydb/library/actors/core/events.h>
 

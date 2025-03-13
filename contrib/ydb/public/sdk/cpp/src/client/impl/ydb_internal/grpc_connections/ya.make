@@ -1,7 +1,5 @@
 LIBRARY()
 
-INCLUDE(${ARCADIA_ROOT}/contrib/ydb/public/sdk/cpp/sdk_common.inc)
-
 SRCS(
     actions.cpp
     grpc_connections.cpp
