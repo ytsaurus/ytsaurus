@@ -1,0 +1,12 @@
+syntax = "proto3";
+option cc_enable_arenas = true;
+
+package NFq.NConfig;
+option java_package = "ru.yandex.kikimr.proto";
+
+////////////////////////////////////////////////////////////
+
+message TPendingFetcherConfig {
+    bool Enabled = 1;
+    uint64 PendingFetchPeriodMs = 2;  // 1s by default
+}

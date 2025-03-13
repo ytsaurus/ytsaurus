@@ -1,0 +1,23 @@
+package NKikimrMonProto;
+
+message TSockAddr {
+    optional uint32 Family = 1;
+    optional bytes Address = 2;
+    optional uint32 Port = 3;
+}
+
+message TEvMonitoringRequest {
+    optional bytes HttpRequest = 1;
+    optional TSockAddr Address = 2;
+}
+
+message TEvMonitoringResponse {
+    optional bytes HttpResponse = 1;
+    optional bytes DataChunk = 2;
+    optional string Error = 3;
+    optional bool EndOfData = 4;
+}
+
+message TEvMonitoringCancelRequest {
+    optional TSockAddr Address = 1;
+}

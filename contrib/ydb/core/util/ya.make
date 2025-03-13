@@ -1,0 +1,104 @@
+LIBRARY()
+
+SRCS(
+    activeactors.h
+    address_classifier.cpp
+    backoff.cpp
+    cache.cpp
+    cache.h
+    cache_cache.h
+    circular_queue.h
+    concurrent_rw_hash.cpp
+    concurrent_rw_hash.h
+    console.cpp
+    console.h
+    counted_leaky_bucket.h
+    defs.h
+    event_priority_queue.h
+    failure_injection.cpp
+    failure_injection.h
+    fast_tls.cpp
+    format.cpp
+    format.h
+    fragmented_buffer.cpp
+    fragmented_buffer.h
+    gen_step.cpp
+    gen_step.h
+    hazard.cpp
+    hyperlog_counter.cpp
+    hyperlog_counter.h
+    interval_set.h
+    intrusive_fixed_hash_set.h
+    intrusive_heap.cpp
+    intrusive_heap.h
+    intrusive_stack.h
+    log_priority_mute_checker.h
+    memory_tracker.cpp
+    memory_tracker.h
+    operation_queue.h
+    page_map.cpp
+    pb.h
+    proto_duration.h
+    queue_inplace.h
+    queue_oneone_inplace.h
+    random.cpp
+    simple_cache.h
+    source_location.cpp
+    stlog.cpp
+    stlog.h
+    text.cpp
+    text.h
+    token_bucket.h
+    throughput_meter.h
+    tuples.h
+    type_alias.h
+    ulid.cpp
+    ulid.h
+    ui64id.cpp
+    ui64id.h
+    wildcard.h
+    wilson.h
+)
+
+PEERDIR(
+    contrib/ydb/library/actors/core
+    contrib/ydb/library/actors/interconnect/mock
+    contrib/ydb/library/actors/util
+    contrib/ydb/library/actors/wilson
+    library/cpp/containers/stack_vector
+    library/cpp/html/escape
+    library/cpp/ipmath
+    library/cpp/json
+    library/cpp/lwtrace
+    library/cpp/monlib/dynamic_counters
+    library/cpp/random_provider
+    contrib/ydb/core/base
+    contrib/ydb/core/protos
+    contrib/ydb/core/mon
+    library/cpp/deprecated/atomic
+    contrib/ydb/library/yverify_stream
+)
+
+IF (OS_WINDOWS)
+    CFLAGS(
+        -DKIKIMR_DISABLE_S3_OPS
+    )
+    SRCS(
+        aws_windows_stub.cpp
+    )
+ELSE()
+    PEERDIR(
+        contrib/libs/aws-sdk-cpp/aws-cpp-sdk-core
+        contrib/libs/curl
+    )
+    SRCS(
+        aws.cpp
+    )
+ENDIF()
+
+END()
+
+RECURSE_FOR_TESTS(
+    btree_benchmark
+    ut
+)
