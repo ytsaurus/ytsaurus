@@ -88,6 +88,8 @@ class TestMasterCellsListChangeWithoutDowntimeRemoveSecondaryCellDefaultRoles(Te
                 "allow_master_cell_removal": True,
                 "allow_master_cell_with_empty_role": True,
             },
+            # NB: Allow to remove secondary cell default roles from cells with chunks and nodes behind portal.
+            "allow_master_cell_role_invariant_check": False,
             "remove_secondary_cell_default_roles": True,
         },
     }

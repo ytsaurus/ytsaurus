@@ -438,19 +438,20 @@ class TestChunkSchemasMulticellPortal(ChunkSchemasMulticellBase):
 class TestChunkTeleportation(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
-    NUM_SECONDARY_MASTER_CELLS = 2
+    NUM_SECONDARY_MASTER_CELLS = 3
 
     MASTER_CELL_DESCRIPTORS = {
         "10": {"roles": ["cypress_node_host"]},
-        "11": {"roles": ["chunk_host"]},
+        # Master cell with tag 11 is reserved for portals.
         "12": {"roles": ["chunk_host"]},
+        "13": {"roles": ["chunk_host"]},
     }
 
     @authors("h0pless")
     @with_additional_threads
     def test_teleportaion_with_hive_instability(self):
-        src_cell_tag = 11
-        dst_cell_tag = 12
+        src_cell_tag = 12
+        dst_cell_tag = 13
         create("table", "//tmp/output", attributes={"external_cell_tag": src_cell_tag})
         schema = [{"name": "key", "type": "int64"}, {"name": "value", "type": "string"}]
         create("table", "//tmp/table1", attributes={

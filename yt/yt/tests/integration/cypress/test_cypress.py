@@ -5071,8 +5071,9 @@ class TestSequoia(TestCypressMulticell):
 
     MASTER_CELL_DESCRIPTORS = {
         "10": {"roles": ["sequoia_node_host"]},
-        "11": {"roles": ["sequoia_node_host"]},
-        "12": {"roles": ["chunk_host"]},
+        # Master cell with tag 11 is reserved for portals.
+        "11": {"roles": ["chunk_host", "cypress_node_host"]},
+        "12": {"roles": ["sequoia_node_host"]},
         "13": {"roles": ["chunk_host"]},
     }
 

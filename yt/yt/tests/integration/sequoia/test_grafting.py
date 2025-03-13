@@ -31,7 +31,8 @@ class TestGrafting(YTEnvSetup):
     NUM_SECONDARY_MASTER_CELLS = 3
     MASTER_CELL_DESCRIPTORS = {
         "10": {"roles": ["sequoia_node_host"]},
-        "11": {"roles": ["sequoia_node_host"]},
+        # Master cell with tag 11 is reserved for portals.
+        "12": {"roles": ["sequoia_node_host"]},
     }
 
     @authors("kvk1920", "gritukan")
@@ -185,7 +186,8 @@ class TestSequoiaSymlinks(YTEnvSetup):
     NUM_SECONDARY_MASTER_CELLS = 2
     MASTER_CELL_DESCRIPTORS = {
         "10": {"roles": ["sequoia_node_host"]},
-        "11": {"roles": ["sequoia_node_host"]},
+        # Master cell with tag 11 is reserved for portals.
+        "12": {"roles": ["sequoia_node_host"]},
     }
 
     DELTA_DYNAMIC_MASTER_CONFIG = {

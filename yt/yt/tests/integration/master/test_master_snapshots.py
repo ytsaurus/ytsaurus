@@ -785,7 +785,8 @@ class TestMastersSnapshotsShardedTx(YTEnvSetup):
     NUM_SECONDARY_MASTER_CELLS = 4
     MASTER_CELL_DESCRIPTORS = {
         "10": {"roles": ["cypress_node_host"]},
-        "11": {"roles": ["transaction_coordinator"]},
+        # Master cell with tag 11 is reserved for portals.
+        "11": {"roles": ["transaction_coordinator", "cypress_node_host"]},
         "12": {"roles": ["chunk_host"]},
         "13": {"roles": ["chunk_host"]},
     }

@@ -120,6 +120,7 @@ public:
         YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         const auto& configManager = Bootstrap_->GetConfigManager();
+        configManager->SubscribeBeforeConfigChanged(BIND_NO_PROPAGATE(&TMulticellManager::OnBeforeDynamicConfigChanged, MakeWeak(this)));
         configManager->SubscribeConfigChanged(BIND_NO_PROPAGATE(&TMulticellManager::OnDynamicConfigChanged, MakeWeak(this)));
 
         const auto& alertManager = Bootstrap_->GetAlertManager();
@@ -598,6 +599,7 @@ private:
         TMasterAutomatonPart::OnAfterSnapshotLoaded();
 
         const auto& cypressManager = Bootstrap_->GetCypressManager();
+        const auto& dynamicConfig = GetDynamicConfig();
         const auto& portalManager = Bootstrap_->GetPortalManager();
         const auto& multicellNodeStatistics = Bootstrap_->GetMulticellStatisticsCollector()->GetMulticellNodeStatistics();
 
@@ -606,9 +608,9 @@ private:
         for (auto it = RegisteredMasterMap_.begin(); it != RegisteredMasterMap_.end(); ++it) {
             auto cellTag = it->first;
             if (!IsKnownCellTag(cellTag)) {
-                auto cellStatistics = multicellNodeStatistics.GetCellStatistics(cellTag);
+                auto chunkCount = multicellNodeStatistics.GetChunkCount(cellTag);
                 YT_LOG_FATAL_UNLESS(
-                    GetDynamicConfig()->Testing->AllowMasterCellRemoval,
+                    dynamicConfig->Testing->AllowMasterCellRemoval,
                     "Unknown master cell tag in saved master entry (CellTag: %v)",
                     cellTag);
 
@@ -618,12 +620,12 @@ private:
                     cellTag);
 
                 YT_LOG_FATAL_IF(
-                    cellStatistics.chunk_count() > 0,
+                    chunkCount > 0,
                     "Master cell with chunks was removed (CellTag: %v, ChunkCount: %v)",
                     cellTag,
-                    cellStatistics.chunk_count());
+                    chunkCount);
 
-                auto cellRoles = ComputeMasterCellRolesFromConfig(cellTag);
+                auto cellRoles = ComputeMasterCellRolesFromConfig(cellTag, dynamicConfig);
                 YT_LOG_FATAL_UNLESS(
                     cellRoles == EMasterCellRoles::None,
                     "Master cell with roles was removed (CellTag: %v, Roles: %v)",
@@ -1297,6 +1299,59 @@ private:
         hiveManager->FreezeEdges(std::move(edgesToFreeze));
     }
 
+    void OnBeforeDynamicConfigChanged(TDynamicClusterConfigPtr newConfig)
+    {
+        // All validations should happen before replicating dynamic config to secondary masters.
+        if (IsSecondaryMaster()) {
+            return;
+        }
+
+        const auto& portalManager = Bootstrap_->GetPortalManager();
+        const auto& oldConfig = GetDynamicConfig();
+
+        auto validateMasterCellRoles = [&] (TCellTag cellTag) {
+            auto oldRoles = ComputeMasterCellRolesFromConfig(cellTag, oldConfig);
+            auto newRoles = ComputeMasterCellRolesFromConfig(cellTag, newConfig->MulticellManager);
+            THROW_ERROR_EXCEPTION_IF(!IsDiscoveredMasterCell(cellTag) && newRoles != EMasterCellRoles::None,
+                "Attempted to set master cell roles %v to master with cell tag %v that is not discovered by all nodes",
+                newRoles,
+                cellTag)
+
+            if (newConfig->MulticellManager->AllowMasterCellRoleInvariantCheck) {
+                if (Any(oldRoles & EMasterCellRoles::ChunkHost) && !Any(newRoles & EMasterCellRoles::ChunkHost)) {
+                    const auto& multicellNodeStatistics = Bootstrap_->GetMulticellStatisticsCollector()->GetMulticellNodeStatistics();
+                    auto chunkCount = multicellNodeStatistics.GetChunkCount(cellTag);
+                    auto error = TError(
+                        "Role %Qv cannot be removed from master cell %v, because it still hosts chunks",
+                        EMasterCellRoles::ChunkHost,
+                        cellTag)
+                        << TErrorAttribute("chunk_count", chunkCount)
+                        << TErrorAttribute("cell_tag", cellTag);
+                    THROW_ERROR_EXCEPTION_IF(
+                        chunkCount > 0,
+                        error);
+                }
+                if (Any(oldRoles & EMasterCellRoles::CypressNodeHost) && !Any(newRoles & EMasterCellRoles::CypressNodeHost)) {
+                    auto portalCount = portalManager->CountPortalsLeadingToCell(cellTag);
+                    auto error = TError(
+                        "Role %Qv cannot be removed from master cell %v, because it still hosts cypress nodes",
+                        EMasterCellRoles::CypressNodeHost,
+                        cellTag)
+                        << TErrorAttribute("portal_count", portalCount)
+                        << TErrorAttribute("cell_tag", cellTag);
+
+                    THROW_ERROR_EXCEPTION_IF(
+                        portalCount > 0,
+                        error);
+                }
+            }
+        };
+
+        for (const auto& [cellTag, _] : newConfig->MulticellManager->CellDescriptors) {
+            validateMasterCellRoles(cellTag);
+        }
+    }
+
     void OnDynamicConfigChanged(TDynamicClusterConfigPtr /*oldConfig*/)
     {
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
@@ -1309,7 +1364,7 @@ private:
             SyncHiveClocksExecutor_->SetPeriod(dynamicConfig->SyncHiveClocksPeriod);
         }
 
-        const auto& testingConfig = GetDynamicConfig()->Testing;
+        const auto& testingConfig = dynamicConfig->Testing;
         // TODO(cherepashka): remove this temporary logic after make sure dynamic master cell configs propagation works as expected.
         if (testingConfig->MasterCellDirectoryOverride) {
             GetMasterCellConnectionConfigs()->SecondaryMasters = testingConfig->MasterCellDirectoryOverride->SecondaryMasters;
@@ -1361,6 +1416,8 @@ private:
 
     void RecomputeMasterCellRoles()
     {
+        const auto& dynamicConfig = GetDynamicConfig();
+
         auto guard = WriterGuard(MasterCellRolesLock_);
 
         MasterCellRolesMap_.clear();
@@ -1368,12 +1425,7 @@ private:
         // NB: RoleMasterCellCounts_ is not accessed under a lock and is probably
         // best updated gradually, without intermediate resetting to zero.
         auto populateCellRoles = [&] (TCellTag cellTag) {
-            auto roles = ComputeMasterCellRolesFromConfig(cellTag);
-            THROW_ERROR_EXCEPTION_IF(!IsDiscoveredMasterCell(cellTag) && roles != EMasterCellRoles::None,
-                "Attempted to set master cell roles %v to master with cell tag %v that is not discovered by all nodes",
-                roles,
-                cellTag)
-
+            auto roles = ComputeMasterCellRolesFromConfig(cellTag, dynamicConfig);
             MasterCellRolesMap_[cellTag] = roles;
 
             for (auto role : TEnumTraits<EMasterCellRole>::GetDomainValues()) {
@@ -1435,7 +1487,7 @@ private:
 
     EMasterCellRoles GetDefaultMasterCellRoles(TCellTag cellTag)
     {
-        const auto& config = GetDynamicConfig();
+        const auto& dynamicConfig = GetDynamicConfig();
 
         if (cellTag == GetPrimaryCellTag()) {
             return EMasterCellRoles::CypressNodeHost |
@@ -1443,16 +1495,15 @@ private:
                 (IsMulticell() ? EMasterCellRoles::None : EMasterCellRoles::ChunkHost);
         }
 
-        if (config->RemoveSecondaryCellDefaultRoles || !IsDiscoveredMasterCell(cellTag)) {
+        if (dynamicConfig->RemoveSecondaryCellDefaultRoles || !IsDiscoveredMasterCell(cellTag)) {
             return EMasterCellRoles::None;
         }
 
         return EMasterCellRoles::CypressNodeHost | EMasterCellRoles::ChunkHost;
     }
 
-    EMasterCellRoles ComputeMasterCellRolesFromConfig(TCellTag cellTag)
+    EMasterCellRoles ComputeMasterCellRolesFromConfig(TCellTag cellTag, const TDynamicMulticellManagerConfigPtr& config)
     {
-        const auto& config = GetDynamicConfig();
         ConflictingCellRolesAlerts_.erase(cellTag);
         auto it = config->CellDescriptors.find(cellTag);
         if (it != config->CellDescriptors.end() && it->second->Roles) {
@@ -1475,9 +1526,9 @@ private:
 
     std::string ComputeMasterCellNameFromConfig(TCellTag cellTag)
     {
-        const auto& config = GetDynamicConfig();
-        auto it = config->CellDescriptors.find(cellTag);
-        if (it != config->CellDescriptors.end() && it->second->Name) {
+        const auto& dynamicConfig = GetDynamicConfig();
+        auto it = dynamicConfig->CellDescriptors.find(cellTag);
+        if (it != dynamicConfig->CellDescriptors.end() && it->second->Name) {
             return *it->second->Name;
         }
 
