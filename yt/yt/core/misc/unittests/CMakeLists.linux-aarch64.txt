@@ -111,6 +111,7 @@ target_sources(unittester-core-misc PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/unittests/pool_allocator_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/unittests/proc_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/unittests/random_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/unittests/range_helpers_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/unittests/ref_counted_tracker_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/unittests/ring_queue_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/unittests/skip_list_ut.cpp
