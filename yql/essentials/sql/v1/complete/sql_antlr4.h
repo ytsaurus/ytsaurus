@@ -6,17 +6,21 @@
 #include <contrib/libs/antlr4_cpp_runtime/src/Vocabulary.h>
 
 #include <unordered_set>
+#include <vector>
 
 namespace NSQLComplete {
 
     using TTokenId = size_t;
     using TRuleId = size_t;
 
+    using TParserCallStack = std::vector<TRuleId>;
+
     constexpr TTokenId TOKEN_EOF = antlr4::Token::EOF;
 
     class ISqlGrammar {
     public:
         virtual const antlr4::dfa::Vocabulary& GetVocabulary() const = 0;
+        virtual const THashMap<TString, TRuleId> GetRuleIdsByName() const = 0;
         virtual const std::unordered_set<TTokenId>& GetAllTokens() const = 0;
         virtual const std::unordered_set<TTokenId>& GetKeywordTokens() const = 0;
         virtual const TVector<TRuleId>& GetKeywordRules() const = 0;

@@ -1,6 +1,7 @@
 LIBRARY()
 
 SRCS(
+    frequency.cpp
     sql_antlr4.cpp
     sql_complete.cpp
     sql_context.cpp
@@ -15,6 +16,10 @@ PEERDIR(
     yql/essentials/sql/v1/format
     yql/essentials/parser/antlr_ast/gen/v1_ansi_antlr4
     yql/essentials/parser/antlr_ast/gen/v1_antlr4
+)
+
+RESOURCE(
+    yql/essentials/data/language/rules_corr_basic.json rules_corr_basic.json
 )
 
 END()

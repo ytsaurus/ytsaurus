@@ -20,6 +20,7 @@ namespace NSQLComplete {
     public:
         TSqlGrammar(bool isAnsiLexer)
             : Vocabulary(GetVocabulary(isAnsiLexer))
+            , RuleIdsByName(ComputeRuleIdsByName(isAnsiLexer))
             , AllTokens(ComputeAllTokens())
             , KeywordTokens(ComputeKeywordTokens())
         {
@@ -27,6 +28,10 @@ namespace NSQLComplete {
 
         const antlr4::dfa::Vocabulary& GetVocabulary() const override {
             return *Vocabulary;
+        }
+
+        const THashMap<TString, TRuleId> GetRuleIdsByName() const override {
+            return RuleIdsByName;
         }
 
         const std::unordered_set<TTokenId>& GetAllTokens() const override {
@@ -66,11 +71,26 @@ namespace NSQLComplete {
         }
 
     private:
-        static const antlr4::dfa::Vocabulary* GetVocabulary(bool isAnsiLexer) {
-            if (isAnsiLexer) { // Taking a reference is okay as vocabulary storage is static
-                return &NALAAnsiAntlr4::SQLv1Antlr4Parser(nullptr).getVocabulary();
+        static THolder<antlr4::Parser> MakeDummyParser(bool isAnsiLexer) {
+            if (isAnsiLexer) {
+                return MakeHolder<NALAAnsiAntlr4::SQLv1Antlr4Parser>(nullptr);
             }
-            return &NALADefaultAntlr4::SQLv1Antlr4Parser(nullptr).getVocabulary();
+            return MakeHolder<NALADefaultAntlr4::SQLv1Antlr4Parser>(nullptr);
+        }
+
+        static const antlr4::dfa::Vocabulary* GetVocabulary(bool isAnsiLexer) {
+            // Taking a reference is okay as vocabulary storage is static
+            return &MakeDummyParser(isAnsiLexer)->getVocabulary();
+        }
+
+        static THashMap<TString, TRuleId> ComputeRuleIdsByName(bool isAnsiLexer) {
+            auto parser = MakeDummyParser(isAnsiLexer);
+
+            THashMap<TString, TRuleId> rules;
+            for (const auto& [name, id] : parser->getRuleIndexMap()) {
+                rules.emplace(std::move(name), id);
+            }
+            return rules;
         }
 
         std::unordered_set<TTokenId> ComputeAllTokens() {
@@ -99,6 +119,7 @@ namespace NSQLComplete {
         }
 
         const antlr4::dfa::Vocabulary* Vocabulary;
+        const THashMap<TString, TRuleId> RuleIdsByName;
         const std::unordered_set<TTokenId> AllTokens;
         const std::unordered_set<TTokenId> KeywordTokens;
     };
