@@ -6,7 +6,15 @@
 
 namespace NRoren {
 
+////////////////////////////////////////////////////////////////////////////////
+
 TTypeTag<TString> TransformNameTag("TransformName");
+
+NPrivate::TAttributeSetter Name(TString trnasformName)
+{
+    return NPrivate::TAttributeSetter(TransformNameTag, std::move(trnasformName));
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TPipeline::TPipeline(IExecutorPtr executor) : Executor_(std::move(executor))

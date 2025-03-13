@@ -163,4 +163,3 @@ T GetAttributeOrDefault(const IWithAttributes& withAttributes, const TTypeTag<T>
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NRoren::NPrivate
-
