@@ -1079,7 +1079,7 @@ TRANSFORMS[13] = [
     ),
 ]
 
-ACTIVE_QUERIES_V13 = TableInfo(
+ACTIVE_QUERIES_V14 = TableInfo(
     [
         ("query_id", "string"),
     ],
@@ -1114,7 +1114,7 @@ ACTIVE_QUERIES_V13 = TableInfo(
     },
 )
 
-FINISHED_QUERIES_V13 = TableInfo(
+FINISHED_QUERIES_V14 = TableInfo(
     [
         ("query_id", "string"),
     ],
@@ -1143,14 +1143,14 @@ FINISHED_QUERIES_V13 = TableInfo(
     },
 )
 
-TRANSFORMS[13] = [
+TRANSFORMS[14] = [
     Conversion(
         "active_queries",
-        table_info=ACTIVE_QUERIES_V13,
+        table_info=ACTIVE_QUERIES_V14,
     ),
     Conversion(
         "finished_queries",
-        table_info=FINISHED_QUERIES_V13,
+        table_info=FINISHED_QUERIES_V14,
     ),
 ]
 
