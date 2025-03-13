@@ -440,8 +440,8 @@ private:
         CheckNoCompressionDictionaries(chunkMeta, inputChunkId);
 
         // We do not support node reallocation for erasure chunks.
-        auto options = New<TRemoteWriterOptions>();
-        options->AllowAllocatingNewTargetNodes = false;
+        auto remoteWriterOptions = New<TRemoteWriterOptions>();
+        remoteWriterOptions->AllowAllocatingNewTargetNodes = false;
 
         auto targetReplicas = AllocateWriteTargets(
             Host_->GetClient(),
@@ -456,7 +456,7 @@ private:
 
         auto writers = CreateAllErasurePartWriters(
             WriterConfig_,
-            New<TRemoteWriterOptions>(),
+            remoteWriterOptions,
             outputSessionId,
             erasureCodec,
             Host_->GetClient(),
