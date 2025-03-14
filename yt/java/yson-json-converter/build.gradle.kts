@@ -17,7 +17,7 @@ java {
 }
 
 dependencies {
-    implementation(project(":yt:java:yson-tree"))
+    api(project(":yt:java:yson-tree"))
     api("com.fasterxml.jackson.core:jackson-databind:2.11.3")
     testImplementation("junit:junit:4.13")
 }

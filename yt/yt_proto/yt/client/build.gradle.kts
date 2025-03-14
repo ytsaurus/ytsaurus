@@ -23,7 +23,8 @@ java {
 
 dependencies {
     api("com.google.protobuf:protobuf-java:3.25.5")
-    implementation(project(":yt:yt_proto:yt:core"))
+    api(project(":yt:yt_proto:yt:core"))
+
     protobuf(files(File(buildProtoDir, "yt")))
 }
 
