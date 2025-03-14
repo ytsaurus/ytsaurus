@@ -128,6 +128,9 @@ public:
 
     void InvalidateAllJobs();
 
+    //! Returns: cookies of jobs to abort.
+    std::vector<IChunkPoolOutput::TCookie> SetJobCount(int desiredJobCount);
+
     //! Perform a pass over all jobs in their order and join some groups of
     //! adjacent jobs that are still smaller than `dataWeightPerJob` in total.
     void Enlarge(
@@ -138,6 +141,11 @@ public:
         GetBounds(IChunkPoolOutput::TCookie cookie) const;
 
 private:
+    //! NB: |delta| > 0.
+    void IncreaseJobCount(int delta);
+    //! NB: |delta| > 0.
+    std::vector<IChunkPoolOutput::TCookie> DecreaseJobCount(int delta);
+
     class TStripeListComparator
     {
     public:
@@ -159,6 +167,10 @@ private:
 
     //! All jobs before this job were invalidated.
     int FirstValidJobIndex_ = 0;
+
+    //! Count of non-invalidated jobs.
+    //! Makes no sense for non-vanilla pools (always equals to Jobs_.size()).
+    int ValidJobCount_ = 0;
 
     //! All input cookies that are currently suspended.
     THashSet<IChunkPoolInput::TCookie> SuspendedInputCookies_;
@@ -191,6 +203,7 @@ private:
         void ChangeSuspendedStripeCountBy(int delta);
 
         void Invalidate();
+        void Revalidate();
 
         bool IsInvalidated() const;
 
@@ -233,6 +246,9 @@ private:
         PHOENIX_DECLARE_TYPE(TJob, 0xa97f53ea);
     };
 
+    //! For vanilla pool: invalidated jobs may interleave with valid jobs.
+    //! For other pools: invalidated jobs are always to the left of the other
+    //! (the border is identified by |FirstInvalidJobIndex_|).
     std::vector<TJob> Jobs_;
 
     NLogging::TSerializableLogger Logger;
