@@ -24,7 +24,7 @@ THorizontalBlockWriter::THorizontalBlockWriter(TTableSchemaPtr schema, i64 reser
     , ColumnCount_(schema->GetColumnCount())
     , ColumnHunkFlags_(new bool[ColumnCount_])
     , Offsets_(GetRefCountedTypeCookie<THorizontalSchemalessBlockWriterTag>(), 4_KB, ReserveSize_ / 2)
-    , Data_(GetRefCountedTypeCookie<THorizontalSchemalessBlockWriterTag>(), 4_KB, ReserveSize_ / 2)
+    , Data_(GetRefCountedTypeCookie<THorizontalSchemalessBlockWriterTag>(),  4_KB, ReserveSize_ / 2)
 {
     for (int index = 0; index < ColumnCount_; ++index) {
         const auto& columnSchema = schema->Columns()[index];

@@ -6,7 +6,7 @@
 
 #include <yt/yt/core/actions/future.h>
 
-#include <yt/yt/core/misc/memory_usage_tracker.h>
+#include <library/cpp/yt/memory/memory_usage_tracker.h>
 
 #include <library/cpp/yt/threading/rw_spin_lock.h>
 

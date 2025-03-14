@@ -6,6 +6,8 @@
 
 #include <yt/yt/library/profiling/sensor.h>
 
+#include <library/cpp/yt/memory/memory_usage_tracker.h>
+
 namespace NYT::NHydra {
 
 ////////////////////////////////////////////////////////////////////////////////
