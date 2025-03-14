@@ -67,6 +67,7 @@ DECLARE_REFCOUNTED_CLASS(TLocationManager)
 DECLARE_REFCOUNTED_CLASS(TLocationHealthChecker)
 
 DECLARE_REFCOUNTED_STRUCT(ISession)
+DECLARE_REFCOUNTED_STRUCT(TNbdSession)
 DECLARE_REFCOUNTED_CLASS(TBlobWritePipeline)
 DECLARE_REFCOUNTED_CLASS(TBlobSession)
 DECLARE_REFCOUNTED_CLASS(TSessionManager)
@@ -126,6 +127,8 @@ DECLARE_REFCOUNTED_STRUCT(TP2PChunk)
 DECLARE_REFCOUNTED_STRUCT(IIOThroughputMeter)
 
 DECLARE_REFCOUNTED_STRUCT(ILocalChunkFragmentReader)
+
+DECLARE_REFCOUNTED_STRUCT(INbdChunkHandler)
 
 ////////////////////////////////////////////////////////////////////////////////
 

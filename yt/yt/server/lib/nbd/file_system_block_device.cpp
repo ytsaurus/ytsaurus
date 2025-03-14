@@ -153,6 +153,11 @@ public:
             .Run();
     }
 
+    TFuture<void> Finalize() override
+    {
+        return VoidFuture;
+    }
+
 private:
     const TString ExportId_;
     const TFileSystemBlockDeviceConfigPtr Config_;
