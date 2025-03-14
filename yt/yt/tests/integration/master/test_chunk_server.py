@@ -1033,9 +1033,9 @@ class TestChunkServerMulticell(TestChunkServer):
     def test_revoke_chunk_host_role_validation(self):
         set("//sys/@config/multicell_manager/allow_master_cell_role_invariant_check", True)
         set("//sys/@config/multicell_manager/cell_descriptors", {"11": {"roles": ["chunk_host", "cypress_node_host"]}})
-        create("table", "//tmp/t")
-        for i in range(200):
-            write_table("<append=%true>//tmp/t", [{"a": i}], attributes={"external_cell_tag": 11})
+        create("table", "//tmp/t", attributes={"external_cell_tag": 11})
+        for i in range(10):
+            write_table("<append=%true>//tmp/t", [{"a": i}])
         with raises_yt_error("it still hosts chunks"):
             set("//sys/@config/multicell_manager/cell_descriptors", {"11": {"roles": ["cypress_node_host"]}})
 
