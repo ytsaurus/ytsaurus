@@ -400,9 +400,10 @@ private:
         auto incarnationId = FromProto<TIncarnationId>(request->incarnation_id());
         auto operationId = FromProto<TOperationId>(request->operation_id());
         context->SetRequestInfo(
-            "IncarnationId: %v, OperationId: %v",
+            "IncarnationId: %v, OperationId: %v, DryRun: %v",
             incarnationId,
-            operationId);
+            operationId,
+            request->dry_run());
 
         const auto& controllerAgent = Bootstrap_->GetControllerAgent();
         controllerAgent->ValidateConnected();

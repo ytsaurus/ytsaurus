@@ -269,6 +269,8 @@ void TPatchSpecProtocolTestingOptions::Register(TRegistrar registrar)
         .Default();
     registrar.Parameter("fail_revive", &TThis::FailRevive)
         .Default();
+    registrar.Parameter("delay_inside_apply", &TThis::DelayInsideApply)
+        .Default();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
