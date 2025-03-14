@@ -8,6 +8,7 @@
 #include "config.h"
 #include "journal_session.h"
 #include "location.h"
+#include "nbd_session.h"
 
 #include <yt/yt/server/node/cluster_node/master_connector.h>
 
@@ -149,22 +150,26 @@ ISessionPtr TSessionManager::StartSession(
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
 
-    auto chunkCellTag = CellTagFromId(sessionId.ChunkId);
-    const auto& clusterNodeMasterConnector = Bootstrap_->GetClusterNodeBootstrap()->GetMasterConnector();
-    auto masterCellTags = clusterNodeMasterConnector->GetMasterCellTags();
-    if (Find(masterCellTags, chunkCellTag) == masterCellTags.end()) {
-        YT_LOG_ALERT("Attempt to start a write session with an unknown master cell tag (SessionId: %v, CellTag: %v)",
-            sessionId,
-            chunkCellTag);
-        THROW_ERROR_EXCEPTION("Unknown master cell tag %v",
-            chunkCellTag);
+    if (!options.NbdChunkSize) {
+        auto chunkCellTag = CellTagFromId(sessionId.ChunkId);
+        const auto& clusterNodeMasterConnector = Bootstrap_->GetClusterNodeBootstrap()->GetMasterConnector();
+        auto masterCellTags = clusterNodeMasterConnector->GetMasterCellTags();
+        if (Find(masterCellTags, chunkCellTag) == masterCellTags.end()) {
+            YT_LOG_ALERT("Attempt to start a write session with an unknown master cell tag (SessionId: %v, CellTag: %v)",
+                sessionId,
+                chunkCellTag);
+            THROW_ERROR_EXCEPTION("Unknown master cell tag %v",
+                chunkCellTag);
+        }
     }
 
     auto guard = WriterGuard(SessionMapLock_);
 
-    if (std::ssize(SessionMap_) >= Config_->MaxWriteSessions) {
-        THROW_ERROR_EXCEPTION("Maximum concurrent write session limit %v has been reached",
-            Config_->MaxWriteSessions);
+    if (!options.NbdChunkSize) {
+        if (std::ssize(SessionMap_) >= Config_->MaxWriteSessions) {
+            THROW_ERROR_EXCEPTION("Maximum concurrent write session limit %v has been reached",
+                Config_->MaxWriteSessions);
+        }
     }
 
     if (SessionMap_.contains(sessionId.ChunkId)) {
@@ -242,6 +247,17 @@ ISessionPtr TSessionManager::CreateSession(
                 lease,
                 std::move(lockedChunkGuard),
                 /*writeBlocksOptions*/ IChunkWriter::TWriteBlocksOptions{});
+            break;
+
+        case EObjectType::NbdChunk:
+            return New<TNbdSession>(
+                Config_,
+                Bootstrap_,
+                sessionId,
+                options,
+                location,
+                lease,
+                std::move(lockedChunkGuard));
             break;
 
         default:

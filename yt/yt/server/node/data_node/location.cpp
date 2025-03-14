@@ -1435,6 +1435,11 @@ std::vector<TChunkDescriptor> TChunkLocation::DoScan()
     // by moving them into trash.
     std::vector<TChunkDescriptor> descriptors;
     for (auto chunkId : chunkIds) {
+        if (TypeFromId(DecodeChunkId(chunkId).Id) == EObjectType::NbdChunk) {
+            YT_LOG_DEBUG("Removing left over NBD chunk (ChunkId: %v)", chunkId);
+            RemoveChunkFiles(chunkId, /*force*/ true);
+            continue;
+        }
         auto optionalDescriptor = RepairChunk(chunkId);
         if (optionalDescriptor) {
             descriptors.push_back(*optionalDescriptor);
@@ -2297,6 +2302,9 @@ std::vector<TString> TStoreLocation::GetChunkPartNames(TChunkId chunkId) const
                 primaryName + "." + ChangelogIndexExtension,
                 primaryName + "." + SealedFlagExtension
             };
+
+        case EObjectType::NbdChunk:
+            return {primaryName};
 
         default:
             YT_ABORT();

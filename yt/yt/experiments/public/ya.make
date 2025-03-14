@@ -34,4 +34,5 @@ RECURSE(
     value_dictionary_compression
     ytserver_dummy
     poison
+    nbd_chunk
 )

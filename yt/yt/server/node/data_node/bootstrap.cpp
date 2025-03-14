@@ -4,6 +4,7 @@
 #include "chunk_detail.h"
 #include "chunk_store.h"
 #include "data_node_service.h"
+#include "data_node_nbd_service.h"
 #include "io_throughput_meter.h"
 #include "job_controller.h"
 #include "journal_dispatcher.h"
@@ -236,6 +237,8 @@ public:
         RowComparerProvider_ = CreateRowComparerProvider(GetConfig()->TabletNode->ColumnEvaluatorCache->CGCache);
 
         GetRpcServer()->RegisterService(CreateDataNodeService(GetConfig()->DataNode, this));
+
+        GetRpcServer()->RegisterService(CreateDataNodeNbdService(this, DataNodeLogger()));
 
         GetRpcServer()->RegisterService(CreateDistributedChunkSessionService(
             GetConfig()->DataNode->DistributedChunkSessionService,

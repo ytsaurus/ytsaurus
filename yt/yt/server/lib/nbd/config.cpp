@@ -4,6 +4,26 @@ namespace NYT::NNbd {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TChunkBlockDeviceConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("size", &TThis::Size)
+        .GreaterThanOrEqual(0);
+    registrar.Parameter("medium", &TThis::Medium)
+        .Default("ssd_blobs");
+    registrar.Parameter("fs_type", &TThis::FsType)
+        .Default(EFilesystemType::Ext4);
+    registrar.Parameter("keep_session_alive_period", &TThis::KeepSessionAlivePeriod)
+        .Default(TDuration::Seconds(1));
+    registrar.Parameter("address", &TThis::Address)
+        .Default();
+    registrar.Parameter("data_node_nbd_service_rpc_timeout", &TThis::DataNodeNbdServiceRpcTimeout)
+        .Default(TDuration::Seconds(5));
+    registrar.Parameter("data_node_nbd_service_make_timeout", &TThis::DataNodeNbdServiceMakeTimeout)
+        .Default(TDuration::Seconds(5));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TFileSystemBlockDeviceConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("test_sleep_before_read", &TThis::TestSleepBeforeRead)

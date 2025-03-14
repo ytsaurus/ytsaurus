@@ -24,6 +24,8 @@ SRCS(
     data_node/blob_chunk.cpp
     data_node/blob_reader_cache.cpp
     data_node/blob_session.cpp
+    data_node/nbd_session.cpp
+    data_node/nbd_chunk_handler.cpp
     data_node/bootstrap.cpp
     data_node/chunk.cpp
     data_node/chunk_detail.cpp
@@ -33,6 +35,7 @@ SRCS(
     data_node/chunk_reader_sweeper.cpp
     data_node/config.cpp
     data_node/data_node_service.cpp
+    data_node/data_node_nbd_service.cpp
     data_node/disk_location.cpp
     data_node/job.cpp
     data_node/job_controller.cpp
