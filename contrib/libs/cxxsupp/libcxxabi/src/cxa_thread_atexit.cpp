@@ -115,7 +115,7 @@ extern "C" {
 #ifndef __EMSCRIPTEN__
     // Emscripten doesn't implement __cxa_thread_atexit_impl, so we can simply
     // avoid this check.
-    if (__cxa_thread_atexit_impl) {
+    if (false && __cxa_thread_atexit_impl) {
       return __cxa_thread_atexit_impl(dtor, obj, dso_symbol);
     } else
 #endif
