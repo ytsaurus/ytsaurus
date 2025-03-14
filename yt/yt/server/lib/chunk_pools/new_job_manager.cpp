@@ -539,13 +539,6 @@ void TNewJobManager::Resume(IChunkPoolInput::TCookie inputCookie)
     }
 }
 
-void TNewJobManager::Invalidate(IChunkPoolInput::TCookie inputCookie)
-{
-    YT_VERIFY(0 <= inputCookie && inputCookie < std::ssize(Jobs_));
-    auto& job = Jobs_[inputCookie];
-    job.Invalidate();
-}
-
 std::vector<TLegacyDataSlicePtr> TNewJobManager::ReleaseForeignSlices(IChunkPoolInput::TCookie inputCookie)
 {
     YT_VERIFY(0 <= inputCookie && inputCookie < std::ssize(Jobs_));
