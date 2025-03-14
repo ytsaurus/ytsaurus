@@ -307,10 +307,6 @@ struct TAllyReplicasInfo
 
     Y_FORCE_INLINE explicit operator bool() const;
 
-    // TODO(babenko): drop?
-    static TAllyReplicasInfo FromChunkReplicas(
-        const TChunkReplicaList& chunkReplicas,
-        NHydra::TRevision revision = NHydra::NullRevision);
     static TAllyReplicasInfo FromChunkReplicas(
         const TChunkReplicaWithMediumList& chunkReplicas,
         NHydra::TRevision revision = NHydra::NullRevision);
