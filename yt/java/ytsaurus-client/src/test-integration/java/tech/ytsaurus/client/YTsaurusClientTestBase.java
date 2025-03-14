@@ -19,7 +19,6 @@ import tech.ytsaurus.core.cypress.YPath;
 import tech.ytsaurus.core.tables.TableSchema;
 import tech.ytsaurus.testlib.LocalYTsaurus;
 import tech.ytsaurus.testlib.LoggingUtils;
-import tech.ytsaurus.testlib.YTsaurusFixture;
 import tech.ytsaurus.ysontree.YTreeMapNode;
 
 public class YTsaurusClientTestBase {
@@ -55,7 +54,7 @@ public class YTsaurusClientTestBase {
         var methodName = name.getMethodName().replaceAll("[\\[\\]]", "-");
         var testDirectory = YPath.simple("//tmp/ytsaurus-client-test/" + runId + "-" + methodName);
 
-        YTsaurusFixture fixture = tech.ytsaurus.testlib.YTsaurusFixture.builder()
+        YTsaurusFixture fixture = YTsaurusFixture.builder()
                 .setYTsaurusAddress(LocalYTsaurus.getAddress())
                 .setContainerRunning(LocalYTsaurus.getContainer() != null)
                 .setRpcOptions(rpcOptions)

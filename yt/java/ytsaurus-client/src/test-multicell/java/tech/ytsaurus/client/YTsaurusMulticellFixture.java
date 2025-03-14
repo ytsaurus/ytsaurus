@@ -1,10 +1,7 @@
-package tech.ytsaurus.testlib;
+package tech.ytsaurus.client;
 
 import java.time.Duration;
 
-import tech.ytsaurus.client.HostPort;
-import tech.ytsaurus.client.YTsaurusClient;
-import tech.ytsaurus.client.YTsaurusClientConfig;
 import tech.ytsaurus.client.request.CreateNode;
 import tech.ytsaurus.client.request.RemoveNode;
 import tech.ytsaurus.client.rpc.RpcOptions;
@@ -13,15 +10,15 @@ import tech.ytsaurus.core.GUID;
 import tech.ytsaurus.core.cypress.CypressNodeType;
 import tech.ytsaurus.core.cypress.YPath;
 
-public class YTsaurusFixture {
+public class YTsaurusMulticellFixture {
     final HostPort address;
     final YTsaurusClient yt;
     final YPath testDirectory;
 
-    private YTsaurusFixture(Builder builder) {
+    private YTsaurusMulticellFixture(Builder builder) {
         String javaHome = builder.isContainerRunning ? "/opt/jdk11" : System.getProperty("java.home");
 
-        var yt = YTsaurusClient.builder()
+        var ytClient = YTsaurusClient.builder()
                 .setCluster(builder.ytsaurusAddress)
                 .setConfig(
                         YTsaurusClientConfig.builder()
@@ -40,7 +37,7 @@ public class YTsaurusFixture {
                 )
                 .build();
 
-        yt.createNode(
+        ytClient.createNode(
                 CreateNode.builder()
                         .setPath(builder.testDirectoryPath)
                         .setType(CypressNodeType.MAP)
@@ -50,7 +47,7 @@ public class YTsaurusFixture {
         ).join();
 
         this.address = HostPort.parse(builder.ytsaurusAddress);
-        this.yt = yt;
+        this.yt = ytClient;
         this.testDirectory = builder.testDirectoryPath;
     }
 
@@ -111,8 +108,8 @@ public class YTsaurusFixture {
             return this;
         }
 
-        public YTsaurusFixture build() {
-            return new YTsaurusFixture(this);
+        public YTsaurusMulticellFixture build() {
+            return new YTsaurusMulticellFixture(this);
         }
     }
 }
