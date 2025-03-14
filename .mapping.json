@@ -3781,7 +3781,6 @@
   "yt/java/ytsaurus-client-examples/reduce-entity-example/build.gradle.kts":"",
   "yt/java/ytsaurus-client-examples/reduce-ytree-example/build.gradle.kts":"",
   "yt/java/ytsaurus-client/build.gradle.kts":"",
-  "yt/java/ytsaurus-client/src/test-multicell/build.gradle.kts":"",
   "yt/java/ytsaurus-testlib/build.gradle.kts":"",
   "yt/java/ytsaurus-testlib/src/main/proto/build.gradle.kts":"",
   "yt/odin/README.md":"yt/opensource/repos/ytsaurus/github_toplevel/yt/odin/README.md",

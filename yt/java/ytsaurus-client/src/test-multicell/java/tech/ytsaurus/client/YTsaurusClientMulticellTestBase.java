@@ -12,7 +12,6 @@ import tech.ytsaurus.core.GUID;
 import tech.ytsaurus.core.cypress.YPath;
 import tech.ytsaurus.testlib.LocalYTsaurus;
 import tech.ytsaurus.testlib.LoggingUtils;
-import tech.ytsaurus.testlib.YTsaurusFixture;
 
 public class YTsaurusClientMulticellTestBase {
     static {
@@ -33,18 +32,18 @@ public class YTsaurusClientMulticellTestBase {
     @Rule
     public TestName name = new TestName();
     private final GUID runId = GUID.create();
-    List<YTsaurusFixture> ytFixtures = new ArrayList<>();
+    List<YTsaurusMulticellFixture> ytFixtures = new ArrayList<>();
 
-    public final YTsaurusFixture createYtFixture() {
+    public final YTsaurusMulticellFixture createYtFixture() {
         RpcOptions rpcOptions = new RpcOptions();
         return createYtFixture(rpcOptions);
     }
 
-    public final YTsaurusFixture createYtFixture(RpcOptions rpcOptions) {
+    public final YTsaurusMulticellFixture createYtFixture(RpcOptions rpcOptions) {
         var methodName = name.getMethodName().replaceAll("[\\[\\]]", "-");
         var testDirectory = YPath.simple("//tmp/ytsaurus-client-test/" + runId + "-" + methodName);
 
-        YTsaurusFixture fixture = YTsaurusFixture.builder()
+        YTsaurusMulticellFixture fixture = YTsaurusMulticellFixture.builder()
                 .setYTsaurusAddress(LocalYTsaurus.getAddress())
                 .setContainerRunning(LocalYTsaurus.getContainer() != null)
                 .setRpcOptions(rpcOptions)

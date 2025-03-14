@@ -34,10 +34,10 @@ dependencies {
     api("org.lz4:lz4-java:1.6.0")
     testImplementation("javax.persistence:persistence-api:1.0")
     testImplementation(project(":yt:java:ytsaurus-testlib")) {
+        exclude(group = "junit", module = "junit")
         exclude(group = "org.hamcrest", module = "hamcrest")
         exclude(group = "org.hamcrest", module = "hamcrest-core")
         exclude(group = "org.slf4j", module = "slf4j-api")
-        exclude(group = "junit", module = "junit")
     }
     testImplementation("com.google.protobuf:protobuf-java:3.25.5")
     testImplementation("junit:junit:4.13")
@@ -45,10 +45,10 @@ dependencies {
     testImplementation("org.apache.logging.log4j:log4j-slf4j-impl:2.13.1")
     testImplementation("javax.persistence:persistence-api:1.0")
     testImplementation(project(":yt:java:ytsaurus-testlib")) {
-        exclude(group = "org.hamcrest", module = "hamcrest-core")
-        exclude(group = "org.slf4j", module = "slf4j-api")
         exclude(group = "junit", module = "junit")
+        exclude(group = "org.hamcrest", module = "hamcrest-core")
         exclude(group = "com.fasterxml.jackson.core", module = "jackson-annotations")
+        exclude(group = "org.slf4j", module = "slf4j-api")
     }
     testImplementation("com.google.protobuf:protobuf-java:3.25.5")
     testImplementation("com.fasterxml.jackson.core:jackson-core:2.11.3")
@@ -57,6 +57,16 @@ dependencies {
     testImplementation("org.apache.logging.log4j:log4j-core:2.13.1")
     testImplementation("org.apache.logging.log4j:log4j-slf4j-impl:2.13.1")
     testImplementation("org.hamcrest:hamcrest:2.2")
+    testImplementation(project(":yt:java:ytsaurus-testlib")) {
+        exclude(group = "junit", module = "junit")
+        exclude(group = "org.hamcrest", module = "hamcrest")
+        exclude(group = "org.hamcrest", module = "hamcrest-core")
+        exclude(group = "org.slf4j", module = "slf4j-api")
+    }
+    testImplementation("com.google.protobuf:protobuf-java:3.25.5")
+    testImplementation("junit:junit:4.13")
+    testImplementation("org.apache.logging.log4j:log4j-core:2.13.1")
+    testImplementation("org.apache.logging.log4j:log4j-slf4j-impl:2.13.1")
 }
 
 tasks.test {
