@@ -240,6 +240,7 @@ DEFINE_ENUM(EMasterReign,
     ((MasterCompactTableSchema)                                     (2905))  // cherepashka
     ((PrerequisiteTransactionsInSequoia)                            (2906))  // cherepashka
     ((MasterCellRolesChangeValidation)                              (2907))  // cherepashka
+    ((DropLegayReplicas)                                            (2908))  // babenko
 );
 
 static_assert(TEnumTraits<EMasterReign>::IsMonotonic, "Master reign enum is not monotonic");

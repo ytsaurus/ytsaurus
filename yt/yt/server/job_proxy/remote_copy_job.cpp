@@ -961,8 +961,6 @@ private:
         ToProto(req->mutable_chunk_id(), outputSessionId.ChunkId);
         *req->mutable_chunk_info() = chunkInfo;
         *req->mutable_chunk_meta() = masterChunkMeta;
-        ToProto(req->mutable_legacy_replicas(), writtenReplicas);
-
         req->set_location_uuids_supported(true);
 
         auto* multicellSyncExt = req->Header().MutableExtension(NObjectClient::NProto::TMulticellSyncExt::multicell_sync_ext);

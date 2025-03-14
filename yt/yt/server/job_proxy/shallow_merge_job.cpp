@@ -550,9 +550,6 @@ private:
         TChunkSpec chunkSpec;
         ToProto(chunkSpec.mutable_chunk_id(), Writer_->GetChunkId());
         auto replicas = Writer_->GetWrittenChunkReplicasInfo().Replicas;
-        for (auto replica : replicas) {
-            chunkSpec.add_legacy_replicas(ToProto<ui32>(replica.ToChunkReplica()));
-        }
         ToProto(chunkSpec.mutable_replicas(), replicas);
         chunkSpec.set_table_index(0);
 

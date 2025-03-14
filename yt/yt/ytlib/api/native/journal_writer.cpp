@@ -843,8 +843,6 @@ private:
 
                 ToProto(req->mutable_chunk_id(), chunkId);
                 req->mutable_chunk_info();
-                ToProto(req->mutable_legacy_replicas(), replicas);
-
                 req->set_location_uuids_supported(true);
 
                 bool useLocationUuids = std::all_of(session->Nodes.begin(), session->Nodes.end(), [] (const auto& node) {
