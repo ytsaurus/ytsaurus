@@ -1395,7 +1395,7 @@ Allows complex-type values to be recorded in tables through native support of co
 | --- | --- | --- |
 | String representation of a yson dictionary | — | Dynamic |
 
-Set the `@media` attribute for newly created tables. If available, assigns [mediums in {{product-name}}](https://yt.yandex-team.ru/docs/description/common/media#naznachenie-mediuma), where table chunks will be stored.
+Set the `@media` attribute for newly created tables. If available, assigns [media in {{product-name}}](https://yt.yandex-team.ru/docs/description/common/media#naznachenie-mediuma), where table chunks will be stored.
 
 Tables specified in [INSERT INTO](insert_into.md) are Published. All other tables are Temporary.
 
