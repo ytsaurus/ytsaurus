@@ -762,6 +762,9 @@ struct TDockerRegistryConfig
     //! FQDN of internal docker registry for docker images stored in Cypress.
     std::string InternalRegistryAddress;
 
+    //! FQDN of internal docker registries for docker images stored in Cypress.
+    std::vector<std::string> InternalRegistryAddresses;
+
     bool UseYtTokenForInternalRegistry = false;
 
     bool ForwardInternalImagesToJobSpecs = false;
