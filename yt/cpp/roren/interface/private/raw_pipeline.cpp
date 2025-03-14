@@ -57,7 +57,7 @@ TTransformNodePtr TTransformNode::Allocate(
     }
 
     for (const auto& tag : outputTags) {
-        auto pCollectionNode = rawPipeline->AllocatePCollectionNode(tag.GetRowVtable(), result.Get());
+        auto pCollectionNode = rawPipeline->AllocatePCollectionNode(tag.GetRowVtable(), result.Get(), result->SinkList_.size());
         result->SinkList_.emplace_back(pCollectionNode);
     }
 
