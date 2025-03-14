@@ -14,7 +14,12 @@ TEST(TDockerImageSpecTest, TestDockerImageParser)
     auto defaultConfig = New<TDockerRegistryConfig>();
     auto internalConfig = New<TDockerRegistryConfig>();
 
+    defaultConfig->Postprocess();
+
     internalConfig->InternalRegistryAddress = "internal.registry";
+    internalConfig->InternalRegistryAlternativeAddresses.push_back("internal.registry:8080");
+    internalConfig->InternalRegistryAlternativeAddresses.push_back("alt.internal.registry");
+    internalConfig->Postprocess();
 
     // Format: [REGISTRY[:PORT]/]IMAGE[:TAG][@DIGEST]
 
@@ -191,6 +196,24 @@ TEST(TDockerImageSpecTest, TestDockerImageParser)
 
     {
         TDockerImageSpec image("internal.registry/project/image:tag", internalConfig);
+        EXPECT_EQ(image.Registry, "");
+        EXPECT_EQ(image.Image, "project/image");
+        EXPECT_EQ(image.Tag, "tag");
+        EXPECT_EQ(image.Digest, "");
+        EXPECT_EQ(image.IsInternal(), true);
+    }
+
+    {
+        TDockerImageSpec image("internal.registry:8080/project/image:tag", internalConfig);
+        EXPECT_EQ(image.Registry, "");
+        EXPECT_EQ(image.Image, "project/image");
+        EXPECT_EQ(image.Tag, "tag");
+        EXPECT_EQ(image.Digest, "");
+        EXPECT_EQ(image.IsInternal(), true);
+    }
+
+    {
+        TDockerImageSpec image("alt.internal.registry/project/image:tag", internalConfig);
         EXPECT_EQ(image.Registry, "");
         EXPECT_EQ(image.Image, "project/image");
         EXPECT_EQ(image.Tag, "tag");

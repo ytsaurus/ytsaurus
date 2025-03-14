@@ -295,6 +295,7 @@ void SafeUpdateAggregatedJobStatistics(
 
 TDockerImageSpec::TDockerImageSpec(const TString& dockerImage, const TDockerRegistryConfigPtr& config)
 {
+    const auto& internalRegistries = config->InternalRegistryAlternativeAddresses;
     TStringBuf imageRef;
     TStringBuf imageTag;
 
@@ -305,7 +306,7 @@ TDockerImageSpec::TDockerImageSpec(const TString& dockerImage, const TDockerRegi
     {
         Registry = "";
         imageRef = dockerImage;
-    } else if (Registry == config->InternalRegistryAddress) {
+    } else if (std::ranges::find(internalRegistries, Registry) != internalRegistries.end()) {
         Registry = "";
     }
 

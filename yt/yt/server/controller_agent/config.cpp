@@ -693,6 +693,8 @@ void TDockerRegistryConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("internal_registry_address", &TThis::InternalRegistryAddress)
         .Default();
+    registrar.Parameter("internal_registry_alternative_addresses", &TThis::InternalRegistryAlternativeAddresses)
+        .Default();
     registrar.Parameter("use_yt_token_for_internal_registry", &TThis::UseYtTokenForInternalRegistry)
         .Default(false);
     registrar.Parameter("forward_internal_images_to_job_specs", &TThis::ForwardInternalImagesToJobSpecs)
@@ -701,6 +703,10 @@ void TDockerRegistryConfig::Register(TRegistrar registrar)
         .Default(true);
 
     registrar.Postprocessor([&] (TDockerRegistryConfig* options) {
+        if (options->InternalRegistryAddress) {
+            options->InternalRegistryAlternativeAddresses.push_back(*options->InternalRegistryAddress);
+        }
+
         if (!options->TranslateInternalImagesIntoLayers && !options->ForwardInternalImagesToJobSpecs) {
             THROW_ERROR_EXCEPTION("At least one of forward_internal_images_to_job_specs or translate_internal_images_into_layers must be enabled");
         }
