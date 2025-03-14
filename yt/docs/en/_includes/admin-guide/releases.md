@@ -319,7 +319,7 @@ Publishes as docker images.
 
 {% cut "**2.5.0**" %}
 
-Major release that enables support for Spark 3.4.x and 3.5.x. 
+Major release that enables support for Spark 3.4.x and 3.5.x.
 
 - Compile-time Spark version is changed from 3.2.2 to 3.5.4;
 - SPYT compile-time Spark version will be the latest available supported version since this release;
@@ -372,7 +372,7 @@ Maintenance release with bug fixes:
 
 - Support for running local files and their dependencies in direct submit mode by uploading it to YTsaurus cache
 - Support for submitting compiled python binaries as spark applications via direct submit
-- Dataframe write schema hints 
+- Dataframe write schema hints
 - Bug fixes:
 - - Writing to external S3 from YTsaurus
 - - Reading float values from nested structures
@@ -589,7 +589,7 @@ Publishes as a helm-chart on [Github Packages](https://github.com/ytsaurus/ytsau
 - Added the ability to configure `tags` and `rack` for nodes.
 - Supported OAuth service configuration in the spec.
 - Added the ability to pass additional environment variables to the UI, as well as set the theme and environment (`testing`, `production`, etc.) for the UI.
-- Data node location mediums are created automatically during the initial deployment of the cluster.
+- Data node location media are created automatically during the initial deployment of the cluster.
 
 {% endcut %}
 
