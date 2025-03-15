@@ -31,6 +31,8 @@ struct TNestedColumnsSchema
 
 TNestedColumnsSchema GetNestedColumnsSchema(TTableSchemaPtr tableSchema);
 
+TNestedColumnsSchema FilterNestedColumnsSchema(const TNestedColumnsSchema& nestedSchema, TRange<int> columnIds);
+
 const TNestedKeyColumn* GetNestedColumnById(TRange<TNestedKeyColumn> keyColumns, ui16 columnId);
 const TNestedValueColumn* GetNestedColumnById(TRange<TNestedValueColumn> keyColumns, ui16 columnId);
 
