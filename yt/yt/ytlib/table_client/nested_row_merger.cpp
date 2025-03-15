@@ -168,6 +168,35 @@ TNestedColumnsSchema GetNestedColumnsSchema(TTableSchemaPtr tableSchema)
     return {keyColumns, valueColumns};
 }
 
+TNestedColumnsSchema FilterNestedColumnsSchema(const TNestedColumnsSchema& nestedSchema, TRange<int> columnIds)
+{
+    bool hasNestedColumns = false;
+    for (auto id : columnIds) {
+        if (const auto* ptr = GetNestedColumnById(nestedSchema.KeyColumns, id)) {
+            hasNestedColumns = true;
+        }
+
+        if (const auto* ptr = GetNestedColumnById(nestedSchema.ValueColumns, id)) {
+            hasNestedColumns = true;
+        }
+    }
+
+    if (!hasNestedColumns) {
+        return {};
+    }
+
+    TNestedColumnsSchema result;
+    result.KeyColumns = nestedSchema.KeyColumns;
+
+    for (const auto& valueColumn : nestedSchema.ValueColumns) {
+        if (std::find(columnIds.begin(), columnIds.end(), valueColumn.Id) != columnIds.end()) {
+            result.ValueColumns.push_back(valueColumn);
+        }
+    }
+
+    return result;
+}
+
 const TNestedKeyColumn* GetNestedColumnById(TRange<TNestedKeyColumn> keyColumns, ui16 columnId)
 {
     auto foundIt = BinarySearch(keyColumns.begin(), keyColumns.end(), [&] (const auto* it) {
