@@ -61,9 +61,6 @@ class TestSchedulerMapCommands(YTEnvSetup):
                     "max_input_table_count": 5,
                 },
             },
-            # COMPAT(shakurov): change the default to false and remove
-            # this delta once masters are up to date.
-            "enable_prerequisites_for_starting_completion_transactions": False,
         }
     }
 
@@ -2996,9 +2993,6 @@ class TestNestingLevelLimitOperations(YTEnvSetup):
     DELTA_CONTROLLER_AGENT_CONFIG = {
         "controller_agent": {
             "operations_update_period": 10,
-            # COMPAT(shakurov): change the default to false and remove
-            # this delta once masters are up to date.
-            "enable_prerequisites_for_starting_completion_transactions": False,
         },
         "cluster_connection": {
             "cypress_write_yson_nesting_level_limit": YSON_DEPTH_LIMIT,
