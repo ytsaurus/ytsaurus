@@ -11,9 +11,10 @@ namespace NYT::NKafkaProxy {
 struct IGroupCoordinator
     : public TRefCounted
 {
-    virtual NKafka::TRspJoinGroup JoinGroup(const NKafka::TReqJoinGroup& request, const NLogging::TLogger& Logger) = 0;
-    virtual NKafka::TRspSyncGroup SyncGroup(const NKafka::TReqSyncGroup& request, const NLogging::TLogger& Logger) = 0;
-    virtual NKafka::TRspHeartbeat Heartbeat(const NKafka::TReqHeartbeat& request, const NLogging::TLogger& Logger) = 0;
+    virtual NKafka::TRspJoinGroup JoinGroup(const NKafka::TReqJoinGroup& request, const NLogging::TLogger& logger) = 0;
+    virtual NKafka::TRspSyncGroup SyncGroup(const NKafka::TReqSyncGroup& request, const NLogging::TLogger& logger) = 0;
+    virtual NKafka::TRspHeartbeat Heartbeat(const NKafka::TReqHeartbeat& request, const NLogging::TLogger& logger) = 0;
+    virtual NKafka::TRspLeaveGroup LeaveGroup(const NKafka::TReqLeaveGroup& request, const NLogging::TLogger& logger) = 0;
 
     virtual void Reconfigure(const TGroupCoordinatorConfigPtr& config) = 0;
 };
