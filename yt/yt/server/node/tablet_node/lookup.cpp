@@ -2341,6 +2341,9 @@ ISchemafulUnversionedReaderPtr CreateLookupSessionReader(
     std::optional<TString> profilingUser,
     NLogging::TLogger Logger)
 {
+    ValidateTabletRetainedTimestamp(tabletSnapshot, timestampRange.Timestamp);
+    tabletSnapshot->WaitOnLocks(timestampRange.Timestamp);
+
     ThrowUponDistributedThrottlerOverdraft(
         ETabletDistributedThrottlerKind::Select,
         tabletSnapshot,
