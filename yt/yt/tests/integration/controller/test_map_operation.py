@@ -1401,17 +1401,18 @@ print row + table_index
         update_inplace(spec, spec_patch)
 
         mapper = b"""
-#!/usr/bin/python3
-
 import json
+import os
+import sys
 
-input = json.loads(raw_input())
+unbuffered_stdin = os.fdopen(sys.stdin.fileno(), "rb", buffering=0)
+input = json.loads(unbuffered_stdin.readline())
+
 old_value = input["value"]
 input["value"] = "(job)"
 print(json.dumps(input))
 input["value"] = old_value
 print(json.dumps(input))
-
 """
 
         create("file", "//tmp/mapper.py")
@@ -1419,7 +1420,7 @@ print(json.dumps(input))
 
         # NB(arkady-e1ppa): we force no bufferisation because otherwise we may read something like
         # "row1End\nrow2Start" and discard row2start completely.
-        map_cmd = """python -u mapper.py ; BREAKPOINT ; cat"""
+        map_cmd = """set -e; python3 -u mapper.py; BREAKPOINT; cat"""
 
         op = map(
             ordered=ordered,
@@ -1431,11 +1432,14 @@ print(json.dumps(input))
             spec=spec,
         )
 
-        jobs = wait_breakpoint()
-        op.interrupt_job(jobs[0])
+        try:
+            jobs = wait_breakpoint()
 
-        release_breakpoint()
-        op.track()
+            op.interrupt_job(jobs[0])
+
+            release_breakpoint()
+        finally:
+            op.track()
 
         return op
 
