@@ -3298,14 +3298,6 @@ class TestTablesShardedTx(TestTablesPortal):
         "14": {"roles": ["transaction_coordinator"]},
     }
 
-    DELTA_CONTROLLER_AGENT_CONFIG = {
-        "controller_agent": {
-            # COMPAT(shakurov): change the default to false and remove
-            # this delta once masters are up to date.
-            "enable_prerequisites_for_starting_completion_transactions": False,
-        }
-    }
-
 
 @pytest.mark.enabled_multidaemon
 class TestTablesShardedTxCTxS(TestTablesShardedTx):
