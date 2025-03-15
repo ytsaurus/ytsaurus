@@ -75,16 +75,6 @@ class TestSchedulerMapCommands(YTEnvSetup):
                 "memory": 5 * 1024 ** 3,
             }
         },
-        # COMPAT(arkady-e1ppa):
-        "exec_node": {
-            "job_controller": {
-                "resource_limits": {
-                    "user_slots": 5,
-                    "cpu": 5,
-                    "memory": 5 * 1024 ** 3,
-                }
-            },
-        },
     }
 
     @authors("ignat")
@@ -2702,16 +2692,6 @@ class TestInputOutputFormats(YTEnvSetup):
                 "cpu": 5,
                 "memory": 5 * 1024 ** 3,
             }
-        },
-        # COMPAT(arkady-e1ppa)
-        "exec_node": {
-            "job_controller": {
-                "resource_limits": {
-                    "user_slots": 5,
-                    "cpu": 5,
-                    "memory": 5 * 1024 ** 3,
-                }
-            },
         },
     }
 
