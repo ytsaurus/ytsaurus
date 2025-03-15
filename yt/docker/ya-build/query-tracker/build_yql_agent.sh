@@ -58,7 +58,7 @@ ${YTSAURUS_SOURCE_PATH}/ya make -T ${BUILD_FLAGS} --ignore-recurses --output=${Y
 for path in "yt/yql/plugin/dynamic" \
             "yt/yql/dq_vanilla_job" \
             "yt/yql/dq_vanilla_job.lite" #\
-            # "yql/essentials/udfs/logs/dsv" #TODO
+            # "yql/essentials/udfs/logs/dsv" # TODO(mpereskokova)
 do
     ${YTSAURUS_SOURCE_PATH}/ya make -T ${BUILD_FLAGS} --ignore-recurses --output=${YQL_BUILD_PATH} ${YTSAURUS_SOURCE_PATH}/$path
 done
