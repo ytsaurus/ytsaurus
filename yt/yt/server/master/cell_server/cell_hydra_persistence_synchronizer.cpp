@@ -440,6 +440,7 @@ private:
         auto snapshotAcl = ConvertToYsonString(cellOptions->SnapshotAcl, EYsonFormat::Binary).ToString();
         auto changelogAcl = ConvertToYsonString(cellOptions->ChangelogAcl, EYsonFormat::Binary).ToString();
 
+        auto cellNodePath = GetCellHydraPersistencePath(cellId);
         auto proxy = CreateObjectServiceWriteProxy(Bootstrap_->GetRootClient());
         auto batchReq = proxy.ExecuteBatch();
 
@@ -456,25 +457,17 @@ private:
             }
         };
 
-        auto processStorage = [&] (const TYPath& path) {
-            if (peers) {
-                for (int peerId = 0; peerId < peers->GetChildCount(); ++peerId) {
-                    auto peer = peers->GetChildOrThrow(peerId)->AsMap();
-                    if (peer->GetChildValueOrDefault("alien", false)) {
-                        continue;
-                    }
-                    auto peerNodePath = YPathJoin(path, peerId);
-                    updateAcl(peerNodePath);
+        if (peers) {
+            for (int peerId = 0; peerId < peers->GetChildCount(); ++peerId) {
+                auto peer = peers->GetChildOrThrow(peerId)->AsMap();
+                if (peer->GetChildValueOrDefault("alien", false)) {
+                    continue;
                 }
-            } else {
-                updateAcl(path);
+                auto peerNodePath = YPathJoin(cellNodePath, peerId);
+                updateAcl(peerNodePath);
             }
-        };
-
-        processStorage(GetCellHydraPersistencePath(cellId));
-        // COPMAT(danilalexeev)
-        if (!GetDynamicConfig()->MigrateToVirtualCellMaps) {
-            processStorage(GetCellPath(cellId));
+        } else {
+            updateAcl(cellNodePath);
         }
 
         return batchReq->Invoke()
