@@ -5,6 +5,7 @@ INCLUDE(${ARCADIA_ROOT}/library/cpp/yt/ya_cpp.make.inc)
 PEERDIR(
     library/cpp/testing/gtest
     library/cpp/yt/backtrace
+    library/cpp/yt/backtrace/cursors/dummy
     library/cpp/yt/backtrace/cursors/interop
     library/cpp/yt/backtrace/cursors/frame_pointer
     library/cpp/yt/backtrace/cursors/libunwind
