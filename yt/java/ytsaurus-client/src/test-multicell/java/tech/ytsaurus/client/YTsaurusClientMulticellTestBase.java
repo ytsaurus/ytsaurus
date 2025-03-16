@@ -26,7 +26,7 @@ public class YTsaurusClientMulticellTestBase {
                     .setHttpPort(10112)
                     .setSecondaryMasterCellCount(3)
                     .setRpcProxyCount(1)
-                    .setRpcProxyPorts(List.of(10111))
+                    .setRpcProxyPorts(List.of(10113))
                     .setProxyConfigFile(MountableFile.forClasspathResource("/proxy_config.yson"))
             );
         }
