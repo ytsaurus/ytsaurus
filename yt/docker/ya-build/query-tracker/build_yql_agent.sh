@@ -57,7 +57,7 @@ ${YTSAURUS_SOURCE_PATH}/ya make -T ${BUILD_FLAGS} --ignore-recurses --output=${Y
 # Build required binaries and libraries.
 for path in "yt/yql/plugin/dynamic" \
             "yt/yql/dq_vanilla_job" \
-            "yt/yql/dq_vanilla_job.lite"
+            "yt/yql/dq_vanilla_job.lite" \
             "yql/essentials/udfs/logs/dsv"
 do
     ${YTSAURUS_SOURCE_PATH}/ya make -T ${BUILD_FLAGS} --ignore-recurses --output=${YQL_BUILD_PATH} ${YTSAURUS_SOURCE_PATH}/$path
