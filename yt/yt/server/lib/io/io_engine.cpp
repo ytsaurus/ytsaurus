@@ -132,7 +132,7 @@ public:
         registrar.Parameter("async_flush_after_write", &TThis::AsyncFlushAfterWrite)
             .Default(false);
         registrar.Parameter("enable_sync_on_close_with_write", &TThis::EnableSyncOnCloseWithWrite)
-            .Default(false);
+            .Default(true);
 
         registrar.Parameter("desired_request_size", &TThis::DesiredRequestSize)
             .GreaterThanOrEqual(4_KB)
