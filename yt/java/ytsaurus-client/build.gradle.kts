@@ -68,7 +68,7 @@ sourceSets.create("testIntegration") {
     runtimeClasspath += output + compileClasspath + sourceSets["test"].runtimeClasspath
 }
 
-sourceSets.create("testMulticellIntegration") {
+sourceSets.create("testIntegrationMulticell") {
     java.srcDir("src/test-multicell/java")
     resources.srcDir("src/test-multicell/resources")
     compileClasspath += sourceSets["main"].output + configurations["testRuntimeClasspath"]
@@ -88,11 +88,11 @@ tasks {
         useJUnit()
     }.mustRunAfter("test")
 
-    task<Test>("testMulticellIntegration") {
+    task<Test>("testIntegrationMulticell") {
         description = "Runs the multicell integration tests"
         group = "verification"
-        testClassesDirs = sourceSets["testMulticellIntegration"].output.classesDirs
-        classpath = sourceSets["testMulticellIntegration"].runtimeClasspath
+        testClassesDirs = sourceSets["testIntegrationMulticell"].output.classesDirs
+        classpath = sourceSets["testIntegrationMulticell"].runtimeClasspath
         testLogging {
             showStandardStreams = true
             events("passed", "skipped", "failed")
