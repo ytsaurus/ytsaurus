@@ -23,6 +23,7 @@ public class YTsaurusClientMulticellTestBase {
 
         if (!System.getenv().containsKey("YT_PROXY")) {
             ytsaurusContainer = YTsaurusContainer.startContainer(new YTsaurusContainer.Config()
+                    .setHttpPort(10112)
                     .setSecondaryMasterCellCount(3)
                     .setRpcProxyCount(1)
                     .setRpcProxyPorts(List.of(10111))

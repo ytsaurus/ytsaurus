@@ -13,7 +13,7 @@ public class YTsaurusContainer {
     public static synchronized GenericContainer<?> startContainer(Config config) {
         FixedHostPortGenericContainer<?> localYTsaurus =
                 new FixedHostPortGenericContainer<>("ghcr.io/ytsaurus/local:dev")
-                        .withFixedExposedPort(10110, 80) // http
+                        .withFixedExposedPort(config.httpPort, 80) // http
                         .withNetwork(Network.newNetwork());
 
         List<String> commandParts = new ArrayList<>(List.of("--enable-debug-logging"));
@@ -67,6 +67,7 @@ public class YTsaurusContainer {
     }
 
     public static class Config {
+        private int httpPort;
         private int rpcProxyCount;
         private List<Integer> rpcProxyPorts;
         private int queueAgentCount;
@@ -75,6 +76,11 @@ public class YTsaurusContainer {
         private int secondaryMasterCellCount;
         private MountableFile rpcProxyConfigFile;
         private MountableFile proxyConfigFile;
+
+        public Config setHttpPort(int httpPort) {
+            this.httpPort = httpPort;
+            return this;
+        }
 
         public Config setRpcProxyCount(int rpcProxyCount) {
             this.rpcProxyCount = rpcProxyCount;
