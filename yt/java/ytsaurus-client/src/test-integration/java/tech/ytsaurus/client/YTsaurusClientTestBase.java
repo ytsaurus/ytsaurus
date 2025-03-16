@@ -31,6 +31,7 @@ public class YTsaurusClientTestBase {
 
         if (!System.getenv().containsKey("YT_PROXY")) {
             ytsaurusContainer = YTsaurusContainer.startContainer(new YTsaurusContainer.Config()
+                    .setHttpPort(10110)
                     .setRpcProxyCount(1)
                     .setRpcProxyPorts(List.of(10111))
                     .setRpcProxyConfigFile(MountableFile.forClasspathResource("/rpc_proxy_config.yson"))
