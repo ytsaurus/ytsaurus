@@ -11,6 +11,7 @@ import io.netty.channel.nio.NioEventLoopGroup;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
+import org.testcontainers.containers.GenericContainer;
 import tech.ytsaurus.client.bus.BusConnector;
 import tech.ytsaurus.client.bus.DefaultBusConnector;
 import tech.ytsaurus.client.request.CreateNode;
@@ -25,7 +26,6 @@ import tech.ytsaurus.core.cypress.YPath;
 import tech.ytsaurus.core.tables.ColumnValueType;
 import tech.ytsaurus.core.tables.TableSchema;
 import tech.ytsaurus.rpcproxy.ETransactionType;
-import tech.ytsaurus.testlib.LocalYTsaurus;
 import tech.ytsaurus.ysontree.YTreeBuilder;
 import tech.ytsaurus.ysontree.YTreeNode;
 
@@ -34,15 +34,14 @@ public class RpcBackendTest extends YTsaurusClientTestBase {
 
     @Before
     public void setup() throws IOException {
-        final int proxyPort = LocalYTsaurus.getContainer() != null
-                ? LocalYTsaurus.getContainer().getMappedPort(80)
-                : Integer.parseInt(
-                        System.getenv("YT_PROXY").split(":")[1]
-                );
+        GenericContainer<?> ytsaurusContainer = getYtsaurusContainer();
+        final int proxyPort = ytsaurusContainer != null
+                ? ytsaurusContainer.getMappedPort(80)
+                : Integer.parseInt(System.getenv("YT_PROXY").split(":")[1]);
 
         final BusConnector connector = new DefaultBusConnector(new NioEventLoopGroup(0));
 
-        final String host = LocalYTsaurus.getContainer() != null ? LocalYTsaurus.getContainer().getHost() : "localhost";
+        final String host = ytsaurusContainer != null ? ytsaurusContainer.getHost() : "localhost";
 
         final String user = "root";
         final String token = "";

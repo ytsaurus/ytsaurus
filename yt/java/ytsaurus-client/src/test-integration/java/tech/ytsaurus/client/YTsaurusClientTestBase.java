@@ -8,6 +8,7 @@ import java.util.concurrent.CompletionException;
 import org.junit.After;
 import org.junit.Rule;
 import org.junit.rules.TestName;
+import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.utility.MountableFile;
 import tech.ytsaurus.client.request.ReadTable;
 import tech.ytsaurus.client.request.SerializationContext;
@@ -19,6 +20,7 @@ import tech.ytsaurus.core.cypress.YPath;
 import tech.ytsaurus.core.tables.TableSchema;
 import tech.ytsaurus.testlib.LocalYTsaurus;
 import tech.ytsaurus.testlib.LoggingUtils;
+import tech.ytsaurus.testlib.YTsaurusContainer;
 import tech.ytsaurus.ysontree.YTreeMapNode;
 
 public class YTsaurusClientTestBase {
@@ -28,7 +30,7 @@ public class YTsaurusClientTestBase {
         );
 
         if (!System.getenv().containsKey("YT_PROXY")) {
-            LocalYTsaurus.startContainer(new LocalYTsaurus.Config()
+            ytsaurusContainer = YTsaurusContainer.startContainer(new YTsaurusContainer.Config()
                     .setRpcProxyCount(1)
                     .setRpcProxyPorts(List.of(10111))
                     .setRpcProxyConfigFile(MountableFile.forClasspathResource("/rpc_proxy_config.yson"))
@@ -39,6 +41,8 @@ public class YTsaurusClientTestBase {
             );
         }
     }
+
+    private static GenericContainer<?> ytsaurusContainer;
 
     @Rule
     public TestName name = new TestName();
@@ -55,8 +59,8 @@ public class YTsaurusClientTestBase {
         var testDirectory = YPath.simple("//tmp/ytsaurus-client-test/" + runId + "-" + methodName);
 
         YTsaurusFixture fixture = YTsaurusFixture.builder()
-                .setYTsaurusAddress(LocalYTsaurus.getAddress())
-                .setContainerRunning(LocalYTsaurus.getContainer() != null)
+                .setYTsaurusAddress(getYTsaurusAddress())
+                .setContainerRunning(ytsaurusContainer != null)
                 .setRpcOptions(rpcOptions)
                 .setTestDirectoryPath(testDirectory)
                 .build();
@@ -64,16 +68,22 @@ public class YTsaurusClientTestBase {
         return fixture;
     }
 
+    protected static GenericContainer<?> getYtsaurusContainer() {
+        return ytsaurusContainer;
+    }
+
     protected static String getYTsaurusAddress() {
-        return LocalYTsaurus.getAddress();
+        return ytsaurusContainer != null ?
+                ytsaurusContainer.getHost() + ":" + ytsaurusContainer.getMappedPort(80)
+                : LocalYTsaurus.getAddress();
     }
 
     protected static String getYTsaurusHost() {
-        return LocalYTsaurus.getHost();
+        return ytsaurusContainer != null ? ytsaurusContainer.getHost() : LocalYTsaurus.getHost();
     }
 
     protected static int getYTsaurusPort() {
-        return LocalYTsaurus.getPort();
+        return ytsaurusContainer != null ? ytsaurusContainer.getMappedPort(80) : LocalYTsaurus.getPort();
     }
 
     protected void writeTable(YTsaurusClient yt, YPath path, TableSchema tableSchema, List<YTreeMapNode> data) {
