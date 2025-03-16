@@ -1388,14 +1388,6 @@ public:
         ++ChunkViewsDestroyed_;
     }
 
-    TChunkView* CloneChunkView(TChunkView* chunkView, NChunkClient::TLegacyReadRange readRange) override
-    {
-        auto modifier = TChunkViewModifier(chunkView->Modifier())
-            .WithReadRange(readRange);
-        return CreateChunkView(chunkView->GetUnderlyingTree(), std::move(modifier));
-    }
-
-
     TDynamicStore* CreateDynamicStore(TDynamicStoreId storeId, TTablet* tablet) override
     {
         auto* dynamicStore = DoCreateDynamicStore(storeId, tablet);
