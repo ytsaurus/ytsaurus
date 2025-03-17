@@ -1610,97 +1610,6 @@ echo {v = 2} >&7
         else:
             run_join_reduce()
 
-    @authors("psushin")
-    @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
-    def test_join_reduce_job_splitter(self, sort_order):
-        if sort_order == "descending":
-            skip_if_no_descending(self.Env)
-            self.skip_if_legacy_sorted_pool()
-
-        create("table", "//tmp/in_1")
-        for j in range(20):
-            x = j if sort_order == "ascending" else 19 - j
-            rows = [
-                {
-                    "key": "%08d" % (x * 4 + i),
-                    "value": "(t_1)",
-                    "data": "a" * (1024 * 1024),
-                }
-                for i in range(4)
-            ]
-            if sort_order == "descending":
-                rows = rows[::-1]
-            write_table(
-                "<append=true>//tmp/in_1",
-                rows,
-                sorted_by=[{"name": "key", "sort_order": sort_order}],
-                table_writer={
-                    "block_size": 1024,
-                },
-            )
-
-        create("table", "//tmp/in_2")
-        for j in range(20):
-            x = j if sort_order == "ascending" else 19 - j
-            rows = [{"key": "(%08d)" % ((j * 10 + i) / 2), "value": "(t_2)"} for i in range(10)]
-            if sort_order == "descending":
-                rows = rows[::-1]
-            write_table(
-                "//tmp/in_2",
-                rows,
-                sorted_by=[{"name": "key", "sort_order": sort_order}],
-                table_writer={
-                    "block_size": 1024,
-                },
-            )
-
-        input_ = ["<foreign=true>//tmp/in_2", "//tmp/in_1"]
-        output = "//tmp/output"
-        create("table", output)
-
-        command = with_breakpoint(
-            """
-if [ "$YT_JOB_INDEX" == 0 ]; then
-    BREAKPOINT
-fi
-while read ROW; do
-    if [ "$YT_JOB_INDEX" == 0 ]; then
-        sleep 3
-    fi
-    echo "$ROW"
-done
-"""
-        )
-
-        op = join_reduce(
-            track=False,
-            label="split_job",
-            in_=input_,
-            out=output,
-            command=command,
-            join_by=[{"name": "key", "sort_order": sort_order}],
-            spec={
-                "reducer": {
-                    "format": "dsv",
-                },
-                "data_size_per_job": 17 * 1024 * 1024,
-                "max_failed_job_count": 1,
-                "job_io": {
-                    "buffer_row_count": 1,
-                },
-            },
-        )
-
-        wait_breakpoint(job_count=1)
-        wait(lambda: op.get_job_count("completed") >= 4)
-        release_breakpoint()
-        op.track()
-
-        completed = get(op.get_path() + "/@progress/jobs/completed")
-        interrupted = completed["interrupted"]
-        assert completed["total"] >= 6
-        assert interrupted["job_split"] >= 1
-
     @authors("renadeen")
     def test_join_reduce_two_primaries(self):
         create("table", "//tmp/in1")
@@ -2000,26 +1909,10 @@ class TestMaxTotalSliceCount(YTEnvSetup):
 
 @pytest.mark.enabled_multidaemon
 class TestSchedulerJoinReduceCommandsNewSortedPool(TestSchedulerJoinReduceCommands):
-    ENABLE_MULTIDAEMON = True
-    DELTA_SCHEDULER_CONFIG = {
-        "scheduler": {
-            "watchers_update_period": 100,
-            "operations_update_period": 10,
-            "running_allocations_update_period": 10,
-        }
-    }
-
     DELTA_CONTROLLER_AGENT_CONFIG = {
         "controller_agent": {
             "operations_update_period": 10,
             "join_reduce_operation_options": {
-                "job_splitter": {
-                    "min_job_time": 3000,
-                    "min_total_data_size": 1024,
-                    "update_period": 100,
-                    "candidate_percentile": 0.8,
-                    "max_jobs_per_split": 3,
-                },
                 "spec_template": {
                     "use_new_sorted_pool": True,
                     "foreign_table_lookup_keys_threshold": 1000,

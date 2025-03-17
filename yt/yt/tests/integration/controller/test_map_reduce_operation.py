@@ -91,14 +91,6 @@ class TestSchedulerMapReduceCommands(TestSchedulerMapReduceBase):
                     "tolerance": 1.0,
                 },
                 "min_uncompressed_block_size": 1,
-                "job_splitter": {
-                    "min_job_time": 3000,
-                    "min_total_data_size": 1024,
-                    "update_period": 100,
-                    "candidate_percentile": 0.8,
-                    "max_jobs_per_split": 3,
-                    "job_logging_period": 0,
-                },
                 "spec_template": {
                     "use_new_sorted_pool": False,
                 }
@@ -2988,94 +2980,6 @@ for l in sys.stdin:
         )
 
     @authors("gritukan")
-    def test_job_splitting(self):
-        pytest.skip("Job splitting + lost jobs = no way.")
-        create("table", "//tmp/t_in")
-        create("table", "//tmp/t_out")
-        expected = []
-        for i in range(20):
-            row = {"a": str(i), "b": "x" * 10**6}
-            write_table("<append=%true>//tmp/t_in", row)
-            expected.append({"a": str(i)})
-
-        slow_cat = """
-while read ROW; do
-    if [ "$YT_JOB_COOKIE" == 0 ]; then
-        sleep 5
-    else
-        sleep 0.1
-    fi
-    echo "$ROW"
-done
-"""
-        op = map_reduce(
-            in_="//tmp/t_in",
-            out="//tmp/t_out",
-            mapper_command=slow_cat,
-            reducer_command="cat",
-            sort_by=["key"],
-            spec={
-                "mapper": {"format": "dsv"},
-                "reducer": {"format": "dsv"},
-                "data_size_per_map_job": 14 * 1024 * 1024,
-                "partition_count": 2,
-                "map_job_io": {
-                    "buffer_row_count": 1,
-                },
-            })
-
-        assert get(op.get_path() + "/controller_orchid/progress/tasks/0/task_name") == "partition_map(0)"
-
-        path = op.get_path() + "/controller_orchid/progress/tasks/0/job_counter/completed/interrupted/job_split"
-        assert get(path) == 1
-
-        assert sorted_dicts(read_table("//tmp/t_out{a}", verbose=False)) == sorted_dicts(expected)
-
-    @authors("gritukan")
-    def test_job_speculation(self):
-        create("table", "//tmp/t_in")
-        create("table", "//tmp/t_out")
-        expected = []
-        for i in range(20):
-            row = {"a": str(i), "b": "x" * 10**6}
-            write_table("<append=%true>//tmp/t_in", row)
-            expected.append({"a": str(i)})
-
-        mapper = """
-while read ROW; do
-    if [ "$YT_JOB_INDEX" == 0 ]; then
-        sleep 5
-    else
-        sleep 0.1
-    fi
-    echo "$ROW"
-done
-"""
-        op = map_reduce(
-            in_="//tmp/t_in",
-            out="//tmp/t_out",
-            mapper_command=mapper,
-            reducer_command="cat",
-            sort_by=["a"],
-            spec={
-                "mapper": {"format": "dsv"},
-                "reducer": {"format": "dsv"},
-                "data_size_per_map_job": 14 * 1024 * 1024,
-                "partition_count": 2,
-                "enable_job_splitting": False,
-                "reduce_job_io": {
-                    "testing_options": {"pipe_delay": 1000},
-                    "buffer_row_count": 1,
-                }
-            })
-        op.track()
-
-        assert get(op.get_path() + "/@progress/tasks/0/task_name") == "partition_map(0)"
-
-        path = op.get_path() + "/@progress/tasks/0/speculative_job_counter/aborted/scheduled/speculative_run_won"
-        assert get(path) == 1
-
-    @authors("gritukan")
     def test_empty_mapper_output(self):
         create("table", "//tmp/t_in")
         create("table", "//tmp/t_out")
@@ -3949,14 +3853,6 @@ class TestSchedulerMapReduceCommandsNewSortedPool(TestSchedulerMapReduceCommands
                     "tolerance": 1.0,
                 },
                 "min_uncompressed_block_size": 1,
-                "job_splitter": {
-                    "min_job_time": 3000,
-                    "min_total_data_size": 1024,
-                    "update_period": 100,
-                    "candidate_percentile": 0.8,
-                    "max_jobs_per_split": 3,
-                    "job_logging_period": 0,
-                },
                 "spec_template": {
                     "use_new_sorted_pool": True,
                 }

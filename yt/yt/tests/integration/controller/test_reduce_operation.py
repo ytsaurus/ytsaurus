@@ -46,13 +46,6 @@ class TestSchedulerReduceCommands(YTEnvSetup):
         "controller_agent": {
             "operations_update_period": 10,
             "reduce_operation_options": {
-                "job_splitter": {
-                    "min_job_time": 5000,
-                    "min_total_data_size": 1024,
-                    "update_period": 100,
-                    "candidate_percentile": 0.8,
-                    "max_jobs_per_split": 3,
-                },
                 "spec_template": {
                     "use_new_sorted_pool": False,
                 },
@@ -1960,93 +1953,6 @@ echo {v = 2} >&7
                 spec={"input_query": "a where a > 0"},
             )
 
-    @authors("klyachin")
-    @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
-    def test_reduce_job_splitter(self, sort_order):
-        if sort_order == "descending":
-            skip_if_no_descending(self.Env)
-            self.skip_if_legacy_sorted_pool()
-
-        create("table", "//tmp/in_1")
-        for j in range(5):
-            x = j if sort_order == "ascending" else 4 - j
-            rows = [
-                {
-                    "key": "%08d" % (x * 4 + i),
-                    "value": "(t_1)",
-                    "data": "a" * (1024 * 1024),
-                }
-                for i in range(4)
-            ]
-            if sort_order == "descending":
-                rows = rows[::-1]
-            write_table(
-                "<append=true>//tmp/in_1",
-                rows,
-                sorted_by=[
-                    {"name": "key", "sort_order": sort_order},
-                    {"name": "value", "sort_order": sort_order},
-                ],
-                table_writer={
-                    "block_size": 1024,
-                },
-            )
-
-        create("table", "//tmp/in_2")
-        rows = [{"key": "(%08d)" % (i / 2), "value": "(t_2)"} for i in range(40)]
-        if sort_order == "descending":
-            rows = rows[::-1]
-        write_table(
-            "//tmp/in_2",
-            rows,
-            sorted_by=[{"name": "key", "sort_order": sort_order}],
-        )
-
-        input_ = ["<foreign=true>//tmp/in_2"] + ["//tmp/in_1"] * 5
-        output = "//tmp/output"
-        create("table", output)
-
-        command = """
-while read ROW; do
-    if [ "$YT_JOB_INDEX" == 0 ]; then
-        sleep 2
-    else
-        sleep 0.2
-    fi
-    echo "$ROW"
-done
-"""
-
-        op = reduce(
-            track=False,
-            label="split_job",
-            in_=input_,
-            out=output,
-            command=command,
-            reduce_by=[
-                {"name": "key", "sort_order": sort_order},
-                {"name": "value", "sort_order": sort_order},
-            ],
-            join_by=[{"name": "key", "sort_order": sort_order}],
-            spec={
-                "reducer": {
-                    "format": "dsv",
-                },
-                "data_size_per_job": 21 * 1024 * 1024,
-                "max_failed_job_count": 1,
-                "job_io": {
-                    "buffer_row_count": 1,
-                },
-            },
-        )
-
-        op.track()
-
-        completed = get(op.get_path() + "/@progress/jobs/completed")
-        interrupted = completed["interrupted"]
-        assert completed["total"] >= 6
-        assert interrupted["job_split"] >= 1
-
     @authors("max42")
     def test_intermediate_live_preview(self):
         create(
@@ -3394,13 +3300,6 @@ class TestSchedulerReduceCommandsNewSortedPool(TestSchedulerReduceCommands):
         "controller_agent": {
             "operations_update_period": 10,
             "reduce_operation_options": {
-                "job_splitter": {
-                    "min_job_time": 3000,
-                    "min_total_data_size": 1024,
-                    "update_period": 100,
-                    "candidate_percentile": 0.8,
-                    "max_jobs_per_split": 3,
-                },
                 "spec_template": {
                     "use_new_sorted_pool": True,
                 },
