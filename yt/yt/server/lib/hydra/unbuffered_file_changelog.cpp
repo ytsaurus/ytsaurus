@@ -400,7 +400,7 @@ public:
         }
     }
 
-    IIOEngine::TReadRequest MakeChunkFragmentReadRequest(
+    TReadRequest MakeChunkFragmentReadRequest(
         const TChunkFragmentDescriptor& fragmentDescriptor) override
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
@@ -823,7 +823,7 @@ private:
     }
 
     template <class TRecordHeader>
-    IIOEngine::TReadRequest DoMakeChunkFragmentReadRequest(const TChunkFragmentDescriptor& fragmentDescriptor)
+    TReadRequest DoMakeChunkFragmentReadRequest(const TChunkFragmentDescriptor& fragmentDescriptor)
     {
         auto makeErrorAttributes = [&] {
             return std::vector{
@@ -873,7 +873,7 @@ private:
                 << TErrorAttribute("record_length", recordLength);
         }
 
-        return IIOEngine::TReadRequest{
+        return TReadRequest{
             .Handle = DataFileHandle_,
             .Offset = range.first + static_cast<i64>(sizeof(TRecordHeader)) + fragmentDescriptor.BlockOffset,
             .Size = requestLength,

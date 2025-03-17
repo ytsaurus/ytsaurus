@@ -304,7 +304,7 @@ TFuture<void> TJournalChunk::PrepareToReadChunkFragments(
     return promise.ToFuture();
 }
 
-IIOEngine::TReadRequest TJournalChunk::MakeChunkFragmentReadRequest(
+TReadRequest TJournalChunk::MakeChunkFragmentReadRequest(
     const TChunkFragmentDescriptor& fragmentDescriptor,
     bool /*useDirectIO*/)
 {

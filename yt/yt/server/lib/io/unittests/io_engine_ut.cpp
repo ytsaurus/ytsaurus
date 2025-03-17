@@ -276,7 +276,7 @@ TEST_P(TIOEngineTest, ManyConcurrentDirectIOReads)
         .Get()
         .ValueOrThrow();
 
-    std::vector<TFuture<IIOEngine::TReadResponse>> futures;
+    std::vector<TFuture<TReadResponse>> futures;
     constexpr auto N = 100;
 
     for (int i = 0; i < N; ++i) {
@@ -328,10 +328,10 @@ private:
             .ValueOrThrow();
 
         while (!Stopped_) {
-            std::vector<TFuture<IIOEngine::TReadResponse>> futures;
+            std::vector<TFuture<TReadResponse>> futures;
 
             for (int requestIndex = 0; requestIndex < RequestCount; ++requestIndex) {
-                std::vector<IIOEngine::TReadRequest> readRequests;
+                std::vector<TReadRequest> readRequests;
                 readRequests.reserve(SubRequestCount);
 
                 for (int subRequestIndex = 0; subRequestIndex < SubRequestCount; ++subRequestIndex) {
@@ -425,7 +425,7 @@ TEST_P(TIOEngineTest, DirectIOAligned)
         .Get()
         .ValueOrThrow();
 
-    auto read = [&] (std::vector<IIOEngine::TReadRequest> requests) {
+    auto read = [&] (std::vector<TReadRequest> requests) {
         for (auto& request : requests) {
             request.Handle = file;
         }

@@ -101,7 +101,7 @@ TFuture<void> TChunkBase::PrepareToReadChunkFragments(
         Id_);
 }
 
-NIO::IIOEngine::TReadRequest TChunkBase::MakeChunkFragmentReadRequest(
+NIO::TReadRequest TChunkBase::MakeChunkFragmentReadRequest(
     const NIO::TChunkFragmentDescriptor& /*fragmentDescriptor*/,
     bool /*useDirectIO*/)
 {

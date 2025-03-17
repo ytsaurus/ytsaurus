@@ -1036,7 +1036,7 @@ TFuture<void> TBlobChunkBase::PrepareToReadChunkFragments(
         }).AsyncVia(Context_->StorageLightInvoker));
 }
 
-IIOEngine::TReadRequest TBlobChunkBase::MakeChunkFragmentReadRequest(
+TReadRequest TBlobChunkBase::MakeChunkFragmentReadRequest(
     const TChunkFragmentDescriptor& fragmentDescriptor,
     bool useDirectIO)
 {
