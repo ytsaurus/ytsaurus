@@ -98,6 +98,28 @@ public class RpcOptions {
     public RpcOptions() {
     }
 
+    public RpcOptions(RpcOptions options) {
+        this.defaultRequestAck = options.getDefaultRequestAck();
+        this.acknowledgementTimeout = options.getAcknowledgementTimeout().orElse(null);
+        this.globalTimeout = options.getGlobalTimeout();
+        this.failoverTimeout = options.getFailoverTimeout();
+        this.proxyUpdateTimeout = options.getProxyUpdateTimeout();
+        this.channelPoolSize = options.getChannelPoolSize();
+        this.testingOptions = options.getTestingOptions();
+        this.minBackoffTime = options.getMinBackoffTime();
+        this.maxBackoffTime = options.getMaxBackoffTime();
+        this.windowSize = options.getStreamingWindowSize();
+        this.writeTimeout = options.getStreamingWriteTimeout().orElse(null);
+        this.readTimeout = options.getStreamingReadTimeout().orElse(null);
+        this.retryPolicyFactory = options.getRetryPolicyFactory();
+        this.responseMetricsHolder = options.getResponseMetricsHolder();
+        this.traceEnabled = options.getTrace();
+        this.traceSampled = options.getTraceSampled();
+        this.traceDebug = options.getTraceDebug();
+        this.preferableDiscoveryMethod = options.getPreferableDiscoveryMethod();
+        this.rpcProxySelector = options.getRpcProxySelector();
+    }
+
     public boolean getTrace() {
         return traceEnabled;
     }

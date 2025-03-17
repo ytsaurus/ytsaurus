@@ -1,8 +1,8 @@
 #include <yt/yt/ytlib/misc/memory_usage_tracker.h>
 
-#include <yt/yt/core/misc/memory_usage_tracker.h>
-
 #include <yt/yt/core/test_framework/framework.h>
+
+#include <library/cpp/yt/memory/memory_usage_tracker.h>
 
 namespace NYT {
 namespace {

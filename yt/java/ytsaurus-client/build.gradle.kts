@@ -47,7 +47,11 @@ dependencies {
     testImplementation("org.apache.logging.log4j:log4j-core:2.13.1")
     testImplementation("org.apache.logging.log4j:log4j-slf4j-impl:2.13.1")
     testImplementation("org.hamcrest:hamcrest:2.2")
-    testImplementation("org.testcontainers:testcontainers:1.17.0")
+    testImplementation(project(":yt:java:ytsaurus-testlib"))
+    testImplementation("com.google.protobuf:protobuf-java:3.25.5")
+    testImplementation("junit:junit:4.13")
+    testImplementation("org.apache.logging.log4j:log4j-core:2.13.1")
+    testImplementation("org.apache.logging.log4j:log4j-slf4j-impl:2.13.1")
 }
 
 tasks.test {
@@ -64,6 +68,13 @@ sourceSets.create("testIntegration") {
     runtimeClasspath += output + compileClasspath + sourceSets["test"].runtimeClasspath
 }
 
+sourceSets.create("testIntegrationMulticell") {
+    java.srcDir("src/test-multicell/java")
+    resources.srcDir("src/test-multicell/resources")
+    compileClasspath += sourceSets["main"].output + configurations["testRuntimeClasspath"]
+    runtimeClasspath += output + compileClasspath + sourceSets["test"].runtimeClasspath
+}
+
 tasks {
     task<Test>("testIntegration") {
         description = "Runs the integration tests"
@@ -76,6 +87,18 @@ tasks {
         }
         useJUnit()
     }.mustRunAfter("test")
+
+    task<Test>("testIntegrationMulticell") {
+        description = "Runs the multicell integration tests"
+        group = "verification"
+        testClassesDirs = sourceSets["testIntegrationMulticell"].output.classesDirs
+        classpath = sourceSets["testIntegrationMulticell"].runtimeClasspath
+        testLogging {
+            showStandardStreams = true
+            events("passed", "skipped", "failed")
+        }
+        useJUnit()
+    }.mustRunAfter("testIntegration")
 }
 
 version = project.properties["version"]

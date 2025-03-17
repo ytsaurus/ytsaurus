@@ -1388,14 +1388,6 @@ public:
         ++ChunkViewsDestroyed_;
     }
 
-    TChunkView* CloneChunkView(TChunkView* chunkView, NChunkClient::TLegacyReadRange readRange) override
-    {
-        auto modifier = TChunkViewModifier(chunkView->Modifier())
-            .WithReadRange(readRange);
-        return CreateChunkView(chunkView->GetUnderlyingTree(), std::move(modifier));
-    }
-
-
     TDynamicStore* CreateDynamicStore(TDynamicStoreId storeId, TTablet* tablet) override
     {
         auto* dynamicStore = DoCreateDynamicStore(storeId, tablet);
@@ -4540,31 +4532,11 @@ private:
             THROW_ERROR_EXCEPTION("Chunk confirmation without location uuids is forbidden");
         }
 
-        if (subrequest->replicas().empty() && !subrequest->legacy_replicas().empty()) {
-            THROW_ERROR_EXCEPTION("Attempted to confirm chunk with only legacy replicas");
-        }
-
         auto replicas = FromProto<TChunkReplicaWithLocationList>(subrequest->replicas());
-        if (!subrequest->location_uuids_supported()) {
-            auto legacyReplicas = FromProto<TChunkReplicaWithMediumList>(subrequest->legacy_replicas());
-
-            const auto& nodeTracker = Bootstrap_->GetNodeTracker();
-            for (auto replica : legacyReplicas) {
-                auto* node = nodeTracker->FindNode(replica.GetNodeId());
-                if (!node) {
-                    continue;
-                }
-
-                THROW_ERROR_EXCEPTION("Cannot confirm chunk without location uuids");
-
-                replicas.emplace_back(replica, TChunkLocationUuid());
-            }
-        }
-
         auto chunkId = FromProto<TChunkId>(subrequest->chunk_id());
         auto schemaId = FromProto<TMasterTableSchemaId>(subrequest->schema_id());
-        auto* chunk = GetChunkOrThrow(chunkId);
 
+        auto* chunk = GetChunkOrThrow(chunkId);
         ConfirmChunk(
             chunk,
             replicas,

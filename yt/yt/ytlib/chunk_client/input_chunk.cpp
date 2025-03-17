@@ -372,7 +372,6 @@ void ToProto(NProto::TChunkSpec* chunkSpec, const TInputChunkPtr& inputChunk)
     SetObjectId(chunkSpec, inputChunk->GetChunkId());
 
     auto replicas = inputChunk->GetReplicaList();
-    ToProto(chunkSpec->mutable_legacy_replicas(), TChunkReplicaWithMedium::ToChunkReplicas(replicas));
     ToProto(chunkSpec->mutable_replicas(), replicas);
 
     if (inputChunk->TableIndex_ >= 0) {

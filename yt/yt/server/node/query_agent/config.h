@@ -31,6 +31,7 @@ struct TQueryAgentConfig
     bool RejectUponThrottlerOverdraft;
     bool AccountUserBackendOutTraffic;
     bool UseQueryPoolForLookups;
+    bool UseQueryPoolForInMemoryLookups;
 
     i64 MaxPullQueueResponseDataWeight;
     double PullRowsTimeoutShare;

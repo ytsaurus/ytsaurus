@@ -511,12 +511,7 @@ class TestSchedulerRemoteCopyCommands(TestSchedulerRemoteCopyCommandsBase):
 
             op.track()
 
-            # COMPAT(coteeq): In 24.1 the bug that forced clean start is fixed.
-            # But the old version is restarting from scratch (and starts a new transaction).
-            if self.Env.get_component_version("ytserver-controller-agent").abi < (24, 1):
-                assert input_tx != get(op.get_path() + "/@input_transaction_id")
-            else:
-                assert input_tx == get(op.get_path() + "/@input_transaction_id")
+            assert input_tx == get(op.get_path() + "/@input_transaction_id")
         finally:
             set("//sys/clusters", clusters)
             # TODO(babenko): wait for cluster sync

@@ -163,7 +163,6 @@ void TNontemplateMultiChunkWriterBase::FinishSession()
         auto& chunkSpec = WrittenChunkSpecs_.emplace_back();
         ToProto(chunkSpec.mutable_chunk_id(), chunkId);
         for (auto replica : writtenChunkReplicasInfo.Replicas) {
-            chunkSpec.add_legacy_replicas(ToProto<ui32>(replica.ToChunkReplica()));
             chunkSpec.add_replicas(ToProto(TChunkReplicaWithMedium(replica)));
         }
         if (Options_->TableIndex != TMultiChunkWriterOptions::InvalidTableIndex) {

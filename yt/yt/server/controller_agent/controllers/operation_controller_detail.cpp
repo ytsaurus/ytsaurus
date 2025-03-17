@@ -749,8 +749,6 @@ TOperationControllerInitializeResult TOperationControllerBase::InitializeClean()
     WaitFor(Host->UpdateInitializedOperationNode(/*isCleanOperationStart*/ true))
         .ThrowOnError();
 
-    SpecManager_->InitializeClean();
-
     YT_LOG_INFO("Operation initialized");
 
     TOperationControllerInitializeResult result;
@@ -1299,6 +1297,8 @@ TOperationControllerMaterializeResult TOperationControllerBase::SafeMaterialize(
         RunningJobStatisticsUpdateExecutor_->Start();
         SendRunningAllocationTimeStatisticsUpdatesExecutor_->Start();
 
+        SpecManager_->SetConfigurator(ConfigureUpdate());
+
         if (auto maybeDelay = Spec_->TestingOperationOptions->DelayInsideMaterialize) {
             TDelayedExecutor::WaitForDuration(*maybeDelay);
         }
@@ -1482,6 +1482,7 @@ TOperationControllerReviveResult TOperationControllerBase::Revive()
     // So after revive we do reset the corresponding alert.
     SetOperationAlert(EOperationAlertType::UserJobMonitoringLimited, TError());
 
+    SpecManager_->SetConfigurator(ConfigureUpdate());
     SpecManager_->ApplySpecPatchReviving();
 
     YT_LOG_INFO("Operation revived");
@@ -3671,7 +3672,7 @@ bool TOperationControllerBase::OnJobAborted(
     if (auto it = JobAbortsUntilOperationFailure_.find(abortReason); it != JobAbortsUntilOperationFailure_.end()) {
         if (--it->second == 0) {
             JobAbortsUntilOperationFailure_.clear();
-            auto wrappedError = TError("Operaiton failed due to excessive successive job aborts");
+            auto wrappedError = TError("Operation failed due to excessive successive job aborts");
             if (error) {
                 wrappedError <<= *error;
             }
@@ -6052,7 +6053,7 @@ void TOperationControllerBase::SafeAbortJobByJobTracker(TJobId jobId, EAbortReas
 
     YT_LOG_DEBUG("Aborting job by job tracker request (JobId: %v)", jobId);
 
-    DoAbortJob(std::move(joblet), abortReason, /*requestJobTrackerJobAbortion*/ false);
+    DoAbortJob(std::move(joblet), abortReason, /*requestJobTrackerJobAbortion*/ false, /*force*/ false);
 }
 
 void TOperationControllerBase::SuppressLivePreviewIfNeeded()
@@ -8857,8 +8858,27 @@ TOperationSpecBaseSealedConfigurator TOperationControllerBase::ConfigureUpdate()
 void TOperationControllerBase::PatchSpec(INodePtr newCumulativeSpecPatch, bool dryRun)
 {
     if (dryRun) {
+        THROW_ERROR_EXCEPTION_UNLESS(
+            State.load() == EControllerState::Running,
+            "Operation is not running");
         SpecManager_->ValidateSpecPatch(std::move(newCumulativeSpecPatch));
     } else {
+        switch (State) {
+            case EControllerState::Preparing:
+                YT_ABORT();
+            case EControllerState::Running:
+                // Ok.
+                break;
+            case EControllerState::Failing:
+            case EControllerState::Completed:
+            case EControllerState::Failed:
+            case EControllerState::Aborted: {
+                YT_LOG_WARNING(
+                    "Controller changed state before applying spec patch (ControllerState: %v)",
+                    State.load());
+                return;
+            }
+        }
         SpecManager_->ApplySpecPatch(std::move(newCumulativeSpecPatch));
     }
 }
@@ -11141,13 +11161,14 @@ void TOperationControllerBase::RegisterOutputTables(const std::vector<TRichYPath
 void TOperationControllerBase::DoAbortJob(
     TJobletPtr joblet,
     EAbortReason abortReason,
-    bool requestJobTrackerJobAbortion)
+    bool requestJobTrackerJobAbortion,
+    bool force)
 {
     // NB(renadeen): there must be no context switches before call OnJobAborted.
 
     auto jobId = joblet->JobId;
 
-    if (!ShouldProcessJobEvents()) {
+    if (!force && !ShouldProcessJobEvents()) {
         YT_LOG_DEBUG(
             "Job events processing disabled, abort skipped (JobId: %v, OperationState: %v)",
             joblet->JobId,
@@ -11179,7 +11200,7 @@ void TOperationControllerBase::AbortJob(TJobId jobId, EAbortReason abortReason)
         jobId,
         abortReason);
 
-    DoAbortJob(std::move(joblet), abortReason, /*requestJobTrackerJobAbortion*/ true);
+    DoAbortJob(std::move(joblet), abortReason, /*requestJobTrackerJobAbortion*/ true, /*force*/ false);
 }
 
 bool TOperationControllerBase::CanInterruptJobs() const

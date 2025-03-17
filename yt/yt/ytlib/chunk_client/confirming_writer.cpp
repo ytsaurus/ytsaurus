@@ -23,9 +23,10 @@
 #include <yt/yt/core/logging/log.h>
 
 #include <yt/yt/core/misc/finally.h>
-#include <yt/yt/core/misc/memory_usage_tracker.h>
 
 #include <yt/yt/core/ytree/yson_struct.h>
+
+#include <library/cpp/yt/memory/memory_usage_tracker.h>
 
 namespace NYT::NChunkClient {
 
@@ -343,7 +344,6 @@ private:
 
             FilterProtoExtensions(req->mutable_chunk_meta()->mutable_extensions(), GetMasterChunkMetaExtensionTagsFilter());
             req->set_request_statistics(true);
-            ToProto(req->mutable_legacy_replicas(), replicas);
 
             req->set_location_uuids_supported(true);
 

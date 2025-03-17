@@ -2442,7 +2442,11 @@ public:
                 layer.nbd_export_id(),
                 layer.data_source().path());
 
-            nbdServer->TryUnregisterDevice(layer.nbd_export_id());
+            if (auto device = nbdServer->GetDevice(layer.nbd_export_id())) {
+                nbdServer->TryUnregisterDevice(layer.nbd_export_id());
+                return device->Finalize();
+            }
+            return VoidFuture;
         }));
 
         return RemoveFuture_;
@@ -3104,7 +3108,10 @@ private:
                 artifactKey.data_source().path(),
                 FromProto<ELayerFilesystem>(artifactKey.filesystem()));
 
-                nbdServer->TryUnregisterDevice(artifactKey.nbd_export_id());
+                if (auto device = nbdServer->GetDevice(artifactKey.nbd_export_id())) {
+                    nbdServer->TryUnregisterDevice(artifactKey.nbd_export_id());
+                    std::ignore = WaitFor(device->Finalize());
+                }
 
             throw;
         }

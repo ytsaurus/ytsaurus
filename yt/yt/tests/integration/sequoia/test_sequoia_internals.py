@@ -77,10 +77,12 @@ class TestSequoiaInternals(YTEnvSetup):
     VALIDATE_SEQUOIA_TREE_CONSISTENCY = True
     NUM_CYPRESS_PROXIES = 1
 
-    NUM_SECONDARY_MASTER_CELLS = 2
+    NUM_SECONDARY_MASTER_CELLS = 3
     MASTER_CELL_DESCRIPTORS = {
         "10": {"roles": ["sequoia_node_host"]},
-        "11": {"roles": ["sequoia_node_host"]},
+        # Master cell with tag 11 is reserved for portals.
+        "11": {"roles": ["cypress_node_host"]},
+        "12": {"roles": ["sequoia_node_host"]},
     }
 
     DELTA_DYNAMIC_MASTER_CONFIG = {

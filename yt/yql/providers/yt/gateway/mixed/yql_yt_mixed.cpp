@@ -105,7 +105,7 @@ public:
                 res.Data.at(fileNdx[i]) = fileRes.Data.at(i);
             }
             TVector<TDownloadTablesReq> downloads;
-            TVector<std::pair<TString, TString>> locks;
+            TVector<std::tuple<TString, TString, TString>> locks;
             TVector<std::pair<TString, TString>> attrs;
             for (size_t i = 0; i < nativeNdx.size(); ++i) {
                 res.Data.at(nativeNdx[i]) = nativeRes.Data.at(i);
@@ -122,7 +122,7 @@ public:
                             .Anonymous(req.Anonymous())
                             .TargetPath(tablePath)
                         );
-                    locks.emplace_back(tablePath, fullTableName);
+                    locks.emplace_back(tablePath, req.Cluster(), req.Table());
                     NYT::TNode attrsContent = NYT::TNode::CreateMap();
                     for (const auto& p: nativeRes.Data[i].Meta->Attrs) {
                         if (READ_SCHEMA_ATTR_NAME == p.first || YqlRowSpecAttribute == p.first || SCHEMA_ATTR_NAME == p.first || FORMAT_ATTR_NAME == p.first) {
@@ -141,7 +141,7 @@ public:
                     .Tables(std::move(downloads))
                     .Config(options.Config())
                     .Epoch(options.Epoch()));
-                return downloadFuture.Apply([res = std::move(res), locks = std::move(locks), attrs = std::move(attrs), fs](const TFuture<TDownloadTablesResult>& f) mutable {
+                return downloadFuture.Apply([res = std::move(res), locks = std::move(locks), attrs = std::move(attrs), fs, epoch = options.Epoch()](const TFuture<TDownloadTablesResult>& f) mutable {
                     try {
                         auto downloadRes = f.GetValueSync();
                         if (!downloadRes.Success()) {
@@ -149,7 +149,7 @@ public:
                             res.AddIssues(downloadRes.Issues());
                         } else {
                             for (auto& p: locks) {
-                                fs->LockPath(p.first, p.second);
+                                fs->SnapshotTable(std::get<0>(p), std::get<1>(p), std::get<2>(p), epoch);
                             }
                             for (auto& p: attrs) {
                                 TOFStream ofAttr(p.first);
@@ -213,7 +213,7 @@ public:
                     return f;
                 }
 
-                auto path = fs->GetTablePath(cluster, table, false, true);
+                auto path = fs->GetTablePath(cluster, table, false);
                 TString attrs = "{}";
                 if (NFs::Exists(path + ".attr")) {
                     TIFStream input(path + ".attr");
@@ -268,8 +268,8 @@ public:
         return NativeGateway_->GetClusterServer(cluster);
     }
 
-    NYT::TRichYPath GetRealTable(const TString& sessionId, const TString& cluster, const TString& table, ui32 epoch, const TString& tmpFolder) const final {
-        return NativeGateway_->GetRealTable(sessionId, cluster, table, epoch, tmpFolder);
+    NYT::TRichYPath GetRealTable(const TString& sessionId, const TString& cluster, const TString& table, ui32 epoch, const TString& tmpFolder, bool temp, bool anonymous) const final {
+        return NativeGateway_->GetRealTable(sessionId, cluster, table, epoch, tmpFolder, temp, anonymous);
     }
 
     NYT::TRichYPath GetWriteTable(const TString& sessionId, const TString& cluster, const TString& table, const TString& tmpFolder) const final {

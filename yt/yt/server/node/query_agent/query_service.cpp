@@ -277,6 +277,7 @@ private:
     std::atomic<i64> MaxPullQueueResponseDataWeight_;
     std::atomic<bool> AccountUserBackendOutTraffic_;
     std::atomic<bool> UseQueryPoolForLookups_;
+    std::atomic<bool> UseQueryPoolForInMemoryLookups_;
 
     NProfiling::TCounter TabletErrorCountCounter_ = QueryAgentProfiler().Counter("/get_tablet_infos/errors/count");
     NProfiling::TCounter TabletErrorSizeCounter_ = QueryAgentProfiler().Counter("/get_tablet_infos/errors/byte_size");
@@ -301,7 +302,11 @@ private:
         const auto& ext = requestHeader.GetExtension(NQueryClient::NProto::TReqMultireadExt::req_multiread_ext);
         auto inMemoryMode = FromProto<EInMemoryMode>(ext.in_memory_mode());
 
-        if (inMemoryMode == EInMemoryMode::None && UseQueryPoolForLookups_.load(std::memory_order_relaxed)) {
+        if ((inMemoryMode == EInMemoryMode::None &&
+            UseQueryPoolForLookups_.load(std::memory_order_relaxed)) ||
+            (inMemoryMode != EInMemoryMode::None &&
+            UseQueryPoolForInMemoryLookups_.load(std::memory_order_relaxed)))
+        {
             std::string tag;
             std::string poolName;
             if (requestHeader.HasExtension(NQueryClient::NProto::TReqExecuteExt::req_execute_ext)) {
@@ -559,7 +564,7 @@ private:
                 : TVersionedReadOptions(),
             Bootstrap_->GetTabletSnapshotStore(),
             GetProfilingUser(NRpc::GetCurrentAuthenticationIdentity()),
-            Bootstrap_->GetTabletLookupPoolInvoker());
+            GetCurrentInvoker());
 
         for (int index = 0; index < tabletCount; ++index) {
             auto tabletId = FromProto<TTabletId>(request->tablet_ids(index));
@@ -1111,7 +1116,6 @@ private:
         auto localNodeId = Bootstrap_->GetNodeId();
         auto replicas = chunk->GetReplicas(localNodeId);
         ToProto(chunkSpec->mutable_replicas(), replicas);
-        ToProto(chunkSpec->mutable_legacy_replicas(), TChunkReplicaWithMedium::ToChunkReplicas(replicas));
 
         chunkSpec->set_erasure_codec(miscExt.erasure_codec());
         chunkSpec->set_striped_erasure(miscExt.striped_erasure());
@@ -1150,7 +1154,6 @@ private:
 
         auto localNodeId = Bootstrap_->GetNodeId();
         TChunkReplicaWithMedium replica(localNodeId, GenericChunkReplicaIndex, GenericMediumIndex);
-        chunkSpec->add_legacy_replicas(ToProto<ui32>(replica.ToChunkReplica()));
         chunkSpec->add_replicas(ToProto(replica));
 
         if (!lowerLimit.IsTrivial()) {
@@ -1757,6 +1760,8 @@ private:
             newConfig->QueryAgent->AccountUserBackendOutTraffic.value_or(Config_->AccountUserBackendOutTraffic));
         UseQueryPoolForLookups_.store(
             newConfig->QueryAgent->UseQueryPoolForLookups.value_or(Config_->UseQueryPoolForLookups));
+        UseQueryPoolForInMemoryLookups_.store(
+            newConfig->QueryAgent->UseQueryPoolForLookups.value_or(Config_->UseQueryPoolForInMemoryLookups));
     }
 
     DECLARE_RPC_SERVICE_METHOD(NQueryClient::NProto, CreateDistributedSession)

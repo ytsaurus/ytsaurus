@@ -10,6 +10,8 @@
 #include <yt/yt/client/table_client/schema.h>
 #include <yt/yt/client/table_client/unversioned_row.h>
 
+#include <yt/yt/client/queue_client/queue_rowset.h>
+
 #include <yt/yt/core/misc/blob_output.h>
 
 #include <yt/yt/core/yson/writer.h>
@@ -21,6 +23,7 @@ namespace NYT::NKafkaProxy {
 using namespace NApi;
 using namespace NComplexTypes;
 using namespace NKafka;
+using namespace NQueueClient;
 using namespace NTableClient;
 using namespace NYson;
 
@@ -53,20 +56,29 @@ bool IsKafkaQueue(const TTableSchemaPtr& schema)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::vector<TRecord> ConvertKafkaQueueRowsToRecords(
-    const IUnversionedRowsetPtr& rowset)
+TRecordBatch ConvertKafkaQueueRowsToRecordBatch(
+    const IQueueRowsetPtr& rowset)
 {
     auto nameTable = rowset->GetNameTable();
     auto keyColumnId = nameTable->FindId("key");
     auto valueColumnId = nameTable->FindId("value");
+    auto timestampColumnId = nameTable->FindId(TimestampColumnName);
     YT_VERIFY(keyColumnId && valueColumnId);
 
     auto rows = rowset->GetRows();
 
-    std::vector<TRecord> records;
+    TRecordBatch recordBatch;
+    recordBatch.MagicByte = 2;
+    recordBatch.BaseOffset = rowset->GetStartOffset();
+
+    auto& records = recordBatch.Records;
     records.reserve(rows.size());
 
+    std::optional<i64> firstTimestamp;
+    std::optional<i64> maxTimestamp;
+
     for (auto [offset, row] : Enumerate(rows)) {
+        std::optional<i64> rowTimestamp;
         if (!row) {
             records.emplace_back();
         } else {
@@ -74,16 +86,40 @@ std::vector<TRecord> ConvertKafkaQueueRowsToRecords(
                 .Key = row[*keyColumnId].AsString(),
                 .Value = row[*valueColumnId].AsString(),
             });
+            if (timestampColumnId) {
+                rowTimestamp = row[*timestampColumnId].Data.Uint64 / 1'000;  // Convert to milliseconds.
+
+                if (!firstTimestamp) {
+                    firstTimestamp = rowTimestamp;
+                }
+                maxTimestamp = std::max(maxTimestamp.value_or(0), *rowTimestamp);
+            }
         }
         records.back().OffsetDelta = static_cast<i32>(offset);
+        if (rowTimestamp && firstTimestamp) {
+            records.back().TimestampDelta = *rowTimestamp - *firstTimestamp;
+        }
     }
 
-    return records;
+    recordBatch.LastOffsetDelta = records.size();
+
+    if (firstTimestamp) {
+        recordBatch.FirstTimestamp = *firstTimestamp;
+    }
+    if (maxTimestamp) {
+        recordBatch.MaxTimestamp = *maxTimestamp;
+    }
+
+    return recordBatch;
 }
 
-std::vector<TRecord> ConvertGenericQueueRowsToRecords(
-    const IUnversionedRowsetPtr& rowset)
+TRecordBatch ConvertGenericQueueRowsToRecordBatch(
+    const IQueueRowsetPtr& rowset)
 {
+    TRecordBatch recordBatch;
+    recordBatch.MagicByte = 2;
+    auto& records = recordBatch.Records;
+
     auto nameTable = rowset->GetNameTable();
     auto schema = rowset->GetSchema();
 
@@ -99,6 +135,7 @@ std::vector<TRecord> ConvertGenericQueueRowsToRecords(
     }
 
     auto rows = rowset->GetRows();
+    recordBatch.BaseOffset = rowset->GetStartOffset();
 
     TBlobOutput blobOutput;
     auto writer = TYsonWriter(
@@ -107,11 +144,15 @@ std::vector<TRecord> ConvertGenericQueueRowsToRecords(
         EYsonType::Node,
         /*enableRaw*/ true);
 
-    std::vector<TRecord> records;
     records.reserve(rows.size());
+
+    std::optional<i64> firstTimestamp;
+    std::optional<i64> maxTimestamp;
 
     int columnCount = schema->GetColumnCount();
     for (auto [offset, row] : Enumerate(rows)) {
+        std::optional<i64> rowTimestamp;
+
         if (!row) {
             writer.OnEntity();
         } else {
@@ -121,6 +162,25 @@ std::vector<TRecord> ConvertGenericQueueRowsToRecords(
                 const auto& value = row[index];
 
                 const auto& column = schema->Columns()[index];
+
+                if (column.Name() == TimestampColumnName) {
+                    if (value.Type != EValueType::Uint64) {
+                        THROW_ERROR_EXCEPTION("Unexpected type of timestamp column")
+                            << TErrorAttribute("actual_type", value.Type)
+                            << TErrorAttribute("expected_type", EValueType::Uint64);
+                    }
+                    rowTimestamp = static_cast<i64>(value.Data.Uint64 / 1'000); // Convert to milliseconds.
+
+                    if (!firstTimestamp) {
+                        firstTimestamp = *rowTimestamp;
+                    }
+                    maxTimestamp = std::max(maxTimestamp.value_or(0), *rowTimestamp);
+                }
+
+                if (column.Name().starts_with(SystemColumnNamePrefix)) {
+                    continue;
+                }
+
                 writer.OnKeyedItem(column.Name());
 
                 switch (value.Type) {
@@ -166,13 +226,27 @@ std::vector<TRecord> ConvertGenericQueueRowsToRecords(
 
         writer.Flush();
         auto buffer = blobOutput.Flush();
-        records.push_back({
+
+        TRecord record{
             .OffsetDelta = static_cast<i32>(offset),
             .Value = TString(buffer.data(), buffer.size()),
-        });
+        };
+        if (rowTimestamp && firstTimestamp) {
+            record.TimestampDelta = *rowTimestamp - *firstTimestamp;
+        }
+
+        records.push_back(std::move(record));
     }
 
-    return records;
+    recordBatch.LastOffsetDelta = records.size();
+    if (firstTimestamp) {
+        recordBatch.FirstTimestamp = *firstTimestamp;
+    }
+    if (maxTimestamp) {
+        recordBatch.MaxTimestamp = *maxTimestamp;
+    }
+
+    return recordBatch;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -181,14 +255,14 @@ std::vector<TRecord> ConvertGenericQueueRowsToRecords(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::vector<TRecord> ConvertQueueRowsToRecords(
-    const IUnversionedRowsetPtr& rowset)
+TRecordBatch ConvertQueueRowsToRecordBatch(
+    const IQueueRowsetPtr& rowset)
 {
     if (IsKafkaQueue(rowset->GetSchema())) {
-        return ConvertKafkaQueueRowsToRecords(rowset);
+        return ConvertKafkaQueueRowsToRecordBatch(rowset);
     }
 
-    return ConvertGenericQueueRowsToRecords(rowset);
+    return ConvertGenericQueueRowsToRecordBatch(rowset);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

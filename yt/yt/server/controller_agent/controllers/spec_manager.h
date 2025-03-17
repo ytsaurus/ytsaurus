@@ -18,7 +18,6 @@ using TOperationSpecBaseSealedConfigurator = NYTree::TSealedConfigurator<NSchedu
 
 struct ISpecManagerHost
 {
-    virtual TOperationSpecBaseSealedConfigurator ConfigureUpdate() = 0;
     virtual TOperationSpecBasePtr ParseTypedSpec(const NYTree::INodePtr& spec) const = 0;
 
     virtual std::any CreateSafeAssertionGuard() const = 0;
@@ -39,7 +38,10 @@ public:
 
     //! NB: Do not reuse |cumulativeSpecPatch| after call.
     void InitializeReviving(NYTree::INodePtr&& cumulativeSpecPatch);
-    void InitializeClean();
+
+    //! Call it after materialization, when all internal data structures
+    //! are initialized and are ready to be configured.
+    void SetConfigurator(TOperationSpecBaseSealedConfigurator configurator);
 
     template <class TSpec = NScheduler::TOperationSpecBase>
     TIntrusivePtr<TSpec> GetSpec() const;

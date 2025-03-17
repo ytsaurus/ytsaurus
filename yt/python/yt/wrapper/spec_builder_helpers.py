@@ -10,8 +10,6 @@ except ImportError:
 
 import platform
 
-from urllib.parse import urlparse
-
 
 class BaseLayerDetector:
 
@@ -174,11 +172,6 @@ class BaseLayerDetector:
 
         if user_layer.startswith("//"):
             spec["layer_paths"] = list(map(str.strip, user_layer.split(",")))
-        elif user_layer.startswith("registry."):
-            # remove yt registry's host
-            parts = urlparse("//" + user_layer)
-            if parts.path:
-                spec["docker_image"] = parts.path[1:]
         else:
             spec["docker_image"] = user_layer
 

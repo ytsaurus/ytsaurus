@@ -179,15 +179,17 @@ TValueTypeLabels CodegenHasherBody(
     Value* finishIndex,
     Value* labelsArray)
 {
-    auto codegenHashCombine = [&] (const TCGIRBuilderPtr& builder, Value* first, Value* second) -> Value* {
-        //first ^ (second + 0x9e3779b9 + (second << 6) + (second >> 2));
-        return builder->CreateXor(
-            first,
-            builder->CreateAdd(
-                builder->CreateAdd(
-                    builder->CreateAdd(second, builder->getInt64(0x9e3779b9)),
-                    builder->CreateLShr(second, builder->getInt64(2))),
-                builder->CreateShl(second, builder->getInt64(6))));
+    auto codegenHashCombine = [&, module = builder.Module->GetModule()] (const TCGIRBuilderPtr& builder, Value* first, Value* second) -> Value* {
+        // Combine similar to xxhash: rotateLeft((lhs + rhs * Prime2), 31) * Prime1.
+        // https://github.com/Cyan4973/xxHash/blob/de9d6577907d4f4f8153e96b0cb0cbdf7df649bb/xxhash.h#L3491
+        auto* xxHashPrime1 = builder->getInt64(0x9E3779B185EBCA87ull);
+        auto* xxHashPrime2 = builder->getInt64(0xC2B2AE3D27D4EB4Full);
+        auto* funnelShiftLeft = llvm::Intrinsic::getDeclaration(module, llvm::Intrinsic::fshl, {builder->getInt64Ty()});
+        auto* acc = first;
+        acc = builder->CreateAdd(acc, builder->CreateMul(second, xxHashPrime2));
+        acc = builder->CreateCall(funnelShiftLeft, {acc, acc, builder->getInt64(31)});
+        acc = builder->CreateMul(acc, xxHashPrime1);
+        return acc;
     };
 
     auto* entryBB = builder->GetInsertBlock();
@@ -292,7 +294,7 @@ TValueTypeLabels CodegenHasherBody(
 
         builder->SetInsertPoint(hashDataBB);
         Value* hashResult = builder->CreateCall(
-            builder.Module->GetRoutine("StringHash"),
+            builder.Module->GetRoutine("StringXxHash64"),
             {
                 value.GetTypedData(builder),
                 value.GetLength()

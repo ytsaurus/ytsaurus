@@ -488,7 +488,9 @@ protected:
                 ParentId_,
                 /*detachInLatePrepare*/ true);
         } else if (IsSequoiaCompositeNodeType(TypeFromId(Id_)) && !SequoiaSession_->IsMapNodeEmpty(Id_)) {
-            THROW_ERROR_EXCEPTION("Cannot remove non-empty composite node");
+            THROW_ERROR_EXCEPTION(
+                NYTree::EErrorCode::CannotRemoveNonemptyCompositeNode,
+                "Cannot remove non-empty composite node");
         } else {
             SequoiaSession_->DetachAndRemoveSingleNode(Id_, Path_, ParentId_);
         }

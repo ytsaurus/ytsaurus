@@ -25,7 +25,7 @@ public class ShuffleServiceTest extends YTsaurusClientTestBase {
     @Test
     public void testShuffleServiceInteraction() throws Exception {
         var ytFixture = createYtFixture();
-        var ytClient = ytFixture.yt;
+        var ytClient = ytFixture.getYt();
         final int numPartitions = 3;
         final int totalShuffleRows = 93_234;
 

@@ -1061,6 +1061,33 @@ class TestLookup(TestSortedDynamicTablesBase):
             with_timestamps=True,
         ) == []
 
+    @authors("sabdenovch")
+    @pytest.mark.parametrize("in_memory", [False, True])
+    def test_migrate_to_query_pool(self, in_memory):
+        set("//sys/cluster_nodes/@config", {"%true": {
+            "query_agent": {
+                f"use_query_pool_for{'_in_memory' if in_memory else ''}_lookups": True
+            }
+        }})
+        sync_create_cells(1)
+
+        table_path = "//tmp/t"
+
+        self._create_simple_table(
+            table_path,
+            mount_config={
+                "enable_key_filter_for_lookup": True,
+            },
+            in_memory_mode="uncompressed" if in_memory else "none",
+        )
+        sync_mount_table(table_path)
+
+        keys = [{"key": i} for i in range(10000)]
+        rows = [{"key": i, "value": str(i)} for i in range(1, 9999, 2)]
+        insert_rows(table_path, rows)
+
+        assert rows == lookup_rows(table_path, keys)
+
 
 @pytest.mark.enabled_multidaemon
 class TestAlternativeLookupMethods(TestSortedDynamicTablesBase):

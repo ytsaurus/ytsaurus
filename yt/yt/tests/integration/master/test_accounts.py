@@ -4441,7 +4441,7 @@ class TestAccountsMulticell(TestAccounts):
         master_memory_sleep()
 
         set("//sys/@config/multicell_manager/cell_descriptors", {
-            "11": {"roles": ["chunk_host"]},
+            "11": {"roles": ["cypress_node_host", "chunk_host"]},
             "12": {"roles": ["chunk_host"]}})
         assert get("//sys/accounts/a/@resource_usage/master_memory/chunk_host") == 0
 
@@ -4506,7 +4506,7 @@ class TestAccountsMulticell(TestAccounts):
     def test_chunk_host_master_memory1(self):
         set("//sys/@config/security_manager/enable_master_memory_usage_validation", True)
 
-        set("//sys/@config/multicell_manager/cell_descriptors", {"11": {"roles": ["chunk_host"]}})
+        set("//sys/@config/multicell_manager/cell_descriptors", {"11": {"roles": ["cypress_node_host", "chunk_host"]}})
 
         create_account("a")
         set("//sys/accounts/a/@resource_limits/master_memory/total", 1000000)
@@ -4522,7 +4522,7 @@ class TestAccountsMulticell(TestAccounts):
         set("//sys/@config/security_manager/enable_master_memory_usage_validation", True)
 
         set("//sys/@config/multicell_manager/cell_descriptors", {
-            "11": {"roles": ["chunk_host"]},
+            "11": {"roles": ["cypress_node_host", "chunk_host"]},
             "12": {"roles": ["chunk_host"]}})
 
         create_account("a")
@@ -4572,10 +4572,11 @@ class TestAccountsMulticell(TestAccounts):
 
     @authors("h0pless")
     def test_chunk_host_tag_switch(self):
+        set("//sys/@config/multicell_manager/allow_master_cell_role_invariant_check", False)
         create_account("a")
         master_memory_sleep()
 
-        set("//sys/@config/multicell_manager/cell_descriptors", {"11": {"roles": ["chunk_host"]}, "12": {"roles": ["chunk_host"]}})
+        set("//sys/@config/multicell_manager/cell_descriptors", {"11": {"roles": ["chunk_host", "cypress_node_host"]}, "12": {"roles": ["chunk_host"]}})
 
         create("table", "//tmp/t1", attributes={"account": "a", "external_cell_tag": 11})
         create("table", "//tmp/t2", attributes={"account": "a", "external_cell_tag": 12})
@@ -4587,7 +4588,7 @@ class TestAccountsMulticell(TestAccounts):
         assert get("//sys/accounts/a/@resource_usage/master_memory", driver=get_driver(1)) > 0
         assert get("//sys/accounts/a/@multicell_statistics/11/resource_usage/chunk_host_cell_master_memory", driver=get_driver(1)) > 0
 
-        set("//sys/@config/multicell_manager/cell_descriptors/11/roles", ["transaction_coordinator"])
+        set("//sys/@config/multicell_manager/cell_descriptors/11/roles", ["transaction_coordinator", "cypress_node_host"])
         master_memory_sleep()
         write_table("<append=true>//tmp/t1", {"a": "d"})
         write_table("<append=true>//tmp/t1", {"a": "c"})
@@ -4597,7 +4598,7 @@ class TestAccountsMulticell(TestAccounts):
         wait(lambda: get("//sys/accounts/a/@resource_usage/master_memory/chunk_host") ==
              get("//sys/accounts/a/@multicell_statistics/12/resource_usage/master_memory", driver=get_driver(2)))
 
-        set("//sys/@config/multicell_manager/cell_descriptors/11/roles", ["chunk_host"])
+        set("//sys/@config/multicell_manager/cell_descriptors/11/roles", ["chunk_host", "cypress_node_host"])
         master_memory_sleep()
 
         assert get("//sys/accounts/a/@multicell_statistics/11/resource_usage/chunk_host_cell_master_memory", driver=get_driver(1)) > 0
@@ -4610,7 +4611,7 @@ class TestAccountsMulticell(TestAccounts):
         create_account("a")
         master_memory_sleep()
 
-        set("//sys/@config/multicell_manager/cell_descriptors", {"11": {"roles": ["chunk_host"]}, "12": {"roles": ["chunk_host"]}})
+        set("//sys/@config/multicell_manager/cell_descriptors", {"11": {"roles": ["chunk_host", "cypress_node_host"]}, "12": {"roles": ["chunk_host"]}})
         create("table", "//tmp/t1", attributes={"account": "a", "external_cell_tag": 11})
         create("table", "//tmp/t2", attributes={"account": "a", "external_cell_tag": 12})
         write_table("<append=true>//tmp/t1", {"a": "b"})

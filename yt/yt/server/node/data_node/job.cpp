@@ -1763,7 +1763,6 @@ private:
         chunkSpec.set_row_count_override(chunkInfo.row_count());
         chunkSpec.set_erasure_codec(chunkInfo.erasure_codec()),
         *chunkSpec.mutable_chunk_id() = chunkInfo.id();
-        *chunkSpec.mutable_legacy_replicas() = chunkInfo.legacy_source_replicas();
         *chunkSpec.mutable_replicas() = chunkInfo.source_replicas();
         return chunkSpec;
     }
@@ -2086,7 +2085,6 @@ private:
         TChunkSpec oldChunkSpec;
         ToProto(oldChunkSpec.mutable_chunk_id(), OldChunkId_);
         oldChunkSpec.set_erasure_codec(ToProto(ErasureCodec_));
-        *oldChunkSpec.mutable_legacy_replicas() = JobSpecExt_.legacy_source_replicas();
         *oldChunkSpec.mutable_replicas() = JobSpecExt_.source_replicas();
 
         auto readerConfig = DynamicConfig_->Reader;
@@ -2929,7 +2927,6 @@ private:
 
         ToProto(req->mutable_chunk_id(), TailChunkId_);
         req->mutable_chunk_info();
-        ToProto(req->mutable_legacy_replicas(), writtenReplicas);
         auto* meta = req->mutable_chunk_meta();
         meta->set_type(ToProto(EChunkType::Journal));
         meta->set_format(ToProto(EChunkFormat::JournalDefault));

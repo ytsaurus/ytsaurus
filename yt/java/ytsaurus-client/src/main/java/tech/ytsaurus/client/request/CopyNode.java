@@ -43,6 +43,9 @@ public class CopyNode
                 .setPreserveExpirationTime(preserveExpirationTime)
                 .setPreserveCreationTime(preserveCreationTime);
 
+        if (enableCrossCellCopying != null) {
+            builder.setEnableCrossCellCopying(enableCrossCellCopying);
+        }
         if (transactionalOptions != null) {
             builder.setTransactionalOptions(transactionalOptions.writeTo(TTransactionalOptions.newBuilder()));
         }
@@ -66,6 +69,7 @@ public class CopyNode
                 .setPreserveExpirationTime(preserveExpirationTime)
                 .setPreserveCreationTime(preserveCreationTime)
                 .setIgnoreExisting(ignoreExisting)
+                .setEnableCrossCellCopying(enableCrossCellCopying)
                 .setTransactionalOptions(transactionalOptions != null
                         ? new TransactionalOptions(transactionalOptions)
                         : null)
@@ -114,6 +118,9 @@ public class CopyNode
                     .setPreserveExpirationTime(preserveExpirationTime)
                     .setPreserveCreationTime(preserveCreationTime);
 
+            if (enableCrossCellCopying != null) {
+                builder.setEnableCrossCellCopying(enableCrossCellCopying);
+            }
             if (transactionalOptions != null) {
                 builder.setTransactionalOptions(transactionalOptions.writeTo(TTransactionalOptions.newBuilder()));
             }

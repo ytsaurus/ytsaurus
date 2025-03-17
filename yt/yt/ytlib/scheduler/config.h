@@ -558,6 +558,7 @@ public:
     bool FailValidate;
     bool FailApply;
     bool FailRevive;
+    TDelayConfigPtr DelayInsideApply;
 
     REGISTER_YSON_STRUCT(TPatchSpecProtocolTestingOptions);
 

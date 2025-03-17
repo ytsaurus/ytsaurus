@@ -489,19 +489,19 @@ class TestKafkaProxy(TestQueueAgentBase, YTEnvSetup):
         messages = []
         consumer_message_counts = [0] * len(consumers)
 
-        for consumer_index, consumer in enumerate(consumers):
-            while True:
+        while True:
+            if none_message_count > 30:
+                break
+            for consumer_index, consumer in enumerate(consumers):
                 msg = consumer.poll(0.3)
 
                 if msg is None:
                     none_message_count += 1
-                    if none_message_count > 20:
-                        break
                     continue
 
                 if msg.error():
                     error_count += 1
-                    if error_count > 20:
+                    if error_count > 6:
                         assert not msg.error()
                     continue
 

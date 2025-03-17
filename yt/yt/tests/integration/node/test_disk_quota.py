@@ -291,7 +291,7 @@ class DiskMediumTestConfiguration(object):
     }
 
 
-class TestDiskMediumsPorto(YTEnvSetup, DiskMediumTestConfiguration):
+class TestDiskMediumPorto(YTEnvSetup, DiskMediumTestConfiguration):
     NUM_SCHEDULERS = 1
     NUM_MASTERS = 1
     NUM_NODES = 1

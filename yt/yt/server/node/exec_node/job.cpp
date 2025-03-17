@@ -47,6 +47,7 @@
 
 #include <yt/yt/server/lib/misc/job_reporter.h>
 
+#include <yt/yt/server/lib/nbd/block_device.h>
 #include <yt/yt/server/lib/nbd/profiler.h>
 
 #include <yt/yt/ytlib/api/native/public.h>
@@ -2783,7 +2784,7 @@ void TJob::CleanupNbdExports()
                 continue;
             }
 
-            if (nbdServer->IsDeviceRegistered(artifactKey.nbd_export_id())) {
+            if (auto device = nbdServer->GetDevice(artifactKey.nbd_export_id())) {
                 TNbdProfilerCounters::Get()->GetCounter(
                     TNbdProfilerCounters::MakeTagSet(artifactKey.data_source().path()),
                     "/device/unregistered_unexpected").Increment(1);
@@ -2792,15 +2793,20 @@ void TJob::CleanupNbdExports()
                     "NBD export is still registered, unregister it (ExportId: %v, Path: %v)",
                     artifactKey.nbd_export_id(),
                     artifactKey.data_source().path());
+
                 nbdServer->TryUnregisterDevice(artifactKey.nbd_export_id());
+                std::ignore = WaitFor(device->Finalize());
             }
         }
 
-        if (VirtualSandboxData_ && nbdServer->IsDeviceRegistered(VirtualSandboxData_->NbdExportId)) {
-            YT_LOG_ERROR(
-                "NBD virtual layer is still registered, unregister it (ExportId: %v)",
-                VirtualSandboxData_->NbdExportId);
-            nbdServer->TryUnregisterDevice(VirtualSandboxData_->NbdExportId);
+        if (VirtualSandboxData_) {
+            if (auto device = nbdServer->GetDevice(VirtualSandboxData_->NbdExportId)) {
+                YT_LOG_ERROR(
+                    "NBD virtual layer is still registered, unregister it (ExportId: %v)",
+                    VirtualSandboxData_->NbdExportId);
+                nbdServer->TryUnregisterDevice(VirtualSandboxData_->NbdExportId);
+                std::ignore = WaitFor(device->Finalize());
+            }
         }
     }
 }

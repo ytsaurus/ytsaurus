@@ -4753,13 +4753,13 @@ private:
             }
         }
 
-        std::vector<TLegacyOwningKey> oldPivotKeys;
+        std::vector<TOwningKeyBound> oldPivotKeyBounds;
 
         // Drop old tablets.
         for (int index = firstTabletIndex; index <= lastTabletIndex; ++index) {
             auto* tablet = tablets[index]->As<TTablet>();
             if (table->IsPhysicallySorted()) {
-                oldPivotKeys.push_back(tablet->GetPivotKey());
+                oldPivotKeyBounds.push_back(tablet->GetPivotKeyBound());
             }
             table->DiscountTabletStatistics(tablet->GetTabletStatistics());
             tablet->SetOwner(nullptr);
@@ -4768,9 +4768,9 @@ private:
 
         if (table->IsPhysicallySorted()) {
             if (lastTabletIndex + 1 < std::ssize(tablets)) {
-                oldPivotKeys.push_back(tablets[lastTabletIndex + 1]->As<TTablet>()->GetPivotKey());
+                oldPivotKeyBounds.push_back(tablets[lastTabletIndex + 1]->As<TTablet>()->GetPivotKeyBound());
             } else {
-                oldPivotKeys.push_back(MaxKey());
+                oldPivotKeyBounds.push_back(TOwningKeyBound::MakeEmpty(/*isUpper*/ false));
             }
         }
 
@@ -4788,7 +4788,7 @@ private:
             firstTabletIndex,
             lastTabletIndex,
             newTabletCount,
-            oldPivotKeys,
+            oldPivotKeyBounds,
             pivotKeys,
             oldEdenStoreIds);
 

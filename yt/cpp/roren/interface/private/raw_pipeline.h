@@ -52,9 +52,10 @@ class TPCollectionNode
     , public IWithAttributes
 {
 public:
-    TPCollectionNode(TRowVtable rowVtable, int id, TTransformNode* outputOf)
+    TPCollectionNode(TRowVtable rowVtable, int id, size_t index, TTransformNode* outputOf)
         : RowVtable_(std::move(rowVtable))
         , Id_(id)
+        , Index_(index)
         , SinkOf_(outputOf)
     {
         Y_ABORT_UNLESS(IsDefined(RowVtable_));
@@ -63,6 +64,11 @@ public:
     int GetId() const
     {
         return Id_;
+    }
+
+    size_t GetIndex() const
+    {
+        return Index_;
     }
 
     const TRowVtable& GetRowVtable() const
@@ -94,6 +100,7 @@ private:
 private:
     const TRowVtable RowVtable_;
     const int Id_;
+    const size_t Index_;
     TTransformNode* const SinkOf_;
     TVector<TTransformNode*> SourceFor_;
     TAttributes Attributes_;
@@ -218,9 +225,9 @@ public:
     TString DumpDot() const;
     void Dump(NYT::NYson::IYsonConsumer* consumer) const;
 private:
-    TPCollectionNodePtr AllocatePCollectionNode(TRowVtable rowVtable, TTransformNode* outputOf)
+    TPCollectionNodePtr AllocatePCollectionNode(TRowVtable rowVtable, TTransformNode* outputOf, size_t index)
     {
-        return MakeIntrusive<TPCollectionNode>(std::move(rowVtable), GenerateId(), outputOf);
+        return MakeIntrusive<TPCollectionNode>(std::move(rowVtable), GenerateId(), index, outputOf);
     }
 
     int GenerateId()

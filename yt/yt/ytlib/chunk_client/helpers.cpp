@@ -832,7 +832,6 @@ void LocateChunks(
                             chunkId);
                     }
                 } else {
-                    chunkSpecs[globalIndex]->mutable_legacy_replicas()->Swap(subresponse->mutable_legacy_replicas());
                     chunkSpecs[globalIndex]->mutable_replicas()->Swap(subresponse->mutable_replicas());
                     chunkSpecs[globalIndex]->set_erasure_codec(subresponse->erasure_codec());
                 }
@@ -1019,20 +1018,6 @@ void TChunkWriterCounters::Increment(
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-
-TAllyReplicasInfo TAllyReplicasInfo::FromChunkReplicas(
-    const TChunkReplicaList& chunkReplicas,
-    NHydra::TRevision revision)
-{
-    TAllyReplicasInfo result;
-    result.Replicas.reserve(chunkReplicas.size());
-    for (auto replica : chunkReplicas) {
-        result.Replicas.emplace_back(replica);
-    }
-    result.Revision = revision;
-
-    return result;
-}
 
 TAllyReplicasInfo TAllyReplicasInfo::FromChunkReplicas(
     const TChunkReplicaWithMediumList& chunkReplicas,

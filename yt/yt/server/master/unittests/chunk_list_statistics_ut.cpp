@@ -255,7 +255,7 @@ TEST_F(TChunkListCumulativeStatisticsTest, UnconfirmedChunk)
 
 TEST_F(TChunkListCumulativeStatisticsTest, SortedDynamicRootChanging)
 {
-    // TRandomGenerator behaves badly in low bits. Hopefully, mt19937 generated sequence
+    // TRandomGenerator behaves badly in low bits. Fortunately, mt19937 generated sequence
     // is defined in the C++ standard.
     std::mt19937 gen(12345);
 

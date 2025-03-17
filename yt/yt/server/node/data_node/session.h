@@ -4,6 +4,8 @@
 
 #include <yt/yt/server/lib/io/io_tracker.h>
 
+#include <yt/yt/server/lib/nbd/chunk_block_device.h>
+
 #include <yt/yt/server/node/cluster_node/public.h>
 
 #include <yt/yt/ytlib/chunk_client/session_id.h>
@@ -35,6 +37,9 @@ struct TSessionOptions
     bool EnableMultiplexing = false;
     NChunkClient::TPlacementId PlacementId;
     bool DisableSendBlocks = false;
+    std::optional<i64> MinLocationAvailableSpace;
+    std::optional<i64> NbdChunkSize;
+    std::optional<NNbd::EFilesystemType> NbdChunkFsType;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

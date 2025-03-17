@@ -165,7 +165,6 @@ void PopulateChunkSpecWithReplicas(
         addReplica(replica);
     }
 
-    ToProto(chunkSpec->mutable_legacy_replicas(), replicas);
     ToProto(chunkSpec->mutable_replicas(), replicas);
 }
 
@@ -320,7 +319,6 @@ void BuildDynamicStoreSpec(
 
     if (auto* node = tabletManager->FindTabletLeaderNode(tablet)) {
         nodeDirectoryBuilder->Add(node);
-        chunkSpec->add_legacy_replicas(ToProto<ui32>(TNodePtrWithReplicaIndex(node, GenericChunkReplicaIndex)));
         chunkSpec->add_replicas(ToProto(TNodePtrWithReplicaAndMediumIndex(node, GenericChunkReplicaIndex, GenericMediumIndex)));
     }
 

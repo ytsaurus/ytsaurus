@@ -194,9 +194,13 @@ func (s Metrics) SplitToChunks(maxChunkSize int) []Metrics {
 			rightBound = len(s.metrics)
 		}
 		chunk := s.metrics[leftBound:rightBound]
-		chunks = append(chunks, Metrics{metrics: chunk})
+		chunks = append(chunks, Metrics{metrics: chunk, timestamp: s.timestamp})
 	}
 	return chunks
+}
+
+func (s *Metrics) SetTimestamp(timestamp time.Time) {
+	s.timestamp = &timestamp
 }
 
 // List return list of metrics

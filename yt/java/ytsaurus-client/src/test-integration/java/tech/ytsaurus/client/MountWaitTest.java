@@ -26,7 +26,7 @@ public class MountWaitTest extends YTsaurusClientTestBase {
     @Before
     public void setup() {
         var ytFixture = createYtFixture();
-        yt = ytFixture.yt;
+        yt = ytFixture.getYt();
     }
 
     @Test
