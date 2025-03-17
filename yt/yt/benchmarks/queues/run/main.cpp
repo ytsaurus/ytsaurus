@@ -172,7 +172,7 @@ private:
     TRichYPath ConsumerPath_;
     TYPath QueuePathRaw_;
     TRichYPath QueuePath_;
-    TString Cluster_;
+    std::string Cluster_;
     i64 MaxDataWeight_;
     i64 BatchLoggingPeriod_;
     TString TabletCellBundle_;

@@ -235,7 +235,7 @@ void TFairShareStrategySchedulingSegmentsConfig::Register(TRegistrar registrar)
     });
 }
 
-const THashSet<TString>& TFairShareStrategySchedulingSegmentsConfig::GetModules() const
+const THashSet<std::string>& TFairShareStrategySchedulingSegmentsConfig::GetModules() const
 {
     switch (ModuleType) {
         case ESchedulingSegmentModuleType::DataCenter:
@@ -291,7 +291,7 @@ void TGpuAllocationSchedulerConfig::Register(TRegistrar registrar)
     });
 }
 
-const THashSet<TString>& TGpuAllocationSchedulerConfig::GetModules() const
+const THashSet<std::string>& TGpuAllocationSchedulerConfig::GetModules() const
 {
     switch (ModuleType) {
         case ESchedulingSegmentModuleType::DataCenter:

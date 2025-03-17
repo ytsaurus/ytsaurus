@@ -30,7 +30,7 @@ public:
     struct TTableReplicaInfo
     {
         NTabletClient::TTableReplicaId Id;
-        TString ClusterName;
+        std::string ClusterName;
         NTabletClient::ETableReplicaMode Mode;
         NTabletClient::ETableReplicaState State;
         TString ReplicaPath;
@@ -68,7 +68,7 @@ public:
 
 public:
     TClusterBackupSession(
-        TString clusterName,
+        std::string clusterName,
         TClientPtr client,
         TCreateOrRestoreTableBackupOptions options,
         NTransactionClient::TTimestamp timestamp,
@@ -116,7 +116,7 @@ public:
     TClusterTag GetClusterTag() const;
 
 private:
-    const TString ClusterName_;
+    const std::string ClusterName_;
     const TClientPtr Client_;
     const TCreateOrRestoreTableBackupOptions Options_;
     const NTransactionClient::TTimestamp Timestamp_;
@@ -179,10 +179,10 @@ private:
 
     NTransactionClient::TTimestamp Timestamp_ = NTransactionClient::NullTimestamp;
 
-    THashMap<TString, std::unique_ptr<TClusterBackupSession>> ClusterSessions_;
+    THashMap<std::string, std::unique_ptr<TClusterBackupSession>> ClusterSessions_;
 
     TClusterBackupSession* CreateClusterSession(
-        const TString& clusterName,
+        const std::string& clusterName,
         EBackupDirection direction);
 
     void InitializeAndLockTables(EBackupDirection direction);

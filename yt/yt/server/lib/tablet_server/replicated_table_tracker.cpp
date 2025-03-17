@@ -191,9 +191,7 @@ void FromProto(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-using TClusterKey = TString;
-
-using TClusterClientCache = TSyncExpiringCache<TString, TErrorOr<NApi::IClientPtr>>;
+using TClusterClientCache = TSyncExpiringCache<std::string, TErrorOr<NApi::IClientPtr>>;
 using TClusterClientCachePtr = TIntrusivePtr<TClusterClientCache>;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -201,7 +199,7 @@ using TClusterClientCachePtr = TIntrusivePtr<TClusterClientCache>;
 DECLARE_REFCOUNTED_CLASS(TClusterLivenessCheckCache)
 
 class TClusterLivenessCheckCache
-    : public TAsyncExpiringCache<TClusterKey, void>
+    : public TAsyncExpiringCache<std::string, void>
 {
 public:
     TClusterLivenessCheckCache(
@@ -215,7 +213,7 @@ public:
 
 protected:
     TFuture<void> DoGet(
-        const TClusterKey& key,
+        const std::string& key,
         bool /*isPeriodicUpdate*/) noexcept override
     {
         auto clientOrError = ClusterClientCache_->Get(key);
@@ -245,7 +243,7 @@ DEFINE_REFCOUNTED_TYPE(TClusterLivenessCheckCache)
 DECLARE_REFCOUNTED_CLASS(TClusterIncomingReplicationCheckCache)
 
 class TClusterIncomingReplicationCheckCache
-    : public TAsyncExpiringCache<TClusterKey, void>
+    : public TAsyncExpiringCache<std::string, void>
 {
 public:
     TClusterIncomingReplicationCheckCache(
@@ -259,7 +257,7 @@ public:
 
 protected:
     TFuture<void> DoGet(
-        const TClusterKey& key,
+        const std::string& key,
         bool /*isPeriodicUpdate*/) noexcept override
     {
         auto clientOrError = ClusterClientCache_->Get(key);
@@ -297,7 +295,7 @@ DEFINE_REFCOUNTED_TYPE(TClusterIncomingReplicationCheckCache)
 DECLARE_REFCOUNTED_CLASS(TClusterSafeModeCheckCache)
 
 class TClusterSafeModeCheckCache
-    : public TAsyncExpiringCache<TClusterKey, void>
+    : public TAsyncExpiringCache<std::string, void>
 {
 public:
     TClusterSafeModeCheckCache(
@@ -311,7 +309,7 @@ public:
 
 protected:
     TFuture<void> DoGet(
-        const TClusterKey& key,
+        const std::string& key,
         bool /*isPeriodicUpdate*/) noexcept override
     {
         auto clientOrError = ClusterClientCache_->Get(key);
@@ -343,7 +341,7 @@ DEFINE_REFCOUNTED_TYPE(TClusterSafeModeCheckCache)
 DECLARE_REFCOUNTED_CLASS(THydraReadOnlyCheckCache)
 
 class THydraReadOnlyCheckCache
-    : public TAsyncExpiringCache<TClusterKey, void>
+    : public TAsyncExpiringCache<std::string, void>
 {
 public:
     THydraReadOnlyCheckCache(
@@ -357,7 +355,7 @@ public:
 
 protected:
     TFuture<void> DoGet(
-        const TClusterKey& key,
+        const std::string& key,
         bool /*isPeriodicUpdate*/) noexcept override
     {
         auto clientOrError = ClusterClientCache_->Get(key);
@@ -388,7 +386,7 @@ DEFINE_REFCOUNTED_TYPE(THydraReadOnlyCheckCache)
 
 struct TBundleHealthKey
 {
-    TClusterKey ClusterKey;
+    std::string ClusterKey;
     TString BundleName;
 
     bool operator == (const TBundleHealthKey& other) const
@@ -575,7 +573,7 @@ public:
         ++IterationCount_;
     }
 
-    TError CheckClusterState(const TClusterKey& key)
+    TError CheckClusterState(const std::string& key)
     {
         if (auto error = ClusterLivenessChecker_.Get(key); !error.IsOK()) {
             return error;
@@ -598,7 +596,7 @@ public:
         return BundleHealthChecker_.Get(key);
     }
 
-    bool IsReplicaClusterBanned(TStringBuf clusterName) const
+    bool IsReplicaClusterBanned(const std::string& clusterName) const
     {
         return Config_->ReplicatorHint->BannedReplicaClusters.contains(clusterName);
     }
@@ -704,7 +702,7 @@ public:
             return Id_;
         }
 
-        TStringBuf GetClusterName() const
+        const std::string& GetClusterName() const
         {
             return ClusterName_;
         }
@@ -783,7 +781,7 @@ public:
         TReplicatedTable* ReplicatedTable_;
 
         const TTableReplicaId Id_;
-        const TString ClusterName_;
+        const std::string ClusterName_;
         const ETableReplicaContentType ContentType_;
 
         TYPath TablePath_;
@@ -1004,7 +1002,7 @@ public:
             return Options_;
         }
 
-        THashSet<TString> GetPreferredSyncReplicaClusters() const
+        THashSet<std::string> GetPreferredSyncReplicaClusters() const
         {
             // Priority from highest to lowest: global cluster option, collocation option, table option.
 
@@ -1017,14 +1015,14 @@ public:
             if (CollocationId_ != NullObjectId) {
                 const auto& collocation = GetOrCrash(TableTracker_->IdToCollocation_, CollocationId_);
                 if (const auto& collocationPreferredClusters = collocation.Options->PreferredSyncReplicaClusters) {
-                    return THashSet<TString>(
+                    return THashSet<std::string>(
                         collocationPreferredClusters->begin(),
                         collocationPreferredClusters->end());
                 }
             }
 
             if (Options_->PreferredSyncReplicaClusters) {
-                return THashSet<TString>(
+                return THashSet<std::string>(
                     Options_->PreferredSyncReplicaClusters->begin(),
                     Options_->PreferredSyncReplicaClusters->end());
             }
@@ -1243,7 +1241,7 @@ private:
     TClusterClientCachePtr CreateClusterClientCache() const
     {
         return New<TClusterClientCache>(
-            BIND([this, weakThis = MakeWeak(this)] (const TString& clusterName) -> TErrorOr<NApi::IClientPtr> {
+            BIND([this, weakThis = MakeWeak(this)] (const std::string& clusterName) -> TErrorOr<NApi::IClientPtr> {
                 auto this_ = weakThis.Lock();
                 if (!this_) {
                     return TError("Replicated table tracker was destroyed");
@@ -1395,11 +1393,11 @@ private:
             }
         }
 
-        THashMap<ETableReplicaContentType, THashMap<TTableCollocationId, THashMap<TString, int>>> collocationIdToClusterPriorities;
+        THashMap<ETableReplicaContentType, THashMap<TTableCollocationId, THashMap<std::string, int>>> collocationIdToClusterPriorities;
         for (const auto& [collocationId, collocation] : IdToCollocation_) {
             for (auto contentType : TEnumTraits<ETableReplicaContentType>::GetDomainValues()) {
-                std::optional<THashSet<TStringBuf>> goodReplicaClusters;
-                std::optional<THashSet<TStringBuf>> goodSyncReplicaClusters;
+                std::optional<THashSet<std::string>> goodReplicaClusters;
+                std::optional<THashSet<std::string>> goodSyncReplicaClusters;
 
                 for (auto tableId : collocation.TableIds) {
                     auto it = replicaFamilyToReplicasByState.find(TReplicaFamily{
@@ -1408,8 +1406,8 @@ private:
                     });
 
                     if (it != replicaFamilyToReplicasByState.end()) {
-                        THashSet<TStringBuf> tableGoodReplicaClusters;
-                        THashSet<TStringBuf> tableGoodSyncReplicaClusters;
+                        THashSet<std::string> tableGoodReplicaClusters;
+                        THashSet<std::string> tableGoodSyncReplicaClusters;
 
                         for (auto* replica : it->second[EReplicaState::GoodSync]) {
                             tableGoodReplicaClusters.insert(replica->GetClusterName());
@@ -1448,12 +1446,12 @@ private:
                 auto it = EmplaceOrCrash(
                     collocationIdToClusterPriorities[contentType],
                     collocationId,
-                    THashMap<TString, int>());
+                    THashMap<std::string, int>());
                 if (goodReplicaClusters) {
-                    for (auto clusterName : *goodReplicaClusters) {
+                    for (const auto& clusterName : *goodReplicaClusters) {
                         it->second[clusterName] = 1;
                     }
-                    for (auto clusterName : *goodSyncReplicaClusters) {
+                    for (const auto& clusterName : *goodSyncReplicaClusters) {
                         YT_VERIFY(it->second[clusterName] >= 1);
                         it->second[clusterName] = 2;
                     }
@@ -1466,7 +1464,7 @@ private:
 
             auto preferredReplicas = table.GetPreferredSyncReplicaClusters();
 
-            THashMap<TString, int> goodReplicaPriorities;
+            THashMap<std::string, int> goodReplicaPriorities;
             if (table.GetCollocationId() == NullObjectId) {
                 for (auto* replica : replicasByState[EReplicaState::GoodAsync]) {
                     goodReplicaPriorities[replica->GetClusterName()] = 1;
@@ -1505,8 +1503,7 @@ private:
         }
 
         Host_->ApplyChangeReplicaModeCommands(std::move(commands)).Subscribe(BIND(
-            [=] (const TErrorOr<TApplyChangeReplicaCommandResults>& resultsOrError)
-            {
+            [=] (const TErrorOr<TApplyChangeReplicaCommandResults>& resultsOrError) {
                 if (!resultsOrError.IsOK()) {
                     YT_LOG_ERROR(resultsOrError, "Failed to apply change replica mode commands");
                     return;
@@ -1532,8 +1529,8 @@ private:
 
     std::vector<TChangeReplicaModeCommand> GenerateCommandsForTable(
         TReplicasByState* replicasByState,
-        const THashSet<TString>& preferredReplicas,
-        const THashMap<TString, int>& goodReplicaPriorities)
+        const THashSet<std::string>& preferredReplicas,
+        const THashMap<std::string, int>& goodReplicaPriorities)
     {
         auto& syncReplicas = (*replicasByState)[EReplicaState::GoodSync];
         auto& asyncReplicas = (*replicasByState)[EReplicaState::GoodAsync];

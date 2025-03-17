@@ -50,7 +50,7 @@ class TChytSettings
     : public TYsonStruct
 {
 public:
-    std::optional<TString> Cluster;
+    std::optional<std::string> Cluster;
 
     std::optional<TString> Clique;
 
@@ -129,7 +129,7 @@ private:
     const TChytSettingsPtr Settings_;
     const TChytEngineConfigPtr Config_;
     TString Clique_;
-    TString Cluster_;
+    std::string Cluster_;
     NApi::NNative::IConnectionPtr NativeConnection_;
     NApi::IClientPtr QueryClient_;
 

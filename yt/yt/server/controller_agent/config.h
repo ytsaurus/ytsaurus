@@ -780,8 +780,8 @@ struct TDisallowRemoteOperationsConfig
     : public NYTree::TYsonStruct
 {
     THashSet<TString> AllowedUsers;
-    THashSet<TString> AllowedClusters;
-    THashSet<TString> AllowedForEveryoneClusters;
+    THashSet<std::string> AllowedClusters;
+    THashSet<std::string> AllowedForEveryoneClusters;
 
     REGISTER_YSON_STRUCT(TDisallowRemoteOperationsConfig);
 

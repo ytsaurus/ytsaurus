@@ -63,7 +63,7 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(NChaosClient::TReplicationEra, Era, NChaosClient::InitialReplicationEra);
     DEFINE_BYVAL_RW_PROPERTY(NTableClient::TTableId, TableId);
     DEFINE_BYVAL_RW_PROPERTY(NYPath::TYPath, TablePath);
-    DEFINE_BYVAL_RW_PROPERTY(TString, TableClusterName);
+    DEFINE_BYVAL_RW_PROPERTY(std::string, TableClusterName);
     DEFINE_BYVAL_RW_PROPERTY(NTransactionClient::TTimestamp, CurrentTimestamp);
     DEFINE_BYVAL_RW_PROPERTY(NTabletClient::TReplicatedTableOptionsPtr, ReplicatedTableOptions);
 

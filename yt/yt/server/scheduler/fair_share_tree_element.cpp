@@ -1185,7 +1185,7 @@ TYPath TSchedulerCompositeElement::GetFullPath(bool explicitOnly, bool withTreeI
     return path;
 }
 
-std::optional<TString> TSchedulerCompositeElement::GetRedirectToCluster() const
+std::optional<std::string> TSchedulerCompositeElement::GetRedirectToCluster() const
 {
     return std::nullopt;
 }
@@ -1724,7 +1724,7 @@ std::optional<bool> TSchedulerPoolElement::IsIdleCpuPolicyAllowed() const
     return Parent_->IsIdleCpuPolicyAllowed();
 }
 
-std::optional<TString> TSchedulerPoolElement::GetRedirectToCluster() const
+std::optional<std::string> TSchedulerPoolElement::GetRedirectToCluster() const
 {
     return Config_->RedirectToCluster
         ? Config_->RedirectToCluster
