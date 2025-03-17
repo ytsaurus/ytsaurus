@@ -4,8 +4,7 @@
 
 Since YQL is a strongly typed language, the data type is important for many of its aspects. To make data type management easy, YQL has a data type definition convention in text format. It's mentioned in many places in the documentation. There's also a library that provides functions for building a data type based on a text description (for example, when manually defining the signature for the called value) or for serializing the data type into a string for debugging purposes.
 
-<!--Functions for working with data types [are described in the article](../builtins/types.md).-->
-The format for textual data type presentation is described below.
+Functions for data types are [described in the article](../builtins/types.md). Below is the format of text representation of data types.
 
 ## General conventions {#rules}
 
@@ -14,9 +13,7 @@ The format for textual data type presentation is described below.
 * A complex data type is composed of other data types. If you depict this structure as a tree, it has [primitive data types](primitive.md) as leaves and [containers](containers.md) as other nodes. You may treat [special data types](special.md) as exceptions, because they can function as both.
 
 * The text representation repeats the structure of this tree from the root to the leaves: each node of the tree specifies the name of the current data type, and proceeding to a deeper level is denoted by different types of brackets.
-
 * Feel free to use spaces and line breaks if they improve readability.
-
 * If the ID contains something else except the Latin letters and numbers, put it in single quotes and use C-escaping.
 
 ## Containers {#containers}
@@ -49,7 +46,7 @@ The format for textual data type presentation is described below.
 
 * The basic form of the called values looks as follows: `(arg1, arg2, ...) -> result`.
 
-   Example of a signature description for a function receiving two strings and returning a number: `(String, String) -> Int64`.
+  An example of declaring a function signature that accepts two strings and returns a number: `(String, String) -> Int64`.
 
 * The called values can return the called values: in this case, they make up a chain of the required length.
 
@@ -72,5 +69,3 @@ The format for textual data type presentation is described below.
 * Unlike containers, a resource isn't parameterized by the element type (it's a pointer in memory and YQL knows nothing about its contents). Instead, a resource is parameterized by a string label that can safeguard against passing resources between incompatible functions.
 
    Example: `Resource<Foo>`.
-
-
