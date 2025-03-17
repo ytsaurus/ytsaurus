@@ -61,15 +61,6 @@ class TestSchedulerCommon(YTEnvSetup):
         "controller_agent": {
             "snapshot_period": 500,
             "operations_update_period": 10,
-            "map_operation_options": {
-                "job_splitter": {
-                    "min_job_time": 5000,
-                    "min_total_data_size": 1024,
-                    "update_period": 100,
-                    "candidate_percentile": 0.8,
-                    "max_jobs_per_split": 3,
-                },
-            },
             "controller_throttling_log_backoff": 0,
         }
     }

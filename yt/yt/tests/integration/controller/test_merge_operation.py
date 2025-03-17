@@ -50,27 +50,6 @@ class TestSchedulerMergeCommands(YTEnvSetup):
         "controller_agent": {
             "operations_update_period": 10,
             "max_chunks_per_fetch": 10,
-            "sorted_merge_operation_options": {
-                "job_splitter": {
-                    "min_job_time": 3000,
-                    "min_total_data_size": 1024,
-                    "update_period": 100,
-                    "candidate_percentile": 0.8,
-                    "max_jobs_per_split": 3,
-                },
-                "spec_template": {
-                    "use_new_sorted_pool": False,
-                },
-            },
-            "ordered_merge_operation_options": {
-                "job_splitter": {
-                    "min_job_time": 3000,
-                    "min_total_data_size": 1024,
-                    "update_period": 100,
-                    "candidate_percentile": 0.8,
-                    "max_jobs_per_split": 3,
-                },
-            },
             "enable_merge_schemas_during_schema_infer" : True,
         }
     }
@@ -2180,57 +2159,6 @@ class TestSchedulerMergeCommands(YTEnvSetup):
         assert get(op.get_path() + "/@progress/jobs/completed/total") == 2
 
     @authors("max42")
-    @pytest.mark.parametrize("mode", ["sorted", "ordered"])
-    @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
-    def test_merge_job_splitter(self, mode, sort_order):
-        if sort_order == "descending":
-            skip_if_no_descending(self.Env)
-            self.skip_if_legacy_sorted_pool()
-
-        create(
-            "table",
-            "//tmp/t_in",
-            attributes={
-                "schema": [
-                    {"name": "a", "type": "int64", "sort_order": sort_order},
-                    {"name": "b", "type": "string"},
-                ]
-            },
-        )
-        create("table", "//tmp/t_out")
-        rows = []
-        for i in range(20):
-            rows.append({"a": i, "b": "x" * 10 ** 4})
-        if sort_order == "descending":
-            rows = rows[::-1]
-        for row in rows:
-            write_table("<append=%true>//tmp/t_in", row)
-
-        op = merge(
-            track=False,
-            in_=["//tmp/t_in"],
-            out="//tmp/t_out",
-            spec={
-                "force_transform": True,
-                "mode": mode,
-                "job_io": {
-                    "testing_options": {"pipe_delay": 500},
-                    "buffer_row_count": 1,
-                },
-            },
-        )
-
-        wait(lambda: exists(op.get_path() + "/controller_orchid/progress/tasks/0/job_splitter"))
-
-        op.track()
-
-        completed = get(op.get_path() + "/@progress/jobs/completed")
-        interrupted = completed["interrupted"]
-        assert completed["total"] >= 2
-        assert interrupted["job_split"] >= 1
-        assert read_table("//tmp/t_out", verbose=False) == rows
-
-    @authors("max42")
     @pytest.mark.parametrize("mode", ["sorted", "ordered", "unordered"])
     def test_sampling(self, mode):
         create(
@@ -3976,24 +3904,8 @@ class TestSchedulerMergeCommandsNewSortedPool(TestSchedulerMergeCommands):
             "operations_update_period": 10,
             "max_chunks_per_fetch": 10,
             "sorted_merge_operation_options": {
-                "job_splitter": {
-                    "min_job_time": 3000,
-                    "min_total_data_size": 1024,
-                    "update_period": 100,
-                    "candidate_percentile": 0.8,
-                    "max_jobs_per_split": 3,
-                },
                 "spec_template": {
                     "use_new_sorted_pool": True,
-                },
-            },
-            "ordered_merge_operation_options": {
-                "job_splitter": {
-                    "min_job_time": 3000,
-                    "min_total_data_size": 1024,
-                    "update_period": 100,
-                    "candidate_percentile": 0.8,
-                    "max_jobs_per_split": 3,
                 },
             },
         }
