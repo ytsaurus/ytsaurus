@@ -131,7 +131,7 @@ TFuture<TReplicaLagTimes> TReplicatedTableTrackerHost::ComputeReplicaLagTimes(
         .Run();
 }
 
-NApi::IClientPtr TReplicatedTableTrackerHost::CreateClusterClient(const TString& clusterName)
+NApi::IClientPtr TReplicatedTableTrackerHost::CreateClusterClient(const std::string& clusterName)
 {
     const auto& clusterDirectory = Bootstrap_->GetClusterConnection()->GetClusterDirectory();
     auto connection = clusterDirectory->FindConnection(clusterName);

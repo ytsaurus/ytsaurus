@@ -19,7 +19,7 @@ class TApiTestBase
 protected:
     static NApi::IConnectionPtr Connection_;
     static NApi::IClientPtr Client_;
-    static TString ClusterName_;
+    static std::string ClusterName_;
 
     static void SetUpTestCase();
 

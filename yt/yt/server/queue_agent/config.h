@@ -59,7 +59,7 @@ struct TCypressSynchronizerDynamicConfig
     ECypressSynchronizerPolicy Policy;
 
     //! Clusters polled by the watching version of the synchronizer.
-    std::vector<TString> Clusters;
+    std::vector<std::string> Clusters;
 
     //! If true, the synchronizer will add objects from the registration table to the list of objects to watch.
     //! NB: This flag is only supported with the `watching` policy.

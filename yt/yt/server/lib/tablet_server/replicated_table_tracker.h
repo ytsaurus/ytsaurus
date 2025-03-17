@@ -119,7 +119,7 @@ struct IReplicatedTableTrackerHost
     virtual TFuture<TReplicaLagTimes> ComputeReplicaLagTimes(
         std::vector<NTabletClient::TTableReplicaId> replicaIds) = 0;
 
-    virtual NApi::IClientPtr CreateClusterClient(const TString& clusterName) = 0;
+    virtual NApi::IClientPtr CreateClusterClient(const std::string& clusterName) = 0;
 
     virtual TFuture<TApplyChangeReplicaCommandResults> ApplyChangeReplicaModeCommands(
         std::vector<TChangeReplicaModeCommand> commands) = 0;

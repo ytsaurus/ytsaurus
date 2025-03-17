@@ -327,7 +327,7 @@ private:
         // Fetch Cypress revisions for all objects in dynamic state.
 
         std::vector<TFuture<TObjectServiceProxy::TRspExecuteBatchPtr>> asyncResults;
-        std::vector<TString> clusters;
+        std::vector<std::string> clusters;
         for (const auto& [cluster, objects] : ClusterToDynamicStateObjects_) {
             auto proxy = CreateObjectServiceReadProxy(
                 GetNativeClientOrThrow(cluster),
@@ -609,7 +609,7 @@ private:
         // Fetch attributes for modified objects via batch requests to each cluster.
 
         std::vector<TFuture<TObjectServiceProxy::TRspExecuteBatchPtr>> asyncResults;
-        std::vector<TString> clusters;
+        std::vector<std::string> clusters;
         for (const auto& [cluster, modifiedObjects] : ClusterToModifiedObjects_) {
             auto proxy = CreateObjectServiceReadProxy(
                 GetNativeClientOrThrow(cluster),

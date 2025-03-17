@@ -63,7 +63,7 @@ struct TChytEngineConfig
     : public TEngineConfigBase
 {
     TString DefaultClique;
-    TString DefaultCluster;
+    std::string DefaultCluster;
     TDuration ProgressPollPeriod;
 
     REGISTER_YSON_STRUCT(TChytEngineConfig);
@@ -78,7 +78,7 @@ DEFINE_REFCOUNTED_TYPE(TChytEngineConfig)
 struct TQLEngineConfig
     : public TEngineConfigBase
 {
-    TString DefaultCluster;
+    std::string DefaultCluster;
 
     REGISTER_YSON_STRUCT(TQLEngineConfig);
 
@@ -92,7 +92,7 @@ DEFINE_REFCOUNTED_TYPE(TQLEngineConfig)
 struct TSpytEngineConfig
     : public TEngineConfigBase
 {
-    TString DefaultCluster;
+    std::string DefaultCluster;
     NYPath::TYPath DefaultDiscoveryPath;
     NYPath::TYPath DefaultDiscoveryGroup;
     NYPath::TYPath SpytHome;

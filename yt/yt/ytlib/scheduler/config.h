@@ -299,7 +299,7 @@ struct TPoolConfig
 
     std::optional<bool> EnablePrioritySchedulingSegmentModuleAssignment;
 
-    std::optional<TString> RedirectToCluster;
+    std::optional<std::string> RedirectToCluster;
 
     bool EnablePriorityStrongGuaranteeAdjustment;
     bool EnablePriorityStrongGuaranteeAdjustmentDonorship;
@@ -2022,7 +2022,7 @@ class TRemoteCopyOperationSpec
     : public TSimpleOperationSpecBase
 {
 public:
-    std::optional<TString> ClusterName;
+    std::optional<std::string> ClusterName;
     std::optional<TString> NetworkName;
     std::optional<NNodeTrackerClient::TNetworkPreferenceList> Networks;
     // TODO(max42): do we still need this?

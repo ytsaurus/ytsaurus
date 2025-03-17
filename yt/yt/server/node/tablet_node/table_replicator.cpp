@@ -173,7 +173,7 @@ private:
     const TTableSchemaPtr TableSchema_;
     const TNameTablePtr NameTable_;
     const TTableReplicaId ReplicaId_;
-    const TString ClusterName_;
+    const std::string ClusterName_;
     const TYPath ReplicaPath_;
     const TTableMountConfigPtr MountConfig_;
 

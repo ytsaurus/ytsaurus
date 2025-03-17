@@ -176,7 +176,7 @@ private:
     const TReplicatorHintConfigFetcherPtr ReplicatorHintConfigFetcher_;
 
     YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, BannedReplicaClustersSpinLock_);
-    THashSet<TString> BannedReplicaClusters_;
+    THashSet<std::string, THash<TStringBuf>, TEqualTo<TStringBuf>> BannedReplicaClusters_;
 
     // TODO(akozhikhov): Add periodic to clear old suspicious nodes.
     YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, SuspiciousNodesSpinLock_);
@@ -190,7 +190,7 @@ private:
 
         {
             auto guard = WriterGuard(BannedReplicaClustersSpinLock_);
-            BannedReplicaClusters_ = newConfig->BannedReplicaClusters;
+            BannedReplicaClusters_ = {newConfig->BannedReplicaClusters.begin(), newConfig->BannedReplicaClusters.end()};
         }
 
         YT_LOG_DEBUG("Updated list of banned replica clusters (BannedReplicaClusters: %v)",

@@ -1152,14 +1152,14 @@ struct TReplicatorHintConfig
     : public NYTree::TYsonStruct
 {
     //! Set of replica clusters that are banned to replicate to.
-    THashSet<TString> BannedReplicaClusters;
+    THashSet<std::string> BannedReplicaClusters;
 
     //! If |false| replication to the cluster shall be banned by replicating clusters.
     bool EnableIncomingReplication;
 
     //! Set of replica clusters that are preferred for serving sync replicas.
     //! NB: This options overrides corresponding option of a replicated table.
-    THashSet<TString> PreferredSyncReplicaClusters;
+    THashSet<std::string> PreferredSyncReplicaClusters;
 
     REGISTER_YSON_STRUCT(TReplicatorHintConfig);
 

@@ -11,7 +11,7 @@ namespace NYT::NChaosServer {
 struct TChaosPeerConfig
     : public NYTree::TYsonStruct
 {
-    std::optional<TString> AlienCluster;
+    std::optional<std::string> AlienCluster;
 
     REGISTER_YSON_STRUCT(TChaosPeerConfig);
 

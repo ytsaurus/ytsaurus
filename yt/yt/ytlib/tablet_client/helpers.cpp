@@ -14,7 +14,7 @@ TYPath GetCypressClustersPath()
     return "//sys/clusters";
 }
 
-TYPath GetCypressClusterPath(const TString& name)
+TYPath GetCypressClusterPath(TStringBuf name)
 {
     return GetCypressClustersPath() + "/" + ToYPathLiteral(name);
 }
