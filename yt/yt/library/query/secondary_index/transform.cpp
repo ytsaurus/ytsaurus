@@ -2,6 +2,7 @@
 #include "schema.h"
 
 #include <yt/yt/library/query/base/private.h>
+#include <yt/yt/library/query/base/query.h>
 #include <yt/yt/library/query/base/query_preparer.h>
 
 #include <yt/yt/library/query/base/ast.h>

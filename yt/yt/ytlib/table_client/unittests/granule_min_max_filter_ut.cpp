@@ -1,3 +1,4 @@
+#include <yt/yt/library/query/base/query.h>
 #include <yt/yt/library/query/base/query_preparer.h>
 
 #include <yt/yt/ytlib/table_client/granule_filter.h>
@@ -6,6 +7,7 @@
 #include <yt/yt/client/table_client/columnar_statistics.h>
 #include <yt/yt/client/table_client/comparator.h>
 #include <yt/yt/client/table_client/name_table.h>
+#include <yt/yt/client/table_client/schema.h>
 
 #include <yt/yt/core/test_framework/framework.h>
 

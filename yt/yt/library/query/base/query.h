@@ -211,9 +211,6 @@ struct TLikeExpression
         TConstExpressionPtr escapeCharacter);
 };
 
-using TStructMemberAccessor = TString;
-using TTupleItemIndexAccessor = int;
-
 struct TCompositeMemberAccessorPath
 {
     std::vector<NTableClient::ELogicalMetatype> NestedTypes;

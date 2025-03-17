@@ -419,6 +419,11 @@ void FormatId(TStringBuilderBase* builder, TStringBuf id, bool isFinal = false)
     }
 }
 
+void FormatIdFinal(TStringBuilderBase* builder, TStringBuf id)
+{
+    FormatId(builder, id, true);
+}
+
 void FormatExpressions(TStringBuilderBase* builder, const TExpressionList& exprs, int depth = 0, bool expandAliases = true);
 void FormatExpression(TStringBuilderBase* builder, const TExpression& expr, int depth = 0, bool expandAliases = true, bool isFinal = false);
 void FormatExpression(TStringBuilderBase* builder, const TExpressionList& expr, int depth = 0, bool expandAliases = true);
