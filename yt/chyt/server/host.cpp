@@ -760,7 +760,7 @@ private:
         TableAttributeCache_ = New<NObjectClient::TObjectAttributeCache>(
             Config_->TableAttributeCache,
             TableAttributesToFetch,
-            CacheClient_,
+            Connection_,
             ControlInvoker_,
             Logger(),
             ClickHouseYtProfiler().WithPrefix("/object_attribute_cache"));

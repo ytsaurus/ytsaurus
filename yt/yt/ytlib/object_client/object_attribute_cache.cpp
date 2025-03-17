@@ -16,13 +16,13 @@ using namespace NLogging;
 TObjectAttributeCache::TObjectAttributeCache(
     TObjectAttributeCacheConfigPtr config,
     std::vector<std::string> attributeNames,
-    NNative::IClientPtr client,
+    TWeakPtr<NNative::IConnection> connection,
     IInvokerPtr invoker,
     const NLogging::TLogger& logger,
     NProfiling::TProfiler profiler)
     : TObjectAttributeCacheBase(
         std::move(config),
-        std::move(client),
+        std::move(connection),
         std::move(invoker),
         logger,
         std::move(profiler))

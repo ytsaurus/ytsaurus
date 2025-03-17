@@ -16,7 +16,7 @@ namespace NYT::NObjectClient {
 template <class TKey, class TValue>
 TObjectAttributeCacheBase<TKey, TValue>::TObjectAttributeCacheBase(
     TObjectAttributeCacheConfigPtr config,
-    NApi::NNative::IClientPtr client,
+    TWeakPtr<NApi::NNative::IConnection> connection,
     IInvokerPtr invoker,
     const NLogging::TLogger& logger,
     NProfiling::TProfiler profiler)
@@ -26,7 +26,7 @@ TObjectAttributeCacheBase<TKey, TValue>::TObjectAttributeCacheBase(
         std::move(profiler))
     , Config_(std::move(config))
     , Logger(logger.WithTag("ObjectAttributeCacheId: %v", TGuid::Create()))
-    , Client_(std::move(client))
+    , Connection_(connection)
     , Invoker_(std::move(invoker))
 { }
 
@@ -48,7 +48,14 @@ TFuture<std::vector<TErrorOr<TValue>>> TObjectAttributeCacheBase<TKey, TValue>::
 {
     YT_LOG_DEBUG("Updating object attribute cache (ObjectCount: %v)", keys.size());
 
-    return GetFromClient(keys, Client_);
+    auto connection = Connection_.Lock();
+    if (!connection) {
+        return MakeFuture<std::vector<TErrorOr<TValue>>>(TError(NYT::EErrorCode::Canceled, "Connection destroyed"));
+    }
+
+    return GetFromClient(
+        keys,
+        connection->CreateNativeClient(NApi::TClientOptions::FromUser(Config_->UserName)));
 }
 
 template <class TKey, class TValue>
@@ -86,11 +93,11 @@ template <class TKey, class TValue>
     requires std::derived_from<typename TValue::TUnderlying, NYTree::TYsonStruct>
 TObjectAttributeAsYsonStructCacheBase<TKey, TValue>::TObjectAttributeAsYsonStructCacheBase(
     TObjectAttributeCacheConfigPtr config,
-    NApi::NNative::IClientPtr client,
+    TWeakPtr<NApi::NNative::IConnection> connection,
     IInvokerPtr invoker,
     const NLogging::TLogger& logger,
     NProfiling::TProfiler profiler)
-    : TObjectAttributeCacheBase<TKey, TValue>(std::move(config), std::move(client), std::move(invoker), logger, std::move(profiler))
+    : TObjectAttributeCacheBase<TKey, TValue>(std::move(config), std::move(connection), std::move(invoker), logger, std::move(profiler))
 {
     const auto& attributeNameSet = New<typename TValue::TUnderlying>()->GetRegisteredKeys();
     AttributeNames_ = std::vector<std::string>(attributeNameSet.begin(), attributeNameSet.end());

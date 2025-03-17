@@ -21,7 +21,7 @@ class TObjectAttributeCacheBase
 public:
     TObjectAttributeCacheBase(
         TObjectAttributeCacheConfigPtr config,
-        NApi::NNative::IClientPtr client,
+        TWeakPtr<NApi::NNative::IConnection> connection,
         IInvokerPtr invoker,
         const NLogging::TLogger& logger = {},
         NProfiling::TProfiler profiler = {});
@@ -43,7 +43,7 @@ private:
     const TObjectAttributeCacheConfigPtr Config_;
     const NLogging::TLogger Logger;
 
-    NApi::NNative::IClientPtr Client_;
+    TWeakPtr<NApi::NNative::IConnection> Connection_;
     IInvokerPtr Invoker_;
 
     //! TAsyncExpiringCache<TKey, TValue> implementation.
@@ -69,7 +69,7 @@ class TObjectAttributeAsYsonStructCacheBase
 public:
     TObjectAttributeAsYsonStructCacheBase(
         TObjectAttributeCacheConfigPtr config,
-        NApi::NNative::IClientPtr client,
+        TWeakPtr<NApi::NNative::IConnection> connection,
         IInvokerPtr invoker,
         const NLogging::TLogger& logger,
         NProfiling::TProfiler profiler);
@@ -91,7 +91,7 @@ public:
     TObjectAttributeCache(
         TObjectAttributeCacheConfigPtr config,
         std::vector<std::string> attributeNames,
-        NApi::NNative::IClientPtr client,
+        TWeakPtr<NApi::NNative::IConnection> connection,
         IInvokerPtr invoker,
         const NLogging::TLogger& logger = {},
         NProfiling::TProfiler profiler = {});

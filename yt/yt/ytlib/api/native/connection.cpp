@@ -269,7 +269,7 @@ public:
 
         UserAttributeCache_ = New<TUserAttributeCache>(
             config->UserAttributeCache,
-            CreateNativeClient(TClientOptions::FromUser(RootUserName)),
+            MakeWeak(this),
             GetInvoker(),
             Logger,
             Profiler_.WithPrefix("/user_attribute_cache"));
