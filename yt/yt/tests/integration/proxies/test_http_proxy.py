@@ -886,6 +886,7 @@ class TestHttpProxyAuth(HttpProxyTestBase):
         set("//sys/users/test_user/@banned", True)
         wait(lambda: check_access(proxy_address, status_code=401, token=test_user_token, user="root"))
 
+
 @pytest.mark.enabled_multidaemon
 class TestHttpProxyFraming(HttpProxyTestBase):
     SUSPENDING_TABLE = "//tmp/suspending_table"
