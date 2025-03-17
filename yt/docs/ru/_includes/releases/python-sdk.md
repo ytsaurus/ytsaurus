@@ -8,6 +8,21 @@ Availabe as a package in [PyPI](https://pypi.org/project/ytsaurus-client/).
 
 **Releases:**
 
+{% cut "**0.13.25**" %}
+
+**Release date:** 2025-03-12
+
+
+### Features
+* Introduce `yt whoami` command
+
+### Fixes
+* Fix issue-token output format
+
+
+{% endcut %}
+
+
 {% cut "**0.13.24**" %}
 
 **Release date:** 2025-03-02
