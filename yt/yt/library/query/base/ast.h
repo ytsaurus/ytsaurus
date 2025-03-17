@@ -1,6 +1,5 @@
 #pragma once
 #include "query_common.h"
-#include "query.h"
 
 #include <yt/yt/core/ytree/yson_struct.h>
 
@@ -550,6 +549,7 @@ DEFINE_REFCOUNTED_TYPE(TQueryAstHead);
 
 TStringBuf GetSource(TSourceLocation sourceLocation, TStringBuf source);
 
+void FormatIdFinal(TStringBuilderBase* builder, TStringBuf id);
 TString FormatId(TStringBuf id);
 TString FormatLiteralValue(const TLiteralValue& value);
 TString FormatReference(const TReference& ref);

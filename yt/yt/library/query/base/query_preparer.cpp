@@ -223,20 +223,6 @@ TGroupClausePtr BuildGroupClause(
     return groupClause;
 }
 
-TConstProjectClausePtr BuildProjectClause(
-    const NAst::TExpressionList& expressionsAst,
-    TExprBuilder* builder)
-{
-    auto projectClause = New<TProjectClause>();
-    for (const auto& expressionAst : expressionsAst) {
-        auto typedExpr = builder->BuildTypedExpression(expressionAst);
-
-        projectClause->AddProjection(typedExpr, InferColumnName(*expressionAst));
-    }
-
-    return projectClause;
-}
-
 void DropLimitClauseWhenGroupByOne(const TQueryPtr& query)
 {
     if (!query->OrderClause &&
@@ -383,9 +369,14 @@ void PrepareQuery(
     }
 
     if (ast.SelectExprs) {
-        query->ProjectClause = BuildProjectClause(
-            *ast.SelectExprs,
-            builder);
+        auto projectClause = New<TProjectClause>();
+        for (const auto& expressionAst : *ast.SelectExprs) {
+            auto typedExpr = builder->BuildTypedExpression(expressionAst);
+
+            projectClause->AddProjection(typedExpr, InferColumnName(*expressionAst));
+        }
+
+        query->ProjectClause = projectClause;
     } else {
         // Select all columns.
         builder->PopulateAllColumns();
@@ -712,34 +703,36 @@ TJoinClausePtr BuildJoinClause(
     foreignEquations.reserve(tableJoin.Fields.size() + tableJoin.Rhs.size());
     // Merge columns.
     for (const auto& referenceExpr : tableJoin.Fields) {
-        auto selfColumn = builder->GetColumnPtr(referenceExpr->Reference);
-        auto foreignColumn = foreignBuilder->GetColumnPtr(referenceExpr->Reference);
+        auto columnName = InferReferenceName(referenceExpr->Reference);
 
-        if (!selfColumn || !foreignColumn) {
+        auto selfColumnType = builder->GetColumnPtr(referenceExpr->Reference);
+        auto foreignColumnType = foreignBuilder->GetColumnPtr(referenceExpr->Reference);
+
+        if (!selfColumnType || !foreignColumnType) {
             THROW_ERROR_EXCEPTION("Column %Qv not found",
-                NAst::InferColumnName(referenceExpr->Reference));
+                columnName);
         }
 
-        if (!NTableClient::IsV1Type(selfColumn->LogicalType) || !NTableClient::IsV1Type(foreignColumn->LogicalType)) {
+        if (!NTableClient::IsV1Type(selfColumnType) || !NTableClient::IsV1Type(foreignColumnType)) {
             THROW_ERROR_EXCEPTION("Cannot join column %Qv of nonsimple type",
-                NAst::InferColumnName(referenceExpr->Reference))
-                << TErrorAttribute("self_type", selfColumn->LogicalType)
-                << TErrorAttribute("foreign_type", foreignColumn->LogicalType);
+                columnName)
+                << TErrorAttribute("self_type", selfColumnType)
+                << TErrorAttribute("foreign_type", foreignColumnType);
         }
 
         // N.B. When we try join optional<int32> and int16 columns it must work.
-        if (NTableClient::GetWireType(selfColumn->LogicalType) != NTableClient::GetWireType(foreignColumn->LogicalType)) {
+        if (NTableClient::GetWireType(selfColumnType) != NTableClient::GetWireType(foreignColumnType)) {
             THROW_ERROR_EXCEPTION("Column %Qv type mismatch in join",
-                NAst::InferColumnName(referenceExpr->Reference))
-                << TErrorAttribute("self_type", selfColumn->LogicalType)
-                << TErrorAttribute("foreign_type", foreignColumn->LogicalType);
+                columnName)
+                << TErrorAttribute("self_type", selfColumnType)
+                << TErrorAttribute("foreign_type", foreignColumnType);
         }
 
         selfEquations.push_back({
-            .Expression=New<TReferenceExpression>(selfColumn->LogicalType, selfColumn->Name),
+            .Expression=New<TReferenceExpression>(selfColumnType, columnName),
             .Evaluated=false,
         });
-        foreignEquations.push_back(New<TReferenceExpression>(foreignColumn->LogicalType, foreignColumn->Name));
+        foreignEquations.push_back(New<TReferenceExpression>(foreignColumnType, columnName));
     }
 
     for (const auto& argument : tableJoin.Lhs) {
@@ -942,8 +935,8 @@ TJoinClausePtr BuildArrayJoinClause(
         &arrayJoinClause->Schema.Mapping);
 
     for (const auto& nestedTableColumn : arrayJoinClause->Schema.Original->Columns()) {
-        auto column = arrayBuilder->GetColumnPtr(NAst::TReference(nestedTableColumn.Name()));
-        YT_ASSERT(column);
+        auto type = arrayBuilder->GetColumnPtr(NAst::TReference(nestedTableColumn.Name()));
+        YT_ASSERT(type);
     }
 
     if (arrayJoin.Predicate) {
@@ -1092,7 +1085,7 @@ TPlanFragmentPtr PreparePlanFragment(
 
     // Must be filled after builder.Finish()
     for (const auto& [reference, entry] : builder->Lookup()) {
-        auto formattedName = NAst::InferColumnName(reference);
+        auto formattedName = InferReferenceName(reference);
 
         for (size_t index = entry.OriginTableIndex; index < entry.LastTableIndex; ++index) {
             YT_VERIFY(index < joinClauses.size());

@@ -1,6 +1,8 @@
 #include "schema_validation.h"
 
 // TODO(sandello,lukyan): Refine these dependencies.
+
+#include <yt/yt/library/query/base/query.h>
 #include <yt/yt/library/query/base/query_preparer.h>
 #include <yt/yt/library/query/base/functions.h>
 
