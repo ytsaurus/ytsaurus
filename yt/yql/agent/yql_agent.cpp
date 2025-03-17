@@ -389,9 +389,8 @@ private:
 
             THashMap<TString, THashMap<TString, TString>> credentials = {{"default_yt", {{"category", "yt"}, {"content", token}}}};
             for (const auto& src : yqlRequest.credentials()) {
-                const auto feature = WaitFor(queryClients.cbegin()->second->GetNode(src.ypath()));
                 auto& dst = credentials[src.id()];
-                dst["content"] = ConvertToNode(feature.ValueOrThrow())->AsString()->GetValue();
+                dst["content"] = ConvertTo<TString>(WaitFor(queryClients.cbegin()->second->GetNode(src.ypath())).ValueOrThrow());
                 if (src.has_category()) {
                     dst["category"] = src.category();
                 }
