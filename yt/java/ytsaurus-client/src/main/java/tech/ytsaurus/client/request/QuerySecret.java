@@ -7,6 +7,8 @@ import javax.annotation.Nullable;
 
 import tech.ytsaurus.rpcproxy.TReqStartQuery;
 
+import tech.ytsaurus.core.cypress.YPath;
+
 /**
  * Immutable query secret.
  *
@@ -16,7 +18,7 @@ public class QuerySecret {
     private final String id;
     private final String category;
     private final String subcategory;
-    private final String ypath;
+    private final YPath ypath;
 
     private QuerySecret(Builder builder) {
         this.id = Objects.requireNonNull(builder.id);
@@ -30,7 +32,7 @@ public class QuerySecret {
         builder.setId(id);
         builder.setCategory(category);
         builder.setSubcategory(subcategory);
-        builder.setYpath(ypath);
+        builder.setYpath(ypath.toString());
         return builder.build();
     }
 
@@ -49,7 +51,7 @@ public class QuerySecret {
         @Nullable
         private String subcategory;
         @Nullable
-        private String ypath;
+        private YPath ypath;
 
         private Builder() {
         }
@@ -89,7 +91,7 @@ public class QuerySecret {
          *
          * @return self
          */
-        public Builder setYpath(String ypath) {
+        public Builder setYPath(YPath ypath) {
             this.ypath = ypath;
             return this;
         }
