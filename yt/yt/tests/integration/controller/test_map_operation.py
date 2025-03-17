@@ -61,9 +61,6 @@ class TestSchedulerMapCommands(YTEnvSetup):
                     "max_input_table_count": 5,
                 },
             },
-            # COMPAT(shakurov): change the default to false and remove
-            # this delta once masters are up to date.
-            "enable_prerequisites_for_starting_completion_transactions": False,
         }
     }
 
@@ -74,16 +71,6 @@ class TestSchedulerMapCommands(YTEnvSetup):
                 "cpu": 5,
                 "memory": 5 * 1024 ** 3,
             }
-        },
-        # COMPAT(arkady-e1ppa):
-        "exec_node": {
-            "job_controller": {
-                "resource_limits": {
-                    "user_slots": 5,
-                    "cpu": 5,
-                    "memory": 5 * 1024 ** 3,
-                }
-            },
         },
     }
 
@@ -1404,17 +1391,18 @@ print row + table_index
         update_inplace(spec, spec_patch)
 
         mapper = b"""
-#!/usr/bin/python3
-
 import json
+import os
+import sys
 
-input = json.loads(raw_input())
+unbuffered_stdin = os.fdopen(sys.stdin.fileno(), "rb", buffering=0)
+input = json.loads(unbuffered_stdin.readline())
+
 old_value = input["value"]
 input["value"] = "(job)"
 print(json.dumps(input))
 input["value"] = old_value
 print(json.dumps(input))
-
 """
 
         create("file", "//tmp/mapper.py")
@@ -1422,7 +1410,7 @@ print(json.dumps(input))
 
         # NB(arkady-e1ppa): we force no bufferisation because otherwise we may read something like
         # "row1End\nrow2Start" and discard row2start completely.
-        map_cmd = """python -u mapper.py ; BREAKPOINT ; cat"""
+        map_cmd = """set -e; python3 -u mapper.py; BREAKPOINT; cat"""
 
         op = map(
             ordered=ordered,
@@ -1434,11 +1422,14 @@ print(json.dumps(input))
             spec=spec,
         )
 
-        jobs = wait_breakpoint()
-        op.interrupt_job(jobs[0])
+        try:
+            jobs = wait_breakpoint()
 
-        release_breakpoint()
-        op.track()
+            op.interrupt_job(jobs[0])
+
+            release_breakpoint()
+        finally:
+            op.track()
 
         return op
 
@@ -2699,16 +2690,6 @@ class TestInputOutputFormats(YTEnvSetup):
                 "memory": 5 * 1024 ** 3,
             }
         },
-        # COMPAT(arkady-e1ppa)
-        "exec_node": {
-            "job_controller": {
-                "resource_limits": {
-                    "user_slots": 5,
-                    "cpu": 5,
-                    "memory": 5 * 1024 ** 3,
-                }
-            },
-        },
     }
 
     @authors("ignat")
@@ -3012,9 +2993,6 @@ class TestNestingLevelLimitOperations(YTEnvSetup):
     DELTA_CONTROLLER_AGENT_CONFIG = {
         "controller_agent": {
             "operations_update_period": 10,
-            # COMPAT(shakurov): change the default to false and remove
-            # this delta once masters are up to date.
-            "enable_prerequisites_for_starting_completion_transactions": False,
         },
         "cluster_connection": {
             "cypress_write_yson_nesting_level_limit": YSON_DEPTH_LIMIT,

@@ -203,7 +203,6 @@ struct IChunkManager
         TChunkTree* newChild) = 0;
 
     virtual TChunkView* CreateChunkView(TChunkTree* underlyingTree, TChunkViewModifier modifier) = 0;
-    virtual TChunkView* CloneChunkView(TChunkView* chunkView, NChunkClient::TLegacyReadRange readRange) = 0;
 
     virtual TChunk* CreateChunk(
         NTransactionServer::TTransaction* transaction,

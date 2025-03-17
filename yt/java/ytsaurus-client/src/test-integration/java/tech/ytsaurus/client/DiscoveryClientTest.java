@@ -20,7 +20,6 @@ import tech.ytsaurus.client.discovery.ListMembers;
 import tech.ytsaurus.client.discovery.ListMembersOptions;
 import tech.ytsaurus.client.discovery.MemberInfo;
 import tech.ytsaurus.client.discovery.StaticDiscoverer;
-import tech.ytsaurus.testlib.YTsaurusFixture;
 import tech.ytsaurus.ysontree.YTree;
 import tech.ytsaurus.ysontree.YTreeNode;
 

@@ -45,14 +45,6 @@ class TestBulkInsert(DynamicTablesBase):
     USE_DYNAMIC_TABLES = True
     ENABLE_BULK_INSERT = True
 
-    DELTA_CONTROLLER_AGENT_CONFIG = {
-        "controller_agent": {
-            # COMPAT(shakurov): change the default to false and remove
-            # this delta once masters are up to date.
-            "enable_prerequisites_for_starting_completion_transactions": False,
-        }
-    }
-
     def _create_simple_dynamic_table(self, path, sort_order="ascending", **attributes):
         if "schema" not in attributes:
             attributes.update(
@@ -1466,14 +1458,6 @@ class TestUnversionedUpdateFormat(DynamicTablesBase):
 
     WRITE_CHANGE_TYPE = yson.YsonUint64(0)
     DELETE_CHANGE_TYPE = yson.YsonUint64(1)
-
-    DELTA_CONTROLLER_AGENT_CONFIG = {
-        "controller_agent": {
-            # COMPAT(shakurov): change the default to false and remove
-            # this delta once masters are up to date.
-            "enable_prerequisites_for_starting_completion_transactions": False,
-        }
-    }
 
     def _create_simple_dynamic_table(self, path, sort_order="ascending", **attributes):
         if "schema" not in attributes:

@@ -199,7 +199,7 @@ There are recommendations for disk layout and location configuration on a separa
 
 The operator automatically creates multiple [tablet cell bundles](../../user-guide/dynamic-tables/concepts#tablet_cell_bundles): `sys` and `default`.
 
-For tablet cell bundles, you can set up mediums for storing logs and snapshots. By default, logs and snapshots are stored in the `default` medium.
+For tablet cell bundles, you can set up media for storing logs and snapshots. By default, logs and snapshots are stored in the `default` medium.
 
 We recommend setting bundles up such that logs and snapshots are stored on the `SSD`, otherwise the bundles could become inoperable.
 
@@ -210,7 +210,7 @@ yt set //sys/tablet_cell_bundles/<bundle-name>/@options/snapshot_primary_medium 
 yt set //sys/tablet_cell_bundles/<bundle-name>/@options/changelog_primary_medium '<medium-name>'
 ```
 
-When initializing a cluster, the operator can set up mediums for bundles automatically. To configure a bundle, enter the names of the mediums in the `bootstrap` section at the top level of the specification. In the same section, specify the number of tablet cells in the bundle. You can change the number of tablet cells after initializing the cluster by setting the attribute `//sys/tablet_cell_bundles/<bundle-name>/@tablet_cell_count`.
+When initializing a cluster, the operator can set up media for bundles automatically. To configure a bundle, enter the names of the media in the `bootstrap` section at the top level of the specification. In the same section, specify the number of tablet cells in the bundle. You can change the number of tablet cells after initializing the cluster by setting the attribute `//sys/tablet_cell_bundles/<bundle-name>/@tablet_cell_count`.
 
 Sample `bootstrap` sections:
 

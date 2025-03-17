@@ -1116,7 +1116,6 @@ private:
         auto localNodeId = Bootstrap_->GetNodeId();
         auto replicas = chunk->GetReplicas(localNodeId);
         ToProto(chunkSpec->mutable_replicas(), replicas);
-        ToProto(chunkSpec->mutable_legacy_replicas(), TChunkReplicaWithMedium::ToChunkReplicas(replicas));
 
         chunkSpec->set_erasure_codec(miscExt.erasure_codec());
         chunkSpec->set_striped_erasure(miscExt.striped_erasure());
@@ -1155,7 +1154,6 @@ private:
 
         auto localNodeId = Bootstrap_->GetNodeId();
         TChunkReplicaWithMedium replica(localNodeId, GenericChunkReplicaIndex, GenericMediumIndex);
-        chunkSpec->add_legacy_replicas(ToProto<ui32>(replica.ToChunkReplica()));
         chunkSpec->add_replicas(ToProto(replica));
 
         if (!lowerLimit.IsTrivial()) {

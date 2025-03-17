@@ -21,6 +21,7 @@ REGISTER_TOOL(TChownChmodTool)
 REGISTER_TOOL(TCopyDirectoryContentTool)
 REGISTER_TOOL(TGetDirectorySizesAsRootTool)
 REGISTER_TOOL(TRootDirectoryBuilderTool)
+REGISTER_TOOL(TMkFsAsRootTool)
 
 ////////////////////////////////////////////////////////////////////////////////
 

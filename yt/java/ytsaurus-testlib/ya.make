@@ -12,7 +12,6 @@ PEERDIR(
     contrib/java/org/testcontainers/testcontainers
 
     yt/java/annotations
-    yt/java/ytsaurus-client
     yt/java/ytsaurus-testlib/src/main/proto
 )
 

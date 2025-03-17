@@ -15,7 +15,9 @@ import yt.yson as yson
 import yt.json_wrapper as json
 from yt.common import _pretty_format_for_logging, get_fqdn as _get_fqdn
 
+import io
 import os
+import re
 import sys
 import time
 import types
@@ -187,16 +189,36 @@ def get_header_format(client):
     return "yson"
 
 
+def log_bad_response(response):
+    def trim(s):
+        if len(s) > 4096:
+            return s[:4093] + "..."
+        return s
+
+    header_text = io.StringIO()
+    for name, value in response.headers.items():
+        header_text.write("\t{}: {}\n".format(name, value))
+    header_text = trim(header_text.getvalue())
+
+    text_content = response.content.decode("utf8", errors="replace")
+    text_content = re.sub("^", "\t", text_content, flags=re.MULTILINE).rstrip()
+    text_content = trim(text_content)
+
+    logger.error("Bad response:\n\tStatusCode: %s\n%s\n%s", response.status_code, header_text, text_content)
+
+
 def check_response_is_decodable(response, format):
     if format == "json":
         try:
             response.json()
         except (json.JSONDecodeError, TypeError):
+            log_bad_response(response)
             raise YtIncorrectResponse("Response body can not be decoded from JSON", response)
     elif format == "yson":
         try:
             yson.loads(response.content, encoding=None)
         except (yson.YsonError, TypeError):
+            log_bad_response(response)
             raise YtIncorrectResponse("Response body can not be decoded from YSON", response)
 
 

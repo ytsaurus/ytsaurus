@@ -130,6 +130,7 @@ DEFINE_ENUM(ESessionType,
     ((User)                     (0))
     ((Replication)              (1))
     ((Repair)                   (2))
+    ((Nbd)                      (3))
 );
 
 DEFINE_BIT_ENUM_WITH_UNDERLYING_TYPE(EChunkFeatures, ui64,

@@ -41,7 +41,7 @@
 
 #include <yt/yt/core/net/local_address.h>
 
-#include <yt/yt/core/misc/memory_usage_tracker.h>
+#include <library/cpp/yt/memory/memory_usage_tracker.h>
 
 #include <library/cpp/yt/threading/atomic_object.h>
 

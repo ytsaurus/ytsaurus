@@ -416,7 +416,7 @@ public:
 
     void UpdateRuntimeParameters(const NScheduler::TOperationRuntimeParametersUpdatePtr& update) override;
 
-    TOperationSpecBaseSealedConfigurator ConfigureUpdate() override final;
+    TOperationSpecBaseSealedConfigurator ConfigureUpdate();
     void PatchSpec(NYTree::INodePtr newSpec, bool dryRun) override;
     std::any CreateSafeAssertionGuard() const final;
 
@@ -1111,6 +1111,14 @@ protected:
 
     virtual TOperationSpecBaseConfigurator GetOperationSpecBaseConfigurator() const = 0;
 
+    //! If |force| is set then |DoAbortJob| aborts job even if it should've not
+    //! processed job events (see also |ShouldProcessJobEvents|).
+    void DoAbortJob(
+        TJobletPtr joblet,
+        EAbortReason abortReason,
+        bool requestJobTrackerJobAbortion,
+        bool force);
+
 private:
     NScheduler::TPoolTreeControllerSettingsMap PoolTreeControllerSettingsMap_;
     std::optional<std::vector<TString>> OffloadingPoolTrees_;
@@ -1527,11 +1535,6 @@ private:
     void SendRunningAllocationTimeStatisticsUpdates();
 
     void RemoveRemainingJobsOnOperationFinished();
-
-    void DoAbortJob(
-        TJobletPtr joblet,
-        EAbortReason abortReason,
-        bool requestJobTrackerJobAbortion);
 
     void OnOperationReady() const;
 

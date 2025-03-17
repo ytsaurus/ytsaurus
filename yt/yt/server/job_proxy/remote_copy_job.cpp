@@ -440,8 +440,8 @@ private:
         CheckNoCompressionDictionaries(chunkMeta, inputChunkId);
 
         // We do not support node reallocation for erasure chunks.
-        auto options = New<TRemoteWriterOptions>();
-        options->AllowAllocatingNewTargetNodes = false;
+        auto remoteWriterOptions = New<TRemoteWriterOptions>();
+        remoteWriterOptions->AllowAllocatingNewTargetNodes = false;
 
         auto targetReplicas = AllocateWriteTargets(
             Host_->GetClient(),
@@ -456,7 +456,7 @@ private:
 
         auto writers = CreateAllErasurePartWriters(
             WriterConfig_,
-            New<TRemoteWriterOptions>(),
+            remoteWriterOptions,
             outputSessionId,
             erasureCodec,
             Host_->GetClient(),
@@ -961,8 +961,6 @@ private:
         ToProto(req->mutable_chunk_id(), outputSessionId.ChunkId);
         *req->mutable_chunk_info() = chunkInfo;
         *req->mutable_chunk_meta() = masterChunkMeta;
-        ToProto(req->mutable_legacy_replicas(), writtenReplicas);
-
         req->set_location_uuids_supported(true);
 
         auto* multicellSyncExt = req->Header().MutableExtension(NObjectClient::NProto::TMulticellSyncExt::multicell_sync_ext);

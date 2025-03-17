@@ -779,6 +779,17 @@ std::tuple<TStoreLocationPtr, TLockedChunkGuard> TChunkStore::AcquireNewChunkLoc
             continue;
         }
 
+        if (options.MinLocationAvailableSpace) {
+            if (!location->HasEnoughSpace(*options.MinLocationAvailableSpace)) {
+                throttledLocations.push_back(location);
+                throttledLocationErrors.push_back(TError("Session cannot be started due to lack of free space")
+                << TErrorAttribute("location_id", location->GetId())
+                << TErrorAttribute("needed_space", *options.MinLocationAvailableSpace)
+                << TErrorAttribute("available_space", location->GetAvailableSpace()));
+                continue;
+            }
+        }
+
         auto memoryLimitFractionForStartingNewSessions = location->GetMemoryLimitFractionForStartingNewSessions();
         auto usedMemory = location->GetUsedMemory(EIODirection::Write);
         auto memoryLimit = location->GetWriteMemoryLimit() * memoryLimitFractionForStartingNewSessions;

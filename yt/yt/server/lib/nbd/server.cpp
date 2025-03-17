@@ -147,6 +147,18 @@ public:
         return NameToDevice_.contains(name);
     }
 
+    IBlockDevicePtr GetDevice(const TString& name) const override
+    {
+        auto guard = ReaderGuard(NameToDeviceLock_);
+        auto it = NameToDevice_.find(name);
+        if (it == NameToDevice_.end()) {
+            YT_LOG_INFO("Can not get unknown device (Name: %v)", name);
+            return nullptr;
+        }
+
+        return it->second;
+    }
+
     const NLogging::TLogger& GetLogger() const override
     {
         return Logger;

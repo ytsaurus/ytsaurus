@@ -6,6 +6,7 @@ import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 
+import org.junit.Assert;
 import org.junit.Test;
 import tech.ytsaurus.TError;
 import tech.ytsaurus.client.request.CreateNode;
@@ -17,8 +18,6 @@ import tech.ytsaurus.core.common.YTsaurusError;
 import tech.ytsaurus.core.cypress.CypressNodeType;
 import tech.ytsaurus.rpc.TRequestHeader;
 import tech.ytsaurus.ysontree.YTree;
-
-import static org.hamcrest.MatcherAssert.assertThat;
 
 public class CrossCellRetriesTest extends YTsaurusClientMulticellTestBase {
     private static final String COPY_NODE_METHOD = "CopyNode";
@@ -87,24 +86,24 @@ public class CrossCellRetriesTest extends YTsaurusClientMulticellTestBase {
         result.get(15, TimeUnit.SECONDS);
 
         var requests = rpcRequestsTestingController.getRequestsByMethod(methodName);
-        assertThat("Two fail, one ok", requests.size() == 3);
+        Assert.assertEquals(3, requests.size());
         requests.sort(Comparator.comparingLong(request -> request.getHeader().getStartTime()));
 
-        assertThat("Different request ids", requests.stream()
+        Assert.assertEquals(3, requests.stream()
                 .map(RpcRequestsTestingController.CapturedRequest::getHeader)
                 .map(TRequestHeader::getRequestId)
-                .distinct().count() == 3
+                .distinct().count()
         );
 
-        assertThat("All requests without retry in header", requests.stream()
+        Assert.assertTrue(requests.stream()
                 .map(RpcRequestsTestingController.CapturedRequest::getHeader)
                 .noneMatch(TRequestHeader::getRetry)
         );
 
-        assertThat("Destination exists", yt.existsNode(dstPath.toString()).join());
+       Assert.assertTrue(yt.existsNode(dstPath.toString()).join());
 
         if (methodName.equals(MOVE_NODE_METHOD)) {
-            assertThat("Source does not exist", !yt.existsNode(srcPath.toString()).join());
+            Assert.assertFalse(yt.existsNode(srcPath.toString()).join());
         }
     }
 }

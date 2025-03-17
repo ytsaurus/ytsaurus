@@ -2,26 +2,8 @@ title: YQL over {{product-name}}
 items:
   - name: Introduction
     href: index.md
-  # - name: How do I use it?
-  #   href: quickstart.md
   - name: Data types
-    items:
-      - name: Overview
-        href: types/index.md
-      - name: Simple
-        href: types/primitive.md
-      - name: Optional
-        href: types/optional.md
-      - name: Containers
-        href: types/containers.md
-      - name: Special
-        href: types/special.md
-      - name: Type casting
-        href: types/cast.md
-      - name: Text representation of data types
-        href: types/type_string.md
-      - name: JSON
-        href: types/json.md
+    include: { mode: link, path: types/toc_i.yaml }
   - name: Syntax
     items:
       - name: Overview

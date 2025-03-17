@@ -220,7 +220,6 @@ struct TJobSplitterConfig
     double ResidualJobFactor;
     int ResidualJobCountMinThreshold;
     double CandidatePercentile;
-    double LateJobsPercentile;
     int MaxJobsPerSplit;
     int MaxInputTableCount;
     TDuration SplitTimeoutBeforeSpeculate;

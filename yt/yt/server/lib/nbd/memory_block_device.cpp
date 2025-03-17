@@ -61,6 +61,11 @@ public:
         return VoidFuture;
     }
 
+    TFuture<void> Finalize() override
+    {
+        return VoidFuture;
+    }
+
 private:
     const TMemoryBlockDeviceConfigPtr Config_;
 

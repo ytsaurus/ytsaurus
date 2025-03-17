@@ -199,6 +199,7 @@ SRCS(
     chunk_client/proto/chunk_slice.proto
     chunk_client/proto/chunk_writer_statistics.proto
     chunk_client/proto/data_node_service.proto
+    chunk_client/proto/data_node_nbd_service.proto
     chunk_client/proto/data_sink.proto
     chunk_client/proto/data_source.proto
     chunk_client/proto/heartbeat.proto

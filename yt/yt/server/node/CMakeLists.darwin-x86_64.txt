@@ -100,6 +100,8 @@ target_sources(yt-server-node PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/data_node/blob_chunk.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/data_node/blob_reader_cache.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/data_node/blob_session.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/node/data_node/nbd_session.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/node/data_node/nbd_chunk_handler.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/data_node/bootstrap.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/data_node/chunk.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/data_node/chunk_detail.cpp
@@ -109,6 +111,7 @@ target_sources(yt-server-node PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/data_node/chunk_reader_sweeper.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/data_node/config.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/data_node/data_node_service.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/node/data_node/data_node_nbd_service.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/data_node/disk_location.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/data_node/job.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/data_node/job_controller.cpp

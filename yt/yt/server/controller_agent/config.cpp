@@ -252,11 +252,6 @@ void TJobSplitterConfig::Register(TRegistrar registrar)
         .LessThanOrEqual(1.0)
         .Default(0.8);
 
-    registrar.Parameter("late_jobs_percentile", &TThis::LateJobsPercentile)
-        .GreaterThanOrEqual(0.5)
-        .LessThanOrEqual(1.0)
-        .Default(0.95);
-
     registrar.Parameter("residual_job_factor", &TThis::ResidualJobFactor)
         .GreaterThan(0)
         .LessThanOrEqual(1.0)

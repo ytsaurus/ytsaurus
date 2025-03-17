@@ -1,0 +1,16 @@
+syntax = "proto3";
+option cc_enable_arenas = true;
+
+package NFq.NConfig;
+option java_package = "ru.yandex.kikimr.proto";
+
+////////////////////////////////////////////////////////////
+
+message TPqReadActorFactoryConfig {
+    bool CookieCommitMode = 1; // Turn off RangesMode setting in PQ read session.
+}
+
+message TReadActorsFactoryConfig {
+    reserved 1;
+    TPqReadActorFactoryConfig PqReadActorFactoryConfig = 2;
+}

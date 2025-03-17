@@ -24,6 +24,13 @@ struct IVanillaChunkPoolOutput
 
     // COMPAT(pogorelov)
     virtual void SetJobCount(int jobCount) = 0;
+
+    //! Get actual job count as seen by the job manager.
+    virtual int GetJobCount() const = 0;
+    //! Either adds pending jobs or invalidates some jobs
+    //! and returns their cookies to identify jobs to be aborted.
+    //! TODO(coteeq): Rename to SetJobCount after @pogorelov's compat is obsolete.
+    virtual std::vector<TOutputCookie> UpdateJobCount(int desiredCount) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IVanillaChunkPoolOutput);
