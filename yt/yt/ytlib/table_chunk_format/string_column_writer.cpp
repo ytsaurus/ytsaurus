@@ -48,6 +48,7 @@ protected:
     {
         DirectBuffer_ = std::make_unique<TChunkedOutputStream>(
             GetRefCountedTypeCookie<TStringColumnWriterBufferTag>(),
+            GetNullMemoryUsageTracker(),
             256_KB,
             1_MB);
 
