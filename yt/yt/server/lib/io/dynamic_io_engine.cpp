@@ -39,7 +39,7 @@ public:
         std::vector<TReadRequest> requests,
         EWorkloadCategory category,
         TRefCountedTypeCookie tagCookie,
-        TSessionId sessionId,
+        TIOSessionId sessionId,
         bool useDedicatedAllocations) override
     {
         return GetCurrentEngine()->Read(std::move(requests), category, tagCookie, sessionId, useDedicatedAllocations);
@@ -48,7 +48,7 @@ public:
     TFuture<TWriteResponse> Write(
         TWriteRequest request,
         EWorkloadCategory category,
-        TSessionId sessionId) override
+        TIOSessionId sessionId) override
     {
         return GetCurrentEngine()->Write(std::move(request), category, sessionId);
     }
@@ -63,7 +63,7 @@ public:
     TFuture<TFlushFileRangeResponse> FlushFileRange(
         TFlushFileRangeRequest request,
         EWorkloadCategory category,
-        TSessionId sessionId) override
+        TIOSessionId sessionId) override
     {
         return GetCurrentEngine()->FlushFileRange(std::move(request), category, sessionId);
     }

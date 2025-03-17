@@ -15,7 +15,7 @@ using TBufferSizes = std::vector<i64>;
 void CheckRead(i64 readRequestSize, i64 desiredSize, i64 minimalSize, const TBufferSizes& expectedSizes)
 {
     auto buffer = TSharedMutableRef::Allocate(readRequestSize);
-    auto request = IIOEngine::TReadRequest{
+    auto request = TReadRequest{
         .Handle = New<TIOEngineHandle>(),
         .Offset = 4096,
         .Size = readRequestSize
@@ -60,7 +60,7 @@ void CheckWrite(
     i64 minimalSize,
     const std::vector<TBufferSizes>& expectedSizes)
 {
-    auto request = IIOEngine::TWriteRequest{
+    auto request = TWriteRequest{
         .Handle = New<TIOEngineHandle>(),
         .Offset = 4096,
         .Flush = true
@@ -93,7 +93,7 @@ void CheckFlushFileRange(
     i64 minimalSize,
     const TBufferSizes& expectedSizes)
 {
-    auto request = IIOEngine::TFlushFileRangeRequest{
+    auto request = TFlushFileRangeRequest{
         .Handle = New<TIOEngineHandle>(),
         .Offset = 4096,
         .Size = requestSize

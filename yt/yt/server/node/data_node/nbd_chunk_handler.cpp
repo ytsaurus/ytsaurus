@@ -71,7 +71,7 @@ public:
             {.Handle = IOEngineHandle_, .Size = ChunkSize_},
             WorkloadDescriptor_.Category);
 
-        return future.Apply(BIND([this, this_ = MakeStrong(this)] (const IIOEngine::TCloseResponse&) {
+        return future.Apply(BIND([this, this_ = MakeStrong(this)] (const TCloseResponse&) {
             NFs::Remove(ChunkPath_);
         })
         .AsyncVia(Invoker_));
@@ -98,7 +98,7 @@ public:
                 GetRefCountedTypeCookie<TNbdChunkReaderBufferTag>());
         })
         .AsyncVia(Invoker_))
-        .Apply(BIND([] (const IIOEngine::TReadResponse& response) {
+        .Apply(BIND([] (const TReadResponse& response) {
             YT_VERIFY(response.OutputBuffers.size() == 1);
             return NChunkClient::TBlock(response.OutputBuffers[0]);
         })
@@ -125,7 +125,7 @@ public:
                 WorkloadDescriptor_.Category);
         })
         .AsyncVia(Invoker_))
-        .Apply(BIND([] (const IIOEngine::TWriteResponse& response) {
+        .Apply(BIND([] (const TWriteResponse& response) {
             return NIO::TIOCounters {
                 .Bytes = response.WrittenBytes,
                 .IORequests = response.IOWriteRequests,

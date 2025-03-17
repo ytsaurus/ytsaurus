@@ -90,7 +90,7 @@ struct IChunk
      *  #PrepareToReadChunkFragments must be invoked and its returned future
      *  must be set prior to this call.
      */
-    virtual NIO::IIOEngine::TReadRequest MakeChunkFragmentReadRequest(
+    virtual NIO::TReadRequest MakeChunkFragmentReadRequest(
         const NIO::TChunkFragmentDescriptor& fragmentDescriptor,
         bool useDirectIO) = 0;
 
