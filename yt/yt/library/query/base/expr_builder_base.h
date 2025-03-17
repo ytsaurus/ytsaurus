@@ -1,6 +1,7 @@
 #pragma once
 
 #include "ast.h"
+#include "query.h"
 #include "public.h"
 
 #include <yt/yt/client/table_client/row_buffer.h>
@@ -63,6 +64,8 @@ struct TBaseColumn
     TLogicalTypePtr LogicalType;
 };
 
+TString InferReferenceName(const NAst::TReference& ref);
+
 struct TTable
 {
     const TTableSchema& Schema;
@@ -110,9 +113,7 @@ public:
 
     void SetGroupData(const TNamedItemList* groupItems, TAggregateItemList* aggregateItems);
 
-    static const std::optional<TBaseColumn> FindColumn(const TNamedItemList& schema, const std::string& name);
-
-    std::optional<TBaseColumn> GetColumnPtr(const NAst::TReference& reference);
+    TLogicalTypePtr GetColumnPtr(const NAst::TReference& reference);
 
     virtual TConstExpressionPtr DoBuildTypedExpression(
         const NAst::TExpression* expr, TRange<EValueType> resultTypes) = 0;
@@ -136,7 +137,7 @@ protected:
     // TODO: Combine in Structure? Move out?
     const TNamedItemList* GroupItems_ = nullptr;
     // TODO: Enrich TMappedSchema with alias and keep here pointers to TMappedSchema.
-    std::vector<TTable> Tables_;
+
     TAggregateItemList* AggregateItems_ = nullptr;
 
     bool AfterGroupBy_ = false;
@@ -145,6 +146,8 @@ private:
     void CheckNoOtherColumn(const NAst::TReference& reference, size_t startTableIndex) const;
 
     std::pair<const TTable*, TLogicalTypePtr> ResolveColumn(const NAst::TReference& reference) const;
+
+    std::vector<TTable> Tables_;
 };
 
 std::unique_ptr<TExprBuilder> CreateExpressionBuilder(

@@ -1355,9 +1355,9 @@ TResultMatcher ResultMatcher(std::vector<TOwningRow> expectedResult, TTableSchem
                     if (expectedValue.Type == EValueType::Any || expectedValue.Type == EValueType::Composite) {
                         // Slow path.
                         auto expectedYson = TYsonString(expectedValue.AsString());
-                        auto expectedStableYson = ConvertToYsonString(ConvertToNode(expectedYson));
+                        auto expectedStableYson = ConvertToYsonString(ConvertToNode(expectedYson), EYsonFormat::Text);
                         auto yson = TYsonString(value.AsString());
-                        auto stableYson = ConvertToYsonString(ConvertToNode(yson));
+                        auto stableYson = ConvertToYsonString(ConvertToNode(yson), EYsonFormat::Text);
                         EXPECT_EQ(expectedStableYson, stableYson);
                     } else {
                         // Fast path.
@@ -8162,6 +8162,132 @@ TEST_F(TQueryEvaluateTest, CompositeMemberAccessorWithIncorrectPath)
 
         EvaluateWithSyntaxV2("t.struct.d as n from `//t` as t", split, source, ResultMatcher(result));
     }
+}
+
+TEST_F(TQueryEvaluateTest, CompositeMemberWhere)
+{
+    TSplitMap splits;
+    std::vector<std::vector<std::string>> sources;
+
+    auto schema = MakeSplit({
+        {"struct", StructLogicalType({
+            {"a", StructLogicalType({
+                {"b", StructLogicalType({
+                    {"list", ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int32))},
+                    {"dict", DictLogicalType(
+                        SimpleLogicalType(ESimpleLogicalValueType::String),
+                        OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int32)))}})}})}})},
+        {"dict", DictLogicalType(
+            SimpleLogicalType(ESimpleLogicalValueType::String),
+            OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::String)))}});
+
+    auto data = std::vector<std::string> {
+        "struct={a={b={list=[1;2;3];dict={i=1;j=2;k=3}}}};dict={a=b;c=d}",
+        "struct={a={b={list=[2;3];dict={i=2}}}}",
+        "struct={a={b={list=[3;4];dict={i=3}}}}",
+        "struct={a={b={list=[];dict={}}}}",
+    };
+
+    splits["//primary"] = schema;
+    sources.push_back(data);
+
+    auto resultSplit = MakeSplit({
+        {"r.struct", StructLogicalType({
+            {"a", StructLogicalType({
+                {"b", StructLogicalType({
+                    {"list", ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int32))},
+                    {"dict", DictLogicalType(
+                        SimpleLogicalType(ESimpleLogicalValueType::String),
+                        OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int32)))}})}})}})},
+        {"r.dict", DictLogicalType(
+            SimpleLogicalType(ESimpleLogicalValueType::String),
+            OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::String)))},
+    });
+
+    auto result = YsonToRows({
+        "r.struct={a={b={list=[2;3];dict={i=2}}}}",
+    }, resultSplit);
+
+    Evaluate(R"(
+        *
+        FROM `//primary` r
+        WHERE r.struct.a.b.list[1] = 3
+        )",
+        splits,
+        sources,
+        ResultMatcher(result, resultSplit.TableSchema),
+        {.SyntaxVersion = 2});
+}
+
+TEST_F(TQueryEvaluateTest, CompositeMemberJoin)
+{
+    TSplitMap splits;
+    std::vector<std::vector<std::string>> sources;
+
+    auto schema = MakeSplit({
+        {"struct", StructLogicalType({
+            {"a", StructLogicalType({
+                {"b", StructLogicalType({
+                    {"list", ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int32))},
+                    {"dict", DictLogicalType(
+                        SimpleLogicalType(ESimpleLogicalValueType::String),
+                        OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int32)))}})}})}})},
+        {"dict", DictLogicalType(
+            SimpleLogicalType(ESimpleLogicalValueType::String),
+            OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::String)))}});
+
+    auto data = std::vector<std::string> {
+        "struct={a={b={list=[1;2;3];dict={i=1;j=2;k=3}}}};dict={a=b;c=d}",
+        "struct={a={b={list=[2;3];dict={i=2}}}}",
+        "struct={a={b={list=[3;4];dict={i=3}}}}",
+        "struct={a={b={list=[];dict={}}}}",
+    };
+
+    splits["//primary"] = schema;
+    sources.push_back(data);
+
+    splits["//secondary"] = schema;
+    sources.push_back(data);
+
+    auto resultSplit = MakeSplit({
+        {"r.struct", StructLogicalType({
+            {"a", StructLogicalType({
+                {"b", StructLogicalType({
+                    {"list", ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int32))},
+                    {"dict", DictLogicalType(
+                        SimpleLogicalType(ESimpleLogicalValueType::String),
+                        OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int32)))}})}})}})},
+        {"r.dict", DictLogicalType(
+            SimpleLogicalType(ESimpleLogicalValueType::String),
+            OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::String)))},
+
+        {"s.struct", StructLogicalType({
+            {"a", StructLogicalType({
+                {"b", StructLogicalType({
+                    {"list", ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int32))},
+                    {"dict", DictLogicalType(
+                        SimpleLogicalType(ESimpleLogicalValueType::String),
+                        OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int32)))}})}})}})},
+        {"s.dict", DictLogicalType(
+            SimpleLogicalType(ESimpleLogicalValueType::String),
+            OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::String)))}
+    });
+
+    auto result = YsonToRows({
+        "r.struct={a={b={list=[2;3];dict={i=2}}}};s.struct={a={b={list=[1;2;3];dict={i=1;j=2;k=3}}}};s.dict={a=b;c=d}",
+        "r.struct={a={b={list=[3;4];dict={i=3}}}};s.struct={a={b={list=[2;3];dict={i=2}}}}",
+        "r.struct={a={b={list=[];dict={}}}};s.struct={a={b={list=[];dict={}}}}"
+    }, resultSplit);
+
+    Evaluate(R"(
+        *
+        FROM `//primary` r
+        JOIN `//secondary` s ON r.struct.a.b.list[0] = s.struct.a.b.list[1]
+        )",
+        splits,
+        sources,
+        ResultMatcher(result, resultSplit.TableSchema),
+        {.SyntaxVersion = 2});
 }
 
 TEST_F(TQueryEvaluateTest, VarargUdf)

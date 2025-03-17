@@ -30,6 +30,9 @@ struct TDataSplit
 
 ////////////////////////////////////////////////////////////////////////////////
 
+using TStructMemberAccessor = TString;
+using TTupleItemIndexAccessor = int;
+
 using TSourceLocation = std::pair<int, int>;
 static const TSourceLocation NullSourceLocation(0, 0);
 
