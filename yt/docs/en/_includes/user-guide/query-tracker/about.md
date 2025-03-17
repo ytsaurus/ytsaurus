@@ -12,7 +12,7 @@ With Query Tracker, you can:
 + View query history.
 + Share queries with others.
 
-[Example of working with Query Tracker](#example).
+See the [example of working with Query Tracker](#example).
 
 Queries are defined by engine and text. The engine controls the execution of the query. The query text is engine-specific.
 
@@ -48,8 +48,9 @@ Optional parameters:
 
 + `files`: List of files for the query in YSON format.
 + `settings`: Additional query parameters in YSON format.
-  + For [CHYT](../../../user-guide/data-processing/chyt/about-chyt.md), you must set a clique alias using the `clique` parameter. Default value is the public clique.
-  + For [SPYT](../../../user-guide/data-processing/spyt/overview.md), you must set the housekeeping directory of an existing Spark cluster using the `discovery_path` parameter.
+  + In [CHYT](../../../user-guide/data-processing/chyt/about-chyt.md), you must set a clique alias using the `clique` parameter. Default value is the public clique.
+  + In [SPYT](../../../user-guide/data-processing/spyt/overview.md), you must set the housekeeping directory of an existing Spark cluster using the `discovery_path` parameter.
+  + In [YQL](../../../yql/index.md), you can run queries in different modes using the `execution_mode` parameter. Acceptable values are `run`, `validate`, and `optimize`. The default value is `run`.
 + `draft`: Used to mark draft queries. These queries are terminated automatically without execution.
 + `annotations`: Arbitrary annotations to the query. They can make it easier to search for queries. Specified in YSON format.
 + `access_control_objects`: List of objects at `//sys/access_control_object_namespaces/queries/` that controls access to the query for other users.
