@@ -451,6 +451,9 @@ items:
              href: admin-guide/chyt.md
            - name: SPYT
              href: admin-guide/spyt.md
+       - name: Setting up SSO
+         href: admin-guide/oauth.md
+         when: audience == "public"
        - name: Monitoring
          href: admin-guide/monitoring.md
        - name: Updating YTsaurus server components
