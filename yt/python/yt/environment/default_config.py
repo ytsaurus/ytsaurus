@@ -94,6 +94,10 @@ def get_dynamic_master_config():
         data_node_tracker = {
             enable_per_location_full_heartbeats = %true;
         };
+
+        chunk_merger = {
+            enable_careful_requisition_update = %true;
+        };
     };
 
     node_tracker = {
