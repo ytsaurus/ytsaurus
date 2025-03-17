@@ -12,7 +12,7 @@ from yt_type_helpers import (
     make_schema, normalize_schema, normalize_schema_v3, optional_type, list_type,
     struct_type, tuple_type, dict_type, variant_struct_type, tagged_type)
 
-from yt_helpers import skip_if_no_descending, skip_if_old, skip_if_renaming_disabled
+from yt_helpers import skip_if_component_old, skip_if_no_descending, skip_if_old, skip_if_renaming_disabled
 
 from yt.environment.helpers import assert_items_equal
 from yt.common import YtError
@@ -812,6 +812,86 @@ class TestSchedulerMergeCommands(YTEnvSetup):
                 assert result[i]["key"] <= result[i + 1]["key"]
             else:
                 assert result[i]["key"] >= result[i + 1]["key"]
+
+    @authors("coteeq")
+    @pytest.mark.parametrize("min_maniac_data_weight", [None, 10, 1_000_000_000])
+    @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
+    def test_sorted_merge_isolate_maniac(self, sort_order, min_maniac_data_weight):
+        self.skip_if_legacy_sorted_pool()
+        skip_if_component_old(self.Env, (25, 1), "controller-agent")
+        skip_if_component_old(self.Env, (25, 1), "node")
+
+        count = 1000
+        tables = 4
+        for i in range(tables):
+            create("table", f"//tmp/t{i}")
+
+        chunks = []
+        chunks.append([
+            {
+                "key": "%05d" % (i if i < count / 2 else count / 2),
+                "value": "x" * 40 + "%05d" % i,
+            }
+            for i in range(count)
+        ])
+        chunks.append([{"key": "%05d" % (count / 2), "value": "x" * 40 + "%05d" % (i + count)} for i in range(count)])
+        chunks.append([{"key": "%05d" % (count / 2), "value": "x" * 40 + "%05d" % (i + 2 * count)} for i in range(count)])
+        chunks.append([
+            {
+                "key": "%05d" % (count / 2 if i < count / 2 else i),
+                "value": "x" * 40 + "%05d" % (i + 3 * count),
+            }
+            for i in range(count)
+        ])
+
+        if sort_order == "descending":
+            chunks = chunks[::-1]
+        for chunk in chunks:
+            if sort_order == "descending":
+                chunk = chunk[::-1]
+            for i in range(tables):
+                write_table(
+                    f"<append=%true>//tmp/t{i}",
+                    chunk,
+                    sorted_by=[{"name": "key", "sort_order": sort_order}],
+                    table_writer={"block_size": 1024},
+                )
+
+        create("table", "//tmp/t_out")
+
+        spec = {
+            "data_size_per_job": 10_000,
+        }
+        if min_maniac_data_weight is not None:
+            spec["min_maniac_data_weight"] = min_maniac_data_weight
+
+        op = merge(
+            mode="sorted",
+            in_=[f"//tmp/t{i}" for i in range(tables)],
+            out="//tmp/t_out",
+            spec=spec,
+        )
+
+        result = read_table("//tmp/t_out")
+        assert len(result) == 4 * count * tables
+        for i in range(len(result) - 1):
+            if sort_order == "ascending":
+                assert result[i]["key"] <= result[i + 1]["key"]
+            else:
+                assert result[i]["key"] >= result[i + 1]["key"]
+
+        # NB(coteeq): All other values do not split the maniac.
+        if min_maniac_data_weight == 10:
+            # Unfortunately, we do not (yet) account for tables count,
+            # so the expected data weight will be multiplied by table count,
+            # since the tables have exactly the same content.
+            def get_max_estimated_job_size():
+                task = get(op.get_path() + "/@progress/tasks/0")
+                assert task["task_name"] == "sorted_merge"
+                return task["estimated_input_data_weight_histogram"]["max"]
+
+            epsilon = 0.1
+            assert get_max_estimated_job_size() < 10_000 * tables * (1 + epsilon)
 
     @authors("psushin", "ignat")
     @pytest.mark.parametrize("sort_order", ["ascending", "descending"])

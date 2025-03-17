@@ -849,6 +849,13 @@ public:
             PrimarySortColumns_);
     }
 
+    TSortedChunkPoolOptions GetSortedChunkPoolOptions() override
+    {
+        auto options = TSortedControllerBase::GetSortedChunkPoolOptions();
+        options.MinManiacDataWeight = Spec_->MinManiacDataWeight;
+        return options;
+    }
+
     bool IsKeyGuaranteeEnabled() override
     {
         return false;
@@ -1390,6 +1397,11 @@ private:
         options.SortedJobOptions.PivotKeys = std::vector<TLegacyKey>(Spec_->PivotKeys.begin(), Spec_->PivotKeys.end());
         options.SliceForeignChunks = Spec_->SliceForeignChunks;
         options.SortedJobOptions.ConsiderOnlyPrimarySize = Spec_->ConsiderOnlyPrimarySize;
+        if (Spec_->MinManiacDataWeight && IsKeyGuaranteeEnabled()) {
+            YT_LOG_INFO("Ignoring min_maniac_data_weight since key guarantee is enabled");
+        } else {
+            options.MinManiacDataWeight = Spec_->MinManiacDataWeight;
+        }
         return options;
     }
 
