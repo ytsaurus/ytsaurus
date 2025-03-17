@@ -59,6 +59,8 @@ func (in *inferer) ytComplexTypeFor(typ reflect.Type) (ytTyp ComplexType, err er
 		return TypeInt32, nil
 	case reflect.Int16:
 		return TypeInt16, nil
+	case reflect.Int8:
+		return TypeInt8, nil
 
 	case reflect.Uint, reflect.Uint64:
 		return TypeUint64, nil
@@ -66,6 +68,8 @@ func (in *inferer) ytComplexTypeFor(typ reflect.Type) (ytTyp ComplexType, err er
 		return TypeUint32, nil
 	case reflect.Uint16:
 		return TypeUint16, nil
+	case reflect.Uint8:
+		return TypeUint8, nil
 
 	case reflect.String:
 		return TypeString, nil

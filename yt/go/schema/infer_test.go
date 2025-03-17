@@ -17,11 +17,13 @@ type testBasicTypes struct {
 	I64 int64
 	I32 int32
 	I16 int16
+	I8  int8
 
 	U   uint
 	U64 uint64
 	U32 uint32
 	U16 uint16
+	U8  uint8
 
 	F64 float64
 	F32 float32
@@ -48,10 +50,12 @@ func TestInfer(t *testing.T) {
 			{Name: "I64", Type: TypeInt64, Required: true},
 			{Name: "I32", Type: TypeInt32, Required: true},
 			{Name: "I16", Type: TypeInt16, Required: true},
+			{Name: "I8", Type: TypeInt8, Required: true},
 			{Name: "U", Type: TypeUint64, Required: true},
 			{Name: "U64", Type: TypeUint64, Required: true},
 			{Name: "U32", Type: TypeUint32, Required: true},
 			{Name: "U16", Type: TypeUint16, Required: true},
+			{Name: "U8", Type: TypeUint8, Required: true},
 			{Name: "F64", Type: TypeFloat64, Required: true},
 			{Name: "F32", Type: TypeFloat32, Required: true},
 			{Name: "S", Type: TypeString, Required: true},
