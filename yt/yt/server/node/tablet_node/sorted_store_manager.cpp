@@ -1173,23 +1173,10 @@ TStoreFlushCallback TSortedStoreManager::MakeStoreFlushCallback(
 
         if (mountConfig->RegisterChunkReplicasOnStoresUpdate) {
             const auto& chunkReplicaCache = TabletContext_->GetChunkReplicaCache();
-            // TODO(kvk1920): Consider using chunk + location instead of chunk + node + medium.
-            auto registerReplicas = [&] (const IChunkWriterPtr& chunkWriter) {
-                const auto& replicasInfo = chunkWriter->GetWrittenChunkReplicasInfo();
-                NChunkClient::TAllyReplicasInfo newReplicas;
-                newReplicas.Revision = replicasInfo.ConfirmationRevision;
-                newReplicas.Replicas.reserve(replicasInfo.Replicas.size());
-                for (auto replica : replicasInfo.Replicas) {
-                    newReplicas.Replicas.push_back(replica);
-                }
-
-                chunkReplicaCache->UpdateReplicas(chunkWriter->GetChunkId(), newReplicas);
-            };
-
-            registerReplicas(storeChunkWriter);
+            chunkReplicaCache->UpdateReplicas(storeChunkWriter->GetChunkId(), NChunkClient::TAllyReplicasInfo::FromChunkWriter(storeChunkWriter));
 
             if (hunkChunkPayloadWriter->HasHunks()) {
-                registerReplicas(hunkChunkWriter);
+                chunkReplicaCache->UpdateReplicas(hunkChunkWriter->GetChunkId(), NChunkClient::TAllyReplicasInfo::FromChunkWriter(hunkChunkWriter));
             }
         }
 

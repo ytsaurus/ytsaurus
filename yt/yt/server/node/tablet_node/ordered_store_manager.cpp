@@ -21,6 +21,7 @@
 #include <yt/yt/ytlib/chunk_client/confirming_writer.h>
 #include <yt/yt/ytlib/chunk_client/deferred_chunk_meta.h>
 #include <yt/yt/ytlib/chunk_client/helpers.h>
+#include <yt/yt/ytlib/chunk_client/chunk_replica_cache.h>
 
 #include <yt/yt/ytlib/table_client/versioned_chunk_writer.h>
 #include <yt/yt/ytlib/table_client/schemaless_chunk_writer.h>
@@ -468,6 +469,11 @@ TStoreFlushCallback TOrderedStoreManager::MakeStoreFlushCallback(
             auto& descriptor = result.HunkChunksToAdd.emplace_back();
             ToProto(descriptor.mutable_chunk_id(), hunkStoreRef.ChunkId);
             // TODO(aleksandra-zh): add meta as well.
+        }
+
+        if (tabletSnapshot->Settings.MountConfig->RegisterChunkReplicasOnStoresUpdate) {
+            const auto& chunkReplicaCache = TabletContext_->GetChunkReplicaCache();
+            chunkReplicaCache->UpdateReplicas(chunkWriter->GetChunkId(), TAllyReplicasInfo::FromChunkWriter(chunkWriter));
         }
 
         return result;

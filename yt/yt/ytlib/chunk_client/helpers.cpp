@@ -3,6 +3,7 @@
 #include "chunk_meta_extensions.h"
 #include "chunk_service_proxy.h"
 #include "chunk_spec.h"
+#include "chunk_writer.h"
 #include "config.h"
 #include "data_slice_descriptor.h"
 #include "erasure_reader.h"
@@ -1031,6 +1032,23 @@ TAllyReplicasInfo TAllyReplicasInfo::FromChunkReplicas(
     result.Revision = revision;
 
     return result;
+}
+
+TAllyReplicasInfo TAllyReplicasInfo::FromWrittenChunkReplicasInfo(TWrittenChunkReplicasInfo replicasInfo)
+{
+    TAllyReplicasInfo result;
+    result.Replicas.reserve(replicasInfo.Replicas.size());
+    for (auto replica : replicasInfo.Replicas) {
+        result.Replicas.push_back(replica);
+    }
+    result.Revision = replicasInfo.ConfirmationRevision;
+
+    return result;
+}
+
+TAllyReplicasInfo TAllyReplicasInfo::FromChunkWriter(const IChunkWriterPtr& chunkWriter)
+{
+    return FromWrittenChunkReplicasInfo(chunkWriter->GetWrittenChunkReplicasInfo());
 }
 
 void ToProto(
