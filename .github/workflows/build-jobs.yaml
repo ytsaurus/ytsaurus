@@ -270,6 +270,8 @@ jobs:
 
           BUILD_FLAGS="${{ steps.vars.outputs.BUILD_FLAGS }} -DSTRIP=${{ steps.vars.outputs.STRIP_VALUE }}"
 
+          BUILD_FLAGS=$(echo ${BUILD_FLAGS} | sed 's/--thinlto//')
+
           FOLDERS_WITH_UNITTESTS=""
           for makefile in $(find ../ytsaurus/ytsaurus/ -name "ya.make" -exec grep -l -e "GTEST(unittester-" -e "UNITTEST()" {} +); do
             folder=$(dirname ${makefile})
