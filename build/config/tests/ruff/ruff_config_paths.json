@@ -2,7 +2,6 @@
     "": "build/config/tests/ruff/ruff.toml",
     "fintech/uservices": "fintech/uservices/pyproject.toml",
     "insurance/": "insurance/pyproject.toml",
-    "maps/garden/": "maps/garden/pyproject.toml",
     "maps/infra/": "maps/infra/pyproject.toml",
     "taxi/": "taxi/pyproject.toml",
     "taxi/backend-py3/": "taxi/backend-py3/pyproject.toml",
