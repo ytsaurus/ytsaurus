@@ -119,7 +119,7 @@ struct TSslContextImpl
         if (SSL_CTX_set_min_proto_version(GetContext(), TLS1_2_VERSION) == 0) {
             THROW_ERROR GetLastSslError("SSL_CTX_set_min_proto_version failed");
         }
-        if (SSL_CTX_set_max_proto_version(GetContext(), TLS1_2_VERSION) == 0) {
+        if (SSL_CTX_set_max_proto_version(GetContext(), TLS1_3_VERSION) == 0) {
             THROW_ERROR GetLastSslError("SSL_CTX_set_max_proto_version failed");
         }
 #else
