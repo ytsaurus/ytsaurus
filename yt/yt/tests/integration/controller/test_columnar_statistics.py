@@ -1375,6 +1375,7 @@ class TestMaxCompressedDataSizePerJob(_TestColumnarStatisticsBase):
             track=False,
         )
 
+        wait(lambda: get(op.get_path() + "/@suspended"))
         self._check_initial_job_estimation(op, 3 if use_compressed_data_size else 2)
 
         op.resume()
@@ -1409,6 +1410,7 @@ class TestMaxCompressedDataSizePerJob(_TestColumnarStatisticsBase):
             track=False,
         )
 
+        wait(lambda: get(op.get_path() + "/@suspended"))
         self._check_initial_job_estimation(op, 1)
 
         op.resume()
