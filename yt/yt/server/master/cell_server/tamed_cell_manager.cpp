@@ -352,12 +352,12 @@ public:
                     auto executeAclChange = [&] (const auto& node) {
                         auto cellNode = node->AsMap();
                         try {
-                            {
+                            if (cellNode->FindChild("snapshots")) {
                                 auto req = TCypressYPathProxy::Set("/snapshots/@acl");
                                 req->set_value(snapshotAcl);
                                 SyncExecuteVerb(cellNode, req);
                             }
-                            {
+                            if (cellNode->FindChild("changelogs")) {
                                 auto req = TCypressYPathProxy::Set("/changelogs/@acl");
                                 req->set_value(changelogAcl);
                                 SyncExecuteVerb(cellNode, req);
@@ -385,6 +385,7 @@ public:
 
                 RestartAllPrerequisiteTransactions(cell);
             }
+
             cell->SetPendingAclsUpdate(true);
             ReconfigureCell(cell);
         }
