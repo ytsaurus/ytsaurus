@@ -3414,7 +3414,8 @@ private:
             Spec,
             Options,
             Logger,
-            TotalEstimatedInputDataWeight);
+            TotalEstimatedInputDataWeight,
+            TotalEstimatedInputCompressedDataSize);
 
         InitSimpleSortPool(jobSizeConstraints);
 

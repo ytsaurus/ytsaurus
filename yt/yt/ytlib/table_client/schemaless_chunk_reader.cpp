@@ -439,6 +439,10 @@ protected:
                 misc.row_count()) * rowCount;
             YT_VERIFY(dataWeight > 0);
             chunk.set_data_weight_override(dataWeight);
+            i64 compressedDataSize = DivCeil(
+                misc.compressed_data_size(),
+                misc.row_count()) * rowCount;
+            chunk.set_compressed_data_size_override(compressedDataSize);
         }
 
         // Sometimes scheduler sends us empty slices (when both, row index and key limits are present).
@@ -456,6 +460,10 @@ protected:
                 misc.has_data_weight() ? misc.data_weight() : misc.uncompressed_data_size(),
                 misc.row_count()) * rowCount;
             chunk.set_data_weight_override(dataWeight);
+            i64 compressedDataSize = DivCeil(
+                misc.compressed_data_size(),
+                misc.row_count()) * rowCount;
+            chunk.set_compressed_data_size_override(compressedDataSize);
         }
         return {std::move(unreadDescriptors), std::move(readDescriptors)};
     }

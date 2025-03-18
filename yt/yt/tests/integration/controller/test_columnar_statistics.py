@@ -65,6 +65,10 @@ class _TestColumnarStatisticsBase(YTEnvSetup):
     }
 
     @staticmethod
+    def _make_random_string(size) -> str:
+        return ''.join(random.choice(string.ascii_letters) for _ in range(size))
+
+    @staticmethod
     def _expect_data_weight_statistics(
         lower_row_index,
         upper_row_index,
@@ -165,6 +169,16 @@ class _TestColumnarStatisticsBase(YTEnvSetup):
             if expected_statistics.get(statistics_name) is not None:
                 assert statistics.get(statistics_name) == expected_statistics.get(statistics_name), \
                     "Error when checking {}, table path is {}".format(statistics_name, path)
+
+    @staticmethod
+    def get_completed_summary(summaries):
+        result = None
+        for summary in summaries:
+            if summary["tags"]["job_state"] == "completed":
+                assert not result
+                result = summary
+        assert result
+        return result["summary"]
 
 
 class TestColumnarStatistics(_TestColumnarStatisticsBase):
@@ -1113,20 +1127,6 @@ class TestReadSizeEstimation(_TestColumnarStatisticsBase):
 
     NUM_NODES = 16
 
-    @staticmethod
-    def make_random_string(size) -> str:
-        return ''.join(random.choice(string.ascii_letters) for _ in range(size))
-
-    @staticmethod
-    def get_completed_summary(summaries):
-        result = None
-        for summary in summaries:
-            if summary["tags"]["job_state"] == "completed":
-                assert not result
-                result = summary
-        assert result
-        return result["summary"]
-
     @authors("apollo1321")
     @pytest.mark.parametrize("strict", [False, True])
     @pytest.mark.parametrize("mode", ["from_nodes", "from_master"])
@@ -1168,22 +1168,22 @@ class TestReadSizeEstimation(_TestColumnarStatisticsBase):
             for index in range(50):
                 rows += [
                     {
-                        "small": self.make_random_string(200),
-                        "large_1": self.make_random_string(400),
-                        "large_2": self.make_random_string(800),
+                        "small": self._make_random_string(200),
+                        "large_1": self._make_random_string(400),
+                        "large_2": self._make_random_string(800),
                     },
                     {
-                        "large_2": self.make_random_string(1600),
+                        "large_2": self._make_random_string(1600),
                     },
                     {
-                        "small": self.make_random_string(3200),
-                        "large_1": self.make_random_string(6400),
+                        "small": self._make_random_string(3200),
+                        "large_1": self._make_random_string(6400),
                     },
                 ]
 
                 if not strict:
-                    rows[1]["unknown1"] = self.make_random_string(12800)
-                    rows[2]["unknown2"] = self.make_random_string(25600)
+                    rows[1]["unknown1"] = self._make_random_string(12800)
+                    rows[2]["unknown2"] = self._make_random_string(25600)
 
             write_table("<append=%true>//tmp/t_in", rows, table_writer=writer_config)
 
@@ -1246,9 +1246,9 @@ class TestReadSizeEstimation(_TestColumnarStatisticsBase):
         })
 
         write_table("//tmp/t_in", [{
-            "small": self.make_random_string(2**10),
-            "large_1": self.make_random_string(5 * 2**20),
-            "large_2": self.make_random_string(5 * 2**20),
+            "small": self._make_random_string(2**10),
+            "large_1": self._make_random_string(5 * 2**20),
+            "large_2": self._make_random_string(5 * 2**20),
         }])
 
         create("table", "//tmp/t_out")
@@ -1274,3 +1274,150 @@ class TestReadSizeEstimation(_TestColumnarStatisticsBase):
             assert 512 < estimated_compressed_data_size < 40 * 2**10
         else:
             assert 512 < estimated_compressed_data_size < 2 * 2**10
+
+
+##################################################################
+
+
+@pytest.mark.enabled_multidaemon
+class TestMaxCompressedDataSizePerJob(_TestColumnarStatisticsBase):
+    ENABLE_MULTIDAEMON = True
+
+    MAX_COMPRESSED_DATA_SIZE_PER_JOB = 9000
+    DATA_WEIGHT_PER_JOB = 700
+
+    DELTA_CONTROLLER_AGENT_CONFIG = {
+        "controller_agent": {
+            "operation_options": {
+                "spec_template": {
+                    "input_table_columnar_statistics": {
+                        "enabled": True,
+                        "mode": "from_nodes",
+                    },
+                    "resource_limits": {"user_slots": 1},
+                },
+            },
+        },
+    }
+
+    def _setup_tables(self):
+        create("table", "//tmp/t_in", attributes={
+            "schema": make_schema([
+                {"name": "small", "type": "string", "group": "group_1"},
+                {"name": "large_1", "type": "string"},
+                {"name": "large_2", "type": "string", "group": "group_1"},
+            ]),
+            "optimize_for": "scan",
+        })
+
+        for i in range(5):
+            write_table(
+                "<append=%true>//tmp/t_in",
+                [
+                    {
+                        "small": self._make_random_string(100),
+                        "large_1": self._make_random_string(8000),
+                        "large_2": self._make_random_string(2000),
+                    }
+                    for i in range(2)
+                ]
+            )
+
+        assert get("//tmp/t_in/@chunk_count") == 5
+
+        create("table", "//tmp/t_out")
+
+    def _check_statistics(self, progress, expected_job_count, check_compressed_data_size):
+        input_statistics = progress["job_statistics_v2"]["data"]["input"]
+
+        if check_compressed_data_size:
+            assert self.get_completed_summary(input_statistics["compressed_data_size"])["max"] <= self.MAX_COMPRESSED_DATA_SIZE_PER_JOB
+
+        assert self.get_completed_summary(input_statistics["data_weight"])["max"] <= self.DATA_WEIGHT_PER_JOB
+        assert progress["jobs"]["completed"]["total"] == expected_job_count
+
+    def _check_initial_job_estimation(self, op, expected_job_count):
+        wait(lambda: get(op.get_path() + "/@progress", default=False))
+        progress = get(op.get_path() + "/@progress")
+        # Check that job count is correctly estimated, before any job is scheduled.
+        assert progress["jobs"]["total"] == expected_job_count
+        assert progress["jobs"]["pending"] == expected_job_count
+        assert progress["jobs"]["running"] == 0
+
+    @authors("apollo1321")
+    @pytest.mark.parametrize("operation", ["merge", "map"])
+    @pytest.mark.parametrize("use_data_weight", [False, True])
+    @pytest.mark.parametrize("use_compressed_data_size", [False, True])
+    def test_operation_with_column_groups(self, operation, use_data_weight, use_compressed_data_size):
+        if not use_data_weight and not use_compressed_data_size:
+            pytest.skip()
+
+        self._setup_tables()
+
+        op_function = merge if operation == "merge" else map
+
+        op = op_function(
+            in_="//tmp/t_in{small}",
+            out="//tmp/t_out",
+            spec={
+                "suspend_operation_after_materialization": True,
+            } | ({
+                "force_transform": True,
+                "mode": "unordered",
+            } if operation == "merge" else {}) | ({
+                "ordered": False,
+                "mapper": {"command": "cat > /dev/null"},
+            } if operation == "map" else {}) | ({
+                "data_weight_per_job": self.DATA_WEIGHT_PER_JOB,
+            } if use_data_weight else {}) | ({
+                "max_compressed_data_size_per_job": self.MAX_COMPRESSED_DATA_SIZE_PER_JOB,
+            } if use_compressed_data_size else {}),
+            track=False,
+        )
+
+        self._check_initial_job_estimation(op, 3 if use_compressed_data_size else 2)
+
+        op.resume()
+        op.track()
+
+        progress = get(op.get_path() + "/@progress")
+
+        assert len(progress["tasks"]) == 1
+        assert progress["tasks"][0]["task_name"] == "unordered_merge" if operation == "merge" else "map"
+
+        self._check_statistics(
+            progress,
+            3 if use_compressed_data_size else 2,
+            use_compressed_data_size)
+
+    @authors("apollo1321")
+    def test_unordered_map_operation_explicit_job_count(self):
+        # NB(apollo1321): Merge operation does not takes into account excplicitly set job_count.
+        self._setup_tables()
+
+        op = map(
+            in_="//tmp/t_in{small}",
+            out="//tmp/t_out",
+            command="cat > /dev/null",
+            spec={
+                "suspend_operation_after_materialization": True,
+                "ordered": False,
+                "max_compressed_data_size_per_job": self.MAX_COMPRESSED_DATA_SIZE_PER_JOB,
+                "data_weight_per_job": self.DATA_WEIGHT_PER_JOB,
+                "job_count": 1,
+            },
+            track=False,
+        )
+
+        self._check_initial_job_estimation(op, 1)
+
+        op.resume()
+        op.track()
+
+        progress = get(op.get_path() + "/@progress")
+
+        assert len(progress["tasks"]) == 1
+        assert progress["tasks"][0]["task_name"] == "map"
+
+        # Ensure that max_compressed_data_size does not affect the explicitly set job_count.
+        assert progress["jobs"]["completed"]["total"] == 1

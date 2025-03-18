@@ -23,7 +23,7 @@ struct TOrderedChunkPoolOptions
     bool SupportLocality = false;
     NControllerAgent::IJobSizeConstraintsPtr JobSizeConstraints;
     bool EnablePeriodicYielder = false;
-    bool KeepOutputOrder = false;
+    bool BuildOutputOrder = false;
     bool ShouldSliceByRowIndices = false;
     NLogging::TSerializableLogger Logger;
 

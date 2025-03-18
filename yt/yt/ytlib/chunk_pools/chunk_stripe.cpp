@@ -14,6 +14,7 @@ namespace NYT::NChunkPools {
 using namespace NTableClient;
 using namespace NChunkClient;
 using namespace NChunkClient::NProto;
+using namespace NControllerAgent;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -49,6 +50,7 @@ TChunkStripeStatistics TChunkStripe::GetStatistics() const
         result.ChunkCount += dataSlice->GetChunkCount();
         result.ValueCount += dataSlice->GetValueCount();
         result.MaxBlockSize = std::max(result.MaxBlockSize, dataSlice->GetMaxBlockSize());
+        result.CompressedDataSize += dataSlice->GetCompressedDataSize();
     }
 
     return result;
@@ -113,10 +115,12 @@ TChunkStripeStatistics TChunkStripeList::GetAggregateStatistics() const
         result.RowCount = TotalRowCount * ApproximateSizesBoostFactor;
         result.ValueCount = TotalValueCount * ApproximateSizesBoostFactor;
         result.DataWeight = TotalDataWeight * ApproximateSizesBoostFactor;
+        result.CompressedDataSize = TotalCompressedDataSize * ApproximateSizesBoostFactor;
     } else {
         result.RowCount = TotalRowCount;
         result.ValueCount = TotalValueCount;
         result.DataWeight = TotalDataWeight;
+        result.CompressedDataSize = TotalCompressedDataSize;
     }
     return result;
 }
@@ -128,6 +132,7 @@ void TChunkStripeList::AddStripe(TChunkStripePtr stripe)
     TotalDataWeight += statistics.DataWeight;
     TotalRowCount += statistics.RowCount;
     TotalValueCount += statistics.ValueCount;
+    TotalCompressedDataSize += statistics.CompressedDataSize;
     Stripes.emplace_back(std::move(stripe));
 }
 
@@ -142,6 +147,13 @@ void TChunkStripeList::RegisterMetadata(auto&& registrar)
     PHOENIX_REGISTER_FIELD(7, TotalValueCount);
     PHOENIX_REGISTER_FIELD(8, TotalChunkCount);
     PHOENIX_REGISTER_FIELD(9, LocalChunkCount);
+    PHOENIX_REGISTER_FIELD(10, TotalCompressedDataSize,
+        .SinceVersion(ESnapshotVersion::MaxCompressedDataSizePerJob)
+        .WhenMissing([] (TThis* this_, auto& /*context*/) {
+            for (const auto& stripe : this_->Stripes) {
+                this_->TotalCompressedDataSize += stripe->GetStatistics().CompressedDataSize;
+            }
+        }));
 }
 
 const TChunkStripeListPtr NullStripeList = New<TChunkStripeList>();

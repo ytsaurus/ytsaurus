@@ -90,20 +90,24 @@ class TestPartitionTablesCommand(TestPartitionTablesBase):
         row_count,
         data_weight=None,
         allowed_absolute_difference=0,
+        compressed_data_size=None
     ):
         aggregate_statistics = defaultdict(int)
         for partition in partitions:
-            assert partition["aggregate_statistics"].keys() == set(["chunk_count", "data_weight", "row_count"])
+            assert partition["aggregate_statistics"].keys() == set(["chunk_count", "data_weight", "row_count", "compressed_data_size"])
             for statistics, value in partition["aggregate_statistics"].items():
                 aggregate_statistics[statistics] += value
                 assert value > 0
             del partition["aggregate_statistics"]
         if data_weight is None:
             data_weight = aggregate_statistics["data_weight"]
+        if compressed_data_size is None:
+            compressed_data_size = aggregate_statistics["compressed_data_size"]
         expected_aggregate_statistics = {
             "chunk_count": chunk_count,
             "data_weight": data_weight,
             "row_count": row_count,
+            "compressed_data_size": compressed_data_size,
         }
         assert aggregate_statistics == pytest.approx(expected_aggregate_statistics, abs=allowed_absolute_difference)
 

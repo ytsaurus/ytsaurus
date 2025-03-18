@@ -231,10 +231,14 @@ void BuildReplicalessChunkSpec(
 
     if (chunkSpec->row_count_override() >= chunk->GetRowCount()) {
         chunkSpec->set_data_weight_override(dataWeight);
+        chunkSpec->set_compressed_data_size_override(chunk->GetCompressedDataSize());
     } else {
         // NB: If overlayed chunk is nested into another, it has zero row count and non-zero data weight.
         i64 dataWeightPerRow = DivCeil(dataWeight, std::max<i64>(chunk->GetRowCount(), 1));
         chunkSpec->set_data_weight_override(dataWeightPerRow * chunkSpec->row_count_override());
+
+        double compressedDataSizePerRow = static_cast<double>(chunk->GetCompressedDataSize()) / std::max<i64>(chunk->GetRowCount(), 1);
+        chunkSpec->set_compressed_data_size_override(compressedDataSizePerRow * chunkSpec->row_count_override());
     }
 
     if (modifier) {
@@ -308,6 +312,7 @@ void BuildDynamicStoreSpec(
     // Something non-zero.
     chunkSpec->set_row_count_override(1);
     chunkSpec->set_data_weight_override(1);
+    chunkSpec->set_compressed_data_size_override(1);
 
     // NB: Table_row_index is not filled here since:
     // 1) dynamic store reader receives it from the node;

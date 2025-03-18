@@ -69,6 +69,8 @@ struct TChunkStripeList
     i64 TotalRowCount = 0;
     i64 TotalValueCount = 0;
 
+    i64 TotalCompressedDataSize = 0;
+
     int TotalChunkCount = 0;
     int LocalChunkCount = 0;
 

@@ -77,6 +77,7 @@ protected:
             MaxDataSlicesPerJob_,
             /*maxDataSizePerJob_*/ 0,
             /*maxPrimaryDataWeightPerJob*/ 0,
+            /*maxCompressedDataSizePerJob*/ Inf64,
             InputSliceDataSize_,
             InputSliceRowCount_,
             BatchRowCount_,
@@ -307,7 +308,7 @@ protected:
 
     void CheckBatchRowCount()
     {
-        ASSERT_TRUE(Options_.KeepOutputOrder);
+        ASSERT_TRUE(Options_.BuildOutputOrder);
 
         auto order = ChunkPool_->GetOutputOrder();
         ASSERT_TRUE(order);
@@ -320,7 +321,7 @@ protected:
 
     void CheckExplicitRowCounts(std::vector<i64> rowCounts)
     {
-        ASSERT_TRUE(Options_.KeepOutputOrder);
+        ASSERT_TRUE(Options_.BuildOutputOrder);
 
         auto order = ChunkPool_->GetOutputOrder();
         ASSERT_TRUE(order);
@@ -458,7 +459,7 @@ TEST_F(TOrderedChunkPoolTest, BatchRowCountBasic)
         /*isTeleportable*/ {true, true, true},
         /*isVersioned*/ {false, false, false});
 
-    Options_.KeepOutputOrder = true;
+    Options_.BuildOutputOrder = true;
     // This should have no effect!
     Options_.MinTeleportChunkSize = 2_KB;
 
@@ -497,7 +498,7 @@ TEST_F(TOrderedChunkPoolTest, BatchRowCountDoesNotFailWithVersionedChunks)
         /*isTeleportable*/ {true, true, true},
         /*isVersioned*/ {false, true, false});
 
-    Options_.KeepOutputOrder = true;
+    Options_.BuildOutputOrder = true;
     // This should have no effect!
     Options_.MinTeleportChunkSize = 2_KB;
     // Nor this!
@@ -534,7 +535,7 @@ TEST_F(TOrderedChunkPoolTest, BatchRowCountBigBatchesSmallDataSizePerJob)
         /*isTeleportable*/ {true, true, true},
         /*isVersioned*/ {false, false, false});
 
-    Options_.KeepOutputOrder = true;
+    Options_.BuildOutputOrder = true;
     // This should have no effect!
     Options_.MinTeleportChunkSize = 2_KB;
     BatchRowCount_ = 20;
@@ -575,7 +576,7 @@ TEST_F(TOrderedChunkPoolTest, OrderedMergeOrderedOutput)
         /*isTeleportable*/ {true, true, true},
         /*isVersioned*/ {false, false, false});
 
-    Options_.KeepOutputOrder = true;
+    Options_.BuildOutputOrder = true;
     Options_.MinTeleportChunkSize = 2_KB;
     DataSizePerJob_ = 2_KB;
 

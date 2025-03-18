@@ -353,6 +353,7 @@ protected:
                     Logger,
                     TotalEstimatedInputChunkCount,
                     PrimaryInputDataWeight,
+                    PrimaryInputCompressedDataSize,
                     DataWeightRatio,
                     InputCompressionRatio,
                     /*inputTableCount*/ 1,
@@ -368,7 +369,8 @@ protected:
                     OutputTables_.size(),
                     DataWeightRatio,
                     TotalEstimatedInputChunkCount,
-                    PrimaryInputDataWeight);
+                    PrimaryInputDataWeight,
+                    PrimaryInputCompressedDataSize);
                 break;
 
             default:
@@ -495,7 +497,7 @@ protected:
         chunkPoolOptions.EnablePeriodicYielder = true;
         chunkPoolOptions.MinTeleportChunkSize = GetMinTeleportChunkSize();
         chunkPoolOptions.JobSizeConstraints = JobSizeConstraints_;
-        chunkPoolOptions.KeepOutputOrder = OrderedOutputRequired_;
+        chunkPoolOptions.BuildOutputOrder = OrderedOutputRequired_;
         chunkPoolOptions.ShouldSliceByRowIndices = GetJobType() != EJobType::RemoteCopy;
         chunkPoolOptions.Logger = Logger().WithTag("Name: Root");
         return chunkPoolOptions;

@@ -372,6 +372,7 @@ protected:
                     Logger,
                     TotalEstimatedInputChunkCount,
                     PrimaryInputDataWeight,
+                    PrimaryInputCompressedDataSize,
                     DataWeightRatio,
                     InputCompressionRatio,
                     InputManager->GetInputTables().size(),
@@ -386,7 +387,8 @@ protected:
                     DataWeightRatio,
                     TotalEstimatedInputChunkCount,
                     PrimaryInputDataWeight,
-                    std::numeric_limits<i64>::max() / 4 /*InputRowCount*/, // It is not important in sorted operations.
+                    PrimaryInputCompressedDataSize,
+                    /*inputRowCount*/ std::numeric_limits<i64>::max() / 4, // It is not important in sorted operations.
                     GetForeignInputDataWeight(),
                     InputManager->GetInputTables().size(),
                     GetPrimaryInputTableCount(),

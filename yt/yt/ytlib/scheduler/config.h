@@ -1594,6 +1594,11 @@ public:
 
     std::optional<int> MaxDataSlicesPerJob;
 
+    //! Limit for job input compressed data size.
+    //! This limit is not strict and may be violated in some cases,
+    //! for example, if chunk slice is too big.
+    std::optional<i64> MaxCompressedDataSizePerJob;
+
     bool ForceJobSizeAdjuster;
     bool ForceAllowJobInterruption;
 
