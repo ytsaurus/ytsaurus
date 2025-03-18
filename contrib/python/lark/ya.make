@@ -5,9 +5,9 @@ LICENSE(Service-Py23-Proxy)
 VERSION(Service-proxy-version)
 
 IF (PYTHON2)
-    PEERDIR(contrib/python/lark-parser/py2)
+    PEERDIR(contrib/python/lark/py2)
 ELSE()
-    PEERDIR(contrib/python/lark-parser/py3)
+    PEERDIR(contrib/python/lark/py3)
 ENDIF()
 
 NO_LINT()

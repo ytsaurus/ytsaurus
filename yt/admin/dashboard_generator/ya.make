@@ -33,7 +33,7 @@ PEERDIR(
     contrib/python/requests
     contrib/python/tabulate
     contrib/python/colorama
-    contrib/python/lark-parser
+    contrib/python/lark
 
     contrib/python/grpcio/py3
     contrib/python/protobuf/py3
