@@ -36,7 +36,7 @@ public:
             THROW_ERROR_EXCEPTION("Failed to set min protocol version: %v", GetLastSslErrorString());
         }
 
-        if (SSL_CTX_set_max_proto_version(SslCtx_.get(), TLS1_2_VERSION) != 1) {
+        if (SSL_CTX_set_max_proto_version(SslCtx_.get(), TLS1_3_VERSION) != 1) {
             THROW_ERROR_EXCEPTION("Failed to set max protocol version: %v", GetLastSslErrorString());
         }
 
