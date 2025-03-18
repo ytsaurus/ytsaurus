@@ -228,7 +228,7 @@ public:
                     .BundleName = bundleName,
                     .Description = Format("Zone %Qv is disrupted. Disabling all %v allocations within %Qv.",
                         zoneName,
-                        adapter->GetInstanceType(),
+                        adapter->GetHumanReadableInstanceType(),
                         dataCenterName),
                 });
                 continue;
@@ -2120,6 +2120,12 @@ public:
         return TabletNode;
     }
 
+    const std::string& GetHumanReadableInstanceType() const
+    {
+        static const std::string TabletNode = "tablet node";
+        return TabletNode;
+    }
+
     TIndexedEntries<TAllocationRequestState>& AllocationsState() const
     {
         return State_->NodeAllocations;
@@ -2460,6 +2466,12 @@ public:
     const std::string& GetInstanceType()
     {
         static const std::string RpcProxy = "rpc";
+        return RpcProxy;
+    }
+
+    const std::string& GetHumanReadableInstanceType() const
+    {
+        static const std::string RpcProxy = "RPC proxy";
         return RpcProxy;
     }
 
