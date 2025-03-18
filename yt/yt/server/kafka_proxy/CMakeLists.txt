@@ -37,7 +37,7 @@ target_link_libraries(yt-server-kafka_proxy PUBLIC
   yt-yt-ytlib
   yt-library-dynamic_config
   library-cpp-getopt
-  cpp-yt-phdr_cache
+  library-cpp-iterator
 )
 
 target_sources(yt-server-kafka_proxy PRIVATE
@@ -45,6 +45,7 @@ target_sources(yt-server-kafka_proxy PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/kafka_proxy/config.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/kafka_proxy/connection.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/kafka_proxy/dynamic_config_manager.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/kafka_proxy/group_coordinator.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/kafka_proxy/helpers.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/kafka_proxy/program.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/kafka_proxy/server.cpp

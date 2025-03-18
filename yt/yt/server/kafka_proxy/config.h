@@ -58,6 +58,25 @@ DEFINE_REFCOUNTED_TYPE(TKafkaProxyConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TGroupCoordinatorConfig
+    : public virtual NYTree::TYsonStruct
+{
+public:
+    //! How long members will be waited during join and sync stages.
+    TDuration RebalanceTimeout;
+
+    //! How often members should send a heartbeat.
+    TDuration SessionTimeout;
+
+    REGISTER_YSON_STRUCT(TGroupCoordinatorConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TGroupCoordinatorConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TKafkaProxyDynamicConfig
     : public TNativeSingletonsDynamicConfig
 {
@@ -66,6 +85,8 @@ public:
     int AcceptorThreadCount;
 
     std::optional<TString> LocalHostName;
+
+    TGroupCoordinatorConfigPtr GroupCoordinator;
 
     REGISTER_YSON_STRUCT(TKafkaProxyDynamicConfig);
 

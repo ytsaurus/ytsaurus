@@ -57,6 +57,17 @@ void TKafkaProxyConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TGroupCoordinatorConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("rebalance_timeout", &TThis::RebalanceTimeout)
+        .Default(TDuration::Seconds(2));
+
+    registrar.Parameter("session_timeout", &TThis::SessionTimeout)
+        .Default(TDuration::Seconds(5));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TKafkaProxyDynamicConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("poller_thread_count", &TThis::PollerThreadCount)
@@ -65,6 +76,8 @@ void TKafkaProxyDynamicConfig::Register(TRegistrar registrar)
         .Default(2);
     registrar.Parameter("local_host_name", &TThis::LocalHostName)
         .Default();
+    registrar.Parameter("group_coordinator", &TThis::GroupCoordinator)
+        .DefaultNew();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
