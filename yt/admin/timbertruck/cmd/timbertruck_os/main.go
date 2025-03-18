@@ -49,13 +49,14 @@ func newOutput(config *Config, logConfig JSONLogConfig, task timbertruck.TaskArg
 	if logConfig.YtQueue != nil {
 		for _, ytQueueConfig := range logConfig.YtQueue {
 			ytConfig := ytqueue.OutputConfig{
-				Cluster:      ytQueueConfig.Cluster,
-				QueuePath:    ytQueueConfig.QueuePath,
-				ProducerPath: ytQueueConfig.ProducerPath,
-				RPCProxyRole: ytQueueConfig.RPCProxyRole,
-				SessionID:    sessionID,
-				Token:        ytToken,
-				Logger:       task.Controller.Logger(),
+				Cluster:          ytQueueConfig.Cluster,
+				QueuePath:        ytQueueConfig.QueuePath,
+				ProducerPath:     ytQueueConfig.ProducerPath,
+				RPCProxyRole:     ytQueueConfig.RPCProxyRole,
+				CompressionCodec: ytQueueConfig.CompressionCodec,
+				SessionID:        sessionID,
+				Token:            ytToken,
+				Logger:           task.Controller.Logger(),
 			}
 
 			var ytOutput pipelines.Output[pipelines.Row]
