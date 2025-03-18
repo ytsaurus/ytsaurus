@@ -502,23 +502,38 @@ TEST_F(TSslTest, ServerCipherList)
 
 TEST_F(TSslTest, DifferentCipherLists)
 {
+    auto cipherStringAES128 = TSslContextCommand::Create("CipherString", "AES128-GCM-SHA256");
+    auto cipherSuitesAES128 = TSslContextCommand::Create("CipherSuites", "TLS_AES_128_GCM_SHA256");
+    auto cipherStringAES256 = TSslContextCommand::Create("CipherString", "AES256-GCM-SHA384");
+    auto cipherSuitesAES256 = TSslContextCommand::Create("CipherSuites", "TLS_AES_256_GCM_SHA384");
+    auto maxProtocolTLS1_2 = TSslContextCommand::Create("MaxProtocol", "TLSv1.2");
+
     auto serverConfig = TBusServerConfig::CreateTcp(Port);
     serverConfig->EncryptionMode = EEncryptionMode::Required;
     serverConfig->VerificationMode = EVerificationMode::None;
     serverConfig->CertificateChain = CertificateChain;
     serverConfig->PrivateKey = PrivateKey;
-    serverConfig->CipherList = "PSK-AES128-GCM-SHA256";
+    serverConfig->SslConfigurationCommands.push_back(cipherStringAES256);
+    serverConfig->SslConfigurationCommands.push_back(cipherSuitesAES256);
     auto server = CreateBusServer(serverConfig);
     server->Start(New<TEmptyBusHandler>());
 
     auto clientConfig = TBusClientConfig::CreateTcp(AddressWithHostName);
     clientConfig->EncryptionMode = EEncryptionMode::Required;
     clientConfig->VerificationMode = EVerificationMode::None;
-    clientConfig->CipherList = "AES128-GCM-SHA256";
+    clientConfig->SslConfigurationCommands.push_back(cipherStringAES128);
+    clientConfig->SslConfigurationCommands.push_back(cipherSuitesAES128);
     auto client = CreateBusClient(clientConfig);
 
     auto bus = client->CreateBus(New<TEmptyBusHandler>());
     EXPECT_FALSE(bus->GetReadyFuture().Get().IsOK());
+
+    {
+        clientConfig->SslConfigurationCommands.push_back(maxProtocolTLS1_2);
+        auto client = CreateBusClient(clientConfig);
+        auto bus = client->CreateBus(New<TEmptyBusHandler>());
+        EXPECT_FALSE(bus->GetReadyFuture().Get().IsOK());
+    }
 
     server->Stop()
         .Get()
