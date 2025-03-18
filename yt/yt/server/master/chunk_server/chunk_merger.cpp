@@ -2142,7 +2142,7 @@ void TChunkMerger::HydraReplaceChunks(NProto::TReqReplaceChunks* request)
             if (config->EnableCarefulRequisitionUpdate) {
                 chunksToReqUpdate.push_back(newChunk);
                 for (auto chunkId : chunkIds) {
-                    auto* inputChunk = chunkManager->FindChunk(newChunkId);
+                    auto* inputChunk = chunkManager->FindChunk(chunkId);
                     if (!IsObjectAlive(inputChunk)) {
                         YT_LOG_ALERT("Chunk merge input chunk is dead after replace (NodeId: %v, ChunkId: %v, AccountId: %v)",
                             nodeId,
