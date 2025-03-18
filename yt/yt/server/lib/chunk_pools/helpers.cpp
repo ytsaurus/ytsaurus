@@ -1,15 +1,15 @@
 #include "helpers.h"
 
-#include "chunk_pool.h"
-
-#include <yt/yt/ytlib/chunk_client/legacy_data_slice.h>
 #include <yt/yt/ytlib/chunk_client/input_chunk.h>
+#include <yt/yt/ytlib/chunk_client/legacy_data_slice.h>
+
+#include <yt/yt/ytlib/chunk_pools/chunk_stripe.h>
 
 namespace NYT::NChunkPools {
 
-using namespace NNodeTrackerClient;
-using namespace NControllerAgent;
 using namespace NChunkClient;
+using namespace NControllerAgent;
+using namespace NNodeTrackerClient;
 using namespace NTableClient;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -19,7 +19,7 @@ void AccountStripeInList(
     const TChunkStripeListPtr& list,
     std::optional<i64> stripeDataWeight,
     std::optional<i64> stripeRowCount,
-    NNodeTrackerClient::TNodeId nodeId)
+    TNodeId nodeId)
 {
     auto statistics = stripe->GetStatistics();
     list->TotalDataWeight += stripeDataWeight.value_or(statistics.DataWeight);

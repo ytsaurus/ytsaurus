@@ -1,20 +1,18 @@
 #include "chunk_stripe.h"
 
-#include <yt/yt/ytlib/chunk_client/input_chunk_slice.h>
-#include <yt/yt/ytlib/chunk_client/legacy_data_slice.h>
 #include <yt/yt/ytlib/chunk_client/chunk_meta_extensions.h>
 #include <yt/yt/ytlib/chunk_client/input_chunk.h>
+#include <yt/yt/ytlib/chunk_client/input_chunk_slice.h>
+#include <yt/yt/ytlib/chunk_client/legacy_data_slice.h>
 
 #include <yt/yt/ytlib/table_client/chunk_meta_extensions.h>
 
-#include <yt/yt/client/object_client/helpers.h>
-
 namespace NYT::NChunkPools {
 
-using namespace NTableClient;
-using namespace NChunkClient;
 using namespace NChunkClient::NProto;
+using namespace NChunkClient;
 using namespace NControllerAgent;
+using namespace NTableClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -159,6 +157,19 @@ void TChunkStripeList::RegisterMetadata(auto&& registrar)
 const TChunkStripeListPtr NullStripeList = New<TChunkStripeList>();
 
 PHOENIX_DEFINE_TYPE(TChunkStripeList);
+
+void TPersistentChunkStripeStatistics::Persist(const TPersistenceContext& context)
+{
+    using NYT::Persist;
+    Persist(context, ChunkCount);
+    Persist(context, DataWeight);
+    Persist(context, RowCount);
+    Persist(context, ValueCount);
+    Persist(context, MaxBlockSize);
+    if (context.GetVersion() >= ESnapshotVersion::MaxCompressedDataSizePerJob) {
+        Persist(context, CompressedDataSize);
+    }
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 

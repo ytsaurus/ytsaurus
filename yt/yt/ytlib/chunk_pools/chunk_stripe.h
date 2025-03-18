@@ -81,6 +81,12 @@ DEFINE_REFCOUNTED_TYPE(TChunkStripeList)
 
 extern const TChunkStripeListPtr NullStripeList;
 
+struct TPersistentChunkStripeStatistics
+    : public NTableClient::TChunkStripeStatistics
+{
+    void Persist(const TPersistenceContext& context);
+};
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NChunkPools
