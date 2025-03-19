@@ -242,6 +242,7 @@ DEFINE_ENUM(EMasterReign,
     ((MasterCellRolesChangeValidation)                              (2907))  // cherepashka
     ((DropLegayReplicas)                                            (2908))  // babenko
     ((KeyBoundsInTabletChunkManager)                                (2909))  // ifsmirnov
+    ((DropChunkMergerCompats)                                       (2910))  // cherepashka
 );
 
 static_assert(TEnumTraits<EMasterReign>::IsMonotonic, "Master reign enum is not monotonic");
