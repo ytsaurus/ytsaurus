@@ -19,5 +19,7 @@
 * [PROCESS](process.md)
 * [REDUCE](reduce.md)
 * [PRAGMA](pragma.md)
+{% if feature_declare %}
 * [DECLARE](declare.md)
+{% endif %}
 * [EXPORT and IMPORT](export_import.md)
