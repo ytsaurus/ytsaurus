@@ -16,7 +16,7 @@ namespace {
     void CheckRegex(bool ansi, const TStringBuf name, const TStringBuf expected) {
         const auto& regexes = ansi ? ansiRegexes : defaultRegexes;
         const TString regex = regexes.at(name);
-        
+
         const RE2 re2(regex);
         Y_ENSURE(re2.ok(), re2.error());
 

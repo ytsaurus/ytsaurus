@@ -20,8 +20,6 @@ namespace NSQLTranslationV1 {
 
     class TLexerGrammarToRegexTranslator {
     private:
-
-
         struct TRewriteRule {
             TString Repr;
             std::function<void(TString&)> Apply;
@@ -42,7 +40,7 @@ namespace NSQLTranslationV1 {
 
             UnwrapQuotes_ = UnwrapQuotesRule();
             AddSpaceCollapses(SpaceCollapses_);
-            UnwrapQuotedSpace_ = RegexRewriteRule(R"(' ')", R"( )");
+            UnwrapQuotedSpace_ = UnwrapQuotedSpaceRule();
         }
 
         TString ToRegex(const TStringBuf name) {
@@ -205,6 +203,10 @@ namespace NSQLTranslationV1 {
                     Y_ENSURE(i != 0);
                 },
             };
+        }
+
+        TRewriteRule UnwrapQuotedSpaceRule() {
+            return RegexRewriteRule(R"(' ')", R"( )");
         }
 
         TString QuoteAntlrRewrite(TString rewrite) {
