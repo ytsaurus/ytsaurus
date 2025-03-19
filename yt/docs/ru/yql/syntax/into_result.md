@@ -1,6 +1,6 @@
 # INTO RESULT
 
-Позволяет задать пользовательскую метку для [SELECT](select.md), [PROCESS](process.md) или [REDUCE](reduce.md). Не может быть задано одновременно с [DISCARD](discard.md).
+Позволяет задать пользовательскую метку для [SELECT](select/index.md), [PROCESS](process.md) или [REDUCE](reduce.md). Не может быть задано одновременно с [DISCARD](discard.md).
 
 **Примеры:**
 

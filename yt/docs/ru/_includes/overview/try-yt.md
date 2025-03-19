@@ -411,7 +411,7 @@ $ yt read-table //home/input_table --format json
 {"id":1,"text":"World!"}
 ```
 
-Другой способ прочитать таблицу — выполнить [SELECT](../../yql/syntax/select.md) запрос в веб-интерфейсе. Для этого перейдите во вкладку **Queries** и введите запрос:
+Другой способ прочитать таблицу — выполнить [SELECT](../../yql/syntax/select/index.md) запрос в веб-интерфейсе. Для этого перейдите во вкладку **Queries** и введите запрос:
 
 ```sql
 SELECT * FROM `//home/input_table`;

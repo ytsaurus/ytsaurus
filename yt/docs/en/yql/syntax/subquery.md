@@ -2,7 +2,7 @@
 
 ## DEFINE SUBQUERY {#define-subquery}
 
-`DEFINE SUBQUERY` lets you declare a subquery template as a parameterizable block consisting of several upper-tier statements and then use it repeatedly through application in the `FROM` section of the [SELECT](select.md) statement or in input data in [PROCESS](process.md)/[REDUCE](reduce.md), with parameters indicated.
+`DEFINE SUBQUERY` lets you declare a subquery template as a parameterizable block consisting of several upper-tier statements and then use it repeatedly through application in the `FROM` section of the [SELECT](select/index.md) statement or in input data in [PROCESS](process.md)/[REDUCE](reduce.md), with parameters indicated.
 Unlike [actions](action.md), a subquery template must end with the `SELECT`/`PROCESS`/`REDUCE` statement. Its result is the returnable subquery value. Here, the upper-tier `SELECT`/`PROCESS`/`REDUCE` statement cannot be used more than once, similarly to modifying statements (for instance, `INSERT`).
 
 After `DEFINE SUBQUERY`, specify:

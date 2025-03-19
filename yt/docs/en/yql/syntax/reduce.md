@@ -4,7 +4,7 @@ Groups the input by the specified key columns, then passes the current keys and 
 
 Keywords that can follow:
 
-* `PRESORT` <span style="color: gray;">(optional)</span> — specifies the sequence inside each group. Syntax is similar to that of [ORDER BY](select.md#orderby).
+* `PRESORT` <span style="color: gray;">(optional)</span> — specifies the sequence inside each group. Syntax is similar to that of [ORDER BY](select/order-by.md).
 * `ON` <span style="color: gray;">(required)</span> — specifies key columns.
 * `USING` or `USING ALL` <span style="color: gray;">(required)</span> — UDF call. See the detailed rules below.
 
@@ -20,7 +20,7 @@ Rules for passing UDF arguments:
 
 The result is built in the same way as for [PROCESS](process.md). You can also use the `TableRow()` keyword to get the whole string as a structure.
 
-In `REDUCE`, you can pass multiple inputs (the input here means a table, a [range of tables](select.md#range), a subquery, a [named expression](expressions.md#named-nodes)), separated by commas. All inputs must have the key columns of the matching type specified in `ON`. To the function from `USING` in this case, you can only pass a special named expression `TableRow()`. The second argument (or the second element of the tuple for `USING ALL`) will include a lazy iterator over variants with a populated element that corresponds to the occurrence ID for the current entry.
+In `REDUCE`, you can pass multiple inputs (the input here means a table, a [range of tables](select/concat.md), a subquery, a [named expression](expressions.md#named-nodes)), separated by commas. All inputs must have the key columns of the matching type specified in `ON`. To the function from `USING` in this case, you can only pass a special named expression `TableRow()`. The second argument (or the second element of the tuple for `USING ALL`) will include a lazy iterator over variants with a populated element that corresponds to the occurrence ID for the current entry.
 
 After `USING`, in `REDUCE` you can optionally specify `ASSUME ORDER BY` with a list of columns. The result of such a `REDUCE` statement is treated as sorted, but without actually running a sort. Sort check is performed at the query execution stage. It supports setting the sort order using the keywords `ASC` (ascending order) and `DESC` (descending order). Expressions are not supported in `ASSUME ORDER BY`.
 

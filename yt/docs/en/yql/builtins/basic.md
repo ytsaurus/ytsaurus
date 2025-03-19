@@ -640,7 +640,7 @@ Examples of use cases:
 
 ## TablePath {#tablepath}
 
-Access to the current table name, which might be needed when using [CONCAT](../syntax/select.md#concat), [RANGE](../syntax/select.md#range), and other related mechanisms.
+Access to the current table name, which might be needed when using [CONCAT](../syntax/select/concat.md), [RANGE](../syntax/select/concat.md), and other related mechanisms.
 
 **Signature**
 ```
@@ -652,7 +652,7 @@ No arguments. Returns a string with the full path or an empty string and warning
 {% note info "Note" %}
 
 The [TablePath](#tablepath), [TableName](#tablename), and [TableRecordIndex](#tablerecordindex) functions do no support temporary and anonymous tables (they return an empty string or 0 for [TableRecordIndex](#tablerecordindex)).
-These functions are calculated when the `SELECT` projection is [executed](../syntax/select.md#selectexec), and the current table might already be temporary at that point.
+These functions are calculated when the `SELECT` projection is [executed](../syntax/select/index.md#selectexec), and the current table might already be temporary at that point.
 To avoid such a situation, create a subquery for calculating these functions, as shown in the second example below.
 
 {% endnote %}
@@ -669,7 +669,7 @@ WHERE key IN $subquery;
 
 ## TableName {#tablename}
 
-Get the table name based on the table path. You can obtain the path using the [TablePath](#tablepath) function or as the `Path` column when using the table function [FOLDER](../syntax/select.md#folder).
+Get the table name based on the table path. You can obtain the path using the [TablePath](#tablepath) function or as the `Path` column when using the table function [FOLDER](../syntax/select/folder.md).
 
 **Signature**
 ```
@@ -681,7 +681,7 @@ TableName(String, String)->String
 Optional arguments:
 
 * Path to the table, `TablePath()` is used by default (see also its limitations).
-* Specifying the system ("yt") whose rules are used to determine the table name. You need to specify the system only if [USE](../syntax/select.md#use) doesn't specify the current cluster.
+* Specifying the system ("yt") whose rules are used to determine the table name. You need to specify the system only if [USE](../syntax/use.md) doesn't specify the current cluster.
 
 **Examples**
 ```yql
@@ -702,7 +702,7 @@ Access to the current sequence number of a row in the physical source table, **s
 TableRecordIndex()->Uint64
 ```
 
-No arguments. When used together with [CONCAT](../syntax/select.md#concat), [RANGE](../syntax/select.md#range), and other related mechanisms, numbering is reset for each input table. If used in an incorrect context, it returns 0.
+No arguments. When used together with [CONCAT](../syntax/select/concat.md), [RANGE](../syntax/select/concat.md), and other related mechanisms, numbering is reset for each input table. If used in an incorrect context, it returns 0.
 
 **Example**
 ```yql
@@ -932,7 +932,7 @@ When you use `Likely`, the optimizer won't attempt to perform filtering before 
 
 ## EvaluateExpr, EvaluateAtom {#evaluate_expr_atom}
 
-Evaluate an expression before the start of the main calculation and input its result to the query as a literal (constant). In many contexts where the standard SQL would only expect a constant (for example in table names, number of rows in [LIMIT](../syntax/select.md#limit), and so on), this functionality is automatically activated implicitly.
+Evaluate an expression before the start of the main calculation and input its result to the query as a literal (constant). In many contexts where the standard SQL would only expect a constant (for example in table names, number of rows in [LIMIT](../syntax/select/limit-offset.md), and so on), this functionality is automatically activated implicitly.
 
 EvaluateExpr can be used where the grammar already expects an expression. For example, you can use it to:
 
