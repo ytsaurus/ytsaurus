@@ -458,8 +458,9 @@ private:
         JobProxyConfigTemplate_->SetSingletonConfig(GetConfig()->ExecNode->JobProxy->JobProxyLogging->LogManagerTemplate);
         JobProxyConfigTemplate_->SetSingletonConfig(GetConfig()->ExecNode->JobProxy->JobProxyJaeger);
 
+        JobProxyConfigTemplate_->OriginalClusterConnection = GetConfig()->ClusterConnection->Clone();
+
         JobProxyConfigTemplate_->ClusterConnection = GetConfig()->ClusterConnection->Clone();
-        JobProxyConfigTemplate_->OriginalClusterConnection = JobProxyConfigTemplate_->ClusterConnection->Clone();
         JobProxyConfigTemplate_->ClusterConnection->Static->OverrideMasterAddresses({localAddress});
 
         JobProxyConfigTemplate_->AuthenticationManager = GetConfig()->ExecNode->JobProxy->JobProxyAuthenticationManager;
