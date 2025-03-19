@@ -522,7 +522,6 @@ void TOperationControllerBase::InitializeInputTransactions()
         filesAndTables,
         HasDiskRequestsWithSpecifiedAccount() || TLayerJobExperiment::IsEnabled(Spec_, GetUserJobSpecs()),
         GetInputTransactionParentId(),
-        AuthenticatedUser,
         Config,
         Logger);
 }
