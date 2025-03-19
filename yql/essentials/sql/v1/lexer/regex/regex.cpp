@@ -1,8 +1,8 @@
 #include "regex.h"
 
-#include <util/generic/vector.h>
+#include <contrib/libs/re2/re2/re2.h>
 
-#include <regex>
+#include <util/generic/vector.h>
 
 #define SUBSTITUTION(name, mode) \
     {#name, name##_##mode}
@@ -18,114 +18,222 @@
 
 namespace NSQLTranslationV1 {
 
-    struct TRewriteRule {
-        std::regex Regex;
-        std::string Format;
-    };
+    class TLexerGrammarToRegexTranslator {
+    private:
 
-    TString ReEscaped(TString text) {
-        if (text == "\\") {
-            return "\\\\";
-        }
-        if (text == ".") {
-            return "\\.";
-        }
-        if (text == "+") {
-            return "\\+";
-        }
 
-        SubstGlobal(text, "'\\'", "\\\\");
-        SubstGlobal(text, "'``'", "``");
-        SubstGlobal(text, "'`'", "`");
-        SubstGlobal(text, "'_'", "_");
-        SubstGlobal(text, "'/*'", "\\/\\*");
-        SubstGlobal(text, "'*/'", "\\*\\/");
-        SubstGlobal(text, "'\\n'", "\\n");
-        SubstGlobal(text, "'\\r'", "\\r");
-        SubstGlobal(text, "'\\t'", "\\t");
-        SubstGlobal(text, "'\\u000C' |", "");
-        SubstGlobal(text, "' '", "$$$");
-        SubstGlobal(text, "'--'", "--");
-        return text;
-    }
-
-    TVector<TRewriteRule> GetRewriteRules(const TStringBuf mode, const NSQLReflect::TLexerGrammar& grammar) {
-        THashMap<TString, THashMap<TString, TString>> Substitutions = {
-            SUBSTITUTIONS(DEFAULT),
-            SUBSTITUTIONS(ANSI),
+        struct TRewriteRule {
+            TString Repr;
+            std::function<void(TString&)> Apply;
         };
-        Substitutions["ANSI"]["GRAMMAR_MULTILINE_COMMENT_CORE"] =
-            Substitutions["DEFAULT"]["GRAMMAR_MULTILINE_COMMENT_CORE"];
 
-        THashMap<std::string, std::string> rules;
+        using TRewriteRules = TVector<TRewriteRule>;
 
-        for (auto& [k, v] : grammar.BlockByName) {
-            rules["(\\b" + k + "\\b)"] = "(" + ReEscaped(v) + ")";
+    public:
+        explicit TLexerGrammarToRegexTranslator(const NSQLReflect::TLexerGrammar& grammar, bool ansi)
+            : Grammar_(&grammar)
+            , Mode_(ansi ? "ANSI" : "DEFAULT")
+        {
+            AddExternalRules(Inliners_);
+            AddFragmentRules(Inliners_);
+
+            AddLetterRules(Transformations_);
+            AddTransformationRules(Transformations_);
+
+            UnwrapQuotes_ = UnwrapQuotesRule();
+            AddSpaceCollapses(SpaceCollapses_);
+            UnwrapQuotedSpace_ = RegexRewriteRule(R"(' ')", R"( )");
         }
 
-        rules["(\\bEOF\\b)"] = "$";
-
-        for (char letter = 'A'; letter <= 'Z'; ++letter) {
-            TString lower(char(ToLower(letter)));
-            TString upper(char(ToUpper(letter)));
-            rules["(\\b" + TString(letter) + "\\b(?![-'\\]]))"] = "[" + lower + upper + "]";
+        TString ToRegex(const TStringBuf name) {
+            TString text = Grammar_->BlockByName.at(name);
+            Inline(text);
+            std::cerr << name << ": " << text << std::endl;
+            Transform(text);
+            std::cerr << name << ": " << text << std::endl;
+            Finalize(text);
+            std::cerr << name << ": " << text << std::endl;
+            return text;
         }
 
-        for (const auto& [k, v] : Substitutions.at(mode)) {
-            rules["@" + k + "@"] = ReEscaped(v);
+    private:
+        void Inline(TString& text) {
+            ApplyEachWhileChanging(text, Inliners_);
         }
 
-        rules[R"(\((\\\\|.)\))"] = "$1";
-        rules[R"(~\((\\\\|\\\w|.) \| (\\\\|\\\w|.)\))"] = "[^$1$2]";
-        rules[R"(~(.) )"] = "[^$1]";
-        rules[R"('(.)'\.\.'(.)')"] = "[$1-$2]";
-        rules[R"(\(\[([^\]\[\(\)]+)\]\))"] = "[$1]";
-        rules[R"('(\d)')"] = "$1";
-        rules[R"(\\\\ \.)"] = "\\\\ (.|\\n)";
-        rules[R"(\(\.\))"] = "(.|\\n)";
-        rules[R"(([^\\\(\.])\.([^\.]))"] = "$1(.|\\n)$2";
+        void AddExternalRules(TRewriteRules& rules) {
+            THashMap<TString, THashMap<TString, TString>> Substitutions = {
+                SUBSTITUTIONS(DEFAULT),
+                SUBSTITUTIONS(ANSI),
+            };
 
-        TVector<TRewriteRule> result;
-        for (auto& [regex, fmt] : rules) {
-            result.push_back({
-                .Regex = std::regex(regex),
-                .Format = fmt,
-            });
-        }
-        return result;
-    }
+            // ANSI mode MULTILINE_COMMENT is recursive
+            Substitutions["ANSI"]["GRAMMAR_MULTILINE_COMMENT_CORE"] =
+                Substitutions["DEFAULT"]["GRAMMAR_MULTILINE_COMMENT_CORE"];
 
-    TString ToRegex(const TString& name, const TStringBuf mode, const NSQLReflect::TLexerGrammar& grammar) {
-        TVector<TRewriteRule> rules = GetRewriteRules(mode, grammar);
-
-        TString next = grammar.BlockByName.at(name);
-
-        next = ReEscaped(std::move(next));
-
-        TString prev;
-        for (size_t i = 0; i < 16 && prev != next; ++i) {
-            prev = next;
-            for (const auto& [regex, fmt] : rules) {
-                next = std::regex_replace(next.data(), regex, fmt);
+            for (const auto& [k, v] : Substitutions.at(Mode_)) {
+                rules.emplace_back(RegexRewriteRule("@" + k + "@", v));
             }
         }
 
-        SubstGlobal(next, " ", "");
-        SubstGlobal(next, "$$$", " ");
+        void AddFragmentRules(TRewriteRules& rules) {
+            const THashSet<TString> PunctuationFragments = {
+                "BACKSLASH",
+                "QUOTE_DOUBLE",
+                "QUOTE_SINGLE",
+                "BACKTICK",
+                "DOUBLE_COMMAT",
+            };
 
-        Y_ENSURE(!next.Contains("~"));
-        return next;
-    }
+            for (const auto& [name, definition] : Grammar_->BlockByName) {
+                TString def = definition;
+                if (
+                    Grammar_->PunctuationNames.contains(name) ||
+                    PunctuationFragments.contains(name)) {
+                    def = "'" + def + "'";
+                }
+                def = QuoteAntlrRewrite(std::move(def));
+
+                rules.emplace_back(RegexRewriteRule(
+                    "(\\b" + name + "\\b)",
+                    "(" + def + ")"));
+            }
+        }
+
+        void Transform(TString& text) {
+            ApplyEachWhileChanging(text, Transformations_);
+        }
+
+        void AddLetterRules(TRewriteRules& rules) {
+            for (char letter = 'A'; letter <= 'Z'; ++letter) {
+                TString lower(char(ToLower(letter)));
+                TString upper(char(ToUpper(letter)));
+                rules.emplace_back(RegexRewriteRule(
+                    "([^'\\w\\[\\]]|^)" + upper + "([^'\\w\\[\\]]|$)",
+                    "\\1[" + lower + upper + "]\\2"));
+            }
+        }
+
+        void AddTransformationRules(TRewriteRules& rules) {
+            rules.emplace_back(RegexRewriteRule(
+                R"(~\('(..?)' \| '(..?)'\))", R"([^\1\2])"));
+
+            rules.emplace_back(RegexRewriteRule(
+                R"(~\('(..?)'\))", R"([^\1])"));
+
+            rules.emplace_back(RegexRewriteRule(
+                R"(('..?')\.\.('..?'))", R"([\1-\2])"));
+
+            rules.emplace_back(RegexRewriteRule(
+                R"(\((.)\))", R"(\1)"));
+
+            rules.emplace_back(RegexRewriteRule(
+                R"(\((\[.{1,8}\])\))", R"(\1)"));
+
+            rules.emplace_back(RegexRewriteRule(
+                R"(\(('..?')\))", R"(\1)"));
+
+            rules.emplace_back(RegexRewriteRule(
+                R"( \.)", R"( (.|\\n))"));
+
+            rules.emplace_back(RegexRewriteRule(
+                R"(\bEOF\b)", R"($)"));
+
+            rules.emplace_back(RegexRewriteRule(
+                R"('\\u000C' \|)", ""));
+        }
+
+        void Finalize(TString& text) {
+            UnwrapQuotes_.Apply(text);
+            ApplyEachWhileChanging(text, SpaceCollapses_);
+            UnwrapQuotedSpace_.Apply(text);
+        }
+
+        void AddSpaceCollapses(TRewriteRules& rules) {
+            rules.emplace_back(RegexRewriteRule(R"(([^']|^) )", R"(\1)"));
+            rules.emplace_back(RegexRewriteRule(R"( ([^']|$))", R"(\1)"));
+        }
+
+        void ApplyEachOnce(TString& text, const TRewriteRules& rules) {
+            for (const auto& rule : rules) {
+                rule.Apply(text);
+            }
+        }
+
+        void ApplyEachWhileChanging(TString& text, const TRewriteRules& rules) {
+            constexpr size_t Limit = 16;
+
+            TString prev;
+            for (size_t i = 0; i < Limit + 1 && prev != text; ++i) {
+                prev = text;
+                ApplyEachOnce(text, rules);
+                Y_ENSURE(i != Limit);
+            }
+        }
+
+        TRewriteRule RegexRewriteRule(const TString& regex, TString rewrite) {
+            auto re2 = std::make_shared<RE2>(regex, RE2::Quiet);
+            Y_ENSURE(re2->ok(), re2->error() << " on regex '" << regex << "'");
+
+            TString error;
+            Y_ENSURE(
+                re2->CheckRewriteString(rewrite, &error),
+                error << " on rewrite '" << rewrite << "'");
+
+            return {
+                .Repr = regex + " -> " + rewrite,
+                .Apply = [re2, rewrite = std::move(rewrite)](TString& text) {
+                    RE2::GlobalReplace(&text, *re2, rewrite);
+                },
+            };
+        }
+
+        TRewriteRule UnwrapQuotesRule() {
+            const TString regex = R"('([^ ][^ ]?)')";
+            auto re2 = std::make_shared<RE2>(regex, RE2::Quiet);
+            Y_ENSURE(re2->ok(), re2->error() << " on regex '" << regex << "'");
+
+            return {
+                .Repr = regex + " -> Quoted(\\1)",
+                .Apply = [re2](TString& text) {
+                    TString content;
+                    std::size_t i = 256;
+                    while (RE2::PartialMatch(text, *re2, &content) && --i != 0) {
+                        TString quoted = RE2::QuoteMeta(content);
+                        for (size_t i = 0; i < 2 && quoted.StartsWith(R"(\\)"); ++i) {
+                            quoted.erase(std::begin(quoted));
+                        }
+                        SubstGlobal(text, "'" + content + "'", quoted);
+                    }
+                    Y_ENSURE(i != 0);
+                },
+            };
+        }
+
+        TString QuoteAntlrRewrite(TString rewrite) {
+            SubstGlobal(rewrite, R"(\)", R"(\\)");
+            SubstGlobal(rewrite, R"('\\')", R"('\\\\')");
+            return rewrite;
+        }
+
+        const NSQLReflect::TLexerGrammar* Grammar_;
+        const TStringBuf Mode_;
+
+        TRewriteRules Inliners_;
+
+        TRewriteRules Transformations_;
+
+        TRewriteRule UnwrapQuotes_;
+        TRewriteRules SpaceCollapses_;
+        TRewriteRule UnwrapQuotedSpace_;
+    };
 
     THashMap<TString, TString> MakeRegexByOtherNameMap(const NSQLReflect::TLexerGrammar& grammar, bool ansi) {
-        TString mode = "DEFAULT";
-        if (ansi) {
-            mode = "ANSI";
-        }
+        TLexerGrammarToRegexTranslator translator(grammar, ansi);
 
         THashMap<TString, TString> regexes;
         for (const auto& token : grammar.OtherNames) {
-            regexes.emplace(token, ToRegex(token, mode, grammar));
+            regexes.emplace(token, translator.ToRegex(token));
         }
         return regexes;
     }
