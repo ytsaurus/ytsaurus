@@ -955,6 +955,11 @@ class TestYqlColumnOrderDifferentSources(TestQueriesYqlBase):
         write_table("//tmp/t2", [{"a": 43, "b": "bar", "c": 3.0}])
 
         self._test_simple_query("""
+            select a, b, c from primary.`//tmp/t1`
+            union all
+            select a, b, c from primary.`//tmp/t2`
+        """, [{"a": 43, "b": "bar", "c": 3.0}, {"a": 42, "b": "foo", "c": 2.0}])
+        self._test_simple_query("""
             select a, b, c from primary.`//tmp/t2`
             union all
             select a, b, c from primary.`//tmp/t1`

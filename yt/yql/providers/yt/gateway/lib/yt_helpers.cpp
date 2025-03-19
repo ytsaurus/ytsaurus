@@ -369,7 +369,7 @@ static bool IterateRows(NYT::ITransactionPtr tx,
     } else {
         auto format = specsCache.GetSpecs().MakeInputFormat(tableIndex);
         auto rawReader = tx->CreateRawReader(path, format, readerOptions);
-        TMkqlReaderImpl reader(*rawReader, 0, 4 << 10, tableIndex);
+        TMkqlReaderImpl reader(*rawReader, 0, 4 << 10, tableIndex, true);
         reader.SetSpecs(specsCache.GetSpecs(), specsCache.GetHolderFactory());
 
         for (reader.Next(); reader.IsValid(); reader.Next()) {
@@ -402,70 +402,6 @@ bool IterateYsonRows(NYT::ITransactionPtr tx,
     const TMaybe<TSampleParams>& sampling)
 {
     return IterateRows<false>(tx, table, tableIndex, specsCache, exec, limiter, sampling);
-}
-
-bool SelectRows(NYT::IClientPtr client,
-    const TString& table,
-    ui32 tableIndex,
-    TMkqlIOCache& specsCache,
-    IExecuteResOrPull& exec,
-    TTableLimiter& limiter)
-{
-    ui64 startRecordInTable = limiter.GetTableStart();
-    const ui64 endRecordInTable = limiter.GetTableZEnd(); // 0 means the entire table usage
-    TStringStream sqlBuilder;
-    const auto& columns = exec.GetColumns();
-    if (columns) {
-        bool isFirstColumn = true;
-        for (auto& x : *columns) {
-            if (!isFirstColumn) {
-                sqlBuilder << ", ";
-            }
-
-            isFirstColumn = false;
-            sqlBuilder << "[" << x << "]";
-        }
-    } else {
-        sqlBuilder << "*";
-    }
-
-    sqlBuilder << " FROM [";
-    sqlBuilder << NYT::AddPathPrefix(table, NYT::TConfig::Get()->Prefix);
-    sqlBuilder << "]";
-    if (exec.GetRowsLimit()) {
-        ui64 effectiveLimit = endRecordInTable;
-        if (!effectiveLimit) {
-            effectiveLimit = startRecordInTable + *exec.GetRowsLimit() + 1;
-        } else {
-            effectiveLimit = Min(effectiveLimit, *exec.GetRowsLimit() + 1);
-        }
-
-        sqlBuilder << " LIMIT " << effectiveLimit;
-    }
-
-    ui64 processed = 0;
-    bool ret = false;
-    auto rows = client->SelectRows(sqlBuilder.Str());
-    for (const auto& row : rows) {
-        ++processed;
-        if (processed <= startRecordInTable) {
-            continue;
-        }
-
-        if (!exec.WriteNext(specsCache, row, tableIndex)) {
-            ret = true;
-            break;
-        }
-
-        if (endRecordInTable) {
-            if (processed >= endRecordInTable) {
-                break;
-            }
-        }
-    }
-
-    limiter.Skip(processed);
-    return ret;
 }
 
 NYT::TNode YqlOpOptionsToSpec(const TYqlOperationOptions& opOpts, const TString& userName, const TVector<std::pair<TString, TString>>& code)
