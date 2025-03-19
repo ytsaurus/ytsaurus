@@ -186,15 +186,6 @@ struct TDynamicChunkMergerConfig
     bool RescheduleMergeOnSuccess;
     bool AllowSettingChunkMergerMode;
 
-    // COMPAT(aleksandra-zh)
-    bool EnableQueueSizeLimitChanges;
-
-    // COMPAT(aleksandra-zh)
-    bool RespectAccountSpecificToggle;
-
-    // COMPAT(aleksandra-zh)
-    bool EnableCarefulRequisitionUpdate;
-
     int MaxNodesBeingMerged;
 
     int MaxChunkListsWithChunksBeingReplaced;
