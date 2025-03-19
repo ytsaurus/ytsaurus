@@ -1046,7 +1046,10 @@ NApi::NNative::IConnectionPtr TJobProxy::CreateNativeConnection(NApi::NNative::T
         YT_LOG_DEBUG("Destination service id is ready");
     }
 
-    return NApi::NNative::CreateConnection(std::move(config));
+    NNative::TConnectionOptions options;
+    options.RetryRequestQueueSizeLimitExceeded = true;
+
+    return NApi::NNative::CreateConnection(std::move(config), std::move(options));
 }
 
 void TJobProxy::ReportResult(
