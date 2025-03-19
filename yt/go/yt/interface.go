@@ -610,6 +610,7 @@ type ListJobsOptions struct {
 	WithStderr               *bool          `http:"with_stderr,omitnil"`
 	WithFailContext          *bool          `http:"with_fail_context,omitnil"`
 	WithMonitoringDescriptor *bool          `http:"with_monitoring_descriptor,omitnil"`
+	WithInterruptionInfo     *bool          `http:"with_interruption_info,omitnil"`
 	SortField                *JobSortField  `http:"sort_field,omitnil"`
 	SortOrder                *JobSortOrder  `http:"sort_order,omitnil"`
 	Limit                    *int           `http:"limit,omitnil"`

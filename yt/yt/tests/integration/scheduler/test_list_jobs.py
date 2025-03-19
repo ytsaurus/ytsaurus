@@ -1116,6 +1116,33 @@ class TestListJobs(TestListJobsBase):
         check_filter(1, to_time=middle_time_after_breakpoint)
         check_filter(2, to_time=end_time)
 
+    @authors("bystrovserg")
+    def test_with_interruption_info(self):
+        create_pool("research", attributes={"strong_guarantee_resources": {"cpu": 1}})
+        create_pool("prod", attributes={"strong_guarantee_resources": {"cpu": 2}})
+
+        op1 = run_test_vanilla(with_breakpoint("BREAKPOINT"), job_count=3, spec={"pool": "research"})
+        wait_breakpoint(job_count=3)
+
+        wait(lambda: len(list_jobs(op1.id, with_interruption_info=True)["jobs"]) == 0)
+
+        op2 = run_test_vanilla(with_breakpoint("BREAKPOINT"), spec={"pool": "prod"}, job_count=3)
+        wait_breakpoint(job_count=3)
+
+        wait(lambda: op1.get_job_count(state="aborted") == 2)
+
+        wait(lambda: len(list_jobs(op2.id, with_interruption_info=False)["jobs"]) == 2)
+        wait(lambda: len(list_jobs(op1.id, with_interruption_info=True)["jobs"]) == 2)
+        wait(lambda: len(list_jobs(op1.id, with_interruption_info=False)["jobs"]) == 1)
+
+        release_breakpoint()
+        op1.track()
+        op2.track()
+
+        wait(lambda: len(list_jobs(op2.id, with_interruption_info=False)["jobs"]) == 3)
+        wait(lambda: len(list_jobs(op1.id, with_interruption_info=True)["jobs"]) == 2)
+        wait(lambda: len(list_jobs(op1.id, with_interruption_info=False)["jobs"]) == 3)
+
 ##################################################################
 
 

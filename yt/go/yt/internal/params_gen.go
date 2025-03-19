@@ -595,6 +595,10 @@ func writeListJobsOptions(w *yson.Writer, o *yt.ListJobsOptions) {
 		w.MapKeyString("with_monitoring_descriptor")
 		w.Any(o.WithMonitoringDescriptor)
 	}
+	if o.WithInterruptionInfo != nil {
+		w.MapKeyString("with_interruption_info")
+		w.Any(o.WithInterruptionInfo)
+	}
 	if o.SortField != nil {
 		w.MapKeyString("sort_field")
 		w.Any(o.SortField)
