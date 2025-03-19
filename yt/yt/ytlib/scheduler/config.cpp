@@ -978,6 +978,9 @@ void TOperationSpecBase::Register(TRegistrar registrar)
     registrar.Parameter("use_cluster_throttlers", &TThis::UseClusterThrottlers)
         .Default(false);
 
+    registrar.Parameter("enable_multiple_jobs_in_allocation", &TThis::EnableMultipleJobsInAllocation)
+        .Default();
+
     registrar.Postprocessor([] (TOperationSpecBase* spec) {
         if (spec->UnavailableChunkStrategy == EUnavailableChunkAction::Wait &&
             spec->UnavailableChunkTactics == EUnavailableChunkAction::Skip)

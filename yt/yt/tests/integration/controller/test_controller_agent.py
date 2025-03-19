@@ -1335,7 +1335,7 @@ class TestAllocationJobLimit(YTEnvSetup):
             command=with_breakpoint("BREAKPOINT ; cat"),
             in_="//tmp/t_in",
             out="//tmp/t_out",
-            spec={"data_size_per_job": 1},
+            spec={"data_size_per_job": 1, "enable_multiple_jobs_in_allocation": True},
         )
 
         job_ids = wait_breakpoint()
@@ -1384,7 +1384,7 @@ class TestAllocationJobLimit(YTEnvSetup):
             command=with_breakpoint("BREAKPOINT ; cat"),
             in_="//tmp/t_in",
             out="//tmp/t_out",
-            spec={"data_size_per_job": 1},
+            spec={"data_size_per_job": 1, "enable_multiple_jobs_in_allocation": True},
         )
 
         job_id1, = wait_breakpoint()
@@ -1406,6 +1406,56 @@ class TestAllocationJobLimit(YTEnvSetup):
 
         print_debug("Allocations are: ", allocation_id1, allocation_id2)
 
+        assert allocation_id1 != allocation_id2
+
+        release_breakpoint()
+        op.track()
+
+
+@pytest.mark.enabled_multidaemon
+class TestEnableMultipleJobsOption(YTEnvSetup):
+    ENABLE_MULTIDAEMON = True
+    NUM_NODES = 1
+    NUM_SCHEDULERS = 1
+
+    DELTA_NODE_CONFIG = {
+        "job_resource_manager": {
+            "resource_limits": {
+                "cpu": 1,
+                "user_slots": 1,
+            },
+        }
+    }
+
+    @authors("coteeq")
+    def test_only_spec_option_is_not_enough(self):
+        create("table", "//tmp/t_in")
+        create("table", "//tmp/t_out")
+
+        set("//tmp/t_in" + "/@replication_factor", 1)
+        set("//tmp/t_out" + "/@replication_factor", 1)
+
+        write_table("//tmp/t_in", [{"foo": "bar"}] * 2)
+
+        op = map(
+            wait_for_jobs=True,
+            track=False,
+            command=with_breakpoint("BREAKPOINT ; cat"),
+            in_="//tmp/t_in",
+            out="//tmp/t_out",
+            spec={"data_size_per_job": 1, "enable_multiple_jobs_in_allocation": True},
+        )
+
+        job_id1, = wait_breakpoint()
+
+        allocation_id1 = get_allocation_id_from_job_id(job_id1)
+
+        release_breakpoint(job_id=job_id1)
+
+        job_id2, = wait_breakpoint()
+
+        assert job_id1 != job_id2
+        allocation_id2 = get_allocation_id_from_job_id(job_id2)
         assert allocation_id1 != allocation_id2
 
         release_breakpoint()

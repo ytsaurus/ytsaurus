@@ -4955,10 +4955,12 @@ void TOperationControllerBase::TryScheduleFirstJob(
 
             scheduleAllocationResult->RecordFail(*failReason);
         } else {
-            scheduleAllocationResult->StartDescriptor.emplace(task->CreateAllocationStartDescriptor(
+            auto startDescriptor = task->CreateAllocationStartDescriptor(
                 allocation,
                 /*allowIdleCpuPolicy*/ IsIdleCpuPolicyAllowedInTree(allocation.TreeId),
-                *context.GetScheduleAllocationSpec()));
+                *context.GetScheduleAllocationSpec());
+            startDescriptor.AllocationAttributes.EnableMultipleJobs = Spec_->EnableMultipleJobsInAllocation.value_or(false);
+            scheduleAllocationResult->StartDescriptor.emplace(std::move(startDescriptor));
 
             RegisterTestingSpeculativeJobIfNeeded(*task, scheduleAllocationResult->StartDescriptor->Id);
             UpdateTask(task.Get());
