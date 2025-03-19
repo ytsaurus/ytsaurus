@@ -148,6 +148,11 @@ enum EErrorCode
     EC_INVALID_ACCESS_CONTROL_PERMISSION = 100034 [
         (NYT.NYson.NProto.enum_value_name) = "invalid_access_control_permission"
     ];
+
+    EC_MAX_INSTANTIATED_OBJECTS_LIMIT_EXCEEDED = 100035 [
+        (NYT.NYson.NProto.enum_value_name) = "max_instantiated_objects_limit_exceeded"
+    ];
+
 }
 
 ////////////////////////////////////////////////////////////////////////////////
