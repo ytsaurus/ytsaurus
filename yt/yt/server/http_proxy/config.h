@@ -196,6 +196,11 @@ struct TApiDynamicConfig
 
     bool EnableAllocationTags;
 
+    //! Represents the ratio of total available memory that can be utilized by each user (if user is not specified in "UserMemoryRatio"),
+    //! expressed as a value between 0 and 1.
+    std::optional<double> DefaultUserMemoryLimitRatio;
+    THashMap<std::string, double> UserToMemoryLimitRatio;
+
     REGISTER_YSON_STRUCT(TApiDynamicConfig);
 
     static void Register(TRegistrar registrar);
