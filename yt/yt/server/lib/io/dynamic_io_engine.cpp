@@ -2,6 +2,8 @@
 
 #include "io_engine.h"
 
+#include <yt/yt/core/misc/fair_share_hierarchical_queue.h>
+
 #include <library/cpp/yt/containers/enum_indexed_array.h>
 
 namespace NYT::NIO {
@@ -137,7 +139,8 @@ public:
                     ioConfig,
                     LocationId_,
                     Profiler_,
-                    Logger);
+                    Logger,
+                    FairShareQueue_);
                 entry.Initialized.store(true);
             } catch (const std::exception& ex) {
                 THROW_ERROR_EXCEPTION("Error creating %Qlv IO engine",
@@ -217,6 +220,7 @@ public:
 
 private:
     const TString LocationId_;
+    const TFairShareHierarchicalSlotQueuePtr<TString> FairShareQueue_ = nullptr;
     const NProfiling::TProfiler Profiler_;
     const NLogging::TLogger Logger;
 

@@ -4,6 +4,7 @@
 
 #include <yt/yt/core/actions/future.h>
 
+#include <yt/yt/core/misc/fair_share_hierarchical_queue.h>
 #include <yt/yt/core/misc/guid.h>
 
 #include <yt/yt/core/logging/log.h>
@@ -54,6 +55,7 @@ struct TReadRequest
     TIOEngineHandlePtr Handle;
     i64 Offset = -1;
     i64 Size = -1;
+    TFairShareSlotId FairShareSlotId = {};
 };
 
 struct TReadResponse
@@ -70,6 +72,7 @@ struct TWriteRequest
     i64 Offset = -1;
     std::vector<TSharedRef> Buffers;
     bool Flush = false;
+    TFairShareSlotId FairShareSlotId = {};
 };
 
 struct TWriteResponse
@@ -107,6 +110,7 @@ struct TFlushFileRequest
 {
     TIOEngineHandlePtr Handle;
     EFlushFileMode Mode;
+    TFairShareSlotId FairShareSlotId = {};
 };
 
 struct TFlushFileResponse
@@ -120,6 +124,7 @@ struct TFlushFileRangeRequest
     i64 Offset = -1;
     i64 Size = -1;
     bool Async = false;
+    TFairShareSlotId FairShareSlotId = {};
 };
 
 struct TFlushFileRangeResponse
@@ -232,7 +237,8 @@ IIOEnginePtr CreateIOEngine(
     NYTree::INodePtr ioConfig,
     TString locationId = "default",
     NProfiling::TProfiler profiler = {},
-    NLogging::TLogger logger = {});
+    NLogging::TLogger logger = {},
+    TFairShareHierarchicalSlotQueuePtr<TString> fairShareQueue = nullptr);
 
 std::vector<EIOEngineType> GetSupportedIOEngineTypes();
 
