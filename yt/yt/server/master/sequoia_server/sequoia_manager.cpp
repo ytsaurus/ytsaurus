@@ -6,6 +6,7 @@
 #include <yt/yt/server/master/cell_master/bootstrap.h>
 #include <yt/yt/server/master/cell_master/hydra_facade.h>
 
+#include <yt/yt/server/master/transaction_server/config.h>
 #include <yt/yt/server/master/transaction_server/transaction.h>
 #include <yt/yt/server/master/transaction_server/transaction_manager.h>
 
@@ -76,8 +77,12 @@ public:
     }
 
 private:
-    void ValidateWritePrerequisites(const std::vector<TTransactionId>& prerequisiteTransactionIds)
+    void ValidateWritePrerequisites(const std::vector<TTransactionId>& prerequisiteTransactionIds) const
     {
+        if (!Bootstrap_->GetConfigManager()->GetConfig()->TransactionManager->EnableCypressMirroredToSequoiaPrerequisiteTransactionValidationViaLeases) {
+            return;
+        }
+
         // Fast path.
         if (prerequisiteTransactionIds.empty()) {
             return;
@@ -119,12 +124,14 @@ private:
         auto attributes = FromProto(request->attributes());
         auto title = attributes->FindAndRemove<std::string>("title").value_or("Sequoia transaction");
 
+        auto enableLeaseIssuing = Bootstrap_->GetConfigManager()->GetConfig()->TransactionManager->EnableCypressMirroredToSequoiaPrerequisiteTransactionValidationViaLeases;
+
         YT_LOG_DEBUG("Staring Sequoia transaction "
             "(TransactionId: %v, Timeout: %v, Title: %v, IssuedLeaseIds: %v)",
             transactionId,
             timeout,
             title,
-            prerequisiteTransactionIds);
+            enableLeaseIssuing ? prerequisiteTransactionIds : std::vector<TTransactionId>{});
 
         const auto& transactionManager = Bootstrap_->GetTransactionManager();
         if (transactionManager->FindTransaction(transactionId)) {
