@@ -666,6 +666,8 @@ void TQueryContext::AddSecondaryQueryId(TQueryId id)
 {
     auto guard = Guard(QueryLogLock_);
     SecondaryQueryIds_.push_back(id);
+    // Create map node here for thread-safety.
+    OnSecondaryProgress(id, DB::ReadProgress(0, 0, 0, 0));
 }
 
 TQueryContext::TStatisticsTimerGuard TQueryContext::CreateStatisticsTimerGuard(TStatisticPath path)
