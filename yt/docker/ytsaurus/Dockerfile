@@ -4,6 +4,10 @@
 ARG BASE_REPOSITORY="ghcr.io/ytsaurus/ytsaurus-nightly"
 ARG BASE_IMAGE="latest"
 
+# Args for base-server-crio
+ARG K8S_VERSION="v1.32"
+ARG CRIO_VERSION="v1.32"
+
 # Args for odin.
 ARG PYTHON_RUNTIME_VERSION="3.11"
 
@@ -17,6 +21,8 @@ ARG ODIN_CHECKS_DATA_DIR="${ODIN_RUNTIME_ROOT}/checks-data"
 # copy-ytsaurus-python-binaries or build-ytsaurus-python-binaries
 ARG PYTHON_BUILD_BASE="copy-ytsaurus-python-binaries"
 ARG ROOT_IMAGE="ubuntu-base"
+# base-server or base-server-crio
+ARG SERVER_IMAGE_BASE="base-server"
 
 ##########################################################################################
 
@@ -134,7 +140,7 @@ RUN rm -rf /tmp/ytsaurus_python
 
 ##########################################################################################
 
-FROM base-ytsaurus-python-packages AS base-exec
+FROM base-ytsaurus-python-packages AS base-server
 
 RUN apt-get update && DEBIAN_FRONTEND=noninteractive TZ=Etc/UTC apt-get install -y \
   containerd \
@@ -149,7 +155,40 @@ RUN sed -i 's/python3/python3.8/' /usr/bin/lsb_release
 
 ##########################################################################################
 
-FROM base-exec AS ytsaurus-bloated
+FROM base-server AS base-server-crio
+
+ARG K8S_VERSION
+ARG CRIO_VERSION
+
+# Install CRI-O, see https://cri-o.io/
+RUN <<-EOT
+#!/bin/bash
+set -eux -o pipefail
+
+mkdir -p /etc/apt/keyrings
+
+curl -fsSL "https://pkgs.k8s.io/core:/stable:/${K8S_VERSION}/deb/Release.key" |
+    gpg --dearmor -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg
+
+cat <<EOF >/etc/apt/sources.list.d/kubernetes.list
+deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/${K8S_VERSION}/deb/ /
+EOF
+
+curl -fsSL "https://download.opensuse.org/repositories/isv:/cri-o:/stable:/${CRIO_VERSION}/deb/Release.key" |
+    gpg --dearmor -o /etc/apt/keyrings/cri-o-apt-keyring.gpg
+
+cat <<EOF >/etc/apt/sources.list.d/cri-o.list
+deb [signed-by=/etc/apt/keyrings/cri-o-apt-keyring.gpg] https://download.opensuse.org/repositories/isv:/cri-o:/stable:/${CRIO_VERSION}/deb/ /
+EOF
+
+export DEBIAN_FRONTEND=noninteractive
+apt-get update -q --error-on=any
+apt-get install -y cri-tools cri-o
+EOT
+
+##########################################################################################
+
+FROM ${SERVER_IMAGE_BASE} AS ytsaurus-bloated
 
 # YTsaurus binary.
 COPY ./ytserver-all /usr/bin/ytserver-all
@@ -249,7 +288,7 @@ COPY ./credits/chyt-controller.CREDITS /usr/bin/strawberry-controller.CREDITS
 
 ##########################################################################################
 
-FROM base-exec AS local-bloated
+FROM ${SERVER_IMAGE_BASE} AS local-bloated
 
 COPY ./ytserver-all /usr/bin/ytserver-all
 COPY ./ytserver-yql-agent /usr/bin/ytserver-yql-agent
