@@ -890,6 +890,9 @@ struct TDataNodeConfig
      */
     TDuration SessionTimeout;
 
+    //! After that time alert about long live read sessions will be sent.
+    TDuration LongLiveReadSessionTreshold;
+
     TDuration SessionBlockReorderTimeout;
 
     //! Timeout for "PutBlocks" requests to other data nodes.

@@ -11372,10 +11372,39 @@ TJobSplitterConfigPtr TOperationControllerBase::GetJobSplitterConfigTemplate() c
         config->EnableJobSplitting = false;
     }
 
-    if (!Spec_->JobSplitter->EnableJobSplitting) {
+    const auto& specConfig = Spec_->JobSplitter;
+
+    if (specConfig->MinJobTime) {
+        config->MinJobTime = *(specConfig->MinJobTime);
+    }
+    if (specConfig->MinTotalDataWeight) {
+        config->MinTotalDataWeight = *(specConfig->MinTotalDataWeight);
+    }
+    if (specConfig->ExecToPrepareTimeRatio) {
+        config->ExecToPrepareTimeRatio = *(specConfig->ExecToPrepareTimeRatio);
+    }
+    if (specConfig->NoProgressJobTimeToAveragePrepareTimeRatio) {
+        config->NoProgressJobTimeToAveragePrepareTimeRatio = *(specConfig->NoProgressJobTimeToAveragePrepareTimeRatio);
+    }
+
+    if (specConfig->MaxJobsPerSplit) {
+        config->MaxJobsPerSplit = *(specConfig->MaxJobsPerSplit);
+    }
+    if (specConfig->MaxInputTableCount) {
+        config->MaxInputTableCount = *(specConfig->MaxInputTableCount);
+    }
+
+    if (specConfig->ResidualJobFactor) {
+        config->ResidualJobFactor = *(specConfig->ResidualJobFactor);
+    }
+    if (specConfig->ResidualJobCountMinThreshold) {
+        config->ResidualJobCountMinThreshold = *(specConfig->ResidualJobCountMinThreshold);
+    }
+
+    if (!specConfig->EnableJobSplitting) {
         config->EnableJobSplitting = false;
     }
-    if (!Spec_->JobSplitter->EnableJobSpeculation) {
+    if (!specConfig->EnableJobSpeculation) {
         config->EnableJobSpeculation = false;
     }
 

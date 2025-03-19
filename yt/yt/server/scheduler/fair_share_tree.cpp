@@ -1239,6 +1239,7 @@ public:
             BuildYsonFluently(consumer).Value(treeSnapshot->NodeCount());
         })))->Via(StrategyHost_->GetOrchidWorkerInvoker());
 
+        // TODO(eshcherbin): Why not use tree snapshot here as well?
         dynamicOrchidService->AddChild("pool_count", IYPathService::FromProducer(BIND([this_ = MakeStrong(this), this] (IYsonConsumer* consumer) {
             YT_ASSERT_INVOKERS_AFFINITY(FeasibleInvokers_);
 
@@ -1252,6 +1253,8 @@ public:
                 .Do(BIND(&TSchedulerRootElement::BuildResourceDistributionInfo, treeSnapshot->RootElement()))
             .EndMap();
         }))->Via(StrategyHost_->GetOrchidWorkerInvoker()));
+
+        TreeScheduler_->PopulateOrchidService(dynamicOrchidService);
 
         return dynamicOrchidService;
     }

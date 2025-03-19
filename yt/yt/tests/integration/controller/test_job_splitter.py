@@ -326,7 +326,32 @@ done
             in_=[input_] * (10 + 1),
             out=output,
             command="sleep 5; echo '{a=1}'")
-        op.track()
+
+        completed = get(op.get_path() + "/@progress/jobs/completed")
+        interrupted = completed["interrupted"]
+        assert interrupted["job_split"] == 0
+
+    @authors("ignat")
+    def test_job_splitter_spec_option(self):
+        create("table", "//tmp/in_1")
+        write_table(
+            "//tmp/in_1",
+            [{"key": "%08d" % i, "value": "(t_1)", "data": "a" * (1024 * 1024)} for i in range(20)],
+        )
+
+        input_ = "//tmp/in_1"
+        output = "//tmp/output"
+        create("table", output)
+
+        op = map(
+            in_=[input_] * 3,
+            out=output,
+            command="sleep 5; echo '{a=1}'",
+            spec={
+                "job_splitter": {
+                    "max_input_table_count": 2,
+                }
+            })
 
         completed = get(op.get_path() + "/@progress/jobs/completed")
         interrupted = completed["interrupted"]
