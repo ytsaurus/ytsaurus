@@ -4,7 +4,21 @@
 
 #include <yt/yt/library/dynamic_config/config.h>
 
+#include <yt/yt/library/re2/re2.h>
+
+
 namespace NYT::NKafkaProxy {
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TStringTransformationConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("match_pattern", &TThis::MatchPattern);
+    registrar.Parameter("replacement", &TThis::Replacement)
+        .Default();
+}
+
+DEFINE_REFCOUNTED_TYPE(TStringTransformationConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -48,9 +62,24 @@ void TKafkaProxyConfig::Register(TRegistrar registrar)
     registrar.Parameter("auth", &TThis::Auth)
         .DefaultNew();
 
+    registrar.Parameter("topic_name_transformations", &TThis::TopicNameTransformations)
+        .Default();
+
     registrar.Postprocessor([] (TThis* config) {
         if (auto& dynamicConfigPath = config->DynamicConfigPath; dynamicConfigPath.empty()) {
             dynamicConfigPath = Format("%v/@config", KafkaProxiesRootPath);
+        }
+
+        // Some kafka connectors allows only the underscore, hyphen, dot and alphanumeric characters in topic names.
+        if (config->TopicNameTransformations.empty()) {
+            auto slashTransformation = New<TStringTransformationConfig>();
+            slashTransformation->MatchPattern = New<NRe2::TRe2>("\\.");
+            slashTransformation->Replacement = "/";
+
+            auto colonTransformation = New<TStringTransformationConfig>();
+            colonTransformation->MatchPattern = New<NRe2::TRe2>("-//");
+            colonTransformation->Replacement = "://";
+            config->TopicNameTransformations = {std::move(slashTransformation), std::move(colonTransformation)};
         }
     });
 }

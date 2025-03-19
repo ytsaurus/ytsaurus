@@ -1,8 +1,7 @@
 from yt_env_setup import (
     YTEnvSetup, Restarter, KAFKA_PROXIES_SERVICE)
 
-from yt_queue_agent_test_base import (
-    TestQueueAgentBase, ReplicatedObjectBase)
+from yt_queue_agent_test_base import TestQueueAgentBase
 
 from yt_commands import (
     authors, get, ls, create, sync_mount_table, insert_rows, sync_create_cells,
@@ -74,7 +73,7 @@ def _check_error(code, err, msg):
     assert isinstance(err, KafkaError) and err.code() == code
 
 
-class TestKafkaProxy(TestQueueAgentBase, ReplicatedObjectBase, YTEnvSetup):
+class KafkaProxyBase(TestQueueAgentBase, YTEnvSetup):
     ENABLE_HTTP_PROXY = True
     NUM_HTTP_PROXIES = 1
     NUM_KAFKA_PROXIES = 1
@@ -184,6 +183,8 @@ class TestKafkaProxy(TestQueueAgentBase, ReplicatedObjectBase, YTEnvSetup):
         messages = KafkaMessageListHelper([KafkaMessageHelper(message) for message in messages])
         return messages
 
+
+class TestKafkaProxy(KafkaProxyBase):
     @authors("nadya73")
     def test_check_cypress(self):
         address = self.Env.get_kafka_proxy_address()
@@ -587,3 +588,35 @@ class TestKafkaProxy(TestQueueAgentBase, ReplicatedObjectBase, YTEnvSetup):
         consumer_rows = select_rows("* from [//tmp/consumer]")
         for consumer_row in consumer_rows:
             consumer_row["offset"] == 2
+
+    @authors("nadya73")
+    def test_topic_name_transformations(self):
+        username = "u"
+        create_user(username)
+        token, _ = issue_token(username)
+
+        self._create_cells()
+
+        kafka_queue_path = "primary-..tmp.queue"
+
+        queue_path = "primary://tmp/queue"
+        consumer_path = "primary://tmp/consumer"
+
+        TestKafkaProxy._create_queue(queue_path)
+        self._create_registered_consumer(consumer_path, queue_path)
+
+        insert_rows(queue_path, [
+            {"surname": "foo-0", "number": 0},
+            {"surname": "foo-1", "number": 1},
+            {"surname": "foo-2", "number": 2},
+        ])
+
+        set(f"{queue_path}/@inherit_acl", False)
+        set(f"{consumer_path}/@inherit_acl", False)
+        set(f"{queue_path}/@acl/end", make_ace("allow", "u", ["read"]))
+        set(f"{consumer_path}/@acl/end", make_ace("allow", "u", ["read", "write"]))
+
+        messages = self._consume_messages(kafka_queue_path, consumer_path, token, message_count=3, assign_partitions=[0])
+        assert len(messages) == 3
+
+        assert select_rows("* from [//tmp/consumer]")[0]["offset"] == len(messages)
