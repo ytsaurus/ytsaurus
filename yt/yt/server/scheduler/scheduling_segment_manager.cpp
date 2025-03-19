@@ -15,6 +15,8 @@ using namespace NConcurrency;
 using namespace NLogging;
 using namespace NNodeTrackerClient;
 using namespace NProfiling;
+using namespace NYTree;
+using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -148,6 +150,8 @@ void TSchedulingSegmentManager::UpdateSchedulingSegments(TUpdateSchedulingSegmen
     } else if (PreviousMode_ != ESegmentedSchedulingMode::Disabled) {
         Reset(context);
     }
+
+    context->SerializedSchedulingSegmentsInfo = GetSerializedSchedulingSegmentsInfo(context);
 
     PreviousMode_ = Config_->Mode;
 
@@ -993,9 +997,10 @@ void TSchedulingSegmentManager::DoRebalanceSegments(TUpdateSchedulingSegmentsCon
 
     LogStructuredGpuEventFluently(EGpuSchedulingLogEventType::MovedNodes)
         .Item("nodes").BeginMap()
-            .DoFor(context->MovedNodes, [&] (NYTree::TFluentMap fluent, const TSetNodeSchedulingSegmentOptions& nodeOptions) {
+            .DoFor(context->MovedNodes, [&] (TFluentMap fluent, const TSetNodeSchedulingSegmentOptions& nodeOptions) {
                 fluent
                     .Item("node_id").Value(nodeOptions.NodeId)
+                    .Item("node_address").Value(nodeOptions.NodeAddress)
                     .Item("old_segment").Value(nodeOptions.OldSegment)
                     .Item("new_segment").Value(nodeOptions.NewSegment);
             })
@@ -1178,6 +1183,7 @@ void TSchedulingSegmentManager::SetNodeSegment(
 
     context->MovedNodes.push_back(TSetNodeSchedulingSegmentOptions{
         .NodeId = node->Descriptor->Id,
+        .NodeAddress = node->Descriptor->Address,
         .OldSegment = node->SchedulingSegment,
         .NewSegment = segment,
     });
@@ -1202,7 +1208,9 @@ void TSchedulingSegmentManager::LogAndProfileSegments(const TUpdateSchedulingSeg
             context->FairResourceAmountPerSegment,
             context->CurrentResourceAmountPerSegment);
 
-        LogSegmentsStructured(context);
+        YT_VERIFY(context->SerializedSchedulingSegmentsInfo);
+        LogStructuredGpuEventFluently(EGpuSchedulingLogEventType::SchedulingSegmentsInfo)
+            .Items(context->SerializedSchedulingSegmentsInfo);
     } else {
         YT_LOG_DEBUG("Segmented scheduling is disabled in tree, skipping");
     }
@@ -1249,25 +1257,47 @@ void TSchedulingSegmentManager::LogAndProfileSegments(const TUpdateSchedulingSeg
     SensorProducer_->Update(std::move(sensorBuffer));
 }
 
-void TSchedulingSegmentManager::LogSegmentsStructured(const TUpdateSchedulingSegmentsContext* context) const
+TYsonString TSchedulingSegmentManager::GetSerializedSchedulingSegmentsInfo(const TUpdateSchedulingSegmentsContext* context) const
 {
-    LogStructuredGpuEventFluently(EGpuSchedulingLogEventType::SchedulingSegmentsInfo)
-        .Item("operations_info").DoMapFor(context->OperationStates, [this] (NYTree::TFluentMap fluent, const auto& item) {
-            const auto& [operationId, operationState] = item;
-            fluent
-                .Do(std::bind(&TSchedulingSegmentManager::BuildGpuOperationInfo, this, operationId, operationState, std::placeholders::_1));
-        })
-        .Item("nodes_info").DoMapFor(context->NodeStates, [this] (NYTree::TFluentMap fluent, const auto& item) {
-            const auto& [_, nodeState] = item;
-            fluent
-                .Do(std::bind(&TSchedulingSegmentManager::BuildGpuNodeInfo, this, nodeState, std::placeholders::_1));
-        });
+    auto fluent = BuildYsonStringFluently<EYsonType::MapFragment>()
+        .Item("mode").Value(Config_->Mode);
+
+    if (Config_->Mode != ESegmentedSchedulingMode::Disabled) {
+        fluent
+            .Item("operations").DoMapFor(context->OperationStates, [this] (TFluentMap fluent, const auto& item) {
+                const auto& [operationId, operationState] = item;
+                fluent
+                    .Do(std::bind(&TSchedulingSegmentManager::BuildGpuOperationInfo, this, operationId, operationState, std::placeholders::_1));
+            })
+            .Item("nodes").DoMapFor(context->NodeStates, [this] (TFluentMap fluent, const auto& item) {
+                const auto& [_, nodeState] = item;
+                fluent
+                    .Do(std::bind(&TSchedulingSegmentManager::BuildGpuNodeInfo, this, nodeState, std::placeholders::_1));
+            })
+            .Item("scheduling_segment_modules").Value(Config_->GetModules())
+            .Item("fair_share_per_segment").Value(context->FairSharePerSegment)
+            .Item("nodes_total_key_resource_limit").Value(context->NodesTotalKeyResourceLimit)
+            .Item("fair_resource_amount_per_segment").Value(context->FairResourceAmountPerSegment)
+            .Item("current_resource_amount_per_segment").Value(context->CurrentResourceAmountPerSegment)
+            .Item("remaining_capacity_per_module").Value(context->RemainingCapacityPerModule)
+            .Item("total_capacity_per_module").Value(context->TotalCapacityPerModule);
+    }
+
+    return fluent.Finish();
+}
+
+TOneShotFluentLogEvent TSchedulingSegmentManager::LogStructuredGpuEventFluently(EGpuSchedulingLogEventType eventType) const
+{
+    return NLogging::LogStructuredEventFluently(SchedulerGpuEventLogger(), NLogging::ELogLevel::Info)
+        .Item("timestamp").Value(TInstant::Now())
+        .Item("event_type").Value(eventType)
+        .Item(EventLogPoolTreeKey).Value(TreeId_);
 }
 
 void TSchedulingSegmentManager::BuildGpuOperationInfo(
     TOperationId operationId,
     const TFairShareTreeAllocationSchedulerOperationStatePtr& operationState,
-    NYTree::TFluentMap fluent) const
+    TFluentMap fluent) const
 {
     fluent
         .Item(ToString(operationId)).BeginMap()
@@ -1283,7 +1313,7 @@ void TSchedulingSegmentManager::BuildGpuOperationInfo(
 
 void TSchedulingSegmentManager::BuildGpuNodeInfo(
     const TFairShareTreeAllocationSchedulerNodeState& nodeState,
-    NYTree::TFluentMap fluent) const
+    TFluentMap fluent) const
 {
     if (!nodeState.Descriptor) {
         return;
@@ -1291,6 +1321,7 @@ void TSchedulingSegmentManager::BuildGpuNodeInfo(
 
     fluent
         .Item(nodeState.Descriptor->Address).BeginMap()
+            .Item("id").Value(nodeState.Descriptor->Id)
             .Item("scheduling_segment").Value(nodeState.SchedulingSegment)
             .Item("specified_scheduling_segment").Value(nodeState.SpecifiedSchedulingSegment)
             .Item("scheduling_segment_module").Value(GetNodeModule(nodeState))
