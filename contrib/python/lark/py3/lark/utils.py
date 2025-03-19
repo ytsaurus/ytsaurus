@@ -1,35 +1,38 @@
 import unicodedata
 import os
-from functools import reduce
+from itertools import product
 from collections import deque
+from typing import Callable, Iterator, List, Optional, Tuple, Type, TypeVar, Union, Dict, Any, Sequence, Iterable, AbstractSet
 
 ###{standalone
 import sys, re
 import logging
-logger = logging.getLogger("lark")
+
+logger: logging.Logger = logging.getLogger("lark")
 logger.addHandler(logging.StreamHandler())
 # Set to highest level, since we have some warnings amongst the code
 # By default, we should not output any log messages
 logger.setLevel(logging.CRITICAL)
 
-Py36 = (sys.version_info[:2] >= (3, 6))
 
 NO_VALUE = object()
 
+T = TypeVar("T")
 
-def classify(seq, key=None, value=None):
-    d = {}
+
+def classify(seq: Iterable, key: Optional[Callable] = None, value: Optional[Callable] = None) -> Dict:
+    d: Dict[Any, Any] = {}
     for item in seq:
         k = key(item) if (key is not None) else item
         v = value(item) if (value is not None) else item
-        if k in d:
+        try:
             d[k].append(v)
-        else:
+        except KeyError:
             d[k] = [v]
     return d
 
 
-def _deserialize(data, namespace, memo):
+def _deserialize(data: Any, namespace: Dict[str, Any], memo: Dict) -> Any:
     if isinstance(data, dict):
         if '__type__' in data:  # Object
             class_ = namespace[data['__type__']]
@@ -42,7 +45,9 @@ def _deserialize(data, namespace, memo):
     return data
 
 
-class Serialize(object):
+_T = TypeVar("_T", bound="Serialize")
+
+class Serialize:
     """Safe-ish serialization interface that doesn't rely on Pickle
 
     Attributes:
@@ -51,25 +56,24 @@ class Serialize(object):
                                         Should include all field types that aren't builtin types.
     """
 
-    def memo_serialize(self, types_to_memoize):
+    def memo_serialize(self, types_to_memoize: List) -> Any:
         memo = SerializeMemoizer(types_to_memoize)
         return self.serialize(memo), memo.serialize()
 
-    def serialize(self, memo=None):
+    def serialize(self, memo = None) -> Dict[str, Any]:
         if memo and memo.in_types(self):
             return {'@': memo.memoized.get(self)}
 
         fields = getattr(self, '__serialize_fields__')
         res = {f: _serialize(getattr(self, f), memo) for f in fields}
         res['__type__'] = type(self).__name__
-        postprocess = getattr(self, '_serialize', None)
-        if postprocess:
-            postprocess(res, memo)
+        if hasattr(self, '_serialize'):
+            self._serialize(res, memo)
         return res
 
     @classmethod
-    def deserialize(cls, data, memo):
-        namespace = getattr(cls, '__serialize_namespace__', {})
+    def deserialize(cls: Type[_T], data: Dict[str, Any], memo: Dict[int, Any]) -> _T:
+        namespace = getattr(cls, '__serialize_namespace__', [])
         namespace = {c.__name__:c for c in namespace}
 
         fields = getattr(cls, '__serialize_fields__')
@@ -83,9 +87,10 @@ class Serialize(object):
                 setattr(inst, f, _deserialize(data[f], namespace, memo))
             except KeyError as e:
                 raise KeyError("Cannot find key for class", cls, e)
-        postprocess = getattr(inst, '_deserialize', None)
-        if postprocess:
-            postprocess()
+
+        if hasattr(inst, '_deserialize'):
+            inst._deserialize()
+
         return inst
 
 
@@ -94,67 +99,38 @@ class SerializeMemoizer(Serialize):
 
     __serialize_fields__ = 'memoized',
 
-    def __init__(self, types_to_memoize):
+    def __init__(self, types_to_memoize: List) -> None:
         self.types_to_memoize = tuple(types_to_memoize)
         self.memoized = Enumerator()
 
-    def in_types(self, value):
+    def in_types(self, value: Serialize) -> bool:
         return isinstance(value, self.types_to_memoize)
 
-    def serialize(self):
+    def serialize(self) -> Dict[int, Any]:  # type: ignore[override]
         return _serialize(self.memoized.reversed(), None)
 
     @classmethod
-    def deserialize(cls, data, namespace, memo):
+    def deserialize(cls, data: Dict[int, Any], namespace: Dict[str, Any], memo: Dict[Any, Any]) -> Dict[int, Any]:  # type: ignore[override]
         return _deserialize(data, namespace, memo)
 
 
 try:
-    STRING_TYPE = basestring
-except NameError:   # Python 3
-    STRING_TYPE = str
-
-
-import types
-from functools import wraps, partial
-from contextlib import contextmanager
-
-Str = type(u'')
-try:
-    classtype = types.ClassType  # Python2
-except AttributeError:
-    classtype = type    # Python3
-
-
-def smart_decorator(f, create_decorator):
-    if isinstance(f, types.FunctionType):
-        return wraps(f)(create_decorator(f, True))
-
-    elif isinstance(f, (classtype, type, types.BuiltinFunctionType)):
-        return wraps(f)(create_decorator(f, False))
-
-    elif isinstance(f, types.MethodType):
-        return wraps(f)(create_decorator(f.__func__, True))
-
-    elif isinstance(f, partial):
-        # wraps does not work for partials in 2.7: https://bugs.python.org/issue3445
-        return wraps(f.func)(create_decorator(lambda *args, **kw: f(*args[1:], **kw), True))
-
-    else:
-        return create_decorator(f.__func__.__call__, True)
-
-
-try:
     import regex
+    _has_regex = True
 except ImportError:
-    regex = None
+    _has_regex = False
 
-import sre_parse
-import sre_constants
+if sys.version_info >= (3, 11):
+    import re._parser as sre_parse
+    import re._constants as sre_constants
+else:
+    import sre_parse
+    import sre_constants
+
 categ_pattern = re.compile(r'\\p{[A-Za-z_]+}')
 
-def get_regexp_width(expr):
-    if regex:
+def get_regexp_width(expr: str) -> Union[Tuple[int, int], List[int]]:
+    if _has_regex:
         # Since `sre_parse` cannot deal with Unicode categories of the form `\p{Mn}`, we replace these with
         # a simple letter, which makes no difference as we are only trying to get the possible lengths of the regex
         # match here below.
@@ -164,9 +140,23 @@ def get_regexp_width(expr):
             raise ImportError('`regex` module must be installed in order to use Unicode categories.', expr)
         regexp_final = expr
     try:
+        # Fixed in next version (past 0.960) of typeshed
         return [int(x) for x in sre_parse.parse(regexp_final).getwidth()]
     except sre_constants.error:
-        raise ValueError(expr)
+        if not _has_regex:
+            raise ValueError(expr)
+        else:
+            # sre_parse does not support the new features in regex. To not completely fail in that case,
+            # we manually test for the most important info (whether the empty string is matched)
+            c = regex.compile(regexp_final)
+            # Python 3.11.7 introducded sre_parse.MAXWIDTH that is used instead of MAXREPEAT
+            # See lark-parser/lark#1376 and python/cpython#109859
+            MAXWIDTH = getattr(sre_parse, "MAXWIDTH", sre_constants.MAXREPEAT)
+            if c.match('') is None:
+                # MAXREPEAT is a none pickable subclass of int, therefore needs to be converted to enable caching
+                return 1, int(MAXWIDTH)
+            else:
+                return 0, int(MAXWIDTH)
 
 ###}
 
@@ -174,19 +164,19 @@ def get_regexp_width(expr):
 _ID_START =    'Lu', 'Ll', 'Lt', 'Lm', 'Lo', 'Mn', 'Mc', 'Pc'
 _ID_CONTINUE = _ID_START + ('Nd', 'Nl',)
 
-def _test_unicode_category(s, categories):
+def _test_unicode_category(s: str, categories: Sequence[str]) -> bool:
     if len(s) != 1:
         return all(_test_unicode_category(char, categories) for char in s)
     return s == '_' or unicodedata.category(s) in categories
 
-def is_id_continue(s):
+def is_id_continue(s: str) -> bool:
     """
     Checks if all characters in `s` are alphanumeric characters (Unicode standard, so diacritics, indian vowels, non-latin
     numbers, etc. all pass). Synonymous with a Python `ID_CONTINUE` identifier. See PEP 3131 for details.
     """
     return _test_unicode_category(s, _ID_CONTINUE)
 
-def is_id_start(s):
+def is_id_start(s: str) -> bool:
     """
     Checks if all characters in `s` are alphabetic characters (Unicode standard, so diacritics, indian vowels, non-latin
     numbers, etc. all pass). Synonymous with a Python `ID_START` identifier. See PEP 3131 for details.
@@ -194,49 +184,18 @@ def is_id_start(s):
     return _test_unicode_category(s, _ID_START)
 
 
-def dedup_list(l):
+def dedup_list(l: Sequence[T]) -> List[T]:
     """Given a list (l) will removing duplicates from the list,
        preserving the original order of the list. Assumes that
        the list entries are hashable."""
-    dedup = set()
-    return [x for x in l if not (x in dedup or dedup.add(x))]
-
-
-try:
-    from contextlib import suppress     # Python 3
-except ImportError:
-    @contextmanager
-    def suppress(*excs):
-        '''Catch and dismiss the provided exception
-
-        >>> x = 'hello'
-        >>> with suppress(IndexError):
-        ...     x = x[10]
-        >>> x
-        'hello'
-        '''
-        try:
-            yield
-        except excs:
-            pass
-
-
-try:
-    compare = cmp
-except NameError:
-    def compare(a, b):
-        if a == b:
-            return 0
-        elif a > b:
-            return 1
-        return -1
+    return list(dict.fromkeys(l))
 
 
 class Enumerator(Serialize):
-    def __init__(self):
-        self.enums = {}
+    def __init__(self) -> None:
+        self.enums: Dict[Any, int] = {}
 
-    def get(self, item):
+    def get(self, item) -> int:
         if item not in self.enums:
             self.enums[item] = len(self.enums)
         return self.enums[item]
@@ -244,7 +203,7 @@ class Enumerator(Serialize):
     def __len__(self):
         return len(self.enums)
 
-    def reversed(self):
+    def reversed(self) -> Dict[int, Any]:
         r = {v: k for k, v in self.enums.items()}
         assert len(r) == len(self.enums)
         return r
@@ -253,7 +212,7 @@ class Enumerator(Serialize):
 
 def combine_alternatives(lists):
     """
-    Accepts a list of alternatives, and enumerates all their possible concatinations.
+    Accepts a list of alternatives, and enumerates all their possible concatenations.
 
     Examples:
         >>> combine_alternatives([range(2), [4,5]])
@@ -268,25 +227,23 @@ def combine_alternatives(lists):
     if not lists:
         return [[]]
     assert all(l for l in lists), lists
-    init = [[x] for x in lists[0]]
-    return reduce(lambda a,b: [i+[j] for i in a for j in b], lists[1:], init)
+    return list(product(*lists))
 
+try:
+    import atomicwrites
+    _has_atomicwrites = True
+except ImportError:
+    _has_atomicwrites = False
 
 class FS:
-    open = open
-    exists = os.path.exists
+    exists = staticmethod(os.path.exists)
 
-
-def isascii(s):
-    """ str.isascii only exists in python3.7+ """
-    try:
-        return s.isascii()
-    except AttributeError:
-        try:
-            s.encode('ascii')
-            return True
-        except (UnicodeDecodeError, UnicodeEncodeError):
-            return False
+    @staticmethod
+    def open(name, mode="r", **kwargs):
+        if _has_atomicwrites and "w" in mode:
+            return atomicwrites.atomic_write(name, mode=mode, overwrite=True, **kwargs)
+        else:
+            return open(name, mode, **kwargs)
 
 
 class fzset(frozenset):
@@ -294,20 +251,13 @@ class fzset(frozenset):
         return '{%s}' % ', '.join(map(repr, self))
 
 
-def classify_bool(seq, pred):
-    true_elems = []
+def classify_bool(seq: Iterable, pred: Callable) -> Any:
     false_elems = []
-
-    for elem in seq:
-        if pred(elem):
-            true_elems.append(elem)
-        else:
-            false_elems.append(elem)
-
+    true_elems = [elem for elem in seq if pred(elem) or false_elems.append(elem)]  # type: ignore[func-returns-value]
     return true_elems, false_elems
 
 
-def bfs(initial, expand):
+def bfs(initial: Iterable, expand: Callable) -> Iterator:
     open_q = deque(list(initial))
     visited = set(open_q)
     while open_q:
@@ -318,8 +268,16 @@ def bfs(initial, expand):
                 visited.add(next_node)
                 open_q.append(next_node)
 
+def bfs_all_unique(initial, expand):
+    "bfs, but doesn't keep track of visited (aka seen), because there can be no repetitions"
+    open_q = deque(list(initial))
+    while open_q:
+        node = open_q.popleft()
+        yield node
+        open_q += expand(node)
 
-def _serialize(value, memo):
+
+def _serialize(value: Any, memo: Optional[SerializeMemoizer]) -> Any:
     if isinstance(value, Serialize):
         return value.serialize(memo)
     elif isinstance(value, list):
@@ -330,3 +288,59 @@ def _serialize(value, memo):
         return {key:_serialize(elem, memo) for key, elem in value.items()}
     # assert value is None or isinstance(value, (int, float, str, tuple)), value
     return value
+
+
+
+
+def small_factors(n: int, max_factor: int) -> List[Tuple[int, int]]:
+    """
+    Splits n up into smaller factors and summands <= max_factor.
+    Returns a list of [(a, b), ...]
+    so that the following code returns n:
+
+    n = 1
+    for a, b in values:
+        n = n * a + b
+
+    Currently, we also keep a + b <= max_factor, but that might change
+    """
+    assert n >= 0
+    assert max_factor > 2
+    if n <= max_factor:
+        return [(n, 0)]
+
+    for a in range(max_factor, 1, -1):
+        r, b = divmod(n, a)
+        if a + b <= max_factor:
+            return small_factors(r, max_factor) + [(a, b)]
+    assert False, "Failed to factorize %s" % n
+
+
+class OrderedSet(AbstractSet[T]):
+    """A minimal OrderedSet implementation, using a dictionary.
+
+    (relies on the dictionary being ordered)
+    """
+    def __init__(self, items: Iterable[T] =()):
+        self.d = dict.fromkeys(items)
+
+    def __contains__(self, item: Any) -> bool:
+        return item in self.d
+
+    def add(self, item: T):
+        self.d[item] = None
+
+    def __iter__(self) -> Iterator[T]:
+        return iter(self.d)
+
+    def remove(self, item: T):
+        del self.d[item]
+
+    def __bool__(self):
+        return bool(self.d)
+
+    def __len__(self) -> int:
+        return len(self.d)
+
+    def __repr__(self):
+        return f"{type(self).__name__}({', '.join(map(repr,self))})"

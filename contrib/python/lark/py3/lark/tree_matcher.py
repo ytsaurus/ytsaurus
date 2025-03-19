@@ -83,12 +83,12 @@ class TreeMatcher:
 
     Supports templates and inlined rules (`rule{a, b,..}` and `_rule`)
 
-    Initiialize with an instance of Lark.
+    Initialize with an instance of Lark.
     """
 
     def __init__(self, parser):
         # XXX TODO calling compile twice returns different results!
-        assert parser.options.maybe_placeholders == False
+        assert not parser.options.maybe_placeholders
         # XXX TODO: we just ignore the potential existence of a postlexer
         self.tokens, rules, _extra = parser.grammar.compile(parser.options.start, set())
 
@@ -177,7 +177,7 @@ class TreeMatcher:
             # TODO pass callbacks through dict, instead of alias?
             callbacks = {rule: rule.alias for rule in rules}
             conf = ParserConf(rules, callbacks, [rulename])
-            parser = earley.Parser(conf, _match, resolve_ambiguity=True)
+            parser = earley.Parser(self.parser.lexer_conf, conf, _match, resolve_ambiguity=True)
             self._parser_cache[rulename] = parser
 
         # find a full derivation

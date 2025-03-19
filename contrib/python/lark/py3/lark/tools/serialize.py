@@ -1,9 +1,7 @@
-import codecs
 import sys
 import json
 
-from lark import Lark
-from lark.grammar import RuleOptions, Rule
+from lark.grammar import Rule
 from lark.lexer import TerminalDef
 from lark.tools import lalr_argparser, build_lalr
 
@@ -23,6 +21,9 @@ def serialize(lark_inst, outfile):
 
 
 def main():
+    if len(sys.argv)==1:
+        argparser.print_help(sys.stderr)
+        sys.exit(1)
     ns = argparser.parse_args()
     serialize(*build_lalr(ns))
 
