@@ -157,9 +157,29 @@ public:
         Underlying_->SetCategoryLimit(category, newLimit);
     }
 
-    void SetPoolWeight(const TPoolTag& poolTag, i64 newWeight) override
+    void SetPoolWeight(const TPoolTag& poolTag, std::optional<i64> newWeight) override
     {
         Underlying_->SetPoolWeight(poolTag, newWeight);
+    }
+
+    void SetPoolRatio(const TPoolTag& poolTag, std::optional<double> newRatio) override
+    {
+        Underlying_->SetPoolRatio(poolTag, newRatio);
+    }
+
+    i64 GetPoolUsed(const TPoolTag& poolTag) const override
+    {
+        return Underlying_->GetPoolUsed(poolTag);
+    }
+
+    i64 GetPoolLimit(const TPoolTag& poolTag) const override
+    {
+        return Underlying_->GetPoolLimit(poolTag);
+    }
+
+    bool IsPoolExceeded(const TPoolTag& poolTag) const override
+    {
+        return Underlying_->IsPoolExceeded(poolTag);
     }
 
     bool Acquire(EMemoryCategory category, i64 size, const std::optional<TPoolTag>& poolTag) override
@@ -256,6 +276,23 @@ TEST(TMemoryUsageTrackerHelpersTest, Tracker)
     tracker->Acquire(category, 1, std::nullopt);
     EXPECT_TRUE(tracker->CheckMemoryUsage(category, 1));
     EXPECT_FALSE(tracker->IsEmpty());
+    tracker->ClearTrackers();
+}
+
+TEST(TMemoryUsageTrackerTest, Pool)
+{
+    auto tracker = New<TTestNodeMemoryTracker>();
+    auto category = EMemoryCategory::BlockCache;
+
+    tracker->SetTotalLimit(10);
+    tracker->SetPoolWeight("some_pool", 0);
+    EXPECT_TRUE(tracker->IsExceeded(category, "some_pool"));
+    tracker->SetPoolRatio("some_pool", 0.5);
+    tracker->SetPoolWeight("some_pool", std::nullopt);
+    EXPECT_FALSE(tracker->IsExceeded(category, "some_pool"));
+    tracker->Acquire(category, 6, "some_pool");
+    EXPECT_TRUE(tracker->IsExceeded(category, "some_pool"));
+    EXPECT_TRUE(tracker->IsPoolExceeded("some_pool"));
     tracker->ClearTrackers();
 }
 

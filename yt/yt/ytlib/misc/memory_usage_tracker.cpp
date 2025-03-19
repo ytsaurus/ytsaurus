@@ -57,7 +57,11 @@ public:
 
     void SetTotalLimit(i64 newLimit) override;
     void SetCategoryLimit(ECategory category, i64 newLimit) override;
-    void SetPoolWeight(const TPoolTag& poolTag, i64 newWeight) override;
+    void SetPoolWeight(const TPoolTag& poolTag, std::optional<i64> newWeight) override;
+    void SetPoolRatio(const TPoolTag& poolTag, std::optional<double> newRatio) override;
+    i64 GetPoolUsed(const TPoolTag& poolTag) const override;
+    i64 GetPoolLimit(const TPoolTag& poolTag) const override;
+    bool IsPoolExceeded(const TPoolTag& poolTag) const override;
 
     // Always succeeds, may lead to an overcommit.
     bool Acquire(ECategory category, i64 size, const std::optional<TPoolTag>& poolTag = {}) override;
@@ -140,7 +144,9 @@ private:
         , public TNonCopyable
     {
         TPoolTag Tag;
-        std::atomic<i64> Weight = 0;
+        std::atomic<i64> TotalUsed = 0;
+        std::atomic<std::optional<i64>> Weight;
+        std::atomic<std::optional<double>> Ratio;
         TEnumIndexedArray<ECategory, std::atomic<i64>> Used;
 
         TPool() = default;
@@ -173,8 +179,10 @@ private:
 
     i64 DoGetLimit(ECategory category) const;
     i64 DoGetLimit(ECategory category, const TPool* pool) const;
+    i64 DoGetLimit(const TPool* pool) const;
     i64 DoGetUsed(ECategory category) const;
     i64 DoGetUsed(ECategory category, const TPool* pool) const;
+    i64 DoGetUsed(const TPool* pool) const;
     i64 DoGetFree(ECategory category) const;
     i64 DoGetFree(ECategory category, const TPool* pool) const;
 
@@ -186,6 +194,7 @@ private:
     const TPool* FindPool(const TPoolTag& poolTag) const;
     TPool* GetOrRegisterPool(const TPoolTag& poolTag);
     TPool* GetOrRegisterPool(const std::optional<TPoolTag>& poolTag);
+    i64 CalculatePoolLimit(i64 limit, const TPool* pool) const;
 
     TReferenceKey GetReferenceKey(TRef ref);
     TReferenceAddressMapShard& GetReferenceAddressMapShard(TReferenceKey key);
@@ -384,6 +393,44 @@ i64 TNodeMemoryTracker::GetLimit(
     return DoGetLimit(category, pool);
 }
 
+i64 TNodeMemoryTracker::GetPoolLimit(const TPoolTag& poolTag) const
+{
+    auto guard = Guard(SpinLock_);
+
+    auto* pool = FindPool(poolTag);
+
+    return DoGetLimit(pool);
+}
+
+i64 TNodeMemoryTracker::CalculatePoolLimit(i64 limit, const TPool* pool) const
+{
+    if (!pool) {
+        return limit;
+    }
+
+    auto result = limit;
+
+    auto totalPoolWeight = TotalPoolWeight_.load();
+    auto poolWeight = pool->Weight.load();
+    auto poolRatio = pool->Ratio.load();
+
+    if (poolWeight) {
+        YT_VERIFY(totalPoolWeight >= *poolWeight);
+        if (totalPoolWeight == 0) {
+            return 0;
+        }
+
+        auto fpResult = 1.0 * limit / totalPoolWeight * (*poolWeight);
+        result = std::min(static_cast<i64>(fpResult), result);
+    }
+
+    if (poolRatio) {
+        result = std::min(static_cast<i64>(limit * (*poolRatio)), result);
+    }
+
+    return result;
+}
+
 i64 TNodeMemoryTracker::DoGetLimit(ECategory category) const
 {
     return std::min(Categories_[category].Limit.load(), GetTotalLimit());
@@ -391,20 +438,14 @@ i64 TNodeMemoryTracker::DoGetLimit(ECategory category) const
 
 i64 TNodeMemoryTracker::DoGetLimit(ECategory category, const TPool* pool) const
 {
-    auto result = DoGetLimit(category);
+    auto limit = DoGetLimit(category);
+    return CalculatePoolLimit(limit, pool);
+}
 
-    if (!pool) {
-        return result;
-    }
-
-    auto totalPoolWeight = TotalPoolWeight_.load();
-
-    if (totalPoolWeight <= 0) {
-        return 0;
-    }
-
-    auto fpResult = 1.0 * result * pool->Weight / totalPoolWeight;
-    return fpResult >= std::numeric_limits<i64>::max() ? std::numeric_limits<i64>::max() : static_cast<i64>(fpResult);
+i64 TNodeMemoryTracker::DoGetLimit(const TPool* pool) const
+{
+    auto limit = GetTotalLimit();
+    return CalculatePoolLimit(limit, pool);
 }
 
 i64 TNodeMemoryTracker::GetUsed(ECategory category, const std::optional<TPoolTag>& poolTag) const
@@ -424,6 +465,19 @@ i64 TNodeMemoryTracker::GetUsed(ECategory category, const std::optional<TPoolTag
     return DoGetUsed(category, pool);
 }
 
+i64 TNodeMemoryTracker::GetPoolUsed(const TPoolTag& poolTag) const
+{
+    auto guard = Guard(SpinLock_);
+
+    auto* pool = FindPool(poolTag);
+
+    if (!pool) {
+        return 0;
+    }
+
+    return DoGetUsed(pool);
+}
+
 i64 TNodeMemoryTracker::DoGetUsed(ECategory category) const
 {
     return Categories_[category].Used.load();
@@ -432,6 +486,11 @@ i64 TNodeMemoryTracker::DoGetUsed(ECategory category) const
 i64 TNodeMemoryTracker::DoGetUsed(ECategory category, const TPool* pool) const
 {
     return pool->Used[category].load();
+}
+
+i64 TNodeMemoryTracker::DoGetUsed(const TPool* pool) const
+{
+    return pool->TotalUsed.load();
 }
 
 i64 TNodeMemoryTracker::GetFree(ECategory category, const std::optional<TPoolTag>& poolTag) const
@@ -514,15 +573,45 @@ void TNodeMemoryTracker::SetCategoryLimit(ECategory category, i64 newLimit)
     Categories_[category].Limit.store(newLimit);
 }
 
-void TNodeMemoryTracker::SetPoolWeight(const TPoolTag& poolTag, i64 newWeight)
+void TNodeMemoryTracker::SetPoolWeight(const TPoolTag& poolTag, std::optional<i64> newWeight)
 {
-    YT_VERIFY(newWeight >= 0);
+    auto weight = newWeight.value_or(0);
+
+    YT_VERIFY(weight >= 0);
 
     auto guard = Guard(SpinLock_);
 
     auto* pool = GetOrRegisterPool(poolTag);
-    TotalPoolWeight_ += newWeight - pool->Weight;
+    auto oldWeight = pool->Weight.load().value_or(0);
+
+    TotalPoolWeight_ += weight - oldWeight;
     pool->Weight = newWeight;
+}
+
+void TNodeMemoryTracker::SetPoolRatio(const TPoolTag& poolTag, std::optional<double> newRatio)
+{
+    auto guard = Guard(SpinLock_);
+
+    auto* pool = GetOrRegisterPool(poolTag);
+
+    pool->Ratio = newRatio;
+}
+
+bool TNodeMemoryTracker::IsPoolExceeded(const TPoolTag& poolTag) const
+{
+    if (IsTotalExceeded()) {
+        return true;
+    }
+
+    auto guard = Guard(SpinLock_);
+
+    auto* pool = FindPool(poolTag);
+
+    if (!pool) {
+        return false;
+    }
+
+    return DoGetUsed(pool) >= DoGetLimit(pool);
 }
 
 bool TNodeMemoryTracker::Acquire(ECategory category, i64 size, const std::optional<TPoolTag>& poolTag)
@@ -630,6 +719,7 @@ void TNodeMemoryTracker::DoAcquire(ECategory category, i64 size, TPool* pool)
 
     if (pool) {
         pool->Used[category] += size;
+        pool->TotalUsed += size;
     }
 }
 
@@ -644,6 +734,7 @@ void TNodeMemoryTracker::DoRelease(ECategory category, i64 size, TPool* pool)
 
     if (pool) {
         pool->Used[category] -= size;
+        pool->TotalUsed -= size;
     }
 }
 

@@ -117,12 +117,12 @@ class HttpProxyTestBase(YTEnvSetup):
             default={},
         )
 
-    def _execute_command(self, http_method, command_name, params=PARAMS):
+    def _execute_command(self, http_method, command_name, params=PARAMS, user="root"):
         headers = {
             "X-YT-Parameters": yson.dumps(params),
             "X-YT-Header-Format": "<format=text>yson",
             "X-YT-Output-Format": "<format=text>yson",
-            "X-YT-User-Name": self.USER,
+            "X-YT-User-Name": user,
         }
         rsp = requests.request(
             http_method,
@@ -419,6 +419,53 @@ class TestHttpProxyMemoryDrop(HttpProxyTestBase):
         with raises_yt_error("Request is dropped due to high memory pressure") as err:
             self._execute_command("GET", "read_table", {"path": "//tmp/test"})
         assert err[0].is_rpc_unavailable()
+
+    @authors("nadya02")
+    @pytest.mark.timeout(120)
+    def test_default_user_drop(self):
+        monitoring_port = self.Env.configs["http_proxy"][0]["monitoring_port"]
+        config_url = "http://localhost:{}/orchid/dynamic_config_manager/effective_config".format(monitoring_port)
+
+        create("table", "//tmp/test")
+
+        set("//sys/http_proxies/@config", {
+            "api": {
+                "default_user_memory_limit_ratio": 0.0,
+            },
+        })
+
+        def config_updated():
+            config = requests.get(config_url).json()
+            return config.get("api", {}).get("default_user_memory_limit_ratio", None) == 0.0
+
+        wait(config_updated, timeout=600)
+
+        with raises_yt_error("Request is dropped due to high memory pressure"):
+            self._execute_command("GET", "read_table", {"path": "//tmp/test"})
+
+    @authors("nadya02")
+    @pytest.mark.timeout(120)
+    def test_specific_user_drop(self):
+        create_user("nadya")
+        monitoring_port = self.Env.configs["http_proxy"][0]["monitoring_port"]
+        config_url = "http://localhost:{}/orchid/dynamic_config_manager/effective_config".format(monitoring_port)
+
+        create("table", "//tmp/test")
+
+        set("//sys/http_proxies/@config", {
+            "api": {
+                "user_to_memory_limit_ratio": {"nadya" : 0.0},
+            },
+        })
+
+        def config_updated():
+            config = requests.get(config_url).json()
+            return config.get("api", {}).get("user_to_memory_limit_ratio", None) == {"nadya" : 0.0}
+
+        wait(config_updated, timeout=600)
+
+        with raises_yt_error("Request is dropped due to high memory pressure"):
+            self._execute_command("GET", "read_table", {"path": "//tmp/test"}, user="nadya")
 
 
 class TestFullDiscoverVersions(HttpProxyTestBase):
