@@ -13,17 +13,12 @@ from ..lexer import Token
 from ..tree import Tree
 from ..grammar import Terminal as T, NonTerminal as NT, Symbol
 
-try:
-    xrange
-except NameError:
-    xrange = range
-
 def match(t, s):
     assert isinstance(t, T)
     return t.name == s.type
 
 
-class Rule(object):
+class Rule:
     """Context-free grammar rule."""
 
     def __init__(self, lhs, rhs, weight, alias):
@@ -51,7 +46,7 @@ class Rule(object):
         return not (self == other)
 
 
-class Grammar(object):
+class Grammar:
     """Context-free grammar."""
 
     def __init__(self, rules):
@@ -68,7 +63,7 @@ class Grammar(object):
 
 
 # Parse tree data structures
-class RuleNode(object):
+class RuleNode:
     """A node in the parse tree, which also contains the full rhs rule."""
 
     def __init__(self, rule, children, weight=0):
@@ -81,7 +76,7 @@ class RuleNode(object):
 
 
 
-class Parser(object):
+class Parser:
     """Parser wrapper."""
 
     def __init__(self, rules):
@@ -153,11 +148,11 @@ def _parse(s, g):
                         trees[(i, i)][rule.lhs] = RuleNode(rule, [T(w)], weight=rule.weight)
 
     # Iterate over lengths of sub-sentences
-    for l in xrange(2, len(s) + 1):
+    for l in range(2, len(s) + 1):
         # Iterate over sub-sentences with the given length
-        for i in xrange(len(s) - l + 1):
+        for i in range(len(s) - l + 1):
             # Choose partition of the sub-sentence in [1, l)
-            for p in xrange(i + 1, i + l):
+            for p in range(i + 1, i + l):
                 span1 = (i, p - 1)
                 span2 = (p, i + l - 1)
                 for r1, r2 in itertools.product(table[span1], table[span2]):
@@ -186,7 +181,7 @@ def _parse(s, g):
 # * Empty rules (epsilon rules)
 
 
-class CnfWrapper(object):
+class CnfWrapper:
     """CNF wrapper for grammar.
 
   Validates that the input grammar is CNF and provides helper data structures.
@@ -250,7 +245,7 @@ def get_any_nt_unit_rule(g):
 
 
 def _remove_unit_rule(g, rule):
-    """Removes 'rule' from 'g' without changing the langugage produced by 'g'."""
+    """Removes 'rule' from 'g' without changing the language produced by 'g'."""
     new_rules = [x for x in g.rules if x != rule]
     refs = [x for x in g.rules if x.lhs == rule.rhs[0]]
     new_rules += [build_unit_skiprule(rule, ref) for ref in refs]
@@ -262,7 +257,7 @@ def _split(rule):
     rule_str = str(rule.lhs) + '__' + '_'.join(str(x) for x in rule.rhs)
     rule_name = '__SP_%s' % (rule_str) + '_%d'
     yield Rule(rule.lhs, [rule.rhs[0], NT(rule_name % 1)], weight=rule.weight, alias=rule.alias)
-    for i in xrange(1, len(rule.rhs) - 2):
+    for i in range(1, len(rule.rhs) - 2):
         yield Rule(NT(rule_name % i), [rule.rhs[i], NT(rule_name % (i + 1))], weight=0, alias='Split')
     yield Rule(NT(rule_name % (len(rule.rhs) - 2)), rule.rhs[-2:], weight=0, alias='Split')
 

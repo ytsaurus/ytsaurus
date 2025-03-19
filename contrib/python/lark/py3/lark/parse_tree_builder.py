@@ -1,13 +1,16 @@
-from .exceptions import GrammarError
+"""Provides functions for the automatic building and shaping of the parse-tree."""
+
+from typing import List
+
+from .exceptions import GrammarError, ConfigurationError
 from .lexer import Token
 from .tree import Tree
-from .visitors import InlineTransformer  # XXX Deprecated
 from .visitors import Transformer_InPlace
 from .visitors import _vargs_meta, _vargs_meta_inline
 
 ###{standalone
 from functools import partial, wraps
-from itertools import repeat, product
+from itertools import product
 
 
 class ExpandSingleChild:
@@ -21,49 +24,71 @@ class ExpandSingleChild:
             return self.node_builder(children)
 
 
+
 class PropagatePositions:
-    def __init__(self, node_builder):
+    def __init__(self, node_builder, node_filter=None):
         self.node_builder = node_builder
+        self.node_filter = node_filter
 
     def __call__(self, children):
         res = self.node_builder(children)
 
-        # local reference to Tree.meta reduces number of presence checks
         if isinstance(res, Tree):
-            res_meta = res.meta
-            for c in children:
-                if isinstance(c, Tree):
-                    child_meta = c.meta
-                    if not child_meta.empty:
-                        res_meta.line = child_meta.line
-                        res_meta.column = child_meta.column
-                        res_meta.start_pos = child_meta.start_pos
-                        res_meta.empty = False
-                        break
-                elif isinstance(c, Token):
-                    res_meta.line = c.line
-                    res_meta.column = c.column
-                    res_meta.start_pos = c.pos_in_stream
-                    res_meta.empty = False
-                    break
+            # Calculate positions while the tree is streaming, according to the rule:
+            # - nodes start at the start of their first child's container,
+            #   and end at the end of their last child's container.
+            # Containers are nodes that take up space in text, but have been inlined in the tree.
 
-            for c in reversed(children):
-                if isinstance(c, Tree):
-                    child_meta = c.meta
-                    if not child_meta.empty:
-                        res_meta.end_line = child_meta.end_line
-                        res_meta.end_column = child_meta.end_column
-                        res_meta.end_pos = child_meta.end_pos
-                        res_meta.empty = False
-                        break
-                elif isinstance(c, Token):
-                    res_meta.end_line = c.end_line
-                    res_meta.end_column = c.end_column
-                    res_meta.end_pos = c.end_pos
+            res_meta = res.meta
+
+            first_meta = self._pp_get_meta(children)
+            if first_meta is not None:
+                if not hasattr(res_meta, 'line'):
+                    # meta was already set, probably because the rule has been inlined (e.g. `?rule`)
+                    res_meta.line = getattr(first_meta, 'container_line', first_meta.line)
+                    res_meta.column = getattr(first_meta, 'container_column', first_meta.column)
+                    res_meta.start_pos = getattr(first_meta, 'container_start_pos', first_meta.start_pos)
                     res_meta.empty = False
-                    break
+
+                res_meta.container_line = getattr(first_meta, 'container_line', first_meta.line)
+                res_meta.container_column = getattr(first_meta, 'container_column', first_meta.column)
+                res_meta.container_start_pos = getattr(first_meta, 'container_start_pos', first_meta.start_pos)
+
+            last_meta = self._pp_get_meta(reversed(children))
+            if last_meta is not None:
+                if not hasattr(res_meta, 'end_line'):
+                    res_meta.end_line = getattr(last_meta, 'container_end_line', last_meta.end_line)
+                    res_meta.end_column = getattr(last_meta, 'container_end_column', last_meta.end_column)
+                    res_meta.end_pos = getattr(last_meta, 'container_end_pos', last_meta.end_pos)
+                    res_meta.empty = False
+
+                res_meta.container_end_line = getattr(last_meta, 'container_end_line', last_meta.end_line)
+                res_meta.container_end_column = getattr(last_meta, 'container_end_column', last_meta.end_column)
+                res_meta.container_end_pos = getattr(last_meta, 'container_end_pos', last_meta.end_pos)
 
         return res
+
+    def _pp_get_meta(self, children):
+        for c in children:
+            if self.node_filter is not None and not self.node_filter(c):
+                continue
+            if isinstance(c, Tree):
+                if not c.meta.empty:
+                    return c.meta
+            elif isinstance(c, Token):
+                return c
+            elif hasattr(c, '__lark_meta__'):
+                return c.__lark_meta__()
+
+def make_propagate_positions(option):
+    if callable(option):
+        return partial(PropagatePositions, node_filter=option)
+    elif option is True:
+        return PropagatePositions
+    elif option is False:
+        return None
+
+    raise ConfigurationError('Invalid option for propagate_positions: %r' % option)
 
 
 class ChildFilter:
@@ -134,7 +159,7 @@ def _should_expand(sym):
     return not sym.is_term and sym.name.startswith('_')
 
 
-def maybe_create_child_filter(expansion, keep_all_tokens, ambiguous, _empty_indices):
+def maybe_create_child_filter(expansion, keep_all_tokens, ambiguous, _empty_indices: List[bool]):
     # Prepare empty_indices as: How many Nones to insert at each index?
     if _empty_indices:
         assert _empty_indices.count(False) == len(expansion)
@@ -165,7 +190,7 @@ def maybe_create_child_filter(expansion, keep_all_tokens, ambiguous, _empty_indi
 class AmbiguousExpander:
     """Deal with the case where we're expanding children ('_rule') into a parent but the children
        are ambiguous. i.e. (parent->_ambig->_expand_this_rule). In this case, make the parent itself
-       ambiguous with as many copies as their are ambiguous children, and then copy the ambiguous children
+       ambiguous with as many copies as there are ambiguous children, and then copy the ambiguous children
        into the right parents in the right places, essentially shifting the ambiguity up the tree."""
     def __init__(self, to_expand, tree_class, node_builder):
         self.node_builder = node_builder
@@ -186,14 +211,13 @@ class AmbiguousExpander:
                 if i in self.to_expand:
                     ambiguous.append(i)
 
-                to_expand = [j for j, grandchild in enumerate(child.children) if _is_ambig_tree(grandchild)]
-                child.expand_kids_by_index(*to_expand)
+                child.expand_kids_by_data('_ambig')
 
         if not ambiguous:
             return self.node_builder(children)
 
-        expand = [iter(child.children) if i in ambiguous else repeat(child) for i, child in enumerate(children)]
-        return self.tree_class('_ambig', [self.node_builder(list(f[0])) for f in product(zip(*expand))])
+        expand = [child.children if i in ambiguous else (child,) for i, child in enumerate(children)]
+        return self.tree_class('_ambig', [self.node_builder(list(f)) for f in product(*expand)])
 
 
 def maybe_create_ambiguous_expander(tree_class, expansion, keep_all_tokens):
@@ -284,12 +308,6 @@ class AmbiguousIntermediateExpander:
         return self.node_builder(children)
 
 
-def ptb_inline_args(func):
-    @wraps(func)
-    def f(children):
-        return func(*children)
-    return f
-
 
 def inplace_transformer(func):
     @wraps(func)
@@ -320,6 +338,8 @@ class ParseTreeBuilder:
         self.rule_builders = list(self._init_builders(rules))
 
     def _init_builders(self, rules):
+        propagate_positions = make_propagate_positions(self.propagate_positions)
+
         for rule in rules:
             options = rule.options
             keep_all_tokens = options.keep_all_tokens
@@ -328,7 +348,7 @@ class ParseTreeBuilder:
             wrapper_chain = list(filter(None, [
                 (expand_single_child and not rule.alias) and ExpandSingleChild,
                 maybe_create_child_filter(rule.expansion, keep_all_tokens, self.ambiguous, options.empty_indices if self.maybe_placeholders else None),
-                self.propagate_positions and PropagatePositions,
+                propagate_positions,
                 self.ambiguous and maybe_create_ambiguous_expander(self.tree_class, rule.expansion, keep_all_tokens),
                 self.ambiguous and partial(AmbiguousIntermediateExpander, self.tree_class)
             ]))
@@ -338,22 +358,25 @@ class ParseTreeBuilder:
     def create_callback(self, transformer=None):
         callbacks = {}
 
+        default_handler = getattr(transformer, '__default__', None)
+        if default_handler:
+            def default_callback(data, children):
+                return default_handler(data, children, None)
+        else:
+            default_callback = self.tree_class
+
         for rule, wrapper_chain in self.rule_builders:
 
             user_callback_name = rule.alias or rule.options.template_source or rule.origin.name
             try:
                 f = getattr(transformer, user_callback_name)
-                # XXX InlineTransformer is deprecated!
                 wrapper = getattr(f, 'visit_wrapper', None)
                 if wrapper is not None:
                     f = apply_visit_wrapper(f, user_callback_name, wrapper)
-                else:
-                    if isinstance(transformer, InlineTransformer):
-                        f = ptb_inline_args(f)
-                    elif isinstance(transformer, Transformer_InPlace):
-                        f = inplace_transformer(f)
+                elif isinstance(transformer, Transformer_InPlace):
+                    f = inplace_transformer(f)
             except AttributeError:
-                f = partial(self.tree_class, user_callback_name)
+                f = partial(default_callback, user_callback_name)
 
             for w in wrapper_chain:
                 f = w(f)

@@ -1,11 +1,13 @@
-"""Reconstruct text from a tree, based on Lark grammar"""
+"""This is an experimental tool for reconstructing text from a shaped tree, based on a Lark grammar.
+"""
 
-import unicodedata
+from typing import Dict, Callable, Iterable, Optional
 
-from .tree import Tree
+from .lark import Lark
+from .tree import Tree, ParseTree
 from .visitors import Transformer_InPlace
-from .lexer import Token, PatternStr
-from .grammar import Terminal, NonTerminal
+from .lexer import Token, PatternStr, TerminalDef
+from .grammar import Terminal, NonTerminal, Symbol
 
 from .tree_matcher import TreeMatcher, is_discarded_terminal
 from .utils import is_id_continue
@@ -21,7 +23,10 @@ def is_iter_empty(i):
 class WriteTokensTransformer(Transformer_InPlace):
     "Inserts discarded tokens into their correct place, according to the rules of grammar"
 
-    def __init__(self, tokens, term_subs):
+    tokens: Dict[str, TerminalDef]
+    term_subs: Dict[str, Callable[[Symbol], str]]
+
+    def __init__(self, tokens: Dict[str, TerminalDef], term_subs: Dict[str, Callable[[Symbol], str]]) -> None:
         self.tokens = tokens
         self.term_subs = term_subs
 
@@ -65,12 +70,14 @@ class Reconstructor(TreeMatcher):
         The reconstructor cannot generate values from regexps. If you need to produce discarded
         regexes, such as newlines, use `term_subs` and provide default values for them.
 
-    Paramters:
+    Parameters:
         parser: a Lark instance
         term_subs: a dictionary of [Terminal name as str] to [output text as str]
     """
 
-    def __init__(self, parser, term_subs=None):
+    write_tokens: WriteTokensTransformer
+
+    def __init__(self, parser: Lark, term_subs: Optional[Dict[str, Callable[[Symbol], str]]]=None) -> None:
         TreeMatcher.__init__(self, parser)
 
         self.write_tokens = WriteTokensTransformer({t.name:t for t in self.tokens}, term_subs or {})
@@ -82,19 +89,18 @@ class Reconstructor(TreeMatcher):
         for item in res:
             if isinstance(item, Tree):
                 # TODO use orig_expansion.rulename to support templates
-                for x in self._reconstruct(item):
-                    yield x
+                yield from self._reconstruct(item)
             else:
                 yield item
 
-    def reconstruct(self, tree, postproc=None):
+    def reconstruct(self, tree: ParseTree, postproc: Optional[Callable[[Iterable[str]], Iterable[str]]]=None, insert_spaces: bool=True) -> str:
         x = self._reconstruct(tree)
         if postproc:
             x = postproc(x)
         y = []
         prev_item = ''
         for item in x:
-            if prev_item and item and is_id_continue(prev_item[-1]) and is_id_continue(item[0]):
+            if insert_spaces and prev_item and item and is_id_continue(prev_item[-1]) and is_id_continue(item[0]):
                 y.append(' ')
             y.append(item)
             prev_item = item

@@ -2,9 +2,9 @@
 
 PY3_LIBRARY()
 
-VERSION(0.11.2)
+VERSION(1.2.2)
 
-LICENSE(MIT)
+LICENSE(MIT AND MPL-2.0)
 
 NO_LINT()
 
@@ -14,22 +14,14 @@ NO_CHECK_IMPORTS(
 
 PY_SRCS(
     TOP_LEVEL
-    lark-stubs/__init__.pyi
-    lark-stubs/exceptions.pyi
-    lark-stubs/grammar.pyi
-    lark-stubs/indenter.pyi
-    lark-stubs/lark.pyi
-    lark-stubs/lexer.pyi
-    lark-stubs/load_grammar.pyi
-    lark-stubs/reconstruct.pyi
-    lark-stubs/tree.pyi
-    lark-stubs/visitors.pyi
     lark/__init__.py
     lark/__pyinstaller/__init__.py
     lark/__pyinstaller/hook-lark.py
+    lark/ast_utils.py
     lark/common.py
     lark/exceptions.py
     lark/grammar.py
+    lark/grammars/__init__.py
     lark/indenter.py
     lark/lark.py
     lark/lexer.py
@@ -43,8 +35,9 @@ PY_SRCS(
     lark/parsers/earley_forest.py
     lark/parsers/grammar_analysis.py
     lark/parsers/lalr_analysis.py
+    lark/parsers/lalr_interactive_parser.py
     lark/parsers/lalr_parser.py
-    lark/parsers/lalr_puppet.py
+    lark/parsers/lalr_parser_state.py
     lark/parsers/xearley.py
     lark/reconstruct.py
     lark/tools/__init__.py
@@ -53,6 +46,7 @@ PY_SRCS(
     lark/tools/standalone.py
     lark/tree.py
     lark/tree_matcher.py
+    lark/tree_templates.py
     lark/utils.py
     lark/visitors.py
 )
@@ -66,6 +60,7 @@ RESOURCE_FILES(
     lark/grammars/lark.lark
     lark/grammars/python.lark
     lark/grammars/unicode.lark
+    lark/py.typed
 )
 
 END()

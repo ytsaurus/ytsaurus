@@ -1,4 +1,4 @@
-"""This module implements an experimental Earley parser with a dynamic lexer
+"""This module implements an Earley parser with a dynamic lexer
 
 The core Earley algorithm used here is based on Elizabeth Scott's implementation, here:
     https://www.sciencedirect.com/science/article/pii/S1571066108001497
@@ -14,6 +14,7 @@ uses regular expressions by necessity, achieving high-performance while maintain
 Earley's power in parsing any CFG.
 """
 
+from typing import TYPE_CHECKING, Callable, Optional, List, Any
 from collections import defaultdict
 
 from ..tree import Tree
@@ -21,13 +22,18 @@ from ..exceptions import UnexpectedCharacters
 from ..lexer import Token
 from ..grammar import Terminal
 from .earley import Parser as BaseParser
-from .earley_forest import SymbolNode
+from .earley_forest import TokenNode
 
+if TYPE_CHECKING:
+    from ..common import LexerConf, ParserConf
 
 class Parser(BaseParser):
-    def __init__(self,  parser_conf, term_matcher, resolve_ambiguity=True, ignore = (), complete_lex = False, debug=False, tree_class=Tree):
-        BaseParser.__init__(self, parser_conf, term_matcher, resolve_ambiguity, debug, tree_class)
-        self.ignore = [Terminal(t) for t in ignore]
+    def __init__(self, lexer_conf: 'LexerConf', parser_conf: 'ParserConf', term_matcher: Callable,
+                 resolve_ambiguity: bool=True, complete_lex: bool=False, debug: bool=False,
+                 tree_class: Optional[Callable[[str, List], Any]]=Tree, ordered_sets: bool=True):
+        BaseParser.__init__(self, lexer_conf, parser_conf, term_matcher, resolve_ambiguity,
+                            debug, tree_class, ordered_sets)
+        self.ignore = [Terminal(t) for t in lexer_conf.ignore]
         self.complete_lex = complete_lex
 
     def _parse(self, stream, columns, to_scan, start_symbol=None):
@@ -49,7 +55,7 @@ class Parser(BaseParser):
             # they complete, we push all tokens into a buffer (delayed_matches), to
             # be held possibly for a later parse step when we reach the point in the
             # input stream at which they complete.
-            for item in set(to_scan):
+            for item in self.Set(to_scan):
                 m = match(item.expect, stream, i)
                 if m:
                     t = Token(item.expect.name, m.group(0), i, text_line, text_column)
@@ -81,8 +87,8 @@ class Parser(BaseParser):
                     # If we're ignoring up to the end of the file, # carry over the start symbol if it already completed.
                     delayed_matches[m.end()].extend([(item, i, None) for item in columns[i] if item.is_complete and item.s == start_symbol])
 
-            next_to_scan = set()
-            next_set = set()
+            next_to_scan = self.Set()
+            next_set = self.Set()
             columns.append(next_set)
             transitives.append({})
 
@@ -98,9 +104,10 @@ class Parser(BaseParser):
                     token.end_pos = i + 1
 
                     new_item = item.advance()
-                    label = (new_item.s, new_item.start, i)
-                    new_item.node = node_cache[label] if label in node_cache else node_cache.setdefault(label, SymbolNode(*label))
-                    new_item.node.add_family(new_item.s, item.rule, new_item.start, item.node, token)
+                    label = (new_item.s, new_item.start, i + 1)
+                    token_node = TokenNode(token, terminals[token.type])
+                    new_item.node = node_cache[label] if label in node_cache else node_cache.setdefault(label, self.SymbolNode(*label))
+                    new_item.node.add_family(new_item.s, item.rule, new_item.start, item.node, token_node)
                 else:
                     new_item = item
 
@@ -114,14 +121,18 @@ class Parser(BaseParser):
             del delayed_matches[i+1]    # No longer needed, so unburden memory
 
             if not next_set and not delayed_matches and not next_to_scan:
+                considered_rules = list(sorted(to_scan, key=lambda key: key.rule.origin.name))
                 raise UnexpectedCharacters(stream, i, text_line, text_column, {item.expect.name for item in to_scan},
-                                           set(to_scan), state=frozenset(i.s for i in to_scan))
+                                           set(to_scan), state=frozenset(i.s for i in to_scan),
+                                           considered_rules=considered_rules
+                                           )
 
             return next_to_scan
 
 
         delayed_matches = defaultdict(list)
         match = self.term_matcher
+        terminals = self.lexer_conf.terminals_by_name
 
         # Cache for nodes & tokens created in a particular parse step.
         transitives = [{}]
