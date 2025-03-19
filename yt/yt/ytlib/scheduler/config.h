@@ -672,6 +672,17 @@ public:
 
     bool EnableJobSpeculation;
 
+    std::optional<TDuration> MinJobTime;
+    std::optional<i64> MinTotalDataWeight;
+    std::optional<double> ExecToPrepareTimeRatio;
+    std::optional<double> NoProgressJobTimeToAveragePrepareTimeRatio;
+
+    std::optional<int> MaxJobsPerSplit;
+    std::optional<int> MaxInputTableCount;
+
+    std::optional<double> ResidualJobFactor;
+    std::optional<int> ResidualJobCountMinThreshold;
+
     REGISTER_YSON_STRUCT(TJobSplitterConfig);
 
     static void Register(TRegistrar registrar);

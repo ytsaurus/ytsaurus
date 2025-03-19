@@ -254,7 +254,7 @@ protected:
 
             config->EnableJobSplitting &=
                 (IsJobInterruptible() &&
-                std::ssize(Controller_->InputManager->GetInputTables()) <= Controller_->Options_->JobSplitter->MaxInputTableCount);
+                std::ssize(Controller_->InputManager->GetInputTables()) <= config->MaxInputTableCount);
 
             return config;
         }
