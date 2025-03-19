@@ -1,16 +1,5 @@
 {
     "": "build/config/tests/ruff/ruff.toml",
-    "fintech/uservices": "fintech/uservices/pyproject.toml",
     "insurance/": "insurance/pyproject.toml",
-    "maps/infra/": "maps/infra/pyproject.toml",
-    "taxi/": "taxi/pyproject.toml",
-    "taxi/backend-py3/": "taxi/backend-py3/pyproject.toml",
-    "taxi/cargo/check": "taxi/cargo/check/pyproject.toml",
-    "taxi/lavka/check": "taxi/lavka/check/pyproject.toml",
-    "taxi/codegen": "taxi/codegen/pyproject.toml",
-    "taxi/github/code-linters": "taxi/github/code-linters/pyproject.toml",
-    "taxi/graph": "taxi/graph/pyproject.toml",
-    "taxi/tars": "taxi/tars/pyproject.toml",
-    "taxi/tplatform/uservices/": "taxi/tplatform/uservices/pyproject.toml",
-    "taxi/uservices/": "taxi/uservices/pyproject.toml"
+    "maps/infra/": "maps/infra/pyproject.toml"
 }
