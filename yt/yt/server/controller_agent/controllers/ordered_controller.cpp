@@ -252,9 +252,9 @@ protected:
         {
             auto config = TaskHost_->GetJobSplitterConfigTemplate();
 
-            config->EnableJobSplitting &=
-                (IsJobInterruptible() &&
-                std::ssize(Controller_->InputManager->GetInputTables()) <= config->MaxInputTableCount);
+            if (!IsJobInterruptible()) {
+                config->EnableJobSplitting = false;
+            }
 
             return config;
         }

@@ -567,6 +567,7 @@ TJobSplitterConfigPtr TVanillaTask::GetJobSplitterConfig() const
 {
     // In vanilla operations we don't want neither job splitting nor job speculation.
     auto config = TaskHost_->GetJobSplitterConfigTemplate();
+
     config->EnableJobSplitting = false;
     config->EnableJobSpeculation = false;
 

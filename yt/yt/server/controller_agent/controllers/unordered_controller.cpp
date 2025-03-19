@@ -147,9 +147,9 @@ public:
             auto config = TaskHost_->GetJobSplitterConfigTemplate();
 
             if (Controller_->GetOperationType() == EOperationType::Map) {
-                config->EnableJobSplitting &=
-                    (IsJobInterruptible() &&
-                    std::ssize(Controller_->InputManager->GetInputTables()) <= config->MaxInputTableCount);
+                if (!IsJobInterruptible()) {
+                    config->EnableJobSplitting = false;
+                }
             } else {
                 YT_VERIFY(Controller_->GetOperationType() == EOperationType::Merge);
                 // TODO(gritukan): YT-13646.
