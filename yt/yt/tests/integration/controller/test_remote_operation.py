@@ -19,6 +19,7 @@ from yt_commands import (
     release_breakpoint,
     remove,
     set,
+    start_transaction,
     wait_breakpoint,
     with_breakpoint,
     write_table,
@@ -612,6 +613,49 @@ class TestSchedulerRemoteOperationCommands(TestSchedulerRemoteOperationCommandsB
             {"key": "2_primary_foreign", "@table_index": "1"},
         ]
         assert read_table("//tmp/out") == expected
+
+    @authors("coteeq")
+    @pytest.mark.parametrize("revive", [False, True])
+    def test_with_transactions(self, revive):
+        local_tx = start_transaction(timeout=30000)
+        remote_tx = start_transaction(timeout=30000, driver=self.remote_driver)
+
+        n_chunks = 2
+        create("table", "//tmp/t1", driver=self.remote_driver, tx=remote_tx)
+        create("table", "//tmp/t1", tx=local_tx)
+        create("table", "//tmp/t_out")
+        data1 = [{"a": 1}, {"a": 2}]
+        data2 = [{"a": 10}, {"a": 20}]
+        for _ in range(n_chunks):
+            write_table("<append=%true>//tmp/t1", data1, driver=self.remote_driver, tx=remote_tx)
+            write_table("<append=%true>//tmp/t1", data2, tx=local_tx)
+
+        op = map(
+            track=False,
+            in_=[
+                f"<transaction_id=\"{remote_tx}\";cluster=\"{self.REMOTE_CLUSTER_NAME}\">//tmp/t1",
+                f"<transaction_id=\"{local_tx}\">//tmp/t1",
+            ],
+            out="//tmp/t_out",
+            command=with_breakpoint("BREAKPOINT; cat"),
+            spec={
+                "mapper": {
+                    "enable_input_table_index": False,
+                },
+            },
+        )
+
+        wait_breakpoint()
+
+        if revive:
+            with Restarter(self.Env, [CONTROLLER_AGENTS_SERVICE]):
+                pass
+
+        release_breakpoint()
+        op.track()
+
+        assert sorted_dicts(read_table("//tmp/t_out")) == sorted_dicts((data1 + data2) * n_chunks)
+        assert not get("//tmp/t_out/@sorted")
 
     @authors("coteeq")
     def test_disallow(self):
