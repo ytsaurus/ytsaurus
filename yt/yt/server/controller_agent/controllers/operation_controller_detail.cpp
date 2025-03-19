@@ -11410,6 +11410,11 @@ TJobSplitterConfigPtr TOperationControllerBase::GetJobSplitterConfigTemplate() c
         config->EnableJobSpeculation = false;
     }
 
+    // It should be checked after update of config->MaxInputTableCount.
+    if (std::ssize(InputManager->GetInputTables()) > config->MaxInputTableCount) {
+        config->EnableJobSplitting = false;
+    }
+
     return config;
 }
 
