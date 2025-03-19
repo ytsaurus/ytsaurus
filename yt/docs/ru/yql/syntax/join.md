@@ -350,7 +350,7 @@ SELECT * FROM T1 AS a JOIN /*+ merge() */ T2 AS b ON a.key = b.key;
 | Название | Описание |
 | --- | --- |
 | [`yt.JoinMergeUnsortedFactor`](pragma.md#ytjoinmergeunsortedfactor)   | смотрите выше |
-| [`yt.JoinMergeTablesLimit`](pragma.md#ytjoinmergetableslimit)   | Максимальное количество таблиц на входе `JOIN` (при использовании [RANGE,CONCAT](select.md#concat) и т.п.) |
+| [`yt.JoinMergeTablesLimit`](pragma.md#ytjoinmergetableslimit)   | Максимальное количество таблиц на входе `JOIN` (при использовании [RANGE,CONCAT](select/concat.md) и т.п.) |
 | [`yt.JoinMergeUseSmallAsPrimary`](pragma.md#ytjoinmergeusesmallasprimary) | Влияет на выбор primary таблицы при выполнении Reduce операции |
 | [`yt.JoinMergeForce`](pragma.md#ytjoinmergeforce) | Форсирует выбор SortedJoin стратегии для всех `JOIN` в запросе  |
 

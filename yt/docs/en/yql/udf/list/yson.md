@@ -77,7 +77,7 @@ Yson::ParseJson(String{Flags:AutoMap}) -> Resource<'Yson2.Node'>?
 Yson::ParseJsonDecodeUtf8(String{Flags:AutoMap}) -> Resource<'Yson2.Node'>?
 ```
 
-The result of all three functions is non-serializable: it can only be passed as the input to other function from the Yson library. However, you can't save it to a table or return to the client as a result of the operation: such an attempt results in a typing error. You also can't return it outside of [subqueries](../../syntax/select.md). If you need to do this, call [Yson::Serialize](#ysonserialize), and the optimizer will remove unnecessary serialization and deserialization if materialization isn't needed in the end.
+The result of all three functions is non-serializable: it can only be passed as the input to other function from the Yson library. However, you can't save it to a table or return to the client as a result of the operation: such an attempt results in a typing error. You also can't return it outside of [subqueries](../../syntax/select/index.md). If you need to do this, call [Yson::Serialize](#ysonserialize), and the optimizer will remove unnecessary serialization and deserialization if materialization isn't needed in the end.
 
 {% note info "Note" %}
 

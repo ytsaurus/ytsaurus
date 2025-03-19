@@ -3,7 +3,7 @@
 * [Lexical structure](lexer.md)
 * [Expressions](expressions.md)
 * [USE](use.md)
-* [SELECT](select.md)
+* [SELECT](select/index.md)
 * [VALUES](values.md)
 * [CREATE TABLE](create_table.md)
 * [DROP TABLE](drop_table.md)

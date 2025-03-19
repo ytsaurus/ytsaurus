@@ -26,13 +26,13 @@ In the list of function arguments after the `USING` keyword, you can pass one of
 
 {% note info "Note" %}
 
-After running `PROCESS` as part of the same query on the resulting table(s), you can run [SELECT](select.md), [REDUCE](reduce.md), [INSERT INTO](insert_into.md), another `PROCESS`, etc. depending on the desired output.
+After running `PROCESS` as part of the same query on the resulting table(s), you can run [SELECT](select/index.md), [REDUCE](reduce.md), [INSERT INTO](insert_into.md), another `PROCESS`, etc. depending on the desired output.
 
 {% endnote %}
 
 You don't have to use the keyword `USING` and specify the function. If they're not specified, the original table returns. This might be helpful when using a [subquery template](subquery.md).
 
-You can pass multiple inputs (input can mean a table, [range of tables](select.md#range), subquery, or [named expression](expressions.md#named-nodes)) separated with commas to `PROCESS`. To the function from `USING`, you can only pass in this case special named expressions `TableRow()` or  `TableRows()` that will have the following type:
+You can pass multiple inputs (input can mean a table, [range of tables](select/concat.md), subquery, or [named expression](expressions.md#named-nodes)) separated with commas to `PROCESS`. To the function from `USING`, you can only pass in this case special named expressions `TableRow()` or  `TableRows()` that will have the following type:
 
 * `TableRow()`: A `Variant` where each element has an entry structure type from the relevant input. For each input row in the Variant, the element corresponding to the occurrence ID for this row is non-empty
 * `TableRows()`: A lazy iterator by Variants, in terms of the types `Stream<Variant<...>>`. The alternative has the same semantics as for `TableRow()`

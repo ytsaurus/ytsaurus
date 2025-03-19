@@ -423,9 +423,9 @@ A table expression is an expression that returns a table. Table expressions in Y
 * [subquery templates](subquery.md#define-subquery): `DEFINE SUBQUERY $foo($name) AS ... END DEFINE;` (`$foo("InputTable")` call is a table expression).
 
 Semantics of a table expression depends on the context where it is used. In YQL, table expressions can be used in the following contexts:
-* Table context: after [FROM](select.md#from).
+* Table context: after [FROM](select/from.md).
    In this case, table expressions work as expected: for example, `$input = SELECT a, b, c FROM T; SELECT * FROM $input` returns a table with three columns.
-   The table context also appears after [UNION ALL](select.md#unionall), [JOIN](join.md#join), [PROCESS](process.md#process), and [REDUCE](reduce.md#reduce);
+   The table context also appears after [UNION ALL](select/union.md#union-all), [JOIN](join.md#join), [PROCESS](process.md#process), and [REDUCE](reduce.md#reduce);
 * the vector context appears after [IN](#in). In this context, the table expression must contain exactly one column (the name of this column doesn't affect the expression result in any way).
    A table expression in a vector context is typed as a list (the type of the list element is the same as the column type in this case). Example: `SELECT * FROM T WHERE key IN (SELECT k FROM T1)`;
 * A scalar context arises _in all the other cases_. As in a vector context,
@@ -492,7 +492,7 @@ List arguments in round brackets, following them by the arrow and lambda functio
 
 The scope for the lambda body: first the local named expressions, then arguments, then named expressions defined above by the lambda function at the top level of the query.
 
-Only use pure expressions inside the lambda body (those might also be other lambdas, possibly passed through arguments). But you can't use [SELECT](select.md), [INSERT INTO](insert_into.md) and other top-level statements inside lambdas.
+Only use pure expressions inside the lambda body (those might also be other lambdas, possibly passed through arguments). But you can't use [SELECT](select/index.md), [INSERT INTO](insert_into.md) and other top-level statements inside lambdas.
 
 One or more of the last lambda parameters can be marked with a question mark as optional: if they haven't been specified when calling lambda, they are assigned the `NULL` value.
 
