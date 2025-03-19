@@ -28,10 +28,10 @@ jobs:
           zone-id: ${{ vars.YC_ZONE_ID }}
           subnet-id: ${{ vars.YC_SUBNET_ID }}
           cores: 16
-          memory: 32GB
+          memory: 64GB
           core-fraction: 100
           disk-type: network-ssd-nonreplicated
-          disk-size: 93GB
+          disk-size: 558GB
           user: ${{ secrets.YC_VM_USERNAME }}
           ssh-public-key: ${{ secrets.YC_VM_SSH_PUBLIC_KEY }}
           public-ip: false
