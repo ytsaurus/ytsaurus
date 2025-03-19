@@ -486,6 +486,10 @@ INSTANTIATE_TEST_SUITE_P(
         std::tuple(EIOEngineType::FairShareThreadPool, CustomConfig, AllocatorBehaviourCollocate),
         std::tuple(EIOEngineType::FairShareThreadPool, DefaultConfig, AllocatorBehaviourSeparate),
 
+        std::tuple(EIOEngineType::FairShareHierarchical, DefaultConfig, AllocatorBehaviourCollocate),
+        std::tuple(EIOEngineType::FairShareHierarchical, CustomConfig, AllocatorBehaviourCollocate),
+        std::tuple(EIOEngineType::FairShareHierarchical, DefaultConfig, AllocatorBehaviourSeparate),
+
         std::tuple(EIOEngineType::Uring, DefaultConfig, AllocatorBehaviourCollocate),
         std::tuple(EIOEngineType::Uring, CustomConfig, AllocatorBehaviourCollocate),
         std::tuple(EIOEngineType::Uring, DefaultConfig, AllocatorBehaviourSeparate),
