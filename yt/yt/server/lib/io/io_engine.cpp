@@ -982,12 +982,14 @@ public:
             }
         }
 
+        guard.Release();
+
         TReadResponse response{
             .PaddedBytes = paddedBytes,
         };
         response.OutputBuffers.assign(buffers.begin(), buffers.end());
 
-        Event_.NotifyAll();
+        EventCount_.NotifyAll();
 
         return AllSucceeded(std::move(futures))
             .Apply(BIND([
@@ -1057,7 +1059,8 @@ public:
             SlotIdToRequestIds_[slotId].push_back({requestId, EFairShareIOEngineRequestType::Write});
         }
 
-        Event_.NotifyAll();
+        guard.Release();
+        EventCount_.NotifyAll();
 
         return AllSucceeded(std::move(futures))
             .Apply(BIND([] (const std::vector<TWriteResponse>& subresponses) {
@@ -1094,7 +1097,8 @@ public:
         SlotIds_.emplace(slotId);
         SlotIdToRequestIds_[slotId].push_back({requestId, EFairShareIOEngineRequestType::Flush});
 
-        Event_.NotifyAll();
+        guard.Release();
+        EventCount_.NotifyAll();
 
         return future;
     }
@@ -1126,7 +1130,8 @@ public:
             SlotIdToRequestIds_[slotId].push_back({requestId, EFairShareIOEngineRequestType::FlushFileRange});
         }
 
-        Event_.NotifyAll();
+        guard.Release();
+        EventCount_.NotifyAll();
 
         return AllSucceeded(std::move(futures))
             .Apply(BIND([] (const std::vector<TFlushFileRangeResponse>& subresponses) {
@@ -1142,18 +1147,20 @@ public:
 
     void EngineLoop()
     {
-        auto finally = [this] (auto&& guard) {
+        auto finally = [this] (auto&& guard, auto&& cookie) {
             guard.Release();
-            Event_.Wait(TDuration::Seconds(1));
+            EventCount_.Wait(std::move(cookie), TDuration::Seconds(1));
             YT_UNUSED_FUTURE(BIND(&TFairShareHierarchicalThreadPoolIOEngine::EngineLoop, MakeStrong(this))
                 .AsyncVia(ThreadPool_->GetInvoker())
                 .Run());
         };
 
         while (true) {
+            auto cookie = EventCount_.PrepareWait();
+
             auto guard = Guard(Lock_);
             if (SlotIds_.empty()) {
-                finally(std::move(guard));
+                finally(std::move(guard), std::move(cookie));
                 return;
             }
 
@@ -1162,9 +1169,11 @@ public:
             auto requestsIt = SlotIdToRequestIds_.find(slotId);
 
             if (requestsIt == SlotIdToRequestIds_.end()) {
-                finally(std::move(guard));
+                finally(std::move(guard), std::move(cookie));
                 return;
             }
+
+            EventCount_.CancelWait();
 
             auto& requests = requestsIt->second;
             auto requestIdToType = requests.front();
@@ -1241,7 +1250,7 @@ private:
     THashMap<TGuid, TRequestHandler<TFlushFileResponse>> FlushFileRequestStorage_;
     THashMap<TGuid, TRequestHandler<TFlushFileRangeResponse>> FlushFileRangeRequestStorage_;
 
-    NThreading::TEvent Event_;
+    NThreading::TEventCount EventCount_;
 
     template <class TResponse>
     void HandleNextRequest(
