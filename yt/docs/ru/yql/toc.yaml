@@ -20,6 +20,7 @@ items:
         href: syntax/create_table.md
       - name: DECLARE
         href: syntax/declare.md
+        when: feature_declare
       - name: DISCARD
         href: syntax/discard.md
       - name: DROP TABLE
