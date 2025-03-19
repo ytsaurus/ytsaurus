@@ -12,7 +12,11 @@ struct TStubKeyStore
     : public IKeyStoreReader
     , public IKeyStoreWriter
 {
-    TOwnerId OwnerId = TOwnerId("TStubKeyStore");
+    const TOwnerId OwnerId;
+
+    explicit TStubKeyStore(TOwnerId ownerId = TOwnerId("TStubKeyStore"))
+        : OwnerId(std::move(ownerId))
+    { }
 
     THashMap<TOwnerId, std::vector<TKeyInfoPtr>> Data;
 
