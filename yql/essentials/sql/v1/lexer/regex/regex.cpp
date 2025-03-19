@@ -48,11 +48,8 @@ namespace NSQLTranslationV1 {
         TString ToRegex(const TStringBuf name) {
             TString text = Grammar_->BlockByName.at(name);
             Inline(text);
-            std::cerr << name << ": " << text << std::endl;
             Transform(text);
-            std::cerr << name << ": " << text << std::endl;
             Finalize(text);
-            std::cerr << name << ": " << text << std::endl;
             return text;
         }
 

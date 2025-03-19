@@ -2,13 +2,13 @@
 
 #include "regex.h"
 
+#include <contrib/libs/re2/re2/re2.h>
+
 #include <yql/essentials/sql/v1/reflect/sql_reflect.h>
 
 #include <util/generic/algorithm.h>
 #include <util/generic/string.h>
 #include <util/string/subst.h>
-
-#include <regex>
 
 namespace NSQLTranslationV1 {
 
@@ -21,7 +21,7 @@ namespace NSQLTranslationV1 {
             : Grammar_(std::move(grammar))
         {
             for (auto& [token, regex] : MakeRegexByOtherNameMap(Grammar_, ansi)) {
-                OtherRegexes_.emplace(std::move(token), std::string(std::move(regex)));
+                OtherRegexes_.emplace(std::move(token), std::move(regex));
             }
         }
 
@@ -119,9 +119,9 @@ namespace NSQLTranslationV1 {
         size_t MatchRegex(const TStringBuf prefix, TParsedTokenList& matches) {
             size_t count = 0;
             for (const auto& [token, regex] : OtherRegexes_) {
-                std::smatch match;
-                if (std::regex_search(prefix.data(), match, regex, std::regex_constants::match_continuous)) {
-                    matches.emplace_back(token, match.str(0));
+                re2::StringPiece input(prefix.data(), prefix.size());
+                if (RE2::Consume(&input, regex)) {
+                    matches.emplace_back(token, TString(prefix.data(), input.data()));
                     count += 1;
                 }
             }
@@ -129,7 +129,7 @@ namespace NSQLTranslationV1 {
         }
 
         NSQLReflect::TLexerGrammar Grammar_;
-        THashMap<TString, std::regex> OtherRegexes_;
+        THashMap<TString, RE2> OtherRegexes_;
     };
 
     NSQLTranslation::ILexer::TPtr MakeRegexLexer(bool ansi) {
