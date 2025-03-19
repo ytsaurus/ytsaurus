@@ -8845,7 +8845,7 @@ TOperationSpecBaseSealedConfigurator TOperationControllerBase::ConfigureUpdate()
 {
     auto configurator = GetOperationSpecBaseConfigurator();
     configurator.Field("max_failed_job_count", &TOperationSpecBase::MaxFailedJobCount)
-        .Updater(BIND_NO_PROPAGATE([&] (const int& newMaxFailedJobCount) {
+        .Updater(BIND_NO_PROPAGATE([&] (int newMaxFailedJobCount) {
             if (FailedJobCount_ >= newMaxFailedJobCount) {
                 OnOperationFailed(GetMaxFailedJobCountReachedError(newMaxFailedJobCount));
             }
