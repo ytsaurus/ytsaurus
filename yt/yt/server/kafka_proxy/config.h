@@ -8,11 +8,29 @@
 
 #include <yt/yt/library/dynamic_config/public.h>
 
+#include <yt/yt/library/re2/public.h>
+
 #include <yt/yt/library/server_program/config.h>
 
 #include <yt/yt/library/auth_server/public.h>
 
 namespace NYT::NKafkaProxy {
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TStringTransformationConfig
+    : public virtual NYTree::TYsonStruct
+{
+    //! If set, replaces all non-overlapping matches of this pattern with the replacement string.
+    NRe2::TRe2Ptr MatchPattern;
+    TString Replacement;
+
+    REGISTER_YSON_STRUCT(TStringTransformationConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DECLARE_REFCOUNTED_STRUCT(TStringTransformationConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -51,6 +69,15 @@ struct TProxyBootstrapConfig
     TCypressRegistrarConfigPtr CypressRegistrar;
 
     TSlruCacheConfigPtr ClientCache;
+
+    //! Configures a list of transformations to be applied to the contents of the Kafka topic name in each request.
+    //! Transformations are applied consecutively in order they are listed.
+    //! Each transformation will replace all non-overlapping matches of its match pattern
+    //! with the replacement string. You can use \1-\9 for captured match groups in the
+    //! replacement string, and \0 for the whole match.
+    //! Regex must follow RE2 syntax, which is a subset of that accepted by PCRE, roughly
+    //! speaking, and with various caveats.
+    std::vector<TStringTransformationConfigPtr> TopicNameTransformations;
 
     REGISTER_YSON_STRUCT(TProxyBootstrapConfig);
 
