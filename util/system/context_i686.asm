@@ -41,3 +41,8 @@ EXPORT __mysetjmp
         mov [eax + MJB_BP*4], ebp
         xor eax, eax
         ret
+
+EXPORT __stacktrampoline
+        push edi
+        call esi
+        ud2
