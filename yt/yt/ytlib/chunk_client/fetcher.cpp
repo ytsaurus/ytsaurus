@@ -281,60 +281,103 @@ void TFetcherBase::SetCancelableContext(TCancelableContextPtr cancelableContext)
     CancelableContext_ = std::move(cancelableContext);
 }
 
-void TFetcherBase::PerformFetchingRoundFromNode(NNodeTrackerClient::TNodeId nodeId)
+void TFetcherBase::PerformFetchingRoundStep(TPromise<void> fetchingRoundPromise, NNodeTrackerClient::TNodeId nodeId)
 {
+    // This code was intentionally rewritten without WaitFor to avoid extensive fiber creation.
+    const auto& nodeAddress = NodeDirectory_->GetDescriptor(nodeId).GetDefaultAddress();
+    if (fetchingRoundPromise.IsCanceled()) {
+        YT_LOG_DEBUG(
+            "Node fetching round was canceled (NodeId: %v, NodeAddress: %v)",
+            nodeId,
+            nodeAddress);
+        return;
+    }
+
+    auto finishRound = [&] () {
+        YT_LOG_DEBUG(
+            "Node fetching round completed (NodeId: %v, NodeAddress: %v, UnfetchedChunkCount: %v)",
+            nodeId,
+            nodeAddress,
+            NodeToChunkIndexesToFetch_[nodeId].size());
+
+        UnfetchedChunkIndexes_.insert(
+            NodeToChunkIndexesToFetch_[nodeId].begin(),
+            NodeToChunkIndexesToFetch_[nodeId].end());
+        NodeToChunkIndexesToFetch_[nodeId].clear();
+        fetchingRoundPromise.TrySet();
+    };
+
+    if (DeadNodes_.contains(nodeId)) {
+        YT_LOG_DEBUG(
+            "Node is dead, stop fetching round (NodeId: %v, NodeAddress: %v)",
+            nodeId,
+            nodeAddress);
+        finishRound();
+        return;
+    }
+
+    auto& chunkIndexesToFetch = NodeToChunkIndexesToFetch_[nodeId];
+    if (chunkIndexesToFetch.empty()) {
+        finishRound();
+        return;
+    }
+
+    auto oldChunksToFetchCount = chunkIndexesToFetch.size();
+    auto lastIt = std::next(
+        chunkIndexesToFetch.begin(),
+        std::min<i64>(Config_->MaxChunksPerNodeFetch, std::ssize(chunkIndexesToFetch)));
+    std::vector<int> chunkIndexes(chunkIndexesToFetch.begin(), lastIt);
+    chunkIndexesToFetch.erase(chunkIndexesToFetch.begin(), lastIt);
+
+    YT_LOG_DEBUG(
+        "Fetching from node (NodeId: %v, NodeAddress: %v, ChunkCount: %v)",
+        nodeId,
+        nodeAddress,
+        chunkIndexes.size());
+
+    FetchFromNode(nodeId, std::move(chunkIndexes))
+        .Subscribe(BIND([
+            this,
+            weakThis = MakeWeak(this),
+            nodeId,
+            fetchingRoundPromise = std::move(fetchingRoundPromise),
+            oldChunksToFetchCount
+        ] (const TError& error) {
+            auto this_ = weakThis.Lock();
+            if (!this_) {
+                fetchingRoundPromise.TrySet(TError("Chunk fetcher was canceled"));
+                return;
+            }
+            if (!error.IsOK()) {
+                YT_LOG_DEBUG(error, "Stopping node fetching round due to an error");
+                fetchingRoundPromise.TrySet(error);
+                return;
+            }
+
+            if (NodeToChunkIndexesToFetch_[nodeId].size() == oldChunksToFetchCount) {
+                YT_LOG_DEBUG(
+                    "Fetching step did not make any progress, considering node dead (Address: %v)",
+                    NodeDirectory_->GetDescriptor(nodeId).GetDefaultAddress());
+                DeadNodes_.insert(nodeId);
+            }
+            // Some chunks are still unfetched - run next step of current fetching round.
+            PerformFetchingRoundStep(std::move(fetchingRoundPromise), nodeId);
+        }).Via(Invoker_));
+}
+
+TFuture<void> TFetcherBase::PerformFetchingRoundFromNode(NNodeTrackerClient::TNodeId nodeId)
+{
+    auto promise = NewPromise<void>();
+
     const auto& nodeAddress = NodeDirectory_->GetDescriptor(nodeId).GetDefaultAddress();
     YT_LOG_DEBUG(
         "Starting node fetching round (NodeId: %v, NodeAddress: %v, ChunkCount: %v)",
         nodeId,
         nodeAddress,
         NodeToChunkIndexesToFetch_[nodeId].size());
-    for (auto& chunkIndexesToFetch = NodeToChunkIndexesToFetch_[nodeId]; !chunkIndexesToFetch.empty();) {
-        auto oldChunkIndexesToFetchSize = chunkIndexesToFetch.size();
 
-        auto lastIt = std::next(
-            chunkIndexesToFetch.begin(),
-            static_cast<i64>(std::min(static_cast<ui64>(Config_->MaxChunksPerNodeFetch), chunkIndexesToFetch.size())));
-        std::vector<int> chunkIds(chunkIndexesToFetch.begin(), lastIt);
-        chunkIndexesToFetch.erase(chunkIndexesToFetch.begin(), lastIt);
-        // Fetch another portion of chunks from node.
-        YT_LOG_DEBUG(
-            "Fetching from node (NodeId: %v, NodeAddress: %v, ChunkCount: %v)",
-            nodeId,
-            nodeAddress,
-            chunkIds.size());
-        try {
-            WaitFor(FetchFromNode(nodeId, std::move(chunkIds)))
-                .ThrowOnError();
-        } catch (const std::exception& ex) {
-            YT_LOG_DEBUG(ex, "Stopping node fetching round due to an error");
-            throw;
-        }
-
-        if (DeadNodes_.contains(nodeId)) {
-            break;
-        }
-
-        if (chunkIndexesToFetch.size() == oldChunkIndexesToFetchSize) {
-            YT_LOG_DEBUG(
-                "Fetching iteration did not make any progress, considering node dead (Address: %v)",
-                NodeDirectory_->GetDescriptor(nodeId).GetDefaultAddress());
-            DeadNodes_.insert(nodeId);
-            // All unfetched chunks will be put back into the common pool after this.
-            break;
-        }
-    }
-
-    YT_LOG_DEBUG(
-        "Node fetching round completed (NodeId: %v, NodeAddress: %v, UnfetchedChunkCount: %v)",
-        nodeId,
-        nodeAddress,
-        NodeToChunkIndexesToFetch_[nodeId].size());
-
-    UnfetchedChunkIndexes_.insert(
-        NodeToChunkIndexesToFetch_[nodeId].begin(),
-        NodeToChunkIndexesToFetch_[nodeId].end());
-    NodeToChunkIndexesToFetch_[nodeId].clear();
+    PerformFetchingRoundStep(promise, nodeId);
+    return promise.ToFuture();
 }
 
 void TFetcherBase::StartFetchingRound(const TError& preparationError)
@@ -446,9 +489,7 @@ void TFetcherBase::StartFetchingRound(const TError& preparationError)
             continue;
         }
 
-        asyncResults.push_back(BIND(&TFetcherBase::PerformFetchingRoundFromNode, MakeWeak(this), it->first)
-            .AsyncVia(Invoker_)
-            .Run());
+        asyncResults.push_back(PerformFetchingRoundFromNode(it->first));
     }
 
     bool backoff = asyncResults.empty();
