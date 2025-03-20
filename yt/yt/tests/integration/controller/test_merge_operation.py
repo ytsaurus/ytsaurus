@@ -12,7 +12,7 @@ from yt_type_helpers import (
     make_schema, normalize_schema, normalize_schema_v3, optional_type, list_type,
     struct_type, tuple_type, dict_type, variant_struct_type, tagged_type)
 
-from yt_helpers import skip_if_component_old, skip_if_no_descending, skip_if_old, skip_if_renaming_disabled
+from yt_helpers import skip_if_component_old, skip_if_old
 
 from yt.environment.helpers import assert_items_equal
 from yt.common import YtError
@@ -278,7 +278,6 @@ class TestSchedulerMergeCommands(YTEnvSetup):
             pytest.skip()
 
         if sort_order == "descending":
-            skip_if_no_descending(self.Env)
             self.skip_if_legacy_sorted_pool()
 
         if sort_order == "descending" and merge_mode != "sorted":
@@ -332,9 +331,7 @@ class TestSchedulerMergeCommands(YTEnvSetup):
     @pytest.mark.parametrize("merge_mode", ["unordered", "ordered", "sorted"])
     @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
     def test_rename_columns_alter_table(self, merge_mode, sort_order):
-        skip_if_renaming_disabled(self.Env)
         if sort_order == "descending":
-            skip_if_no_descending(self.Env)
             self.skip_if_legacy_sorted_pool()
         if sort_order == "descending" and merge_mode != "sorted":
             pytest.skip("Descending sort order is interesting only with sorted merge")
@@ -642,7 +639,6 @@ class TestSchedulerMergeCommands(YTEnvSetup):
     @pytest.mark.parametrize("combine_chunks", [False, True])
     def test_sorted(self, sort_order, combine_chunks):
         if sort_order == "descending":
-            skip_if_no_descending(self.Env)
             self.skip_if_legacy_sorted_pool()
 
         create("table", "//tmp/t1")
@@ -703,7 +699,6 @@ class TestSchedulerMergeCommands(YTEnvSetup):
 
     @authors("gritukan")
     def test_sorted_different_directions(self):
-        skip_if_no_descending(self.Env)
         self.skip_if_legacy_sorted_pool()
 
         create(
@@ -741,7 +736,6 @@ class TestSchedulerMergeCommands(YTEnvSetup):
     @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
     def test_sorted_merge_result_is_sorted(self, sort_order):
         if sort_order == "descending":
-            skip_if_no_descending(self.Env)
             self.skip_if_legacy_sorted_pool()
 
         create("table", "//tmp/t1")
@@ -878,7 +872,6 @@ class TestSchedulerMergeCommands(YTEnvSetup):
     @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
     def test_sorted_trivial(self, sort_order):
         if sort_order == "descending":
-            skip_if_no_descending(self.Env)
             self.skip_if_legacy_sorted_pool()
 
         create("table", "//tmp/t1")
@@ -914,7 +907,6 @@ class TestSchedulerMergeCommands(YTEnvSetup):
     @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
     def test_sorted_with_same_chunks(self, sort_order):
         if sort_order == "descending":
-            skip_if_no_descending(self.Env)
             self.skip_if_legacy_sorted_pool()
 
         t1 = "//tmp/t1"
@@ -984,7 +976,6 @@ class TestSchedulerMergeCommands(YTEnvSetup):
     @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
     def test_sorted_teleport(self, sort_order):
         if sort_order == "descending":
-            skip_if_no_descending(self.Env)
             self.skip_if_legacy_sorted_pool()
 
         create("table", "//tmp/t1")
@@ -1089,7 +1080,6 @@ class TestSchedulerMergeCommands(YTEnvSetup):
     @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
     def test_sorted_with_maniacs(self, sort_order):
         if sort_order == "descending":
-            skip_if_no_descending(self.Env)
             self.skip_if_legacy_sorted_pool()
 
         create("table", "//tmp/t1")
@@ -1134,7 +1124,6 @@ class TestSchedulerMergeCommands(YTEnvSetup):
     @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
     def test_sorted_with_row_limits(self, sort_order):
         if sort_order == "descending":
-            skip_if_no_descending(self.Env)
             self.skip_if_legacy_sorted_pool()
 
         create("table", "//tmp/t1")
@@ -1155,7 +1144,6 @@ class TestSchedulerMergeCommands(YTEnvSetup):
     @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
     def test_sorted_by(self, sort_order):
         if sort_order == "descending":
-            skip_if_no_descending(self.Env)
             self.skip_if_legacy_sorted_pool()
 
         create("table", "//tmp/t1")
@@ -1204,7 +1192,6 @@ class TestSchedulerMergeCommands(YTEnvSetup):
     @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
     def test_sorted_unique_simple(self, optimize_for, sort_order):
         if sort_order == "descending":
-            skip_if_no_descending(self.Env)
             self.skip_if_legacy_sorted_pool()
 
         create("table", "//tmp/t1")
@@ -1270,7 +1257,6 @@ class TestSchedulerMergeCommands(YTEnvSetup):
     @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
     def test_sorted_unique_teleport(self, sort_order):
         if sort_order == "descending":
-            skip_if_no_descending(self.Env)
             self.skip_if_legacy_sorted_pool()
 
         create(
@@ -1320,7 +1306,6 @@ class TestSchedulerMergeCommands(YTEnvSetup):
     @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
     def test_sorted_unique_with_wider_key_columns(self, optimize_for, sort_order):
         if sort_order == "descending":
-            skip_if_no_descending(self.Env)
             self.skip_if_legacy_sorted_pool()
 
         create("table", "//tmp/t1")
@@ -1482,7 +1467,6 @@ class TestSchedulerMergeCommands(YTEnvSetup):
     @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
     def test_column_selectors_schema_inference(self, mode, sort_order):
         if sort_order == "descending":
-            skip_if_no_descending(self.Env)
             self.skip_if_legacy_sorted_pool()
 
         create(
@@ -2048,7 +2032,6 @@ class TestSchedulerMergeCommands(YTEnvSetup):
     @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
     def test_sort_order_validation_failure(self, sort_order):
         if sort_order == "descending":
-            skip_if_no_descending(self.Env)
             self.skip_if_legacy_sorted_pool()
 
         create("table", "//tmp/input")
@@ -2113,7 +2096,6 @@ class TestSchedulerMergeCommands(YTEnvSetup):
     @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
     def test_merge_interrupt(self, mode, sort_order):
         if sort_order == "descending":
-            skip_if_no_descending(self.Env)
             self.skip_if_legacy_sorted_pool()
 
         create(
@@ -2329,7 +2311,6 @@ class TestSchedulerMergeCommands(YTEnvSetup):
     @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
     def test_overlapping_ranges_in_sorted_merge(self, sort_order):
         if sort_order == "descending":
-            skip_if_no_descending(self.Env)
             self.skip_if_legacy_sorted_pool()
 
         create(
