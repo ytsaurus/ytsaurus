@@ -4,8 +4,6 @@
 
 #include <contrib/libs/re2/re2/re2.h>
 
-#include <regex>
-
 using namespace NSQLTranslationV1;
 
 namespace {
@@ -19,8 +17,6 @@ namespace {
 
         const RE2 re2(regex);
         Y_ENSURE(re2.ok(), re2.error());
-
-        std::regex reStd(regex.c_str());
 
         UNIT_ASSERT_VALUES_EQUAL(regex, expected);
     }
