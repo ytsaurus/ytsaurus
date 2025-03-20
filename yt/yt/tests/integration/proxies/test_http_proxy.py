@@ -420,35 +420,16 @@ class TestHttpProxyMemoryDrop(HttpProxyTestBase):
             self._execute_command("GET", "read_table", {"path": "//tmp/test"})
         assert err[0].is_rpc_unavailable()
 
-    @authors("nadya02")
-    @pytest.mark.timeout(120)
-    def test_default_user_drop(self):
-        monitoring_port = self.Env.configs["http_proxy"][0]["monitoring_port"]
-        config_url = "http://localhost:{}/orchid/dynamic_config_manager/effective_config".format(monitoring_port)
 
-        create("table", "//tmp/test")
-
-        set("//sys/http_proxies/@config", {
-            "api": {
-                "default_user_memory_limit_ratio": 0.0,
-            },
-        })
-
-        def config_updated():
-            config = requests.get(config_url).json()
-            return config.get("api", {}).get("default_user_memory_limit_ratio", None) == 0.0
-
-        wait(config_updated, timeout=600)
-
-        with raises_yt_error("Request is dropped due to high memory pressure"):
-            self._execute_command("GET", "read_table", {"path": "//tmp/test"})
+@pytest.mark.enabled_multidaemon
+class TestHttpProxyUserMemoryDrop(HttpProxyTestBase):
+    ENABLE_MULTIDAEMON = True
 
     @authors("nadya02")
     @pytest.mark.timeout(120)
     def test_specific_user_drop(self):
         create_user("nadya")
-        monitoring_port = self.Env.configs["http_proxy"][0]["monitoring_port"]
-        config_url = "http://localhost:{}/orchid/dynamic_config_manager/effective_config".format(monitoring_port)
+        proxy_name = ls("//sys/http_proxies")[0]
 
         create("table", "//tmp/test")
 
@@ -459,13 +440,35 @@ class TestHttpProxyMemoryDrop(HttpProxyTestBase):
         })
 
         def config_updated():
-            config = requests.get(config_url).json()
+            config = get("//sys/http_proxies/" + proxy_name + "/orchid/dynamic_config_manager/effective_config")
             return config.get("api", {}).get("user_to_memory_limit_ratio", None) == {"nadya" : 0.0}
 
-        wait(config_updated, timeout=600)
+        wait(config_updated)
 
         with raises_yt_error("Request is dropped due to high memory pressure"):
             self._execute_command("GET", "read_table", {"path": "//tmp/test"}, user="nadya")
+
+    @authors("nadya02")
+    @pytest.mark.timeout(120)
+    def test_default_user_drop(self):
+        proxy_name = ls("//sys/http_proxies")[0]
+
+        create("table", "//tmp/test")
+
+        set("//sys/http_proxies/@config", {
+            "api": {
+                "default_user_memory_limit_ratio": 0.0,
+            },
+        })
+
+        def config_updated():
+            config = get("//sys/http_proxies/" + proxy_name + "/orchid/dynamic_config_manager/effective_config")
+            return config.get("api", {}).get("default_user_memory_limit_ratio", None) == 0.0
+
+        wait(config_updated)
+
+        with raises_yt_error("Request is dropped due to high memory pressure"):
+            self._execute_command("GET", "read_table", {"path": "//tmp/test"})
 
 
 class TestFullDiscoverVersions(HttpProxyTestBase):
