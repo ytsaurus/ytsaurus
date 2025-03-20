@@ -3988,7 +3988,8 @@ void TOperationControllerBase::BuildJobAttributes(
                 .Item("predecessor_type").Value(joblet->PredecessorType)
                 .Item("predecessor_job_id").Value(joblet->PredecessorJobId);
         })
-        .OptionalItem("operation_incarnation", joblet->OperationIncarnation);
+        .OptionalItem("operation_incarnation", joblet->OperationIncarnation)
+        .Item("allocation_id").Value(AllocationIdFromJobId(joblet->JobId));
 }
 
 void TOperationControllerBase::BuildFinishedJobAttributes(
@@ -11224,7 +11225,8 @@ void TOperationControllerBase::HandleJobReport(const TJobletPtr& joblet, TContro
             .OperationId(OperationId)
             .JobId(joblet->JobId)
             .Address(joblet->NodeDescriptor.Address)
-            .Ttl(joblet->ArchiveTtl));
+            .Ttl(joblet->ArchiveTtl)
+            .AllocationId(AllocationIdFromJobId(joblet->JobId)));
 }
 
 void TOperationControllerBase::OnCompetitiveJobScheduled(const TJobletPtr& joblet, EJobCompetitionType competitionType)

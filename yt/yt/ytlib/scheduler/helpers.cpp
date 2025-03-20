@@ -51,6 +51,15 @@ using NYT::ToProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TAllocationId AllocationIdFromJobId(TJobId jobId)
+{
+    auto allocationIdGuid = jobId.Underlying();
+    allocationIdGuid.Parts32[0] &= (1 << 24) - 1;
+    return TAllocationId(allocationIdGuid);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void ApplyJobShellOptionsUpdate(TJobShellOptionsMap* origin, const TJobShellOptionsUpdateMap& update)
 {
     for (const auto& [jobShellName, options] : update) {
