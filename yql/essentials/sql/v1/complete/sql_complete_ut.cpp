@@ -320,4 +320,11 @@ Y_UNIT_TEST_SUITE(SqlCompleteTests) {
         UNIT_ASSERT_VALUES_EQUAL(Complete(engine, "Se"), expected);
         UNIT_ASSERT_VALUES_EQUAL(Complete(engine, "SE"), expected);
     }
+
+    Y_UNIT_TEST(InvalidStatementsRecovery) {
+        auto engine = MakeSqlCompletionEngine();
+        UNIT_ASSERT_VALUES_EQUAL(Complete(engine, "select select;").size(), 35);
+        UNIT_ASSERT_VALUES_EQUAL(Complete(engine, "!;").size(), 35);
+    }
+
 } // Y_UNIT_TEST_SUITE(SqlCompleteTests)
