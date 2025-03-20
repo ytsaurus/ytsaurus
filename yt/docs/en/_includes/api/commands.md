@@ -2589,47 +2589,6 @@ Example:
 PARAMETERS { "job_id" = "1225d-1f2fb8c4-f1075d39-5fb7cdff" }
 ```
 
-{% if audience == "internal" %}
-
-### strace_job
-
-
-{% note warning "Attention" %}
-
-The command is obsolete and will be deleted. Use `job shell` to replace it.
-
-{% endnote %}
-
-Command properties: **Non-mutating**, **Light**.
-
-Semantics:
-
-- Get job strace.
-
-Parameters:
-
-| **Parameter** | **Required** | **Default value** | **Description** |
-| ------------ | ------------- | ------------------------- | -------------------- |
-| `job_id` | Yes |                           | Job ID. |
-
-Input data:
-
-- Type: `null`.
-
-Output data:
-
-- Type: `structured`.
-- Value: traces of running processes.
-
-Example:
-
-```bash
-PARAMETERS { "job_id" = "1225d-1f2fb8c4-f1075d39-5fb7cdff" }
-```
-
-{% endif %}
-
-
 ### dump_job_context
 
 Command properties: **Non-mutating**, **Light**.
