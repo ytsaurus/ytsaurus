@@ -223,10 +223,27 @@ TFuture<void> TChunkFileWriter::GetReadyEvent()
 TFuture<void> TChunkFileWriter::Close(
     const IChunkWriter::TWriteBlocksOptions& options,
     const TWorkloadDescriptor& workloadDescriptor,
-    const TDeferredChunkMetaPtr& chunkMeta)
+    const TDeferredChunkMetaPtr& chunkMeta,
+    std::optional<int> truncateBlockCount)
 {
     if (auto error = TryChangeState(EState::Ready, EState::Closing); !error.IsOK()) {
         return MakeFuture<void>(std::move(error));
+    }
+
+    if (truncateBlockCount.has_value()) {
+        YT_LOG_FATAL_IF(
+            *truncateBlockCount > BlocksExt_.blocks_size() || *truncateBlockCount < 0,
+            "Invalid truncate block count (TruncateBlockCount: %v, BlockCount: %v)",
+            *truncateBlockCount,
+            BlocksExt_.blocks_size());
+
+        i64 truncateDataSize = 0;
+        for (int index = *truncateBlockCount; index < BlocksExt_.blocks_size(); ++index) {
+            truncateDataSize += BlocksExt_.blocks(index).size();
+        }
+        BlocksExt_.mutable_blocks()->Truncate(*truncateBlockCount);
+        YT_VERIFY(truncateDataSize <= DataSize_);
+        DataSize_ -= truncateDataSize;
     }
 
     auto metaFileName = FileName_ + ChunkMetaSuffix;

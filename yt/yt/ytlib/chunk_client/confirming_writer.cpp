@@ -140,10 +140,12 @@ public:
     TFuture<void> Close(
         const IChunkWriter::TWriteBlocksOptions& options,
         const TWorkloadDescriptor& workloadDescriptor,
-        const TDeferredChunkMetaPtr& chunkMeta) override
+        const TDeferredChunkMetaPtr& chunkMeta,
+        std::optional<int> truncateBlockCount) override
     {
         YT_VERIFY(Initialized_);
         YT_VERIFY(OpenFuture_.IsSet());
+        YT_VERIFY(!truncateBlockCount.has_value());
 
         ChunkMeta_ = chunkMeta;
 

@@ -97,10 +97,15 @@ public:
 
     TFuture<void> Close(
         const IChunkWriter::TWriteBlocksOptions& options,
-        TRefCountedChunkMetaPtr chunkMeta)
+        TRefCountedChunkMetaPtr chunkMeta,
+        std::optional<int> truncateBlockCount)
     {
         return EnqueueCommand(
-            BIND(&TBlobWritePipeline::DoClose, MakeStrong(this), options, std::move(chunkMeta)));
+            BIND(&TBlobWritePipeline::DoClose,
+                 MakeStrong(this),
+                 options,
+                 std::move(chunkMeta),
+                 truncateBlockCount));
     }
 
     TFuture<void> Abort()
@@ -249,7 +254,8 @@ private:
 
     TFuture<void> DoClose(
         const IChunkWriter::TWriteBlocksOptions& options,
-        const TRefCountedChunkMetaPtr& chunkMeta)
+        const TRefCountedChunkMetaPtr& chunkMeta,
+        std::optional<int> truncateBlockCount)
     {
         YT_ASSERT_INVOKER_AFFINITY(SessionInvoker_);
 
@@ -261,7 +267,7 @@ private:
 
         TWallTimer timer;
 
-        return Writer_->Close(options, Options_.WorkloadDescriptor, deferredChunkMeta).Apply(
+        return Writer_->Close(options, Options_.WorkloadDescriptor, deferredChunkMeta, truncateBlockCount).Apply(
             BIND([=, this, this_ = MakeStrong(this)] {
                 auto time = timer.GetElapsedTime();
 
@@ -371,7 +377,8 @@ void TBlobSession::OnStarted(const TError& error)
 
 TFuture<ISession::TFinishResult> TBlobSession::DoFinish(
     const TRefCountedChunkMetaPtr& chunkMeta,
-    std::optional<int> blockCount)
+    std::optional<int> blockCount,
+    bool truncateExtraBlocks)
 {
     YT_ASSERT_INVOKER_AFFINITY(SessionInvoker_);
     YT_VERIFY(chunkMeta);
@@ -382,11 +389,16 @@ TFuture<ISession::TFinishResult> TBlobSession::DoFinish(
     }
 
     auto currentBlockCount = BlockCount_.load();
+    std::optional<int> truncateBlockCount;
     if (*blockCount != currentBlockCount) {
-        return MakeFuture<TFinishResult>(TError("Block count mismatch in blob session %v: expected %v, got %v",
-            SessionId_,
-            currentBlockCount,
-            *blockCount));
+        if (truncateExtraBlocks && *blockCount < currentBlockCount) {
+            truncateBlockCount = blockCount;
+        } else {
+            return MakeFuture<TFinishResult>(TError("Block count mismatch in blob session %v: expected %v, got %v",
+                SessionId_,
+                currentBlockCount,
+                *blockCount));
+        }
     }
 
     for (int blockIndex = WindowStartBlockIndex_; blockIndex < std::ssize(Window_); ++blockIndex) {
@@ -403,7 +415,7 @@ TFuture<ISession::TFinishResult> TBlobSession::DoFinish(
         return MakeFuture<TFinishResult>(Error_);
     }
 
-    return Pipeline_->Close(WriteBlocksOptions_, chunkMeta)
+    return Pipeline_->Close(WriteBlocksOptions_, chunkMeta, truncateBlockCount)
         .Apply(BIND(&TBlobSession::OnFinished, MakeStrong(this))
             .AsyncVia(SessionInvoker_));
 }

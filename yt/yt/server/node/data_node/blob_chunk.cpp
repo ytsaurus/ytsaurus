@@ -1,9 +1,9 @@
 #include "blob_chunk.h"
 
-#include "private.h"
 #include "blob_reader_cache.h"
 #include "chunk_meta_manager.h"
 #include "chunk_store.h"
+#include "private.h"
 
 #include <yt/yt/server/node/cluster_node/config.h>
 
@@ -31,14 +31,15 @@
 
 namespace NYT::NDataNode {
 
-using namespace NConcurrency;
-using namespace NThreading;
-using namespace NClusterNode;
-using namespace NNodeTrackerClient;
-using namespace NIO;
 using namespace NChunkClient;
-using namespace NChunkClient::NProto;
+using namespace NClusterNode;
+using namespace NConcurrency;
+using namespace NIO;
+using namespace NNodeTrackerClient;
 using namespace NProfiling;
+using namespace NThreading;
+
+using namespace NChunkClient::NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -200,7 +201,7 @@ TSharedRef TBlobChunkBase::WrapBlockWithDelayedReferenceHolder(TSharedRef rawRef
         GetCurrentInvoker());
 }
 
-void TBlobChunkBase::CompleteSession(const TReadBlockSetSessionPtr& session)
+void TBlobChunkBase::CompleteSession(const TReadBlockSetSessionPtr& session) noexcept
 {
     YT_ASSERT_INVOKER_AFFINITY(session->Invoker);
 
@@ -236,7 +237,7 @@ void TBlobChunkBase::CompleteSession(const TReadBlockSetSessionPtr& session)
     session->LocationMemoryGuard.Release();
 }
 
-void TBlobChunkBase::FailSession(const TReadBlockSetSessionPtr& session, const TError& error)
+void TBlobChunkBase::FailSession(const TReadBlockSetSessionPtr& session, const TError& error) noexcept
 {
     YT_ASSERT_INVOKER_AFFINITY(session->Invoker);
 
@@ -341,7 +342,7 @@ void TBlobChunkBase::DoReadMeta(
 
 void TBlobChunkBase::OnBlocksExtLoaded(
     const TReadBlockSetSessionPtr& session,
-    const NIO::TBlocksExtPtr& blocksExt)
+    const TBlocksExtPtr& blocksExt) noexcept
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
 
@@ -356,6 +357,18 @@ void TBlobChunkBase::OnBlocksExtLoaded(
 
     for (int entryIndex = 0; entryIndex < session->EntryCount; ++entryIndex) {
         auto& entry = session->Entries[entryIndex];
+
+        if (entry.BlockIndex >= std::ssize(blocksExt->Blocks)) {
+            FailSession(session,
+                TError(
+                    NChunkClient::EErrorCode::MalformedReadRequest,
+                    "Requested to read block with index %v from chunk %v while only %v blocks exist",
+                    entry.BlockIndex,
+                    GetId(),
+                    std::ssize(blocksExt->Blocks)));
+            return;
+        }
+
         const auto& blockInfo = blocksExt->Blocks[entry.BlockIndex];
         entry.BeginOffset = blockInfo.Offset;
         entry.EndOffset = blockInfo.Offset + blockInfo.Size;
@@ -472,7 +485,7 @@ void TBlobChunkBase::DoReadSession(
     DoReadBlockSet(session);
 }
 
-void TBlobChunkBase::DoReadBlockSet(const TReadBlockSetSessionPtr& session)
+void TBlobChunkBase::DoReadBlockSet(const TReadBlockSetSessionPtr& session) noexcept
 {
     YT_ASSERT_INVOKER_AFFINITY(session->Invoker);
 
@@ -719,7 +732,7 @@ void TBlobChunkBase::OnBlocksRead(
     int beginEntryIndex,
     int endEntryIndex,
     THashMap<int, TReadBlockSetSession::TBlockEntry> blockIndexToEntry,
-    const TErrorOr<std::vector<TBlock>>& blocksOrError)
+    const TErrorOr<std::vector<TBlock>>& blocksOrError) noexcept
 {
     YT_ASSERT_INVOKER_AFFINITY(session->Invoker);
 

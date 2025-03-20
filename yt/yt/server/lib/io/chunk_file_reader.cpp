@@ -321,6 +321,9 @@ TFuture<std::vector<TBlock>> TChunkFileReader::DoReadBlocks(
     NIO::TBlocksExtPtr blocksExt,
     TIOEngineHandlePtr dataFile)
 {
+    if (blockCount == 0) {
+        return MakeFuture(std::vector<TBlock>());
+    }
     if (!blocksExt && BlocksExtCache_) {
         blocksExt = BlocksExtCache_->Find();
     }
