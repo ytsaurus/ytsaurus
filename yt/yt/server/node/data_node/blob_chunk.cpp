@@ -114,6 +114,7 @@ TFuture<TRefCountedChunkMetaPtr> TBlobChunkBase::ReadMeta(
 
     return
         asyncMeta.Apply(BIND([=, this, this_ = MakeStrong(this), session = std::move(session)] (const TCachedChunkMetaPtr& cachedMeta) {
+            session->SessionAliveCheckFuture.Cancel(TError("Read meta session completed"));
             ProfileReadMetaLatency(session);
             return FilterMeta(cachedMeta->GetMeta(), extensionTags);
         })
@@ -206,6 +207,8 @@ void TBlobChunkBase::CompleteSession(const TReadBlockSetSessionPtr& session)
         return;
     }
 
+    session->SessionAliveCheckFuture.Cancel(TError("Session completed"));
+
     ProfileReadBlockSetLatency(session);
 
     auto guard = session->PendingIOGuard.MoveMemoryTrackerGuard();
@@ -241,6 +244,8 @@ void TBlobChunkBase::FailSession(const TReadBlockSetSessionPtr& session, const T
     if (session->Finished.exchange(true)) {
         return;
     }
+
+    session->SessionAliveCheckFuture.Cancel(TError("Session failed"));
 
     for (int entryIndex = 0; entryIndex < session->EntryCount; ++entryIndex) {
         auto& entry = session->Entries[entryIndex];

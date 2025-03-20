@@ -108,6 +108,7 @@ protected:
         NProfiling::TWallTimer SessionTimer;
         std::optional<TChunkReadGuard> ChunkReadGuard;
         TChunkReadOptions Options;
+        TFuture<void> SessionAliveCheckFuture;
     };
 
     using TReadSessionBasePtr = TIntrusivePtr<TReadSessionBase>;
