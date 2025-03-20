@@ -9,6 +9,7 @@ SRCS(
     config.cpp
     dynamic_config_manager.cpp
     helpers.cpp
+    move_iteration.cpp
     program.cpp
     reshard_iteration.cpp
     table_registry.cpp
