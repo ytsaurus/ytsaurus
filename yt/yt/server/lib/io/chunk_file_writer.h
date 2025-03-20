@@ -58,7 +58,8 @@ public:
     TFuture<void> Close(
         const NChunkClient::IChunkWriter::TWriteBlocksOptions& options,
         const TWorkloadDescriptor& workloadDescriptor,
-        const NChunkClient::TDeferredChunkMetaPtr& chunkMeta) override;
+        const NChunkClient::TDeferredChunkMetaPtr& chunkMeta,
+        std::optional<int> truncateBlocks) override;
 
     const NChunkClient::NProto::TChunkInfo& GetChunkInfo() const override;
     const NChunkClient::NProto::TDataStatistics& GetDataStatistics() const override;

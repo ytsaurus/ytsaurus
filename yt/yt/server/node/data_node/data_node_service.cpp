@@ -97,7 +97,6 @@ using namespace NTableClient::NProto;
 using namespace NTableClient;
 using namespace NTracing;
 
-using NChunkClient::NProto::TBlocksExt;
 using NChunkClient::TChunkReaderStatistics;
 using NYT::FromProto;
 using NYT::ToProto;
@@ -345,7 +344,7 @@ private:
         auto meta = request->has_chunk_meta()
             ? New<TRefCountedChunkMeta>(std::move(*request->mutable_chunk_meta()))
             : nullptr;
-        session->Finish(meta, blockCount)
+        session->Finish(meta, blockCount, request->truncate_extra_blocks())
             .Subscribe(BIND([
                 =,
                 this,

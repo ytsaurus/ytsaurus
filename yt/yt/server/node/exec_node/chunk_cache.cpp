@@ -225,8 +225,10 @@ public:
     TFuture<void> Close(
         const IChunkWriter::TWriteBlocksOptions& options,
         const TWorkloadDescriptor& workloadDescriptor,
-        const NChunkClient::TDeferredChunkMetaPtr& chunkMeta) override
+        const TDeferredChunkMetaPtr& chunkMeta,
+        std::optional<int> truncateBlockCount) override
     {
+        YT_VERIFY(!truncateBlockCount.has_value());
         return Check(Underlying_->Close(options, workloadDescriptor, chunkMeta));
     }
 
@@ -1093,7 +1095,11 @@ private:
             auto deferredChunkMeta = New<TDeferredChunkMeta>();
             deferredChunkMeta->CopyFrom(*chunkMeta);
 
-            WaitFor(checkedChunkWriter->Close(writeBlocksOptions, chunkReadOptions.WorkloadDescriptor, deferredChunkMeta))
+            WaitFor(checkedChunkWriter->Close(
+                writeBlocksOptions,
+                chunkReadOptions.WorkloadDescriptor,
+                deferredChunkMeta,
+                /*truncateBlockCount*/ std::nullopt))
                 .ThrowOnError();
 
             if (Bootstrap_->GetIOTracker()->IsEnabled()) {

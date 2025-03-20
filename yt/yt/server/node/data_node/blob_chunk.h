@@ -110,21 +110,21 @@ private:
 
     TSharedRef WrapBlockWithDelayedReferenceHolder(TSharedRef rawReference, TDuration delayBeforeFree);
 
-    void CompleteSession(const TReadBlockSetSessionPtr& session);
-    static void FailSession(const TReadBlockSetSessionPtr& session, const TError& error);
+    void CompleteSession(const TReadBlockSetSessionPtr& session) noexcept;
+    static void FailSession(const TReadBlockSetSessionPtr& session, const TError& error) noexcept;
 
     void DoReadMeta(
         const TReadMetaSessionPtr& session,
         TCachedChunkMetaCookie cookie);
     void OnBlocksExtLoaded(
         const TReadBlockSetSessionPtr& session,
-        const NIO::TBlocksExtPtr& blocksExt);
+        const NIO::TBlocksExtPtr& blocksExt) noexcept;
 
     void DoReadSession(
         const TReadBlockSetSessionPtr& session,
         i64 pendingDataSize);
     void DoReadBlockSet(
-        const TReadBlockSetSessionPtr& session);
+        const TReadBlockSetSessionPtr& session) noexcept;
     void OnBlocksRead(
         const TReadBlockSetSessionPtr& session,
         int firstBlockIndex,
@@ -132,7 +132,7 @@ private:
         int beginEntryIndex,
         int endEntryIndex,
         THashMap<int, TReadBlockSetSession::TBlockEntry> blockIndexToEntry,
-        const TErrorOr<std::vector<NChunkClient::TBlock>>& blocksOrError);
+        const TErrorOr<std::vector<NChunkClient::TBlock>>& blocksOrError) noexcept;
 
     //! Returns `true` if chunk was written with `sync_on_close` option.
     //! Default value is `true`.
