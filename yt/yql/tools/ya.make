@@ -5,6 +5,7 @@ RECURSE(
 
 IF (NOT OPENSOURCE)
     RECURSE(
+        ytfilerun
         ytflowrun
     )
 ENDIF()
