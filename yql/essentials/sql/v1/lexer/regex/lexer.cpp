@@ -4,6 +4,7 @@
 
 #include <contrib/libs/re2/re2/re2.h>
 
+#include <yql/essentials/core/issue/yql_issue.h>
 #include <yql/essentials/sql/v1/reflect/sql_reflect.h>
 
 #include <util/generic/algorithm.h>
@@ -31,8 +32,6 @@ namespace NSQLTranslationV1 {
             const TTokenCallback& onNextToken,
             NYql::TIssues& issues,
             size_t maxErrors) override {
-            Y_UNUSED(queryName, issues);
-
             size_t errors = 0;
             for (size_t pos = 0; pos < query.size();) {
                 TParsedToken matched = Match(TStringBuf(query, pos));
@@ -44,6 +43,7 @@ namespace NSQLTranslationV1 {
                 if (matched.Name.empty()) {
                     pos += 1;
                     errors += 1;
+                    issues.AddIssue(NYql::TPosition(pos, 0, queryName), "no candidates");
                     continue;
                 }
 
@@ -132,9 +132,28 @@ namespace NSQLTranslationV1 {
         THashMap<TString, RE2> OtherRegexes_;
     };
 
-    NSQLTranslation::ILexer::TPtr MakeRegexLexer(bool ansi) {
-        return NSQLTranslation::ILexer::TPtr(
-            new TRegexLexer(ansi, NSQLReflect::LoadLexerGrammar()));
+    namespace {
+
+        class TFactory final: public NSQLTranslation::ILexerFactory {
+        public:
+            explicit TFactory(bool ansi)
+                : Ansi_(ansi)
+            {
+            }
+
+            NSQLTranslation::ILexer::TPtr MakeLexer() const override {
+                return NSQLTranslation::ILexer::TPtr(
+                    new TRegexLexer(Ansi_, NSQLReflect::LoadLexerGrammar()));
+            }
+
+        private:
+            bool Ansi_;
+        };
+
+    } // namespace
+
+    NSQLTranslation::TLexerFactoryPtr MakeRegexLexerFactory(bool ansi) {
+        return NSQLTranslation::TLexerFactoryPtr(new TFactory(ansi));
     }
 
 } // namespace NSQLTranslationV1

@@ -4,6 +4,6 @@
 
 namespace NSQLTranslationV1 {
 
-    NSQLTranslation::ILexer::TPtr MakeRegexLexer(bool ansi);
+    NSQLTranslation::TLexerFactoryPtr MakeRegexLexerFactory(bool ansi);
 
 } // namespace NSQLTranslationV1

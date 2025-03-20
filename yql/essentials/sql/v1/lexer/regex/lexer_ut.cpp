@@ -2,6 +2,7 @@
 
 #include <yql/essentials/public/issue/yql_issue.h>
 #include <yql/essentials/sql/settings/translation_settings.h>
+#include <yql/essentials/sql/v1/lexer/lexer.h>
 
 #include <library/cpp/testing/unittest/registar.h>
 
@@ -12,8 +13,16 @@ using NSQLTranslation::TParsedToken;
 using NSQLTranslation::TParsedTokenList;
 using NYql::TIssues;
 
-auto DefaultLexer = MakeRegexLexer(/* ansi = */ false);
-auto AnsiLexer = MakeRegexLexer(/* ansi = */ true);
+TLexers Lexers = {
+    .Regex = MakeRegexLexerFactory(/* ansi = */ false),
+    .RegexAnsi = MakeRegexLexerFactory(/* ansi = */ true),
+};
+
+auto DefaultLexer = MakeLexer(
+    Lexers, /* ansi = */ false, /* antlr4 = */ false, ELexerFlavor::Regex);
+
+auto AnsiLexer = MakeLexer(
+    Lexers, /* ansi = */ true, /* antlr4 = */ false, ELexerFlavor::Regex);
 
 TString ToString(TParsedToken token) {
     TString& string = token.Name;
