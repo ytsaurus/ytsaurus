@@ -123,7 +123,7 @@ struct TSequoiaConnectionConfig
     : public virtual NYTree::TYsonStruct
 {
     //! If |nullopt|, Sequoia tables are handled on the local cluster.
-    std::optional<TString> GroundClusterName;
+    std::optional<std::string> GroundClusterName;
 
     NYTree::TYPath SequoiaRootPath;
 

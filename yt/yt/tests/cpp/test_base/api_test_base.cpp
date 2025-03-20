@@ -98,7 +98,7 @@ void TApiTestBase::SetUpTestCase()
     }
 
     Client_ = CreateClient(NRpc::RootUserName);
-    ClusterName_ = ConvertTo<TString>(WaitFor(Client_->GetNode("//sys/@cluster_name")).ValueOrThrow());
+    ClusterName_ = ConvertTo<std::string>(WaitFor(Client_->GetNode("//sys/@cluster_name")).ValueOrThrow());
 }
 
 void TApiTestBase::TearDownTestCase()
@@ -153,7 +153,7 @@ void TApiTestBase::WaitUntilEqual(const TYPath& path, const TString& expected)
 
 NApi::IConnectionPtr TApiTestBase::Connection_;
 NApi::IClientPtr TApiTestBase::Client_;
-TString TApiTestBase::ClusterName_;
+std::string TApiTestBase::ClusterName_;
 
 ////////////////////////////////////////////////////////////////////////////////
 

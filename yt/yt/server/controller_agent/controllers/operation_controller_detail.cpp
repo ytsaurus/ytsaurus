@@ -522,7 +522,6 @@ void TOperationControllerBase::InitializeInputTransactions()
         filesAndTables,
         HasDiskRequestsWithSpecifiedAccount() || TLayerJobExperiment::IsEnabled(Spec_, GetUserJobSpecs()),
         GetInputTransactionParentId(),
-        AuthenticatedUser,
         Config,
         Logger);
 }
@@ -4956,10 +4955,12 @@ void TOperationControllerBase::TryScheduleFirstJob(
 
             scheduleAllocationResult->RecordFail(*failReason);
         } else {
-            scheduleAllocationResult->StartDescriptor.emplace(task->CreateAllocationStartDescriptor(
+            auto startDescriptor = task->CreateAllocationStartDescriptor(
                 allocation,
                 /*allowIdleCpuPolicy*/ IsIdleCpuPolicyAllowedInTree(allocation.TreeId),
-                *context.GetScheduleAllocationSpec()));
+                *context.GetScheduleAllocationSpec());
+            startDescriptor.AllocationAttributes.EnableMultipleJobs = Spec_->EnableMultipleJobsInAllocation.value_or(false);
+            scheduleAllocationResult->StartDescriptor.emplace(std::move(startDescriptor));
 
             RegisterTestingSpeculativeJobIfNeeded(*task, scheduleAllocationResult->StartDescriptor->Id);
             UpdateTask(task.Get());
@@ -8846,7 +8847,7 @@ TOperationSpecBaseSealedConfigurator TOperationControllerBase::ConfigureUpdate()
 {
     auto configurator = GetOperationSpecBaseConfigurator();
     configurator.Field("max_failed_job_count", &TOperationSpecBase::MaxFailedJobCount)
-        .Updater(BIND_NO_PROPAGATE([&] (const int& newMaxFailedJobCount) {
+        .Updater(BIND_NO_PROPAGATE([&] (int newMaxFailedJobCount) {
             if (FailedJobCount_ >= newMaxFailedJobCount) {
                 OnOperationFailed(GetMaxFailedJobCountReachedError(newMaxFailedJobCount));
             }
@@ -11373,11 +11374,45 @@ TJobSplitterConfigPtr TOperationControllerBase::GetJobSplitterConfigTemplate() c
         config->EnableJobSplitting = false;
     }
 
-    if (!Spec_->JobSplitter->EnableJobSplitting) {
+    const auto& specConfig = Spec_->JobSplitter;
+
+    if (specConfig->MinJobTime) {
+        config->MinJobTime = *(specConfig->MinJobTime);
+    }
+    if (specConfig->MinTotalDataWeight) {
+        config->MinTotalDataWeight = *(specConfig->MinTotalDataWeight);
+    }
+    if (specConfig->ExecToPrepareTimeRatio) {
+        config->ExecToPrepareTimeRatio = *(specConfig->ExecToPrepareTimeRatio);
+    }
+    if (specConfig->NoProgressJobTimeToAveragePrepareTimeRatio) {
+        config->NoProgressJobTimeToAveragePrepareTimeRatio = *(specConfig->NoProgressJobTimeToAveragePrepareTimeRatio);
+    }
+
+    if (specConfig->MaxJobsPerSplit) {
+        config->MaxJobsPerSplit = *(specConfig->MaxJobsPerSplit);
+    }
+    if (specConfig->MaxInputTableCount) {
+        config->MaxInputTableCount = *(specConfig->MaxInputTableCount);
+    }
+
+    if (specConfig->ResidualJobFactor) {
+        config->ResidualJobFactor = *(specConfig->ResidualJobFactor);
+    }
+    if (specConfig->ResidualJobCountMinThreshold) {
+        config->ResidualJobCountMinThreshold = *(specConfig->ResidualJobCountMinThreshold);
+    }
+
+    if (!specConfig->EnableJobSplitting) {
         config->EnableJobSplitting = false;
     }
-    if (!Spec_->JobSplitter->EnableJobSpeculation) {
+    if (!specConfig->EnableJobSpeculation) {
         config->EnableJobSpeculation = false;
+    }
+
+    // It should be checked after update of config->MaxInputTableCount.
+    if (std::ssize(InputManager->GetInputTables()) > config->MaxInputTableCount) {
+        config->EnableJobSplitting = false;
     }
 
     return config;

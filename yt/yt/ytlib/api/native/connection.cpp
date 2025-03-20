@@ -404,7 +404,7 @@ public:
         return LoggingTag_;
     }
 
-    const TString& GetClusterId() const override
+    const std::string& GetClusterId() const override
     {
         return ClusterId_;
     }
@@ -907,7 +907,7 @@ private:
     TConnectionOptions Options_;
 
     const std::string LoggingTag_;
-    const TString ClusterId_;
+    const std::string ClusterId_;
 
     NRpc::IChannelFactoryPtr ChannelFactory_;
     TStickyGroupSizeCachePtr StickyGroupSizeCache_;
@@ -1198,7 +1198,7 @@ private:
         };
 
         std::pair<IClientPtr, TQueryTrackerStageConfigPtr> resultStage;
-        TString resultCluster;
+        std::string resultCluster;
         for (const auto& cluster : GetClusterDirectory()->GetClusterNames()) {
             if (auto existingStage = findStage(cluster); existingStage.first) {
                 if (resultStage.first) {

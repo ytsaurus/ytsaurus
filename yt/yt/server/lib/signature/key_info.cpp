@@ -50,6 +50,11 @@ TKeyId GetKeyId(const TKeyPairMetadata& metadata)
     return std::visit([] (const auto& meta) { return meta.KeyId; }, metadata);
 }
 
+TOwnerId GetOwnerId(const TKeyPairMetadata& metadata)
+{
+    return std::visit([] (const auto& meta) { return meta.OwnerId; }, metadata);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 namespace {

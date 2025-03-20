@@ -270,7 +270,7 @@ NRecords::TReplicatedTableMapping RecordFromRow(const TReplicatedTableMappingTab
 IClientPtr GetRemoteClient(
     const IClientPtr& localClient,
     const TClientDirectoryPtr& clientDirectory,
-    const std::optional<TString>& cluster)
+    const std::optional<std::string>& cluster)
 {
     if (cluster) {
         if (auto remoteClient = clientDirectory->FindClient(*cluster)) {

@@ -217,12 +217,11 @@ void TBootstrap::DoInitialize()
             Config_->SignatureGeneration->CypressKeyWriter,
             RootClient_))
             .ValueOrThrow();
-        SignatureGenerator_ = New<TSignatureGenerator>(
-            Config_->SignatureGeneration->Generator,
-            CypressKeyWriter_);
+        SignatureGenerator_ = New<TSignatureGenerator>(Config_->SignatureGeneration->Generator);
         SignatureKeyRotator_ = New<TKeyRotator>(
             Config_->SignatureGeneration->KeyRotator,
             GetControlInvoker(),
+            CypressKeyWriter_,
             SignatureGenerator_);
     }
 

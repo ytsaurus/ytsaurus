@@ -11,7 +11,7 @@ namespace NYT::NTabletClient {
 ////////////////////////////////////////////////////////////////////////////////
 
 NYPath::TYPath GetCypressClustersPath();
-NYPath::TYPath GetCypressClusterPath(const TString& name);
+NYPath::TYPath GetCypressClusterPath(TStringBuf name);
 
 bool IsChunkTabletStoreType(NObjectClient::EObjectType type);
 bool IsDynamicTabletStoreType(NObjectClient::EObjectType type);

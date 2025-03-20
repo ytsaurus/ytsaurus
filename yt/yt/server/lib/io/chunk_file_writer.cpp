@@ -185,7 +185,7 @@ bool TChunkFileWriter::WriteBlocks(
             newDataSize = currentOffset,
             blockCount = blocks.size(),
             chunkWriterStatistics = options.ClientOptions.ChunkWriterStatistics
-        ] (const TErrorOr<IIOEngine::TWriteResponse>& rspOrError) {
+        ] (const TErrorOr<TWriteResponse>& rspOrError) {
             YT_VERIFY(State_.load() == EState::WritingBlocks);
 
             if (!rspOrError.IsOK()) {
@@ -223,10 +223,27 @@ TFuture<void> TChunkFileWriter::GetReadyEvent()
 TFuture<void> TChunkFileWriter::Close(
     const IChunkWriter::TWriteBlocksOptions& options,
     const TWorkloadDescriptor& workloadDescriptor,
-    const TDeferredChunkMetaPtr& chunkMeta)
+    const TDeferredChunkMetaPtr& chunkMeta,
+    std::optional<int> truncateBlockCount)
 {
     if (auto error = TryChangeState(EState::Ready, EState::Closing); !error.IsOK()) {
         return MakeFuture<void>(std::move(error));
+    }
+
+    if (truncateBlockCount.has_value()) {
+        YT_LOG_FATAL_IF(
+            *truncateBlockCount > BlocksExt_.blocks_size() || *truncateBlockCount < 0,
+            "Invalid truncate block count (TruncateBlockCount: %v, BlockCount: %v)",
+            *truncateBlockCount,
+            BlocksExt_.blocks_size());
+
+        i64 truncateDataSize = 0;
+        for (int index = *truncateBlockCount; index < BlocksExt_.blocks_size(); ++index) {
+            truncateDataSize += BlocksExt_.blocks(index).size();
+        }
+        BlocksExt_.mutable_blocks()->Truncate(*truncateBlockCount);
+        YT_VERIFY(truncateDataSize <= DataSize_);
+        DataSize_ -= truncateDataSize;
     }
 
     auto metaFileName = FileName_ + ChunkMetaSuffix;
@@ -237,7 +254,7 @@ TFuture<void> TChunkFileWriter::Close(
             chunkMeta,
             metaFileName,
             chunkWriterStatistics = options.ClientOptions.ChunkWriterStatistics
-        ] (const IIOEngine::TCloseResponse& rsp) {
+        ] (const TCloseResponse& rsp) {
             YT_VERIFY(State_.load() == EState::Closing);
 
             if (!chunkMeta->IsFinalized()) {
@@ -290,20 +307,22 @@ TFuture<void> TChunkFileWriter::Close(
                     this,
                     this_ = MakeStrong(this),
                     chunkWriterStatistics
-                ] (const IIOEngine::TWriteResponse& rsp) {
+                ] (const TWriteResponse& rsp) {
                     YT_VERIFY(MetaDataSize_ == rsp.WrittenBytes);
 
                     chunkWriterStatistics->MetaBytesWrittenToDisk.fetch_add(rsp.WrittenBytes, std::memory_order::relaxed);
                     chunkWriterStatistics->MetaIOWriteRequests.fetch_add(rsp.IOWriteRequests, std::memory_order::relaxed);
                     chunkWriterStatistics->MetaIOSyncRequests.fetch_add(rsp.IOSyncRequests, std::memory_order::relaxed);
                 }))
-                .Apply(BIND(&IIOEngine::Close, IOEngine_, IIOEngine::TCloseRequest{
-                    std::move(chunkMetaFile),
-                    MetaDataSize_,
-                    SyncOnClose_
-                },
-                workloadDescriptor.Category))
-                .Apply(BIND([chunkWriterStatistics] (const IIOEngine::TCloseResponse& rsp) {
+                .Apply(BIND(&IIOEngine::Close,
+                    IOEngine_,
+                    TCloseRequest{
+                        std::move(chunkMetaFile),
+                        MetaDataSize_,
+                        SyncOnClose_
+                    },
+                    workloadDescriptor.Category))
+                .Apply(BIND([chunkWriterStatistics] (const TCloseResponse& rsp) {
                     chunkWriterStatistics->MetaIOSyncRequests.fetch_add(rsp.IOSyncRequests, std::memory_order::relaxed);
                 }));
         }))
@@ -325,7 +344,7 @@ TFuture<void> TChunkFileWriter::Close(
             return IOEngine_->FlushDirectory({NFS::GetDirectoryName(FileName_)})
                 .Apply(BIND([
                     chunkWriterStatistics = std::move(chunkWriterStatistics)
-                ] (const IIOEngine::TFlushDirectoryResponse& rsp) {
+                ] (const TFlushDirectoryResponse& rsp) {
                     chunkWriterStatistics->MetaIOSyncRequests.fetch_add(rsp.IOSyncRequests, std::memory_order::relaxed);
                 }));
         }).AsyncVia(IOEngine_->GetAuxPoolInvoker()))

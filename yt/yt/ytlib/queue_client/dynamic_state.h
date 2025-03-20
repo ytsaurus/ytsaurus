@@ -194,7 +194,7 @@ class TReplicaInfo
     : public NYTree::TYsonStruct
 {
 public:
-    TString ClusterName;
+    std::string ClusterName;
     NYPath::TYPath ReplicaPath;
     NTabletClient::ETableReplicaState State;
     NTabletClient::ETableReplicaMode Mode;

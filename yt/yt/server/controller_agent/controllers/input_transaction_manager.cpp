@@ -65,7 +65,6 @@ TInputTransactionManager::TInputTransactionManager(
     const std::vector<TRichYPath>& filesAndTables,
     bool forceStartLocalTransaction,
     TTransactionId userTransactionId,
-    const std::string& authenticatedUser,
     TControllerAgentConfigPtr config,
     TLogger logger)
     : OperationId_(operationId)
@@ -88,12 +87,7 @@ TInputTransactionManager::TInputTransactionManager(
     for (const auto& path : filesAndTables) {
         ParentToTransaction_[GetTransactionParentFromPath(path)] = nullptr;
         auto clusterName = ClusterResolver_->GetClusterName(path);
-        ValidateRemoteOperationsAllowed(clusterName, authenticatedUser, path);
         createClient(clusterName);
-
-        if (auto parent = path.GetTransactionId(); parent) {
-            OldNonTrivialInputTransactionParents_.push_back(*parent);
-        }
     }
 
     if (forceStartLocalTransaction) {
@@ -153,91 +147,8 @@ TFuture<void> TInputTransactionManager::Start(
     return AllSucceeded(std::move(transactionFutures));
 }
 
-std::vector<TRichTransactionId> TInputTransactionManager::RestoreFromNestedTransactions(
-    const TControllerTransactionIds& transactionIds) const
-{
-    /// Old (aka NonTrivial) transactions come in a fixed layout, which is hopefully the same as in
-    /// OldNonTrivialInputTransactionParents.
-    ///
-    /// OldNonTrivialInputTransactionParents: [p1,  p2,  p1 ]
-    /// transactionIds.NestedInputIds:        [tx1, tx2, tx1]
-    ///
-    /// We need to restore a mapping parent_transaction -> transaction, given transactions from
-    /// cypress and parents from snapshot. The tricky part is that transactionIds.NestedInputIds is
-    /// kind of a mapping table -> transaction, so transactions may be duplicated there. The
-    /// following code also does a little sanity check: it verifies that each parent has exactly one
-    /// unique child.
-    if (transactionIds.NestedInputIds.size() != OldNonTrivialInputTransactionParents_.size()) {
-        THROW_ERROR_EXCEPTION(
-            "Transaction count from Cypress differs from internal transaction count, will use clean start")
-            << TErrorAttribute("cypress_count", transactionIds.NestedInputIds.size())
-            << TErrorAttribute("internal_count", OldNonTrivialInputTransactionParents_.size());
-    }
-
-    std::vector<TRichTransactionId> flatTransactionIds(ParentToTransaction_.size());
-    THashMap<TRichTransactionId, int> parentToIndex;
-    for (const auto& [i, parentAndTransaction] : Enumerate(ParentToTransaction_)) {
-        const auto& [parent, _] = parentAndTransaction;
-
-        // FIXME(coteeq): This may be triggered during update with remote operations
-        // and will lead to clean start. TODO(coteeq): Fix the bug and remove this.
-        if (!IsLocal(parent.Cluster)) {
-            THROW_ERROR_EXCEPTION("Lost local transaction; will do clean start")
-                << TErrorAttribute("parent_transaction_id", parent);
-
-        }
-        parentToIndex[parent] = i;
-    }
-
-    for (int i = 0; i < std::ssize(OldNonTrivialInputTransactionParents_); ++i) {
-        auto transactionId = transactionIds.NestedInputIds[i];
-        auto oldParentId = OldNonTrivialInputTransactionParents_[i];
-        auto& flatTransactionId = flatTransactionIds[parentToIndex[MakeRichTransactionId(oldParentId)]];
-        auto richTransactionId = TRichTransactionId{
-            .Id = transactionId,
-            .ParentId = oldParentId,
-            .Cluster = LocalClusterName
-        };
-        bool firstTimeSeen = flatTransactionId.Id == NullTransactionId;
-        if (firstTimeSeen) {
-            flatTransactionId = richTransactionId;
-        } else {
-            if (flatTransactionId != richTransactionId) {
-                THROW_ERROR_EXCEPTION("Expected transactions with same parent to be equal")
-                    << TErrorAttribute("index", i)
-                    << TErrorAttribute("transaction_id_left", flatTransactionId)
-                    << TErrorAttribute("transaction_id_right", richTransactionId);
-            }
-        }
-    }
-
-    auto inputTransactionParent = MakeRichTransactionId(UserTransactionId_);
-    if (ParentToTransaction_.contains(inputTransactionParent)) {
-        YT_VERIFY(!flatTransactionIds[parentToIndex[inputTransactionParent]].Id);
-        flatTransactionIds[parentToIndex[inputTransactionParent]] = TRichTransactionId{
-            .Id = transactionIds.InputId,
-            .ParentId = UserTransactionId_,
-            .Cluster = LocalClusterName,
-        };
-    }
-
-    return flatTransactionIds;
-}
-
 TFuture<void> TInputTransactionManager::Revive(TControllerTransactionIds transactionIds)
 {
-    // COMPAT(coteeq)
-    if (transactionIds.InputIds.empty()) {
-        YT_LOG_DEBUG("Received input transactions in old format, trying to restore into new format");
-        try {
-            transactionIds.InputIds = RestoreFromNestedTransactions(transactionIds);
-        } catch (const std::exception& ex) {
-            return MakeFuture(
-                TError("Failed to restore transactions from old format")
-                    << ex);
-        }
-    }
-
     if (auto error = ValidateSchedulerTransactions(transactionIds); !error.IsOK()) {
         return MakeFuture(error);
     }
@@ -313,17 +224,6 @@ TTransactionId TInputTransactionManager::GetTransactionIdForObject(
     return it->second->GetId();
 }
 
-std::vector<TTransactionId> TInputTransactionManager::GetCompatDuplicatedNestedTransactionIds() const
-{
-    std::vector<TTransactionId> transactionIds;
-    for (const auto& parent : OldNonTrivialInputTransactionParents_) {
-        const auto& transaction = GetOrCrash(ParentToTransaction_, MakeRichTransactionId(parent));
-        transactionIds.push_back(transaction->GetId());
-    }
-
-    return transactionIds;
-}
-
 void TInputTransactionManager::FillSchedulerTransactionIds(
     TControllerTransactionIds* transactionIds) const
 {
@@ -340,7 +240,6 @@ void TInputTransactionManager::FillSchedulerTransactionIds(
     // COMPAT(coteeq)
     auto localId = GetLocalInputTransactionId();
     transactionIds->InputId = localId;
-    transactionIds->NestedInputIds = GetCompatDuplicatedNestedTransactionIds();
 }
 
 TFuture<void> TInputTransactionManager::Abort(IClientPtr schedulerClient)
@@ -428,33 +327,6 @@ TError TInputTransactionManager::ValidateSchedulerTransactions(
     }
 
     return TError();
-}
-
-void TInputTransactionManager::ValidateRemoteOperationsAllowed(
-    const NScheduler::TClusterName& clusterName,
-    const std::string& authenticatedUser,
-    const NYPath::TRichYPath& path) const
-{
-    if (!IsLocal(clusterName)) {
-        const auto& disallowRemoteConfig = ControllerConfig_->DisallowRemoteOperations;
-
-        if (disallowRemoteConfig->AllowedForEveryoneClusters.contains(clusterName.Underlying())) {
-            return;
-        }
-
-        if (!disallowRemoteConfig->AllowedUsers.contains(authenticatedUser)) {
-            THROW_ERROR_EXCEPTION(
-                "User %Qv is not allowed to start operations with remote clusters",
-                authenticatedUser)
-                << TErrorAttribute("input_table_path", path);
-        }
-        if (!disallowRemoteConfig->AllowedClusters.contains(clusterName.Underlying())) {
-            THROW_ERROR_EXCEPTION(
-                "Cluster %Qv is not allowed to be an input remote cluster",
-                clusterName)
-                << TErrorAttribute("input_table_path", path);
-        }
-    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

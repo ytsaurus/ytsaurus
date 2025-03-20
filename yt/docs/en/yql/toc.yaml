@@ -14,10 +14,13 @@ items:
         href: syntax/expressions.md
       - name: ACTION
         href: syntax/action.md
+      - name: COMMIT
+        href: syntax/commit.md
       - name: CREATE TABLE
         href: syntax/create_table.md
       - name: DECLARE
         href: syntax/declare.md
+        when: feature_declare
       - name: DISCARD
         href: syntax/discard.md
       - name: DROP TABLE
@@ -41,7 +44,7 @@ items:
       - name: REDUCE
         href: syntax/reduce.md
       - name: SELECT
-        href: syntax/select.md
+        include: { mode: link, path: syntax/select/toc_i.yaml }
       - name: SUBQUERY
         href: syntax/subquery.md
       - name: USE

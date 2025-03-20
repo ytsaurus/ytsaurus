@@ -59,6 +59,8 @@ void Deserialize(TKeyPairMetadata& metadata, NYson::TYsonPullParserCursor* curso
 
 [[nodiscard]] TKeyId GetKeyId(const TKeyPairMetadata& metadata);
 
+[[nodiscard]] TOwnerId GetOwnerId(const TKeyPairMetadata& metadata);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 using TPublicKey = std::array<std::byte, PublicKeySize>;

@@ -220,7 +220,7 @@ public:
         return UnderlyingChangelog_->Read(firstRecordId, maxRecords, maxBytes);
     }
 
-    NIO::IIOEngine::TReadRequest MakeChunkFragmentReadRequest(
+    NIO::TReadRequest MakeChunkFragmentReadRequest(
         const NIO::TChunkFragmentDescriptor& fragmentDescriptor) override
     {
         return UnderlyingChangelog_->MakeChunkFragmentReadRequest(fragmentDescriptor);

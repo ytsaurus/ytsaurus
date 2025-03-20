@@ -1239,6 +1239,7 @@ public:
             BuildYsonFluently(consumer).Value(treeSnapshot->NodeCount());
         })))->Via(StrategyHost_->GetOrchidWorkerInvoker());
 
+        // TODO(eshcherbin): Why not use tree snapshot here as well?
         dynamicOrchidService->AddChild("pool_count", IYPathService::FromProducer(BIND([this_ = MakeStrong(this), this] (IYsonConsumer* consumer) {
             YT_ASSERT_INVOKERS_AFFINITY(FeasibleInvokers_);
 
@@ -1252,6 +1253,8 @@ public:
                 .Do(BIND(&TSchedulerRootElement::BuildResourceDistributionInfo, treeSnapshot->RootElement()))
             .EndMap();
         }))->Via(StrategyHost_->GetOrchidWorkerInvoker()));
+
+        TreeScheduler_->PopulateOrchidService(dynamicOrchidService);
 
         return dynamicOrchidService;
     }
@@ -2753,8 +2756,15 @@ private:
             const TJobResources& preemptedResourcesDelta = allocation->ResourceLimits();
             EAllocationPreemptionReason preemptionReason = preemptedAllocation.PreemptionReason;
             preemptedAllocationResources[preemptionReason][operationId] += preemptedResourcesDelta;
-            preemptedAllocationResourceTimes[preemptionReason][operationId] += preemptedResourcesDelta * static_cast<i64>(
-                allocation->GetPreemptibleProgressDuration().Seconds());
+
+            // NB(eshcherbin): This sensor for memory is easily overflown, so we decided not to compute it. See: YT-24236.
+            {
+                auto preemptedResourcesDeltaWithZeroMemory = preemptedResourcesDelta;
+                preemptedResourcesDeltaWithZeroMemory.SetMemory(0);
+                preemptedAllocationResourceTimes[preemptionReason][operationId] +=
+                    preemptedResourcesDeltaWithZeroMemory *
+                    static_cast<i64>(allocation->GetPreemptibleProgressDuration().Seconds());
+            }
 
             if (allocation->GetPreemptedFor() && !allocation->GetPreemptedForProperlyStarvingOperation()) {
                 improperlyPreemptedAllocationResources[preemptionReason][operationId] += preemptedResourcesDelta;

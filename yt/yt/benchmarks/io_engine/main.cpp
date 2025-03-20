@@ -11,6 +11,8 @@
 #include <yt/yt/core/concurrency/thread_pool.h>
 #include <yt/yt/core/concurrency/scheduler_thread.h>
 
+#include <yt/yt/core/misc/fair_share_hierarchical_queue.h>
+
 #include <yt/yt/core/profiling/timing.h>
 
 #include <yt/yt/server/node/data_node/public.h>
@@ -74,6 +76,8 @@ struct TTestConfig
     ui64 PrintInterval;
     const int Alignment = 512;
 
+    i64 FairShareQueueSlotCount;
+
     INodePtr IOConfig;
 
     REGISTER_YSON_STRUCT_LITE(TTestConfig);
@@ -98,6 +102,8 @@ struct TTestConfig
             .Default(10);
         registrar.Parameter("threads", &TThis::Threads)
             .Default(16);
+        registrar.Parameter("fair_share_queue_slot_count", &TThis::FairShareQueueSlotCount)
+            .Default(128);
         registrar.Parameter("print_interval_sec", &TThis::PrintInterval)
             .Default(5);
         registrar.Parameter("io_config", &TThis::IOConfig)
@@ -137,6 +143,7 @@ struct TAmmo
     EAmmoType AmmoType;
     i64 Offset;
     i64 Size;
+    TFairShareSlotId FairShareSlotId;
 };
 
 struct TShot
@@ -156,7 +163,7 @@ public:
 
     void Update(TCpuDuration cpuDuration)
     {
-        auto value = CpuDurationToDuration(cpuDuration).MilliSeconds();
+        auto value = CpuDurationToDuration(cpuDuration).MicroSeconds();
         int total = Buckets_.size();
         for (int index = 0; index < total; ++index) {
             if (value < Buckets_[index]) {
@@ -202,7 +209,7 @@ public:
     }
 
 private:
-    std::vector<double> Quantiles_ = {0.75, 0.95, 0.99, 0.995, 0.999, 1.0};
+    std::vector<double> Quantiles_ = {0.1, 0.25, 0.5, 0.75, 0.95, 0.99, 0.995, 0.999, 1.0};
     std::vector<ui64> Buckets_;
     std::vector<size_t> Counts_;
     std::vector<TValue> Timings_;
@@ -223,7 +230,8 @@ public:
         TIntrusivePtr<NThreading::TEventCount> callbackEventCount,
         TMpscStack<TShot>& queue,
         ui64 printInterval,
-        const IGaugePrinter* gaugePrinter)
+        const IGaugePrinter* gaugePrinter,
+        TFairShareHierarchicalSlotQueuePtr<TString> fairShareQueue)
         : TSchedulerThread(
             callbackEventCount,
             "ResultProcessing",
@@ -231,14 +239,22 @@ public:
         , Queue_(queue)
         , PrintInterval_(printInterval)
         , GaugePrinter_(gaugePrinter)
+        , FairShareQueue_(std::move(fairShareQueue))
     { }
 
 private:
     TMpscStack<TShot>& Queue_;
     ui64 PrintInterval_;
     const IGaugePrinter* GaugePrinter_;
+    const TFairShareHierarchicalSlotQueuePtr<TString> FairShareQueue_;
 
-    std::vector<ui64> BucketsBounds_ = { 1, 3, 7, 10, 13, std::numeric_limits<int>::max() };
+    std::vector<ui64> BucketsBounds_ = {
+        1000,
+        3000,
+        7000,
+        10000,
+        13000,
+        std::numeric_limits<int>::max() };
     TBuckets ReadBuckets_ = BucketsBounds_;
     TBuckets WriteBuckets_ = BucketsBounds_;
     TBuckets TotalBuckets_ = BucketsBounds_;
@@ -314,19 +330,38 @@ class TTask
 public:
     TTask(const TTestConfig& config)
         : Config_(config)
-        , IOEngine_(CreateIOEngine(Config_.IOEngine, Config_.IOConfig))
+        , FairShareQueue_(CreateFairShareHierarchicalSlotQueue<TString>(
+            CreateFairShareHierarchicalScheduler<TString>(New<TFairShareHierarchicalSchedulerDynamicConfig>())))
+        , IOEngine_(CreateIOEngine(
+            Config_.IOEngine,
+            Config_.IOConfig,
+            "location",
+            {},
+            {},
+            FairShareQueue_))
         , RNG_(31337)
         , WorkerPool_(NConcurrency::CreateThreadPool(Config_.Threads, "io_test"))
         , ResultProcessingThread_(New<TStatisticsThread>(
             ShootResultEventCount_,
             ShootResultQueue_,
             Config_.PrintInterval,
-            this))
+            this,
+            FairShareQueue_))
         , Position_(0)
     {
         WriteData_ = TSharedMutableRef::Allocate(Config_.BlockSize + Config_.Alignment, {.InitializeStorage = false});
         WriteData_ = WriteData_.Slice(AlignUp(WriteData_.Begin(), Config_.Alignment), WriteData_.End());
         WriteData_ = WriteData_.Slice(0, Config_.BlockSize);
+
+        for (int i = 0; i < Config_.FairShareQueueSlotCount; ++i) {
+            auto slot = FairShareQueue_->EnqueueSlot(1,
+                {},
+                {
+                    {Format("root_level_%d", RNG_.Uniform(0, 5)), 1},
+                    {Format("sublevel_%d", RNG_.Uniform(0, 5)), 1}
+                });
+            SlotIds_.push_back(slot.ValueOrThrow()->GetSlotId());
+        }
     }
 
     void Run()
@@ -351,10 +386,13 @@ public:
 
 private:
     const TTestConfig& Config_;
+    const TFairShareHierarchicalSlotQueuePtr<TString> FairShareQueue_;
     const IIOEnginePtr IOEngine_;
     TFastRng64 RNG_;
 
     IThreadPoolPtr WorkerPool_;
+
+    std::vector<TFairShareSlotId> SlotIds_;
 
     TIntrusivePtr<NThreading::TEventCount> ShootResultEventCount_ = New<NThreading::TEventCount>();
     TMpscStack<TShot> ShootResultQueue_;
@@ -418,6 +456,7 @@ private:
             Position_ %= MaxPosition_;
         }
         ammo->Size = Config_.BlockSize;
+        ammo->FairShareSlotId = SlotIds_[RNG_.Uniform(0, SlotIds_.size())];
     }
 
     void Shoot(std::vector<TAmmo> packet)
@@ -442,13 +481,24 @@ private:
                 struct TIOEngineTestBufferTag
                 { };
                 shot = IOEngine_->Read(
-                    {{File_, ammo.Offset, ammo.Size}},
+                    {{
+                        .Handle = File_,
+                        .Offset = ammo.Offset,
+                        .Size = ammo.Size,
+                        .FairShareSlotId = ammo.FairShareSlotId
+                    }},
                     EWorkloadCategory::UserInteractive,
                     GetRefCountedTypeCookie<TIOEngineTestBufferTag>())
                     .As<void>();
                 break;
             case EAmmoType::Write:
-                shot = IOEngine_->Write({File_, ammo.Offset, {WriteData_}}).AsVoid();
+                shot = IOEngine_->Write({
+                    .Handle = File_,
+                    .Offset = ammo.Offset,
+                    .Buffers = {WriteData_},
+                    .Flush = false,
+                    .FairShareSlotId = ammo.FairShareSlotId
+                }).AsVoid();
                 break;
         }
 

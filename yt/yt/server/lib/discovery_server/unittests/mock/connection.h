@@ -293,7 +293,7 @@ public:
         YT_UNIMPLEMENTED();
     }
 
-    const TString& GetClusterId() const override
+    const std::string& GetClusterId() const override
     {
         YT_UNIMPLEMENTED();
     }

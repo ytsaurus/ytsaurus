@@ -46,7 +46,7 @@ class TSpytSettings
     : public TYsonStruct
 {
 public:
-    std::optional<TString> Cluster;
+    std::optional<std::string> Cluster;
 
     std::optional<TYPath> DiscoveryPath;
 
@@ -191,7 +191,7 @@ public:
 private:
     const TSpytSettingsPtr Settings_;
     const TSpytEngineConfigPtr Config_;
-    const TString Cluster_;
+    const std::string Cluster_;
     const NApi::NNative::IConnectionPtr NativeConnection_;
     const NApi::NNative::IClientPtr QueryClient_;
     const NHttp::IClientPtr HttpClient_;

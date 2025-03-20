@@ -206,7 +206,7 @@ TFuture<void> TChunkFileReader::PrepareToReadChunkFragments(
     return chunkFragmentFuture;
 }
 
-IIOEngine::TReadRequest TChunkFileReader::MakeChunkFragmentReadRequest(
+TReadRequest TChunkFileReader::MakeChunkFragmentReadRequest(
     const TChunkFragmentDescriptor& fragmentDescriptor,
     bool useDirectIO)
 {
@@ -258,7 +258,7 @@ IIOEngine::TReadRequest TChunkFileReader::MakeChunkFragmentReadRequest(
             << TErrorAttribute("block_size", blockInfo.Size);
     }
 
-    return IIOEngine::TReadRequest{
+    return TReadRequest{
         .Handle = DataFileHandle_[directIOFlag],
         .Offset = blockInfo.Offset + fragmentDescriptor.BlockOffset,
         .Size = requestLength,
@@ -270,7 +270,7 @@ std::vector<TBlock> TChunkFileReader::OnBlocksRead(
     int firstBlockIndex,
     int blockCount,
     const NIO::TBlocksExtPtr& blocksExt,
-    const IIOEngine::TReadResponse& readResponse)
+    const TReadResponse& readResponse)
 {
     YT_VERIFY(readResponse.OutputBuffers.size() == 1);
     const auto& buffer = readResponse.OutputBuffers[0];
@@ -321,6 +321,9 @@ TFuture<std::vector<TBlock>> TChunkFileReader::DoReadBlocks(
     NIO::TBlocksExtPtr blocksExt,
     TIOEngineHandlePtr dataFile)
 {
+    if (blockCount == 0) {
+        return MakeFuture(std::vector<TBlock>());
+    }
     if (!blocksExt && BlocksExtCache_) {
         blocksExt = BlocksExtCache_->Find();
     }
@@ -401,7 +404,7 @@ TFuture<TRefCountedChunkMetaPtr> TChunkFileReader::DoReadMeta(
 TRefCountedChunkMetaPtr TChunkFileReader::OnMetaRead(
     const TString& metaFileName,
     TChunkReaderStatisticsPtr chunkReaderStatistics,
-    const IIOEngine::TReadResponse& readResponse)
+    const TReadResponse& readResponse)
 {
     YT_VERIFY(readResponse.OutputBuffers.size() == 1);
     const auto& metaFileBlob = readResponse.OutputBuffers[0];

@@ -379,7 +379,7 @@ private:
     }
 
     // Account name -> cluster resources.
-    using TAccountResourcesMap = THashMap<TString, NSecurityServer::TClusterResources>;
+    using TAccountResourcesMap = THashMap<std::string, NSecurityServer::TClusterResources>;
     // Cell tag -> account name -> cluster resources.
     using TMulticellAccountResourcesMap = THashMap<TCellTag, TAccountResourcesMap>;
 

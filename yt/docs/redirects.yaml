@@ -15,6 +15,11 @@ common:
       to: /user-guide/data-processing/operations/table-switch.md
       type: redirect
 
+    # YQL
+    - from: /yql/syntax/select.md
+      to: /yql/syntax/select/index.md
+      type: redirect
+
 ru:
     - from: /api/c\+\+/c\+\+_api.md
       to: /api/cpp/description.md

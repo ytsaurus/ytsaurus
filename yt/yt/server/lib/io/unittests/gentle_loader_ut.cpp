@@ -97,7 +97,7 @@ public:
         std::vector<TReadRequest> /*requests*/,
         EWorkloadCategory /*category*/,
         TRefCountedTypeCookie /*tagCookie*/,
-        TSessionId /*sessionId*/,
+        TIOSessionId /*sessionId*/,
         bool /*useDedicatedAllocations*/) override
     {
         return RunRequest(Config_.ReadLatency, Config_.ReadFailingProbability)
@@ -109,7 +109,7 @@ public:
     TFuture<TWriteResponse> Write(
         TWriteRequest /*request*/,
         EWorkloadCategory /*category*/,
-        TSessionId /*sessionId*/) override
+        TIOSessionId /*sessionId*/) override
     {
         return RunRequest(Config_.WriteLatency, Config_.WriteFailingProbability)
             .Apply(BIND([] {
@@ -130,7 +130,7 @@ public:
     TFuture<TFlushFileRangeResponse> FlushFileRange(
         TFlushFileRangeRequest /*request*/,
         EWorkloadCategory /*category*/,
-        TSessionId /*sessionId*/) override
+        TIOSessionId /*sessionId*/) override
     {
         return RunRequest(TDuration{})
             .Apply(BIND([] {

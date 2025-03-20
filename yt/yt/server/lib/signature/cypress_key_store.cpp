@@ -108,6 +108,7 @@ public:
         auto attributes = CreateEphemeralAttributes();
         attributes->Set("expiration_time", keyExpirationTime + Config_->KeyDeletionDelay);
 
+        // TODO(pavook) retrying channel.
         TCreateNodeOptions options;
         options.Attributes = attributes;
         auto node = Client_->CreateNode(
@@ -144,11 +145,13 @@ IKeyStoreReaderPtr CreateCypressKeyReader(TCypressKeyReaderConfigPtr config, ICl
     return New<TCypressKeyReader>(std::move(config), std::move(client));
 }
 
-TFuture<IKeyStoreWriterPtr> CreateCypressKeyWriter(TCypressKeyWriterConfigPtr config, IClientPtr client)
+TFuture<IKeyStoreWriterPtr> CreateCypressKeyWriter(
+    TCypressKeyWriterConfigPtr config,
+    IClientPtr client)
 {
     auto writer = New<TCypressKeyWriter>(std::move(config), std::move(client));
-    return writer->Initialize().Apply(BIND([writer = std::move(writer)] () -> IKeyStoreWriterPtr {
-        return writer;
+    return writer->Initialize().Apply(BIND([writer = std::move(writer)] () mutable -> IKeyStoreWriterPtr {
+        return std::move(writer);
     }));
 }
 

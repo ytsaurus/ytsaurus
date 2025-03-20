@@ -299,7 +299,7 @@ struct TPoolConfig
 
     std::optional<bool> EnablePrioritySchedulingSegmentModuleAssignment;
 
-    std::optional<TString> RedirectToCluster;
+    std::optional<std::string> RedirectToCluster;
 
     bool EnablePriorityStrongGuaranteeAdjustment;
     bool EnablePriorityStrongGuaranteeAdjustmentDonorship;
@@ -682,6 +682,17 @@ struct TJobSplitterConfig
     bool EnableJobSplitting;
 
     bool EnableJobSpeculation;
+
+    std::optional<TDuration> MinJobTime;
+    std::optional<i64> MinTotalDataWeight;
+    std::optional<double> ExecToPrepareTimeRatio;
+    std::optional<double> NoProgressJobTimeToAveragePrepareTimeRatio;
+
+    std::optional<int> MaxJobsPerSplit;
+    std::optional<int> MaxInputTableCount;
+
+    std::optional<double> ResidualJobFactor;
+    std::optional<int> ResidualJobCountMinThreshold;
 
     REGISTER_YSON_STRUCT(TJobSplitterConfig);
 
@@ -1252,6 +1263,9 @@ public:
     std::optional<bool> RequireSpecifiedPoolsExistence;
 
     bool UseClusterThrottlers;
+
+    //! If |true|, exec node will reuse allocation for multiple jobs.
+    std::optional<bool> EnableMultipleJobsInAllocation;
 
     REGISTER_YSON_STRUCT(TOperationSpecBase);
 
@@ -2022,7 +2036,7 @@ class TRemoteCopyOperationSpec
     : public TSimpleOperationSpecBase
 {
 public:
-    std::optional<TString> ClusterName;
+    std::optional<std::string> ClusterName;
     std::optional<TString> NetworkName;
     std::optional<NNodeTrackerClient::TNetworkPreferenceList> Networks;
     // TODO(max42): do we still need this?

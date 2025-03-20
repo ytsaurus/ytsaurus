@@ -97,7 +97,6 @@ using namespace NTableClient::NProto;
 using namespace NTableClient;
 using namespace NTracing;
 
-using NChunkClient::NProto::TBlocksExt;
 using NChunkClient::TChunkReaderStatistics;
 using NYT::FromProto;
 using NYT::ToProto;
@@ -345,7 +344,7 @@ private:
         auto meta = request->has_chunk_meta()
             ? New<TRefCountedChunkMeta>(std::move(*request->mutable_chunk_meta()))
             : nullptr;
-        session->Finish(meta, blockCount)
+        session->Finish(meta, blockCount, request->truncate_extra_blocks())
             .Subscribe(BIND([
                 =,
                 this,
@@ -1421,7 +1420,7 @@ private:
                 }
 
                 std::vector<std::vector<int>> locationFragmentIndices(requestedLocations.size());
-                std::vector<std::vector<IIOEngine::TReadRequest>> locationRequests(requestedLocations.size());
+                std::vector<std::vector<TReadRequest>> locationRequests(requestedLocations.size());
                 std::vector<TMemoryUsageTrackerGuard> locationMemoryGuards(requestedLocations.size());
 
                 for (auto [_, locationRequestCount] : requestedLocations) {
@@ -1473,7 +1472,7 @@ private:
 
                 response->Attachments().resize(fragmentIndex);
 
-                std::vector<TFuture<IIOEngine::TReadResponse>> readFutures;
+                std::vector<TFuture<TReadResponse>> readFutures;
                 readFutures.reserve(requestedLocations.size());
 
                 for (int index = 0; index < std::ssize(requestedLocations); ++index) {
@@ -1496,7 +1495,7 @@ private:
                         readFuture = readFuture.ApplyUnique(BIND([
                             =,
                             memoryGuard = std::move(locationMemoryGuards[index]),
-                            resultIndex = index] (IIOEngine::TReadResponse&& result) mutable {
+                            resultIndex = index] (TReadResponse&& result) mutable {
                             const auto& fragmentIndices = locationFragmentIndices[resultIndex];
                             YT_VERIFY(result.OutputBuffers.size() == fragmentIndices.size());
 
@@ -1522,7 +1521,7 @@ private:
                             chunkRequestInfos = std::move(chunkRequestInfos),
                             locationFragmentIndices = std::move(locationFragmentIndices),
                             requestedLocations = std::move(requestedLocations)
-                        ] (TErrorOr<std::vector<IIOEngine::TReadResponse>>&& resultsOrError) {
+                        ] (TErrorOr<std::vector<TReadResponse>>&& resultsOrError) {
                             if (!resultsOrError.IsOK()) {
                                 context->Reply(resultsOrError);
                                 return;

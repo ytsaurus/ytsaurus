@@ -56,6 +56,7 @@ public:
     void SetupInputStream();
     void SetupOutputStream();
     void SetupOutputParameters();
+    void SetupUserMemoryLimits();
     void LogRequest();
     void LogStructuredRequest();
     void SetupTracing();

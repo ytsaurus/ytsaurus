@@ -180,6 +180,9 @@ def get_quota_holder_threshold(
 
 def do_run_check(yt_client, logger, states, options, facade, config):
     cluster = get_cluster_name(yt_client)
+
+    default_threshold = options.get("default_threshold", config.DEFAULT_THRESHOLD)
+
     not_so_critical_quota_holders = set(options.get("not_so_critical_names", [])) | \
         set(options.get("per_cluster_not_so_critical_names", []))
 
@@ -209,7 +212,7 @@ def do_run_check(yt_client, logger, states, options, facade, config):
 
         threshold = get_quota_holder_threshold(
             holder,
-            config.DEFAULT_THRESHOLD,
+            default_threshold,
             options.get("default_threshold_schedule", []),
             options.get("threshold_time_period_overrides", {}),
             now_time=_get_now_time())

@@ -2,14 +2,16 @@
 
 #include <library/cpp/lwtrace/shuttle.h>
 
-#include <contrib/ydb/core/scheme/scheme_tabledefs.h>
-#include <contrib/ydb/core/protos/data_events.pb.h>
 #include <contrib/ydb/core/base/events.h>
+#include <contrib/ydb/core/protos/data_events.pb.h>
+#include <contrib/ydb/core/scheme/scheme_tabledefs.h>
+#include <contrib/ydb/core/tx/data_events/common/error_codes.h>
 #include <contrib/ydb/public/api/protos/ydb_issue_message.pb.h>
 
 #include <contrib/ydb/library/accessor/accessor.h>
 #include <contrib/ydb/library/actors/core/event_pb.h>
 #include <contrib/ydb/library/actors/core/log.h>
+#include <yql/essentials/core/issue/yql_issue.h>
 
 #include <yql/essentials/public/issue/yql_issue_message.h>
 
@@ -103,6 +105,9 @@ struct TDataEvents {
             result->Record.SetTxId(txId);
             result->Record.SetStatus(status);
             NYql::TIssue issue(errorMsg);
+            if (const auto statusConclusion = NKikimr::NEvWrite::NErrorCodes::TOperator::GetStatusInfo(status); statusConclusion.IsSuccess()) {
+                NYql::SetIssueCode(statusConclusion->GetIssueCode(), issue);
+            }
             NYql::IssueToMessage(issue, result->Record.AddIssues());
             return result;
         }

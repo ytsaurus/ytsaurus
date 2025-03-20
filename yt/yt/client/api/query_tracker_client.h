@@ -171,10 +171,10 @@ struct TGetQueryTrackerInfoOptions
 struct TGetQueryTrackerInfoResult
 {
     TString QueryTrackerStage;
-    TString ClusterName;
+    std::string ClusterName;
     NYson::TYsonString SupportedFeatures;
     std::vector<TString> AccessControlObjects;
-    std::vector<TString> Clusters;
+    std::vector<std::string> Clusters;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

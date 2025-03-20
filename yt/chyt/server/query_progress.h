@@ -45,7 +45,7 @@ public:
     //! from other instances of the clique involved in execution.
     //!
     //! NB: are not thread-safe, because they are called from RemoteSource,
-    //! which is processed synchronously.
+    //! which is processed synchronously within the queryId.
     void AddSecondaryProgress(TGuid queryId, const DB::ReadProgress& progress);
     void FinishSecondaryQuery(TGuid queryId);
 

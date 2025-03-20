@@ -2,6 +2,8 @@
 
 #include "io_engine.h"
 
+#include <yt/yt/core/misc/fair_share_hierarchical_queue.h>
+
 #include <library/cpp/yt/containers/enum_indexed_array.h>
 
 namespace NYT::NIO {
@@ -39,7 +41,7 @@ public:
         std::vector<TReadRequest> requests,
         EWorkloadCategory category,
         TRefCountedTypeCookie tagCookie,
-        TSessionId sessionId,
+        TIOSessionId sessionId,
         bool useDedicatedAllocations) override
     {
         return GetCurrentEngine()->Read(std::move(requests), category, tagCookie, sessionId, useDedicatedAllocations);
@@ -48,7 +50,7 @@ public:
     TFuture<TWriteResponse> Write(
         TWriteRequest request,
         EWorkloadCategory category,
-        TSessionId sessionId) override
+        TIOSessionId sessionId) override
     {
         return GetCurrentEngine()->Write(std::move(request), category, sessionId);
     }
@@ -63,7 +65,7 @@ public:
     TFuture<TFlushFileRangeResponse> FlushFileRange(
         TFlushFileRangeRequest request,
         EWorkloadCategory category,
-        TSessionId sessionId) override
+        TIOSessionId sessionId) override
     {
         return GetCurrentEngine()->FlushFileRange(std::move(request), category, sessionId);
     }
@@ -137,7 +139,8 @@ public:
                     ioConfig,
                     LocationId_,
                     Profiler_,
-                    Logger);
+                    Logger,
+                    FairShareQueue_);
                 entry.Initialized.store(true);
             } catch (const std::exception& ex) {
                 THROW_ERROR_EXCEPTION("Error creating %Qlv IO engine",
@@ -217,6 +220,7 @@ public:
 
 private:
     const TString LocationId_;
+    const TFairShareHierarchicalSlotQueuePtr<TString> FairShareQueue_ = nullptr;
     const NProfiling::TProfiler Profiler_;
     const NLogging::TLogger Logger;
 

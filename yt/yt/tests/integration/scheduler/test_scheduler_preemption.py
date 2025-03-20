@@ -804,7 +804,11 @@ class TestPreemptibleProgressUpdate(YTEnvSetup):
             command=with_breakpoint("BREAKPOINT ; cat", breakpoint_name="map"),
             in_="//tmp/t_in",
             out="//tmp/t_out",
-            spec={"pool": "fake_pool", "data_size_per_job": 1},
+            spec={
+                "pool": "fake_pool",
+                "data_size_per_job": 1,
+                "enable_multiple_jobs_in_allocation": True,
+            },
         )
 
         for i in range(1, 4):

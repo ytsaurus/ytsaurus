@@ -46,6 +46,7 @@ target_link_options(cpp-integration-test-data-node-rpc PRIVATE
 
 target_sources(cpp-integration-test-data-node-rpc PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/tests/cpp/test_data_node_rpc/test_columnar_statistics.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/tests/cpp/test_data_node_rpc/test_chunk_blocks_truncation.cpp
 )
 
 

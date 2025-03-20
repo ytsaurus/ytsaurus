@@ -149,6 +149,11 @@ void TApiDynamicConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("enable_allocation_tags", &TThis::EnableAllocationTags)
         .Default(false);
+
+    registrar.Parameter("default_user_memory_limit_ratio", &TThis::DefaultUserMemoryLimitRatio)
+        .Optional();
+    registrar.Parameter("user_to_memory_limit_ratio", &TThis::UserToMemoryLimitRatio)
+        .Default();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

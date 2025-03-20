@@ -258,7 +258,7 @@ public:
         const auto& chunk = Guard_.GetChunk();
 
         i64 fragmentsSize = 0;
-        std::vector<IIOEngine::TReadRequest> readRequests;
+        std::vector<TReadRequest> readRequests;
         readRequests.reserve(requests.size());
         for (const auto& request : requests) {
             YT_VERIFY(request.ChunkId == chunk->GetId());
@@ -294,7 +294,7 @@ public:
                 // NB: Keep Guard_ alive.
                 this_ = MakeStrong(this),
                 options = std::move(options)
-            ] (IIOEngine::TReadResponse&& response) {
+            ] (TReadResponse&& response) {
                 options.ChunkReaderStatistics->DataBytesReadFromDisk.fetch_add(
                     response.PaddedBytes,
                     std::memory_order::relaxed);

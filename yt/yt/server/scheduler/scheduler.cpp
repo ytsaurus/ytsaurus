@@ -1769,7 +1769,7 @@ private:
 
     IResponseKeeperPtr OperationServiceResponseKeeper_;
 
-    std::optional<TString> ClusterName_;
+    std::optional<std::string> ClusterName_;
 
     const TNodeManagerPtr NodeManager_;
 

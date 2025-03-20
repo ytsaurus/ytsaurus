@@ -1466,7 +1466,7 @@ TGetQueryTrackerInfoResult TQueryTrackerProxy::GetQueryTrackerInfo(
 
     attributes.ValidateKeysOnly();
 
-    TString clusterName = "";
+    std::string clusterName = "";
 
     if (attributes.AdmitsKeySlow("cluster_name")) {
         YT_LOG_DEBUG("Getting cluster name");
@@ -1499,7 +1499,7 @@ TGetQueryTrackerInfoResult TQueryTrackerProxy::GetQueryTrackerInfo(
         accessControlObjects = ConvertTo<std::vector<TString>>(allAcos);
     }
 
-    std::vector<TString> clusters;
+    std::vector<std::string> clusters;
     if (attributes.AdmitsKeySlow("clusters")) {
         YT_LOG_DEBUG("Getting list of available clusters");
         TListNodeOptions listOptions;
@@ -1507,7 +1507,7 @@ TGetQueryTrackerInfoResult TQueryTrackerProxy::GetQueryTrackerInfo(
         listOptions.SuccessStalenessBound = TDuration::Minutes(1);
         auto allClusters = WaitFor(StateClient_->ListNode("//sys/clusters", listOptions))
             .ValueOrThrow();
-        clusters = ConvertTo<std::vector<TString>>(allClusters);
+        clusters = ConvertTo<std::vector<std::string>>(allClusters);
     }
 
     return TGetQueryTrackerInfoResult{

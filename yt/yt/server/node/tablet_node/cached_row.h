@@ -6,6 +6,8 @@
 #include <yt/yt/core/misc/slab_allocator.h>
 #include <yt/yt/core/misc/atomic_ptr.h>
 
+#include <library/cpp/yt/memory/poison.h>
+
 namespace NYT::NTabletNode {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -47,6 +49,9 @@ struct TCachedRow final
 #ifdef YT_ENABLE_REF_COUNTED_TRACKING
     TRefCountedTrackerFacade::FreeSpace(GetRefCountedTypeCookie<TCachedRow>(), Space);
 #endif
+        // We must poison memory here due to EnableHazard class flag:
+        // the destruction of the object and its deallocation are separated temporally.
+        PoisonFreedMemory(TMutableRef(Data, Space));
     }
 
     using TAllocator = TSlabAllocator;

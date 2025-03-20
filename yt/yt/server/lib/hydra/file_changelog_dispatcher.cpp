@@ -222,7 +222,7 @@ public:
         return records;
     }
 
-    NIO::IIOEngine::TReadRequest MakeChunkFragmentReadRequest(
+    NIO::TReadRequest MakeChunkFragmentReadRequest(
         const NIO::TChunkFragmentDescriptor& fragmentDescriptor)
     {
         return Changelog_->MakeChunkFragmentReadRequest(fragmentDescriptor);
@@ -713,7 +713,7 @@ public:
             maxBytes);
     }
 
-    NIO::IIOEngine::TReadRequest MakeChunkFragmentReadRequest(
+    NIO::TReadRequest MakeChunkFragmentReadRequest(
         const NIO::TChunkFragmentDescriptor& fragmentDescriptor) override
     {
         return Queue_->MakeChunkFragmentReadRequest(fragmentDescriptor);

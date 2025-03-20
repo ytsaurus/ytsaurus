@@ -37,7 +37,11 @@ struct INodeMemoryTracker
 
     virtual void SetTotalLimit(i64 newLimit) = 0;
     virtual void SetCategoryLimit(ECategory category, i64 newLimit) = 0;
-    virtual void SetPoolWeight(const TPoolTag& poolTag, i64 newWeight) = 0;
+    virtual void SetPoolWeight(const TPoolTag& poolTag, std::optional<i64> newWeight) = 0;
+    virtual void SetPoolRatio(const TPoolTag& poolTag, std::optional<double> newRatio) = 0;
+    virtual i64 GetPoolUsed(const TPoolTag& poolTag) const = 0;
+    virtual i64 GetPoolLimit(const TPoolTag& poolTag) const = 0;
+    virtual bool IsPoolExceeded(const TPoolTag& poolTag) const = 0;
 
     //! Returns true unless overcommit occurred.
     virtual bool Acquire(ECategory category, i64 size, const std::optional<TPoolTag>& poolTag = {}) = 0;

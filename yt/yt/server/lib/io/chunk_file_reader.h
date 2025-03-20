@@ -2,9 +2,9 @@
 
 #include "io_engine.h"
 
-#include <yt/yt_proto/yt/client/chunk_client/proto/chunk_meta.pb.h>
-
 #include <yt/yt/ytlib/chunk_client/block.h>
+
+#include <yt/yt_proto/yt/client/chunk_client/proto/chunk_meta.pb.h>
 
 #include <library/cpp/yt/containers/enum_indexed_array.h>
 
@@ -97,7 +97,7 @@ public:
         bool useDirectIO);
 
     //! Reader must be prepared (see #PrepareToReadChunkFragments) prior to this call.
-    IIOEngine::TReadRequest MakeChunkFragmentReadRequest(
+    TReadRequest MakeChunkFragmentReadRequest(
         const TChunkFragmentDescriptor& fragmentDescriptor,
         bool useDirectIO);
 
@@ -131,14 +131,14 @@ private:
         int firstBlockIndex,
         int blockCount,
         const NIO::TBlocksExtPtr& blocksExt,
-        const IIOEngine::TReadResponse& readResponse);
+        const TReadResponse& readResponse);
     TFuture<NChunkClient::TRefCountedChunkMetaPtr> DoReadMeta(
         const NChunkClient::TClientChunkReadOptions& options,
         std::optional<int> partitionTag);
     NChunkClient::TRefCountedChunkMetaPtr OnMetaRead(
         const TString& metaFileName,
         NChunkClient::TChunkReaderStatisticsPtr chunkReaderStatistics,
-        const IIOEngine::TReadResponse& readResponse);
+        const TReadResponse& readResponse);
 
     TFuture<TIOEngineHandlePtr> OpenDataFile(EDirectIOFlag useDirectIO);
     TIOEngineHandlePtr OnDataFileOpened(EDirectIOFlag useDirectIO, const TIOEngineHandlePtr& file);

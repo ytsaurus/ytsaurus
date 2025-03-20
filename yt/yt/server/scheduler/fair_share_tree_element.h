@@ -526,7 +526,7 @@ public:
 
     virtual std::optional<bool> IsIdleCpuPolicyAllowed() const = 0;
 
-    virtual std::optional<TString> GetRedirectToCluster() const;
+    virtual std::optional<std::string> GetRedirectToCluster() const;
 
 protected:
     using TChildMap = THashMap<TSchedulerElementPtr, int>;
@@ -707,7 +707,7 @@ public:
 
     std::optional<bool> IsIdleCpuPolicyAllowed() const override;
 
-    std::optional<TString> GetRedirectToCluster() const override;
+    std::optional<std::string> GetRedirectToCluster() const override;
 
 protected:
     //! Pre fair share update methods.

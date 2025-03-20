@@ -4,6 +4,7 @@ INCLUDE(${ARCADIA_ROOT}/yt/ya_cpp.make.inc)
 
 SRCS(
     test_columnar_statistics.cpp
+    test_chunk_blocks_truncation.cpp
 )
 
 EXPLICIT_DATA()
