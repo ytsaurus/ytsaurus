@@ -8,7 +8,7 @@ from yt_commands import (
     interrupt_job, dump_job_context, run_sleeping_vanilla, get_allocation_id_from_job_id,
     patch_op_spec)
 
-from yt_helpers import skip_if_no_descending, profiler_factory, read_structured_log, write_log_barrier, JobCountProfiler
+from yt_helpers import profiler_factory, read_structured_log, write_log_barrier, JobCountProfiler
 
 from yt import yson
 from yt.yson import to_yson_type
@@ -397,8 +397,6 @@ class TestSchedulerVanillaCommands(YTEnvSetup):
 
     @authors("max42")
     def test_table_output(self):
-        skip_if_no_descending(self.Env)
-
         create("table", "//tmp/t_ab")  # append = %true
         create("table", "//tmp/t_bc_1")  # sorted_by = [a], sort_order=ascending
         create("table", "//tmp/t_bc_2")  # sorted_by = [a], sort_order=descending

@@ -15,7 +15,7 @@ from yt_commands import (
 
 from yt_type_helpers import make_schema, normalize_schema, make_column, list_type, tuple_type, optional_type
 
-from yt_helpers import skip_if_no_descending, skip_if_old, skip_if_renaming_disabled
+from yt_helpers import skip_if_old
 
 import yt.yson as yson
 from yt.test_helpers import assert_items_equal
@@ -270,9 +270,6 @@ class TestSchedulerMapCommands(YTEnvSetup):
     @authors("psushin")
     @pytest.mark.parametrize("sort_kind", ["sorted_by", "ascending", "descending"])
     def test_sorted_output(self, sort_kind):
-        if sort_kind == "descending":
-            skip_if_no_descending(self.Env)
-
         create("table", "//tmp/t1")
         for i in range(2):
             write_table("<append=true>//tmp/t1", {"key": "foo", "value": "ninja"})
@@ -323,9 +320,6 @@ class TestSchedulerMapCommands(YTEnvSetup):
     @authors("psushin")
     @pytest.mark.parametrize("sort_kind", ["sorted_by", "ascending", "descending"])
     def test_sorted_output_overlap(self, sort_kind):
-        if sort_kind == "descending":
-            skip_if_no_descending(self.Env)
-
         create("table", "//tmp/t1")
         for i in range(2):
             write_table("<append=true>//tmp/t1", {"key": "foo", "value": "ninja"})
@@ -356,9 +350,6 @@ class TestSchedulerMapCommands(YTEnvSetup):
     @authors("psushin")
     @pytest.mark.parametrize("sort_kind", ["sorted_by", "ascending", "descending"])
     def test_sorted_output_job_failure(self, sort_kind):
-        if sort_kind == "descending":
-            skip_if_no_descending(self.Env)
-
         create("table", "//tmp/t1")
         for i in range(2):
             write_table("<append=true>//tmp/t1", {"key": "foo", "value": "ninja"})
@@ -578,9 +569,6 @@ print(row + table_index)
     @authors("ignat")
     @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
     def test_range_index(self, sort_order):
-        if sort_order == "descending":
-            skip_if_no_descending(self.Env)
-
         create("table", "//tmp/t_in", attributes={
             "schema": make_schema([
                 {"name": "key", "type": "string", "sort_order": sort_order},
@@ -1147,8 +1135,6 @@ print(row + table_index)
     @authors("levysotsky")
     @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
     def test_rename_schema(self, optimize_for):
-        skip_if_renaming_disabled(self.Env)
-
         input_table = "//tmp/tin"
         output_table = "//tmp/tout"
 

@@ -10,8 +10,6 @@ from yt_type_helpers import (
 
 import yt_error_codes
 
-from yt_helpers import skip_if_renaming_disabled
-
 import yt.yson as yson
 from yt.common import YtError
 from yt.test_helpers import assert_items_equal
@@ -562,8 +560,6 @@ class TestJobQuery(YTEnvSetup):
 
     @authors("levysotsky")
     def test_query_renamed_schema(self):
-        skip_if_renaming_disabled(self.Env)
-
         input_table = "//tmp/t_in"
         input_table_with_append = "<append=%true>" + input_table
         output_table = "//tmp/t_out"
@@ -655,8 +651,6 @@ class TestJobQuery(YTEnvSetup):
 
     @authors("gudqeit")
     def test_query_chunk_filter_and_rename(self):
-        skip_if_renaming_disabled(self.Env)
-
         input_table = "//tmp/t_in"
         input_table_with_append = "<append=%true>" + input_table
         output_table = "//tmp/t_out"

@@ -5,7 +5,7 @@ from yt_commands import (
     get, insert_rows, write_file, read_table, write_table, join_reduce, reduce, sync_create_cells, sync_mount_table,
     sync_unmount_table, raises_yt_error, assert_statistics, sorted_dicts)
 
-from yt_helpers import skip_if_no_descending, skip_if_old
+from yt_helpers import skip_if_old
 
 import yt_error_codes
 
@@ -70,7 +70,6 @@ class TestSchedulerJoinReduceBase(YTEnvSetup):
     @pytest.mark.parametrize("sort_b", ["ascending", "descending"])
     def test_join_reduce_key_prefix_multiple_chunks(self, sort_a, sort_b):
         if "descending" in [sort_a, sort_b]:
-            skip_if_no_descending(self.Env)
             self.skip_if_legacy_sorted_pool()
 
         def compare_primary(row):
@@ -192,7 +191,6 @@ class TestSchedulerJoinReduceCommands(TestSchedulerJoinReduceBase):
     @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
     def test_join_reduce_tricky_chunk_boundaries(self, sort_order):
         if sort_order == "descending":
-            skip_if_no_descending(self.Env)
             self.skip_if_legacy_sorted_pool()
 
         def write(path, rows):
@@ -368,7 +366,6 @@ class TestSchedulerJoinReduceCommands(TestSchedulerJoinReduceBase):
     @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
     def test_join_reduce_cat_simple(self, sort_order):
         if sort_order == "descending":
-            skip_if_no_descending(self.Env)
             self.skip_if_legacy_sorted_pool()
 
         def write(path, rows):
@@ -433,7 +430,6 @@ class TestSchedulerJoinReduceCommands(TestSchedulerJoinReduceBase):
     @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
     def test_join_reduce_split_further(self, sort_order):
         if sort_order == "descending":
-            skip_if_no_descending(self.Env)
             self.skip_if_legacy_sorted_pool()
 
         def write(path, rows):
@@ -582,7 +578,6 @@ class TestSchedulerJoinReduceCommands(TestSchedulerJoinReduceBase):
     @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
     def test_join_reduce_cat_two_output(self, optimize_for, sort_order):
         if sort_order == "descending":
-            skip_if_no_descending(self.Env)
             self.skip_if_legacy_sorted_pool()
 
         schema = [
@@ -795,7 +790,6 @@ class TestSchedulerJoinReduceCommands(TestSchedulerJoinReduceBase):
 
     @authors("gritukan")
     def test_join_reduce_different_sort_order(self):
-        skip_if_no_descending(self.Env)
         self.skip_if_legacy_sorted_pool()
 
         create("table", "//tmp/in1")
@@ -831,7 +825,6 @@ class TestSchedulerJoinReduceCommands(TestSchedulerJoinReduceBase):
     @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
     def test_join_reduce_short_limits(self, optimize_for, sort_order):
         if sort_order == "descending":
-            skip_if_no_descending(self.Env)
             self.skip_if_legacy_sorted_pool()
 
         schema = [
@@ -923,7 +916,6 @@ echo {v = 2} >&7
     @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
     def test_join_reduce_job_count(self, sort_order):
         if sort_order == "descending":
-            skip_if_no_descending(self.Env)
             self.skip_if_legacy_sorted_pool()
 
         create("table", "//tmp/in1", attributes={"compression_codec": "none"})
@@ -1025,7 +1017,6 @@ echo {v = 2} >&7
     @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
     def test_join_reduce_with_small_block_size(self, sort_order):
         if sort_order == "descending":
-            skip_if_no_descending(self.Env)
             self.skip_if_legacy_sorted_pool()
 
         create("table", "//tmp/in1", attributes={"compression_codec": "none"})
@@ -1089,7 +1080,6 @@ echo {v = 2} >&7
     @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
     def test_join_reduce_skewed_key_distribution(self, sort_order):
         if sort_order == "descending":
-            skip_if_no_descending(self.Env)
             self.skip_if_legacy_sorted_pool()
 
         create("table", "//tmp/in1")
@@ -1248,7 +1238,6 @@ echo {v = 2} >&7
     @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
     def test_join_reduce_short_range(self, sort_order):
         if sort_order == "descending":
-            skip_if_no_descending(self.Env)
             self.skip_if_legacy_sorted_pool()
 
         count = 300
@@ -1466,7 +1455,6 @@ echo {v = 2} >&7
     @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
     def test_join_reduce_interrupt_job(self, optimize_for, sort_order):
         if sort_order == "descending":
-            skip_if_no_descending(self.Env)
             self.skip_if_legacy_sorted_pool()
 
         create("table", "//tmp/input1", attributes={"optimize_for": optimize_for})
@@ -1722,7 +1710,6 @@ echo {v = 2} >&7
         skip_if_old(self.Env, (24, 2), "older versions do not support foreign tables with multiple ranges")
 
         if sort_order == "descending":
-            skip_if_no_descending(self.Env)
             self.skip_if_legacy_sorted_pool()
 
         if isinstance(self, TestSchedulerJoinReduceCommandsNewSortedPool) and sort_order == "ascending":
