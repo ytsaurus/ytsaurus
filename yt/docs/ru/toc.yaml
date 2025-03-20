@@ -414,6 +414,8 @@ items:
                 href: api/python/dataclass.md
               - name: Примеры
                 href: api/python/examples.md
+          - name: Apache Airflow
+            href: api/airflow/userdoc.md
           - name: C++
             items:
               - name: Описание
