@@ -498,15 +498,6 @@ bool IsSchedulerTreeAlertType(ESchedulerAlertType alertType)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TOneShotFluentLogEvent LogStructuredGpuEventFluently(EGpuSchedulingLogEventType eventType)
-{
-    return NLogging::LogStructuredEventFluently(SchedulerGpuEventLogger(), NLogging::ELogLevel::Info)
-        .Item("timestamp").Value(TInstant::Now())
-        .Item("event_type").Value(eventType);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 bool IsFullHostGpuAllocation(const TJobResources& allocationResources)
 {
     return allocationResources.GetGpu() == LargeGpuAllocationGpuDemand;

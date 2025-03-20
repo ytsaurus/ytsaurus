@@ -19,7 +19,7 @@ from yt_commands import (
 from yt_scheduler_helpers import (
     scheduler_orchid_pool_path,
     scheduler_orchid_operation_path, scheduler_orchid_default_pool_tree_config_path,
-    scheduler_orchid_path, scheduler_orchid_node_path)
+    scheduler_orchid_path, scheduler_orchid_node_path, scheduler_new_orchid_pool_tree_path)
 
 from yt_helpers import profiler_factory, read_structured_log
 
@@ -53,10 +53,10 @@ def get_first_job_node(op):
 
 ##################################################################
 
-@pytest.mark.skipif(
-    is_asan_build() or is_debug_build(),
-    reason="This test suite requires a genuine release build to fit into timeout"
-)
+# @pytest.mark.skipif(
+#     is_asan_build() or is_debug_build(),
+#     reason="This test suite requires a genuine release build to fit into timeout"
+# )
 class TestSchedulingSegments(YTEnvSetup):
     NUM_TEST_PARTITIONS = 8
     NUM_MASTERS = 1
@@ -589,20 +589,14 @@ class TestSchedulingSegments(YTEnvSetup):
             task_patch={"gpu_limit": 8, "enable_gpu_layers": False},
         )
 
-        wait(
-            lambda: get(
-                scheduler_orchid_operation_path(small_op.id) + "/scheduling_segment",
-                default="",
-            )
-            == "default"
-        )
-        wait(
-            lambda: get(
-                scheduler_orchid_operation_path(large_op.id) + "/scheduling_segment",
-                default="",
-            )
-            == "large_gpu"
-        )
+        wait(lambda: exists(scheduler_new_orchid_pool_tree_path("default") + "/scheduling_segments/operations/{}".format(large_op.id)))
+
+        def check_segment(op, segment):
+            wait(lambda: get(scheduler_orchid_operation_path(op.id) + "/scheduling_segment", default="") == segment)
+            wait(lambda: get(scheduler_new_orchid_pool_tree_path("default") + "/scheduling_segments/operations/{}/scheduling_segment".format(op.id)) == segment)
+
+        check_segment(small_op, "default")
+        check_segment(large_op, "large_gpu")
 
     @authors("eshcherbin")
     def test_update_operation_segment_on_reconfiguration(self):
@@ -984,12 +978,13 @@ class TestSchedulingSegments(YTEnvSetup):
             operation_ids = builtins.set()
             allocation_ids = builtins.set()
             for event in structured_log:
-                if datetime.datetime.strptime(event["timestamp"], "%Y-%m-%dT%H:%M:%S.%fZ") < before_start_time or \
+                if "timestamp" not in event or \
+                    datetime.datetime.strptime(event["timestamp"], "%Y-%m-%dT%H:%M:%S.%fZ") < before_start_time or \
                     "event_type" not in event or \
                         event["event_type"] != "scheduling_segments_info" or \
-                        "nodes_info" not in event:
+                        "nodes" not in event:
                     continue
-                for info in event["nodes_info"].values():
+                for info in event["nodes"].values():
                     for allocation_id, allocation in info["running_allocations"].items():
                         allocation_ids.add(allocation_id)
                         operation_ids.add(allocation["operation_id"])
