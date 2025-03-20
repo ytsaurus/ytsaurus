@@ -338,7 +338,8 @@ public:
             StrategyHost_->SetSchedulerAlert(
                 ESchedulerAlertType::UnrecognizedPoolTreeConfigOptions,
                 TError("Pool tree config contains unrecognized options")
-                    << TErrorAttribute("unrecognized", unrecognized));
+                    << TErrorAttribute("unrecognized", unrecognized)
+                    << TErrorAttribute("tree", TreeId_));
         }
     }
 
