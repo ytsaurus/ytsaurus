@@ -8,6 +8,8 @@
 #include <yt/yt/core/misc/heap.h>
 #include <yt/yt/core/misc/string_builder.h>
 
+#include <yt/yt/core/ytree/virtual.h>
+
 #include <yt/yt/core/actions/new_with_offloaded_dtor.h>
 
 namespace NYT::NScheduler {
@@ -17,6 +19,7 @@ using namespace NControllerAgent;
 using namespace NNodeTrackerClient;
 using namespace NProfiling;
 using namespace NYTree;
+using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -2679,11 +2682,6 @@ void TFairShareTreeAllocationScheduler::RegisterOperation(const TSchedulerOperat
             operationState->SchedulingSegmentModule);
     }
 
-    if (IsGpuTree()) {
-        LogStructuredGpuEventFluently(EGpuSchedulingLogEventType::OperationRegistered)
-            .Item("operation_id").Value(operationId);
-    }
-
     EmplaceOrCrash(
         OperationIdToState_,
         operationId,
@@ -2702,11 +2700,6 @@ void TFairShareTreeAllocationScheduler::UnregisterOperation(const TSchedulerOper
     YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
     auto operationId = element->GetOperationId();
-
-    if (IsGpuTree()) {
-        LogStructuredGpuEventFluently(EGpuSchedulingLogEventType::OperationUnregistered)
-            .Item("operation_id").Value(operationId);
-    }
 
     EraseOrCrash(OperationIdToState_, operationId);
     EraseOrCrash(OperationIdToSharedState_, operationId);
@@ -3210,6 +3203,20 @@ bool TFairShareTreeAllocationScheduler::IsGpuTree(const TFairShareStrategyTreeCo
 bool TFairShareTreeAllocationScheduler::IsGpuTree() const
 {
     return IsGpuTree(Config_);
+}
+
+void TFairShareTreeAllocationScheduler::PopulateOrchidService(const TCompositeMapServicePtr& orchidService) const
+{
+    orchidService->AddChild("scheduling_segments", IYPathService::FromProducer(BIND([this_ = MakeStrong(this), this] (IYsonConsumer* consumer) {
+        YT_ASSERT_INVOKER_AFFINITY(StrategyHost_->GetControlInvoker(EControlQueue::DynamicOrchid));
+
+        BuildYsonFluently(consumer).BeginMap()
+            .DoIf(static_cast<bool>(SerializedSchedulingSegmentsInfo_), [&] (TFluentMap fluent) {
+                fluent
+                    .Items(SerializedSchedulingSegmentsInfo_);
+            })
+        .EndMap();
+    })));
 }
 
 void TFairShareTreeAllocationScheduler::OnAllocationStartedInTest(
@@ -4035,10 +4042,11 @@ void TFairShareTreeAllocationScheduler::ApplyNodeSchedulingSegmentsChanges(const
         movedNodes.size());
 
     std::array<TSetNodeSchedulingSegmentOptionsList, MaxNodeShardCount> movedNodesPerNodeShard;
-    for (auto [nodeId, oldSegment, newSegment] : movedNodes) {
+    for (auto&& [nodeId, nodeAddress, oldSegment, newSegment] : movedNodes) {
         auto shardId = StrategyHost_->GetNodeShardId(nodeId);
         movedNodesPerNodeShard[shardId].push_back(TSetNodeSchedulingSegmentOptions{
             .NodeId = nodeId,
+            .NodeAddress = std::move(nodeAddress),
             .OldSegment = oldSegment,
             .NewSegment = newSegment,
         });
@@ -4050,11 +4058,11 @@ void TFairShareTreeAllocationScheduler::ApplyNodeSchedulingSegmentsChanges(const
         futures.push_back(BIND(
             [&, this_ = MakeStrong(this), shardId, movedNodes = std::move(movedNodesPerNodeShard[shardId])] {
                 auto& nodeStates = NodeStateShards_[shardId].NodeIdToState;
-                std::vector<std::pair<TNodeId, ESchedulingSegment>> missingNodeIdsWithSegments;
-                for (auto [nodeId, _, newSegment] : movedNodes) {
+                std::vector<std::pair<std::string, ESchedulingSegment>> missingNodeAddressesWithSegments;
+                for (const auto& [nodeId, nodeAddress, _, newSegment] : movedNodes) {
                     auto it = nodeStates.find(nodeId);
                     if (it == nodeStates.end()) {
-                        missingNodeIdsWithSegments.emplace_back(nodeId, newSegment);
+                        missingNodeAddressesWithSegments.emplace_back(nodeAddress, newSegment);
                         continue;
                     }
                     auto& node = it->second;
@@ -4062,16 +4070,16 @@ void TFairShareTreeAllocationScheduler::ApplyNodeSchedulingSegmentsChanges(const
                     YT_VERIFY(node.SchedulingSegment != newSegment);
 
                     YT_LOG_DEBUG("Setting new scheduling segment for node (Address: %v, Segment: %v)",
-                        node.Descriptor->Address,
+                        nodeAddress,
                         newSegment);
 
                     node.SchedulingSegment = newSegment;
                     node.ForceRunningAllocationStatisticsUpdate = true;
                 }
 
-                YT_LOG_DEBUG_UNLESS(missingNodeIdsWithSegments.empty(),
-                    "Trying to set scheduling segments for missing nodes (MissingNodeIdsWithSegments: %v)",
-                    missingNodeIdsWithSegments);
+                YT_LOG_DEBUG_UNLESS(missingNodeAddressesWithSegments.empty(),
+                    "Trying to set scheduling segments for missing nodes (MissingNodeAddressesWithSegments: %v)",
+                    missingNodeAddressesWithSegments);
             })
             .AsyncVia(nodeShardInvokers[shardId])
             .Run());
@@ -4123,6 +4131,8 @@ void TFairShareTreeAllocationScheduler::ManageSchedulingSegments()
         context.OperationStates = GetOperationStateMapSnapshot();
 
         SchedulingSegmentManager_.UpdateSchedulingSegments(&context);
+
+        SerializedSchedulingSegmentsInfo_ = std::move(context.SerializedSchedulingSegmentsInfo);
 
         ApplyOperationSchedulingSegmentsChanges(context.OperationStates);
         movedNodes = std::move(context.MovedNodes);

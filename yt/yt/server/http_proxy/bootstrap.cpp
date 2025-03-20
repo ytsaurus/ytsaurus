@@ -271,12 +271,11 @@ void TBootstrap::DoInitialize()
             Config_->SignatureGeneration->CypressKeyWriter,
             RootClient_))
             .ValueOrThrow();
-        auto signatureGenerator = New<TSignatureGenerator>(
-            Config_->SignatureGeneration->Generator,
-            std::move(cypressKeyWriter));
+        auto signatureGenerator = New<TSignatureGenerator>(Config_->SignatureGeneration->Generator);
         SignatureKeyRotator_ = New<TKeyRotator>(
             Config_->SignatureGeneration->KeyRotator,
             GetControlInvoker(),
+            std::move(cypressKeyWriter),
             signatureGenerator);
         SignatureGenerator_ = std::move(signatureGenerator);
     } else {

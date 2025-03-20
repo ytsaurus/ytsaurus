@@ -42,6 +42,7 @@ void ToProto(
 
     protoAttributes->set_allow_idle_cpu_policy(attributes.AllowIdleCpuPolicy);
     protoAttributes->set_port_count(attributes.PortCount);
+    protoAttributes->set_enable_multiple_jobs(attributes.EnableMultipleJobs);
 }
 
 void FromProto(
@@ -71,6 +72,9 @@ void FromProto(
     }
     attributes->AllowIdleCpuPolicy = protoAttributes.allow_idle_cpu_policy();
     attributes->PortCount = protoAttributes.port_count();
+    if (protoAttributes.has_enable_multiple_jobs()) {
+        attributes->EnableMultipleJobs = protoAttributes.enable_multiple_jobs();
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

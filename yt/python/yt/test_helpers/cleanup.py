@@ -5,6 +5,19 @@ import logging
 
 logger = logging.getLogger("TestHelpers")
 
+SYSTEM_TRANSACTION_TITLE_SUBSTRINGS = [
+    "Scheduler lock",
+    "Controller agent incarnation",
+    "Lease for node",
+    "Prerequisite for cell",
+    "Chunk merger",
+    "Chunk autotomizer",
+    "Lock transaction for QueueAgent",
+    "Lock for changelog store",
+    "Upload to //sys/",
+    "Prerequisite for cell",
+]
+
 
 def abort_transactions(list_action, abort_action, exists_action, get_action):
     sequoia_tablet_cells = []
@@ -14,25 +27,7 @@ def abort_transactions(list_action, abort_action, exists_action, get_action):
 
     for tx in list_action("//sys/transactions", attributes=["title"]):
         title = tx.attributes.get("title", "")
-        if "Scheduler lock" in title:
-            continue
-        if "Controller agent incarnation" in title:
-            continue
-        if "Lease for" in title:
-            continue
-        if "Prerequisite for" in title:
-            continue
-        if "Chunk merger" in title:
-            continue
-        if "Chunk autotomizer" in title:
-            continue
-        if "QueueAgent" in title:
-            continue
-        if "Lock for changelog store" in title:
-            continue
-        if "Upload to //sys/hydra_persistence" in title:
-            continue
-        if "Prerequisite for cell" in title:
+        if any(substring in title for substring in SYSTEM_TRANSACTION_TITLE_SUBSTRINGS):
             continue
 
         sequoia = False
