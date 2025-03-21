@@ -1262,6 +1262,9 @@ public:
 
     bool UseClusterThrottlers;
 
+    //! If |true|, exec node will reuse allocation for multiple jobs.
+    std::optional<bool> EnableMultipleJobsInAllocation;
+
     REGISTER_YSON_STRUCT(TOperationSpecBase);
 
     static void Register(TRegistrar registrar);
