@@ -12,6 +12,21 @@
 # Please refer to the build instructions in the repository for more information about manual
 # changes in this file.
 
-add_subdirectory(client)
-add_subdirectory(native_client)
-add_subdirectory(serializer)
+find_package(linux-headers-generic REQUIRED)
+
+add_library(flow-lib-serializer)
+
+
+target_link_libraries(flow-lib-serializer PUBLIC
+  linux-headers-generic::linux-headers-generic
+  contrib-libs-cxxsupp
+  yutil
+  cpp-yt-yson
+  yt-yt-client
+)
+
+target_sources(flow-lib-serializer PRIVATE
+  ${PROJECT_SOURCE_DIR}/yt/yt/flow/lib/serializer/proto_yson_struct.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/flow/lib/serializer/serializer.cpp
+)
+
