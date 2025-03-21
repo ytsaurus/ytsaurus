@@ -1272,11 +1272,12 @@ private:
         auto requestHandlerIt = requestStorage.find(requestId);
 
         YT_VERIFY(requestHandlerIt != requestStorage.end());
-
         auto& requestHandler = requestHandlerIt->second;
         auto promise = std::move(requestHandler.Promise);
         auto callback = std::move(requestHandler.Callback);
         auto cost = requestHandler.Cost;
+
+        requestStorage.erase(requestHandlerIt);
 
         if (promise.IsCanceled()) {
             return;
