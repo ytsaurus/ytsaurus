@@ -92,7 +92,7 @@ public:
         TFuture<TReplicationCardPtr> replicationCardFuture,
         NNative::IConnectionPtr connection)
     {
-        auto getTableInfoWaitTimeout = connection->GetConfig()->DefaulChaosReplicatedTableGetTabletCountTimeout;
+        auto getTableInfoWaitTimeout = connection->GetConfig()->DefaultChaosReplicatedTableGetTabletCountTimeout;
         auto activeQueueConnectionsFuture = replicationCardFuture.ApplyUnique(BIND(
             [connection = std::move(connection)] (TReplicationCardPtr&& card) {
                 return GetActiveQueueReplicaConnections(card->Replicas, connection);

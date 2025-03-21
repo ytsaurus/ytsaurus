@@ -320,7 +320,7 @@ void TConnectionDynamicConfig::Register(TRegistrar registrar)
         &TThis::DefaultChaosWatcherClientRequestTimeout)
         .Default(TDuration::Minutes(30));
     registrar.Parameter("default_chaos_replicated_table_get_tablet_count_timeout",
-        &TThis::DefaulChaosReplicatedTableGetTabletCountTimeout)
+        &TThis::DefaultChaosReplicatedTableGetTabletCountTimeout)
         .Default(TDuration::Seconds(15));
 
     registrar.Parameter("default_fetch_table_rows_timeout", &TThis::DefaultFetchTableRowsTimeout)
