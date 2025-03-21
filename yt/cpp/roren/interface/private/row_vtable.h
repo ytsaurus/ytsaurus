@@ -1,6 +1,7 @@
 #pragma once
 
 #include "fwd.h"
+#include "concepts.h"
 #include "raw_coder.h"
 #include "hash.h"
 #include "save_loadable_pointer_wrapper.h"
@@ -9,7 +10,6 @@
 #include "../coder.h"
 #include "../noncodable.h"
 
-#include <yt/yt/core/ytree/yson_struct.h>  // ::NYT::NYTree::TYsonStruct
 #include <yt/yt/client/table_client/logical_type.h>  // ::NYT::NTableClient::TLogicalTypePtr
 #include <yt/yt/flow/lib/serializer/serializer.h>  // ::NYT::NFlow::TSerializer::GetSchema()
 
@@ -27,9 +27,6 @@ namespace NRoren::NPrivate {
 // Returns pointer to function, that crashes when invoked.
 IRawCoderPtr CrashingCoderFactory();
 TRowVtable CrashingGetVtableFactory();
-
-template <class T>
-concept CYsonStruct = std::derived_from<T, ::NYT::NYTree::TYsonStruct>;
 
 struct TRowVtable
 {
@@ -158,6 +155,10 @@ TRowVtable MakeRowVtable()
         }
         if constexpr (CYsonStruct<T>) {
             auto o = ::NYT::New<T>();
+            vtable.YtSchema = ::NYT::NFlow::TSerializer::GetSchema(o);
+        }
+        if constexpr (CYsonStructPtr<T>) {
+            auto o = ::NYT::New<TemplateParameterType<T>>();
             vtable.YtSchema = ::NYT::NFlow::TSerializer::GetSchema(o);
         }
 
