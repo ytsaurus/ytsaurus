@@ -66,6 +66,7 @@ TFuture<ITableWriterPtr> TClient::CreateTableWriter(
 
     auto writerOptions = New<NTableClient::TTableWriterOptions>();
     writerOptions->EnableValidationOptions(/*validateAnyIsValidYson*/ options.ValidateAnyIsValidYson);
+    writerOptions->MemoryUsageTracker = HeavyRequestMemoryUsageTracker_;
 
     NApi::ITransactionPtr transaction;
     if (options.TransactionId) {

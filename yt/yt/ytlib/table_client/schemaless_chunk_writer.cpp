@@ -152,6 +152,11 @@ public:
         , FinishGuard_(TraceContext_)
         , RandomGenerator_(RandomNumber<ui64>())
         , SamplingThreshold_(static_cast<ui64>(MaxFloor<ui64>() * Config_->SampleRate))
+        , TruncatedSampleValueBuffer_(New<TRowBuffer>(
+            TDefaultRowBufferPoolTag(),
+            TChunkedMemoryPool::DefaultStartChunkSize,
+            Options_->MemoryUsageTracker,
+            /*allowMemoryOvercommit*/ true))
         , ColumnarStatistics_(TColumnarStatistics::MakeEmpty(ChunkNameTable_->GetSize(), Options_->EnableColumnarValueStatistics, Config_->EnableLargeColumnarStatistics))
     {
         YT_VERIFY(BlockSize_ > 0);
@@ -454,7 +459,7 @@ private:
     TRandomGenerator RandomGenerator_;
     const ui64 SamplingThreshold_;
 
-    TRowBufferPtr TruncatedSampleValueBuffer_ = New<TRowBuffer>();
+    TRowBufferPtr TruncatedSampleValueBuffer_;
     TUnversionedOwningRow Sample_;
     NProto::TSamplesExt SamplesExt_;
     i64 SamplesExtSize_ = 0;
@@ -1038,6 +1043,11 @@ public:
         , Schema_(std::move(schema))
         , BoundaryKeysProcessor_(std::move(boundaryKeysProcessor))
         , LastKeyHolder_(std::move(lastKey))
+        , RowBuffer_(New<TRowBuffer>(
+            TSchemalessChunkWriterTag(),
+            TChunkedMemoryPool::DefaultStartChunkSize,
+            Options_->MemoryUsageTracker,
+            /*allowMemoryOvercommit*/ true))
     {
         if (Options_->EvaluateComputedColumns) {
             ColumnEvaluator_ = Client_->GetNativeConnection()->GetColumnEvaluatorCache()->Find(Schema_);
@@ -1124,7 +1134,7 @@ protected:
                        : 0)
                 : row.GetCount();
             int maxColumnCount = columnCount + additionalColumnCount;
-            auto mutableRow = TMutableUnversionedRow::Allocate(RowBuffer_->GetPool(), maxColumnCount);
+            auto mutableRow = RowBuffer_->AllocateUnversioned(maxColumnCount);
 
             for (int i = 0; i < columnCount; ++i) {
                 // Id for schema columns in chunk name table always coincide with column index in schema.
@@ -1208,7 +1218,7 @@ private:
 
     bool IsFirstRow_ = true;
 
-    const TRowBufferPtr RowBuffer_ = New<TRowBuffer>(TSchemalessChunkWriterTag());
+    const TRowBufferPtr RowBuffer_;
 
     TColumnEvaluatorPtr ColumnEvaluator_;
     TSkynetColumnEvaluatorPtr SkynetColumnEvaluator_;
@@ -1826,6 +1836,11 @@ public:
             std::move(throttler),
             std::move(blockCache),
             std::move(boundaryKeysProcessor))
+        , RowBuffer_(New<TRowBuffer>(
+            TTag(),
+            TChunkedMemoryPool::DefaultStartChunkSize,
+            Options_->MemoryUsageTracker,
+            /*allowMemoryOvercommit*/ true))
         , PhysicalSchema_(std::move(physicalSchema))
         , CreateChunkWriter_(std::move(createChunkWriter))
         , ChunkNameTable_(TNameTable::FromSchemaStable(*Schema_))
@@ -1857,7 +1872,7 @@ public:
     }
 
 protected:
-    TRowBufferPtr RowBuffer_ = New<TRowBuffer>(TTag());
+    TRowBufferPtr RowBuffer_;
     TTableSchemaPtr PhysicalSchema_;
 
 private:

@@ -15,7 +15,10 @@ namespace NYT::NTableClient {
 class THorizontalBlockWriter
 {
 public:
-    explicit THorizontalBlockWriter(TTableSchemaPtr schema, i64 reserveSize = 128_KB);
+    explicit THorizontalBlockWriter(
+        TTableSchemaPtr schema,
+        i64 reserveSize = 128_KB,
+        IMemoryUsageTrackerPtr memoryUsageTracker = GetNullMemoryUsageTracker());
 
     void WriteRow(TUnversionedRow row);
 
