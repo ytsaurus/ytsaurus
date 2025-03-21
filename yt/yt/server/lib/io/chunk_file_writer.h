@@ -10,6 +10,8 @@
 
 #include <yt/yt/core/misc/protobuf_helpers.h>
 
+#include <yt/yt/core/misc/public.h>
+
 #include <library/cpp/yt/threading/atomic_object.h>
 
 #include <util/system/file.h>
@@ -48,10 +50,22 @@ public:
         const TWorkloadDescriptor& workloadDescriptor,
         const NChunkClient::TBlock& block) override;
 
+    bool WriteBlock(
+        const NChunkClient::IChunkWriter::TWriteBlocksOptions& options,
+        const TWorkloadDescriptor& workloadDescriptor,
+        const NChunkClient::TBlock& block,
+        TFairShareSlotId fairShareSlotId);
+
     bool WriteBlocks(
         const NChunkClient::IChunkWriter::TWriteBlocksOptions& options,
         const TWorkloadDescriptor& workloadDescriptor,
         const std::vector<NChunkClient::TBlock>& blocks) override;
+
+    bool WriteBlocks(
+        const NChunkClient::IChunkWriter::TWriteBlocksOptions& options,
+        const TWorkloadDescriptor& workloadDescriptor,
+        const std::vector<NChunkClient::TBlock>& blocks,
+        TFairShareSlotId fairShareSlotId);
 
     TFuture<void> GetReadyEvent() override;
 
@@ -60,6 +74,13 @@ public:
         const TWorkloadDescriptor& workloadDescriptor,
         const NChunkClient::TDeferredChunkMetaPtr& chunkMeta,
         std::optional<int> truncateBlocks) override;
+
+    TFuture<void> Close(
+        const NChunkClient::IChunkWriter::TWriteBlocksOptions& options,
+        const TWorkloadDescriptor& workloadDescriptor,
+        const NChunkClient::TDeferredChunkMetaPtr& chunkMeta,
+        TFairShareSlotId fairShareSlotId,
+        std::optional<int> truncateBlocks);
 
     const NChunkClient::NProto::TChunkInfo& GetChunkInfo() const override;
     const NChunkClient::NProto::TDataStatistics& GetDataStatistics() const override;

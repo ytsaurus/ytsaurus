@@ -107,6 +107,15 @@ void TChunkLocationConfig::ApplyDynamicInplace(const TChunkLocationDynamicConfig
 
     UpdateYsonStructField(ReadMemoryLimit, dynamicConfig.ReadMemoryLimit);
 
+    for (auto category : TEnumTraits<EWorkloadCategory>::GetDomainValues()) {
+        auto priority = dynamicConfig.FairShareWorkloadCategoryWeights[category];
+        if (priority) {
+            FairShareWorkloadCategoryWeights[category] = *priority;
+        } else {
+            FairShareWorkloadCategoryWeights[category] = DefaultFairShareWorkloadCategoryWeights[category];
+        }
+    }
+
     UpdateYsonStructField(WriteMemoryLimit, dynamicConfig.WriteMemoryLimit);
 
     UpdateYsonStructField(SessionCountLimit, dynamicConfig.SessionCountLimit);
@@ -133,6 +142,9 @@ void TChunkLocationConfig::Register(TRegistrar registrar)
         .Default(NIO::EIOEngineType::ThreadPool);
     registrar.Parameter("io_config", &TThis::IOConfig)
         .Optional();
+
+    registrar.Parameter("fair_share_workload_category_priorities", &TThis::FairShareWorkloadCategoryWeights)
+        .Default();
 
     registrar.Parameter("read_memory_limit", &TThis::ReadMemoryLimit)
         .Default(10_GB);

@@ -139,13 +139,31 @@ bool TChunkFileWriter::WriteBlock(
     const TWorkloadDescriptor& workloadDescriptor,
     const TBlock& block)
 {
-    return WriteBlocks(options, workloadDescriptor, {block});
+    return WriteBlock(options, workloadDescriptor, {block}, {});
+}
+
+bool TChunkFileWriter::WriteBlock(
+    const IChunkWriter::TWriteBlocksOptions& options,
+    const TWorkloadDescriptor& workloadDescriptor,
+    const TBlock& block,
+    TFairShareSlotId fairShareSlotId)
+{
+    return WriteBlocks(options, workloadDescriptor, {block}, fairShareSlotId);
 }
 
 bool TChunkFileWriter::WriteBlocks(
     const IChunkWriter::TWriteBlocksOptions& options,
     const TWorkloadDescriptor& workloadDescriptor,
     const std::vector<TBlock>& blocks)
+{
+    return WriteBlocks(options, workloadDescriptor, blocks, {});
+}
+
+bool TChunkFileWriter::WriteBlocks(
+    const IChunkWriter::TWriteBlocksOptions& options,
+    const TWorkloadDescriptor& workloadDescriptor,
+    const std::vector<TBlock>& blocks,
+    TFairShareSlotId fairShareSlotId)
 {
     if (auto error = TryChangeState(EState::Ready, EState::WritingBlocks); !error.IsOK()) {
         ReadyEvent_ = MakeFuture<void>(std::move(error));
@@ -176,7 +194,8 @@ bool TChunkFileWriter::WriteBlocks(
             DataFile_,
             startOffset,
             std::move(buffers),
-            SyncOnClose_
+            SyncOnClose_,
+            fairShareSlotId,
         },
         workloadDescriptor.Category)
         .Apply(BIND([
@@ -224,6 +243,16 @@ TFuture<void> TChunkFileWriter::Close(
     const IChunkWriter::TWriteBlocksOptions& options,
     const TWorkloadDescriptor& workloadDescriptor,
     const TDeferredChunkMetaPtr& chunkMeta,
+    std::optional<int> truncateBlockCount)
+{
+    return Close(options, workloadDescriptor, chunkMeta, {}, truncateBlockCount);
+}
+
+TFuture<void> TChunkFileWriter::Close(
+    const IChunkWriter::TWriteBlocksOptions& options,
+    const TWorkloadDescriptor& workloadDescriptor,
+    const TDeferredChunkMetaPtr& chunkMeta,
+    TFairShareSlotId fairShareSlotId,
     std::optional<int> truncateBlockCount)
 {
     if (auto error = TryChangeState(EState::Ready, EState::Closing); !error.IsOK()) {
@@ -275,6 +304,7 @@ TFuture<void> TChunkFileWriter::Close(
             this,
             this_ = MakeStrong(this),
             workloadDescriptor,
+            fairShareSlotId = fairShareSlotId,
             chunkWriterStatistics = options.ClientOptions.ChunkWriterStatistics
         ] (const TIOEngineHandlePtr& chunkMetaFile) {
             YT_VERIFY(State_.load() == EState::Closing);
@@ -300,7 +330,8 @@ TFuture<void> TChunkFileWriter::Close(
                     chunkMetaFile,
                     0,
                     {std::move(buffer)},
-                    SyncOnClose_
+                    SyncOnClose_,
+                    fairShareSlotId,
                 },
                 workloadDescriptor.Category)
                 .Apply(BIND([

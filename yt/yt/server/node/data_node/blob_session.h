@@ -53,6 +53,7 @@ private:
 
     struct TSlot
     {
+        TFairShareHierarchicalSlotQueueSlotPtr<TString> Owner = nullptr;
         ESlotState State = ESlotState::Empty;
         NChunkClient::TBlock Block;
 
@@ -68,6 +69,8 @@ private:
     int WindowStartBlockIndex_ = 0;
     int WindowIndex_ = 0;
 
+    THashMap<TFairShareHierarchicalSlotQueueSlotPtr<TString>, int> AcquiredSlots_;
+
     std::atomic<i64> TotalByteSize_ = 0;
     std::atomic<i64> BlockCount_ = 0;
     std::atomic<i64> MemoryUsage_ = 0;
@@ -78,6 +81,8 @@ private:
     i64 MaxCumulativeBlockSize_ = 0;
     TLocationMemoryGuard PendingBlockLocationMemoryGuard_;
     TMemoryUsageTrackerGuard PendingBlockMemoryGuard_;
+
+    double GetFairShareWorkloadCategoryPriority(EWorkloadCategory category);
 
     TFuture<void> DoStart() override;
     void OnStarted(const TError& error);
@@ -91,7 +96,8 @@ private:
         int startBlockIndex,
         std::vector<NChunkClient::TBlock> blocks,
         bool useCumulativeBlockSize,
-        bool enableCaching);
+        bool enableCaching,
+        TFairShareHierarchicalSlotQueueSlotPtr<TString> fairShareQueueSlot);
     void OnBlocksWritten(
         int beginBlockIndex,
         int endBlockIndex,
@@ -112,7 +118,9 @@ private:
         const NChunkClient::TRefCountedChunkMetaPtr& chunkMeta,
         std::optional<int> blockCount,
         bool truncateExtraBlocks) override;
-    TFinishResult OnFinished(const TError& error);
+    TFinishResult OnFinished(
+        const TFairShareHierarchicalSlotQueueSlotPtr<TString>& fairShareQueueSlot,
+        const TError& error);
 
     void Abort();
     void OnAborted(const TError& error);

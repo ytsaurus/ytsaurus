@@ -21,7 +21,7 @@ public:
         const TReadBlocksOptions& options,
         const std::vector<int>& blockIndexes) override
     {
-        return Underlying_->ReadBlocks(options.ClientOptions, blockIndexes);
+        return Underlying_->ReadBlocks(options.ClientOptions, blockIndexes, {});
     }
 
     TFuture<std::vector<TBlock>> ReadBlocks(
@@ -29,7 +29,7 @@ public:
         int firstBlockIndex,
         int blockCount) override
     {
-        return Underlying_->ReadBlocks(options.ClientOptions, firstBlockIndex, blockCount);
+        return Underlying_->ReadBlocks(options.ClientOptions, firstBlockIndex, blockCount, {});
     }
 
     TFuture<TRefCountedChunkMetaPtr> GetMeta(
@@ -37,7 +37,7 @@ public:
         std::optional<int> partitionTag,
         const std::optional<std::vector<int>>& /*extensionTags*/) override
     {
-        return Underlying_->GetMeta(options.ClientOptions, partitionTag);
+        return Underlying_->GetMeta(options.ClientOptions, {}, partitionTag);
     }
 
     TChunkId GetChunkId() const override

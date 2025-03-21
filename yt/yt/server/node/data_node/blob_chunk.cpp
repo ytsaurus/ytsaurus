@@ -201,7 +201,7 @@ TSharedRef TBlobChunkBase::WrapBlockWithDelayedReferenceHolder(TSharedRef rawRef
         GetCurrentInvoker());
 }
 
-void TBlobChunkBase::CompleteSession(const TReadBlockSetSessionPtr& session) noexcept
+void TBlobChunkBase::CompleteSession(const TReadBlockSetSessionPtr& session)
 {
     YT_ASSERT_INVOKER_AFFINITY(session->Invoker);
 
@@ -235,9 +235,13 @@ void TBlobChunkBase::CompleteSession(const TReadBlockSetSessionPtr& session) noe
 
     session->SessionPromise.TrySet(std::move(blocks));
     session->LocationMemoryGuard.Release();
+
+    if (session->FairShareSlot) {
+        Location_->RemoveFairShareQueueSlot(session->FairShareSlot);
+    }
 }
 
-void TBlobChunkBase::FailSession(const TReadBlockSetSessionPtr& session, const TError& error) noexcept
+void TBlobChunkBase::FailSession(const TReadBlockSetSessionPtr& session, const TError& error)
 {
     YT_ASSERT_INVOKER_AFFINITY(session->Invoker);
 
@@ -265,6 +269,10 @@ void TBlobChunkBase::FailSession(const TReadBlockSetSessionPtr& session, const T
     }
 
     session->LocationMemoryGuard.Release();
+
+    if (session->FairShareSlot) {
+        Location_->RemoveFairShareQueueSlot(session->FairShareSlot);
+    }
 }
 
 void TBlobChunkBase::DoReadMeta(
@@ -295,7 +303,29 @@ void TBlobChunkBase::DoReadMeta(
 
     try {
         auto reader = GetReader();
-        meta = WaitFor(reader->GetMeta(session->Options)
+        auto metaSize = reader->GetMetaSize();
+
+        auto tags = session->Options.FairShareTags;
+        if (tags.empty()) {
+            auto category = session->Options.WorkloadDescriptor.Category;
+            tags.emplace_back(
+                ToString(category),
+                Location_->GetFairShareWorkloadCategoryWeight(category));
+        }
+
+        // TODO(don-dron): Add resource acquiring (memory, cpu, net etc).
+        auto fairShareQueueSlot = Location_->AddFairShareQueueSlot(
+            metaSize,
+            {},
+            CreateHierarchyLevels(session->Options.FairShareTags));
+
+        YT_VERIFY(fairShareQueueSlot.IsOK());
+
+        auto finally = Finally([fairShareQueueSlot = fairShareQueueSlot, location = Location_] {
+            location->RemoveFairShareQueueSlot(fairShareQueueSlot.Value());
+        });
+
+        meta = WaitFor(reader->GetMeta(session->Options, {})
             .WithDeadline(session->Options.ReadMetaDeadLine))
             .ValueOrThrow();
     } catch (const std::exception& ex) {
@@ -454,10 +484,12 @@ void TBlobChunkBase::OnBlocksExtLoaded(
             }
         }).Via(session->Invoker));
 
-    session->SessionPromise.OnCanceled(BIND([session] (const TError& error) {
-        FailSession(
-            session,
-            TError(NYT::EErrorCode::Canceled, "Session canceled") << error);
+    session->SessionPromise.OnCanceled(BIND([this, this_ = MakeStrong(this), weak = MakeWeak(session)] (const TError& error) {
+        if (auto session = weak.Lock()) {
+            FailSession(
+                session,
+                TError(NYT::EErrorCode::Canceled, "Session canceled") << error);
+        }
     }).Via(session->Invoker));
 }
 
@@ -475,6 +507,24 @@ void TBlobChunkBase::DoReadSession(
         session->DiskFetchPromise.TrySet();
         return;
     }
+
+    auto tags = session->Options.FairShareTags;
+    if (tags.empty()) {
+        auto category = session->Options.WorkloadDescriptor.Category;
+        tags.emplace_back(
+            ToString(category),
+            Location_->GetFairShareWorkloadCategoryWeight(category));
+    }
+
+    // TODO(don-dron): Add resource acquiring (memory, cpu, net etc).
+    auto fairShareSlotOrError = Location_->AddFairShareQueueSlot(
+        pendingDataSize,
+        {},
+        CreateHierarchyLevels(session->Options.FairShareTags));
+
+    YT_VERIFY(fairShareSlotOrError.IsOK());
+
+    session->FairShareSlot = fairShareSlotOrError.Value();
 
     session->LocationMemoryGuard = Location_->AcquireLocationMemory(
         std::move(memoryGuardOrError.Value()),
@@ -703,10 +753,12 @@ void TBlobChunkBase::DoReadBlockSet(const TReadBlockSetSessionPtr& session) noex
     try {
         auto reader = GetReader();
 
+        YT_VERIFY(session->FairShareSlot);
         auto asyncBlocks = reader->ReadBlocks(
             session->Options,
             firstBlockIndex,
             blocksToRead,
+            session->FairShareSlot->GetSlotId(),
             session->BlocksExt);
 
         asyncBlocks.Subscribe(

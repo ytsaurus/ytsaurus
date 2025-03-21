@@ -27,6 +27,8 @@ struct TChunkReadOptions
     //! Failure to do so may result in RPC timeout or other kind of lower-level error.
     TInstant ReadBlocksDeadline = TInstant::Max();
     TInstant ReadMetaDeadLine = TInstant::Max();
+
+    std::vector<std::pair<TString, double>> FairShareTags;
 };
 
 //! Represents a chunk stored locally at Data Node.

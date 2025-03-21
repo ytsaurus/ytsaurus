@@ -17,6 +17,7 @@
 #include <yt/yt/core/logging/log.h>
 
 #include <yt/yt/core/misc/atomic_ptr.h>
+#include <yt/yt/core/misc/fair_share_hierarchical_queue.h>
 
 #include <yt/yt/library/profiling/sensor.h>
 
@@ -255,6 +256,13 @@ public:
     //! Create cell id and uuid files if they don't exist.
     void InitializeIds();
 
+    TErrorOr<TFairShareHierarchicalSlotQueueSlotPtr<TString>> AddFairShareQueueSlot(
+        i64 size,
+        std::vector<IFairShareHierarchicalSlotQueueResourcePtr> resources,
+        std::vector<TFairShareHierarchyLevel<TString>> levels);
+
+    void RemoveFairShareQueueSlot(TFairShareHierarchicalSlotQueueSlotPtr<TString> slot);
+
     //! Prepares the location to accept new writes.
     /*!
      *  Must be called when all locations are scanned and all existing chunks are registered.
@@ -435,6 +443,8 @@ public:
 
     std::optional<TDuration> GetDelayBeforeBlobSessionBlockFree() const;
 
+    double GetFairShareWorkloadCategoryWeight(EWorkloadCategory category) const;
+
 protected:
     const NClusterNode::TClusterNodeDynamicConfigManagerPtr DynamicConfigManager_;
     const TChunkStorePtr ChunkStore_;
@@ -507,6 +517,8 @@ private:
     NIO::IDynamicIOEnginePtr DynamicIOEngine_;
     NIO::IIOEngineWorkloadModelPtr IOEngineModel_;
     NIO::IIOEnginePtr IOEngine_;
+
+    TFairShareHierarchicalSlotQueuePtr<TString> IOFairShareQueue_;
 
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, LockedChunksLock_);
     THashSet<TChunkId> LockedChunkIds_;

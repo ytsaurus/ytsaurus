@@ -59,7 +59,16 @@ protected:
         return New<TChunkFileWriter>(CreateIOEngine(), TGuid::Create(), fileName);
     }
 
-    static std::unique_ptr<TFile> OpenDataFile(const TChunkFileWriterPtr& writer)
+    void SetUp() override
+    {
+        auto supportedTypes = GetSupportedIOEngineTypes();
+        auto type = GetIOEngineType();
+        if (std::find(supportedTypes.begin(), supportedTypes.end(), type) == supportedTypes.end()) {
+            GTEST_SKIP() << Format("Skipping Test: IOEngine %v is not supported.", type);
+        }
+    }
+
+    std::unique_ptr<TFile> OpenDataFile(const TChunkFileWriterPtr& writer)
     {
         return std::make_unique<TFile>(writer->GetFileName(), RdOnly);
     }
@@ -85,15 +94,15 @@ protected:
         EXPECT_EQ(0, ::memcmp(block.Data.Begin(), data.Begin(), data.Size()));
     }
 
-    static void WriteBlock(const IChunkWriterPtr& writer, const TBlock& block)
+    void WriteBlock(const TChunkFileWriterPtr& writer, const TBlock& block)
     {
-        EXPECT_FALSE(writer->WriteBlock(IChunkWriter::TWriteBlocksOptions(), TWorkloadDescriptor(), block));
+        EXPECT_FALSE(writer->WriteBlock(IChunkWriter::TWriteBlocksOptions(), TWorkloadDescriptor(), block, {}));
         EXPECT_TRUE(writer->GetReadyEvent().Get().IsOK());
     }
 
-    static void WriteBlocks(const IChunkWriterPtr& writer, const std::vector<TBlock>& blocks)
+    void WriteBlocks(const TChunkFileWriterPtr& writer, const std::vector<TBlock>& blocks)
     {
-        EXPECT_FALSE(writer->WriteBlocks(IChunkWriter::TWriteBlocksOptions(), TWorkloadDescriptor(), blocks));
+        EXPECT_FALSE(writer->WriteBlocks(IChunkWriter::TWriteBlocksOptions(), TWorkloadDescriptor(), blocks, {}));
         EXPECT_TRUE(writer->GetReadyEvent().Get().IsOK());
     }
 
@@ -104,15 +113,6 @@ protected:
             result += block.Data.Size();
         }
         return result;
-    }
-
-    void SetUp() override
-    {
-        auto supportedTypes = GetSupportedIOEngineTypes();
-        auto type = GetIOEngineType();
-        if (std::find(supportedTypes.begin(), supportedTypes.end(), type) == supportedTypes.end()) {
-            GTEST_SKIP() << Format("Skipping Test: IOEngine %v is not supported.", type);
-        }
     }
 };
 
@@ -144,11 +144,7 @@ TEST_P(TChunkFileWriterTest, SingleWrite)
         CheckBlock(*tmpFile, block);
     }
 
-    writer->Close(
-        IChunkWriter::TWriteBlocksOptions(),
-        TWorkloadDescriptor(),
-        New<TDeferredChunkMeta>(),
-        std::nullopt)
+    writer->Close(IChunkWriter::TWriteBlocksOptions(), TWorkloadDescriptor(), New<NChunkClient::TDeferredChunkMeta>(), {}, std::nullopt)
         .Get()
         .ThrowOnError();
 
@@ -182,11 +178,7 @@ TEST_P(TChunkFileWriterTest, MultiWrite)
         CheckBlock(*tmpFile, block);
     }
 
-    writer->Close(
-        IChunkWriter::TWriteBlocksOptions(),
-        TWorkloadDescriptor(),
-        New<TDeferredChunkMeta>(),
-        std::nullopt)
+    writer->Close(IChunkWriter::TWriteBlocksOptions(), TWorkloadDescriptor(), New<NChunkClient::TDeferredChunkMeta>(), {}, std::nullopt)
         .Get()
         .ThrowOnError();
 
@@ -303,7 +295,7 @@ TEST_P(TChunkFileWriterTest, BlocksTruncation)
 
         EXPECT_EQ(blocksExtension.blocks_size(), blockCountAfterTruncation);
 
-        auto receivedBlocks = chunkFileReader->ReadBlocks(TClientChunkReadOptions{}, 0, blockCountAfterTruncation)
+        auto receivedBlocks = chunkFileReader->ReadBlocks(TClientChunkReadOptions{}, 0, blockCountAfterTruncation, {})
             .Get()
             .ValueOrThrow();
 
@@ -313,7 +305,7 @@ TEST_P(TChunkFileWriterTest, BlocksTruncation)
         }
 
         EXPECT_THROW_WITH_ERROR_CODE(
-            chunkFileReader->ReadBlocks(TClientChunkReadOptions{}, 0, blockCountAfterTruncation + 1)
+            chunkFileReader->ReadBlocks(TClientChunkReadOptions{}, 0, blockCountAfterTruncation + 1, {})
                 .Get()
                 .ValueOrThrow(),
             EErrorCode::MalformedReadRequest);
