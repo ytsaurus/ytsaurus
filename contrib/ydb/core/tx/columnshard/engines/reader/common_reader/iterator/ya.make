@@ -16,6 +16,7 @@ SRCS(
 PEERDIR(
     contrib/ydb/core/tx/columnshard/engines/scheme
     yql/essentials/minikql
+    contrib/ydb/core/util/evlog
 )
 
 GENERATE_ENUM_SERIALIZATION(columns_set.h)
