@@ -1941,8 +1941,7 @@ TControllerScheduleAllocationResultPtr TScheduleAllocationsContext::DoScheduleAl
         availableResources,
         availableDiskResources,
         TreeSnapshot_->ControllerConfig()->ScheduleAllocationTimeLimit,
-        element->GetTreeId(),
-        TreeSnapshot_->TreeConfig());
+        element->GetTreeId());
 
     MaybeDelay(element->Spec()->TestingOperationOptions->ScheduleAllocationDelayScheduler);
 
