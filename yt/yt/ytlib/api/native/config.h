@@ -280,7 +280,7 @@ struct TConnectionDynamicConfig
     TDuration DefaultFetchTableRowsTimeout;
     TDuration DefaultRegisterTransactionActionsTimeout;
     TDuration DefaultGetOrderedTabletSafeTrimRowCountTimeout;
-    TDuration DefaulChaosReplicatedTableGetTabletCountTimeout;
+    TDuration DefaultChaosReplicatedTableGetTabletCountTimeout;
 
     int CypressWriteYsonNestingLevelLimit;
 
