@@ -615,8 +615,10 @@ TFuture<NIO::TIOCounters> TBlobSession::DoPutBlocks(
     auto allPrecedingBlocksReceivedFuture = AllSucceeded(precedingBlockReceivedFutures)
         .WithTimeout(Config_->SessionBlockReorderTimeout)
         .Apply(BIND([=, this, this_ = MakeStrong(this), fairShareQueueSlot = fairShareQueueSlot] (const TError& error) {
-            AcquiredSlots_.erase(fairShareQueueSlot);
-            Location_->RemoveFairShareQueueSlot(fairShareQueueSlot);
+            if (!error.IsOK()) {
+                AcquiredSlots_.erase(fairShareQueueSlot);
+                Location_->RemoveFairShareQueueSlot(fairShareQueueSlot);
+            }
 
             if (error.GetCode() == NYT::EErrorCode::Timeout) {
                 THROW_ERROR_EXCEPTION(

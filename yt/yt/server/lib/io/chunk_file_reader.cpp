@@ -397,7 +397,8 @@ TFuture<std::vector<TBlock>> TChunkFileReader::DoReadBlocks(
         GetRefCountedTypeCookie<TChunkFileReaderBufferTag>(),
         options.ReadSessionId,
         options.UseDedicatedAllocations)
-        .Apply(BIND(&TChunkFileReader::OnBlocksRead, MakeStrong(this), options, firstBlockIndex, blockCount, blocksExt));
+        .Apply(BIND(&TChunkFileReader::OnBlocksRead, MakeStrong(this), options, firstBlockIndex, blockCount, blocksExt)
+            .AsyncVia(IOEngine_->GetAuxPoolInvoker()));
 }
 
 TFuture<TRefCountedChunkMetaPtr> TChunkFileReader::DoReadMeta(
@@ -420,7 +421,8 @@ TFuture<TRefCountedChunkMetaPtr> TChunkFileReader::DoReadMeta(
         options.WorkloadDescriptor.Category,
         options.ReadSessionId,
         fairShareSlotId)
-        .Apply(BIND(&TChunkFileReader::OnMetaRead, MakeStrong(this), metaFileName, options.ChunkReaderStatistics));
+        .Apply(BIND(&TChunkFileReader::OnMetaRead, MakeStrong(this), metaFileName, options.ChunkReaderStatistics)
+            .AsyncVia(IOEngine_->GetAuxPoolInvoker()));
 }
 
 TRefCountedChunkMetaPtr TChunkFileReader::OnMetaRead(
@@ -513,7 +515,8 @@ TFuture<TIOEngineHandlePtr> TChunkFileReader::OpenDataFile(EDirectIOFlag useDire
         }
         DataFileHandleFuture_[useDirectIO] = IOEngine_->Open({FileName_, mode})
             .ToUncancelable()
-            .Apply(BIND(&TChunkFileReader::OnDataFileOpened, MakeStrong(this), useDirectIO));
+            .Apply(BIND(&TChunkFileReader::OnDataFileOpened, MakeStrong(this), useDirectIO)
+            .AsyncVia(IOEngine_->GetAuxPoolInvoker()));
     }
     return DataFileHandleFuture_[useDirectIO];
 }
