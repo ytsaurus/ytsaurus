@@ -45,15 +45,16 @@ target_sources(server-lib-misc PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/misc/cluster_throttlers_config.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/misc/config.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/misc/disk_health_checker.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/misc/estimate_size_helpers.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/misc/fork_executor.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/misc/format_manager.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/misc/estimate_size_helpers.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/misc/interned_attributes.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/misc/job_report.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/misc/job_reporter.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/misc/job_table_schema.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/misc/private.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/misc/profiling_helpers.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/misc/restart_manager.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/misc/job_reporter.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/misc/job_report.cpp
 )
 
 

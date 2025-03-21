@@ -12,37 +12,39 @@
     XX(AccessCounter, access_counter) \
     XX(AccessTime, access_time) \
     XX(Account, account) \
-    XX(AccountStatistics, account_statistics) \
     XX(AccountResourceUsageLeaseIds, account_resource_usage_lease_ids) \
+    XX(AccountStatistics, account_statistics) \
     XX(Acl, acl) \
+    XX(AcquisitionTime, acquisition_time) \
     XX(ActionId, action_id) \
     XX(ActionIds, action_ids) \
     XX(ActualTabletState, actual_tablet_state) \
-    XX(AcquisitionTime, acquisition_time) \
     XX(Addresses, addresses) \
     XX(AlertCount, alert_count) \
-    XX(AllowIdleCpuPolicy, allow_idle_cpu_policy) \
     XX(Alerts, alerts) \
     XX(Aliases, aliases) \
     XX(AlienConfigVersions, alien_config_versions) \
-    XX(AllowChildrenLimitOvercommit, allow_children_limit_overcommit) \
-    XX(AllowCreateSecondaryIndices, allow_create_secondary_indices) \
-    XX(AllowRegularJobsOnSsdNodes, allow_regular_jobs_on_ssd_nodes) \
-    XX(AllowRegularAllocationsOnSsdNodes, allow_regular_allocations_on_ssd_nodes) \
-    XX(AllowedProfilingTags, allowed_profiling_tags) \
     XX(AllowAggressivePreemption, allow_aggressive_preemption) \
     XX(AllowAggressiveStarvationPreemption, allow_aggressive_starvation_preemption) \
+    XX(AllowChildrenLimitOvercommit, allow_children_limit_overcommit) \
+    XX(AllowCreateSecondaryIndices, allow_create_secondary_indices) \
+    XX(AllowIdleCpuPolicy, allow_idle_cpu_policy) \
     XX(AllowNormalPreemption, allow_normal_preemption) \
+    XX(AllowRegularAllocationsOnSsdNodes, allow_regular_allocations_on_ssd_nodes) \
+    XX(AllowRegularJobsOnSsdNodes, allow_regular_jobs_on_ssd_nodes) \
+    XX(AllowUsingChunkMerger, allow_using_chunk_merger) \
+    XX(AllowedProfilingTags, allowed_profiling_tags) \
     XX(AlwaysAllowGangOperations, always_allow_gang_operations) \
     XX(Annotation, annotation) \
     XX(AnnotationPath, annotation_path) \
     XX(Annotations, annotations) \
     XX(ApprovedReplicaCount, approved_replica_count) \
     XX(Area, area) \
-    XX(Areas, areas) \
     XX(AreaId, area_id) \
     XX(AreaNodes, area_nodes) \
+    XX(Areas, areas) \
     XX(AssignedMountConfigExperiments, assigned_mount_config_experiments) \
+    XX(AssociatedNodes, associated_nodes) \
     XX(Atomicity, atomicity) \
     XX(AttributeKey, attribute_key) \
     XX(AttributeRevision, attribute_revision) \
@@ -51,10 +53,9 @@
     XX(Available, available) \
     XX(AvailableSpace, available_space) \
     XX(AvailableSpacePerMedium, available_space_per_medium) \
+    XX(BackupCheckpointTimestamp, backup_checkpoint_timestamp) \
     XX(BackupError, backup_error) \
     XX(BackupState, backup_state) \
-    XX(BackupCheckpointTimestamp, backup_checkpoint_timestamp) \
-    XX(AllowUsingChunkMerger, allow_using_chunk_merger) \
     XX(Banned, banned) \
     XX(BannedNodeCount, banned_node_count) \
     XX(BeingDisposed, being_disposed) \
@@ -63,13 +64,13 @@
     XX(Broken, broken) \
     XX(Builtin, builtin) \
     XX(BundleControllerTargetConfig, bundle_controller_target_config) \
-    XX(Cellars, cellars) \
     XX(CellBalancerConfig, cell_balancer_config) \
     XX(CellBundle, cell_bundle) \
     XX(CellBundleId, cell_bundle_id) \
     XX(CellId, cell_id) \
     XX(CellIds, cell_ids) \
     XX(CellTag, cell_tag) \
+    XX(Cellars, cellars) \
     XX(ChangelogAccountViolatedResourceLimits, changelog_account_violated_resource_limits) \
     XX(ChaosCellBundle, chaos_cell_bundle) \
     XX(ChaosOptions, chaos_options) \
@@ -85,24 +86,27 @@
     XX(ChunkListId, chunk_list_id) \
     XX(ChunkLocations, chunk_locations) \
     XX(ChunkMediaStatistics, chunk_media_statistics) \
-    XX(ChunkMergerMode, chunk_merger_mode) \
-    XX(ChunkMergerStatus, chunk_merger_status) \
-    XX(ChunkMergerNodeTraversalConcurrency, chunk_merger_node_traversal_concurrency) \
     XX(ChunkMergerCriteria, chunk_merger_criteria) \
+    XX(ChunkMergerMode, chunk_merger_mode) \
+    XX(ChunkMergerNodeTraversalConcurrency, chunk_merger_node_traversal_concurrency) \
+    XX(ChunkMergerStatus, chunk_merger_status) \
     XX(ChunkMergerTraversalInfo, chunk_merger_traversal_info) \
     XX(ChunkReader, chunk_reader) \
+    XX(ChunkRefreshEnabled, chunk_refresh_enabled) \
     XX(ChunkReplicaCount, chunk_replica_count) \
     XX(ChunkReplicatorAddress, chunk_replicator_address) \
     XX(ChunkReplicatorEnabled, chunk_replicator_enabled) \
-    XX(ChunkRefreshEnabled, chunk_refresh_enabled) \
     XX(ChunkRequisitionUpdateEnabled, chunk_requisition_update_enabled) \
-    XX(ChunkSealerEnabled, chunk_sealer_enabled) \
     XX(ChunkRowCount, chunk_row_count) \
+    XX(ChunkSealerEnabled, chunk_sealer_enabled) \
+    XX(ChunkServiceRequestBytesThrottler, chunk_service_request_bytes_throttler) \
+    XX(ChunkServiceRequestWeightThrottler, chunk_service_request_weight_throttler) \
     XX(ChunkType, chunk_type) \
     XX(ChunkWriter, chunk_writer) \
     XX(ClusterConnection, cluster_connection) \
     XX(ClusterName, cluster_name) \
     XX(CollocatedReplicationCardIds, collocated_replication_card_ids) \
+    XX(CollocationType, collocation_type) \
     XX(CommitOrdering, commit_ordering) \
     XX(CommittedResourceUsage, committed_resource_usage) \
     XX(CompressedDataSize, compressed_data_size) \
@@ -110,7 +114,6 @@
     XX(CompressionDictionaryId, compression_dictionary_id) \
     XX(CompressionRatio, compression_ratio) \
     XX(CompressionStatistics, compression_statistics) \
-    XX(CollocationType, collocation_type) \
     XX(ComputePromisedGuaranteeFairShare, compute_promised_guarantee_fair_share) \
     XX(Config, config) \
     XX(ConfigPreset, config_preset) \
@@ -131,8 +134,8 @@
     XX(CurrentCommitRevision, current_commit_revision) \
     XX(CurrentMountTransactionId, current_mount_transaction_id) \
     XX(CustomProfilingTagFilter, custom_profiling_tag_filter) \
+    XX(CustomRuntimeData, custom_runtime_data) \
     XX(CypressTransaction, cypress_transaction) \
-    XX(RegisteredInCypress, registered_in_cypress) \
     XX(DataCenter, data_center) \
     XX(DataWeight, data_weight) \
     XX(Deadline, deadline) \
@@ -140,8 +143,8 @@
     XX(DecommissionedNodeCount, decommissioned_node_count) \
     XX(DeltaStatistics, delta_statistics) \
     XX(DependentTransactionIds, dependent_transaction_ids) \
-    XX(DescriptorConfigVersion, descriptor_config_version) \
     XX(Depth, depth) \
+    XX(DescriptorConfigVersion, descriptor_config_version) \
     XX(DesiredTabletCount, desired_tablet_count) \
     XX(DesiredTabletSize, desired_tablet_size) \
     XX(DestroyedChunkReplicaCount, destroyed_chunk_replica_count) \
@@ -154,9 +157,9 @@
     XX(DiskSpace, disk_space) \
     XX(Domestic, domestic) \
     XX(Dynamic, dynamic) \
-    XX(DynamicallyPropagatedMastersCellTags, dynamically_propagated_masters_cell_tags) \
     XX(DynamicConfigVersion, dynamic_config_version) \
     XX(DynamicOptions, dynamic_options) \
+    XX(DynamicallyPropagatedMastersCellTags, dynamically_propagated_masters_cell_tags) \
     XX(Eden, eden) \
     XX(EffectiveAcl, effective_acl) \
     XX(EffectiveExpiration, effective_expiration) \
@@ -168,11 +171,9 @@
     XX(EnableConsistentChunkReplicaPlacement, enable_consistent_chunk_replica_placement) \
     XX(EnableDetailedLogs, enable_detailed_logs) \
     XX(EnableDetailedProfiling, enable_detailed_profiling) \
-    XX(EnableFairShareTruncationInFifoPool, enable_fair_share_truncation_in_fifo_pool) \
-    XX(EnableTabletBalancer, enable_tablet_balancer) \
     XX(EnableDynamicStoreRead, enable_dynamic_store_read) \
+    XX(EnableFairShareTruncationInFifoPool, enable_fair_share_truncation_in_fifo_pool) \
     XX(EnableLightweightOperations, enable_lightweight_operations) \
-    XX(SerializationType, serialization_type) \
     XX(EnablePrioritySchedulingSegmentModuleAssignment, enable_priority_scheduling_segment_module_assignment) \
     XX(EnablePriorityStrongGuaranteeAdjustment, enable_priority_strong_guarantee_adjustment) \
     XX(EnablePriorityStrongGuaranteeAdjustmentDonorship, enable_priority_strong_guarantee_adjustment_donorship) \
@@ -180,6 +181,7 @@
     XX(EnableSequoiaReplicas, enable_sequoia_replicas) \
     XX(EnableSkynetSharing, enable_skynet_sharing) \
     XX(EnableStripedErasure, enable_striped_erasure) \
+    XX(EnableTabletBalancer, enable_tablet_balancer) \
     XX(EndorsementRequired, endorsement_required) \
     XX(EntranceCellTag, entrance_cell_tag) \
     XX(EntranceNodeId, entrance_node_id) \
@@ -200,55 +202,55 @@
     XX(ExpectedTabletState, expected_tablet_state) \
     XX(ExpirationTime, expiration_time) \
     XX(ExpirationTimeout, expiration_timeout) \
+    XX(ExportRefCounter, export_ref_counter) \
     XX(ExportedObjectCount, exported_object_count) \
     XX(ExportedObjects, exported_objects) \
-    XX(ExportRefCounter, export_ref_counter) \
     XX(Exports, exports) \
     XX(External, external) \
-    XX(ExternalizedToCellTags, externalized_to_cell_tags) \
     XX(ExternalCellTag, external_cell_tag) \
     XX(ExternalRequisitionIndexes, external_requisition_indexes) \
     XX(ExternalRequisitions, external_requisitions) \
+    XX(ExternalizedToCellTags, externalized_to_cell_tags) \
+    XX(FairShareAggressiveStarvationTimeout, fair_share_aggressive_starvation_timeout) \
     XX(FairSharePreemptionTimeout, fair_share_preemption_timeout) \
     XX(FairSharePreemptionTimeoutLimit, fair_share_preemption_timeout_limit) \
     XX(FairShareStarvationTimeout, fair_share_starvation_timeout) \
-    XX(FairShareAggressiveStarvationTimeout, fair_share_aggressive_starvation_timeout) \
     XX(FairShareStarvationTolerance, fair_share_starvation_tolerance) \
     XX(FaultyStorageDataCenters, faulty_storage_data_centers) \
     XX(FifoSortParameters, fifo_sort_parameters) \
     XX(FileName, file_name) \
+    XX(FirstOverlayedRowIndex, first_overlayed_row_index) \
     XX(Flavors, flavors) \
     XX(FlushLagTime, flush_lag_time) \
     XX(FlushedRowCount, flushed_row_count) \
     XX(FolderId, folder_id) \
-    XX(ForcedChunkViewCompactionRevision, forced_chunk_view_compaction_revision) \
-    XX(ForcedCompactionRevision, forced_compaction_revision) \
-    XX(ForcedStoreCompactionRevision, forced_store_compaction_revision) \
-    XX(ForcedHunkCompactionRevision, forced_hunk_compaction_revision) \
     XX(ForbidImmediateOperations, forbid_immediate_operations) \
     XX(ForbidImmediateOperationsInRoot, forbid_immediate_operations_in_root) \
+    XX(ForcedChunkViewCompactionRevision, forced_chunk_view_compaction_revision) \
+    XX(ForcedCompactionRevision, forced_compaction_revision) \
+    XX(ForcedHunkCompactionRevision, forced_hunk_compaction_revision) \
+    XX(ForcedStoreCompactionRevision, forced_store_compaction_revision) \
     XX(Foreign, foreign) \
-    XX(FirstOverlayedRowIndex, first_overlayed_row_index) \
     XX(Freeze, freeze) \
     XX(Full, full) \
     XX(FullNodeCount, full_node_count) \
     XX(HashedPassword, hashed_password) \
     XX(Health, health) \
-    XX(HistoricallyNonVital, historically_non_vital) \
     XX(HistoricUsageAggregationPeriod, historic_usage_aggregation_period) \
+    XX(HistoricallyNonVital, historically_non_vital) \
     XX(Host, host) \
     XX(Hosts, hosts) \
     XX(HunkChunkListId, hunk_chunk_list_id) \
-    XX(HunkChunkRefs, hunk_chunk_refs) \
     XX(HunkChunkReader, hunk_chunk_reader) \
+    XX(HunkChunkRefs, hunk_chunk_refs) \
     XX(HunkChunkWriter, hunk_chunk_writer) \
     XX(HunkCount, hunk_count) \
     XX(HunkErasureCodec, hunk_erasure_codec) \
     XX(HunkMedia, hunk_media) \
     XX(HunkPrimaryMedium, hunk_primary_medium) \
     XX(HunkStatistics, hunk_statistics) \
-    XX(HunkStoreWriter, hunk_store_writer) \
     XX(HunkStorageId, hunk_storage_id) \
+    XX(HunkStoreWriter, hunk_store_writer) \
     XX(HydraReadOnly, hydra_read_only) \
     XX(Id, id) \
     XX(Implicit, implicit) \
@@ -257,19 +259,16 @@
     XX(ImportedObjectIds, imported_object_ids) \
     XX(InMemoryMode, in_memory_mode) \
     XX(Index, index) \
-    XX(IndexTo, index_to) \
     XX(IndexTableId, index_table_id) \
     XX(IndexTablePath, index_table_path) \
+    XX(IndexTo, index_to) \
     XX(InheritAcl, inherit_acl) \
     XX(IntegralGuarantees, integral_guarantees) \
     XX(IOStatistics, io_statistics) \
     XX(IOStatisticsPerMedium, io_statistics_per_medium) \
     XX(IOWeights, io_weights) \
-    XX(Jobs, jobs) \
     XX(JobProxyVersion, job_proxy_build_version) \
-    XX(PendingAclsUpdate, pending_acls_update) \
-    XX(PendingRestart, pending_restart) \
-    XX(PendingRemoval, pending_removal) \
+    XX(Jobs, jobs) \
     XX(KeepFinished, keep_finished) \
     XX(Key, key) \
     XX(KeyColumns, key_columns) \
@@ -284,13 +283,13 @@
     XX(LastWriteTimestamp, last_write_timestamp) \
     XX(LeadingPeerId, leading_peer_id) \
     XX(LeaseCellIds, lease_cell_ids) \
-    XX(LeasesState, leases_state) \
     XX(LeaseTransactionId, lease_transaction_id) \
     XX(LeaseTransactionIds, lease_transaction_ids) \
+    XX(LeasesState, leases_state) \
     XX(LifeStage, life_stage) \
     XX(LocalExportedObjectCount, local_exported_object_count) \
-    XX(LocalJobs, local_jobs) \
     XX(LocalHealth, local_health) \
+    XX(LocalJobs, local_jobs) \
     XX(LocalPartLossTime, local_part_loss_time) \
     XX(LocalReplicationStatus, local_replication_status) \
     XX(LocalRequisition, local_requisition) \
@@ -306,13 +305,14 @@
     XX(MaintenanceRequests, maintenance_requests) \
     XX(MasterAlerts, master_alerts) \
     XX(MasterCacheNodes, master_cache_nodes) \
+    XX(MasterCellsReliabilities, master_cells_reliabilities) \
     XX(MasterMetaSize, master_meta_size) \
     XX(MaxBlockSize, max_block_size) \
     XX(MaxChangelogId, max_changelog_id) \
     XX(MaxClipTimestamp, max_clip_timestamp) \
     XX(MaxKey, max_key) \
-    XX(MaxRunningOperationCount, max_running_operation_count) \
     XX(MaxOperationCount, max_operation_count) \
+    XX(MaxRunningOperationCount, max_running_operation_count) \
     XX(MaxShareRatio, max_share_ratio) \
     XX(MaxSnapshotId, max_snapshot_id) \
     XX(MaxTabletSize, max_tablet_size) \
@@ -326,9 +326,9 @@
     XX(Members, members) \
     XX(MemoryUsage, memory_usage) \
     XX(MergeJobRateLimit, merge_job_rate_limit) \
+    XX(MetaSize, meta_size) \
     XX(MetadataCellId, metadata_cell_id) \
     XX(MetadataCellIds, metadata_cell_ids) \
-    XX(MetaSize, meta_size) \
     XX(MeteringTags, metering_tags) \
     XX(MinChildHeapSize, min_child_heap_size) \
     XX(MinKey, min_key) \
@@ -346,7 +346,6 @@
     XX(MulticellCount, multicell_count) \
     XX(MulticellResourceUsage, multicell_resource_usage) \
     XX(MulticellStates, multicell_states) \
-    XX(MasterCellsReliabilities, master_cells_reliabilities) \
     XX(MulticellStatistics, multicell_statistics) \
     XX(MulticellStatus, multicell_status) \
     XX(Name, name) \
@@ -356,10 +355,10 @@
     XX(NestedTransactionIds, nested_transaction_ids) \
     XX(NodeAddress, node_address) \
     XX(NodeEndpointId, node_endpoint_id) \
-    XX(NodeId, node_id) \
     XX(NodeGroups, node_groups) \
-    XX(Nodes, nodes) \
+    XX(NodeId, node_id) \
     XX(NodeTagFilter, node_tag_filter) \
+    XX(Nodes, nodes) \
     XX(NonPreemptibleResourceUsageThreshold, non_preemptible_resource_usage_threshold) \
     XX(Offline, offline) \
     XX(OfflineNodeCount, offline_node_count) \
@@ -377,18 +376,21 @@
     XX(OwnerPath, owner_path) \
     XX(OwningNodes, owning_nodes) \
     XX(OwnsReplicationCard, owns_replication_card) \
-    XX(Partitions, partitions) \
-    XX(PartitionedBy, partitioned_by) \
     XX(Packing, packing) \
     XX(ParentId, parent_id) \
     XX(ParentIds, parent_ids) \
     XX(ParentName, parent_name) \
     XX(PartLossTime, part_loss_time) \
+    XX(PartitionedBy, partitioned_by) \
+    XX(Partitions, partitions) \
     XX(PasswordRevision, password_revision) \
     XX(PasswordSalt, password_salt) \
     XX(Path, path) \
     XX(PeerCount, peer_count) \
     XX(Peers, peers) \
+    XX(PendingAclsUpdate, pending_acls_update) \
+    XX(PendingRemoval, pending_removal) \
+    XX(PendingRestart, pending_restart) \
     XX(PerformanceCounters, performance_counters) \
     XX(PivotKey, pivot_key) \
     XX(PivotKeys, pivot_keys) \
@@ -413,12 +415,12 @@
     XX(PushReplicationQueueSize, push_replication_queue_size) \
     XX(QueueAgentObjectRevisions, queue_agent_object_revisions) \
     XX(QueueAgentStage, queue_agent_stage) \
-    XX(QueueConsumerStatus, queue_consumer_status) \
     XX(QueueConsumerPartitions, queue_consumer_partitions) \
-    XX(QueueStatus, queue_status) \
+    XX(QueueConsumerStatus, queue_consumer_status) \
     XX(QueuePartitions, queue_partitions) \
     XX(QueueProducerPartitions, queue_producer_partitions) \
     XX(QueueProducerStatus, queue_producer_status) \
+    XX(QueueStatus, queue_status) \
     XX(QuorumInfo, quorum_info) \
     XX(QuorumRowCount, quorum_row_count) \
     XX(Rack, rack) \
@@ -427,22 +429,24 @@
     XX(ReadQuorum, read_quorum) \
     XX(ReadRequestRateLimit, read_request_rate_limit) \
     XX(RecursiveCommittedResourceUsage, recursive_committed_resource_usage) \
+    XX(RecursiveLockCount, recursive_lock_count) \
     XX(RecursiveResourceUsage, recursive_resource_usage) \
     XX(RecursiveViolatedResourceLimits, recursive_violated_resource_limits) \
-    XX(RecursiveLockCount, recursive_lock_count) \
     XX(RedirectToCluster, redirect_to_cluster) \
     XX(RefCounter, ref_counter) \
     XX(ReferencingAccounts, referencing_accounts) \
     XX(RegisterTime, register_time) \
     XX(Registered, registered) \
+    XX(RegisteredInCypress, registered_in_cypress) \
     XX(RegisteredMasterCellTags, registered_master_cell_tags) \
     XX(RegistrationPending, registration_pending) \
-    XX(RemovalStarted, removal_started) \
     XX(RemountNeededTabletCount, remount_needed_tablet_count) \
+    XX(RemovalStarted, removal_started) \
     XX(ReplicaLagLimit, replica_lag_limit) \
     XX(ReplicaPath, replica_path) \
     XX(Replicas, replicas) \
     XX(ReplicatedTableOptions, replicated_table_options) \
+    XX(ReplicatedToCellTags, replicated_to_cell_tags) \
     XX(ReplicationCardId, replication_card_id) \
     XX(ReplicationCollocationId, replication_collocation_id) \
     XX(ReplicationCollocationTablePaths, replication_collocation_table_paths) \
@@ -452,11 +456,10 @@
     XX(ReplicationLagTime, replication_lag_time) \
     XX(ReplicationProgress, replication_progress) \
     XX(ReplicationStatus, replication_status) \
-    XX(ChunkServiceRequestWeightThrottler, chunk_service_request_weight_throttler) \
-    XX(ChunkServiceRequestBytesThrottler, chunk_service_request_bytes_throttler) \
-    XX(RequestQueueSizeLimit, request_queue_size_limit) \
     XX(RequestLimits, request_limits) \
+    XX(RequestQueueSizeLimit, request_queue_size_limit) \
     XX(Requisition, requisition) \
+    XX(ResolveCached, resolve_cached) \
     XX(ResourceLimits, resource_limits) \
     XX(ResourceLimitsOverrides, resource_limits_overrides) \
     XX(ResourceUsage, resource_usage) \
@@ -468,6 +471,7 @@
     XX(RootstockId, rootstock_id) \
     XX(RowCount, row_count) \
     XX(ScanFlags, scan_flags) \
+    XX(ScheduleReincarnation, schedule_reincarnation) \
     XX(SchedulingTag, scheduling_tag) \
     XX(SchedulingTagFilter, scheduling_tag_filter) \
     XX(Schema, schema) \
@@ -476,18 +480,15 @@
     XX(SchemaMode, schema_mode) \
     XX(ScionId, scion_id) \
     XX(Sealed, sealed) \
-    XX(Servants, servants) \
+    XX(SecondaryIndices, secondary_indices) \
+    XX(SecurityTags, security_tags) \
     XX(Sequoia, sequoia) \
     XX(SequoiaReign, sequoia_reign) \
-    XX(SharedToSkynet, shared_to_skynet) \
-    XX(SuccessorTransactionLeaseCount, successor_transaction_lease_count) \
-    XX(ReplicatedToCellTags, replicated_to_cell_tags) \
-    XX(ResolveCached, resolve_cached) \
-    XX(SecondaryIndices, secondary_indices) \
-    XX(ScheduleReincarnation, schedule_reincarnation) \
-    XX(SecurityTags, security_tags) \
+    XX(SerializationType, serialization_type) \
+    XX(Servants, servants) \
     XX(ShardId, shard_id) \
     XX(ShardIndex, shard_index) \
+    XX(SharedToSkynet, shared_to_skynet) \
     XX(SkipFreezing, skip_freezing) \
     XX(SnapshotAccountViolatedResourceLimits, snapshot_account_violated_resource_limits) \
     XX(SnapshotStatistics, snapshot_statistics) \
@@ -502,13 +503,14 @@
     XX(State, state) \
     XX(Statistics, statistics) \
     XX(Status, status) \
-    XX(StoredReplicas, stored_replicas) \
     XX(StoredMasterReplicas, stored_master_replicas) \
+    XX(StoredReplicas, stored_replicas) \
     XX(StoredSequoiaReplicas, stored_sequoia_replicas) \
     XX(StoresUpdatePrepared, stores_update_prepared) \
     XX(StoresUpdatePreparedTransactionId, stores_update_prepared_transaction_id) \
-    XX(StrongGuaranteeResources, strong_guarantee_resources) \
     XX(StripedErasure, striped_erasure) \
+    XX(StrongGuaranteeResources, strong_guarantee_resources) \
+    XX(SuccessorTransactionLeaseCount, successor_transaction_lease_count) \
     XX(Suspended, suspended) \
     XX(TableChunkFormat, table_chunk_format) \
     XX(TableChunkFormatStatistics, table_chunk_format_statistics) \
@@ -518,15 +520,15 @@
     XX(TablePaths, table_paths) \
     XX(TableToIndexCorrespondence, table_to_index_correspondence) \
     XX(TabletActions, tablet_actions) \
-    XX(TabletBalancerConfig, tablet_balancer_config) \
     XX(TabletBackupState, tablet_backup_state) \
+    XX(TabletBalancerConfig, tablet_balancer_config) \
     XX(TabletCellBundle, tablet_cell_bundle) \
     XX(TabletCellCount, tablet_cell_count) \
     XX(TabletCellIds, tablet_cell_ids) \
     XX(TabletCellLifeStage, tablet_cell_life_stage) \
     XX(TabletCount, tablet_count) \
-    XX(TabletCountByState, tablet_count_by_state) \
     XX(TabletCountByExpectedState, tablet_count_by_expected_state) \
+    XX(TabletCountByState, tablet_count_by_state) \
     XX(TabletErrorCount, tablet_error_count) \
     XX(TabletErrors, tablet_errors) \
     XX(TabletErrorsUntrimmed, tablet_errors_untrimmed) \
@@ -543,10 +545,10 @@
     XX(Timestamp, timestamp) \
     XX(TimestampProviderNodes, timestamp_provider_nodes) \
     XX(Title, title) \
-    XX(TotalHunkLength, total_hunk_length) \
     XX(TotalAccountStatistics, total_account_statistics) \
     XX(TotalChildrenResourceLimits, total_children_resource_limits) \
     XX(TotalCommittedResourceUsage, total_committed_resource_usage) \
+    XX(TotalHunkLength, total_hunk_length) \
     XX(TotalResourceLimits, total_resource_limits) \
     XX(TotalResourceUsage, total_resource_usage) \
     XX(TotalStatistics, total_statistics) \
@@ -571,18 +573,16 @@
     XX(UpdateMode, update_mode) \
     XX(UpperLimit, upper_limit) \
     XX(UpstreamReplicaId, upstream_replica_id) \
-    XX(Uuid, uuid) \
     XX(UsableAccounts, usable_accounts) \
     XX(UsableNetworkProjects, usable_network_projects) \
     XX(UsableTabletCellBundles, usable_tablet_cell_bundles) \
     XX(UseImaginaryChunkLocations, use_imaginary_chunk_locations) \
     XX(UsedSpace, used_space) \
     XX(UsedSpacePerMedium, used_space_per_medium) \
-    XX(UserAttributes, user_attributes) \
     XX(UserAttributeKeys, user_attribute_keys) \
-    XX(CustomRuntimeData, custom_runtime_data) \
+    XX(UserAttributes, user_attributes) \
     XX(UserTags, user_tags) \
-    XX(AssociatedNodes, associated_nodes) \
+    XX(Uuid, uuid) \
     XX(Value, value) \
     XX(ValueCount, value_count) \
     XX(Version, version) \
@@ -592,13 +592,13 @@
     XX(Vital, vital) \
     XX(VitalQueueConsumer, vital_queue_consumer) \
     XX(WaitingForResourcesOnNodeTimeout, waiting_for_resources_on_node_timeout) \
-    XX(Weight, weight) \
     XX(WeakRefCounter, weak_ref_counter) \
+    XX(Weight, weight) \
     XX(WithAlertsNodeCount, with_alerts_node_count) \
     XX(WriteQuorum, write_quorum) \
     XX(WriteRequestRateLimit, write_request_rate_limit) \
-    XX(WrongDoorSync, wrong_door_sync) \
     XX(WrongDoorAsync, wrong_door_async) \
+    XX(WrongDoorSync, wrong_door_sync) \
 
 namespace NYT::NServer {
 
