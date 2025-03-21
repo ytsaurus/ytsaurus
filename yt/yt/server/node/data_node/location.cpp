@@ -399,14 +399,23 @@ TErrorOr<TFairShareHierarchicalSlotQueueSlotPtr<TString>> TChunkLocation::AddFai
     std::vector<IFairShareHierarchicalSlotQueueResourcePtr> resources,
     std::vector<TFairShareHierarchyLevel<TString>> levels)
 {
-    return IOFairShareQueue_->EnqueueSlot(
+    auto slotOrError = IOFairShareQueue_->EnqueueSlot(
         size,
         std::move(resources),
         std::move(levels));
+
+    if (slotOrError.IsOK()) {
+        YT_LOG_DEBUG("Add new fair share slot (SlotId: %v, SlotSize: %v)",
+            slotOrError.Value()->GetSlotId(),
+            size);
+    }
+
+    return std::move(slotOrError);
 }
 
 void TChunkLocation::RemoveFairShareQueueSlot(TFairShareHierarchicalSlotQueueSlotPtr<TString> slot)
 {
+    YT_LOG_DEBUG("Remove fair share slot (SlotId: %v)", slot->GetSlotId());
     IOFairShareQueue_->DequeueSlot(slot);
 }
 

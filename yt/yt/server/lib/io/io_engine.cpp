@@ -1246,7 +1246,7 @@ private:
     const TConfigPtr StaticConfig_;
     TAtomicIntrusivePtr<TConfig> Config_;
 
-    std::atomic<int> LoopCount_ = 1;
+    std::atomic<int> LoopCount_ = 0;
 
     IThreadPoolPtr ThreadPool_;
     TIORequestSlicer RequestSlicer_;
@@ -1290,7 +1290,12 @@ private:
                 FairShareQueue_->AccountSlot(slot, cost);
             }
 
-            promise.TrySet(callback());
+            try {
+                auto result = callback();
+                promise.TrySet(std::move(result));
+            } catch (const std::exception& ex) {
+                promise.TrySet(TError(ex));
+            }
         }
     }
 
