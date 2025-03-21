@@ -474,7 +474,7 @@ items:
      href: admin-guide/releases.md
    - name: FAQ
      when: audience == "public"
-     href: faq/faq.md
+     href: faq/index.md
    - name: How to report
      when: audience == "public"
      href: user-guide/problems/howtoreport.md

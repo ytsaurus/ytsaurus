@@ -489,7 +489,7 @@ items:
     when: datahub != true
     href: admin-guide/releases.md
   - name: FAQ
-    href: faq/faq.md
+    href: faq/index.md
   - name: Как сообщить о проблеме
     when: datahub != true
     href: user-guide/problems/howtoreport.md
