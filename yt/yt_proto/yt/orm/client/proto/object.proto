@@ -613,6 +613,14 @@ message TReferenceOption
         DP_ALLOW = 3;
     }
 
+    enum EReferenceMode
+    {
+        RM_DISABLED = 0;
+        RM_REMOVE_ONLY = 3;
+        RM_BUILDING = 1;
+        RM_ENABLED = 2;
+    }
+
     optional string foreign_type = 1;
 
     // Path to the matching reference in the foreign object. If the matching reference is not,
@@ -644,6 +652,7 @@ message TReferenceOption
     optional bool local_modification_only = 13;
     optional EPresencePolicy presence_policy = 14;
     optional EDuplicatePolicy duplicate_policy = 15;
+    optional EReferenceMode mode = 16;
 }
 
 message TReference
