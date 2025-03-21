@@ -806,6 +806,11 @@ def read_table(path, **kwargs):
     return execute_command_with_output_format("read_table", kwargs)
 
 
+def read_table_partition(partition_cookie, **kwargs):
+    kwargs["cookie"] = partition_cookie
+    return execute_command_with_output_format("read_table_partition", kwargs)
+
+
 def read_blob_table(path, **kwargs):
     kwargs["path"] = path
     output = BytesIO()

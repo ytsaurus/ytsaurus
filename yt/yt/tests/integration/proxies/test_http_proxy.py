@@ -1732,6 +1732,30 @@ class TestHttpProxySignaturesKeyCreation(TestHttpProxySignaturesBase):
     def test_public_key_appears(self):
         wait(lambda: len(ls(self.KEYS_PATH)) == 1)
 
+    @authors("ermolovd")
+    def test_partition_tables_with_modified_cookie(self):
+        create_user("user1")
+        create_user("user2")
+
+        table = "//tmp/table"
+        create("table", table)
+        write_table(table, [{"a": "123456789"}] * 1024)
+        partitions = self._execute_command("GET", "partition_tables", {
+            "paths": [table],
+            "data_weight_per_partition": 1024 * 10 // 3,
+            "enable_cookies": True,
+            "username": "user1",
+        }, user="user1")
+        partitions = yson.loads(partitions.content)
+        cookie = yson.get_bytes(partitions["partitions"][0]["cookie"])
+
+        self._execute_command("GET", "read_table_partition", {"cookie": cookie}, user="user1")
+
+        assert b"user1" in cookie
+        cookie = cookie.replace(b"user1", b"user2")
+        with raises_yt_error("Signature validation failed"):
+            self._execute_command("GET", "read_table_partition", {"cookie": cookie}, user="user2")
+
 
 class TestHttpProxySignaturesKeyRotation(TestHttpProxySignaturesBase):
     DELTA_PROXY_CONFIG = deep_update(TestHttpProxySignaturesBase.DELTA_PROXY_CONFIG, {

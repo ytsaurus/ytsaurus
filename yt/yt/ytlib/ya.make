@@ -493,6 +493,7 @@ SRCS(
     table_client/versioned_row_merger.cpp
     table_client/virtual_value_directory.cpp
 
+    table_client/proto/table_partition_cookie.proto
     table_client/proto/table_ypath.proto
     table_client/proto/virtual_value_directory.proto
 
