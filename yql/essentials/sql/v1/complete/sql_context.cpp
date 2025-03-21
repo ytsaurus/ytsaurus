@@ -37,8 +37,7 @@ namespace NSQLComplete {
         }
 
         TCompletionContext Analyze(TCompletionInput input) override {
-            auto prefix = input.Text.Head(input.CursorPosition);
-            auto tokens = C3.Complete(prefix);
+            auto tokens = C3.Complete(C3Prefix(input));
             return {
                 .Keywords = SiftedKeywords(tokens),
             };
@@ -69,6 +68,19 @@ namespace NSQLComplete {
             preferredRules.insert(std::begin(keywordRules), std::end(keywordRules));
 
             return preferredRules;
+        }
+
+        const TStringBuf C3Prefix(TCompletionInput input) {
+            const TStringBuf prefix = input.Text.Head(input.CursorPosition);
+
+            size_t pos = prefix.find_last_of(';');
+            if (pos == TStringBuf::npos) {
+                pos = 0;
+            } else {
+                pos += 1;
+            }
+
+            return prefix.Tail(pos);
         }
 
         TVector<TString> SiftedKeywords(const TVector<TSuggestedToken>& tokens) {
