@@ -4,9 +4,14 @@
 #include "raw_coder.h"
 #include "hash.h"
 #include "save_loadable_pointer_wrapper.h"
+#include "save_loadable_logicaltype_wrapper.h"
 
 #include "../coder.h"
 #include "../noncodable.h"
+
+#include <yt/yt/core/ytree/yson_struct.h>  // ::NYT::NYTree::TYsonStruct
+#include <yt/yt/client/table_client/logical_type.h>  // ::NYT::NTableClient::TLogicalTypePtr
+#include <yt/yt/flow/lib/serializer/serializer.h>  // ::NYT::NFlow::TSerializer::GetSchema()
 
 #include <util/generic/buffer.h>
 #include <util/generic/string.h>
@@ -23,7 +28,8 @@ namespace NRoren::NPrivate {
 IRawCoderPtr CrashingCoderFactory();
 TRowVtable CrashingGetVtableFactory();
 
-////////////////////////////////////////////////////////////////////////////////
+template <class T>
+concept CYsonStruct = std::derived_from<T, ::NYT::NYTree::TYsonStruct>;
 
 struct TRowVtable
 {
@@ -54,6 +60,7 @@ public:
     TMoveToUniquePtrFunction MoveToUniquePtr = nullptr;
     THashFunction Hash = nullptr;
     TEqualFunction Equal = nullptr;
+    ::NYT::NTableClient::TLogicalTypePtr YtSchema;
     TRawCoderFactoryFunction RawCoderFactory = &CrashingCoderFactory;
     bool IsManuallyNoncodable = false;
     ssize_t KeyOffset = NotKv;
@@ -73,6 +80,7 @@ public:
         SaveLoadablePointer(MoveToUniquePtr),
         SaveLoadablePointer(Hash),
         SaveLoadablePointer(Equal),
+        SaveLoadableLogicalType(YtSchema),
         SaveLoadablePointer(RawCoderFactory),
         IsManuallyNoncodable,
         KeyOffset,
@@ -147,6 +155,10 @@ TRowVtable MakeRowVtable()
             vtable.Equal = [] (const void* lhs, const void* rhs) -> bool {
                 return *reinterpret_cast<const T*>(lhs) == *reinterpret_cast<const T*>(rhs);
             };
+        }
+        if constexpr (CYsonStruct<T>) {
+            auto o = ::NYT::New<T>();
+            vtable.YtSchema = ::NYT::NFlow::TSerializer::GetSchema(o);
         }
 
         if constexpr (NTraits::IsTKV<T>) {
