@@ -16,7 +16,7 @@ from yt_commands import (
 
 from yt_scheduler_helpers import (
     scheduler_orchid_default_pool_tree_path, scheduler_orchid_operation_path, scheduler_orchid_path,
-    scheduler_orchid_pool_tree_path)
+    scheduler_orchid_pool_tree_path, scheduler_orchid_pool_path)
 
 from yt_helpers import create_custom_pool_tree_with_one_node, profiler_factory
 
@@ -1682,6 +1682,27 @@ class TestSchedulerScheduleInSingleTree(YTEnvSetup):
         # Now GetExecutedEvent wraps the future using ToUncancelable to avoid such problems.
         op1.abort(wait_until_finished=True)
         wait(lambda: op2.get_state() in ["running", "complete"])
+
+    @authors("eshcherbin")
+    def test_consider_trees_where_operation_is_not_running_yet(self):
+        update_pool_tree_config("cloud", {
+            "max_job_resource_limits": {
+                "cpu": 1.0,
+            },
+        })
+        set("//sys/pool_trees/default/research/@max_running_operation_count", 0)
+        wait(lambda: get(scheduler_orchid_pool_path("research") + "/max_running_operation_count") == 0)
+
+        op = run_sleeping_vanilla(
+            spec={
+                "pool": "research",
+                "pool_trees": ["default", "cloud"],
+                "schedule_in_single_tree": True,
+            },
+            task_patch={"cpu_limit": 2.0})
+
+        op.wait_for_state("running")
+        wait(lambda: get(op.get_path() + "/@runtime_parameters/erased_trees") == ["cloud"])
 
 
 ##################################################################
