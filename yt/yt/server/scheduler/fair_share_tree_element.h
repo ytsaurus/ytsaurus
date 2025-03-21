@@ -181,6 +181,7 @@ public:
     DEFINE_BYVAL_RO_PROPERTY(double, EffectiveFairShareStarvationTolerance, 1.0);
     DEFINE_BYVAL_RO_PROPERTY(TDuration, EffectiveFairShareStarvationTimeout);
     DEFINE_BYVAL_RO_PROPERTY(bool, EffectiveAggressiveStarvationEnabled, false);
+    DEFINE_BYVAL_RO_PROPERTY(std::optional<TDuration>, EffectiveWaitingForResourcesOnNodeTimeout);
 
     DEFINE_BYVAL_RO_PROPERTY(TSchedulerElement*, LowestStarvingAncestor, nullptr);
     DEFINE_BYVAL_RO_PROPERTY(TSchedulerElement*, LowestAggressivelyStarvingAncestor, nullptr);
@@ -512,6 +513,8 @@ public:
 
     virtual std::optional<bool> IsAggressiveStarvationEnabled() const = 0;
 
+    virtual std::optional<TDuration> GetSpecifiedWaitingForResourcesOnNodeTimeout() const = 0;
+
     //! Schedule allocations related methods.
     bool HasHigherPriorityInFifoMode(const TSchedulerElement* lhs, const TSchedulerElement* rhs) const;
 
@@ -692,6 +695,8 @@ public:
     std::optional<bool> IsAggressiveStarvationEnabled() const override;
 
     TJobResourcesConfigPtr GetSpecifiedNonPreemptibleResourceUsageThresholdConfig() const override;
+
+    std::optional<TDuration> GetSpecifiedWaitingForResourcesOnNodeTimeout() const override;
 
     //! Other methods.
     void BuildResourceMetering(
@@ -895,8 +900,7 @@ public:
         const TJobResources& availableResources,
         const TDiskResources& availableDiskResources,
         TDuration timeLimit,
-        const TString& treeId,
-        const TFairShareStrategyTreeConfigPtr& treeConfig);
+        const TString& treeId);
     void OnScheduleAllocationFailed(
         NProfiling::TCpuInstant now,
         const TString& treeId,
@@ -1042,6 +1046,8 @@ public:
     std::optional<bool> IsAggressiveStarvationEnabled() const override;
 
     TJobResourcesConfigPtr GetSpecifiedNonPreemptibleResourceUsageThresholdConfig() const override;
+
+    std::optional<TDuration> GetSpecifiedWaitingForResourcesOnNodeTimeout() const override;
 
     void BuildPoolSatisfactionDigests(TFairSharePostUpdateContext* postUpdateContext);
 

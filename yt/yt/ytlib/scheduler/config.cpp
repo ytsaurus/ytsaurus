@@ -2494,6 +2494,9 @@ void TPoolConfig::Register(TRegistrar registrar)
     registrar.Parameter("always_allow_gang_operations", &TThis::AlwaysAllowGangOperations)
         .Default(false);
 
+    registrar.Parameter("waiting_for_resources_on_node_timeout", &TThis::WaitingForResourcesOnNodeTimeout)
+        .Default();
+
     registrar.Postprocessor([] (TThis* config) {
         // COMPAT(omgronny)
         if (config->ConfigPreset && !config->ConfigPresets.empty()) {

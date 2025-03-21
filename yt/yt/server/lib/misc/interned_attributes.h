@@ -589,6 +589,7 @@
     XX(Virtual, virtual) \
     XX(Vital, vital) \
     XX(VitalQueueConsumer, vital_queue_consumer) \
+    XX(WaitingForResourcesOnNodeTimeout, waiting_for_resources_on_node_timeout) \
     XX(Weight, weight) \
     XX(WeakRefCounter, weak_ref_counter) \
     XX(WithAlertsNodeCount, with_alerts_node_count) \
