@@ -18,6 +18,7 @@ public:
     TControllerJobReport ControllerState(EJobState controllerState);
     TControllerJobReport Ttl(std::optional<TDuration> ttl);
     TControllerJobReport OperationIncarnation(std::string operationIncarnation);
+    TControllerJobReport AllocationId(TAllocationId allocationId);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

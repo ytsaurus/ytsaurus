@@ -10,6 +10,9 @@ from yt_commands import (
 
 import yt_error_codes
 
+from yt_operations_archive_helpers import (
+    get_allocation_id_from_archive, get_job_from_archive, JOB_ARCHIVE_TABLE, OPERATION_IDS_TABLE)
+
 import yt.environment.init_operations_archive as init_operations_archive
 
 from yt.common import date_string_to_datetime, uuid_to_parts, parts_to_uuid, update
@@ -21,9 +24,6 @@ import builtins
 import time
 import datetime
 from copy import deepcopy
-
-JOB_ARCHIVE_TABLE = "//sys/operations_archive/jobs"
-OPERATION_IDS_TABLE = "//sys/operations_archive/operation_ids"
 
 
 def _delete_job_from_archive(op_id, job_id):
@@ -62,26 +62,9 @@ def _update_job_in_archive(op_id, job_id, attributes):
     wait(do_update_job_in_archive, ignore_exceptions=True)
 
 
-def _get_job_from_archive(op_id, job_id):
-    op_id_hi, op_id_lo = uuid_to_parts(op_id)
-    job_id_hi, job_id_lo = uuid_to_parts(job_id)
-    rows = lookup_rows(
-        JOB_ARCHIVE_TABLE,
-        [
-            {
-                "operation_id_hi": op_id_hi,
-                "operation_id_lo": op_id_lo,
-                "job_id_hi": job_id_hi,
-                "job_id_lo": job_id_lo,
-            }
-        ],
-    )
-    return rows[0] if rows else None
-
-
 def _get_controller_state_from_archive(op_id, job_id):
-    wait(lambda: _get_job_from_archive(op_id, job_id) is not None)
-    job_from_archive = _get_job_from_archive(op_id, job_id)
+    wait(lambda: get_job_from_archive(op_id, job_id) is not None)
+    job_from_archive = get_job_from_archive(op_id, job_id)
     return job_from_archive.get("controller_state")
 
 
@@ -343,8 +326,8 @@ class TestGetJob(_TestGetJobCommon):
         )
         (job_id,) = wait_breakpoint()
 
-        wait(lambda: _get_job_from_archive(op.id, job_id) is not None)
-        job_from_archive = _get_job_from_archive(op.id, job_id)
+        wait(lambda: get_job_from_archive(op.id, job_id) is not None)
+        job_from_archive = get_job_from_archive(op.id, job_id)
 
         abort_job(job_id)
         release_breakpoint()
@@ -439,7 +422,7 @@ class TestGetJob(_TestGetJobCommon):
                 print_debug(job)
                 return job.get("interruption_info", None)
 
-            return _get_job_from_archive(op1.id, job_id).get("interruption_info", None)
+            return get_job_from_archive(op1.id, job_id).get("interruption_info", None)
 
         wait(lambda: get_interruption_info().get("interruption_reason", None) is not None, ignore_exceptions=True)
         interruption_info = get_interruption_info()
@@ -562,6 +545,92 @@ class TestGetJobMonitoring(_TestGetJobBase):
         wait(
             lambda: profiler_factory().at_node(job["address"]).get("user_job/cpu/user", {"job_descriptor": descriptor})
             is not None)
+
+
+class TestGetJobAllocation(_TestGetJobBase):
+    NUM_NODES = 1
+
+    DELTA_NODE_CONFIG = update(_TestGetJobBase.DELTA_NODE_CONFIG, {
+        "job_resource_manager": {
+            "resource_limits": {
+                "user_slots": 1,
+            },
+        },
+    })
+
+    DELTA_DYNAMIC_NODE_CONFIG = update(_TestGetJobBase.DELTA_DYNAMIC_NODE_CONFIG, {
+        "%true": {
+            "exec_node": {
+                "job_controller": {
+                    "allocation": {
+                        "enable_multiple_jobs": True,
+                    },
+                },
+            },
+        },
+    })
+
+    @authors("bystrovserg")
+    def test_allocation_id(self):
+        op = run_test_vanilla(
+            with_breakpoint("BREAKPOINT"),
+        )
+
+        def check_allocation_id(job_id):
+            wait(lambda: "allocation_id" in get_job(op.id, job_id))
+            job_allocation_id_from_archive = get_allocation_id_from_archive(op.id, job_id)
+            assert get_job(op.id, job_id)["allocation_id"] == job_allocation_id_from_archive
+
+        (job_id,) = wait_breakpoint()
+        check_allocation_id(job_id)
+
+        release_breakpoint(job_id=job_id)
+
+        op.track()
+        check_allocation_id(job_id)
+
+    @authors("bystrovserg")
+    def test_same_allocation(self):
+        create("table", "//tmp/t_in", attributes={"replication_factor": 1})
+        create("table", "//tmp/t_out", attributes={"replication_factor": 1})
+
+        write_table("//tmp/t_in", [{"foo": "bar"}] * 2)
+
+        op = map(
+            wait_for_jobs=True,
+            track=False,
+            command=with_breakpoint("BREAKPOINT ; cat"),
+            in_="//tmp/t_in",
+            out="//tmp/t_out",
+            spec={"data_size_per_job": 1, "enable_multiple_jobs_in_allocation": True},
+        )
+
+        job_ids = wait_breakpoint()
+        assert len(job_ids) == 1
+
+        job_id1 = job_ids[0]
+
+        wait(lambda: "allocation_id" in get_job(op.id, job_id1))
+        allocation_id_before = get_job(op.id, job_id1)["allocation_id"]
+
+        release_breakpoint(job_id=job_id1)
+
+        job_ids = wait_breakpoint()
+        assert len(job_ids) == 1
+
+        job_id2 = job_ids[0]
+
+        assert job_id1 != job_id2
+
+        wait(lambda: "allocation_id" in get_job(op.id, job_id1))
+        assert allocation_id_before == get_job(op.id, job_id1)["allocation_id"]
+
+        release_breakpoint()
+
+        op.track()
+
+        wait(lambda: "allocation_id" in get_job(op.id, job_id1))
+        assert allocation_id_before == get_job(op.id, job_id1)["allocation_id"]
 
 
 ##################################################################

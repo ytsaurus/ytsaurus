@@ -1017,6 +1017,9 @@ void ToProto(NProto::TJob* protoJob, const NApi::TJob& job)
     if (job.OperationIncarnation) {
         protoJob->set_operation_incarnation(*job.OperationIncarnation);
     }
+    if (job.AllocationId) {
+        ToProto(protoJob->mutable_allocation_id(), *job.AllocationId);
+    }
 }
 
 void FromProto(NApi::TJob* job, const NProto::TJob& protoJob)
@@ -1170,6 +1173,11 @@ void FromProto(NApi::TJob* job, const NProto::TJob& protoJob)
         job->OperationIncarnation = protoJob.operation_incarnation();
     } else {
         job->OperationIncarnation.reset();
+    }
+    if (protoJob.has_allocation_id()) {
+        job->AllocationId = NScheduler::TAllocationId(FromProto<TGuid>(protoJob.allocation_id()));
+    } else {
+        job->AllocationId = {};
     }
 }
 

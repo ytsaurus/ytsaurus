@@ -17,14 +17,6 @@ namespace NYT::NScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-YT_DEFINE_STRONG_TYPEDEF(TAllocationId, TGuid);
-
-constexpr TAllocationId NullAllocationId{};
-
-TAllocationId AllocationIdFromJobId(TJobId jobId);
-
-////////////////////////////////////////////////////////////////////////////////
-
 using NVectorHdrf::EIntegralGuaranteeType;
 using NVectorHdrf::ESchedulingMode;
 using NVectorHdrf::EJobResourceType;
@@ -35,7 +27,6 @@ using NVectorHdrf::TResourceVolume;
 using NVectorHdrf::ResourceCount;
 
 ////////////////////////////////////////////////////////////////////////////////
-
 namespace NProto {
 
 class TJobExperimentConfig;

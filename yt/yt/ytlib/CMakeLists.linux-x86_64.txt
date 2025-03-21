@@ -493,7 +493,6 @@ target_sources(yt-yt-ytlib PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/scheduler/helpers.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/scheduler/job_resources_helpers.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/scheduler/job_resources_with_quota.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/scheduler/public.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/scheduler/scheduler_channel.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/security_client/config.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/security_client/helpers.cpp
