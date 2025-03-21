@@ -1186,16 +1186,18 @@ public:
             EventCount_.CancelWait();
 
             auto& requests = requestsIt->second;
+
+            YT_VERIFY(!requests.empty());
             auto requestIdToType = requests.front();
+            auto requestId = requestIdToType.first;
+            auto requestType = requestIdToType.second;
+
             requests.pop_front();
 
             if (requests.empty()) {
                 EraseOrCrash(SlotIds_, slotId);
                 EraseOrCrash(SlotIdToRequestIds_, slotId);
             }
-
-            auto requestId = requestIdToType.first;
-            auto requestType = requestIdToType.second;
 
             switch (requestType) {
                 case EFairShareIOEngineRequestType::Read:
