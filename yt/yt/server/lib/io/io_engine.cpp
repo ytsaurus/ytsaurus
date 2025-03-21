@@ -460,14 +460,20 @@ TFlushFileRangeResponse DoFlushFileRange(
 TFuture<TReadResponse> IIOEngine::ReadAll(
     const TString& path,
     EWorkloadCategory category,
-    TIOSessionId sessionId)
+    TIOSessionId sessionId,
+    TFairShareSlotId fairShareSlot)
 {
     return Open({path, OpenExisting | RdOnly | Seq | CloseOnExec}, category)
         .Apply(BIND([=, this, this_ = MakeStrong(this)] (const TIOEngineHandlePtr& handle) {
             struct TReadAllBufferTag
             { };
             return Read(
-                {{handle, 0, handle->GetLength()}},
+                {{
+                    handle,
+                    0,
+                    handle->GetLength(),
+                    fairShareSlot,
+                }},
                 category,
                 GetRefCountedTypeCookie<TReadAllBufferTag>(),
                 sessionId)
@@ -1164,7 +1170,11 @@ public:
                 return;
             }
 
-            auto slot = FairShareQueue_ ? FairShareQueue_->PeekSlot(SlotIds_) : nullptr;
+            // TODO(don-dron): For requests that are not explicitly marked up with slots, guaranteed priority
+            // must be used. In the future, you need to exclude unmarked requests.
+            auto slot = FairShareQueue_ && !SlotIds_.contains(TFairShareSlotId{})
+                ? FairShareQueue_->PeekSlot(SlotIds_)
+                : nullptr;
             auto slotId = slot ? slot->GetSlotId() : TFairShareSlotId{};
             auto requestsIt = SlotIdToRequestIds_.find(slotId);
 

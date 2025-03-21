@@ -91,6 +91,7 @@ private:
         TPromise<void> DiskFetchPromise;
         NIO::TBlocksExtPtr BlocksExt;
         TLocationMemoryGuard LocationMemoryGuard;
+        TFairShareHierarchicalSlotQueueSlotPtr<TString> FairShareSlot = nullptr;
         std::atomic<bool> Finished = false;
     };
 
@@ -110,8 +111,8 @@ private:
 
     TSharedRef WrapBlockWithDelayedReferenceHolder(TSharedRef rawReference, TDuration delayBeforeFree);
 
-    void CompleteSession(const TReadBlockSetSessionPtr& session) noexcept;
-    static void FailSession(const TReadBlockSetSessionPtr& session, const TError& error) noexcept;
+    void CompleteSession(const TReadBlockSetSessionPtr& session);
+    void FailSession(const TReadBlockSetSessionPtr& session, const TError& error);
 
     void DoReadMeta(
         const TReadMetaSessionPtr& session,

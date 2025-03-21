@@ -19,8 +19,11 @@
 
 #include <yt/yt/server/lib/io/chunk_file_reader.h>
 #include <yt/yt/server/lib/io/chunk_file_writer.h>
+
 #include <yt/yt/server/lib/exec_node/config.h>
+
 #include <yt/yt/server/lib/io/io_tracker.h>
+#include <yt/yt/server/lib/io/public.h>
 
 #include <yt/yt/ytlib/chunk_client/chunk_meta_extensions.h>
 #include <yt/yt/ytlib/chunk_client/chunk_reader_host.h>
@@ -186,7 +189,7 @@ class TErrorInterceptingChunkWriter
     : public IChunkWriter
 {
 public:
-    TErrorInterceptingChunkWriter(TChunkLocationPtr location, IChunkWriterPtr underlying)
+    TErrorInterceptingChunkWriter(TChunkLocationPtr location, TIntrusivePtr<TChunkFileWriter> underlying)
         : Location_(std::move(location))
         , Underlying_(std::move(underlying))
     { }
@@ -206,7 +209,7 @@ public:
         const TWorkloadDescriptor& workloadDescriptor,
         const TBlock& block) override
     {
-        return Underlying_->WriteBlock(options, workloadDescriptor, block);
+        return Underlying_->WriteBlock(options, workloadDescriptor, block, {});
     }
 
     bool WriteBlocks(
@@ -214,7 +217,7 @@ public:
         const TWorkloadDescriptor& workloadDescriptor,
         const std::vector<TBlock>& blocks) override
     {
-        return Underlying_->WriteBlocks(options, workloadDescriptor, blocks);
+        return Underlying_->WriteBlocks(options, workloadDescriptor, blocks, {});
     }
 
     TFuture<void> GetReadyEvent() override
@@ -229,7 +232,7 @@ public:
         std::optional<int> truncateBlockCount) override
     {
         YT_VERIFY(!truncateBlockCount.has_value());
-        return Check(Underlying_->Close(options, workloadDescriptor, chunkMeta));
+        return Check(Underlying_->Close(options, workloadDescriptor, chunkMeta, {}));
     }
 
     const NChunkClient::NProto::TChunkInfo& GetChunkInfo() const override
@@ -264,7 +267,7 @@ public:
 
 private:
     const TChunkLocationPtr Location_;
-    const IChunkWriterPtr Underlying_;
+    const TIntrusivePtr<TChunkFileWriter> Underlying_;
 
     TFuture<void> Check(TFuture<void> result)
     {
@@ -692,7 +695,7 @@ private:
                 .ReadSessionId = TReadSessionId::Create(),
             };
 
-            auto metaOrError = WaitFor(chunkReader->GetMeta(chunkReadOptions));
+            auto metaOrError = WaitFor(chunkReader->GetMeta(chunkReadOptions, {}));
             THROW_ERROR_EXCEPTION_IF_FAILED(metaOrError, "Failed to read cached chunk meta");
 
             const auto& meta = *metaOrError.Value();

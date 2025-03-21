@@ -20,10 +20,11 @@ DEFINE_REFCOUNTED_TYPE(IDynamicIOEngine)
 
 IDynamicIOEnginePtr CreateDynamicIOEngine(
     EIOEngineType defaultEngineType,
-    NYTree::INodePtr defaultIOConfig,
-    TString locationId = "default",
-    NProfiling::TProfiler profiler = {},
-    NLogging::TLogger logger = {});
+    NYTree::INodePtr ioConfig,
+    TFairShareHierarchicalSlotQueuePtr<TString> fairShareQueue,
+    TString locationId,
+    NProfiling::TProfiler profiler,
+    NLogging::TLogger logger);
 
 ////////////////////////////////////////////////////////////////////////////////
 

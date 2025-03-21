@@ -37,6 +37,7 @@
 
 #include <yt/yt/core/misc/fs.h>
 #include <yt/yt/core/misc/proc.h>
+#include <yt/yt/core/misc/fair_share_hierarchical_queue.h>
 
 #include <yt/yt/core/logging/log_manager.h>
 
@@ -339,14 +340,19 @@ TChunkLocation::TChunkLocation(
 
     PerformanceCounters_ = New<TLocationPerformanceCounters>(Profiler_);
 
+    IOFairShareQueue_ = CreateFairShareHierarchicalSlotQueue<TString>(
+        ChunkStoreHost_->GetFairShareHierarchicalScheduler(),
+        Profiler_.WithPrefix("/fair_share_hierarchical_queue"));
+
     MediumFlag_ = Profiler_.Gauge("/medium");
     MediumFlag_.Update(1);
 
     UpdateMediumTag();
 
-    DynamicIOEngine_ = CreateDynamicIOEngine(
+    DynamicIOEngine_ = NIO::CreateDynamicIOEngine(
         StaticConfig_->IOEngineType,
         StaticConfig_->IOConfig,
+        IOFairShareQueue_,
         Id_,
         Profiler_,
         DataNodeLogger().WithTag("LocationId: %v", Id_));
@@ -388,6 +394,22 @@ TChunkLocation::TChunkLocation(
         BIND_NO_PROPAGATE(&TChunkLocation::PopulateAlerts, MakeWeak(this)));
 }
 
+TErrorOr<TFairShareHierarchicalSlotQueueSlotPtr<TString>> TChunkLocation::AddFairShareQueueSlot(
+    i64 size,
+    std::vector<IFairShareHierarchicalSlotQueueResourcePtr> resources,
+    std::vector<TFairShareHierarchyLevel<TString>> levels)
+{
+    return IOFairShareQueue_->EnqueueSlot(
+        size,
+        std::move(resources),
+        std::move(levels));
+}
+
+void TChunkLocation::RemoveFairShareQueueSlot(TFairShareHierarchicalSlotQueueSlotPtr<TString> slot)
+{
+    IOFairShareQueue_->DequeueSlot(slot);
+}
+
 const NIO::IIOEnginePtr& TChunkLocation::GetIOEngine() const
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
@@ -400,6 +422,16 @@ const NIO::IIOEngineWorkloadModelPtr& TChunkLocation::GetIOEngineModel() const
     YT_ASSERT_THREAD_AFFINITY_ANY();
 
     return IOEngineModel_;
+}
+
+double TChunkLocation::GetFairShareWorkloadCategoryWeight(EWorkloadCategory category) const
+{
+    YT_ASSERT_THREAD_AFFINITY_ANY();
+
+    auto config = GetRuntimeConfig();
+    return config->FairShareWorkloadCategoryWeights[category]
+        ? config->FairShareWorkloadCategoryWeights[category].value()
+        : DefaultFairShareWorkloadCategoryWeights[category];
 }
 
 THazardPtr<TChunkLocationConfig> TChunkLocation::GetRuntimeConfig() const
