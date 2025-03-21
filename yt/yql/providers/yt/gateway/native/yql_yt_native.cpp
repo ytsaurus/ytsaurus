@@ -3329,30 +3329,21 @@ private:
                 for (size_t i = 0; i < execCtx->InputTables_.size(); ++i) {
                     TString srcTableName = execCtx->InputTables_[i].Name;
                     NYT::TRichYPath srcTable = execCtx->InputTables_[i].Path;
-                    bool isDynamic = execCtx->InputTables_[i].Dynamic;
-                    ui64 recordsCount = execCtx->InputTables_[i].Records;
-                    if (!isDynamic) {
+                    if (const auto recordsCount = execCtx->InputTables_[i].Records) {
                         if (!limiter.NextTable(recordsCount)) {
                             continue;
                         }
-                    } else {
-                        limiter.NextDynamicTable();
                     }
 
-                    if (isDynamic) {
-                        YQL_ENSURE(srcTable.GetRanges().Empty());
-                        stop = NYql::SelectRows(entry->Client, srcTableName, i, specsCache, pullData, limiter);
+                    auto readTx = entry->Tx;
+                    if (srcTable.TransactionId_) {
+                        readTx = entry->GetSnapshotTx(*srcTable.TransactionId_);
+                        srcTable.TransactionId_.Clear();
+                    }
+                    if (execCtx->YamrInput) {
+                        stop = NYql::IterateYamredRows(readTx, srcTable, i, specsCache, pullData, limiter, execCtx->Sampling);
                     } else {
-                        auto readTx = entry->Tx;
-                        if (srcTable.TransactionId_) {
-                            readTx = entry->GetSnapshotTx(*srcTable.TransactionId_);
-                            srcTable.TransactionId_.Clear();
-                        }
-                        if (execCtx->YamrInput) {
-                            stop = NYql::IterateYamredRows(readTx, srcTable, i, specsCache, pullData, limiter, execCtx->Sampling);
-                        } else {
-                            stop = NYql::IterateYsonRows(readTx, srcTable, i, specsCache, pullData, limiter, execCtx->Sampling);
-                        }
+                        stop = NYql::IterateYsonRows(readTx, srcTable, i, specsCache, pullData, limiter, execCtx->Sampling);
                     }
                     if (stop || limiter.Exceed()) {
                         break;
