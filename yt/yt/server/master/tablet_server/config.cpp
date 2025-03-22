@@ -184,7 +184,7 @@ void TDynamicTabletManagerConfig::Register(TRegistrar registrar)
     registrar.Parameter("enable_bulk_insert", &TThis::EnableBulkInsert)
         .Default(false);
     registrar.Parameter("decommission_through_extra_peers", &TThis::DecommissionThroughExtraPeers)
-        .Default(false);
+        .Default(true);
     registrar.Parameter("synchronize_tablet_cell_leader_switches", &TThis::SynchronizeTabletCellLeaderSwitches)
         .Default(true)
         .DontSerializeDefault();
