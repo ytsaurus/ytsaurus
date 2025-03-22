@@ -57,6 +57,20 @@ TQueryId TClient::DoStartQuery(EQueryEngine engine, const TString& query, const 
         }
     }
 
+    for (const auto& sec : options.Secrets) {
+        const auto secret = rpcRequest->add_secrets();
+        secret->set_id(sec->Id);
+        if (!sec->Category.empty()) {
+            secret->set_category(sec->Category);
+        }
+        if (!sec->Subcategory.empty()) {
+            secret->set_subcategory(sec->Subcategory);
+        }
+        if (!sec->YPath.empty()) {
+            secret->set_ypath(sec->YPath);
+        }
+    }
+
     rpcRequest->set_engine(NProto::ConvertQueryEngineToProto(engine));
     rpcRequest->set_query(query);
 

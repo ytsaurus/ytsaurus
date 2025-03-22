@@ -30,6 +30,7 @@ public class StartQuery extends QueryTrackerReq<StartQuery.Builder, StartQuery>
     private final List<QueryFile> files;
     @Nullable
     private final List<String> accessControlObjects;
+    private final List<QuerySecret> secrets;
 
     StartQuery(Builder builder) {
         super(builder);
@@ -40,6 +41,7 @@ public class StartQuery extends QueryTrackerReq<StartQuery.Builder, StartQuery>
         this.annotations = builder.annotations;
         this.files = Objects.requireNonNull(builder.files);
         this.accessControlObjects = builder.accessControlObjects;
+        this.secrets = Objects.requireNonNull(builder.secrets);
     }
 
     /**
@@ -67,7 +69,8 @@ public class StartQuery extends QueryTrackerReq<StartQuery.Builder, StartQuery>
                 .setRequestId(requestId)
                 .setUserAgent(userAgent)
                 .setTraceId(traceId, traceSampled)
-                .setAdditionalData(additionalData);
+                .setAdditionalData(additionalData)
+                .setQuerySecrets(secrets);
     }
 
     @Override
@@ -99,6 +102,7 @@ public class StartQuery extends QueryTrackerReq<StartQuery.Builder, StartQuery>
             );
         }
         builder.addAllFiles(files.stream().map(QueryFile::toProto).collect(Collectors.toList()));
+        builder.addAllSecrets(secrets.stream().map(QuerySecret::toProto).collect(Collectors.toList()));
     }
 
     /**
@@ -118,6 +122,8 @@ public class StartQuery extends QueryTrackerReq<StartQuery.Builder, StartQuery>
         private List<QueryFile> files;
         @Nullable
         private List<String> accessControlObjects;
+        @Nullable
+        private List<QuerySecret> secrets;
 
         private Builder() {
         }
@@ -196,6 +202,17 @@ public class StartQuery extends QueryTrackerReq<StartQuery.Builder, StartQuery>
          */
         public Builder setAccessControlObjects(@Nullable List<String> accessControlObjects) {
             this.accessControlObjects = accessControlObjects;
+            return self();
+        }
+
+        /**
+         * Set list of secrets for query.
+         *
+         * @return self
+         * @see QuerySecret
+         */
+        public Builder setQuerySecrets(List<QuerySecret> secrets) {
+            this.secrets = secrets;
             return self();
         }
 

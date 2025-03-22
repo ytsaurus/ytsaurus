@@ -2274,6 +2274,20 @@ TFuture<NQueryTrackerClient::TQueryId> TClient::StartQuery(
         protoFile->set_type(static_cast<NProto::EContentType>(file->Type));
     }
 
+    for (const auto& sec : options.Secrets) {
+        auto* secret = req->add_secrets();
+        secret->set_id(sec->Id);
+        if (!sec->Category.empty()) {
+            secret->set_category(sec->Category);
+        }
+        if (!sec->Subcategory.empty()) {
+            secret->set_subcategory(sec->Subcategory);
+        }
+        if (!sec->YPath.empty()) {
+            secret->set_ypath(sec->YPath);
+        }
+    }
+
     return req->Invoke().Apply(BIND([] (const TApiServiceProxy::TRspStartQueryPtr& rsp) {
         return FromProto<NQueryTrackerClient::TQueryId>(rsp->query_id());
     }));
