@@ -1830,8 +1830,15 @@ class TestCrossCellCopy(YTEnvSetup):
         set(f"{path}/@my_personal_attribute", "is_here", tx=tx)
 
     def _preserve_src_state(self, src_path, tx):
-        paths_to_check = [src_path]
+        # This is needed to properly test move with symlink.
+        try:
+            resolved_path = get(f"{src_path}/@path")
+        except YtError as err:
+            if not err.is_resolve_error():
+                raise
+            resolved_path = src_path
 
+        paths_to_check = [resolved_path]
         while len(paths_to_check) > 0:
             next_path = paths_to_check.pop(0)
             attributes = get(f"{next_path}/@", tx=tx)
@@ -2254,6 +2261,63 @@ class TestCrossCellCopy(YTEnvSetup):
 
         remove(src_path, force=True)
         wait(lambda: not exists(f"//sys/accounts/{account}"))
+
+    # SYMLINK SHENANIGANS
+    @authors("h0pless")
+    def test_destination_symlink_safety(self):
+        set("//sys/@config/cypress_manager/enable_cross_cell_links", True)
+
+        src_path = "//tmp/subtree"
+        self.create_subtree(src_path)
+
+        underlying_dst_path = "//tmp/some_node"
+        self.create_map_node(underlying_dst_path)
+
+        # Weird naming here due to the test setup.
+        dst_path = "//tmp/portal/subtree"
+        link(underlying_dst_path, dst_path)
+
+        if self.USE_SEQUOIA:
+            time.sleep(.5)  # To ensure that proxy has synced with master.
+
+        self.execute_command(src_path, dst_path, force=True)
+        self.validate_subtree_attribute_consistency(src_path, dst_path)
+
+    @authors("h0pless")
+    def test_destination_symlink_resolution(self):
+        src_path = "//tmp/subtree"
+        self.create_subtree(src_path)
+
+        underlying_dst_path = "//tmp/portal/some_node"
+        self.create_map_node(underlying_dst_path)
+
+        link_path = "//tmp/link"
+        link(underlying_dst_path, link_path)
+
+        if self.USE_SEQUOIA:
+            time.sleep(.5)  # To ensure that proxy has synced with master.
+
+        self.execute_command(src_path, f"{link_path}/subtree")
+        self.validate_subtree_attribute_consistency(src_path, f"{underlying_dst_path}/subtree")
+
+    @authors("h0pless")
+    # TODO(h0pless): Add True to this parameter. Currently it's broken due to a faulty
+    # symlink resolve.
+    @pytest.mark.parametrize("link_beyond_entrance", [False])
+    def test_source_symlink(self, link_beyond_entrance):
+        set("//sys/@config/cypress_manager/enable_cross_cell_links", link_beyond_entrance)
+        underlying_src_path = "//tmp/subtree"
+        self.create_subtree(underlying_src_path)
+
+        src_path = "//tmp/portal/link" if link_beyond_entrance else "//tmp/link"
+        link(underlying_src_path, src_path)
+
+        if self.USE_SEQUOIA:
+            time.sleep(.5)  # To ensure that proxy has synced with master.
+
+        dst_path = "//tmp/portal/subtree"
+        self.execute_command(src_path, dst_path)
+        self.validate_subtree_attribute_consistency(underlying_src_path, dst_path)
 
     # IMPROPER USES
     @authors("h0pless")
