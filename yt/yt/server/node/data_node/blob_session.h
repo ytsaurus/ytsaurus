@@ -53,8 +53,8 @@ private:
 
     struct TSlot
     {
-        TFairShareHierarchicalSlotQueueSlotPtr<TString> Owner = nullptr;
         ESlotState State = ESlotState::Empty;
+        TLocationFairShareSlotPtr FairShareSlot = nullptr;
         NChunkClient::TBlock Block;
 
         TPromise<void> ReceivedPromise = NewPromise<void>();
@@ -68,8 +68,6 @@ private:
     std::vector<TSlot> Window_;
     int WindowStartBlockIndex_ = 0;
     int WindowIndex_ = 0;
-
-    THashMap<TFairShareHierarchicalSlotQueueSlotPtr<TString>, int> AcquiredSlots_;
 
     std::atomic<i64> TotalByteSize_ = 0;
     std::atomic<i64> BlockCount_ = 0;
@@ -97,7 +95,7 @@ private:
         std::vector<NChunkClient::TBlock> blocks,
         bool useCumulativeBlockSize,
         bool enableCaching,
-        TFairShareHierarchicalSlotQueueSlotPtr<TString> fairShareQueueSlot);
+        TLocationFairShareSlotPtr fairShareQueueSlot);
     void OnBlocksWritten(
         int beginBlockIndex,
         int endBlockIndex,
@@ -119,7 +117,7 @@ private:
         std::optional<int> blockCount,
         bool truncateExtraBlocks) override;
     TFinishResult OnFinished(
-        const TFairShareHierarchicalSlotQueueSlotPtr<TString>& fairShareQueueSlot,
+        TLocationFairShareSlotPtr fairShareQueueSlot,
         const TError& error);
 
     void Abort();

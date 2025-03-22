@@ -91,8 +91,8 @@ private:
         TPromise<void> DiskFetchPromise;
         NIO::TBlocksExtPtr BlocksExt;
         TLocationMemoryGuard LocationMemoryGuard;
-        TFairShareHierarchicalSlotQueueSlotPtr<TString> FairShareSlot = nullptr;
         std::atomic<bool> Finished = false;
+        TLocationFairShareSlotPtr FairShareSlot = nullptr;
     };
 
     using TReadBlockSetSessionPtr = TIntrusivePtr<TReadBlockSetSession>;

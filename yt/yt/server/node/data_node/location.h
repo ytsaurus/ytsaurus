@@ -114,6 +114,30 @@ DEFINE_REFCOUNTED_TYPE(TLocationPerformanceCounters)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TLocationFairShareSlot
+    : public TRefCounted
+{
+public:
+    TLocationFairShareSlot(
+        TFairShareHierarchicalSlotQueuePtr<TString> queue,
+        TFairShareHierarchicalSlotQueueSlotPtr<TString> slot);
+
+    TFairShareHierarchicalSlotQueueSlotPtr<TString> GetSlot() const;
+
+    ~TLocationFairShareSlot();
+
+private:
+    void MoveFrom(TLocationFairShareSlot&& other);
+
+    TFairShareHierarchicalSlotQueuePtr<TString> Queue_;
+    TFairShareHierarchicalSlotQueueSlotPtr<TString> Slot_;
+};
+
+DECLARE_REFCOUNTED_CLASS(TLocationFairShareSlot)
+DEFINE_REFCOUNTED_TYPE(TLocationFairShareSlot)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TLocationMemoryGuard
 {
 public:
@@ -256,12 +280,10 @@ public:
     //! Create cell id and uuid files if they don't exist.
     void InitializeIds();
 
-    TErrorOr<TFairShareHierarchicalSlotQueueSlotPtr<TString>> AddFairShareQueueSlot(
+    TErrorOr<TLocationFairShareSlotPtr> AddFairShareQueueSlot(
         i64 size,
         std::vector<IFairShareHierarchicalSlotQueueResourcePtr> resources,
         std::vector<TFairShareHierarchyLevel<TString>> levels);
-
-    void RemoveFairShareQueueSlot(TFairShareHierarchicalSlotQueueSlotPtr<TString> slot);
 
     //! Prepares the location to accept new writes.
     /*!

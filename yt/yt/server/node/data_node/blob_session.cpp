@@ -442,7 +442,7 @@ TFuture<ISession::TFinishResult> TBlobSession::DoFinish(
 
     auto fairShareQueueSlot = fairShareQueueSlotOrError.Value();
 
-    auto slotId = fairShareQueueSlot->GetSlotId();
+    auto slotId = fairShareQueueSlot->GetSlot()->GetSlotId();
     return Pipeline_->Close(WriteBlocksOptions_, chunkMeta, slotId, truncateBlockCount)
         .Apply(BIND(&TBlobSession::OnFinished, MakeStrong(this), Passed(std::move(fairShareQueueSlot)))
             .AsyncVia(SessionInvoker_));
@@ -474,7 +474,7 @@ i64 TBlobSession::GetIntermediateEmptyBlockCount() const
 }
 
 ISession::TFinishResult TBlobSession::OnFinished(
-    const TFairShareHierarchicalSlotQueueSlotPtr<TString>& fairShareQueueSlot,
+    TLocationFairShareSlotPtr fairShareQueueSlot,
     const TError& error)
 {
     YT_ASSERT_INVOKER_AFFINITY(SessionInvoker_);
@@ -499,7 +499,7 @@ ISession::TFinishResult TBlobSession::OnFinished(
         }
     }
 
-    Location_->RemoveFairShareQueueSlot(fairShareQueueSlot);
+    fairShareQueueSlot.Reset();
     ReleaseSpace();
 
     if (Error_.IsOK()) {
@@ -520,13 +520,6 @@ ISession::TFinishResult TBlobSession::OnFinished(
             YT_LOG_DEBUG(ex, "Failed to finish session");
             Error_ = TError(ex);
         }
-    }
-
-    YT_VERIFY(AcquiredSlots_.empty() ||
-        !Error_.IsOK()||
-        Location_->GetDelayBeforeBlobSessionBlockFree());
-    for (auto [fairShareQueueSlot, _] : AcquiredSlots_) {
-        Location_->RemoveFairShareQueueSlot(fairShareQueueSlot);
     }
 
     Finished_.Fire(Error_);
@@ -583,7 +576,6 @@ TFuture<NIO::TIOCounters> TBlobSession::DoPutBlocks(
         CreateHierarchyLevels(tags));
     YT_VERIFY(fairShareQueueSlotOrError.IsOK());
     auto fairShareQueueSlot = fairShareQueueSlotOrError.Value();
-    EmplaceOrCrash(AcquiredSlots_, fairShareQueueSlot, 0);
 
     std::vector<TFuture<void>> precedingBlockReceivedFutures;
     for (int precedingBlockIndex = WindowStartBlockIndex_; precedingBlockIndex < startBlockIndex; precedingBlockIndex++) {
@@ -614,12 +606,7 @@ TFuture<NIO::TIOCounters> TBlobSession::DoPutBlocks(
 
     auto allPrecedingBlocksReceivedFuture = AllSucceeded(precedingBlockReceivedFutures)
         .WithTimeout(Config_->SessionBlockReorderTimeout)
-        .Apply(BIND([=, this, this_ = MakeStrong(this), fairShareQueueSlot = fairShareQueueSlot] (const TError& error) {
-            if (!error.IsOK()) {
-                AcquiredSlots_.erase(fairShareQueueSlot);
-                Location_->RemoveFairShareQueueSlot(fairShareQueueSlot);
-            }
-
+        .Apply(BIND([=, this, this_ = MakeStrong(this)] (const TError& error) {
             if (error.GetCode() == NYT::EErrorCode::Timeout) {
                 THROW_ERROR_EXCEPTION(
                     NChunkClient::EErrorCode::WriteThrottlingActive,
@@ -650,7 +637,7 @@ TFuture<NIO::TIOCounters> TBlobSession::DoPerformPutBlocks(
     std::vector<TBlock> blocks,
     bool useCumulativeBlockSize,
     bool enableCaching,
-    TFairShareHierarchicalSlotQueueSlotPtr<TString> fairShareQueueSlot)
+    TLocationFairShareSlotPtr fairShareQueueSlot)
 {
     YT_ASSERT_INVOKER_AFFINITY(SessionInvoker_);
 
@@ -662,7 +649,7 @@ TFuture<NIO::TIOCounters> TBlobSession::DoPerformPutBlocks(
     const auto& memoryTracker = Location_->GetWriteMemoryTracker();
     std::vector<TLocationMemoryGuard> locationMemoryGuards;
 
-    auto fairShareSlotId = fairShareQueueSlot->GetSlotId();
+    auto fairShareSlotId = fairShareQueueSlot->GetSlot()->GetSlotId();
 
     std::vector<int> receivedBlockIndexes;
     for (int localIndex = 0; localIndex < std::ssize(blocks); ++localIndex) {
@@ -733,10 +720,8 @@ TFuture<NIO::TIOCounters> TBlobSession::DoPerformPutBlocks(
         {
             slot.State = ESlotState::Received;
             slot.Block = block;
-            slot.Owner = fairShareQueueSlot;
             slot.ReceivedPromise.TrySet();
-
-            AcquiredSlots_[fairShareQueueSlot]++;
+            slot.FairShareSlot = fairShareQueueSlot;
 
             if (enableCaching) {
                 blockCache->PutBlock(blockId, EBlockType::CompressedData, block);
@@ -970,10 +955,6 @@ void TBlobSession::OnAborted(const TError& error)
 {
     YT_ASSERT_INVOKER_AFFINITY(SessionInvoker_);
 
-    for (auto [fairShareQueueSlot, _] : AcquiredSlots_) {
-        Location_->RemoveFairShareQueueSlot(fairShareQueueSlot);
-    }
-
     Finished_.Fire(Error_);
 
     if (!error.IsOK()) {
@@ -991,16 +972,9 @@ void TBlobSession::ReleaseBlockSlot(TSlot& slot)
 {
     YT_ASSERT_INVOKER_AFFINITY(SessionInvoker_);
 
-    auto usage = --AcquiredSlots_[slot.Owner];
-    YT_VERIFY(usage >= 0);
-
-    if (usage == 0) {
-        Location_->RemoveFairShareQueueSlot(slot.Owner);
-        AcquiredSlots_.erase(slot.Owner);
-    }
-
     MemoryUsage_.fetch_sub(slot.Block.Size());
     slot.Block = {};
+    slot.FairShareSlot.Reset();
     slot.LocationMemoryGuard.Release();
     slot.State = EBlobSessionSlotState::Released;
 }

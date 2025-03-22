@@ -209,6 +209,10 @@ void TBlobChunkBase::CompleteSession(const TReadBlockSetSessionPtr& session)
         return;
     }
 
+    YT_LOG_DEBUG("Read session completed (ChunkId: %v, LocationId: %v)",
+        Id_,
+        Location_->GetId());
+
     session->SessionAliveCheckFuture.Cancel(TError("Session completed"));
 
     ProfileReadBlockSetLatency(session);
@@ -233,12 +237,8 @@ void TBlobChunkBase::CompleteSession(const TReadBlockSetSessionPtr& session)
         blocks[originalEntryIndex] = std::move(block);
     }
 
-    session->SessionPromise.TrySet(std::move(blocks));
     session->LocationMemoryGuard.Release();
-
-    if (session->FairShareSlot) {
-        Location_->RemoveFairShareQueueSlot(session->FairShareSlot);
-    }
+    session->SessionPromise.TrySet(std::move(blocks));
 }
 
 void TBlobChunkBase::FailSession(const TReadBlockSetSessionPtr& session, const TError& error)
@@ -248,6 +248,10 @@ void TBlobChunkBase::FailSession(const TReadBlockSetSessionPtr& session, const T
     if (session->Finished.exchange(true)) {
         return;
     }
+
+    YT_LOG_DEBUG("Read session failed (ChunkId: %v, LocationId: %v)",
+        Id_,
+        Location_->GetId());
 
     session->SessionAliveCheckFuture.Cancel(TError("Session failed"));
 
@@ -269,10 +273,6 @@ void TBlobChunkBase::FailSession(const TReadBlockSetSessionPtr& session, const T
     }
 
     session->LocationMemoryGuard.Release();
-
-    if (session->FairShareSlot) {
-        Location_->RemoveFairShareQueueSlot(session->FairShareSlot);
-    }
 }
 
 void TBlobChunkBase::DoReadMeta(
@@ -321,11 +321,7 @@ void TBlobChunkBase::DoReadMeta(
 
         YT_VERIFY(fairShareQueueSlot.IsOK());
 
-        auto finally = Finally([fairShareQueueSlot = fairShareQueueSlot, location = Location_] {
-            location->RemoveFairShareQueueSlot(fairShareQueueSlot.Value());
-        });
-
-        meta = WaitFor(reader->GetMeta(session->Options, {})
+        meta = WaitFor(reader->GetMeta(session->Options, fairShareQueueSlot.Value()->GetSlot()->GetSlotId())
             .WithDeadline(session->Options.ReadMetaDeadLine))
             .ValueOrThrow();
     } catch (const std::exception& ex) {
@@ -374,7 +370,11 @@ void TBlobChunkBase::OnBlocksExtLoaded(
     const TReadBlockSetSessionPtr& session,
     const TBlocksExtPtr& blocksExt) noexcept
 {
-    YT_ASSERT_THREAD_AFFINITY_ANY();
+    YT_ASSERT_INVOKER_AFFINITY(session->Invoker);
+
+    if (session->Finished.load()) {
+        return;
+    }
 
     // Run async cache lookup.
     i64 pendingDataSize = 0;
@@ -484,12 +484,10 @@ void TBlobChunkBase::OnBlocksExtLoaded(
             }
         }).Via(session->Invoker));
 
-    session->SessionPromise.OnCanceled(BIND([this, this_ = MakeStrong(this), weak = MakeWeak(session)] (const TError& error) {
-        if (auto session = weak.Lock()) {
-            FailSession(
-                session,
-                TError(NYT::EErrorCode::Canceled, "Session canceled") << error);
-        }
+    session->SessionPromise.OnCanceled(BIND([this, this_ = MakeStrong(this), session] (const TError& error) {
+        FailSession(
+            session,
+            TError(NYT::EErrorCode::Canceled, "Session canceled") << error);
     }).Via(session->Invoker));
 }
 
@@ -758,7 +756,7 @@ void TBlobChunkBase::DoReadBlockSet(const TReadBlockSetSessionPtr& session) noex
             session->Options,
             firstBlockIndex,
             blocksToRead,
-            session->FairShareSlot->GetSlotId(),
+            session->FairShareSlot->GetSlot()->GetSlotId(),
             session->BlocksExt);
 
         asyncBlocks.Subscribe(
@@ -990,7 +988,9 @@ TFuture<std::vector<TBlock>> TBlobChunkBase::ReadBlockSet(
     // Need blocks ext.
     auto blocksExt = FindCachedBlocksExt();
     if (blocksExt) {
-        OnBlocksExtLoaded(session, blocksExt);
+        YT_UNUSED_FUTURE(BIND(&TBlobChunkBase::OnBlocksExtLoaded, MakeStrong(this))
+            .AsyncVia(session->Invoker)
+            .Run(session, blocksExt));
     } else {
         auto cookie = Context_->ChunkMetaManager->BeginInsertCachedBlocksExt(Id_);
         auto asyncBlocksExt = cookie.GetValue();
