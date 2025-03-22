@@ -10,11 +10,13 @@ ADDINCL(GLOBAL contrib/libs/metrohash/src)
 
 NO_UTIL()
 
-CFLAGS(-msse4.2)
+IF (ARCH_X86_64)
+    CFLAGS(-msse4.2)
+    SRC(src/metrohash128crc.cpp)
+ENDIF()
 
 SRCS(
     src/metrohash128.cpp
-    src/metrohash128crc.cpp
     src/metrohash64.cpp
 )
 
