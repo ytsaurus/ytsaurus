@@ -32,6 +32,7 @@ struct TJobNodeDescriptor
 
     NNodeTrackerClient::TNodeId Id = NNodeTrackerClient::InvalidNodeId;
     std::string Address;
+    NNodeTrackerClient::TAddressMap Addresses;
     double IOWeight = 0.0;
 
     void Persist(const TPersistenceContext& context);

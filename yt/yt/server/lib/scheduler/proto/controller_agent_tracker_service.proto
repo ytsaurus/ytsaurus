@@ -18,6 +18,7 @@ message TExecNodeDescriptor
     required TJobResources resource_limits = 4;
     required NNodeTrackerClient.NProto.TDiskResources disk_resources = 7;
     repeated string tags = 5;
+    optional NNodeTrackerClient.NProto.TAddressMap addresses = 8;
 }
 
 message TExecNodeDescriptorList

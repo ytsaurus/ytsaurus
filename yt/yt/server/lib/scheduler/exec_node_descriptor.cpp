@@ -1,11 +1,14 @@
 #include "exec_node_descriptor.h"
 
+#include <yt/yt/ytlib/controller_agent/serialize.h>
+
 #include <yt/yt/ytlib/node_tracker_client/helpers.h>
 
 #include <yt/yt/ytlib/scheduler/disk_resources.h>
 #include <yt/yt/ytlib/scheduler/job_resources_helpers.h>
 
 #include <yt/yt/core/misc/protobuf_helpers.h>
+
 
 namespace NYT::NScheduler {
 
@@ -21,6 +24,7 @@ using NYT::ToProto;
 TExecNodeDescriptor::TExecNodeDescriptor(
     NNodeTrackerClient::TNodeId id,
     const std::string& address,
+    const NNodeTrackerClient::TAddressMap& addresses,
     const std::optional<std::string>& dataCenter,
     double ioWeight,
     bool online,
@@ -32,6 +36,7 @@ TExecNodeDescriptor::TExecNodeDescriptor(
     IAttributeDictionaryPtr schedulingOptions)
     : Id(id)
     , Address(address)
+    , Addresses(addresses)
     , DataCenter(dataCenter)
     , IOWeight(ioWeight)
     , Online(online)
@@ -59,12 +64,17 @@ void TExecNodeDescriptor::Persist(const TStreamPersistenceContext& context)
     Persist(context, ResourceLimits);
     Persist(context, DiskResources);
     Persist(context, Tags);
+
+    if (context.GetVersion() >= ToUnderlying(NControllerAgent::ESnapshotVersion::AddAddressesToJob)) {
+        Persist(context, Addresses);
+    }
 }
 
 void ToProto(NScheduler::NProto::TExecNodeDescriptor* protoDescriptor, const NScheduler::TExecNodeDescriptor& descriptor)
 {
     protoDescriptor->set_node_id(ToProto(descriptor.Id));
     protoDescriptor->set_address(ToProto(descriptor.Address));
+    ToProto(protoDescriptor->mutable_addresses(), descriptor.Addresses);
     protoDescriptor->set_io_weight(descriptor.IOWeight);
     protoDescriptor->set_online(descriptor.Online);
     ToProto(protoDescriptor->mutable_resource_limits(), descriptor.ResourceLimits);
@@ -78,6 +88,9 @@ void FromProto(NScheduler::TExecNodeDescriptor* descriptor, const NScheduler::NP
 {
     descriptor->Id = FromProto<NNodeTrackerClient::TNodeId>(protoDescriptor.node_id());
     descriptor->Address = protoDescriptor.address();
+    if (protoDescriptor.has_addresses()) {
+        FromProto(&descriptor->Addresses, protoDescriptor.addresses());
+    }
     descriptor->IOWeight = protoDescriptor.io_weight();
     descriptor->Online = protoDescriptor.online();
     FromProto(&descriptor->ResourceLimits, protoDescriptor.resource_limits());

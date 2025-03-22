@@ -125,6 +125,7 @@ class OperationsArchiver(object):
         "job_type",
         "state",
         "address",
+        "addresses",
         "uncompressed_data_size",
         "error",
         "size",
@@ -235,6 +236,7 @@ class OperationsArchiver(object):
             row["type" if self.version >= 6 else "job_type"] = attributes["job_type"]
             row["state"] = attributes["state"]
             row["address"] = attributes["address"]
+            row["addresses"] = attributes["addresses"]
             row["start_time"] = date_string_to_timestamp_mcs(attributes["start_time"])
             row["finish_time"] = date_string_to_timestamp_mcs(attributes["finish_time"])
 

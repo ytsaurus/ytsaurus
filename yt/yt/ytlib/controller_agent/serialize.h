@@ -50,6 +50,7 @@ DEFINE_ENUM(ESnapshotVersion,
     ((IsolateManiacsInSlicing)               (301710))
     ((MaxCompressedDataSizePerJob)           (301711))
     ((DynamicVanillaJobCount)                (301712))
+    ((AddAddressesToJob)                     (301713))
 );
 
 ////////////////////////////////////////////////////////////////////////////////
