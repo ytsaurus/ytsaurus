@@ -28,6 +28,7 @@ struct TConfig
 {
     TNbdServerConfigPtr NbdServer;
     THashMap<TString, TChunkBlockDeviceConfigPtr> NbdChunkBlockDevices;
+    std::string DataNodeNbdServiceAddress;
     int ThreadCount;
 
     REGISTER_YSON_STRUCT(TConfig);
@@ -37,6 +38,8 @@ struct TConfig
         registrar.Parameter("nbd_server", &TThis::NbdServer)
             .DefaultNew();
         registrar.Parameter("nbd_devices", &TThis::NbdChunkBlockDevices)
+            .Default();
+        registrar.Parameter("data_node_nbd_service_address", &TThis::DataNodeNbdServiceAddress)
             .Default();
         registrar.Parameter("thread_count", &TThis::ThreadCount)
             .Default(1);
@@ -71,11 +74,12 @@ protected:
 
         for (const auto& [deviceId, deviceConfig] : config->NbdChunkBlockDevices) {
             // Create channel to data node NBD service.
-            auto client = CreateBusClient(NBus::TBusClientConfig::CreateTcp(*deviceConfig->Address));
+            auto client = CreateBusClient(NBus::TBusClientConfig::CreateTcp(config->DataNodeNbdServiceAddress));
             auto channel = NRpc::NBus::CreateBusChannel(std::move(client));
             auto logger = nbdServer->GetLogger();
 
             auto device = CreateChunkBlockDevice(
+                "export_id",
                 std::move(deviceConfig),
                 NConcurrency::GetUnlimitedThrottler(),
                 NConcurrency::GetUnlimitedThrottler(),
