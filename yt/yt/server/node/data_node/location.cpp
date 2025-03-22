@@ -162,6 +162,32 @@ void TLocationPerformanceCounters::ReportThrottledWrite()
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TLocationFairShareSlot::TLocationFairShareSlot(
+    TFairShareHierarchicalSlotQueuePtr<TString> queue,
+    TFairShareHierarchicalSlotQueueSlotPtr<TString> slot)
+    : Queue_(std::move(queue))
+    , Slot_(std::move(slot))
+{
+    YT_VERIFY(Queue_);
+    YT_VERIFY(Slot_);
+}
+
+TFairShareHierarchicalSlotQueueSlotPtr<TString> TLocationFairShareSlot::GetSlot() const
+{
+    return Slot_;
+}
+
+TLocationFairShareSlot::~TLocationFairShareSlot()
+{
+    if (Slot_) {
+        Queue_->DequeueSlot(Slot_);
+        Slot_->ReleaseResources();
+        Slot_.Reset();
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TLocationMemoryGuard::TLocationMemoryGuard(
     TMemoryUsageTrackerGuard memoryGuard,
     EIODirection direction,
@@ -394,7 +420,7 @@ TChunkLocation::TChunkLocation(
         BIND_NO_PROPAGATE(&TChunkLocation::PopulateAlerts, MakeWeak(this)));
 }
 
-TErrorOr<TFairShareHierarchicalSlotQueueSlotPtr<TString>> TChunkLocation::AddFairShareQueueSlot(
+TErrorOr<TLocationFairShareSlotPtr> TChunkLocation::AddFairShareQueueSlot(
     i64 size,
     std::vector<IFairShareHierarchicalSlotQueueResourcePtr> resources,
     std::vector<TFairShareHierarchyLevel<TString>> levels)
@@ -408,15 +434,12 @@ TErrorOr<TFairShareHierarchicalSlotQueueSlotPtr<TString>> TChunkLocation::AddFai
         YT_LOG_DEBUG("Add new fair share slot (SlotId: %v, SlotSize: %v)",
             slotOrError.Value()->GetSlotId(),
             size);
+        return New<TLocationFairShareSlot>(
+            IOFairShareQueue_,
+            std::move(slotOrError.Value()));
     }
 
-    return std::move(slotOrError);
-}
-
-void TChunkLocation::RemoveFairShareQueueSlot(TFairShareHierarchicalSlotQueueSlotPtr<TString> slot)
-{
-    YT_LOG_DEBUG("Remove fair share slot (SlotId: %v)", slot->GetSlotId());
-    IOFairShareQueue_->DequeueSlot(slot);
+    return slotOrError.Wrap();
 }
 
 const NIO::IIOEnginePtr& TChunkLocation::GetIOEngine() const

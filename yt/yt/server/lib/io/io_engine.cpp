@@ -942,7 +942,10 @@ public:
             for (auto& slice : RequestSlicer_.Slice(std::move(requests[index]), buffers[index])) {
                 auto slotId = requests[index].FairShareSlotId;
                 auto requestId = TGuid::Create();
-                auto promise = NewPromise<TInternalReadResponse>();
+                auto promise = CreateRequestPromise<TInternalReadResponse>(
+                    slotId,
+                    requestId,
+                    EFairShareIOEngineRequestType::Read);
                 auto requestSize = slice.Request.Size;
                 futures.push_back(promise.ToFuture());
 
@@ -1028,7 +1031,10 @@ public:
         auto slotId = request.FairShareSlotId;
         for (auto& slice : RequestSlicer_.Slice(std::move(request))) {
             auto requestId = TGuid::Create();
-            auto promise = NewPromise<TWriteResponse>();
+            auto promise = CreateRequestPromise<TWriteResponse>(
+                slotId,
+                requestId,
+                EFairShareIOEngineRequestType::Write);
             auto toWriteRemaining = static_cast<i64>(GetByteSize(request.Buffers));
 
             futures.push_back(promise.ToFuture());
@@ -1086,9 +1092,12 @@ public:
         TFlushFileRequest request,
         EWorkloadCategory /*category*/) override
     {
-        auto requestId = TGuid::Create();
-        auto promise = NewPromise<TFlushFileResponse>();
         auto slotId = request.FairShareSlotId;
+        auto requestId = TGuid::Create();
+        auto promise = CreateRequestPromise<TFlushFileResponse>(
+            slotId,
+            requestId,
+            EFairShareIOEngineRequestType::Flush);
         auto callback = BIND(&DoFlushFile, std::move(request), StaticConfig_->EnableSync, Sensors_);
         auto future = promise.ToFuture();
         auto guard = Guard(Lock_);
@@ -1120,7 +1129,11 @@ public:
         auto guard = Guard(Lock_);
         for (auto& slice : RequestSlicer_.Slice(std::move(request))) {
             auto requestId = TGuid::Create();
-            auto promise = NewPromise<TFlushFileRangeResponse>();
+            auto promise = CreateRequestPromise<TFlushFileRangeResponse>(
+                slotId,
+                requestId,
+                EFairShareIOEngineRequestType::FlushFileRange);
+
             futures.push_back(promise.ToFuture());
 
             auto callback = BIND(&DoFlushFileRange, std::move(slice), StaticConfig_->EnableSync, Sensors_);
@@ -1263,6 +1276,52 @@ private:
     THashMap<TGuid, TRequestHandler<TFlushFileRangeResponse>> FlushFileRangeRequestStorage_;
 
     NThreading::TEventCount EventCount_;
+
+    template <class TResponse>
+    TPromise<TResponse> CreateRequestPromise(
+        TFairShareSlotId slotId,
+        TGuid requestId,
+        EFairShareIOEngineRequestType requestType)
+    {
+        auto promise = NewPromise<TResponse>();
+        promise.OnCanceled(BIND([=, this, this_ = MakeStrong(this)] (const TError& /*error*/) {
+            auto guard = Guard(Lock_);
+            auto slotIt = SlotIds_.find(slotId);
+            if (slotIt != SlotIds_.end()) {
+                auto& requests = SlotIdToRequestIds_[slotId];
+                requests.erase(std::find_if(
+                    requests.begin(),
+                    requests.end(),
+                    [&] (const auto& requestIdToType) {
+                        return requestIdToType.first == requestId;
+                    }));
+
+                if (requests.empty()) {
+                    SlotIds_.erase(slotIt);
+                    EraseOrCrash(SlotIdToRequestIds_, slotId);
+                }
+
+                switch (requestType) {
+                    case EFairShareIOEngineRequestType::Read:
+                        ReadRequestStorage_.erase(requestId);
+                        return;
+                    case EFairShareIOEngineRequestType::Write:
+                        WriteRequestStorage_.erase(requestId);
+                        return;
+                    case EFairShareIOEngineRequestType::Flush:
+                        FlushFileRequestStorage_.erase(requestId);
+                        return;
+                    case EFairShareIOEngineRequestType::FlushFileRange:
+                        FlushFileRangeRequestStorage_.erase(requestId);
+                        return;
+                    default:
+                        YT_ABORT();
+                }
+            }
+        }).Via(GetAuxPoolInvoker()));
+
+        return promise;
+    }
 
     template <class TResponse>
     void HandleNextRequest(
