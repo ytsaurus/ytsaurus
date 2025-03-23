@@ -88,6 +88,10 @@ public:
             ToProto(req->mutable_session_id(), SessionId_);
             return req->Invoke().AsVoid();
         })
+        .AsyncVia(Invoker_))
+        .Apply(BIND([this, this_ = MakeStrong(this)] () {
+            Initialized_ = false;
+        })
         .AsyncVia(Invoker_));
     }
 
