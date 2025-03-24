@@ -49,6 +49,8 @@ using namespace NSecurityClient;
 using NYT::FromProto;
 using NYT::ToProto;
 
+using NJobTrackerClient::NullJobId;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TAllocationId AllocationIdFromJobId(TJobId jobId)
@@ -468,13 +470,20 @@ template <class TCheckPermissionResults>
 void ValidateCheckPermissionsResults(
     const std::optional<std::string>& user,
     TOperationId operationId,
-    TAllocationId allocationId,
+    TJobId jobId,
     EPermissionSet permissionSet,
     const TCheckPermissionResults& results,
     const TAccessControlRule& accessControlRule,
     const TLogger& logger)
 {
-    const auto& Logger = logger;
+    auto Logger = logger;
+
+    if (operationId) {
+        Logger.AddTag("OperationId: %v", operationId);
+    }
+    if (jobId) {
+        Logger.AddTag("JobId: %v", jobId);
+    }
 
     for (const auto& result : results) {
         if (result.Action == ESecurityAction::Allow) {
@@ -492,17 +501,17 @@ void ValidateCheckPermissionsResults(
             error = error << TErrorAttribute("acl", accessControlRule.GetAclString());
         }
         if (operationId) {
-            error = error << TErrorAttribute("operation_id", operationId);
+            error = error
+                << TErrorAttribute("operation_id", operationId);
         }
-        if (allocationId) {
-            error = error << TErrorAttribute("allocation_id", allocationId);
+        if (jobId) {
+            error = error
+                << TErrorAttribute("job_id", jobId);
         }
         THROW_ERROR error;
     }
 
-    YT_LOG_DEBUG("Operation access successfully validated (OperationId: %v, AllocationId: %v, User: %v, Permissions: %v, AccessControlRule: %v)",
-        operationId ? ToString(operationId) : "<unknown>",
-        allocationId ? ToString(allocationId) : "<unknown>",
+    YT_LOG_DEBUG("Operation access successfully validated (User: %v, Permissions: %v, AccessControlRule: %v)",
         user,
         permissionSet,
         accessControlRule.GetAclString());
@@ -517,7 +526,7 @@ void ValidateCheckPermissionsResults(
 void ValidateOperationAccessByAco(
     const std::optional<std::string>& user,
     TOperationId operationId,
-    TAllocationId allocationId,
+    TJobId jobId,
     EPermissionSet permissionSet,
     const TString& acoName,
     const NNative::IClientPtr& client,
@@ -540,7 +549,7 @@ void ValidateOperationAccessByAco(
     ValidateCheckPermissionsResults(
         authenticatedUser,
         operationId,
-        allocationId,
+        jobId,
         permissionSet,
         results,
         acoPath,
@@ -550,13 +559,20 @@ void ValidateOperationAccessByAco(
 void ValidateOperationAccessByAcl(
     const std::optional<std::string>& user,
     TOperationId operationId,
-    TAllocationId allocationId,
+    TJobId jobId,
     EPermissionSet permissionSet,
     const TSerializableAccessControlList& acl,
     const IClientPtr& client,
     const TLogger& logger)
 {
-    const auto& Logger = logger;
+    auto Logger = logger;
+
+    if (operationId) {
+        Logger.AddTag("OperationId: %v", operationId);
+    }
+    if (jobId) {
+        Logger.AddTag("JobId: %v", jobId);
+    }
 
     TCheckPermissionByAclOptions options;
     options.IgnoreMissingSubjects = true;
@@ -574,16 +590,14 @@ void ValidateOperationAccessByAcl(
 
     if (!results.empty() && !results.front().MissingSubjects.empty()) {
         YT_LOG_DEBUG(
-            "Operation has missing subjects in ACL (OperationId: %v, AllocationId: %v, MissingSubjects: %v)",
-            operationId ? ToString(operationId) : "<unknown>",
-            allocationId ? ToString(allocationId) : "<unknown>",
+            "Operation has missing subjects in ACL (MissingSubjects: %v)",
             results.front().MissingSubjects);
     }
 
     ValidateCheckPermissionsResults(
         user,
         operationId,
-        allocationId,
+        jobId,
         permissionSet,
         results,
         acl,
@@ -593,7 +607,7 @@ void ValidateOperationAccessByAcl(
 void ValidateOperationAccess(
     const std::optional<std::string>& user,
     TOperationId operationId,
-    TAllocationId allocationId,
+    TJobId jobId,
     NYTree::EPermissionSet permissionSet,
     const TAccessControlRule& accessControlRule,
     const NApi::NNative::IClientPtr& client,
@@ -603,7 +617,7 @@ void ValidateOperationAccess(
         NScheduler::ValidateOperationAccessByAco(
             user,
             operationId,
-            allocationId,
+            jobId,
             permissionSet,
             accessControlRule.GetAcoName(),
             client,
@@ -612,12 +626,31 @@ void ValidateOperationAccess(
         NScheduler::ValidateOperationAccessByAcl(
             user,
             operationId,
-            allocationId,
+            jobId,
             permissionSet,
             accessControlRule.GetAcl(),
             client,
             logger);
     }
+}
+
+
+void ValidateOperationAccess(
+    const std::optional<std::string>& user,
+    TOperationId operationId,
+    NYTree::EPermissionSet permissionSet,
+    const TAccessControlRule& accessControlRule,
+    const NApi::NNative::IClientPtr& client,
+    const NLogging::TLogger& logger)
+{
+    ValidateOperationAccess(
+        user,
+        operationId,
+        NullJobId,
+        permissionSet,
+        accessControlRule,
+        client,
+        logger);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
