@@ -391,13 +391,11 @@ private:
             StoreIds_.size(),
             StoreIds_[storeIndex]);
 
-        const auto& mountConfig = tabletSnapshot->Settings.MountConfig;
-        bool prepareColumnarMeta = mountConfig->EnableNewScanReaderForLookup || mountConfig->EnableNewScanReaderForSelect;
         auto backendReader = store->GetBackendReaders(WorkloadCategory_);
         auto chunkMeta = WaitFor(store->GetCachedVersionedChunkMeta(
             backendReader.ChunkReader,
             chunkReadOptions,
-            prepareColumnarMeta))
+            /*prepareColumnarMeta*/ true))
             .ValueOrThrow();
 
         // This is just some very rough approximation.
