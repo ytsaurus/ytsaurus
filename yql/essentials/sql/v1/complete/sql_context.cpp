@@ -39,7 +39,12 @@ namespace NSQLComplete {
         }
 
         TCompletionContext Analyze(TCompletionInput input) override {
-            auto tokens = C3.Complete(C3Prefix(input));
+            TStringBuf prefix;
+            if (!GetC3Prefix(input, &prefix)) {
+                return {};
+            }
+
+            auto tokens = C3.Complete(prefix);
             return {
                 .Keywords = SiftedKeywords(tokens),
             };
@@ -72,23 +77,24 @@ namespace NSQLComplete {
             return preferredRules;
         }
 
-        const TStringBuf C3Prefix(TCompletionInput input) {
-            const TStringBuf prefix = input.Text.Head(input.CursorPosition);
+        bool GetC3Prefix(TCompletionInput input, TStringBuf* prefix) {
+            *prefix = input.Text.Head(input.CursorPosition);
 
             TVector<TString> statements;
             NYql::TIssues issues;
             if (!NSQLTranslationV1::SplitQueryToStatements(
-                    TString(prefix) + (prefix.EndsWith(';') ? ";" : ""), Lexer_,
+                    TString(*prefix) + (prefix->EndsWith(';') ? ";" : ""), Lexer_,
                     statements, issues, /* file = */ "",
                     /* areBlankSkipped = */ false)) {
-                return prefix;
+                return false;
             }
 
             if (statements.empty()) {
-                return prefix;
+                return true;
             }
 
-            return prefix.Last(statements.back().size());
+            *prefix = prefix->Last(statements.back().size());
+            return true;
         }
 
         TVector<TString> SiftedKeywords(const TVector<TSuggestedToken>& tokens) {

@@ -337,7 +337,7 @@ Y_UNIT_TEST_SUITE(SqlCompleteTests) {
         auto engine = MakeSqlCompletionEngineUT();
         UNIT_ASSERT_VALUES_EQUAL(Complete(engine, "select select; ").size(), 35);
         UNIT_ASSERT_VALUES_EQUAL(Complete(engine, "select select;").size(), 35);
-        UNIT_ASSERT_VALUES_EQUAL(Complete(engine, "!;").size(), 35);
+        UNIT_ASSERT_VALUES_EQUAL_C(Complete(engine, "!;").size(), 0, "Lexer failing");
     }
 
 } // Y_UNIT_TEST_SUITE(SqlCompleteTests)
