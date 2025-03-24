@@ -76,6 +76,7 @@ DEFINE_ENUM(ESnapshotVersion,
     ((JobEnvironmentPreparationStatistics)   (301904))
     // 25.4 starts here
     ((BumpTo_25_4)                           (302000))
+    ((MultiJobManagers)                      (302001))
 );
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -210,8 +210,12 @@ public:
             YT_ASSERT_INVOKER_AFFINITY(TaskHost_->GetJobSpecBuildInvoker());
 
             jobSpec->CopyFrom(Controller_->JobSpecTemplate_);
-            AddSequentialInputSpec(jobSpec, joblet);
-            AddOutputTableSpecs(jobSpec, joblet);
+            if (joblet->MultiJob.OutputCookieGroupIndex) {
+                jobSpec->MutableExtension(TJobSpecExt::job_spec_ext)->clear_extensions();
+            } else {
+                AddSequentialInputSpec(jobSpec, joblet);
+                AddOutputTableSpecs(jobSpec, joblet);
+            }
         }
 
         void OnChunkTeleported(TInputChunkPtr teleportChunk, std::any tag) override

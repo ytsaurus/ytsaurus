@@ -3251,6 +3251,9 @@ private:
         if (request->has_with_competitors()) {
             options.WithCompetitors = request->with_competitors();
         }
+        if (request->has_main_job_id()) {
+            options.MainJobId = FromProto<TJobId>(request->main_job_id());
+        }
         if (request->has_job_competition_id()) {
             options.JobCompetitionId = FromProto<TJobId>(request->job_competition_id());
         }
