@@ -94,7 +94,8 @@ Y_UNIT_TEST_SUITE(RegexLexerTests) {
     }
 
     Y_UNIT_TEST(RecursiveMultiLineCommentAnsi) {
-        Check("/* /* yql */", "SLASH(/) ASTERISK(*) WS( ) COMMENT(/* yql */)", /* ansi = */ true);
+        Check("/* /* yql */", "COMMENT(/* /* yql */)", /* ansi = */ true);
+        Check("/* /* yql */ */ */", "COMMENT(/* /* yql */ */) WS( ) ASTERISK(*) SLASH(/)", /* ansi = */ true);
         Check("/* /* yql */ */", "COMMENT(/* /* yql */ */)", /* ansi = */ true);
     }
 

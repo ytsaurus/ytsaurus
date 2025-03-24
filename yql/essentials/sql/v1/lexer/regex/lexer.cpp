@@ -159,7 +159,8 @@ namespace NSQLTranslationV1 {
 
             Y_ENSURE(ll1Content == 0 || reContent <= ll1Content);
             if (ll1Content == 0) {
-                return 0;
+                matches.emplace_back(CommentTokenName, TString(reContent));
+                return 1;
             }
 
             matches.emplace_back(CommentTokenName, TString(ll1Content));
@@ -180,10 +181,10 @@ namespace NSQLTranslationV1 {
                 } else if (IsStartingWithAnsiMultilineComment(prefix.substr(pos))) {
                     size_t len = MatchAnsiMultilineComment(prefix.substr(pos));
                     if (len == 0) {
-                        return 0;
+                        pos += 1;
+                    } else {
+                        pos += len;
                     }
-
-                    pos += len;
                 } else {
                     pos++;
                 }
