@@ -35,7 +35,7 @@ class TAccessControlObjectProxy
     : public TNonversionedObjectProxyBase<TAccessControlObject>
     , public virtual TNodeBase
     , public virtual TMapNodeMixin
-    , public THierarchicPermissionValidator<TObject>
+    , public THierarchicPermissionValidator<TObject*>
 {
 public:
     YTREE_NODE_TYPE_OVERRIDES(Map)
@@ -49,7 +49,7 @@ public:
         TObjectTypeMetadata* metadata,
         TObject* object)
         : TBase(bootstrap, metadata, object)
-        , THierarchicPermissionValidator<TObject>(CreatePermissionValidator())
+        , THierarchicPermissionValidator(CreatePermissionValidator())
     { }
 
     TIntrusivePtr<const NYTree::ICompositeNode> AsComposite() const override
@@ -590,7 +590,7 @@ class TAccessControlObjectNamespaceProxy
     : public TNonversionedObjectProxyBase<TAccessControlObjectNamespace>
     , public virtual TNodeBase
     , public virtual TMapNodeMixin
-    , public THierarchicPermissionValidator<TObject>
+    , public THierarchicPermissionValidator<TObject*>
 {
 public:
     YTREE_NODE_TYPE_OVERRIDES(Map)
@@ -604,7 +604,7 @@ public:
         TObjectTypeMetadata* metadata,
         TObject* object)
         : TBase(bootstrap, metadata, object)
-        , THierarchicPermissionValidator<TObject>(CreatePermissionValidator())
+        , THierarchicPermissionValidator(CreatePermissionValidator())
     { }
 
     TIntrusivePtr<const NYTree::ICompositeNode> AsComposite() const override

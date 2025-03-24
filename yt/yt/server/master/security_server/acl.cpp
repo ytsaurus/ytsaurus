@@ -177,11 +177,7 @@ static void DoDeserializeAclOrThrow(
         ace.InheritanceMode = serializableAce.InheritanceMode;
 
         // SubjectTagFilter
-        if (serializableAce.SubjectTagFilter) {
-            ace.SubjectTagFilter = MakeBooleanFormula(*serializableAce.SubjectTagFilter);
-        } else {
-            ace.SubjectTagFilter.reset();
-        }
+        ace.SubjectTagFilter = serializableAce.SubjectTagFilter;
 
         // Columns
         ace.Columns = std::move(serializableAce.Columns);
