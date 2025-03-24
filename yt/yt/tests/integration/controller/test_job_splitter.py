@@ -11,6 +11,7 @@ import pytest
 @pytest.mark.enabled_multidaemon
 class TestJobSplitter(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
+    NUM_TEST_PARTITIONS = 3
 
     NUM_MASTERS = 1
     NUM_NODES = 5
