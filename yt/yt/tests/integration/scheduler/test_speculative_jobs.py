@@ -81,6 +81,18 @@ class TestSpeculativeJobEngine(YTEnvSetup):
         assert job_counters["aborted"]["scheduled"]["speculative_run_lost"] == 0
         assert job_counters["aborted"]["scheduled"]["speculative_run_won"] == 1
 
+    @authors("faucct")
+    def test_multi_jobs(self):
+        op = run_test_vanilla(
+            with_breakpoint("echo YT_JOB_COOKIE_GROUP_INDEX $YT_JOB_COOKIE_GROUP_INDEX 1>&2; env 1>&2; BREAKPOINT"),
+            spec={"cookie_group_size": 2}, task_patch={"cookie_group_size": 2}, job_count=1,
+        )
+        wait_breakpoint(job_count=2)
+        job_ids = op.list_jobs()
+        release_breakpoint(job_ids[0])
+        release_breakpoint(job_ids[1])
+        op.track()
+
     @authors("gritukan")
     @pytest.mark.parametrize("revive_type", ["before_scheduling", "after_scheduling"])
     def test_abort_speculative_job_after_revival(self, revive_type):
