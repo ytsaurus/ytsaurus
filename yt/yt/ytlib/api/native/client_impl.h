@@ -1349,7 +1349,8 @@ private:
     void ValidateOperationAccess(
         NScheduler::TOperationId operationId,
         NScheduler::TJobId jobId,
-        NYTree::EPermissionSet permissions);
+        NYTree::EPermissionSet permissions,
+        bool ignoreMissingOperation = true);
     void ValidateOperationAccess(
         NScheduler::TOperationId operationId,
         const TOperation& operation,

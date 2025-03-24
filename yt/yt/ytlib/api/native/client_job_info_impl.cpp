@@ -449,33 +449,43 @@ TOperationId TClient::TryGetOperationId(
 void TClient::ValidateOperationAccess(
     TOperationId operationId,
     TJobId jobId,
-    EPermissionSet permissions)
+    EPermissionSet permissions,
+    bool ignoreMissingOperation)
 {
     TGetOperationOptions getOperationOptions;
     getOperationOptions.Attributes = {"runtime_parameters"};
     auto operationOrError = WaitFor(GetOperation(operationId, getOperationOptions));
 
-    if (operationOrError.IsOK()) {
-        ValidateOperationAccess(
-            operationId,
-            operationOrError.Value(),
-            jobId,
-            permissions);
+    // TODO(ignat): ignore resolve errors here.
+    if (!operationOrError.IsOK()) {
+        if (ignoreMissingOperation) {
+            // We check against an empty ACL to allow only "superusers" and "root" access.
+            YT_LOG_WARNING(
+                operationOrError,
+                "Failed to get operation to validate access; "
+                "validating against empty ACL (OperationId: %v, JobId: %v)",
+                operationId,
+                jobId);
+
+            ValidateOperationAccess(
+                operationId,
+                jobId,
+                TAccessControlRule(),
+                permissions);
+        } else {
+            THROW_ERROR_EXCEPTION("Failed to validate operation ACL")
+                << TErrorAttribute("operation_id", operationId)
+                << operationOrError;
+        }
         return;
     }
 
-    // We check against an empty ACL to allow only "superusers" and "root" access.
-    YT_LOG_WARNING(
-        operationOrError,
-        "Failed to get operation to validate access; "
-        "validating against empty ACL (OperationId: %v, JobId: %v)",
-        operationId,
-        jobId);
-
+    const auto& operation = operationOrError
+        .ValueOrThrow();
     ValidateOperationAccess(
         operationId,
+        operation,
         jobId,
-        TAccessControlRule(),
         permissions);
 }
 
@@ -509,7 +519,7 @@ void TClient::ValidateOperationAccess(
     NScheduler::ValidateOperationAccess(
         /*user*/ std::nullopt,
         TOperationId(),
-        AllocationIdFromJobId(jobId),
+        jobId,
         permissions,
         accessControlRule,
         StaticPointerCast<IClient>(MakeStrong(this)),
@@ -547,15 +557,15 @@ void TClient::ValidateOperationAccess(
 }
 
 void TClient::ValidateOperationAccess(
-        TOperationId operationId,
-        TJobId jobId,
-        TAccessControlRule accessControlRule,
-        NYTree::EPermissionSet permissions)
+    TOperationId operationId,
+    TJobId jobId,
+    TAccessControlRule accessControlRule,
+    NYTree::EPermissionSet permissions)
 {
     NScheduler::ValidateOperationAccess(
         Options_.GetAuthenticatedUser(),
         operationId,
-        AllocationIdFromJobId(jobId),
+        jobId,
         permissions,
         accessControlRule,
         StaticPointerCast<IClient>(MakeStrong(this)),
@@ -1175,6 +1185,12 @@ std::vector<TJobTraceEvent> TClient::DoGetJobTrace(
         [&] (const TString& alias) {
             operationId = ResolveOperationAlias(alias, options, deadline);
         });
+
+    ValidateOperationAccess(
+        operationId,
+        NullJobId,
+        EPermissionSet(EPermission::Read),
+        /*ignoreMissingOperation*/ false);
 
     return DoGetJobTraceFromTraceEventsTable(operationId, options, deadline);
 }
