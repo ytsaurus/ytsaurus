@@ -1936,11 +1936,19 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, LockCopyDestinatio
     // The node inside which the cloned node must be created. Usually it's the current one.
     auto* parentNode = node;
     if (!inplace) {
+        const auto& cypressManager = Bootstrap_->GetCypressManager();
         if (replace) {
             if (!node->GetParent()) {
                 ThrowCannotReplaceNode(this);
             }
-            parentNode = node->GetParent();
+
+            // COMPAT(h0pless)
+            if (GetDynamicCypressManagerConfig()->UseProperBranchedParentInLockCopyDestination) {
+                parentNode = cypressManager->GetVersionedNode(node->GetParent(), Transaction_);
+            } else {
+                parentNode = node->GetParent();
+            }
+
             childNodeKey = FindMapNodeChildKey(parentNode->As<TCypressMapNode>(), node->GetTrunkNode());
         } else {
             // TODO(h0pless): Use TYPath from Sequoia client when it'll get fixed.
@@ -1954,7 +1962,6 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, LockCopyDestinatio
 
         // This lock ensures that both parent node and child node won't change before AssembleTreeCopy is called.
         // For inplace this is not needed, since the node is freshly created.
-        const auto& cypressManager = Bootstrap_->GetCypressManager();
         cypressManager->LockNode(
             parentNode->GetTrunkNode(),
             Transaction_,
