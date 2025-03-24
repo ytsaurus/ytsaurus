@@ -2445,6 +2445,8 @@ message TReqListJobs
 
     optional bool with_interruption_info = 26;
 
+    optional NYT.NProto.TGuid main_job_id = 27;
+
     optional TMasterReadOptions master_read_options = 102;
 }
 
@@ -3177,10 +3179,12 @@ message TJob
     optional NYT.NProto.TGuid probing_job_competition_id = 25;
     optional bool has_probing_competitors = 26;
     optional uint64 job_cookie = 27;
+    optional uint64 job_cookie_group_index = 33;
     optional bytes archive_features = 29; // YSON
     optional string monitoring_descriptor = 30;
     optional string operation_incarnation = 31;
     optional NYT.NProto.TGuid allocation_id = 32;
+    optional NYT.NProto.TGuid main_job_id = 34;
 }
 
 message TListJobsStatistics
