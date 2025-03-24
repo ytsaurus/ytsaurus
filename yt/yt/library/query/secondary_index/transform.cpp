@@ -2,6 +2,7 @@
 #include "schema.h"
 
 #include <yt/yt/library/query/base/private.h>
+#include <yt/yt/library/query/base/query.h>
 #include <yt/yt/library/query/base/query_preparer.h>
 
 #include <yt/yt/library/query/base/ast.h>
@@ -42,7 +43,7 @@ struct TListContainsTransformer
         }
 
         auto* reference = function->Arguments[0]->As<NAst::TReferenceExpression>();
-        if (reference && reference->Reference != RepeatedIndexedColumn) {
+        if (!reference || reference->Reference != RepeatedIndexedColumn) {
             return TBase::OnFunction(function);
         }
 

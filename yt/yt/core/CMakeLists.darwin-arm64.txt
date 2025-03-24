@@ -85,6 +85,7 @@ target_link_libraries(yt-yt-core PUBLIC
   yt-library-profiling
   library-profiling-resource_tracker
   yt-library-tracing
+  yt-library-numeric
   backtrace-cursors-libunwind
 )
 
@@ -198,8 +199,8 @@ target_sources(yt-yt-core PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/histogram.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/adjusted_exponential_moving_average.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/id_generator.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/fair_share_hierarchical_queue.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/linear_probe.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/memory_usage_tracker.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/relaxed_mpsc_queue.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/parser_helpers.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/pattern_formatter.cpp
@@ -331,6 +332,7 @@ target_sources(yt-yt-core PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/core/ytree/request_complexity_limiter.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/ytree/request_complexity_limits.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/ytree/serialize.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/core/ytree/size.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/ytree/static_service_dispatcher.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/ytree/system_attribute_provider.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/ytree/tree_builder.cpp
@@ -408,6 +410,7 @@ target_link_libraries(yt-yt-core.global PUBLIC
   yt-library-profiling
   library-profiling-resource_tracker
   yt-library-tracing
+  yt-library-numeric
   backtrace-cursors-libunwind
 )
 

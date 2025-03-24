@@ -52,6 +52,7 @@ def dump_map_rules(rules):
 def run_check_impl(yt_client, logger, options, states, spec_patch=None, cloud=False):
     temp_path = options["temp_tables_path"]
     soft_map_timeout = options["soft_map_timeout"]
+    primary_medium = options.get("primary_medium", None)
 
     check_result = states.UNAVAILABLE_STATE
 
@@ -59,9 +60,13 @@ def run_check_impl(yt_client, logger, options, states, spec_patch=None, cloud=Fa
         logger.info('Creating "%s".', temp_path)
         yt_client.mkdir(temp_path, recursive=True)
 
-    source_table_path = yt_client.create_temp_table(path=temp_path)
+    table_attributes = {}
+    if primary_medium is not None:
+        table_attributes["primary_medium"] = primary_medium
+
+    source_table_path = yt_client.create_temp_table(path=temp_path, attributes=table_attributes)
     logger.info("Created %s table.", source_table_path)
-    mapped_table_path = yt_client.create_temp_table(path=temp_path)
+    mapped_table_path = yt_client.create_temp_table(path=temp_path, attributes=table_attributes)
     logger.info("Created %s table.", mapped_table_path)
 
     try:

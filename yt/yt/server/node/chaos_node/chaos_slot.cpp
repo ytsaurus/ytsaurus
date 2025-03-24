@@ -386,7 +386,7 @@ public:
         return IChaosSlot::CellarType;
     }
 
-    NApi::IClientPtr CreateClusterClient(const TString& clusterName) const override
+    NApi::IClientPtr CreateClusterClient(const std::string& clusterName) const override
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
 

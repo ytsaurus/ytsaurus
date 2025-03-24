@@ -522,7 +522,6 @@ void TOperationControllerBase::InitializeInputTransactions()
         filesAndTables,
         HasDiskRequestsWithSpecifiedAccount() || TLayerJobExperiment::IsEnabled(Spec_, GetUserJobSpecs()),
         GetInputTransactionParentId(),
-        AuthenticatedUser,
         Config,
         Logger);
 }
@@ -748,8 +747,6 @@ TOperationControllerInitializeResult TOperationControllerBase::InitializeClean()
 
     WaitFor(Host->UpdateInitializedOperationNode(/*isCleanOperationStart*/ true))
         .ThrowOnError();
-
-    SpecManager_->InitializeClean();
 
     YT_LOG_INFO("Operation initialized");
 
@@ -1299,6 +1296,8 @@ TOperationControllerMaterializeResult TOperationControllerBase::SafeMaterialize(
         RunningJobStatisticsUpdateExecutor_->Start();
         SendRunningAllocationTimeStatisticsUpdatesExecutor_->Start();
 
+        SpecManager_->SetConfigurator(ConfigureUpdate());
+
         if (auto maybeDelay = Spec_->TestingOperationOptions->DelayInsideMaterialize) {
             TDelayedExecutor::WaitForDuration(*maybeDelay);
         }
@@ -1482,6 +1481,7 @@ TOperationControllerReviveResult TOperationControllerBase::Revive()
     // So after revive we do reset the corresponding alert.
     SetOperationAlert(EOperationAlertType::UserJobMonitoringLimited, TError());
 
+    SpecManager_->SetConfigurator(ConfigureUpdate());
     SpecManager_->ApplySpecPatchReviving();
 
     YT_LOG_INFO("Operation revived");
@@ -3988,7 +3988,8 @@ void TOperationControllerBase::BuildJobAttributes(
                 .Item("predecessor_type").Value(joblet->PredecessorType)
                 .Item("predecessor_job_id").Value(joblet->PredecessorJobId);
         })
-        .OptionalItem("operation_incarnation", joblet->OperationIncarnation);
+        .OptionalItem("operation_incarnation", joblet->OperationIncarnation)
+        .Item("allocation_id").Value(AllocationIdFromJobId(joblet->JobId));
 }
 
 void TOperationControllerBase::BuildFinishedJobAttributes(
@@ -4955,10 +4956,12 @@ void TOperationControllerBase::TryScheduleFirstJob(
 
             scheduleAllocationResult->RecordFail(*failReason);
         } else {
-            scheduleAllocationResult->StartDescriptor.emplace(task->CreateAllocationStartDescriptor(
+            auto startDescriptor = task->CreateAllocationStartDescriptor(
                 allocation,
                 /*allowIdleCpuPolicy*/ IsIdleCpuPolicyAllowedInTree(allocation.TreeId),
-                *context.GetScheduleAllocationSpec()));
+                *context.GetScheduleAllocationSpec());
+            startDescriptor.AllocationAttributes.EnableMultipleJobs = Spec_->EnableMultipleJobsInAllocation.value_or(false);
+            scheduleAllocationResult->StartDescriptor.emplace(std::move(startDescriptor));
 
             RegisterTestingSpeculativeJobIfNeeded(*task, scheduleAllocationResult->StartDescriptor->Id);
             UpdateTask(task.Get());
@@ -6052,7 +6055,7 @@ void TOperationControllerBase::SafeAbortJobByJobTracker(TJobId jobId, EAbortReas
 
     YT_LOG_DEBUG("Aborting job by job tracker request (JobId: %v)", jobId);
 
-    DoAbortJob(std::move(joblet), abortReason, /*requestJobTrackerJobAbortion*/ false);
+    DoAbortJob(std::move(joblet), abortReason, /*requestJobTrackerJobAbortion*/ false, /*force*/ false);
 }
 
 void TOperationControllerBase::SuppressLivePreviewIfNeeded()
@@ -8845,7 +8848,7 @@ TOperationSpecBaseSealedConfigurator TOperationControllerBase::ConfigureUpdate()
 {
     auto configurator = GetOperationSpecBaseConfigurator();
     configurator.Field("max_failed_job_count", &TOperationSpecBase::MaxFailedJobCount)
-        .Updater(BIND_NO_PROPAGATE([&] (const int& newMaxFailedJobCount) {
+        .Updater(BIND_NO_PROPAGATE([&] (int newMaxFailedJobCount) {
             if (FailedJobCount_ >= newMaxFailedJobCount) {
                 OnOperationFailed(GetMaxFailedJobCountReachedError(newMaxFailedJobCount));
             }
@@ -8857,8 +8860,27 @@ TOperationSpecBaseSealedConfigurator TOperationControllerBase::ConfigureUpdate()
 void TOperationControllerBase::PatchSpec(INodePtr newCumulativeSpecPatch, bool dryRun)
 {
     if (dryRun) {
+        THROW_ERROR_EXCEPTION_UNLESS(
+            State.load() == EControllerState::Running,
+            "Operation is not running");
         SpecManager_->ValidateSpecPatch(std::move(newCumulativeSpecPatch));
     } else {
+        switch (State) {
+            case EControllerState::Preparing:
+                YT_ABORT();
+            case EControllerState::Running:
+                // Ok.
+                break;
+            case EControllerState::Failing:
+            case EControllerState::Completed:
+            case EControllerState::Failed:
+            case EControllerState::Aborted: {
+                YT_LOG_WARNING(
+                    "Controller changed state before applying spec patch (ControllerState: %v)",
+                    State.load());
+                return;
+            }
+        }
         SpecManager_->ApplySpecPatch(std::move(newCumulativeSpecPatch));
     }
 }
@@ -11141,13 +11163,14 @@ void TOperationControllerBase::RegisterOutputTables(const std::vector<TRichYPath
 void TOperationControllerBase::DoAbortJob(
     TJobletPtr joblet,
     EAbortReason abortReason,
-    bool requestJobTrackerJobAbortion)
+    bool requestJobTrackerJobAbortion,
+    bool force)
 {
     // NB(renadeen): there must be no context switches before call OnJobAborted.
 
     auto jobId = joblet->JobId;
 
-    if (!ShouldProcessJobEvents()) {
+    if (!force && !ShouldProcessJobEvents()) {
         YT_LOG_DEBUG(
             "Job events processing disabled, abort skipped (JobId: %v, OperationState: %v)",
             joblet->JobId,
@@ -11179,7 +11202,7 @@ void TOperationControllerBase::AbortJob(TJobId jobId, EAbortReason abortReason)
         jobId,
         abortReason);
 
-    DoAbortJob(std::move(joblet), abortReason, /*requestJobTrackerJobAbortion*/ true);
+    DoAbortJob(std::move(joblet), abortReason, /*requestJobTrackerJobAbortion*/ true, /*force*/ false);
 }
 
 bool TOperationControllerBase::CanInterruptJobs() const
@@ -11202,7 +11225,8 @@ void TOperationControllerBase::HandleJobReport(const TJobletPtr& joblet, TContro
             .OperationId(OperationId)
             .JobId(joblet->JobId)
             .Address(joblet->NodeDescriptor.Address)
-            .Ttl(joblet->ArchiveTtl));
+            .Ttl(joblet->ArchiveTtl)
+            .AllocationId(AllocationIdFromJobId(joblet->JobId)));
 }
 
 void TOperationControllerBase::OnCompetitiveJobScheduled(const TJobletPtr& joblet, EJobCompetitionType competitionType)
@@ -11352,11 +11376,45 @@ TJobSplitterConfigPtr TOperationControllerBase::GetJobSplitterConfigTemplate() c
         config->EnableJobSplitting = false;
     }
 
-    if (!Spec_->JobSplitter->EnableJobSplitting) {
+    const auto& specConfig = Spec_->JobSplitter;
+
+    if (specConfig->MinJobTime) {
+        config->MinJobTime = *(specConfig->MinJobTime);
+    }
+    if (specConfig->MinTotalDataWeight) {
+        config->MinTotalDataWeight = *(specConfig->MinTotalDataWeight);
+    }
+    if (specConfig->ExecToPrepareTimeRatio) {
+        config->ExecToPrepareTimeRatio = *(specConfig->ExecToPrepareTimeRatio);
+    }
+    if (specConfig->NoProgressJobTimeToAveragePrepareTimeRatio) {
+        config->NoProgressJobTimeToAveragePrepareTimeRatio = *(specConfig->NoProgressJobTimeToAveragePrepareTimeRatio);
+    }
+
+    if (specConfig->MaxJobsPerSplit) {
+        config->MaxJobsPerSplit = *(specConfig->MaxJobsPerSplit);
+    }
+    if (specConfig->MaxInputTableCount) {
+        config->MaxInputTableCount = *(specConfig->MaxInputTableCount);
+    }
+
+    if (specConfig->ResidualJobFactor) {
+        config->ResidualJobFactor = *(specConfig->ResidualJobFactor);
+    }
+    if (specConfig->ResidualJobCountMinThreshold) {
+        config->ResidualJobCountMinThreshold = *(specConfig->ResidualJobCountMinThreshold);
+    }
+
+    if (!specConfig->EnableJobSplitting) {
         config->EnableJobSplitting = false;
     }
-    if (!Spec_->JobSplitter->EnableJobSpeculation) {
+    if (!specConfig->EnableJobSpeculation) {
         config->EnableJobSpeculation = false;
+    }
+
+    // It should be checked after update of config->MaxInputTableCount.
+    if (std::ssize(InputManager->GetInputTables()) > config->MaxInputTableCount) {
+        config->EnableJobSplitting = false;
     }
 
     return config;

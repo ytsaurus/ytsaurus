@@ -18,18 +18,18 @@ using namespace std::chrono_literals;
 
 TEST(TKeyPairTest, Construct)
 {
-    EXPECT_FALSE(std::copy_constructible<TKeyPair>);
+    EXPECT_TRUE(std::copy_constructible<TKeyPair>);
     EXPECT_TRUE(std::move_constructible<TKeyPair>);
 
     InitializeCryptography();
 
     auto metaOk = SimpleMetadata(0h, -1h, 10h);
-    TKeyPair keyPair(metaOk);
+    auto keyPair = New<TKeyPair>(metaOk);
 
     EXPECT_EQ(
-        GetKeyId(keyPair.KeyInfo()->Meta()),
+        GetKeyId(keyPair->KeyInfo()->Meta()),
         GetKeyId(metaOk));
-    EXPECT_TRUE(keyPair.CheckSanity());
+    EXPECT_TRUE(keyPair->CheckSanity());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -39,15 +39,15 @@ TEST(TKeyPairTest, Sign)
     InitializeCryptography();
 
     auto metaOk = SimpleMetadata(0h, -1h, 10h);
-    TKeyPair keyPair(metaOk);
+    auto keyPair = New<TKeyPair>(metaOk);
 
     std::array<std::byte, 1234> randomData;
     std::generate(randomData.begin(), randomData.end(), TRandomByteGenerator());
 
     std::array<std::byte, SignatureSize> signature;
-    keyPair.Sign(randomData, signature);
+    keyPair->Sign(randomData, signature);
 
-    EXPECT_TRUE(keyPair.KeyInfo()->Verify(randomData, signature));
+    EXPECT_TRUE(keyPair->KeyInfo()->Verify(randomData, signature));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

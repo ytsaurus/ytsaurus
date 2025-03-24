@@ -351,7 +351,7 @@ In this case (where necessary)
 | Name | Description |
 | --- | --- |
 | [`yt.JoinMergeUnsortedFactor`](pragma.md#ytjoinmergeunsortedfactor) | See above |
-| [`yt.JoinMergeTablesLimit`](pragma.md#ytjoinmergetableslimit) | Maximum number of `JOIN` input tables (when using [RANGE, CONCAT](select.md#concat), etc.) |
+| [`yt.JoinMergeTablesLimit`](pragma.md#ytjoinmergetableslimit) | Maximum number of `JOIN` input tables (when using [RANGE, CONCAT](select/concat.md), etc.) |
 | [`yt.JoinMergeUseSmallAsPrimary`](pragma.md#ytjoinmergeusesmallasprimary) | Influences the primary table selection when executing a Reduce operation |
 | [`yt.JoinMergeForce`](pragma.md#ytjoinmergeforce) | Forces the selection of the SortedJoin strategy for all `JOIN` in a query |
 

@@ -71,7 +71,7 @@ private:
         Client_->SetMutationId(req, options);
         ToProto(req->mutable_table_id(), attributes->Get<TTableId>("table_id", {}));
         req->set_table_path(attributes->Get<TYPath>("table_path", {}));
-        req->set_table_cluster_name(attributes->Get<TString>("table_cluster_name", {}));
+        req->set_table_cluster_name(attributes->Get<std::string>("table_cluster_name", {}));
 
         // NB(ponasenko-rs): For testing purposes only.
         req->set_bypass_suspended(attributes->Get<bool>("bypass_suspended", false));

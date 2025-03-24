@@ -8,7 +8,6 @@ from yt_commands import (
 
 from yt_type_helpers import make_schema, normalize_schema, list_type
 
-from yt_helpers import skip_if_no_descending
 import yt_error_codes
 
 from yt.common import YtError
@@ -383,9 +382,6 @@ class TestConcatenate(YTEnvSetup):
     @authors("gritukan")
     @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
     def test_sorted_concatenate_simple(self, sort_order):
-        if sort_order == "descending":
-            skip_if_no_descending(self.Env)
-
         create(
             "table",
             "//tmp/in1",
@@ -448,9 +444,6 @@ class TestConcatenate(YTEnvSetup):
     @authors("gritukan")
     @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
     def test_sorted_concatenate_comparator(self, sort_order):
-        if sort_order == "descending":
-            skip_if_no_descending(self.Env)
-
         create(
             "table",
             "//tmp/in1",
@@ -502,9 +495,6 @@ class TestConcatenate(YTEnvSetup):
     @authors("gritukan")
     @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
     def test_sorted_concatenate_overlapping_ranges(self, sort_order):
-        if sort_order == "descending":
-            skip_if_no_descending(self.Env)
-
         def make_rows(values):
             mul = 1 if sort_order == "ascending" else -1
             return [{"a": value * mul} for value in values]
@@ -627,9 +617,6 @@ class TestConcatenate(YTEnvSetup):
     @authors("gritukan")
     @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
     def test_sorted_concatenate_append(self, sort_order):
-        if sort_order == "descending":
-            skip_if_no_descending(self.Env)
-
         def make_rows(values):
             mul = 1 if sort_order == "ascending" else -1
             return [{"a": value * mul} for value in values]
@@ -698,9 +685,6 @@ class TestConcatenate(YTEnvSetup):
     @authors("gritukan")
     @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
     def test_sorted_concatenate_unique_keys_validation(self, sort_order):
-        if sort_order == "descending":
-            skip_if_no_descending(self.Env)
-
         def make_rows(values):
             mul = 1 if sort_order == "ascending" else -1
             return [{"a": value * mul} for value in values]
@@ -907,14 +891,6 @@ class TestConcatenateShardedTx(TestConcatenatePortal):
         "13": {"roles": ["chunk_host"]},
         "14": {"roles": ["transaction_coordinator"]},
         "15": {"roles": ["transaction_coordinator"]},
-    }
-
-    DELTA_CONTROLLER_AGENT_CONFIG = {
-        "controller_agent": {
-            # COMPAT(shakurov): change the default to false and remove
-            # this delta once masters are up to date.
-            "enable_prerequisites_for_starting_completion_transactions": False,
-        }
     }
 
 

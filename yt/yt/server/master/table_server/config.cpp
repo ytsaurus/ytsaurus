@@ -12,15 +12,14 @@ void TDynamicTableManagerConfig::Register(TRegistrar registrar)
         .DontSerializeDefault();
 
     registrar.Parameter("make_schema_attribute_opaque", &TThis::MakeSchemaAttributeOpaque)
-        .Default(false);
+        .Default(true);
     registrar.Parameter("non_opaque_schema_attribute_user_whitelist", &TThis::NonOpaqueSchemaAttributeUserWhitelist)
         .Default()
         .DontSerializeDefault();
 
     registrar.Parameter("compact_table_cache_expiration_timeout", &TThis::CompactTableCacheExpirationTimeout)
         .GreaterThan(TDuration::Zero())
-        .Default(TDuration::Minutes(5))
-        .DontSerializeDefault();
+        .Default(TDuration::Minutes(5));
 }
 
 void TTableManagerConfig::Register(TRegistrar /*registrar*/)

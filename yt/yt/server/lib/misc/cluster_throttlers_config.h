@@ -21,7 +21,7 @@ struct TClusterThrottlersConfig
     : public NYTree::TYsonStruct
 {
     NDistributedThrottler::TDistributedThrottlerConfigPtr DistributedThrottler;
-    THashMap<TString, TClusterLimitsConfigPtr> ClusterLimits;
+    THashMap<std::string, TClusterLimitsConfigPtr> ClusterLimits;
     //! Rate might be too high if maximum estimated time required to read pending bytes is higher than this value.
     TDuration MaxEstimatedTimeToReadPendingBytesThreshold;
     //! Rate is too high if minimum estimated time required to read pending bytes is higher than this value.

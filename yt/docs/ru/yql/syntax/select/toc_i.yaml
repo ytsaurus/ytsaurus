@@ -1,0 +1,21 @@
+items:
+- { name: Обзор,             href: index.md                                                }
+- { name: TEMPORARY TABLE,   href: temporary-tables.md                                      }
+- { name: FROM,              href: from.md                                                 }
+- { name: FROM AS_TABLE,     href: from-as-table.md                                        }
+- { name: FROM SELECT,       href: from-select.md                                          }
+- { name: FOLDER,            href: folder.md,                                              }
+- { name: WalkFolders,       href: walk-folders.md,                                        }
+- { name: DISTINCT,          href: distinct.md                                             }
+- { name: UNIQUE DISTINCT,   href: unique-distinct-hints.md                                }
+- { name: UNION,             href: union.md                                                }
+- { name: CONCAT,            href: concat.md,                                              }
+- { name: VIEW,              href: view.md,                                                }
+- { name: WITH,              href: with.md                                                 }
+- { name: WITHOUT,           href: without.md                                              }
+- { name: WHERE,             href: where.md                                                }
+- { name: ORDER BY,          href: order-by.md                                             }
+- { name: ASSUME ORDER BY,   href: assume-order-by.md                                      }
+- { name: LIMIT OFFSET,      href: limit-offset.md                                         }
+- { name: SAMPLE,            href: sample.md                                               }
+- { name: TABLESAMPLE,       href: sample.md                                               }

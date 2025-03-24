@@ -150,6 +150,8 @@ public:
     void ValidateUnmount() override;
     void ValidateReshardRemove() const override;
 
+    NTableClient::TOwningKeyBound GetPivotKeyBound() const;
+
 private:
     ETabletBackupState BackupState_ = ETabletBackupState::None;
 };

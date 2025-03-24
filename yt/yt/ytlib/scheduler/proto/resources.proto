@@ -55,6 +55,7 @@ message TAllocationAttributes
     required bool allow_idle_cpu_policy = 3;
     required int64 port_count = 4;
     required TDiskRequest disk_request = 5;
+    optional bool enable_multiple_jobs = 6;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

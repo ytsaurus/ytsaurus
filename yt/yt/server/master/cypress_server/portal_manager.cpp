@@ -284,6 +284,17 @@ public:
         return ExitNodes_;
     }
 
+    int CountPortalsLeadingToCell(TCellTag cellTag) const override
+    {
+        int count = 0;
+        for (const auto& [_, node] : EntranceNodes_) {
+            if (node->GetExitCellTag() == cellTag) {
+                ++count;
+            }
+        }
+        return count;
+    }
+
     void ValidateNoNodesBehindRemovedMastersPortal(const THashSet<TCellTag>& removedMasterCellTags) const override
     {
         for (const auto& [_, node] : EntranceNodes_) {

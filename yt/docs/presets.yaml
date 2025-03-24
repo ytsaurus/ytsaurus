@@ -9,3 +9,4 @@ default:
     python-sdk-version: 0.13.18
     java-sdk-version: 1.2.5
     python-yson-version: 0.4.9
+    cert-manager-version: v1.17.1

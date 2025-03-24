@@ -6,13 +6,14 @@ import java.util.List;
 import org.junit.After;
 import org.junit.Rule;
 import org.junit.rules.TestName;
+import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.utility.MountableFile;
 import tech.ytsaurus.client.rpc.RpcOptions;
 import tech.ytsaurus.core.GUID;
 import tech.ytsaurus.core.cypress.YPath;
 import tech.ytsaurus.testlib.LocalYTsaurus;
 import tech.ytsaurus.testlib.LoggingUtils;
-import tech.ytsaurus.testlib.YTsaurusFixture;
+import tech.ytsaurus.testlib.YTsaurusContainer;
 
 public class YTsaurusClientMulticellTestBase {
     static {
@@ -21,37 +22,46 @@ public class YTsaurusClientMulticellTestBase {
         );
 
         if (!System.getenv().containsKey("YT_PROXY")) {
-            LocalYTsaurus.startContainer(new LocalYTsaurus.Config()
+            ytsaurusContainer = YTsaurusContainer.startContainer(new YTsaurusContainer.Config()
+                    .setHttpPort(10112)
                     .setSecondaryMasterCellCount(3)
                     .setRpcProxyCount(1)
-                    .setRpcProxyPorts(List.of(10111))
+                    .setRpcProxyPorts(List.of(10113))
                     .setProxyConfigFile(MountableFile.forClasspathResource("/proxy_config.yson"))
             );
         }
     }
 
+    private static GenericContainer<?> ytsaurusContainer;
+
     @Rule
     public TestName name = new TestName();
     private final GUID runId = GUID.create();
-    List<YTsaurusFixture> ytFixtures = new ArrayList<>();
+    List<YTsaurusMulticellFixture> ytFixtures = new ArrayList<>();
 
-    public final YTsaurusFixture createYtFixture() {
+    public final YTsaurusMulticellFixture createYtFixture() {
         RpcOptions rpcOptions = new RpcOptions();
         return createYtFixture(rpcOptions);
     }
 
-    public final YTsaurusFixture createYtFixture(RpcOptions rpcOptions) {
+    public final YTsaurusMulticellFixture createYtFixture(RpcOptions rpcOptions) {
         var methodName = name.getMethodName().replaceAll("[\\[\\]]", "-");
         var testDirectory = YPath.simple("//tmp/ytsaurus-client-test/" + runId + "-" + methodName);
 
-        YTsaurusFixture fixture = YTsaurusFixture.builder()
-                .setYTsaurusAddress(LocalYTsaurus.getAddress())
-                .setContainerRunning(LocalYTsaurus.getContainer() != null)
+        YTsaurusMulticellFixture fixture = YTsaurusMulticellFixture.builder()
+                .setYTsaurusAddress(getYTsaurusAddress())
+                .setContainerRunning(ytsaurusContainer != null)
                 .setRpcOptions(rpcOptions)
                 .setTestDirectoryPath(testDirectory)
                 .build();
         ytFixtures.add(fixture);
         return fixture;
+    }
+
+    private static String getYTsaurusAddress() {
+        return ytsaurusContainer != null ?
+                ytsaurusContainer.getHost() + ":" + ytsaurusContainer.getMappedPort(80)
+                : LocalYTsaurus.getAddress();
     }
 
     @After

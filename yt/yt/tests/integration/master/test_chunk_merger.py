@@ -1570,11 +1570,6 @@ class TestTableDataStatisticsConsistency(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 1
 
-    MASTER_CELL_DESCRIPTORS = {
-        "10": {"roles": ["cypress_node_host"]},
-        "11": {"roles": ["chunk_host"]},
-    }
-
     DELTA_DYNAMIC_MASTER_CONFIG = {
         "chunk_manager": {
             "chunk_merger": {

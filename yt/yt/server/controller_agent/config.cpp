@@ -252,11 +252,6 @@ void TJobSplitterConfig::Register(TRegistrar registrar)
         .LessThanOrEqual(1.0)
         .Default(0.8);
 
-    registrar.Parameter("late_jobs_percentile", &TThis::LateJobsPercentile)
-        .GreaterThanOrEqual(0.5)
-        .LessThanOrEqual(1.0)
-        .Default(0.95);
-
     registrar.Parameter("residual_job_factor", &TThis::ResidualJobFactor)
         .GreaterThan(0)
         .LessThanOrEqual(1.0)
@@ -710,18 +705,6 @@ void TDockerRegistryConfig::Register(TRegistrar registrar)
             THROW_ERROR_EXCEPTION("At least one of forward_internal_images_to_job_specs or translate_internal_images_into_layers must be enabled");
         }
     });
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-void TDisallowRemoteOperationsConfig::Register(TRegistrar registrar)
-{
-    registrar.Parameter("allowed_users", &TThis::AllowedUsers)
-        .Default();
-    registrar.Parameter("allowed_clusters", &TThis::AllowedClusters)
-        .Default();
-    registrar.Parameter("allowed_for_everyone_clusters", &TThis::AllowedForEveryoneClusters)
-        .Default();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1295,9 +1278,6 @@ void TControllerAgentConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("job_id_unequal_to_allocation_id", &TThis::JobIdUnequalToAllocationId)
         .Default(false);
-
-    registrar.Parameter("disallow_remote_operations", &TThis::DisallowRemoteOperations)
-        .DefaultNew();
 
     registrar.Parameter("enable_merge_schemas_during_schema_infer", &TThis::EnableMergeSchemasDuringSchemaInfer)
         .Default(false);

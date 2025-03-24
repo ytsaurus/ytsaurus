@@ -17,6 +17,7 @@
 
 #include <yt/yt/library/profiling/sensor.h>
 
+#include <library/cpp/yt/memory/memory_usage_tracker.h>
 
 #include <atomic>
 
@@ -221,7 +222,7 @@ public:
         return records;
     }
 
-    NIO::IIOEngine::TReadRequest MakeChunkFragmentReadRequest(
+    NIO::TReadRequest MakeChunkFragmentReadRequest(
         const NIO::TChunkFragmentDescriptor& fragmentDescriptor)
     {
         return Changelog_->MakeChunkFragmentReadRequest(fragmentDescriptor);
@@ -712,7 +713,7 @@ public:
             maxBytes);
     }
 
-    NIO::IIOEngine::TReadRequest MakeChunkFragmentReadRequest(
+    NIO::TReadRequest MakeChunkFragmentReadRequest(
         const NIO::TChunkFragmentDescriptor& fragmentDescriptor) override
     {
         return Queue_->MakeChunkFragmentReadRequest(fragmentDescriptor);

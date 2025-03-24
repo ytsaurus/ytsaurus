@@ -9,16 +9,15 @@ from yt_commands import (
     authors,
     copy,
     create,
-    create_user,
     get,
     get_job,
     exists,
     join_reduce,
-    raises_yt_error,
     read_table,
     release_breakpoint,
     remove,
     set,
+    start_transaction,
     wait_breakpoint,
     with_breakpoint,
     write_table,
@@ -34,7 +33,7 @@ from yt_commands import (
     wait,
 )
 
-from yt_helpers import skip_if_no_descending, profiler_factory
+from yt_helpers import profiler_factory
 from yt.common import YtError
 import yt.yson as yson
 
@@ -71,10 +70,6 @@ class TestSchedulerRemoteOperationCommandsBase(YTEnvSetup):
                     "use_remote_master_caches": True,
                 },
             },
-            "disallow_remote_operations": {
-                "allowed_users": ["root"],
-                "allowed_clusters": ["remote_0"],
-            }
         },
     }
 
@@ -259,9 +254,6 @@ class TestSchedulerRemoteOperationCommands(TestSchedulerRemoteOperationCommandsB
     @authors("coteeq")
     @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
     def test_reduce_cat(self, sort_order):
-        if sort_order == "descending":
-            skip_if_no_descending(self.Env)
-
         create("table", "//tmp/in1")
         rows = [
             {"key": 0, "value": 1},
@@ -614,55 +606,47 @@ class TestSchedulerRemoteOperationCommands(TestSchedulerRemoteOperationCommandsB
         assert read_table("//tmp/out") == expected
 
     @authors("coteeq")
-    def test_disallow(self):
-        create_user("user-not-allowed")
-        with raises_yt_error("not allowed to start operations"):
-            map(
-                in_=self.to_remote_path("//tmp/t"),
-                out_="//tmp/out",
-                authenticated_user="user-not-allowed",
-                command="cat"
-            )
+    @pytest.mark.parametrize("revive", [False, True])
+    def test_with_transactions(self, revive):
+        local_tx = start_transaction(timeout=30000)
+        remote_tx = start_transaction(timeout=30000, driver=self.remote_driver)
 
-        with raises_yt_error("not allowed to be an input remote cluster"):
-            map(
-                # NB: Cluster 'not-allowed' does not need to exist
-                in_="""<cluster="not-allowed">//tmp/t""",
-                out_="//tmp/out",
-                command="cat"
-            )
+        n_chunks = 2
+        create("table", "//tmp/t1", driver=self.remote_driver, tx=remote_tx)
+        create("table", "//tmp/t1", tx=local_tx)
+        create("table", "//tmp/t_out")
+        data1 = [{"a": 1}, {"a": 2}]
+        data2 = [{"a": 10}, {"a": 20}]
+        for _ in range(n_chunks):
+            write_table("<append=%true>//tmp/t1", data1, driver=self.remote_driver, tx=remote_tx)
+            write_table("<append=%true>//tmp/t1", data2, tx=local_tx)
 
-
-@pytest.mark.enabled_multidaemon
-class TestSchedulerRemoteOperationAllowedForEveryoneCluster(TestSchedulerRemoteOperationCommandsBase):
-    ENABLE_MULTIDAEMON = True
-    DELTA_CONTROLLER_AGENT_CONFIG = {
-        "controller_agent": {
-            "snapshot_period": 500,
-            "remote_copy_operation_options": {
-                "spec_template": {
-                    "use_remote_master_caches": True,
+        op = map(
+            track=False,
+            in_=[
+                f"<transaction_id=\"{remote_tx}\";cluster=\"{self.REMOTE_CLUSTER_NAME}\">//tmp/t1",
+                f"<transaction_id=\"{local_tx}\">//tmp/t1",
+            ],
+            out="//tmp/t_out",
+            command=with_breakpoint("BREAKPOINT; cat"),
+            spec={
+                "mapper": {
+                    "enable_input_table_index": False,
                 },
             },
-            "disallow_remote_operations": {
-                "allowed_for_everyone_clusters": ["remote_0"],
-            }
-        },
-    }
-
-    @authors("renadeen")
-    def test_simple(self):
-        create("table", "//tmp/t1", driver=self.remote_driver)
-        create("table", "//tmp/t2")
-
-        map(
-            in_=self.to_remote_path("//tmp/t1"),
-            out="//tmp/t2",
-            command="cat",
         )
 
-        assert read_table("//tmp/t2") == []
-        assert not get("//tmp/t2/@sorted")
+        wait_breakpoint()
+
+        if revive:
+            with Restarter(self.Env, [CONTROLLER_AGENTS_SERVICE]):
+                pass
+
+        release_breakpoint()
+        op.track()
+
+        assert sorted_dicts(read_table("//tmp/t_out")) == sorted_dicts((data1 + data2) * n_chunks)
+        assert not get("//tmp/t_out/@sorted")
 
 
 class TestSchedulerRemoteOperationWithClusterThrottlers(TestSchedulerRemoteOperationCommandsBase):
@@ -695,10 +679,6 @@ class TestSchedulerRemoteOperationWithClusterThrottlers(TestSchedulerRemoteOpera
                     "use_remote_master_caches": True,
                 },
             },
-            "disallow_remote_operations": {
-                "allowed_users": ["root"],
-                "allowed_clusters": ["remote_0"],
-            }
         },
     }
 

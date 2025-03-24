@@ -10,16 +10,16 @@
 #include <contrib/ydb/public/api/protos/ydb_topic.pb.h>
 #include <contrib/ydb/public/api/protos/ydb_value.pb.h>
 
-#include <ydb-cpp-sdk/client/draft/ydb_replication.h>
-#include <ydb-cpp-sdk/client/draft/ydb_view.h>
-#include <ydb-cpp-sdk/client/coordination/coordination.h>
-#include <ydb-cpp-sdk/client/export/export.h>
-#include <ydb-cpp-sdk/client/import/import.h>
-#include <ydb-cpp-sdk/client/monitoring/monitoring.h>
-#include <ydb-cpp-sdk/client/table/table.h>
-#include <ydb-cpp-sdk/client/topic/client.h>
+#include <contrib/ydb/public/sdk/cpp/include/ydb-cpp-sdk/client/draft/ydb_replication.h>
+#include <contrib/ydb/public/sdk/cpp/include/ydb-cpp-sdk/client/draft/ydb_view.h>
+#include <contrib/ydb/public/sdk/cpp/include/ydb-cpp-sdk/client/coordination/coordination.h>
+#include <contrib/ydb/public/sdk/cpp/include/ydb-cpp-sdk/client/export/export.h>
+#include <contrib/ydb/public/sdk/cpp/include/ydb-cpp-sdk/client/import/import.h>
+#include <contrib/ydb/public/sdk/cpp/include/ydb-cpp-sdk/client/monitoring/monitoring.h>
+#include <contrib/ydb/public/sdk/cpp/include/ydb-cpp-sdk/client/table/table.h>
+#include <contrib/ydb/public/sdk/cpp/include/ydb-cpp-sdk/client/topic/client.h>
 
-namespace NYdb::inline V3 {
+namespace NYdb::inline Dev {
 
 class TResultSet;
 class TValue;

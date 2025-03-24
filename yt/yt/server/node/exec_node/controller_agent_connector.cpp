@@ -399,7 +399,7 @@ void TControllerAgentConnectorPool::TControllerAgentConnector::PrepareHeartbeatR
             }
 
             auto* availability = cluster_network_bandwidth_availability->add_availability();
-            availability->set_cluster_name(TString(clusterName.Underlying()));
+            availability->set_cluster_name(clusterName.Underlying());
             availability->set_is_available(isAvailable);
         }
     }

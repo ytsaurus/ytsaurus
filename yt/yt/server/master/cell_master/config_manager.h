@@ -19,6 +19,7 @@ public:
     virtual const TDynamicClusterConfigPtr& GetConfig() const = 0;
     virtual void SetConfig(NYTree::INodePtr configNode) = 0;
 
+    DECLARE_INTERFACE_SIGNAL(void(TDynamicClusterConfigPtr), BeforeConfigChanged);
     DECLARE_INTERFACE_SIGNAL(void(TDynamicClusterConfigPtr), ConfigChanged);
 };
 

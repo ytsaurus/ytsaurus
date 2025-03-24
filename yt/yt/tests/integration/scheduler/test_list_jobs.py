@@ -11,13 +11,15 @@ from yt_commands import (
 
 from yt_scheduler_helpers import scheduler_new_orchid_pool_tree_path
 
+from yt_operations_archive_helpers import get_allocation_id_from_archive
+
 import yt_error_codes
 
 import yt.yson as yson
 import yt.environment.init_operations_archive as init_operations_archive
 from yt.wrapper.operation_commands import add_failed_operation_stderrs_to_error_message
 from yt.wrapper.common import uuid_hash_pair, YtError
-from yt.common import date_string_to_datetime, datetime_to_string, utcnow
+from yt.common import date_string_to_datetime, datetime_to_string, utcnow, update
 
 import os
 import time
@@ -154,6 +156,8 @@ class TestListJobsBase(YTEnvSetup):
         self._tmpdir = create_tmpdir("list_jobs")
         self.failed_job_id_fname = os.path.join(self._tmpdir, "failed_job_id")
 
+
+class TestListJobsCommon(TestListJobsBase):
     def restart_services_and_wait_jobs_table(self, services):
         def get_user_slots_limit():
             return get(scheduler_new_orchid_pool_tree_path("default") + "/resource_limits/user_slots")
@@ -599,13 +603,13 @@ class TestListJobsBase(YTEnvSetup):
         wait_no_assert(lambda: self._check_after_finish(op, job_ids, operation_cleaned=True))
 
 
-class TestListJobsStatisticsLz4(TestListJobsBase):
+class TestListJobsStatisticsLz4(TestListJobsCommon):
     ENABLE_MULTIDAEMON = False  # There are component restarts.
     DELTA_DYNAMIC_NODE_CONFIG = deepcopy(TestListJobsBase.DELTA_DYNAMIC_NODE_CONFIG)
     DELTA_DYNAMIC_NODE_CONFIG["%true"]["exec_node"]["job_reporter"]["report_statistics_lz4"] = True
 
 
-class TestListJobs(TestListJobsBase):
+class TestListJobs(TestListJobsCommon):
     ENABLE_MULTIDAEMON = False  # There are component restarts.
 
     @authors("ermolovd", "omgronny")
@@ -1119,6 +1123,128 @@ class TestListJobs(TestListJobsBase):
         check_filter(0, to_time=start_time)
         check_filter(1, to_time=middle_time_after_breakpoint)
         check_filter(2, to_time=end_time)
+
+    @authors("bystrovserg")
+    def test_with_interruption_info(self):
+        create_pool("research", attributes={"strong_guarantee_resources": {"cpu": 1}})
+        create_pool("prod", attributes={"strong_guarantee_resources": {"cpu": 2}})
+
+        op1 = run_test_vanilla(with_breakpoint("BREAKPOINT"), job_count=3, spec={"pool": "research"})
+        wait_breakpoint(job_count=3)
+
+        wait(lambda: len(list_jobs(op1.id, with_interruption_info=True)["jobs"]) == 0)
+
+        op2 = run_test_vanilla(with_breakpoint("BREAKPOINT"), spec={"pool": "prod"}, job_count=3)
+        wait_breakpoint(job_count=3)
+
+        wait(lambda: op1.get_job_count(state="aborted") == 2)
+
+        wait(lambda: len(list_jobs(op2.id, with_interruption_info=False)["jobs"]) == 2)
+        wait(lambda: len(list_jobs(op1.id, with_interruption_info=True)["jobs"]) == 2)
+        wait(lambda: len(list_jobs(op1.id, with_interruption_info=False)["jobs"]) == 1)
+
+        release_breakpoint()
+        op1.track()
+        op2.track()
+
+        wait(lambda: len(list_jobs(op2.id, with_interruption_info=False)["jobs"]) == 3)
+        wait(lambda: len(list_jobs(op1.id, with_interruption_info=True)["jobs"]) == 2)
+        wait(lambda: len(list_jobs(op1.id, with_interruption_info=False)["jobs"]) == 3)
+
+
+class TestListJobsAllocation(TestListJobsBase):
+    NUM_NODES = 1
+
+    DELTA_NODE_CONFIG = update(TestListJobsBase.DELTA_NODE_CONFIG, {
+        "job_resource_manager": {
+            "resource_limits": {
+                "cpu": 1,
+                "user_slots": 1,
+            },
+        },
+    })
+
+    DELTA_DYNAMIC_NODE_CONFIG = update(TestListJobsBase.DELTA_DYNAMIC_NODE_CONFIG, {
+        "%true": {
+            "exec_node": {
+                "job_controller": {
+                    "allocation": {
+                        "enable_multiple_jobs": True,
+                    },
+                },
+            },
+        },
+    })
+
+    @authors("bystrovserg")
+    def test_allocation_id(self):
+        op = run_test_vanilla(
+            with_breakpoint("BREAKPOINT"),
+        )
+
+        def compare_allocation_id_with_archive(job_id):
+            wait(lambda: len(list_jobs(op.id)["jobs"]) == 1 and "allocation_id" in list_jobs(op.id)["jobs"][0])
+            job_from_list = list_jobs(op.id)["jobs"][0]
+            job_allocation_id_from_archive = get_allocation_id_from_archive(op.id, job_id)
+            assert job_from_list["allocation_id"] == job_allocation_id_from_archive
+
+        job_ids = wait_breakpoint()
+        assert len(job_ids) == 1
+        compare_allocation_id_with_archive(job_ids[0])
+
+        release_breakpoint()
+
+        op.track()
+        compare_allocation_id_with_archive(job_ids[0])
+
+    @authors("bystrovserg")
+    def test_same_allocation(self):
+        create("table", "//tmp/t_in", attributes={"replication_factor": 1})
+        create("table", "//tmp/t_out", attributes={"replication_factor": 1})
+
+        write_table("//tmp/t_in", [{"foo": "bar"}] * 2)
+
+        op = map(
+            wait_for_jobs=True,
+            track=False,
+            command=with_breakpoint("BREAKPOINT ; cat"),
+            in_="//tmp/t_in",
+            out="//tmp/t_out",
+            spec={"data_size_per_job": 1, "enable_multiple_jobs_in_allocation": True},
+        )
+
+        job_ids = wait_breakpoint()
+        assert len(job_ids) == 1
+
+        job_id1 = job_ids[0]
+
+        wait(lambda: len(checked_list_jobs(op.id)["jobs"]) == 1)
+        assert "allocation_id" in checked_list_jobs(op.id)["jobs"][0]
+        allocation_id_before = checked_list_jobs(op.id)["jobs"][0]["allocation_id"]
+
+        release_breakpoint(job_id=job_id1)
+
+        job_ids = wait_breakpoint()
+        assert len(job_ids) == 1
+
+        job_id2 = job_ids[0]
+
+        assert job_id1 != job_id2
+
+        wait(lambda: len(checked_list_jobs(op.id)["jobs"]) == 2)
+        jobs_after = checked_list_jobs(op.id)["jobs"]
+        assert "allocation_id" in jobs_after[0] and "allocation_id" in jobs_after[1]
+        assert allocation_id_before == jobs_after[0]["allocation_id"] == jobs_after[1]["allocation_id"]
+
+        release_breakpoint()
+
+        op.track()
+
+        wait(lambda: len(checked_list_jobs(op.id)["jobs"]) == 2)
+        jobs_end = checked_list_jobs(op.id)["jobs"]
+        assert "allocation_id" in jobs_end[0] and "allocation_id" in jobs_end[1]
+        assert allocation_id_before == jobs_end[0]["allocation_id"] == jobs_end[1]["allocation_id"]
+
 
 ##################################################################
 

@@ -165,6 +165,8 @@ type Spec struct {
 	DataWeightPerSortedMergeJob int   `yson:"data_weight_per_sorted_merge_job,omitempty"`
 	DataWeightPerReduceJob      int   `yson:"data_weight_per_reduce_job,omitempty"`
 
+	MaxDataWeightPerJob int64 `yson:"max_data_weight_per_job,omitempty"`
+
 	UseColumnarStatistics *bool `yson:"use_columnar_statistics,omitempty"`
 
 	TimeLimit                     yson.Duration `yson:"time_limit,omitempty"`

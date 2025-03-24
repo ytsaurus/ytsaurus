@@ -107,7 +107,6 @@
 #include <yt/yt/core/tracing/trace_context.h>
 
 #include <yt/yt/core/misc/fs.h>
-#include <yt/yt/core/misc/memory_usage_tracker.h>
 #include <yt/yt/core/misc/proc.h>
 #include <yt/yt/core/misc/ref_counted_tracker.h>
 
@@ -127,6 +126,8 @@
 #include <yt/yt/library/dns_over_rpc/client/dns_over_rpc_resolver.h>
 
 #include <yt/yt/library/oom/oom.h>
+
+#include <library/cpp/yt/memory/memory_usage_tracker.h>
 
 #include <util/system/fs.h>
 #include <util/system/execpath.h>
@@ -1045,7 +1046,10 @@ NApi::NNative::IConnectionPtr TJobProxy::CreateNativeConnection(NApi::NNative::T
         YT_LOG_DEBUG("Destination service id is ready");
     }
 
-    return NApi::NNative::CreateConnection(std::move(config));
+    NNative::TConnectionOptions options;
+    options.RetryRequestQueueSizeLimitExceeded = true;
+
+    return NApi::NNative::CreateConnection(std::move(config), std::move(options));
 }
 
 void TJobProxy::ReportResult(

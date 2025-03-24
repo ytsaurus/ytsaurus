@@ -1,13 +1,14 @@
 from yt_env_setup import YTEnvSetup, Restarter, SCHEDULERS_SERVICE, CONTROLLER_AGENTS_SERVICE
 
 from yt_commands import (
-    authors, print_debug, wait, wait_breakpoint, release_breakpoint, with_breakpoint, events_on_fs,
-    raises_yt_error, update_controller_agent_config, update_nodes_dynamic_config,
+    authors, execute_command, print_debug, wait, wait_breakpoint, release_breakpoint, with_breakpoint, events_on_fs,
+    raises_yt_error, update_controller_agent_config, update_nodes_dynamic_config, update_scheduler_config,
     create, ls, exists, sorted_dicts, create_pool,
     get, write_file, read_table, write_table, vanilla, run_test_vanilla, abort_job, abandon_job,
-    interrupt_job, dump_job_context, run_sleeping_vanilla, get_allocation_id_from_job_id)
+    interrupt_job, dump_job_context, run_sleeping_vanilla, get_allocation_id_from_job_id,
+    patch_op_spec)
 
-from yt_helpers import skip_if_no_descending, profiler_factory, read_structured_log, write_log_barrier, JobCountProfiler
+from yt_helpers import profiler_factory, read_structured_log, write_log_barrier, JobCountProfiler
 
 from yt import yson
 from yt.yson import to_yson_type
@@ -19,6 +20,8 @@ from flaky import flaky
 import datetime
 import time
 from collections import Counter
+from copy import deepcopy
+import builtins
 
 ##################################################################
 
@@ -394,8 +397,6 @@ class TestSchedulerVanillaCommands(YTEnvSetup):
 
     @authors("max42")
     def test_table_output(self):
-        skip_if_no_descending(self.Env)
-
         create("table", "//tmp/t_ab")  # append = %true
         create("table", "//tmp/t_bc_1")  # sorted_by = [a], sort_order=ascending
         create("table", "//tmp/t_bc_2")  # sorted_by = [a], sort_order=descending
@@ -1821,5 +1822,441 @@ class TestGangManager(YTEnvSetup):
                 }
             )
 
+    @authors("pogorelov")
+    def test_gang_manager_job_hanging(self):
+        # YT-24448
+        # In this test we want to switch operation incarnation having postpone finshed allocation event.
+        # So we kill one node and increase node_registration_timeout for CA.
+        # And after that abort some jobs.
+        update_scheduler_config("node_registration_timeout", 500)
+
+        update_controller_agent_config("job_tracker/node_disconnection_timeout", 30000)
+
+        op = run_test_vanilla(
+            with_breakpoint("BREAKPOINT"),
+            job_count=3,
+            task_patch={
+                "gang_manager": {},
+            },
+        )
+
+        first_job_ids = wait_breakpoint(job_count=3)
+        assert len(first_job_ids) == 3
+
+        first_job_id = first_job_ids[0]
+        first_job_allocation_id = get_allocation_id_from_job_id(first_job_id)
+        first_job_node = op.get_node(first_job_id)
+
+        print_debug(f"Node address of job {first_job_id} is {first_job_node}")
+
+        op.wait_for_fresh_snapshot()
+        with Restarter(self.Env, CONTROLLER_AGENTS_SERVICE):
+            self.Env.kill_nodes(addresses=[first_job_node])
+
+        # In case of test failure we must start killed node again.
+        try:
+            # We create it after CA restart to not compare new value of sensor with value before restart.
+            incarnation_switch_counter = _get_controller_profiler().counter(
+                "controller_agent/gang_operations/incarnation_switch_count")
+
+            second_job_id = first_job_ids[1]
+            second_job_node = op.get_node(second_job_id)
+            assert first_job_node != second_job_node
+
+            controller_agent_address = get(op.get_path() + "/@controller_agent_address")
+            wait(lambda: exists(f"//sys/controller_agents/instances/{controller_agent_address}/orchid/controller_agent/job_tracker/allocations/{first_job_allocation_id}"))
+
+            def _check_allocation_finished():
+                allocation_orchid = get(f"//sys/controller_agents/instances/{controller_agent_address}/orchid/controller_agent/job_tracker/allocations/{first_job_allocation_id}")
+                if not allocation_orchid["finished"]:
+                    return False
+
+                assert allocation_orchid["jobs"][first_job_id]["stage"] == "waiting_for_confirmation"
+
+                return True
+            wait(_check_allocation_finished)
+
+            print_debug(f"Aborting job {second_job_id}")
+
+            abort_job(second_job_id)
+
+            # Allocation abort was postponed.
+            # After incarnation switching, postponed allocation abort will be processed and it led to new incarnation switch.
+            wait(lambda: incarnation_switch_counter.get() >= 1)
+        finally:
+            self.Env.start_nodes(addresses=[first_job_node])
+
+        release_breakpoint(job_id=first_job_ids[0])
+        release_breakpoint(job_id=first_job_ids[1])
+        release_breakpoint(job_id=first_job_ids[2])
+
+        wait_breakpoint(job_count=3)
+
+        release_breakpoint()
+
+        op.track()
 
 ##################################################################
+
+
+class TestPatchVanillaSpecBase(YTEnvSetup):
+    NUM_MASTERS = 1
+    NUM_NODES = 3
+    NUM_SCHEDULERS = 1
+
+    DELTA_CONTROLLER_AGENT_CONFIG = {
+        "controller_agent": {
+            "gang_manager": {
+                "enabled": True,
+            },
+
+            "snapshot_period": 1000,
+        },
+    }
+
+    DELTA_NODE_CONFIG = {
+        "job_resource_manager": {
+            "resource_limits": {
+                "cpu": 20,
+                "user_slots": 20,
+                "memory": 2 ** 32,
+            },
+        },
+    }
+
+    def _run_vanilla(self, tasks=["task"], task_spec_template={}, spec_template={}):
+        task_spec = deepcopy(task_spec_template)
+        task_spec.update({
+            "job_count": 2,
+            "command": with_breakpoint("BREAKPOINT ; true"),
+        })
+        spec = deepcopy(spec_template)
+        spec.update({
+            "tasks": {
+                task: task_spec
+                for task in tasks
+            },
+        })
+        return vanilla(
+            track=False,
+            spec=spec
+        )
+
+    def assert_job_states(
+        self,
+        op,
+        task_name,
+        running=None,
+        completed=None,
+        aborted=None,
+        invalidated=None,
+    ):
+        states = self._get_job_counters(op, task_name)
+
+        if running is not None:
+            assert states["running"] == running, f"States are: {states}"
+        if completed is not None:
+            assert states["completed"] == completed, f"States are: {states}"
+        if aborted is not None:
+            assert states["aborted"] == aborted, f"States are: {states}"
+        if invalidated is not None:
+            assert states["invalidated"] == invalidated, f"States are: {states}"
+
+    def _get_job_counters(self, op, task_name):
+        tasks_progress = get(op.get_path() + "/controller_orchid/progress/tasks", verbose=True)
+        states = {}
+        for task in tasks_progress:
+            if task["task_name"] != task_name:
+                continue
+            counter = task["job_counter"]
+            states["running"] = counter["running"]
+            states["invalidated"] = counter["invalidated"]
+            states["aborted"] = counter["aborted"]["total"]
+            states["completed"] = counter["completed"]["total"]
+            states["total"] = counter["total"]
+
+        print_debug(f"Task '{task_name}' states: {states}")
+        return states
+
+    def _set_job_count(self, op, count, task="task", sync=True):
+        return execute_command(
+            "patch_op_spec",
+            {
+                "operation_id": op.id,
+                "patches": [
+                    {"path": f"/tasks/{task}/job_count", "value": count},
+                ],
+            },
+            return_response=not sync,
+        )
+
+
+class TestPatchVanillaSpec(TestPatchVanillaSpecBase):
+    @authors("coteeq")
+    def test_increase_job_count(self):
+        op = self._run_vanilla()
+
+        wait_breakpoint(job_count=2)
+
+        self._set_job_count(op, 4)
+
+        wait_breakpoint(job_count=4)
+        release_breakpoint()
+        op.track()
+
+        self.assert_job_states(op, "task", completed=4)
+
+    @authors("coteeq")
+    def test_decrease_job_count(self):
+        op = self._run_vanilla()
+
+        wait_breakpoint(job_count=2)
+
+        self._set_job_count(op, 1)
+
+        wait(lambda: len(op.get_running_jobs()) == 1)
+
+        release_breakpoint()
+        op.track()
+
+        self.assert_job_states(op, "task", aborted=1, completed=1)
+
+    @authors("coteeq")
+    def test_regenerate_jobs(self):
+        op = self._run_vanilla()
+
+        wait_breakpoint(job_count=2)
+
+        self._set_job_count(op, 1)
+        wait(lambda: len(op.get_running_jobs()) == 1)
+        self.assert_job_states(op, "task", aborted=1, running=1)
+
+        self._set_job_count(op, 2)
+        wait(lambda: len(op.get_running_jobs()) == 2)
+        self.assert_job_states(op, "task", aborted=1, running=2)
+
+        release_breakpoint()
+        op.track()
+
+        self.assert_job_states(op, "task", aborted=1, completed=2)
+
+    @authors("coteeq")
+    def test_regenerate_jobs_and_restart_completed(self):
+        op = self._run_vanilla(task_spec_template={"restart_completed_jobs": True})
+
+        wait_breakpoint(job_count=2)
+
+        self._set_job_count(op, 1)
+        wait(lambda: len(op.get_running_jobs()) == 1)
+        self.assert_job_states(op, "task", aborted=1, running=1)
+
+        self._set_job_count(op, 2)
+        wait(lambda: len(op.get_running_jobs()) == 2)
+        self.assert_job_states(op, "task", aborted=1, running=2)
+
+        def wait_jobs(release: bool):
+            wait(lambda: len(op.get_running_jobs()) == 2)
+            old_jobs = op.get_running_jobs()
+            for job_id in old_jobs:
+                wait_breakpoint(job_id=job_id)
+            if release:
+                for job_id in old_jobs:
+                    release_breakpoint(job_id=job_id)
+
+            return old_jobs
+
+        # Wait until all expected jobs are started and complete (aka release) them.
+        old_jobs = wait_jobs(release=True)
+
+        # Wait until jobs are restarted from the controller's point of view.
+        wait(lambda: builtins.set(op.get_running_jobs()).isdisjoint(builtins.set(old_jobs)))
+        # And from the jobs' point of view.
+        wait_jobs(release=False)
+
+        self.assert_job_states(op, "task", aborted=1, completed=0, running=2)
+
+    @authors("coteeq")
+    def test_stress_pendulum(self):
+        op = self._run_vanilla(tasks=["one", "two"])
+
+        wait_breakpoint(job_count=2 + 2)
+
+        patch_op_spec(
+            op.id,
+            patches=[
+                {"path": "/tasks/one/job_count", "value": 5},
+                {"path": "/tasks/two/job_count", "value": 5},
+            ]
+        )
+
+        wait(lambda: len(op.get_running_jobs()) == 5 + 5)
+        one_job_counts = [4, 6, 3, 7, 2, 8, 1, 9]
+        two_job_counts = list(reversed(one_job_counts))
+
+        prev_one_job_count = 5
+        prev_two_job_count = 5
+        total_one_aborted = 0
+        total_two_aborted = 0
+        for one_job_count, two_job_count in zip(one_job_counts, two_job_counts):
+            patch_op_spec(
+                op.id,
+                patches=[
+                    {"path": "/tasks/one/job_count", "value": one_job_count},
+                    {"path": "/tasks/two/job_count", "value": two_job_count},
+                ]
+            )
+
+            def are_new_jobs_alive():
+                return all([
+                    self._get_job_counters(op, "one")["running"] == one_job_count,
+                    self._get_job_counters(op, "two")["running"] == two_job_count,
+                ])
+
+            wait(are_new_jobs_alive)
+
+            if prev_one_job_count > one_job_count:
+                total_one_aborted += prev_one_job_count - one_job_count
+            if prev_two_job_count > two_job_count:
+                total_two_aborted += prev_two_job_count - two_job_count
+
+            self.assert_job_states(op, "one", aborted=total_one_aborted, running=one_job_count)
+            self.assert_job_states(op, "two", aborted=total_two_aborted, running=two_job_count)
+
+            prev_one_job_count = one_job_count
+            prev_two_job_count = two_job_count
+
+        release_breakpoint()
+        op.track()
+
+        self.assert_job_states(op, "one", aborted=total_one_aborted, completed=prev_one_job_count)
+        self.assert_job_states(op, "two", aborted=total_two_aborted, completed=prev_two_job_count)
+
+    @authors("coteeq")
+    def test_abort_pending(self):
+        op = self._run_vanilla(spec_template={"resource_limits": {"user_slots": 1}})
+
+        time.sleep(2)
+        self.assert_job_states(op, "task", running=1)
+
+        wait_breakpoint(job_count=1)
+        self._set_job_count(op, 1)
+
+        # Wait for anything bad to happen.
+        time.sleep(2)
+
+        self.assert_job_states(op, "task", aborted=0, running=1, completed=0)
+
+        release_breakpoint()
+        op.track()
+        self.assert_job_states(op, "task", aborted=0, running=0, completed=1)
+
+    @authors("coteeq")
+    def test_forbidden_cases(self):
+        def check(**kwargs):
+            op = self._run_vanilla(**kwargs)
+            op.wait_for_state("running")
+
+            with raises_yt_error("Cannot update"):
+                self._set_job_count(op, 4)
+
+        check(spec_template={"fail_on_job_restart": True})
+        check(task_spec_template={"fail_on_job_restart": True})
+        check(task_spec_template={"gang_manager": {}})
+
+        op = self._run_vanilla()
+        op.wait_for_state("running")
+        with raises_yt_error("Validation failed at /tasks/task/job_count"):
+            self._set_job_count(op, 0)
+
+    @authors("coteeq")
+    def test_operation_finishes_prematurely(self):
+        op = self._run_vanilla()
+
+        wait_breakpoint(job_count=2)
+
+        second_job = [
+            job_id
+            for job_id, attributes in op.get_running_jobs().items()
+            if attributes["job_cookie"] == 1
+        ][0]
+
+        release_breakpoint(job_id=second_job)
+        wait(lambda: len(op.get_running_jobs()) == 1)
+        self._set_job_count(op, 1)
+
+        op.track()
+
+        self.assert_job_states(op, "task", aborted=1, completed=1, invalidated=1)
+
+
+class TestPatchVanillaSpecRestarts(TestPatchVanillaSpecBase):
+    ENABLE_MULTIDAEMON = False  # There are component restarts.
+
+    def _restart_controller(self):
+        with Restarter(self.Env, CONTROLLER_AGENTS_SERVICE):
+            pass
+
+    def _run_vanilla(self, *args, delay_in_apply, spec_template={}, **kwargs):
+        spec_template.update({
+            "testing": {
+                "patch_spec_protocol": {
+                    "delay_inside_apply": {
+                        "duration": delay_in_apply
+                    }
+                }
+            }
+        })
+        return super()._run_vanilla(*args, spec_template=spec_template, **kwargs)
+
+    def _assert_no_clean_start(self, op):
+        events = get(op.get_path() + "/@events")
+        assert len([event for event in events if event["state"] == "initializing"]) == 1
+
+    @authors("coteeq")
+    def test_increase_job_count(self):
+        op = self._run_vanilla(delay_in_apply="3s")
+
+        wait_breakpoint(job_count=2)
+        op.wait_for_fresh_snapshot()
+
+        response = self._set_job_count(op, 4, sync=False)
+        time.sleep(1)
+        self._restart_controller()
+
+        op.wait_for_state("running")
+        wait(lambda: len(op.get_running_jobs()) == 4)
+        self.assert_job_states(op, "task", running=4, aborted=0, completed=0, invalidated=0)
+
+        self._assert_no_clean_start(op)
+
+        release_breakpoint()
+        op.track()
+
+        self.assert_job_states(op, "task", completed=4, aborted=0)
+
+        response.wait()
+        assert not response.is_ok()
+
+    @authors("coteeq")
+    def test_decrease_job_count(self):
+        op = self._run_vanilla(delay_in_apply="3s")
+
+        wait_breakpoint(job_count=2)
+        op.wait_for_fresh_snapshot()
+
+        response = self._set_job_count(op, 1, sync=False)
+        time.sleep(1)
+        self._restart_controller()
+
+        wait(lambda: len(op.get_running_jobs(verbose=True)) == 1)
+        self.assert_job_states(op, "task", running=1, aborted=1, completed=0, invalidated=1)
+
+        self._assert_no_clean_start(op)
+
+        release_breakpoint()
+        op.track()
+
+        self.assert_job_states(op, "task", aborted=1, completed=1)
+
+        response.wait()
+        assert not response.is_ok()

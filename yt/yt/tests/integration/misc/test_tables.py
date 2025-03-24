@@ -11,7 +11,7 @@ from yt_commands import (
 )
 
 from yt_helpers import (
-    skip_if_no_descending, wait_until_unlocked
+    wait_until_unlocked
 )
 
 from yt_type_helpers import make_schema, normalize_schema, list_type
@@ -106,9 +106,6 @@ class TestTables(YTEnvSetup):
     @authors("ignat")
     @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
     def test_sorted_write_table(self, sort_order):
-        if sort_order == "descending":
-            skip_if_no_descending(self.Env)
-
         create("table", "//tmp/table")
 
         rows = [{"key": 0}, {"key": 1}, {"key": 2}, {"key": 3}]
@@ -134,9 +131,6 @@ class TestTables(YTEnvSetup):
     @authors("monster")
     @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
     def test_append_sorted_simple(self, sort_order):
-        if sort_order == "descending":
-            skip_if_no_descending(self.Env)
-
         create("table", "//tmp/table")
 
         first_chunk = [{"a": 0, "b": 0}, {"a": 0, "b": 1}, {"a": 1, "b": 0}]
@@ -164,9 +158,6 @@ class TestTables(YTEnvSetup):
     @authors("shakurov")
     @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
     def test_append_sorted_simple_with_transaction(self, sort_order):
-        if sort_order == "descending":
-            skip_if_no_descending(self.Env)
-
         create("table", "//tmp/table")
 
         first_chunk = [{"a": 0, "b": 0}, {"a": 0, "b": 1}, {"a": 1, "b": 0}]
@@ -209,9 +200,6 @@ class TestTables(YTEnvSetup):
     @authors("monster")
     @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
     def test_append_sorted_with_less_key_columns(self, sort_order):
-        if sort_order == "descending":
-            skip_if_no_descending(self.Env)
-
         create("table", "//tmp/table")
 
         first_chunk = [{"a": 0, "b": 0}, {"a": 0, "b": 1}, {"a": 1, "b": 0}]
@@ -238,9 +226,6 @@ class TestTables(YTEnvSetup):
     @authors("ignat", "monster")
     @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
     def test_append_sorted_order_violated(self, sort_order):
-        if sort_order == "descending":
-            skip_if_no_descending(self.Env)
-
         create("table", "//tmp/table")
 
         first_chunk = [{"a": 1}, {"a": 2}]
@@ -258,9 +243,6 @@ class TestTables(YTEnvSetup):
     @authors("ignat", "monster")
     @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
     def test_append_sorted_to_unsorted(self, sort_order):
-        if sort_order == "descending":
-            skip_if_no_descending(self.Env)
-
         create("table", "//tmp/table")
 
         first_chunk = [{"a": 2}, {"a": 1}, {"a": 0}]
@@ -278,9 +260,6 @@ class TestTables(YTEnvSetup):
     @authors("ignat", "monster")
     @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
     def test_append_sorted_with_more_key_columns(self, sort_order):
-        if sort_order == "descending":
-            skip_if_no_descending(self.Env)
-
         create("table", "//tmp/table")
 
         sorted_by_a = [{"name": "a", "sort_order": sort_order}]
@@ -298,9 +277,6 @@ class TestTables(YTEnvSetup):
     @authors("ignat", "monster")
     @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
     def test_append_sorted_with_different_key_columns(self, sort_order):
-        if sort_order == "descending":
-            skip_if_no_descending(self.Env)
-
         create("table", "//tmp/table")
         rows = [{"a": 0}, {"a": 1}, {"a": 2}]
         if sort_order == "descending":
@@ -323,9 +299,6 @@ class TestTables(YTEnvSetup):
     @authors("monster")
     @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
     def test_append_sorted_concurrently(self, sort_order):
-        if sort_order == "descending":
-            skip_if_no_descending(self.Env)
-
         create("table", "//tmp/table")
         tx1 = start_transaction()
         tx2 = start_transaction()
@@ -352,8 +325,6 @@ class TestTables(YTEnvSetup):
 
     @authors("gritukan")
     def test_append_sorted_different_sort_order(self):
-        skip_if_no_descending(self.Env)
-
         create("table", "//tmp/table")
         write_table(
             "//tmp/table",
@@ -523,9 +494,6 @@ class TestTables(YTEnvSetup):
     @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
     @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
     def test_sorted_unique(self, optimize_for, sort_order):
-        if sort_order == "descending":
-            skip_if_no_descending(self.Env)
-
         create(
             "table",
             "//tmp/table",
@@ -811,8 +779,6 @@ class TestTables(YTEnvSetup):
     @authors("panin", "ignat", "gritukan", "gepardo")
     @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
     def test_row_key_selector_descending(self, optimize_for):
-        skip_if_no_descending(self.Env)
-
         create("table", "//tmp/table", attributes={
             "optimize_for": optimize_for,
             "schema": make_schema([
@@ -1190,9 +1156,6 @@ class TestTables(YTEnvSetup):
     @authors("babenko", "ignat")
     @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
     def test_copy_sorted(self, sort_order):
-        if sort_order == "descending":
-            skip_if_no_descending(self.Env)
-
         create("table", "//tmp/t1")
         sort(
             in_="//tmp/t1",
@@ -1654,9 +1617,6 @@ class TestTables(YTEnvSetup):
     @authors("savrus")
     @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
     def test_schema_validation(self, sort_order):
-        if sort_order == "descending":
-            skip_if_no_descending(self.Env)
-
         def init_table(path, schema):
             remove(path, force=True)
             create("table", path, attributes={"schema": schema})
@@ -1971,9 +1931,6 @@ class TestTables(YTEnvSetup):
     @authors("babenko", "shakurov")
     @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
     def test_append_sorted_to_corrupted_table_YT_11060(self, sort_order):
-        if sort_order == "descending":
-            skip_if_no_descending(self.Env)
-
         create("table", "//tmp/t")
 
         sorted_by = '[{name=key;sort_order=' + sort_order + '}]'
@@ -2007,9 +1964,6 @@ class TestTables(YTEnvSetup):
     @authors("gritukan")
     @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
     def test_boundary_keys_attribute(self, sort_order):
-        if sort_order == "descending":
-            skip_if_no_descending(self.Env)
-
         create(
             "table",
             "//tmp/t1",
@@ -3296,14 +3250,6 @@ class TestTablesShardedTx(TestTablesPortal):
         "10": {"roles": ["cypress_node_host"]},
         "13": {"roles": ["transaction_coordinator", "chunk_host"]},
         "14": {"roles": ["transaction_coordinator"]},
-    }
-
-    DELTA_CONTROLLER_AGENT_CONFIG = {
-        "controller_agent": {
-            # COMPAT(shakurov): change the default to false and remove
-            # this delta once masters are up to date.
-            "enable_prerequisites_for_starting_completion_transactions": False,
-        }
     }
 
 

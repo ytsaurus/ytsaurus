@@ -49,7 +49,7 @@ Unlike scoped pragmas, regular pragmas can only be used in the global scope of v
 | --- | --- |
 | Flag | false |
 
-Automatically perform [COMMIT](select.md#commit) after each expression.
+Automatically perform [COMMIT](commit.md) after each expression.
 
 ### TablePathPrefix {#table-path-prefix}
 
@@ -136,7 +136,7 @@ When set to "auto", it enables a new compute engine. Computing is made, whenever
 
 If using `SELECT foo.* FROM ... AS foo`, delete the `foo.`  prefix from the names of the resulting columns.
 
-It also works for [JOIN](join.md), but in this case it may crash if there's a name conflict (which can be resolved through [WITHOUT](select.md#without) and renaming columns). For JOIN in SimpleColumns mode, an implicit Coalesce is made for key columns: the query `SELECT * FROM T1 AS a JOIN T2 AS b USING(key)` in the SimpleColumns mode works same as `SELECT a.key ?? b.key AS key, ... FROM T1 AS a JOIN T2 AS b USING(key)`
+It also works for [JOIN](join.md), but in this case it may crash if there's a name conflict (which can be resolved through [WITHOUT](select/without.md) and renaming columns). For JOIN in SimpleColumns mode, an implicit Coalesce is made for key columns: the query `SELECT * FROM T1 AS a JOIN T2 AS b USING(key)` in the SimpleColumns mode works same as `SELECT a.key ?? b.key AS key, ... FROM T1 AS a JOIN T2 AS b USING(key)`
 
 ### CoalesceJoinKeysOnQualifiedAll
 
@@ -219,12 +219,11 @@ will raise "Expecting mandatory AS here. Did you miss comma?" error.
 ### OrderedColumns {#orderedcolumns}
 `OrderedColumns` / `DisableOrderedColumns`
 
-Output the [sequence of columns](select.md#orderedcolumns) to SELECT/JOIN/UNION ALL and save it when recording the results. The order of columns is undefined by default.
+Output the [sequence of columns](select/index.md#orderedcolumns) to SELECT/JOIN/UNION ALL and save it when recording the results. The order of columns is undefined by default.
 
 ### PositionalUnionAll {#positionalunionall}
 
-Enable the standard column-by-column execution for [UNION ALL](select.md#unionall). In this case,
-[column ordering](#orderedcolumns) is enabled automatically.
+Enable the standard column-by-column execution for [UNION ALL](select/union.md#union-all). In this case, [column ordering](#orderedcolumns) is enabled automatically.
 
 ### RegexUseRe2
 
@@ -1395,7 +1394,7 @@ Allows complex-type values to be recorded in tables through native support of co
 | --- | --- | --- |
 | String representation of a yson dictionary | — | Dynamic |
 
-Set the `@media` attribute for newly created tables. If available, assigns [mediums in {{product-name}}](https://yt.yandex-team.ru/docs/description/common/media#naznachenie-mediuma), where table chunks will be stored.
+Set the `@media` attribute for newly created tables. If available, assigns [media in {{product-name}}](https://yt.yandex-team.ru/docs/description/common/media#naznachenie-mediuma), where table chunks will be stored.
 
 Tables specified in [INSERT INTO](insert_into.md) are Published. All other tables are Temporary.
 

@@ -17,8 +17,8 @@ items:
     when: audience == "public"
     href: overview/about.md
   - name: Как попробовать
-    when: audience == "public"
     href: overview/try-yt.md
+    when: audience == "public"
   - name: Руководство пользователя
     when: audience == "public"
     expanded: true
@@ -414,6 +414,8 @@ items:
                 href: api/python/dataclass.md
               - name: Примеры
                 href: api/python/examples.md
+          - name: Apache Airflow
+            href: api/airflow/userdoc.md
           - name: C++
             items:
               - name: Описание
@@ -487,7 +489,7 @@ items:
     when: datahub != true
     href: admin-guide/releases.md
   - name: FAQ
-    href: faq/faq.md
+    href: faq/index.md
   - name: Как сообщить о проблеме
     when: datahub != true
     href: user-guide/problems/howtoreport.md

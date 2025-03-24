@@ -49,7 +49,7 @@ T* OptionalToPointer(std::optional<T>& optionalValue)
 template <class TTable>
 TIntrusivePtr<TTable> CreateStateTableClientOrThrow(
     const TWeakPtr<NApi::NNative::IConnection>& connection,
-    const std::optional<TString>& cluster,
+    const std::optional<std::string>& cluster,
     const TYPath& path,
     const std::string& user)
 {
@@ -95,10 +95,10 @@ void HandleTableMountInfoError(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TString NormalizeClusterName(TStringBuf clusterName)
+std::string NormalizeClusterName(TStringBuf clusterName)
 {
     clusterName.ChopSuffix(".yt.yandex.net");
-    return TString(clusterName);
+    return std::string(clusterName);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -53,16 +53,16 @@
 #include <yt/yt/core/concurrency/periodic_yielder.h>
 
 #include <yt/yt/core/misc/finally.h>
-#include <yt/yt/core/misc/memory_usage_tracker.h>
 
 #include <yt/yt/core/rpc/local_channel.h>
 
 #include <yt/yt/library/undumpable/ref.h>
 
+#include <library/cpp/yt/memory/atomic_intrusive_ptr.h>
+#include <library/cpp/yt/memory/memory_usage_tracker.h>
+
 #include <library/cpp/yt/threading/spin_lock.h>
 #include <library/cpp/yt/threading/rw_spin_lock.h>
-
-#include <library/cpp/yt/memory/atomic_intrusive_ptr.h>
 
 namespace NYT::NTabletNode {
 

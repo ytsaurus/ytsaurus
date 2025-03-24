@@ -92,9 +92,6 @@ class TestStderrTable(YTEnvSetup):
         "controller_agent": {
             # We want to disable premature chunk list allocataion to expose YT-6219.
             "chunk_list_watermark_count": 0,
-            # COMPAT(shakurov): change the default to false and remove
-            # this delta once masters are up to date.
-            "enable_prerequisites_for_starting_completion_transactions": False,
         }
     }
 
@@ -403,7 +400,7 @@ class TestStderrTable(YTEnvSetup):
             map(
                 in_="//tmp/t_input",
                 out="//tmp/t_output",
-                command="""python -c 'import sys; s = "x" * (20 * 1024 * 1024) ; sys.stderr.write(s)'""",
+                command="""python3 -c 'import sys; s = "x" * (20 * 1024 * 1024) ; sys.stderr.write(s)'""",
                 spec={
                     "stderr_table_path": "//tmp/t_stderr",
                     "stderr_table_writer_config": {
@@ -423,7 +420,7 @@ class TestStderrTable(YTEnvSetup):
         map(
             in_="//tmp/t_input",
             out="//tmp/t_output",
-            command="""python -c 'import sys; s = "x" * (30 * 1024 * 1024) ; sys.stderr.write(s)'""",
+            command="""python3 -c 'import sys; s = "x" * (30 * 1024 * 1024) ; sys.stderr.write(s)'""",
             spec={
                 "stderr_table_path": "//tmp/t_stderr",
                 "stderr_table_writer_config": {
@@ -443,7 +440,7 @@ class TestStderrTable(YTEnvSetup):
         map(
             in_="//tmp/t_input",
             out="//tmp/t_output",
-            command="""python -c 'import sys; s = "x " * (30 * 1024 * 1024) ; sys.stderr.write(s)'""",
+            command="""python3 -c 'import sys; s = "x " * (30 * 1024 * 1024) ; sys.stderr.write(s)'""",
             spec=get_stderr_spec("//tmp/t_stderr"),
         )
         stderr_rows = read_table("//tmp/t_stderr", verbose=False)

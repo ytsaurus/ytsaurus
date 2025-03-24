@@ -153,7 +153,6 @@ func (c *httpClient) writeParams(req *http.Request, call *internal.Call) error {
 	}
 
 	h := req.Header
-	h.Add("X-YT-Header-Format", "yson")
 	if req.Method == http.MethodPost && req.Body == http.NoBody {
 		req.Body = io.NopCloser(&params)
 		req.ContentLength = int64(params.Len())
@@ -214,7 +213,7 @@ func (c *httpClient) newHTTPRequest(ctx context.Context, call *internal.Call, bo
 	c.injectTracing(ctx, req)
 
 	if body != nil {
-		req.Header.Add("X-YT-Input-Format", "yson")
+		req.Header.Add("X-YT-Input-Format", "<string_keyed_dict_mode=named>yson")
 	}
 	req.Header.Add("X-YT-Header-Format", "<format=text>yson")
 	req.Header.Add("X-YT-Output-Format", "yson")

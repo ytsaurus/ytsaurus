@@ -2394,19 +2394,28 @@ ISchemafulUnversionedReaderPtr CreateLookupSessionReader(
     const std::optional<std::string>& profilingUser,
     NLogging::TLogger Logger)
 {
+    auto timestamp = timestampRange.Timestamp;
+
+    ValidateTabletRetainedTimestamp(tabletSnapshot, timestamp);
+    tabletSnapshot->WaitOnLocks(timestamp);
+
     ThrowUponDistributedThrottlerOverdraft(
         ETabletDistributedThrottlerKind::Select,
         tabletSnapshot,
         chunkReadOptions);
 
-    YT_LOG_DEBUG("Creating lookup session reader (ColumnFilter: %v, LookupKeyCount: %v, UseLookupCache: %v)",
+    YT_LOG_DEBUG("Creating lookup session reader (TabletId: %v, CellId: %v, WorkloadDescriptor: %v, "
+        "ReadSessionId: %v, ColumnFilter: %v, LookupKeyCount: %v, UseLookupCache: %v, Timestamp: %v, ",
+        tabletSnapshot->TabletId,
+        tabletSnapshot->CellId,
+        chunkReadOptions.WorkloadDescriptor,
+        chunkReadOptions.ReadSessionId,
         columnFilter,
         lookupKeys.Size(),
-        useLookupCache);
+        useLookupCache,
+        timestamp);
 
-    auto rowBuffer = New<TRowBuffer>(
-        TLookupRowsBufferTag(),
-        memoryChunkProvider);
+    auto rowBuffer = New<TRowBuffer>(TLookupRowsBufferTag(), memoryChunkProvider);
 
     auto pipe = New<TSchemafulPipe>(memoryChunkProvider);
     auto reader = pipe->GetReader();

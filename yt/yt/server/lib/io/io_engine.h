@@ -4,6 +4,7 @@
 
 #include <yt/yt/core/actions/future.h>
 
+#include <yt/yt/core/misc/fair_share_hierarchical_queue.h>
 #include <yt/yt/core/misc/guid.h>
 
 #include <yt/yt/core/logging/log.h>
@@ -47,125 +48,129 @@ DEFINE_ENUM(ELockFileMode,
     (Unlock)
 );
 
+using TIOSessionId = TGuid;
+
+struct TReadRequest
+{
+    TIOEngineHandlePtr Handle;
+    i64 Offset = -1;
+    i64 Size = -1;
+    TFairShareSlotId FairShareSlotId = {};
+};
+
+struct TReadResponse
+{
+    std::vector<TSharedRef> OutputBuffers;
+    // NB: This contains page size padding.
+    i64 PaddedBytes = 0;
+    i64 IORequests = 0;
+};
+
+struct TWriteRequest
+{
+    TIOEngineHandlePtr Handle;
+    i64 Offset = -1;
+    std::vector<TSharedRef> Buffers;
+    bool Flush = false;
+    TFairShareSlotId FairShareSlotId = {};
+};
+
+struct TWriteResponse
+{
+    i64 IOWriteRequests = 0;
+    i64 IOSyncRequests = 0;
+    i64 WrittenBytes = 0;
+};
+
+struct TOpenRequest
+{
+    TString Path;
+    EOpenMode Mode = OpenExisting;
+};
+
+struct TCloseRequest
+{
+    TIOEngineHandlePtr Handle;
+    std::optional<i64> Size;
+    bool Flush = false;
+};
+
+struct TCloseResponse
+{
+    i64 IOSyncRequests = 0;
+};
+
+struct TAllocateRequest
+{
+    TIOEngineHandlePtr Handle;
+    i64 Size = -1;
+};
+
+struct TFlushFileRequest
+{
+    TIOEngineHandlePtr Handle;
+    EFlushFileMode Mode;
+    TFairShareSlotId FairShareSlotId = {};
+};
+
+struct TFlushFileResponse
+{
+    i64 IOSyncRequests = 0;
+};
+
+struct TFlushFileRangeRequest
+{
+    TIOEngineHandlePtr Handle;
+    i64 Offset = -1;
+    i64 Size = -1;
+    bool Async = false;
+    TFairShareSlotId FairShareSlotId = {};
+};
+
+struct TFlushFileRangeResponse
+{
+    i64 IOSyncRequests = 0;
+};
+
+struct TFlushDirectoryRequest
+{
+    TString Path;
+};
+
+struct TFlushDirectoryResponse
+{
+    i64 IOSyncRequests = 0;
+};
+
+struct TLockRequest
+{
+    TIOEngineHandlePtr Handle;
+    ELockFileMode Mode;
+    bool Nonblocking = false;
+};
+
+struct TResizeRequest
+{
+    TIOEngineHandlePtr Handle;
+    i64 Size = -1;
+};
+
+struct TDefaultReadTag
+{ };
+
 struct IIOEngine
     : public TRefCounted
 {
-    using TSessionId = TGuid;
-
-    struct TReadRequest
-    {
-        TIOEngineHandlePtr Handle;
-        i64 Offset = -1;
-        i64 Size = -1;
-    };
-
-    struct TReadResponse
-    {
-        std::vector<TSharedRef> OutputBuffers;
-        // NB: This contains page size padding.
-        i64 PaddedBytes = 0;
-        i64 IORequests = 0;
-    };
-
-    struct TWriteRequest
-    {
-        TIOEngineHandlePtr Handle;
-        i64 Offset = -1;
-        std::vector<TSharedRef> Buffers;
-        bool Flush = false;
-    };
-
-    struct TWriteResponse
-    {
-        i64 IOWriteRequests = 0;
-        i64 IOSyncRequests = 0;
-        i64 WrittenBytes = 0;
-    };
-
-    struct TOpenRequest
-    {
-        TString Path;
-        EOpenMode Mode = OpenExisting;
-    };
-
-    struct TCloseRequest
-    {
-        TIOEngineHandlePtr Handle;
-        std::optional<i64> Size;
-        bool Flush = false;
-    };
-
-    struct TCloseResponse
-    {
-        i64 IOSyncRequests = 0;
-    };
-
-    struct TAllocateRequest
-    {
-        TIOEngineHandlePtr Handle;
-        i64 Size = -1;
-    };
-
-    struct TFlushFileRequest
-    {
-        TIOEngineHandlePtr Handle;
-        EFlushFileMode Mode;
-    };
-
-    struct TFlushFileResponse
-    {
-        i64 IOSyncRequests = 0;
-    };
-
-    struct TFlushFileRangeRequest
-    {
-        TIOEngineHandlePtr Handle;
-        i64 Offset = -1;
-        i64 Size = -1;
-        bool Async = false;
-    };
-
-    struct TFlushFileRangeResponse
-    {
-        i64 IOSyncRequests = 0;
-    };
-
-    struct TFlushDirectoryRequest
-    {
-        TString Path;
-    };
-
-    struct TFlushDirectoryResponse
-    {
-        i64 IOSyncRequests = 0;
-    };
-
-    struct TLockRequest
-    {
-        TIOEngineHandlePtr Handle;
-        ELockFileMode Mode;
-        bool Nonblocking = false;
-    };
-
-    struct TResizeRequest
-    {
-        TIOEngineHandlePtr Handle;
-        i64 Size = -1;
-    };
-
-    struct TDefaultReadTag
-    { };
-
     virtual TFuture<TReadResponse> Read(
         std::vector<TReadRequest> requests,
         EWorkloadCategory category,
         TRefCountedTypeCookie tagCookie,
-        TSessionId sessionId = {},
+        TIOSessionId sessionId = {},
         bool useDedicatedAllocations = false) = 0;
     virtual TFuture<TWriteResponse> Write(
         TWriteRequest request,
         EWorkloadCategory category = EWorkloadCategory::Idle,
-        TSessionId sessionId = {}) = 0;
+        TIOSessionId sessionId = {}) = 0;
 
     virtual TFuture<TFlushFileResponse> FlushFile(
         TFlushFileRequest request,
@@ -173,7 +178,7 @@ struct IIOEngine
     virtual TFuture<TFlushFileRangeResponse> FlushFileRange(
         TFlushFileRangeRequest request,
         EWorkloadCategory category = EWorkloadCategory::Idle,
-        TSessionId sessionId = {}) = 0;
+        TIOSessionId sessionId = {}) = 0;
     virtual TFuture<TFlushDirectoryResponse> FlushDirectory(
         TFlushDirectoryRequest request,
         EWorkloadCategory category = EWorkloadCategory::Idle) = 0;
@@ -220,7 +225,8 @@ struct IIOEngine
     TFuture<TReadResponse> ReadAll(
         const TString& path,
         EWorkloadCategory category = EWorkloadCategory::Idle,
-        TSessionId sessionId = {});
+        TIOSessionId sessionId = {},
+        TFairShareSlotId fairShareSlot = {});
 };
 
 DEFINE_REFCOUNTED_TYPE(IIOEngine)
@@ -232,7 +238,8 @@ IIOEnginePtr CreateIOEngine(
     NYTree::INodePtr ioConfig,
     TString locationId = "default",
     NProfiling::TProfiler profiler = {},
-    NLogging::TLogger logger = {});
+    NLogging::TLogger logger = {},
+    TFairShareHierarchicalSlotQueuePtr<TString> fairShareQueue = nullptr);
 
 std::vector<EIOEngineType> GetSupportedIOEngineTypes();
 

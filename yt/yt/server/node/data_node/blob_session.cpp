@@ -89,18 +89,30 @@ public:
     TFuture<void> WriteBlocks(
         const IChunkWriter::TWriteBlocksOptions& options,
         int firstBlockIndex,
-        std::vector<TBlock> blocks)
+        std::vector<TBlock> blocks,
+        TFairShareSlotId fairShareSlotId)
     {
-        return EnqueueCommand(
-            BIND(&TBlobWritePipeline::DoWriteBlocks, MakeStrong(this), options, firstBlockIndex, std::move(blocks)));
+        return EnqueueCommand(BIND(&TBlobWritePipeline::DoWriteBlocks,
+            MakeStrong(this),
+            options,
+            firstBlockIndex,
+            std::move(blocks),
+            fairShareSlotId));
     }
 
     TFuture<void> Close(
         const IChunkWriter::TWriteBlocksOptions& options,
-        TRefCountedChunkMetaPtr chunkMeta)
+        TRefCountedChunkMetaPtr chunkMeta,
+        TFairShareSlotId fairShareSlotId,
+        std::optional<int> truncateBlockCount)
     {
         return EnqueueCommand(
-            BIND(&TBlobWritePipeline::DoClose, MakeStrong(this), options, std::move(chunkMeta)));
+            BIND(&TBlobWritePipeline::DoClose,
+                 MakeStrong(this),
+                 options,
+                 std::move(chunkMeta),
+                 fairShareSlotId,
+                 truncateBlockCount));
     }
 
     TFuture<void> Abort()
@@ -212,7 +224,8 @@ private:
     TFuture<void> DoWriteBlocks(
         const IChunkWriter::TWriteBlocksOptions& options,
         int firstBlockIndex,
-        const std::vector<TBlock>& blocks)
+        const std::vector<TBlock>& blocks,
+        TFairShareSlotId fairShareSlotId)
     {
         YT_ASSERT_INVOKER_AFFINITY(SessionInvoker_);
 
@@ -227,7 +240,7 @@ private:
         TWallTimer timer;
 
         // This is how TFileWriter works.
-        YT_VERIFY(!Writer_->WriteBlocks(options, Options_.WorkloadDescriptor, blocks));
+        YT_VERIFY(!Writer_->WriteBlocks(options, Options_.WorkloadDescriptor, blocks, fairShareSlotId));
 
         return Writer_->GetReadyEvent().Apply(
             BIND([=, this, this_ = MakeStrong(this)] {
@@ -249,7 +262,9 @@ private:
 
     TFuture<void> DoClose(
         const IChunkWriter::TWriteBlocksOptions& options,
-        const TRefCountedChunkMetaPtr& chunkMeta)
+        const TRefCountedChunkMetaPtr& chunkMeta,
+        TFairShareSlotId fairShareSlotId,
+        std::optional<int> truncateBlockCount)
     {
         YT_ASSERT_INVOKER_AFFINITY(SessionInvoker_);
 
@@ -261,7 +276,7 @@ private:
 
         TWallTimer timer;
 
-        return Writer_->Close(options, Options_.WorkloadDescriptor, deferredChunkMeta).Apply(
+        return Writer_->Close(options, Options_.WorkloadDescriptor, deferredChunkMeta, fairShareSlotId, truncateBlockCount).Apply(
             BIND([=, this, this_ = MakeStrong(this)] {
                 auto time = timer.GetElapsedTime();
 
@@ -371,7 +386,8 @@ void TBlobSession::OnStarted(const TError& error)
 
 TFuture<ISession::TFinishResult> TBlobSession::DoFinish(
     const TRefCountedChunkMetaPtr& chunkMeta,
-    std::optional<int> blockCount)
+    std::optional<int> blockCount,
+    bool truncateExtraBlocks)
 {
     YT_ASSERT_INVOKER_AFFINITY(SessionInvoker_);
     YT_VERIFY(chunkMeta);
@@ -382,11 +398,16 @@ TFuture<ISession::TFinishResult> TBlobSession::DoFinish(
     }
 
     auto currentBlockCount = BlockCount_.load();
+    std::optional<int> truncateBlockCount;
     if (*blockCount != currentBlockCount) {
-        return MakeFuture<TFinishResult>(TError("Block count mismatch in blob session %v: expected %v, got %v",
-            SessionId_,
-            currentBlockCount,
-            *blockCount));
+        if (truncateExtraBlocks && *blockCount < currentBlockCount) {
+            truncateBlockCount = blockCount;
+        } else {
+            return MakeFuture<TFinishResult>(TError("Block count mismatch in blob session %v: expected %v, got %v",
+                SessionId_,
+                currentBlockCount,
+                *blockCount));
+        }
     }
 
     for (int blockIndex = WindowStartBlockIndex_; blockIndex < std::ssize(Window_); ++blockIndex) {
@@ -403,8 +424,27 @@ TFuture<ISession::TFinishResult> TBlobSession::DoFinish(
         return MakeFuture<TFinishResult>(Error_);
     }
 
-    return Pipeline_->Close(WriteBlocksOptions_, chunkMeta)
-        .Apply(BIND(&TBlobSession::OnFinished, MakeStrong(this))
+    auto tags = Options_.FairShareTags;
+    if (tags.empty()) {
+        auto category = Options_.WorkloadDescriptor.Category;
+        tags.emplace_back(
+            ToString(category),
+            Location_->GetFairShareWorkloadCategoryWeight(category));
+    }
+
+    // TODO(don-dron): Add resource acquiring (memory, cpu, net etc).
+    auto fairShareQueueSlotOrError = Location_->AddFairShareQueueSlot(
+        chunkMeta->GetSize(),
+        {},
+        CreateHierarchyLevels(tags));
+
+    YT_VERIFY(fairShareQueueSlotOrError.IsOK());
+
+    auto fairShareQueueSlot = fairShareQueueSlotOrError.Value();
+
+    auto slotId = fairShareQueueSlot->GetSlot()->GetSlotId();
+    return Pipeline_->Close(WriteBlocksOptions_, chunkMeta, slotId, truncateBlockCount)
+        .Apply(BIND(&TBlobSession::OnFinished, MakeStrong(this), Passed(std::move(fairShareQueueSlot)))
             .AsyncVia(SessionInvoker_));
 }
 
@@ -433,7 +473,9 @@ i64 TBlobSession::GetIntermediateEmptyBlockCount() const
     return IntermediateEmptyBlockCount_.load();
 }
 
-ISession::TFinishResult TBlobSession::OnFinished(const TError& error)
+ISession::TFinishResult TBlobSession::OnFinished(
+    TLocationFairShareSlotPtr fairShareQueueSlot,
+    const TError& error)
 {
     YT_ASSERT_INVOKER_AFFINITY(SessionInvoker_);
 
@@ -457,6 +499,7 @@ ISession::TFinishResult TBlobSession::OnFinished(const TError& error)
         }
     }
 
+    fairShareQueueSlot.Reset();
     ReleaseSpace();
 
     if (Error_.IsOK()) {
@@ -516,6 +559,24 @@ TFuture<NIO::TIOCounters> TBlobSession::DoPutBlocks(
         PendingBlockLocationMemoryGuard_.IncreaseSize(deltaMaxCumulativeBlockSize);
     }
 
+    auto totalSize = GetByteSize(blocks);
+
+    auto tags = Options_.FairShareTags;
+    if (tags.empty()) {
+        auto category = Options_.WorkloadDescriptor.Category;
+        tags.emplace_back(
+            ToString(category),
+            Location_->GetFairShareWorkloadCategoryWeight(category));
+    }
+
+    // TODO(don-dron): Add resource acquiring (memory, cpu, net etc).
+    auto fairShareQueueSlotOrError = Location_->AddFairShareQueueSlot(
+        totalSize,
+        {},
+        CreateHierarchyLevels(tags));
+    YT_VERIFY(fairShareQueueSlotOrError.IsOK());
+    auto fairShareQueueSlot = fairShareQueueSlotOrError.Value();
+
     std::vector<TFuture<void>> precedingBlockReceivedFutures;
     for (int precedingBlockIndex = WindowStartBlockIndex_; precedingBlockIndex < startBlockIndex; precedingBlockIndex++) {
         const auto& slot = GetSlot(precedingBlockIndex);
@@ -539,17 +600,18 @@ TFuture<NIO::TIOCounters> TBlobSession::DoPutBlocks(
             startBlockIndex,
             std::move(blocks),
             useCumulativeBlockSize,
-            enableCaching);
+            enableCaching,
+            std::move(fairShareQueueSlot));
     }
 
     auto allPrecedingBlocksReceivedFuture = AllSucceeded(precedingBlockReceivedFutures)
         .WithTimeout(Config_->SessionBlockReorderTimeout)
-        .Apply(BIND([config = Config_] (const TError& error) {
+        .Apply(BIND([=, this, this_ = MakeStrong(this)] (const TError& error) {
             if (error.GetCode() == NYT::EErrorCode::Timeout) {
                 THROW_ERROR_EXCEPTION(
                     NChunkClient::EErrorCode::WriteThrottlingActive,
                     "Block reordering timeout")
-                    << TErrorAttribute("timeout", config->SessionBlockReorderTimeout);
+                    << TErrorAttribute("timeout", Config_->SessionBlockReorderTimeout);
             }
 
             if (!error.IsOK()) {
@@ -565,7 +627,8 @@ TFuture<NIO::TIOCounters> TBlobSession::DoPutBlocks(
             startBlockIndex,
             Passed(std::move(blocks)),
             useCumulativeBlockSize,
-            enableCaching)
+            enableCaching,
+            Passed(std::move(fairShareQueueSlot)))
             .AsyncVia(SessionInvoker_));
 }
 
@@ -573,7 +636,8 @@ TFuture<NIO::TIOCounters> TBlobSession::DoPerformPutBlocks(
     int startBlockIndex,
     std::vector<TBlock> blocks,
     bool useCumulativeBlockSize,
-    bool enableCaching)
+    bool enableCaching,
+    TLocationFairShareSlotPtr fairShareQueueSlot)
 {
     YT_ASSERT_INVOKER_AFFINITY(SessionInvoker_);
 
@@ -584,6 +648,8 @@ TFuture<NIO::TIOCounters> TBlobSession::DoPerformPutBlocks(
 
     const auto& memoryTracker = Location_->GetWriteMemoryTracker();
     std::vector<TLocationMemoryGuard> locationMemoryGuards;
+
+    auto fairShareSlotId = fairShareQueueSlot->GetSlot()->GetSlotId();
 
     std::vector<int> receivedBlockIndexes;
     for (int localIndex = 0; localIndex < std::ssize(blocks); ++localIndex) {
@@ -655,6 +721,7 @@ TFuture<NIO::TIOCounters> TBlobSession::DoPerformPutBlocks(
             slot.State = ESlotState::Received;
             slot.Block = block;
             slot.ReceivedPromise.TrySet();
+            slot.FairShareSlot = fairShareQueueSlot;
 
             if (enableCaching) {
                 blockCache->PutBlock(blockId, EBlockType::CompressedData, block);
@@ -685,7 +752,7 @@ TFuture<NIO::TIOCounters> TBlobSession::DoPerformPutBlocks(
             return;
         }
 
-        Pipeline_->WriteBlocks(WriteBlocksOptions_, firstBlockIndex, blocksToWrite)
+        Pipeline_->WriteBlocks(WriteBlocksOptions_, firstBlockIndex, blocksToWrite, fairShareSlotId)
             .Subscribe(
                 BIND(&TBlobSession::OnBlocksWritten, MakeStrong(this), firstBlockIndex, WindowIndex_)
                     .Via(SessionInvoker_));
@@ -907,6 +974,7 @@ void TBlobSession::ReleaseBlockSlot(TSlot& slot)
 
     MemoryUsage_.fetch_sub(slot.Block.Size());
     slot.Block = {};
+    slot.FairShareSlot.Reset();
     slot.LocationMemoryGuard.Release();
     slot.State = EBlobSessionSlotState::Released;
 }

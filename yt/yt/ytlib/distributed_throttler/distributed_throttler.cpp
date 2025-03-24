@@ -214,8 +214,8 @@ public:
     {
         Underlying_->SetLimit(limit);
 
-        if (Initialized_) {
-            Limit_.Update(limit.value_or(-1));
+        if (Initialized_ && limit) {
+            Limit_.Update(*limit);
         }
     }
 
@@ -293,9 +293,12 @@ private:
         QueueTotalAmount_ = Profiler_.Gauge("/queue_total_amount");
         EstimatedOverdraftDuration_ = Profiler_.TimeGauge("/estimated_overdraft_duration");
 
-        Limit_.Update(ThrottlerConfig_.Acquire()->Limit.value_or(-1));
         QueueTotalAmount_.Update(0);
         EstimatedOverdraftDuration_.Update(TDuration::Zero());
+
+        if (auto limit = ThrottlerConfig_.Acquire()->Limit) {
+            Limit_.Update(*limit);
+        }
     }
 
     void UpdateHistoricUsage(i64 amount)

@@ -18,8 +18,8 @@ add_library(orm-library-attributes)
 target_compile_options(orm-library-attributes PRIVATE
   -Wdeprecated-this-capture
   -Wimplicit-fallthrough
-  -Wimplicit-fallthrough
   -Wunused-parameter
+  -Wno-c99-designator
 )
 
 target_link_libraries(orm-library-attributes PUBLIC

@@ -49,6 +49,7 @@ DEFINE_ENUM(ESnapshotVersion,
     ((ValidateLivePreviewChunks)             (301709))
     ((IsolateManiacsInSlicing)               (301710))
     ((MaxCompressedDataSizePerJob)           (301711))
+    ((DynamicVanillaJobCount)                (301712))
 );
 
 ////////////////////////////////////////////////////////////////////////////////

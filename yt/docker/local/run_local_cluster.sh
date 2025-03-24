@@ -54,8 +54,8 @@ Usage: $script_name [-h|--help]
                     [--rpc-proxy-port port]
                     [--node-count count]
                     [--queue-agent-count count]
-                    [--with-auth true|false]
-                    [--enable-debug-logging true|false]
+                    [--with-auth]
+                    [--enable-debug-logging]
                     [--extra-yt-docker-opts opts]
                     [--init-operations-archive]
                     [--stop]
@@ -76,7 +76,7 @@ Usage: $script_name [-h|--help]
   --node-count: Sets the number of cluster nodes to start in yt local cluster (default: $node_count)
   --queue-agent-count: Sets the number of queue agents to start in yt local cluster (default: $queue_agent_count)
   --with-auth: Enables authentication and creates admin user
-  --enable-debug-logging: Enable debug logging in backend container (default: $enable_debug_logging)
+  --enable-debug-logging: Enable debug logging in backend container
   --extra-yt-docker-opts: Any extra configuration for backend docker container (default: $extra_yt_docker_opts)
   --init-operations-archive: Initialize operations archive, the option is required to keep more details of operations
   --stop: Run 'docker stop ${ui_container_name} ${yt_container_name}' and exit
@@ -149,12 +149,12 @@ while [[ $# -gt 0 ]]; do
         shift 2
         ;;
     --with-auth)
-        with_auth="$2"
-        shift 2
+        with_auth=true
+        shift
         ;;
     --enable-debug-logging)
-        enable_debug_logging="$2"
-        shift 2
+        enable_debug_logging=true
+        shift
         ;;
     --extra-yt-docker-opts)
         extra_yt_docker_opts="$2"
@@ -223,14 +223,15 @@ fi
 
 yt_run_params=""
 params=""
-if [ ${enable_debug_logging} == "true" ]; then
+if [ ${enable_debug_logging} == true ]; then
     params="--enable-debug-logging"
-    ytBackendTmp=$(readlink -f ~/yt.backend_tmp_$(date +%Y%m%d_%H%M%S))
-    yt_run_params="-v ${ytBackendTmp}:/tmp"
+    yt_backend_tmp="$(realpath ~/)/yt.backend_tmp_$(date +%Y%m%d_%H%M%S)"
+    # mkdir $yt_backend_tmp
+    yt_run_params="-v ${yt_backend_tmp}:/tmp"
     (
         echo
         echo "    Debug logging is enabled, you can find log-files in:"
-        echo "        $ytBackendTmp"
+        echo "        $yt_backend_tmp"
         echo
         echo "    Additionally you may want to watch output of the command bellow:"
         echo "        docker logs -f yt.backend"
@@ -238,24 +239,24 @@ if [ ${enable_debug_logging} == "true" ]; then
     ) >&2
 fi
 
-if [ ${with_auth} == "true" ]; then
+if [ ${with_auth} == true ]; then
     params="${params} --enable-auth --create-admin-user"
 fi
 
-if [ ${init_operations_archive} == "true" ]; then
+if [ ${init_operations_archive} == true ]; then
     params="${params} --init-operations-archive"
 fi
 
 set +e
 cluster_container=$(
     docker run -itd \
-        --env YT_FORCE_IPV4=1 --env YT_FORCE_IPV6=0 --env YT_USE_HOSTS=0 \
+        --env YT_FORCE_IPV4=1 --env YT_FORCE_IPV6=0 --env YT_USE_HOSTS=0 --env YTSERVER_ALL_PATH="/usr/bin/ytserver-all" --env YT_LOCAL_ROOT_PATH="/tmp" \
         --network $network_name \
         --name $yt_container_name \
         -p ${proxy_port}:80 \
         -p ${rpc_proxy_port}:${rpc_proxy_port} \
-        --rm \
         $local_cypress_dir \
+        --rm \
         $extra_yt_docker_opts \
         $yt_run_params \
         $yt_image \

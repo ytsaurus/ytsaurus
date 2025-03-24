@@ -817,7 +817,7 @@ void TBundleState::FetchPerformanceCountersFromTable(
         tableToPerformanceCounters.size());
 }
 
-const TTableProfilingCounters& TBundleState::GetProfilingCounters(
+TTableProfilingCounters& TBundleState::GetProfilingCounters(
     const TTable* table,
     const TString& groupName)
 {

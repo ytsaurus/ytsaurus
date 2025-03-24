@@ -503,6 +503,10 @@ public: \
         const TPartitionTablesOptions& options),
         (paths, options))
 
+    TFuture<ITablePartitionReaderPtr> CreateTablePartitionReader(
+        const TTablePartitionCookiePtr& cookie,
+        const TReadTablePartitionOptions& options) override;
+
     IMPLEMENT_METHOD(void, TruncateJournal, (
         const NYPath::TYPath& path,
         i64 rowCount,

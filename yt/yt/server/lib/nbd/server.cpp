@@ -147,6 +147,17 @@ public:
         return NameToDevice_.contains(name);
     }
 
+    IBlockDevicePtr GetDevice(const TString& name) const override
+    {
+        auto guard = ReaderGuard(NameToDeviceLock_);
+        auto it = NameToDevice_.find(name);
+        if (it == NameToDevice_.end()) {
+            return nullptr;
+        }
+
+        return it->second;
+    }
+
     const NLogging::TLogger& GetLogger() const override
     {
         return Logger;
@@ -211,15 +222,7 @@ private:
             , Connection_(std::move(connection))
             , Logger(Server_->GetLogger().WithTag("ConnectionId: %v", TGuid::Create()))
             , ResponseInvoker_(CreateBoundedConcurrencyInvoker(Server_->GetInvoker(), /*maxConcurrentInvocations*/ 1))
-        {
-            Connection_->SubscribePeerDisconnect(BIND([this, weakThis = MakeWeak(this)]() {
-                if (auto this_ = weakThis.Lock()) {
-                    Abort_ = true;
-                    YT_LOG_DEBUG("Peer disconnected (RemoteAddress: %v)", Connection_->GetRemoteAddress());
-                }
-                TNbdProfilerCounters::Get()->GetCounter({}, "/server/connection/peer_disconnect").Increment(1);
-            }));
-        }
+        { }
 
         void Run()
         {

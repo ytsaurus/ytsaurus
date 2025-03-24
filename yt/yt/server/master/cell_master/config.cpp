@@ -189,6 +189,9 @@ void TDynamicMulticellManagerConfig::Register(TRegistrar registrar)
     registrar.Parameter("remove_secondary_cell_default_roles", &TThis::RemoveSecondaryCellDefaultRoles)
         .Default(false);
 
+    registrar.Parameter("allow_master_cell_role_invariant_check", &TThis::AllowMasterCellRoleInvariantCheck)
+        .Default(true);
+
     registrar.Parameter("sync_hive_clocks_period", &TThis::SyncHiveClocksPeriod)
         .Default(TDuration::Seconds(10));
     registrar.Parameter("testing", &TThis::Testing)

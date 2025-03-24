@@ -512,6 +512,11 @@ public:
         return VoidFuture;
     }
 
+    TFuture<void> Finalize() override
+    {
+        return VoidFuture;
+    }
+
 private:
     static constexpr i64 DeviceSizeBlockId = -1;
     static constexpr i64 BlockSizeBlockId = -2;

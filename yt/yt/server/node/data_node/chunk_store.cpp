@@ -102,6 +102,11 @@ public:
         }
     }
 
+    const TFairShareHierarchicalSchedulerPtr<TString> GetFairShareHierarchicalScheduler() override
+    {
+        return Bootstrap_->GetFairShareHierarchicalScheduler();
+    }
+
 private:
     NClusterNode::IBootstrapBase* const Bootstrap_;
 };
@@ -777,6 +782,17 @@ std::tuple<TStoreLocationPtr, TLockedChunkGuard> TChunkStore::AcquireNewChunkLoc
         const auto& location = Locations_[index];
         if (!CanStartNewSession(location, sessionId.MediumIndex)) {
             continue;
+        }
+
+        if (options.MinLocationAvailableSpace) {
+            if (!location->HasEnoughSpace(*options.MinLocationAvailableSpace)) {
+                throttledLocations.push_back(location);
+                throttledLocationErrors.push_back(TError("Session cannot be started due to lack of free space")
+                << TErrorAttribute("location_id", location->GetId())
+                << TErrorAttribute("needed_space", *options.MinLocationAvailableSpace)
+                << TErrorAttribute("available_space", location->GetAvailableSpace()));
+                continue;
+            }
         }
 
         auto memoryLimitFractionForStartingNewSessions = location->GetMemoryLimitFractionForStartingNewSessions();

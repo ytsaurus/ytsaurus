@@ -61,15 +61,6 @@ class TestSchedulerCommon(YTEnvSetup):
         "controller_agent": {
             "snapshot_period": 500,
             "operations_update_period": 10,
-            "map_operation_options": {
-                "job_splitter": {
-                    "min_job_time": 5000,
-                    "min_total_data_size": 1024,
-                    "update_period": 100,
-                    "candidate_percentile": 0.8,
-                    "max_jobs_per_split": 3,
-                },
-            },
             "controller_throttling_log_backoff": 0,
         }
     }
@@ -204,7 +195,7 @@ class TestSchedulerCommon(YTEnvSetup):
             track=False,
             in_="//tmp/t1",
             out="//tmp/t2",
-            command='python -c "import os; os.read(0, 1);"',
+            command='python3 -c "import os; os.read(0, 1);"',
             spec={"mapper": {"input_format": "dsv", "check_input_fully_consumed": True}, "max_failed_job_count": 2},
         )
 
@@ -799,9 +790,9 @@ class TestSchedulerCommon(YTEnvSetup):
 
         wait_breakpoint()
 
-        nested_input_transaction_ids = get(op.get_path() + "/@nested_input_transaction_ids")
-        assert len(nested_input_transaction_ids) == 1
-        nested_tx = nested_input_transaction_ids[0]
+        input_transaction_ids = get(op.get_path() + "/@input_transaction_ids")
+        assert len(input_transaction_ids) == 1
+        nested_tx = input_transaction_ids[0]
 
         assert list(read_table("//tmp/in", tx=nested_tx)) == [{"foo": "bar"}]
         assert get("#{}/@parent_id".format(nested_tx)) == custom_tx
@@ -812,16 +803,16 @@ class TestSchedulerCommon(YTEnvSetup):
             pass
 
         op.ensure_running()
-        assert get(op.get_path() + "/@nested_input_transaction_ids") == [nested_tx]
+        assert get(op.get_path() + "/@input_transaction_ids") == [nested_tx]
 
         with Restarter(self.Env, SCHEDULERS_SERVICE):
             abort_transaction(nested_tx)
 
         op.ensure_running()
-        new_nested_input_transaction_ids = get(op.get_path() + "/@nested_input_transaction_ids")
-        assert len(new_nested_input_transaction_ids) == 1
-        assert new_nested_input_transaction_ids[0] != nested_tx
-        assert get(f"#{new_nested_input_transaction_ids[0]}/@parent_id") == custom_tx
+        new_input_transaction_ids = get(op.get_path() + "/@input_transaction_ids")
+        assert len(new_input_transaction_ids) == 1
+        assert new_input_transaction_ids[0] != nested_tx
+        assert get(f"#{new_input_transaction_ids[0]}/@parent_id") == custom_tx
 
     @authors("ignat")
     def test_nested_input_transaction_duplicates(self):
@@ -841,11 +832,10 @@ class TestSchedulerCommon(YTEnvSetup):
 
         wait_breakpoint()
 
-        nested_input_transaction_ids = get(op.get_path() + "/@nested_input_transaction_ids")
-        assert len(nested_input_transaction_ids) == 2
-        assert nested_input_transaction_ids[0] == nested_input_transaction_ids[1]
+        input_transaction_ids = get(op.get_path() + "/@input_transaction_ids")
+        assert len(input_transaction_ids) == 1
 
-        nested_tx = nested_input_transaction_ids[0]
+        nested_tx = input_transaction_ids[0]
         assert list(read_table("//tmp/in", tx=nested_tx)) == [{"foo": "bar"}]
         assert get("#{}/@parent_id".format(nested_tx)) == custom_tx
 
@@ -855,19 +845,15 @@ class TestSchedulerCommon(YTEnvSetup):
             pass
 
         op.ensure_running()
-        assert get(op.get_path() + "/@nested_input_transaction_ids") == [
-            nested_tx,
-            nested_tx,
-        ]
+        assert get(op.get_path() + "/@input_transaction_ids") == [nested_tx]
 
         with Restarter(self.Env, SCHEDULERS_SERVICE):
             abort_transaction(nested_tx)
 
         op.ensure_running()
-        new_nested_input_transaction_ids = get(op.get_path() + "/@nested_input_transaction_ids")
-        assert len(new_nested_input_transaction_ids) == 2
-        assert new_nested_input_transaction_ids[0] == new_nested_input_transaction_ids[1]
-        assert new_nested_input_transaction_ids[0] != nested_tx
+        new_input_transaction_ids = get(op.get_path() + "/@input_transaction_ids")
+        assert len(new_input_transaction_ids) == 1
+        assert get("#{}/@parent_id".format(new_input_transaction_ids[0])) == custom_tx
 
     @authors("babenko")
     def test_update_lock_transaction_timeout(self):

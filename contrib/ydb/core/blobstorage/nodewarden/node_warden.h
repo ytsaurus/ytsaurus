@@ -1,0 +1,71 @@
+#pragma once
+
+#include <contrib/ydb/core/blobstorage/base/utility.h>
+#include <contrib/ydb/core/blobstorage/crypto/default.h>
+#include <contrib/ydb/core/blobstorage/vdisk/common/vdisk_config.h>
+#include <contrib/ydb/core/blobstorage/pdisk/blobstorage_pdisk_drivemodel_db.h>
+#include <contrib/ydb/core/blobstorage/pdisk/blobstorage_pdisk_factory.h>
+#include <contrib/ydb/core/protos/config.pb.h>
+#include <contrib/ydb/library/pdisk_io/sector_map.h>
+
+#include <util/folder/path.h>
+
+namespace NKikimr {
+    struct ICacheAccessor {
+        virtual ~ICacheAccessor() = default;
+        virtual TString Read() = 0;
+        virtual void Update(std::function<TString(TString)> processor) = 0;
+    };
+
+    struct TNodeWardenConfig : public TThrRefBase {
+        NKikimrConfig::TBlobStorageConfig BlobStorageConfig;
+        NKikimrConfig::TStaticNameserviceConfig NameserviceConfig;
+        std::optional<NKikimrConfig::TDomainsConfig> DomainsConfig;
+        std::optional<NKikimrConfig::TSelfManagementConfig> SelfManagementConfig;
+        TString ConfigDirPath;
+        std::optional<NKikimrBlobStorage::TYamlConfig> YamlConfig;
+        TString StartupConfigYaml;
+        std::optional<TString> StartupStorageYaml;
+        TIntrusivePtr<IPDiskServiceFactory> PDiskServiceFactory;
+        TIntrusivePtr<TAllVDiskKinds> AllVDiskKinds;
+        TIntrusivePtr<NPDisk::TDriveModelDb> AllDriveModels;
+        NKikimrBlobStorage::TPDiskConfig PDiskConfigOverlay;
+        NKikimrConfig::TFeatureFlags FeatureFlags;
+        NKikimrBlobStorage::TIncrHugeConfig IncrHugeConfig;
+        THashMap<TString, TIntrusivePtr<NPDisk::TSectorMap>> SectorMaps;
+        std::unique_ptr<ICacheAccessor> CacheAccessor;
+        TEncryptionKey TenantKey;
+        TEncryptionKey StaticKey;
+        NPDisk::TMainKey PDiskKey;
+        bool CachePDisks = false;
+        bool CacheVDisks = false;
+        bool EnableVDiskCooldownTimeout = false;
+        TDuration RequestReportingThrottlerDelay = TDuration::Seconds(60);
+        TDuration LongRequestThreshold = TDuration::Seconds(50);
+
+        // debugging options
+        bool VDiskReplPausedAtStart = false;
+        bool UseActorSystemTimeInBSQueue = false;
+        std::optional<ui32> ReplMaxQuantumBytes = std::nullopt;
+        std::optional<ui32> ReplMaxDonorNotReadyCount = std::nullopt;
+
+        TNodeWardenConfig(const TIntrusivePtr<IPDiskServiceFactory> &pDiskServiceFactory)
+            : PDiskServiceFactory(pDiskServiceFactory)
+            , AllVDiskKinds(new TAllVDiskKinds)
+            , AllDriveModels(new NPDisk::TDriveModelDb)
+        {}
+
+        bool IsCacheEnabled() const {
+            return static_cast<bool>(CacheAccessor);
+        }
+    };
+
+    IActor* CreateBSNodeWarden(const TIntrusivePtr<TNodeWardenConfig> &cfg);
+
+    bool ObtainTenantKey(TEncryptionKey *key, const NKikimrProto::TKeyConfig& keyConfig);
+    bool ObtainStaticKey(TEncryptionKey *key);
+    bool ObtainPDiskKey(NPDisk::TMainKey *key, const NKikimrProto::TKeyConfig& keyConfig);
+
+    std::unique_ptr<ICacheAccessor> CreateFileCacheAccessor(const TString& templ, const std::unordered_map<char, TString>& vars);
+
+} // NKikimr

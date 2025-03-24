@@ -8,6 +8,35 @@ namespace NYT::NNbd {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DEFINE_ENUM(EFilesystemType,
+    ((Unknown)      (1)     ("unknown"))
+    ((Ext3)         (2)     ("ext3"))
+    ((Ext4)         (3)     ("ext4"))
+);
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TChunkBlockDeviceConfig
+    : public NYTree::TYsonStruct
+{
+public:
+    i64 Size;
+    int MediumIndex;
+    EFilesystemType FsType;
+    TDuration KeepSessionAlivePeriod;
+    TDuration DataNodeNbdServiceRpcTimeout;
+    //! Time to create chunk and make filesystem in it.
+    TDuration DataNodeNbdServiceMakeTimeout;
+
+    REGISTER_YSON_STRUCT(TChunkBlockDeviceConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TChunkBlockDeviceConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct TFileSystemBlockDeviceConfig
     : public NYTree::TYsonStruct
 {

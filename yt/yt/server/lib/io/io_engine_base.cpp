@@ -233,7 +233,7 @@ TFuture<TIOEngineHandlePtr> TIOEngineBase::Open(TOpenRequest request, EWorkloadC
         .Run();
 }
 
-TFuture<IIOEngine::TCloseResponse>
+TFuture<TCloseResponse>
 TIOEngineBase::Close(TCloseRequest request, EWorkloadCategory category)
 {
     auto invoker = (request.Flush || request.Size) ? FsyncInvoker_ : AuxInvoker_;
@@ -242,7 +242,7 @@ TIOEngineBase::Close(TCloseRequest request, EWorkloadCategory category)
         .Run();
 }
 
-TFuture<IIOEngine::TFlushDirectoryResponse>
+TFuture<TFlushDirectoryResponse>
 TIOEngineBase::FlushDirectory(TFlushDirectoryRequest request, EWorkloadCategory category)
 {
     return BIND(&TIOEngineBase::DoFlushDirectory, MakeStrong(this), std::move(request))
@@ -362,8 +362,7 @@ TIOEngineHandlePtr TIOEngineBase::DoOpen(const TOpenRequest& request)
 }
 
 
-IIOEngine::TFlushDirectoryResponse
-TIOEngineBase::DoFlushDirectory(const TFlushDirectoryRequest& request)
+TFlushDirectoryResponse TIOEngineBase::DoFlushDirectory(const TFlushDirectoryRequest& request)
 {
     TFlushDirectoryResponse response;
 
@@ -379,7 +378,7 @@ TIOEngineBase::DoFlushDirectory(const TFlushDirectoryRequest& request)
     return response;
 }
 
-IIOEngine::TCloseResponse TIOEngineBase::DoClose(const TCloseRequest& request)
+TCloseResponse TIOEngineBase::DoClose(const TCloseRequest& request)
 {
     TCloseResponse response;
 

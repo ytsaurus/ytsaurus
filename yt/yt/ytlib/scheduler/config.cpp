@@ -269,6 +269,8 @@ void TPatchSpecProtocolTestingOptions::Register(TRegistrar registrar)
         .Default();
     registrar.Parameter("fail_revive", &TThis::FailRevive)
         .Default();
+    registrar.Parameter("delay_inside_apply", &TThis::DelayInsideApply)
+        .Default();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -354,6 +356,35 @@ void TTestingOperationOptions::Register(TRegistrar registrar)
 
 void TJobSplitterConfig::Register(TRegistrar registrar)
 {
+    registrar.Parameter("min_job_time", &TThis::MinJobTime)
+        .Default();
+
+    registrar.Parameter("min_total_data_weight", &TThis::MinTotalDataWeight)
+        .Default();
+
+    registrar.Parameter("exec_to_prepare_time_ratio", &TThis::ExecToPrepareTimeRatio)
+        .Default();
+
+    registrar.Parameter("no_progress_job_time_to_average_prepare_time_ratio", &TThis::NoProgressJobTimeToAveragePrepareTimeRatio)
+        .Default();
+
+    registrar.Parameter("max_jobs_per_split", &TThis::MaxJobsPerSplit)
+        .GreaterThan(0)
+        .Default();
+
+    registrar.Parameter("max_input_table_count", &TThis::MaxInputTableCount)
+        .GreaterThan(0)
+        .Default();
+
+    registrar.Parameter("residual_job_factor", &TThis::ResidualJobFactor)
+        .GreaterThan(0)
+        .LessThanOrEqual(1.0)
+        .Default();
+
+    registrar.Parameter("residual_job_count_min_threshold", &TThis::ResidualJobCountMinThreshold)
+        .GreaterThan(0)
+        .Default();
+
     registrar.Parameter("enable_job_splitting", &TThis::EnableJobSplitting)
         .Default(true);
 
@@ -946,6 +977,9 @@ void TOperationSpecBase::Register(TRegistrar registrar)
 
     registrar.Parameter("use_cluster_throttlers", &TThis::UseClusterThrottlers)
         .Default(false);
+
+    registrar.Parameter("enable_multiple_jobs_in_allocation", &TThis::EnableMultipleJobsInAllocation)
+        .Default();
 
     registrar.Postprocessor([] (TOperationSpecBase* spec) {
         if (spec->UnavailableChunkStrategy == EUnavailableChunkAction::Wait &&
@@ -2484,6 +2518,9 @@ void TPoolConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("always_allow_gang_operations", &TThis::AlwaysAllowGangOperations)
         .Default(false);
+
+    registrar.Parameter("waiting_for_resources_on_node_timeout", &TThis::WaitingForResourcesOnNodeTimeout)
+        .Default();
 
     registrar.Postprocessor([] (TThis* config) {
         // COMPAT(omgronny)

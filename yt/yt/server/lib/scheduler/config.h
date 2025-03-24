@@ -169,9 +169,9 @@ struct TFairShareStrategySchedulingSegmentsConfig
 
     TDuration ModuleReconsiderationTimeout;
 
-    THashSet<TString> DataCenters;
+    THashSet<std::string> DataCenters;
 
-    THashSet<TString> InfinibandClusters;
+    THashSet<std::string> InfinibandClusters;
 
     ESchedulingSegmentModuleAssignmentHeuristic ModuleAssignmentHeuristic;
 
@@ -189,7 +189,7 @@ struct TFairShareStrategySchedulingSegmentsConfig
 
     TDuration PriorityModuleAssignmentTimeout;
 
-    const THashSet<TString>& GetModules() const;
+    const THashSet<std::string>& GetModules() const;
 
     REGISTER_YSON_STRUCT(TFairShareStrategySchedulingSegmentsConfig);
 
@@ -209,9 +209,9 @@ struct TGpuAllocationSchedulerConfig
 
     TDuration PreemptForLargeOperationTimeout;
 
-    THashSet<TString> DataCenters;
+    THashSet<std::string> DataCenters;
 
-    THashSet<TString> InfinibandClusters;
+    THashSet<std::string> InfinibandClusters;
 
     ESchedulingSegmentModuleAssignmentHeuristic ModuleAssignmentHeuristic;
 
@@ -224,7 +224,7 @@ struct TGpuAllocationSchedulerConfig
 
     TDuration PriorityModuleAssignmentTimeout;
 
-    const THashSet<TString>& GetModules() const;
+    const THashSet<std::string>& GetModules() const;
 
     REGISTER_YSON_STRUCT(TGpuAllocationSchedulerConfig);
 

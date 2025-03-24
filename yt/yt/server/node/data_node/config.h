@@ -20,6 +20,8 @@
 
 #include <yt/yt/client/api/public.h>
 
+#include <yt/yt/client/misc/workload.h>
+
 #include <yt/yt/library/containers/public.h>
 
 #include <yt/yt/library/re2/re2.h>
@@ -116,6 +118,8 @@ struct TChunkLocationConfig
 
     bool ResetUuid;
 
+    TEnumIndexedArray<EWorkloadCategory, std::optional<double>> FairShareWorkloadCategoryWeights;
+
     //! Limit on the maximum memory used of location reads.
     i64 ReadMemoryLimit;
 
@@ -152,6 +156,8 @@ struct TChunkLocationDynamicConfig
     NConcurrency::TThroughputThrottlerConfigPtr UncategorizedThrottler;
 
     std::optional<i64> CoalescedReadMaxGapSize;
+
+    TEnumIndexedArray<EWorkloadCategory, std::optional<double>> FairShareWorkloadCategoryWeights;
 
     //! Limit on the maximum memory used by location reads.
     std::optional<i64> ReadMemoryLimit;
@@ -889,6 +895,9 @@ struct TDataNodeConfig
      * the session expires.
      */
     TDuration SessionTimeout;
+
+    //! After that time alert about long live read sessions will be sent.
+    TDuration LongLiveReadSessionTreshold;
 
     TDuration SessionBlockReorderTimeout;
 

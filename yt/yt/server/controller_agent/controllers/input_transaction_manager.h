@@ -80,7 +80,6 @@ public:
         //             for a job.
         bool forceStartLocalTransaction,
         NTransactionClient::TTransactionId userTransactionId,
-        const std::string& authenticatedUser,
         TControllerAgentConfigPtr config,
         NLogging::TLogger logger);
 
@@ -104,8 +103,6 @@ private:
     THashMap<NScheduler::TClusterName, NApi::NNative::IClientPtr> Clients_;
 
     std::map<NScheduler::TRichTransactionId, NApi::ITransactionPtr> ParentToTransaction_;
-    // COMPAT(coteeq)
-    std::vector<NTransactionClient::TTransactionId> OldNonTrivialInputTransactionParents_;
 
     NLogging::TLogger Logger; // NOLINT
     TControllerAgentConfigPtr ControllerConfig_;
@@ -118,11 +115,6 @@ private:
 
     NScheduler::TRichTransactionId GetTransactionParentFromPath(
         const NYPath::TRichYPath& path) const;
-
-    std::vector<NScheduler::TRichTransactionId> RestoreFromNestedTransactions(
-        const NScheduler::TControllerTransactionIds& transactionIds) const;
-
-    std::vector<NTransactionClient::TTransactionId> GetCompatDuplicatedNestedTransactionIds() const;
 
     TError ValidateSchedulerTransactions(
         const NScheduler::TControllerTransactionIds& transactionIds) const;

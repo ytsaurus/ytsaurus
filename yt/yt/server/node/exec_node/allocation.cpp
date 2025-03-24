@@ -642,7 +642,11 @@ void TAllocation::OnJobFinished(TJobPtr job)
             return false;
         }
 
-        if (GetConfig()->EnableMultipleJobs && job->GetState() == EJobState::Completed) {
+        bool enableMultipleJobs =
+            GetConfig()->EnableMultipleJobs &&
+            (Attributes_ && Attributes_->EnableMultipleJobs);
+
+        if (enableMultipleJobs && job->GetState() == EJobState::Completed) {
             YT_LOG_INFO(
                 "Job completed and multiple jobs in allocation enabled, waiting for storing and clenup job to settle new one (JobId: %v)",
                 job->GetId());

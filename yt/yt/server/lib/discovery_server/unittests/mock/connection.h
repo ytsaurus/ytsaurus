@@ -251,6 +251,11 @@ public:
         YT_UNIMPLEMENTED();
     }
 
+    const NSecurityClient::TUserAttributeCachePtr& GetUserAttributeCache() override
+    {
+        YT_UNIMPLEMENTED();
+    }
+
     const NApi::NNative::TStickyGroupSizeCachePtr& GetStickyGroupSizeCache() override
     {
         YT_UNIMPLEMENTED();
@@ -293,7 +298,7 @@ public:
         YT_UNIMPLEMENTED();
     }
 
-    const TString& GetClusterId() const override
+    const std::string& GetClusterId() const override
     {
         YT_UNIMPLEMENTED();
     }

@@ -22,48 +22,29 @@ using namespace std::chrono_literals;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TSignatureGenerator::TSignatureGenerator(TSignatureGeneratorConfigPtr config, IKeyStoreWriterPtr keyWriter)
+TSignatureGenerator::TSignatureGenerator(TSignatureGeneratorConfigPtr config)
     : Config_(std::move(config))
-    , KeyWriter_(std::move(keyWriter))
-    , OwnerId_(KeyWriter_->GetOwner())
 {
-    InitializeCryptography();
-    YT_LOG_INFO("Signature generator initialized (Owner: %v)", OwnerId_);
+    YT_LOG_INFO("Signature generator initialized");
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TFuture<void> TSignatureGenerator::Rotate()
+void TSignatureGenerator::SetKeyPair(TKeyPairPtr keyPair)
 {
-    YT_LOG_INFO(
-        "Rotating keypair (PreviousKeyPair: %v)",
-        (KeyPair_ ? std::optional{GetKeyId(KeyPair_->KeyInfo()->Meta())} : std::nullopt));
+    auto keyId = GetKeyId(keyPair->KeyInfo()->Meta());
+    YT_LOG_DEBUG("Setting new key pair (KeyId: %v)", keyId);
 
-    auto now = Now();
-    TKeyPair newKeyPair(TKeyPairMetadataImpl<TKeyPairVersion{0, 1}>{
-        .OwnerId = OwnerId_,
-        .KeyId = TKeyId{TGuid::Create()},
-        .CreatedAt = now,
-        .ValidAfter = now - Config_->TimeSyncMargin,
-        .ExpiresAt = now + Config_->KeyExpirationDelta,
-    });
+    YT_VERIFY(keyPair->CheckSanity());
 
-    return KeyWriter_->RegisterKey(newKeyPair.KeyInfo()).Apply(
-        BIND([this, keyPair = std::move(newKeyPair), this_ = MakeStrong(this)] () mutable {
-            {
-                auto guard = WriterGuard(KeyPairLock_);
-                KeyPair_ = std::move(keyPair);
-            }
-            YT_LOG_INFO("Rotated keypair (NewKeyPair: %v)", GetKeyId(KeyPair_->KeyInfo()->Meta()));
-        }));
+    KeyPair_.Store(std::move(keyPair));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
 TKeyInfoPtr TSignatureGenerator::KeyInfo() const
 {
-    YT_VERIFY(KeyPair_);
-    return KeyPair_->KeyInfo();
+    return KeyPair_ ? KeyPair_.Acquire()->KeyInfo() : nullptr;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -74,36 +55,36 @@ void TSignatureGenerator::Sign(const TSignaturePtr& signature)
     auto now = Now();
     TSignatureHeader header;
 
-    {
-        auto guard = ReaderGuard(KeyPairLock_);
+    TKeyPairPtr signingKeyPair = KeyPair_.Acquire();
 
-        if (!KeyPair_) {
-            THROW_ERROR_EXCEPTION("Trying to sign with an uninitialized generator");
-        }
-
-        header = TSignatureHeaderImpl<TSignatureVersion{0, 1}>{
-            .Issuer = OwnerId_.Underlying(),
-            .KeypairId = GetKeyId(KeyPair_->KeyInfo()->Meta()).Underlying(),
-            .SignatureId = signatureId,
-            .IssuedAt = now,
-            .ValidAfter = now - Config_->TimeSyncMargin,
-            .ExpiresAt = now + Config_->SignatureExpirationDelta,
-        };
-
-        signature->Header_ = ConvertToYsonString(header, EYsonFormat::Binary);
-
-        auto toSign = PreprocessSignature(signature->Header_, signature->Payload());
-
-        if (!IsKeyPairMetadataValid(KeyPair_->KeyInfo()->Meta())) {
-            YT_LOG_WARNING(
-                "Signing with an invalid keypair (SignatureId: %v, KeyPair: %v)",
-                signatureId,
-                GetKeyId(KeyPair_->KeyInfo()->Meta()));
-        }
-
-        signature->Signature_.resize(SignatureSize);
-        KeyPair_->Sign(toSign, std::span<std::byte, SignatureSize>(signature->Signature_));
+    if (!signingKeyPair) {
+        THROW_ERROR_EXCEPTION("Trying to sign with an uninitialized generator");
     }
+
+    auto keyInfo = signingKeyPair->KeyInfo();
+
+    header = TSignatureHeaderImpl<TSignatureVersion{0, 1}>{
+        .Issuer = GetOwnerId(keyInfo->Meta()).Underlying(),
+        .KeypairId = GetKeyId(KeyInfo()->Meta()).Underlying(),
+        .SignatureId = signatureId,
+        .IssuedAt = now,
+        .ValidAfter = now - Config_->TimeSyncMargin,
+        .ExpiresAt = now + Config_->SignatureExpirationDelta,
+    };
+
+    signature->Header_ = ConvertToYsonString(header, EYsonFormat::Binary);
+
+    auto toSign = PreprocessSignature(signature->Header_, signature->Payload());
+
+    if (!IsKeyPairMetadataValid(keyInfo->Meta())) {
+        YT_LOG_WARNING(
+            "Signing with an invalid keypair (SignatureId: %v, KeyPair: %v)",
+            signatureId,
+            GetKeyId(keyInfo->Meta()));
+    }
+
+    signature->Signature_.resize(SignatureSize);
+    signingKeyPair->Sign(toSign, std::span<std::byte, SignatureSize>(signature->Signature_));
 
     YT_LOG_TRACE(
         "Created signature (SignatureId: %v, Header: %v, Payload: %v)",

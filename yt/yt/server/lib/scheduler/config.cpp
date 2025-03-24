@@ -235,7 +235,7 @@ void TFairShareStrategySchedulingSegmentsConfig::Register(TRegistrar registrar)
     });
 }
 
-const THashSet<TString>& TFairShareStrategySchedulingSegmentsConfig::GetModules() const
+const THashSet<std::string>& TFairShareStrategySchedulingSegmentsConfig::GetModules() const
 {
     switch (ModuleType) {
         case ESchedulingSegmentModuleType::DataCenter:
@@ -291,7 +291,7 @@ void TGpuAllocationSchedulerConfig::Register(TRegistrar registrar)
     });
 }
 
-const THashSet<TString>& TGpuAllocationSchedulerConfig::GetModules() const
+const THashSet<std::string>& TGpuAllocationSchedulerConfig::GetModules() const
 {
     switch (ModuleType) {
         case ESchedulingSegmentModuleType::DataCenter:
@@ -1264,7 +1264,7 @@ void TSchedulerConfig::Register(TRegistrar registrar)
         .Default(true);
 
     registrar.Parameter("min_required_archive_version", &TThis::MinRequiredArchiveVersion)
-        .Default(55);
+        .Default(56);
 
     registrar.Parameter("rpc_server", &TThis::RpcServer)
         .DefaultNew();

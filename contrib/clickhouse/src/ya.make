@@ -126,8 +126,10 @@ NO_COMPILER_WARNINGS()
 NO_UTIL()
 
 IF (OS_DARWIN)
-                SET_APPEND(C_DEFINES -D_DARWIN_C_SOURCE)
-            ENDIF()
+    CFLAGS(
+        -D_DARWIN_C_SOURCE
+    )
+ENDIF()
 
 IF (OS_DARWIN)
     CFLAGS(

@@ -30,13 +30,13 @@
 
 #include <yt/yt/core/logging/fluent_log.h>
 
-#include <yt/yt/core/misc/memory_usage_tracker.h>
-
 #include <yt/yt/core/rpc/authenticator.h>
 
 #include <yt/yt/core/tracing/trace_context.h>
 
 #include <yt/yt/core/ytree/fluent.h>
+
+#include <library/cpp/yt/memory/memory_usage_tracker.h>
 
 #include <util/random/random.h>
 
@@ -749,6 +749,26 @@ void TContext::SetupTracing()
     }
 }
 
+void TContext::SetupUserMemoryLimits()
+{
+    auto config = Api_->GetDynamicConfig();
+    auto userMemoryRatio = config->DefaultUserMemoryLimitRatio;
+    auto userRatioIt = config->UserToMemoryLimitRatio.find(DriverRequest_.AuthenticatedUser);
+    if (userRatioIt != config->UserToMemoryLimitRatio.end()) {
+        userMemoryRatio = userRatioIt->second;
+    }
+    if (userMemoryRatio) {
+        Api_->GetMemoryUsageTracker()->SetPoolRatio(TString(DriverRequest_.AuthenticatedUser), *userMemoryRatio);
+    }
+}
+
+void TContext::SetupMemoryUsageTracker()
+{
+    if (Descriptor_->Heavy) {
+        DriverRequest_.MemoryUsageTracker = WithCategory(Api_->GetMemoryUsageTracker(), EMemoryCategory::HeavyRequest);
+    }
+}
+
 void TContext::AddHeaders()
 {
     auto headers = Response_->GetHeaders();
@@ -834,6 +854,8 @@ void TContext::FinishPrepare()
     SetupOutputStream();
     SetupOutputParameters();
     SetupTracing();
+    SetupUserMemoryLimits();
+    SetupMemoryUsageTracker();
     AddHeaders();
     PrepareFinished_ = true;
 
@@ -854,16 +876,31 @@ void TContext::Run()
         auto error = TError(NRpc::EErrorCode::Unavailable,
             "Request is dropped due to high memory pressure");
 
+        auto userPoolTag = TString(DriverRequest_.AuthenticatedUser);
+
         if (Api_->GetMemoryUsageTracker()->IsTotalExceeded()) {
             THROW_ERROR_EXCEPTION(error)
                 << TErrorAttribute("total_memory_limit", Api_->GetMemoryUsageTracker()->GetTotalLimit())
                 << TErrorAttribute("total_memory_usage", Api_->GetMemoryUsageTracker()->GetTotalUsed());
         }
 
-        if (Descriptor_->Heavy && Api_->GetMemoryUsageTracker()->IsExceeded(EMemoryCategory::HeavyRequest)) {
+        if (Api_->GetMemoryUsageTracker()->IsPoolExceeded(userPoolTag)) {
             THROW_ERROR_EXCEPTION(error)
-                << TErrorAttribute("heavy_request_memory_limit", Api_->GetMemoryUsageTracker()->GetLimit(EMemoryCategory::HeavyRequest))
-                << TErrorAttribute("heavy_request_memory_usage", Api_->GetMemoryUsageTracker()->GetUsed(EMemoryCategory::HeavyRequest));
+                << TErrorAttribute("pool_memory_limit", Api_->GetMemoryUsageTracker()->GetPoolLimit(userPoolTag))
+                << TErrorAttribute("pool_memory_usage", Api_->GetMemoryUsageTracker()->GetPoolUsed(userPoolTag));
+        }
+
+        if (Descriptor_->Heavy && Api_->GetMemoryUsageTracker()->IsExceeded(
+            EMemoryCategory::HeavyRequest,
+            userPoolTag))
+        {
+            THROW_ERROR_EXCEPTION(error)
+                << TErrorAttribute("heavy_request_memory_limit", Api_->GetMemoryUsageTracker()->GetLimit(
+                    EMemoryCategory::HeavyRequest,
+                    userPoolTag))
+                << TErrorAttribute("heavy_request_memory_usage", Api_->GetMemoryUsageTracker()->GetUsed(
+                    EMemoryCategory::HeavyRequest,
+                    userPoolTag));
         }
     }
 

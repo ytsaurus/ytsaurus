@@ -17,9 +17,11 @@
 #include <yt/yt/core/logging/log.h>
 
 #include <yt/yt/core/misc/atomic_ptr.h>
-#include <yt/yt/core/misc/memory_usage_tracker.h>
+#include <yt/yt/core/misc/fair_share_hierarchical_queue.h>
 
 #include <yt/yt/library/profiling/sensor.h>
+
+#include <library/cpp/yt/memory/memory_usage_tracker.h>
 
 #include <library/cpp/yt/threading/atomic_object.h>
 
@@ -109,6 +111,30 @@ struct TLocationPerformanceCounters
 };
 
 DEFINE_REFCOUNTED_TYPE(TLocationPerformanceCounters)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TLocationFairShareSlot
+    : public TRefCounted
+{
+public:
+    TLocationFairShareSlot(
+        TFairShareHierarchicalSlotQueuePtr<TString> queue,
+        TFairShareHierarchicalSlotQueueSlotPtr<TString> slot);
+
+    TFairShareHierarchicalSlotQueueSlotPtr<TString> GetSlot() const;
+
+    ~TLocationFairShareSlot();
+
+private:
+    void MoveFrom(TLocationFairShareSlot&& other);
+
+    TFairShareHierarchicalSlotQueuePtr<TString> Queue_;
+    TFairShareHierarchicalSlotQueueSlotPtr<TString> Slot_;
+};
+
+DECLARE_REFCOUNTED_CLASS(TLocationFairShareSlot)
+DEFINE_REFCOUNTED_TYPE(TLocationFairShareSlot)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -253,6 +279,11 @@ public:
 
     //! Create cell id and uuid files if they don't exist.
     void InitializeIds();
+
+    TErrorOr<TLocationFairShareSlotPtr> AddFairShareQueueSlot(
+        i64 size,
+        std::vector<IFairShareHierarchicalSlotQueueResourcePtr> resources,
+        std::vector<TFairShareHierarchyLevel<TString>> levels);
 
     //! Prepares the location to accept new writes.
     /*!
@@ -434,6 +465,8 @@ public:
 
     std::optional<TDuration> GetDelayBeforeBlobSessionBlockFree() const;
 
+    double GetFairShareWorkloadCategoryWeight(EWorkloadCategory category) const;
+
 protected:
     const NClusterNode::TClusterNodeDynamicConfigManagerPtr DynamicConfigManager_;
     const TChunkStorePtr ChunkStore_;
@@ -506,6 +539,8 @@ private:
     NIO::IDynamicIOEnginePtr DynamicIOEngine_;
     NIO::IIOEngineWorkloadModelPtr IOEngineModel_;
     NIO::IIOEnginePtr IOEngine_;
+
+    TFairShareHierarchicalSlotQueuePtr<TString> IOFairShareQueue_;
 
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, LockedChunksLock_);
     THashSet<TChunkId> LockedChunkIds_;

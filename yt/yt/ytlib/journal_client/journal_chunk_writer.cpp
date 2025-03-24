@@ -348,7 +348,6 @@ private:
 
         ToProto(req->mutable_chunk_id(), ChunkId_);
         req->mutable_chunk_info();
-        ToProto(req->mutable_legacy_replicas(), replicas);
 
         req->set_location_uuids_supported(true);
         for (int index = 0; index < std::ssize(replicas); ++index) {

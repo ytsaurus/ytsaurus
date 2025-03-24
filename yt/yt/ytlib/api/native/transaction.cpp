@@ -1882,7 +1882,7 @@ private:
 
         auto producerNameTable = NQueueClient::NRecords::TQueueProducerSessionDescriptor::Get()->GetNameTable();
         NQueueClient::NRecords::TQueueProducerSessionKey sessionKey{
-            .QueueCluster = TString(*cluster),
+            .QueueCluster = *cluster,
             .QueuePath = queuePath.GetPath(),
             .SessionId = sessionId,
         };

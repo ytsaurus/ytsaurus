@@ -37,6 +37,7 @@
 
 #include <yt/yt/core/misc/fs.h>
 #include <yt/yt/core/misc/proc.h>
+#include <yt/yt/core/misc/fair_share_hierarchical_queue.h>
 
 #include <yt/yt/core/logging/log_manager.h>
 
@@ -157,6 +158,32 @@ void TLocationPerformanceCounters::ReportThrottledWrite()
 {
     ThrottledWrites.Increment();
     LastWriteThrottleTime = GetCpuInstant();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TLocationFairShareSlot::TLocationFairShareSlot(
+    TFairShareHierarchicalSlotQueuePtr<TString> queue,
+    TFairShareHierarchicalSlotQueueSlotPtr<TString> slot)
+    : Queue_(std::move(queue))
+    , Slot_(std::move(slot))
+{
+    YT_VERIFY(Queue_);
+    YT_VERIFY(Slot_);
+}
+
+TFairShareHierarchicalSlotQueueSlotPtr<TString> TLocationFairShareSlot::GetSlot() const
+{
+    return Slot_;
+}
+
+TLocationFairShareSlot::~TLocationFairShareSlot()
+{
+    if (Slot_) {
+        Queue_->DequeueSlot(Slot_);
+        Slot_->ReleaseResources();
+        Slot_.Reset();
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -339,14 +366,19 @@ TChunkLocation::TChunkLocation(
 
     PerformanceCounters_ = New<TLocationPerformanceCounters>(Profiler_);
 
+    IOFairShareQueue_ = CreateFairShareHierarchicalSlotQueue<TString>(
+        ChunkStoreHost_->GetFairShareHierarchicalScheduler(),
+        Profiler_.WithPrefix("/fair_share_hierarchical_queue"));
+
     MediumFlag_ = Profiler_.Gauge("/medium");
     MediumFlag_.Update(1);
 
     UpdateMediumTag();
 
-    DynamicIOEngine_ = CreateDynamicIOEngine(
+    DynamicIOEngine_ = NIO::CreateDynamicIOEngine(
         StaticConfig_->IOEngineType,
         StaticConfig_->IOConfig,
+        IOFairShareQueue_,
         Id_,
         Profiler_,
         DataNodeLogger().WithTag("LocationId: %v", Id_));
@@ -388,6 +420,28 @@ TChunkLocation::TChunkLocation(
         BIND_NO_PROPAGATE(&TChunkLocation::PopulateAlerts, MakeWeak(this)));
 }
 
+TErrorOr<TLocationFairShareSlotPtr> TChunkLocation::AddFairShareQueueSlot(
+    i64 size,
+    std::vector<IFairShareHierarchicalSlotQueueResourcePtr> resources,
+    std::vector<TFairShareHierarchyLevel<TString>> levels)
+{
+    auto slotOrError = IOFairShareQueue_->EnqueueSlot(
+        size,
+        std::move(resources),
+        std::move(levels));
+
+    if (slotOrError.IsOK()) {
+        YT_LOG_DEBUG("Add new fair share slot (SlotId: %v, SlotSize: %v)",
+            slotOrError.Value()->GetSlotId(),
+            size);
+        return New<TLocationFairShareSlot>(
+            IOFairShareQueue_,
+            std::move(slotOrError.Value()));
+    }
+
+    return slotOrError.Wrap();
+}
+
 const NIO::IIOEnginePtr& TChunkLocation::GetIOEngine() const
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
@@ -400,6 +454,16 @@ const NIO::IIOEngineWorkloadModelPtr& TChunkLocation::GetIOEngineModel() const
     YT_ASSERT_THREAD_AFFINITY_ANY();
 
     return IOEngineModel_;
+}
+
+double TChunkLocation::GetFairShareWorkloadCategoryWeight(EWorkloadCategory category) const
+{
+    YT_ASSERT_THREAD_AFFINITY_ANY();
+
+    auto config = GetRuntimeConfig();
+    return config->FairShareWorkloadCategoryWeights[category]
+        ? config->FairShareWorkloadCategoryWeights[category].value()
+        : DefaultFairShareWorkloadCategoryWeights[category];
 }
 
 THazardPtr<TChunkLocationConfig> TChunkLocation::GetRuntimeConfig() const
@@ -1435,6 +1499,11 @@ std::vector<TChunkDescriptor> TChunkLocation::DoScan()
     // by moving them into trash.
     std::vector<TChunkDescriptor> descriptors;
     for (auto chunkId : chunkIds) {
+        if (TypeFromId(DecodeChunkId(chunkId).Id) == EObjectType::NbdChunk) {
+            YT_LOG_DEBUG("Removing left over NBD chunk (ChunkId: %v)", chunkId);
+            RemoveChunkFiles(chunkId, /*force*/ true);
+            continue;
+        }
         auto optionalDescriptor = RepairChunk(chunkId);
         if (optionalDescriptor) {
             descriptors.push_back(*optionalDescriptor);
@@ -2297,6 +2366,9 @@ std::vector<TString> TStoreLocation::GetChunkPartNames(TChunkId chunkId) const
                 primaryName + "." + ChangelogIndexExtension,
                 primaryName + "." + SealedFlagExtension
             };
+
+        case EObjectType::NbdChunk:
+            return {primaryName};
 
         default:
             YT_ABORT();
