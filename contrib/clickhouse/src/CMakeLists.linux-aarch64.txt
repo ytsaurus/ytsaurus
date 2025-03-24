@@ -114,7 +114,6 @@ target_link_libraries(contrib-clickhouse-src PUBLIC
   contrib-libs-croaring
   contrib-libs-double-conversion
   contrib-libs-farmhash
-  libs-fastops-fastops
   contrib-libs-fmt
   contrib-libs-icu
   contrib-libs-libc_compat
@@ -2007,7 +2006,6 @@ target_link_libraries(contrib-clickhouse-src.global PUBLIC
   contrib-libs-croaring
   contrib-libs-double-conversion
   contrib-libs-farmhash
-  libs-fastops-fastops
   contrib-libs-fmt
   contrib-libs-icu
   contrib-libs-libc_compat
