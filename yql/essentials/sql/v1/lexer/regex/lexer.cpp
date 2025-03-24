@@ -175,19 +175,35 @@ namespace NSQLTranslationV1 {
             Y_ENSURE(IsStartingWithAnsiMultilineComment(prefix));
             size_t pos = 2;
 
-            while (pos + 1 < prefix.length()) {
-                if (prefix[pos] == '*' && prefix[pos + 1] == '/') {
-                    return pos + 2;
-                } else if (IsStartingWithAnsiMultilineComment(prefix.substr(pos))) {
-                    size_t len = MatchAnsiMultilineComment(prefix.substr(pos));
-                    if (len == 0) {
-                        pos += 1;
+            bool isRecovering = false;
+            TVector<size_t> branchPos;
+            for (;;) {
+                while (pos + 1 < prefix.length()) {
+                    if (prefix[pos] == '*' && prefix[pos + 1] == '/') {
+                        return pos + 2;
+                    } else if (!isRecovering && IsStartingWithAnsiMultilineComment(prefix.substr(pos))) {
+                        branchPos.emplace_back(pos);
+                        size_t len = MatchAnsiMultilineComment(prefix.substr(pos));
+                        if (len == 0) {
+                            pos += 1;
+                        } else {
+                            pos += len;
+                        }
+                    } else if (isRecovering) {
+                        isRecovering = false;
+                        pos++;
                     } else {
-                        pos += len;
+                        pos++;
                     }
-                } else {
-                    pos++;
                 }
+
+                if (branchPos.empty()) {
+                    break;
+                }
+
+                isRecovering = true;
+                pos = branchPos.back();
+                branchPos.pop_back();
             }
 
             return 0;
