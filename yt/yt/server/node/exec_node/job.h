@@ -126,6 +126,8 @@ public:
 
     EJobType GetType() const;
 
+    std::string GetAuthenticatedUser() const;
+
     NControllerAgent::NProto::TJobSpec GetSpec() const;
 
     const std::vector<int>& GetPorts() const;
@@ -147,6 +149,8 @@ public:
 
     const TError& GetJobError() const;
     NControllerAgent::NProto::TJobResult GetResult() const;
+
+    bool HasRpcProxyInJobProxy() const;
 
     double GetProgress() const;
 
