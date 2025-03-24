@@ -10,6 +10,7 @@
 #include "job_splitter.h"
 #include "helpers.h"
 #include "probing_job_manager.h"
+#include "multi_job_manager.h"
 #include "aggregated_job_statistics.h"
 
 #include <yt/yt/server/controller_agent/tentative_tree_eligibility.h>
@@ -445,7 +446,8 @@ private:
     TSpeculativeJobManager SpeculativeJobManager_;
     TProbingJobManager ProbingJobManager_;
     TExperimentJobManager ExperimentJobManager_;
-    std::array<TCompetitiveJobManagerBase*, 3> JobManagers_ = {&SpeculativeJobManager_, &ProbingJobManager_, &ExperimentJobManager_};
+    TMultiJobManager MultiJobManager_;
+    std::array<IExtraJobManager*, 4> JobManagers_ = {&SpeculativeJobManager_, &ProbingJobManager_, &ExperimentJobManager_, &MultiJobManager_};
 
     //! Time of first job scheduling.
     std::optional<TInstant> StartTime_;
@@ -502,13 +504,19 @@ private:
     THashMap<NScheduler::TClusterName, bool> ClusterToNetworkBandwidthAvailability_;
     YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, ClusterToNetworkBandwidthAvailabilityLock_);
 
+    struct TOutputCookieInfo
+    {
+        std::optional<EJobCompetitionType> CompetitionType;
+        NChunkPools::IChunkPoolOutput::TCookie OutputCookie{};
+        int OutputCookieGroupIndex = 0;
+    };
+
     std::expected<NScheduler::TJobResourcesWithQuota, EScheduleFailReason> TryScheduleJob(
         TAllocation& allocation,
         const TSchedulingContext& context,
         TJobId jobId,
         bool treeIsTentative,
-        NChunkPools::IChunkPoolOutput::TCookie outputCookie,
-        std::optional<EJobCompetitionType> competitionType);
+        TOutputCookieInfo outputCookieInfo);
 
     std::optional<TDuration> InferWaitingForResourcesTimeout(
         const NScheduler::NProto::TScheduleAllocationSpec& allocationSpec) const;
@@ -558,12 +566,6 @@ private:
         i64 maxRunnableJobCount = std::numeric_limits<i64>::max()) const;
 
     NScheduler::TCompositeNeededResources GetTotalNeededResourcesDefaultDelta();
-
-    struct TOutputCookieInfo
-    {
-        std::optional<EJobCompetitionType> CompetitionType;
-        NChunkPools::IChunkPoolOutput::TCookie OutputCookie{};
-    };
 
     std::expected<TOutputCookieInfo, EScheduleFailReason>
     GetOutputCookieInfoForFirstJob(const TAllocation& allocation);

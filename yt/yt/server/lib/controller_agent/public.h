@@ -61,6 +61,7 @@ DEFINE_ENUM(EJobCompetitionType,
     (Speculative)
     (Probing)
     (Experiment)
+    (Multi)
 );
 
 ////////////////////////////////////////////////////////////////////////////////
