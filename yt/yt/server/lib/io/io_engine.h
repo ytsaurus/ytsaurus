@@ -225,7 +225,8 @@ struct IIOEngine
     TFuture<TReadResponse> ReadAll(
         const TString& path,
         EWorkloadCategory category = EWorkloadCategory::Idle,
-        TIOSessionId sessionId = {});
+        TIOSessionId sessionId = {},
+        TFairShareSlotId fairShareSlot = {});
 };
 
 DEFINE_REFCOUNTED_TYPE(IIOEngine)

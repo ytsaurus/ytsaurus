@@ -268,4 +268,40 @@ TEST(RemoteClusters, OperationsWithTransaction)
     }
 }
 
+TEST(RemoteClusters, OperationsWithObjectId)
+{
+    auto firstClient = CreateTestClient(GetEnvChecked("YT_PROXY_FIRST"));
+    auto secondClient = CreateTestClient(GetEnvChecked("YT_PROXY_SECOND"));
+
+    auto firstTestingDir = CreateTestDirectory(firstClient);
+    auto secondTestingDir = CreateTestDirectory(secondClient);
+
+    const auto tableSchema = TTableSchema().AddColumn("number", VT_INT64, SO_ASCENDING);
+
+    const auto inputTablePath = firstTestingDir + "/input1";
+
+    CreateTable(firstClient, inputTablePath, tableSchema);
+    WriteTable(firstClient, inputTablePath, {TNode()("number", 1), TNode()("number", 2)});
+
+    DisallowRemoteOperations(secondClient, {GetClusterName(firstClient)});
+
+    const std::vector<TNode> expectedRows{TNode()("number", 1), TNode()("number", 2)};
+
+    auto trunkTableId = firstClient->Get(inputTablePath + "/@id");
+    auto trunkTableIdAsPath = "#" + trunkTableId.AsString();
+
+    auto tx = secondClient->StartTransaction();
+    tx->Map(
+        TMapOperationSpec()
+            .AddInput<TNode>(TRichYPath(trunkTableIdAsPath).Cluster(GetClusterName(firstClient).AsString()))
+            .AddOutput<TNode>(secondTestingDir + "/output"),
+        new TIdMapper);
+    tx->Commit();
+
+    {
+        auto actualRows = ReadTable(secondClient, secondTestingDir + "/output");
+        EXPECT_EQ(actualRows, expectedRows);
+    }
+}
+
 ////////////////////////////////////////////////////////////////////////////////

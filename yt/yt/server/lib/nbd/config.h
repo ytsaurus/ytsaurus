@@ -21,13 +21,11 @@ struct TChunkBlockDeviceConfig
 {
 public:
     i64 Size;
-    TString Medium;
+    int MediumIndex;
     EFilesystemType FsType;
     TDuration KeepSessionAlivePeriod;
-    // Address of data node.
-    std::optional<TString> Address;
     TDuration DataNodeNbdServiceRpcTimeout;
-    // Time to create chunk and make filesystem in it.
+    //! Time to create chunk and make filesystem in it.
     TDuration DataNodeNbdServiceMakeTimeout;
 
     REGISTER_YSON_STRUCT(TChunkBlockDeviceConfig);

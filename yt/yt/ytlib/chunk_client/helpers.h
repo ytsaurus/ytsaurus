@@ -105,11 +105,11 @@ TChunkReplicaWithMediumList AllocateWriteTargets(
     TSessionId sessionId,
     int desiredTargetCount,
     int minTargetCount,
-    std::optional<int> replicationFactorOverride,
-    const std::optional<std::string>& preferredHostName,
-    const std::vector<std::string>& forbiddenAddresses,
-    const std::vector<std::string>& allocatedAddresses,
-    const NLogging::TLogger& logger);
+    std::optional<int> replicationFactorOverride = std::nullopt,
+    const std::optional<std::string>& preferredHostName = std::nullopt,
+    const std::vector<std::string>& forbiddenAddresses = {},
+    const std::vector<std::string>& allocatedAddresses = {},
+    const NLogging::TLogger& logger = {});
 
 //! Returns the cumulative error for the whole batch.
 /*!

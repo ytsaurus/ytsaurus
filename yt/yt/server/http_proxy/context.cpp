@@ -762,6 +762,13 @@ void TContext::SetupUserMemoryLimits()
     }
 }
 
+void TContext::SetupMemoryUsageTracker()
+{
+    if (Descriptor_->Heavy) {
+        DriverRequest_.MemoryUsageTracker = WithCategory(Api_->GetMemoryUsageTracker(), EMemoryCategory::HeavyRequest);
+    }
+}
+
 void TContext::AddHeaders()
 {
     auto headers = Response_->GetHeaders();
@@ -848,6 +855,7 @@ void TContext::FinishPrepare()
     SetupOutputParameters();
     SetupTracing();
     SetupUserMemoryLimits();
+    SetupMemoryUsageTracker();
     AddHeaders();
     PrepareFinished_ = true;
 

@@ -15,6 +15,7 @@ PEERDIR(
     contrib/ydb/core/sys_view/pg_tables
     contrib/ydb/core/sys_view/query_stats
     contrib/ydb/core/sys_view/resource_pool_classifiers
+    contrib/ydb/core/sys_view/resource_pools
     contrib/ydb/core/sys_view/service
     contrib/ydb/core/sys_view/sessions
     contrib/ydb/core/sys_view/show_create
@@ -37,6 +38,7 @@ RECURSE(
     processor
     query_stats
     resource_pool_classifiers
+    resource_pools
     service
     storage
     tablets

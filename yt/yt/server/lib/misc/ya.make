@@ -8,16 +8,17 @@ SRCS(
     cluster_throttlers_config.cpp
     config.cpp
     disk_health_checker.cpp
+    estimate_size_helpers.cpp
     fork_executor.cpp
     format_manager.cpp
-    estimate_size_helpers.cpp
+    interned_attributes.cpp
+    job_report.cpp
+    job_reporter.cpp
     job_table_schema.cpp
     private.cpp
     profiling_helpers.cpp
     GLOBAL public.cpp
     restart_manager.cpp
-    job_reporter.cpp
-    job_report.cpp
 )
 
 PEERDIR(

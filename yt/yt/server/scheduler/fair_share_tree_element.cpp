@@ -1305,6 +1305,12 @@ TJobResourcesConfigPtr TSchedulerPoolElement::GetSpecifiedNonPreemptibleResource
 {
     return Config_->NonPreemptibleResourceUsageThreshold;
 }
+
+std::optional<TDuration> TSchedulerPoolElement::GetSpecifiedWaitingForResourcesOnNodeTimeout() const
+{
+    return Config_->WaitingForResourcesOnNodeTimeout;
+}
+
 TString TSchedulerPoolElement::GetId() const
 {
     return Id_;
@@ -1361,6 +1367,11 @@ void TSchedulerPoolElement::UpdateRecursiveAttributes()
     EffectiveNonPreemptibleResourceUsageThresholdConfig_ = Parent_->EffectiveNonPreemptibleResourceUsageThresholdConfig();
     if (const auto& specifiedConfig = GetSpecifiedNonPreemptibleResourceUsageThresholdConfig()) {
         EffectiveNonPreemptibleResourceUsageThresholdConfig_ = specifiedConfig;
+    }
+
+    EffectiveWaitingForResourcesOnNodeTimeout_ = Parent_->GetEffectiveWaitingForResourcesOnNodeTimeout();
+    if (auto specifiedTimeout = GetSpecifiedWaitingForResourcesOnNodeTimeout()) {
+        EffectiveWaitingForResourcesOnNodeTimeout_ = specifiedTimeout;
     }
 
     TSchedulerCompositeElement::UpdateRecursiveAttributes();
@@ -1905,6 +1916,9 @@ void TSchedulerOperationElement::UpdateRecursiveAttributes()
 
     // These attributes cannot be overwritten in operations.
     EffectiveAggressiveStarvationEnabled_ = Parent_->GetEffectiveAggressiveStarvationEnabled();
+
+    // TODO(eshcherbin): Currently |WaitingJobTimeout| spec option is applied in controller. Should we do it here instead?
+    EffectiveWaitingForResourcesOnNodeTimeout_ = Parent_->GetEffectiveWaitingForResourcesOnNodeTimeout();
 }
 
 void TSchedulerOperationElement::OnFifoSchedulableElementCountLimitReached(TFairSharePostUpdateContext* context)
@@ -2172,8 +2186,7 @@ TControllerScheduleAllocationResultPtr TSchedulerOperationElement::ScheduleAlloc
     const TJobResources& availableResources,
     const TDiskResources& availableDiskResources,
     TDuration timeLimit,
-    const TString& treeId,
-    const TFairShareStrategyTreeConfigPtr& treeConfig)
+    const TString& treeId)
 {
     return Controller_->ScheduleAllocation(
         context,
@@ -2181,7 +2194,8 @@ TControllerScheduleAllocationResultPtr TSchedulerOperationElement::ScheduleAlloc
         availableDiskResources,
         timeLimit,
         treeId,
-        GetParent()->GetFullPath(/*explicitOnly*/ false), treeConfig);
+        GetParent()->GetFullPath(/*explicitOnly*/ false),
+        EffectiveWaitingForResourcesOnNodeTimeout_);
 }
 
 void TSchedulerOperationElement::OnScheduleAllocationFailed(
@@ -2500,6 +2514,9 @@ void TSchedulerRootElement::UpdateRecursiveAttributes()
     YT_VERIFY(GetSpecifiedNonPreemptibleResourceUsageThresholdConfig());
     EffectiveNonPreemptibleResourceUsageThresholdConfig_ = GetSpecifiedNonPreemptibleResourceUsageThresholdConfig();
 
+    // NB: May be null.
+    EffectiveWaitingForResourcesOnNodeTimeout_ = GetSpecifiedWaitingForResourcesOnNodeTimeout();
+
     TSchedulerCompositeElement::UpdateRecursiveAttributes();
 }
 
@@ -2546,6 +2563,11 @@ std::optional<bool> TSchedulerRootElement::IsAggressiveStarvationEnabled() const
 TJobResourcesConfigPtr TSchedulerRootElement::GetSpecifiedNonPreemptibleResourceUsageThresholdConfig() const
 {
     return TreeConfig_->NonPreemptibleResourceUsageThreshold;
+}
+
+std::optional<TDuration> TSchedulerRootElement::GetSpecifiedWaitingForResourcesOnNodeTimeout() const
+{
+    return TreeConfig_->WaitingForResourcesOnNodeTimeout;
 }
 
 void TSchedulerRootElement::BuildPoolSatisfactionDigests(TFairSharePostUpdateContext* postUpdateContext)

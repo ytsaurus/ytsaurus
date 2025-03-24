@@ -18,7 +18,7 @@ from yt_commands import (
     update_controller_agent_config, remember_controller_agent_config,
     write_file, wait_for_nodes, read_file, get_singular_chunk_id)
 
-from yt_helpers import skip_if_no_descending, skip_if_old, skip_if_component_old, profiler_factory
+from yt_helpers import skip_if_old, skip_if_component_old, profiler_factory
 from yt_type_helpers import make_schema, normalize_schema, normalize_schema_v3, optional_type, list_type
 import yt_error_codes
 
@@ -732,9 +732,6 @@ class TestSchedulerRemoteCopyCommands(TestSchedulerRemoteCopyCommandsBase):
     @authors("asaitgalin", "savrus")
     @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
     def test_copy_strict_schema(self, sort_order):
-        if sort_order == "descending":
-            skip_if_no_descending(self.Env)
-
         create(
             "table",
             "//tmp/t1",

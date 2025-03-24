@@ -460,14 +460,20 @@ TFlushFileRangeResponse DoFlushFileRange(
 TFuture<TReadResponse> IIOEngine::ReadAll(
     const TString& path,
     EWorkloadCategory category,
-    TIOSessionId sessionId)
+    TIOSessionId sessionId,
+    TFairShareSlotId fairShareSlot)
 {
     return Open({path, OpenExisting | RdOnly | Seq | CloseOnExec}, category)
         .Apply(BIND([=, this, this_ = MakeStrong(this)] (const TIOEngineHandlePtr& handle) {
             struct TReadAllBufferTag
             { };
             return Read(
-                {{handle, 0, handle->GetLength()}},
+                {{
+                    handle,
+                    0,
+                    handle->GetLength(),
+                    fairShareSlot,
+                }},
                 category,
                 GetRefCountedTypeCookie<TReadAllBufferTag>(),
                 sessionId)
@@ -936,7 +942,10 @@ public:
             for (auto& slice : RequestSlicer_.Slice(std::move(requests[index]), buffers[index])) {
                 auto slotId = requests[index].FairShareSlotId;
                 auto requestId = TGuid::Create();
-                auto promise = NewPromise<TInternalReadResponse>();
+                auto promise = CreateRequestPromise<TInternalReadResponse>(
+                    slotId,
+                    requestId,
+                    EFairShareIOEngineRequestType::Read);
                 auto requestSize = slice.Request.Size;
                 futures.push_back(promise.ToFuture());
 
@@ -1022,7 +1031,10 @@ public:
         auto slotId = request.FairShareSlotId;
         for (auto& slice : RequestSlicer_.Slice(std::move(request))) {
             auto requestId = TGuid::Create();
-            auto promise = NewPromise<TWriteResponse>();
+            auto promise = CreateRequestPromise<TWriteResponse>(
+                slotId,
+                requestId,
+                EFairShareIOEngineRequestType::Write);
             auto toWriteRemaining = static_cast<i64>(GetByteSize(request.Buffers));
 
             futures.push_back(promise.ToFuture());
@@ -1080,9 +1092,12 @@ public:
         TFlushFileRequest request,
         EWorkloadCategory /*category*/) override
     {
-        auto requestId = TGuid::Create();
-        auto promise = NewPromise<TFlushFileResponse>();
         auto slotId = request.FairShareSlotId;
+        auto requestId = TGuid::Create();
+        auto promise = CreateRequestPromise<TFlushFileResponse>(
+            slotId,
+            requestId,
+            EFairShareIOEngineRequestType::Flush);
         auto callback = BIND(&DoFlushFile, std::move(request), StaticConfig_->EnableSync, Sensors_);
         auto future = promise.ToFuture();
         auto guard = Guard(Lock_);
@@ -1114,7 +1129,11 @@ public:
         auto guard = Guard(Lock_);
         for (auto& slice : RequestSlicer_.Slice(std::move(request))) {
             auto requestId = TGuid::Create();
-            auto promise = NewPromise<TFlushFileRangeResponse>();
+            auto promise = CreateRequestPromise<TFlushFileRangeResponse>(
+                slotId,
+                requestId,
+                EFairShareIOEngineRequestType::FlushFileRange);
+
             futures.push_back(promise.ToFuture());
 
             auto callback = BIND(&DoFlushFileRange, std::move(slice), StaticConfig_->EnableSync, Sensors_);
@@ -1164,7 +1183,11 @@ public:
                 return;
             }
 
-            auto slot = FairShareQueue_ ? FairShareQueue_->PeekSlot(SlotIds_) : nullptr;
+            // TODO(don-dron): For requests that are not explicitly marked up with slots, guaranteed priority
+            // must be used. In the future, you need to exclude unmarked requests.
+            auto slot = FairShareQueue_ && !SlotIds_.contains(TFairShareSlotId{})
+                ? FairShareQueue_->PeekSlot(SlotIds_)
+                : nullptr;
             auto slotId = slot ? slot->GetSlotId() : TFairShareSlotId{};
             auto requestsIt = SlotIdToRequestIds_.find(slotId);
 
@@ -1176,16 +1199,18 @@ public:
             EventCount_.CancelWait();
 
             auto& requests = requestsIt->second;
+
+            YT_VERIFY(!requests.empty());
             auto requestIdToType = requests.front();
+            auto requestId = requestIdToType.first;
+            auto requestType = requestIdToType.second;
+
             requests.pop_front();
 
             if (requests.empty()) {
                 EraseOrCrash(SlotIds_, slotId);
                 EraseOrCrash(SlotIdToRequestIds_, slotId);
             }
-
-            auto requestId = requestIdToType.first;
-            auto requestType = requestIdToType.second;
 
             switch (requestType) {
                 case EFairShareIOEngineRequestType::Read:
@@ -1234,7 +1259,7 @@ private:
     const TConfigPtr StaticConfig_;
     TAtomicIntrusivePtr<TConfig> Config_;
 
-    std::atomic<int> LoopCount_ = 1;
+    std::atomic<int> LoopCount_ = 0;
 
     IThreadPoolPtr ThreadPool_;
     TIORequestSlicer RequestSlicer_;
@@ -1253,6 +1278,52 @@ private:
     NThreading::TEventCount EventCount_;
 
     template <class TResponse>
+    TPromise<TResponse> CreateRequestPromise(
+        TFairShareSlotId slotId,
+        TGuid requestId,
+        EFairShareIOEngineRequestType requestType)
+    {
+        auto promise = NewPromise<TResponse>();
+        promise.OnCanceled(BIND([=, this, this_ = MakeStrong(this)] (const TError& /*error*/) {
+            auto guard = Guard(Lock_);
+            auto slotIt = SlotIds_.find(slotId);
+            if (slotIt != SlotIds_.end()) {
+                auto& requests = SlotIdToRequestIds_[slotId];
+                requests.erase(std::find_if(
+                    requests.begin(),
+                    requests.end(),
+                    [&] (const auto& requestIdToType) {
+                        return requestIdToType.first == requestId;
+                    }));
+
+                if (requests.empty()) {
+                    SlotIds_.erase(slotIt);
+                    EraseOrCrash(SlotIdToRequestIds_, slotId);
+                }
+
+                switch (requestType) {
+                    case EFairShareIOEngineRequestType::Read:
+                        ReadRequestStorage_.erase(requestId);
+                        return;
+                    case EFairShareIOEngineRequestType::Write:
+                        WriteRequestStorage_.erase(requestId);
+                        return;
+                    case EFairShareIOEngineRequestType::Flush:
+                        FlushFileRequestStorage_.erase(requestId);
+                        return;
+                    case EFairShareIOEngineRequestType::FlushFileRange:
+                        FlushFileRangeRequestStorage_.erase(requestId);
+                        return;
+                    default:
+                        YT_ABORT();
+                }
+            }
+        }).Via(GetAuxPoolInvoker()));
+
+        return promise;
+    }
+
+    template <class TResponse>
     void HandleNextRequest(
         const TFairShareHierarchicalSlotQueueSlotPtr<TString>& slot,
         TGuard<NThreading::TSpinLock> guard,
@@ -1262,11 +1333,12 @@ private:
         auto requestHandlerIt = requestStorage.find(requestId);
 
         YT_VERIFY(requestHandlerIt != requestStorage.end());
-
         auto& requestHandler = requestHandlerIt->second;
         auto promise = std::move(requestHandler.Promise);
         auto callback = std::move(requestHandler.Callback);
         auto cost = requestHandler.Cost;
+
+        requestStorage.erase(requestHandlerIt);
 
         if (promise.IsCanceled()) {
             return;
@@ -1277,7 +1349,12 @@ private:
                 FairShareQueue_->AccountSlot(slot, cost);
             }
 
-            promise.TrySet(callback());
+            try {
+                auto result = callback();
+                promise.TrySet(std::move(result));
+            } catch (const std::exception& ex) {
+                promise.TrySet(TError(ex));
+            }
         }
     }
 

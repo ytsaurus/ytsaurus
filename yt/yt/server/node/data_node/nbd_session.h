@@ -71,7 +71,8 @@ struct TNbdSession
 
     TFuture<TFinishResult> Finish(
         const NChunkClient::TRefCountedChunkMetaPtr& chunkMeta,
-        std::optional<int> blockCount) override;
+        std::optional<int> blockCount,
+        bool truncateExtraBlocks) override;
 
     TFuture<NIO::TIOCounters> PutBlocks(
         int startBlockIndex,

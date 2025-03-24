@@ -1,5 +1,4 @@
 {
     "": "build/config/tests/ruff/ruff.toml",
-    "insurance/": "insurance/pyproject.toml",
     "maps/infra/": "maps/infra/pyproject.toml"
 }

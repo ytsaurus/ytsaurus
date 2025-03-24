@@ -47,7 +47,8 @@ public:
 
     TFuture<TFinishResult> Finish(
         const NChunkClient::TRefCountedChunkMetaPtr& chunkMeta,
-        std::optional<int> blockCount) override;
+        std::optional<int> blockCount,
+        bool truncateExtraBlocks) override;
 
     TFuture<NIO::TIOCounters> PutBlocks(
         int startBlockIndex,
@@ -100,7 +101,8 @@ protected:
     virtual void DoCancel(const TError& error) = 0;
     virtual TFuture<TFinishResult> DoFinish(
         const NChunkClient::TRefCountedChunkMetaPtr& chunkMeta,
-        std::optional<int> blockCount) = 0;
+        std::optional<int> blockCount,
+        bool truncateExtraBlocks) = 0;
     virtual TFuture<NIO::TIOCounters> DoPutBlocks(
         int startBlockIndex,
         std::vector<NChunkClient::TBlock> blocks,

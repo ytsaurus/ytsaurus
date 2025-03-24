@@ -16,6 +16,8 @@ struct TObjectAttributeCacheConfig
     : public TAsyncExpiringCacheConfig
 {
     NApi::TSerializableMasterReadOptionsPtr MasterReadOptions;
+    //! User for executing requests to master.
+    std::string UserName;
 
     REGISTER_YSON_STRUCT(TObjectAttributeCacheConfig);
 

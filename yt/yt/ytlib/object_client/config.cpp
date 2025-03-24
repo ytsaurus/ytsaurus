@@ -10,6 +10,8 @@ void TObjectAttributeCacheConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("master_read_options", &TThis::MasterReadOptions)
         .DefaultNew();
+    registrar.Parameter("user_name", &TThis::UserName)
+        .Default(NRpc::RootUserName);
 
     // COMPAT(dakovalkov)
     registrar.Parameter("read_from", &TThis::ReadFrom_)

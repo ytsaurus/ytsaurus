@@ -49,6 +49,11 @@ struct TMetadataCheckVisitor
 TFuture<bool> TSignatureValidator::Validate(const TSignaturePtr& signature)
 {
     TSignatureHeader header;
+    if (!signature->Header_) {
+        YT_LOG_WARNING("Signature is missing header");
+        return FalseFuture;
+    }
+
     try {
         header = ConvertTo<TSignatureHeader>(signature->Header_);
     } catch (const std::exception& ex) {

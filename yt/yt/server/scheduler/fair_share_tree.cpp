@@ -338,7 +338,8 @@ public:
             StrategyHost_->SetSchedulerAlert(
                 ESchedulerAlertType::UnrecognizedPoolTreeConfigOptions,
                 TError("Pool tree config contains unrecognized options")
-                    << TErrorAttribute("unrecognized", unrecognized));
+                    << TErrorAttribute("unrecognized", unrecognized)
+                    << TErrorAttribute("tree", TreeId_));
         }
     }
 
@@ -3377,6 +3378,10 @@ private:
                 filter,
                 "effective_aggressive_starvation_enabled",
                 element->GetEffectiveAggressiveStarvationEnabled())
+            .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(
+                filter,
+                "effective_waiting_for_resources_on_node_timeout",
+                element->GetEffectiveWaitingForResourcesOnNodeTimeout())
             .DoIf(element->GetLowestAggressivelyStarvingAncestor(), [&] (TFluentMap fluent) {
                 fluent.ITEM_VALUE_IF_SUITABLE_FOR_FILTER(
                     filter,

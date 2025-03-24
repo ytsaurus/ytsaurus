@@ -9,6 +9,7 @@
 #include <contrib/ydb/core/tx/columnshard/engines/storage/indexes/count_min_sketch/meta.h>
 #include <contrib/ydb/core/tx/columnshard/engines/storage/indexes/max/meta.h>
 #include <contrib/ydb/core/tx/columnshard/engines/storage/indexes/portions/meta.h>
+#include <contrib/ydb/core/tx/columnshard/engines/storage/indexes/skip_index/meta.h>
 #include <contrib/ydb/core/tx/columnshard/engines/storage/optimizer/abstract/optimizer.h>
 
 #include <contrib/ydb/library/formats/arrow/simple_arrays_cache.h>

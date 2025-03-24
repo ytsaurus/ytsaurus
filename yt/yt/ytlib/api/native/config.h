@@ -280,7 +280,7 @@ struct TConnectionDynamicConfig
     TDuration DefaultFetchTableRowsTimeout;
     TDuration DefaultRegisterTransactionActionsTimeout;
     TDuration DefaultGetOrderedTabletSafeTrimRowCountTimeout;
-    TDuration DefaulChaosReplicatedTableGetTabletCountTimeout;
+    TDuration DefaultChaosReplicatedTableGetTabletCountTimeout;
 
     int CypressWriteYsonNestingLevelLimit;
 
@@ -299,6 +299,7 @@ struct TConnectionDynamicConfig
     TAsyncExpiringCacheConfigPtr JobShellDescriptorCache;
 
     NSecurityClient::TPermissionCacheConfigPtr PermissionCache;
+    NSecurityClient::TUserAttributeCacheConfigPtr UserAttributeCache;
 
     int MaxChunksPerFetch;
     int MaxChunksPerLocateRequest;

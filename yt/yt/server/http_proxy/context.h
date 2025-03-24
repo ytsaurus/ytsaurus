@@ -60,6 +60,7 @@ public:
     void LogRequest();
     void LogStructuredRequest();
     void SetupTracing();
+    void SetupMemoryUsageTracker();
     void AddHeaders();
 
     void SetEnrichedError(const TError& error);

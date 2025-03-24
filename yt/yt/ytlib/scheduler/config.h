@@ -306,6 +306,8 @@ struct TPoolConfig
 
     bool AlwaysAllowGangOperations;
 
+    std::optional<TDuration> WaitingForResourcesOnNodeTimeout;
+
     void Validate(const TString& poolName);
 
     REGISTER_YSON_STRUCT(TPoolConfig);

@@ -11,7 +11,7 @@ from yt_commands import (
 
 from yt_type_helpers import struct_type, list_type, tuple_type, optional_type, make_schema, make_column
 
-from yt_helpers import skip_if_no_descending, skip_if_old, skip_if_renaming_disabled
+from yt_helpers import skip_if_old
 
 import yt_error_codes
 import yt.yson as yson
@@ -462,9 +462,6 @@ for key, rows in groupby(read_table(), lambda row: row["word"]):
     @authors("psushin")
     @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
     def test_reduce_with_sort(self, sort_order):
-        if sort_order == "descending":
-            skip_if_no_descending(self.Env)
-
         create("table", "//tmp/t_in")
         create("table", "//tmp/t_out")
 
@@ -755,9 +752,6 @@ print("x={0}\ty={1}".format(x, y))
     @authors("savrus")
     @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
     def test_query_simple(self, sort_order):
-        if sort_order == "descending":
-            skip_if_no_descending(self.Env)
-
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
         write_table("//tmp/t1", {"a": "b"})
@@ -780,9 +774,6 @@ print("x={0}\ty={1}".format(x, y))
     @pytest.mark.parametrize("optimize_for", ["lookup", "scan"])
     @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
     def test_rename_columns_simple(self, optimize_for, sort_order):
-        if sort_order == "descending":
-            skip_if_no_descending(self.Env)
-
         create(
             "table",
             "//tmp/tin",
@@ -811,10 +802,6 @@ print("x={0}\ty={1}".format(x, y))
     @pytest.mark.parametrize("optimize_for", ["lookup", "scan"])
     @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
     def test_rename_columns_alter_table(self, optimize_for, sort_order):
-        if sort_order == "descending":
-            skip_if_no_descending(self.Env)
-        skip_if_renaming_disabled(self.Env)
-
         input_table = "//tmp/tin"
         output_table = "//tmp/tout"
 
@@ -1201,9 +1188,6 @@ print("x={0}\ty={1}".format(x, y))
     @pytest.mark.parametrize("sort_order", ["ascending", "descending", None])
     @pytest.mark.parametrize("ordered", [False, True])
     def test_map_output_table(self, sort_order, ordered):
-        if sort_order == "descending":
-            skip_if_no_descending(self.Env)
-
         create("table", "//tmp/t_in")
         create("table", "//tmp/t_out")
         create(
@@ -1277,9 +1261,6 @@ print("x={0}\ty={1}".format(x, y))
     @authors("dakovalkov")
     @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
     def test_ordered_map_reduce(self, sort_order):
-        if sort_order == "descending":
-            skip_if_no_descending(self.Env)
-
         create("table", "//tmp/t_in")
         create("table", "//tmp/t_out")
         for i in range(50):
@@ -1302,9 +1283,6 @@ print("x={0}\ty={1}".format(x, y))
     @authors("babenko")
     @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
     def test_commandless_user_job_spec(self, sort_order):
-        if sort_order == "descending":
-            skip_if_no_descending(self.Env)
-
         create("table", "//tmp/t_in")
         create("table", "//tmp/t_out")
         for i in range(50):
@@ -1322,9 +1300,6 @@ print("x={0}\ty={1}".format(x, y))
     @authors("max42")
     @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
     def test_sampling(self, sort_order):
-        if sort_order == "descending":
-            skip_if_no_descending(self.Env)
-
         create(
             "table",
             "//tmp/t1",
@@ -1528,8 +1503,6 @@ print("x={0}\ty={1}".format(x, y))
 
     @authors("gritukan")
     def test_pivot_keys_descending(self):
-        skip_if_no_descending(self.Env)
-
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
         create("table", "//tmp/t3")
@@ -1570,7 +1543,6 @@ print("x={0}\ty={1}".format(x, y))
     @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
     def test_intermediate_schema(self, sort_order):
         if sort_order == "descending":
-            skip_if_no_descending(self.Env)
             self.skip_if_legacy_sorted_pool()
 
         schema = [
@@ -1788,11 +1760,7 @@ for l in sys.stdin:
     @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
     def test_several_intermediate_schemas_trivial_mapper(self, sort_order, with_intermediate_sort):
         if sort_order == "descending":
-            skip_if_no_descending(self.Env)
             self.skip_if_legacy_sorted_pool()
-        is_compat = "22_1" in getattr(self, "ARTIFACT_COMPONENTS", {})
-        if with_intermediate_sort and is_compat:
-            pytest.xfail("Hasn't worked before")
 
         first_schema = [
             {"name": "a", "type_v3": "int64", "sort_order": sort_order},
@@ -1888,7 +1856,6 @@ for l in sys.stdin:
     @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
     def test_several_intermediate_schemas_trivial_mapper_type_casting(self, sort_order):
         if sort_order == "descending":
-            skip_if_no_descending(self.Env)
             self.skip_if_legacy_sorted_pool()
 
         input_schemas = [
@@ -2004,12 +1971,7 @@ for l in sys.stdin:
     )
     def test_several_intermediate_schemas_passing(self, sort_order, method):
         if sort_order == "descending":
-            skip_if_no_descending(self.Env)
             self.skip_if_legacy_sorted_pool()
-
-        is_compat = "22_4" in getattr(self, "ARTIFACT_COMPONENTS", {})
-        if is_compat and method == "ordered_map_reduce":
-            pytest.xfail("Hasn't worked before")
 
         first_schema = [
             {"name": "a", "type_v3": "int64", "sort_order": sort_order},
@@ -2308,7 +2270,6 @@ for l in sys.stdin:
     @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
     def test_identical_intermediate_schemas(self, sort_order):
         if sort_order == "descending":
-            skip_if_no_descending(self.Env)
             self.skip_if_legacy_sorted_pool()
 
         schema = [
@@ -2391,7 +2352,6 @@ for l in sys.stdin:
     @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
     def test_identical_intermediate_schemas_trivial_mapper(self, sort_order):
         if sort_order == "descending":
-            skip_if_no_descending(self.Env)
             self.skip_if_legacy_sorted_pool()
 
         input_schema = [

@@ -10,7 +10,7 @@ from yt_commands import (
 
 from yt_type_helpers import make_schema
 
-from yt_helpers import skip_if_renaming_disabled, profiler_factory
+from yt_helpers import profiler_factory
 
 from yt.environment.helpers import assert_items_equal
 from yt.common import YtError
@@ -229,8 +229,6 @@ class CheckPermissionBase(YTEnvSetup):
     @pytest.mark.parametrize("acl_path", ["//tmp/dir/t", "//tmp/dir"])
     @pytest.mark.parametrize("rename_columns", [False, True])
     def test_check_permission_for_columnar_acl(self, acl_path, rename_columns):
-        skip_if_renaming_disabled(self.Env)
-
         create_user("u1")
         create_user("u2")
         create_user("u3")

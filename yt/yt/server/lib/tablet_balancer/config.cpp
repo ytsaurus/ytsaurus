@@ -218,7 +218,7 @@ void TBundleTabletBalancerConfig::Register(TRegistrar registrar)
             it->second->Postprocess();
         }
 
-        if (auto it = config->Groups.emplace(LegacyGroupName, New<TTabletBalancingGroupConfig>()); it.second) {
+        if (auto it = config->Groups.emplace(LegacyOrdinaryGroupName, New<TTabletBalancingGroupConfig>()); it.second) {
             it.first->second->Type = EBalancingType::Legacy;
         }
 
@@ -229,7 +229,7 @@ void TBundleTabletBalancerConfig::Register(TRegistrar registrar)
         for (const auto& [groupName, groupConfig] : config->Groups) {
             if (groupConfig->Type == EBalancingType::Legacy) {
                 THROW_ERROR_EXCEPTION_IF(
-                    groupName != LegacyGroupName && groupName != LegacyInMemoryGroupName,
+                    groupName != LegacyOrdinaryGroupName && groupName != LegacyInMemoryGroupName,
                     "Group %Qv is not builtin but has legacy type",
                     groupName);
             }

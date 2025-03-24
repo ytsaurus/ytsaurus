@@ -40,6 +40,7 @@ struct TSessionOptions
     std::optional<i64> MinLocationAvailableSpace;
     std::optional<i64> NbdChunkSize;
     std::optional<NNbd::EFilesystemType> NbdChunkFsType;
+    std::vector<std::pair<TString, double>> FairShareTags;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -105,7 +106,8 @@ struct ISession
     //! Finishes the session.
     virtual TFuture<TFinishResult> Finish(
         const NChunkClient::TRefCountedChunkMetaPtr& chunkMeta,
-        std::optional<int> blockCount) = 0;
+        std::optional<int> blockCount,
+        bool truncateExtraBlocks) = 0;
 
     //! Puts a contiguous range of blocks into the window.
     virtual TFuture<NIO::TIOCounters> PutBlocks(

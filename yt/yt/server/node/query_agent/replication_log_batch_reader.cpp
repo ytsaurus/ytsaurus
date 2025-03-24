@@ -121,13 +121,6 @@ TReplicationLogBatchDescriptor TReplicationLogBatchReaderBase::ReadReplicationBa
 
                 if (!isRowFitIntoProgress) {
                     ++discardedByProgress;
-                    if (!isRequestDeadlineExceeded && !isDataWeightPerPullRowsLimitExceeded) {
-                        rowBuffer->Clear();
-                        maxTimestamp = std::max(maxTimestamp, timestamp);
-                        prevTimestamp = timestamp;
-                        ++currentRowIndex;
-                        continue;
-                    }
                 }
 
                 if (timestamp != prevTimestamp) {
@@ -170,7 +163,9 @@ TReplicationLogBatchDescriptor TReplicationLogBatchReaderBase::ReadReplicationBa
                         break;
                     }
 
-                    ++timestampCount;
+                    if (isRowFitIntoProgress) {
+                        ++timestampCount;
+                    }
                 }
 
                 if (isRowFitIntoProgress) {
