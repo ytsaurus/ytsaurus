@@ -323,6 +323,7 @@ Y_UNIT_TEST_SUITE(SqlCompleteTests) {
 
     Y_UNIT_TEST(InvalidStatementsRecovery) {
         auto engine = MakeSqlCompletionEngine();
+        UNIT_ASSERT_VALUES_EQUAL(Complete(engine, "select select; ").size(), 35);
         UNIT_ASSERT_VALUES_EQUAL(Complete(engine, "select select;").size(), 35);
         UNIT_ASSERT_VALUES_EQUAL(Complete(engine, "!;").size(), 35);
     }

@@ -3,10 +3,14 @@
 #include "c3_engine.h"
 #include "sql_syntax.h"
 
+#include <yql/essentials/core/issue/yql_issue.h>
 #include <yql/essentials/parser/antlr_ast/gen/v1_antlr4/SQLv1Antlr4Lexer.h>
 #include <yql/essentials/parser/antlr_ast/gen/v1_antlr4/SQLv1Antlr4Parser.h>
 #include <yql/essentials/parser/antlr_ast/gen/v1_ansi_antlr4/SQLv1Antlr4Lexer.h>
 #include <yql/essentials/parser/antlr_ast/gen/v1_ansi_antlr4/SQLv1Antlr4Parser.h>
+#include <yql/essentials/sql/v1/lexer/lexer.h>
+#include <yql/essentials/sql/v1/lexer/antlr4_pure/lexer.h>
+#include <yql/essentials/sql/v1/lexer/antlr4_pure_ansi/lexer.h>
 
 #include <util/generic/algorithm.h>
 #include <util/stream/output.h>
@@ -34,6 +38,12 @@ namespace NSQLComplete {
             : Grammar(&GetSqlGrammar(IsAnsiLexer))
             , C3(ComputeC3Config())
         {
+            NSQLTranslationV1::TLexers lexers;
+            lexers.Antlr4Pure = NSQLTranslationV1::MakeAntlr4PureLexerFactory();
+            lexers.Antlr4PureAnsi = NSQLTranslationV1::MakeAntlr4PureAnsiLexerFactory();
+
+            Lexer_ = NSQLTranslationV1::MakeLexer(lexers,
+                                                  IsAnsiLexer, /* antlr4 = */ true, /* pure = */ true);
         }
 
         TCompletionContext Analyze(TCompletionInput input) override {
@@ -73,14 +83,20 @@ namespace NSQLComplete {
         const TStringBuf C3Prefix(TCompletionInput input) {
             const TStringBuf prefix = input.Text.Head(input.CursorPosition);
 
-            size_t pos = prefix.find_last_of(';');
-            if (pos == TStringBuf::npos) {
-                pos = 0;
-            } else {
-                pos += 1;
+            TVector<TString> statements;
+            NYql::TIssues issues;
+            if (!NSQLTranslationV1::SplitQueryToStatements(
+                    TString(prefix) + (prefix.EndsWith(';') ? ";" : ""), Lexer_,
+                    statements, issues, /* file = */ "",
+                    /* areBlankSkipped = */ false)) {
+                return prefix;
             }
 
-            return prefix.Tail(pos);
+            if (statements.empty()) {
+                return prefix;
+            }
+
+            return prefix.Last(statements.back().size());
         }
 
         TVector<TString> SiftedKeywords(const TVector<TSuggestedToken>& tokens) {
@@ -97,6 +113,7 @@ namespace NSQLComplete {
         }
 
         const ISqlGrammar* Grammar;
+        NSQLTranslation::ILexer::TPtr Lexer_;
         TC3Engine<G> C3;
     };
 
