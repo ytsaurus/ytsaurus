@@ -1,8 +1,6 @@
 #include "table_reader.h"
-#include "transaction.h"
-#include "connection.h"
 
-#include <yt/yt/ytlib/api/native/config.h>
+#include "client.h"
 
 #include <yt/yt/ytlib/table_client/table_read_spec.h>
 
@@ -24,6 +22,7 @@
 #include <yt/yt/ytlib/object_client/helpers.h>
 
 #include <yt/yt/client/api/table_reader.h>
+#include <yt/yt/client/api/transaction.h>
 
 #include <yt/yt/client/node_tracker_client/node_directory.h>
 
@@ -177,11 +176,7 @@ private:
     {
         // Transform NApi::TTableReaderOptions into NTableClient::TTableReader{Options,Config}.
         auto tableReaderConfig = Options_.Config ? Options_.Config : New<TTableReaderConfig>();
-        auto tableReaderOptions = New<NTableClient::TTableReaderOptions>();
-        tableReaderOptions->EnableTableIndex = Options_.EnableTableIndex;
-        tableReaderOptions->EnableRangeIndex = Options_.EnableRangeIndex;
-        tableReaderOptions->EnableRowIndex = Options_.EnableRowIndex;
-        tableReaderOptions->EnableTabletIndex = Options_.EnableTabletIndex;
+        auto tableReaderOptions = ToInternalTableReaderOptions(Options_);
 
         auto readSessionId = TReadSessionId::Create();
         auto fetchTableReadSpecOptions = TFetchSingleTableReadSpecOptions{
@@ -272,6 +267,50 @@ TFuture<ITableReaderPtr> CreateTableReader(
     return reader->GetReadyEvent().Apply(BIND([=] () -> ITableReaderPtr {
         return reader;
     }));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TSchemalessMultiChunkReaderAdapter
+    : public IRowBatchReader
+{
+public:
+    TSchemalessMultiChunkReaderAdapter(ISchemalessMultiChunkReaderPtr reader)
+        : Reader_(std::move(reader))
+    { }
+
+    IUnversionedRowBatchPtr Read(const TRowBatchReadOptions& options) override
+    {
+        return Reader_->Read(options);
+    }
+
+    const TNameTablePtr& GetNameTable() const override
+    {
+        return Reader_->GetNameTable();
+    }
+
+    TFuture<void> GetReadyEvent() const override
+    {
+        return Reader_->GetReadyEvent();
+    }
+
+private:
+    const ISchemalessMultiChunkReaderPtr Reader_;
+};
+
+IRowBatchReaderPtr ToApiRowBatchReader(ISchemalessMultiChunkReaderPtr reader)
+{
+    return New<TSchemalessMultiChunkReaderAdapter>(std::move(reader));
+}
+
+NTableClient::TTableReaderOptionsPtr ToInternalTableReaderOptions(const TTableReaderOptions& options)
+{
+    auto result = New<NTableClient::TTableReaderOptions>();
+    result->EnableTableIndex = options.EnableTableIndex;
+    result->EnableRangeIndex = options.EnableRangeIndex;
+    result->EnableRowIndex = options.EnableRowIndex;
+    result->EnableTabletIndex = options.EnableTabletIndex;
+    return result;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

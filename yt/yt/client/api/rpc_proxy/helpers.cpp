@@ -1332,6 +1332,18 @@ void ToProto(
     aggregateStatistics->set_chunk_count(multiTablePartition.AggregateStatistics.ChunkCount);
     aggregateStatistics->set_data_weight(multiTablePartition.AggregateStatistics.DataWeight);
     aggregateStatistics->set_row_count(multiTablePartition.AggregateStatistics.RowCount);
+
+    if (multiTablePartition.Cookie) {
+        ToProto(protoMultiTablePartition->mutable_cookie(), multiTablePartition.Cookie);
+    }
+}
+
+void ToProto(
+    TProtobufString* protoCookie,
+    const TTablePartitionCookiePtr& cookie)
+{
+    auto cookieBytes = ConvertToYsonString(cookie);
+    *protoCookie = cookieBytes.ToString();
 }
 
 void FromProto(
@@ -1348,6 +1360,10 @@ void FromProto(
         multiTablePartition->AggregateStatistics.DataWeight = aggregateStatistics.data_weight();
         multiTablePartition->AggregateStatistics.RowCount = aggregateStatistics.row_count();
     }
+
+    if (protoMultiTablePartition.has_cookie()) {
+        FromProto(&multiTablePartition->Cookie, protoMultiTablePartition.cookie());
+    }
 }
 
 void FromProto(
@@ -1357,6 +1373,13 @@ void FromProto(
     FromProto(
         &multiTablePartitions->Partitions,
         protoRspPartitionTables.partitions());
+}
+
+void FromProto(
+    TTablePartitionCookiePtr* cookie,
+    const TProtobufString& protoCookie)
+{
+    *cookie = ConvertTo<TTablePartitionCookiePtr>(TYsonStringBuf(protoCookie));
 }
 
 void ToProto(

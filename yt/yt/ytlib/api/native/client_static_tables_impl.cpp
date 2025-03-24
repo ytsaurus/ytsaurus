@@ -1,8 +1,14 @@
-#include "config.h"
 #include "client_impl.h"
 #include "table_reader.h"
 #include "partition_tables.h"
 #include "skynet.h"
+
+#include <yt/yt/ytlib/chunk_client/chunk_reader_host.h>
+#include <yt/yt/ytlib/chunk_client/chunk_reader_options.h>
+#include <yt/yt/ytlib/chunk_client/data_slice_descriptor.h>
+
+#include <yt/yt/ytlib/job_proxy/helpers.h>
+#include <yt/yt/ytlib/job_proxy/user_job_io_factory.h>
 
 #include <yt/yt/ytlib/node_tracker_client/channel.h>
 #include <yt/yt/ytlib/node_tracker_client/public.h>
@@ -13,11 +19,17 @@
 #include <yt/yt/ytlib/table_client/helpers.h>
 #include <yt/yt/ytlib/table_client/schemaless_chunk_writer.h>
 
+#include <yt/yt/ytlib/table_client/proto/table_partition_cookie.pb.h>
+
+#include <yt/yt/client/api/table_partition_reader.h>
+
 #include <yt/yt/client/node_tracker_client/node_directory.h>
 
 #include <yt/yt/client/job_tracker_client/public.h>
 
 #include <yt/yt/client/table_client/name_table.h>
+
+#include <yt/yt/client/signature/signature.h>
 
 #include <yt/yt/core/concurrency/action_queue.h>
 
@@ -29,9 +41,11 @@
 namespace NYT::NApi::NNative {
 
 using namespace NYPath;
+using namespace NYson;
 using namespace NChunkClient;
 using namespace NTableClient;
 using namespace NConcurrency;
+using namespace NJobProxy;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -172,10 +186,60 @@ TMultiTablePartitions TClient::DoPartitionTables(
         /*client*/ this,
         paths,
         options,
+        Options_.GetAuthenticatedUser(),
         // TODO(galtsev): OperationId
         Logger().WithTag("Name: Root").WithTag("OperationId: %v", NJobTrackerClient::NullOperationId));
 
     return partitioner.PartitionTables();
+}
+
+TFuture<ITablePartitionReaderPtr> TClient::CreateTablePartitionReader(
+    const TTablePartitionCookiePtr& cookie,
+    const TReadTablePartitionOptions& options)
+{
+    NTableClient::NProto::TTablePartitionCookie cookieProto;
+    if (!cookieProto.ParseFromString(cookie.Underlying()->Payload())) {
+        THROW_ERROR_EXCEPTION("Failed to parse table partition cookie");
+    }
+
+    if (cookieProto.user() != Options_.GetAuthenticatedUser()) {
+        THROW_ERROR_EXCEPTION("Partition must be read by the same user who created it")
+            << TErrorAttribute("read_partition_user", Options_.GetAuthenticatedUser())
+            << TErrorAttribute("partition_tables_user", cookieProto.user());
+    }
+
+    auto dataSliceDescriptors = UnpackDataSliceDescriptors(cookieProto.table_input_specs());
+    auto dataSourceDirectory = FromProto<NChunkClient::TDataSourceDirectoryPtr>(cookieProto.data_source_directory());
+
+    auto nameTable = New<TNameTable>();
+
+    auto chunkReaderHost = TChunkReaderHost::FromClient(MakeStrong(this));
+
+    auto columnFilter = TColumnFilter{};
+    auto tableReaderOptions = ToInternalTableReaderOptions(options);
+    auto tableReaderConfig = options.Config ? options.Config : New<TTableReaderConfig>();
+    TClientChunkReadOptions chunkReadOptions;
+
+    auto result = CreateMapJobReader(
+        /*isParallel*/ true,
+        dataSliceDescriptors,
+        dataSourceDirectory,
+        tableReaderOptions,
+        tableReaderConfig,
+        chunkReadOptions,
+        chunkReaderHost,
+        nameTable,
+        columnFilter);
+    auto reader = ToApiRowBatchReader(result.Reader);
+
+    std::vector<TTableSchemaPtr> schemas;
+    std::vector<TColumnNameFilter> columnFilters;
+    for (const auto& dataSource : dataSourceDirectory->DataSources()) {
+        schemas.push_back(dataSource.Schema());
+        columnFilters.push_back(dataSource.Columns());
+    }
+
+    return MakeFuture(NApi::CreateTablePartitionReader(reader, schemas, columnFilters));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
