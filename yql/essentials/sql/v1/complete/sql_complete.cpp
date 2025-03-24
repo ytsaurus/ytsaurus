@@ -3,6 +3,7 @@
 #include "sql_context.h"
 #include "string_util.h"
 
+// FIXME(YQL-19747): unwanted dependency on a lexer implementation
 #include <yql/essentials/sql/v1/lexer/antlr4_pure/lexer.h>
 #include <yql/essentials/sql/v1/lexer/antlr4_pure_ansi/lexer.h>
 
@@ -71,6 +72,7 @@ namespace NSQLComplete {
         ISqlContextInference::TPtr ContextInference;
     };
 
+    // FIXME(YQL-19747): unwanted dependency on a lexer implementation
     ISqlCompletionEngine::TPtr MakeSqlCompletionEngine() {
         NSQLTranslationV1::TLexers lexers;
         lexers.Antlr4Pure = NSQLTranslationV1::MakeAntlr4PureLexerFactory();
