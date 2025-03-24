@@ -1889,6 +1889,112 @@ print(json.dumps(input))
 
         assert len(op.list_jobs()) == 10
 
+    @authors("faucct")
+    @pytest.mark.parametrize("ordered", [False, True])
+    def test_map_multi_job_splitter(self, ordered):
+        create("table", "//tmp/in_1")
+        write_table(
+            "//tmp/in_1",
+            [{"key": "%08d" % i, "value": "(t_1)", "data": "a" * (1024 * 1024)} for i in range(20)],
+        )
+
+        input_ = "//tmp/in_1"
+        output = "//tmp/output"
+        create("table", output)
+
+        command = """
+if [ "$YT_JOB_COOKIE_GROUP_INDEX" == 0 ]; then
+while read ROW; do
+    if [ "$YT_JOB_INDEX" == 0 ]; then
+        sleep 10
+    else
+        sleep 0.1
+    fi
+    echo "$ROW"
+done
+fi
+"""
+
+        op = map(
+            ordered=ordered,
+            track=False,
+            in_=input_,
+            out=output,
+            command=command,
+            spec={
+                "mapper": {
+                    "cookie_group_size": 2,
+                    "format": "dsv",
+                },
+                "data_size_per_job": 21 * 1024 * 1024,
+                "max_failed_job_count": 1,
+                "job_io": {
+                    "buffer_row_count": 1,
+                },
+            },
+        )
+
+        op.track()
+
+        completed = get(op.get_path() + "/@progress/jobs/completed")
+        interrupted = completed["interrupted"]
+        assert completed["total"] >= 4
+        assert interrupted["job_split"] >= 1
+        expected = read_table("//tmp/in_1", verbose=False)
+        for row in expected:
+            del row["data"]
+        got = read_table(output, verbose=False)
+        for row in got:
+            del row["data"]
+        assert sorted_dicts(got) == sorted_dicts(expected)
+
+    @authors("faucct")
+    @pytest.mark.parametrize("ordered", [False, True])
+    def test_failing_map_multi_job_splitter(self, ordered):
+        create("table", "//tmp/in_1")
+        write_table(
+            "//tmp/in_1",
+            [{"key": "%08d" % i, "value": "(t_1)", "data": "a" * (1024 * 1024)} for i in range(20)],
+        )
+
+        input_ = "//tmp/in_1"
+
+        command = """
+if [ "$YT_JOB_COOKIE_GROUP_INDEX" == 0 ]; then
+while read ROW; do
+    if [ "$YT_JOB_INDEX" == 0 ]; then
+        sleep 10
+    else
+        sleep 0.1
+    fi
+    echo "$ROW"
+done
+elif
+    exit 1
+fi
+"""
+
+        with pytest.raises(YtError):
+            map(
+                ordered=ordered,
+                in_=input_,
+                out="<create=true>//tmp/t_output1",
+                command=command,
+                spec={
+                    "mapper": {
+                        "cookie_group_size": 2,
+                        "format": "dsv",
+                    },
+                    "data_size_per_job": 21 * 1024 * 1024,
+                    "max_failed_job_count": 1,
+                    "job_io": {
+                        "buffer_row_count": 1,
+                    },
+                },
+            )
+
+        assert not exists("//tmp/t_output1")
+
     @authors("ifsmirnov")
     def test_disallow_partially_sorted_output(self):
         create(
