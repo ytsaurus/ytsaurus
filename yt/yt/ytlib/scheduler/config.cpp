@@ -1306,6 +1306,9 @@ void TUserJobSpec::Register(TRegistrar registrar)
         .Default();
     registrar.Parameter("enable_gpu_check", &TThis::EnableGpuCheck)
         .Default(false);
+    registrar.Parameter("cookie_group_size", &TThis::CookieGroupSize)
+        .Default(1)
+        .GreaterThan(0);
     registrar.Parameter("job_speculation_timeout", &TThis::JobSpeculationTimeout)
         .Default()
         .GreaterThan(TDuration::Zero());

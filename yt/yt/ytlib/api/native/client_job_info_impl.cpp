@@ -2024,6 +2024,7 @@ static void ParseJobsFromControllerAgentResponse(
         auto state = ConvertTo<EJobState>(jobMap->GetChildOrThrow("state"));
         auto stderrSize = jobMap->GetChildValueOrThrow<i64>("stderr_size");
         auto failContextSize = jobMap->GetChildValueOrDefault<i64>("fail_context_size", 0);
+        auto mainJobId = jobMap->GetChildValueOrDefault<TJobId>("main_job_id", {});
         auto jobCompetitionId = jobMap->GetChildValueOrThrow<TJobId>("job_competition_id");
         auto hasCompetitors = jobMap->GetChildValueOrThrow<bool>("has_competitors");
         auto taskName = jobMap->GetChildValueOrThrow<TString>("task_name");
@@ -2037,6 +2038,7 @@ static void ParseJobsFromControllerAgentResponse(
             (!options.State || options.State == state) &&
             (!options.WithStderr || *options.WithStderr == (stderrSize > 0)) &&
             (!options.WithFailContext || *options.WithFailContext == (failContextSize > 0)) &&
+            (!options.MainJobId || options.MainJobId == mainJobId) &&
             (!options.JobCompetitionId || options.JobCompetitionId == jobCompetitionId) &&
             (!options.WithCompetitors || options.WithCompetitors == hasCompetitors) &&
             (!options.TaskName || options.TaskName == taskName) &&
