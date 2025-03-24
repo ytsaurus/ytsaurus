@@ -49,7 +49,12 @@ set(YT_VERSION_TYPE os)
 add_library(yt-yt-build)
 
 
+target_compile_options(yt-yt-build PUBLIC
+  -gdwarf64
+)
+
 target_compile_options(yt-yt-build PRIVATE
+  -mcmodel=large
   -Wdeprecated-this-capture
   -Wimplicit-fallthrough
 )
@@ -62,6 +67,10 @@ target_link_libraries(yt-yt-build PUBLIC
   linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   yutil
+)
+
+target_link_options(yt-yt-build INTERFACE
+  -Wl,--compress-debug-sections=zlib
 )
 
 target_sources(yt-yt-build PRIVATE

@@ -97,6 +97,8 @@ public:
     NConcurrency::TThroughputThrottlerConfigPtr DefaultPerUserReadRequestWeightThrottler;
     NConcurrency::TThroughputThrottlerConfigPtr DefaultPerUserWriteRequestWeightThrottler;
 
+    TDuration ForwardedRequestTimeoutReserve;
+
     REGISTER_YSON_STRUCT(TObjectServiceDynamicConfig);
 
     static void Register(TRegistrar registrar);

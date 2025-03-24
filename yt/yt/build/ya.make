@@ -34,6 +34,13 @@ ELSE()
     SET(YT_VERSION_TYPE "os")
 ENDIF()
 
+IF (OS_LINUX)
+    LDFLAGS(
+        -Wl,--compress-debug-sections=zlib
+    )
+    CFLAGS(GLOBAL -gdwarf64 -mcmodel=large)
+ENDIF()
+
 SRCS(
   config.h.in
   build.cpp.in

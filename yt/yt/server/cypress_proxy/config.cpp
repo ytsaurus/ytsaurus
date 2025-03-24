@@ -58,6 +58,9 @@ void TObjectServiceDynamicConfig::Register(TRegistrar registrar)
     registrar.Parameter("default_per_user_write_request_weight_throttler", &TThis::DefaultPerUserWriteRequestWeightThrottler)
         .DefaultNew();
 
+    registrar.Parameter("forwarded_request_timeout_reserve", &TThis::ForwardedRequestTimeoutReserve)
+        .Default(TDuration::Seconds(3));
+
     registrar.Postprocessor([] (TThis* config) {
         THROW_ERROR_EXCEPTION_IF(
             config->DistributedThrottler->Mode == NDistributedThrottler::EDistributedThrottlerMode::Precise,

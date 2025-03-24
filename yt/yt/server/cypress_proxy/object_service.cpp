@@ -18,6 +18,8 @@
 
 #include <yt/yt/ytlib/cypress_client/rpc_helpers.h>
 
+#include <yt/yt/ytlib/cypress_client/proto/rpc.pb.h>
+
 #include <yt/yt/ytlib/object_client/object_service_proxy.h>
 
 #include <yt/yt/ytlib/object_client/proto/object_ypath.pb.h>
@@ -41,6 +43,35 @@ using namespace NYTree;
 using NYT::FromProto;
 using NYT::ToProto;
 using NSequoiaClient::TRawYPath;
+
+////////////////////////////////////////////////////////////////////////////////
+
+namespace {
+
+std::optional<TDuration> ComputeForwardingTimeout(
+    std::optional<TDuration> originTimeout,
+    std::optional<TInstant> startTime,
+    const TObjectServiceDynamicConfigPtr& config)
+{
+    if (!originTimeout.has_value()) {
+        return std::nullopt;
+    }
+
+    auto now = TInstant::Now();
+    auto delta = now - startTime.value_or(now);
+    if (delta >= *originTimeout) {
+        return *originTimeout;
+    }
+
+    auto adjustedTimeout = *originTimeout - delta;
+    if (adjustedTimeout > 2 * config->ForwardedRequestTimeoutReserve) {
+        adjustedTimeout -= config->ForwardedRequestTimeoutReserve;
+    }
+
+    return adjustedTimeout;
+}
+
+} // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -390,8 +421,6 @@ private:
 
     void InvokeMasterRequests(bool firstRun)
     {
-        const auto& request = RpcContext_->Request();
-
         std::vector<int> subrequestIndices;
         for (int index = 0; index < std::ssize(Subrequests_); ++index) {
             auto target = Subrequests_[index].Target;
@@ -405,13 +434,69 @@ private:
             return;
         }
 
+        auto masterRequest = PrepareMasterRequest(subrequestIndices);
+        auto masterResponse = WaitFor(masterRequest->Invoke())
+            .ValueOrThrow();
+
+        THashSet<int> subrequestsWithoutResponse(subrequestIndices.begin(), subrequestIndices.end());
+
+        int currentPartIndex = 0;
+        for (const auto& subresponse : masterResponse->subresponses()) {
+            auto partCount = subresponse.part_count();
+            auto partsRange = TRange<TSharedRef>(
+                masterResponse->Attachments().begin() + currentPartIndex,
+                masterResponse->Attachments().begin() + currentPartIndex + partCount);
+            currentPartIndex += partCount;
+
+            auto index = subrequestIndices[subresponse.index()];
+            subrequestsWithoutResponse.erase(index);
+
+            TSharedRefArray subresponseMessage(partsRange, TSharedRefArray::TMoveParts{});
+            if (firstRun && CheckSubresponseError(subresponseMessage, NObjectClient::EErrorCode::RequestInvolvesSequoia)) {
+                Subrequests_[index].Target = ERequestTarget::Sequoia;
+                continue;
+            }
+
+            Subrequests_[index].Target = ERequestTarget::None;
+            ReplyOnSubrequest(index, std::move(subresponseMessage));
+        }
+
+        // See comment about backoff alarm in ytlib/object_client/object_service_proxy.cpp
+        YT_VERIFY(subrequestIndices.size() > subrequestsWithoutResponse.size());
+        for (int index : subrequestsWithoutResponse) {
+            Subrequests_[index].Target = ERequestTarget::None;
+        }
+    }
+
+    TObjectServiceProxy::TReqExecutePtr PrepareMasterRequest(TRange<int> subrequestIndices)
+    {
+        const auto& originRequest = RpcContext_->Request();
         auto masterRequest = MasterProxy_.Execute();
 
         // Copy request.
-        masterRequest->CopyFrom(request);
+        masterRequest->CopyFrom(originRequest);
 
         // Copy authentication identity.
         SetAuthenticationIdentity(masterRequest, RpcContext_->GetAuthenticationIdentity());
+
+        const auto& originRequestHeader = RpcContext_->RequestHeader();
+
+        if (originRequestHeader.retry()) {
+            masterRequest->SetRetry(true);
+        }
+
+        if (auto mutationId = RpcContext_->GetMutationId()) {
+            masterRequest->SetMutationId(mutationId);
+        }
+
+        if (auto startTime = RpcContext_->GetStartTime()) {
+            masterRequest->Header().set_start_time(ToProto(*startTime));
+        }
+
+        masterRequest->SetTimeout(ComputeForwardingTimeout(
+            RpcContext_->GetTimeout(),
+            RpcContext_->GetStartTime(),
+            Owner_->GetDynamicConfig()));
 
         // Copy some header extensions.
         auto copyHeaderExtension = [&] (auto tag) {
@@ -421,6 +506,11 @@ private:
             }
         };
         copyHeaderExtension(NObjectClient::NProto::TMulticellSyncExt::multicell_sync_ext);
+        copyHeaderExtension(NRpc::NProto::TCustomMetadataExt::custom_metadata_ext);
+        copyHeaderExtension(NRpc::NProto::TBalancingExt::balancing_ext);
+        copyHeaderExtension(NRpc::NProto::TCredentialsExt::credentials_ext);
+        copyHeaderExtension(NObjectClient::NProto::TPrerequisitesExt::prerequisites_ext);
+        copyHeaderExtension(NRpc::NProto::TRequestHeader::tracing_ext);
 
         // Fill request with non-Sequoia requests.
         masterRequest->clear_part_counts();
@@ -435,28 +525,7 @@ private:
                 requestMessage.End());
         }
 
-        auto masterResponse = WaitFor(masterRequest->Invoke())
-            .ValueOrThrow();
-
-        int currentPartIndex = 0;
-        for (const auto& subresponse : masterResponse->subresponses()) {
-            auto partCount = subresponse.part_count();
-            auto partsRange = TRange<TSharedRef>(
-                masterResponse->Attachments().begin() + currentPartIndex,
-                masterResponse->Attachments().begin() + currentPartIndex + partCount);
-            currentPartIndex += partCount;
-
-            auto index = subrequestIndices[subresponse.index()];
-
-            TSharedRefArray subresponseMessage(partsRange, TSharedRefArray::TMoveParts{});
-            if (firstRun && CheckSubresponseError(subresponseMessage, NObjectClient::EErrorCode::RequestInvolvesSequoia)) {
-                Subrequests_[index].Target = ERequestTarget::Sequoia;
-                continue;
-            }
-
-            Subrequests_[index].Target = ERequestTarget::None;
-            ReplyOnSubrequest(index, std::move(subresponseMessage));
-        }
+        return masterRequest;
     }
 
     //! Rewrites subrequest header taking into account resolve result.

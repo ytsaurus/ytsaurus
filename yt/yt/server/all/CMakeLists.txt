@@ -20,6 +20,8 @@ add_executable(ytserver-all)
 
 
 target_compile_options(ytserver-all PRIVATE
+  -gdwarf64
+  -mcmodel=large
   -Wdeprecated-this-capture
   -Wimplicit-fallthrough
 )
@@ -63,6 +65,7 @@ target_allocator(ytserver-all
 )
 
 target_link_options(ytserver-all PRIVATE
+  -Wl,--compress-debug-sections=zlib
   -ldl
   -lrt
   -Wl,--no-as-needed

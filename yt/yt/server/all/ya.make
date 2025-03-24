@@ -8,6 +8,13 @@ INCLUDE(${ARCADIA_ROOT}/yt/opensource.inc)
 
 ALLOCATOR(TCMALLOC)
 
+IF (OS_LINUX)
+    LDFLAGS(
+        -Wl,--compress-debug-sections=zlib
+    )
+    CFLAGS(-gdwarf64 -mcmodel=large)
+ENDIF()
+
 SRCS(
     yt/yt/server/all/main.cpp
 )
