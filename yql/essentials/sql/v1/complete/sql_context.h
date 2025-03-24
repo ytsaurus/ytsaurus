@@ -20,6 +20,6 @@ namespace NSQLComplete {
         virtual ~ISqlContextInference() = default;
     };
 
-    ISqlContextInference::TPtr MakeSqlContextInference(const NSQLTranslationV1::TLexers& lexers);
+    ISqlContextInference::TPtr MakeSqlContextInference(const TLexerSupplier& lexer);
 
 } // namespace NSQLComplete

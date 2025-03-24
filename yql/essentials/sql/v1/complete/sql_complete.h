@@ -41,8 +41,10 @@ namespace NSQLComplete {
         virtual ~ISqlCompletionEngine() = default;
     };
 
+    using TLexerSupplier = std::function<NSQLTranslation::ILexer::TPtr(bool ansi)>;
+
     ISqlCompletionEngine::TPtr MakeSqlCompletionEngine();
 
-    ISqlCompletionEngine::TPtr MakeSqlCompletionEngine(const NSQLTranslationV1::TLexers& lexers);
+    ISqlCompletionEngine::TPtr MakeSqlCompletionEngine(const TLexerSupplier& lexer);
 
 } // namespace NSQLComplete

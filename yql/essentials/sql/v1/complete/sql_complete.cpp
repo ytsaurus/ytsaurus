@@ -13,8 +13,8 @@ namespace NSQLComplete {
 
     class TSqlCompletionEngine: public ISqlCompletionEngine {
     public:
-        explicit TSqlCompletionEngine(const NSQLTranslationV1::TLexers& lexers)
-            : ContextInference(MakeSqlContextInference(lexers))
+        explicit TSqlCompletionEngine(const TLexerSupplier& lexer)
+            : ContextInference(MakeSqlContextInference(lexer))
         {
         }
 
@@ -75,11 +75,13 @@ namespace NSQLComplete {
         NSQLTranslationV1::TLexers lexers;
         lexers.Antlr4Pure = NSQLTranslationV1::MakeAntlr4PureLexerFactory();
         lexers.Antlr4PureAnsi = NSQLTranslationV1::MakeAntlr4PureAnsiLexerFactory();
-        return MakeSqlCompletionEngine(lexers);
+        return MakeSqlCompletionEngine([lexers = std::move(lexers)](bool ansi) {
+            return NSQLTranslationV1::MakeLexer(lexers, ansi, /* antlr4 = */ true, /* pure = */ true);
+        });
     }
 
-    ISqlCompletionEngine::TPtr MakeSqlCompletionEngine(const NSQLTranslationV1::TLexers& lexers) {
-        return ISqlCompletionEngine::TPtr(new TSqlCompletionEngine(lexers));
+    ISqlCompletionEngine::TPtr MakeSqlCompletionEngine(const TLexerSupplier& lexer) {
+        return ISqlCompletionEngine::TPtr(new TSqlCompletionEngine(lexer));
     }
 
 } // namespace NSQLComplete

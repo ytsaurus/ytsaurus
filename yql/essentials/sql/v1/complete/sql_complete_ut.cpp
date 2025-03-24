@@ -1,11 +1,23 @@
 #include "sql_complete.h"
 
+#include <yql/essentials/sql/v1/lexer/antlr4_pure/lexer.h>
+#include <yql/essentials/sql/v1/lexer/antlr4_pure_ansi/lexer.h>
+
 #include <library/cpp/testing/unittest/registar.h>
 
 using namespace NSQLComplete;
 
 Y_UNIT_TEST_SUITE(SqlCompleteTests) {
     using ECandidateKind::Keyword;
+
+    ISqlCompletionEngine::TPtr MakeSqlCompletionEngineUT() {
+        NSQLTranslationV1::TLexers lexers;
+        lexers.Antlr4Pure = NSQLTranslationV1::MakeAntlr4PureLexerFactory();
+        lexers.Antlr4PureAnsi = NSQLTranslationV1::MakeAntlr4PureAnsiLexerFactory();
+        return MakeSqlCompletionEngine([lexers = std::move(lexers)](bool ansi) {
+            return NSQLTranslationV1::MakeLexer(lexers, ansi, /* antlr4 = */ true, /* pure = */ true);
+        });
+    }
 
     TVector<TCandidate> Complete(ISqlCompletionEngine::TPtr& engine, TStringBuf prefix) {
         return engine->Complete({prefix}).Candidates;
