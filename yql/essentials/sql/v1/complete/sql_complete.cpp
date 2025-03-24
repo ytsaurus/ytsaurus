@@ -3,6 +3,9 @@
 #include "sql_context.h"
 #include "string_util.h"
 
+#include <yql/essentials/sql/v1/lexer/antlr4_pure/lexer.h>
+#include <yql/essentials/sql/v1/lexer/antlr4_pure_ansi/lexer.h>
+
 #include <util/generic/algorithm.h>
 #include <util/charset/utf8.h>
 
@@ -10,8 +13,8 @@ namespace NSQLComplete {
 
     class TSqlCompletionEngine: public ISqlCompletionEngine {
     public:
-        TSqlCompletionEngine()
-            : ContextInference(MakeSqlContextInference())
+        explicit TSqlCompletionEngine(const NSQLTranslationV1::TLexers& lexers)
+            : ContextInference(MakeSqlContextInference(lexers))
         {
         }
 
@@ -69,7 +72,14 @@ namespace NSQLComplete {
     };
 
     ISqlCompletionEngine::TPtr MakeSqlCompletionEngine() {
-        return ISqlCompletionEngine::TPtr(new TSqlCompletionEngine());
+        NSQLTranslationV1::TLexers lexers;
+        lexers.Antlr4Pure = NSQLTranslationV1::MakeAntlr4PureLexerFactory();
+        lexers.Antlr4PureAnsi = NSQLTranslationV1::MakeAntlr4PureAnsiLexerFactory();
+        return MakeSqlCompletionEngine(lexers);
+    }
+
+    ISqlCompletionEngine::TPtr MakeSqlCompletionEngine(const NSQLTranslationV1::TLexers& lexers) {
+        return ISqlCompletionEngine::TPtr(new TSqlCompletionEngine(lexers));
     }
 
 } // namespace NSQLComplete

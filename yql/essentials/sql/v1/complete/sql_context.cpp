@@ -8,9 +8,6 @@
 #include <yql/essentials/parser/antlr_ast/gen/v1_antlr4/SQLv1Antlr4Parser.h>
 #include <yql/essentials/parser/antlr_ast/gen/v1_ansi_antlr4/SQLv1Antlr4Lexer.h>
 #include <yql/essentials/parser/antlr_ast/gen/v1_ansi_antlr4/SQLv1Antlr4Parser.h>
-#include <yql/essentials/sql/v1/lexer/lexer.h>
-#include <yql/essentials/sql/v1/lexer/antlr4_pure/lexer.h>
-#include <yql/essentials/sql/v1/lexer/antlr4_pure_ansi/lexer.h>
 
 #include <util/generic/algorithm.h>
 #include <util/stream/output.h>
@@ -34,15 +31,11 @@ namespace NSQLComplete {
             TDefaultYQLGrammar>;
 
     public:
-        TSpecializedSqlContextInference()
+        explicit TSpecializedSqlContextInference(const NSQLTranslationV1::TLexers& lexers)
             : Grammar(&GetSqlGrammar(IsAnsiLexer))
+            , Lexer_(NSQLTranslationV1::MakeLexer(lexers, IsAnsiLexer, /* antlr4 = */ true, /* pure = */ true))
             , C3(ComputeC3Config())
         {
-            NSQLTranslationV1::TLexers lexers;
-            lexers.Antlr4Pure = NSQLTranslationV1::MakeAntlr4PureLexerFactory();
-            lexers.Antlr4PureAnsi = NSQLTranslationV1::MakeAntlr4PureAnsiLexerFactory();
-
-            Lexer_ = NSQLTranslationV1::MakeLexer(lexers, IsAnsiLexer, /* antlr4 = */ true, /* pure = */ true);
         }
 
         TCompletionContext Analyze(TCompletionInput input) override {
@@ -118,6 +111,12 @@ namespace NSQLComplete {
 
     class TSqlContextInference: public ISqlContextInference {
     public:
+        explicit TSqlContextInference(const NSQLTranslationV1::TLexers& lexers)
+            : DefaultEngine(lexers)
+            , AnsiEngine(lexers)
+        {
+        }
+
         TCompletionContext Analyze(TCompletionInput input) override {
             auto isAnsiLexer = IsAnsiQuery(TString(input.Text));
             auto& engine = GetSpecializedEngine(isAnsiLexer);
@@ -136,8 +135,8 @@ namespace NSQLComplete {
         TSpecializedSqlContextInference</* IsAnsiLexer = */ true> AnsiEngine;
     };
 
-    ISqlContextInference::TPtr MakeSqlContextInference() {
-        return TSqlContextInference::TPtr(new TSqlContextInference());
+    ISqlContextInference::TPtr MakeSqlContextInference(const NSQLTranslationV1::TLexers& lexers) {
+        return TSqlContextInference::TPtr(new TSqlContextInference(lexers));
     }
 
 } // namespace NSQLComplete
