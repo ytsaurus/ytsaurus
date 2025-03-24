@@ -90,9 +90,9 @@ void TSignatureGenerator::Sign(const TSignaturePtr& signature)
             .ExpiresAt = now + Config_->SignatureExpirationDelta,
         };
 
-        GetHeader(signature) = ConvertToYsonString(header, EYsonFormat::Binary);
+        signature->Header_ = ConvertToYsonString(header, EYsonFormat::Binary);
 
-        auto toSign = PreprocessSignature(GetHeader(signature), signature->Payload());
+        auto toSign = PreprocessSignature(signature->Header_, signature->Payload());
 
         if (!IsKeyPairMetadataValid(KeyPair_->KeyInfo()->Meta())) {
             YT_LOG_WARNING(
@@ -101,8 +101,8 @@ void TSignatureGenerator::Sign(const TSignaturePtr& signature)
                 GetKeyId(KeyPair_->KeyInfo()->Meta()));
         }
 
-        GetSignature(signature).resize(SignatureSize);
-        KeyPair_->Sign(toSign, std::span<std::byte, SignatureSize>(GetSignature(signature)));
+        signature->Signature_.resize(SignatureSize);
+        KeyPair_->Sign(toSign, std::span<std::byte, SignatureSize>(signature->Signature_));
     }
 
     YT_LOG_TRACE(
