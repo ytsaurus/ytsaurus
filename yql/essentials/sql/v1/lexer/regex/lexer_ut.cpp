@@ -85,8 +85,17 @@ Y_UNIT_TEST_SUITE(RegexLexerTests) {
     Y_UNIT_TEST(MultiLineComment) {
         Check("/* yql */", "COMMENT(/* yql */)");
         Check("/* yql */ */", "COMMENT(/* yql */) WS( ) ASTERISK(*) SLASH(/)");
-        Check("/* /* yql */", "COMMENT(/* /* yql */)");
         Check("/* yql\n * yql\n */", "COMMENT(/* yql\n * yql\n */)");
+    }
+
+    Y_UNIT_TEST(RecursiveMultiLineCommentDefault) {
+        Check("/* /* yql */", "COMMENT(/* /* yql */)", /* ansi = */ false);
+        Check("/* /* yql */ */", "COMMENT(/* /* yql */) WS( ) ASTERISK(*) SLASH(/)", /* ansi = */ false);
+    }
+
+    Y_UNIT_TEST(RecursiveMultiLineCommentAnsi) {
+        Check("/* /* yql */", "SLASH(/) ASTERISK(*) WS( ) COMMENT(/* yql */)", /* ansi = */ true);
+        Check("/* /* yql */ */", "COMMENT(/* /* yql */ */)", /* ansi = */ true);
     }
 
     Y_UNIT_TEST(Keyword) {

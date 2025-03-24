@@ -17,12 +17,19 @@ namespace NSQLTranslationV1 {
     using NSQLTranslation::TParsedTokenList;
 
     class TRegexLexer: public NSQLTranslation::ILexer {
+        static constexpr const char* CommentTokenName = "COMMENT";
+
     public:
         TRegexLexer(bool ansi, NSQLReflect::TLexerGrammar grammar)
             : Grammar_(std::move(grammar))
+            , Ansi_(ansi)
         {
-            for (auto& [token, regex] : MakeRegexByOtherNameMap(Grammar_, ansi)) {
-                OtherRegexes_.emplace(std::move(token), std::move(regex));
+            for (auto& [token, regex] : MakeRegexByOtherNameMap(Grammar_, Ansi_)) {
+                if (token == CommentTokenName) {
+                    CommentRegex_.Reset(new RE2(regex));
+                } else {
+                    OtherRegexes_.emplace(std::move(token), std::move(regex));
+                }
             }
         }
 
@@ -61,6 +68,7 @@ namespace NSQLTranslationV1 {
             size_t keywordCount = MatchKeyword(prefix, matches);
             MatchPunctuation(prefix, matches);
             size_t otherCount = MatchRegex(prefix, matches);
+            MatchComment(prefix, matches);
 
             auto max = MaxElementBy(matches, [](const TParsedToken& m) {
                 return m.Content.length();
@@ -119,17 +127,75 @@ namespace NSQLTranslationV1 {
         size_t MatchRegex(const TStringBuf prefix, TParsedTokenList& matches) {
             size_t count = 0;
             for (const auto& [token, regex] : OtherRegexes_) {
-                re2::StringPiece input(prefix.data(), prefix.size());
-                if (RE2::Consume(&input, regex)) {
-                    matches.emplace_back(token, TString(prefix.data(), input.data()));
+                if (const TStringBuf match = TryMatchRegex(prefix, regex); !match.empty()) {
+                    matches.emplace_back(token, TString(match));
                     count += 1;
                 }
             }
             return count;
         }
 
+        const TStringBuf TryMatchRegex(const TStringBuf prefix, const RE2& regex) {
+            re2::StringPiece input(prefix.data(), prefix.size());
+            if (RE2::Consume(&input, regex)) {
+                return TStringBuf(prefix.data(), input.data());
+            }
+            return "";
+        }
+
+        size_t MatchComment(const TStringBuf prefix, TParsedTokenList& matches) {
+            const TStringBuf reContent = TryMatchRegex(prefix, *CommentRegex_);
+            if (reContent.empty()) {
+                return 0;
+            }
+
+            if (!(Ansi_ && IsStartingWithAnsiMultilineComment(prefix))) {
+                matches.emplace_back(CommentTokenName, TString(reContent));
+                return 1;
+            }
+
+            size_t ll1Length = MatchAnsiMultilineComment(prefix);
+            const TStringBuf ll1Content = prefix.SubString(0, ll1Length);
+
+            Y_ENSURE(ll1Content == 0 || reContent <= ll1Content);
+            if (ll1Content == 0) {
+                return 0;
+            }
+
+            matches.emplace_back(CommentTokenName, TString(ll1Content));
+            return 1;
+        }
+
+        bool IsStartingWithAnsiMultilineComment(const TStringBuf prefix) {
+            return 1 < prefix.length() && prefix[0] == '/' && prefix[1] == '*';
+        }
+
+        size_t MatchAnsiMultilineComment(const TStringBuf prefix) {
+            Y_ENSURE(IsStartingWithAnsiMultilineComment(prefix));
+            size_t pos = 2;
+
+            while (pos + 1 < prefix.length()) {
+                if (prefix[pos] == '*' && prefix[pos + 1] == '/') {
+                    return pos + 2;
+                } else if (IsStartingWithAnsiMultilineComment(prefix.substr(pos))) {
+                    size_t len = MatchAnsiMultilineComment(prefix.substr(pos));
+                    if (len == 0) {
+                        return 0;
+                    }
+
+                    pos += len;
+                } else {
+                    pos++;
+                }
+            }
+
+            return 0;
+        }
+
         NSQLReflect::TLexerGrammar Grammar_;
         THashMap<TString, RE2> OtherRegexes_;
+        THolder<RE2> CommentRegex_;
+        bool Ansi_;
     };
 
     namespace {
