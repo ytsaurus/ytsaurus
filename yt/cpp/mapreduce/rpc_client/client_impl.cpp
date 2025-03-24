@@ -55,9 +55,6 @@ IClientPtr CreateRpcClient(
     const TCreateClientOptions& options)
 {
     auto context = NDetail::CreateClientContext(serverName, options);
-    if (options.ProxyRole_) {
-        context.ProxyRole = *options.ProxyRole_;
-    }
 
     auto globalTxId = GetGuid(context.Config->GlobalTxId);
 
