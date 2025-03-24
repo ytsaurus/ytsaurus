@@ -1551,16 +1551,16 @@ class TestCrossCellCopy(YTEnvSetup):
 
     # These attributes can change or be the same depending on the context.
     CONTEXT_DEPENDENT_ATTRIBUTES = [
-        "tablet_state",
+        "access_counter",
         "actual_tablet_state",
         "expected_tablet_state",
+        "tablet_state",
         "unflushed_timestamp",
     ]
 
     # These attributes have to change when cross-cell copying.
     EXPECTED_ATTRIBUTE_CHANGES = [
         "access_time",
-        "access_counter",
 
         # Changed due to cell change:
         "id",
@@ -1879,8 +1879,9 @@ class TestCrossCellCopy(YTEnvSetup):
         validate_node_copy(dst_path)
 
     @authors("h0pless")
+    @pytest.mark.parametrize("use_redundant_flags", [True, False])
     @pytest.mark.parametrize("use_tx", [True, False])
-    def test_subtree(self, use_tx):
+    def test_subtree(self, use_redundant_flags, use_tx):
         create("portal_entrance", "//tmp/other_portal", attributes={"exit_cell_tag": 12})
         src_path = "//tmp/portal/dir"
         dst_path = "//tmp/other_portal/dir"
@@ -1892,7 +1893,12 @@ class TestCrossCellCopy(YTEnvSetup):
             self.CONTEXT_DEPENDENT_ATTRIBUTES.append("update_mode")
 
         self.create_subtree(src_path, tx=tx)
-        self.execute_command(src_path, dst_path, tx=tx)
+        self.execute_command(
+            src_path,
+            dst_path,
+            ignore_existing=use_redundant_flags,
+            recursive=use_redundant_flags,
+            tx=tx)
 
         self.validate_copy_base(src_path, dst_path, tx=tx)
         self.validate_subtree_attribute_consistency(src_path, dst_path, tx=tx)
@@ -2016,6 +2022,45 @@ class TestCrossCellCopy(YTEnvSetup):
 
         self.validate_copy_base(src_path, dst_path)
         self.validate_subtree_attribute_consistency(src_path, dst_path)
+
+    @authors("h0pless")
+    def test_ignore_existing(self):
+        src_path = "//tmp/file"
+        self.create_file(src_path)
+
+        dst_path = "//tmp/portal/table"
+        self.create_table(dst_path)
+
+        if self.COMMAND == "move":
+            with raises_yt_error("Node //tmp/portal/table already exists"):
+                self.execute_command(src_path, dst_path, ignore_existing=True)
+            return
+        else:
+            self.execute_command(src_path, dst_path, ignore_existing=True)
+
+        # This actually checks that table wasn't overwritten by a copy of the file.
+        self.validate_table_copy(dst_path)
+
+    @authors("h0pless")
+    def test_lock_existing(self):
+        src_path = "//tmp/file"
+        self.create_file(src_path)
+
+        dst_path = "//tmp/portal/table"
+        self.create_table(dst_path)
+
+        # Lock existing doesn't make sense without a transaction.
+        tx = start_transaction()
+        if self.COMMAND == "move":
+            with raises_yt_error("Node //tmp/portal/table already exists"):
+                self.execute_command(src_path, dst_path, ignore_existing=True, lock_existing=True, tx=tx)
+            return
+        else:
+            self.execute_command(src_path, dst_path, ignore_existing=True, lock_existing=True, tx=tx)
+
+        # This actually checks that table wasn't overwritten by a copy of the file.
+        self.validate_table_copy(dst_path, tx=tx)
+        assert get(f"{dst_path}/@lock_count", tx=tx) == 1
 
     @authors("h0pless")
     def test_accounting(self):
@@ -2239,7 +2284,7 @@ class TestCrossCellCopy(YTEnvSetup):
         remove(f"//sys/accounts/{account}")
         wait(lambda: get(f"//sys/accounts/{account}/@life_stage") == "removal_started")
 
-        with raises_yt_error():
+        with raises_yt_error("cannot be used since it is in \"removal_pre_committed\" life stage"):
             self.execute_command(src_path, dst_path, preserve_account=True)
 
         self.execute_command(src_path, dst_path)
@@ -2279,7 +2324,7 @@ class TestCrossCellCopy(YTEnvSetup):
 
         self.create_table(src_path)
 
-        with raises_yt_error():
+        with raises_yt_error("Node //tmp/portal has no child with key \"listen\""):
             self.execute_command(src_path, dst_path)
 
     @authors("h0pless")
@@ -2303,6 +2348,32 @@ class TestCrossCellCopy(YTEnvSetup):
     def test_cant_copy_subtree_with_portal(self):
         with raises_yt_error("Cannot clone a portal"):
             self.execute_command("//tmp", "//home/other")
+
+    @authors("h0pless")
+    def test_ignore_existing_error(self):
+        src_path = "//tmp/table"
+        dst_path = "//tmp/portal/table"
+
+        self.create_table(src_path)
+
+        if self.COMMAND == "copy":
+            with raises_yt_error("Cannot specify both \"ignore_existing\" and \"force\" options simultaneously"):
+                self.execute_command(src_path, dst_path, ignore_existing=True, force=True)
+        else:
+            self.execute_command(src_path, dst_path, lock_existing=True)
+
+    @authors("h0pless")
+    def test_lock_existing_error(self):
+        src_path = "//tmp/table"
+        dst_path = "//tmp/portal/table"
+
+        self.create_table(src_path)
+
+        if self.COMMAND == "copy":
+            with raises_yt_error("Cannot specify \"lock_existing\" without \"ignore_existing\""):
+                self.execute_command(src_path, dst_path, lock_existing=True)
+        else:
+            self.execute_command(src_path, dst_path, lock_existing=True)
 
 
 ################################################################################
