@@ -42,8 +42,7 @@ namespace NSQLComplete {
             lexers.Antlr4Pure = NSQLTranslationV1::MakeAntlr4PureLexerFactory();
             lexers.Antlr4PureAnsi = NSQLTranslationV1::MakeAntlr4PureAnsiLexerFactory();
 
-            Lexer_ = NSQLTranslationV1::MakeLexer(lexers,
-                                                  IsAnsiLexer, /* antlr4 = */ true, /* pure = */ true);
+            Lexer_ = NSQLTranslationV1::MakeLexer(lexers, IsAnsiLexer, /* antlr4 = */ true, /* pure = */ true);
         }
 
         TCompletionContext Analyze(TCompletionInput input) override {
