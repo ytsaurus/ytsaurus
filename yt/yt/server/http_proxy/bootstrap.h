@@ -147,8 +147,8 @@ private:
 
     INodeMemoryTrackerPtr MemoryUsageTracker_;
 
-    NSignature::TSignatureGeneratorBasePtr SignatureGenerator_;
-    NSignature::TSignatureValidatorBasePtr SignatureValidator_;
+    NSignature::ISignatureGeneratorPtr SignatureGenerator_;
+    NSignature::ISignatureValidatorPtr SignatureValidator_;
     NSignature::TKeyRotatorPtr SignatureKeyRotator_;
 
     void DoRun();
