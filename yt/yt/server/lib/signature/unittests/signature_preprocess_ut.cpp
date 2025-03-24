@@ -18,7 +18,7 @@ using namespace NYson;
 TEST(SignaturePreprocessTest, Basic)
 {
     EXPECT_THROW_WITH_SUBSTRING(
-        std::ignore = PreprocessSignature(TYsonString("header"_sb), TYsonString("payload"_sb)),
+        Y_UNUSED(PreprocessSignature(TYsonString("header"_sb), "payload")),
         "node has invalid type");
 
     auto headerString = ConvertToYsonString(TSignatureHeader(
@@ -33,7 +33,7 @@ TEST(SignaturePreprocessTest, Basic)
 
     std::vector<std::byte> toSign = PreprocessSignature(
         headerString,
-        TYsonString("payload\0payload"_sb));
+        std::string("payload\0payload"_sb));
 
     TString expected = headerString.ToString() + "\0payload\0payload"_sb;
     auto expectedBytes = std::as_bytes(std::span(TStringBuf(expected)));

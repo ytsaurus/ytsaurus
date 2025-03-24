@@ -8,7 +8,7 @@ namespace NYT::NSignature {
 
 [[nodiscard]] std::vector<std::byte> PreprocessSignature(
     const NYson::TYsonString& header,
-    const NYson::TYsonString& payload);
+    const std::string& payload);
 
 ////////////////////////////////////////////////////////////////////////////////
 

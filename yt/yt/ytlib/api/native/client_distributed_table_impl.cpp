@@ -334,11 +334,11 @@ TFuture<TDistributedWriteSessionWithCookies> TClient::StartDistributedWriteSessi
     cookies.reserve(options.CookieCount);
 
     for (int i = 0; i < options.CookieCount; ++i) {
-        cookies.emplace_back(TSignedWriteFragmentCookiePtr(DummySignatureGenerator_->Sign(ConvertToYsonString(session.CookieFromThis()))));
+        cookies.emplace_back(DummySignatureGenerator_->Sign(ConvertToYsonString(session.CookieFromThis()).ToString()));
     }
 
     TDistributedWriteSessionWithCookies result;
-    result.Session = TSignedDistributedWriteSessionPtr(DummySignatureGenerator_->Sign(ConvertToYsonString(session)));
+    result.Session = TSignedDistributedWriteSessionPtr(DummySignatureGenerator_->Sign(ConvertToYsonString(session).ToString()));
     result.Cookies = std::move(cookies);
 
     return MakeFuture(std::move(result));
@@ -350,7 +350,7 @@ TFuture<void> TClient::FinishDistributedWriteSession(
 {
     YT_VERIFY(sessionWithResults.Session);
 
-    auto session = ConvertTo<TDistributedWriteSession>(sessionWithResults.Session.Underlying()->Payload());
+    auto session = ConvertTo<TDistributedWriteSession>(TYsonStringBuf(sessionWithResults.Session.Underlying()->Payload()));
 
     const auto& patchInfo = session.PatchInfo;
     const auto& path = patchInfo.RichPath.GetPath();
@@ -443,7 +443,7 @@ TFuture<void> TClient::FinishDistributedWriteSession(
         writeResults.reserve(std::ssize(sessionWithResults.Results));
         for (const auto& signedResult : sessionWithResults.Results) {
             YT_VERIFY(signedResult);
-            writeResults.push_back(ConvertTo<TWriteFragmentResult>(signedResult.Underlying()->Payload()));
+            writeResults.push_back(ConvertTo<TWriteFragmentResult>(TYsonStringBuf(signedResult.Underlying()->Payload())));
         }
 
         if (tableUploadOptions.TableSchema->IsSorted()) {
@@ -502,7 +502,7 @@ TFuture<ITableFragmentWriterPtr> TClient::CreateTableFragmentWriter(
 {
     YT_VERIFY(signedCookie);
 
-    auto cookie = ConvertTo<TWriteFragmentCookie>(signedCookie.Underlying()->Payload());
+    auto cookie = ConvertTo<TWriteFragmentCookie>(TYsonStringBuf(signedCookie.Underlying()->Payload()));
 
     auto nameTable = New<TNameTable>();
     nameTable->SetEnableColumnNameValidation();

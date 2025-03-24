@@ -42,10 +42,10 @@ struct TPreprocessVisitor
 
 std::vector<std::byte> PreprocessSignature(
     const TYsonString& header,
-    const TYsonString& payload)
+    const std::string& payload)
 {
     return std::visit(
-        TPreprocessVisitor{header.AsStringBuf(), payload.AsStringBuf()},
+        TPreprocessVisitor{header.AsStringBuf(), payload},
         ConvertTo<TSignatureHeader>(header));
 }
 

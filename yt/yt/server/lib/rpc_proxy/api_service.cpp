@@ -6148,7 +6148,7 @@ private:
         TDistributedWriteSessionFinishOptions options;
         ParseRequest(&sessionWithResults, &options, *request);
 
-        auto session = ConvertTo<TDistributedWriteSession>(sessionWithResults.Session.Underlying()->Payload());
+        auto session = ConvertTo<TDistributedWriteSession>(TYsonStringBuf(sessionWithResults.Session.Underlying()->Payload()));
 
         context->SetRequestInfo(
             "TableId: %v",
@@ -6161,7 +6161,7 @@ private:
                 validation.reserve(1 + std::ssize(sessionWithResults.Results));
                 validation.push_back(ValidateSignature(sessionWithResults.Session.Underlying()));
                 for (const auto& signedResult : sessionWithResults.Results) {
-                    auto result = ConvertTo<TWriteFragmentResult>(signedResult.Underlying()->Payload());
+                    auto result = ConvertTo<TWriteFragmentResult>(TYsonStringBuf(signedResult.Underlying()->Payload()));
                     if (sessionId != result.SessionId) {
                         THROW_ERROR_EXCEPTION(
                             "Found write results with a different session id")
@@ -6198,7 +6198,7 @@ private:
 
         PatchTableWriterOptions(&options);
 
-        auto concreteCookie = ConvertTo<TWriteFragmentCookie>(cookie.Underlying()->Payload());
+        auto concreteCookie = ConvertTo<TWriteFragmentCookie>(TYsonString(cookie.Underlying()->Payload()));
 
         context->SetRequestInfo(
             "TableId: %v, Main transaction id: %v",
