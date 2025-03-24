@@ -2,40 +2,37 @@
 
 ## DEFINE SUBQUERY {#define-subquery}
 
-`DEFINE SUBQUERY` lets you declare a subquery template as a parameterizable block consisting of several upper-tier statements and then use it repeatedly through application in the `FROM` section of the [SELECT](select/index.md) statement or in input data in [PROCESS](process.md)/[REDUCE](reduce.md), with parameters indicated.
-Unlike [actions](action.md), a subquery template must end with the `SELECT`/`PROCESS`/`REDUCE` statement. Its result is the returnable subquery value. Here, the upper-tier `SELECT`/`PROCESS`/`REDUCE` statement cannot be used more than once, similarly to modifying statements (for instance, `INSERT`).
+`DEFINE SUBQUERY` lets you declare a subquery template that is a parameterizable block of several top-level expressions (statements), and then use it repeatedly in the `FROM` section of [SELECT](select/index.md) statements or as input data in [PROCESS](process.md)/[REDUCE](reduce.md) with parameters.
+As opposed to [actions](action.md), the subquery template must end with the `SELECT`/`PROCESS`/`REDUCE` statement whose result is the subquery's return value. Keep in mind that you can't use the top-level `SELECT`/`PROCESS`/`REDUCE` statement and the modifying expressions (for example, `INSERT`) more than once.
 
 After `DEFINE SUBQUERY`, specify:
 
-1. A [named expression](expressions.md#named-nodes) that will be used to access the declared template further in the query.
+1. [A named expression](expressions.md#named-nodes) that will be used to access the declared template further in the query.
 2. The round brackets contain a list of named expressions you can use to access parameters inside the subquery template.
-3. `AS `keyword.
+3. `AS` keyword.
 4. The list of top-level expressions.
 5. `END DEFINE` acts as a marker of the last expression inside the subquery template.
 
 One or more of the last subquery parameters can be marked with a question as optional: unless they haven't been specified when calling subquery, they will be assigned the `NULL` value.
 
+{% note info %}
 
-{% note info "Note" %}
-
-In large queries, you can use separate files for action definition and include them to the main query using [EXPORT](export_import.md#export) + [IMPORT](export_import.md#import) so that instead of one long text you can have several logical parts that are easier to navigate. An important nuance: the `USE my_cluster`; directive in the import query doesn't affect behavior of actions declared in other subquery files.
+In large queries, you can use separate files for action definition and include them to the main query using [EXPORT](export_import.md#export) + [IMPORT](export_import.md#import) so that instead of one long text you can have several logical parts that are easier to navigate. An important nuance: the `USE my_cluster;` directive in the import query doesn't affect behavior of actions declared in other subquery files.
 
 {% endnote %}
 
-
 Even if the list of parameters in the subquery template definition is empty, when using it in `FROM`, specify the parentheses `()`. This may help to limit the scope of named expressions used in only one subquery.
 
-In certain cases, instead of `DEFINE SUBQUERY`, it's better to use an equivalent form appearing as a [lambda function](expressions.md#lambda).
+In some cases, instead of `DEFINE SUBQUERY` it's more convenient to use an equivalent [lambda function](expressions.md#lambda).
 In this case, the lambda function must accept, as the first argument, the special object called `world` that passes dependencies to make certain PRAGMA or COMMIT statements visible at the query template's point of use. Also, make sure to pass this object as the first argument along with the other arguments (if any) to other query templates, if you use them in your lambda function.
 The return value of the lambda function must have the structure list type (output table) or a list of variants over a tuple of structures (multiple output tables). In the latter case, the following unpacking is usually used at the query template's point of use:
 
 ```yql
 $out1, $out2 = PROCESS $mySubquery($myParam1, $myParam2);
--- $out1 and $out2 are further used as individual tables.
+-- next we use $out1 and $out2 as separate tables.
 ```
 
-
-**Examples**
+#### Examples
 
 ```yql
 DEFINE SUBQUERY $hello_world($name, $suffix?) AS
@@ -50,23 +47,23 @@ SELECT * FROM $hello_world(NULL, "Earth"); -- Hello, Earth!
 
 ```yql
 DEFINE SUBQUERY $dup($x) AS
-   SELECT * FROM $x(1)  -- apply transmitted query template with one argument
+   SELECT * FROM $x(1) -- apply the passed query template with one argument
    UNION ALL
-   SELECT * FROM $x(2); -- ... and with another argument
+   SELECT * FROM $x(2); -- ... and with other argument
 END DEFINE;
 
 DEFINE SUBQUERY $sub($n) AS
    SELECT $n * 10;
 END DEFINE;
 
-SELECT * FROM $dup($sub); -- transmit $sub query template as a parameter
+SELECT * FROM $dup($sub); -- pass the query template $sub as a parameter
 -- Result:
 -- 10
 -- 20
 ```
 
 ```yql
-/* Move the utilized named expressions $a and $b to a separate area of visibility*/
+/* Hide the named expressions $a and $b inside a separate scope */
 DEFINE SUBQUERY $clean() AS
    $a = 10;
    $b = $a * $a;
@@ -77,29 +74,29 @@ SELECT * FROM $clean(); -- a: 10, b: 100
 ```
 
 ```yql
-USE hahn;
+USE my_cluster;
 
 DEFINE SUBQUERY $input() as
     SELECT * FROM `home/yql/tutorial/users`;
 END DEFINE;
 
 DEFINE SUBQUERY $myProcess1($nestedQuery, $lambda) AS
-    PROCESS $nestedQuery() -- parentheses () must be used here
+    PROCESS $nestedQuery() -- the parentheses () are mandatory here
     USING $lambda(TableRow());
 END DEFINE;
 
 $myProcess2 = ($world, $nestedQuery, $lambda) -> {
-    -- If ListFlatMap or YQL::OrderedFlatMap is used, this results in Ordered {{product-name}} Map operation
+    -- If you use ListFlatMap or YQL::OrderedFlatMap, you get an Ordered YT Map operation
     return YQL::FlatMap($nestedQuery($world), $lambda);
 };
 
--- With such use, $myProcess1 and $myProcess2 implementations are identical
+-- With such use, the implementations of $myProcess1 and $myProcess2 are identical
 SELECT * FROM $myProcess1($input, ($x) -> { RETURN AsList($x, $x) });
 SELECT * FROM $myProcess2($input, ($x) -> { RETURN AsList($x, $x) });
 ```
 
 ```yql
-USE hahn;
+USE my_cluster;
 
 DEFINE SUBQUERY $runPartition($table) AS
     $paritionByAge = ($row) -> {
@@ -122,16 +119,18 @@ SELECT * FROM $i;
 SELECT * FROM $j;
 ```
 
-## Merging subquery templates SubqueryExtend, SubqueryUnionAll, SubqueryMerge, SubqueryUnionMerge {#subquery-extend} {#subquery-unionall} {#subquery-merge} {#subquery-unionmerge}
+## SubqueryExtend, SubqueryUnionAll, SubqueryMerge, SubqueryUnionMerge {#subquery-extend} {#subquery-unionall} {#subquery-merge} {#subquery-unionmerge}
+
+Combining the subquery templates: `SubqueryExtend`, `SubqueryUnionAll`, `SubqueryMerge`, `SubqueryUnionMerge`.
 
 These functions combine the results of one or more subquery templates passed by arguments. The number of parameters in such subquery templates must be the same.
 
 * `SubqueryExtend` requires matching of subquery schemas.
-* `SubqueryUnionAll` follows the same rules as `ListUnionAll`.
+* `SubqueryUnionAll` follows the same rules as [ListUnionAll](../builtins/list.md#ListUnionAll).
 * `SubqueryMerge` uses the same constraints as `SubqueryExtend` and also outputs a sorted result if all subqueries have the same sort order.
 * `SubqueryUnionMerge` uses the same constraints as `SubqueryUnionAll` and also outputs a sorted result if all subqueries have the same sort order.
 
-**Examples:**
+#### Examples
 
 ```yql
 DEFINE SUBQUERY $sub1() as
@@ -146,7 +145,9 @@ $s = SubqueryExtend($sub1,$sub2);
 PROCESS $s();
 ```
 
-## Merging subquery templates after substituting a list element from SubqueryExtendFor, SubqueryUnionAllFor, SubqueryMergeFor, or SubqueryUnionMergeFor {#subquery-extend-for} {#subquery-unionall-for} {#subquery-merge-for} {#subquery-unionmerge-for}
+## SubqueryExtendFor, SubqueryUnionAllFor, SubqueryMergeFor, SubqueryUnionMergeFor {#subquery-extend-for} {#subquery-unionall-for} {#subquery-merge-for} {#subquery-unionmerge-for}
+
+Combining subquery templates after substituting list items: `SubqueryExtendFor`, `SubqueryUnionAllFor`, `SubqueryMergeFor`, `SubqueryUnionMergeFor`.
 
 The functions take the following arguments:
 
@@ -156,11 +157,11 @@ The functions take the following arguments:
 They substitute each item from the list into the subquery template as a parameter and then combine the obtained subqueries.
 
 * `SubqueryExtendFor` requires matching of subquery schemas.
-* `SubqueryUnionAllFor` follows the same rules as `ListUnionAll`.
+* `SubqueryUnionAllFor` follows the same rules as [ListUnionAll](../builtins/list.md#ListUnionAll).
 * `SubqueryMergeFor` uses the same constraints as `SubqueryExtendFor` and also outputs a sorted result if all subqueries have the same sort order.
 * `SubqueryUnionMergeFor` uses the same constraints as `SubqueryUnionAllFor` and also outputs a sorted result if all subqueries have the same sort order.
 
-**Examples:**
+#### Examples
 
 ```yql
 DEFINE SUBQUERY $sub($i) as
@@ -171,16 +172,18 @@ $s = SubqueryExtendFor([1,2,3],$sub);
 PROCESS $s();
 ```
 
-## Adding sorting to the SubqueryOrderBy template or indicating the presence of this SubqueryAssumeOrderBy
+## SubqueryOrderBy, SubqueryAssumeOrderBy
+
+Adding sorting to the `SubqueryOrderBy` template or indicating the presence of this `SubqueryAssumeOrderBy`.
 
 The functions take the following arguments:
 
 * A subquery template without parameters.
-* A list of pairs (string indicating the column name and Boolean value: True for sorting in ascending order or False for sorting in descending order).
+* A list of pairs (`string` indicating the column name and `Boolean` value: `True` for sorting in ascending order or `False` for sorting in descending order).
 
 And they build a new query template without parameters where sorting is performed or a comment on the use of sorting is added to the result. To use the resulting query template, call the `PROCESS` function, since, when using a `SELECT`, sorting is ignored.
 
-**Examples:**
+#### Examples
 
 ```yql
 DEFINE SUBQUERY $sub() as
@@ -191,5 +194,3 @@ $sub2 = SubqueryOrderBy($sub, [('x',false), ('y',true)]);
 
 PROCESS $sub2();
 ```
-
-
