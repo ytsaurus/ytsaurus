@@ -1,11 +1,12 @@
 LIBRARY()
 
 SRCS(
-    yql_yt_table_data_service_local.cpp
+    yql_yt_table_data_service_server.cpp
 )
 
 PEERDIR(
-    library/cpp/threading/future
+    library/cpp/http/server
+    yql/essentials/utils
     yt/yql/providers/yt/fmr/table_data_service/interface
     yt/yql/providers/yt/fmr/utils
 )
@@ -14,6 +15,4 @@ YQL_LAST_ABI_VERSION()
 
 END()
 
-RECURSE_FOR_TESTS(
-    ut
-)
+RECURSE_FOR_TESTS(ut)

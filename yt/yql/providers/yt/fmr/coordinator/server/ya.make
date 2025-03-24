@@ -7,9 +7,11 @@ SRCS(
 PEERDIR(
     library/cpp/http/server
     yql/essentials/utils
+    yql/essentials/utils/log
     yt/yql/providers/yt/fmr/coordinator/interface
     yt/yql/providers/yt/fmr/coordinator/interface/proto_helpers
     yt/yql/providers/yt/fmr/proto
+    yt/yql/providers/yt/fmr/utils
 )
 
 YQL_LAST_ABI_VERSION()
