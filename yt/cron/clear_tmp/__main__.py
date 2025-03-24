@@ -1,5 +1,17 @@
 #!/usr/bin/env python3
 
+"""
+Script to clear tmp-like directories.
+
+Script walks across specified directory and clears obsolete tables directories etc.
+
+Special attribute @clear_tmp_config adjusts clear_tmp behavior on tables and directories
+
+    @clear_tmp_config/dont_prune
+        if true, current object will not be removed, but when set on directory
+        children of this directory are still considered for removal
+"""
+
 from yt.common import _pretty_format_for_logging, date_string_to_datetime, utcnow
 from yt.wrapper.common import chunk_iter_list, get_value
 
