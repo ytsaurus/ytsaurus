@@ -3,8 +3,11 @@
 #include <yql/essentials/public/issue/yql_issue.h>
 #include <yql/essentials/sql/settings/translation_settings.h>
 #include <yql/essentials/sql/v1/lexer/lexer.h>
+#include <yql/essentials/sql/v1/lexer/antlr4_pure_ansi/lexer.h>
 
 #include <library/cpp/testing/unittest/registar.h>
+
+#include <util/random/random.h>
 
 using namespace NSQLTranslationV1;
 using NSQLTranslation::SQL_MAX_PARSER_ERRORS;
@@ -14,9 +17,13 @@ using NSQLTranslation::TParsedTokenList;
 using NYql::TIssues;
 
 TLexers Lexers = {
+    .Antlr4PureAnsi = MakeAntlr4PureAnsiLexerFactory(),
     .Regex = MakeRegexLexerFactory(/* ansi = */ false),
     .RegexAnsi = MakeRegexLexerFactory(/* ansi = */ true),
 };
+
+auto PureAnsiLexer = MakeLexer(
+    Lexers, /* ansi = */ true, /* antlr4 = */ true, ELexerFlavor::Pure);
 
 auto DefaultLexer = MakeLexer(
     Lexers, /* ansi = */ false, /* antlr4 = */ false, ELexerFlavor::Regex);
@@ -26,7 +33,7 @@ auto AnsiLexer = MakeLexer(
 
 TString ToString(TParsedToken token) {
     TString& string = token.Name;
-    if (token.Name != token.Content) {
+    if (token.Name != token.Content && token.Name != "EOF") {
         string += "(";
         string += token.Content;
         string += ")";
@@ -54,6 +61,21 @@ TString Tokenized(NSQLTranslation::ILexer& lexer, const TString& query) {
     return out;
 }
 
+TString RandomMultilineCommentLike(size_t maxSize) {
+    auto size = RandomNumber<size_t>(maxSize);
+    TString comment;
+    for (size_t i = 0; i < size; ++i) {
+        auto isOpen = RandomNumber<bool>();
+        if (isOpen) {
+            comment += "/*";
+        } else {
+            comment += "*/";
+        }
+        comment += " ";
+    }
+    return comment;
+}
+
 void Check(TString input, TString expected, bool ansi) {
     auto* lexer = DefaultLexer.Get();
     if (ansi) {
@@ -69,80 +91,90 @@ void Check(TString input, TString expected) {
 
 Y_UNIT_TEST_SUITE(RegexLexerTests) {
     Y_UNIT_TEST(Whitespace) {
-        Check("", "");
-        Check(" ", "WS( )");
-        Check("  ", "WS( ) WS( )");
-        Check("\n", "WS(\n)");
+        Check("", "EOF");
+        Check(" ", "WS( ) EOF");
+        Check("  ", "WS( ) WS( ) EOF");
+        Check("\n", "WS(\n) EOF");
     }
 
     Y_UNIT_TEST(SinleLineComment) {
-        Check("--yql", "COMMENT(--yql)");
-        Check("--  yql ", "COMMENT(--  yql )");
-        Check("-- yql\nSELECT", "COMMENT(-- yql\n) SELECT");
-        Check("-- yql --", "COMMENT(-- yql --)");
+        Check("--yql", "COMMENT(--yql) EOF");
+        Check("--  yql ", "COMMENT(--  yql ) EOF");
+        Check("-- yql\nSELECT", "COMMENT(-- yql\n) SELECT EOF");
+        Check("-- yql --", "COMMENT(-- yql --) EOF");
     }
 
     Y_UNIT_TEST(MultiLineComment) {
-        Check("/* yql */", "COMMENT(/* yql */)");
-        Check("/* yql */ */", "COMMENT(/* yql */) WS( ) ASTERISK(*) SLASH(/)");
-        Check("/* yql\n * yql\n */", "COMMENT(/* yql\n * yql\n */)");
+        Check("/* yql */", "COMMENT(/* yql */) EOF");
+        Check("/* yql */ */", "COMMENT(/* yql */) WS( ) ASTERISK(*) SLASH(/) EOF");
+        Check("/* yql\n * yql\n */", "COMMENT(/* yql\n * yql\n */) EOF");
     }
 
     Y_UNIT_TEST(RecursiveMultiLineCommentDefault) {
-        Check("/* /* yql */", "COMMENT(/* /* yql */)", /* ansi = */ false);
-        Check("/* /* yql */ */", "COMMENT(/* /* yql */) WS( ) ASTERISK(*) SLASH(/)", /* ansi = */ false);
+        Check("/* /* yql */", "COMMENT(/* /* yql */) EOF", /* ansi = */ false);
+        Check("/* /* yql */ */", "COMMENT(/* /* yql */) WS( ) ASTERISK(*) SLASH(/) EOF", /* ansi = */ false);
     }
 
     Y_UNIT_TEST(RecursiveMultiLineCommentAnsi) {
-        Check("/* /* yql */", "COMMENT(/* /* yql */)", /* ansi = */ true);
-        Check("/* /* /* yql */ */", "COMMENT(/* /* /* yql */ */)", /* ansi = */ true);
-        Check("/* /* yql */ */ */", "COMMENT(/* /* yql */ */) WS( ) ASTERISK(*) SLASH(/)", /* ansi = */ true);
-        Check("/* /* yql */ */", "COMMENT(/* /* yql */ */)", /* ansi = */ true);
+        Check("/* /* yql */", "COMMENT(/* /* yql */) EOF", /* ansi = */ true);
+        Check("/* /* /* yql */ */", "COMMENT(/* /* /* yql */ */) EOF", /* ansi = */ true);
+        Check("/* /* yql */ */ */", "COMMENT(/* /* yql */ */) WS( ) ASTERISK(*) SLASH(/) EOF", /* ansi = */ true);
+        Check("/* /* yql */ */", "COMMENT(/* /* yql */ */) EOF", /* ansi = */ true);
+    }
+
+    Y_UNIT_TEST(RecursiveMultiLineCommentAnsiReferenceComparion) {
+        SetRandomSeed(100);
+        for (size_t i = 0; i < 512; ++i) {
+            auto input = RandomMultilineCommentLike(/* maxSize = */ 16);
+            TString actual = Tokenized(*AnsiLexer, input);
+            TString expected = Tokenized(*PureAnsiLexer, input);
+            UNIT_ASSERT_VALUES_EQUAL_C(actual, expected, "Input: " << input);
+        }
     }
 
     Y_UNIT_TEST(Keyword) {
-        Check("SELECT", "SELECT");
-        Check("INSERT", "INSERT");
-        Check("FROM", "FROM");
+        Check("SELECT", "SELECT EOF");
+        Check("INSERT", "INSERT EOF");
+        Check("FROM", "FROM EOF");
     }
 
     Y_UNIT_TEST(Punctuation) {
         Check(
             "* / + - <|",
             "ASTERISK(*) WS( ) SLASH(/) WS( ) "
-            "PLUS(+) WS( ) MINUS(-) WS( ) STRUCT_OPEN(<|)");
-        (Check("SELECT*FROM", "SELECT ASTERISK(*) FROM"));
+            "PLUS(+) WS( ) MINUS(-) WS( ) STRUCT_OPEN(<|) EOF");
+        Check("SELECT*FROM", "SELECT ASTERISK(*) FROM EOF");
     }
 
     Y_UNIT_TEST(IdPlain) {
-        Check("variable my_table", "ID_PLAIN(variable) WS( ) ID_PLAIN(my_table)");
+        Check("variable my_table", "ID_PLAIN(variable) WS( ) ID_PLAIN(my_table) EOF");
     }
 
     Y_UNIT_TEST(IdQuoted) {
-        Check("``", "ID_QUOTED(``)");
-        Check("` `", "ID_QUOTED(` `)");
-        Check("` `", "ID_QUOTED(` `)");
-        Check("`local/table`", "ID_QUOTED(`local/table`)");
+        Check("``", "ID_QUOTED(``) EOF");
+        Check("` `", "ID_QUOTED(` `) EOF");
+        Check("` `", "ID_QUOTED(` `) EOF");
+        Check("`local/table`", "ID_QUOTED(`local/table`) EOF");
     }
 
     Y_UNIT_TEST(SinleLineString) {
-        Check("\"\"", "STRING_VALUE(\"\")");
-        Check("\' \'", "STRING_VALUE(\' \')");
-        Check("\" \"", "STRING_VALUE(\" \")");
-        Check("\"test\"", "STRING_VALUE(\"test\")");
+        Check("\"\"", "STRING_VALUE(\"\") EOF");
+        Check("\' \'", "STRING_VALUE(\' \') EOF");
+        Check("\" \"", "STRING_VALUE(\" \") EOF");
+        Check("\"test\"", "STRING_VALUE(\"test\") EOF");
 
-        Check("\"\\\"\"", "STRING_VALUE(\"\\\"\")", /* ansi = */ false);
-        Check("\"\\\"\"", "[INVALID] STRING_VALUE(\"\\\")", /* ansi = */ true);
+        Check("\"\\\"\"", "STRING_VALUE(\"\\\"\") EOF", /* ansi = */ false);
+        Check("\"\\\"\"", "[INVALID] STRING_VALUE(\"\\\") EOF", /* ansi = */ true);
 
-        Check("\"\"\"\"", "STRING_VALUE(\"\") STRING_VALUE(\"\")", /* ansi = */ false);
-        Check("\"\"\"\"", "STRING_VALUE(\"\"\"\")", /* ansi = */ true);
+        Check("\"\"\"\"", "STRING_VALUE(\"\") STRING_VALUE(\"\") EOF", /* ansi = */ false);
+        Check("\"\"\"\"", "STRING_VALUE(\"\"\"\") EOF", /* ansi = */ true);
     }
 
     Y_UNIT_TEST(MultiLineString) {
-        Check("@@@@", "STRING_VALUE(@@@@)");
-        Check("@@ @@@", "STRING_VALUE(@@ @@@)");
-        Check("@@test@@", "STRING_VALUE(@@test@@)");
-        Check("@@line1\nline2@@", "STRING_VALUE(@@line1\nline2@@)");
+        Check("@@@@", "STRING_VALUE(@@@@) EOF");
+        Check("@@ @@@", "STRING_VALUE(@@ @@@) EOF");
+        Check("@@test@@", "STRING_VALUE(@@test@@) EOF");
+        Check("@@line1\nline2@@", "STRING_VALUE(@@line1\nline2@@) EOF");
     }
 
     Y_UNIT_TEST(Query) {
@@ -168,14 +200,14 @@ Y_UNIT_TEST_SUITE(RegexLexerTests) {
             "WS( ) WS( ) ID_PLAIN(Bool) LPAREN(() ID_PLAIN(field) RPAREN()) COMMA(,) WS(\n) "
             "WS( ) WS( ) ID_PLAIN(Math) NAMESPACE(::) ID_PLAIN(Sin) LPAREN(() ID_PLAIN(var) RPAREN()) WS(\n) "
             "FROM WS( ) ID_QUOTED(`local/test/space/table`) WS(\n) "
-            "JOIN WS( ) ID_PLAIN(test) SEMICOLON(;)";
+            "JOIN WS( ) ID_PLAIN(test) SEMICOLON(;) EOF";
 
         Check(query, expected);
     }
 
     Y_UNIT_TEST(Invalid) {
-        Check("\"", "[INVALID]");
-        Check("\" SELECT", "[INVALID] WS( ) SELECT");
+        Check("\"", "[INVALID] EOF");
+        Check("\" SELECT", "[INVALID] WS( ) SELECT EOF");
     }
 
 } // Y_UNIT_TEST_SUITE(RegexLexerTests)

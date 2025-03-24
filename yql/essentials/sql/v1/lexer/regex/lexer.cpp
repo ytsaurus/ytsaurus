@@ -58,6 +58,7 @@ namespace NSQLTranslationV1 {
                 onNextToken(std::move(matched));
             }
 
+            onNextToken(TParsedToken{.Name = "EOF"});
             return errors == 0;
         }
 
