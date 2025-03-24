@@ -14,7 +14,7 @@ namespace NSQLComplete {
 
     class TSqlCompletionEngine: public ISqlCompletionEngine {
     public:
-        explicit TSqlCompletionEngine(const TLexerSupplier& lexer)
+        explicit TSqlCompletionEngine(TLexerSupplier lexer)
             : ContextInference(MakeSqlContextInference(lexer))
         {
         }
@@ -82,7 +82,7 @@ namespace NSQLComplete {
         });
     }
 
-    ISqlCompletionEngine::TPtr MakeSqlCompletionEngine(const TLexerSupplier& lexer) {
+    ISqlCompletionEngine::TPtr MakeSqlCompletionEngine(TLexerSupplier lexer) {
         return ISqlCompletionEngine::TPtr(new TSqlCompletionEngine(lexer));
     }
 

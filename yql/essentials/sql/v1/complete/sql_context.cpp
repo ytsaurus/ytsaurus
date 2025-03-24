@@ -31,7 +31,7 @@ namespace NSQLComplete {
             TDefaultYQLGrammar>;
 
     public:
-        explicit TSpecializedSqlContextInference(const TLexerSupplier& lexer)
+        explicit TSpecializedSqlContextInference(TLexerSupplier lexer)
             : Grammar(&GetSqlGrammar(IsAnsiLexer))
             , Lexer_(lexer(/* ansi = */ IsAnsiLexer))
             , C3(ComputeC3Config())
@@ -111,7 +111,7 @@ namespace NSQLComplete {
 
     class TSqlContextInference: public ISqlContextInference {
     public:
-        explicit TSqlContextInference(const TLexerSupplier& lexer)
+        explicit TSqlContextInference(TLexerSupplier lexer)
             : DefaultEngine(lexer)
             , AnsiEngine(lexer)
         {
@@ -135,7 +135,7 @@ namespace NSQLComplete {
         TSpecializedSqlContextInference</* IsAnsiLexer = */ true> AnsiEngine;
     };
 
-    ISqlContextInference::TPtr MakeSqlContextInference(const TLexerSupplier& lexer) {
+    ISqlContextInference::TPtr MakeSqlContextInference(TLexerSupplier lexer) {
         return TSqlContextInference::TPtr(new TSqlContextInference(lexer));
     }
 
