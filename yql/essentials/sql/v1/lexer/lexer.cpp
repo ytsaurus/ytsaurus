@@ -31,7 +31,7 @@ using NSQLTranslation::MakeDummyLexerFactory;
 class TV1Lexer : public ILexer {
 public:
     explicit TV1Lexer(const TLexers& lexers, bool ansi, bool antlr4, ELexerFlavor flavor)
-        : Factory(GetFactory(lexers, ansi, antlr4, flavor))
+        : Lexer(GetFactory(lexers, ansi, antlr4, flavor)->MakeLexer())
     {
     }
 
@@ -39,7 +39,7 @@ public:
 #if defined(_tsan_enabled_)
         TGuard<TMutex> grd(SanitizerSQLTranslationMutex);
 #endif
-        return Factory->MakeLexer()->Tokenize(query, queryName, onNextToken, issues, maxErrors);
+        return Lexer->Tokenize(query, queryName, onNextToken, issues, maxErrors);
     }
 
 private:
@@ -100,7 +100,7 @@ private:
     }
 
 private:
-    NSQLTranslation::TLexerFactoryPtr Factory;
+    NSQLTranslation::ILexer::TPtr Lexer;
 };
 
 } // namespace
