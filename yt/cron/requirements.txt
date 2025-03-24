@@ -1,0 +1,3 @@
+ytsaurus-client==0.13.*
+ytsaurus-yson==0.4.*
+ytsaurus-rpc-driver==1.0.*

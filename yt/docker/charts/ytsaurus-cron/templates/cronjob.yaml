@@ -1,0 +1,73 @@
+{{ range $idx, $cronJob := (concat .Values.jobs .Values.additionalJobs)}}
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: {{ printf "%s-%s" (include ".fullname" $) (include ".cronJobSlug" $cronJob) | trunc 63 | trimSuffix "-" }}
+  labels:
+    {{- include ".labels" $ | nindent 4 }}
+spec:
+  schedule: {{ $cronJob.schedule | default $.Values.schedule | quote }}
+  successfulJobsHistoryLimit: {{ $.Values.successfulJobsHistoryLimit }}
+  failedJobsHistoryLimit: {{ $.Values.failedJobsHistoryLimit }}
+  startingDeadlineSeconds: {{ $.Values.startingDeadlineSeconds }}
+  concurrencyPolicy: {{ $cronJob.concurrencyPolicy | default $.Values.concurrencyPolicy | quote }}
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          {{- with $.Values.imagePullSecrets }}
+          imagePullSecrets:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          serviceAccountName: {{ include ".serviceAccountName" $ }}
+          securityContext:
+            {{- toYaml $.Values.podSecurityContext | nindent 12 }}
+          containers:
+          - name: {{ include ".cronJobSlug" $cronJob }}
+            securityContext:
+              {{- toYaml $.Values.securityContext | nindent 14 }}
+            image: {{ $.Values.image.repository }}:{{ $.Values.image.tag | default (printf "v%s" $.Chart.AppVersion) }}
+            imagePullPolicy: {{ $.Values.image.pullPolicy }}
+            args:
+              {{- range $arg := $cronJob.args }}
+              - {{ $arg }}
+              {{- end }}
+            env:
+              - name: YT_PROXY
+                value: {{ $.Values.yt.proxy | quote }}
+              - name: YT_TOKEN
+                valueFrom:
+                  secretKeyRef:
+                    {{- if not $.Values.unmanagedSecret.enabled }}
+                    key: YT_TOKEN
+                    name: {{ include ".fullname" $ }}
+                    {{- else }}
+                    key: {{ $.Values.unmanagedSecret.secretKeyRef.key }}
+                    name: {{ $.Values.unmanagedSecret.secretKeyRef.name }}
+                    {{- end }}
+            resources:
+              {{- toYaml $.Values.resources | nindent 14 }}
+            {{- with $.Values.volumeMounts }}
+            volumeMounts:
+              {{- toYaml . | nindent 14 }}
+            {{- end }}
+          {{- with $.Values.volumes }}
+          volumes:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with $.Values.nodeSelector }}
+          nodeSelector:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with $.Values.affinity }}
+          affinity:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with $.Values.tolerations }}
+          tolerations:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          restartPolicy: {{ $cronJob.restartPolicy }}
+  suspend: {{ not $cronJob.enabled }}
+---
+{{- end }}
