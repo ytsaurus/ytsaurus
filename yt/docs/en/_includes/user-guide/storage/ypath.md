@@ -161,6 +161,10 @@ The path prefix and suffix enable you to encode attributes in a more compact for
 The `<prefix>` part is either empty or sets attributes as a map-fragment in [YSON](../../../user-guide/storage/yson.md) format.
 Example: `<append=%true>//home/user/table` sets the path to the table in the user's home folder and also passes the additional `append` attribute to us.
 
+In addition to this attribute map, there is a shorthand to specify `cluster` attribute: `my-cluster://path/to/object`. This shorthand is equivalent to specifying `cluster` manually in the attribute map: `<cluster="my-cluster">//path/to/object`.
+
+If both `cluster` attribute and this shorthand are used, the shorthand has the preference.
+
 The main purpose of the prefix is to make it easier to pass attributes when using commands from the console.
 
 ### Suffix { #rich_ypath_suffix }
@@ -322,6 +326,7 @@ The `parse_ypath` driver [command](../../../api/commands.md#parse_ypath) canonic
 | `schema` | `yson-list` with a valid schema | Validates data with respect to the specified schema and places this schema on the table at the end of the operation. The attribute can be specified with the `write_table` command and on the output paths of operations. This attribute **is not compatible** with `<append=true>`. |
 | `transaction_id` | `string` of the id form | Specifies to the scheduler under which transaction the input table should be accessed if this attribute is specified on it. |
 | `rename_columns` | `yson-map` | Recognized on the input paths of tables. Renames the column names according to the mapping before feeding the table to the input of the operation. This attribute **is not compatible** with `teleport` tables. |
+| `cluster` | `string` | Recognized on the input paths of tables. Makes the scheduler to treat the table as a remote table from another cluster.
 
 The `ranges` attribute specifies which ranges of table rows should be read. The specified ranges will be read sequentially, in the order in which they are specified in the attribute. If the ranges overlap, the output will be repeated.
 
