@@ -67,9 +67,10 @@ public:
             THROW_ERROR_EXCEPTION("Unsupported table type %Qlv", tableType);
         }
 
-        if (CellTagFromId(tableId) != CellTagFromId(indexTableId)) {
+        auto cellTag = CellTagFromId(tableId);
+        if (cellTag != CellTagFromId(indexTableId)) {
             THROW_ERROR_EXCEPTION("Table and index table native cell tags differ")
-                << TErrorAttribute("table_cell_tag", CellTagFromId(tableId))
+                << TErrorAttribute("table_cell_tag", cellTag)
                 << TErrorAttribute("index_table_cell_tag", CellTagFromId(indexTableId));
         }
 
@@ -123,7 +124,7 @@ public:
 
         return Client_->CreateObjectImpl(
             type,
-            PrimaryMasterCellTagSentinel,
+            cellTag,
             *attributes,
             options);
     }

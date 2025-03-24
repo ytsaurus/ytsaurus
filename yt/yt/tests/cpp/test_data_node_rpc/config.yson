@@ -5,4 +5,9 @@
     NUM_CONTROLLER_AGENTS = 0;
     DRIVER_BACKEND = native;
     NUM_RPC_PROXIES = 0;
+    DELTA_NODE_CONFIG = {
+        data_node = {
+            session_timeout = "20m";
+        };
+    };
 }

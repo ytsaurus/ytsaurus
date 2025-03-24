@@ -70,6 +70,8 @@ message TReqFinishChunk
     optional TChunkMeta chunk_meta = 2;
     optional int32 block_count = 3;
     optional bool ignore_missing_session = 5 [default = false];
+    // If this option is true, block_count must be specified.
+    optional bool truncate_extra_blocks = 6;
 }
 
 message TRspFinishChunk

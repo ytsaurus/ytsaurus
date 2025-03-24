@@ -84,7 +84,7 @@ void UploadChunk(const TString& chunkId, const TString& chunkPath, const std::st
     };
 
     for (int i = 0; i < blocksExt.blocks_size(); i++) {
-        auto singleBlock = WaitFor(chunkReader->ReadBlocks(/*options*/{}, /*blockIndexes*/{i}))
+        auto singleBlock = WaitFor(chunkReader->ReadBlocks(/*options*/{}, /*blockIndexes*/{i}, {}))
             .ValueOrThrow();
 
         blocks.push_back(singleBlock[0]);

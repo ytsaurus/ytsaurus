@@ -28,6 +28,8 @@ void RunQuery(
     const std::optional<TString>& udfDirectory);
 
 std::vector<NChunkClient::TDataSliceDescriptor> UnpackDataSliceDescriptors(const NControllerAgent::NProto::TTableInputSpec& inputTableSpec);
+std::vector<NChunkClient::TDataSliceDescriptor> UnpackDataSliceDescriptors(
+    const ::google::protobuf::RepeatedPtrField<NControllerAgent::NProto::TTableInputSpec>& specList);
 
 NTableClient::IPartitionerPtr CreatePartitioner(const NControllerAgent::NProto::TPartitionJobSpecExt& partitionJobSpecExt);
 

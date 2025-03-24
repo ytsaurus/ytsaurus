@@ -63,6 +63,12 @@ TControllerJobReport TControllerJobReport::OperationIncarnation(std::string inca
     return std::move(*this);
 }
 
+TControllerJobReport TControllerJobReport::AllocationId(TAllocationId allocationId)
+{
+    AllocationId_ = allocationId;
+    return std::move(*this);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NControllerAgent

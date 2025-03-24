@@ -71,7 +71,7 @@ TEST(TAnyColumnTest, Simple)
     EXPECT_EQ(524585, memoryTracker->GetUsed());
 
     columnWriter->FinishCurrentSegment();
-    EXPECT_EQ(256, memoryTracker->GetUsed());
+    EXPECT_EQ(297, memoryTracker->GetUsed());
 
     auto block = blockWriter.DumpBlock(0, 8);
     auto* codec = NCompression::GetCodec(NCompression::ECodec::None);

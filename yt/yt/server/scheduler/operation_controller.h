@@ -42,7 +42,7 @@ struct IOperationControllerStrategyHost
         const TDiskResources& availableDiskResources,
         const TString& treeId,
         const TString& poolPath,
-        const TFairShareStrategyTreeConfigPtr& treeConfig) = 0;
+        std::optional<TDuration> waitingForResourcesOnNodeTimeout) = 0;
 
     //! Called during scheduling to notify the controller that a (nonscheduled) allocation has been aborted.
     virtual void OnNonscheduledAllocationAborted(

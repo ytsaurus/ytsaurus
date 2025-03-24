@@ -7,6 +7,7 @@
 #include <yt/yt/client/api/client.h>
 #include <yt/yt/client/api/rowset.h>
 #include <yt/yt/client/api/transaction.h>
+#include <yt/yt/client/api/table_partition_reader.h>
 #include <yt/yt/client/api/table_writer.h>
 
 #include <yt/yt/client/api/rpc_proxy/client_impl.h>
@@ -27,6 +28,8 @@
 
 #include <yt/yt/core/ytree/convert.h>
 #include <yt/yt/core/ytree/fluent.h>
+
+#include <yt/yt/library/named_value/named_value.h>
 
 #include <contrib/libs/apache/arrow/cpp/src/arrow/api.h>
 
@@ -1205,6 +1208,138 @@ TEST_F(TArrowTest, ReadTablePathWithSpecifiedColumns)
             EXPECT_EQ(ReadFloatArray(batch->column(0)), expectedArray);
         }
     }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TPartitionTableTest
+    : public TClearTmpTestBase
+{ };
+
+////////////////////////////////////////////////////////////////////////////////
+
+TEST_F(TPartitionTableTest, PartitionTableTest)
+{
+    auto path = MakeRandomTmpPath();
+    TCreateNodeOptions options;
+    options.Attributes = NYTree::CreateEphemeralAttributes();
+    options.Attributes->Set("schema", New<TTableSchema>(std::vector<TColumnSchema>{
+        {"value", ESimpleLogicalValueType::Int64},
+    }));
+    options.Attributes->Set("optimize_for", "scan");
+    options.Force = true;
+
+    WaitFor(Client_->CreateNode(path, EObjectType::Table, options))
+        .ThrowOnError();
+
+    std::vector<std::vector<NNamedValue::TNamedValue>> expectedData;
+    {
+        auto writer = WaitFor(Client_->CreateTableWriter(path))
+            .ValueOrThrow();
+
+        std::vector<TUnversionedOwningRow> owningData;
+        std::vector<TUnversionedRow> data;
+        for (int i = 0; i < 1024; ++i) {
+            expectedData.push_back({{"value", i}});
+            owningData.push_back(NNamedValue::MakeRow(writer->GetNameTable(), expectedData.back()));
+            data.push_back(owningData.back());
+        }
+
+        auto written = writer->Write(data);
+        ASSERT_TRUE(written);
+        WaitFor(writer->Close())
+            .ThrowOnError();
+    }
+
+    TPartitionTablesOptions partitionTablesOptions;
+    partitionTablesOptions.EnableCookies = true;
+    partitionTablesOptions.DataWeightPerPartition = 1_MB;
+    auto partitions = WaitFor(Client_->PartitionTables({path}, partitionTablesOptions))
+        .ValueOrThrow();
+
+    ASSERT_GE(std::ssize(partitions.Partitions), 1);
+
+    auto cookie = partitions.Partitions[0].Cookie;
+
+    auto partitionReader = WaitFor(Client_->CreateTablePartitionReader(cookie))
+        .ValueOrThrow();
+
+    std::vector<std::vector<NNamedValue::TNamedValue>> readRows;
+    while (auto data = partitionReader->Read()) {
+        auto rowRange = data->MaterializeRows();
+        for (const auto& row : rowRange) {
+            readRows.push_back(NNamedValue::MakeNamedValueList(partitionReader->GetNameTable(), row));
+        }
+
+        auto event = partitionReader->GetReadyEvent();
+        WaitFor(event)
+            .ThrowOnError();
+    }
+
+    EXPECT_EQ(expectedData, readRows);
+}
+
+TEST_F(TPartitionTableTest, PartitionTableColumnFilterTest)
+{
+    auto path = MakeRandomTmpPath();
+    TCreateNodeOptions options;
+    options.Attributes = NYTree::CreateEphemeralAttributes();
+    options.Attributes->Set("schema", New<TTableSchema>(std::vector<TColumnSchema>{
+        {"value1", ESimpleLogicalValueType::Int64},
+        {"value2", ESimpleLogicalValueType::Int64},
+    }));
+    options.Force = true;
+
+    WaitFor(Client_->CreateNode(path, EObjectType::Table, options))
+        .ThrowOnError();
+
+    std::vector<std::vector<NNamedValue::TNamedValue>> expectedData;
+    {
+        auto writer = WaitFor(Client_->CreateTableWriter(path))
+            .ValueOrThrow();
+
+        std::vector<TUnversionedOwningRow> owningData;
+        std::vector<TUnversionedRow> data;
+        for (int i = 0; i < 1024; ++i) {
+            expectedData.push_back({{"value1", i}});
+            owningData.push_back(NNamedValue::MakeRow(writer->GetNameTable(), {{"value1", i}, {"value2", i}}));
+            data.push_back(owningData.back());
+        }
+
+        auto written = writer->Write(data);
+        ASSERT_TRUE(written);
+        WaitFor(writer->Close())
+            .ThrowOnError();
+    }
+
+    TPartitionTablesOptions partitionTablesOptions;
+    partitionTablesOptions.EnableCookies = true;
+    partitionTablesOptions.DataWeightPerPartition = 1_MB;
+    auto columnedPath = TRichYPath(path);
+    columnedPath.SetColumns({"value1"});
+    auto partitions = WaitFor(Client_->PartitionTables({columnedPath}, partitionTablesOptions))
+        .ValueOrThrow();
+
+    ASSERT_GE(std::ssize(partitions.Partitions), 1);
+
+    auto cookie = partitions.Partitions[0].Cookie;
+
+    auto partitionReader = WaitFor(Client_->CreateTablePartitionReader(cookie))
+        .ValueOrThrow();
+
+    std::vector<std::vector<NNamedValue::TNamedValue>> readRows;
+    while (auto data = partitionReader->Read()) {
+        auto rowRange = data->MaterializeRows();
+        for (const auto& row : rowRange) {
+            readRows.push_back(NNamedValue::MakeNamedValueList(partitionReader->GetNameTable(), row));
+        }
+
+        auto event = partitionReader->GetReadyEvent();
+        WaitFor(event)
+            .ThrowOnError();
+    }
+
+    EXPECT_EQ(expectedData, readRows);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

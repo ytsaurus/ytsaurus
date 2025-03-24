@@ -29,7 +29,7 @@ struct TConfig
     : public NYTree::TYsonStruct
 {
     i64 Size;
-    TString Medium;
+    int MediumIndex;
     EFilesystemType FsType;
     TString Address;
     TDuration DataNodeNbdServiceRpcTimeout;
@@ -42,8 +42,8 @@ struct TConfig
     {
         registrar.Parameter("size", &TThis::Size)
             .Default(10_GB);
-        registrar.Parameter("medium", &TThis::Medium)
-            .Default("ssd");
+        registrar.Parameter("medium_index", &TThis::MediumIndex)
+            .Default(0);
         registrar.Parameter("fs_type", &TThis::FsType)
             .Default(EFilesystemType::Ext4);
         registrar.Parameter("address", &TThis::Address)
@@ -82,7 +82,7 @@ protected:
         auto deviceConfig = New<TChunkBlockDeviceConfig>();
         deviceConfig->Size = config->Size;
         deviceConfig->FsType = config->FsType;
-        deviceConfig->Medium = config->Medium;
+        deviceConfig->MediumIndex = config->MediumIndex;
         deviceConfig->DataNodeNbdServiceRpcTimeout = config->DataNodeNbdServiceRpcTimeout;
         deviceConfig->DataNodeNbdServiceMakeTimeout = config->DataNodeNbdServiceMakeTimeout;
 

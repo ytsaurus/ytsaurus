@@ -97,7 +97,6 @@ using namespace NTableClient::NProto;
 using namespace NTableClient;
 using namespace NTracing;
 
-using NChunkClient::NProto::TBlocksExt;
 using NChunkClient::TChunkReaderStatistics;
 using NYT::FromProto;
 using NYT::ToProto;
@@ -345,7 +344,7 @@ private:
         auto meta = request->has_chunk_meta()
             ? New<TRefCountedChunkMeta>(std::move(*request->mutable_chunk_meta()))
             : nullptr;
-        session->Finish(meta, blockCount)
+        session->Finish(meta, blockCount, request->truncate_extra_blocks())
             .Subscribe(BIND([
                 =,
                 this,
@@ -1035,7 +1034,8 @@ private:
             return future;
         }
 
-        auto deadline = *context->GetStartTime() + *context->GetTimeout() * timeoutFraction.value();
+        auto timeout = *context->GetTimeout() * timeoutFraction.value();
+        auto deadline = *context->GetStartTime() + timeout;
 
         return AnySet<T>({
             future
@@ -1049,7 +1049,11 @@ private:
                     }
                 })),
             TDelayedExecutor::MakeDelayed(deadline - TInstant::Now())
-                .Apply(fallbackValue)
+                .Apply(BIND([fallbackValue, future, timeout] {
+                    future.Cancel(TError("Rpc request timed out")
+                        << TErrorAttribute("timeout", timeout));
+                    return fallbackValue();
+                }))
         });
     }
 

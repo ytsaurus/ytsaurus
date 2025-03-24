@@ -20,8 +20,6 @@ from yt_type_helpers import (
     optional_type, list_type, dict_type, struct_type, tuple_type, variant_tuple_type, variant_struct_type,
     decimal_type, tagged_type)
 
-from yt_helpers import skip_if_renaming_disabled, skip_if_renaming_not_differentiated
-
 import yt_error_codes
 
 from yt.common import YtError
@@ -1856,8 +1854,6 @@ class TestSchemaValidation(YTEnvSetup):
 
     @authors("levysotsky")
     def test_stable_name(self):
-        skip_if_renaming_disabled(self.Env)
-
         schema = make_schema([
             make_column("a", "int64", stable_name="a_stable", sort_order="ascending"),
             make_column("b", "int64"),
@@ -2519,8 +2515,6 @@ class TestRenameColumnsStatic(YTEnvSetup):
 
     @authors("orlovorlov")
     def test_rename_dynamic_disabled(self):
-        skip_if_renaming_not_differentiated(self.Env)
-
         schema1 = make_schema([
             make_column("a", "int64", sort_order="ascending"),
             make_column("b", "string"),
@@ -2549,8 +2543,6 @@ class TestRenameColumnsStatic(YTEnvSetup):
 
     @authors("orlovorlov")
     def test_rename_static_change_to_dynamic(self):
-        skip_if_renaming_not_differentiated(self.Env)
-
         schema1 = make_schema([
             make_column("a", "int64", sort_order="ascending"),
             make_column("b", "string"),

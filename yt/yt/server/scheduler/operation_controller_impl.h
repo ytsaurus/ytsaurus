@@ -69,7 +69,7 @@ public:
         const TDiskResources& diskResourceLimits,
         const TString& treeId,
         const TString& poolPath,
-        const TFairShareStrategyTreeConfigPtr& treeConfig) override;
+        std::optional<TDuration> waitingForResourcesOnNodeTimeout) override;
 
     void UpdateGroupedNeededResources() override;
 

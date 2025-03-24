@@ -17,14 +17,14 @@ struct THorizontalSchemalessBlockWriterTag { };
 const i64 THorizontalBlockWriter::MinReserveSize = 64_KB + 1;
 const i64 THorizontalBlockWriter::MaxReserveSize = 2_MB;
 
-THorizontalBlockWriter::THorizontalBlockWriter(TTableSchemaPtr schema, i64 reserveSize)
+THorizontalBlockWriter::THorizontalBlockWriter(TTableSchemaPtr schema, i64 reserveSize, IMemoryUsageTrackerPtr memoryUsageTracker)
     : ReserveSize_(std::min(
         std::max(MinReserveSize, reserveSize),
         MaxReserveSize))
     , ColumnCount_(schema->GetColumnCount())
     , ColumnHunkFlags_(new bool[ColumnCount_])
-    , Offsets_(GetRefCountedTypeCookie<THorizontalSchemalessBlockWriterTag>(), GetNullMemoryUsageTracker(), 4_KB, ReserveSize_ / 2)
-    , Data_(GetRefCountedTypeCookie<THorizontalSchemalessBlockWriterTag>(), GetNullMemoryUsageTracker(), 4_KB, ReserveSize_ / 2)
+    , Offsets_(GetRefCountedTypeCookie<THorizontalSchemalessBlockWriterTag>(), memoryUsageTracker, 4_KB, ReserveSize_ / 2)
+    , Data_(GetRefCountedTypeCookie<THorizontalSchemalessBlockWriterTag>(), std::move(memoryUsageTracker), 4_KB, ReserveSize_ / 2)
 {
     for (int index = 0; index < ColumnCount_; ++index) {
         const auto& columnSchema = schema->Columns()[index];

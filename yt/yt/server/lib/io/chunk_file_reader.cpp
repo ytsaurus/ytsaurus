@@ -70,6 +70,7 @@ TChunkFileReader::TChunkFileReader(
 TFuture<std::vector<TBlock>> TChunkFileReader::ReadBlocks(
     const TClientChunkReadOptions& options,
     const std::vector<int>& blockIndexes,
+    TFairShareSlotId fairShareSlotId,
     TBlocksExtPtr blocksExt)
 {
     std::vector<TFuture<std::vector<TBlock>>> futures;
@@ -89,7 +90,7 @@ TFuture<std::vector<TBlock>> TChunkFileReader::ReadBlocks(
             }
 
             int blockCount = endLocalIndex - startLocalIndex;
-            auto subfuture = DoReadBlocks(options, startBlockIndex, blockCount, blocksExt);
+            auto subfuture = DoReadBlocks(options, startBlockIndex, blockCount, fairShareSlotId, blocksExt);
             futures.push_back(std::move(subfuture));
 
             localIndex = endLocalIndex;
@@ -120,23 +121,31 @@ TFuture<std::vector<TBlock>> TChunkFileReader::ReadBlocks(
     const TClientChunkReadOptions& options,
     int firstBlockIndex,
     int blockCount,
+    TFairShareSlotId fairShareSlotId,
     TBlocksExtPtr blocksExt)
 {
     YT_VERIFY(firstBlockIndex >= 0);
 
     try {
-        return DoReadBlocks(options, firstBlockIndex, blockCount, std::move(blocksExt));
+        return DoReadBlocks(options, firstBlockIndex, blockCount, fairShareSlotId, std::move(blocksExt));
     } catch (const std::exception& ex) {
         return MakeFuture<std::vector<TBlock>>(ex);
     }
 }
 
+i64 TChunkFileReader::GetMetaSize() const
+{
+    auto metaFileName = FileName_ + ChunkMetaSuffix;
+    return NFS::GetPathStatistics(metaFileName).Size;
+}
+
 TFuture<TRefCountedChunkMetaPtr> TChunkFileReader::GetMeta(
     const TClientChunkReadOptions& options,
+    TFairShareSlotId fairShareSlotId,
     std::optional<int> partitionTag)
 {
     try {
-        return DoReadMeta(options, partitionTag);
+        return DoReadMeta(options, partitionTag, fairShareSlotId);
     } catch (const std::exception& ex) {
         return MakeFuture<TRefCountedChunkMetaPtr>(ex);
     }
@@ -187,7 +196,7 @@ TFuture<void> TChunkFileReader::PrepareToReadChunkFragments(
                     }
                 }
 
-                return DoReadMeta(options, std::nullopt)
+                return DoReadMeta(options, std::nullopt, {})
                     .Apply(BIND([=, this, this_ = MakeStrong(this)] (const TRefCountedChunkMetaPtr& meta) {
                         auto guard = Guard(ChunkFragmentReadsLock_);
                         BlocksExt_ = New<NIO::TBlocksExt>(GetProtoExtension<NChunkClient::NProto::TBlocksExt>(meta->extensions()));
@@ -318,21 +327,25 @@ TFuture<std::vector<TBlock>> TChunkFileReader::DoReadBlocks(
     const TClientChunkReadOptions& options,
     int firstBlockIndex,
     int blockCount,
+    TFairShareSlotId fairShareSlotId,
     NIO::TBlocksExtPtr blocksExt,
     TIOEngineHandlePtr dataFile)
 {
+    if (blockCount == 0) {
+        return MakeFuture(std::vector<TBlock>());
+    }
     if (!blocksExt && BlocksExtCache_) {
         blocksExt = BlocksExtCache_->Find();
     }
 
     if (!blocksExt) {
-        return DoReadMeta(options, std::nullopt)
+        return DoReadMeta(options, std::nullopt, fairShareSlotId)
             .Apply(BIND([=, this, this_ = MakeStrong(this)] (const TRefCountedChunkMetaPtr& meta) {
                 auto loadedBlocksExt = New<NIO::TBlocksExt>(GetProtoExtension<NChunkClient::NProto::TBlocksExt>(meta->extensions()));
                 if (BlocksExtCache_) {
                     BlocksExtCache_->Put(meta, loadedBlocksExt);
                 }
-                return DoReadBlocks(options, firstBlockIndex, blockCount, loadedBlocksExt, dataFile);
+                return DoReadBlocks(options, firstBlockIndex, blockCount, fairShareSlotId, loadedBlocksExt, dataFile);
             }))
             .ToUncancelable();
     }
@@ -343,7 +356,13 @@ TFuture<std::vector<TBlock>> TChunkFileReader::DoReadBlocks(
         if (!optionalDataFileOrError || !optionalDataFileOrError->IsOK()) {
             return asyncDataFile
                 .Apply(BIND([=, this, this_ = MakeStrong(this)] (const TIOEngineHandlePtr& dataFile) {
-                    return DoReadBlocks(options, firstBlockIndex, blockCount, blocksExt, dataFile);
+                    return DoReadBlocks(
+                        options,
+                        firstBlockIndex,
+                        blockCount,
+                        fairShareSlotId,
+                        blocksExt,
+                        dataFile);
                 }));
         }
         dataFile = optionalDataFileOrError->Value();
@@ -371,18 +390,21 @@ TFuture<std::vector<TBlock>> TChunkFileReader::DoReadBlocks(
     return IOEngine_->Read({{
             dataFile,
             firstBlockInfo.Offset,
-            totalSize
+            totalSize,
+            fairShareSlotId,
         }},
         options.WorkloadDescriptor.Category,
         GetRefCountedTypeCookie<TChunkFileReaderBufferTag>(),
         options.ReadSessionId,
         options.UseDedicatedAllocations)
-        .Apply(BIND(&TChunkFileReader::OnBlocksRead, MakeStrong(this), options, firstBlockIndex, blockCount, blocksExt));
+        .Apply(BIND(&TChunkFileReader::OnBlocksRead, MakeStrong(this), options, firstBlockIndex, blockCount, blocksExt)
+            .AsyncVia(IOEngine_->GetAuxPoolInvoker()));
 }
 
 TFuture<TRefCountedChunkMetaPtr> TChunkFileReader::DoReadMeta(
     const TClientChunkReadOptions& options,
-    std::optional<int> partitionTag)
+    std::optional<int> partitionTag,
+    TFairShareSlotId fairShareSlotId)
 {
     // Partition tag filtering not implemented here
     // because there is no practical need.
@@ -394,8 +416,13 @@ TFuture<TRefCountedChunkMetaPtr> TChunkFileReader::DoReadMeta(
     YT_LOG_DEBUG("Started reading chunk meta file (FileName: %v)",
         metaFileName);
 
-    return IOEngine_->ReadAll(metaFileName, options.WorkloadDescriptor.Category, options.ReadSessionId)
-        .Apply(BIND(&TChunkFileReader::OnMetaRead, MakeStrong(this), metaFileName, options.ChunkReaderStatistics));
+    return IOEngine_->ReadAll(
+        metaFileName,
+        options.WorkloadDescriptor.Category,
+        options.ReadSessionId,
+        fairShareSlotId)
+        .Apply(BIND(&TChunkFileReader::OnMetaRead, MakeStrong(this), metaFileName, options.ChunkReaderStatistics)
+            .AsyncVia(IOEngine_->GetAuxPoolInvoker()));
 }
 
 TRefCountedChunkMetaPtr TChunkFileReader::OnMetaRead(
@@ -488,7 +515,8 @@ TFuture<TIOEngineHandlePtr> TChunkFileReader::OpenDataFile(EDirectIOFlag useDire
         }
         DataFileHandleFuture_[useDirectIO] = IOEngine_->Open({FileName_, mode})
             .ToUncancelable()
-            .Apply(BIND(&TChunkFileReader::OnDataFileOpened, MakeStrong(this), useDirectIO));
+            .Apply(BIND(&TChunkFileReader::OnDataFileOpened, MakeStrong(this), useDirectIO)
+            .AsyncVia(IOEngine_->GetAuxPoolInvoker()));
     }
     return DataFileHandleFuture_[useDirectIO];
 }

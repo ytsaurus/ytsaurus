@@ -12,7 +12,7 @@ from yt_type_helpers import (
     optional_type,
 )
 
-from yt_helpers import skip_if_renaming_disabled, profiler_factory
+from yt_helpers import profiler_factory
 
 from yt.common import YtError
 
@@ -1000,8 +1000,6 @@ class TestColumnarStatisticsRenamedColumns(_TestColumnarStatisticsBase):
 
     @authors("levysotsky")
     def test_get_table_columnar_statistics(self):
-        skip_if_renaming_disabled(self.Env)
-
         schema1 = make_schema([
             make_column("a", optional_type("string")),
             make_column("b", optional_type("int64")),
