@@ -62,14 +62,15 @@ void TProbingJobManager::OnJobScheduled(const TJobletPtr& joblet)
     }
 }
 
-void TProbingJobManager::OnJobCompleted(const TJobletPtr& joblet)
+bool TProbingJobManager::OnJobCompleted(const TJobletPtr& joblet)
 {
     if (!IsRelevant(joblet)) {
-        return;
+        return true;
     }
 
     OnJobFinished(joblet);
     MarkCompetitionAsCompleted(joblet);
+    return true;
 }
 
 bool TProbingJobManager::OnUnsuccessfulJobFinish(

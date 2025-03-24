@@ -202,6 +202,7 @@ struct TListJobsOptions
     , public TMasterReadOptions
 {
     NJobTrackerClient::TJobId JobCompetitionId;
+    NJobTrackerClient::TJobId MainJobId;
     std::optional<NJobTrackerClient::EJobType> Type;
     std::optional<NJobTrackerClient::EJobState> State;
     std::optional<TString> Address;
@@ -378,6 +379,7 @@ struct TJob
     std::optional<bool> HasSpec;
     std::optional<bool> HasCompetitors;
     std::optional<bool> HasProbingCompetitors;
+    NJobTrackerClient::TJobId MainJobId;
     NJobTrackerClient::TJobId JobCompetitionId;
     NJobTrackerClient::TJobId ProbingJobCompetitionId;
     NYson::TYsonString Error;
@@ -393,6 +395,7 @@ struct TJob
     std::optional<TString> Pool;
     std::optional<TString> MonitoringDescriptor;
     std::optional<ui64> JobCookie;
+    std::optional<ui64> JobCookieGroupIndex;
     NYson::TYsonString ArchiveFeatures;
     std::optional<std::string> OperationIncarnation;
     std::optional<NScheduler::TAllocationId> AllocationId;
