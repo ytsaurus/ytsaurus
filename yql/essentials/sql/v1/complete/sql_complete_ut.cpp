@@ -6,6 +6,7 @@ using namespace NSQLComplete;
 
 Y_UNIT_TEST_SUITE(SqlCompleteTests) {
     using ECandidateKind::Keyword;
+    using ECandidateKind::TypeName;
 
     TVector<TCandidate> Complete(ISqlCompletionEngine::TPtr& engine, TStringBuf prefix) {
         return engine->Complete({prefix}).Candidates;
@@ -277,6 +278,31 @@ Y_UNIT_TEST_SUITE(SqlCompleteTests) {
 
         auto engine = MakeSqlCompletionEngine();
         UNIT_ASSERT_VALUES_EQUAL(Complete(engine, {"UPSERT "}), expected);
+    }
+
+    Y_UNIT_TEST(TypeName) {
+        TVector<TCandidate> expected = {
+            {Keyword, "CALLABLE"},
+            {Keyword, "DECIMAL"},
+            {Keyword, "DICT"},
+            {Keyword, "ENUM"},
+            {Keyword, "FLOW"},
+            {Keyword, "LIST"},
+            {Keyword, "OPTIONAL"},
+            {Keyword, "RESOURCE"},
+            {Keyword, "SET"},
+            {Keyword, "STREAM"},
+            {Keyword, "STRUCT"},
+            {Keyword, "TAGGED"},
+            {Keyword, "TUPLE"},
+            {Keyword, "VARIANT"},
+            {TypeName, "Uint64"},
+        };
+
+        auto engine = MakeSqlCompletionEngine();
+        UNIT_ASSERT_VALUES_EQUAL(Complete(engine, {"CREATE TABLE table (id "}), expected);
+        UNIT_ASSERT_VALUES_EQUAL(Complete(engine, {"SELECT CAST (1 AS "}), expected);
+        UNIT_ASSERT_VALUES_EQUAL(Complete(engine, {"SELECT OPTIONAL<"}), expected);
     }
 
     Y_UNIT_TEST(UTF8Wide) {

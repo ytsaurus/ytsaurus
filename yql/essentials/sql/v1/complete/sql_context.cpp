@@ -38,9 +38,10 @@ namespace NSQLComplete {
 
         TCompletionContext Analyze(TCompletionInput input) override {
             auto prefix = input.Text.Head(input.CursorPosition);
-            auto tokens = C3.Complete(prefix);
+            auto candidates = C3.Complete(prefix);
             return {
-                .Keywords = SiftedKeywords(tokens),
+                .Keywords = SiftedKeywords(candidates),
+                .IsTypeName = IsTypeNameMatched(candidates),
             };
         }
 
@@ -62,26 +63,36 @@ namespace NSQLComplete {
 
         std::unordered_set<TRuleId> ComputePreferredRules() {
             const auto& keywordRules = Grammar->GetKeywordRules();
+            const auto& typeNameRules = Grammar->GetTypeNameRules();
 
             std::unordered_set<TRuleId> preferredRules;
 
             // Excludes tokens obtained from keyword rules
             preferredRules.insert(std::begin(keywordRules), std::end(keywordRules));
 
+            preferredRules.insert(std::begin(typeNameRules), std::end(typeNameRules));
+
             return preferredRules;
         }
 
-        TVector<TString> SiftedKeywords(const TVector<TSuggestedToken>& tokens) {
+        TVector<TString> SiftedKeywords(const TC3Candidates& candidates) {
             const auto& vocabulary = Grammar->GetVocabulary();
             const auto& keywordTokens = Grammar->GetKeywordTokens();
 
             TVector<TString> keywords;
-            for (const auto& token : tokens) {
+            for (const auto& token : candidates.Tokens) {
                 if (keywordTokens.contains(token.Number)) {
                     keywords.emplace_back(vocabulary.getDisplayName(token.Number));
                 }
             }
             return keywords;
+        }
+
+        bool IsTypeNameMatched(const TC3Candidates& candidates) {
+            const auto& typeNameRules = Grammar->GetTypeNameRules();
+            return FindIf(candidates.Rules, [&](const TMatchedRule& rule) {
+                       return Find(typeNameRules, rule.Index) != std::end(typeNameRules);
+                   }) != std::end(candidates.Rules);
         }
 
         const ISqlGrammar* Grammar;

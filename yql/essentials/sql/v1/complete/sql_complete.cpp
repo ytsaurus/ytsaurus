@@ -21,8 +21,7 @@ namespace NSQLComplete {
 
             auto context = ContextInference->Analyze(input);
 
-            TVector<TCandidate> candidates;
-            EnrichWithKeywords(candidates, context.Keywords);
+            auto candidates = GenerateCandidates(std::move(context));
 
             FilterByContent(candidates, completedToken.Content);
 
@@ -42,6 +41,15 @@ namespace NSQLComplete {
             };
         }
 
+        TVector<TCandidate> GenerateCandidates(TCompletionContext context) {
+            TVector<TCandidate> candidates;
+            EnrichWithKeywords(candidates, context.Keywords);
+            if (context.IsTypeName) {
+                EnrichWithTypeNames(candidates);
+            }
+            return candidates;
+        }
+
         void EnrichWithKeywords(TVector<TCandidate>& candidates, TVector<TString> keywords) {
             for (auto keyword : keywords) {
                 candidates.push_back({
@@ -49,6 +57,13 @@ namespace NSQLComplete {
                     .Content = std::move(keyword),
                 });
             }
+        }
+
+        void EnrichWithTypeNames(TVector<TCandidate>& candidates) {
+            candidates.push_back({
+                .Kind = ECandidateKind::TypeName,
+                .Content = "Uint64",
+            });
         }
 
         void FilterByContent(TVector<TCandidate>& candidates, TStringBuf prefix) {
@@ -79,6 +94,9 @@ void Out<NSQLComplete::ECandidateKind>(IOutputStream& out, NSQLComplete::ECandid
     switch (kind) {
         case NSQLComplete::ECandidateKind::Keyword:
             out << "Keyword";
+            break;
+        case NSQLComplete::ECandidateKind::TypeName:
+            out << "TypeName";
             break;
     }
 }
