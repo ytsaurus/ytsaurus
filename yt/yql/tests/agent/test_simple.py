@@ -993,3 +993,9 @@ class TestYqlColumnOrderDifferentSources(TestQueriesYqlBase):
             select a, b, c from primary.`//tmp/t2`
             limit 4
         """, [{"a": 42, "b": "foo", "c": 2.0}, {"a": 43, "b": "xyz", "c": 3.0}, {"a": 44, "b": "uvw", "c": 4.0}, {"a": 45, "b": "bar", "c": -3.0}])
+        self._test_simple_query("""
+            select a, b, c from primary.`//tmp/t2`
+            union all
+            select a, b, c from primary.`//tmp/t1`
+            limit 4
+        """, [{"a": 45, "b": "bar", "c": -3.0}, {"a": 46, "b": "abc", "c": -4.0}, {"a": 47, "b": "def", "c": -5.0}, {"a": 42, "b": "foo", "c": 2.0}])
