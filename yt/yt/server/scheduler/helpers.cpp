@@ -480,6 +480,10 @@ const std::vector<TSchedulerTreeAlertDescriptor>& GetSchedulerTreeAlertDescripto
             .Type = ESchedulerAlertType::ManageSchedulingSegments,
             .Message = "Found errors during node scheduling segments management",
         },
+        TSchedulerTreeAlertDescriptor{
+            .Type = ESchedulerAlertType::UnrecognizedPoolTreeConfigOptions,
+            .Message = "Pool tree configs contain unrecognized options",
+        },
     };
 
     return SchedulerTreeAlertDescriptors;
