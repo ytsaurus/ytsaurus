@@ -981,7 +981,6 @@ struct TFastIntermediateMediumTableWriterConfig
     static void Register(TRegistrar registrar);
 };
 
-DECLARE_REFCOUNTED_TYPE(TFastIntermediateMediumTableWriterConfig)
 DEFINE_REFCOUNTED_TYPE(TFastIntermediateMediumTableWriterConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
