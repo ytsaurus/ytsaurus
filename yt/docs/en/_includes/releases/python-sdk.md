@@ -8,6 +8,21 @@ Availabe as a package in [PyPI](https://pypi.org/project/ytsaurus-client/).
 
 **Releases:**
 
+{% cut "**0.13.26**" %}
+
+**Release date:** 2025-03-25
+
+
+### Features
+* Add support of `expression` and `aggregate` properties in TableSchema.
+* Add impersonation support.
+* Do not strip docker host in spec builder.
+* Add logging of bad requests.
+* Bump ytsaurus-client dependencies.
+
+{% endcut %}
+
+
 {% cut "**0.13.25**" %}
 
 **Release date:** 2025-03-12
