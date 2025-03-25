@@ -135,5 +135,5 @@ void Out<NSQLComplete::ECandidateKind>(IOutputStream& out, NSQLComplete::ECandid
 
 template <>
 void Out<NSQLComplete::TCandidate>(IOutputStream& out, const NSQLComplete::TCandidate& candidate) {
-    out << "(" << candidate.Kind << ": " << candidate.Content << ")";
+    out << "{" << candidate.Kind << ", \"" << candidate.Content << "\"}";
 }

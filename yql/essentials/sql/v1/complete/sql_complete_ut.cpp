@@ -354,4 +354,21 @@ Y_UNIT_TEST_SUITE(SqlCompleteTests) {
         UNIT_ASSERT_VALUES_EQUAL(Complete(engine, "Se"), expected);
         UNIT_ASSERT_VALUES_EQUAL(Complete(engine, "SE"), expected);
     }
+
+    Y_UNIT_TEST(DefaultNameSet) {
+        auto set = MakeDefaultNameSet();
+        auto service = MakeStaticNameService(std::move(set));
+        auto engine = MakeSqlCompletionEngine(std::move(service));
+        {
+            TVector<TCandidate> expected = {
+                {TypeName, "Uint16"},
+                {TypeName, "Uint32"},
+                {TypeName, "Uint64"},
+                {TypeName, "Uint8"},
+                {TypeName, "Utf8"},
+                {TypeName, "Uuid"}};
+            UNIT_ASSERT_VALUES_EQUAL(Complete(engine, {"SELECT OPTIONAL<U"}), expected);
+        }
+    }
+
 } // Y_UNIT_TEST_SUITE(SqlCompleteTests)
