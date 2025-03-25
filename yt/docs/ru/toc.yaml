@@ -377,7 +377,7 @@ items:
             href: user-guide/import.md
           - name: Работа с данными Microsoft Excel
             href: user-guide/excel.md
-      - name: Query tracker
+      - name: Query Tracker
         when: audience == "public"
         items:
           - name: Обзор
