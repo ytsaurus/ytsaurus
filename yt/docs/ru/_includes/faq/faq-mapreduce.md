@@ -267,7 +267,7 @@ yt merge --src _table --dst _table --spec '{job_io = {table_writer = {desired_ch
 * Указан `scheduling_tag_filter`, под который не подпадает ни один узел кластера.
 
 ------
-#### **Q: При запуске операции Merge, Reduce возникает ошибка «Maximum allowed data weight violated for a sorted job: xxx > yyy»**
+#### **Q: При запуске операции Merge, Reduce возникает ошибка «Maximum allowed data weight per sorted job exceeds the limit: xxx > yyy»**
 
 **A:** При формировании джобов по оценке планировщика в один джоб приходит слишком много данных (сотни гигабайт), и у планировщика не получается сделать более мелкий джоб. Возможны следующие варианты:
 
