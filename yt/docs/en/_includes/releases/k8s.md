@@ -64,7 +64,7 @@ Is released as helm charts on [Github Packages](https://github.com/ytsaurus/ytsa
 * Add log_manager_template for job proxy by @l0kix2 in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/428
 
 ## Release notes
-This release makes yt operator compatible with ytsaurus 24.2.
+This release makes yt operator compatible with ytsaurus 24.2. 
 Update to this version will launch job for setting correct enable_real_chunks_value values in cypress and exec nodes will be updated with a new config.
 
 **Full Changelog**: https://github.com/ytsaurus/ytsaurus-k8s-operator/compare/release/0.19.0...release/0.20.0
@@ -236,12 +236,12 @@ Use 0.16.2 instead.
 
 ## Backward incompatible changes
 Before this release `StrawberryController` was unconditionally configured with `{address_resolver={enable_ipv4=%true;enable_ipv6=%true}}` in its static config. From now on it respects common `useIpv6` and `useIpv4` fields, which can be set in the [YtsaurusSpec](https://github.com/ytsaurus/ytsaurus-k8s-operator/blob/main/docs/api.md#ytsaurusspec).
-If for some reason it is required to have configuration different from
+If for some reason it is required to have configuration different from 
 ```yaml
 useIpv6: true
 useIpv4: true
 ```
-for the main Ytsaurus spec and at the same time `enable_ipv4=%true;enable_ipv6=%true` for the `StrawberryController`, it is possible to achieve that by using `configOverrides` ConfigMap with
+for the main Ytsaurus spec and at the same time `enable_ipv4=%true;enable_ipv6=%true` for the `StrawberryController`, it is possible to achieve that by using `configOverrides` ConfigMap with 
 ```yaml
 data:
     strawberry-controller.yson: |
@@ -255,7 +255,7 @@ data:
         };
       };
     }
-```
+``` 
 
 ## Minor
 * Add no more than one ytsaurus spec per namespace validation by @qurname2 in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/305
@@ -297,7 +297,7 @@ The field `useInsecureCookies` was deprecated in the previous release in a not b
 * Size as Quantity in LogRotationPolicy by @sgburtsev in https://github.com/ytsaurus/yt-k8s-operator/pull/309
 * Use `secure` instead of `useInsecureCookies`, pass caBundle to UI by @sgburtsev in https://github.com/ytsaurus/yt-k8s-operator/pull/310
 
-## Minor
+## Minor 
 * Add all YTsaurus CRD into category "ytsaurus-all" "yt-all" by @koct9i in https://github.com/ytsaurus/yt-k8s-operator/pull/311
 
 ## Bugfixes
@@ -337,7 +337,7 @@ The field `useInsecureCookies` was deprecated in the previous release in a not b
 * SetHostnameAsFQDN option is added to all components. Default is true by @qurname2 in https://github.com/ytsaurus/yt-k8s-operator/pull/302
 * Add per-component option hostNetwork by @koct9i in https://github.com/ytsaurus/yt-k8s-operator/pull/287
 
-### Minor
+### Minor 
 * Add option for per location disk space quota by @koct9i in https://github.com/ytsaurus/yt-k8s-operator/pull/279
 * Add into exec node pods environment variables for CRI tools by @koct9i in https://github.com/ytsaurus/yt-k8s-operator/pull/283
 * Add per-instance-group podLabels and podAnnotations by @koct9i in https://github.com/ytsaurus/yt-k8s-operator/pull/289
@@ -360,9 +360,9 @@ The field `useInsecureCookies` was deprecated in the previous release in a not b
 
 
 ### Features
-### Minor
+### Minor 
  - Add everyone-share QT ACO by @Krisha11 in #272
- - Add channel in qt config by @Krisha11 in #273
+ - Add channel in qt config by @Krisha11 in #273 
  - Add option for per location disk space quota #279
 ### Bugfixes
 - Fix exec node resource calculation on non-isolated CRI-powered job environment #277
@@ -378,11 +378,11 @@ The field `useInsecureCookies` was deprecated in the previous release in a not b
 
 
 ### Features
-### Minor
+### Minor 
  - Add 'physical_host' to cypress_annotations for CMS and UI сompatibility #252
  - added WATCH_NAMESPACE env and LeaderElectionNamespace #168
  - Add configuration for solomon exporter: specify host and some instance tags #258
- - Add sidecars support to primary masters containers #259
+ - Add sidecars support to primary masters containers #259 
  - Add option for containerd registry config path #264
 ### Bugfixes
  - Fix CRI job environment for remote exec nodes #261
@@ -398,7 +398,7 @@ The field `useInsecureCookies` was deprecated in the previous release in a not b
 
 ### Features
 - Add experimental (behaviour may change) UpdateSelector field #211 to be able to update components separately
-### Minor
+### Minor 
 - Enable TmpFS when possible #235
 - Disable disk quota for slot locations #236
 - Forward docker image environment variables to user job #248
@@ -415,12 +415,12 @@ The field `useInsecureCookies` was deprecated in the previous release in a not b
 
 
 ### Features
-### Minor
+### Minor 
 - Increased default value for MaxSnapshotCountToKeep and MaxChangelogCountToKeep
 - Tune default bundle replication factor #210
 - Set EnableServiceLinks=false for all pods #218
 ### Bugfixes
-- Fix authentication configuration for RPC Proxy #207
+- Fix authentication configuration for RPC Proxy #207 
 - Job script updated on restart #224
 - Use secure random and base64 for tokens #202
 - Fix running jobs with custom docker_image when default job image is not set #217
@@ -439,7 +439,7 @@ The field `useInsecureCookies` was deprecated in the previous release in a not b
   * Enable TLS certificate auto-update for http proxies #167
   * CRI containerd job environment #105
 
-### Minor
+### Minor 
   * Support RuntimeClassName in InstanceSpec
   * Configurable monitoring port #146
   * Not triggering full update for data nodes update
@@ -575,7 +575,7 @@ The field `useInsecureCookies` was deprecated in the previous release in a not b
 - Added the ability to configure `tags` and `rack` for nodes.
 - Supported OAuth service configuration in the spec.
 - Added the ability to pass additional environment variables to the UI, as well as set the theme and environment (`testing`, `production`, etc.) for the UI.
-- Data node location media are created automatically during the initial deployment of the cluster.
+- Data node location mediums are created automatically during the initial deployment of the cluster.
 
 
 
