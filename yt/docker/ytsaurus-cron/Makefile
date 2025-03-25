@@ -1,6 +1,6 @@
 COMMIT_SHA_FETCH := $(shell git rev-parse HEAD)
 
-DOCKER_REGISTRY = docker.io
+DOCKER_REGISTRY = ghcr.io
 DOCKER_REPOSITORY = ytsaurus/ytsaurus-cron
 
 IMAGE_REPO = $(DOCKER_REGISTRY)/$(DOCKER_REPOSITORY)
