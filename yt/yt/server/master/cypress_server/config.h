@@ -97,6 +97,9 @@ public:
 
     i64 MaxAttributeFilterSizeToLog;
 
+    // COMPAT(h0pless)
+    bool UseProperBranchedParentInLockCopyDestination;
+
     REGISTER_YSON_STRUCT(TDynamicCypressManagerConfig);
 
     static void Register(TRegistrar registrar);
