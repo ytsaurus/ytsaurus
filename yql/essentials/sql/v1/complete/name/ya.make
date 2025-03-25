@@ -1,6 +1,3 @@
 LIBRARY()
 
-SRCS(
-)
-
 END()
