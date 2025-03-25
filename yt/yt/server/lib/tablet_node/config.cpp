@@ -355,11 +355,6 @@ void TCustomTableMountConfig::Register(TRegistrar registrar)
         .Default(1)
         .InRange(1, 16);
 
-    registrar.Parameter("enable_new_scan_reader_for_lookup", &TThis::EnableNewScanReaderForLookup)
-        .Default(true);
-    registrar.Parameter("enable_new_scan_reader_for_select", &TThis::EnableNewScanReaderForSelect)
-        .Default(true);
-
     registrar.Parameter("single_column_group_by_default", &TThis::SingleColumnGroupByDefault)
         .Default(true);
 

@@ -1,7 +1,7 @@
 #include "collection.h"
 #include "meta.h"
 
-#include <contrib/ydb/core/tx/columnshard/engines/storage/indexes/portions/meta.h>
+#include <contrib/ydb/core/tx/columnshard/engines/storage/indexes/skip_index/meta.h>
 
 namespace NKikimr::NOlap::NIndexes {
 

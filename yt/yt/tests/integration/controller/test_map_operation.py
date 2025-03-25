@@ -15,7 +15,7 @@ from yt_commands import (
 
 from yt_type_helpers import make_schema, normalize_schema, make_column, list_type, tuple_type, optional_type
 
-from yt_helpers import skip_if_no_descending, skip_if_old, skip_if_renaming_disabled
+from yt_helpers import skip_if_old
 
 import yt.yson as yson
 from yt.test_helpers import assert_items_equal
@@ -270,9 +270,6 @@ class TestSchedulerMapCommands(YTEnvSetup):
     @authors("psushin")
     @pytest.mark.parametrize("sort_kind", ["sorted_by", "ascending", "descending"])
     def test_sorted_output(self, sort_kind):
-        if sort_kind == "descending":
-            skip_if_no_descending(self.Env)
-
         create("table", "//tmp/t1")
         for i in range(2):
             write_table("<append=true>//tmp/t1", {"key": "foo", "value": "ninja"})
@@ -323,9 +320,6 @@ class TestSchedulerMapCommands(YTEnvSetup):
     @authors("psushin")
     @pytest.mark.parametrize("sort_kind", ["sorted_by", "ascending", "descending"])
     def test_sorted_output_overlap(self, sort_kind):
-        if sort_kind == "descending":
-            skip_if_no_descending(self.Env)
-
         create("table", "//tmp/t1")
         for i in range(2):
             write_table("<append=true>//tmp/t1", {"key": "foo", "value": "ninja"})
@@ -356,9 +350,6 @@ class TestSchedulerMapCommands(YTEnvSetup):
     @authors("psushin")
     @pytest.mark.parametrize("sort_kind", ["sorted_by", "ascending", "descending"])
     def test_sorted_output_job_failure(self, sort_kind):
-        if sort_kind == "descending":
-            skip_if_no_descending(self.Env)
-
         create("table", "//tmp/t1")
         for i in range(2):
             write_table("<append=true>//tmp/t1", {"key": "foo", "value": "ninja"})
@@ -554,11 +545,11 @@ cat > /dev/null; echo {hello=world}
 import sys
 table_index = sys.stdin.readline().strip()
 row = sys.stdin.readline().strip()
-print row + table_index
+print(row + table_index)
 
 table_index = sys.stdin.readline().strip()
 row = sys.stdin.readline().strip()
-print row + table_index
+print(row + table_index)
 """
 
         create("file", "//tmp/mapper.py")
@@ -567,7 +558,7 @@ print row + table_index
         map(
             in_=["//tmp/t1", "//tmp/t2"],
             out="//tmp/out",
-            command="python mapper.py",
+            command="python3 mapper.py",
             file="//tmp/mapper.py",
             spec={"mapper": {"format": yson.loads(b"<enable_table_index=true>yamr")}},
         )
@@ -578,9 +569,6 @@ print row + table_index
     @authors("ignat")
     @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
     def test_range_index(self, sort_order):
-        if sort_order == "descending":
-            skip_if_no_descending(self.Env)
-
         create("table", "//tmp/t_in", attributes={
             "schema": make_schema([
                 {"name": "key", "type": "string", "sort_order": sort_order},
@@ -1147,8 +1135,6 @@ print row + table_index
     @authors("levysotsky")
     @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
     def test_rename_schema(self, optimize_for):
-        skip_if_renaming_disabled(self.Env)
-
         input_table = "//tmp/tin"
         output_table = "//tmp/tout"
 
@@ -1390,7 +1376,7 @@ print row + table_index
 
         update_inplace(spec, spec_patch)
 
-        mapper = b"""
+        mapper = b"""#!/usr/bin/env python3
 import json
 import os
 import sys
@@ -2624,7 +2610,7 @@ class TestInputOutputFormats(YTEnvSetup):
 import sys
 input = sys.stdin.readline().strip('\\n').split('\\t')
 assert input == ['tskv', 'foo=bar']
-print '{hello=world}'
+print('{hello=world}')
 
 """
         create("file", "//tmp/mapper.py")
@@ -2634,7 +2620,7 @@ print '{hello=world}'
         map(
             in_="//tmp/t_in",
             out="//tmp/t_out",
-            command="python mapper.py",
+            command="python3 mapper.py",
             file="//tmp/mapper.py",
             spec={"mapper": {"input_format": yson.loads(b"<line_prefix=tskv>dsv")}},
         )
@@ -2653,7 +2639,7 @@ input = sys.stdin.readline().strip('\\n')
 assert input == '<"table_index"=0;>#;'
 input = sys.stdin.readline().strip('\\n')
 assert input == '{"foo"="bar";};'
-print "tskv" + "\\t" + "hello=world"
+print("tskv" + "\\t" + "hello=world")
 """
         create("file", "//tmp/mapper.py")
         write_file("//tmp/mapper.py", mapper)
@@ -2662,7 +2648,7 @@ print "tskv" + "\\t" + "hello=world"
         map(
             in_="//tmp/t_in",
             out="//tmp/t_out",
-            command="python mapper.py",
+            command="python3 mapper.py",
             file="//tmp/mapper.py",
             spec={
                 "mapper": {
@@ -2685,7 +2671,7 @@ print "tskv" + "\\t" + "hello=world"
 import sys
 input = sys.stdin.readline().strip('\\n')
 assert input == '{"foo"="bar";};'
-print "key\\tsubkey\\tvalue"
+print("key\\tsubkey\\tvalue")
 
 """
         create("file", "//tmp/mapper.py")
@@ -2695,7 +2681,7 @@ print "key\\tsubkey\\tvalue"
         map(
             in_="//tmp/t_in",
             out="//tmp/t_out",
-            command="python mapper.py",
+            command="python3 mapper.py",
             file="//tmp/mapper.py",
             spec={
                 "mapper": {
@@ -2720,7 +2706,7 @@ print "key\\tsubkey\\tvalue"
 import sys
 input = sys.stdin.readline().strip('\\n').split('\\t')
 assert input == ['key', 'subkey', 'value']
-print '{hello=world}'
+print('{hello=world}')
 
 """
         create("file", "//tmp/mapper.py")
@@ -2730,7 +2716,7 @@ print '{hello=world}'
         map(
             in_="//tmp/t_in",
             out="//tmp/t_out",
-            command="python mapper.py",
+            command="python3 mapper.py",
             file="//tmp/mapper.py",
             spec={"mapper": {"input_format": yson.loads(b"<has_subkey=true>yamr")}},
         )
@@ -2817,10 +2803,10 @@ print '{hello=world}'
 
         script = b"\n".join(
             [
-                b"#!/usr/bin/python",
+                b"#!/usr/bin/env python3",
                 b"import sys",
                 b"import base64",
-                b"print '{out=\"' + base64.standard_b64encode(sys.stdin.read()) + '\"}'",
+                b"print('{out=\"' + base64.standard_b64encode(sys.stdin.buffer.read()).decode() + '\"}')",
             ]
         )
 

@@ -33,7 +33,7 @@ from yt_commands import (
     wait,
 )
 
-from yt_helpers import skip_if_no_descending, profiler_factory
+from yt_helpers import profiler_factory
 from yt.common import YtError
 import yt.yson as yson
 
@@ -254,9 +254,6 @@ class TestSchedulerRemoteOperationCommands(TestSchedulerRemoteOperationCommandsB
     @authors("coteeq")
     @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
     def test_reduce_cat(self, sort_order):
-        if sort_order == "descending":
-            skip_if_no_descending(self.Env)
-
         create("table", "//tmp/in1")
         rows = [
             {"key": 0, "value": 1},

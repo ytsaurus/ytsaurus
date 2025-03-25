@@ -60,6 +60,9 @@ public:
             Logger,
             Profiler_.WithPrefix("/memory_usage"));
 
+        FairShareHierarchicalScheduler_ = CreateFairShareHierarchicalScheduler<TString>(
+            New<TFairShareHierarchicalSchedulerDynamicConfig>(),
+            {});
         ChunkStore_ = New<TChunkStore>(
             Config_->DataNode,
             GetDynamicConfigManager(),
@@ -423,6 +426,11 @@ public:
         return nullptr;
     }
 
+    const TFairShareHierarchicalSchedulerPtr<TString>& GetFairShareHierarchicalScheduler() const override
+    {
+        return FairShareHierarchicalScheduler_;
+    }
+
     bool NeedDataNodeBootstrap() const override
     {
         return false;
@@ -524,6 +532,7 @@ private:
     NDataNode::TSessionManagerPtr SessionManager_;
     NDataNode::IJobControllerPtr JobController_;
     INodeMemoryTrackerPtr NodeMemoryUsageTracker_;
+    TFairShareHierarchicalSchedulerPtr<TString> FairShareHierarchicalScheduler_;
     NConcurrency::IThroughputThrottlerPtr DefaultInThrottler_;
     NClusterNode::TNodeResourceManagerPtr NodeResourceManager_;
     NConcurrency::IThroughputThrottlerPtr DefaultOutThrottler_;

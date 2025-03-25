@@ -522,6 +522,7 @@ message TCoreAttr {
 message TYqlCoreConfig {
     repeated TCoreAttr Flags = 1;
     optional TActivationPercentage QPlayerActivation = 2;
+    optional uint32 QPlayerRobotPercentage = 3 [default = 0];
 }
 
 /////////////////////////////// Sql Core ///////////////////////////////
@@ -595,6 +596,8 @@ enum EGenericDataSourceKind {
     ORACLE = 8;
     LOGGING = 9;
     MONGO_DB = 10;
+    REDIS = 11;
+    PROMETHEUS = 12;
 }
 
 // EGenericProtocol generalizes various kinds of network protocols supported by different databases.

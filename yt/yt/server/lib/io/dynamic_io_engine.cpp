@@ -17,10 +17,12 @@ public:
     TDynamicIOEngine(
         EIOEngineType defaultEngineType,
         NYTree::INodePtr defaultIOConfig,
+        TFairShareHierarchicalSlotQueuePtr<TString> fairShareQueue,
         TString locationId,
         NProfiling::TProfiler profiler,
         NLogging::TLogger logger)
         : LocationId_(std::move(locationId))
+        , FairShareQueue_(std::move(fairShareQueue))
         , Profiler_(std::move(profiler))
         , Logger(std::move(logger))
     {
@@ -259,6 +261,7 @@ DEFINE_REFCOUNTED_TYPE(TDynamicIOEngine)
 IDynamicIOEnginePtr CreateDynamicIOEngine(
     EIOEngineType defaultEngineType,
     NYTree::INodePtr ioConfig,
+    TFairShareHierarchicalSlotQueuePtr<TString> fairShareQueue,
     TString locationId,
     NProfiling::TProfiler profiler,
     NLogging::TLogger logger)
@@ -266,6 +269,7 @@ IDynamicIOEnginePtr CreateDynamicIOEngine(
     return New<TDynamicIOEngine>(
         defaultEngineType,
         std::move(ioConfig),
+        std::move(fairShareQueue),
         std::move(locationId),
         std::move(profiler),
         std::move(logger));

@@ -1,0 +1,7 @@
+package NYT.NFlow.NProto;
+
+message TTestMessage
+{
+    optional int32 Int32 = 1;
+    optional string String = 2;
+}

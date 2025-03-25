@@ -75,6 +75,11 @@ public:
     void RemoveChunkFromCache(TChunkId /*chunkId*/) override
     { }
 
+    const TFairShareHierarchicalSchedulerPtr<TString> GetFairShareHierarchicalScheduler()  override
+    {
+        return nullptr;
+    }
+
 private:
     const INodeMemoryTrackerPtr MemoryUsageTracker_ = CreateNodeMemoryTracker(1_GBs);
 };

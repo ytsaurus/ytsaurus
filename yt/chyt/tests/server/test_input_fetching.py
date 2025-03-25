@@ -4,8 +4,6 @@ from yt_commands import (create, authors, write_table, insert_rows, get, sync_re
 
 from yt_type_helpers import optional_type
 
-from yt_helpers import skip_if_no_descending
-
 from base import ClickHouseTestBase, Clique, QueryFailedError
 
 from .helpers import get_disabled_cache_config
@@ -784,7 +782,6 @@ class TestInputFetching(ClickHouseTestBase):
 
     @authors("levysotsky")
     def test_renamed_columns_descending(self):
-        skip_if_no_descending(self.Env)
         sort_order = "descending"
 
         schema1 = [
@@ -887,9 +884,6 @@ class TestInputFetching(ClickHouseTestBase):
     @authors("levysotsky")
     @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
     def test_renamed_columns_several_tables(self, sort_order):
-        if sort_order == "descending":
-            skip_if_no_descending(self.Env)
-
         create(
             "table",
             "//tmp/t1",
@@ -923,9 +917,6 @@ class TestInputFetching(ClickHouseTestBase):
     @authors("levysotsky")
     @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
     def test_different_stable_names(self, sort_order):
-        if sort_order == "descending":
-            skip_if_no_descending(self.Env)
-
         create(
             "table",
             "//tmp/t1",

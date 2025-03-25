@@ -41,7 +41,7 @@ std::optional<TGroupName> TTable::GetBalancingGroup() const
     }
 
     return InMemoryMode == EInMemoryMode::None
-        ? LegacyGroupName
+        ? LegacyOrdinaryGroupName
         : LegacyInMemoryGroupName;
 }
 

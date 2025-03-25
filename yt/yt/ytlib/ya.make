@@ -377,7 +377,6 @@ SRCS(
     scheduler/helpers.cpp
     scheduler/job_resources_helpers.cpp
     scheduler/job_resources_with_quota.cpp
-    scheduler/public.cpp
     scheduler/scheduler_channel.cpp
 
     scheduler/proto/allocation.proto
@@ -390,6 +389,7 @@ SRCS(
     security_client/helpers.cpp
     security_client/permission_cache.cpp
     security_client/public.cpp
+    security_client/user_attribute_cache.cpp
 
     security_client/proto/account_ypath.proto
     security_client/proto/group_ypath.proto
@@ -493,6 +493,7 @@ SRCS(
     table_client/versioned_row_merger.cpp
     table_client/virtual_value_directory.cpp
 
+    table_client/proto/table_partition_cookie.proto
     table_client/proto/table_ypath.proto
     table_client/proto/virtual_value_directory.proto
 

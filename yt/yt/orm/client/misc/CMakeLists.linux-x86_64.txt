@@ -20,8 +20,8 @@ add_library(orm-client-misc)
 target_compile_options(orm-client-misc PRIVATE
   -Wdeprecated-this-capture
   -Wimplicit-fallthrough
-  -Wimplicit-fallthrough
   -Wunused-parameter
+  -Wno-c99-designator
 )
 
 target_link_libraries(orm-client-misc PUBLIC

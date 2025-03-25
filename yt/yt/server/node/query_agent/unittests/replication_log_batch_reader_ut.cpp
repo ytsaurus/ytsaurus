@@ -561,5 +561,62 @@ TEST(TReplicationLogBatchReaderTest, TestReadByLimitsSomeMatching)
     nodeMemoryTracker->ClearTrackers();
 }
 
+TEST(TReplicationLogBatchReaderTest, TestCombinedTransactionWithUpperBound)
+{
+    TTableMountConfigPtr mountConfig = New<TTableMountConfig>();
+    mountConfig->MaxRowsPerReplicationCommit = 1000;
+    mountConfig->MaxDataWeightPerReplicationCommit = 1000;
+    mountConfig->MaxTimestampsPerReplicationCommit = 1000;
+
+    auto nodeMemoryTracker = CreateNodeMemoryTracker(std::numeric_limits<i64>::max());
+    TLogger logger;
+
+    std::vector<TFakeRow> transactions;
+    AppendReplicationLogRows(1, 10, 10, &transactions);
+    AppendReplicationNotFittingLogRows(2, 10, 10, &transactions);
+
+    // First rows are matching.
+    AppendReplicationNotFittingLogRows(4, 10, 10, &transactions);
+    AppendReplicationLogRows(4, 10, 10, &transactions);
+    AppendReplicationNotFittingLogRows(4, 10, 10, &transactions);
+    TFakeReplicationLogBatchReader reader(mountConfig, TTabletId::Create(), logger, nodeMemoryTracker, transactions);
+
+    auto result = reader.ReadReplicationBatch(
+        0,
+        3,
+        /*maxDataWeight*/ 1_GB,
+        10000,
+        TInstant::Max());
+
+    EXPECT_FALSE(result.ReadAllRows);
+
+    EXPECT_EQ(result.ReadRowCount, 30ll);
+    EXPECT_EQ(result.ResponseRowCount, 10ll);
+    EXPECT_EQ(result.ResponseDataWeight, 100ll);
+    EXPECT_EQ(result.MaxTimestamp, 3ull);
+    EXPECT_EQ(reader.GetReadsCount(), 1);
+    EXPECT_EQ(result.EndReplicationRowIndex, 20);
+    CheckReaderContinious(reader, 10);
+
+    result = reader.ReadReplicationBatch(
+        20,
+        3,
+        /*maxDataWeight*/ 1_GB,
+        10000,
+        TInstant::Max());
+
+    EXPECT_FALSE(result.ReadAllRows);
+    EXPECT_EQ(result.ReadRowCount, 10ll);
+    EXPECT_EQ(result.ResponseRowCount, 0ll);
+    EXPECT_EQ(result.ResponseDataWeight, 0ll);
+    EXPECT_EQ(result.MaxTimestamp, 3ull);
+    EXPECT_EQ(reader.GetReadsCount(), 2);
+    EXPECT_EQ(result.EndReplicationRowIndex, 20);
+    CheckReaderContinious(reader, 10);
+
+    nodeMemoryTracker->ClearTrackers();
+}
+
+
 } // namespace
 } // namespace NYT::NTabletNode

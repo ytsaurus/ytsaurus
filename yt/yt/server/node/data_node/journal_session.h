@@ -45,7 +45,8 @@ private:
     void DoCancel(const TError& error) override;
     TFuture<TFinishResult> DoFinish(
         const NChunkClient::TRefCountedChunkMetaPtr& chunkMeta,
-        std::optional<int> blockCount) override;
+        std::optional<int> blockCount,
+        bool truncateExtraBlocks) override;
 
     void OnFinished();
 };

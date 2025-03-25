@@ -31,6 +31,7 @@ public:
 
 protected:
     TDataBlockWriter* const BlockWriter_;
+    const IMemoryUsageTrackerPtr MemoryUsageTracker_;
     TMemoryUsageTrackerGuard MemoryGuard_;
 
     i64 RowCount_ = 0;

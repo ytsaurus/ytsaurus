@@ -289,16 +289,12 @@ class TestLookup(TestSortedDynamicTablesBase):
     @authors("ifsmirnov")
     @pytest.mark.parametrize("in_memory_mode", ["none", "uncompressed"])
     @pytest.mark.parametrize("optimize_for", ["lookup", "scan"])
-    @pytest.mark.parametrize("new_scan_reader", [False, True])
     @pytest.mark.parametrize("enable_hash_chunk_index", [False, True])
-    def test_stress_versioned_lookup(self, in_memory_mode, optimize_for, new_scan_reader, enable_hash_chunk_index):
+    def test_stress_versioned_lookup(self, in_memory_mode, optimize_for, enable_hash_chunk_index):
         # This test checks that versioned lookup gives the same result for scan and lookup versioned formats.
         random.seed(12345)
 
         if in_memory_mode == "none" and optimize_for == "lookup":
-            return
-
-        if new_scan_reader and optimize_for != "scan":
             return
 
         if enable_hash_chunk_index and optimize_for == "scan":
@@ -347,7 +343,6 @@ class TestLookup(TestSortedDynamicTablesBase):
         copy("//tmp/expected", "//tmp/actual")
         set("//tmp/actual/@optimize_for", optimize_for)
         set("//tmp/actual/@in_memory_mode", in_memory_mode)
-        set("//tmp/actual/@enable_new_scan_reader_for_lookup", new_scan_reader)
         if enable_hash_chunk_index:
             self._enable_hash_chunk_index("//tmp/actual")
         sync_mount_table("//tmp/expected")

@@ -1304,14 +1304,18 @@ void TNontemplateCypressNodeProxyBase::ValidatePermission(
     }
 }
 
-TCompactVector<TCypressNode*, 1> TNontemplateCypressNodeProxyBase::ListDescendantsForPermissionValidation(TCypressNode* node)
+TCompactVector<TObject*, 1> TNontemplateCypressNodeProxyBase::ListDescendantsForPermissionValidation(TCypressNode* node)
 {
     const auto& cypressManager = Bootstrap_->GetCypressManager();
     auto* trunkNode = node->GetTrunkNode();
-    return cypressManager->ListSubtreeNodes(trunkNode, Transaction_, false);
+    auto descendants = cypressManager->ListSubtreeNodes(trunkNode, Transaction_, false);
+
+    return TCompactVector<TObject*, 1>(
+        descendants.begin(),
+        descendants.end());
 }
 
-TCypressNode* TNontemplateCypressNodeProxyBase::GetParentForPermissionValidation(TCypressNode* node)
+TObject* TNontemplateCypressNodeProxyBase::GetParentForPermissionValidation(TCypressNode* node)
 {
     return node->GetParent();
 }
@@ -1722,9 +1726,10 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Create)
         explicitAttributes = FromProto(request->node_attributes());
     }
 
-    ValidateCreatePermissions(replace, explicitAttributes.Get());
-
     auto* node = GetThisImpl();
+
+    ValidateCreatePermissions(node, replace, explicitAttributes.Get());
+
     // The node inside which the new node must be created.
     auto* intendedParentNode = replace ? node->GetParent() : node;
     auto* account = intendedParentNode->Account().Get();
@@ -1922,6 +1927,7 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, LockCopyDestinatio
         ToProto(response->mutable_existing_node_id(), TrunkNode_->GetId());
         context->SetResponseInfo("ExistingNodeId: %v",
             TrunkNode_->GetId());
+        context->Reply();
         return;
     }
 
@@ -1935,11 +1941,19 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, LockCopyDestinatio
     // The node inside which the cloned node must be created. Usually it's the current one.
     auto* parentNode = node;
     if (!inplace) {
+        const auto& cypressManager = Bootstrap_->GetCypressManager();
         if (replace) {
             if (!node->GetParent()) {
                 ThrowCannotReplaceNode(this);
             }
-            parentNode = node->GetParent();
+
+            // COMPAT(h0pless)
+            if (GetDynamicCypressManagerConfig()->UseProperBranchedParentInLockCopyDestination) {
+                parentNode = cypressManager->GetVersionedNode(node->GetParent(), Transaction_);
+            } else {
+                parentNode = node->GetParent();
+            }
+
             childNodeKey = FindMapNodeChildKey(parentNode->As<TCypressMapNode>(), node->GetTrunkNode());
         } else {
             // TODO(h0pless): Use TYPath from Sequoia client when it'll get fixed.
@@ -1953,14 +1967,13 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, LockCopyDestinatio
 
         // This lock ensures that both parent node and child node won't change before AssembleTreeCopy is called.
         // For inplace this is not needed, since the node is freshly created.
-        const auto& cypressManager = Bootstrap_->GetCypressManager();
         cypressManager->LockNode(
             parentNode->GetTrunkNode(),
             Transaction_,
             TLockRequest::MakeSharedChild(childNodeKey));
     }
 
-    ValidateCopyToThisDestinationPermissions(replace && !inplace, preserveAcl);
+    ValidateCopyToThisDestinationPermissions(node, replace && !inplace, preserveAcl);
 
     auto* account = parentNode->GetTrunkNode()->Account().Get();
 
@@ -2004,7 +2017,7 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, LockCopySource)
 
     auto* node = GetThisImpl();
 
-    ValidatePermission(node, EPermissionCheckScope::This | EPermissionCheckScope::Descendants, EPermission::FullRead);
+    ValidatePermission(node, EPermissionCheckScope::Subtree, EPermission::FullRead);
 
     auto maxSubtreeSize = GetDynamicCypressManagerConfig()->CrossCellCopyMaxSubtreeSize;
 
@@ -2463,7 +2476,7 @@ void TNontemplateCypressNodeProxyBase::CopyCore(
         parentNode = node;
     }
 
-    ValidateCopyToThisDestinationPermissions(replace && !inplace, preserveAcl);
+    ValidateCopyToThisDestinationPermissions(node, replace && !inplace, preserveAcl);
 
     auto* account = parentNode->Account().Get();
 

@@ -94,6 +94,16 @@ std::vector<TDataSliceDescriptor> UnpackDataSliceDescriptors(const TTableInputSp
         inputTableSpec.virtual_row_index_per_data_slice());
 }
 
+std::vector<TDataSliceDescriptor> UnpackDataSliceDescriptors(const ::google::protobuf::RepeatedPtrField<TTableInputSpec>& specList)
+{
+    std::vector<TDataSliceDescriptor> dataSliceDescriptors;
+    for (const auto& inputSpec : specList) {
+        auto descriptors = UnpackDataSliceDescriptors(inputSpec);
+        dataSliceDescriptors.insert(dataSliceDescriptors.end(), descriptors.begin(), descriptors.end());
+    }
+    return dataSliceDescriptors;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 IPartitionerPtr CreatePartitioner(const TPartitionJobSpecExt& partitionJobSpecExt)

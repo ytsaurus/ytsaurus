@@ -331,7 +331,7 @@ public:
         const TDiskResources& diskResourceLimits,
         const TString& treeId,
         const TString& poolPath,
-        const TFairShareStrategyTreeConfigPtr& treeConfig), (override));
+        std::optional<TDuration> waitingForResourcesOnNodeTimeout), (override));
 
     MOCK_METHOD(void, OnNonscheduledAllocationAborted, (TAllocationId, EAbortReason, TControllerEpoch), (override));
 
@@ -1014,7 +1014,7 @@ TEST_F(TFairShareTreeAllocationSchedulerTest, DontSuggestMoreResourcesThanOperat
         operationControllerStrategyHost,
         ScheduleAllocation(testing::_, testing::_, testing::_, testing::_, testing::_, testing::_))
         .Times(2)
-        .WillRepeatedly(testing::Invoke([&] (auto /*context*/, auto /*allocationLimits*/, auto /*diskResourceLimits*/, auto /*treeId*/, auto /*poolPath*/, auto /*treeConfig*/) {
+        .WillRepeatedly(testing::Invoke([&] (auto /*context*/, auto /*allocationLimits*/, auto /*diskResourceLimits*/, auto /*treeId*/, auto /*poolPath*/, auto /*waitingForResourcesOnNodeTimeout*/) {
             heartbeatsInScheduling.fetch_add(1);
             EXPECT_TRUE(NConcurrency::WaitFor(readyToGo.ToFuture()).IsOK());
             return MakeFuture<TControllerScheduleAllocationResultPtr>(
@@ -1469,7 +1469,7 @@ TEST_F(TFairShareTreeAllocationSchedulerTest, TestSchedulableChildSetWithBatchSc
             operationControllerStrategyHost,
             ScheduleAllocation(testing::_, testing::_, testing::_, testing::_, testing::_, testing::_))
             .Times(2)
-            .WillRepeatedly(testing::Invoke([&] (auto /*context*/, auto /*allocationLimits*/, auto /*diskResourceLimits*/, auto /*treeId*/, auto /*poolPath*/, auto /*treeConfig*/) {
+            .WillRepeatedly(testing::Invoke([&] (auto /*context*/, auto /*allocationLimits*/, auto /*diskResourceLimits*/, auto /*treeId*/, auto /*poolPath*/, auto /*waitingForResourcesOnNodeTimeout*/) {
                 auto result = New<TControllerScheduleAllocationResult>();
                 result->StartDescriptor.emplace(TAllocationStartDescriptor{TAllocationId(TGuid::Create()), operationAllocationResources, TAllocationAttributes{}});
                 return MakeFuture<TControllerScheduleAllocationResultPtr>(
@@ -1677,7 +1677,7 @@ TEST_F(TFairShareTreeAllocationSchedulerTest, TestSchedulableChildSetWithoutBatc
             operationControllerStrategyHost,
             ScheduleAllocation(testing::_, testing::_, testing::_, testing::_, testing::_, testing::_))
             .Times(2)
-            .WillRepeatedly(testing::Invoke([&] (auto /*context*/, auto /*allocationLimits*/, auto /*diskResourceLimits*/, auto /*treeId*/, auto /*poolPath*/, auto /*treeConfig*/) {
+            .WillRepeatedly(testing::Invoke([&] (auto /*context*/, auto /*allocationLimits*/, auto /*diskResourceLimits*/, auto /*treeId*/, auto /*poolPath*/, auto /*waitingForResourcesOnNodeTimeout*/) {
                 auto result = New<TControllerScheduleAllocationResult>();
                 result->StartDescriptor.emplace(TAllocationStartDescriptor{TAllocationId(TGuid::Create()), operationAllocationResources, TAllocationAttributes{}});
                 return MakeFuture<TControllerScheduleAllocationResultPtr>(

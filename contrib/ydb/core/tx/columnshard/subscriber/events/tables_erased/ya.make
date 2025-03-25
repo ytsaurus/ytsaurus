@@ -5,6 +5,7 @@ SRCS(
 )
 
 PEERDIR(
+    contrib/ydb/core/tx/columnshard/common
 )
 
 END()

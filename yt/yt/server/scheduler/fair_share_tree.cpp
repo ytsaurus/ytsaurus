@@ -338,7 +338,8 @@ public:
             StrategyHost_->SetSchedulerAlert(
                 ESchedulerAlertType::UnrecognizedPoolTreeConfigOptions,
                 TError("Pool tree config contains unrecognized options")
-                    << TErrorAttribute("unrecognized", unrecognized));
+                    << TErrorAttribute("unrecognized", unrecognized)
+                    << TErrorAttribute("tree", TreeId_));
         }
     }
 
@@ -2756,8 +2757,15 @@ private:
             const TJobResources& preemptedResourcesDelta = allocation->ResourceLimits();
             EAllocationPreemptionReason preemptionReason = preemptedAllocation.PreemptionReason;
             preemptedAllocationResources[preemptionReason][operationId] += preemptedResourcesDelta;
-            preemptedAllocationResourceTimes[preemptionReason][operationId] += preemptedResourcesDelta * static_cast<i64>(
-                allocation->GetPreemptibleProgressDuration().Seconds());
+
+            // NB(eshcherbin): This sensor for memory is easily overflown, so we decided not to compute it. See: YT-24236.
+            {
+                auto preemptedResourcesDeltaWithZeroMemory = preemptedResourcesDelta;
+                preemptedResourcesDeltaWithZeroMemory.SetMemory(0);
+                preemptedAllocationResourceTimes[preemptionReason][operationId] +=
+                    preemptedResourcesDeltaWithZeroMemory *
+                    static_cast<i64>(allocation->GetPreemptibleProgressDuration().Seconds());
+            }
 
             if (allocation->GetPreemptedFor() && !allocation->GetPreemptedForProperlyStarvingOperation()) {
                 improperlyPreemptedAllocationResources[preemptionReason][operationId] += preemptedResourcesDelta;
@@ -3370,6 +3378,10 @@ private:
                 filter,
                 "effective_aggressive_starvation_enabled",
                 element->GetEffectiveAggressiveStarvationEnabled())
+            .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(
+                filter,
+                "effective_waiting_for_resources_on_node_timeout",
+                element->GetEffectiveWaitingForResourcesOnNodeTimeout())
             .DoIf(element->GetLowestAggressivelyStarvingAncestor(), [&] (TFluentMap fluent) {
                 fluent.ITEM_VALUE_IF_SUITABLE_FOR_FILTER(
                     filter,

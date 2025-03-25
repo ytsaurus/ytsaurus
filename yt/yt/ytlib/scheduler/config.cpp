@@ -978,6 +978,9 @@ void TOperationSpecBase::Register(TRegistrar registrar)
     registrar.Parameter("use_cluster_throttlers", &TThis::UseClusterThrottlers)
         .Default(false);
 
+    registrar.Parameter("enable_multiple_jobs_in_allocation", &TThis::EnableMultipleJobsInAllocation)
+        .Default();
+
     registrar.Postprocessor([] (TOperationSpecBase* spec) {
         if (spec->UnavailableChunkStrategy == EUnavailableChunkAction::Wait &&
             spec->UnavailableChunkTactics == EUnavailableChunkAction::Skip)
@@ -2515,6 +2518,9 @@ void TPoolConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("always_allow_gang_operations", &TThis::AlwaysAllowGangOperations)
         .Default(false);
+
+    registrar.Parameter("waiting_for_resources_on_node_timeout", &TThis::WaitingForResourcesOnNodeTimeout)
+        .Default();
 
     registrar.Postprocessor([] (TThis* config) {
         // COMPAT(omgronny)

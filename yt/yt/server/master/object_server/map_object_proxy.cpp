@@ -36,7 +36,7 @@ TNonversionedMapObjectProxyBase<TObject>::TNonversionedMapObjectProxyBase(
     TObjectTypeMetadata* metadata,
     TObject* object)
     : TBase(bootstrap, metadata, object)
-    , THierarchicPermissionValidator<TObject>(TBase::CreatePermissionValidator())
+    , THierarchicPermissionValidator<TObject*, NObjectServer::TObject*>(TBase::CreatePermissionValidator())
 { }
 
 template <class TObject>
@@ -355,12 +355,12 @@ void TNonversionedMapObjectProxyBase<TObject>::ValidatePermission(
 }
 
 template <class TObject>
-TCompactVector<TObject*, 1> TNonversionedMapObjectProxyBase<TObject>::ListDescendantsForPermissionValidation(
+TCompactVector<NObjectServer::TObject*, 1> TNonversionedMapObjectProxyBase<TObject>::ListDescendantsForPermissionValidation(
     TObject* object)
 {
     return AccumulateOverMapObjectSubtree(
         object,
-        TCompactVector<TObject*, 1>(),
+        TCompactVector<NObjectServer::TObject*, 1>(),
         [root = object] (auto* currentObject, auto* descendants) {
             if (currentObject != root) {
                 descendants->push_back(currentObject);
@@ -369,7 +369,7 @@ TCompactVector<TObject*, 1> TNonversionedMapObjectProxyBase<TObject>::ListDescen
 }
 
 template <class TObject>
-TObject* TNonversionedMapObjectProxyBase<TObject>::GetParentForPermissionValidation(TObject* object)
+NObjectServer::TObject* TNonversionedMapObjectProxyBase<TObject>::GetParentForPermissionValidation(TObject* object)
 {
     return object->GetParent();
 }
@@ -705,16 +705,17 @@ TIntrusivePtr<TNonversionedMapObjectProxyBase<TObject>> TNonversionedMapObjectPr
 {
     TObjectProxyBase::DeclareMutating();
 
-    if (type != TBase::GetThisImpl()->GetType()) {
+    auto* impl = TBase::GetThisImpl();
+    if (type != impl->GetType()) {
         THROW_ERROR_EXCEPTION("Cannot create an object of type %Qlv, expected type %Qlv",
             type,
-            TBase::GetThisImpl()->GetType());
+            impl->GetType());
     }
     if (path.empty()) {
         ThrowAlreadyExists(this);
     }
 
-    this->ValidateCreatePermissions(false /*replace*/, attributes);
+    this->ValidateCreatePermissions(impl, false /*replace*/, attributes);
 
     auto factory = CreateObjectFactory();
     auto* object = factory->CreateObject(attributes);
@@ -804,7 +805,7 @@ TIntrusivePtr<TNonversionedMapObjectProxyBase<TObject>> TNonversionedMapObjectPr
         }
     }
 
-    this->ValidateCopyPermissions(sourceImpl, mode, replace, false /*validateAdminister*/);
+    this->ValidateCopyPermissions(sourceImpl, impl, mode, replace, false /*validateAdminister*/);
 
     auto sourceParent = sourceProxy->DoGetParent();
     if (!sourceParent && mode == ENodeCloneMode::Move) {

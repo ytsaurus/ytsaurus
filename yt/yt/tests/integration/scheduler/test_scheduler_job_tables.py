@@ -400,7 +400,7 @@ class TestStderrTable(YTEnvSetup):
             map(
                 in_="//tmp/t_input",
                 out="//tmp/t_output",
-                command="""python -c 'import sys; s = "x" * (20 * 1024 * 1024) ; sys.stderr.write(s)'""",
+                command="""python3 -c 'import sys; s = "x" * (20 * 1024 * 1024) ; sys.stderr.write(s)'""",
                 spec={
                     "stderr_table_path": "//tmp/t_stderr",
                     "stderr_table_writer_config": {
@@ -420,7 +420,7 @@ class TestStderrTable(YTEnvSetup):
         map(
             in_="//tmp/t_input",
             out="//tmp/t_output",
-            command="""python -c 'import sys; s = "x" * (30 * 1024 * 1024) ; sys.stderr.write(s)'""",
+            command="""python3 -c 'import sys; s = "x" * (30 * 1024 * 1024) ; sys.stderr.write(s)'""",
             spec={
                 "stderr_table_path": "//tmp/t_stderr",
                 "stderr_table_writer_config": {
@@ -440,7 +440,7 @@ class TestStderrTable(YTEnvSetup):
         map(
             in_="//tmp/t_input",
             out="//tmp/t_output",
-            command="""python -c 'import sys; s = "x " * (30 * 1024 * 1024) ; sys.stderr.write(s)'""",
+            command="""python3 -c 'import sys; s = "x " * (30 * 1024 * 1024) ; sys.stderr.write(s)'""",
             spec=get_stderr_spec("//tmp/t_stderr"),
         )
         stderr_rows = read_table("//tmp/t_stderr", verbose=False)
@@ -1688,11 +1688,14 @@ class TestJobTraceEvents(YTEnvSetup):
 
     @authors("omgronny")
     def test_no_profiling(self):
-        run_test_vanilla(
+        op = run_test_vanilla(
             job_count=2,
             command="sleep 0",
             track=True,
         )
+
+        events = get_job_trace(op.id)
+        assert not events
 
     @authors("omgronny")
     def test_incorrect_event(self):
@@ -1738,6 +1741,11 @@ class TestJobTraceEvents(YTEnvSetup):
                     events = get_job_trace(op.id, job_id=job_id, trace_id=trace_id)
                     assert len(events) == 2
 
+    @authors("ignat")
+    def test_get_job_trace_on_missing_operation(self):
+        with pytest.raises(YtError):
+            # Missing/incorrect op_id
+            get_job_trace("1-1-1-1")
 
 ##################################################################
 

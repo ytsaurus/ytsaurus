@@ -613,6 +613,14 @@ message TReferenceOption
         DP_ALLOW = 3;
     }
 
+    enum EReferenceMode
+    {
+        RM_DISABLED = 0;
+        RM_REMOVE_ONLY = 3;
+        RM_BUILDING = 1;
+        RM_ENABLED = 2;
+    }
+
     optional string foreign_type = 1;
 
     // Path to the matching reference in the foreign object. If the matching reference is not,
@@ -644,6 +652,7 @@ message TReferenceOption
     optional bool local_modification_only = 13;
     optional EPresencePolicy presence_policy = 14;
     optional EDuplicatePolicy duplicate_policy = 15;
+    optional EReferenceMode mode = 16;
 }
 
 message TReference
@@ -699,7 +708,7 @@ message TJoinedColumnOption
     optional string aggregation = 5;
 }
 
-// Next field 31051.
+// Next field 31055.
 extend google.protobuf.FieldOptions
 {
     optional bool column = 31001;
@@ -715,6 +724,8 @@ extend google.protobuf.FieldOptions
     // For disambiguation of columns when source `foreign_key_prefix` equals to target `foreign_key_prefix`.
     optional string reference_name = 31018;
     optional TReferenceOption reference = 31038;
+    // For deprecated references, make backward reference from the foreign object visible in attribute schema.
+    optional int32 deprecated_foreign_backref_number = 31052;
 
     // Note that not all suitable fields are labeled by these options.
     optional bool not_initializable = 31003;
@@ -755,6 +766,9 @@ extend google.protobuf.FieldOptions
     // but lacks self-documentation and validation. Option `enum_type_name = "EField"` allows to document such fields.
     // Will be removed in the future in favour of an option controlling accepted enum value types.
     optional string enum_type_name = 31017;
+
+    // Slightly enriched cpp type for the attribute, such as TInstant in place of ui64.
+    optional string cpp_type_name = 31053;
 
     optional bool system = 31019;
 
@@ -805,6 +819,9 @@ extend google.protobuf.FieldOptions
     // spec.{custom_column_name}.
     optional string custom_column_name = 31035;
 
+    // Sets custom field name in generated cpp code.
+    optional string custom_cpp_camel_case_name = 31054;
+
     // Allows to overwrite certain base options.
     repeated string allow_mixin_overwrite_options = 31036;
 
@@ -831,9 +848,12 @@ extend google.protobuf.FieldOptions
     optional TJoinOption join = 31049;
 
     optional TJoinedColumnOption joined_column = 31050;
+
+    // Field (in the same message) that actually stores the content of this field in raw protobuf format as bytes.
+    optional string raw_protobuf = 31051;
 }
 
-// Next field 32014.
+// Next field 32015.
 extend google.protobuf.MessageOptions
 {
     optional string message_lock_group = 32001;
@@ -872,6 +892,9 @@ extend google.protobuf.MessageOptions
     optional bool ignore_builtin = 32012;
 
     optional bool message_mandatory = 32013;
+
+    // Set alwaysScheduleLoadOnStore flag when creating corresponding etc attribute descriptor(s).
+    optional bool always_schedule_load_on_etc_store = 32014;
 }
 
 extend google.protobuf.EnumOptions

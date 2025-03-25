@@ -148,7 +148,7 @@ void TTableNodeProxy::GetBasicAttributes(TGetBasicAttributesContext* context)
 
         if (checkResponse.Action == ESecurityAction::Deny) {
             TPermissionCheckTarget target;
-            target.Object = Object_;
+            target.ObjectId = Object_->GetId();
             securityManager->LogAndThrowAuthorizationError(
                 target,
                 user,
@@ -168,7 +168,7 @@ void TTableNodeProxy::GetBasicAttributes(TGetBasicAttributesContext* context)
                         context->OmittedInaccessibleColumns->push_back(column);
                     } else {
                         TPermissionCheckTarget target;
-                        target.Object = Object_;
+                        target.ObjectId = Object_->GetId();
                         target.Column = column;
                         securityManager->LogAndThrowAuthorizationError(
                             target,

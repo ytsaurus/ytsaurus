@@ -336,7 +336,7 @@ class TestAllocationWithTwoJobs(YTEnvSetup):
             command=with_breakpoint("BREAKPOINT ; cat"),
             in_="//tmp/t_in",
             out="//tmp/t_out",
-            spec={"data_size_per_job": 1},
+            spec={"data_size_per_job": 1, "enable_multiple_jobs_in_allocation": True},
         )
 
         job_ids = wait_breakpoint()
@@ -415,7 +415,7 @@ if job_index == 0:
             track=False,
             in_="//tmp/t_in",
             out="//tmp/t_out",
-            command="python mapper.py",
+            command="python3 mapper.py",
             job_count=job_count,
             spec={
                 "data_weight_per_job": 1,
@@ -424,6 +424,7 @@ if job_index == 0:
                     "user_job_memory_digest_default_value": 0.9,
                     "file_paths": ["//tmp/mapper.py"],
                 },
+                "enable_multiple_jobs_in_allocation": True,
             })
 
         job_id1, = wait_breakpoint(job_count=1)

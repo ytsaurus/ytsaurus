@@ -426,9 +426,11 @@ class TestSchedulerPreemption(YTEnvSetup):
         op0.abort()
 
     @authors("ignat")
-    def test_waiting_job_timeout(self):
-        set("//sys/pool_trees/default/@config/waiting_job_timeout", 10000)
-        set("//sys/pool_trees/default/@config/allocation_preemption_timeout", 5000)
+    def test_waiting_for_resources_on_node_timeout(self):
+        update_pool_tree_config("default", {
+            "waiting_for_resources_on_node_timeout": 10000,
+            "allocation_preemption_timeout": 5000,
+        })
 
         total_cpu_limit = get("//sys/scheduler/orchid/scheduler/cluster/resource_limits/cpu")
         create_pool("pool1", attributes={"min_share_resources": {"cpu": total_cpu_limit}})
@@ -463,10 +465,12 @@ class TestSchedulerPreemption(YTEnvSetup):
         assert op1.get_job_count("aborted", from_orchid=False) == 0
 
     @authors("ignat")
-    def test_inconsistent_waiting_job_timeout(self):
+    def test_inconsistent_waiting_for_resources_on_node_timeout(self):
         # Pool tree misconfiguration
-        set("//sys/pool_trees/default/@config/waiting_job_timeout", 5000)
-        set("//sys/pool_trees/default/@config/allocation_preemption_timeout", 15000)
+        update_pool_tree_config("default", {
+            "waiting_for_resources_on_node_timeout": 5000,
+            "allocation_preemption_timeout": 15000,
+        })
 
         total_cpu_limit = get("//sys/scheduler/orchid/scheduler/cluster/resource_limits/cpu")
         create_pool("pool1", attributes={"min_share_resources": {"cpu": total_cpu_limit}})
@@ -497,14 +501,61 @@ class TestSchedulerPreemption(YTEnvSetup):
 
         wait(lambda: op1.get_job_count("aborted") == 1)
 
-    @authors("eshcherbin")
-    @pytest.mark.xfail(run=False, reason="Fails until YT-14804 is resolved.")
-    def test_usage_overcommit_due_to_interruption(self):
-        # Pool tree misconfiguration
-        set("//sys/pool_trees/default/@config/waiting_job_timeout", 600000)
-        set("//sys/pool_trees/default/@config/allocation_preemption_timeout", 600000)
+    @authors("ignat")
+    def test_recursive_waiting_for_resources_on_node_timeout(self):
+        update_pool_tree_config("default", {
+            "waiting_for_resources_on_node_timeout": 2000,
+            "allocation_preemption_timeout": 5000,
+        })
 
-        set("//sys/scheduler/config/running_allocations_update_period", 100)
+        total_cpu_limit = get("//sys/scheduler/orchid/scheduler/cluster/resource_limits/cpu")
+        create_pool("pool1", attributes={
+            "min_share_resources": {"cpu": total_cpu_limit},
+            "waiting_for_resources_on_node_timeout": 10000,
+            "resource_limits": {"user_slots": 0},
+        })
+        # However, we correct the misconfiguration in the pool config.
+        create_pool("pool2")
+
+        command = """(trap "sleep 15; exit 0" SIGINT; BREAKPOINT)"""
+
+        run_test_vanilla(
+            with_breakpoint(command),
+            spec={
+                "pool": "pool2",
+            },
+            task_patch={
+                "interruption_signal": "SIGINT",
+            },
+            job_count=3,
+        )
+        job_ids = wait_breakpoint(job_count=3)
+        assert len(job_ids) == 3
+
+        op1 = run_test_vanilla(
+            "sleep 1",
+            spec={
+                "pool": "pool1",
+            },
+            job_count=1,
+        )
+
+        wait(lambda: get(scheduler_orchid_operation_path(op1.id) + "/effective_waiting_for_resources_on_node_timeout", default=None) == 10000)
+
+        remove("//sys/pool_trees/default/pool1/@resource_limits/user_slots")
+        op1.track()
+
+        assert op1.get_job_count("completed", from_orchid=False) == 1
+        assert op1.get_job_count("aborted", from_orchid=False) == 0
+
+    @authors("eshcherbin")
+    def test_usage_overcommit_due_to_interruption(self):
+        update_pool_tree_config("default", {
+            "waiting_for_resources_on_node_timeout": 600000,
+            "allocation_preemption_timeout": 600000,
+        })
+
+        update_scheduler_config("running_allocations_update_period", 100)
 
         total_cpu_limit = int(get("//sys/scheduler/orchid/scheduler/cluster/resource_limits/cpu"))
         create_pool("pool1", attributes={"min_share_resources": {"cpu": total_cpu_limit}})
@@ -804,7 +855,11 @@ class TestPreemptibleProgressUpdate(YTEnvSetup):
             command=with_breakpoint("BREAKPOINT ; cat", breakpoint_name="map"),
             in_="//tmp/t_in",
             out="//tmp/t_out",
-            spec={"pool": "fake_pool", "data_size_per_job": 1},
+            spec={
+                "pool": "fake_pool",
+                "data_size_per_job": 1,
+                "enable_multiple_jobs_in_allocation": True,
+            },
         )
 
         for i in range(1, 4):

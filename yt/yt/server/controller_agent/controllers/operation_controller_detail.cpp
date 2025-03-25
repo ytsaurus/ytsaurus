@@ -3988,7 +3988,8 @@ void TOperationControllerBase::BuildJobAttributes(
                 .Item("predecessor_type").Value(joblet->PredecessorType)
                 .Item("predecessor_job_id").Value(joblet->PredecessorJobId);
         })
-        .OptionalItem("operation_incarnation", joblet->OperationIncarnation);
+        .OptionalItem("operation_incarnation", joblet->OperationIncarnation)
+        .Item("allocation_id").Value(AllocationIdFromJobId(joblet->JobId));
 }
 
 void TOperationControllerBase::BuildFinishedJobAttributes(
@@ -4955,10 +4956,12 @@ void TOperationControllerBase::TryScheduleFirstJob(
 
             scheduleAllocationResult->RecordFail(*failReason);
         } else {
-            scheduleAllocationResult->StartDescriptor.emplace(task->CreateAllocationStartDescriptor(
+            auto startDescriptor = task->CreateAllocationStartDescriptor(
                 allocation,
                 /*allowIdleCpuPolicy*/ IsIdleCpuPolicyAllowedInTree(allocation.TreeId),
-                *context.GetScheduleAllocationSpec()));
+                *context.GetScheduleAllocationSpec());
+            startDescriptor.AllocationAttributes.EnableMultipleJobs = Spec_->EnableMultipleJobsInAllocation.value_or(false);
+            scheduleAllocationResult->StartDescriptor.emplace(std::move(startDescriptor));
 
             RegisterTestingSpeculativeJobIfNeeded(*task, scheduleAllocationResult->StartDescriptor->Id);
             UpdateTask(task.Get());
@@ -8845,7 +8848,7 @@ TOperationSpecBaseSealedConfigurator TOperationControllerBase::ConfigureUpdate()
 {
     auto configurator = GetOperationSpecBaseConfigurator();
     configurator.Field("max_failed_job_count", &TOperationSpecBase::MaxFailedJobCount)
-        .Updater(BIND_NO_PROPAGATE([&] (const int& newMaxFailedJobCount) {
+        .Updater(BIND_NO_PROPAGATE([&] (int newMaxFailedJobCount) {
             if (FailedJobCount_ >= newMaxFailedJobCount) {
                 OnOperationFailed(GetMaxFailedJobCountReachedError(newMaxFailedJobCount));
             }
@@ -11222,7 +11225,8 @@ void TOperationControllerBase::HandleJobReport(const TJobletPtr& joblet, TContro
             .OperationId(OperationId)
             .JobId(joblet->JobId)
             .Address(joblet->NodeDescriptor.Address)
-            .Ttl(joblet->ArchiveTtl));
+            .Ttl(joblet->ArchiveTtl)
+            .AllocationId(AllocationIdFromJobId(joblet->JobId)));
 }
 
 void TOperationControllerBase::OnCompetitiveJobScheduled(const TJobletPtr& joblet, EJobCompetitionType competitionType)
@@ -11406,6 +11410,11 @@ TJobSplitterConfigPtr TOperationControllerBase::GetJobSplitterConfigTemplate() c
     }
     if (!specConfig->EnableJobSpeculation) {
         config->EnableJobSpeculation = false;
+    }
+
+    // It should be checked after update of config->MaxInputTableCount.
+    if (std::ssize(InputManager->GetInputTables()) > config->MaxInputTableCount) {
+        config->EnableJobSplitting = false;
     }
 
     return config;

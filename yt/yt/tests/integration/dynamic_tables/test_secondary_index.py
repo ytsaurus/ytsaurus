@@ -496,6 +496,19 @@ class TestSecondaryIndexPortal(TestSecondaryIndexBase):
         with raises_yt_error("Cannot cross-cell copy neither a table with a secondary index nor an index table itself"):
             copy("//tmp/index_table", "//tmp/p/index_table")
 
+    @authors("sabdenovch")
+    def test_mount_info_reaches_beyond_portal(self):
+        create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 12})
+        self._create_basic_tables(table_path="//tmp/p/table", index_table_path="//tmp/p/index_table", mount=True)
+
+        rows = []
+        for i in range(10):
+            row = {"keyA": i, "keyB": "key", "valueA": 123, "valueB": i % 2 == 0}
+            rows.append(row)
+            insert_rows("//tmp/p/table", [row])
+
+        assert_items_equal(sorted_dicts(select_rows("* from [//tmp/p/index_table]")), sorted_dicts(rows))
+
 
 ##################################################################
 

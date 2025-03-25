@@ -672,19 +672,13 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
     @authors("savrus")
     @pytest.mark.parametrize("optimize_for", ["lookup", "scan"])
     @pytest.mark.parametrize("mode", ["compressed", "uncompressed"])
-    @pytest.mark.parametrize("new_scan_reader", [False, True])
-    def test_in_memory(self, mode, optimize_for, new_scan_reader):
-        if new_scan_reader and optimize_for != "scan":
-            return
-
+    def test_in_memory(self, mode, optimize_for):
         cell_id = sync_create_cells(1)[0]
         self._create_simple_table(
             "//tmp/t",
             optimize_for=optimize_for,
             in_memory_mode=mode,
-            max_dynamic_store_row_count=10,
-            enable_new_scan_reader_for_lookup=new_scan_reader,
-            enable_new_scan_reader_for_select=new_scan_reader)
+            max_dynamic_store_row_count=10)
         sync_mount_table("//tmp/t")
 
         with pytest.raises(YtError):
@@ -762,11 +756,7 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
     @authors("ifsmirnov")
     @pytest.mark.parametrize("enable_lookup_hash_table", [True, False])
     @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
-    @pytest.mark.parametrize("new_scan_reader", [False, True])
-    def test_preload_block_range(self, enable_lookup_hash_table, optimize_for, new_scan_reader):
-        if new_scan_reader and optimize_for != "scan":
-            return
-
+    def test_preload_block_range(self, enable_lookup_hash_table, optimize_for):
         create_tablet_cell_bundle("b", attributes={"options": {"peer_count": 3}})
         sync_create_cells(1, tablet_cell_bundle="b")
         set("//sys/tablet_cell_bundles/b/@resource_limits/tablet_static_memory", 2**30)
@@ -776,9 +766,7 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
             optimize_for=optimize_for,
             in_memory_mode="uncompressed",
             enable_lookup_hash_table=enable_lookup_hash_table,
-            chunk_writer={"block_size": 1024},
-            enable_new_scan_reader_for_lookup=new_scan_reader,
-            enable_new_scan_reader_for_select=new_scan_reader)
+            chunk_writer={"block_size": 1024})
         sync_mount_table("//tmp/t")
 
         rows = [{"key": i, "value": str(i)} for i in range(10000)]
@@ -821,8 +809,7 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
         sync_create_cells(1)
         self._create_simple_table(
             "//tmp/t",
-            optimize_for=optimize_for,
-            enable_new_scan_reader_for_lookup=True)
+            optimize_for=optimize_for)
 
         set("//tmp/t/@in_memory_mode", "uncompressed")
         set("//tmp/t/@enable_lookup_hash_table", True)
@@ -970,17 +957,11 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
 
     @authors("savrus")
     @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
-    @pytest.mark.parametrize("new_scan_reader", [False, True])
-    def test_stress_tablet_readers(self, optimize_for, new_scan_reader):
-        if new_scan_reader and optimize_for != "scan":
-            return
-
+    def test_stress_tablet_readers(self, optimize_for):
         sync_create_cells(1)
         self._create_simple_table(
             "//tmp/t",
-            optimize_for=optimize_for,
-            enable_new_scan_reader_for_lookup=new_scan_reader,
-            enable_new_scan_reader_for_select=new_scan_reader)
+            optimize_for=optimize_for)
         sync_mount_table("//tmp/t")
 
         values = dict()
@@ -1042,11 +1023,7 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
     @authors("ifsmirnov")
     @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
     @pytest.mark.parametrize("in_memory_mode", ["none", "uncompressed"])
-    @pytest.mark.parametrize("new_scan_reader", [False, True])
-    def test_stress_chunk_view(self, optimize_for, in_memory_mode, new_scan_reader):
-        if new_scan_reader and optimize_for != "scan":
-            return
-
+    def test_stress_chunk_view(self, optimize_for, in_memory_mode):
         random.seed(98765)
 
         sync_create_cells(1)
@@ -1064,9 +1041,7 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
         self._create_simple_table(
             "//tmp/t",
             optimize_for=optimize_for,
-            in_memory_mode=in_memory_mode,
-            enable_new_scan_reader_for_lookup=new_scan_reader,
-            enable_new_scan_reader_for_select=new_scan_reader)
+            in_memory_mode=in_memory_mode)
         set("//tmp/t/@enable_compaction_and_partitioning", False)
         sync_mount_table("//tmp/t")
         self._create_simple_table("//tmp/correct")

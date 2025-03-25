@@ -191,3 +191,14 @@ types:
         cpp_type: std::string
         column_name: operation_incarnation
         column_type: String
+
+      - cpp_name: AllocationIdHi
+        cpp_type: ui64
+        column_name: allocation_id_hi
+        column_type: Uint64
+
+      - cpp_name: AllocationIdLo
+        cpp_type: ui64
+        column_name: allocation_id_lo
+        column_type: Uint64
+

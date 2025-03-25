@@ -102,6 +102,11 @@ public:
         }
     }
 
+    const TFairShareHierarchicalSchedulerPtr<TString> GetFairShareHierarchicalScheduler() override
+    {
+        return Bootstrap_->GetFairShareHierarchicalScheduler();
+    }
+
 private:
     NClusterNode::IBootstrapBase* const Bootstrap_;
 };

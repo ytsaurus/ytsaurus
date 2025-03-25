@@ -80,7 +80,7 @@ public:
         bool useStatisticsReporter,
         const NYPath::TYPath& statisticsTablePath);
 
-    const TTableProfilingCounters& GetProfilingCounters(
+    TTableProfilingCounters& GetProfilingCounters(
         const TTable* table,
         const TString& groupName);
 

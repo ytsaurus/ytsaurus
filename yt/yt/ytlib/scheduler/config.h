@@ -306,6 +306,8 @@ struct TPoolConfig
 
     bool AlwaysAllowGangOperations;
 
+    std::optional<TDuration> WaitingForResourcesOnNodeTimeout;
+
     void Validate(const TString& poolName);
 
     REGISTER_YSON_STRUCT(TPoolConfig);
@@ -1263,6 +1265,9 @@ public:
     std::optional<bool> RequireSpecifiedPoolsExistence;
 
     bool UseClusterThrottlers;
+
+    //! If |true|, exec node will reuse allocation for multiple jobs.
+    std::optional<bool> EnableMultipleJobsInAllocation;
 
     REGISTER_YSON_STRUCT(TOperationSpecBase);
 

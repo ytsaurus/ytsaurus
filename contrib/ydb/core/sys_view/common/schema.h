@@ -13,6 +13,7 @@ namespace NSysView {
 constexpr TStringBuf PartitionStatsName = "partition_stats";
 constexpr TStringBuf NodesName = "nodes";
 constexpr TStringBuf QuerySessions = "query_sessions";
+constexpr TStringBuf ResourcePoolsName = "resource_pools";
 
 constexpr TStringBuf TopQueriesByDuration1MinuteName = "top_queries_by_duration_one_minute";
 constexpr TStringBuf TopQueriesByDuration1HourName = "top_queries_by_duration_one_hour";
@@ -734,6 +735,28 @@ struct Schema : NIceDb::Schema {
             PathType
         >;
     };
+
+    struct ResourcePools : Table<22> {
+        struct Name: Column<1, NScheme::NTypeIds::Utf8> {};
+        struct ConcurrentQueryLimit: Column<2, NScheme::NTypeIds::Int32> {};
+        struct QueueSize: Column<3, NScheme::NTypeIds::Int32> {};
+        struct DatabaseLoadCpuThreshold: Column<4, NScheme::NTypeIds::Double> {};
+        struct ResourceWeight: Column<5, NScheme::NTypeIds::Double> {};
+        struct TotalCpuLimitPercentPerNode: Column<6, NScheme::NTypeIds::Double> {};
+        struct QueryCpuLimitPercentPerNode: Column<7, NScheme::NTypeIds::Double> {};
+        struct QueryMemoryLimitPercentPerNode: Column<8, NScheme::NTypeIds::Double> {};
+
+        using TKey = TableKey<Name>;
+        using TColumns = TableColumns<
+            Name,
+            ConcurrentQueryLimit,
+            QueueSize,
+            DatabaseLoadCpuThreshold,
+            ResourceWeight,
+            TotalCpuLimitPercentPerNode,
+            QueryCpuLimitPercentPerNode,
+            QueryMemoryLimitPercentPerNode>;
+    };
 };
 
 bool MaybeSystemViewPath(const TVector<TString>& path);
@@ -753,7 +776,7 @@ public:
     struct TSystemViewPath {
         TVector<TString> Parent;
         TString ViewName;
-        };
+    };
 
     struct TSchema {
         THashMap<NTable::TTag, TSysTables::TTableColumnInfo> Columns;
@@ -764,10 +787,14 @@ public:
 
     virtual TMaybe<TSchema> GetSystemViewSchema(const TStringBuf viewName, ETarget target) const = 0;
 
+    virtual bool IsSystemView(const TStringBuf viewName) const = 0;
+
     virtual TVector<TString> GetSystemViewNames(ETarget target) const = 0;
 };
 
 ISystemViewResolver* CreateSystemViewResolver();
+
+ISystemViewResolver* CreateSystemViewRewrittenResolver();
 
 } // NSysView
 } // NKikimr

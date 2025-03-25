@@ -288,6 +288,7 @@ SRCS(
     ytree/request_complexity_limiter.cpp
     ytree/request_complexity_limits.cpp
     ytree/serialize.cpp
+    ytree/size.cpp
     ytree/static_service_dispatcher.cpp
     ytree/system_attribute_provider.cpp
     ytree/tree_builder.cpp
@@ -374,6 +375,7 @@ PEERDIR(
     yt/yt/library/profiling
     yt/yt/library/profiling/resource_tracker
     yt/yt/library/tracing
+    yt/yt/library/numeric
 )
 
 IF (OS_WINDOWS)
