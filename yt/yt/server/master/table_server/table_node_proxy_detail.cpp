@@ -1099,6 +1099,10 @@ bool TTableNodeProxy::GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsum
                             .BeginMap()
                                 .Item("index_path").Value(indexPath)
                                 .Item("kind").Value(kind)
+                                .Item("table_to_index_correspondence").Value(secondaryIndex->GetTableToIndexCorrespondence())
+                                .DoIf(secondaryIndex->Predicate().has_value(), [&] (TFluentMap fluent) {
+                                    fluent.Item("predicate").Value(*secondaryIndex->Predicate());
+                                })
                             .EndMap();
                     });
 
@@ -1124,6 +1128,10 @@ bool TTableNodeProxy::GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsum
                     .Item("index_id").Value(secondaryIndex->GetId())
                     .Item("table_path").Value(tablePath)
                     .Item("kind").Value(kind)
+                    .Item("table_to_index_correspondence").Value(secondaryIndex->GetTableToIndexCorrespondence())
+                    .DoIf(secondaryIndex->Predicate().has_value(), [&] (TFluentMap fluent) {
+                        fluent.Item("predicate").Value(*secondaryIndex->Predicate());
+                    })
                 .EndMap();
 
             return true;
