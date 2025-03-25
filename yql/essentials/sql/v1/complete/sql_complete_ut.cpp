@@ -6,6 +6,27 @@
 
 using namespace NSQLComplete;
 
+class TDummyException : public std::runtime_error {
+public:
+    TDummyException() : std::runtime_error("T_T") {}
+};
+
+class TFailingNameService: public INameService {
+public:
+    TFuture<TNameResponse> Lookup(TNameRequest) override {
+        auto e = std::make_exception_ptr(TDummyException());
+        return NThreading::MakeErrorFuture<TNameResponse>(e);
+    }
+};
+
+class TSilentNameService: public INameService {
+public:
+    TFuture<TNameResponse> Lookup(TNameRequest) override {
+        auto promise = NThreading::NewPromise<TNameResponse>();
+        return promise.GetFuture();
+    }
+};
+
 Y_UNIT_TEST_SUITE(SqlCompleteTests) {
     using ECandidateKind::Keyword;
     using ECandidateKind::TypeName;
@@ -366,9 +387,27 @@ Y_UNIT_TEST_SUITE(SqlCompleteTests) {
                 {TypeName, "Uint64"},
                 {TypeName, "Uint8"},
                 {TypeName, "Utf8"},
-                {TypeName, "Uuid"}};
+                {TypeName, "Uuid"},
+            };
             UNIT_ASSERT_VALUES_EQUAL(Complete(engine, {"SELECT OPTIONAL<U"}), expected);
         }
+    }
+
+    Y_UNIT_TEST(FailingNamesFetch) {
+        auto service = MakeHolder<TFailingNameService>();
+        auto engine = MakeSqlCompletionEngine(std::move(service));
+        UNIT_ASSERT_NO_EXCEPTION(Complete(engine, {""}));
+        UNIT_ASSERT_EXCEPTION(Complete(engine, {"SELECT OPTIONAL<U"}), TDummyException);
+        UNIT_ASSERT_EXCEPTION(Complete(engine, {"SELECT CAST (1 AS "}).size(), TDummyException);
+    }
+
+    Y_UNIT_TEST(SilentNamesFetch) {
+        auto service = MakeHolder<TSilentNameService>();
+        auto engine = MakeSqlCompletionEngine(std::move(service), {
+            .Timeout = TDuration::MilliSeconds(1),
+        });
+        UNIT_ASSERT_VALUES_EQUAL(Complete(engine, {"SELECT OPTIONAL<U"}).size(), 0);
+        UNIT_ASSERT_VALUES_EQUAL(Complete(engine, {"SELECT OPTIONAL<"}).size(), 14);
     }
 
 } // Y_UNIT_TEST_SUITE(SqlCompleteTests)

@@ -26,6 +26,10 @@ namespace NSQLComplete {
         } Constraints;
         TString Prefix = "";
         size_t Limit = 128;
+
+        bool IsEmpty() const {
+            return !Constraints.TypeName;
+        }
     };
 
     struct TNameResponse {

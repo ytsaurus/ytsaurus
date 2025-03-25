@@ -76,6 +76,10 @@ namespace NSQLComplete {
                 request.Constraints.TypeName = TTypeName::TConstraints();
             }
 
+            if (request.IsEmpty()) {
+                return;
+            }
+
             auto future = Names->Lookup(std::move(request));
             if (!future.Wait(Configuration.Timeout)) {
                 return; // TODO: Add Error Listener
