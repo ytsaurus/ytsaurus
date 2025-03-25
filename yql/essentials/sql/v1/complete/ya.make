@@ -13,6 +13,8 @@ PEERDIR(
     contrib/libs/antlr4-c3
     yql/essentials/sql/settings
     yql/essentials/sql/v1/format
+    yql/essentials/sql/v1/complete/name
+    yql/essentials/sql/v1/complete/name/static
     yql/essentials/parser/antlr_ast/gen/v1_ansi_antlr4
     yql/essentials/parser/antlr_ast/gen/v1_antlr4
 )

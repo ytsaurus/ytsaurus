@@ -1,5 +1,7 @@
 #pragma once
 
+#include <yql/essentials/sql/v1/complete/name/name_service.h>
+
 #include <util/generic/string.h>
 #include <util/generic/vector.h>
 
@@ -41,5 +43,7 @@ namespace NSQLComplete {
     };
 
     ISqlCompletionEngine::TPtr MakeSqlCompletionEngine();
+
+    ISqlCompletionEngine::TPtr MakeSqlCompletionEngine(INameService::TPtr names);
 
 } // namespace NSQLComplete
