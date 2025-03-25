@@ -1922,6 +1922,7 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, LockCopyDestinatio
         ToProto(response->mutable_existing_node_id(), TrunkNode_->GetId());
         context->SetResponseInfo("ExistingNodeId: %v",
             TrunkNode_->GetId());
+        context->Reply();
         return;
     }
 
