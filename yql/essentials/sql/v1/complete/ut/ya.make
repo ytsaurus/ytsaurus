@@ -5,4 +5,8 @@ SRCS(
     string_util_ut.cpp
 )
 
+PEERDIR(
+    yql/essentials/sql/v1/complete/name/fallback
+)
+
 END()

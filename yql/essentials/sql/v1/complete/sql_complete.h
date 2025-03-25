@@ -40,7 +40,6 @@ namespace NSQLComplete {
 
         struct TConfiguration {
             size_t Limit = 256;
-            TDuration Timeout = TDuration::Seconds(2);
         };
 
         virtual TCompletion Complete(TCompletionInput input) = 0;

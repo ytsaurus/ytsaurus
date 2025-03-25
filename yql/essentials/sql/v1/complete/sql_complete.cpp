@@ -80,11 +80,8 @@ namespace NSQLComplete {
                 return;
             }
 
-            auto future = Names->Lookup(std::move(request));
-            if (!future.Wait(Configuration.Timeout)) {
-                return; // TODO: Add Error Listener
-            }
-            TNameResponse response = future.ExtractValueSync();
+            // User should prepare a robust INameService
+            TNameResponse response = Names->Lookup(std::move(request)).ExtractValueSync();
 
             EnrichWithNames(candidates, std::move(response.RankedNames));
         }
