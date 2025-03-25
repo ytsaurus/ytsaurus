@@ -156,7 +156,8 @@ public:
         TTableId table,
         TTableId secondaryIndex,
         std::optional<TString> predicate,
-        std::optional<TString> unfoldedColumnName) = 0;
+        std::optional<TString> unfoldedColumnName,
+        NTableClient::TTableSchemaPtr evaluatedColumns) = 0;
 
     // Table collocation management.
     virtual TTableCollocation* CreateTableCollocation(

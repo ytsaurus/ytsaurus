@@ -1637,6 +1637,9 @@ private:
                         ToProto(protoIndexInfo->mutable_unfolded_column(), *unfoldedColumn);
                     }
                     protoIndexInfo->set_index_correspondence(ToProto(indexInfo.Correspondence));
+                    if (const auto& evaluatedColumnsSchema = indexInfo.EvaluatedColumnsSchema) {
+                        ToProto(protoIndexInfo->mutable_evaluated_columns_schema(), *evaluatedColumnsSchema);
+                    }
                 }
 
                 context->SetResponseInfo("Dynamic: %v, TabletCount: %v, ReplicaCount: %v",
