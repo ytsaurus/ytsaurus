@@ -336,6 +336,7 @@ class TestSecondaryIndexMaster(TestSecondaryIndexBase):
             index_id: {
                 "index_path": "//tmp/index_table",
                 "kind": "full_sync",
+                "table_to_index_correspondence": "bijective"
             }
         }
 
@@ -343,6 +344,7 @@ class TestSecondaryIndexMaster(TestSecondaryIndexBase):
             "index_id": index_id,
             "table_path": "//tmp/table",
             "kind": "full_sync",
+            "table_to_index_correspondence": "bijective",
         }
 
         self._create_table("//tmp/index_index_table", INDEX_ON_VALUE_SCHEMA_WITH_EXPRESSION)
