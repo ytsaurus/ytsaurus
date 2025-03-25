@@ -11,14 +11,12 @@
 namespace NSQLComplete {
 
     class TSqlCompletionEngine: public ISqlCompletionEngine {
-        const struct {
-            size_t Limit = 128;
-            TDuration Timeout = TDuration::Seconds(2);
-        } Configuration; // TODO: Dependency Injection
-
     public:
-        explicit TSqlCompletionEngine(INameService::TPtr names)
-            : ContextInference(MakeSqlContextInference())
+        explicit TSqlCompletionEngine(
+            INameService::TPtr names,
+            ISqlCompletionEngine::TConfiguration configuration)
+            : Configuration(std::move(configuration))
+            , ContextInference(MakeSqlContextInference())
             , Names(std::move(names))
         {
         }
@@ -98,7 +96,6 @@ namespace NSQLComplete {
             }
         }
 
-        // TODO: make the yql/essentials/sql/v1/complete/util/string.h
         void FilterByContent(TVector<TCandidate>& candidates, TStringBuf prefix) {
             const auto lowerPrefix = ToLowerUTF8(prefix);
             auto removed = std::ranges::remove_if(candidates, [&](const auto& candidate) {
@@ -107,6 +104,7 @@ namespace NSQLComplete {
             candidates.erase(std::begin(removed), std::end(removed));
         }
 
+        TConfiguration Configuration;
         ISqlContextInference::TPtr ContextInference;
         INameService::TPtr Names;
     };
@@ -115,8 +113,11 @@ namespace NSQLComplete {
         return MakeSqlCompletionEngine(MakeStaticNameService(MakeDefaultNameSet()));
     }
 
-    ISqlCompletionEngine::TPtr MakeSqlCompletionEngine(INameService::TPtr names) {
-        return ISqlCompletionEngine::TPtr(new TSqlCompletionEngine(std::move(names)));
+    ISqlCompletionEngine::TPtr MakeSqlCompletionEngine(
+        INameService::TPtr names,
+        ISqlCompletionEngine::TConfiguration configuration) {
+        return ISqlCompletionEngine::TPtr(
+            new TSqlCompletionEngine(std::move(names), std::move(configuration)));
     }
 
 } // namespace NSQLComplete

@@ -38,12 +38,19 @@ namespace NSQLComplete {
     public:
         using TPtr = THolder<ISqlCompletionEngine>;
 
+        struct TConfiguration {
+            size_t Limit = 256;
+            TDuration Timeout = TDuration::Seconds(2);
+        };
+
         virtual TCompletion Complete(TCompletionInput input) = 0;
         virtual ~ISqlCompletionEngine() = default;
     };
 
     ISqlCompletionEngine::TPtr MakeSqlCompletionEngine();
 
-    ISqlCompletionEngine::TPtr MakeSqlCompletionEngine(INameService::TPtr names);
+    ISqlCompletionEngine::TPtr MakeSqlCompletionEngine(
+        INameService::TPtr names,
+        ISqlCompletionEngine::TConfiguration configuration = {});
 
 } // namespace NSQLComplete
