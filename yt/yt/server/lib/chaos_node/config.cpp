@@ -99,7 +99,7 @@ void TChaosNodeConfig::Register(TRegistrar registrar)
 
 void TChaosSlotDynamicConfig::Register(TRegistrar registrar)
 {
-    registrar.Parameter("enable_extended_logging", &TThis::EnableExtendedLogging)
+    registrar.Parameter("enable_verbose_logging", &TThis::EnableVerboseLogging)
         .Default(false);
 }
 
