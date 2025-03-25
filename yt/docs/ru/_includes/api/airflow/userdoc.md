@@ -190,7 +190,7 @@
 
 Оператор для чтения данных из статической таблицы. Реализует функционал [read_table](../../../api/commands.md#read_table) из Python SDK.
 
-Может писать данные в объектное хранилище, если на вход принимается параметр `object_storage_path`, представляющий из себя объект типа [ObjectStorage](https://airflow.apache.org/docs/apache-airflow/stable/core-concepts/objectstorage.html). В ином случае таблица будет записываться в XCom. При записи данных в объектное хранилище требуется указать желаемый `object_storage_format` (см. [Форматы представления табличных данных](../../../user-guide/storage/formats#table_formats)).
+Может писать данные в объектное хранилище, если на вход передаётся параметр `object_storage_path`, представляющий из себя объект типа [ObjectStorage](https://airflow.apache.org/docs/apache-airflow/stable/core-concepts/objectstorage.html). В ином случае таблица будет записываться в XCom. При записи данных в объектное хранилище требуется указать желаемый `object_storage_format` (см. [Форматы представления табличных данных](../../../user-guide/storage/formats#table_formats)).
 
 **Параметры:**
 - `path: str | YPath`
