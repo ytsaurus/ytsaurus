@@ -164,7 +164,7 @@ void TransformWithIndexStatement(
     indexTableInfo->ValidateSorted();
 
     const auto& indexTableSchema = *indexTableInfo->Schemas[ETableSchemaKind::Write];
-    const auto& tableSchema = *tableInfo->Schemas[ETableSchemaKind::Write];
+    const auto& tableSchema = tableInfo->Schemas[ETableSchemaKind::Write];
     const auto& indices = tableInfo->Indices;
 
     const TColumnSchema* unfoldedColumn{};
@@ -175,35 +175,40 @@ void TransformWithIndexStatement(
     auto correspondence = ETableToIndexCorrespondence::Unknown;
 
     if (indexIt == indices.end()) {
-        ValidateFullSyncIndexSchema(tableSchema, indexTableSchema);
+        ValidateIndexSchema(
+            ESecondaryIndexKind::FullSync,
+            *tableSchema,
+            indexTableSchema,
+            /*predicate*/ std::nullopt,
+            /*evaluatedColumnsSchema*/ nullptr);
     } else {
         correspondence = indexIt->Correspondence;
         if (correspondence == ETableToIndexCorrespondence::Invalid) {
-            THROW_ERROR_EXCEPTION("Cannot use index %v with %Qlv correspondence", indexIt->TableId, correspondence)
+            THROW_ERROR_EXCEPTION("Cannot use index %v with %Qlv correspondence",
+                indexIt->TableId,
+                correspondence)
                 << TErrorAttribute("index_table_path", indexTableInfo->Path);
         }
 
-        switch (indexIt->Kind) {
-            case ESecondaryIndexKind::FullSync:
-                ValidateFullSyncIndexSchema(tableSchema, indexTableSchema);
-                break;
+        // COMPAT(sabdenovch)
+        if (indexIt->Kind == ESecondaryIndexKind::Unfolding && !indexIt->UnfoldedColumn) {
+            unfoldedColumn = &FindUnfoldingColumnAndValidate(
+                *tableSchema,
+                indexTableSchema,
+                indexIt->Predicate,
+                indexIt->EvaluatedColumnsSchema);
+        } else {
+            if (indexIt->UnfoldedColumn) {
+                unfoldedColumn = &indexTableSchema.GetColumn(*indexIt->UnfoldedColumn);
+            }
 
-            case ESecondaryIndexKind::Unfolding:
-                // COMPAT(sabdenovch)
-                if (indexIt->UnfoldedColumn) {
-                    unfoldedColumn = &indexTableSchema.GetColumn(*indexIt->UnfoldedColumn);
-                    ValidateUnfoldingIndexSchema(tableSchema, indexTableSchema, *indexIt->UnfoldedColumn);
-                } else {
-                    unfoldedColumn = &FindUnfoldedColumnAndValidate(tableSchema, indexTableSchema);
-                }
-                break;
-
-            case ESecondaryIndexKind::Unique:
-                ValidateUniqueIndexSchema(tableSchema, indexTableSchema);
-                break;
-
-            default:
-                THROW_ERROR_EXCEPTION("Unsupported secondary index kind %Qlv", indexIt->Kind);
+            ValidateIndexSchema(
+                indexIt->Kind,
+                *tableSchema,
+                indexTableSchema,
+                indexIt->Predicate,
+                indexIt->EvaluatedColumnsSchema,
+                indexIt->UnfoldedColumn);
         }
     }
 
@@ -227,14 +232,11 @@ void TransformWithIndexStatement(
     }
 
     NAst::TExpressionList indexJoinColumns;
-    indexJoinColumns.reserve(tableSchema.GetKeyColumnCount());
-
     NAst::TExpressionList tableJoinColumns;
-    tableJoinColumns.reserve(tableSchema.GetKeyColumnCount());
 
     THashSet<TStringBuf> replacedColumns;
 
-    for (const auto& tableColumn : tableSchema.Columns()) {
+    for (const auto& tableColumn : tableSchema->Columns()) {
         const auto* indexColumn = indexTableSchema.FindColumn(tableColumn.Name());
 
         if (!indexColumn || *indexColumn->LogicalType() != *tableColumn.LogicalType()) {

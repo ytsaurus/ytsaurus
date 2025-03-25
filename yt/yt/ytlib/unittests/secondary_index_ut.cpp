@@ -92,7 +92,8 @@ public:
         TRandomExpressionGenerator& generator,
         TTableSchemaPtr tableSchema,
         TTableSchemaPtr indexSchema,
-        ESecondaryIndexKind kind)
+        ESecondaryIndexKind kind,
+        TTableSchemaPtr evaluatedColumns = nullptr)
     {
         auto columnCount = tableSchema->GetColumnCount();
         auto row = generator.GenerateRandomRow(columnCount);
@@ -103,7 +104,13 @@ public:
             .SequentialId = 0,
         };
 
-        auto modifications = Run(std::move(tableSchema), std::move(indexSchema), TRange(&modification, 1), {}, kind);
+        auto modifications = Run(
+            std::move(tableSchema),
+            std::move(indexSchema),
+            TRange(&modification, 1),
+            {},
+            kind,
+            evaluatedColumns);
 
         THROW_ERROR_EXCEPTION_IF(modifications.Size() != 1,
             "Expected a single index modification, got %v",
@@ -127,12 +134,16 @@ public:
         TTableSchemaPtr indexSchema,
         TRange<TUnversionedSubmittedRow> tableModifications = {},
         TRange<TUnversionedRow> initRows = {},
-        ESecondaryIndexKind kind = ESecondaryIndexKind::FullSync)
+        ESecondaryIndexKind kind = ESecondaryIndexKind::FullSync,
+        TTableSchemaPtr evaluatedColumnsSchema = nullptr)
     {
         auto keyCC = tableSchema->GetKeyColumnCount();
 
         auto tableMountInfo = MakeFrom(std::move(tableSchema));
-        tableMountInfo->Indices = {{.Kind=kind}};
+        tableMountInfo->Indices = {{
+            .Kind=kind,
+            .EvaluatedColumnsSchema=std::move(evaluatedColumnsSchema),
+        }};
 
         auto indexMountInfo = MakeFrom(std::move(indexSchema));
 
@@ -217,7 +228,31 @@ protected:
 
         if (key) {
             if (!column.Required() && Rng_.Uniform(100) < UnrequiredIsEvaluatedPercentChance) {
-                column.SetExpression("#");
+                switch (column.GetWireType()) {
+                    case EValueType::Int64:
+                        column.SetExpression("1");
+                        break;
+
+                    case EValueType::Uint64:
+                        column.SetExpression("1u");
+                        break;
+
+                    case EValueType::String:
+                        column.SetExpression("\"sample_text\"");
+                        break;
+
+                    case EValueType::Double:
+                        column.SetExpression("1.0");
+                        break;
+
+                    case EValueType::Boolean:
+                        column.SetExpression("true");
+                        break;
+
+                    default: {
+                        YT_ABORT();
+                    }
+                }
             }
         } else {
             if (Rng_.Uniform(100) < ValueIsAggregatedPercentChance) {
@@ -435,7 +470,39 @@ TEST_F(TSecondaryIndexTest, SingleIndexLock)
 
     EXPECT_THROW_THAT(
         Run(std::move(tableSchema), std::move(indexSchema)),
-        testing::HasSubstr("All indexed table columns must have same lock group"));
+        testing::HasSubstr("must have same lock group"));
+}
+
+TEST_F(TSecondaryIndexTest, EvaluatedColumns)
+{
+    auto tableSchema = New<TTableSchema>(std::vector{
+        TColumnSchema("key1", EValueType::Int64, ESortOrder::Ascending),
+        TColumnSchema("key2", EValueType::String, ESortOrder::Ascending),
+        TColumnSchema("value1", EValueType::Int64)
+            .SetLock("alpha"),
+        TColumnSchema("value2", EValueType::Int64)
+            .SetLock("beta"),
+    }, true, true);
+
+    auto indexSchema = New<TTableSchema>(std::vector{
+        TColumnSchema("eva1", EValueType::Int64, ESortOrder::Ascending),
+        TColumnSchema("key1", EValueType::Int64, ESortOrder::Ascending),
+        TColumnSchema("key2", EValueType::String, ESortOrder::Ascending),
+        TColumnSchema("eva2", EValueType::Int64),
+    }, true, true);
+
+    auto evaluatedColumns = New<TTableSchema>(std::vector{
+        TColumnSchema("eva1", EValueType::Int64).SetExpression("-key1"),
+        TColumnSchema("eva2", EValueType::Int64).SetExpression("-value1"),
+    });
+
+    Run(
+        std::move(tableSchema),
+        std::move(indexSchema),
+        {},
+        {},
+        ESecondaryIndexKind::FullSync,
+        std::move(evaluatedColumns));
 }
 
 TEST_F(TSecondaryIndexTest, OverwriteRow)
@@ -494,16 +561,13 @@ TEST_F(TSecondaryIndexTest, Stress)
 
         try {
             std::tie(tableSchema, indexSchema) = MakeRandomTableAndIndexSchemas();
-            switch (kind) {
-                case ESecondaryIndexKind::FullSync:
-                    ValidateFullSyncIndexSchema(*tableSchema, *indexSchema);
-                    break;
-                case ESecondaryIndexKind::Unique:
-                    ValidateUniqueIndexSchema(*tableSchema, *indexSchema);
-                    break;
-                default:
-                    YT_ABORT();
-            }
+
+            ValidateIndexSchema(
+                kind,
+                *tableSchema,
+                *indexSchema,
+                /*predicate*/ std::nullopt,
+                /*evaluatedColumnsSchema*/ nullptr);
             validationPassed = true;
             passedValidation++;
         } catch (const std::exception& ex) { }

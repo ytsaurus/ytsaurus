@@ -22,6 +22,7 @@ using namespace NHiveServer;
 using namespace NHydra;
 using namespace NObjectClient;
 using namespace NObjectServer;
+using namespace NQueryClient;
 using namespace NTransactionServer;
 using namespace NYTree;
 using namespace NServer;
@@ -76,13 +77,17 @@ public:
             unfoldedColumn = attributes->GetAndRemove<TString>(EInternedAttributeKey::UnfoldedColumn.Unintern());
         }
 
+        auto evaluatedColumns = attributes->FindAndRemove<TTableSchemaPtr>(
+            EInternedAttributeKey::EvaluatedColumnsSchema.Unintern());
+
         return Bootstrap_->GetTableManager()->CreateSecondaryIndex(
             hintId,
             kind,
             tableId,
             indexTableId,
             std::move(predicate),
-            std::move(unfoldedColumn));
+            std::move(unfoldedColumn),
+            std::move(evaluatedColumns));
     }
 
     void ValidateUserAllowedToCreateSecondaryIndex()

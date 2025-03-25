@@ -308,6 +308,45 @@ void ValidateAggregatedColumns(const TTableSchema& schema)
     }
 }
 
+THashSet<std::string> ValidateComputedColumnExpression(
+    const TColumnSchema& columnSchema,
+    const TTableSchema& schema,
+    bool isTableDynamic,
+    bool allowDependenceOnNonKeyColumns)
+{
+    THashSet<std::string> references;
+    auto expr = PrepareExpression(*columnSchema.Expression(), schema, GetBuiltinTypeInferrers(), &references);
+
+    if (*columnSchema.LogicalType() != *expr->LogicalType) {
+        THROW_ERROR_EXCEPTION(
+            "Computed column %v type mismatch: declared type is %Qlv but expression type is %Qlv",
+            columnSchema.GetDiagnosticNameString(),
+            *columnSchema.LogicalType(),
+            *expr->LogicalType);
+    }
+
+    for (const auto& reference : references) {
+        const auto* column = schema.FindColumn(reference);
+        if (!column) {
+            THROW_ERROR_EXCEPTION("Computed column %v depends on unknown column %Qv",
+                columnSchema.GetDiagnosticNameString(),
+                reference);
+        }
+        if (!allowDependenceOnNonKeyColumns && !column->SortOrder() && isTableDynamic) {
+            THROW_ERROR_EXCEPTION("Computed column %v depends on a non-key column %v",
+                columnSchema.GetDiagnosticNameString(),
+                column->GetDiagnosticNameString());
+        }
+        if (column->Expression()) {
+            THROW_ERROR_EXCEPTION("Computed column %v depends on a computed column %v",
+                columnSchema.GetDiagnosticNameString(),
+                column->GetDiagnosticNameString());
+        }
+    }
+
+    return references;
+}
+
 void ValidateComputedColumns(const TTableSchema& schema, bool isTableDynamic)
 {
     for (int index = 0; index < schema.GetColumnCount(); ++index) {
@@ -326,35 +365,11 @@ void ValidateComputedColumns(const TTableSchema& schema, bool isTableDynamic)
             THROW_ERROR_EXCEPTION("Key column %v cannot be computed in non-materializable way", columnSchema.GetDiagnosticNameString());
         }
 
-        THashSet<std::string> references;
-        // TODO(babenko): migrate to std::string
-        auto expr = PrepareExpression(*columnSchema.Expression(), schema, GetBuiltinTypeInferrers(), &references);
-        if (*columnSchema.LogicalType() != *expr->LogicalType) {
-            THROW_ERROR_EXCEPTION(
-                "Computed column %v type mismatch: declared type is %Qlv but expression type is %Qlv",
-                columnSchema.GetDiagnosticNameString(),
-                *columnSchema.LogicalType(),
-                *expr->LogicalType);
-        }
-
-        for (const auto& ref : references) {
-            const auto* refColumn = schema.FindColumn(ref);
-            if (!refColumn) {
-                THROW_ERROR_EXCEPTION("Computed column %v depends on unknown column %Qv",
-                    columnSchema.GetDiagnosticNameString(),
-                    ref);
-            }
-            if (!refColumn->SortOrder() && isTableDynamic) {
-                THROW_ERROR_EXCEPTION("Computed column %v depends on a non-key column %v",
-                    columnSchema.GetDiagnosticNameString(),
-                    refColumn->GetDiagnosticNameString());
-            }
-            if (refColumn->Expression()) {
-                THROW_ERROR_EXCEPTION("Computed column %v depends on a computed column %v",
-                    columnSchema.GetDiagnosticNameString(),
-                    refColumn->GetDiagnosticNameString());
-            }
-        }
+        ValidateComputedColumnExpression(
+            columnSchema,
+            schema,
+            isTableDynamic,
+            /*allowDependenceOnNonKeyColumns*/ false);
     }
 }
 
