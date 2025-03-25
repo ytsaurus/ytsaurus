@@ -407,11 +407,11 @@ public:
         return Bootstrap_->GetReplicatedTableTrackerConfig();
     }
 
-    bool IsExtendedLoggingEnabled() const override
+    bool IsVerboseLoggingEnabled() const override
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
 
-        return ExtendedLoggingEnabled_;
+        return VerboseLoggingEnabled_;
     }
 
     void Reconfigure(const TChaosNodeDynamicConfigPtr& config) override
@@ -419,7 +419,7 @@ public:
         YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         if (auto it = config->PerBundleConfigs.find(GetCellBundleName()); it != config->PerBundleConfigs.end()) {
-            ExtendedLoggingEnabled_ = it->second->EnableExtendedLogging;
+            VerboseLoggingEnabled_ = it->second->EnableVerboseLogging;
         }
     }
 
@@ -450,7 +450,7 @@ private:
 
     IYPathServicePtr OrchidService_;
 
-    std::atomic<bool> ExtendedLoggingEnabled_ = false;
+    std::atomic<bool> VerboseLoggingEnabled_ = false;
 
     NLogging::TLogger Logger;
 

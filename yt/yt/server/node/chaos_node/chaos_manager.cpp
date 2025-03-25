@@ -2236,7 +2236,7 @@ private:
         bool needLogFullProgress = force ||
             (replicaInfo->ReplicationProgress.Segments.size() < MaxLogProgressSegmentsSize &&
                 replicaInfo->History.size() < MaxLogProgressHistorySize) ||
-            Slot_->IsExtendedLoggingEnabled();
+            Slot_->IsVerboseLoggingEnabled();
 
         if (needLogFullProgress) {
             YT_LOG_DEBUG("Updating replication progress "
