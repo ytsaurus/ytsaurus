@@ -639,18 +639,16 @@ TTask::GetOutputCookieInfoForFirstJob(const TAllocation& allocation, const TNewJ
     TOutputCookieInfo result;
 
     if (MultiJobManager_.GetPendingJobCount() != 0) {
-        auto [cookie, i] = MultiJobManager_.PeekJobCandidate();
+        auto [cookie, index] = MultiJobManager_.PeekJobCandidate();
         result.CompetitionType = EJobCompetitionType::Multi;
         result.OutputCookie = cookie;
-        result.OutputCookieGroupIndex = i;
+        result.OutputCookieGroupIndex = index;
     } else if (TaskHost_->IsTreeProbing(allocation.TreeId)) {
         result.CompetitionType = EJobCompetitionType::Probing;
         result.OutputCookie = ProbingJobManager_.PeekJobCandidate();
-        result.OutputCookieGroupIndex = 0;
     } else if (ExperimentJobManager_.IsTreatmentReady()) {
         result.CompetitionType = EJobCompetitionType::Experiment;
         result.OutputCookie = ExperimentJobManager_.PeekJobCandidate();
-        result.OutputCookieGroupIndex = 0;
     } else if (speculative) {
         result.CompetitionType = EJobCompetitionType::Speculative;
         result.OutputCookieGroupIndex = 0;
@@ -658,7 +656,6 @@ TTask::GetOutputCookieInfoForFirstJob(const TAllocation& allocation, const TNewJ
     } else {
         result.CompetitionType = std::nullopt;
         result.OutputCookie = ExtractCookieForAllocation(allocation, newJobConstraints);
-        result.OutputCookieGroupIndex = 0;
         if (result.OutputCookie == IChunkPoolOutput::NullCookie) {
             YT_LOG_DEBUG("Job input is empty");
 
@@ -680,16 +677,15 @@ TTask::GetOutputCookieInfoForNextJob(const TAllocation& allocation, const TNewJo
     TOutputCookieInfo result;
 
     if (MultiJobManager_.GetPendingJobCount() != 0) {
-        auto [cookie, i] = MultiJobManager_.PeekJobCandidate();
+        auto [cookie, index] = MultiJobManager_.PeekJobCandidate();
         result.CompetitionType = EJobCompetitionType::Multi;
         result.OutputCookie = cookie;
-        result.OutputCookieGroupIndex = i;
+        result.OutputCookieGroupIndex = index;
     } else if (auto competitionType = allocation.LastJobInfo.CompetitionType.value_or(EJobCompetitionType::Speculative);
         competitionType == EJobCompetitionType::Probing)
     {
         result.CompetitionType = EJobCompetitionType::Probing;
         result.OutputCookie = ProbingJobManager_.PeekJobCandidate();
-        result.OutputCookieGroupIndex = 0;
     } else if (competitionType == EJobCompetitionType::Experiment) {
         if (!ExperimentJobManager_.IsTreatmentReady()) {
             return std::unexpected(EScheduleFailReason::NoPendingJobs);
@@ -697,14 +693,12 @@ TTask::GetOutputCookieInfoForNextJob(const TAllocation& allocation, const TNewJo
 
         result.CompetitionType = EJobCompetitionType::Experiment;
         result.OutputCookie = ExperimentJobManager_.PeekJobCandidate();
-        result.OutputCookieGroupIndex = 0;
     } else {
         YT_VERIFY(competitionType == EJobCompetitionType::Speculative);
 
         if (speculative) {
             result.CompetitionType = EJobCompetitionType::Speculative;
             result.OutputCookie = SpeculativeJobManager_.PeekJobCandidate();
-            result.OutputCookieGroupIndex = 0;
         } else {
             result.CompetitionType = std::nullopt;
             result.OutputCookie = ExtractCookieForAllocation(allocation, newJobConstraints);
@@ -717,7 +711,6 @@ TTask::GetOutputCookieInfoForNextJob(const TAllocation& allocation, const TNewJo
 
                 return std::unexpected(EScheduleFailReason::EmptyInput);
             }
-            result.OutputCookieGroupIndex = 0;
         }
     }
 
