@@ -431,7 +431,7 @@ void FormatExpression(TStringBuilderBase* builder, const TExpressionList& expr, 
 void FormatReference(TStringBuilderBase* builder, const TReference& ref, int depth = 0, bool isFinal = false)
 {
     if (ref.TableName) {
-        builder->AppendString(*ref.TableName);
+        FormatId(builder, *ref.TableName);
         builder->AppendChar('.');
     }
 
