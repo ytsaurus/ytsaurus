@@ -139,13 +139,31 @@ bool TChunkFileWriter::WriteBlock(
     const TWorkloadDescriptor& workloadDescriptor,
     const TBlock& block)
 {
-    return WriteBlocks(options, workloadDescriptor, {block});
+    return WriteBlock(options, workloadDescriptor, {block}, {});
+}
+
+bool TChunkFileWriter::WriteBlock(
+    const IChunkWriter::TWriteBlocksOptions& options,
+    const TWorkloadDescriptor& workloadDescriptor,
+    const TBlock& block,
+    TFairShareSlotId fairShareSlotId)
+{
+    return WriteBlocks(options, workloadDescriptor, {block}, fairShareSlotId);
 }
 
 bool TChunkFileWriter::WriteBlocks(
     const IChunkWriter::TWriteBlocksOptions& options,
     const TWorkloadDescriptor& workloadDescriptor,
     const std::vector<TBlock>& blocks)
+{
+    return WriteBlocks(options, workloadDescriptor, blocks, {});
+}
+
+bool TChunkFileWriter::WriteBlocks(
+    const IChunkWriter::TWriteBlocksOptions& options,
+    const TWorkloadDescriptor& workloadDescriptor,
+    const std::vector<TBlock>& blocks,
+    TFairShareSlotId fairShareSlotId)
 {
     if (auto error = TryChangeState(EState::Ready, EState::WritingBlocks); !error.IsOK()) {
         ReadyEvent_ = MakeFuture<void>(std::move(error));
@@ -176,7 +194,8 @@ bool TChunkFileWriter::WriteBlocks(
             DataFile_,
             startOffset,
             std::move(buffers),
-            SyncOnClose_
+            SyncOnClose_,
+            fairShareSlotId,
         },
         workloadDescriptor.Category)
         .Apply(BIND([
@@ -205,7 +224,7 @@ bool TChunkFileWriter::WriteBlocks(
 
             DataSize_ = newDataSize;
             State_.store(EState::Ready);
-        }));
+        }).AsyncVia(IOEngine_->GetAuxPoolInvoker()));
 
     return false;
 }
@@ -224,6 +243,16 @@ TFuture<void> TChunkFileWriter::Close(
     const IChunkWriter::TWriteBlocksOptions& options,
     const TWorkloadDescriptor& workloadDescriptor,
     const TDeferredChunkMetaPtr& chunkMeta,
+    std::optional<int> truncateBlockCount)
+{
+    return Close(options, workloadDescriptor, chunkMeta, {}, truncateBlockCount);
+}
+
+TFuture<void> TChunkFileWriter::Close(
+    const IChunkWriter::TWriteBlocksOptions& options,
+    const TWorkloadDescriptor& workloadDescriptor,
+    const TDeferredChunkMetaPtr& chunkMeta,
+    TFairShareSlotId fairShareSlotId,
     std::optional<int> truncateBlockCount)
 {
     if (auto error = TryChangeState(EState::Ready, EState::Closing); !error.IsOK()) {
@@ -270,11 +299,12 @@ TFuture<void> TChunkFileWriter::Close(
             chunkWriterStatistics->DataIOSyncRequests.fetch_add(rsp.IOSyncRequests, std::memory_order::relaxed);
 
             return IOEngine_->Open({metaFileName + NFS::TempFileSuffix, FileMode});
-        }))
+        }).AsyncVia(IOEngine_->GetAuxPoolInvoker()))
         .Apply(BIND([
             this,
             this_ = MakeStrong(this),
             workloadDescriptor,
+            fairShareSlotId = fairShareSlotId,
             chunkWriterStatistics = options.ClientOptions.ChunkWriterStatistics
         ] (const TIOEngineHandlePtr& chunkMetaFile) {
             YT_VERIFY(State_.load() == EState::Closing);
@@ -300,7 +330,8 @@ TFuture<void> TChunkFileWriter::Close(
                     chunkMetaFile,
                     0,
                     {std::move(buffer)},
-                    SyncOnClose_
+                    SyncOnClose_,
+                    fairShareSlotId,
                 },
                 workloadDescriptor.Category)
                 .Apply(BIND([
@@ -313,7 +344,7 @@ TFuture<void> TChunkFileWriter::Close(
                     chunkWriterStatistics->MetaBytesWrittenToDisk.fetch_add(rsp.WrittenBytes, std::memory_order::relaxed);
                     chunkWriterStatistics->MetaIOWriteRequests.fetch_add(rsp.IOWriteRequests, std::memory_order::relaxed);
                     chunkWriterStatistics->MetaIOSyncRequests.fetch_add(rsp.IOSyncRequests, std::memory_order::relaxed);
-                }))
+                }).AsyncVia(IOEngine_->GetAuxPoolInvoker()))
                 .Apply(BIND(&IIOEngine::Close,
                     IOEngine_,
                     TCloseRequest{
@@ -321,11 +352,11 @@ TFuture<void> TChunkFileWriter::Close(
                         MetaDataSize_,
                         SyncOnClose_
                     },
-                    workloadDescriptor.Category))
+                    workloadDescriptor.Category).AsyncVia(IOEngine_->GetAuxPoolInvoker()))
                 .Apply(BIND([chunkWriterStatistics] (const TCloseResponse& rsp) {
                     chunkWriterStatistics->MetaIOSyncRequests.fetch_add(rsp.IOSyncRequests, std::memory_order::relaxed);
-                }));
-        }))
+                }).AsyncVia(IOEngine_->GetAuxPoolInvoker()));
+        }).AsyncVia(IOEngine_->GetAuxPoolInvoker()))
         .Apply(BIND([
             this,
             this_ = MakeStrong(this),
@@ -346,7 +377,7 @@ TFuture<void> TChunkFileWriter::Close(
                     chunkWriterStatistics = std::move(chunkWriterStatistics)
                 ] (const TFlushDirectoryResponse& rsp) {
                     chunkWriterStatistics->MetaIOSyncRequests.fetch_add(rsp.IOSyncRequests, std::memory_order::relaxed);
-                }));
+                }).AsyncVia(IOEngine_->GetAuxPoolInvoker()));
         }).AsyncVia(IOEngine_->GetAuxPoolInvoker()))
         .Apply(BIND([
             this,
@@ -363,7 +394,7 @@ TFuture<void> TChunkFileWriter::Close(
 
             ChunkInfo_.set_disk_space(DataSize_ + MetaDataSize_);
             State_.store(EState::Closed);
-        }));
+        }).AsyncVia(IOEngine_->GetAuxPoolInvoker()));
 }
 
 i64 TChunkFileWriter::GetDataSize() const

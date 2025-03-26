@@ -182,6 +182,7 @@ public:
         RegisterMethod(RPC_SERVICE_METHOD_DESC(FinishChunk)
             .SetCancelable(true));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(CancelChunk));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(ProbePutBlocks));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(PutBlocks)
             .SetQueueSizeLimit(100)
             .SetConcurrencyLimit(100)
@@ -298,19 +299,22 @@ private:
         options.EnableMultiplexing = request->enable_multiplexing();
         options.PlacementId = FromProto<TPlacementId>(request->placement_id());
         options.DisableSendBlocks = GetDynamicConfig()->UseDisableSendBlocks && request->disable_send_blocks();
+        options.UseProbePutBlocks = request->use_probe_put_blocks();
 
-        context->SetRequestInfo("SessionId: %v, Workload: %v, SyncOnClose: %v, EnableMultiplexing: %v, PlacementId: %v, DisableSendBlocks: %v",
+        context->SetRequestInfo("SessionId: %v, Workload: %v, SyncOnClose: %v, EnableMultiplexing: %v, PlacementId: %v, DisableSendBlocks: %v, UseProbePutBlocks: %v",
             sessionId,
             options.WorkloadDescriptor,
             options.SyncOnClose,
             options.EnableMultiplexing,
             options.PlacementId,
-            options.DisableSendBlocks);
+            options.DisableSendBlocks,
+            options.UseProbePutBlocks);
 
         ValidateOnline();
 
         const auto& sessionManager = Bootstrap_->GetSessionManager();
         auto session = sessionManager->StartSession(sessionId, options);
+        response->set_use_probe_put_blocks(false);
         ToProto(response->mutable_location_uuid(), session->GetStoreLocation()->GetUuid());
         context->ReplyFrom(session->Start());
     }
@@ -428,6 +432,24 @@ private:
 
         response->set_close_demanded(IsCloseDemanded(location));
 
+        context->Reply();
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, ProbePutBlocks)
+    {
+        context->SetRequestInfo("SessionId: %v, CumulativeBlockSize: %v",
+            request->session_id(),
+            request->cumulative_block_size());
+
+        const auto requestedCumulativeBlockSize = request->cumulative_block_size();
+
+        response->mutable_probe_put_blocks_state()->set_requested_cumulative_block_size(requestedCumulativeBlockSize);
+        response->mutable_probe_put_blocks_state()->set_approved_cumulative_block_size(requestedCumulativeBlockSize);
+
+        context->SetResponseInfo("SessionId: %v, MaxRequestedCumulativeBlockSize: %v, ApprovedCumulativeBlockSize: %v",
+            request->session_id(),
+            requestedCumulativeBlockSize,
+            requestedCumulativeBlockSize);
         context->Reply();
     }
 
@@ -1034,7 +1056,8 @@ private:
             return future;
         }
 
-        auto deadline = *context->GetStartTime() + *context->GetTimeout() * timeoutFraction.value();
+        auto timeout = *context->GetTimeout() * timeoutFraction.value();
+        auto deadline = *context->GetStartTime() + timeout;
 
         return AnySet<T>({
             future
@@ -1048,7 +1071,11 @@ private:
                     }
                 })),
             TDelayedExecutor::MakeDelayed(deadline - TInstant::Now())
-                .Apply(fallbackValue)
+                .Apply(BIND([fallbackValue, future, timeout] {
+                    future.Cancel(TError("Rpc request timed out")
+                        << TErrorAttribute("timeout", timeout));
+                    return fallbackValue();
+                }))
         });
     }
 

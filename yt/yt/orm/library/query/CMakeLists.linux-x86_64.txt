@@ -20,8 +20,8 @@ add_library(orm-library-query)
 target_compile_options(orm-library-query PRIVATE
   -Wdeprecated-this-capture
   -Wimplicit-fallthrough
-  -Wimplicit-fallthrough
   -Wunused-parameter
+  -Wno-c99-designator
 )
 
 target_link_libraries(orm-library-query PUBLIC

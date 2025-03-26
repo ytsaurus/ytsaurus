@@ -54,6 +54,7 @@ private:
     struct TSlot
     {
         ESlotState State = ESlotState::Empty;
+        TLocationFairShareSlotPtr FairShareSlot = nullptr;
         NChunkClient::TBlock Block;
 
         TPromise<void> ReceivedPromise = NewPromise<void>();
@@ -79,6 +80,8 @@ private:
     TLocationMemoryGuard PendingBlockLocationMemoryGuard_;
     TMemoryUsageTrackerGuard PendingBlockMemoryGuard_;
 
+    double GetFairShareWorkloadCategoryPriority(EWorkloadCategory category);
+
     TFuture<void> DoStart() override;
     void OnStarted(const TError& error);
 
@@ -91,7 +94,8 @@ private:
         int startBlockIndex,
         std::vector<NChunkClient::TBlock> blocks,
         bool useCumulativeBlockSize,
-        bool enableCaching);
+        bool enableCaching,
+        TLocationFairShareSlotPtr fairShareQueueSlot);
     void OnBlocksWritten(
         int beginBlockIndex,
         int endBlockIndex,
@@ -112,7 +116,9 @@ private:
         const NChunkClient::TRefCountedChunkMetaPtr& chunkMeta,
         std::optional<int> blockCount,
         bool truncateExtraBlocks) override;
-    TFinishResult OnFinished(const TError& error);
+    TFinishResult OnFinished(
+        TLocationFairShareSlotPtr fairShareQueueSlot,
+        const TError& error);
 
     void Abort();
     void OnAborted(const TError& error);

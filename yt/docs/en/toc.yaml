@@ -408,6 +408,8 @@ items:
              href: api/python/dataclass.md
            - name: Python API with examples
              href: api/python/examples.md
+       - name: Apache Airflow
+         href: api/airflow/userdoc.md
        - name: C++
          items:
            - name: Description
@@ -474,7 +476,7 @@ items:
      href: admin-guide/releases.md
    - name: FAQ
      when: audience == "public"
-     href: faq/faq.md
+     href: faq/index.md
    - name: How to report
      when: audience == "public"
      href: user-guide/problems/howtoreport.md

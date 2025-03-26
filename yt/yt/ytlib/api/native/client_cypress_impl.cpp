@@ -1050,11 +1050,17 @@ public:
             Format("Clone %v to %v", SrcPath_, DstPath_),
             Options_);
 
+        TTransactionCommitOptions commitOptions = {};
+        commitOptions.PrerequisiteTransactionIds = Options_.PrerequisiteTransactionIds;
+
         auto useNewCopyPipeline = !BeginCopy(SrcPath_, Options_, true);
         if (useNewCopyPipeline) {
             YT_LOG_DEBUG("BeginCopy is deprecated, switching to the new copy pipeline");
             if (!LockCopyDestination(DstPath_, Options_)) {
                 YT_VERIFY(DstNodeId_);
+                // NB: in case "lock_existing" flag was specified, a lock was taken in the copy transaction and now it
+                // needs to be promoted to the user transaction. But if transaction is aborted, promotion is too.
+                CommitTransaction(commitOptions);
                 return DstNodeId_;
             }
 
@@ -1077,8 +1083,6 @@ public:
             RemoveSource();
         }
         SyncExternalCellsWithClonedNodeCell();
-        TTransactionCommitOptions commitOptions = {};
-        commitOptions.PrerequisiteTransactionIds = Options_.PrerequisiteTransactionIds;
         CommitTransaction(commitOptions);
         YT_LOG_DEBUG("Cross-cell node cloning completed");
         return DstNodeId_;
@@ -2346,6 +2350,10 @@ private:
         if (CommonType_ == EObjectType::Table) {
             ToProto(req->mutable_table_schema(), OutputTableSchema_);
             req->set_schema_mode(ToProto(OutputTableSchemaMode_));
+
+            if (OutputTableSchema_->IsSorted()) {
+                req->set_lock_mode(ToProto(ELockMode::Exclusive));
+            }
         }
 
         std::vector<TString> srcObjectPaths;

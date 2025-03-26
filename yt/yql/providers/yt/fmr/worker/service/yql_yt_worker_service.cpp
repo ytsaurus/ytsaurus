@@ -5,14 +5,14 @@
 #include <yt/yql/providers/yt/fmr/coordinator/impl/yql_yt_coordinator_impl.h>
 #include <yt/yql/providers/yt/fmr/job/impl/yql_yt_job_impl.h>
 #include <yt/yql/providers/yt/fmr/job_factory/impl/yql_yt_job_factory_impl.h>
-#include <yt/yql/providers/yt/fmr/table_data_service/local/table_data_service.h>
+#include <yt/yql/providers/yt/fmr/table_data_service/client/yql_yt_table_data_service_client.h>
+#include <yt/yql/providers/yt/fmr/table_data_service/local/yql_yt_table_data_service_local.h>
+#include <yt/yql/providers/yt/fmr/table_data_service/discovery/file/yql_yt_file_service_discovery.h>
 #include <yt/yql/providers/yt/fmr/worker/impl/yql_yt_worker_impl.h>
 #include <yt/yql/providers/yt/fmr/yt_service/impl/yql_yt_yt_service_impl.h>
 #include <yql/essentials/utils/log/log.h>
 #include <yql/essentials/utils/log/log_component.h>
 #include <yql/essentials/utils/mem_limit.h>
-
-
 
 using namespace NYql::NFmr;
 using namespace NYql;
@@ -21,7 +21,8 @@ volatile sig_atomic_t isInterrupted = 0;
 
 struct TWorkerRunOptions {
     TString CoordinatorUrl;
-    ui32 WorkerId;
+    ui64 WorkerId;
+    TString TableDataServiceDiscoveryFilePath;
     int Verbosity;
 
     void InitLogger() {
@@ -46,6 +47,7 @@ int main(int argc, const char *argv[]) {
         opts.AddLongOption("coordinator-url", "Fast map reduce coordinator server url").Required().StoreResult(&options.CoordinatorUrl);
         opts.AddLongOption('w', "worker-id", "Fast map reduce worker id").Required().StoreResult(&options.WorkerId);
         opts.AddLongOption('v', "verbosity", "Logging verbosity level").StoreResult(&options.Verbosity).DefaultValue(static_cast<int>(TLOG_ERR));
+        opts.AddLongOption('p', "table-data-service-discovery-file-path", "Table data service discovery file path").StoreResult(&options.TableDataServiceDiscoveryFilePath);
         opts.AddLongOption("mem-limit", "Set memory limit in megabytes").Handler1T<ui32>(0, SetAddressSpaceLimit);
         opts.SetFreeArgsMax(0);
 
@@ -65,11 +67,18 @@ int main(int argc, const char *argv[]) {
         coordinatorClientSettings.Host = parsedUrl.GetHost();
         auto coordinator = MakeFmrCoordinatorClient(coordinatorClientSettings);
 
-        auto tableDataService = MakeLocalTableDataService(TLocalTableDataServiceSettings(3));
+        ITableDataService::TPtr tableDataService;
+        if (options.TableDataServiceDiscoveryFilePath) {
+            auto tableDataServiceDiscovery = MakeFileTableDataServiceDiscovery({.Path = options.TableDataServiceDiscoveryFilePath});
+            tableDataService = MakeTableDataServiceClient(tableDataServiceDiscovery);
+        } else {
+            tableDataService = MakeLocalTableDataService(TLocalTableDataServiceSettings(3));
+        }
         auto fmrYtSerivce = MakeFmrYtSerivce();
-
-        auto func = [tableDataService, fmrYtSerivce] (TTask::TPtr task, std::shared_ptr<std::atomic<bool>> cancelFlag) mutable {
-            return RunJob(task, tableDataService, fmrYtSerivce, cancelFlag);
+        TFmrJobSettings jobSettings{};
+        // TODO - add different job Settings here
+        auto func = [tableDataService, fmrYtSerivce, jobSettings] (TTask::TPtr task, std::shared_ptr<std::atomic<bool>> cancelFlag) mutable {
+            return RunJob(task, tableDataService, fmrYtSerivce, cancelFlag, jobSettings);
         };
 
         TFmrJobFactorySettings settings{.Function=func};

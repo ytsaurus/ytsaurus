@@ -44,6 +44,7 @@
 #include <yt/yt/client/api/query_tracker_client.h>
 #include <yt/yt/client/api/rowset.h>
 #include <yt/yt/client/api/sticky_transaction_pool.h>
+#include <yt/yt/client/api/table_partition_reader.h>
 #include <yt/yt/client/api/table_reader.h>
 #include <yt/yt/client/api/table_writer.h>
 #include <yt/yt/client/api/transaction.h>
@@ -98,6 +99,7 @@ namespace NYT::NRpcProxy {
 
 using namespace NApi::NRpcProxy;
 using namespace NApi;
+using namespace NApi::NDetail;
 using namespace NArrow;
 using namespace NAuth;
 using namespace NChaosClient;
@@ -800,6 +802,9 @@ public:
             .SetCancelable(true));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetColumnarStatistics));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(PartitionTables));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(ReadTablePartition)
+            .SetStreamingEnabled(true)
+            .SetCancelable(true));
 
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetFileFromCache));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(PutFileToCache));
@@ -1632,6 +1637,9 @@ private:
                         ToProto(protoIndexInfo->mutable_unfolded_column(), *unfoldedColumn);
                     }
                     protoIndexInfo->set_index_correspondence(ToProto(indexInfo.Correspondence));
+                    if (const auto& evaluatedColumnsSchema = indexInfo.EvaluatedColumnsSchema) {
+                        ToProto(protoIndexInfo->mutable_evaluated_columns_schema(), *evaluatedColumnsSchema);
+                    }
                 }
 
                 context->SetResponseInfo("Dynamic: %v, TabletCount: %v, ReplicaCount: %v",
@@ -6064,28 +6072,137 @@ private:
         options.AdjustDataWeightPerPartition = request->adjust_data_weight_per_partition();
 
         options.EnableKeyGuarantee = request->enable_key_guarantee();
+        options.EnableCookies = request->enable_cookies();
 
         if (request->has_transactional_options()) {
             FromProto(&options, request->transactional_options());
         }
 
-        context->SetRequestInfo("Paths: %v, PartitionMode: %v, KeyGuarantee: %v, DataWeightPerPartition: %v, AdjustDataWeightPerPartition: %v",
+        context->SetRequestInfo("Paths: %v, PartitionMode: %v, KeyGuarantee: %v, DataWeightPerPartition: %v, AdjustDataWeightPerPartition: %v, EnableCookies: %v",
             paths,
             options.PartitionMode,
             options.EnableKeyGuarantee,
             options.DataWeightPerPartition,
-            options.AdjustDataWeightPerPartition);
+            options.AdjustDataWeightPerPartition,
+            options.EnableCookies);
+
+        auto sign = [this_ = MakeStrong(this)] (TMultiTablePartitions&& partitions) {
+            for (auto& partition : partitions.Partitions) {
+                if (partition.Cookie) {
+                    partition.Cookie = this_->GenerateSignature<TTablePartitionCookiePtr>(std::move(partition.Cookie.Underlying()));
+                }
+            }
+            return std::move(partitions);
+        };
 
         ExecuteCall(
             context,
             [=] {
-                return client->PartitionTables(paths, options);
+                return client->PartitionTables(paths, options)
+                    .ApplyUnique(BIND(std::move(sign)));
             },
             [] (const auto& context, const auto& result) {
                 auto* response = &context->Response();
                 ToProto(response->mutable_partitions(), result.Partitions);
 
                 context->SetResponseInfo("PartitionCount: %v", result.Partitions.size());
+            });
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, ReadTablePartition)
+    {
+        auto client = GetAuthenticatedClientOrThrow(context, request);
+
+        auto cookie = ConvertTo<TTablePartitionCookiePtr>(TYsonStringBuf(request->cookie()));
+
+        YT_VERIFY(cookie);
+
+        auto signatureOk = WaitFor(ValidateSignature(cookie.Underlying()))
+            .ValueOrThrow();
+        if (!signatureOk) {
+            THROW_ERROR_EXCEPTION("Signature validation failed");
+        }
+
+        auto format = GetFormat(context, request);
+
+        NApi::TReadTablePartitionOptions options;
+        options.Unordered = request->unordered();
+        options.OmitInaccessibleColumns = request->omit_inaccessible_columns();
+        options.EnableTableIndex = request->enable_table_index();
+        options.EnableRowIndex = request->enable_row_index();
+        options.EnableRangeIndex = request->enable_range_index();
+        if (request->has_config()) {
+            options.Config = ConvertTo<TTableReaderConfigPtr>(TYsonString(request->config()));
+        }
+
+        auto desiredRowsetFormat = request->desired_rowset_format();
+        auto arrowFallbackRowsetFormat = request->arrow_fallback_rowset_format();
+
+        context->SetRequestInfo(
+            "Unordered: %v, OmitInaccessibleColumns: %v, DesiredRowsetFormat: %v, ArrowFallbackRowsetFormat: %v",
+            options.Unordered,
+            options.OmitInaccessibleColumns,
+            NApi::NRpcProxy::NProto::ERowsetFormat_Name(desiredRowsetFormat),
+            NApi::NRpcProxy::NProto::ERowsetFormat_Name(arrowFallbackRowsetFormat));
+
+        PutMethodInfoInTraceContext("read_table_partition");
+
+        auto reader = WaitFor(client->CreateTablePartitionReader(cookie, options))
+            .ValueOrThrow();
+
+        auto controlAttributesConfig = New<NFormats::TControlAttributesConfig>();
+        controlAttributesConfig->EnableRowIndex = request->enable_row_index();
+        controlAttributesConfig->EnableTableIndex = request->enable_table_index();
+        controlAttributesConfig->EnableRangeIndex = request->enable_range_index();
+
+        auto schemas = GetTableSchemas(reader);
+        auto columnFilters = GetColumnFilters(reader);
+
+        if (schemas.size() > 1 || columnFilters.size() > 1) {
+            THROW_ERROR_EXCEPTION("Reading multiple table partitions is not supported yet");
+        }
+
+        auto encoder = CreateRowStreamEncoder(
+            desiredRowsetFormat,
+            arrowFallbackRowsetFormat,
+            schemas[0],
+            columnFilters[0],
+            reader->GetNameTable(),
+            controlAttributesConfig,
+            std::move(format));
+
+        auto outputStream = context->GetResponseAttachmentsStream();
+
+        // For now we don't have any metadata, but we can have it in the future.
+        NApi::NRpcProxy::NProto::TRspReadTablePartitionMeta meta;
+
+        auto metaRef = SerializeProtoToRef(meta);
+        WaitFor(outputStream->Write(metaRef))
+            .ThrowOnError();
+
+        bool finished = false;
+        const auto& config = Config_.Acquire();
+
+        HandleInputStreamingRequest(
+            context,
+            [&] {
+                if (finished) {
+                    return TSharedRef();
+                }
+
+                TRowBatchReadOptions options{
+                    .MaxRowsPerRead = config->ReadBufferRowCount,
+                    .MaxDataWeightPerRead = config->ReadBufferDataWeight,
+                    .Columnar = IsColumnarRowsetFormat(request->desired_rowset_format())
+                };
+                auto batch = ReadRowBatch(reader, options);
+                if (!batch) {
+                    finished = true;
+                }
+
+                return encoder->Encode(
+                    batch ? batch : CreateEmptyUnversionedRowBatch(),
+                    /*statistics*/ nullptr);
             });
     }
 

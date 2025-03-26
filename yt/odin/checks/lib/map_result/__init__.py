@@ -105,7 +105,7 @@ def run_check_impl(yt_client, logger, options, states, spec_patch=None, cloud=Fa
                 "enable_legacy_live_preview": True,
             }
             if cloud:
-                spec["pool_trees"] = options.get("pool_config", {}).get(options["cluster_name"], ["cloud"])
+                spec["pool_trees"] = options.get("pool_config", {}).get(options["cluster_name"], ["cloud_default"])
             if spec_patch is not None:
                 spec = update(spec, spec_patch)
 

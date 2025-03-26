@@ -17,14 +17,6 @@ namespace NYT::NScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-YT_DEFINE_STRONG_TYPEDEF(TAllocationId, TGuid);
-
-constexpr TAllocationId NullAllocationId{};
-
-TAllocationId AllocationIdFromJobId(TJobId jobId);
-
-////////////////////////////////////////////////////////////////////////////////
-
 using NVectorHdrf::EIntegralGuaranteeType;
 using NVectorHdrf::ESchedulingMode;
 using NVectorHdrf::EJobResourceType;
@@ -35,7 +27,6 @@ using NVectorHdrf::TResourceVolume;
 using NVectorHdrf::ResourceCount;
 
 ////////////////////////////////////////////////////////////////////////////////
-
 namespace NProto {
 
 class TJobExperimentConfig;
@@ -108,6 +99,7 @@ DECLARE_REFCOUNTED_STRUCT(TSchedulingTagRuleConfig)
 DECLARE_REFCOUNTED_STRUCT(TSamplingConfig)
 DECLARE_REFCOUNTED_STRUCT(TJobResourcesConfig)
 DECLARE_REFCOUNTED_STRUCT(TTmpfsVolumeConfig)
+DECLARE_REFCOUNTED_STRUCT(TNbdDiskConfig)
 DECLARE_REFCOUNTED_STRUCT(TDiskRequestConfig)
 DECLARE_REFCOUNTED_CLASS(TJobShell)
 DECLARE_REFCOUNTED_STRUCT(TUserJobMonitoringConfig)
@@ -118,6 +110,7 @@ DECLARE_REFCOUNTED_STRUCT(TTaskOutputStreamConfig)
 DECLARE_REFCOUNTED_STRUCT(TJobExperimentConfig)
 DECLARE_REFCOUNTED_CLASS(TCudaProfilerEnvironment)
 DECLARE_REFCOUNTED_CLASS(TJobFailsTolerance);
+DECLARE_REFCOUNTED_STRUCT(TFastIntermediateMediumTableWriterConfig)
 DECLARE_REFCOUNTED_CLASS(TUserJobSpec)
 DECLARE_REFCOUNTED_CLASS(TOptionalUserJobSpec)
 DECLARE_REFCOUNTED_CLASS(TMandatoryUserJobSpec)

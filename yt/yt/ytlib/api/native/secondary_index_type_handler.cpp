@@ -43,6 +43,7 @@ public:
         auto indexTablePath = attributes->GetAndRemove<TYPath>("index_table_path");
         auto kind = attributes->Get<ESecondaryIndexKind>("kind");
         auto predicate = attributes->Find<TString>("predicate");
+        auto evaluatedColumnsSchema = attributes->Find<TTableSchemaPtr>("evaluated_columns_schema");
 
         auto mountInfos = WaitFor(AllSucceeded(std::vector{
                 Client_->Connection_->GetTableMountCache()->GetTableInfo(tablePath),
@@ -50,7 +51,7 @@ public:
             }))
             .ValueOrThrow();
 
-        auto tableSchema = mountInfos[0]->Schemas[ETableSchemaKind::Primary];
+
         auto indexTableSchema = mountInfos[1]->Schemas[ETableSchemaKind::Primary];
 
         auto tableId = mountInfos[0]->TableId;
@@ -67,63 +68,31 @@ public:
             THROW_ERROR_EXCEPTION("Unsupported table type %Qlv", tableType);
         }
 
-        if (CellTagFromId(tableId) != CellTagFromId(indexTableId)) {
+        auto cellTag = CellTagFromId(tableId);
+        if (cellTag != CellTagFromId(indexTableId)) {
             THROW_ERROR_EXCEPTION("Table and index table native cell tags differ")
-                << TErrorAttribute("table_cell_tag", CellTagFromId(tableId))
+                << TErrorAttribute("table_cell_tag", cellTag)
                 << TErrorAttribute("index_table_cell_tag", CellTagFromId(indexTableId));
         }
 
-        switch(kind) {
-            case ESecondaryIndexKind::FullSync:
-                ValidateFullSyncIndexSchema(
-                    *tableSchema,
-                    *indexTableSchema);
-                break;
+        auto unfoldedColumnName = (kind == ESecondaryIndexKind::Unfolding)
+            ? std::optional<TString>(attributes->Get<TString>("unfolded_column"))
+            : std::nullopt;
 
-            case ESecondaryIndexKind::Unfolding: {
-                auto unfoldedColumnName = attributes->Find<TString>("unfolded_column");
-                // COMPAT(sabdenovch)
-                if (unfoldedColumnName) {
-                    ValidateUnfoldingIndexSchema(
-                        *tableSchema,
-                        *indexTableSchema,
-                        *unfoldedColumnName);
-                } else {
-                    FindUnfoldedColumnAndValidate(
-                        *tableSchema,
-                        *indexTableSchema);
-                }
-                break;
-            }
-
-            case ESecondaryIndexKind::Unique:
-                ValidateUniqueIndexSchema(
-                    *tableSchema,
-                    *indexTableSchema);
-                break;
-
-            default:
-                YT_ABORT();
-        }
-
-        if (predicate) {
-            auto expr = PrepareExpression(*predicate, *tableSchema);
-            THROW_ERROR_EXCEPTION_IF(expr->GetWireType() != EValueType::Boolean,
-                "Expected boolean expression as predicate, got %v",
-                *expr->LogicalType);
-
-            TColumnSet predicateColumns;
-            TReferenceHarvester(&predicateColumns).Visit(expr);
-
-            ValidateColumnsAreInIndexLockGroup(predicateColumns, *tableSchema, *indexTableSchema);
-        }
+        ValidateIndexSchema(
+            kind,
+            *mountInfos[0]->Schemas[ETableSchemaKind::Primary],
+            *indexTableSchema,
+            predicate,
+            evaluatedColumnsSchema,
+            unfoldedColumnName);
 
         attributes->Set("table_id", tableId);
         attributes->Set("index_table_id", indexTableId);
 
         return Client_->CreateObjectImpl(
             type,
-            PrimaryMasterCellTagSentinel,
+            cellTag,
             *attributes,
             options);
     }

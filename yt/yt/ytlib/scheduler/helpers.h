@@ -29,6 +29,10 @@ namespace NYT::NScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TAllocationId AllocationIdFromJobId(TJobId jobId);
+
+////////////////////////////////////////////////////////////////////////////////
+
 void ApplyJobShellOptionsUpdate(TJobShellOptionsMap* origin, const TJobShellOptionsUpdateMap& update);
 
 class TJobShellInfo
@@ -146,7 +150,7 @@ private:
 void ValidateOperationAccessByAco(
     const std::optional<std::string>& user,
     TOperationId operationId,
-    TAllocationId allocationId,
+    TJobId jobId,
     NYTree::EPermissionSet permissionSet,
     const TString& acoName,
     const NApi::NNative::IClientPtr& client,
@@ -155,7 +159,7 @@ void ValidateOperationAccessByAco(
 void ValidateOperationAccessByAcl(
     const std::optional<std::string>& user,
     TOperationId operationId,
-    TAllocationId allocationId,
+    TJobId jobId,
     NYTree::EPermissionSet permissionSet,
     const NSecurityClient::TSerializableAccessControlList& acl,
     const NApi::IClientPtr& client,
@@ -164,7 +168,15 @@ void ValidateOperationAccessByAcl(
 void ValidateOperationAccess(
     const std::optional<std::string>& user,
     TOperationId operationId,
-    TAllocationId allocationId,
+    TJobId jobId,
+    NYTree::EPermissionSet permissionSet,
+    const TAccessControlRule& accessControlRule,
+    const NApi::NNative::IClientPtr& client,
+    const NLogging::TLogger& logger);
+
+void ValidateOperationAccess(
+    const std::optional<std::string>& user,
+    TOperationId operationId,
     NYTree::EPermissionSet permissionSet,
     const TAccessControlRule& accessControlRule,
     const NApi::NNative::IClientPtr& client,

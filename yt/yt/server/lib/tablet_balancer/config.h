@@ -9,7 +9,7 @@
 namespace NYT::NTabletBalancer {
 
 const TString DefaultGroupName = "default";
-const TString LegacyGroupName = "legacy";
+const TString LegacyOrdinaryGroupName = "legacy";
 const TString LegacyInMemoryGroupName = "legacy_in_memory";
 
 ////////////////////////////////////////////////////////////////////////////////

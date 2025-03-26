@@ -4,6 +4,7 @@
 #include "config.h"
 #include "dynamic_config_manager.h"
 #include "helpers.h"
+#include "move_iteration.h"
 #include "private.h"
 #include "public.h"
 #include "reshard_iteration.h"
@@ -192,13 +193,17 @@ private:
     void BalanceViaMoveInMemory(const TBundleStatePtr& bundleState);
     void BalanceViaMoveOrdinary(const TBundleStatePtr& bundleState);
     void TryBalanceViaMoveParameterized(const TBundleStatePtr& bundleState, const TGroupName& groupName);
-    void BalanceViaMoveParameterized(const TBundleStatePtr& bundleState, const TGroupName& groupName);
+    void BalanceViaMoveParameterized(
+        const TBundleStatePtr& bundleState,
+        const TGroupName& groupName,
+        const TTabletBalancingGroupConfigPtr& groupConfig);
     void TryBalanceViaReshardParameterized(const TBundleStatePtr& bundleState, const TGroupName& groupName);
     void BalanceViaReshardParameterized(const TBundleStatePtr& bundleState, const TGroupName& groupName);
 
     void ExecuteReshardIteration(
         const IReshardIterationPtr& reshardIteration,
         const TBundleStatePtr& bundleState);
+    void ExecuteMoveIteration(const IMoveIterationPtr& moveIteration);
 
     THashSet<TGroupName> GetBalancingGroups(const TTabletCellBundlePtr& bundleState) const;
 
@@ -772,202 +777,31 @@ bool TTabletBalancer::CouldAnyBalancingHappen(const TTabletCellBundlePtr& bundle
 
 void TTabletBalancer::BalanceViaMoveInMemory(const TBundleStatePtr& bundleState)
 {
-    YT_LOG_DEBUG("Balancing in memory tablets via move started (BundleName: %v)",
-        bundleState->GetBundle()->Name);
-
-    auto groupConfig = GetOrCrash(bundleState->GetBundle()->Config->Groups, LegacyInMemoryGroupName);
-    if (!bundleState->GetBundle()->Config->EnableInMemoryCellBalancer || !groupConfig->EnableMove) {
-        YT_LOG_DEBUG("Balancing in memory tablets via move is disabled (BundleName: %v)",
-            bundleState->GetBundle()->Name);
-        return;
-    }
-
-    TEventTimerGuard timer(GetProfilingTimer(
-        {bundleState->GetBundle()->Name, LegacyInMemoryGroupName},
-        EBalancingMode::InMemoryMove));
-
-    auto descriptors = WaitFor(
-        BIND(
-            ReassignInMemoryTablets,
-            bundleState->GetBundle(),
-            /*movableTables*/ std::nullopt,
-            /*ignoreTableWiseConfig*/ false,
-            Logger())
-        .AsyncVia(WorkerPool_->GetInvoker())
-        .Run())
-        .ValueOrThrow();
-
-    int actionCount = 0;
-    auto groupTag = TGlobalGroupTag(bundleState->GetBundle()->Name, LegacyInMemoryGroupName);
-
-    if (!descriptors.empty()) {
-        for (auto descriptor : descriptors) {
-            if (!TryScheduleActionCreation(groupTag, descriptor)) {
-                SaveFatalBundleError(groupTag.first, TError(
-                    NTabletBalancer::EErrorCode::GroupActionLimitExceeded,
-                    "Group %Qv has exceeded the limit for creating actions. "
-                    "Failed to schedule in-memory move action",
-                    groupTag.second)
-                    << TErrorAttribute("limit", ActionCountLimiter_.GroupLimit));
-                break;
-            }
-
-            auto tablet = GetOrCrash(bundleState->Tablets(), descriptor.TabletId);
-            bundleState->GetProfilingCounters(
-                tablet->Table,
-                LegacyInMemoryGroupName).InMemoryMoves.Increment(1);
-
-            ++actionCount;
-            YT_LOG_DEBUG("Move action created (TabletId: %v, CellId: %v, TablePath: %v, CorrelationId: %v)",
-                descriptor.TabletId,
-                descriptor.TabletCellId,
-                tablet->Table->Path,
-                descriptor.CorrelationId);
-        }
-    }
-
-    YT_LOG_DEBUG("Balancing in memory tablets via move finished (BundleName: %v, ActionCount: %v)",
-        bundleState->GetBundle()->Name,
-        actionCount);
+    ExecuteMoveIteration(CreateInMemoryMoveIteration(
+        bundleState,
+        GetOrCrash(bundleState->GetBundle()->Config->Groups, LegacyInMemoryGroupName),
+        DynamicConfig_.Acquire()));
 }
 
 void TTabletBalancer::BalanceViaMoveOrdinary(const TBundleStatePtr& bundleState)
 {
-    YT_LOG_DEBUG("Balancing ordinary tablets via move started (BundleName: %v)",
-        bundleState->GetBundle()->Name);
-
-    auto groupConfig = GetOrCrash(bundleState->GetBundle()->Config->Groups, LegacyGroupName);
-    if (!bundleState->GetBundle()->Config->EnableCellBalancer || !groupConfig->EnableMove) {
-        YT_LOG_DEBUG("Balancing ordinary tablets via move is disabled (BundleName: %v)",
-            bundleState->GetBundle()->Name);
-        return;
-    }
-
-    TEventTimerGuard timer(GetProfilingTimer(
-        {bundleState->GetBundle()->Name, LegacyGroupName},
-        EBalancingMode::OrdinaryMove));
-
-    auto descriptors = WaitFor(
-        BIND(
-            ReassignOrdinaryTablets,
-            bundleState->GetBundle(),
-            /*movableTables*/ std::nullopt,
-            Logger())
-        .AsyncVia(WorkerPool_->GetInvoker())
-        .Run())
-        .ValueOrThrow();
-
-    int actionCount = 0;
-    auto groupTag = TGlobalGroupTag(bundleState->GetBundle()->Name, LegacyGroupName);
-
-    if (!descriptors.empty()) {
-        for (auto descriptor : descriptors) {
-            if (!TryScheduleActionCreation(groupTag, descriptor)) {
-                SaveFatalBundleError(groupTag.first, TError(
-                    NTabletBalancer::EErrorCode::GroupActionLimitExceeded,
-                    "Group %Qv has exceeded the limit for creating actions. "
-                    "Failed to schedule ordinary move action",
-                    groupTag.second)
-                    << TErrorAttribute("limit", ActionCountLimiter_.GroupLimit));
-                break;
-            }
-
-            auto tablet = GetOrCrash(bundleState->Tablets(), descriptor.TabletId);
-            bundleState->GetProfilingCounters(
-                tablet->Table,
-                LegacyGroupName).OrdinaryMoves.Increment(1);
-
-            ++actionCount;
-            YT_LOG_DEBUG("Move action created (TabletId: %v, CellId: %v, TablePath: %v, CorrelationId: %v)",
-                descriptor.TabletId,
-                descriptor.TabletCellId,
-                tablet->Table->Path,
-                descriptor.CorrelationId);
-        }
-    }
-
-    YT_LOG_DEBUG("Balancing ordinary tablets via move finished (BundleName: %v, ActionCount: %v)",
-        bundleState->GetBundle()->Name,
-        actionCount);
+    ExecuteMoveIteration(CreateOrdinaryMoveIteration(
+        bundleState,
+        GetOrCrash(bundleState->GetBundle()->Config->Groups, LegacyOrdinaryGroupName),
+        DynamicConfig_.Acquire()));
 }
 
-void TTabletBalancer::BalanceViaMoveParameterized(const TBundleStatePtr& bundleState, const TGroupName& groupName)
+void TTabletBalancer::BalanceViaMoveParameterized(
+    const TBundleStatePtr& bundleState,
+    const TGroupName& groupName,
+    const TTabletBalancingGroupConfigPtr& groupConfig)
 {
-    YT_LOG_DEBUG("Balancing tablets via parameterized move started (BundleName: %v, Group: %v)",
-        bundleState->GetBundle()->Name,
-        groupName);
-
-    auto groupConfig = GetOrCrash(bundleState->GetBundle()->Config->Groups, groupName);
-    if (!groupConfig->EnableMove) {
-        YT_LOG_DEBUG("Balancing tablets via parameterized move is disabled (BundleName: %v, Group: %v)",
-            bundleState->GetBundle()->Name,
-            groupName);
-        return;
-    }
-
-    auto groupTag = TGlobalGroupTag(bundleState->GetBundle()->Name, groupName);
-    auto metricTracker = GetParameterizedMetricTracker(groupTag);
-
-    auto dynamicConfig = DynamicConfig_.Acquire();
-
-    auto descriptors = WaitFor(
-        BIND(
-            ReassignTabletsParameterized,
-            bundleState->GetBundle(),
-            bundleState->PerformanceCountersKeys(),
-            bundleState->GetPerformanceCountersTableSchema(),
-            TParameterizedReassignSolverConfig{
-                .MaxMoveActionCount = dynamicConfig->MaxParameterizedMoveActionCount,
-                .NodeDeviationThreshold = dynamicConfig->ParameterizedNodeDeviationThreshold,
-                .CellDeviationThreshold = dynamicConfig->ParameterizedCellDeviationThreshold,
-                .MinRelativeMetricImprovement = dynamicConfig->ParameterizedMinRelativeMetricImprovement,
-                .Metric = dynamicConfig->DefaultParameterizedMetric,
-                .Factors = dynamicConfig->ParameterizedFactors,
-            }.MergeWith(
-                groupConfig->Parameterized,
-                std::min(dynamicConfig->MaxActionsPerGroup, dynamicConfig->MaxParameterizedMoveActionHardLimit)),
-            groupName,
-            metricTracker,
-            Logger())
-        .AsyncVia(WorkerPool_->GetInvoker())
-        .Run())
-        .ValueOrThrow();
-
-    int actionCount = 0;
-
-    if (!descriptors.empty()) {
-        for (auto descriptor : descriptors) {
-            if (!TryScheduleActionCreation(groupTag, descriptor)) {
-                SaveFatalBundleError(groupTag.first, TError(
-                    NTabletBalancer::EErrorCode::GroupActionLimitExceeded,
-                    "Group %Qv has exceeded the limit for creating actions. "
-                    "Failed to schedule parameterized move action",
-                    groupTag.second)
-                    << TErrorAttribute("limit", ActionCountLimiter_.GroupLimit));
-                break;
-            }
-
-            auto tablet = GetOrCrash(bundleState->Tablets(), descriptor.TabletId);
-            bundleState->GetProfilingCounters(
-                tablet->Table,
-                groupName).ParameterizedMoves.Increment(1);
-
-            ++actionCount;
-            YT_LOG_DEBUG("Move action created (TabletId: %v, CellId: %v, TablePath: %v, CorrelationId: %v)",
-                descriptor.TabletId,
-                descriptor.TabletCellId,
-                tablet->Table->Path,
-                descriptor.CorrelationId);
-
-            ApplyMoveTabletAction(tablet, descriptor.TabletCellId);
-        }
-    }
-
-    if (actionCount > 0) {
-        ParameterizedBalancingScheduler_.UpdateBalancingTime({bundleState->GetBundle()->Name, groupName});
-    }
-
-    YT_LOG_DEBUG("Balance tablets via parameterized move finished (ActionCount: %v)", actionCount);
+    ExecuteMoveIteration(CreateParameterizedMoveIteration(
+        groupName,
+        bundleState,
+        GetParameterizedMetricTracker({bundleState->GetBundle()->Name, groupName}),
+        groupConfig,
+        DynamicConfig_.Acquire()));
 }
 
 void TTabletBalancer::BalanceViaReshardParameterized(const TBundleStatePtr& bundleState, const TGroupName& groupName)
@@ -981,14 +815,11 @@ void TTabletBalancer::BalanceViaReshardParameterized(const TBundleStatePtr& bund
 void TTabletBalancer::TryBalanceViaMoveParameterized(const TBundleStatePtr& bundleState, const TGroupName& groupName)
 {
     const auto bundle = bundleState->GetBundle();
-    TEventTimerGuard timer(GetProfilingTimer(
-        {bundle->Name, groupName},
-        EBalancingMode::ParameterizedMove));
+    const auto& groupConfig = GetOrCrash(bundle->Config->Groups, groupName);
 
     try {
-        BalanceViaMoveParameterized(bundleState, groupName);
+        BalanceViaMoveParameterized(bundleState, groupName, groupConfig);
     } catch (const std::exception& ex) {
-        const auto& groupConfig = GetOrCrash(bundle->Config->Groups, groupName);
         YT_LOG_ERROR(ex,
             "Parameterized balancing via move failed with an exception "
             "(BundleName: %v, Group: %v, GroupType: %v, GroupMetric: %v)",
@@ -1036,7 +867,7 @@ void TTabletBalancer::TryBalanceViaReshardParameterized(
 
 void TTabletBalancer::BalanceViaMove(const TBundleStatePtr& bundleState, const TGroupName& groupName)
 {
-    if (groupName == LegacyGroupName) {
+    if (groupName == LegacyOrdinaryGroupName) {
         BalanceViaMoveOrdinary(bundleState);
     } else if (groupName == LegacyInMemoryGroupName) {
         BalanceViaMoveInMemory(bundleState);
@@ -1184,6 +1015,61 @@ void TTabletBalancer::ExecuteReshardIteration(
     }
 
     reshardIteration->FinishIteration(actionCount);
+}
+
+void TTabletBalancer::ExecuteMoveIteration(const IMoveIterationPtr& moveIteration)
+{
+    moveIteration->StartIteration();
+
+    if (!moveIteration->GetGroupConfig()->EnableMove || !moveIteration->IsGroupBalancingEnabled()) {
+        moveIteration->LogDisabledBalancing();
+        return;
+    }
+
+    auto groupTag = TGlobalGroupTag(moveIteration->GetBundleName(), moveIteration->GetGroupName());
+    TEventTimerGuard timer(GetProfilingTimer(
+        groupTag,
+        moveIteration->GetBalancingMode()));
+
+    moveIteration->Prepare(TableRegistry_);
+
+    auto descriptors = WaitFor(moveIteration->ReassignTablets(WorkerPool_->GetInvoker()))
+        .ValueOrThrow();
+
+    int actionCount = 0;
+    if (!descriptors.empty()) {
+        for (auto descriptor : descriptors) {
+            if (!TryScheduleActionCreation(groupTag, descriptor)) {
+                SaveFatalBundleError(moveIteration->GetBundleName(), TError(
+                    NTabletBalancer::EErrorCode::GroupActionLimitExceeded,
+                    "Group %Qv has exceeded the limit for creating actions. "
+                    "Failed to schedule %v move action",
+                    moveIteration->GetGroupName(),
+                    moveIteration->GetActionSubtypeName())
+                    << TErrorAttribute("limit", ActionCountLimiter_.GroupLimit));
+                break;
+            }
+
+            auto tablet = GetOrCrash(moveIteration->GetBundle()->Tablets(), descriptor.TabletId);
+
+            moveIteration->UpdateProfilingCounters(tablet->Table);
+
+            ++actionCount;
+            YT_LOG_DEBUG("Move action created (TabletId: %v, CellId: %v, TablePath: %v, CorrelationId: %v)",
+                descriptor.TabletId,
+                descriptor.TabletCellId,
+                tablet->Table->Path,
+                descriptor.CorrelationId);
+
+            ApplyMoveTabletAction(tablet, descriptor.TabletCellId);
+        }
+    }
+
+    if (actionCount > 0) {
+        ParameterizedBalancingScheduler_.UpdateBalancingTime(groupTag);
+    }
+
+    moveIteration->FinishIteration(actionCount);
 }
 
 std::vector<TReshardDescriptor> TTabletBalancer::PickPivotsForDescriptors(

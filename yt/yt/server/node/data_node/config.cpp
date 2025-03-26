@@ -107,6 +107,15 @@ void TChunkLocationConfig::ApplyDynamicInplace(const TChunkLocationDynamicConfig
 
     UpdateYsonStructField(ReadMemoryLimit, dynamicConfig.ReadMemoryLimit);
 
+    for (auto category : TEnumTraits<EWorkloadCategory>::GetDomainValues()) {
+        auto priority = dynamicConfig.FairShareWorkloadCategoryWeights[category];
+        if (priority) {
+            FairShareWorkloadCategoryWeights[category] = *priority;
+        } else {
+            FairShareWorkloadCategoryWeights[category] = DefaultFairShareWorkloadCategoryWeights[category];
+        }
+    }
+
     UpdateYsonStructField(WriteMemoryLimit, dynamicConfig.WriteMemoryLimit);
 
     UpdateYsonStructField(SessionCountLimit, dynamicConfig.SessionCountLimit);
@@ -133,6 +142,9 @@ void TChunkLocationConfig::Register(TRegistrar registrar)
         .Default(NIO::EIOEngineType::ThreadPool);
     registrar.Parameter("io_config", &TThis::IOConfig)
         .Optional();
+
+    registrar.Parameter("fair_share_workload_category_priorities", &TThis::FairShareWorkloadCategoryWeights)
+        .Default();
 
     registrar.Parameter("read_memory_limit", &TThis::ReadMemoryLimit)
         .Default(10_GB);
@@ -818,7 +830,7 @@ void TDataNodeConfig::Register(TRegistrar registrar)
     registrar.Parameter("session_timeout", &TThis::SessionTimeout)
         .Default(TDuration::Seconds(120));
     registrar.Parameter("long_live_read_session_treshold", &TThis::LongLiveReadSessionTreshold)
-        .Default(TDuration::Minutes(10));
+        .Default(TDuration::Minutes(60));
     registrar.Parameter("session_block_reorder_timeout", &TThis::SessionBlockReorderTimeout)
         .Default(TDuration::Seconds(10));
     registrar.Parameter("node_rpc_timeout", &TThis::NodeRpcTimeout)

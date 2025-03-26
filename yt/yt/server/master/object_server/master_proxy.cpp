@@ -184,9 +184,10 @@ private:
         auto result = securityManager->CheckPermission(user, permission, acl);
 
         response->set_action(ToProto(result.Action));
-        if (result.Subject) {
-            ToProto(response->mutable_subject_id(), result.Subject->GetId());
-            response->set_subject_name(ToProto(result.Subject->GetName()));
+        if (result.SubjectId) {
+            auto* subject = securityManager->GetSubjectOrThrow(result.SubjectId);
+            ToProto(response->mutable_subject_id(), subject->GetId());
+            response->set_subject_name(ToProto(subject->GetName()));
         }
 
         context->SetResponseInfo("Action: %v", result.Action);

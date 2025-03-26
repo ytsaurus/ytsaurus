@@ -18,23 +18,32 @@ class TChunkBlockDevice
 {
 public:
     TChunkBlockDevice(
+        TString exportId,
         TChunkBlockDeviceConfigPtr config,
         IThroughputThrottlerPtr readThrottler,
         IThroughputThrottlerPtr writeThrottler,
         IInvokerPtr invoker,
         IChannelPtr channel,
         TLogger logger)
-        : Config_(std::move(config))
+        : ExportId_(exportId)
+        , Config_(std::move(config))
         , ReadThrottler_(std::move(readThrottler))
         , WriteThrottler_(std::move(writeThrottler))
         , Invoker_(std::move(invoker))
-        , Logger(std::move(logger))
+        , Logger(logger.WithTag("ExportId: %v", ExportId_))
         , ChunkHandler_(CreateChunkHandler(
             Config_,
             Invoker_,
             std::move(channel),
             Logger))
     { }
+
+    ~TChunkBlockDevice()
+    {
+        YT_LOG_INFO("Destructing chunk block device (Size: %v, Filesystem: %v)",
+            Config_->Size,
+            Config_->FsType);
+    }
 
     i64 GetTotalSize() const override
     {
@@ -121,6 +130,7 @@ public:
     }
 
 private:
+    const TString ExportId_;
     const TChunkBlockDeviceConfigPtr Config_;
     const IThroughputThrottlerPtr ReadThrottler_;
     const IThroughputThrottlerPtr WriteThrottler_;
@@ -132,6 +142,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 IBlockDevicePtr CreateChunkBlockDevice(
+    TString exportId,
     TChunkBlockDeviceConfigPtr config,
     IThroughputThrottlerPtr readThrottler,
     IThroughputThrottlerPtr writeThrottler,
@@ -140,6 +151,7 @@ IBlockDevicePtr CreateChunkBlockDevice(
     TLogger logger)
 {
     return New<TChunkBlockDevice>(
+        std::move(exportId),
         std::move(config),
         std::move(readThrottler),
         std::move(writeThrottler),

@@ -306,6 +306,8 @@ struct TPoolConfig
 
     bool AlwaysAllowGangOperations;
 
+    std::optional<TDuration> WaitingForResourcesOnNodeTimeout;
+
     void Validate(const TString& poolName);
 
     REGISTER_YSON_STRUCT(TPoolConfig);
@@ -766,6 +768,19 @@ void FromProto(TTmpfsVolumeConfig* tmpfsVolumeConfig, const NControllerAgent::NP
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TNbdDiskConfig
+    : public NYTree::TYsonStruct
+{
+    //! Address of data node that hosts NBD chunk.
+    std::optional<std::string> DataNodeAddress;
+
+    REGISTER_YSON_STRUCT(TNbdDiskConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TNbdDiskConfig)
+
 struct TDiskRequestConfig
     : public NYTree::TYsonStruct
 {
@@ -778,6 +793,9 @@ struct TDiskRequestConfig
     std::optional<TString> MediumName;
     std::optional<int> MediumIndex;
     std::optional<TString> Account;
+
+    //! Use Network Block Device (NBD) disk.
+    TNbdDiskConfigPtr NbdDisk;
 
     REGISTER_YSON_STRUCT(TDiskRequestConfig);
 
@@ -979,7 +997,6 @@ struct TFastIntermediateMediumTableWriterConfig
     static void Register(TRegistrar registrar);
 };
 
-DECLARE_REFCOUNTED_TYPE(TFastIntermediateMediumTableWriterConfig)
 DEFINE_REFCOUNTED_TYPE(TFastIntermediateMediumTableWriterConfig)
 
 ////////////////////////////////////////////////////////////////////////////////

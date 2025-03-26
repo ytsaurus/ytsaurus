@@ -92,6 +92,7 @@ private:
         NIO::TBlocksExtPtr BlocksExt;
         TLocationMemoryGuard LocationMemoryGuard;
         std::atomic<bool> Finished = false;
+        TLocationFairShareSlotPtr FairShareSlot = nullptr;
     };
 
     using TReadBlockSetSessionPtr = TIntrusivePtr<TReadBlockSetSession>;
@@ -110,8 +111,8 @@ private:
 
     TSharedRef WrapBlockWithDelayedReferenceHolder(TSharedRef rawReference, TDuration delayBeforeFree);
 
-    void CompleteSession(const TReadBlockSetSessionPtr& session) noexcept;
-    static void FailSession(const TReadBlockSetSessionPtr& session, const TError& error) noexcept;
+    void CompleteSession(const TReadBlockSetSessionPtr& session);
+    void FailSession(const TReadBlockSetSessionPtr& session, const TError& error);
 
     void DoReadMeta(
         const TReadMetaSessionPtr& session,

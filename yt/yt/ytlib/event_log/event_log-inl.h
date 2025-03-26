@@ -28,7 +28,7 @@ template <class TParent>
 NYTree::TFluentYsonBuilder::TAny<TFluentLogEventImpl<TParent>&&> TFluentLogEventImpl<TParent>::Item(TStringBuf key)
 {
     Consumer_->OnKeyedItem(key);
-    return NYTree::TFluentYsonBuilder::TAny<TThis&&>(this->Consumer, std::move(*this));
+    return NYTree::TFluentYsonBuilder::TAny<TThis&&>(Consumer_.get(), std::move(*this));
 }
 
 template <class TParent>

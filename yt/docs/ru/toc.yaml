@@ -377,7 +377,7 @@ items:
             href: user-guide/import.md
           - name: Работа с данными Microsoft Excel
             href: user-guide/excel.md
-      - name: Query tracker
+      - name: Query Tracker
         when: audience == "public"
         items:
           - name: Обзор
@@ -414,6 +414,8 @@ items:
                 href: api/python/dataclass.md
               - name: Примеры
                 href: api/python/examples.md
+          - name: Apache Airflow
+            href: api/airflow/userdoc.md
           - name: C++
             items:
               - name: Описание
@@ -487,7 +489,7 @@ items:
     when: datahub != true
     href: admin-guide/releases.md
   - name: FAQ
-    href: faq/faq.md
+    href: faq/index.md
   - name: Как сообщить о проблеме
     when: datahub != true
     href: user-guide/problems/howtoreport.md
