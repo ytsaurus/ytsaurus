@@ -4,6 +4,7 @@
 
 #include <yt/yt/server/lib/job_agent/public.h>
 
+#include <yt/yt/server/lib/nbd/config.h>
 #include <yt/yt/server/lib/nbd/image_reader.h>
 
 #include <yt/yt/server/lib/scheduler/public.h>
@@ -43,6 +44,16 @@ struct TVirtualSandboxData
     NNbd::IImageReaderPtr Reader;
 };
 
+//! Data necessary to create NBD root volume.
+struct TSandboxNbdRootVolumeData
+{
+    i64 NbdDiskSize = 0;
+    int NbdDiskMediumIndex = 0;
+    NNbd::EFilesystemType NbdDiskFsType = NNbd::EFilesystemType::Ext4;
+    TString NbdExportId;
+    std::optional<std::string> NbdDiskDataNodeAddress;
+};
+
 struct TUserSandboxOptions
 {
     std::vector<TTmpfsVolume> TmpfsVolumes;
@@ -51,6 +62,7 @@ struct TUserSandboxOptions
     bool EnableRootVolumeDiskQuota = false;
     int UserId = 0;
     std::optional<TVirtualSandboxData> VirtualSandboxData;
+    std::optional<TSandboxNbdRootVolumeData> SandboxNbdRootVolumeData;
 
     TCallback<void(const TError&)> DiskOverdraftCallback;
 };
