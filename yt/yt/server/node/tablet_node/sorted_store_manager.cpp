@@ -933,17 +933,13 @@ TStoreFlushCallback TSortedStoreManager::MakeStoreFlushCallback(
                     return;
                 }
 
-                auto enableNewScanReader =
-                    mountConfig->EnableNewScanReaderForLookup ||
-                    mountConfig->EnableNewScanReaderForSelect;
-
                 auto result = false;
                 if (auto chunkMetaManager = TabletContext_->GetVersionedChunkMetaManager()) {
                     result = chunkMetaManager->InsertMeta(
                         TVersionedChunkMetaCacheKey{
                             .ChunkId = storeWriter->GetChunkId(),
                             .TableSchemaKeyColumnCount = tabletSnapshot->PhysicalSchema->GetKeyColumnCount(),
-                            .PreparedColumnarMeta = enableNewScanReader,
+                            .PreparedColumnarMeta = true,
                         },
                         New<TRefCountedChunkMeta>(*finalizedMeta));
                 }

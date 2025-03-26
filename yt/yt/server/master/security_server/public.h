@@ -4,6 +4,8 @@
 
 #include <yt/yt/server/lib/hydra/public.h>
 
+#include <yt/yt/server/lib/security_server/public.h>
+
 #include <yt/yt/ytlib/security_client/public.h>
 
 #include <yt/yt/core/misc/maybe_inf.h>
@@ -84,10 +86,7 @@ using TAccountMulticellStatistics = THashMap<NObjectClient::TCellTag, TAccountSt
 
 DECLARE_REFCOUNTED_STRUCT(TSerializableAccessControlEntry)
 
-struct TPermissionCheckTarget;
 struct TPermissionCheckOptions;
-struct TPermissionCheckResult;
-struct TPermissionCheckResponse;
 
 class TClusterResources;
 class TRichClusterResources;
@@ -122,27 +121,6 @@ DECLARE_REFCOUNTED_STRUCT(TDynamicSecurityManagerConfig)
 DECLARE_REFCOUNTED_STRUCT(IUserActivityTracker)
 
 DECLARE_REFCOUNTED_CLASS(TRequestTracker)
-
-DEFINE_ENUM(EAccessControlEvent,
-    (UserCreated)
-    (GroupCreated)
-    (UserDestroyed)
-    (GroupDestroyed)
-    (MemberAdded)
-    (MemberRemoved)
-    (SubjectRenamed)
-    (AccessDenied)
-    (ObjectAcdUpdated)
-    (NetworkProjectCreated)
-    (NetworkProjectDestroyed)
-    (ProxyRoleCreated)
-    (ProxyRoleDestroyed)
-);
-
-DEFINE_ENUM(EAccessDeniedReason,
-    (DeniedByAce)
-    (NoAllowingAce)
-);
 
 DEFINE_ENUM(EUserWorkloadType,
     (Read)

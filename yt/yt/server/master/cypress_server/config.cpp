@@ -128,6 +128,9 @@ void TDynamicCypressManagerConfig::Register(TRegistrar registrar)
         .GreaterThan(0)
         .DontSerializeDefault();
 
+    registrar.Parameter("use_proper_branched_parent_in_lock_copy_destination", &TThis::UseProperBranchedParentInLockCopyDestination)
+        .Default(true);
+
     registrar.Postprocessor([] (TThis* config) {
         NJournalClient::ValidateJournalAttributes(
             config->DefaultJournalErasureCodec,

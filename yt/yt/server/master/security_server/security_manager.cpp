@@ -64,6 +64,9 @@
 #include <yt/yt/server/lib/hydra/composite_automaton.h>
 #include <yt/yt/server/lib/hydra/entity_map.h>
 
+#include <yt/yt/server/lib/security_server/helpers.h>
+#include <yt/yt/server/lib/security_server/permission_checker.h>
+
 #include <yt/yt/ytlib/security_client/group_ypath_proxy.h>
 
 #include <yt/yt/client/object_client/helpers.h>
@@ -2392,7 +2395,7 @@ public:
         }
 
         TPermissionCheckTarget target;
-        target.Object = object;
+        target.ObjectId = object->GetId();
         LogAndThrowAuthorizationError(
             target,
             user,
@@ -2418,78 +2421,49 @@ public:
         EPermission permission,
         const TPermissionCheckResult& result) override
     {
-        if (result.Action != ESecurityAction::Deny) {
-            return;
+        YT_ASSERT(result.Action == ESecurityAction::Deny);
+
+        const auto& objectManager = Bootstrap_->GetObjectManager();
+        auto* object = objectManager->GetObject(target.ObjectId);
+        auto handler = objectManager->GetHandler(object);
+
+        auto targetObjectName = FormatPermissionValidationTargetName(target, handler->GetName(object));
+        auto targetObjectPath = handler->GetPath(object);
+
+        std::string resultObjectName;
+        std::string resultSubjectName;
+        if (result.ObjectId && result.SubjectId) {
+            auto deniedBy = objectManager->GetObject(result.ObjectId);
+            resultObjectName = objectManager->GetHandler(deniedBy)->GetName(deniedBy);
+
+            auto deniedFor = GetSubjectOrThrow(result.SubjectId);
+            resultSubjectName = deniedFor->GetName();
         }
 
-        auto objectName = GetPermissionCheckTargetName(target);
-
         TError error;
-
         if (IsSafeMode()) {
             error = TError(
                 NSecurityClient::EErrorCode::SafeModeEnabled,
                 "Access denied for user %Qv: cluster is in safe mode; "
                 "check for announces at https://infra.yandex-team.ru before reporting any issues",
                 user->GetName());
-        } else {
-            auto event = LogStructuredEventFluently(Logger(), ELogLevel::Info)
-                .Item("event").Value(EAccessControlEvent::AccessDenied)
-                .Item("user").Value(user->GetName())
-                .Item("permission").Value(permission)
-                .Item("object_name").Value(objectName);
-
-            if (target.Column) {
-                event = event
-                    .Item("object_column").Value(*target.Column);
-            }
-
-            const auto& objectManager = Bootstrap_->GetObjectManager();
-            if (result.Object && result.Subject) {
-                auto deniedBy = objectManager->GetHandler(result.Object)->GetName(result.Object);
-
-                error = TError(
-                    NSecurityClient::EErrorCode::AuthorizationError,
-                    "Access denied for user %Qv: %Qlv permission for %v is denied for %Qv by ACE at %v",
-                    user->GetName(),
-                    permission,
-                    objectName,
-                    result.Subject->GetName(),
-                    deniedBy)
-                    << TErrorAttribute("denied_by", result.Object->GetId())
-                    << TErrorAttribute("denied_for", result.Subject->GetId());
-
-                event
-                    .Item("reason").Value(EAccessDeniedReason::DeniedByAce)
-                    .Item("denied_for").Value(result.Subject->GetName())
-                    .Item("denied_by").Value(deniedBy);
-            } else {
-                error = TError(
-                    NSecurityClient::EErrorCode::AuthorizationError,
-                    "Access denied for user %Qv: %Qlv permission for %v is not allowed by any matching ACE",
-                    user->GetName(),
-                    permission,
-                    objectName);
-
-                event
-                    .Item("reason").Value(EAccessDeniedReason::NoAllowingAce);
-            }
-
-            const auto& handler = objectManager->GetHandler(target.Object);
-            auto objectPath = handler->GetPath(target.Object);
-            if (!objectPath.empty()) {
-                error = error << TErrorAttribute("path", objectPath);
-            }
+            return ThrowAuthorizationError(
+                std::move(error),
+                target,
+                permission,
+                user->GetName());
         }
 
-        error <<= TErrorAttribute("permission", permission);
-        error <<= TErrorAttribute("user", user->GetName());
-        error <<= TErrorAttribute("object_id", target.Object->GetId());
-        if (target.Column) {
-            error <<= TErrorAttribute("object_column", target.Column);
-        }
-        error <<= TErrorAttribute("object_type", target.Object->GetType());
-        THROW_ERROR(error);
+        return NSecurityServer::LogAndThrowAuthorizationError(
+            Logger(),
+            target,
+            result,
+            permission,
+            user->GetName(),
+            targetObjectName,
+            targetObjectPath,
+            resultObjectName,
+            resultSubjectName);
     }
 
     void ValidateResourceUsageIncrease(
@@ -4647,41 +4621,26 @@ private:
     }
 
     class TPermissionChecker
+        : public NSecurityServer::TPermissionChecker
     {
+    private:
+        using TBase = NSecurityServer::TPermissionChecker;
+
     public:
         TPermissionChecker(
             TSecurityManager* impl,
             TUser* user,
             EPermission permission,
             const TPermissionCheckOptions& options)
-            : SecurityManager_(impl)
+            : NSecurityServer::TPermissionChecker(permission, options)
+            , SecurityManager_(impl)
             , User_(user)
-            , FullRead_(Any(permission & EPermission::FullRead))
-            , Permission_(FullRead_
-                ? permission & ~EPermission::FullRead | EPermission::Read
-                : permission)
-            , Options_(options)
         {
-            auto fastAction = FastCheckPermission();
-            if (fastAction != ESecurityAction::Undefined) {
+            if (auto fastAction = FastCheckPermission(); fastAction != ESecurityAction::Undefined) {
                 Response_ = MakeFastCheckPermissionResponse(fastAction, options);
                 Proceed_ = false;
                 return;
             }
-
-            Response_.Action = ESecurityAction::Undefined;
-            if (Options_.Columns) {
-                for (const auto& column : *Options_.Columns) {
-                    // NB: Multiple occurrences are possible.
-                    Columns_.insert(column);
-                }
-            }
-            Proceed_ = true;
-        }
-
-        bool ShouldProceed() const
-        {
-            return Proceed_;
         }
 
         void ProcessAce(
@@ -4690,131 +4649,19 @@ private:
             TObject* object,
             int depth)
         {
-            if (!Proceed_) {
-                return;
-            }
+            auto matchAceSubjectCallback = BIND(
+                &TPermissionChecker::AdjustAndMatchAceSubject, this, owner);
 
-            if (ace.Columns) {
-                for (const auto& column : *ace.Columns) {
-                    auto it = Columns_.find(column);
-                    if (it == Columns_.end()) {
-                        continue;
-                    }
-                    // NB: Multiple occurrences are possible.
-                    ColumnToResult_.emplace(*it, TPermissionCheckResult());
-                }
-            }
-
-            if (!CheckInheritanceMode(ace.InheritanceMode, depth)) {
-                return;
-            }
-
-            if (None(ace.Permissions & Permission_)) {
-                return;
-            }
-
-            if (Permission_ == EPermission::RegisterQueueConsumer) {
-                // RegisterQueueConsumer may only be present in ACE as a single permission;
-                // in this case it is ensured that vitality is specified.
-                YT_VERIFY(ace.Vital);
-                if (!CheckVitalityMatch(*ace.Vital, Options_.Vital.value_or(false))) {
-                    return;
-                }
-            }
-
-            for (auto subject : ace.Subjects) {
-                auto* adjustedSubject = subject == SecurityManager_->GetOwnerUser() && owner
-                    ? owner
-                    : subject.Get();
-                if (!adjustedSubject) {
-                    continue;
-                }
-
-                if (!CheckSubjectMatch(adjustedSubject, User_)) {
-                    continue;
-                }
-
-                if (ace.Columns) {
-                    for (const auto& column : *ace.Columns) {
-                        auto it = ColumnToResult_.find(column);
-                        if (it == ColumnToResult_.end()) {
-                            continue;
-                        }
-                        auto& columnResult = it->second;
-                        ProcessMatchingAce(
-                            &columnResult,
-                            ace,
-                            adjustedSubject,
-                            object);
-                        if (FullRead_ && columnResult.Action == ESecurityAction::Deny) {
-                            SetDeny(adjustedSubject, object);
-                            break;
-                        }
-                    }
-                } else {
-                    ProcessMatchingAce(
-                        &Response_,
-                        ace,
-                        adjustedSubject,
-                        object);
-                    if (Response_.Action == ESecurityAction::Deny) {
-                        SetDeny(adjustedSubject, object);
-                        break;
-                    }
-                }
-
-                if (!Proceed_) {
-                    break;
-                }
-            }
-        }
-
-        TPermissionCheckResponse GetResponse()
-        {
-            if (Response_.Action == ESecurityAction::Undefined) {
-                SetDeny(nullptr, nullptr);
-            }
-
-            if (Response_.Action == ESecurityAction::Allow && Options_.Columns) {
-                Response_.Columns = std::vector<TPermissionCheckResult>(Options_.Columns->size());
-                std::optional<TPermissionCheckResult> deniedColumnResult;
-                for (size_t index = 0; index < Options_.Columns->size(); ++index) {
-                    const auto& column = (*Options_.Columns)[index];
-                    auto& result = (*Response_.Columns)[index];
-                    auto it = ColumnToResult_.find(column);
-                    if (it == ColumnToResult_.end()) {
-                        result = static_cast<const TPermissionCheckResult>(Response_);
-                    } else {
-                        result = it->second;
-                        if (result.Action == ESecurityAction::Undefined) {
-                            result.Action = ESecurityAction::Deny;
-                            if (!deniedColumnResult) {
-                                deniedColumnResult = result;
-                            }
-                        }
-                    }
-                }
-
-                if (FullRead_ && deniedColumnResult) {
-                    SetDeny(deniedColumnResult->Subject, deniedColumnResult->Object);
-                }
-            }
-
-            return std::move(Response_);
+            return TBase::ProcessAce(
+                ace,
+                matchAceSubjectCallback,
+                GetObjectId(object),
+                depth);
         }
 
     private:
         TSecurityManager* const SecurityManager_;
         TUser* const User_;
-        const bool FullRead_;
-        const EPermission Permission_;
-        const TPermissionCheckOptions& Options_;
-
-        THashSet<TStringBuf> Columns_;
-        THashMap<TStringBuf, TPermissionCheckResult> ColumnToResult_;
-
-        bool Proceed_;
-        TPermissionCheckResponse Response_;
 
         ESecurityAction FastCheckPermission()
         {
@@ -4846,30 +4693,20 @@ private:
             return ESecurityAction::Undefined;
         }
 
-        static bool CheckSubjectMatch(TSubject* subject, TUser* user)
+        TSubjectId AdjustAndMatchAceSubject(TSubject* owner, TRawObjectPtr<TSubject> subject)
         {
-            switch (subject->GetType()) {
-                case EObjectType::User:
-                    return subject == user;
-
-                case EObjectType::Group: {
-                    auto* subjectGroup = subject->AsGroup();
-                    return user->RecursiveMemberOf().find(subjectGroup) != user->RecursiveMemberOf().end();
-                }
-
-                default:
-                    YT_ABORT();
+            auto* adjustedSubject = subject == SecurityManager_->GetOwnerUser() && owner
+                ? owner
+                : subject.Get();
+            if (!adjustedSubject) {
+                return NullObjectId;
             }
-        }
 
-        static bool CheckInheritanceMode(EAceInheritanceMode mode, int depth)
-        {
-            return GetInheritedInheritanceMode(mode, depth).has_value();
-        }
+            if (!CheckSubjectMatch(adjustedSubject, User_)) {
+                return NullObjectId;
+            }
 
-        static bool CheckVitalityMatch(bool vital, bool requestedVital)
-        {
-            return !requestedVital || vital;
+            return adjustedSubject->GetId();
         }
 
         static TPermissionCheckResponse MakeFastCheckPermissionResponse(ESecurityAction action, const TPermissionCheckOptions& options)
@@ -4885,69 +4722,22 @@ private:
             return response;
         }
 
-        void ProcessMatchingAce(
-            TPermissionCheckResult* result,
-            const TAccessControlEntry& ace,
-            TSubject* subject,
-            TObject* object)
+        static bool CheckSubjectMatch(TSubject* subject, TUser* user)
         {
-            if (result->Action == ESecurityAction::Deny) {
-                return;
-            }
+            switch (subject->GetType()) {
+                case EObjectType::User:
+                    return subject == user;
 
-            result->Action = ace.Action;
-            result->Object = object;
-            result->Subject = subject;
-        }
-
-        static void SetDeny(TPermissionCheckResult* result, TSubject* subject, TObject* object)
-        {
-            result->Action = ESecurityAction::Deny;
-            result->Subject = subject;
-            result->Object = object;
-        }
-
-        void SetDeny(TSubject* subject, TObject* object)
-        {
-            SetDeny(&Response_, subject, object);
-            if (Response_.Columns) {
-                for (auto& result : *Response_.Columns) {
-                    SetDeny(&result, subject, object);
+                case EObjectType::Group: {
+                    auto* subjectGroup = subject->AsGroup();
+                    return user->RecursiveMemberOf().find(subjectGroup) != user->RecursiveMemberOf().end();
                 }
+
+                default:
+                    YT_ABORT();
             }
-            Proceed_ = false;
         }
     };
-
-    static std::optional<EAceInheritanceMode> GetInheritedInheritanceMode(EAceInheritanceMode mode, int depth)
-    {
-        auto nothing = std::optional<EAceInheritanceMode>();
-        switch (mode) {
-            case EAceInheritanceMode::ObjectAndDescendants:
-                return EAceInheritanceMode::ObjectAndDescendants;
-            case EAceInheritanceMode::ObjectOnly:
-                return (depth == 0 ? EAceInheritanceMode::ObjectOnly : nothing);
-            case EAceInheritanceMode::DescendantsOnly:
-                return (depth > 0 ? EAceInheritanceMode::ObjectAndDescendants : nothing);
-            case EAceInheritanceMode::ImmediateDescendantsOnly:
-                return (depth == 1 ? EAceInheritanceMode::ObjectOnly : nothing);
-            default:
-                YT_ABORT();
-        }
-    }
-
-    TString GetPermissionCheckTargetName(const TPermissionCheckTarget& target)
-    {
-        const auto& objectManager = Bootstrap_->GetObjectManager();
-        auto name = objectManager->GetHandler(target.Object)->GetName(target.Object);
-        if (target.Column) {
-            return Format("column %Qv of %v",
-                *target.Column,
-                name);
-        } else {
-            return name;
-        }
-    }
 
     const TDynamicSecurityManagerConfigPtr& GetDynamicConfig() const
     {

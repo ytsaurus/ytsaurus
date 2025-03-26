@@ -171,3 +171,15 @@ These transactions can be viewed via operation attributes:
 3. `debug_transaction_id` – transaction within which core and stderr tables are written.
 4. `async_scheduler_transaction_id` – transaction within which temporary data is written under an operation that always interrupts upon completion. For example, this is where intermediate data lives.
 5. `output_completion_transaction_id`, `debug_completion_transaction_id` – transactions serving a technical purpose, used upon successful completion of an operation to atomically commit the operation's result.
+
+## Using data from remote cluster
+
+In any operation one can specify `cluster` attribute on any number of input table paths. This will signal to the scheduler that the path describes a table on a different cluster. The name of the cluster should be the same as one would use in a RemoteCopy operation.
+{% if audience == "internal" %}
+   For example, to read from Arnold cluster, one should use `<cluster=arnold>//path/to/table` or `arnold://path/to/table` in the operation spec (see also [RichYPath](../../../user-guide/storage/ypath.md#rich_ypath)).
+{% else %}
+   For example, to read from cluster `my-cluster`, one should use `<cluster=my-cluster>//path/to/table` or `my-cluster://path/to/table` in the operation spec (see also [RichYPath](../../../user-guide/storage/ypath.md#rich_ypath)).
+ The cluster name (along with the cluster's connection parameters) must be registered in a `//sys/clusters` mapping by the administrator.
+{% endif %}
+
+User files (`/mapper/file_paths` and `/reducer/file_paths` parameters in the spec) cannot be read from a remote cluster. To use files from a remote cluster, they must be copied in advance via the RemoteCopy operation.

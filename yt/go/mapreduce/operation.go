@@ -30,43 +30,43 @@ var (
 	failedJobLimitExceededRE = regexp.MustCompile("Failed jobs limit exceeded")
 )
 
-func (o *operation) getOperationError(status *yt.OperationStatus) error {
-	innerErr := status.Result.Error
-
-	if yterrors.ContainsMessageRE(status.Result.Error, failedJobLimitExceededRE) {
+func (o *operation) getOperationError(opErr *yterrors.Error) error {
+	if yterrors.ContainsMessageRE(opErr, failedJobLimitExceededRE) {
 		result, err := o.yc.ListJobs(o.ctx, o.opID, &yt.ListJobsOptions{JobState: &yt.JobFailed})
 		if err != nil {
-			return yterrors.Err("unable to get list of failed jobs", innerErr)
+			return yterrors.Err("unable to get list of failed jobs", opErr)
 		}
 
 		if len(result.Jobs) == 0 {
-			return yterrors.Err("no failed jobs found", innerErr)
+			return yterrors.Err("no failed jobs found", opErr)
 		}
 
 		job := result.Jobs[0]
 		stderr, err := o.yc.GetJobStderr(o.ctx, o.opID, job.ID, nil)
 		if err != nil {
-			return yterrors.Err("unable to get job stderr", innerErr)
+			return yterrors.Err("unable to get job stderr", opErr)
 		}
 
 		return yterrors.Err("job failed",
-			innerErr,
+			opErr,
 			yterrors.Attr("stderr", string(stderr)))
 	}
 
-	return status.Result.Error
+	return opErr
 }
 
 func (o *operation) Wait() error {
 	for {
-		status, err := o.yc.GetOperation(o.ctx, o.opID, nil)
+		status, err := o.yc.GetOperation(o.ctx, o.opID, &yt.GetOperationOptions{
+			Attributes: []string{"state", "result"},
+		})
 		if err != nil {
 			return err
 		}
 
 		if status.State.IsFinished() {
 			if status.Result.Error != nil && status.Result.Error.Code != 0 {
-				return o.getOperationError(status)
+				return o.getOperationError(status.Result.Error)
 			}
 
 			return nil

@@ -267,7 +267,7 @@ def check_secondary_indices():
         attributes["external_cell_tag"] = get(f"#{table_id}/@external_cell_tag")
 
     create("table", "//tmp/index_table", attributes=attributes)
-    index_id = create_secondary_index("//tmp/main_table", "//tmp/index_table", "full_sync")
+    index_id = create_secondary_index("//tmp/main_table", "//tmp/index_table", "full_sync", "bijective")
 
     yield
 
@@ -276,12 +276,14 @@ def check_secondary_indices():
         index_id: {
             "index_path": "//tmp/index_table",
             "kind": "full_sync",
+            "table_to_index_correspondence": "bijective",
         }
     }
     assert get("//tmp/index_table/@index_to") == {
         "index_id": index_id,
         "table_path": "//tmp/main_table",
         "kind": "full_sync",
+        "table_to_index_correspondence": "bijective",
     }
 
 

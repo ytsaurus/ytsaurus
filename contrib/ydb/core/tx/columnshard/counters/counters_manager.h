@@ -16,6 +16,7 @@
 #include <contrib/ydb/core/protos/table_stats.pb.h>
 #include <contrib/ydb/core/tablet/tablet_counters.h>
 #include <contrib/ydb/core/tablet_flat/tablet_flat_executor.h>
+#include <contrib/ydb/core/tx/columnshard/common/path_id.h>
 #include <contrib/ydb/core/tx/columnshard/engines/column_engine.h>
 
 #include <library/cpp/time_provider/time_provider.h>
@@ -79,7 +80,7 @@ public:
         CSCounters.OnWriteOverloadShardWritesSize(size);
     }
 
-    void FillTableStats(ui64 pathId, ::NKikimrTableStats::TTableStats& tableStats) {
+    void FillTableStats(TInternalPathId pathId, ::NKikimrTableStats::TTableStats& tableStats) {
         ColumnTablesCounters->GetPathIdCounter(pathId)->FillStats(tableStats);
         BackgroundControllerCounters->FillStats(pathId, tableStats);
     }

@@ -35,7 +35,6 @@ PEERDIR(
     contrib/libs/croaring
     contrib/libs/double-conversion
     contrib/libs/farmhash
-    contrib/libs/fastops/fastops
     contrib/libs/fmt
     contrib/libs/icu
     contrib/libs/libc_compat
@@ -79,6 +78,12 @@ PEERDIR(
     library/cpp/consistent_hashing
     library/cpp/sanitizer/include
 )
+
+IF (ARCH_X86_64)
+    PEERDIR(
+        contrib/libs/fastops/fastops
+    )
+ENDIF()
 
 ADDINCL(
     GLOBAL contrib/clickhouse/src
@@ -2548,6 +2553,8 @@ SRCS(
     TableFunctions/registerDataLakeTableFunctions.cpp
     TableFunctions/registerTableFunctions.cpp
 )
+
+SRC(Functions/divide/divideImpl.cpp -DNAMESPACE=Generic)
 
 SRC_C_SSE2(Functions/divide/divideImpl.cpp -DNAMESPACE=SSE2)
 

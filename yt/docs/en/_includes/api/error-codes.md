@@ -11,4 +11,4 @@ Other values are split between subsystems.
 
 You can view registered error codes by [searching](https://github.com/search?q=repo%3Aytsaurus%2Fytsaurus+path%3A%2F%5Eyt%5C%2F%2F+YT_DEFINE_ERROR_ENUM&type=code) for the `YT_DEINE_ERROR_ENUM` construct in the code base.
 
-To exactly construe certain errors, you need quite a deep knowledge of the system architecture. The list of errors is continuously expanded (mostly for backward compatibility reasons).
+To exactly construe certain errors, you need quite a deep knowledge of the system architecture. The list of errors is continuously expanded (mostly in a backward-compatible way).

@@ -765,6 +765,10 @@ type LowLevelSchedulerClient interface {
 		options *UpdateOperationParametersOptions,
 	) (err error)
 
+	// GetOperation returns information about an operation.
+	//
+	// Warning: frequent calls to this method without specifying attributes may cause an overload of Cypress.
+	//
 	// http:verb:"get_operation"
 	// http:params:"operation_id"
 	GetOperation(

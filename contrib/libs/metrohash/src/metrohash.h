@@ -19,6 +19,8 @@
 
 #include "metrohash64.h"
 #include "metrohash128.h"
+#ifdef __x86_64__
 #include "metrohash128crc.h"
+#endif
 
 #endif // #ifndef METROHASH_METROHASH_H

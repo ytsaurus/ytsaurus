@@ -753,7 +753,8 @@ public:
         TTableId tableId,
         TTableId indexTableId,
         std::optional<TString> predicate,
-        std::optional<TString> unfoldedColumnName) override
+        std::optional<TString> unfoldedColumnName,
+        TTableSchemaPtr evaluatedColumnsSchema) override
     {
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
@@ -829,43 +830,22 @@ public:
 
             table->ValidateAllTabletsUnmounted("Cannot create index on a mounted table");
 
-            const auto& tableSchema = table->GetSchema()->AsTableSchema();
             const auto& indexTableSchema = indexTable->GetSchema()->AsTableSchema();
 
-            switch(kind) {
-                case ESecondaryIndexKind::FullSync:
-                    ValidateFullSyncIndexSchema(
-                        tableSchema,
-                        indexTableSchema);
-                    break;
+            ValidateIndexSchema(
+                kind,
+                table->GetSchema()->AsTableSchema(),
+                indexTableSchema,
+                predicate,
+                evaluatedColumnsSchema,
+                unfoldedColumnName);
 
-                case ESecondaryIndexKind::Unfolding:
-                    ValidateUnfoldingIndexSchema(
-                        tableSchema,
-                        indexTableSchema,
-                        *unfoldedColumnName);
-                    break;
-
-                case ESecondaryIndexKind::Unique:
-                    ValidateUniqueIndexSchema(
-                        tableSchema,
-                        indexTableSchema);
-                    break;
-
-                default:
-                    YT_ABORT();
-            }
-
-            if (predicate) {
-                auto expr = PrepareExpression(*predicate, tableSchema);
-                THROW_ERROR_EXCEPTION_IF(expr->GetWireType() != EValueType::Boolean,
-                    "Expected boolean expression as predicate, got %v",
-                    *expr->LogicalType);
-
-                TColumnSet predicateColumns;
-                TReferenceHarvester(&predicateColumns).Visit(expr);
-
-                ValidateColumnsAreInIndexLockGroup(predicateColumns, tableSchema, indexTableSchema);
+            if (evaluatedColumnsSchema) {
+                for (auto secondaryIndex : GetValuesSortedByKey(table->SecondaryIndices())) {
+                    if (const auto& indexEvaluatedColumns = secondaryIndex->EvaluatedColumnsSchema()) {
+                        ValidateNoNameCollisions(*indexEvaluatedColumns, *evaluatedColumnsSchema);
+                    }
+                }
             }
         }
 
@@ -874,7 +854,7 @@ public:
         auto* secondaryIndex = SecondaryIndexMap_.Insert(
             secondaryIndexId,
             TPoolAllocator::New<TSecondaryIndex>(secondaryIndexId));
-        // A single reference ensures index object is deleted when either primary or index table is deleted.
+        // A single reference ensures that index object is deleted when either primary or index table is deleted.
         YT_VERIFY(secondaryIndex->RefObject() == 1);
         secondaryIndex->SetKind(kind);
         secondaryIndex->SetTableId(tableId);
@@ -884,6 +864,7 @@ public:
             : NotReplicatedCellTagSentinel);
         secondaryIndex->Predicate() = std::move(predicate);
         secondaryIndex->UnfoldedColumn() = std::move(unfoldedColumnName);
+        secondaryIndex->EvaluatedColumnsSchema() = std::move(evaluatedColumnsSchema);
 
         if (table->IsNative()) {
             indexTable->SetIndexTo(secondaryIndex);
@@ -1974,9 +1955,15 @@ private:
         if (NeedToFindUnfoldedColumnName_) {
             for (const auto& [id, secondaryIndex] : SecondaryIndexMap_) {
                 if (secondaryIndex->GetKind() == ESecondaryIndexKind::Unfolding) {
-                    const auto& tableSchema = GetTableNodeOrThrow(secondaryIndex->GetTableId())->GetSchema();
-                    const auto& indexTableSchema = GetTableNodeOrThrow(secondaryIndex->GetIndexTableId())->GetSchema();
-                    const auto& indexUnfoldedColumn = FindUnfoldedColumnAndValidate(tableSchema->AsTableSchema(), indexTableSchema->AsTableSchema());
+                    const auto& indexUnfoldedColumn = FindUnfoldingColumnAndValidate(
+                        GetTableNodeOrThrow(secondaryIndex->GetTableId())
+                            ->GetSchema()
+                            ->AsTableSchema(),
+                        GetTableNodeOrThrow(secondaryIndex->GetIndexTableId())
+                            ->GetSchema()
+                            ->AsTableSchema(),
+                        secondaryIndex->Predicate(),
+                        secondaryIndex->EvaluatedColumnsSchema());
 
                     secondaryIndex->UnfoldedColumn() = indexUnfoldedColumn.Name();
                 }

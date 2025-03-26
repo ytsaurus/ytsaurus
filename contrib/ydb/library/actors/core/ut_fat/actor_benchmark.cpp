@@ -1,6 +1,4 @@
-
-
-#include <contrib/ydb/library/actors/core/actor_benchmark_helper.h>
+#include "actor_benchmark_helper.h"
 
 #include <library/cpp/testing/unittest/registar.h>
 
