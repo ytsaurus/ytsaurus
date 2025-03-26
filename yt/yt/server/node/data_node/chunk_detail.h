@@ -78,6 +78,8 @@ public:
     void AcquireUpdateLock() override;
     void ReleaseUpdateLock() override;
 
+    i64 GetReadLockCounter() const override;
+
     TFuture<void> ScheduleRemove() override;
     bool IsRemoveScheduled() const override;
 

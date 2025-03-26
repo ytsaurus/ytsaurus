@@ -44,6 +44,8 @@ struct IChunk
     virtual int GetVersion() const = 0;
     virtual int IncrementVersion() = 0;
 
+    virtual i64 GetReadLockCounter() const = 0;
+
     //! Returns |true| iff there is an active session for this chunk.
     /*!
      *  For blob chunks this is always |false|.

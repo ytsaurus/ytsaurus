@@ -114,7 +114,6 @@ TFuture<TRefCountedChunkMetaPtr> TBlobChunkBase::ReadMeta(
 
     return
         asyncMeta.Apply(BIND([=, this, this_ = MakeStrong(this), session = std::move(session)] (const TCachedChunkMetaPtr& cachedMeta) {
-            session->SessionAliveCheckFuture.Cancel(TError("Read meta session completed"));
             ProfileReadMetaLatency(session);
             return FilterMeta(cachedMeta->GetMeta(), extensionTags);
         })
@@ -883,6 +882,41 @@ TFuture<std::vector<TBlock>> TBlobChunkBase::ReadBlockSet(
         }
         session->Options.MemoryUsageTracker = options.MemoryUsageTracker;
         session->Options.UseDedicatedAllocations = true;
+
+        session->SessionAliveCheckFuture = TDelayedExecutor::MakeDelayed(Context_->DataNodeConfig->LongLiveReadSessionTreshold)
+            .Apply(BIND([sessionWptr = MakeWeak(session), chunkId = GetId()] (const TError& error) {
+                if (error.IsOK()) {
+                    if (auto session = sessionWptr.Lock()) {
+                        YT_LOG_ALERT_IF(
+                            !sessionWptr.IsExpired(),
+                            "Long live read session ("
+                            "ChunkId: %v, FutureCount: %v, "
+                            "DiskPromiseIsSet: %v, DiskPromiseCanceled: %v, "
+                            "EntryCount: %v, BlocksExtLoaded: %v, "
+                            "SessionPromiseCanceled: %v, Finished: %v, "
+                            "ReadLockCounter: %v)",
+                            chunkId,
+                            session->Futures.size(),
+                            session->DiskFetchPromise.IsSet(),
+                            session->DiskFetchPromise.IsCanceled(),
+                            session->EntryCount,
+                            session->BlocksExt != nullptr,
+                            session->SessionPromise.IsCanceled(),
+                            session->Finished,
+                            session->ChunkReadGuard->GetChunk()->GetReadLockCounter());
+                    } else {
+                        YT_LOG_ALERT_IF(
+                            !sessionWptr.IsExpired(),
+                            "Long live read session (ChunkId: %v)",
+                            chunkId);
+                    }
+                } else {
+                    YT_LOG_DEBUG(
+                        "Session completed before timeout (ChunkId: %v): %v",
+                        chunkId,
+                        error);
+                }
+            }));
     } catch (const std::exception& ex) {
         return MakeFuture<std::vector<TBlock>>(ex);
     }
