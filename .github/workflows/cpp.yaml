@@ -5,6 +5,7 @@ on:
     branches:
       - main
       - stable/[0-9]+\.[0-9]+
+      - members/ilyaibraev/enable-runner
 
 env:
   ACTIONS_ALLOW_USE_UNSECURE_NODE_VERSION: true
@@ -37,7 +38,6 @@ jobs:
           ssh-public-key: ${{ secrets.YC_VM_SSH_PUBLIC_KEY }}
           public-ip: false
           ttl: PT24H
-          disable-update: true
           runner-home-dir: /actions-runner
 
   checkout:
