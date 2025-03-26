@@ -1,29 +1,45 @@
 #include "name_service.h"
 
-#include <yql/essentials/public/types/yql_types.pb.h>
-
 namespace NSQLComplete {
 
-    TVector<TString> GetTypeNames() {
-        const auto* enumDesc = google::protobuf::GetEnumDescriptor<NYql::NProto::TypeIds>();
-
-        TVector<TString> names;
-        for (int i = 0; i < enumDesc->value_count(); ++i) {
-            const auto* valueDesc = enumDesc->value(i);
-
-            const auto name = valueDesc->name();
-            if (name == "UNUSED") {
-                continue;
-            }
-
-            names.emplace_back(name);
-        }
-        return names;
-    }
-
+    // TODO(YQL-19747): Use some name registry
     NameSet MakeDefaultNameSet() {
         return {
-            .Types = GetTypeNames(),
+            .Types = {
+                "Bool",
+                "Int8",
+                "Uint8",
+                "Int16",
+                "Uint16",
+                "Int32",
+                "Uint32",
+                "Int64",
+                "Uint64",
+                "Float",
+                "Double",
+                "String",
+                "Utf8",
+                "Yson",
+                "Json",
+                "Uuid",
+                "JsonDocument",
+                "Date",
+                "Datetime",
+                "Timestamp",
+                "Interval",
+                "TzDate",
+                "TzDatetime",
+                "TzTimestamp",
+                "Date32",
+                "Datetime64",
+                "Timestamp64",
+                "Interval64",
+                "TzDate32",
+                "TzDatetime64",
+                "TzTimestamp64",
+                "Decimal",
+                "DyNumber",
+            },
         };
     }
 

@@ -6,7 +6,6 @@ SRCS(
 )
 
 PEERDIR(
-    yql/essentials/public/types
     yql/essentials/sql/v1/complete/name
 )
 
