@@ -169,6 +169,8 @@ def get_dynamic_master_config():
             orphans_check_period = 100;
         };
 
+        extra_peer_drop_delay = 100;
+
         multicell_gossip = {
             table_statistics_gossip_period = 100;
             tablet_cell_statistics_gossip_period = 100;

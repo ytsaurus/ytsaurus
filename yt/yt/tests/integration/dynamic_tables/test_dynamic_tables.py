@@ -422,6 +422,12 @@ class DynamicTablesSingleCellBase(DynamicTablesBase):
 
     @authors("gritukan")
     def test_dynamic_peer_count(self):
+        # We don't want decommission to interfere with manual peer count changes.
+        set(
+            "//sys/@config/tablet_manager/decommission_through_extra_peers",
+            False,
+        )
+
         create_tablet_cell_bundle("b", attributes={"options": {"peer_count": 1}})
         sync_create_cells(1, tablet_cell_bundle="b")
         cell_id = ls("//sys/tablet_cells")[0]
