@@ -1,33 +1,49 @@
+import logging
 from datetime import datetime
+from typing import Iterable, Any
+from itertools import islice
 
-from yt.common import date_string_to_datetime, YT_DATETIME_FORMAT_STRING
 import yt.wrapper as yt
+from yt.common import date_string_to_datetime, YT_DATETIME_FORMAT_STRING
+from yt.wrapper.batch_client import BatchClient
 
 from yt_odin_checks.lib.check_runner import main
 
 
-def run_check(yt_client, logger, options, states):
-    now = datetime.utcnow()
-    operations = yt_client.list("//sys/scheduler/orchid/scheduler/operations")
+BATCH_SIZE = 50
+
+
+# TODO: replace with itertools.batched when python is updated to 3.12.
+def batched(iterable: Iterable[Any], batch_size: int):
+    it = iter(iterable)
+    while True:
+        batch = tuple(islice(it, batch_size))
+        if not batch:
+            return
+        yield batch
+
+
+def process_operation_batch(
+        batched_operations: Iterable[str],
+        batch_client: BatchClient,
+        options: dict[str, Any],
+        logger: logging.Logger,
+        now: datetime,
+) -> list[tuple[str, Any]]:
+    operations_without_snapshots = []
 
     responses = {}
-    batch_client = yt.create_batch_client(client=yt_client, max_batch_size=100)
 
-    for operation in operations:
-        args = {"attributes": ["events", "progress"]}
-        if operation.startswith("*"):
-            args["operation_alias"] = operation
-            args["include_scheduler"] = True
-        else:
-            args["operation_id"] = operation
-
+    for operation in batched_operations:
+        args = {
+            "operation_id": operation,
+            "attributes": ["events", "progress"],
+        }
         responses[operation] = batch_client.get_operation(**args)
 
     batch_client.commit_batch()
 
-    operations_without_snapshots = []
-
-    for operation in operations:
+    for operation in batched_operations:
         op_resp = responses[operation]
 
         if not op_resp.is_ok():
@@ -63,6 +79,29 @@ def run_check(yt_client, logger, options, states):
         threshold = options["critical_time_without_snapshot_threshold"]
         if duration_without_snapshot_time >= threshold and running_duration >= threshold:
             operations_without_snapshots.append((operation, last_successful_snapshot_time))
+
+    return operations_without_snapshots
+
+
+def run_check(yt_client, logger, options, states):
+    now = datetime.utcnow()
+    operations = [
+        op for op in yt_client.list("//sys/scheduler/orchid/scheduler/operations")
+        if not op.startswith("*")
+    ]
+    batch_client = yt.create_batch_client(client=yt_client, max_batch_size=100)
+    operations_without_snapshots = []
+
+    batch_size = options.get("batch_size", BATCH_SIZE)
+
+    for batched_operations in batched(operations, batch_size):
+        operations_without_snapshots += process_operation_batch(
+            batched_operations=batched_operations,
+            batch_client=batch_client,
+            options=options,
+            logger=logger,
+            now=now,
+        )
 
     logger.info("Number of long running operations without built snapshots: %d", len(operations_without_snapshots))
     if operations_without_snapshots:
