@@ -8,10 +8,38 @@ namespace NYT::NNbd {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TFileSystemBlockDeviceConfig
+DEFINE_ENUM(EFilesystemType,
+    ((Unknown)      (1)     ("unknown"))
+    ((Ext3)         (2)     ("ext3"))
+    ((Ext4)         (3)     ("ext4"))
+);
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TChunkBlockDeviceConfig
     : public NYTree::TYsonStruct
 {
 public:
+    i64 Size;
+    int MediumIndex;
+    EFilesystemType FsType;
+    TDuration KeepSessionAlivePeriod;
+    TDuration DataNodeNbdServiceRpcTimeout;
+    //! Time to create chunk and make filesystem in it.
+    TDuration DataNodeNbdServiceMakeTimeout;
+
+    REGISTER_YSON_STRUCT(TChunkBlockDeviceConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TChunkBlockDeviceConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TFileSystemBlockDeviceConfig
+    : public NYTree::TYsonStruct
+{
     // For testing purposes: how long to sleep before read request
     TDuration TestSleepBeforeRead;
 
@@ -24,10 +52,9 @@ DEFINE_REFCOUNTED_TYPE(TFileSystemBlockDeviceConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TMemoryBlockDeviceConfig
+struct TMemoryBlockDeviceConfig
     : public NYTree::TYsonStruct
 {
-public:
     i64 Size;
 
     REGISTER_YSON_STRUCT(TMemoryBlockDeviceConfig);
@@ -39,10 +66,9 @@ DEFINE_REFCOUNTED_TYPE(TMemoryBlockDeviceConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TDynamicTableBlockDeviceConfig
+struct TDynamicTableBlockDeviceConfig
     : public NYTree::TYsonStruct
 {
-public:
     i64 Size;
     i64 BlockSize;
     i64 ReadBatchSize;
@@ -59,10 +85,9 @@ DEFINE_REFCOUNTED_TYPE(TDynamicTableBlockDeviceConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Internet Domain Socket config
-class TIdsConfig
+struct TIdsConfig
     : public NYTree::TYsonStruct
 {
-public:
     int Port;
     int MaxBacklogSize;
 
@@ -76,10 +101,9 @@ DEFINE_REFCOUNTED_TYPE(TIdsConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Unix Domain Socket config
-class TUdsConfig
+struct TUdsConfig
     : public NYTree::TYsonStruct
 {
-public:
     TString Path;
     int MaxBacklogSize;
 
@@ -92,10 +116,9 @@ DEFINE_REFCOUNTED_TYPE(TUdsConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TNbdServerConfig
+struct TNbdServerConfig
     : public NYTree::TYsonStruct
 {
-public:
     TIdsConfigPtr InternetDomainSocket;
     TUdsConfigPtr UnixDomainSocket;
     // For testing purposes: how long to sleep before read request
@@ -104,7 +127,6 @@ public:
     bool TestAbortConnectionOnRead;
 
     int ThreadCount;
-    i64 BlockCacheCompressedDataCapacity;
 
     REGISTER_YSON_STRUCT(TNbdServerConfig);
 

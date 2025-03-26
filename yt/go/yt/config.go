@@ -55,8 +55,6 @@ type Config struct {
 
 	// UseTLS enables TLS for all connections to cluster.
 	//
-	// This option is supported only in HTTP client.
-	//
 	// By default, client will not use TLS.
 	//
 	// TLS is not supported in local mode.
@@ -68,6 +66,9 @@ type Config struct {
 	//
 	// This option is relevant for HTTP client with enabled TLS.
 	CertificateAuthorityData []byte
+
+	// PeerAlternativeHostName overrides server name for bus TLS verification.
+	PeerAlternativeHostName string
 
 	// Token configures OAuth token used by the client.
 	//
@@ -83,6 +84,14 @@ type Config struct {
 	//
 	// If Credentials are not set, OAuth token is used.
 	Credentials Credentials
+
+	// ImpersonationUser allows the client to impersonate another user.
+	//
+	// This behaviour is only allowed for superusers that are not banned.
+	// If not set, no impersonation is performed.
+	//
+	// Only relevant for HTTP client.
+	ImpersonationUser string
 
 	// TVMFn is used to issue service tickets for YT API requests.
 	//

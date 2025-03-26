@@ -37,6 +37,7 @@ struct IChunkStoreHost
     virtual void CancelLocationSessions(const TChunkLocationPtr& location) = 0;
     virtual bool CanPassSessionOutOfTurn(TChunkId chunkId) = 0;
     virtual void RemoveChunkFromCache(TChunkId chunkId) = 0;
+    virtual const TFairShareHierarchicalSchedulerPtr<TString> GetFairShareHierarchicalScheduler() = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IChunkStoreHost)
@@ -127,6 +128,13 @@ public:
      *  Thread affinity: any
      */
     IChunkPtr GetChunkOrThrow(TChunkId chunkId, TChunkLocationUuid locationUuid) const;
+
+    //! Returns static data node config.
+    /*!
+     *  \note
+     *  Thread affinity: any
+     */
+    const TDataNodeConfigPtr& GetStaticDataNodeConfig() const;
 
     //! Returns the list of all registered chunks. These are not guaranteed to
     //! have unique IDs because a chunk may be stored on multiple media.

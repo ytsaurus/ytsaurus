@@ -42,7 +42,7 @@ def run_check(secrets, yt_client, logger, options, states):
                 all_errors.append(str(error))
 
     if connected_query_tracker_count < required_query_tracker_instances:
-        all_errors.append("Query Tracker(s) {} has disconnected".format(", ".join(disconnected_query_trackers)))
+        all_errors.append("Query Tracker(s) {} disconnected".format(", ".join(disconnected_query_trackers)))
 
     if all_errors:
         alert_message = "; ".join(all_errors)

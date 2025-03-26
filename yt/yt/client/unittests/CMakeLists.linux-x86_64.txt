@@ -95,7 +95,7 @@ target_sources(unittester-client PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/client/unittests/validate_logical_type_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/unittests/wire_protocol_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/unittests/ypath_ut.cpp
-  ${PROJECT_BINARY_DIR}/yt/yt/client/unittests/5e5361e0329be49ce689f46dafdeeab6.cpp
+  ${PROJECT_BINARY_DIR}/yt/yt/client/unittests/50a4baadff663ce8fbdc82d4d2a5691e.cpp
 )
 
 
@@ -122,7 +122,7 @@ set_property(
 )
 
 resources(unittester-client
-  ${PROJECT_BINARY_DIR}/yt/yt/client/unittests/5e5361e0329be49ce689f46dafdeeab6.cpp
+  ${PROJECT_BINARY_DIR}/yt/yt/client/unittests/50a4baadff663ce8fbdc82d4d2a5691e.cpp
   INPUTS
   ${PROJECT_SOURCE_DIR}/library/cpp/type_info/ut/test-data/good-types.txt
   ${PROJECT_SOURCE_DIR}/library/cpp/type_info/ut/test-data/bad-types.txt

@@ -29,11 +29,10 @@ class JobCountProfiler:
         ]
 
     def get_job_count_delta(self, **kwargs):
-        delta = 0
-        for counter in self._counters:
-            delta += counter.get_delta(verbose=True, **kwargs)
+        return sum(counter.get_delta(verbose=True, **kwargs) for counter in self._counters)
 
-        return delta
+    def get(self, **kwargs):
+        return sum(counter.get(verbose=True, **kwargs) for counter in self._counters)
 
 
 def profiler_factory():
@@ -156,18 +155,6 @@ def skip_if_component_old(env, version_at_least, component, message="too old"):
     """
     if env.get_component_version("ytserver-" + component).abi < version_at_least:
         pytest.skip(component + " " + message)
-
-
-def skip_if_no_descending(env):
-    skip_if_old(env, (21, 1), "do not support descending yet")
-
-
-def skip_if_renaming_disabled(env):
-    skip_if_old(env, (22, 2), "do not support column renaming")
-
-
-def skip_if_renaming_not_differentiated(env):
-    skip_if_old(env, (23, 1), "not differentiated renaming in static vs dynamic")
 
 
 def write_log_barrier(address, category="Barrier", driver=None, cluster_name="primary"):

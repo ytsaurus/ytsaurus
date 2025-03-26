@@ -68,6 +68,9 @@ using NYT::ToProto;
 
 static constexpr int MigrateLeftoversBatchSize = 128;
 
+static constexpr int MaxLogProgressSegmentsSize = 30;
+static constexpr int MaxLogProgressHistorySize = 100;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TChaosManager
@@ -1085,7 +1088,7 @@ private:
         NChaosClient::NProto::TRspRemoveTableReplica* /*response*/)
     {
         auto replicationCardId = FromProto<TReplicationCardId>(request->replication_card_id());
-        auto replicaId = FromProto<NChaosClient::TReplicaId>(request->replica_id());
+        auto replicaId = FromProto<TReplicaId>(request->replica_id());
 
         auto* replicationCard = GetReplicationCardOrThrow(replicationCardId);
         auto* replicaInfo = replicationCard->GetReplicaOrThrow(replicaId);
@@ -1117,7 +1120,7 @@ private:
     void HydraExecuteAlterTableReplica(NChaosClient::NProto::TReqAlterTableReplica* request)
     {
         auto replicationCardId = FromProto<TReplicationCardId>(request->replication_card_id());
-        auto replicaId = FromProto<TTableId>(request->replica_id());
+        auto replicaId = FromProto<TReplicaId>(request->replica_id());
         auto mode = request->has_mode()
             ? std::make_optional(FromProto<ETableReplicaMode>(request->mode()))
             : std::nullopt;
@@ -2217,7 +2220,7 @@ private:
         NChaosClient::NProto::TRspUpdateTableReplicaProgress* /*response*/)
     {
         auto replicationCardId = FromProto<TReplicationCardId>(request->replication_card_id());
-        auto replicaId = FromProto<TTableId>(request->replica_id());
+        auto replicaId = FromProto<TReplicaId>(request->replica_id());
         auto newProgress = FromProto<TReplicationProgress>(request->replication_progress());
         auto force = request->force();
 
@@ -2230,13 +2233,27 @@ private:
                 << TErrorAttribute("replica_id", replicaId);
         }
 
-        YT_LOG_DEBUG("Updating replication progress "
-            "(ReplicationCardId: %v, ReplicaId: %v, Force: %v, OldProgress: %v, NewProgress: %v)",
-            replicationCardId,
-            replicaId,
-            force,
-            replicaInfo->ReplicationProgress,
-            newProgress);
+        bool needLogFullProgress = force ||
+            (replicaInfo->ReplicationProgress.Segments.size() < MaxLogProgressSegmentsSize &&
+                replicaInfo->History.size() < MaxLogProgressHistorySize) ||
+            Slot_->IsVerboseLoggingEnabled();
+
+        if (needLogFullProgress) {
+            YT_LOG_DEBUG("Updating replication progress "
+                "(ReplicationCardId: %v, ReplicaId: %v, Force: %v, OldProgress: %v, NewProgress: %v)",
+                replicationCardId,
+                replicaId,
+                force,
+                replicaInfo->ReplicationProgress,
+                newProgress);
+        } else {
+            YT_LOG_DEBUG("Updating replication progress, full progress logging was skipped "
+                "(ReplicationCardId: %v, ReplicaId: %v, Force: %v, NewProgress: %v)",
+                replicationCardId,
+                replicaId,
+                force,
+                newProgress);
+        }
 
         if (force) {
             replicaInfo->ReplicationProgress = std::move(newProgress);
@@ -2244,10 +2261,17 @@ private:
             NChaosClient::UpdateReplicationProgress(&replicaInfo->ReplicationProgress, newProgress);
         }
 
-        YT_LOG_DEBUG("Replication progress updated (ReplicationCardId: %v, ReplicaId: %v, Progress: %v)",
-            replicationCardId,
-            replicaId,
-            replicaInfo->ReplicationProgress);
+        if (needLogFullProgress) {
+            YT_LOG_DEBUG("Replication progress updated (ReplicationCardId: %v, ReplicaId: %v, Progress: %v)",
+                replicationCardId,
+                replicaId,
+                replicaInfo->ReplicationProgress);
+        } else {
+            YT_LOG_DEBUG("Replication progress updated, full progress logging was skipped "
+                "(ReplicationCardId: %v, ReplicaId: %v)",
+                replicationCardId,
+                replicaId);
+        }
     }
 
     void HydraRemoveExpiredReplicaHistory(NProto::TReqRemoveExpiredReplicaHistory *request)

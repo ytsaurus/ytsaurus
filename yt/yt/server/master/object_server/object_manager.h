@@ -18,6 +18,8 @@
 
 #include <yt/yt/library/profiling/sensor.h>
 
+#include <yt/yt/core/ytree/ypath_client.h>
+
 #include <yt/yt/core/test_framework/testing_tag.h>
 
 namespace NYT::NObjectServer {
@@ -111,7 +113,7 @@ struct IObjectManager
     virtual void RemoveObject(TObject* object) = 0;
 
     //! Creates a cross-cell proxy for the object with the given #id.
-    virtual NYTree::IYPathServicePtr CreateRemoteProxy(TObjectId id) = 0;
+    virtual NYTree::IYPathServicePtr CreateRemoteProxy(TObjectId id, int resolveDepth = 0) = 0;
 
     //! Creates a cross-cell proxy to forward the request to a given master cell.
     virtual NYTree::IYPathServicePtr CreateRemoteProxy(TCellTag cellTag) = 0;
@@ -217,13 +219,16 @@ struct IObjectManager
         const std::vector<TVersionedObjectId>& objectIds) = 0;
 
     //! Validates prerequisites, throws on failure.
-    virtual void ValidatePrerequisites(const NObjectClient::NProto::TPrerequisitesExt& prerequisites) = 0;
+    virtual void ValidatePrerequisites(
+        NYTree::TYPathMaybeRef originalTargetPath,
+        const google::protobuf::RepeatedPtrField<TProtobufString>& originalAdditionalPaths,
+        const NObjectClient::NProto::TPrerequisitesExt& prerequisites) = 0;
 
     //! Forwards an object request to a given cell.
     virtual TFuture<TSharedRefArray> ForwardObjectRequest(
         const TSharedRefArray& requestMessage,
         TCellTag cellTag,
-        NApi::EMasterChannelKind channelKind) = 0;
+        NHydra::EPeerKind peerKind) = 0;
 
     //! Posts a creation request to the secondary master.
     virtual void ReplicateObjectCreationToSecondaryMaster(

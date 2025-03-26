@@ -1,11 +1,11 @@
 #include <Dictionaries/getDictionaryConfigurationFromAST.h>
 
-#include <Poco/DOM/AutoPtr.h>
-#include <Poco/DOM/Document.h>
-#include <Poco/DOM/Element.h>
-#include <Poco/DOM/Text.h>
-#include <Poco/Net/NetException.h>
-#include <Poco/Util/XMLConfiguration.h>
+#include <DBPoco/DOM/AutoPtr.h>
+#include <DBPoco/DOM/Document.h>
+#include <DBPoco/DOM/Element.h>
+#include <DBPoco/DOM/Text.h>
+#include <DBPoco/Net/NetException.h>
+#include <DBPoco/Util/XMLConfiguration.h>
 #include <IO/WriteHelpers.h>
 #include <Parsers/queryToString.h>
 #include <Parsers/ASTIdentifier.h>
@@ -16,6 +16,7 @@
 #include <Parsers/ASTFunctionWithKeyValueArguments.h>
 #include <Parsers/ASTDictionaryAttributeDeclaration.h>
 #include <Dictionaries/DictionaryFactory.h>
+#include <Dictionaries/DictionarySourceFactory.h>
 #include <Functions/FunctionFactory.h>
 #include <Common/isLocalAddress.h>
 #include <Interpreters/Context.h>
@@ -61,8 +62,8 @@ String getAttributeExpression(const ASTDictionaryAttributeDeclaration * dict_att
 }
 
 
-using namespace Poco;
-using namespace Poco::XML;
+using namespace DBPoco;
+using namespace DBPoco::XML;
 
 /* Transforms next definition
  *  LIFETIME(MIN 10, MAX 100)
@@ -381,6 +382,15 @@ void buildPrimaryKeyConfiguration(
         name_element->appendChild(name);
 
         buildAttributeExpressionIfNeeded(doc, id_element, dict_attr);
+
+        if (!dict_attr->type)
+            return;
+
+        AutoPtr<Element> type_element(doc->createElement("type"));
+        id_element->appendChild(type_element);
+
+        AutoPtr<Text> type(doc->createTextNode(queryToString(dict_attr->type)));
+        type_element->appendChild(type);
     }
     else
     {
@@ -518,8 +528,11 @@ void buildSourceConfiguration(
     AutoPtr<Element> root,
     const ASTFunctionWithKeyValueArguments * source,
     const ASTDictionarySettings * settings,
+    const String & dictionary_name,
     ContextPtr context)
 {
+    DictionarySourceFactory::instance().checkSourceAvailable(source->name, dictionary_name, context);
+
     AutoPtr<Element> outer_element(doc->createElement("source"));
     root->appendChild(outer_element);
     AutoPtr<Element> source_element(doc->createElement(source->name));
@@ -572,32 +585,49 @@ void checkPrimaryKey(const AttributeNameToConfiguration & all_attrs, const Names
 
 }
 
+void checkLifetime(const ASTCreateQuery & query)
+{
+    if (query.dictionary->layout && query.dictionary->layout->layout_type == "direct")
+    {
+        if (query.dictionary->lifetime)
+            throw Exception(
+                ErrorCodes::BAD_ARGUMENTS,
+                "'lifetime' parameter is redundant for the dictionary' of layout '{}'",
+                query.dictionary->layout->layout_type);
+    }
+}
+
 
 DictionaryConfigurationPtr
 getDictionaryConfigurationFromAST(const ASTCreateQuery & query, ContextPtr context, const std::string & database_)
 {
     checkAST(query);
+    checkLifetime(query);
 
-    AutoPtr<Poco::XML::Document> xml_document(new Poco::XML::Document());
-    AutoPtr<Poco::XML::Element> document_root(xml_document->createElement("dictionaries"));
+    String dictionary_name = query.getTable();
+    String db_name = !database_.empty() ? database_ : query.getDatabase();
+    String full_dictionary_name = (!db_name.empty() ? (db_name + ".") : "") + dictionary_name;
+
+    AutoPtr<DBPoco::XML::Document> xml_document(new DBPoco::XML::Document());
+    AutoPtr<DBPoco::XML::Element> document_root(xml_document->createElement("dictionaries"));
     xml_document->appendChild(document_root);
-    AutoPtr<Poco::XML::Element> current_dictionary(xml_document->createElement("dictionary"));
+    AutoPtr<DBPoco::XML::Element> current_dictionary(xml_document->createElement("dictionary"));
     document_root->appendChild(current_dictionary);
-    AutoPtr<Poco::Util::XMLConfiguration> conf(new Poco::Util::XMLConfiguration());
+    AutoPtr<DBPoco::Util::XMLConfiguration> conf(new DBPoco::Util::XMLConfiguration());
 
-    AutoPtr<Poco::XML::Element> name_element(xml_document->createElement("name"));
+    AutoPtr<DBPoco::XML::Element> name_element(xml_document->createElement("name"));
     current_dictionary->appendChild(name_element);
-    AutoPtr<Text> name(xml_document->createTextNode(query.getTable()));
+    AutoPtr<Text> name(xml_document->createTextNode(dictionary_name));
     name_element->appendChild(name);
 
-    AutoPtr<Poco::XML::Element> database_element(xml_document->createElement("database"));
+    AutoPtr<DBPoco::XML::Element> database_element(xml_document->createElement("database"));
     current_dictionary->appendChild(database_element);
-    AutoPtr<Text> database(xml_document->createTextNode(!database_.empty() ? database_ : query.getDatabase()));
+    AutoPtr<Text> database(xml_document->createTextNode(db_name));
     database_element->appendChild(database);
 
     if (query.uuid != UUIDHelpers::Nil)
     {
-        AutoPtr<Poco::XML::Element> uuid_element(xml_document->createElement("uuid"));
+        AutoPtr<DBPoco::XML::Element> uuid_element(xml_document->createElement("uuid"));
         current_dictionary->appendChild(uuid_element);
         AutoPtr<Text> uuid(xml_document->createTextNode(toString(query.uuid)));
         uuid_element->appendChild(uuid);
@@ -628,7 +658,7 @@ getDictionaryConfigurationFromAST(const ASTCreateQuery & query, ContextPtr conte
     buildPrimaryKeyConfiguration(xml_document, structure_element, complex, pk_attrs, query.dictionary_attributes_list);
 
     buildLayoutConfiguration(xml_document, current_dictionary, query.dictionary->dict_settings, dictionary_layout);
-    buildSourceConfiguration(xml_document, current_dictionary, query.dictionary->source, query.dictionary->dict_settings, context);
+    buildSourceConfiguration(xml_document, current_dictionary, query.dictionary->source, query.dictionary->dict_settings, full_dictionary_name, context);
     buildLifetimeConfiguration(xml_document, current_dictionary, query.dictionary->lifetime);
 
     if (query.dictionary->range)
@@ -672,7 +702,7 @@ getInfoIfClickHouseDictionarySource(DictionaryConfigurationPtr & config, Context
         if (isLocalAddress({host, port}, default_port))
             info.is_local = true;
     }
-    catch (const Poco::Net::DNSException &)
+    catch (const DBPoco::Net::DNSException &)
     {
         /// Server may fail to start if we cannot resolve some hostname. It's ok to ignore exception and leave is_local false.
         tryLogCurrentException(__PRETTY_FUNCTION__);

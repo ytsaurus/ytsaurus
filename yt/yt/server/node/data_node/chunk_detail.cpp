@@ -101,7 +101,7 @@ TFuture<void> TChunkBase::PrepareToReadChunkFragments(
         Id_);
 }
 
-NIO::IIOEngine::TReadRequest TChunkBase::MakeChunkFragmentReadRequest(
+NIO::TReadRequest TChunkBase::MakeChunkFragmentReadRequest(
     const NIO::TChunkFragmentDescriptor& /*fragmentDescriptor*/,
     bool /*useDirectIO*/)
 {
@@ -305,6 +305,14 @@ void TChunkBase::StartReadSession(
 
     session->Options = options;
     session->ChunkReadGuard = TChunkReadGuard::Acquire(this);
+    session->SessionAliveCheckFuture = TDelayedExecutor::MakeDelayed(Context_->DataNodeConfig->LongLiveReadSessionTreshold)
+        .Apply(BIND([sessionWptr = MakeWeak(session), chunkId = GetId()] (const TError& error) {
+            if (error.IsOK()) {
+                YT_LOG_ALERT_IF(!sessionWptr.IsExpired(), "Long live read session (ChunkId: %v)", chunkId);
+            } else {
+                YT_LOG_DEBUG("Session completed before timeout (ChunkId: %v): %v", chunkId, error);
+            }
+        }));
 }
 
 void TChunkBase::ProfileReadBlockSetLatency(const TReadSessionBasePtr& session)

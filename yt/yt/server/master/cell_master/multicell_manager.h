@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include <yt/yt/server/master/transaction_server/public.h>
+
 #include <yt/yt/server/lib/hive/public.h>
 
 #include <yt/yt/ytlib/api/native/public.h>
@@ -120,6 +122,12 @@ struct IMulticellManager
      *  \note Thread affinity: any
      */
     virtual EMasterCellRoles GetMasterCellRoles(NObjectClient::TCellTag cellTag) const = 0;
+
+    //! Returns the set of leases owned by master cell.
+    /*!
+     *  \note Thread affinity: any
+     */
+    virtual THashSet<NTransactionServer::TTransactionId>& GetLocalMasterIssuedLeaseIds(NObjectClient::TCellTag cellTag) = 0;
 
     //! Returns the set of cells configured for a given role.
     /*!

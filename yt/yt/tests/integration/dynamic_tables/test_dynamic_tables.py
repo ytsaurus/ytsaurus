@@ -713,14 +713,12 @@ class DynamicTablesSingleCellBase(DynamicTablesBase):
         assert not exists("//tmp/t1/@profiling_mode")
         assert get("//tmp/t1/@profiling_tag") == "custom"
 
-    @pytest.mark.parametrize("new_scan_reader", [True, False])
     @authors("sabdenovch")
-    def test_no_column_meta_in_chunk_meta(self, new_scan_reader):
+    def test_no_column_meta_in_chunk_meta(self):
         sync_create_cells(1)
         self._create_sorted_table("//tmp/t", lookup_cache_rows_per_tablet=50, optimize_for="scan")
         set("//tmp/t/@mount_config/enable_column_meta_in_chunk_meta", False)
         set("//tmp/t/@mount_config/enable_segment_meta_in_blocks", True)
-        set("//tmp/t/@mount_config/enable_new_scan_reader_for_lookup", new_scan_reader)
         sync_mount_table("//tmp/t")
 
         rows = [{"key": i, "value": f"payload_{i}"} for i in range(10)]

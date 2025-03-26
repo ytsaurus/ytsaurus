@@ -294,9 +294,9 @@ protected:
         {
             auto config = TaskHost_->GetJobSplitterConfigTemplate();
 
-            config->EnableJobSplitting &=
-                (IsJobInterruptible() &&
-                std::ssize(Controller_->InputManager->GetInputTables()) <= Controller_->Options_->JobSplitter->MaxInputTableCount);
+            if (!IsJobInterruptible()) {
+                config->EnableJobSplitting = false;
+            }
 
             return config;
         }
@@ -372,6 +372,7 @@ protected:
                     Logger,
                     TotalEstimatedInputChunkCount,
                     PrimaryInputDataWeight,
+                    PrimaryInputCompressedDataSize,
                     DataWeightRatio,
                     InputCompressionRatio,
                     InputManager->GetInputTables().size(),
@@ -386,7 +387,8 @@ protected:
                     DataWeightRatio,
                     TotalEstimatedInputChunkCount,
                     PrimaryInputDataWeight,
-                    std::numeric_limits<i64>::max() / 4 /*InputRowCount*/, // It is not important in sorted operations.
+                    PrimaryInputCompressedDataSize,
+                    /*inputRowCount*/ std::numeric_limits<i64>::max() / 4, // It is not important in sorted operations.
                     GetForeignInputDataWeight(),
                     InputManager->GetInputTables().size(),
                     GetPrimaryInputTableCount(),
@@ -849,6 +851,13 @@ public:
             PrimarySortColumns_);
     }
 
+    TSortedChunkPoolOptions GetSortedChunkPoolOptions() override
+    {
+        auto options = TSortedControllerBase::GetSortedChunkPoolOptions();
+        options.MinManiacDataWeight = Spec_->MinManiacDataWeight;
+        return options;
+    }
+
     bool IsKeyGuaranteeEnabled() override
     {
         return false;
@@ -978,6 +987,16 @@ protected:
         return Spec_;
     }
 
+    TOperationSpecBasePtr ParseTypedSpec(const INodePtr& spec) const override
+    {
+        return ParseOperationSpec<TSortedMergeOperationSpec>(spec);
+    }
+
+    TOperationSpecBaseConfigurator GetOperationSpecBaseConfigurator() const override
+    {
+        return TConfigurator<TSortedMergeOperationSpec>();
+    }
+
     void OnOperationCompleted(bool interrupted) override
     {
         if (!interrupted) {
@@ -1012,7 +1031,8 @@ IOperationControllerPtr CreateSortedMergeController(
     IOperationControllerHostPtr host,
     TOperation* operation)
 {
-    auto options = config->SortedMergeOperationOptions;
+    auto options = CreateOperationOptions(config->SortedMergeOperationOptions, operation->GetOptionsPatch());
+
     auto spec = ParseOperationSpec<TSortedMergeOperationSpec>(UpdateSpec(options->SpecTemplate, operation->GetSpec()));
     AdjustSamplingFromConfig(spec, config);
     return New<TSortedMergeController>(spec, config, options, host, operation);
@@ -1234,6 +1254,16 @@ public:
         return Spec_;
     }
 
+    TOperationSpecBasePtr ParseTypedSpec(const INodePtr& spec) const override
+    {
+        return ParseOperationSpec<TReduceOperationSpec>(spec);
+    }
+
+    TOperationSpecBaseConfigurator GetOperationSpecBaseConfigurator() const override
+    {
+        return TConfigurator<TReduceOperationSpec>();
+    }
+
     bool ShouldSlicePrimaryTableByKeys() const override
     {
         return *Spec_->EnableKeyGuarantee;
@@ -1389,6 +1419,11 @@ private:
         options.SortedJobOptions.PivotKeys = std::vector<TLegacyKey>(Spec_->PivotKeys.begin(), Spec_->PivotKeys.end());
         options.SliceForeignChunks = Spec_->SliceForeignChunks;
         options.SortedJobOptions.ConsiderOnlyPrimarySize = Spec_->ConsiderOnlyPrimarySize;
+        if (Spec_->MinManiacDataWeight && IsKeyGuaranteeEnabled()) {
+            YT_LOG_INFO("Ignoring min_maniac_data_weight since key guarantee is enabled");
+        } else {
+            options.MinManiacDataWeight = Spec_->MinManiacDataWeight;
+        }
         return options;
     }
 
@@ -1413,7 +1448,9 @@ IOperationControllerPtr CreateReduceController(
     TOperation* operation,
     bool isJoinReduce)
 {
-    auto options = isJoinReduce ? config->JoinReduceOperationOptions : config->ReduceOperationOptions;
+    auto options = CreateOperationOptions(
+        isJoinReduce ? config->JoinReduceOperationOptions : config->ReduceOperationOptions,
+        operation->GetOptionsPatch());
     auto mergedSpec = UpdateSpec(options->SpecTemplate, operation->GetSpec());
     auto spec = ParseOperationSpec<TReduceOperationSpec>(mergedSpec);
     AdjustSamplingFromConfig(spec, config);

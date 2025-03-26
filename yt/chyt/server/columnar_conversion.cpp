@@ -125,7 +125,7 @@ DB::ColumnString::MutablePtr ConvertCHColumnToAnyImpl(const DB::IColumn& column,
                 return ConvertCHVectorColumnToAnyImpl<ysonFormat, cppType>( \
                     column, \
                     [] (cppType value, auto* writer) { writer->method(value); });
-        XX(Int8,        i8, OnInt64Scalar)
+        XX(Int8,        DB::Int8, OnInt64Scalar)
         XX(Int16,       i16, OnInt64Scalar)
         XX(Int32,       i32, OnInt64Scalar)
         XX(Date32,      i32, OnInt64Scalar)

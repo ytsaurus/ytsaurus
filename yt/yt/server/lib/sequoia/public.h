@@ -1,0 +1,19 @@
+#pragma once
+
+#include <library/cpp/yt/misc/strong_typedef.h>
+
+namespace NYT::NSequoiaServer {
+
+////////////////////////////////////////////////////////////////////////////////
+
+namespace NProto {
+
+class TReqHeartbeat;
+class TRspHeartbeat;
+
+} // namespace NProto
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NYT::NSequoiaServer
+

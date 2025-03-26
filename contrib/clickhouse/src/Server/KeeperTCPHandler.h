@@ -4,7 +4,7 @@
 
 #if USE_NURAFT
 
-#include <Poco/Net/TCPServerConnection.h>
+#include <DBPoco/Net/TCPServerConnection.h>
 #include <Common/MultiVersion.h>
 #include "IServer.h"
 #include <Common/Stopwatch.h>
@@ -16,7 +16,9 @@
 #include <IO/ReadBufferFromPocoSocket.h>
 #include <unordered_map>
 #include <Coordination/KeeperConnectionStats.h>
-#include <Poco/Timestamp.h>
+#include <DBPoco/Timestamp.h>
+#include <Compression/CompressedReadBuffer.h>
+#include <Compression/CompressedWriteBuffer.h>
 
 namespace DB
 {
@@ -24,14 +26,20 @@ namespace DB
 struct SocketInterruptablePollWrapper;
 using SocketInterruptablePollWrapperPtr = std::unique_ptr<SocketInterruptablePollWrapper>;
 
-using ThreadSafeResponseQueue = ConcurrentBoundedQueue<Coordination::ZooKeeperResponsePtr>;
+struct RequestWithResponse
+{
+    Coordination::ZooKeeperResponsePtr response;
+    Coordination::ZooKeeperRequestPtr request; /// it can be nullptr for some responses
+};
+
+using ThreadSafeResponseQueue = ConcurrentBoundedQueue<RequestWithResponse>;
 using ThreadSafeResponseQueuePtr = std::shared_ptr<ThreadSafeResponseQueue>;
 
 struct LastOp;
 using LastOpMultiVersion = MultiVersion<LastOp>;
 using LastOpPtr = LastOpMultiVersion::Version;
 
-class KeeperTCPHandler : public Poco::Net::TCPServerConnection
+class KeeperTCPHandler : public DBPoco::Net::TCPServerConnection
 {
 public:
     static void registerConnection(KeeperTCPHandler * conn);
@@ -47,11 +55,11 @@ private:
 
 public:
     KeeperTCPHandler(
-        const Poco::Util::AbstractConfiguration & config_ref,
+        const DBPoco::Util::AbstractConfiguration & config_ref,
         std::shared_ptr<KeeperDispatcher> keeper_dispatcher_,
-        Poco::Timespan receive_timeout_,
-        Poco::Timespan send_timeout_,
-        const Poco::Net::StreamSocket & socket_);
+        DBPoco::Timespan receive_timeout_,
+        DBPoco::Timespan send_timeout_,
+        const DBPoco::Net::StreamSocket & socket_);
     void run() override;
 
     KeeperConnectionStats & getConnectionStats();
@@ -61,32 +69,38 @@ public:
     ~KeeperTCPHandler() override;
 
 private:
-    Poco::Logger * log;
+    LoggerPtr log;
     std::shared_ptr<KeeperDispatcher> keeper_dispatcher;
-    Poco::Timespan operation_timeout;
-    Poco::Timespan min_session_timeout;
-    Poco::Timespan max_session_timeout;
-    Poco::Timespan session_timeout;
+    DBPoco::Timespan operation_timeout;
+    DBPoco::Timespan min_session_timeout;
+    DBPoco::Timespan max_session_timeout;
+    DBPoco::Timespan session_timeout;
     int64_t session_id{-1};
     Stopwatch session_stopwatch;
     SocketInterruptablePollWrapperPtr poll_wrapper;
-    Poco::Timespan send_timeout;
-    Poco::Timespan receive_timeout;
+    DBPoco::Timespan send_timeout;
+    DBPoco::Timespan receive_timeout;
 
     ThreadSafeResponseQueuePtr responses;
 
     Coordination::XID close_xid = Coordination::CLOSE_XID;
 
     /// Streams for reading/writing from/to client connection socket.
-    std::shared_ptr<ReadBufferFromPocoSocket> in;
-    std::shared_ptr<WriteBufferFromPocoSocket> out;
+    std::optional<ReadBufferFromPocoSocket> in;
+    std::optional<WriteBufferFromPocoSocket> out;
+    std::optional<CompressedReadBuffer> compressed_in;
+    std::optional<CompressedWriteBuffer> compressed_out;
 
     std::atomic<bool> connected{false};
 
     void runImpl();
 
-    void sendHandshake(bool has_leader);
-    Poco::Timespan receiveHandshake(int32_t handshake_length);
+    WriteBuffer & getWriteBuffer();
+    void flushWriteBuffer();
+    ReadBuffer & getReadBuffer();
+
+    void sendHandshake(bool has_leader, bool & use_compression);
+    DBPoco::Timespan receiveHandshake(int32_t handshake_length, bool & use_compression);
 
     static bool isHandShake(int32_t handshake_length);
     bool tryExecuteFourLetterWordCmd(int32_t command);
@@ -96,11 +110,11 @@ private:
     void packageSent();
     void packageReceived();
 
-    void updateStats(Coordination::ZooKeeperResponsePtr & response);
+    void updateStats(Coordination::ZooKeeperResponsePtr & response, const Coordination::ZooKeeperRequestPtr & request);
 
-    Poco::Timestamp established;
+    DBPoco::Timestamp established;
 
-    using Operations = std::unordered_map<Coordination::XID, Poco::Timestamp>;
+    using Operations = std::unordered_map<Coordination::XID, DBPoco::Timestamp>;
     Operations operations;
 
     LastOpMultiVersion last_op;

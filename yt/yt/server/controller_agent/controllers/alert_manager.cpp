@@ -439,11 +439,11 @@ private:
 
     void AnalyzeJobsCpuUsage()
     {
-        {
-            auto getCpuLimit = [] (const TUserJobSpecPtr& jobSpec) {
-                return jobSpec->CpuLimit;
-            };
+        auto getCpuLimit = [] (const TUserJobSpecPtr& jobSpec) {
+            return jobSpec->CpuLimit;
+        };
 
+        {
             auto needSetAlert = [&] (TDuration totalExecutionDuration, double /*cpuLimit*/, i64 jobCount, double ratio) {
                 TDuration averageJobDuration = TDuration::MilliSeconds(totalExecutionDuration.MillisecondsFloat() / jobCount);
                 return totalExecutionDuration > Config_->LowCpuUsageAlertMinExecTime &&
@@ -466,10 +466,6 @@ private:
         }
 
         {
-            auto getCpuLimit = [] (const TUserJobSpecPtr& jobSpec) {
-                return jobSpec->CpuLimit;
-            };
-
             auto needSetAlert = [&] (TDuration totalExecutionDuration, double /*cpuLimit*/, i64 jobCount, double ratio) {
                 TDuration averageJobDuration = TDuration::MilliSeconds(totalExecutionDuration.MillisecondsFloat() / jobCount);
                 return averageJobDuration > Config_->HighCpuWaitAlertMinAverageJobTime &&
@@ -795,6 +791,10 @@ private:
 
     void AnalyzeInvalidatedJobs()
     {
+        if (Host_->GetOperationType() == EOperationType::Vanilla) {
+            return;
+        }
+
         i64 invalidatedJobCount = 0;
         for (const auto& task : Host_->GetTasks()) {
             invalidatedJobCount += task->GetJobCounter()->GetInvalidated();

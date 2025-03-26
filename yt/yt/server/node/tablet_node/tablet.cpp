@@ -1098,7 +1098,7 @@ void TTablet::Load(TLoadContext& context)
                 continue;
             }
             auto dictionaryHunkChunk = GetHunkChunk(chunkId);
-            YT_VERIFY(!dictionaryHunkChunk->GetAttachedCompressionDictionary());
+            YT_VERIFY(!dictionaryHunkChunk->IsAttachedCompressionDictionary());
             dictionaryHunkChunk->SetAttachedCompressionDictionary(true);
             UpdateDanglingHunkChunks(dictionaryHunkChunk);
         }
@@ -1117,9 +1117,7 @@ void TTablet::Load(TLoadContext& context)
     HunkLockManager_->Load(context);
 
     // COMPAT(ponasenko-rs)
-    if ((context.GetVersion() >= ETabletReign::PerRowSequencer_25_1 && context.GetVersion() < ETabletReign::Start_25_2) ||
-        context.GetVersion() >= ETabletReign::PerRowSequencer)
-    {
+    if (context.GetVersion() >= ETabletReign::PerRowSequencer) {
         Load(context, SerializationType_);
     }
 
@@ -1710,14 +1708,14 @@ void TTablet::AttachCompressionDictionary(
 
     if (oldDictionaryId) {
         auto oldDictionaryHunkChunk = GetHunkChunk(oldDictionaryId);
-        YT_VERIFY(oldDictionaryHunkChunk->GetAttachedCompressionDictionary());
+        YT_VERIFY(oldDictionaryHunkChunk->IsAttachedCompressionDictionary());
         oldDictionaryHunkChunk->SetAttachedCompressionDictionary(false);
         UpdateDanglingHunkChunks(oldDictionaryHunkChunk);
     }
 
     if (chunkId) {
         auto dictionaryHunkChunk = GetHunkChunk(chunkId);
-        YT_VERIFY(!dictionaryHunkChunk->GetAttachedCompressionDictionary());
+        YT_VERIFY(!dictionaryHunkChunk->IsAttachedCompressionDictionary());
         dictionaryHunkChunk->SetAttachedCompressionDictionary(true);
         UpdateDanglingHunkChunks(dictionaryHunkChunk);
     }
@@ -3035,6 +3033,8 @@ void BuildTableSettingsOrchidYson(const TTableSettings& options, NYTree::TFluent
             .Value(options.HunkReaderConfig);
 }
 
+////////////////////////////////////////////////////////////////////////////////
+
 IThroughputThrottlerPtr GetBlobMediumWriteThrottler(
     const NClusterNode::TClusterNodeDynamicConfigManagerPtr& dynamicConfigManager,
     const TTabletSnapshotPtr& tabletSnapshot)
@@ -3057,6 +3057,22 @@ IThroughputThrottlerPtr GetBlobMediumReadThrottler(
     }
 
     return tabletSnapshot->DistributedThrottlers[ETabletDistributedThrottlerKind::BlobMediumRead];
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+bool IsInUnmountWorkflow(ETabletState state)
+{
+    return
+        state >= ETabletState::UnmountFirst &&
+        state <= ETabletState::UnmountLast;
+}
+
+bool IsInFreezeWorkflow(ETabletState state)
+{
+    return
+        state >= ETabletState::FreezeFirst &&
+        state <= ETabletState::FreezeLast;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

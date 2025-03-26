@@ -16,10 +16,9 @@ namespace NYT::NReplicatedTableTracker {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TReplicatedTableTrackerBootstrapConfig
+struct TReplicatedTableTrackerBootstrapConfig
     : public NServer::TNativeServerBootstrapConfig
 {
-public:
     NDynamicConfig::TDynamicConfigManagerConfigPtr DynamicConfigManager;
 
     NCypressElection::TCypressElectionManagerConfigPtr ElectionManager;
@@ -35,11 +34,10 @@ DEFINE_REFCOUNTED_TYPE(TReplicatedTableTrackerBootstrapConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TReplicatedTableTrackerProgramConfig
+struct TReplicatedTableTrackerProgramConfig
     : public TReplicatedTableTrackerBootstrapConfig
     , public TServerProgramConfig
 {
-public:
     REGISTER_YSON_STRUCT(TReplicatedTableTrackerProgramConfig);
 
     static void Register(TRegistrar registrar);

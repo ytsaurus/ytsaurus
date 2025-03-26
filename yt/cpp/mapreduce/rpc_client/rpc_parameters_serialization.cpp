@@ -217,7 +217,15 @@ NJobTrackerClient::EJobType ToApiJobType(EJobType type)
             return NJobTrackerClient::EJobType::RepairChunk;
         case EJobType::SealChunk:
             return NJobTrackerClient::EJobType::SealChunk;
-    }
+        case EJobType::ShallowMerge:
+            return NJobTrackerClient::EJobType::ShallowMerge;
+        case EJobType::MergeChunks:
+            return NJobTrackerClient::EJobType::MergeChunks;
+        case EJobType::AutotomizeChunk:
+            return NJobTrackerClient::EJobType::AutotomizeChunk;
+        case EJobType::ReincarnateChunk:
+            return NJobTrackerClient::EJobType::ReincarnateChunk;
+        }
     YT_ABORT();
 }
 
@@ -665,6 +673,9 @@ NApi::TListJobsOptions SerializeOptionsForListJobs(const TListJobsOptions& optio
     }
     if (options.WithMonitoringDescriptor_) {
         result.WithMonitoringDescriptor = *options.WithMonitoringDescriptor_;
+    }
+    if (options.WithInterruptionInfo_) {
+        result.WithInterruptionInfo = *options.WithInterruptionInfo_;
     }
     if (options.OperationIncarnation_) {
         result.OperationIncarnation = *options.OperationIncarnation_;

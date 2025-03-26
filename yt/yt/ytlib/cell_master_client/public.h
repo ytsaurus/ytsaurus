@@ -19,8 +19,8 @@ using TSecondaryMasterConnectionConfigs = THashMap<NObjectClient::TCellTag, NApi
 DECLARE_REFCOUNTED_STRUCT(ICellDirectory)
 DECLARE_REFCOUNTED_STRUCT(ICellDirectorySynchronizer)
 
-DECLARE_REFCOUNTED_CLASS(TCellDirectoryConfig)
-DECLARE_REFCOUNTED_CLASS(TCellDirectorySynchronizerConfig)
+DECLARE_REFCOUNTED_STRUCT(TCellDirectoryConfig)
+DECLARE_REFCOUNTED_STRUCT(TCellDirectorySynchronizerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 

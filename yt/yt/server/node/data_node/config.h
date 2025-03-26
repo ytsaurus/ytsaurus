@@ -20,6 +20,8 @@
 
 #include <yt/yt/client/api/public.h>
 
+#include <yt/yt/client/misc/workload.h>
+
 #include <yt/yt/library/containers/public.h>
 
 #include <yt/yt/library/re2/re2.h>
@@ -34,10 +36,9 @@ namespace NYT::NDataNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TP2PConfig
+struct TP2PConfig
     : public NYTree::TYsonStruct
 {
-public:
     bool Enabled;
 
     TSlruCacheConfigPtr BlockCache;
@@ -79,10 +80,9 @@ DEFINE_REFCOUNTED_TYPE(TP2PConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TChunkLocationConfig
+struct TChunkLocationConfig
     : public NServer::TDiskLocationConfig
 {
-public:
     static constexpr bool EnableHazard = true;
 
     //! Maximum space chunks are allowed to occupy.
@@ -118,17 +118,13 @@ public:
 
     bool ResetUuid;
 
+    TEnumIndexedArray<EWorkloadCategory, std::optional<double>> FairShareWorkloadCategoryWeights;
+
     //! Limit on the maximum memory used of location reads.
     i64 ReadMemoryLimit;
 
     //! Limit on the maximum memory used of location writes.
     i64 WriteMemoryLimit;
-
-    //! Limit on the maximum IO in bytes used of location reads.
-    i64 PendingReadIOLimit;
-
-    //! Limit on the maximum IO in bytes used of location writes.
-    i64 PendingWriteIOLimit;
 
     //! Limit on the maximum count of location write sessions.
     i64 SessionCountLimit;
@@ -147,10 +143,9 @@ DEFINE_REFCOUNTED_TYPE(TChunkLocationConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TChunkLocationDynamicConfig
+struct TChunkLocationDynamicConfig
     : public NServer::TDiskLocationDynamicConfig
 {
-public:
     std::optional<NIO::EIOEngineType> IOEngineType;
     NYTree::INodePtr IOConfig;
 
@@ -162,17 +157,13 @@ public:
 
     std::optional<i64> CoalescedReadMaxGapSize;
 
+    TEnumIndexedArray<EWorkloadCategory, std::optional<double>> FairShareWorkloadCategoryWeights;
+
     //! Limit on the maximum memory used by location reads.
     std::optional<i64> ReadMemoryLimit;
 
     //! Limit on the maximum memory used by location writes.
     std::optional<i64> WriteMemoryLimit;
-
-    //! Limit on the maximum IO in bytes used by location reads.
-    std::optional<i64> PendingReadIOLimit;
-
-    //! Limit on the maximum IO in bytes used by location writes.
-    std::optional<i64> PendingWriteIOLimit;
 
     //! Limit on the maximum count of location write sessions.
     std::optional<i64> SessionCountLimit;
@@ -189,10 +180,9 @@ DEFINE_REFCOUNTED_TYPE(TChunkLocationDynamicConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TStoreLocationConfig
+struct TStoreLocationConfig
     : public TChunkLocationConfig
 {
-public:
     //! A currently full location is considered to be non-full again when available space grows
     //! above this limit.
     i64 LowWatermark;
@@ -235,10 +225,9 @@ DEFINE_REFCOUNTED_TYPE(TStoreLocationConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TStoreLocationDynamicConfig
+struct TStoreLocationDynamicConfig
     : public TChunkLocationDynamicConfig
 {
-public:
     std::optional<i64> LowWatermark;
     std::optional<i64> HighWatermark;
     std::optional<i64> DisableWritesWatermark;
@@ -256,10 +245,9 @@ DEFINE_REFCOUNTED_TYPE(TStoreLocationDynamicConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TCacheLocationConfig
+struct TCacheLocationConfig
     : public TChunkLocationConfig
 {
-public:
     //! Controls incoming location bandwidth used by cache.
     NConcurrency::TThroughputThrottlerConfigPtr InThrottler;
 
@@ -272,11 +260,10 @@ DEFINE_REFCOUNTED_TYPE(TCacheLocationConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TMultiplexedChangelogConfig
+struct TMultiplexedChangelogConfig
     : public NHydra::TFileChangelogConfig
     , public NHydra::TFileChangelogDispatcherConfig
 {
-public:
     static constexpr bool EnableHazard = true;
 
     //! Multiplexed changelog record count limit.
@@ -317,12 +304,11 @@ DEFINE_REFCOUNTED_TYPE(TMultiplexedChangelogConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TArtifactCacheReaderConfig
+struct TArtifactCacheReaderConfig
     : public virtual NChunkClient::TBlockFetcherConfig
     , public virtual NTableClient::TTableReaderConfig
     , public virtual NApi::TFileReaderConfig
 {
-public:
     REGISTER_YSON_STRUCT(TArtifactCacheReaderConfig);
 
     static void Register(TRegistrar registrar);
@@ -332,10 +318,9 @@ DEFINE_REFCOUNTED_TYPE(TArtifactCacheReaderConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TLayerLocationConfig
+struct TLayerLocationConfig
     : public NServer::TDiskLocationConfig
 {
-public:
     //! The location is considered to be full when available space becomes less than #LowWatermark.
     i64 LowWatermark;
 
@@ -356,10 +341,9 @@ DEFINE_REFCOUNTED_TYPE(TLayerLocationConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TTmpfsLayerCacheConfig
+struct TTmpfsLayerCacheConfig
     : public NYTree::TYsonStruct
 {
-public:
     i64 Capacity;
     std::optional<TString> LayersDirectoryPath;
     TDuration LayersUpdatePeriod;
@@ -373,10 +357,9 @@ DEFINE_REFCOUNTED_TYPE(TTmpfsLayerCacheConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TTableSchemaCacheConfig
+struct TTableSchemaCacheConfig
     : public TSlruCacheConfig
 {
-public:
     //! Timeout for table schema request.
     TDuration TableSchemaCacheRequestTimeout;
 
@@ -389,10 +372,9 @@ DEFINE_REFCOUNTED_TYPE(TTableSchemaCacheConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TTableSchemaCacheDynamicConfig
+struct TTableSchemaCacheDynamicConfig
     : public TSlruCacheDynamicConfig
 {
-public:
     std::optional<TDuration> TableSchemaCacheRequestTimeout;
 
     REGISTER_YSON_STRUCT(TTableSchemaCacheDynamicConfig);
@@ -404,10 +386,9 @@ DEFINE_REFCOUNTED_TYPE(TTableSchemaCacheDynamicConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TVolumeManagerConfig
+struct TVolumeManagerConfig
     : public NYTree::TYsonStruct
 {
-public:
     NContainers::TPortoExecutorDynamicConfigPtr PortoExecutor;
     std::vector<TLayerLocationConfigPtr> LayerLocations;
     bool EnableLayersCache;
@@ -430,10 +411,9 @@ DEFINE_REFCOUNTED_TYPE(TVolumeManagerConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 // COMPAT(gritukan): Drop all the optionals in this class after configs migration.
-class TMasterConnectorConfig
+struct TMasterConnectorConfig
     : public NYTree::TYsonStruct
 {
-public:
     //! Period between consequent incremental data node heartbeats.
     std::optional<TDuration> IncrementalHeartbeatPeriod;
 
@@ -461,10 +441,9 @@ DEFINE_REFCOUNTED_TYPE(TMasterConnectorConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TMasterConnectorDynamicConfig
+struct TMasterConnectorDynamicConfig
     : public NYTree::TYsonStruct
 {
-public:
     std::optional<NConcurrency::TRetryingPeriodicExecutorOptions> HeartbeatExecutor;
 
     //! Timeout for incremental data node heartbeat RPC request.
@@ -503,10 +482,9 @@ DEFINE_REFCOUNTED_TYPE(TMasterConnectorDynamicConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TAllyReplicaManagerDynamicConfig
+struct TAllyReplicaManagerDynamicConfig
     : public NYTree::TYsonStruct
 {
-public:
     //! Period between consequent requests to a certain node.
     TDuration AnnouncementBackoffTime;
 
@@ -554,6 +532,9 @@ public:
     // Delay before cancelling chunk
     std::optional<TDuration> ChunkCancellationDelay;
 
+    // Stop trash scanning at initialization
+    std::optional<bool> EnableTrashScanningBarrier;
+
     REGISTER_YSON_STRUCT(TDataNodeTestingOptions);
 
     static void Register(TRegistrar registrar);
@@ -563,10 +544,9 @@ DEFINE_REFCOUNTED_TYPE(TDataNodeTestingOptions)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TMediumThroughputMeterConfig
+struct TMediumThroughputMeterConfig
     : public NIO::TGentleLoaderConfig
 {
-public:
     TString MediumName;
     bool Enabled;
 
@@ -585,10 +565,9 @@ DEFINE_REFCOUNTED_TYPE(TMediumThroughputMeterConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TIOThroughputMeterConfig
+struct TIOThroughputMeterConfig
     : public NYTree::TYsonStruct
 {
-public:
     bool Enabled;
 
     std::vector<TMediumThroughputMeterConfigPtr> Media;
@@ -613,10 +592,9 @@ DEFINE_REFCOUNTED_TYPE(TIOThroughputMeterConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TLocationHealthCheckerDynamicConfig
+struct TLocationHealthCheckerDynamicConfig
     : public NYTree::TYsonStruct
 {
-public:
     bool Enabled;
 
     bool EnableManualDiskFailures;
@@ -634,10 +612,9 @@ DEFINE_REFCOUNTED_TYPE(TLocationHealthCheckerDynamicConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TRemoveChunkJobDynamicConfig
+struct TRemoveChunkJobDynamicConfig
     : public NYTree::TYsonStruct
 {
-public:
     std::optional<TDuration> DelayBeforeStartRemoveChunk;
 
     REGISTER_YSON_STRUCT(TRemoveChunkJobDynamicConfig);
@@ -649,10 +626,9 @@ DEFINE_REFCOUNTED_TYPE(TRemoveChunkJobDynamicConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TReplicateChunkJobDynamicConfig
+struct TReplicateChunkJobDynamicConfig
     : public NYTree::TYsonStruct
 {
-public:
     NChunkClient::TReplicationWriterConfigPtr Writer;
 
     bool UseBlockCache;
@@ -666,7 +642,7 @@ DEFINE_REFCOUNTED_TYPE(TReplicateChunkJobDynamicConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TMergeWriterConfig
+struct TMergeWriterConfig
     : public NChunkClient::TMultiChunkWriterConfig
     , public NTableClient::TChunkWriterConfig
 {
@@ -680,10 +656,9 @@ DEFINE_REFCOUNTED_TYPE(TMergeWriterConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TMergeChunksJobDynamicConfig
+struct TMergeChunksJobDynamicConfig
     : public NYTree::TYsonStruct
 {
-public:
     NTableClient::TChunkReaderConfigPtr Reader;
     TMergeWriterConfigPtr Writer;
 
@@ -706,7 +681,7 @@ DEFINE_REFCOUNTED_TYPE(TMergeChunksJobDynamicConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TRepairReaderConfig
+struct TRepairReaderConfig
     : public NChunkClient::TErasureReaderConfig
     , public NJournalClient::TChunkReaderConfig
 {
@@ -720,10 +695,9 @@ DEFINE_REFCOUNTED_TYPE(TRepairReaderConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TRepairChunkJobDynamicConfig
+struct TRepairChunkJobDynamicConfig
     : public NYTree::TYsonStruct
 {
-public:
     TRepairReaderConfigPtr Reader;
     NChunkClient::TReplicationWriterConfigPtr Writer;
 
@@ -738,10 +712,9 @@ DEFINE_REFCOUNTED_TYPE(TRepairChunkJobDynamicConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TAutotomizeChunkJobDynamicConfig
+struct TAutotomizeChunkJobDynamicConfig
     : public NYTree::TYsonStruct
 {
-public:
     NJournalClient::TChunkReaderConfigPtr Reader;
     NChunkClient::TReplicationWriterConfigPtr Writer;
 
@@ -760,7 +733,7 @@ DEFINE_REFCOUNTED_TYPE(TAutotomizeChunkJobDynamicConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TReincarnateReaderConfig
+struct TReincarnateReaderConfig
     : public NChunkClient::TErasureReaderConfig
     , public NTableClient::TChunkReaderConfig
 {
@@ -774,7 +747,7 @@ DEFINE_REFCOUNTED_TYPE(TReincarnateReaderConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TReincarnateWriterConfig
+struct TReincarnateWriterConfig
     : public NChunkClient::TMultiChunkWriterConfig
     , public NTableClient::TChunkWriterConfig
 {
@@ -788,10 +761,9 @@ DEFINE_REFCOUNTED_TYPE(TReincarnateWriterConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TReincarnateChunkJobDynamicConfig
+struct TReincarnateChunkJobDynamicConfig
     : public NYTree::TYsonStruct
 {
-public:
     TReincarnateReaderConfigPtr Reader;
     TReincarnateWriterConfigPtr Writer;
 
@@ -804,10 +776,9 @@ DEFINE_REFCOUNTED_TYPE(TReincarnateChunkJobDynamicConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TSealChunkJobDynamicConfig
+struct TSealChunkJobDynamicConfig
     : public NYTree::TYsonStruct
 {
-public:
     NJournalClient::TChunkReaderConfigPtr Reader;
 
     REGISTER_YSON_STRUCT(TSealChunkJobDynamicConfig);
@@ -819,10 +790,9 @@ DEFINE_REFCOUNTED_TYPE(TSealChunkJobDynamicConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TJournalManagerConfig
+struct TJournalManagerConfig
     : public virtual NYTree::TYsonStruct
 {
-public:
     static constexpr bool EnableHazard = true;
 
     //! Configuration of multiplexed changelogs.
@@ -843,10 +813,9 @@ DEFINE_REFCOUNTED_TYPE(TJournalManagerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TJobControllerDynamicConfig
+struct TJobControllerDynamicConfig
     : public NYTree::TYsonStruct
 {
-public:
     TDuration WaitingJobsTimeout;
 
     TDuration ProfilingPeriod;
@@ -862,10 +831,9 @@ DEFINE_REFCOUNTED_TYPE(TJobControllerDynamicConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TDataNodeConfig
+struct TDataNodeConfig
     : public TJournalManagerConfig
 {
-public:
     //! Timeout for lease transactions.
     TDuration LeaseTransactionTimeout;
 
@@ -927,6 +895,9 @@ public:
      * the session expires.
      */
     TDuration SessionTimeout;
+
+    //! After that time alert about long live read sessions will be sent.
+    TDuration LongLiveReadSessionTreshold;
 
     TDuration SessionBlockReorderTimeout;
 
@@ -1031,6 +1002,10 @@ public:
     //! Distributed chunk session service config.
     NDistributedChunkSessionServer::TDistributedChunkSessionServiceConfigPtr DistributedChunkSessionService;
 
+    //! Blocks trash scan for test purpose.
+    //! Have to be static, because dynamic config loads after initialization.
+    bool EnableTrashScanningBarrier;
+
     i64 GetCacheCapacity() const;
 
     REGISTER_YSON_STRUCT(TDataNodeConfig);
@@ -1042,10 +1017,9 @@ DEFINE_REFCOUNTED_TYPE(TDataNodeConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TDataNodeDynamicConfig
+struct TDataNodeDynamicConfig
     : public NYTree::TYsonStruct
 {
-public:
     std::optional<int> StorageHeavyThreadCount;
     std::optional<int> StorageLightThreadCount;
     std::optional<int> StorageLookupThreadCount;
@@ -1114,13 +1088,6 @@ public:
 
     std::optional<i64> DiskWriteThrottlingLimit;
     std::optional<i64> DiskReadThrottlingLimit;
-
-    //! If the total pending read size exceeds the limit, all writes to this location become disabled.
-    std::optional<i64> DisableLocationWritesPendingReadSizeHighLimit;
-
-    //! If writes to the location were earlier disabled due to #DisableLocationWritesPendingReadSizeHighLimit,
-    //! writes are re-enabled once the total pending read size drops below this limit.
-    std::optional<i64> DisableLocationWritesPendingReadSizeLowLimit;
 
     //! Testing options.
     TDataNodeTestingOptionsPtr TestingOptions;

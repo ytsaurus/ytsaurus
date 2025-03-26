@@ -126,6 +126,10 @@ void TTestingTableMountConfig::Register(TRegistrar registrar)
     registrar.Parameter("sorted_store_manager_hash_check_probability", &TThis::SortedStoreManagerRowHashCheckProbability)
         .Default(0)
         .InRange(0, 1);
+
+    registrar.Parameter("table_puller_replica_ban_iterations_count", &TThis::TablePullerReplicaBanIterationsCount)
+        .GreaterThan(0)
+        .Optional();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -350,11 +354,6 @@ void TCustomTableMountConfig::Register(TRegistrar registrar)
     registrar.Parameter("lookup_rpc_multiplexing_parallelism", &TThis::LookupRpcMultiplexingParallelism)
         .Default(1)
         .InRange(1, 16);
-
-    registrar.Parameter("enable_new_scan_reader_for_lookup", &TThis::EnableNewScanReaderForLookup)
-        .Default(true);
-    registrar.Parameter("enable_new_scan_reader_for_select", &TThis::EnableNewScanReaderForSelect)
-        .Default(true);
 
     registrar.Parameter("single_column_group_by_default", &TThis::SingleColumnGroupByDefault)
         .Default(true);

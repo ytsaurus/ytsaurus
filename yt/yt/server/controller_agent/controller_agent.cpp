@@ -14,6 +14,8 @@
 #include "private.h"
 #include "scheduling_context.h"
 
+#include <yt/yt/server/controller_agent/controllers/common_state.h>
+
 #include <yt/yt/server/lib/scheduler/message_queue.h>
 #include <yt/yt/server/lib/scheduler/controller_agent_tracker_service_proxy.h>
 #include <yt/yt/server/lib/scheduler/exec_node_descriptor.h>
@@ -252,6 +254,8 @@ public:
     void Initialize()
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
+
+        NControllers::InitCommonState(ControllerAgentProfiler());
 
         MasterConnector_->Initialize();
         ScheduleConnect(true);
@@ -682,10 +686,10 @@ public:
             THROW_ERROR_EXCEPTION(NScheduler::EErrorCode::CannotUseBothAclAndAco, "Cannot use both ACL and ACO name");
         }
 
-        if (update->Acl || update->AcoName) {
+        if (update->Acl || update->AcoName || update->SchedulingTagFilter) {
             if (update->Acl) {
                 operation->SetAcl(*update->Acl);
-            } else {
+            } else if (update->AcoName) {
                 operation->SetAcoName(*update->AcoName);
             }
             const auto& controller = operation->GetController();
@@ -699,6 +703,21 @@ public:
         operation->UpdateJobShellOptions(update->OptionsPerJobShell);
 
         return VoidFuture;
+    }
+
+    TFuture<void> PatchSpec(TOperationId operationId, INodePtr newCumulativeSpecPatch, bool dryRun)
+    {
+        auto operation = GetOperationOrThrow(operationId);
+        auto controller = operation->GetController();
+        THROW_ERROR_EXCEPTION_UNLESS(
+            controller,
+            NScheduler::EErrorCode::OperationHasNoController,
+            "Controller for operation %v does not exist",
+            operation->GetId());
+
+        return BIND(&IOperationControllerSchedulerHost::PatchSpec, controller, Passed(std::move(newCumulativeSpecPatch)), dryRun)
+            .AsyncVia(controller->GetCancelableInvoker())
+            .Run();
     }
 
     template <class TResult>
@@ -721,14 +740,15 @@ public:
 
     TFuture<std::optional<TOperationControllerInitializeResult>> InitializeOperation(
         const TOperationPtr& operation,
-        const std::optional<NScheduler::TControllerTransactionIds>& transactions)
+        const std::optional<NScheduler::TControllerTransactionIds>& transactions,
+        INodePtr cumulativeSpecPatch)
     {
         YT_ASSERT_THREAD_AFFINITY(ControlThread);
         YT_VERIFY(Connected_);
 
         const auto& controller = operation->GetControllerOrThrow();
         auto callback = transactions
-            ? BIND(&IOperationControllerSchedulerHost::InitializeReviving, controller, *transactions)
+            ? BIND(&IOperationControllerSchedulerHost::InitializeReviving, controller, *transactions, Passed(std::move(cumulativeSpecPatch)))
             : BIND(&IOperationControllerSchedulerHost::InitializeClean, controller);
         auto asyncResult = callback
             .AsyncVia(controller->GetCancelableInvoker())
@@ -970,7 +990,6 @@ public:
         NScheduler::ValidateOperationAccess(
             user,
             operationId,
-            TAllocationId(),
             permission,
             GetOperationOrThrow(operationId)->GetAccessControlRule(),
             Bootstrap_->GetClient(),
@@ -1898,7 +1917,7 @@ private:
                             FromProto<TJobResources>(protoRequest->allocation_resource_limits()),
                             FromProto<NScheduler::TDiskResources>(protoRequest->node_disk_resources()),
                             descriptorIt->second,
-                            YT_PROTO_OPTIONAL(*protoRequest, pool_path),
+                            YT_OPTIONAL_FROM_PROTO(*protoRequest, pool_path),
                             protoRequest->spec());
 
                         response.OperationId = operationId;
@@ -2447,13 +2466,20 @@ TFuture<void> TControllerAgent::UpdateOperationRuntimeParameters(TOperationId op
     return Impl_->UpdateOperationRuntimeParameters(operationId, std::move(update));
 }
 
+TFuture<void> TControllerAgent::PatchSpec(TOperationId operationId, INodePtr newCumulativeSpecPatch, bool dryRun)
+{
+    return Impl_->PatchSpec(operationId, std::move(newCumulativeSpecPatch), dryRun);
+}
+
 TFuture<std::optional<TOperationControllerInitializeResult>> TControllerAgent::InitializeOperation(
     const TOperationPtr& operation,
-    const std::optional<TControllerTransactionIds>& transactions)
+    const std::optional<TControllerTransactionIds>& transactions,
+    INodePtr cumulativeSpecPatch)
 {
     return Impl_->InitializeOperation(
         operation,
-        transactions);
+        transactions,
+        std::move(cumulativeSpecPatch));
 }
 
 TFuture<std::optional<TOperationControllerPrepareResult>> TControllerAgent::PrepareOperation(const TOperationPtr& operation)

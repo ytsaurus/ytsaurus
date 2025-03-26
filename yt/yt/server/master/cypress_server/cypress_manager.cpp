@@ -78,6 +78,8 @@
 
 #include <yt/yt/server/master/tablet_server/cypress_integration.h>
 #include <yt/yt/server/master/tablet_server/hunk_storage_node_type_handler.h>
+// COMPAT(shakurov)
+#include <yt/yt/server/master/tablet_server/tablet_manager.h>
 
 #include <yt/yt/server/master/transaction_server/cypress_integration.h>
 
@@ -1128,8 +1130,8 @@ public:
         RegisterHandler(CreateUserMapTypeHandler(Bootstrap_));
         RegisterHandler(CreateGroupMapTypeHandler(Bootstrap_));
         RegisterHandler(CreateNetworkProjectMapTypeHandler(Bootstrap_));
-        RegisterHandler(CreateProxyRoleMapTypeHandler(Bootstrap_, EProxyKind::Http));
-        RegisterHandler(CreateProxyRoleMapTypeHandler(Bootstrap_, EProxyKind::Rpc));
+        RegisterHandler(CreateProxyRoleMapTypeHandler(Bootstrap_, NApi::EProxyKind::Http));
+        RegisterHandler(CreateProxyRoleMapTypeHandler(Bootstrap_, NApi::EProxyKind::Rpc));
         RegisterHandler(CreatePoolTreeMapTypeHandler(Bootstrap_));
         RegisterHandler(CreateCellNodeTypeHandler(Bootstrap_));
         RegisterHandler(CreateCellBundleMapTypeHandler(Bootstrap_, ECellarType::Chaos));
@@ -2581,6 +2583,11 @@ public:
             return FromObjectId(portalExit->GetId()) + *optionalSuffix;
         }
 
+        // No need to validate that object is from this cell.
+        if (GetDynamicConfig()->EnableCrossCellLinks) {
+            return targetPath;
+        }
+
         NYPath::TTokenizer tokenizer(targetPath);
         tokenizer.Advance();
         auto token = tokenizer.GetToken();
@@ -2591,7 +2598,6 @@ public:
                 CellTagFromId(objectId) == multicellManager->GetCellTag())
             {
                 return targetPath;
-
             }
         }
 
@@ -2696,6 +2702,9 @@ private:
     // COMPAT(danilalexeev)
     bool RecomputeNodeReachability_ = false;
 
+    // COMPAT(shakurov)
+    bool NeedResetHunkSpecificMediaAndRecomputeTabletStatistics_ = false;
+
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 
 
@@ -2756,6 +2765,10 @@ private:
         if (context.GetVersion() < EMasterReign::CypressNodeReachability) {
             RecomputeNodeReachability_ = true;
         }
+
+        // COMPAT(shakurov)
+        NeedResetHunkSpecificMediaAndRecomputeTabletStatistics_ =
+            context.GetVersion() < EMasterReign::ResetHunkSpecificMediaAndRecomputeTabletStatistics;
     }
 
     void Clear() override
@@ -2781,6 +2794,7 @@ private:
         RecursiveResourceUsageCache_->Clear();
 
         RecomputeNodeReachability_ = false;
+        NeedResetHunkSpecificMediaAndRecomputeTabletStatistics_ = false;
     }
 
     void SetZeroState() override
@@ -2886,6 +2900,25 @@ private:
                     pathRootType != EPathRootType::Other);
             }
             YT_LOG_INFO("Finished determining Cypress nodes reachability");
+        }
+
+        // COMPAT(shakurov)
+        if (NeedResetHunkSpecificMediaAndRecomputeTabletStatistics_) {
+            const auto& tabletManager = Bootstrap_->GetTabletManager();
+            for (auto [nodeId, node] : NodeMap_) {
+                if (!IsObjectAlive(node)) { // Also skips branches.
+                    continue;
+                }
+
+                if (!IsChunkOwnerType(node->GetType())) {
+                    continue;
+                }
+
+                auto* chunkOwnerNode = node->As<TChunkOwnerBase>();
+                chunkOwnerNode->ResetHunkPrimaryMediumIndex();
+                chunkOwnerNode->HunkReplication().ClearEntries();
+                tabletManager->OnNodeStorageParametersUpdated(chunkOwnerNode);
+            }
         }
     }
 

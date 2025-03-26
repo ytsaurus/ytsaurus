@@ -1,13 +1,15 @@
 #include "bootstrap.h"
 
-#include "dynamic_config_manager.h"
 #include "private.h"
+
+#include "dynamic_config_manager.h"
 #include "config.h"
+#include "master_connector.h"
 #include "object_service.h"
+#include "response_keeper.h"
 #include "sequoia_service.h"
 #include "user_directory.h"
 #include "user_directory_synchronizer.h"
-#include "response_keeper.h"
 
 #include <yt/yt/server/lib/admin/admin_service.h>
 
@@ -29,7 +31,7 @@
 
 #include <yt/yt/ytlib/orchid/orchid_service.h>
 
-#include <yt/yt/ytlib/sequoia_client/lazy_client.h>
+#include <yt/yt/ytlib/sequoia_client/client.h>
 
 #include <yt/yt/client/logging/dynamic_table_log_writer.h>
 
@@ -149,19 +151,9 @@ public:
         return NativeRootClient_;
     }
 
-    ISequoiaClientPtr GetSequoiaClient() const override
+    const ISequoiaClientPtr& GetSequoiaClient() const override
     {
         return SequoiaClient_;
-    }
-
-    const NApi::NNative::IConnectionPtr& GetGroundConnection() const override
-    {
-        return GroundConnection_;
-    }
-
-    const NApi::NNative::IClientPtr& GetGroundRootClient() const override
-    {
-        return GroundRootClient_;
     }
 
     NApi::IClientPtr GetRootClient() const override
@@ -177,6 +169,11 @@ public:
     const ISequoiaResponseKeeperPtr& GetResponseKeeper() const override
     {
         return ResponseKeeper_;
+    }
+
+    const IMasterConnectorPtr& GetMasterConnector() const override
+    {
+        return MasterConnector_;
     }
 
     IDistributedThrottlerFactoryPtr CreateDistributedThrottlerFactory(
@@ -213,10 +210,7 @@ private:
     NApi::NNative::IClientPtr NativeRootClient_;
     NRpc::IAuthenticatorPtr NativeAuthenticator_;
 
-    NApi::NNative::IConnectionPtr GroundConnection_;
-    NApi::NNative::IClientPtr GroundRootClient_;
-
-    ILazySequoiaClientPtr SequoiaClient_;
+    ISequoiaClientPtr SequoiaClient_;
 
     ISequoiaServicePtr SequoiaService_;
 
@@ -230,12 +224,13 @@ private:
 
     IMapNodePtr OrchidRoot_;
     IMonitoringManagerPtr MonitoringManager_;
-    ICypressRegistrarPtr CypressRegistrar_;
 
     TDynamicConfigManagerPtr DynamicConfigManager_;
 
     TUserDirectoryPtr UserDirectory_;
     IUserDirectorySynchronizerPtr UserDirectorySynchronizer_;
+
+    IMasterConnectorPtr MasterConnector_;
 
     void DoRun()
     {
@@ -255,13 +250,9 @@ private:
 
         NLogging::GetDynamicTableLogWriterFactory()->SetClient(NativeRootClient_);
 
-        SequoiaClient_ = CreateLazySequoiaClient(NativeRootClient_, Logger());
-
-        // If Sequoia is local it's safe to create the client right now.
-        const auto& groundClusterName = Config_->ClusterConnection->Dynamic->SequoiaConnection->GroundClusterName;
-        if (!groundClusterName) {
-            SequoiaClient_->SetGroundClient(NativeRootClient_);
-        }
+        SequoiaClient_ = CreateSequoiaClient(
+            Config_->ClusterConnection->Dynamic->SequoiaConnection,
+            NativeRootClient_);
 
         DynamicConfigManager_ = New<TDynamicConfigManager>(this);
         DynamicConfigManager_->SubscribeConfigChanged(BIND_NO_PROPAGATE(&TBootstrap::OnDynamicConfigChanged, Unretained(this)));
@@ -273,20 +264,7 @@ private:
             UserDirectory_,
             GetControlInvoker());
 
-        {
-            TCypressRegistrarOptions options{
-                .RootPath = NYPath::YPathJoin(Config_->RootPath, BuildServiceAddress(
-                    GetLocalHostName(),
-                    Config_->RpcPort)),
-                .OrchidRemoteAddresses = GetLocalAddresses(/*addresses*/ {}, Config_->RpcPort),
-                .ExpireSelf = true,
-            };
-            CypressRegistrar_ = CreateCypressRegistrar(
-                std::move(options),
-                Config_->CypressRegistrar,
-                NativeRootClient_,
-                GetControlInvoker());
-        }
+        MasterConnector_ = CreateMasterConnector(this);
 
         NMonitoring::Initialize(
             HttpServer_,
@@ -307,6 +285,10 @@ private:
         SetBuildAttributes(
             OrchidRoot_,
             "cypress_proxy");
+        SetNodeByYPath(
+            OrchidRoot_,
+            "/sequoia_reign",
+            ConvertToNode(GetCurrentSequoiaReign()));
 
         RpcServer_->RegisterService(CreateOrchidService(
             OrchidRoot_,
@@ -325,21 +307,11 @@ private:
 
     void DoStart()
     {
-        if (const auto& groundClusterName = Config_->ClusterConnection->Dynamic->SequoiaConnection->GroundClusterName) {
-            NativeConnection_->GetClusterDirectory()->SubscribeOnClusterUpdated(
-                BIND_NO_PROPAGATE([=, this] (const std::string& clusterName, const INodePtr& /*configNode*/) {
-                    if (clusterName == *groundClusterName) {
-                        auto groundConnection = NativeConnection_->GetClusterDirectory()->GetConnection(*groundClusterName);
-                        auto groundClient = groundConnection->CreateNativeClient({.User = NSecurityClient::RootUserName});
-                        SequoiaClient_->SetGroundClient(std::move(groundClient));
-                    }
-                }));
-        }
-
         NativeConnection_->GetClusterDirectorySynchronizer()->Start();
         NativeConnection_->GetMasterCellDirectorySynchronizer()->Start();
 
-        CypressRegistrar_->Start();
+        MasterConnector_->Start();
+
         DynamicConfigManager_->Start();
         UserDirectorySynchronizer_->Start();
 

@@ -24,7 +24,9 @@
 #include <Columns/ColumnTuple.h>
 #include <Columns/ColumnVector.h>
 #include <Columns/IColumn.h>
+#include <Common/IntervalKind.h>
 #include <Core/Types.h>
+#include <DataTypes/DataTypeNumberBase.h>
 #include <DataTypes/DataTypeArray.h>
 #include <DataTypes/DataTypeDate.h>
 #include <DataTypes/DataTypeDate32.h>
@@ -703,7 +705,7 @@ public:
     TDictConverter(IConverterPtr keyConverter, IConverterPtr valueConverter)
         : KeyConverter_(std::move(keyConverter))
         , ValueConverter_(std::move(valueConverter))
-        , ConvertToMap_(DB::DataTypeMap::checkKeyType(KeyConverter_->GetDataType()))
+        , ConvertToMap_(DB::DataTypeMap::isValidKeyType(KeyConverter_->GetDataType()))
     { }
 
     void InitColumn() override
@@ -1211,15 +1213,15 @@ private:
             CASE_SIMPLE_NUMERIC(ESimpleLogicalValueType::Uint16, ui16)
             CASE_SIMPLE_NUMERIC(ESimpleLogicalValueType::Uint32, ui32)
             CASE_SIMPLE_NUMERIC(ESimpleLogicalValueType::Uint64, ui64)
-            CASE_SIMPLE_NUMERIC(ESimpleLogicalValueType::Int8, i8)
+            CASE_SIMPLE_NUMERIC(ESimpleLogicalValueType::Int8, DB::Int8)
             CASE_SIMPLE_NUMERIC(ESimpleLogicalValueType::Int16, i16)
             CASE_SIMPLE_NUMERIC(ESimpleLogicalValueType::Int32, i32)
             CASE_SIMPLE_NUMERIC(ESimpleLogicalValueType::Int64, i64)
             CASE_SIMPLE_NUMERIC(ESimpleLogicalValueType::Float, float)
             CASE_SIMPLE_NUMERIC(ESimpleLogicalValueType::Double, double)
             // YT Interval logical type stores microseconds between two timestamps
-            CASE_NUMERIC(ESimpleLogicalValueType::Interval, i64, std::make_shared<DB::DataTypeInterval>(DB::IntervalKind::Microsecond))
-            CASE_NUMERIC(ESimpleLogicalValueType::Interval64, i64, std::make_shared<DB::DataTypeInterval>(DB::IntervalKind::Microsecond))
+            CASE_NUMERIC(ESimpleLogicalValueType::Interval, i64, std::make_shared<DB::DataTypeInterval>(DB::IntervalKind::Kind::Microsecond))
+            CASE_NUMERIC(ESimpleLogicalValueType::Interval64, i64, std::make_shared<DB::DataTypeInterval>(DB::IntervalKind::Kind::Microsecond))
             CASE_NUMERIC(ESimpleLogicalValueType::Boolean, DB::UInt8, GetDataTypeBoolean())
             // TODO(max42): specify timezone explicitly here.
             CASE_NUMERIC(ESimpleLogicalValueType::Date, ui16, std::make_shared<DB::DataTypeDate>())
@@ -1343,7 +1345,7 @@ private:
 
         // Not all types that can be used as a dict key in YT can also be used as keys in a CH Map.
         // In case the key type does not satisfy CH constraints we perform read-only conversion.
-        if (!DB::DataTypeMap::checkKeyType(keyConverter->GetDataType())) {
+        if (!DB::DataTypeMap::isValidKeyType(keyConverter->GetDataType())) {
             ValidateReadOnly(descriptor);
         }
 

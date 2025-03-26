@@ -61,7 +61,7 @@ std::pair<TAggregateItemList, TAggregateItemList> GetPureAndMixedAggregateItems(
     auto purityChecker = TPurityChecker(joinRenamedSchema);
 
     auto isAggregateFunctionGood = [] (TStringBuf function) {
-        return function == "min" || function == "max" || function == "sum";
+        return function == "first" || function == "min" || function == "max" || function == "sum";
     };
 
     for (const auto& aggregate : groupByClause.AggregateItems) {

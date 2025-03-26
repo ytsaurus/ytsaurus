@@ -917,11 +917,6 @@ public:
                 THROW_ERROR_EXCEPTION("Tablet with atomicity %Qlv cannot be moved",
                     table->GetAtomicity());
             }
-
-            const auto& schema = table->GetSchema()->AsTableSchema();
-            if (schema->HasHunkColumns()) {
-                THROW_ERROR_EXCEPTION("Cannot move table with hunk columns");
-            }
         }
 
         auto* action = DoCreateTabletAction(
@@ -1071,19 +1066,21 @@ public:
             GetDynamicConfig());
         ValidateTableMountConfig(table, tableSettings.EffectiveMountConfig, GetDynamicConfig());
 
+        const auto& schema = table->GetSchema()->AsTableSchema();
+
         if (table->GetReplicationCardId() && !table->IsSorted()) {
             if (table->GetCommitOrdering() != ECommitOrdering::Strong) {
                 THROW_ERROR_EXCEPTION("Ordered dynamic table bound for chaos replication should have %Qlv commit ordering",
                     ECommitOrdering::Strong);
             }
 
-            if (!table->GetSchema()->AsTableSchema()->FindColumn(TimestampColumnName)) {
+            if (!schema.FindColumn(TimestampColumnName)) {
                 THROW_ERROR_EXCEPTION("Ordered dynamic table bound for chaos replication should have %Qlv column",
                     TimestampColumnName);
             }
         }
 
-        for (const auto& column : table->GetSchema()->AsTableSchema()->Columns()) {
+        for (const auto& column : schema.Columns()) {
             if (column.GetWireType() == EValueType::Null) {
                 THROW_ERROR_EXCEPTION("Cannot mount table since it has column %Qv with value type %Qlv",
                     column.Name(),
@@ -2368,7 +2365,7 @@ public:
 
         table->ValidateAllTabletsUnmounted("Cannot switch mode from dynamic to static");
 
-        if (table->GetSchema()->AsTableSchema()->HasHunkColumns()) {
+        if (table->GetSchema()->AsCompactTableSchema()->HasHunkColumns()) {
             THROW_ERROR_EXCEPTION("Cannot switch mode from dynamic to static: table schema contains hunk columns");
         }
     }
@@ -3825,7 +3822,7 @@ private:
         req.set_serialization_type(ToProto(table->GetSerializationType()));
 
         ToProto(reqEssential.mutable_schema_id(), table->GetSchema()->GetId());
-        ToProto(reqEssential.mutable_schema(), *table->GetSchema()->AsTableSchema());
+        ToProto(reqEssential.mutable_schema(), table->GetSchema()->AsCompactTableSchema());
 
         FillTableSettings(req.mutable_replicatable_content(), serializedTableSettings);
 
@@ -4756,13 +4753,13 @@ private:
             }
         }
 
-        std::vector<TLegacyOwningKey> oldPivotKeys;
+        std::vector<TOwningKeyBound> oldPivotKeyBounds;
 
         // Drop old tablets.
         for (int index = firstTabletIndex; index <= lastTabletIndex; ++index) {
             auto* tablet = tablets[index]->As<TTablet>();
             if (table->IsPhysicallySorted()) {
-                oldPivotKeys.push_back(tablet->GetPivotKey());
+                oldPivotKeyBounds.push_back(tablet->GetPivotKeyBound());
             }
             table->DiscountTabletStatistics(tablet->GetTabletStatistics());
             tablet->SetOwner(nullptr);
@@ -4771,9 +4768,9 @@ private:
 
         if (table->IsPhysicallySorted()) {
             if (lastTabletIndex + 1 < std::ssize(tablets)) {
-                oldPivotKeys.push_back(tablets[lastTabletIndex + 1]->As<TTablet>()->GetPivotKey());
+                oldPivotKeyBounds.push_back(tablets[lastTabletIndex + 1]->As<TTablet>()->GetPivotKeyBound());
             } else {
-                oldPivotKeys.push_back(MaxKey());
+                oldPivotKeyBounds.push_back(TOwningKeyBound::MakeEmpty(/*isUpper*/ false));
             }
         }
 
@@ -4791,7 +4788,7 @@ private:
             firstTabletIndex,
             lastTabletIndex,
             newTabletCount,
-            oldPivotKeys,
+            oldPivotKeyBounds,
             pivotKeys,
             oldEdenStoreIds);
 
@@ -7280,11 +7277,11 @@ private:
             auto statistics = tablet->GetTabletStatistics();
             switch (table->GetInMemoryMode()) {
                 case EInMemoryMode::None:
-                case EInMemoryMode::Uncompressed:
                     result += statistics.UncompressedDataSize;
                     break;
+                case EInMemoryMode::Uncompressed:
                 case EInMemoryMode::Compressed:
-                    result += statistics.CompressedDataSize;
+                    result += tablet->GetTabletStaticMemorySize(table->GetInMemoryMode());
                     break;
                 default:
                     YT_ABORT();

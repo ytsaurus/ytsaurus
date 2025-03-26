@@ -48,12 +48,11 @@ static constexpr auto& Logger = QueueBenchmarkLogger;
 ////////////////////////////////////////////////////////////////////////////////
 
 
-DECLARE_REFCOUNTED_CLASS(TConfig)
+DECLARE_REFCOUNTED_STRUCT(TConfig)
 
-class TConfig
+struct TConfig
     : public TSingletonsConfig
 {
-public:
     NRpcProxy::TConnectionConfigPtr Connection;
 
     REGISTER_YSON_STRUCT(TConfig);
@@ -173,7 +172,7 @@ private:
     TRichYPath ConsumerPath_;
     TYPath QueuePathRaw_;
     TRichYPath QueuePath_;
-    TString Cluster_;
+    std::string Cluster_;
     i64 MaxDataWeight_;
     i64 BatchLoggingPeriod_;
     TString TabletCellBundle_;

@@ -34,11 +34,12 @@ DEFINE_ENUM(EExpressionKind,
 struct TExpression
     : public TRefCounted
 {
-    NTableClient::TLogicalTypePtr LogicalType;
-
-    explicit TExpression(NTableClient::TLogicalTypePtr type);
+    TLogicalTypePtr LogicalType;
+    TLogicalTypePtr OriginalLogicalType;
 
     explicit TExpression(EValueType type);
+    explicit TExpression(TLogicalTypePtr type);
+    TExpression(TLogicalTypePtr type, TLogicalTypePtr originalType);
 
     EValueType GetWireType() const;
 
@@ -62,7 +63,7 @@ struct TLiteralExpression
 {
     TOwningValue Value;
 
-    explicit TLiteralExpression(EValueType type);
+    using TExpression::TExpression;
 
     TLiteralExpression(EValueType type, TOwningValue value);
 };
@@ -72,9 +73,8 @@ struct TReferenceExpression
 {
     std::string ColumnName;
 
-    explicit TReferenceExpression(const NTableClient::TLogicalTypePtr& type);
-
-    TReferenceExpression(const NTableClient::TLogicalTypePtr& type, const std::string& columnName);
+    TReferenceExpression(const TLogicalTypePtr& type);
+    TReferenceExpression(const TLogicalTypePtr& type, const std::string& columnName);
 };
 
 struct TFunctionExpression
@@ -83,7 +83,7 @@ struct TFunctionExpression
     std::string FunctionName;
     std::vector<TConstExpressionPtr> Arguments;
 
-    explicit TFunctionExpression(EValueType type);
+    using TExpression::TExpression;
 
     TFunctionExpression(
         EValueType type,
@@ -99,7 +99,7 @@ struct TUnaryOpExpression
     EUnaryOp Opcode;
     TConstExpressionPtr Operand;
 
-    explicit TUnaryOpExpression(EValueType type);
+    using TExpression::TExpression;
 
     TUnaryOpExpression(
         EValueType type,
@@ -114,7 +114,7 @@ struct TBinaryOpExpression
     TConstExpressionPtr Lhs;
     TConstExpressionPtr Rhs;
 
-    explicit TBinaryOpExpression(EValueType type);
+    using TExpression::TExpression;
 
     TBinaryOpExpression(
         EValueType type,
@@ -211,9 +211,6 @@ struct TLikeExpression
         TConstExpressionPtr escapeCharacter);
 };
 
-using TStructMemberAccessor = TString;
-using TTupleItemIndexAccessor = int;
-
 struct TCompositeMemberAccessorPath
 {
     std::vector<NTableClient::ELogicalMetatype> NestedTypes;
@@ -237,10 +234,10 @@ struct TCompositeMemberAccessorExpression
     TCompositeMemberAccessorPath NestedStructOrTupleItemAccessor;
     TDictOrListItemAccessorExpression DictOrListItemAccessor;
 
-    explicit TCompositeMemberAccessorExpression(NTableClient::TLogicalTypePtr type);
+    explicit TCompositeMemberAccessorExpression(TLogicalTypePtr type);
 
     TCompositeMemberAccessorExpression(
-        NTableClient::TLogicalTypePtr type,
+        TLogicalTypePtr type,
         TConstExpressionPtr compositeExpression,
         TCompositeMemberAccessorPath nestedStructOrTupleItemAccess,
         TDictOrListItemAccessorExpression dictOrListItemAccess);

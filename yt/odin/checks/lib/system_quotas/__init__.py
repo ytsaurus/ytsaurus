@@ -1,5 +1,8 @@
-from datetime import datetime
 from collections import defaultdict
+from collections.abc import Mapping
+from copy import deepcopy
+from datetime import datetime, time
+from typing import TypedDict, final
 
 try:
     from yt_odin_checks.lib.yandex_helpers import get_account_link
@@ -49,19 +52,36 @@ class Resources:
     usage = None
 
     def __str__(self):
-        return "limits:{} usage:{}".format(self.limits, self.usage)
+        return f"limits:{self.limits} usage:{self.usage}"
 
 
-def get_resource_usage_in_precents(usage, limit):
+@final
+class ScheduleOptionsDict(TypedDict):
+    start_time: str
+    end_time: str
+    threshold: int | float
+
+
+@final
+class SubsystemOptionsDict(TypedDict):
+    all_possible_names: list[str]
+    default_schedule: list[ScheduleOptionsDict]
+    not_so_critical_names: list[str]
+    per_cluster_not_so_critical_names: list[str]
+    threshold_time_period_overrides: dict[str, list[ScheduleOptionsDict]]
+    enable_tablet_resource_validation: bool
+
+
+@final
+class OptionsDict(TypedDict):
+    accounts: SubsystemOptionsDict
+    bundles: SubsystemOptionsDict
+
+
+def get_resource_usage_in_percents(usage, limit):
     if usage == 0 or limit == 0:
         return 0
     return round(usage / float(limit) * 100, 2)
-
-
-def is_resource_exhausted(used_percent, threshold):
-    if used_percent >= threshold:
-        return True
-    return False
 
 
 def fetch_quota_holders(client, holder_map_name, all_possible_holders):
@@ -118,30 +138,51 @@ def get_cluster_name(yt_client):
 
 
 def _get_now_time():
-    return datetime.now().time()
+    # Drop microseconds to avoid confusion when we compare now with 23:59:59
+    # maximum value that can be specified in config
+    return datetime.now().time().replace(microsecond=0)
 
 
-def get_quota_holder_threshold(quota_holder, default_threshold, custom_thresholds, time_period_overrides):
+def get_quota_holder_threshold(
+    quota_holder: str,
+    default_threshold: int,
+    default_schedule: list[ScheduleOptionsDict],
+    time_period_overrides: dict[str, list[ScheduleOptionsDict]],
+    now_time: time
+):
     def _strtime_to_time(time_str):
         return datetime.strptime(time_str, "%H:%M:%S").time()
 
-    quota_holder_threshold = custom_thresholds.get(quota_holder, default_threshold)
-    time_period_override = time_period_overrides.get(quota_holder, None)
+    def get_threshold_from_schedule(schedule: ScheduleOptionsDict):
+        for item in schedule:
+            start_time = _strtime_to_time(item.get("start_time", "00:00:00"))
+            end_time = _strtime_to_time(item.get("end_time", "23:59:59"))
+            threshold = item["threshold"]
+            if start_time > end_time:
+                raise RuntimeError(f"misconfiguration: start_time cannot be after end_time: {start_time} > {end_time}")
+            if start_time <= now_time <= end_time:
+                return threshold
 
-    if time_period_override is not None:
-        # Defaults here for safety
-        start_time = _strtime_to_time(time_period_override.get("start_time", "00:00:00"))
-        end_time = _strtime_to_time(time_period_override.get("end_time", "10:00:00"))
+    quota_holder_threshold = None
 
-        now_time = _get_now_time()
-        if start_time <= now_time <= end_time:
-            quota_holder_threshold = time_period_override.get("threshold", quota_holder_threshold)
+    time_period_override = time_period_overrides.get(quota_holder, [])
+    quota_holder_threshold = get_threshold_from_schedule(time_period_override)
+    if quota_holder_threshold is not None:
+        return quota_holder_threshold
 
+    quota_holder_threshold = get_threshold_from_schedule(default_schedule)
+    if quota_holder_threshold is not None:
+        return quota_holder_threshold
+
+    quota_holder_threshold = default_threshold
     return quota_holder_threshold
 
 
 def do_run_check(yt_client, logger, states, options, facade, config):
     cluster = get_cluster_name(yt_client)
+
+    default_threshold = options.get("default_threshold", config.DEFAULT_THRESHOLD)
+
     not_so_critical_quota_holders = set(options.get("not_so_critical_names", [])) | \
         set(options.get("per_cluster_not_so_critical_names", []))
 
@@ -151,37 +192,43 @@ def do_run_check(yt_client, logger, states, options, facade, config):
         options["all_possible_names"])
 
     exhausted_resources = defaultdict(lambda: defaultdict(float))
+
     for holder, resources_info in resource_usage_info.items():
+        def check_resource(key_list):
+            def resolve_key_list(d):
+                for k in key_list:
+                    d = d.get(k, None)
+                    if d is None:
+                        return 0
+                return d
+
+            limit = resolve_key_list(resources_info.limits)
+            usage = resolve_key_list(resources_info.usage)
+            used_percent = get_resource_usage_in_percents(usage, limit)
+            key_list_str = "/".join(key_list)
+            logger.info(f"Resource {facade.holder_type} {holder} {key_list_str} usage: {used_percent}; threshold: {threshold}")
+            if used_percent >= threshold:
+                exhausted_resources[holder][key_list_str] = used_percent
+
         threshold = get_quota_holder_threshold(
             holder,
-            config.DEFAULT_THRESHOLD,
-            options.get("custom_thresholds", {}),
-            options.get("threshold_time_period_overrides", {}))
+            default_threshold,
+            options.get("default_threshold_schedule", []),
+            options.get("threshold_time_period_overrides", {}),
+            now_time=_get_now_time())
         for resource in config.SUBKEY_RESOURCES:
             for subkey in resources_info.limits.get(resource, {}):
-                limit = resources_info.limits.get(resource, {}).get(subkey, 0)
-                usage = resources_info.usage.get(resource, {}).get(subkey, 0)
-                used_percent = get_resource_usage_in_precents(usage, limit)
-                if is_resource_exhausted(used_percent, threshold):
-                    exhausted_resources[holder]["{}/{}".format(resource, subkey)] = used_percent
+                check_resource([resource, subkey])
 
         for resource in config.get_flat_resources(options["enable_tablet_resource_validation"]):
-            limit = resources_info.limits.get(resource, 0)
-            usage = resources_info.usage.get(resource, 0)
-            used_percent = get_resource_usage_in_precents(usage, limit)
-            if is_resource_exhausted(used_percent, threshold):
-                exhausted_resources[holder][resource] = used_percent
+            check_resource([resource])
 
     if exhausted_resources:
         descriptions = []
         for holder, resources in exhausted_resources.items():
             for resource, used_percent in resources.items():
-                log_msg = '{} "{}": {} exhausted for {:04.2f}%, link: {}'.format(
-                    facade.holder_type,
-                    holder,
-                    resource,
-                    used_percent,
-                    facade.build_link_to_quota_holder(cluster, holder))
+                link = facade.build_link_to_quota_holder(cluster, holder)
+                log_msg = f'{facade.holder_type} "{holder}": {resource} exhausted for {used_percent:04.2f}%, link: {link}'
                 logger.info(log_msg)
                 descriptions.append(log_msg)
         if all(holder in not_so_critical_quota_holders for holder in exhausted_resources):
@@ -191,6 +238,27 @@ def do_run_check(yt_client, logger, states, options, facade, config):
         return state, descriptions
 
     return states.FULLY_AVAILABLE_STATE, []
+
+
+def port_options(logger, options: OptionsDict, key: str) -> SubsystemOptionsDict:
+    """
+    Port options from old format to new.
+    """
+    options_copy = deepcopy(options[key])
+
+    # 04.03.2024: check custom_threshold option
+    if "custom_thresholds" in options_copy:
+        if options_copy["custom_thresholds"]:
+            raise RuntimeError("option 'custom_thresholds' is removed, port the code to using 'threshold_time_period_overrides'")
+        logger.warn("option 'custom_thresholds' is not supported anymore, please remove it from configuration")
+
+    # 04.03.2024: check 'threshold_time_period_overrides' option
+    for account, value in options_copy.get("threshold_time_period_overrides", {}).items():
+        if isinstance(value, Mapping):
+            logger.warn(f"{key}/threshold_time_period_overrides/{account} should be list of dictionaries, not dictionary")
+            options_copy[account] = [value]
+
+    return options_copy
 
 
 def run_check_impl(yt_client, logger, options, states):
@@ -203,8 +271,8 @@ def run_check_impl(yt_client, logger, options, states):
         aggregated_state = min(aggregated_state, check_state)
         aggregated_descriptions += check_descriptions
 
-    combine_result(*do_run_check(yt_client, logger, states, options["accounts"], AccountFacade, AccountConfig))
-    combine_result(*do_run_check(yt_client, logger, states, options["bundles"], BundleFacade, BundleConfig))
+    combine_result(*do_run_check(yt_client, logger, states, port_options(logger, options, "accounts"), AccountFacade, AccountConfig))
+    combine_result(*do_run_check(yt_client, logger, states, port_options(logger, options, "bundles"), BundleFacade, BundleConfig))
 
     if aggregated_state == states.FULLY_AVAILABLE_STATE:
         return aggregated_state

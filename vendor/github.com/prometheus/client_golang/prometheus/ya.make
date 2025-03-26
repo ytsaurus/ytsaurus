@@ -2,7 +2,7 @@ GO_LIBRARY()
 
 LICENSE(Apache-2.0)
 
-VERSION(v1.18.0)
+VERSION(v1.20.5)
 
 SRCS(
     build_info_collector.go
@@ -39,6 +39,7 @@ GO_TEST_SRCS(
     desc_test.go
     gauge_test.go
     go_collector_latest_test.go
+    go_collector_metrics_go122_test.go
     go_collector_test.go
     histogram_test.go
     metric_test.go

@@ -26,7 +26,7 @@
 #include <Dictionaries/DictionaryStructure.h>
 #include <QueryPipeline/QueryPipeline.h>
 
-#include <Poco/Util/AbstractConfiguration.h>
+#include <DBPoco/Util/AbstractConfiguration.h>
 
 namespace NYT::NClickHouseServer {
 
@@ -173,7 +173,7 @@ void RegisterTableDictionarySource(THost* host)
 {
     auto creator = [host] (
         const DB::DictionaryStructure& dictionaryStructure,
-        const Poco::Util::AbstractConfiguration& config,
+        const DBPoco::Util::AbstractConfiguration& config,
         const std::string& dictSectionPath,
         DB::Block& sampleBlock,
         DB::ContextPtr /*context*/,

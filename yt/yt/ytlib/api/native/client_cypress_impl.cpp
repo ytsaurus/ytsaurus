@@ -637,11 +637,11 @@ protected:
         YT_ASSERT(ExternalCellTags_.empty());
 
         for (const auto& [_, data] : NodeIdToSerializedData_) {
-            if (auto schemaId = YT_PROTO_OPTIONAL(data->serialized_node(), schema_id, TMasterTableSchemaId)) {
+            if (auto schemaId = YT_OPTIONAL_FROM_PROTO(data->serialized_node(), schema_id, TMasterTableSchemaId)) {
                 SchemaIds_.emplace(*schemaId);
             }
 
-            if (auto cellTag = YT_PROTO_OPTIONAL(data->serialized_node(), external_cell_tag, TCellTag)) {
+            if (auto cellTag = YT_OPTIONAL_FROM_PROTO(data->serialized_node(), external_cell_tag, TCellTag)) {
                 ExternalCellTags_.emplace(*cellTag);
             }
         }
@@ -1050,11 +1050,17 @@ public:
             Format("Clone %v to %v", SrcPath_, DstPath_),
             Options_);
 
+        TTransactionCommitOptions commitOptions = {};
+        commitOptions.PrerequisiteTransactionIds = Options_.PrerequisiteTransactionIds;
+
         auto useNewCopyPipeline = !BeginCopy(SrcPath_, Options_, true);
         if (useNewCopyPipeline) {
             YT_LOG_DEBUG("BeginCopy is deprecated, switching to the new copy pipeline");
             if (!LockCopyDestination(DstPath_, Options_)) {
                 YT_VERIFY(DstNodeId_);
+                // NB: in case "lock_existing" flag was specified, a lock was taken in the copy transaction and now it
+                // needs to be promoted to the user transaction. But if transaction is aborted, promotion is too.
+                CommitTransaction(commitOptions);
                 return DstNodeId_;
             }
 
@@ -1077,8 +1083,6 @@ public:
             RemoveSource();
         }
         SyncExternalCellsWithClonedNodeCell();
-        TTransactionCommitOptions commitOptions = {};
-        commitOptions.PrerequisiteTransactionIds = Options_.PrerequisiteTransactionIds;
         CommitTransaction(commitOptions);
         YT_LOG_DEBUG("Cross-cell node cloning completed");
         return DstNodeId_;
@@ -2203,7 +2207,7 @@ private:
                     << TErrorAttribute("output_table_key_column_count", OutputTableSchema_->GetKeyColumnCount());
             }
 
-            if (OutputTableSchema_->GetUniqueKeys() && !chunkSchema.GetUniqueKeys()) {
+            if (OutputTableSchema_->IsUniqueKeys() && !chunkSchema.IsUniqueKeys()) {
                 THROW_ERROR_EXCEPTION(
                     NTableClient::EErrorCode::SchemaViolation,
                     "Output table schema forces keys to be unique while chunk %v schema does not",
@@ -2253,7 +2257,7 @@ private:
                     << TErrorAttribute("current_chunk_max_key", currentChunkMaxKey)
                     << TErrorAttribute("next_chunk_min_key", nextChunkMinKey)
                     << TErrorAttribute("comparator", comparator);
-            } else if (comparisonResult == 0 && OutputTableSchema_->GetUniqueKeys()) {
+            } else if (comparisonResult == 0 && OutputTableSchema_->IsUniqueKeys()) {
                 THROW_ERROR_EXCEPTION(
                     NTableClient::EErrorCode::UniqueKeyViolation,
                     "Key appears in two chunks but output table schema requires unique keys")
@@ -2323,7 +2327,7 @@ private:
                     << TErrorAttribute("table_max_key", tableMaxKey)
                     << TErrorAttribute("first_chunk_min_key", firstChunkMinKey)
                     << TErrorAttribute("comparator", comparator);
-            } else if (comparisonResult == 0 && OutputTableSchema_->GetUniqueKeys()) {
+            } else if (comparisonResult == 0 && OutputTableSchema_->IsUniqueKeys()) {
                 THROW_ERROR_EXCEPTION(
                     NTableClient::EErrorCode::UniqueKeyViolation,
                     "First key of chunk to append equals to last key in table")
@@ -2346,6 +2350,10 @@ private:
         if (CommonType_ == EObjectType::Table) {
             ToProto(req->mutable_table_schema(), OutputTableSchema_);
             req->set_schema_mode(ToProto(OutputTableSchemaMode_));
+
+            if (OutputTableSchema_->IsSorted()) {
+                req->set_lock_mode(ToProto(ELockMode::Exclusive));
+            }
         }
 
         std::vector<TString> srcObjectPaths;

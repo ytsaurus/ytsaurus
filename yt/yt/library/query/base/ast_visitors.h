@@ -16,18 +16,6 @@ struct TAbstractAstVisitor
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <class TDerived, class TNode>
-struct TAbstractAstVisitor<void, TDerived, TNode>
-{
-    TDerived* Derived();
-
-    void Visit(TNode node);
-    void Visit(const std::vector<TNode>& tuple);
-    void Visit(const std::optional<std::vector<TNode>>& nullableTuple);
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
 template <class TResult, class TDerived>
 struct TBaseAstVisitor
     : TAbstractAstVisitor<TResult, TDerived, TExpressionPtr>

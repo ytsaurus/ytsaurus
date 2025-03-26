@@ -29,6 +29,7 @@ namespace NYT::NTabletServer {
 using namespace NCellMaster;
 using namespace NChunkClient;
 using namespace NChunkServer;
+using namespace NTableClient;
 using namespace NCypressClient;
 using namespace NTableServer;
 using namespace NTabletClient;
@@ -153,6 +154,7 @@ void TTablet::Save(NCellMaster::TSaveContext& context) const
     using NYT::Save;
     Save(context, PivotKey_);
     Save(context, NodeStatistics_);
+    Save(context, AuxiliaryNodeStatistics_);
     Save(context, TrimmedRowCount_);
     Save(context, Replicas_);
     Save(context, RetainedTimestamp_);
@@ -173,6 +175,15 @@ void TTablet::Load(NCellMaster::TLoadContext& context)
     using NYT::Load;
     Load(context, PivotKey_);
     Load(context, NodeStatistics_);
+
+    // COMPAT(ifsmirnov)
+    if (context.GetVersion() >= EMasterReign::PersistAuxiliaryNodeStatistics ||
+        (context.GetVersion() < EMasterReign::Start_25_2 &&
+            context.GetVersion() >= EMasterReign::PersistAuxiliaryNodeStatistics_25_1))
+    {
+        Load(context, AuxiliaryNodeStatistics_);
+    }
+
     Load(context, TrimmedRowCount_);
     Load(context, Replicas_);
     Load(context, RetainedTimestamp_);
@@ -364,6 +375,11 @@ void TTablet::ValidateReshardRemove() const
             "participate in resharding",
             Id_);
     }
+}
+
+TOwningKeyBound TTablet::GetPivotKeyBound() const
+{
+    return TOwningKeyBound::FromRow() >= PivotKey_;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

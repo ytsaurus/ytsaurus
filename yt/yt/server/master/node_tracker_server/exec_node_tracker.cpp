@@ -72,7 +72,7 @@ private:
     {
         auto nodeId = FromProto<TNodeId>(request->node_id());
 
-        auto jobProxyVersion = YT_PROTO_OPTIONAL(*request, job_proxy_build_version);
+        auto jobProxyVersion = YT_OPTIONAL_FROM_PROTO(*request, job_proxy_build_version);
 
         const auto& nodeTracker = Bootstrap_->GetNodeTracker();
         auto* node = nodeTracker->GetNodeOrThrow(nodeId);

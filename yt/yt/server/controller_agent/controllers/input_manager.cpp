@@ -513,6 +513,7 @@ TFetchInputTablesStatistics TInputManager::FetchInputTables()
                 .Mode = Host_->GetSpec()->InputTableColumnarStatistics->Mode,
                 .EnableEarlyFinish = Host_->GetConfig()->EnableColumnarStatisticsEarlyFinish,
                 .Logger = Logger,
+                .EnableReadSizeEstimation = Host_->GetSpec()->EnableReadSizeEstimation,
             });
 
         if (useChunkSliceStatistics) {
@@ -651,7 +652,7 @@ TFetchInputTablesStatistics TInputManager::FetchInputTables()
 
             if (hasColumnSelectors) {
                 inputChunk->SetValuesPerRow(table->Path.GetColumns()->size());
-            } else if (table->Schema && table->Schema->GetStrict()) {
+            } else if (table->Schema && table->Schema->IsStrict()) {
                 inputChunk->SetValuesPerRow(table->Schema->Columns().size());
             }
         }
@@ -978,12 +979,13 @@ void TInputManager::FetchInputTablesAttributes()
 
 void TInputManager::AdjustSchemas(const TTableSchema::TSystemColumnOptions& systemColumnOptions)
 {
-    for (auto& table: InputTables_) {
+    for (const auto& table: InputTables_) {
         table->Schema = table->Schema->WithSystemColumns({
             .EnableTableIndex = systemColumnOptions.EnableTableIndex,
             // Row index for sorted dynamic tables cannot be computed.
             .EnableRowIndex = systemColumnOptions.EnableRowIndex && (!table->Dynamic || !table->Schema->IsSorted()),
-            .EnableRangeIndex = systemColumnOptions.EnableRangeIndex});
+            .EnableRangeIndex = systemColumnOptions.EnableRangeIndex,
+        });
     }
 }
 

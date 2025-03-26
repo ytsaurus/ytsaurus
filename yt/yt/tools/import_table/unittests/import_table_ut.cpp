@@ -18,7 +18,7 @@
 #include <yt/yt/core/https/config.h>
 #include <yt/yt/core/https/server.h>
 
-#include <yt/yt/library/arrow_parquet_adapter/arrow.h>
+#include <yt/yt/library/arrow_adapter/arrow.h>
 
 #include <yt/yt/library/huggingface_client/client.h>
 
@@ -48,6 +48,10 @@
 
 #include <contrib/libs/apache/arrow/cpp/src/parquet/arrow/reader.h>
 #include <contrib/libs/apache/arrow/cpp/src/parquet/arrow/writer.h>
+
+#include <contrib/libs/apache/orc/c++/include/orc/OrcFile.hh>
+
+#include <sstream>
 
 namespace NYT::NTools::NImporter {
 namespace {
@@ -154,6 +158,68 @@ TString GenerateIntegerParquet(const std::vector<T>& data, const std::shared_ptr
     return TString(buffer->ToString());
 }
 
+class StringOutputStream
+    : public orc::OutputStream
+{
+public:
+    uint64_t getLength() const override
+    {
+        return Length_;
+    }
+
+    uint64_t getNaturalWriteSize() const override
+    {
+        return 4 * 1024;
+    }
+
+    void write(const void* buf, size_t length) override
+    {
+        Length_ += length;
+        Stream_.write(static_cast<const char*>(buf), length);
+    }
+
+    std::string str()
+    {
+        return Stream_.str();
+    }
+
+    const std::string& getName() const override
+    {
+        return Name_;
+    }
+
+    void close() override
+    { }
+
+private:
+    std::ostringstream Stream_;
+    const std::string Name_ = "StringOutputStream";
+    int Length_ = 0;
+};
+
+std::string GenerateIntegerORC(const std::vector<i64>& intArray) {
+    orc::WriterOptions options;
+    std::unique_ptr<orc::Type> schema(orc::Type::buildTypeFromString("struct<int:int>"));
+    auto outStream = std::make_unique<StringOutputStream>();
+    std::unique_ptr<orc::Writer> writer = orc::createWriter(*schema, outStream.get(), options);
+
+    std::unique_ptr<orc::ColumnVectorBatch> batch = writer->createRowBatch(intArray.size());
+    orc::StructVectorBatch* structBatch = static_cast<orc::StructVectorBatch*>(batch.get());
+    orc::LongVectorBatch* intField = static_cast<orc::LongVectorBatch*>(structBatch->fields[0]);
+
+    structBatch->numElements = intArray.size();
+    intField->resize(intArray.size());
+    for (size_t i = 0; i < intArray.size(); i++) {
+        intField->data[i] = intArray[i];
+    }
+
+    writer->add(*batch);
+    writer->close();
+
+    return outStream->str();
+}
+
+
 struct MultiTypeData
 {
     std::vector<int64_t> IntegerData;
@@ -213,7 +279,7 @@ public:
 
     virtual std::vector<TString> GenerateFileNames() = 0;
 
-    virtual std::vector<TString> GenerateParquetData() = 0;
+    virtual std::vector<TString> GenerateFormatData() = 0;
 };
 
 class TDifferentSchemaParquetGenerator
@@ -237,9 +303,9 @@ public:
         return fileNames;
     }
 
-    std::vector<TString> GenerateParquetData() override
+    std::vector<TString> GenerateFormatData() override
     {
-        std::vector<TString> parquetData;
+        std::vector<TString> formatData;
 
         std::vector<i16> firstFileData;
         std::vector<i32> secondFileData;
@@ -251,15 +317,15 @@ public:
             thirdFileData.push_back(rand());
         }
 
-        parquetData.push_back(GenerateIntegerParquet(firstFileData, arrow::int16()));
-        parquetData.push_back(GenerateIntegerParquet(secondFileData, arrow::int32()));
-        parquetData.push_back(GenerateIntegerParquet(thirdFileData, arrow::int64()));
+        formatData.push_back(GenerateIntegerParquet(firstFileData, arrow::int16()));
+        formatData.push_back(GenerateIntegerParquet(secondFileData, arrow::int32()));
+        formatData.push_back(GenerateIntegerParquet(thirdFileData, arrow::int64()));
 
         AddData(firstFileData);
         AddData(secondFileData);
         AddData(thirdFileData);
 
-        return parquetData;
+        return formatData;
     }
 
 private:
@@ -281,6 +347,10 @@ class TSmallParquetGenerator
     : public IParquetGenerator
 {
 public:
+    explicit TSmallParquetGenerator(EFileFormat format)
+        : Format_(format)
+    { }
+
     ~TSmallParquetGenerator() = default;
 
     void VerifyAnswer(const NYT::IClientPtr& client, const TString& resultTable) override
@@ -293,28 +363,44 @@ public:
     {
         std::vector<TString> fileNames;
         for (int fileIndex = 0; fileIndex < FileCount_; fileIndex++) {
-            fileNames.emplace_back(ToString(fileIndex) + ".parquet");
+            switch (Format_) {
+                case EFileFormat::Parquet:
+                    fileNames.emplace_back(ToString(fileIndex) + ".parquet");
+                    break;
+                case EFileFormat::ORC:
+                    fileNames.emplace_back(ToString(fileIndex) + ".orc");
+                    break;
+            }
         }
         return fileNames;
     }
 
-    std::vector<TString> GenerateParquetData() override
+    std::vector<TString> GenerateFormatData() override
     {
-        std::vector<TString> parquetData;
+        std::vector<TString> formatData;
         for (int fileIndex = 0; fileIndex < FileCount_; fileIndex++) {
             std::vector<i64> fileData;
             for (int elemIndex = 0; elemIndex < ElementCount_; elemIndex++) {
                 fileData.push_back(rand());
             }
             AddData(fileData);
-            parquetData.push_back(GenerateIntegerParquet(fileData, arrow::int64()));
+            switch (Format_) {
+                case EFileFormat::Parquet:
+                    formatData.push_back(GenerateIntegerParquet(fileData, arrow::int64()));
+                    break;
+                case EFileFormat::ORC:
+                    formatData.push_back(GenerateIntegerORC(fileData));
+                    break;
+            }
         }
-        return parquetData;
+        return formatData;
     }
 
 private:
     static constexpr int FileCount_ = 3;
     static constexpr int ElementCount_ = 10;
+
+    const EFileFormat Format_;
 
     std::vector<i64> ResultData_;
 
@@ -335,6 +421,7 @@ public:
     void VerifyAnswer(const NYT::IClientPtr& client, const TString& resultTable) override
     {
         auto tableData = ReadIntegersFromTable(client, resultTable);
+        EXPECT_EQ(tableData.size(), ResultData_.IntegerData.size());
         EXPECT_EQ(tableData, ResultData_.IntegerData);
 
         auto boolData = ReadBooleanFromTable(client, resultTable);
@@ -356,9 +443,9 @@ public:
         return fileNames;
     }
 
-    std::vector<TString> GenerateParquetData() override
+    std::vector<TString> GenerateFormatData() override
     {
-        std::vector<TString> parquetData;
+        std::vector<TString> formatData;
         for (int fileIndex = 0; fileIndex < FileCount_; fileIndex++) {
             MultiTypeData fileData;
             for (int elemIndex = 0; elemIndex < ElementCount_; elemIndex++) {
@@ -369,9 +456,9 @@ public:
                 AddData(fileData, intValue, doubleValue, boolValue, stringValue);
                 AddData(ResultData_, intValue, doubleValue, boolValue, stringValue);
             }
-            parquetData.push_back(GenerateMultiTypesParquet(fileData));
+            formatData.push_back(GenerateMultiTypesParquet(fileData));
         }
-        return parquetData;
+        return formatData;
     }
 
 private:
@@ -411,7 +498,7 @@ public:
         return {"0.parquet"};
     }
 
-    std::vector<TString> GenerateParquetData() override
+    std::vector<TString> GenerateFormatData() override
     {
         char data[8];
         int metadataSize = 1e9;
@@ -522,12 +609,12 @@ private:
 
         auto path = NYT::Format("/api/datasets/%v/parquet/%v/%v", Dataset, "default", Split);
         auto parquetFilesUrls = Generator->GenerateFileNames();
-        auto parquetData = Generator->GenerateParquetData();
+        auto formatData = Generator->GenerateFormatData();
         Server->AddHandler(path, New<THuggingfaceListOfFilesHttpHandler>(TestUrl, parquetFilesUrls));
 
-        for (int fileIndex = 0; fileIndex < std::ssize(parquetData); fileIndex++) {
+        for (int fileIndex = 0; fileIndex < std::ssize(formatData); fileIndex++) {
             auto downloaderPath = NYT::Format("/%v", parquetFilesUrls[fileIndex]);
-            Server->AddHandler(downloaderPath, New<THuggingfaceDownloaderFilesHttpHandler>(std::move(parquetData[fileIndex])));
+            Server->AddHandler(downloaderPath, New<THuggingfaceDownloaderFilesHttpHandler>(std::move(formatData[fileIndex])));
         }
 
         Server->Start();
@@ -551,7 +638,7 @@ class TSmallHuggingfaceServerTest
 private:
     void InitializeGenerator() override
     {
-        Generator = std::make_shared<TSmallParquetGenerator>();
+        Generator = std::make_shared<TSmallParquetGenerator>(EFileFormat::Parquet);
     }
 };
 
@@ -565,12 +652,13 @@ TEST_F(TSmallHuggingfaceServerTest, SimpleImportTableFromHuggingface)
 
     TString proxy = GetEnv("YT_PROXY");
 
-    NTools::NImporter::ImportParquetFilesFromHuggingface(
+    NTools::NImporter::ImportFilesFromHuggingface(
         proxy,
         Dataset,
         /*subset*/ "default",
         Split,
         resultTable,
+        EFileFormat::Parquet,
         TestUrl);
 
     TTableSchema schema;
@@ -578,6 +666,45 @@ TEST_F(TSmallHuggingfaceServerTest, SimpleImportTableFromHuggingface)
 
     EXPECT_EQ(schema, TTableSchema()
         .AddColumn(TColumnSchema().Name("int").Type(NTi::Int64()))
+    );
+
+    Generator->VerifyAnswer(client, resultTable);
+}
+
+class TSmallOrcHuggingfaceServerTest
+    : public THttpHuggingfaceServerTestBase
+{
+private:
+    void InitializeGenerator() override
+    {
+        Generator = std::make_shared<TSmallParquetGenerator>(EFileFormat::ORC);
+    }
+};
+
+TEST_F(TSmallOrcHuggingfaceServerTest, SimpleImportORCFilesFromHuggingface)
+{
+    NTesting::TTestFixture fixture;
+    auto client = fixture.GetClient();
+    auto workingDir = fixture.GetWorkingDir();
+    TString resultTable = workingDir + "/result_table";
+    TConfig::Get()->RemoteTempTablesDirectory = workingDir + "/table_storage";
+
+    TString proxy = GetEnv("YT_PROXY");
+
+    NTools::NImporter::ImportFilesFromHuggingface(
+        proxy,
+        Dataset,
+        /*subset*/ "default",
+        Split,
+        resultTable,
+        EFileFormat::ORC,
+        TestUrl);
+
+    TTableSchema schema;
+    Deserialize(schema, client->Get(resultTable + "/@schema"));
+
+    EXPECT_EQ(schema, TTableSchema()
+        .AddColumn(TColumnSchema().Name("int").Type(ToTypeV3(EValueType::VT_INT32, false)))
     );
 
     Generator->VerifyAnswer(client, resultTable);
@@ -605,12 +732,13 @@ TEST_F(TDifferentSchemasHuggingfaceServerTest, DifferentSchemas)
 
     TString proxy = GetEnv("YT_PROXY");
 
-    NTools::NImporter::ImportParquetFilesFromHuggingface(
+    NTools::NImporter::ImportFilesFromHuggingface(
         proxy,
         Dataset,
         /*subset*/ "default",
         Split,
         resultTable,
+        EFileFormat::Parquet,
         TestUrl);
 
     Generator->VerifyAnswer(client, resultTable);
@@ -623,7 +751,7 @@ class TBigHuggingfaceServerTest
 private:
     void InitializeGenerator() override
     {
-        Generator = std::make_shared<TSmallParquetGenerator>();
+        Generator = std::make_shared<TSmallParquetGenerator>(EFileFormat::Parquet);
     }
 };
 
@@ -637,12 +765,13 @@ TEST_F(TBigHuggingfaceServerTest, ImportBigTableFromHuggingface)
 
     TString proxy = GetEnv("YT_PROXY");
 
-    NTools::NImporter::ImportParquetFilesFromHuggingface(
+    NTools::NImporter::ImportFilesFromHuggingface(
         proxy,
         Dataset,
         /*subset*/ "default",
         Split,
         resultTable,
+        EFileFormat::Parquet,
         TestUrl);
 
     Generator->VerifyAnswer(client, resultTable);
@@ -687,12 +816,12 @@ private:
         })).ValueOrThrow();
 
         auto fileNames = Generator->GenerateFileNames();
-        auto parquetData = Generator->GenerateParquetData();
+        auto formatData = Generator->GenerateFormatData();
         for (int fileIndex = 0; fileIndex < std::ssize(fileNames); fileIndex++) {
             WaitFor(client->PutObject({
                 .Bucket = Bucket,
                 .Key = "parquet/" + fileNames[fileIndex],
-                .Data = TSharedRef::FromString(parquetData[fileIndex])
+                .Data = TSharedRef::FromString(formatData[fileIndex])
             })).ValueOrThrow();
         }
     }
@@ -704,7 +833,7 @@ class TSmallS3ServerTest
 private:
     void InitializeGenerator() override
     {
-        Generator = std::make_shared<TSmallParquetGenerator>();
+        Generator = std::make_shared<TSmallParquetGenerator>(EFileFormat::Parquet);
     }
 };
 
@@ -718,13 +847,14 @@ TEST_F(TSmallS3ServerTest, SimpleImportTableFromS3)
 
     TString proxy = GetEnv("YT_PROXY");
 
-    NTools::NImporter::ImportParquetFilesFromS3(
+    NTools::NImporter::ImportFilesFromS3(
         proxy,
         TestUrl,
         /*region*/ "",
         Bucket,
         /*prefix*/ "parquet",
-        resultTable);
+        resultTable,
+        EFileFormat::Parquet);
 
     Generator->VerifyAnswer(client, resultTable);
 }
@@ -744,18 +874,19 @@ TEST_F(TBigS3ServerTest, ImportBigTableFromS3)
     NTesting::TTestFixture fixture;
     auto client = fixture.GetClient();
     auto workingDir = fixture.GetWorkingDir();
-    TString resultTable = workingDir + "/result_table";
+    TString resultTable = workingDir + "/result_table2";
     TConfig::Get()->RemoteTempTablesDirectory = workingDir + "/table_storage";
 
     TString proxy = GetEnv("YT_PROXY");
 
-    NTools::NImporter::ImportParquetFilesFromS3(
+    NTools::NImporter::ImportFilesFromS3(
         proxy,
         TestUrl,
         /*region*/ "",
         Bucket,
         /*prefix*/ "parquet",
-        resultTable);
+        resultTable,
+        EFileFormat::Parquet);
 
     Generator->VerifyAnswer(client, resultTable);
 }
@@ -783,15 +914,16 @@ TEST_F(TWrongServerTest, ExceptionThrown)
     TString proxy = GetEnv("YT_PROXY");
 
     EXPECT_THROW_MESSAGE_HAS_SUBSTR(
-        NTools::NImporter::ImportParquetFilesFromS3(
+        NTools::NImporter::ImportFilesFromS3(
             proxy,
             TestUrl,
             /*region*/ "",
             Bucket,
             /*prefix*/ "parquet",
-            resultTable),
+            resultTable,
+            EFileFormat::Parquet),
         std::exception,
-        "Metadata size of Parquet file is too big");
+        "this is not a parquet file");
 }
 
 ////////////////////////////////////////////////////////////////////////////////

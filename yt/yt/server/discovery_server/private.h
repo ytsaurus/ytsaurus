@@ -8,8 +8,8 @@ namespace NYT::NClusterDiscoveryServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DECLARE_REFCOUNTED_CLASS(TDiscoveryServerBootstrapConfig)
-DECLARE_REFCOUNTED_CLASS(TDiscoveryServerProgramConfig)
+DECLARE_REFCOUNTED_STRUCT(TDiscoveryServerBootstrapConfig)
+DECLARE_REFCOUNTED_STRUCT(TDiscoveryServerProgramConfig)
 
 DECLARE_REFCOUNTED_STRUCT(IBootstrap)
 

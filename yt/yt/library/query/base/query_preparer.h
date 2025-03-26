@@ -3,7 +3,7 @@
 #include "ast.h"
 #include "callbacks.h"
 
-#include <yt/yt/core/misc/memory_usage_tracker.h>
+#include <library/cpp/yt/memory/memory_usage_tracker.h>
 
 namespace NYT::NQueryClient {
 
@@ -48,7 +48,7 @@ TPlanFragmentPtr PreparePlanFragment(
 
 TPlanFragmentPtr PreparePlanFragment(
     IPrepareCallbacks* callbacks,
-    const TString& source,
+    TStringBuf source,
     const NAst::TQuery& query,
     const NAst::TAliasMap& aliasMap,
     IMemoryUsageTrackerPtr memoryTracker = nullptr,

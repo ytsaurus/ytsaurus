@@ -2,10 +2,10 @@
 
 #include <base/getPageSize.h>
 #include <Common/Exception.h>
-#include <Common/StringUtils/StringUtils.h>
+#include <Common/StringUtils.h>
 #include <Common/UTF8Helpers.h>
 #include <Core/Defines.h>
-#include <Poco/Unicode.h>
+#include <DBPoco/Unicode.h>
 #include <cstdint>
 #include <cstring>
 
@@ -557,8 +557,8 @@ public:
             }
             else
             {
-                uint32_t first_l_u32 = Poco::Unicode::toLower(*first_u32);
-                uint32_t first_u_u32 = Poco::Unicode::toUpper(*first_u32);
+                uint32_t first_l_u32 = DBPoco::Unicode::toLower(*first_u32);
+                uint32_t first_u_u32 = DBPoco::Unicode::toUpper(*first_u32);
 
                 /// lower and uppercase variants of the first octet of the first character in `needle`
                 size_t length_l = UTF8::convertCodePointToUTF8(first_l_u32, l_seq, sizeof(l_seq));
@@ -599,8 +599,8 @@ public:
 
             if (c_u32)
             {
-                int c_l_u32 = Poco::Unicode::toLower(*c_u32);
-                int c_u_u32 = Poco::Unicode::toUpper(*c_u32);
+                int c_l_u32 = DBPoco::Unicode::toLower(*c_u32);
+                int c_u_u32 = DBPoco::Unicode::toUpper(*c_u32);
 
                 size_t dst_l_len = UTF8::convertCodePointToUTF8(c_l_u32, l_seq, sizeof(l_seq));
                 size_t dst_u_len = UTF8::convertCodePointToUTF8(c_u_u32, u_seq, sizeof(u_seq));
@@ -649,7 +649,7 @@ public:
                 break;
 
             /// Not equals case insensitive.
-            if (Poco::Unicode::toLower(*haystack_code_point) != Poco::Unicode::toLower(*needle_code_point))
+            if (DBPoco::Unicode::toLower(*haystack_code_point) != DBPoco::Unicode::toLower(*needle_code_point))
                 break;
 
             auto len = UTF8::seqLength(*haystack_pos);

@@ -14,6 +14,23 @@ namespace NYT::NTableClient {
 using namespace NTransactionClient;
 using namespace NQueryClient;
 
+
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<int> GetColumnIdsFromFilter(const TColumnFilter& columnFilter, int columnCount)
+{
+    std::vector<int> columnIds;
+
+    if (columnFilter.IsUniversal()) {
+        columnIds.resize(columnCount);
+        std::iota(columnIds.begin(), columnIds.end(), 0);
+    } else {
+        columnIds.assign(columnFilter.GetIndexes().begin(), columnFilter.GetIndexes().end());
+    }
+
+    return columnIds;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TSchemafulRowMerger::TSchemafulRowMerger(
@@ -29,20 +46,14 @@ TSchemafulRowMerger::TSchemafulRowMerger(
     , KeyColumnCount_(keyColumnCount)
     , ColumnEvaluator_(std::move(columnEvaluator))
     , RetentionTimestamp_(retentionTimestamp)
-    , NestedColumnsSchema_(std::move(nestedColumnsSchema))
+    , ColumnIds_(GetColumnIdsFromFilter(columnFilter, columnCount))
+    , NestedColumnsSchema_(FilterNestedColumnsSchema(nestedColumnsSchema, ColumnIds_))
 {
     ColumnIdToTimestampColumnId_.assign(static_cast<size_t>(columnCount), -1);
     IsTimestampColumn_.assign(static_cast<size_t>(columnCount), false);
     for (auto [columnId, timestampColumnId] : timestampColumnMapping) {
         ColumnIdToTimestampColumnId_[columnId] = timestampColumnId;
         IsTimestampColumn_[timestampColumnId] = true;
-    }
-
-    if (columnFilter.IsUniversal()) {
-        ColumnIds_.resize(columnCount);
-        std::iota(ColumnIds_.begin(), ColumnIds_.end(), 0);
-    } else {
-        ColumnIds_ = columnFilter.GetIndexes();
     }
 
     bool hasNestedColumns = false;
@@ -121,6 +132,8 @@ void TSchemafulRowMerger::AddPartialRow(TVersionedRow row, TTimestamp upperTimes
             if (int columnId = ColumnIds_[columnIndex]; columnId >= KeyColumnCount_) {
                 MergedTimestamps_[columnIndex] = NullTimestamp;
                 MergedRow_[columnIndex] = MakeUnversionedNullValue(columnId);
+            } else {
+                MergedRow_[columnIndex] = MakeUnversionedSentinelValue(EValueType::TheBottom);
             }
         }
 
@@ -129,6 +142,10 @@ void TSchemafulRowMerger::AddPartialRow(TVersionedRow row, TTimestamp upperTimes
                 MergedTimestamps_[columnIndex] = MaxTimestamp;
                 MergedRow_[columnIndex] = key;
             }
+        }
+
+        for (int columnIndex = 0; columnIndex < std::ssize(ColumnIds_); ++columnIndex) {
+            YT_VERIFY(MergedRow_[columnIndex].Type != EValueType::TheBottom);
         }
 
         Started_ = true;

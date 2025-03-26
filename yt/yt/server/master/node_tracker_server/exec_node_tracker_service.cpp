@@ -25,39 +25,27 @@ using NYT::FromProto;
 ////////////////////////////////////////////////////////////////////////////////
 
 class TExecNodeTrackerService
-    : public THydraServiceBase
+    : public TMasterHydraServiceBase
 {
 public:
     explicit TExecNodeTrackerService(TBootstrap* bootstrap)
-        : THydraServiceBase(
-            bootstrap->GetHydraFacade()->GetHydraManager(),
-            TDispatcher::Get()->GetHeavyInvoker(),
+        : TMasterHydraServiceBase(
+            bootstrap,
             TExecNodeTrackerServiceProxy::GetDescriptor(),
-            NodeTrackerServerLogger(),
-            CreateMulticellUpstreamSynchronizer(bootstrap),
-            NRpc::TServiceOptions{
-                .RealmId = bootstrap->GetCellId(),
-                .Authenticator =bootstrap->GetNativeAuthenticator(),
-            })
-        , Bootstrap_(bootstrap)
+            TMasterHydraServiceBase::TRpcHeavyDefaultInvoker{},
+            NodeTrackerServerLogger())
     {
         RegisterMethod(RPC_SERVICE_METHOD_DESC(Heartbeat)
             .SetHeavy(true));
     }
 
 private:
-    TBootstrap* const Bootstrap_;
-
     DECLARE_RPC_SERVICE_METHOD(NExecNodeTrackerClient::NProto, Heartbeat)
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
 
-        const auto& worldInitializerCache = Bootstrap_->GetWorldInitializerCache();
-        WaitForFast(worldInitializerCache->ValidateWorldInitialized())
-            .ThrowOnError();
-
-        const auto& hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
-        hydraManager->ValidatePeer(EPeerKind::Leader);
+        ValidateClusterInitialized();
+        ValidatePeer(EPeerKind::Leader);
 
         auto nodeId = FromProto<TNodeId>(request->node_id());
 

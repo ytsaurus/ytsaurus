@@ -29,7 +29,7 @@ def run_check(yt_client, logger, options, states):
 
     threshold = max(1, len(agent_instances) - 1)
     if connected_agent_count < threshold:
-        return states.UNAVAILABLE_STATE, "Agent(s) {} has disconnected".format(", ".join(disconnected_agents))
+        return states.UNAVAILABLE_STATE, "Agent(s) {} disconnected".format(", ".join(disconnected_agents))
 
     return states.FULLY_AVAILABLE_STATE
 

@@ -8,10 +8,9 @@ namespace NYT::NCellServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TCellBalancerBootstrapConfig
+struct TCellBalancerBootstrapConfig
     : public NYTree::TYsonStruct
 {
-public:
     bool EnableTabletCellSmoothing;
 
     REGISTER_YSON_STRUCT(TCellBalancerBootstrapConfig);
@@ -23,10 +22,9 @@ DEFINE_REFCOUNTED_TYPE(TCellBalancerBootstrapConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TDynamicCellarNodeTrackerConfig
+struct TDynamicCellarNodeTrackerConfig
     : public NYTree::TYsonStruct
 {
-public:
     int MaxConcurrentHeartbeats;
 
     REGISTER_YSON_STRUCT(TDynamicCellarNodeTrackerConfig);
@@ -38,10 +36,9 @@ DEFINE_REFCOUNTED_TYPE(TDynamicCellarNodeTrackerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TCellManagerConfig
+struct TCellManagerConfig
     : public NYTree::TYsonStruct
 {
-public:
     // COMPAT(danilalexeev)
     bool CreateVirtualCellMapsByDefault;
 
@@ -54,10 +51,9 @@ DEFINE_REFCOUNTED_TYPE(TCellManagerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TDynamicCellManagerConfig
+struct TDynamicCellManagerConfig
     : public NYTree::TYsonStruct
 {
-public:
     TDynamicCellarNodeTrackerConfigPtr CellarNodeTracker;
 
     REGISTER_YSON_STRUCT(TDynamicCellManagerConfig);

@@ -27,7 +27,8 @@ struct IChunkSliceFetcher
         NChunkClient::TLegacyDataSlicePtr dataSlice,
         const TComparator& comparator,
         i64 sliceDataWeight,
-        bool sliceByKeys) = 0;
+        bool sliceByKeys,
+        std::optional<i64> minManiacDataWeight) = 0;
 
     virtual i64 GetChunkSliceCount() const = 0;
 };

@@ -10,9 +10,9 @@
 #include <Parsers/ASTLiteral.h>
 #include <Parsers/ASTFunctionWithKeyValueArguments.h>
 #include <Storages/checkAndGetLiteralArgument.h>
-#include <Poco/DOM/Document.h>
-#include <Poco/DOM/Element.h>
-#include <Poco/DOM/Text.h>
+#include <DBPoco/DOM/Document.h>
+#include <DBPoco/DOM/Element.h>
+#include <DBPoco/DOM/Text.h>
 
 
 namespace DB
@@ -31,13 +31,13 @@ namespace ErrorCodes
         message.empty() ? "" : ": " + message);
 }
 
-Poco::AutoPtr<Poco::XML::Document> getDiskConfigurationFromASTImpl(const ASTs & disk_args, ContextPtr context)
+DBPoco::AutoPtr<DBPoco::XML::Document> getDiskConfigurationFromASTImpl(const ASTs & disk_args, ContextPtr context)
 {
     if (disk_args.empty())
         throwBadConfiguration("expected non-empty list of arguments");
 
-    Poco::AutoPtr<Poco::XML::Document> xml_document(new Poco::XML::Document());
-    Poco::AutoPtr<Poco::XML::Element> root(xml_document->createElement("disk"));
+    DBPoco::AutoPtr<DBPoco::XML::Document> xml_document(new DBPoco::XML::Document());
+    DBPoco::AutoPtr<DBPoco::XML::Element> root(xml_document->createElement("disk"));
     xml_document->appendChild(root);
 
     for (const auto & arg : disk_args)
@@ -59,14 +59,14 @@ Poco::AutoPtr<Poco::XML::Document> getDiskConfigurationFromASTImpl(const ASTs & 
             throwBadConfiguration("expected the key (key=value) to be identifier");
 
         const std::string & key = key_identifier->name();
-        Poco::AutoPtr<Poco::XML::Element> key_element(xml_document->createElement(key));
+        DBPoco::AutoPtr<DBPoco::XML::Element> key_element(xml_document->createElement(key));
         root->appendChild(key_element);
 
         if (!function_args[1]->as<ASTLiteral>() && !function_args[1]->as<ASTIdentifier>())
             throwBadConfiguration("expected values to be literals or identifiers");
 
         auto value = evaluateConstantExpressionOrIdentifierAsLiteral(function_args[1], context);
-        Poco::AutoPtr<Poco::XML::Text> value_element(xml_document->createTextNode(convertFieldToString(value->as<ASTLiteral>()->value)));
+        DBPoco::AutoPtr<DBPoco::XML::Text> value_element(xml_document->createTextNode(convertFieldToString(value->as<ASTLiteral>()->value)));
         key_element->appendChild(value_element);
     }
 
@@ -76,17 +76,17 @@ Poco::AutoPtr<Poco::XML::Document> getDiskConfigurationFromASTImpl(const ASTs & 
 DiskConfigurationPtr getDiskConfigurationFromAST(const ASTs & disk_args, ContextPtr context)
 {
     auto xml_document = getDiskConfigurationFromASTImpl(disk_args, context);
-    Poco::AutoPtr<Poco::Util::XMLConfiguration> conf(new Poco::Util::XMLConfiguration());
+    DBPoco::AutoPtr<DBPoco::Util::XMLConfiguration> conf(new DBPoco::Util::XMLConfiguration());
     conf->load(xml_document);
     return conf;
 }
 
 
-ASTs convertDiskConfigurationToAST(const Poco::Util::AbstractConfiguration & configuration, const std::string & config_path)
+ASTs convertDiskConfigurationToAST(const DBPoco::Util::AbstractConfiguration & configuration, const std::string & config_path)
 {
     ASTs result;
 
-    Poco::Util::AbstractConfiguration::Keys keys;
+    DBPoco::Util::AbstractConfiguration::Keys keys;
     configuration.keys(config_path, keys);
 
     for (const auto & key : keys)

@@ -4,7 +4,7 @@
 #include <unordered_set>
 #include <mutex>
 #include <Interpreters/IExternalLoaderConfigRepository.h>
-#include <Poco/Timestamp.h>
+#include <DBPoco/Timestamp.h>
 
 
 namespace DB
@@ -26,7 +26,7 @@ public:
     bool exists(const std::string & definition_entity_name) override;
 
     /// Return xml-file modification time via stat call
-    Poco::Timestamp getUpdateTime(const std::string & definition_entity_name) override;
+    std::optional<DBPoco::Timestamp> getUpdateTime(const std::string & definition_entity_name) override;
 
     /// May contain definition about several entities (several dictionaries in one .xml file)
     LoadablesConfigurationPtr load(const std::string & config_file) override;

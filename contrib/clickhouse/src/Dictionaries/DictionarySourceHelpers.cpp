@@ -6,7 +6,7 @@
 #include "DictionaryStructure.h"
 #include <Interpreters/Context.h>
 #include <Core/Settings.h>
-#include <Poco/Util/AbstractConfiguration.h>
+#include <DBPoco/Util/AbstractConfiguration.h>
 #include <Common/SettingsChanges.h>
 
 namespace DB
@@ -59,14 +59,14 @@ Block blockForKeys(
 }
 
 
-SettingsChanges readSettingsFromDictionaryConfig(const Poco::Util::AbstractConfiguration & config, const std::string & config_prefix)
+SettingsChanges readSettingsFromDictionaryConfig(const DBPoco::Util::AbstractConfiguration & config, const std::string & config_prefix)
 {
     if (!config.has(config_prefix + ".settings"))
         return {};
 
     const auto prefix = config_prefix + ".settings";
 
-    Poco::Util::AbstractConfiguration::Keys config_keys;
+    DBPoco::Util::AbstractConfiguration::Keys config_keys;
     config.keys(prefix, config_keys);
 
     SettingsChanges changes;
@@ -82,7 +82,7 @@ SettingsChanges readSettingsFromDictionaryConfig(const Poco::Util::AbstractConfi
 
 
 ContextMutablePtr copyContextAndApplySettingsFromDictionaryConfig(
-    const ContextPtr & context, const Poco::Util::AbstractConfiguration & config, const std::string & config_prefix)
+    const ContextPtr & context, const DBPoco::Util::AbstractConfiguration & config, const std::string & config_prefix)
 {
     auto context_copy = Context::createCopy(context);
     auto changes = readSettingsFromDictionaryConfig(config, config_prefix);
@@ -130,4 +130,5 @@ String TransformWithAdditionalColumns::getName() const
 {
     return "TransformWithAdditionalColumns";
 }
+
 }

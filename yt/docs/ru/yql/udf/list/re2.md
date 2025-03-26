@@ -1,6 +1,6 @@
 # Re2
 
-**Список функций**
+#### Список функций
 
 * ```Re2::Grep(pattern:String, options:Struct<...>?) -> (string:String?) -> Bool```
 * ```Re2::Match(pattern:String, options:Struct<...>?) -> (string:String?) -> Bool```
@@ -20,7 +20,7 @@
 
 {% endnote %}
 
-**Примеры**
+#### Примеры
 
 ```sql
 $value = "xaaxaaxaa";

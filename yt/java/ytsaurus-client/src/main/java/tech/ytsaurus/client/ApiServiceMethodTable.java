@@ -56,6 +56,7 @@ import tech.ytsaurus.rpcproxy.TReqPullQueueConsumer;
 import tech.ytsaurus.rpcproxy.TReqPutFileToCache;
 import tech.ytsaurus.rpcproxy.TReqReadFile;
 import tech.ytsaurus.rpcproxy.TReqReadQueryResult;
+import tech.ytsaurus.rpcproxy.TReqReadShuffleData;
 import tech.ytsaurus.rpcproxy.TReqReadTable;
 import tech.ytsaurus.rpcproxy.TReqRegisterQueueConsumer;
 import tech.ytsaurus.rpcproxy.TReqRemountTable;
@@ -66,6 +67,7 @@ import tech.ytsaurus.rpcproxy.TReqSelectRows;
 import tech.ytsaurus.rpcproxy.TReqSetNode;
 import tech.ytsaurus.rpcproxy.TReqStartOperation;
 import tech.ytsaurus.rpcproxy.TReqStartQuery;
+import tech.ytsaurus.rpcproxy.TReqStartShuffle;
 import tech.ytsaurus.rpcproxy.TReqStartTransaction;
 import tech.ytsaurus.rpcproxy.TReqSuspendOperation;
 import tech.ytsaurus.rpcproxy.TReqTrimTable;
@@ -74,6 +76,7 @@ import tech.ytsaurus.rpcproxy.TReqUnmountTable;
 import tech.ytsaurus.rpcproxy.TReqUpdateOperationParameters;
 import tech.ytsaurus.rpcproxy.TReqVersionedLookupRows;
 import tech.ytsaurus.rpcproxy.TReqWriteFile;
+import tech.ytsaurus.rpcproxy.TReqWriteShuffleData;
 import tech.ytsaurus.rpcproxy.TReqWriteTable;
 import tech.ytsaurus.rpcproxy.TRspAbortJob;
 import tech.ytsaurus.rpcproxy.TRspAbortOperation;
@@ -123,6 +126,7 @@ import tech.ytsaurus.rpcproxy.TRspPullQueueConsumer;
 import tech.ytsaurus.rpcproxy.TRspPutFileToCache;
 import tech.ytsaurus.rpcproxy.TRspReadFile;
 import tech.ytsaurus.rpcproxy.TRspReadQueryResult;
+import tech.ytsaurus.rpcproxy.TRspReadShuffleData;
 import tech.ytsaurus.rpcproxy.TRspReadTable;
 import tech.ytsaurus.rpcproxy.TRspRegisterQueueConsumer;
 import tech.ytsaurus.rpcproxy.TRspRemountTable;
@@ -133,6 +137,7 @@ import tech.ytsaurus.rpcproxy.TRspSelectRows;
 import tech.ytsaurus.rpcproxy.TRspSetNode;
 import tech.ytsaurus.rpcproxy.TRspStartOperation;
 import tech.ytsaurus.rpcproxy.TRspStartQuery;
+import tech.ytsaurus.rpcproxy.TRspStartShuffle;
 import tech.ytsaurus.rpcproxy.TRspStartTransaction;
 import tech.ytsaurus.rpcproxy.TRspSuspendOperation;
 import tech.ytsaurus.rpcproxy.TRspTrimTable;
@@ -141,6 +146,7 @@ import tech.ytsaurus.rpcproxy.TRspUnmountTable;
 import tech.ytsaurus.rpcproxy.TRspUpdateOperationParameters;
 import tech.ytsaurus.rpcproxy.TRspVersionedLookupRows;
 import tech.ytsaurus.rpcproxy.TRspWriteFile;
+import tech.ytsaurus.rpcproxy.TRspWriteShuffleData;
 import tech.ytsaurus.rpcproxy.TRspWriteTable;
 
 public class ApiServiceMethodTable {
@@ -354,6 +360,15 @@ public class ApiServiceMethodTable {
 
     public static final RpcMethodDescriptor<TReqWriteFile.Builder, TRspWriteFile> WRITE_FILE =
             apiServiceMethod("WriteFile", TReqWriteFile::newBuilder, TRspWriteFile.parser());
+
+    public static final RpcMethodDescriptor<TReqStartShuffle.Builder, TRspStartShuffle> START_SHUFFLE =
+            apiServiceMethod("StartShuffle", TReqStartShuffle::newBuilder, TRspStartShuffle.parser());
+
+    public static final RpcMethodDescriptor<TReqWriteShuffleData.Builder, TRspWriteShuffleData> WRITE_SHUFFLE_DATA =
+            apiServiceMethod("WriteShuffleData", TReqWriteShuffleData::newBuilder, TRspWriteShuffleData.parser());
+
+    public static final RpcMethodDescriptor<TReqReadShuffleData.Builder, TRspReadShuffleData> READ_SHUFFLE_DATA =
+            apiServiceMethod("ReadShuffleData", TReqReadShuffleData::newBuilder, TRspReadShuffleData.parser());
 
     public static final RpcMethodDescriptor<TReqGetFileFromCache.Builder, TRspGetFileFromCache> GET_FILE_FROM_CACHE =
             apiServiceMethod("GetFileFromCache", TReqGetFileFromCache::newBuilder, TRspGetFileFromCache.parser());

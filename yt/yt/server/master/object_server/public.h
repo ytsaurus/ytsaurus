@@ -67,14 +67,15 @@ DECLARE_REFCOUNTED_STRUCT(IRequestProfilingManager)
 
 DECLARE_REFCOUNTED_CLASS(TMutationIdempotizer)
 
-DECLARE_REFCOUNTED_CLASS(TObjectManagerConfig)
-DECLARE_REFCOUNTED_CLASS(TDynamicObjectManagerConfig)
-DECLARE_REFCOUNTED_CLASS(TObjectServiceConfig)
-DECLARE_REFCOUNTED_CLASS(TDynamicObjectServiceConfig)
-DECLARE_REFCOUNTED_CLASS(TMutationIdempotizerConfig)
+DECLARE_REFCOUNTED_STRUCT(TObjectManagerConfig)
+DECLARE_REFCOUNTED_STRUCT(TDynamicObjectManagerConfig)
+DECLARE_REFCOUNTED_STRUCT(TObjectServiceConfig)
+DECLARE_REFCOUNTED_STRUCT(TDynamicObjectServiceConfig)
+DECLARE_REFCOUNTED_CLASS(TDynamicObjectServiceTestingConfig)
+DECLARE_REFCOUNTED_STRUCT(TMutationIdempotizerConfig)
 
-DECLARE_REFCOUNTED_CLASS(TDefaultReadRequestComplexityLimitsConfig)
-DECLARE_REFCOUNTED_CLASS(TMaxReadRequestComplexityLimitsConfig)
+DECLARE_REFCOUNTED_STRUCT(TDefaultReadRequestComplexityLimitsConfig)
+DECLARE_REFCOUNTED_STRUCT(TMaxReadRequestComplexityLimitsConfig)
 
 // NB: Some types (e.g. `TObjectPtr`) definitely should not be uncontrollable
 // copied. For such types `Clone()` method can be used:

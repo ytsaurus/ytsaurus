@@ -193,13 +193,13 @@ TEST_F(TSequoiaTest, TestRowLockConflict)
         } else if (error.FindMatching(NTabletClient::EErrorCode::TransactionLockConflict)) {
             ++lockConflictCount;
         } else if (error.FindMatching([] (const TError& error) {
-            return error.GetMessage().Contains("already exists");
+            return error.GetMessage().contains("already exists");
         })) {
             ++nodeExistsCount;
         } else {
             // NB: In case of "socket closed" error all suite hangs. It's better
             // just crash it on unexcepted error.
-            YT_LOG_FATAL(error, "Unexpected error");
+            GTEST_FAIL() << Format("Unexpected error: %v", error).c_str();
         }
     }
 
@@ -287,7 +287,7 @@ TEST_F(TSequoiaTest, ConcurrentCommitTx)
             YT_LOG_DEBUG(
                 "Request started (TransactionId: %v, InFlightRequestCount: %v)",
                 transactions[txIndex]->GetId(),
-                inFlightRequests);
+                inFlightRequests.fetch_add(1, std::memory_order::relaxed) + 1);
 
             auto finally = Finally([&] {
                 YT_LOG_DEBUG(
@@ -335,14 +335,126 @@ TEST_F(TSequoiaTest, ConcurrentCommitTx)
         auto result = *commitFuture.TryGet();
         if (result.IsOK()) {
             ++committed;
-        } else if (result.FindMatching([] (const TError& error) { return error.GetMessage().Contains("No such transaction"); })) {
+        } else if (result.FindMatching([] (const TError& error) { return error.GetMessage().contains("No such transaction"); })) {
             ++alreadyAborted;
         } else {
-            YT_LOG_FATAL(result, "Unexpected error");
+            GTEST_FAIL() << Format("Unexpected error: %v", result);
         }
     }
 
     YT_LOG_DEBUG("All transactions finished (Committed: %v, AlreadyAborted: %v)", committed, alreadyAborted);
+}
+
+TEST_F(TSequoiaTest, TestParallelActionsWithPrerequisiteTx)
+{
+    constexpr static int ThreadCount = 3;
+    constexpr static int RequestCount = 20;
+
+    WaitFor(Client_->CreateNode("//sequoia/tmp", EObjectType::MapNode))
+        .ThrowOnError();
+    WaitFor(Client_->SetNode(
+            "//sys/cypress_proxies/@config/object_service/enable_fast_path_prerequisite_transaction_check",
+            ConvertToYsonString(false)))
+        .ThrowOnError();
+
+    auto threadPool = CreateThreadPool(ThreadCount, "ConcurrentActionsWithPrerequisiteTx");
+    auto barrierPromise = NewPromise<void>();
+    std::atomic<int> timestamp = 0;
+
+    auto prerequisiteTx = StartCypressTransaction();
+    NApi::TCreateNodeOptions options;
+    options.PrerequisiteTransactionIds = std::vector<TTransactionId>{prerequisiteTx->GetId()};
+
+    auto requestFutures = std::vector<TFuture<std::tuple<int, int, TError>>>(RequestCount);
+    for (int requestIndex : std::views::iota(0, std::ssize(requestFutures))) {
+        requestFutures[requestIndex] = BIND([
+            &timestamp,
+            requestIndex,
+            options,
+            barrierFuture = barrierPromise.ToFuture()
+        ] () -> std::tuple<int, int, TError> {
+            WaitForFast(barrierFuture)
+                .ThrowOnError();
+            auto startTimestamp = timestamp.fetch_add(1, std::memory_order::acquire);
+            auto error = WaitFor(Client_->CreateNode(Format("//sequoia/tmp/node-%v", requestIndex), EObjectType::MapNode, options));
+            auto endTimestamp = timestamp.fetch_add(1, std::memory_order::release);
+            return {startTimestamp, endTimestamp, error};
+        })
+            .AsyncVia(threadPool->GetInvoker())
+            .Run();
+    }
+
+    requestFutures.push_back(
+        BIND([
+            &timestamp,
+            barrierFuture = barrierPromise.ToFuture(),
+            prerequisiteTx
+        ]() -> std::tuple<int, int, TError> {
+            WaitForFast(barrierFuture)
+                .ThrowOnError();
+
+            auto startTimestamp = timestamp.fetch_add(1, std::memory_order::acquire);
+            auto error = WaitFor(prerequisiteTx->Commit());
+            auto endTimestamp = timestamp.fetch_add(1, std::memory_order::release);
+            return {startTimestamp, endTimestamp, error};
+        })
+            .AsyncVia(threadPool->GetInvoker())
+            .Run());
+
+    barrierPromise.Set();
+
+    auto results = WaitFor(AllSet(std::move(requestFutures)))
+        .ValueOrThrow();
+    auto commitResult = results.back();
+    YT_VERIFY(commitResult.IsOK());
+    auto [startCommitTimestamp, endCommitTimestamp, commitError] = commitResult.Value();
+    YT_VERIFY(commitError.IsOK());
+
+    YT_LOG_DEBUG(
+        "Commit request (StartTimestamp: %v, EndTimestamp: %v)",
+        startCommitTimestamp,
+        endCommitTimestamp);
+
+    int createdNodeCount = 0, prerequisiteCheckFailedCount = 0;
+    for (int requestIndex : std::views::iota(0, RequestCount)) {
+        auto result = results[requestIndex];
+        YT_VERIFY(result.IsOK());
+        auto [startTimestamp, endTimestamp, error] = result.Value();
+        YT_LOG_DEBUG(
+            "Create request (RequestIndex: %v, StartTimestamp: %v, EndTimestamp: %v)",
+            requestIndex,
+            startTimestamp,
+            endTimestamp);
+
+        if (error.IsOK()) {
+            YT_VERIFY(startTimestamp < endCommitTimestamp);
+            ++createdNodeCount;
+        } else if (error.GetCode() == NObjectClient::EErrorCode::PrerequisiteCheckFailed) {
+            YT_VERIFY(startCommitTimestamp < endTimestamp);
+            ++prerequisiteCheckFailedCount;
+        } else {
+            YT_LOG_FATAL(error, "Unexpected error");
+        }
+    }
+
+    YT_LOG_DEBUG(
+        "Creations with prerequisite transaction are finished "
+        "(CreatedNodeCount: %v, PrerequisiteCheckFailedCount: %v, PrerequisiteTransactionId: %v)",
+        createdNodeCount,
+        prerequisiteCheckFailedCount,
+        prerequisiteTx->GetId());
+
+    EXPECT_FALSE(WaitFor(Client_->NodeExists(Format("//sys/transactions/%v", prerequisiteTx->GetId()))).ValueOrThrow());
+
+    auto error = WaitFor(Client_->CreateNode("//sequoia/tmp/a", EObjectType::MapNode, options));
+    YT_VERIFY(!error.IsOK());
+    // Request should fail since it was executed after commit of the prerequisite tx happened.
+    YT_VERIFY(error.GetCode() == NObjectClient::EErrorCode::PrerequisiteCheckFailed);
+
+    WaitFor(Client_->SetNode(
+            "//sys/cypress_proxies/@config/object_service/enable_fast_path_prerequisite_transactions_check",
+            ConvertToYsonString(true)))
+        .ThrowOnError();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

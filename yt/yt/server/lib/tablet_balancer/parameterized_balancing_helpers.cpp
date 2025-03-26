@@ -4,19 +4,20 @@
 #include "bounded_priority_queue.h"
 #include "config.h"
 #include "table.h"
-#include "tablet.h"
-#include "tablet_cell.h"
 #include "tablet_cell_bundle.h"
+#include "tablet_cell.h"
+#include "tablet.h"
+
+#include <yt/yt/orm/library/query/expression_evaluator.h>
 
 #include <yt/yt/client/object_client/helpers.h>
 
+#include <yt/yt/client/table_client/row_buffer.h>
 #include <yt/yt/client/table_client/schema.h>
-#include <yt/yt/client/table_client/unversioned_value.h>
 #include <yt/yt/client/table_client/unversioned_row.h>
+#include <yt/yt/client/table_client/unversioned_value.h>
 
 #include <yt/yt/core/misc/collection_helpers.h>
-
-#include <yt/yt/orm/library/query/expression_evaluator.h>
 
 #include <library/cpp/yt/misc/numeric_helpers.h>
 
@@ -69,7 +70,7 @@ TParameterizedReassignSolverConfig TParameterizedReassignSolverConfig::MergeWith
 
     // Temporary. Verify that if uniform is enable then factors was changed properly.
     auto factors = Factors->MergeWith(groupConfig->Factors);
-    YT_VERIFY(!groupConfig->EnableUniform.value_or(false) ||
+    YT_VERIFY(!groupConfig->PerTableUniform.value_or(false) ||
         factors->TableCell > 0.0 && factors->TableNode > 0.0);
 
     return TParameterizedReassignSolverConfig{
@@ -152,10 +153,13 @@ protected:
 
     double GetTabletMetric(const TTabletPtr& tablet) const
     {
+        auto rowBuffer = New<TRowBuffer>();
         auto value = Evaluator_->Evaluate({
-            ConvertToYsonString(tablet->Statistics.OriginalNode),
-            tablet->GetPerformanceCountersYson(PerformanceCountersKeys_, PerformanceCountersTableSchema_)
-        }).ValueOrThrow();
+                ConvertToYsonString(tablet->Statistics.OriginalNode),
+                tablet->GetPerformanceCountersYson(PerformanceCountersKeys_, PerformanceCountersTableSchema_)
+            },
+            rowBuffer)
+            .ValueOrThrow();
 
         switch (value.Type) {
             case EValueType::Double:
@@ -1349,6 +1353,7 @@ std::optional<TReshardDescriptor> TParameterizedResharder::MergeTablets(
         IsPossibleToAddTablet(statistics, enlargedTabletSize, enlargedTabletMetric, leftTabletIndex - 1))
     {
         --leftTabletIndex;
+
         enlargedTabletSize += statistics.TabletSizes[leftTabletIndex];
         enlargedTabletMetric += statistics.TabletMetrics[leftTabletIndex];
 
@@ -1365,12 +1370,13 @@ std::optional<TReshardDescriptor> TParameterizedResharder::MergeTablets(
     {
         enlargedTabletSize += statistics.TabletSizes[rightTabletIndex];
         enlargedTabletMetric += statistics.TabletMetrics[rightTabletIndex];
-        ++rightTabletIndex;
 
         deviation = std::min({
             deviation,
             statistics.TabletMetrics[rightTabletIndex] / statistics.DesiredTabletMetric,
             static_cast<double>(statistics.TabletSizes[rightTabletIndex]) / statistics.DesiredTabletSize});
+
+        ++rightTabletIndex;
     }
 
     if (rightTabletIndex - leftTabletIndex == 1) {

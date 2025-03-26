@@ -2,11 +2,17 @@
 
 #include "helpers.h"
 
+#include <yt/yt/ytlib/sequoia_client/helpers.h>
+
 #include <yt/yt/client/job_tracker_client/helpers.h>
 
 #include <yt/yt/core/concurrency/config.h>
 
+#include <yt/yt/core/misc/error_code.h>
+
 namespace NYT::NChunkServer {
+
+using namespace NSequoiaClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -99,8 +105,7 @@ void TDynamicChunkMergerConfig::Register(TRegistrar registrar)
         .Default(2_GB);
     registrar.Parameter("max_compressed_data_size", &TThis::MaxCompressedDataSize)
         .GreaterThan(0)
-        .Default(512_MB)
-        .DontSerializeDefault();
+        .Default(512_MB);
     registrar.Parameter("max_input_chunk_data_weight", &TThis::MaxInputChunkDataWeight)
         .GreaterThan(0)
         .Default(512_MB);
@@ -114,8 +119,7 @@ void TDynamicChunkMergerConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("max_chunk_list_count_per_merge_session", &TThis::MaxChunkListCountPerMergeSession)
         .GreaterThan(0)
-        .Default(100)
-        .DontSerializeDefault();
+        .Default(100);
 
     registrar.Parameter("schedule_period", &TThis::SchedulePeriod)
         .Default(TDuration::Seconds(1));
@@ -126,8 +130,7 @@ void TDynamicChunkMergerConfig::Register(TRegistrar registrar)
     registrar.Parameter("session_finalization_period", &TThis::SessionFinalizationPeriod)
         .Default(TDuration::Seconds(10));
     registrar.Parameter("schedule_chunk_replace_period", &TThis::ScheduleChunkReplacePeriod)
-        .Default(TDuration::Seconds(1))
-        .DontSerializeDefault();
+        .Default(TDuration::Seconds(1));
 
     registrar.Parameter("create_chunks_batch_size", &TThis::CreateChunksBatchSize)
         .GreaterThan(0)
@@ -150,28 +153,13 @@ void TDynamicChunkMergerConfig::Register(TRegistrar registrar)
         .Default(true);
 
     registrar.Parameter("reschedule_merge_on_success", &TThis::RescheduleMergeOnSuccess)
-        .Default(false)
-        .DontSerializeDefault();
-
-    registrar.Parameter("enable_queue_size_limit_changes", &TThis::EnableQueueSizeLimitChanges)
-        .Default(false)
-        .DontSerializeDefault();
-
-    registrar.Parameter("respect_account_specific_toggle", &TThis::RespectAccountSpecificToggle)
-        .Default(false)
-        .DontSerializeDefault();
-
-    registrar.Parameter("enable_careful_requisition_update", &TThis::EnableCarefulRequisitionUpdate)
-        .Default(false)
-        .DontSerializeDefault();
+        .Default(false);
 
     registrar.Parameter("max_nodes_being_merged", &TThis::MaxNodesBeingMerged)
-        .Default(1'000'000)
-        .DontSerializeDefault();
+        .Default(1'000'000);
 
     registrar.Parameter("max_chunk_lists_with_chunks_being_replaced", &TThis::MaxChunkListsWithChunksBeingReplaced)
-        .Default(100)
-        .DontSerializeDefault();
+        .Default(100);
 
     registrar.Parameter("max_allowed_backoff_reschedulings_per_table", &TThis::MaxAllowedBackoffReschedulingsPerSession)
         .Default(30);
@@ -433,6 +421,9 @@ void TDynamicSequoiaChunkReplicasConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("clear_master_request", &TThis::ClearMasterRequest)
         .Default(true);
+
+    registrar.Parameter("retriable_error_codes", &TThis::RetriableErrorCodes)
+        .Default(std::vector<TErrorCode>(std::begin(RetriableSequoiaErrorCodes), std::end(RetriableSequoiaErrorCodes)));
 
     registrar.Postprocessor([] (TThis* config) {
         if (config->StoreSequoiaReplicasOnMaster && !config->ProcessRemovedSequoiaReplicasOnMaster) {
@@ -767,6 +758,10 @@ void TDynamicChunkManagerConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("use_hunk_specific_media_for_requisition_updates", &TThis::UseHunkSpecificMediaForRequisitionUpdates)
         .Default(true);
+
+    registrar.Parameter("enable_repair_via_replication", &TThis::EnableRepairViaReplication)
+        .Default(false)
+        .DontSerializeDefault();
 
     registrar.Postprocessor([] (TThis* config) {
         auto& jobTypeToThrottler = config->JobTypeToThrottler;

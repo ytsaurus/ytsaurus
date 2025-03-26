@@ -122,6 +122,7 @@ IAttributeDictionaryPtr GetFlowStateTableAttributes()
     auto attributes = CreateDynamicTableAttributes(TTableSchema(
         std::vector{
             TColumnSchema("sequence_id", EValueType::Int64, ESortOrder::Ascending),
+            TColumnSchema("flags", EValueType::Uint64),
             TColumnSchema("state_name", EValueType::String),
             TColumnSchema("key_left", EValueType::String),
             TColumnSchema("key_right", EValueType::String),

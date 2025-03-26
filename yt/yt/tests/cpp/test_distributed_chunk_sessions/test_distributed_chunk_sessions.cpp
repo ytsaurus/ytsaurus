@@ -135,6 +135,13 @@ protected:
     {
         return ChunkNameTable_->GetIdOrRegisterName(columnName);
     }
+
+    static void EnsureControllerIsDestroyed(IDistributedChunkSessionControllerPtr controller)
+    {
+        auto controllerWeakPtr = TWeakPtr(controller);
+        controller.Reset();
+        EXPECT_TRUE(controllerWeakPtr.IsExpired());
+    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -180,6 +187,8 @@ TEST_F(TDistributedChunkSessionTest, SingleWriter)
         .ThrowOnError();
 
     EXPECT_EQ(ReadAllChunkRows(controller->GetSessionId().ChunkId), rows);
+
+    EnsureControllerIsDestroyed(std::move(controller));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -239,6 +248,8 @@ TEST_F(TDistributedChunkSessionTest, MultipleWriters)
     EXPECT_THAT(
         resultRows,
         UnorderedElementsAreArray(rows));
+
+    EnsureControllerIsDestroyed(std::move(controller));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -282,6 +293,8 @@ TEST_F(TDistributedChunkSessionTest, CoordinatorLeaseExpired)
         .ThrowOnError();
 
     EXPECT_EQ(std::ssize(ReadAllChunkRows(controller->GetSessionId().ChunkId)), 0);
+
+    EnsureControllerIsDestroyed(std::move(controller));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -333,6 +346,56 @@ TEST_F(TDistributedChunkSessionTest, CoordinatorLeaseExpiredWithDataOnNodes)
 
     auto resultRows = ReadAllChunkRows(controller->GetSessionId().ChunkId);
     EXPECT_EQ(resultRows, std::vector{row});
+
+    EnsureControllerIsDestroyed(std::move(controller));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TEST_F(TDistributedChunkSessionTest, WritersCannotFinishWithoutControllerConfirmation)
+{
+    auto controller = CreateDistributedChunkSessionController(
+        NativeClient_,
+        ControllerConfig_,
+        Transaction_->GetId(),
+        ChunkNameTable_,
+        ActionQueue_->GetInvoker());
+
+    auto controllerNode = WaitFor(controller->StartSession())
+        .ValueOrThrow();
+
+    auto writerActionQueue = New<TActionQueue>();
+    auto writer = CreateDistributedChunkWriter(
+        controllerNode,
+        controller->GetSessionId(),
+        NativeConnection_,
+        New<TDistributedChunkWriterConfig>(),
+        writerActionQueue->GetInvoker());
+
+    RowBuilder_.AddValue(MakeUnversionedUint64Value(/*value*/ 1, GetColumnId("a")));
+    auto row = RowBuilder_.FinishRow();
+    WaitFor(writer->Write(MakeSharedRange(std::vector<TUnversionedRow>({row}))))
+        .ThrowOnError();
+
+    WaitFor(ActionQueue_->Suspend(/*immediately*/ true))
+        .ThrowOnError();
+
+    RowBuilder_.AddValue(MakeUnversionedUint64Value(/*value*/ 2, GetColumnId("a")));
+    // Wait for session expiration, as controller does not send any pings now.
+    EXPECT_THROW_THAT(
+        WaitFor(writer->Write(MakeSharedRange(std::vector<TUnversionedRow>{RowBuilder_.FinishRow()})))
+            .ThrowOnError(),
+        HasSubstr("session was closed"));
+
+    ActionQueue_->Resume();
+
+    WaitFor(controller->Close())
+        .ThrowOnError();
+
+    auto resultRows = ReadAllChunkRows(controller->GetSessionId().ChunkId);
+    EXPECT_EQ(resultRows, std::vector{row});
+
+    EnsureControllerIsDestroyed(std::move(controller));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

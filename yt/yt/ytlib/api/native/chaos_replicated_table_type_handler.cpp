@@ -119,7 +119,7 @@ private:
         return FromProto<TReplicationCardId>(rsp->replication_card_id());
     }
 
-    TString GetClusterName()
+    std::string GetClusterName()
     {
         TGetNodeOptions options;
         options.ReadFrom = EMasterChannelKind::LocalCache;
@@ -174,7 +174,7 @@ private:
         const ITransactionPtr& transaction,
         TTableId tableId,
         const TYPath& tablePath,
-        const TString& tableClusterName,
+        const std::string& tableClusterName,
         TReplicatedTableOptionsPtr replicatedTableOptions,
         TReplicationCardId replicationCardId,
         TCellId metadataChaosCellId)

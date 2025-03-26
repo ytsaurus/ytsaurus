@@ -21,10 +21,9 @@ DEFINE_ENUM(ESnapshotStoreType,
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TFileChangelogConfig
+struct TFileChangelogConfig
     : public virtual NYTree::TYsonStruct
 {
-public:
     //! When the number of unflushed data bytes exceeds this value, an automatic data flush is performed.
     i64 DataFlushSize;
 
@@ -50,10 +49,9 @@ DEFINE_REFCOUNTED_TYPE(TFileChangelogConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TFileChangelogDispatcherConfig
+struct TFileChangelogDispatcherConfig
     : public virtual NYTree::TYsonStruct
 {
-public:
     TDuration FlushQuantum;
 
     REGISTER_YSON_STRUCT(TFileChangelogDispatcherConfig);
@@ -63,11 +61,10 @@ public:
 
 DEFINE_REFCOUNTED_TYPE(TFileChangelogDispatcherConfig)
 
-class TFileChangelogStoreConfig
+struct TFileChangelogStoreConfig
     : public TFileChangelogConfig
     , public TFileChangelogDispatcherConfig
 {
-public:
     //! A path where changelogs are stored.
     TString Path;
 
@@ -101,10 +98,9 @@ DEFINE_REFCOUNTED_TYPE(TSnapshotStoreConfigBase)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TLocalSnapshotStoreConfig
+struct TLocalSnapshotStoreConfig
     : public TSnapshotStoreConfigBase
 {
-public:
     //! A path where snapshots are stored.
     TString Path;
 
@@ -123,10 +119,9 @@ DEFINE_REFCOUNTED_TYPE(TLocalSnapshotStoreConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TRemoteSnapshotStoreConfig
+struct TRemoteSnapshotStoreConfig
     : public TSnapshotStoreConfigBase
 {
-public:
     NApi::TFileReaderConfigPtr Reader;
     NApi::TFileWriterConfigPtr Writer;
 
@@ -139,10 +134,9 @@ DEFINE_REFCOUNTED_TYPE(TRemoteSnapshotStoreConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TRemoteChangelogStoreConfig
+struct TRemoteChangelogStoreConfig
     : public NYTree::TYsonStruct
 {
-public:
     NApi::TJournalReaderConfigPtr Reader;
     NApi::TJournalWriterConfigPtr Writer;
     std::optional<TDuration> LockTransactionTimeout;
@@ -156,10 +150,9 @@ DEFINE_REFCOUNTED_TYPE(TRemoteChangelogStoreConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class THydraJanitorConfig
+struct THydraJanitorConfig
     : public virtual NYTree::TYsonStruct
 {
-public:
     std::optional<int> MaxSnapshotCountToKeep;
     std::optional<i64> MaxSnapshotSizeToKeep;
     std::optional<int> MaxChangelogCountToKeep;
@@ -174,10 +167,9 @@ DEFINE_REFCOUNTED_TYPE(THydraJanitorConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TLocalHydraJanitorConfig
+struct TLocalHydraJanitorConfig
     : public THydraJanitorConfig
 {
-public:
     TDuration CleanupPeriod;
 
     bool EnableLocalJanitor;
@@ -194,10 +186,9 @@ DEFINE_REFCOUNTED_TYPE(TLocalHydraJanitorConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TDynamicLocalHydraJanitorConfig
+struct TDynamicLocalHydraJanitorConfig
     : public virtual NYTree::TYsonStruct
 {
-public:
     std::optional<int> MaxSnapshotCountToKeep;
     std::optional<i64> MaxSnapshotSizeToKeep;
     std::optional<int> MaxChangelogCountToKeep;
@@ -216,10 +207,9 @@ DEFINE_REFCOUNTED_TYPE(TDynamicLocalHydraJanitorConfig);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TDynamicDistributedHydraManagerConfig
+struct TDynamicDistributedHydraManagerConfig
     : public TDynamicLocalHydraJanitorConfig
 {
-public:
     std::optional<TDuration> ControlRpcTimeout;
     std::optional<TDuration> CommitFlushRpcTimeout;
     std::optional<TDuration> CommitForwardingRpcTimeout;
@@ -277,10 +267,9 @@ DEFINE_REFCOUNTED_TYPE(TDynamicDistributedHydraManagerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TDistributedHydraManagerConfig
+struct TDistributedHydraManagerConfig
     : public virtual NYTree::TYsonStruct
 {
-public:
     //! Timeout for various control RPC requests.
     TDuration ControlRpcTimeout;
 
@@ -496,10 +485,9 @@ DEFINE_REFCOUNTED_TYPE(TDistributedHydraManagerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TSerializationDumperConfig
+struct TSerializationDumperConfig
     : public NYTree::TYsonStruct
 {
-public:
     i64 LowerLimit;
     i64 UpperLimit;
 
@@ -512,10 +500,9 @@ DEFINE_REFCOUNTED_TYPE(TSerializationDumperConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class THydraDryRunConfig
+struct THydraDryRunConfig
     : public NYTree::TYsonStruct
 {
-public:
     bool EnableHostNameValidation;
 
     bool EnableDryRun;

@@ -119,7 +119,7 @@ struct IReplicatedTableTrackerHost
     virtual TFuture<TReplicaLagTimes> ComputeReplicaLagTimes(
         std::vector<NTabletClient::TTableReplicaId> replicaIds) = 0;
 
-    virtual NApi::IClientPtr CreateClusterClient(const TString& clusterName) = 0;
+    virtual NApi::IClientPtr CreateClusterClient(const std::string& clusterName) = 0;
 
     virtual TFuture<TApplyChangeReplicaCommandResults> ApplyChangeReplicaModeCommands(
         std::vector<TChangeReplicaModeCommand> commands) = 0;
@@ -157,6 +157,8 @@ struct IReplicatedTableTracker
 
     // For unittesting.
     virtual int GetIterationCount() const = 0;
+
+    virtual NYTree::IYPathServicePtr GetOrchidService() const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IReplicatedTableTracker)

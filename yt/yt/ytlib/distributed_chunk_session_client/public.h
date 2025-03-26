@@ -11,8 +11,8 @@ namespace NYT::NDistributedChunkSessionClient {
 DECLARE_REFCOUNTED_STRUCT(IDistributedChunkSessionController)
 DECLARE_REFCOUNTED_STRUCT(IDistributedChunkWriter)
 
-DECLARE_REFCOUNTED_CLASS(TDistributedChunkSessionControllerConfig);
-DECLARE_REFCOUNTED_CLASS(TDistributedChunkWriterConfig);
+DECLARE_REFCOUNTED_STRUCT(TDistributedChunkSessionControllerConfig);
+DECLARE_REFCOUNTED_STRUCT(TDistributedChunkWriterConfig);
 
 ////////////////////////////////////////////////////////////////////////////////
 

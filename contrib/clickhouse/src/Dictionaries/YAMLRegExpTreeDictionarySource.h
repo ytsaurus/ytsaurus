@@ -8,8 +8,8 @@
 #include <Interpreters/Context_fwd.h>
 #include <QueryPipeline/QueryPipeline.h>
 
-#include <Poco/Logger.h>
-#include <Poco/Timestamp.h>
+#include <DBPoco/Logger.h>
+#include <DBPoco/Timestamp.h>
 
 #include <Dictionaries/IDictionarySource.h>
 #include <Dictionaries/DictionaryStructure.h>
@@ -64,10 +64,10 @@ private:
 
     ContextPtr context;
 
-    Poco::Logger * logger;
-    Poco::Timestamp last_modification;
+    LoggerPtr logger;
+    DBPoco::Timestamp last_modification;
 
-    Poco::Timestamp getLastModification() const;
+    DBPoco::Timestamp getLastModification() const;
 #endif
 };
 

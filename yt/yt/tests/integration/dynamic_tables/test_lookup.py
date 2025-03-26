@@ -289,16 +289,12 @@ class TestLookup(TestSortedDynamicTablesBase):
     @authors("ifsmirnov")
     @pytest.mark.parametrize("in_memory_mode", ["none", "uncompressed"])
     @pytest.mark.parametrize("optimize_for", ["lookup", "scan"])
-    @pytest.mark.parametrize("new_scan_reader", [False, True])
     @pytest.mark.parametrize("enable_hash_chunk_index", [False, True])
-    def test_stress_versioned_lookup(self, in_memory_mode, optimize_for, new_scan_reader, enable_hash_chunk_index):
+    def test_stress_versioned_lookup(self, in_memory_mode, optimize_for, enable_hash_chunk_index):
         # This test checks that versioned lookup gives the same result for scan and lookup versioned formats.
         random.seed(12345)
 
         if in_memory_mode == "none" and optimize_for == "lookup":
-            return
-
-        if new_scan_reader and optimize_for != "scan":
             return
 
         if enable_hash_chunk_index and optimize_for == "scan":
@@ -347,7 +343,6 @@ class TestLookup(TestSortedDynamicTablesBase):
         copy("//tmp/expected", "//tmp/actual")
         set("//tmp/actual/@optimize_for", optimize_for)
         set("//tmp/actual/@in_memory_mode", in_memory_mode)
-        set("//tmp/actual/@enable_new_scan_reader_for_lookup", new_scan_reader)
         if enable_hash_chunk_index:
             self._enable_hash_chunk_index("//tmp/actual")
         sync_mount_table("//tmp/expected")
@@ -1060,6 +1055,33 @@ class TestLookup(TestSortedDynamicTablesBase):
             column_names=["k", "$timestamp:v2", "v1", "v4", "v3", "v2", "v5", "$timestamp:v3", "$timestamp:v4", "$timestamp:v1", "$timestamp:v5"],
             with_timestamps=True,
         ) == []
+
+    @authors("sabdenovch")
+    @pytest.mark.parametrize("in_memory", [False, True])
+    def test_migrate_to_query_pool(self, in_memory):
+        set("//sys/cluster_nodes/@config", {"%true": {
+            "query_agent": {
+                f"use_query_pool_for{'_in_memory' if in_memory else ''}_lookups": True
+            }
+        }})
+        sync_create_cells(1)
+
+        table_path = "//tmp/t"
+
+        self._create_simple_table(
+            table_path,
+            mount_config={
+                "enable_key_filter_for_lookup": True,
+            },
+            in_memory_mode="uncompressed" if in_memory else "none",
+        )
+        sync_mount_table(table_path)
+
+        keys = [{"key": i} for i in range(10000)]
+        rows = [{"key": i, "value": str(i)} for i in range(1, 9999, 2)]
+        insert_rows(table_path, rows)
+
+        assert rows == lookup_rows(table_path, keys)
 
 
 @pytest.mark.enabled_multidaemon

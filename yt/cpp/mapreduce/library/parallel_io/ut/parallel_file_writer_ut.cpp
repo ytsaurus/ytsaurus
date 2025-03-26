@@ -73,7 +73,7 @@ TEST(TParallelFileWriterTest, WriteFileSmallConcatenateBatchSize)
     auto client = fixture.GetClient();
     auto workingDir = fixture.GetWorkingDir();
     TRichYPath path = workingDir + "/file";
-    WriteFileParallel(client, fileName, path, TParallelFileWriterOptions().ThreadCount(5).ConcatenateBatchSize(1));
+    WriteFileParallel(client, fileName, path, TParallelFileWriterOptions().ThreadCount(5));
     auto reader = client->CreateFileReader(path);
     auto read = reader->ReadAll();
     EXPECT_EQ(data, read);

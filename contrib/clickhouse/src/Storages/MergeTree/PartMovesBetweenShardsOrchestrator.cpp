@@ -1,10 +1,11 @@
 #include <Storages/MergeTree/PartMovesBetweenShardsOrchestrator.h>
 #include <Storages/MergeTree/PinnedPartUUIDs.h>
+#include <Storages/MergeTree/MergeTreeSettings.h>
 #include <Storages/StorageReplicatedMergeTree.h>
 #include <Common/ZooKeeper/KeeperException.h>
-#include <Poco/JSON/JSON.h>
-#include <Poco/JSON/Object.h>
-#include <Poco/JSON/Parser.h>
+#include <DBPoco/JSON/JSON.h>
+#include <DBPoco/JSON/Object.h>
+#include <DBPoco/JSON/Parser.h>
 
 namespace DB
 {
@@ -20,7 +21,7 @@ PartMovesBetweenShardsOrchestrator::PartMovesBetweenShardsOrchestrator(StorageRe
     : storage(storage_)
     , zookeeper_path(storage.zookeeper_path)
     , logger_name(storage.getStorageID().getFullTableName() + " (PartMovesBetweenShardsOrchestrator)")
-    , log(&Poco::Logger::get(logger_name))
+    , log(getLogger(logger_name))
     , entries_znode_path(zookeeper_path + "/part_moves_shard")
 {
     /// Schedule pool is not designed for long-running tasks. TODO replace with a separate thread?
@@ -616,8 +617,6 @@ PartMovesBetweenShardsOrchestrator::Entry PartMovesBetweenShardsOrchestrator::st
             }
         }
     }
-
-    UNREACHABLE();
 }
 
 void PartMovesBetweenShardsOrchestrator::removePins(const Entry & entry, zkutil::ZooKeeperPtr zk)
@@ -715,7 +714,7 @@ PartMovesBetweenShardsOrchestrator::Entry PartMovesBetweenShardsOrchestrator::ge
 
 String PartMovesBetweenShardsOrchestrator::Entry::toString() const
 {
-    Poco::JSON::Object json;
+    DBPoco::JSON::Object json;
 
     json.set(JSON_KEY_CREATE_TIME, DB::toString(create_time));
     json.set(JSON_KEY_UPDATE_TIME, DB::toString(update_time));
@@ -735,15 +734,15 @@ String PartMovesBetweenShardsOrchestrator::Entry::toString() const
     // Always escape unicode to make last_exception_msg json safe.
     // It may contain random binary data when exception is a parsing error
     // of unexpected contents.
-    Poco::JSON::Stringifier::stringify(json, oss, 0, -1, Poco::JSON_WRAP_STRINGS | Poco::JSON_ESCAPE_UNICODE);
+    DBPoco::JSON::Stringifier::stringify(json, oss, 0, -1, DBPoco::JSON_WRAP_STRINGS | DBPoco::JSON_ESCAPE_UNICODE);
 
     return oss.str();
 }
 
 void PartMovesBetweenShardsOrchestrator::Entry::fromString(const String & buf)
 {
-    Poco::JSON::Parser parser;
-    auto json = parser.parse(buf).extract<Poco::JSON::Object::Ptr>();
+    DBPoco::JSON::Parser parser;
+    auto json = parser.parse(buf).extract<DBPoco::JSON::Object::Ptr>();
 
     create_time = parseFromString<time_t>(json->getValue<std::string>(JSON_KEY_CREATE_TIME));
     update_time = parseFromString<time_t>(json->getValue<std::string>(JSON_KEY_UPDATE_TIME));

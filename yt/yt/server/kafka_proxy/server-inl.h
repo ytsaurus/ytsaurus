@@ -15,18 +15,20 @@ namespace NYT::NKafkaProxy {
 template <class TRequest, class TResponse>
 void IServer::RegisterTypedHandler(TTypedHandler<TRequest, TResponse> handler)
 {
-    auto typedHandler = [handler] (TConnectionId connectionId, NKafka::IKafkaProtocolReader* requestReader, int version) -> TSharedRef {
+    auto typedHandler = [handler] (TConnectionId connectionId, NKafka::IKafkaProtocolReader* requestReader, const NKafka::TRequestHeader& requestHeader) -> TSharedRef {
         TRequest typedRequest;
 
-        typedRequest.Deserialize(requestReader, version);
+        typedRequest.Deserialize(requestReader, requestHeader.ApiVersion);
 
         auto logger = KafkaProxyLogger()
             .WithTag("ConnectionId: %v", connectionId)
-            .WithTag("RequestType: %v", typedRequest.RequestType);
+            .WithTag("RequestType: %v", typedRequest.RequestType)
+            .WithTag("CorrelationId: %v", requestHeader.CorrelationId)
+            .WithTag("ClientId: %v", requestHeader.ClientId);
         auto typedResponse = handler(connectionId, typedRequest, logger);
 
         auto protocolWriter = NKafka::CreateKafkaProtocolWriter();
-        typedResponse.Serialize(protocolWriter.get(), version);
+        typedResponse.Serialize(protocolWriter.get(), requestHeader.ApiVersion);
 
         return protocolWriter->Finish();
     };

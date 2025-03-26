@@ -1227,6 +1227,18 @@ class TestSchedulerOperationLimits(YTEnvSetup):
 
         op = run_test_vanilla(with_breakpoint("BREAKPOINT; sleep 0.5"), job_count=10, pool="test_pool")
 
+        # Temporary, see: YT-24377.
+        update_op_parameters(
+            op.id,
+            parameters={
+                "scheduling_options_per_pool_tree": {
+                    "default": {
+                        "enable_detailed_logs": True,
+                    }
+                }
+            },
+        )
+
         wait_breakpoint()
 
         rename_test_pool(check_usage=True)
@@ -2729,7 +2741,7 @@ class TestSchedulerSuspiciousJobs(YTEnvSetup):
         # Jobs below are not suspicious, they are just stupid.
         op1 = map(
             track=False,
-            command='echo -ne "x = 1\nwhile True:\n    x = (x * x + 1) % 424243" | python',
+            command='echo -ne "x = 1\nwhile True:\n    x = (x * x + 1) % 424243" | python3',
             in_="//tmp/t",
             out="//tmp/t1",
         )

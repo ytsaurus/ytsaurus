@@ -147,9 +147,9 @@ public:
             auto config = TaskHost_->GetJobSplitterConfigTemplate();
 
             if (Controller_->GetOperationType() == EOperationType::Map) {
-                config->EnableJobSplitting &=
-                    (IsJobInterruptible() &&
-                    std::ssize(Controller_->InputManager->GetInputTables()) <= Controller_->Options->JobSplitter->MaxInputTableCount);
+                if (!IsJobInterruptible()) {
+                    config->EnableJobSplitting = false;
+                }
             } else {
                 YT_VERIFY(Controller_->GetOperationType() == EOperationType::Merge);
                 // TODO(gritukan): YT-13646.
@@ -303,6 +303,7 @@ protected:
                     Logger,
                     TotalEstimatedInputChunkCount,
                     PrimaryInputDataWeight,
+                    PrimaryInputCompressedDataSize,
                     DataWeightRatio,
                     InputCompressionRatio);
                 break;
@@ -316,6 +317,7 @@ protected:
                     DataWeightRatio,
                     TotalEstimatedInputChunkCount,
                     PrimaryInputDataWeight,
+                    PrimaryInputCompressedDataSize,
                     TotalEstimatedInputRowCount);
                 break;
 
@@ -325,10 +327,11 @@ protected:
 
         YT_LOG_INFO(
             "Calculated operation parameters (JobCount: %v, DataWeightPerJob: %v, MaxDataWeightPerJob: %v, "
-            "InputSliceDataWeight: %v, InputSliceRowCount: %v, IsExplicitJobCount: %v)",
+            "MaxCompressedDataSizePerJob: %v, InputSliceDataWeight: %v, InputSliceRowCount: %v, IsExplicitJobCount: %v)",
             JobSizeConstraints_->GetJobCount(),
             JobSizeConstraints_->GetDataWeightPerJob(),
             JobSizeConstraints_->GetMaxDataWeightPerJob(),
+            JobSizeConstraints_->GetMaxCompressedDataSizePerJob(),
             JobSizeConstraints_->GetInputSliceDataWeight(),
             JobSizeConstraints_->GetInputSliceRowCount(),
             JobSizeConstraints_->IsExplicitJobCount());
@@ -739,6 +742,16 @@ private:
         return Spec;
     }
 
+    TOperationSpecBasePtr ParseTypedSpec(const INodePtr& spec) const override
+    {
+        return ParseOperationSpec<TMapOperationSpec>(spec);
+    }
+
+    TOperationSpecBaseConfigurator GetOperationSpecBaseConfigurator() const override
+    {
+        return TConfigurator<TMapOperationSpec>();
+    }
+
     TError GetAutoMergeError() const override
     {
         return TError();
@@ -764,7 +777,7 @@ IOperationControllerPtr CreateUnorderedMapController(
     IOperationControllerHostPtr host,
     TOperation* operation)
 {
-    auto options = config->MapOperationOptions;
+    auto options = CreateOperationOptions(config->MapOperationOptions, operation->GetOptionsPatch());
     auto spec = ParseOperationSpec<TMapOperationSpec>(UpdateSpec(options->SpecTemplate, operation->GetSpec()));
     AdjustSamplingFromConfig(spec, config);
     return New<TMapController>(spec, config, options, host, operation);
@@ -918,6 +931,16 @@ private:
         return Spec;
     }
 
+    TOperationSpecBasePtr ParseTypedSpec(const INodePtr& spec) const override
+    {
+        return ParseOperationSpec<TUnorderedMergeOperationSpec>(spec);
+    }
+
+    TOperationSpecBaseConfigurator GetOperationSpecBaseConfigurator() const override
+    {
+        return TConfigurator<TUnorderedMergeOperationSpec>();
+    }
+
     void OnOperationCompleted(bool interrupted) override
     {
         if (!interrupted) {
@@ -955,7 +978,7 @@ IOperationControllerPtr CreateUnorderedMergeController(
     IOperationControllerHostPtr host,
     TOperation* operation)
 {
-    auto options = config->UnorderedMergeOperationOptions;
+    auto options = CreateOperationOptions(config->UnorderedMergeOperationOptions, operation->GetOptionsPatch());
     auto spec = ParseOperationSpec<TUnorderedMergeOperationSpec>(UpdateSpec(options->SpecTemplate, operation->GetSpec()));
     AdjustSamplingFromConfig(spec, config);
     return New<TUnorderedMergeController>(spec, config, options, host, operation);

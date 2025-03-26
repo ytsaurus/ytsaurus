@@ -918,9 +918,9 @@ protected:
         {
             auto config = TaskHost_->GetJobSplitterConfigTemplate();
 
-            config->EnableJobSplitting &=
-                (IsJobInterruptible() &&
-                std::ssize(Controller_->InputManager->GetInputTables()) <= Controller_->Options->JobSplitter->MaxInputTableCount);
+            if (!IsJobInterruptible()) {
+                config->EnableJobSplitting = false;
+            }
 
             return config;
         }
@@ -1224,7 +1224,9 @@ protected:
             }
         }
 
-        IChunkPoolOutput::TCookie ExtractCookieForAllocation(const TAllocation& allocation) override
+        IChunkPoolOutput::TCookie ExtractCookieForAllocation(
+            const TAllocation& allocation,
+            const TNewJobConstraints& /*newJobConstraints*/) override
         {
             auto nodeId = HasInputLocality() ? NodeIdFromAllocationId(allocation.Id) : InvalidNodeId;
             auto localityEntry = Controller_->GetLocalityEntry(nodeId);
@@ -1432,9 +1434,11 @@ protected:
             OutputStreamDescriptors_ = {Controller_->GetSortedMergeStreamDescriptor()};
         }
 
-        IChunkPoolOutput::TCookie ExtractCookieForAllocation(const TAllocation& allocation) override
+        IChunkPoolOutput::TCookie ExtractCookieForAllocation(
+            const TAllocation& allocation,
+            const TNewJobConstraints& newJobConstraints) override
         {
-            auto cookie = TSortTaskBase::ExtractCookieForAllocation(allocation);
+            auto cookie = TSortTaskBase::ExtractCookieForAllocation(allocation, newJobConstraints);
 
             // NB(gritukan): In some weird cases unordered chunk pool can estimate total
             // number of jobs as 1 after pool creation and >1 after first cookie extraction.
@@ -1503,7 +1507,9 @@ protected:
             }
         }
 
-        IChunkPoolOutput::TCookie ExtractCookieForAllocation(const TAllocation& allocation) override
+        IChunkPoolOutput::TCookie ExtractCookieForAllocation(
+            const TAllocation& allocation,
+            const TNewJobConstraints& /*newJobConstraints*/) override
         {
             auto nodeId = HasInputLocality() ? NodeIdFromAllocationId(allocation.Id) : InvalidNodeId;
 
@@ -3408,7 +3414,8 @@ private:
             Spec,
             Options,
             Logger,
-            TotalEstimatedInputDataWeight);
+            TotalEstimatedInputDataWeight,
+            TotalEstimatedInputCompressedDataSize);
 
         InitSimpleSortPool(jobSizeConstraints);
 
@@ -3787,11 +3794,11 @@ private:
         auto jobProxyMemory = GetFinalIOMemorySize(
             UnorderedMergeJobIOConfig,
             /*useEstimatedBufferSize*/ true,
-            stat);
+            AggregateStatistics(stat));
         auto jobProxyMemoryWithFixedWriteBufferSize = GetFinalIOMemorySize(
             UnorderedMergeJobIOConfig,
             /*useEstimatedBufferSize*/ false,
-            stat);
+            AggregateStatistics(stat));
 
         result.SetJobProxyMemory(jobProxyMemory);
         result.SetJobProxyMemoryWithFixedWriteBufferSize(jobProxyMemoryWithFixedWriteBufferSize);
@@ -3880,6 +3887,16 @@ private:
         return Spec;
     }
 
+    TOperationSpecBasePtr ParseTypedSpec(const INodePtr& spec) const override
+    {
+        return ParseOperationSpec<TSortOperationSpec>(spec);
+    }
+
+    TOperationSpecBaseConfigurator GetOperationSpecBaseConfigurator() const override
+    {
+        return TConfigurator<TSortOperationSpec>();
+    }
+
     PHOENIX_DECLARE_POLYMORPHIC_TYPE(TSortController, 0xbca37afe);
 };
 
@@ -3895,7 +3912,7 @@ IOperationControllerPtr CreateSortController(
     IOperationControllerHostPtr host,
     TOperation* operation)
 {
-    auto options = config->SortOperationOptions;
+    auto options = CreateOperationOptions(config->SortOperationOptions, operation->GetOptionsPatch());
     auto spec = ParseOperationSpec<TSortOperationSpec>(UpdateSpec(options->SpecTemplate, operation->GetSpec()));
     return New<TSortController>(spec, config, options, host, operation);
 }
@@ -4178,7 +4195,7 @@ private:
                             columns.push_back(TColumnSchema(sortColumn.Name, optionalAnyType));
                         }
                     }
-                    return New<TTableSchema>(std::move(columns), schema->GetStrict())->ToSorted(sortColumns);
+                    return New<TTableSchema>(std::move(columns), schema->IsStrict())->ToSorted(sortColumns);
                 };
 
                 const auto& columns = inputTable->Path.GetColumns();
@@ -4291,8 +4308,8 @@ private:
         InitPartitionPool(
             partitionJobSizeConstraints,
             Config->EnablePartitionMapJobSizeAdjustment && !Spec->Ordered
-            ? Options->PartitionJobSizeAdjuster
-            : nullptr,
+                ? Options->PartitionJobSizeAdjuster
+                : nullptr,
             Spec->Ordered);
 
         PartitionTasks.resize(PartitionTreeDepth);
@@ -4843,6 +4860,16 @@ private:
         return Spec;
     }
 
+    TOperationSpecBasePtr ParseTypedSpec(const INodePtr& spec) const override
+    {
+        return ParseOperationSpec<TMapReduceOperationSpec>(spec);
+    }
+
+    TOperationSpecBaseConfigurator GetOperationSpecBaseConfigurator() const override
+    {
+        return TConfigurator<TMapReduceOperationSpec>();
+    }
+
 private:
     TDataSinkDirectoryPtr BuildDataSinkDirectoryForMapper() const
     {
@@ -4880,7 +4907,7 @@ IOperationControllerPtr CreateMapReduceController(
     IOperationControllerHostPtr host,
     TOperation* operation)
 {
-    auto options = config->MapReduceOperationOptions;
+    auto options = CreateOperationOptions(config->MapReduceOperationOptions, operation->GetOptionsPatch());
     auto spec = ParseOperationSpec<TMapReduceOperationSpec>(UpdateSpec(options->SpecTemplate, operation->GetSpec()));
     AdjustSamplingFromConfig(spec, config);
     return New<TMapReduceController>(spec, config, options, host, operation);

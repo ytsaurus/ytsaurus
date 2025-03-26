@@ -7,6 +7,8 @@
 
 namespace NYT::NQueryClient {
 
+////////////////////////////////////////////////////////////////////////////////
+
 TTypeSet GetTypes(const NAst::TLiteralValue& literalValue)
 {
     return Visit(literalValue,
@@ -546,7 +548,7 @@ private:
 
     TUntypedExpression UnwrapCompositeMemberAccessor(
         const NAst::TReference& reference,
-        TBaseColumn column);
+        const TLogicalTypePtr& type);
 
     TUntypedExpression OnReference(
         const NAst::TReference& reference);
@@ -787,20 +789,19 @@ TConstExpressionPtr TExprBuilderV1::UnwrapListOrDictItemAccessor(
 
 TUntypedExpression TExprBuilderV1::UnwrapCompositeMemberAccessor(
     const NAst::TReference& reference,
-    TBaseColumn column)
+    const TLogicalTypePtr& type)
 {
-    auto columnType = column.LogicalType;
-    auto columnReference = New<TReferenceExpression>(columnType, column.Name);
+    auto columnReference = New<TReferenceExpression>(type, InferReferenceName(reference));
 
     if (reference.CompositeTypeAccessor.IsEmpty()) {
         auto generator = [columnReference] (EValueType /*type*/) {
             return columnReference;
         };
 
-        return {TTypeSet({GetWireType(columnType)}), std::move(generator), /*IsConstant*/ false};
+        return {TTypeSet({GetWireType(type)}), std::move(generator), /*IsConstant*/ false};
     }
 
-    auto resolved = ResolveNestedTypes(columnType, reference);
+    auto resolved = ResolveNestedTypes(type, reference);
     auto listOrDictItemAccessor = UnwrapListOrDictItemAccessor(reference, resolved.IntermediateType->GetMetatype());
 
     auto memberAccessor = New<TCompositeMemberAccessorExpression>(
@@ -819,8 +820,8 @@ TUntypedExpression TExprBuilderV1::UnwrapCompositeMemberAccessor(
 TUntypedExpression TExprBuilderV1::OnReference(const NAst::TReference& reference)
 {
     if (AfterGroupBy_) {
-        if (auto column = GetColumnPtr(reference)) {
-            return UnwrapCompositeMemberAccessor(reference, *column);
+        if (auto type = GetColumnPtr(reference)) {
+            return UnwrapCompositeMemberAccessor(reference, type);
         }
     }
 
@@ -840,13 +841,13 @@ TUntypedExpression TExprBuilderV1::OnReference(const NAst::TReference& reference
     }
 
     if (!AfterGroupBy_) {
-        if (auto column = GetColumnPtr(reference)) {
-            return UnwrapCompositeMemberAccessor(reference, *column);
+        if (auto type = GetColumnPtr(reference)) {
+            return UnwrapCompositeMemberAccessor(reference, type);
         }
     }
 
     THROW_ERROR_EXCEPTION("Undefined reference %Qv",
-        NAst::InferColumnName(reference));
+        InferReferenceName(reference));
 }
 
 TUntypedExpression TExprBuilderV1::OnFunction(const NAst::TFunctionExpression* functionExpr)

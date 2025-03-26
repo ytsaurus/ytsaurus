@@ -43,7 +43,7 @@ class TReadRequestCombiner
 {
 public:
     std::vector<IReadRequestCombiner::TCombinedRequest> Combine(
-        std::vector<IIOEngine::TReadRequest> requests,
+        std::vector<TReadRequest> requests,
         i64 pageSize,
         TRefCountedTypeCookie tagCookie) override
     {
@@ -149,7 +149,7 @@ public:
     void PushResult(
         std::vector<TCombinedRequest>* results,
         TSharedMutableRef buffer,
-        const IIOEngine::TReadRequest& original,
+        const TReadRequest& original,
         const TIORequest& combined)
     {
         auto& resultRequest = results->emplace_back();
@@ -201,7 +201,7 @@ class TDummyReadRequestCombiner
 {
 public:
     std::vector<TCombinedRequest> Combine(
-        std::vector<IIOEngine::TReadRequest> requests,
+        std::vector<TReadRequest> requests,
         i64 pageSize,
         TRefCountedTypeCookie tagCookie) override
     {

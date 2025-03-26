@@ -42,10 +42,9 @@ namespace NYT::NJobProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TJobProxyTestingConfig
+struct TJobProxyTestingConfig
     : public NYTree::TYsonStruct
 {
-public:
     bool FailOnJobProxySpawnedCall;
 
     REGISTER_YSON_STRUCT(TJobProxyTestingConfig);
@@ -57,10 +56,9 @@ DEFINE_REFCOUNTED_TYPE(TJobProxyTestingConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TJobThrottlerConfig
+struct TJobThrottlerConfig
     : public NYTree::TYsonStruct
 {
-public:
     TDuration MinBackoffTime;
     TDuration MaxBackoffTime;
     double BackoffMultiplier;
@@ -79,10 +77,9 @@ DEFINE_REFCOUNTED_TYPE(TJobThrottlerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TCoreWatcherConfig
+struct TCoreWatcherConfig
     : public NYTree::TYsonStruct
 {
-public:
     //! Cores lookup period.
     TDuration Period;
 
@@ -121,10 +118,9 @@ DEFINE_REFCOUNTED_TYPE(TUserJobNetworkAddress)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TTmpfsManagerConfig
+struct TTmpfsManagerConfig
     : public NYTree::TYsonStruct
 {
-public:
     std::vector<TString> TmpfsPaths;
 
     REGISTER_YSON_STRUCT(TTmpfsManagerConfig);
@@ -136,10 +132,9 @@ DEFINE_REFCOUNTED_TYPE(TTmpfsManagerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TMemoryTrackerConfig
+struct TMemoryTrackerConfig
     : public NYTree::TYsonStruct
 {
-public:
     bool IncludeMemoryMappedFiles;
 
     bool UseSMapsMemoryTracker;
@@ -155,10 +150,9 @@ DEFINE_REFCOUNTED_TYPE(TMemoryTrackerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TBindConfig
+struct TBindConfig
     : public NYTree::TYsonStruct
 {
-public:
     TString ExternalPath;
     TString InternalPath;
     bool ReadOnly;
@@ -172,10 +166,9 @@ DEFINE_REFCOUNTED_TYPE(TBindConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TJobTraceEventProcessorConfig
+struct TJobTraceEventProcessorConfig
     : public NYTree::TYsonStruct
 {
-public:
     NServer::TJobReporterConfigPtr Reporter;
 
     int LoggingInterval;
@@ -189,10 +182,9 @@ DEFINE_REFCOUNTED_TYPE(TJobTraceEventProcessorConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TJobThrashingDetectorConfig
+struct TJobThrashingDetectorConfig
     : public NYTree::TYsonStruct
 {
-public:
     bool Enabled;
 
     TDuration CheckPeriod;
@@ -231,7 +223,7 @@ DEFINE_REFCOUNTED_TYPE(TJobEnvironmentConfigBase)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TSimpleJobEnvironmentConfig
+struct TSimpleJobEnvironmentConfig
     : public TJobEnvironmentConfigBase
 {
     REGISTER_YSON_STRUCT(TSimpleJobEnvironmentConfig);
@@ -250,10 +242,9 @@ DEFINE_ENUM(ETestingJobEnvironmentScenario,
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TTestingJobEnvironmentConfig
+struct TTestingJobEnvironmentConfig
     : public TSimpleJobEnvironmentConfig
 {
-public:
     ETestingJobEnvironmentScenario TestingJobEnvironmentScenario;
 
     REGISTER_YSON_STRUCT(TTestingJobEnvironmentConfig);
@@ -265,10 +256,9 @@ DEFINE_REFCOUNTED_TYPE(TTestingJobEnvironmentConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TPortoJobEnvironmentConfig
+struct TPortoJobEnvironmentConfig
     : public TJobEnvironmentConfigBase
 {
-public:
     NContainers::TPortoExecutorDynamicConfigPtr PortoExecutor;
 
     TDuration BlockIOWatchdogPeriod;
@@ -299,10 +289,9 @@ DEFINE_REFCOUNTED_TYPE(TPortoJobEnvironmentConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TCriJobEnvironmentConfig
+struct TCriJobEnvironmentConfig
     : public TJobEnvironmentConfigBase
 {
-public:
     NContainers::NCri::TCriExecutorConfigPtr CriExecutor;
 
     NContainers::NCri::TCriImageCacheConfigPtr CriImageCache;
@@ -335,11 +324,10 @@ DEFINE_POLYMORPHIC_YSON_STRUCT_FOR_ENUM(JobEnvironmentConfig, EJobEnvironmentTyp
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TJobProxyInternalConfig
+struct TJobProxyInternalConfig
     : public NServer::TNativeServerBootstrapConfig
     , public TServerProgramConfig
 {
-public:
     // Job-specific parameters.
     int SlotIndex = -1;
 
@@ -479,6 +467,8 @@ public:
     //! Apply the quota to the entire RootFs instead of the sandbox and tmp folders individually.
     bool EnableRootVolumeDiskQuota;
 
+    bool StartQueueConsumerRegistrationManager;
+
     REGISTER_YSON_STRUCT(TJobProxyInternalConfig);
 
     static void Register(TRegistrar registrar);
@@ -488,10 +478,9 @@ DEFINE_REFCOUNTED_TYPE(TJobProxyInternalConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TJobProxyDynamicConfig
+struct TJobProxyDynamicConfig
     : public NYTree::TYsonStruct
 {
-public:
     NTracing::TJaegerTracerDynamicConfigPtr Jaeger;
 
     bool EnableJobShellSeccopm;

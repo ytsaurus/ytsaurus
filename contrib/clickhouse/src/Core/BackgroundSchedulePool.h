@@ -1,21 +1,20 @@
 #pragma once
 
-#include <Poco/Notification.h>
-#include <Poco/NotificationQueue.h>
-#include <Poco/Timestamp.h>
-#include <thread>
 #include <atomic>
-#include <mutex>
 #include <condition_variable>
-#include <vector>
-#include <map>
 #include <functional>
-#include <boost/noncopyable.hpp>
-#include <Common/ZooKeeper/Types.h>
-#include <Common/CurrentMetrics.h>
-#include <Common/CurrentThread.h>
-#include <Common/ThreadPool_fwd.h>
+#include <map>
+#include <mutex>
+#include <thread>
+#include <vector>
 #include <base/scope_guard.h>
+#include <boost/noncopyable.hpp>
+#include <DBPoco/Notification.h>
+#include <DBPoco/NotificationQueue.h>
+#include <DBPoco/Timestamp.h>
+#include <Common/CurrentMetrics.h>
+#include <Common/ThreadPool_fwd.h>
+#include <Common/ZooKeeper/Types.h>
 
 
 namespace DB
@@ -45,7 +44,7 @@ public:
     using TaskInfoPtr = std::shared_ptr<TaskInfo>;
     using TaskFunc = std::function<void()>;
     using TaskHolder = BackgroundSchedulePoolTaskHolder;
-    using DelayedTasks = std::multimap<Poco::Timestamp, TaskInfoPtr>;
+    using DelayedTasks = std::multimap<DBPoco::Timestamp, TaskInfoPtr>;
 
     TaskHolder createTask(const std::string & log_name, const TaskFunc & function);
 
@@ -106,8 +105,10 @@ public:
     bool schedule();
 
     /// Schedule for execution after specified delay.
-    /// If overwrite is set then the task will be re-scheduled (if it was already scheduled, i.e. delayed == true).
-    bool scheduleAfter(size_t milliseconds, bool overwrite = true);
+    /// If overwrite is set, and the task is already scheduled with a delay (delayed == true),
+    /// the task will be re-scheduled with the new delay.
+    /// If only_if_scheduled is set, don't do anything unless the task is already scheduled with a delay.
+    bool scheduleAfter(size_t milliseconds, bool overwrite = true, bool only_if_scheduled = false);
 
     /// Further attempts to schedule become no-op. Will wait till the end of the current execution of the task.
     void deactivate();

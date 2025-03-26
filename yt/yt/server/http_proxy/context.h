@@ -56,9 +56,11 @@ public:
     void SetupInputStream();
     void SetupOutputStream();
     void SetupOutputParameters();
+    void SetupUserMemoryLimits();
     void LogRequest();
     void LogStructuredRequest();
     void SetupTracing();
+    void SetupMemoryUsageTracker();
     void AddHeaders();
 
     void SetEnrichedError(const TError& error);

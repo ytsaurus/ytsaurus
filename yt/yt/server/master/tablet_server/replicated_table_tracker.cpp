@@ -594,7 +594,7 @@ private:
         struct TCheckResult
         {
             int SwitchCount;
-            std::optional<THashSet<TString>> SyncReplicaClusters;
+            std::optional<THashSet<std::string>> SyncReplicaClusters;
         };
 
         TTable(
@@ -656,7 +656,7 @@ private:
 
         TFuture<TCheckResult> Check(
             TBootstrap* bootstrap,
-            std::optional<THashSet<TString>> referenceReplicaClusters)
+            std::optional<THashSet<std::string>> referenceReplicaClusters)
         {
             if (!CheckFuture_ || CheckFuture_.IsSet()) {
                 std::vector<TReplicaPtr> syncReplicas;
@@ -664,7 +664,7 @@ private:
                 int maxSyncReplicaCount;
                 int minSyncReplicaCount;
 
-                std::optional<std::vector<TString>> preferredSyncReplicaClusters;
+                std::optional<std::vector<std::string>> preferredSyncReplicaClusters;
                 {
                     auto guard = Guard(Lock_);
                     std::tie(minSyncReplicaCount, maxSyncReplicaCount) = Config_->GetEffectiveMinMaxReplicaCount(std::ssize(Replicas_));
@@ -784,7 +784,7 @@ private:
 
                         // NB: We use hash map here so the bizarre case of multiple replicas
                         // on a single replica cluster would be processed in a more reliable way.
-                        THashMap<TString, int> actualSyncReplicaClusterMap;
+                        THashMap<std::string, int> actualSyncReplicaClusterMap;
                         for (const auto& replica : goodSyncReplicas) {
                             ++actualSyncReplicaClusterMap[replica->GetClusterName()];
                         }
@@ -818,7 +818,7 @@ private:
                             }
                         }
 
-                        THashSet<TString> actualSyncReplicaClusters;
+                        THashSet<std::string> actualSyncReplicaClusters;
                         for (const auto& [replicaCluster, replicaCount] : actualSyncReplicaClusterMap) {
                             if (replicaCount > 0) {
                                 actualSyncReplicaClusters.insert(replicaCluster);
@@ -863,7 +863,7 @@ private:
     };
 
     NThreading::TSpinLock ClusterToConnectionLock_;
-    THashMap<TString, TClusterConnectionInfo> ClusterToConnection_;
+    THashMap<std::string, TClusterConnectionInfo> ClusterToConnection_;
 
     TPeriodicExecutorPtr UpdaterExecutor_;
 
@@ -907,16 +907,17 @@ private:
         Enabled_ = true;
     }
 
-    IClientPtr CreateClient(TStringBuf clusterName, IConnectionPtr connection, const TGuard<NThreading::TSpinLock>& /*guard*/)
+    IClientPtr CreateClient(const std::string& clusterName, IConnectionPtr connection, const TGuard<NThreading::TSpinLock>& /*guard*/)
     {
         YT_VERIFY(connection);
 
         auto client = connection->CreateClient(NApi::TClientOptions::FromUser(RootUserName));
         ClusterToConnection_[clusterName] = {
             .Connection = std::move(connection),
-            .Client = client};
+            .Client = client,
+        };
 
-        YT_LOG_DEBUG("Created new client for cluster %v in replicated table tracker",
+        YT_LOG_DEBUG("Created new client in replicated table tracker (ClusterName: %v)",
             clusterName);
 
         return client;

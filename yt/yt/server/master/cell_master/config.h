@@ -67,11 +67,10 @@ namespace NYT::NCellMaster {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TMasterHydraManagerConfig
+struct TMasterHydraManagerConfig
     : public NHydra::TDistributedHydraManagerConfig
     , public NHydra::TLocalHydraJanitorConfig
 {
-public:
     NRpc::TResponseKeeperConfigPtr ResponseKeeper;
     int SnapshotBackgroundThreadCount;
 
@@ -84,10 +83,9 @@ DEFINE_REFCOUNTED_TYPE(TMasterHydraManagerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TMasterConnectionConfig
+struct TMasterConnectionConfig
     : public NRpc::TRetryingChannelConfig
 {
-public:
     //! Timeout for RPC requests to masters.
     TDuration RpcTimeout;
 
@@ -100,11 +98,10 @@ DEFINE_REFCOUNTED_TYPE(TMasterConnectionConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TDiscoveryServersConfig
+struct TDiscoveryServersConfig
     : public NRpc::TBalancingChannelConfig
     , public NRpc::TRetryingChannelConfig
 {
-public:
     //! Timeout for RPC requests to discovery servers.
     TDuration RpcTimeout;
 
@@ -117,10 +114,9 @@ DEFINE_REFCOUNTED_TYPE(TDiscoveryServersConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TMulticellManagerConfig
+struct TMulticellManagerConfig
     : public NYTree::TYsonStruct
 {
-public:
     //! Applies to follower-to-leader forwarding and cross-cell interactions.
     TMasterConnectionConfigPtr MasterConnection;
 
@@ -136,10 +132,9 @@ DEFINE_REFCOUNTED_TYPE(TMulticellManagerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TWorldInitializerConfig
+struct TWorldInitializerConfig
     : public NYTree::TYsonStruct
 {
-public:
     TDuration InitRetryPeriod;
 
     TDuration InitTransactionTimeout;
@@ -168,10 +163,9 @@ struct TMasterCellDescriptor
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TMasterCellDirectoryConfig
+struct TMasterCellDirectoryConfig
     : public NYTree::TYsonStruct
 {
-public:
     std::vector<NApi::NNative::TMasterConnectionConfigPtr> SecondaryMasters;
 
     REGISTER_YSON_STRUCT(TMasterCellDirectoryConfig);
@@ -183,10 +177,9 @@ DEFINE_REFCOUNTED_TYPE(TMasterCellDirectoryConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TTestConfig
+struct TTestConfig
     : public NYTree::TYsonStruct
 {
-public:
     // NB: Temporary field to test dynamic propagation of master cells to nodes.
     TMasterCellDirectoryConfigPtr MasterCellDirectoryOverride;
     THashSet<NObjectClient::TCellTag> DiscoveredMastersCellTags;
@@ -218,10 +211,9 @@ DEFINE_REFCOUNTED_TYPE(TTestConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TDynamicMulticellManagerConfig
+struct TDynamicMulticellManagerConfig
     : public NYTree::TYsonStruct
 {
-public:
     TDuration CellStatisticsGossipPeriod;
 
     using TMasterCellDescriptorPtr = TIntrusivePtr<TMasterCellDescriptor>;
@@ -230,6 +222,7 @@ public:
 
     // COMPAT(aleksandra-zh)
     bool RemoveSecondaryCellDefaultRoles;
+    bool AllowMasterCellRoleInvariantCheck;
 
     TDuration SyncHiveClocksPeriod;
 
@@ -245,10 +238,9 @@ DEFINE_REFCOUNTED_TYPE(TDynamicMulticellManagerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TDynamicResponseKeeperConfig
+struct TDynamicResponseKeeperConfig
     : public NYTree::TYsonStruct
 {
-public:
     TDuration ExpirationTimeout;
 
     int MaxResponseCountPerEvictionPass;
@@ -264,10 +256,9 @@ DEFINE_REFCOUNTED_TYPE(TDynamicResponseKeeperConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TCellMasterBootstrapConfig
+struct TCellMasterBootstrapConfig
     : public NServer::TNativeServerBootstrapConfig
 {
-public:
     //! Used to check that master is being initialized from a correct container.
     std::optional<std::string> ExpectedLocalHostName;
 
@@ -342,11 +333,10 @@ DEFINE_REFCOUNTED_TYPE(TCellMasterBootstrapConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TCellMasterProgramConfig
+struct TCellMasterProgramConfig
     : public TCellMasterBootstrapConfig
     , public TServerProgramConfig
 {
-public:
     REGISTER_YSON_STRUCT(TCellMasterProgramConfig);
 
     static void Register(TRegistrar registrar);
@@ -356,10 +346,9 @@ DEFINE_REFCOUNTED_TYPE(TCellMasterProgramConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TDynamicCellMasterConfig
+struct TDynamicCellMasterConfig
     : public TSingletonsDynamicConfig
 {
-public:
     TDuration MutationTimeCommitPeriod;
 
     TDuration AlertUpdatePeriod;
@@ -367,6 +356,8 @@ public:
     THashMap<TString, double> AutomatonThreadBucketWeights;
 
     TDuration ExpectedMutationCommitDuration;
+
+    bool CreateLostVitalChunksSampleMap;
 
     TDynamicResponseKeeperConfigPtr ResponseKeeper;
 
@@ -379,10 +370,9 @@ DEFINE_REFCOUNTED_TYPE(TDynamicCellMasterConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TDynamicQueueAgentServerConfig
+struct TDynamicQueueAgentServerConfig
     : public NYTree::TYsonStruct
 {
-public:
     std::string DefaultQueueAgentStage;
 
     REGISTER_YSON_STRUCT(TDynamicQueueAgentServerConfig);
@@ -394,10 +384,9 @@ DEFINE_REFCOUNTED_TYPE(TDynamicQueueAgentServerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TDynamicClusterConfig
+struct TDynamicClusterConfig
     : public NYTree::TYsonStruct
 {
-public:
     bool EnableSafeMode;
     bool EnableDescendingSortOrder;
     bool EnableDescendingSortOrderDynamic;
@@ -426,6 +415,7 @@ public:
     NSchedulerPoolServer::TDynamicSchedulerPoolManagerConfigPtr SchedulerPoolManager;
     NSequoiaServer::TDynamicSequoiaManagerConfigPtr SequoiaManager;
     NSequoiaServer::TDynamicGroundUpdateQueueManagerConfigPtr GroundUpdateQueueManager;
+    NSequoiaServer::TDynamicCypressProxyTrackerConfigPtr CypressProxyTracker;
     NIncumbentServer::TIncumbentManagerDynamicConfigPtr IncumbentManager;
     TDynamicQueueAgentServerConfigPtr QueueAgentServer;
     NHydra::TDynamicDistributedHydraManagerConfigPtr HydraManager;

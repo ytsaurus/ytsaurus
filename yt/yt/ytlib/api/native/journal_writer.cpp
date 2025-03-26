@@ -802,6 +802,14 @@ private:
                 THROW_ERROR_EXCEPTION_IF_FAILED(result, "Error starting chunk sessions");
             } catch (const std::exception& ex) {
                 YT_LOG_WARNING(TError(ex));
+
+                // Best effort, fire-and-forget.
+                for (const auto& node : session->Nodes) {
+                    auto req = node->LightProxy.CancelChunk();
+                    ToProto(req->mutable_session_id(), GetSessionIdForNode(session, node));
+                    YT_UNUSED_FUTURE(req->Invoke());
+                }
+
                 return nullptr;
             }
 
@@ -835,8 +843,6 @@ private:
 
                 ToProto(req->mutable_chunk_id(), chunkId);
                 req->mutable_chunk_info();
-                ToProto(req->mutable_legacy_replicas(), replicas);
-
                 req->set_location_uuids_supported(true);
 
                 bool useLocationUuids = std::all_of(session->Nodes.begin(), session->Nodes.end(), [] (const auto& node) {

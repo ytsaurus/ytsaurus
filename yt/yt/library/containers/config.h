@@ -8,10 +8,9 @@ namespace NYT::NContainers {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TPodSpecConfig
+struct TPodSpecConfig
     : public virtual NYTree::TYsonStruct
 {
-public:
     std::optional<double> CpuToVCpuFactor;
 
     REGISTER_YSON_STRUCT(TPodSpecConfig);
@@ -23,10 +22,9 @@ DEFINE_REFCOUNTED_TYPE(TPodSpecConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TCGroupConfig
+struct TCGroupConfig
     : public virtual NYTree::TYsonStruct
 {
-public:
     std::vector<TString> SupportedCGroups;
 
     bool IsCGroupSupported(const TString& cgroupType) const;
@@ -38,10 +36,9 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TPortoExecutorDynamicConfig
+struct TPortoExecutorDynamicConfig
     : public NYTree::TYsonStruct
 {
-public:
     TDuration RetriesTimeout;
     TDuration PollPeriod;
     TDuration ApiTimeout;

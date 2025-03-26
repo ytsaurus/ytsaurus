@@ -8,7 +8,7 @@ namespace NYT::NGpu {
 
 DECLARE_REFCOUNTED_STRUCT(IGpuInfoProvider)
 
-DECLARE_REFCOUNTED_CLASS(TGpuInfoSourceConfig)
+DECLARE_REFCOUNTED_STRUCT(TGpuInfoSourceConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 

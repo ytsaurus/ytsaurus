@@ -5,6 +5,7 @@ RECURSE(
     proto
     request_options
     table_data_service
+    utils
     worker
     yt_service
 )

@@ -27,24 +27,22 @@ PEERDIR(
     library/cpp/yt/mlock
     contrib/clickhouse/src
     contrib/clickhouse/base/base
-    contrib/deprecated/clickhouse_data_streams_compat
 )
 
 ADDINCL(
     contrib/clickhouse/src
     contrib/clickhouse/base
     contrib/libs/double-conversion
-    contrib/libs/poco/Foundation/include
-    contrib/libs/poco/Net/include
-    contrib/libs/poco/Util/include
-    contrib/libs/poco/XML/include
+    contrib/clickhouse/base/poco/Foundation/include
+    contrib/clickhouse/base/poco/Net/include
+    contrib/clickhouse/base/poco/Util/include
+    contrib/clickhouse/base/poco/XML/include
     contrib/libs/re2
 
     contrib/libs/rapidjson/include
 )
 
 SRCS(
-    block_output_stream.cpp
     bootstrap.cpp
     ch_to_yt_converter.cpp
     clickhouse_config.cpp
@@ -90,6 +88,7 @@ SRCS(
     schema_inference.cpp
     secondary_query_header.cpp
     secondary_query_source.cpp
+    sink_to_storage.cpp
     stack_size_checker.cpp
     storage_base.cpp
     storage_distributor.cpp

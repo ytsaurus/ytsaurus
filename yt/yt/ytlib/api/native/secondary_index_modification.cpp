@@ -7,7 +7,7 @@
 #include <yt/yt/library/query/base/ast_visitors.h>
 
 #include <yt/yt/library/query/engine_api/config.h>
-#include <yt/yt/library/query/engine_api/expression_evaluator.h>
+#include <yt/yt/library/query/engine_api/column_evaluator.h>
 
 #include <yt/yt/client/table_client/helpers.h>
 #include <yt/yt/client/table_client/key.h>
@@ -36,7 +36,14 @@ struct TIndexDescriptor
 {
     NTabletClient::ESecondaryIndexKind Kind;
     std::optional<int> UnfoldedColumnPosition;
-    std::unique_ptr<NQueryClient::TParsedSource> Predicate;
+    std::optional<int> PredicatePosition;
+};
+
+struct TEvaluatedColumn
+{
+    std::string Name;
+    TString Expression;
+    TLogicalTypePtr LogicalType;
 };
 
 using NAst::TReferenceHarvester;
@@ -54,7 +61,7 @@ public:
         NTabletClient::TTableMountInfoPtr tableMountInfo,
         std::vector<NTabletClient::TTableMountInfoPtr> indexMountInfos,
         TRange<TUnversionedSubmittedRow> mergedModifications,
-        NQueryClient::IExpressionEvaluatorCachePtr expressionEvaluatorCache,
+        NQueryClient::IColumnEvaluatorCachePtr columnEvaluatorCache,
         NLogging::TLogger logger);
 
     TFuture<void> LookupRows() override;
@@ -71,10 +78,10 @@ private:
 
     const std::function<TLookupSignature> Lookuper_;
     const NTabletClient::TTableMountInfoPtr TableMountInfo_;
-    const std::vector<NTabletClient::TTableMountInfoPtr> IndexInfos_;
+    const std::vector<NTabletClient::TTableMountInfoPtr> IndexTableMountInfos_;
     const NTableClient::TNameTablePtr NameTable_;
     const TRange<TUnversionedSubmittedRow> MergedModifications_;
-    const NQueryClient::IExpressionEvaluatorCachePtr ExpressionEvaluatorCache_;
+    const NQueryClient::IColumnEvaluatorCachePtr ColumnEvaluatorCache_;
     const NTableClient::TRowBufferPtr RowBuffer_;
 
     const NLogging::TLogger Logger;
@@ -84,6 +91,8 @@ private:
 
     NTableClient::TNameTableToSchemaIdMapping ResultingRowMapping_;
     std::vector<int> PositionToIdMapping_;
+    int FirstEvaluatedColumnPosition_;
+    std::vector<TEvaluatedColumn> EvaluatedColumnsSchema_;
     NTableClient::TTableSchemaPtr ResultingSchema_;
 
     TInitialRowMap InitialRowMap_;
@@ -97,14 +106,14 @@ private:
         NTableClient::TNameTableToSchemaIdMapping indexIdMapping,
         NTableClient::TNameTableToSchemaIdMapping keyIndexIdMapping,
         NTableClient::TTableSchemaPtr indexSchema,
-        std::function<bool(NTableClient::TUnversionedRow)> predicate,
+        std::optional<int> predicatePosition,
         std::optional<NTableClient::TUnversionedValue> empty) const;
 
     TFuture<TSharedRange<TRowModification>> ProduceUnfoldingModifications(
         NTableClient::TNameTableToSchemaIdMapping indexIdMapping,
         NTableClient::TNameTableToSchemaIdMapping keyIndexIdMapping,
         NTableClient::TTableSchemaPtr indexSchema,
-        std::function<bool(NTableClient::TUnversionedRow)> predicate,
+        std::optional<int> predicatePosition,
         std::optional<NTableClient::TUnversionedValue> empty,
         int unfoldedKeyPosition) const;
 
@@ -113,7 +122,7 @@ private:
         NTableClient::TNameTableToSchemaIdMapping indexIdMapping,
         NTableClient::TNameTableToSchemaIdMapping keyIndexIdMapping,
         NTableClient::TTableSchemaPtr indexSchema,
-        std::function<bool(NTableClient::TUnversionedRow)> predicate,
+        std::optional<int> predicatePosition,
         std::optional<NTableClient::TUnversionedValue> empty) const;
 
     TFuture<void> ValidateUniqueness(
@@ -121,7 +130,9 @@ private:
         const NTableClient::TNameTableToSchemaIdMapping& indexIdMapping,
         const NTableClient::TNameTableToSchemaIdMapping& keyIndexIdMapping,
         const NTableClient::TTableSchema& indexWriteSchema,
-        std::function<bool(NTableClient::TUnversionedRow)> predicate) const;
+        std::optional<int> predicatePosition) const;
+
+    bool IsPredicateGood(std::optional<int> predicatePosition, TUnversionedRow value) const;
 };
 
 DEFINE_REFCOUNTED_TYPE(TSecondaryIndexModifier)
@@ -131,20 +142,20 @@ DEFINE_REFCOUNTED_TYPE(TSecondaryIndexModifier)
 TSecondaryIndexModifier::TSecondaryIndexModifier(
     std::function<TLookupSignature> lookuper,
     TTableMountInfoPtr tableMountInfo,
-    std::vector<TTableMountInfoPtr> indexInfos,
+    std::vector<TTableMountInfoPtr> indexTableMountInfos,
     TRange<TUnversionedSubmittedRow> mergedModifications,
-    IExpressionEvaluatorCachePtr expressionEvaluatorCache,
+    IColumnEvaluatorCachePtr columnEvaluatorCache,
     TLogger logger)
     : Lookuper_(std::move(lookuper))
     , TableMountInfo_(std::move(tableMountInfo))
-    , IndexInfos_(std::move(indexInfos))
+    , IndexTableMountInfos_(std::move(indexTableMountInfos))
     , NameTable_(TNameTable::FromSchema(*TableMountInfo_->Schemas[ETableSchemaKind::Primary]))
     , MergedModifications_(std::move(mergedModifications))
-    , ExpressionEvaluatorCache_(std::move(expressionEvaluatorCache))
+    , ColumnEvaluatorCache_(std::move(columnEvaluatorCache))
     , RowBuffer_(New<TRowBuffer>(TSecondaryIndexModificationsBufferTag{}))
     , Logger(std::move(logger))
 {
-    YT_VERIFY(TableMountInfo_->Indices.size() == IndexInfos_.size());
+    YT_VERIFY(TableMountInfo_->Indices.size() == IndexTableMountInfos_.size());
 
     YT_LOG_DEBUG("Building secondary index modifications (TablePath: %v, Indices: [%v])",
         TableMountInfo_->Path,
@@ -154,58 +165,74 @@ TSecondaryIndexModifier::TSecondaryIndexModifier(
                 builder->AppendFormat("(%v: %Qlv)", indexInfo.TableId, indexInfo.Kind);
             }));
 
-    for (const auto& keyColumn : TableMountInfo_->Schemas[ETableSchemaKind::Primary]->Columns()) {
+    const auto& tableSchema = TableMountInfo_->Schemas[ETableSchemaKind::Primary];
+
+    for (const auto& keyColumn : tableSchema->Columns()) {
         if (!keyColumn.SortOrder()) {
             break;
         }
         PositionToIdMapping_.push_back(NameTable_->GetId(keyColumn.Name()));
     }
 
-    TColumnSet predicateColumns;
-    IndexDescriptors_.resize(IndexInfos_.size());
-    for (int index = 0; index < std::ssize(IndexInfos_); ++index) {
+    TColumnSet evaluatedExpressionsColumns;
+    IndexDescriptors_.resize(IndexTableMountInfos_.size());
+    for (int index = 0; index < std::ssize(IndexTableMountInfos_); ++index) {
+        const auto& indexMeta = TableMountInfo_->Indices[index];
+        const auto& indexTableMountInfo = IndexTableMountInfos_[index];
+        const auto& indexSchema = *indexTableMountInfo->Schemas[ETableSchemaKind::Primary];
+
         auto& descriptor = IndexDescriptors_[index];
-        const auto& indexInfo = IndexInfos_[index];
-        const auto& indexSchema = *indexInfo->Schemas[ETableSchemaKind::Primary];
+        descriptor.Kind = indexMeta.Kind;
 
-        if (const auto& predicate = TableMountInfo_->Indices[index].Predicate) {
+        if (const auto& predicate = indexMeta.Predicate) {
             auto parsedSource = ParseSource(*predicate, EParseMode::Expression);
-            TReferenceHarvester(&predicateColumns)
+            TReferenceHarvester(&evaluatedExpressionsColumns)
                 .Visit(std::get<NAst::TExpressionPtr>(parsedSource->AstHead.Ast));
-            descriptor.Predicate = std::move(parsedSource);
+
+            descriptor.PredicatePosition = std::ssize(EvaluatedColumnsSchema_);
+            EvaluatedColumnsSchema_.push_back(TEvaluatedColumn{
+                .Name = Format("$predicate_%v", index),
+                .Expression = *predicate,
+                .LogicalType = SimpleLogicalType(ESimpleLogicalValueType::Boolean),
+            });
         }
-        if (const auto& unfoldedColumn = TableMountInfo_->Indices[index].UnfoldedColumn) {
-            descriptor.UnfoldedColumnPosition = indexSchema.GetColumnIndex(*unfoldedColumn);
+
+        if (indexMeta.EvaluatedColumnsSchema) {
+            for (auto& column : indexMeta.EvaluatedColumnsSchema->Columns()) {
+                YT_VERIFY(column.Expression());
+
+                auto parsedSource = ParseSource(*column.Expression(), EParseMode::Expression);
+                TReferenceHarvester(&evaluatedExpressionsColumns)
+                    .Visit(std::get<NAst::TExpressionPtr>(parsedSource->AstHead.Ast));
+
+                EvaluatedColumnsSchema_.push_back(TEvaluatedColumn{
+                    .Name = column.Name(),
+                    .Expression = *column.Expression(),
+                    .LogicalType = column.LogicalType(),
+                });
+            }
         }
 
-        switch (auto kind = descriptor.Kind = TableMountInfo_->Indices[index].Kind) {
-            case ESecondaryIndexKind::FullSync:
-                ValidateFullSyncIndexSchema(
-                    *TableMountInfo_->Schemas[ETableSchemaKind::Primary],
-                    indexSchema);
-                break;
+        // COMPAT(sabdenovch)
+        if (descriptor.Kind == ESecondaryIndexKind::Unfolding && !indexMeta.UnfoldedColumn) {
+            descriptor.UnfoldedColumnPosition = indexSchema.GetColumnIndex(
+                FindUnfoldingColumnAndValidate(
+                    *tableSchema,
+                    indexSchema,
+                    indexMeta.Predicate,
+                    indexMeta.EvaluatedColumnsSchema));
+        } else {
+            ValidateIndexSchema(
+                descriptor.Kind,
+                *tableSchema,
+                indexSchema,
+                indexMeta.Predicate,
+                indexMeta.EvaluatedColumnsSchema,
+                indexMeta.UnfoldedColumn);
 
-            case ESecondaryIndexKind::Unfolding:
-                // COMPAT(sabdenovch)
-                if (!TableMountInfo_->Indices[index].UnfoldedColumn) {
-                    descriptor.UnfoldedColumnPosition = indexSchema.GetColumnIndex(FindUnfoldedColumnAndValidate(
-                        *TableMountInfo_->Schemas[ETableSchemaKind::Primary],
-                        indexSchema));
-                } else {
-                    ValidateUnfoldingIndexSchema(
-                        *TableMountInfo_->Schemas[ETableSchemaKind::Primary],
-                        indexSchema,
-                        *TableMountInfo_->Indices[index].UnfoldedColumn);
-                }
-                break;
-
-            case ESecondaryIndexKind::Unique:
-                ValidateUniqueIndexSchema(*TableMountInfo_->Schemas[ETableSchemaKind::Primary], indexSchema);
-                break;
-
-            default:
-                THROW_ERROR_EXCEPTION("Unsupported secondary index kind %Qlv",
-                    kind);
+            if (indexMeta.UnfoldedColumn) {
+                descriptor.UnfoldedColumnPosition = indexSchema.GetColumnIndex(*indexMeta.UnfoldedColumn);
+            }
         }
 
         for (const auto& column : indexSchema.Columns()) {
@@ -216,14 +243,17 @@ TSecondaryIndexModifier::TSecondaryIndexModifier(
         }
     }
 
-    for (const auto& column : predicateColumns) {
+    for (const auto& column : evaluatedExpressionsColumns) {
         PositionToIdMapping_.push_back(NameTable_->GetId(column));
     }
-
     std::sort(PositionToIdMapping_.begin(), PositionToIdMapping_.end());
     PositionToIdMapping_.erase(
         std::unique(PositionToIdMapping_.begin(), PositionToIdMapping_.end()),
         PositionToIdMapping_.end());
+    FirstEvaluatedColumnPosition_ = std::ssize(PositionToIdMapping_);
+    for (const auto& evaluatedColumn : EvaluatedColumnsSchema_) {
+        PositionToIdMapping_.push_back(NameTable_->GetIdOrRegisterName(evaluatedColumn.Name));
+    }
 
     ResultingRowMapping_.assign(static_cast<size_t>(NameTable_->GetSize()), -1);
     for (int position = 0; position < std::ssize(PositionToIdMapping_); ++position) {
@@ -232,11 +262,17 @@ TSecondaryIndexModifier::TSecondaryIndexModifier(
 
     std::vector<TColumnSchema> resultingColumns;
     resultingColumns.reserve(PositionToIdMapping_.size());
-    for (int id : PositionToIdMapping_) {
+    for (int position = 0; position < FirstEvaluatedColumnPosition_; ++position) {
         resultingColumns.push_back(TableMountInfo_
             ->Schemas[ETableSchemaKind::Primary]
-            ->GetColumn(NameTable_->GetName(id)));
+            ->GetColumn(NameTable_->GetName(PositionToIdMapping_[position])));
     }
+    for (int position = FirstEvaluatedColumnPosition_; position < std::ssize(PositionToIdMapping_); ++position) {
+        const auto& evaluatedColumn = EvaluatedColumnsSchema_[position - FirstEvaluatedColumnPosition_];
+        resultingColumns.push_back(TColumnSchema(evaluatedColumn.Name, evaluatedColumn.LogicalType)
+            .SetExpression(evaluatedColumn.Expression));
+    }
+
     ResultingSchema_ = New<TTableSchema>(std::move(resultingColumns));
 }
 
@@ -256,7 +292,10 @@ TFuture<void> TSecondaryIndexModifier::LookupRows()
 
     TLookupRowsOptions options;
     options.KeepMissingRows = false;
-    options.ColumnFilter = TColumnFilter(PositionToIdMapping_);
+    auto nonEvaluatedColumns = std::vector(
+        PositionToIdMapping_.begin(),
+        PositionToIdMapping_.begin() + FirstEvaluatedColumnPosition_);
+    options.ColumnFilter = TColumnFilter(std::move(nonEvaluatedColumns));
 
     return Lookuper_(
         TableMountInfo_->Path,
@@ -271,13 +310,22 @@ TFuture<void> TSecondaryIndexModifier::LookupRows()
 void TSecondaryIndexModifier::SetInitialAndResultingRows(TSharedRange<NTableClient::TUnversionedRow> lookedUpRows)
 {
     int keyColumnCount = TableMountInfo_->Schemas[ETableSchemaKind::Primary]->GetKeyColumnCount();
+    int columnCount = std::ssize(PositionToIdMapping_);
+    auto evaluator = ColumnEvaluatorCache_->Find(ResultingSchema_);
+
     for (auto initialRow : lookedUpRows) {
         auto key = TKey(initialRow.FirstNElements(keyColumnCount));
-        auto mutableRow = RowBuffer_->CaptureRow(initialRow);
+        auto mutableRow = RowBuffer_->AllocateUnversioned(columnCount);
 
-        YT_VERIFY(PositionToIdMapping_.size() == mutableRow.GetCount());
-        for (int index = 0; index < std::ssize(PositionToIdMapping_); ++index) {
-            mutableRow[index].Id = PositionToIdMapping_[index];
+        YT_VERIFY(FirstEvaluatedColumnPosition_ == static_cast<int>(initialRow.GetCount()));
+        for (int position = 0; position < FirstEvaluatedColumnPosition_; ++position) {
+            mutableRow[position] = initialRow[position];
+            mutableRow[position].Id = PositionToIdMapping_[position];
+        }
+
+        for (int position = FirstEvaluatedColumnPosition_; position < columnCount; ++position) {
+            mutableRow[position].Id = PositionToIdMapping_[position];
+            evaluator->EvaluateKey(mutableRow, RowBuffer_, position, /*preserveColumnId*/ true);
         }
 
         GetOrCrash(InitialRowMap_, key) = mutableRow;
@@ -295,8 +343,8 @@ void TSecondaryIndexModifier::SetInitialAndResultingRows(TSharedRange<NTableClie
             case EWireProtocolCommand::WriteAndLockRow:
             case EWireProtocolCommand::WriteRow:
                 if (!alteredRow) {
-                    alteredRow = RowBuffer_->AllocateUnversioned(PositionToIdMapping_.size());
-                    for (int index = 0; index < std::ssize(PositionToIdMapping_); ++index) {
+                    alteredRow = RowBuffer_->AllocateUnversioned(columnCount);
+                    for (int index = 0; index < columnCount; ++index) {
                         alteredRow[index] = MakeUnversionedSentinelValue(
                             EValueType::Null,
                             PositionToIdMapping_[index]);
@@ -307,6 +355,10 @@ void TSecondaryIndexModifier::SetInitialAndResultingRows(TSharedRange<NTableClie
                     if (auto index = ResultingRowMapping_[value.Id]; index >= 0) {
                         alteredRow[index] = RowBuffer_->CaptureValue(value);
                     }
+                }
+
+                for (int position = FirstEvaluatedColumnPosition_; position < columnCount; ++position) {
+                    evaluator->EvaluateKey(alteredRow, RowBuffer_, position, /*preserveColumnId*/ true);
                 }
 
                 break;
@@ -328,7 +380,7 @@ TFuture<void> TSecondaryIndexModifier::OnIndexModifications(std::function<void(
 {
     std::vector<TFuture<void>> modificationRequestEvents;
 
-    for (int index = 0; index < std::ssize(IndexInfos_); ++index) {
+    for (int index = 0; index < std::ssize(IndexTableMountInfos_); ++index) {
         modificationRequestEvents.push_back(
             ProduceModificationsForIndex(index)
                 .ApplyUnique(BIND([
@@ -338,7 +390,7 @@ TFuture<void> TSecondaryIndexModifier::OnIndexModifications(std::function<void(
                     enqueueModificationRequests
                 ] (TSharedRange<TRowModification>&& modifications) {
                     enqueueModificationRequests(
-                        IndexInfos_[index]->Path,
+                        IndexTableMountInfos_[index]->Path,
                         NameTable_,
                         std::move(modifications));
                 })));
@@ -349,38 +401,15 @@ TFuture<void> TSecondaryIndexModifier::OnIndexModifications(std::function<void(
 
 TFuture<TSharedRange<TRowModification>> TSecondaryIndexModifier::ProduceModificationsForIndex(int index) const
 {
-    auto indexSchema = IndexInfos_[index]->Schemas[ETableSchemaKind::Write];
+    auto indexSchema = IndexTableMountInfos_[index]->Schemas[ETableSchemaKind::Write];
     auto indexIdMapping = BuildColumnIdMapping(
         *indexSchema,
         NameTable_,
         /*allowMissingKeyColumns*/ true);
     auto keyIndexIdMapping = BuildColumnIdMapping(
-        *IndexInfos_[index]->Schemas[ETableSchemaKind::Lookup],
+        *IndexTableMountInfos_[index]->Schemas[ETableSchemaKind::Lookup],
         NameTable_,
         /*allowMissingKeyColumns*/ true);
-
-    std::function<bool(TUnversionedRow)> predicate;
-    if (const auto& parsedPredicate = IndexDescriptors_[index].Predicate) {
-        auto evaluator = ExpressionEvaluatorCache_->Find(*parsedPredicate, ResultingSchema_);
-        predicate = [evaluator = std::move(evaluator), rowBuffer = RowBuffer_] (const TUnversionedRow row) {
-            auto result = evaluator->Evaluate(row, rowBuffer);
-
-            switch (result.Type) {
-                case EValueType::Boolean:
-                    return result.Data.Boolean;
-
-                case EValueType::Null:
-                    return false;
-
-                default:
-                    THROW_ERROR_EXCEPTION("Predicate computed to an unexpected type %Qlv", result.Type);
-            }
-        };
-    } else {
-        predicate = [] (const TUnversionedRow) {
-            return true;
-        };
-    }
 
     std::optional<TUnversionedValue> emptyValue;
     if (indexSchema->FindColumn(EmptyValueColumnName)) {
@@ -394,7 +423,7 @@ TFuture<TSharedRange<TRowModification>> TSecondaryIndexModifier::ProduceModifica
                 std::move(indexIdMapping),
                 std::move(keyIndexIdMapping),
                 std::move(indexSchema),
-                std::move(predicate),
+                IndexDescriptors_[index].PredicatePosition,
                 std::move(emptyValue));
 
         case ESecondaryIndexKind::Unfolding:
@@ -402,17 +431,17 @@ TFuture<TSharedRange<TRowModification>> TSecondaryIndexModifier::ProduceModifica
                 std::move(indexIdMapping),
                 std::move(keyIndexIdMapping),
                 std::move(indexSchema),
-                std::move(predicate),
+                IndexDescriptors_[index].PredicatePosition,
                 std::move(emptyValue),
                 *IndexDescriptors_[index].UnfoldedColumnPosition);
 
         case ESecondaryIndexKind::Unique:
             return ProduceUniqueModifications(
-                IndexInfos_[index]->Path,
+                IndexTableMountInfos_[index]->Path,
                 std::move(indexIdMapping),
                 std::move(keyIndexIdMapping),
                 std::move(indexSchema),
-                std::move(predicate),
+                IndexDescriptors_[index].PredicatePosition,
                 std::move(emptyValue));
 
         default:
@@ -424,13 +453,13 @@ TFuture<TSharedRange<TRowModification>> TSecondaryIndexModifier::ProduceFullSync
     TNameTableToSchemaIdMapping indexIdMapping,
     TNameTableToSchemaIdMapping keyIndexIdMapping,
     TTableSchemaPtr indexSchema,
-    std::function<bool(TUnversionedRow)> predicate,
+    std::optional<int> predicatePosition,
     std::optional<TUnversionedValue> empty) const
 {
     std::vector<TRowModification> secondaryModifications;
 
     for (const auto& [_, initialRow] : InitialRowMap_) {
-        if (initialRow && predicate(initialRow)) {
+        if (initialRow && IsPredicateGood(predicatePosition, initialRow)) {
             auto rowToDelete = RowBuffer_->CaptureAndPermuteRow(
                 initialRow,
                 *indexSchema,
@@ -448,7 +477,7 @@ TFuture<TSharedRange<TRowModification>> TSecondaryIndexModifier::ProduceFullSync
     }
 
     for (const auto& [_, resultingRow] : ResultingRowMap_) {
-        if (resultingRow && predicate(resultingRow)) {
+        if (resultingRow && IsPredicateGood(predicatePosition, resultingRow)) {
             auto rowToWrite = RowBuffer_->CaptureAndPermuteRow(
                 resultingRow,
                 *indexSchema,
@@ -473,19 +502,19 @@ TFuture<TSharedRange<TRowModification>> TSecondaryIndexModifier::ProduceUnfoldin
     TNameTableToSchemaIdMapping indexIdMapping,
     TNameTableToSchemaIdMapping keyIndexIdMapping,
     TTableSchemaPtr indexSchema,
-    std::function<bool(TUnversionedRow)> predicate,
+    std::optional<int> predicatePosition,
     std::optional<TUnversionedValue> empty,
-    int unfoldedKeyPosition) const
+    int unfoldedColumnPosition) const
 {
     std::vector<TRowModification> secondaryModifications;
 
     auto unfoldValue = [&] (TUnversionedRow row, std::function<void(TUnversionedRow)> consumeRow) {
-        if (row[unfoldedKeyPosition].Type == EValueType::Null) {
+        if (row[unfoldedColumnPosition].Type == EValueType::Null) {
             return;
         }
 
         auto memoryInput = TMemoryInput(
-            FromUnversionedValue<NYson::TYsonStringBuf>(row[unfoldedKeyPosition])
+            FromUnversionedValue<NYson::TYsonStringBuf>(row[unfoldedColumnPosition])
             .AsStringBuf());
 
         auto parser = TYsonPullParser(&memoryInput, EYsonType::Node);
@@ -493,7 +522,7 @@ TFuture<TSharedRange<TRowModification>> TSecondaryIndexModifier::ProduceUnfoldin
 
         cursor.ParseList([&] (TYsonPullParserCursor* cursor) {
             auto producedRow = RowBuffer_->CaptureRow(row, /*captureValues*/ false);
-            auto& unfoldedValue = producedRow[unfoldedKeyPosition];
+            auto& unfoldedValue = producedRow[unfoldedColumnPosition];
 
             switch (auto type = cursor->GetCurrent().GetType()) {
                 case EYsonItemType::EntityValue:
@@ -533,7 +562,7 @@ TFuture<TSharedRange<TRowModification>> TSecondaryIndexModifier::ProduceUnfoldin
     };
 
     for (const auto& [_, initialRow] : InitialRowMap_) {
-        if (initialRow && predicate(initialRow)) {
+        if (initialRow && IsPredicateGood(predicatePosition, initialRow)) {
             auto permuttedRow = RowBuffer_->CaptureAndPermuteRow(
                 initialRow,
                 *indexSchema,
@@ -553,7 +582,7 @@ TFuture<TSharedRange<TRowModification>> TSecondaryIndexModifier::ProduceUnfoldin
     }
 
     for (const auto& [_, resultingRow] : ResultingRowMap_) {
-        if (resultingRow && predicate(resultingRow)) {
+        if (resultingRow && IsPredicateGood(predicatePosition, resultingRow)) {
             auto permuttedRow = RowBuffer_->CaptureAndPermuteRow(
                 resultingRow,
                 *indexSchema,
@@ -581,17 +610,17 @@ TFuture<TSharedRange<TRowModification>> TSecondaryIndexModifier::ProduceUniqueMo
     TNameTableToSchemaIdMapping indexIdMapping,
     TNameTableToSchemaIdMapping keyIndexIdMapping,
     TTableSchemaPtr indexSchema,
-    std::function<bool(TUnversionedRow)> predicate,
+    std::optional<int> predicatePosition,
     std::optional<TUnversionedValue> empty) const
 {
-    return ValidateUniqueness(uniqueIndexPath, indexIdMapping, keyIndexIdMapping, *indexSchema, predicate)
+    return ValidateUniqueness(uniqueIndexPath, indexIdMapping, keyIndexIdMapping, *indexSchema, predicatePosition)
         .Apply(BIND(
             &TSecondaryIndexModifier::ProduceFullSyncModifications,
             MakeStrong(this),
             std::move(indexIdMapping),
             std::move(keyIndexIdMapping),
             std::move(indexSchema),
-            std::move(predicate),
+            std::move(predicatePosition),
             std::move(empty)));
 }
 
@@ -600,11 +629,11 @@ TFuture<void> TSecondaryIndexModifier::ValidateUniqueness(
     const TNameTableToSchemaIdMapping& indexIdMapping,
     const TNameTableToSchemaIdMapping& keyIndexIdMapping,
     const TTableSchema& indexSchema,
-    std::function<bool(TUnversionedRow)> predicate) const
+    std::optional<int> predicatePosition) const
 {
     TIndexKeyToTableKeyMap extraIndexKeys;
     for (const auto& [key, resultingRow] : ResultingRowMap_) {
-        if (resultingRow && predicate(resultingRow)) {
+        if (resultingRow && IsPredicateGood(predicatePosition, resultingRow)) {
             auto resultingIndexKey = RowBuffer_->CaptureAndPermuteRow(
                 resultingRow,
                 indexSchema,
@@ -626,7 +655,7 @@ TFuture<void> TSecondaryIndexModifier::ValidateUniqueness(
     }
 
     for (const auto& [key, initialRow] : InitialRowMap_) {
-        if (initialRow && predicate(initialRow)) {
+        if (initialRow && IsPredicateGood(predicatePosition, initialRow)) {
             auto initialIndexKey = RowBuffer_->CaptureAndPermuteRow(
                 initialRow,
                 indexSchema,
@@ -705,6 +734,24 @@ TFuture<void> TSecondaryIndexModifier::ValidateUniqueness(
         }));
 }
 
+bool TSecondaryIndexModifier::IsPredicateGood(
+    std::optional<int> predicatePosition,
+    TUnversionedRow row) const
+{
+    if (!predicatePosition) {
+        return true;
+    }
+
+    const auto& value = row[FirstEvaluatedColumnPosition_ + *predicatePosition];
+    if (value.Type == EValueType::Null) {
+        return false;
+    }
+
+    YT_VERIFY(value.Type == EValueType::Boolean);
+
+    return value.Data.Boolean;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 std::function<TLookupSignature> MakeLookuper(ITransactionPtr transaction)
@@ -729,7 +776,7 @@ ISecondaryIndexModifierPtr CreateSecondaryIndexModifier(
     NTabletClient::TTableMountInfoPtr tableMountInfo,
     std::vector<NTabletClient::TTableMountInfoPtr> indexMountInfos,
     TRange<TUnversionedSubmittedRow> mergedModifications,
-    NQueryClient::IExpressionEvaluatorCachePtr expressionEvaluatorCache,
+    NQueryClient::IColumnEvaluatorCachePtr columnEvaluatorCache,
     NLogging::TLogger logger)
 {
     return New<TSecondaryIndexModifier>(
@@ -737,7 +784,7 @@ ISecondaryIndexModifierPtr CreateSecondaryIndexModifier(
         std::move(tableMountInfo),
         std::move(indexMountInfos),
         std::move(mergedModifications),
-        std::move(expressionEvaluatorCache),
+        std::move(columnEvaluatorCache),
         std::move(logger));
 }
 
@@ -754,7 +801,7 @@ ISecondaryIndexModifierPtr CreateSecondaryIndexModifier(
         std::move(tableMountInfo),
         std::move(indexMountInfos),
         std::move(mergedModifications),
-        CreateExpressionEvaluatorCache(New<TExpressionEvaluatorCacheConfig>()),
+        CreateColumnEvaluatorCache(New<TColumnEvaluatorCacheConfig>()),
         TLogger("UnitTest"));
 }
 

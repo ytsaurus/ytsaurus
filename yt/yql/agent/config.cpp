@@ -101,6 +101,10 @@ constexpr auto DefaultDQGatewaySettings = std::to_array<std::pair<TStringBuf, TS
     {"_EnablePrecompute", "1"},
     {"UseAggPhases", "true"},
     {"UseWideChannels", "true"},
+    {"HashJoinMode","off"},
+    {"UseFastPickleTransport","true"},
+    {"UseOOBTransport","true"},
+    {"_MaxAttachmentsSize","3221225472"},
 });
 
 constexpr auto DefaultClusterSettings = std::to_array<std::pair<TStringBuf, TStringBuf>>({
@@ -245,13 +249,16 @@ void TYqlPluginConfig::Register(TRegistrar registrar)
             .EndMap()
         .EndList();
 
-    registrar.Parameter("gateway_config", &TThis::GatewayConfig)
+    registrar.Parameter("gateway", &TThis::GatewayConfig)
+        .Alias("gateway_config")
         .Default(GetEphemeralNodeFactory()->CreateMap())
         .ResetOnLoad();
-    registrar.Parameter("dq_gateway_config", &TThis::DQGatewayConfig)
+    registrar.Parameter("dq_gateway", &TThis::DQGatewayConfig)
+        .Alias("dq_gateway_config")
         .Default(GetEphemeralNodeFactory()->CreateMap())
         .ResetOnLoad();
-    registrar.Parameter("file_storage_config", &TThis::FileStorageConfig)
+    registrar.Parameter("file_storage", &TThis::FileStorageConfig)
+        .Alias("file_storage_config")
         .Default(GetEphemeralNodeFactory()->CreateMap())
         .ResetOnLoad();
     registrar.Parameter("operation_attributes", &TThis::OperationAttributes)
@@ -261,7 +268,8 @@ void TYqlPluginConfig::Register(TRegistrar registrar)
         .Default();
     registrar.Parameter("yql_plugin_shared_library", &TThis::YqlPluginSharedLibrary)
         .Default();
-    registrar.Parameter("dq_manager_config", &TThis::DQManagerConfig)
+    registrar.Parameter("dq_manager", &TThis::DQManagerConfig)
+        .Alias("dq_manager_config")
         .DefaultNew();
     registrar.Parameter("enable_dq", &TThis::EnableDQ)
         .Default(false);
@@ -343,7 +351,7 @@ void TYqlAgentDynamicConfig::Register(TRegistrar registrar)
         .Default(128);
     registrar.Parameter("state_check_period", &TThis::StateCheckPeriod)
         .Default(TDuration::Seconds(15));
-    registrar.Parameter("gateways_config", &TThis::GatewaysConfig)
+    registrar.Parameter("gateways", &TThis::GatewaysConfig)
         .Default(GetEphemeralNodeFactory()->CreateMap())
         .ResetOnLoad();
 }

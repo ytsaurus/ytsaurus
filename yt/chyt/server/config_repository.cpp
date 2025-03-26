@@ -6,7 +6,7 @@
 #include <yt/yt/core/misc/common.h>
 #include <yt/yt/core/ytree/fluent.h>
 
-#include <Poco/Util/LayeredConfiguration.h>
+#include <DBPoco/Util/LayeredConfiguration.h>
 
 namespace NYT::NClickHouseServer {
 
@@ -44,12 +44,12 @@ public:
         return Dictionaries_.contains(configFile);
     }
 
-    Poco::Timestamp getUpdateTime(const std::string& /*configFile*/) override
+    std::optional<DBPoco::Timestamp> getUpdateTime(const std::string& /*configFile*/) override
     {
-        return Poco::Timestamp::TIMEVAL_MAX;
+        return DBPoco::Timestamp::TIMEVAL_MAX;
     }
 
-    Poco::AutoPtr<Poco::Util::AbstractConfiguration> load(const std::string& configFile) override
+    DBPoco::AutoPtr<DBPoco::Util::AbstractConfiguration> load(const std::string& configFile) override
     {
         return ConvertToPocoConfig(BuildYsonNodeFluently()
             .BeginMap()

@@ -16,6 +16,7 @@ from yt_helpers import get_current_time
 
 from yt.common import YtError
 from yt.test_helpers import assert_items_equal
+from flaky import flaky
 import yt.yson as yson
 
 from datetime import timedelta
@@ -67,31 +68,32 @@ class TestPortals(YTEnvSetup):
 
     @authors("babenko")
     def test_cannot_create_portal_exit(self):
-        with pytest.raises(YtError):
+        with raises_yt_error("Nodes of type \"portal_exit\" cannot be created explicitly"):
             create("portal_exit", "//tmp/e")
 
     @authors("babenko")
     def test_cannot_create_portal_to_primary1(self):
-        with pytest.raises(YtError):
+        with raises_yt_error("Portal exit cannot be placed on the primary cell"):
             create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 10})
 
     @authors("babenko")
     def test_cannot_create_portal_to_primary2(self):
         create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 11})
-        with pytest.raises(YtError):
+        with raises_yt_error("Portal entrance cannot be placed on the secondary cell"):
             create("portal_entrance", "//tmp/p/q", attributes={"exit_cell_tag": 10})
 
     @authors("babenko")
     def test_validate_cypress_node_host_cell_role1(self):
-        set("//sys/@config/multicell_manager/cell_descriptors", {"11": {"roles": ["chunk_host"]}})
-        with pytest.raises(YtError):
-            create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 11})
+        set("//sys/@config/multicell_manager/cell_descriptors", {"12": {"roles": ["chunk_host"]}})
+        with raises_yt_error("cannot host Cypress nodes"):
+            create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 12})
 
     @authors("aleksandra-zh")
     def test_validate_cypress_node_host_cell_role2(self):
+        set("//sys/@config/multicell_manager/allow_master_cell_role_invariant_check", False)
         set("//sys/@config/multicell_manager/remove_secondary_cell_default_roles", True)
         set("//sys/@config/multicell_manager/cell_descriptors", {})
-        with pytest.raises(YtError):
+        with raises_yt_error("cannot host Cypress nodes"):
             create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 11})
 
         set("//sys/@config/multicell_manager/remove_secondary_cell_default_roles", False)
@@ -99,7 +101,7 @@ class TestPortals(YTEnvSetup):
 
     @authors("babenko")
     def test_need_exit_cell_tag_on_create(self):
-        with pytest.raises(YtError):
+        with raises_yt_error("Attribute \"exit_cell_tag\" is not found"):
             create("portal_entrance", "//tmp/p")
 
     @authors("babenko")
@@ -124,7 +126,7 @@ class TestPortals(YTEnvSetup):
     def test_cannot_enable_acl_inheritance(self):
         create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 11})
         get("//tmp/p&/@exit_node_id")
-        with pytest.raises(YtError):
+        with raises_yt_error("Node //tmp has no child with key \"p\""):
             set("//tmp/p/@inherit_acl", True, driver=get_driver(1))
 
     @authors("babenko")
@@ -491,7 +493,7 @@ class TestPortals(YTEnvSetup):
         create("list_node", "//tmp/p1/m/l")
         set("//sys/@config/cypress_manager/forbid_list_node_creation", True)
 
-        with pytest.raises(YtError):
+        with raises_yt_error("List nodes are deprecated and do not support cross-cell copying"):
             copy("//tmp/p1/m", "//tmp/p2/m", preserve_account=True)
 
         # XXX(babenko): cleanup is weird
@@ -560,7 +562,7 @@ class TestPortals(YTEnvSetup):
 
         set("//tmp/p1/@opaque", True)
         assert get("//tmp/p1/@opaque")
-        with pytest.raises(YtError):
+        with raises_yt_error("Portal entrances cannot be made non-opaque"):
             set("//tmp/p1&/@opaque", False)
 
     # This test seems broken
@@ -611,7 +613,7 @@ class TestPortals(YTEnvSetup):
         remove_tablet_cell_bundle("b")
         wait(lambda: get("//sys/tablet_cell_bundles/b/@life_stage") == "removal_pre_committed")
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Tablet cell bundle \"b\" cannot be used"):
             copy("//tmp/p1/t", "//tmp/p2/t")
 
         remove("//tmp/p1/t")
@@ -620,6 +622,117 @@ class TestPortals(YTEnvSetup):
         # XXX(babenko): cleanup is weird
         remove("//tmp/p1")
         remove("//tmp/p2")
+
+    @authors("koloshmet")
+    @flaky(max_runs=3)
+    def test_force_link_through_portal(self):
+        create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 11})
+
+        create("map_node", "//tmp/p/d")
+        create("map_node", "//tmp/p/d1")
+        create("map_node", "//tmp/d")
+
+        set("//sys/@config/object_manager/gc_sweep_period", 15000)
+
+        start = time.time()
+
+        time.sleep(2)
+
+        link("//tmp/p/d", "//tmp/d/l")
+
+        for i in range(10):
+            get("//tmp/d/l/@")
+        assert get("//tmp/d/@resolve_cached") and get("//tmp/d/l&/@resolve_cached")
+
+        link("//tmp/p/d1", "//tmp/d/l", force=True)
+        assert get("//tmp/d/l&/@target_path") == "//tmp/p/d1"
+
+        for i in range(10):
+            get("//tmp/d/l/@")
+        assert get("//tmp/d/@resolve_cached") and get("//tmp/d/l&/@resolve_cached")
+
+        assert time.time() - start < 15
+
+    @authors("koloshmet")
+    @pytest.mark.parametrize("purge_resolve_cache", [False, True])
+    @pytest.mark.parametrize("target_on_primary", [False, True])
+    def test_cross_cell_links_resolve(self, purge_resolve_cache, target_on_primary):
+        set("//sys/@config/cypress_manager/enable_cross_cell_links", True)
+
+        create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 11})
+        create("map_node", "//tmp/p/d")
+        create("table", "//tmp/p/d/p")
+
+        target = "//tmp" if target_on_primary else "//tmp/p/d"
+        link(target, "//tmp/p/l")
+        _maybe_purge_resolve_cache(purge_resolve_cache, "//tmp/p/l&")
+
+        assert ls("//tmp/p/l") == ["p"]
+
+    @authors("koloshmet")
+    @pytest.mark.parametrize("purge_resolve_cache", [False, True])
+    def test_cross_cell_links_resolve_multiportal(self, purge_resolve_cache):
+        set("//sys/@config/cypress_manager/enable_cross_cell_links", True)
+
+        create("portal_entrance", "//tmp/p1", attributes={"exit_cell_tag": 11})
+        create("portal_entrance", "//tmp/p2", attributes={"exit_cell_tag": 12})
+
+        link("//tmp", "//tmp/p1/l")
+        link("//tmp/p1/l", "//tmp/p2/l")
+        link("//tmp/p2/l", "//tmp/p1/l2")
+        _maybe_purge_resolve_cache(purge_resolve_cache, "//tmp/p1/l&")
+        _maybe_purge_resolve_cache(purge_resolve_cache, "//tmp/p1/l2&")
+        _maybe_purge_resolve_cache(purge_resolve_cache, "//tmp/p2/l&")
+
+        assert sorted(ls("//tmp/p1/l2")) == ["p1", "p2"]
+
+    @authors("koloshmet")
+    @pytest.mark.parametrize("purge_resolve_cache", [False, True])
+    @pytest.mark.parametrize("target_on_primary", [False, True])
+    def test_cross_cell_links_resolve_cycle(self, purge_resolve_cache, target_on_primary):
+        set("//sys/@config/cypress_manager/enable_cross_cell_links", True)
+
+        create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 11})
+        create("map_node", "//tmp/p/d")
+
+        target_dir = "//tmp" if target_on_primary else "//tmp/p/d"
+        target_link = target_dir + "/l"
+
+        link(target_dir, "//tmp/p/l")
+        link("//tmp/p/l", target_link)
+
+        if not target_on_primary:
+            with raises_yt_error("link is cyclic"):
+                link(target_link, "//tmp/p/l", force=True)
+            return
+
+        link(target_link, "//tmp/p/l", force=True)
+
+        _maybe_purge_resolve_cache(purge_resolve_cache, "//tmp/p/l&")
+        _maybe_purge_resolve_cache(purge_resolve_cache, target_link + '&')
+
+        with raises_yt_error("exceeds resolve depth limit"):
+            ls("//tmp/p/l")
+
+    @authors("koloshmet")
+    @pytest.mark.parametrize("purge_resolve_cache", [False, True])
+    def test_cross_cell_links_resolve_broken(self, purge_resolve_cache):
+        set("//sys/@config/cypress_manager/enable_cross_cell_links", True)
+
+        create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 11})
+        create("table", "//tmp/t")
+        link("//tmp/t", "//tmp/p/l")
+
+        _maybe_purge_resolve_cache(purge_resolve_cache, "//tmp/p/l&")
+
+        assert not get("//tmp/p/l&/@broken")
+
+        move("//tmp/t", "//tmp/t1")
+
+        _maybe_purge_resolve_cache(purge_resolve_cache, "//tmp/p/l&")
+
+        assert get("//tmp/p/l&/@broken")
+        assert get("//tmp/p/l&/@target_path") == "//tmp/t"
 
     @authors("babenko")
     def test_create_portal_in_tx_commit(self):
@@ -687,7 +800,7 @@ class TestPortals(YTEnvSetup):
         mutation_id = generate_uuid()
 
         create("table", "//tmp/p/t", mutation_id=mutation_id)
-        with pytest.raises(YtError):
+        with raises_yt_error("Duplicate request is not marked as \"retry\""):
             remove("//tmp/p/t", mutation_id=mutation_id)
 
     @authors("babenko")
@@ -1058,7 +1171,7 @@ class TestPortals(YTEnvSetup):
 
         assert check_permission("u", "remove", "//tmp/p")["action"] == "deny"
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Access denied"):
             remove("//tmp/p", authenticated_user="u")
 
     @authors("shakurov")
@@ -1274,6 +1387,12 @@ class TestPortals(YTEnvSetup):
             internalize("//tmp/m")
         remove("//tmp/portal")
 
+    @authors("cherepashka")
+    def test_revoke_cypress_node_host_role_validation(self):
+        create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 11})
+        with raises_yt_error("it still hosts cypress nodes"):
+            set("//sys/@config/multicell_manager/cell_descriptors", {"11": {"roles": ["chunk_host"]}})
+
 
 ##################################################################
 
@@ -1392,7 +1511,7 @@ class TestResolveCache(YTEnvSetup):
     @authors("gritukan")
     def test_nested_portals_are_forbidden(self):
         create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 11})
-        with pytest.raises(YtError):
+        with raises_yt_error("Portal entrance cannot be placed on the secondary cell"):
             create("portal_entrance", "//tmp/p/q", attributes={"exit_cell_tag": 12})
 
 
@@ -1439,16 +1558,16 @@ class TestCrossCellCopy(YTEnvSetup):
 
     # These attributes can change or be the same depending on the context.
     CONTEXT_DEPENDENT_ATTRIBUTES = [
-        "tablet_state",
+        "access_counter",
         "actual_tablet_state",
         "expected_tablet_state",
+        "tablet_state",
         "unflushed_timestamp",
     ]
 
     # These attributes have to change when cross-cell copying.
     EXPECTED_ATTRIBUTE_CHANGES = [
         "access_time",
-        "access_counter",
 
         # Changed due to cell change:
         "id",
@@ -1711,8 +1830,15 @@ class TestCrossCellCopy(YTEnvSetup):
         set(f"{path}/@my_personal_attribute", "is_here", tx=tx)
 
     def _preserve_src_state(self, src_path, tx):
-        paths_to_check = [src_path]
+        # This is needed to properly test move with symlink.
+        try:
+            resolved_path = get(f"{src_path}/@path")
+        except YtError as err:
+            if not err.is_resolve_error():
+                raise
+            resolved_path = src_path
 
+        paths_to_check = [resolved_path]
         while len(paths_to_check) > 0:
             next_path = paths_to_check.pop(0)
             attributes = get(f"{next_path}/@", tx=tx)
@@ -1767,8 +1893,9 @@ class TestCrossCellCopy(YTEnvSetup):
         validate_node_copy(dst_path)
 
     @authors("h0pless")
+    @pytest.mark.parametrize("use_redundant_flags", [True, False])
     @pytest.mark.parametrize("use_tx", [True, False])
-    def test_subtree(self, use_tx):
+    def test_subtree(self, use_redundant_flags, use_tx):
         create("portal_entrance", "//tmp/other_portal", attributes={"exit_cell_tag": 12})
         src_path = "//tmp/portal/dir"
         dst_path = "//tmp/other_portal/dir"
@@ -1780,7 +1907,12 @@ class TestCrossCellCopy(YTEnvSetup):
             self.CONTEXT_DEPENDENT_ATTRIBUTES.append("update_mode")
 
         self.create_subtree(src_path, tx=tx)
-        self.execute_command(src_path, dst_path, tx=tx)
+        self.execute_command(
+            src_path,
+            dst_path,
+            ignore_existing=use_redundant_flags,
+            recursive=use_redundant_flags,
+            tx=tx)
 
         self.validate_copy_base(src_path, dst_path, tx=tx)
         self.validate_subtree_attribute_consistency(src_path, dst_path, tx=tx)
@@ -1904,6 +2036,45 @@ class TestCrossCellCopy(YTEnvSetup):
 
         self.validate_copy_base(src_path, dst_path)
         self.validate_subtree_attribute_consistency(src_path, dst_path)
+
+    @authors("h0pless")
+    def test_ignore_existing(self):
+        src_path = "//tmp/file"
+        self.create_file(src_path)
+
+        dst_path = "//tmp/portal/table"
+        self.create_table(dst_path)
+
+        if self.COMMAND == "move":
+            with raises_yt_error("Node //tmp/portal/table already exists"):
+                self.execute_command(src_path, dst_path, ignore_existing=True)
+            return
+        else:
+            self.execute_command(src_path, dst_path, ignore_existing=True)
+
+        # This actually checks that table wasn't overwritten by a copy of the file.
+        self.validate_table_copy(dst_path)
+
+    @authors("h0pless")
+    def test_lock_existing(self):
+        src_path = "//tmp/file"
+        self.create_file(src_path)
+
+        dst_path = "//tmp/portal/table"
+        self.create_table(dst_path)
+
+        # Lock existing doesn't make sense without a transaction.
+        tx = start_transaction()
+        if self.COMMAND == "move":
+            with raises_yt_error("Node //tmp/portal/table already exists"):
+                self.execute_command(src_path, dst_path, ignore_existing=True, lock_existing=True, tx=tx)
+            return
+        else:
+            self.execute_command(src_path, dst_path, ignore_existing=True, lock_existing=True, tx=tx)
+
+        # This actually checks that table wasn't overwritten by a copy of the file.
+        self.validate_table_copy(dst_path, tx=tx)
+        assert get(f"{dst_path}/@lock_count", tx=tx) == 1
 
     @authors("h0pless")
     def test_accounting(self):
@@ -2127,7 +2298,7 @@ class TestCrossCellCopy(YTEnvSetup):
         remove(f"//sys/accounts/{account}")
         wait(lambda: get(f"//sys/accounts/{account}/@life_stage") == "removal_started")
 
-        with raises_yt_error():
+        with raises_yt_error("cannot be used since it is in \"removal_pre_committed\" life stage"):
             self.execute_command(src_path, dst_path, preserve_account=True)
 
         self.execute_command(src_path, dst_path)
@@ -2135,6 +2306,63 @@ class TestCrossCellCopy(YTEnvSetup):
 
         remove(src_path, force=True)
         wait(lambda: not exists(f"//sys/accounts/{account}"))
+
+    # SYMLINK SHENANIGANS
+    @authors("h0pless")
+    def test_destination_symlink_safety(self):
+        set("//sys/@config/cypress_manager/enable_cross_cell_links", True)
+
+        src_path = "//tmp/subtree"
+        self.create_subtree(src_path)
+
+        underlying_dst_path = "//tmp/some_node"
+        self.create_map_node(underlying_dst_path)
+
+        # Weird naming here due to the test setup.
+        dst_path = "//tmp/portal/subtree"
+        link(underlying_dst_path, dst_path)
+
+        if self.USE_SEQUOIA:
+            time.sleep(.5)  # To ensure that proxy has synced with master.
+
+        self.execute_command(src_path, dst_path, force=True)
+        self.validate_subtree_attribute_consistency(src_path, dst_path)
+
+    @authors("h0pless")
+    def test_destination_symlink_resolution(self):
+        src_path = "//tmp/subtree"
+        self.create_subtree(src_path)
+
+        underlying_dst_path = "//tmp/portal/some_node"
+        self.create_map_node(underlying_dst_path)
+
+        link_path = "//tmp/link"
+        link(underlying_dst_path, link_path)
+
+        if self.USE_SEQUOIA:
+            time.sleep(.5)  # To ensure that proxy has synced with master.
+
+        self.execute_command(src_path, f"{link_path}/subtree")
+        self.validate_subtree_attribute_consistency(src_path, f"{underlying_dst_path}/subtree")
+
+    @authors("h0pless")
+    # TODO(h0pless): Add True to this parameter. Currently it's broken due to a faulty
+    # symlink resolve.
+    @pytest.mark.parametrize("link_beyond_entrance", [False])
+    def test_source_symlink(self, link_beyond_entrance):
+        set("//sys/@config/cypress_manager/enable_cross_cell_links", link_beyond_entrance)
+        underlying_src_path = "//tmp/subtree"
+        self.create_subtree(underlying_src_path)
+
+        src_path = "//tmp/portal/link" if link_beyond_entrance else "//tmp/link"
+        link(underlying_src_path, src_path)
+
+        if self.USE_SEQUOIA:
+            time.sleep(.5)  # To ensure that proxy has synced with master.
+
+        dst_path = "//tmp/portal/subtree"
+        self.execute_command(src_path, dst_path)
+        self.validate_subtree_attribute_consistency(underlying_src_path, dst_path)
 
     # IMPROPER USES
     @authors("h0pless")
@@ -2167,7 +2395,7 @@ class TestCrossCellCopy(YTEnvSetup):
 
         self.create_table(src_path)
 
-        with raises_yt_error():
+        with raises_yt_error("Node //tmp/portal has no child with key \"listen\""):
             self.execute_command(src_path, dst_path)
 
     @authors("h0pless")
@@ -2191,6 +2419,32 @@ class TestCrossCellCopy(YTEnvSetup):
     def test_cant_copy_subtree_with_portal(self):
         with raises_yt_error("Cannot clone a portal"):
             self.execute_command("//tmp", "//home/other")
+
+    @authors("h0pless")
+    def test_ignore_existing_error(self):
+        src_path = "//tmp/table"
+        dst_path = "//tmp/portal/table"
+
+        self.create_table(src_path)
+
+        if self.COMMAND == "copy":
+            with raises_yt_error("Cannot specify both \"ignore_existing\" and \"force\" options simultaneously"):
+                self.execute_command(src_path, dst_path, ignore_existing=True, force=True)
+        else:
+            self.execute_command(src_path, dst_path, lock_existing=True)
+
+    @authors("h0pless")
+    def test_lock_existing_error(self):
+        src_path = "//tmp/table"
+        dst_path = "//tmp/portal/table"
+
+        self.create_table(src_path)
+
+        if self.COMMAND == "copy":
+            with raises_yt_error("Cannot specify \"lock_existing\" without \"ignore_existing\""):
+                self.execute_command(src_path, dst_path, lock_existing=True)
+        else:
+            self.execute_command(src_path, dst_path, lock_existing=True)
 
 
 ################################################################################

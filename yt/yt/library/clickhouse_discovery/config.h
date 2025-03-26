@@ -12,10 +12,9 @@ namespace NYT::NClickHouseServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TDiscoveryBaseConfig
+struct TDiscoveryBaseConfig
     : public virtual NYTree::TYsonStruct
 {
-public:
     TString GroupId;
     TDuration UpdatePeriod;
     TDuration BanTimeout;
@@ -29,10 +28,9 @@ DEFINE_REFCOUNTED_TYPE(TDiscoveryBaseConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TDiscoveryV1Config
+struct TDiscoveryV1Config
     : public virtual TDiscoveryBaseConfig
 {
-public:
     NYPath::TYPath Directory;
     TDuration TransactionTimeout;
     TDuration TransactionPingPeriod;
@@ -55,12 +53,11 @@ DEFINE_REFCOUNTED_TYPE(TDiscoveryV1Config)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TDiscoveryV2Config
+struct TDiscoveryV2Config
     : public virtual TDiscoveryBaseConfig
     , public NDiscoveryClient::TDiscoveryClientConfig
     , public NDiscoveryClient::TMemberClientConfig
 {
-public:
     TDuration DiscoveryReadinessTimeout;
 
     REGISTER_YSON_STRUCT(TDiscoveryV2Config);
@@ -72,11 +69,10 @@ DEFINE_REFCOUNTED_TYPE(TDiscoveryV2Config)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TDiscoveryConfig
+struct TDiscoveryConfig
     : public TDiscoveryV1Config
     , public TDiscoveryV2Config
 {
-public:
     int Version;
 
     REGISTER_YSON_STRUCT(TDiscoveryConfig);

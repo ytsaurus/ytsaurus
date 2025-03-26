@@ -60,6 +60,8 @@
 
 #include <yt/yt/ytlib/misc/memory_usage_tracker.h>
 
+#include <yt/yt/ytlib/api/native/config.h>
+
 #include <yt/yt/client/api/internal_client.h>
 
 #include <yt/yt/client/query_client/query_statistics.h>
@@ -116,8 +118,8 @@ using NQueryClient::TDistributedSessionId;
 // COMPAT(ifsmirnov)
 static constexpr i64 MaxRowsPerRemoteDynamicStoreRead = 1024;
 
-static const TString DefaultQLExecutionPoolName = "default";
-static const TString DefaultQLExecutionTag = "default";
+static const std::string DefaultQLExecutionPoolName = "default";
+static const std::string DefaultQLExecutionTag = "default";
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -239,14 +241,18 @@ public:
             .SetInvoker(Bootstrap_->GetTableRowFetchPoolInvoker())
             .SetHandleMethodError(true));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(CreateDistributedSession)
-            .SetInvoker(bootstrap->GetQueryPoolInvoker(DefaultQLExecutionPoolName, DefaultQLExecutionTag)));
+            .SetInvokerProvider(BIND(&TQueryService::GetExecuteInvoker, Unretained(this)))
+            .SetHandleMethodError(true));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(PingDistributedSession)
-            .SetInvoker(bootstrap->GetQueryPoolInvoker(DefaultQLExecutionPoolName, DefaultQLExecutionTag)));
+            .SetInvokerProvider(BIND(&TQueryService::GetExecuteInvoker, Unretained(this)))
+            .SetHandleMethodError(true));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(CloseDistributedSession)
-            .SetInvoker(bootstrap->GetQueryPoolInvoker(DefaultQLExecutionPoolName, DefaultQLExecutionTag)));
+            .SetInvokerProvider(BIND(&TQueryService::GetExecuteInvoker, Unretained(this)))
+            .SetHandleMethodError(true));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(PushRowset)
             .SetCancelable(true)
-            .SetInvokerProvider(BIND(&TQueryService::GetExecuteInvoker, Unretained(this))));
+            .SetInvokerProvider(BIND(&TQueryService::GetExecuteInvoker, Unretained(this)))
+            .SetHandleMethodError(true));
 
         Bootstrap_->GetDynamicConfigManager()->SubscribeConfigChanged(BIND(
             &TQueryService::OnDynamicConfigChanged,
@@ -271,6 +277,7 @@ private:
     std::atomic<i64> MaxPullQueueResponseDataWeight_;
     std::atomic<bool> AccountUserBackendOutTraffic_;
     std::atomic<bool> UseQueryPoolForLookups_;
+    std::atomic<bool> UseQueryPoolForInMemoryLookups_;
 
     NProfiling::TCounter TabletErrorCountCounter_ = QueryAgentProfiler().Counter("/get_tablet_infos/errors/count");
     NProfiling::TCounter TabletErrorSizeCounter_ = QueryAgentProfiler().Counter("/get_tablet_infos/errors/byte_size");
@@ -295,9 +302,13 @@ private:
         const auto& ext = requestHeader.GetExtension(NQueryClient::NProto::TReqMultireadExt::req_multiread_ext);
         auto inMemoryMode = FromProto<EInMemoryMode>(ext.in_memory_mode());
 
-        if (inMemoryMode == EInMemoryMode::None && UseQueryPoolForLookups_.load(std::memory_order_relaxed)) {
-            TString tag;
-            TString poolName;
+        if ((inMemoryMode == EInMemoryMode::None &&
+            UseQueryPoolForLookups_.load(std::memory_order_relaxed)) ||
+            (inMemoryMode != EInMemoryMode::None &&
+            UseQueryPoolForInMemoryLookups_.load(std::memory_order_relaxed)))
+        {
+            std::string tag;
+            std::string poolName;
             if (requestHeader.HasExtension(NQueryClient::NProto::TReqExecuteExt::req_execute_ext)) {
                 const auto& executeExt = requestHeader.GetExtension(NQueryClient::NProto::TReqExecuteExt::req_execute_ext);
                 tag = executeExt.has_execution_tag()
@@ -553,7 +564,7 @@ private:
                 : TVersionedReadOptions(),
             Bootstrap_->GetTabletSnapshotStore(),
             GetProfilingUser(NRpc::GetCurrentAuthenticationIdentity()),
-            Bootstrap_->GetTabletLookupPoolInvoker());
+            GetCurrentInvoker());
 
         for (int index = 0; index < tabletCount; ++index) {
             auto tabletId = FromProto<TTabletId>(request->tablet_ids(index));
@@ -607,6 +618,9 @@ private:
         auto maxDataWeight = request->has_max_data_weight()
             ? request->max_data_weight()
             : std::numeric_limits<i64>::max();
+        auto requestTimeout = context->GetTimeout()
+            ? *context->GetTimeout()
+            : Bootstrap_->GetConnection()->GetConfig()->DefaultPullRowsTimeout;
 
         // TODO(savrus): Extract this out of RPC request.
         TClientChunkReadOptions chunkReadOptions{
@@ -618,13 +632,17 @@ private:
             .MaxRowsPerRead = request->max_rows_per_read(),
         };
 
-        context->SetRequestInfo("TabletId: %v, StartReplicationRowIndex: %v, Progress: %v, UpperTimestamp: %v, ResponseCodec: %v, ReadSessionId: %v)",
+        context->SetRequestInfo("TabletId: %v, StartReplicationRowIndex: %v, Progress: %v, UpperTimestamp: %v, "
+            "ResponseCodec: %v, ReadSessionId: %v, RequestTimeout: %v)",
             tabletId,
             startReplicationRowIndex,
             progress,
             upperTimestamp,
             responseCodecId,
-            chunkReadOptions.ReadSessionId);
+            chunkReadOptions.ReadSessionId,
+            requestTimeout);
+
+        auto requestDeadLine = (requestTimeout - Config_->PullRowsTimeoutSlack).ToDeadLine();
 
         auto* responseCodec = NCompression::GetCodec(responseCodecId);
 
@@ -702,13 +720,15 @@ private:
                         rowBatchReadOptions,
                         progress,
                         logParser,
-                        CreateResevingMemoryUsageTracker(
+                        CreateReservingMemoryUsageTracker(
                             PullRowsMemoryTracker_,
                             counters->MemoryUsage),
                         Logger,
                         *startRowIndex,
                         upperTimestamp,
                         maxDataWeight,
+                        Config_->PullRowsReadDataWeightLimit,
+                        requestDeadLine,
                         writer.get());
 
                     endReplicationRowIndex = result.EndReplicationRowIndex;
@@ -1096,13 +1116,13 @@ private:
         auto localNodeId = Bootstrap_->GetNodeId();
         auto replicas = chunk->GetReplicas(localNodeId);
         ToProto(chunkSpec->mutable_replicas(), replicas);
-        ToProto(chunkSpec->mutable_legacy_replicas(), TChunkReplicaWithMedium::ToChunkReplicas(replicas));
 
         chunkSpec->set_erasure_codec(miscExt.erasure_codec());
         chunkSpec->set_striped_erasure(miscExt.striped_erasure());
 
         chunkSpec->set_row_count_override(miscExt.row_count());
         chunkSpec->set_data_weight_override(miscExt.data_weight());
+        chunkSpec->set_compressed_data_size_override(miscExt.compressed_data_size());
 
         *chunkSpec->mutable_chunk_meta() = chunkMeta;
         if (!fetchAllMetaExtensions) {
@@ -1130,10 +1150,10 @@ private:
         chunkSpec->set_row_count_override(dynamicStore->GetRowCount());
         // For dynamic stores it is more or less the same.
         chunkSpec->set_data_weight_override(dynamicStore->GetUncompressedDataSize());
+        chunkSpec->set_compressed_data_size_override(dynamicStore->GetCompressedDataSize());
 
         auto localNodeId = Bootstrap_->GetNodeId();
         TChunkReplicaWithMedium replica(localNodeId, GenericChunkReplicaIndex, GenericMediumIndex);
-        chunkSpec->add_legacy_replicas(ToProto<ui32>(replica.ToChunkReplica()));
         chunkSpec->add_replicas(ToProto(replica));
 
         if (!lowerLimit.IsTrivial()) {
@@ -1620,7 +1640,7 @@ private:
                 MakeStrong(this),
                 FromProto<TTabletId>(subrequest.tablet_id()),
                 FromProto<TCellId>(subrequest.cell_id()),
-                YT_PROTO_OPTIONAL(subrequest, mount_revision, NHydra::TRevision),
+                YT_OPTIONAL_FROM_PROTO(subrequest, mount_revision, NHydra::TRevision),
                 subrequest.timestamp())
                 .AsyncVia(GetCurrentInvoker())
                 .Run());
@@ -1740,6 +1760,8 @@ private:
             newConfig->QueryAgent->AccountUserBackendOutTraffic.value_or(Config_->AccountUserBackendOutTraffic));
         UseQueryPoolForLookups_.store(
             newConfig->QueryAgent->UseQueryPoolForLookups.value_or(Config_->UseQueryPoolForLookups));
+        UseQueryPoolForInMemoryLookups_.store(
+            newConfig->QueryAgent->UseQueryPoolForLookups.value_or(Config_->UseQueryPoolForInMemoryLookups));
     }
 
     DECLARE_RPC_SERVICE_METHOD(NQueryClient::NProto, CreateDistributedSession)
@@ -1752,7 +1774,19 @@ private:
             sessionId,
             codecId);
 
-        DistributedSessionManager_->GetDistributedSessionOrCreate(sessionId, retentionTime, codecId);
+        auto memoryLimitPerNode = YT_OPTIONAL_FROM_PROTO(*request, memory_limit_per_node);
+
+        auto memoryChunkProvider = MemoryProvider_->GetProvider(
+            ToString(sessionId),
+            memoryLimitPerNode.value_or(std::numeric_limits<ui64>::max()),
+            MemoryTracker_);
+
+        DistributedSessionManager_->GetDistributedSessionOrCreate(
+            sessionId,
+            retentionTime,
+            codecId,
+            std::move(memoryLimitPerNode),
+            std::move(memoryChunkProvider));
 
         context->Reply();
     }
@@ -1799,15 +1833,16 @@ private:
             rowsetId);
 
         auto session = DistributedSessionManager_->GetDistributedSessionOrThrow(sessionId);
-        session->InsertOrThrow(
-            CreateWireProtocolRowsetReader(
-                request->Attachments(),
-                session->GetCodecId(),
-                schema,
-                false,
-                /*memoryChunkProvider*/ nullptr,
-                Logger),
-            rowsetId);
+
+        auto reader = CreateWireProtocolRowsetReader(
+            request->Attachments(),
+            session->GetCodecId(),
+            schema,
+            /*schemaful*/ true,
+            session->GetMemoryChunkProvider(),
+            Logger);
+
+        session->InsertOrThrow(rowsetId, std::move(reader), std::move(schema));
 
         context->Reply();
     }

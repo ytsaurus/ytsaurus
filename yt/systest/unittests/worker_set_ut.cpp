@@ -227,7 +227,8 @@ TEST_F(TWorkerSetTest, ChangeWorkerSet)
     token.Release();
 
     fetcher.Populate(roundB);
-    fetcher.WaitToRun(2);
+    fetcher.Populate(roundB);
+    fetcher.WaitToRun(3);
 
     token = TWorkerSetTest::PickWorker(&workerSet).Get().ValueOrThrow();
     EXPECT_THAT(roundB, ::testing::Contains(token.HostPort()));

@@ -2082,7 +2082,7 @@ std::vector<TLegacyOwningKey> TClient::PickUniformPivotKeys(
 
     auto schema = ConvertTo<TTableSchemaPtr>(TYsonString(rspOrError.Value()->value()));
 
-    if (schema->Columns().empty()) {
+    if (schema->IsEmpty()) {
         THROW_ERROR_EXCEPTION("Table schema is empty");
     }
 
@@ -2921,8 +2921,7 @@ TCreateQueueProducerSessionResult TClient::DoCreateQueueProducerSession(
     auto nameTable = NQueueClient::NRecords::TQueueProducerSessionDescriptor::Get()->GetNameTable();
 
     NQueueClient::NRecords::TQueueProducerSessionKey sessionKey{
-        // TODO(babenko): switch to std::string
-        .QueueCluster = TString(*queueCluster),
+        .QueueCluster = *queueCluster,
         .QueuePath = queuePath.GetPath(),
         .SessionId = sessionId,
     };
@@ -3013,8 +3012,7 @@ void TClient::DoRemoveQueueProducerSession(
     auto nameTable = NQueueClient::NRecords::TQueueProducerSessionDescriptor::Get()->GetNameTable();
 
     NQueueClient::NRecords::TQueueProducerSessionKey sessionKey{
-        // TODO(babenko): switch to std::string
-        .QueueCluster = TString(*queueCluster),
+        .QueueCluster = *queueCluster,
         .QueuePath = queuePath.GetPath(),
         .SessionId = sessionId,
     };
@@ -3170,7 +3168,8 @@ private:
                 networks);
 
             TQueryServiceProxy proxy(channel);
-            proxy.SetDefaultTimeout(Options_.Timeout.value_or(connection->GetConfig()->DefaultPullRowsTimeout));
+            auto timeout = Options_.Timeout.value_or(connection->GetConfig()->DefaultPullRowsTimeout);
+            proxy.SetDefaultTimeout(timeout);
             auto req = proxy.PullRows();
             req->set_request_codec(ToProto(connection->GetConfig()->LookupRowsRequestCodec));
             req->set_response_codec(ToProto(connection->GetConfig()->LookupRowsResponseCodec));

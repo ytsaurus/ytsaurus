@@ -324,6 +324,21 @@ protected:
         << " }";
 }
 
+TKeyColumns GetSampleKeyColumns()
+{
+    return {"k", "l", "m"};
+}
+
+TKeyColumns GetSampleKeyColumns2()
+{
+    return {"k", "l", "m", "s"};
+}
+
+TKeyColumns GetSampleKeyColumns3()
+{
+    return {"k", "any_key"};
+}
+
 TEST_P(TRefineKeyRangeTest, Basic)
 {
     auto testCase = GetParam();
@@ -1336,6 +1351,39 @@ TEST_F(TRefineKeyRangeTest, Any)
 
     EXPECT_EQ(YsonToKey("5;[2;a;4u]"), result[1].first);
     EXPECT_EQ(YsonToKey("5;[100;100;100]"), result[1].second);
+}
+
+TEST_F(TRefineKeyRangeTest, BadSchema)
+{
+    auto rowBuffer = New<TRowBuffer>();
+    auto columnEvaluatorCache = CreateColumnEvaluatorCache(New<TColumnEvaluatorCacheConfig>());
+
+    for (auto type : {EValueType::Uint64, EValueType::Int64}) {
+        for (char divisor : {'/', '%'}) {
+            auto schema = New<TTableSchema>(std::vector{
+                TColumnSchema("h", type)
+                    .SetSortOrder(ESortOrder::Ascending)
+                    .SetExpression(Format("k %v 0", divisor)),
+                TColumnSchema("k", type)
+                    .SetSortOrder(ESortOrder::Ascending),
+            });
+
+            auto expr = PrepareExpression("(true)", *schema);
+
+            EXPECT_THROW_WITH_SUBSTRING(GetPrunedRanges(
+                expr,
+                schema,
+                schema->GetKeyColumns(),
+                {},
+                MakeSingletonRowRange(NTableClient::MinKey(), NTableClient::MaxKey()),
+                rowBuffer,
+                columnEvaluatorCache,
+                GetBuiltinRangeExtractors(),
+                TQueryOptions{.RangeExpansionLimit=1000},
+                GetDefaultMemoryChunkProvider(),
+                /*forceLightRangeInference*/ false), "Division by zero");
+        }
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -12,11 +12,12 @@ namespace NYT::NObjectClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TObjectAttributeCacheConfig
+struct TObjectAttributeCacheConfig
     : public TAsyncExpiringCacheConfig
 {
-public:
     NApi::TSerializableMasterReadOptionsPtr MasterReadOptions;
+    //! User for executing requests to master.
+    std::string UserName;
 
     REGISTER_YSON_STRUCT(TObjectAttributeCacheConfig);
 
@@ -36,10 +37,9 @@ DEFINE_REFCOUNTED_TYPE(TObjectAttributeCacheConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TObjectServiceCacheConfig
+struct TObjectServiceCacheConfig
     : public TSlruCacheConfig
 {
-public:
     REGISTER_YSON_STRUCT(TObjectServiceCacheConfig);
 
     static void Register(TRegistrar registrar);
@@ -49,10 +49,9 @@ DEFINE_REFCOUNTED_TYPE(TObjectServiceCacheConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TObjectServiceCacheDynamicConfig
+struct TObjectServiceCacheDynamicConfig
     : public TSlruCacheDynamicConfig
 {
-public:
     i64 EntryByteRateLimit;
     i64 TopEntryByteRateThreshold;
     TDuration AggregationPeriod;
@@ -68,11 +67,10 @@ DEFINE_REFCOUNTED_TYPE(TObjectServiceCacheDynamicConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TCachingObjectServiceConfig
+struct TCachingObjectServiceConfig
     : public NRpc::TThrottlingChannelConfig
     , public TObjectServiceCacheConfig
 {
-public:
     REGISTER_YSON_STRUCT(TCachingObjectServiceConfig);
 
     static void Register(TRegistrar registrar);
@@ -82,11 +80,10 @@ DEFINE_REFCOUNTED_TYPE(TCachingObjectServiceConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TCachingObjectServiceDynamicConfig
+struct TCachingObjectServiceDynamicConfig
     : public NRpc::TThrottlingChannelDynamicConfig
     , public TObjectServiceCacheDynamicConfig
 {
-public:
     double CacheTtlRatio;
 
     REGISTER_YSON_STRUCT(TCachingObjectServiceDynamicConfig);
@@ -98,10 +95,9 @@ DEFINE_REFCOUNTED_TYPE(TCachingObjectServiceDynamicConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TReqExecuteBatchWithRetriesConfig
+struct TReqExecuteBatchWithRetriesConfig
     : public NYTree::TYsonStruct
 {
-public:
     TDuration StartBackoff;
     TDuration MaxBackoff;
     double BackoffMultiplier;
@@ -116,10 +112,9 @@ DEFINE_REFCOUNTED_TYPE(TReqExecuteBatchWithRetriesConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TAbcConfig
+struct TAbcConfig
     : public virtual NYTree::TYsonStruct
 {
-public:
     int Id;
     std::optional<TString> Name;
     TString Slug;

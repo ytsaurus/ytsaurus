@@ -1,4 +1,4 @@
-#include <Poco/UTF8Encoding.h>
+#include <DBPoco/UTF8Encoding.h>
 #include <IO/WriteBufferValidUTF8.h>
 #include <base/types.h>
 #include <base/simd.h>
@@ -113,7 +113,7 @@ void WriteBufferValidUTF8::nextImpl()
             /// Sequence was not fully written to this buffer.
             break;
         }
-        else if (Poco::UTF8Encoding::isLegal(reinterpret_cast<unsigned char *>(p), len))
+        else if (DBPoco::UTF8Encoding::isLegal(reinterpret_cast<unsigned char *>(p), len))
         {
             /// Valid sequence.
             p += len;

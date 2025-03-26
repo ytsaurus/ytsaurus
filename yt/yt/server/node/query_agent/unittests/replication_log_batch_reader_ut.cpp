@@ -22,17 +22,19 @@ using namespace NProfiling;
 IReservingMemoryUsageTrackerPtr CreateReservingMemoryTracker(INodeMemoryTrackerPtr& nodeMemoryTracker)
 {
     auto memoryUsageTracker = nodeMemoryTracker->WithCategory(EMemoryCategory::ChaosReplicationOutgoing);
-    return CreateResevingMemoryUsageTracker(std::move(memoryUsageTracker), TCounter());
+    return CreateReservingMemoryUsageTracker(std::move(memoryUsageTracker), TCounter());
 }
 
 struct TFakeRow
 {
     TTimestamp Timestamp;
     int Weight;
+    bool FitsIntoProgress = true;
 
-    TFakeRow(TTimestamp timestamp, int weight)
+    TFakeRow(TTimestamp timestamp, int weight, bool fitsIntoProgress = true)
         : Timestamp(timestamp)
         , Weight(weight)
+        , FitsIntoProgress(fitsIntoProgress)
     { }
 };
 
@@ -122,7 +124,7 @@ protected:
         return std::make_unique<TFakeBatchFetcher>(std::move(rows));
     }
 
-    bool ToTypeErasedRow(
+    void ToTypeErasedRow(
         const TUnversionedRow& row,
         const TRowBufferPtr& /*rowBuffer*/,
         TTypeErasedRow* replicationRow,
@@ -132,7 +134,12 @@ protected:
         *replicationRow = row.ToTypeErasedRow();
         *timestamp = row[0].Data.Uint64;
         *rowDataWeight = row[1].Data.Int64;
-        return true;
+    }
+
+    bool IsRowFitIntoProgress(const TTypeErasedRow& replicationRow, TTimestamp /*rowTimestamp*/) const override
+    {
+        auto row = TUnversionedRow(replicationRow);
+        return row[3].Data.Boolean;
     }
 
     size_t WriteTypeErasedRow(TTypeErasedRow row) override
@@ -153,7 +160,7 @@ private:
         replicationLogRows.reserve(replicationLogRows.size());
         int i = 0;
         for (const auto& t : replicationLogFakeRows) {
-            replicationLogRows.push_back(MakeUnversionedOwningRow(t.Timestamp, t.Weight, i));
+            replicationLogRows.push_back(MakeUnversionedOwningRow(t.Timestamp, t.Weight, i, t.FitsIntoProgress));
             ++i;
         }
         return replicationLogRows;
@@ -170,6 +177,17 @@ void AppendReplicationLogRows(
 {
     for (; rowsCount > 0; --rowsCount) {
         replicationLogRows->emplace_back(timestamp, rowWeight);
+    }
+}
+
+void AppendReplicationNotFittingLogRows(
+    TTimestamp timestamp,
+    int rowWeight,
+    int rowsCount,
+    std::vector<TFakeRow>* replicationLogRows)
+{
+    for (; rowsCount > 0; --rowsCount) {
+        replicationLogRows->emplace_back(timestamp, rowWeight, false);
     }
 }
 
@@ -203,7 +221,9 @@ TEST(TReplicationLogBatchReaderTest, TestReadEmpty)
     auto result = reader.ReadReplicationBatch(
         0,
         NullTimestamp,
-        /*maxDataWeight*/ 1_GB);
+        /*maxDataWeight*/ 1_GB,
+        16_GB,
+        TInstant::Max());
 
     EXPECT_TRUE(result.ReadAllRows);
     EXPECT_TRUE(reader.GetProcessedRows().empty());
@@ -235,7 +255,9 @@ TEST(TReplicationLogBatchReaderTest, TestReadAll)
     auto result = reader.ReadReplicationBatch(
         0,
         NullTimestamp,
-        /*maxDataWeight*/ 1_GB);
+        /*maxDataWeight*/ 1_GB,
+        16_GB,
+        TInstant::Max());
 
     EXPECT_TRUE(result.ReadAllRows);
     EXPECT_EQ(result.ReadRowCount, 30ll);
@@ -267,7 +289,9 @@ TEST(TReplicationLogBatchReaderTest, TestReadUntilLimits)
     auto result = reader.ReadReplicationBatch(
         0,
         NullTimestamp,
-        /*maxDataWeight*/ 1_GB);
+        /*maxDataWeight*/ 1_GB,
+        16_GB,
+        TInstant::Max());
 
     EXPECT_FALSE(result.ReadAllRows);
     EXPECT_EQ(result.ReadRowCount, 24ll);
@@ -281,14 +305,16 @@ TEST(TReplicationLogBatchReaderTest, TestReadUntilLimits)
     result = reader.ReadReplicationBatch(
         20,
         NullTimestamp,
-        /*maxDataWeight*/ 1_GB);
+        /*maxDataWeight*/ 1_GB,
+        16_GB,
+        TInstant::Max());
 
     EXPECT_TRUE(result.ReadAllRows);
     EXPECT_EQ(result.ReadRowCount, 10ll);
     EXPECT_EQ(result.ResponseRowCount, 10ll);
     EXPECT_EQ(result.ResponseDataWeight, 100ll);
     EXPECT_EQ(result.MaxTimestamp, 3ull);
-    // 1 from previous read, 1 till the end and 1 to get null batch
+    // 1 from previous read, 1 till the end and 1 to get null batch.
     EXPECT_EQ(reader.GetReadsCount(), 3);
     EXPECT_EQ(result.EndReplicationRowIndex, 30);
     CheckReaderContinious(reader, 30);
@@ -315,7 +341,9 @@ TEST(TReplicationLogBatchReaderTest, TestReadLargeTransactionBreakingLimits)
     auto result = reader.ReadReplicationBatch(
         0,
         NullTimestamp,
-        /*maxDataWeight*/ 1_GB);
+        /*maxDataWeight*/ 1_GB,
+        16_GB,
+        TInstant::Max());
 
     EXPECT_FALSE(result.ReadAllRows);
     EXPECT_EQ(result.ReadRowCount, 106ll);
@@ -329,20 +357,266 @@ TEST(TReplicationLogBatchReaderTest, TestReadLargeTransactionBreakingLimits)
     result = reader.ReadReplicationBatch(
         100,
         NullTimestamp,
-        /*maxDataWeight*/ 1_GB);
+        /*maxDataWeight*/ 1_GB,
+        16_GB,
+        TInstant::Max());
 
     EXPECT_TRUE(result.ReadAllRows);
     EXPECT_EQ(result.ReadRowCount, 20ll);
     EXPECT_EQ(result.ResponseRowCount, 20ll);
     EXPECT_EQ(result.ResponseDataWeight, 200ll);
     EXPECT_EQ(result.MaxTimestamp, 3ull);
-    // 5 from previous read, 1 till the end and 1 to get null batch
+    // 5 from previous read, 1 till the end and 1 to get null batch.
     EXPECT_EQ(reader.GetReadsCount(), 7);
     EXPECT_EQ(result.EndReplicationRowIndex, 120);
     CheckReaderContinious(reader, 120);
 
     nodeMemoryTracker->ClearTrackers();
 }
+
+TEST(TReplicationLogBatchReaderTest, TestReadAllNoMatching)
+{
+    TTableMountConfigPtr mountConfig = New<TTableMountConfig>();
+    mountConfig->MaxRowsPerReplicationCommit = 1000;
+    mountConfig->MaxDataWeightPerReplicationCommit = 1000;
+    mountConfig->MaxTimestampsPerReplicationCommit = 1000;
+
+    auto nodeMemoryTracker = CreateNodeMemoryTracker(std::numeric_limits<i64>::max());
+    TLogger logger;
+
+    std::vector<TFakeRow> replicationLogRows;
+    AppendReplicationNotFittingLogRows(1, 10, 10, &replicationLogRows);
+    AppendReplicationNotFittingLogRows(2, 10, 10, &replicationLogRows);
+    AppendReplicationNotFittingLogRows(3, 10, 10, &replicationLogRows);
+    TFakeReplicationLogBatchReader reader(mountConfig, TTabletId::Create(), logger, nodeMemoryTracker, replicationLogRows);
+
+    auto result = reader.ReadReplicationBatch(
+        0,
+        NullTimestamp,
+        /*maxDataWeight*/ 1_GB,
+        16_GB,
+        TInstant::Max());
+
+    EXPECT_TRUE(result.ReadAllRows);
+    EXPECT_EQ(result.ReadRowCount, 30ll);
+    EXPECT_EQ(result.ResponseRowCount, 0ll);
+    EXPECT_EQ(result.EndReplicationRowIndex, 30);
+    EXPECT_EQ(result.ResponseDataWeight, 0ll);
+    EXPECT_EQ(result.MaxTimestamp, 3ull);
+    EXPECT_EQ(reader.GetReadsCount(), 2);
+
+    nodeMemoryTracker->ClearTrackers();
+}
+
+TEST(TReplicationLogBatchReaderTest, TestReadAllSomeMatching)
+{
+    TTableMountConfigPtr mountConfig = New<TTableMountConfig>();
+    mountConfig->MaxRowsPerReplicationCommit = 1000;
+    mountConfig->MaxDataWeightPerReplicationCommit = 1000;
+    mountConfig->MaxTimestampsPerReplicationCommit = 1000;
+
+    auto nodeMemoryTracker = CreateNodeMemoryTracker(std::numeric_limits<i64>::max());
+    TLogger logger;
+
+    std::vector<TFakeRow> replicationLogRows;
+    AppendReplicationNotFittingLogRows(1, 10, 10, &replicationLogRows);
+    AppendReplicationLogRows(2, 10, 10, &replicationLogRows);
+    AppendReplicationNotFittingLogRows(3, 10, 10, &replicationLogRows);
+    TFakeReplicationLogBatchReader reader(mountConfig, TTabletId::Create(), logger, nodeMemoryTracker, replicationLogRows);
+
+    auto result = reader.ReadReplicationBatch(
+        0,
+        NullTimestamp,
+        /*maxDataWeight*/ 1_GB,
+        16_GB,
+        TInstant::Max());
+
+    EXPECT_TRUE(result.ReadAllRows);
+    EXPECT_EQ(result.ReadRowCount, 30ll);
+    EXPECT_EQ(result.ResponseRowCount, 10ll);
+    EXPECT_EQ(result.EndReplicationRowIndex, 30);
+    EXPECT_EQ(result.ResponseDataWeight, 100ll);
+    EXPECT_EQ(result.MaxTimestamp, 3ull);
+    EXPECT_EQ(reader.GetReadsCount(), 2);
+
+    const auto& rowIds = reader.GetProcessedRows();
+    EXPECT_EQ(int(rowIds.size()), 10);
+    for (int index = 0; index < int(rowIds.size()); ++index) {
+        EXPECT_EQ(rowIds[index], index + 10);
+    }
+
+    nodeMemoryTracker->ClearTrackers();
+}
+
+TEST(TReplicationLogBatchReaderTest, TestReadByLimitsNoneMatching)
+{
+    TTableMountConfigPtr mountConfig = New<TTableMountConfig>();
+    mountConfig->MaxRowsPerReplicationCommit = 1000;
+    mountConfig->MaxDataWeightPerReplicationCommit = 1000;
+    mountConfig->MaxTimestampsPerReplicationCommit = 1000;
+
+    auto nodeMemoryTracker = CreateNodeMemoryTracker(std::numeric_limits<i64>::max());
+    TLogger logger;
+
+    std::vector<TFakeRow> transactions;
+    AppendReplicationNotFittingLogRows(1, 10, 10, &transactions);
+    AppendReplicationNotFittingLogRows(2, 10, 10, &transactions);
+    AppendReplicationNotFittingLogRows(3, 10, 10, &transactions);
+    TFakeReplicationLogBatchReader reader(mountConfig, TTabletId::Create(), logger, nodeMemoryTracker, transactions);
+
+    auto result = reader.ReadReplicationBatch(
+        0,
+        NullTimestamp,
+        /*maxDataWeight*/ 1_GB,
+        120,
+        TInstant::Max());
+
+    EXPECT_FALSE(result.ReadAllRows);
+    // We are reading till the end of the batch when everything is filtered.
+    EXPECT_EQ(result.ReadRowCount, 30ll);
+    EXPECT_EQ(result.ResponseRowCount, 0ll);
+    EXPECT_EQ(result.ResponseDataWeight, 0ll);
+    EXPECT_EQ(result.MaxTimestamp, 2ull);
+    EXPECT_EQ(reader.GetReadsCount(), 1);
+    EXPECT_EQ(result.EndReplicationRowIndex, 20);
+
+    result = reader.ReadReplicationBatch(
+        20,
+        NullTimestamp,
+        /*maxDataWeight*/ 1_GB,
+        120,
+        TInstant::Max());
+
+    EXPECT_TRUE(result.ReadAllRows);
+    EXPECT_EQ(result.ReadRowCount, 10ll);
+    EXPECT_EQ(result.ResponseRowCount, 0ll);
+    EXPECT_EQ(result.ResponseDataWeight, 0ll);
+    EXPECT_EQ(result.MaxTimestamp, 3ull);
+    // 1 from previous read, 1 till the end and 1 to get null batch.
+    EXPECT_EQ(reader.GetReadsCount(), 3);
+    EXPECT_EQ(result.EndReplicationRowIndex, 30);
+
+    nodeMemoryTracker->ClearTrackers();
+}
+
+TEST(TReplicationLogBatchReaderTest, TestReadByLimitsSomeMatching)
+{
+    TTableMountConfigPtr mountConfig = New<TTableMountConfig>();
+    mountConfig->MaxRowsPerReplicationCommit = 1000;
+    mountConfig->MaxDataWeightPerReplicationCommit = 1000;
+    mountConfig->MaxTimestampsPerReplicationCommit = 1000;
+
+    auto nodeMemoryTracker = CreateNodeMemoryTracker(std::numeric_limits<i64>::max());
+    TLogger logger;
+
+    std::vector<TFakeRow> transactions;
+    AppendReplicationLogRows(1, 10, 10, &transactions);
+    AppendReplicationNotFittingLogRows(2, 10, 10, &transactions);
+    AppendReplicationLogRows(3, 10, 10, &transactions);
+    TFakeReplicationLogBatchReader reader(mountConfig, TTabletId::Create(), logger, nodeMemoryTracker, transactions);
+
+    auto result = reader.ReadReplicationBatch(
+        0,
+        NullTimestamp,
+        /*maxDataWeight*/ 1_GB,
+        120,
+        TInstant::Max());
+
+    EXPECT_FALSE(result.ReadAllRows);
+    // We are reading till the end of the batch when everything is filtered.
+    EXPECT_EQ(result.ReadRowCount, 30ll);
+    EXPECT_EQ(result.ResponseRowCount, 10ll);
+    EXPECT_EQ(result.ResponseDataWeight, 100ll);
+    EXPECT_EQ(result.MaxTimestamp, 2ull);
+    EXPECT_EQ(reader.GetReadsCount(), 1);
+    EXPECT_EQ(result.EndReplicationRowIndex, 20);
+    CheckReaderContinious(reader, 10);
+
+    result = reader.ReadReplicationBatch(
+        20,
+        NullTimestamp,
+        /*maxDataWeight*/ 1_GB,
+        120,
+        TInstant::Max());
+
+    EXPECT_TRUE(result.ReadAllRows);
+    EXPECT_EQ(result.ReadRowCount, 10ll);
+    EXPECT_EQ(result.ResponseRowCount, 10ll);
+    EXPECT_EQ(result.ResponseDataWeight, 100ll);
+    EXPECT_EQ(result.MaxTimestamp, 3ull);
+    // 1 from previous read, 1 till the end and 1 to get null batch.
+    EXPECT_EQ(reader.GetReadsCount(), 3);
+    EXPECT_EQ(result.EndReplicationRowIndex, 30);
+
+    const auto& rowIds = reader.GetProcessedRows();
+    EXPECT_EQ(int(rowIds.size()), 20);
+    for (int index = 0; index < 10; ++index) {
+        EXPECT_EQ(rowIds[index], index);
+    }
+
+    for (int index = 10; index < 20; ++index) {
+        EXPECT_EQ(rowIds[index], index + 10);
+    }
+
+    nodeMemoryTracker->ClearTrackers();
+}
+
+TEST(TReplicationLogBatchReaderTest, TestCombinedTransactionWithUpperBound)
+{
+    TTableMountConfigPtr mountConfig = New<TTableMountConfig>();
+    mountConfig->MaxRowsPerReplicationCommit = 1000;
+    mountConfig->MaxDataWeightPerReplicationCommit = 1000;
+    mountConfig->MaxTimestampsPerReplicationCommit = 1000;
+
+    auto nodeMemoryTracker = CreateNodeMemoryTracker(std::numeric_limits<i64>::max());
+    TLogger logger;
+
+    std::vector<TFakeRow> transactions;
+    AppendReplicationLogRows(1, 10, 10, &transactions);
+    AppendReplicationNotFittingLogRows(2, 10, 10, &transactions);
+
+    // First rows are matching.
+    AppendReplicationNotFittingLogRows(4, 10, 10, &transactions);
+    AppendReplicationLogRows(4, 10, 10, &transactions);
+    AppendReplicationNotFittingLogRows(4, 10, 10, &transactions);
+    TFakeReplicationLogBatchReader reader(mountConfig, TTabletId::Create(), logger, nodeMemoryTracker, transactions);
+
+    auto result = reader.ReadReplicationBatch(
+        0,
+        3,
+        /*maxDataWeight*/ 1_GB,
+        10000,
+        TInstant::Max());
+
+    EXPECT_FALSE(result.ReadAllRows);
+
+    EXPECT_EQ(result.ReadRowCount, 30ll);
+    EXPECT_EQ(result.ResponseRowCount, 10ll);
+    EXPECT_EQ(result.ResponseDataWeight, 100ll);
+    EXPECT_EQ(result.MaxTimestamp, 3ull);
+    EXPECT_EQ(reader.GetReadsCount(), 1);
+    EXPECT_EQ(result.EndReplicationRowIndex, 20);
+    CheckReaderContinious(reader, 10);
+
+    result = reader.ReadReplicationBatch(
+        20,
+        3,
+        /*maxDataWeight*/ 1_GB,
+        10000,
+        TInstant::Max());
+
+    EXPECT_FALSE(result.ReadAllRows);
+    EXPECT_EQ(result.ReadRowCount, 10ll);
+    EXPECT_EQ(result.ResponseRowCount, 0ll);
+    EXPECT_EQ(result.ResponseDataWeight, 0ll);
+    EXPECT_EQ(result.MaxTimestamp, 3ull);
+    EXPECT_EQ(reader.GetReadsCount(), 2);
+    EXPECT_EQ(result.EndReplicationRowIndex, 20);
+    CheckReaderContinious(reader, 10);
+
+    nodeMemoryTracker->ClearTrackers();
+}
+
 
 } // namespace
 } // namespace NYT::NTabletNode

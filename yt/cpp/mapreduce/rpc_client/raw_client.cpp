@@ -1,5 +1,6 @@
 #include "raw_client.h"
 
+#include "client_impl.h"
 #include "raw_batch_request.h"
 #include "rpc_parameters_serialization.h"
 
@@ -10,6 +11,7 @@
 #include <yt/yt/client/api/file_reader.h>
 
 #include <yt/yt/client/api/rpc_proxy/client_base.h>
+#include <yt/yt/client/api/rpc_proxy/row_stream.h>
 
 #include <yt/yt/client/table_client/blob_reader.h>
 
@@ -40,6 +42,128 @@ ESecurityAction FromApiSecurityAction(NSecurityClient::ESecurityAction action)
     YT_ABORT();
 }
 
+TString FromApiOperationState(NScheduler::EOperationState state)
+{
+    switch (state) {
+        case NScheduler::EOperationState::None:
+            return "none";
+        case NScheduler::EOperationState::Starting:
+            return "starting";
+        case NScheduler::EOperationState::Orphaned:
+            return "orphaned";
+        case NScheduler::EOperationState::WaitingForAgent:
+            return "waiting_for_agent";
+        case NScheduler::EOperationState::Initializing:
+            return "initializing";
+        case NScheduler::EOperationState::Preparing:
+            return "preparing";
+        case NScheduler::EOperationState::Materializing:
+            return "materializing";
+        case NScheduler::EOperationState::ReviveInitializing:
+            return "revive_initializing";
+        case NScheduler::EOperationState::Reviving:
+            return "reviving";
+        case NScheduler::EOperationState::RevivingJobs:
+            return "reviving_jobs";
+        case NScheduler::EOperationState::Pending:
+            return "pending";
+        case NScheduler::EOperationState::Running:
+            return "running";
+        case NScheduler::EOperationState::Completing:
+            return "completing";
+        case NScheduler::EOperationState::Completed:
+            return "completed";
+        case NScheduler::EOperationState::Aborting:
+            return "aborting";
+        case NScheduler::EOperationState::Aborted:
+            return "aborted";
+        case NScheduler::EOperationState::Failing:
+            return "failing";
+        case NScheduler::EOperationState::Failed:
+            return "failed";
+    }
+    YT_ABORT();
+}
+
+EJobType FromApiJobType(NJobTrackerClient::EJobType type)
+{
+    switch (type) {
+        case NJobTrackerClient::EJobType::Map:
+            return EJobType::Map;
+        case NJobTrackerClient::EJobType::PartitionMap:
+            return EJobType::PartitionMap;
+        case NJobTrackerClient::EJobType::SortedMerge:
+            return EJobType::SortedMerge;
+        case NJobTrackerClient::EJobType::OrderedMerge:
+            return EJobType::OrderedMerge;
+        case NJobTrackerClient::EJobType::UnorderedMerge:
+            return EJobType::UnorderedMerge;
+        case NJobTrackerClient::EJobType::Partition:
+            return EJobType::Partition;
+        case NJobTrackerClient::EJobType::SimpleSort:
+            return EJobType::SimpleSort;
+        case NJobTrackerClient::EJobType::FinalSort:
+            return EJobType::FinalSort;
+        case NJobTrackerClient::EJobType::SortedReduce:
+            return EJobType::SortedReduce;
+        case NJobTrackerClient::EJobType::PartitionReduce:
+            return EJobType::PartitionReduce;
+        case NJobTrackerClient::EJobType::ReduceCombiner:
+            return EJobType::ReduceCombiner;
+        case NJobTrackerClient::EJobType::RemoteCopy:
+            return EJobType::RemoteCopy;
+        case NJobTrackerClient::EJobType::IntermediateSort:
+            return EJobType::IntermediateSort;
+        case NJobTrackerClient::EJobType::OrderedMap:
+            return EJobType::OrderedMap;
+        case NJobTrackerClient::EJobType::JoinReduce:
+            return EJobType::JoinReduce;
+        case NJobTrackerClient::EJobType::Vanilla:
+            return EJobType::Vanilla;
+        case NJobTrackerClient::EJobType::ShallowMerge:
+            return EJobType::ShallowMerge;
+        case NJobTrackerClient::EJobType::SchedulerUnknown:
+            return EJobType::SchedulerUnknown;
+        case NJobTrackerClient::EJobType::ReplicateChunk:
+            return EJobType::ReplicateChunk;
+        case NJobTrackerClient::EJobType::RemoveChunk:
+            return EJobType::RemoveChunk;
+        case NJobTrackerClient::EJobType::RepairChunk:
+            return EJobType::RepairChunk;
+        case NJobTrackerClient::EJobType::SealChunk:
+            return EJobType::SealChunk;
+        case NJobTrackerClient::EJobType::MergeChunks:
+            return EJobType::MergeChunks;
+        case NJobTrackerClient::EJobType::AutotomizeChunk:
+            return EJobType::AutotomizeChunk;
+        case NJobTrackerClient::EJobType::ReincarnateChunk:
+            return EJobType::ReincarnateChunk;
+    }
+    YT_ABORT();
+}
+
+EJobState FromApiJobState(NJobTrackerClient::EJobState state)
+{
+    switch (state) {
+        case NJobTrackerClient::EJobState::Waiting:
+            return EJobState::Waiting;
+        case NJobTrackerClient::EJobState::Running:
+            return EJobState::Running;
+        case NJobTrackerClient::EJobState::Aborting:
+            return EJobState::Aborting;
+        case NJobTrackerClient::EJobState::Completed:
+            return EJobState::Completed;
+        case NJobTrackerClient::EJobState::Failed:
+            return EJobState::Failed;
+        case NJobTrackerClient::EJobState::Aborted:
+            return EJobState::Aborted;
+        case NJobTrackerClient::EJobState::Lost:
+            return EJobState::Lost;
+        case NJobTrackerClient::EJobState::None:
+            return EJobState::None;
+    }
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TYtError ToYtError(const TError& err) {
@@ -55,7 +179,7 @@ TYtError ToYtError(const TError& err) {
     for (const auto& inner : innerErrors) {
         errors.push_back(ToYtError(inner));
     }
-    return {err.GetCode(), err.GetMessage(), std::move(errors), std::move(attributes)};
+    return {err.GetCode(), TString(err.GetMessage()), std::move(errors), std::move(attributes)};
 }
 
 template <typename TResult>
@@ -375,7 +499,7 @@ TOperationAttributes ParseOperationAttributes(const NApi::TOperation& operation)
         result.Type = EOperationType(*operation.Type);
     }
     if (operation.State) {
-        result.State = ToString(*operation.State);
+        result.State = FromApiOperationState(*operation.State);
         if (*result.State == "completed") {
             result.BriefState = EOperationBriefState::Completed;
         } else if (*result.State == "aborted") {
@@ -544,7 +668,7 @@ TListOperationsResult TRpcRawClient::ListOperations(const TListOperationsOptions
     if (listOperationsResult.StateCounts) {
         result.StateCounts.ConstructInPlace();
         for (const auto& key : TEnumTraits<NScheduler::EOperationState>::GetDomainValues()) {
-            (*result.StateCounts)[ToString(key)] = (*listOperationsResult.StateCounts)[key];
+            (*result.StateCounts)[FromApiOperationState(key)] = (*listOperationsResult.StateCounts)[key];
         }
     }
     if (listOperationsResult.TypeCounts) {
@@ -586,8 +710,12 @@ TJobAttributes ParseJobAttributes(const NApi::TJob& job)
 {
     TJobAttributes result;
     result.Id = UtilGuidFromYtGuid(job.Id.Underlying());
-    result.Type = FromString<EJobType>(ToString(*job.Type));
-    result.State = FromString<EJobState>(ToString(*job.GetState()));
+    if (job.Type) {
+        result.Type = FromApiJobType(*job.Type);
+    }
+    if (auto state = job.GetState()) {
+        result.State = FromApiJobState(*state);
+    }
     if (job.Address) {
         result.Address = *job.Address;
     }
@@ -945,6 +1073,27 @@ void TRpcRawClient::AlterTable(
     WaitAndProcess(future);
 }
 
+class TTableRowsStream
+    : public IAsyncZeroCopyInputStream
+{
+public:
+    TTableRowsStream(IAsyncZeroCopyInputStreamPtr stream)
+        : Underlying_(std::move(stream))
+    { }
+
+    TFuture<TSharedRef> Read() override
+    {
+        return Underlying_->Read().Apply(BIND([=] (const TSharedRef& block) {
+            NApi::NRpcProxy::NProto::TRowsetDescriptor descriptor;
+            NApi::NRpcProxy::NProto::TRowsetStatistics statistics;
+            return NApi::NRpcProxy::DeserializeRowStreamBlockEnvelope(block, &descriptor, &statistics);
+        }));
+    }
+
+private:
+    const IAsyncZeroCopyInputStreamPtr Underlying_;
+};
+
 std::unique_ptr<IInputStream> TRpcRawClient::ReadTable(
     const TTransactionId& transactionId,
     const TRichYPath& path,
@@ -974,7 +1123,7 @@ std::unique_ptr<IInputStream> TRpcRawClient::ReadTable(
 
     if (format) {
         req->set_desired_rowset_format(NApi::NRpcProxy::NProto::RF_FORMAT);
-        req->set_format(NodeToYsonString(format->Config, NYson::EYsonFormat::Text));
+        req->set_format(NYson::TYsonString(NodeToYsonString(format->Config, NYson::EYsonFormat::Text)).ToString());
     }
 
     ToProto(req->mutable_transactional_options(), apiOptions);
@@ -982,7 +1131,16 @@ std::unique_ptr<IInputStream> TRpcRawClient::ReadTable(
 
     auto future = NRpc::CreateRpcClientInputStream(std::move(req));
     auto stream = WaitAndProcess(future);
-    return CreateSyncAdapter(CreateCopyingAdapter(std::move(stream)));
+
+    auto metaRef = WaitFor(stream->Read()).ValueOrThrow();
+
+    NApi::NRpcProxy::NProto::TRspReadTableMeta meta;
+    if (!TryDeserializeProto(&meta, metaRef)) {
+        THROW_ERROR_EXCEPTION("Failed to deserialize table reader meta information");
+    }
+
+    auto rowsStream = New<TTableRowsStream>(std::move(stream));
+    return CreateSyncAdapter(CreateCopyingAdapter(std::move(rowsStream)));
 }
 
 std::unique_ptr<IInputStream> TRpcRawClient::ReadBlobTable(
@@ -1233,6 +1391,11 @@ IRawBatchRequestPtr TRpcRawClient::CreateRawBatchRequest()
 IRawClientPtr TRpcRawClient::Clone()
 {
     return ::MakeIntrusive<TRpcRawClient>(Client_, Config_);
+}
+
+IRawClientPtr TRpcRawClient::Clone(const TClientContext& context)
+{
+    return ::MakeIntrusive<TRpcRawClient>(CreateApiClient(context), context.Config);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -92,6 +92,7 @@ protected:
         MaxDataSlicesPerJob_ = Inf32;
         MaxDataWeightPerJob_ = Inf64;
         MaxPrimaryDataWeightPerJob_ = Inf64;
+        MaxCompressedDataSizePerJob_ = Inf64;
         InputSliceDataWeight_ = Inf64;
     }
 
@@ -106,6 +107,7 @@ protected:
             MaxDataSlicesPerJob_,
             MaxDataWeightPerJob_,
             MaxPrimaryDataWeightPerJob_,
+            MaxCompressedDataSizePerJob_,
             InputSliceDataWeight_,
             Inf64 /*inputSliceRowCount*/,
             {} /*batchRowCount*/,
@@ -151,6 +153,7 @@ protected:
                             Property(
                                 &TLegacyDataSlice::GetSingleUnversionedChunk,
                                 Eq(chunk)))),
+                    _,
                     _,
                     _,
                     _));
@@ -221,8 +224,12 @@ protected:
         const TLegacyKey& maxBoundaryKey,
         int tableIndex,
         i64 size = 1_KB,
-        i64 rowCount = 1000)
+        i64 rowCount = 1000,
+        i64 compressedDataSize = -1)
     {
+        if (compressedDataSize == -1) {
+            compressedDataSize = size;
+        }
         auto prefixLength = InputTables_[tableIndex].IsForeign()
             ? ForeignComparator_.GetLength()
             : PrimaryComparator_.GetLength();
@@ -232,7 +239,7 @@ protected:
         auto inputChunk = New<TInputChunk>();
         static int ChunkIndex = 1;
         inputChunk->SetChunkId(TChunkId(ChunkIndex++, 0));
-        inputChunk->SetCompressedDataSize(size);
+        inputChunk->SetCompressedDataSize(compressedDataSize);
         inputChunk->SetTotalUncompressedDataSize(size);
         inputChunk->SetTotalDataWeight(size);
 
@@ -274,7 +281,8 @@ protected:
         TLegacyDataSlicePtr dataSlice,
         std::vector<TKeyBound> internalUpperBounds,
         std::vector<i64> sliceSizes = std::vector<i64>(),
-        std::vector<i64> sliceRowCounts = std::vector<i64>())
+        std::vector<i64> sliceRowCounts = std::vector<i64>(),
+        std::vector<i64> sliceCompressedDataSizes = std::vector<i64>())
     {
         auto chunk = dataSlice->GetSingleUnversionedChunk();
         if (sliceSizes.empty()) {
@@ -288,7 +296,13 @@ protected:
             sliceRowCounts.assign(internalUpperBounds.size() + 1, chunk->GetRowCount() / (internalUpperBounds.size() + 1));
             sliceRowCounts[0] += chunk->GetRowCount() - (internalUpperBounds.size() + 1) * sliceRowCounts[0];
         } else {
-            YT_VERIFY(internalUpperBounds.size() + 1 == sliceSizes.size());
+            YT_VERIFY(internalUpperBounds.size() + 1 == sliceRowCounts.size());
+        }
+        if (sliceCompressedDataSizes.empty()) {
+            sliceCompressedDataSizes.assign(internalUpperBounds.size() + 1, chunk->GetCompressedDataSize() / (internalUpperBounds.size() + 1));
+            sliceCompressedDataSizes[0] += chunk->GetRowCount() - (internalUpperBounds.size() + 1) * sliceRowCounts[0];
+        } else {
+            YT_VERIFY(internalUpperBounds.size() + 1 == sliceCompressedDataSizes.size());
         }
 
         YT_VERIFY(!InputTables_[chunk->GetTableIndex()].IsVersioned());
@@ -309,7 +323,7 @@ protected:
                 chunkSlice->LowerLimit().RowIndex = currentRow;
                 currentRow += sliceRowCounts[index];
                 chunkSlice->UpperLimit().RowIndex = currentRow;
-                slices.back()->OverrideSize(sliceRowCounts[index], sliceSizes[index]);
+                slices.back()->OverrideSize(sliceRowCounts[index], sliceSizes[index], sliceCompressedDataSizes[index]);
             }
             lowerBound = upperBound.Invert();
         }
@@ -463,6 +477,7 @@ protected:
         TKeyBound lowerBound = TKeyBound::MakeUniversal(/*isUpper*/ false),
         TKeyBound upperBound = TKeyBound::MakeUniversal(/*isUpper*/ true),
         i64 dataWeight = -1,
+        i64 compressedDataSize = -1,
         int sliceIndex = -1)
     {
         auto dataSlice = CreateDataSlice(chunk, lowerBound, upperBound);
@@ -471,7 +486,8 @@ protected:
             ? EDataSourceType::VersionedTable
             : EDataSourceType::UnversionedTable;
         if (dataWeight != -1) {
-            dataSlice->ChunkSlices[0]->OverrideSize(dataSlice->GetRowCount(), dataWeight);
+            YT_VERIFY(compressedDataSize != -1);
+            dataSlice->ChunkSlices[0]->OverrideSize(dataSlice->GetRowCount(), dataWeight, compressedDataSize);
         }
         if (sliceIndex != -1) {
             dataSlice->ChunkSlices[0]->SetSliceIndex(sliceIndex);
@@ -919,6 +935,8 @@ protected:
     i64 MaxBuildRetryCount_;
 
     i32 MaxDataSlicesPerJob_;
+
+    i64 MaxCompressedDataSizePerJob_;
 
     i64 InputSliceDataWeight_;
 
@@ -3275,10 +3293,10 @@ TEST_F(TSortedChunkPoolNewKeysTest, TwoTablesWithoutKeyGuarantee)
 
     CreateChunkPool();
 
-    AddDataSlice(chunkA1, BuildBound(">=", {}), BuildBound("<=", {1}), 1.9 * 1_KB, 0);
-    AddDataSlice(chunkA2, BuildBound(">", {1}), BuildBound("<=", {}), 0.1 * 1_KB, 1);
-    AddDataSlice(chunkB1, BuildBound(">=", {}), BuildBound("<=", {1}), 1.9 * 1_KB, 0);
-    AddDataSlice(chunkB2, BuildBound(">", {1}), BuildBound("<=", {}), 0.1 * 1_KB, 1);
+    AddDataSlice(chunkA1, BuildBound(">=", {}), BuildBound("<=", {1}), 1.9 * 1_KB, 1.9 * 1_KB, 0);
+    AddDataSlice(chunkA2, BuildBound(">", {1}), BuildBound("<=", {}), 0.1 * 1_KB, 0.1 * 1_KB, 1);
+    AddDataSlice(chunkB1, BuildBound(">=", {}), BuildBound("<=", {1}), 1.9 * 1_KB, 1.9 * 1_KB, 0);
+    AddDataSlice(chunkB2, BuildBound(">", {1}), BuildBound("<=", {}), 0.1 * 1_KB, 0.1 * 1_KB, 1);
 
     ChunkPool_->Finish();
 

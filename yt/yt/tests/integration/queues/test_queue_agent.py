@@ -25,6 +25,7 @@ from functools import wraps
 from operator import itemgetter
 
 from yt.yson import YsonUint64, YsonEntity
+import yt.yson
 
 import yt_error_codes
 
@@ -152,7 +153,7 @@ class TestQueueAgentNoSynchronizer(TestQueueAgentBase):
         orchid = QueueAgentOrchid()
 
         self._wait_for_component_passes(skip_cypress_synchronizer=True)
-        queues = orchid.get_queues()
+        queues = orchid.list_queues()
         assert len(queues) == 0
 
         # Missing row revision.
@@ -205,7 +206,7 @@ class TestQueueAgentNoSynchronizer(TestQueueAgentBase):
         delete_rows("//sys/queue_agents/queues", [{"cluster": "primary", "path": "//tmp/q"}])
         self._wait_for_component_passes(skip_cypress_synchronizer=True)
 
-        queues = orchid.get_queues()
+        queues = orchid.list_queues()
         assert len(queues) == 0
 
     @authors("max42", "nadya73")
@@ -213,8 +214,8 @@ class TestQueueAgentNoSynchronizer(TestQueueAgentBase):
         orchid = QueueAgentOrchid()
 
         self._wait_for_component_passes(skip_cypress_synchronizer=True)
-        queues = orchid.get_queues()
-        consumers = orchid.get_consumers()
+        queues = orchid.list_queues()
+        consumers = orchid.list_consumers()
         assert len(queues) == 0
         assert len(consumers) == 0
 
@@ -250,8 +251,8 @@ class TestQueueAgentNoSynchronizer(TestQueueAgentBase):
         orchid = QueueAgentOrchid()
 
         self._wait_for_component_passes(skip_cypress_synchronizer=True)
-        queues = orchid.get_queues()
-        consumers = orchid.get_consumers()
+        queues = orchid.list_queues()
+        consumers = orchid.list_consumers()
         assert len(queues) == 0
         assert len(consumers) == 0
 
@@ -1366,9 +1367,9 @@ class TestMultipleAgents(TestQueueAgentBase):
 
         queue_agent_orchids = {instance: QueueAgentOrchid(instance) for instance in instances}
         for instance, orchid in queue_agent_orchids.items():
-            instance_queues = orchid.get_queues()
-            instance_consumers = orchid.get_consumers()
-            all_instance_objects = instance_queues.keys() | instance_consumers.keys()
+            instance_queues = orchid.list_instance_queues()
+            instance_consumers = orchid.list_instance_consumers()
+            all_instance_objects = builtins.set(instance_queues + instance_consumers)
             assert all_instance_objects == objects_by_host[instance]
 
         def perform_checks(ignore_instances=()):
@@ -1544,6 +1545,83 @@ class TestMultipleAgents(TestQueueAgentBase):
 
         print_debug("final mapping: ", get_mapping())
         assert mapping == get_mapping()
+
+
+@pytest.mark.enabled_multidaemon
+class TestOrchid(TestMultipleAgents):
+    NUM_QUEUE_AGENTS = 2
+
+    ENABLE_MULTIDAEMON = True
+
+    @authors("apachee")
+    def test_queue_agent_orchid_for_queues_and_consumers(self):
+        queues = []
+        consumers = []
+        for i in range(10):
+            queue = f"//tmp/queue_{i}"
+            consumer = f"//tmp/consumer_{i}"
+            self._create_queue(queue)
+            self._create_consumer(consumer)
+            queues.append(f"primary:{queue}")
+            consumers.append(f"primary:{consumer}")
+
+        self._wait_for_component_passes()
+
+        instances = ls("//sys/queue_agents/instances")
+        mapping = list(select_rows("* from [//sys/queue_agents/queue_agent_object_mapping]"))
+        queues_by_host = defaultdict(builtins.set)
+        for row in mapping:
+            if "queue" in row["object"]:
+                queues_by_host[row["host"]].add(row["object"])
+        consumers_by_host = defaultdict(builtins.set)
+        for row in mapping:
+            if "consumer" in row["object"]:
+                consumers_by_host[row["host"]].add(row["object"])
+
+        for instance in instances:
+            orchid = QueueAgentOrchid(agent_id=instance)
+
+            assert builtins.set(orchid.list_queues()) == builtins.set(queues)
+            assert builtins.set(orchid.list_consumers()) == builtins.set(consumers)
+            assert builtins.set(orchid.list_instance_queues()) == builtins.set(queues_by_host[instance])
+            assert builtins.set(orchid.list_instance_consumers()) == builtins.set(consumers_by_host[instance])
+
+            path = orchid.orchid_path()
+
+            queues = get(f"{path}/queues")
+            assert builtins.set(queues.keys()) == builtins.set(queues)
+            assert all(value == YsonEntity() for value in queues.values())
+            consumers = get(f"{path}/consumers")
+            assert builtins.set(consumers.keys()) == builtins.set(consumers)
+            assert all(value == YsonEntity() for value in consumers.values())
+
+            for queue in queues:
+                queue_orchid = orchid.get_queue_orchid(queue)
+                owned_queue_orchid = orchid.get_owned_queue_orchid(queue)
+
+                # Should not throw
+                queue_orchid.get()
+
+                if queue in queues_by_host[instance]:
+                    # Shoult not throw
+                    owned_queue_orchid.get()
+                else:
+                    with raises_yt_error(code=yt_error_codes.QueueAgentRetriableError):
+                        owned_queue_orchid.get()
+
+            for consumer in consumers:
+                consumer_orchid = orchid.get_consumer_orchid(consumer)
+                owned_consumer_orchid = orchid.get_owned_consumer_orchid(consumer)
+
+                # Should not throw
+                consumer_orchid.get()
+
+                if consumer in consumers_by_host[instance]:
+                    # Shoult not throw
+                    owned_consumer_orchid.get()
+                else:
+                    with raises_yt_error(code=yt_error_codes.QueueAgentRetriableError):
+                        owned_consumer_orchid.get()
 
 
 @pytest.mark.enabled_multidaemon
@@ -3091,6 +3169,7 @@ class TestQueueAgentBannedAttribute(TestQueueStaticExportBase):
         self.remove_export_destination(export_dir)
 
 
+# XXX(apachee): Maybe split TestQueueStaticExport in TestQueueStaticExportCommon and TestQueueStaticExportNoPortals.
 @pytest.mark.enabled_multidaemon
 class TestQueueStaticExport(TestQueueStaticExportBase):
     NUM_TEST_PARTITIONS = 3
@@ -3896,6 +3975,166 @@ class TestQueueStaticExport(TestQueueStaticExportBase):
         assert_exported_table_count(2)
 
         self.remove_export_destination(export_dir)
+
+
+@pytest.mark.enabled_multidaemon
+class TestQueueExporterRetries(TestQueueStaticExportBase):
+    ENABLE_MULTIDAEMON = True
+
+    @authors("apachee")
+    @pytest.mark.parametrize("should_retry", [False, True])
+    def test_backoff(self, should_retry):
+        self._apply_dynamic_config_patch({
+            "queue_agent": {
+                "controller": {
+                    "queue_exporter": {
+                        "retry_backoff": {
+                            "min_backoff": 15_000,
+                            "max_backoff": 15_000,
+                            "backoff_jitter": 0.0,
+                        }
+                    }
+                }
+            }
+        })
+
+        orchid = QueueAgentOrchid()
+
+        _, queue_id = self._create_queue("//tmp/q")
+        queue_orchid = orchid.get_queue_orchid("primary://tmp/q")
+
+        self._wait_for_global_sync()
+
+        export_dir = "//tmp/export"
+        if not should_retry:
+            self._create_export_destination(export_dir, queue_id)
+
+        export_period_seconds = 3
+        set("//tmp/q/@static_export_config", {
+            "default": {
+                "export_directory": export_dir,
+                "export_period": export_period_seconds * 1000,
+            },
+        })
+
+        exporter_orchid = queue_orchid.get_exporter_orchid()
+
+        if should_retry:
+            wait(lambda: exists(exporter_orchid.orchid_path()))
+            wait(lambda: exporter_orchid.get_retry_index() == 1)
+            time.sleep(20)
+            assert exporter_orchid.get_retry_index() == 2
+        else:
+            exported_table_count = 2
+            expected = []
+
+            for i in range(exported_table_count):
+                rows = [{"$tablet_index": 0, "data": str(i)}] * 3
+                expected += [rows]
+                insert_rows("//tmp/q", rows)
+                self._flush_table("//tmp/q")
+
+                self._sleep_until_next_export_instant(export_period_seconds)
+                wait(lambda: len(ls(export_dir)) == i + 1, timeout=5)
+
+                assert exporter_orchid.get_retry_index() == 0
+
+            self.remove_export_destination(export_dir)
+
+    @authors("apachee")
+    def test_backoff_reset(self):
+        self._apply_dynamic_config_patch({
+            "queue_agent": {
+                "controller": {
+                    "queue_exporter": {
+                        "retry_backoff": {
+                            "min_backoff": 100,
+                            "max_backoff": 100,
+                            "backoff_jitter": 0.0,
+                        }
+                    }
+                }
+            }
+        })
+
+        orchid = QueueAgentOrchid()
+
+        _, queue_id = self._create_queue("//tmp/q")
+
+        self._wait_for_global_sync()
+
+        queue_orchid = orchid.get_queue_orchid("primary://tmp/q")
+
+        # Non-existent to force retries
+        export_dir = "//tmp/export"
+
+        export_period_seconds = 1
+        set("//tmp/q/@static_export_config", {
+            "default": {
+                "export_directory": export_dir,
+                "export_period": export_period_seconds * 1000,
+            },
+        })
+
+        exporter_orchid = queue_orchid.get_exporter_orchid()
+        wait(lambda: exists(exporter_orchid.orchid_path()))
+
+        wait(lambda: exporter_orchid.get_retry_index() > 0, timeout=5)
+
+        self._create_export_destination(export_dir, queue_id)
+
+        exporter_orchid.wait_fresh_invocation()
+        assert exporter_orchid.get_retry_index() == 0
+
+        self.remove_export_destination(export_dir)
+
+    @authors("apachee")
+    def test_exponential_backoff(self):
+        self._apply_dynamic_config_patch({
+            "queue_agent": {
+                "controller": {
+                    "queue_exporter": {
+                        "retry_backoff": {
+                            "min_backoff": 3_000,
+                            "max_backoff": 12_000,
+                            "backoff_multiplier": 2.0,
+                            "backoff_jitter": 0.0,
+                        }
+                    }
+                }
+            }
+        })
+
+        orchid = QueueAgentOrchid()
+
+        self._create_queue("//tmp/q")
+
+        self._wait_for_global_sync()
+
+        queue_orchid = orchid.get_queue_orchid("primary://tmp/q")
+
+        # Non-existent to force retries
+        export_dir = "//tmp/export"
+
+        export_period_seconds = 1
+        set("//tmp/q/@static_export_config", {
+            "default": {
+                "export_directory": export_dir,
+                "export_period": export_period_seconds * 1000,
+            },
+        })
+
+        exporter_orchid = queue_orchid.get_exporter_orchid()
+        wait(lambda: exists(exporter_orchid.orchid_path()))
+
+        timeouts = [5] + [1 + 3 * (2 ** i) for i in range(3)] + [12 + 1]
+
+        for i, timeout in enumerate(timeouts):
+            # Accept range [i + 1; i + 2] instead of only i + 1 in case of system lags
+            wait(lambda: i + 1 <= exporter_orchid.get_retry_index() <= i + 2, timeout=timeout)
+
+        exporter_orchid_value = exporter_orchid.get()
+        assert abs(exporter_orchid_value["retry_index"] - exporter_orchid_value["export_task_invocation_index"]) <= 1
 
 
 class TestQueueExportTaskConfig(TestQueueStaticExportBase):
@@ -4746,3 +4985,250 @@ class TestMultiClusterReplicatedTableObjectsTrimWithExports(TestMultiClusterRepl
         self._wait_for_replicated_queue_row_range(replicas, range(3, 6))
 
         wait_for_all_exports(0)
+
+
+class TestControllerInfo(TestQueueAgentBase):
+    CONTROLLER_DELAY_DURATION_SECONDS = 10
+    OLD_PASSES_DISPLAY_LIMIT = 4
+
+    DELTA_QUEUE_AGENT_CONFIG = {
+        "dynamic_config_manager": {
+            "update_period": 1000,  # 1 second
+        }
+    }
+    DELTA_QUEUE_AGENT_DYNAMIC_CONFIG = {
+        "cypress_synchronizer": {
+            "policy": "watching",
+        },
+        "queue_agent": {
+            "controller": {
+                "controller_delay_duration": CONTROLLER_DELAY_DURATION_SECONDS * 1000,  # 10 seconds
+            },
+            "inactive_object_display_limit": OLD_PASSES_DISPLAY_LIMIT,
+        },
+    }
+
+    def _parse_inactive_objects(self, inactive_objects: dict[list]):
+        result = {}
+        top_level_keys = [
+            "leading_queues",
+            "following_queues",
+            "leading_consumers",
+            "following_consumers",
+        ]
+
+        for top_level_key in top_level_keys:
+            result[top_level_key] = []
+            for entry in inactive_objects[top_level_key]:
+                path = entry["path"]
+                pass_instant = datetime.datetime.fromisoformat(entry["pass_instant"])
+                result[top_level_key].append((path, pass_instant))
+
+        return result
+
+    def _create_queue_and_get_orchid(self, path):
+        self._create_queue(path)
+
+        orchid = QueueAgentOrchid()
+        return orchid.get_queue_orchid(f"primary:{path}")
+
+    def _create_consumer_and_get_orchid(self, path):
+        self._create_consumer(path)
+
+        orchid = QueueAgentOrchid()
+        return orchid.get_consumer_orchid(f"primary:{path}")
+
+    @authors("apachee")
+    @pytest.mark.parametrize("object_name,create_object_and_get_orchid", [
+        ("queue", _create_queue_and_get_orchid),
+        ("consumer", _create_consumer_and_get_orchid),
+    ])
+    def test_basic(self, create_object_and_get_orchid, object_name):
+        orchid = QueueAgentOrchid()
+
+        time_tolerance_seconds = 1
+
+        object_count = self.OLD_PASSES_DISPLAY_LIMIT + 1
+        assert object_count > self.OLD_PASSES_DISPLAY_LIMIT
+        object_orchids = []
+
+        for i in range(object_count):
+            path = f"//tmp/{object_name}_{i}"
+            object_orchids.append(create_object_and_get_orchid(self, path))
+
+        self._wait_for_component_passes()
+        self.wait_fresh_pass(object_orchids)
+
+        controller_info = orchid.get_controller_info()
+
+        assert controller_info["erroneous_objects"] == {
+            "queue_count": 0,
+            "consumer_count": 0,
+        }
+
+        inactive_objects = self._parse_inactive_objects(controller_info["inactive_objects"])
+
+        fields = {
+            "leading_queues",
+            "following_queues",
+            "leading_consumers",
+            "following_consumers",
+        }
+        # All fields but this should be 0 at all times.
+        key_field = f"leading_{object_name}s"
+
+        zero_fields = fields - {key_field}
+
+        for field in zero_fields:
+            assert len(inactive_objects[field]) == 0
+
+        inactive_objects_leading = inactive_objects[key_field]
+        assert len(inactive_objects_leading) == self.OLD_PASSES_DISPLAY_LIMIT
+
+        min_ts = min(i[1] for i in inactive_objects_leading)
+        max_ts = max(i[1] for i in inactive_objects_leading)
+        assert min_ts == inactive_objects_leading[0][1]
+        assert max_ts == inactive_objects_leading[-1][1]
+        assert max_ts - min_ts <= datetime.timedelta(seconds=time_tolerance_seconds)
+
+        print_debug(f"inactive_objects: {min_ts=}, {max_ts=}")
+
+        # Check how the value is changed after some time
+        sleep_duration_seconds = 10
+        time.sleep(10)
+
+        controller_info = orchid.get_controller_info()
+
+        assert controller_info["erroneous_objects"] == {
+            "queue_count": 0,
+            "consumer_count": 0,
+        }
+
+        inactive_objects = self._parse_inactive_objects(controller_info["inactive_objects"])
+
+        for field in zero_fields:
+            assert len(inactive_objects[field]) == 0
+
+        inactive_objects_leading = inactive_objects[key_field]
+        assert len(inactive_objects_leading) == self.OLD_PASSES_DISPLAY_LIMIT
+
+        old_min_ts = min_ts
+        min_ts = min(i[1] for i in inactive_objects_leading)
+        max_ts = max(i[1] for i in inactive_objects_leading)
+        assert min_ts == inactive_objects_leading[0][1]
+        assert max_ts == inactive_objects_leading[-1][1]
+        assert max_ts - min_ts <= datetime.timedelta(seconds=time_tolerance_seconds)
+        print_debug(f"inactive_objects: {min_ts=}, {max_ts=}")
+
+        diff = max_ts - old_min_ts
+        assert datetime.timedelta(seconds=(sleep_duration_seconds - time_tolerance_seconds)) <= diff
+        assert diff <= datetime.timedelta(seconds=(sleep_duration_seconds + time_tolerance_seconds))
+
+    @authors("apachee")
+    @pytest.mark.parametrize("object_name,create_object_and_get_orchid", [
+        ("queue", _create_queue_and_get_orchid),
+        ("consumer", _create_consumer_and_get_orchid),
+    ])
+    def test_bad_object(self, create_object_and_get_orchid, object_name):
+        orchid = QueueAgentOrchid()
+
+        time_tolerance_seconds = 1
+
+        key_field = f"leading_{object_name}s"
+
+        create_object_and_get_orchid(self, f"//tmp/{object_name}_good")
+        bad_object_path = f"//tmp/{object_name}_bad"
+        bad_object_orchid = create_object_and_get_orchid(self, bad_object_path)
+
+        self._wait_for_component_passes()
+        self._wait_for_object_passes()
+
+        def get_timestamps():
+            controller_info = orchid.get_controller_info()
+
+            inactive_objects = self._parse_inactive_objects(controller_info["inactive_objects"])
+            inactive_objects_leading = inactive_objects[key_field]
+
+            return [i[1] for i in inactive_objects_leading]
+
+        self._apply_dynamic_config_patch({
+            "queue_agent": {
+                "controller": {
+                    "delayed_objects": [yt.yson.loads(f"<cluster=primary>\"{bad_object_path}\"".encode())],
+                },
+            },
+        })
+        # Sleep for next bad object pass to start
+        time.sleep(1)
+
+        min_ts = get_timestamps()[0]
+
+        time.sleep(self.CONTROLLER_DELAY_DURATION_SECONDS / 2 - 1)
+
+        timestamps = get_timestamps()
+        assert min_ts == timestamps[0]
+        assert timestamps[1] - timestamps[0] >= datetime.timedelta(seconds=(self.CONTROLLER_DELAY_DURATION_SECONDS / 2 - time_tolerance_seconds))
+
+        wait(lambda: get_timestamps()[0] > min_ts)
+        assert get_timestamps()[0] - min_ts >= datetime.timedelta(seconds=(self.CONTROLLER_DELAY_DURATION_SECONDS - time_tolerance_seconds))
+
+        set("//sys/queue_agents/config/queue_agent/controller/delayed_objects", [])
+        wait(lambda: get(f"{orchid.queue_agent_orchid_path()}/dynamic_config_manager/effective_config/queue_agent/controller/delayed_objects") == [])
+        bad_object_orchid.wait_fresh_pass()
+
+        timestamps = get_timestamps()
+        assert abs(timestamps[1] - timestamps[0]) <= datetime.timedelta(seconds=(time_tolerance_seconds))
+        time.sleep(self.CONTROLLER_DELAY_DURATION_SECONDS / 2)
+        timestamps = get_timestamps()
+        assert abs(timestamps[1] - timestamps[0]) <= datetime.timedelta(seconds=(time_tolerance_seconds))
+
+    @authors("apachee")
+    def test_erroneous_object_count(self):
+        orchid = QueueAgentOrchid()
+
+        self._create_queue("//tmp/q")
+        self._create_consumer("//tmp/c")
+
+        self._wait_for_component_passes()
+        time.sleep(1)
+
+        assert orchid.get_controller_info()["erroneous_objects"] == {
+            "queue_count": 0,
+            "consumer_count": 0,
+        }
+
+        set("//tmp/q/@queue_agent_banned", "whatever")
+        self._wait_for_component_passes()
+        time.sleep(1)
+
+        assert orchid.get_controller_info()["erroneous_objects"] == {
+            "queue_count": 1,
+            "consumer_count": 0,
+        }
+
+        set("//tmp/c/@queue_agent_banned", "whatever")
+        self._wait_for_component_passes()
+        time.sleep(1)
+
+        assert orchid.get_controller_info()["erroneous_objects"] == {
+            "queue_count": 1,
+            "consumer_count": 1,
+        }
+
+        remove("//tmp/q/@queue_agent_banned")
+        self._wait_for_component_passes()
+        time.sleep(1)
+
+        assert orchid.get_controller_info()["erroneous_objects"] == {
+            "queue_count": 0,
+            "consumer_count": 1,
+        }
+
+        remove("//tmp/c/@queue_agent_banned")
+        self._wait_for_component_passes()
+        time.sleep(1)
+
+        assert orchid.get_controller_info()["erroneous_objects"] == {
+            "queue_count": 0,
+            "consumer_count": 0,
+        }

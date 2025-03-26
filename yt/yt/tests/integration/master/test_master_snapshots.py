@@ -7,7 +7,7 @@ import yt_commands
 
 from yt_commands import (
     authors, wait, create, ls, get, set, copy, remove, create_secondary_index,
-    exists, concatenate,
+    exists, concatenate, raises_yt_error,
     remove_account, create_proxy_role, create_account_resource_usage_lease, start_transaction, abort_transaction, commit_transaction, lock, insert_rows,
     lookup_rows, alter_table, write_table, read_table, wait_for_cells,
     sync_create_cells, sync_mount_table, sync_freeze_table, sync_reshard_table, get_singular_chunk_id,
@@ -267,7 +267,7 @@ def check_secondary_indices():
         attributes["external_cell_tag"] = get(f"#{table_id}/@external_cell_tag")
 
     create("table", "//tmp/index_table", attributes=attributes)
-    index_id = create_secondary_index("//tmp/main_table", "//tmp/index_table", "full_sync")
+    index_id = create_secondary_index("//tmp/main_table", "//tmp/index_table", "full_sync", "bijective")
 
     yield
 
@@ -276,12 +276,14 @@ def check_secondary_indices():
         index_id: {
             "index_path": "//tmp/index_table",
             "kind": "full_sync",
+            "table_to_index_correspondence": "bijective",
         }
     }
     assert get("//tmp/index_table/@index_to") == {
         "index_id": index_id,
         "table_path": "//tmp/main_table",
         "kind": "full_sync",
+        "table_to_index_correspondence": "bijective",
     }
 
 
@@ -785,7 +787,8 @@ class TestMastersSnapshotsShardedTx(YTEnvSetup):
     NUM_SECONDARY_MASTER_CELLS = 4
     MASTER_CELL_DESCRIPTORS = {
         "10": {"roles": ["cypress_node_host"]},
-        "11": {"roles": ["transaction_coordinator"]},
+        # Master cell with tag 11 is reserved for portals.
+        "11": {"roles": ["transaction_coordinator", "cypress_node_host"]},
         "12": {"roles": ["chunk_host"]},
         "13": {"roles": ["chunk_host"]},
     }
@@ -866,7 +869,7 @@ class TestMastersPersistentReadOnly(YTEnvSetup):
 
         wait(lambda: is_leader_in_read_only("//sys/primary_masters", primary))
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Read-only mode is active"):
             create("table", "//tmp/t1")
 
         master_exit_read_only_sync()

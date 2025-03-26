@@ -1,7 +1,6 @@
 #pragma once
 
 #include "public.h"
-#include "automaton.h"
 
 #include <yt/yt/server/master/chunk_server/public.h>
 
@@ -222,9 +221,29 @@ DEFINE_ENUM(EMasterReign,
     ((MulticellStatisticsCollector)                                 (2832))  // koloshmet
     ((ForbidAlterKeyColumnToAny)                                    (2833))  // dtorilov
     ((UpdateRttConfig)                                              (2834))  // akozhikhov
-    ((TabletTransactionSerializationType)                           (2835))  // ponasenko-rs
+    ((TabletTransactionSerializationType_25_1_NOOP)                 (2835))  // ponasenko-rs
     ((FixChunkStatisticsInMasterCellRemoval)                        (2836))  // cherepashka
     ((ResetHunkSpecificMedia)                                       (2837))  // shakurov
+    ((FixReshardOfOrderedTablesWithHunks)                           (2838))  // akozhikhov
+    ((FixTabletSizeCalculationForCellAssignmentWhenMounting)        (2839))  // alexelexa
+    ((ResetHunkSpecificMediaAndRecomputeTabletStatistics)           (2840))  // shakurov
+    ((PrepareModifyReplicasRefreshFlagsChecks)                      (2841))  // babenko
+    ((PersistAuxiliaryNodeStatistics_25_1)                          (2842))  // ifsmirnov
+    ((GlobalObjectReplicationRespectsTypeHandlers)                  (2843))  // shakurov
+    ((LostVitalChunksSample_25_1)                                   (2844))  // koloshmet
+    // 25.2 starts here.
+    ((Start_25_2)                                                   (2900))  // ponasenko-rs
+    ((TabletTransactionSerializationType)                           (2901))  // ponasenko-rs
+    ((CypressProxyTracker)                                          (2902))  // kvk1920
+    ((PersistAuxiliaryNodeStatistics)                               (2903))  // ifsmirnov
+    ((LostVitalChunksSample)                                        (2904))  // koloshmet
+    ((MasterCompactTableSchema)                                     (2905))  // cherepashka
+    ((PrerequisiteTransactionsInSequoia)                            (2906))  // cherepashka
+    ((MasterCellRolesChangeValidation)                              (2907))  // cherepashka
+    ((DropLegayReplicas)                                            (2908))  // babenko
+    ((KeyBoundsInTabletChunkManager)                                (2909))  // ifsmirnov
+    ((DropChunkMergerCompats)                                       (2910))  // cherepashka
+    ((SecondaryIndexEvaluated)                                      (2911))  // sabdenovch
 );
 
 static_assert(TEnumTraits<EMasterReign>::IsMonotonic, "Master reign enum is not monotonic");

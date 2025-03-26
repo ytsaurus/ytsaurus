@@ -271,12 +271,11 @@ void TBootstrap::DoInitialize()
             Config_->SignatureGeneration->CypressKeyWriter,
             RootClient_))
             .ValueOrThrow();
-        auto signatureGenerator = New<TSignatureGenerator>(
-            Config_->SignatureGeneration->Generator,
-            std::move(cypressKeyWriter));
+        auto signatureGenerator = New<TSignatureGenerator>(Config_->SignatureGeneration->Generator);
         SignatureKeyRotator_ = New<TKeyRotator>(
             Config_->SignatureGeneration->KeyRotator,
             GetControlInvoker(),
+            std::move(cypressKeyWriter),
             signatureGenerator);
         SignatureGenerator_ = std::move(signatureGenerator);
     } else {
@@ -357,7 +356,8 @@ void TBootstrap::DoInitialize()
     ApiHttpServer_ = NHttp::CreateServer(
         Config_->HttpServer,
         Poller_,
-        Acceptor_);
+        Acceptor_,
+        WithCategory(MemoryUsageTracker_, EMemoryCategory::Http));
     RegisterRoutes(ApiHttpServer_);
 
     if (Config_->HttpsServer) {
@@ -366,7 +366,8 @@ void TBootstrap::DoInitialize()
             Config_->HttpsServer,
             Poller_,
             Acceptor_,
-            GetControlInvoker());
+            GetControlInvoker(),
+            WithCategory(MemoryUsageTracker_, EMemoryCategory::Http));
         RegisterRoutes(ApiHttpsServer_);
     }
 
@@ -375,7 +376,8 @@ void TBootstrap::DoInitialize()
         TvmOnlyApiHttpServer_ = NHttp::CreateServer(
             Config_->TvmOnlyHttpServer,
             Poller_,
-            Acceptor_);
+            Acceptor_,
+            WithCategory(MemoryUsageTracker_, EMemoryCategory::Http));
         RegisterRoutes(TvmOnlyApiHttpServer_);
     }
 
@@ -385,7 +387,8 @@ void TBootstrap::DoInitialize()
             Config_->TvmOnlyHttpsServer,
             Poller_,
             Acceptor_,
-            GetControlInvoker());
+            GetControlInvoker(),
+            WithCategory(MemoryUsageTracker_, EMemoryCategory::Http));
         RegisterRoutes(TvmOnlyApiHttpsServer_);
     }
 
@@ -450,8 +453,6 @@ void TBootstrap::OnDynamicConfigChanged(
     DynamicConfig_.Store(newConfig);
 
     BusServer_->OnDynamicConfigChanged(newConfig->BusServer);
-
-    Connection_->Reconfigure(newConfig->ClusterConnection);
 
     Coordinator_->GetTraceSampler()->UpdateConfig(newConfig->Tracing);
 }

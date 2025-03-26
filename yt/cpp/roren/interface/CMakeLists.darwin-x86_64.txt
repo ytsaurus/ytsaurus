@@ -29,6 +29,8 @@ target_link_libraries(cpp-roren-interface PUBLIC
   library-cpp-iterator
   cpp-yson-node
   cpp-yt-string
+  flow-lib-serializer
+  roren-library-bind
   library-timers-timer
   yt-yt-core
   yt-library-profiling
@@ -53,6 +55,7 @@ target_sources(cpp-roren-interface PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/cpp/roren/interface/private/stateful_par_do.cpp
   ${PROJECT_SOURCE_DIR}/yt/cpp/roren/interface/private/stateful_timer_par_do.cpp
   ${PROJECT_SOURCE_DIR}/yt/cpp/roren/interface/private/par_do_tree.cpp
+  ${PROJECT_SOURCE_DIR}/yt/cpp/roren/interface/private/save_loadable_logicaltype_wrapper.cpp
   ${PROJECT_SOURCE_DIR}/yt/cpp/roren/interface/coder.cpp
   ${PROJECT_SOURCE_DIR}/yt/cpp/roren/interface/fns.cpp
   ${PROJECT_SOURCE_DIR}/yt/cpp/roren/interface/input.cpp

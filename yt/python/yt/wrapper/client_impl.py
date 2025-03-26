@@ -1085,14 +1085,14 @@ class YtClient(ClientState):
 
     def get_operation(
             self,
-            operation_id=None, operation_alias=None, attributes=None, include_scheduler=None, format=None):
+            operation_id=None, operation_alias=None, attributes=None, include_runtime=None, format=None):
         """
         Get operation attributes through API.
 
         """
         return client_api.get_operation(
             client=self,
-            operation_id=operation_id, operation_alias=operation_alias, attributes=attributes, include_scheduler=include_scheduler,
+            operation_id=operation_id, operation_alias=operation_alias, attributes=attributes, include_runtime=include_runtime,
             format=format)
 
     def get_operation_attributes(
@@ -1479,8 +1479,8 @@ class YtClient(ClientState):
             operation_id,
             job_type=None, job_state=None, address=None, job_competition_id=None, with_competitors=None,
             sort_field=None, sort_order=None, limit=None, offset=None, with_stderr=None, with_spec=None,
-            with_fail_context=None, with_monitoring_descriptor=None, include_cypress=None, include_runtime=None,
-            include_archive=None, data_source=None, format=None):
+            with_fail_context=None, with_monitoring_descriptor=None, with_interruption_info=None,
+            include_cypress=None, include_runtime=None, include_archive=None, data_source=None, format=None):
         """
         List jobs of operation.
         """
@@ -1490,9 +1490,9 @@ class YtClient(ClientState):
             job_type=job_type, job_state=job_state, address=address, job_competition_id=job_competition_id,
             with_competitors=with_competitors, sort_field=sort_field, sort_order=sort_order, limit=limit,
             offset=offset, with_stderr=with_stderr, with_spec=with_spec, with_fail_context=with_fail_context,
-            with_monitoring_descriptor=with_monitoring_descriptor, include_cypress=include_cypress,
-            include_runtime=include_runtime, include_archive=include_archive, data_source=data_source,
-            format=format)
+            with_monitoring_descriptor=with_monitoring_descriptor, with_interruption_info=with_interruption_info,
+            include_cypress=include_cypress, include_runtime=include_runtime, include_archive=include_archive,
+            data_source=data_source, format=format)
 
     def list_operations(
             self,
@@ -1859,7 +1859,7 @@ class YtClient(ClientState):
     def push_queue_producer(
             self,
             producer_path, queue_path, session_id, epoch, input_stream,
-            user_meta=None, input_format=None, raw=None, output_format=None):
+            user_meta=None, input_format=None, raw=None, output_format=None, require_sync_replica=None):
         """
         Push rows to queue via queue producer.
         :param producer_path: path to queue producer table.
@@ -1870,6 +1870,8 @@ class YtClient(ClientState):
         :type session_id: str
         :param epoch: epoch number.
         :type epoch: int
+        :param require_sync_replica: require sync replica write.
+        :type require_sync_replica: bool
         :param input_stream: python file-like object, string, list of strings.
         :param user_meta: arbitrary user meta information.
         :param input_format: format of input data, ``yt.wrapper.config["tabular_data_format"]`` by default.
@@ -1884,7 +1886,8 @@ class YtClient(ClientState):
         return client_api.push_queue_producer(
             producer_path, queue_path, session_id, epoch, input_stream,
             client=self,
-            user_meta=user_meta, input_format=input_format, raw=raw, output_format=output_format)
+            user_meta=user_meta, input_format=input_format, raw=raw, output_format=output_format,
+            require_sync_replica=require_sync_replica)
 
     def put_file_to_cache(
             self,

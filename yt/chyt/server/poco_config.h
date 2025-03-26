@@ -2,15 +2,15 @@
 
 #include <yt/yt/core/ytree/public.h>
 
-#include <Poco/Util/AbstractConfiguration.h>
-#include <Poco/Util/LayeredConfiguration.h>
+#include <DBPoco/Util/AbstractConfiguration.h>
+#include <DBPoco/Util/LayeredConfiguration.h>
 
 namespace NYT::NClickHouseServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-Poco::AutoPtr<Poco::Util::AbstractConfiguration> ConvertToPocoConfig(const NYTree::INodePtr& node);
-Poco::AutoPtr<Poco::Util::LayeredConfiguration> ConvertToLayeredConfig(const NYTree::INodePtr& node);
+DBPoco::AutoPtr<DBPoco::Util::AbstractConfiguration> ConvertToPocoConfig(const NYTree::INodePtr& node);
+DBPoco::AutoPtr<DBPoco::Util::LayeredConfiguration> ConvertToLayeredConfig(const NYTree::INodePtr& node);
 
 ////////////////////////////////////////////////////////////////////////////////
 

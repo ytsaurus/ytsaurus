@@ -263,10 +263,11 @@ public:
         }
         ActiveQueriesGuardFactory_.Update(DynamicConfig_->MaxSimultaneousQueries);
 
-        if (newConfig->GatewaysConfig) {
+        if (DynamicConfig_->GatewaysConfig) {
             NYqlPlugin::TYqlPluginDynamicConfig pluginDynamicConfig{
-                .GatewaysConfig = ConvertToYsonString(newConfig->GatewaysConfig),
+                .GatewaysConfig = ConvertToYsonString(DynamicConfig_->GatewaysConfig),
             };
+            YT_LOG_DEBUG("Call YqlPlugin_->OnDynamicConfigChanged with GatewaysConfig: %v", pluginDynamicConfig.GatewaysConfig.AsStringBuf());
             YqlPlugin_->OnDynamicConfigChanged(std::move(pluginDynamicConfig));
         }
     }
@@ -449,6 +450,7 @@ private:
 
         try {
             auto abortResult = YqlPlugin_->Abort(queryId);
+            YT_LOG_DEBUG("Plugin abortion is finished (QueryId: %v)", queryId);
             if (auto ysonError = abortResult.YsonError) {
                 error = ConvertTo<TError>(TYsonString(*ysonError));
             }

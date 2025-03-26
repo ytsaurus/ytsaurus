@@ -2,6 +2,7 @@
 
 #include <yt/yt/core/ytree/convert.h>
 
+#include <Formats/JSONExtractTree.h>
 #include <Functions/FunctionFactory.h>
 #include <Functions/FunctionsJSON.h>
 
@@ -71,8 +72,11 @@ public:
 
     ColumnPtr executeImpl(const ColumnsWithTypeAndName& arguments, const DataTypePtr & result_type, size_t input_rows_count) const override
     {
-        return FunctionJSONHelpers::Executor<Name, Impl, TYsonParserAdapter>::run(arguments, result_type, input_rows_count);
+        return FunctionJSONHelpers::Executor<Name, Impl, TYsonParserAdapter>::run(arguments, result_type, input_rows_count, FormatSettings_);
     }
+
+private:
+    FormatSettings FormatSettings_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -93,7 +97,7 @@ public:
         return arguments.size() - 1;
     }
 
-    static bool insertResultToColumn(IColumn& dest, const Element& element, const std::string_view&)
+    static bool insertResultToColumn(IColumn& dest, const Element& element, const std::string_view&, const FormatSettings&, String&)
     {
         ColumnString& col_str = static_cast<ColumnString&>(dest);
         auto& chars = col_str.getChars();
@@ -124,7 +128,7 @@ public:
         return arguments.size() - 1;
     }
 
-    static bool insertResultToColumn(IColumn& dest, const Element& element, const std::string_view&)
+    static bool insertResultToColumn(IColumn& dest, const Element& element, const std::string_view&, const FormatSettings&, String& error)
     {
         if (!element.isArray()) {
             return false;
@@ -134,7 +138,7 @@ public:
         ColumnArray& col_res = assert_cast<ColumnArray&>(dest);
 
         for (auto value : array) {
-            TYsonExtractRawImpl<Parser>::insertResultToColumn(col_res.getData(), value, {});
+            TYsonExtractRawImpl<Parser>::insertResultToColumn(col_res.getData(), value, {}, {}, error);
         }
 
         col_res.getOffsets().push_back(col_res.getOffsets().back() + array.size());
@@ -162,7 +166,7 @@ public:
         return arguments.size() - 1;
     }
 
-    bool insertResultToColumn(IColumn& dest, const Element& element, const std::string_view&)
+    bool insertResultToColumn(IColumn& dest, const Element& element, const std::string_view&, const FormatSettings&, String& error)
     {
         if (!element.isObject()) {
             return false;
@@ -177,7 +181,7 @@ public:
 
         for (auto [key, value] : object) {
             colKey.insertData(key.data(), key.size());
-            TYsonExtractRawImpl<Parser>::insertResultToColumn(colValue, value, {});
+            TYsonExtractRawImpl<Parser>::insertResultToColumn(colValue, value, {}, {}, error);
         }
 
         colArr.getOffsets().push_back(colArr.getOffsets().back() + object.size());

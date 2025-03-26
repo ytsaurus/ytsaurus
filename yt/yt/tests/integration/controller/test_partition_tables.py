@@ -1,7 +1,7 @@
 from yt_env_setup import YTEnvSetup
 
 from yt_commands import (
-    alter_table, authors, create, get, insert_rows, partition_tables, raises_yt_error, read_table,
+    alter_table, authors, create, create_user, get, insert_rows, partition_tables, raises_yt_error, read_table, read_table_partition,
     sorted_dicts, sync_create_cells, sync_flush_table, sync_mount_table, sync_reshard_table, write_table)
 
 from yt.yson import dumps, to_yson_type
@@ -80,13 +80,26 @@ class TestPartitionTablesCommand(TestPartitionTablesBase):
     USE_DYNAMIC_TABLES = True
 
     @staticmethod
-    def check_partitions(table, partitions):
-        rows = read_table(table)
+    def check_partitions(tables, partitions, check_cookies=False):
+        rows = []
+        for t in tables:
+            rows += read_table(t)
+
         partitioned_rows = []
+        partitioned_rows_by_cookie = []
         for partition in partitions:
+            current_partition_rows = []
             for table_range in partition["table_ranges"]:
-                partitioned_rows.extend(read_table(table_range))
+                current_partition_rows += read_table(table_range)
+            partitioned_rows += current_partition_rows
+            if check_cookies:
+                current_partition_rows_by_cookie = read_table_partition(partition["cookie"])
+                assert sorted_dicts(current_partition_rows) == sorted_dicts(current_partition_rows_by_cookie)
+                partitioned_rows_by_cookie += current_partition_rows_by_cookie
         assert sorted_dicts(rows) == sorted_dicts(partitioned_rows)
+
+        if check_cookies:
+            assert sorted_dicts(rows) == sorted_dicts(partitioned_rows_by_cookie)
 
     @staticmethod
     def check_aggregate_statistics(
@@ -95,22 +108,33 @@ class TestPartitionTablesCommand(TestPartitionTablesBase):
         row_count,
         data_weight=None,
         allowed_absolute_difference=0,
+        compressed_data_size=None
     ):
         aggregate_statistics = defaultdict(int)
         for partition in partitions:
-            assert partition["aggregate_statistics"].keys() == set(["chunk_count", "data_weight", "row_count"])
+            assert partition["aggregate_statistics"].keys() == set(["chunk_count", "data_weight", "row_count", "compressed_data_size"])
             for statistics, value in partition["aggregate_statistics"].items():
                 aggregate_statistics[statistics] += value
                 assert value > 0
             del partition["aggregate_statistics"]
         if data_weight is None:
             data_weight = aggregate_statistics["data_weight"]
+        if compressed_data_size is None:
+            compressed_data_size = aggregate_statistics["compressed_data_size"]
         expected_aggregate_statistics = {
             "chunk_count": chunk_count,
             "data_weight": data_weight,
             "row_count": row_count,
+            "compressed_data_size": compressed_data_size,
         }
         assert aggregate_statistics == pytest.approx(expected_aggregate_statistics, abs=allowed_absolute_difference)
+
+    @staticmethod
+    def strip_cookies(partitions):
+        filtered_partitions = []
+        for p in partitions:
+            filtered_partitions.append({"table_ranges": p["table_ranges"]})
+        return filtered_partitions
 
     @authors("galtsev")
     def test_empty_input(self):
@@ -140,9 +164,11 @@ class TestPartitionTablesCommand(TestPartitionTablesBase):
         row_weight = 1000
         data_weight = self._create_table(table, chunk_count, rows_per_chunk, row_weight, dynamic=dynamic, sorted=sorted)
 
+        enable_cookies = not dynamic
+
         # TODO(galtsev): yields unequal partitions for data_weight_per_partition=int(2 * row_weight * rows_per_chunk)
-        partitions = partition_tables([table], data_weight_per_partition=data_weight // 3)
-        self.check_partitions(table, partitions)
+        partitions = partition_tables([table], data_weight_per_partition=data_weight // 3, enable_cookies=enable_cookies)
+        self.check_partitions([table], partitions, check_cookies=enable_cookies)
         self.check_aggregate_statistics(partitions, chunk_count, chunk_count * rows_per_chunk, data_weight)
 
         expected_partitions = []
@@ -154,7 +180,7 @@ class TestPartitionTablesCommand(TestPartitionTablesBase):
             partition = {"table_ranges": [to_yson_type(table, attributes={"ranges": [limits]})]}
             expected_partitions.append(partition)
 
-        assert partitions == expected_partitions
+        assert self.strip_cookies(partitions) == expected_partitions
 
     @authors("galtsev")
     @pytest.mark.parametrize("enable_dynamic_store_read", [False, True])
@@ -182,7 +208,7 @@ class TestPartitionTablesCommand(TestPartitionTablesBase):
 
         partitions = partition_tables([table], data_weight_per_partition=1 if one_row_per_partition else data_weight // 3)
 
-        self.check_partitions(table, partitions)
+        self.check_partitions([table], partitions)
 
         allowed_absolute_difference = 10 if enable_dynamic_store_read else 0
         expected_chunk_count = row_count if one_row_per_partition else chunk_count
@@ -208,11 +234,11 @@ class TestPartitionTablesCommand(TestPartitionTablesBase):
         row_weight = 1000
         data_weight = self._create_table(table, chunk_count, rows_per_chunk, row_weight, columnar=True)
 
-        partitions_full = partition_tables([table], data_weight_per_partition=data_weight // 3)
-        partitions_half = partition_tables([table + "{key_0,value_1}"],  data_weight_per_partition=data_weight // 3)
+        partitions_full = partition_tables([table], data_weight_per_partition=data_weight // 3, enable_cookies=True)
+        partitions_half = partition_tables([table + "{key_0,value_1}"],  data_weight_per_partition=data_weight // 3, enable_cookies=True)
 
-        self.check_partitions(table, partitions_full)
-        self.check_partitions(table + "{key_0,value_1}", partitions_half)
+        self.check_partitions([table], partitions_full, check_cookies=True)
+        self.check_partitions([table + "{key_0,value_1}"], partitions_half, check_cookies=True)
 
         assert len(partitions_half) > 0
         assert len(partitions_half) < len(partitions_full)
@@ -227,7 +253,7 @@ class TestPartitionTablesCommand(TestPartitionTablesBase):
 
         partitions = partition_tables([table], data_weight_per_partition=2 * row_weight * rows_per_chunk)
 
-        self.check_partitions(table, partitions)
+        self.check_partitions([table], partitions)
 
         assert len(partitions) > 1
 
@@ -293,9 +319,9 @@ class TestPartitionTablesCommand(TestPartitionTablesBase):
         requested_rows = 10
 
         in_table = '<"ranges"=[{"lower_limit"={"row_index"=0}; "upper_limit"={"row_index"=' + str(requested_rows) + '}}]>' + table
-        partitions = partition_tables([in_table], data_weight_per_partition=1)
+        partitions = partition_tables([in_table], data_weight_per_partition=1, enable_cookies=True)
 
-        self.check_partitions(in_table, partitions)
+        self.check_partitions([in_table], partitions, check_cookies=True)
 
         assert len(partitions) == requested_rows
 
@@ -360,9 +386,10 @@ class TestPartitionTablesCommand(TestPartitionTablesBase):
         data_weight2 = self._create_table(table2, chunk_count, rows_per_chunk, row_weight)
         data_weight = data_weight1 + data_weight2
 
-        partitions = partition_tables([table1, table2], data_weight_per_partition=data_weight // 3)
+        partitions = partition_tables([table1, table2], data_weight_per_partition=data_weight // 3, enable_cookies=True)
         self.check_aggregate_statistics(partitions, 2 * chunk_count, 2 * chunk_count * rows_per_chunk, data_weight)
-        assert partitions == [
+        self.check_partitions([table1, table2], partitions, check_cookies=True)
+        assert self.strip_cookies(partitions) == [
             {
                 "table_ranges": [
                     to_yson_type(table1, attributes={"ranges": [{"lower_limit": {"row_index": 0}, "upper_limit": {"row_index": 4000}}]}),
@@ -396,9 +423,10 @@ class TestPartitionTablesCommand(TestPartitionTablesBase):
         data_weight2 = self._create_table(table2, chunk_count, rows_per_chunk, row_weight2)
         data_weight = data_weight1 + data_weight2
 
-        partitions = partition_tables([table1, table2], data_weight_per_partition=data_weight // 3)
+        partitions = partition_tables([table1, table2], data_weight_per_partition=data_weight // 3, enable_cookies=True)
+        self.check_partitions([table1, table2], partitions, check_cookies=True)
         self.check_aggregate_statistics(partitions, 2 * chunk_count, 2 * chunk_count * rows_per_chunk, data_weight)
-        assert partitions == [
+        assert self.strip_cookies(partitions) == [
             {
                 "table_ranges": [
                     to_yson_type(table1, attributes={"ranges": [{"lower_limit": {"row_index": 0}, "upper_limit": {"row_index": 3000}}]}),
@@ -432,9 +460,11 @@ class TestPartitionTablesCommand(TestPartitionTablesBase):
         data_weight2 = self._create_table(table2, chunk_count, rows_per_chunk, row_weight2)
         data_weight = data_weight1 + data_weight2
 
-        partitions = partition_tables([table1, f"{table2}[#3141:#3141]", table2], data_weight_per_partition=data_weight // 3)
+        input = [table1, f"{table2}[#3141:#3141]", table2]
+        partitions = partition_tables(input, data_weight_per_partition=data_weight // 3, enable_cookies=True)
+        self.check_partitions(input, partitions, check_cookies=True)
         self.check_aggregate_statistics(partitions, 2 * chunk_count, 2 * chunk_count * rows_per_chunk, data_weight1 + data_weight2)
-        assert partitions == [
+        assert self.strip_cookies(partitions) == [
             {
                 "table_ranges": [
                     to_yson_type(table1, attributes={"ranges": [{"lower_limit": {"row_index": 0}, "upper_limit": {"row_index": 3000}}]}),
@@ -480,10 +510,10 @@ class TestPartitionTablesCommand(TestPartitionTablesBase):
         row_upper_limit = 5888
 
         in_table = f"{table}[#{row_lower_limit}:#{row_upper_limit}]"
-        partitions = partition_tables([in_table], data_weight_per_partition=data_weight // 3)
-        self.check_partitions(in_table, partitions)
+        partitions = partition_tables([in_table], data_weight_per_partition=data_weight // 3, enable_cookies=True)
+        self.check_partitions([in_table], partitions, check_cookies=True)
         self.check_aggregate_statistics(partitions, chunk_count, row_upper_limit - row_lower_limit)
-        assert partitions == [
+        assert self.strip_cookies(partitions) == [
             {
                 "table_ranges": [to_yson_type(table, attributes={"ranges": [{"lower_limit": {"row_index": 111}, "upper_limit": {"row_index": 3000}}]})],
             },
@@ -520,10 +550,10 @@ class TestPartitionTablesCommand(TestPartitionTablesBase):
         data_weight = self._create_table(table, chunk_count, rows_per_chunk, row_weight)
 
         in_table = table + "{key_1, value_1}"
-        partitions = partition_tables([in_table], data_weight_per_partition=data_weight // 3)
-        self.check_partitions(in_table, partitions)
+        partitions = partition_tables([in_table], data_weight_per_partition=data_weight // 3, enable_cookies=True)
+        self.check_partitions([in_table], partitions, check_cookies=True)
         self.check_aggregate_statistics(partitions, chunk_count, chunk_count * rows_per_chunk)
-        assert partitions == [
+        assert self.strip_cookies(partitions) == [
             {
                 "table_ranges": [
                     to_yson_type(
@@ -553,10 +583,10 @@ class TestPartitionTablesCommand(TestPartitionTablesBase):
 
         attributes = "<int=0; list=[1; [2; [3]]]; my_attribute=my_value; three_eighths=0.375; yes=%true>"
         in_table = attributes + table + "{key_1, value_1}"
-        partitions = partition_tables([in_table], data_weight_per_partition=data_weight // 3)
-        self.check_partitions(in_table, partitions)
+        partitions = partition_tables([in_table], data_weight_per_partition=data_weight // 3, enable_cookies=True)
+        self.check_partitions([in_table], partitions, check_cookies=True)
         self.check_aggregate_statistics(partitions, chunk_count, chunk_count * rows_per_chunk)
-        assert partitions == [
+        assert self.strip_cookies(partitions) == [
             {
                 "table_ranges": [
                     to_yson_type(
@@ -603,4 +633,21 @@ class TestPartitionTablesCommand(TestPartitionTablesBase):
         assert len(get(f"{table}/@key_columns")) < len(get(f"#{chunk_id}/@min_key"))
 
         in_table = f"{table}[3:4]"
-        partition_tables([in_table], data_weight_per_partition=1)
+        partitions = partition_tables([in_table], data_weight_per_partition=1, enable_cookies=True)
+        self.check_partitions([in_table], partitions, check_cookies=True)
+
+    @authors("ermolovd")
+    def test_partition_tables_with_cookie_other_user(self):
+        create_user("user1")
+        create_user("user2")
+
+        table = "//tmp/table"
+        chunk_count = 6
+        rows_per_chunk = 1000
+        row_weight = 1000
+        data_weight = self._create_table(table, chunk_count, rows_per_chunk, row_weight)
+
+        partitions = partition_tables([table], data_weight_per_partition=data_weight // 3, enable_cookies=True, authenticated_user="user1")
+
+        with raises_yt_error("Partition must be read by the same user who created it"):
+            read_table_partition(partitions[0]["cookie"], authenticated_user="user2")

@@ -2,26 +2,28 @@
 
 #include <yt/yt/client/object_client/public.h>
 
+#include <yt/yt/core/logging/log.h>
+
 #include <library/cpp/yt/memory/ref_counted.h>
 
 namespace NYT::NObjectClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DECLARE_REFCOUNTED_CLASS(TReqExecuteBatchWithRetriesConfig)
+DECLARE_REFCOUNTED_STRUCT(TReqExecuteBatchWithRetriesConfig)
 
-DECLARE_REFCOUNTED_CLASS(TObjectAttributeCacheConfig)
+DECLARE_REFCOUNTED_STRUCT(TObjectAttributeCacheConfig)
 DECLARE_REFCOUNTED_CLASS(TObjectAttributeCache)
 
-DECLARE_REFCOUNTED_CLASS(TObjectServiceCacheConfig)
-DECLARE_REFCOUNTED_CLASS(TObjectServiceCacheDynamicConfig)
-DECLARE_REFCOUNTED_CLASS(TCachingObjectServiceConfig)
-DECLARE_REFCOUNTED_CLASS(TCachingObjectServiceDynamicConfig)
+DECLARE_REFCOUNTED_STRUCT(TObjectServiceCacheConfig)
+DECLARE_REFCOUNTED_STRUCT(TObjectServiceCacheDynamicConfig)
+DECLARE_REFCOUNTED_STRUCT(TCachingObjectServiceConfig)
+DECLARE_REFCOUNTED_STRUCT(TCachingObjectServiceDynamicConfig)
 
 DECLARE_REFCOUNTED_CLASS(TObjectServiceCacheEntry)
 DECLARE_REFCOUNTED_CLASS(TObjectServiceCache)
 
-DECLARE_REFCOUNTED_CLASS(TAbcConfig)
+DECLARE_REFCOUNTED_STRUCT(TAbcConfig)
 
 DECLARE_REFCOUNTED_STRUCT(ICachingObjectService)
 
@@ -55,6 +57,10 @@ DEFINE_ENUM_WITH_UNDERLYING_TYPE(EObjectLifeStage, ui8,
      ((RemovalAwaitingCellsSync)(5))
      ((RemovalCommitted)        (6))
 );
+
+////////////////////////////////////////////////////////////////////////////////
+
+YT_DEFINE_GLOBAL(const NLogging::TLogger, ObjectClientLogger, "ObjectClient");
 
 ////////////////////////////////////////////////////////////////////////////////
 

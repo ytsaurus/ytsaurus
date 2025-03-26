@@ -2,7 +2,7 @@
 
 #include <base/types.h>
 #include <Interpreters/IExternalLoaderConfigRepository.h>
-#include <Poco/Timestamp.h>
+#include <DBPoco/Timestamp.h>
 
 
 namespace DB
@@ -18,14 +18,12 @@ public:
 
     std::set<String> getAllLoadablesDefinitionNames() override;
     bool exists(const String & path) override;
-    Poco::Timestamp getUpdateTime(const String & path) override;
     LoadablesConfigurationPtr load(const String & path) override;
 
 private:
     String name;
     String path;
     LoadablesConfigurationPtr config;
-    Poco::Timestamp creation_time;
 };
 
 }

@@ -17,7 +17,7 @@ struct IFileChangelog
     *  \note
     *  Only flushed records are guaranteed to be accessible.
     */
-    virtual NIO::IIOEngine::TReadRequest MakeChunkFragmentReadRequest(
+    virtual NIO::TReadRequest MakeChunkFragmentReadRequest(
         const NIO::TChunkFragmentDescriptor& fragmentDescriptor) = 0;
 
     //! Similar to IChangelog::Close flushes all the data (and the index)

@@ -13,7 +13,7 @@
 #include <IO/Operators.h>
 #include <Common/PODArray.h>
 #include <Common/NaNUtils.h>
-#include <Poco/Exception.h>
+#include <DBPoco/Exception.h>
 #include <pcg_random.hpp>
 
 
@@ -160,7 +160,7 @@ public:
     void merge(const ReservoirSampler<T, OnEmpty> & b)
     {
         if (sample_count != b.sample_count)
-            throw Poco::Exception("Cannot merge ReservoirSampler's with different sample_count");
+            throw DBPoco::Exception("Cannot merge ReservoirSampler's with different sample_count");
         sorted = false;
 
         if (b.total_values <= sample_count)
@@ -255,13 +255,13 @@ private:
 
     UInt64 genRandom(UInt64 limit)
     {
-        assert(limit > 0);
+        chassert(limit > 0);
 
         /// With a large number of values, we will generate random numbers several times slower.
-        if (limit <= static_cast<UInt64>(rng.max()))
-            return static_cast<UInt32>(rng()) % static_cast<UInt32>(limit);
+        if (limit <= static_cast<UInt64>(pcg32_fast::max()))
+            return rng() % limit;
         else
-            return (static_cast<UInt64>(rng()) * (static_cast<UInt64>(rng.max()) + 1ULL) + static_cast<UInt64>(rng())) % limit;
+            return (static_cast<UInt64>(rng()) * (static_cast<UInt64>(pcg32_fast::max()) + 1ULL) + static_cast<UInt64>(rng())) % limit;
     }
 
     void sortIfNeeded()

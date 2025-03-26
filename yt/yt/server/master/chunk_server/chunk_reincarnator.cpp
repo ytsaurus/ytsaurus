@@ -1154,8 +1154,8 @@ private:
                 YT_LOG_ALERT(
                     "Reincarnated chunk has a different schema (NewChunkId: %v, NewSchema: %v, OldSchema: %v)",
                     newChunk->GetId(),
-                    *newChunk->Schema()->AsTableSchema(),
-                    *oldChunk->Schema()->AsTableSchema());
+                    newChunk->Schema()->AsTableSchema(),
+                    oldChunk->Schema()->AsTableSchema());
                 OnReincarnationFinished(EReincarnationResult::GenericPermanentFailure);
                 continue;
             }

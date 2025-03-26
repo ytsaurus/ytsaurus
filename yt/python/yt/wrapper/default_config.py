@@ -227,6 +227,13 @@ default_config = {
     # Set to yt.wrapper.tvm.ServiceTicketAuth(tvm_client) or yt.wrapper.tvm.UserTicketFixedAuth()
     "tvm_auth": None,
 
+    # This option allows the client to impersonate another user.
+    # Setting this option is only allowed for superusers that are not banned,
+    # all other attempts at impersonation will result in an authorization error.
+    # For now only the HTTP driver supports option, in the RPC driver it is ignored.
+    # If you are using the native driver, use the `driver_user_name` option below instead.
+    "impersonation_user": None,
+
     # Force using this version of api.
     "api_version": None,
 
@@ -325,6 +332,8 @@ default_config = {
         #  * close - stdout will be closed for user writes. Warning: may lead to errors that are hard to debug;
         #  * none - disable protection.
         "stdout_fd_protection": "redirect_to_stderr",
+        # Any stdout output will be redirected to stderr (by cluster, not client).
+        "redirect_stdout_to_stderr": False,
         # Enables using tmpfs for modules archive.
         "enable_tmpfs_archive": True,
         # Add tmpfs archive size to memory limit.

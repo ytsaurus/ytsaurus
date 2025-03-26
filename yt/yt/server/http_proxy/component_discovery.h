@@ -35,6 +35,8 @@ DEFINE_ENUM(EClusterComponentType,
     ((ReplicatedTableTracker)  (16))
     ((QueueAgent)              (17))
     ((QueryTracker)            (18))
+
+    ((CypressProxy)            (19))
 );
 
 ////////////////////////////////////////////////////////////////////////////////

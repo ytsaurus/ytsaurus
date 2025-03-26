@@ -12,7 +12,7 @@ using namespace NYson;
 ////////////////////////////////////////////////////////////////////////////////
 
 class TPocoConfigWrapper
-    : public Poco::Util::AbstractConfiguration
+    : public DBPoco::Util::AbstractConfiguration
 {
 private:
     IMapNodePtr Node_;
@@ -118,7 +118,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-Poco::AutoPtr<Poco::Util::AbstractConfiguration> ConvertToPocoConfig(const INodePtr& node)
+DBPoco::AutoPtr<DBPoco::Util::AbstractConfiguration> ConvertToPocoConfig(const INodePtr& node)
 {
     if (node->GetType() != ENodeType::Map) {
         THROW_ERROR_EXCEPTION("Only map nodes may be converted into Poco config, got node of type %v", node->GetType());
@@ -127,9 +127,9 @@ Poco::AutoPtr<Poco::Util::AbstractConfiguration> ConvertToPocoConfig(const INode
     return new TPocoConfigWrapper(node->AsMap());
 }
 
-Poco::AutoPtr<Poco::Util::LayeredConfiguration> ConvertToLayeredConfig(const INodePtr& node)
+DBPoco::AutoPtr<DBPoco::Util::LayeredConfiguration> ConvertToLayeredConfig(const INodePtr& node)
 {
-    auto* layeredConfig = new Poco::Util::LayeredConfiguration();
+    auto* layeredConfig = new DBPoco::Util::LayeredConfiguration();
     layeredConfig->add(ConvertToPocoConfig(node));
     return layeredConfig;
 }

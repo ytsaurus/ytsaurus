@@ -39,16 +39,19 @@ public:
     TFuture<TKeyInfoPtr> FindKey(const TOwnerId& ownerId, const TKeyId& keyId) override
     {
         auto keyNodePath = MakeCypressKeyPath(Config_->Path, ownerId, keyId);
-        auto result = Client_->GetNode(keyNodePath);
 
-        return result.Apply(BIND([] (const TYsonString& str) {
-            return ConvertTo<TKeyInfoPtr>(str);
+        TGetNodeOptions options;
+        static_cast<TMasterReadOptions&>(options) = *Config_->CypressReadOptions;
+        auto result = Client_->GetNode(keyNodePath, options);
+
+        return result.ApplyUnique(BIND([] (TYsonString&& str) mutable {
+            return ConvertTo<TKeyInfoPtr>(std::move(str));
         }));
     }
 
 private:
-    TCypressKeyReaderConfigPtr Config_;
-    NApi::IClientPtr Client_;
+    const TCypressKeyReaderConfigPtr Config_;
+    const IClientPtr Client_;
 };
 
 DEFINE_REFCOUNTED_TYPE(TCypressKeyReader)
@@ -77,7 +80,7 @@ public:
         return Client_->CreateNode(
             ownerNodePath,
             EObjectType::MapNode,
-            std::move(options)).AsVoid();
+            options).AsVoid();
     }
 
     const TOwnerId& GetOwner() override
@@ -105,20 +108,21 @@ public:
         auto attributes = CreateEphemeralAttributes();
         attributes->Set("expiration_time", keyExpirationTime + Config_->KeyDeletionDelay);
 
+        // TODO(pavook) retrying channel.
         TCreateNodeOptions options;
         options.Attributes = attributes;
         auto node = Client_->CreateNode(
             keyNodePath,
             EObjectType::Document,
-            std::move(options));
+            options);
 
-        return node.Apply(
+        return node.ApplyUnique(
             BIND([
                     this,
                     keyNodePath = std::move(keyNodePath),
                     keyInfo,
                     this_ = MakeStrong(this)
-                ] (NCypressClient::TNodeId /*nodeId*/) mutable {
+                ] (NCypressClient::TNodeId&& /*nodeId*/) mutable {
                     return Client_->SetNode(
                         keyNodePath,
                         ConvertToYsonString(std::move(keyInfo)));
@@ -127,7 +131,7 @@ public:
 
 private:
     const TCypressKeyWriterConfigPtr Config_;
-    const NApi::IClientPtr Client_;
+    const IClientPtr Client_;
 };
 
 DEFINE_REFCOUNTED_TYPE(TCypressKeyWriter)
@@ -141,11 +145,13 @@ IKeyStoreReaderPtr CreateCypressKeyReader(TCypressKeyReaderConfigPtr config, ICl
     return New<TCypressKeyReader>(std::move(config), std::move(client));
 }
 
-TFuture<IKeyStoreWriterPtr> CreateCypressKeyWriter(TCypressKeyWriterConfigPtr config, IClientPtr client)
+TFuture<IKeyStoreWriterPtr> CreateCypressKeyWriter(
+    TCypressKeyWriterConfigPtr config,
+    IClientPtr client)
 {
     auto writer = New<TCypressKeyWriter>(std::move(config), std::move(client));
-    return writer->Initialize().Apply(BIND([writer = std::move(writer)] () -> IKeyStoreWriterPtr {
-        return writer;
+    return writer->Initialize().Apply(BIND([writer = std::move(writer)] () mutable -> IKeyStoreWriterPtr {
+        return std::move(writer);
     }));
 }
 

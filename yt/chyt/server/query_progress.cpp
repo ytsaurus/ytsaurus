@@ -42,12 +42,13 @@ void TQueryProgress::Add(const DB::Progress& progress)
 
 void TQueryProgress::AddSecondaryProgress(TGuid queryId, const DB::ReadProgress& progress)
 {
+    // It's expected that the object has already been created.
     auto& progressHolder = SecondaryProgress_[queryId];
 
-    progressHolder.ReadRows = progress.read_rows;
-    progressHolder.ReadBytes = progress.read_bytes;
-    progressHolder.TotalRowsToRead = progress.total_rows_to_read;
-    progressHolder.TotalBytesToRead = progress.total_bytes_to_read;
+    progressHolder.ReadRows += progress.read_rows;
+    progressHolder.ReadBytes += progress.read_bytes;
+    progressHolder.TotalRowsToRead += progress.total_rows_to_read;
+    progressHolder.TotalBytesToRead += progress.total_bytes_to_read;
 }
 
 void TQueryProgress::FinishSecondaryQuery(TGuid queryId)

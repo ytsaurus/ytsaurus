@@ -142,6 +142,7 @@
 #include <yt/yt/core/compression/codec.h>
 
 #include <yt/yt/core/rpc/dispatcher.h>
+#include <yt/yt/core/rpc/retrying_channel.h>
 
 #include <yt/yt/core/logging/log.h>
 
@@ -896,7 +897,7 @@ public:
         chunk->Confirm(chunkInfo, chunkMeta);
 
         if (temporarySchema) {
-            tableManager->GetOrCreateNativeMasterTableSchema(*temporarySchema->AsTableSchema(), chunk);
+            tableManager->GetOrCreateNativeMasterTableSchema(*temporarySchema->AsCompactTableSchema(), chunk);
         }
 
         UpdateChunkWeightStatisticsHistogram(chunk, /*add*/ true);
@@ -1386,14 +1387,6 @@ public:
 
         ++ChunkViewsDestroyed_;
     }
-
-    TChunkView* CloneChunkView(TChunkView* chunkView, NChunkClient::TLegacyReadRange readRange) override
-    {
-        auto modifier = TChunkViewModifier(chunkView->Modifier())
-            .WithReadRange(readRange);
-        return CreateChunkView(chunkView->GetUnderlyingTree(), std::move(modifier));
-    }
-
 
     TDynamicStore* CreateDynamicStore(TDynamicStoreId storeId, TTablet* tablet) override
     {
@@ -2927,20 +2920,13 @@ private:
         TRange<TChunkLocationRawPtr> locationDirectory,
         const std::vector<TChunk*>& chunks)
     {
-        auto isSequoia = chunks.empty() ? false : chunks[0]->IsSequoia();
-        for (auto* chunk : chunks) {
-            YT_VERIFY(chunk->IsSequoia() == isSequoia);
-        }
-
         auto* replicaAnnouncements = response->mutable_replica_announcements();
         bool clusterIsStableEnough = IsClusterStableEnoughForImmediateReplicaAnnounces();
         if (Bootstrap_->IsPrimaryMaster()) {
             replicaAnnouncements->set_enable_lazy_replica_announcements(clusterIsStableEnough);
         }
 
-        auto* announcements = isSequoia ?
-            replicaAnnouncements->mutable_sequoia_announcements() :
-            replicaAnnouncements->mutable_non_sequoia_announcements();
+        auto* announcements = replicaAnnouncements->mutable_non_sequoia_announcements();
         announcements->set_revision(ToProto(GetCurrentMutationContext()->GetVersion().ToRevision()));
 
         auto onChunk = [&] (TChunk* chunk, bool confirmationNeeded) {
@@ -3154,6 +3140,18 @@ private:
         YT_VERIFY(options.Persistent);
         YT_VERIFY(options.LatePrepare);
 
+        const auto& dynamicConfig = GetDynamicConfig();
+        if (request->enable_chunk_refresh() != dynamicConfig->EnableChunkRefresh) {
+            THROW_ERROR_EXCEPTION(
+                NRpc::EErrorCode::TransientFailure,
+                "\"enable_chunk_refresh\" setting mismatch");
+        }
+        if (request->enable_sequoia_chunk_refresh() != dynamicConfig->SequoiaChunkReplicas->EnableSequoiaChunkRefresh) {
+            THROW_ERROR_EXCEPTION(
+                NRpc::EErrorCode::TransientFailure,
+                "\"enable_sequoia_chunk_refresh\" setting mismatch");
+        }
+
         auto nodeId = FromProto<TNodeId>(request->node_id());
 
         const auto& nodeTracker = Bootstrap_->GetNodeTracker();
@@ -3259,9 +3257,12 @@ private:
     {
         YT_VERIFY(request->replicas_size() > 0);
 
+        const auto& config = GetDynamicConfig()->SequoiaChunkReplicas;
+        const auto& retriableErrorCodes = config->RetriableErrorCodes;
+
         return Bootstrap_
             ->GetSequoiaClient()
-            ->StartTransaction({.CellTag = Bootstrap_->GetCellTag()})
+            ->StartTransaction(ESequoiaTransactionType::ChunkConfirmation, {.CellTag = Bootstrap_->GetCellTag()})
             .Apply(BIND([=, request = std::move(request), this, this_ = MakeStrong(this)] (const ISequoiaTransactionPtr& transaction) {
                 auto chunkId = FromProto<TChunkId>(request->chunk_id());
                 auto replicas = FromProto<std::vector<TChunkReplicaWithLocation>>(request->replicas());
@@ -3288,28 +3289,28 @@ private:
                 };
 
                 auto result = WaitFor(transaction->Commit(commitOptions));
-                if (IsRetriableSequoiaReplicasError(result)) {
-                    THROW_ERROR_EXCEPTION(
-                        NRpc::EErrorCode::TransientFailure,
-                        "Sequoia retriable error")
-                        << std::move(result);
-                }
+                ThrowOnSequoiaReplicasError(result, retriableErrorCodes);
             }).AsyncVia(NRpc::TDispatcher::Get()->GetHeavyInvoker()));
     }
 
-    TFuture<TRspModifyReplicas> ModifySequoiaReplicas(std::unique_ptr<TReqModifyReplicas> request) override
+    TFuture<TRspModifyReplicas> ModifySequoiaReplicas(
+        ESequoiaTransactionType transactionType,
+        std::unique_ptr<TReqModifyReplicas> request) override
     {
         YT_VERIFY(request->added_chunks_size() + request->removed_chunks_size() > 0);
 
-        const auto& config = GetDynamicConfig()->SequoiaChunkReplicas;
-        auto enableChunkRefresh = config->EnableSequoiaChunkRefresh;
-        auto processRemovedSequoiaReplicasOnMaster = config->ProcessRemovedSequoiaReplicasOnMaster;
-        auto storeSequoiaReplicasOnMaster = config->StoreSequoiaReplicasOnMaster;
-        auto clearMasterRequest = config->ClearMasterRequest;
+        const auto& config = GetDynamicConfig();
+        const auto& sequoiaConfig = config->SequoiaChunkReplicas;
+        auto enableChunkRefresh = config->EnableChunkRefresh;
+        auto enableSequoiaChunkRefresh = sequoiaConfig->EnableSequoiaChunkRefresh;
+        auto processRemovedSequoiaReplicasOnMaster = sequoiaConfig->ProcessRemovedSequoiaReplicasOnMaster;
+        auto storeSequoiaReplicasOnMaster = sequoiaConfig->StoreSequoiaReplicasOnMaster;
+        auto clearMasterRequest = sequoiaConfig->ClearMasterRequest;
+        auto retriableErrorCodes = sequoiaConfig->RetriableErrorCodes;
 
         return Bootstrap_
             ->GetSequoiaClient()
-            ->StartTransaction({.CellTag = Bootstrap_->GetCellTag()})
+            ->StartTransaction(transactionType, {.CellTag = Bootstrap_->GetCellTag()})
             .Apply(BIND([=, request = std::move(request), this, this_ = MakeStrong(this)] (const ISequoiaTransactionPtr& transaction) {
                 auto nodeId = FromProto<TNodeId>(request->node_id());
 
@@ -3364,12 +3365,8 @@ private:
 
                 auto replicasFuture = transaction->LookupRows(keys);
                 auto removedReplicasOrError = WaitFor(replicasFuture);
-                if (IsRetriableSequoiaReplicasError(removedReplicasOrError)) {
-                    THROW_ERROR_EXCEPTION(
-                        NRpc::EErrorCode::TransientFailure,
-                        "Sequoia retriable error")
-                        << std::move(removedReplicasOrError);
-                }
+                ThrowOnSequoiaReplicasError(removedReplicasOrError, retriableErrorCodes);
+
                 const auto& removedReplicas = removedReplicasOrError
                     .ValueOrThrow();
 
@@ -3437,7 +3434,7 @@ private:
                         };
                         transaction->DeleteRow(locationReplicaKey);
                     }
-                    if (enableChunkRefresh) {
+                    if (enableSequoiaChunkRefresh && enableChunkRefresh) {
                         NRecords::TChunkRefreshQueue refreshQueueEntry{
                             .TabletIndex = GetChunkShardIndex(chunkId),
                             .ChunkId = chunkId,
@@ -3448,7 +3445,7 @@ private:
                 }
 
                 // If we do not need replicas on master, we can make request more lightweight.
-                if (enableChunkRefresh && clearMasterRequest) {
+                if (enableSequoiaChunkRefresh && clearMasterRequest) {
                     if (!storeSequoiaReplicasOnMaster) {
                         std::vector<TChunkAddInfo> deadAddedChunks;
                         for (const auto& chunkInfo : request->added_chunks()) {
@@ -3469,6 +3466,9 @@ private:
                     }
                 }
 
+                request->set_enable_chunk_refresh(enableChunkRefresh);
+                request->set_enable_sequoia_chunk_refresh(enableSequoiaChunkRefresh);
+
                 transaction->AddTransactionAction(
                     Bootstrap_->GetCellTag(),
                     NTransactionClient::MakeTransactionActionData(*request));
@@ -3480,12 +3480,7 @@ private:
                 };
 
                 auto result = WaitFor(transaction->Commit(commitOptions));
-                if (IsRetriableSequoiaReplicasError(result)) {
-                    THROW_ERROR_EXCEPTION(
-                        NRpc::EErrorCode::TransientFailure,
-                        "Sequoia retriable error")
-                        << std::move(result);
-                }
+                ThrowOnSequoiaReplicasError(result, retriableErrorCodes);
 
                 // TODO(aleksandra-zh): add ally replica info.
                 TRspModifyReplicas response;
@@ -4537,31 +4532,11 @@ private:
             THROW_ERROR_EXCEPTION("Chunk confirmation without location uuids is forbidden");
         }
 
-        if (subrequest->replicas().empty() && !subrequest->legacy_replicas().empty()) {
-            THROW_ERROR_EXCEPTION("Attempted to confirm chunk with only legacy replicas");
-        }
-
         auto replicas = FromProto<TChunkReplicaWithLocationList>(subrequest->replicas());
-        if (!subrequest->location_uuids_supported()) {
-            auto legacyReplicas = FromProto<TChunkReplicaWithMediumList>(subrequest->legacy_replicas());
-
-            const auto& nodeTracker = Bootstrap_->GetNodeTracker();
-            for (auto replica : legacyReplicas) {
-                auto* node = nodeTracker->FindNode(replica.GetNodeId());
-                if (!node) {
-                    continue;
-                }
-
-                THROW_ERROR_EXCEPTION("Cannot confirm chunk without location uuids");
-
-                replicas.emplace_back(replica, TChunkLocationUuid());
-            }
-        }
-
         auto chunkId = FromProto<TChunkId>(subrequest->chunk_id());
         auto schemaId = FromProto<TMasterTableSchemaId>(subrequest->schema_id());
-        auto* chunk = GetChunkOrThrow(chunkId);
 
+        auto* chunk = GetChunkOrThrow(chunkId);
         ConfirmChunk(
             chunk,
             replicas,
@@ -5553,7 +5528,7 @@ private:
     {
         return Bootstrap_
             ->GetSequoiaClient()
-            ->StartTransaction({.CellTag = Bootstrap_->GetCellTag()})
+            ->StartTransaction(ESequoiaTransactionType::DeadChunkReplicaRemoval, {.CellTag = Bootstrap_->GetCellTag()})
             .Apply(BIND([=, request = std::move(request), this, this_ = MakeStrong(this)] (const ISequoiaTransactionPtr& transaction) {
                 YT_LOG_DEBUG("Removing dead Sequoia chunk replicas (ChunkCount: %v)", request->chunk_ids_size());
                 for (const auto& protoChunkId : request->chunk_ids()) {
@@ -5657,12 +5632,8 @@ private:
                 auto nodeState = node->GetLocalState();
                 // If node is offline or being disposed, we might have already cleared the corresponding location and
                 // adding destroyed replica there again will just get it stuck there.
-
-                // If node is registered, she will tell us about her replicas with full heartbeat (including that one),
-                // and we will add it to destroyed set at that moment (we should not add it now, because if node goes back offline
-                // before reporting heartbeat, the replica will get stuck as well).
-                if (nodeState != ENodeState::Online) {
-                    YT_LOG_DEBUG("Skip adding replica to destroyed set as node is not online (NodeId: %v, State: %v, ChunkId: %v)",
+                if (nodeState != ENodeState::Online && nodeState != ENodeState::Registered) {
+                    YT_LOG_DEBUG("Skip adding replica to destroyed set as node is neither online nor registered (NodeId: %v, State: %v, ChunkId: %v)",
                         replica.NodeId,
                         nodeState,
                         chunkId);
@@ -6302,7 +6273,11 @@ private:
 
         const auto& channelFactory = Bootstrap_->GetClusterConnection()->GetChannelFactory();
         auto channel = channelFactory->CreateChannel(*address);
-        return CreateRealmChannel(std::move(channel), Bootstrap_->GetCellId());
+        channel = CreateRealmChannel(std::move(channel), Bootstrap_->GetCellId());
+
+        const auto& masterConnection = Bootstrap_->GetConfig()->MulticellManager->MasterConnection;
+        channel = CreateRetryingChannel(masterConnection, std::move(channel));
+        return CreateDefaultTimeoutChannel(std::move(channel), masterConnection->RpcTimeout);
     }
 
     NRpc::IChannelPtr GetChunkReplicatorChannelOrThrow(TChunk* chunk) override

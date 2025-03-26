@@ -5,14 +5,25 @@ LIBRARY()
 LICENSE(
     Apache-2.0 AND
     BSD-3-Clause AND
+    BSL-1.0 AND
+    CC0-1.0 AND
     MIT
 )
 
 LICENSE_TEXTS(.yandex_meta/licenses.list.txt)
 
-VERSION(23.8.16.40)
+VERSION(24.8.5.115)
 
 PEERDIR(
+    contrib/clickhouse/base/poco/Crypto
+    contrib/clickhouse/base/poco/Data
+    contrib/clickhouse/base/poco/Foundation
+    contrib/clickhouse/base/poco/JSON
+    contrib/clickhouse/base/poco/Net
+    contrib/clickhouse/base/poco/NetSSL_OpenSSL
+    contrib/clickhouse/base/poco/Redis
+    contrib/clickhouse/base/poco/Util
+    contrib/clickhouse/base/poco/XML
     contrib/clickhouse/contrib/cctz-cmake
     contrib/clickhouse/src/Common
     contrib/clickhouse/src/Parsers
@@ -24,7 +35,6 @@ PEERDIR(
     contrib/libs/croaring
     contrib/libs/double-conversion
     contrib/libs/farmhash
-    contrib/libs/fastops/fastops
     contrib/libs/fmt
     contrib/libs/icu
     contrib/libs/libc_compat
@@ -33,17 +43,7 @@ PEERDIR(
     contrib/libs/metrohash
     contrib/libs/miniselect
     contrib/libs/msgpack
-    contrib/libs/pdqsort
-    contrib/libs/poco/Crypto
-    contrib/libs/poco/Data
-    contrib/libs/poco/Foundation
-    contrib/libs/poco/JSON
     contrib/libs/poco/MongoDB
-    contrib/libs/poco/Net
-    contrib/libs/poco/NetSSL_OpenSSL
-    contrib/libs/poco/Redis
-    contrib/libs/poco/Util
-    contrib/libs/poco/XML
     contrib/libs/rapidjson
     contrib/libs/re2
     contrib/libs/simdjson
@@ -73,13 +73,17 @@ PEERDIR(
     contrib/restricted/magic_enum
     contrib/restricted/murmurhash
     contrib/restricted/patched/replxx
-    contrib/restricted/turbo_base64
     library/cpp/clickhouse_deps/h3_compat
     library/cpp/clickhouse_deps/incbin_stub
-    library/cpp/clickhouse_deps/re2_st_stub
     library/cpp/consistent_hashing
     library/cpp/sanitizer/include
 )
+
+IF (ARCH_X86_64)
+    PEERDIR(
+        contrib/libs/fastops/fastops
+    )
+ENDIF()
 
 ADDINCL(
     GLOBAL contrib/clickhouse/src
@@ -89,9 +93,19 @@ ADDINCL(
     GLOBAL contrib/restricted/murmurhash
     contrib/clickhouse/base
     contrib/clickhouse/base/pcg-random
+    contrib/clickhouse/base/poco/Crypto/include
+    contrib/clickhouse/base/poco/Data/include
+    contrib/clickhouse/base/poco/Foundation/include
+    contrib/clickhouse/base/poco/JSON/include
+    contrib/clickhouse/base/poco/Net/include
+    contrib/clickhouse/base/poco/NetSSL_OpenSSL/include
+    contrib/clickhouse/base/poco/Redis/include
+    contrib/clickhouse/base/poco/Util/include
+    contrib/clickhouse/base/poco/XML/include
+    contrib/clickhouse/contrib/expected/include
     contrib/clickhouse/contrib/libdivide-cmake
+    contrib/clickhouse/contrib/pdqsort
     contrib/clickhouse/includes/configs
-    contrib/clickhouse/src/Storages/System/InformationSchema
     contrib/libs/apache/avro/include/avro
     contrib/libs/croaring/include/roaring
     contrib/libs/double-conversion
@@ -101,14 +115,12 @@ ADDINCL(
     contrib/libs/lz4
     contrib/libs/miniselect/include
     contrib/libs/msgpack/include
-    contrib/libs/pdqsort
     contrib/libs/rapidjson/include
     contrib/libs/simdjson/include
     contrib/libs/sparsehash/src
     contrib/libs/zstd/include
     contrib/restricted/cityhash-1.0.2
     contrib/restricted/fast_float/include
-    contrib/restricted/turbo_base64
     library/cpp/clickhouse_deps/h3_compat
     library/cpp/clickhouse_deps/incbin_stub
     library/cpp/consistent_hashing
@@ -120,6 +132,12 @@ NO_UTIL()
 
 IF (OS_DARWIN)
     CFLAGS(
+        -D_DARWIN_C_SOURCE
+    )
+ENDIF()
+
+IF (OS_DARWIN)
+    CFLAGS(
         GLOBAL -DOS_DARWIN
     )
 ELSEIF (OS_LINUX)
@@ -128,10 +146,13 @@ ELSEIF (OS_LINUX)
     )
 ENDIF()
 
+IF (OS_LINUX)
+    CFLAGS(
+        -DPOCO_HAVE_FD_EPOLL
+    )
+ENDIF()
+
 CFLAGS(
-    -DAWS_SDK_VERSION_MAJOR=1
-    -DAWS_SDK_VERSION_MINOR=10
-    -DAWS_SDK_VERSION_PATCH=36
     -DBOOST_ASIO_HAS_STD_INVOKE_RESULT=1
     -DBOOST_ASIO_STANDALONE=1
     -DBOOST_TIMER_ENABLE_DEPRECATED=1
@@ -140,16 +161,16 @@ CFLAGS(
     -DLZ4_DISABLE_DEPRECATE_WARNINGS=1
     -DLZ4_FAST_DEC_LOOP=1
     -DPOCO_ENABLE_CPP11
-    -DPOCO_HAVE_FD_EPOLL
     -DPOCO_OS_FAMILY_UNIX
     -DSNAPPY_CODEC_AVAILABLE
     -DUNALIGNED_OK
     -DWITH_COVERAGE=0
     -DWITH_GZFILEOP
     -DX86_64
+    -DXXH_INLINE_ALL
     -DZLIB_COMPAT
     -D_LIBCPP_ENABLE_THREAD_SAFETY_ANNOTATIONS
-    GLOBAL -DXXH_INLINE_ALL
+    -D_LIBUNWIND_IS_NATIVE_ONLY
 )
 
 SRCS(
@@ -167,8 +188,10 @@ SRCS(
     Access/Common/AccessType.cpp
     Access/Common/AllowedClientHosts.cpp
     Access/Common/AuthenticationType.cpp
+    Access/Common/HTTPAuthenticationScheme.cpp
     Access/Common/QuotaDefs.cpp
     Access/Common/RowPolicyDefs.cpp
+    Access/Common/SSLCertificateSubjects.cpp
     Access/ContextAccess.cpp
     Access/ContextAccessParams.cpp
     Access/Credentials.cpp
@@ -197,6 +220,7 @@ SRCS(
     Access/RolesOrUsersSet.cpp
     Access/RowPolicy.cpp
     Access/RowPolicyCache.cpp
+    Access/SettingsAuthResponseParser.cpp
     Access/SettingsConstraints.cpp
     Access/SettingsProfile.cpp
     Access/SettingsProfileElement.cpp
@@ -207,13 +231,13 @@ SRCS(
     AggregateFunctions/AggregateFunctionAggThrow.cpp
     AggregateFunctions/AggregateFunctionAnalysisOfVariance.cpp
     AggregateFunctions/AggregateFunctionAny.cpp
-    AggregateFunctions/AggregateFunctionArray.cpp
+    AggregateFunctions/AggregateFunctionAnyHeavy.cpp
+    AggregateFunctions/AggregateFunctionAnyRespectNulls.cpp
     AggregateFunctions/AggregateFunctionAvg.cpp
     AggregateFunctions/AggregateFunctionAvgWeighted.cpp
     AggregateFunctions/AggregateFunctionBitwise.cpp
     AggregateFunctions/AggregateFunctionBoundingRatio.cpp
     AggregateFunctions/AggregateFunctionCategoricalInformationValue.cpp
-    AggregateFunctions/AggregateFunctionCombinatorFactory.cpp
     AggregateFunctions/AggregateFunctionContingencyCoefficient.cpp
     AggregateFunctions/AggregateFunctionCorr.cpp
     AggregateFunctions/AggregateFunctionCount.cpp
@@ -222,37 +246,32 @@ SRCS(
     AggregateFunctions/AggregateFunctionCramersVBiasCorrected.cpp
     AggregateFunctions/AggregateFunctionDeltaSum.cpp
     AggregateFunctions/AggregateFunctionDeltaSumTimestamp.cpp
-    AggregateFunctions/AggregateFunctionDistinct.cpp
     AggregateFunctions/AggregateFunctionEntropy.cpp
     AggregateFunctions/AggregateFunctionExponentialMovingAverage.cpp
     AggregateFunctions/AggregateFunctionFactory.cpp
     AggregateFunctions/AggregateFunctionFlameGraph.cpp
-    AggregateFunctions/AggregateFunctionForEach.cpp
     AggregateFunctions/AggregateFunctionFourthMoment.cpp
     AggregateFunctions/AggregateFunctionGroupArray.cpp
     AggregateFunctions/AggregateFunctionGroupArrayInsertAt.cpp
+    AggregateFunctions/AggregateFunctionGroupArrayIntersect.cpp
     AggregateFunctions/AggregateFunctionGroupArrayMoving.cpp
+    AggregateFunctions/AggregateFunctionGroupArraySorted.cpp
     AggregateFunctions/AggregateFunctionGroupBitmap.cpp
+    AggregateFunctions/AggregateFunctionGroupConcat.cpp
     AggregateFunctions/AggregateFunctionGroupUniqArray.cpp
     AggregateFunctions/AggregateFunctionHistogram.cpp
-    AggregateFunctions/AggregateFunctionIf.cpp
     AggregateFunctions/AggregateFunctionIntervalLengthSum.cpp
     AggregateFunctions/AggregateFunctionKolmogorovSmirnovTest.cpp
+    AggregateFunctions/AggregateFunctionLargestTriangleThreeBuckets.cpp
     AggregateFunctions/AggregateFunctionMLMethod.cpp
     AggregateFunctions/AggregateFunctionMannWhitney.cpp
-    AggregateFunctions/AggregateFunctionMap.cpp
-    AggregateFunctions/AggregateFunctionMax.cpp
     AggregateFunctions/AggregateFunctionMaxIntersections.cpp
     AggregateFunctions/AggregateFunctionMeanZTest.cpp
-    AggregateFunctions/AggregateFunctionMerge.cpp
-    AggregateFunctions/AggregateFunctionMin.cpp
     AggregateFunctions/AggregateFunctionNothing.cpp
-    AggregateFunctions/AggregateFunctionNull.cpp
-    AggregateFunctions/AggregateFunctionOrFill.cpp
     AggregateFunctions/AggregateFunctionQuantile.cpp
-    AggregateFunctions/AggregateFunctionQuantileApprox.cpp
     AggregateFunctions/AggregateFunctionQuantileBFloat16.cpp
     AggregateFunctions/AggregateFunctionQuantileBFloat16Weighted.cpp
+    AggregateFunctions/AggregateFunctionQuantileDD.cpp
     AggregateFunctions/AggregateFunctionQuantileDeterministic.cpp
     AggregateFunctions/AggregateFunctionQuantileExact.cpp
     AggregateFunctions/AggregateFunctionQuantileExactExclusive.cpp
@@ -260,22 +279,20 @@ SRCS(
     AggregateFunctions/AggregateFunctionQuantileExactInclusive.cpp
     AggregateFunctions/AggregateFunctionQuantileExactLow.cpp
     AggregateFunctions/AggregateFunctionQuantileExactWeighted.cpp
+    AggregateFunctions/AggregateFunctionQuantileGK.cpp
     AggregateFunctions/AggregateFunctionQuantileInterpolatedWeighted.cpp
     AggregateFunctions/AggregateFunctionQuantileTDigest.cpp
     AggregateFunctions/AggregateFunctionQuantileTDigestWeighted.cpp
     AggregateFunctions/AggregateFunctionQuantileTiming.cpp
     AggregateFunctions/AggregateFunctionQuantileTimingWeighted.cpp
     AggregateFunctions/AggregateFunctionRankCorrelation.cpp
-    AggregateFunctions/AggregateFunctionResample.cpp
     AggregateFunctions/AggregateFunctionRetention.cpp
     AggregateFunctions/AggregateFunctionSecondMoment.cpp
     AggregateFunctions/AggregateFunctionSequenceMatch.cpp
     AggregateFunctions/AggregateFunctionSequenceNextNode.cpp
     AggregateFunctions/AggregateFunctionSimpleLinearRegression.cpp
-    AggregateFunctions/AggregateFunctionSimpleState.cpp
     AggregateFunctions/AggregateFunctionSingleValueOrNull.cpp
     AggregateFunctions/AggregateFunctionSparkbar.cpp
-    AggregateFunctions/AggregateFunctionState.cpp
     AggregateFunctions/AggregateFunctionStatistics.cpp
     AggregateFunctions/AggregateFunctionStudentTTest.cpp
     AggregateFunctions/AggregateFunctionSum.cpp
@@ -286,11 +303,36 @@ SRCS(
     AggregateFunctions/AggregateFunctionTopK.cpp
     AggregateFunctions/AggregateFunctionUniq.cpp
     AggregateFunctions/AggregateFunctionUniqCombined.cpp
+    AggregateFunctions/AggregateFunctionUniqCombined12.cpp
+    AggregateFunctions/AggregateFunctionUniqCombined13.cpp
+    AggregateFunctions/AggregateFunctionUniqCombined14.cpp
+    AggregateFunctions/AggregateFunctionUniqCombined15.cpp
+    AggregateFunctions/AggregateFunctionUniqCombined16.cpp
+    AggregateFunctions/AggregateFunctionUniqCombined17.cpp
+    AggregateFunctions/AggregateFunctionUniqCombined18.cpp
+    AggregateFunctions/AggregateFunctionUniqCombined19.cpp
+    AggregateFunctions/AggregateFunctionUniqCombined20.cpp
     AggregateFunctions/AggregateFunctionUniqUpTo.cpp
     AggregateFunctions/AggregateFunctionVarianceMatrix.cpp
     AggregateFunctions/AggregateFunctionWelchTTest.cpp
     AggregateFunctions/AggregateFunctionWindowFunnel.cpp
+    AggregateFunctions/AggregateFunctionsArgMinArgMax.cpp
+    AggregateFunctions/AggregateFunctionsMinMax.cpp
+    AggregateFunctions/Combinators/AggregateFunctionArray.cpp
+    AggregateFunctions/Combinators/AggregateFunctionCombinatorFactory.cpp
+    AggregateFunctions/Combinators/AggregateFunctionCombinatorsArgMinArgMax.cpp
+    AggregateFunctions/Combinators/AggregateFunctionDistinct.cpp
+    AggregateFunctions/Combinators/AggregateFunctionForEach.cpp
+    AggregateFunctions/Combinators/AggregateFunctionIf.cpp
+    AggregateFunctions/Combinators/AggregateFunctionMap.cpp
+    AggregateFunctions/Combinators/AggregateFunctionMerge.cpp
+    AggregateFunctions/Combinators/AggregateFunctionNull.cpp
+    AggregateFunctions/Combinators/AggregateFunctionOrFill.cpp
+    AggregateFunctions/Combinators/AggregateFunctionResample.cpp
+    AggregateFunctions/Combinators/AggregateFunctionSimpleState.cpp
+    AggregateFunctions/Combinators/AggregateFunctionState.cpp
     AggregateFunctions/IAggregateFunction.cpp
+    AggregateFunctions/SingleValueData.cpp
     AggregateFunctions/UniqCombinedBiasData.cpp
     AggregateFunctions/UniqVariadicHash.cpp
     AggregateFunctions/parseAggregateFunctionParameters.cpp
@@ -308,6 +350,7 @@ SRCS(
     Analyzer/LambdaNode.cpp
     Analyzer/ListNode.cpp
     Analyzer/MatcherNode.cpp
+    Analyzer/Passes/AggregateFunctionOfGroupByKeysPass.cpp
     Analyzer/Passes/AggregateFunctionsArithmericOperationsPass.cpp
     Analyzer/Passes/ArrayExistsToHasPass.cpp
     Analyzer/Passes/AutoFinalOnQueryPass.cpp
@@ -328,17 +371,25 @@ SRCS(
     Analyzer/Passes/NormalizeCountVariantsPass.cpp
     Analyzer/Passes/OptimizeDateOrDateTimeConverterWithPreimagePass.cpp
     Analyzer/Passes/OptimizeGroupByFunctionKeysPass.cpp
+    Analyzer/Passes/OptimizeGroupByInjectiveFunctionsPass.cpp
     Analyzer/Passes/OptimizeRedundantFunctionsInOrderByPass.cpp
     Analyzer/Passes/OrderByLimitByDuplicateEliminationPass.cpp
     Analyzer/Passes/OrderByTupleEliminationPass.cpp
-    Analyzer/Passes/QueryAnalysisPass.cpp
+    Analyzer/Passes/RemoveUnusedProjectionColumnsPass.cpp
     Analyzer/Passes/RewriteAggregateFunctionWithIfPass.cpp
+    Analyzer/Passes/RewriteSumFunctionWithSumAndCountPass.cpp
     Analyzer/Passes/ShardNumColumnToFunctionPass.cpp
     Analyzer/Passes/SumIfToCountIfPass.cpp
     Analyzer/Passes/UniqInjectiveFunctionsEliminationPass.cpp
+    Analyzer/Passes/UniqToCountPass.cpp
     Analyzer/QueryNode.cpp
     Analyzer/QueryTreeBuilder.cpp
     Analyzer/QueryTreePassManager.cpp
+    Analyzer/RecursiveCTE.cpp
+    Analyzer/Resolve/IdentifierResolveScope.cpp
+    Analyzer/Resolve/IdentifierResolver.cpp
+    Analyzer/Resolve/QueryAnalysisPass.cpp
+    Analyzer/Resolve/QueryAnalyzer.cpp
     Analyzer/SetUtils.cpp
     Analyzer/SortNode.cpp
     Analyzer/TableExpressionModifiers.cpp
@@ -349,7 +400,9 @@ SRCS(
     Analyzer/ValidationUtils.cpp
     Analyzer/WindowFunctionsUtils.cpp
     Analyzer/WindowNode.cpp
+    Analyzer/createUniqueTableAliases.cpp
     Backups/BackupCoordinationFileInfos.cpp
+    Backups/BackupCoordinationKeeperMapTables.cpp
     Backups/BackupCoordinationLocal.cpp
     Backups/BackupCoordinationRemote.cpp
     Backups/BackupCoordinationReplicatedAccess.cpp
@@ -362,9 +415,11 @@ SRCS(
     Backups/BackupEntryFromImmutableFile.cpp
     Backups/BackupEntryFromMemory.cpp
     Backups/BackupEntryFromSmallFile.cpp
+    Backups/BackupEntryReference.cpp
     Backups/BackupEntryWithChecksumCalculation.cpp
     Backups/BackupFactory.cpp
     Backups/BackupFileInfo.cpp
+    Backups/BackupIO_AzureBlobStorage.cpp
     Backups/BackupIO_Default.cpp
     Backups/BackupIO_Disk.cpp
     Backups/BackupIO_File.cpp
@@ -384,14 +439,17 @@ SRCS(
     Backups/SettingsFieldOptionalString.cpp
     Backups/SettingsFieldOptionalUUID.cpp
     Backups/WithRetries.cpp
+    Backups/registerBackupEngineAzureBlobStorage.cpp
     Backups/registerBackupEngineS3.cpp
     Backups/registerBackupEnginesFileAndDisk.cpp
     BridgeHelper/CatBoostLibraryBridgeHelper.cpp
     BridgeHelper/ExternalDictionaryLibraryBridgeHelper.cpp
     BridgeHelper/IBridgeHelper.cpp
     BridgeHelper/LibraryBridgeHelper.cpp
+    Client/ClientApplicationBase.cpp
     Client/ClientBase.cpp
     Client/ClientBaseHelpers.cpp
+    Client/ClientBaseOptimizedParts.cpp
     Client/Connection.cpp
     Client/ConnectionEstablisher.cpp
     Client/ConnectionParameters.cpp
@@ -405,7 +463,6 @@ SRCS(
     Client/LocalConnection.cpp
     Client/MultiplexedConnections.cpp
     Client/PacketReceiver.cpp
-    Client/QueryFuzzer.cpp
     Client/ReplxxLineReader.cpp
     Client/Suggest.cpp
     Client/TestHint.cpp
@@ -416,24 +473,30 @@ SRCS(
     Columns/ColumnCompressed.cpp
     Columns/ColumnConst.cpp
     Columns/ColumnDecimal.cpp
+    Columns/ColumnDynamic.cpp
     Columns/ColumnFixedString.cpp
     Columns/ColumnFunction.cpp
     Columns/ColumnLowCardinality.cpp
     Columns/ColumnMap.cpp
     Columns/ColumnNullable.cpp
     Columns/ColumnObject.cpp
+    Columns/ColumnObjectDeprecated.cpp
     Columns/ColumnSparse.cpp
     Columns/ColumnString.cpp
     Columns/ColumnTuple.cpp
+    Columns/ColumnUnique.cpp
+    Columns/ColumnVariant.cpp
     Columns/ColumnVector.cpp
     Columns/ColumnsCommon.cpp
     Columns/FilterDescription.cpp
     Columns/IColumn.cpp
+    Columns/IColumnDummy.cpp
     Columns/MaskOperations.cpp
     Columns/getLeastSuperColumn.cpp
     Common/NamedCollections/NamedCollectionConfiguration.cpp
-    Common/NamedCollections/NamedCollectionUtils.cpp
     Common/NamedCollections/NamedCollections.cpp
+    Common/NamedCollections/NamedCollectionsFactory.cpp
+    Common/NamedCollections/NamedCollectionsMetadataStorage.cpp
     Compression/CachedCompressedReadBuffer.cpp
     Compression/CheckingCompressedReadBuffer.cpp
     Compression/CompressedReadBuffer.cpp
@@ -445,12 +508,14 @@ SRCS(
     Compression/CompressionCodecDoubleDelta.cpp
     Compression/CompressionCodecEncrypted.cpp
     Compression/CompressionCodecFPC.cpp
+    Compression/CompressionCodecGCD.cpp
     Compression/CompressionCodecGorilla.cpp
     Compression/CompressionCodecLZ4.cpp
     Compression/CompressionCodecMultiple.cpp
     Compression/CompressionCodecNone.cpp
     Compression/CompressionCodecT64.cpp
     Compression/CompressionCodecZSTD.cpp
+    Compression/CompressionCodecZSTDQAT.cpp
     Compression/CompressionFactory.cpp
     Compression/CompressionFactoryAdditions.cpp
     Compression/ICompressionCodec.cpp
@@ -473,23 +538,28 @@ SRCS(
     Core/MySQL/MySQLClient.cpp
     Core/MySQL/MySQLGtid.cpp
     Core/MySQL/MySQLReplication.cpp
+    Core/MySQL/MySQLUtils.cpp
     Core/MySQL/PacketEndpoint.cpp
     Core/MySQL/PacketsConnection.cpp
     Core/MySQL/PacketsGeneric.cpp
+    Core/MySQL/PacketsPreparedStatements.cpp
+    Core/MySQL/PacketsProtocolBinary.cpp
     Core/MySQL/PacketsProtocolText.cpp
     Core/MySQL/PacketsReplication.cpp
     Core/NamesAndTypes.cpp
+    Core/PlainRanges.cpp
     Core/PostgreSQLProtocol.cpp
     Core/QueryProcessingStage.cpp
+    Core/Range.cpp
     Core/ServerSettings.cpp
     Core/ServerUUID.cpp
     Core/Settings.cpp
+    Core/SettingsChangesHistory.cpp
     Core/SettingsEnums.cpp
     Core/SettingsFields.cpp
     Core/SettingsQuirks.cpp
     Core/SortDescription.cpp
     Core/UUID.cpp
-    Core/iostream_debug_helpers.cpp
     Daemon/BaseDaemon.cpp
     Daemon/GitHash.generated.cpp
     Daemon/GraphiteWriter.cpp
@@ -504,6 +574,7 @@ SRCS(
     DataTypes/DataTypeDateTime64.cpp
     DataTypes/DataTypeDecimalBase.cpp
     DataTypes/DataTypeDomainBool.cpp
+    DataTypes/DataTypeDynamic.cpp
     DataTypes/DataTypeEnum.cpp
     DataTypes/DataTypeFactory.cpp
     DataTypes/DataTypeFixedString.cpp
@@ -518,9 +589,12 @@ SRCS(
     DataTypes/DataTypeNullable.cpp
     DataTypes/DataTypeNumberBase.cpp
     DataTypes/DataTypeObject.cpp
+    DataTypes/DataTypeObjectDeprecated.cpp
     DataTypes/DataTypeString.cpp
     DataTypes/DataTypeTuple.cpp
     DataTypes/DataTypeUUID.cpp
+    DataTypes/DataTypeVariant.cpp
+    DataTypes/DataTypesBinaryEncoding.cpp
     DataTypes/DataTypesDecimal.cpp
     DataTypes/DataTypesNumber.cpp
     DataTypes/EnumValues.cpp
@@ -542,11 +616,15 @@ SRCS(
     DataTypes/Serializations/SerializationDateTime64.cpp
     DataTypes/Serializations/SerializationDecimal.cpp
     DataTypes/Serializations/SerializationDecimalBase.cpp
+    DataTypes/Serializations/SerializationDynamic.cpp
+    DataTypes/Serializations/SerializationDynamicElement.cpp
     DataTypes/Serializations/SerializationEnum.cpp
     DataTypes/Serializations/SerializationFixedString.cpp
+    DataTypes/Serializations/SerializationIPv4andIPv6.cpp
     DataTypes/Serializations/SerializationInfo.cpp
     DataTypes/Serializations/SerializationInfoTuple.cpp
     DataTypes/Serializations/SerializationInterval.cpp
+    DataTypes/Serializations/SerializationJSON.cpp
     DataTypes/Serializations/SerializationLowCardinality.cpp
     DataTypes/Serializations/SerializationMap.cpp
     DataTypes/Serializations/SerializationNamed.cpp
@@ -554,11 +632,19 @@ SRCS(
     DataTypes/Serializations/SerializationNullable.cpp
     DataTypes/Serializations/SerializationNumber.cpp
     DataTypes/Serializations/SerializationObject.cpp
+    DataTypes/Serializations/SerializationObjectDeprecated.cpp
+    DataTypes/Serializations/SerializationObjectDynamicPath.cpp
+    DataTypes/Serializations/SerializationObjectTypedPath.cpp
     DataTypes/Serializations/SerializationSparse.cpp
     DataTypes/Serializations/SerializationString.cpp
+    DataTypes/Serializations/SerializationSubObject.cpp
     DataTypes/Serializations/SerializationTuple.cpp
     DataTypes/Serializations/SerializationUUID.cpp
+    DataTypes/Serializations/SerializationVariant.cpp
+    DataTypes/Serializations/SerializationVariantElement.cpp
+    DataTypes/Serializations/SerializationVariantElementNullMap.cpp
     DataTypes/Serializations/SerializationWrapper.cpp
+    DataTypes/Utils.cpp
     DataTypes/convertMySQLDataType.cpp
     DataTypes/getLeastSupertype.cpp
     DataTypes/getMostSubtype.cpp
@@ -592,6 +678,11 @@ SRCS(
     Databases/MySQL/MaterializeMetadata.cpp
     Databases/MySQL/MaterializedMySQLSettings.cpp
     Databases/MySQL/MaterializedMySQLSyncThread.cpp
+    Databases/MySQL/MySQLBinlog.cpp
+    Databases/MySQL/MySQLBinlogClient.cpp
+    Databases/MySQL/MySQLBinlogClientFactory.cpp
+    Databases/MySQL/MySQLBinlogEventsDispatcher.cpp
+    Databases/MySQL/tryConvertStringLiterals.cpp
     Databases/MySQL/tryParseTableIDFromDDL.cpp
     Databases/MySQL/tryQuoteUnrecognizedTokens.cpp
     Databases/NormalizeAndEvaluateConstantsVisitor.cpp
@@ -607,6 +698,7 @@ SRCS(
     Dictionaries/ClickHouseDictionarySource.cpp
     Dictionaries/DictionaryFactory.cpp
     Dictionaries/DictionaryHelpers.cpp
+    Dictionaries/DictionaryPipelineExecutor.cpp
     Dictionaries/DictionarySource.cpp
     Dictionaries/DictionarySourceFactory.cpp
     Dictionaries/DictionarySourceHelpers.cpp
@@ -638,21 +730,35 @@ SRCS(
     Dictionaries/PolygonDictionaryImplementations.cpp
     Dictionaries/PolygonDictionaryUtils.cpp
     Dictionaries/PostgreSQLDictionarySource.cpp
+    Dictionaries/RangeHashedDictionary.cpp
     Dictionaries/RangeHashedDictionaryComplex.cpp
+    Dictionaries/RangeHashedDictionaryGetItemsImplDecimal.cpp
+    Dictionaries/RangeHashedDictionaryGetItemsImplFloat.cpp
+    Dictionaries/RangeHashedDictionaryGetItemsImplInt.cpp
+    Dictionaries/RangeHashedDictionaryGetItemsImplOthers.cpp
+    Dictionaries/RangeHashedDictionaryGetItemsImplUInt.cpp
+    Dictionaries/RangeHashedDictionaryGetItemsShortCircuitImplDecimal.cpp
+    Dictionaries/RangeHashedDictionaryGetItemsShortCircuitImplFloat.cpp
+    Dictionaries/RangeHashedDictionaryGetItemsShortCircuitImplInt.cpp
+    Dictionaries/RangeHashedDictionaryGetItemsShortCircuitImplOthers.cpp
+    Dictionaries/RangeHashedDictionaryGetItemsShortCircuitImplUInt.cpp
     Dictionaries/RangeHashedDictionarySimple.cpp
     Dictionaries/RedisDictionarySource.cpp
     Dictionaries/RedisSource.cpp
     Dictionaries/RegExpTreeDictionary.cpp
+    Dictionaries/SparseHashedDictionary.cpp
     Dictionaries/XDBCDictionarySource.cpp
     Dictionaries/YAMLRegExpTreeDictionarySource.cpp
     Dictionaries/getDictionaryConfigurationFromAST.cpp
     Dictionaries/readInvalidateQuery.cpp
     Dictionaries/registerCacheDictionaries.cpp
     Dictionaries/registerDictionaries.cpp
+    Dictionaries/registerHashedDictionary.cpp
     Dictionaries/registerRangeHashedDictionary.cpp
     Disks/DiskEncrypted.cpp
     Disks/DiskEncryptedTransaction.cpp
     Disks/DiskFactory.cpp
+    Disks/DiskFomAST.cpp
     Disks/DiskLocal.cpp
     Disks/DiskLocalCheckThread.cpp
     Disks/DiskSelector.cpp
@@ -671,41 +777,46 @@ SRCS(
     Disks/IO/WriteBufferFromTemporaryFile.cpp
     Disks/IO/WriteBufferWithFinalizeCallback.cpp
     Disks/IO/createReadBufferFromFileBase.cpp
+    Disks/IO/getIOUringReader.cpp
     Disks/IO/getThreadPoolReader.cpp
     Disks/IStoragePolicy.cpp
     Disks/IVolume.cpp
     Disks/LocalDirectorySyncGuard.cpp
     Disks/ObjectStorages/Cached/CachedObjectStorage.cpp
     Disks/ObjectStorages/Cached/registerDiskCache.cpp
+    Disks/ObjectStorages/CommonPathPrefixKeyGenerator.cpp
     Disks/ObjectStorages/DiskObjectStorage.cpp
     Disks/ObjectStorages/DiskObjectStorageCache.cpp
-    Disks/ObjectStorages/DiskObjectStorageCommon.cpp
     Disks/ObjectStorages/DiskObjectStorageMetadata.cpp
     Disks/ObjectStorages/DiskObjectStorageRemoteMetadataRestoreHelper.cpp
     Disks/ObjectStorages/DiskObjectStorageTransaction.cpp
+    Disks/ObjectStorages/FlatDirectoryStructureKeyGenerator.cpp
     Disks/ObjectStorages/IObjectStorage.cpp
     Disks/ObjectStorages/Local/LocalObjectStorage.cpp
-    Disks/ObjectStorages/Local/registerLocalObjectStorage.cpp
-    Disks/ObjectStorages/MetadataFromDiskTransactionState.cpp
+    Disks/ObjectStorages/MetadataOperationsHolder.cpp
+    Disks/ObjectStorages/MetadataStorageFactory.cpp
     Disks/ObjectStorages/MetadataStorageFromDisk.cpp
     Disks/ObjectStorages/MetadataStorageFromDiskTransactionOperations.cpp
     Disks/ObjectStorages/MetadataStorageFromPlainObjectStorage.cpp
+    Disks/ObjectStorages/MetadataStorageFromPlainObjectStorageOperations.cpp
+    Disks/ObjectStorages/MetadataStorageFromPlainRewritableObjectStorage.cpp
+    Disks/ObjectStorages/MetadataStorageTransactionState.cpp
+    Disks/ObjectStorages/ObjectStorageFactory.cpp
     Disks/ObjectStorages/ObjectStorageIterator.cpp
     Disks/ObjectStorages/ObjectStorageIteratorAsync.cpp
+    Disks/ObjectStorages/RegisterDiskObjectStorage.cpp
+    Disks/ObjectStorages/S3/DiskS3Utils.cpp
     Disks/ObjectStorages/S3/S3Capabilities.cpp
     Disks/ObjectStorages/S3/S3ObjectStorage.cpp
     Disks/ObjectStorages/S3/diskSettings.cpp
-    Disks/ObjectStorages/S3/registerDiskS3.cpp
     Disks/ObjectStorages/StoredObject.cpp
     Disks/ObjectStorages/Web/MetadataStorageFromStaticFilesWebServer.cpp
     Disks/ObjectStorages/Web/WebObjectStorage.cpp
-    Disks/ObjectStorages/Web/registerDiskWebServer.cpp
     Disks/StoragePolicy.cpp
     Disks/TemporaryFileOnDisk.cpp
     Disks/VolumeJBOD.cpp
     Disks/createVolume.cpp
     Disks/getDiskConfigurationFromAST.cpp
-    Disks/getOrCreateDiskFromAST.cpp
     Disks/loadLocalDiskConfig.cpp
     Disks/registerDisks.cpp
     Formats/BSONTypes.cpp
@@ -716,6 +827,7 @@ SRCS(
     Formats/FormatFactory.cpp
     Formats/FormatSchemaInfo.cpp
     Formats/IndexForNativeFormat.cpp
+    Formats/JSONExtractTree.cpp
     Formats/JSONUtils.cpp
     Formats/MarkInCompressedFile.cpp
     Formats/NativeReader.cpp
@@ -771,11 +883,8 @@ SRCS(
     Functions/UserDefined/UserDefinedSQLFunctionVisitor.cpp
     Functions/UserDefined/UserDefinedSQLObjectsBackup.cpp
     Functions/UserDefined/UserDefinedSQLObjectsDiskStorage.cpp
-    Functions/UserDefined/UserDefinedSQLObjectsLoaderFromDisk.cpp
-    Functions/UserDefined/UserDefinedSQLObjectsLoaderFromZooKeeper.cpp
     Functions/UserDefined/UserDefinedSQLObjectsStorageBase.cpp
     Functions/UserDefined/UserDefinedSQLObjectsZooKeeperStorage.cpp
-    Functions/UserDefined/createUserDefinedSQLObjectsLoader.cpp
     Functions/UserDefined/createUserDefinedSQLObjectsStorage.cpp
     Functions/divide/divide.cpp
     GLOBAL Functions/CRC.cpp
@@ -790,7 +899,7 @@ SRCS(
     GLOBAL Functions/FunctionJoinGet.cpp
     GLOBAL Functions/FunctionSQLJSON.cpp
     GLOBAL Functions/FunctionShowCertificate.cpp
-    GLOBAL Functions/FunctionToDecimalString.cpp
+    GLOBAL Functions/FunctionUnixTimestamp64.cpp
     GLOBAL Functions/FunctionsAES.cpp
     GLOBAL Functions/FunctionsBinaryRepresentation.cpp
     GLOBAL Functions/FunctionsBitToArray.cpp
@@ -805,24 +914,26 @@ SRCS(
     GLOBAL Functions/FunctionsHashingInt.cpp
     GLOBAL Functions/FunctionsHashingMisc.cpp
     GLOBAL Functions/FunctionsHashingMurmur.cpp
-    GLOBAL Functions/FunctionsHashingSSL.cpp
     GLOBAL Functions/FunctionsJSON.cpp
     GLOBAL Functions/FunctionsLanguageClassification.cpp
     GLOBAL Functions/FunctionsLogical.cpp
+    GLOBAL Functions/FunctionsOpDate.cpp
     GLOBAL Functions/FunctionsProgrammingClassification.cpp
     GLOBAL Functions/FunctionsRandom.cpp
     GLOBAL Functions/FunctionsRound.cpp
-    GLOBAL Functions/FunctionsStringArray.cpp
+    GLOBAL Functions/FunctionsStringDistance.cpp
     GLOBAL Functions/FunctionsStringHash.cpp
+    GLOBAL Functions/FunctionsStringHashFixedString.cpp
     GLOBAL Functions/FunctionsStringSimilarity.cpp
     GLOBAL Functions/FunctionsTimeWindow.cpp
     GLOBAL Functions/FunctionsTonalityClassification.cpp
     GLOBAL Functions/FunctionsTransactionCounters.cpp
     GLOBAL Functions/GeoHash.cpp
     GLOBAL Functions/GregorianDate.cpp
+    GLOBAL Functions/HTMLCharacterReference.generated.cpp
     GLOBAL Functions/IFunction.cpp
     GLOBAL Functions/JSONArrayLength.cpp
-    GLOBAL Functions/SubtractSubSeconds.cpp
+    GLOBAL Functions/JSONPaths.cpp
     GLOBAL Functions/URL/URLHierarchy.cpp
     GLOBAL Functions/URL/URLPathHierarchy.cpp
     GLOBAL Functions/URL/basename.cpp
@@ -858,11 +969,13 @@ SRCS(
     GLOBAL Functions/acosh.cpp
     GLOBAL Functions/addDays.cpp
     GLOBAL Functions/addHours.cpp
+    GLOBAL Functions/addMicroseconds.cpp
+    GLOBAL Functions/addMilliseconds.cpp
     GLOBAL Functions/addMinutes.cpp
     GLOBAL Functions/addMonths.cpp
+    GLOBAL Functions/addNanoseconds.cpp
     GLOBAL Functions/addQuarters.cpp
     GLOBAL Functions/addSeconds.cpp
-    GLOBAL Functions/addSubSeconds.cpp
     GLOBAL Functions/addWeeks.cpp
     GLOBAL Functions/addYears.cpp
     GLOBAL Functions/addressToLine.cpp
@@ -870,6 +983,7 @@ SRCS(
     GLOBAL Functions/addressToSymbol.cpp
     GLOBAL Functions/aes_decrypt_mysql.cpp
     GLOBAL Functions/aes_encrypt_mysql.cpp
+    GLOBAL Functions/alphaTokens.cpp
     GLOBAL Functions/appendTrailingCharIfAbsent.cpp
     GLOBAL Functions/array/FunctionsMapMiscellaneous.cpp
     GLOBAL Functions/array/array.cpp
@@ -898,6 +1012,7 @@ SRCS(
     GLOBAL Functions/array/arrayFirstLast.cpp
     GLOBAL Functions/array/arrayFirstLastIndex.cpp
     GLOBAL Functions/array/arrayFlatten.cpp
+    GLOBAL Functions/array/arrayFold.cpp
     GLOBAL Functions/array/arrayIntersect.cpp
     GLOBAL Functions/array/arrayJaccardIndex.cpp
     GLOBAL Functions/array/arrayJoin.cpp
@@ -907,11 +1022,13 @@ SRCS(
     GLOBAL Functions/array/arrayPopFront.cpp
     GLOBAL Functions/array/arrayPushBack.cpp
     GLOBAL Functions/array/arrayPushFront.cpp
+    GLOBAL Functions/array/arrayRandomSample.cpp
     GLOBAL Functions/array/arrayReduce.cpp
     GLOBAL Functions/array/arrayReduceInRanges.cpp
     GLOBAL Functions/array/arrayResize.cpp
     GLOBAL Functions/array/arrayReverse.cpp
     GLOBAL Functions/array/arrayShiftRotate.cpp
+    GLOBAL Functions/array/arrayShingles.cpp
     GLOBAL Functions/array/arrayShuffle.cpp
     GLOBAL Functions/array/arraySlice.cpp
     GLOBAL Functions/array/arraySort.cpp
@@ -931,6 +1048,7 @@ SRCS(
     GLOBAL Functions/array/mapOp.cpp
     GLOBAL Functions/array/mapPopulateSeries.cpp
     GLOBAL Functions/array/range.cpp
+    GLOBAL Functions/arrayStringConcat.cpp
     GLOBAL Functions/ascii.cpp
     GLOBAL Functions/asin.cpp
     GLOBAL Functions/asinh.cpp
@@ -943,6 +1061,8 @@ SRCS(
     GLOBAL Functions/base58Encode.cpp
     GLOBAL Functions/base64Decode.cpp
     GLOBAL Functions/base64Encode.cpp
+    GLOBAL Functions/base64URLDecode.cpp
+    GLOBAL Functions/base64URLEncode.cpp
     GLOBAL Functions/bitAnd.cpp
     GLOBAL Functions/bitBoolMaskAnd.cpp
     GLOBAL Functions/bitBoolMaskOr.cpp
@@ -965,12 +1085,15 @@ SRCS(
     GLOBAL Functions/blockSerializedSize.cpp
     GLOBAL Functions/blockSize.cpp
     GLOBAL Functions/byteSize.cpp
+    GLOBAL Functions/byteSwap.cpp
     GLOBAL Functions/canonicalRand.cpp
     GLOBAL Functions/caseWithExpression.cpp
     GLOBAL Functions/castOrDefault.cpp
     GLOBAL Functions/catboostEvaluate.cpp
     GLOBAL Functions/cbrt.cpp
+    GLOBAL Functions/changeDate.cpp
     GLOBAL Functions/checkHyperscanRegexp.cpp
+    GLOBAL Functions/clamp.cpp
     GLOBAL Functions/coalesce.cpp
     GLOBAL Functions/concat.cpp
     GLOBAL Functions/concatWithSeparator.cpp
@@ -983,6 +1106,7 @@ SRCS(
     GLOBAL Functions/countSubstrings.cpp
     GLOBAL Functions/countSubstringsCaseInsensitive.cpp
     GLOBAL Functions/countSubstringsCaseInsensitiveUTF8.cpp
+    GLOBAL Functions/coverage.cpp
     GLOBAL Functions/currentDatabase.cpp
     GLOBAL Functions/currentProfiles.cpp
     GLOBAL Functions/currentRoles.cpp
@@ -990,7 +1114,9 @@ SRCS(
     GLOBAL Functions/currentUser.cpp
     GLOBAL Functions/dateDiff.cpp
     GLOBAL Functions/dateName.cpp
+    GLOBAL Functions/dateTimeToSnowflakeID.cpp
     GLOBAL Functions/date_trunc.cpp
+    GLOBAL Functions/decodeHTMLComponent.cpp
     GLOBAL Functions/decodeXMLComponent.cpp
     GLOBAL Functions/decrypt.cpp
     GLOBAL Functions/defaultValueOfArgumentType.cpp
@@ -1000,6 +1126,8 @@ SRCS(
     GLOBAL Functions/divide.cpp
     GLOBAL Functions/divideDecimal.cpp
     GLOBAL Functions/dumpColumnStructure.cpp
+    GLOBAL Functions/dynamicElement.cpp
+    GLOBAL Functions/dynamicType.cpp
     GLOBAL Functions/empty.cpp
     GLOBAL Functions/encodeXMLComponent.cpp
     GLOBAL Functions/encrypt.cpp
@@ -1014,6 +1142,7 @@ SRCS(
     GLOBAL Functions/exp10.cpp
     GLOBAL Functions/exp2.cpp
     GLOBAL Functions/extract.cpp
+    GLOBAL Functions/extractAll.cpp
     GLOBAL Functions/extractAllGroupsHorizontal.cpp
     GLOBAL Functions/extractAllGroupsVertical.cpp
     GLOBAL Functions/extractGroups.cpp
@@ -1024,26 +1153,31 @@ SRCS(
     GLOBAL Functions/finalizeAggregation.cpp
     GLOBAL Functions/firstLine.cpp
     GLOBAL Functions/flattenTuple.cpp
+    GLOBAL Functions/format.cpp
     GLOBAL Functions/formatDateTime.cpp
+    GLOBAL Functions/formatQuery.cpp
     GLOBAL Functions/formatReadableDecimalSize.cpp
     GLOBAL Functions/formatReadableQuantity.cpp
     GLOBAL Functions/formatReadableSize.cpp
     GLOBAL Functions/formatReadableTimeDelta.cpp
     GLOBAL Functions/formatRow.cpp
-    GLOBAL Functions/formatString.cpp
+    GLOBAL Functions/fromDaysSinceYearZero.cpp
     GLOBAL Functions/fromModifiedJulianDay.cpp
     GLOBAL Functions/fromUnixTimestamp64Micro.cpp
     GLOBAL Functions/fromUnixTimestamp64Milli.cpp
     GLOBAL Functions/fromUnixTimestamp64Nano.cpp
     GLOBAL Functions/fuzzBits.cpp
     GLOBAL Functions/gcd.cpp
+    GLOBAL Functions/generateSnowflakeID.cpp
     GLOBAL Functions/generateULID.cpp
     GLOBAL Functions/generateUUIDv4.cpp
+    GLOBAL Functions/generateUUIDv7.cpp
     GLOBAL Functions/geoToH3.cpp
     GLOBAL Functions/geoToS2.cpp
     GLOBAL Functions/geohashDecode.cpp
     GLOBAL Functions/geohashEncode.cpp
     GLOBAL Functions/geohashesInBox.cpp
+    GLOBAL Functions/getClientHTTPHeader.cpp
     GLOBAL Functions/getFuzzerData.cpp
     GLOBAL Functions/getMacro.cpp
     GLOBAL Functions/getScalar.cpp
@@ -1103,8 +1237,11 @@ SRCS(
     GLOBAL Functions/hasThreadFuzzer.cpp
     GLOBAL Functions/hasToken.cpp
     GLOBAL Functions/hasTokenCaseInsensitive.cpp
+    GLOBAL Functions/hilbertDecode.cpp
+    GLOBAL Functions/hilbertEncode.cpp
     GLOBAL Functions/hypot.cpp
     GLOBAL Functions/identity.cpp
+    GLOBAL Functions/idna.cpp
     GLOBAL Functions/if.cpp
     GLOBAL Functions/ifNotFinite.cpp
     GLOBAL Functions/ifNull.cpp
@@ -1132,6 +1269,7 @@ SRCS(
     GLOBAL Functions/isNullable.cpp
     GLOBAL Functions/isValidUTF8.cpp
     GLOBAL Functions/isZeroOrNull.cpp
+    GLOBAL Functions/jsonMergePatch.cpp
     GLOBAL Functions/jumpConsistentHash.cpp
     GLOBAL Functions/kostikConsistentHash.cpp
     GLOBAL Functions/lcm.cpp
@@ -1143,6 +1281,7 @@ SRCS(
     GLOBAL Functions/lessOrEquals.cpp
     GLOBAL Functions/lgamma.cpp
     GLOBAL Functions/like.cpp
+    GLOBAL Functions/locate.cpp
     GLOBAL Functions/log.cpp
     GLOBAL Functions/log10.cpp
     GLOBAL Functions/log1p.cpp
@@ -1158,7 +1297,6 @@ SRCS(
     GLOBAL Functions/materialize.cpp
     GLOBAL Functions/mathConstants.cpp
     GLOBAL Functions/max2.cpp
-    GLOBAL Functions/meiliMatch.cpp
     GLOBAL Functions/min2.cpp
     GLOBAL Functions/minSampleSize.cpp
     GLOBAL Functions/minus.cpp
@@ -1208,6 +1346,7 @@ SRCS(
     GLOBAL Functions/nullIf.cpp
     GLOBAL Functions/padString.cpp
     GLOBAL Functions/parseDateTime.cpp
+    GLOBAL Functions/parseReadableSize.cpp
     GLOBAL Functions/parseTimeDelta.cpp
     GLOBAL Functions/partitionId.cpp
     GLOBAL Functions/plus.cpp
@@ -1227,6 +1366,8 @@ SRCS(
     GLOBAL Functions/positionCaseInsensitiveUTF8.cpp
     GLOBAL Functions/positionUTF8.cpp
     GLOBAL Functions/pow.cpp
+    GLOBAL Functions/printf.cpp
+    GLOBAL Functions/punycode.cpp
     GLOBAL Functions/queryID.cpp
     GLOBAL Functions/radians.cpp
     GLOBAL Functions/rand.cpp
@@ -1249,7 +1390,6 @@ SRCS(
     GLOBAL Functions/replaceRegexpOne.cpp
     GLOBAL Functions/replicate.cpp
     GLOBAL Functions/reverse.cpp
-    GLOBAL Functions/reverseDNSQuery.cpp
     GLOBAL Functions/reverseUTF8.cpp
     GLOBAL Functions/right.cpp
     GLOBAL Functions/roundAge.cpp
@@ -1270,6 +1410,9 @@ SRCS(
     GLOBAL Functions/s2RectIntersection.cpp
     GLOBAL Functions/s2RectUnion.cpp
     GLOBAL Functions/s2ToGeo.cpp
+    GLOBAL Functions/seriesDecomposeSTL.cpp
+    GLOBAL Functions/seriesOutliersDetectTukey.cpp
+    GLOBAL Functions/seriesPeriodDetectFFT.cpp
     GLOBAL Functions/serverConstants.cpp
     GLOBAL Functions/sigmoid.cpp
     GLOBAL Functions/sign.cpp
@@ -1278,8 +1421,15 @@ SRCS(
     GLOBAL Functions/sleep.cpp
     GLOBAL Functions/sleepEachRow.cpp
     GLOBAL Functions/snowflake.cpp
+    GLOBAL Functions/snowflakeIDToDateTime.cpp
     GLOBAL Functions/soundex.cpp
     GLOBAL Functions/space.cpp
+    GLOBAL Functions/splitByChar.cpp
+    GLOBAL Functions/splitByNonAlpha.cpp
+    GLOBAL Functions/splitByRegexp.cpp
+    GLOBAL Functions/splitByString.cpp
+    GLOBAL Functions/splitByWhitespace.cpp
+    GLOBAL Functions/sqid.cpp
     GLOBAL Functions/sqrt.cpp
     GLOBAL Functions/startsWith.cpp
     GLOBAL Functions/startsWithUTF8.cpp
@@ -1291,8 +1441,11 @@ SRCS(
     GLOBAL Functions/substringIndex.cpp
     GLOBAL Functions/subtractDays.cpp
     GLOBAL Functions/subtractHours.cpp
+    GLOBAL Functions/subtractMicroseconds.cpp
+    GLOBAL Functions/subtractMilliseconds.cpp
     GLOBAL Functions/subtractMinutes.cpp
     GLOBAL Functions/subtractMonths.cpp
+    GLOBAL Functions/subtractNanoseconds.cpp
     GLOBAL Functions/subtractQuarters.cpp
     GLOBAL Functions/subtractSeconds.cpp
     GLOBAL Functions/subtractWeeks.cpp
@@ -1306,6 +1459,7 @@ SRCS(
     GLOBAL Functions/tid.cpp
     GLOBAL Functions/timeSlot.cpp
     GLOBAL Functions/timeSlots.cpp
+    GLOBAL Functions/timestamp.cpp
     GLOBAL Functions/timezoneOf.cpp
     GLOBAL Functions/timezoneOffset.cpp
     GLOBAL Functions/toBool.cpp
@@ -1314,6 +1468,8 @@ SRCS(
     GLOBAL Functions/toDayOfMonth.cpp
     GLOBAL Functions/toDayOfWeek.cpp
     GLOBAL Functions/toDayOfYear.cpp
+    GLOBAL Functions/toDaysSinceYearZero.cpp
+    GLOBAL Functions/toDecimalString.cpp
     GLOBAL Functions/toFixedString.cpp
     GLOBAL Functions/toHour.cpp
     GLOBAL Functions/toISOWeek.cpp
@@ -1321,6 +1477,7 @@ SRCS(
     GLOBAL Functions/toJSONString.cpp
     GLOBAL Functions/toLastDayOfMonth.cpp
     GLOBAL Functions/toLowCardinality.cpp
+    GLOBAL Functions/toMillisecond.cpp
     GLOBAL Functions/toMinute.cpp
     GLOBAL Functions/toModifiedJulianDay.cpp
     GLOBAL Functions/toMonday.cpp
@@ -1368,15 +1525,19 @@ SRCS(
     GLOBAL Functions/trim.cpp
     GLOBAL Functions/tryBase58Decode.cpp
     GLOBAL Functions/tryBase64Decode.cpp
+    GLOBAL Functions/tryBase64URLDecode.cpp
     GLOBAL Functions/tryDecrypt.cpp
     GLOBAL Functions/tuple.cpp
     GLOBAL Functions/tupleConcat.cpp
     GLOBAL Functions/tupleElement.cpp
     GLOBAL Functions/tupleHammingDistance.cpp
+    GLOBAL Functions/tupleNames.cpp
     GLOBAL Functions/tupleToNameValuePairs.cpp
     GLOBAL Functions/upper.cpp
     GLOBAL Functions/upperUTF8.cpp
     GLOBAL Functions/validateNestedArraySizes.cpp
+    GLOBAL Functions/variantElement.cpp
+    GLOBAL Functions/variantType.cpp
     GLOBAL Functions/vectorFunctions.cpp
     GLOBAL Functions/visibleWidth.cpp
     GLOBAL Functions/visitParamExtractBool.cpp
@@ -1409,6 +1570,8 @@ SRCS(
     Interpreters/ActionsVisitor.cpp
     Interpreters/AddIndexConstraintsOptimizer.cpp
     Interpreters/AggregateDescription.cpp
+    Interpreters/AggregatedDataVariants.cpp
+    Interpreters/AggregationMethod.cpp
     Interpreters/AggregationUtils.cpp
     Interpreters/Aggregator.cpp
     Interpreters/ApplyWithAliasVisitor.cpp
@@ -1419,16 +1582,21 @@ SRCS(
     Interpreters/AsynchronousInsertLog.cpp
     Interpreters/AsynchronousInsertQueue.cpp
     Interpreters/AsynchronousMetricLog.cpp
+    Interpreters/BackupLog.cpp
+    Interpreters/BlobStorageLog.cpp
     Interpreters/BloomFilter.cpp
+    Interpreters/Cache/EvictionCandidates.cpp
     Interpreters/Cache/FileCache.cpp
     Interpreters/Cache/FileCacheFactory.cpp
     Interpreters/Cache/FileCacheKey.cpp
     Interpreters/Cache/FileCacheSettings.cpp
     Interpreters/Cache/FileSegment.cpp
+    Interpreters/Cache/IFileCachePriority.cpp
     Interpreters/Cache/LRUFileCachePriority.cpp
     Interpreters/Cache/Metadata.cpp
     Interpreters/Cache/QueryCache.cpp
     Interpreters/Cache/QueryLimit.cpp
+    Interpreters/Cache/SLRUFileCachePriority.cpp
     Interpreters/Cache/WriteBufferToFileSegment.cpp
     Interpreters/ClientInfo.cpp
     Interpreters/Cluster.cpp
@@ -1453,6 +1621,7 @@ SRCS(
     Interpreters/DirectJoin.cpp
     Interpreters/DuplicateOrderByVisitor.cpp
     Interpreters/EmbeddedDictionaries.cpp
+    Interpreters/ErrorLog.cpp
     Interpreters/ExecuteScalarSubqueriesVisitor.cpp
     Interpreters/ExpressionActions.cpp
     Interpreters/ExpressionActionsSettings.cpp
@@ -1473,7 +1642,13 @@ SRCS(
     Interpreters/GinFilter.cpp
     Interpreters/GraceHashJoin.cpp
     Interpreters/GroupingSetsRewriterVisitor.cpp
-    Interpreters/HashJoin.cpp
+    Interpreters/HashJoin/AddedColumns.cpp
+    Interpreters/HashJoin/FullHashJoin.cpp
+    Interpreters/HashJoin/HashJoin.cpp
+    Interpreters/HashJoin/InnerHashJoin.cpp
+    Interpreters/HashJoin/LeftHashJoin.cpp
+    Interpreters/HashJoin/RightHashJoin.cpp
+    Interpreters/HashTablesStatistics.cpp
     Interpreters/IExternalLoadable.cpp
     Interpreters/IInterpreter.cpp
     Interpreters/IInterpreterUnionOrSelectQuery.cpp
@@ -1512,8 +1687,10 @@ SRCS(
     Interpreters/InterpreterShowColumnsQuery.cpp
     Interpreters/InterpreterShowCreateQuery.cpp
     Interpreters/InterpreterShowEngineQuery.cpp
+    Interpreters/InterpreterShowFunctionsQuery.cpp
     Interpreters/InterpreterShowIndexesQuery.cpp
     Interpreters/InterpreterShowProcesslistQuery.cpp
+    Interpreters/InterpreterShowSettingQuery.cpp
     Interpreters/InterpreterShowTablesQuery.cpp
     Interpreters/InterpreterSystemQuery.cpp
     Interpreters/InterpreterTransactionControlQuery.cpp
@@ -1541,12 +1718,14 @@ SRCS(
     Interpreters/MySQL/InterpretersMySQLDDLQuery.cpp
     Interpreters/NormalizeSelectWithUnionQueryVisitor.cpp
     Interpreters/NullableUtils.cpp
+    Interpreters/ObjectStorageQueueLog.cpp
     Interpreters/OpenTelemetrySpanLog.cpp
     Interpreters/OptimizeDateOrDateTimeConverterWithPreimageVisitor.cpp
     Interpreters/OptimizeIfChains.cpp
     Interpreters/OptimizeIfWithConstantConditionVisitor.cpp
     Interpreters/OptimizeShardingKeyRewriteInVisitor.cpp
     Interpreters/PartLog.cpp
+    Interpreters/PeriodicLog.cpp
     Interpreters/PredicateExpressionsOptimizer.cpp
     Interpreters/PredicateRewriteVisitor.cpp
     Interpreters/PreparedSets.cpp
@@ -1563,13 +1742,12 @@ SRCS(
     Interpreters/ReplaceQueryParameterVisitor.cpp
     Interpreters/RequiredSourceColumnsData.cpp
     Interpreters/RequiredSourceColumnsVisitor.cpp
-    Interpreters/RewriteAnyFunctionVisitor.cpp
     Interpreters/RewriteArrayExistsFunctionVisitor.cpp
     Interpreters/RewriteCountDistinctVisitor.cpp
     Interpreters/RewriteCountVariantsVisitor.cpp
-    Interpreters/RewriteFunctionToSubcolumnVisitor.cpp
     Interpreters/RewriteOrderByVisitor.cpp
-    Interpreters/RewriteSumIfFunctionVisitor.cpp
+    Interpreters/RewriteSumFunctionWithSumAndCountVisitor.cpp
+    Interpreters/RewriteUniqToCountVisitor.cpp
     Interpreters/RowRefs.cpp
     Interpreters/SelectIntersectExceptQueryVisitor.cpp
     Interpreters/ServerAsynchronousMetrics.cpp
@@ -1579,7 +1757,7 @@ SRCS(
     Interpreters/Set.cpp
     Interpreters/SetVariants.cpp
     Interpreters/SortedBlocksWriter.cpp
-    Interpreters/SquashingTransform.cpp
+    Interpreters/Squashing.cpp
     Interpreters/StorageID.cpp
     Interpreters/SubstituteColumnOptimizer.cpp
     Interpreters/SynonymsExtensions.cpp
@@ -1622,9 +1800,11 @@ SRCS(
     Interpreters/loadMetadata.cpp
     Interpreters/parseColumnsListForTableFunction.cpp
     Interpreters/processColumnTransformers.cpp
+    Interpreters/registerInterpreters.cpp
     Interpreters/removeOnClusterClauseIfNeeded.cpp
     Interpreters/replaceAliasColumnsInQuery.cpp
     Interpreters/replaceForPositionalArguments.cpp
+    Interpreters/replaceMissedSubcolumnsInQuery.cpp
     Interpreters/sortBlock.cpp
     Loggers/ExtendedLogChannel.cpp
     Loggers/Loggers.cpp
@@ -1646,6 +1826,7 @@ SRCS(
     Planner/PlannerSorting.cpp
     Planner/PlannerWindowFunctions.cpp
     Planner/Utils.cpp
+    Planner/findParallelReplicasQuery.cpp
     Processors/Chunk.cpp
     Processors/ConcatProcessor.cpp
     Processors/DelayedPortsProcessor.cpp
@@ -1684,6 +1865,8 @@ SRCS(
     Processors/Formats/Impl/ConstantExpressionTemplate.cpp
     Processors/Formats/Impl/CustomSeparatedRowInputFormat.cpp
     Processors/Formats/Impl/CustomSeparatedRowOutputFormat.cpp
+    Processors/Formats/Impl/DWARFBlockInputFormat.cpp
+    Processors/Formats/Impl/FormRowInputFormat.cpp
     Processors/Formats/Impl/HiveTextRowInputFormat.cpp
     Processors/Formats/Impl/JSONAsStringRowInputFormat.cpp
     Processors/Formats/Impl/JSONColumnsBlockInputFormat.cpp
@@ -1713,6 +1896,8 @@ SRCS(
     Processors/Formats/Impl/MySQLOutputFormat.cpp
     Processors/Formats/Impl/NativeFormat.cpp
     Processors/Formats/Impl/NativeORCBlockInputFormat.cpp
+    Processors/Formats/Impl/NpyOutputFormat.cpp
+    Processors/Formats/Impl/NpyRowInputFormat.cpp
     Processors/Formats/Impl/NullFormat.cpp
     Processors/Formats/Impl/ODBCDriver2BlockOutputFormat.cpp
     Processors/Formats/Impl/ORCBlockInputFormat.cpp
@@ -1776,6 +1961,7 @@ SRCS(
     Processors/Port.cpp
     Processors/QueryPlan/AggregatingStep.cpp
     Processors/QueryPlan/ArrayJoinStep.cpp
+    Processors/QueryPlan/BufferChunksTransform.cpp
     Processors/QueryPlan/BuildQueryPipelineSettings.cpp
     Processors/QueryPlan/CreateSetAndFilterOnTheFlyStep.cpp
     Processors/QueryPlan/CreatingSetsStep.cpp
@@ -1798,6 +1984,7 @@ SRCS(
     Processors/QueryPlan/Optimizations/QueryPlanOptimizationSettings.cpp
     Processors/QueryPlan/Optimizations/actionsDAGUtils.cpp
     Processors/QueryPlan/Optimizations/addPlansForSets.cpp
+    Processors/QueryPlan/Optimizations/convertOuterJoinToInnerJoin.cpp
     Processors/QueryPlan/Optimizations/distinctReadInOrder.cpp
     Processors/QueryPlan/Optimizations/enableMemoryBoundMerging.cpp
     Processors/QueryPlan/Optimizations/filterPushDown.cpp
@@ -1807,7 +1994,7 @@ SRCS(
     Processors/QueryPlan/Optimizations/limitPushDown.cpp
     Processors/QueryPlan/Optimizations/mergeExpressions.cpp
     Processors/QueryPlan/Optimizations/optimizePrewhere.cpp
-    Processors/QueryPlan/Optimizations/optimizePrimaryKeyCondition.cpp
+    Processors/QueryPlan/Optimizations/optimizePrimaryKeyConditionAndLimit.cpp
     Processors/QueryPlan/Optimizations/optimizeReadInOrder.cpp
     Processors/QueryPlan/Optimizations/optimizeTree.cpp
     Processors/QueryPlan/Optimizations/optimizeUseAggregateProjection.cpp
@@ -1820,13 +2007,18 @@ SRCS(
     Processors/QueryPlan/PartsSplitter.cpp
     Processors/QueryPlan/QueryIdHolder.cpp
     Processors/QueryPlan/QueryPlan.cpp
+    Processors/QueryPlan/ReadFromLoopStep.cpp
     Processors/QueryPlan/ReadFromMemoryStorageStep.cpp
     Processors/QueryPlan/ReadFromMergeTree.cpp
     Processors/QueryPlan/ReadFromPreparedSource.cpp
+    Processors/QueryPlan/ReadFromRecursiveCTEStep.cpp
     Processors/QueryPlan/ReadFromRemote.cpp
+    Processors/QueryPlan/ReadFromStreamLikeEngine.cpp
+    Processors/QueryPlan/ReadFromSystemNumbersStep.cpp
     Processors/QueryPlan/ReadNothingStep.cpp
     Processors/QueryPlan/RollupStep.cpp
     Processors/QueryPlan/SortingStep.cpp
+    Processors/QueryPlan/SourceStepWithFilter.cpp
     Processors/QueryPlan/TotalsHavingStep.cpp
     Processors/QueryPlan/UnionStep.cpp
     Processors/QueryPlan/WindowStep.cpp
@@ -1836,6 +2028,7 @@ SRCS(
     Processors/Sources/MongoDBSource.cpp
     Processors/Sources/MySQLSource.cpp
     Processors/Sources/PostgreSQLSource.cpp
+    Processors/Sources/RecursiveCTESource.cpp
     Processors/Sources/RemoteSource.cpp
     Processors/Sources/SQLiteSource.cpp
     Processors/Sources/ShellCommandSource.cpp
@@ -1859,6 +2052,7 @@ SRCS(
     Processors/Transforms/CreateSetAndFilterOnTheFlyTransform.cpp
     Processors/Transforms/CreatingSetsTransform.cpp
     Processors/Transforms/CubeTransform.cpp
+    Processors/Transforms/DeduplicationTokenTransforms.cpp
     Processors/Transforms/DistinctSortedChunkTransform.cpp
     Processors/Transforms/DistinctSortedTransform.cpp
     Processors/Transforms/DistinctTransform.cpp
@@ -1879,10 +2073,13 @@ SRCS(
     Processors/Transforms/MergingAggregatedMemoryEfficientTransform.cpp
     Processors/Transforms/MergingAggregatedTransform.cpp
     Processors/Transforms/PartialSortingTransform.cpp
+    Processors/Transforms/PasteJoinTransform.cpp
+    Processors/Transforms/PlanSquashingTransform.cpp
     Processors/Transforms/ReverseTransform.cpp
     Processors/Transforms/RollupTransform.cpp
+    Processors/Transforms/ScatterByPartitionTransform.cpp
     Processors/Transforms/SortingTransform.cpp
-    Processors/Transforms/SquashingChunksTransform.cpp
+    Processors/Transforms/SquashingTransform.cpp
     Processors/Transforms/StreamInQueryCacheTransform.cpp
     Processors/Transforms/TTLCalcTransform.cpp
     Processors/Transforms/TTLTransform.cpp
@@ -1908,6 +2105,7 @@ SRCS(
     QueryPipeline/narrowPipe.cpp
     QueryPipeline/printPipeline.cpp
     Server/CertificateReloader.cpp
+    Server/CloudPlacementInfo.cpp
     Server/GRPCServer.cpp
     Server/HTTP/HTMLForm.cpp
     Server/HTTP/HTTPServer.cpp
@@ -1917,11 +2115,18 @@ SRCS(
     Server/HTTP/HTTPServerResponse.cpp
     Server/HTTP/ReadHeaders.cpp
     Server/HTTP/WriteBufferFromHTTPServerResponse.cpp
+    Server/HTTP/authenticateUserByHTTP.cpp
+    Server/HTTP/checkHTTPHeader.cpp
+    Server/HTTP/exceptionCodeToHTTPStatus.cpp
+    Server/HTTP/sendExceptionToHTTPClient.cpp
+    Server/HTTP/setReadOnlyIfHTTPMethodIdempotent.cpp
     Server/HTTPHandler.cpp
     Server/HTTPHandlerFactory.cpp
     Server/HTTPPathHints.cpp
     Server/HTTPRequestHandlerFactoryMain.cpp
+    Server/HTTPResponseHeaderWriter.cpp
     Server/InterserverIOHTTPHandler.cpp
+    Server/KeeperReadinessHandler.cpp
     Server/KeeperTCPHandler.cpp
     Server/MySQLHandler.cpp
     Server/MySQLHandlerFactory.cpp
@@ -1930,6 +2135,7 @@ SRCS(
     Server/PostgreSQLHandlerFactory.cpp
     Server/PrometheusMetricsWriter.cpp
     Server/PrometheusRequestHandler.cpp
+    Server/PrometheusRequestHandlerFactory.cpp
     Server/ProtocolServerAdapter.cpp
     Server/ProxyV1Handler.cpp
     Server/ReplicasStatusHandler.cpp
@@ -1937,6 +2143,7 @@ SRCS(
     Server/StaticRequestHandler.cpp
     Server/TCPHandler.cpp
     Server/TCPServer.cpp
+    Server/TLSHandler.cpp
     Server/WebUIRequestHandler.cpp
     Server/waitServersToFinish.cpp
     Storages/AlterCommands.cpp
@@ -1948,11 +2155,6 @@ SRCS(
     Storages/ColumnDefault.cpp
     Storages/ColumnsDescription.cpp
     Storages/ConstraintsDescription.cpp
-    Storages/DataLakes/DeltaLakeMetadataParser.cpp
-    Storages/DataLakes/HudiMetadataParser.cpp
-    Storages/DataLakes/IcebergMetadataParser.cpp
-    Storages/DataLakes/S3MetadataReader.cpp
-    Storages/DataLakes/registerDataLakes.cpp
     Storages/Distributed/DistributedAsyncInsertBatch.cpp
     Storages/Distributed/DistributedAsyncInsertDirectoryQueue.cpp
     Storages/Distributed/DistributedAsyncInsertHeader.cpp
@@ -1961,7 +2163,6 @@ SRCS(
     Storages/Distributed/DistributedSettings.cpp
     Storages/Distributed/DistributedSink.cpp
     Storages/ExecutableSettings.cpp
-    Storages/ExternalDataSourceConfiguration.cpp
     Storages/Freeze.cpp
     Storages/IMessageProducer.cpp
     Storages/IStorage.cpp
@@ -1969,20 +2170,19 @@ SRCS(
     Storages/IndicesDescription.cpp
     Storages/KVStorageUtils.cpp
     Storages/KeyDescription.cpp
-    Storages/LightweightDeleteDescription.cpp
     Storages/LiveView/StorageLiveView.cpp
-    Storages/MeiliSearch/MeiliSearchColumnDescriptionFetcher.cpp
-    Storages/MeiliSearch/MeiliSearchConnection.cpp
-    Storages/MeiliSearch/SinkMeiliSearch.cpp
-    Storages/MeiliSearch/SourceMeiliSearch.cpp
-    Storages/MeiliSearch/StorageMeiliSearch.cpp
+    Storages/MarkCache.cpp
+    Storages/MaterializedView/RefreshSchedule.cpp
+    Storages/MaterializedView/RefreshSet.cpp
+    Storages/MaterializedView/RefreshSettings.cpp
+    Storages/MaterializedView/RefreshTask.cpp
     Storages/MemorySettings.cpp
     Storages/MergeTree/ActiveDataPartSet.cpp
     Storages/MergeTree/AllMergeSelector.cpp
     Storages/MergeTree/AlterConversions.cpp
-    Storages/MergeTree/ApproximateNearestNeighborIndexesCommon.cpp
     Storages/MergeTree/AsyncBlockIDsCache.cpp
     Storages/MergeTree/BackgroundJobsAssignee.cpp
+    Storages/MergeTree/Backup.cpp
     Storages/MergeTree/BoolMask.cpp
     Storages/MergeTree/DataPartStorageOnDiskBase.cpp
     Storages/MergeTree/DataPartStorageOnDiskFull.cpp
@@ -1998,51 +2198,44 @@ SRCS(
     Storages/MergeTree/IPartMetadataManager.cpp
     Storages/MergeTree/InsertBlockInfo.cpp
     Storages/MergeTree/KeyCondition.cpp
-    Storages/MergeTree/LevelMergeSelector.cpp
     Storages/MergeTree/MarkRange.cpp
     Storages/MergeTree/MergeFromLogEntryTask.cpp
     Storages/MergeTree/MergeList.cpp
     Storages/MergeTree/MergePlainMergeTreeTask.cpp
     Storages/MergeTree/MergeTask.cpp
     Storages/MergeTree/MergeTreeBackgroundExecutor.cpp
-    Storages/MergeTree/MergeTreeBaseSelectProcessor.cpp
     Storages/MergeTree/MergeTreeBlockReadUtils.cpp
     Storages/MergeTree/MergeTreeData.cpp
     Storages/MergeTree/MergeTreeDataMergerMutator.cpp
     Storages/MergeTree/MergeTreeDataPartBuilder.cpp
     Storages/MergeTree/MergeTreeDataPartChecksum.cpp
     Storages/MergeTree/MergeTreeDataPartCompact.cpp
-    Storages/MergeTree/MergeTreeDataPartInMemory.cpp
     Storages/MergeTree/MergeTreeDataPartTTLInfo.cpp
+    Storages/MergeTree/MergeTreeDataPartType.cpp
     Storages/MergeTree/MergeTreeDataPartUUID.cpp
     Storages/MergeTree/MergeTreeDataPartWide.cpp
     Storages/MergeTree/MergeTreeDataPartWriterCompact.cpp
-    Storages/MergeTree/MergeTreeDataPartWriterInMemory.cpp
     Storages/MergeTree/MergeTreeDataPartWriterOnDisk.cpp
     Storages/MergeTree/MergeTreeDataPartWriterWide.cpp
     Storages/MergeTree/MergeTreeDataSelectExecutor.cpp
     Storages/MergeTree/MergeTreeDataWriter.cpp
     Storages/MergeTree/MergeTreeDeduplicationLog.cpp
-    Storages/MergeTree/MergeTreeInOrderSelectProcessor.cpp
-    Storages/MergeTree/MergeTreeIndexAggregatorBloomFilter.cpp
-    Storages/MergeTree/MergeTreeIndexAnnoy.cpp
+    Storages/MergeTree/MergeTreeIOSettings.cpp
     Storages/MergeTree/MergeTreeIndexBloomFilter.cpp
-    Storages/MergeTree/MergeTreeIndexConditionBloomFilter.cpp
+    Storages/MergeTree/MergeTreeIndexBloomFilterText.cpp
     Storages/MergeTree/MergeTreeIndexFullText.cpp
     Storages/MergeTree/MergeTreeIndexGranularity.cpp
     Storages/MergeTree/MergeTreeIndexGranularityInfo.cpp
-    Storages/MergeTree/MergeTreeIndexGranuleBloomFilter.cpp
     Storages/MergeTree/MergeTreeIndexHypothesis.cpp
     Storages/MergeTree/MergeTreeIndexHypothesisMergedCondition.cpp
-    Storages/MergeTree/MergeTreeIndexInverted.cpp
+    Storages/MergeTree/MergeTreeIndexLegacyVectorSimilarity.cpp
     Storages/MergeTree/MergeTreeIndexMinMax.cpp
     Storages/MergeTree/MergeTreeIndexReader.cpp
     Storages/MergeTree/MergeTreeIndexSet.cpp
-    Storages/MergeTree/MergeTreeIndexUSearch.cpp
     Storages/MergeTree/MergeTreeIndexUtils.cpp
+    Storages/MergeTree/MergeTreeIndexVectorSimilarity.cpp
     Storages/MergeTree/MergeTreeIndices.cpp
     Storages/MergeTree/MergeTreeMarksLoader.cpp
-    Storages/MergeTree/MergeTreeMetadataCache.cpp
     Storages/MergeTree/MergeTreeMutationEntry.cpp
     Storages/MergeTree/MergeTreeMutationStatus.cpp
     Storages/MergeTree/MergeTreePartInfo.cpp
@@ -2051,20 +2244,24 @@ SRCS(
     Storages/MergeTree/MergeTreePrefetchedReadPool.cpp
     Storages/MergeTree/MergeTreeRangeReader.cpp
     Storages/MergeTree/MergeTreeReadPool.cpp
+    Storages/MergeTree/MergeTreeReadPoolBase.cpp
+    Storages/MergeTree/MergeTreeReadPoolInOrder.cpp
+    Storages/MergeTree/MergeTreeReadPoolParallelReplicas.cpp
+    Storages/MergeTree/MergeTreeReadPoolParallelReplicasInOrder.cpp
+    Storages/MergeTree/MergeTreeReadTask.cpp
     Storages/MergeTree/MergeTreeReaderCompact.cpp
-    Storages/MergeTree/MergeTreeReaderInMemory.cpp
+    Storages/MergeTree/MergeTreeReaderCompactSingleBuffer.cpp
     Storages/MergeTree/MergeTreeReaderStream.cpp
     Storages/MergeTree/MergeTreeReaderWide.cpp
-    Storages/MergeTree/MergeTreeReverseSelectProcessor.cpp
+    Storages/MergeTree/MergeTreeSelectAlgorithms.cpp
     Storages/MergeTree/MergeTreeSelectProcessor.cpp
     Storages/MergeTree/MergeTreeSequentialSource.cpp
     Storages/MergeTree/MergeTreeSettings.cpp
     Storages/MergeTree/MergeTreeSink.cpp
     Storages/MergeTree/MergeTreeSource.cpp
     Storages/MergeTree/MergeTreeSplitPrewhereIntoReadSteps.cpp
-    Storages/MergeTree/MergeTreeThreadSelectProcessor.cpp
+    Storages/MergeTree/MergeTreeVirtualColumns.cpp
     Storages/MergeTree/MergeTreeWhereOptimizer.cpp
-    Storages/MergeTree/MergeTreeWriteAheadLog.cpp
     Storages/MergeTree/MergeType.cpp
     Storages/MergeTree/MergedBlockOutputStream.cpp
     Storages/MergeTree/MergedColumnOnlyOutputStream.cpp
@@ -2074,7 +2271,6 @@ SRCS(
     Storages/MergeTree/MutateTask.cpp
     Storages/MergeTree/ParallelReplicasReadingCoordinator.cpp
     Storages/MergeTree/PartMetadataManagerOrdinary.cpp
-    Storages/MergeTree/PartMetadataManagerWithCache.cpp
     Storages/MergeTree/PartMovesBetweenShardsOrchestrator.cpp
     Storages/MergeTree/PartitionPruner.cpp
     Storages/MergeTree/PinnedPartUUIDs.cpp
@@ -2096,35 +2292,64 @@ SRCS(
     Storages/MergeTree/ReplicatedMergeTreeSink.cpp
     Storages/MergeTree/ReplicatedMergeTreeTableMetadata.cpp
     Storages/MergeTree/RequestResponse.cpp
+    Storages/MergeTree/RowOrderOptimizer.cpp
     Storages/MergeTree/SimpleMergeSelector.cpp
     Storages/MergeTree/TTLMergeSelector.cpp
     Storages/MergeTree/TemporaryParts.cpp
+    Storages/MergeTree/VectorSimilarityCondition.cpp
     Storages/MergeTree/ZeroCopyLock.cpp
     Storages/MergeTree/checkDataPart.cpp
-    Storages/MergeTree/extractZkPathFromCreateQuery.cpp
-    Storages/MergeTree/localBackup.cpp
     Storages/MergeTree/registerStorageMergeTree.cpp
     Storages/MessageQueueSink.cpp
     Storages/MutationCommands.cpp
     Storages/MySQL/MySQLHelpers.cpp
     Storages/MySQL/MySQLSettings.cpp
     Storages/NamedCollectionsHelpers.cpp
+    Storages/ObjectStorage/Azure/Configuration.cpp
+    Storages/ObjectStorage/DataLakes/Common.cpp
+    Storages/ObjectStorage/DataLakes/DeltaLakeMetadata.cpp
+    Storages/ObjectStorage/DataLakes/HudiMetadata.cpp
+    Storages/ObjectStorage/DataLakes/IcebergMetadata.cpp
+    Storages/ObjectStorage/DataLakes/registerDataLakeStorages.cpp
+    Storages/ObjectStorage/HDFS/AsynchronousReadBufferFromHDFS.cpp
+    Storages/ObjectStorage/HDFS/Configuration.cpp
+    Storages/ObjectStorage/HDFS/HDFSCommon.cpp
+    Storages/ObjectStorage/HDFS/ReadBufferFromHDFS.cpp
+    Storages/ObjectStorage/HDFS/WriteBufferFromHDFS.cpp
+    Storages/ObjectStorage/ReadBufferIterator.cpp
+    Storages/ObjectStorage/S3/Configuration.cpp
+    Storages/ObjectStorage/StorageObjectStorage.cpp
+    Storages/ObjectStorage/StorageObjectStorageCluster.cpp
+    Storages/ObjectStorage/StorageObjectStorageSink.cpp
+    Storages/ObjectStorage/StorageObjectStorageSource.cpp
+    Storages/ObjectStorage/Utils.cpp
+    Storages/ObjectStorage/registerStorageObjectStorage.cpp
+    Storages/ObjectStorageQueue/ObjectStorageQueueIFileMetadata.cpp
+    Storages/ObjectStorageQueue/ObjectStorageQueueMetadata.cpp
+    Storages/ObjectStorageQueue/ObjectStorageQueueMetadataFactory.cpp
+    Storages/ObjectStorageQueue/ObjectStorageQueueOrderedFileMetadata.cpp
+    Storages/ObjectStorageQueue/ObjectStorageQueueSettings.cpp
+    Storages/ObjectStorageQueue/ObjectStorageQueueSource.cpp
+    Storages/ObjectStorageQueue/ObjectStorageQueueTableMetadata.cpp
+    Storages/ObjectStorageQueue/ObjectStorageQueueUnorderedFileMetadata.cpp
+    Storages/ObjectStorageQueue/StorageObjectStorageQueue.cpp
+    Storages/ObjectStorageQueue/registerQueueStorage.cpp
     Storages/PartitionCommands.cpp
     Storages/PartitionedSink.cpp
     Storages/ProjectionsDescription.cpp
     Storages/ReadFinalForExternalReplicaStorage.cpp
     Storages/ReadInOrderOptimizer.cpp
     Storages/RedisCommon.cpp
-    Storages/S3Queue/S3QueueFilesMetadata.cpp
-    Storages/S3Queue/S3QueueSettings.cpp
-    Storages/S3Queue/S3QueueSource.cpp
-    Storages/S3Queue/S3QueueTableMetadata.cpp
-    Storages/S3Queue/StorageS3Queue.cpp
+    Storages/ReplaceAliasByExpressionVisitor.cpp
     Storages/SelectQueryDescription.cpp
     Storages/SelectQueryInfo.cpp
     Storages/SetSettings.cpp
-    Storages/StorageAzureBlob.cpp
-    Storages/StorageAzureBlobCluster.cpp
+    Storages/Statistics/ConditionSelectivityEstimator.cpp
+    Storages/Statistics/Statistics.cpp
+    Storages/Statistics/StatisticsCountMinSketch.cpp
+    Storages/Statistics/StatisticsTDigest.cpp
+    Storages/Statistics/StatisticsUniq.cpp
+    Storages/StatisticsDescription.cpp
     Storages/StorageBuffer.cpp
     Storages/StorageDictionary.cpp
     Storages/StorageDistributed.cpp
@@ -2133,6 +2358,10 @@ SRCS(
     Storages/StorageExternalDistributed.cpp
     Storages/StorageFactory.cpp
     Storages/StorageFile.cpp
+    Storages/StorageFileCluster.cpp
+    Storages/StorageFromMergeTreeDataPart.cpp
+    Storages/StorageFuzzJSON.cpp
+    Storages/StorageFuzzQuery.cpp
     Storages/StorageGenerateRandom.cpp
     Storages/StorageInMemoryMetadata.cpp
     Storages/StorageInput.cpp
@@ -2140,11 +2369,13 @@ SRCS(
     Storages/StorageKeeperMap.cpp
     Storages/StorageLog.cpp
     Storages/StorageLogSettings.cpp
+    Storages/StorageLoop.cpp
     Storages/StorageMaterializedMySQL.cpp
     Storages/StorageMaterializedView.cpp
     Storages/StorageMemory.cpp
     Storages/StorageMerge.cpp
     Storages/StorageMergeTree.cpp
+    Storages/StorageMergeTreeIndex.cpp
     Storages/StorageMongoDB.cpp
     Storages/StorageMongoDBSocketFactory.cpp
     Storages/StorageMySQL.cpp
@@ -2152,19 +2383,19 @@ SRCS(
     Storages/StoragePostgreSQL.cpp
     Storages/StorageRedis.cpp
     Storages/StorageReplicatedMergeTree.cpp
-    Storages/StorageS3.cpp
-    Storages/StorageS3Cluster.cpp
-    Storages/StorageS3Settings.cpp
     Storages/StorageSQLite.cpp
     Storages/StorageSet.cpp
     Storages/StorageSnapshot.cpp
     Storages/StorageStripeLog.cpp
+    Storages/StorageTimeSeries.cpp
     Storages/StorageURL.cpp
     Storages/StorageURLCluster.cpp
     Storages/StorageValues.cpp
     Storages/StorageView.cpp
     Storages/StorageXDBC.cpp
+    Storages/System/IStorageSystemOneBlock.cpp
     Storages/System/StorageSystemAggregateFunctionCombinators.cpp
+    Storages/System/StorageSystemAsyncLoader.cpp
     Storages/System/StorageSystemAsynchronousInserts.cpp
     Storages/System/StorageSystemAsynchronousMetrics.cpp
     Storages/System/StorageSystemBackups.cpp
@@ -2178,24 +2409,31 @@ SRCS(
     Storages/System/StorageSystemContributors.generated.cpp
     Storages/System/StorageSystemCurrentRoles.cpp
     Storages/System/StorageSystemDDLWorkerQueue.cpp
+    Storages/System/StorageSystemDNSCache.cpp
+    Storages/System/StorageSystemDashboards.cpp
     Storages/System/StorageSystemDataSkippingIndices.cpp
     Storages/System/StorageSystemDataTypeFamilies.cpp
+    Storages/System/StorageSystemDatabaseEngines.cpp
     Storages/System/StorageSystemDatabases.cpp
     Storages/System/StorageSystemDetachedParts.cpp
+    Storages/System/StorageSystemDetachedTables.cpp
     Storages/System/StorageSystemDictionaries.cpp
     Storages/System/StorageSystemDisks.cpp
     Storages/System/StorageSystemDistributionQueue.cpp
     Storages/System/StorageSystemDroppedTables.cpp
+    Storages/System/StorageSystemDroppedTablesParts.cpp
     Storages/System/StorageSystemEnabledRoles.cpp
     Storages/System/StorageSystemErrors.cpp
     Storages/System/StorageSystemEvents.cpp
     Storages/System/StorageSystemFilesystemCache.cpp
+    Storages/System/StorageSystemFilesystemCacheSettings.cpp
     Storages/System/StorageSystemFormats.cpp
     Storages/System/StorageSystemFunctions.cpp
     Storages/System/StorageSystemGrants.cpp
     Storages/System/StorageSystemGraphite.cpp
     Storages/System/StorageSystemJemalloc.cpp
     Storages/System/StorageSystemKafkaConsumers.cpp
+    Storages/System/StorageSystemKeywords.cpp
     Storages/System/StorageSystemLicenses.cpp
     Storages/System/StorageSystemLicenses.generated.cpp
     Storages/System/StorageSystemMacros.cpp
@@ -2205,6 +2443,7 @@ SRCS(
     Storages/System/StorageSystemModels.cpp
     Storages/System/StorageSystemMoves.cpp
     Storages/System/StorageSystemMutations.cpp
+    Storages/System/StorageSystemMySQLBinlogs.cpp
     Storages/System/StorageSystemNamedCollections.cpp
     Storages/System/StorageSystemNumbers.cpp
     Storages/System/StorageSystemOne.cpp
@@ -2228,6 +2467,8 @@ SRCS(
     Storages/System/StorageSystemRoleGrants.cpp
     Storages/System/StorageSystemRoles.cpp
     Storages/System/StorageSystemRowPolicies.cpp
+    Storages/System/StorageSystemS3Queue.cpp
+    Storages/System/StorageSystemScheduler.cpp
     Storages/System/StorageSystemSchemaInferenceCache.cpp
     Storages/System/StorageSystemServerSettings.cpp
     Storages/System/StorageSystemSettings.cpp
@@ -2236,6 +2477,7 @@ SRCS(
     Storages/System/StorageSystemSettingsProfiles.cpp
     Storages/System/StorageSystemStackTrace.cpp
     Storages/System/StorageSystemStoragePolicies.cpp
+    Storages/System/StorageSystemSymbols.cpp
     Storages/System/StorageSystemTableEngines.cpp
     Storages/System/StorageSystemTableFunctions.cpp
     Storages/System/StorageSystemTables.cpp
@@ -2244,6 +2486,7 @@ SRCS(
     Storages/System/StorageSystemUserDirectories.cpp
     Storages/System/StorageSystemUserProcesses.cpp
     Storages/System/StorageSystemUsers.cpp
+    Storages/System/StorageSystemViewRefreshes.cpp
     Storages/System/StorageSystemWarnings.cpp
     Storages/System/StorageSystemZeros.cpp
     Storages/System/StorageSystemZooKeeper.cpp
@@ -2252,7 +2495,15 @@ SRCS(
     Storages/System/attachSystemTables.cpp
     Storages/System/getQueriedColumnsMaskAndHeader.cpp
     Storages/TTLDescription.cpp
+    Storages/TimeSeries/PrometheusRemoteReadProtocol.cpp
+    Storages/TimeSeries/PrometheusRemoteWriteProtocol.cpp
+    Storages/TimeSeries/TimeSeriesColumnsValidator.cpp
+    Storages/TimeSeries/TimeSeriesDefinitionNormalizer.cpp
+    Storages/TimeSeries/TimeSeriesInnerTablesCreator.cpp
+    Storages/TimeSeries/TimeSeriesSettings.cpp
+    Storages/Utils.cpp
     Storages/VirtualColumnUtils.cpp
+    Storages/VirtualColumnsDescription.cpp
     Storages/WindowView/StorageWindowView.cpp
     Storages/buildQueryTreeForShard.cpp
     Storages/checkAndGetLiteralArgument.cpp
@@ -2267,41 +2518,43 @@ SRCS(
     TableFunctions/ITableFunction.cpp
     TableFunctions/ITableFunctionFileLike.cpp
     TableFunctions/ITableFunctionXDBC.cpp
-    TableFunctions/TableFunctionAzureBlobStorage.cpp
-    TableFunctions/TableFunctionAzureBlobStorageCluster.cpp
-    TableFunctions/TableFunctionDeltaLake.cpp
     TableFunctions/TableFunctionDictionary.cpp
     TableFunctions/TableFunctionExecutable.cpp
     TableFunctions/TableFunctionExplain.cpp
     TableFunctions/TableFunctionFactory.cpp
     TableFunctions/TableFunctionFile.cpp
+    TableFunctions/TableFunctionFileCluster.cpp
     TableFunctions/TableFunctionFormat.cpp
+    TableFunctions/TableFunctionFuzzJSON.cpp
+    TableFunctions/TableFunctionFuzzQuery.cpp
     TableFunctions/TableFunctionGenerateRandom.cpp
-    TableFunctions/TableFunctionHDFS.cpp
-    TableFunctions/TableFunctionHDFSCluster.cpp
-    TableFunctions/TableFunctionHudi.cpp
-    TableFunctions/TableFunctionIceberg.cpp
+    TableFunctions/TableFunctionGenerateSeries.cpp
     TableFunctions/TableFunctionInput.cpp
-    TableFunctions/TableFunctionMeiliSearch.cpp
+    TableFunctions/TableFunctionLoop.cpp
     TableFunctions/TableFunctionMerge.cpp
+    TableFunctions/TableFunctionMergeTreeIndex.cpp
     TableFunctions/TableFunctionMongoDB.cpp
     TableFunctions/TableFunctionMySQL.cpp
     TableFunctions/TableFunctionNull.cpp
     TableFunctions/TableFunctionNumbers.cpp
+    TableFunctions/TableFunctionObjectStorage.cpp
+    TableFunctions/TableFunctionObjectStorageCluster.cpp
     TableFunctions/TableFunctionPostgreSQL.cpp
     TableFunctions/TableFunctionRedis.cpp
     TableFunctions/TableFunctionRemote.cpp
-    TableFunctions/TableFunctionS3.cpp
-    TableFunctions/TableFunctionS3Cluster.cpp
     TableFunctions/TableFunctionSQLite.cpp
+    TableFunctions/TableFunctionTimeSeries.cpp
     TableFunctions/TableFunctionURL.cpp
     TableFunctions/TableFunctionURLCluster.cpp
     TableFunctions/TableFunctionValues.cpp
     TableFunctions/TableFunctionView.cpp
     TableFunctions/TableFunctionViewIfPermitted.cpp
     TableFunctions/TableFunctionZeros.cpp
+    TableFunctions/registerDataLakeTableFunctions.cpp
     TableFunctions/registerTableFunctions.cpp
 )
+
+SRC(Functions/divide/divideImpl.cpp -DNAMESPACE=Generic)
 
 SRC_C_SSE2(Functions/divide/divideImpl.cpp -DNAMESPACE=SSE2)
 
@@ -2310,10 +2563,10 @@ SRC_C_AVX2(Functions/divide/divideImpl.cpp -DNAMESPACE=AVX2)
 IF (OS_LINUX)
     SRCS(
         Storages/FileLog/DirectoryWatcherBase.cpp
+        Storages/FileLog/FileLogConsumer.cpp
         Storages/FileLog/FileLogDirectoryWatcher.cpp
         Storages/FileLog/FileLogSettings.cpp
         Storages/FileLog/FileLogSource.cpp
-        Storages/FileLog/ReadBufferFromFileLog.cpp
         Storages/FileLog/StorageFileLog.cpp
     )
 ENDIF()

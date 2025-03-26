@@ -189,6 +189,9 @@ void TDynamicMulticellManagerConfig::Register(TRegistrar registrar)
     registrar.Parameter("remove_secondary_cell_default_roles", &TThis::RemoveSecondaryCellDefaultRoles)
         .Default(false);
 
+    registrar.Parameter("allow_master_cell_role_invariant_check", &TThis::AllowMasterCellRoleInvariantCheck)
+        .Default(true);
+
     registrar.Parameter("sync_hive_clocks_period", &TThis::SyncHiveClocksPeriod)
         .Default(TDuration::Seconds(10));
     registrar.Parameter("testing", &TThis::Testing)
@@ -357,6 +360,10 @@ void TDynamicCellMasterConfig::Register(TRegistrar registrar)
     registrar.Parameter("expected_mutation_commit_duration", &TThis::ExpectedMutationCommitDuration)
         .Default(TDuration::Zero());
 
+    // COMPAT(koloshmet)
+    registrar.Parameter("create_lost_vital_chunks_sample_map", &TThis::CreateLostVitalChunksSampleMap)
+        .Default(true);
+
     registrar.Parameter("response_keeper", &TThis::ResponseKeeper)
         .DefaultNew();
 }
@@ -422,6 +429,8 @@ void TDynamicClusterConfig::Register(TRegistrar registrar)
     registrar.Parameter("sequoia_manager", &TThis::SequoiaManager)
         .DefaultNew();
     registrar.Parameter("ground_update_queue_manager", &TThis::GroundUpdateQueueManager)
+        .DefaultNew();
+    registrar.Parameter("cypress_proxy_tracker", &TThis::CypressProxyTracker)
         .DefaultNew();
     registrar.Parameter("cell_master", &TThis::CellMaster)
         .DefaultNew();

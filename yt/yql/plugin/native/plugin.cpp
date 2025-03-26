@@ -45,6 +45,12 @@
 #include <yql/essentials/minikql/comp_nodes/mkql_factories.h>
 #include <yql/essentials/utils/backtrace/backtrace.h>
 #include <yql/essentials/utils/log/log.h>
+#include <yql/essentials/sql/v1/sql.h>
+#include <yql/essentials/sql/v1/lexer/antlr4/lexer.h>
+#include <yql/essentials/sql/v1/lexer/antlr4_ansi/lexer.h>
+#include <yql/essentials/sql/v1/proto_parser/antlr4/proto_parser.h>
+#include <yql/essentials/sql/v1/proto_parser/antlr4_ansi/proto_parser.h>
+#include <yql/essentials/parser/pg_wrapper/interface/parser.h>
 
 #include <yt/yt/core/ytree/convert.h>
 
@@ -93,21 +99,27 @@ std::optional<TString> MaybeToOptional(const TMaybe<TString>& maybeStr)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TQueryPlan
+    : public TRefCounted
+{
+    std::optional<TString> Plan;
+    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, PlanSpinLock);
+};
+DECLARE_REFCOUNTED_TYPE(TQueryPlan)
+DEFINE_REFCOUNTED_TYPE(TQueryPlan)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TQueryPipelineConfigurator
     : public NYql::IPipelineConfigurator
     , public TRefCounted
 {
 public:
-    struct TQueryPlan
-    {
-        std::optional<TString> Plan;
-        YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, PlanSpinLock);
-    };
-    NYql::TProgramPtr Program_;
-    mutable TQueryPlan Plan_;
+    const TQueryPlanPtr Plan;
 
     TQueryPipelineConfigurator(NYql::TProgramPtr program)
-        : Program_(std::move(program))
+        : Plan(New<TQueryPlan>())
+        , Program_(std::move(program))
     { }
 
     void AfterCreate(NYql::TTransformationPipeline* /*pipeline*/) const override
@@ -121,14 +133,17 @@ public:
         auto transformer = [this](NYql::TExprNode::TPtr input, NYql::TExprNode::TPtr& output, NYql::TExprContext& /*ctx*/) {
             output = input;
 
-            auto guard = WriterGuard(Plan_.PlanSpinLock);
-            Plan_.Plan = MaybeToOptional(Program_->GetQueryPlan());
+            auto guard = WriterGuard(Plan->PlanSpinLock);
+            Plan->Plan = MaybeToOptional(Program_->GetQueryPlan());
 
             return NYql::IGraphTransformer::TStatus::Ok;
         };
 
         pipeline->Add(NYql::CreateFunctorTransformer(transformer), "PlanOutput");
     }
+
+private:
+    NYql::TProgramPtr Program_;
 };
 DECLARE_REFCOUNTED_TYPE(TQueryPipelineConfigurator)
 DEFINE_REFCOUNTED_TYPE(TQueryPipelineConfigurator)
@@ -141,7 +156,6 @@ struct TDynamicConfig
     NYql::TGatewaysConfig GatewaysConfig;
     THashMap<TString, TString> Clusters;
     std::optional<TString> DefaultCluster;
-    ::TIntrusivePtr<NKikimr::NMiniKQL::IMutableFunctionRegistry> FuncRegistry;
     NYql::TExprContext ExprContext;
     NYql::IModuleResolver::TPtr ModuleResolver;
 };
@@ -152,16 +166,17 @@ DEFINE_REFCOUNTED_TYPE(TDynamicConfig)
 
 struct TActiveQuery
 {
+    // Store shared data for TProgram after dyn config changing.
+    TDynamicConfigPtr ProgramSharedData;
+    NYql::TProgramFactoryPtr ProgramFactory;
+
     NYql::TProgramPtr Program;
     bool Compiled = false;
+    bool Finished = false;
 
     TProgressMerger ProgressMerger;
     TQueryPipelineConfiguratorPtr PipelineConfigurator;
     std::optional<TString> Plan;
-
-    // Store shared data for TProgram after dyn config changing.
-    TDynamicConfigPtr ProgramSharedData;
-    NYql::TProgramFactoryPtr ProgramFactory;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -271,6 +286,39 @@ public:
 
             FileStorage_ = WithAsync(CreateFileStorage(fileStorageConfig, {MakeYtDownloader(fileStorageConfig)}));
 
+            FuncRegistry_ = NKikimr::NMiniKQL::CreateFunctionRegistry(
+                NKikimr::NMiniKQL::CreateBuiltinRegistry())->Clone();
+            const NKikimr::NMiniKQL::TUdfModuleRemappings emptyRemappings;
+            FuncRegistry_->SetBackTraceCallback(&NYql::NBacktrace::KikimrBackTrace);
+            TVector<TString> udfPaths;
+            NKikimr::NMiniKQL::FindUdfsInDir(gatewayYtConfig->GetMrJobUdfsDir(), &udfPaths);
+            for (const auto& path : udfPaths) {
+                // Skip YQL plugin shared library itself, it is not a UDF.
+                if (path.EndsWith("libyqlplugin.so")) {
+                    continue;
+                }
+                ui32 flags = 0;
+                // System Python UDFs are not used locally so we only need types.
+                if (path.Contains("systempython") && path.Contains(TString("udf") + MKQL_UDF_LIB_SUFFIX)) {
+                    flags |= NUdf::IRegistrator::TFlags::TypesOnly;
+                }
+                FuncRegistry_->LoadUdfs(path, emptyRemappings, flags);
+                if (DqManagerConfig_) {
+                    DqManagerConfig_->UdfsWithMd5.emplace(path, MD5::File(path));
+                }
+            }
+            gatewayYtConfig->ClearMrJobUdfsDir();
+            NKikimr::NMiniKQL::TUdfModulePathsMap systemModules;
+            for (const auto& m : FuncRegistry_->GetAllModuleNames()) {
+                TMaybe<TString> path = FuncRegistry_->FindUdfPath(m);
+                if (!path) {
+                    YQL_LOG(FATAL) << "Unable to detect UDF path for module " << m;
+                    exit(1);
+                }
+                systemModules.emplace(m, *path);
+            }
+            FuncRegistry_->SetSystemModulePaths(systemModules);
+
             if (DqManagerConfig_) {
                 DqManagerConfig_->FileStorage = FileStorage_;
                 DqManager_ = New<TDqManager>(DqManagerConfig_);
@@ -295,7 +343,7 @@ public:
 
             OperationAttributes_ = options.OperationAttributes;
 
-            DynamicConfig_ = CreateDynamicConfig(NYql::TGatewaysConfig(GatewaysConfigInitial_));
+            DynamicConfig_.Store(CreateDynamicConfig(NYql::TGatewaysConfig(GatewaysConfigInitial_)));
 
             if (options.YTTokenPath) {
                 TFsPath path(options.YTTokenPath);
@@ -326,11 +374,7 @@ public:
         TYsonString settings,
         std::vector<TQueryFile> files)
     {
-        TDynamicConfigPtr dynamicConfig;
-        {
-            auto guard = ReaderGuard(DynamicConfigSpinLock);
-            dynamicConfig = DynamicConfig_;
-        }
+        auto dynamicConfig = DynamicConfig_.Acquire();
         auto factory = CreateProgramFactory(*dynamicConfig);
         auto program = factory->Create("-memory-", queryText);
 
@@ -394,16 +438,12 @@ public:
         std::vector<TQueryFile> files,
         int executeMode)
     {
-        TDynamicConfigPtr dynamicConfig;
-        {
-            auto guard = ReaderGuard(DynamicConfigSpinLock);
-            dynamicConfig = DynamicConfig_;
-        }
+        auto dynamicConfig = DynamicConfig_.Acquire();
         auto factory = CreateProgramFactory(*dynamicConfig);
         auto program = factory->Create("-memory-", queryText);
         auto pipelineConfigurator = New<TQueryPipelineConfigurator>(program);
         {
-            auto guard = WriterGuard(ProgressSpinLock);
+            auto guard = WriterGuard(ProgressSpinLock_);
             auto& query = ActiveQueriesProgress_[queryId];
             query.Program = program;
             query.PipelineConfigurator = pipelineConfigurator;
@@ -433,17 +473,20 @@ public:
         auto userDataTable = FilesToUserTable(files);
         program->AddUserDataTable(userDataTable);
 
-        program->SetProgressWriter([&] (const NYql::TOperationProgress& progress) {
+        auto queryPlan = pipelineConfigurator->Plan;
+        program->SetProgressWriter([queryPlan, queryId, this] (const NYql::TOperationProgress& progress) {
             std::optional<TString> plan;
             {
-                auto guard = ReaderGuard(pipelineConfigurator->Plan_.PlanSpinLock);
-                plan.swap(pipelineConfigurator->Plan_.Plan);
+                auto guard = ReaderGuard(queryPlan->PlanSpinLock);
+                plan.swap(queryPlan->Plan);
             }
 
-            auto guard = WriterGuard(ProgressSpinLock);
-            ActiveQueriesProgress_[queryId].ProgressMerger.MergeWith(progress);
-            if (plan) {
-                ActiveQueriesProgress_[queryId].Plan.swap(plan);
+            auto guard = WriterGuard(ProgressSpinLock_);
+            if (ActiveQueriesProgress_.contains(queryId)) {
+                ActiveQueriesProgress_[queryId].ProgressMerger.MergeWith(progress);
+                if (plan) {
+                    ActiveQueriesProgress_[queryId].Plan.swap(plan);
+                }
             }
         });
 
@@ -462,19 +505,21 @@ public:
         }
 
         if (!program->ParseSql(sqlSettings)) {
+            ExtractQuery(queryId, /*force*/ true);
             return TQueryResult{
                 .YsonError = IssuesToYtErrorYson(program->Issues()),
             };
         }
 
         if (!program->Compile(user)) {
+            ExtractQuery(queryId, /*force*/ true);
             return TQueryResult{
                 .YsonError = IssuesToYtErrorYson(program->Issues()),
             };
         }
 
         {
-            auto guard = WriterGuard(ProgressSpinLock);
+            auto guard = WriterGuard(ProgressSpinLock_);
             ActiveQueriesProgress_[queryId].Compiled = true;
         }
 
@@ -492,12 +537,14 @@ public:
             status = program->RunWithConfig(user, *pipelineConfigurator);
             break;
         default: // Unknown.
+            ExtractQuery(queryId, /*force*/ true);
             return TQueryResult{
                 .YsonError = MessageToYtErrorYson(Format("Unknown execution mode: %v", executeMode)),
             };
         }
 
         if (status == NYql::TProgram::TStatus::Error) {
+            ExtractQuery(queryId, /*force*/ true);
             return TQueryResult{
                 .YsonError = IssuesToYtErrorYson(program->Issues()),
             };
@@ -514,7 +561,8 @@ public:
             yson.OnEndList();
         }
 
-        TString progress = ExtractQuery(queryId).value_or(TActiveQuery{}).ProgressMerger.ToYsonString();
+        TString progress = ExtractQuery(queryId, /*force*/ true).value_or(TActiveQuery{}).ProgressMerger.ToYsonString();
+        YQL_LOG(DEBUG) << "Query: " << ToString(queryId) << " finished successfully";
 
         return {
             .YsonResult = result.Empty() ? std::nullopt : std::make_optional(result.Str()),
@@ -549,12 +597,19 @@ public:
         int executeMode) noexcept override
     {
         auto finalCleaning = Finally([&] {
-            ExtractQuery(queryId);
+            auto guard = WriterGuard(ProgressSpinLock_);
+            // throwing of FiberCancellationException should keep queryId in ActiveQueriesProgress_
+            if (ActiveQueriesProgress_.contains(queryId)) {
+                ActiveQueriesProgress_[queryId].Finished = true;
+            }
+            YQL_LOG(DEBUG) << "Query: " << ToString(queryId) << " finished";
         });
 
         try {
             return GuardedRun(queryId, user, credentials, queryText, settings, files, executeMode);
         } catch (const std::exception& ex) {
+            YQL_LOG(DEBUG) << "Query: " << ToString(queryId) << " finished with errors";
+            ExtractQuery(queryId, /*force*/ true);
             return TQueryResult{
                 .YsonError = MessageToYtErrorYson(ex.what()),
             };
@@ -563,7 +618,7 @@ public:
 
     TQueryResult GetProgress(TQueryId queryId) noexcept override
     {
-        auto guard = ReaderGuard(ProgressSpinLock);
+        auto guard = ReaderGuard(ProgressSpinLock_);
         if (ActiveQueriesProgress_.contains(queryId)) {
             TQueryResult result;
             if (ActiveQueriesProgress_[queryId].ProgressMerger.HasChangesSinceLastFlush()) {
@@ -582,7 +637,7 @@ public:
     {
         NYql::TProgramPtr program;
         {
-            auto guard = WriterGuard(ProgressSpinLock);
+            auto guard = WriterGuard(ProgressSpinLock_);
             if (!ActiveQueriesProgress_.contains(queryId)) {
                 return TAbortResult{
                     .YsonError = MessageToYtErrorYson(Format("Query %v is not found", queryId)),
@@ -598,7 +653,11 @@ public:
         }
 
         try {
+            YQL_LOG(DEBUG) << "Query: " << ToString(queryId) << " is aborting";
             program->Abort().GetValueSync();
+            YQL_LOG(DEBUG) << "Query: " << ToString(queryId) << " is aborted";
+
+            ExtractQuery(queryId);
         } catch (...) {
             return TAbortResult{
                 .YsonError = MessageToYtErrorYson(Format("Failed to abort query %v: %v", queryId, CurrentExceptionMessage())),
@@ -611,6 +670,7 @@ public:
     void OnDynamicConfigChanged(TYqlPluginDynamicConfig config) noexcept override
     {
         YQL_LOG(INFO) << "Dynamic config update started";
+        YQL_LOG(DEBUG) << __FUNCTION__ << ": config.GatewaysConfig = " << config.GatewaysConfig.AsStringBuf();
 
         NYson::TProtobufWriterOptions protobufWriterOptions;
         protobufWriterOptions.ConvertSnakeToCamelCase = true;
@@ -629,11 +689,11 @@ public:
         auto newGatewaysConfig = GatewaysConfigInitial_;
         newGatewaysConfig.MergeFrom(dynamicGatewaysConfig);
 
-        auto dynamicConfig = CreateDynamicConfig(std::move(newGatewaysConfig));
-        {
-            auto guard = WriterGuard(DynamicConfigSpinLock);
-            DynamicConfig_ = dynamicConfig;
-        }
+        YQL_LOG(DEBUG) << __FUNCTION__ << ": GatewaysConfigInitial_ = " << GatewaysConfigInitial_.ShortDebugString();
+        YQL_LOG(DEBUG) << __FUNCTION__ << ": dynamicGatewaysConfig = " << dynamicGatewaysConfig.ShortDebugString();
+        YQL_LOG(DEBUG) << __FUNCTION__ << ": newGatewaysConfig = " << newGatewaysConfig.ShortDebugString();
+
+        DynamicConfig_.Store(CreateDynamicConfig(std::move(newGatewaysConfig)));
         YQL_LOG(INFO) << "Dynamic config update finished";
     }
 
@@ -641,26 +701,30 @@ private:
     const TDqManagerConfigPtr DqManagerConfig_;
     TDqManagerPtr DqManager_;
     NYql::TFileStoragePtr FileStorage_;
-    TDynamicConfigPtr DynamicConfig_;
+    ::TIntrusivePtr<NKikimr::NMiniKQL::IMutableFunctionRegistry> FuncRegistry_;
+    TAtomicIntrusivePtr<TDynamicConfig> DynamicConfig_;
     NYql::TGatewaysConfig GatewaysConfigInitial_;
     THashMap<TString, TString> Modules_;
     TYsonString OperationAttributes_;
     TString YqlAgentToken_;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, ProgressSpinLock);
-    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, DynamicConfigSpinLock);
+    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, ProgressSpinLock_);
     THashMap<TQueryId, TActiveQuery> ActiveQueriesProgress_;
     TUserDataTable UserDataTable_;
 
-    std::optional<TActiveQuery> ExtractQuery(TQueryId queryId) {
+    std::optional<TActiveQuery> ExtractQuery(TQueryId queryId, bool force = false) {
         // NB: TProgram destructor must be called without locking.
         std::optional<TActiveQuery> query;
-        auto guard = WriterGuard(ProgressSpinLock);
-        auto it = ActiveQueriesProgress_.find(queryId);
-        if (it != ActiveQueriesProgress_.end()) {
-            query = std::move(it->second);
-            ActiveQueriesProgress_.erase(it);
+        {
+            auto guard = WriterGuard(ProgressSpinLock_);
+            auto it = ActiveQueriesProgress_.find(queryId);
+            if (it != ActiveQueriesProgress_.end() &&
+                    (force | it->second.Finished)) {
+                query = std::move(it->second);
+                ActiveQueriesProgress_.erase(it);
+            }
         }
+        YQL_LOG(DEBUG) << "Query: " << ToString(queryId) << " is removed";
         return query;
     }
 
@@ -703,14 +767,18 @@ private:
     }
 
     TDynamicConfigPtr CreateDynamicConfig(NYql::TGatewaysConfig&& gatewaysConfig) const {
-        YQL_LOG(DEBUG) << "Creating dynamic config";
+        YQL_LOG(DEBUG) << __FUNCTION__ << ": start";
 
         auto dynamicConfig = New<TDynamicConfig>();
         dynamicConfig->GatewaysConfig = std::move(gatewaysConfig);
         auto* gatewayYtConfig = dynamicConfig->GatewaysConfig.MutableYt();
 
+        // Ignore MrJobUdfsDir in dynamic config (we won't reload udfs and won't restart DqManager_).
+        gatewayYtConfig->ClearMrJobUdfsDir();
+        YQL_LOG(DEBUG) << __FUNCTION__ << ": TDynamicConfig ready";
+
         gatewayYtConfig->SetMrJobBinMd5(MD5::File(gatewayYtConfig->GetMrJobBin()));
-        YQL_LOG(DEBUG) << "Creating dynamic config: SetMrJobBinMd5 ready";
+        YQL_LOG(DEBUG) << __FUNCTION__ << ": SetMrJobBinMd5 ready";
 
         for (const auto& mapping : gatewayYtConfig->GetClusterMapping()) {
             dynamicConfig->Clusters.insert({mapping.name(), TString(NYql::YtProviderName)});
@@ -718,76 +786,44 @@ private:
                 dynamicConfig->DefaultCluster = mapping.name();
             }
         }
-        YQL_LOG(DEBUG) << "Creating dynamic config: Clusters ready";
+        YQL_LOG(DEBUG) << __FUNCTION__ << ": Clusters ready";
 
-        dynamicConfig->FuncRegistry = NKikimr::NMiniKQL::CreateFunctionRegistry(
-            NKikimr::NMiniKQL::CreateBuiltinRegistry())->Clone();
+        NSQLTranslationV1::TLexers lexers;
+        lexers.Antlr4 = NSQLTranslationV1::MakeAntlr4LexerFactory();
+        lexers.Antlr4Ansi = NSQLTranslationV1::MakeAntlr4AnsiLexerFactory();
+        NSQLTranslationV1::TParsers parsers;
+        parsers.Antlr4 = NSQLTranslationV1::MakeAntlr4ParserFactory();
+        parsers.Antlr4Ansi = NSQLTranslationV1::MakeAntlr4AnsiParserFactory();
 
-        const NKikimr::NMiniKQL::TUdfModuleRemappings emptyRemappings;
-        dynamicConfig->FuncRegistry->SetBackTraceCallback(&NYql::NBacktrace::KikimrBackTrace);
-        YQL_LOG(DEBUG) << "Creating dynamic config: SetBackTraceCallback ready";
-
-        TVector<TString> udfPaths;
-        NKikimr::NMiniKQL::FindUdfsInDir(gatewayYtConfig->GetMrJobUdfsDir(), &udfPaths);
-        YQL_LOG(DEBUG) << "Creating dynamic config: FindUdfsInDir ready";
-
-        for (const auto& path : udfPaths) {
-            // Skip YQL plugin shared library itself, it is not a UDF.
-            if (path.EndsWith("libyqlplugin.so")) {
-                continue;
-            }
-            ui32 flags = 0;
-            // System Python UDFs are not used locally so we only need types.
-            if (path.Contains("systempython") && path.Contains(TString("udf") + MKQL_UDF_LIB_SUFFIX)) {
-                flags |= NUdf::IRegistrator::TFlags::TypesOnly;
-            }
-            dynamicConfig->FuncRegistry->LoadUdfs(path, emptyRemappings, flags);
-            if (DqManagerConfig_) {
-                DqManagerConfig_->UdfsWithMd5.emplace(path, MD5::File(path));
-            }
-        }
-        YQL_LOG(DEBUG) << "Creating dynamic config: LoadUdfs ready";
-
-        gatewayYtConfig->ClearMrJobUdfsDir();
-
-        NKikimr::NMiniKQL::TUdfModulePathsMap systemModules;
-        for (const auto& m : dynamicConfig->FuncRegistry->GetAllModuleNames()) {
-            TMaybe<TString> path = dynamicConfig->FuncRegistry->FindUdfPath(m);
-            if (!path) {
-                YQL_LOG(FATAL) << "Unable to detect UDF path for module " << m;
-                exit(1);
-            }
-            systemModules.emplace(m, *path);
-        }
-        YQL_LOG(DEBUG) << "Creating dynamic config: FindUdfPath ready";
-
-        dynamicConfig->FuncRegistry->SetSystemModulePaths(systemModules);
-        YQL_LOG(DEBUG) << "Creating dynamic config: SetSystemModulePaths ready";
+        NSQLTranslation::TTranslators translators(
+            nullptr,
+            NSQLTranslationV1::MakeTranslator(lexers, parsers),
+            NSQLTranslationPG::MakeTranslator()
+        );
 
         TModulesTable modulesTable;
-        if (!CompileLibraries(UserDataTable_, dynamicConfig->ExprContext, modulesTable, true)) {
+        if (!CompileLibraries(translators, UserDataTable_, dynamicConfig->ExprContext, modulesTable, true)) {
             TStringStream err;
             dynamicConfig->ExprContext.IssueManager
                 .GetIssues()
                 .PrintTo(err);
-            YQL_LOG(FATAL) << "Failed to compile modules:\n"
-                           << err.Str();
+            YQL_LOG(FATAL) << "Failed to compile modules:\n" << err.Str();
             exit(1);
         }
-        YQL_LOG(DEBUG) << "Creating dynamic config: CompileLibraries ready";
+        YQL_LOG(DEBUG) << __FUNCTION__ << ": CompileLibraries ready";
 
-        dynamicConfig->ModuleResolver = std::make_shared<NYql::TModuleResolver>(std::move(modulesTable), dynamicConfig->ExprContext.NextUniqueId, dynamicConfig->Clusters, THashSet<TString>{});
-        YQL_LOG(DEBUG) << "Creating dynamic config: ModuleResolver ready";
+        dynamicConfig->ModuleResolver = std::make_shared<NYql::TModuleResolver>(translators, std::move(modulesTable), dynamicConfig->ExprContext.NextUniqueId, dynamicConfig->Clusters, THashSet<TString>{});
+        YQL_LOG(DEBUG) << __FUNCTION__ << ": ModuleResolver ready";
 
-        YQL_LOG(DEBUG) << "Creating dynamic config: done";
+        YQL_LOG(DEBUG) << __FUNCTION__ << ": done";
         return std::move(dynamicConfig);
     }
 
     NYql::TProgramFactoryPtr CreateProgramFactory(TDynamicConfig& dynamicConfig) {
-        YQL_LOG(DEBUG) << "Creating program factory";
+        YQL_LOG(DEBUG) << __FUNCTION__ << ": start";
 
         NYql::TYtNativeServices ytServices;
-        ytServices.FunctionRegistry = dynamicConfig.FuncRegistry.Get();
+        ytServices.FunctionRegistry = FuncRegistry_.Get();
         ytServices.FileStorage = FileStorage_;
         ytServices.Config = std::make_shared<NYql::TYtGatewayConfig>(*dynamicConfig.GatewaysConfig.MutableYt());
 
@@ -804,19 +840,19 @@ private:
 
         auto ytNativeGateway = CreateYtNativeGateway(ytServices);
         dataProvidersInit.push_back(GetYtNativeDataProviderInitializer(ytNativeGateway, NDq::MakeCBOOptimizerFactory(), MakeDqHelper()));
-        YQL_LOG(DEBUG) << "Creating program factory: dataProvidersInit ready";
+        YQL_LOG(DEBUG) << __FUNCTION__ << ": dataProvidersInit ready";
 
         auto factory = MakeIntrusive<NYql::TProgramFactory>(
-            false, dynamicConfig.FuncRegistry.Get(), dynamicConfig.ExprContext.NextUniqueId, dataProvidersInit, "embedded");
+            false, FuncRegistry_.Get(), dynamicConfig.ExprContext.NextUniqueId, dataProvidersInit, "embedded");
         factory->AddUserDataTable(UserDataTable_);
         factory->SetCredentials(MakeIntrusive<NYql::TCredentials>());
         factory->SetModules(dynamicConfig.ModuleResolver);
-        factory->SetUdfResolver(NYql::NCommon::CreateSimpleUdfResolver(dynamicConfig.FuncRegistry.Get(), FileStorage_));
+        factory->SetUdfResolver(NYql::NCommon::CreateSimpleUdfResolver(FuncRegistry_.Get(), FileStorage_));
         factory->SetGatewaysConfig(&dynamicConfig.GatewaysConfig);
         factory->SetFileStorage(FileStorage_);
         factory->SetUrlPreprocessing(MakeIntrusive<NYql::TUrlPreprocessing>(dynamicConfig.GatewaysConfig));
 
-        YQL_LOG(DEBUG) << "Creating program factory: done";
+        YQL_LOG(DEBUG) << __FUNCTION__ << ": done";
         return std::move(factory);
     }
 };

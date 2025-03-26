@@ -2,6 +2,7 @@
 
 #include "object_detail.h"
 #include "object_manager.h"
+#include "private.h"
 #include "type_handler.h"
 
 #include <yt/yt/server/master/cell_master/bootstrap.h>
@@ -44,7 +45,21 @@ public:
 
     TCellTagList GetReplicationCellTags(const TObject* object) override
     {
-        return DoGetReplicationCellTags(object->As<TImpl>());
+        const auto& Logger = ObjectServerLogger;
+
+        YT_LOG_ALERT_IF(object->IsForeign(),
+            "GetReplicationCellTags called for non-native object (ObjectId: %v)",
+            GetObjectId(object));
+
+        auto result = DoGetReplicationCellTags(object->As<TImpl>());
+
+        if (auto it = std::ranges::find(result, object->GetNativeCellTag()); Y_UNLIKELY(it != result.end())) {
+            YT_LOG_ALERT("Replication cell tags of an object contain its native cell tag, omitting (ObjectId: %v)",
+                GetObjectId(object));
+            result.erase(it);
+        }
+
+        return result;
     }
 
     std::string GetName(const TObject* object) override

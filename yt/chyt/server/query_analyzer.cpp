@@ -2,6 +2,7 @@
 
 #include "computed_columns.h"
 #include "config.h"
+#include "conversion.h"
 #include "format.h"
 #include "helpers.h"
 #include "helpers.h"
@@ -17,6 +18,39 @@
 #include <yt/yt/ytlib/chunk_client/input_chunk.h>
 
 #include <yt/yt_proto/yt/client/chunk_client/proto/chunk_meta.pb.h>
+
+#include <Analyzer/Passes/QueryAnalysisPass.h>
+#include <Analyzer/IQueryTreeNode.h>
+#include <Analyzer/InDepthQueryTreeVisitor.h>
+#include <Analyzer/createUniqueTableAliases.h>
+#include <Analyzer/QueryTreeBuilder.h>
+#include <Analyzer/ArrayJoinNode.h>
+#include <Analyzer/MatcherNode.h>
+#include <Analyzer/JoinNode.h>
+#include <Analyzer/SortNode.h>
+#include <Analyzer/QueryNode.h>
+#include <Analyzer/TableNode.h>
+#include <Analyzer/TableFunctionNode.h>
+#include <Analyzer/ConstantNode.h>
+#include <Analyzer/ColumnNode.h>
+#include <Analyzer/FunctionNode.h>
+#include <Analyzer/Utils.h>
+#include <Planner/Utils.h>
+
+#include <Analyzer/WindowFunctionsUtils.h>
+#include <Analyzer/AggregationUtils.h>
+
+#include <Core/Joins.h>
+
+#include <Planner/Planner.h>
+#include <Planner/PlannerJoins.h>
+
+#include <Interpreters/CollectJoinOnKeysVisitor.h>
+#include <Interpreters/JoinedTables.h>
+#include <Interpreters/QueryAliasesVisitor.h>
+#include <Interpreters/InterpreterSelectQueryAnalyzer.h>
+#include <Core/InterpolateDescription.h>
+
 
 #include <DataTypes/DataTypeString.h>
 #include <Interpreters/DatabaseAndTableWithAlias.h>
@@ -78,8 +112,8 @@ void FillDataSliceDescriptors(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Find the longest prefix of key columns from the schema used in keyAst.
-int GetUsedKeyPrefixSize(const DB::ASTPtr& keyAst, const TTableSchemaPtr& schema)
+//! Find the longest prefix of key columns from the schema used in keyNode.
+int GetUsedKeyPrefixSize(const DB::QueryTreeNodePtr& keyNode, const TTableSchemaPtr& schema)
 {
     if (!schema->IsSorted()) {
         return 0;
@@ -87,11 +121,11 @@ int GetUsedKeyPrefixSize(const DB::ASTPtr& keyAst, const TTableSchemaPtr& schema
 
     THashSet<TString> usedColumns;
 
-    for (int index = 0; index < std::ssize(keyAst->children); ++index) {
-        const auto& element = keyAst->children[index];
-        const auto* identifier = element->as<DB::ASTIdentifier>();
-        if (identifier) {
-            usedColumns.emplace(identifier->shortName());
+    for (int index = 0; index < std::ssize(keyNode->getChildren()); ++index) {
+        const auto& node = keyNode->getChildren()[index];
+        const auto* columnNode = node->as<DB::ColumnNode>();
+        if (columnNode) {
+            usedColumns.emplace(columnNode->getColumnName());
         }
     }
 
@@ -266,17 +300,105 @@ DB::ASTPtr CreateKeyComparison(
 }
 ////////////////////////////////////////////////////////////////////////////////
 
-EReadInOrderMode GetReadInOrderColumnDirection(ESortOrder sortOrder, int direction)
+EReadInOrderMode GetReadInOrderColumnDirection(ESortOrder sortOrder, DB::SortDirection direction)
 {
     // Descending sort order is not actually supported in CHYT, but let's prepare for the moment it is.
     switch (sortOrder) {
         case ESortOrder::Ascending:
-            return (direction > 0 ? EReadInOrderMode::Forward : EReadInOrderMode::Backward);
+            return (direction == DB::SortDirection::ASCENDING ? EReadInOrderMode::Forward : EReadInOrderMode::Backward);
         case ESortOrder::Descending:
-            return (direction < 0 ? EReadInOrderMode::Forward : EReadInOrderMode::Backward);
+            return (direction == DB::SortDirection::DESCENDING ? EReadInOrderMode::Forward : EReadInOrderMode::Backward);
         default:
             YT_ABORT();
     }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void buildTableExpressionPtrsStackImpl(DB::QueryTreeNodePtr& joinTreeNode, std::vector<DB::QueryTreeNodePtr*>& result)
+{
+    auto node_type = joinTreeNode->getNodeType();
+
+    switch (node_type)
+    {
+        case DB::QueryTreeNodeType::TABLE:
+        case DB::QueryTreeNodeType::QUERY:
+        case DB::QueryTreeNodeType::UNION:
+        case DB::QueryTreeNodeType::TABLE_FUNCTION: {
+            result.push_back(&joinTreeNode);
+            break;
+        }
+        case DB::QueryTreeNodeType::ARRAY_JOIN: {
+            auto & array_join_node = joinTreeNode->as<DB::ArrayJoinNode&>();
+            buildTableExpressionPtrsStackImpl(array_join_node.getTableExpression(), result);
+            result.push_back(&joinTreeNode);
+            break;
+        }
+        case DB::QueryTreeNodeType::JOIN: {
+            auto & join_node = joinTreeNode->as<DB::JoinNode&>();
+            buildTableExpressionPtrsStackImpl(join_node.getLeftTableExpression(), result);
+            buildTableExpressionPtrsStackImpl(join_node.getRightTableExpression(), result);
+            result.push_back(std::move(&joinTreeNode));
+            break;
+        }
+        default: {
+            throw DB::Exception(DB::ErrorCodes::LOGICAL_ERROR,
+                "Unexpected node type for table expression. Expected table, table function, query, union, join or array join. Actual {}",
+                joinTreeNode->getNodeTypeName());
+        }
+    }
+}
+
+std::vector<DB::QueryTreeNodePtr*> buildTableExpressionPtrsStack(DB::QueryTreeNodePtr& joinTreeNode)
+{
+    std::vector<DB::QueryTreeNodePtr*> result;
+    buildTableExpressionPtrsStackImpl(joinTreeNode, result);
+    return result;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct JoinKeyLists
+{
+    std::vector<DB::QueryTreeNodePtr> joinLeftKeys;
+    std::vector<DB::QueryTreeNodePtr> joinRightKeys;
+
+    void addNode(DB::JoinTableSide side, DB::QueryTreeNodePtr node) {
+        auto& joinKeys = (side == DB::JoinTableSide::Left) ? joinLeftKeys : joinRightKeys;
+        joinKeys.emplace_back(std::move(node));
+    }
+};
+
+JoinKeyLists ParseJoinKeyColumns(const DB::QueryTreeNodePtr& queryNode, const DB::PlannerContextPtr& plannerContext)
+{
+    JoinKeyLists lists;
+
+    const auto& joinNode = queryNode->as<DB::JoinNode&>();
+    auto expressionNode = joinNode.getJoinExpression();
+
+    if (joinNode.isUsingJoinExpression()) {
+        auto & usingList = expressionNode->as<DB::ListNode&>();
+        for (auto & usingNode : usingList.getNodes()) {
+            auto& usingColumnNode = usingNode->as<DB::ColumnNode&>();
+            auto& using_join_columns_list = usingColumnNode.getExpressionOrThrow()->as<DB::ListNode&>();
+            auto& leftJoinColumnNode = using_join_columns_list.getNodes().at(0);
+            auto& rightJoinColumnNode = using_join_columns_list.getNodes().at(1);
+            lists.joinLeftKeys.push_back(leftJoinColumnNode);
+            lists.joinRightKeys.push_back(rightJoinColumnNode);
+        }
+    } else {
+        auto joinClauses = DB::buildJoinClausesAndActions(
+            {}, {}, queryNode, plannerContext).join_clauses;
+
+        for (const auto& clause : joinClauses) {
+            const auto& leftExpressions = clause.getLeftKeyExpressionNodes();
+            const auto& rightExpressions = clause.getRightKeyExpressionNodes();
+            lists.joinLeftKeys.insert(lists.joinLeftKeys.end(), leftExpressions.begin(), leftExpressions.end());
+            lists.joinRightKeys.insert(lists.joinRightKeys.end(), rightExpressions.begin(), rightExpressions.end());
+        }
+    }
+
+    return lists;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -291,6 +413,15 @@ TQueryAnalyzer::TQueryAnalyzer(
     , QueryInfo_(queryInfo)
     , Logger(logger)
 {
+    // When allow_experimental_analyzer = 0, SelectQueryInfo does not contain a query_tree.
+    // Therefore, we initialize it ourselves.
+    if (!QueryInfo_.query_tree) {
+        auto selectQueryOptions = DB::SelectQueryOptions().analyze();
+        QueryInfo_.query_tree = DB::InterpreterSelectQueryAnalyzer(
+            QueryInfo_.query,
+            getContext(),
+            selectQueryOptions).getPlanner().buildSelectQueryInfo().query_tree;
+    }
     ParseQuery();
 }
 
@@ -304,12 +435,23 @@ void TQueryAnalyzer::InferSortedJoinKeyColumns(bool needSortedPool)
     const auto& leftTableSchema = *leftStorage->GetSchema();
     const auto& rightTableSchema = (rightStorage ? *rightStorage->GetSchema() : TTableSchema());
 
-    const auto& analyzedJoin = QueryInfo_.syntax_analyzer_result->analyzed_join;
+    auto* queryNode = QueryInfo_.query_tree->as<DB::QueryNode>();
+    YT_VERIFY(queryNode);
+    auto joinNodeType = queryNode->getJoinTree()->getNodeType();
+    YT_VERIFY(joinNodeType == DB::QueryTreeNodeType::JOIN || joinNodeType == DB::QueryTreeNodeType::ARRAY_JOIN);
 
-    auto joinLeftKeysAst = analyzedJoin->leftKeysList();
-    auto joinRightKeysAst = (analyzedJoin->hasOn() ? analyzedJoin->rightKeysList() : joinLeftKeysAst);
-    const auto& joinLeftKeys = joinLeftKeysAst->children;
-    const auto& joinRightKeys = joinRightKeysAst->children;
+    auto joinNode = queryNode->getJoinTree();
+    if (joinNodeType == DB::QueryTreeNodeType::ARRAY_JOIN) {
+        // In the case where the outermost join in a JoinTree is an ArrayJoin,
+        // it should be skipped because further analysis is performed for a normal join.
+        // We can safely do this because there can be at most one ArrayJoin in a JoinTree
+        // and we know that the JoinTree contains a normal join.
+        joinNode = joinNode->as<DB::ArrayJoinNode>()->getTableExpression();
+    }
+
+    auto keyLists = ParseJoinKeyColumns(joinNode, QueryInfo_.planner_context);
+    const auto& joinLeftKeys = keyLists.joinLeftKeys;
+    const auto& joinRightKeys = keyLists.joinRightKeys;
 
     // This condition fails sometimes in multiple join due to a bug in ClickHouse.
     // https://github.com/ClickHouse/ClickHouse/issues/29734
@@ -355,7 +497,7 @@ void TQueryAnalyzer::InferSortedJoinKeyColumns(bool needSortedPool)
                 "you can suppress this error at cost of possible performance degradation "
                 "by wrapping the table into subquery",
                 errorPrefix)
-                << TErrorAttribute("table_expression", tableExpression)
+                << TErrorAttribute("table_expression", tableExpression->formatASTForErrorMessage())
                 << TErrorAttribute("table_index", tableIndex)
                 << TErrorAttribute("underlying_table_count", underlyingTables.size())
                 << TErrorAttribute("docs", "https://ytsaurus.tech/docs/en/user-guide/data-processing/chyt/queries/joins");
@@ -381,7 +523,7 @@ void TQueryAnalyzer::InferSortedJoinKeyColumns(bool needSortedPool)
     std::vector<std::pair<DB::ASTPtr, DB::ASTPtr>> unmatchedKeyPairs;
     // Map for every key column from the left table schema to corresponding key expression from right table expression.
     // Make sense only when joined table is not YT-table.
-    std::vector<DB::ASTPtr> joinKeyExpressions(leftTableSchema.GetKeyColumnCount());
+    std::vector<DB::QueryTreeNodePtr> joinKeyExpressions(leftTableSchema.GetKeyColumnCount());
 
     if (TwoYTTableJoin_) {
         // Two YT table join always requires sorted pool.
@@ -392,25 +534,25 @@ void TQueryAnalyzer::InferSortedJoinKeyColumns(bool needSortedPool)
         checkTableSorted(/*tableIndex*/ 1);
 
         for (int index = 0; index < joinKeySize; ++index) {
-            const auto* leftKeyColumn = joinLeftKeys[index]->as<DB::ASTIdentifier>();
-            const auto* rightKeyColumn = joinRightKeys[index]->as<DB::ASTIdentifier>();
+            const auto* leftKeyColumn = joinLeftKeys[index]->as<DB::ColumnNode>();
+            const auto* rightKeyColumn = joinRightKeys[index]->as<DB::ColumnNode>();
 
             // Cannot match expressions.
             if (!leftKeyColumn || !rightKeyColumn) {
-                unmatchedKeyPairs.emplace_back(joinLeftKeys[index], joinRightKeys[index]);
+                unmatchedKeyPairs.emplace_back(joinLeftKeys[index]->toAST(), joinRightKeys[index]->toAST());
                 continue;
             }
 
-            int leftKeyPosition = getKeyColumnPosition(leftKeyPositionMap, TString(leftKeyColumn->shortName()));
-            int rightKeyPosition = getKeyColumnPosition(rightKeyPositionMap, TString(rightKeyColumn->shortName()));
+            int leftKeyPosition = getKeyColumnPosition(leftKeyPositionMap, TString(leftKeyColumn->getColumnName()));
+            int rightKeyPosition = getKeyColumnPosition(rightKeyPositionMap, TString(rightKeyColumn->getColumnName()));
 
             // Cannot match keys in different positions.
             if (leftKeyPosition == -1 || rightKeyPosition == -1 || leftKeyPosition != rightKeyPosition) {
-                unmatchedKeyPairs.emplace_back(joinLeftKeys[index], joinRightKeys[index]);
+                unmatchedKeyPairs.emplace_back(joinLeftKeys[index]->toAST(), joinRightKeys[index]->toAST());
                 continue;
             }
 
-            matchedLeftKeyNames.emplace(leftKeyColumn->shortName());
+            matchedLeftKeyNames.emplace(leftKeyColumn->getColumnName());
         }
     } else {
         bool leftTableSorted = leftTableSchema.IsSorted() && (leftStorage->GetTables().size() == 1);
@@ -423,23 +565,23 @@ void TQueryAnalyzer::InferSortedJoinKeyColumns(bool needSortedPool)
         checkTableSorted(/*tableIndex*/ 0);
 
         for (int index = 0; index < joinKeySize; ++index) {
-            const auto* leftKeyColumn = joinLeftKeys[index]->as<DB::ASTIdentifier>();
+            const auto* leftKeyColumn = joinLeftKeys[index]->as<DB::ColumnNode>();
             // TODO(dakovalkov): Check that expression is deterministic.
             const auto& rightKeyExpression = joinRightKeys[index];
 
             if (!leftKeyColumn) {
-                unmatchedKeyPairs.emplace_back(joinLeftKeys[index], joinRightKeys[index]);
+                unmatchedKeyPairs.emplace_back(joinLeftKeys[index]->toAST(), joinRightKeys[index]->toAST());
                 continue;
             }
 
-            int keyPosition = getKeyColumnPosition(leftKeyPositionMap, TString(leftKeyColumn->shortName()));
+            int keyPosition = getKeyColumnPosition(leftKeyPositionMap, TString(leftKeyColumn->getColumnName()));
             // Not a key column, ignore it.
             if (keyPosition == -1) {
-                unmatchedKeyPairs.emplace_back(joinLeftKeys[index], joinRightKeys[index]);
+                unmatchedKeyPairs.emplace_back(joinLeftKeys[index]->toAST(), joinRightKeys[index]->toAST());
                 continue;
             }
 
-            matchedLeftKeyNames.emplace(leftKeyColumn->shortName());
+            matchedLeftKeyNames.emplace(leftKeyColumn->getColumnName());
 
             joinKeyExpressions[keyPosition] = rightKeyExpression;
         }
@@ -480,124 +622,121 @@ void TQueryAnalyzer::InferSortedJoinKeyColumns(bool needSortedPool)
     }
 }
 
-struct TInOperatorMatcher
+class TCheckInFunctionExistsVisitor
+    : public DB::InDepthQueryTreeVisitor<TCheckInFunctionExistsVisitor>
 {
-    struct Data
-    {
-        bool HasInOperator = false;
-    };
+public:
+    TCheckInFunctionExistsVisitor(const DB::QueryTreeNodePtr& joinTree)
+        : JoinTree_(joinTree)
+    { }
 
-    static bool needChildVisit(const DB::ASTPtr& node, const DB::ASTPtr& child)
+    void visitImpl(const DB::QueryTreeNodePtr& node)
     {
-        if (const auto* select = node->as<DB::ASTSelectQuery>()) {
-            if (child == select->having()) {
-                return false;
-            }
+        auto* functionNode = node->as<DB::FunctionNode>();
+        if (!functionNode) {
+            return;
         }
 
-        return !child->as<DB::ASTSubquery>();
-    }
+        if (!DB::functionIsInOrGlobalInOperator(functionNode->getFunctionName())) {
+            return;
+        }
+        HasInOperator_ = true;
 
-    static void visit(DB::ASTPtr& ast, Data& data)
-    {
-        if (const auto* functionAst = ast->as<DB::ASTFunction>()) {
-            if (DB::functionIsInOrGlobalInOperator(functionAst->name)) {
-                if (functionAst->arguments->children.size() != 2) {
-                    THROW_ERROR_EXCEPTION("Wrong number of arguments passed to function (FunctionName: %v, NumberOfArguments: %v)",
-                        functionAst->name,
-                        functionAst->arguments->children.size());
-                }
-
-                auto rhs = functionAst->arguments->children[1];
-                if (rhs->as<DB::ASTSubquery>() || rhs->as<DB::ASTTableIdentifier>()) {
-                    data.HasInOperator = true;
-                    return;
-                }
+        // CH deduplicates QueryTree nodes, making pointers to a single QueryTreeNode.
+        // In case of IN function for secondary queries to work correctly, we must duplicate them back.
+        for (auto& arg : functionNode->getArguments()) {
+            if (DB::isNodePartOfTree(arg.get(), JoinTree_.get())) {
+                arg = arg->clone();
             }
         }
     }
+
+    bool needChildVisit(const DB::QueryTreeNodePtr&, const DB::QueryTreeNodePtr& childNode) const
+    {
+        if (HasInOperator_) {
+            return false;
+        }
+
+        auto childNodeType = childNode->getNodeType();
+        return !(childNodeType == DB::QueryTreeNodeType::QUERY || childNodeType == DB::QueryTreeNodeType::UNION);
+    }
+
+    bool HasInOperator() const
+    {
+        return HasInOperator_;
+    }
+
+private:
+    const DB::QueryTreeNodePtr& JoinTree_;
+    bool HasInOperator_ = false;
 };
-
-using TInOperatorVisitor = DB::InDepthNodeVisitor<TInOperatorMatcher, true>;
 
 void TQueryAnalyzer::ParseQuery()
 {
-    auto* selectQuery = QueryInfo_.query->as<DB::ASTSelectQuery>();
-
-    YT_LOG_DEBUG("Analyzing query (Query: %v)", *selectQuery);
-
+    auto* selectQuery = QueryInfo_.query_tree->as<DB::QueryNode>();
     YT_VERIFY(selectQuery);
-    YT_VERIFY(selectQuery->tables());
 
-    auto* tablesInSelectQuery = selectQuery->tables()->as<DB::ASTTablesInSelectQuery>();
-    YT_VERIFY(tablesInSelectQuery);
-    YT_VERIFY(tablesInSelectQuery->children.size() >= 1);
-    // There may be maximum 3 children: the main table, 1 joined table and 1 array join.
-    YT_VERIFY(tablesInSelectQuery->children.size() <= 3);
+    YT_LOG_DEBUG("Analyzing query (Query: %v)", selectQuery->toAST());
 
-    TInOperatorMatcher::Data data;
-    TInOperatorVisitor(data).visit(QueryInfo_.query);
-    HasInOperator_ = data.HasInOperator;
+    YT_VERIFY(selectQuery->getJoinTree());
 
-    for (int index = 0; index < std::ssize(tablesInSelectQuery->children); ++index) {
-        auto& tableInSelectQuery = tablesInSelectQuery->children[index];
-        auto* tablesElement = tableInSelectQuery->as<DB::ASTTablesInSelectQueryElement>();
-        YT_VERIFY(tablesElement);
+    TCheckInFunctionExistsVisitor visitor(selectQuery->getJoinTree());
+    visitor.visit(QueryInfo_.query_tree);
+    HasInOperator_ = visitor.HasInOperator();
 
-        if (tablesElement->array_join) {
+    auto tableExpressionsStack = buildTableExpressionPtrsStack(selectQuery->getJoinTree());
+    for (int index = 0; index < std::ssize(tableExpressionsStack); ++index) {
+        auto tableExpressionPtr = tableExpressionsStack[index];
+        auto tableExpression = *tableExpressionPtr;
+        auto tableExpressionNodeType = tableExpression->getNodeType();
+
+        if (tableExpressionNodeType == DB::QueryTreeNodeType::ARRAY_JOIN) {
             // First element should always be a table expression.
             YT_VERIFY(index != 0);
-            continue;
+            // ArrayJoin is always the last node in a JoinTree.
+            // Therefore, we can break the loop at this point.
+            break;
         }
-        YT_VERIFY(tablesElement->table_expression);
 
-        YT_LOG_DEBUG("Found table expression (Index: %v, TableExpression: %v)", index, *tablesElement->table_expression);
-
-        if (index != 0) {
+        if (tableExpressionNodeType == DB::QueryTreeNodeType::JOIN) {
             Join_ = true;
-            YT_VERIFY(tablesElement->table_join);
-            const auto* tableJoin = tablesElement->table_join->as<DB::ASTTableJoin>();
-            YT_VERIFY(tableJoin);
-            if (static_cast<int>(tableJoin->locality) == static_cast<int>(DB::JoinLocality::Global)) {
+            const auto& joinNode = tableExpression->as<DB::JoinNode&>();
+            if (joinNode.getLocality() == DB::JoinLocality::Global) {
                 YT_LOG_DEBUG("Table expression is a global join (Index: %v)", index);
                 GlobalJoin_ = true;
             }
-            if (static_cast<int>(tableJoin->kind) == static_cast<int>(DB::JoinKind::Right) ||
-                static_cast<int>(tableJoin->kind) == static_cast<int>(DB::JoinKind::Full))
-            {
+            auto joinKind = joinNode.getKind();
+            if (joinKind == DB::JoinKind::Right || joinKind == DB::JoinKind::Full) {
                 YT_LOG_DEBUG("Query is a right or full join");
                 RightOrFullJoin_ = true;
             }
-            if (static_cast<int>(tableJoin->kind) == static_cast<int>(DB::JoinKind::Cross)) {
+            if (joinKind == DB::JoinKind::Cross) {
                 YT_LOG_DEBUG("Query is a cross join");
                 CrossJoin_ = true;
             }
-        } else {
-            YT_VERIFY(!tablesElement->table_join);
+
+            // When distributing requests, we can only affect the execution of the first join,
+            // so after it, the other parts in the JoinTree can be ignored.
+            break;
         }
 
-        auto& tableExpression = tablesElement->table_expression;
-        TableExpressions_.emplace_back(tableExpression->as<DB::ASTTableExpression>());
-        YT_VERIFY(TableExpressions_.back());
-        TableExpressionPtrs_.emplace_back(&tableExpression);
+        TableExpressions_.emplace_back(tableExpression);
+        TableExpressionPtrs_.emplace_back(tableExpressionPtr);
     }
 
-    // At least first table expression should be the one that instantiated this query analyzer (aka owner).
     YT_VERIFY(TableExpressions_.size() >= 1);
-    // More than 2 tables are not supported in CH yet.
     YT_VERIFY(TableExpressions_.size() <= 2);
-
     for (size_t tableExpressionIndex = 0; tableExpressionIndex < TableExpressions_.size(); ++tableExpressionIndex) {
         const auto& tableExpression = TableExpressions_[tableExpressionIndex];
 
         auto& storage = Storages_.emplace_back(GetStorage(tableExpression));
         if (storage) {
             YT_LOG_DEBUG("Table expression corresponds to TStorageDistributor (TableExpression: %v)",
-                *tableExpression);
+                tableExpression->toAST());
             ++YtTableCount_;
         } else {
             YT_LOG_DEBUG("Table expression does not correspond to TStorageDistributor (TableExpression: %v)",
-                *tableExpression);
+                tableExpression->toAST());
         }
     }
 
@@ -665,32 +804,30 @@ void TQueryAnalyzer::OptimizeQueryProcessingStage()
 {
     const auto& settings = StorageContext_->Settings;
 
-    const auto& select = QueryInfo_.query->as<DB::ASTSelectQuery&>();
+    const auto& queryNode = QueryInfo_.query_tree->as<DB::QueryNode&>();
     const auto& storage = Storages_[0];
 
     bool allowPoolSwitch = settings->Execution->AllowSwitchToSortedPool;
     bool allowKeyCut = settings->Execution->AllowKeyTruncating;
 
-    bool extremes = getContext()->getSettingsRef().extremes;
-
     // We can always execute query up to WithMergeableState.
     OptimizedQueryProcessingStage_ = DB::QueryProcessingStage::WithMergeableState;
 
     // Some checks from native CH routine.
-    if (select.group_by_with_totals || select.group_by_with_rollup || select.group_by_with_cube) {
+    if (queryNode.isGroupByWithTotals() || queryNode.isGroupByWithRollup() || queryNode.isGroupByWithCube()) {
         return;
     }
-    if (QueryInfo_.has_window) {
+    if (DB::hasWindowFunctionNodes(QueryInfo_.query_tree)) {
         return;
     }
-    if (extremes) {
+    if (getContext()->getSettingsRef().extremes) {
         return;
     }
 
     bool isSingleTable = (storage->GetTables().size() == 1);
     int keyColumnCount = KeyColumnCount_;
 
-    auto processAggregationKeyAst = [&] (const DB::ASTPtr& keyAst) {
+    auto processAggregationKeyNode = [&] (const DB::QueryTreeNodePtr& keyNode) {
         // SortedPool expects non-overlapping sorted chunks. In case of multiple
         // tables (concatYtTablesRange), this condition is broken,
         // so we cannot use SortedPool to optimize aggregation.
@@ -700,7 +837,7 @@ void TQueryAnalyzer::OptimizeQueryProcessingStage()
             return false;
         }
 
-        int usedKeyColumnCount = GetUsedKeyPrefixSize(keyAst, storage->GetSchema());
+        int usedKeyColumnCount = GetUsedKeyPrefixSize(keyNode, storage->GetSchema());
 
         bool canOptimize = (usedKeyColumnCount > 0)
             && (keyColumnCount > 0 || allowPoolSwitch)
@@ -717,22 +854,22 @@ void TQueryAnalyzer::OptimizeQueryProcessingStage()
         return canOptimize;
     };
 
-    bool hasAggregates = QueryInfo_.has_aggregates;
+    bool hasAggregates = hasAggregateFunctionNodes(QueryInfo_.query_tree);
     if (QueryInfo_.syntax_analyzer_result) {
-        hasAggregates = !QueryInfo_.syntax_analyzer_result->aggregates.empty();
+        hasAggregates = hasAggregates || !QueryInfo_.syntax_analyzer_result->aggregates.empty();
     }
 
     // Simple aggregation without groupBy, e.g. 'select avg(x) from table'.
-    if (hasAggregates && !select.groupBy()) {
+    if (hasAggregates && !queryNode.hasGroupBy()) {
         return;
     }
-    if (select.groupBy() && !processAggregationKeyAst(select.groupBy())) {
+    if (queryNode.hasGroupBy() && !processAggregationKeyNode(queryNode.getGroupByNode())) {
         return;
     }
-    if (select.distinct && !processAggregationKeyAst(select.select())) {
+    if (queryNode.isDistinct() && !processAggregationKeyNode(queryNode.getProjectionNode())) {
         return;
     }
-    if (select.limitBy() && !processAggregationKeyAst(select.limitBy())) {
+    if (queryNode.hasLimitBy() && !processAggregationKeyNode(queryNode.getLimitByNode())) {
         return;
     }
 
@@ -744,11 +881,11 @@ void TQueryAnalyzer::OptimizeQueryProcessingStage()
     }
     OptimizedQueryProcessingStage_ = DB::QueryProcessingStage::WithMergeableStateAfterAggregationAndLimit;
 
-    if (select.limitLength() || select.limitOffset()) {
+    if (queryNode.hasLimit() || queryNode.hasOffset()) {
         return;
     }
-    if (select.orderBy()) {
-        // TODO(dakovalkov): We can also analyze orderBy AST.
+    if (queryNode.hasOrderBy()) {
+        // TODO(dakovalkov): We can also analyze orderBy node.
         // This information won't help to optimize query processing stage,
         // but it could be used to perform distributed insert into sorted table.
         return;
@@ -760,23 +897,23 @@ void TQueryAnalyzer::OptimizeQueryProcessingStage()
 
 void TQueryAnalyzer::InferReadInOrderMode(bool assumeNoNullKeys, bool assumeNoNanKeys)
 {
-    auto selectQuery = QueryInfo_.query->as<DB::ASTSelectQuery>();
+    auto* queryNode = QueryInfo_.query_tree->as<DB::QueryNode>();
 
     // Read in order is forbidden in JOINs and queries with aggregation.
     // It might be useful in some of these cases, but that is a question for another day.
-    if (Join_ || selectQuery->groupBy() || selectQuery->having() || selectQuery->window() || selectQuery->limitBy()) {
+    if (Join_ || queryNode->hasGroupBy() || queryNode->hasHaving() || queryNode->hasWindow() || queryNode->hasLimitBy()) {
         return;
     }
 
     // Read in order makes no sense without requested order.
     // Native CH optimizations will do the trick.
-    if (!selectQuery->orderBy()) {
+    if (!queryNode->hasOrderBy()) {
         return;
     }
 
     // Read in order makes no sense without any limits specified.
     // The whole table will probably be read anyway.
-    if (!selectQuery->limitLength() && !getContext()->getSettingsRef().limit) {
+    if (!queryNode->hasLimit() && !getContext()->getSettingsRef().limit) {
         return;
     }
 
@@ -791,22 +928,16 @@ void TQueryAnalyzer::InferReadInOrderMode(bool assumeNoNullKeys, bool assumeNoNa
     auto commonDirection = EReadInOrderMode::None;
 
     // Columns from the ORDER BY clause must form a prefix of the table's primary key.
-    if (std::ssize(selectQuery->orderBy()->children) > schema->GetKeyColumnCount()) {
+    if (std::ssize(queryNode->getOrderBy().getNodes()) > schema->GetKeyColumnCount()) {
         return;
     }
 
-    for (const auto& [columnIndex, orderByElementAst] : Enumerate(selectQuery->orderBy()->children)) {
-        auto orderByElement = orderByElementAst->as<DB::ASTOrderByElement>();
+    for (const auto& [columnIndex, orderByElementNode] : Enumerate(queryNode->getOrderBy().getNodes())) {
+        auto orderBySortNode = orderByElementNode->as<DB::SortNode>();
 
-        // Judging by CH code and experiments, ASTOrderByElement always has a single child.
-        if (std::ssize(orderByElement->children) != 1) {
-            THROW_ERROR_EXCEPTION("Query ORDER BY ast is malformed; "
-                "this is a bug; please contact cluster administrators");
-        }
-
-        auto orderByElementColumnIdentifier = orderByElement->children.front()->as<DB::ASTIdentifier>();
+        auto orderByColumnNode = orderBySortNode->getExpression()->as<DB::ColumnNode>();
         // Functions are not supported. It is possible, but I do not think there is much use.
-        if (!orderByElementColumnIdentifier) {
+        if (!orderByColumnNode) {
             return;
         }
 
@@ -815,12 +946,12 @@ void TQueryAnalyzer::InferReadInOrderMode(bool assumeNoNullKeys, bool assumeNoNa
         YT_VERIFY(schemaColumn.SortOrder());
 
         // Columns from the ORDER BY clause must form a prefix of the table's primary key.
-        if (orderByElementColumnIdentifier->name() != schemaColumn.Name()) {
+        if (orderByColumnNode->getColumnName() != schemaColumn.Name()) {
             return;
         }
 
         // All requested directions must align and form either a forward or backward read of the underlying table.
-        auto columnDirection = GetReadInOrderColumnDirection(*schemaColumn.SortOrder(), orderByElement->direction);
+        auto columnDirection = GetReadInOrderColumnDirection(*schemaColumn.SortOrder(), orderBySortNode->getSortDirection());
         if (commonDirection == EReadInOrderMode::None) {
             commonDirection = columnDirection;
         } else if (commonDirection != columnDirection) {
@@ -846,18 +977,23 @@ void TQueryAnalyzer::InferReadInOrderMode(bool assumeNoNullKeys, bool assumeNoNa
             return;
         }
 
+        if (!couldHaveNulls && !couldHaveNans) {
+            continue;
+        }
+
         // The value of nulls_direction is equal to direction for NULLS LAST and to the opposite
         // of direction for NULLS FIRST.
+        auto nullsDirection = orderBySortNode->getNullsSortDirection().value_or(orderBySortNode->getSortDirection());
 
         // For ASC (d = 1), we need NULLS FIRST (nd = -d = -1).
         // For DSC (d = -1), we need NULLS LAST (nd =  d = -1).
-        if (couldHaveNulls && orderByElement->nulls_direction != -1) {
+        if (couldHaveNulls && nullsDirection != DB::SortDirection::DESCENDING) {
             return;
         }
 
         // For ASC (d = 1), we need NANS LAST => NULLS LAST    (nd =   d = 1).
         // For DSC (d = -1), we need NANS FIRST => NULLS FIRST (nd =  -d = 1).
-        if (couldHaveNans && orderByElement->nulls_direction != 1) {
+        if (couldHaveNans && nullsDirection != DB::SortDirection::ASCENDING) {
             return;
         }
     }
@@ -876,7 +1012,7 @@ TQueryAnalysisResult TQueryAnalyzer::Analyze() const
 
     TQueryAnalysisResult result;
 
-    for (const auto& storage : Storages_) {
+    for (const auto& [index, storage] : Enumerate(Storages_)) {
         if (!storage) {
             continue;
         }
@@ -884,32 +1020,55 @@ TQueryAnalysisResult TQueryAnalyzer::Analyze() const
         auto schema = storage->GetSchema();
         std::optional<DB::KeyCondition> keyCondition;
         if (schema->IsSorted()) {
-            auto primaryKeyExpression = std::make_shared<DB::ExpressionActions>(std::make_shared<DB::ActionsDAG>(
+            auto primaryKeyExpression = std::make_shared<DB::ExpressionActions>(DB::ActionsDAG(
                 ToNamesAndTypesList(*schema, settings->Composite)));
 
-            auto queryInfoForKeyCondition = QueryInfo_;
+            auto* selectQuery = QueryInfo_.query_tree->as<DB::QueryNode>();
+            YT_VERIFY(selectQuery);
 
-            if (settings->EnableComputedColumnDeduction) {
+            std::shared_ptr<const DB::ActionsDAG> filterActionsDAG;
+            if (settings->EnableComputedColumnDeduction && selectQuery->hasWhere()) {
                 // Query may not contain deducible values for computed columns.
                 // We populate query with deducible equations on computed columns,
                 // so key condition is able to properly filter ranges with computed
                 // key columns.
-                queryInfoForKeyCondition.query = queryInfoForKeyCondition.query->clone();
-                auto* selectQuery = queryInfoForKeyCondition.query->as<DB::ASTSelectQuery>();
-                YT_VERIFY(selectQuery);
+                auto modifiedWhere = PopulatePredicateWithComputedColumns(
+                    selectQuery->getWhere(),
+                    schema,
+                    getContext(),
+                    *QueryInfo_.prepared_sets,
+                    settings,
+                    Logger);
 
-                if (selectQuery->where()) {
-                    selectQuery->refWhere() = PopulatePredicateWithComputedColumns(
-                        selectQuery->where(),
-                        schema,
-                        getContext(),
-                        *queryInfoForKeyCondition.prepared_sets,
-                        settings,
-                        Logger);
+                // modifiedWhere contains unresolved identifiers only for the currently processed table expression.
+                // Therefore, we use this table expression as a source for query analysis.
+                DB::QueryAnalysisPass query_analysis_pass(TableExpressions_[index]);
+                query_analysis_pass.run(modifiedWhere, getContext());
+
+                auto prevWhere = std::move(selectQuery->getWhere());
+                selectQuery->getWhere() = modifiedWhere;
+
+                // During construction Planner collects query filters to analyze.
+                // Since we changed the query, we need to get new filters to create a KeyCondition with calculated columns.
+                DB::SelectQueryOptions options;
+                DB::Planner planner(QueryInfo_.query_tree, options);
+                const auto & table_filters = planner.getPlannerContext()->getGlobalPlannerContext()->filters_for_table_expressions;
+                auto it = table_filters.find(TableExpressions_[index]);
+                if (it != table_filters.end()) {
+                    const auto& filters = it->second;
+                    // TODO (buyval01) : investigate adding prewhere filters to the common filterActionsDAG.
+                    filterActionsDAG = std::make_shared<const DB::ActionsDAG>(filters.filter_actions->clone());
+                }
+
+                selectQuery->getWhere() = std::move(prevWhere);
+            } else {
+                const auto& tableExpressionData = QueryInfo_.planner_context->getTableExpressionDataOrThrow(TableExpressions_[index]);
+                if (const auto& filterActions = tableExpressionData.getFilterActions()) {
+                    filterActionsDAG = std::make_shared<const DB::ActionsDAG>(filterActions->clone());
                 }
             }
 
-            keyCondition.emplace(queryInfoForKeyCondition, getContext(), schema->GetKeyColumns(), primaryKeyExpression);
+            keyCondition.emplace(filterActionsDAG.get(), getContext(), schema->GetKeyColumns(), primaryKeyExpression);
         }
         result.KeyConditions.emplace_back(std::move(keyCondition));
         result.TableSchemas.emplace_back(storage->GetSchema());
@@ -962,12 +1121,12 @@ TSecondaryQuery TQueryAnalyzer::CreateSecondaryQuery(
 
     specTemplate.SubqueryIndex = subqueryIndex;
 
-    std::vector<DB::ASTPtr> newTableExpressions;
+    std::vector<DB::QueryTreeNodePtr> newTableExpressions;
 
     DB::Scalars scalars;
 
     for (int index = 0; index < YtTableCount_; ++index) {
-        auto tableExpression = TableExpressions_[index];
+        auto tableExpressionNode = TableExpressions_[index];
 
         std::vector<TChunkStripePtr> stripes;
         for (const auto& subquery : threadSubqueries) {
@@ -986,32 +1145,21 @@ TSecondaryQuery TQueryAnalyzer::CreateSecondaryQuery(
         YT_LOG_DEBUG("Serializing subquery spec (TableIndex: %v, SpecLength: %v)", index, encodedSpec.size());
 
         std::string scalarName = "yt_table_" + std::to_string(index);
-        auto scalar = DB::makeASTFunction("__getScalar", std::make_shared<DB::ASTLiteral>(scalarName));
-        auto tableFunction = DB::makeASTFunction("ytSubquery", std::move(scalar));
+
+        auto scalarNode = std::make_shared<DB::ConstantNode>(scalarName);
+        auto scalarFunctionNode = std::make_shared<DB::FunctionNode>("__getScalar");
+        scalarFunctionNode->getArguments().getNodes().emplace_back(std::move(scalarNode));
+        auto tableFunctionNode = std::make_shared<DB::TableFunctionNode>("ytSubquery");
+        tableFunctionNode->getArguments().getNodes().emplace_back(std::move(scalarFunctionNode));
 
         scalars[scalarName] = DB::Block{{DB::DataTypeString().createColumnConst(1, std::string(encodedSpec)), std::make_shared<DB::DataTypeString>(), "scalarName"}};
 
-        if (tableExpression->database_and_table_name) {
-            DB::DatabaseAndTableWithAlias databaseAndTable(tableExpression->database_and_table_name);
-            if (!databaseAndTable.alias.empty()) {
-                tableFunction->alias = databaseAndTable.alias;
-            } else {
-                tableFunction->alias = databaseAndTable.table;
-            }
-        } else {
-            tableFunction->alias = static_cast<DB::ASTWithAlias&>(*tableExpression->table_function).alias;
+        tableExpressionNode->setAlias("__" + scalarName);
+        if (tableExpressionNode->hasAlias()) {
+            tableFunctionNode->setAlias(tableExpressionNode->getAlias());
         }
 
-        auto clonedTableExpression = tableExpression->clone();
-        auto* typedTableExpression = clonedTableExpression->as<DB::ASTTableExpression>();
-        YT_VERIFY(typedTableExpression);
-        typedTableExpression->table_function = std::move(tableFunction);
-        typedTableExpression->database_and_table_name = nullptr;
-        typedTableExpression->subquery = nullptr;
-        typedTableExpression->sample_offset = nullptr;
-        typedTableExpression->sample_size = nullptr;
-
-        newTableExpressions.emplace_back(std::move(clonedTableExpression));
+        newTableExpressions.emplace_back(std::move(tableFunctionNode));
     }
 
     ReplaceTableExpressions(newTableExpressions);
@@ -1048,7 +1196,7 @@ TSecondaryQuery TQueryAnalyzer::CreateSecondaryQuery(
         AddBoundConditionToJoinedSubquery(lowerBound, upperBound);
     }
 
-    auto secondaryQueryAst = QueryInfo_.query->clone();
+    auto secondaryQueryAst = DB::queryNodeToSelectQuery(QueryInfo_.query_tree);
 
     RollbackModifications();
 
@@ -1062,32 +1210,33 @@ TSecondaryQuery TQueryAnalyzer::CreateSecondaryQuery(
     return {std::move(secondaryQueryAst), std::move(scalars)};
 }
 
-IStorageDistributorPtr TQueryAnalyzer::GetStorage(const DB::ASTTableExpression* tableExpression) const
+IStorageDistributorPtr TQueryAnalyzer::GetStorage(const DB::QueryTreeNodePtr& tableExpression) const
 {
     if (!tableExpression) {
         return nullptr;
     }
+
     DB::StoragePtr storage;
-    if (tableExpression->table_function) {
-        storage = getContext()->getQueryContext()->executeTableFunction(tableExpression->table_function);
-    } else if (tableExpression->database_and_table_name) {
-        DB::StorageID storageId(tableExpression->database_and_table_name);
-        // Resolve database name if it's not specified explicitly.
-        storageId = getContext()->resolveStorageID(std::move(storageId));
-        storage = DB::DatabaseCatalog::instance().getTable(storageId, getContext());
+    auto tableExpressionNodeType = tableExpression->getNodeType();
+    if (tableExpressionNodeType == DB::QueryTreeNodeType::TABLE) {
+        storage = tableExpression->as<DB::TableNode&>().getStorage();
+    } else if (tableExpressionNodeType == DB::QueryTreeNodeType::TABLE_FUNCTION) {
+        storage = tableExpression->as<DB::TableFunctionNode&>().getStorage();
+    } else {
+        return nullptr;
     }
 
     return std::dynamic_pointer_cast<IStorageDistributor>(storage);
 }
 
-void TQueryAnalyzer::ApplyModification(DB::ASTPtr* queryPart, DB::ASTPtr newValue, DB::ASTPtr previousValue)
+void TQueryAnalyzer::ApplyModification(DB::QueryTreeNodePtr* queryPart, DB::QueryTreeNodePtr newValue, DB::QueryTreeNodePtr previousValue)
 {
-    YT_LOG_DEBUG("Replacing query part (QueryPart: %v, NewValue: %v)", previousValue, newValue);
+    YT_LOG_DEBUG("Replacing query part (QueryPart: %v, NewValue: %v)", previousValue->toAST(), newValue->toAST());
     Modifications_.emplace_back(queryPart, std::move(previousValue));
     *queryPart = std::move(newValue);
 }
 
-void TQueryAnalyzer::ApplyModification(DB::ASTPtr* queryPart, DB::ASTPtr newValue)
+void TQueryAnalyzer::ApplyModification(DB::QueryTreeNodePtr* queryPart, DB::QueryTreeNodePtr newValue)
 {
     ApplyModification(queryPart, newValue, *queryPart);
 }
@@ -1125,7 +1274,14 @@ void TQueryAnalyzer::AddBoundConditionToJoinedSubquery(
 
         int literalsSize = boundLiterals.size();
 
-        auto joinKeyExpressions = JoinKeyRightExpressions_;
+        std::vector<DB::ASTPtr> joinKeyExpressions;
+        joinKeyExpressions.reserve(JoinKeyRightExpressions_.size());
+        std::transform(
+            JoinKeyRightExpressions_.begin(),
+            JoinKeyRightExpressions_.end(),
+            std::back_inserter(joinKeyExpressions),
+            [](const DB::QueryTreeNodePtr& expression) { return expression->toAST(); });
+
         if (literalsSize < KeyColumnCount_) {
             joinKeyExpressions.resize(literalsSize);
         }
@@ -1176,16 +1332,21 @@ void TQueryAnalyzer::AddBoundConditionToJoinedSubquery(
     // 3. Key column names could be qualified with subquery alias (e.g. (...) as a join (...) as b on a.x = b.y).
     //    This alias is not accessible inside the subquery.
     // The simplest way to add conditions in such expressions is to wrap them with 'select * from <table expression>'.
-    auto newTableExpression = WrapTableExpressionWithSubquery(
-        *TableExpressionPtrs_[1],
-        /*columnNames*/ std::nullopt,
-        std::move(boundConditions));
+    auto newTableExpressionNode = std::make_shared<DB::QueryNode>(DB::Context::createCopy(getContext()));
+
+    auto selectListNode = std::make_shared<DB::ListNode>();
+    selectListNode->getNodes().push_back(std::make_shared<DB::MatcherNode>());
+    newTableExpressionNode->getProjectionNode() = std::move(selectListNode);
+    newTableExpressionNode->getWhere() = DB::buildQueryTree(std::move(boundConditions), getContext());
+    newTableExpressionNode->getJoinTree() = TableExpressions_[1]->clone();
+    newTableExpressionNode->setIsSubquery(true);
+    newTableExpressionNode->setAlias(TableExpressions_[1]->getAlias());
 
     // Replace the whole table expression.
-    ApplyModification(TableExpressionPtrs_[1], std::move(newTableExpression));
+    ApplyModification(TableExpressionPtrs_[1], std::move(newTableExpressionNode));
 }
 
-void TQueryAnalyzer::ReplaceTableExpressions(std::vector<DB::ASTPtr> newTableExpressions)
+void TQueryAnalyzer::ReplaceTableExpressions(std::vector<DB::QueryTreeNodePtr> newTableExpressions)
 {
     YT_VERIFY(std::ssize(newTableExpressions) == YtTableCount_);
     for (int index = 0; index < std::ssize(newTableExpressions); ++index) {

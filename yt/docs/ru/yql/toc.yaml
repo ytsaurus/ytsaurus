@@ -3,23 +3,7 @@ items:
   - name: Введение
     href: index.md
   - name: Типы данных
-    items:
-      - name: Обзор
-        href: types/index.md
-      - name: Простые
-        href: types/primitive.md
-      - name: Опциональные
-        href: types/optional.md
-      - name: Контейнеры
-        href: types/containers.md
-      - name: Специальные
-        href: types/special.md
-      - name: Преобразования типов
-        href: types/cast.md
-      - name: Текстовое представление типов данных
-        href: types/type_string.md
-      - name: JSON
-        href: types/json.md
+    include: { mode: link, path: types/toc_i.yaml }
   - name: Синтаксис
     items:
       - name: Обзор
@@ -30,10 +14,13 @@ items:
         href: syntax/expressions.md
       - name: ACTION
         href: syntax/action.md
+      - name: COMMIT
+        href: syntax/commit.md
       - name: CREATE TABLE
         href: syntax/create_table.md
       - name: DECLARE
         href: syntax/declare.md
+        when: feature_declare
       - name: DISCARD
         href: syntax/discard.md
       - name: DROP TABLE
@@ -57,7 +44,7 @@ items:
       - name: REDUCE
         href: syntax/reduce.md
       - name: SELECT
-        href: syntax/select.md
+        include: { mode: link, path: syntax/select/toc_i.yaml }
       - name: SUBQUERY
         href: syntax/subquery.md
       - name: USE
@@ -126,82 +113,12 @@ items:
             href: udf/list/url.md
           - name: Yson
             href: udf/list/yson.md
-#          - name: UserAgent
-#            href: udf/list/useragent.md
-#          - name: SearchEngine
-#            href: udf/list/searchengine.md
-#          - name: Geo
-#            href: udf/list/geo.md
-#          - name: GeoHash
-#            href: udf/list/geohash.md
-#          - name: H3
-#            href: udf/list/h3.md
-#          - name: Mime
-#            href: udf/list/mime.md
-#          - name: Streaming
-#            href: udf/list/streaming.md
-#          - name: Compress и Decompress
-#            href: udf/list/compress_decompress.md
-#          - name: ConfigurableRearrange
-#            href: udf/list/configurable_rearrange.md
-#          - name: DSSM
-#            href: udf/list/dssm.md
-#          - name: Matrixnet
-#            href: udf/list/matrixnet.md
-#          - name: BertModels
-#            href: udf/list/bert_models.md
-#          - name: TextProcessing
-#            href: udf/list/text_processing.md
-#          - name: Dsv
-#            href: udf/list/dsv.md
-#          - name: Xml
-#            href: udf/list/xml.md
-#          - name: Html
-#            href: udf/list/html.md
-#          - name: ProtoPool
-#            href: udf/list/protopool.md
-#          - name: Protobuf
-#            href: udf/list/protobuf.md
-#          - name: ClickHouse
-#            href: udf/list/clickhouse.md
-#          - name: PostgreSQL
-#            href: udf/list/postgres.md
-#          - name: SearchRequest
-#            href: udf/list/searchrequest.md
-#          - name: RequestBundle
-#            href: udf/list/requestbundle.md
-          #  - name: ClickMachine
-          #    href: udf/list/click_machine.md
-#          - name: ParseClickPool
-#            href: udf/list/parse_click_pool.md
-          #  - name: Gemini
-          #    href: udf/list/gemini.md
-#          - name: AugurTokenizer
-#            href: udf/list/augurtokenizer.md
-#          - name: Metrika
-#            href: udf/list/metrika.md
-#          - name: Facts
-#            href: udf/list/facts.md
-#          - name: Watson
-#            href: udf/list/watson.md
-#          - name: WebAlice
-#            href: udf/list/web_alice.md
-#          - name: FactorsInfo
-#            href: udf/list/factorsinfo.md
-#          - name: BlenderFactorStorage
-#            href: udf/list/blender_factor_storage.md
-          #  - name: Yabs
-          #    href: udf/list/yabs.md
-#          - name: CrmAdvisor
-#            href: udf/list/crm_advisor.md
-  # - name: Пользовательские функции (UDF)
-  #   items:
-  #     - name: Предустановленные
-  #       href: udf/preinstalled.md
-  #     - name: Разработка на Python
-  #       href: udf/python.md
-  #     - name: Разработка на JavaScript
-  #       href: udf/javascript.md
+ # - name: Пользовательские функции (UDF)
+ #   items:
+ #      - name: Разработка на Python
+ #        href: udf/python.md
+ #      - name: Разработка на JavaScript
+ #        href: udf/javascript.md
   #     - name: Разработка на C++
   #       href: udf/cpp.md
   #       items:

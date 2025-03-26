@@ -226,8 +226,10 @@ public:
                 mutations->AlertsToFire.push_back(TAlert{
                     .Id = "zone_is_disrupted",
                     .BundleName = bundleName,
-                    .Description = Format("Zone is disrupted. Disabling all %v allocations.",
-                        adapter->GetInstanceType())
+                    .Description = Format("Zone %Qv is disrupted. Disabling all %v allocations within %Qv.",
+                        zoneName,
+                        adapter->GetHumanReadableInstanceType(),
+                        dataCenterName),
                 });
                 continue;
             }
@@ -1723,19 +1725,28 @@ void ApplyQuotaChange(const TQuotaDiff& change, const TAccountResourcesPtr& limi
     }
 }
 
-bool IsLimitsLifted(const TQuotaDiff& change)
+void SplitQuotaChange(const TQuotaDiff& change, TQuotaDiff* lifted, TQuotaDiff* lowered)
 {
-    for (const auto& [_, diff] : change.DiskSpacePerMedium) {
+    auto writeSplit = [] (const TQuotaDiff& change, TQuotaDiff* lowered, TQuotaDiff* lifted, auto TQuotaDiff::* proj)
+    {
+        const auto& diff = change.*proj;
         if (diff < 0) {
-            return false;
+            lowered->*proj = diff;
+        } else {
+            lifted->*proj = diff;
+        }
+    };
+
+    for (const auto& [medium, diff] : change.DiskSpacePerMedium) {
+        if (diff < 0) {
+            lowered->DiskSpacePerMedium[medium] = diff;
+        } else if (diff > 0) {
+            lifted->DiskSpacePerMedium[medium] = diff;
         }
     }
 
-    if (change.ChunkCount < 0 || change.NodeCount < 0) {
-        return false;
-    }
-
-    return true;
+    writeSplit(change, lowered, lifted, &TQuotaDiff::ChunkCount);
+    writeSplit(change, lowered, lifted, &TQuotaDiff::NodeCount);
 }
 
 void ManageSystemAccountLimit(const TSchedulerInputState& input, TSchedulerMutations* mutations)
@@ -1769,20 +1780,33 @@ void ManageSystemAccountLimit(const TSchedulerInputState& input, TSchedulerMutat
 
     for (const auto& [accountName, quotaChange] : quotaChanges) {
         const auto& accountInfo = GetOrCrash(input.SystemAccounts, accountName);
-        auto newQuota = CloneYsonStruct(accountInfo->ResourceLimits);
-        ApplyQuotaChange(quotaChange, newQuota);
+        auto newLiftedQuota = CloneYsonStruct(accountInfo->ResourceLimits);
+        auto newLoweredQuota = CloneYsonStruct(accountInfo->ResourceLimits);
+
+        TQuotaDiff liftedDiff;
+        TQuotaDiff loweredDiff;
+        SplitQuotaChange(quotaChange, &liftedDiff, &loweredDiff);
+
         ApplyQuotaChange(quotaChange, rootQuota);
+        ApplyQuotaChange(loweredDiff, newLoweredQuota);
+        // Apply full quota change because lifting should be performed after
+        // limiting without loosing previous changes.
+        ApplyQuotaChange(quotaChange, newLiftedQuota);
 
-        if (IsLimitsLifted(quotaChange)) {
-            mutations->LiftedSystemAccountLimit[accountName] = newQuota;
-        } else {
-            mutations->LoweredSystemAccountLimit[accountName] = newQuota;
+        if (!loweredDiff.Empty()) {
+            mutations->LoweredSystemAccountLimit[accountName] = newLoweredQuota;
+            YT_LOG_INFO("Lowering system account resource limits (Account: %v, NewResourceLimit: %v, OldResourceLimit: %v)",
+                accountName,
+                ConvertToYsonString(newLoweredQuota, EYsonFormat::Text),
+                ConvertToYsonString(accountInfo->ResourceLimits, EYsonFormat::Text));
         }
-
-        YT_LOG_INFO("Adjusting system account resource limits (Account: %v, NewResourceLimit: %v, OldResourceLimit: %v)",
-            accountName,
-            ConvertToYsonString(newQuota, EYsonFormat::Text),
-            ConvertToYsonString(accountInfo->ResourceLimits, EYsonFormat::Text));
+        if (!liftedDiff.Empty()) {
+            mutations->LiftedSystemAccountLimit[accountName] = newLiftedQuota;
+            YT_LOG_INFO("Lifting system account resource limits (Account: %v, NewResourceLimit: %v, OldResourceLimit: %v)",
+                accountName,
+                ConvertToYsonString(newLiftedQuota, EYsonFormat::Text),
+                ConvertToYsonString(accountInfo->ResourceLimits, EYsonFormat::Text));
+        }
     }
 
     mutations->ChangedRootSystemAccountLimit = rootQuota;
@@ -2115,6 +2139,12 @@ public:
     const std::string& GetInstanceType()
     {
         static const std::string TabletNode = "tab";
+        return TabletNode;
+    }
+
+    const std::string& GetHumanReadableInstanceType() const
+    {
+        static const std::string TabletNode = "tablet node";
         return TabletNode;
     }
 
@@ -2458,6 +2488,12 @@ public:
     const std::string& GetInstanceType()
     {
         static const std::string RpcProxy = "rpc";
+        return RpcProxy;
+    }
+
+    const std::string& GetHumanReadableInstanceType() const
+    {
+        static const std::string RpcProxy = "RPC proxy";
         return RpcProxy;
     }
 

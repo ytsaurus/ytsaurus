@@ -44,12 +44,11 @@ int GetOutputTableFD(int tableIndex)
     return firstOutputTableFD + tableIndex * 3;
 }
 
-DECLARE_REFCOUNTED_CLASS(TExportArgumentsConfig)
+DECLARE_REFCOUNTED_STRUCT(TExportArgumentsConfig)
 
-class TExportArgumentsConfig
+struct TExportArgumentsConfig
     : public TYsonStruct
 {
-public:
     std::optional<i64> JobIndex;
     std::optional<i64> JobCount;
     std::optional<i64> LowerIndex;

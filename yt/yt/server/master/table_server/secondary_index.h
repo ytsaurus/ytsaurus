@@ -20,6 +20,7 @@ public:
     DEFINE_BYREF_RW_PROPERTY(std::optional<TString>, Predicate);
     DEFINE_BYREF_RW_PROPERTY(std::optional<TString>, UnfoldedColumn);
     DEFINE_BYVAL_RW_PROPERTY(ETableToIndexCorrespondence, TableToIndexCorrespondence, ETableToIndexCorrespondence::Invalid);
+    DEFINE_BYREF_RW_PROPERTY(NTableClient::TTableSchemaPtr, EvaluatedColumnsSchema);
 
 public:
     using TObject::TObject;

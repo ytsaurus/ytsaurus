@@ -611,6 +611,7 @@ type ListJobsOptions struct {
 	WithStderr               *bool          `http:"with_stderr,omitnil"`
 	WithFailContext          *bool          `http:"with_fail_context,omitnil"`
 	WithMonitoringDescriptor *bool          `http:"with_monitoring_descriptor,omitnil"`
+	WithInterruptionInfo     *bool          `http:"with_interruption_info,omitnil"`
 	SortField                *JobSortField  `http:"sort_field,omitnil"`
 	SortOrder                *JobSortOrder  `http:"sort_order,omitnil"`
 	Limit                    *int           `http:"limit,omitnil"`
@@ -764,6 +765,10 @@ type LowLevelSchedulerClient interface {
 		options *UpdateOperationParametersOptions,
 	) (err error)
 
+	// GetOperation returns information about an operation.
+	//
+	// Warning: frequent calls to this method without specifying attributes may cause an overload of Cypress.
+	//
 	// http:verb:"get_operation"
 	// http:params:"operation_id"
 	GetOperation(

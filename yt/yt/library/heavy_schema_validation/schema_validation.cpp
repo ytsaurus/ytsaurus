@@ -1,6 +1,8 @@
 #include "schema_validation.h"
 
 // TODO(sandello,lukyan): Refine these dependencies.
+
+#include <yt/yt/library/query/base/query.h>
 #include <yt/yt/library/query/base/query_preparer.h>
 #include <yt/yt/library/query/base/functions.h>
 
@@ -98,7 +100,7 @@ static void ValidateColumnRemoval(
     TSchemaUpdateEnabledFeatures enabledFeatures,
     bool isTableDynamic)
 {
-    YT_VERIFY(newSchema.GetStrict());
+    YT_VERIFY(newSchema.IsStrict());
     for (const auto& oldColumn : oldSchema.Columns()) {
         if (newSchema.FindColumnByStableName(oldColumn.StableName())) {
             continue;
@@ -151,7 +153,7 @@ static void ValidateColumnRemoval(
 //! Validates that all columns from the new schema are present in the old schema.
 void ValidateColumnsNotInserted(const TTableSchema& oldSchema, const TTableSchema& newSchema)
 {
-    YT_VERIFY(!oldSchema.GetStrict());
+    YT_VERIFY(!oldSchema.IsStrict());
     for (const auto& newColumn : newSchema.Columns()) {
         if (!oldSchema.FindColumnByStableName(newColumn.StableName())) {
             THROW_ERROR_EXCEPTION("Cannot insert a new column %v into non-strict schema",
@@ -202,7 +204,7 @@ void ValidateColumnsMatch(const TTableSchema& oldSchema, const TTableSchema& new
         }
     }
 
-    if (commonKeyColumnPrefix < oldSchema.GetKeyColumnCount() && newSchema.GetUniqueKeys()) {
+    if (commonKeyColumnPrefix < oldSchema.GetKeyColumnCount() && newSchema.IsUniqueKeys()) {
         THROW_ERROR_EXCEPTION("Table cannot have unique keys since some of its key columns were removed");
     }
 }
@@ -306,6 +308,45 @@ void ValidateAggregatedColumns(const TTableSchema& schema)
     }
 }
 
+THashSet<std::string> ValidateComputedColumnExpression(
+    const TColumnSchema& columnSchema,
+    const TTableSchema& schema,
+    bool isTableDynamic,
+    bool allowDependenceOnNonKeyColumns)
+{
+    THashSet<std::string> references;
+    auto expr = PrepareExpression(*columnSchema.Expression(), schema, GetBuiltinTypeInferrers(), &references);
+
+    if (*columnSchema.LogicalType() != *expr->LogicalType) {
+        THROW_ERROR_EXCEPTION(
+            "Computed column %v type mismatch: declared type is %Qlv but expression type is %Qlv",
+            columnSchema.GetDiagnosticNameString(),
+            *columnSchema.LogicalType(),
+            *expr->LogicalType);
+    }
+
+    for (const auto& reference : references) {
+        const auto* column = schema.FindColumn(reference);
+        if (!column) {
+            THROW_ERROR_EXCEPTION("Computed column %v depends on unknown column %Qv",
+                columnSchema.GetDiagnosticNameString(),
+                reference);
+        }
+        if (!allowDependenceOnNonKeyColumns && !column->SortOrder() && isTableDynamic) {
+            THROW_ERROR_EXCEPTION("Computed column %v depends on a non-key column %v",
+                columnSchema.GetDiagnosticNameString(),
+                column->GetDiagnosticNameString());
+        }
+        if (column->Expression()) {
+            THROW_ERROR_EXCEPTION("Computed column %v depends on a computed column %v",
+                columnSchema.GetDiagnosticNameString(),
+                column->GetDiagnosticNameString());
+        }
+    }
+
+    return references;
+}
+
 void ValidateComputedColumns(const TTableSchema& schema, bool isTableDynamic)
 {
     for (int index = 0; index < schema.GetColumnCount(); ++index) {
@@ -324,35 +365,11 @@ void ValidateComputedColumns(const TTableSchema& schema, bool isTableDynamic)
             THROW_ERROR_EXCEPTION("Key column %v cannot be computed in non-materializable way", columnSchema.GetDiagnosticNameString());
         }
 
-        THashSet<std::string> references;
-        // TODO(babenko): migrate to std::string
-        auto expr = PrepareExpression(*columnSchema.Expression(), schema, GetBuiltinTypeInferrers(), &references);
-        if (*columnSchema.LogicalType() != *expr->LogicalType) {
-            THROW_ERROR_EXCEPTION(
-                "Computed column %v type mismatch: declared type is %Qlv but expression type is %Qlv",
-                columnSchema.GetDiagnosticNameString(),
-                *columnSchema.LogicalType(),
-                *expr->LogicalType);
-        }
-
-        for (const auto& ref : references) {
-            const auto* refColumn = schema.FindColumn(ref);
-            if (!refColumn) {
-                THROW_ERROR_EXCEPTION("Computed column %v depends on unknown column %Qv",
-                    columnSchema.GetDiagnosticNameString(),
-                    ref);
-            }
-            if (!refColumn->SortOrder() && isTableDynamic) {
-                THROW_ERROR_EXCEPTION("Computed column %v depends on a non-key column %v",
-                    columnSchema.GetDiagnosticNameString(),
-                    refColumn->GetDiagnosticNameString());
-            }
-            if (refColumn->Expression()) {
-                THROW_ERROR_EXCEPTION("Computed column %v depends on a computed column %v",
-                    columnSchema.GetDiagnosticNameString(),
-                    refColumn->GetDiagnosticNameString());
-            }
-        }
+        ValidateComputedColumnExpression(
+            columnSchema,
+            schema,
+            isTableDynamic,
+            /*allowDependenceOnNonKeyColumns*/ false);
     }
 }
 
@@ -392,21 +409,21 @@ void ValidateTableSchemaUpdateInternal(
         if (oldSchema.GetKeyColumnCount() == 0 && newSchema.GetKeyColumnCount() > 0) {
             THROW_ERROR_EXCEPTION("Cannot change schema from unsorted to sorted");
         }
-        if (!oldSchema.GetStrict() && newSchema.GetStrict()) {
+        if (!oldSchema.IsStrict() && newSchema.IsStrict()) {
             THROW_ERROR_EXCEPTION("Changing \"strict\" from \"false\" to \"true\" is not allowed");
         }
-        if (!oldSchema.GetUniqueKeys() && newSchema.GetUniqueKeys()) {
+        if (!oldSchema.IsUniqueKeys() && newSchema.IsUniqueKeys()) {
             THROW_ERROR_EXCEPTION("Changing \"unique_keys\" from \"false\" to \"true\" is not allowed");
         }
 
-        if (oldSchema.GetStrict() && !newSchema.GetStrict()) {
+        if (oldSchema.IsStrict() && !newSchema.IsStrict()) {
             if (oldSchema.Columns() != newSchema.Columns()) {
                 THROW_ERROR_EXCEPTION("Changing columns is not allowed while changing \"strict\" from \"true\" to \"false\"");
             }
             return;
         }
 
-        if (oldSchema.GetStrict()) {
+        if (oldSchema.IsStrict()) {
             ValidateColumnRemoval(oldSchema, newSchema, enabledFeatures, isTableDynamic);
         } else {
             ValidateColumnsNotInserted(oldSchema, newSchema);
@@ -414,7 +431,7 @@ void ValidateTableSchemaUpdateInternal(
         ValidateColumnsMatch(oldSchema, newSchema);
 
         // We allow adding computed columns only on creation of the table.
-        if (!oldSchema.Columns().empty() || !isTableEmpty) {
+        if (!oldSchema.IsEmpty() || !isTableEmpty) {
             for (const auto& newColumn : newSchema.Columns()) {
                 if (newColumn.Expression() && !oldSchema.FindColumnByStableName(newColumn.StableName())) {
                     THROW_ERROR_EXCEPTION("Cannot introduce a new computed column %v after creation",

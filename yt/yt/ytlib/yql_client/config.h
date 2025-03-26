@@ -10,11 +10,10 @@ namespace NYT::NYqlClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TYqlAgentChannelConfig
+struct TYqlAgentChannelConfig
     : public NRpc::TBalancingChannelConfig
     , public NRpc::TRetryingChannelConfig
 {
-public:
     REGISTER_YSON_STRUCT(TYqlAgentChannelConfig);
 
     static void Register(TRegistrar registrar);
@@ -24,10 +23,9 @@ DEFINE_REFCOUNTED_TYPE(TYqlAgentChannelConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TYqlAgentStageConfig
+struct TYqlAgentStageConfig
     : public NYTree::TYsonStruct
 {
-public:
     TYqlAgentChannelConfigPtr Channel;
 
     REGISTER_YSON_STRUCT(TYqlAgentStageConfig);
@@ -39,10 +37,9 @@ DEFINE_REFCOUNTED_TYPE(TYqlAgentStageConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TYqlAgentConnectionConfig
+struct TYqlAgentConnectionConfig
     : public NYTree::TYsonStruct
 {
-public:
     THashMap<std::string, TYqlAgentStageConfigPtr> Stages;
 
     REGISTER_YSON_STRUCT(TYqlAgentConnectionConfig);

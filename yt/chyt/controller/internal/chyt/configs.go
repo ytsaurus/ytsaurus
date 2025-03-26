@@ -182,11 +182,11 @@ func (c Controller) getPatchedYtConfig(ctx context.Context, oplet *strawberry.Op
 		sqlUDFStorage["enabled"] = true
 	}
 
-	const always_blocked_headers = "Authentication|X-ClickHouse-User"
+	const always_blocked_headers = "authentication|x-clickhouse-user"
 	if val, ok := configAsMap["http_header_blacklist"]; !ok {
 		configAsMap["http_header_blacklist"] = always_blocked_headers
 	} else if !strings.HasPrefix(val.(string), always_blocked_headers) {
-		configAsMap["http_header_blacklist"] = always_blocked_headers + "|(" + val.(string) + ")"
+		configAsMap["http_header_blacklist"] = always_blocked_headers + "|(" + strings.ToLower(val.(string)) + ")"
 	}
 	if _, ok := configAsMap["system_log_table_exporters"]; !ok {
 		configAsMap["system_log_table_exporters"] = make(map[string]any)

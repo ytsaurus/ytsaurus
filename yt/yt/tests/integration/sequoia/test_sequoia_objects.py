@@ -12,7 +12,7 @@ from yt_sequoia_helpers import (
 from yt.sequoia_tools import DESCRIPTORS
 
 from yt_commands import (
-    authors, create, get, remove, get_singular_chunk_id, write_table, read_table, wait,
+    authors, commit_transaction, create, get, raises_yt_error, remove, get_singular_chunk_id, write_table, read_table, wait,
     exists, create_domestic_medium, ls, set, get_account_disk_space_limit, set_account_disk_space_limit,
     link, build_master_snapshots, start_transaction, abort_transaction, get_active_primary_master_leader_address,
     sync_mount_table, sync_unmount_table, sync_compact_table)
@@ -149,7 +149,8 @@ class TestSequoiaReplicas(YTEnvSetup):
         wait(lambda: len(select_rows_from_ground(f"* from [{DESCRIPTORS.location_replicas.get_default_path()}]")) == 0)
 
     @authors("aleksandra-zh")
-    def test_chunk_replicas_node_offline2(self):
+    @pytest.mark.parametrize("erasure_codec", ["none", "lrc_12_2_2"])
+    def test_chunk_replicas_node_offline2(self, erasure_codec):
         def no_chunk():
             for node in ls("//sys/cluster_nodes"):
                 if chunk_id in ls("//sys/cluster_nodes/{0}/orchid/data_node/stored_chunks".format(node)):
@@ -159,15 +160,16 @@ class TestSequoiaReplicas(YTEnvSetup):
 
         set("//sys/@config/chunk_manager/sequoia_chunk_replicas/enable", True)
         set("//sys/accounts/tmp/@resource_limits/disk_space_per_medium/{}".format(self.TABLE_MEDIUM_1), 10000)
-        create("table", "//tmp/t",  attributes={"primary_medium": self.TABLE_MEDIUM_1})
+        create("table", "//tmp/t",  attributes={"primary_medium": self.TABLE_MEDIUM_1, "erasure_codec": erasure_codec})
 
         write_table("//tmp/t", [{"x": 1}])
         assert read_table("//tmp/t") == [{"x": 1}]
 
         chunk_id = get_singular_chunk_id("//tmp/t")
 
+        desired_replica_count = 3 if erasure_codec == "none" else 16
         wait(lambda: len(select_rows_from_ground(f"* from [{DESCRIPTORS.chunk_replicas.get_default_path()}]")) == 1)
-        wait(lambda: len(select_rows_from_ground(f"* from [{DESCRIPTORS.location_replicas.get_default_path()}]")) == 3)
+        wait(lambda: len(select_rows_from_ground(f"* from [{DESCRIPTORS.location_replicas.get_default_path()}]")) == desired_replica_count)
 
         with Restarter(self.Env, NODES_SERVICE, indexes=self.table_node_indexes):
             remove("//tmp/t")
@@ -592,3 +594,90 @@ class TestSequoiaQueues(YTEnvSetup):
             return lookup_rows_in_ground(DESCRIPTORS.path_to_node_id.get_default_path(), [{"path": mangle_sequoia_path(path)}])
 
         assert len(get_row('//tmp/m2')) == 0
+
+
+class TestSequoiaPrerequisites(YTEnvSetup):
+    USE_SEQUOIA = True
+    ENABLE_TMP_ROOTSTOCK = True
+    NUM_CYPRESS_PROXIES = 1
+    NUM_SECONDARY_MASTER_CELLS = 3
+
+    ENABLE_CYPRESS_TRANSACTIONS_IN_SEQUOIA = True
+    DRIVER_BACKEND = "rpc"
+    ENABLE_RPC_PROXY = True
+
+    DELTA_RPC_PROXY_CONFIG = {
+        "cluster_connection": {
+            "transaction_manager": {
+                "use_cypress_transaction_service": True,
+            },
+        },
+    }
+
+    MASTER_CELL_DESCRIPTORS = {
+        "10": {"roles": ["sequoia_node_host"]},
+        # Master cell with tag 11 is reserved for portals.
+        "12": {"roles": ["sequoia_node_host", "chunk_host", "transaction_coordinator"]},
+        "13": {"roles": ["sequoia_node_host", "chunk_host", "transaction_coordinator"]},
+    }
+
+    DELTA_CYPRESS_PROXY_DYNAMIC_CONFIG = {
+        "object_service": {
+            "allow_bypass_master_resolve": True,
+        },
+    }
+
+    DELTA_DYNAMIC_MASTER_CONFIG = {
+        "transaction_manager": {
+            "enable_prerequisite_transaction_validation_via_leases": True,
+        },
+    }
+
+    @authors("cherepashka")
+    def test_read_with_prerequisite_transactions_is_forbidden(self):
+        tx = start_transaction()
+
+        with raises_yt_error("Read requests with prerequisites are forbidden"):
+            get("//tmp/@id", prerequisite_transaction_ids=[tx])
+        with raises_yt_error("Read requests with prerequisites are forbidden"):
+            exists("//tmp", prerequisite_transaction_ids=[tx])
+        with raises_yt_error("Read requests with prerequisites are forbidden"):
+            ls("//tmp", prerequisite_transaction_ids=[tx])
+
+        commit_transaction(tx)
+
+    @authors("cherepashka")
+    @pytest.mark.parametrize("finish_tx", [commit_transaction, abort_transaction])
+    def test_write_with_prerequisites(self, finish_tx):
+        tx = start_transaction()
+        create("table", "//tmp/t", prerequisite_transaction_ids=[tx])
+        tx2 = start_transaction(prerequisite_transaction_ids=[tx])
+        commit_transaction(tx2, prerequisite_transaction_ids=[tx])
+
+        finish_tx(tx)
+        assert not exists(f"//sys/transactions/{tx}")
+
+    @authors("cherepashka")
+    def test_commited_prerequisite_tx(self):
+        tx = start_transaction()
+        commit_transaction(tx)
+
+        tx2 = start_transaction()
+
+        with raises_yt_error("No such transaction"):
+            commit_transaction(tx2, prerequisite_transaction_ids=[tx])
+
+        with raises_yt_error(f"Prerequisite check failed: transaction {tx} is missing in Sequoia"):
+            create("table", "//tmp/d", prerequisite_transaction_ids=[tx])
+
+    @authors("cherepashka")
+    @pytest.mark.parametrize("finish_tx", [commit_transaction, abort_transaction])
+    def test_leases_revokation(self, finish_tx):
+        tx = start_transaction()
+        create("table", "//tmp/t1", prerequisite_transaction_ids=[tx], attributes={"external_cell_tag": 13})
+        create("table", "//tmp/t2", prerequisite_transaction_ids=[tx], attributes={"external_cell_tag": 12})
+        finish_tx(tx)
+        with raises_yt_error(f"Prerequisite check failed: transaction {tx} is missing in Sequoia"):
+            create("table", "//tmp/t3", prerequisite_transaction_ids=[tx], attributes={"external_cell_tag": 13})
+        with raises_yt_error(f"Prerequisite check failed: transaction {tx} is missing in Sequoia"):
+            create("table", "//tmp/t3", prerequisite_transaction_ids=[tx], attributes={"external_cell_tag": 12})

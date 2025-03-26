@@ -50,6 +50,7 @@
 #include <yt/yt/server/lib/hydra/mutation_context.h>
 
 #include <yt/yt/server/lib/lease_server/lease_manager.h>
+#include <yt/yt/server/lib/lease_server/helpers.h>
 
 #include <yt/yt/server/lib/misc/profiling_helpers.h>
 
@@ -117,8 +118,6 @@
 #include <yt/yt/core/ytree/virtual.h>
 
 #include <library/cpp/yt/string/string.h>
-
-#include <library/cpp/iterator/zip.h>
 
 #include <util/generic/cast.h>
 #include <util/generic/algorithm.h>
@@ -1283,16 +1282,7 @@ private:
 
     TReqReplicateTabletContent PrepareReplicateTabletContentRequest(TTablet* tablet) override
     {
-        auto& movementData = tablet->SmoothMovementData();
-
-        TReqReplicateTabletContent request;
-        auto* replicatableContent = request.mutable_replicatable_content();
-
         // Validation against not implemented features.
-        if (tablet->GetPhysicalSchema()->HasHunkColumns()) {
-            THROW_ERROR_EXCEPTION("Hunks are not supported");
-        }
-
         if (tablet->IsPhysicallyLog() ||
             tablet->IsPhysicallyOrdered() ||
             tablet->IsReplicated())
@@ -1304,6 +1294,8 @@ private:
             THROW_ERROR_EXCEPTION("Bulk insert lock replication is not supported");
         }
 
+        TReqReplicateTabletContent request;
+
         // Essential stuff.
         ToProto(request.mutable_tablet_id(), tablet->GetId());
         request.set_mount_revision(
@@ -1313,38 +1305,7 @@ private:
         tablet->PopulateReplicateTabletContentRequest(&request);
 
         // Stores.
-        auto onStore = [&] (const IStorePtr& store) {
-            if (store->IsDynamic() && store->GetStoreState() != EStoreState::ActiveDynamic) {
-                movementData.CommonDynamicStoreIds().insert(store->GetId());
-            }
-
-            store->PopulateAddStoreDescriptor(replicatableContent->add_stores());
-
-            if (store->IsSorted()) {
-                ToProto(
-                    request.add_store_partition_ids(),
-                    store->AsSorted()->GetPartition()->GetId());
-            }
-        };
-
-        if (tablet->IsPhysicallyOrdered()) {
-            for (const auto& [rowIndex, store] : tablet->StoreRowIndexMap()) {
-                onStore(store);
-            }
-        } else {
-            for (const auto& store : tablet->GetEden()->Stores()) {
-                onStore(store);
-            }
-            for (const auto& partition : tablet->PartitionList()) {
-                for (const auto& store : partition->Stores()) {
-                    onStore(store);
-                }
-            }
-        }
-
-        if (const auto& activeStore = tablet->GetActiveStore()) {
-            ToProto(request.mutable_active_store_id(), activeStore->GetId());
-        }
+        tablet->GetStoreManager()->PopulateReplicateTabletContentRequest(&request);
 
         return request;
     }
@@ -1379,28 +1340,7 @@ private:
         tablet->LoadReplicatedContent(request);
 
         // Stores.
-        auto activeStoreId = FromProto<TStoreId>(request->active_store_id());
-
-        const auto& storeManager = tablet->GetStoreManager();
-        auto partitionIds = FromProto<std::vector<TPartitionId>>(request->store_partition_ids());
-        YT_VERIFY(replicatableContent.stores().size() == ssize(partitionIds));
-        for (const auto& [descriptor, partitionId] : Zip(replicatableContent.stores(), partitionIds)) {
-            auto type = FromProto<EStoreType>(descriptor.store_type());
-            auto storeId = FromProto<TChunkId>(descriptor.store_id());
-
-            if (storeId == activeStoreId) {
-                storeManager->CreateActiveStore(activeStoreId);
-            } else {
-                auto store = CreateStore(tablet, type, storeId, &descriptor);
-                if (store->IsDynamic()) {
-                    store->SetStoreState(EStoreState::PassiveDynamic);
-                    InsertOrCrash(movementData.CommonDynamicStoreIds(), store->GetId());
-                }
-
-                store->Initialize();
-                storeManager->AddStore(store, /*onMount*/ false, /*onFlush*/ false, partitionId);
-            }
-        }
+        tablet->GetStoreManager()->LoadReplicatedContent(request);
 
         StartTabletEpoch(tablet);
 
@@ -3921,45 +3861,29 @@ private:
         return false;
     }
 
-    const NLeaseServer::ILeaseManagerPtr& GetLeaseManager() const final
+    const ILeaseManagerPtr& GetLeaseManager() const final
     {
         return Slot_->GetLeaseManager();
     }
 
     TFuture<void> IssueLeases(const std::vector<TLeaseId>& leaseIds) override
     {
-        THashMap<TCellTag, std::vector<TLeaseId>> cellTagToLeaseIds;
-
         const auto& leaseManager = Slot_->GetLeaseManager();
-        for (auto leaseId : leaseIds) {
-            if (!leaseManager->FindLease(leaseId)) {
-                auto cellTag = CellTagFromId(leaseId);
-                cellTagToLeaseIds[cellTag].push_back(leaseId);
-            }
-        }
-
         const auto& connection = Bootstrap_->GetConnection();
         const auto& hiveManager = Slot_->GetHiveManager();
 
-        std::vector<TFuture<void>> futures;
-        futures.reserve(cellTagToLeaseIds.size());
-        for (const auto& [cellTag, leaseIds] : cellTagToLeaseIds) {
-            auto cellId = connection->GetMasterCellId(cellTag);
-            auto masterChannel = connection->GetMasterChannelOrThrow(
-                EMasterChannelKind::Leader,
-                cellTag);
-            TTransactionServiceProxy proxy(std::move(masterChannel));
-            auto req = proxy.IssueLeases();
-            ToProto(req->mutable_transaction_ids(), leaseIds);
-            ToProto(req->mutable_cell_id(), GetCellId());
-
-            auto future = req->Invoke().AsVoid().Apply(BIND([=] {
-                return hiveManager->SyncWith(cellId, /*enableBatching*/ true);
+        return IssueLeasesForCell(
+            leaseIds,
+            leaseManager,
+            hiveManager,
+            GetCellId(),
+            /*synWithAllLeaseTransactionCoordinators*/ false,
+            BIND([connection] (TCellTag cellTag) {
+                return connection->GetMasterCellId(cellTag);
+            }),
+            BIND([connection] (TCellTag cellTag) {
+                return connection->FindMasterChannel(EMasterChannelKind::Leader, cellTag);
             }));
-            futures.push_back(std::move(future));
-        }
-
-        return AllSucceeded(std::move(futures));
     }
 
     void SetTabletOrphaned(std::unique_ptr<TTablet> tabletHolder)

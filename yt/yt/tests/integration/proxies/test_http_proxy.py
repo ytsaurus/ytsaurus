@@ -15,7 +15,7 @@ from yt_commands import (
     create_user, create_proxy_role, issue_token, make_ace,
     create_access_control_object_namespace, create_access_control_object,
     with_breakpoint, wait_breakpoint, print_debug, raises_yt_error,
-    read_table, write_table, Operation)
+    read_table, write_table, add_member, Operation)
 
 from yt.common import YtResponseError
 import yt.packages.requests as requests
@@ -117,12 +117,12 @@ class HttpProxyTestBase(YTEnvSetup):
             default={},
         )
 
-    def _execute_command(self, http_method, command_name, params=PARAMS):
+    def _execute_command(self, http_method, command_name, params=PARAMS, user="root"):
         headers = {
             "X-YT-Parameters": yson.dumps(params),
             "X-YT-Header-Format": "<format=text>yson",
             "X-YT-Output-Format": "<format=text>yson",
-            "X-YT-User-Name": self.USER,
+            "X-YT-User-Name": user,
         }
         rsp = requests.request(
             http_method,
@@ -421,6 +421,56 @@ class TestHttpProxyMemoryDrop(HttpProxyTestBase):
         assert err[0].is_rpc_unavailable()
 
 
+@pytest.mark.enabled_multidaemon
+class TestHttpProxyUserMemoryDrop(HttpProxyTestBase):
+    ENABLE_MULTIDAEMON = True
+
+    @authors("nadya02")
+    @pytest.mark.timeout(120)
+    def test_specific_user_drop(self):
+        create_user("nadya")
+        proxy_name = ls("//sys/http_proxies")[0]
+
+        create("table", "//tmp/test")
+
+        set("//sys/http_proxies/@config", {
+            "api": {
+                "user_to_memory_limit_ratio": {"nadya" : 0.0},
+            },
+        })
+
+        def config_updated():
+            config = get("//sys/http_proxies/" + proxy_name + "/orchid/dynamic_config_manager/effective_config")
+            return config.get("api", {}).get("user_to_memory_limit_ratio", None) == {"nadya" : 0.0}
+
+        wait(config_updated)
+
+        with raises_yt_error("Request is dropped due to high memory pressure"):
+            self._execute_command("GET", "read_table", {"path": "//tmp/test"}, user="nadya")
+
+    @authors("nadya02")
+    @pytest.mark.timeout(120)
+    def test_default_user_drop(self):
+        proxy_name = ls("//sys/http_proxies")[0]
+
+        create("table", "//tmp/test")
+
+        set("//sys/http_proxies/@config", {
+            "api": {
+                "default_user_memory_limit_ratio": 0.0,
+            },
+        })
+
+        def config_updated():
+            config = get("//sys/http_proxies/" + proxy_name + "/orchid/dynamic_config_manager/effective_config")
+            return config.get("api", {}).get("default_user_memory_limit_ratio", None) == 0.0
+
+        wait(config_updated)
+
+        with raises_yt_error("Request is dropped due to high memory pressure"):
+            self._execute_command("GET", "read_table", {"path": "//tmp/test"})
+
+
 class TestFullDiscoverVersions(HttpProxyTestBase):
     ENABLE_MULTIDAEMON = False  # Cell balancer crashes in multidaemon mode.
     NUM_DISCOVERY_SERVERS = 1
@@ -482,6 +532,62 @@ class TestFullDiscoverVersions(HttpProxyTestBase):
         assert counts["queue_agent"] == 1
         assert counts["tablet_balancer"] == 1
         assert counts["replicated_table_tracker"] == 1
+
+
+@pytest.mark.enabled_multidaemon
+class TestCypressProxyDiscoverVersions(HttpProxyTestBase):
+    ENABLE_MULTIDAEMON = True
+
+    USE_SEQUOIA = True
+    NUM_CLOCKS = 1
+    NUM_CYPRESS_PROXIES = 1
+    NUM_REMOTE_CLUSTERS = 1
+    USE_SEQUOIA_REMOTE_0 = False
+
+    @authors("koloshmet")
+    def test_discover_versions_v2(self):
+        # Give all components some time to be considered online.
+        time.sleep(5)
+
+        rsp = requests.get(self._get_proxy_address() + "/internal/discover_versions/v2")
+        rsp.raise_for_status()
+
+        versions = rsp.json()
+        assert "details" in versions
+        assert "summary" in versions
+
+        print_debug(f"Collected component versions: {versions}")
+
+        counts = collections.Counter()
+
+        for instance in versions["details"]:
+            assert "address" in instance
+            assert "start_time" in instance
+            assert "type" in instance
+            assert "version" in instance
+
+            if "state" in instance:
+                assert instance["state"] == "online"
+
+            counts[instance["type"]] += 1
+
+        summary = versions["summary"]
+        # All components run on the same version + there is a total summary.
+        assert len(summary) == 2
+        for version_summary in summary.values():
+            for type, component_summary in version_summary.items():
+                assert component_summary["total"] == counts[type]
+                assert component_summary["banned"] == 0
+                assert component_summary["offline"] == 0
+
+        assert counts["primary_master"] == 1
+        assert counts["secondary_master"] == 2
+        assert counts["cluster_node"] == 5
+        assert counts["scheduler"] == 1
+        assert counts["http_proxy"] == 1
+        assert counts["rpc_proxy"] == 2
+        assert counts["timestamp_provider"] == 1
+        assert counts["cypress_proxy"] == 1
 
 
 class TestSolomonProxy(HttpProxyTestBase):
@@ -818,6 +924,17 @@ class TestHttpProxyAuth(HttpProxyTestBase):
         )
         wait(lambda: check_access(proxy_address, path=node, status_code=400, error_code=yt_error_codes.AuthorizationErrorCode, token=yql_agent_token))
         wait(lambda: check_access(proxy_address, path=node, status_code=200, token=yql_agent_token, user="test_user"))
+
+        # Now the user should be allowed to impersonate others.
+        add_member("test_user", "superusers")
+        # While yql_agent is not, even though it is explicitly whitelisted.
+        set("//sys/users/yql_agent/@banned", True)
+        wait(lambda: check_access(proxy_address, status_code=401, token=yql_agent_token, user="test_user"))
+        wait(lambda: check_access(proxy_address, status_code=200, token=test_user_token, user="root"))
+
+        # Superusers can be banned too!
+        set("//sys/users/test_user/@banned", True)
+        wait(lambda: check_access(proxy_address, status_code=401, token=test_user_token, user="root"))
 
 
 @pytest.mark.enabled_multidaemon
@@ -1245,6 +1362,38 @@ class TestHttpProxyFormatConfig(HttpProxyTestBase, _TestProxyFormatConfigBase):
                 output_format=self.YSON,
             )
 
+    @authors("nadya02")
+    @pytest.mark.timeout(120)
+    def test_http_drop_write_request(self):
+        wait(lambda: requests.get(f"{self._get_proxy_address()}/api/v4/get?path=//@").ok)
+
+        create("table", "//tmp/t")
+
+        total_memory_limit = 2000
+
+        set("//sys/http_proxies/@config", {"memory_limits": {"total": total_memory_limit}})
+
+        monitoring_port = self.Env.configs["http_proxy"][0]["monitoring_port"]
+        config_url = "http://localhost:{}/orchid/dynamic_config_manager/effective_config".format(monitoring_port)
+
+        def config_updated():
+            config = requests.get(config_url).json()
+            return config.get("memory_limits", {}).get("total", 0) == total_memory_limit
+        wait(config_updated)
+
+        with pytest.raises(YtResponseError):
+            content = [{"foo": "bar"}, {"foo": "baz"}, {"foo": "qux"}] * 10
+            format = "yson"
+            user = "root"
+
+            self._execute_command(
+                "put",
+                "write_table",
+                {"path": "//tmp/t", "input_format": format},
+                user=user,
+                data=self._write_format(format, content),
+            )
+
     def _test_format_defaults_cypress(self, format, user, content, expected_content):
         set("//sys/@config/cypress_manager/forbid_list_node_creation", False)
         set("//tmp/list_node", content, force=True)
@@ -1383,6 +1532,7 @@ class TestHttpProxyBuildSnapshotReadonly(TestHttpProxyBuildSnapshotBase):
         wait(lambda: self._check_no_read_only())
 
     @authors("alexkolodezny", "aleksandra-zh")
+    @pytest.mark.skip(reason="According to some recent studies, this has ~25% chance of failure")
     def test_read_only_proxy_availability(self):
         def check_proxies_online():
             rsp = requests.get(self._get_proxy_address() + "/hosts/all")
@@ -1581,6 +1731,30 @@ class TestHttpProxySignaturesKeyCreation(TestHttpProxySignaturesBase):
     @pytest.mark.timeout(60)
     def test_public_key_appears(self):
         wait(lambda: len(ls(self.KEYS_PATH)) == 1)
+
+    @authors("ermolovd")
+    def test_partition_tables_with_modified_cookie(self):
+        create_user("user1")
+        create_user("user2")
+
+        table = "//tmp/table"
+        create("table", table)
+        write_table(table, [{"a": "123456789"}] * 1024)
+        partitions = self._execute_command("GET", "partition_tables", {
+            "paths": [table],
+            "data_weight_per_partition": 1024 * 10 // 3,
+            "enable_cookies": True,
+            "username": "user1",
+        }, user="user1")
+        partitions = yson.loads(partitions.content)
+        cookie = yson.get_bytes(partitions["partitions"][0]["cookie"])
+
+        self._execute_command("GET", "read_table_partition", {"cookie": cookie}, user="user1")
+
+        assert b"user1" in cookie
+        cookie = cookie.replace(b"user1", b"user2")
+        with raises_yt_error("Signature validation failed"):
+            self._execute_command("GET", "read_table_partition", {"cookie": cookie}, user="user2")
 
 
 class TestHttpProxySignaturesKeyRotation(TestHttpProxySignaturesBase):

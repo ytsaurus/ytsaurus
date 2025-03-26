@@ -11,11 +11,8 @@ namespace NYT::NClickHouseServer {
 
 TYtStorageBase::TYtStorageBase(DB::StorageID storageId)
     : DB::IStorage(std::move(storageId))
-{ }
-
-DB::NamesAndTypesList TYtStorageBase::getVirtuals() const
 {
-    return VirtualColumnNamesAndTypes;
+    setVirtuals(VirtualColumns);
 }
 
 TYtStorageBase::TRealAndVirtualColumnNames TYtStorageBase::DecoupleColumns(

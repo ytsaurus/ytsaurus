@@ -340,6 +340,9 @@ void TObjectProxyBase::BeforeInvoke(const IYPathServiceContextPtr& context)
     const auto& ypathExt = requestHeader.GetExtension(NYTree::NProto::TYPathHeaderExt::ypath_header_ext);
     YT_VERIFY(!ypathExt.mutating() || NHydra::HasHydraContext());
 
+    auto originalTargetPath = GetOriginalRequestTargetYPath(context->GetRequestHeader());
+    auto originalAdditionalPaths = GetOriginalRequestAdditionalPaths(context->GetRequestHeader());
+
     const auto& objectManager = Bootstrap_->GetObjectManager();
     if (requestHeader.HasExtension(NObjectClient::NProto::TPrerequisitesExt::prerequisites_ext)) {
         const auto& prerequisitesExt = requestHeader.GetExtension(NObjectClient::NProto::TPrerequisitesExt::prerequisites_ext);
@@ -355,7 +358,7 @@ void TObjectProxyBase::BeforeInvoke(const IYPathServiceContextPtr& context)
             GetOriginalRequestAdditionalPaths(requestHeader),
             prerequisitesExt.revisions());
 
-        objectManager->ValidatePrerequisites(prerequisitesExt);
+        objectManager->ValidatePrerequisites(originalTargetPath, originalAdditionalPaths, prerequisitesExt);
     }
 
     for (const auto& additionalPath : ypathExt.additional_paths()) {
@@ -767,11 +770,12 @@ bool TObjectProxyBase::SetBuiltinAttribute(TInternedAttributeKey key, const TYso
             }
 
             if (owner->IsUser()) {
-                owner->AsUser()->LogIfPendingRemoval(
-                    Format("User pending for removal is being set as %Qv attribute for object (User: %v, ObjectId: %v)",
+                YT_LOG_ALERT_IF(
+                    owner->AsUser()->GetPendingRemoval(),
+                    "User pending for removal is being set as %Qv attribute for object (User: %v, ObjectId: %v)",
                     EInternedAttributeKey::Owner.Unintern(),
                     owner->GetName(),
-                    GetId()));
+                    GetId());
             }
 
             if (!force) {
@@ -899,7 +903,7 @@ void TObjectProxyBase::ValidatePermission(TObject* object, EPermission permissio
     securityManager->ValidatePermission(object, user, permission);
 }
 
-std::unique_ptr<IPermissionValidator> TObjectProxyBase::CreatePermissionValidator()
+std::unique_ptr<TObjectProxyBase::IPermissionValidator> TObjectProxyBase::CreatePermissionValidator()
 {
     return std::make_unique<TPermissionValidator>(this);
 }

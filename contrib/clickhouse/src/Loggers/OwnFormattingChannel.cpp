@@ -13,7 +13,7 @@ void OwnFormattingChannel::logExtended(const ExtendedLogMessage & msg)
         {
             std::string text;
             pFormatter->formatExtended(msg, text);
-            pChannel->log(Poco::Message(msg.base, text));
+            pChannel->log(DBPoco::Message(msg.base, text));
         }
         else
         {
@@ -22,7 +22,7 @@ void OwnFormattingChannel::logExtended(const ExtendedLogMessage & msg)
     }
 }
 
-void OwnFormattingChannel::log(const Poco::Message & msg)
+void OwnFormattingChannel::log(const DBPoco::Message & msg)
 {
     logExtended(ExtendedLogMessage::getFrom(msg));
 }

@@ -893,7 +893,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Modifies both master's persistent state and Sequoia tables.
-template <class TResult>
+template <class TResult, ESequoiaTransactionType TransactionType>
 class TSequoiaMutation
     : public TRefCounted
 {
@@ -911,7 +911,7 @@ protected:
     const ISequoiaClientPtr SequoiaClient_;
     const TCellId CoordinatorCellId_;
     const IInvokerPtr Invoker_;
-    TLogger Logger;
+    const TLogger Logger;
 
     // Initialized once per class lifetime.
     ISequoiaTransactionPtr SequoiaTransaction_;
@@ -953,7 +953,7 @@ private:
         YT_ASSERT_INVOKER_AFFINITY(Invoker_);
 
         return SequoiaClient_
-            ->StartTransaction()
+            ->StartTransaction(TransactionType)
             .ApplyUnique(
                 BIND(&TSequoiaMutation::OnSequoiaTransactionStarted, MakeStrong(this))
                     .AsyncVia(Invoker_));
@@ -1023,7 +1023,7 @@ private:
  *  10. Reply with transaction id generated in step 1.
  */
 class TStartCypressTransaction
-    : public TSequoiaMutation<TTransactionId>
+    : public TSequoiaMutation<TTransactionId, ESequoiaTransactionType::CypressTransactionMirroring>
 {
 public:
     TStartCypressTransaction(
@@ -1482,7 +1482,7 @@ private:
 /*!
  *  When transaction is finished (because of commit or abort) every descendant
  *  and dependent transaction has to be aborted. On transaction coordinator it's
- *  handled in commit/abort mutation but we still need to clean Sequoia tables
+ *  handled in commit/abort mutation, but we still need to clean Sequoia tables
  *  and replicate abort mutations to all participants.
  *  1. Fetch target transaction (and validate it);
  *  2. Fetch all descendant and dependent transactions (transitively);
@@ -1502,7 +1502,7 @@ private:
  *           - child_node
  */
 class TFinishCypressTransaction
-    : public TSequoiaMutation<void>
+    : public TSequoiaMutation<void, ESequoiaTransactionType::CypressTransactionMirroring>
 {
 protected:
     const TTransactionId TransactionId_;
@@ -1516,7 +1516,7 @@ protected:
         TAuthenticationIdentity authenticationIdentity,
         IInvokerPtr invoker,
         TLogger logger)
-        : TSequoiaMutation<void>(
+        : TSequoiaMutation(
             std::move(sequoiaClient),
             cypressTransactionCoordinatorCellId,
             description,
@@ -1716,7 +1716,8 @@ public:
     TAbortCypressTransaction(
         ISequoiaClientPtr sequoiaClient,
         TCellId cypressTransactionCoordinatorCellId,
-        const NCypressTransactionClient::NProto::TReqAbortTransaction& request,
+        TTransactionId transactionId,
+        bool force,
         NRpc::TAuthenticationIdentity authenticationIdentity,
         IInvokerPtr invoker,
         TLogger logger)
@@ -1724,11 +1725,11 @@ public:
             std::move(sequoiaClient),
             cypressTransactionCoordinatorCellId,
             "abort",
-            FromProto<TTransactionId>(request.transaction_id()),
+            transactionId,
             std::move(authenticationIdentity),
             std::move(invoker),
             std::move(logger))
-        , Force_(request.force())
+        , Force_(force)
     { }
 
     TAbortCypressTransaction(
@@ -1887,8 +1888,9 @@ private:
  *  4. Modify current cell's state.
  */
 class TReplicateCypressTransactions
-    : public TSequoiaMutation<void>
+    : public TSequoiaMutation<void, ESequoiaTransactionType::CypressTransactionMirroring>
 {
+private:
     using TThis = TReplicateCypressTransactions;
 
 protected:
@@ -2013,7 +2015,8 @@ TFuture<TTransactionId> StartCypressTransaction(
 TFuture<void> AbortCypressTransaction(
     ISequoiaClientPtr sequoiaClient,
     TCellId cypressTransactionCoordinatorCellId,
-    NCypressTransactionClient::NProto::TReqAbortTransaction* request,
+    TTransactionId transactionId,
+    bool force,
     TAuthenticationIdentity authenticationIdentity,
     IInvokerPtr invoker,
     TLogger logger)
@@ -2021,7 +2024,8 @@ TFuture<void> AbortCypressTransaction(
     return New<TAbortCypressTransaction>(
         std::move(sequoiaClient),
         cypressTransactionCoordinatorCellId,
-        std::move(*request),
+        transactionId,
+        force,
         std::move(authenticationIdentity),
         std::move(invoker),
         std::move(logger))

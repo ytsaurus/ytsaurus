@@ -54,18 +54,13 @@ private:
     struct TSlot
     {
         ESlotState State = ESlotState::Empty;
+        TLocationFairShareSlotPtr FairShareSlot = nullptr;
         NChunkClient::TBlock Block;
 
         TPromise<void> ReceivedPromise = NewPromise<void>();
         TPromise<void> WrittenPromise = NewPromise<void>();
 
-        // This guard accounts memory usage before the block was written.
-        TPendingIOGuard PendingIOGuard;
-
         TLocationMemoryGuard LocationMemoryGuard;
-
-        // This guard accounts memory usage after the block was written, but before block release.
-        TMemoryUsageTrackerGuard MemoryUsageGuard;
     };
 
     TError Error_;
@@ -85,6 +80,8 @@ private:
     TLocationMemoryGuard PendingBlockLocationMemoryGuard_;
     TMemoryUsageTrackerGuard PendingBlockMemoryGuard_;
 
+    double GetFairShareWorkloadCategoryPriority(EWorkloadCategory category);
+
     TFuture<void> DoStart() override;
     void OnStarted(const TError& error);
 
@@ -97,7 +94,8 @@ private:
         int startBlockIndex,
         std::vector<NChunkClient::TBlock> blocks,
         bool useCumulativeBlockSize,
-        bool enableCaching);
+        bool enableCaching,
+        TLocationFairShareSlotPtr fairShareQueueSlot);
     void OnBlocksWritten(
         int beginBlockIndex,
         int endBlockIndex,
@@ -116,8 +114,11 @@ private:
 
     TFuture<TFinishResult> DoFinish(
         const NChunkClient::TRefCountedChunkMetaPtr& chunkMeta,
-        std::optional<int> blockCount) override;
-    TFinishResult OnFinished(const TError& error);
+        std::optional<int> blockCount,
+        bool truncateExtraBlocks) override;
+    TFinishResult OnFinished(
+        TLocationFairShareSlotPtr fairShareQueueSlot,
+        const TError& error);
 
     void Abort();
     void OnAborted(const TError& error);

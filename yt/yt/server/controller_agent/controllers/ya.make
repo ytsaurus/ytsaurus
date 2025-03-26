@@ -8,6 +8,7 @@ SRCS(
     auto_merge_director.cpp
     auto_merge_task.cpp
     chunk_pool_adapters.cpp
+    common_state.cpp
     competitive_job_manager.cpp
     data_balancer.cpp
     data_flow_graph.cpp
@@ -27,6 +28,7 @@ SRCS(
     sink.cpp
     sort_controller.cpp
     sorted_controller.cpp
+    spec_manager.cpp
     speculative_job_manager.cpp
     table.cpp
     task.cpp

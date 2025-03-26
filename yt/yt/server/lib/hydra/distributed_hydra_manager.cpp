@@ -652,13 +652,13 @@ private:
 
     const TLogger Logger;
 
-    THashMap<TString, NProfiling::TCounter> RestartCounter_;
+    THashMap<std::string, NProfiling::TCounter> RestartCounter_;
     NProfiling::TEventTimer LeaderSyncTimer_;
 
     const TLeaderLeasePtr LeaderLease_ = New<TLeaderLease>();
     const TMutationDraftQueuePtr MutationDraftQueue_ = New<TMutationDraftQueue>();
 
-    int SnapshotId_ = -1;
+    int SnapshotId_ = InvalidSegmentId;
     TFuture<TRemoteSnapshotParams> SnapshotFuture_;
 
     std::atomic<bool> LeaderRecovered_ = false;
@@ -1724,7 +1724,7 @@ private:
             BIND(&TDistributedHydraManager::DoParticipate, MakeStrong(this)));
     }
 
-    void ProfileRestart(const TString& reason)
+    void ProfileRestart(const std::string& reason)
     {
         auto it = RestartCounter_.find(reason);
         if (it == RestartCounter_.end()) {

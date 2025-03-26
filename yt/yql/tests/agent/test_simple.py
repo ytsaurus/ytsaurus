@@ -233,6 +233,7 @@ class TestYqlAgentDynConfig(TestQueriesYqlBase):
         wait_for_dynamic_config_update(yql_agent.yql_agent.client, config, "//sys/yql_agent/instances")
 
     @authors("lucius")
+    @pytest.mark.timeout(180)
     def test_yql_agent_dyn_config(self, query_tracker, yql_agent):
         create("table", "//tmp/t", attributes={
             "schema": [{"name": "a", "type": "int64"}, {"name": "b", "type": "string"}]
@@ -242,7 +243,7 @@ class TestYqlAgentDynConfig(TestQueriesYqlBase):
         self._test_simple_query("select * from primary.`//tmp/t`", rows)
 
         self._update_dyn_config(yql_agent, {
-            "gateways_config": {
+            "gateways": {
                 "yt": {
                     "cluster_mapping": [
                     ],
@@ -252,6 +253,7 @@ class TestYqlAgentDynConfig(TestQueriesYqlBase):
         self._test_simple_query("select * from primary.`//tmp/t`", rows)
 
     @authors("lucius")
+    @pytest.mark.timeout(180)
     def test_yql_agent_broken_dyn_config(self, query_tracker, yql_agent):
         create("table", "//tmp/t", attributes={
             "schema": [{"name": "a", "type": "int64"}, {"name": "b", "type": "string"}]
@@ -261,7 +263,7 @@ class TestYqlAgentDynConfig(TestQueriesYqlBase):
         self._test_simple_query("select * from primary.`//tmp/t`", rows)
 
         self._update_dyn_config(yql_agent, {
-            "gateways_config": {
+            "gateways": {
                 "yt": {
                     "cluster_mapping": [
                         {
@@ -275,7 +277,7 @@ class TestYqlAgentDynConfig(TestQueriesYqlBase):
             self._test_simple_query("select * from primary.`//tmp/t`", rows)
 
         self._update_dyn_config(yql_agent, {
-            "gateways_config": {
+            "gateways": {
                 "yt": {
                     "cluster_mapping": [
                     ],

@@ -150,6 +150,7 @@ func (h *Histogram) MarshalJSON() ([]byte, error) {
 		Labels    map[string]string `json:"labels"`
 		Histogram histogram         `json:"hist"`
 		Timestamp *int64            `json:"ts,omitempty"`
+		MemOnly   bool              `json:"memOnly,omitempty"`
 	}{
 		Type: h.metricType.String(),
 		Histogram: histogram{
@@ -166,6 +167,7 @@ func (h *Histogram) MarshalJSON() ([]byte, error) {
 			return labels
 		}(),
 		Timestamp: tsAsRef(h.timestamp),
+		MemOnly:   h.memOnly,
 	})
 }
 

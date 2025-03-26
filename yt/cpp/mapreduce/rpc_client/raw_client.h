@@ -1,5 +1,7 @@
 #pragma once
 
+#include <yt/cpp/mapreduce/http/context.h>
+
 #include <yt/cpp/mapreduce/interface/client_method_options.h>
 #include <yt/cpp/mapreduce/interface/raw_client.h>
 
@@ -336,9 +338,15 @@ public:
 
     ui64 GenerateTimestamp() override;
 
+    // Batch
+
     IRawBatchRequestPtr CreateRawBatchRequest() override;
 
+    // Other
+
     IRawClientPtr Clone() override;
+
+    IRawClientPtr Clone(const TClientContext& context) override;
 
 private:
     const NApi::IClientPtr Client_;

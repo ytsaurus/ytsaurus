@@ -1,7 +1,7 @@
 #include <Functions/FunctionFactory.h>
 #include <Functions/HasSubsequenceImpl.h>
 
-#include "Poco/Unicode.h"
+#include "DBPoco/Unicode.h"
 
 namespace DB
 {
@@ -12,7 +12,7 @@ struct HasSubsequenceCaseInsensitiveUTF8
 {
     static constexpr bool is_utf8 = true;
 
-    static int toLowerIfNeed(int code_point) { return Poco::Unicode::toLower(code_point); }
+    static int toLowerIfNeed(int code_point) { return DBPoco::Unicode::toLower(code_point); }
 };
 
 struct NameHasSubsequenceCaseInsensitiveUTF8
@@ -25,7 +25,7 @@ using FunctionHasSubsequenceCaseInsensitiveUTF8 = HasSubsequenceImpl<NameHasSubs
 
 REGISTER_FUNCTION(hasSubsequenceCaseInsensitiveUTF8)
 {
-    factory.registerFunction<FunctionHasSubsequenceCaseInsensitiveUTF8>({}, FunctionFactory::CaseInsensitive);
+    factory.registerFunction<FunctionHasSubsequenceCaseInsensitiveUTF8>({}, FunctionFactory::Case::Insensitive);
 }
 
 }

@@ -28,10 +28,9 @@ namespace NYT::NExecNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TSlotLocationConfig
+struct TSlotLocationConfig
     : public NServer::TDiskLocationConfig
 {
-public:
     //! Maximum reported total disk capacity.
     std::optional<i64> DiskQuota;
 
@@ -52,10 +51,9 @@ DEFINE_REFCOUNTED_TYPE(TSlotLocationConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TNumaNodeConfig
+struct TNumaNodeConfig
     : public virtual NYTree::TYsonStruct
 {
-public:
     i64 NumaNodeId;
     i64 CpuCount;
     TString CpuSet;
@@ -69,10 +67,9 @@ DEFINE_REFCOUNTED_TYPE(TNumaNodeConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TSlotManagerTestingConfig
+struct TSlotManagerTestingConfig
     : public virtual NYTree::TYsonStruct
 {
-public:
     //! If set, slot manager does not report JobProxyUnavailableAlert
     //! allowing scheduler to schedule jobs to current node. Such jobs are
     //! going to be aborted instead of failing; that is exactly what we test
@@ -86,10 +83,9 @@ public:
 
 DEFINE_REFCOUNTED_TYPE(TSlotManagerTestingConfig)
 
-class TSlotManagerConfig
+struct TSlotManagerConfig
     : public virtual NYTree::TYsonStruct
 {
-public:
     //! Root path for slot directories.
     std::vector<TSlotLocationConfigPtr> Locations;
 
@@ -134,10 +130,9 @@ DEFINE_REFCOUNTED_TYPE(TSlotManagerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TSlotManagerDynamicConfig
+struct TSlotManagerDynamicConfig
     : public NYTree::TYsonStruct
 {
-public:
     bool DisableJobsOnGpuCheckFailure;
 
     //! Enforce disk space limits in periodic disk resources update.
@@ -185,10 +180,9 @@ DEFINE_REFCOUNTED_TYPE(TSlotManagerDynamicConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TVolumeManagerDynamicConfig
+struct TVolumeManagerDynamicConfig
     : public NYTree::TYsonStruct
 {
-public:
     //! For testing.
     std::optional<TDuration> DelayAfterLayerImported;
 
@@ -243,10 +237,9 @@ DEFINE_REFCOUNTED_TYPE(TUserJobStatisticSensor)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TUserJobMonitoringDynamicConfig
+struct TUserJobMonitoringDynamicConfig
     : public NYTree::TYsonStruct
 {
-public:
     THashMap<TString, TUserJobStatisticSensorPtr> StatisticSensors;
 
     static const THashMap<TString, TUserJobStatisticSensorPtr>& GetDefaultStatisticSensors();
@@ -282,10 +275,9 @@ void FormatValue(TStringBuilderBase* builder, const THeartbeatReporterDynamicCon
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TControllerAgentConnectorDynamicConfig
+struct TControllerAgentConnectorDynamicConfig
     : public THeartbeatReporterDynamicConfigBase
 {
-public:
     TDuration JobStalenessDelay;
 
     TDuration SettleJobsTimeout;
@@ -306,10 +298,9 @@ void FormatValue(TStringBuilderBase* builder, const TControllerAgentConnectorDyn
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TMasterConnectorDynamicConfig
+struct TMasterConnectorDynamicConfig
     : public THeartbeatReporterDynamicConfigBase
 {
-public:
     REGISTER_YSON_STRUCT(TMasterConnectorDynamicConfig);
 
     static void Register(TRegistrar registrar);
@@ -319,10 +310,9 @@ DEFINE_REFCOUNTED_TYPE(TMasterConnectorDynamicConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TChunkCacheDynamicConfig
+struct TChunkCacheDynamicConfig
     : public NYTree::TYsonStruct
 {
-public:
     bool TestCacheLocationDisabling;
 
     REGISTER_YSON_STRUCT(TChunkCacheDynamicConfig);
@@ -334,10 +324,9 @@ DEFINE_REFCOUNTED_TYPE(TChunkCacheDynamicConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TSchedulerConnectorDynamicConfig
+struct TSchedulerConnectorDynamicConfig
     : public THeartbeatReporterDynamicConfigBase
 {
-public:
     bool SendHeartbeatOnResourcesReleased;
 
     bool IncludeReleasingResourcesInSchedulerHeartbeat;
@@ -353,10 +342,9 @@ DEFINE_REFCOUNTED_TYPE(TSchedulerConnectorDynamicConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TJobInputCacheDynamicConfig
+struct TJobInputCacheDynamicConfig
     : public NYTree::TYsonStruct
 {
-public:
     bool Enabled;
 
     std::optional<i64> JobCountThreshold;
@@ -377,10 +365,9 @@ DEFINE_REFCOUNTED_TYPE(TJobInputCacheDynamicConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TGpuManagerTestingConfig
+struct TGpuManagerTestingConfig
     : public NYTree::TYsonStruct
 {
-public:
     //! This is a special testing option.
     //! Instead of normal gpu discovery, it forces the node to believe the number of GPUs passed in the config.
     bool TestResource;
@@ -407,10 +394,9 @@ DEFINE_REFCOUNTED_TYPE(TGpuManagerTestingConfig);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TGpuManagerConfig
+struct TGpuManagerConfig
     : public NYTree::TYsonStruct
 {
-public:
     bool Enable;
 
     std::optional<NYPath::TYPath> DriverLayerDirectoryPath;
@@ -429,10 +415,9 @@ DEFINE_REFCOUNTED_TYPE(TGpuManagerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TGpuManagerDynamicConfig
+struct TGpuManagerDynamicConfig
     : public NYTree::TYsonStruct
 {
-public:
     TDuration HealthCheckTimeout;
     TDuration HealthCheckPeriod;
     TDuration HealthCheckFailureBackoff;
@@ -460,10 +445,9 @@ DEFINE_REFCOUNTED_TYPE(TGpuManagerDynamicConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TShellCommandConfig
+struct TShellCommandConfig
     : public NYTree::TYsonStruct
 {
-public:
     TString Path;
     std::vector<TString> Args;
 
@@ -476,10 +460,9 @@ DEFINE_REFCOUNTED_TYPE(TShellCommandConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TTestingConfig
+struct TTestingConfig
     : public NYTree::TYsonStruct
 {
-public:
     bool FailAddressResolve;
 
     REGISTER_YSON_STRUCT(TTestingConfig);
@@ -489,10 +472,9 @@ public:
 
 DEFINE_REFCOUNTED_TYPE(TTestingConfig)
 
-class TJobCommonConfig
+struct TJobCommonConfig
     : public NYTree::TYsonStruct
 {
-public:
     int NodeDirectoryPrepareRetryCount;
 
     TDuration NodeDirectoryPrepareBackoffTime;
@@ -538,10 +520,9 @@ DEFINE_REFCOUNTED_TYPE(TJobCommonConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TAllocationConfig
+struct TAllocationConfig
     : public NYTree::TYsonStruct
 {
-public:
     bool EnableMultipleJobs;
 
     REGISTER_YSON_STRUCT(TAllocationConfig);
@@ -553,10 +534,9 @@ DEFINE_REFCOUNTED_TYPE(TAllocationConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TJobControllerDynamicConfig
+struct TJobControllerDynamicConfig
     : public NYTree::TYsonStruct
 {
-public:
     TConstantBackoffOptions OperationInfoRequestBackoffStrategy;
 
     TDuration WaitingForResourcesTimeout;
@@ -607,10 +587,9 @@ DEFINE_REFCOUNTED_TYPE(TJobControllerDynamicConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TNbdClientConfig
+struct TNbdClientConfig
     : public NYTree::TYsonStruct
 {
-public:
     TDuration IOTimeout;
     TDuration ReconnectTimeout;
     int ConnectionCount;
@@ -624,13 +603,13 @@ DEFINE_REFCOUNTED_TYPE(TNbdClientConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TNbdConfig
+struct TNbdConfig
     : public NYTree::TYsonStruct
 {
-public:
     bool Enabled;
     TNbdClientConfigPtr Client;
     NNbd::TNbdServerConfigPtr Server;
+    i64 BlockCacheCompressedDataCapacity;
 
     REGISTER_YSON_STRUCT(TNbdConfig);
 
@@ -641,10 +620,9 @@ DEFINE_REFCOUNTED_TYPE(TNbdConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TJobProxyLoggingConfig
+struct TJobProxyLoggingConfig
     : public NYTree::TYsonStruct
 {
-public:
     EJobProxyLoggingMode Mode;
 
     NLogging::TLogManagerConfigPtr LogManagerTemplate;
@@ -661,10 +639,9 @@ DEFINE_REFCOUNTED_TYPE(TJobProxyLoggingConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TJobProxyConfig
+struct TJobProxyConfig
     : public NYTree::TYsonStruct
 {
-public:
     TJobProxyLoggingConfigPtr JobProxyLogging;
 
     NTracing::TJaegerTracerConfigPtr JobProxyJaeger;
@@ -709,10 +686,9 @@ DEFINE_REFCOUNTED_TYPE(TJobProxyConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TLogDumpConfig
+struct TLogDumpConfig
     : public NYTree::TYsonStruct
 {
-public:
     i64 BufferSize;
 
     // Name of the log writer which is used for dump.
@@ -728,10 +704,9 @@ DEFINE_REFCOUNTED_TYPE(TLogDumpConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TJobProxyLogManagerConfig
+struct TJobProxyLogManagerConfig
     : public NYTree::TYsonStruct
 {
-public:
     TString Directory;
 
     int ShardingKeyLength;
@@ -752,10 +727,9 @@ DEFINE_REFCOUNTED_TYPE(TJobProxyLogManagerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TLogDumpDynamicConfig
+struct TLogDumpDynamicConfig
     : public NYTree::TYsonStruct
 {
-public:
     std::optional<i64> BufferSize;
 
     // Name of the log writer which is used for dump.
@@ -766,14 +740,13 @@ public:
     static void Register(TRegistrar registrar);
 };
 
-DECLARE_REFCOUNTED_CLASS(TLogDumpDynamicConfig)
+DECLARE_REFCOUNTED_STRUCT(TLogDumpDynamicConfig)
 
 DEFINE_REFCOUNTED_TYPE(TLogDumpDynamicConfig)
 
-class TJobProxyLogManagerDynamicConfig
+struct TJobProxyLogManagerDynamicConfig
     : public NYTree::TYsonStruct
 {
-public:
     std::optional<TDuration> LogsStoragePeriod;
     std::optional<int> DirectoryTraversalConcurrency;
 
@@ -788,10 +761,9 @@ DEFINE_REFCOUNTED_TYPE(TJobProxyLogManagerDynamicConfig);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TExecNodeConfig
+struct TExecNodeConfig
     : public NYTree::TYsonStruct
 {
-public:
     //! Bind mounts added for all user job containers.
     //! Should include ChunkCache if artifacts are passed by symlinks.
     std::vector<NJobProxy::TBindConfigPtr> RootFSBinds;
@@ -815,10 +787,9 @@ DEFINE_REFCOUNTED_TYPE(TExecNodeConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TExecNodeDynamicConfig
+struct TExecNodeDynamicConfig
     : public NYTree::TYsonStruct
 {
-public:
     TMasterConnectorDynamicConfigPtr MasterConnector;
 
     TSlotManagerDynamicConfigPtr SlotManager;

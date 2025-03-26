@@ -34,6 +34,11 @@ message TReqModifyReplicas
     repeated NYT.NProto.TGuid dead_chunk_ids = 5;
 
     required bool caused_by_node_disposal = 6 [default = false];
+
+    // These are double-checked in prepare handler to avoid races and missed refresh
+    // when dynamic config changes between transaction submission and commit.
+    optional bool enable_chunk_refresh = 7;
+    optional bool enable_sequoia_chunk_refresh = 8;
 }
 
 message TRspModifyReplicas

@@ -1,4 +1,4 @@
-#include <Poco/Net/NetException.h>
+#include <DBPoco/Net/NetException.h>
 
 #include <base/scope_guard.h>
 
@@ -81,23 +81,26 @@ bool ReadBufferFromPocoSocket::nextImpl()
             bytes_read = socket.impl()->receiveBytes(internal_buffer.begin(), static_cast<int>(internal_buffer.size()));
         }
     }
-    catch (const Poco::Net::NetException & e)
+    catch (const DBPoco::Net::NetException & e)
     {
-        throw NetException(ErrorCodes::NETWORK_ERROR, "{}, while reading from socket ({})", e.displayText(), peer_address.toString());
+        throw NetException(ErrorCodes::NETWORK_ERROR, "{}, while reading from socket (peer: {}, local: {})", e.displayText(), peer_address.toString(), socket.address().toString());
     }
-    catch (const Poco::TimeoutException &)
+    catch (const DBPoco::TimeoutException &)
     {
-        throw NetException(ErrorCodes::SOCKET_TIMEOUT, "Timeout exceeded while reading from socket ({}, {} ms)",
-            peer_address.toString(),
+        throw NetException(ErrorCodes::SOCKET_TIMEOUT, "Timeout exceeded while reading from socket (peer: {}, local: {}, {} ms)",
+            peer_address.toString(), socket.address().toString(),
             socket.impl()->getReceiveTimeout().totalMilliseconds());
     }
-    catch (const Poco::IOException & e)
+    catch (const DBPoco::IOException & e)
     {
-        throw NetException(ErrorCodes::NETWORK_ERROR, "{}, while reading from socket ({})", e.displayText(), peer_address.toString());
+        throw NetException(ErrorCodes::NETWORK_ERROR, "{}, while reading from socket (peer: {}, local: {})", e.displayText(), peer_address.toString(), socket.address().toString());
     }
 
     if (bytes_read < 0)
-        throw NetException(ErrorCodes::CANNOT_READ_FROM_SOCKET, "Cannot read from socket ({})", peer_address.toString());
+        throw NetException(ErrorCodes::CANNOT_READ_FROM_SOCKET, "Cannot read from socket (peer: {}, local: {})", peer_address.toString(), socket.address().toString());
+
+    if (read_event != ProfileEvents::end())
+        ProfileEvents::increment(read_event, bytes_read);
 
     if (bytes_read)
         working_buffer.resize(bytes_read);
@@ -107,12 +110,19 @@ bool ReadBufferFromPocoSocket::nextImpl()
     return true;
 }
 
-ReadBufferFromPocoSocket::ReadBufferFromPocoSocket(Poco::Net::Socket & socket_, size_t buf_size)
+ReadBufferFromPocoSocket::ReadBufferFromPocoSocket(DBPoco::Net::Socket & socket_, size_t buf_size)
     : BufferWithOwnMemory<ReadBuffer>(buf_size)
     , socket(socket_)
     , peer_address(socket.peerAddress())
+    , read_event(ProfileEvents::end())
     , socket_description("socket (" + peer_address.toString() + ")")
 {
+}
+
+ReadBufferFromPocoSocket::ReadBufferFromPocoSocket(DBPoco::Net::Socket & socket_, const ProfileEvents::Event & read_event_, size_t buf_size)
+    : ReadBufferFromPocoSocket(socket_, buf_size)
+{
+    read_event = read_event_;
 }
 
 bool ReadBufferFromPocoSocket::poll(size_t timeout_microseconds) const
@@ -121,7 +131,7 @@ bool ReadBufferFromPocoSocket::poll(size_t timeout_microseconds) const
         return true;
 
     Stopwatch watch;
-    bool res = socket.poll(timeout_microseconds, Poco::Net::Socket::SELECT_READ | Poco::Net::Socket::SELECT_ERROR);
+    bool res = socket.poll(timeout_microseconds, DBPoco::Net::Socket::SELECT_READ | DBPoco::Net::Socket::SELECT_ERROR);
     ProfileEvents::increment(ProfileEvents::NetworkReceiveElapsedMicroseconds, watch.elapsedMicroseconds());
     return res;
 }

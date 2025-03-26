@@ -17,12 +17,11 @@ namespace NYT::NServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TClusterThrottlersConfig
+struct TClusterThrottlersConfig
     : public NYTree::TYsonStruct
 {
-public:
     NDistributedThrottler::TDistributedThrottlerConfigPtr DistributedThrottler;
-    THashMap<TString, TClusterLimitsConfigPtr> ClusterLimits;
+    THashMap<std::string, TClusterLimitsConfigPtr> ClusterLimits;
     //! Rate might be too high if maximum estimated time required to read pending bytes is higher than this value.
     TDuration MaxEstimatedTimeToReadPendingBytesThreshold;
     //! Rate is too high if minimum estimated time required to read pending bytes is higher than this value.
@@ -44,10 +43,9 @@ DEFINE_REFCOUNTED_TYPE(TClusterThrottlersConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TClusterLimitsConfig
+struct TClusterLimitsConfig
     : public NYTree::TYsonStruct
 {
-public:
     NConcurrency::TThroughputThrottlerConfigPtr Bandwidth;
     NConcurrency::TThroughputThrottlerConfigPtr Rps;
 

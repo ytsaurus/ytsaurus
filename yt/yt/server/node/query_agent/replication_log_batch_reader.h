@@ -44,7 +44,9 @@ public:
     TReplicationLogBatchDescriptor ReadReplicationBatch(
         i64 startRowIndex,
         NTransactionClient::TTimestamp upperTimestamp,
-        i64 maxDataWeight);
+        i64 maxDataWeight,
+        i64 readDataWeightLimit,
+        TInstant requestDeadLine);
 
 protected:
     const NTabletNode::TTableMountConfigPtr TableMountConfig_;
@@ -61,12 +63,16 @@ protected:
         NTableClient::TLegacyOwningKey upper,
         const NTableClient::TColumnFilter& columnFilter) const = 0;
 
-    virtual bool ToTypeErasedRow(
+    virtual void ToTypeErasedRow(
         const NTableClient::TUnversionedRow& row,
         const NTableClient::TRowBufferPtr& rowBuffer,
         NTableClient::TTypeErasedRow* replicationRow,
         NTableClient::TTimestamp* timestamp,
         i64* rowDataWeight) const = 0;
+
+    virtual bool IsRowFitIntoProgress(
+            const NTableClient::TTypeErasedRow& replicationRow,
+            NTableClient::TTimestamp rowTimestamp) const = 0;
 
     virtual size_t WriteTypeErasedRow(NTableClient::TTypeErasedRow row) = 0;
 };

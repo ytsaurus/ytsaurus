@@ -98,7 +98,8 @@ void ReorderAndSaveRows(
     }
 };
 
-void TYqlRef::Register(TRegistrar registrar) {
+void TYqlRef::Register(TRegistrar registrar)
+{
     // Note that YQL does not follow our lowercase YSON field naming convention.
     registrar.Parameter("Reference", &TThis::Reference);
     registrar.Parameter("Columns", &TThis::Columns)
@@ -218,8 +219,8 @@ TYqlRowset BuildRowset(const TBuildingValueConsumer& consumer, int resultIndex, 
 
         return New<TTableSchema>(
             std::move(reorderedColumns),
-            schema->GetStrict(),
-            schema->GetUniqueKeys(),
+            schema->IsStrict(),
+            schema->IsUniqueKeys(),
             schema->GetSchemaModification(),
             schema->DeletedColumns());
     };

@@ -145,7 +145,7 @@ ELSE
 
 {% note info "Note" %}
 
-Note that `EVALUATE` is run before the operation starts. Please also note that in `EVALUATE` you can't use [anonymous tables](select.md#temporary-tables).
+Note that `EVALUATE` is run before the operation starts. Please also note that in `EVALUATE` you can't use [anonymous tables](select/temporary-tables.md).
 
 {% endnote %}
 

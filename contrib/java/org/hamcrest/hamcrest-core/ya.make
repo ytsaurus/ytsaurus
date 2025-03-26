@@ -1,7 +1,7 @@
 JAVA_CONTRIB_PROXY()
 
 PEERDIR(
-    contrib/java/org/hamcrest/hamcrest-core/2.2
+    contrib/java/org/hamcrest/hamcrest-core/3.0
 )
 
 END()
@@ -13,4 +13,5 @@ RECURSE(
     2.1
     2.2
     1.2.1
+    3.0
 )

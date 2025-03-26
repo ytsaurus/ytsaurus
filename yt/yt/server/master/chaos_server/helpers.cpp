@@ -8,6 +8,10 @@ namespace NYT::NChaosServer {
 
 TErrorOr<int> GetMinimalTabletCount(std::vector<TErrorOr<int>> tabletCounts)
 {
+    if (tabletCounts.empty()) {
+        return 0;
+    }
+
     std::erase_if(
         tabletCounts,
         [] (const auto& tabletCount) {

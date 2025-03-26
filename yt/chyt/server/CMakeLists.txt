@@ -30,10 +30,10 @@ target_include_directories(yt-chyt-server PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/base
   ${PROJECT_SOURCE_DIR}/contrib/libs/double-conversion
-  ${PROJECT_SOURCE_DIR}/contrib/libs/poco/Foundation/include
-  ${PROJECT_SOURCE_DIR}/contrib/libs/poco/Net/include
-  ${PROJECT_SOURCE_DIR}/contrib/libs/poco/Util/include
-  ${PROJECT_SOURCE_DIR}/contrib/libs/poco/XML/include
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/base/poco/Foundation/include
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/base/poco/Net/include
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/base/poco/Util/include
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/base/poco/XML/include
   ${PROJECT_SOURCE_DIR}/contrib/libs/re2
   ${PROJECT_SOURCE_DIR}/contrib/libs/rapidjson/include
 )
@@ -58,11 +58,9 @@ target_link_libraries(yt-chyt-server PUBLIC
   cpp-yt-mlock
   contrib-clickhouse-src
   clickhouse-base-base
-  contrib-deprecated-clickhouse_data_streams_compat
 )
 
 target_sources(yt-chyt-server PRIVATE
-  ${PROJECT_SOURCE_DIR}/yt/chyt/server/block_output_stream.cpp
   ${PROJECT_SOURCE_DIR}/yt/chyt/server/bootstrap.cpp
   ${PROJECT_SOURCE_DIR}/yt/chyt/server/ch_to_yt_converter.cpp
   ${PROJECT_SOURCE_DIR}/yt/chyt/server/clickhouse_config.cpp
@@ -107,6 +105,7 @@ target_sources(yt-chyt-server PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/chyt/server/schema_inference.cpp
   ${PROJECT_SOURCE_DIR}/yt/chyt/server/secondary_query_header.cpp
   ${PROJECT_SOURCE_DIR}/yt/chyt/server/secondary_query_source.cpp
+  ${PROJECT_SOURCE_DIR}/yt/chyt/server/sink_to_storage.cpp
   ${PROJECT_SOURCE_DIR}/yt/chyt/server/stack_size_checker.cpp
   ${PROJECT_SOURCE_DIR}/yt/chyt/server/storage_base.cpp
   ${PROJECT_SOURCE_DIR}/yt/chyt/server/storage_distributor.cpp
@@ -150,10 +149,10 @@ target_include_directories(yt-chyt-server.global PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/base
   ${PROJECT_SOURCE_DIR}/contrib/libs/double-conversion
-  ${PROJECT_SOURCE_DIR}/contrib/libs/poco/Foundation/include
-  ${PROJECT_SOURCE_DIR}/contrib/libs/poco/Net/include
-  ${PROJECT_SOURCE_DIR}/contrib/libs/poco/Util/include
-  ${PROJECT_SOURCE_DIR}/contrib/libs/poco/XML/include
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/base/poco/Foundation/include
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/base/poco/Net/include
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/base/poco/Util/include
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/base/poco/XML/include
   ${PROJECT_SOURCE_DIR}/contrib/libs/re2
   ${PROJECT_SOURCE_DIR}/contrib/libs/rapidjson/include
 )
@@ -178,7 +177,6 @@ target_link_libraries(yt-chyt-server.global PUBLIC
   cpp-yt-mlock
   contrib-clickhouse-src
   clickhouse-base-base
-  contrib-deprecated-clickhouse_data_streams_compat
 )
 
 target_sources(yt-chyt-server.global PRIVATE

@@ -22,9 +22,7 @@ target_compile_options(clickhouse-src-Common PUBLIC
 )
 
 target_compile_options(clickhouse-src-Common PRIVATE
-  -DAWS_SDK_VERSION_MAJOR=1
-  -DAWS_SDK_VERSION_MINOR=10
-  -DAWS_SDK_VERSION_PATCH=36
+  -DPOCO_HAVE_FD_EPOLL
   -DBOOST_ASIO_HAS_STD_INVOKE_RESULT=1
   -DBOOST_ASIO_STANDALONE=1
   -DBOOST_TIMER_ENABLE_DEPRECATED=1
@@ -34,7 +32,6 @@ target_compile_options(clickhouse-src-Common PRIVATE
   -DLZ4_DISABLE_DEPRECATE_WARNINGS=1
   -DLZ4_FAST_DEC_LOOP=1
   -DPOCO_ENABLE_CPP11
-  -DPOCO_HAVE_FD_EPOLL
   -DPOCO_OS_FAMILY_UNIX
   -DUNALIGNED_OK
   -DWITH_COVERAGE=0
@@ -43,6 +40,7 @@ target_compile_options(clickhouse-src-Common PRIVATE
   -DZLIB_COMPAT
   -DZOOKEEPER_LOG
   -D_LIBCPP_ENABLE_THREAD_SAFETY_ANNOTATIONS
+  -D_LIBUNWIND_IS_NATIVE_ONLY
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
 
@@ -54,12 +52,18 @@ target_include_directories(clickhouse-src-Common PUBLIC
 
 target_include_directories(clickhouse-src-Common PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/base
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/base/poco/Crypto/include
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/base/poco/Foundation/include
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/base/poco/Net/include
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/base/poco/NetSSL_OpenSSL/include
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/base/poco/Util/include
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/base/poco/XML/include
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/base/widechar_width
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/contrib/pdqsort
   ${PROJECT_SOURCE_DIR}/contrib/libs/double-conversion
   ${PROJECT_SOURCE_DIR}/contrib/libs/libunwind/include
   ${PROJECT_SOURCE_DIR}/contrib/libs/lz4
   ${PROJECT_SOURCE_DIR}/contrib/libs/miniselect/include
-  ${PROJECT_SOURCE_DIR}/contrib/libs/pdqsort
   ${PROJECT_SOURCE_DIR}/contrib/libs/sparsehash/src
   ${PROJECT_SOURCE_DIR}/contrib/libs/zstd/include
   ${PROJECT_SOURCE_DIR}/contrib/restricted/cityhash-1.0.2
@@ -70,6 +74,12 @@ target_link_libraries(clickhouse-src-Common PUBLIC
   linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   clickhouse-base-base
+  base-poco-Crypto
+  base-poco-Foundation
+  base-poco-Net
+  base-poco-NetSSL_OpenSSL
+  base-poco-Util
+  base-poco-XML
   clickhouse-base-widechar_width
   libs-aws-sdk-cpp-aws-cpp-sdk-core
   libs-aws-sdk-cpp-aws-cpp-sdk-s3
@@ -82,14 +92,6 @@ target_link_libraries(clickhouse-src-Common PUBLIC
   contrib-libs-lz4
   contrib-libs-lzma
   contrib-libs-miniselect
-  contrib-libs-pdqsort
-  libs-poco-Crypto
-  libs-poco-Foundation
-  libs-poco-JSON
-  libs-poco-Net
-  libs-poco-NetSSL_OpenSSL
-  libs-poco-Util
-  libs-poco-XML
   contrib-libs-re2
   contrib-libs-snappy
   contrib-libs-sparsehash
@@ -113,7 +115,6 @@ target_link_libraries(clickhouse-src-Common PUBLIC
   dragonbox
   contrib-restricted-fast_float
   contrib-restricted-magic_enum
-  cpp-clickhouse_deps-re2_st_stub
   cpp-sanitizer-include
 )
 
@@ -127,9 +128,12 @@ target_sources(clickhouse-src-Common PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Common/AsynchronousMetrics.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Common/Base58.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Common/Base64.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Common/BufferAllocationPolicy.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Common/CalendarTimeInterval.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Common/CancelToken.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Common/CancelableSharedMutex.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Common/CaresPTRResolver.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Common/CgroupsMemoryUsageObserver.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Common/ClickHouseRevision.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Common/ConcurrencyControl.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Common/Config/AbstractConfigurationComparison.cpp
@@ -137,24 +141,31 @@ target_sources(clickhouse-src-Common PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Common/Config/ConfigProcessor.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Common/Config/ConfigReloader.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Common/Config/YAMLParser.cpp
-  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Common/Config/configReadClient.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Common/Config/getClientConfigPath.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Common/Config/getLocalConfigPath.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Common/Coverage.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Common/CurrentMemoryTracker.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Common/CurrentMetrics.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Common/CurrentThread.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Common/CurrentThreadHelpers.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Common/DNSPTRResolverProvider.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Common/DNSResolver.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Common/DateLUT.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Common/DateLUTImpl.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Common/Dwarf.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Common/Elf.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Common/EnvironmentChecks.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Common/EnvironmentProxyConfigurationResolver.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Common/Epoll.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Common/ErrorCodes.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Common/EventFD.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Common/EventNotifier.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Common/Exception.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Common/ExternalLoaderStatus.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Common/FST.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Common/FailPoint.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Common/FieldBinaryEncoding.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Common/FieldVisitorConvertToNumber.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Common/FieldVisitorDump.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Common/FieldVisitorHash.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Common/FieldVisitorSum.cpp
@@ -164,8 +175,11 @@ target_sources(clickhouse-src-Common PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Common/FileRenamer.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Common/FrequencyHolder.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Common/FunctionDocumentation.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Common/GWPAsan.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Common/GetPriorityForLoadBalancing.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Common/HTTPConnectionPool.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Common/HTTPHeaderFilter.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Common/HostResolvePool.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Common/IO.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Common/IPv6ToBinary.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Common/IntervalKind.cpp
@@ -173,18 +187,23 @@ target_sources(clickhouse-src-Common PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Common/Jemalloc.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Common/KnownObjectNames.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Common/LockMemoryExceptionInThread.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Common/Logger.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Common/LoggingFormatStringHelpers.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Common/Macros.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Common/MatchGenerator.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Common/MemoryStatisticsOS.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Common/MemoryTracker.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Common/MemoryTrackerBlockerInThread.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Common/NamePrompter.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Common/NetlinkMetricsProvider.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Common/ObjectStorageKey.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Common/ObjectStorageKeyGenerator.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Common/OpenSSLHelpers.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Common/OpenTelemetryTraceContext.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Common/OptimizedRegularExpression.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Common/OvercommitTracker.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Common/PODArray.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Common/PageCache.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Common/PipeFDs.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Common/ProcfsMetricsProvider.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Common/ProfileEvents.cpp
@@ -192,19 +211,32 @@ target_sources(clickhouse-src-Common PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Common/ProgressIndication.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Common/ProxyConfigurationResolverProvider.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Common/ProxyListConfigurationResolver.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Common/QueryFuzzer.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Common/QueryProfiler.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Common/RWLock.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Common/RemoteHostFilter.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Common/RemoteProxyConfigurationResolver.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Common/SSHWrapper.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Common/Scheduler/Nodes/ClassifiersConfig.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Common/Scheduler/Nodes/DynamicResourceManager.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Common/Scheduler/Nodes/FairPolicy.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Common/Scheduler/Nodes/FifoQueue.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Common/Scheduler/Nodes/PriorityPolicy.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Common/Scheduler/Nodes/SemaphoreConstraint.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Common/Scheduler/Nodes/ThrottlerConstraint.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Common/Scheduler/Nodes/registerResourceManagers.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Common/Scheduler/Nodes/registerSchedulerNodes.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Common/Scheduler/ResouceLink.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Common/Scheduler/ResourceRequest.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Common/SensitiveDataMasker.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Common/SettingsChanges.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Common/SharedMutex.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Common/ShellCommand.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Common/ShellCommandSettings.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Common/SignalHandlers.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Common/StackTrace.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Common/StatusFile.cpp
-  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Common/StatusInfo.cpp
-  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Common/StringUtils/StringUtils.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Common/StringUtils.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Common/StudentTTest.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Common/SymbolIndex.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Common/SystemLogBase.cpp
@@ -213,6 +245,7 @@ target_sources(clickhouse-src-Common PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Common/TerminalSize.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Common/ThreadFuzzer.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Common/ThreadPool.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Common/ThreadPoolTaskTracker.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Common/ThreadProfileEvents.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Common/ThreadStatus.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Common/Throttler.cpp
@@ -235,6 +268,7 @@ target_sources(clickhouse-src-Common PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Common/ZooKeeper/ZooKeeperImpl.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Common/ZooKeeper/ZooKeeperLock.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Common/ZooKeeper/ZooKeeperNodeCache.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Common/ZooKeeper/ZooKeeperWithFaultInjection.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Common/assertProcessUserMatchesDataOwner.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Common/atomicRename.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Common/checkSSLReturnCode.cpp
@@ -243,7 +277,9 @@ target_sources(clickhouse-src-Common PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Common/clickhouse_malloc.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Common/createHardLink.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Common/escapeForFileName.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Common/escapeString.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Common/filesystemHelpers.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Common/findExtreme.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Common/formatIPv6.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Common/formatReadable.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Common/getCurrentProcessFDCount.cpp
@@ -255,24 +291,32 @@ target_sources(clickhouse-src-Common PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Common/getNumberOfPhysicalCPUCores.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Common/getRandomASCIIString.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Common/hasLinuxCapability.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Common/iota.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Common/isLocalAddress.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Common/isValidUTF8.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Common/levenshteinDistance.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Common/likePatternToRegexp.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Common/makeSocketAddress.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Common/new_delete.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Common/parseAddress.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Common/parseGlobs.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Common/parseRemoteDescription.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Common/proxyConfigurationToPocoProxyConfig.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Common/quoteString.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Common/randomDelay.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Common/randomSeed.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Common/register_objects.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Common/remapExecutable.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Common/setThreadName.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Common/thread_local_rng.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Common/tryGetFileNameByFileDescriptor.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Common/waitForPid.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Coordination/KeeperFeatureFlags.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/IO/AIO.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/IO/Archives/ArchiveUtils.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/IO/Archives/LibArchiveReader.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/IO/Archives/LibArchiveWriter.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/IO/Archives/TarArchiveWriter.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/IO/Archives/ZipArchiveReader.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/IO/Archives/ZipArchiveWriter.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/IO/Archives/createArchiveReader.cpp
@@ -281,11 +325,14 @@ target_sources(clickhouse-src-Common PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/IO/AsyncReadCounters.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/IO/AsynchronousReadBufferFromFile.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/IO/AsynchronousReadBufferFromFileDescriptor.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/IO/AzureBlobStorage/copyAzureBlobStorageFile.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/IO/AzureBlobStorage/isRetryableAzureException.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/IO/BoundedReadBuffer.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/IO/BrotliReadBuffer.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/IO/BrotliWriteBuffer.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/IO/Bzip2ReadBuffer.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/IO/Bzip2WriteBuffer.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/IO/CachedInMemoryReadBufferFromFile.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/IO/CascadeWriteBuffer.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/IO/CompressionMethod.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/IO/ConcatSeekableReadBuffer.cpp
@@ -318,6 +365,8 @@ target_sources(clickhouse-src-Common PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/IO/PeekableReadBuffer.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/IO/PeekableWriteBuffer.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/IO/Progress.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/IO/Protobuf/ProtobufZeroCopyInputStreamFromReadBuffer.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/IO/Protobuf/ProtobufZeroCopyOutputStreamFromWriteBuffer.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/IO/ReadBuffer.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/IO/ReadBufferFromEncryptedFile.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/IO/ReadBufferFromFile.cpp
@@ -330,16 +379,8 @@ target_sources(clickhouse-src-Common PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/IO/ReadBufferFromS3.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/IO/ReadHelpers.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/IO/ReadWriteBufferFromHTTP.cpp
-  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/IO/Resource/ClassifiersConfig.cpp
-  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/IO/Resource/DynamicResourceManager.cpp
-  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/IO/Resource/FairPolicy.cpp
-  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/IO/Resource/FifoQueue.cpp
-  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/IO/Resource/PriorityPolicy.cpp
-  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/IO/Resource/SemaphoreConstraint.cpp
-  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/IO/Resource/StaticResourceManager.cpp
-  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/IO/Resource/registerResourceManagers.cpp
-  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/IO/Resource/registerSchedulerNodes.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/IO/S3/AWSLogger.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/IO/S3/BlobStorageLogWriter.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/IO/S3/Client.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/IO/S3/Credentials.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/IO/S3/PocoHTTPClient.cpp
@@ -350,6 +391,7 @@ target_sources(clickhouse-src-Common PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/IO/S3/copyS3File.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/IO/S3/getObjectInfo.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/IO/S3Common.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/IO/S3Settings.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/IO/SeekableReadBuffer.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/IO/SharedThreadPools.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/IO/SnappyReadBuffer.cpp
@@ -359,6 +401,7 @@ target_sources(clickhouse-src-Common PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/IO/SwapHelper.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/IO/SynchronousReader.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/IO/TimeoutSetter.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/IO/UncompressedCache.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/IO/UseSSL.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/IO/VarInt.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/IO/WithFileName.cpp
@@ -374,8 +417,6 @@ target_sources(clickhouse-src-Common PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/IO/WriteBufferFromOStream.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/IO/WriteBufferFromPocoSocket.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/IO/WriteBufferFromS3.cpp
-  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/IO/WriteBufferFromS3BufferAllocationPolicy.cpp
-  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/IO/WriteBufferFromS3TaskTracker.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/IO/WriteBufferValidUTF8.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/IO/WriteHelpers.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/IO/ZlibDeflatingWriteBuffer.cpp

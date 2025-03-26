@@ -45,6 +45,11 @@ DEFINE_ENUM(ESnapshotVersion,
     ((TableWriteBufferEstimation)            (301705))
     ((OperationIncarnationIsOptional)        (301706))
     ((GroupedNeededResources)                (301707))
+    ((MonitoringDescriptorsPreserving)       (301708))
+    ((ValidateLivePreviewChunks)             (301709))
+    ((IsolateManiacsInSlicing)               (301710))
+    ((MaxCompressedDataSizePerJob)           (301711))
+    ((DynamicVanillaJobCount)                (301712))
 );
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -136,6 +136,8 @@ message TReqInitializeOperation
     required NYT.NProto.TGuid operation_id = 2;
     required bool clean = 3;
     optional TControllerTransactionIds transaction_ids = 4;
+
+    optional bytes cumulative_spec_patch = 5; // YSON
 }
 
 message TRspInitializeOperation
@@ -298,6 +300,21 @@ message TReqUpdateOperationRuntimeParameters
 }
 
 message TRspUpdateOperationRuntimeParameters
+{ }
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqPatchSpec
+{
+    required NYT.NProto.TGuid incarnation_id = 1;
+    required NYT.NProto.TGuid operation_id = 2;
+
+    //! If true, only checks that patch is valid if applied to the current spec.
+    required bool dry_run = 3;
+    required bytes new_cumulative_spec_patch = 4; // YSON
+}
+
+message TRspPatchSpec
 { }
 
 ////////////////////////////////////////////////////////////////////////////////

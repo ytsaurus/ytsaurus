@@ -116,8 +116,8 @@ private:
         auto attributes = options.Attributes ? options.Attributes->Clone() : EmptyAttributes().Clone();
 
         auto replicationCardId = GetReplicationCardIdForNewReplica(attributes);
-        auto clusterName = attributes->Get<TString>("cluster_name");
-        auto replicaPath = attributes->Get<TString>("replica_path");
+        auto clusterName = attributes->Get<std::string>("cluster_name");
+        auto replicaPath = attributes->Get<TYPath>("replica_path");
         auto contentType = attributes->Get<ETableReplicaContentType>("content_type", ETableReplicaContentType::Data);
         auto mode = attributes->Get<ETableReplicaMode>("mode", ETableReplicaMode::Async);
         auto enabled = attributes->Get<bool>("enabled", false);

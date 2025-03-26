@@ -28,6 +28,8 @@
 
 #include <yt/yt/server/master/table_server/master_table_schema.h>
 #include <yt/yt/server/master/table_server/table_manager.h>
+// COMPAT(babenko): needed for IsSchemaAttributeOpaque
+#include <yt/yt/server/master/table_server/config.h>
 
 #include <yt/yt/server/master/tablet_server/tablet_cell_bundle.h>
 #include <yt/yt/server/master/tablet_server/tablet_manager.h>
@@ -1135,7 +1137,9 @@ void TNontemplateCypressNodeProxyBase::GetSelf(
         : std::nullopt;
 
     context->SetRequestInfo("AttributeFilter: %v, Limit: %v",
-        attributeFilter,
+        MakeShrunkFormattableView(
+            attributeFilter,
+            GetDynamicCypressManagerConfig()->MaxAttributeFilterSizeToLog),
         limit);
 
     ValidatePermission(EPermissionCheckScope::This, EPermission::Read);
@@ -1189,6 +1193,15 @@ void TNontemplateCypressNodeProxyBase::GetAttribute(
     TRspGet* response,
     const TCtxGetPtr& context)
 {
+    auto attributeFilter = request->has_attributes()
+        ? FromProto<TAttributeFilter>(request->attributes())
+        : TAttributeFilter();
+
+    context->SetRequestInfo("AttributeFilter: %v",
+        MakeShrunkFormattableView(
+            attributeFilter,
+            GetDynamicCypressManagerConfig()->MaxAttributeFilterSizeToLog));
+
     SuppressAccessTracking();
     TObjectProxyBase::GetAttribute(path, request, response, context);
 }
@@ -1291,14 +1304,18 @@ void TNontemplateCypressNodeProxyBase::ValidatePermission(
     }
 }
 
-TCompactVector<TCypressNode*, 1> TNontemplateCypressNodeProxyBase::ListDescendantsForPermissionValidation(TCypressNode* node)
+TCompactVector<TObject*, 1> TNontemplateCypressNodeProxyBase::ListDescendantsForPermissionValidation(TCypressNode* node)
 {
     const auto& cypressManager = Bootstrap_->GetCypressManager();
     auto* trunkNode = node->GetTrunkNode();
-    return cypressManager->ListSubtreeNodes(trunkNode, Transaction_, false);
+    auto descendants = cypressManager->ListSubtreeNodes(trunkNode, Transaction_, false);
+
+    return TCompactVector<TObject*, 1>(
+        descendants.begin(),
+        descendants.end());
 }
 
-TCypressNode* TNontemplateCypressNodeProxyBase::GetParentForPermissionValidation(TCypressNode* node)
+TObject* TNontemplateCypressNodeProxyBase::GetParentForPermissionValidation(TCypressNode* node)
 {
     return node->GetParent();
 }
@@ -1483,6 +1500,19 @@ void TNontemplateCypressNodeProxyBase::SetChildNode(
     YT_ABORT();
 }
 
+bool TNontemplateCypressNodeProxyBase::IsSchemaAttributeOpaque() const
+{
+    const auto& config = Bootstrap_->GetDynamicConfig()->TableManager;
+    if (!config->MakeSchemaAttributeOpaque) {
+        return false;
+    }
+
+    const auto& securityManager = Bootstrap_->GetSecurityManager();
+    const auto& user = securityManager->GetAuthenticatedUser()->GetName();
+    const auto& userWhitelist = config->NonOpaqueSchemaAttributeUserWhitelist;
+    return std::ranges::find(userWhitelist, user) == userWhitelist.end();
+}
+
 void TNontemplateCypressNodeProxyBase::Lock(const TLockRequest& request, bool waitable, TLockId lockIdHint)
 {
     DoLock(request, waitable, lockIdHint);
@@ -1523,8 +1553,8 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Lock)
     DeclareMutating();
 
     auto mode = FromProto<ELockMode>(request->mode());
-    auto childKey = YT_PROTO_OPTIONAL(*request, child_key);
-    auto attributeKey = YT_PROTO_OPTIONAL(*request, attribute_key);
+    auto childKey = YT_OPTIONAL_FROM_PROTO(*request, child_key);
+    auto attributeKey = YT_OPTIONAL_FROM_PROTO(*request, attribute_key);
     auto timestamp = request->timestamp();
     bool waitable = request->waitable();
 
@@ -1696,9 +1726,10 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Create)
         explicitAttributes = FromProto(request->node_attributes());
     }
 
-    ValidateCreatePermissions(replace, explicitAttributes.Get());
-
     auto* node = GetThisImpl();
+
+    ValidateCreatePermissions(node, replace, explicitAttributes.Get());
+
     // The node inside which the new node must be created.
     auto* intendedParentNode = replace ? node->GetParent() : node;
     auto* account = intendedParentNode->Account().Get();
@@ -1896,6 +1927,7 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, LockCopyDestinatio
         ToProto(response->mutable_existing_node_id(), TrunkNode_->GetId());
         context->SetResponseInfo("ExistingNodeId: %v",
             TrunkNode_->GetId());
+        context->Reply();
         return;
     }
 
@@ -1909,11 +1941,19 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, LockCopyDestinatio
     // The node inside which the cloned node must be created. Usually it's the current one.
     auto* parentNode = node;
     if (!inplace) {
+        const auto& cypressManager = Bootstrap_->GetCypressManager();
         if (replace) {
             if (!node->GetParent()) {
                 ThrowCannotReplaceNode(this);
             }
-            parentNode = node->GetParent();
+
+            // COMPAT(h0pless)
+            if (GetDynamicCypressManagerConfig()->UseProperBranchedParentInLockCopyDestination) {
+                parentNode = cypressManager->GetVersionedNode(node->GetParent(), Transaction_);
+            } else {
+                parentNode = node->GetParent();
+            }
+
             childNodeKey = FindMapNodeChildKey(parentNode->As<TCypressMapNode>(), node->GetTrunkNode());
         } else {
             // TODO(h0pless): Use TYPath from Sequoia client when it'll get fixed.
@@ -1927,14 +1967,13 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, LockCopyDestinatio
 
         // This lock ensures that both parent node and child node won't change before AssembleTreeCopy is called.
         // For inplace this is not needed, since the node is freshly created.
-        const auto& cypressManager = Bootstrap_->GetCypressManager();
         cypressManager->LockNode(
             parentNode->GetTrunkNode(),
             Transaction_,
             TLockRequest::MakeSharedChild(childNodeKey));
     }
 
-    ValidateCopyToThisDestinationPermissions(replace && !inplace, preserveAcl);
+    ValidateCopyToThisDestinationPermissions(node, replace && !inplace, preserveAcl);
 
     auto* account = parentNode->GetTrunkNode()->Account().Get();
 
@@ -1978,7 +2017,7 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, LockCopySource)
 
     auto* node = GetThisImpl();
 
-    ValidatePermission(node, EPermissionCheckScope::This | EPermissionCheckScope::Descendants, EPermission::FullRead);
+    ValidatePermission(node, EPermissionCheckScope::Subtree, EPermission::FullRead);
 
     auto maxSubtreeSize = GetDynamicCypressManagerConfig()->CrossCellCopyMaxSubtreeSize;
 
@@ -2437,7 +2476,7 @@ void TNontemplateCypressNodeProxyBase::CopyCore(
         parentNode = node;
     }
 
-    ValidateCopyToThisDestinationPermissions(replace && !inplace, preserveAcl);
+    ValidateCopyToThisDestinationPermissions(node, replace && !inplace, preserveAcl);
 
     auto* account = parentNode->Account().Get();
 
@@ -3324,7 +3363,9 @@ void TCypressMapNodeProxy::ListSelf(
         : std::nullopt;
 
     context->SetRequestInfo("AttributeFilter: %v, Limit: %v",
-        attributeFilter,
+        MakeShrunkFormattableView(
+            attributeFilter,
+            GetDynamicCypressManagerConfig()->MaxAttributeFilterSizeToLog),
         limit);
 
     TLimitedAsyncYsonWriter writer(context->GetReadRequestComplexityLimiter());
@@ -3444,7 +3485,9 @@ void TSequoiaMapNodeProxy::GetSelf(
     // NB: Since Sequoia tree cannot be traversed on master side (due to the fact that nodes live on different cells),
     // limit field in request does nothing.
     context->SetRequestInfo("AttributeFilter: %v",
-        attributeFilter);
+        MakeShrunkFormattableView(
+            attributeFilter,
+            GetDynamicCypressManagerConfig()->MaxAttributeFilterSizeToLog));
 
     TLimitedAsyncYsonWriter writer(context->GetReadRequestComplexityLimiter());
     WriteAttributes(&writer, attributeFilter, false);

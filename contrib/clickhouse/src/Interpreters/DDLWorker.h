@@ -13,14 +13,16 @@
 #include <chrono>
 #include <condition_variable>
 #include <mutex>
+#include <shared_mutex>
 #include <thread>
+#include <unordered_set>
 
 namespace zkutil
 {
     class ZooKeeper;
 }
 
-namespace Poco
+namespace DBPoco
 {
     class Logger;
     namespace Util { class AbstractConfiguration; }
@@ -48,7 +50,7 @@ class AccessRightsElements;
 class DDLWorker
 {
 public:
-    DDLWorker(int pool_size_, const std::string & zk_root_dir, ContextPtr context_, const Poco::Util::AbstractConfiguration * config, const String & prefix,
+    DDLWorker(int pool_size_, const std::string & zk_root_dir, ContextPtr context_, const DBPoco::Util::AbstractConfiguration * config, const String & prefix,
               const String & logger_name = "DDLWorker", const CurrentMetrics::Metric * max_entry_metric_ = nullptr, const CurrentMetrics::Metric * max_pushed_entry_metric_ = nullptr);
     virtual ~DDLWorker();
 
@@ -79,6 +81,33 @@ public:
     ZooKeeperPtr getAndSetZooKeeper();
 
 protected:
+
+    class ConcurrentSet
+    {
+    public:
+        bool contains(const String & key) const
+        {
+            std::shared_lock lock(mtx);
+            return set.contains(key);
+        }
+
+        bool insert(const String & key)
+        {
+            std::unique_lock lock(mtx);
+            return set.emplace(key).second;
+        }
+
+        bool remove(const String & key)
+        {
+            std::unique_lock lock(mtx);
+            return set.erase(key);
+        }
+
+    private:
+        std::unordered_set<String> set;
+        mutable std::shared_mutex mtx;
+    };
+
     /// Iterates through queue tasks in ZooKeeper, runs execution of new tasks
     void scheduleTasks(bool reinitialized);
 
@@ -122,7 +151,9 @@ protected:
     void runCleanupThread();
 
     ContextMutablePtr context;
-    Poco::Logger * log;
+    LoggerPtr log;
+
+    std::optional<std::string> config_host_name; /// host_name from config
 
     std::string host_fqdn;      /// current host domain name
     std::string host_fqdn_id;   /// host_name:port
@@ -140,8 +171,8 @@ protected:
     bool queue_fully_loaded_after_initialization_debug_helper = false;
 
     Coordination::Stat queue_node_stat;
-    std::shared_ptr<Poco::Event> queue_updated_event = std::make_shared<Poco::Event>();
-    std::shared_ptr<Poco::Event> cleanup_event = std::make_shared<Poco::Event>();
+    std::shared_ptr<DBPoco::Event> queue_updated_event = std::make_shared<DBPoco::Event>();
+    std::shared_ptr<DBPoco::Event> cleanup_event = std::make_shared<DBPoco::Event>();
     std::atomic<bool> initialized = false;
     std::atomic<bool> stop_flag = true;
 
@@ -160,6 +191,12 @@ protected:
     size_t max_tasks_in_queue = 1000;
 
     std::atomic<UInt32> max_id = 0;
+
+    ConcurrentSet entries_to_skip;
+
+    std::atomic_uint64_t subsequent_errors_count = 0;
+    String last_unexpected_error;
+
     const CurrentMetrics::Metric * max_entry_metric;
     const CurrentMetrics::Metric * max_pushed_entry_metric;
 };

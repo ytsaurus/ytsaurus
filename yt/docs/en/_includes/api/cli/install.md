@@ -18,7 +18,7 @@ This can lead to problems that are difficult to diagnose.
 
 {% note info "Note" %}
 
-If you have any problems, check the [FAQ](../../../faq/faq.md) section.
+If you have any problems, check the [FAQ](../../../faq/index.md) section.
 
 {% endnote %}
 

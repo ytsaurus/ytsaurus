@@ -3,7 +3,7 @@ from yt_env_setup import YTEnvSetup
 from yt_commands import (
     authors, create, ls, get, remove, build_master_snapshots, raises_yt_error,
     exists, set, copy, move, gc_collect, write_table, read_table, create_user,
-    start_transaction, abort_transaction, commit_transaction, link, wait, lock,
+    start_transaction, abort_transaction, commit_transaction, wait, lock,
     execute_batch, make_batch_request, get_batch_output, print_debug,
 )
 
@@ -12,7 +12,7 @@ from yt_sequoia_helpers import (
     select_paths_from_ground,
     lookup_cypress_transaction, select_cypress_transaction_replicas,
     select_cypress_transaction_descendants, clear_table_in_ground,
-    select_cypress_transaction_prerequisites, lookup_rows_in_ground,
+    select_cypress_transaction_prerequisites,
     mangle_sequoia_path, insert_rows_to_ground,
 )
 
@@ -30,7 +30,6 @@ from collections import namedtuple
 from copy import deepcopy
 from datetime import datetime, timedelta
 import itertools
-import functools
 from random import randint
 from time import sleep
 
@@ -70,18 +69,6 @@ class TestSequoiaEnvSetup(YTEnvSetup):
 ##################################################################
 
 
-def with_cypress_dir(test_case):
-    @functools.wraps(test_case)
-    def wrapped(*args, **kwargs):
-        create("map_node", "//cypress")
-        try:
-            test_case(*args, **kwargs)
-        finally:
-            remove("//cypress", recursive=True, force=True)
-
-    return wrapped
-
-
 @pytest.mark.enabled_multidaemon
 class TestSequoiaInternals(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
@@ -90,10 +77,12 @@ class TestSequoiaInternals(YTEnvSetup):
     VALIDATE_SEQUOIA_TREE_CONSISTENCY = True
     NUM_CYPRESS_PROXIES = 1
 
-    NUM_SECONDARY_MASTER_CELLS = 2
+    NUM_SECONDARY_MASTER_CELLS = 3
     MASTER_CELL_DESCRIPTORS = {
         "10": {"roles": ["sequoia_node_host"]},
-        "11": {"roles": ["sequoia_node_host"]},
+        # Master cell with tag 11 is reserved for portals.
+        "11": {"roles": ["cypress_node_host"]},
+        "12": {"roles": ["sequoia_node_host"]},
     }
 
     DELTA_DYNAMIC_MASTER_CONFIG = {
@@ -101,9 +90,6 @@ class TestSequoiaInternals(YTEnvSetup):
             "enable_ground_update_queues": True
         },
     }
-
-    def lookup_path_to_node_id(self, path):
-        return lookup_rows_in_ground(DESCRIPTORS.path_to_node_id.get_default_path(), [{"path": mangle_sequoia_path(path)}])
 
     @authors("kvk1920")
     def test_map_node_set_doesnt_cause_detach(self):
@@ -450,46 +436,6 @@ class TestSequoiaInternals(YTEnvSetup):
         child_id = create("map_node", r"//tmp/m\@1")
         assert get(r"//tmp/m\@1/@id") == child_id
 
-    @authors("danilalexeev")
-    @with_cypress_dir
-    def test_link_through_sequoia(self):
-        id1 = create("table", "//cypress/t1")
-        link("//cypress/t1", "//tmp/l1")
-        link("//tmp/l1", "//tmp/l2")
-        link("//tmp/l2", "//cypress/l3")
-        wait(lambda: len(self.lookup_path_to_node_id('//cypress/l3')) == 1)
-        link("//cypress/l3", "//cypress/l4")
-        wait(lambda: len(self.lookup_path_to_node_id('//cypress/l4')) == 1)
-        assert get("//tmp/l1/@id") == id1
-        assert get("//tmp/l2/@id") == id1
-        assert get("//cypress/l3/@id") == id1
-        assert get("//cypress/l4/@id") == id1
-
-    @authors("danilalexeev")
-    @with_cypress_dir
-    def test_cyclic_link_through_sequoia(self):
-        link("//cypress/l2", "//tmp/l1", force=True)
-        link("//tmp/l3", "//cypress/l2", force=True, recursive=True)
-        wait(lambda: len(self.lookup_path_to_node_id('//cypress/l2')) == 1)
-        with raises_yt_error("Failed to create link: link is cyclic"):
-            link("//tmp/l1", "//tmp/l3", force=True)
-        remove("//cypress", force=True, recursive=True)
-
-    @authors("danilalexeev")
-    @with_cypress_dir
-    def test_broken_links(self):
-        set("//tmp/t1", 1)
-        set("//cypress/t2", 2, recursive=True)
-        link("//cypress/t2", "//tmp/l1")
-        link("//tmp/t1", "//cypress/l2")
-        assert not get("//tmp/l1&/@broken")
-        assert not get("//cypress/l2&/@broken")
-        remove("//tmp/t1")
-        remove("//cypress/t2")
-        assert get("//tmp/l1&/@broken")
-        assert get("//cypress/l2&/@broken")
-        remove("//cypress", force=True, recursive=True)
-
     @authors("kvk1920")
     def test_create_map_node(self):
         m_id = create("map_node", "//tmp/m")
@@ -528,7 +474,6 @@ class TestSequoiaInternals(YTEnvSetup):
 
     @authors("danilalexeev")
     def test_mixed_read_write_batch(self):
-        create("map_node", "//sys/cypress_proxies", ignore_existing=True)
         set("//sys/cypress_proxies/@config", {
             "object_service": {
                 "alert_on_mixed_read_write_batch": True,
@@ -548,6 +493,23 @@ class TestSequoiaInternals(YTEnvSetup):
         assert not get_batch_output(results[0])
         with raises_yt_error():
             get_batch_output(results[1])
+
+    @authors("kvk1920")
+    def test_cypress_proxy_registry(self):
+        assert get("//sys/cypress_proxies/@count") == self.NUM_CYPRESS_PROXIES
+
+        cypress_proxy = ls("//sys/cypress_proxies")[0]
+        cypress_proxy_object_id = get(f"//sys/cypress_proxies/{cypress_proxy}/@id")
+        cypress_proxy_reign = get(f"//sys/cypress_proxies/{cypress_proxy}/orchid/sequoia_reign")
+
+        master = ls("//sys/primary_masters")[0]
+        master_reign = get(f"//sys/primary_masters/{master}/orchid/sequoia_reign")
+
+        assert cypress_proxy_reign == master_reign
+
+        remove(f"//sys/cypress_proxies/{cypress_proxy}")
+        wait(lambda: exists(f"//sys/cypress_proxies/{cypress_proxy}"))
+        assert cypress_proxy_object_id != get(f"//sys/cypress_proxies/{cypress_proxy}/@id")
 
 
 @pytest.mark.enabled_multidaemon
@@ -2728,6 +2690,7 @@ class TestSequoiaMultipleCypressProxies(YTEnvSetup):
         "user_directory_synchronizer": {
             "sync_period": 100,
         },
+        "heartbeat_period": 1000,
     }
 
     @authors("danilalexeev")

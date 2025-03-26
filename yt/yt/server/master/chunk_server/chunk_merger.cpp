@@ -296,7 +296,7 @@ public:
         }
 
         auto* table = Node_->As<TTableNode>();
-        const auto& schema = table->GetSchema()->AsTableSchema();
+        const auto& schema = table->GetSchema()->AsCompactTableSchema();
         YT_VERIFY(schema);
 
         TTraverserTestingOptions testingOptions;
@@ -465,7 +465,7 @@ private:
         }
 
         auto* table = Node_->As<TTableNode>();
-        auto schema = table->GetSchema()->AsTableSchema();
+        auto schema = table->GetSchema()->AsCompactTableSchema();
         return !table->IsDynamic() && !schema->HasHunkColumns();
     }
 
@@ -597,8 +597,6 @@ private:
                 chunk->GetUncompressedDataSize(),
                 mergerCriteria.MaxUncompressedDataSize));
 
-
-
         if (ParentChunkListId_ == NullObjectId || ParentChunkListId_ == parent->GetId()) {
             ++satisfiedCriteriaCount;
         }
@@ -720,7 +718,7 @@ bool TChunkMerger::CanRegisterMergeSession(TChunkOwnerBase* trunkChunkOwner)
     YT_VERIFY(trunkChunkOwner->IsTrunk());
 
     const auto& config = GetDynamicConfig();
-    if (!config->Enable && !config->EnableQueueSizeLimitChanges) {
+    if (!config->Enable) {
         YT_LOG_DEBUG("Cannot schedule merge: chunk merger is disabled");
         return false;
     }
@@ -742,7 +740,7 @@ bool TChunkMerger::CanRegisterMergeSession(TChunkOwnerBase* trunkChunkOwner)
         return false;
     }
 
-    auto schema = table->GetSchema()->AsTableSchema();
+    auto schema = table->GetSchema()->AsCompactTableSchema();
     if (schema->HasHunkColumns()) {
         YT_LOG_DEBUG("Chunk merging is not supported for tables with hunk columns (ChunkOwnerId: %v)",
             trunkChunkOwner->GetId());
@@ -750,7 +748,7 @@ bool TChunkMerger::CanRegisterMergeSession(TChunkOwnerBase* trunkChunkOwner)
     }
 
     auto* account = trunkChunkOwner->Account().Get();
-    if (config->RespectAccountSpecificToggle && !account->GetAllowUsingChunkMerger()) {
+    if (!account->GetAllowUsingChunkMerger()) {
         YT_LOG_DEBUG("Skipping node as its account is banned from using chunk merger (NodeId: %v, Account: %v)",
             trunkChunkOwner->GetId(),
             account->GetName());
@@ -1678,8 +1676,8 @@ bool TChunkMerger::TryScheduleMergeJob(IJobSchedulingContext* context, const TMe
     TChunkMergerWriterOptions chunkMergerWriterOptions;
     if (chunkOwner->GetType() == EObjectType::Table) {
         const auto* table = chunkOwner->As<TTableNode>();
-        auto schema = table->GetSchema();
-        ToProto(chunkMergerWriterOptions.mutable_schema(), *schema->AsTableSchema());
+        const auto schema = table->GetSchema();
+        ToProto(chunkMergerWriterOptions.mutable_schema(), schema->AsCompactTableSchema());
         ToProto(chunkMergerWriterOptions.mutable_schema_id(), schema->GetId());
         chunkMergerWriterOptions.set_optimize_for(ToProto(table->GetOptimizeFor()));
     }
@@ -1805,9 +1803,11 @@ void TChunkMerger::OnJobFinished(const TMergeJobPtr& job)
         auto validateError = [&, this_ = MakeStrong(this)] (auto error, auto message) {
             if (!error.IsOK()) {
                 YT_VERIFY(job->GetState() == EJobState::Failed);
-                YT_LOG_ALERT(error, "%v (JobId: %v)",
+                YT_LOG_ALERT(error, "%v (JobId: %v, NodeId: %v, AccountId: %v)",
                     message,
-                    job->GetJobId());
+                    job->GetJobId(),
+                    job->JobInfo().NodeId,
+                    job->JobInfo().AccountId);
                 NRpc::TDispatcher::Get()->GetHeavyInvoker()->Invoke(
                     BIND(&TChunkMerger::DisableChunkMerger, MakeStrong(this)));
             }
@@ -2102,7 +2102,6 @@ void TChunkMerger::HydraReplaceChunks(NProto::TReqReplaceChunks* request)
 
     const auto& chunkManager = Bootstrap_->GetChunkManager();
     auto chunkReplacementsSucceeded = 0;
-    const auto& config = GetDynamicConfig();
 
     std::vector<TChunk*> chunksToReqUpdate;
     for (int index = 0; index < replacementCount; ++index) {
@@ -2137,19 +2136,18 @@ void TChunkMerger::HydraReplaceChunks(NProto::TReqReplaceChunks* request)
                 accountId);
 
             ++chunkReplacementsSucceeded;
-            if (config->EnableCarefulRequisitionUpdate) {
-                chunksToReqUpdate.push_back(newChunk);
-                for (auto chunkId : chunkIds) {
-                    auto* inputChunk = chunkManager->FindChunk(newChunkId);
-                    if (!IsObjectAlive(inputChunk)) {
-                        YT_LOG_ALERT("Chunk merge input chunk is dead after replace (NodeId: %v, ChunkId: %v, AccountId: %v)",
-                            nodeId,
-                            chunkId,
-                            accountId);
-                        continue;
-                    }
-                    chunksToReqUpdate.push_back(inputChunk);
+
+            chunksToReqUpdate.push_back(newChunk);
+            for (auto chunkId : chunkIds) {
+                auto* inputChunk = chunkManager->FindChunk(chunkId);
+                if (!IsObjectAlive(inputChunk)) {
+                    YT_LOG_ALERT("Chunk merge input chunk is dead after replace (NodeId: %v, ChunkId: %v, AccountId: %v)",
+                        nodeId,
+                        chunkId,
+                        accountId);
+                    continue;
                 }
+                chunksToReqUpdate.push_back(inputChunk);
             }
 
             if (IsLeader()) {
@@ -2196,13 +2194,8 @@ void TChunkMerger::HydraReplaceChunks(NProto::TReqReplaceChunks* request)
     newRootChunkList->AddOwningNode(chunkOwner);
     rootChunkList->RemoveOwningNode(chunkOwner);
 
-    if (config->EnableCarefulRequisitionUpdate) {
-        for (auto* chunk : chunksToReqUpdate) {
-            chunkManager->ScheduleChunkRequisitionUpdate(chunk);
-        }
-    } else {
-        chunkManager->ScheduleChunkRequisitionUpdate(rootChunkList);
-        chunkManager->ScheduleChunkRequisitionUpdate(newRootChunkList);
+    for (auto* chunk : chunksToReqUpdate) {
+        chunkManager->ScheduleChunkRequisitionUpdate(chunk);
     }
 
     YT_LOG_DEBUG(

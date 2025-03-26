@@ -1,5 +1,7 @@
 #pragma once
 
+#include <yt/yt/library/query/base/public.h>
+
 #include <yt/yt/client/table_client/public.h>
 
 namespace NYT::NTableClient {
@@ -55,6 +57,12 @@ void ValidateComputedColumns(
 TError ValidateComputedColumnsCompatibility(
     const TTableSchema& inputSchema,
     const TTableSchema& outputSchema);
+
+NQueryClient::TColumnSet ValidateComputedColumnExpression(
+    const TColumnSchema& columnSchema,
+    const TTableSchema& schema,
+    bool isTableDynamic,
+    bool allowDependenceOnNonKeyColumns);
 
 ////////////////////////////////////////////////////////////////////////////////
 

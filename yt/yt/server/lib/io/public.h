@@ -11,6 +11,7 @@ DEFINE_ENUM(EIOEngineType,
     (Uring)
     (FairShareThreadPool)
     (FairShareUring)
+    (FairShareHierarchical)
 );
 
 DEFINE_ENUM(EDirectIOPolicy,
@@ -25,7 +26,7 @@ DECLARE_REFCOUNTED_STRUCT(IDynamicIOEngine)
 DECLARE_REFCOUNTED_CLASS(TChunkFileReader)
 DECLARE_REFCOUNTED_CLASS(TChunkFileWriter)
 
-DECLARE_REFCOUNTED_CLASS(TIOTrackerConfig)
+DECLARE_REFCOUNTED_STRUCT(TIOTrackerConfig)
 DECLARE_REFCOUNTED_STRUCT(TCongestionDetectorConfig)
 DECLARE_REFCOUNTED_STRUCT(TGentleLoaderConfig)
 

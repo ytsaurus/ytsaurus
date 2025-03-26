@@ -82,7 +82,7 @@
 
     ```
     cd build
-    cmake -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_TOOLCHAIN_FILE=../ytsaurus/clang.toolchain -DCMAKE_PROJECT_TOP_LEVEL_INCLUDES=../ytsaurus/cmake/conan_provider.cmake ../ytsaurus
+    cmake -G Ninja -DCMAKE_BUILD_TYPE=Release -DREQUIRED_LLVM_TOOLING_VERSION=16 -DCMAKE_TOOLCHAIN_FILE=../ytsaurus/clang.toolchain -DCMAKE_PROJECT_TOP_LEVEL_INCLUDES=../ytsaurus/cmake/conan_provider.cmake ../ytsaurus
     ```
 
     To build just run:

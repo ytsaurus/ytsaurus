@@ -18,10 +18,9 @@ namespace NYT::NAuth {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TAuthCacheConfig
+struct TAuthCacheConfig
     : public virtual NYTree::TYsonStruct
 {
-public:
     //! Time between last update time and entry update for correct entries.
     TDuration CacheTtl;
     //! Time between last access time and entry eviction.
@@ -38,10 +37,9 @@ DEFINE_REFCOUNTED_TYPE(TAuthCacheConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TBlackboxServiceConfig
+struct TBlackboxServiceConfig
     : public virtual NYTree::TYsonStruct
 {
-public:
     NHttps::TClientConfigPtr HttpClient;
     TString Host;
     int Port;
@@ -63,10 +61,9 @@ DEFINE_REFCOUNTED_TYPE(TBlackboxServiceConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TBlackboxTokenAuthenticatorConfig
+struct TBlackboxTokenAuthenticatorConfig
     : public virtual NYTree::TYsonStruct
 {
-public:
     TString Scope;
     bool EnableScopeCheck;
     bool GetUserTicket;
@@ -80,10 +77,9 @@ DEFINE_REFCOUNTED_TYPE(TBlackboxTokenAuthenticatorConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TBlackboxTicketAuthenticatorConfig
+struct TBlackboxTicketAuthenticatorConfig
     : public virtual NYTree::TYsonStruct
 {
-public:
     THashSet<TString> Scopes;
     bool EnableScopeCheck;
 
@@ -96,10 +92,9 @@ DEFINE_REFCOUNTED_TYPE(TBlackboxTicketAuthenticatorConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TCachingTokenAuthenticatorConfig
+struct TCachingTokenAuthenticatorConfig
     : public virtual NYTree::TYsonStruct
 {
-public:
     TAuthCacheConfigPtr Cache;
     EBlackboxCacheKeyMode CacheKeyMode;
 
@@ -112,7 +107,7 @@ DEFINE_REFCOUNTED_TYPE(TCachingTokenAuthenticatorConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TCachingBlackboxTokenAuthenticatorConfig
+struct TCachingBlackboxTokenAuthenticatorConfig
     : public TBlackboxTokenAuthenticatorConfig
     , public TCachingTokenAuthenticatorConfig
 {
@@ -125,10 +120,9 @@ DEFINE_REFCOUNTED_TYPE(TCachingBlackboxTokenAuthenticatorConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TCypressTokenAuthenticatorConfig
+struct TCypressTokenAuthenticatorConfig
     : public virtual NYTree::TYsonStruct
 {
-public:
     std::optional<NYPath::TYPath> RootPath;
     TString Realm;
 
@@ -143,7 +137,7 @@ DEFINE_REFCOUNTED_TYPE(TCypressTokenAuthenticatorConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TCachingCypressTokenAuthenticatorConfig
+struct TCachingCypressTokenAuthenticatorConfig
     : public TCachingTokenAuthenticatorConfig
     , public TCypressTokenAuthenticatorConfig
 {
@@ -156,10 +150,9 @@ DEFINE_REFCOUNTED_TYPE(TCachingCypressTokenAuthenticatorConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TOAuthAuthenticatorConfig
+struct TOAuthAuthenticatorConfig
     : public virtual NYTree::TYsonStruct
 {
-public:
     //! Creates a new user if it doesn't exist. User name is taken from the "Login" field.
     bool CreateUserIfNotExists;
 
@@ -172,10 +165,9 @@ DEFINE_REFCOUNTED_TYPE(TOAuthAuthenticatorConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TOAuthTokenAuthenticatorConfig
+struct TOAuthTokenAuthenticatorConfig
     : public TOAuthAuthenticatorConfig
 {
-public:
     REGISTER_YSON_STRUCT(TOAuthTokenAuthenticatorConfig);
 
     static void Register(TRegistrar);
@@ -185,7 +177,7 @@ DEFINE_REFCOUNTED_TYPE(TOAuthTokenAuthenticatorConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TCachingOAuthTokenAuthenticatorConfig
+struct TCachingOAuthTokenAuthenticatorConfig
     : public TOAuthTokenAuthenticatorConfig
     , public TCachingTokenAuthenticatorConfig
 {
@@ -200,10 +192,9 @@ DEFINE_REFCOUNTED_TYPE(TCachingOAuthTokenAuthenticatorConfig)
 
 static const auto DefaultCsrfTokenTtl = TDuration::Days(7);
 
-class TBlackboxCookieAuthenticatorConfig
+struct TBlackboxCookieAuthenticatorConfig
     : public virtual NYTree::TYsonStruct
 {
-public:
     TString Domain;
 
     std::optional<TString> CsrfSecret;
@@ -220,10 +211,9 @@ DEFINE_REFCOUNTED_TYPE(TBlackboxCookieAuthenticatorConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TOAuthCookieAuthenticatorConfig
+struct TOAuthCookieAuthenticatorConfig
     : public TOAuthAuthenticatorConfig
 {
-public:
     REGISTER_YSON_STRUCT(TOAuthCookieAuthenticatorConfig);
 
     static void Register(TRegistrar);
@@ -234,10 +224,9 @@ DEFINE_REFCOUNTED_TYPE(TOAuthCookieAuthenticatorConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 // TODO(achulkov2): Replace with polymorphic YSON struct in 24.2+.
-class TStringReplacementConfig
+struct TStringReplacementConfig
     : public NYTree::TYsonStruct
 {
-public:
     //! NB: The three transformations options below are mutually exclusive.
 
     //! If set, replaces all non-overlapping matches of this pattern with the replacement string.
@@ -259,10 +248,9 @@ DEFINE_REFCOUNTED_TYPE(TStringReplacementConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TOAuthServiceConfig
+struct TOAuthServiceConfig
     : public virtual NYTree::TYsonStruct
 {
-public:
     NHttp::TRetryingClientConfigPtr RetryingClient;
     NHttps::TClientConfigPtr HttpClient;
 
@@ -294,10 +282,9 @@ DEFINE_REFCOUNTED_TYPE(TOAuthServiceConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TCypressUserManagerConfig
+struct TCypressUserManagerConfig
     : public virtual NYTree::TYsonStruct
 {
-public:
     REGISTER_YSON_STRUCT(TCypressUserManagerConfig);
 
     static void Register(TRegistrar);
@@ -307,10 +294,9 @@ DEFINE_REFCOUNTED_TYPE(TCypressUserManagerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TCachingCookieAuthenticatorConfig
+struct TCachingCookieAuthenticatorConfig
     : public virtual NYTree::TYsonStruct
 {
-public:
     TAuthCacheConfigPtr Cache;
     EBlackboxCacheKeyMode CacheKeyMode;
 
@@ -323,10 +309,9 @@ DEFINE_REFCOUNTED_TYPE(TCachingCookieAuthenticatorConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TCachingCypressUserManagerConfig
+struct TCachingCypressUserManagerConfig
     : public TCypressUserManagerConfig
 {
-public:
     TAuthCacheConfigPtr Cache;
 
     REGISTER_YSON_STRUCT(TCachingCypressUserManagerConfig);
@@ -338,7 +323,7 @@ DEFINE_REFCOUNTED_TYPE(TCachingCypressUserManagerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TCachingBlackboxCookieAuthenticatorConfig
+struct TCachingBlackboxCookieAuthenticatorConfig
     : public TBlackboxCookieAuthenticatorConfig
     , public TCachingCookieAuthenticatorConfig
 {
@@ -351,7 +336,7 @@ DEFINE_REFCOUNTED_TYPE(TCachingBlackboxCookieAuthenticatorConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TCachingOAuthCookieAuthenticatorConfig
+struct TCachingOAuthCookieAuthenticatorConfig
     : public TOAuthCookieAuthenticatorConfig
     , public TCachingCookieAuthenticatorConfig
 {
@@ -364,10 +349,9 @@ DEFINE_REFCOUNTED_TYPE(TCachingOAuthCookieAuthenticatorConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TDefaultSecretVaultServiceConfig
+struct TDefaultSecretVaultServiceConfig
     : public virtual NYT::NYTree::TYsonStruct
 {
-public:
     TString Host;
     int Port;
     bool Secure;
@@ -388,10 +372,9 @@ DEFINE_REFCOUNTED_TYPE(TDefaultSecretVaultServiceConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TBatchingSecretVaultServiceConfig
+struct TBatchingSecretVaultServiceConfig
     : public virtual NYT::NYTree::TYsonStruct
 {
-public:
     TDuration BatchDelay;
     int MaxSubrequestsPerRequest;
     NConcurrency::TThroughputThrottlerConfigPtr RequestsThrottler;
@@ -405,10 +388,9 @@ DEFINE_REFCOUNTED_TYPE(TBatchingSecretVaultServiceConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TCachingSecretVaultServiceConfig
+struct TCachingSecretVaultServiceConfig
     : public TAsyncExpiringCacheConfig
 {
-public:
     TAsyncExpiringCacheConfigPtr Cache;
 
     REGISTER_YSON_STRUCT(TCachingSecretVaultServiceConfig);
@@ -494,10 +476,36 @@ DEFINE_REFCOUNTED_TYPE(TCypressCookieManagerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TAuthenticationManagerConfig
+struct TYCIAMTokenAuthenticatorConfig
+    : public NYTree::TYsonStruct
+{
+    NHttp::TRetryingClientConfigPtr RetryingClient;
+    NHttps::TClientConfigPtr HttpClient;
+
+    TString Host;
+    int Port;
+    bool Secure;
+
+    bool CheckUserExists;
+    bool CreateUserIfNotExists;
+
+    bool RetryAllServerErrors;
+    std::vector<int> RetryStatusCodes;
+
+    std::string AuthenticateLoginField;
+
+    REGISTER_YSON_STRUCT(TYCIAMTokenAuthenticatorConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TYCIAMTokenAuthenticatorConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TAuthenticationManagerConfig
     : public virtual NYT::NYTree::TYsonStruct
 {
-public:
     bool RequireAuthentication;
     TCachingBlackboxTokenAuthenticatorConfigPtr BlackboxTokenAuthenticator;
     TCachingBlackboxCookieAuthenticatorConfigPtr BlackboxCookieAuthenticator;
@@ -508,6 +516,7 @@ public:
     TCachingOAuthCookieAuthenticatorConfigPtr OAuthCookieAuthenticator;
     TCachingOAuthTokenAuthenticatorConfigPtr OAuthTokenAuthenticator;
     TOAuthServiceConfigPtr OAuthService;
+    TYCIAMTokenAuthenticatorConfigPtr YCIAMTokenAuthenticator;
 
     TCypressCookieManagerConfigPtr CypressCookieManager;
     TCachingCypressUserManagerConfigPtr CypressUserManager;

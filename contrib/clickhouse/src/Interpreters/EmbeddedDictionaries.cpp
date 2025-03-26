@@ -6,7 +6,7 @@
 #include <Common/setThreadName.h>
 #include <Common/Exception.h>
 #include <Common/logger_useful.h>
-#include <Poco/Util/Application.h>
+#include <DBPoco/Util/Application.h>
 
 
 namespace DB
@@ -72,7 +72,7 @@ bool EmbeddedDictionaries::reloadImpl(const bool throw_on_error, const bool forc
 
     bool was_exception = false;
 
-    DictionaryReloader<RegionsHierarchies> reload_regions_hierarchies = [=, this] (const Poco::Util::AbstractConfiguration & config)
+    DictionaryReloader<RegionsHierarchies> reload_regions_hierarchies = [=, this] (const DBPoco::Util::AbstractConfiguration & config)
     {
         return geo_dictionaries_loader->reloadRegionsHierarchies(config);
     };
@@ -80,7 +80,7 @@ bool EmbeddedDictionaries::reloadImpl(const bool throw_on_error, const bool forc
     if (!reloadDictionary<RegionsHierarchies>(regions_hierarchies, std::move(reload_regions_hierarchies), throw_on_error, force_reload))
         was_exception = true;
 
-    DictionaryReloader<RegionsNames> reload_regions_names = [=, this] (const Poco::Util::AbstractConfiguration & config)
+    DictionaryReloader<RegionsNames> reload_regions_names = [=, this] (const DBPoco::Util::AbstractConfiguration & config)
     {
         return geo_dictionaries_loader->reloadRegionsNames(config);
     };
@@ -125,7 +125,7 @@ EmbeddedDictionaries::EmbeddedDictionaries(
     ContextPtr context_,
     const bool throw_on_error)
     : WithContext(context_)
-    , log(&Poco::Logger::get("EmbeddedDictionaries"))
+    , log(getLogger("EmbeddedDictionaries"))
     , geo_dictionaries_loader(std::move(geo_dictionaries_loader_))
     , reload_period(getContext()->getConfigRef().getInt("builtin_dictionaries_reload_interval", 3600))
 {

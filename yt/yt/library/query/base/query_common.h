@@ -30,6 +30,9 @@ struct TDataSplit
 
 ////////////////////////////////////////////////////////////////////////////////
 
+using TStructMemberAccessor = TString;
+using TTupleItemIndexAccessor = int;
+
 using TSourceLocation = std::pair<int, int>;
 static const TSourceLocation NullSourceLocation(0, 0);
 
@@ -140,10 +143,14 @@ struct TDataSource
     TSharedRange<TRow> Keys;
 };
 
+void VerifyIdsInRange(const TRowRange& range);
+void VerifyIdsInRanges(TRange<TRowRange> ranges);
+void VerifyIdsInKeys(TRange<TRow> keys);
+
 void ToProto(
     NProto::TDataSource* serialized,
     const TDataSource& original,
-    TRange<NTableClient::TLogicalTypePtr> schema,
+    TRange<TLogicalTypePtr> schema,
     bool lookupSupported,
     size_t keyWidth);
 void FromProto(

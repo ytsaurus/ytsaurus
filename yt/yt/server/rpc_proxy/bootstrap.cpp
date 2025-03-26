@@ -5,13 +5,13 @@
 #include "config.h"
 #include "discovery_service.h"
 #include "dynamic_config_manager.h"
-#include "private.h"
 #include "query_corpus_reporter.h"
 
 #include <yt/yt/server/lib/rpc_proxy/api_service.h>
 #include <yt/yt/server/lib/rpc_proxy/profilers.h>
 #include <yt/yt/server/lib/rpc_proxy/proxy_coordinator.h>
 #include <yt/yt/server/lib/rpc_proxy/security_manager.h>
+#include <yt/yt/server/lib/rpc_proxy/private.h>
 
 #include <yt/yt/server/lib/signature/instance_config.h>
 #include <yt/yt/server/lib/signature/key_rotator.h>
@@ -217,12 +217,11 @@ void TBootstrap::DoInitialize()
             Config_->SignatureGeneration->CypressKeyWriter,
             RootClient_))
             .ValueOrThrow();
-        SignatureGenerator_ = New<TSignatureGenerator>(
-            Config_->SignatureGeneration->Generator,
-            CypressKeyWriter_);
+        SignatureGenerator_ = New<TSignatureGenerator>(Config_->SignatureGeneration->Generator);
         SignatureKeyRotator_ = New<TKeyRotator>(
             Config_->SignatureGeneration->KeyRotator,
             GetControlInvoker(),
+            CypressKeyWriter_,
             SignatureGenerator_);
     }
 

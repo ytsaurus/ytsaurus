@@ -1,6 +1,5 @@
 #include "storage_distributor.h"
 
-#include "block_output_stream.h"
 #include "config.h"
 #include "conversion.h"
 #include "format.h"
@@ -13,6 +12,7 @@
 #include "remote_source.h"
 #include "schema_inference.h"
 #include "secondary_query_header.h"
+#include "sink_to_storage.h"
 #include "storage_base.h"
 #include "subquery.h"
 #include "table.h"
@@ -31,12 +31,24 @@
 
 #include <yt/yt/client/ypath/rich.h>
 
+#include <Analyzer/Utils.h>
+#include <Analyzer/QueryNode.h>
+#include <Analyzer/ColumnNode.h>
+#include <Analyzer/FunctionNode.h>
+#include <Analyzer/IdentifierNode.h>
+#include <Analyzer/JoinNode.h>
+#include <Analyzer/Passes/QueryAnalysisPass.h>
+#include <Functions/FunctionFactory.h>
+#include <Planner/Utils.h>
+#include <Processors/Transforms/ExpressionTransform.h>
+
 #include <Core/QueryProcessingStage.h>
 #include <DataTypes/DataTypeFactory.h>
 #include <DataTypes/DataTypeNullable.h>
 #include <Interpreters/getHeaderForProcessingStage.h>
 #include <Interpreters/IdentifierSemantic.h>
 #include <Interpreters/InterpreterSelectQuery.h>
+#include <Interpreters/InterpreterSelectQueryAnalyzer.h>
 #include <Interpreters/JoinedTables.h>
 #include <Interpreters/ProcessList.h>
 #include <Parsers/ASTCreateQuery.h>
@@ -49,9 +61,11 @@
 #include <Processors/ConcatProcessor.h>
 #include <Processors/ResizeProcessor.h>
 #include <Processors/Sinks/NullSink.h>
-#include <Processors/Sources/SinkToOutputStream.h>
-#include <Processors/Sources/SourceFromInputStream.h>
+#include <Processors/Sources/RemoteSource.h>
+#include <Processors/QueryPlan/IQueryPlanStep.h>
+#include <Planner/Planner.h>
 #include <Storages/StorageFactory.h>
+#include <Storages/StorageMerge.h>
 #include <Parsers/ASTSelectWithUnionQuery.h>
 #include <QueryPipeline/QueryPipelineBuilder.h>
 
@@ -199,7 +213,7 @@ TClusterNodes GetNodesToDistribute(TQueryContext* queryContext, size_t distribut
         return {queryContext->Host->GetLocalNode(),};
     }
 
-    // Create clique with |LocalCliqueSize| local ndoes for testing/debugging purposes.
+    // Create clique with |LocalCliqueSize| local nodes for testing/debugging purposes.
     if (queryContext->Settings->Testing->LocalCliqueSize > 0) {
         return TClusterNodes(queryContext->Settings->Testing->LocalCliqueSize, queryContext->Host->GetLocalNode());
     }
@@ -271,7 +285,20 @@ public:
 
         if (ProcessingStage_ == DB::QueryProcessingStage::FetchColumns) {
             // See getQueryProcessingStage for more details about FetchColumns stage.
-            RemoveJoinFromQuery();
+            std::vector<std::string> requiredColumns;
+            requiredColumns.reserve(RealColumnNames_.size() + VirtualColumnNames_.size());
+            requiredColumns.insert(requiredColumns.end(), RealColumnNames_.begin(), RealColumnNames_.end());
+            requiredColumns.insert(requiredColumns.end(), VirtualColumnNames_.begin(), VirtualColumnNames_.end());
+            auto modifiedQuery = DB::replaceTableExpressionAndRemoveJoin(
+                QueryInfo_.query_tree,
+                QueryInfo_.table_expression,
+                QueryInfo_.table_expression,
+                Context_,
+                requiredColumns);
+
+            QueryInfo_.query_tree = modifiedQuery;
+            QueryInfo_.query = DB::queryNodeToSelectQuery(QueryInfo_.query_tree);
+            modifiedQuery->setOriginalAST(QueryInfo_.query);
         }
 
         PrepareInput();
@@ -328,11 +355,13 @@ public:
         bool isInsert = SecondaryQueries_[0].Query->as<DB::ASTInsertQuery>();
 
         if (!isInsert) {
-            blockHeader = DB::InterpreterSelectQuery(
-                QueryInfo_.query,
-                Context_,
-                DB::SelectQueryOptions(ProcessingStage_).analyze())
-                    .getSampleBlock();
+            auto selectQueryOptions = DB::SelectQueryOptions(ProcessingStage_).analyze();
+            DB::Planner planner(
+                QueryInfo_.query_tree,
+                selectQueryOptions,
+                QueryInfo_.planner_context);
+            planner.buildQueryPlanIfNeeded();
+            blockHeader = planner.getQueryPlan().getCurrentDataStream().header;
         }
 
         for (size_t index = 0; index < SecondaryQueries_.size(); ++index) {
@@ -357,6 +386,23 @@ public:
                 ProcessingStage_,
                 blockHeader,
                 Logger);
+
+            if (!isInsert && ProcessingStage_ == DB::QueryProcessingStage::FetchColumns) {
+                auto& tableExpressionData = QueryInfo_.planner_context->getTableExpressionDataOrThrow(QueryInfo_.table_expression);
+
+                DB::ActionsDAG renameActionsDAG(blockHeader.getColumnsWithTypeAndName());
+                DB::ActionsDAG::NodeRawConstPtrs updatedActionsDAGOutputs;
+                for (auto& outputNode : renameActionsDAG.getOutputs()) {
+                    const auto* columnName = tableExpressionData.getColumnNameOrNull(outputNode->result_name);
+                    YT_VERIFY(columnName);
+                    updatedActionsDAGOutputs.push_back(&renameActionsDAG.addAlias(*outputNode, *columnName));
+                }
+                renameActionsDAG.getOutputs() = std::move(updatedActionsDAGOutputs);
+                auto renameExpression = std::make_shared<DB::ExpressionActions>(std::move(renameActionsDAG), DB::ExpressionActionsSettings::fromContext(Context_));
+                pipe.addSimpleTransform([&] (const DB::Block& header) {
+                    return std::make_shared<DB::ExpressionTransform>(header, renameExpression);
+                });
+            }
 
             QueryContext_->AddSecondaryQueryId(remoteQueryId);
 
@@ -456,21 +502,6 @@ private:
     TClusterNodes CliqueNodes_;
     std::vector<TSecondaryQuery> SecondaryQueries_;
     DB::Pipes Pipes_;
-
-    void RemoveJoinFromQuery()
-    {
-        if (!hasJoin(QueryInfo_.query->as<DB::ASTSelectQuery&>())) {
-            return;
-        }
-
-        QueryInfo_.query = QueryInfo_.query->clone();
-        auto& select = QueryInfo_.query->as<DB::ASTSelectQuery&>();
-
-        DB::TreeRewriterResult newRewriterResult = *QueryInfo_.syntax_analyzer_result;
-        YT_VERIFY(removeJoin(select, newRewriterResult, Context_));
-
-        QueryInfo_.syntax_analyzer_result = std::make_shared<DB::TreeRewriterResult>(std::move(newRewriterResult));
-    }
 
     void PrepareInput()
     {
@@ -587,7 +618,7 @@ private:
 
         i64 inputStreamsPerSecondaryQuery = QueryContext_->Settings->Execution->InputStreamsPerSecondaryQuery;
         if (inputStreamsPerSecondaryQuery <= 0) {
-            inputStreamsPerSecondaryQuery = Context_->getSettings().max_threads;
+            inputStreamsPerSecondaryQuery = Context_->getSettingsRef().max_threads;
         }
         NTracing::GetCurrentTraceContext()->AddTag(
             "chyt.input_streams_per_secondary_query",
@@ -756,17 +787,12 @@ public:
         return true;
     }
 
-    bool supportsIndexForIn() const override
+    bool supportsTrivialCountOptimization(const DB::StorageSnapshotPtr& /*storage_snapshot*/, DB::ContextPtr /*query_context*/) const override
     {
-        return Schema_->IsSorted();
+        return true;
     }
 
-    bool mayBenefitFromIndexForIn(const DB::ASTPtr& /*queryAst*/, DB::ContextPtr /*context*/, const DB::StorageMetadataPtr& /*metadata_snapshot*/) const override
-    {
-        return supportsIndexForIn();
-    }
-
-    bool supportsTrivialCountOptimization() const override
+    bool supportsFiltersAnalysis() const override
     {
         return true;
     }
@@ -914,7 +940,7 @@ public:
         TCurrentTraceContextGuard traceContextGuard(QueryContext_->TraceContext);
         auto timerGuard = QueryContext_->CreateStatisticsTimerGuard("/storage_distributor/read"_SP);
 
-        auto metadataSnapshot = storageSnapshot->getMetadataForQuery();
+        auto metadataSnapshot = storageSnapshot->metadata;
 
         auto preparer = BuildPreparer(
             columnNames,
@@ -997,10 +1023,10 @@ public:
             InvalidateCache(queryContext, {path}, invalidateMode);
         };
 
-        DB::BlockOutputStreamPtr outputStream;
+        DB::SinkToStoragePtr outputSink;
 
         if (table->Dynamic) {
-            outputStream = CreateDynamicTableBlockOutputStream(
+            outputSink = CreateSinkToDynamicTable(
                 path,
                 table->Schema,
                 dataTypes,
@@ -1013,7 +1039,7 @@ public:
             auto* queryContext = GetQueryContext(context);
             // Set append if it is not set.
             path.SetAppend(path.GetAppend(true /*defaultValue*/));
-            outputStream = CreateStaticTableBlockOutputStream(
+            outputSink = CreateSinkToStaticTable(
                 path,
                 table->Schema,
                 dataTypes,
@@ -1025,7 +1051,7 @@ public:
                 QueryContext_->Logger);
         }
 
-        return std::make_shared<DB::SinkToOutputStream>(std::move(outputStream));
+        return outputSink;
     }
 
     std::optional<DB::QueryPipeline> distributedWrite(const DB::ASTInsertQuery& query, DB::ContextPtr context) override
@@ -1085,9 +1111,19 @@ public:
         // Then, prepare distributed query; we need to interpret SELECT part in order to obtain some additional information
         // for preparer (like required columns or select query info).
 
-        DB::InterpreterSelectQuery selectInterpreter(select->clone(), context, DB::SelectQueryOptions().analyze());
+        DB::InterpreterSelectQueryAnalyzer selectInterpreter(select->clone(), context, DB::SelectQueryOptions().analyze());
 
-        auto selectQueryInfo = selectInterpreter.getQueryInfo();
+        auto selectQueryInfo = selectInterpreter.getPlanner().buildSelectQueryInfo();
+
+        auto* queryNode = selectQueryInfo.query_tree->as<DB::QueryNode>();
+        YT_VERIFY(queryNode);
+
+        auto& selectPlanner = selectInterpreter.getPlanner();
+        selectPlanner.buildQueryPlanIfNeeded();
+        auto& tableExpressionData = selectPlanner.getPlannerContext()->getTableExpressionDataOrThrow(
+            DB::extractLeftTableExpression(queryNode->getJoinTree()));
+
+        auto requiredColumns = tableExpressionData.getColumnNames();
 
         auto queryProcessingStage = getQueryProcessingStage(
             context,
@@ -1105,7 +1141,7 @@ public:
         queryContext->InitializeQueryWriteTransaction();
 
         auto preparer = sourceStorage->BuildPreparer(
-            selectInterpreter.getRequiredColumns(),
+            requiredColumns,
             /*metadataSnapshot*/ nullptr,
             selectQueryInfo,
             DB::Context::createCopy(context),

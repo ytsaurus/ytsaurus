@@ -930,7 +930,7 @@ TQueryResult TQueryTrackerProxy::GetQueryResult(
         queryResult.Schema = schemaNode && schemaNode->GetType() == ENodeType::List ? ConvertTo<TTableSchemaPtr>(schemaNode) : nullptr;
         queryResult.Error = record.Error;
         queryResult.IsTruncated = record.IsTruncated;
-        queryResult.FullResult = record.FullResult;
+        queryResult.FullResult = record.FullResult ? *record.FullResult : NYson::TYsonString();
         queryResult.DataStatistics = ConvertTo<TDataStatistics>(record.DataStatistics);
     }
 
@@ -1463,7 +1463,7 @@ TGetQueryTrackerInfoResult TQueryTrackerProxy::GetQueryTrackerInfo(
 
     attributes.ValidateKeysOnly();
 
-    TString clusterName = "";
+    std::string clusterName = "";
 
     if (attributes.AdmitsKeySlow("cluster_name")) {
         YT_LOG_DEBUG("Getting cluster name");
@@ -1496,11 +1496,23 @@ TGetQueryTrackerInfoResult TQueryTrackerProxy::GetQueryTrackerInfo(
         accessControlObjects = ConvertTo<std::vector<TString>>(allAcos);
     }
 
+    std::vector<std::string> clusters;
+    if (attributes.AdmitsKeySlow("clusters")) {
+        YT_LOG_DEBUG("Getting list of available clusters");
+        TListNodeOptions listOptions;
+        listOptions.ReadFrom = EMasterChannelKind::Cache;
+        listOptions.SuccessStalenessBound = TDuration::Minutes(1);
+        auto allClusters = WaitFor(StateClient_->ListNode("//sys/clusters", listOptions))
+            .ValueOrThrow();
+        clusters = ConvertTo<std::vector<std::string>>(allClusters);
+    }
+
     return TGetQueryTrackerInfoResult{
         .QueryTrackerStage = options.QueryTrackerStage,
         .ClusterName = std::move(clusterName),
         .SupportedFeatures = std::move(supportedFeatures),
         .AccessControlObjects = std::move(accessControlObjects),
+        .Clusters = std::move(clusters)
     };
 }
 

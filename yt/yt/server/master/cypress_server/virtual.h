@@ -40,6 +40,57 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TVirtualSinglecellWithRemoteItemsMapBase
+    : public NYTree::TVirtualMapBase
+{
+protected:
+    using TCellItemsMap = THashMap<NObjectClient::TCellTag, std::vector<NObjectClient::TObjectId>>;
+
+    NCellMaster::TBootstrap* const Bootstrap_;
+
+    TVirtualSinglecellWithRemoteItemsMapBase(
+        NCellMaster::TBootstrap* bootstrap,
+        NYTree::INodePtr owningNode = nullptr);
+
+    virtual TCellItemsMap GetItems(i64 limit) const = 0;
+
+    virtual bool NeedSuppressUpstreamSync(const NRpc::NProto::TRequestHeader& requestHeader) const;
+    virtual bool NeedSuppressTransactionCoordinatorSync(const NRpc::NProto::TRequestHeader& requestHeader) const;
+
+    void GetSelf(TReqGet* request, TRspGet* response, const TCtxGetPtr& context) override;
+    void ListSelf(TReqList* request, TRspList* response, const TCtxListPtr& context) override;
+
+private:
+    struct TFetchOpaqueItem
+    {
+        TString Key;
+        NYson::TYsonString Attributes;
+    };
+
+    struct TFetchItemsSession
+        : public TRefCounted
+    {
+        std::vector<TFetchOpaqueItem> Items;
+    };
+
+    using TFetchItemsSessionPtr = TIntrusivePtr<TFetchItemsSession>;
+
+    TFuture<void> FetchLocalItems(
+        const TFetchItemsSessionPtr& session,
+        const std::vector<NObjectClient::TObjectId>& items,
+        const NYTree::TAttributeFilter& attributeFilter);
+
+    TFuture<void> FetchRemoteItems(
+        const TFetchItemsSessionPtr& session,
+        NObjectClient::TCellTag cellTag,
+        const std::vector<NObjectClient::TObjectId>& items,
+        const NYTree::TAttributeFilter& attributeFilter,
+        bool suppressUpstreamSync,
+        bool suppressTransactionCoordinatorSync);
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TVirtualMulticellMapBase
     : public NYTree::TSupportsAttributes
     , public NYTree::ISystemAttributeProvider

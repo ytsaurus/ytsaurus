@@ -303,8 +303,7 @@ std::vector<IReaderFactoryPtr> CreateReaderFactories(
                     columnsToRead.emplace();
                     columnsToRead->reserve(columnFilter.GetIndexes().size());
                     for (auto columnIndex : columnFilter.GetIndexes()) {
-                        // TODO(babenko): switch to std::string
-                        columnsToRead->push_back(std::string(nameTable->GetName(columnIndex)));
+                        columnsToRead->emplace_back(nameTable->GetName(columnIndex));
                     }
                 } else {
                     columnsToRead = dataSource.Columns();

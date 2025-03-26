@@ -181,6 +181,7 @@ public:
     DEFINE_BYVAL_RO_PROPERTY(double, EffectiveFairShareStarvationTolerance, 1.0);
     DEFINE_BYVAL_RO_PROPERTY(TDuration, EffectiveFairShareStarvationTimeout);
     DEFINE_BYVAL_RO_PROPERTY(bool, EffectiveAggressiveStarvationEnabled, false);
+    DEFINE_BYVAL_RO_PROPERTY(std::optional<TDuration>, EffectiveWaitingForResourcesOnNodeTimeout);
 
     DEFINE_BYVAL_RO_PROPERTY(TSchedulerElement*, LowestStarvingAncestor, nullptr);
     DEFINE_BYVAL_RO_PROPERTY(TSchedulerElement*, LowestAggressivelyStarvingAncestor, nullptr);
@@ -246,6 +247,7 @@ public:
     EStarvationStatus GetStarvationStatus() const;
 
     TJobResources GetInstantResourceUsage(bool withPrecommit = false) const;
+    TResourceTreeElement::TDetailedResourceUsage GetInstantDetailedResourceUsage() const;
 
     virtual std::optional<double> GetSpecifiedFairShareStarvationTolerance() const = 0;
     virtual std::optional<TDuration> GetSpecifiedFairShareStarvationTimeout() const = 0;
@@ -511,6 +513,8 @@ public:
 
     virtual std::optional<bool> IsAggressiveStarvationEnabled() const = 0;
 
+    virtual std::optional<TDuration> GetSpecifiedWaitingForResourcesOnNodeTimeout() const = 0;
+
     //! Schedule allocations related methods.
     bool HasHigherPriorityInFifoMode(const TSchedulerElement* lhs, const TSchedulerElement* rhs) const;
 
@@ -525,7 +529,7 @@ public:
 
     virtual std::optional<bool> IsIdleCpuPolicyAllowed() const = 0;
 
-    virtual std::optional<TString> GetRedirectToCluster() const;
+    virtual std::optional<std::string> GetRedirectToCluster() const;
 
 protected:
     using TChildMap = THashMap<TSchedulerElementPtr, int>;
@@ -692,6 +696,8 @@ public:
 
     TJobResourcesConfigPtr GetSpecifiedNonPreemptibleResourceUsageThresholdConfig() const override;
 
+    std::optional<TDuration> GetSpecifiedWaitingForResourcesOnNodeTimeout() const override;
+
     //! Other methods.
     void BuildResourceMetering(
         const std::optional<TMeteringKey>& lowestMeteredAncestorKey,
@@ -706,7 +712,7 @@ public:
 
     std::optional<bool> IsIdleCpuPolicyAllowed() const override;
 
-    std::optional<TString> GetRedirectToCluster() const override;
+    std::optional<std::string> GetRedirectToCluster() const override;
 
 protected:
     //! Pre fair share update methods.
@@ -836,6 +842,7 @@ public:
     //! Trunk node interface.
     int GetSlotIndex() const;
 
+    void SetSchedulingTagFilter(TSchedulingTagFilter schedulingTagFilter);
     const TSchedulingTagFilter& GetSchedulingTagFilter() const override;
 
     TString GetUserName() const;
@@ -894,8 +901,7 @@ public:
         const TJobResources& availableResources,
         const TDiskResources& availableDiskResources,
         TDuration timeLimit,
-        const TString& treeId,
-        const TFairShareStrategyTreeConfigPtr& treeConfig);
+        const TString& treeId);
     void OnScheduleAllocationFailed(
         NProfiling::TCpuInstant now,
         const TString& treeId,
@@ -954,7 +960,7 @@ private:
 
     std::optional<EUnschedulableReason> ComputeUnschedulableReason() const;
 
-    TJobResources ComputeResourceDemand() const;
+    void InitializeResourceUsageAndDemand();
 
     TJobResourcesConfigPtr GetSpecifiedResourceLimitsConfig() const override;
 
@@ -1041,6 +1047,8 @@ public:
     std::optional<bool> IsAggressiveStarvationEnabled() const override;
 
     TJobResourcesConfigPtr GetSpecifiedNonPreemptibleResourceUsageThresholdConfig() const override;
+
+    std::optional<TDuration> GetSpecifiedWaitingForResourcesOnNodeTimeout() const override;
 
     void BuildPoolSatisfactionDigests(TFairSharePostUpdateContext* postUpdateContext);
 

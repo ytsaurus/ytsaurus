@@ -1126,7 +1126,8 @@ def _build_node_configs(multidaemon_config_output,
 
         set_at(config, "data_node/volume_manager/layer_locations", [layer_location_config])
 
-        log_name = "job_proxy-{0}".format(index)
+        # COMPAT
+        log_name = "job_proxy-{0}-slot-%slot_index%".format(index) if yt_config.enable_legacy_logging_scheme else "job_proxy-{0}".format(index)
 
         set_at(
             config,
@@ -1156,12 +1157,18 @@ def _build_node_configs(multidaemon_config_output,
         set_at(
             config,
             "exec_node/job_proxy/job_proxy_logging/job_proxy_stderr_path",
-            os.path.join(logs_dir, "job_proxy-{0}-stderr".format(index)),
+            # COMPAT
+            os.path.join(logs_dir, "job_proxy-{0}-stderr-slot-%slot_index%".format(index))
+            if yt_config.enable_legacy_logging_scheme
+            else os.path.join(logs_dir, "job_proxy-{0}-stderr".format(index)),
         )
         set_at(
             config,
             "exec_node/job_proxy/job_proxy_logging/executor_stderr_path",
-            os.path.join(logs_dir, "ytserver_exec-{0}-stderr".format(index))
+            # COMPAT
+            os.path.join(logs_dir, "ytserver_exec-{0}-stderr-slot-%slot_index%".format(index))
+            if yt_config.enable_legacy_logging_scheme
+            else os.path.join(logs_dir, "ytserver_exec-{0}-stderr".format(index))
         )
 
         set_at(
@@ -1668,6 +1675,12 @@ def _build_cluster_connection_config(yt_config,
             },
         },
         "permission_cache": {
+            "expire_after_successful_update_time": 0,
+            "expire_after_failed_update_time": 0,
+            "expire_after_access_time": 0,
+            "refresh_time": 0,
+        },
+        "group_attribute_cache": {
             "expire_after_successful_update_time": 0,
             "expire_after_failed_update_time": 0,
             "expire_after_access_time": 0,

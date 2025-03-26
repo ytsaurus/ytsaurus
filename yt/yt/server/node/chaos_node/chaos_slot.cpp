@@ -335,7 +335,8 @@ public:
         return orchid
             ->AddChild("transactions", TransactionManager_->GetOrchidService())
             ->AddChild("chaos_manager", ChaosManager_->GetOrchidService())
-            ->AddChild("coordinator_manager", CoordinatorManager_->GetOrchidService());
+            ->AddChild("coordinator_manager", CoordinatorManager_->GetOrchidService())
+            ->AddChild("replicated_table_tracker", ReplicatedTableTracker_->GetOrchidService());
     }
 
     NProfiling::TRegistry GetProfiler() override
@@ -385,7 +386,7 @@ public:
         return IChaosSlot::CellarType;
     }
 
-    NApi::IClientPtr CreateClusterClient(const TString& clusterName) const override
+    NApi::IClientPtr CreateClusterClient(const std::string& clusterName) const override
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
 
@@ -405,6 +406,22 @@ public:
     TDynamicReplicatedTableTrackerConfigPtr GetReplicatedTableTrackerConfig() const override
     {
         return Bootstrap_->GetReplicatedTableTrackerConfig();
+    }
+
+    bool IsVerboseLoggingEnabled() const override
+    {
+        YT_ASSERT_THREAD_AFFINITY_ANY();
+
+        return VerboseLoggingEnabled_;
+    }
+
+    void Reconfigure(const TChaosNodeDynamicConfigPtr& config) override
+    {
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
+
+        if (auto it = config->PerBundleConfigs.find(GetCellBundleName()); it != config->PerBundleConfigs.end()) {
+            VerboseLoggingEnabled_ = it->second->EnableVerboseLogging;
+        }
     }
 
 private:
@@ -433,6 +450,8 @@ private:
     NRpc::IServicePtr CoordinatorService_;
 
     IYPathServicePtr OrchidService_;
+
+    std::atomic<bool> VerboseLoggingEnabled_ = false;
 
     NLogging::TLogger Logger;
 

@@ -53,7 +53,7 @@
 
 #include <Common/DateLUT.h>
 #include <Common/Exception.h>
-#include <Common/StringUtils/StringUtils.h>
+#include <Common/StringUtils.h>
 #include <Interpreters/ProcessList.h>
 #include <IO/HTTPCommon.h>
 
@@ -342,11 +342,7 @@ public:
         // TODO(max42): eliminate this.
         auto attributesForMissedPaths = WaitFor(TableAttributeCache_->GetFromClient(
             missedPaths,
-            client,
-            GetCurrentInvoker(),
-            TableAttributesToFetch,
-            Logger(),
-            *Config_->TableAttributeCache->MasterReadOptions))
+            client))
             .ValueOrThrow();
 
         std::vector<TErrorOr<NYTree::IAttributeDictionaryPtr>> attributes;
@@ -764,7 +760,7 @@ private:
         TableAttributeCache_ = New<NObjectClient::TObjectAttributeCache>(
             Config_->TableAttributeCache,
             TableAttributesToFetch,
-            CacheClient_,
+            Connection_,
             ControlInvoker_,
             Logger(),
             ClickHouseYtProfiler().WithPrefix("/object_attribute_cache"));

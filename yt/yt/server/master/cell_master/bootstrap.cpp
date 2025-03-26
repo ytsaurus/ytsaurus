@@ -84,8 +84,10 @@
 #include <yt/yt/server/master/security_server/config.h>
 #include <yt/yt/server/master/security_server/security_manager.h>
 
-#include <yt/yt/server/master/sequoia_server/sequoia_manager.h>
+#include <yt/yt/server/master/sequoia_server/cypress_proxy_tracker.h>
+#include <yt/yt/server/master/sequoia_server/cypress_proxy_tracker_service.h>
 #include <yt/yt/server/master/sequoia_server/ground_update_queue_manager.h>
+#include <yt/yt/server/master/sequoia_server/sequoia_manager.h>
 #include <yt/yt/server/master/sequoia_server/sequoia_transaction_service.h>
 
 #include <yt/yt/server/master/table_server/table_manager.h>
@@ -161,7 +163,7 @@
 
 #include <yt/yt/ytlib/object_client/object_service_cache.h>
 
-#include <yt/yt/ytlib/sequoia_client/lazy_client.h>
+#include <yt/yt/ytlib/sequoia_client/client.h>
 
 #include <yt/yt/client/transaction_client/noop_timestamp_provider.h>
 #include <yt/yt/client/transaction_client/remote_timestamp_provider.h>
@@ -375,7 +377,7 @@ const NNative::IClientPtr& TBootstrap::GetRootClient() const
     return RootClient_;
 }
 
-ISequoiaClientPtr TBootstrap::GetSequoiaClient() const
+const ISequoiaClientPtr& TBootstrap::GetSequoiaClient() const
 {
     return SequoiaClient_;
 }
@@ -563,6 +565,11 @@ const IChaosManagerPtr& TBootstrap::GetChaosManager() const
 const ISequoiaManagerPtr& TBootstrap::GetSequoiaManager() const
 {
     return SequoiaManager_;
+}
+
+const ICypressProxyTrackerPtr& TBootstrap::GetCypressProxyTracker() const
+{
+    return CypressProxyTracker_;
 }
 
 const IHiveManagerPtr& TBootstrap::GetHiveManager() const
@@ -777,13 +784,9 @@ void TBootstrap::DoInitialize()
 
     NLogging::GetDynamicTableLogWriterFactory()->SetClient(RootClient_);
 
-    SequoiaClient_ = CreateLazySequoiaClient(RootClient_, Logger());
-
-    // If Sequoia is local it's safe to create the client right now.
-    const auto& groundClusterName = Config_->ClusterConnection->Dynamic->SequoiaConnection->GroundClusterName;
-    if (!groundClusterName) {
-        SequoiaClient_->SetGroundClient(RootClient_);
-    }
+    SequoiaClient_ = CreateSequoiaClient(
+        Config_->ClusterConnection->Dynamic->SequoiaConnection,
+        RootClient_);
 
     NativeAuthenticator_ = NNative::CreateNativeAuthenticator(ClusterConnection_);
 
@@ -938,6 +941,8 @@ void TBootstrap::DoInitialize()
 
     SequoiaManager_ = CreateSequoiaManager(this);
 
+    CypressProxyTracker_ = CreateCypressProxyTracker(this, ChannelFactory_);
+
     ReplicatedTableTracker_ = New<TReplicatedTableTracker>(Config_->ReplicatedTableTracker, this);
 
     SchedulerPoolManager_ = CreateSchedulerPoolManager(this);
@@ -996,6 +1001,7 @@ void TBootstrap::DoInitialize()
     BackupManager_->Initialize();
     ChaosManager_->Initialize();
     SchedulerPoolManager_->Initialize();
+    CypressProxyTracker_->Initialize();
     GroundUpdateQueueManager_->Initialize();
     GraftingManager_->Initialize();
     MulticellStatisticsCollector_->Initialize();
@@ -1019,19 +1025,6 @@ void TBootstrap::DoInitialize()
         HydraFacade_->GetAutomatonInvoker(EAutomatonThreadQueue::CellDirectorySynchronizer));
     CellDirectorySynchronizer_->Start();
 
-    auto localTransactionParticipantProvider = CreateTransactionParticipantProvider(
-        CellDirectory_,
-        CellDirectorySynchronizer_,
-        TimestampProvider_,
-        GetKnownParticipantCellTags());
-
-    auto transactionParticipantProviders = std::vector{std::move(localTransactionParticipantProvider)};
-
-    if (groundClusterName) {
-        auto remoteTransactionParticipantProvider = CreateTransactionParticipantProvider(ClusterConnection_->GetClusterDirectory());
-        transactionParticipantProviders.push_back(std::move(remoteTransactionParticipantProvider));
-    }
-
     TransactionSupervisor_ = CreateTransactionSupervisor(
         Config_->TransactionSupervisor,
         HydraFacade_->GetAutomatonInvoker(EAutomatonThreadQueue::TransactionSupervisor),
@@ -1042,7 +1035,15 @@ void TBootstrap::DoInitialize()
         CellId_,
         PrimaryCellTag_,
         TimestampProvider_,
-        std::move(transactionParticipantProviders),
+        {
+            CreateTransactionParticipantProvider(
+                CellDirectory_,
+                CellDirectorySynchronizer_,
+                TimestampProvider_,
+                GetKnownParticipantCellTags()),
+            CreateTransactionParticipantProvider(
+                ClusterConnection_->GetClusterDirectory()),
+        },
         NativeAuthenticator_);
 
     auto discoveryServerConfig = New<TDiscoveryServerConfig>();
@@ -1081,6 +1082,7 @@ void TBootstrap::DoInitialize()
     RpcServer_->RegisterService(CreateMasterChaosService(this));
     RpcServer_->RegisterService(CreateCellTrackerService(this));
     RpcServer_->RegisterService(CreateSequoiaTransactionService(this));
+    RpcServer_->RegisterService(CreateCypressProxyTrackerService(this));
     RpcServer_->RegisterService(CreateIncumbentService(this));
     RpcServer_->RegisterService(CreateTabletHydraService(this));
     RpcServer_->RegisterService(CreateReplicatedTableTrackerService(this, rttInvoker));
@@ -1126,16 +1128,6 @@ void TBootstrap::InitializeTimestampProvider()
 
 void TBootstrap::DoStart()
 {
-    if (const auto& groundClusterName = Config_->ClusterConnection->Dynamic->SequoiaConnection->GroundClusterName) {
-        ClusterConnection_->GetClusterDirectory()->SubscribeOnClusterUpdated(
-            BIND_NO_PROPAGATE([=, this] (const std::string& clusterName, const INodePtr& /*configNode*/) {
-                if (clusterName == *groundClusterName) {
-                    auto groundConnection = ClusterConnection_->GetClusterDirectory()->GetConnection(*groundClusterName);
-                    auto groundClient = groundConnection->CreateNativeClient({.User = NSecurityClient::RootUserName});
-                    SequoiaClient_->SetGroundClient(std::move(groundClient));
-                }
-            }));
-    }
     ClusterConnection_->GetClusterDirectorySynchronizer()->Start();
 
     // Initialize periodic update of latest timestamp.
@@ -1200,6 +1192,10 @@ void TBootstrap::DoStart()
         orchidRoot,
         "/reign",
         ConvertTo<INodePtr>(GetCurrentReign()));
+    SetNodeByYPath(
+        orchidRoot,
+        "/sequoia_reign",
+        ConvertToNode(GetCurrentSequoiaReign()));
     SetBuildAttributes(
         orchidRoot,
         "master");

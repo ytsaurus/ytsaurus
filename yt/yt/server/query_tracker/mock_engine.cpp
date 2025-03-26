@@ -25,7 +25,7 @@ public:
     TTableSchemaPtr Schema;
     std::vector<INodePtr> Rows;
     bool IsTruncated;
-    std::optional<NYson::TYsonString> FullResult;
+    NYson::TYsonString FullResult;
 
     REGISTER_YSON_STRUCT(TMockResult);
 

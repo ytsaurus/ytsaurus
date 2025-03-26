@@ -174,8 +174,25 @@ TSharedRange<TRowRange> LiteralRangesListToRows(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TString InferReferenceName(const NAst::TReference& ref)
+{
+    TStringBuilder builder;
+
+    if (ref.TableName) {
+        builder.AppendString(*ref.TableName);
+        builder.AppendChar('.');
+    }
+
+    // TODO(lukyan): Do not use final = true if query has any table aliases.
+    NAst::FormatIdFinal(&builder, ref.ColumnName);
+
+    return builder.Flush();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct TNotExpressionPropagator
-    : TRewriter<TNotExpressionPropagator>
+    : public TRewriter<TNotExpressionPropagator>
 {
     using TBase = TRewriter<TNotExpressionPropagator>;
 
@@ -233,7 +250,7 @@ struct TNotExpressionPropagator
 };
 
 struct TCastEliminator
-    : TRewriter<TCastEliminator>
+    : public TRewriter<TCastEliminator>
 {
     using TBase = TRewriter<TCastEliminator>;
 
@@ -263,7 +280,7 @@ struct TCastEliminator
 };
 
 struct TExpressionSimplifier
-    : TRewriter<TExpressionSimplifier>
+    : public TRewriter<TExpressionSimplifier>
 {
     using TBase = TRewriter<TExpressionSimplifier>;
 
@@ -592,7 +609,6 @@ std::optional<TValue> FoldConstants(
     return std::nullopt;
 }
 
-
 ////////////////////////////////////////////////////////////////////////////////
 
 TExprBuilder::TExprBuilder(
@@ -654,25 +670,21 @@ void TExprBuilder::SetGroupData(const TNamedItemList* groupItems, TAggregateItem
     AfterGroupBy_ = true;
 }
 
-const std::optional<TBaseColumn> TExprBuilder::FindColumn(const TNamedItemList& schema, const std::string& name)
-{
-    for (int index = 0; index < std::ssize(schema); ++index) {
-        if (schema[index].Name == name) {
-            return TBaseColumn(name, schema[index].Expression->LogicalType);
-        }
-    }
-    return std::nullopt;
-}
-
-std::optional<TBaseColumn> TExprBuilder::GetColumnPtr(const NAst::TReference& reference)
+TLogicalTypePtr TExprBuilder::GetColumnPtr(const NAst::TReference& reference)
 {
     if (AfterGroupBy_) {
         // Search other way after group by.
         if (reference.TableName) {
-            return std::nullopt;
+            return nullptr;
         }
 
-        return FindColumn(*GroupItems_, reference.ColumnName);
+        for (int index = 0; index < std::ssize(*GroupItems_); ++index) {
+            const auto& item = (*GroupItems_)[index];
+            if (item.Name == reference.ColumnName) {
+                return item.Expression->LogicalType;
+            }
+        }
+        return nullptr;
     }
 
     size_t lastTableIndex = Tables_.size() - 1;
@@ -688,9 +700,9 @@ std::optional<TBaseColumn> TExprBuilder::GetColumnPtr(const NAst::TReference& re
         // Update LastTableIndex after check.
         found->second.LastTableIndex = lastTableIndex;
 
-        return found->second.Column;
+        return found->second.Column.LogicalType;
     } else if (auto [table, type] = ResolveColumn(reference); table) {
-        auto formattedName = NAst::InferColumnName(reference);
+        auto formattedName = InferReferenceName(reference);
         auto column = TBaseColumn(formattedName, type);
 
         auto emplaced = Lookup_.emplace(
@@ -701,9 +713,9 @@ std::optional<TBaseColumn> TExprBuilder::GetColumnPtr(const NAst::TReference& re
                 size_t(table - Tables_.data())});
 
         YT_VERIFY(emplaced.second);
-        return column;
+        return type;
     } else {
-        return std::nullopt;
+        return nullptr;
     }
 }
 
@@ -720,7 +732,7 @@ void TExprBuilder::CheckNoOtherColumn(const NAst::TReference& reference, size_t 
 
         if (alias == reference.TableName && schema.FindColumn(reference.ColumnName)) {
             THROW_ERROR_EXCEPTION("Ambiguous resolution for column %Qv",
-                NAst::InferColumnName(reference));
+                InferReferenceName(reference));
         }
     }
 }
@@ -739,7 +751,7 @@ std::pair<const TTable*, TLogicalTypePtr> TExprBuilder::ResolveColumn(const NAst
         }
 
         if (auto* column = schema.FindColumn(reference.ColumnName)) {
-            auto formattedName = NAst::InferColumnName(reference);
+            auto formattedName = InferReferenceName(reference);
 
             if (mapping) {
                 mapping->push_back(TColumnDescriptor{

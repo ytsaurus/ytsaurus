@@ -78,7 +78,7 @@ public:
             ? 0
             : -Modulo_ + 1;
 
-        return MakeUnversionedSentinelValue(EValueType::Null);
+        return MakeUnversionedSentinelValue(EValueType::Null, Value_.Id);
     }
 private:
     TUnversionedValue Value_;
@@ -356,6 +356,7 @@ static ui64 Estimate(ui64 cardinalityMinusOne, TRange<ui64> divisors)
 {
     ui64 estimate = 1;
     for (auto divisor : divisors) {
+        THROW_ERROR_EXCEPTION_IF(divisor == 0, "Division by zero");
         // Ceil division.
         // Use cardinalityMinusOne + divisor instead of cardinality + divisor - 1.
         estimate = SaturationArithmeticMultiply(
@@ -540,6 +541,7 @@ public:
                     if (IsIntegralType(value.Type)) {
                         value.Id = columnId;
                         modulo = value;
+                        THROW_ERROR_EXCEPTION_IF(modulo.Data.Int64 == 0, "Division by zero");
                     }
                 }
             }
@@ -868,6 +870,8 @@ public:
                     rowRange = RowRangeFromPrefix(buffer, TRange(boundRow.Begin(), prefixSize));
                 }
 
+                VerifyIdsInRange(rowRange);
+
                 YT_LOG_DEBUG_IF(VerboseLogging_, "Producing range [%kv .. %kv]", rowRange.first, rowRange.second);
 
                 resultRanges.push_back(rowRange);
@@ -955,6 +959,8 @@ TSharedRange<TRowRange> CreateNewHeavyRangeInferrer(
             moduloExpansion *= GetEvaluatedColumnModulo(evaluator->GetExpression(index));
         }
     }
+
+    THROW_ERROR_EXCEPTION_IF(moduloExpansion == 0, "Division by zero");
 
     auto rangeCountLimit = options.RangeExpansionLimit / moduloExpansion + (options.RangeExpansionLimit % moduloExpansion > 0);
 
@@ -1094,6 +1100,8 @@ TSharedRange<TRowRange> CreateNewLightRangeInferrer(
             } else {
                 rowRange = RowRangeFromPrefix(buffer.Get(), TRange(boundRow.Begin(), prefixSize));
             }
+
+            VerifyIdsInRange(rowRange);
 
             if (resultRanges.empty()) {
                 resultRanges.push_back(rowRange);

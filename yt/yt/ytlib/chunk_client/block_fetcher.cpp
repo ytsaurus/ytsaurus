@@ -13,11 +13,11 @@
 
 #include <yt/yt/core/concurrency/action_queue.h>
 
-#include <yt/yt/core/misc/memory_usage_tracker.h>
-
 #include <yt/yt/core/rpc/dispatcher.h>
 
 #include <yt/yt/core/profiling/timing.h>
+
+#include <library/cpp/yt/memory/memory_usage_tracker.h>
 
 namespace NYT::NChunkClient {
 

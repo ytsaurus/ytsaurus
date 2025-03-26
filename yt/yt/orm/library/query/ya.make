@@ -13,7 +13,9 @@ SRCS(
     query_evaluator.cpp
     query_optimizer.cpp
     query_rewriter.cpp
+    split_filter.cpp
     type_inference.cpp
+    unaggregated_column_detector.cpp
 )
 
 PEERDIR(

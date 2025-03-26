@@ -1345,8 +1345,8 @@ private:
                 ? std::make_optional(TYsonString(request->cypress_annotations(), EYsonType::Node))
                 : std::nullopt,
             .BuildVersion = request->has_build_version() ? std::make_optional(request->build_version()) : std::nullopt,
-            .Rack = YT_PROTO_OPTIONAL((*request), rack),
-            .DataCenter = YT_PROTO_OPTIONAL((*request), data_center),
+            .Rack = YT_OPTIONAL_FROM_PROTO((*request), rack),
+            .DataCenter = YT_OPTIONAL_FROM_PROTO((*request), data_center),
         };
 
         EnsureNodeObjectCreated(options);

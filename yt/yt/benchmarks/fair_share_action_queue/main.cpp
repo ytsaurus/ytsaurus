@@ -27,7 +27,7 @@ namespace NYT::NConcurrency {
 
 ITwoLevelFairShareThreadPoolPtr CreateOldTwoLevelFairShareThreadPool(
     int threadCount,
-    const TString& threadNamePrefix,
+    const std::string& threadNamePrefix,
     IPoolWeightProviderPtr poolWeightProvider = nullptr);
 
 } // namespace NYT::NConcurrency
@@ -485,4 +485,3 @@ int main(int argc, char** argv)
 
     return 0;
 }
-

@@ -72,7 +72,7 @@ struct AsyncTaskExecutor::Routine
         AsyncTaskExecutor & executor;
         SuspendCallback suspend_callback;
 
-        void operator()(int fd, Poco::Timespan timeout, AsyncEventTimeoutType type, const std::string & desc, uint32_t events)
+        void operator()(int fd, DBPoco::Timespan timeout, AsyncEventTimeoutType type, const std::string & desc, uint32_t events)
         {
             executor.processAsyncEvent(fd, timeout, type, desc, events);
             suspend_callback();
@@ -113,7 +113,7 @@ void AsyncTaskExecutor::destroyFiber()
     Fiber to_destroy = std::move(fiber);
 }
 
-String getSocketTimeoutExceededMessageByTimeoutType(AsyncEventTimeoutType type, Poco::Timespan timeout, const String & socket_description)
+String getSocketTimeoutExceededMessageByTimeoutType(AsyncEventTimeoutType type, DBPoco::Timespan timeout, const String & socket_description)
 {
     switch (type)
     {

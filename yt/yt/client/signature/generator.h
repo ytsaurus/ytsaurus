@@ -15,7 +15,7 @@ struct ISignatureGenerator
     //! based on its payload.
     virtual void Sign(const TSignaturePtr& signature) = 0;
 
-    [[nodiscard]] TSignaturePtr Sign(NYson::TYsonString data);
+    [[nodiscard]] TSignaturePtr Sign(std::string payload);
 };
 
 DEFINE_REFCOUNTED_TYPE(ISignatureGenerator)
@@ -23,6 +23,7 @@ DEFINE_REFCOUNTED_TYPE(ISignatureGenerator)
 ////////////////////////////////////////////////////////////////////////////////
 
 ISignatureGeneratorPtr CreateDummySignatureGenerator();
+const ISignatureGeneratorPtr& GetDummySignatureGenerator();
 
 ISignatureGeneratorPtr CreateAlwaysThrowingSignatureGenerator();
 

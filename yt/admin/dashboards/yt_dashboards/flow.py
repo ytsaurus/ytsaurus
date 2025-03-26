@@ -38,7 +38,7 @@ def build_resource_usage():
                 .aggr("thread")
                 .unit("UNIT_PERCENT"))
             .cell(
-                "Busiest thread (Controller)",
+                "Busiest thread pool (Controller)",
                 MonitoringExpr(FlowController("yt.resource_tracker.utilization"))
                     .unit("UNIT_PERCENT_UNIT")
                     .all("thread")
@@ -51,7 +51,7 @@ def build_resource_usage():
                 .aggr("thread")
                 .unit("UNIT_PERCENT"))
             .cell(
-                "Busiest thread (Worker)",
+                "Busiest thread pool (Worker)",
                 MonitoringExpr(FlowWorker("yt.resource_tracker.utilization"))
                     .unit("UNIT_PERCENT_UNIT")
                     .all("thread")
@@ -282,6 +282,11 @@ def build_epoch_timings():
                     .all("computation_id")
                     .unit("UNIT_COUNT")
                     .stack(False))
+            .cell(
+                "Controller iteration duration",
+                MonitoringExpr(FlowController("yt.flow.controller.*iteration_time.max"))
+                    .stack(False)
+                    .unit("UNIT_SECONDS"))
     )
 
 def build_logging():
@@ -352,6 +357,33 @@ def build_message_distributor():
                     .unit("UNIT_COUNT"))
     )
 
+def build_partition_aggregates():
+    return (Rowset()
+        .stack(False)
+        .all("computation_id")
+        .row()
+            .cell(
+                "Max partition cpu usage",
+                MonitoringExpr(FlowController("yt.flow.controller.computations.partition_cpu_usage.max"))
+                    .alias("{{computation_id}}"))
+            .cell(
+                "Average partition cpu usage",
+                MonitoringExpr(FlowController("yt.flow.controller.computations.partition_cpu_usage.avg"))
+                    .alias("{{computation_id}}"))
+            .cell(
+                "Max partition messages per second",
+                MonitoringExpr(FlowController("yt.flow.controller.computations.partition_input_messages_per_second.max"))
+                    .all("stream_id")
+                    .alias("{{computation_id}} - {{stream_id}}")
+                    .unit("UNIT_COUNTS_PER_SECOND"))
+            .cell(
+                "Average partition messages per second",
+                MonitoringExpr(FlowController("yt.flow.controller.computations.partition_input_messages_per_second.avg"))
+                    .all("stream_id")
+                    .alias("{{computation_id}} - {{stream_id}}")
+                    .unit("UNIT_COUNTS_PER_SECOND"))
+    )
+
 def build_pipeline():
     d = Dashboard()
     d.add(build_versions())
@@ -366,6 +398,7 @@ def build_pipeline():
     d.add(build_epoch_timings())
     d.add(build_logging())
     d.add(build_message_distributor())
+    d.add(build_partition_aggregates())
 
     d.set_title("[YT Flow] Pipeline general")
     d.add_parameter("project", "Pipeline project", MonitoringTextDashboardParameter())

@@ -198,17 +198,17 @@ i64 GetWriteLogRowCount(const TTransactionWriteLog& writeLog)
 class TEnumeratingWriteLogReader
 {
 public:
-    TEnumeratingWriteLogReader(const TTransactionIndexedWriteLog& writeLog)
-    : WriteLogEnd_(writeLog.End())
-    , WriteLogIterator_(writeLog.Begin())
-    , WriteLogBatch_(WriteLogIterator_->WriteCommands.Commands())
-    { }
-
     struct TEnumeratedWireWriteCommand
     {
         const TWireWriteCommand& Command;
         TOpaqueWriteLogIndex WriteLogIndex;
     };
+
+    explicit TEnumeratingWriteLogReader(const TTransactionIndexedWriteLog& writeLog)
+        : WriteLogEnd_(writeLog.End())
+        , WriteLogIterator_(writeLog.Begin())
+        , WriteLogBatch_(WriteLogIterator_->WriteCommands.Commands())
+    { }
 
     TEnumeratedWireWriteCommand NextCommand()
     {
@@ -962,9 +962,7 @@ private:
             using NYT::Load;
 
             Load(context, RowsPrepared);
-            if ((context.GetVersion() >= ETabletReign::PerRowSequencer_25_1 && context.GetVersion() < ETabletReign::Start_25_2) ||
-                context.GetVersion() >= ETabletReign::PerRowSequencer)
-            {
+            if (context.GetVersion() >= ETabletReign::PerRowSequencer) {
                 Load(context, SomeRowsCommitted);
             }
         }

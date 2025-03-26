@@ -10,7 +10,7 @@ from yt_commands import (
 
 from yt_type_helpers import make_schema
 
-from yt_helpers import skip_if_renaming_disabled, profiler_factory
+from yt_helpers import profiler_factory
 
 from yt.environment.helpers import assert_items_equal
 from yt.common import YtError
@@ -229,8 +229,6 @@ class CheckPermissionBase(YTEnvSetup):
     @pytest.mark.parametrize("acl_path", ["//tmp/dir/t", "//tmp/dir"])
     @pytest.mark.parametrize("rename_columns", [False, True])
     def test_check_permission_for_columnar_acl(self, acl_path, rename_columns):
-        skip_if_renaming_disabled(self.Env)
-
         create_user("u1")
         create_user("u2")
         create_user("u3")
@@ -1677,7 +1675,7 @@ class TestCypressAcls(CheckPermissionBase):
             "inherit_acl": ("//tmp/dir/subdir1", False),
         }[key]
 
-        with pytest.raises(YtError, match="It will be impossible for this user to revert this modification"):
+        with raises_yt_error("It will be impossible for this user to revert this modification"):
             request_func(path=path, key=key, value=value, user='u', force=False)
 
         request_func(path=path, key=key, value=value, user='u', force=True)
@@ -1706,7 +1704,7 @@ class TestCypressAcls(CheckPermissionBase):
             "multiset": self.__test_multiset_attributes_request,
         }[request_type]
 
-        with pytest.raises(YtError, match="It will be impossible for this user to revert this modification"):
+        with raises_yt_error("It will be impossible for this user to revert this modification"):
             request_func(path="//tmp/dir", key="owner", value="u2", user="u2", force=False)
 
         request_func(path="//tmp/dir", key="owner", value="u2", user="u2", force=True)
@@ -1808,10 +1806,10 @@ class TestCypressAcls(CheckPermissionBase):
         set("//sys/@config/security_manager/max_user_tag_size", 500)
         set("//sys/@config/security_manager/max_user_tag_count", 4)
 
-        with pytest.raises(YtError, match="user tag size limit exceeded"):
+        with raises_yt_error("user tag size limit exceeded"):
             set("//sys/users/u/@tags", ["tag_big" * 100])
 
-        with pytest.raises(YtError, match="user tags count limit exceeded"):
+        with raises_yt_error("user tags count limit exceeded"):
             set("//sys/users/u/@tags", [f"tag_{i}" for i in range(10)])
 
     @authors("vovamelnikov")
@@ -1828,7 +1826,7 @@ class TestCypressAcls(CheckPermissionBase):
             },
         )
 
-        with pytest.raises(YtError, match="tag filter size limit exceeded"):
+        with raises_yt_error("tag filter size limit exceeded"):
             set("//tmp/dir/@acl/0/subject_tag_filter", "&".join([f"tag_{i}" for i in range(10)]))
 
     @authors("h0pless")
@@ -1864,7 +1862,7 @@ class TestCypressAcls(CheckPermissionBase):
             "//tmp/cool_dir/cool_table",
             authenticated_user="George50",
         )
-        with pytest.raises(YtError, match="Access denied for user"):
+        with raises_yt_error("Access denied for user"):
             create(
                 "table",
                 "//tmp/uncool_dir/cool_table",

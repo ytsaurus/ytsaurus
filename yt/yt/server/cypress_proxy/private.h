@@ -18,8 +18,8 @@ enum class EInvokeResult
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DECLARE_REFCOUNTED_CLASS(TCypressProxyBootstrapConfig)
-DECLARE_REFCOUNTED_CLASS(TCypressProxyProgramConfig)
+DECLARE_REFCOUNTED_STRUCT(TCypressProxyBootstrapConfig)
+DECLARE_REFCOUNTED_STRUCT(TCypressProxyProgramConfig)
 
 DECLARE_REFCOUNTED_STRUCT(IBootstrap)
 

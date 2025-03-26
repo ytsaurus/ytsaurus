@@ -144,9 +144,14 @@ public:
     TFuture<void> UpdateOperationRuntimeParameters(
         TOperationId operationId,
         NScheduler::TOperationRuntimeParametersUpdatePtr update);
+    TFuture<void> PatchSpec(
+        TOperationId operationId,
+        NYTree::INodePtr newCumulativeSpecPatch,
+        bool dryRun);
     TFuture<std::optional<TOperationControllerInitializeResult>> InitializeOperation(
         const TOperationPtr& operation,
-        const std::optional<NScheduler::TControllerTransactionIds>& transactions);
+        const std::optional<NScheduler::TControllerTransactionIds>& transactions,
+        NYTree::INodePtr cumulativeSpecPatch);
     TFuture<std::optional<TOperationControllerPrepareResult>> PrepareOperation(const TOperationPtr& operation);
     TFuture<std::optional<TOperationControllerMaterializeResult>> MaterializeOperation(const TOperationPtr& operation);
     TFuture<std::optional<TOperationControllerReviveResult>> ReviveOperation(const TOperationPtr& operation);

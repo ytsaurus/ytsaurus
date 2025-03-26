@@ -150,7 +150,7 @@ const T& GetRequiredAttribute(const IWithAttributes& withAttributes, const TType
 }
 
 template <typename T>
-T GetAttributeOrDefault(const IWithAttributes& withAttributes, const TTypeTag<T>& key, const T& defaultValue)
+const T& GetAttributeOrDefault(const IWithAttributes& withAttributes, const TTypeTag<T>& key, const T& defaultValue)
 {
     const auto* attribute = GetAttribute(withAttributes, key);
     if (attribute) {
@@ -163,4 +163,3 @@ T GetAttributeOrDefault(const IWithAttributes& withAttributes, const TTypeTag<T>
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NRoren::NPrivate
-

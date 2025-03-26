@@ -21,9 +21,9 @@ class WriteBufferFromFileBase;
 class DiskEncrypted : public IDisk
 {
 public:
-    DiskEncrypted(const String & name_, const Poco::Util::AbstractConfiguration & config_, const String & config_prefix_, const DisksMap & map_);
+    DiskEncrypted(const String & name_, const DBPoco::Util::AbstractConfiguration & config_, const String & config_prefix_, const DisksMap & map_);
     DiskEncrypted(const String & name_, std::unique_ptr<const DiskEncryptedSettings> settings_,
-                  const Poco::Util::AbstractConfiguration & config_, const String & config_prefix_);
+                  const DBPoco::Util::AbstractConfiguration & config_, const String & config_prefix_);
     DiskEncrypted(const String & name_, std::unique_ptr<const DiskEncryptedSettings> settings_);
 
     const String & getName() const override { return encrypted_name; }
@@ -60,9 +60,9 @@ public:
 
     void createDirectories(const String & path) override
     {
-        auto tx = createEncryptedTransaction();
-        tx->createDirectories(path);
-        tx->commit();
+        auto wrapped_path = wrappedPath(path);
+        /// Delegate disk can have retry logic for recursive directory creation. Let it handle it.
+        delegate->createDirectories(wrapped_path);
     }
 
     void clearDirectory(const String & path) override
@@ -112,7 +112,13 @@ public:
         delegate->listFiles(wrapped_path, file_names);
     }
 
-    void copyDirectoryContent(const String & from_dir, const std::shared_ptr<IDisk> & to_disk, const String & to_dir) override;
+    void copyDirectoryContent(
+        const String & from_dir,
+        const std::shared_ptr<IDisk> & to_disk,
+        const String & to_dir,
+        const ReadSettings & read_settings,
+        const WriteSettings & write_settings,
+        const std::function<void()> & cancellation_hook) override;
 
     std::unique_ptr<ReadBufferFromFileBase> readFile(
         const String & path,
@@ -229,14 +235,14 @@ public:
 
     static size_t convertFileSizeToEncryptedFileSize(size_t file_size);
 
-    void setLastModified(const String & path, const Poco::Timestamp & timestamp) override
+    void setLastModified(const String & path, const DBPoco::Timestamp & timestamp) override
     {
         auto tx = createEncryptedTransaction();
         tx->setLastModified(path, timestamp);
         tx->commit();
     }
 
-    Poco::Timestamp getLastModified(const String & path) const override
+    DBPoco::Timestamp getLastModified(const String & path) const override
     {
         auto wrapped_path = wrappedPath(path);
         return delegate->getLastModified(wrapped_path);
@@ -281,7 +287,7 @@ public:
         delegate->onFreeze(wrapped_path);
     }
 
-    void applyNewSettings(const Poco::Util::AbstractConfiguration & config, ContextPtr context, const String & config_prefix, const DisksMap & map) override;
+    void applyNewSettings(const DBPoco::Util::AbstractConfiguration & config, ContextPtr context, const String & config_prefix, const DisksMap & map) override;
 
     DataSourceDescription getDataSourceDescription() const override
     {
@@ -343,6 +349,15 @@ public:
     {
         return delegate;
     }
+
+#if USE_AWS_S3
+    std::shared_ptr<const S3::Client> getS3StorageClient() const override
+    {
+        return delegate->getS3StorageClient();
+    }
+
+    std::shared_ptr<const S3::Client> tryGetS3StorageClient() const override { return delegate->tryGetS3StorageClient(); }
+#endif
 
 private:
     String wrappedPath(const String & path) const

@@ -85,10 +85,9 @@ DEFINE_REFCOUNTED_TYPE(TUserReadRequestComplexityLimitsOptions)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TUserRequestLimitsConfig
+struct TUserRequestLimitsConfig
     : public NYTree::TYsonStruct
 {
-public:
     TUserRequestLimitsOptionsPtr ReadRequestRateLimits;
     TUserRequestLimitsOptionsPtr WriteRequestRateLimits;
     TUserQueueSizeLimitsOptionsPtr RequestQueueSizeLimits;
@@ -172,10 +171,9 @@ DEFINE_REFCOUNTED_TYPE(TSerializableUserReadRequestComplexityLimitsOptions)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TSerializableUserRequestLimitsConfig
+struct TSerializableUserRequestLimitsConfig
     : public NYTree::TYsonStruct
 {
-public:
     static TSerializableUserRequestLimitsConfigPtr CreateFrom(
         const TUserRequestLimitsConfigPtr& config,
         const NCellMaster::IMulticellManagerPtr& multicellManager);
@@ -259,8 +257,6 @@ public:
     void SetRequestQueueSizeLimit(int limit, NObjectServer::TCellTag cellTag = NObjectClient::InvalidCellTag);
 
     void UpdateCounters(const TUserWorkload& workloadType);
-
-    void LogIfPendingRemoval(const TString& message) const;
 
 protected:
     // Transient

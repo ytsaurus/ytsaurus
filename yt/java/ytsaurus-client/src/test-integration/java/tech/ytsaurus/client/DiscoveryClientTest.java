@@ -29,9 +29,9 @@ public class DiscoveryClientTest extends YTsaurusClientTestBase {
     @Before
     public void setup() {
         YTsaurusFixture ytFixture = createYtFixture();
-        ytFixture.yt.waitProxies().join();
+        ytFixture.getYt().waitProxies().join();
 
-        YTreeNode node = ytFixture.yt.getNode("//sys/@cluster_connection/discovery_connection/addresses").join();
+        YTreeNode node = ytFixture.getYt().getNode("//sys/@cluster_connection/discovery_connection/addresses").join();
         Discoverer discoverer = new StaticDiscoverer(node);
         this.discoveryClient = DiscoveryClient.builder()
                 .setDiscoverer(discoverer)

@@ -8,6 +8,7 @@ IF (NOT OPENSOURCE)
         benchmarks
         bigrt
         bigrt/ut
+        flow
         doc
         interface
         interface/ut

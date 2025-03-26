@@ -8,9 +8,9 @@ namespace NYT::NClusterClock {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DECLARE_REFCOUNTED_CLASS(TClusterClockBootstrapConfig)
-DECLARE_REFCOUNTED_CLASS(TClusterProgramClockConfig)
-DECLARE_REFCOUNTED_CLASS(TClockHydraManagerConfig)
+DECLARE_REFCOUNTED_STRUCT(TClusterClockBootstrapConfig)
+DECLARE_REFCOUNTED_STRUCT(TClusterProgramClockConfig)
+DECLARE_REFCOUNTED_STRUCT(TClockHydraManagerConfig)
 
 DECLARE_REFCOUNTED_CLASS(TClockAutomaton)
 DECLARE_REFCOUNTED_CLASS(TClockAutomatonPart)

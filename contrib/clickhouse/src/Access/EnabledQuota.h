@@ -2,7 +2,7 @@
 
 #include <Access/Common/QuotaDefs.h>
 #include <Core/UUID.h>
-#include <Poco/Net/IPAddress.h>
+#include <DBPoco/Net/IPAddress.h>
 #include <boost/container/flat_set.hpp>
 #include <boost/noncopyable.hpp>
 #include <boost/smart_ptr/atomic_shared_ptr.hpp>
@@ -26,7 +26,7 @@ public:
         UUID user_id;
         String user_name;
         boost::container::flat_set<UUID> enabled_roles;
-        Poco::Net::IPAddress client_address;
+        DBPoco::Net::IPAddress client_address;
         String forwarded_address;
         String client_key;
 
@@ -51,6 +51,8 @@ public:
     /// Checks if the quota exceeded. If so, throws an exception.
     void checkExceeded() const;
     void checkExceeded(QuotaType quota_type) const;
+
+    void reset(QuotaType quota_type) const;
 
     /// Returns the information about quota consumption.
     std::optional<QuotaUsage> getUsage() const;

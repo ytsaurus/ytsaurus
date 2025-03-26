@@ -3,7 +3,8 @@
 #include <Parsers/ASTFunction.h>
 #include <Parsers/ASTCreateQuery.h>
 #include <Common/Exception.h>
-#include <Common/StringUtils/StringUtils.h>
+#include <Common/StringUtils.h>
+#include <Core/Settings.h>
 #include <IO/WriteHelpers.h>
 #include <Interpreters/StorageID.h>
 
@@ -23,11 +24,11 @@ namespace ErrorCodes
 
 
 /// Some types are only for intermediate values of expressions and cannot be used in tables.
-static void checkAllTypesAreAllowedInTable(const NamesAndTypesList & names_and_types)
+void checkAllTypesAreAllowedInTable(const NamesAndTypesList & names_and_types)
 {
     for (const auto & elem : names_and_types)
         if (elem.type->cannotBeStoredInTables())
-            throw Exception(ErrorCodes::DATA_TYPE_CANNOT_BE_USED_IN_TABLES, "Data type {} cannot be used in tables", elem.type->getName());
+            throw Exception(ErrorCodes::DATA_TYPE_CANNOT_BE_USED_IN_TABLES, "Data type {} of column '{}' cannot be used in tables", elem.type->getName(), elem.name);
 }
 
 
@@ -62,7 +63,7 @@ StoragePtr StorageFactory::get(
     ContextMutablePtr context,
     const ColumnsDescription & columns,
     const ConstraintsDescription & constraints,
-    bool has_force_restore_data_flag) const
+    LoadingStrictnessLevel mode) const
 {
     String name, comment;
 
@@ -202,7 +203,7 @@ StoragePtr StorageFactory::get(
     }
 
     if (query.comment)
-        comment = query.comment->as<ASTLiteral &>().value.get<String>();
+        comment = query.comment->as<ASTLiteral &>().value.safeGet<String>();
 
     ASTs empty_engine_args;
     Arguments arguments{
@@ -216,8 +217,7 @@ StoragePtr StorageFactory::get(
         .context = context,
         .columns = columns,
         .constraints = constraints,
-        .attach = query.attach,
-        .has_force_restore_data_flag = has_force_restore_data_flag,
+        .mode = mode,
         .comment = comment};
 
     assert(arguments.getContext() == arguments.getContext()->getGlobalContext());
@@ -251,6 +251,15 @@ AccessType StorageFactory::getSourceAccessType(const String & table_engine) cons
     if (it == storages.end())
         return AccessType::NONE;
     return it->second.features.source_access_type;
+}
+
+
+const StorageFactory::StorageFeatures & StorageFactory::getStorageFeatures(const String & storage_name) const
+{
+    auto it = storages.find(storage_name);
+    if (it == storages.end())
+        throw Exception(ErrorCodes::UNKNOWN_STORAGE, "Unknown table engine {}", storage_name);
+    return it->second.features;
 }
 
 }

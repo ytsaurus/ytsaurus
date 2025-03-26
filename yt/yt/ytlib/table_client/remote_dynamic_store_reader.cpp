@@ -994,12 +994,7 @@ protected:
             }
 
             YT_LOG_DEBUG("Dynamic store located: got new replicas");
-            ChunkSpec_.clear_legacy_replicas();
-            ChunkSpec_.clear_replicas();
-            for (auto replica : replicas) {
-                ChunkSpec_.add_legacy_replicas(ToProto<ui32>(replica.ToChunkReplica()));
-                ChunkSpec_.add_replicas(ToProto(replica));
-            }
+            ToProto(ChunkSpec_.mutable_replicas(), replicas);
 
             PatchChunkSpecWithContinuationToken();
 

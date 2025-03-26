@@ -43,8 +43,12 @@ struct IObjectTypeHandler
     //! Returns a bunch of flags that control object replication.
     virtual ETypeFlags GetFlags() const = 0;
 
-    //! Returns the list of tag of secondary cells where the object was replicated to.
-    //! For non-replicated objects this is just the empty list.
+    //! Returns the list of master cell tags where the object was (or is meant to be) replicated to.
+    /*! For non-replicated objects, this is just the empty list.
+     *  Object's native cell tag shall never be present in this list.
+     *  Since it is only its native cell that is responsible for replicating an object,
+     *  this method shall never be called on a non-native cell.
+     */
     virtual TCellTagList GetReplicationCellTags(const TObject* object) = 0;
 
     //! Returns the object type managed by the handler.

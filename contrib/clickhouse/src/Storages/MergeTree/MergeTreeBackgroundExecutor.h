@@ -11,7 +11,7 @@
 
 #include <boost/circular_buffer.hpp>
 #include <boost/noncopyable.hpp>
-#include <Poco/Event.h>
+#include <DBPoco/Event.h>
 
 #include <Storages/MergeTree/IExecutableTask.h>
 #include <base/defines.h>
@@ -61,7 +61,7 @@ struct TaskRuntimeData
     /// Actually autoreset=false is needed only for unit test
     /// where multiple threads could remove tasks corresponding to the same storage
     /// This scenario in not possible in reality.
-    Poco::Event is_done{/*autoreset=*/false};
+    DBPoco::Event is_done{/*autoreset=*/false};
     /// This is equal to task->getPriority() not to do useless virtual calls in comparator
     Priority priority;
 
@@ -270,6 +270,8 @@ public:
     /// implementing tasks eviction will definitely be too error-prone and buggy.
     void increaseThreadsAndMaxTasksCount(size_t new_threads_count, size_t new_max_tasks_count);
 
+    size_t getMaxThreads() const;
+
     /// This method can return stale value of max_tasks_count (no mutex locking).
     /// It's okay because amount of tasks can be only increased and getting stale value
     /// can lead only to some postponing, not logical error.
@@ -305,7 +307,7 @@ private:
     std::condition_variable has_tasks TSA_GUARDED_BY(mutex);
     bool shutdown TSA_GUARDED_BY(mutex) = false;
     std::unique_ptr<ThreadPool> pool;
-    Poco::Logger * log = &Poco::Logger::get("MergeTreeBackgroundExecutor");
+    LoggerPtr log = getLogger("MergeTreeBackgroundExecutor");
 };
 
 extern template class MergeTreeBackgroundExecutor<RoundRobinRuntimeQueue>;

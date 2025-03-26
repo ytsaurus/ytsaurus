@@ -4,11 +4,20 @@
 
 #include <library/cpp/yt/string/guid.h>
 
+#include <util/digest/multi.h>
+
 namespace NYT::NControllerAgent {
 
 using namespace NTracing;
 
 ////////////////////////////////////////////////////////////////////////////////
+
+void TJobMonitoringDescriptor::Persist(const TPersistenceContext& context)
+{
+    using NYT::Persist;
+    Persist(context, IncarnationId);
+    Persist(context, Index);
+}
 
 void FormatValue(TStringBuilderBase* builder, const TJobMonitoringDescriptor& descriptor, TStringBuf /*spec*/)
 {
@@ -145,3 +154,8 @@ TCompositePendingJobCount operator - (const TCompositePendingJobCount& lhs, cons
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NControllerAgent
+
+size_t THash<NYT::NControllerAgent::TJobMonitoringDescriptor>::operator()(const NYT::NControllerAgent::TJobMonitoringDescriptor& descriptor) const
+{
+    return MultiHash(descriptor.IncarnationId, descriptor.Index);
+}

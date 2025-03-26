@@ -3,7 +3,7 @@ UNITTEST_FOR(contrib/ydb/library/actors/helpers)
 FORK_SUBTESTS()
 IF (SANITIZER_TYPE)
     SIZE(LARGE)
-    TAG(ya:fat)
+    INCLUDE(${ARCADIA_ROOT}/contrib/ydb/tests/large.inc)
     SPLIT_FACTOR(20)
     REQUIREMENTS(
         ram:32

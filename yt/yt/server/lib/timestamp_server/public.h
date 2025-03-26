@@ -8,7 +8,7 @@ namespace NYT::NTimestampServer {
 
 DECLARE_REFCOUNTED_CLASS(TTimestampManager)
 
-DECLARE_REFCOUNTED_CLASS(TTimestampManagerConfig)
+DECLARE_REFCOUNTED_STRUCT(TTimestampManagerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -25,10 +25,10 @@ message TRspLocateChunks
     message TSubresponse
     {
         optional bool missing = 1 [default = false];
-        // COMPAT(babenko)
-        repeated fixed32 legacy_replicas = 2;
         repeated fixed64 replicas = 4;
         optional int32 erasure_codec = 3;
+
+        reserved 2;
     }
 
     required NNodeTrackerClient.NProto.TNodeDirectory node_directory = 1;
@@ -256,8 +256,6 @@ message TReqConfirmChunk
     reserved 2;
     required NYT.NProto.TGuid chunk_id = 1;
     // COMPAT(kvk1920)
-    repeated fixed64 legacy_replicas = 6;
-    // COMPAT(kvk1920)
     optional bool location_uuids_supported = 7 [default = false];
     repeated TConfirmChunkReplicaInfo replicas = 9;
 
@@ -265,6 +263,8 @@ message TReqConfirmChunk
     required TChunkInfo chunk_info = 4;
     optional bool request_statistics = 5 [default = false];
     optional NYT.NProto.TGuid schema_id = 8;
+
+    reserved 6;
 }
 
 message TRspConfirmChunk

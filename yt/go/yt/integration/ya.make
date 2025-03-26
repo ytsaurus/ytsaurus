@@ -26,6 +26,7 @@ GO_TEST_SRCS(
     error_injection_test.go
     error_test.go
     files_test.go
+    goroutine_leakage_test.go
     lock_test.go
     low_level_scheduler_client_test.go
     low_level_tx_client_test.go

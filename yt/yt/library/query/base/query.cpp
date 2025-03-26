@@ -29,12 +29,20 @@ struct TExpressionRowsetTag
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TExpression::TExpression(NTableClient::TLogicalTypePtr type)
-    : LogicalType(std::move(type))
-{ }
 
 TExpression::TExpression(EValueType type)
     : LogicalType(MakeLogicalType(GetLogicalType(type), /*required*/ false))
+    , OriginalLogicalType(LogicalType)
+{ }
+
+TExpression::TExpression(TLogicalTypePtr type)
+    : LogicalType(std::move(type))
+    , OriginalLogicalType(LogicalType)
+{ }
+
+TExpression::TExpression(TLogicalTypePtr type, TLogicalTypePtr originalType)
+    : LogicalType(std::move(type))
+    , OriginalLogicalType(std::move(originalType))
 { }
 
 EValueType TExpression::GetWireType() const
@@ -44,10 +52,6 @@ EValueType TExpression::GetWireType() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TLiteralExpression::TLiteralExpression(EValueType type)
-    : TExpression(type)
-{ }
-
 TLiteralExpression::TLiteralExpression(EValueType type, TOwningValue value)
     : TExpression(type)
     , Value(std::move(value))
@@ -55,20 +59,16 @@ TLiteralExpression::TLiteralExpression(EValueType type, TOwningValue value)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TReferenceExpression::TReferenceExpression(const NTableClient::TLogicalTypePtr& type)
-    : TExpression(type)
+TReferenceExpression::TReferenceExpression(const TLogicalTypePtr& type)
+    : TExpression(ToQLType(type), type)
 { }
 
-TReferenceExpression::TReferenceExpression(const NTableClient::TLogicalTypePtr& type, const std::string& columnName)
-    : TExpression(type)
+TReferenceExpression::TReferenceExpression(const TLogicalTypePtr& type, const std::string& columnName)
+    : TExpression(ToQLType(type), type)
     , ColumnName(columnName)
 { }
 
 ////////////////////////////////////////////////////////////////////////////////
-
-TFunctionExpression::TFunctionExpression(EValueType type)
-    : TExpression(type)
-{ }
 
 TFunctionExpression::TFunctionExpression(
     EValueType type,
@@ -81,10 +81,6 @@ TFunctionExpression::TFunctionExpression(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TUnaryOpExpression::TUnaryOpExpression(EValueType type)
-    : TExpression(type)
-{ }
-
 TUnaryOpExpression::TUnaryOpExpression(
     EValueType type,
     EUnaryOp opcode,
@@ -95,10 +91,6 @@ TUnaryOpExpression::TUnaryOpExpression(
 { }
 
 ////////////////////////////////////////////////////////////////////////////////
-
-TBinaryOpExpression::TBinaryOpExpression(EValueType type)
-    : TExpression(type)
-{ }
 
 TBinaryOpExpression::TBinaryOpExpression(
     EValueType type,
@@ -197,12 +189,12 @@ TLikeExpression::TLikeExpression(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TCompositeMemberAccessorExpression::TCompositeMemberAccessorExpression(NTableClient::TLogicalTypePtr type)
+TCompositeMemberAccessorExpression::TCompositeMemberAccessorExpression(TLogicalTypePtr type)
     : TExpression(std::move(type))
 { }
 
 TCompositeMemberAccessorExpression::TCompositeMemberAccessorExpression(
-    NTableClient::TLogicalTypePtr type,
+    TLogicalTypePtr type,
     TConstExpressionPtr compositeExpression,
     TCompositeMemberAccessorPath nestedStructOrTupleItemAccess,
     TDictOrListItemAccessorExpression dictOrListItemAccess)
@@ -384,16 +376,24 @@ std::vector<size_t> TJoinClause::GetForeignColumnIndices() const
 {
     std::vector<size_t> foreignColumns;
     auto joinRenamedTableColumns = GetRenamedSchema()->Columns();
-    size_t foreignColumnsIndex = ForeignEquations.size();
-    for (const auto& renamedColumn : joinRenamedTableColumns) {
-        if (ForeignJoinedColumns.contains(renamedColumn.Name())) {
-            foreignColumns.push_back(foreignColumnsIndex++);
-        }
-    }
 
     if (GroupClause) {
+        size_t foreignColumnsIndex = 0;
+        for (const auto& groupItem : GroupClause->GroupItems) {
+            if (ForeignJoinedColumns.contains(groupItem.Name)) {
+                foreignColumns.push_back(foreignColumnsIndex);
+            }
+            foreignColumnsIndex++;
+        }
         for (const auto& _ : GroupClause->AggregateItems) {
             foreignColumns.push_back(foreignColumnsIndex++);
+        }
+    } else {
+        size_t foreignColumnsIndex = ForeignEquations.size();
+        for (const auto& renamedColumn : joinRenamedTableColumns) {
+            if (ForeignJoinedColumns.contains(renamedColumn.Name())) {
+                foreignColumns.push_back(foreignColumnsIndex++);
+            }
         }
     }
 
@@ -463,7 +463,7 @@ TTableSchemaPtr TProjectClause::GetTableSchema(bool castToQLType) const
     result.reserve(Projections.size());
 
     for (const auto& item : Projections) {
-        auto logicalType = castToQLType ? ToQLType(item.Expression->LogicalType) : item.Expression->LogicalType;
+        auto logicalType = castToQLType ? item.Expression->LogicalType : item.Expression->OriginalLogicalType;
         result.emplace_back(item.Name, std::move(logicalType));
     }
 
@@ -958,6 +958,8 @@ void ToProto(NProto::TExpression* serialized, const TConstExpressionPtr& origina
         NTableClient::CastToV1Type(original->LogicalType).first);
 
     serialized->set_type(ToProto(wireType));
+
+    //ToQLType: uint8 -> uint64
 
     if (!IsV1Type(original->LogicalType) ||
         *original->LogicalType != *MakeLogicalType(GetLogicalType(wireType), /*required*/ false))

@@ -43,10 +43,9 @@ DEFINE_REFCOUNTED_TYPE(TEngineConfigBase)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TYqlEngineConfig
+struct TYqlEngineConfig
     : public TEngineConfigBase
 {
-public:
     TString Stage;
     TDuration QueryProgressGetPeriod;
     TDuration StartQueryAttemptPeriod;
@@ -60,12 +59,11 @@ DEFINE_REFCOUNTED_TYPE(TYqlEngineConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TChytEngineConfig
+struct TChytEngineConfig
     : public TEngineConfigBase
 {
-public:
     TString DefaultClique;
-    TString DefaultCluster;
+    std::string DefaultCluster;
     TDuration ProgressPollPeriod;
 
     REGISTER_YSON_STRUCT(TChytEngineConfig);
@@ -77,11 +75,10 @@ DEFINE_REFCOUNTED_TYPE(TChytEngineConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TQLEngineConfig
+struct TQLEngineConfig
     : public TEngineConfigBase
 {
-public:
-    TString DefaultCluster;
+    std::string DefaultCluster;
 
     REGISTER_YSON_STRUCT(TQLEngineConfig);
 
@@ -92,11 +89,10 @@ DEFINE_REFCOUNTED_TYPE(TQLEngineConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TSpytEngineConfig
+struct TSpytEngineConfig
     : public TEngineConfigBase
 {
-public:
-    TString DefaultCluster;
+    std::string DefaultCluster;
     NYPath::TYPath DefaultDiscoveryPath;
     NYPath::TYPath DefaultDiscoveryGroup;
     NYPath::TYPath SpytHome;
@@ -115,10 +111,9 @@ DEFINE_REFCOUNTED_TYPE(TSpytEngineConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TQueryTrackerProxyConfig
+struct TQueryTrackerProxyConfig
     : public NYTree::TYsonStruct
 {
-public:
     i64 MaxQueryFileCount;
     i64 MaxQueryFileNameSizeBytes;
     i64 MaxQueryFileContentSizeBytes;
@@ -132,10 +127,9 @@ DEFINE_REFCOUNTED_TYPE(TQueryTrackerProxyConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TQueryTrackerDynamicConfig
+struct TQueryTrackerDynamicConfig
     : public NYTree::TYsonStruct
 {
-public:
     TDuration StateCheckPeriod;
 
     TDuration ActiveQueryAcquisitionPeriod;
@@ -160,10 +154,9 @@ DEFINE_REFCOUNTED_TYPE(TQueryTrackerDynamicConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TQueryTrackerBootstrapConfig
+struct TQueryTrackerBootstrapConfig
     : public NServer::TNativeServerBootstrapConfig
 {
-public:
     int MinRequiredStateVersion;
     bool AbortOnUnrecognizedOptions;
 
@@ -189,7 +182,7 @@ DEFINE_REFCOUNTED_TYPE(TQueryTrackerBootstrapConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TQueryTrackerProgramConfig
+struct TQueryTrackerProgramConfig
     : public TQueryTrackerBootstrapConfig
     , public TServerProgramConfig
 {
@@ -202,10 +195,9 @@ DEFINE_REFCOUNTED_TYPE(TQueryTrackerProgramConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TQueryTrackerComponentDynamicConfig
+struct TQueryTrackerComponentDynamicConfig
     : public TSingletonsDynamicConfig
 {
-public:
     NAlertManager::TAlertManagerDynamicConfigPtr AlertManager;
     TQueryTrackerDynamicConfigPtr QueryTracker;
 

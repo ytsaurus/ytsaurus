@@ -28,7 +28,7 @@ class TFilterMatcher
 {
 public:
     TFilterMatcher(
-        TString filterQuery,
+        std::string filterQuery,
         std::vector<TTypedAttributePath> attributePaths)
         : Evaluator_(CreateOrmExpressionEvaluator(
             std::move(filterQuery),
@@ -39,7 +39,10 @@ public:
         const std::vector<TNonOwningAttributePayload>& attributePayloads,
         TRowBufferPtr rowBuffer) override
     {
-        auto resultOrError = Evaluator_->Evaluate(attributePayloads, std::move(rowBuffer));
+        if (!rowBuffer) {
+            rowBuffer = New<TRowBuffer>(TRowBufferTag());
+        }
+        auto resultOrError = Evaluator_->Evaluate(attributePayloads, rowBuffer);
         if (!resultOrError.IsOK()) {
             return TError("Error matching the filter")
                 << resultOrError;
@@ -49,16 +52,15 @@ public:
         return resultValue.Type == EValueType::Boolean && resultValue.Data.Boolean;
     }
 
-    TErrorOr<bool> Match(
-        const TNonOwningAttributePayload& attributePayload,
-        TRowBufferPtr rowBuffer) override
+    TErrorOr<bool> Match(const TNonOwningAttributePayload& attributePayload, TRowBufferPtr rowBuffer) override
     {
-        return Match(
-            std::vector<TNonOwningAttributePayload>{attributePayload},
-            std::move(rowBuffer));
+        return Match(std::vector<TNonOwningAttributePayload>{attributePayload}, std::move(rowBuffer));
     }
 
 private:
+    struct TRowBufferTag
+    { };
+
     const IExpressionEvaluatorPtr Evaluator_;
 };
 
@@ -79,9 +81,7 @@ public:
         return Constant_;
     }
 
-    TErrorOr<bool> Match(
-        const TNonOwningAttributePayload& /*attributePayload*/,
-        TRowBufferPtr /*rowBuffer*/) override
+    TErrorOr<bool> Match(const TNonOwningAttributePayload& /*attributePayload*/, TRowBufferPtr /*rowBuffer*/) override
     {
         return Constant_;
     }
@@ -95,7 +95,7 @@ private:
 }
 
 IFilterMatcherPtr CreateFilterMatcher(
-    TString filterQuery,
+    std::string filterQuery,
     std::vector<TTypedAttributePath> typedAttributePaths)
 {
     return New<TFilterMatcher>(
@@ -104,8 +104,8 @@ IFilterMatcherPtr CreateFilterMatcher(
 }
 
 IFilterMatcherPtr CreateFilterMatcher(
-    TString filterQuery,
-    std::vector<TString> attributePaths)
+    std::string filterQuery,
+    std::vector<TYPath> attributePaths)
 {
     std::vector<TTypedAttributePath> typedAttributePaths;
     typedAttributePaths.reserve(attributePaths.size());

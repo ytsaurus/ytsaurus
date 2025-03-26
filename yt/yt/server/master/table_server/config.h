@@ -8,14 +8,16 @@ namespace NYT::NTableServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TDynamicTableManagerConfig
+struct TDynamicTableManagerConfig
     : public NYTree::TYsonStruct
 {
-public:
     i64 MaxSchemaMemoryUsageToLog;
+    TDuration CompactTableCacheExpirationTimeout;
 
     // COMPAT(cherepashka, aleksandra-zh).
     bool MakeSchemaAttributeOpaque;
+    // COMPAT(babenko)
+    std::vector<std::string> NonOpaqueSchemaAttributeUserWhitelist;
 
     REGISTER_YSON_STRUCT(TDynamicTableManagerConfig)
 
@@ -24,10 +26,9 @@ public:
 
 DEFINE_REFCOUNTED_TYPE(TDynamicTableManagerConfig)
 
-class TTableManagerConfig
+struct TTableManagerConfig
     : public NYTree::TYsonStruct
 {
-public:
 
     REGISTER_YSON_STRUCT(TTableManagerConfig)
 

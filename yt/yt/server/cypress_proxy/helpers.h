@@ -12,6 +12,10 @@ namespace NYT::NCypressProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TError WrapCypressProxyRegistrationError(TError error);
+
+////////////////////////////////////////////////////////////////////////////////
+
 void SetAccessTrackingOptions(
     const NRpc::IClientRequestPtr& request,
     const NApi::TSuppressableAccessTrackingOptions& commandOptions);
@@ -22,6 +26,12 @@ void ValidateLinkNodeCreation(
     const TSequoiaSessionPtr& session,
     NSequoiaClient::TRawYPath targetPath,
     const TResolveResult& resolveResult);
+
+std::vector<NObjectClient::TTransactionId> ParsePrerequisiteTransactionIds(const NRpc::NProto::TRequestHeader& header);
+
+void ValidatePrerequisites(
+    const NSequoiaClient::ISequoiaClientPtr& sequoiaClient,
+    const std::vector<NObjectClient::TTransactionId>& prerequisiteTransactionIds);
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -768,7 +768,7 @@ class TestCypressLocks(YTEnvSetup):
         set("//tmp/a", [1])
         tx = start_transaction()
         lock("//tmp/a/0", mode="exclusive", tx=tx)
-        with pytest.raises(YtError):
+        with raises_yt_error("\"exclusive\" lock is taken by concurrent transaction"):
             remove("//tmp/a")
 
     @authors("babenko", "ignat")
@@ -1780,8 +1780,9 @@ class TestCypressLocksInSequoia(TestCypressLocksMirroredTx):
     NUM_SECONDARY_MASTER_CELLS = 4
 
     MASTER_CELL_DESCRIPTORS = {
-        "10": {"roles": ["cypress_node_host"]},
-        "11": {"roles": ["sequoia_node_host"]},
+        "10": {"roles": ["sequoia_node_host"]},
+        # Master cell with tag 11 is reserved for portals.
+        "11": {"roles": ["cypress_node_host"]},
         "12": {"roles": ["transaction_coordinator", "sequoia_node_host"]},
         "13": {"roles": ["transaction_coordinator"]},
         "14": {"roles": ["chunk_host"]},

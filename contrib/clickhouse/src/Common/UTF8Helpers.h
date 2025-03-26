@@ -4,7 +4,7 @@
 #include <base/types.h>
 #include <base/simd.h>
 #include <Common/BitHelpers.h>
-#include <Poco/UTF8Encoding.h>
+#include <DBPoco/UTF8Encoding.h>
 
 #ifdef __SSE2__
 #include <emmintrin.h>
@@ -97,7 +97,7 @@ template <typename CharT>
 requires (sizeof(CharT) == 1)
 size_t convertCodePointToUTF8(int code_point, CharT * out_bytes, size_t out_length)
 {
-    static const Poco::UTF8Encoding utf8;
+    static const DBPoco::UTF8Encoding utf8;
     int res = utf8.convert(
         code_point,
         reinterpret_cast<uint8_t *>(out_bytes),
@@ -110,7 +110,7 @@ template <typename CharT>
 requires (sizeof(CharT) == 1)
 std::optional<uint32_t> convertUTF8ToCodePoint(const CharT * in_bytes, size_t in_length)
 {
-    static const Poco::UTF8Encoding utf8;
+    static const DBPoco::UTF8Encoding utf8;
     int res = utf8.queryConvert(
         reinterpret_cast<const uint8_t *>(in_bytes),
         static_cast<int>(in_length));
@@ -140,6 +140,5 @@ size_t computeWidth(const UInt8 * data, size_t size, size_t prefix = 0) noexcept
 size_t computeBytesBeforeWidth(const UInt8 * data, size_t size, size_t prefix, size_t limit) noexcept;
 
 }
-
 
 }

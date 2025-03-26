@@ -60,7 +60,7 @@ target_sources(library-cpp-type_info-ut PRIVATE
   ${PROJECT_SOURCE_DIR}/library/cpp/type_info/ut/type_show.cpp
   ${PROJECT_SOURCE_DIR}/library/cpp/type_info/ut/type_strip_tags.cpp
   ${PROJECT_SOURCE_DIR}/library/cpp/type_info/ut/test_data.cpp
-  ${PROJECT_BINARY_DIR}/library/cpp/type_info/ut/5e5361e0329be49ce689f46dafdeeab6.cpp
+  ${PROJECT_BINARY_DIR}/library/cpp/type_info/ut/18d61a431e94a203d7d473ec59d5f863.cpp
 )
 
 
@@ -101,7 +101,7 @@ set_yunittest_property(
 )
 
 resources(library-cpp-type_info-ut
-  ${PROJECT_BINARY_DIR}/library/cpp/type_info/ut/5e5361e0329be49ce689f46dafdeeab6.cpp
+  ${PROJECT_BINARY_DIR}/library/cpp/type_info/ut/18d61a431e94a203d7d473ec59d5f863.cpp
   INPUTS
   ${PROJECT_SOURCE_DIR}/library/cpp/type_info/ut/test-data/good-types.txt
   ${PROJECT_SOURCE_DIR}/library/cpp/type_info/ut/test-data/bad-types.txt

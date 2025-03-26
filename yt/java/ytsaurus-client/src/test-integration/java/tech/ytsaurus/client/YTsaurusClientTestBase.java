@@ -1,7 +1,6 @@
 package tech.ytsaurus.client;
 
 import java.io.IOException;
-import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CompletionException;
@@ -9,76 +8,42 @@ import java.util.concurrent.CompletionException;
 import org.junit.After;
 import org.junit.Rule;
 import org.junit.rules.TestName;
-import org.testcontainers.containers.FixedHostPortGenericContainer;
 import org.testcontainers.containers.GenericContainer;
-import org.testcontainers.containers.Network;
-import org.testcontainers.containers.wait.strategy.Wait;
 import org.testcontainers.utility.MountableFile;
-import tech.ytsaurus.client.request.CreateNode;
 import tech.ytsaurus.client.request.ReadTable;
-import tech.ytsaurus.client.request.RemoveNode;
 import tech.ytsaurus.client.request.SerializationContext;
 import tech.ytsaurus.client.request.WriteTable;
 import tech.ytsaurus.client.rpc.RpcOptions;
-import tech.ytsaurus.client.rpc.YTsaurusClientAuth;
 import tech.ytsaurus.core.GUID;
 import tech.ytsaurus.core.cypress.CypressNodeType;
 import tech.ytsaurus.core.cypress.YPath;
 import tech.ytsaurus.core.tables.TableSchema;
 import tech.ytsaurus.testlib.LocalYTsaurus;
 import tech.ytsaurus.testlib.LoggingUtils;
+import tech.ytsaurus.testlib.YTsaurusContainer;
 import tech.ytsaurus.ysontree.YTreeMapNode;
 
 public class YTsaurusClientTestBase {
-    protected static class YTsaurusFixture {
-        final HostPort address;
-        final YTsaurusClient yt;
-        final YPath testDirectory;
-
-        YTsaurusFixture(HostPort address, YTsaurusClient yt, YPath testDirectory) {
-            this.address = address;
-            this.yt = yt;
-            this.testDirectory = testDirectory;
-        }
-
-        public YTsaurusClient getYt() {
-            return yt;
-        }
-
-        public YPath getTestDirectory() {
-            return testDirectory;
-        }
-    }
-
-    protected static GenericContainer<?> localYTsaurus;
-
     static {
         LoggingUtils.loadJULConfig(
                 YTsaurusClientTestBase.class.getResourceAsStream("/logging.properties")
         );
 
         if (!System.getenv().containsKey("YT_PROXY")) {
-            localYTsaurus = new FixedHostPortGenericContainer<>("ghcr.io/ytsaurus/local:dev")
-                    .withFixedExposedPort(10110, 80) // http
-                    .withFixedExposedPort(10111, 10111) // rpc_proxy
-                    .withFixedExposedPort(10125, 10125)
-                    .withNetwork(Network.newNetwork())
-                    .withCommand(
-                            "--proxy-config", "/tmp/proxy_config.yson",
-                            "--rpc-proxy-count", "1",
-                            "--rpc-proxy-port", "10111",
-                            "--queue-agent-count", "1",
-                            "--discovery-server-count", "1",
-                            "--discovery-server-port", "10125",
-                            "--enable-debug-logging"
-                    )
-                    .withCopyFileToContainer(
-                            MountableFile.forClasspathResource("/proxy_config.yson"),
-                            "/tmp/proxy_config.yson"
-                    ).waitingFor(Wait.forLogMessage(".*Local YT started.*", 1));
-            localYTsaurus.start();
+            ytsaurusContainer = YTsaurusContainer.startContainer(new YTsaurusContainer.Config()
+                    .setHttpPort(10110)
+                    .setRpcProxyCount(1)
+                    .setRpcProxyPorts(List.of(10111))
+                    .setRpcProxyConfigFile(MountableFile.forClasspathResource("/rpc_proxy_config.yson"))
+                    .setProxyConfigFile(MountableFile.forClasspathResource("/proxy_config.yson"))
+                    .setQueueAgentCount(1)
+                    .setDiscoveryServerCount(1)
+                    .setDiscoveryServerPorts(List.of(10125))
+            );
         }
     }
+
+    private static GenericContainer<?> ytsaurusContainer;
 
     @Rule
     public TestName name = new TestName();
@@ -91,59 +56,35 @@ public class YTsaurusClientTestBase {
     }
 
     public final YTsaurusFixture createYtFixture(RpcOptions rpcOptions) {
-        var address = getYTsaurusAddress();
-
-        String javaHome = localYTsaurus == null ?
-                System.getProperty("java.home") : "/opt/jdk11";
-
-        var yt = YTsaurusClient.builder()
-                .setCluster(address)
-                .setConfig(
-                        YTsaurusClientConfig.builder()
-                                .setRpcOptions(rpcOptions)
-                                .setJavaBinary(javaHome + "/bin/java")
-                                .setJobSpecPatch(null)
-                                .setSpecPatch(null)
-                                .setOperationPingPeriod(Duration.ofMillis(500))
-                                .build()
-                )
-                .setAuth(
-                        YTsaurusClientAuth.builder()
-                                .setUser("root")
-                                .setToken("")
-                                .build()
-                )
-                .build();
-
         var methodName = name.getMethodName().replaceAll("[\\[\\]]", "-");
         var testDirectory = YPath.simple("//tmp/ytsaurus-client-test/" + runId + "-" + methodName);
 
-        yt.createNode(
-                CreateNode.builder()
-                        .setPath(testDirectory)
-                        .setType(CypressNodeType.MAP)
-                        .setRecursive(true)
-                        .setForce(true)
-                        .build()
-        ).join();
+        YTsaurusFixture fixture = YTsaurusFixture.builder()
+                .setYTsaurusAddress(getYTsaurusAddress())
+                .setContainerRunning(ytsaurusContainer != null)
+                .setRpcOptions(rpcOptions)
+                .setTestDirectoryPath(testDirectory)
+                .build();
+        ytFixtures.add(fixture);
+        return fixture;
+    }
 
-        YTsaurusFixture result = new YTsaurusFixture(HostPort.parse(address), yt, testDirectory);
-        ytFixtures.add(result);
-        return result;
+    protected static GenericContainer<?> getYtsaurusContainer() {
+        return ytsaurusContainer;
     }
 
     protected static String getYTsaurusAddress() {
-        return localYTsaurus != null ?
-                localYTsaurus.getHost() + ":" + localYTsaurus.getMappedPort(80)
+        return ytsaurusContainer != null ?
+                ytsaurusContainer.getHost() + ":" + ytsaurusContainer.getMappedPort(80)
                 : LocalYTsaurus.getAddress();
     }
 
     protected static String getYTsaurusHost() {
-        return localYTsaurus != null ? localYTsaurus.getHost() : LocalYTsaurus.getHost();
+        return ytsaurusContainer != null ? ytsaurusContainer.getHost() : LocalYTsaurus.getHost();
     }
 
     protected static int getYTsaurusPort() {
-        return localYTsaurus != null ? localYTsaurus.getMappedPort(80) : LocalYTsaurus.getPort();
+        return ytsaurusContainer != null ? ytsaurusContainer.getMappedPort(80) : LocalYTsaurus.getPort();
     }
 
     protected void writeTable(YTsaurusClient yt, YPath path, TableSchema tableSchema, List<YTreeMapNode> data) {
@@ -195,19 +136,8 @@ public class YTsaurusClientTestBase {
     public final void tearDown() throws Throwable {
         Throwable error = null;
         for (var fixture : ytFixtures) {
-            try (var yt = fixture.yt) {
-                var rpcRequestsTestingController = yt.rpcOptions.getTestingOptions().getRpcRequestsTestingController();
-                if (rpcRequestsTestingController != null) {
-                    var transactionIds = rpcRequestsTestingController.getStartedTransactions();
-                    for (GUID transactionId : transactionIds) {
-                        try {
-                            yt.abortTransaction(transactionId).join();
-                        } catch (Exception ignored) {
-                        }
-                    }
-                }
-
-                yt.removeNode(RemoveNode.builder().setPath(fixture.testDirectory).setForce(true).build()).join();
+            try {
+                fixture.stop();
             } catch (Throwable ex) {
                 if (error == null) {
                     error = new RuntimeException("Error while tear down test", ex);

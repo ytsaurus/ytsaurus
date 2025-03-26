@@ -2,11 +2,25 @@
 
 #include <yt/yt/server/lib/cypress_registrar/config.h>
 
-#include <yt/yt/library/dynamic_config/config.h>
-
 #include <yt/yt/library/auth_server/config.h>
 
+#include <yt/yt/library/dynamic_config/config.h>
+
+#include <yt/yt/library/re2/re2.h>
+
+
 namespace NYT::NKafkaProxy {
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TStringTransformationConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("match_pattern", &TThis::MatchPattern);
+    registrar.Parameter("replacement", &TThis::Replacement)
+        .Default();
+}
+
+DEFINE_REFCOUNTED_TYPE(TStringTransformationConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -50,9 +64,24 @@ void TProxyBootstrapConfig::Register(TRegistrar registrar)
     registrar.Parameter("auth", &TThis::Auth)
         .DefaultNew();
 
+    registrar.Parameter("topic_name_transformations", &TThis::TopicNameTransformations)
+        .Default();
+
     registrar.Postprocessor([] (TThis* config) {
         if (auto& dynamicConfigPath = config->DynamicConfigPath; dynamicConfigPath.empty()) {
             dynamicConfigPath = Format("%v/@config", KafkaProxiesRootPath);
+        }
+
+        // Some kafka connectors allows only the underscore, hyphen, dot and alphanumeric characters in topic names.
+        if (config->TopicNameTransformations.empty()) {
+            auto slashTransformation = New<TStringTransformationConfig>();
+            slashTransformation->MatchPattern = New<NRe2::TRe2>("\\.");
+            slashTransformation->Replacement = "/";
+
+            auto colonTransformation = New<TStringTransformationConfig>();
+            colonTransformation->MatchPattern = New<NRe2::TRe2>("-//");
+            colonTransformation->Replacement = "://";
+            config->TopicNameTransformations = {std::move(slashTransformation), std::move(colonTransformation)};
         }
     });
 }
@@ -64,6 +93,17 @@ void TProxyProgramConfig::Register(TRegistrar /*registrar*/)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TGroupCoordinatorConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("rebalance_timeout", &TThis::RebalanceTimeout)
+        .Default(TDuration::Seconds(2));
+
+    registrar.Parameter("session_timeout", &TThis::SessionTimeout)
+        .Default(TDuration::Seconds(5));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TProxyDynamicConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("poller_thread_count", &TThis::PollerThreadCount)
@@ -72,6 +112,8 @@ void TProxyDynamicConfig::Register(TRegistrar registrar)
         .Default(2);
     registrar.Parameter("local_host_name", &TThis::LocalHostName)
         .Default();
+    registrar.Parameter("group_coordinator", &TThis::GroupCoordinator)
+        .DefaultNew();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

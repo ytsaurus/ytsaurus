@@ -107,11 +107,16 @@ void TChunkLocationConfig::ApplyDynamicInplace(const TChunkLocationDynamicConfig
 
     UpdateYsonStructField(ReadMemoryLimit, dynamicConfig.ReadMemoryLimit);
 
+    for (auto category : TEnumTraits<EWorkloadCategory>::GetDomainValues()) {
+        auto priority = dynamicConfig.FairShareWorkloadCategoryWeights[category];
+        if (priority) {
+            FairShareWorkloadCategoryWeights[category] = *priority;
+        } else {
+            FairShareWorkloadCategoryWeights[category] = DefaultFairShareWorkloadCategoryWeights[category];
+        }
+    }
+
     UpdateYsonStructField(WriteMemoryLimit, dynamicConfig.WriteMemoryLimit);
-
-    UpdateYsonStructField(PendingReadIOLimit, dynamicConfig.PendingReadIOLimit);
-
-    UpdateYsonStructField(PendingWriteIOLimit, dynamicConfig.PendingWriteIOLimit);
 
     UpdateYsonStructField(SessionCountLimit, dynamicConfig.SessionCountLimit);
 
@@ -138,14 +143,12 @@ void TChunkLocationConfig::Register(TRegistrar registrar)
     registrar.Parameter("io_config", &TThis::IOConfig)
         .Optional();
 
+    registrar.Parameter("fair_share_workload_category_priorities", &TThis::FairShareWorkloadCategoryWeights)
+        .Default();
+
     registrar.Parameter("read_memory_limit", &TThis::ReadMemoryLimit)
         .Default(10_GB);
     registrar.Parameter("write_memory_limit", &TThis::WriteMemoryLimit)
-        .Default(10_GB);
-
-    registrar.Parameter("pending_io_read_limit", &TThis::PendingReadIOLimit)
-        .Default(10_GB);
-    registrar.Parameter("pending_io_write_limit", &TThis::PendingWriteIOLimit)
         .Default(10_GB);
 
     registrar.Parameter("session_count_limit", &TThis::SessionCountLimit)
@@ -211,11 +214,6 @@ void TChunkLocationDynamicConfig::Register(TRegistrar registrar)
     registrar.Parameter("memory_limit_fraction_for_starting_new_sessions", &TThis::MemoryLimitFractionForStartingNewSessions)
         .GreaterThanOrEqual(0.0)
         .LessThanOrEqual(1.0)
-        .Optional();
-
-    registrar.Parameter("pending_io_read_limit", &TThis::PendingReadIOLimit)
-        .Optional();
-    registrar.Parameter("pending_io_write_limit", &TThis::PendingWriteIOLimit)
         .Optional();
 
     registrar.Parameter("session_count_limit", &TThis::SessionCountLimit)
@@ -542,6 +540,9 @@ void TDataNodeTestingOptions::Register(TRegistrar registrar)
 
     registrar.Parameter("columnar_statistics_read_timeout_fraction", &TThis::ColumnarStatisticsReadTimeoutFraction)
         .Default(0.75);
+
+    registrar.Parameter("enable_trash_scanning_barrier", &TThis::EnableTrashScanningBarrier)
+        .Default();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -828,6 +829,8 @@ void TDataNodeConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("session_timeout", &TThis::SessionTimeout)
         .Default(TDuration::Seconds(120));
+    registrar.Parameter("long_live_read_session_treshold", &TThis::LongLiveReadSessionTreshold)
+        .Default(TDuration::Minutes(60));
     registrar.Parameter("session_block_reorder_timeout", &TThis::SessionBlockReorderTimeout)
         .Default(TDuration::Seconds(10));
     registrar.Parameter("node_rpc_timeout", &TThis::NodeRpcTimeout)
@@ -929,6 +932,9 @@ void TDataNodeConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("distributed_chunk_session_service", &TThis::DistributedChunkSessionService)
         .DefaultNew();
+
+    registrar.Parameter("enable_trash_scanning_barrier", &TThis::EnableTrashScanningBarrier)
+        .Default(false);
 
     registrar.Preprocessor([] (TThis* config) {
         config->ChunkMetaCache->Capacity = 1_GB;
@@ -1088,11 +1094,6 @@ void TDataNodeDynamicConfig::Register(TRegistrar registrar)
     registrar.Parameter("disk_read_throttling_limit", &TThis::DiskReadThrottlingLimit)
         .Default();
 
-    registrar.Parameter("disable_location_writes_pending_read_size_high_limit", &TThis::DisableLocationWritesPendingReadSizeHighLimit)
-        .Default();
-    registrar.Parameter("disable_location_writes_pending_read_size_low_limit", &TThis::DisableLocationWritesPendingReadSizeLowLimit)
-        .Default();
-
     registrar.Parameter("testing_options", &TThis::TestingOptions)
         .DefaultNew();
 
@@ -1101,22 +1102,6 @@ void TDataNodeDynamicConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("fallback_timeout_fraction", &TThis::FallbackTimeoutFraction)
         .Default();
-
-    registrar.Postprocessor([] (TThis* config) {
-        if (config->DisableLocationWritesPendingReadSizeHighLimit.has_value() != config->DisableLocationWritesPendingReadSizeLowLimit.has_value()) {
-            THROW_ERROR_EXCEPTION(
-                "\"disable_location_writes_pending_read_size_high_limit\" and "
-                "\"disable_location_writes_pending_read_size_low_limit\" must either both be present or absent");
-        }
-
-        if (config->DisableLocationWritesPendingReadSizeHighLimit &&
-            *config->DisableLocationWritesPendingReadSizeHighLimit < *config->DisableLocationWritesPendingReadSizeLowLimit)
-        {
-            THROW_ERROR_EXCEPTION(
-                "\"disable_location_writes_pending_read_size_high_limit\" must not be less than "
-                "\"disable_location_writes_pending_read_size_low_limit\"");
-        }
-    });
 }
 
 ////////////////////////////////////////////////////////////////////////////////

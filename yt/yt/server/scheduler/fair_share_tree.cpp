@@ -324,11 +324,26 @@ public:
     {
         YT_ASSERT_INVOKERS_AFFINITY(FeasibleInvokers_);
 
+        TError unrecognizedConfgOptionsError;
+        if (config->EnableUnrecognizedAlert) {
+            auto unrecognized = config->GetRecursiveUnrecognized();
+            if (unrecognized && unrecognized->GetChildCount() > 0) {
+                YT_LOG_WARNING("Pool tree config contains unrecognized options (Unrecognized: %v)",
+                    ConvertToYsonString(unrecognized, EYsonFormat::Text));
+                unrecognizedConfgOptionsError = TError("Pool tree config contains unrecognized options")
+                    << TErrorAttribute("unrecognized", unrecognized);
+            }
+        }
+
+        Host_->SetSchedulerTreeAlert(
+            TreeId_,
+            ESchedulerAlertType::UnrecognizedPoolTreeConfigOptions,
+            unrecognizedConfgOptionsError);
+
         auto configNode = ConvertToNode(config);
         if (AreNodesEqual(configNode, ConfigNode_)) {
             // Offload destroying config node.
             StrategyHost_->GetBackgroundInvoker()->Invoke(BIND([configNode = std::move(configNode)] { }));
-
             return false;
         }
 
@@ -558,11 +573,13 @@ public:
 
     void UpdateOperationRuntimeParameters(
         TOperationId operationId,
+        TSchedulingTagFilter schedulingTagFilter,
         const TOperationFairShareTreeRuntimeParametersPtr& runtimeParameters) override
     {
         YT_ASSERT_INVOKERS_AFFINITY(FeasibleInvokers_);
 
         if (const auto& element = FindOperationElement(operationId)) {
+            element->SetSchedulingTagFilter(std::move(schedulingTagFilter));
             element->SetRuntimeParameters(runtimeParameters);
         }
     }
@@ -1209,6 +1226,7 @@ public:
             BuildYsonFluently(consumer).Value(treeSnapshot->NodeCount());
         })))->Via(StrategyHost_->GetOrchidWorkerInvoker());
 
+        // TODO(eshcherbin): Why not use tree snapshot here as well?
         dynamicOrchidService->AddChild("pool_count", IYPathService::FromProducer(BIND([this_ = MakeStrong(this), this] (IYsonConsumer* consumer) {
             YT_ASSERT_INVOKERS_AFFINITY(FeasibleInvokers_);
 
@@ -1222,6 +1240,8 @@ public:
                 .Do(BIND(&TSchedulerRootElement::BuildResourceDistributionInfo, treeSnapshot->RootElement()))
             .EndMap();
         }))->Via(StrategyHost_->GetOrchidWorkerInvoker()));
+
+        TreeScheduler_->PopulateOrchidService(dynamicOrchidService);
 
         return dynamicOrchidService;
     }
@@ -2723,8 +2743,15 @@ private:
             const TJobResources& preemptedResourcesDelta = allocation->ResourceLimits();
             EAllocationPreemptionReason preemptionReason = preemptedAllocation.PreemptionReason;
             preemptedAllocationResources[preemptionReason][operationId] += preemptedResourcesDelta;
-            preemptedAllocationResourceTimes[preemptionReason][operationId] += preemptedResourcesDelta * static_cast<i64>(
-                allocation->GetPreemptibleProgressDuration().Seconds());
+
+            // NB(eshcherbin): This sensor for memory is easily overflown, so we decided not to compute it. See: YT-24236.
+            {
+                auto preemptedResourcesDeltaWithZeroMemory = preemptedResourcesDelta;
+                preemptedResourcesDeltaWithZeroMemory.SetMemory(0);
+                preemptedAllocationResourceTimes[preemptionReason][operationId] +=
+                    preemptedResourcesDeltaWithZeroMemory *
+                    static_cast<i64>(allocation->GetPreemptibleProgressDuration().Seconds());
+            }
 
             if (allocation->GetPreemptedFor() && !allocation->GetPreemptedForProperlyStarvingOperation()) {
                 improperlyPreemptedAllocationResources[preemptionReason][operationId] += preemptedResourcesDelta;
@@ -3337,6 +3364,10 @@ private:
                 filter,
                 "effective_aggressive_starvation_enabled",
                 element->GetEffectiveAggressiveStarvationEnabled())
+            .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(
+                filter,
+                "effective_waiting_for_resources_on_node_timeout",
+                element->GetEffectiveWaitingForResourcesOnNodeTimeout())
             .DoIf(element->GetLowestAggressivelyStarvingAncestor(), [&] (TFluentMap fluent) {
                 fluent.ITEM_VALUE_IF_SUITABLE_FOR_FILTER(
                     filter,

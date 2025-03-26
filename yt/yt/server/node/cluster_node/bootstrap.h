@@ -86,6 +86,8 @@ struct IBootstrapBase
 
     virtual const NProfiling::TBufferedProducerPtr& GetBufferedProducer() const = 0;
 
+    virtual const TFairShareHierarchicalSchedulerPtr<TString>& GetFairShareHierarchicalScheduler() const = 0;
+
     // Config stuff.
     virtual const TClusterNodeBootstrapConfigPtr& GetConfig() const = 0;
     virtual const NClusterNode::TClusterNodeDynamicConfigManagerPtr& GetDynamicConfigManager() const = 0;
@@ -255,6 +257,8 @@ public:
     const NConcurrency::IThroughputThrottlerPtr& GetUserJobContainerCreationThrottler() const override;
 
     const NProfiling::TBufferedProducerPtr& GetBufferedProducer() const override;
+
+    const TFairShareHierarchicalSchedulerPtr<TString>& GetFairShareHierarchicalScheduler() const override;
 
     const TClusterNodeBootstrapConfigPtr& GetConfig() const override;
     const NClusterNode::TClusterNodeDynamicConfigManagerPtr& GetDynamicConfigManager() const override;

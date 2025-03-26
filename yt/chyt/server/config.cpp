@@ -619,6 +619,8 @@ void TYtConfig::Register(TRegistrar registrar)
         config->PermissionCache->RefreshUser = CacheUserName;
         config->PermissionCache->AlwaysUseRefreshUser = false;
 
+        config->TableAttributeCache->UserName = CacheUserName;
+
         // Disable background updates since we deal with consistency issues by checking cached table revision.
         config->TableColumnarStatisticsCache->RefreshTime = std::nullopt;
         config->TableColumnarStatisticsCache->ExpireAfterSuccessfulUpdateTime = TDuration::Hours(6);

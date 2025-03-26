@@ -1,7 +1,7 @@
 from yt_env_setup import YTEnvSetup, Restarter, NODES_SERVICE, MASTERS_SERVICE
 
 from yt_commands import (
-    authors, print_debug, wait, execute_command, get_driver, build_snapshot,
+    authors, print_debug, raises_yt_error, wait, execute_command, get_driver, build_snapshot,
     exists, ls, get, set, create, remove,
     write_table, update_nodes_dynamic_config,
     create_rack, create_data_center, vanilla,
@@ -96,7 +96,7 @@ class TestNodeTracker(YTEnvSetup):
     @authors("babenko")
     def test_resource_limits_overrides_validation(self):
         node = ls("//sys/cluster_nodes")[0]
-        with pytest.raises(YtError):
+        with raises_yt_error("Attribute \"resource_limits_overrides\" cannot be removed "):
             remove("//sys/cluster_nodes/{0}/@resource_limits_overrides".format(node))
 
     @authors("cherepashka")
@@ -190,7 +190,7 @@ class TestNodeTracker(YTEnvSetup):
     @authors("babenko", "shakurov")
     def test_create_cluster_node(self):
         kwargs = {"type": "cluster_node"}
-        with pytest.raises(YtError):
+        with raises_yt_error("cannot be created explicitly"):
             execute_command("create", kwargs)
 
     @authors("gritukan")

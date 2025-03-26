@@ -1,16 +1,17 @@
+
 # DISCARD
 
-Вычисляет [`SELECT`](select.md), [`REDUCE`](reduce.md)  или [`PROCESS`](process.md), но не возвращает результат ни в клиент, ни в таблицу. Не может быть задано одновременно с [INTO RESULT](into_result.md).
+Вычисляет [SELECT](select/index.md), [REDUCE](reduce.md) или [PROCESS](process.md), но не возвращает результат ни в клиент, ни в таблицу. Не может быть задано одновременно с [INTO RESULT](into_result.md).
 
-Полезно использовать в сочетании с `Ensure` для проверки выполнения пользовательских условий на финальный результат вычислений.
+Полезно использовать в сочетании с [`Ensure`](../builtins/basic.md#ensure) для проверки выполнения пользовательских условий на финальный результат вычислений.
 
-**Примеры**
+#### Примеры
 
-``` yql
+```yql
 DISCARD SELECT 1;
 ```
 
-``` yql
+```yql
 INSERT INTO result_table WITH TRUNCATE
 SELECT * FROM
 my_table
@@ -23,5 +24,4 @@ DISCARD SELECT Ensure(
     COUNT(*) > 1000,
     "Too small result table, got only " || CAST(COUNT(*) AS String) || " rows"
 ) FROM result_table;
-
 ```

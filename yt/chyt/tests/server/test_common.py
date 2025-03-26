@@ -23,7 +23,7 @@ import signal
 
 
 class TestClickHouseCommon(ClickHouseTestBase):
-    NUM_TEST_PARTITIONS = 8
+    NUM_TEST_PARTITIONS = 16
 
     DELTA_NODE_CONFIG = {
         "job_resource_manager": {
@@ -1511,9 +1511,10 @@ class TestClickHouseCommon(ClickHouseTestBase):
                 global join (select *, $table_index from concatYtTables("//tmp/t2", "//tmp/t3")) as b
                 using $table_index order by key
             '''
+            # TODO(buyval01): 24.8 CH QueryAnalyzer resolve asterisk matcher including virtual column
             assert clique.make_query(query) == [
-                {"key": 0, "b.key": 2},
-                {"key": 1, "b.key": 3},
+                {"$table_index": 0, "key": 0, "b.key": 2},
+                {"$table_index": 1, "key": 1, "b.key": 3},
             ]
 
             # TODO(dakovalkov): This should not work since virtual columns are not key columns,
@@ -1922,6 +1923,7 @@ class TestClickHouseCommon(ClickHouseTestBase):
             "clickhouse": {
                 "settings": {
                     "use_query_cache": 1,
+                    "query_cache_system_table_handling": "ignore",
                     "query_cache_min_query_duration": 0,
                     "query_cache_min_query_runs": 0,
                 }

@@ -71,7 +71,7 @@ ExecutableDictionarySource::ExecutableDictionarySource(
     Block & sample_block_,
     std::shared_ptr<ShellCommandSourceCoordinator> coordinator_,
     ContextPtr context_)
-    : log(&Poco::Logger::get("ExecutableDictionarySource"))
+    : log(getLogger("ExecutableDictionarySource"))
     , dict_struct(dict_struct_)
     , configuration(configuration_)
     , sample_block(sample_block_)
@@ -93,7 +93,7 @@ ExecutableDictionarySource::ExecutableDictionarySource(
 }
 
 ExecutableDictionarySource::ExecutableDictionarySource(const ExecutableDictionarySource & other)
-    : log(&Poco::Logger::get("ExecutableDictionarySource"))
+    : log(getLogger("ExecutableDictionarySource"))
     , update_time(other.update_time)
     , dict_struct(other.dict_struct)
     , configuration(other.configuration)
@@ -216,7 +216,7 @@ std::string ExecutableDictionarySource::toString() const
 void registerDictionarySourceExecutable(DictionarySourceFactory & factory)
 {
     auto create_table_source = [=](const DictionaryStructure & dict_struct,
-                                 const Poco::Util::AbstractConfiguration & config,
+                                 const DBPoco::Util::AbstractConfiguration & config,
                                  const std::string & config_prefix,
                                  Block & sample_block,
                                  ContextPtr global_context,

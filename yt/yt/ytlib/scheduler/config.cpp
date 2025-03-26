@@ -67,7 +67,9 @@ static void ValidateOperationAcl(const TSerializableAccessControlList& acl)
     }
 }
 
-static void ProcessAclAndOwnersParameters(TSerializableAccessControlList* acl, std::vector<TString>* owners)
+namespace {
+
+void ProcessAclAndOwnersParameters(TSerializableAccessControlList* acl, std::vector<std::string>* owners)
 {
     if (!acl->Entries.empty() && !owners->empty()) {
         // COMPAT(levysotsky): Priority is given to |acl| currently.
@@ -81,7 +83,7 @@ static void ProcessAclAndOwnersParameters(TSerializableAccessControlList* acl, s
     }
 }
 
-static void ValidateNoOutputStreams(const TUserJobSpecPtr& spec, EOperationType operationType)
+void ValidateNoOutputStreams(const TUserJobSpecPtr& spec, EOperationType operationType)
 {
     if (!spec->OutputStreams.empty()) {
         THROW_ERROR_EXCEPTION("\"output_streams\" are currently not allowed in %Qlv operations",
@@ -89,7 +91,7 @@ static void ValidateNoOutputStreams(const TUserJobSpecPtr& spec, EOperationType 
     }
 }
 
-static void ValidateProfilers(const std::vector<TJobProfilerSpecPtr>& profilers)
+void ValidateProfilers(const std::vector<TJobProfilerSpecPtr>& profilers)
 {
     double totalProbability = 0.0;
     for (const auto& profiler : profilers) {
@@ -102,7 +104,7 @@ static void ValidateProfilers(const std::vector<TJobProfilerSpecPtr>& profilers)
     }
 }
 
-static void ValidateOutputTablePaths(std::vector<NYPath::TRichYPath> paths)
+void ValidateOutputTablePaths(std::vector<NYPath::TRichYPath> paths)
 {
     SortBy(paths, [] (const auto& path) { return path.GetPath(); });
     if (auto duplicatePath = AdjacentFind(paths); duplicatePath != paths.end()) {
@@ -111,9 +113,11 @@ static void ValidateOutputTablePaths(std::vector<NYPath::TRichYPath> paths)
     }
 }
 
+} // namespace
+
 ////////////////////////////////////////////////////////////////////////////////
 
-static const int MaxAllowedProfilingTagCount = 200;
+static constexpr int MaxAllowedProfilingTagCount = 200;
 
 TPoolName::TPoolName(TString pool, std::optional<TString> parent)
 {
@@ -253,6 +257,24 @@ void TDelayConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TPatchSpecProtocolTestingOptions::Register(TRegistrar registrar)
+{
+    registrar.Parameter("delay_before_cypress_flush", &TThis::DelayBeforeCypressFlush)
+        .Default();
+    registrar.Parameter("delay_before_apply", &TThis::DelayBeforeApply)
+        .Default();
+    registrar.Parameter("fail_validate", &TThis::FailValidate)
+        .Default();
+    registrar.Parameter("fail_apply", &TThis::FailApply)
+        .Default();
+    registrar.Parameter("fail_revive", &TThis::FailRevive)
+        .Default();
+    registrar.Parameter("delay_inside_apply", &TThis::DelayInsideApply)
+        .Default();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 // TODO(eshcherbin): Change all delays to TDelayConfigPtr.
 void TTestingOperationOptions::Register(TRegistrar registrar)
 {
@@ -318,6 +340,8 @@ void TTestingOperationOptions::Register(TRegistrar registrar)
         .Default(false);
     registrar.Parameter("throw_exception_during_operation_abort", &TThis::ThrowExceptionDuringOperationAbort)
         .Default(false);
+    registrar.Parameter("patch_spec_protocol", &TThis::PatchSpecProtocol)
+        .Default();
 
     registrar.Postprocessor([] (TTestingOperationOptions* config) {
         if (const auto& delay = config->InsideScheduleAllocationDelay;
@@ -332,6 +356,35 @@ void TTestingOperationOptions::Register(TRegistrar registrar)
 
 void TJobSplitterConfig::Register(TRegistrar registrar)
 {
+    registrar.Parameter("min_job_time", &TThis::MinJobTime)
+        .Default();
+
+    registrar.Parameter("min_total_data_weight", &TThis::MinTotalDataWeight)
+        .Default();
+
+    registrar.Parameter("exec_to_prepare_time_ratio", &TThis::ExecToPrepareTimeRatio)
+        .Default();
+
+    registrar.Parameter("no_progress_job_time_to_average_prepare_time_ratio", &TThis::NoProgressJobTimeToAveragePrepareTimeRatio)
+        .Default();
+
+    registrar.Parameter("max_jobs_per_split", &TThis::MaxJobsPerSplit)
+        .GreaterThan(0)
+        .Default();
+
+    registrar.Parameter("max_input_table_count", &TThis::MaxInputTableCount)
+        .GreaterThan(0)
+        .Default();
+
+    registrar.Parameter("residual_job_factor", &TThis::ResidualJobFactor)
+        .GreaterThan(0)
+        .LessThanOrEqual(1.0)
+        .Default();
+
+    registrar.Parameter("residual_job_count_min_threshold", &TThis::ResidualJobCountMinThreshold)
+        .GreaterThan(0)
+        .Default();
+
     registrar.Parameter("enable_job_splitting", &TThis::EnableJobSplitting)
         .Default(true);
 
@@ -462,6 +515,12 @@ void FromProto(TTmpfsVolumeConfig* tmpfsVolumeConfig, const NControllerAgent::NP
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TNbdDiskConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("data_node_address", &TThis::DataNodeAddress)
+        .Default();
+}
+
 void TDiskRequestConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("disk_space", &TThis::DiskSpace);
@@ -473,8 +532,15 @@ void TDiskRequestConfig::Register(TRegistrar registrar)
     registrar.Parameter("account", &TThis::Account)
         .NonEmpty()
         .Default();
+    registrar.Parameter("nbd_disk", &TThis::NbdDisk)
+        .Default();
 
     registrar.Postprocessor([&] (TDiskRequestConfig* config) {
+        if (config->NbdDisk && static_cast<i64>(20_GB) < config->DiskSpace) {
+            THROW_ERROR_EXCEPTION("\"disk_space\" exceeds maximum limit for NBD disk.")
+                << TErrorAttribute("max_disk_space", 20_GB)
+                << TErrorAttribute("disk_space", config->DiskSpace);
+        }
         if (config->Account && !config->MediumName) {
             THROW_ERROR_EXCEPTION("\"medium_name\" is required in disk request if account is specified");
         }
@@ -492,6 +558,9 @@ void ToProto(
     if (diskRequestConfig.MediumName) {
         YT_VERIFY(diskRequestConfig.MediumIndex);
         protoDiskRequest->set_medium_index(*diskRequestConfig.MediumIndex);
+    }
+    if (diskRequestConfig.NbdDisk && diskRequestConfig.NbdDisk->DataNodeAddress) {
+        protoDiskRequest->mutable_nbd_disk()->set_data_node_address(*diskRequestConfig.NbdDisk->DataNodeAddress);
     }
 }
 
@@ -787,6 +856,8 @@ void TOperationSpecBase::Register(TRegistrar registrar)
         .Default(false);
     registrar.Parameter("use_chunk_slice_statistics", &TThis::UseChunkSliceStatistics)
         .Default(false);
+    registrar.Parameter("enable_read_size_estimation", &TThis::EnableReadSizeEstimation)
+        .Default(true);
 
     registrar.Parameter("ban_nodes_with_failed_jobs", &TThis::BanNodesWithFailedJobs)
         .Default(false);
@@ -922,6 +993,9 @@ void TOperationSpecBase::Register(TRegistrar registrar)
 
     registrar.Parameter("use_cluster_throttlers", &TThis::UseClusterThrottlers)
         .Default(false);
+
+    registrar.Parameter("enable_multiple_jobs_in_allocation", &TThis::EnableMultipleJobsInAllocation)
+        .Default();
 
     registrar.Postprocessor([] (TOperationSpecBase* spec) {
         if (spec->UnavailableChunkStrategy == EUnavailableChunkAction::Wait &&
@@ -1206,6 +1280,9 @@ void TUserJobSpec::Register(TRegistrar registrar)
         .Default(1)
         .GreaterThan(0);
 
+    registrar.Parameter("start_queue_consumer_registration_manager", &TThis::StartQueueConsumerRegistrationManager)
+        .Default(true);
+
     registrar.Parameter("fail_on_job_restart", &TThis::FailOnJobRestart)
         .Default(false);
 
@@ -1468,6 +1545,9 @@ void TSimpleOperationSpecBase::Register(TRegistrar registrar)
     registrar.Parameter("max_data_slices_per_job", &TThis::MaxDataSlicesPerJob)
         .Default()
         .GreaterThan(0);
+    registrar.Parameter("max_compressed_data_size_per_job", &TThis::MaxCompressedDataSizePerJob)
+        .Default()
+        .GreaterThan(0);
     registrar.Parameter("force_job_size_adjuster", &TThis::ForceJobSizeAdjuster)
         .Default(false);
     registrar.Parameter("force_allow_job_interruption", &TThis::ForceAllowJobInterruption)
@@ -1573,6 +1653,14 @@ void TSortedOperationSpec::Register(TRegistrar registrar)
         .Default(false);
     registrar.Parameter("merge_by", &TThis::MergeBy)
         .Default();
+    registrar.Parameter("min_maniac_data_weight", &TThis::MinManiacDataWeight)
+        .Default();
+
+    registrar.Postprocessor([] (TSortedOperationSpec* spec) {
+        if (spec->MinManiacDataWeight && !spec->UseNewSortedPool) {
+            THROW_ERROR_EXCEPTION("\"min_maniac_data_weight\" is only allowed for new sorted pool");
+        }
+    });
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -2447,6 +2535,9 @@ void TPoolConfig::Register(TRegistrar registrar)
     registrar.Parameter("always_allow_gang_operations", &TThis::AlwaysAllowGangOperations)
         .Default(false);
 
+    registrar.Parameter("waiting_for_resources_on_node_timeout", &TThis::WaitingForResourcesOnNodeTimeout)
+        .Default();
+
     registrar.Postprocessor([] (TThis* config) {
         // COMPAT(omgronny)
         if (config->ConfigPreset && !config->ConfigPresets.empty()) {
@@ -2671,6 +2762,7 @@ void Serialize(const TOperationRuntimeParameters& parameters, IYsonConsumer* con
             })
             .OptionalItem("aco_name", parameters.AcoName)
             .Item("scheduling_options_per_pool_tree").Value(parameters.SchedulingOptionsPerPoolTree)
+            .Item("scheduling_tag_filter").Value(parameters.SchedulingTagFilter)
             .Item("options_per_job_shell").Value(parameters.OptionsPerJobShell)
             .DoIf(serializeHeavy, [&] (auto fluent) {
                 SerializeHeavyRuntimeParameters(fluent, parameters);
@@ -2703,6 +2795,9 @@ void Deserialize(TOperationRuntimeParameters& parameters, INodePtr node)
     }
     parameters.SchedulingOptionsPerPoolTree = ConvertTo<THashMap<TString, TOperationFairShareTreeRuntimeParametersPtr>>(
         mapNode->GetChildOrThrow("scheduling_options_per_pool_tree"));
+    if (auto child = mapNode->FindChild("scheduling_tag_filter")) {
+        Deserialize(parameters.SchedulingTagFilter, child);
+    }
     if (auto optionsPerJobShell = mapNode->FindChild("options_per_job_shell")) {
         parameters.OptionsPerJobShell = ConvertTo<THashMap<TString, TOperationJobShellRuntimeParametersPtr>>(optionsPerJobShell);
     }
@@ -2766,6 +2861,8 @@ void TOperationRuntimeParametersUpdate::Register(TRegistrar registrar)
         .Optional();
     registrar.Parameter("scheduling_options_per_pool_tree", &TThis::SchedulingOptionsPerPoolTree)
         .Default();
+    registrar.Parameter("scheduling_tag_filter", &TThis::SchedulingTagFilter)
+        .Optional();
     registrar.Parameter("options_per_job_shell", &TThis::OptionsPerJobShell)
         .Default();
     registrar.Parameter("annotations", &TThis::Annotations)

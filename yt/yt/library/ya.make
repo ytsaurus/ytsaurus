@@ -1,5 +1,5 @@
 RECURSE(
-    arrow_parquet_adapter
+    arrow_adapter
     auth
     auth_server
     backtrace_introspector

@@ -1,6 +1,5 @@
 #pragma once
 #include "query_common.h"
-#include "query.h"
 
 #include <yt/yt/core/ytree/yson_struct.h>
 
@@ -409,6 +408,8 @@ struct TTableHint
     bool RequireSyncReplica;
     bool PushDownGroupBy;
 
+    bool operator == (const TTableHint& other) const = default;
+
     REGISTER_YSON_STRUCT(TTableHint);
 
     static void Register(TRegistrar registrar);
@@ -548,6 +549,7 @@ DEFINE_REFCOUNTED_TYPE(TQueryAstHead);
 
 TStringBuf GetSource(TSourceLocation sourceLocation, TStringBuf source);
 
+void FormatIdFinal(TStringBuilderBase* builder, TStringBuf id);
 TString FormatId(TStringBuf id);
 TString FormatLiteralValue(const TLiteralValue& value);
 TString FormatReference(const TReference& ref);
@@ -558,10 +560,35 @@ TString FormatArrayJoin(const TArrayJoin& join);
 TString FormatQuery(const TQuery& query);
 TString InferColumnName(const TExpression& expr);
 TString InferColumnName(const TReference& ref);
+void FormatValue(TStringBuilderBase* builder, const TTableHint& hint, TStringBuf spec);
 
 ////////////////////////////////////////////////////////////////////////////////
 
 NYPath::TYPath GetMainTablePath(const TQuery& query);
+
+////////////////////////////////////////////////////////////////////////////////
+
+NAst::TExpressionPtr BuildAndExpression(
+    TObjectsHolder* holder,
+    NAst::TExpressionPtr lhs,
+    NAst::TExpressionPtr rhs);
+
+NAst::TExpressionPtr BuildOrExpression(
+    TObjectsHolder* holder,
+    NAst::TExpressionPtr lhs,
+    NAst::TExpressionPtr rhs);
+
+NAst::TExpressionPtr BuildConcatenationExpression(
+    TObjectsHolder* holder,
+    NAst::TExpressionPtr lhs,
+    NAst::TExpressionPtr rhs,
+    const TString& separator);
+
+//! For commutative operations only.
+NAst::TExpressionPtr BuildBinaryOperationTree(
+    TObjectsHolder* holder,
+    std::vector<NAst::TExpressionPtr> leaves,
+    EBinaryOp opCode);
 
 ////////////////////////////////////////////////////////////////////////////////
 

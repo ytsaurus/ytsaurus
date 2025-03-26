@@ -31,7 +31,7 @@ DECLARE_REFCOUNTED_STRUCT(TEpochContext)
 DECLARE_REFCOUNTED_CLASS(TDistributedElectionManager)
 DECLARE_REFCOUNTED_CLASS(TElectionManagerThunk)
 
-DECLARE_REFCOUNTED_CLASS(TDistributedElectionManagerConfig)
+DECLARE_REFCOUNTED_STRUCT(TDistributedElectionManagerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 

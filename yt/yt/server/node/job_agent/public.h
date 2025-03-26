@@ -20,7 +20,7 @@ using NJobTrackerClient::TOperationId;
 using NJobTrackerClient::EJobType;
 using NJobTrackerClient::EJobState;
 
-DECLARE_REFCOUNTED_CLASS(TMappedMemoryControllerConfig)
+DECLARE_REFCOUNTED_STRUCT(TMappedMemoryControllerConfig)
 DECLARE_REFCOUNTED_CLASS(TResourceOwner)
 DECLARE_REFCOUNTED_CLASS(TResourceHolder)
 DECLARE_REFCOUNTED_CLASS(TJobResourceManager)

@@ -73,10 +73,16 @@ public:
         YT_ASSERT_THREAD_AFFINITY_ANY();
         YT_VERIFY(State_.exchange(EDistributedChunkSessionCoordinatorState::Running) == EDistributedChunkSessionCoordinatorState::Created);
 
-        return CloseRequested_.ToFuture()
-            .Apply(BIND([this, this_ = MakeStrong(this)] () {
+        YT_LOG_INFO("Starting distributed chunk write session (SessionId: %v)", SessionId_);
+
+        return CloseRequestedPromise_.ToFuture()
+            .Apply(BIND([this, weakThis = MakeWeak(this)] {
+                auto this_ = weakThis.Lock();
+                if (!this_) {
+                    return VoidFuture;
+                }
                 return AllSucceeded(
-                    std::vector{QueueHasBeenProcessed_, AllPendingAckProcessed_.ToFuture()});
+                    std::vector{QueueHasBeenProcessed_, AllPendingAckProcessedPromise_.ToFuture()});
             }));
     }
 
@@ -89,10 +95,13 @@ public:
         YT_VERIFY(State_ >= EDistributedChunkSessionCoordinatorState::Running);
 
         return BIND(
-            &TDistributedChunkSessionCoordinator::PutBlocksInQueue,
-            MakeStrong(this))
+            &TDistributedChunkSessionCoordinator::DoSendBlocks,
+            MakeStrong(this),
+            Passed(std::move(blocks)),
+            Passed(std::move(blockMetas)),
+            Passed(std::move(blocksMiscMeta)))
             .AsyncVia(SerializedInvoker_)
-            .Run(std::move(blocks), std::move(blockMetas), std::move(blocksMiscMeta));
+            .Run();
     }
 
     TFuture<TCoordinatorStatus> UpdateStatus(int acknowledgedBlockCount) final
@@ -120,7 +129,8 @@ public:
 
     ~TDistributedChunkSessionCoordinator()
     {
-        YT_VERIFY(State_ == EDistributedChunkSessionCoordinatorState::Closed);
+        // Every SendBlocks takes strong ref so it is not possible for any
+        // of the queues to be non-empty in the destructor.
         YT_VERIFY(PendingSendQueue_.empty());
         YT_VERIFY(PendingAckQueue_.empty());
     }
@@ -161,7 +171,7 @@ private:
         std::vector<TBlock> Blocks;
         std::vector<TDataBlockMeta> BlockMetas;
 
-        TPromise<void> WriteFinished = NewPromise<void>();
+        const TPromise<void> WriteFinishedPromise = NewPromise<void>();
     };
 
     using TPendingBlocksPtr = TIntrusivePtr<TPendingBlocks>;
@@ -174,7 +184,7 @@ private:
 
     const IConnectionPtr Connection_;
 
-    TLogger Logger;
+    const TLogger Logger;
 
     std::vector<TNode> Nodes_;
 
@@ -182,7 +192,7 @@ private:
 
     int NextBlockIndex_ = 0;
 
-    TPromise<void> CloseRequested_ = NewPromise<void>();
+    const TPromise<void> CloseRequestedPromise_ = NewPromise<void>();
 
     std::queue<TPendingBlocksPtr> PendingSendQueue_;
     std::queue<TPendingBlocksPtr> PendingAckQueue_;
@@ -193,9 +203,9 @@ private:
     std::vector<TDataBlockMeta> DataBlocksMeta_;
 
     TFuture<void> QueueHasBeenProcessed_ = VoidFuture;
-    TPromise<void> AllPendingAckProcessed_ = NewPromise<void>();
+    const TPromise<void> AllPendingAckProcessedPromise_ = NewPromise<void>();
 
-    TFuture<void> PutBlocksInQueue(
+    TFuture<void> DoSendBlocks(
         std::vector<TBlock> blocks,
         std::vector<TDataBlockMeta> blockMetas,
         TMiscExt blocksMiscMeta)
@@ -203,7 +213,7 @@ private:
         YT_ASSERT_INVOKER_AFFINITY(SerializedInvoker_);
         YT_VERIFY(State_ != EDistributedChunkSessionCoordinatorState::Created);
         YT_VERIFY(blocks.size() == blockMetas.size());
-        THROW_ERROR_EXCEPTION_IF(State_ != EDistributedChunkSessionCoordinatorState::Running, "Distributed chunk write session was closed");
+        THROW_ERROR_EXCEPTION_IF(State_ != EDistributedChunkSessionCoordinatorState::Running, MakeSessionClosedError());
 
         TForbidContextSwitchGuard contextSwitchGuard;
 
@@ -220,12 +230,12 @@ private:
             pendingBlocks->BlockIndexBegin,
             pendingBlocks->BlockIndexEnd);
 
-        auto writeFinishedFuture = pendingBlocks->WriteFinished.ToFuture();
+        auto writeFinishedFuture = pendingBlocks->WriteFinishedPromise.ToFuture();
 
         PendingSendQueue_.push(std::move(pendingBlocks));
 
         if (QueueHasBeenProcessed_.IsSet()) {
-            // It is essential that ProcessQueue and PutBlocksInQueue be executed
+            // It is essential that ProcessQueue and DoSendBlocks be executed
             // within SerializedInvoker_ for Close() to work correctly.
             QueueHasBeenProcessed_ = BIND(
                 &TDistributedChunkSessionCoordinator::ProcessQueue,
@@ -242,7 +252,7 @@ private:
         YT_ASSERT_INVOKER_AFFINITY(SerializedInvoker_);
         YT_VERIFY(!QueueHasBeenProcessed_.IsSet());
 
-        while (!CloseRequested_.IsSet() && !PendingSendQueue_.empty()) {
+        while (!CloseRequestedPromise_.IsSet() && !PendingSendQueue_.empty()) {
             auto blocksToSend = PendingSendQueue_.front();
             try {
                 SendBlocksOnNodes(blocksToSend.get());
@@ -252,7 +262,7 @@ private:
                     blocksToSend->BlockIndexEnd);
                 DoClose(/*force*/ false);
             }
-            if (CloseRequested_.IsSet()) {
+            if (CloseRequestedPromise_.IsSet()) {
                 YT_VERIFY(PendingSendQueue_.empty());
                 break;
             }
@@ -275,7 +285,7 @@ private:
                     block.set_chunk_row_count(block.row_count() + previousBlock.chunk_row_count());
                     block.set_block_index(DataBlocksMeta_.size());
                 }
-                DataBlocksMeta_.emplace_back(std::move(block));
+                DataBlocksMeta_.push_back(std::move(block));
             }
 
             PendingAckQueue_.push(std::move(blocksToSend));
@@ -327,7 +337,7 @@ private:
             }).AsyncVia(SerializedInvoker_));
 
         WaitFor(AnySet(
-            std::vector{CloseRequested_.ToFuture(), std::move(allSetFuture)},
+            std::vector{CloseRequestedPromise_.ToFuture(), std::move(allSetFuture)},
             TFutureCombinerOptions{.CancelInputOnShortcut = false}))
             .ThrowOnError();
     }
@@ -336,7 +346,7 @@ private:
     {
         YT_ASSERT_INVOKER_AFFINITY(SerializedInvoker_);
 
-        YT_LOG_DEBUG("Closing coordinator (Force: %v, PendingSendQueueSize: %v, PendingAckQueueSize: %v)",
+        YT_LOG_INFO("Closing coordinator (Force: %v, PendingSendQueueSize: %v, PendingAckQueueSize: %v)",
             force,
             PendingSendQueue_.size(),
             PendingAckQueue_.size());
@@ -344,22 +354,22 @@ private:
         TForbidContextSwitchGuard contextSwitchGuard;
 
         State_ = EDistributedChunkSessionCoordinatorState::Closed;
-        CloseRequested_.TrySet();
+        CloseRequestedPromise_.TrySet();
 
         while (!PendingSendQueue_.empty()) {
-            PendingSendQueue_.back()->WriteFinished.Set(TError("Distributed chunk write session was closed"));
+            PendingSendQueue_.back()->WriteFinishedPromise.Set(MakeSessionClosedError());
             PendingSendQueue_.pop();
         }
 
         if (force) {
             while (!PendingAckQueue_.empty()) {
-                PendingAckQueue_.back()->WriteFinished.Set(TError("Distributed chunk write session was closed"));
+                PendingAckQueue_.back()->WriteFinishedPromise.Set(MakeSessionClosedError());
                 PendingAckQueue_.pop();
             }
         }
 
         if (PendingAckQueue_.empty()) {
-            AllPendingAckProcessed_.TrySet();
+            AllPendingAckProcessedPromise_.TrySet();
         }
     }
 
@@ -368,7 +378,7 @@ private:
         YT_ASSERT_INVOKER_AFFINITY(SerializedInvoker_);
         YT_LOG_DEBUG("Updating coordinator status (AcknowledgedBlockCount: %v, CloseRequested: %v, WrittenBlockCount: %v)",
              acknowledgedBlockCount,
-             CloseRequested_.IsSet(),
+             CloseRequestedPromise_.IsSet(),
              WrittenBlockCount_);
 
         TForbidContextSwitchGuard contextSwitchGuard;
@@ -376,12 +386,12 @@ private:
         while (!PendingAckQueue_.empty() &&
                 PendingAckQueue_.front()->BlockIndexEnd <= acknowledgedBlockCount)
         {
-            PendingAckQueue_.front()->WriteFinished.Set();
+            PendingAckQueue_.front()->WriteFinishedPromise.Set();
             PendingAckQueue_.pop();
         }
 
-        if (CloseRequested_.IsSet() && PendingAckQueue_.empty()) {
-            AllPendingAckProcessed_.TrySet();
+        if (CloseRequestedPromise_.IsSet() && PendingAckQueue_.empty()) {
+            AllPendingAckProcessedPromise_.TrySet();
         }
 
         YT_VERIFY(std::ssize(DataBlocksMeta_) == WrittenBlockCount_);
@@ -394,11 +404,17 @@ private:
         }
 
         return TCoordinatorStatus{
-            .CloseDemanded = CloseRequested_.IsSet(),
+            .CloseDemanded = CloseRequestedPromise_.IsSet(),
             .WrittenBlockCount = WrittenBlockCount_,
             .ChunkMiscMeta = ChunkMiscMeta_,
             .DataBlockMetas = std::move(blockMetas),
         };
+    }
+
+    TError MakeSessionClosedError() const
+    {
+        return TError("Distributed chunk write session was closed")
+            << TErrorAttribute("session_id", ToString(SessionId_));
     }
 };
 

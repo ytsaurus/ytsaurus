@@ -12,11 +12,10 @@
 #include <Common/formatReadable.h>
 
 #include <memory>
-#include <mutex>
 #include <unordered_map>
 #include <unistd.h>
 #include <boost/noncopyable.hpp>
-#include <Poco/Util/AbstractConfiguration.h>
+#include <DBPoco/Util/AbstractConfiguration.h>
 
 
 namespace DB
@@ -29,13 +28,13 @@ namespace DB
 class StoragePolicy : public IStoragePolicy
 {
 public:
-    StoragePolicy(String name_, const Poco::Util::AbstractConfiguration & config, const String & config_prefix, DiskSelectorPtr disks);
+    StoragePolicy(String name_, const DBPoco::Util::AbstractConfiguration & config, const String & config_prefix, DiskSelectorPtr disks);
 
     StoragePolicy(String name_, Volumes volumes_, double move_factor_);
 
     StoragePolicy(
         StoragePolicyPtr storage_policy,
-        const Poco::Util::AbstractConfiguration & config,
+        const DBPoco::Util::AbstractConfiguration & config,
         const String & config_prefix,
         DiskSelectorPtr disks
     );
@@ -105,7 +104,7 @@ private:
 
     void buildVolumeIndices();
 
-    Poco::Logger * log;
+    LoggerPtr log;
 };
 
 
@@ -120,9 +119,9 @@ class StoragePolicySelector
 public:
     static constexpr auto TMP_STORAGE_POLICY_PREFIX = "__";
 
-    StoragePolicySelector(const Poco::Util::AbstractConfiguration & config, const String & config_prefix, DiskSelectorPtr disks);
+    StoragePolicySelector(const DBPoco::Util::AbstractConfiguration & config, const String & config_prefix, DiskSelectorPtr disks);
 
-    StoragePolicySelectorPtr updateFromConfig(const Poco::Util::AbstractConfiguration & config, const String & config_prefix, DiskSelectorPtr disks) const;
+    StoragePolicySelectorPtr updateFromConfig(const DBPoco::Util::AbstractConfiguration & config, const String & config_prefix, DiskSelectorPtr disks, Strings & new_disks) const;
 
     /// Policy by name
     StoragePolicyPtr get(const String & name) const;

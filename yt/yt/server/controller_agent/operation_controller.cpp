@@ -223,9 +223,11 @@ public:
         return DoExecuteGuarded(&IOperationController::InitializeClean);
     }
 
-    TOperationControllerInitializeResult InitializeReviving(const TControllerTransactionIds& transactions) override
+    TOperationControllerInitializeResult InitializeReviving(
+        const TControllerTransactionIds& transactions,
+        INodePtr cumulativeSpecPatch) override
     {
-        return DoExecuteGuarded(&IOperationController::InitializeReviving, transactions);
+        return DoExecuteGuarded(&IOperationController::InitializeReviving, transactions, std::move(cumulativeSpecPatch));
     }
 
     TOperationControllerPrepareResult Prepare() override
@@ -291,6 +293,11 @@ public:
     void UpdateRuntimeParameters(const TOperationRuntimeParametersUpdatePtr& update) override
     {
         return DoExecuteGuarded(&IOperationController::UpdateRuntimeParameters, update);
+    }
+
+    void PatchSpec(INodePtr newCumulativeSpecPatch, bool dryRun) override
+    {
+        return DoExecuteGuarded(&IOperationController::PatchSpec, std::move(newCumulativeSpecPatch), dryRun);
     }
 
     void OnTransactionsAborted(const std::vector<TTransactionId>& transactionIds) override
@@ -637,6 +644,8 @@ void ApplyExperiments(TOperation* operation)
         }
     }
 
+    INodePtr optionsPatch;
+
     for (const auto& experiment : operation->ExperimentAssignments()) {
         for (const auto& path : userJobPaths) {
             ApplyPatch(
@@ -652,7 +661,14 @@ void ApplyExperiments(TOperation* operation)
                 experiment->Effect->ControllerJobIOTemplatePatch,
                 experiment->Effect->ControllerJobIOPatch);
         }
+        if (const auto& node = experiment->Effect->ControllerOptionsPatch; node) {
+            optionsPatch = optionsPatch
+                ? PatchNode(optionsPatch, node)
+                : node;
+        }
     }
+
+    operation->SetOptionsPatch(std::move(optionsPatch));
 }
 
 IOperationControllerPtr CreateControllerForOperation(

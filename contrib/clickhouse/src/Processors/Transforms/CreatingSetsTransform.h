@@ -8,7 +8,7 @@
 #include <Interpreters/PreparedSets.h>
 #include <Common/Stopwatch.h>
 
-#include <Poco/Logger.h>
+#include <DBPoco/Logger.h>
 
 namespace DB
 {
@@ -62,8 +62,8 @@ private:
     size_t rows_to_transfer = 0;
     size_t bytes_to_transfer = 0;
 
-    using Logger = Poco::Logger;
-    Poco::Logger * log = &Poco::Logger::get("CreatingSetsTransform");
+    using Logger = DBPoco::Logger;
+    LoggerPtr log = getLogger("CreatingSetsTransform");
 
     bool is_initialized = false;
 

@@ -402,7 +402,7 @@ void TChunkReplicator::OnEpochStarted()
     FinishedRequisitionTraverseFlushExecutor_->Start();
 
     // Just in case. See OnCheckEnabled().
-    Enabled_ = false;
+    ReplicatorEnabled_ = false;
 }
 
 void TChunkReplicator::OnEpochFinished()
@@ -459,7 +459,10 @@ void TChunkReplicator::OnEpochFinished()
         MisscheduledJobs_[jobType] = 0;
     }
 
-    Enabled_ = false;
+    ReplicatorEnabled_ = false;
+    RefreshEnabled_ = false;
+    SequoiaRefreshEnabled_ = false;
+    RequisitionUpdateEnabled_ = false;
 }
 
 void TChunkReplicator::OnIncumbencyStarted(int shardIndex)
@@ -508,6 +511,7 @@ void TChunkReplicator::TouchChunk(TChunk* chunk)
         return;
     }
 
+    // Slow path.
     TouchChunkInRepairQueues(chunk);
 }
 
@@ -1491,6 +1495,8 @@ bool TChunkReplicator::TryScheduleReplicationJob(
         }
     } else if (Any(mediumStatistics.Status & (EChunkStatus::UnsafelyPlaced | EChunkStatus::InconsistentlyPlaced))) {
         replicasNeeded = 1;
+    } else if (Any(mediumStatistics.Status & (EChunkStatus::DataDecommissioned | EChunkStatus::ParityDecommissioned))) {
+        replicasNeeded = 1;
     } else {
         return true;
     }
@@ -2292,6 +2298,8 @@ void TChunkReplicator::RefreshChunk(
         return;
     }
 
+    auto config = GetDynamicConfig();
+
     auto* chunk = ephemeralChunk.Get();
     auto chunkId = chunk->GetId();
     const auto& chunkManager = Bootstrap_->GetChunkManager();
@@ -2432,6 +2440,23 @@ void TChunkReplicator::RefreshChunk(
                     AddToChunkRepairQueue(chunkWithIndex, EChunkRepairQueue::Missing);
                 } else if (Any(statistics.Status & (EChunkStatus::DataDecommissioned | EChunkStatus::ParityDecommissioned))) {
                     AddToChunkRepairQueue(chunkWithIndex, EChunkRepairQueue::Decommissioned);
+
+                    if (config->EnableRepairViaReplication) {
+                        for (auto replica : chunkReplicas) {
+                            auto node = replica.GetPtr()->GetNode();
+                            if (!node->ReportedDataNodeHeartbeat() || node->IsPendingRestart()) {
+                                continue;
+                            }
+
+                            if (!IsReplicaDecommissioned(replica.GetPtr())) {
+                                continue;
+                            }
+
+                            auto priority = ReplicationPriorityCount - 1;
+                            TChunkIdWithIndex chunkIdWithIndex(chunkId, replica.GetReplicaIndex());
+                            node->AddToChunkPushReplicationQueue(chunkIdWithIndex, mediumIndex, priority);
+                        }
+                    }
                 }
             }
         }
@@ -2628,6 +2653,10 @@ int TChunkReplicator::GetChunkAggregatedReplicationFactor(const TChunk* chunk, i
 void TChunkReplicator::ScheduleChunkRefresh(TChunk* chunk, std::optional<TDuration> delay)
 {
     // Fast path.
+    if (!IsRefreshEnabled()) {
+        return;
+    }
+
     if (!ShouldProcessChunk(chunk)) {
         return;
     }
@@ -2640,6 +2669,7 @@ void TChunkReplicator::ScheduleChunkRefresh(TChunk* chunk, std::optional<TDurati
         return;
     }
 
+    // Slow path.
     auto adjustedDelay = delay
         ? std::make_optional(DurationToCpuDuration(*delay))
         : std::nullopt;
@@ -2680,6 +2710,10 @@ void TChunkReplicator::ScheduleNodeRefreshSequoia(TNodeId nodeId)
 {
     YT_VERIFY(!HasMutationContext());
 
+    if (!IsRefreshEnabled()) {
+        return;
+    }
+
     const auto& chunkManager = Bootstrap_->GetChunkManager();
     const auto& chunkReplicaFetcher = chunkManager->GetChunkReplicaFetcher();
 
@@ -2690,10 +2724,9 @@ void TChunkReplicator::ScheduleNodeRefreshSequoia(TNodeId nodeId)
         return;
     }
 
-    const auto& sequoiaReplicas = sequoiaReplicasOrError.ValueOrThrow();
+    const auto& sequoiaReplicas = sequoiaReplicasOrError.Value();
     for (const auto& replica : sequoiaReplicas) {
-        auto* chunk = chunkManager->FindChunk(replica.Key.ChunkId);
-        if (IsObjectAlive(chunk)) {
+        if (auto* chunk = chunkManager->FindChunk(replica.Key.ChunkId); IsObjectAlive(chunk)) {
             ScheduleChunkRefresh(chunk);
         }
     }
@@ -2819,17 +2852,17 @@ void TChunkReplicator::OnRefresh()
 
 bool TChunkReplicator::IsReplicatorEnabled()
 {
-    return Enabled_.value_or(false);
+    return ReplicatorEnabled_.value_or(false);
 }
 
 bool TChunkReplicator::IsRefreshEnabled()
 {
-    return GetDynamicConfig()->EnableChunkRefresh;
+    return RefreshEnabled_;
 }
 
 bool TChunkReplicator::IsRequisitionUpdateEnabled()
 {
-    return GetDynamicConfig()->EnableChunkRequisitionUpdate;
+    return RequisitionUpdateEnabled_;
 }
 
 bool TChunkReplicator::ShouldProcessChunk(TChunk* chunk)
@@ -2877,18 +2910,17 @@ void TChunkReplicator::OnCheckEnabled()
         }
     } catch (const std::exception& ex) {
         YT_LOG_ERROR(ex, "Error updating chunk replicator state, disabling until the next attempt");
-        Enabled_ = false;
+        ReplicatorEnabled_ = false;
     }
 }
 
 void TChunkReplicator::OnCheckEnabledPrimary()
 {
     auto enabled = ComputeReplicatorEnablement();
-
     if (enabled) {
         ChunkPlacement_->CheckFaultyDataCentersOnPrimaryMaster();
     }
-    Enabled_ = enabled;
+    ReplicatorEnabled_ = enabled;
 }
 
 void TChunkReplicator::OnCheckEnabledSecondary()
@@ -2904,7 +2936,7 @@ void TChunkReplicator::OnCheckEnabledSecondary()
 
     auto enabled = ConvertTo<bool>(TYsonString(enabledRsp->value()));
     auto faultyStorageDCs = ConvertTo<THashSet<std::string>>(TYsonString(faultyStorageDCsRsp->value()));
-    if (!Enabled_ || enabled != *Enabled_) {
+    if (!ReplicatorEnabled_ || enabled != *ReplicatorEnabled_) {
         if (enabled) {
             YT_LOG_INFO("Chunk replicator enabled at primary master");
         } else {
@@ -2914,7 +2946,7 @@ void TChunkReplicator::OnCheckEnabledSecondary()
     if (enabled) {
         ChunkPlacement_->SetFaultyDataCentersOnSecondaryMaster(faultyStorageDCs);
     }
-    Enabled_ = enabled;
+    ReplicatorEnabled_ = enabled;
 }
 
 void TChunkReplicator::TryRescheduleChunkRemoval(const TJobPtr& unsucceededJob)
@@ -3194,6 +3226,11 @@ void TChunkReplicator::ScheduleRequisitionUpdate(TChunkList* chunkList)
 
 void TChunkReplicator::ScheduleRequisitionUpdate(TChunk* chunk)
 {
+    // Fast path.
+    if (!IsRequisitionUpdateEnabled()) {
+        return;
+    }
+
     if (!IsObjectAlive(chunk)) {
         return;
     }
@@ -3202,6 +3239,7 @@ void TChunkReplicator::ScheduleRequisitionUpdate(TChunk* chunk)
         return;
     }
 
+    // Slow path.
     GetChunkRequisitionUpdateScanner(chunk)->EnqueueChunk(chunk);
 }
 
@@ -3707,29 +3745,58 @@ const TDynamicChunkManagerConfigPtr& TChunkReplicator::GetDynamicConfig() const
     return configManager->GetConfig()->ChunkManager;
 }
 
-void TChunkReplicator::OnDynamicConfigChanged(TDynamicClusterConfigPtr oldConfig)
+void TChunkReplicator::OnDynamicConfigChanged(const TDynamicClusterConfigPtr& oldConfig)
 {
+    const auto& newConfig = GetDynamicConfig();
+
     if (RefreshExecutor_) {
-        RefreshExecutor_->SetPeriod(GetDynamicConfig()->ChunkRefreshPeriod);
+        RefreshExecutor_->SetPeriod(newConfig->ChunkRefreshPeriod);
     }
     if (EnabledCheckExecutor_) {
-        EnabledCheckExecutor_->SetPeriod(GetDynamicConfig()->ReplicatorEnabledCheckPeriod);
+        EnabledCheckExecutor_->SetPeriod(newConfig->ReplicatorEnabledCheckPeriod);
     }
     if (ScheduleChunkRequisitionUpdatesExecutor_) {
-        ScheduleChunkRequisitionUpdatesExecutor_->SetPeriod(GetDynamicConfig()->ScheduledChunkRequisitionUpdatesFlushPeriod);
+        ScheduleChunkRequisitionUpdatesExecutor_->SetPeriod(newConfig->ScheduledChunkRequisitionUpdatesFlushPeriod);
     }
     if (RequisitionUpdateExecutor_) {
-        RequisitionUpdateExecutor_->SetPeriod(GetDynamicConfig()->ChunkRequisitionUpdatePeriod);
+        RequisitionUpdateExecutor_->SetPeriod(newConfig->ChunkRequisitionUpdatePeriod);
     }
     if (FinishedRequisitionTraverseFlushExecutor_) {
-        FinishedRequisitionTraverseFlushExecutor_->SetPeriod(GetDynamicConfig()->FinishedChunkListsRequisitionTraverseFlushPeriod);
+        FinishedRequisitionTraverseFlushExecutor_->SetPeriod(newConfig->FinishedChunkListsRequisitionTraverseFlushPeriod);
     }
 
-    if (!GetDynamicConfig()->ConsistentReplicaPlacement->Enable &&
+    if (!newConfig->ConsistentReplicaPlacement->Enable &&
         oldConfig->ChunkManager->ConsistentReplicaPlacement->Enable)
     {
         InconsistentlyPlacedChunks_.clear();
     }
+
+    auto updateToggle = [&] (bool* currentValue, bool newValue, void(TChunkReplicator::*scheduleGlobalRefresh)(), TString what) {
+        if (newValue != *currentValue) {
+            *currentValue = newValue;
+            YT_LOG_INFO("%v %v",
+                what,
+                newValue ? "enabled" : "disabled");
+            if (newValue) {
+                (this->*scheduleGlobalRefresh)();
+            }
+        }
+    };
+    updateToggle(
+        &RefreshEnabled_,
+        newConfig->EnableChunkRefresh,
+        &TChunkReplicator::ScheduleGlobalChunkRefresh,
+        "Chunk refresh");
+    updateToggle(
+        &SequoiaRefreshEnabled_,
+        newConfig->SequoiaChunkReplicas->EnableSequoiaChunkRefresh,
+        &TChunkReplicator::ScheduleGlobalChunkRefresh,
+        "Sequoia chunk refresh");
+    updateToggle(
+        &RequisitionUpdateEnabled_,
+        newConfig->EnableChunkRequisitionUpdate,
+        &TChunkReplicator::ScheduleGlobalRequisitionUpdate,
+        "Chunk requisition update");
 }
 
 bool TChunkReplicator::IsConsistentChunkPlacementEnabled() const
@@ -3826,7 +3893,7 @@ void TChunkReplicator::StopRequisitionUpdates(int shardIndex)
 bool TChunkReplicator::ComputeReplicatorEnablement() const
 {
     if (!GetDynamicConfig()->EnableChunkReplicator) {
-        if (!Enabled_ || *Enabled_) {
+        if (!ReplicatorEnabled_ || *ReplicatorEnabled_) {
             YT_LOG_INFO("Chunk replicator disabled");
         }
         return false;
@@ -3836,7 +3903,7 @@ bool TChunkReplicator::ComputeReplicatorEnablement() const
     int needOnline = GetDynamicConfig()->SafeOnlineNodeCount;
     int gotOnline = nodeTracker->GetOnlineNodeCount();
     if (gotOnline < needOnline) {
-        if (!Enabled_ || *Enabled_) {
+        if (!ReplicatorEnabled_ || *ReplicatorEnabled_) {
             YT_LOG_INFO("Chunk replicator disabled: too few online nodes, needed >= %v but got %v",
                 needOnline,
                 gotOnline);
@@ -3853,7 +3920,7 @@ bool TChunkReplicator::ComputeReplicatorEnablement() const
         double needFraction = GetDynamicConfig()->SafeLostChunkFraction;
         double gotFraction = static_cast<double>(gotLostChunkCount) / gotChunkCount;
         if (gotFraction > needFraction) {
-            if (!Enabled_ || *Enabled_) {
+            if (!ReplicatorEnabled_ || *ReplicatorEnabled_) {
                 YT_LOG_INFO("Chunk replicator disabled: too many lost chunks, fraction needed <= %v but got %v",
                     needFraction,
                     gotFraction);
@@ -3863,7 +3930,7 @@ bool TChunkReplicator::ComputeReplicatorEnablement() const
     }
 
     if (gotLostChunkCount > needLostChunkCount) {
-        if (!Enabled_ || *Enabled_) {
+        if (!ReplicatorEnabled_ || *ReplicatorEnabled_) {
             YT_LOG_INFO("Chunk replicator disabled: too many lost chunks, needed <= %v but got %v",
                 needLostChunkCount,
                 gotLostChunkCount);
@@ -3871,7 +3938,7 @@ bool TChunkReplicator::ComputeReplicatorEnablement() const
         return false;
     }
 
-    if (!Enabled_ || !*Enabled_) {
+    if (!ReplicatorEnabled_ || !*ReplicatorEnabled_) {
         YT_LOG_INFO("Chunk replicator enabled");
     }
     return true;

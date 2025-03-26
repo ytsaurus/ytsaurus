@@ -20,6 +20,17 @@ TIntrusivePtr<TSpec> ParseOperationSpec(NYTree::INodePtr specNode)
     return spec;
 }
 
+template <class TOptions>
+TOptions CreateOperationOptions(const TOptions& options, const NYTree::INodePtr& patch)
+{
+    using NYTree::ConvertTo;
+
+    if (!patch) {
+        return options;
+    }
+    return ConvertTo<TOptions>(PatchNode(ConvertToNode(options), patch));
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class T>

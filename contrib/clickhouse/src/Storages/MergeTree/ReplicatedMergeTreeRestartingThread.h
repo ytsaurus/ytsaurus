@@ -1,6 +1,6 @@
 #pragma once
 
-#include <Poco/Event.h>
+#include <DBPoco/Event.h>
 #include <Core/BackgroundSchedulePool.h>
 #include <base/types.h>
 #include <thread>
@@ -42,7 +42,7 @@ public:
 private:
     StorageReplicatedMergeTree & storage;
     String log_name;
-    Poco::Logger * log;
+    LoggerPtr log;
     std::atomic<bool> need_stop {false};
 
     /// The random data we wrote into `/replicas/me/is_active`.

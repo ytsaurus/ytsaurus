@@ -15,10 +15,9 @@ namespace NYT::NObjectServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TMutationIdempotizerConfig
+struct TMutationIdempotizerConfig
     : public NYTree::TYsonStruct
 {
-public:
     bool Enabled;
     TDuration ExpirationTime;
     TDuration ExpirationCheckPeriod;
@@ -29,11 +28,11 @@ public:
     static void Register(TRegistrar registrar);
 };
 
-DECLARE_REFCOUNTED_CLASS(TMutationIdempotizerConfig)
+DECLARE_REFCOUNTED_STRUCT(TMutationIdempotizerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TObjectManagerConfig
+struct TObjectManagerConfig
     : public NYTree::TYsonStruct
 {
     REGISTER_YSON_STRUCT(TObjectManagerConfig);
@@ -46,10 +45,9 @@ DEFINE_REFCOUNTED_TYPE(TObjectManagerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TDynamicObjectManagerConfig
+struct TDynamicObjectManagerConfig
     : public NYTree::TYsonStruct
 {
-public:
     static constexpr auto DefaultProfilingPeriod = TDuration::MilliSeconds(100);
 
     //! Maximum total weight of objects processed per a single GC mutation.
@@ -79,19 +77,20 @@ public:
     // COMPAT(akozhikhov).
     bool ResetHunkStorageInTableDestroy;
 
+    bool ProhibitPrerequisiteRevisionsDifferFromExecutionPaths;
+
     REGISTER_YSON_STRUCT(TDynamicObjectManagerConfig);
 
     static void Register(TRegistrar registrar);
 };
 
-DECLARE_REFCOUNTED_CLASS(TDynamicObjectManagerConfig)
+DECLARE_REFCOUNTED_STRUCT(TDynamicObjectManagerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TObjectServiceConfig
+struct TObjectServiceConfig
     : public NYTree::TYsonStruct
 {
-public:
     //! Maximum amount of a single batch of Execute requests is allowed to occupy the automaton thread.
     TDuration YieldTimeout;
 
@@ -123,7 +122,7 @@ public:
     static void Register(TRegistrar registrar);
 };
 
-DECLARE_REFCOUNTED_CLASS(TObjectServiceConfig)
+DECLARE_REFCOUNTED_STRUCT(TObjectServiceConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -144,20 +143,18 @@ protected:
     static void DoRegister(TRegistrar registrar, i64 nodeCount, i64 resultSize);
 };
 
-class TDefaultReadRequestComplexityLimitsConfig
+struct TDefaultReadRequestComplexityLimitsConfig
     : public TReadRequestComplexityLimitsConfigBase
 {
-public:
     REGISTER_YSON_STRUCT(TDefaultReadRequestComplexityLimitsConfig);
 
     static void Register(TRegistrar registrar);
 };
 
 
-class TMaxReadRequestComplexityLimitsConfig
+struct TMaxReadRequestComplexityLimitsConfig
     : public TReadRequestComplexityLimitsConfigBase
 {
-public:
     REGISTER_YSON_STRUCT(TMaxReadRequestComplexityLimitsConfig);
 
     static void Register(TRegistrar registrar);
@@ -165,10 +162,9 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TDynamicObjectServiceConfig
+struct TDynamicObjectServiceConfig
     : public NYTree::TYsonStruct
 {
-public:
     bool EnableTwoLevelCache;
     int LocalReadThreadCount;
     int LocalReadOffloadThreadCount;
@@ -192,12 +188,29 @@ public:
     //! This throttler is acquired simultaneously with per-user request throttling.
     NConcurrency::TThroughputThrottlerConfigPtr LocalWriteRequestThrottler;
 
+    TDynamicObjectServiceTestingConfigPtr Testing;
+
     REGISTER_YSON_STRUCT(TDynamicObjectServiceConfig);
 
     static void Register(TRegistrar registrar);
 };
 
-DECLARE_REFCOUNTED_CLASS(TDynamicObjectServiceConfig)
+DECLARE_REFCOUNTED_STRUCT(TDynamicObjectServiceConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TDynamicObjectServiceTestingConfig
+    : public NYTree::TYsonStruct
+{
+public:
+    std::optional<double> PrematureBackoffAlarmProbability;
+
+    REGISTER_YSON_STRUCT(TDynamicObjectServiceTestingConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DECLARE_REFCOUNTED_CLASS(TDynamicObjectServiceTestingConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 

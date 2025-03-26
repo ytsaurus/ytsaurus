@@ -7,6 +7,8 @@ namespace NYT::NTesting {
 REGISTER_MAPPER(TAlwaysFailingMapper)
 REGISTER_MAPPER(TIdMapper)
 REGISTER_REDUCER(TIdReducer)
+REGISTER_MAPPER(TIdProtoMapper)
+REGISTER_REDUCER(TIdProtoReducer)
 REGISTER_MAPPER(TSleepingMapper)
 REGISTER_MAPPER(THugeStderrMapper)
 REGISTER_MAPPER(TUrlRowIdMapper)

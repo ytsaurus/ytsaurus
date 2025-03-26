@@ -18,6 +18,7 @@ SRCS(
     cell_master/multi_phase_cell_sync_session.cpp
     cell_master/multicell_manager.cpp
     cell_master/multicell_node_statistics.cpp
+    cell_master/multicell_statistics_collector_detail.cpp
     cell_master/multicell_statistics_collector.cpp
     cell_master/program.cpp
     cell_master/proto/alert_manager.proto
@@ -327,12 +328,21 @@ SRCS(
 
     sequoia_server/config.cpp
     sequoia_server/context.cpp
-    sequoia_server/proto/ground_update_queue_manager.proto
-    sequoia_server/sequoia_manager.cpp
+    sequoia_server/cypress_integration.cpp
+    sequoia_server/cypress_proxy_object.cpp
+    sequoia_server/cypress_proxy_object_proxy.cpp
+    sequoia_server/cypress_proxy_tracker.cpp
+    sequoia_server/cypress_proxy_tracker_service.cpp
+    sequoia_server/cypress_proxy_type_handler.cpp
+    sequoia_server/helpers.cpp
     sequoia_server/ground_update_queue_manager.cpp
+    sequoia_server/sequoia_manager.cpp
     sequoia_server/sequoia_transaction_service.cpp
 
+    sequoia_server/proto/ground_update_queue_manager.proto
+
     table_server/config.cpp
+    table_server/compact_table_schema.cpp
     table_server/cypress_integration.cpp
     table_server/helpers.cpp
     table_server/master_table_schema_proxy.cpp

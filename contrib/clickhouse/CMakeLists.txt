@@ -13,5 +13,5 @@
 # changes in this file.
 
 add_subdirectory(src)
-add_subdirectory(contrib)
 add_subdirectory(base)
+add_subdirectory(contrib)

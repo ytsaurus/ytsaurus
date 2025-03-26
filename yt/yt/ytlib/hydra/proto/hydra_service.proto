@@ -9,7 +9,12 @@ message TPeerKindExt
 {
     extend NRpc.NProto.TReqDiscover
     {
-        optional TPeerKindExt peer_kind_ext = 100;
+        optional TPeerKindExt discover_peer_kind_ext = 100;
+    }
+
+    extend NRpc.NProto.TRequestHeader
+    {
+        optional TPeerKindExt request_peer_kind_ext = 121;
     }
 
     required int32 peer_kind = 1;

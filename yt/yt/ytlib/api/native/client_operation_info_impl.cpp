@@ -6,7 +6,7 @@
 #include "rpc_helpers.h"
 
 #include <yt/yt/ytlib/scheduler/records/operation_alias.record.h>
-#include <yt/ytlib/scheduler/records/ordered_by_start_time.record.h>
+#include <yt/yt/ytlib/scheduler/records/ordered_by_start_time.record.h>
 
 #include <yt/yt/ytlib/object_client/object_service_proxy.h>
 
@@ -57,7 +57,7 @@ static const THashSet<TString> SupportedOperationAttributes = {
     "state",
     "authenticated_user",
     "type",
-    // COMPAT(levysotsky): "operation_type" is deprecated
+    // COMPAT(levysotsky): "operation_type" is deprecated (YT-24340)
     "operation_type",
     "progress",
     "spec",
@@ -255,7 +255,7 @@ TClient::TGetOperationFromCypressResult TClient::DoGetOperationFromCypress(
     }
 
     if (auto type = attributeDictionary->Find<EOperationType>("operation_type")) {
-        // COMPAT(levysotsky): When "operation_type" is disallowed, this code
+        // COMPAT(levysotsky): (YT-24340) When "operation_type" is disallowed, this code
         // will be simplified to unconditionally removing the child
         // (and also child will not have to be cloned).
         if (options.Attributes && !options.Attributes->contains("operation_type")) {
@@ -985,13 +985,13 @@ THashMap<TOperationId, TOperation> TClient::LookupOperationsInArchiveTyped(
 
     YT_LOG_DEBUG("Parsing operations from archive (OperationCount: %v)", ids.size());
 
-    for (auto record : records) {
+    for (const auto& record : records) {
         if (!record) {
             continue;
         }
 
         TOperation operation{
-            .AuthenticatedUser =  record->AuthenticatedUser,
+            .AuthenticatedUser = record->AuthenticatedUser,
             .BriefSpec = record->BriefSpec.value_or(TYsonString()),
             .Spec = record->Spec.value_or(TYsonString()),
             .ProvidedSpec = record->ProvidedSpec.value_or(TYsonString()),

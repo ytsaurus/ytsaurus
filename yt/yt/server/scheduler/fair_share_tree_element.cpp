@@ -328,6 +328,11 @@ TJobResources TSchedulerElement::GetInstantResourceUsage(bool withPrecommit) con
     return resourceUsage;
 }
 
+TResourceTreeElement::TDetailedResourceUsage TSchedulerElement::GetInstantDetailedResourceUsage() const
+{
+    return  ResourceTreeElement_->GetDetailedResourceUsage();
+}
+
 double TSchedulerElement::GetMaxShareRatio() const
 {
     return MaxComponent(GetMaxShare());
@@ -1180,7 +1185,7 @@ TYPath TSchedulerCompositeElement::GetFullPath(bool explicitOnly, bool withTreeI
     return path;
 }
 
-std::optional<TString> TSchedulerCompositeElement::GetRedirectToCluster() const
+std::optional<std::string> TSchedulerCompositeElement::GetRedirectToCluster() const
 {
     return std::nullopt;
 }
@@ -1300,6 +1305,12 @@ TJobResourcesConfigPtr TSchedulerPoolElement::GetSpecifiedNonPreemptibleResource
 {
     return Config_->NonPreemptibleResourceUsageThreshold;
 }
+
+std::optional<TDuration> TSchedulerPoolElement::GetSpecifiedWaitingForResourcesOnNodeTimeout() const
+{
+    return Config_->WaitingForResourcesOnNodeTimeout;
+}
+
 TString TSchedulerPoolElement::GetId() const
 {
     return Id_;
@@ -1356,6 +1367,11 @@ void TSchedulerPoolElement::UpdateRecursiveAttributes()
     EffectiveNonPreemptibleResourceUsageThresholdConfig_ = Parent_->EffectiveNonPreemptibleResourceUsageThresholdConfig();
     if (const auto& specifiedConfig = GetSpecifiedNonPreemptibleResourceUsageThresholdConfig()) {
         EffectiveNonPreemptibleResourceUsageThresholdConfig_ = specifiedConfig;
+    }
+
+    EffectiveWaitingForResourcesOnNodeTimeout_ = Parent_->GetEffectiveWaitingForResourcesOnNodeTimeout();
+    if (auto specifiedTimeout = GetSpecifiedWaitingForResourcesOnNodeTimeout()) {
+        EffectiveWaitingForResourcesOnNodeTimeout_ = specifiedTimeout;
     }
 
     TSchedulerCompositeElement::UpdateRecursiveAttributes();
@@ -1719,7 +1735,7 @@ std::optional<bool> TSchedulerPoolElement::IsIdleCpuPolicyAllowed() const
     return Parent_->IsIdleCpuPolicyAllowed();
 }
 
-std::optional<TString> TSchedulerPoolElement::GetRedirectToCluster() const
+std::optional<std::string> TSchedulerPoolElement::GetRedirectToCluster() const
 {
     return Config_->RedirectToCluster
         ? Config_->RedirectToCluster
@@ -1770,7 +1786,10 @@ TSchedulerOperationElement::TSchedulerOperationElement(
         ToString(operation->GetId()),
         EResourceTreeElementKind::Operation,
         logger.WithTag("OperationId: %v", operation->GetId()))
-    , TSchedulerOperationElementFixedState(operation, std::move(controllerConfig), TSchedulingTagFilter(spec->SchedulingTagFilter))
+    , TSchedulerOperationElementFixedState(
+        operation,
+        std::move(controllerConfig),
+        TSchedulingTagFilter(spec->SchedulingTagFilter))
     , Spec_(std::move(spec))
     , RuntimeParameters_(std::move(runtimeParameters))
     , Controller_(std::move(controller))
@@ -1811,11 +1830,10 @@ void TSchedulerOperationElement::InitializeUpdate(TInstant now)
     ScheduleAllocationBackoffCheckEnabled_ = Controller_->ScheduleAllocationBackoffObserved();
 
     UnschedulableReason_ = ComputeUnschedulableReason();
-    ResourceUsageAtUpdate_ = GetInstantResourceUsage();
-    // Must be calculated after ResourceUsageAtUpdate_
-    ResourceDemand_ = ComputeResourceDemand();
     Tentative_ = RuntimeParameters_->Tentative;
     StartTime_ = OperationHost_->GetStartTime();
+
+    InitializeResourceUsageAndDemand();
 
     TSchedulerElement::InitializeUpdate(now);
 
@@ -1898,6 +1916,9 @@ void TSchedulerOperationElement::UpdateRecursiveAttributes()
 
     // These attributes cannot be overwritten in operations.
     EffectiveAggressiveStarvationEnabled_ = Parent_->GetEffectiveAggressiveStarvationEnabled();
+
+    // TODO(eshcherbin): Currently |WaitingJobTimeout| spec option is applied in controller. Should we do it here instead?
+    EffectiveWaitingForResourcesOnNodeTimeout_ = Parent_->GetEffectiveWaitingForResourcesOnNodeTimeout();
 }
 
 void TSchedulerOperationElement::OnFifoSchedulableElementCountLimitReached(TFairSharePostUpdateContext* context)
@@ -1982,6 +2003,11 @@ TResourceVector TSchedulerOperationElement::GetMaxShare() const
 const TFairShareStrategyOperationStatePtr& TSchedulerOperationElement::GetFairShareStrategyOperationState() const
 {
     return FairShareStrategyOperationState_;
+}
+
+void TSchedulerOperationElement::SetSchedulingTagFilter(TSchedulingTagFilter schedulingTagFilter)
+{
+    SchedulingTagFilter_ = std::move(schedulingTagFilter);
 }
 
 const TSchedulingTagFilter& TSchedulerOperationElement::GetSchedulingTagFilter() const
@@ -2160,8 +2186,7 @@ TControllerScheduleAllocationResultPtr TSchedulerOperationElement::ScheduleAlloc
     const TJobResources& availableResources,
     const TDiskResources& availableDiskResources,
     TDuration timeLimit,
-    const TString& treeId,
-    const TFairShareStrategyTreeConfigPtr& treeConfig)
+    const TString& treeId)
 {
     return Controller_->ScheduleAllocation(
         context,
@@ -2169,7 +2194,8 @@ TControllerScheduleAllocationResultPtr TSchedulerOperationElement::ScheduleAlloc
         availableDiskResources,
         timeLimit,
         treeId,
-        GetParent()->GetFullPath(/*explicitOnly*/ false), treeConfig);
+        GetParent()->GetFullPath(/*explicitOnly*/ false),
+        EffectiveWaitingForResourcesOnNodeTimeout_);
 }
 
 void TSchedulerOperationElement::OnScheduleAllocationFailed(
@@ -2228,13 +2254,27 @@ void TSchedulerOperationElement::ReleaseResources(bool markAsNonAlive)
     TreeElementHost_->GetResourceTree()->ReleaseResources(ResourceTreeElement_, markAsNonAlive);
 }
 
-TJobResources TSchedulerOperationElement::ComputeResourceDemand() const
+void TSchedulerOperationElement::InitializeResourceUsageAndDemand()
 {
+    auto detailedResourceUsage = GetInstantDetailedResourceUsage();
+
+    ResourceUsageAtUpdate_ = detailedResourceUsage.Base;
+
     auto maybeUnschedulableReason = OperationHost_->CheckUnschedulable(TreeId_);
     if (maybeUnschedulableReason == EUnschedulableReason::IsNotRunning || maybeUnschedulableReason == EUnschedulableReason::Suspended) {
-        return ResourceUsageAtUpdate_;
+        ResourceDemand_ = ResourceUsageAtUpdate_;
+        return;
     }
-    return ResourceUsageAtUpdate_ + TotalNeededResources_;
+    // Explanation of the reason to consider resource usage _with precommit_ in the demand computation.
+    //
+    // In the current scheme the exact demand of operation is not known due to asynchronous nature of total needed resources
+    // that are reported to scheduler periodically. The value of total needed resources corresponds to the total demand of operation
+    // without already scheduled jobs and some jobs that have been scheduled inside operation controller but have not been reported
+    // to scheduler yet. And such jobs correspond to the part of precommited resource usage.
+    //
+    // Note that the total needed resources usually decreases in time, therefore using resource usage with precommit here
+    // allows us to nearly guarantee that calculated demand is greater than or equal to exact value of demand.
+    ResourceDemand_ = detailedResourceUsage.Base + detailedResourceUsage.Precommit + TotalNeededResources_;
 }
 
 TJobResourcesConfigPtr TSchedulerOperationElement::GetSpecifiedResourceLimitsConfig() const
@@ -2474,6 +2514,9 @@ void TSchedulerRootElement::UpdateRecursiveAttributes()
     YT_VERIFY(GetSpecifiedNonPreemptibleResourceUsageThresholdConfig());
     EffectiveNonPreemptibleResourceUsageThresholdConfig_ = GetSpecifiedNonPreemptibleResourceUsageThresholdConfig();
 
+    // NB: May be null.
+    EffectiveWaitingForResourcesOnNodeTimeout_ = GetSpecifiedWaitingForResourcesOnNodeTimeout();
+
     TSchedulerCompositeElement::UpdateRecursiveAttributes();
 }
 
@@ -2520,6 +2563,11 @@ std::optional<bool> TSchedulerRootElement::IsAggressiveStarvationEnabled() const
 TJobResourcesConfigPtr TSchedulerRootElement::GetSpecifiedNonPreemptibleResourceUsageThresholdConfig() const
 {
     return TreeConfig_->NonPreemptibleResourceUsageThreshold;
+}
+
+std::optional<TDuration> TSchedulerRootElement::GetSpecifiedWaitingForResourcesOnNodeTimeout() const
+{
+    return TreeConfig_->WaitingForResourcesOnNodeTimeout;
 }
 
 void TSchedulerRootElement::BuildPoolSatisfactionDigests(TFairSharePostUpdateContext* postUpdateContext)

@@ -35,6 +35,7 @@
 #include <yt/yt/ytlib/auth/native_authentication_manager.h>
 #include <yt/yt/ytlib/auth/tvm_bridge_service.h>
 
+#include <yt/yt/ytlib/chunk_client/chunk_reader_host.h>
 #include <yt/yt/ytlib/chunk_client/client_block_cache.h>
 
 #include <yt/yt/ytlib/hive/cluster_directory_synchronizer.h>
@@ -61,6 +62,7 @@
 namespace NYT::NExecNode {
 
 using namespace NApi;
+using namespace NChunkClient;
 using namespace NClusterNode;
 using namespace NConcurrency;
 using namespace NCypressClient;
@@ -72,6 +74,7 @@ using namespace NProfiling;
 using namespace NYTree;
 using namespace NScheduler;
 using namespace NServer;
+using namespace NThreading;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -196,8 +199,57 @@ public:
 
         auto nbdConfig = DynamicConfig_.Acquire()->ExecNode->Nbd;
         if (nbdConfig && nbdConfig->Enabled) {
-            NbdThreadPool_ = NConcurrency::CreateThreadPool(nbdConfig->Server->ThreadCount, "Nbd", { .ThreadPriority = NThreading::EThreadPriority::RealTime });
-            NbdServer_ = CreateNbdServer(nbdConfig, NbdThreadPool_->GetInvoker());
+            // Create NBD server.
+            NbdThreadPool_ = CreateThreadPool(nbdConfig->Server->ThreadCount, "Nbd", { .ThreadPriority = EThreadPriority::RealTime });
+            NbdServer_ = CreateNbdServer(
+                nbdConfig->Server,
+                NBus::TTcpDispatcher::Get()->GetXferPoller(),
+                NbdThreadPool_->GetInvoker());
+
+            // Create block caches to read from Cypress.
+            NApi::NNative::TConnectionOptions connectionOptions;
+            connectionOptions.ConnectionInvoker = NbdThreadPool_->GetInvoker();
+            auto connection = CreateConnection(TBootstrapBase::GetConnection()->GetCompoundConfig(), std::move(connectionOptions));
+            connection->GetNodeDirectorySynchronizer()->Start();
+            connection->GetClusterDirectorySynchronizer()->Start();
+
+            auto clientOptions = NYT::NApi::TClientOptions::FromUser(NSecurityClient::RootUserName);
+            auto client = connection->CreateNativeClient(clientOptions);
+
+            auto blockCacheConfig = New<TBlockCacheConfig>();
+            blockCacheConfig->CompressedData->Capacity = nbdConfig->BlockCacheCompressedDataCapacity;
+
+            auto layerBlockCache = CreateClientBlockCache(
+                blockCacheConfig,
+                EBlockType::CompressedData,
+                GetNullMemoryUsageTracker());
+
+            LayerReaderHost_ = New<TChunkReaderHost>(
+                client,
+                /*localDescriptor*/ NNodeTrackerClient::TNodeDescriptor{},
+                std::move(layerBlockCache),
+                connection->GetChunkMetaCache(),
+                /*nodeStatusDirectory*/ nullptr,
+                /*bandwidthThrottler*/ GetUnlimitedThrottler(),
+                /*rpsThrottler*/ GetUnlimitedThrottler(),
+                /*mediumThrottler*/ GetUnlimitedThrottler(),
+                /*trafficMeter*/ nullptr);
+
+            auto fileBlockCache = CreateClientBlockCache(
+                std::move(blockCacheConfig),
+                EBlockType::CompressedData,
+                GetNullMemoryUsageTracker());
+
+            FileReaderHost_ = New<TChunkReaderHost>(
+                client,
+                /*localDescriptor*/ NNodeTrackerClient::TNodeDescriptor{},
+                std::move(fileBlockCache),
+                connection->GetChunkMetaCache(),
+                /*nodeStatusDirectory*/ nullptr,
+                /*bandwidthThrottler*/ GetUnlimitedThrottler(),
+                /*rpsThrottler*/ GetUnlimitedThrottler(),
+                /*mediumThrottler*/ GetUnlimitedThrottler(),
+                /*trafficMeter*/ nullptr);
         }
 
         SetNodeByYPath(
@@ -306,6 +358,16 @@ public:
         return NbdServer_;
     }
 
+    TChunkReaderHostPtr GetFileReaderHost() const override
+    {
+        return FileReaderHost_;
+    }
+
+    TChunkReaderHostPtr GetLayerReaderHost() const override
+    {
+        return LayerReaderHost_;
+    }
+
     const IJobProxyLogManagerPtr& GetJobProxyLogManager() const override
     {
         return JobProxyLogManager_;
@@ -367,7 +429,10 @@ private:
     TAtomicIntrusivePtr<TClusterNodeDynamicConfig> DynamicConfig_;
 
     IThreadPoolPtr NbdThreadPool_;
-    NYT::NNbd::INbdServerPtr NbdServer_;
+    NNbd::INbdServerPtr NbdServer_;
+
+    TChunkReaderHostPtr FileReaderHost_;
+    TChunkReaderHostPtr LayerReaderHost_;
 
     IJobProxyLogManagerPtr JobProxyLogManager_;
 
@@ -393,8 +458,9 @@ private:
         JobProxyConfigTemplate_->SetSingletonConfig(GetConfig()->ExecNode->JobProxy->JobProxyLogging->LogManagerTemplate);
         JobProxyConfigTemplate_->SetSingletonConfig(GetConfig()->ExecNode->JobProxy->JobProxyJaeger);
 
+        JobProxyConfigTemplate_->OriginalClusterConnection = GetConfig()->ClusterConnection->Clone();
+
         JobProxyConfigTemplate_->ClusterConnection = GetConfig()->ClusterConnection->Clone();
-        JobProxyConfigTemplate_->OriginalClusterConnection = JobProxyConfigTemplate_->ClusterConnection->Clone();
         JobProxyConfigTemplate_->ClusterConnection->Static->OverrideMasterAddresses({localAddress});
 
         JobProxyConfigTemplate_->AuthenticationManager = GetConfig()->ExecNode->JobProxy->JobProxyAuthenticationManager;
@@ -481,27 +547,6 @@ private:
         if (NbdThreadPool_ && newConfig->ExecNode->Nbd) {
             NbdThreadPool_->SetThreadCount(newConfig->ExecNode->Nbd->Server->ThreadCount);
         }
-    }
-
-    NNbd::INbdServerPtr CreateNbdServer(TNbdConfigPtr nbdConfig, IInvokerPtr invoker)
-    {
-        NApi::NNative::TConnectionOptions connectionOptions;
-        auto blockCacheConfig = New<NChunkClient::TBlockCacheConfig>();
-        blockCacheConfig->CompressedData->Capacity = nbdConfig->Server->BlockCacheCompressedDataCapacity;
-        connectionOptions.BlockCache = CreateClientBlockCache(
-            std::move(blockCacheConfig),
-            NChunkClient::EBlockType::CompressedData,
-            GetNullMemoryUsageTracker());
-        connectionOptions.ConnectionInvoker = invoker;
-        auto connection = CreateConnection(TBootstrapBase::GetConnection()->GetCompoundConfig(), std::move(connectionOptions));
-        connection->GetNodeDirectorySynchronizer()->Start();
-        connection->GetClusterDirectorySynchronizer()->Start();
-
-        return NNbd::CreateNbdServer(
-            nbdConfig->Server,
-            std::move(connection),
-            NBus::TTcpDispatcher::Get()->GetXferPoller(),
-            std::move(invoker));
     }
 };
 

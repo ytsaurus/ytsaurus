@@ -15,7 +15,7 @@ from yt.wrapper.schema import TableSchema, ColumnSchema
 
 from yt.wrapper.file_commands import upload_file_to_cache
 
-import yt.type_info as typing
+import yt.type_info as ti
 
 from flaky import flaky
 
@@ -50,21 +50,38 @@ class TestCypressCommands(object):
         assert path.append is None
         assert path.attributes == {"ranges": []}
 
-    @authors("levysotsky")
+    @authors("ermolovd")
     def test_table_schema(self):
-        schema = TableSchema(unique_keys=True) \
-            .add_column(ColumnSchema("a", typing.String, sort_order="ascending")) \
-            .add_column("b", typing.Struct["field1": typing.Optional[typing.Yson], "field2": typing.Int8])
+        schema = TableSchema(unique_keys=True, columns=[
+            ColumnSchema("a", ti.String, sort_order="ascending"),
+            ColumnSchema("b", ti.Struct["field1": ti.Optional[ti.Yson], "field2": ti.Int8]),
+        ])
+
         schema.strict = False
-        schema.add_column("c", typing.Null)
+        schema.add_column("c", ti.Null)
         path = yt.TablePath(TEST_DIR + "/my/table", schema=schema)
         yt.create("table", path, recursive=True, attributes={"schema": schema})
         schema_from_attr = TableSchema.from_yson_type(yt.get(path + "/@schema"))
         assert schema == schema_from_attr
         wrong_schema = copy.deepcopy(schema)
-        wrong_schema.add_column("new", typing.Int64)
+        wrong_schema.add_column("new", ti.Int64)
         assert wrong_schema != schema
         assert wrong_schema != schema_from_attr
+
+    @authors("ermolovd")
+    def test_table_schema_advanced(self):
+        schema = TableSchema(unique_keys=True, columns=[
+            ColumnSchema("hash", ti.Optional[ti.Uint64], sort_order="ascending", expression="farm_hash(a)"),
+            ColumnSchema("a", ti.String, sort_order="ascending"),
+            ColumnSchema("b", ti.Struct["field1": ti.Optional[ti.Yson], "field2": ti.Int8]),
+            ColumnSchema("c", ti.Optional[ti.Int64], aggregate="sum"),
+        ])
+        path = TEST_DIR + "/table"
+        yt.create("table", path, recursive=True, attributes={"schema": schema, "dynamic": True})
+        schema_from_attr = TableSchema.from_yson_type(yt.get(path + "/@schema"))
+        assert schema.columns[0].expression == "farm_hash(a)"
+        assert schema.columns[-1].aggregate == "sum"
+        assert schema == schema_from_attr
 
     @pytest.mark.opensource
     @authors("asaitgalin")
@@ -815,8 +832,8 @@ class TestCypressCommands(object):
     def test_get_table_schema(self):
         expected_schema = (
             TableSchema(strict=True)
-            .add_column("first", typing.String, sort_order="ascending")
-            .add_column("second", typing.Bool)
+            .add_column("first", ti.String, sort_order="ascending")
+            .add_column("second", ti.Bool)
         )
         path = yt.ypath.ypath_join(TEST_DIR, "/table")
         yt.create("table", path, recursive=True, attributes={"schema": expected_schema})

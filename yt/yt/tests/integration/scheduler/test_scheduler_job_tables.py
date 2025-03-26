@@ -11,7 +11,7 @@ from yt_commands import (
     authors, wait, wait_no_assert, wait_breakpoint, release_breakpoint, with_breakpoint, events_on_fs, exists,
     concatenate, create, ls, get, create_account, read_table, write_table,
     map, reduce, map_reduce, vanilla, run_test_vanilla,
-    select_rows, list_jobs, get_job_trace, clean_operations, sync_create_cells,
+    select_rows, list_jobs, get_job, get_job_trace, clean_operations, sync_create_cells,
     set_account_disk_space_limit, raises_yt_error, update_nodes_dynamic_config,
     lookup_rows)
 
@@ -92,9 +92,6 @@ class TestStderrTable(YTEnvSetup):
         "controller_agent": {
             # We want to disable premature chunk list allocataion to expose YT-6219.
             "chunk_list_watermark_count": 0,
-            # COMPAT(shakurov): change the default to false and remove
-            # this delta once masters are up to date.
-            "enable_prerequisites_for_starting_completion_transactions": False,
         }
     }
 
@@ -403,7 +400,7 @@ class TestStderrTable(YTEnvSetup):
             map(
                 in_="//tmp/t_input",
                 out="//tmp/t_output",
-                command="""python -c 'import sys; s = "x" * (20 * 1024 * 1024) ; sys.stderr.write(s)'""",
+                command="""python3 -c 'import sys; s = "x" * (20 * 1024 * 1024) ; sys.stderr.write(s)'""",
                 spec={
                     "stderr_table_path": "//tmp/t_stderr",
                     "stderr_table_writer_config": {
@@ -423,7 +420,7 @@ class TestStderrTable(YTEnvSetup):
         map(
             in_="//tmp/t_input",
             out="//tmp/t_output",
-            command="""python -c 'import sys; s = "x" * (30 * 1024 * 1024) ; sys.stderr.write(s)'""",
+            command="""python3 -c 'import sys; s = "x" * (30 * 1024 * 1024) ; sys.stderr.write(s)'""",
             spec={
                 "stderr_table_path": "//tmp/t_stderr",
                 "stderr_table_writer_config": {
@@ -443,7 +440,7 @@ class TestStderrTable(YTEnvSetup):
         map(
             in_="//tmp/t_input",
             out="//tmp/t_output",
-            command="""python -c 'import sys; s = "x " * (30 * 1024 * 1024) ; sys.stderr.write(s)'""",
+            command="""python3 -c 'import sys; s = "x " * (30 * 1024 * 1024) ; sys.stderr.write(s)'""",
             spec=get_stderr_spec("//tmp/t_stderr"),
         )
         stderr_rows = read_table("//tmp/t_stderr", verbose=False)
@@ -1591,10 +1588,18 @@ class TestJobProfiling(YTEnvSetup):
             assert len(builtins.set(row["profile_type"] for row in profiles)) >= 1
             assert len(profiles) >= 20
 
-        jobs = list_jobs(op.id)["jobs"]
-        for job in jobs:
+        def check_job(job):
+            assert "archive_features" in job
             assert "has_trace" in job["archive_features"]
             assert job["archive_features"]["has_trace"]
+
+        jobs = list_jobs(op.id)["jobs"]
+        for job in jobs:
+            check_job(job)
+
+        first_job_id = jobs[0]["id"]
+        first_job = get_job(op.id, first_job_id)
+        check_job(first_job)
 
 
 @pytest.mark.enabled_multidaemon
@@ -1683,11 +1688,14 @@ class TestJobTraceEvents(YTEnvSetup):
 
     @authors("omgronny")
     def test_no_profiling(self):
-        run_test_vanilla(
+        op = run_test_vanilla(
             job_count=2,
             command="sleep 0",
             track=True,
         )
+
+        events = get_job_trace(op.id)
+        assert not events
 
     @authors("omgronny")
     def test_incorrect_event(self):
@@ -1733,6 +1741,11 @@ class TestJobTraceEvents(YTEnvSetup):
                     events = get_job_trace(op.id, job_id=job_id, trace_id=trace_id)
                     assert len(events) == 2
 
+    @authors("ignat")
+    def test_get_job_trace_on_missing_operation(self):
+        with pytest.raises(YtError):
+            # Missing/incorrect op_id
+            get_job_trace("1-1-1-1")
 
 ##################################################################
 

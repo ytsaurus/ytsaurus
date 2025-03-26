@@ -88,6 +88,7 @@ target_sources(yt-server-master PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/cell_master/multi_phase_cell_sync_session.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/cell_master/multicell_manager.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/cell_master/multicell_node_statistics.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/master/cell_master/multicell_statistics_collector_detail.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/cell_master/multicell_statistics_collector.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/cell_master/program.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/cell_master/response_keeper_manager.cpp
@@ -360,10 +361,18 @@ target_sources(yt-server-master PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/security_server/user_activity_tracker.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/sequoia_server/config.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/sequoia_server/context.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/master/sequoia_server/sequoia_manager.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/master/sequoia_server/cypress_integration.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/master/sequoia_server/cypress_proxy_object.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/master/sequoia_server/cypress_proxy_object_proxy.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/master/sequoia_server/cypress_proxy_tracker.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/master/sequoia_server/cypress_proxy_tracker_service.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/master/sequoia_server/cypress_proxy_type_handler.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/master/sequoia_server/helpers.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/sequoia_server/ground_update_queue_manager.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/master/sequoia_server/sequoia_manager.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/sequoia_server/sequoia_transaction_service.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/table_server/config.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/master/table_server/compact_table_schema.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/table_server/cypress_integration.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/table_server/helpers.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/table_server/master_table_schema_proxy.cpp

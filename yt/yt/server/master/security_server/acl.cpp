@@ -161,9 +161,10 @@ static void DoDeserializeAclOrThrow(
                 continue;
             }
             if (subject->IsUser()) {
-                subject->AsUser()->LogIfPendingRemoval(
-                    Format("User pending for removal was mentioned in ACL (User: %v)",
-                    subject->GetName()));
+                YT_LOG_ALERT_IF(
+                    subject->AsUser()->GetPendingRemoval(),
+                    "User pending for removal was mentioned in ACL (User: %v)",
+                    subject->GetName());
             }
 
             ace.Subjects.push_back(subject);
@@ -176,11 +177,7 @@ static void DoDeserializeAclOrThrow(
         ace.InheritanceMode = serializableAce.InheritanceMode;
 
         // SubjectTagFilter
-        if (serializableAce.SubjectTagFilter) {
-            ace.SubjectTagFilter = MakeBooleanFormula(serializableAce.SubjectTagFilter);
-        } else {
-            ace.SubjectTagFilter.reset();
-        }
+        ace.SubjectTagFilter = serializableAce.SubjectTagFilter;
 
         // Columns
         ace.Columns = std::move(serializableAce.Columns);

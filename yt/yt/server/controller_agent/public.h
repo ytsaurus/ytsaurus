@@ -27,11 +27,16 @@ DEFINE_ENUM(EFailOnJobRestartReason,
     (JobRevivalDisabled)
 );
 
+DEFINE_ENUM(ECpuLimitOvercommitMode,
+    (Linear)
+    (Minimum)
+);
+
 DECLARE_REFCOUNTED_STRUCT(IOperationControllerSchedulerHost)
 DECLARE_REFCOUNTED_STRUCT(IOperationControllerSnapshotBuilderHost)
 
 DECLARE_REFCOUNTED_CLASS(TIntermediateChunkScraper)
-DECLARE_REFCOUNTED_CLASS(TIntermediateChunkScraperConfig)
+DECLARE_REFCOUNTED_STRUCT(TIntermediateChunkScraperConfig)
 
 DECLARE_REFCOUNTED_CLASS(TDataBalancerOptions)
 
@@ -52,24 +57,24 @@ DECLARE_REFCOUNTED_CLASS(TMapReduceOperationOptions)
 DECLARE_REFCOUNTED_CLASS(TRemoteCopyOperationOptions)
 DECLARE_REFCOUNTED_CLASS(TVanillaOperationOptions)
 
-DECLARE_REFCOUNTED_CLASS(TJobSplitterConfig)
+DECLARE_REFCOUNTED_STRUCT(TJobSplitterConfig)
 
-DECLARE_REFCOUNTED_CLASS(TZombieOperationOrchidsConfig)
+DECLARE_REFCOUNTED_STRUCT(TZombieOperationOrchidsConfig)
 
-DECLARE_REFCOUNTED_CLASS(TAlertManagerConfig)
-DECLARE_REFCOUNTED_CLASS(TLowGpuPowerUsageOnWindowConfig)
+DECLARE_REFCOUNTED_STRUCT(TAlertManagerConfig)
+DECLARE_REFCOUNTED_STRUCT(TLowGpuPowerUsageOnWindowConfig)
 DECLARE_REFCOUNTED_CLASS(TTestingOptions)
 DECLARE_REFCOUNTED_CLASS(TSuspiciousJobsOptions)
 
-DECLARE_REFCOUNTED_CLASS(TUserJobMonitoringConfig)
+DECLARE_REFCOUNTED_STRUCT(TUserJobMonitoringConfig)
 
-DECLARE_REFCOUNTED_CLASS(TUserFileLimitsConfig)
-DECLARE_REFCOUNTED_CLASS(TUserFileLimitsPatchConfig)
+DECLARE_REFCOUNTED_STRUCT(TUserFileLimitsConfig)
+DECLARE_REFCOUNTED_STRUCT(TUserFileLimitsPatchConfig)
 
 DECLARE_REFCOUNTED_CLASS(TControllerAgent)
-DECLARE_REFCOUNTED_CLASS(TControllerAgentConfig)
-DECLARE_REFCOUNTED_CLASS(TControllerAgentBootstrapConfig)
-DECLARE_REFCOUNTED_CLASS(TControllerAgentProgramConfig)
+DECLARE_REFCOUNTED_STRUCT(TControllerAgentConfig)
+DECLARE_REFCOUNTED_STRUCT(TControllerAgentBootstrapConfig)
+DECLARE_REFCOUNTED_STRUCT(TControllerAgentProgramConfig)
 
 DECLARE_REFCOUNTED_STRUCT(IOperationControllerHost)
 DECLARE_REFCOUNTED_STRUCT(IOperationController)
@@ -77,7 +82,7 @@ DECLARE_REFCOUNTED_STRUCT(IOperationController)
 DECLARE_REFCOUNTED_CLASS(TOperationControllerHost)
 
 DECLARE_REFCOUNTED_CLASS(TMemoryWatchdog)
-DECLARE_REFCOUNTED_CLASS(TMemoryWatchdogConfig)
+DECLARE_REFCOUNTED_STRUCT(TMemoryWatchdogConfig)
 
 DECLARE_REFCOUNTED_CLASS(TOperation)
 using TOperationIdToOperationMap = THashMap<TOperationId, TOperationPtr>;

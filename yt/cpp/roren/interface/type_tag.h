@@ -20,6 +20,8 @@ public:
     using TRow = TRow_;
 
 public:
+    TTypeTag() = default;
+
     explicit TTypeTag(TString description) noexcept
         : Description_(std::move(description))
     { }

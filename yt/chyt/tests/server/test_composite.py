@@ -89,10 +89,10 @@ class TestComposite(ClickHouseTestBase):
         write_table("//tmp/t", [{"a": {"s": "foo", "i": 42}}])
 
         with Clique(1) as clique:
-            assert get_schema_from_description(clique.make_query('describe `//tmp/t`')) == [
+            assert get_schema_from_description(clique.make_query('describe `//tmp/t`', settings={"print_pretty_type_names": 0})) == [
                 {"name": "a", "type": "Tuple(s String, i Int64)"},
             ]
-            assert clique.make_query("select toTypeName(a) as ta from `//tmp/t`") == [
+            assert clique.make_query("select toTypeName(a) as ta from `//tmp/t`", settings={"print_pretty_type_names": 0}) == [
                 {"ta": "Tuple(s String, i Int64)"}
             ]
             assert clique.make_query("select * from `//tmp/t`") == [

@@ -21,7 +21,7 @@
 
 Преобразование из простого типа во внутреннее представление. Всегда успешно при непустом входе.
 
-**Список функций**
+#### Список функций
 
 * ```DateTime::Split(Date{Flags:AutoMap}) -> Resource<TM>```
 * ```DateTime::Split(Datetime{Flags:AutoMap}) -> Resource<TM>```
@@ -36,7 +36,7 @@
 
 Сборка простого типа из внутреннего представления. Всегда успешна при непустом входе.
 
-**Список функций**
+#### Список функций
 
 * ```DateTime::MakeDate(Resource<TM>{Flags:AutoMap}) -> Date```
 * ```DateTime::MakeDatetime(Resource<TM>{Flags:AutoMap}) -> Datetime```
@@ -45,15 +45,15 @@
 * ```DateTime::MakeTzDatetime(Resource<TM>{Flags:AutoMap}) -> TzDatetime```
 * ```DateTime::MakeTzTimestamp(Resource<TM>{Flags:AutoMap}) -> TzTimestamp```
 
-**Примеры**
+#### Примеры
 
 ``` yql
 SELECT
-    DateTime::MakeTimestamp(DateTime::Split(Datetime("2019-01-01T15:30:00Z"))), 
+    DateTime::MakeTimestamp(DateTime::Split(Datetime("2019-01-01T15:30:00Z"))),
       -- 2019-01-01T15:30:00.000000Z
-    DateTime::MakeDate(Datetime("2019-01-01T15:30:00Z")), 
+    DateTime::MakeDate(Datetime("2019-01-01T15:30:00Z")),
       -- 2019-01-01
-    DateTime::MakeTimestamp(DateTime::Split(TzDatetime("2019-01-01T00:00:00,Europe/Moscow"))), 
+    DateTime::MakeTimestamp(DateTime::Split(TzDatetime("2019-01-01T00:00:00,Europe/Moscow"))),
       -- 2018-12-31T21:00:00Z (конвертация в UTC)
     DateTime::MakeDate(TzDatetime("2019-01-01T12:00:00,GMT"))
       -- 2019-01-01 (Datetime -> Date с неявным Split)
@@ -63,7 +63,7 @@ SELECT
 
 Взятие компоненты внутреннего представления.
 
-**Список функций**
+#### Список функций
 
 * ```DateTime::GetYear(Resource<TM>{Flags:AutoMap}) -> Uint16```
 * ```DateTime::GetDayOfYear(Resource<TM>{Flags:AutoMap}) -> Uint16```
@@ -82,7 +82,7 @@ SELECT
 * ```DateTime::GetTimezoneId(Resource<TM>{Flags:AutoMap}) -> Uint16```
 * ```DateTime::GetTimezoneName(Resource<TM>{Flags:AutoMap}) -> String```
 
-**Примеры**
+#### Примеры
 
 ``` yql
 $tm = DateTime::Split(TzDatetime("2019-01-09T00:00:00,Europe/Moscow"));
@@ -99,11 +99,11 @@ SELECT
 
 Обновление одной или нескольких компонент во внутреннем представлении. Возвращает либо обновлённую копию, либо NULL, если после обновления получается некорректная дата или возникают другие противоречия.
 
-**Список функций**
+#### Список функций
 
 * ```DateTime::Update( Resource<TM>{Flags:AutoMap}, [ Year:Uint16?, Month:Uint8?, Day:Uint8?, Hour:Uint8?, Minute:Uint8?, Second:Uint8?, Microsecond:Uint32?, Timezone:String? ]) -> Resource<TM>?```
 
-**Примеры**
+#### Примеры
 
 ``` yql
 $tm = DateTime::Split(Timestamp("2019-01-01T01:02:03.456789Z"));
@@ -123,7 +123,7 @@ SELECT
 
 Получение Timestamp из количества секунд/миллисекунд/микросекунд от начала эпохи в UTC. При выходе за границы Timestamp возвращается NULL.
 
-**Список функций**
+#### Список функций
 
 * ```DateTime::FromSeconds(Uint32{Flags:AutoMap}) -> Timestamp```
 * ```DateTime::FromMilliseconds(Uint64{Flags:AutoMap}) -> Timestamp```
@@ -133,13 +133,13 @@ SELECT
 
 Получение количества секунд/миллисекунд/микросекунд от начала эпохи в UTC из простого типа.
 
-**Список функций**
+#### Список функций
 
 * ```DateTime::ToSeconds(Date/DateTime/Timestamp/TzDate/TzDatetime/TzTimestamp{Flags:AutoMap}) -> Uint32```
 * ```DateTime::ToMilliseconds(Date/DateTime/Timestamp/TzDate/TzDatetime/TzTimestamp{Flags:AutoMap}) -> Uint64```
 * ```DateTime::ToMicroseconds(Date/DateTime/Timestamp/TzDate/TzDatetime/TzTimestamp{Flags:AutoMap}) -> Uint64```
 
-**Примеры**
+#### Примеры
 
 ``` yql
 SELECT
@@ -150,7 +150,7 @@ SELECT
 
 Преобразования между ```Interval``` и различными единицами измерения времени.
 
-**Список функций**
+#### Список функций
 
 * ```DateTime::ToDays(Interval{Flags:AutoMap}) -> Int16```
 * ```DateTime::ToHours(Interval{Flags:AutoMap}) -> Int32```
@@ -176,7 +176,7 @@ AddTimezone никак не влияет на вывод ToSeconds(), поско
 
 Interval также можно создавать из строкового литерала в формате [ISO 8601](https://en.wikipedia.org/wiki/ISO_8601%23Durations).
 
-**Примеры**
+#### Примеры
 
 ``` yql
 SELECT
@@ -189,7 +189,7 @@ SELECT
 
 Получить начало периода, содержащего дату/время. При некорректном результате возвращается NULL. Если таймзона не GMT, то начало периода будет в указанной временной зоне.
 
-**Список функций**
+#### Список функций
 
 * ```DateTime::StartOfYear(Resource<TM>{Flags:AutoMap}) -> Resource<TM>?```
 * ```DateTime::StartOfQuarter(Resource<TM>{Flags:AutoMap}) -> Resource<TM>?```
@@ -204,31 +204,31 @@ SELECT
 
 * ```DateTime::TimeOfDay(Resource<TM>{Flags:AutoMap}) -> Interval```
 
-**Примеры**
+#### Примеры
 
 ``` yql
 SELECT
-    DateTime::MakeDate(DateTime::StartOfYear(Date("2019-06-06"))), 
+    DateTime::MakeDate(DateTime::StartOfYear(Date("2019-06-06"))),
       -- 2019-01-01 (неявный Split здесь и дальше)
-    DateTime::MakeDatetime(DateTime::StartOfQuarter(Datetime("2019-06-06T01:02:03Z"))), 
+    DateTime::MakeDatetime(DateTime::StartOfQuarter(Datetime("2019-06-06T01:02:03Z"))),
       -- 2019-04-01T00:00:00Z (компоненты времени обнулены)
-    DateTime::MakeDate(DateTime::StartOfMonth(Timestamp("2019-06-06T01:02:03.456789Z"))), 
+    DateTime::MakeDate(DateTime::StartOfMonth(Timestamp("2019-06-06T01:02:03.456789Z"))),
       -- 2019-06-01
-    DateTime::MakeDate(DateTime::StartOfWeek(Date("1970-01-01"))), 
+    DateTime::MakeDate(DateTime::StartOfWeek(Date("1970-01-01"))),
       -- NULL (начало эпохи - четверг, начало недели - 1969-12-29, выход за границы)
-    DateTime::MakeTimestamp(DateTime::StartOfWeek(Date("2019-01-01"))), 
+    DateTime::MakeTimestamp(DateTime::StartOfWeek(Date("2019-01-01"))),
       -- 2018-12-31T00:00:00Z
-    DateTime::MakeDatetime(DateTime::StartOfDay(Datetime("2019-06-06T01:02:03Z"))), 
+    DateTime::MakeDatetime(DateTime::StartOfDay(Datetime("2019-06-06T01:02:03Z"))),
       -- 2019-06-06T00:00:00Z
-    DateTime::MakeTzDatetime(DateTime::StartOfDay(TzDatetime("1970-01-01T05:00:00,Europe/Moscow"))), 
+    DateTime::MakeTzDatetime(DateTime::StartOfDay(TzDatetime("1970-01-01T05:00:00,Europe/Moscow"))),
       -- NULL (в GMT выход за эпоху)
-    DateTime::MakeTzTimestamp(DateTime::StartOfDay(TzTimestamp("1970-01-02T05:00:00.000000,Europe/Moscow"))), 
+    DateTime::MakeTzTimestamp(DateTime::StartOfDay(TzTimestamp("1970-01-02T05:00:00.000000,Europe/Moscow"))),
       -- 1970-01-02T00:00:00,Europe/Moscow (начало дня по Москве)
-    DateTime::MakeDatetime(DateTime::StartOf(Datetime("2019-06-06T23:45:00Z"), Interval("PT7H"))), 
+    DateTime::MakeDatetime(DateTime::StartOf(Datetime("2019-06-06T23:45:00Z"), Interval("PT7H"))),
       -- 2019-06-06T21:00:00Z
-    DateTime::MakeDatetime(DateTime::StartOf(Datetime("2019-06-06T23:45:00Z"), Interval("PT20M"))), 
+    DateTime::MakeDatetime(DateTime::StartOf(Datetime("2019-06-06T23:45:00Z"), Interval("PT20M"))),
       -- 2019-06-06T23:40:00Z
-    DateTime::TimeOfDay(Timestamp("2019-02-14T01:02:03.456789Z")); 
+    DateTime::TimeOfDay(Timestamp("2019-02-14T01:02:03.456789Z"));
       -- 1 hour 2 minutes 3 seconds 456789 microseconds
 ```
 
@@ -237,7 +237,7 @@ SELECT
 Прибавить/вычесть заданное количество единиц к компоненте во внутреннем представлении и обновить остальные поля.
 Возвращает либо обновлённую копию, либо NULL, если после обновления получается некорректная дата или возникают другие противоречия.
 
-**Список функций**
+#### Список функций
 
 * ```DateTime::ShiftYears(Resource<TM>{Flags:AutoMap}, Int32) -> Resource<TM>?```
 * ```DateTime::ShiftQuarters(Resource<TM>{Flags:AutoMap}, Int32) -> Resource<TM>?```
@@ -246,7 +246,7 @@ SELECT
 Если в результате номер дня в месяце превышает максимально возможный, то в поле `Day` будет записан последний день месяца,
 время при этом не изменится (смотрите примеры).
 
-**Примеры**
+#### Примеры
 
 ``` yql
 $tm1 = DateTime::Split(DateTime("2019-01-31T01:01:01Z"));
@@ -265,7 +265,7 @@ SELECT
 
 Получить строковое представление момента времени, используя произвольную строку форматирования.
 
-**Список функций**
+#### Список функций
 
 * ```DateTime::Format(String) -> (Resource<TM>{Flags:AutoMap}) -> String```
 
@@ -285,13 +285,13 @@ SELECT
 
 Все остальные символы строки форматирования переносятся без изменений.
 
-**Примеры**
+#### Примеры
 
 ``` yql
 $format = DateTime::Format("%Y-%m-%d %H:%M:%S %Z");
 
 SELECT
-    $format(DateTime::Split(TzDatetime("2019-01-01T01:02:03,Europe/Moscow"))); 
+    $format(DateTime::Split(TzDatetime("2019-01-01T01:02:03,Europe/Moscow")));
       -- "2019-01-01 01:02:03 Europe/Moscow"
 ```
 
@@ -299,7 +299,7 @@ SELECT
 
 Распарсить строку во внутреннее представление, используя произвольную строку форматирования. Для незаполненных полей используются значения по умолчанию. При возникновении ошибок возвращается NULL.
 
-**Список функций**
+#### Список функций
 
 * ```DateTime::Parse(String) -> (String{Flags:AutoMap}) -> Resource<TM>?```
 
@@ -316,7 +316,7 @@ SELECT
 * `%b` - короткое трехбуквенное регистронезависимое английское название месяца (Jan);
 * `%B` - полное регистронезависимое английское название месяца (January).
 
-**Примеры**
+#### Примеры
 
 ``` yql
 $parse1 = DateTime::Parse("%H:%M:%S");
@@ -333,24 +333,24 @@ SELECT
 
 Для распространённых форматов есть врапперы вокруг соответствующих методов util. Можно получить только TM с компонентами в UTC таймзоне.
 
-**Список функций**
+#### Список функций
 
 * ```DateTime::ParseRfc822(String{Flags:AutoMap}) -> Resource<TM>?```
 * ```DateTime::ParseIso8601(String{Flags:AutoMap}) -> Resource<TM>?```
 * ```DateTime::ParseHttp(String{Flags:AutoMap}) -> Resource<TM>?```
 * ```DateTime::ParseX509(String{Flags:AutoMap}) -> Resource<TM>?```
 
-**Примеры**
+#### Примеры
 
 ``` yql
 SELECT
-    DateTime::MakeTimestamp(DateTime::ParseRfc822("Fri, 4 Mar 2005 19:34:45 EST")), 
+    DateTime::MakeTimestamp(DateTime::ParseRfc822("Fri, 4 Mar 2005 19:34:45 EST")),
       -- 2005-03-05T00:34:45Z
-    DateTime::MakeTimestamp(DateTime::ParseIso8601("2009-02-14T02:31:30+0300")), 
+    DateTime::MakeTimestamp(DateTime::ParseIso8601("2009-02-14T02:31:30+0300")),
       -- 2009-02-13T23:31:30Z
-    DateTime::MakeTimestamp(DateTime::ParseHttp("Sunday, 06-Nov-94 08:49:37 GMT")), 
+    DateTime::MakeTimestamp(DateTime::ParseHttp("Sunday, 06-Nov-94 08:49:37 GMT")),
       -- 1994-11-06T08:49:37Z
-    DateTime::MakeTimestamp(DateTime::ParseX509("20091014165533Z")) 
+    DateTime::MakeTimestamp(DateTime::ParseX509("20091014165533Z"))
       -- 2009-10-14T16:55:33Z
 ```
 

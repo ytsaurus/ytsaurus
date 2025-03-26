@@ -28,9 +28,7 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(NTransactionClient::TTimestamp, MaxClipTimestamp);
 
 public:
-    void SetReadRange(NChunkClient::TLegacyReadRange readRange);
-
-    TChunkViewModifier WithReadRange(NChunkClient::TLegacyReadRange readRange) &&;
+    TChunkViewModifier WithReadRange(NChunkClient::TReadRange readRange) &&;
     TChunkViewModifier WithTransactionId(NObjectClient::TTransactionId transactionId) &&;
     TChunkViewModifier WithMaxClipTimestamp(NTransactionClient::TTimestamp maxClipTimestamp) &&;
 
@@ -43,6 +41,10 @@ public:
     void Load(NCellMaster::TLoadContext& context);
 
     friend int CompareButForReadRange(const TChunkViewModifier& lhs, const TChunkViewModifier& rhs);
+
+public:
+    // For tests.
+    void SetReadRange(NChunkClient::TLegacyReadRange readRange);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -74,7 +76,7 @@ public:
     void Save(NCellMaster::TSaveContext& context) const;
     void Load(NCellMaster::TLoadContext& context);
 
-    NChunkClient::TLegacyReadRange GetCompleteReadRange() const;
+    NChunkClient::TReadRange GetCompleteReadRange(NTableClient::TComparator comparator);
 
     void AddParent(TChunkList* parent);
     void RemoveParent(TChunkList* parent);

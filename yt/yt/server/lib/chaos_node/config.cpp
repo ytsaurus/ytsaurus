@@ -97,4 +97,20 @@ void TChaosNodeConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TChaosSlotDynamicConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("enable_verbose_logging", &TThis::EnableVerboseLogging)
+        .Default(false);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TChaosNodeDynamicConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("per_bundle_configs", &TThis::PerBundleConfigs)
+        .Default();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NChaosNode

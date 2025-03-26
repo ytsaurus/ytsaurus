@@ -1,5 +1,6 @@
 #include <Common/typeid_cast.h>
 #include <Columns/ColumnConst.h>
+#include <Core/Settings.h>
 #include <DataTypes/DataTypesNumber.h>
 #include <Parsers/IAST.h>
 #include <Parsers/ASTFunction.h>
@@ -145,7 +146,7 @@ bool isCompatible(ASTPtr & node)
             return false;
 
         if (!function->arguments)
-            throw Exception(ErrorCodes::LOGICAL_ERROR, "Logical error: function->arguments is not set");
+            throw Exception(ErrorCodes::LOGICAL_ERROR, "function->arguments is not set");
 
         String name = function->name;
 
@@ -288,7 +289,8 @@ String transformQueryForExternalDatabaseImpl(
     LiteralEscapingStyle literal_escaping_style,
     const String & database,
     const String & table,
-    ContextPtr context)
+    ContextPtr context,
+    std::optional<size_t> limit)
 {
     bool strict = context->getSettingsRef().external_table_strict_query;
 
@@ -329,14 +331,26 @@ String transformQueryForExternalDatabaseImpl(
         }
         else if (auto * function = original_where->as<ASTFunction>())
         {
-            if (function->name == "and")
+            if (function->name == "and" || function->name == "tuple")
             {
                 auto new_function_and = makeASTFunction("and");
-                for (auto & elem : function->arguments->children)
+                std::queue<const ASTFunction *> predicates;
+                predicates.push(function);
+
+                while (!predicates.empty())
                 {
-                    if (isCompatible(elem))
-                        new_function_and->arguments->children.push_back(elem);
+                    const auto * func = predicates.front();
+                    predicates.pop();
+
+                    for (auto & elem : func->arguments->children)
+                    {
+                        if (isCompatible(elem))
+                            new_function_and->arguments->children.push_back(elem);
+                        else if (const auto * child = elem->as<ASTFunction>(); child && (child->name == "and" || child->name == "tuple"))
+                            predicates.push(child);
+                    }
                 }
+
                 if (new_function_and->arguments->children.size() == 1)
                     select->setExpression(ASTSelectQuery::Expression::WHERE, std::move(new_function_and->arguments->children[0]));
                 else if (new_function_and->arguments->children.size() > 1)
@@ -361,6 +375,9 @@ String transformQueryForExternalDatabaseImpl(
             original_where = makeASTFunction("equals", std::make_shared<ASTLiteral>(1), std::make_shared<ASTLiteral>(0));
         select->setExpression(ASTSelectQuery::Expression::WHERE, std::move(original_where));
     }
+
+    if (limit)
+        select->setExpression(ASTSelectQuery::Expression::LIMIT_LENGTH, std::make_shared<ASTLiteral>(*limit));
 
     ASTPtr select_ptr = select;
     dropAliases(select_ptr);
@@ -387,7 +404,8 @@ String transformQueryForExternalDatabase(
     LiteralEscapingStyle literal_escaping_style,
     const String & database,
     const String & table,
-    ContextPtr context)
+    ContextPtr context,
+    std::optional<size_t> limit)
 {
     if (!query_info.syntax_analyzer_result)
     {
@@ -402,7 +420,7 @@ String transformQueryForExternalDatabase(
             throw Exception(ErrorCodes::UNSUPPORTED_METHOD, "No column names for query '{}' to external table '{}.{}'",
                             query_info.query_tree->formatASTForErrorMessage(), database, table);
 
-        auto clone_query = getASTForExternalDatabaseFromQueryTree(query_info.query_tree);
+        auto clone_query = getASTForExternalDatabaseFromQueryTree(query_info.query_tree, query_info.table_expression);
 
         return transformQueryForExternalDatabaseImpl(
             clone_query,
@@ -412,7 +430,8 @@ String transformQueryForExternalDatabase(
             literal_escaping_style,
             database,
             table,
-            context);
+            context,
+            limit);
     }
 
     auto clone_query = query_info.query->clone();
@@ -424,7 +443,8 @@ String transformQueryForExternalDatabase(
         literal_escaping_style,
         database,
         table,
-        context);
+        context,
+        limit);
 }
 
 }

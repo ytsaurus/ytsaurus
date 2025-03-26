@@ -170,7 +170,7 @@ std::optional<TResolveCache::TResolveResult> TResolveCache::TryResolve(const TYP
                 entrancePayload->PortalExitId,
                 TYPath(unresolvedPathSuffix)
             };
-        } else  {
+        } else {
             return std::nullopt;
         }
     }

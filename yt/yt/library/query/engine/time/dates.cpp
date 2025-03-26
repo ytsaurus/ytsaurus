@@ -106,7 +106,7 @@ void FormatTimestamp(
     if (localtime) {
         localtime_r(&timestamp, &timeinfo);
     } else {
-        gmtime_r(&timestamp, &timeinfo);
+        GmTimeR(&timestamp, &timeinfo);
     }
 
     char buffer[MaxFormatLength + 1];
@@ -122,25 +122,10 @@ void FormatTimestamp(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-i64 TimestampFloorWeekViaLib(i64 timestamp)
-{
-    struct tm timeinfo;
-    gmtime_r(&timestamp, &timeinfo);
-
-    int daysFromMonday = (timeinfo.tm_wday + 6) % 7;
-
-    timestamp -= daysFromMonday * SECONDS_IN_DAY;
-    timestamp -= timeinfo.tm_hour * SECONDS_IN_HOUR;
-    timestamp -= timeinfo.tm_min * 60;
-    timestamp -= timeinfo.tm_sec;
-
-    return timestamp;
-}
-
 i64 TimestampFloorMonthViaLib(i64 timestamp)
 {
     struct tm timeinfo;
-    gmtime_r(&timestamp, &timeinfo);
+    GmTimeR(&timestamp, &timeinfo);
 
     timestamp -= (timeinfo.tm_mday - 1) * SECONDS_IN_DAY;
     timestamp -= timeinfo.tm_hour * SECONDS_IN_HOUR;
@@ -153,7 +138,7 @@ i64 TimestampFloorMonthViaLib(i64 timestamp)
 i64 TimestampFloorQuarterViaLib(i64 timestamp)
 {
     struct tm timeinfo;
-    gmtime_r(&timestamp, &timeinfo);
+    GmTimeR(&timestamp, &timeinfo);
 
     timestamp -= (timeinfo.tm_mday - 1) * SECONDS_IN_DAY;
     timestamp -= timeinfo.tm_hour * SECONDS_IN_HOUR;
@@ -163,7 +148,7 @@ i64 TimestampFloorQuarterViaLib(i64 timestamp)
     while (timeinfo.tm_mon % 4 != 0) {
         timestamp--;
 
-        gmtime_r(&timestamp, &timeinfo);
+        GmTimeR(&timestamp, &timeinfo);
 
         timestamp -= (timeinfo.tm_mday - 1) * SECONDS_IN_DAY;
         timestamp -= timeinfo.tm_hour * SECONDS_IN_HOUR;
@@ -177,7 +162,7 @@ i64 TimestampFloorQuarterViaLib(i64 timestamp)
 i64 TimestampFloorYearViaLib(i64 timestamp)
 {
     struct tm timeinfo;
-    gmtime_r(&timestamp, &timeinfo);
+    GmTimeR(&timestamp, &timeinfo);
 
     timestamp -= timeinfo.tm_yday * SECONDS_IN_DAY;
     timestamp -= timeinfo.tm_hour * SECONDS_IN_HOUR;
@@ -188,15 +173,6 @@ i64 TimestampFloorYearViaLib(i64 timestamp)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-
-i64 TimestampFloorWeekViaLut(i64 timestamp)
-{
-    const auto& day = UtcLut[FindUtc(timestamp)];
-
-    timestamp -= timestamp % SECONDS_IN_DAY;
-    timestamp -= day.DayOfTheWeek * SECONDS_IN_DAY;
-    return timestamp;
-}
 
 i64 TimestampFloorMonthViaLut(i64 timestamp)
 {
@@ -362,11 +338,20 @@ i64 TimestampFloorWeek(i64 timestamp)
 {
     ValidateTimestamp(timestamp, /*localtime*/ false);
 
-    if (IsLutApplicable(timestamp, /*localtime*/ false)) {
-        return TimestampFloorWeekViaLut(timestamp);
-    } else {
-        return TimestampFloorWeekViaLib(timestamp);
+    i64 days = timestamp / SECONDS_IN_DAY;
+
+    i64 secondsSinceMignight = timestamp % SECONDS_IN_DAY;
+    if (secondsSinceMignight < 0) {
+        secondsSinceMignight += SECONDS_IN_DAY;
+        days -= 1;
     }
+
+    i64 weekDay = (3 + days) % 7;
+    if (weekDay < 0) {
+        weekDay += 7;
+    }
+
+    return timestamp - secondsSinceMignight - weekDay * SECONDS_IN_DAY;
 }
 
 i64 TimestampFloorMonth(i64 timestamp)

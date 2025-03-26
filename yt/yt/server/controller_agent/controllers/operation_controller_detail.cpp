@@ -6,6 +6,7 @@
 #include "job_helpers.h"
 #include "job_info.h"
 #include "sink.h"
+#include "spec_manager.h"
 #include "task.h"
 
 #include <yt/yt/server/controller_agent/chunk_list_pool.h>
@@ -144,6 +145,7 @@
 
 #include <yt/yt/core/ytree/virtual.h>
 #include <yt/yt/core/ytree/ypath_resolver.h>
+#include <yt/yt/core/ytree/yson_struct_update.h>
 
 #include <yt/yt/core/logging/fluent_log.h>
 
@@ -207,6 +209,14 @@ using std::placeholders::_1;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TError GetMaxFailedJobCountReachedError(int maxFailedJobCount)
+{
+    return TError(NScheduler::EErrorCode::MaxFailedJobsLimitExceeded, "Failed jobs limit exceeded")
+        << TErrorAttribute("max_failed_job_count", maxFailedJobCount);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TOperationControllerBase::TOperationControllerBase(
     TOperationSpecBasePtr spec,
     TControllerAgentConfigPtr config,
@@ -253,10 +263,12 @@ TOperationControllerBase::TOperationControllerBase(
     , JobSpecBuildInvoker_(Host->GetJobSpecBuildPoolInvoker())
     , RowBuffer(New<TRowBuffer>(TRowBufferTag(), Config->ControllerRowBufferChunkSize))
     , InputManager(New<TInputManager>(this, Logger))
+    , DataFlowGraph_(New<TDataFlowGraph>(Logger))
     , LivePreviews_(std::make_shared<TLivePreviewMap>())
     , PoolTreeControllerSettingsMap_(operation->PoolTreeControllerSettingsMap())
     , Spec_(std::move(spec))
-    , Options(std::move(options))
+    , Options_(std::move(options))
+    , SpecManager_(New<TSpecManager>(this, Spec_, Logger))
     , CachedRunningJobs_(
         Config->CachedRunningJobsUpdatePeriod,
         BIND(&TOperationControllerBase::DoBuildJobsYson, Unretained(this)))
@@ -361,6 +373,7 @@ void TOperationControllerBase::BuildTestingState(TFluentAny fluent) const
     fluent
         .BeginMap()
             .Item("commit_sleep_started").Value(CommitSleepStarted_)
+            .Item("dynamic_spec").Value(SpecManager_->GetSpec())
         .EndMap();
 }
 
@@ -509,7 +522,6 @@ void TOperationControllerBase::InitializeInputTransactions()
         filesAndTables,
         HasDiskRequestsWithSpecifiedAccount() || TLayerJobExperiment::IsEnabled(Spec_, GetUserJobSpecs()),
         GetInputTransactionParentId(),
-        AuthenticatedUser,
         Config,
         Logger);
 }
@@ -527,12 +539,16 @@ IAttributeDictionaryPtr TOperationControllerBase::CreateTransactionAttributes(ET
         .Finish();
 }
 
-TOperationControllerInitializeResult TOperationControllerBase::InitializeReviving(const TControllerTransactionIds& transactions)
+TOperationControllerInitializeResult TOperationControllerBase::InitializeReviving(
+    const TControllerTransactionIds& transactions,
+    INodePtr cumulativeSpecPatch)
 {
     YT_LOG_INFO("Initializing operation for revive");
 
     InitializeClients();
     InitializeInputTransactions();
+
+    SpecManager_->InitializeReviving(std::move(cumulativeSpecPatch));
 
     auto attachTransaction = [&] (TTransactionId transactionId, const NNative::IClientPtr& client, bool ping) -> ITransactionPtr {
         if (!transactionId) {
@@ -831,7 +847,7 @@ void TOperationControllerBase::InitializeStructures()
         BaseLayer_ = TUserFile(path, InputTransactions->GetLocalInputTransactionId(), true);
     }
 
-    auto maxInputTableCount = std::min(Config->MaxInputTableCount, Options->MaxInputTableCount);
+    auto maxInputTableCount = std::min(Config->MaxInputTableCount, Options_->MaxInputTableCount);
     if (std::ssize(InputManager->GetInputTables()) > maxInputTableCount) {
         THROW_ERROR_EXCEPTION(
             "Too many input tables: maximum allowed %v, actual %v",
@@ -1280,6 +1296,8 @@ TOperationControllerMaterializeResult TOperationControllerBase::SafeMaterialize(
         RunningJobStatisticsUpdateExecutor_->Start();
         SendRunningAllocationTimeStatisticsUpdatesExecutor_->Start();
 
+        SpecManager_->SetConfigurator(ConfigureUpdate());
+
         if (auto maybeDelay = Spec_->TestingOperationOptions->DelayInsideMaterialize) {
             TDelayedExecutor::WaitForDuration(*maybeDelay);
         }
@@ -1463,6 +1481,9 @@ TOperationControllerReviveResult TOperationControllerBase::Revive()
     // So after revive we do reset the corresponding alert.
     SetOperationAlert(EOperationAlertType::UserJobMonitoringLimited, TError());
 
+    SpecManager_->SetConfigurator(ConfigureUpdate());
+    SpecManager_->ApplySpecPatchReviving();
+
     YT_LOG_INFO("Operation revived");
 
     State = EControllerState::Running;
@@ -1512,6 +1533,8 @@ void TOperationControllerBase::AbortAllJoblets(EAbortReason abortReason, bool ho
     }
     AllocationMap_.clear();
     RunningJobCount_ = 0;
+
+    CachedRunningJobs_.Flush();
 
     if (!std::empty(jobsToRelease)) {
         YT_LOG_DEBUG(
@@ -3495,12 +3518,8 @@ bool TOperationControllerBase::OnJobFailed(
         }
     };
 
-    int maxFailedJobCount = Spec_->MaxFailedJobCount;
-    if (FailedJobCount_ >= maxFailedJobCount) {
-        auto failedJobsLimitExceededError = TError(NScheduler::EErrorCode::MaxFailedJobsLimitExceeded, "Failed jobs limit exceeded")
-                << TErrorAttribute("max_failed_job_count", maxFailedJobCount);
-
-        OnOperationFailed(makeOperationFailedError(std::move(failedJobsLimitExceededError)));
+    if (int maxFailedJobCount = SpecManager_->GetSpec()->MaxFailedJobCount; FailedJobCount_ >= maxFailedJobCount) {
+        OnOperationFailed(makeOperationFailedError(GetMaxFailedJobCountReachedError(maxFailedJobCount)));
         return false;
     }
     if (IsJobsFailToleranceExceeded(maybeExitCode)) {
@@ -3557,9 +3576,10 @@ bool TOperationControllerBase::OnJobAborted(
     }
 
     YT_LOG_DEBUG(
-        "Job aborted (JobId: %v, AbortReason: %v)",
+        "Job aborted (JobId: %v, AbortReason: %v, JobType: %v)",
         jobId,
-        abortReason);
+        abortReason,
+        joblet->JobType);
 
     auto error = jobSummary->Error;
 
@@ -3651,7 +3671,7 @@ bool TOperationControllerBase::OnJobAborted(
     if (auto it = JobAbortsUntilOperationFailure_.find(abortReason); it != JobAbortsUntilOperationFailure_.end()) {
         if (--it->second == 0) {
             JobAbortsUntilOperationFailure_.clear();
-            auto wrappedError = TError("Operaiton failed due to excessive successive job aborts");
+            auto wrappedError = TError("Operation failed due to excessive successive job aborts");
             if (error) {
                 wrappedError <<= *error;
             }
@@ -3793,8 +3813,7 @@ void TOperationControllerBase::OnJobRunning(
             };
 
             auto userClosure = GetSubjectClosure(
-                // TODO(babenko): switch to std::string
-                TString(AuthenticatedUser),
+                AuthenticatedUser,
                 proxy,
                 client->GetNativeConnection(),
                 readOptions);
@@ -3969,7 +3988,8 @@ void TOperationControllerBase::BuildJobAttributes(
                 .Item("predecessor_type").Value(joblet->PredecessorType)
                 .Item("predecessor_job_id").Value(joblet->PredecessorJobId);
         })
-        .OptionalItem("operation_incarnation", joblet->OperationIncarnation);
+        .OptionalItem("operation_incarnation", joblet->OperationIncarnation)
+        .Item("allocation_id").Value(AllocationIdFromJobId(joblet->JobId));
 }
 
 void TOperationControllerBase::BuildFinishedJobAttributes(
@@ -4672,11 +4692,11 @@ bool TOperationControllerBase::ShouldSkipScheduleAllocationRequest() const noexc
         auto buildingJobSpecCount = BuildingJobSpecCount_.load();
         auto totalBuildingJobSpecSliceCount = TotalBuildingJobSpecSliceCount_.load();
         auto avgSliceCount = totalBuildingJobSpecSliceCount / std::max<double>(1.0, buildingJobSpecCount);
-        if (Options->ControllerBuildingJobSpecCountLimit) {
-            jobSpecThrottlingActive |= buildingJobSpecCount > *Options->ControllerBuildingJobSpecCountLimit;
+        if (Options_->ControllerBuildingJobSpecCountLimit) {
+            jobSpecThrottlingActive |= buildingJobSpecCount > *Options_->ControllerBuildingJobSpecCountLimit;
         }
-        if (Options->ControllerTotalBuildingJobSpecSliceCountLimit) {
-            jobSpecThrottlingActive |= totalBuildingJobSpecSliceCount > *Options->ControllerTotalBuildingJobSpecSliceCountLimit;
+        if (Options_->ControllerTotalBuildingJobSpecSliceCountLimit) {
+            jobSpecThrottlingActive |= totalBuildingJobSpecSliceCount > *Options_->ControllerTotalBuildingJobSpecSliceCountLimit;
         }
 
         if (jobSpecThrottlingActive || forceLogging) {
@@ -4684,9 +4704,9 @@ bool TOperationControllerBase::ShouldSkipScheduleAllocationRequest() const noexc
                 "Throttling status for building job specs (JobSpecCount: %v, JobSpecCountLimit: %v, TotalJobSpecSliceCount: %v, "
                 "TotalJobSpecSliceCountLimit: %v, AvgJobSpecSliceCount: %v, JobSpecThrottlingActive: %v)",
                 buildingJobSpecCount,
-                Options->ControllerBuildingJobSpecCountLimit,
+                Options_->ControllerBuildingJobSpecCountLimit,
                 totalBuildingJobSpecSliceCount,
-                Options->ControllerTotalBuildingJobSpecSliceCountLimit,
+                Options_->ControllerTotalBuildingJobSpecSliceCountLimit,
                 avgSliceCount,
                 jobSpecThrottlingActive);
         }
@@ -4936,10 +4956,12 @@ void TOperationControllerBase::TryScheduleFirstJob(
 
             scheduleAllocationResult->RecordFail(*failReason);
         } else {
-            scheduleAllocationResult->StartDescriptor.emplace(task->CreateAllocationStartDescriptor(
+            auto startDescriptor = task->CreateAllocationStartDescriptor(
                 allocation,
                 /*allowIdleCpuPolicy*/ IsIdleCpuPolicyAllowedInTree(allocation.TreeId),
-                *context.GetScheduleAllocationSpec()));
+                *context.GetScheduleAllocationSpec());
+            startDescriptor.AllocationAttributes.EnableMultipleJobs = Spec_->EnableMultipleJobsInAllocation.value_or(false);
+            scheduleAllocationResult->StartDescriptor.emplace(std::move(startDescriptor));
 
             RegisterTestingSpeculativeJobIfNeeded(*task, scheduleAllocationResult->StartDescriptor->Id);
             UpdateTask(task.Get());
@@ -6033,7 +6055,7 @@ void TOperationControllerBase::SafeAbortJobByJobTracker(TJobId jobId, EAbortReas
 
     YT_LOG_DEBUG("Aborting job by job tracker request (JobId: %v)", jobId);
 
-    DoAbortJob(std::move(joblet), abortReason, /*requestJobTrackerJobAbortion*/ false);
+    DoAbortJob(std::move(joblet), abortReason, /*requestJobTrackerJobAbortion*/ false, /*force*/ false);
 }
 
 void TOperationControllerBase::SuppressLivePreviewIfNeeded()
@@ -6232,6 +6254,7 @@ void TOperationControllerBase::CreateLivePreviewTables()
         (*LivePreviews_)[name] = New<TLivePreview>(
             New<TTableSchema>(),
             OutputNodeDirectory_,
+            Logger,
             OperationId,
             name);
     }
@@ -6249,7 +6272,7 @@ void TOperationControllerBase::CreateLivePreviewTables()
         if (Config->AllowUsersGroupReadIntermediateData) {
             intermediateDataAcl.Entries.emplace_back(
                 ESecurityAction::Allow,
-                std::vector<TString>{UsersGroupName},
+                std::vector<std::string>{UsersGroupName},
                 EPermissionSet(EPermission::Read));
         }
 
@@ -6823,7 +6846,7 @@ void TOperationControllerBase::LockOutputTablesAndGetAttributes()
 
             if (table->TableUploadOptions.TableSchema->IsSorted()) {
                 table->TableWriterOptions->ValidateSorted = true;
-                table->TableWriterOptions->ValidateUniqueKeys = table->TableUploadOptions.TableSchema->GetUniqueKeys();
+                table->TableWriterOptions->ValidateUniqueKeys = table->TableUploadOptions.TableSchema->IsUniqueKeys();
             } else {
                 table->TableWriterOptions->ValidateSorted = false;
             }
@@ -6841,8 +6864,8 @@ void TOperationControllerBase::LockOutputTablesAndGetAttributes()
             table->TableWriterOptions->MaxHeavyColumns = maxHeavyColumns;
 
             // Workaround for YT-5827.
-            if (table->TableUploadOptions.TableSchema->Columns().empty() &&
-                table->TableUploadOptions.TableSchema->GetStrict())
+            if (table->TableUploadOptions.TableSchema->IsEmpty() &&
+                table->TableUploadOptions.TableSchema->IsStrict())
             {
                 table->TableWriterOptions->OptimizeFor = EOptimizeFor::Lookup;
                 table->TableWriterOptions->ChunkFormat = {};
@@ -7497,8 +7520,13 @@ void TOperationControllerBase::GetUserFilesAttributes()
                                     THROW_ERROR_EXCEPTION("File %v is empty", file.Path);
                                 }
 
+                                auto access_method = file.Path.GetAccessMethod();
+                                if (!access_method) {
+                                    access_method = attributes.Find<TString>("access_method");
+                                }
+
                                 std::tie(file.AccessMethod, file.Filesystem) = GetAccessMethodAndFilesystemFromStrings(
-                                    attributes.Find<TString>("access_method").value_or(ToString(ELayerAccessMethod::Local)),
+                                    access_method.value_or(ToString(ELayerAccessMethod::Local)),
                                     attributes.Find<TString>("filesystem").value_or(ToString(ELayerFilesystem::Archive)));
                             }
                             break;
@@ -7728,8 +7756,10 @@ void TOperationControllerBase::CollectTotals()
 
             if (table->IsPrimary()) {
                 PrimaryInputDataWeight += inputChunk->GetDataWeight();
+                PrimaryInputCompressedDataSize += inputChunk->GetCompressedDataSize();
             } else {
                 ForeignInputDataWeight += inputChunk->GetDataWeight();
+                ForeignInputCompressedDataSize += inputChunk->GetCompressedDataSize();
             }
 
             totalInputDataWeight += inputChunk->GetTotalDataWeight();
@@ -7985,7 +8015,7 @@ std::vector<TLegacyDataSlicePtr> TOperationControllerBase::CollectPrimaryVersion
                 auto dataSlice = CreateUnversionedInputDataSlice(chunkSlice);
                 dataSlice->SetInputStreamIndex(InputStreamDirectory_.GetInputStreamIndex(dataSlice->GetTableIndex(), dataSlice->GetRangeIndex()));
                 dataSlice->TransformToNew(RowBuffer, table->Comparator.GetLength());
-                fetcher->AddDataSliceForSlicing(dataSlice, table->Comparator, sliceSize, true);
+                fetcher->AddDataSliceForSlicing(dataSlice, table->Comparator, sliceSize, true, /*minManiacDataWeight*/ std::nullopt);
                 totalDataWeightBefore += dataSlice->GetDataWeight();
             }
 
@@ -8421,7 +8451,7 @@ void TOperationControllerBase::RegisterLivePreviewTable(TString name, const TOut
     auto schema = table->TableUploadOptions.TableSchema.Get();
     LivePreviews_->emplace(
         name,
-        New<TLivePreview>(std::move(schema), OutputNodeDirectory_, OperationId, name, table->Path.GetPath()));
+        New<TLivePreview>(std::move(schema), OutputNodeDirectory_, Logger, OperationId, name, table->Path.GetPath()));
     table->LivePreviewTableName = std::move(name);
 }
 
@@ -8808,6 +8838,59 @@ void TOperationControllerBase::UpdateRuntimeParameters(const TOperationRuntimePa
     } else if (update->AcoName) {
         AcoName = *update->AcoName;
     }
+    if (update->SchedulingTagFilter) {
+        Spec_->SchedulingTagFilter = *update->SchedulingTagFilter;
+        UpdateExecNodes();
+    }
+}
+
+TOperationSpecBaseSealedConfigurator TOperationControllerBase::ConfigureUpdate()
+{
+    auto configurator = GetOperationSpecBaseConfigurator();
+    configurator.Field("max_failed_job_count", &TOperationSpecBase::MaxFailedJobCount)
+        .Updater(BIND_NO_PROPAGATE([&] (int newMaxFailedJobCount) {
+            if (FailedJobCount_ >= newMaxFailedJobCount) {
+                OnOperationFailed(GetMaxFailedJobCountReachedError(newMaxFailedJobCount));
+            }
+        }));
+
+    return std::move(configurator).Seal();
+}
+
+void TOperationControllerBase::PatchSpec(INodePtr newCumulativeSpecPatch, bool dryRun)
+{
+    if (dryRun) {
+        THROW_ERROR_EXCEPTION_UNLESS(
+            State.load() == EControllerState::Running,
+            "Operation is not running");
+        SpecManager_->ValidateSpecPatch(std::move(newCumulativeSpecPatch));
+    } else {
+        switch (State) {
+            case EControllerState::Preparing:
+                YT_ABORT();
+            case EControllerState::Running:
+                // Ok.
+                break;
+            case EControllerState::Failing:
+            case EControllerState::Completed:
+            case EControllerState::Failed:
+            case EControllerState::Aborted: {
+                YT_LOG_WARNING(
+                    "Controller changed state before applying spec patch (ControllerState: %v)",
+                    State.load());
+                return;
+            }
+        }
+        SpecManager_->ApplySpecPatch(std::move(newCumulativeSpecPatch));
+    }
+}
+
+std::any TOperationControllerBase::CreateSafeAssertionGuard() const
+{
+    return NYT::CreateSafeAssertionGuard(
+        Host->GetCoreDumper(),
+        Host->GetCoreSemaphore(),
+        CoreNotes_);
 }
 
 TOperationJobMetrics TOperationControllerBase::PullJobMetricsDelta(bool force)
@@ -9017,19 +9100,33 @@ TJobletPtr TOperationControllerBase::GetJobletOrThrow(TJobId jobId) const
     return joblet;
 }
 
-std::optional<TJobMonitoringDescriptor> TOperationControllerBase::RegisterJobForMonitoring(TJobId jobId)
+std::optional<TJobMonitoringDescriptor> TOperationControllerBase::RegisterJobForMonitoring(
+    TJobId jobId,
+    const std::optional<TJobMonitoringDescriptor>& descriptorHint)
 {
+    YT_LOG_DEBUG("Trying to assign monitoring descriptor to job (JobId: %v)", jobId);
+
     std::optional<TJobMonitoringDescriptor> descriptor;
-    if (MonitoringDescriptorIndexPool_.empty()) {
-        descriptor = RegisterNewMonitoringDescriptor();
-    } else {
-        auto it = MonitoringDescriptorIndexPool_.begin();
-        auto index = *it;
-        MonitoringDescriptorIndexPool_.erase(it);
-        descriptor = TJobMonitoringDescriptor{Host->GetIncarnationId(), index};
+
+    if (descriptorHint) {
+        EraseOrCrash(MonitoringDescriptorPool_, *descriptorHint);
+        descriptor = descriptorHint;
     }
+
+    if (!descriptor) {
+        if (MonitoringDescriptorPool_.empty()) {
+            descriptor = RegisterNewMonitoringDescriptor();
+        } else {
+            auto it = MonitoringDescriptorPool_.begin();
+            auto foundDescriptor = *it;
+            MonitoringDescriptorPool_.erase(it);
+            descriptor = foundDescriptor;
+        }
+    }
+
     if (descriptor) {
-        YT_LOG_DEBUG("Monitoring descriptor assigned to job (JobId: %v, MonitoringDescriptor: %v)",
+        YT_LOG_DEBUG(
+            "Monitoring descriptor assigned to job (JobId: %v, MonitoringDescriptor: %v)",
             jobId,
             descriptor);
 
@@ -9082,7 +9179,7 @@ void TOperationControllerBase::UnregisterJobForMonitoring(const TJobletPtr& jobl
         --MonitoredUserJobAttemptCount_;
     }
     if (joblet->UserJobMonitoringDescriptor) {
-        InsertOrCrash(MonitoringDescriptorIndexPool_, joblet->UserJobMonitoringDescriptor->Index);
+        InsertOrCrash(MonitoringDescriptorPool_, *joblet->UserJobMonitoringDescriptor);
         EraseOrCrash(JobIdToMonitoringDescriptor_, joblet->JobId);
         --MonitoredUserJobCount_;
         // NB: We do not want to remove index, but old version of logic can be done with the following call.
@@ -9448,13 +9545,11 @@ TJobStartInfo TOperationControllerBase::SafeSettleJob(TAllocationId allocationId
     }
 
     {
-        auto requestIsStale = [&] {
-            return !allocation.Joblet && !lastJobId;
-        }();
+        bool requestIsStale = !allocation.Joblet && !lastJobId;
 
         THROW_ERROR_EXCEPTION_IF(
             requestIsStale,
-            "Settle job requets looks like retry");
+            "Settle job request looks like retry");
     }
 
     if (!allocation.Joblet) {
@@ -9572,7 +9667,7 @@ void TOperationControllerBase::UpdateSuspiciousJobsYson()
 
 void TOperationControllerBase::UpdateAggregatedRunningJobStatistics()
 {
-    auto statisticsLimit = Options->CustomStatisticsCountLimit;
+    auto statisticsLimit = Options_->CustomStatisticsCountLimit;
 
     YT_LOG_DEBUG(
         "Updating aggregated running job statistics (StatisticsLimit: %v, RunningJobCount: %v)",
@@ -9726,7 +9821,7 @@ void TOperationControllerBase::AnalyzeBriefStatistics(
 
 void TOperationControllerBase::UpdateAggregatedFinishedJobStatistics(const TJobletPtr& joblet, const TJobSummary& jobSummary)
 {
-    i64 statisticsLimit = Options->CustomStatisticsCountLimit;
+    i64 statisticsLimit = Options_->CustomStatisticsCountLimit;
     bool isLimitExceeded = false;
 
     SafeUpdateAggregatedJobStatistics(
@@ -9825,7 +9920,7 @@ const TOperationSpecBasePtr& TOperationControllerBase::GetSpec() const
 
 const TOperationOptionsPtr& TOperationControllerBase::GetOptions() const
 {
-    return Options;
+    return Options_;
 }
 
 const TOutputTablePtr& TOperationControllerBase::StderrTable() const
@@ -9893,7 +9988,7 @@ void TOperationControllerBase::InitUserJobSpecTemplate(
     const std::vector<TUserFile>& files,
     const TString& debugArtifactsAccount)
 {
-    const auto& userJobOptions = Options->UserJobOptions;
+    const auto& userJobOptions = Options_->UserJobOptions;
 
     jobSpec->set_shell_command(jobSpecConfig->Command);
     if (jobSpecConfig->JobTimeLimit) {
@@ -9908,12 +10003,23 @@ void TOperationControllerBase::InitUserJobSpecTemplate(
     jobSpec->set_custom_statistics_count_limit(jobSpecConfig->CustomStatisticsCountLimit);
     jobSpec->set_copy_files(jobSpecConfig->CopyFiles);
     jobSpec->set_debug_artifacts_account(debugArtifactsAccount);
-    jobSpec->set_set_container_cpu_limit(jobSpecConfig->SetContainerCpuLimit || Options->SetContainerCpuLimit);
+    jobSpec->set_set_container_cpu_limit(jobSpecConfig->SetContainerCpuLimit || Options_->SetContainerCpuLimit);
     jobSpec->set_redirect_stdout_to_stderr(jobSpecConfig->RedirectStdoutToStderr);
 
     // This is common policy for all operations of given type.
-    if (Options->SetContainerCpuLimit) {
-        jobSpec->set_container_cpu_limit(Options->CpuLimitOvercommitMultiplier * jobSpecConfig->CpuLimit + Options->InitialCpuLimitOvercommit);
+    if (Options_->SetContainerCpuLimit) {
+        double cpuLimit;
+        switch (Options_->CpuLimitOvercommitMode) {
+            case ECpuLimitOvercommitMode::Linear:
+                cpuLimit = Options_->CpuLimitOvercommitMultiplier * jobSpecConfig->CpuLimit + Options_->InitialCpuLimitOvercommit;
+                break;
+            case ECpuLimitOvercommitMode::Minimum:
+                cpuLimit = std::min(
+                    jobSpecConfig->CpuLimit * Options_->CpuLimitOvercommitMultiplier,
+                    jobSpecConfig->CpuLimit + Options_->InitialCpuLimitOvercommit);
+                break;
+        }
+        jobSpec->set_container_cpu_limit(cpuLimit);
     }
 
     // This is common policy for all operations of given type.
@@ -10058,6 +10164,8 @@ void TOperationControllerBase::InitUserJobSpecTemplate(
     jobSpec->set_enable_rpc_proxy_in_job_proxy(jobSpecConfig->EnableRpcProxyInJobProxy);
     jobSpec->set_rpc_proxy_worker_thread_pool_size(jobSpecConfig->RpcProxyWorkerThreadPoolSize);
 
+    jobSpec->set_start_queue_consumer_registration_manager(jobSpecConfig->StartQueueConsumerRegistrationManager);
+
     // Pass external docker image into job spec as is.
     if (jobSpecConfig->DockerImage) {
         TDockerImageSpec dockerImageSpec(*jobSpecConfig->DockerImage, Config->DockerRegistry);
@@ -10094,12 +10202,12 @@ void TOperationControllerBase::InitUserJobSpec(
         joblet->EstimatedResourceUsage.GetFootprintMemory() +
         joblet->EstimatedResourceUsage.GetJobProxyMemory() * joblet->JobProxyMemoryReserveFactor.value());
 
-    if (Options->SetSlotContainerMemoryLimit) {
+    if (Options_->SetSlotContainerMemoryLimit) {
         jobSpec->set_slot_container_memory_limit(
             jobSpec->memory_limit() +
             joblet->EstimatedResourceUsage.GetJobProxyMemory() +
             joblet->EstimatedResourceUsage.GetFootprintMemory() +
-            Options->SlotContainerMemoryOverhead);
+            Options_->SlotContainerMemoryOverhead);
     }
 
     jobSpec->add_environment(Format("YT_JOB_INDEX=%v", joblet->JobIndex));
@@ -10408,7 +10516,7 @@ void TOperationControllerBase::InferSchemaFromInput(const TSortColumns& sortColu
         for (auto& newColumn : newColumns) {
             newColumn.SetStableName(TColumnStableName(newColumn.Name()));
         }
-        return New<TTableSchema>(std::move(newColumns), schema->GetStrict(), schema->IsUniqueKeys());
+        return New<TTableSchema>(std::move(newColumns), schema->IsStrict(), schema->IsUniqueKeys());
     };
 
     if (OutputTables_[0]->TableUploadOptions.SchemaMode == ETableSchemaMode::Weak) {
@@ -10741,6 +10849,11 @@ void TOperationControllerBase::RegisterMetadata(auto&& registrar)
     PHOENIX_REGISTER_FIELD(72, RegisteredMonitoringDescriptorCount_,
         .SinceVersion(ESnapshotVersion::PersistMonitoringCounts));
 
+    PHOENIX_REGISTER_FIELD(78, MonitoringDescriptorPool_,
+        .SinceVersion(ESnapshotVersion::MonitoringDescriptorsPreserving));
+    PHOENIX_REGISTER_FIELD(79, JobIdToMonitoringDescriptor_,
+        .SinceVersion(ESnapshotVersion::MonitoringDescriptorsPreserving));
+
     PHOENIX_REGISTER_FIELD(73, UnknownExitCodeFailCount_,
         .SinceVersion(ESnapshotVersion::JobFailTolerance));
     PHOENIX_REGISTER_FIELD(74, NoExitCodeFailCount_,
@@ -11050,13 +11163,14 @@ void TOperationControllerBase::RegisterOutputTables(const std::vector<TRichYPath
 void TOperationControllerBase::DoAbortJob(
     TJobletPtr joblet,
     EAbortReason abortReason,
-    bool requestJobTrackerJobAbortion)
+    bool requestJobTrackerJobAbortion,
+    bool force)
 {
     // NB(renadeen): there must be no context switches before call OnJobAborted.
 
     auto jobId = joblet->JobId;
 
-    if (!ShouldProcessJobEvents()) {
+    if (!force && !ShouldProcessJobEvents()) {
         YT_LOG_DEBUG(
             "Job events processing disabled, abort skipped (JobId: %v, OperationState: %v)",
             joblet->JobId,
@@ -11088,7 +11202,7 @@ void TOperationControllerBase::AbortJob(TJobId jobId, EAbortReason abortReason)
         jobId,
         abortReason);
 
-    DoAbortJob(std::move(joblet), abortReason, /*requestJobTrackerJobAbortion*/ true);
+    DoAbortJob(std::move(joblet), abortReason, /*requestJobTrackerJobAbortion*/ true, /*force*/ false);
 }
 
 bool TOperationControllerBase::CanInterruptJobs() const
@@ -11111,7 +11225,8 @@ void TOperationControllerBase::HandleJobReport(const TJobletPtr& joblet, TContro
             .OperationId(OperationId)
             .JobId(joblet->JobId)
             .Address(joblet->NodeDescriptor.Address)
-            .Ttl(joblet->ArchiveTtl));
+            .Ttl(joblet->ArchiveTtl)
+            .AllocationId(AllocationIdFromJobId(joblet->JobId)));
 }
 
 void TOperationControllerBase::OnCompetitiveJobScheduled(const TJobletPtr& joblet, EJobCompetitionType competitionType)
@@ -11168,7 +11283,7 @@ std::vector<TRichYPath> TOperationControllerBase::GetLayerPaths(
         TDockerImageSpec dockerImage(*userJobSpec->DockerImage, Config->DockerRegistry);
 
         // External docker images are not compatible with any additional layers.
-        if (!dockerImage.IsInternal()) {
+        if (!dockerImage.IsInternal() || !Config->DockerRegistry->TranslateInternalImagesIntoLayers) {
             return {};
         }
 
@@ -11255,17 +11370,51 @@ const NChunkClient::TMediumDirectoryPtr& TOperationControllerBase::GetMediumDire
 
 TJobSplitterConfigPtr TOperationControllerBase::GetJobSplitterConfigTemplate() const
 {
-    auto config = CloneYsonStruct(Options->JobSplitter);
+    auto config = CloneYsonStruct(Options_->JobSplitter);
 
     if (!Spec_->EnableJobSplitting || !Config->EnableJobSplitting) {
         config->EnableJobSplitting = false;
     }
 
-    if (!Spec_->JobSplitter->EnableJobSplitting) {
+    const auto& specConfig = Spec_->JobSplitter;
+
+    if (specConfig->MinJobTime) {
+        config->MinJobTime = *(specConfig->MinJobTime);
+    }
+    if (specConfig->MinTotalDataWeight) {
+        config->MinTotalDataWeight = *(specConfig->MinTotalDataWeight);
+    }
+    if (specConfig->ExecToPrepareTimeRatio) {
+        config->ExecToPrepareTimeRatio = *(specConfig->ExecToPrepareTimeRatio);
+    }
+    if (specConfig->NoProgressJobTimeToAveragePrepareTimeRatio) {
+        config->NoProgressJobTimeToAveragePrepareTimeRatio = *(specConfig->NoProgressJobTimeToAveragePrepareTimeRatio);
+    }
+
+    if (specConfig->MaxJobsPerSplit) {
+        config->MaxJobsPerSplit = *(specConfig->MaxJobsPerSplit);
+    }
+    if (specConfig->MaxInputTableCount) {
+        config->MaxInputTableCount = *(specConfig->MaxInputTableCount);
+    }
+
+    if (specConfig->ResidualJobFactor) {
+        config->ResidualJobFactor = *(specConfig->ResidualJobFactor);
+    }
+    if (specConfig->ResidualJobCountMinThreshold) {
+        config->ResidualJobCountMinThreshold = *(specConfig->ResidualJobCountMinThreshold);
+    }
+
+    if (!specConfig->EnableJobSplitting) {
         config->EnableJobSplitting = false;
     }
-    if (!Spec_->JobSplitter->EnableJobSpeculation) {
+    if (!specConfig->EnableJobSpeculation) {
         config->EnableJobSpeculation = false;
+    }
+
+    // It should be checked after update of config->MaxInputTableCount.
+    if (std::ssize(InputManager->GetInputTables()) > config->MaxInputTableCount) {
+        config->EnableJobSplitting = false;
     }
 
     return config;
@@ -11552,6 +11701,11 @@ const NYson::TYsonString& TOperationControllerBase::TCachedYsonCallback::GetValu
         UpdateTime_ = now;
     }
     return Value_;
+}
+
+void TOperationControllerBase::TCachedYsonCallback::Flush()
+{
+    UpdateTime_ = TInstant::Zero();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

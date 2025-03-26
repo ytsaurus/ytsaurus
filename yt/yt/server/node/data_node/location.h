@@ -17,9 +17,11 @@
 #include <yt/yt/core/logging/log.h>
 
 #include <yt/yt/core/misc/atomic_ptr.h>
-#include <yt/yt/core/misc/memory_usage_tracker.h>
+#include <yt/yt/core/misc/fair_share_hierarchical_queue.h>
 
 #include <yt/yt/library/profiling/sensor.h>
+
+#include <library/cpp/yt/memory/memory_usage_tracker.h>
 
 #include <library/cpp/yt/threading/atomic_object.h>
 
@@ -54,7 +56,6 @@ struct TLocationPerformanceCounters
 {
     explicit TLocationPerformanceCounters(const NProfiling::TProfiler& profiler);
 
-    TEnumIndexedArray<EIODirection, TEnumIndexedArray<EIOCategory, std::atomic<i64>>> PendingIOSize;
     TEnumIndexedArray<EIODirection, TEnumIndexedArray<EIOCategory, NProfiling::TCounter>> CompletedIOSize;
 
     TEnumIndexedArray<EIODirection, TEnumIndexedArray<EIOCategory, std::atomic<i64>>> UsedMemory;
@@ -104,10 +105,36 @@ struct TLocationPerformanceCounters
     NProfiling::TGauge UsedSpace;
     NProfiling::TGauge AvailableSpace;
     NProfiling::TGauge ChunkCount;
+    NProfiling::TGauge TrashChunkCount;
+    NProfiling::TGauge TrashSpace;
     NProfiling::TGauge Full;
 };
 
 DEFINE_REFCOUNTED_TYPE(TLocationPerformanceCounters)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TLocationFairShareSlot
+    : public TRefCounted
+{
+public:
+    TLocationFairShareSlot(
+        TFairShareHierarchicalSlotQueuePtr<TString> queue,
+        TFairShareHierarchicalSlotQueueSlotPtr<TString> slot);
+
+    TFairShareHierarchicalSlotQueueSlotPtr<TString> GetSlot() const;
+
+    ~TLocationFairShareSlot();
+
+private:
+    void MoveFrom(TLocationFairShareSlot&& other);
+
+    TFairShareHierarchicalSlotQueuePtr<TString> Queue_;
+    TFairShareHierarchicalSlotQueueSlotPtr<TString> Slot_;
+};
+
+DECLARE_REFCOUNTED_CLASS(TLocationFairShareSlot)
+DEFINE_REFCOUNTED_TYPE(TLocationFairShareSlot)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -133,49 +160,13 @@ private:
     friend class TChunkLocation;
 
     TLocationMemoryGuard(
-        EIODirection direction,
-        EIOCategory category,
-        i64 size,
-        TChunkLocationPtr owner);
-
-    void MoveFrom(TLocationMemoryGuard&& other);
-
-    EIODirection Direction_;
-    EIOCategory Category_;
-    i64 Size_ = 0;
-    TChunkLocationPtr Owner_;
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TPendingIOGuard
-{
-public:
-    TPendingIOGuard() = default;
-    TPendingIOGuard(TPendingIOGuard&& other);
-    ~TPendingIOGuard();
-
-    void Release();
-
-    TMemoryUsageTrackerGuard&& MoveMemoryTrackerGuard();
-
-    TPendingIOGuard& operator=(TPendingIOGuard&& other);
-
-    i64 GetSize() const;
-
-    explicit operator bool() const;
-
-private:
-    friend class TChunkLocation;
-
-    TPendingIOGuard(
         TMemoryUsageTrackerGuard memoryGuard,
         EIODirection direction,
         EIOCategory category,
         i64 size,
         TChunkLocationPtr owner);
 
-    void MoveFrom(TPendingIOGuard&& other);
+    void MoveFrom(TLocationMemoryGuard&& other);
 
     TMemoryUsageTrackerGuard MemoryGuard_;
     EIODirection Direction_;
@@ -289,6 +280,11 @@ public:
     //! Create cell id and uuid files if they don't exist.
     void InitializeIds();
 
+    TErrorOr<TLocationFairShareSlotPtr> AddFairShareQueueSlot(
+        i64 size,
+        std::vector<IFairShareHierarchicalSlotQueueResourcePtr> resources,
+        std::vector<TFairShareHierarchyLevel<TString>> levels);
+
     //! Prepares the location to accept new writes.
     /*!
      *  Must be called when all locations are scanned and all existing chunks are registered.
@@ -320,7 +316,7 @@ public:
     //! Subscribe callback on disk health check.
     void SubscribeDiskCheckFailed(const TCallback<void(const TError&)> callback);
 
-    //! Updates #UsedSpace and #AvailableSpace
+    //! Updates #UsedSpace and #AvailableSpace.
     void UpdateUsedSpace(i64 size);
 
     //! Returns the number of bytes used at the location.
@@ -340,10 +336,8 @@ public:
     //! Returns the memory tracking for pending writes.
     const IMemoryUsageTrackerPtr& GetWriteMemoryTracker() const;
 
-    //! Returns the number of bytes pending for disk IO.
-    i64 GetPendingIOSize(
-        EIODirection direction,
-        const TWorkloadDescriptor& workloadDescriptor) const;
+    //! Returns the max number of used memory across workloads.
+    i64 GetMaxUsedMemory(EIODirection direction) const;
 
     //! Returns the number of used memory.
     i64 GetUsedMemory(
@@ -353,21 +347,9 @@ public:
     //! Returns total amount of used memory in given #direction.
     i64 GetUsedMemory(EIODirection direction) const;
 
-    //! Returns the maximum number of bytes pending for disk IO in given #direction.
-    i64 GetMaxPendingIOSize(EIODirection direction) const;
-
-    //! Returns total amount of of bytes pending for disk IO in given #direction.
-    i64 GetPendingIOSize(EIODirection direction) const;
-
-    //! Acquires a lock IO for the given number of bytes to be read or written.
-    TPendingIOGuard AcquirePendingIO(
-        TMemoryUsageTrackerGuard memoryGuard,
-        EIODirection direction,
-        const TWorkloadDescriptor& workloadDescriptor,
-        i64 delta);
-
     //! Acquires a lock memory for the given number of bytes to be read or written.
     TLocationMemoryGuard AcquireLocationMemory(
+        TMemoryUsageTrackerGuard memoryGuard,
         EIODirection direction,
         const TWorkloadDescriptor& workloadDescriptor,
         i64 delta);
@@ -448,12 +430,6 @@ public:
     //! Returns |true| if location is sick.
     bool IsSick() const;
 
-    //! Returns limit on the maximum IO in bytes used of location reads.
-    i64 GetPendingReadIOLimit() const;
-
-    //! Returns limit on the maximum IO in bytes used of location writes.
-    i64 GetPendingWriteIOLimit() const;
-
     //! Returns limit on the maximum memory used of location reads.
     i64 GetReadMemoryLimit() const;
 
@@ -488,6 +464,8 @@ public:
     const TChunkStorePtr& GetChunkStore() const;
 
     std::optional<TDuration> GetDelayBeforeBlobSessionBlockFree() const;
+
+    double GetFairShareWorkloadCategoryWeight(EWorkloadCategory category) const;
 
 protected:
     const NClusterNode::TClusterNodeDynamicConfigManagerPtr DynamicConfigManager_;
@@ -562,15 +540,14 @@ private:
     NIO::IIOEngineWorkloadModelPtr IOEngineModel_;
     NIO::IIOEnginePtr IOEngine_;
 
+    TFairShareHierarchicalSlotQueuePtr<TString> IOFairShareQueue_;
+
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, LockedChunksLock_);
     THashSet<TChunkId> LockedChunkIds_;
 
     static EIOCategory ToIOCategory(const TWorkloadDescriptor& workloadDescriptor);
 
     THazardPtr<TChunkLocationConfig> GetRuntimeConfig() const;
-
-    void DecreasePendingIOSize(EIODirection direction, EIOCategory category, i64 delta);
-    void UpdatePendingIOSize(EIODirection direction, EIOCategory category, i64 delta);
 
     void IncreaseUsedMemory(EIODirection direction, EIOCategory category, i64 delta);
     void DecreaseUsedMemory(EIODirection direction, EIOCategory category, i64 delta);
@@ -649,6 +626,12 @@ public:
     //! Removes a chunk permanently or moves it to the trash.
     void RemoveChunkFiles(TChunkId chunkId, bool force) override;
 
+    //! Returns the number of trash chunks.
+    int GetTrashChunkCount() const;
+
+    //! Returns the number of bytes used in trash.
+    i64 GetTrashSpace() const;
+
     //! Returns various IO related statistics.
     TIOStatistics GetIOStatistics() const;
 
@@ -676,8 +659,10 @@ private:
 
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, TrashMapSpinLock_);
     std::multimap<TInstant, TTrashChunkEntry> TrashMap_;
-    std::atomic<i64> TrashDiskSpace_ = 0;
     const NConcurrency::TPeriodicExecutorPtr TrashCheckExecutor_;
+
+    std::atomic<i64> TrashSpace_ = 0;
+    std::atomic<int> TrashChunkCount_ = 0;
 
     class TIOStatisticsProvider;
     const TIntrusivePtr<TIOStatisticsProvider> IOStatisticsProvider_;
@@ -688,6 +673,8 @@ private:
         const TDataNodeConfigPtr& dataNodeConfig,
         const TStoreLocationConfigPtr& storeLocationConfig);
 
+    void UpdateTrashChunkCount(int delta);
+    void UpdateTrashSpace(i64 size);
     TString GetTrashPath() const;
     TString GetTrashChunkPath(TChunkId chunkId) const;
     void RegisterTrashChunk(TChunkId chunkId);
@@ -698,6 +685,8 @@ private:
     void MoveChunkFilesToTrash(TChunkId chunkId);
 
     void RemoveLocationChunks();
+
+    bool IsTrashScanStopped() const;
 
     i64 GetAdditionalSpace() const override;
 
@@ -710,6 +699,8 @@ private:
 
     void DoStart() override;
     std::vector<TChunkDescriptor> DoScan() override;
+    void DoScanTrash();
+    void DoAsyncScanTrash();
 };
 
 DEFINE_REFCOUNTED_TYPE(TStoreLocation)

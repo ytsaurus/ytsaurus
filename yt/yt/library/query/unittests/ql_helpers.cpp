@@ -50,33 +50,6 @@ TValue MakeNull()
     return MakeUnversionedSentinelValue(EValueType::Null);
 }
 
-TKeyColumns GetSampleKeyColumns()
-{
-    TKeyColumns keyColumns;
-    keyColumns.push_back("k");
-    keyColumns.push_back("l");
-    keyColumns.push_back("m");
-    return keyColumns;
-}
-
-TKeyColumns GetSampleKeyColumns2()
-{
-    TKeyColumns keyColumns;
-    keyColumns.push_back("k");
-    keyColumns.push_back("l");
-    keyColumns.push_back("m");
-    keyColumns.push_back("s");
-    return keyColumns;
-}
-
-TKeyColumns GetSampleKeyColumns3()
-{
-    TKeyColumns keyColumns;
-    keyColumns.push_back("k");
-    keyColumns.push_back("any_key");
-    return keyColumns;
-}
-
 TTableSchemaPtr GetSampleTableSchema()
 {
     return New<TTableSchema>(std::vector{
@@ -95,14 +68,14 @@ TTableSchemaPtr GetSampleTableSchema()
     });
 }
 
-TDataSplit MakeSimpleSplit(const TYPath& /*path*/, ui64 /*counter*/)
+TDataSplit MakeSimpleSplit()
 {
     TDataSplit dataSplit;
     dataSplit.TableSchema = GetSampleTableSchema();
     return dataSplit;
 }
 
-TDataSplit MakeSplit(const std::vector<TColumnSchema>& columns, ui64 /*counter*/)
+TDataSplit MakeSplit(const std::vector<TColumnSchema>& columns)
 {
     TDataSplit dataSplit;
     dataSplit.TableSchema = New<TTableSchema>(columns);

@@ -16,6 +16,7 @@
 
 namespace NYT::NQueueAgent {
 
+using namespace NConcurrency;
 using namespace NSecurityClient;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -57,6 +58,12 @@ void TQueueAgentConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+const TExponentialBackoffOptions TQueueExporterDynamicConfig::DefaultRetryBackoff{
+    .InvocationCount = std::numeric_limits<int>::max(),
+    .MinBackoff = TDuration::Seconds(1),
+    .MaxBackoff = TDuration::Minutes(5),
+};
+
 void TQueueExporterDynamicConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("enable", &TThis::Enable)
@@ -66,6 +73,21 @@ void TQueueExporterDynamicConfig::Register(TRegistrar registrar)
         .GreaterThan(TDuration::Zero());
     registrar.Parameter("max_exported_table_count_per_task", &TThis::MaxExportedTableCountPerTask)
         .Default(10);
+    registrar.Parameter("retry_backoff", &TThis::RetryBackoff)
+        .Default(DefaultRetryBackoff);
+
+    registrar.Postprocessor([] (TQueueExporterDynamicConfig* config) {
+        THROW_ERROR_EXCEPTION_UNLESS(config->RetryBackoff.InvocationCount == DefaultRetryBackoff.InvocationCount, "Invalid value of \"invocation_count\"");
+    });
+}
+
+TPeriodicExecutorOptions TQueueExporterDynamicConfig::GetPeriodicExecutorOptions() const
+{
+    return TPeriodicExecutorOptions{
+        .Period = Enable
+            ? std::optional(PassPeriod)
+            : std::nullopt,
+    };
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -85,6 +107,10 @@ void TQueueControllerDynamicConfig::Register(TRegistrar registrar)
         .Default();
     registrar.Parameter("alert_manager", &TThis::AlertManager)
         .DefaultNew();
+    registrar.Parameter("delayed_objects", &TThis::DelayedObjects)
+        .Default();
+    registrar.Parameter("controller_delay_duration", &TThis::ControllerDelayDuration)
+        .Default(TDuration::Seconds(50));
 
     registrar.Postprocessor([] (TQueueControllerDynamicConfig* config) {
         if (config->TrimmingPeriod && config->TrimmingPeriod->GetValue() <= 0) {
@@ -114,6 +140,9 @@ void TQueueAgentDynamicConfig::Register(TRegistrar registrar)
         .DefaultNew();
     registrar.Parameter("queue_export_manager", &TThis::QueueExportManager)
         .DefaultNew();
+    registrar.Parameter("inactive_object_display_limit", &TThis::InactiveObjectDisplayLimit)
+        .Default(10)
+        .GreaterThanOrEqual(0);
     registrar.Parameter("handle_replicated_objects", &TThis::HandleReplicatedObjects)
         .Default(false);
 }

@@ -26,11 +26,11 @@ using NChaosClient::TReplicaId;
 
 class TChaosReplicatedTableNode;
 
-DECLARE_REFCOUNTED_CLASS(TAlienCellSynchronizerConfig)
-DECLARE_REFCOUNTED_CLASS(TDynamicChaosManagerConfig)
+DECLARE_REFCOUNTED_STRUCT(TAlienCellSynchronizerConfig)
+DECLARE_REFCOUNTED_STRUCT(TDynamicChaosManagerConfig)
 
-DECLARE_REFCOUNTED_CLASS(TChaosPeerConfig)
-DECLARE_REFCOUNTED_CLASS(TChaosHydraConfig)
+DECLARE_REFCOUNTED_STRUCT(TChaosPeerConfig)
+DECLARE_REFCOUNTED_STRUCT(TChaosHydraConfig)
 
 DECLARE_REFCOUNTED_STRUCT(IChaosManager)
 DECLARE_REFCOUNTED_STRUCT(IAlienCellSynchronizer)

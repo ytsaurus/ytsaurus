@@ -4,7 +4,7 @@
 #include <Columns/IColumn.h>
 #include <Processors/Formats/IInputFormat.h>
 #include <QueryPipeline/SizeLimits.h>
-#include <Poco/Timespan.h>
+#include <DBPoco/Timespan.h>
 
 class Stopwatch;
 
@@ -27,7 +27,7 @@ struct RowInputFormatParams
     UInt64 allow_errors_num = 0;
     Float64 allow_errors_ratio = 0;
 
-    Poco::Timespan max_execution_time = 0;
+    DBPoco::Timespan max_execution_time = 0;
     OverflowMode timeout_overflow_mode = OverflowMode::THROW;
 };
 
@@ -42,7 +42,7 @@ public:
 
     IRowInputFormat(Block header, ReadBuffer & in_, Params params_);
 
-    Chunk generate() override;
+    Chunk read() override;
 
     void resetParser() override;
 
@@ -79,9 +79,11 @@ protected:
 
     const BlockMissingValues & getMissingValues() const override { return block_missing_values; }
 
-    size_t getTotalRows() const { return total_rows; }
+    size_t getRowNum() const { return total_rows; }
 
     size_t getApproxBytesReadForChunk() const override { return approx_bytes_read_for_chunk; }
+
+    void setRowsReadBefore(size_t rows) override { total_rows = rows; }
 
     Serializations serializations;
 

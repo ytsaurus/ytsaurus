@@ -3,6 +3,7 @@
 #include "actions.h"
 #include "action_helpers.h"
 #include "bootstrap.h"
+#include "dynamic_config_manager.h"
 #include "helpers.h"
 
 #include <yt/yt/server/lib/sequoia/cypress_transaction.h>
@@ -423,9 +424,19 @@ NCypressClient::TTransactionId TSequoiaSession::GetCurrentCypressTransactionId()
 
 TSequoiaSessionPtr TSequoiaSession::Start(
     IBootstrap* bootstrap,
-    TTransactionId cypressTransactionId)
+    TTransactionId cypressTransactionId,
+    const std::vector<TTransactionId>& cypressPrerequisiteTransactionIds)
 {
-    auto sequoiaTransaction = WaitFor(StartCypressProxyTransaction(bootstrap->GetSequoiaClient()))
+    auto sequoiaClient = bootstrap->GetSequoiaClient();
+    const auto& dynamicConfig = bootstrap->GetDynamicConfigManager()->GetConfig();
+
+    // Best effort pre-check for mutating requests before starting execution of master commit sessions,
+    // doesn't guarantee that prerequisite transactions will be alive during execution on master.
+    if (dynamicConfig->ObjectService->EnableFastPathPrerequisiteTransactionCheck) {
+        ValidatePrerequisites(sequoiaClient, cypressPrerequisiteTransactionIds);
+    }
+
+    auto sequoiaTransaction = WaitFor(StartCypressProxyTransaction(sequoiaClient, ESequoiaTransactionType::CypressModification, cypressPrerequisiteTransactionIds))
         .ValueOrThrow();
 
     std::vector<TTransactionId> cypressTransactions;
@@ -539,10 +550,19 @@ void TSequoiaSession::Commit(TCellId coordinatorCellId)
     MaybeLockAndReplicateCypressTransaction();
 
     WaitFor(SequoiaTransaction_->Commit({
-        .CoordinatorCellId = coordinatorCellId,
-        .CoordinatorPrepareMode = ETransactionCoordinatorPrepareMode::Late,
-        .StronglyOrdered = true,
-    }))
+            .CoordinatorCellId = coordinatorCellId,
+            .CoordinatorPrepareMode = ETransactionCoordinatorPrepareMode::Late,
+            .StronglyOrdered = true,
+        })
+        .Apply(BIND([] (const TError& error) -> TError {
+            if (!error.IsOK() && error.FindMatching(NSequoiaClient::EErrorCode::InvalidSequoiaReign)) {
+                YT_LOG_ALERT(error, "Failed to commit Sequoia transaction");
+
+                return WrapCypressProxyRegistrationError(std::move(error));
+            }
+
+            return error;
+        })))
         .ThrowOnError();
 
     Finished_ = true;
@@ -974,7 +994,7 @@ THashMap<TNodeId, TAbsoluteYPath> TSequoiaSession::GetLinkTargetPaths(TRange<TNo
     THashMap<TNodeId, TAbsoluteYPath> result;
     result.reserve(linkIds.Size());
 
-    std::vector<NRecords::TNodeIdToPathKey> linksToFetch;
+    std::vector<TNodeId> linksToFetch;
 
     for (auto linkId : linkIds) {
         YT_VERIFY(IsLinkType(TypeFromId(linkId)));
@@ -983,7 +1003,7 @@ THashMap<TNodeId, TAbsoluteYPath> TSequoiaSession::GetLinkTargetPaths(TRange<TNo
         if (it != CachedLinkTargetPaths_.end()) {
             result.emplace(it->first, it->second);
         } else {
-            linksToFetch.push_back({.NodeId = linkId});
+            linksToFetch.push_back(linkId);
         }
     }
 
@@ -992,16 +1012,39 @@ THashMap<TNodeId, TAbsoluteYPath> TSequoiaSession::GetLinkTargetPaths(TRange<TNo
         return result;
     }
 
-    if (!linksToFetch.empty()) {
-        auto fetchedLinks = WaitFor(SequoiaTransaction_->LookupRows(linksToFetch))
-            .ValueOrThrow();
+    // TODO(danilalexeev or kvk1920): Remove the duplicate code.
+    auto keys = std::vector<NRecords::TNodeIdToPathKey>(linksToFetch.size() * CypressTransactionAncestry_.size());
+    for (int index = 0; index < std::ssize(linksToFetch); ++index) {
+        std::transform(
+            CypressTransactionAncestry_.begin(),
+            CypressTransactionAncestry_.end(),
+            keys.begin() + index * CypressTransactionAncestry_.size(),
+            [&] (auto cypressTransactionId) -> NRecords::TNodeIdToPathKey {
+                return {
+                    .NodeId = linksToFetch[index],
+                    .TransactionId = cypressTransactionId,
+                };
+            });
+    }
 
-        for (auto& record : fetchedLinks) {
-            YT_VERIFY(record);
-            auto nodeId = record->Key.NodeId;
-            auto targetPath = TAbsoluteYPath(std::move(record->TargetPath));
-            CachedLinkTargetPaths_.emplace(nodeId, targetPath);
-            result.emplace(nodeId, std::move(targetPath));
+    auto responses = WaitFor(SequoiaTransaction_->LookupRows(keys))
+        .ValueOrThrow();
+
+    auto records = TRange(responses);
+    for (int index = 0; index < std::ssize(linksToFetch); ++index) {
+        auto linkRecords = records.Slice(
+            index * CypressTransactionAncestry_.size(),
+            (index + 1) * CypressTransactionAncestry_.size());
+        // Find record with the deepest transaction for each path.
+        for (int transactionIndex = std::ssize(CypressTransactionAncestry_) - 1; transactionIndex >= 0; --transactionIndex) {
+            const auto& record = linkRecords[transactionIndex];
+            if (record.has_value()) {
+                auto nodeId = record->Key.NodeId;
+                auto targetPath = TAbsoluteYPath(std::move(record->TargetPath));
+                CachedLinkTargetPaths_.emplace(nodeId, targetPath);
+                result.emplace(nodeId, std::move(targetPath));
+                break;
+            }
         }
     }
 

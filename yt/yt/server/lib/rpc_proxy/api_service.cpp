@@ -44,6 +44,7 @@
 #include <yt/yt/client/api/query_tracker_client.h>
 #include <yt/yt/client/api/rowset.h>
 #include <yt/yt/client/api/sticky_transaction_pool.h>
+#include <yt/yt/client/api/table_partition_reader.h>
 #include <yt/yt/client/api/table_reader.h>
 #include <yt/yt/client/api/table_writer.h>
 #include <yt/yt/client/api/transaction.h>
@@ -98,6 +99,7 @@ namespace NYT::NRpcProxy {
 
 using namespace NApi::NRpcProxy;
 using namespace NApi;
+using namespace NApi::NDetail;
 using namespace NArrow;
 using namespace NAuth;
 using namespace NChaosClient;
@@ -329,7 +331,7 @@ IRowStreamDecoderPtr CreateRowStreamDecoder(
 {
     switch (rowsetFormat) {
         case NApi::NRpcProxy::NProto::RF_YT_WIRE:
-            return CreateWireRowStreamDecoder(std::move(nameTable));
+            return CreateWireRowStreamDecoder(std::move(nameTable), CreateUnlimitedWireProtocolOptions());
 
         case NApi::NRpcProxy::NProto::RF_ARROW:
             return CreateArrowRowStreamDecoder(std::move(schema), std::move(nameTable));
@@ -541,7 +543,7 @@ private:
             .Item("error").Value(error)
             .Item("error_skeleton").Value(error.GetSkeleton())
             .Item("error_codes").Value(errorCodes)
-            .OptionalItem("user_agent", YT_PROTO_OPTIONAL(header, user_agent))
+            .OptionalItem("user_agent", YT_OPTIONAL_FROM_PROTO(header, user_agent))
             .OptionalItem("request_body_size", GetMessageBodySize(this->GetRequestMessage()))
             .OptionalItem("request_attachment_total_size", GetTotalMessageAttachmentSize(this->GetRequestMessage()))
             .DoIf(!this->IsCanceled(), [&] (auto fluent) {
@@ -800,6 +802,9 @@ public:
             .SetCancelable(true));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetColumnarStatistics));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(PartitionTables));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(ReadTablePartition)
+            .SetStreamingEnabled(true)
+            .SetCancelable(true));
 
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetFileFromCache));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(PutFileToCache));
@@ -1604,8 +1609,10 @@ private:
                     ToProto(response->add_tablets(), *tabletInfoPtr);
                 }
 
+                auto tabletCount = tableMountInfo->Tablets.size();
                 if (tableMountInfo->IsChaosReplicated() && tableMountInfo->UpperCapBound.GetCount() != 0) {
-                    response->set_tablet_count(tableMountInfo->UpperCapBound[0].Data.Int64);
+                    tabletCount = tableMountInfo->UpperCapBound[0].Data.Int64;
+                    response->set_tablet_count(tabletCount);
                 }
 
                 response->set_dynamic(tableMountInfo->Dynamic);
@@ -1630,11 +1637,14 @@ private:
                         ToProto(protoIndexInfo->mutable_unfolded_column(), *unfoldedColumn);
                     }
                     protoIndexInfo->set_index_correspondence(ToProto(indexInfo.Correspondence));
+                    if (const auto& evaluatedColumnsSchema = indexInfo.EvaluatedColumnsSchema) {
+                        ToProto(protoIndexInfo->mutable_evaluated_columns_schema(), *evaluatedColumnsSchema);
+                    }
                 }
 
                 context->SetResponseInfo("Dynamic: %v, TabletCount: %v, ReplicaCount: %v",
                     tableMountInfo->Dynamic,
-                    tableMountInfo->Tablets.size(),
+                    tabletCount,
                     tableMountInfo->Replicas.size());
             });
     }
@@ -3134,6 +3144,9 @@ private:
         if (request->has_with_monitoring_descriptor()) {
             options.WithMonitoringDescriptor = request->with_monitoring_descriptor();
         }
+        if (request->has_with_interruption_info()) {
+            options.WithInterruptionInfo = request->with_interruption_info();
+        }
         if (request->has_task_name()) {
             options.TaskName = request->task_name();
         }
@@ -3165,7 +3178,7 @@ private:
 
         context->SetRequestInfo(
             "OperationIdOrAlias: %v, Type: %v, State: %v, Address: %v, IncludeCypress: %v, "
-            "IncludeControllerAgent: %v, IncludeArchive: %v, JobCompetitionId: %v, WithCompetitors: %v, WithMonitoringDescriptor: %v",
+            "IncludeControllerAgent: %v, IncludeArchive: %v, JobCompetitionId: %v, WithCompetitors: %v, WithMonitoringDescriptor: %v, WithInterruptionInfo: %v",
             operationIdOrAlias,
             options.Type,
             options.State,
@@ -3175,7 +3188,8 @@ private:
             options.IncludeArchive,
             options.JobCompetitionId,
             options.WithCompetitors,
-            options.WithMonitoringDescriptor);
+            options.WithMonitoringDescriptor,
+            options.WithInterruptionInfo);
 
         ExecuteCall(
             context,
@@ -4276,7 +4290,7 @@ private:
 
         TPushQueueProducerOptions options;
         SetTimeoutOptions(&options, context.Get());
-        options.SequenceNumber = YT_PROTO_OPTIONAL(*request, sequence_number, TQueueProducerSequenceNumber);
+        options.SequenceNumber = YT_OPTIONAL_FROM_PROTO(*request, sequence_number, TQueueProducerSequenceNumber);
         if (request->has_require_sync_replica()) {
             options.RequireSyncReplica = request->require_sync_replica();
         }
@@ -4365,7 +4379,7 @@ private:
         TAdvanceQueueConsumerOptions options;
         SetTimeoutOptions(&options, context.Get());
 
-        auto oldOffset = YT_PROTO_OPTIONAL(*request, old_offset);
+        auto oldOffset = YT_OPTIONAL_FROM_PROTO(*request, old_offset);
         context->SetRequestInfo(
             "ConsumerPath: %v, QueuePath: %v, PartitionIndex: %v, "
             "OldOffset: %v, NewOffset: %v, TransactionId: %v",
@@ -4473,7 +4487,7 @@ private:
 
         auto rowBatchReadOptions = FromProto<NQueueClient::TQueueRowBatchReadOptions>(request->row_batch_read_options());
 
-        std::optional<i64> offset = YT_PROTO_OPTIONAL(*request, offset);
+        std::optional<i64> offset = YT_OPTIONAL_FROM_PROTO(*request, offset);
 
         context->SetRequestInfo(
             "ConsumerPath: %v, QueuePath: %v, Offset: %v, PartitionIndex: %v, "
@@ -6058,28 +6072,137 @@ private:
         options.AdjustDataWeightPerPartition = request->adjust_data_weight_per_partition();
 
         options.EnableKeyGuarantee = request->enable_key_guarantee();
+        options.EnableCookies = request->enable_cookies();
 
         if (request->has_transactional_options()) {
             FromProto(&options, request->transactional_options());
         }
 
-        context->SetRequestInfo("Paths: %v, PartitionMode: %v, KeyGuarantee: %v, DataWeightPerPartition: %v, AdjustDataWeightPerPartition: %v",
+        context->SetRequestInfo("Paths: %v, PartitionMode: %v, KeyGuarantee: %v, DataWeightPerPartition: %v, AdjustDataWeightPerPartition: %v, EnableCookies: %v",
             paths,
             options.PartitionMode,
             options.EnableKeyGuarantee,
             options.DataWeightPerPartition,
-            options.AdjustDataWeightPerPartition);
+            options.AdjustDataWeightPerPartition,
+            options.EnableCookies);
+
+        auto sign = [this_ = MakeStrong(this)] (TMultiTablePartitions&& partitions) {
+            for (auto& partition : partitions.Partitions) {
+                if (partition.Cookie) {
+                    partition.Cookie = this_->GenerateSignature<TTablePartitionCookiePtr>(std::move(partition.Cookie.Underlying()));
+                }
+            }
+            return std::move(partitions);
+        };
 
         ExecuteCall(
             context,
             [=] {
-                return client->PartitionTables(paths, options);
+                return client->PartitionTables(paths, options)
+                    .ApplyUnique(BIND(std::move(sign)));
             },
             [] (const auto& context, const auto& result) {
                 auto* response = &context->Response();
                 ToProto(response->mutable_partitions(), result.Partitions);
 
                 context->SetResponseInfo("PartitionCount: %v", result.Partitions.size());
+            });
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, ReadTablePartition)
+    {
+        auto client = GetAuthenticatedClientOrThrow(context, request);
+
+        auto cookie = ConvertTo<TTablePartitionCookiePtr>(TYsonStringBuf(request->cookie()));
+
+        YT_VERIFY(cookie);
+
+        auto signatureOk = WaitFor(ValidateSignature(cookie.Underlying()))
+            .ValueOrThrow();
+        if (!signatureOk) {
+            THROW_ERROR_EXCEPTION("Signature validation failed");
+        }
+
+        auto format = GetFormat(context, request);
+
+        NApi::TReadTablePartitionOptions options;
+        options.Unordered = request->unordered();
+        options.OmitInaccessibleColumns = request->omit_inaccessible_columns();
+        options.EnableTableIndex = request->enable_table_index();
+        options.EnableRowIndex = request->enable_row_index();
+        options.EnableRangeIndex = request->enable_range_index();
+        if (request->has_config()) {
+            options.Config = ConvertTo<TTableReaderConfigPtr>(TYsonString(request->config()));
+        }
+
+        auto desiredRowsetFormat = request->desired_rowset_format();
+        auto arrowFallbackRowsetFormat = request->arrow_fallback_rowset_format();
+
+        context->SetRequestInfo(
+            "Unordered: %v, OmitInaccessibleColumns: %v, DesiredRowsetFormat: %v, ArrowFallbackRowsetFormat: %v",
+            options.Unordered,
+            options.OmitInaccessibleColumns,
+            NApi::NRpcProxy::NProto::ERowsetFormat_Name(desiredRowsetFormat),
+            NApi::NRpcProxy::NProto::ERowsetFormat_Name(arrowFallbackRowsetFormat));
+
+        PutMethodInfoInTraceContext("read_table_partition");
+
+        auto reader = WaitFor(client->CreateTablePartitionReader(cookie, options))
+            .ValueOrThrow();
+
+        auto controlAttributesConfig = New<NFormats::TControlAttributesConfig>();
+        controlAttributesConfig->EnableRowIndex = request->enable_row_index();
+        controlAttributesConfig->EnableTableIndex = request->enable_table_index();
+        controlAttributesConfig->EnableRangeIndex = request->enable_range_index();
+
+        auto schemas = GetTableSchemas(reader);
+        auto columnFilters = GetColumnFilters(reader);
+
+        if (schemas.size() > 1 || columnFilters.size() > 1) {
+            THROW_ERROR_EXCEPTION("Reading multiple table partitions is not supported yet");
+        }
+
+        auto encoder = CreateRowStreamEncoder(
+            desiredRowsetFormat,
+            arrowFallbackRowsetFormat,
+            schemas[0],
+            columnFilters[0],
+            reader->GetNameTable(),
+            controlAttributesConfig,
+            std::move(format));
+
+        auto outputStream = context->GetResponseAttachmentsStream();
+
+        // For now we don't have any metadata, but we can have it in the future.
+        NApi::NRpcProxy::NProto::TRspReadTablePartitionMeta meta;
+
+        auto metaRef = SerializeProtoToRef(meta);
+        WaitFor(outputStream->Write(metaRef))
+            .ThrowOnError();
+
+        bool finished = false;
+        const auto& config = Config_.Acquire();
+
+        HandleInputStreamingRequest(
+            context,
+            [&] {
+                if (finished) {
+                    return TSharedRef();
+                }
+
+                TRowBatchReadOptions options{
+                    .MaxRowsPerRead = config->ReadBufferRowCount,
+                    .MaxDataWeightPerRead = config->ReadBufferDataWeight,
+                    .Columnar = IsColumnarRowsetFormat(request->desired_rowset_format())
+                };
+                auto batch = ReadRowBatch(reader, options);
+                if (!batch) {
+                    finished = true;
+                }
+
+                return encoder->Encode(
+                    batch ? batch : CreateEmptyUnversionedRowBatch(),
+                    /*statistics*/ nullptr);
             });
     }
 
@@ -6145,7 +6268,7 @@ private:
         TDistributedWriteSessionFinishOptions options;
         ParseRequest(&sessionWithResults, &options, *request);
 
-        auto session = ConvertTo<TDistributedWriteSession>(sessionWithResults.Session.Underlying()->Payload());
+        auto session = ConvertTo<TDistributedWriteSession>(TYsonStringBuf(sessionWithResults.Session.Underlying()->Payload()));
 
         context->SetRequestInfo(
             "TableId: %v",
@@ -6158,7 +6281,7 @@ private:
                 validation.reserve(1 + std::ssize(sessionWithResults.Results));
                 validation.push_back(ValidateSignature(sessionWithResults.Session.Underlying()));
                 for (const auto& signedResult : sessionWithResults.Results) {
-                    auto result = ConvertTo<TWriteFragmentResult>(signedResult.Underlying()->Payload());
+                    auto result = ConvertTo<TWriteFragmentResult>(TYsonStringBuf(signedResult.Underlying()->Payload()));
                     if (sessionId != result.SessionId) {
                         THROW_ERROR_EXCEPTION(
                             "Found write results with a different session id")
@@ -6195,7 +6318,7 @@ private:
 
         PatchTableWriterOptions(&options);
 
-        auto concreteCookie = ConvertTo<TWriteFragmentCookie>(cookie.Underlying()->Payload());
+        auto concreteCookie = ConvertTo<TWriteFragmentCookie>(TYsonString(cookie.Underlying()->Payload()));
 
         context->SetRequestInfo(
             "TableId: %v, Main transaction id: %v",

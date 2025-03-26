@@ -13,7 +13,7 @@ class TChangelogMeta;
 
 } // namespace NProto
 
-DECLARE_REFCOUNTED_CLASS(TPeerConnectionConfig)
+DECLARE_REFCOUNTED_STRUCT(TPeerConnectionConfig)
 DECLARE_REFCOUNTED_CLASS(TRemoteSnapshotStoreOptions)
 DECLARE_REFCOUNTED_CLASS(TRemoteChangelogStoreOptions)
 

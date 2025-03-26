@@ -116,7 +116,7 @@ public:
     const NRpc::IChannelPtr& GetLocalRpcChannel() const;
     const NApi::NNative::IConnectionPtr& GetClusterConnection() const;
     const NApi::NNative::IClientPtr& GetRootClient() const;
-    NSequoiaClient::ISequoiaClientPtr GetSequoiaClient() const;
+    const NSequoiaClient::ISequoiaClientPtr& GetSequoiaClient() const;
     const NElection::TCellManagerPtr& GetCellManager() const;
     const NHydra::IChangelogStoreFactoryPtr& GetChangelogStoreFactory() const;
     const NHydra::ISnapshotStorePtr& GetSnapshotStore() const;
@@ -153,6 +153,7 @@ public:
     const NTabletServer::IBackupManagerPtr& GetBackupManager() const;
     const NChaosServer::IChaosManagerPtr& GetChaosManager() const;
     const NSequoiaServer::ISequoiaManagerPtr& GetSequoiaManager() const;
+    const NSequoiaServer::ICypressProxyTrackerPtr& GetCypressProxyTracker() const;
     const NSequoiaServer::IGroundUpdateQueueManagerPtr& GetGroundUpdateQueueManager() const;
     const NHiveServer::IHiveManagerPtr& GetHiveManager() const;
     const NHiveClient::ICellDirectoryPtr& GetCellDirectory() const;
@@ -210,7 +211,7 @@ protected:
     NRpc::IChannelPtr LocalRpcChannel_;
     NApi::NNative::IConnectionPtr ClusterConnection_;
     NApi::NNative::IClientPtr RootClient_;
-    NSequoiaClient::ILazySequoiaClientPtr SequoiaClient_;
+    NSequoiaClient::ISequoiaClientPtr SequoiaClient_;
     NMonitoring::IMonitoringManagerPtr MonitoringManager_;
     NHttp::IServerPtr HttpServer_;
     NElection::TCellManagerPtr CellManager_;
@@ -256,6 +257,7 @@ protected:
     NTabletServer::IReplicatedTableTrackerStateProviderPtr ReplicatedTableTrackerStateProvider_;
     NChaosServer::IChaosManagerPtr ChaosManager_;
     NSequoiaServer::ISequoiaManagerPtr SequoiaManager_;
+    NSequoiaServer::ICypressProxyTrackerPtr CypressProxyTracker_;
     NSequoiaServer::IGroundUpdateQueueManagerPtr GroundUpdateQueueManager_;
     NHiveServer::IHiveManagerPtr HiveManager_;
     NHiveClient::ICellDirectoryPtr CellDirectory_;

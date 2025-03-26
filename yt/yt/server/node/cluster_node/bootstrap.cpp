@@ -183,6 +183,8 @@
 #include <yt/yt/core/misc/ref_counted_tracker.h>
 #include <yt/yt/core/misc/ref_counted_tracker_statistics_producer.h>
 #include <yt/yt/core/misc/configurable_singleton_def.h>
+#include <yt/yt/core/misc/config.h>
+#include <yt/yt/core/misc/fair_share_hierarchical_queue.h>
 
 #include <yt/yt/core/rpc/bus/channel.h>
 #include <yt/yt/core/rpc/bus/server.h>
@@ -366,6 +368,11 @@ public:
     const TClusterNodeBootstrapConfigPtr& GetConfig() const override
     {
         return Config_;
+    }
+
+    const TFairShareHierarchicalSchedulerPtr<TString>& GetFairShareHierarchicalScheduler() const override
+    {
+        return FairShareHierarchicalScheduler_;
     }
 
     const NClusterNode::TClusterNodeDynamicConfigManagerPtr& GetDynamicConfigManager() const override
@@ -700,19 +707,21 @@ private:
     TNodeResourceManagerPtr NodeResourceManager_;
     TBufferedProducerPtr BufferedProducer_;
 
+    TFairShareHierarchicalSchedulerPtr<TString> FairShareHierarchicalScheduler_;
+
     IReconfigurableThroughputThrottlerPtr LegacyRawTotalInThrottler_;
     IThroughputThrottlerPtr LegacyTotalInThrottler_;
 
     TFairThrottlerPtr InThrottler_;
     IThroughputThrottlerPtr DefaultInThrottler_;
-    THashSet<TString> EnabledInThrottlers_;
+    THashSet<std::string> EnabledInThrottlers_;
 
     IReconfigurableThroughputThrottlerPtr LegacyRawTotalOutThrottler_;
     IThroughputThrottlerPtr LegacyTotalOutThrottler_;
 
     TFairThrottlerPtr OutThrottler_;
     IThroughputThrottlerPtr DefaultOutThrottler_;
-    THashSet<TString> EnabledOutThrottlers_;
+    THashSet<std::string> EnabledOutThrottlers_;
 
     IReconfigurableThroughputThrottlerPtr RawReadRpsOutThrottler_;
     IThroughputThrottlerPtr ReadRpsOutThrottler_;
@@ -891,6 +900,10 @@ private:
                 ClusterNodeProfiler().WithPrefix("/throttlers"));
             LegacyTotalOutThrottler_ = IThroughputThrottlerPtr(LegacyRawTotalOutThrottler_);
         }
+
+        FairShareHierarchicalScheduler_ = CreateFairShareHierarchicalScheduler<TString>(
+            New<TFairShareHierarchicalSchedulerDynamicConfig>(),
+            ClusterNodeProfiler().WithPrefix("/fair_share_hierarchical_scheduler"));
 
         RawUserJobContainerCreationThrottler_ = CreateNamedReconfigurableThroughputThrottler(
             New<NConcurrency::TThroughputThrottlerConfig>(),
@@ -1220,6 +1233,10 @@ private:
         }
         SetNodeByYPath(
             OrchidRoot_,
+            "/fair_share_hierarchical_scheduler",
+            CreateVirtualNode(FairShareHierarchicalScheduler_->GetOrchidService()));
+        SetNodeByYPath(
+            OrchidRoot_,
             "/restart_manager",
             CreateVirtualNode(RestartManager_->GetOrchidService()));
         SetNodeByYPath(
@@ -1361,7 +1378,7 @@ private:
         auto throttlerConfig = New<TFairThrottlerConfig>();
         throttlerConfig->TotalLimit = GetNetworkThrottlerLimit(newConfig, netRxLimit);
 
-        THashMap<TString, TFairThrottlerBucketConfigPtr> inBucketsConfig;
+        THashMap<std::string, TFairThrottlerBucketConfigPtr> inBucketsConfig;
         for (const auto& bucket : EnabledInThrottlers_) {
             inBucketsConfig[bucket] = Config_->InThrottlers[bucket];
             if (newConfig->InThrottlers[bucket]) {
@@ -1371,7 +1388,7 @@ private:
         InThrottler_->Reconfigure(throttlerConfig, inBucketsConfig);
 
         throttlerConfig->TotalLimit = GetNetworkThrottlerLimit(newConfig, netTxLimit);
-        THashMap<TString, TFairThrottlerBucketConfigPtr> outBucketsConfig;
+        THashMap<std::string, TFairThrottlerBucketConfigPtr> outBucketsConfig;
         for (const auto& bucket : EnabledOutThrottlers_) {
             outBucketsConfig[bucket] = Config_->OutThrottlers[bucket];
             if (newConfig->OutThrottlers[bucket]) {
@@ -1783,6 +1800,11 @@ const IThroughputThrottlerPtr& TBootstrapBase::GetAnnounceChunkReplicaRpsOutThro
 const TBufferedProducerPtr& TBootstrapBase::GetBufferedProducer() const
 {
     return Bootstrap_->GetBufferedProducer();
+}
+
+const TFairShareHierarchicalSchedulerPtr<TString>& TBootstrapBase::GetFairShareHierarchicalScheduler() const
+{
+    return Bootstrap_->GetFairShareHierarchicalScheduler();
 }
 
 const TClusterNodeBootstrapConfigPtr& TBootstrapBase::GetConfig() const

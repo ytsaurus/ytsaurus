@@ -156,7 +156,7 @@ public:
 
     TTwoLevelFairShareQueue(
         TIntrusivePtr<NThreading::TEventCount> callbackEventCount,
-        const TString& threadNamePrefix,
+        const std::string& threadNamePrefix,
         IPoolWeightProviderPtr poolWeightProvider)
         : CallbackEventCount_(std::move(callbackEventCount))
         , ThreadNamePrefix_(threadNamePrefix)
@@ -175,7 +175,7 @@ public:
         ThreadCount_.store(threadCount);
     }
 
-    IInvokerPtr GetInvoker(const TString& poolName, const TFairShareThreadPoolTag& tag)
+    IInvokerPtr GetInvoker(const std::string& poolName, const TFairShareThreadPoolTag& tag)
     {
         while (true) {
             auto guard = Guard(SpinLock_);
@@ -413,7 +413,7 @@ private:
 
     struct TExecutionPool
     {
-        TExecutionPool(const TString& poolName, const TProfiler& profiler)
+        TExecutionPool(const std::string& poolName, const TProfiler& profiler)
             : PoolName(poolName)
             , BucketCounter(profiler.Gauge("/buckets"))
             , SizeCounter(profiler.Summary("/size"))
@@ -441,7 +441,7 @@ private:
             return nullptr;
         }
 
-        const TString PoolName;
+        const std::string PoolName;
 
         TGauge BucketCounter;
         std::atomic<i64> Size = 0;
@@ -458,7 +458,7 @@ private:
     };
 
     const TIntrusivePtr<NThreading::TEventCount> CallbackEventCount_;
-    const TString ThreadNamePrefix_;
+    const std::string ThreadNamePrefix_;
     const TProfiler Profiler_;
     const IPoolWeightProviderPtr PoolWeightProvider_;
 
@@ -467,7 +467,7 @@ private:
     // will stop doing so after the shutdown.
     bool Stopping_ = false;
     std::vector<std::unique_ptr<TExecutionPool>> IdToPool_;
-    THashMap<TString, int> NameToPoolId_;
+    THashMap<std::string, int> NameToPoolId_;
 
     std::atomic<int> ThreadCount_ = 0;
     std::array<TThreadState, TThreadPoolBase::MaxThreadCount> ThreadStates_;
@@ -616,8 +616,8 @@ public:
     TFairShareThread(
         TTwoLevelFairShareQueuePtr queue,
         TIntrusivePtr<NThreading::TEventCount> callbackEventCount,
-        const TString& threadGroupName,
-        const TString& threadName,
+        const std::string& threadGroupName,
+        const std::string& threadName,
         int index)
         : TSchedulerThread(
             std::move(callbackEventCount),
@@ -655,7 +655,7 @@ class TTwoLevelFairShareThreadPool
 public:
     TTwoLevelFairShareThreadPool(
         int threadCount,
-        const TString& threadNamePrefix,
+        const std::string& threadNamePrefix,
         IPoolWeightProviderPtr poolWeightProvider)
         : TThreadPoolBase(threadNamePrefix)
         , Queue_(New<TTwoLevelFairShareQueue>(
@@ -686,7 +686,7 @@ public:
     }
 
     IInvokerPtr GetInvoker(
-        const TString& poolName,
+        const std::string& poolName,
         const TFairShareThreadPoolTag& tag) override
     {
         EnsureStarted();
@@ -742,7 +742,7 @@ private:
 
 ITwoLevelFairShareThreadPoolPtr CreateOldTwoLevelFairShareThreadPool(
     int threadCount,
-    const TString& threadNamePrefix,
+    const std::string& threadNamePrefix,
     IPoolWeightProviderPtr poolWeightProvider)
 {
     return New<TTwoLevelFairShareThreadPool>(

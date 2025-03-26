@@ -20,8 +20,8 @@ class TestResponseKeeper(YTEnvSetup):
             "response_keeper": {
                 "eviction_period": 100,
                 "expiration_timeout": 200,
-            }
-        }
+            },
+        },
     }
 
     @authors("shakurov")
@@ -76,7 +76,8 @@ class TestSequoiaResponseKeeper(YTEnvSetup):
     NUM_SECONDARY_MASTER_CELLS = 2
     MASTER_CELL_DESCRIPTORS = {
         "10": {"roles": ["sequoia_node_host"]},
-        "11": {"roles": ["sequoia_node_host"]},
+        # Master cell with tag 11 is reserved for portals.
+        "12": {"roles": ["sequoia_node_host"]},
     }
 
     DELTA_CYPRESS_PROXY_DYNAMIC_CONFIG = {

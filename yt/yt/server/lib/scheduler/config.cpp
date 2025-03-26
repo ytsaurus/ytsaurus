@@ -235,7 +235,7 @@ void TFairShareStrategySchedulingSegmentsConfig::Register(TRegistrar registrar)
     });
 }
 
-const THashSet<TString>& TFairShareStrategySchedulingSegmentsConfig::GetModules() const
+const THashSet<std::string>& TFairShareStrategySchedulingSegmentsConfig::GetModules() const
 {
     switch (ModuleType) {
         case ESchedulingSegmentModuleType::DataCenter:
@@ -291,7 +291,7 @@ void TGpuAllocationSchedulerConfig::Register(TRegistrar registrar)
     });
 }
 
-const THashSet<TString>& TGpuAllocationSchedulerConfig::GetModules() const
+const THashSet<std::string>& TGpuAllocationSchedulerConfig::GetModules() const
 {
     switch (ModuleType) {
         case ESchedulingSegmentModuleType::DataCenter:
@@ -348,8 +348,13 @@ void TTreeTestingOptions::Register(TRegistrar registrar)
 
 void TFairShareStrategyTreeConfig::Register(TRegistrar registrar)
 {
+    registrar.UnrecognizedStrategy(NYTree::EUnrecognizedStrategy::KeepRecursive);
+
     registrar.Parameter("nodes_filter", &TThis::NodesFilter)
         .Default();
+
+    registrar.Parameter("enable_unrecognized_alert", &TThis::EnableUnrecognizedAlert)
+        .Default(true);
 
     registrar.Parameter("fair_share_starvation_timeout", &TThis::FairShareStarvationTimeout)
         .Alias("fair_share_preemption_timeout")
@@ -604,8 +609,9 @@ void TFairShareStrategyTreeConfig::Register(TRegistrar registrar)
     registrar.Parameter("enable_guarantee_priority_scheduling", &TThis::EnableGuaranteePriorityScheduling)
         .Default(false);
 
+    // COMPAT(eshcherbin): drop in future major versions.
     registrar.Parameter("enable_fast_child_function_summation_in_fifo_pools", &TThis::EnableFastChildFunctionSummationInFifoPools)
-        .Default(false);
+        .Default(true);
 
     registrar.Parameter("min_job_resource_limits", &TThis::MinJobResourceLimits)
         .DefaultNew();
@@ -1013,10 +1019,6 @@ void TResourceMeteringConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("default_abc_id", &TThis::DefaultAbcId)
         .Default(-1);
-
-    // COMPAT(ignat): drop after 25.1
-    registrar.Parameter("enable_separate_schema_for_allocation", &TThis::EnableSeparateSchemaForAllocation)
-        .Default(true);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1262,7 +1264,7 @@ void TSchedulerConfig::Register(TRegistrar registrar)
         .Default(true);
 
     registrar.Parameter("min_required_archive_version", &TThis::MinRequiredArchiveVersion)
-        .Default(55);
+        .Default(56);
 
     registrar.Parameter("rpc_server", &TThis::RpcServer)
         .DefaultNew();

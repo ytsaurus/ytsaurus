@@ -142,3 +142,41 @@ func (c *Config) ScalePeriodOrDefault() yson.Duration {
 	}
 	return DefaultScalePeriod
 }
+
+func applyOverride[T any](base **T, override *T) {
+	if override != nil {
+		*base = override
+	}
+}
+
+func (c *Config) ApplyOverrides(o ConfigOverrides) Config {
+	var overridedCfg Config
+	if c != nil {
+		overridedCfg = *c
+	}
+
+	applyOverride(&overridedCfg.PassPeriod, o.PassPeriod)
+	applyOverride(&overridedCfg.CollectOperationsPeriod, o.CollectOperationsPeriod)
+	applyOverride(&overridedCfg.RevisionCollectPeriod, o.RevisionCollectPeriod)
+	applyOverride(&overridedCfg.MinOpletPassTimeout, o.MinOpletPassTimeout)
+	applyOverride(&overridedCfg.OpletPassTimeoutFactor, o.OpletPassTimeoutFactor)
+	applyOverride(&overridedCfg.HealthCheckerToleranceFactor, o.HealthCheckerToleranceFactor)
+
+	return overridedCfg
+}
+
+// ConfigOverrides contains location-specific overrides of Config fields.
+// For information about field semantics, see Config struct.
+type ConfigOverrides struct {
+	PassPeriod *yson.Duration `yson:"pass_period"`
+
+	CollectOperationsPeriod *yson.Duration `yson:"collect_operations_period"`
+
+	RevisionCollectPeriod *yson.Duration `yson:"revision_collect_period"`
+
+	MinOpletPassTimeout *yson.Duration `yson:"min_oplet_pass_timeout"`
+
+	OpletPassTimeoutFactor *float64 `yson:"oplet_pass_timeout_factor"`
+
+	HealthCheckerToleranceFactor *float64 `yson:"health_checker_tolerance_factor"`
+}

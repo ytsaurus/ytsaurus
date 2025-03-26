@@ -112,7 +112,7 @@ TStorageContext::TStorageContext(int index, DB::ContextPtr context, TQueryContex
 {
     YT_LOG_INFO("Storage context created");
 
-    Settings = ParseCustomSettings(queryContext->Host->GetConfig()->QuerySettings, context->getSettings().allCustom(), Logger);
+    Settings = ParseCustomSettings(queryContext->Host->GetConfig()->QuerySettings, context->getSettingsRef().allCustom(), Logger);
 }
 
 TStorageContext::~TStorageContext()
@@ -178,7 +178,7 @@ TQueryContext::TQueryContext(
         HttpUserAgent = clientInfo.http_user_agent;
     }
 
-    Settings = ParseCustomSettings(Host->GetConfig()->QuerySettings, context->getSettings().allCustom(), Logger);
+    Settings = ParseCustomSettings(Host->GetConfig()->QuerySettings, context->getSettingsRef().allCustom(), Logger);
 
     YT_LOG_INFO(
         "Query client info (CurrentUser: %v, CurrentAddress: %v, InitialUser: %v, InitialAddress: %v, "
@@ -666,6 +666,8 @@ void TQueryContext::AddSecondaryQueryId(TQueryId id)
 {
     auto guard = Guard(QueryLogLock_);
     SecondaryQueryIds_.push_back(id);
+    // Create map node here for thread-safety.
+    OnSecondaryProgress(id, DB::ReadProgress(0, 0, 0, 0));
 }
 
 TQueryContext::TStatisticsTimerGuard TQueryContext::CreateStatisticsTimerGuard(TStatisticPath path)

@@ -48,7 +48,7 @@ namespace DB
             assert_cast<ColumnVector<T> &>(column).insertValue(parse<T>(string_value));
         }
 
-        void insertValue(IColumn & column, const ValueType type, const Poco::Redis::BulkString & bulk_string)
+        void insertValue(IColumn & column, const ValueType type, const DBPoco::Redis::BulkString & bulk_string)
         {
             if (bulk_string.isNull())
                 throw Exception(ErrorCodes::TYPE_MISMATCH, "Type mismatch, expected not Null String");
@@ -99,8 +99,7 @@ namespace DB
                     ReadBufferFromString in(string_value);
                     time_t time = 0;
                     readDateTimeText(time, in);
-                    if (time < 0)
-                        time = 0;
+                    time = std::max<time_t>(time, 0);
                     assert_cast<ColumnUInt32 &>(column).insertValue(static_cast<UInt32>(time));
                     break;
                 }
@@ -157,7 +156,7 @@ namespace DB
                 if (num_rows + keys_array.size() - 1 > max_block_size)
                     break;
 
-                Poco::Redis::Command command_for_values("HMGET");
+                DBPoco::Redis::Command command_for_values("HMGET");
                 for (const auto & elem : keys_array)
                     command_for_values.addRedisType(elem);
 
@@ -186,7 +185,7 @@ namespace DB
         }
         else
         {
-            Poco::Redis::Command command_for_values("MGET");
+            DBPoco::Redis::Command command_for_values("MGET");
 
             size_t need_values = std::min(max_block_size, keys.size() - cursor);
             for (size_t i = 0; i < need_values; ++i)

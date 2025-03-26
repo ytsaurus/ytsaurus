@@ -77,8 +77,8 @@ namespace {
 
 bool ValidateSchema(const TTableSchema& original, const TTableSchema& query)
 {
-    if (original.GetStrict() != query.GetStrict() ||
-        original.GetUniqueKeys() != query.GetUniqueKeys() ||
+    if (original.IsStrict() != query.IsStrict() ||
+        original.IsUniqueKeys() != query.IsUniqueKeys() ||
         original.GetSchemaModification() != query.GetSchemaModification() ||
         original.DeletedColumns() != query.DeletedColumns())
     {
@@ -551,6 +551,11 @@ private:
             inferredDataSource,
             rowBuffer);
 
+        for (const auto& dataSource : allSplits) {
+            VerifyIdsInRanges(dataSource.first.Ranges);
+            VerifyIdsInKeys(dataSource.first.Keys);
+        }
+
         bool sortedDataSource = tableInfo->IsSorted();
 
         std::vector<std::pair<std::vector<TDataSource>, TString>> groupedDataSplits;
@@ -777,9 +782,7 @@ private:
 
         {
             auto* ext = req->Header().MutableExtension(NQueryClient::NProto::TReqExecuteExt::req_execute_ext);
-            if (options.ExecutionPool) {
-                ext->set_execution_pool(*options.ExecutionPool);
-            }
+            YT_OPTIONAL_TO_PROTO(ext, execution_pool, options.ExecutionPool);
             ext->set_execution_tag(ToString(options.ReadSessionId));
         }
 

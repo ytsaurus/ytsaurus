@@ -28,7 +28,6 @@
 
 #include <library/cpp/string_utils/base64/base64.h>
 
-#include <util/string/escape.h>
 #include <util/string/split.h>
 
 namespace NYT::NQueryTracker {
@@ -47,7 +46,7 @@ class TSpytSettings
     : public TYsonStruct
 {
 public:
-    std::optional<TString> Cluster;
+    std::optional<std::string> Cluster;
 
     std::optional<TYPath> DiscoveryPath;
 
@@ -109,6 +108,14 @@ private:
     int Major_;
     int Minor_;
     int Patch_;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TSpytQueryResult
+{
+    const bool IsTruncated;
+    const TSharedRef WireData;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -184,7 +191,7 @@ public:
 private:
     const TSpytSettingsPtr Settings_;
     const TSpytEngineConfigPtr Config_;
-    const TString Cluster_;
+    const std::string Cluster_;
     const NApi::NNative::IConnectionPtr NativeConnection_;
     const NApi::NNative::IClientPtr QueryClient_;
     const NHttp::IClientPtr HttpClient_;
@@ -192,7 +199,7 @@ private:
     const TPeriodicExecutorPtr RefreshTokenExecutor_;
     const bool SessionReuse_;
     ISpytDiscoveryPtr Discovery_;
-    TFuture<TSharedRef> AsyncQueryResult_;
+    TFuture<TSpytQueryResult> AsyncQueryResult_;
     TString SessionUrl_;
     TString StatementUrl_;
     std::optional<TString> Token_;
@@ -401,17 +408,18 @@ private:
         return result;
     }
 
-    TSharedRef ExtractTableBytes(const TString& queryResult) const
+    TSpytQueryResult ExtractTableBytes(const TString& queryResult) const
     {
         auto encodedChunks = StringSplitter(queryResult).Split('\n').ToList<TString>();
         YT_LOG_DEBUG("Raw result received (LineCount: %v)", encodedChunks.size());
 
+        bool IsTruncated = encodedChunks[0] == "T";
         std::vector<TString> tableChunks;
-        for (size_t i = 0; i < encodedChunks.size(); i++) {
+        for (size_t i = 1; i < encodedChunks.size(); i++) {
             tableChunks.push_back(Base64StrictDecode(encodedChunks[i]));
         }
 
-        return TSharedRef::FromString(ConcatChunks(tableChunks));
+        return {IsTruncated, TSharedRef::FromString(ConcatChunks(tableChunks))};
     }
 
     TString ParseQueryOutput(const IMapNodePtr& outputNode) const
@@ -439,12 +447,15 @@ private:
         auto code = Format(
             "{"
             " import tech.ytsaurus.spyt.serializers.GenericRowSerializer;"
+            " import java.util.Base64; import java.nio.charset.StandardCharsets.UTF_8;"
             " %v"
-            " val df = spark.sql(\"%v\").limit(%v);"
-            " println(GenericRowSerializer.dfToYTFormatWithBase64(df).mkString(\"\\n\"))"
+            " val query = new String(Base64.getDecoder().decode(\"%v\"), UTF_8);"
+            " val rowCountLimit = %v;"
+            " val df = spark.sql(query).limit(rowCountLimit + 1);"
+            " println(GenericRowSerializer.dfToYTFormatWithBase64(df, rowCountLimit).mkString(\"\\n\"))"
             "}",
             paramsSetting,
-            EscapeC(sqlQuery),
+            Base64Encode(sqlQuery),
             Config_->RowCountLimit);
         auto dataNode = BuildYsonNodeFluently()
             .BeginMap()
@@ -600,7 +611,7 @@ private:
         YT_UNUSED_FUTURE(RefreshTokenExecutor_->Stop());
     }
 
-    TSharedRef Execute()
+    TSpytQueryResult Execute()
     {
         UpdateMasterWebUIUrl();
         SetProgress(0.0, std::nullopt);
@@ -620,7 +631,7 @@ private:
         }
     }
 
-    void OnSpytResponse(const TErrorOr<TSharedRef>& queryResultOrError)
+    void OnSpytResponse(const TErrorOr<TSpytQueryResult>& queryResultOrError)
     {
         StopBackgroundExecutors();
         if (queryResultOrError.FindMatching(NYT::EErrorCode::Canceled)) {
@@ -630,7 +641,11 @@ private:
             OnQueryFailed(queryResultOrError);
             return;
         }
-        OnQueryCompletedWire({TWireRowset{.Rowset = queryResultOrError.Value()}});
+        auto result = queryResultOrError.Value();
+        OnQueryCompletedWire({TWireRowset{
+            .Rowset = result.WireData,
+            .IsTruncated = result.IsTruncated,
+        }});
     }
 };
 

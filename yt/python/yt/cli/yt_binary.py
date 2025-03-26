@@ -1308,6 +1308,12 @@ def add_push_queue_producer_parser(add_parser):
     parser.add_argument("--session-id", type=str, required=True)
     parser.add_argument("--epoch", type=int, required=True)
 
+    require_sync_replica_parser = parser.add_mutually_exclusive_group(required=False)
+    require_sync_replica_parser.add_argument(
+        "--require-sync-replica", dest="require_sync_replica", default=None, action="store_true")
+    require_sync_replica_parser.add_argument(
+        "--no-require-sync-replica", dest="require_sync_replica", default=None, action="store_false")
+
     add_format_argument(parser, name="--input-format", help="input format")
     add_structured_format_argument(parser, name="--output-format", help="output format")
 
@@ -1791,7 +1797,7 @@ def get_operation(**kwargs):
 def add_get_operation_parser(add_parser):
     parser = add_parser("get-operation", get_operation)
     parser.add_argument("--attribute", action="append", dest="attributes", help="desired attributes in the response")
-    parser.add_argument("--include-scheduler", action="store_true", help="request runtime operation information")
+    parser.add_argument("--include-runtime", action="store_true", help="request runtime operation information")
     operation_id_args(parser, dest="operation_id")
     add_structured_format_argument(parser)
 
@@ -2080,9 +2086,18 @@ def list_user_tokens(**kwargs):
     print_to_output(result)
 
 
-def add_list_user_tokens(add_parser):
+def add_list_user_tokens_parser(add_parser):
     parser = add_parser("list-user-tokens", list_user_tokens)
     parser.add_argument("user", help="user to revoke token")
+
+
+@copy_docstring_from(cli_impl._whoami)
+def whoami(**kwargs):
+    print_to_output(cli_impl._whoami(**kwargs))
+
+
+def add_whoami_parser(add_parser):
+    add_parser("whoami", whoami)
 
 
 @copy_docstring_from(yt.get_supported_features)
@@ -2142,6 +2157,7 @@ def add_list_jobs_parser(add_parser):
     parser.add_argument("--with-fail-context", default=None, action="store_true")
     parser.add_argument("--with-competitors", default=None, action="store_true", help="with competitive jobs")
     parser.add_argument("--with-monitoring-descriptor", default=None, action="store_true")
+    parser.add_argument("--with-interruption-info", default=None, action="store_true")
     parser.add_argument(
         "--include-cypress", action="store_true",
         help='include jobs from Cypress in result. Have effect only if --data-source is set to "manual"')
@@ -2969,7 +2985,8 @@ def _prepare_parser():
     add_set_user_password_parser(add_parser)
     add_issue_token_parser(add_parser)
     add_revoke_token_parser(add_parser)
-    add_list_user_tokens(add_parser)
+    add_list_user_tokens_parser(add_parser)
+    add_whoami_parser(add_parser)
 
     add_execute_parser(add_parser)
 

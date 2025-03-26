@@ -280,8 +280,8 @@ def prepare_job_environment(operation_id, job_id, job_path, run=False, get_conte
     if job_path is None:
         job_path = os.path.join(os.getcwd(), "job_" + job_id)
 
-    operation_info = client.get_operation(operation_id, attributes=["operation_type", "spec"])
-    op_type = operation_info["operation_type"]
+    operation_info = client.get_operation(operation_id, attributes=["type", "spec"])
+    op_type = operation_info["type"]
     op_spec = operation_info["spec"]
     if op_type in ["remote_copy", "sort", "merge"]:
         raise yt.YtError("Operation {0} is {1} operation and does not run user code"

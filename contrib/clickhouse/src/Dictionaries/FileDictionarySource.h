@@ -1,6 +1,6 @@
 #pragma once
 
-#include <Poco/Timestamp.h>
+#include <DBPoco/Timestamp.h>
 #include "IDictionarySource.h"
 #include <Core/Block.h>
 #include <Interpreters/Context.h>
@@ -56,13 +56,13 @@ public:
     std::string toString() const override;
 
 private:
-    Poco::Timestamp getLastModification() const;
+    DBPoco::Timestamp getLastModification() const;
 
     const std::string filepath;
     const std::string format;
     Block sample_block;
     ContextPtr context;
-    Poco::Timestamp last_modification;
+    DBPoco::Timestamp last_modification;
 };
 
 }

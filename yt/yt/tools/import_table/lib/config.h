@@ -12,10 +12,9 @@ namespace NYT::NTools::NImporter {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TImportConfig
+struct TImportConfig
     : public NYTree::TYsonStruct
 {
-public:
     //! Singletons configuration to be used in the main importer process.
     TSingletonsConfigPtr Singletons;
     //! Singletons configuration to be used in the map-reduce jobs.
@@ -26,6 +25,9 @@ public:
 
     //! Regex for filtering out non-parquet files like successful commit markers in S3 and other unrelated stuff.
     NRe2::TRe2Ptr ParquetFileRegex;
+
+    //! Regex for filtering out non-orc files like successful commit markers in S3 and other unrelated stuff.
+    NRe2::TRe2Ptr ORCFileRegex;
 
     REGISTER_YSON_STRUCT(TImportConfig);
 

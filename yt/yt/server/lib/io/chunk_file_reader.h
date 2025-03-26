@@ -2,9 +2,11 @@
 
 #include "io_engine.h"
 
-#include <yt/yt_proto/yt/client/chunk_client/proto/chunk_meta.pb.h>
-
 #include <yt/yt/ytlib/chunk_client/block.h>
+
+#include <yt/yt/core/misc/public.h>
+
+#include <yt/yt_proto/yt/client/chunk_client/proto/chunk_meta.pb.h>
 
 #include <library/cpp/yt/containers/enum_indexed_array.h>
 
@@ -73,16 +75,21 @@ public:
     TFuture<std::vector<NChunkClient::TBlock>> ReadBlocks(
         const NChunkClient::TClientChunkReadOptions& options,
         const std::vector<int>& blockIndexes,
+        TFairShareSlotId fairShareSlotId,
         NIO::TBlocksExtPtr blocksExt = nullptr);
 
     TFuture<std::vector<NChunkClient::TBlock>> ReadBlocks(
         const NChunkClient::TClientChunkReadOptions& options,
         int firstBlockIndex,
         int blockCount,
+        TFairShareSlotId fairShareSlotId,
         NIO::TBlocksExtPtr blocksExt = nullptr);
+
+    i64 GetMetaSize() const;
 
     TFuture<NChunkClient::TRefCountedChunkMetaPtr> GetMeta(
         const NChunkClient::TClientChunkReadOptions& options,
+        TFairShareSlotId fairShareSlotId = {},
         std::optional<int> partitionTag = std::nullopt);
 
     //! Returns the future indicating the moment when the underlying file is
@@ -97,7 +104,7 @@ public:
         bool useDirectIO);
 
     //! Reader must be prepared (see #PrepareToReadChunkFragments) prior to this call.
-    IIOEngine::TReadRequest MakeChunkFragmentReadRequest(
+    TReadRequest MakeChunkFragmentReadRequest(
         const TChunkFragmentDescriptor& fragmentDescriptor,
         bool useDirectIO);
 
@@ -124,6 +131,7 @@ private:
         const NChunkClient::TClientChunkReadOptions& options,
         int firstBlockIndex,
         int blockCount,
+        TFairShareSlotId fairShareSlotId,
         NIO::TBlocksExtPtr blocksExt = nullptr,
         TIOEngineHandlePtr dataFile = nullptr);
     std::vector<NChunkClient::TBlock> OnBlocksRead(
@@ -131,14 +139,15 @@ private:
         int firstBlockIndex,
         int blockCount,
         const NIO::TBlocksExtPtr& blocksExt,
-        const IIOEngine::TReadResponse& readResponse);
+        const TReadResponse& readResponse);
     TFuture<NChunkClient::TRefCountedChunkMetaPtr> DoReadMeta(
         const NChunkClient::TClientChunkReadOptions& options,
-        std::optional<int> partitionTag);
+        std::optional<int> partitionTag,
+        TFairShareSlotId fairShareSlotId);
     NChunkClient::TRefCountedChunkMetaPtr OnMetaRead(
         const TString& metaFileName,
         NChunkClient::TChunkReaderStatisticsPtr chunkReaderStatistics,
-        const IIOEngine::TReadResponse& readResponse);
+        const TReadResponse& readResponse);
 
     TFuture<TIOEngineHandlePtr> OpenDataFile(EDirectIOFlag useDirectIO);
     TIOEngineHandlePtr OnDataFileOpened(EDirectIOFlag useDirectIO, const TIOEngineHandlePtr& file);

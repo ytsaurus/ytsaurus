@@ -11,25 +11,14 @@ void TCypressProxyBootstrapConfig::Register(TRegistrar registrar)
     registrar.Parameter("abort_on_unrecognized_options", &TThis::AbortOnUnrecognizedOptions)
         .Default(false);
 
-    registrar.Parameter("cypress_registrar", &TThis::CypressRegistrar)
-        .DefaultNew();
-
-    registrar.Parameter("root_path", &TThis::RootPath)
-        .Default("//sys/cypress_proxies");
-
     registrar.Parameter("dynamic_config_manager", &TThis::DynamicConfigManager)
         .DefaultNew();
-    registrar.Parameter("dynamic_config_path", &TThis::DynamicConfigPath)
-        .Default();
 
     registrar.Parameter("user_directory_synchronizer", &TThis::UserDirectorySynchronizer)
         .DefaultNew();
 
-    registrar.Postprocessor([] (TThis* config) {
-        if (!config->DynamicConfigPath) {
-            config->DynamicConfigPath = config->RootPath + "/@config";
-        }
-    });
+    registrar.Parameter("heartbeat_period", &TThis::HeartbeatPeriod)
+        .Default(TDuration::Seconds(15));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -57,6 +46,9 @@ void TObjectServiceDynamicConfig::Register(TRegistrar registrar)
         .DefaultNew();
     registrar.Parameter("default_per_user_write_request_weight_throttler", &TThis::DefaultPerUserWriteRequestWeightThrottler)
         .DefaultNew();
+
+    registrar.Parameter("enable_fast_path_prerequisite_transaction_check", &TThis::EnableFastPathPrerequisiteTransactionCheck)
+        .Default(true);
 
     registrar.Postprocessor([] (TThis* config) {
         THROW_ERROR_EXCEPTION_IF(

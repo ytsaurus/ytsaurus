@@ -2,7 +2,7 @@
 
 Позволяет объединить несколько источников данных (подзапросов или таблиц) по равенству значений указанных столбцов или выражений (ключей `JOIN`).
 
-**Синтаксис**
+#### Синтаксис
 
 ``` sql
 SELECT ...    FROM table_1
@@ -185,7 +185,7 @@ T1 <Join_Type> JOIN T2 ON F1(T1) = G1(T2) AND F2(T1) = G2(T2) AND ...
 ### Вычисление ключей JOIN
 
 Выполнение `JOIN` начинается с вычислениия ключей и сохранения из значений в отдельную колонку.
-Такое преобразования происходит еще на уровне SQL парсера и является общиим для всех бэкендов (YDB, {{product-name}}, DQ и т.п.)
+Такое преобразования происходит еще на уровне SQL парсера и является общиим для всех бэкендов ({{product-name}}, DQ и т.п.)
 
 Фактически запрос
 ``` yql
@@ -350,7 +350,7 @@ SELECT * FROM T1 AS a JOIN /*+ merge() */ T2 AS b ON a.key = b.key;
 | Название | Описание |
 | --- | --- |
 | [`yt.JoinMergeUnsortedFactor`](pragma.md#ytjoinmergeunsortedfactor)   | смотрите выше |
-| [`yt.JoinMergeTablesLimit`](pragma.md#ytjoinmergetableslimit)   | Максимальное количество таблиц на входе `JOIN` (при использовании [RANGE,CONCAT](select.md#concat) и т.п.) |
+| [`yt.JoinMergeTablesLimit`](pragma.md#ytjoinmergetableslimit)   | Максимальное количество таблиц на входе `JOIN` (при использовании [RANGE,CONCAT](select/concat.md) и т.п.) |
 | [`yt.JoinMergeUseSmallAsPrimary`](pragma.md#ytjoinmergeusesmallasprimary) | Влияет на выбор primary таблицы при выполнении Reduce операции |
 | [`yt.JoinMergeForce`](pragma.md#ytjoinmergeforce) | Форсирует выбор SortedJoin стратегии для всех `JOIN` в запросе  |
 

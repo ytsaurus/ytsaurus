@@ -6,6 +6,8 @@
 #include <yt/yt/library/query/engine_api/expression_evaluator.h>
 #include <yt/yt/library/query/engine_api/config.h>
 
+#include <yt/yt/client/table_client/schema.h>
+
 #include <yt/yt/core/misc/async_slru_cache.h>
 
 namespace NYT::NQueryClient {

@@ -5,6 +5,7 @@
 #include "public.h"
 #include "private.h"
 
+#include <yt/yt/server/master/cell_master/automaton.h>
 #include <yt/yt/server/master/cell_master/bootstrap.h>
 #include <yt/yt/server/master/cell_master/config.h>
 #include <yt/yt/server/master/cell_master/config_manager.h>
@@ -338,7 +339,7 @@ private:
         }
 
         chunkManager
-            ->ModifySequoiaReplicas(std::move(sequoiaRequest))
+            ->ModifySequoiaReplicas(ESequoiaTransactionType::ChunkLocationDisposal, std::move(sequoiaRequest))
             .Subscribe(BIND([=, mutation = std::move(mutation), nodeId = node->GetId(), this, this_ = MakeStrong(this)] (const TErrorOr<TRspModifyReplicas>& rspOrError) {
                 if (!rspOrError.IsOK()) {
                     const auto& nodeTracker = Bootstrap_->GetNodeTracker();

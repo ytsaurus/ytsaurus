@@ -17,6 +17,7 @@ import org.slf4j.LoggerFactory;
 import tech.ytsaurus.client.misc.ScheduledSerializedExecutorService;
 import tech.ytsaurus.client.request.MountTable;
 import tech.ytsaurus.client.request.StartTransaction;
+import tech.ytsaurus.client.request.TransactionType;
 import tech.ytsaurus.client.request.UnmountTable;
 import tech.ytsaurus.client.request.WriteTable;
 import tech.ytsaurus.client.rpc.RpcClient;
@@ -72,7 +73,8 @@ public abstract class CompoundClientImpl extends ApiServiceClientImpl implements
             ExecutorService executor,
             RetryPolicy retryPolicy
     ) {
-        TabletTransactionRetrier<T> tabletTransactionRetrier = new TabletTransactionRetrier<>(
+        TransactionRetrier<T> transactionRetrier = new TransactionRetrier<>(
+                TransactionType.Tablet,
                 this,
                 executorService,
                 action,
@@ -80,7 +82,7 @@ public abstract class CompoundClientImpl extends ApiServiceClientImpl implements
                 retryPolicy,
                 rpcOptions
         );
-        return tabletTransactionRetrier.run();
+        return transactionRetrier.run();
     }
 
     @Override
@@ -164,10 +166,11 @@ public abstract class CompoundClientImpl extends ApiServiceClientImpl implements
 
 @NonNullFields
 @NonNullApi
-class TabletTransactionRetrier<T> {
-    private static final Logger logger = LoggerFactory.getLogger(TabletTransactionRetrier.class);
+class TransactionRetrier<T> {
+    private static final Logger logger = LoggerFactory.getLogger(TransactionRetrier.class);
 
     private final ApiServiceClient client;
+    private final TransactionType transactionType;
     private final ScheduledExecutorService safeExecutor;
     private final ExecutorService userExecutor;
     private final Function<ApiServiceTransaction, CompletableFuture<T>> action;
@@ -178,7 +181,8 @@ class TabletTransactionRetrier<T> {
     private Future<?> nextAttempt = new CompletableFuture<Void>();
     private int attemptIndex = 0;
 
-    TabletTransactionRetrier(
+    TransactionRetrier(
+            TransactionType transactionType,
             ApiServiceClient client,
             ScheduledExecutorService executor,
             Function<ApiServiceTransaction, CompletableFuture<T>> action,
@@ -186,6 +190,7 @@ class TabletTransactionRetrier<T> {
             RetryPolicy retryPolicy,
             RpcOptions rpcOptions
     ) {
+        this.transactionType = transactionType;
         this.client = client;
         this.safeExecutor = new ScheduledSerializedExecutorService(executor);
         this.action = action;
@@ -210,7 +215,7 @@ class TabletTransactionRetrier<T> {
                 attemptIndex,
                 retryPolicy.getTotalRetryCountDescription());
 
-        client.startTransaction(StartTransaction.tablet())
+        client.startTransaction(new StartTransaction(transactionType))
                 .thenComposeAsync(
                         tx -> action.apply(tx)
                                 .thenCompose(res -> {

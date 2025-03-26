@@ -10,10 +10,9 @@ namespace NYT::NNodeTrackerServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TNodeDiscoveryManagerConfig
+struct TNodeDiscoveryManagerConfig
     : public NYTree::TYsonStruct
 {
-public:
     TDuration UpdatePeriod;
     int PeerCount;
     int MaxPeersPerRack;
@@ -28,10 +27,9 @@ DEFINE_REFCOUNTED_TYPE(TNodeDiscoveryManagerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TNodeTrackerConfig
+struct TNodeTrackerConfig
     : public NYTree::TYsonStruct
 {
-public:
     // COMPAT(danilalexeev)
     TDuration DefaultNodeTransactionTimeout;
     TDuration DefaultDataNodeLeaseTransactionTimeout;
@@ -58,10 +56,9 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TNodeGroupConfig
+struct TNodeGroupConfig
     : public TNodeGroupConfigBase
 {
-public:
     TBooleanFormula NodeTagFilter;
 
     REGISTER_YSON_STRUCT(TNodeGroupConfig);
@@ -73,10 +70,9 @@ DEFINE_REFCOUNTED_TYPE(TNodeGroupConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TDynamicNodeTrackerTestingConfig
+struct TDynamicNodeTrackerTestingConfig
     : public NYTree::TYsonStruct
 {
-public:
     bool DisableDisposalFinishing;
 
     REGISTER_YSON_STRUCT(TDynamicNodeTrackerTestingConfig);
@@ -88,10 +84,9 @@ DEFINE_REFCOUNTED_TYPE(TDynamicNodeTrackerTestingConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TDynamicNodeTrackerConfig
+struct TDynamicNodeTrackerConfig
     : public NYTree::TYsonStruct
 {
-public:
     static constexpr auto DefaultProfilingPeriod = TDuration::Seconds(10);
 
     THashMap<std::string, TNodeGroupConfigPtr> NodeGroups;

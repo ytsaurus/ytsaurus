@@ -585,7 +585,9 @@ public:
             }
 
             controlInvoker->Invoke(BIND([this, weakThis = MakeWeak(this), cellTag] {
-                StartNodeHeartbeatsToCell(cellTag);
+                if (auto strongThis = weakThis.Lock()) {
+                    StartNodeHeartbeatsToCell(cellTag);
+                }
             }));
         }
     }
@@ -670,13 +672,13 @@ protected:
             }
 
             default: {
-                YT_LOG_WARNING("Skip heartbeat report to master, since node is in incorrect state (CellTag: %v, DataNodeState: %v)",
+                YT_LOG_WARNING("Skip heartbeat report to master, since node is in invalid state (CellTag: %v, DataNodeState: %v)",
                     cellTag,
                     state);
 
                 Bootstrap_->ResetAndRegisterAtMaster();
 
-                return MakeFuture(TError("Incorrect node state") << TErrorAttribute("data_node_state", state));
+                return MakeFuture(TError("Invalid node state %Qlv", state) << TErrorAttribute("data_node_state", state));
             }
         }
     }
@@ -709,7 +711,7 @@ protected:
             }
 
             default: {
-                YT_LOG_WARNING("Skip processing successful heartbeat since node is in incorrect state (CellTag: %v, DataNodeState: %v)",
+                YT_LOG_WARNING("Skip processing successful heartbeat since node is in invalid state (CellTag: %v, DataNodeState: %v)",
                     cellTag,
                     state);
 
@@ -746,7 +748,7 @@ protected:
             }
 
             default: {
-                YT_LOG_WARNING("Skip processing failed heartbeat since node is in incorrect state (CellTag: %v, DataNodeState: %v)",
+                YT_LOG_WARNING("Skip processing failed heartbeat since node is in invalid state (CellTag: %v, DataNodeState: %v)",
                     cellTag,
                     state);
 

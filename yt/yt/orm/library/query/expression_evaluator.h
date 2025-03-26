@@ -17,12 +17,12 @@ struct IExpressionEvaluator
 {
     virtual TErrorOr<NQueryClient::TValue> Evaluate(
         const std::vector<TNonOwningAttributePayload>& attributePayloads,
-        NTableClient::TRowBufferPtr rowBuffer = nullptr) = 0;
+        const NTableClient::TRowBufferPtr& rowBuffer) = 0;
 
     //! Shortcut for the input vector of size 1.
     virtual TErrorOr<NQueryClient::TValue> Evaluate(
         const TNonOwningAttributePayload& attributePayload,
-        NTableClient::TRowBufferPtr rowBuffer = nullptr) = 0;
+        const NTableClient::TRowBufferPtr& rowBuffer) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IExpressionEvaluator)
@@ -31,16 +31,16 @@ DEFINE_REFCOUNTED_TYPE(IExpressionEvaluator)
 
 //! Thread-safe; exception-safe.
 IExpressionEvaluatorPtr CreateExpressionEvaluator(
-    TString query,
+    std::string query,
     std::vector<NQueryClient::TColumnSchema> columns);
 
 IExpressionEvaluatorPtr CreateOrmExpressionEvaluator(
-    TString query,
+    std::string query,
     std::vector<TTypedAttributePath> typedAttributePaths);
 
 //! Shortcut for paths of type Any.
 IExpressionEvaluatorPtr CreateOrmExpressionEvaluator(
-    TString query,
+    std::string query,
     std::vector<TString> attributePaths = {""});
 
 ////////////////////////////////////////////////////////////////////////////////

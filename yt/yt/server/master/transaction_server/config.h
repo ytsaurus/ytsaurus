@@ -8,10 +8,9 @@ namespace NYT::NTransactionServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TTransactionPresenceCacheConfig
+struct TTransactionPresenceCacheConfig
     : public NYTree::TYsonStruct
 {
-public:
     TDuration FinishedTransactionEvictionDelay;
     TDuration EvictionCheckPeriod;
     int MaxEvictedTransactionsPerCheck;
@@ -25,10 +24,9 @@ DEFINE_REFCOUNTED_TYPE(TTransactionPresenceCacheConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TBoomerangTrackerConfig
+struct TBoomerangTrackerConfig
     : public NYTree::TYsonStruct
 {
-public:
     TDuration StuckBoomerangWaveExpirationTime;
     TDuration StuckBoomerangWaveExpirationCheckPeriod;
     int MaxExpiredBoomerangWaveRemovalsPerCheck;
@@ -42,10 +40,9 @@ DEFINE_REFCOUNTED_TYPE(TBoomerangTrackerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TDynamicTransactionManagerConfig
+struct TDynamicTransactionManagerConfig
     : public NYTree::TYsonStruct
 {
-public:
     static constexpr auto DefaultProfilingPeriod = TDuration::MilliSeconds(1000);
 
     TDuration MaxTransactionTimeout;
@@ -76,6 +73,9 @@ public:
 
     // COMPAT(shakurov)
     bool EnableStartForeignTransactionFixes;
+
+    // COMPAT(cherepashka)
+    bool EnableCypressMirroredToSequoiaPrerequisiteTransactionValidationViaLeases;
 
     REGISTER_YSON_STRUCT(TDynamicTransactionManagerConfig);
 

@@ -33,10 +33,9 @@ DEFINE_REFCOUNTED_TYPE(TTableWriterOptions)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TBlobTableWriterConfig
+struct TBlobTableWriterConfig
     : public NTableClient::TTableWriterConfig
 {
-public:
     i64 MaxPartSize;
 
     REGISTER_YSON_STRUCT(TBlobTableWriterConfig);
@@ -48,10 +47,9 @@ DEFINE_REFCOUNTED_TYPE(TBlobTableWriterConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TBufferedTableWriterConfig
+struct TBufferedTableWriterConfig
     : public TTableWriterConfig
 {
-public:
     TDuration RetryBackoffTime;
     TDuration FlushPeriod;
     i64 RowBufferChunkSize;
@@ -79,10 +77,9 @@ DEFINE_REFCOUNTED_TYPE(TTableReaderOptions)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TTableColumnarStatisticsCacheConfig
+struct TTableColumnarStatisticsCacheConfig
     : public TAsyncExpiringCacheConfig
 {
-public:
     // Two fields below are for the chunk spec fetcher.
     int MaxChunksPerFetch;
     int MaxChunksPerLocateRequest;
@@ -100,10 +97,9 @@ DEFINE_REFCOUNTED_TYPE(TTableColumnarStatisticsCacheConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class THunkChunkPayloadWriterConfig
+struct THunkChunkPayloadWriterConfig
     : public virtual NYTree::TYsonStruct
 {
-public:
     //! Writer will be aiming for blocks of approximately this size.
     i64 DesiredBlockSize;
 

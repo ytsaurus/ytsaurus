@@ -57,6 +57,7 @@ using namespace NNodeTrackerServer;
 using namespace NObjectClient;
 using namespace NObjectServer;
 using namespace NChunkClient;
+using namespace NSequoiaClient;
 using namespace NYTree;
 
 using NDataNodeTrackerClient::TChunkLocationDirectory;
@@ -204,15 +205,19 @@ public:
 
         if (preparedRequest->SequoiaRequest->removed_chunks_size() + preparedRequest->SequoiaRequest->added_chunks_size() > 0) {
             auto modifyDeadChunks = BIND([&] {
-                for (const auto& protoChunkId : preparedRequest->SequoiaRequest->removed_chunks()) {
-                    if (!IsObjectAlive(chunkManager->FindChunk(FromProto<TChunkId>(protoChunkId.chunk_id())))) {
-                        *preparedRequest->SequoiaRequest->add_dead_chunk_ids() = protoChunkId.chunk_id();
+                for (const auto& protoChunkInfo : preparedRequest->SequoiaRequest->removed_chunks()) {
+                    auto chunkIdWithIndex = DecodeChunkId(FromProto<TChunkId>(protoChunkInfo.chunk_id()));
+                    auto chunkId = chunkIdWithIndex.Id;
+                    if (!IsObjectAlive(chunkManager->FindChunk(chunkId))) {
+                        ToProto(preparedRequest->SequoiaRequest->add_dead_chunk_ids(), chunkId);
                     }
                 }
 
-                for (const auto& protoChunkId : preparedRequest->SequoiaRequest->added_chunks()) {
-                    if (!IsObjectAlive(chunkManager->FindChunk(FromProto<TChunkId>(protoChunkId.chunk_id())))) {
-                        *preparedRequest->SequoiaRequest->add_dead_chunk_ids() = protoChunkId.chunk_id();
+                for (const auto& protoChunkInfo : preparedRequest->SequoiaRequest->added_chunks()) {
+                    auto chunkIdWithIndex = DecodeChunkId(FromProto<TChunkId>(protoChunkInfo.chunk_id()));
+                    auto chunkId = chunkIdWithIndex.Id;
+                    if (!IsObjectAlive(chunkManager->FindChunk(chunkId))) {
+                        ToProto(preparedRequest->SequoiaRequest->add_dead_chunk_ids(), chunkId);
                     }
                 }
             });
@@ -223,7 +228,7 @@ public:
                 .Run())
                 .ThrowOnError();
 
-            WaitFor(chunkManager->ModifySequoiaReplicas(std::move(preparedRequest->SequoiaRequest)))
+            WaitFor(chunkManager->ModifySequoiaReplicas(ESequoiaTransactionType::FullHeartbeat, std::move(preparedRequest->SequoiaRequest)))
                 .ThrowOnError();
         }
 
@@ -379,15 +384,19 @@ public:
 
         if (preparedRequest->SequoiaRequest->removed_chunks_size() + preparedRequest->SequoiaRequest->added_chunks_size() > 0) {
             auto modifyDeadChunks = BIND([&] {
-                for (const auto& protoChunkId : preparedRequest->SequoiaRequest->removed_chunks()) {
-                    if (!IsObjectAlive(chunkManager->FindChunk(FromProto<TChunkId>(protoChunkId.chunk_id())))) {
-                        *preparedRequest->SequoiaRequest->add_dead_chunk_ids() = protoChunkId.chunk_id();
+                for (const auto& protoChunkInfo : preparedRequest->SequoiaRequest->removed_chunks()) {
+                    auto chunkIdWithIndex = DecodeChunkId(FromProto<TChunkId>(protoChunkInfo.chunk_id()));
+                    auto chunkId = chunkIdWithIndex.Id;
+                    if (!IsObjectAlive(chunkManager->FindChunk(chunkId))) {
+                        ToProto(preparedRequest->SequoiaRequest->add_dead_chunk_ids(), chunkId);
                     }
                 }
 
-                for (const auto& protoChunkId : preparedRequest->SequoiaRequest->added_chunks()) {
-                    if (!IsObjectAlive(chunkManager->FindChunk(FromProto<TChunkId>(protoChunkId.chunk_id())))) {
-                        *preparedRequest->SequoiaRequest->add_dead_chunk_ids() = protoChunkId.chunk_id();
+                for (const auto& protoChunkInfo : preparedRequest->SequoiaRequest->added_chunks()) {
+                    auto chunkIdWithIndex = DecodeChunkId(FromProto<TChunkId>(protoChunkInfo.chunk_id()));
+                    auto chunkId = chunkIdWithIndex.Id;
+                    if (!IsObjectAlive(chunkManager->FindChunk(chunkId))) {
+                        ToProto(preparedRequest->SequoiaRequest->add_dead_chunk_ids(), chunkId);
                     }
                 }
             });
@@ -398,7 +407,7 @@ public:
                 .Run())
                 .ThrowOnError();
 
-            WaitFor(chunkManager->ModifySequoiaReplicas(std::move(preparedRequest->SequoiaRequest)))
+            WaitFor(chunkManager->ModifySequoiaReplicas(ESequoiaTransactionType::IncrementalHeartbeat, std::move(preparedRequest->SequoiaRequest)))
                 .ThrowOnError();
         }
 

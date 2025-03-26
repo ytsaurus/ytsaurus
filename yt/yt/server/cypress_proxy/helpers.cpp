@@ -9,7 +9,13 @@
 
 #include <yt/yt/ytlib/object_client/master_ypath_proxy.h>
 
+#include <yt/yt/ytlib/object_client/proto/object_ypath.pb.h>
+
+#include <yt/yt/ytlib/sequoia_client/client.h>
+#include <yt/yt/ytlib/sequoia_client/transaction.h>
 #include <yt/yt/ytlib/sequoia_client/ypath_detail.h>
+
+#include <yt/yt/ytlib/sequoia_client/records/transactions.record.h>
 
 #include <yt/yt/client/object_client/helpers.h>
 
@@ -18,6 +24,8 @@
 #include <yt/yt/core/ytree/ypath_detail.h>
 
 #include <library/cpp/yt/misc/variant.h>
+
+#include <library/cpp/iterator/zip.h>
 
 namespace NYT::NCypressProxy {
 
@@ -35,6 +43,18 @@ using TYPath = NSequoiaClient::TYPath;
 using TYPathBuf = NSequoiaClient::TYPathBuf;
 
 using NYT::FromProto;
+
+////////////////////////////////////////////////////////////////////////////////
+
+TError WrapCypressProxyRegistrationError(TError error)
+{
+    if (error.IsOK()) {
+        return error;
+    }
+
+    return TError(NRpc::EErrorCode::Unavailable, "Cypress proxy is not registered")
+        << std::move(error);
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -113,6 +133,55 @@ void ValidateLinkNodeCreation(
         THROW_ERROR_EXCEPTION("Failed to create link: link is cyclic")
             << TErrorAttribute("target_path", targetPath.Underlying())
             << TErrorAttribute("path", linkPath);
+    }
+}
+
+std::vector<TTransactionId> ParsePrerequisiteTransactionIds(const NRpc::NProto::TRequestHeader& header)
+{
+    const auto prerequisitesExt = NObjectClient::NProto::TPrerequisitesExt::prerequisites_ext;
+    if (!header.HasExtension(prerequisitesExt)) {
+        return {};
+    }
+
+    auto prerequisites = header.GetExtension(prerequisitesExt);
+    std::vector<TTransactionId> prerequisiteTransactionIds;
+    prerequisiteTransactionIds.reserve(prerequisites.transactions_size());
+    for (const auto& protoTransaction : prerequisites.transactions()) {
+        auto transactionId = FromProto<TTransactionId>(protoTransaction.transaction_id());
+        prerequisiteTransactionIds.push_back(transactionId);
+    }
+    return prerequisiteTransactionIds;
+}
+
+void ValidatePrerequisites(
+    const ISequoiaClientPtr& sequoiaClient,
+    const std::vector<TTransactionId>& prerequisiteTransactionIds)
+{
+    // Fast path.
+    if (prerequisiteTransactionIds.empty()) {
+        return;
+    }
+
+    std::vector<NRecords::TTransactionKey> transactionKeys;
+    transactionKeys.reserve(prerequisiteTransactionIds.size());
+    for (const auto& transactionId : prerequisiteTransactionIds) {
+        if (!IsCypressTransactionMirroredToSequoia(transactionId)) {
+            THROW_ERROR_EXCEPTION("Non-mirrored transaction %v found in prerequisites", transactionId);
+        }
+        transactionKeys.push_back({.TransactionId = transactionId});
+    }
+
+    auto resultOrError = WaitFor(sequoiaClient->LookupRows(transactionKeys));
+    THROW_ERROR_EXCEPTION_IF_FAILED(resultOrError, "Failed to check prerequisite transactions")
+
+    auto transactionRows = resultOrError.Value();
+    for (const auto& [key, row] : Zip(transactionKeys, transactionRows)) {
+        if (!row.has_value()) {
+            THROW_ERROR_EXCEPTION(
+                NObjectClient::EErrorCode::PrerequisiteCheckFailed,
+                "Prerequisite check failed: transaction %v is missing in Sequoia",
+                key.TransactionId);
+        }
     }
 }
 

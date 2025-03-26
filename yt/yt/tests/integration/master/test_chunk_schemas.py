@@ -1,12 +1,10 @@
 from yt_env_setup import YTEnvSetup, with_additional_threads
 
 from yt_commands import (
-    alter_table, authors, concatenate, create, get_driver, get, insert_rows, map as yt_map, write_table,
+    alter_table, authors, concatenate, create, get_driver, get, insert_rows, map as yt_map, raises_yt_error, write_table,
     map_reduce as yt_map_reduce, merge, read_table, reduce as yt_reduce, set as yt_set, set_node_banned,
     sort as yt_sort, sync_create_cells, sync_freeze_table, sync_mount_table, wait, write_file,
     multicell_sleep, remove)
-
-from yt.common import YtError
 
 import pytest
 
@@ -70,7 +68,7 @@ class TestChunkSchemas(YTEnvSetup):
         write_file("//tmp/file", content)
         chunk_ids = get("//tmp/file/@chunk_ids")
         for chunk_id in chunk_ids:
-            with pytest.raises(YtError, match="Attribute \"schema_id\" is not found"):
+            with raises_yt_error("Attribute \"schema_id\" is not found"):
                 get("#{}/@schema_id".format(chunk_id))
 
     @authors("h0pless")
@@ -440,19 +438,20 @@ class TestChunkSchemasMulticellPortal(ChunkSchemasMulticellBase):
 class TestChunkTeleportation(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
-    NUM_SECONDARY_MASTER_CELLS = 2
+    NUM_SECONDARY_MASTER_CELLS = 3
 
     MASTER_CELL_DESCRIPTORS = {
         "10": {"roles": ["cypress_node_host"]},
-        "11": {"roles": ["chunk_host"]},
+        # Master cell with tag 11 is reserved for portals.
         "12": {"roles": ["chunk_host"]},
+        "13": {"roles": ["chunk_host"]},
     }
 
     @authors("h0pless")
     @with_additional_threads
     def test_teleportaion_with_hive_instability(self):
-        src_cell_tag = 11
-        dst_cell_tag = 12
+        src_cell_tag = 12
+        dst_cell_tag = 13
         create("table", "//tmp/output", attributes={"external_cell_tag": src_cell_tag})
         schema = [{"name": "key", "type": "int64"}, {"name": "value", "type": "string"}]
         create("table", "//tmp/table1", attributes={

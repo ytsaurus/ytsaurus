@@ -1,0 +1,138 @@
+#pragma once
+#include "common/modification_type.h"
+#include "common/signals_flow.h"
+
+#include <contrib/ydb/core/formats/arrow/arrow_helpers.h>
+#include <contrib/ydb/core/formats/arrow/reader/position.h>
+#include <contrib/ydb/core/tx/columnshard/counters/common/object_counter.h>
+#include <contrib/ydb/core/tx/long_tx_service/public/types.h>
+
+#include <contrib/ydb/library/accessor/accessor.h>
+#include <contrib/ydb/library/actors/core/monotonic.h>
+#include <contrib/ydb/library/conclusion/result.h>
+#include <contrib/ydb/library/formats/arrow/modifier/subset.h>
+#include <contrib/ydb/core/tx/columnshard/common/path_id.h>
+
+#include <util/generic/guid.h>
+
+namespace NKikimr::NOlap {
+class IBlobsWritingAction;
+}
+
+namespace NKikimr::NEvWrite {
+
+class IDataContainer {
+private:
+    YDB_ACCESSOR_DEF(NArrow::NMerger::TIntervalPositions, SeparationPoints);
+
+public:
+    using TPtr = std::shared_ptr<IDataContainer>;
+    virtual ~IDataContainer() {
+    }
+    virtual TConclusion<std::shared_ptr<arrow::RecordBatch>> ExtractBatch() = 0;
+    virtual ui64 GetSchemaVersion() const = 0;
+    virtual ui64 GetSize() const = 0;
+};
+
+class TWriteMeta: public NColumnShard::TMonitoringObjectsCounter<TWriteMeta>, TNonCopyable {
+private:
+    YDB_ACCESSOR(ui64, WriteId, 0);
+    YDB_READONLY_DEF(NColumnShard::TInternalPathId, TableId);
+    YDB_ACCESSOR_DEF(NActors::TActorId, Source);
+    YDB_ACCESSOR_DEF(std::optional<ui32>, GranuleShardingVersion);
+    YDB_READONLY(TString, Id, TGUID::CreateTimebased().AsUuidString());
+
+    // Long Tx logic
+    YDB_OPT(NLongTxService::TLongTxId, LongTxId);
+    YDB_ACCESSOR(ui64, WritePartId, 0);
+    YDB_ACCESSOR_DEF(TString, DedupId);
+
+    YDB_ACCESSOR(EModificationType, ModificationType, EModificationType::Replace);
+    YDB_READONLY(TMonotonic, WriteStartInstant, TMonotonic::Now());
+    std::optional<ui64> LockId;
+    const std::shared_ptr<TWriteFlowCounters> Counters;
+    mutable TMonotonic LastStageInstant = TMonotonic::Now();
+    mutable EWriteStage CurrentStage = EWriteStage::Created;
+
+public:
+    void OnStage(const EWriteStage stage) const;
+
+    ~TWriteMeta() {
+        if (CurrentStage != EWriteStage::Finished && CurrentStage != EWriteStage::Aborted) {
+            Counters->OnWriteAborted(TMonotonic::Now() - WriteStartInstant);
+        }
+    }
+
+    void SetLockId(const ui64 lockId) {
+        LockId = lockId;
+    }
+
+    ui64 GetLockIdVerified() const {
+        AFL_VERIFY(LockId);
+        return *LockId;
+    }
+
+    std::optional<ui64> GetLockIdOptional() const {
+        return LockId;
+    }
+
+    bool IsGuaranteeWriter() const {
+        switch (ModificationType) {
+            case EModificationType::Delete:
+            case EModificationType::Upsert:
+            case EModificationType::Insert:
+                return true;
+            case EModificationType::Update:
+            case EModificationType::Replace:
+                return false;
+        }
+    }
+
+    TWriteMeta(const ui64 writeId, const NColumnShard::TInternalPathId tableId, const NActors::TActorId& source, const std::optional<ui32> granuleShardingVersion,
+        const TString& writingIdentifier, const std::shared_ptr<TWriteFlowCounters>& counters)
+        : WriteId(writeId)
+        , TableId(tableId)
+        , Source(source)
+        , GranuleShardingVersion(granuleShardingVersion)
+        , Id(writingIdentifier)
+        , Counters(counters) {
+        Counters->OnWritingStart(CurrentStage);
+    }
+};
+
+class TWriteData {
+private:
+    std::shared_ptr<TWriteMeta> WriteMeta;
+    YDB_READONLY_DEF(IDataContainer::TPtr, Data);
+    YDB_READONLY_DEF(std::shared_ptr<arrow::Schema>, PrimaryKeySchema);
+    YDB_READONLY_DEF(std::shared_ptr<NOlap::IBlobsWritingAction>, BlobsAction);
+    YDB_ACCESSOR_DEF(std::optional<NArrow::TSchemaSubset>, SchemaSubset);
+    YDB_READONLY(bool, WritePortions, false);
+
+public:
+    TWriteData(const std::shared_ptr<TWriteMeta>& writeMeta, IDataContainer::TPtr data, const std::shared_ptr<arrow::Schema>& primaryKeySchema,
+        const std::shared_ptr<NOlap::IBlobsWritingAction>& blobsAction, const bool writePortions);
+
+    const NArrow::TSchemaSubset& GetSchemaSubsetVerified() const {
+        AFL_VERIFY(SchemaSubset);
+        return *SchemaSubset;
+    }
+
+    const TWriteMeta& GetWriteMeta() const {
+        return *WriteMeta;
+    }
+
+    const std::shared_ptr<TWriteMeta>& GetWriteMetaPtr() const {
+        return WriteMeta;
+    }
+
+    TWriteMeta& MutableWriteMeta() {
+        return *WriteMeta;
+    }
+
+    ui64 GetSize() const {
+        return Data->GetSize();
+    }
+};
+
+}   // namespace NKikimr::NEvWrite

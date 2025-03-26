@@ -41,7 +41,7 @@
 
 #include <yt/yt/core/net/local_address.h>
 
-#include <yt/yt/core/misc/memory_usage_tracker.h>
+#include <library/cpp/yt/memory/memory_usage_tracker.h>
 
 #include <library/cpp/yt/threading/atomic_object.h>
 
@@ -382,10 +382,12 @@ public:
     TFuture<void> Close(
         const IChunkWriter::TWriteBlocksOptions& options,
         const TWorkloadDescriptor& workloadDescriptor,
-        const TDeferredChunkMetaPtr& chunkMeta) override
+        const TDeferredChunkMetaPtr& chunkMeta,
+        std::optional<int> truncateBlockCount) override
     {
         YT_VERIFY(State_.load() == EReplicationWriterState::Open);
         YT_VERIFY(chunkMeta || IsJournalChunkId(DecodeChunkId(SessionId_.ChunkId).Id));
+        YT_VERIFY(!truncateBlockCount.has_value());
 
         State_.store(EReplicationWriterState::Closing);
 

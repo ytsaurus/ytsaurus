@@ -6,14 +6,15 @@
 
 #include <yt/yt/core/rpc/config.h>
 
+#include <yt/yt/library/re2/public.h>
+
 namespace NYT::NContainers::NCri {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TCriExecutorConfig
+struct TCriExecutorConfig
     : public NRpc::TRetryingChannelConfig
 {
-public:
     //! gRPC endpoint for CRI container runtime service.
     TString RuntimeEndpoint;
 
@@ -37,7 +38,10 @@ public:
     bool MemoryOomGroup;
 
     //! Retry requests on generic error with these message prefixes.
-    std::vector<TString> RetryErrorPrefixes;
+    std::vector<std::string> RetryErrorPrefixes;
+
+    //! Retry requests on generic error with matched message.
+    NRe2::TRe2Ptr RetryErrorPattern;
 
     REGISTER_YSON_STRUCT(TCriExecutorConfig);
 
@@ -51,10 +55,9 @@ DEFINE_REFCOUNTED_TYPE(TCriExecutorConfig)
 // TODO(khlebnikov): split docker registry stuff into common "docker" library.
 
 //! TCriAuthConfig depicts docker registry authentification
-class TCriAuthConfig
+struct TCriAuthConfig
     : public NYTree::TYsonStruct
 {
-public:
     TString Username;
 
     TString Password;
@@ -76,10 +79,9 @@ DEFINE_REFCOUNTED_TYPE(TCriAuthConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TCriImageCacheConfig
+struct TCriImageCacheConfig
     : public TSlruCacheConfig
 {
-public:
     //! Manage only images with these prefixes, except images explicitly marked
     //! as unmanaged. Present unmanaged images could be used, but they are not
     //! accounted and never removed or pulled from/into cache on demand.

@@ -6,6 +6,7 @@
 #include "config.h"
 
 #include <yt/yt/library/codegen_api/execution_backend.h>
+#include <yt/yt/library/query/base/query.h>
 #include <yt/yt/library/query/base/query_preparer.h>
 #include <yt/yt/client/table_client/logical_type.h>
 
@@ -21,6 +22,9 @@
 #endif
 
 #include <yt/yt/library/query/engine_api/evaluation_helpers.h>
+
+#include <Analyzer/InDepthQueryTreeVisitor.h>
+#include <Analyzer/QueryTreeBuilder.h>
 
 #include <Parsers/IAST.h>
 #include <Parsers/ASTSubquery.h>
@@ -143,42 +147,52 @@ std::optional<std::vector<std::string>> IdentifierTupleToColumnNames(const DB::I
     return std::nullopt;
 }
 
-struct TComputedColumnPopulationMatcher
+class TComputedColumnPopulationQueryTreeVisitor : public DB::InDepthQueryTreeVisitor<TComputedColumnPopulationQueryTreeVisitor>
 {
+public:
     struct Data : public DB::WithContext
     {
         const std::vector<TComputedColumnEntry>& Entries;
-        DB::Block& BlockWithConstants;
         const TTableSchemaPtr& TableSchema;
         DB::PreparedSets& PreparedSets;
         const TQuerySettingsPtr& Settings;
         TLogger Logger;
     };
 
-    static bool needChildVisit(const DB::ASTPtr& node, const DB::ASTPtr& /*child*/)
+    TComputedColumnPopulationQueryTreeVisitor(Data& data)
+        : Data_(data)
+    { }
+
+    bool shouldTraverseTopToBottom() const
     {
-        return !node->as<DB::ASTSubquery>();
+        return false;
     }
 
-    static void visit(DB::ASTPtr& ast, Data& data)
+    bool needChildVisit(const DB::QueryTreeNodePtr& node, const DB::QueryTreeNodePtr& /*child*/) const
+    {
+        return node->getNodeType() != DB::QueryTreeNodeType::QUERY;
+    }
+
+    void visitImpl(DB::QueryTreeNodePtr& node)
     {
         // key == 5 -> ... AND ((key, computed_key) in ((5, f(5)))).
         // key in (4, 5) -> ... AND ((key, computed_key) in ((4, f(4)), (5, f(5)))).
         // (key, smth) == (4, 'x') -> ... AND ((key, computed_key) in ((4, f(4)))).
-        if (auto astFunction = ast->as<DB::ASTFunction>()) {
-            if (auto rewrittenAst = visit(*astFunction, data)) {
-                ast = rewrittenAst;
+        if (node->getNodeType() == DB::QueryTreeNodeType::FUNCTION) {
+            auto functionAst = node->toAST({.add_cast_for_constants = false})->as<DB::ASTFunction&>();
+            if (auto rewrittenNode = TryRewrite(functionAst)) {
+                node = rewrittenNode;
                 return;
             }
         }
     }
 
-    static TInclusionStatement DeduceComputedColumn(
+private:
+    TInclusionStatement DeduceComputedColumn(
         const TComputedColumnEntry& entry,
-        const TInclusionStatement& statement,
-        Data& data)
+        const TInclusionStatement& statement)
     {
-        const auto& Logger = data.Logger;
+        const auto& Logger = Data_.Logger;
 
         YT_LOG_TRACE(
             "Deducing computed column value (ComputedColumn: %v, OriginalStatement: %v, Type: %v)",
@@ -209,7 +223,7 @@ struct TComputedColumnPopulationMatcher
 
                 auto image = Profile(
                     entry.Expression,
-                    data.TableSchema->Filter(entry.References),
+                    Data_.TableSchema->Filter(entry.References),
                     nullptr,
                     &variables,
                     /*useCanonicalNullRelations*/ false,
@@ -257,17 +271,17 @@ struct TComputedColumnPopulationMatcher
         return resultStatement;
     }
 
-    static void PopulatePreparedSets(DB::ASTPtr literal, std::vector<DB::DataTypePtr> dataTypes, Data& data)
+    void PopulatePreparedSets(DB::ASTPtr literal, std::vector<DB::DataTypePtr> dataTypes)
     {
-        const auto& Logger = data.Logger;
+        const auto& Logger = Data_.Logger;
 
         YT_LOG_TRACE("Populating prepared set for literal (Literal: %v)", literal);
 
         // Part below is done similarly to DB::makeExplicitSet.
-        const auto& context = data.getContext();
+        const auto& context = Data_.getContext();
         auto setElementKeys = DB::Set::getElementTypes(dataTypes, context->getSettingsRef().transform_null_in);
-        auto setKey = literal->getTreeHash();
-        if (data.PreparedSets.findTuple(setKey, setElementKeys)) {
+        auto setKey = literal->getTreeHash(/*ignore_aliases*/ true);
+        if (Data_.PreparedSets.findTuple(setKey, setElementKeys)) {
             // Already prepared.
             return;
         }
@@ -280,10 +294,10 @@ struct TComputedColumnPopulationMatcher
             YT_ABORT();
         }
 
-        data.PreparedSets.addFromTuple(setKey, block, context->getSettings());
+        Data_.PreparedSets.addFromTuple(setKey, block, context->getSettingsRef());
     }
 
-    static DB::ASTPtr PrepareInStatement(const TInclusionStatement& resultStatement, Data& data)
+    DB::ASTPtr PrepareInStatement(const TInclusionStatement& resultStatement)
     {
         DB::ASTs innerTupleAsts;
         for (const auto& tuple : resultStatement.PossibleTuples) {
@@ -301,10 +315,10 @@ struct TComputedColumnPopulationMatcher
 
         std::vector<DB::DataTypePtr> dataTypes;
         for (const auto& columnName : resultStatement.ColumnNames) {
-            auto* columnSchema = data.TableSchema->FindColumn(columnName);
+            auto* columnSchema = Data_.TableSchema->FindColumn(columnName);
             YT_VERIFY(columnSchema);
             TComplexTypeFieldDescriptor descriptor(*columnSchema);
-            dataTypes.emplace_back(ToDataType(descriptor, data.Settings->Composite));
+            dataTypes.emplace_back(ToDataType(descriptor, Data_.Settings->Composite));
             columnAsts.emplace_back(std::make_shared<DB::ASTIdentifier>(columnName));
         }
 
@@ -313,12 +327,12 @@ struct TComputedColumnPopulationMatcher
 
         auto inAst = DB::makeASTFunction("in", columnTupleAst, outerTupleAst);
 
-        PopulatePreparedSets(outerTupleAst, dataTypes, data);
+        PopulatePreparedSets(outerTupleAst, dataTypes);
 
         return inAst;
     }
 
-    static DB::ASTPtr PrepareDNFStatement(const TInclusionStatement& resultStatement, Data& /*data*/)
+    DB::ASTPtr PrepareDNFStatement(const TInclusionStatement& resultStatement)
     {
         DB::ASTs conjuncts;
         for (const auto& tuple : resultStatement.PossibleTuples) {
@@ -339,16 +353,16 @@ struct TComputedColumnPopulationMatcher
         return dnfAst;
     }
 
-    static DB::ASTPtr PrepareConjunctionWithDeductions(DB::ASTFunction& originalAst, TInclusionStatement originalStatement, Data& data)
+    DB::ASTPtr PrepareConjunctionWithDeductions(DB::ASTFunction& originalAst, TInclusionStatement originalStatement)
     {
-        const auto& Logger = data.Logger;
+        const auto& Logger = Data_.Logger;
 
         // It may happen that original statement is not implied by any of the deductions, so we always include the original statement.
         DB::ASTs conjunctAsts = {originalAst.clone()};
-        for (const auto& entry : data.Entries) {
+        for (const auto& entry : Data_.Entries) {
             if (originalStatement.ContainsReferences(entry.References)) {
                 auto filteredOriginalStatement = originalStatement.Filter(entry.References);
-                auto resultStatement = DeduceComputedColumn(entry, filteredOriginalStatement, data);
+                auto resultStatement = DeduceComputedColumn(entry, filteredOriginalStatement);
 
                 if (resultStatement.PossibleTuples.empty()) {
                     // We have proven that reference column can't take given values.
@@ -356,10 +370,10 @@ struct TComputedColumnPopulationMatcher
                     continue;
                 }
 
-                if (data.Settings->DeducedStatementMode == EDeducedStatementMode::In) {
-                    conjunctAsts.emplace_back(PrepareInStatement(resultStatement, data));
+                if (Data_.Settings->DeducedStatementMode == EDeducedStatementMode::In) {
+                    conjunctAsts.emplace_back(PrepareInStatement(resultStatement));
                 } else {
-                    conjunctAsts.emplace_back(PrepareDNFStatement(resultStatement, data));
+                    conjunctAsts.emplace_back(PrepareDNFStatement(resultStatement));
                 }
             }
         }
@@ -380,9 +394,9 @@ struct TComputedColumnPopulationMatcher
         }
     }
 
-    static DB::ASTPtr visit(DB::ASTFunction& ast, Data& data)
+    DB::QueryTreeNodePtr TryRewrite(DB::ASTFunction& ast)
     {
-        const auto& Logger = data.Logger;
+        const auto& Logger = Data_.Logger;
 
         if (ast.name == "equals") {
             YT_LOG_TRACE("Processing 'equals' (Ast: %v)", ast);
@@ -414,7 +428,7 @@ struct TComputedColumnPopulationMatcher
                 DB::Field constField;
                 DB::DataTypePtr constDataType;
 
-                if (!EvaluateConstant(rhs, constField, constDataType, data.getContext())) {
+                if (!EvaluateConstant(rhs, constField, constDataType, Data_.getContext())) {
                     YT_LOG_TRACE("Right-hand is non-constant (Rhs: %v, SwapAttempt: %v)", rhs, swapAttempt);
                     continue;
                 }
@@ -424,7 +438,7 @@ struct TComputedColumnPopulationMatcher
 
                 if (isLhsTuple) {
                     if (constField.getType() == DB::Field::Types::Tuple) {
-                        constTuple = constField.get<const DB::Tuple&>();
+                        constTuple = constField.safeGet<const DB::Tuple&>();
                     } else {
                         continue;
                     }
@@ -440,7 +454,9 @@ struct TComputedColumnPopulationMatcher
                     continue;
                 }
 
-                return PrepareConjunctionWithDeductions(ast, TInclusionStatement(columnNames, {constTuple}), data);
+                return DB::buildQueryTree(
+                    PrepareConjunctionWithDeductions(ast, TInclusionStatement(columnNames, {constTuple})),
+                    Data_.getContext());
             }
 
             return nullptr;
@@ -472,7 +488,7 @@ struct TComputedColumnPopulationMatcher
             // Check if expression is constant.
             DB::Field constField;
             DB::DataTypePtr constDataType;
-            if (!EvaluateConstant(rhs, constField, constDataType, data.getContext())) {
+            if (!EvaluateConstant(rhs, constField, constDataType, Data_.getContext())) {
                 YT_LOG_TRACE("Right-hand is non-constant (Rhs: %v)", rhs);
                 return nullptr;
             }
@@ -507,16 +523,38 @@ struct TComputedColumnPopulationMatcher
                 }
             }
 
-            return PrepareConjunctionWithDeductions(ast, TInclusionStatement(columnNames, possibleTuples), data);
+            return DB::buildQueryTree(
+                PrepareConjunctionWithDeductions(ast, TInclusionStatement(columnNames, possibleTuples)),
+                Data_.getContext());
         }
 
         return nullptr;
     }
+
+private:
+    Data Data_;
 };
-using TComputedColumnPopulationVisitor = DB::InDepthNodeVisitor<TComputedColumnPopulationMatcher, false>;
 
 DB::ASTPtr PopulatePredicateWithComputedColumns(
     DB::ASTPtr ast,
+    const TTableSchemaPtr& schema,
+    DB::ContextPtr context,
+    DB::PreparedSets& preparedSets,
+    const TQuerySettingsPtr& settings,
+    NLogging::TLogger logger)
+{
+    return PopulatePredicateWithComputedColumns(
+        DB::buildQueryTree(ast, context),
+        schema,
+        context,
+        preparedSets,
+        settings,
+        logger
+    )->toAST({.add_cast_for_constants = false});
+}
+
+DB::QueryTreeNodePtr PopulatePredicateWithComputedColumns(
+    DB::QueryTreeNodePtr node,
     const TTableSchemaPtr& schema,
     DB::ContextPtr context,
     DB::PreparedSets& preparedSets,
@@ -543,29 +581,26 @@ DB::ASTPtr PopulatePredicateWithComputedColumns(
 
     if (entries.empty()) {
         YT_LOG_DEBUG("Expression has no key computed columns");
-        return ast;
+        return node;
     }
 
     auto contextCopy = context;
-    auto syntaxAnalyzerResult = DB::TreeRewriter(contextCopy).analyze(ast, ToNamesAndTypesList(*schema, settings->Composite));
-    auto blockWithConstants = DB::KeyCondition::getBlockWithConstants(ast, syntaxAnalyzerResult, contextCopy);
-    YT_LOG_TRACE("Block with constants (Block: %v)", blockWithConstants);
 
-    TComputedColumnPopulationMatcher::Data data{
+    TComputedColumnPopulationQueryTreeVisitor::Data data{
         DB::WithContext(context),
         /*Entries*/ std::move(entries),
-        /*BlockWithConstants*/ blockWithConstants,
         /*TableSchema*/ schema,
         /*PreparedSets*/ preparedSets,
         /*Settings*/ settings,
         /*Logger*/ logger
     };
-    auto oldAst = ast->clone();
-    TComputedColumnPopulationVisitor(data).visit(ast);
+    auto rewrittenNode = node->clone();
+    TComputedColumnPopulationQueryTreeVisitor visitor(data);
+    visitor.visit(rewrittenNode);
 
-    YT_LOG_DEBUG("Predicate populated with computed column (Ast: %v, NewAst: %v)", oldAst, ast);
+    YT_LOG_DEBUG("Predicate populated with computed column (Ast: %v, NewAst: %v)", node->toAST(), rewrittenNode->toAST());
 
-    return ast;
+    return rewrittenNode;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

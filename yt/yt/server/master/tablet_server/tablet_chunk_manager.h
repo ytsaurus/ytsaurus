@@ -35,7 +35,7 @@ struct ITabletChunkManager
         int firstTabletIndex,
         int lastTabletIndex,
         int newTabletCount,
-        const std::vector<NTableClient::TLegacyOwningKey>& oldPivotKeys,
+        const std::vector<NTableClient::TOwningKeyBound>& oldPivotKeyBounds,
         const std::vector<NTableClient::TLegacyOwningKey>& newPivotKeys,
         const THashSet<TStoreId>& oldEdenStoreIds) = 0;
 

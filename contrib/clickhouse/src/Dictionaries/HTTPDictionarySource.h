@@ -2,15 +2,15 @@
 
 #include <IO/ConnectionTimeouts.h>
 #include <IO/ReadWriteBufferFromHTTP.h>
-#include <Poco/Net/HTTPBasicCredentials.h>
-#include <Poco/URI.h>
+#include <DBPoco/Net/HTTPBasicCredentials.h>
+#include <DBPoco/URI.h>
 #include <Common/LocalDateTime.h>
 #include "DictionaryStructure.h"
 #include "IDictionarySource.h"
 #include <Interpreters/Context.h>
 #include <IO/CompressionMethod.h>
 
-namespace Poco
+namespace DBPoco
 {
 class Logger;
 }
@@ -35,7 +35,7 @@ public:
     HTTPDictionarySource(
         const DictionaryStructure & dict_struct_,
         const Configuration & configuration,
-        const Poco::Net::HTTPBasicCredentials & credentials_,
+        const DBPoco::Net::HTTPBasicCredentials & credentials_,
         Block & sample_block_,
         ContextPtr context_);
 
@@ -61,19 +61,19 @@ public:
     std::string toString() const override;
 
 private:
-    void getUpdateFieldAndDate(Poco::URI & uri);
+    void getUpdateFieldAndDate(DBPoco::URI & uri);
 
     // wrap buffer using encoding from made request
     QueryPipeline createWrappedBuffer(std::unique_ptr<ReadWriteBufferFromHTTP> http_buffer);
 
-    Poco::Logger * log;
+    LoggerPtr log;
 
     LocalDateTime getLastModification() const;
 
     std::chrono::time_point<std::chrono::system_clock> update_time;
     const DictionaryStructure dict_struct;
     const Configuration configuration;
-    Poco::Net::HTTPBasicCredentials credentials;
+    DBPoco::Net::HTTPBasicCredentials credentials;
     Block sample_block;
     ContextPtr context;
     ConnectionTimeouts timeouts;

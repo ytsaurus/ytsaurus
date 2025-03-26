@@ -121,6 +121,8 @@ static const THashSet<TString> DefaultListJobsAttributes = {
     "job_cookie",
     "controller_state",
     "operation_incarnation",
+    "archive_features",
+    "allocation_id",
 };
 
 static const auto DefaultGetJobAttributes = [] {
@@ -137,6 +139,7 @@ static const THashMap<TString, int> CompatListJobsAttributesToArchiveVersion = {
     {"interruption_info", 50},
     {"archive_features", 51},
     {"operation_incarnation", 55},
+    {"allocation_id", 56},
 };
 
 static const auto SupportedJobAttributes = DefaultGetJobAttributes;
@@ -446,33 +449,43 @@ TOperationId TClient::TryGetOperationId(
 void TClient::ValidateOperationAccess(
     TOperationId operationId,
     TJobId jobId,
-    EPermissionSet permissions)
+    EPermissionSet permissions,
+    bool ignoreMissingOperation)
 {
     TGetOperationOptions getOperationOptions;
     getOperationOptions.Attributes = {"runtime_parameters"};
     auto operationOrError = WaitFor(GetOperation(operationId, getOperationOptions));
 
-    if (operationOrError.IsOK()) {
-        ValidateOperationAccess(
-            operationId,
-            operationOrError.Value(),
-            jobId,
-            permissions);
+    // TODO(ignat): ignore resolve errors here.
+    if (!operationOrError.IsOK()) {
+        if (ignoreMissingOperation) {
+            // We check against an empty ACL to allow only "superusers" and "root" access.
+            YT_LOG_WARNING(
+                operationOrError,
+                "Failed to get operation to validate access; "
+                "validating against empty ACL (OperationId: %v, JobId: %v)",
+                operationId,
+                jobId);
+
+            ValidateOperationAccess(
+                operationId,
+                jobId,
+                TAccessControlRule(),
+                permissions);
+        } else {
+            THROW_ERROR_EXCEPTION("Failed to validate operation ACL")
+                << TErrorAttribute("operation_id", operationId)
+                << operationOrError;
+        }
         return;
     }
 
-    // We check against an empty ACL to allow only "superusers" and "root" access.
-    YT_LOG_WARNING(
-        operationOrError,
-        "Failed to get operation to validate access; "
-        "validating against empty ACL (OperationId: %v, JobId: %v)",
-        operationId,
-        jobId);
-
+    const auto& operation = operationOrError
+        .ValueOrThrow();
     ValidateOperationAccess(
         operationId,
+        operation,
         jobId,
-        TAccessControlRule(),
         permissions);
 }
 
@@ -506,7 +519,7 @@ void TClient::ValidateOperationAccess(
     NScheduler::ValidateOperationAccess(
         /*user*/ std::nullopt,
         TOperationId(),
-        AllocationIdFromJobId(jobId),
+        jobId,
         permissions,
         accessControlRule,
         StaticPointerCast<IClient>(MakeStrong(this)),
@@ -544,15 +557,15 @@ void TClient::ValidateOperationAccess(
 }
 
 void TClient::ValidateOperationAccess(
-        TOperationId operationId,
-        TJobId jobId,
-        TAccessControlRule accessControlRule,
-        NYTree::EPermissionSet permissions)
+    TOperationId operationId,
+    TJobId jobId,
+    TAccessControlRule accessControlRule,
+    NYTree::EPermissionSet permissions)
 {
     NScheduler::ValidateOperationAccess(
         Options_.GetAuthenticatedUser(),
         operationId,
-        AllocationIdFromJobId(jobId),
+        jobId,
         permissions,
         accessControlRule,
         StaticPointerCast<IClient>(MakeStrong(this)),
@@ -705,8 +718,8 @@ static NTableClient::TTableSchemaPtr SetStableNames(
     }
     return New<NTableClient::TTableSchema>(
         std::move(columns),
-        schema->GetStrict(),
-        schema->GetUniqueKeys(),
+        schema->IsStrict(),
+        schema->IsUniqueKeys(),
         schema->GetSchemaModification(),
         schema->DeletedColumns());
 }
@@ -1173,6 +1186,12 @@ std::vector<TJobTraceEvent> TClient::DoGetJobTrace(
             operationId = ResolveOperationAlias(alias, options, deadline);
         });
 
+    ValidateOperationAccess(
+        operationId,
+        NullJobId,
+        EPermissionSet(EPermission::Read),
+        /*ignoreMissingOperation*/ false);
+
     return DoGetJobTraceFromTraceEventsTable(operationId, options, deadline);
 }
 
@@ -1492,6 +1511,10 @@ static std::vector<TJob> ParseJobsFromArchiveResponse(
             job.ProbingJobCompetitionId = TJobId(TGuid::FromString(*record.ProbingJobCompetitionId));
         }
 
+        if (record.AllocationIdHi) {
+            job.AllocationId = TAllocationId(TGuid(*record.AllocationIdHi, *record.AllocationIdLo));
+        }
+
         if ((needFullStatistics || !job.BriefStatistics) &&
             record.Statistics)
         {
@@ -1584,6 +1607,11 @@ TFuture<std::vector<TJob>> TClient::DoListJobsFromArchiveAsync(
         builder.AddSelectExpression("archive_features");
     }
 
+    if (GetOrDefault(CompatListJobsAttributesToArchiveVersion, "allocation_id") <= archiveVersion) {
+        builder.AddSelectExpression("allocation_id_hi");
+        builder.AddSelectExpression("allocation_id_lo");
+    }
+
     if (options.WithStderr) {
         if (*options.WithStderr) {
             builder.AddWhereConjunct("stderr_size != 0 AND NOT is_null(stderr_size)");
@@ -1636,11 +1664,19 @@ TFuture<std::vector<TJob>> TClient::DoListJobsFromArchiveAsync(
         }
     }
 
+    if (options.WithInterruptionInfo) {
+        if (*options.WithInterruptionInfo) {
+            builder.AddWhereConjunct("not is_null(interruption_info)");
+        } else {
+            builder.AddWhereConjunct("is_null(interruption_info)");
+        }
+    }
+
     if (options.FromTime) {
         builder.AddWhereConjunct(Format("start_time >= %v", options.FromTime->MicroSeconds()));
     }
     if (options.ToTime) {
-        builder.AddWhereConjunct(Format("finish_time >= %v", options.ToTime->MicroSeconds()));
+        builder.AddWhereConjunct(Format("finish_time <= %v", options.ToTime->MicroSeconds()));
     }
 
     if (options.TaskName) {
@@ -1732,6 +1768,7 @@ static void ParseJobsFromControllerAgentResponse(
     auto needJobCookie = attributes.contains("job_cookie");
     auto needMonitoringDescriptor = attributes.contains("monitoring_descriptor");
     auto needOperationIncarnation = attributes.contains("operation_incarnation");
+    auto needAllocationId = attributes.contains("allocation_id");
 
     for (const auto& [jobIdString, jobNode] : jobNodes) {
         if (!filter(jobNode)) {
@@ -1809,6 +1846,9 @@ static void ParseJobsFromControllerAgentResponse(
         if (needOperationIncarnation) {
             job.OperationIncarnation = jobMapNode->FindChildValue<std::string>("operation_incarnation");
         }
+        if (needAllocationId) {
+            job.AllocationId = jobMapNode->FindChildValue<TAllocationId>("allocation_id");
+        }
     }
 }
 
@@ -1853,6 +1893,7 @@ static void ParseJobsFromControllerAgentResponse(
         auto hasCompetitors = jobMap->GetChildValueOrThrow<bool>("has_competitors");
         auto taskName = jobMap->GetChildValueOrThrow<TString>("task_name");
         auto monitoringDescriptor = jobMap->FindChildValue<TString>("monitoring_descriptor");
+        auto interruptionInfo = jobMap->FindChildValue<TString>("interruption_info");
         auto startTime = jobMap->GetChildValueOrThrow<TInstant>("start_time");
         auto operationIncarnation = jobMap->FindChildValue<std::string>("operation_incarnation");
         return
@@ -1865,6 +1906,7 @@ static void ParseJobsFromControllerAgentResponse(
             (!options.WithCompetitors || options.WithCompetitors == hasCompetitors) &&
             (!options.TaskName || options.TaskName == taskName) &&
             (!options.WithMonitoringDescriptor || *options.WithMonitoringDescriptor == monitoringDescriptor.has_value()) &&
+            (!options.WithInterruptionInfo || *options.WithInterruptionInfo == interruptionInfo.has_value()) &&
             (!options.FromTime || startTime >= *options.FromTime) &&
             (!options.ToTime || startTime <= *options.ToTime) &&
             (!options.OperationIncarnation || options.OperationIncarnation == operationIncarnation);
@@ -2296,8 +2338,8 @@ TListJobsResult TClient::DoListJobs(
 static std::vector<TString> MakeJobArchiveAttributes(const THashSet<TString>& attributes, int archiveVersion)
 {
     std::vector<TString> result;
-    // Plus 2 as operation_id and job_id are split into hi and lo.
-    result.reserve(attributes.size() + 2);
+    // Plus 3 as operation_id, job_id and allocation_id are split into hi and lo.
+    result.reserve(attributes.size() + 3);
     for (const auto& attribute : attributes) {
         if (!SupportedJobAttributes.contains(attribute)) {
             THROW_ERROR_EXCEPTION(
@@ -2306,7 +2348,7 @@ static std::vector<TString> MakeJobArchiveAttributes(const THashSet<TString>& at
                 attribute)
                 << TErrorAttribute("attribute_name", attribute);
         }
-        if (attribute == "operation_id" || attribute == "job_id") {
+        if (attribute == "operation_id" || attribute == "job_id" || attribute == "allocation_id") {
             result.push_back(attribute + "_hi");
             result.push_back(attribute + "_lo");
         } else if (attribute == "state") {

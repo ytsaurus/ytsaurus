@@ -178,7 +178,6 @@ def get_dynamic_master_config():
         forbid_arbitrary_data_versions_in_retention_config = %true;
 
         cell_hydra_persistence_synchronizer =  {
-            use_hydra_persistence_directory = %true;
             migrate_to_virtual_cell_maps = %true;
             synchronization_period = 100;
         };
@@ -327,6 +326,8 @@ def get_controller_agent_config():
         safe_scheduler_online_time = 5000;
 
         static_orchid_cache_update_period = 300;
+
+        controller_orchid_keys_update_period = 100;
 
         controller_static_orchid_update_period = 0;
 

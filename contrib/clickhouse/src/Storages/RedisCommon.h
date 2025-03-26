@@ -1,9 +1,9 @@
 #pragma once
 
-#include <Poco/Redis/Client.h>
-#include <Poco/Redis/Command.h>
-#include <Poco/Redis/Array.h>
-#include <Poco/Types.h>
+#include <DBPoco/Redis/Client.h>
+#include <DBPoco/Redis/Command.h>
+#include <DBPoco/Redis/Array.h>
+#include <DBPoco/Types.h>
 
 #include <Core/Defines.h>
 #include <base/BorrowedObjectPool.h>
@@ -16,7 +16,7 @@ namespace DB
 static constexpr size_t REDIS_MAX_BLOCK_SIZE = DEFAULT_BLOCK_SIZE;
 static constexpr size_t REDIS_LOCK_ACQUIRE_TIMEOUT_MS = 5000;
 
-enum class RedisStorageType
+enum class RedisStorageType : uint8_t
 {
     SIMPLE,
     HASH_MAP,
@@ -44,14 +44,14 @@ static uint32_t DEFAULT_REDIS_DB_INDEX = 0;
 static uint32_t DEFAULT_REDIS_POOL_SIZE = 16;
 static String DEFAULT_REDIS_PASSWORD;
 
-using RedisCommand = Poco::Redis::Command;
-using RedisArray = Poco::Redis::Array;
+using RedisCommand = DBPoco::Redis::Command;
+using RedisArray = DBPoco::Redis::Array;
 using RedisArrayPtr = std::shared_ptr<RedisArray>;
-using RedisBulkString = Poco::Redis::BulkString;
+using RedisBulkString = DBPoco::Redis::BulkString;
 using RedisSimpleString = String;
-using RedisInteger = Poco::Int64;
+using RedisInteger = DBPoco::Int64;
 
-using RedisClientPtr = std::unique_ptr<Poco::Redis::Client>;
+using RedisClientPtr = std::unique_ptr<DBPoco::Redis::Client>;
 using RedisPool = BorrowedObjectPool<RedisClientPtr>;
 using RedisPoolPtr = std::shared_ptr<RedisPool>;
 

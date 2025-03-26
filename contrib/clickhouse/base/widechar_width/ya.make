@@ -4,14 +4,14 @@ LIBRARY()
 
 LICENSE(
     Apache-2.0 AND
+    BSL-1.0 AND
     CC0-1.0 AND
-    MIT AND
-    Public-Domain
+    MIT
 )
 
 LICENSE_TEXTS(.yandex_meta/licenses.list.txt)
 
-VERSION(23.8.16.40)
+VERSION(24.8.5.115)
 
 ADDINCL(
     GLOBAL contrib/clickhouse/base/widechar_width
@@ -33,6 +33,7 @@ ENDIF()
 
 CFLAGS(
     -D_LIBCPP_ENABLE_THREAD_SAFETY_ANNOTATIONS
+    -D_LIBUNWIND_IS_NATIVE_ONLY
 )
 
 SRCS(

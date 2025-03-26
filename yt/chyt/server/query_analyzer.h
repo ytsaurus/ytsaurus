@@ -78,9 +78,9 @@ private:
     const TStorageContext* StorageContext_;
     DB::SelectQueryInfo QueryInfo_;
     NLogging::TLogger Logger;
-    std::vector<DB::ASTTableExpression*> TableExpressions_;
+    std::vector<DB::QueryTreeNodePtr> TableExpressions_;
     int YtTableCount_ = 0;
-    std::vector<DB::ASTPtr*> TableExpressionPtrs_;
+    std::vector<DB::QueryTreeNodePtr*> TableExpressionPtrs_;
     std::vector<IStorageDistributorPtr> Storages_;
     //! If the query contains any kind of join.
     bool Join_ = false;
@@ -104,11 +104,11 @@ private:
 
     EReadInOrderMode ReadInOrderMode_ = EReadInOrderMode::None;
 
-    std::vector<DB::ASTPtr> JoinKeyRightExpressions_;
+    std::vector<DB::QueryTreeNodePtr> JoinKeyRightExpressions_;
 
     NTableClient::TOwningKeyBound PreviousUpperBound_;
 
-    std::vector<std::pair<DB::ASTPtr*, DB::ASTPtr>> Modifications_;
+    std::vector<std::pair<DB::QueryTreeNodePtr*, DB::QueryTreeNodePtr>> Modifications_;
 
     void ParseQuery();
     // Infer longest possible key prefix used in ON/USING clauses.
@@ -119,16 +119,16 @@ private:
 
     void InferReadInOrderMode(bool assumeNoNullKeys, bool assumeNoNanKeys);
 
-    IStorageDistributorPtr GetStorage(const DB::ASTTableExpression* tableExpression) const;
+    IStorageDistributorPtr GetStorage(const DB::QueryTreeNodePtr& tableExpression) const;
 
     //! Apply modification to query part which can be later rolled back by calling RollbackModifications().
-    void ApplyModification(DB::ASTPtr* queryPart, DB::ASTPtr newValue);
+    void ApplyModification(DB::QueryTreeNodePtr* queryPart, DB::QueryTreeNodePtr newValue);
     //! Version with explicit previous value specification specially for weird DB::ASTSelect::refWhere() behaviour.
-    void ApplyModification(DB::ASTPtr* queryPart, DB::ASTPtr newValue, DB::ASTPtr previousValue);
+    void ApplyModification(DB::QueryTreeNodePtr* queryPart, DB::QueryTreeNodePtr newValue, DB::QueryTreeNodePtr previousValue);
     //! Rollback all modifications to the query.
     void RollbackModifications();
 
-    void ReplaceTableExpressions(std::vector<DB::ASTPtr> newTableExpressions);
+    void ReplaceTableExpressions(std::vector<DB::QueryTreeNodePtr> newTableExpressions);
     void AddBoundConditionToJoinedSubquery(
         NTableClient::TOwningKeyBound lowerBound,
         NTableClient::TOwningKeyBound upperBound);

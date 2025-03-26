@@ -86,6 +86,9 @@ public:
         const NTabletNode::NProto::TMountHint& mountHint) override;
     void Remount(const TTableSettings& settings) override;
 
+    void PopulateReplicateTabletContentRequest(
+        NProto::TReqReplicateTabletContent* request) override;
+
     void AddStore(IStorePtr store, bool onMount, bool onFlush, TPartitionId partitionIdHint = {}) override;
     void BulkAddStores(TRange<IStorePtr> stores, bool onMount) override;
     void DiscardAllStores() override;

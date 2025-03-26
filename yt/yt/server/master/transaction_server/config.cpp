@@ -83,6 +83,11 @@ void TDynamicTransactionManagerConfig::Register(TRegistrar registrar)
         .Default(false)
         .DontSerializeDefault();
 
+    registrar.Parameter("enable_cypress_mirrorred_to_sequoia_prerequisite_transaction_validation_via_leases", &TThis::EnableCypressMirroredToSequoiaPrerequisiteTransactionValidationViaLeases)
+        // COMPAT(cherepashka)
+        .Alias("enable_prerequisite_transaction_validation_via_leases")
+        .Default(false);
+
     registrar.Parameter("enable_non_strict_externalized_transaction_usage", &TThis::EnableNonStrictExternalizedTransactionUsage)
         .Default(true);
 }

@@ -63,6 +63,7 @@
 #include <yt/yt/ytlib/bundle_controller/bundle_controller_channel.h>
 
 #include <yt/yt/ytlib/security_client/permission_cache.h>
+#include <yt/yt/ytlib/security_client/user_attribute_cache.h>
 
 #include <yt/yt/ytlib/tablet_client/native_table_mount_cache.h>
 
@@ -120,7 +121,8 @@
 
 #include <yt/yt/core/misc/checksum.h>
 #include <yt/yt/core/misc/lazy_ptr.h>
-#include <yt/yt/core/misc/memory_usage_tracker.h>
+
+#include <library/cpp/yt/memory/memory_usage_tracker.h>
 
 #include <library/cpp/yt/threading/atomic_object.h>
 
@@ -179,6 +181,7 @@ public:
     MOCK_METHOD(const NTransactionClient::ITimestampProviderPtr&, GetTimestampProvider, (), (override));
     MOCK_METHOD(const NJobProberClient::TJobShellDescriptorCachePtr&, GetJobShellDescriptorCache, (), (override));
     MOCK_METHOD(const NSecurityClient::TPermissionCachePtr&, GetPermissionCache, (), (override));
+    MOCK_METHOD(const NSecurityClient::TUserAttributeCachePtr&, GetUserAttributeCache, (), (override));
     MOCK_METHOD(const TStickyGroupSizeCachePtr&, GetStickyGroupSizeCache, (), (override));
     MOCK_METHOD(const TSyncReplicaCachePtr&, GetSyncReplicaCache, (), (override));
     MOCK_METHOD(const TTabletSyncReplicaCachePtr&, GetTabletSyncReplicaCache, (), (override));
@@ -197,7 +200,7 @@ public:
     MOCK_METHOD(const TConnectionConfigPtr&, GetConfig, (), ());
     MOCK_METHOD(TClusterTag, GetClusterTag, (), (const, override));
     MOCK_METHOD(const std::string&, GetLoggingTag, (), (const, override));
-    MOCK_METHOD(const TString&, GetClusterId, (), (const, override));
+    MOCK_METHOD(const std::string&, GetClusterId, (), (const, override));
     MOCK_METHOD(const std::optional<std::string>&, GetClusterName, (), (const, override));
     MOCK_METHOD(bool, IsSameCluster, (const TIntrusivePtr<NApi::IConnection>&), (const, override));
     MOCK_METHOD(NHiveClient::ITransactionParticipantPtr, CreateTransactionParticipant, (NHiveClient::TCellId, const NApi::TTransactionParticipantOptions&), (override));
@@ -225,6 +228,9 @@ public:
     const NHiveClient::TDownedCellTrackerPtr& GetDownedCellTracker() override;
     const NChunkClient::TMediumDirectoryPtr& GetMediumDirectory() override;
 
+    NRpc::IChannelPtr FindMasterChannel(
+        EMasterChannelKind kind,
+        NObjectClient::TCellTag cellTag = NObjectClient::PrimaryMasterCellTagSentinel) override;
     NRpc::IChannelPtr GetMasterChannelOrThrow(
         EMasterChannelKind kind,
         NObjectClient::TCellTag cellTag = NObjectClient::PrimaryMasterCellTagSentinel) override;
@@ -258,7 +264,7 @@ DEFINE_REFCOUNTED_TYPE(TTestConnection)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-NApi::NNative::IConnectionPtr CreateConnection(
+TTestConnectionPtr CreateConnection(
     NRpc::IChannelFactoryPtr channelFactory,
     NNodeTrackerClient::TNetworkPreferenceList networkPreferenceList,
     NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,

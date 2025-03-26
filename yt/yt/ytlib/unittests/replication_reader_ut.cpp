@@ -30,7 +30,6 @@
 
 #include <yt/yt/core/misc/random.h>
 #include <yt/yt/core/misc/fs.h>
-#include <yt/yt/core/misc/memory_usage_tracker.h>
 
 #include <yt/yt/core/rpc/bus/channel.h>
 #include <yt/yt/core/rpc/bus/server.h>
@@ -44,6 +43,8 @@
 #include <yt/yt/core/rpc/local_channel.h>
 #include <yt/yt/core/rpc/service_detail.h>
 
+#include <library/cpp/yt/memory/memory_usage_tracker.h>
+
 namespace NYT::NChunkClient {
 
 using namespace NConcurrency;
@@ -51,6 +52,8 @@ using namespace NRpc;
 
 using NYT::ToProto;
 using NYT::FromProto;
+
+namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -329,6 +332,8 @@ struct TTestCase
 };
 
 ////////////////////////////////////////////////////////////////////////////////
+
+} // namespace
 
 class TReplicationReaderTest
     : public ::testing::Test

@@ -185,12 +185,6 @@ void TChunkOwnerBase::Load(NCellMaster::TLoadContext& context)
         Load(context, HunkPrimaryMediumIndex_);
     }
 
-    // COMPAT(shakurov)
-    if (context.GetVersion() < EMasterReign::ResetHunkSpecificMedia) {
-        ResetHunkPrimaryMediumIndex();
-        HunkReplication_.ClearEntries();
-    }
-
     // Check invariant: null hunk primary medium index <=> empty hunk replication.
     // COMPAT(shakurov)
     if (auto hunkPrimaryMediumIndex = GetHunkPrimaryMediumIndex()) {

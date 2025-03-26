@@ -70,6 +70,8 @@ protected:
     bool IsRecovery() const;
     const TDynamicCypressManagerConfigPtr& GetDynamicCypressManagerConfig() const;
 
+    void ZombifyCorePrologue(TCypressNode* node);
+
     void DestroyCorePrologue(TCypressNode* node);
 
     void SerializeNodeCore(
@@ -186,6 +188,10 @@ public:
 
     void Zombify(TCypressNode* node) override
     {
+        // Run core stuff.
+        ZombifyCorePrologue(node);
+
+        // Run custom stuff.
         auto* typedNode = node->As<TImpl>();
         DoZombify(typedNode);
     }
@@ -1040,10 +1046,10 @@ using TCypressMapNodeTypeHandler = TCypressMapNodeTypeHandlerImpl<TCypressMapNod
 // (E.g. branching is similar in both cases).
 template <class TImpl = TSequoiaMapNode>
 class TSequoiaMapNodeTypeHandlerImpl
-    : public TCypressNodeTypeHandlerBase<TImpl>
+    : public TCompositeNodeTypeHandler<TImpl>
 {
 public:
-    using TBase = TCypressNodeTypeHandlerBase<TImpl>;
+    using TBase = TCompositeNodeTypeHandler<TImpl>;
 
     using TBase::TBase;
 

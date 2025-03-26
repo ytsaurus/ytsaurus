@@ -67,7 +67,7 @@ TGuid ToGuid(DB::UUID uuid)
 
 void RegisterNewUser(
     DB::AccessControl& accessControl,
-    TString userName,
+    const std::string& userName,
     const std::vector<TString>& userDefinedDatabaseNames,
     bool allowSqlUdfManagement)
 {
@@ -207,7 +207,7 @@ std::optional<DB::Field> TryDecrementFieldValue(const DB::Field& field, const DB
         case DB::TypeIndex::Int64:
         case DB::TypeIndex::Date32:
         case DB::TypeIndex::DateTime64:
-            return DB::Field(field.get<Int64>() - 1);
+            return DB::Field(field.safeGet<Int64>() - 1);
 
         case DB::TypeIndex::UInt8:
         case DB::TypeIndex::UInt16:
@@ -215,10 +215,10 @@ std::optional<DB::Field> TryDecrementFieldValue(const DB::Field& field, const DB
         case DB::TypeIndex::UInt64:
         case DB::TypeIndex::Date:
         case DB::TypeIndex::DateTime:
-            return DB::Field(field.get<UInt64>() - 1);
+            return DB::Field(field.safeGet<UInt64>() - 1);
 
         case DB::TypeIndex::String: {
-            std::string value = field.get<std::string>();
+            std::string value = field.safeGet<std::string>();
             // It should be guaranteed that value is not a minimum possible value.
             YT_VERIFY(!value.empty());
             if (value.back() != '\0') {
@@ -260,7 +260,7 @@ std::optional<DB::Field> TryIncrementFieldValue(const DB::Field& field, const DB
         case DB::TypeIndex::Int64:
         case DB::TypeIndex::Date32:
         case DB::TypeIndex::DateTime64:
-            return DB::Field(field.get<Int64>() + 1);
+            return DB::Field(field.safeGet<Int64>() + 1);
 
         case DB::TypeIndex::UInt8:
         case DB::TypeIndex::UInt16:
@@ -268,10 +268,10 @@ std::optional<DB::Field> TryIncrementFieldValue(const DB::Field& field, const DB
         case DB::TypeIndex::UInt64:
         case DB::TypeIndex::Date:
         case DB::TypeIndex::DateTime:
-            return DB::Field(field.get<UInt64>() + 1);
+            return DB::Field(field.safeGet<UInt64>() + 1);
 
         case DB::TypeIndex::String: {
-            std::string value = field.get<std::string>();
+            std::string value = field.safeGet<std::string>();
             value.push_back('\0');
             return DB::Field(std::move(value));
         }
@@ -321,7 +321,7 @@ TQuerySettingsPtr ParseCustomSettings(
         if (modifiedNode && modifiedNode->GetType() != ENodeType::String && field.getType() == DB::Field::Types::Which::String) {
             // All settings provided via http interface have a 'string' type.
             // To overcome this limitation, try to parse it as a YsonString if not a string value is expected.
-            const auto& stringVal = field.get<std::string>();
+            const auto& stringVal = field.safeGet<std::string>();
             patchNode = ConvertToNode(TYsonStringBuf(stringVal));
         } else {
             TUnversionedValue unversionedValue;

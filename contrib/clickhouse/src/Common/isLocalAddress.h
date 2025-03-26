@@ -1,10 +1,10 @@
 #pragma once
 
 #include <base/types.h>
-#include <Poco/Net/IPAddress.h>
+#include <DBPoco/Net/IPAddress.h>
 
 
-namespace Poco
+namespace DBPoco
 {
     namespace Net
     {
@@ -22,10 +22,12 @@ namespace DB
      * - only the first address is taken for each network interface;
      * - the routing rules that affect which network interface we go to the specified address are not checked.
      */
-    bool isLocalAddress(const Poco::Net::SocketAddress & address, UInt16 clickhouse_port);
-    bool isLocalAddress(const Poco::Net::SocketAddress & address);
-    bool isLocalAddress(const Poco::Net::IPAddress & address);
+    bool isLocalAddress(const DBPoco::Net::SocketAddress & address, UInt16 clickhouse_port);
+    bool isLocalAddress(const DBPoco::Net::SocketAddress & address);
+    bool isLocalAddress(const DBPoco::Net::IPAddress & address);
 
-    /// Returns number of different bytes in hostnames, used for load balancing
-    size_t getHostNameDifference(const std::string & local_hostname, const std::string & host);
+    /// Returns host name difference with name prefix, used for load balancing
+    size_t getHostNamePrefixDistance(const std::string & local_hostname, const std::string & host);
+    /// Returns host name difference with Levenshtein Distance.
+    size_t getHostNameLevenshteinDistance(const std::string & local_hostname, const std::string & host);
 }

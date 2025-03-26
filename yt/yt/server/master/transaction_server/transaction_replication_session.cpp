@@ -198,15 +198,10 @@ void TTransactionReplicationSessionBase::InitReplicationRequestCellTags()
     SortUnique(ReplicationRequestCellTags_);
 }
 
-bool TTransactionReplicationSessionBase::IsMirroredToSequoia(TTransactionId transactionId)
-{
-    return IsCypressTransactionType(TypeFromId(transactionId)) && IsSequoiaId(transactionId);
-}
-
 void TTransactionReplicationSessionBase::SegregateMirroredTransactions()
 {
     // NB: It's not fast path: when mirroring to Sequoia is disabled there is no
-    // way for function IsMirroredToSequoia() to work correctly. See comment
+    // way for function IsCypressTransactionMirroredToSequoia() to work correctly. See comment
     // near MirroringToSequoiaEnabled_.
     if (!MirroringToSequoiaEnabled_) {
         MirroredTransactionIds_ = {};
@@ -216,7 +211,7 @@ void TTransactionReplicationSessionBase::SegregateMirroredTransactions()
     auto mirroredTransactionCount = std::stable_partition(
         AllTransactionIds_.begin(),
         AllTransactionIds_.end(),
-        IsMirroredToSequoia) - AllTransactionIds_.begin();
+        IsCypressTransactionMirroredToSequoia) - AllTransactionIds_.begin();
 
     MirroredTransactionIds_ = TRange(AllTransactionIds_.data(), mirroredTransactionCount);
     LocalTransactionIds_ = TMutableRange(

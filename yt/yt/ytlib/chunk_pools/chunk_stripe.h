@@ -69,6 +69,8 @@ struct TChunkStripeList
     i64 TotalRowCount = 0;
     i64 TotalValueCount = 0;
 
+    i64 TotalCompressedDataSize = 0;
+
     int TotalChunkCount = 0;
     int LocalChunkCount = 0;
 
@@ -78,6 +80,12 @@ struct TChunkStripeList
 DEFINE_REFCOUNTED_TYPE(TChunkStripeList)
 
 extern const TChunkStripeListPtr NullStripeList;
+
+struct TPersistentChunkStripeStatistics
+    : public NTableClient::TChunkStripeStatistics
+{
+    void Persist(const TPersistenceContext& context);
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 

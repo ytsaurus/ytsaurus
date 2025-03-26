@@ -4,7 +4,7 @@
 #include <Common/ZooKeeper/Common.h>
 
 
-namespace Poco::Util
+namespace DBPoco::Util
 {
     class AbstractConfiguration;
 }
@@ -32,7 +32,7 @@ public:
     String getPath() const;
     bool isPathEqual(const String & path_) const;
 
-    void setConfig(const Poco::Util::AbstractConfiguration & config);
+    void setConfig(const DBPoco::Util::AbstractConfiguration & config);
     void load(const String & users_config_path,
               const String & include_from_path = {},
               const String & preprocessed_dir = {},
@@ -47,7 +47,7 @@ public:
     bool isBackupAllowed() const override { return backup_allowed; }
 
 private:
-    void parseFromConfig(const Poco::Util::AbstractConfiguration & config);
+    void parseFromConfig(const DBPoco::Util::AbstractConfiguration & config);
     std::optional<UUID> findImpl(AccessEntityType type, const String & name) const override;
     std::vector<UUID> findAllImpl(AccessEntityType type) const override;
     AccessEntityPtr readImpl(const UUID & id, bool throw_if_not_exists) const override;

@@ -12,25 +12,25 @@ namespace NYT::NQueueClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TQueueAgentStageChannelConfig
+struct TQueueAgentStageChannelConfig
     : public NRpc::TBalancingChannelConfig
     , public NRpc::TRetryingChannelConfig
 {
-public:
+    //! Default timeout for every request.
+    TDuration DefaultRequestTimeout;
+
     REGISTER_YSON_STRUCT(TQueueAgentStageChannelConfig);
 
-    static void Register(TRegistrar)
-    { }
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TQueueAgentStageChannelConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TQueueAgentDynamicStateConfig
+struct TQueueAgentDynamicStateConfig
     : public NYTree::TYsonStruct
 {
-public:
     //! The path to the directory containing queue agent state.
     //! This path is local to the queue agent's home cluster.
     NYPath::TYPath Root;
@@ -54,10 +54,9 @@ DEFINE_REFCOUNTED_TYPE(TQueueAgentDynamicStateConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TQueueConsumerRegistrationManagerConfig
+struct TQueueConsumerRegistrationManagerConfig
     : public NYTree::TYsonStruct
 {
-public:
     //! Cluster-parametrized path to the dynamic table containing queue consumer registration state.
     //! If no cluster is specified, the connection's local cluster is assumed.
     //! This path is used for writing/removing registrations.
@@ -102,10 +101,9 @@ DEFINE_REFCOUNTED_TYPE(TQueueConsumerRegistrationManagerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TQueueAgentConnectionConfig
+struct TQueueAgentConnectionConfig
     : public NYTree::TYsonStruct
 {
-public:
     THashMap<std::string, TQueueAgentStageChannelConfigPtr> Stages;
 
     TQueueConsumerRegistrationManagerConfigPtr QueueConsumerRegistrationManager;

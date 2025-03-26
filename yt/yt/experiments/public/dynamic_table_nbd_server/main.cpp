@@ -30,12 +30,11 @@ using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DECLARE_REFCOUNTED_CLASS(TConfig)
+DECLARE_REFCOUNTED_STRUCT(TConfig)
 
-class TConfig
+struct TConfig
     : public NYTree::TYsonStruct
 {
-public:
     TString ClusterUser;
     NApi::NNative::TConnectionCompoundConfigPtr ClusterConnection;
     TNbdServerConfigPtr NbdServer;
@@ -93,7 +92,6 @@ protected:
 
         auto nbdServer = CreateNbdServer(
             config->NbdServer,
-            connection,
             poller,
             threadPool->GetInvoker());
 

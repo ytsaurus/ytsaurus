@@ -1,8 +1,11 @@
 #include <yt/yt/tests/cpp/test_base/api_test_base.h>
-#include "yt/yt/tests/cpp/modify_rows_test.h"
+#include <yt/yt/tests/cpp/test_base/private.h>
+
+#include <yt/yt/tests/cpp/modify_rows_test.h>
 
 #include <yt/yt/client/api/rowset.h>
 #include <yt/yt/client/api/transaction.h>
+#include <yt/yt/client/api/table_writer.h>
 
 #include <yt/yt/ytlib/api/native/config.h>
 #include <yt/yt/ytlib/api/native/client.h>
@@ -23,6 +26,7 @@
 
 #include <yt/yt/client/api/internal_client.h>
 
+#include <yt/yt/client/table_client/name_table.h>
 #include <yt/yt/client/table_client/helpers.h>
 #include <yt/yt/client/table_client/row_buffer.h>
 #include <yt/yt/client/table_client/unversioned_row.h>
@@ -31,6 +35,7 @@
 #include <yt/yt/client/transaction_client/timestamp_provider.h>
 
 #include <yt/yt/core/concurrency/scheduler.h>
+#include <yt/yt/core/concurrency/thread_pool.h>
 
 #include <yt/yt/core/logging/config.h>
 #include <yt/yt/core/logging/log_manager.h>
@@ -42,8 +47,6 @@
 #include <util/datetime/base.h>
 
 #include <util/random/random.h>
-
-#include <tuple>
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -62,6 +65,10 @@ using namespace NTabletClient;
 using namespace NTransactionClient;
 using namespace NYson;
 using namespace NYTree;
+
+////////////////////////////////////////////////////////////////////////////////
+
+const auto Logger = CppTestsLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -814,7 +821,7 @@ TEST_F(TAlterTableTest, TestUnknownType)
 
         EXPECT_THROW_THAT(
             AlterTable("//tmp/t1", schema),
-            testing::HasSubstr("has no corresponding logical type"));
+            testing::HasSubstr("required fileds are not set"));
     }
 
     {
@@ -912,6 +919,118 @@ TEST_F(TAlterTableTest, TestUnknownType)
             AlterTable("//tmp/t1", schema),
             testing::HasSubstr("Cannot parse unknown logical type from proto"));
     }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TConcatenateTest
+    : public TApiTestBase
+{
+protected:
+    void CreateTableWithData(const TString& path, TCreateNodeOptions options, int startRange, int endRange) const
+    {
+        WaitFor(Client_->CreateNode(path, EObjectType::Table, options))
+            .ThrowOnError();
+        auto writer = WaitFor(Client_->CreateTableWriter(path))
+            .ValueOrThrow();
+
+        auto columnId = writer->GetNameTable()->GetIdOrRegisterName("key");
+        std::vector<TUnversionedRow> rows;
+
+        for (auto rowIdx = startRange; rowIdx < endRange; ++rowIdx) {
+            TUnversionedRowBuilder rowBuilder;
+            rowBuilder.AddValue(MakeUnversionedInt64Value(rowIdx, columnId));
+            rows.push_back(rowBuilder.GetRow());
+        }
+
+        YT_VERIFY(writer->Write(rows));
+        WaitFor(writer->Close())
+            .ThrowOnError();
+    }
+};
+
+TEST_F(TConcatenateTest, TestParallelConcatenateToSortedWithAppend)
+{
+    auto threadPool = CreateThreadPool(2, "ParallelConcatenate");
+    TCreateNodeOptions options;
+    options.Attributes = CreateEphemeralAttributes();
+    options.Attributes->Set("schema", New<TTableSchema>(std::vector<TColumnSchema>{{"key", EValueType::Int64, ESortOrder::Ascending}}));
+
+    CreateTableWithData("//tmp/table1", options, 0, 5);
+    CreateTableWithData("//tmp/table2", options, 5, 10);
+    CreateTableWithData("//tmp/table3", options, 10, 15);
+    CreateTableWithData("//tmp/concat", options, 0, 0);
+
+    auto barrierPromise = NewPromise<void>();
+    std::vector<TFuture<void>> futures;
+    for (int i = 0; i < 3; ++i) {
+        futures.push_back(BIND([
+            client = Client_,
+            barrierFuture = barrierPromise.ToFuture()
+        ] {
+            WaitForFast(barrierFuture)
+                .ThrowOnError();
+            WaitFor(client->ConcatenateNodes(
+                {"//tmp/table1", "//tmp/table2", "//tmp/table3"},
+                "<append=true>//tmp/concat"))
+                .ThrowOnError();
+        })
+            .AsyncVia(threadPool->GetInvoker())
+            .Run());
+    }
+
+    barrierPromise.Set();
+    auto results = WaitFor(AllSet(std::move(futures))).ValueOrThrow();
+
+    int failedCount = 0;
+    for (auto& result : results) {
+        if (!result.IsOK()) {
+            ++failedCount;
+            YT_LOG_INFO("Concatenate failed with error (ErrorMessage: %v)", result);
+            EXPECT_TRUE(result.FindMatching(NCypressClient::EErrorCode::ConcurrentTransactionLockConflict));
+        }
+    }
+
+    EXPECT_GT(failedCount, 0);
+
+    futures.clear();
+    for (auto path : {"//tmp/table1", "//tmp/table2", "//tmp/table3", "//tmp/concat"}) {
+        futures.push_back(Client_->RemoveNode(path));
+    }
+    WaitFor(AllSet(std::move(futures))).ThrowOnError();
+}
+
+TEST_F(TConcatenateTest, TestParallelConcatenateWithAppend)
+{
+    TCreateNodeOptions options;
+    options.Attributes = CreateEphemeralAttributes();
+    options.Attributes->Set("schema", New<TTableSchema>(std::vector<TColumnSchema>{{"key", EValueType::Int64}}));
+
+    CreateTableWithData("//tmp/table1", options, 5, 10);
+    CreateTableWithData("//tmp/table2", options, 10, 15);
+    CreateTableWithData("//tmp/table3", options, 0, 5);
+    CreateTableWithData("//tmp/concat", options, 0, 0);
+
+    std::vector<TFuture<void>> futures;
+    futures.push_back(Client_->ConcatenateNodes({"//tmp/table1", "//tmp/table2", "//tmp/table3"}, "<append=true>//tmp/concat"));
+    futures.push_back(Client_->ConcatenateNodes({"//tmp/table1", "//tmp/table2", "//tmp/table3"}, "<append=true>//tmp/concat"));
+
+    auto results = WaitFor(AllSet(std::move(futures))).ValueOrThrow();
+
+    int failedCount = 0;
+    for (auto& result : results) {
+        if (!result.IsOK()) {
+            ++failedCount;
+        }
+    }
+
+    EXPECT_EQ(failedCount, 0);
+
+    futures.clear();
+    for (auto path : {"//tmp/table1", "//tmp/table2", "//tmp/table3", "//tmp/concat"}) {
+        futures.push_back(Client_->RemoveNode(path));
+    }
+    WaitFor(AllSet(std::move(futures))).ThrowOnError();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

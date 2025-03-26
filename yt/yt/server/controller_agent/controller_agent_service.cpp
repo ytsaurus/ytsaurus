@@ -52,6 +52,7 @@ public:
         RegisterMethod(RPC_SERVICE_METHOD_DESC(WriteOperationControllerCoreDump));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(UnregisterOperation));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(UpdateOperationRuntimeParameters));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(PatchSpec));
     }
 
 private:
@@ -132,12 +133,16 @@ private:
             auto operation = controllerAgent->GetOperationOrThrow(operationId);
 
             std::optional<TControllerTransactionIds> transactionIds;
+            INodePtr cumulativeSpecPatch = {};
             if (!clean) {
                 transactionIds.emplace();
                 *transactionIds = FromProto<TControllerTransactionIds>(request->transaction_ids());
+                if (request->has_cumulative_spec_patch()) {
+                    cumulativeSpecPatch = ConvertTo<INodePtr>(TYsonString(request->cumulative_spec_patch()));
+                }
             }
 
-            auto maybeResult = WaitFor(controllerAgent->InitializeOperation(operation, transactionIds))
+            auto maybeResult = WaitFor(controllerAgent->InitializeOperation(operation, transactionIds, std::move(cumulativeSpecPatch)))
                 .ValueOrThrow();
 
             context->SetResponseInfo("ImmediateResult: %v", maybeResult.has_value());
@@ -389,6 +394,32 @@ private:
             context->Reply();
         });
     }
+
+    DECLARE_RPC_SERVICE_METHOD(NProto, PatchSpec)
+    {
+        auto incarnationId = FromProto<TIncarnationId>(request->incarnation_id());
+        auto operationId = FromProto<TOperationId>(request->operation_id());
+        context->SetRequestInfo(
+            "IncarnationId: %v, OperationId: %v, DryRun: %v",
+            incarnationId,
+            operationId,
+            request->dry_run());
+
+        const auto& controllerAgent = Bootstrap_->GetControllerAgent();
+        controllerAgent->ValidateConnected();
+        controllerAgent->ValidateIncarnation(incarnationId);
+
+        WrapAgentException([&] {
+            WaitFor(
+                controllerAgent->PatchSpec(
+                    operationId,
+                    ConvertToNode(TYsonString(request->new_cumulative_spec_patch())),
+                    request->dry_run()))
+                .ThrowOnError();
+
+            context->Reply();
+        });
+    }
 };
 
 DEFINE_REFCOUNTED_TYPE(TControllerAgentService)
@@ -401,4 +432,3 @@ IServicePtr CreateControllerAgentService(TBootstrap* bootstrap)
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NControllerAgent
-

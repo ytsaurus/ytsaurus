@@ -42,7 +42,7 @@ struct IOperationControllerStrategyHost
         const TDiskResources& availableDiskResources,
         const TString& treeId,
         const TString& poolPath,
-        const TFairShareStrategyTreeConfigPtr& treeConfig) = 0;
+        std::optional<TDuration> waitingForResourcesOnNodeTimeout) = 0;
 
     //! Called during scheduling to notify the controller that a (nonscheduled) allocation has been aborted.
     virtual void OnNonscheduledAllocationAborted(
@@ -165,7 +165,8 @@ struct IOperationController
 
     //! Invokes IOperationControllerSchedulerHost::InitializeReviving or InitializeClean asynchronously.
     virtual TFuture<TOperationControllerInitializeResult> Initialize(
-        const std::optional<TOperationTransactions>& transactions) = 0;
+        const std::optional<TOperationTransactions>& transactions,
+        const NYTree::INodePtr& cumulativeSpecPatch) = 0;
 
     //! Invokes IOperationControllerSchedulerHost::Prepare asynchronously.
     virtual TFuture<TOperationControllerPrepareResult> Prepare() = 0;
@@ -195,6 +196,9 @@ struct IOperationController
     //! Invokes IOperationControllerSchedulerHost::UpdateRuntimeParameters asynchronously.
     virtual TFuture<void> UpdateRuntimeParameters(TOperationRuntimeParametersUpdatePtr update) = 0;
 
+    virtual TFuture<void> PatchSpec(
+        const NYTree::INodePtr& newCumulativeSpecPatch,
+        bool dryRun) = 0;
 
     // These methods can be called even without agent being assigned.
 

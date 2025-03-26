@@ -51,6 +51,9 @@ public:
         RegisterMethod(RPC_SERVICE_METHOD_DESC(FinishSession));
     }
 
+private:
+    const IDistributedChunkSessionManagerPtr DistributedChunkSessionManager_;
+
     DECLARE_RPC_SERVICE_METHOD(NDistributedChunkSessionClient::NProto, StartSession)
     {
         auto sessionId = FromProto<TSessionId>(request->session_id());
@@ -83,6 +86,11 @@ public:
 
         ToProto(response, status);
 
+        context->SetResponseInfo(
+            "CloseDemanded: %v, "
+            "WrittenBlockCount: %v",
+            status.CloseDemanded,
+            status.WrittenBlockCount);
         context->Reply();
     }
 
@@ -120,9 +128,6 @@ public:
 
         context->ReplyFrom(session->Close(/*force*/ true));
     }
-
-private:
-    IDistributedChunkSessionManagerPtr DistributedChunkSessionManager_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

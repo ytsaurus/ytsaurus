@@ -13,10 +13,10 @@ from yt.yson import to_yson_type
 from abc import ABCMeta, abstractmethod
 from copy import deepcopy
 
+import typing
+
 if is_schema_module_available():
     from .schema import Variant, OutputRow, RowIterator
-
-    import typing
 
 
 class TypedJob:
@@ -245,14 +245,30 @@ class OperationPreparer:
 
 
 def _request_schemas(paths, client):
-    batch_client = create_batch_client(raise_errors=False, client=client)
+    batch_client_by_cluster = dict()
+
+    def get_client_for_cluster(cluster_name=None):
+        if cluster_name not in batch_client_by_cluster:
+            # NB: assumes that cluster_name == yt_proxy
+            if not cluster_name or cluster_name == client.config["proxy"]["url"]:
+                batch_client_by_cluster[cluster_name] = create_batch_client(raise_errors=False, client=client)
+            else:
+                from yt.wrapper import YtClient
+
+                new_client = YtClient(config=deepcopy(get_config(client)))
+                new_client.config["proxy"]["url"] = cluster_name
+                batch_client_by_cluster[cluster_name] = create_batch_client(raise_errors=False, client=new_client)
+        return batch_client_by_cluster[cluster_name]
+
     batch_responses = []
     for path in paths:
         if path is None:
             batch_responses.append(None)
             continue
-        batch_responses.append(get(path + "/@", attributes=["schema"], client=batch_client))
-    batch_client.commit_batch()
+        batch_responses.append(get(path + "/@", attributes=["schema"], client=get_client_for_cluster(path.attributes.get("cluster", ""))))
+
+    for batch_client in batch_client_by_cluster.values():
+        batch_client.commit_batch()
 
     def get_schema(batch_response):
         if batch_response is None:

@@ -36,10 +36,9 @@ struct TCreateDirectoryAsRootTool
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TMountTmpfsConfig
+struct TMountTmpfsConfig
     : public NYTree::TYsonStruct
 {
-public:
     TString Path;
     int UserId;
     i64 Size;
@@ -60,10 +59,9 @@ struct TMountTmpfsAsRootTool
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TSpawnShellConfig
+struct TSpawnShellConfig
     : public NYTree::TYsonStruct
 {
-public:
     std::optional<TString> Command;
 
     REGISTER_YSON_STRUCT(TSpawnShellConfig);
@@ -82,10 +80,9 @@ struct TSpawnShellTool
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TUmountConfig
+struct TUmountConfig
     : public NYTree::TYsonStruct
 {
-public:
     TString Path;
     bool Detach;
 
@@ -105,10 +102,9 @@ struct TUmountAsRootTool
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TSetThreadPriorityConfig
+struct TSetThreadPriorityConfig
     : public NYTree::TYsonStruct
 {
-public:
     int ThreadId;
     int Priority;
 
@@ -128,10 +124,9 @@ struct TSetThreadPriorityAsRootTool
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TFSQuotaConfig
+struct TFSQuotaConfig
     : public NYTree::TYsonStruct
 {
-public:
     std::optional<i64> DiskSpaceLimit;
     std::optional<i64> InodeLimit;
     int UserId;
@@ -151,10 +146,9 @@ struct TFSQuotaTool
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TChownChmodConfig
+struct TChownChmodConfig
     : public NYTree::TYsonStruct
 {
-public:
     TString Path;
     std::optional<uid_t> UserId;
     std::optional<int> Permissions;
@@ -173,10 +167,9 @@ struct TChownChmodTool
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TGetDirectorySizesAsRootConfig
+struct TGetDirectorySizesAsRootConfig
     : public NYTree::TYsonStruct
 {
-public:
     std::vector<TString> Paths;
     bool IgnoreUnavailableFiles;
     bool DeduplicateByINodes;
@@ -196,10 +189,9 @@ struct TGetDirectorySizesAsRootTool
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TCopyDirectoryContentConfig
+struct TCopyDirectoryContentConfig
     : public NYTree::TYsonStruct
 {
-public:
     TString Source;
     TString Destination;
 
@@ -280,6 +272,27 @@ DEFINE_REFCOUNTED_TYPE(TDirectoryBuilderConfig)
 struct TRootDirectoryBuilderTool
 {
     void operator()(const TDirectoryBuilderConfigPtr& arg) const;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TMkFsConfig
+    : public NYTree::TYsonStruct
+{
+public:
+    TString Path;
+    TString Type;
+
+    REGISTER_YSON_STRUCT(TMkFsConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TMkFsConfig)
+
+struct TMkFsAsRootTool
+{
+    void operator()(const TMkFsConfigPtr& config) const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -552,12 +552,8 @@ TChunkReplicaWithMediumList AllocateWriteTargets(
     auto* req = batchReq->add_subrequests();
     req->set_desired_target_count(desiredTargetCount);
     req->set_min_target_count(minTargetCount);
-    if (replicationFactorOverride) {
-        req->set_replication_factor_override(*replicationFactorOverride);
-    }
-    if (preferredHostName) {
-        req->set_preferred_host_name(ToProto(*preferredHostName));
-    }
+    YT_OPTIONAL_SET_PROTO(req, replication_factor_override, replicationFactorOverride);
+    YT_OPTIONAL_SET_PROTO(req, preferred_host_name, preferredHostName);
     ToProto(req->mutable_forbidden_addresses(), forbiddenAddresses);
     ToProto(req->mutable_allocated_addresses(), allocatedAddresses);
     ToProto(req->mutable_session_id(), sessionId);
@@ -836,7 +832,6 @@ void LocateChunks(
                             chunkId);
                     }
                 } else {
-                    chunkSpecs[globalIndex]->mutable_legacy_replicas()->Swap(subresponse->mutable_legacy_replicas());
                     chunkSpecs[globalIndex]->mutable_replicas()->Swap(subresponse->mutable_replicas());
                     chunkSpecs[globalIndex]->set_erasure_codec(subresponse->erasure_codec());
                 }
@@ -1023,20 +1018,6 @@ void TChunkWriterCounters::Increment(
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-
-TAllyReplicasInfo TAllyReplicasInfo::FromChunkReplicas(
-    const TChunkReplicaList& chunkReplicas,
-    NHydra::TRevision revision)
-{
-    TAllyReplicasInfo result;
-    result.Replicas.reserve(chunkReplicas.size());
-    for (auto replica : chunkReplicas) {
-        result.Replicas.emplace_back(replica);
-    }
-    result.Revision = revision;
-
-    return result;
-}
 
 TAllyReplicasInfo TAllyReplicasInfo::FromChunkReplicas(
     const TChunkReplicaWithMediumList& chunkReplicas,

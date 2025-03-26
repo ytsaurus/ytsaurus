@@ -14,6 +14,19 @@ namespace NYT::NSequoiaClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DEFINE_ENUM(ESequoiaTransactionType,
+    (CypressModification)
+    (CypressTransactionMirroring)
+    (ResponseKeeper)
+    (IncrementalHeartbeat)
+    (FullHeartbeat)
+    (ChunkLocationDisposal)
+    (ChunkConfirmation)
+    (DeadChunkReplicaRemoval)
+    (GroundUpdateQueueFlush)
+    (ObjectDestruction)
+);
+
 DEFINE_ENUM(ESequoiaTable,
     (PathToNodeId)
     (NodeIdToPath)
@@ -66,8 +79,6 @@ struct TSequoiaResponseKeeper;
 DECLARE_REFCOUNTED_STRUCT(ISequoiaClient)
 DECLARE_REFCOUNTED_STRUCT(ISequoiaTransaction)
 
-DECLARE_REFCOUNTED_STRUCT(ILazySequoiaClient)
-
 ////////////////////////////////////////////////////////////////////////////////
 
 YT_DEFINE_STRONG_TYPEDEF(TMangledSequoiaPath, TString);
@@ -96,6 +107,14 @@ DEFINE_STRING_SERIALIZABLE_ENUM(EForkKind,
     ((Tombstone)    (1))
     ((Snapshot)     (2))
 );
+
+////////////////////////////////////////////////////////////////////////////////
+
+DEFINE_ENUM(ESequoiaReign,
+    ((InitialReign) (1))
+);
+
+ESequoiaReign GetCurrentSequoiaReign() noexcept;
 
 ////////////////////////////////////////////////////////////////////////////////
 

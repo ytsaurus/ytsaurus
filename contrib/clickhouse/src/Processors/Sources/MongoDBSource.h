@@ -1,7 +1,7 @@
 #pragma once
 
-#include <Poco/MongoDB/Element.h>
-#include <Poco/MongoDB/Array.h>
+#error #include <DBPoco/MongoDB/Element.h>
+#error #include <DBPoco/MongoDB/Array.h>
 
 #include <Core/Block.h>
 #include <Processors/ISource.h>
@@ -10,7 +10,7 @@
 #include <Core/Field.h>
 
 
-namespace Poco
+namespace DBPoco
 {
 namespace MongoDB
 {
@@ -28,12 +28,12 @@ struct MongoDBArrayInfo
 {
     size_t num_dimensions;
     Field default_value;
-    std::function<Field(const Poco::MongoDB::Element & value, const std::string & name)> parser;
+    std::function<Field(const DBPoco::MongoDB::Element & value, const std::string & name)> parser;
 };
 
-void authenticate(Poco::MongoDB::Connection & connection, const std::string & database, const std::string & user, const std::string & password);
+void authenticate(DBPoco::MongoDB::Connection & connection, const std::string & database, const std::string & user, const std::string & password);
 
-bool isMongoDBWireProtocolOld(Poco::MongoDB::Connection & connection_, const std::string & database_name_);
+bool isMongoDBWireProtocolOld(DBPoco::MongoDB::Connection & connection_, const std::string & database_name_);
 
 class MongoDBCursor
 {
@@ -42,17 +42,17 @@ public:
         const std::string & database,
         const std::string & collection,
         const Block & sample_block_to_select,
-        const Poco::MongoDB::Document & query,
-        Poco::MongoDB::Connection & connection);
+        const DBPoco::MongoDB::Document & query,
+        DBPoco::MongoDB::Connection & connection);
 
-    Poco::MongoDB::Document::Vector nextDocuments(Poco::MongoDB::Connection & connection);
+    DBPoco::MongoDB::Document::Vector nextDocuments(DBPoco::MongoDB::Connection & connection);
 
     Int64 cursorID() const;
 
 private:
     const bool is_wire_protocol_old;
-    std::unique_ptr<Poco::MongoDB::Cursor> old_cursor;
-    std::unique_ptr<Poco::MongoDB::OpMsgCursor> new_cursor;
+    std::unique_ptr<DBPoco::MongoDB::Cursor> old_cursor;
+    std::unique_ptr<DBPoco::MongoDB::OpMsgCursor> new_cursor;
     Int64 cursor_id = 0;
 };
 
@@ -61,10 +61,10 @@ class MongoDBSource final : public ISource
 {
 public:
     MongoDBSource(
-        std::shared_ptr<Poco::MongoDB::Connection> & connection_,
+        std::shared_ptr<DBPoco::MongoDB::Connection> & connection_,
         const String & database_name_,
         const String & collection_name_,
-        const Poco::MongoDB::Document & query_,
+        const DBPoco::MongoDB::Document & query_,
         const Block & sample_block,
         UInt64 max_block_size_);
 
@@ -75,7 +75,7 @@ public:
 private:
     Chunk generate() override;
 
-    std::shared_ptr<Poco::MongoDB::Connection> connection;
+    std::shared_ptr<DBPoco::MongoDB::Connection> connection;
     MongoDBCursor cursor;
     const UInt64 max_block_size;
     ExternalResultDescription description;

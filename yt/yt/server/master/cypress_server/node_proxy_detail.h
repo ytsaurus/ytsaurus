@@ -10,11 +10,12 @@
 #include <yt/yt/server/master/chunk_server/chunk_owner_data_statistics.h>
 
 #include <yt/yt/server/master/object_server/public.h>
-#include <yt/yt/server/master/object_server/permission_validator.h>
 
 #include <yt/yt/server/master/security_server/public.h>
 
 #include <yt/yt/server/master/transaction_server/public.h>
+
+#include <yt/yt/server/lib/object_server/permission_validator.h>
 
 #include <yt/yt/ytlib/cypress_client/proto/cypress_ypath.pb.h>
 
@@ -28,7 +29,7 @@ namespace NYT::NCypressServer {
 class TNontemplateCypressNodeProxyBase
     : public virtual NYTree::TNodeBase
     , public NObjectServer::TObjectProxyBase
-    , public NObjectServer::THierarchicPermissionValidator<TCypressNode>
+    , public NObjectServer::THierarchicPermissionValidator<TCypressNode*, NObjectServer::TObject*>
     , public ICypressNodeProxy
 {
 public:
@@ -196,8 +197,8 @@ protected:
 
     ICypressNodeProxyPtr GetProxy(TCypressNode* trunkNode) const;
 
-    TCompactVector<TCypressNode*, 1> ListDescendantsForPermissionValidation(TCypressNode* node) override;
-    TCypressNode* GetParentForPermissionValidation(TCypressNode* node) override;
+    TCompactVector<NObjectServer::TObject*, 1> ListDescendantsForPermissionValidation(TCypressNode* node) override;
+    NObjectServer::TObject* GetParentForPermissionValidation(TCypressNode* node) override;
 
     void SetReachableSubtreeNodes(TCypressNode* node);
     void SetUnreachableSubtreeNodes(TCypressNode* node);
@@ -209,7 +210,7 @@ protected:
         const std::string& user = {}) override;
 
     // Inject other overloads into the scope.
-    using THierarchicPermissionValidator<TCypressNode>::ValidatePermission;
+    using THierarchicPermissionValidator::ValidatePermission;
     using TObjectProxyBase::ValidatePermission;
 
     void ValidateNotExternal();
@@ -250,6 +251,9 @@ protected:
         const NYPath::TYPath& path,
         const NYTree::INodePtr& child,
         bool recursive) override;
+
+    // COMPAT(babenko)
+    bool IsSchemaAttributeOpaque() const;
 
 private:
     TCypressNode* DoGetThisImpl();

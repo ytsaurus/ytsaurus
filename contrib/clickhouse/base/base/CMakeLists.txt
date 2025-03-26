@@ -22,43 +22,51 @@ target_compile_options(clickhouse-base-base PUBLIC
 )
 
 target_compile_options(clickhouse-base-base PRIVATE
+  -DPOCO_HAVE_FD_EPOLL
   -DBOOST_ASIO_HAS_STD_INVOKE_RESULT=1
   -DBOOST_ASIO_STANDALONE=1
   -DBOOST_TIMER_ENABLE_DEPRECATED=1
   -DINCBIN_SILENCE_BITCODE_WARNING
   -DPOCO_ENABLE_CPP11
-  -DPOCO_HAVE_FD_EPOLL
   -DPOCO_OS_FAMILY_UNIX
   -DWITH_COVERAGE=0
   -D_LIBCPP_ENABLE_THREAD_SAFETY_ANNOTATIONS
+  -D_LIBUNWIND_IS_NATIVE_ONLY
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
 
 target_include_directories(clickhouse-base-base PUBLIC
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/base
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/contrib/pdqsort
   ${PROJECT_SOURCE_DIR}/contrib/libs/miniselect/include
-  ${PROJECT_SOURCE_DIR}/contrib/libs/pdqsort
 )
 
 target_include_directories(clickhouse-base-base PRIVATE
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/base/poco/Foundation/include
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/base/poco/Net/include
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/base/poco/Util/include
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/includes/configs
   ${PROJECT_SOURCE_DIR}/contrib/restricted/cityhash-1.0.2
 )
 
 target_link_libraries(clickhouse-base-base PUBLIC
   linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
+  base-poco-Foundation
+  base-poco-Net
+  base-poco-Util
   contrib-libs-fmt
-  libs-poco-Foundation
-  libs-poco-Net
-  libs-poco-Util
   contrib-restricted-cityhash-1.0.2
   cpp-sanitizer-include
 )
 
 target_sources(clickhouse-base-base PRIVATE
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/base/base/Decimal.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/base/base/JSON.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/base/base/Numa.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/base/base/StringRef.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/base/base/argsToConfig.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/base/base/cgroupsv2.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/base/base/coverage.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/base/base/demangle.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/base/base/errnoToString.cpp
@@ -67,6 +75,8 @@ target_sources(clickhouse-base-base PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/base/base/getMemoryAmount.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/base/base/getPageSize.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/base/base/getThreadId.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/base/base/int8_to_string.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/base/base/itoa.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/base/base/mremap.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/base/base/phdr_cache.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/base/base/preciseExp10.cpp

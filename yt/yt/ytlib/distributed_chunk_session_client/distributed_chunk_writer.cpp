@@ -40,11 +40,9 @@ public:
         , Connection_(std::move(connection))
         , Config_(std::move(config))
         , Invoker_(std::move(invoker))
-    {
-        const auto& channelFactory = Connection_->GetChannelFactory();
-        Channel_ = channelFactory->CreateChannel(
-            CoordinatorNode_.GetAddressOrThrow(Connection_->GetNetworks()));
-    }
+        , Channel_(Connection_->GetChannelFactory()->CreateChannel(
+            CoordinatorNode_.GetAddressOrThrow(Connection_->GetNetworks())))
+    { }
 
     TFuture<void> Write(TSharedRange<TUnversionedRow> rows) final
     {
@@ -61,8 +59,7 @@ private:
     const IConnectionPtr Connection_;
     const TDistributedChunkWriterConfigPtr Config_;
     const IInvokerPtr Invoker_;
-
-    IChannelPtr Channel_;
+    const IChannelPtr Channel_;
 
     void DoWrite(TSharedRange<TUnversionedRow> rows)
     {
@@ -70,7 +67,7 @@ private:
 
         i64 dataWeight = 0;
 
-        for (const auto& row : rows) {
+        for (auto row : rows) {
             blockWriter.WriteRow(row);
 
             dataWeight += 1;

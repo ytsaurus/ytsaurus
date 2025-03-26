@@ -111,7 +111,9 @@ void ProcessRowset(TFinishedQueryResultPartial& newRecord, TWireRowset wireSchem
         dataStatistics.set_data_weight(GetDataWeight(rows));
         newRecord.DataStatistics = ConvertToYsonString(dataStatistics);
         newRecord.IsTruncated = wireSchemaAndSchemafulRowset.IsTruncated;
-        newRecord.FullResult = wireSchemaAndSchemafulRowset.FullResult;
+        if (wireSchemaAndSchemafulRowset.FullResult) {
+            newRecord.FullResult = wireSchemaAndSchemafulRowset.FullResult;
+        }
         if (rowset.Size() <= MaxStringValueLength) {
             // Fast path. Copy full rowset.
             YT_LOG_DEBUG("Copying full rowset of size %v", rowset.Size());

@@ -10,6 +10,8 @@
 
 #include <yt/yt/ytlib/object_client/object_service_proxy.h>
 
+#include <yt/yt/ytlib/scheduler/helpers.h>
+
 #include <yt/yt/ytlib/scheduler/proto/resources.pb.h>
 
 #include <yt/yt/ytlib/security_client/helpers.h>
@@ -129,7 +131,7 @@ TTableSchemaPtr RenameColumnsInSchema(
                 << TErrorAttribute("failed_rename_descriptors", columnMapping)
                 << TErrorAttribute("schema", schema);
         }
-        schema = New<TTableSchema>(newColumns, schema->GetStrict(), schema->GetUniqueKeys());
+        schema = New<TTableSchema>(newColumns, schema->IsStrict(), schema->IsUniqueKeys());
         ValidateColumnUniqueness(*schema);
         return schema;
     } catch (const std::exception& ex) {
@@ -159,8 +161,7 @@ void ValidateJobShellAccess(
     readOptions.ReadFrom = EMasterChannelKind::Cache;
 
     auto userClosure = GetSubjectClosure(
-        // TODO(babenko): switch to std::string
-        TString(user),
+        user,
         proxy,
         client->GetNativeConnection(),
         readOptions);

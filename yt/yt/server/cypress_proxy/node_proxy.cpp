@@ -229,25 +229,12 @@ protected:
         return CellIdFromCellTag(CellTagFromId(id));
     }
 
-    TObjectServiceProxy CreateReadProxyToCell(TCellTag cellTag)
-    {
-        return CreateObjectServiceReadProxy(
-            Bootstrap_->GetNativeRootClient(),
-            EMasterChannelKind::Follower,
-            cellTag,
-            Bootstrap_->GetNativeConnection()->GetStickyGroupSizeCache());
-    }
-
     TObjectServiceProxy CreateReadProxyForObject(TObjectId id)
     {
-        return CreateReadProxyToCell(CellTagFromId(id));
-    }
-
-    TObjectServiceProxy CreateWriteProxyForObject(TObjectId id)
-    {
-        return CreateObjectServiceWriteProxy(
-            Bootstrap_->GetNativeRootClient(),
-            CellTagFromId(id));
+        return TObjectServiceProxy::FromDirectMasterChannel(
+            Bootstrap_
+                ->GetNativeConnection()
+                ->GetMasterChannelOrThrow(EMasterChannelKind::Follower, CellTagFromId(id)));
     }
 
     void ValidateCreateOptions(const TReqCreate* request)
@@ -312,39 +299,14 @@ protected:
         return SequoiaSession_->RemoveRootstock(rootstockId);
     }
 
-    void ForwardRequestAndAbortSequoiaSession(auto requestFactory, const auto& context)
+    void AbortSequoiaSessionForLaterForwardingToMaster()
     {
-        auto newRequest = requestFactory(NYPath::TYPath());
-        newRequest->CopyFrom(context->Request());
-
-        // TODO(kvk1920): it could be better to deal with Cypress tx replication
-        // here since we already have started Sequoia tx. This will require a
-        // request flag "suppress_mirrored_tx_sync" or something similar.
-
-        auto suffix = GetRequestTargetYPath(context->GetRequestHeader());
-        SetRequestTargetYPath(&newRequest->Header(), FromObjectId(Id_) + suffix);
-        SetTransactionId(newRequest, SequoiaSession_->GetCurrentCypressTransactionId());
-        SetAccessTrackingOptions(newRequest, AccessTrackingOptions_);
-        SetAllowResolveFromSequoiaObject(newRequest, true);
-        auto proxy = IsRequestMutating(context->GetRequestHeader())
-            ? CreateWriteProxyForObject(Id_)
-            : CreateReadProxyForObject(Id_);
-
-        // TODO(kvk1920): it always prints "0-0-0-0 -> 0-0-0-0". Investigate it.
-
-        YT_LOG_DEBUG("Forwarded request to master (RequestId: %v -> %v)",
-            context->GetRequestId(),
-            newRequest->GetRequestId());
-
+        InvokeResult_ = EInvokeResult::ForwardToMaster;
         SequoiaSession_->Abort();
-
-        auto rsp = WaitFor(proxy.Execute(std::move(newRequest)))
-            .ValueOrThrow();
-        context->Response().CopyFrom(*rsp);
-        context->Reply();
     }
 
-    // Constructs the response message, saves it into Sequoia response keeper if needed, commits sequoia session and replies with constructed message.
+    // Constructs the response message, saves it into Sequoia response keeper if
+    // needed, commits sequoia session and replies with constructed message.
     void FinishSequoiaSessionAndReply(
         const auto& context,
         TCellId coordinatorCellId,
@@ -367,7 +329,7 @@ protected:
                 if (useResponseKeeper) {
                     // NB: If commit failed, then some error related to dynamic tables occured and client will receive it,
                     // so we should save this error in case of retries on client side.
-                    auto sequoiaTransaction = WaitFor(StartCypressProxyTransaction(Bootstrap_->GetSequoiaClient()))
+                    auto sequoiaTransaction = WaitFor(StartCypressProxyTransaction(Bootstrap_->GetSequoiaClient(), ESequoiaTransactionType::ResponseKeeper))
                         .ValueOrThrow();
                     responseKeeper->KeepResponse(sequoiaTransaction, mutationId, TError(ex));
                     WaitFor(sequoiaTransaction->Commit({
@@ -475,13 +437,13 @@ protected:
         auto attributeFilter = request->has_attributes()
             ? FromProto<TAttributeFilter>(request->attributes())
             : TAttributeFilter();
-        auto limit = YT_PROTO_OPTIONAL(*request, limit);
+        auto limit = YT_OPTIONAL_FROM_PROTO(*request, limit);
 
         context->SetRequestInfo("Limit: %v, AttributeFilter: %v",
             limit,
             attributeFilter);
 
-        ForwardRequestAndAbortSequoiaSession(TYPathProxy::Get, context);
+        AbortSequoiaSessionForLaterForwardingToMaster();
     }
 
     void SetSelf(TReqSet* request, TRspSet* /*response*/, const TCtxSetPtr& context) override
@@ -526,7 +488,9 @@ protected:
                 ParentId_,
                 /*detachInLatePrepare*/ true);
         } else if (IsSequoiaCompositeNodeType(TypeFromId(Id_)) && !SequoiaSession_->IsMapNodeEmpty(Id_)) {
-            THROW_ERROR_EXCEPTION("Cannot remove non-empty composite node");
+            THROW_ERROR_EXCEPTION(
+                NYTree::EErrorCode::CannotRemoveNonemptyCompositeNode,
+                "Cannot remove non-empty composite node");
         } else {
             SequoiaSession_->DetachAndRemoveSingleNode(Id_, Path_, ParentId_);
         }
@@ -541,7 +505,7 @@ protected:
         const TCtxExistsPtr& context) override
     {
         context->SetRequestInfo();
-        ForwardRequestAndAbortSequoiaSession(TYPathProxy::Exists, context);
+        AbortSequoiaSessionForLaterForwardingToMaster();
     }
 
     void ExistsAttribute(
@@ -551,7 +515,7 @@ protected:
         const TCtxExistsPtr& context) override
     {
         context->SetRequestInfo();
-        ForwardRequestAndAbortSequoiaSession(TYPathProxy::Exists, context);
+        AbortSequoiaSessionForLaterForwardingToMaster();
     }
 
     void GetAttribute(
@@ -561,7 +525,7 @@ protected:
         const TCtxGetPtr& context) override
     {
         context->SetRequestInfo();
-        ForwardRequestAndAbortSequoiaSession(TYPathProxy::Get, context);
+        AbortSequoiaSessionForLaterForwardingToMaster();
     }
 
     void SetAttribute(
@@ -610,7 +574,7 @@ protected:
         const TCtxListPtr& context) override
     {
         context->SetRequestInfo();
-        ForwardRequestAndAbortSequoiaSession(TYPathProxy::List, context);
+        AbortSequoiaSessionForLaterForwardingToMaster();
     }
 };
 
@@ -646,7 +610,7 @@ DEFINE_YPATH_SERVICE_METHOD(TNodeProxy, GetBasicAttributes)
     }
 
     context->SetRequestInfo();
-    ForwardRequestAndAbortSequoiaSession(TObjectYPathProxy::GetBasicAttributes, context);
+    AbortSequoiaSessionForLaterForwardingToMaster();
 }
 
 DEFINE_YPATH_SERVICE_METHOD(TNodeProxy, Create)
@@ -971,8 +935,8 @@ DEFINE_YPATH_SERVICE_METHOD(TNodeProxy, Lock)
     }
 
     auto mode = FromProto<ELockMode>(request->mode());
-    auto childKey = YT_PROTO_OPTIONAL(*request, child_key);
-    auto attributeKey = YT_PROTO_OPTIONAL(*request, attribute_key);
+    auto childKey = YT_OPTIONAL_FROM_PROTO(*request, child_key);
+    auto attributeKey = YT_OPTIONAL_FROM_PROTO(*request, attribute_key);
     auto timestamp = request->timestamp();
     auto waitable = request->waitable();
 
@@ -1310,7 +1274,7 @@ private:
             ? FromProto<TAttributeFilter>(request->attributes())
             : TAttributeFilter();
 
-        auto limit = YT_PROTO_OPTIONAL(*request, limit);
+        auto limit = YT_OPTIONAL_FROM_PROTO(*request, limit);
 
         if (limit && limit < 0) {
             THROW_ERROR_EXCEPTION("Limit is negative")
@@ -1446,7 +1410,7 @@ private:
             ? FromProto<TAttributeFilter>(request->attributes())
             : TAttributeFilter();
 
-        auto limit = YT_PROTO_OPTIONAL(*request, limit);
+        auto limit = YT_OPTIONAL_FROM_PROTO(*request, limit);
 
         context->SetRequestInfo("Limit: %v, AttributeFilter: %v",
             limit,
@@ -1471,7 +1435,7 @@ private:
             ? FromProto<TAttributeFilter>(request->attributes())
             : TAttributeFilter();
 
-        auto limit = YT_PROTO_OPTIONAL(*request, limit);
+        auto limit = YT_OPTIONAL_FROM_PROTO(*request, limit);
 
         context->SetRequestInfo("Limit: %v, AttributeFilter: %v",
             limit,
@@ -1555,7 +1519,7 @@ private:
             ? FromProto<TAttributeFilter>(request->attributes())
             : TAttributeFilter();
 
-        auto limit = YT_PROTO_OPTIONAL(*request, limit);
+        auto limit = YT_OPTIONAL_FROM_PROTO(*request, limit);
 
         context->SetRequestInfo("Limit: %v, AttributeFilter: %v",
             limit,

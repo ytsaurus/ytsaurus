@@ -401,6 +401,7 @@ message TDqStageStats {
 
     uint32 TotalTasksCount = 5;
     uint32 FailedTasksCount = 6;
+    uint32 FinishedTasksCount = 50;
 
     TDqStatsAggr CpuTimeUs = 8;
     TDqStatsAggr SourceCpuTimeUs = 25;
@@ -484,6 +485,9 @@ message TDqExecutionStats {
 
     repeated TDqStageStats Stages = 14;
     repeated string TxPlansWithStats = 15;
+
+    uint64 StatFinishBytes = 16;
+    uint64 StatConvertBytes = 17;
 
     google.protobuf.Any Extra = 100;
 }

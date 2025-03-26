@@ -4,7 +4,7 @@ Window functions were introduced in the SQL:2003 standard and expanded in the SQ
 
 Unlike aggregate functions, using window functions doesn't cause rows to become grouped into a single output row: the number of rows in the results table always matches that in the source table.
 
-If a query contains both aggregate and window functions, grouping is performed and aggregate function values are calculated first. The calculated values of aggregate functions can be used as window function arguments (but not the other way around). The order for calculating window functions in relation to other query elements is described in the [SELECT](select.md#selectexec) section.
+If a query contains both aggregate and window functions, grouping is performed and aggregate function values are calculated first. The calculated values of aggregate functions can be used as window function arguments (but not the other way around). The order for calculating window functions in relation to other query elements is described in the [SELECT](select/index.md#selectexec) section.
 
 ## Syntax {#syntax}
 

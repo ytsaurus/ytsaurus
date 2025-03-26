@@ -104,7 +104,8 @@ public:
             Report_.ControllerState(),
             Report_.ArchiveFeatures(),
             Report_.Ttl(),
-            Report_.OperationIncarnation());
+            Report_.OperationIncarnation(),
+            Report_.AllocationId().Underlying());
     }
 
     TUnversionedOwningRow ToRow(int archiveVersion) const override
@@ -190,6 +191,12 @@ public:
         // COMPAT(eshcherbin)
         if (archiveVersion >= 55 && Report_.OperationIncarnation()) {
             record.OperationIncarnation = Report_.OperationIncarnation();
+        }
+        // COMPAT(bystrovserg)
+        if (archiveVersion >= 56 && Report_.AllocationId()) {
+            auto allocationIdAsGuid = Report_.AllocationId().Underlying();
+            record.AllocationIdHi = allocationIdAsGuid.Parts64[0];
+            record.AllocationIdLo = allocationIdAsGuid.Parts64[1];
         }
 
         return FromRecord(record);

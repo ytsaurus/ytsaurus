@@ -11,6 +11,7 @@ import io.netty.channel.nio.NioEventLoopGroup;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
+import org.testcontainers.containers.GenericContainer;
 import tech.ytsaurus.client.bus.BusConnector;
 import tech.ytsaurus.client.bus.DefaultBusConnector;
 import tech.ytsaurus.client.request.CreateNode;
@@ -33,14 +34,14 @@ public class RpcBackendTest extends YTsaurusClientTestBase {
 
     @Before
     public void setup() throws IOException {
-        final int proxyPort = localYTsaurus != null ? localYTsaurus.getMappedPort(80) :
-                Integer.parseInt(
-                        System.getenv("YT_PROXY").split(":")[1]
-                );
+        GenericContainer<?> ytsaurusContainer = getYtsaurusContainer();
+        final int proxyPort = ytsaurusContainer != null
+                ? ytsaurusContainer.getMappedPort(80)
+                : Integer.parseInt(System.getenv("YT_PROXY").split(":")[1]);
 
         final BusConnector connector = new DefaultBusConnector(new NioEventLoopGroup(0));
 
-        final String host = localYTsaurus != null ? localYTsaurus.getHost() : "localhost";
+        final String host = ytsaurusContainer != null ? ytsaurusContainer.getHost() : "localhost";
 
         final String user = "root";
         final String token = "";

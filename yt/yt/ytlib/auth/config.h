@@ -13,10 +13,9 @@ namespace NYT::NAuth {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TNativeAuthenticationManagerConfig
+struct TNativeAuthenticationManagerConfig
     : public NYTree::TYsonStruct
 {
-public:
     //! Native TVM service config. If it's null, then no native TVM service is used.
     TTvmServiceConfigPtr TvmService;
 
@@ -35,10 +34,9 @@ DEFINE_REFCOUNTED_TYPE(TNativeAuthenticationManagerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TNativeAuthenticationManagerDynamicConfig
+struct TNativeAuthenticationManagerDynamicConfig
     : public NYTree::TYsonStruct
 {
-public:
     std::optional<bool> EnableValidation;
     std::optional<bool> EnableSubmission;
 
@@ -51,10 +49,9 @@ DEFINE_REFCOUNTED_TYPE(TNativeAuthenticationManagerDynamicConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TTvmBridgeConfig
+struct TTvmBridgeConfig
     : public NYTree::TYsonStruct
 {
-public:
     //! Source TVM id.
     TTvmId SelfTvmId;
 

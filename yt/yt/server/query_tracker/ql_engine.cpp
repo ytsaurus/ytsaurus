@@ -94,7 +94,7 @@ public:
     IQueryHandlerPtr StartOrAttachQuery(NRecords::TActiveQuery activeQuery) override
     {
         auto settings = ConvertToAttributes(activeQuery.Settings);
-        auto cluster = settings->Find<TString>("cluster").value_or(Config_->DefaultCluster);
+        auto cluster = settings->Find<std::string>("cluster").value_or(Config_->DefaultCluster);
         auto queryClient = ClusterDirectory_->GetConnectionOrThrow(cluster)->CreateClient(TClientOptions{.User = activeQuery.User});
         return New<TQLQueryHandler>(StateClient_, StateRoot_, Config_, activeQuery, queryClient, ControlQueue_->GetInvoker());
     }

@@ -5,14 +5,14 @@ types:
     descriptor_verbatim: static constexpr TStringBuf Name = "queues";
     fields:
       - cpp_name: Cluster
-        cpp_type: TString
+        cpp_type: std::string
         column_name: cluster
         column_type: String
         sort_order: Ascending
         required: True
 
       - cpp_name: Path
-        cpp_type: TString
+        cpp_type: NYPath::TYPath
         column_name: path
         column_type: String
         sort_order: Ascending
@@ -29,7 +29,7 @@ types:
         column_type: Uint64
 
       - cpp_name: ObjectType
-        cpp_type: std::optional<TString>
+        cpp_type: std::optional<std::string>
         column_name: object_type
         column_type: String
 

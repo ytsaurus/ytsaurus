@@ -540,22 +540,23 @@ TBlockIO::TStatistics TBlockIO::GetStatistics() const
     TBlockIO::TStatistics result;
 #ifdef _linux_
         auto bytesStats = GetDetailedStatistics("blkio.io_service_bytes");
+        // TODO(vvshlyaga): Add per disk statistics.
         for (const auto& item : bytesStats) {
             if (item.Type == "Read") {
-                result.IOReadByte = result.IOReadByte.ValueOrThrow() + item.Value;
+                result.TotalIOStatistics.IOReadByte = result.TotalIOStatistics.IOReadByte.ValueOrThrow() + item.Value;
             } else if (item.Type == "Write") {
-                result.IOWriteByte = result.IOReadByte.ValueOrThrow() + item.Value;
+                result.TotalIOStatistics.IOWriteByte = result.TotalIOStatistics.IOReadByte.ValueOrThrow() + item.Value;
             }
         }
 
         auto ioStats = GetDetailedStatistics("blkio.io_serviced");
         for (const auto& item : ioStats) {
             if (item.Type == "Read") {
-                result.IOReadOps = result.IOReadOps.ValueOrThrow() + item.Value;
-                result.IOOps = result.IOOps.ValueOrThrow() + item.Value;
+                result.TotalIOStatistics.IOReadOps = result.TotalIOStatistics.IOReadOps.ValueOrThrow() + item.Value;
+                result.TotalIOStatistics.IOOps = result.TotalIOStatistics.IOOps.ValueOrThrow() + item.Value;
             } else if (item.Type == "Write") {
-                result.IOWriteOps = result.IOWriteOps.ValueOrThrow() + item.Value;
-                result.IOOps = result.IOOps.ValueOrThrow() + item.Value;
+                result.TotalIOStatistics.IOWriteOps = result.TotalIOStatistics.IOWriteOps.ValueOrThrow() + item.Value;
+                result.TotalIOStatistics.IOOps = result.TotalIOStatistics.IOOps.ValueOrThrow() + item.Value;
             }
         }
 #endif

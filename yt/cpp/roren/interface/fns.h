@@ -11,6 +11,8 @@
 #include "private/raw_state_store.h"
 #include "timers.h"
 
+#include <yt/cpp/roren/library/unordered_invoker/unordered_invoker.h>
+
 #include <util/generic/function.h>
 
 #include <span>
@@ -93,6 +95,12 @@ concept CMoveRow = CRow<T> && std::same_as<T, std::decay_t<T>&&>;
 
 template <CRow T>
 using TDoFnInput = std::conditional_t<CMoveRow<T>, std::decay_t<T>&&, const std::decay_t<T>&>;
+
+template <typename T>
+using TDoFnTemplateArgument = std::conditional_t<
+    std::same_as<T, std::decay_t<T>&&>,
+    std::decay_t<T>&&,
+    std::decay_t<T>>;
 
 template <CRow TInput_, typename TOutput_>
 class IDoFn
@@ -242,14 +250,16 @@ public:
     virtual TOutputRow ExtractOutput(const TAccumRow& accum) = 0;
 };
 
-template <typename TRow>
-class TLambdaCombineFn final
+template <typename TFunc, typename TRow>
+class TFunctorCombineFn final
     : public ICombineFn<TRow, TRow, TRow>
 {
-    using TFunc = void(*)(TRow*, const TRow&);
 public:
-    TLambdaCombineFn(TFunc func = nullptr)
-        : Func_(func)
+    TFunctorCombineFn() = default;
+
+    template <typename F>
+    TFunctorCombineFn(F&& func)
+        : Func_(std::forward<F>(func))
     { }
 
     TRow CreateAccumulator() final
@@ -259,8 +269,7 @@ public:
 
     void AddInput(TRow* accum, const TRow& input) final
     {
-        YT_VERIFY(Func_ != nullptr);
-        Func_(accum, input);
+        NPrivate::InvokeUnordered(Func_, accum, input, this->GetExecutionContext());
     }
 
     TRow MergeAccumulators(TInput<TRow>& accums) final
@@ -278,7 +287,7 @@ public:
     }
 
 private:
-    Y_SAVELOAD_DEFINE_OVERRIDE(NPrivate::SaveLoadablePointer(Func_));
+    Y_SAVELOAD_DEFINE_OVERRIDE(Func_);
 
     TFunc Func_;
 };

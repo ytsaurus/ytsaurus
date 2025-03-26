@@ -46,7 +46,7 @@ constexpr int MaxSupportedCHDecimalPrecision = 76;
 extern const TString CacheUserName;
 extern const TString ChytSqlObjectsUserName;
 extern const TString InternalRemoteUserName;
-extern const std::vector<TString> TableAttributesToFetch;
+extern const std::vector<std::string> TableAttributesToFetch;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -66,49 +66,49 @@ class TQueryProgressValues;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DECLARE_REFCOUNTED_CLASS(TEngineConfig)
-DECLARE_REFCOUNTED_CLASS(TDictionarySourceYtConfig)
-DECLARE_REFCOUNTED_CLASS(TDictionarySourceConfig)
-DECLARE_REFCOUNTED_CLASS(TDictionaryConfig)
-DECLARE_REFCOUNTED_CLASS(TClickHouseServerBootstrapConfig)
-DECLARE_REFCOUNTED_CLASS(TUserConfig)
-DECLARE_REFCOUNTED_CLASS(TShowTablesConfig)
-DECLARE_REFCOUNTED_CLASS(TSubqueryConfig)
-DECLARE_REFCOUNTED_CLASS(TSystemLogConfig)
-DECLARE_REFCOUNTED_CLASS(TPocoInvalidCertificateHandlerConfig)
+DECLARE_REFCOUNTED_STRUCT(TEngineConfig)
+DECLARE_REFCOUNTED_STRUCT(TDictionarySourceYtConfig)
+DECLARE_REFCOUNTED_STRUCT(TDictionarySourceConfig)
+DECLARE_REFCOUNTED_STRUCT(TDictionaryConfig)
+DECLARE_REFCOUNTED_STRUCT(TClickHouseServerBootstrapConfig)
+DECLARE_REFCOUNTED_STRUCT(TUserConfig)
+DECLARE_REFCOUNTED_STRUCT(TShowTablesConfig)
+DECLARE_REFCOUNTED_STRUCT(TSubqueryConfig)
+DECLARE_REFCOUNTED_STRUCT(TSystemLogConfig)
+DECLARE_REFCOUNTED_STRUCT(TPocoInvalidCertificateHandlerConfig)
 DECLARE_REFCOUNTED_CLASS(TPocoOpenSslConfigEntry)
-DECLARE_REFCOUNTED_CLASS(TPocoOpenSslConfig)
-DECLARE_REFCOUNTED_CLASS(TQueryCacheConfig)
-DECLARE_REFCOUNTED_CLASS(TUserDefinedSqlObjectsStorageConfig)
-DECLARE_REFCOUNTED_CLASS(TSystemLogTableExporterConfig)
-DECLARE_REFCOUNTED_CLASS(TSystemLogTableExportersConfig)
-DECLARE_REFCOUNTED_CLASS(TMemoryWatchdogConfig)
-DECLARE_REFCOUNTED_CLASS(THealthCheckerConfig)
+DECLARE_REFCOUNTED_STRUCT(TPocoOpenSslConfig)
+DECLARE_REFCOUNTED_STRUCT(TQueryCacheConfig)
+DECLARE_REFCOUNTED_STRUCT(TUserDefinedSqlObjectsStorageConfig)
+DECLARE_REFCOUNTED_STRUCT(TSystemLogTableExporterConfig)
+DECLARE_REFCOUNTED_STRUCT(TSystemLogTableExportersConfig)
+DECLARE_REFCOUNTED_STRUCT(TMemoryWatchdogConfig)
+DECLARE_REFCOUNTED_STRUCT(THealthCheckerConfig)
 DECLARE_REFCOUNTED_CLASS(TQueryRegistry)
 DECLARE_REFCOUNTED_CLASS(THealthChecker)
 DECLARE_REFCOUNTED_STRUCT(TTable)
 DECLARE_REFCOUNTED_STRUCT(TQueryContext)
 DECLARE_REFCOUNTED_STRUCT(TStorageContext)
-DECLARE_REFCOUNTED_CLASS(TClickHouseConfig)
-DECLARE_REFCOUNTED_CLASS(TYtConfig)
+DECLARE_REFCOUNTED_STRUCT(TClickHouseConfig)
+DECLARE_REFCOUNTED_STRUCT(TYtConfig)
 DECLARE_REFCOUNTED_STRUCT(IClickHouseHost)
 DECLARE_REFCOUNTED_STRUCT(IClickHouseServer)
 DECLARE_REFCOUNTED_CLASS(TQuerySettings)
 DECLARE_REFCOUNTED_CLASS(THost)
-DECLARE_REFCOUNTED_CLASS(TSecurityManagerConfig)
-DECLARE_REFCOUNTED_CLASS(TLauncherConfig)
-DECLARE_REFCOUNTED_CLASS(TMemoryConfig)
+DECLARE_REFCOUNTED_STRUCT(TSecurityManagerConfig)
+DECLARE_REFCOUNTED_STRUCT(TLauncherConfig)
+DECLARE_REFCOUNTED_STRUCT(TMemoryConfig)
 DECLARE_REFCOUNTED_CLASS(TMemoryWatchdog)
 DECLARE_REFCOUNTED_CLASS(TCompositeSettings)
 DECLARE_REFCOUNTED_CLASS(TDynamicTableSettings)
 DECLARE_REFCOUNTED_CLASS(TTestingSettings)
 DECLARE_REFCOUNTED_CLASS(TExecutionSettings)
 DECLARE_REFCOUNTED_CLASS(TClickHouseIndex)
-DECLARE_REFCOUNTED_CLASS(TGossipConfig)
-DECLARE_REFCOUNTED_CLASS(TInvokerLivenessCheckerConfig)
-DECLARE_REFCOUNTED_CLASS(TQueryRegistryConfig)
-DECLARE_REFCOUNTED_CLASS(TQuerySamplingConfig)
-DECLARE_REFCOUNTED_CLASS(TClickHouseTableConfig)
+DECLARE_REFCOUNTED_STRUCT(TGossipConfig)
+DECLARE_REFCOUNTED_STRUCT(TInvokerLivenessCheckerConfig)
+DECLARE_REFCOUNTED_STRUCT(TQueryRegistryConfig)
+DECLARE_REFCOUNTED_STRUCT(TQuerySamplingConfig)
+DECLARE_REFCOUNTED_STRUCT(TClickHouseTableConfig)
 DECLARE_REFCOUNTED_CLASS(TSerializableSpanContext)
 DECLARE_REFCOUNTED_CLASS(TSecondaryQueryHeader)
 DECLARE_REFCOUNTED_CLASS(TInvokerLivenessChecker)
@@ -283,12 +283,17 @@ class IDatabase;
 class KeyCondition;
 class NamesAndTypesList;
 class StorageFactory;
+class VirtualColumnsDescription;
+class ActionsDAG;
 
 struct ASTTableExpression;
 struct ProcessListForUserInfo;
 struct QueryStatusInfo;
 struct SelectQueryInfo;
 struct Settings;
+
+class IQueryTreeNode;
+using QueryTreeNodePtr = std::shared_ptr<IQueryTreeNode>;
 
 class IDataType;
 using DataTypePtr = std::shared_ptr<const IDataType>;
@@ -304,6 +309,9 @@ using ExpressionActionsPtr = std::shared_ptr<ExpressionActions>;
 
 struct PrewhereInfo;
 using PrewhereInfoPtr = std::shared_ptr<PrewhereInfo>;
+
+class IDatabase;
+using DatabasePtr = std::shared_ptr<IDatabase>;
 
 // TODO(max42): get rid of this!
 void registerStorageMemory(StorageFactory& factory);

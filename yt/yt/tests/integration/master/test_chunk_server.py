@@ -12,7 +12,7 @@ from yt_commands import (
 from yt_helpers import profiler_factory
 
 from yt.environment.helpers import assert_items_equal
-from yt.common import YtError, WaitFailed
+from yt.common import WaitFailed
 import yt.yson as yson
 
 import pytest
@@ -76,8 +76,8 @@ class TestChunkServer(YTEnvSetup):
         nodes_to_decommission = self._decommission_chunk_replicas(chunk_id, replica_count, node_to_decommission_count)
 
         wait(
-            lambda: not self._nodes_have_chunk(nodes_to_decommission, chunk_id)
-            and len(get(f"#{chunk_id}/@stored_replicas")) == replica_count
+            lambda: len(get(f"#{chunk_id}/@stored_replicas")) == replica_count and
+            not self._nodes_have_chunk(nodes_to_decommission, chunk_id)
         )
 
     def _decommission_chunk_replicas(self, chunk_id, replica_count, node_to_decommission_count):
@@ -161,6 +161,17 @@ class TestChunkServer(YTEnvSetup):
 
         wait(lambda: get(f"//sys/cluster_nodes/{nodes[0]}/@decommissioned"))
         wait(lambda: len(get(f"#{chunk_id}/@stored_replicas")) == 6)
+
+    @authors("aleksandra-zh")
+    def test_decommission_erasure_via_replication(self):
+        set("//sys/@config/chunk_manager/enable_repair_via_replication", True)
+        for node in ls("//sys/cluster_nodes"):
+            set(f"//sys/cluster_nodes/{node}/@resource_limits_overrides/repair_slots", 0)
+
+        create("table", "//tmp/t")
+        set("//tmp/t/@erasure_codec", "reed_solomon_3_3")
+        write_table("//tmp/t", {"a": "b"})
+        self._test_decommission("//tmp/t", 6)
 
     @authors("babenko")
     def test_decommission_journal(self):
@@ -796,17 +807,24 @@ class TestChunkServerMulticell(TestChunkServer):
     NUM_SECONDARY_MASTER_CELLS = 2
     NUM_SCHEDULERS = 1
 
+    DELTA_DYNAMIC_MASTER_CONFIG = {
+        "multicell_manager": {
+            # NB: Allow to remove secondary cell default roles from cells with chunks and nodes behind portal.
+            "allow_master_cell_role_invariant_check": False,
+        },
+    }
+
     @authors("babenko")
     def test_validate_chunk_host_cell_role1(self):
         set("//sys/@config/multicell_manager/cell_descriptors", {"11": {"roles": ["cypress_node_host"]}})
-        with pytest.raises(YtError):
+        with raises_yt_error("cannot host chunks"):
             create("table", "//tmp/t", attributes={"external": True, "external_cell_tag": 11})
 
     @authors("aleksandra-zh")
     def test_validate_chunk_host_cell_role2(self):
         set("//sys/@config/multicell_manager/remove_secondary_cell_default_roles", True)
         set("//sys/@config/multicell_manager/cell_descriptors", {})
-        with pytest.raises(YtError):
+        with raises_yt_error("cannot host chunks"):
             create("table", "//tmp/t", attributes={"external": True, "external_cell_tag": 11})
 
         set("//sys/@config/multicell_manager/remove_secondary_cell_default_roles", False)
@@ -855,20 +873,20 @@ class TestChunkServerMulticell(TestChunkServer):
             return False
 
         set("//sys/@config/multicell_manager/cell_descriptors",
-            {"11": {"roles": ["chunk_host", "dedicated_chunk_host"]}})
+            {"12": {"roles": ["chunk_host", "dedicated_chunk_host"]}})
         wait(lambda: has_alert('Cell received conflicting "chunk_host" and "dedicated_chunk_host" roles'))
 
         set("//sys/@config/multicell_manager/cell_descriptors",
-            {"11": {"roles": ["chunk_host"]}})
+            {"12": {"roles": ["chunk_host"]}})
         wait(lambda: not has_alert('Cell received conflicting "chunk_host" and "dedicated_chunk_host" roles'))
 
     @authors("h0pless")
     def test_dedicated_chunk_host_roles_only(self):
         set("//sys/@config/multicell_manager/cell_descriptors", {
-            "11": {"roles": ["dedicated_chunk_host"]},
+            "11": {"roles": ["dedicated_chunk_host", "cypress_node_host"]},
             "12": {"roles": ["dedicated_chunk_host"]}})
 
-        with pytest.raises(YtError, match="No secondary masters with a chunk host role were found"):
+        with raises_yt_error("No secondary masters with a chunk host role were found"):
             create("table", "//tmp/t", attributes={
                 "schema": [
                     {"name": "a", "type": "int64"},
@@ -878,12 +896,12 @@ class TestChunkServerMulticell(TestChunkServer):
 
     @authors("h0pless")
     def test_dedicated_chunk_host_role(self):
-        dedicated_host_cell_tag = 11
-        chunk_host_cell_tag = 12
+        dedicated_host_cell_tag = 12
+        chunk_host_cell_tag = 11
 
         set("//sys/@config/multicell_manager/cell_descriptors", {
-            "11": {"roles": ["dedicated_chunk_host"]},
-            "12": {"roles": ["chunk_host"]}})
+            "11": {"roles": ["chunk_host", "cypress_node_host"]},
+            "12": {"roles": ["dedicated_chunk_host"]}})
 
         create("table", "//tmp/t1", attributes={
             "schema": [
@@ -939,8 +957,6 @@ class TestChunkServerMulticell(TestChunkServer):
 
     @authors("koloshmet")
     def test_lost_vital_chunks_sample(self):
-        pytest.skip()
-
         set("//sys/@config/chunk_manager/lost_vital_chunks_sample_update_period", 1000)
 
         create("table", "//tmp/t0", attributes={"external": False})
@@ -964,7 +980,36 @@ class TestChunkServerMulticell(TestChunkServer):
 
         wait(lambda: get("//sys/@lost_vital_chunk_count") == 4)
         wait(lambda: get("//sys/lost_vital_chunks_sample/@count") == 4)
+
+        lost_vital_chunks_sample = ls("//sys/lost_vital_chunks_sample")
+        assert chunk_id0 in lost_vital_chunks_sample
+        assert chunk_id1 in lost_vital_chunks_sample
+        assert chunk_id2 in lost_vital_chunks_sample
+        assert chunk_id3 in lost_vital_chunks_sample
+
         lost_vital_chunks_sample = get("//sys/lost_vital_chunks_sample")
+        for chunk in lost_vital_chunks_sample:
+            assert lost_vital_chunks_sample[chunk] == yson.YsonEntity()
+        assert chunk_id0 in lost_vital_chunks_sample
+        assert chunk_id1 in lost_vital_chunks_sample
+        assert chunk_id2 in lost_vital_chunks_sample
+        assert chunk_id3 in lost_vital_chunks_sample
+
+        assert get(f"//sys/lost_vital_chunks_sample/{chunk_id0}/@id") == chunk_id0
+
+        lost_vital_chunks_sample = ls("//sys/lost_vital_chunks_sample", attributes=["id"])
+        lost_vital_chunks_sample_list = []
+        for chunk in lost_vital_chunks_sample:
+            assert chunk.attributes.get("id") == str(chunk)
+            lost_vital_chunks_sample_list.append(str(chunk))
+        assert chunk_id0 in lost_vital_chunks_sample_list
+        assert chunk_id1 in lost_vital_chunks_sample_list
+        assert chunk_id2 in lost_vital_chunks_sample_list
+        assert chunk_id3 in lost_vital_chunks_sample_list
+
+        lost_vital_chunks_sample = get("//sys/lost_vital_chunks_sample", attributes=["id"])
+        for chunk in lost_vital_chunks_sample:
+            assert lost_vital_chunks_sample[chunk].attributes.get("id") == chunk
         assert chunk_id0 in lost_vital_chunks_sample
         assert chunk_id1 in lost_vital_chunks_sample
         assert chunk_id2 in lost_vital_chunks_sample
@@ -983,6 +1028,16 @@ class TestChunkServerMulticell(TestChunkServer):
 
         wait(lambda: get("//sys/@lost_vital_chunk_count") == 0)
         wait(lambda: get("//sys/lost_vital_chunks_sample/@count") == 0)
+
+    @authors("cherepashka")
+    def test_revoke_chunk_host_role_validation(self):
+        set("//sys/@config/multicell_manager/allow_master_cell_role_invariant_check", True)
+        set("//sys/@config/multicell_manager/cell_descriptors", {"11": {"roles": ["chunk_host", "cypress_node_host"]}})
+        create("table", "//tmp/t", attributes={"external_cell_tag": 11})
+        for i in range(10):
+            write_table("<append=%true>//tmp/t", [{"a": i}])
+        with raises_yt_error("it still hosts chunks"):
+            set("//sys/@config/multicell_manager/cell_descriptors", {"11": {"roles": ["cypress_node_host"]}})
 
 
 ##################################################################
@@ -1070,7 +1125,7 @@ class TestChunkServerReplicaRemoval(YTEnvSetup):
             }
         })
         create("journal", "//tmp/j")
-        write_journal("//tmp/j", [{"payload": "payload" + str(i)} for i in range(0, 10)])
+        write_journal("//tmp/j", [{"payload": "payload" + str(i)} for i in range(0, 10)], enable_chunk_preallocation=False)
 
         self._wait_for_replicas_removal("//tmp/j", service_to_restart)
 
@@ -1711,7 +1766,7 @@ class TestChunkServerCypressIntegration(YTEnvSetup):
         set_node_banned(node, True)
         wait(lambda: chunk_id in get("//sys/lost_chunks"))
 
-        with pytest.raises(YtError, match="Mutating request through virtual map is forbidden"):
+        with raises_yt_error("Mutating request through virtual map is forbidden"):
             set(f"//sys/lost_chunks/{chunk_id}/@a", "a")
 
         # Should not raise

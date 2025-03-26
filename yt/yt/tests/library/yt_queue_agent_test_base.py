@@ -7,6 +7,8 @@ from yt_commands import (freeze_table, get, read_table, set, ls, unfreeze_table,
                          sync_freeze_table, sync_unfreeze_table, create_table_replica, sync_enable_table_replica,
                          advance_consumer, insert_rows, wait_for_tablet_state)
 
+from yt_helpers import parse_yt_time
+
 from yt.common import YtError, update_inplace, update
 
 import builtins
@@ -20,6 +22,9 @@ import yt.environment.init_queue_agent_state as init_queue_agent_state
 
 ##################################################################
 
+
+# TODO(apachee): Simplify code for get_xxx method by generating them from
+# field names (and maybe post-processing functions).
 
 class OrchidBase:
     ENTITY_NAME = None
@@ -167,12 +172,54 @@ class ObjectOrchid(OrchidWithRegularPasses):
         return get(f"{self.orchid_path()}/row")
 
 
+class QueueExporterOrchid(OrchidBase):
+    def __init__(self, queue_orchid: "QueueOrchid", export_name: str):
+        self.queue_orchid = queue_orchid
+        self.export_name = export_name
+
+    def queue_agent_orchid_path(self):
+        return self.queue_orchid.queue_agent_orchid_path()
+
+    def orchid_path(self):
+        return f"{self.queue_orchid.orchid_path()}/exporters/{self.export_name}"
+
+    def get(self):
+        return get(self.orchid_path())
+
+    def get_export_task_invocation_index(self):
+        return get(f"{self.orchid_path()}/export_task_invocation_index")
+
+    def get_export_task_invocation_instant(self):
+        return parse_yt_time(get(f"{self.orchid_path()}/export_task_invocation_instant"))
+
+    def get_retry_index(self):
+        return get(f"{self.orchid_path()}/retry_index")
+
+    def get_retry_backoff_duration_seconds(self):
+        return get(f"{self.orchid_path()}/retry_backoff_duration") / 1000
+
+    def wait_fresh_invocation(self):
+        invocation_index = self.get_export_task_invocation_index()
+        wait(lambda: self.get_export_task_invocation_index() >= invocation_index + 2, sleep_backoff=0.15)
+
+
 class QueueOrchid(ObjectOrchid):
     OBJECT_TYPE = "queue"
 
     def get_queue(self):
         result = self.get()
         return result["status"], result["partitions"]
+
+    def get_exporter_orchid(self, export_name: str = "default"):
+        return QueueExporterOrchid(self, export_name)
+
+
+class OwnedQueueOrchid(ObjectOrchid):
+    OBJECT_TYPE = "owned_queue"
+
+
+class OwnedConsumerOrchid(ObjectOrchid):
+    OBJECT_TYPE = "owned_consumer"
 
 
 class ConsumerOrchid(ObjectOrchid):
@@ -190,25 +237,74 @@ class ConsumerOrchid(ObjectOrchid):
 class QueueAgentOrchid(OrchidWithRegularPasses):
     ENTITY_NAME = "queue_agent"
 
-    def get_queues(self):
+    def list_queues(self):
+        """
+        List all queues from all instances.
+        """
         self.wait_fresh_pass()
-        return get(self.orchid_path() + "/queues")
+        return ls(self.orchid_path() + "/queues")
 
-    def get_consumers(self):
+    def list_consumers(self):
+        """
+        List all consumers from all instances.
+        """
         self.wait_fresh_pass()
-        return get(self.orchid_path() + "/consumers")
+        return ls(self.orchid_path() + "/consumers")
+
+    def list_instance_queues(self):
+        """
+        List all queues from this instance.
+        """
+        self.wait_fresh_pass()
+        return ls(self.orchid_path() + "/owned_queues")
+
+    def list_instance_consumers(self):
+        """
+        List all consumers from this instance.
+        """
+        self.wait_fresh_pass()
+        return ls(self.orchid_path() + "/owned_consumers")
+
+    def get_instance_queues(self):
+        """
+        Get all queues from this instance.
+        """
+        self.wait_fresh_pass()
+        return get(self.orchid_path() + "/owned_queues")
+
+    def get_instance_consumers(self):
+        """
+        Get all consumers from this instance.
+        """
+        self.wait_fresh_pass()
+        return get(self.orchid_path() + "/owned_consumers")
 
     def get_queue_orchid(self, queue_ref):
         return QueueOrchid(queue_ref, self.agent_id)
 
+    def get_owned_queue_orchid(self, queue_ref):
+        return OwnedQueueOrchid(queue_ref, self.agent_id)
+
     def get_queue_orchids(self):
-        return [self.get_queue_orchid(queue) for queue in self.get_queues()]
+        return [self.get_queue_orchid(queue) for queue in self.list_queues()]
+
+    def get_owned_queue_orchids(self):
+        return [self.get_owned_queue_orchid(queue) for queue in self.list_queues()]
 
     def get_consumer_orchid(self, consumer_ref):
         return ConsumerOrchid(consumer_ref, self.agent_id)
 
+    def get_owned_consumer_orchid(self, consumer_ref):
+        return OwnedConsumerOrchid(consumer_ref, self.agent_id)
+
     def get_consumer_orchids(self):
-        return [self.get_consumer_orchid(consumer) for consumer in self.get_consumers()]
+        return [self.get_consumer_orchid(consumer) for consumer in self.list_consumers()]
+
+    def get_owned_consumer_orchids(self):
+        return [self.get_consumer_orchid(consumer) for consumer in self.list_consumers()]
+
+    def get_controller_info(self):
+        return get(f"{self.orchid_path()}/controller_info")
 
 
 class AlertManagerOrchid(OrchidBase):
@@ -434,8 +530,14 @@ class TestQueueAgentBase(YTEnvSetup):
                 "queue_exporter": {
                     "pass_period": 100,
                     # Fixate greater value for tests in case default decreases in the future.
-                    "max_export_count_per_iteration": 10,
-                }
+                    "max_exported_table_count_per_task": 10,
+                    # Retry backoffs should be enabled explicitly in tests
+                    "retry_backoff": {
+                        "min_backoff": 1,
+                        "max_backoff": 1,
+                        "backoff_jitter": 0.0,
+                    },
+                },
             },
             "queue_export_manager": {
                 "export_rate_limit": 100.0,
@@ -556,7 +658,8 @@ class TestQueueAgentBase(YTEnvSetup):
     def _drop_tables(self):
         init_queue_agent_state.delete_all_tables(self.client)
 
-    def _create_queue(self, path, partition_count=1, enable_timestamp_column=True,
+    @staticmethod
+    def _create_queue(path, partition_count=1, enable_timestamp_column=True,
                       enable_cumulative_data_weight_column=True, mount=True, max_inline_hunk_size=None, **kwargs):
         schema = [{"name": "data", "type": "string"}]
         if max_inline_hunk_size is not None:

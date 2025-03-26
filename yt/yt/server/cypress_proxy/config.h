@@ -20,20 +20,16 @@ namespace NYT::NCypressProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TCypressProxyBootstrapConfig
+struct TCypressProxyBootstrapConfig
     : public NServer::TNativeServerBootstrapConfig
 {
-public:
     bool AbortOnUnrecognizedOptions;
 
-    TCypressRegistrarConfigPtr CypressRegistrar;
-
-    NYPath::TYPath RootPath;
+    TUserDirectorySynchronizerConfigPtr UserDirectorySynchronizer;
 
     NDynamicConfig::TDynamicConfigManagerConfigPtr DynamicConfigManager;
-    NYPath::TYPath DynamicConfigPath;
 
-    TUserDirectorySynchronizerConfigPtr UserDirectorySynchronizer;
+    TDuration HeartbeatPeriod;
 
     REGISTER_YSON_STRUCT(TCypressProxyBootstrapConfig);
 
@@ -44,11 +40,10 @@ DEFINE_REFCOUNTED_TYPE(TCypressProxyBootstrapConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TCypressProxyProgramConfig
+struct TCypressProxyProgramConfig
     : public TCypressProxyBootstrapConfig
     , public TServerProgramConfig
 {
-public:
     REGISTER_YSON_STRUCT(TCypressProxyProgramConfig);
 
     static void Register(TRegistrar registrar);
@@ -58,10 +53,9 @@ DEFINE_REFCOUNTED_TYPE(TCypressProxyProgramConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TUserDirectorySynchronizerConfig
+struct TUserDirectorySynchronizerConfig
     : public NYTree::TYsonStruct
 {
-public:
     //! Interval between consequent directory updates.
     TDuration SyncPeriod;
 
@@ -76,10 +70,9 @@ DEFINE_REFCOUNTED_TYPE(TUserDirectorySynchronizerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TObjectServiceDynamicConfig
+struct TObjectServiceDynamicConfig
     : public NYTree::TYsonStruct
 {
-public:
     //! Size of the thread pool used for object service requests execution.
     int ThreadPoolSize;
 
@@ -97,6 +90,9 @@ public:
     NConcurrency::TThroughputThrottlerConfigPtr DefaultPerUserReadRequestWeightThrottler;
     NConcurrency::TThroughputThrottlerConfigPtr DefaultPerUserWriteRequestWeightThrottler;
 
+    // For testing purposes.
+    bool EnableFastPathPrerequisiteTransactionCheck;
+
     REGISTER_YSON_STRUCT(TObjectServiceDynamicConfig);
 
     static void Register(TRegistrar registrar);
@@ -106,10 +102,9 @@ DEFINE_REFCOUNTED_TYPE(TObjectServiceDynamicConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TSequoiaResponseKeeperDynamicConfig
+struct TSequoiaResponseKeeperDynamicConfig
     : public NYTree::TYsonStruct
 {
-public:
     //! If set to false, writing requests to Sequoia cannot be idempotent.
     bool Enable;
 
@@ -122,10 +117,9 @@ DEFINE_REFCOUNTED_TYPE(TSequoiaResponseKeeperDynamicConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TCypressProxyDynamicConfig
+struct TCypressProxyDynamicConfig
     : public TSingletonsDynamicConfig
 {
-public:
     TObjectServiceDynamicConfigPtr ObjectService;
 
     TSequoiaResponseKeeperDynamicConfigPtr ResponseKeeper;

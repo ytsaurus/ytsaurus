@@ -12,10 +12,9 @@ namespace NYT::NCellMasterClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TCellDirectoryConfig
+struct TCellDirectoryConfig
     : public virtual NYTree::TYsonStruct
 {
-public:
     NApi::NNative::TMasterConnectionConfigPtr PrimaryMaster;
     std::vector<NApi::NNative::TMasterConnectionConfigPtr> SecondaryMasters;
     NApi::NNative::TMasterCacheConnectionConfigPtr MasterCache;
@@ -31,10 +30,9 @@ DEFINE_REFCOUNTED_TYPE(TCellDirectoryConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TCellDirectorySynchronizerConfig
+struct TCellDirectorySynchronizerConfig
     : public NYTree::TYsonStruct
 {
-public:
     //! Interval between subsequent directory updates.
     std::optional<TDuration> SyncPeriod;
 

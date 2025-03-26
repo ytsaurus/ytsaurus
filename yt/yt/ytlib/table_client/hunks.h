@@ -452,6 +452,8 @@ struct IHunkChunkPayloadWriter
     //! Called when chunk store writer closes.
     virtual void OnParentReaderFinished(NChunkClient::TChunkId compressionDictionaryId) = 0;
 
+    virtual std::optional<NChunkClient::TChunkId> GetCompressionDictionaryId() const = 0;
+
     //! Returns the hunk chunk meta.
     virtual THunkChunkMeta GetHunkChunkMeta() const = 0;
 };

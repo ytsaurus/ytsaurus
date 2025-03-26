@@ -41,10 +41,9 @@ namespace NYT::NControllerAgent {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TIntermediateChunkScraperConfig
+struct TIntermediateChunkScraperConfig
     : public NChunkClient::TChunkScraperConfig
 {
-public:
     TDuration RestartTimeout;
 
     REGISTER_YSON_STRUCT(TIntermediateChunkScraperConfig);
@@ -84,10 +83,9 @@ DEFINE_REFCOUNTED_TYPE(TTestingOptions)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TLowGpuPowerUsageOnWindowConfig
+struct TLowGpuPowerUsageOnWindowConfig
     : public NYTree::TYsonStruct
 {
-public:
     // Size of window to analyze.
     TDuration WindowSize;
 
@@ -106,10 +104,9 @@ DEFINE_REFCOUNTED_TYPE(TLowGpuPowerUsageOnWindowConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TAlertManagerConfig
+struct TAlertManagerConfig
     : public NYTree::TYsonStruct
 {
-public:
     // Period of analyzing for alerts.
     TDuration Period;
 
@@ -212,10 +209,9 @@ DEFINE_REFCOUNTED_TYPE(TAlertManagerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TJobSplitterConfig
+struct TJobSplitterConfig
     : public NYTree::TYsonStruct
 {
-public:
     TDuration MinJobTime;
     double ExecToPrepareTimeRatio;
     double NoProgressJobTimeToAveragePrepareTimeRatio;
@@ -224,7 +220,6 @@ public:
     double ResidualJobFactor;
     int ResidualJobCountMinThreshold;
     double CandidatePercentile;
-    double LateJobsPercentile;
     int MaxJobsPerSplit;
     int MaxInputTableCount;
     TDuration SplitTimeoutBeforeSpeculate;
@@ -342,10 +337,15 @@ public:
     TJobSplitterConfigPtr JobSplitter;
 
     //! This flags currently makes sense only for Porto environment.
-    //! It forces setting container CPU limit on slot container calculated as
-    //! JobCpuLimit * CpuLimitOvercommitMultiplier + InitialCpuLimitOvercommit
+    //! It forces setting container CPU limit on slot container.
+    //!
+    //! If CpuLimitOvercommitMode is Linear than cpu limit calculated as
+    //! JobCpuLimit * CpuLimitOvercommitMultiplier + InitialCpuLimitOvercommit,
+    //! if CpuLimitOvercommitMode is minimum than cpu limit calculated as
+    //! Min(JobCpuLimit * CpuLimitOvercommitMultiplier, JobCpuLimit + InitialCpuLimitOvercommit)
     bool SetContainerCpuLimit;
 
+    ECpuLimitOvercommitMode CpuLimitOvercommitMode;
     double CpuLimitOvercommitMultiplier;
     double InitialCpuLimitOvercommit;
 
@@ -573,10 +573,9 @@ DEFINE_REFCOUNTED_TYPE(TRemoteCopyOperationOptions)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TGangManagerConfig
+struct TGangManagerConfig
     : public NYTree::TYsonStruct
 {
-public:
     bool Enabled;
 
     REGISTER_YSON_STRUCT(TGangManagerConfig);
@@ -612,10 +611,9 @@ DEFINE_REFCOUNTED_TYPE(TVanillaOperationOptions)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TZombieOperationOrchidsConfig
+struct TZombieOperationOrchidsConfig
     : public NYTree::TYsonStruct
 {
-public:
     //! Maximum number of retained orchids.
     int Limit;
 
@@ -637,10 +635,9 @@ DEFINE_REFCOUNTED_TYPE(TZombieOperationOrchidsConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TUserJobMonitoringConfig
+struct TUserJobMonitoringConfig
     : public NYTree::TYsonStruct
 {
-public:
     int DefaultMaxMonitoredUserJobsPerOperation;
     int ExtendedMaxMonitoredUserJobsPerOperation;
 
@@ -657,10 +654,9 @@ DEFINE_REFCOUNTED_TYPE(TUserJobMonitoringConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TMemoryWatchdogConfig
+struct TMemoryWatchdogConfig
     : public NYTree::TYsonStruct
 {
-public:
     std::optional<i64> TotalControllerMemoryLimit;
 
     //! Memory limit (in bytes) for operation controller. If controller exceeds this limit,
@@ -682,10 +678,9 @@ DEFINE_REFCOUNTED_TYPE(TMemoryWatchdogConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TUserFileLimitsConfig
+struct TUserFileLimitsConfig
     : public NYTree::TYsonStruct
 {
-public:
     //! Maximum size of file allowed to be passed to jobs.
     i64 MaxSize;
     //! Maximum data weight of table file allowed to be passed to jobs.
@@ -702,10 +697,9 @@ DEFINE_REFCOUNTED_TYPE(TUserFileLimitsConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TUserFileLimitsPatchConfig
+struct TUserFileLimitsPatchConfig
     : public NYTree::TYsonStruct
 {
-public:
     //! Maximum size of file allowed to be passed to jobs.
     std::optional<i64> MaxSize;
     //! Maximum data weight of table file allowed to be passed to jobs.
@@ -735,10 +729,9 @@ public:
 
 DEFINE_REFCOUNTED_TYPE(TJobTrackerTestingOptions)
 
-class TJobTrackerConfig
+struct TJobTrackerConfig
     : public NYTree::TYsonStruct
 {
-public:
     TDuration NodeDisconnectionTimeout;
 
     TDuration JobConfirmationTimeout;
@@ -762,16 +755,17 @@ DEFINE_REFCOUNTED_TYPE(TJobTrackerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TDockerRegistryConfig
+struct TDockerRegistryConfig
     : public NYTree::TYsonStruct
 {
-public:
     //! FQDN of internal docker registry for docker images stored in Cypress.
     std::string InternalRegistryAddress;
 
     bool UseYtTokenForInternalRegistry = false;
 
     bool ForwardInternalImagesToJobSpecs = false;
+
+    bool TranslateInternalImagesIntoLayers = true;
 
     REGISTER_YSON_STRUCT(TDockerRegistryConfig);
 
@@ -782,27 +776,9 @@ DEFINE_REFCOUNTED_TYPE(TDockerRegistryConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TDisallowRemoteOperationsConfig
-    : public NYTree::TYsonStruct
-{
-public:
-    THashSet<TString> AllowedUsers;
-    THashSet<TString> AllowedClusters;
-    THashSet<TString> AllowedForEveryoneClusters;
-
-    REGISTER_YSON_STRUCT(TDisallowRemoteOperationsConfig);
-
-    static void Register(TRegistrar registrar);
-};
-
-DEFINE_REFCOUNTED_TYPE(TDisallowRemoteOperationsConfig)
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TControllerAgentConfig
+struct TControllerAgentConfig
     : public TSingletonsDynamicConfig
 {
-public:
     //! Number of chunk lists to be allocated when an operation starts.
     int ChunkListPreallocationCount;
 
@@ -1257,8 +1233,6 @@ public:
 
     bool JobIdUnequalToAllocationId;
 
-    TDisallowRemoteOperationsConfigPtr DisallowRemoteOperations;
-
     bool EnableMergeSchemasDuringSchemaInfer;
 
     bool EnableJobArchiveTtl;
@@ -1282,10 +1256,9 @@ DEFINE_REFCOUNTED_TYPE(TControllerAgentConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TControllerAgentBootstrapConfig
+struct TControllerAgentBootstrapConfig
     : public NServer::TNativeServerBootstrapConfig
 {
-public:
     TControllerAgentConfigPtr ControllerAgent;
 
     //! Known scheduler addresses.
@@ -1306,11 +1279,10 @@ DEFINE_REFCOUNTED_TYPE(TControllerAgentBootstrapConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TControllerAgentProgramConfig
+struct TControllerAgentProgramConfig
     : public TControllerAgentBootstrapConfig
     , public TServerProgramConfig
 {
-public:
     REGISTER_YSON_STRUCT(TControllerAgentProgramConfig);
 
     static void Register(TRegistrar registrar);

@@ -45,26 +45,41 @@ TString ToStringLiteral(TStringBuf key)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-constexpr TErrorCode RetriableSequoiaErrors[] = {
-    NTabletClient::EErrorCode::TransactionLockConflict,
-};
-
 bool IsRetriableSequoiaError(const TError& error)
 {
     if (error.IsOK()) {
         return false;
     }
 
-    return AnyOf(RetriableSequoiaErrors, [&] (auto errorCode) {
+    return AnyOf(RetriableSequoiaErrorCodes, [&] (auto errorCode) {
         return error.FindMatching(errorCode);
     });
 }
 
-bool IsRetriableSequoiaReplicasError(const TError& error)
+bool IsRetriableSequoiaReplicasError(
+    const TError& error,
+    const std::vector<TErrorCode>& retriableErrorCodes)
 {
-    // TODO(aleksandra-zh or someone else): use IsRetriableSequoiaError with a proper whitelist of errors,
-    // including Hydra ones.
-    return !error.IsOK();
+    if (error.IsOK()) {
+        return false;
+    }
+
+    return AnyOf(retriableErrorCodes, [&] (auto errorCode) {
+        return error.FindMatching(errorCode);
+    });
+}
+
+void ThrowOnSequoiaReplicasError(
+    const TError& error,
+    const std::vector<TErrorCode>& retriableErrorCodes)
+{
+    if (IsRetriableSequoiaReplicasError(error, retriableErrorCodes)) {
+        THROW_ERROR_EXCEPTION(
+            NRpc::EErrorCode::TransientFailure,
+            "Sequoia retriable error")
+            << std::move(error);
+    }
+    error.ThrowOnError();
 }
 
 bool IsMethodShouldBeHandledByMaster(const std::string& method)

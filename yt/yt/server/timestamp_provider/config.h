@@ -12,10 +12,9 @@ namespace NYT::NTimestampProvider {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TTimestampProviderBootstrapConfig
+struct TTimestampProviderBootstrapConfig
     : public NServer::TServerBootstrapConfig
 {
-public:
     bool AbortOnUnrecognizedOptions;
 
     NBus::TBusConfigPtr BusClient;
@@ -34,11 +33,10 @@ DEFINE_REFCOUNTED_TYPE(TTimestampProviderBootstrapConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TTimestampProviderProgramConfig
+struct TTimestampProviderProgramConfig
     : public TTimestampProviderBootstrapConfig
     , public TServerProgramConfig
 {
-public:
     REGISTER_YSON_STRUCT(TTimestampProviderProgramConfig);
 
     static void Register(TRegistrar registrar);

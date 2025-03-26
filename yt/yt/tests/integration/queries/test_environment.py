@@ -166,7 +166,7 @@ class TestMigration(YTEnvSetup):
             "finished_queries_by_user_and_start_time",
             "finished_queries_by_start_time",
             "finished_queries",
-            "finished_queries_results",
+            "finished_query_results",
             "active_queries",
         ]
 
@@ -195,3 +195,19 @@ class TestMigration(YTEnvSetup):
         assert results[0]["result_index"] == 1
         assert "full_result" in results[0]
         assert results[0]["full_result"] == YsonEntity()
+
+    @authors("lucius")
+    def test_fix_query_results_table_migration(self, query_tracker):
+        create_tablet_cell_bundle("sys")
+        sync_create_cells(1, tablet_cell_bundle="sys")
+
+        remove("//sys/query_tracker", recursive=True, force=True)
+        client = query_tracker.query_tracker.env.create_native_client()
+
+        create_tables_required_version(client, 12)
+        assert exists("//sys/query_tracker/finished_queries_results")
+        assert exists("//sys/query_tracker/finished_query_results")
+
+        run_migration(client, 13)
+        assert not exists("//sys/query_tracker/finished_queries_results")
+        assert exists("//sys/query_tracker/finished_query_results")

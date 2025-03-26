@@ -380,7 +380,7 @@ class TTableReplicaInfo
 public:
     DEFINE_BYVAL_RW_PROPERTY(TTablet*, Tablet);
     DEFINE_BYVAL_RO_PROPERTY(TTableReplicaId, Id);
-    DEFINE_BYVAL_RW_PROPERTY(TString, ClusterName);
+    DEFINE_BYVAL_RW_PROPERTY(std::string, ClusterName);
     DEFINE_BYVAL_RW_PROPERTY(NYPath::TYPath, ReplicaPath);
     DEFINE_BYVAL_RW_PROPERTY(TTimestamp, StartReplicationTimestamp, NullTimestamp);
     DEFINE_BYVAL_RW_PROPERTY(TTransactionId, PreparedReplicationTransactionId);
@@ -987,15 +987,19 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void BuildTableSettingsOrchidYson(const TTableSettings& options, NYTree::TFluentMap fluent);
+void BuildTableSettingsOrchidYson(
+    const TTableSettings& options,
+    NYTree::TFluentMap fluent);
 
 NConcurrency::IThroughputThrottlerPtr GetBlobMediumWriteThrottler(
     const NClusterNode::TClusterNodeDynamicConfigManagerPtr& dynamicConfigManager,
     const TTabletSnapshotPtr& tabletSnapshot);
-
 NConcurrency::IThroughputThrottlerPtr GetBlobMediumReadThrottler(
     const NClusterNode::TClusterNodeDynamicConfigManagerPtr& dynamicConfigManager,
     const TTabletSnapshotPtr& tabletSnapshot);
+
+bool IsInUnmountWorkflow(ETabletState state);
+bool IsInFreezeWorkflow(ETabletState state);
 
 ////////////////////////////////////////////////////////////////////////////////
 

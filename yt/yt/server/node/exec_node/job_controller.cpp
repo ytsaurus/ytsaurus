@@ -573,6 +573,7 @@ private:
     TBufferedProducerPtr GpuUtilizationBuffer_ = New<TBufferedProducer>();
     TBufferedProducerPtr JobCountBuffer_ = New<TBufferedProducer>();
     THashMap<EJobState, TCounter> JobFinalStateCounters_;
+    THashMap<std::string, TGauge> UserToRpcProxyCountGauges_;
 
     // Chunk cache counters.
     TCounter CacheHitArtifactsSizeCounter_;
@@ -762,6 +763,23 @@ private:
 
     }
 
+    TGauge& GetUserToRpcProxyCountGauge(const std::string& user)
+    {
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
+
+        auto it = UserToRpcProxyCountGauges_.find(user);
+        if (it == UserToRpcProxyCountGauges_.end()) {
+            it = UserToRpcProxyCountGauges_.emplace(
+                user,
+                ExecNodeProfiler()
+                    .WithSparse()
+                    .WithGlobal()
+                    .WithTag("user", user)
+                    .Gauge("/rpc_proxy_in_job_proxy_count")).first;
+        }
+        return it->second;
+    }
+
     void OnProfiling()
     {
         YT_ASSERT_THREAD_AFFINITY(JobThread);
@@ -803,6 +821,8 @@ private:
         i64 tmpfsLimit = 0;
         i64 tmpfsUsage = 0;
 
+        THashMap<std::string, i64> userToRpcProxyCount;
+
         for (const auto& [_, allocation] : IdToAllocations_) {
             const auto& job = allocation->GetJob();
             if (!job || job->GetState() != EJobState::Running || job->GetPhase() != EJobPhase::Running) {
@@ -816,6 +836,8 @@ private:
             for (const auto& tmpfsVolume : job->GetTmpfsVolumeInfos()) {
                 tmpfsLimit += tmpfsVolume->Size;
             }
+
+            userToRpcProxyCount[job->GetAuthenticatedUser()] += job->HasRpcProxyInJobProxy();
 
             auto statisticsYson = job->GetStatistics();
             if (!statisticsYson) {
@@ -832,6 +854,15 @@ private:
 
             if (auto userJobMaxMemory = TryGetInt64(statisticsYson.AsStringBuf(), userJobMaxMemorySensorName)) {
                 totalUserJobMaxMemory += *userJobMaxMemory;
+            }
+        }
+
+        for (const auto& [user, count] : userToRpcProxyCount) {
+            GetUserToRpcProxyCountGauge(user).Update(count);
+        }
+        for (auto& [user, gauge] : UserToRpcProxyCountGauges_) {
+            if (!userToRpcProxyCount.contains(user)) {
+                gauge.Update(0);
             }
         }
 

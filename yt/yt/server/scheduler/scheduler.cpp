@@ -41,6 +41,8 @@
 
 #include <yt/yt/client/node_tracker_client/helpers.h>
 
+#include <yt/yt/client/scheduler/spec_patch.h>
+
 #include <yt/yt/ytlib/api/native/connection.h>
 
 #include <yt/yt/ytlib/chunk_client/chunk_service_proxy.h>
@@ -127,14 +129,10 @@ struct TPoolTreeKeysHolder
 {
     TPoolTreeKeysHolder()
     {
-        auto treeConfigTemplate = New<TFairShareStrategyTreeConfig>();
-        auto treeConfigKeys = treeConfigTemplate->GetRegisteredKeys();
-
         auto poolConfigTemplate = New<TPoolConfig>();
         auto poolConfigKeys = poolConfigTemplate->GetRegisteredKeys();
 
-        Keys.reserve(treeConfigKeys.size() + poolConfigKeys.size() + 3);
-        Keys.insert(Keys.end(), treeConfigKeys.begin(), treeConfigKeys.end());
+        Keys.reserve(poolConfigKeys.size() + 3);
         Keys.insert(Keys.end(), poolConfigKeys.begin(), poolConfigKeys.end());
         Keys.insert(Keys.end(), DefaultTreeAttributeName);
         Keys.insert(Keys.end(), TreeConfigAttributeName);
@@ -563,7 +561,6 @@ public:
             NScheduler::ValidateOperationAccess(
                 user,
                 operationId,
-                TAllocationId(),
                 permissions,
                 GetOperationOrThrow(operationId)->GetAccessControlRule(),
                 GetClient(),
@@ -651,8 +648,7 @@ public:
         if (spec->AddAuthenticatedUserToAcl.value_or(true)) {
             baseAcl.Entries.emplace_back(
                 ESecurityAction::Allow,
-                // TODO(babenko): switch to std::string
-                std::vector{TString(user)},
+                std::vector{user},
                 EPermissionSet(EPermission::Read | EPermission::Manage));
         }
 
@@ -1117,6 +1113,92 @@ public:
             .Run();
     }
 
+    void DoPatchOperationSpec(
+        TOperationPtr operation,
+        const std::string& user,
+        TSpecPatchList patches)
+    {
+        if (operation->PatchSpecInProgress()) {
+            THROW_ERROR_EXCEPTION(
+                NRpc::EErrorCode::TransientFailure,
+                "Cannot patch spec while another patch is in progress")
+                << TErrorAttribute("concurrent_patch_spec_user", operation->PatchSpecInProgress()->User)
+                << TErrorAttribute("concurrent_patch_spec_start_time", operation->PatchSpecInProgress()->StartTime);
+        }
+
+        operation->PatchSpecInProgress().emplace(TPatchSpecInProgressInfo{
+            .User = user,
+            .StartTime = TInstant::Now(),
+        });
+
+        auto resetInProgress = Finally([&] {
+            operation->PatchSpecInProgress().reset();
+        });
+
+        auto controller = operation->GetController();
+        THROW_ERROR_EXCEPTION_UNLESS(
+            controller,
+            NScheduler::EErrorCode::OperationHasNoController,
+            "Controller agent is not assigned to operation %v",
+            operation->GetId());
+
+        THROW_ERROR_EXCEPTION_UNLESS(
+            operation->ControllerAttributes().InitializeAttributes,
+            "Operation %v is not initialized yet",
+            operation->GetId());
+
+        THROW_ERROR_EXCEPTION_UNLESS(
+            operation->GetState() == EOperationState::Running,
+            "Operation %v is not running",
+            operation->GetId());
+
+        auto newCumulativePatch = operation->CumulativeSpecPatch()
+            ? CloneNode(operation->CumulativeSpecPatch())
+            : GetEphemeralNodeFactory()->CreateMap();
+
+        for (const auto& patch : patches) {
+            SetNodeByYPath(newCumulativePatch, patch->Path, patch->Value, /*force*/ true);
+        }
+
+        // Validate that the new structure is not too deep.
+        Y_UNUSED(ConvertToYsonStringNestingLimited(newCumulativePatch, MasterConnector_->GetYsonNestingLevelLimit()));
+
+        auto maybeDelay = [&] (auto sleepType) {
+            const auto& protocolOptions = operation->Spec()->TestingOperationOptions->PatchSpecProtocol;
+            if (protocolOptions) {
+                MaybeDelay((*protocolOptions).*sleepType);
+            }
+        };
+
+        // (2PC-like) Prepare.
+        WaitFor(controller->PatchSpec(newCumulativePatch, /*dryRun*/ true))
+            .ThrowOnError();
+
+        maybeDelay(&TPatchSpecProtocolTestingOptions::DelayBeforeCypressFlush);
+
+        // (2PC-like) Coordinator eager commit.
+        operation->MutableCumulativeSpecPatch() = newCumulativePatch;
+        operation->SetShouldFlushSpecPatch(true);
+        WaitFor(MasterConnector_->FlushOperationNode(operation))
+            .ThrowOnError();
+
+        maybeDelay(&TPatchSpecProtocolTestingOptions::DelayBeforeApply);
+
+        // (2PC-like) Participant commit.
+        WaitFor(controller->PatchSpec(newCumulativePatch, /*dryRun*/ false))
+            .ThrowOnError();
+    }
+
+    TFuture<void> PatchOperationSpec(
+        TOperationPtr operation,
+        const std::string& user,
+        TSpecPatchList patches)
+    {
+        return BIND(&TImpl::DoPatchOperationSpec, MakeStrong(this), operation, user, Passed(std::move(patches)))
+            .AsyncVia(operation->GetCancelableControlInvoker())
+            .Run();
+    }
+
     TFuture<TNodeDescriptor> GetAllocationNode(TAllocationId allocationId) const
     {
         return NodeManager_->GetAllocationNode(allocationId);
@@ -1403,69 +1485,46 @@ public:
                 .Item("source_wt").Value((finishTime - TInstant()).Seconds());
         };
 
-        if (Config_->ResourceMetering->EnableSeparateSchemaForAllocation) {
-            for (auto [startTime, finishTime] : SplitTimeIntervalByHours(previousLogTime, currentTime)) {
-                auto usageQuantity = (finishTime - startTime).MilliSeconds();
-                buildCommonLogEventPart("yt.scheduler.pools.compute_guarantee.v1", usageQuantity, startTime, finishTime)
-                    .Item("tags").BeginMap()
-                        .Item("strong_guarantee_resources").Value(statistics.StrongGuaranteeResources())
-                        .Item("resource_flow").Value(statistics.ResourceFlow())
-                        .Item("burst_guarantee_resources").Value(statistics.BurstGuaranteeResources())
-                        .Item("cluster").Value(ClusterName_)
-                        .Item("gpu_type").Value(GuessGpuType(key.TreeId))
-                        .DoFor(otherTags, [] (TFluentMap fluent, const std::pair<TString, TString>& pair) {
-                            fluent.Item(pair.first).Value(pair.second);
-                        })
-                        .DoFor(key.MeteringTags, [] (TFluentMap fluent, const std::pair<TString, TString>& pair) {
-                            fluent.Item(pair.first).Value(pair.second);
-                        })
-                    .EndMap();
-                GuaranteesMeteringRecordCountCounter_.Increment();
-                GuaranteesMeteringUsageQuantityCounter_.Increment(usageQuantity);
-            }
+        for (auto [startTime, finishTime] : SplitTimeIntervalByHours(previousLogTime, currentTime)) {
+            auto usageQuantity = (finishTime - startTime).MilliSeconds();
+            buildCommonLogEventPart("yt.scheduler.pools.compute_guarantee.v1", usageQuantity, startTime, finishTime)
+                .Item("tags").BeginMap()
+                    .Item("strong_guarantee_resources").Value(statistics.StrongGuaranteeResources())
+                    .Item("resource_flow").Value(statistics.ResourceFlow())
+                    .Item("burst_guarantee_resources").Value(statistics.BurstGuaranteeResources())
+                    .Item("cluster").Value(ClusterName_)
+                    .Item("gpu_type").Value(GuessGpuType(key.TreeId))
+                    .DoFor(otherTags, [] (TFluentMap fluent, const std::pair<TString, TString>& pair) {
+                        fluent.Item(pair.first).Value(pair.second);
+                    })
+                    .DoFor(key.MeteringTags, [] (TFluentMap fluent, const std::pair<TString, TString>& pair) {
+                        fluent.Item(pair.first).Value(pair.second);
+                    })
+                .EndMap();
+            GuaranteesMeteringRecordCountCounter_.Increment();
+            GuaranteesMeteringUsageQuantityCounter_.Increment(usageQuantity);
+        }
 
-            auto usageLogStartTime = std::max(previousLogTime, connectionTime);
-            auto usageDuration = (currentTime - usageLogStartTime).SecondsFloat();
-            auto averageAllocatedResources = statistics.AccumulatedResourceUsage() / usageDuration;
-            for (auto [startTime, finishTime] : SplitTimeIntervalByHours(usageLogStartTime, currentTime)) {
-                double timeRatio = (finishTime - startTime).SecondsFloat() / usageDuration;
-                auto usageQuantity = (finishTime - startTime).MilliSeconds();
-                buildCommonLogEventPart("yt.scheduler.pools.compute_allocation.v1", usageQuantity, startTime, finishTime)
-                    .Item("tags").BeginMap()
-                        .Item("allocated_resources").Value(averageAllocatedResources * timeRatio)
-                        .Item("cluster").Value(ClusterName_)
-                        .Item("gpu_type").Value(GuessGpuType(key.TreeId))
-                        .DoFor(otherTags, [] (TFluentMap fluent, const std::pair<TString, TString>& pair) {
-                            fluent.Item(pair.first).Value(pair.second);
-                        })
-                        .DoFor(key.MeteringTags, [] (TFluentMap fluent, const std::pair<TString, TString>& pair) {
-                            fluent.Item(pair.first).Value(pair.second);
-                        })
-                    .EndMap();
-                AllocationMeteringRecordCountCounter_.Increment();
-                AllocationMeteringUsageQuantityCounter_.Increment(usageQuantity);
-            }
-        } else {
-            for (auto [startTime, finishTime] : SplitTimeIntervalByHours(previousLogTime, currentTime)) {
-                auto usageQuantity = (finishTime - startTime).MilliSeconds();
-                buildCommonLogEventPart("yt.scheduler.pools.compute.v1", usageQuantity, startTime, finishTime)
-                    .Item("tags").BeginMap()
-                        .Item("strong_guarantee_resources").Value(statistics.StrongGuaranteeResources())
-                        .Item("resource_flow").Value(statistics.ResourceFlow())
-                        .Item("burst_guarantee_resources").Value(statistics.BurstGuaranteeResources())
-                        .Item("allocated_resources").Value(statistics.AllocatedResources())
-                        .Item("cluster").Value(ClusterName_)
-                        .Item("gpu_type").Value(GuessGpuType(key.TreeId))
-                        .DoFor(otherTags, [] (TFluentMap fluent, const std::pair<TString, TString>& pair) {
-                            fluent.Item(pair.first).Value(pair.second);
-                        })
-                        .DoFor(key.MeteringTags, [] (TFluentMap fluent, const std::pair<TString, TString>& pair) {
-                            fluent.Item(pair.first).Value(pair.second);
-                        })
-                    .EndMap();
-                MeteringRecordCountCounter_.Increment();
-                MeteringUsageQuantityCounter_.Increment(usageQuantity);
-            }
+        auto usageLogStartTime = std::max(previousLogTime, connectionTime);
+        auto usageDuration = (currentTime - usageLogStartTime).SecondsFloat();
+        auto averageAllocatedResources = statistics.AccumulatedResourceUsage() / usageDuration;
+        for (auto [startTime, finishTime] : SplitTimeIntervalByHours(usageLogStartTime, currentTime)) {
+            double timeRatio = (finishTime - startTime).SecondsFloat() / usageDuration;
+            auto usageQuantity = (finishTime - startTime).MilliSeconds();
+            buildCommonLogEventPart("yt.scheduler.pools.compute_allocation.v1", usageQuantity, startTime, finishTime)
+                .Item("tags").BeginMap()
+                    .Item("allocated_resources").Value(averageAllocatedResources * timeRatio)
+                    .Item("cluster").Value(ClusterName_)
+                    .Item("gpu_type").Value(GuessGpuType(key.TreeId))
+                    .DoFor(otherTags, [] (TFluentMap fluent, const std::pair<TString, TString>& pair) {
+                        fluent.Item(pair.first).Value(pair.second);
+                    })
+                    .DoFor(key.MeteringTags, [] (TFluentMap fluent, const std::pair<TString, TString>& pair) {
+                        fluent.Item(pair.first).Value(pair.second);
+                    })
+                .EndMap();
+            AllocationMeteringRecordCountCounter_.Increment();
+            AllocationMeteringUsageQuantityCounter_.Increment(usageQuantity);
         }
     }
 
@@ -1709,7 +1768,7 @@ private:
 
     IResponseKeeperPtr OperationServiceResponseKeeper_;
 
-    std::optional<TString> ClusterName_;
+    std::optional<std::string> ClusterName_;
 
     const TNodeManagerPtr NodeManager_;
 
@@ -1864,6 +1923,10 @@ private:
             result->ControllerAgentTag = *update->ControllerAgentTag;
         }
 
+        if (update->SchedulingTagFilter) {
+            result->SchedulingTagFilter = *update->SchedulingTagFilter;
+        }
+
         Strategy_->UpdateRuntimeParameters(result, update, user);
 
         return result;
@@ -1987,7 +2050,7 @@ private:
     {
         YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
-        ValidateConfig();
+        CheckConfigForUnrecognizedOptions();
 
         {
             YT_LOG_INFO("Connecting node manager");
@@ -2300,7 +2363,7 @@ private:
             const auto& rsp = rspOrError.Value();
             auto configFromCypress = ConvertToNode(TYsonString(rsp->value()));
             try {
-                newConfig->Load(configFromCypress, /*validate*/ true, /*setDefaults*/ false);
+                newConfig->Load(configFromCypress, /*postprocess*/ true, /*setDefaults*/ false);
             } catch (const std::exception& ex) {
                 auto error = TError(NScheduler::EErrorCode::WatcherHandlerFailed, "Error updating scheduler configuration")
                     << ex;
@@ -2319,7 +2382,7 @@ private:
             YT_LOG_INFO("Scheduler configuration updated");
 
             Config_ = newConfig;
-            ValidateConfig();
+            CheckConfigForUnrecognizedOptions();
 
             SpecTemplate_ = CloneNode(Config_->SpecTemplate);
 
@@ -2727,7 +2790,7 @@ private:
 
             const auto& controller = operation->GetController();
 
-            auto initializeResult = WaitFor(controller->Initialize(/*transactions*/ std::nullopt))
+            auto initializeResult = WaitFor(controller->Initialize(/*transactions*/ std::nullopt, /*cumulativeSpecPatch*/ nullptr))
                 .ValueOrThrow();
 
             ValidateOperationState(operation, EOperationState::Initializing);
@@ -2815,7 +2878,9 @@ private:
 
             {
                 YT_VERIFY(operation->RevivalDescriptor());
-                auto result = WaitFor(controller->Initialize(operation->Transactions()))
+                auto result = WaitFor(controller->Initialize(
+                    operation->Transactions(),
+                    /*cumulativeSpecPatch*/ operation->CumulativeSpecPatch()))
                     .ValueOrThrow();
 
                 operation->Transactions() = std::move(result.Transactions);
@@ -3711,7 +3776,7 @@ private:
             .ValueOrThrow();
     }
 
-    void ValidateConfig()
+    void CheckConfigForUnrecognizedOptions()
     {
         // First reset the alert.
         SetSchedulerAlert(ESchedulerAlertType::UnrecognizedConfigOptions, TError());
@@ -4504,6 +4569,14 @@ TFuture<void> TScheduler::UpdateOperationParameters(
     INodePtr parameters)
 {
     return Impl_->UpdateOperationParameters(operation, user, parameters);
+}
+
+TFuture<void> TScheduler::PatchOperationSpec(
+    TOperationPtr operation,
+    const std::string& user,
+    TSpecPatchList patches)
+{
+    return Impl_->PatchOperationSpec(std::move(operation), user, std::move(patches));
 }
 
 void TScheduler::ProcessNodeHeartbeat(const TCtxNodeHeartbeatPtr& context)

@@ -2,9 +2,9 @@
 
 #include <string>
 #include <time.h>
-#include <Poco/Net/StreamSocket.h>
-#include <Poco/Net/SocketStream.h>
-#include <Poco/Util/Application.h>
+#include <DBPoco/Net/StreamSocket.h>
+#include <DBPoco/Net/SocketStream.h>
+#include <DBPoco/Util/Application.h>
 #include <Common/logger_useful.h>
 
 
@@ -15,7 +15,7 @@
 class GraphiteWriter
 {
 public:
-    GraphiteWriter(const std::string & config_name, const std::string & sub_path = "");
+    explicit GraphiteWriter(const std::string & config_name, const std::string & sub_path = "");
 
     template <typename T> using KeyValuePair = std::pair<std::string, T>;
     template <typename T> using KeyValueVector = std::vector<KeyValuePair<T>>;
@@ -41,16 +41,16 @@ private:
 
         try
         {
-            Poco::Net::SocketAddress socket_address(host, port);
-            Poco::Net::StreamSocket socket(socket_address);
-            socket.setSendTimeout(Poco::Timespan(static_cast<Poco::Int64>(timeout * 1000000)));
-            Poco::Net::SocketStream str(socket);
+            DBPoco::Net::SocketAddress socket_address(host, port);
+            DBPoco::Net::StreamSocket socket(socket_address);
+            socket.setSendTimeout(DBPoco::Timespan(static_cast<DBPoco::Int64>(timeout * 1000000)));
+            DBPoco::Net::SocketStream str(socket);
 
             out(str, data, timestamp, custom_root_path);
         }
-        catch (const Poco::Exception & e)
+        catch (const DBPoco::Exception & e)
         {
-            LOG_WARNING(&Poco::Util::Application::instance().logger(), "Fail to write to Graphite {}:{}. e.what() = {}, e.message() = {}", host, port, e.what(), e.message());
+            LOG_WARNING(&DBPoco::Util::Application::instance().logger(), "Fail to write to Graphite {}:{}. e.what() = {}, e.message() = {}", host, port, e.what(), e.message());
         }
     }
 

@@ -36,6 +36,7 @@ TOperation::TOperation(const NProto::TOperationDescriptor& descriptor)
     , PoolTreeControllerSettingsMap_(FromProto<TPoolTreeControllerSettingsMap>(descriptor.pool_tree_controller_settings_map()))
     , ControllerEpoch_(descriptor.controller_epoch())
     , ExperimentAssignments_(ConvertTo<std::vector<TExperimentAssignmentPtr>>(TYsonString(descriptor.experiment_assignments())))
+    , OptionsPatch_(nullptr)
 { }
 
 const IOperationControllerPtr& TOperation::GetControllerOrThrow() const

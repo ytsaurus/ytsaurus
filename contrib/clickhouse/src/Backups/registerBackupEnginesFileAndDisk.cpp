@@ -5,7 +5,7 @@
 #include <Common/quoteString.h>
 #include <Disks/IDisk.h>
 #include <IO/Archives/hasRegisteredArchiveFileExtension.h>
-#include <Poco/Util/AbstractConfiguration.h>
+#include <DBPoco/Util/AbstractConfiguration.h>
 #include <filesystem>
 #include <Interpreters/Context.h>
 
@@ -27,7 +27,7 @@ namespace
     namespace fs = std::filesystem;
 
     /// Checks that a disk name specified as parameters of Disk() is valid.
-    void checkDiskName(const String & disk_name, const Poco::Util::AbstractConfiguration & config)
+    void checkDiskName(const String & disk_name, const DBPoco::Util::AbstractConfiguration & config)
     {
         String key = "backups.allowed_disk";
         if (!config.has(key))
@@ -59,7 +59,7 @@ namespace
     }
 
     /// Checks that a path specified as parameters of File() is valid.
-    void checkPath(fs::path & path, const Poco::Util::AbstractConfiguration & config, const fs::path & data_dir)
+    void checkPath(fs::path & path, const DBPoco::Util::AbstractConfiguration & config, const fs::path & data_dir)
     {
         path = path.lexically_normal();
         if (path.empty())
@@ -177,7 +177,9 @@ void registerBackupEnginesFileAndDisk(BackupFactory & factory)
                 params.base_backup_info,
                 reader,
                 params.context,
-                params.use_same_s3_credentials_for_base_backup);
+                params.is_internal_backup,
+                params.use_same_s3_credentials_for_base_backup,
+                params.use_same_password_for_base_backup);
         }
         else
         {
@@ -196,7 +198,8 @@ void registerBackupEnginesFileAndDisk(BackupFactory & factory)
                 params.backup_coordination,
                 params.backup_uuid,
                 params.deduplicate_files,
-                params.use_same_s3_credentials_for_base_backup);
+                params.use_same_s3_credentials_for_base_backup,
+                params.use_same_password_for_base_backup);
         }
     };
 

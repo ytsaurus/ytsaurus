@@ -916,7 +916,7 @@ public:
         , HunkChunkPayloadWriter_(std::move(hunkChunkPayloadWriter))
         , HunkChunkWriterStatistics_(std::move(hunkChunkWriterStatistics))
         , CompressionContext_(compressionSessionFuture
-            ? std::make_optional<TCompressionContext>(compressionSessionFuture)
+            ? std::make_optional<TCompressionContext>(compressionSessionFuture, HunkChunkPayloadWriter_)
             : std::nullopt)
     { }
 
@@ -1233,6 +1233,8 @@ private:
         struct TCompressionSamplesRowBufferTag
         { };
 
+        const bool IsDictionaryPreset_;
+
         TFuture<IDictionaryCompressionSessionPtr> SessionFuture;
         IDictionaryCompressionSessionPtr Session;
 
@@ -1242,8 +1244,11 @@ private:
         ECompressionSessionStage SessionStage = ECompressionSessionStage::Initial;
 
 
-        TCompressionContext(TFuture<IDictionaryCompressionSessionPtr> sessionFuture)
-            : SessionFuture(std::move(sessionFuture))
+        TCompressionContext(
+            TFuture<IDictionaryCompressionSessionPtr> sessionFuture,
+            const IHunkChunkPayloadWriterPtr& hunkChunkPayloadWriter)
+            : IsDictionaryPreset_(hunkChunkPayloadWriter->GetCompressionDictionaryId().has_value())
+            , SessionFuture(std::move(sessionFuture))
         {
             YT_VERIFY(SessionFuture);
         }
@@ -1264,10 +1269,15 @@ private:
             YT_VERIFY(SessionFuture.IsSet());
             auto sessionOrError = SessionFuture.Get();
             if (sessionOrError.IsOK()) {
-                SessionStage = ECompressionSessionStage::FeedingSamples;
                 Session = std::move(sessionOrError.Value());
-                for (auto row : SampledRows) {
-                    MaybeFeedSample(row);
+
+                if (IsDictionaryPreset_) {
+                    SessionStage = ECompressionSessionStage::SessionIsFed;
+                } else {
+                    SessionStage = ECompressionSessionStage::FeedingSamples;
+                    for (auto row : SampledRows) {
+                        MaybeFeedSample(row);
+                    }
                 }
             }
         }
@@ -1459,12 +1469,18 @@ IVersionedChunkWriterPtr CreateHunkEncodingVersionedWriter(
     if (!schema->HasHunkColumns()) {
         return underlying;
     }
+    // NB: In case |hunkChunkPayloadWriter| is reused over multiple chunk writers we ensure
+    // that all the chunks (and hunks chunks) will be linked to the same dictionary
+    // as we exepct to encounter only one dictionary chunk per (hunk) chunk upon decompression.
+    auto compressionSessionFuture = dictionaryCompressionFactory->MaybeCreateDictionaryCompressionSession(
+        chunkReadOptions,
+        hunkChunkPayloadWriter->GetCompressionDictionaryId());
     return New<THunkEncodingVersionedWriter>(
         std::move(underlying),
         std::move(schema),
         std::move(hunkChunkPayloadWriter),
         std::move(hunkChunkWriterStatistics),
-        dictionaryCompressionFactory->MaybeCreateDictionaryCompressionSession(chunkReadOptions));
+        std::move(compressionSessionFuture));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -2264,8 +2280,8 @@ public:
             ext.set_data_weight(DataWeight_);
             ext.set_uncompressed_data_size(DataSize_);
             ext.set_compressed_data_size(DataSize_);
-            if (CompressionDictionaryId_) {
-                ToProto(ext.mutable_compression_dictionary_id(), CompressionDictionaryId_);
+            if (CompressionDictionaryId_ && *CompressionDictionaryId_) {
+                ToProto(ext.mutable_compression_dictionary_id(), *CompressionDictionaryId_);
             }
             ext.set_creation_time(TInstant::Now().GetValue());
             SetProtoExtension(Meta_->mutable_extensions(), ext);
@@ -2305,9 +2321,15 @@ public:
     {
         auto guard = Guard(Lock_);
 
+        YT_VERIFY(!CompressionDictionaryId_ || CompressionDictionaryId_ == compressionDictionaryId);
         CompressionDictionaryId_ = compressionDictionaryId;
 
         FlushBuffer();
+    }
+
+    std::optional<TChunkId> GetCompressionDictionaryId() const override
+    {
+        return CompressionDictionaryId_;
     }
 
     THunkChunkMeta GetHunkChunkMeta() const override
@@ -2357,7 +2379,7 @@ private:
     static constexpr auto BufferReserveFactor = 1.2;
     TBlob Buffer_{GetRefCountedTypeCookie<TBufferTag>()};
 
-    TChunkId CompressionDictionaryId_;
+    std::optional<TChunkId> CompressionDictionaryId_;
 
 
     char* BeginWriteToBuffer(i64 writeSize)

@@ -936,11 +936,6 @@ TBatchRequestPtr TClientBase::CreateBatchRequest()
     return MakeIntrusive<TBatchRequest>(TransactionId_, GetParentClientImpl());
 }
 
-IClientPtr TClientBase::GetParentClient()
-{
-    return GetParentClientImpl();
-}
-
 IRawClientPtr TClientBase::GetRawClient() const
 {
     return RawClient_;
@@ -1054,6 +1049,11 @@ void TTransaction::Detach()
 ITransactionPingerPtr TTransaction::GetTransactionPinger()
 {
     return TransactionPinger_;
+}
+
+IClientPtr TTransaction::GetParentClient(bool ignoreGlobalTx)
+{
+    return GetParentClientImpl()->GetParentClient(ignoreGlobalTx);
 }
 
 TClientPtr TTransaction::GetParentClientImpl()
@@ -1178,7 +1178,7 @@ void TClient::InsertRows(
     RequestWithRetry<void>(
         ClientRetryPolicy_->CreatePolicyForGenericRequest(),
         [this, &path, &rows, &options] (TMutationId /*mutationId*/) {
-            RawClient_->InsertRows(path, rows, options);
+            NRawClient::InsertRows(Context_, path, rows, options);
         });
 }
 
@@ -1191,7 +1191,7 @@ void TClient::DeleteRows(
     RequestWithRetry<void>(
         ClientRetryPolicy_->CreatePolicyForGenericRequest(),
         [this, &path, &keys, &options] (TMutationId /*mutationId*/) {
-            RawClient_->DeleteRows(path, keys, options);
+            NRawClient::DeleteRows(Context_, path, keys, options);
         });
 }
 
@@ -1218,7 +1218,7 @@ TNode::TListType TClient::LookupRows(
     return RequestWithRetry<TNode::TListType>(
         ClientRetryPolicy_->CreatePolicyForGenericRequest(),
         [this, &path, &keys, &options] (TMutationId /*mutationId*/) {
-            return RawClient_->LookupRows(path, keys, options);
+            return NRawClient::LookupRows(Context_, path, keys, options);
         });
 }
 
@@ -1489,6 +1489,19 @@ TClientPtr TClient::GetParentClientImpl()
     return this;
 }
 
+IClientPtr TClient::GetParentClient(bool ignoreGlobalTx)
+{
+    if (!TransactionId_.IsEmpty() && ignoreGlobalTx) {
+        return MakeIntrusive<TClient>(
+            RawClient_,
+            Context_,
+            TTransactionId(),
+            ClientRetryPolicy_);
+    } else {
+        return this;
+    }
+}
+
 void TClient::CheckShutdown() const
 {
     if (Shutdown_) {
@@ -1496,15 +1509,10 @@ void TClient::CheckShutdown() const
     }
 }
 
-TClientContext CreateClientContext(
-    const TString& serverName,
-    const TCreateClientOptions& options)
+void SetupClusterContext(
+    TClientContext& context,
+    const TString& serverName)
 {
-    TClientContext context;
-    context.Config = options.Config_ ? options.Config_ : TConfig::Get();
-    context.TvmOnly = options.TvmOnly_;
-    context.ProxyAddress = options.ProxyAddress_;
-
     context.ServerName = serverName;
     ApplyProxyUrlAliasingRules(context.ServerName);
 
@@ -1517,9 +1525,8 @@ TClientContext CreateClientContext(
 
     static constexpr char httpUrlSchema[] = "http://";
     static constexpr char httpsUrlSchema[] = "https://";
-    if (options.UseTLS_) {
-        context.UseTLS = *options.UseTLS_;
-    } else {
+
+    if (!context.UseTLS) {
         context.UseTLS = context.ServerName.StartsWith(httpsUrlSchema);
     }
 
@@ -1541,12 +1548,31 @@ TClientContext CreateClientContext(
     if (context.ServerName.find(':') == TString::npos) {
         context.ServerName = CreateHostNameWithPort(context.ServerName, context);
     }
-    if (options.TvmOnly_) {
+    if (context.TvmOnly) {
         context.ServerName = Format("tvm.%v", context.ServerName);
     }
+}
 
-    if (options.ProxyRole_) {
-        context.Config->Hosts = "hosts?role=" + *options.ProxyRole_;
+TClientContext CreateClientContext(
+    const TString& serverName,
+    const TCreateClientOptions& options)
+{
+    TClientContext context;
+    context.Config = options.Config_ ? options.Config_ : TConfig::Get();
+    context.TvmOnly = options.TvmOnly_;
+    context.ProxyAddress = options.ProxyAddress_;
+
+    if (options.UseTLS_) {
+        context.UseTLS = *options.UseTLS_;
+    }
+
+    SetupClusterContext(context, serverName);
+
+    if (context.Config->HttpProxyRole && context.Config->Hosts == DefaultHosts) {
+        context.Config->Hosts = "hosts?role=" + context.Config->HttpProxyRole;
+    }
+    if (context.Config->RpcProxyRole) {
+        context.RpcProxyRole = context.Config->RpcProxyRole;
     }
 
     if (context.UseTLS || options.UseCoreHttpClient_) {

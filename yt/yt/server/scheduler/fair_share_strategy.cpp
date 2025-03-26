@@ -323,7 +323,7 @@ public:
         YT_ASSERT_INVOKERS_AFFINITY(FeasibleInvokers_);
 
         if (poolTreesYson == LastPoolTreesYson_ && ConvertToYsonString(Config_->TemplatePoolTreeConfigMap) == LastTemplatePoolTreeConfigMapYson_) {
-            YT_LOG_INFO("Pool trees and pools did not change, skipping update");
+            YT_LOG_INFO("Pool trees and pools are not changed, skipping update");
             return;
         }
 
@@ -615,7 +615,7 @@ public:
             }
 
             const auto& treeParams = GetOrCrash(runtimeParameters->SchedulingOptionsPerPoolTree, treeId);
-            tree->UpdateOperationRuntimeParameters(operation->GetId(), treeParams);
+            tree->UpdateOperationRuntimeParameters(operation->GetId(), TSchedulingTagFilter(runtimeParameters->SchedulingTagFilter), treeParams);
         }
         state->TreeIdToPoolNameMap() = newPools;
     }
@@ -1197,7 +1197,7 @@ public:
 
     //! Out of the pool trees specified for the operation, choose one most suitable tree
     //! depending on the operation's demand and current resource usage in each tree.
-    TErrorOr<TString> ChooseBestSingleTreeForOperation(
+    TErrorOr<std::string> ChooseBestSingleTreeForOperation(
         TOperationId operationId,
         const TCompositeNeededResources& neededResources)
     {
@@ -1210,30 +1210,36 @@ public:
             return snapshot->BuildIdToTreeMapping();
         }();
 
-        // NB(eshcherbin):
-        // First, we ignore all trees in which the new operation is not marked running.
-        // Then for every candidate pool we model the case if the new operation is assigned to it:
-        // 1) We add the pool's current demand share and the operation's demand share to get the model demand share.
-        // 2) We calculate reserveShare, defined as (estimatedGuaranteeShare - modelDemandShare).
-        // Finally, we choose the pool with the maximum of MinComponent(reserveShare) over all trees.
-        // More precisely, we compute MinComponent ignoring the resource types which are absent in the tree (e.g. GPU).
-        TString bestTree;
-        auto bestReserveRatio = std::numeric_limits<double>::lowest();
-        std::vector<TString> emptyTrees;
-        std::vector<TString> zeroGuaranteeTrees;
+        struct TSingleTreeOption
+        {
+            const std::string TreeId;
+            const bool Empty = false;
+            const bool ZeroGuarantee = false;
+            const bool Pending = false;
+            const double ReserveRatio = 0.0;
+        };
+        auto comparator = [&] (const TSingleTreeOption& lhs, const TSingleTreeOption& rhs) {
+            if (considerGuaranteesForSingleTree && lhs.ZeroGuarantee != rhs.ZeroGuarantee) {
+                return lhs.ZeroGuarantee < rhs.ZeroGuarantee;
+            }
+            if (lhs.Empty != rhs.Empty) {
+                return lhs.Empty < rhs.Empty;
+            }
+            if (lhs.Pending != rhs.Pending) {
+                return lhs.Pending < rhs.Pending;
+            };
+            return lhs.ReserveRatio > rhs.ReserveRatio;
+        };
+
+        std::vector<TSingleTreeOption> singleTreeOptions;
         for (const auto& [treeId, poolName] : state->TreeIdToPoolNameMap()) {
             YT_VERIFY(idToTree.contains(treeId));
             auto tree = idToTree[treeId];
 
-            if (!tree->IsSnapshottedOperationRunningInTree(operationId)) {
-                continue;
-            }
+            bool pending = !tree->IsSnapshottedOperationRunningInTree(operationId);
 
             auto totalResourceLimits = tree->GetSnapshottedTotalResourceLimits();
-            if (totalResourceLimits == TJobResources()) {
-                emptyTrees.push_back(treeId);
-                continue;
-            }
+            bool empty = totalResourceLimits == TJobResources();
 
             // If pool is not present in the tree (e.g. due to poor timings or if it is an ephemeral pool),
             // then its demand and guaranteed resources ratio are considered to be zero.
@@ -1244,10 +1250,8 @@ public:
                 estimatedGuaranteeShare = poolStateSnapshot->EstimatedGuaranteeShare;
             }
 
-            if (Dominates(TResourceVector::SmallEpsilon(), estimatedGuaranteeShare) && considerGuaranteesForSingleTree) {
-                zeroGuaranteeTrees.push_back(treeId);
-                continue;
-            }
+            bool zeroGuarantee = considerGuaranteesForSingleTree &&
+                Dominates(TResourceVector::SmallEpsilon(), estimatedGuaranteeShare);
 
             auto newDemand = neededResources.GetNeededResourcesForTree(treeId);
             auto newDemandShare = TResourceVector::FromJobResources(newDemand, totalResourceLimits);
@@ -1255,7 +1259,7 @@ public:
             auto reserveShare = estimatedGuaranteeShare - modelDemandShare;
 
             // TODO(eshcherbin): Perhaps we need to add a configurable main resource for each tree and compare the shares of this resource.
-            auto currentReserveRatio = std::numeric_limits<double>::max();
+            double currentReserveRatio = std::numeric_limits<double>::max();
             #define XX(name, Name) \
                 if (totalResourceLimits.Get##Name() > 0) { \
                     currentReserveRatio = std::min(currentReserveRatio, reserveShare[EJobResourceType::Name]); \
@@ -1263,55 +1267,57 @@ public:
             ITERATE_JOB_RESOURCES(XX)
             #undef XX
 
-            // TODO(eshcherbin): This is rather verbose. Consider removing when well tested in production.
             YT_LOG_DEBUG(
-                "Considering candidate single tree for operation ("
-                "OperationId: %v, TreeId: %v, TotalResourceLimits: %v, "
+                "Considering candidate single tree for operation "
+                "(Pending: %v, Empty: %v, ZeroGuarantee: %v, "
                 "NewDemandShare: %.6g, CurrentDemandShare: %.6g, ModelDemandShare: %.6g, "
-                "EstimatedGuaranteeShare: %.6g, ReserveShare: %.6g, CurrentReserveRatio: %v)",
-                operationId,
-                treeId,
-                FormatResources(totalResourceLimits),
+                "EstimatedGuaranteeShare: %.6g, ReserveShare: %.6g, CurrentReserveRatio: %v, TotalResourceLimits: %v, "
+                "TreeId: %v, OperationId: %v)",
+                pending,
+                empty,
+                zeroGuarantee,
                 newDemandShare,
                 currentDemandShare,
                 modelDemandShare,
                 estimatedGuaranteeShare,
                 reserveShare,
-                currentReserveRatio);
+                currentReserveRatio,
+                FormatResources(totalResourceLimits),
+                treeId,
+                operationId);
 
-            if (currentReserveRatio > bestReserveRatio) {
-                bestTree = treeId;
-                bestReserveRatio = currentReserveRatio;
-            }
+            singleTreeOptions.push_back(TSingleTreeOption{
+                .TreeId = treeId,
+                .Empty = empty,
+                .ZeroGuarantee = zeroGuarantee,
+                .Pending = pending,
+                .ReserveRatio = currentReserveRatio,
+            });
         }
 
-        if (!bestTree) {
-            if (considerGuaranteesForSingleTree) {
-                return TError("Found no best single non-empty tree for operation")
-                    << TErrorAttribute("operation_id", operationId)
-                    << TErrorAttribute("empty_candidate_trees", emptyTrees)
-                    << TErrorAttribute("zero_guarantee_candidate_trees", zeroGuaranteeTrees);
-            } else {
-                YT_VERIFY(!emptyTrees.empty());
+        auto bestTree = *std::ranges::min_element(singleTreeOptions, comparator);
 
-                bestTree = emptyTrees[0];
-
-                YT_LOG_DEBUG(
-                    "Found no best single non-empty tree for operation; choosing first found empty tree"
-                    "(OperationId: %v, BestTree: %v, EmptyCandidateTrees: %v)",
-                    operationId,
-                    bestTree,
-                    emptyTrees);
-            }
+        if (considerGuaranteesForSingleTree && bestTree.ZeroGuarantee) {
+            auto serializedTreeOptions = BuildYsonStringFluently()
+                .DoListFor(singleTreeOptions, [&] (TFluentList fluent, const TSingleTreeOption& treeOption) {
+                    fluent.Item()
+                        .BeginMap()
+                            .Item("tree_id").Value(treeOption.TreeId)
+                            .Item("empty").Value(treeOption.Empty)
+                            .Item("zero_guarantee").Value(treeOption.ZeroGuarantee)
+                            .Item("pending").Value(treeOption.Pending)
+                            .Item("reserve_ratio").Value(treeOption.ReserveRatio)
+                        .EndMap();
+                });
+            return TError("Found no best single non-empty tree for operation")
+                << TErrorAttribute("tree_options", serializedTreeOptions);
         }
 
-        YT_LOG_DEBUG("Best tree selected for operation (OperationId: %v, BestTree: %v, BestReserveRatio: %v, EmptyCandidateTrees: %v)",
-            operationId,
-            bestTree,
-            bestReserveRatio,
-            emptyTrees);
+        YT_LOG_DEBUG("Best tree selected for operation (BestTree: %v, OperationId: %v)",
+            bestTree.TreeId,
+            operationId);
 
-        return bestTree;
+        return bestTree.TreeId;
     }
 
     TError OnOperationMaterialized(
@@ -1330,6 +1336,7 @@ public:
             tree->OnOperationMaterialized(operationId);
         }
 
+        // TODO(eshcherbin): Move to std::string.
         auto unregisterFromTrees = [&] (std::vector<TString>&& treeIds) {
             for (auto&& treeId : treeIds) {
                 UnregisterOperationFromTree(operationId, treeId);
@@ -1806,20 +1813,21 @@ private:
         }
     }
 
-    TFairShareStrategyTreeConfigPtr ParsePoolTreeConfig(const INodePtr& poolTreeNode, const INodePtr& commonConfig) const
+    TFairShareStrategyTreeConfigPtr ParsePoolTreeConfig(
+        const INodePtr& poolTreeNode,
+        const INodePtr& patchConfigNode = nullptr) const
     {
         const auto& attributes = poolTreeNode->Attributes();
-        auto ysonConfig = attributes.FindYson(TreeConfigAttributeName);
-
-        if (!commonConfig) {
-            return ysonConfig
-                ? ConvertTo<TFairShareStrategyTreeConfigPtr>(ysonConfig)
-                : ConvertTo<TFairShareStrategyTreeConfigPtr>(attributes.ToMap());
+        auto configYson = attributes.FindYson(TreeConfigAttributeName);
+        if (!configYson) {
+            configYson = BuildYsonStringFluently()
+                .BeginMap()
+                .EndMap();
         }
 
-        return ysonConfig
-            ? ConvertTo<TFairShareStrategyTreeConfigPtr>(PatchNode(commonConfig, ConvertToNode(ysonConfig)))
-            : ConvertTo<TFairShareStrategyTreeConfigPtr>(PatchNode(commonConfig, attributes.ToMap()));
+        return patchConfigNode
+            ? ConvertTo<TFairShareStrategyTreeConfigPtr>(PatchNode(patchConfigNode, ConvertToNode(configYson)))
+            : ConvertTo<TFairShareStrategyTreeConfigPtr>(configYson);
     }
 
     TFairShareStrategyTreeConfigPtr BuildConfig(
@@ -1844,7 +1852,7 @@ private:
         }
 
         if (matchedTemplateConfigs.empty()) {
-            return ParsePoolTreeConfig(poolTreeAttributes, /*commonConfig*/ nullptr);
+            return ParsePoolTreeConfig(poolTreeAttributes);
         }
 
         std::sort(
@@ -1854,12 +1862,12 @@ private:
                 return first.config->Priority < second.config->Priority;
             });
 
-        INodePtr compiledConfig = GetEphemeralNodeFactory()->CreateMap();
+        INodePtr compiledConfigNode = GetEphemeralNodeFactory()->CreateMap();
         for (const auto& config : matchedTemplateConfigs) {
-            compiledConfig = PatchNode(compiledConfig, config.config->Config);
+            compiledConfigNode = PatchNode(compiledConfigNode, config.config->Config);
         }
 
-        return ParsePoolTreeConfig(poolTreeAttributes, compiledConfig);
+        return ParsePoolTreeConfig(poolTreeAttributes, compiledConfigNode);
     }
 
     void CollectTreeChanges(
@@ -1875,7 +1883,7 @@ private:
             if (IdToTree_.find(key) == IdToTree_.end()) {
                 treesToAdd->insert(key);
                 try {
-                    auto config = ParsePoolTreeConfig(poolsMap->FindChild(key), /*commonConfig*/ nullptr);
+                    auto config = ParsePoolTreeConfig(poolsMap->FindChild(key));
                     treeIdToFilter->emplace(key, config->NodesFilter);
                 } catch (const std::exception&) {
                     // Do nothing, alert will be set later.
@@ -1892,7 +1900,7 @@ private:
             }
 
             try {
-                auto config = ParsePoolTreeConfig(child, /*commonConfig*/ nullptr);
+                auto config = ParsePoolTreeConfig(child);
                 treeIdToFilter->emplace(treeId, config->NodesFilter);
 
                 if (config->NodesFilter != tree->GetNodesFilter()) {

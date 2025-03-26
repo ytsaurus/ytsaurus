@@ -14,19 +14,11 @@ using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace {
-
-constexpr auto& Logger = CellMasterLogger;
-
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 template <CMulticellStatisticsValue... TMulticellStatisticsValues>
 TMulticellStatisticsCollectorCommon<TMulticellStatisticsValues...>::TMulticellStatisticsCollectorCommon(TBootstrap* bootstrap)
     : TMasterAutomatonPart(bootstrap, EAutomatonThreadQueue::MulticellGossip)
     , Values_(MakeNodes(bootstrap))
-{}
+{ }
 
 template <CMulticellStatisticsValue... TMulticellStatisticsValues>
 template <CMulticellStatisticsValue TMulticellStatisticsValue>
@@ -88,7 +80,7 @@ void TMulticellStatisticsCollectorCommon<TMulticellStatisticsValues...>::OnPushU
 
     auto requestOrError = WaitFor(node->GetLocalCellUpdate());
     if (!requestOrError.IsOK()) {
-        YT_LOG_ERROR("Error collecting statistics update: %v", requestOrError);
+        NDetail::LogGetLocalCellUpdateError(requestOrError);
         return;
     }
 
@@ -96,7 +88,7 @@ void TMulticellStatisticsCollectorCommon<TMulticellStatisticsValues...>::OnPushU
 
     if (multicellManager->IsPrimaryMaster()) {
         YT_UNUSED_FUTURE(CreateMutation(Bootstrap_->GetHydraFacade()->GetHydraManager(), request)
-            ->CommitAndLog(Logger()));
+            ->CommitAndLog(CellMasterLogger()));
         node->FinishUpdate();
     } else {
         multicellManager->PostToPrimaryMaster(request, false);

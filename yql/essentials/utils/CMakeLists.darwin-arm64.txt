@@ -23,11 +23,12 @@ add_library(yql-essentials-utils)
 target_link_libraries(yql-essentials-utils PUBLIC
   contrib-libs-cxxsupp
   yutil
+  contrib-libs-miniselect
+  library-cpp-time_provider
   cpp-digest-md5
   cpp-string_utils-quote
   cpp-threading-future
   cpp-deprecated-atomic
-  contrib-libs-miniselect
 )
 
 target_sources(yql-essentials-utils PRIVATE
@@ -39,6 +40,7 @@ target_sources(yql-essentials-utils PRIVATE
   ${PROJECT_SOURCE_DIR}/yql/essentials/utils/limiting_allocator.cpp
   ${PROJECT_SOURCE_DIR}/yql/essentials/utils/line_split.cpp
   ${PROJECT_SOURCE_DIR}/yql/essentials/utils/md5_stream.cpp
+  ${PROJECT_SOURCE_DIR}/yql/essentials/utils/mem_limit.cpp
   ${PROJECT_SOURCE_DIR}/yql/essentials/utils/method_index.cpp
   ${PROJECT_SOURCE_DIR}/yql/essentials/utils/multi_resource_lock.cpp
   ${PROJECT_SOURCE_DIR}/yql/essentials/utils/parse_double.cpp
@@ -47,6 +49,7 @@ target_sources(yql-essentials-utils PRIVATE
   ${PROJECT_SOURCE_DIR}/yql/essentials/utils/retry.cpp
   ${PROJECT_SOURCE_DIR}/yql/essentials/utils/sort.cpp
   ${PROJECT_SOURCE_DIR}/yql/essentials/utils/swap_bytes.cpp
+  ${PROJECT_SOURCE_DIR}/yql/essentials/utils/time_provider.cpp
   ${PROJECT_SOURCE_DIR}/yql/essentials/utils/tty.cpp
   ${PROJECT_SOURCE_DIR}/yql/essentials/utils/url_builder.cpp
   ${PROJECT_SOURCE_DIR}/yql/essentials/utils/utf8.cpp
@@ -59,6 +62,7 @@ target_sources(yql-essentials-utils PRIVATE
   ${PROJECT_SOURCE_DIR}/yql/essentials/utils/future_action.h
   ${PROJECT_SOURCE_DIR}/yql/essentials/utils/hash.h
   ${PROJECT_SOURCE_DIR}/yql/essentials/utils/md5_stream.h
+  ${PROJECT_SOURCE_DIR}/yql/essentials/utils/mem_limit.h
   ${PROJECT_SOURCE_DIR}/yql/essentials/utils/method_index.h
   ${PROJECT_SOURCE_DIR}/yql/essentials/utils/multi_resource_lock.h
   ${PROJECT_SOURCE_DIR}/yql/essentials/utils/parse_double.h
@@ -66,8 +70,10 @@ target_sources(yql-essentials-utils PRIVATE
   ${PROJECT_SOURCE_DIR}/yql/essentials/utils/rand_guid.h
   ${PROJECT_SOURCE_DIR}/yql/essentials/utils/resetable_setting.h
   ${PROJECT_SOURCE_DIR}/yql/essentials/utils/retry.h
+  ${PROJECT_SOURCE_DIR}/yql/essentials/utils/runnable.h
   ${PROJECT_SOURCE_DIR}/yql/essentials/utils/sort.h
   ${PROJECT_SOURCE_DIR}/yql/essentials/utils/swap_bytes.h
+  ${PROJECT_SOURCE_DIR}/yql/essentials/utils/time_provider.h
   ${PROJECT_SOURCE_DIR}/yql/essentials/utils/tty.h
   ${PROJECT_SOURCE_DIR}/yql/essentials/utils/yql_panic.h
   ${PROJECT_SOURCE_DIR}/yql/essentials/utils/yql_paths.h

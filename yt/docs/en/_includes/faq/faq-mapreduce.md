@@ -242,7 +242,7 @@ Or simply read the data:
 ------
 #### **Q: A running operation generates the following message: "Average cpu usage... is lower than requested 'cpu_limit'». What does it mean?** { #lowcpuusage }
 
-**A:** The message means that the operation is using much less CPU than requested. By default, a single HyperThreading core is requested. This results in an operation blocking more CPU resources than it is using thereby making the use of the pool's CPU quota inefficient. If this behavior is expected, you should reduce the operation's cpu_limit (you can set it to a fraction), or else, you might review the operation jobs' runtime [statistics](../../user-guide/problems/jobstatistics.md) profiling the job while it is running to understand what it is doing.
+**A:** The message means that the operation is using much less CPU than requested. By default, a single HyperThreading core is requested. If you have explicitly set the `cpu_limit` higher than one, it means that the operation does not require that much and is not using the pool's CPU quota efficiently. In this case, we recommend reducing the limit for this operation. If you have not set the `cpu_limit` higher than one, the operation is probably waiting for some other resource, most often disk I/O. In this case, you might review the operation jobs' runtime [statistics](../../user-guide/problems/jobstatistics.md) profiling the job while it is running to understand what it is doing.
 
 ------
 #### **Q: A running operation displays the following warning: "Estimated duration of this operation is about ... days". What does it mean?** { #operationtoolong }
@@ -274,7 +274,7 @@ Or simply read the data:
 * This specifies a `scheduling_tag_filter` that none of the cluster nodes match.
 
 ------
-#### **Q: When I start a Merge, Reduce operation, I get error "Maximum allowed data weight violated for a sorted job: xxx > yyy"**
+#### **Q: When I start a Merge, Reduce operation, I get error "Maximum allowed data weight per sorted job exceeds the limit: xxx > yyy"**
 
 **A:** When jobs are bing built, the scheduler estimates that one job is getting too much data (hundreds of gigabytes), and the scheduler is unable to make a smaller job. The following options are available:
 

@@ -1,9 +1,5 @@
 PY23_LIBRARY()
 
-PEERDIR(
-    library/python/symbols/dill
-)
-
 IF (PYTHON2)
     IF (NOT OPENSOURCE)
         PEERDIR(yt/python/contrib/python-dill/py2)

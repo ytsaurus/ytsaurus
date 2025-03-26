@@ -1,0 +1,130 @@
+LIBRARY()
+
+SRCS(
+    auth.h
+    auth.cpp
+    actor_activity_names.cpp
+    appdata.h
+    appdata.cpp
+    backtrace.h
+    backtrace.cpp
+    board_lookup.cpp
+    board_publish.cpp
+    board_replica.cpp
+    blobstorage.h
+    blobstorage.cpp
+    blobstorage_grouptype.cpp
+    channel_profiles.h
+    counters.cpp
+    counters.h
+    defs.h
+    domain.cpp
+    domain.h
+    event_filter.cpp
+    event_filter.h
+    events.h
+    feature_flags.h
+    feature_flags_service.cpp
+    feature_flags_service.h
+    group_stat.cpp
+    group_stat.h
+    hive.h
+    interconnect_channels.h
+    localdb.cpp
+    localdb.h
+    location.h
+    logoblob.cpp
+    logoblob.h
+    memory_controller_iface.h
+    nameservice.h
+    path.cpp
+    pool_stats_collector.cpp
+    pool_stats_collector.h
+    resource_profile.h
+    row_version.cpp
+    row_version.h
+    runtime_feature_flags.h
+    services_assert.cpp
+    shared_quota.h
+    statestorage.cpp
+    statestorage.h
+    statestorage_event_filter.cpp
+    statestorage_guardian.cpp
+    statestorage_guardian_impl.h
+    statestorage_impl.h
+    statestorage_monitoring.cpp
+    statestorage_proxy.cpp
+    statestorage_replica.cpp
+    storage_pools.cpp
+    storage_pools.h
+    subdomain.h
+    subdomain.cpp
+    table_index.cpp
+    tablet.cpp
+    tablet.h
+    tablet_killer.cpp
+    tablet_pipe.h
+    tablet_pipecache.h
+    tablet_resolver.h
+    tablet_status_checker.cpp
+    tabletid.h
+    tablet_types.h
+    traceid.cpp
+    traceid.h
+    tracing.h
+    tx_processing.h
+    tx_processing.cpp
+    user_registry.h
+    wilson_tracing_control.cpp
+)
+
+PEERDIR(
+    contrib/ydb/library/actors/core
+    contrib/ydb/library/actors/helpers
+    contrib/ydb/library/actors/interconnect
+    contrib/ydb/library/actors/protos
+    contrib/ydb/library/actors/wilson
+    contrib/ydb/library/aclib
+    library/cpp/deprecated/enum_codegen
+    library/cpp/logger
+    library/cpp/lwtrace
+    library/cpp/lwtrace/mon
+    library/cpp/random_provider
+    library/cpp/time_provider
+    contrib/ydb/core/base/generated
+    contrib/ydb/core/base/services
+    contrib/ydb/core/debug
+    contrib/ydb/core/erasure
+    contrib/ydb/core/graph/api
+    contrib/ydb/core/jaeger_tracing
+    contrib/ydb/core/protos
+    contrib/ydb/core/protos/out
+    contrib/ydb/library/aclib
+    contrib/ydb/library/login
+    contrib/ydb/library/pdisk_io
+    contrib/ydb/library/pretty_types_print/protobuf
+    contrib/ydb/library/ydb_issue
+    contrib/ydb/public/api/protos/out
+    yql/essentials/minikql
+    library/cpp/deprecated/atomic
+)
+
+IF (NOT OS_WINDOWS)
+PEERDIR(
+    library/cpp/dwarf_backtrace
+)
+ENDIF()
+
+GENERATE_ENUM_SERIALIZATION(memory_controller_iface.h)
+
+END()
+
+RECURSE(
+    generated
+)
+
+RECURSE_FOR_TESTS(
+    ut
+    ut_auth
+    ut_board_subscriber
+)

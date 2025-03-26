@@ -69,7 +69,7 @@ void TParameterizedBalancingConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("enable_reshard", &TThis::EnableReshard)
         .Default();
-    registrar.Parameter("enable_uniform", &TThis::EnableUniform)
+    registrar.Parameter("per_table_uniform", &TThis::PerTableUniform)
         .Default();
     registrar.Parameter("metric", &TThis::Metric)
         .Default();
@@ -92,7 +92,7 @@ void TParameterizedBalancingConfig::Register(TRegistrar registrar)
         .Default();
 
     registrar.Postprocessor([] (TThis* config) {
-        if (config->EnableUniform.value_or(false) && !config->Factors) {
+        if (config->PerTableUniform.value_or(false) && !config->Factors) {
             config->Factors = TComponentFactorConfig::MakeUniformIdentity();
         } else if (!config->Factors) {
             config->Factors = New<TComponentFactorConfig>();
@@ -218,7 +218,7 @@ void TBundleTabletBalancerConfig::Register(TRegistrar registrar)
             it->second->Postprocess();
         }
 
-        if (auto it = config->Groups.emplace(LegacyGroupName, New<TTabletBalancingGroupConfig>()); it.second) {
+        if (auto it = config->Groups.emplace(LegacyOrdinaryGroupName, New<TTabletBalancingGroupConfig>()); it.second) {
             it.first->second->Type = EBalancingType::Legacy;
         }
 
@@ -229,7 +229,7 @@ void TBundleTabletBalancerConfig::Register(TRegistrar registrar)
         for (const auto& [groupName, groupConfig] : config->Groups) {
             if (groupConfig->Type == EBalancingType::Legacy) {
                 THROW_ERROR_EXCEPTION_IF(
-                    groupName != LegacyGroupName && groupName != LegacyInMemoryGroupName,
+                    groupName != LegacyOrdinaryGroupName && groupName != LegacyInMemoryGroupName,
                     "Group %Qv is not builtin but has legacy type",
                     groupName);
             }

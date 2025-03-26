@@ -17,15 +17,14 @@ DEFINE_ENUM(EThrottlerType,
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DECLARE_REFCOUNTED_CLASS(TThrottlerConfig)
+DECLARE_REFCOUNTED_STRUCT(TThrottlerConfig)
 DECLARE_REFCOUNTED_STRUCT(IThrottler)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TThrottlerConfig
+struct TThrottlerConfig
     : public NYTree::TYsonStruct
 {
-public:
     TDuration Period;
     i64 Limit;
 

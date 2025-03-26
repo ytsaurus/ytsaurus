@@ -8,31 +8,23 @@ namespace NYT::NQueryClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void ValidateFullSyncIndexSchema(
-    const TTableSchema& tableSchema,
-    const TTableSchema& indexTableSchema);
-
-void ValidateUnfoldingIndexSchema(
+void ValidateIndexSchema(
+    NTabletClient::ESecondaryIndexKind kind,
     const TTableSchema& tableSchema,
     const TTableSchema& indexTableSchema,
-    const TString& unfoldedColumnName);
+    const std::optional<TString>& predicate,
+    const TTableSchemaPtr& evaluatedColumnsSchema,
+    const std::optional<TString> unfoldedColumnName = std::nullopt);
 
-const TColumnSchema& FindUnfoldedColumnAndValidate(
+const TColumnSchema& FindUnfoldingColumnAndValidate(
     const TTableSchema& tableSchema,
-    const TTableSchema& indexTableSchema);
+    const TTableSchema& indexTableSchema,
+    const std::optional<TString>& predicate,
+    const TTableSchemaPtr& evaluatedColumnsSchema);
 
-void ValidateColumnsAreInIndexLockGroup(
-    const TColumnSet& columns,
-    const TTableSchema& tableSchema,
-    const TTableSchema& indexTableSchema);
+////////////////////////////////////////////////////////////////////////////////
 
-void ValidateUniqueIndexSchema(
-    const TTableSchema& tableSchema,
-    const TTableSchema& indexTableSchema);
-
-bool IsValidUnfoldedColumnPair(
-    const NTableClient::TLogicalTypePtr& tableColumnType,
-    const NTableClient::TLogicalTypePtr& indexColumnType);
+void ValidateNoNameCollisions(const TTableSchema& lhs, const TTableSchema& rhs);
 
 ////////////////////////////////////////////////////////////////////////////////
 

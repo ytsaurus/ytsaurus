@@ -58,6 +58,7 @@ class YtTestEnvironment(object):
                  delta_dynamic_node_config=None,
                  delta_proxy_config=None,
                  modify_configs_func=None,
+                 cluster_name="primary",
                  need_suid=False):
         # To use correct version of bindings we must reset it before start environment.
         yt.native_driver.driver_bindings = None
@@ -190,8 +191,6 @@ class YtTestEnvironment(object):
             # sanitaze token
             os.environ["HOME"] = tempfile.gettempdir()
             os.environ["YT_TOKEN"] = ""
-
-        cluster_name = "primary"
 
         yt_config = LocalYtConfig(
             master_count=1,

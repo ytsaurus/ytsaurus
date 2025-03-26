@@ -102,10 +102,6 @@ using namespace NTracing;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-constexpr auto DefaultScheduleReplyRetryBackoff = TDuration::MilliSeconds(100);
-
-////////////////////////////////////////////////////////////////////////////////
-
 class TStickyUserErrorCache
 {
 public:
@@ -346,8 +342,11 @@ private:
     TStickyUserErrorCache StickyUserErrorCache_;
     std::atomic<bool> EnableTwoLevelCache_ = false;
     std::atomic<bool> EnableCypressTransactionsInSequoia_ = false;
+    static constexpr auto DefaultScheduleReplyRetryBackoff = TDuration::MilliSeconds(100);
     std::atomic<TDuration> ScheduleReplyRetryBackoff_ = DefaultScheduleReplyRetryBackoff;
     std::atomic<bool> MinimizeExecuteLatency_ = false;
+    static constexpr double NullPrematureBackoffAlarmProbability = -1.0;
+    std::atomic<double> PrematureBackoffAlarmProbability_ = NullPrematureBackoffAlarmProbability;
 
     static IInvokerPtr GetRpcInvoker()
     {
@@ -366,6 +365,15 @@ private:
     void OnUserCharged(TUser* user, const TUserWorkload& workload);
 
     void SetStickyUserError(const std::string& userName, const TError& error);
+
+    std::optional<double> GetPrematureBackoffAlarmProbability() const
+    {
+        auto prematureBackoffAlarmProbability = PrematureBackoffAlarmProbability_.load(std::memory_order::relaxed);
+        // This also protects from stray NaNs.
+        return prematureBackoffAlarmProbability >= 0.0
+            ? std::optional(prematureBackoffAlarmProbability)
+            : std::nullopt;
+    }
 
     std::function<void()> MakeLocalReadThreadInitializer()
     {
@@ -430,6 +438,7 @@ public:
         , Logger(ObjectServerLogger().WithTag("RequestId: %v", RequestId_))
         , TentativePeerState_(Bootstrap_->GetHydraFacade()->GetHydraManager()->GetAutomatonState())
         , CellSyncSession_(New<TMultiPhaseCellSyncSession>(Bootstrap_, Logger))
+        , PrematureBackoffAlarmProbability_(Owner_->GetPrematureBackoffAlarmProbability())
     { }
 
     ~TExecuteSession()
@@ -527,6 +536,7 @@ private:
     const NLogging::TLogger Logger;
     const EPeerState TentativePeerState_;
     const TMultiPhaseCellSyncSessionPtr CellSyncSession_;
+    const std::optional<double> PrematureBackoffAlarmProbability_;
 
     TDelayedExecutorCookie BackoffAlarmCookie_;
 
@@ -995,6 +1005,10 @@ private:
         try {
             LookupCachedSubrequests();
 
+            // This shouldn't be done any sooner to avoid races between
+            // CancelPendingCachedSubrequests and LookupCachedSubrequests.
+            SubscribeToCancelation();
+
             // Re-check remote requests to see if resolve cache resolve is still OK.
             DecideSubrequestTypes();
 
@@ -1011,6 +1025,38 @@ private:
         } catch (const std::exception& ex) {
             Reply(ex);
         }
+    }
+
+    void SubscribeToCancelation()
+    {
+        RpcContext_->SubscribeCanceled(BIND(&TExecuteSession::OnCanceled, MakeWeak(this)));
+    }
+
+    void OnCanceled(const TError& error)
+    {
+        // Since RpcContext_->IsCanceled() is already true, this will not actually
+        // send a reply (see DoReply). Nevertheless, this is crucial for preventing
+        // the following.
+        //
+        // Two batch requests may depend on each other cyclically: the first one
+        // is subscribed, via cache, to a future the second one is responsible
+        // for setting, and vice versa. (This is possible because different batch
+        // requests do cache lookups and subsequent subscribing in parallel.)
+        //
+        // Such a cycle (which, btw, in practice may be of arbitrary length) is
+        // not necessarily bad. After all, the first future to be set will break
+        // the cycle. But currently there's a problem with backoff alarms
+        // (pending a fix in near future).
+        //
+        // When backoff alarm is triggered for a batch request, it will stop
+        // (after processing at least one subrequest) and will not process the
+        // tail of the batch. Normally, this is not an issue as the request is
+        // finished and destroyed soon after. However, if it's a part of a cycle
+        // (of the kind described above), all batch requests in the cycle may
+        // become stuck, each kept alive by a subscription to a future that will
+        // never be set because it's supposed to be set by a subrequest in the
+        // tail of the next batch request in the cycle.
+        Reply(error);
     }
 
     void MarkSubrequestLocal(TSubrequest* subrequest)
@@ -1384,22 +1430,21 @@ private:
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
 
-        using TBatchKey = std::tuple<TCellTag, NApi::EMasterChannelKind>;
+        const auto& multicellManager = Bootstrap_->GetMulticellManager();
+
+        using TBatchKey = std::tuple<TCellTag, NHydra::EPeerKind>;
         struct TBatchValue
         {
             TObjectServiceProxy::TReqExecuteBatchBasePtr BatchReq;
             TCompactVector<int, 16> Indexes;
         };
         THashMap<TBatchKey, TBatchValue> batchMap;
-        auto getOrCreateBatch = [&] (TCellTag cellTag, NApi::EMasterChannelKind channelKind) {
-            auto key = std::tuple(cellTag, channelKind);
+        auto getOrCreateBatch = [&] (TCellTag cellTag, NHydra::EPeerKind peerKind) {
+            auto key = std::tuple(cellTag, peerKind);
             auto it = batchMap.find(key);
             if (it == batchMap.end()) {
-                TObjectServiceProxy proxy(
-                    Bootstrap_->GetClusterConnection(),
-                    channelKind,
-                    cellTag,
-                    /*stickyGroupSizeCache*/ nullptr);
+                auto proxy = TObjectServiceProxy::FromDirectMasterChannel(
+                    multicellManager->GetMasterChannelOrThrow(cellTag, peerKind));
                 auto batchReq = proxy.ExecuteBatchNoBackoffRetries();
                 batchReq->SetOriginalRequestId(RequestId_);
                 batchReq->SetTimeout(ComputeForwardingTimeout(RpcContext_, Owner_->Config_));
@@ -1420,18 +1465,18 @@ private:
 
             const auto& requestHeader = subrequest.RequestHeader;
             const auto& ypathExt = *subrequest.YPathExt;
-            auto channelKind = subrequest.YPathExt->mutating()
-                ? NApi::EMasterChannelKind::Leader
-                : NApi::EMasterChannelKind::Follower;
+            auto peerKind = subrequest.YPathExt->mutating()
+                ? NHydra::EPeerKind::Leader
+                : NHydra::EPeerKind::Follower;
 
-            auto* batch = getOrCreateBatch(subrequest.ForwardedCellTag, channelKind);
+            auto* batch = getOrCreateBatch(subrequest.ForwardedCellTag, peerKind);
             batch->BatchReq->AddRequestMessage(subrequest.RemoteRequestMessage);
             batch->Indexes.push_back(subrequestIndex);
 
             AcquireReplyLock();
 
             YT_LOG_DEBUG("Forwarding object request (ForwardedRequestId: %v, Method: %v.%v, "
-                "%v%v%v%v, Mutating: %v, CellTag: %v, ChannelKind: %v)",
+                "%v%v%v%v, Mutating: %v, CellTag: %v, PeerKind: %v)",
                 batch->BatchReq->GetRequestId(),
                 requestHeader.service(),
                 requestHeader.method(),
@@ -1453,7 +1498,7 @@ private:
                 RpcContext_->GetAuthenticationIdentity(),
                 ypathExt.mutating(),
                 subrequest.ForwardedCellTag,
-                channelKind);
+                peerKind);
         }
 
         for (auto& [cellTag, batch] : batchMap) {
@@ -1611,9 +1656,10 @@ private:
             }
         }
 
-        User_->LogIfPendingRemoval(
-            Format("User pending for removal has accessed object service (User: %v)",
-            User_->GetName()));
+        YT_LOG_ALERT_IF(
+            User_->GetPendingRemoval(),
+            "User pending for removal has accessed object service (User: %v)",
+            User_->GetName());
 
         if (NeedsUserAccessValidation_) {
             NeedsUserAccessValidation_ = false;
@@ -1736,6 +1782,12 @@ private:
         Owner_->ValidateClusterInitialized();
 
         while (*currentSubrequestIndex < TotalSubrequestCount_) {
+            // NB: PrematureBackoffAlarmProbability_ is usually std::nullopt.
+            // NB: This may trigger even at 0 processed subrequests, which is intended.
+            if (Y_UNLIKELY(RandomNumber<double>() <= PrematureBackoffAlarmProbability_)) {
+                OnBackoffAlarm(/*premature*/ true);
+            }
+
             if (InterruptIfCanceled()) {
                 break;
             }
@@ -1835,7 +1887,7 @@ private:
         auto asyncSubresponse = objectManager->ForwardObjectRequest(
             subrequest->RequestMessage,
             Bootstrap_->GetMulticellManager()->GetCellTag(),
-            NApi::EMasterChannelKind::Leader);
+            NHydra::EPeerKind::Leader);
 
         SubscribeToSubresponse(subrequest, std::move(asyncSubresponse));
     }
@@ -2237,11 +2289,21 @@ private:
         }
     }
 
-    void OnBackoffAlarm()
+    void OnBackoffAlarm(bool premature = false)
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
 
-        YT_LOG_DEBUG("Backoff alarm triggered");
+        if (Y_UNLIKELY(premature)) {
+            // Premature backoff alarm is only triggered from Automaton or LocalRead threads,
+            // so it's safe to read subrequest indices here.
+            YT_LOG_DEBUG("Backoff alarm triggered prematurely "
+                "(CurrentAutomatonSubrequestIndex: %v, CurrentLocalReadSubrequestIndex: %v, TotalSubrequestCount: %v)",
+                CurrentAutomatonSubrequestIndex_,
+                CurrentLocalReadSubrequestIndex_,
+                TotalSubrequestCount_);
+        } else {
+            YT_LOG_DEBUG("Backoff alarm triggered");
+        }
 
         BackoffAlarmTriggered_.store(true);
 
@@ -2366,6 +2428,7 @@ void TObjectService::OnDynamicConfigChanged(TDynamicClusterConfigPtr /*oldConfig
     EnableTwoLevelCache_ = objectServiceConfig->EnableTwoLevelCache;
     ScheduleReplyRetryBackoff_ = objectServiceConfig->ScheduleReplyRetryBackoff;
     MinimizeExecuteLatency_ = objectServiceConfig->MinimizeExecuteLatency;
+    PrematureBackoffAlarmProbability_ = objectServiceConfig->Testing->PrematureBackoffAlarmProbability.value_or(NullPrematureBackoffAlarmProbability);
 
     const auto& sequoiaConfig = Bootstrap_->GetConfigManager()->GetConfig()->SequoiaManager;
     EnableCypressTransactionsInSequoia_.store(

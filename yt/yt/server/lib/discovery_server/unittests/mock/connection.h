@@ -142,6 +142,13 @@ public:
         YT_UNIMPLEMENTED();
     }
 
+    NRpc::IChannelPtr FindMasterChannel(
+        NApi::EMasterChannelKind /*kind*/,
+        NObjectClient::TCellTag /*cellTag*/) override
+    {
+        YT_UNIMPLEMENTED();
+    }
+
     NRpc::IChannelPtr GetMasterChannelOrThrow(
         NApi::EMasterChannelKind /*kind*/,
         NObjectClient::TCellTag /*cellTag*/) override
@@ -244,6 +251,11 @@ public:
         YT_UNIMPLEMENTED();
     }
 
+    const NSecurityClient::TUserAttributeCachePtr& GetUserAttributeCache() override
+    {
+        YT_UNIMPLEMENTED();
+    }
+
     const NApi::NNative::TStickyGroupSizeCachePtr& GetStickyGroupSizeCache() override
     {
         YT_UNIMPLEMENTED();
@@ -286,7 +298,7 @@ public:
         YT_UNIMPLEMENTED();
     }
 
-    const TString& GetClusterId() const override
+    const std::string& GetClusterId() const override
     {
         YT_UNIMPLEMENTED();
     }

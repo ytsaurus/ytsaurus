@@ -65,12 +65,11 @@ DEFINE_ENUM(EQueueSubmitResult,
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DECLARE_REFCOUNTED_CLASS(TUringIOEngineConfig)
+DECLARE_REFCOUNTED_STRUCT(TUringIOEngineConfig)
 
-class TUringIOEngineConfig
+struct TUringIOEngineConfig
     : public TIOEngineConfigBase
 {
-public:
     int UringThreadCount;
 
     //! Limits the number of concurrent (outstanding) #IIOEngine requests per a single uring thread.
@@ -336,13 +335,13 @@ TUringRequestBase<TResponse>::~TUringRequestBase()
 { }
 
 struct TFlushFileUringRequest
-    : public TUringRequestBase<IIOEngine::TFlushFileResponse>
+    : public TUringRequestBase<TFlushFileResponse>
 {
-    IIOEngine::TFlushFileRequest FlushFileRequest;
+    TFlushFileRequest FlushFileRequest;
     i64 IOSyncRequests = 0;
 
     void TrySetResponse() override {
-        Promise.TrySet(IIOEngine::TFlushFileResponse{
+        Promise.TrySet(TFlushFileResponse{
             .IOSyncRequests = IOSyncRequests,
         });
     }
@@ -351,13 +350,13 @@ struct TFlushFileUringRequest
 struct TAllocateUringRequest
     : public TUringRequestBase<void>
 {
-    IIOEngine::TAllocateRequest AllocateRequest;
+    TAllocateRequest AllocateRequest;
 };
 
 struct TWriteUringRequest
-    : public TUringRequestBase<IIOEngine::TWriteResponse>
+    : public TUringRequestBase<TWriteResponse>
 {
-    IIOEngine::TWriteRequest WriteRequest;
+    TWriteRequest WriteRequest;
     int CurrentWriteSubrequestIndex = 0;
     TUringIovBuffer* WriteIovBuffer = nullptr;
     i64 WrittenBytes = 0;
@@ -368,7 +367,7 @@ struct TWriteUringRequest
     bool SyncedFileRange = false;
 
     void TrySetResponse() override {
-        Promise.TrySet(IIOEngine::TWriteResponse{
+        Promise.TrySet(TWriteResponse{
             .IOWriteRequests = IOWriteRequests,
             .IOSyncRequests = IOSyncRequests,
             .WrittenBytes = WrittenBytes,
@@ -377,7 +376,7 @@ struct TWriteUringRequest
 };
 
 struct TReadUringRequest
-    : public TUringRequestBase<IIOEngine::TReadResponse>
+    : public TUringRequestBase<TReadResponse>
 {
     struct TReadSubrequestState
     {
@@ -385,7 +384,7 @@ struct TReadUringRequest
         TSharedMutableRef Buffer;
     };
 
-    std::vector<IIOEngine::TReadRequest> ReadSubrequests;
+    std::vector<TReadRequest> ReadSubrequests;
     TCompactVector<TReadSubrequestState, TypicalSubrequestCount> ReadSubrequestStates;
     TCompactVector<int, TypicalSubrequestCount> PendingReadSubrequestIndexes;
     const IReadRequestCombinerPtr ReadRequestCombiner;
@@ -399,7 +398,7 @@ struct TReadUringRequest
     { }
 
     void TrySetResponse() override {
-        Promise.TrySet(IIOEngine::TReadResponse{
+        Promise.TrySet(TReadResponse{
             .PaddedBytes = PaddedBytes,
             .IORequests = IORequests,
         });
@@ -1166,7 +1165,7 @@ public:
     EQueueSubmitResult Enqueue(
         TUringRequestPtr request,
         EWorkloadCategory /*category*/,
-        IIOEngine::TSessionId /*sessionId*/)
+        TIOSessionId /*sessionId*/)
     {
         Queue_.enqueue(std::move(request));
 
@@ -1183,7 +1182,7 @@ public:
     EQueueSubmitResult Enqueue(
         std::vector<TUringRequestPtr>& requests,
         EWorkloadCategory /*category*/,
-        IIOEngine::TSessionId /*sessionId*/)
+        TIOSessionId /*sessionId*/)
     {
         for (auto& request : requests) {
             Queue_.enqueue(std::move(request));
@@ -1260,7 +1259,7 @@ public:
     EQueueSubmitResult Enqueue(
         TUringRequestPtr request,
         EWorkloadCategory category,
-        IIOEngine::TSessionId sessionId)
+        TIOSessionId sessionId)
     {
         auto shardIndex = GetShardIndex(sessionId);
         auto& shard = Shards_[shardIndex];
@@ -1279,7 +1278,7 @@ public:
     EQueueSubmitResult Enqueue(
         std::vector<TUringRequestPtr>& request,
         EWorkloadCategory category,
-        IIOEngine::TSessionId sessionId)
+        TIOSessionId sessionId)
     {
         auto shardIndex = GetShardIndex(sessionId);
         auto& shard = Shards_[shardIndex];
@@ -1354,7 +1353,7 @@ public:
     }
 
 private:
-    using TRequestQueue = TMpscFairShareQueue<EWorkloadCategory, TUringRequestPtr, TIOEngineBase::TSessionId>;
+    using TRequestQueue = TMpscFairShareQueue<EWorkloadCategory, TUringRequestPtr, TIOSessionId>;
 
     struct alignas(2 * CacheLineSize) TQueueShard
     {
@@ -1411,13 +1410,13 @@ private:
         }
     }
 
-    int GetShardIndex(TIOEngineBase::TSessionId sessionId) const
+    int GetShardIndex(TIOSessionId sessionId) const
     {
         if (!sessionId) {
             return static_cast<int>(RandomNumber<ui32>(Config_->GetUringThreadCount()));
         }
 
-        THash<IIOEngine::TSessionId> hasher;
+        THash<TIOSessionId> hasher;
         return hasher(sessionId) % Config_->GetUringThreadCount();
     }
 
@@ -1537,7 +1536,7 @@ public:
     void SubmitRequest(
         TUringRequestPtr request,
         EWorkloadCategory category,
-        IIOEngine::TSessionId sessionId)
+        TIOSessionId sessionId)
     {
         YT_LOG_DEBUG_IF(EnableIOUringLogging_, "Request enqueued (Request: %v, Type: %v)",
             request.get(),
@@ -1550,7 +1549,7 @@ public:
     void SubmitRequests(
         std::vector<TUringRequestPtr>& requests,
         EWorkloadCategory category,
-        IIOEngine::TSessionId sessionId)
+        TIOSessionId sessionId)
     {
         if (!requests.empty()) {
             YT_LOG_DEBUG_IF(EnableIOUringLogging_, "Requests enqueued (RequestCount: %v, Type: %v)",
@@ -1682,7 +1681,7 @@ public:
         std::vector<TReadRequest> requests,
         EWorkloadCategory category,
         TRefCountedTypeCookie tagCookie,
-        TSessionId sessionId,
+        TIOSessionId sessionId,
         bool useDedicatedAllocations) override
     {
         if (std::ssize(requests) > MaxSubrequestCount) {
@@ -1713,7 +1712,7 @@ public:
     TFuture<TWriteResponse> Write(
         TWriteRequest request,
         EWorkloadCategory category,
-        TSessionId sessionId) override
+        TIOSessionId sessionId) override
     {
         TRequestSlicer requestSlicer(Config_->GetDesiredRequestSize(), Config_->GetMinRequestSize());
 
@@ -1764,7 +1763,7 @@ public:
     virtual TFuture<TFlushFileRangeResponse> FlushFileRange(
         TFlushFileRangeRequest /*request*/,
         EWorkloadCategory /*category*/,
-        TSessionId /*sessionId*/) override
+        TIOSessionId /*sessionId*/) override
     {
         // TODO (capone212): implement
         return MakeFuture(TFlushFileRangeResponse{});
@@ -1780,7 +1779,7 @@ private:
     TFuture<typename TUringRequestPtr::element_type::TUringResponse> SubmitRequest(
         TUringRequestPtr request,
         EWorkloadCategory category,
-        IIOEngine::TSessionId sessionId)
+        TIOSessionId sessionId)
     {
         auto future = request->Promise.ToFuture();
         ThreadPool_->SubmitRequest(std::move(request), category, sessionId);
@@ -1800,7 +1799,7 @@ private:
         std::vector<IReadRequestCombiner::TCombinedRequest>& combinedRequests,
         TDummyRequestSlicer& /*slicer*/,
         EWorkloadCategory category,
-        TSessionId sessionId)
+        TIOSessionId sessionId)
     {
         auto uringRequest = std::make_unique<TReadUringRequest>(readRequestCombiner);
         uringRequest->Type = EUringRequestType::Read;
@@ -1840,7 +1839,7 @@ private:
         std::vector<IReadRequestCombiner::TCombinedRequest>& combinedRequests,
         TIORequestSlicer& slicer,
         EWorkloadCategory category,
-        TSessionId sessionId)
+        TIOSessionId sessionId)
     {
         std::vector<TUringRequestPtr> uringRequests;
         uringRequests.reserve(combinedRequests.size());

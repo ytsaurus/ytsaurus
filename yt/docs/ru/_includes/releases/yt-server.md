@@ -8,6 +8,109 @@ All main components are released as a docker image.
 
 **Releases:**
 
+{% cut "**24.2.0**" %}
+
+**Release date:** 2025-03-19
+
+
+_To install YTsaurus Server 24.2.0 [update](https://github.com/ytsaurus/ytsaurus-k8s-operator/releases/tag/release%2F0.22.0) the k8s-operator to version 0.22.0._
+
+---
+### Known Issue
+- Expanding a cluster with new master cells is temporarily disabled due to a bug. This issue will be resolved in the upcoming 25.1 version.
+
+---
+
+### Scheduler and GPU
+New Features & Changes:
+- Added support for ACO-based access control in operations.
+- Introduced `get_job_trace` method in the jobs API.
+- Added an option to fail an operation if started in a non-existent pool.
+- Enriched configuration options for offloading operations to pool trees.
+
+Fixes & Optimizations:
+- Fixed scheduling issues with new allocations immediately after operation suspension.
+- Optimized fair share updates within the control thread.
+
+### Queue Agent
+New Features & Changes:
+- Queue exports are now considered when trimming replicated and chaos replicated table queues.
+- Introduced sum aggregation for lag metrics in consumer partitions.
+- Refactor queue exports: add retries and rate limiting.
+
+Fixes & Optimizations:
+- Fixed a possible queue controller suspension by adding a timeout to `GetOrderedTabletSafeTrimRowCount` requests.
+- Corrected lock options when acquiring a shared lock for the export directory.
+- Resolved expiration issues of clients for chaos queues and consumers when the cluster connection changes.
+
+### Proxy
+New Features & Changes:
+- Supported YAML format for structured data. See details in the RFC: [YAML-format support](https://github.com/ytsaurus/ytsaurus/wiki/%5BRFC%5D-YAML-format-support).
+- Introduced create_user_if_not_exists config flag to disable automatic user creation during OAuth authentication. [Issue](https://github.com/ytsaurus/ytsaurus/issues/930).
+- Added `cache_key_mode` parameter for controlling credential caching granularity.
+- Implemented a new handler for retrieving job trace events.
+
+Fixes & Optimizations:
+- The `discover_proxies` handler now returns an error when the proxy type is `http`.
+- Fixed a heap buffer overflow in the Arrow parser.
+- If insufficient memory is available to handle RPC responses, a retryable `Unavailable` error will now be returned instead of the non-retryable `MemoryPressure` error.
+- Optimized the `concatenate` method.
+
+### Kafka proxy
+Introduce a new component: the Kafka Proxy. This MVP version enables integration with YTsaurus queues using the Kafka protocol. It currently supports a minimal API for writing to queues and reading with load balancing through consumer groups.
+
+### Dynamic Tables
+New Features & Changes:
+- Introduced Versioned Remote Copy for tables with hunks.
+
+Fixes & Optimizations:
+- Fixed issues with secondary indices in multi-cell clusters (especially large clusters).
+- Improved stability and performance of chaos replication.
+  
+### MapReduce
+New Features & Changes:
+- Disallowed cluster_connection in remote copy operations.
+- Introduced single-chunk teleportation for auto-merge operations.
+- Merging of tables with compatible (not necessarily matching) schemas is supported.
+- Refactored code in preparation for gang operation introduction.
+- Refactored code to enable job-level allocation reuse.
+- Improved per-job directory logging in job-proxy mode.
+
+Fixes & Optimizations:
+- Optimized job resource acquisition in exec nodes.
+- Fixed cases of lost metrics in exec nodes.
+
+### Master Server
+New Features & Changes:
+- Added an option to fetch input/output table schemas from an external cell using a schema ID.
+- Deprecated the list node type; its creation is now forbidden.
+- Introduced a new write target allocation strategy using the “two random choices” algorithm.
+- Implemented an automatic mechanism to disable replication to data nodes in failing data centers. This can be configured in `//sys/@config/chunk_manager/data_center_failure_detector`.
+- Introduced pessimistic validation for resource usage increases when changing the primary medium.
+- Forbidden certain erasure codecs in remote copy operations.
+- Added node groups attribute for node
+
+Fixes & Optimizations:
+- Fixed a race condition between transaction coordinator commit and cell unref for exported objects, [8d6721a](https://github.com/ytsaurus/ytsaurus/commit/8d6721a16bb6a1bc26c9f0d1dc5506f32635e6b6).
+- Fixed manual Cypress node merging for Scheduler transactions, [f87a2ad](https://github.com/ytsaurus/ytsaurus/commit/f87a2ad466c2352be9ba7bfee6e7d93796a9eb6a).
+- Fixed master crash when setting a YSON dictionary with duplicate keys in a custom attribute, [0cfad80](https://github.com/ytsaurus/ytsaurus/commit/0cfad80f415c23233ca748e345cd9af91169f4c3).
+- Fixed row comparison in shallow merge validation to prevent job failures, [3c282d4](https://github.com/ytsaurus/ytsaurus/commit/3c282d4e9f50aa00d861b7a6f1ca388fea18e51d).
+- Fixed a crash when reading `@local_scan_flags` attribute, [5b4c954](https://github.com/ytsaurus/ytsaurus/commit/5b4c954c09ac6e1adc55aa6a5d7baff8f894fb61).
+- Fixed non-deterministic YSON struct field loading that could cause a “state hashes differ” alert due to inconsistent error messages when multiple required fields were missing, [0553e21](https://github.com/ytsaurus/ytsaurus/commit/0553e2182a0df502592abdd1fcd8ac3c6afd64ad).
+- Fixed an issue where nodes held by transactions interfered with cleanup triggered by `expiration_time` attribute.
+- Fixed a bug that caused account metrics to break when adding a new account.
+- Fixed a bug in attribute-based access control that caused the first entry to always be evaluated.
+- Fixed an issue where Hydra followers could become indefinitely stuck after a lost mutation.
+- Limited chunk list count per chunk merger session to prevent master overload.
+- Fixed an incorrect check for the state of a node during the removal process.
+- Improved incremental heartbeat reporting to prevent chunks from getting stuck in the destroyed queue.
+- Optimized chunk merger by reducing unnecessary requisition updates.
+
+
+
+{% endcut %}
+
+
 {% cut "**24.1.0**" %}
 
 **Release date:** 2024-11-07

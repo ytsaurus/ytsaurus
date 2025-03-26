@@ -8,10 +8,9 @@ namespace NYT::NChaosServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TAlienCellSynchronizerConfig
+struct TAlienCellSynchronizerConfig
     : public NYTree::TYsonStruct
 {
-public:
     bool Enable;
     TDuration SyncPeriod;
     TDuration FullSyncPeriod;
@@ -25,10 +24,9 @@ DEFINE_REFCOUNTED_TYPE(TAlienCellSynchronizerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TDynamicChaosManagerConfig
+struct TDynamicChaosManagerConfig
     : public NYTree::TYsonStruct
 {
-public:
     TAlienCellSynchronizerConfigPtr AlienCellSynchronizer;
     bool EnableMetadataCells;
 

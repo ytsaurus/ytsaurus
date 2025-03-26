@@ -8,12 +8,12 @@ namespace NYT::NCellBalancer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DECLARE_REFCOUNTED_CLASS(TCellBalancerBootstrapConfig)
-DECLARE_REFCOUNTED_CLASS(TCellBalancerProgramConfig)
-DECLARE_REFCOUNTED_CLASS(TCellBalancerConfig)
-DECLARE_REFCOUNTED_CLASS(TCellBalancerMasterConnectorConfig)
-DECLARE_REFCOUNTED_CLASS(TBundleControllerConfig)
-DECLARE_REFCOUNTED_CLASS(TChaosConfig)
+DECLARE_REFCOUNTED_STRUCT(TCellBalancerBootstrapConfig)
+DECLARE_REFCOUNTED_STRUCT(TCellBalancerProgramConfig)
+DECLARE_REFCOUNTED_STRUCT(TCellBalancerConfig)
+DECLARE_REFCOUNTED_STRUCT(TCellBalancerMasterConnectorConfig)
+DECLARE_REFCOUNTED_STRUCT(TBundleControllerConfig)
+DECLARE_REFCOUNTED_STRUCT(TChaosConfig)
 
 DECLARE_REFCOUNTED_STRUCT(IBootstrap)
 DECLARE_REFCOUNTED_STRUCT(IMasterConnector)

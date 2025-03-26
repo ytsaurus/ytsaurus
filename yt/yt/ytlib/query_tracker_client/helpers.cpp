@@ -31,7 +31,7 @@ TString FormatAcoList(const std::optional<TYsonString> accessControlObjects) {
 
 // TODO(max42): this is terrible, refactor this.
 
-TString GetFilterFactors(const TActiveQueryPartial& record)
+std::string GetFilterFactors(const TActiveQueryPartial& record)
 {
     return Format("%v %v acos:%v",
         record.Query,
@@ -39,7 +39,7 @@ TString GetFilterFactors(const TActiveQueryPartial& record)
         FormatAcoList(record.AccessControlObjects.value_or(std::nullopt)));
 }
 
-TString GetFilterFactors(const TFinishedQueryPartial& record)
+std::string GetFilterFactors(const TFinishedQueryPartial& record)
 {
     return Format("%v %v acos:%v",
         record.Query,
@@ -47,7 +47,7 @@ TString GetFilterFactors(const TFinishedQueryPartial& record)
         FormatAcoList(record.AccessControlObjects));
 }
 
-TString GetFilterFactors(const TFinishedQuery& record)
+std::string GetFilterFactors(const TFinishedQuery& record)
 {
     return Format("%v %v acos:%v",
         record.Query,

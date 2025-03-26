@@ -8,8 +8,8 @@
 #include <Parsers/ExpressionListParsers.h>
 #include <Parsers/formatAST.h>
 
-#include <Poco/Util/AbstractConfiguration.h>
-#include <Poco/Util/XMLConfiguration.h>
+#include <DBPoco/Util/AbstractConfiguration.h>
+#include <DBPoco/Util/XMLConfiguration.h>
 
 namespace NYT::NClickHouseServer {
 
@@ -20,7 +20,7 @@ using namespace NLogging;
 
 static TLogger Logger("Test");
 
-using ConfigurationPtr = Poco::AutoPtr<Poco::Util::AbstractConfiguration>;
+using ConfigurationPtr = DBPoco::AutoPtr<DBPoco::Util::AbstractConfiguration>;
 
 // NOTE(dakovalkov): SharedContextPart is a singletone. Creating it multiple times leads to std::terminate().
 // Storing and initializing SharedContextHolder as a global variable is also a bad idea:
@@ -32,7 +32,7 @@ DB::ContextPtr InitGlobalContext()
 {
     static DB::SharedContextHolder sharedContextHolder = DB::Context::createShared();
     DB::ContextMutablePtr globalContext = DB::Context::createGlobal(sharedContextHolder.get());
-    ConfigurationPtr config(new Poco::Util::XMLConfiguration());
+    ConfigurationPtr config(new DBPoco::Util::XMLConfiguration());
     globalContext->setConfig(config);
     globalContext->makeGlobalContext();
     return globalContext;
@@ -62,7 +62,7 @@ TEST_P(TComputedColumnPredicatePopulationTest, Test)
     const auto& [schema, originalPredicate, expectedPredicateWithIn, expectedPredicateWithDnf] = GetParam();
 
     DB::ParserExpressionWithOptionalAlias parser(false);
-    auto originalAst = DB::parseQuery(parser, originalPredicate, 0 /*maxQuerySize*/, 0 /*maxQueryDepth*/);
+    auto originalAst = DB::parseQuery(parser, originalPredicate, 0 /*maxQuerySize*/, 0 /*maxQueryDepth*/, 0 /*max_parser_backtracks*/);
     DB::PreparedSets preparedSets;
     TQuerySettingsPtr settings = New<TQuerySettings>();
     for (auto deducedStatementMode : TEnumTraits<EDeducedStatementMode>::GetDomainValues()) {
@@ -127,8 +127,8 @@ INSTANTIATE_TEST_SUITE_P(
                 TColumnSchema("key", EValueType::Uint64)
             }),
             "key IN (SELECT * FROM T WHERE key = 42)",
-            "key IN ((SELECT * FROM T WHERE key = 42) AS _subquery1)",
-            "key IN ((SELECT * FROM T WHERE key = 42) AS _subquery2)"),
+            "key IN (SELECT * FROM T WHERE key = 42)",
+            "key IN (SELECT * FROM T WHERE key = 42)"),
         std::tuple(
             New<TTableSchema>(std::vector<TColumnSchema>{
                 TColumnSchema("computed_key1", EValueType::Uint64, ESortOrder::Ascending)
@@ -140,7 +140,7 @@ INSTANTIATE_TEST_SUITE_P(
             "key = 5",
             "(key = 5) AND ((key, computed_key1) IN tuple((5, 10))) AND ((key, computed_key2) IN tuple((5, 15)))",
             "(key = 5) AND ((key = 5) AND (computed_key1 = 10)) AND ((key = 5) AND (computed_key2 = 15))"),
-        // TODO(max42): CHYT-438.
+        // TODO(buyval01): CHYT-1254.
         // Should become "(key1 = 5) AND (key2 = 10) AND (computed_key = 15)".
         std::tuple(
             New<TTableSchema>(std::vector<TColumnSchema>{

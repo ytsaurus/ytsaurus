@@ -115,7 +115,20 @@ void TDynamicCypressManagerConfig::Register(TRegistrar registrar)
         .Default(true);
 
     // COMPAT(koloshmet)
+    registrar.Parameter("enable_cross_cell_links", &TThis::EnableCrossCellLinks)
+        .Default(false)
+        .DontSerializeDefault();
+
+    // COMPAT(koloshmet)
     registrar.Parameter("enable_preserve_acl_during_move", &TThis::EnablePreserveAclDuringMove)
+        .Default(true);
+
+    registrar.Parameter("max_attribute_filter_size_to_log", &TThis::MaxAttributeFilterSizeToLog)
+        .Default(20)
+        .GreaterThan(0)
+        .DontSerializeDefault();
+
+    registrar.Parameter("use_proper_branched_parent_in_lock_copy_destination", &TThis::UseProperBranchedParentInLockCopyDestination)
         .Default(true);
 
     registrar.Postprocessor([] (TThis* config) {

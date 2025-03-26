@@ -46,7 +46,7 @@ public:
     TFuture<NTabletServer::TReplicaLagTimes> ComputeReplicaLagTimes(
         std::vector<NTabletClient::TTableReplicaId> replicaIds) override;
 
-    NApi::IClientPtr CreateClusterClient(const TString& clusterName) override;
+    NApi::IClientPtr CreateClusterClient(const std::string& clusterName) override;
 
     TFuture<NTabletServer::TApplyChangeReplicaCommandResults> ApplyChangeReplicaModeCommands(
         std::vector<NTabletServer::TChangeReplicaModeCommand> commands) override;

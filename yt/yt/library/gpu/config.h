@@ -13,10 +13,9 @@ DEFINE_ENUM(EGpuInfoSourceType,
     (NvidiaSmi)
 );
 
-class TGpuInfoSourceConfig
+struct TGpuInfoSourceConfig
     : public NYTree::TYsonStruct
 {
-public:
     //! Type of the GPU info source for use.
     EGpuInfoSourceType Type;
 

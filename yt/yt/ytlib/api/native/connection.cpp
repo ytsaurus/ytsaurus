@@ -71,6 +71,7 @@
 #include <yt/yt/ytlib/bundle_controller/bundle_controller_channel.h>
 
 #include <yt/yt/ytlib/security_client/permission_cache.h>
+#include <yt/yt/ytlib/security_client/user_attribute_cache.h>
 
 #include <yt/yt/ytlib/tablet_client/native_table_mount_cache.h>
 
@@ -107,7 +108,8 @@
 
 #include <yt/yt/core/misc/checksum.h>
 #include <yt/yt/core/misc/lazy_ptr.h>
-#include <yt/yt/core/misc/memory_usage_tracker.h>
+
+#include <library/cpp/yt/memory/memory_usage_tracker.h>
 
 #include <library/cpp/yt/threading/atomic_object.h>
 
@@ -265,6 +267,13 @@ public:
             config->PermissionCache,
             this);
 
+        UserAttributeCache_ = New<TUserAttributeCache>(
+            config->UserAttributeCache,
+            MakeWeak(this),
+            GetInvoker(),
+            Logger,
+            Profiler_.WithPrefix("/user_attribute_cache"));
+
         JobShellDescriptorCache_ = New<TJobShellDescriptorCache>(
             config->JobShellDescriptorCache,
             MakeWeak(this),
@@ -403,7 +412,7 @@ public:
         return LoggingTag_;
     }
 
-    const TString& GetClusterId() const override
+    const std::string& GetClusterId() const override
     {
         return ClusterId_;
     }
@@ -451,6 +460,11 @@ public:
         return PermissionCache_;
     }
 
+    const TUserAttributeCachePtr& GetUserAttributeCache() override
+    {
+        return UserAttributeCache_;
+    }
+
     const TStickyGroupSizeCachePtr& GetStickyGroupSizeCache() override
     {
         return StickyGroupSizeCache_;
@@ -495,6 +509,7 @@ public:
     {
         TableMountCache_->Clear();
         PermissionCache_->Clear();
+        UserAttributeCache_->Clear();
     }
 
     // NNative::IConnection implementation.
@@ -546,6 +561,13 @@ public:
         return ReplaceCellTagInId(GetPrimaryMasterCellId(), cellTag);
     }
 
+    IChannelPtr FindMasterChannel(
+        EMasterChannelKind kind,
+        TCellTag cellTag = PrimaryMasterCellTagSentinel) override
+    {
+        return MasterCellDirectory_->FindMasterChannel(kind, cellTag);
+    }
+
     IChannelPtr GetMasterChannelOrThrow(
         EMasterChannelKind kind,
         TCellTag cellTag = PrimaryMasterCellTagSentinel) override
@@ -564,9 +586,7 @@ public:
         EMasterChannelKind kind,
         TCellTag cellTag = PrimaryMasterCellTagSentinel) override
     {
-        auto canUseCypressProxy =
-            (kind == EMasterChannelKind::Follower || kind == EMasterChannelKind::Leader) &&
-            (cellTag == PrimaryMasterCellTagSentinel || cellTag == GetPrimaryMasterCellTag());
+        auto canUseCypressProxy = kind == EMasterChannelKind::Follower || kind == EMasterChannelKind::Leader;
 
         return canUseCypressProxy && CypressProxyChannel_
             ? CypressProxyChannel_
@@ -901,7 +921,7 @@ private:
     TConnectionOptions Options_;
 
     const std::string LoggingTag_;
-    const TString ClusterId_;
+    const std::string ClusterId_;
 
     NRpc::IChannelFactoryPtr ChannelFactory_;
     TStickyGroupSizeCachePtr StickyGroupSizeCache_;
@@ -937,6 +957,7 @@ private:
     IClockManagerPtr ClockManager_;
     TJobShellDescriptorCachePtr JobShellDescriptorCache_;
     TPermissionCachePtr PermissionCache_;
+    TUserAttributeCachePtr UserAttributeCache_;
     TSyncReplicaCachePtr SyncReplicaCache_;
 
     ICellDirectoryPtr CellDirectory_;
@@ -1087,11 +1108,16 @@ private:
                 endpointDescription,
                 std::move(endpointAttributes));
 
-            channel = CreateRetryingChannel(channelConfig, std::move(channel));
+            auto retryChecker = BIND([] (const TError& error) -> bool {
+                if (NRpc::IsRetriableError(error)) {
+                    return true;
+                }
 
-            // TODO(max42): make customizable.
-            constexpr auto timeout = TDuration::Minutes(1);
-            channel = CreateDefaultTimeoutChannel(std::move(channel), timeout);
+                return error.FindMatching(NQueueClient::EErrorCode::QueueAgentRetriableError).has_value();
+            });
+
+            channel = CreateRetryingChannel(channelConfig, std::move(channel), std::move(retryChecker));
+            channel = CreateDefaultTimeoutChannel(std::move(channel), channelConfig->DefaultRequestTimeout);
 
             QueueAgentChannels_[stage] = std::move(channel);
         }
@@ -1187,7 +1213,7 @@ private:
         };
 
         std::pair<IClientPtr, TQueryTrackerStageConfigPtr> resultStage;
-        TString resultCluster;
+        std::string resultCluster;
         for (const auto& cluster : GetClusterDirectory()->GetClusterNames()) {
             if (auto existingStage = findStage(cluster); existingStage.first) {
                 if (resultStage.first) {
@@ -1420,6 +1446,26 @@ TFuture<TTableMountInfoPtr> GetTableMountInfo(const TRichYPath& objectPath, cons
     YT_VERIFY(objectConnection);
     auto objectTableMountCache = objectConnection->GetTableMountCache();
     return objectTableMountCache->GetTableInfo(objectPath.GetPath());
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TFuture<bool> IsSuperuser(const IConnectionPtr& connection, const std::string& user)
+{
+    return connection->GetUserAttributeCache()->Get(user)
+        .Apply(BIND([] (const TUserAttributesPtr& attributes) {
+            YT_VERIFY(attributes);
+            return attributes->MemberOfClosure.contains(SuperusersGroupName);
+        }));
+}
+
+TFuture<bool> IsUserBanned(const IConnectionPtr& connection, const std::string& user)
+{
+    return connection->GetUserAttributeCache()->Get(user)
+        .Apply(BIND([] (const TUserAttributesPtr& attributes) {
+            YT_VERIFY(attributes);
+            return attributes->Banned;
+        }));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

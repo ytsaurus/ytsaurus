@@ -70,6 +70,7 @@ public:
         , ShouldSlicePrimaryTableByKeys_(options.SortedJobOptions.ShouldSlicePrimaryTableByKeys)
         , SliceForeignChunks_(options.SliceForeignChunks)
         , MinTeleportChunkSize_(options.MinTeleportChunkSize)
+        , MinManiacDataWeight_(options.MinManiacDataWeight)
         , JobSizeConstraints_(options.JobSizeConstraints)
         , TeleportChunkSampler_(JobSizeConstraints_->GetSamplingRate())
         , SupportLocality_(options.SupportLocality)
@@ -83,14 +84,16 @@ public:
 
         YT_LOG_DEBUG("New sorted chunk pool created (EnableKeyGuarantee: %v, PrimaryPrefixLength: %v, "
             "ForeignPrefixLength: %v, DataWeightPerJob: %v, "
-            "PrimaryDataWeightPerJob: %v, MaxDataSlicesPerJob: %v, InputSliceDataWeight: %v)",
+            "PrimaryDataWeightPerJob: %v, MaxDataSlicesPerJob: %v, InputSliceDataWeight: %v, "
+            "MinManiacDataWeight: %v)",
             SortedJobOptions_.EnableKeyGuarantee,
             PrimaryPrefixLength_,
             ForeignPrefixLength_,
             JobSizeConstraints_->GetDataWeightPerJob(),
             JobSizeConstraints_->GetPrimaryDataWeightPerJob(),
             JobSizeConstraints_->GetMaxDataSlicesPerJob(),
-            JobSizeConstraints_->GetInputSliceDataWeight());
+            JobSizeConstraints_->GetInputSliceDataWeight(),
+            MinManiacDataWeight_);
     }
 
     IChunkPoolInput::TCookie Add(TChunkStripePtr stripe) override
@@ -256,6 +259,8 @@ private:
     //! chunks of at least that size will be teleported.
     i64 MinTeleportChunkSize_;
 
+    std::optional<i64> MinManiacDataWeight_ = {};
+
     //! All stripes that were added to this pool.
     std::vector<TSuspendableStripe> Stripes_;
 
@@ -336,7 +341,7 @@ private:
                             comparator,
                             sliceSize);
 
-                        chunkSliceFetcher->AddDataSliceForSlicing(dataSlice, comparator, sliceSize, /*sliceByKeys*/ true);
+                        chunkSliceFetcher->AddDataSliceForSlicing(dataSlice, comparator, sliceSize, /*sliceByKeys*/ true, MinManiacDataWeight_);
                     } else if (!isPrimary) {
                         // Take foreign slice as-is.
                         processDataSlice(dataSlice, inputCookie);
@@ -706,6 +711,7 @@ private:
             JobSizeConstraints_->GetMaxDataSlicesPerJob(),
             JobSizeConstraints_->GetMaxDataWeightPerJob(),
             JobSizeConstraints_->GetMaxPrimaryDataWeightPerJob(),
+            JobSizeConstraints_->GetMaxCompressedDataSizePerJob(),
             JobSizeConstraints_->GetInputSliceDataWeight(),
             JobSizeConstraints_->GetInputSliceRowCount(),
             JobSizeConstraints_->GetBatchRowCount(),
@@ -805,6 +811,8 @@ void TNewSortedChunkPool::RegisterMetadata(auto&& registrar)
     PHOENIX_REGISTER_FIELD(16, TeleportChunks_);
     PHOENIX_REGISTER_FIELD(17, IsCompleted_);
     PHOENIX_REGISTER_FIELD(18, StructuredLogger);
+    PHOENIX_REGISTER_FIELD(19, MinManiacDataWeight_,
+        .SinceVersion(ESnapshotVersion::IsolateManiacsInSlicing));
 
     registrar.AfterLoad([] (TThis* this_, auto& /*context*/) {
         ValidateLogger(this_->Logger);

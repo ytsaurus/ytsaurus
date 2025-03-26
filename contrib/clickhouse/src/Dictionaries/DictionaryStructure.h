@@ -5,7 +5,7 @@
 #include <string>
 #include <vector>
 
-#include <Poco/Util/AbstractConfiguration.h>
+#include <DBPoco/Util/AbstractConfiguration.h>
 
 #include <base/EnumReflection.h>
 
@@ -89,14 +89,6 @@ constexpr void callOnDictionaryAttributeType(AttributeUnderlyingType type, F && 
     });
 }
 
-struct DictionarySpecialAttribute final
-{
-    const std::string name;
-    const std::string expression;
-
-    DictionarySpecialAttribute(const Poco::Util::AbstractConfiguration & config, const std::string & config_prefix);
-};
-
 struct DictionaryTypedSpecialAttribute final
 {
     const std::string name;
@@ -108,7 +100,7 @@ struct DictionaryTypedSpecialAttribute final
 /// Name of identifier plus list of attributes
 struct DictionaryStructure final
 {
-    std::optional<DictionarySpecialAttribute> id;
+    std::optional<DictionaryTypedSpecialAttribute> id;
     std::optional<std::vector<DictionaryAttribute>> key;
     std::vector<DictionaryAttribute> attributes;
     std::unordered_map<std::string, size_t> attribute_name_to_index;
@@ -119,7 +111,7 @@ struct DictionaryStructure final
     bool has_expressions = false;
     bool access_to_key_from_attributes = false;
 
-    DictionaryStructure(const Poco::Util::AbstractConfiguration & config, const std::string & config_prefix);
+    DictionaryStructure(const DBPoco::Util::AbstractConfiguration & config, const std::string & config_prefix);
 
     DataTypes getKeyTypes() const;
     void validateKeyTypes(const DataTypes & key_types) const;
@@ -136,12 +128,12 @@ struct DictionaryStructure final
 private:
     /// range_min and range_max have to be parsed before this function call
     std::vector<DictionaryAttribute> getAttributes(
-        const Poco::Util::AbstractConfiguration & config,
+        const DBPoco::Util::AbstractConfiguration & config,
         const std::string & config_prefix,
         bool complex_key_attributes);
 
     /// parse range_min and range_max
-    void parseRangeConfiguration(const Poco::Util::AbstractConfiguration & config, const std::string & structure_prefix);
+    void parseRangeConfiguration(const DBPoco::Util::AbstractConfiguration & config, const std::string & structure_prefix);
 
 };
 

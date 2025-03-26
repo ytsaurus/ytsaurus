@@ -45,7 +45,7 @@ public:
     bool isVariadic() const override { return true; }
     size_t getNumberOfArguments() const override { return 0; }
 
-    bool isSuitableForShortCircuitArgumentsExecution(const DataTypesWithConstInfo & /*arguments*/) const override { return false; }
+    bool isSuitableForShortCircuitArgumentsExecution(const DataTypesWithConstInfo & /*arguments*/) const override { return true; }
 
     DataTypePtr getReturnTypeImpl(const ColumnsWithTypeAndName & arguments) const override
     {
@@ -159,7 +159,7 @@ public:
         memcpy(reinterpret_cast<UInt8 *>(&ms) + 2, buffer, 6);
 
 #    if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
-        ms = std::byteswap(ms);
+        ms = DB::byteswap(ms);
 #    endif
 
         return DecimalUtils::decimalFromComponents<DateTime64>(ms / intExp10(DATETIME_SCALE), ms % intExp10(DATETIME_SCALE), DATETIME_SCALE);
@@ -180,8 +180,7 @@ An optional second argument can be passed to specify a timezone for the timestam
                 {"ulid", "SELECT ULIDStringToDateTime(generateULID())", ""},
                 {"timezone", "SELECT ULIDStringToDateTime(generateULID(), 'Asia/Istanbul')", ""}},
             .categories{"ULID"}
-        },
-        FunctionFactory::CaseSensitive);
+        });
 }
 
 }

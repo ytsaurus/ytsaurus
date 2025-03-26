@@ -6,8 +6,6 @@
 #include <yt/yt/client/table_client/helpers.h>
 #include <yt/yt/client/table_client/schema.h>
 
-#include <yt/yt/core/misc/ema_counter.h>
-
 #include <yt/yt/core/ytree/fluent.h>
 #include <yt/yt/core/ytree/node.h>
 

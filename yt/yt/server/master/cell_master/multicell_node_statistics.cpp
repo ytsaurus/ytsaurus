@@ -36,9 +36,17 @@ const NProto::TCellStatistics& TMulticellNodeStatistics::GetClusterStatistics() 
     return ClusterCellStatisics_;
 }
 
-NProto::TCellStatistics TMulticellNodeStatistics::GetCellStatistics(NObjectClient::TCellTag cell) const
+NProto::TCellStatistics TMulticellNodeStatistics::GetCellStatistics(NObjectClient::TCellTag cellTag) const
 {
-    return GetOrDefault(MasterCellStatistics_, cell);
+    return GetOrDefault(MasterCellStatistics_, cellTag);
+}
+
+i64 TMulticellNodeStatistics::GetChunkCount(NObjectClient::TCellTag cellTag) const
+{
+    if (Bootstrap_->GetCellTag() == cellTag) {
+        return Bootstrap_->GetChunkManager()->Chunks().GetSize();
+    }
+    return GetCellStatistics(cellTag).chunk_count();
 }
 
 // COMPAT(koloshmet)
@@ -124,7 +132,7 @@ void TMulticellNodeStatistics::HydraApplyMulticellStatisticsUpdate(NProto::TReqS
         // NB: alerting this cell is not having the 'Cypress node host' role would
         // probably be a bit too fragile.
         YT_LOG_INFO(
-            "Received node multicell statistics but cell doesn't have %v role", EMasterCellRoles::CypressNodeHost);
+            "Received node multicell statistics but cell doesn't have %Qlv role", EMasterCellRoles::CypressNodeHost);
     }
 
     YT_LOG_INFO("Received multicell statistics gossip message (%v)",

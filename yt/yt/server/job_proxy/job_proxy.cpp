@@ -107,7 +107,6 @@
 #include <yt/yt/core/tracing/trace_context.h>
 
 #include <yt/yt/core/misc/fs.h>
-#include <yt/yt/core/misc/memory_usage_tracker.h>
 #include <yt/yt/core/misc/proc.h>
 #include <yt/yt/core/misc/ref_counted_tracker.h>
 
@@ -127,6 +126,8 @@
 #include <yt/yt/library/dns_over_rpc/client/dns_over_rpc_resolver.h>
 
 #include <yt/yt/library/oom/oom.h>
+
+#include <library/cpp/yt/memory/memory_usage_tracker.h>
 
 #include <util/system/fs.h>
 #include <util/system/execpath.h>
@@ -440,8 +441,8 @@ static NTableClient::TTableSchemaPtr SetStableNames(
     }
     return New<NTableClient::TTableSchema>(
         std::move(columns),
-        schema->GetStrict(),
-        schema->GetUniqueKeys(),
+        schema->IsStrict(),
+        schema->IsUniqueKeys(),
         schema->GetSchemaModification(),
         schema->DeletedColumns());
 }
@@ -765,17 +766,24 @@ void TJobProxy::SetJobProxyEnvironment(IJobProxyEnvironmentPtr environment)
 void TJobProxy::EnableRpcProxyInJobProxy(int rpcProxyWorkerThreadPoolSize)
 {
     YT_VERIFY(Config_->OriginalClusterConnection);
-    NLogging::TLogger proxyLogger("RpcProxy");
+
     auto connection = CreateNativeConnection(Config_->OriginalClusterConnection);
     connection->GetClusterDirectorySynchronizer()->Start();
     connection->GetNodeDirectorySynchronizer()->Start();
-    connection->GetQueueConsumerRegistrationManager()->StartSync();
+    if (Config_->StartQueueConsumerRegistrationManager) {
+        connection->GetQueueConsumerRegistrationManager()->StartSync();
+    }
     connection->GetMasterCellDirectorySynchronizer()->Start();
+
     auto rootClient = connection->CreateNativeClient(TClientOptions::FromUser(NSecurityClient::RootUserName));
 
     auto proxyCoordinator = CreateProxyCoordinator();
     proxyCoordinator->SetAvailableState(true);
-    auto securityManager = CreateSecurityManager(Config_->ApiService->SecurityManager, connection, proxyLogger);
+
+    auto securityManager = CreateSecurityManager(
+        Config_->ApiService->SecurityManager,
+        connection,
+        RpcProxyLogger());
     auto authenticationManager = NAuth::CreateAuthenticationManager(
         Config_->AuthenticationManager,
         NYT::NBus::TTcpDispatcher::Get()->GetXferPoller(),
@@ -791,7 +799,7 @@ void TJobProxy::EnableRpcProxyInJobProxy(int rpcProxyWorkerThreadPoolSize)
         CreateNoopAccessChecker(),
         securityManager,
         New<TSampler>(),
-        proxyLogger,
+        RpcProxyLogger(),
         TProfiler(),
         NSignature::CreateAlwaysThrowingSignatureValidator(),
         NSignature::CreateAlwaysThrowingSignatureGenerator());
@@ -1038,7 +1046,10 @@ NApi::NNative::IConnectionPtr TJobProxy::CreateNativeConnection(NApi::NNative::T
         YT_LOG_DEBUG("Destination service id is ready");
     }
 
-    return NApi::NNative::CreateConnection(std::move(config));
+    NNative::TConnectionOptions options;
+    options.RetryRequestQueueSizeLimitExceeded = true;
+
+    return NApi::NNative::CreateConnection(std::move(config), std::move(options));
 }
 
 void TJobProxy::ReportResult(

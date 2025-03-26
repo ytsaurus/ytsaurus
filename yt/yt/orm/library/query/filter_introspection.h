@@ -58,7 +58,7 @@ struct TOptionalLiteralValueWrapper
  *  - Infer attribute value `[/meta/parent_id]` to apply the filter to a restricted set of rows.
  */
 TOptionalLiteralValueWrapper IntrospectFilterForDefinedAttributeValue(
-    const TString& filterQuery,
+    const std::string& filterQuery,
     const NYPath::TYPath& attributePath);
 
 //! Introspects #filterExpression, trying to find non-trivial reference to #referenceName,
@@ -85,7 +85,7 @@ bool IntrospectFilterForDefinedReference(
  *  Throws for an invalid #filterQuery.
  */
 void ExtractFilterAttributeReferences(
-    const TString& filterQuery,
+    const std::string& filterQuery,
     std::function<void(const std::string&)> inserter);
 
 ////////////////////////////////////////////////////////////////////////////////

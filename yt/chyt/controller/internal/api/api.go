@@ -313,6 +313,19 @@ func (a *API) getOpletBriefInfoFromYson(
 	}
 }
 
+func (a *API) getUserFromOperation(ctx context.Context, alias string) (string, error) {
+	var opID yt.OperationID
+	opIDPath := a.cfg.AgentInfo.StrawberryRoot.JoinChild(alias).Attr("strawberry_persistent_state").Child("yt_operation_id")
+	if err := a.Ytc.GetNode(ctx, opIDPath, &opID, nil); err != nil {
+		return "", err
+	}
+	op, err := a.Ytc.GetOperation(ctx, opID, nil)
+	if err != nil {
+		return "", err
+	}
+	return op.AuthenticatedUser, nil
+}
+
 // Create creates a new strawberry operation in cypress.
 // If the creation fails due to a transient error, the resulting state can be inconsistent,
 // because we can not create an access control object node in transactions.
@@ -531,19 +544,28 @@ func (a *API) GetOption(ctx context.Context, alias, key string) (value any, err 
 	return
 }
 
-func (a *API) SetOption(ctx context.Context, alias, key string, value any) error {
+func (a *API) setOption(
+	ctx context.Context,
+	alias, key string,
+	value any,
+	options *yt.SetNodeOptions,
+) error {
 	// NB: pool and pool_trees options require validation.
 	if key == "pool" || key == "pool_trees" {
 		return a.EditOptions(ctx, alias, map[string]any{key: value}, nil)
 	}
 
+	return a.Ytc.SetNode(ctx, a.cfg.AgentInfo.StrawberryRoot.JoinChild(alias, "speclet", key), value, options)
+}
+
+func (a *API) SetOption(ctx context.Context, alias, key string, value any) error {
 	if err := a.CheckExistence(ctx, alias, true /*shouldExist*/); err != nil {
 		return err
 	}
 	if err := a.CheckPermissionToOp(ctx, alias, yt.PermissionManage); err != nil {
 		return err
 	}
-	return a.Ytc.SetNode(ctx, a.cfg.AgentInfo.StrawberryRoot.JoinChild(alias, "speclet", key), value, &yt.SetNodeOptions{Recursive: true, Force: true})
+	return a.setOption(ctx, alias, key, value, &yt.SetNodeOptions{Recursive: true, Force: true})
 }
 
 func (a *API) RemoveOption(ctx context.Context, alias, key string) error {
@@ -800,16 +822,16 @@ func (a *API) Start(ctx context.Context, alias string, untracked bool, userClien
 	if err := a.CheckPermissionToOp(ctx, alias, yt.PermissionManage); err != nil {
 		return err
 	}
-	if err := a.SetOption(ctx, alias, "active", true); err != nil {
+	if err := a.setOption(ctx, alias, "active", true, nil); err != nil {
 		return err
 	}
 	if !untracked {
-		if err := a.SetOption(ctx, alias, "stage", a.cfg.AgentInfo.Stage); err != nil {
+		if err := a.setOption(ctx, alias, "stage", a.cfg.AgentInfo.Stage, nil); err != nil {
 			return err
 		}
 		return nil
 	}
-	if err := a.SetOption(ctx, alias, "stage", strawberry.StageUntracked); err != nil {
+	if err := a.setOption(ctx, alias, "stage", strawberry.StageUntracked, nil); err != nil {
 		return err
 	}
 	agentInfo := a.getAgentInfoForUntrackedStage()
@@ -836,7 +858,7 @@ func (a *API) Stop(ctx context.Context, alias string) error {
 	if err != nil {
 		return err
 	}
-	if err = a.SetOption(ctx, alias, "active", false); err != nil {
+	if err = a.setOption(ctx, alias, "active", false, nil); err != nil {
 		return err
 	}
 	if stage != strawberry.StageUntracked {
@@ -847,6 +869,82 @@ func (a *API) Stop(ctx context.Context, alias string) error {
 	if err != nil {
 		return err
 	}
+	return oplet.Pass(ctx, true /*checkOpLiveness*/)
+}
+
+func (a *API) Restart(ctx context.Context, alias string, force bool, userClient yt.Client) error {
+	if err := a.CheckExistence(ctx, alias, true /*shouldExist*/); err != nil {
+		return err
+	}
+	if err := a.CheckPermissionToOp(ctx, alias, yt.PermissionManage); err != nil {
+		return err
+	}
+	specletPath := a.cfg.AgentInfo.StrawberryRoot.JoinChild(alias, "speclet")
+	var node struct {
+		Speclet struct {
+			Stage  string `yson:"stage"`
+			Active bool   `yson:"active"`
+		} `yson:"value"`
+		Revision yt.Revision `yson:"revision"`
+	}
+	options := yt.GetNodeOptions{Attributes: []string{"revision", "value"}}
+	if err := a.Ytc.GetNode(ctx, specletPath.Attrs(), &node, &options); err != nil {
+		return err
+	}
+
+	if !node.Speclet.Active {
+		return yterrors.Err(
+			fmt.Sprintf("clique %v is inactive, restart can be done only for running cliques", alias))
+	}
+
+	if node.Speclet.Stage == strawberry.StageUntracked && !force {
+		currentUser, err := getUser(ctx)
+		if err != nil {
+			return err
+		}
+		userStartedOp, err := a.getUserFromOperation(ctx, alias)
+		if err != nil {
+			return err
+		}
+		if currentUser != userStartedOp {
+			return yterrors.Err(
+				fmt.Sprintf("previous operation was started by %v, "+
+					"if you want to restart operation from %v use --force option, "+
+					"be careful, without correct permissions force restart will be unsuccessful",
+					userStartedOp,
+					currentUser))
+		}
+	}
+
+	err := a.setOption(
+		ctx,
+		alias,
+		"min_speclet_revision",
+		node.Revision+1,
+		&yt.SetNodeOptions{
+			PrerequisiteOptions: &yt.PrerequisiteOptions{
+				Revisions: []yt.PrerequisiteRevision{
+					{
+						Path:     specletPath,
+						Revision: node.Revision,
+					},
+				},
+			},
+		})
+	if err != nil {
+		return err
+	}
+
+	if node.Speclet.Stage != strawberry.StageUntracked {
+		return nil
+	}
+
+	agentInfo := a.getAgentInfoForUntrackedStage()
+	oplet, err := a.getOpletFromCypress(ctx, alias, userClient, agentInfo)
+	if err != nil {
+		return err
+	}
+
 	return oplet.Pass(ctx, true /*checkOpLiveness*/)
 }
 
@@ -939,5 +1037,5 @@ func (a *API) Resume(ctx context.Context, alias string) error {
 	} // TODO: maybe yt.PermissionUse?
 
 	marker := fmt.Sprintf("%s_%s", strconv.FormatInt(time.Now().Unix(), 10), getRandomString(5))
-	return a.SetOption(ctx, alias, "resume_marker", marker)
+	return a.setOption(ctx, alias, "resume_marker", marker, nil)
 }

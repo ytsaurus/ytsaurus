@@ -19,9 +19,8 @@ using TQueryId = TGuid;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TYqlPluginOptions
+struct TYqlPluginOptions
 {
-public:
     NYson::TYsonString SingletonsConfig;
     NYson::TYsonString GatewayConfig;
     NYson::TYsonString DqGatewayConfig;
@@ -37,9 +36,8 @@ public:
     std::optional<TString> YqlPluginSharedLibrary;
 };
 
-class TYqlPluginDynamicConfig
+struct TYqlPluginDynamicConfig
 {
-public:
     NYson::TYsonString GatewaysConfig;
 };
 

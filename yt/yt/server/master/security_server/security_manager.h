@@ -29,50 +29,11 @@ namespace NYT::NSecurityServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Describes an object (or its part) for which permission check
-//! was carried out.
-struct TPermissionCheckTarget
-{
-    NObjectServer::TObject* Object;
-    std::optional<std::string> Column;
-};
-
 //! Specifies additional options for permission check.
 struct TPermissionCheckOptions
+    : public TPermissionCheckBasicOptions
 {
-    //! If given, indicates that only a subset of columns are to affected by the operation.
-    std::optional<std::vector<std::string>> Columns;
-    //! Should be given whenever RegisterQueueConsumer permission is checked; defined vitality
-    //! of the consumer to be registered.
-    std::optional<bool> Vital;
-
     TAcdOverride FirstObjectAcdOverride;
-};
-
-//! Describes the result of a permission check for a single entity.
-struct TPermissionCheckResult
-{
-    //! Was request allowed or declined?
-    //! Note that this concerns the object as a whole, even if #TPermissionCheckOptions::Columns are given.
-    ESecurityAction Action = ESecurityAction::Undefined;
-
-    //! The object whose ACL contains the matching ACE.
-    //! Can be |nullptr|.
-    NObjectServer::TObject* Object = nullptr;
-
-    //! Subject to which the decision applies.
-    //! Can be |nullptr|.
-    TSubject* Subject = nullptr;
-};
-
-//! Describes the complete response of a permission check.
-//! This includes the result for the principal object and also its parts (e.g. columns).
-struct TPermissionCheckResponse
-    : public TPermissionCheckResult
-{
-    //! If TPermissionCheckOptions::Columns are given, this array contains
-    //! results for individual columns.
-    std::optional<std::vector<TPermissionCheckResult>> Columns;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -142,7 +103,6 @@ public:
 
     //! Returns account with a given name (throws if none).
     virtual TAccount* GetAccountByNameOrThrow(const std::string& name, bool activeLifeStageOnly) = 0;
-
 
     //! Returns "root" built-in account.
     virtual TAccount* GetRootAccount() = 0;
@@ -226,7 +186,6 @@ public:
     //! Recomputes the transaction per-account usage statistics from scratch.
     virtual void RecomputeTransactionAccountResourceUsage(NTransactionServer::TTransaction* transaction) = 0;
 
-
     //! Assigns node to a given account, updates the total resource usage.
     virtual void SetAccount(
         NCypressServer::TCypressNode* node,
@@ -235,7 +194,6 @@ public:
 
     //! Removes account association (if any) from the node.
     virtual void ResetAccount(NCypressServer::TCypressNode* node) = 0;
-
 
     //! Returns user with a given name (|nullptr| if none).
     virtual TUser* FindUserByName(const std::string& name, bool activeLifeStageOnly) = 0;
@@ -261,7 +219,6 @@ public:
     //! Returns "owner" built-in user.
     virtual TUser* GetOwnerUser() = 0;
 
-
     //! Returns group with a given name or alias (|nullptr| if none).
     virtual TGroup* FindGroupByNameOrAlias(const std::string& name) = 0;
 
@@ -276,7 +233,6 @@ public:
 
     //! Returns "admins" built-in group.
     virtual TGroup* GetAdminsGroup() = 0;
-
 
     //! Returns subject with a given id (|nullptr| if none).
     virtual TSubject* FindSubject(TSubjectId id) = 0;
@@ -296,10 +252,8 @@ public:
     //! Removes an existing member from the group. Throws on failure.
     virtual void RemoveMember(TGroup* group, TSubject* member, bool ignoreMissing) = 0;
 
-
     //! Updates the name of the subject.
     virtual void RenameSubject(TSubject* subject, const std::string& newName) = 0;
-
 
     //! Returns network project with a given name (|nullptr| if none).
     virtual TNetworkProject* FindNetworkProjectByName(const std::string& name) = 0;
@@ -307,11 +261,9 @@ public:
     //! Updates the name of the network project.
     virtual void RenameNetworkProject(TNetworkProject* networkProject, const std::string& newName) = 0;
 
-
     //! Returns a map from proxy role name to proxy role for proxy roles
     //! with a given proxy kind.
-    virtual const THashMap<std::string, TProxyRole*>& GetProxyRolesWithProxyKind(EProxyKind proxyKind) const = 0;
-
+    virtual const THashMap<std::string, TProxyRole*>& GetProxyRolesWithProxyKind(NApi::EProxyKind proxyKind) const = 0;
 
     //! Returns the object ACD or |nullptr| if access is not controlled.
     virtual TAccessControlDescriptor* FindAcd(NObjectServer::TObject* object) = 0;
@@ -332,10 +284,11 @@ public:
     //! Resets the authenticated user.
     virtual void ResetAuthenticatedUser() = 0;
 
-
     //! Returns |true| if safe mode is active.
-    virtual bool IsSafeMode() = 0;
+    virtual bool IsSafeMode() const = 0;
 
+    //! Returns |true| if object has columnar ace for this user.
+    virtual bool HasColumnarAce(NObjectServer::TObject* object, TUser* user, TAcdOverride firstObjectAcdOverride = {}) const = 0;
 
     //! Checks if #object ACL allows access with #permission.
     /*!
@@ -377,7 +330,6 @@ public:
         TUser* user,
         EPermission permission,
         const TPermissionCheckResult& result) = 0;
-
 
     //! Throws if account limit is exceeded for some resource type with positive delta.
     /*!
@@ -442,10 +394,8 @@ public:
     //! Unconditionally decreases the queue size for a given #user.
     virtual void DecreaseRequestQueueSize(TUser* user) = 0;
 
-
     //! Returns the interned security tags registry.
     virtual const TSecurityTagsRegistryPtr& GetSecurityTagsRegistry() const = 0;
-
 
     //! Raised each time #ChargeUser is called.
     DECLARE_INTERFACE_SIGNAL(void(TUser*, const TUserWorkload&), UserCharged);

@@ -31,7 +31,7 @@ target_link_libraries(yt-yt-tools-import_table-unittests PUBLIC
   yt-yt-core
   yt-core-http
   yt-library-huggingface_client
-  yt-library-arrow_parquet_adapter
+  yt-library-arrow_adapter
   tools-import_table-lib
   mapreduce-tests-gtest_main
   mapreduce-tests-yt_unittest_lib

@@ -131,21 +131,21 @@ func Rated(s interface{}) interface{} {
 func MemOnly(m interface{}) interface{} {
 	switch st := m.(type) {
 	case *Counter:
-		st.memOnly = true
+		st.setMemOnly()
 	case *FuncCounter:
-		st.memOnly = true
+		st.setMemOnly()
 	case *Histogram:
-		st.memOnly = true
+		st.setMemOnly()
 	case *Gauge:
-		st.memOnly = true
+		st.setMemOnly()
 	case *IntGauge:
-		st.memOnly = true
+		st.setMemOnly()
 	case *Timer:
-		st.memOnly = true
+		st.setMemOnly()
 	case *FuncGauge:
-		st.memOnly = true
+		st.setMemOnly()
 	case *FuncIntGauge:
-		st.memOnly = true
+		st.setMemOnly()
 	}
 	return m
 }
@@ -194,9 +194,13 @@ func (s Metrics) SplitToChunks(maxChunkSize int) []Metrics {
 			rightBound = len(s.metrics)
 		}
 		chunk := s.metrics[leftBound:rightBound]
-		chunks = append(chunks, Metrics{metrics: chunk})
+		chunks = append(chunks, Metrics{metrics: chunk, timestamp: s.timestamp})
 	}
 	return chunks
+}
+
+func (s *Metrics) SetTimestamp(timestamp time.Time) {
+	s.timestamp = &timestamp
 }
 
 // List return list of metrics

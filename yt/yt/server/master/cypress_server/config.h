@@ -14,10 +14,9 @@ namespace NYT::NCypressServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TDynamicCypressManagerConfig
+struct TDynamicCypressManagerConfig
     : public NYTree::TYsonStruct
 {
-public:
     int DefaultFileReplicationFactor;
 
     int DefaultTableReplicationFactor;
@@ -90,7 +89,15 @@ public:
     bool EnableIntraCellCrossShardLinks;
 
     // COMPAT(koloshmet)
+    bool EnableCrossCellLinks;
+
+    // COMPAT(koloshmet)
     bool EnablePreserveAclDuringMove;
+
+    i64 MaxAttributeFilterSizeToLog;
+
+    // COMPAT(h0pless)
+    bool UseProperBranchedParentInLockCopyDestination;
 
     REGISTER_YSON_STRUCT(TDynamicCypressManagerConfig);
 

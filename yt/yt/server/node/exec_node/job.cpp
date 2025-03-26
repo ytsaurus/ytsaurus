@@ -47,6 +47,7 @@
 
 #include <yt/yt/server/lib/misc/job_reporter.h>
 
+#include <yt/yt/server/lib/nbd/block_device.h>
 #include <yt/yt/server/lib/nbd/profiler.h>
 
 #include <yt/yt/ytlib/api/native/public.h>
@@ -171,11 +172,11 @@ namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TGuid MakeNbdExportId(TJobId jobId, int nbdExportIndex)
+TString MakeNbdExportId(TJobId jobId, int nbdExportIndex)
 {
     auto nbdExportId = jobId.Underlying();
     nbdExportId.Parts32[0] = nbdExportIndex;
-    return nbdExportId;
+    return ToString(nbdExportId);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1026,6 +1027,13 @@ EJobType TJob::GetType() const
     return JobType_;
 }
 
+std::string TJob::GetAuthenticatedUser() const
+{
+    YT_ASSERT_THREAD_AFFINITY_ANY();
+
+    return JobSpecExt_.authenticated_user();
+}
+
 TJobSpec TJob::GetSpec() const
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
@@ -1216,6 +1224,13 @@ TJobResult TJob::GetResult() const
     }
 
     return result;
+}
+
+bool TJob::HasRpcProxyInJobProxy() const
+{
+    YT_ASSERT_THREAD_AFFINITY_ANY();
+
+    return UserJobSpec_ && UserJobSpec_->enable_rpc_proxy_in_job_proxy();
 }
 
 double TJob::GetProgress() const
@@ -1417,6 +1432,16 @@ TBriefJobInfo TJob::GetBriefInfo() const
         jobPorts = GetPorts();
     }
 
+    auto tryGetMonitoringDescriptor = [&] () -> std::optional<std::string> {
+        const auto& monitoringConfig = UserJobSpec_->monitoring_config();
+        if (!monitoringConfig.enable()) {
+            return std::nullopt;
+        }
+
+        YT_VERIFY(monitoringConfig.has_job_descriptor());
+        return monitoringConfig.job_descriptor();
+    };
+
     return TBriefJobInfo(
         GetId(),
         GetState(),
@@ -1435,7 +1460,8 @@ TBriefJobInfo TJob::GetBriefInfo() const
         std::move(jobPorts),
         JobEvents_,
         CoreInfos_,
-        ExecAttributes_);
+        ExecAttributes_,
+        tryGetMonitoringDescriptor());
 }
 
 NYTree::IYPathServicePtr TJob::CreateStaticOrchidService()
@@ -2772,7 +2798,7 @@ void TJob::CleanupNbdExports()
                 continue;
             }
 
-            if (nbdServer->IsDeviceRegistered(artifactKey.nbd_export_id())) {
+            if (auto device = nbdServer->GetDevice(artifactKey.nbd_export_id())) {
                 TNbdProfilerCounters::Get()->GetCounter(
                     TNbdProfilerCounters::MakeTagSet(artifactKey.data_source().path()),
                     "/device/unregistered_unexpected").Increment(1);
@@ -2781,15 +2807,49 @@ void TJob::CleanupNbdExports()
                     "NBD export is still registered, unregister it (ExportId: %v, Path: %v)",
                     artifactKey.nbd_export_id(),
                     artifactKey.data_source().path());
+
                 nbdServer->TryUnregisterDevice(artifactKey.nbd_export_id());
+                auto error = WaitFor(device->Finalize());
+                if (!error.IsOK()) {
+                    YT_LOG_ERROR(error, "Failed to finalize NBD export (ExportId: %v, Path: %v)",
+                        artifactKey.nbd_export_id(),
+                        artifactKey.data_source().path());
+                }
             }
         }
 
-        if (VirtualSandboxData_ && nbdServer->IsDeviceRegistered(VirtualSandboxData_->NbdExportId)) {
-            YT_LOG_ERROR(
-                "NBD virtual layer is still registered, unregister it (ExportId: %v)",
-                VirtualSandboxData_->NbdExportId);
-            nbdServer->TryUnregisterDevice(VirtualSandboxData_->NbdExportId);
+        if (VirtualSandboxData_) {
+            if (auto device = nbdServer->GetDevice(VirtualSandboxData_->NbdExportId)) {
+                YT_LOG_ERROR(
+                    "NBD virtual layer is still registered, unregister it (ExportId: %v)",
+                    VirtualSandboxData_->NbdExportId);
+                nbdServer->TryUnregisterDevice(VirtualSandboxData_->NbdExportId);
+                auto error = WaitFor(device->Finalize());
+                if (!error.IsOK()) {
+                    YT_LOG_ERROR(error, "Failed to finalize NBD export (ExportId: %v)",
+                        VirtualSandboxData_->NbdExportId);
+                }
+            }
+        }
+
+        if (SandboxNbdRootVolumeData_) {
+            if (auto device = nbdServer->GetDevice(SandboxNbdRootVolumeData_->NbdExportId)) {
+                YT_LOG_ERROR(
+                    "NBD export for root volume is still registered, unregister it (ExportId: %v, Size: %v, MediumIndex: %v, DataNodeAddress: %v)",
+                    SandboxNbdRootVolumeData_->NbdExportId,
+                    SandboxNbdRootVolumeData_->NbdDiskSize,
+                    SandboxNbdRootVolumeData_->NbdDiskMediumIndex,
+                    SandboxNbdRootVolumeData_->NbdDiskDataNodeAddress);
+                nbdServer->TryUnregisterDevice(SandboxNbdRootVolumeData_->NbdExportId);
+                auto error = WaitFor(device->Finalize());
+                if (!error.IsOK()) {
+                    YT_LOG_ERROR(error, "Failed to finalize NBD export (ExportId: %v, Size: %v, MediumIndex: %v, DataNodeAddress: %v)",
+                        SandboxNbdRootVolumeData_->NbdExportId,
+                        SandboxNbdRootVolumeData_->NbdDiskSize,
+                        SandboxNbdRootVolumeData_->NbdDiskMediumIndex,
+                        SandboxNbdRootVolumeData_->NbdDiskDataNodeAddress);
+                }
+            }
         }
     }
 }
@@ -2929,6 +2989,7 @@ TJobProxyInternalConfigPtr TJob::CreateConfig()
     if (UserJobSpec_) {
         proxyInternalConfig->MemoryTracker->IncludeMemoryMappedFiles = UserJobSpec_->include_memory_mapped_files();
         proxyInternalConfig->MemoryTracker->UseSMapsMemoryTracker = UserJobSpec_->use_smaps_memory_tracker();
+        proxyInternalConfig->StartQueueConsumerRegistrationManager = UserJobSpec_->start_queue_consumer_registration_manager();
     } else {
         proxyInternalConfig->MemoryTracker->IncludeMemoryMappedFiles = true;
         proxyInternalConfig->MemoryTracker->UseSMapsMemoryTracker = false;
@@ -3171,7 +3232,7 @@ void TJob::BuildVirtualSandbox()
             << TErrorAttribute("export_id", VirtualSandboxData_->NbdExportId);
     }
 
-    auto readerHost = nbdServer->GetFileReaderHost();
+    auto readerHost = Bootstrap_->GetFileReaderHost();
     auto inThrottler = Bootstrap_->GetDefaultInThrottler();
     auto outRpsThrottler = Bootstrap_->GetReadRpsOutThrottler();
     auto logger = nbdServer->GetLogger();
@@ -3245,7 +3306,8 @@ TUserSandboxOptions TJob::BuildUserSandboxOptions()
             options.InodeLimit = UserJobSpec_->inode_limit();
         }
 
-        if (UserJobSpec_->has_disk_request()) {
+        // Do not set space and inode limits if root volume is used.
+        if (UserJobSpec_->has_disk_request() && !SandboxNbdRootVolumeData_) {
             if (UserJobSpec_->disk_request().has_disk_space()) {
                 options.DiskSpaceLimit = UserJobSpec_->disk_request().disk_space();
             }
@@ -3266,6 +3328,7 @@ TUserSandboxOptions TJob::BuildUserSandboxOptions()
     }
 
     options.VirtualSandboxData = VirtualSandboxData_;
+    options.SandboxNbdRootVolumeData = SandboxNbdRootVolumeData_;
 
     return options;
 }
@@ -3298,6 +3361,63 @@ bool TJob::CanBeAccessedViaVirtualSandbox(const TArtifact& artifact) const
     }
 
     return true;
+}
+
+void TJob::InitializeNbdExportIds()
+{
+    YT_ASSERT_THREAD_AFFINITY(JobThread);
+
+    // Mark NBD layers with NBD export ids.
+    auto nbdExportCount = 0;
+    for (auto& layer : LayerArtifactKeys_) {
+        if (FromProto<ELayerAccessMethod>(layer.access_method()) == ELayerAccessMethod::Nbd) {
+            auto nbdExportId = MakeNbdExportId(Id_, nbdExportCount);
+            ++nbdExportCount;
+
+            ToProto(layer.mutable_nbd_export_id(), nbdExportId);
+        }
+    }
+
+    if (!LayerArtifactKeys_.empty() &&
+        Bootstrap_->GetNbdServer() &&
+        RootVolumeDiskQuotaEnabled_ &&
+        JobSpecExt_.enable_virtual_sandbox())
+    {
+        // Mark artifacts that will be accessed via virtual layer.
+        int virtualSandboxArtifactCount = 0;
+        for (auto& artifact : Artifacts_) {
+            if (CanBeAccessedViaVirtualSandbox(artifact)) {
+                artifact.AccessedViaVirtualSandbox = true;
+                ++virtualSandboxArtifactCount;
+            }
+        }
+
+        if (virtualSandboxArtifactCount != 0) {
+            // The virtual layer can be used. Make nbd export id.
+            auto nbdExportId = MakeNbdExportId(Id_, nbdExportCount);
+            ++nbdExportCount;
+
+            VirtualSandboxData_ = TVirtualSandboxData({
+                .NbdExportId = nbdExportId
+            });
+        }
+    }
+
+    if (UserJobSpec_ && UserJobSpec_->disk_request().has_nbd_disk() && Bootstrap_->GetNbdServer()) {
+        auto nbdExportId = MakeNbdExportId(Id_, nbdExportCount);
+        ++nbdExportCount;
+
+        SandboxNbdRootVolumeData_ = std::make_optional<TSandboxNbdRootVolumeData>();
+        SandboxNbdRootVolumeData_->NbdExportId = nbdExportId;
+        YT_VERIFY(UserJobSpec_->disk_request().has_disk_space());
+        SandboxNbdRootVolumeData_->NbdDiskSize = UserJobSpec_->disk_request().disk_space();
+        YT_VERIFY(UserJobSpec_->disk_request().has_medium_index());
+        SandboxNbdRootVolumeData_->NbdDiskMediumIndex = UserJobSpec_->disk_request().medium_index();
+
+        if (UserJobSpec_->disk_request().nbd_disk().has_data_node_address()) {
+            SandboxNbdRootVolumeData_->NbdDiskDataNodeAddress = UserJobSpec_->disk_request().nbd_disk().data_node_address();
+        }
+    }
 }
 
 // Build artifacts.
@@ -3363,39 +3483,7 @@ void TJob::InitializeArtifacts()
         }
     }
 
-    // Mark NBD layers with NBD export ids.
-    auto nbdExportCount = 0;
-    for (auto& layer : LayerArtifactKeys_) {
-        if (FromProto<ELayerAccessMethod>(layer.access_method()) == ELayerAccessMethod::Nbd) {
-            auto nbdExportId = MakeNbdExportId(Id_, nbdExportCount);
-            layer.set_nbd_export_id(ToString(nbdExportId));
-            ++nbdExportCount;
-        }
-    }
-
-    if (!LayerArtifactKeys_.empty() &&
-        Bootstrap_->GetNbdServer() &&
-        RootVolumeDiskQuotaEnabled_ &&
-        JobSpecExt_.enable_virtual_sandbox())
-    {
-        // Mark artifacts that will be accessed via virtual layer.
-        int virtualSandboxArtifactCount = 0;
-        for (auto& artifact : Artifacts_) {
-            if (CanBeAccessedViaVirtualSandbox(artifact)) {
-                artifact.AccessedViaVirtualSandbox = true;
-                ++virtualSandboxArtifactCount;
-            }
-        }
-
-        if (virtualSandboxArtifactCount != 0) {
-            // The virtual layer can be used. Make nbd export id.
-            auto nbdExportId = MakeNbdExportId(Id_, nbdExportCount);
-            VirtualSandboxData_ = TVirtualSandboxData({
-                .NbdExportId = ToString(nbdExportId)
-            });
-            ++nbdExportCount;
-        }
-    }
+    InitializeNbdExportIds();
 
     // Mark artifacts that will be accessed via bind.
     for (auto& artifact : Artifacts_) {

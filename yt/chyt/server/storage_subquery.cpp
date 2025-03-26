@@ -13,7 +13,6 @@
 
 #include <yt/yt/ytlib/chunk_client/chunk_meta_extensions.h>
 
-#include <Processors/Sources/SourceFromInputStream.h>
 #include <QueryPipeline/Pipe.h>
 
 namespace NYT::NClickHouseServer {
@@ -109,6 +108,11 @@ public:
         return false;
     }
 
+    bool supportsFiltersAnalysis() const override
+    {
+        return true;
+    }
+
     DB::Pipe read(
         const DB::Names& columnNames,
         const DB::StorageSnapshotPtr& storageSnapshot,
@@ -127,7 +131,7 @@ public:
 
         QueryContext_->MoveToPhase(EQueryPhase::Execution);
 
-        auto metadataSnapshot = storageSnapshot->getMetadataForQuery();
+        auto metadataSnapshot = storageSnapshot->metadata;
         auto [realColumnNames, virtualColumnNames] = DecoupleColumns(columnNames, metadataSnapshot);
 
         StorageContext_ = QueryContext_->GetOrRegisterStorageContext(this, context);

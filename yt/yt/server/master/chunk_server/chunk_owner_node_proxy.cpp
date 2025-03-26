@@ -165,7 +165,6 @@ void PopulateChunkSpecWithReplicas(
         addReplica(replica);
     }
 
-    ToProto(chunkSpec->mutable_legacy_replicas(), replicas);
     ToProto(chunkSpec->mutable_replicas(), replicas);
 }
 
@@ -231,10 +230,14 @@ void BuildReplicalessChunkSpec(
 
     if (chunkSpec->row_count_override() >= chunk->GetRowCount()) {
         chunkSpec->set_data_weight_override(dataWeight);
+        chunkSpec->set_compressed_data_size_override(chunk->GetCompressedDataSize());
     } else {
         // NB: If overlayed chunk is nested into another, it has zero row count and non-zero data weight.
         i64 dataWeightPerRow = DivCeil(dataWeight, std::max<i64>(chunk->GetRowCount(), 1));
         chunkSpec->set_data_weight_override(dataWeightPerRow * chunkSpec->row_count_override());
+
+        double compressedDataSizePerRow = static_cast<double>(chunk->GetCompressedDataSize()) / std::max<i64>(chunk->GetRowCount(), 1);
+        chunkSpec->set_compressed_data_size_override(compressedDataSizePerRow * chunkSpec->row_count_override());
     }
 
     if (modifier) {
@@ -308,6 +311,7 @@ void BuildDynamicStoreSpec(
     // Something non-zero.
     chunkSpec->set_row_count_override(1);
     chunkSpec->set_data_weight_override(1);
+    chunkSpec->set_compressed_data_size_override(1);
 
     // NB: Table_row_index is not filled here since:
     // 1) dynamic store reader receives it from the node;
@@ -315,7 +319,6 @@ void BuildDynamicStoreSpec(
 
     if (auto* node = tabletManager->FindTabletLeaderNode(tablet)) {
         nodeDirectoryBuilder->Add(node);
-        chunkSpec->add_legacy_replicas(ToProto<ui32>(TNodePtrWithReplicaIndex(node, GenericChunkReplicaIndex)));
         chunkSpec->add_replicas(ToProto(TNodePtrWithReplicaAndMediumIndex(node, GenericChunkReplicaIndex, GenericMediumIndex)));
     }
 
@@ -1585,7 +1588,7 @@ void TChunkOwnerNodeProxy::ReplicateBeginUploadRequestToExternalCell(
 
     if (uploadContext.ChunkSchema) {
         if (!uploadContext.ChunkSchema->IsExported(externalCellTag)) {
-            ToProto(replicationRequest->mutable_chunk_schema(), uploadContext.ChunkSchema->AsTableSchema());
+            ToProto(replicationRequest->mutable_chunk_schema(), uploadContext.ChunkSchema->AsCompactTableSchema());
         }
 
         auto chunkSchemaId = uploadContext.ChunkSchema->GetId();
@@ -1649,7 +1652,7 @@ void TChunkOwnerNodeProxy::ReplicateEndUploadRequestToExternalCell(
 
 TMasterTableSchema* TChunkOwnerNodeProxy::CalculateEffectiveMasterTableSchema(
     TChunkOwnerBase* node,
-    TTableSchemaPtr schema,
+    const TCompactTableSchemaPtr& schema,
     TMasterTableSchemaId schemaId,
     TTransaction* schemaHolder)
 {
@@ -1748,13 +1751,13 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, BeginUpload)
         : std::nullopt;
 
     auto tableSchema = request->has_table_schema()
-        ? FromProto<TTableSchemaPtr>(request->table_schema())
+        ? New<TCompactTableSchema>(request->table_schema())
         : nullptr;
 
     auto tableSchemaId = FromProto<TMasterTableSchemaId>(request->table_schema_id());
 
     auto chunkSchema = request->has_chunk_schema()
-        ? FromProto<TTableSchemaPtr>(request->chunk_schema())
+        ? New<TCompactTableSchema>(request->chunk_schema())
         : nullptr;
 
     auto offloadedSchemaDestruction = Finally([&] {
@@ -2112,7 +2115,7 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, EndUpload)
 
     // COMPAT(h0pless): remove this when clients will send table schema options during begin upload.
     auto tableSchema = request->has_table_schema()
-        ? FromProto<TTableSchemaPtr>(request->table_schema())
+        ? New<TCompactTableSchema>(request->table_schema())
         : nullptr;
 
     auto offloadedSchemaDestruction = Finally([&] {

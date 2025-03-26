@@ -7,9 +7,9 @@ namespace NYT {
 ////////////////////////////////////////////////////////////////////////////////
 
 DECLARE_REFCOUNTED_CLASS(TBuildInfo)
-DECLARE_REFCOUNTED_CLASS(TRpcConfig)
-DECLARE_REFCOUNTED_CLASS(THeapSizeLimitConfig)
-DECLARE_REFCOUNTED_CLASS(THeapProfilerConfig)
+DECLARE_REFCOUNTED_STRUCT(TRpcConfig)
+DECLARE_REFCOUNTED_STRUCT(THeapSizeLimitConfig)
+DECLARE_REFCOUNTED_STRUCT(THeapProfilerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 

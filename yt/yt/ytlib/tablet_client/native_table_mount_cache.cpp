@@ -410,24 +410,32 @@ private:
                 auto indexInfo = TIndexInfo{
                     .TableId = FromProto<TObjectId>(protoIndexInfo.index_table_id()),
                     .Kind = FromProto<ESecondaryIndexKind>(protoIndexInfo.index_kind()),
-                    .Predicate = YT_PROTO_OPTIONAL(protoIndexInfo, predicate),
-                    .UnfoldedColumn = YT_PROTO_OPTIONAL(protoIndexInfo, unfolded_column),
+                    .Predicate = YT_OPTIONAL_FROM_PROTO(protoIndexInfo, predicate),
+                    .UnfoldedColumn = YT_OPTIONAL_FROM_PROTO(protoIndexInfo, unfolded_column),
                     .Correspondence = protoIndexInfo.has_index_correspondence()
                         ? FromProto<ETableToIndexCorrespondence>(protoIndexInfo.index_correspondence())
                         : ETableToIndexCorrespondence::Unknown,
                 };
+
+                if (protoIndexInfo.has_evaluated_columns_schema()) {
+                    indexInfo.EvaluatedColumnsSchema = New<TTableSchema>(
+                        FromProto<TTableSchema>(protoIndexInfo.evaluated_columns_schema()));
+                }
+
                 tableInfo->Indices.push_back(indexInfo);
             }
 
+            auto tabletCount = std::ssize(tableInfo->Tablets);
             if (tableInfo->IsSorted()) {
                 tableInfo->LowerCapBound = MinKey();
                 tableInfo->UpperCapBound = MaxKey();
             } else {
                 tableInfo->LowerCapBound = MakeUnversionedOwningRow(static_cast<int>(0));
 
-                auto tabletCount = tableInfo->IsChaosReplicated()
-                    ? rsp->tablet_count()
-                    : std::ssize(tableInfo->Tablets);
+                if (tableInfo->IsChaosReplicated()) {
+                    tabletCount = rsp->tablet_count();
+                }
+
                 tableInfo->UpperCapBound = MakeUnversionedOwningRow(tabletCount);
             }
 
@@ -437,7 +445,7 @@ private:
 
             YT_LOG_DEBUG("Table mount info received (TableId: %v, TabletCount: %v, Dynamic: %v, PrimaryRevision: %x, SecondaryRevision: %x)",
                 tableInfo->TableId,
-                tableInfo->Tablets.size(),
+                tabletCount,
                 tableInfo->Dynamic,
                 tableInfo->PrimaryRevision,
                 tableInfo->SecondaryRevision);

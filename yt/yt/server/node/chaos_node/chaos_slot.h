@@ -87,9 +87,11 @@ struct IChaosSlot
 
     virtual NObjectClient::TObjectId GenerateId(NObjectClient::EObjectType type) = 0;
 
-    virtual NApi::IClientPtr CreateClusterClient(const TString& clusterName) const = 0;
+    virtual NApi::IClientPtr CreateClusterClient(const std::string& clusterName) const = 0;
     virtual const NTabletServer::IReplicatedTableTrackerPtr& GetReplicatedTableTracker() const = 0;
     virtual NTabletServer::TDynamicReplicatedTableTrackerConfigPtr GetReplicatedTableTrackerConfig() const = 0;
+    virtual bool IsVerboseLoggingEnabled() const = 0;
+    virtual void Reconfigure(const TChaosNodeDynamicConfigPtr& config) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IChaosSlot)

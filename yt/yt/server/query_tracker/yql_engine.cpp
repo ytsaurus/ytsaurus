@@ -244,7 +244,12 @@ private:
             }
             OnQueryThrottled();
             TDelayedExecutor::WaitForDuration(Config_->StartQueryAttemptPeriod);
-            TryStart();
+            try {
+                TryStart();
+            } catch (const std::exception& ex) {
+                YT_LOG_INFO(ex, "Unrecoverable error on query start, finishing query");
+                OnQueryFailed(TError(ex));
+            }
             return;
         }
 
@@ -272,9 +277,9 @@ private:
         for (int index = 0; index < rsp->rowset_errors_size(); ++index) {
             auto error = FromProto<TError>(rsp->rowset_errors()[index]);
             if (error.IsOK()) {
-                std::optional<TYsonString> fullResult;
+                TYsonString fullResult;
                 if (index < rsp->full_result_size()) {
-                    if (const auto rawFullResult = rsp->full_result()[index]) {
+                    if (const auto& rawFullResult = rsp->full_result()[index]) {
                         fullResult = TYsonString(rawFullResult);
                     }
                 }

@@ -69,7 +69,7 @@ private:
     // The connection holds a strong reference to this object.
     const TWeakPtr<NApi::NNative::IConnection> Connection_;
     const IInvokerPtr Invoker_;
-    const std::optional<TString> ClusterName_;
+    const std::optional<std::string> ClusterName_;
     const NConcurrency::TPeriodicExecutorPtr ConfigurationRefreshExecutor_;
     const NConcurrency::TPeriodicExecutorPtr CacheRefreshExecutor_;
     const NLogging::TLogger Logger;

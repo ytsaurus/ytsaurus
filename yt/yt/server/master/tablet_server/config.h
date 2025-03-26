@@ -23,10 +23,9 @@ namespace NYT::NTabletServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TTabletBalancerMasterConfig
+struct TTabletBalancerMasterConfig
     : public NYTree::TYsonStruct
 {
-public:
     bool EnableTabletBalancer;
     TTimeFormula TabletBalancerSchedule;
 
@@ -42,10 +41,9 @@ DEFINE_REFCOUNTED_TYPE(TTabletBalancerMasterConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TTabletCellDecommissionerConfig
+struct TTabletCellDecommissionerConfig
     : public NYTree::TYsonStruct
 {
-public:
     bool EnableTabletCellDecommission;
     bool EnableTabletCellRemoval;
 
@@ -64,10 +62,9 @@ DEFINE_REFCOUNTED_TYPE(TTabletCellDecommissionerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TTabletActionManagerMasterConfig
+struct TTabletActionManagerMasterConfig
     : public NYTree::TYsonStruct
 {
-public:
     TDuration TabletActionsCleanupPeriod;
 
     REGISTER_YSON_STRUCT(TTabletActionManagerMasterConfig);
@@ -79,10 +76,9 @@ DEFINE_REFCOUNTED_TYPE(TTabletActionManagerMasterConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TDynamicTablesMulticellGossipConfig
+struct TDynamicTablesMulticellGossipConfig
     : public NYTree::TYsonStruct
 {
-public:
     //! Multicell tablet cell statistics gossip period.
     TDuration TabletCellStatisticsGossipPeriod;
 
@@ -115,10 +111,9 @@ DEFINE_REFCOUNTED_TYPE(TDynamicTablesMulticellGossipConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TDynamicTabletCellBalancerMasterConfig
+struct TDynamicTabletCellBalancerMasterConfig
     : public NYTree::TYsonStruct
 {
-public:
     bool EnableTabletCellSmoothing;
     bool EnableVerboseLogging;
     TDuration RebalanceWaitTime;
@@ -132,10 +127,9 @@ DEFINE_REFCOUNTED_TYPE(TDynamicTabletCellBalancerMasterConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TReplicatedTableTrackerConfig
+struct TReplicatedTableTrackerConfig
     : public NYTree::TYsonStruct
 {
-public:
     int CheckerThreadCount;
 
     REGISTER_YSON_STRUCT(TReplicatedTableTrackerConfig);
@@ -147,10 +141,9 @@ DEFINE_REFCOUNTED_TYPE(TReplicatedTableTrackerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TDynamicTabletNodeTrackerConfig
+struct TDynamicTabletNodeTrackerConfig
     : public NYTree::TYsonStruct
 {
-public:
     int MaxConcurrentHeartbeats;
 
     REGISTER_YSON_STRUCT(TDynamicTabletNodeTrackerConfig);
@@ -162,10 +155,9 @@ DEFINE_REFCOUNTED_TYPE(TDynamicTabletNodeTrackerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TDynamicCellHydraPersistenceSynchronizerConfig
+struct TDynamicCellHydraPersistenceSynchronizerConfig
     : public NYTree::TYsonStruct
 {
-public:
     //! Allows safe deletion of the old storage at Cypress without it affecting cell instances.
     //! Reconfigures master in a way that the old storage is no longer being accessed.
     bool MigrateToVirtualCellMaps;
@@ -191,11 +183,10 @@ DEFINE_REFCOUNTED_TYPE(TDynamicCellHydraPersistenceSynchronizerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TDynamicTabletManagerConfig
+struct TDynamicTabletManagerConfig
     : public NHydra::THydraJanitorConfig
     , public NTabletNode::TClusterTableConfigPatchSet
 {
-public:
     static constexpr auto DefaultTamedCellManagerProfilingPeriod = TDuration::Seconds(10);
 
     //! Time to wait for a node to be back online before revoking it from all

@@ -20,6 +20,8 @@
 
 #include <library/cpp/yt/logging/logger.h>
 
+#include <util/random/random.h>
+
 namespace NYT::NTabletNode {
 
 using namespace NChunkClient;
@@ -37,16 +39,26 @@ class TDictionaryCompressionSession
 public:
     TDictionaryCompressionSession(
         const TTabletSnapshotPtr& tabletSnapshot,
-        TRowDictionaryCompressors rowDictionaryCompressors)
+        TRowDictionaryCompressors rowDictionaryCompressors,
+        std::optional<EDictionaryCompressionPolicy> presetPolicy)
         : Schema_(tabletSnapshot->PhysicalSchema)
         , ProbationSize_(tabletSnapshot->Settings.MountConfig
             ->ValueDictionaryCompression->PolicyProbationSamplesSize)
         , MaxAcceptableCompressionRatio_(tabletSnapshot->Settings.MountConfig
             ->ValueDictionaryCompression->MaxAcceptableCompressionRatio)
+        , ElectRandomPolicy_(tabletSnapshot->Settings.MountConfig
+            ->ValueDictionaryCompression->ElectRandomPolicy)
         , Logger(TabletNodeLogger().WithTag("%v",
             tabletSnapshot->LoggingTag))
         , RowDictionaryCompressors_(std::move(rowDictionaryCompressors))
-    { }
+    {
+        if (presetPolicy) {
+            ElectedPolicy_ = presetPolicy;
+            YT_LOG_DEBUG("Dictionary compression session elected policy is predefined (Policy: %v, ChunkId: %v)",
+                ElectedPolicy_,
+                RowDictionaryCompressors_[*ElectedPolicy_].DictionaryId);
+        }
+    }
 
     bool FeedSample(TVersionedRow row, TChunkedMemoryPool* pool) override
     {
@@ -108,7 +120,6 @@ public:
                 continue;
             }
 
-            PerformedCompression_ = true;
             TRef initialValue(value.Data.String, value.Length);
             auto compressedValue = columnCompressor.Compressor->Compress(
                 pool,
@@ -139,7 +150,7 @@ public:
 
     TChunkId GetCompressionDictionaryId() const override
     {
-        if (!ElectedPolicy_ || !PerformedCompression_) {
+        if (!ElectedPolicy_) {
             return {};
         }
 
@@ -155,6 +166,7 @@ private:
     const TTableSchemaPtr Schema_;
     const i64 ProbationSize_;
     const double MaxAcceptableCompressionRatio_;
+    const bool ElectRandomPolicy_;
 
     const NLogging::TLogger Logger;
 
@@ -165,8 +177,6 @@ private:
     int ProcessedSampleCount_ = 0;
 
     TDuration CompressionTime_;
-
-    bool PerformedCompression_ = false;
 
 
     void ElectBestPolicy()
@@ -196,13 +206,21 @@ private:
             ElectedPolicy_ = EDictionaryCompressionPolicy::None;
         }
 
+        // Solely for testing purposes.
+        if (ElectRandomPolicy_) {
+            auto randomIndex = RandomNumber<ui32>(TEnumTraits<EDictionaryCompressionPolicy>::GetDomainSize());
+            ElectedPolicy_ = TEnumTraits<EDictionaryCompressionPolicy>::GetDomainValues()[randomIndex];
+        }
+
         YT_LOG_DEBUG("Dictionary compression session elected best policy "
-            "(Policy: %v, ChunkId: %v, ProcessedSampleCount: %v, ProcessedSamplesSize: %v, PolicyToCompressedSize: %v)",
+            "(Policy: %v, ChunkId: %v, ProcessedSampleCount: %v, ProcessedSamplesSize: %v, "
+            "PolicyToCompressedSize: %v, ElectRandomPolicy: %v)",
             ElectedPolicy_,
             RowDictionaryCompressors_[*ElectedPolicy_].DictionaryId,
             ProcessedSampleCount_,
             ProcessedSamplesSize_,
-            policyToCompressedSize);
+            policyToCompressedSize,
+            ElectRandomPolicy_);
     }
 
     bool IsValueCompressable(const TVersionedValue& value) const
@@ -247,7 +265,8 @@ public:
     { }
 
     TFuture<IDictionaryCompressionSessionPtr> MaybeCreateDictionaryCompressionSession(
-        const TClientChunkReadOptions& chunkReadOptions) const override
+        const TClientChunkReadOptions& chunkReadOptions,
+        std::optional<TChunkId> presetCompressionDictionaryId) const override
     {
         auto dictionaryManager = DictionaryManager_.Lock();
         auto tabletSnapshot = TabletSnapshot_.Lock();
@@ -255,6 +274,11 @@ public:
             auto error = TError(NYT::EErrorCode::Canceled,
                 "Unable to compress values due to tablet cell reconfiguration");
             return MakeFuture<IDictionaryCompressionSessionPtr>(error);
+        }
+
+        // Preset null dictionary id means that compression shall be disabled.
+        if (presetCompressionDictionaryId && !*presetCompressionDictionaryId) {
+            return TFuture<IDictionaryCompressionSessionPtr>{};
         }
 
         auto compressorsFuture = dictionaryManager->MaybeGetCompressors(
@@ -268,11 +292,24 @@ public:
 
         return compressorsFuture
             .ApplyUnique(BIND([
+                presetCompressionDictionaryId,
                 tabletSnapshot = std::move(tabletSnapshot)
             ] (TRowDictionaryCompressors&& compressors) {
+                std::optional<EDictionaryCompressionPolicy> presetPolicy;
+                if (presetCompressionDictionaryId) {
+                    for (auto policy : TEnumTraits<EDictionaryCompressionPolicy>::GetDomainValues()) {
+                        if (presetCompressionDictionaryId == compressors[policy].DictionaryId) {
+                            YT_VERIFY(!presetPolicy);
+                            presetPolicy = policy;
+                        }
+                    }
+                    YT_VERIFY(presetPolicy);
+                }
+
                 IDictionaryCompressionSessionPtr session = New<TDictionaryCompressionSession>(
                     tabletSnapshot,
-                    std::move(compressors));
+                    std::move(compressors),
+                    presetPolicy);
                 return session;
             }));
     }
@@ -524,7 +561,8 @@ public:
 
                     const auto& compressionDictionary = compressionEntry->GetRowDigestedCompressionDictionary();
                     const auto& decompressionDictionary = decompressionEntry->GetRowDigestedDecompressionDictionary();
-                    YT_VERIFY(compressionDictionary.ColumnDictionaries.size() == decompressionDictionary.ColumnDictionaries.size());
+                    YT_VERIFY(compressionDictionary.ColumnDictionaries.size() ==
+                        decompressionDictionary.ColumnDictionaries.size());
 
                     auto& rowCompressor = rowDictionaryCompressors[compressionEntry->GetPolicy()];
                     rowCompressor.DictionaryId = compressionEntry->GetKey().ChunkId;

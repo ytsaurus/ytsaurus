@@ -367,6 +367,67 @@ class TestSortedDynamicTablesMountUnmountFreeze(TestSortedDynamicTablesBase):
         assert len(_get_master_orchid("hive/avenue_mailboxes")) == 0
         wait(lambda: len(_get_cell_orchid("hive/avenue_mailboxes")) == 0)
 
+    @authors("alexelexa")
+    def test_tablet_assignment_during_mount_for_in_memory_table_with_hunks(self):
+        set("//sys/@config/tablet_manager/tablet_data_size_footprint", 10)
+
+        SCHEMA = [
+            {"name": "key", "type": "int64", "sort_order": "ascending"},
+            {"name": "value", "type": "string", "max_inline_hunk_size": 10},
+        ]
+
+        cell_ids = sync_create_cells(3)
+        tables = ["//tmp/t1", "//tmp/t2"]
+
+        attributes = dict()
+        if self.NUM_SECONDARY_MASTER_CELLS > 0:
+            attributes = {"external_cell_tag": 11}
+
+        self._create_sorted_table("//tmp/t1", enable_compaction_and_partitioning=False, **attributes)
+        self._create_sorted_table(
+            "//tmp/t2",
+            schema=SCHEMA,
+            hunk_chunk_writer={"desired_block_size": 50},
+            enable_compaction_and_partitioning=False,
+            chunk_format="table_versioned_simple",
+            **attributes)
+
+        for table in tables:
+            sync_reshard_table(table, [[]] + [[i * 1000] for i in range(1, 3)])
+            sync_mount_table(table)
+
+        def _generate_rows(start_index, value_size, count):
+            return [{"key": start_index + i, "value": "a" * value_size + str(i)} for i in range(count)]
+
+        for i in range(3):
+            rows = _generate_rows(i * 1000, 10 ** (3 - i), 10 ** (3 - i))  # a lot of big values and some small values
+            insert_rows("//tmp/t1", rows)
+            sync_flush_table("//tmp/t1")
+
+            rows = _generate_rows(i * 1000, 10 ** (3 - i), 10 ** (i + 1))  # a lot keys with small hunk and some keys with big hunk
+            insert_rows("//tmp/t2", rows)
+            sync_flush_table("//tmp/t2")
+
+        for table in tables:
+            sync_unmount_table(table)
+            set(f"{table}/@in_memory_mode", "uncompressed")
+
+        sync_mount_table("//tmp/t1", target_cell_ids=cell_ids)
+        sync_mount_table("//tmp/t2")
+
+        tablets = get("//tmp/t1/@tablets")
+        memory_sizes = [tablet["statistics"]["memory_size"] for tablet in tablets]
+        assert sorted(memory_sizes) == list(reversed(memory_sizes))
+        assert cell_ids == [tablet["cell_id"] for tablet in tablets]
+
+        tablets = get("//tmp/t2/@tablets")
+        memory_sizes = [tablet["statistics"]["memory_size"] for tablet in tablets]
+        assert sorted(memory_sizes) == memory_sizes
+
+        actual_cell_ids = [tablet["cell_id"] for tablet in tablets]
+        assert len(builtins.set(actual_cell_ids)) == len(actual_cell_ids)
+        assert actual_cell_ids == cell_ids
+
 
 @pytest.mark.enabled_multidaemon
 class TestSortedDynamicTablesMountUnmountFreezeMulticell(TestSortedDynamicTablesMountUnmountFreeze):
@@ -713,6 +774,74 @@ class TestSortedDynamicTablesCopyReshard(TestSortedDynamicTablesBase):
         ])
         reshard_table("//tmp/t4", 5, uniform=True)
         assert get("//tmp/t4/@pivot_keys") == [[], [-19661], [-6554], [6553], [19660]]
+
+    @authors("ifsmirnov")
+    def test_reshard_YT_20800(self):
+        def _get_schema(key_column_count):
+            return [
+                {
+                    "type": "boolean",
+                    "name": "k" + str(i),
+                    "sort_order": "ascending",
+                } for i in range(key_column_count)
+            ] + [
+                {"type": "uint64", "name": "v1"},
+                {"type": "uint64", "name": "v2"},
+            ]
+
+        sync_create_cells(1)
+        self._create_simple_table(
+            "//tmp/t",
+            schema=_get_schema(2),
+            mount_config={
+                "enable_compaction_and_partitioning": False,
+            })
+
+        # Iteration 0
+        sync_mount_table("//tmp/t")
+        insert_rows(
+            "//tmp/t",
+            [
+                {"k1": False, "v1": 0},
+                {"k0": True, "k1": True, "v1": 50},
+            ],
+            update=True)
+        assert (
+            select_rows("* from [//tmp/t] order by k0, k1 limit 100") ==
+            [
+                {"k0": yson.YsonEntity(), "k1": False, "v1": 0, "v2": yson.YsonEntity()},
+                {"k0": True, "k1": True, "v1": 50, "v2": yson.YsonEntity()},
+            ])
+
+        # Iteration 1
+        sync_unmount_table("//tmp/t")
+        sync_reshard_table("//tmp/t", [[], [True]])
+        alter_table("//tmp/t", schema=_get_schema(3))
+        sync_mount_table("//tmp/t")
+
+        insert_rows(
+            "//tmp/t",
+            [
+                {"k0": True, "k1": True, "v2": 100},
+            ],
+            update=True)
+        assert (
+            select_rows("* from [//tmp/t] order by k0, k1, k2 limit 100") ==
+            [
+                {"k0": yson.YsonEntity(), "k1": False, "k2": yson.YsonEntity(), "v1": 0, "v2": yson.YsonEntity()},
+                {"k0": True, "k1": True, "k2": yson.YsonEntity(), "v1": 50, "v2": 100},
+            ])
+
+        # Iteration 2
+        sync_unmount_table("//tmp/t")
+        sync_reshard_table("//tmp/t", [[], [True, True, yson.YsonEntity()]])
+        sync_mount_table("//tmp/t")
+        assert (
+            select_rows("* from [//tmp/t] order by k0, k1, k2 limit 100") ==
+            [
+                {"k0": yson.YsonEntity(), "k1": False, "k2": yson.YsonEntity(), "v1": 0, "v2": yson.YsonEntity()},
+                {"k0": True, "k1": True, "k2": yson.YsonEntity(), "v1": 50, "v2": 100},
+            ])
 
     @authors("max42", "savrus")
     def test_alter_table_fails(self):

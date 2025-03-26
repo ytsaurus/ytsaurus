@@ -480,6 +480,10 @@ const std::vector<TSchedulerTreeAlertDescriptor>& GetSchedulerTreeAlertDescripto
             .Type = ESchedulerAlertType::ManageSchedulingSegments,
             .Message = "Found errors during node scheduling segments management",
         },
+        TSchedulerTreeAlertDescriptor{
+            .Type = ESchedulerAlertType::UnrecognizedPoolTreeConfigOptions,
+            .Message = "Pool tree configs contain unrecognized options",
+        },
     };
 
     return SchedulerTreeAlertDescriptors;
@@ -494,15 +498,6 @@ bool IsSchedulerTreeAlertType(ESchedulerAlertType alertType)
     }
 
     return false;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-TOneShotFluentLogEvent LogStructuredGpuEventFluently(EGpuSchedulingLogEventType eventType)
-{
-    return NLogging::LogStructuredEventFluently(SchedulerGpuEventLogger(), NLogging::ELogLevel::Info)
-        .Item("timestamp").Value(TInstant::Now())
-        .Item("event_type").Value(eventType);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

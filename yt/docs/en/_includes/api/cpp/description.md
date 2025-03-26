@@ -563,6 +563,11 @@ auto path = TRichYPath("//tmp/table").RenameColumns({{"a", "b"}, {"c", "d"}});
 
 The table column *a* will display under the name *b*, and column *c* &mdash; as *d*. The function resets the full list of renamed columns, so calling `RenameColumns` again will erase the results of the previous one. `Columns` is applied after `RenameColumns`, meaning in this case *b* and *d* will be suitable for `Columns`, while *a* and *c* &mdash; are not suitable.
 
+Reading from a remote cluster:
+```c++
+auto path = TRichYPath("//tmp/table").Cluster("my-remote-cluster");
+```
+
 You can still use unnormalized paths, for example:
 
 ```c++

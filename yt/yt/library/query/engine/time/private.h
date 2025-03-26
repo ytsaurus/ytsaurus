@@ -8,7 +8,6 @@ namespace NYT::NQueryClient::NRoutines {
 
 struct TDay
 {
-    i8 DayOfTheWeek; // [0; 6]
     i8 DayOfTheMonth; // [1; 31]
     i16 DayOfTheYear; // [1; 366]
     i8 Month; // [1; 12]

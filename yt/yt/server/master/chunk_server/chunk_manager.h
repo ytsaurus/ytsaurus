@@ -203,7 +203,6 @@ struct IChunkManager
         TChunkTree* newChild) = 0;
 
     virtual TChunkView* CreateChunkView(TChunkTree* underlyingTree, TChunkViewModifier modifier) = 0;
-    virtual TChunkView* CloneChunkView(TChunkView* chunkView, NChunkClient::TLegacyReadRange readRange) = 0;
 
     virtual TChunk* CreateChunk(
         NTransactionServer::TTransaction* transaction,
@@ -350,6 +349,7 @@ struct IChunkManager
     virtual void FinalizeDataNodeFullHeartbeatSession(TNode* node) = 0;
 
     virtual TFuture<NDataNodeTrackerClient::NProto::TRspModifyReplicas> ModifySequoiaReplicas(
+        NSequoiaClient::ESequoiaTransactionType transactionType,
         std::unique_ptr<NDataNodeTrackerClient::NProto::TReqModifyReplicas> request) = 0;
     virtual TFuture<void> AddSequoiaConfirmReplicas(
         std::unique_ptr<NChunkServer::NProto::TReqAddConfirmReplicas> request) = 0;

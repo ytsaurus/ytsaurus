@@ -14,10 +14,9 @@ namespace NYT::NLogTailer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TLogRotationConfig
+struct TLogRotationConfig
     : public NYTree::TYsonStruct
 {
-public:
     bool Enable;
     TDuration RotationPeriod;
     int LogSegmentCount;
@@ -50,10 +49,9 @@ DEFINE_REFCOUNTED_TYPE(TLogRotationConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TLogTableConfig
+struct TLogTableConfig
     : public NYTree::TYsonStruct
 {
-public:
     NYTree::TYPath Path;
     bool RequireTraceId;
 
@@ -71,10 +69,9 @@ DEFINE_REFCOUNTED_TYPE(TLogTableConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TLogFileConfig
+struct TLogFileConfig
     : public NYTree::TYsonStruct
 {
-public:
     TString Path;
     std::vector<TLogTableConfigPtr> Tables;
 
@@ -93,10 +90,9 @@ DEFINE_REFCOUNTED_TYPE(TLogFileConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TLogWriterLivenessCheckerConfig
+struct TLogWriterLivenessCheckerConfig
     : public NYTree::TYsonStruct
 {
-public:
     bool Enable;
 
     TDuration LivenessCheckPeriod;
@@ -123,10 +119,9 @@ DEFINE_REFCOUNTED_TYPE(TLogWriterLivenessCheckerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TLogTailerConfig
+struct TLogTailerConfig
     : public NYTree::TYsonStruct
 {
-public:
     TLogRotationConfigPtr LogRotation;
 
     std::vector<TLogFileConfigPtr> LogFiles;
@@ -176,11 +171,10 @@ DEFINE_REFCOUNTED_TYPE(TLogTailerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TLogTailerBootstrapConfig
+struct TLogTailerBootstrapConfig
     : public NServer::TNativeServerBootstrapConfig
     , public TServerProgramConfig
 {
-public:
     TLogTailerConfigPtr LogTailer;
 
     TString ClusterUser;

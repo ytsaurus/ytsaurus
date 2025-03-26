@@ -121,6 +121,7 @@ using namespace NTabletServer::NProto;
 using namespace NTransactionClient;
 using namespace NTransactionServer;
 using namespace NTransactionSupervisor;
+using namespace NLeaseServer;
 using namespace NYPath;
 using namespace NYTree;
 using namespace NYson;
@@ -352,12 +353,12 @@ public:
                     auto executeAclChange = [&] (const auto& node) {
                         auto cellNode = node->AsMap();
                         try {
-                            {
+                            if (cellNode->FindChild("snapshots")) {
                                 auto req = TCypressYPathProxy::Set("/snapshots/@acl");
                                 req->set_value(snapshotAcl);
                                 SyncExecuteVerb(cellNode, req);
                             }
-                            {
+                            if (cellNode->FindChild("changelogs")) {
                                 auto req = TCypressYPathProxy::Set("/changelogs/@acl");
                                 req->set_value(changelogAcl);
                                 SyncExecuteVerb(cellNode, req);
@@ -385,6 +386,7 @@ public:
 
                 RestartAllPrerequisiteTransactions(cell);
             }
+
             cell->SetPendingAclsUpdate(true);
             ReconfigureCell(cell);
         }
@@ -959,7 +961,7 @@ public:
                 continue;
             }
 
-            transactionManager->UnregisterTransactionLease(transaction, cell);
+            transactionManager->UnregisterTransactionLease(transaction, cell->GetId(), &cell->LeaseTransactionIds());
         }
 
         cell->SetCellLifeStage(ECellLifeStage::Decommissioned);

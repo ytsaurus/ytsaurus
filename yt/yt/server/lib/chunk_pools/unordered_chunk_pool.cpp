@@ -33,6 +33,7 @@ using namespace NScheduler;
 using namespace NNodeTrackerClient;
 using namespace NTableClient;
 using namespace NLogging;
+using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -92,7 +93,8 @@ public:
             JobSizeAdjuster_ = CreateJobSizeAdjuster(
                 JobSizeConstraints_->GetDataWeightPerJob(),
                 options.JobSizeAdjusterConfig);
-            YT_LOG_DEBUG("Job size adjuster created");
+            YT_LOG_DEBUG("Job size adjuster created (Options: %v)",
+                ConvertToYsonString(options.JobSizeAdjusterConfig, EYsonFormat::Text));
         }
 
         if (auto samplingRate = JobSizeConstraints_->GetSamplingRate()) {
@@ -371,7 +373,7 @@ public:
     }
 
     std::vector<IChunkPoolOutput::TCookie> SplitJob(
-        const std::vector<NChunkClient::TLegacyDataSlicePtr>& dataSlices,
+        const std::vector<TLegacyDataSlicePtr>& dataSlices,
         int jobCount)
     {
         i64 unreadRowCount = GetCumulativeRowCount(dataSlices);
@@ -495,7 +497,7 @@ private:
     ESingleChunkTeleportStrategy SingleChunkTeleportStrategy_ = ESingleChunkTeleportStrategy::Disabled;
 
     //! Teleport (move to destination pool) trivial (complete), unversioned, teleportable chunk.
-    bool TryTeleportChunk(const TLegacyDataSlicePtr dataSlice)
+    bool TryTeleportChunk(const TLegacyDataSlicePtr& dataSlice)
     {
         if (!dataSlice->IsTrivial() ||
             dataSlice->HasLimits() ||
@@ -538,96 +540,97 @@ private:
         dataSlice->Tag = inputCookie;
 
         if (dataSlice->Type == EDataSourceType::VersionedTable) {
-            AddStripe(New<TChunkStripe>(dataSlice));
-        } else {
-            const auto& chunk = dataSlice->GetSingleUnversionedChunk();
+            AddStripe(New<TChunkStripe>(std::move(dataSlice)));
+            return;
+        }
 
-            if (IsLargeEnoughChunkSize(chunk->GetCompressedDataSize(), MinTeleportChunkSize_) ||
-                IsLargeEnoughChunkWeight(chunk->GetDataWeight(), MinTeleportChunkDataWeight_))
-            {
-                if (TryTeleportChunk(dataSlice)) {
-                    return;
-                }
+        const auto& chunk = dataSlice->GetSingleUnversionedChunk();
+
+        if (IsLargeEnoughChunkSize(chunk->GetCompressedDataSize(), MinTeleportChunkSize_) ||
+            IsLargeEnoughChunkWeight(chunk->GetDataWeight(), MinTeleportChunkDataWeight_))
+        {
+            if (TryTeleportChunk(dataSlice)) {
+                return;
             }
+        }
 
-            int oldSize = Stripes_.size();
+        int oldSize = Stripes_.size();
 
-            bool hasNontrivialLimits = !chunk->IsCompleteChunk();
+        bool hasNontrivialLimits = !chunk->IsCompleteChunk();
 
-            auto codecId = chunk->GetErasureCodec();
-            if (hasNontrivialLimits || codecId == NErasure::ECodec::None || !SliceErasureChunksByParts_) {
-                // TODO(max42): rewrite slicing, SliceEvenly is a weird approach.
-                auto slices = dataSlice->ChunkSlices[0]->SliceEvenly(
+        auto codecId = chunk->GetErasureCodec();
+        if (hasNontrivialLimits || codecId == NErasure::ECodec::None || !SliceErasureChunksByParts_) {
+            // TODO(max42): rewrite slicing, SliceEvenly is a weird approach.
+            auto slices = dataSlice->ChunkSlices[0]->SliceEvenly(
+                JobSizeConstraints_->GetInputSliceDataWeight(),
+                JobSizeConstraints_->GetInputSliceRowCount(),
+                RowBuffer_);
+
+            for (auto& slice : slices) {
+                TInputSliceLimit lowerLimit;
+                if (!IsTrivialLimit(slice->LowerLimit(), 0)) {
+                    lowerLimit = slice->LowerLimit();
+                }
+                TInputSliceLimit upperLimit;
+                if (!IsTrivialLimit(slice->UpperLimit(), chunk->GetTotalRowCount())) {
+                    upperLimit = slice->UpperLimit();
+                }
+
+                auto newDataSlice = New<TLegacyDataSlice>(
+                    EDataSourceType::UnversionedTable,
+                    TLegacyDataSlice::TChunkSliceList{std::move(slice)},
+                    lowerLimit,
+                    upperLimit);
+                newDataSlice->CopyPayloadFrom(*dataSlice);
+                // XXX
+                newDataSlice->GetInputStreamIndex();
+                AddStripe(New<TChunkStripe>(std::move(newDataSlice)));
+            }
+        } else {
+            for (const auto& slice : CreateErasureInputChunkSlices(chunk, codecId)) {
+                slice->TransformToNewKeyless();
+
+                auto smallerSlices = slice->SliceEvenly(
                     JobSizeConstraints_->GetInputSliceDataWeight(),
                     JobSizeConstraints_->GetInputSliceRowCount(),
                     RowBuffer_);
 
-                for (auto& slice : slices) {
+                for (auto& smallerSlice : smallerSlices) {
+                    YT_VERIFY(!smallerSlice->IsLegacy);
+
                     TInputSliceLimit lowerLimit;
-                    if (!IsTrivialLimit(slice->LowerLimit(), 0)) {
-                        lowerLimit = slice->LowerLimit();
+                    if (!IsTrivialLimit(smallerSlice->LowerLimit(), 0)) {
+                        lowerLimit = smallerSlice->LowerLimit();
                     }
                     TInputSliceLimit upperLimit;
-                    if (!IsTrivialLimit(slice->UpperLimit(), chunk->GetTotalRowCount())) {
-                        upperLimit = slice->UpperLimit();
+                    if (!IsTrivialLimit(smallerSlice->UpperLimit(), chunk->GetTotalRowCount())) {
+                        upperLimit = smallerSlice->UpperLimit();
                     }
 
                     auto newDataSlice = New<TLegacyDataSlice>(
                         EDataSourceType::UnversionedTable,
-                        TLegacyDataSlice::TChunkSliceList{slice},
+                        TLegacyDataSlice::TChunkSliceList{std::move(smallerSlice)},
                         lowerLimit,
                         upperLimit);
+
                     newDataSlice->CopyPayloadFrom(*dataSlice);
                     // XXX
                     newDataSlice->GetInputStreamIndex();
-                    AddStripe(New<TChunkStripe>(newDataSlice));
-                }
-            } else {
-                for (const auto& slice : CreateErasureInputChunkSlices(chunk, codecId)) {
-                    slice->TransformToNewKeyless();
-
-                    auto smallerSlices = slice->SliceEvenly(
-                        JobSizeConstraints_->GetInputSliceDataWeight(),
-                        JobSizeConstraints_->GetInputSliceRowCount(),
-                        RowBuffer_);
-
-                    for (auto& smallerSlice : smallerSlices) {
-                        YT_VERIFY(!smallerSlice->IsLegacy);
-
-                        TInputSliceLimit lowerLimit;
-                        if (!IsTrivialLimit(smallerSlice->LowerLimit(), 0)) {
-                            lowerLimit = smallerSlice->LowerLimit();
-                        }
-                        TInputSliceLimit upperLimit;
-                        if (!IsTrivialLimit(smallerSlice->UpperLimit(), chunk->GetTotalRowCount())) {
-                            upperLimit = smallerSlice->UpperLimit();
-                        }
-
-                        auto newDataSlice = New<TLegacyDataSlice>(
-                            EDataSourceType::UnversionedTable,
-                            TLegacyDataSlice::TChunkSliceList{smallerSlice},
-                            lowerLimit,
-                            upperLimit);
-
-                        newDataSlice->CopyPayloadFrom(*dataSlice);
-                        // XXX
-                        newDataSlice->GetInputStreamIndex();
-                        AddStripe(New<TChunkStripe>(newDataSlice));
-                    }
+                    AddStripe(New<TChunkStripe>(std::move(newDataSlice)));
                 }
             }
-
-            YT_LOG_TRACE("Slicing unversioned chunk (ChunkId: %v, DataWeight: %v, SliceDataWeight: %v, SliceRowCount: %v, "
-                "SliceCount: %v)",
-                chunk->GetChunkId(),
-                chunk->GetDataWeight(),
-                JobSizeConstraints_->GetInputSliceDataWeight(),
-                JobSizeConstraints_->GetInputSliceRowCount(),
-                Stripes_.size() - oldSize);
         }
+
+        YT_LOG_TRACE("Slicing unversioned chunk (ChunkId: %v, DataWeight: %v, SliceDataWeight: %v, SliceRowCount: %v, "
+            "SliceCount: %v)",
+            chunk->GetChunkId(),
+            chunk->GetDataWeight(),
+            JobSizeConstraints_->GetInputSliceDataWeight(),
+            JobSizeConstraints_->GetInputSliceRowCount(),
+            Stripes_.size() - oldSize);
     }
 
-    IChunkPoolOutput::TCookie AddStripe(const TChunkStripePtr& stripe)
+    IChunkPoolOutput::TCookie AddStripe(TChunkStripePtr stripe)
     {
         if (!stripe->Solid && !Sampler_.Sample()) {
             return IChunkPoolOutput::NullCookie;
@@ -635,21 +638,19 @@ private:
 
         int internalCookie = Stripes_.size();
 
-        TSuspendableStripe suspendableStripe(stripe);
+        Stripes_.push_back(TSuspendableStripe(std::move(stripe)));
 
-        Stripes_.push_back(suspendableStripe);
+        MaxBlockSize_ = std::max(MaxBlockSize_, Stripes_.back().GetStatistics().MaxBlockSize);
 
-        MaxBlockSize_ = std::max(MaxBlockSize_, suspendableStripe.GetStatistics().MaxBlockSize);
+        GetDataSliceCounter()->AddUncategorized(Stripes_.back().GetStripe()->DataSlices.size());
 
-        GetDataSliceCounter()->AddUncategorized(stripe->DataSlices.size());
-
-        if (stripe->Solid) {
+        if (Stripes_.back().GetStripe()->Solid) {
             AddSolid(internalCookie);
         } else {
             Register(internalCookie);
         }
 
-        for (const auto& dataSlice : stripe->DataSlices) {
+        for (const auto& dataSlice : Stripes_.back().GetStripe()->DataSlices) {
             YT_VERIFY(dataSlice->Tag);
             auto inputCookie = *dataSlice->Tag;
 
@@ -748,9 +749,9 @@ private:
 
     void Register(int stripeIndex)
     {
-        auto& suspendableStripe = Stripes_[stripeIndex];
+        const auto& suspendableStripe = Stripes_[stripeIndex];
 
-        auto stripe = suspendableStripe.GetStripe();
+        const auto& stripe = suspendableStripe.GetStripe();
         for (const auto& dataSlice : stripe->DataSlices) {
             for (const auto& chunkSlice : dataSlice->ChunkSlices) {
                 for (auto replica : chunkSlice->GetInputChunk()->GetReplicaList()) {
@@ -775,7 +776,7 @@ private:
 
     void AddSolid(int stripeIndex)
     {
-        auto& suspendableStripe = Stripes_[stripeIndex];
+        const auto& suspendableStripe = Stripes_[stripeIndex];
         YT_VERIFY(!FreeStripes_.contains(stripeIndex));
         YT_VERIFY(ExtractedStripes_.insert(stripeIndex).second);
         YT_VERIFY(suspendableStripe.GetStripe()->Solid);
@@ -791,13 +792,13 @@ private:
 
     void Unregister(int stripeIndex)
     {
-        auto& suspendableStripe = Stripes_[stripeIndex];
+        const auto& suspendableStripe = Stripes_[stripeIndex];
 
-        auto stripe = suspendableStripe.GetStripe();
+        const auto& stripe = suspendableStripe.GetStripe();
         for (const auto& dataSlice : stripe->DataSlices) {
             for (const auto& chunkSlice : dataSlice->ChunkSlices) {
                 for (auto replica : chunkSlice->GetInputChunk()->GetReplicaList()) {
-                    auto locality = chunkSlice->GetLocality(replica.GetReplicaIndex());
+                    i64 locality = chunkSlice->GetLocality(replica.GetReplicaIndex());
                     if (locality > 0) {
                         auto& entry = NodeIdToEntry_[replica.GetNodeId()];
                         auto it = entry.StripeIndexes.find(stripeIndex);
@@ -819,15 +820,14 @@ private:
         YT_VERIFY(FreeStripes_.erase(stripeIndex) == 1);
     }
 
-    template <class TIterator>
     void AddStripesToJob(
         TNewJobStub* jobStub,
-        const TIterator& begin,
-        const TIterator& end,
+        const THashSet<int>::const_iterator& begin,
+        const THashSet<int>::const_iterator& end,
         i64 idealDataWeightPerJob)
     {
         const auto& jobCounter = GetJobCounter();
-        auto pendingStripesCount = std::ssize(FreeStripes_);
+        i64 pendingStripesCount = std::ssize(FreeStripes_);
         std::vector<int> addedStripeIndexes;
         for (auto it = begin; it != end; ++it) {
             if (jobStub->GetDataWeight() >= idealDataWeightPerJob) {
@@ -841,16 +841,21 @@ private:
                 break;
             }
 
-            auto stripeIndex = *it;
-            auto& suspendableStripe = Stripes_[stripeIndex];
-            auto stat = suspendableStripe.GetStatistics();
+            int stripeIndex = *it;
+            const auto& suspendableStripe = Stripes_[stripeIndex];
+            const auto& stat = suspendableStripe.GetStatistics();
 
             // We should always return at least one stripe, even we get MaxDataWeightPerJob overflow.
-            if (jobStub->GetDataWeight() > 0 && jobStub->GetDataWeight() + stat.DataWeight >
-                JobSizeConstraints_->GetMaxDataWeightPerJob() &&
+            if (jobStub->GetDataWeight() > 0 &&
                 (!JobSizeConstraints_->IsExplicitJobCount() || jobCounter->GetPending() > 1))
             {
-                break;
+                i64 nextDataWeight = jobStub->GetDataWeight() + stat.DataWeight;
+                i64 nextCompressedDataSize = jobStub->GetCompressedDataSize() + stat.CompressedDataSize;
+                if (nextDataWeight > JobSizeConstraints_->GetMaxDataWeightPerJob() ||
+                    nextCompressedDataSize > JobSizeConstraints_->GetMaxCompressedDataSizePerJob())
+                {
+                    break;
+                }
             }
 
             // Leave enough stripes if job count is explicitly given.
@@ -866,7 +871,7 @@ private:
             }
         }
 
-        for (auto stripeIndex : addedStripeIndexes) {
+        for (int stripeIndex : addedStripeIndexes) {
             Unregister(stripeIndex);
             YT_VERIFY(ExtractedStripes_.insert(stripeIndex).second);
         }

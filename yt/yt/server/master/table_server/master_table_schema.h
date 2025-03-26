@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include "compact_table_schema.h"
+
 #include <yt/yt/server/master/object_server/object.h>
 
 #include <yt/yt/server/master/security_server/public.h>
@@ -21,10 +23,10 @@ class TMasterTableSchema
 {
 public:
     using TNativeTableSchemaToObjectMap = THashMap<
-        NTableClient::TTableSchemaPtr,
+        TCompactTableSchemaPtr,
         TMasterTableSchema*,
-        NTableClient::TTableSchemaHash,
-        NTableClient::TTableSchemaEquals
+        TCompactTableSchemaHash,
+        TCompactTableSchemaEquals
     >;
     using TNativeTableSchemaToObjectMapIterator = TNativeTableSchemaToObjectMap::iterator;
 
@@ -45,12 +47,14 @@ public:
     //! Constructs a native master table schema object.
     TMasterTableSchema(TMasterTableSchemaId id, TNativeTableSchemaToObjectMapIterator it);
     //! Constructs an imported master table schema object.
-    TMasterTableSchema(TMasterTableSchemaId id, NTableClient::TTableSchemaPtr);
+    TMasterTableSchema(TMasterTableSchemaId id, TCompactTableSchemaPtr);
 
     void Save(NCellMaster::TSaveContext& context) const;
     void Load(NCellMaster::TLoadContext& context);
 
-    const NTableClient::TTableSchemaPtr& AsTableSchema(bool crashOnZombie=true) const;
+    const TCompactTableSchemaPtr& AsCompactTableSchema(bool crashOnZombie = true) const;
+    // Triggers deserialization of underlying `CompactTableSchema_`, so if possible, prefer the above.
+    const NTableClient::TTableSchema& AsTableSchema(bool crashOnZombie = true) const;
     const TFuture<NYson::TYsonString>& AsYsonAsync() const;
     // Whenever possible, prefer the above.
     NYson::TYsonString AsYsonSync() const;
@@ -80,7 +84,7 @@ private:
     // NB: only used for native (non-foreign) schema objects.
     TNativeTableSchemaToObjectMapIterator NativeTableSchemaToObjectMapIterator_;
 
-    NTableClient::TTableSchemaPtr TableSchema_;
+    TCompactTableSchemaPtr CompactTableSchema_;
 
     mutable TFuture<NYson::TYsonString> MemoizedYson_;
     YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, MemoizedYsonLock_);

@@ -9,15 +9,14 @@
 namespace NYT::NTabletBalancer {
 
 const TString DefaultGroupName = "default";
-const TString LegacyGroupName = "legacy";
+const TString LegacyOrdinaryGroupName = "legacy";
 const TString LegacyInMemoryGroupName = "legacy_in_memory";
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TComponentFactorConfig
+struct TComponentFactorConfig
     : public NYTree::TYsonStruct
 {
-public:
     std::optional<double> Cell;
     std::optional<double> Node;
     std::optional<double> TableCell;
@@ -38,13 +37,12 @@ DEFINE_REFCOUNTED_TYPE(TComponentFactorConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TParameterizedBalancingConfig
+struct TParameterizedBalancingConfig
     : public NYTree::TYsonStruct
 {
-public:
     TString Metric;
     std::optional<bool> EnableReshard;
-    std::optional<bool> EnableUniform;
+    std::optional<bool> PerTableUniform;
     std::optional<int> MaxActionCount;
     std::optional<int> BoundedPriorityQueueSize;
     std::optional<double> NodeDeviationThreshold;
@@ -61,10 +59,9 @@ DEFINE_REFCOUNTED_TYPE(TParameterizedBalancingConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TTabletBalancingGroupConfig
+struct TTabletBalancingGroupConfig
     : public NYTree::TYsonStruct
 {
-public:
     bool EnableMove;
     bool EnableReshard;
 
@@ -82,10 +79,9 @@ DEFINE_REFCOUNTED_TYPE(TTabletBalancingGroupConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Frozen.
-class TMasterBundleTabletBalancerConfig
+struct TMasterBundleTabletBalancerConfig
     : public NYTree::TYsonStruct
 {
-public:
     bool EnableInMemoryCellBalancer;
     bool EnableCellBalancer;
     bool EnableTabletSizeBalancer;
@@ -119,10 +115,9 @@ DEFINE_REFCOUNTED_TYPE(TMasterBundleTabletBalancerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TBundleTabletBalancerConfig
+struct TBundleTabletBalancerConfig
     : public TMasterBundleTabletBalancerConfig
 {
-public:
     bool EnableParameterizedByDefault;
     std::optional<TString> DefaultInMemoryGroup;
     bool EnablePickPivotKeys;
@@ -140,10 +135,9 @@ DEFINE_REFCOUNTED_TYPE(TBundleTabletBalancerConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Frozen.
-class TMasterTableTabletBalancerConfig
+struct TMasterTableTabletBalancerConfig
     : public NYTree::TYsonStruct
 {
-public:
     bool EnableAutoReshard;
     bool EnableAutoTabletMove;
 
@@ -176,10 +170,9 @@ DEFINE_REFCOUNTED_TYPE(TMasterTableTabletBalancerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TTableTabletBalancerConfig
+struct TTableTabletBalancerConfig
     : public TMasterTableTabletBalancerConfig
 {
-public:
     std::optional<bool> EnableParameterized;
     std::optional<TString> Group;
 

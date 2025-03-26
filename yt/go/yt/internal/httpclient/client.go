@@ -153,7 +153,6 @@ func (c *httpClient) writeParams(req *http.Request, call *internal.Call) error {
 	}
 
 	h := req.Header
-	h.Add("X-YT-Header-Format", "yson")
 	if req.Method == http.MethodPost && req.Body == http.NoBody {
 		req.Body = io.NopCloser(&params)
 		req.ContentLength = int64(params.Len())
@@ -214,7 +213,7 @@ func (c *httpClient) newHTTPRequest(ctx context.Context, call *internal.Call, bo
 	c.injectTracing(ctx, req)
 
 	if body != nil {
-		req.Header.Add("X-YT-Input-Format", "yson")
+		req.Header.Add("X-YT-Input-Format", "<string_keyed_dict_mode=named>yson")
 	}
 	req.Header.Add("X-YT-Header-Format", "<format=text>yson")
 	req.Header.Add("X-YT-Output-Format", "yson")
@@ -226,6 +225,10 @@ func (c *httpClient) newHTTPRequest(ctx context.Context, call *internal.Call, bo
 
 	if credentials != nil {
 		credentials.Set(req)
+	}
+
+	if c.config.ImpersonationUser != "" {
+		req.Header.Add("X-YT-User-Name", c.config.ImpersonationUser)
 	}
 
 	c.logRequest(ctx, req)
@@ -640,6 +643,7 @@ func (c *httpClient) AttachTx(ctx context.Context, txID yt.TxID, options *yt.Att
 
 func (c *httpClient) Stop() {
 	c.stop.Stop()
+	c.httpClient.CloseIdleConnections()
 }
 
 func (c *httpClient) dialContext(ctx context.Context, network, addr string) (net.Conn, error) {

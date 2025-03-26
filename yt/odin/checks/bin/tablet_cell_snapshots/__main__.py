@@ -50,8 +50,7 @@ def run_check(yt_client, logger, options, states):
                 logger)
 
             for cell_id, response in changelog_disk_space_by_cell_id.items():
-                if not response.is_ok:
-                    # Path is probably missing.
+                if not response.is_ok():  # Path is probably missing.
                     continue
 
                 results = response.get_result()

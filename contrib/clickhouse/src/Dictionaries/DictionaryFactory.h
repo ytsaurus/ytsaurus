@@ -6,7 +6,7 @@
 #include <Parsers/ASTCreateQuery.h>
 
 
-namespace Poco
+namespace DBPoco
 {
 
 namespace Util
@@ -34,20 +34,15 @@ public:
     /// from xml-file on filesystem.
     DictionaryPtr create(
         const std::string & name,
-        const Poco::Util::AbstractConfiguration & config,
+        const DBPoco::Util::AbstractConfiguration & config,
         const std::string & config_prefix,
         ContextPtr global_context,
         bool created_from_ddl) const;
 
-    /// Create dictionary from DDL-query
-    DictionaryPtr create(const std::string & name,
-        const ASTCreateQuery & ast,
-        ContextPtr global_context) const;
-
     using LayoutCreateFunction = std::function<DictionaryPtr(
         const std::string & name,
         const DictionaryStructure & dict_struct,
-        const Poco::Util::AbstractConfiguration & config,
+        const DBPoco::Util::AbstractConfiguration & config,
         const std::string & config_prefix,
         DictionarySourcePtr source_ptr,
         ContextPtr global_context,

@@ -35,13 +35,12 @@ TemporaryFileOnDisk::TemporaryFileOnDisk(const DiskPtr & disk_, const String & p
     if (!disk)
         throw Exception(ErrorCodes::LOGICAL_ERROR, "Disk is not specified");
 
-    if (fs::path prefix_path(prefix); prefix_path.has_parent_path())
-        disk->createDirectories(prefix_path.parent_path());
+    disk->createDirectories((fs::path("") / prefix).parent_path());
 
     ProfileEvents::increment(ProfileEvents::ExternalProcessingFilesTotal);
 
     /// A disk can be remote and shared between multiple replicas.
-    /// That's why we must not use Poco::TemporaryFile::tempName() here (Poco::TemporaryFile::tempName() can return the same names for different processes on different nodes).
+    /// That's why we must not use DBPoco::TemporaryFile::tempName() here (DBPoco::TemporaryFile::tempName() can return the same names for different processes on different nodes).
     relative_path = prefix + toString(UUIDHelpers::generateV4());
 }
 
@@ -59,7 +58,8 @@ TemporaryFileOnDisk::~TemporaryFileOnDisk()
 
         if (!disk->exists(relative_path))
         {
-            LOG_WARNING(&Poco::Logger::get("TemporaryFileOnDisk"), "Temporary path '{}' does not exist in '{}'", relative_path, disk->getPath());
+            if (show_warning_if_removed)
+                LOG_WARNING(getLogger("TemporaryFileOnDisk"), "Temporary path '{}' does not exist in '{}'", relative_path, disk->getPath());
             return;
         }
 

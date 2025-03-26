@@ -97,7 +97,6 @@ using namespace NTableClient::NProto;
 using namespace NTableClient;
 using namespace NTracing;
 
-using NChunkClient::NProto::TBlocksExt;
 using NChunkClient::TChunkReaderStatistics;
 using NYT::FromProto;
 using NYT::ToProto;
@@ -183,6 +182,7 @@ public:
         RegisterMethod(RPC_SERVICE_METHOD_DESC(FinishChunk)
             .SetCancelable(true));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(CancelChunk));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(ProbePutBlocks));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(PutBlocks)
             .SetQueueSizeLimit(100)
             .SetConcurrencyLimit(100)
@@ -299,19 +299,22 @@ private:
         options.EnableMultiplexing = request->enable_multiplexing();
         options.PlacementId = FromProto<TPlacementId>(request->placement_id());
         options.DisableSendBlocks = GetDynamicConfig()->UseDisableSendBlocks && request->disable_send_blocks();
+        options.UseProbePutBlocks = request->use_probe_put_blocks();
 
-        context->SetRequestInfo("SessionId: %v, Workload: %v, SyncOnClose: %v, EnableMultiplexing: %v, PlacementId: %v, DisableSendBlocks: %v",
+        context->SetRequestInfo("SessionId: %v, Workload: %v, SyncOnClose: %v, EnableMultiplexing: %v, PlacementId: %v, DisableSendBlocks: %v, UseProbePutBlocks: %v",
             sessionId,
             options.WorkloadDescriptor,
             options.SyncOnClose,
             options.EnableMultiplexing,
             options.PlacementId,
-            options.DisableSendBlocks);
+            options.DisableSendBlocks,
+            options.UseProbePutBlocks);
 
         ValidateOnline();
 
         const auto& sessionManager = Bootstrap_->GetSessionManager();
         auto session = sessionManager->StartSession(sessionId, options);
+        response->set_use_probe_put_blocks(false);
         ToProto(response->mutable_location_uuid(), session->GetStoreLocation()->GetUuid());
         context->ReplyFrom(session->Start());
     }
@@ -345,7 +348,7 @@ private:
         auto meta = request->has_chunk_meta()
             ? New<TRefCountedChunkMeta>(std::move(*request->mutable_chunk_meta()))
             : nullptr;
-        session->Finish(meta, blockCount)
+        session->Finish(meta, blockCount, request->truncate_extra_blocks())
             .Subscribe(BIND([
                 =,
                 this,
@@ -429,6 +432,24 @@ private:
 
         response->set_close_demanded(IsCloseDemanded(location));
 
+        context->Reply();
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, ProbePutBlocks)
+    {
+        context->SetRequestInfo("SessionId: %v, CumulativeBlockSize: %v",
+            request->session_id(),
+            request->cumulative_block_size());
+
+        const auto requestedCumulativeBlockSize = request->cumulative_block_size();
+
+        response->mutable_probe_put_blocks_state()->set_requested_cumulative_block_size(requestedCumulativeBlockSize);
+        response->mutable_probe_put_blocks_state()->set_approved_cumulative_block_size(requestedCumulativeBlockSize);
+
+        context->SetResponseInfo("SessionId: %v, MaxRequestedCumulativeBlockSize: %v, ApprovedCumulativeBlockSize: %v",
+            request->session_id(),
+            requestedCumulativeBlockSize,
+            requestedCumulativeBlockSize);
         context->Reply();
     }
 
@@ -1035,7 +1056,8 @@ private:
             return future;
         }
 
-        auto deadline = *context->GetStartTime() + *context->GetTimeout() * timeoutFraction.value();
+        auto timeout = *context->GetTimeout() * timeoutFraction.value();
+        auto deadline = *context->GetStartTime() + timeout;
 
         return AnySet<T>({
             future
@@ -1049,7 +1071,11 @@ private:
                     }
                 })),
             TDelayedExecutor::MakeDelayed(deadline - TInstant::Now())
-                .Apply(fallbackValue)
+                .Apply(BIND([fallbackValue, future, timeout] {
+                    future.Cancel(TError("Rpc request timed out")
+                        << TErrorAttribute("timeout", timeout));
+                    return fallbackValue();
+                }))
         });
     }
 
@@ -1421,7 +1447,7 @@ private:
                 }
 
                 std::vector<std::vector<int>> locationFragmentIndices(requestedLocations.size());
-                std::vector<std::vector<IIOEngine::TReadRequest>> locationRequests(requestedLocations.size());
+                std::vector<std::vector<TReadRequest>> locationRequests(requestedLocations.size());
                 std::vector<TMemoryUsageTrackerGuard> locationMemoryGuards(requestedLocations.size());
 
                 for (auto [_, locationRequestCount] : requestedLocations) {
@@ -1473,7 +1499,7 @@ private:
 
                 response->Attachments().resize(fragmentIndex);
 
-                std::vector<TFuture<IIOEngine::TReadResponse>> readFutures;
+                std::vector<TFuture<TReadResponse>> readFutures;
                 readFutures.reserve(requestedLocations.size());
 
                 for (int index = 0; index < std::ssize(requestedLocations); ++index) {
@@ -1496,7 +1522,7 @@ private:
                         readFuture = readFuture.ApplyUnique(BIND([
                             =,
                             memoryGuard = std::move(locationMemoryGuards[index]),
-                            resultIndex = index] (IIOEngine::TReadResponse&& result) mutable {
+                            resultIndex = index] (TReadResponse&& result) mutable {
                             const auto& fragmentIndices = locationFragmentIndices[resultIndex];
                             YT_VERIFY(result.OutputBuffers.size() == fragmentIndices.size());
 
@@ -1522,7 +1548,7 @@ private:
                             chunkRequestInfos = std::move(chunkRequestInfos),
                             locationFragmentIndices = std::move(locationFragmentIndices),
                             requestedLocations = std::move(requestedLocations)
-                        ] (TErrorOr<std::vector<IIOEngine::TReadResponse>>&& resultsOrError) {
+                        ] (TErrorOr<std::vector<TReadResponse>>&& resultsOrError) {
                             if (!resultsOrError.IsOK()) {
                                 context->Reply(resultsOrError);
                                 return;
@@ -2324,7 +2350,8 @@ private:
                     &TDataNodeService::ExtractColumnarStatisticsFromChunkMeta,
                     MakeStrong(this),
                     Passed(std::move(columnStableNames)),
-                    chunkId)
+                    chunkId,
+                    subrequest.enable_read_size_estimation())
                 .AsyncVia(heavyInvoker));
             // Fault-injection for tests.
             if (auto optionalDelay = GetDynamicConfig()->TestingOptions->ColumnarStatisticsChunkMetaFetchMaxDelay) {
@@ -2475,6 +2502,7 @@ private:
     TRefCountedColumnarStatisticsSubresponsePtr ExtractColumnarStatisticsFromChunkMeta(
         const std::vector<TColumnStableName>& columnStableNames,
         TChunkId chunkId,
+        bool enableReadSizeEstimation,
         const TErrorOr<TRefCountedChunkMetaPtr>& metaOrError)
     {
         YT_LOG_DEBUG("Extracting columnar statistics from chunk meta (ChunkId: %v)", chunkId);
@@ -2503,9 +2531,11 @@ private:
                 nameTable = TNameTable::FromSchemaStable(*schema);
             }
 
-            auto readDataSizeEstimate = EstimateReadDataSizeForColumns(columnStableNames, meta, schema, chunkId, Logger);
-            if (readDataSizeEstimate) {
-                subresponse->set_read_data_size_estimate(*readDataSizeEstimate);
+            if (enableReadSizeEstimation) {
+                auto readDataSizeEstimate = EstimateReadDataSizeForColumns(columnStableNames, meta, schema, chunkId, Logger);
+                if (readDataSizeEstimate) {
+                    subresponse->set_read_data_size_estimate(*readDataSizeEstimate);
+                }
             }
 
             FillColumnarStatisticsFromChunkMeta(subresponse.get(), columnStableNames, nameTable, meta);

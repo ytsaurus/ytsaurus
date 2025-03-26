@@ -212,7 +212,7 @@ protected:
         return MakeRowBound(currentRowIndex, TabletIndex_);
     }
 
-    bool ToTypeErasedRow(
+    void ToTypeErasedRow(
         const TUnversionedRow& row,
         const TRowBufferPtr& /*rowBuffer*/,
         TTypeErasedRow* replicationRow,
@@ -220,15 +220,16 @@ protected:
         i64* rowDataWeight) const override
     {
         auto rowTimestamp = row[TimestampColumnIndex_].Data.Uint64;
-        // Check that row has greater timestamp than progress.
-        if (rowTimestamp <= Progress_.Segments[0].Timestamp) {
-            return false;
-        }
 
         *timestamp = rowTimestamp;
         *replicationRow = row.ToTypeErasedRow();
         *rowDataWeight = GetDataWeight(TUnversionedRow(*replicationRow));
-        return true;
+    }
+
+    bool IsRowFitIntoProgress(const TTypeErasedRow& /*replicationRow*/, TTimestamp rowTimestamp) const override
+    {
+        // Check that row has greater timestamp than progress.
+        return rowTimestamp > Progress_.Segments[0].Timestamp;
     }
 
     size_t WriteTypeErasedRow(TTypeErasedRow row) override
@@ -270,7 +271,7 @@ public:
         return MakeRowBound(currentRowIndex);
     }
 
-    bool ToTypeErasedRow(
+    void ToTypeErasedRow(
         const TUnversionedRow& row,
         const TRowBufferPtr& rowBuffer,
         TTypeErasedRow* replicationRow,
@@ -285,9 +286,14 @@ public:
             timestamp);
         auto versionedRow = TVersionedRow(*replicationRow);
         *rowDataWeight = GetDataWeight(versionedRow);
+    }
+
+    bool IsRowFitIntoProgress(const TTypeErasedRow& replicationRow, TTimestamp timestamp) const override
+    {
+        auto versionedRow = TVersionedRow(replicationRow);
         // Check that row fits into replication progress key range and has greater timestamp than progress.
         auto progressTimestamp = FindReplicationProgressTimestampForKey(Progress_, versionedRow.Keys());
-        return progressTimestamp && *progressTimestamp < *timestamp;
+        return progressTimestamp && *progressTimestamp < timestamp;
     }
 
     size_t WriteTypeErasedRow(TTypeErasedRow row) override
@@ -315,6 +321,8 @@ TReplicationLogBatchDescriptor ReadReplicationBatch(
     i64 startRowIndex,
     TTimestamp upperTimestamp,
     i64 maxDataWeight,
+    i64 readDataWeightLimit,
+    TInstant requestDeadLine,
     IWireProtocolWriter* writer)
 {
     if (tabletSnapshot->TableSchema->IsSorted()) {
@@ -330,7 +338,9 @@ TReplicationLogBatchDescriptor ReadReplicationBatch(
             .ReadReplicationBatch(
                 startRowIndex,
                 upperTimestamp,
-                maxDataWeight);
+                maxDataWeight,
+                readDataWeightLimit,
+                requestDeadLine);
     } else {
         return NDetail::TOrderedRowBatchReader(
             tabletSnapshot,
@@ -344,7 +354,9 @@ TReplicationLogBatchDescriptor ReadReplicationBatch(
             .ReadReplicationBatch(
                 startRowIndex,
                 upperTimestamp,
-                maxDataWeight);
+                maxDataWeight,
+                readDataWeightLimit,
+                requestDeadLine);
     }
 }
 

@@ -101,12 +101,6 @@ void TSequoiaConnectionConfig::Register(TRegistrar registrar)
     registrar.Parameter("sequoia_root_path", &TThis::SequoiaRootPath)
         .Default("//sys/sequoia");
 
-    registrar.Parameter("account", &TThis::Account)
-        .Default("sequoia");
-
-    registrar.Parameter("bundle", &TThis::Bundle)
-        .Default("sequoia");
-
     registrar.Parameter("sequoia_transaction_timeout", &TThis::SequoiaTransactionTimeout)
         .Default(TDuration::Minutes(1));
 }
@@ -320,7 +314,7 @@ void TConnectionDynamicConfig::Register(TRegistrar registrar)
         &TThis::DefaultChaosWatcherClientRequestTimeout)
         .Default(TDuration::Minutes(30));
     registrar.Parameter("default_chaos_replicated_table_get_tablet_count_timeout",
-        &TThis::DefaulChaosReplicatedTableGetTabletCountTimeout)
+        &TThis::DefaultChaosReplicatedTableGetTabletCountTimeout)
         .Default(TDuration::Seconds(15));
 
     registrar.Parameter("default_fetch_table_rows_timeout", &TThis::DefaultFetchTableRowsTimeout)
@@ -359,6 +353,8 @@ void TConnectionDynamicConfig::Register(TRegistrar registrar)
         .Default(TDuration::Seconds(30));
 
     registrar.Parameter("permission_cache", &TThis::PermissionCache)
+        .DefaultNew();
+    registrar.Parameter("user_attribute_cache", &TThis::UserAttributeCache)
         .DefaultNew();
 
     registrar.Parameter("job_shell_descriptor_cache", &TThis::JobShellDescriptorCache)

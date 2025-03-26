@@ -26,6 +26,7 @@ struct IBlockDevice
     virtual TString GetProfileSensorTag() const = 0;
 
     virtual TFuture<void> Initialize() = 0;
+    virtual TFuture<void> Finalize() = 0;
 
     virtual TFuture<TSharedRef> Read(
         i64 offset,

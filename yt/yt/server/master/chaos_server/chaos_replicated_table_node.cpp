@@ -110,7 +110,7 @@ void TChaosReplicatedTableNode::CheckInvariants(NCellMaster::TBootstrap* bootstr
 
 bool TChaosReplicatedTableNode::IsSorted() const
 {
-    return HasNonEmptySchema() && GetSchema()->AsTableSchema()->IsSorted();
+    return HasNonEmptySchema() && GetSchema()->AsCompactTableSchema()->IsSorted();
 }
 
 // Chaos Replicated Tables are always dynamic.
@@ -152,7 +152,7 @@ bool TChaosReplicatedTableNode::IsTrackedQueueProducerObject() const
 bool TChaosReplicatedTableNode::HasNonEmptySchema() const
 {
     const auto& schema = GetSchema();
-    return schema && !schema->AsTableSchema()->IsEmpty();
+    return schema && !schema->AsCompactTableSchema()->IsEmpty();
 }
 ////////////////////////////////////////////////////////////////////////////////
 

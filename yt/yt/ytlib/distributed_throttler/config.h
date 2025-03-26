@@ -18,10 +18,9 @@ DEFINE_ENUM(EDistributedThrottlerMode,
     (Precise)
 );
 
-class TDistributedThrottlerConfig
+struct TDistributedThrottlerConfig
     : public NYTree::TYsonStruct
 {
-public:
     NDiscoveryClient::TMemberClientConfigPtr MemberClient;
     NDiscoveryClient::TDiscoveryClientConfigPtr DiscoveryClient;
 

@@ -9,6 +9,8 @@
 #include <yt/yt/server/master/security_server/security_manager.h>
 #include <yt/yt/server/master/security_server/user.h>
 
+#include <yt/yt/ytlib/cypress_client/rpc_helpers.h>
+
 #include <yt/yt/client/object_client/helpers.h>
 
 #include <yt/yt/core/yson/string.h>
@@ -26,11 +28,9 @@ TFuture<NYson::TYsonString> TNonversionedObjectProxyBase<TObject>::FetchFromShep
     const auto multicellManager = Bootstrap_->GetMulticellManager();
     YT_ASSERT(multicellManager->IsSecondaryMaster());
 
-    NObjectClient::TObjectServiceProxy proxy(
-        Bootstrap_->GetClusterConnection(),
-        NApi::EMasterChannelKind::Follower,
-        NObjectClient::PrimaryMasterCellTagSentinel,
-        /*stickyGroupSizeCache*/ nullptr);
+    auto proxy = NObjectClient::TObjectServiceProxy::FromDirectMasterChannel(
+        multicellManager->GetMasterChannelOrThrow(multicellManager->GetPrimaryCellTag(), NHydra::EPeerKind::Follower));
+
     auto batchReq = proxy.ExecuteBatch();
 
     const auto& securityManager = Bootstrap_->GetSecurityManager();
@@ -38,6 +38,9 @@ TFuture<NYson::TYsonString> TNonversionedObjectProxyBase<TObject>::FetchFromShep
     batchReq->SetUser(user->GetName());
 
     auto req = NYTree::TYPathProxy::Get(path);
+    // NB: it's legal to fetch attributes of Sequoia objects this way so it's
+    // marked explicitly.
+    NCypressClient::SetAllowResolveFromSequoiaObject(req, true);
     batchReq->AddRequest(req);
 
     return batchReq->Invoke()
@@ -70,17 +73,17 @@ TFuture<std::vector<T>> TNonversionedObjectProxyBase<TObject>::FetchFromSwarm(NY
     std::vector<TFuture<T>> asyncResults;
 
     for (auto cellTag : multicellManager->GetRegisteredMasterCellTags()) {
-        NObjectClient::TObjectServiceProxy proxy(
-            Bootstrap_->GetClusterConnection(),
-            NApi::EMasterChannelKind::Follower,
-            cellTag,
-            /*stickyGroupSizeCache*/ nullptr);
+        auto proxy = NObjectClient::TObjectServiceProxy::FromDirectMasterChannel(
+            multicellManager->GetMasterChannelOrThrow(cellTag, NHydra::EPeerKind::Follower));
         auto batchReq = proxy.ExecuteBatch();
         batchReq->SetUser(user->GetName());
 
         auto attribute = key.Unintern();
         auto path = NObjectClient::FromObjectId(object->GetId()) + "/@" + attribute;
         auto req = NYTree::TYPathProxy::Get(path);
+        // NB: it's legal to fetch attributes of Sequoia objects this way so
+        // it's marked explicitly.
+        NCypressClient::SetAllowResolveFromSequoiaObject(req, true);
         batchReq->AddRequest(req, "get");
 
         auto result = batchReq->Invoke()
@@ -152,14 +155,16 @@ template <class T>
 
     auto fillResult = [&] (auto* protoResult, const auto& result) {
         protoResult->set_action(ToProto(result.Action));
-        if (result.Object) {
-            ToProto(protoResult->mutable_object_id(), result.Object->GetId());
-            const auto& handler = objectManager->GetHandler(result.Object);
-            protoResult->set_object_name(ToProto(handler->GetName(result.Object)));
+        if (result.ObjectId) {
+            ToProto(protoResult->mutable_object_id(), result.ObjectId);
+            auto* object = objectManager->GetObject(result.ObjectId);
+            const auto& handler = objectManager->GetHandler(object);
+            protoResult->set_object_name(ToProto(handler->GetName(object)));
         }
-        if (result.Subject) {
-            ToProto(protoResult->mutable_subject_id(), result.Subject->GetId());
-            protoResult->set_subject_name(ToProto(result.Subject->GetName()));
+        if (result.SubjectId) {
+            ToProto(protoResult->mutable_subject_id(), result.SubjectId);
+            auto* subject = securityManager->GetSubjectOrThrow(result.SubjectId);
+            protoResult->set_subject_name(ToProto(subject->GetName()));
         }
     };
 

@@ -14,10 +14,9 @@ namespace NYT::NHttpProxy::NClickHouse {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TDiscoveryCacheConfig
+struct TDiscoveryCacheConfig
     : public NYTree::TYsonStruct
 {
-public:
     //! Base config for SlruCache.
     TSlruCacheConfigPtr CacheBase;
 
@@ -43,10 +42,9 @@ DEFINE_REFCOUNTED_TYPE(TDiscoveryCacheConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TStaticClickHouseConfig
+struct TStaticClickHouseConfig
     : public NYTree::TYsonStruct
 {
-public:
     TDuration ProfilingPeriod;
 
     //! Operation cache (for alias resolution and operation ACL fetching).
@@ -74,10 +72,9 @@ DEFINE_REFCOUNTED_TYPE(TStaticClickHouseConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TDynamicClickHouseConfig
+struct TDynamicClickHouseConfig
     : public NYTree::TYsonStruct
 {
-public:
     //! Path to folder in Cypress which contains general information about all cliques.
     TString DiscoveryPath;
 

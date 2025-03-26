@@ -37,6 +37,7 @@
 #include <util/string/cast.h>
 #include <util/string/join.h>
 #include <util/string/split.h>
+#include <util/system/env.h>
 
 #include <algorithm>
 #include <functional>
@@ -367,6 +368,17 @@ namespace NTypeAnnImpl {
                     .Build(), ctx.MakeType<TDataExprType>(EDataSlot::TzTimestamp) };
             }
 
+            if (resType->GetTag() == "DateTime2.TM64") {
+                return { ctx.Builder(input->Pos())
+                    .Callable("Apply")
+                        .Callable(0, "Udf")
+                            .Atom(0, "DateTime2.MakeTzTimestamp64", TNodeFlags::Default)
+                        .Seal()
+                        .Add(1, input)
+                    .Seal()
+                    .Build(), ctx.MakeType<TDataExprType>(EDataSlot::TzTimestamp64) };
+            }
+
             if (resType->GetTag() == "JsonNode") {
                 return { ctx.Builder(input->Pos())
                     .Callable("Apply")
@@ -474,7 +486,7 @@ namespace NTypeAnnImpl {
             imports.push_back(&x.second);
         }
 
-        if (!Types.UdfResolver->LoadMetadata(imports, functions, Expr)) {
+        if (!Types.UdfResolver->LoadMetadata(imports, functions, Expr, Types.RuntimeLogLevel)) {
             return false;
         }
 
@@ -589,12 +601,15 @@ namespace NTypeAnnImpl {
         }
 
         auto failureKind = input->Child(0)->Content();
+        Y_ABORT_UNLESS(!TryGetEnv("YQL_DETERMINISTIC_MODE") || failureKind != "crash");
         if (failureKind == "expr") {
             input->SetTypeAnn(ctx.Expr.MakeType<TDataExprType>(NUdf::EDataSlot::String));
         } else if (failureKind == "type") {
             input->SetTypeAnn(ctx.Expr.MakeType<TDataExprType>(NUdf::EDataSlot::String));
         } else if (failureKind == "constraint") {
             input->SetTypeAnn(ctx.Expr.MakeType<TListExprType>(ctx.Expr.MakeType<TDataExprType>(NUdf::EDataSlot::String)));
+        } else if (failureKind == "exception") {
+            ythrow yexception() << "FailMe exception";
         } else {
             ctx.Expr.AddError(TIssue(ctx.Expr.GetPosition(input->Child(0)->Pos()), TStringBuilder() << "Unknown failure kind: " << failureKind));
             return IGraphTransformer::TStatus::Error;
@@ -7646,7 +7661,15 @@ template <NKikimr::NUdf::EDataSlot DataSlot>
                     return MakeIntrusive<TIssue>(ctx.Expr.GetPosition(input->Pos()), TStringBuilder() << "At " << input->Head().Content());
                 });
 
-                if (!ctx.LoadUdfMetadata(functions)) {
+                auto success = ctx.LoadUdfMetadata(functions);
+                for (const auto& m : description.Messages) {
+                    TIssue issue;
+                    issue.SetMessage(m);
+                    issue.SetCode(TIssuesIds::CORE_UDF_RESOLVER, TSeverityIds::S_INFO);
+                    ctx.Expr.AddError(issue);
+                }
+
+                if (!success) {
                     return IGraphTransformer::TStatus::Error;
                 }
 
@@ -12892,6 +12915,8 @@ template <NKikimr::NUdf::EDataSlot DataSlot>
         Functions["WithOptionalArgs"] = &WithOptionalArgsWrapper;
         Functions["WithContext"] = &WithContextWrapper;
         Functions["EmptyFrom"] = &EmptyFromWrapper;
+        Functions["PruneAdjacentKeys"] = &PruneKeysWrapper;
+        Functions["PruneKeys"] = &PruneKeysWrapper;
 
         Functions["DecimalDiv"] = &DecimalBinaryWrapper;
         Functions["DecimalMod"] = &DecimalBinaryWrapper;

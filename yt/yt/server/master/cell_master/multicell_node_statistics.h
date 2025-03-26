@@ -18,7 +18,8 @@ public:
 
     const NProto::TCellStatistics& GetClusterStatistics() const;
 
-    NProto::TCellStatistics GetCellStatistics(NObjectClient::TCellTag cell) const;
+    NProto::TCellStatistics GetCellStatistics(NObjectClient::TCellTag cellTag) const;
+    i64 GetChunkCount(NObjectClient::TCellTag cellTag) const;
 
     // COMPAT(koloshmet)
     void PopulateLocalStatisticsAfterSnapshotLoaded(const NProto::TCellStatistics& statistics);

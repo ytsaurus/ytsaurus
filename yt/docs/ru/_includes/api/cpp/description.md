@@ -561,6 +561,11 @@ auto path = TRichYPath("//tmp/table").RenameColumns({{"a", "b"}, {"c", "d"}});
 
 Колонка таблицы *a* будет видна под именем *b*, а *c* &mdash; под именем *d*. Функция переустанавливает полный список переименованных колонок, т.е. повторный вызов `RenameColumns` сотрет результаты предыдущего. `Columns` применяется после `RenameColumns`, т.е. в данном случае *b* и *d* будут пригодны, *a* и *c* &mdash; не пригодны для `Columns`.
 
+Чтение с удаленного кластера:
+```c++
+auto path = TRichYPath("//tmp/table").Cluster("my-remote-cluster");
+```
+
 Также остаётся возможность использовать ненормализованные пути, например:
 
 ```c++
@@ -907,6 +912,7 @@ TListJobsResult ListJobs(
 | `WithSpec`                        | `TMaybe<bool>`                | none    | Сохранена ли спецификация джоба.                                     |
 | `WithFailContext`                 | `TMaybe<bool>`                | none    | Сохранён ли fail context джоба.                               |
 | `WithMonitoringDescriptor`        | `TMaybe<bool>`                | none    | Выдался ли monitoring descriptor джобу.                               |
+| `WithInterruptionInfo`            | `TMaybe<bool>`                | none    | Присутствует ли interruption info у джоба                               |
 | `SortField`                       | `TMaybe<EJobSortField>`       | none    | По какому полю сортировать джобы в ответе. |
 | `SortOrder`                       | `TMaybe<ESortOrder>`          | none    | Сортировать джобы по возрастанию или убыванию.                      |
 | `DataSource`                      | `TMaybe<EListJobsDataSource>` | none    | Где искать джобы: в контроллер-агенте и Кипарисе (`Runtime`), в архиве джобов (`Archive`), автоматически в зависимости от наличия операции в Кипарисе (`Auto`) или как-то иначе (`Manual`). |
@@ -1052,7 +1058,7 @@ TMaybe<TYPath> GetFileFromCache(
 
 ## Юнит-тесты
 
-Юнит-тесты для {{product-name}}-операций оформляются с помощью целей UNITTEST или GTEST с добавлением в PEERDIR хука `yt/cpp/mapreduce/tests/yt_initialize_hook`. Потребуется также подключение библиотеки `yt/cpp/mapreduce/tests/yt_unittest_lib`, из которой надо использовать в тестах метод `CreateTestClient()` вместо обычного `CreateClient()`, а также рецепта `mapreduce/yt/python/recipe/recipe.inc`, который создает локальную песочницу {{product-name}}, в которую тестовый клиент и ходит. Если в тестах нужен архив операций, то вместо указанного рецепта нужно использовать `mapreduce/yt/python/init_operations_archive/recipe/recipe194.inc`.
+Юнит-тесты для {{product-name}}-операций оформляются с помощью целей UNITTEST или GTEST с добавлением в PEERDIR хука `yt/cpp/mapreduce/tests/yt_initialize_hook`. Потребуется также подключение библиотеки `yt/cpp/mapreduce/tests/yt_unittest_lib`, из которой надо использовать в тестах метод `CreateTestClient()` вместо обычного `CreateClient()`, а также рецепта `mapreduce/yt/python/recipe/recipe.inc`, который создаёт локальную песочницу {{product-name}}, в которую тестовый клиент и ходит. Если в тестах нужен архив операций, то вместо указанного рецепта нужно использовать `mapreduce/yt/python/init_operations_archive/recipe/recipe194.inc`.
 
 В остальном это обычные юнит-тесты Arcadia.
 
