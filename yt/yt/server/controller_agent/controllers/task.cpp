@@ -651,7 +651,6 @@ TTask::GetOutputCookieInfoForFirstJob(const TAllocation& allocation, const TNewJ
         result.OutputCookie = ExperimentJobManager_.PeekJobCandidate();
     } else if (speculative) {
         result.CompetitionType = EJobCompetitionType::Speculative;
-        result.OutputCookieGroupIndex = 0;
         result.OutputCookie = SpeculativeJobManager_.PeekJobCandidate();
     } else {
         result.CompetitionType = std::nullopt;

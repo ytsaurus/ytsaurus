@@ -14,7 +14,7 @@ namespace NYT::NControllerAgent::NControllers {
 //! TSpeculativeJobManager tracks these jobs and if one of the job processing the same data is completed, other jobs are aborted.
 
 class TMultiJobManager
-    : public IJobManager
+    : public IExtraJobManager
 {
 public:
     //! Used only for persistence.

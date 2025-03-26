@@ -459,10 +459,8 @@ void TAutoMergeTask::OnChunkTeleported(TInputChunkPtr teleportChunk, std::any ta
 void TAutoMergeTask::SetStreamDescriptors(TJobletPtr joblet) const
 {
     auto poolIndex = *joblet->InputStripeList->PartitionTag;
-    if (joblet->OutputCookieGroupIndex == 0) {
-        joblet->OutputStreamDescriptors = {OutputStreamDescriptors_[poolIndex]};
-        joblet->InputStreamDescriptors = InputStreamDescriptors_;
-    }
+    joblet->OutputStreamDescriptors = {OutputStreamDescriptors_[poolIndex]};
+    joblet->InputStreamDescriptors = InputStreamDescriptors_;
 }
 
 int TAutoMergeTask::GetTableIndex(int poolIndex) const

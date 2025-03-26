@@ -40,7 +40,6 @@ int TMultiJobManager::GetTotalJobCount() const
 
 std::pair<NChunkPools::IChunkPoolOutput::TCookie, int> TMultiJobManager::PeekJobCandidate() const
 {
-    YT_LOG_WARNING("PeekJobCandidate");
     YT_VERIFY(!PendingCookies_.empty());
     auto cookie = *PendingCookies_.begin();
     auto replicas = GetOrCrash(CookieToReplicas_, cookie);
@@ -67,7 +66,6 @@ void TMultiJobManager::OnJobLost(IChunkPoolOutput::TCookie)
 
 void TMultiJobManager::OnJobScheduled(const TJobletPtr& joblet)
 {
-    YT_LOG_WARNING("OnJobScheduled %v", joblet->OutputCookieGroupIndex);
     if (!IsRelevant(joblet)) {
         return;
     }
@@ -135,7 +133,6 @@ TProgressCounterPtr TMultiJobManager::GetProgressCounter() const
 
 bool TMultiJobManager::IsRelevant(const TJobletPtr& joblet) const
 {
-    YT_LOG_WARNING("IsRelevant %v", joblet->CookieGroupSize);
     return joblet->CookieGroupSize > 1;
 }
 
@@ -156,7 +153,6 @@ bool TMultiJobManager::OnUnsuccessfulJobFinish(
     const TJobletPtr& joblet,
     EAbortReason abortReason)
 {
-    YT_LOG_WARNING("OnUnsuccessfulJobFinish");
     if (!IsRelevant(joblet)) {
         // By default after unsuccessful finish of job a cookie is returned to chunk pool.
         return true;
@@ -165,7 +161,7 @@ bool TMultiJobManager::OnUnsuccessfulJobFinish(
     auto replicas = CookieToReplicas_.find(joblet->OutputCookie);
     if (replicas != CookieToReplicas_.end()) {
         Task_->GetTaskHost()->AsyncAbortJob(replicas->second->MainJobId, abortReason);
-        for (auto &secondary : replicas->second->Secondaries) {
+        for (auto& secondary : replicas->second->Secondaries) {
             Task_->GetTaskHost()->AsyncAbortJob(secondary.JobId, abortReason);
         }
         CookieToReplicas_.erase(joblet->OutputCookie);

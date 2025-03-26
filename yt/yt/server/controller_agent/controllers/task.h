@@ -455,7 +455,7 @@ private:
     TProbingJobManager ProbingJobManager_;
     TExperimentJobManager ExperimentJobManager_;
     TMultiJobManager MultiJobManager_;
-    std::array<IJobManager*, 4> JobManagers_ = {&SpeculativeJobManager_, &ProbingJobManager_, &ExperimentJobManager_, &MultiJobManager_};
+    std::array<IExtraJobManager*, 4> JobManagers_ = {&SpeculativeJobManager_, &ProbingJobManager_, &ExperimentJobManager_, &MultiJobManager_};
 
     //! Time of first job scheduling.
     std::optional<TInstant> StartTime_;

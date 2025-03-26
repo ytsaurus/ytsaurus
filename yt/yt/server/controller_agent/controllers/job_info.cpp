@@ -267,6 +267,7 @@ void TJoblet::Persist(const TPersistenceContext& context)
     if (context.IsLoad()) {
         Revived = true;
     }
+    Persist(context, CookieGroupSize);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
