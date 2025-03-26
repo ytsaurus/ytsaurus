@@ -1201,7 +1201,7 @@ class TestSecondaryIndexModifications(TestSecondaryIndexBase):
         ]
 
         # TODO(sabdenovch): Implement expression recognition in predicate.
-        index_query = "key, value from [//tmp/table] with index [//tmp/index_table] where IndexTable.eva01 = 33"
+        index_query = "key, value from [//tmp/table] with index [//tmp/index_table] where `$index_table`.eva01 = 33"
         plan = explain_query(index_query)
         assert plan["query"]["constraints"] == "Constraints:\n33: <universe>"
 
