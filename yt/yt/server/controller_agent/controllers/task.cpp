@@ -16,6 +16,7 @@
 
 #include <yt/yt/server/lib/scheduler/helpers.h>
 
+#include <yt/yt/ytlib/chunk_client/job_spec_extensions.h>
 #include <yt/yt/ytlib/chunk_client/legacy_data_slice.h>
 #include <yt/yt/ytlib/chunk_client/input_chunk.h>
 
@@ -113,6 +114,7 @@ TTask::TTask(
         this,
         taskHost->GetSpec(),
         Logger)
+    , MultiJobManager_(this, Logger)
 {
     if (TaskHost_->GetSpec()->UseClusterThrottlers) {
         ClusterToNetworkBandwidthAvailabilityUpdatedCallback_ = BIND_NO_PROPAGATE(
@@ -215,10 +217,12 @@ TCompositePendingJobCount TTask::GetPendingJobCount() const
     }
 
     TCompositePendingJobCount result;
-
-    result.DefaultCount = GetChunkPoolOutput()->GetJobCounter()->GetPending() +
+    auto userJobSpec = GetUserJobSpec();
+    auto cookieGroupSize = userJobSpec ? userJobSpec->CookieGroupSize : 1;
+    result.DefaultCount = cookieGroupSize * GetChunkPoolOutput()->GetJobCounter()->GetPending() +
         SpeculativeJobManager_.GetPendingJobCount() +
-        ExperimentJobManager_.GetPendingJobCount();
+        ExperimentJobManager_.GetPendingJobCount() +
+        MultiJobManager_.GetPendingJobCount();
 
     ProbingJobManager_.UpdatePendingJobCount(&result);
 
@@ -634,7 +638,12 @@ TTask::GetOutputCookieInfoForFirstJob(const TAllocation& allocation, const TNewJ
 
     TOutputCookieInfo result;
 
-    if (TaskHost_->IsTreeProbing(allocation.TreeId)) {
+    if (MultiJobManager_.GetPendingJobCount() != 0) {
+        auto [cookie, index] = MultiJobManager_.PeekJobCandidate();
+        result.CompetitionType = EJobCompetitionType::Multi;
+        result.OutputCookie = cookie;
+        result.OutputCookieGroupIndex = index;
+    } else if (TaskHost_->IsTreeProbing(allocation.TreeId)) {
         result.CompetitionType = EJobCompetitionType::Probing;
         result.OutputCookie = ProbingJobManager_.PeekJobCandidate();
     } else if (ExperimentJobManager_.IsTreatmentReady()) {
@@ -666,7 +675,12 @@ TTask::GetOutputCookieInfoForNextJob(const TAllocation& allocation, const TNewJo
 
     TOutputCookieInfo result;
 
-    if (auto competitionType = allocation.LastJobInfo.CompetitionType.value_or(EJobCompetitionType::Speculative);
+    if (MultiJobManager_.GetPendingJobCount() != 0) {
+        auto [cookie, index] = MultiJobManager_.PeekJobCandidate();
+        result.CompetitionType = EJobCompetitionType::Multi;
+        result.OutputCookie = cookie;
+        result.OutputCookieGroupIndex = index;
+    } else if (auto competitionType = allocation.LastJobInfo.CompetitionType.value_or(EJobCompetitionType::Speculative);
         competitionType == EJobCompetitionType::Probing)
     {
         result.CompetitionType = EJobCompetitionType::Probing;
@@ -756,6 +770,7 @@ std::optional<EScheduleFailReason> TTask::TryScheduleJob(
         jobId,
         treeIsTentative,
         cookieInfo.OutputCookie,
+        cookieInfo.OutputCookieGroupIndex,
         cookieInfo.CompetitionType,
         newJobConstraints);
 
@@ -785,6 +800,7 @@ std::expected<NScheduler::TJobResourcesWithQuota, EScheduleFailReason> TTask::Tr
     TJobId jobId,
     bool treeIsTentative,
     NChunkPools::IChunkPoolOutput::TCookie outputCookie,
+    int outputCookieGroupIndex,
     std::optional<EJobCompetitionType> competitionType,
     const TNewJobConstraints& newJobConstraints)
 {
@@ -806,6 +822,7 @@ std::expected<NScheduler::TJobResourcesWithQuota, EScheduleFailReason> TTask::Tr
         treeIsTentative);
 
     joblet->OutputCookie = outputCookie;
+    joblet->OutputCookieGroupIndex = outputCookieGroupIndex;
     joblet->CompetitionType = competitionType;
 
     auto chunkPoolOutput = GetChunkPoolOutput();
@@ -877,6 +894,7 @@ std::expected<NScheduler::TJobResourcesWithQuota, EScheduleFailReason> TTask::Tr
     }
 
     if (userJobSpec) {
+        joblet->CookieGroupSize = userJobSpec->CookieGroupSize;
         i64 totalTmpfsSize = 0;
         for (const auto& volume : userJobSpec->TmpfsVolumes) {
             totalTmpfsSize += volume->Size;
@@ -1057,7 +1075,7 @@ bool TTask::TryRegisterSpeculativeJob(const TJobletPtr& joblet)
 
 void TTask::BuildTaskYson(TFluentMap fluent) const
 {
-    static const std::vector<TString> jobManagerNames = {"speculative", "probing", "experiment"};
+    static const std::vector<TString> jobManagerNames = {"speculative", "probing", "experiment", "multi"};
     YT_VERIFY(jobManagerNames.size() == JobManagers_.size());
 
     fluent
@@ -1254,6 +1272,8 @@ void TTask::RegisterMetadata(auto&& registrar)
     PHOENIX_REGISTER_FIELD(37, CurrentMaxRunnableJobCount_,
         .SinceVersion(ESnapshotVersion::ThrottlingOfRemoteReads));
 
+    PHOENIX_REGISTER_FIELD(38, MultiJobManager_);
+
     registrar.AfterLoad([] (TThis* this_, auto& /*context*/) {
         // COMPAT(galtsev)
         if (this_->TaskHost_->GetSpec()->JobExperiment) {
@@ -1346,8 +1366,9 @@ TJobFinishedResult TTask::OnJobCompleted(TJobletPtr joblet, TCompletedJobSummary
 
     TentativeTreeEligibility_.OnJobFinished(jobSummary, joblet->TreeId, joblet->TreeIsTentative, &result.NewlyBannedTrees);
 
+    auto done = true;
     for (auto* jobManager : JobManagers_) {
-        jobManager->OnJobCompleted(joblet);
+        done &= jobManager->OnJobCompleted(joblet);
     }
 
     YT_VERIFY(jobSummary.Statistics);
@@ -1422,7 +1443,9 @@ TJobFinishedResult TTask::OnJobCompleted(TJobletPtr joblet, TCompletedJobSummary
     }
 
     try {
-        GetChunkPoolOutput()->Completed(joblet->OutputCookie, jobSummary);
+        if (done) {
+            GetChunkPoolOutput()->Completed(joblet->OutputCookie, jobSummary);
+        }
     } catch (const TErrorException& exception) {
         const auto& error = exception.Error();
 
@@ -1686,6 +1709,9 @@ void TTask::AddSequentialInputSpec(
     YT_ASSERT_INVOKER_AFFINITY(TaskHost_->GetJobSpecBuildInvoker());
 
     auto* jobSpecExt = jobSpec->MutableExtension(TJobSpecExt::job_spec_ext);
+    if (joblet->OutputCookieGroupIndex) {
+        return;
+    }
     auto nodeDirectoryBuilderFactory = TNodeDirectoryBuilderFactory(
         jobSpecExt,
         TaskHost_->GetInputManager(),
@@ -1710,6 +1736,9 @@ void TTask::AddParallelInputSpec(
     YT_ASSERT_INVOKER_AFFINITY(TaskHost_->GetJobSpecBuildInvoker());
 
     auto* jobSpecExt = jobSpec->MutableExtension(TJobSpecExt::job_spec_ext);
+    if (joblet->OutputCookieGroupIndex) {
+        return;
+    }
     auto directoryBuilderFactory = TNodeDirectoryBuilderFactory(
         jobSpecExt,
         TaskHost_->GetInputManager(),
@@ -1830,6 +1859,15 @@ void TTask::AddOutputTableSpecs(
     const auto& outputStreamDescriptors = joblet->OutputStreamDescriptors;
     YT_VERIFY(joblet->ChunkListIds.size() == outputStreamDescriptors.size());
     auto* jobSpecExt = jobSpec->MutableExtension(TJobSpecExt::job_spec_ext);
+    if (joblet->OutputCookieGroupIndex) {
+        SetProtoExtension<NChunkClient::NProto::TDataSourceDirectoryExt>(
+            jobSpecExt->mutable_extensions(),
+            New<TDataSourceDirectory>());
+        SetProtoExtension<NChunkClient::NProto::TDataSinkDirectoryExt>(
+            jobSpecExt->mutable_extensions(),
+            New<TDataSinkDirectory>());
+        return;
+    }
     for (int index = 0; index < std::ssize(outputStreamDescriptors); ++index) {
         const auto& streamDescriptor = outputStreamDescriptors[index];
         auto* outputSpec = jobSpecExt->add_output_table_specs();
@@ -2055,8 +2093,10 @@ void TTask::FinishTaskInput(const TTaskPtr& task) const
 
 void TTask::SetStreamDescriptors(TJobletPtr joblet) const
 {
-    joblet->OutputStreamDescriptors = OutputStreamDescriptors_;
-    joblet->InputStreamDescriptors = InputStreamDescriptors_;
+    if (joblet->OutputCookieGroupIndex == 0) {
+        joblet->OutputStreamDescriptors = OutputStreamDescriptors_;
+        joblet->InputStreamDescriptors = InputStreamDescriptors_;
+    }
 }
 
 bool TTask::IsInputDataWeightHistogramSupported() const

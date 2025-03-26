@@ -121,6 +121,7 @@ struct TJoblet
     TEnumIndexedArray<EJobCompetitionType, TJobId> CompetitionIds;
     TEnumIndexedArray<EJobCompetitionType, bool> HasCompetitors;
     TString TaskName;
+    TJobId MainJobId;
 
     // Controller encapsulates lifetime of both, tasks and joblets.
     TTask* Task;
@@ -155,6 +156,8 @@ struct TJoblet
 
     NChunkPools::TChunkStripeListPtr InputStripeList;
     NChunkPools::IChunkPoolOutput::TCookie OutputCookie = -1;
+    int CookieGroupSize = 1;
+    int OutputCookieGroupIndex = 0;
 
     //! All chunk lists allocated for this job.
     /*!

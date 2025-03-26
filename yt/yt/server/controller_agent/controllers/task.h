@@ -10,6 +10,7 @@
 #include "job_splitter.h"
 #include "helpers.h"
 #include "probing_job_manager.h"
+#include "multi_job_manager.h"
 #include "aggregated_job_statistics.h"
 
 #include <yt/yt/server/controller_agent/tentative_tree_eligibility.h>
@@ -453,7 +454,8 @@ private:
     TSpeculativeJobManager SpeculativeJobManager_;
     TProbingJobManager ProbingJobManager_;
     TExperimentJobManager ExperimentJobManager_;
-    std::array<TCompetitiveJobManagerBase*, 3> JobManagers_ = {&SpeculativeJobManager_, &ProbingJobManager_, &ExperimentJobManager_};
+    TMultiJobManager MultiJobManager_;
+    std::array<IExtraJobManager*, 4> JobManagers_ = {&SpeculativeJobManager_, &ProbingJobManager_, &ExperimentJobManager_, &MultiJobManager_};
 
     //! Time of first job scheduling.
     std::optional<TInstant> StartTime_;
@@ -516,6 +518,7 @@ private:
         TJobId jobId,
         bool treeIsTentative,
         NChunkPools::IChunkPoolOutput::TCookie outputCookie,
+        int outputCookieGroupIndex,
         std::optional<EJobCompetitionType> competitionType,
         const TNewJobConstraints& newJobConstraints);
 
@@ -572,6 +575,7 @@ private:
     {
         std::optional<EJobCompetitionType> CompetitionType;
         NChunkPools::IChunkPoolOutput::TCookie OutputCookie{};
+        int OutputCookieGroupIndex = 0;
     };
 
     std::expected<TOutputCookieInfo, EScheduleFailReason>
