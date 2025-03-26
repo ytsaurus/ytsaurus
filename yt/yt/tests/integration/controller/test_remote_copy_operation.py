@@ -603,7 +603,7 @@ class TestSchedulerRemoteCopyCommands(TestSchedulerRemoteCopyCommandsBase):
     @pytest.mark.parametrize("copy_user_attributes", [True, False])
     @pytest.mark.parametrize("object_type", ["table", "file"])
     def test_copy_basic_attributes(self, copy_user_attributes, object_type):
-        skip_if_component_old(self.Env, (24, 2), "controller-agent")
+        skip_if_component_old(self.Env, (25, 1), "controller-agent")
         create(object_type, "//tmp/t_in", driver=self.remote_driver)
         create(object_type, "//tmp/t_out")
 
@@ -653,7 +653,7 @@ class TestSchedulerRemoteCopyCommands(TestSchedulerRemoteCopyCommandsBase):
     @authors("coteeq")
     @pytest.mark.parametrize("copy_user_attributes", [True, False])
     def test_no_copy_basic_attributes_by_default(self, copy_user_attributes):
-        skip_if_component_old(self.Env, (24, 2), "controller-agent")
+        skip_if_component_old(self.Env, (25, 1), "controller-agent")
         create("table", "//tmp/t_in", driver=self.remote_driver)
         create("table", "//tmp/t_out")
 
@@ -1035,7 +1035,7 @@ class TestSchedulerRemoteCopyCommands(TestSchedulerRemoteCopyCommandsBase):
 
     @authors("coteeq")
     def test_copy_file_data_weight_per_job(self):
-        skip_if_component_old(self.Env, (24, 2), "controller-agent")
+        skip_if_component_old(self.Env, (25, 1), "controller-agent")
         n_chunks = 3
         self._create_inout_files(n_chunks, content=b"content" * 100)
 

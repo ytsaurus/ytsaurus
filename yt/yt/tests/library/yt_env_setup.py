@@ -1974,7 +1974,7 @@ class YTEnvSetup(object):
                     node_version = version
                 if "master" in components:
                     master_version = version
-            if master_version == "24_1" and node_version != master_version:
+            if (master_version == "24_1" or master_version == "24_2") and node_version != master_version:
                 use_avenues = False
 
         for response in yt_commands.execute_batch(

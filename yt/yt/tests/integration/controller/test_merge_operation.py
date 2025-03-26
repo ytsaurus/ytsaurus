@@ -2853,6 +2853,9 @@ class TestSchedulerMergeCommands(YTEnvSetup):
 
     @authors("apollo1321")
     def test_sorted_merge_with_input_query_throws_error(self):
+        if "24_2" in getattr(self, "ARTIFACT_COMPONENTS", {}):
+            pytest.skip()
+
         skip_if_old(self.Env, (24, 2), "throwing error is not supported in older versions")
 
         create("table", "//tmp/t_in")

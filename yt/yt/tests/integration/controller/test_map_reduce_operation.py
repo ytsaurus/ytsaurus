@@ -184,7 +184,7 @@ for line in sys.stdin:
             pytest.skip("This test requires new sorted pool")
 
     def skip_if_compat(self):
-        is_compat = "24_1" in getattr(self, "ARTIFACT_COMPONENTS", {})
+        is_compat = "24_2" in getattr(self, "ARTIFACT_COMPONENTS", {})
         if is_compat:
             pytest.skip()
 
