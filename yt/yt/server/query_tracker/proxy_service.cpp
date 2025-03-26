@@ -92,12 +92,12 @@ private:
             options.Files.emplace_back(file);
         }
 
-        for (const auto& requestCred : rpcRequest.secrets()) {
+        for (const auto& protoSecret : rpcRequest.secrets()) {
             auto secret = New<TQuerySecret>();
-            secret->Id = requestCred.id();
-            secret->Category = requestCred.category();
-            secret->Subcategory = requestCred.subcategory();
-            secret->YPath = requestCred.ypath();
+            secret->Id = protoSecret.id();
+            secret->Category = protoSecret.category();
+            secret->Subcategory = protoSecret.subcategory();
+            secret->YPath = protoSecret.ypath();
             options.Secrets.emplace_back(std::move(secret));
         }
 

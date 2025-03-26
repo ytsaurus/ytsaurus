@@ -388,7 +388,7 @@ private:
             refreshTokenExecutor->Start();
 
             THashMap<TString, THashMap<TString, TString>> credentials = {{"default_yt", {{"category", "yt"}, {"content", token}}}};
-            for (const auto& src : yqlRequest.credentials()) {
+            for (const auto& src : yqlRequest.secrets()) {
                 auto& dst = credentials[src.id()];
                 dst["content"] = ConvertTo<TString>(WaitFor(queryClients.cbegin()->second->GetNode(src.ypath())).ValueOrThrow());
                 if (src.has_category()) {

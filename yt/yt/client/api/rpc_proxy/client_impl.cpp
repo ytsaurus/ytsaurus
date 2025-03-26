@@ -2244,17 +2244,17 @@ TFuture<NQueryTrackerClient::TQueryId> TClient::StartQuery(
         protoFile->set_type(static_cast<NProto::EContentType>(file->Type));
     }
 
-    for (const auto& sec : options.Secrets) {
-        auto* secret = req->add_secrets();
-        secret->set_id(sec->Id);
-        if (!sec->Category.empty()) {
-            secret->set_category(sec->Category);
+    for (const auto& secret : options.Secrets) {
+        auto* protoSecret = req->add_secrets();
+        protoSecret->set_id(secret->Id);
+        if (!secret->Category.empty()) {
+            protoSecret->set_category(secret->Category);
         }
-        if (!sec->Subcategory.empty()) {
-            secret->set_subcategory(sec->Subcategory);
+        if (!secret->Subcategory.empty()) {
+            protoSecret->set_subcategory(secret->Subcategory);
         }
-        if (!sec->YPath.empty()) {
-            secret->set_ypath(sec->YPath);
+        if (!secret->YPath.empty()) {
+            protoSecret->set_ypath(secret->YPath);
         }
     }
 

@@ -88,9 +88,13 @@ public:
         , Settings_(ConvertTo<TYqlSettingsPtr>(SettingsNode_))
         , Stage_(Settings_->Stage.value_or(Config_->Stage))
         , ExecuteMode_(Settings_->ExecuteMode)
-        , Secrets_(ConvertTo<std::optional<std::vector<TQuerySecretPtr>>>(activeQuery.Secrets).value_or(std::vector<TQuerySecretPtr>()))
+        , Secrets_(MakeSecrets(activeQuery.Secrets))
         , ProgressGetterExecutor_(New<TPeriodicExecutor>(controlInvoker, BIND(&TYqlQueryHandler::GetProgress, MakeWeak(this)), Config_->QueryProgressGetPeriod))
     { }
+
+    static std::vector<TQuerySecretPtr> MakeSecrets(const TYsonString& secrets) {
+        return ConvertTo<std::optional<std::vector<TQuerySecretPtr>>>(secrets).value_or(std::vector<TQuerySecretPtr>());
+    }
 
     void Start() override
     {
@@ -176,11 +180,11 @@ private:
         }
 
         for (const auto& secret : Secrets_) {
-            const auto protoCred = yqlRequest->add_credentials();
-            protoCred->set_id(secret->Id);
-            protoCred->set_category(secret->Category);
-            protoCred->set_subcategory(secret->Subcategory);
-            protoCred->set_ypath(secret->YPath);
+            const auto protoSecret = yqlRequest->add_secrets();
+            protoSecret->set_id(secret->Id);
+            protoSecret->set_category(secret->Category);
+            protoSecret->set_subcategory(secret->Subcategory);
+            protoSecret->set_ypath(secret->YPath);
         }
 
         startQueryReq->set_build_rowsets(true);
