@@ -1028,6 +1028,13 @@ EJobType TJob::GetType() const
     return JobType_;
 }
 
+std::string TJob::GetAuthenticatedUser() const
+{
+    YT_ASSERT_THREAD_AFFINITY_ANY();
+
+    return JobSpecExt_.authenticated_user();
+}
+
 TJobSpec TJob::GetSpec() const
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
@@ -1218,6 +1225,13 @@ TJobResult TJob::GetResult() const
     }
 
     return result;
+}
+
+bool TJob::HasRpcProxyInJobProxy() const
+{
+    YT_ASSERT_THREAD_AFFINITY_ANY();
+
+    return UserJobSpec_ && UserJobSpec_->enable_rpc_proxy_in_job_proxy();
 }
 
 double TJob::GetProgress() const

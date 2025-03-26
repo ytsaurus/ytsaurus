@@ -258,7 +258,13 @@ class TestRpcProxyInJobProxy(YTEnvSetup):
                     },
                 },
             },
-        }
+        },
+        "job_resource_manager": {
+            "resource_limits": {
+                "user_slots": 3,
+                "cpu": 3,
+            },
+        },
     }
 
     def setup_method(self, method):
@@ -335,6 +341,52 @@ class TestRpcProxyInJobProxy(YTEnvSetup):
         node = ls("//sys/cluster_nodes")[0]
         profiler = profiler_factory().at_job_proxy(node, fixed_tags={'yt_service': 'ApiService', 'method': 'ListNode'})
         wait(lambda: check_sensor_values(profiler.get_all("rpc/server/request_count")))
+
+    @authors("hiddenpath")
+    def test_rpc_proxy_count_metrics(self):
+        nodes = ls("//sys/cluster_nodes")
+        rpc_proxy_in_job_proxy_gauge = (
+            profiler_factory()
+            .at_node(nodes[0])
+            .gauge(name="exec_node/rpc_proxy_in_job_proxy_count")
+        )
+
+        create_user("u1")
+        create_user("u2")
+
+        task_patch = {"enable_rpc_proxy_in_job_proxy": True, "monitoring": {"enable": True}}
+
+        run_test_vanilla(
+            with_breakpoint("BREAKPOINT", breakpoint_name="op1"),
+            job_count=2,
+            task_patch=task_patch,
+            authenticated_user="u1",
+        )
+        job_ids1 = wait_breakpoint(breakpoint_name="op1", job_count=2)
+        assert len(job_ids1) == 2
+
+        run_test_vanilla(
+            with_breakpoint("BREAKPOINT", breakpoint_name="op2"),
+            job_count=1,
+            task_patch=task_patch,
+            authenticated_user="u2",
+        )
+        job_ids2 = wait_breakpoint(breakpoint_name="op2", job_count=1)
+        assert len(job_ids2) == 1
+
+        wait(lambda: rpc_proxy_in_job_proxy_gauge.get(tags={"user": "u1"}) == 2)
+        wait(lambda: rpc_proxy_in_job_proxy_gauge.get(tags={"user": "u2"}) == 1)
+
+        release_breakpoint(breakpoint_name="op1", job_id=job_ids1[0])
+
+        wait(lambda: rpc_proxy_in_job_proxy_gauge.get(tags={"user": "u1"}) == 1)
+        wait(lambda: rpc_proxy_in_job_proxy_gauge.get(tags={"user": "u2"}) == 1)
+
+        release_breakpoint(breakpoint_name="op1", job_id=job_ids1[1])
+        release_breakpoint(breakpoint_name="op2")
+
+        wait(lambda: rpc_proxy_in_job_proxy_gauge.get(tags={"user": "u1"}) == 0)
+        wait(lambda: rpc_proxy_in_job_proxy_gauge.get(tags={"user": "u2"}) == 0)
 
 
 class TestUnavailableJobProxy(JobProxyTestBase):
