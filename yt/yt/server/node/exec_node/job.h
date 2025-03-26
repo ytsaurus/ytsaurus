@@ -545,6 +545,8 @@ private:
     // Build artifacts.
     void InitializeArtifacts();
 
+    void InitializeSandboxNbdRootVolumeData();
+
     void InitializeNbdExportIds();
 
     TArtifactDownloadOptions MakeArtifactDownloadOptions() const;
