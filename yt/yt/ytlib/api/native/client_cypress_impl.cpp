@@ -2350,6 +2350,10 @@ private:
         if (CommonType_ == EObjectType::Table) {
             ToProto(req->mutable_table_schema(), OutputTableSchema_);
             req->set_schema_mode(ToProto(OutputTableSchemaMode_));
+
+            if (OutputTableSchema_->IsSorted()) {
+                req->set_lock_mode(ToProto(ELockMode::Exclusive));
+            }
         }
 
         std::vector<TString> srcObjectPaths;
