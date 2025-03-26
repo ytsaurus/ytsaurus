@@ -150,12 +150,12 @@ namespace NSQLTranslationV1 {
                 return 0;
             }
 
-            if (!(Ansi_ && IsStartingWithAnsiMultilineComment(prefix))) {
+            if (!(Ansi_ && prefix.StartsWith("/*"))) {
                 matches.emplace_back(CommentTokenName, TString(reContent));
                 return 1;
             }
 
-            size_t ll1Length = MatchAnsiMultilineComment(prefix);
+            size_t ll1Length = MatchANSIMultilineComment(prefix);
             const TStringBuf ll1Content = prefix.SubString(0, ll1Length);
 
             Y_ENSURE(ll1Content == 0 || reContent <= ll1Content);
@@ -168,46 +168,48 @@ namespace NSQLTranslationV1 {
             return 1;
         }
 
-        bool IsStartingWithAnsiMultilineComment(const TStringBuf prefix) {
-            return 1 < prefix.length() && prefix[0] == '/' && prefix[1] == '*';
-        }
-
-        size_t MatchAnsiMultilineComment(const TStringBuf prefix) {
-            Y_ENSURE(IsStartingWithAnsiMultilineComment(prefix));
-            size_t pos = 2;
-
-            bool isRecovering = false;
-            TVector<size_t> branchPos;
-            for (;;) {
-                while (pos + 1 < prefix.length()) {
-                    if (prefix[pos] == '*' && prefix[pos + 1] == '/') {
-                        return pos + 2;
-                    } else if (!isRecovering && IsStartingWithAnsiMultilineComment(prefix.substr(pos))) {
-                        branchPos.emplace_back(pos);
-                        size_t len = MatchAnsiMultilineComment(prefix.substr(pos));
-                        if (len == 0) {
-                            pos += 1;
-                        } else {
-                            pos += len;
-                        }
-                    } else if (isRecovering) {
-                        isRecovering = false;
-                        pos++;
-                    } else {
-                        pos++;
-                    }
-                }
-
-                if (branchPos.empty()) {
-                    break;
-                }
-
-                isRecovering = true;
-                pos = branchPos.back();
-                branchPos.pop_back();
+        size_t MatchANSIMultilineComment(TStringBuf remaining) {
+            if (!remaining.StartsWith("/*")) {
+                return 0;
             }
 
-            return 0;
+            size_t skipped = 0;
+
+            remaining.Skip(2);
+            skipped += 2;
+
+            for (;;) {
+                if (remaining.StartsWith("*/")) {
+                    remaining.Skip(2);
+                    skipped += 2;
+                    return skipped;
+                }
+
+                bool isSkipped = false;
+                if (remaining.StartsWith("/*")) {
+                    size_t limit = remaining.rfind("*/");
+                    if (limit == std::string::npos) {
+                        return 0;
+                    }
+
+                    size_t len = MatchANSIMultilineComment(remaining.Head(limit));
+                    remaining.Skip(len);
+                    skipped += len;
+
+                    isSkipped = len != 0;
+                }
+
+                if (isSkipped) {
+                    continue;
+                }
+
+                if (remaining.size() == 0) {
+                    return 0;
+                }
+
+                remaining.Skip(1);
+                skipped += 1;
+            }
         }
 
         NSQLReflect::TLexerGrammar Grammar_;

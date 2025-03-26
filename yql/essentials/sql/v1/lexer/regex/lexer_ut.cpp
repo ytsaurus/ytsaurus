@@ -71,7 +71,7 @@ TString RandomMultilineCommentLike(size_t maxSize) {
         } else {
             comment += "*/";
         }
-        comment += " ";
+        comment += "";
     }
     return comment;
 }
@@ -117,9 +117,12 @@ Y_UNIT_TEST_SUITE(RegexLexerTests) {
 
     Y_UNIT_TEST(RecursiveMultiLineCommentAnsi) {
         Check("/* /* yql */", "COMMENT(/* /* yql */) EOF", /* ansi = */ true);
+        Check("/* yql */ */", "COMMENT(/* yql */) WS( ) ASTERISK(*) SLASH(/) EOF", /* ansi = */ true);
         Check("/* /* /* yql */ */", "COMMENT(/* /* /* yql */ */) EOF", /* ansi = */ true);
         Check("/* /* yql */ */ */", "COMMENT(/* /* yql */ */) WS( ) ASTERISK(*) SLASH(/) EOF", /* ansi = */ true);
         Check("/* /* yql */ */", "COMMENT(/* /* yql */ */) EOF", /* ansi = */ true);
+        Check("/*/*/*/", "COMMENT(/*/*/) ASTERISK(*) SLASH(/) EOF", /* ansi = */ true);
+        Check("/*/**/*/*/*/", "COMMENT(/*/**/*/) ASTERISK(*) SLASH(/) ASTERISK(*) SLASH(/) EOF", /* ansi = */ true);
     }
 
     Y_UNIT_TEST(RecursiveMultiLineCommentAnsiReferenceComparion) {
