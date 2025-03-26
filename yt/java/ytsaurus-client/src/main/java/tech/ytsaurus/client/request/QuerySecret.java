@@ -5,9 +5,8 @@ import java.util.Objects;
 
 import javax.annotation.Nullable;
 
-import tech.ytsaurus.rpcproxy.TReqStartQuery;
-
 import tech.ytsaurus.core.cypress.YPath;
+import tech.ytsaurus.rpcproxy.TReqStartQuery;
 
 /**
  * Immutable query secret.
