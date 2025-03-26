@@ -34,8 +34,14 @@ ui_network=$network_name
 
 ui_container_name=yt.frontend
 yt_container_name=yt.backend
+prometheus_container_name=yt.prometheus
 
 ui_proxy_internal=${yt_container_name}:80
+
+port_range_start=24400
+publish_ports=false
+prometheus_image="prom/prometheus"
+prometheus_port=9090
 
 print_usage() {
     cat <<EOF
@@ -52,12 +58,15 @@ Usage: $script_name [-h|--help]
                     [--local-cypress-dir dir]
                     [--rpc-proxy-count count]
                     [--rpc-proxy-port port]
+                    [--port-range-start port]
                     [--node-count count]
                     [--queue-agent-count count]
                     [--with-auth]
                     [--enable-debug-logging]
                     [--extra-yt-docker-opts opts]
                     [--init-operations-archive]
+                    [--run-prometheus]
+                    [--prometheus-port port]
                     [--stop]
 
   --proxy-port: Sets the proxy port on docker host (default: $proxy_port)
@@ -73,12 +82,15 @@ Usage: $script_name [-h|--help]
   --local-cypress-dir: Sets the directory on the docker host to be mapped into local cypress dir inside yt local cluster container (default: $local_cypress_dir)
   --rpc-proxy-count: Sets the number of rpc proxies to start in yt local cluster (default: $rpc_proxy_count)
   --rpc-proxy-port: Sets ports for rpc proxies; number of values should be equal to rpc-proxy-count
+  --port-range-start: Assign ports from continuous range starting from this port number (default: $port_range_start)
   --node-count: Sets the number of cluster nodes to start in yt local cluster (default: $node_count)
   --queue-agent-count: Sets the number of queue agents to start in yt local cluster (default: $queue_agent_count)
   --with-auth: Enables authentication and creates admin user
   --enable-debug-logging: Enable debug logging in backend container
   --extra-yt-docker-opts: Any extra configuration for backend docker container (default: $extra_yt_docker_opts)
   --init-operations-archive: Initialize operations archive, the option is required to keep more details of operations
+  --run-prometheus: Run prometheus and collect metrics
+  --prometheus-port: Sets the prometheus port on docker host (default: $prometheus_port)
   --stop: Run 'docker stop ${ui_container_name} ${yt_container_name}' and exit
 EOF
     exit 0
@@ -140,6 +152,14 @@ while [[ $# -gt 0 ]]; do
         rpc_proxy_port="$2"
         shift 2
         ;;
+    --port-range-start)
+        port_range_start="$2"
+        shift 2
+        ;;
+    --publish-ports)
+        publish_ports=true
+        shift
+        ;;
     --node-count)
         node_count="$2"
         shift 2
@@ -162,6 +182,11 @@ while [[ $# -gt 0 ]]; do
         ;;
     --init-operations-archive)
         init_operations_archive=true
+        shift
+        ;;
+    --run-prometheus)
+        run_prometheus=true
+        publish_ports=true
         shift
         ;;
     --fqdn)
@@ -247,6 +272,15 @@ if [ ${init_operations_archive} == true ]; then
     params="${params} --init-operations-archive"
 fi
 
+if [ ${publish_ports} == true ]; then
+    ports=""
+    max_port=$(($port_range_start + 100))
+    for port in $(seq $port_range_start $max_port); do
+       ports+="-p $port:$port "
+    done
+    yt_run_params="${yt_run_params} ${ports}"
+fi
+
 set +e
 cluster_container=$(
     docker run -itd \
@@ -261,6 +295,7 @@ cluster_container=$(
         $yt_run_params \
         $yt_image \
         --fqdn "${yt_fqdn:-${docker_hostname}}" \
+        --port-range-start ${port_range_start} \
         --proxy-config "{coordinator={public_fqdn=\"${docker_hostname}:${proxy_port}\"}}" \
         --rpc-proxy-count ${rpc_proxy_count} \
         --rpc-proxy-port ${rpc_proxy_port} \
@@ -276,6 +311,43 @@ cluster_container=$(
 if [ "$?" != "0" ]; then
     die "Image $yt_image failed to run. Most likely that was because the port $proxy_port is already busy, \
 so you have to provide another port via --proxy-port option."
+fi
+
+
+if [ ${run_prometheus} == true ]; then
+
+    targets="['host.docker.internal:${port_range_start}'"
+    min_port=$(($port_range_start + 1))
+    max_port=$(($port_range_start + 100))
+    for port in $(seq $min_port $max_port); do
+       targets+=", 'host.docker.internal:${port}'"
+    done
+    targets+="]"
+
+
+    cat << EOF > prometheus.yml
+global:
+ scrape_interval: 15s
+
+scrape_configs:
+ - job_name: 'ytsaurus_prometheus_container'
+   static_configs:
+     - targets: $targets
+   metrics_path: '/solomon/all'
+EOF
+
+    prometheus_container=$(
+        docker run -itd \
+            --network $network_name \
+            --name ${prometheus_container_name} \
+            -p ${prometheus_port}:${prometheus_port} \
+            -v $(pwd)/prometheus.yml:/etc/prometheus/prometheus.yml \
+            ${prometheus_image}
+    )
+    if [ "$?" != "0" ]; then
+        die "Image $prometheus_image failed to run. Most likely that was because the port $prometheus_port is \
+    already busy, so you have to provide another port via --prometheus-port option."
+    fi
 fi
 
 interface_container=$(
