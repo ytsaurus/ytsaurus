@@ -618,8 +618,8 @@ private:
         auto maxDataWeight = request->has_max_data_weight()
             ? request->max_data_weight()
             : std::numeric_limits<i64>::max();
-        auto requestTimeout = request->has_request_timeout()
-            ? FromProto<TDuration>(request->request_timeout())
+        auto requestTimeout = context->GetTimeout()
+            ? *context->GetTimeout()
             : Bootstrap_->GetConnection()->GetConfig()->DefaultPullRowsTimeout;
 
         // TODO(savrus): Extract this out of RPC request.
@@ -642,7 +642,7 @@ private:
             chunkReadOptions.ReadSessionId,
             requestTimeout);
 
-        auto requestDeadLine = (requestTimeout * Config_->PullRowsTimeoutShare).ToDeadLine();
+        auto requestDeadLine = (requestTimeout - Config_->PullRowsTimeoutSlack).ToDeadLine();
 
         auto* responseCodec = NCompression::GetCodec(responseCodecId);
 
