@@ -6,8 +6,8 @@
         "version": "local-{revision}",
     },
     "include": [
-        "yt/docker/ya-build/base/build-server-x86_64.json",
-        "yt/docker/ya-build/base/build-python-x86_64.json",
+        "yt/docker/ya-build/base/build-server-aarch64.json",
+        "yt/docker/ya-build/base/build-python-aarch64.json",
         "yt/docker/ya-build/base/data-common.json",
         "yt/docker/ya-build/base/data-server.json",
         "yt/docker/ya-build/base/data-python.json",
@@ -16,9 +16,9 @@
         "format": "docker",
         "docker_target": "ytsaurus",
         "docker_build_arg": {
-            "PYTHON_BUILD_BASE": "build-ytsaurus-python-binaries"
+            "PYTHON_BUILD_BASE": "build-ytsaurus-python-binaries",
+            "SERVER_BASE_IMAGE": "server-base-crio",
         },
+        "docker_platform" : "linux/arm64",
     },
-    "data": [
-    ],
 }
