@@ -4,4 +4,5 @@ RECURSE(
     ya-build
     ytsaurus
     ytsaurus-bundle
+    ytsaurus-cron
 )
