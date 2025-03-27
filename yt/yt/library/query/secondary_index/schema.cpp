@@ -47,17 +47,16 @@ void ThrowIfKey(const TColumnSchema& indexColumn)
 bool IsValidUnfoldedColumnPair(const TLogicalTypePtr& tableColumnType, const TLogicalTypePtr& indexColumnType)
 {
     auto tableColumnElementType = tableColumnType;
+
     if (tableColumnElementType->GetMetatype() == ELogicalMetatype::Optional) {
         tableColumnElementType = tableColumnElementType->UncheckedAsOptionalTypeRef().GetElement();
     }
 
-    if (tableColumnElementType->GetMetatype() != ELogicalMetatype::List) {
-        return false;
+    if (*tableColumnElementType == *SimpleLogicalType(ESimpleLogicalValueType::Any)) {
+        return true;
     }
 
-    tableColumnElementType = tableColumnElementType->UncheckedAsListTypeRef().GetElement();
-
-    return *tableColumnElementType == *indexColumnType;
+    return *ListLogicalType(indexColumnType) == *tableColumnElementType;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

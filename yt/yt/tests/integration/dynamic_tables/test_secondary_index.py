@@ -13,6 +13,8 @@ from yt_commands import (
 
 from yt.test_helpers import assert_items_equal
 
+import yt.yson as yson
+
 from copy import deepcopy
 import pytest
 import yt_error_codes
@@ -620,10 +622,15 @@ class TestSecondaryIndexSelect(TestSecondaryIndexBase):
         plan = explain_query("keyA, keyB, valueA from [//tmp/table] with index [//tmp/index_table] where valueA = 100")
         assert plan["query"]["constraints"] == "Constraints:\n100: <universe>"
 
+    @pytest.mark.parametrize("strong_typing", [False, True])
     @authors("sabdenovch")
-    def test_unfolding(self):
+    def test_unfolding(self, strong_typing):
+        table_schema = PRIMARY_SCHEMA_WITH_LIST if strong_typing else [
+            {"name": "key", "type": "int64", "sort_order": "ascending"},
+            {"name": "value", "type": "any"},
+        ]
         self._create_basic_tables(
-            table_schema=PRIMARY_SCHEMA_WITH_LIST,
+            table_schema=table_schema,
             index_schema=UNFOLDING_INDEX_SCHEMA,
             kind="unfolding",
             mount=True,
@@ -632,13 +639,17 @@ class TestSecondaryIndexSelect(TestSecondaryIndexBase):
             },
         )
 
+        # Avoid "twin nulls" problem.
+        format = yson.YsonString(b"yson")
+        format.attributes["enable_null_to_yson_entity_conversion"] = False
+
         insert_rows("//tmp/table", [
             {"key": 0, "value": [14, 13, 12]},
             {"key": 1, "value": [11, 12]},
             {"key": 2, "value": [13, 11]},
             {"key": 3, "value": [None, 12]},
             {"key": 4, "value": None},
-        ])
+        ], input_format=format)
 
         query = """
             key, value from [//tmp/table] with index [//tmp/index_table]
@@ -871,10 +882,15 @@ class TestSecondaryIndexModifications(TestSecondaryIndexBase):
         self._expect_from_index([row(i) for i in range(N - 1, -1, -1)])
         self._expect_from_index([aux_row(i) for i in range(N)], index_table="//tmp/index_table_auxiliary")
 
+    @pytest.mark.parametrize("strong_typing", [False, True])
     @authors("sabdenovch")
-    def test_unfolding_modifications(self):
+    def test_unfolding_modifications(self, strong_typing):
+        table_schema = PRIMARY_SCHEMA_WITH_LIST if strong_typing else [
+            {"name": "key", "type": "int64", "sort_order": "ascending"},
+            {"name": "value", "type": "any"},
+        ]
         self._create_basic_tables(
-            table_schema=PRIMARY_SCHEMA_WITH_LIST,
+            table_schema=table_schema,
             index_schema=UNFOLDING_INDEX_SCHEMA,
             kind="unfolding",
             mount=True,
@@ -883,11 +899,15 @@ class TestSecondaryIndexModifications(TestSecondaryIndexBase):
             },
         )
 
+        # Avoid "twin nulls" problem.
+        format = yson.YsonString(b"yson")
+        format.attributes["enable_null_to_yson_entity_conversion"] = False
+
         self._insert_rows([
             {"key": 0, "value": [1, 1, 1]},
             {"key": 1, "value": [None]},
             {"key": 2, "value": None},
-        ])
+        ], input_format=format)
         self._expect_from_index([
             {"value": None, "key": 1, EMPTY_COLUMN_NAME: None},
             {"value": 1, "key": 0, EMPTY_COLUMN_NAME: None},
