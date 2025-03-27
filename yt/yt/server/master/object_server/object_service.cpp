@@ -436,7 +436,7 @@ public:
         Owner_->EnqueueFinishedSession(TExecuteSessionInfo{
             std::move(EpochCancelableContext_),
             std::move(User_),
-            RequestQueueSizeIncreased_,
+            RequestQueueSizeIncremented_,
         });
     }
 
@@ -593,7 +593,7 @@ private:
 
     bool SuppressTransactionCoordinatorSync_ = false;
     bool NeedsUserAccessValidation_ = true;
-    bool RequestQueueSizeIncreased_ = false;
+    bool RequestQueueSizeIncremented_ = false;
 
     std::atomic<bool> ReplyScheduled_ = false;
     std::atomic<bool> LocalExecutionStarted_ = false;
@@ -1619,8 +1619,8 @@ private:
             }
         }
 
-        if (!RequestQueueSizeIncreased_) {
-            if (!securityManager->TryIncreaseRequestQueueSize(User_.Get())) {
+        if (!RequestQueueSizeIncremented_) {
+            if (!securityManager->TryIncrementRequestQueueSize(User_.Get())) {
                 auto cellTag = Bootstrap_->GetMulticellManager()->GetCellTag();
                 auto error = TError(
                     NSecurityClient::EErrorCode::RequestQueueSizeLimitExceeded,
@@ -1631,7 +1631,7 @@ private:
                 Owner_->SetStickyUserError(Identity_.User, error);
                 THROW_ERROR error;
             }
-            RequestQueueSizeIncreased_ = true;
+            RequestQueueSizeIncremented_ = true;
         }
 
         if (!ThrottleRequests()) {
@@ -2451,7 +2451,7 @@ void TObjectService::FinishSession(const TExecuteSessionInfo& sessionInfo)
 
     if (sessionInfo.RequestQueueSizeIncreased && IsObjectAlive(sessionInfo.User)) {
         const auto& securityManager = Bootstrap_->GetSecurityManager();
-        securityManager->DecreaseRequestQueueSize(sessionInfo.User.Get());
+        securityManager->DecrementRequestQueueSize(sessionInfo.User.Get());
     }
 }
 

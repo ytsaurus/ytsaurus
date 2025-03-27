@@ -207,8 +207,8 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(TUserRequestLimitsConfigPtr, ObjectServiceRequestLimits);
     DEFINE_BYVAL_RW_PROPERTY(NConcurrency::TThroughputThrottlerConfigPtr, ChunkServiceUserRequestWeightThrottlerConfig);
     DEFINE_BYVAL_RW_PROPERTY(NConcurrency::TThroughputThrottlerConfigPtr, ChunkServiceUserRequestBytesThrottlerConfig);
-    DEFINE_BYVAL_RW_PROPERTY(bool, PendingRemoval, false);
-    DEFINE_BYVAL_RW_PROPERTY(bool, AllowCreateSecondaryIndices, false);
+    DEFINE_BYVAL_RW_PROPERTY(bool, PendingRemoval);
+    DEFINE_BYVAL_RW_PROPERTY(bool, AllowCreateSecondaryIndices);
 
     //! Hashed password used for authentication. If equals to |std::nullopt|,
     //! authentication via password is disabled.
@@ -223,15 +223,6 @@ public:
 
     //! Time of the last user's activity.
     DEFINE_BYVAL_RW_PROPERTY(TInstant, LastSeenTime);
-
-    int GetRequestQueueSize() const;
-    void SetRequestQueueSize(int size);
-    void ResetRequestQueueSize();
-
-    //! Sets (encrypted) password for user. Pass null removes password.
-    void SetHashedPassword(std::optional<std::string> hashedPassword);
-    //! Sets password salt for user. Passing null removes salt.
-    void SetPasswordSalt(std::optional<std::string> passwordSalt);
 
     using TStatistics = TEnumIndexedArray<EUserWorkloadType, TUserWorkloadStatistics>;
     DEFINE_BYREF_RW_PROPERTY(TStatistics, Statistics);
@@ -258,24 +249,39 @@ public:
     int GetRequestQueueSizeLimit(NObjectServer::TCellTag cellTag = NObjectClient::InvalidCellTag) const;
     void SetRequestQueueSizeLimit(int limit, NObjectServer::TCellTag cellTag = NObjectClient::InvalidCellTag);
 
-    void UpdateCounters(const TUserWorkload& workloadType);
+    void Charge(const TUserWorkload& workload);
 
     void LogIfPendingRemoval(const TString& message) const;
 
-protected:
+    bool TryIncrementRequestQueueSize(NObjectClient::TCellTag cellTag);
+    void DecrementRequestQueueSize();
+    void ResetRequestQueueSize();
+
+    //! Sets (encrypted) password for user. Pass null removes password.
+    void SetHashedPassword(std::optional<std::string> hashedPassword);
+    //! Sets password salt for user. Passing null removes salt.
+    void SetPasswordSalt(std::optional<std::string> passwordSalt);
+
+private:
     // Transient
     int RequestQueueSize_ = 0;
 
-private:
     NConcurrency::IReconfigurableThroughputThrottlerPtr ReadRequestRateThrottler_;
     NConcurrency::IReconfigurableThroughputThrottlerPtr WriteRequestRateThrottler_;
 
     NProfiling::TTimeCounter ReadTimeCounter_;
     NProfiling::TTimeCounter WriteTimeCounter_;
+
     NProfiling::TCounter RequestCounter_;
+
     NProfiling::TCounter ReadRequestCounter_;
+    NProfiling::TGauge ReadRequestRateLimitGauge_;
+
     NProfiling::TCounter WriteRequestCounter_;
+    NProfiling::TGauge WriteRequestRateLimitGauge_;
+
     NProfiling::TSummary RequestQueueSizeSummary_;
+    NProfiling::TGauge RequestQueueSizeLimitGauge_;
 
     void InitializeCounters();
     void UpdatePasswordRevision();

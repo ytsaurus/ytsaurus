@@ -91,35 +91,20 @@ void TRequestTracker::ChargeUser(
 
     switch (workload.Type) {
         case EUserWorkloadType::Read:
-            DoChargeUser(user, workload);
+            user->Charge(workload);
             break;
         case EUserWorkloadType::Write: {
             const auto& hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
             if (hydraManager->IsLeader()) {
-                DoChargeUser(user, workload);
-            } else {
-                const auto& throttler = user->GetRequestRateThrottler(workload.Type);
-                if (throttler) {
-                    throttler->Acquire(workload.RequestCount);
-                }
+                user->Charge(workload);
+            } else if (const auto& throttler = user->GetRequestRateThrottler(workload.Type)) {
+                throttler->Acquire(workload.RequestCount);
             }
             break;
         }
         default:
             YT_ABORT();
     }
-}
-
-void TRequestTracker::DoChargeUser(
-    TUser* user,
-    const TUserWorkload& workload)
-{
-    VerifyPersistentStateRead();
-
-    auto& statistics = user->Statistics()[workload.Type];
-    statistics.RequestCount += workload.RequestCount;
-    statistics.RequestTime += workload.RequestTime.MilliSeconds();
-    user->UpdateCounters(workload);
 }
 
 TFuture<void> TRequestTracker::ThrottleUserRequest(TUser* user, int requestCount, EUserWorkloadType workloadType)
@@ -193,24 +178,15 @@ void TRequestTracker::SetUserRequestQueueSizeLimit(TUser* user, int limit)
     user->SetRequestQueueSizeLimit(limit);
 }
 
-bool TRequestTracker::TryIncreaseRequestQueueSize(TUser* user)
+bool TRequestTracker::TryIncrementRequestQueueSize(TUser* user)
 {
     auto cellTag = Bootstrap_->GetMulticellManager()->GetCellTag();
-    auto limit = user->GetRequestQueueSizeLimit(cellTag);
-
-    auto size = user->GetRequestQueueSize();
-    if (size >= limit) {
-        return false;
-    }
-    user->SetRequestQueueSize(size + 1);
-    return true;
+    return user->TryIncrementRequestQueueSize(cellTag);
 }
 
-void TRequestTracker::DecreaseRequestQueueSize(TUser* user)
+void TRequestTracker::DecrementRequestQueueSize(TUser* user)
 {
-    auto size = user->GetRequestQueueSize();
-    YT_VERIFY(size > 0);
-    user->SetRequestQueueSize(size - 1);
+    user->DecrementRequestQueueSize();
 }
 
 const TDynamicSecurityManagerConfigPtr& TRequestTracker::GetDynamicConfig()
