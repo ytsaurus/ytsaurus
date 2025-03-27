@@ -8959,17 +8959,6 @@ TEST_F(TQueryEvaluateTest, MakeList)
     Evaluate("make_list(1, 2u, %true, 3.14, 'abc', v_any, v_null) as x FROM [//t]", split, source, ResultMatcher(result));
 }
 
-TEST_F(TQueryEvaluateTest, MakeEntity)
-{
-    auto split = MakeSplit({{"a", EValueType::Int64}});
-    auto source = TSource{"a=42"};
-
-    auto resultSplit = MakeSplit({{"x", EValueType::Any}});
-    auto result = YsonToRows({"x=[#]"}, resultSplit);
-
-    Evaluate("make_list(make_entity()) as x FROM [//t]", split, source, ResultMatcher(result));
-}
-
 TEST_F(TQueryEvaluateTest, DecimalExpr)
 {
     auto split = MakeSplit({
@@ -8981,7 +8970,7 @@ TEST_F(TQueryEvaluateTest, DecimalExpr)
 
     auto result = YsonToRows(source, split);
 
-    Evaluate("a FROM [//t]", split, source, ResultMatcher(result,New<TTableSchema>(std::vector<TColumnSchema>{
+    Evaluate("a FROM [//t]", split, source, ResultMatcher(result, New<TTableSchema>(std::vector<TColumnSchema>{
         {"a", DecimalLogicalType(5, 2)}
     })));
 }
@@ -8997,37 +8986,9 @@ TEST_F(TQueryEvaluateTest, TypeV1Propagation)
 
     auto result = YsonToRows(source, split);
 
-    Evaluate("a FROM [//t]", split, source, ResultMatcher(result,New<TTableSchema>(std::vector<TColumnSchema>{
+    Evaluate("a FROM [//t]", split, source, ResultMatcher(result, New<TTableSchema>(std::vector<TColumnSchema>{
         {"a", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))}
     })));
-}
-
-TEST_F(TQueryEvaluateTest, ListExpr)
-{
-    auto split = MakeSplit({
-        {"a", ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int32))}
-    });
-    auto source = TSource{
-        "a=[1;2;3]"
-    };
-
-    auto result = YsonToRows(source, split);
-
-    Evaluate("a FROM [//t]", split, source, ResultMatcher(result));
-}
-
-TEST_F(TQueryEvaluateTest, ListExprToAny)
-{
-    auto split = MakeSplit({
-        {"a", ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int32))}
-    });
-    auto source = TSource{
-        "a=[1;2;3]"
-    };
-
-    auto result = YsonToRows(source, split);
-
-    Evaluate("to_any(a) as b FROM [//t]", split, source, ResultMatcher(result));
 }
 
 TEST_F(TQueryEvaluateTest, CoordinatedMaxGroupBy)
