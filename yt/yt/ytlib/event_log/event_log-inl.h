@@ -32,10 +32,25 @@ NYTree::TFluentYsonBuilder::TAny<TFluentLogEventImpl<TParent>&&> TFluentLogEvent
 }
 
 template <class TParent>
-typename TFluentLogEventImpl<TParent>::TThis& TFluentLogEventImpl<TParent>::Items(const NYson::TYsonString& items)
+TFluentLogEventImpl<TParent>::TThis& TFluentLogEventImpl<TParent>::Items(const NYson::TYsonString& items)
 {
     YT_VERIFY(items.GetType() == NYson::EYsonType::MapFragment);
     Consumer_->OnRaw(items);
+    return *this;
+}
+
+template <class TParent>
+TFluentLogEventImpl<TParent>::TThis& TFluentLogEventImpl<TParent>::OptionalItem(
+    TStringBuf key,
+    const auto& optionalValue,
+    auto&&... extraArgs)
+{
+    using NYTree::Serialize;
+
+    if (optionalValue) {
+        this->Consumer_->OnKeyedItem(key);
+        Serialize(optionalValue, this->Consumer_.get(), std::forward<decltype(extraArgs)>(extraArgs)...);
+    }
     return *this;
 }
 
