@@ -730,7 +730,7 @@ class TestSolomonProxy(HttpProxyTestBase):
         prometheus_sensors_rsp = self.get_sensors_raw(headers={"Accept": "text/plain"})
         assert len([line for line in prometheus_sensors_rsp.text.split("\n") if "# TYPE" not in line and "build_version" in line]) == 3
         # No counter-to-rate transformation for prometheus format.
-        assert len([line for line in prometheus_sensors_rsp.text.split("\n") if "_rate" in line]) == 0
+        assert len([line for line in prometheus_sensors_rsp.text.split("\n") if "_rate" in line and "_rate_limit" not in line]) == 0
 
         # Spack (only check for errors).
         self.get_sensors_raw(headers={"Accept": "application/x-solomon-spack"})
