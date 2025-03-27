@@ -3054,27 +3054,15 @@ void TChunkReplicator::OnJobWaiting(const TJobPtr& job, IJobControllerCallbacks*
 
 void TChunkReplicator::OnJobRunning(const TJobPtr& job, IJobControllerCallbacks* callbacks)
 {
-    if (TInstant::Now() - job->GetStartTime() > GetDynamicConfig()->JobTimeout)
-    {
-        // NB: Aborting removal jobs is potentially dangerous and may lead to inconsitency between
-        // master and data nodes.
-        // COMPAT(babenko): this is a temporary workaround until new epoch management is fully deployed.
-        if (job->GetType() == EJobType::RemoveChunk) {
-            YT_LOG_ALERT("Chunk removal job timed out (JobId: %v, Address: %v, Duration: %v, ChunkId: %v)",
-                job->GetJobId(),
-                job->NodeAddress(),
-                TInstant::Now() - job->GetStartTime(),
-                job->GetChunkIdWithIndexes());
-        } else {
-            YT_LOG_WARNING("Job timed out, aborting (JobId: %v, JobType: %v, Address: %v, Duration: %v, ChunkId: %v)",
-                job->GetJobId(),
-                job->GetType(),
-                job->NodeAddress(),
-                TInstant::Now() - job->GetStartTime(),
-                job->GetChunkIdWithIndexes());
+    if (TInstant::Now() - job->GetStartTime() > GetDynamicConfig()->JobTimeout) {
+        YT_LOG_WARNING("Job timed out, aborting (JobId: %v, JobType: %v, Address: %v, Duration: %v, ChunkId: %v)",
+            job->GetJobId(),
+            job->GetType(),
+            job->NodeAddress(),
+            TInstant::Now() - job->GetStartTime(),
+            job->GetChunkIdWithIndexes());
 
-            callbacks->AbortJob(job);
-        }
+        callbacks->AbortJob(job);
     }
 }
 
