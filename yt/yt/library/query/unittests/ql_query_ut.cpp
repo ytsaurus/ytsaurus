@@ -1106,6 +1106,107 @@ TEST_F(TQueryPrepareTest, SubqueryAliases)
     EXPECT_EQ(subAliasMap.size(), 1ul);
 }
 
+TEST_F(TQueryPrepareTest, PushDownGroupBy)
+{
+    EXPECT_CALL(PrepareMock_, GetInitialSplit("//left"))
+        .WillRepeatedly(Return(MakeFuture(MakeSplit({
+            {"key_0", EValueType::Int64, ESortOrder::Ascending},
+            {"value_0", EValueType::Int64},
+        }))));
+
+    EXPECT_CALL(PrepareMock_, GetInitialSplit("//center"))
+        .WillRepeatedly(Return(MakeFuture(MakeSplit({
+            {"key_0", EValueType::Int64, ESortOrder::Ascending},
+            {"key_1", EValueType::Int64, ESortOrder::Ascending},
+            {"value_1", EValueType::Int64},
+        }))));
+
+    auto fmt = [] (const TNamedItemList& items)
+    {
+        auto namedItemFormatter = [&] (TStringBuilderBase* builder, const TNamedItem& item) {
+            builder->AppendString(InferName(item.Expression, /*omitValues*/ false));
+        };
+        return JoinToString(items, namedItemFormatter);
+    };
+
+    {
+        auto query = std::string(R"(select sum(C.value_1) from [//left] L
+            left join [//center] C with hint "{push_down_group_by=%true}"
+            on (L.key_0) = (C.key_0)
+            group by C.key_0)");
+
+        auto plan = PreparePlanFragment(&PrepareMock_, query);
+
+        ASSERT_TRUE(plan->Query->JoinClauses[0]->GroupClause);
+        EXPECT_EQ(fmt(plan->Query->JoinClauses[0]->GroupClause->GroupItems), std::string("C.key_0"));
+    }
+    {
+        auto query = std::string(R"(select sum(C.value_1) from [//left] L
+            left join [//center] C with hint "{push_down_group_by=%true}"
+            on (L.key_0) = (C.key_0)
+            group by L.key_0)");
+
+        auto plan = PreparePlanFragment(&PrepareMock_, query);
+
+        ASSERT_TRUE(plan->Query->JoinClauses[0]->GroupClause);
+        EXPECT_EQ(fmt(plan->Query->JoinClauses[0]->GroupClause->GroupItems), std::string("C.key_0"));
+    }
+    {
+        auto query = std::string(R"(select sum(value_1) from [//left]
+            left join [//center] with hint "{push_down_group_by=%true}"
+            using key_0
+            group by key_0)");
+
+        auto plan = PreparePlanFragment(&PrepareMock_, query);
+
+        ASSERT_TRUE(plan->Query->JoinClauses[0]->GroupClause);
+        EXPECT_EQ(fmt(plan->Query->JoinClauses[0]->GroupClause->GroupItems), std::string("key_0"));
+    }
+    {
+        auto query = std::string(R"(select sum(value_1) from [//left]
+            left join [//center] with hint "{push_down_group_by=%true}"
+            on 1 = 1
+            group by value_0 + key_1)");
+
+        auto plan = PreparePlanFragment(&PrepareMock_, query);
+
+        ASSERT_TRUE(plan->Query->JoinClauses[0]->GroupClause);
+        EXPECT_EQ(fmt(plan->Query->JoinClauses[0]->GroupClause->GroupItems), std::string("key_1"));
+    }
+    {
+        auto query = std::string(R"(select sum(value_1 * value_0) from [//left]
+            left join [//center] with hint "{push_down_group_by=%true}"
+            on 1 = 1
+            group by value_0 % 10)");
+
+        EXPECT_THROW_THAT(
+            PreparePlanFragment(&PrepareMock_, query),
+            HasSubstr("neither idempotent nor can be pushed behind join clause"));
+    }
+    {
+        auto query = std::string(R"(select sum(value_1) from [//left]
+            left join [//center] with hint "{push_down_group_by=%true}"
+            using key_0
+            group by value_0 + key_1)");
+
+        auto plan = PreparePlanFragment(&PrepareMock_, query);
+
+        EXPECT_FALSE(plan->Query->JoinClauses[0]->GroupClause);
+    }
+    {
+        auto query = std::string(R"(select sum(1) from [//left]
+            left join [//center] with hint "{push_down_group_by=%true}"
+            on 1 = 1
+            left join [//center]
+            on 2 = 2
+            group by 3)");
+
+        EXPECT_THROW_THAT(
+            PreparePlanFragment(&PrepareMock_, query),
+            HasSubstr("is not supported at the current moment"));
+    }
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TJobQueryPrepareTest
