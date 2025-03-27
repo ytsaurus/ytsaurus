@@ -1,7 +1,6 @@
 import logging
 from datetime import datetime
 from typing import Iterable, Any
-from itertools import islice
 
 import yt.wrapper as yt
 from yt.common import date_string_to_datetime, YT_DATETIME_FORMAT_STRING
@@ -11,16 +10,6 @@ from yt_odin_checks.lib.check_runner import main
 
 
 BATCH_SIZE = 50
-
-
-# TODO: replace with itertools.batched when python is updated to 3.12.
-def batched(iterable: Iterable[Any], batch_size: int):
-    it = iter(iterable)
-    while True:
-        batch = tuple(islice(it, batch_size))
-        if not batch:
-            return
-        yield batch
 
 
 def process_operation_batch(
@@ -94,7 +83,7 @@ def run_check(yt_client, logger, options, states):
 
     batch_size = options.get("batch_size", BATCH_SIZE)
 
-    for batched_operations in batched(operations, batch_size):
+    for batched_operations in yt.common.chunk_iter_list(operations, batch_size):
         operations_without_snapshots += process_operation_batch(
             batched_operations=batched_operations,
             batch_client=batch_client,
