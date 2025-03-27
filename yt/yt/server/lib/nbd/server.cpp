@@ -508,7 +508,7 @@ private:
                 length,
                 flags);
 
-            Device_->Read(offset, length)
+            Device_->Read(offset, length, {.Cookie = cookie})
                 .Subscribe(
                     BIND([=, this, this_ = MakeStrong(this)] (const TErrorOr<TSharedRef>& result) {
                         if (!result.IsOK()) {
@@ -557,6 +557,7 @@ private:
                 flags);
 
             TWriteOptions options;
+            options.Cookie = cookie;
             if (Any(flags & ECommandFlags::NBD_CMD_FLAG_FUA)) {
                 options.Flush = true;
             }

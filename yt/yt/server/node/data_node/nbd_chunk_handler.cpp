@@ -78,12 +78,13 @@ public:
     }
 
     //! Read size bytes from NBD chunk at offset.
-    TFuture<NChunkClient::TBlock> Read(i64 offset, i64 length) override
+    TFuture<NChunkClient::TBlock> Read(i64 offset, i64 length, ui64 cookie) override
     {
         if (offset + length > ChunkSize_) {
             THROW_ERROR_EXCEPTION("Read is out of range")
                 << TErrorAttribute("offset", offset)
                 << TErrorAttribute("length", length)
+                << TErrorAttribute("cookie", cookie)
                 << TErrorAttribute("chunk_size", ChunkSize_);
         }
 
@@ -106,12 +107,13 @@ public:
     }
 
     // ! Write buffer to NBD chunk at offset.
-    TFuture<NIO::TIOCounters> Write(i64 offset, const TBlock& block) override
+    TFuture<NIO::TIOCounters> Write(i64 offset, const TBlock& block, ui64 cookie) override
     {
         if (offset + std::ssize(block.Data) > ChunkSize_) {
             THROW_ERROR_EXCEPTION("Write is out of range")
                 << TErrorAttribute("offset", offset)
                 << TErrorAttribute("length", block.Size())
+                << TErrorAttribute("cookie", cookie)
                 << TErrorAttribute("chunk_size", ChunkSize_);
         }
 

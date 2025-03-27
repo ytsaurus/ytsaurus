@@ -100,8 +100,8 @@ protected:
         for (int i = 0; i < config->NumIters; ++i) {
             auto data = Format("data_%v", i);
             auto offset = RandomNumber<ui64>(config->Size - data.size());
-            handler->Write(offset, TSharedRef::FromString(data), {}).Get().ThrowOnError();
-            auto value = handler->Read(offset, data.length()).Get().ValueOrThrow();
+            handler->Write(offset, TSharedRef::FromString(data), {.Cookie = RandomNumber<ui64>()}).Get().ThrowOnError();
+            auto value = handler->Read(offset, data.length(), {.Cookie = RandomNumber<ui64>()}).Get().ValueOrThrow();
             assert(ToString(value.ToStringBuf()) == data);
         }
 
