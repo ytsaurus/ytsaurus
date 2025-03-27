@@ -61,17 +61,19 @@ TString Tokenized(NSQLTranslation::ILexer& lexer, const TString& query) {
     return out;
 }
 
-TString RandomMultilineCommentLike(size_t maxSize) {
+TString RandomMultilineCommentLikeText(size_t maxSize) {
     auto size = RandomNumber<size_t>(maxSize);
     TString comment;
     for (size_t i = 0; i < size; ++i) {
-        auto isOpen = RandomNumber<bool>();
-        if (isOpen) {
+        if (auto /* isOpen */ _ = RandomNumber<bool>()) {
             comment += "/*";
         } else {
             comment += "*/";
         }
-        comment += "";
+
+        for (int gap = RandomNumber<size_t>(2); gap > 0; --gap) {
+            comment += " ";
+        }
     }
     return comment;
 }
@@ -123,12 +125,13 @@ Y_UNIT_TEST_SUITE(RegexLexerTests) {
         Check("/* /* yql */ */", "COMMENT(/* /* yql */ */) EOF", /* ansi = */ true);
         Check("/*/*/*/", "COMMENT(/*/*/) ASTERISK(*) SLASH(/) EOF", /* ansi = */ true);
         Check("/*/**/*/*/*/", "COMMENT(/*/**/*/) ASTERISK(*) SLASH(/) ASTERISK(*) SLASH(/) EOF", /* ansi = */ true);
+        Check("/* /* */ a /* /* */", "COMMENT(/* /* */ a /* /* */) EOF", /* ansi = */ true);
     }
 
     Y_UNIT_TEST(RecursiveMultiLineCommentAnsiReferenceComparion) {
         SetRandomSeed(100);
         for (size_t i = 0; i < 512; ++i) {
-            auto input = RandomMultilineCommentLike(/* maxSize = */ 16);
+            auto input = RandomMultilineCommentLikeText(/* maxSize = */ 128);
             TString actual = Tokenized(*AnsiLexer, input);
             TString expected = Tokenized(*PureAnsiLexer, input);
             UNIT_ASSERT_VALUES_EQUAL_C(actual, expected, "Input: " << input);
