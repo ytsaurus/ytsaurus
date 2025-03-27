@@ -378,7 +378,7 @@ void TParameterizedReassignSolver::Initialize()
             } else if (tabletMetric <= MinimumAcceptableMetricValue) {
                 YT_LOG_DEBUG_IF(
                     Bundle_->Config->EnableVerboseLogging,
-                    "Skip tablet since it has metric less than %v"
+                    "Skip tablet since it has metric less than %e"
                     "(TabletId: %v, TableId: %v)",
                     MinimumAcceptableMetricValue,
                     tabletId,
@@ -444,7 +444,7 @@ void TParameterizedReassignSolver::Initialize()
 
     if (Bundle_->Config->EnableVerboseLogging) {
         for (const auto& [nodeAddress, nodeInfo] : Nodes_) {
-            YT_LOG_DEBUG("Calculated node metric (NodeAddress: %v, NodeMetric: %v)",
+            YT_LOG_DEBUG("Calculated node metric (NodeAddress: %v, NodeMetric: %e)",
                 nodeAddress,
                 nodeInfo.Metric);
         }
@@ -561,7 +561,7 @@ bool TParameterizedReassignSolver::ShouldTrigger() const
     YT_LOG_DEBUG_IF(
         Bundle_->Config->EnableVerboseLogging,
         "Arguments for checking whether parameterized balancing should trigger have been calculated "
-        "(MinNodeMetric: %v, MaxNodeMetric: %v, MinCellMetric: %v, MaxCellMetric: %v, "
+        "(MinNodeMetric: %e, MaxNodeMetric: %e, MinCellMetric: %e, MaxCellMetric: %e, "
         "NodeDeviationThreshold: %v, CellDeviationThreshold: %v)",
         minNode->second.Metric,
         maxNode->second.Metric,
@@ -602,8 +602,8 @@ double TParameterizedReassignSolver::CalculateTotalBundleMetric() const
     tableNodeMetric *= TableNormalizingCoefficient_;
 
     YT_LOG_DEBUG(
-        "Calculated total metrics (CellMetric: %v, NodeMetric: %v, "
-        "TableCellMetric: %v, TableNodeMetric: %v)",
+        "Calculated total metrics (CellMetric: %e, NodeMetric: %e, "
+        "TableCellMetric: %e, TableNodeMetric: %e)",
         cellMetric,
         nodeMetric,
         tableCellMetric,
@@ -784,9 +784,9 @@ bool TParameterizedReassignSolver::TryMoveTablet(
 
     YT_LOG_DEBUG_IF(
         Bundle_->Config->EnableVerboseLogging && LogMessageCount_++ < MaxVerboseLogMessagesPerIteration,
-        "Trying to move tablet to another cell (TabletId: %v, CellId: %v, CurrentMetric: %v, "
-        "NewMetricDiff: %v, TabletMetric: %v, SourceCellMetric: %v, DestinationCellMetric: %v, "
-        "SourceNodeMetric: %v, DestinationNodeMetric: %v)",
+        "Trying to move tablet to another cell (TabletId: %v, CellId: %v, CurrentMetric: %e, "
+        "NewMetricDiff: %e, TabletMetric: %e, SourceCellMetric: %e, DestinationCellMetric: %e, "
+        "SourceNodeMetric: %e, DestinationNodeMetric: %e)",
         tablet->Id,
         cell->Id,
         CurrentMetric_,
@@ -972,7 +972,7 @@ std::vector<TMoveDescriptor> TParameterizedReassignSolver::BuildActionDescriptor
             if (CurrentMetric_ * Config_.MinRelativeMetricImprovement / std::ssize(Nodes_) >= BestActionInfo_.MetricDiff)
             {
                 YT_LOG_DEBUG(
-                    "Metric-improving action is not better enough (CurrentMetric: %v, MetricAfterAction: %v)",
+                    "Metric-improving action is not better enough (CurrentMetric: %e, MetricAfterAction: %e)",
                     CurrentMetric_,
                     BestActionInfo_.MetricDiff);
                 break;
@@ -981,7 +981,7 @@ std::vector<TMoveDescriptor> TParameterizedReassignSolver::BuildActionDescriptor
             ApplyBestAction(&availableActionCount);
 
             YT_LOG_DEBUG(
-                "Total parameterized metric changed (Old: %v, Diff: %v)",
+                "Total parameterized metric changed (Old: %e, Diff: %e)",
                 CurrentMetric_,
                 BestActionInfo_.MetricDiff);
             CurrentMetric_ -= BestActionInfo_.MetricDiff;
@@ -1256,7 +1256,7 @@ std::optional<TReshardDescriptor> TParameterizedResharder::TryMakeTabletFit(
                 (Bundle_->Config->EnableVerboseLogging || table->TableConfig->EnableVerboseLogging) &&
                 LogMessageCount_++ < MaxVerboseLogMessagesPerIteration,
                 "Trying to split an empty tablet. Skip it "
-                "(TableId: %v, TabletId: %v, TabletMetric: %v, TableSize: %v, DesiredTabletSize: %v, MaxTabletSize: %v)",
+                "(TableId: %v, TabletId: %v, TabletMetric: %e, TableSize: %v, DesiredTabletSize: %v, MaxTabletSize: %v)",
                 table->Id,
                 table->Tablets[tabletIndex]->Id,
                 tabletMetric,
@@ -1276,7 +1276,7 @@ std::optional<TReshardDescriptor> TParameterizedResharder::TryMakeTabletFit(
         YT_LOG_DEBUG_IF(
             (Bundle_->Config->EnableVerboseLogging || table->TableConfig->EnableVerboseLogging) &&
             LogMessageCount_++ < MaxVerboseLogMessagesPerIteration,
-            "Tablet is just right (TabletId: %v, TabletMetric: %v, TabletSize: %v)",
+            "Tablet is just right (TabletId: %v, TabletMetric: %e, TabletSize: %v)",
             table->Tablets[tabletIndex]->Id,
             tabletMetric,
             tabletSize);
@@ -1306,7 +1306,7 @@ TReshardDescriptor TParameterizedResharder::SplitTablet(
     YT_VERIFY(tabletCount > 0);
 
     auto correlationId = TGuid::Create();
-    YT_LOG_DEBUG("Splitting tablet (Tablet: %v, TabletSize: %v, TabletMetric: %v, CorrelationId: %v)",
+    YT_LOG_DEBUG("Splitting tablet (Tablet: %v, TabletSize: %v, TabletMetric: %e, CorrelationId: %v)",
         tabletId,
         DivCeil<i64>(tabletSize, tabletCount),
         tabletMetric / tabletCount,
@@ -1380,7 +1380,7 @@ std::optional<TReshardDescriptor> TParameterizedResharder::MergeTablets(
             (Bundle_->Config->EnableVerboseLogging || table->TableConfig->EnableVerboseLogging) &&
             LogMessageCount_++ < MaxVerboseLogMessagesPerIteration,
             "The tablet is too small, but there are no tablets to merge with it "
-            "(TabletId: %v, TabletIndex: %v, TabletSize: %v, TabletMetric: %v)",
+            "(TabletId: %v, TabletIndex: %v, TabletSize: %v, TabletMetric: %e)",
             table->Tablets[tabletIndex]->Id,
             tabletIndex,
             enlargedTabletSize,
@@ -1395,7 +1395,7 @@ std::optional<TReshardDescriptor> TParameterizedResharder::MergeTablets(
     }
 
     auto correlationId = TGuid::Create();
-    YT_LOG_DEBUG("Merging tablets (Tablets: %v, TabletSize: %v, TabletMetric: %v, CorrelationId: %v)",
+    YT_LOG_DEBUG("Merging tablets (Tablets: %v, TabletSize: %v, TabletMetric: %e, CorrelationId: %v)",
         tabletsToMerge,
         enlargedTabletSize,
         enlargedTabletMetric,
@@ -1470,7 +1470,7 @@ TParameterizedResharder::TTableStatistics TParameterizedResharder::GetTableStati
         YT_LOG_DEBUG_IF(
             (Bundle_->Config->EnableVerboseLogging || table->TableConfig->EnableVerboseLogging) &&
             LogMessageCount_++ < MaxVerboseLogMessagesPerIteration,
-            "Reporting tablet statistics (TabletId: %v, Size: %v, Metric: %v, TableId: %v)",
+            "Reporting tablet statistics (TabletId: %v, Size: %v, Metric: %e, TableId: %v)",
             tablet->Id,
             statistics.TabletSizes.back(),
             tabletMetric,
@@ -1486,7 +1486,7 @@ TParameterizedResharder::TTableStatistics TParameterizedResharder::GetTableStati
 
     if (statistics.TableMetric == 0.0 || statistics.DesiredTabletMetric == 0.0) {
         YT_LOG_DEBUG("Calculated table metric for parameterized balancing via reshard is zero or almost zero "
-            "(TableId: %v, TablePath: %v, TableMetric: %v)",
+            "(TableId: %v, TablePath: %v, TableMetric: %e)",
             table->Id,
             table->Path,
             statistics.TableMetric);
@@ -1499,7 +1499,7 @@ TParameterizedResharder::TTableStatistics TParameterizedResharder::GetTableStati
         Bundle_->Config->EnableVerboseLogging || table->TableConfig->EnableVerboseLogging,
         "Reporting reshard limits and statistics "
         "(MinTabletSize: %v, DesiredTabletSize: %v, MaxTabletSize: %v, TableSize: %v, "
-        "MinTabletMetric: %v, DesiredTabletMetric: %v, MaxTabletMetric: %v, TableMetric: %v, TableId: %v)",
+        "MinTabletMetric: %e, DesiredTabletMetric: %e, MaxTabletMetric: %e, TableMetric: %e, TableId: %v)",
         statistics.MinTabletSize,
         statistics.DesiredTabletSize,
         statistics.MaxTabletSize,
