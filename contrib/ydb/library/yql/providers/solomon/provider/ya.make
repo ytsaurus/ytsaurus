@@ -26,6 +26,7 @@ PEERDIR(
     contrib/ydb/library/yql/providers/solomon/expr_nodes
     contrib/ydb/library/yql/providers/solomon/proto
     contrib/ydb/library/yql/providers/solomon/scheme
+    contrib/ydb/library/yql/providers/solomon/solomon_accessor/client
     contrib/ydb/public/sdk/cpp/src/client/types/credentials
     yql/essentials/core/dq_integration
     yql/essentials/providers/common/config
