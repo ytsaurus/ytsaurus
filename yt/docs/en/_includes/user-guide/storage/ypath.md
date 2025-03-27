@@ -96,7 +96,7 @@ In addition to the above rules, there are some special agreements. Most of them 
    yt list //home/user/@
    ```
 
-The full collection of all attributes can also be *modified* via the `set_node` command. However, one should be warned that doing so will remove all attributes not mentioned in the value being set.
+   The full collection of all attributes can also be *modified* via the `set_node` command. However, one should be warned that doing so will remove all attributes not mentioned in the value being set.
 
    Examples:
 
@@ -108,7 +108,7 @@ The full collection of all attributes can also be *modified* via the `set_node` 
    yt set //home/user/@ '{attr1=value1; attr2=value2}'
    ```
 
-This way of modifying attributes should not be used when working with Cypress (as opposed to an abstract YSON document) because it may lead to an inadvertent removal of system attributes of a node. Instead, individual attributes should be set.
+   This way of modifying attributes should not be used when working with Cypress (as opposed to an abstract YSON document) because it may lead to an inadvertent removal of system attributes of a node. Instead, individual attributes should be set.
 
    Examples:
 
