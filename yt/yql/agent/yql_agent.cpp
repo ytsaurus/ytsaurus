@@ -387,10 +387,11 @@ private:
             auto refreshTokenExecutor = New<TPeriodicExecutor>(ControlInvoker_, BIND(&RefreshToken, user, token, queryClients), Config_->RefreshTokenPeriod);
             refreshTokenExecutor->Start();
 
+            const auto defaultCluster = clustersResult.Clusters.front();
             THashMap<TString, THashMap<TString, TString>> credentials = {{"default_yt", {{"category", "yt"}, {"content", token}}}};
             for (const auto& src : yqlRequest.secrets()) {
                 auto& dst = credentials[src.id()];
-                dst["content"] = ConvertTo<TString>(WaitFor(queryClients.cbegin()->second->GetNode(src.ypath())).ValueOrThrow());
+                dst["content"] = ConvertTo<TString>(WaitFor(queryClients[defaultCluster]->GetNode(src.ypath())).ValueOrThrow());
                 if (src.has_category()) {
                     dst["category"] = src.category();
                 }
