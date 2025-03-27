@@ -1,0 +1,38 @@
+{
+    "build": {
+        "build::python_binaries": {
+            "targets": [
+                "yt/yt/python/yson_shared",
+                "yt/yt/python/driver/native_shared",
+                "yt/yt/python/driver/rpc_shared",
+            ],
+            "build_type": "release",
+            "thinlto": true,
+            "target-platforms": [
+                "default-linux-aarch64",
+            ],
+            "flags": [
+                {
+                    "name": "USE_ARCADIA_PYTHON",
+                    "value": "no",
+                },
+                {
+                    "name": "USE_LOCAL_PYTHON",
+                    "value": "yes",
+                },
+                {
+                    "name": "PYTHON_BIN",
+                    "value": "python3",
+                },
+                {
+                    "name": "PYTHON_CONFIG",
+                    "value": "python3-config",
+                },
+                {
+                    "name": "STRIP",
+                    "value": "yes",
+                },
+            ],
+        },
+    },
+}
