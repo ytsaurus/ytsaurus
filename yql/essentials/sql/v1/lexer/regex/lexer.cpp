@@ -20,11 +20,14 @@ namespace NSQLTranslationV1 {
         static constexpr const char* CommentTokenName = "COMMENT";
 
     public:
-        TRegexLexer(bool ansi, NSQLReflect::TLexerGrammar grammar)
+        TRegexLexer(
+            bool ansi,
+            NSQLReflect::TLexerGrammar grammar,
+            const THashMap<TString, TString>& RegexByOtherNameMap)
             : Grammar_(std::move(grammar))
             , Ansi_(ansi)
         {
-            for (auto& [token, regex] : MakeRegexByOtherNameMap(Grammar_, Ansi_)) {
+            for (auto& [token, regex] : RegexByOtherNameMap) {
                 if (token == CommentTokenName) {
                     CommentRegex_.Reset(new RE2(regex));
                 } else {
@@ -224,16 +227,20 @@ namespace NSQLTranslationV1 {
         public:
             explicit TFactory(bool ansi)
                 : Ansi_(ansi)
+                , Grammar_(NSQLReflect::LoadLexerGrammar())
+                , RegexByOtherNameMap_(MakeRegexByOtherNameMap(Grammar_, Ansi_))
             {
             }
 
             NSQLTranslation::ILexer::TPtr MakeLexer() const override {
                 return NSQLTranslation::ILexer::TPtr(
-                    new TRegexLexer(Ansi_, NSQLReflect::LoadLexerGrammar()));
+                    new TRegexLexer(Ansi_, Grammar_, RegexByOtherNameMap_));
             }
 
         private:
             bool Ansi_;
+            NSQLReflect::TLexerGrammar Grammar_;
+            THashMap<TString, TString> RegexByOtherNameMap_;
         };
 
     } // namespace
