@@ -2646,6 +2646,7 @@ extern "C" void MakeMap(
                     valueArg.Length));
                 break;
             case EValueType::Any:
+            case EValueType::Composite:
                 writer.OnRaw(TStringBuf(
                     ConvertPointerFromWasmToHost(valueArg.Data.String, valueArg.Length),
                     valueArg.Length));
@@ -2701,6 +2702,7 @@ extern "C" void MakeList(
                     valueArg.Length));
                 break;
             case EValueType::Any:
+            case EValueType::Composite:
                 writer.OnRaw(TStringBuf(
                     ConvertPointerFromWasmToHost(valueArg.Data.String, valueArg.Length),
                     valueArg.Length));

@@ -35,7 +35,7 @@ void RegisterBuiltinFunctions(IFunctionRegistryBuilder* builder)
 
     builder->RegisterFunction(
         "yson_length",
-        std::vector<TType>{EValueType::Any},
+        std::vector<TType>{TUnionType{EValueType::Any, EValueType::Composite}},
         EValueType::Int64,
         "yson_length",
         ECallingConvention::Simple);
@@ -85,6 +85,7 @@ void RegisterBuiltinFunctions(IFunctionRegistryBuilder* builder)
             EValueType::Double,
             EValueType::String,
             EValueType::Any,
+            EValueType::Composite,
         },
         EValueType::Any,
         "make_map");
@@ -100,6 +101,7 @@ void RegisterBuiltinFunctions(IFunctionRegistryBuilder* builder)
             EValueType::Double,
             EValueType::String,
             EValueType::Any,
+            EValueType::Composite,
         },
         EValueType::Any,
         "make_list");
@@ -270,7 +272,7 @@ void RegisterBuiltinFunctions(IFunctionRegistryBuilder* builder)
     builder->RegisterAggregate(
         "dict_sum",
         std::unordered_map<TTypeParameter, TUnionType>{},
-        EValueType::Any,
+        TUnionType{EValueType::Any, EValueType::Composite},
         EValueType::Any,
         EValueType::Any,
         "dict_sum",
@@ -335,7 +337,7 @@ void RegisterBuiltinFunctions(IFunctionRegistryBuilder* builder)
         auto&& type = fns.second;
         builder->RegisterFunction(
             name,
-            std::vector<TType>{EValueType::Any, EValueType::String},
+            std::vector<TType>{TUnionType{EValueType::Any, EValueType::Composite}, EValueType::String},
             type,
             "ypath_get",
             ECallingConvention::UnversionedValue);
@@ -402,7 +404,7 @@ void RegisterBuiltinFunctions(IFunctionRegistryBuilder* builder)
 
     builder->RegisterFunction(
         "any_to_yson_string",
-        std::vector<TType>{EValueType::Any},
+        std::vector<TType>{TUnionType{EValueType::Any, EValueType::Composite}},
         EValueType::String,
         "any_to_yson_string",
         ECallingConvention::Simple);
