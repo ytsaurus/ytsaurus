@@ -19,7 +19,7 @@ struct IChunkHandler
 {
     virtual TFuture<void> Initialize() = 0;
     virtual TFuture<void> Finalize() = 0;
-    virtual TFuture<TSharedRef> Read(i64 offset, i64 length) = 0;
+    virtual TFuture<TSharedRef> Read(i64 offset, i64 length, const TReadOptions& options) = 0;
     virtual TFuture<void> Write(i64 offset, const TSharedRef& data, const TWriteOptions& options) = 0;
 };
 
