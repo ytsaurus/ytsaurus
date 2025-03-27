@@ -387,12 +387,12 @@ public:
     virtual void SetChunkServiceUserRequestWeightThrottlerConfig(TUser* user, const NConcurrency::TThroughputThrottlerConfigPtr& config) = 0;
     virtual void SetChunkServiceUserRequestBytesThrottlerConfig(TUser* user, const NConcurrency::TThroughputThrottlerConfigPtr& config) = 0;
 
-    //! Attempts to increase the queue size for a given #user and validates the limit.
+    //! Attempts to increment the queue size for a given #user and validates the limit.
     //! Returns |true| on success.
-    virtual bool TryIncreaseRequestQueueSize(TUser* user) = 0;
+    virtual bool TryIncrementRequestQueueSize(TUser* user) = 0;
 
-    //! Unconditionally decreases the queue size for a given #user.
-    virtual void DecreaseRequestQueueSize(TUser* user) = 0;
+    //! Unconditionally decrements the queue size for a given #user.
+    virtual void DecrementRequestQueueSize(TUser* user) = 0;
 
     //! Returns the interned security tags registry.
     virtual const TSecurityTagsRegistryPtr& GetSecurityTagsRegistry() const = 0;
