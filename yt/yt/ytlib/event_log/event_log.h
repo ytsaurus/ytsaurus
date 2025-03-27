@@ -67,6 +67,7 @@ public:
 
     NYTree::TFluentYsonBuilder::TAny<TThis&&> Item(TStringBuf key);
     TThis& Items(const NYson::TYsonString& items);
+    TThis& OptionalItem(TStringBuf key, const auto& optionalValue, auto&&... extraArgs);
 
 private:
     std::unique_ptr<NYson::IYsonConsumer> Consumer_;
