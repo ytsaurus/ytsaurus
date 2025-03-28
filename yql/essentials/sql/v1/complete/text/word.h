@@ -2,8 +2,6 @@
 
 #include <util/charset/unidata.h>
 
-#include <string_view>
-
 namespace NSQLComplete {
 
     static const char WordBreakCharacters[] = " \t\v\f\a\b\r\n`~!@#$%^&*-=+[](){}\\|;:'\".,<>/?";
