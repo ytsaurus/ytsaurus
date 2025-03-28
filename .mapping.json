@@ -33,6 +33,7 @@
   "CONTRIBUTING.md":"yt/opensource/repos/ytsaurus/github_toplevel/CONTRIBUTING.md",
   "LICENSE":"yt/opensource/repos/ytsaurus/github_toplevel/LICENSE",
   "README.md":"yt/opensource/repos/ytsaurus/github_toplevel/README.md",
+  "ROADMAP.md":"yt/opensource/repos/ytsaurus/github_toplevel/ROADMAP.md",
   "SECURITY.md":"yt/opensource/repos/ytsaurus/github_toplevel/SECURITY.md",
   "build/internal/conf/internal.conf":"yt/go/opensource_conf_internal.conf",
   "build/mapping.conf.json":"devtools/ya/opensource/mapping.conf.json",
