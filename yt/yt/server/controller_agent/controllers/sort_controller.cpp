@@ -2156,6 +2156,7 @@ protected:
             options.MaxTotalSliceCount = Config->MaxTotalSliceCount;
             options.EnablePeriodicYielder = true;
             options.ShouldSliceByRowIndices = true;
+            options.UseNewSlicingImplementation = GetSpec()->UseNewSlicingImplementationInOrderedPool;
             options.Logger = Logger().WithTag("Name: RootPartition");
 
             RootPartitionPool = CreateOrderedChunkPool(
