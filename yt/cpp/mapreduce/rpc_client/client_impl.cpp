@@ -30,6 +30,9 @@ NYT::NApi::IClientPtr CreateApiClient(const TClientContext& context)
     if (context.ProxyAddress) {
         connectionConfig->ProxyAddresses = {*context.ProxyAddress};
     }
+    if (context.ProxyUnixDomainSocket) {
+        connectionConfig->ProxyUnixDomainSocket = *context.ProxyUnixDomainSocket;
+    }
 
     NApi::TClientOptions clientOptions;
     clientOptions.Token = context.Token;
