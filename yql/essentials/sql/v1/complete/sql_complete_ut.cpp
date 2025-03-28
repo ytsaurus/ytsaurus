@@ -308,6 +308,43 @@ Y_UNIT_TEST_SUITE(SqlCompleteTests) {
         UNIT_ASSERT_VALUES_EQUAL(Complete(engine, {"SELECT "}), expected);
     }
 
+    Y_UNIT_TEST(SelectWhere) {
+        TVector<TCandidate> expected = {
+            {Keyword, "BITCAST"},
+            {Keyword, "CALLABLE"},
+            {Keyword, "CASE"},
+            {Keyword, "CAST"},
+            {Keyword, "CURRENT_DATE"},
+            {Keyword, "CURRENT_TIME"},
+            {Keyword, "CURRENT_TIMESTAMP"},
+            {Keyword, "DICT"},
+            {Keyword, "EMPTY_ACTION"},
+            {Keyword, "ENUM"},
+            {Keyword, "EXISTS"},
+            {Keyword, "FALSE"},
+            {Keyword, "FLOW"},
+            {Keyword, "JSON_EXISTS"},
+            {Keyword, "JSON_QUERY"},
+            {Keyword, "JSON_VALUE"},
+            {Keyword, "LIST"},
+            {Keyword, "NOT"},
+            {Keyword, "NULL"},
+            {Keyword, "OPTIONAL"},
+            {Keyword, "RESOURCE"},
+            {Keyword, "SET"},
+            {Keyword, "STREAM"},
+            {Keyword, "STRUCT"},
+            {Keyword, "TAGGED"},
+            {Keyword, "TRUE"},
+            {Keyword, "TUPLE"},
+            {Keyword, "VARIANT"},
+            {FunctionName, "StartsWith"},
+        };
+
+        auto engine = MakeSqlCompletionEngineUT();
+        UNIT_ASSERT_VALUES_EQUAL(Complete(engine, {"SELECT * FROM a WHERE "}), expected);
+    }
+
     Y_UNIT_TEST(Upsert) {
         TVector<TCandidate> expected = {
             {Keyword, "INTO"},
@@ -437,6 +474,7 @@ Y_UNIT_TEST_SUITE(SqlCompleteTests) {
         auto engine = MakeSqlCompletionEngine(MakePureLexerSupplier(), std::move(fallback));
         UNIT_ASSERT_VALUES_EQUAL(Complete(engine, {"SELECT CAST (1 AS U"}).size(), 6);
         UNIT_ASSERT_VALUES_EQUAL(Complete(engine, {"SELECT CAST (1 AS "}).size(), 47);
+        UNIT_ASSERT_VALUES_EQUAL(Complete(engine, {"SELECT "}).size(), 55);
     }
 
 } // Y_UNIT_TEST_SUITE(SqlCompleteTests)
