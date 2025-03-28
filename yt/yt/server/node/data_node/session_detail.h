@@ -50,6 +50,11 @@ public:
         std::optional<int> blockCount,
         bool truncateExtraBlocks) override;
 
+    bool ShouldUseProbePutBlocks() const override;
+    void ProbePutBlocks(i64 requestedCumulativeMemorySize) override;
+    i64 GetApprovedCumulativeBlockSize() const override;
+    i64 GetMaxRequestedCumulativeBlockSize() const override;
+
     TFuture<NIO::TIOCounters> PutBlocks(
         int startBlockIndex,
         std::vector<NChunkClient::TBlock> blocks,
@@ -96,6 +101,12 @@ protected:
     TError PendingCancelationError_;
 
     std::atomic<bool> Canceled_ = false;
+
+    TProbePutBlocksRequestSupplierPtr ProbePutBlocksRequestSupplier_;
+
+    bool UseProbePutBlocks_ = false;
+
+    TLocationMemoryGuard GetMemoryForPutBlocks(i64 memory);
 
     virtual TFuture<void> DoStart() = 0;
     virtual void DoCancel(const TError& error) = 0;

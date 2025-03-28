@@ -195,6 +195,26 @@ TFuture<ISession::TFinishResult> TNbdSession::Finish(
     THROW_ERROR_EXCEPTION("Not implemented");
 }
 
+bool TNbdSession::ShouldUseProbePutBlocks() const
+{
+    YT_UNIMPLEMENTED();
+}
+
+void TNbdSession::ProbePutBlocks(i64)
+{
+    YT_UNIMPLEMENTED();
+}
+
+i64 TNbdSession::GetApprovedCumulativeBlockSize() const
+{
+    YT_UNIMPLEMENTED();
+}
+
+i64 TNbdSession::GetMaxRequestedCumulativeBlockSize() const
+{
+    YT_UNIMPLEMENTED();
+}
+
 TFuture<NIO::TIOCounters> TNbdSession::PutBlocks(
     int /* startBlockIndex */,
     std::vector<NChunkClient::TBlock> /* blocks */,
