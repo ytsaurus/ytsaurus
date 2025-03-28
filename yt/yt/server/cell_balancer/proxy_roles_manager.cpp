@@ -64,7 +64,7 @@ void TryReleaseSpareProxies(
     auto proxiesToRelease = std::span(usingSpareProxies.begin(), usingSpareProxies.begin() + excessProxyCount);
 
     for (const auto& proxyName : proxiesToRelease) {
-        mutations->RemovedProxyRole.insert(proxyName);
+        mutations->RemovedProxyRole.insert(mutations->WrapMutation(proxyName));
 
         YT_LOG_INFO("Releasing spare proxy for bundle (Bundle: %v, ProxyName: %v)",
             bundleName,
@@ -85,7 +85,7 @@ void TryAssignSpareProxies(
 
     while (!freeProxies.empty() && proxyCount > 0) {
         const auto& proxyName = freeProxies.back();
-        mutations->ChangedProxyRole[proxyName] = proxyRole;
+        mutations->ChangedProxyRole[proxyName] = mutations->WrapMutation(proxyRole);
 
         YT_LOG_INFO("Assigning spare proxy for bundle (Bundle: %v, ProxyName: %v)",
             bundleName,
@@ -281,7 +281,7 @@ void AssignProxyRoleForDataCenter(
                 proxyName,
                 rpcProxyRole);
 
-            mutations->ChangedProxyRole[proxyName] = rpcProxyRole;
+            mutations->ChangedProxyRole[proxyName] = mutations->WrapMutation(rpcProxyRole);
         }
     }
 
@@ -343,7 +343,7 @@ void ReleaseProxyRoleForDataCenter(
                 proxyName,
                 releasedProxyRole);
 
-            mutations->ChangedProxyRole[proxyName] = releasedProxyRole;
+            mutations->ChangedProxyRole[proxyName] = mutations->WrapMutation(releasedProxyRole);
         }
     }
 
@@ -466,6 +466,8 @@ void InitializeZoneToSpareProxies(TSchedulerInputState& input, TSchedulerMutatio
 void ManageRpcProxyRoles(TSchedulerInputState& input, TSchedulerMutations* mutations)
 {
     for (const auto& [bundleName, bundleInfo] : input.Bundles) {
+        auto guard = mutations->MakeBundleNameGuard(bundleName);
+
         if (!bundleInfo->EnableBundleController || !bundleInfo->EnableRpcProxyManagement) {
             continue;
         }

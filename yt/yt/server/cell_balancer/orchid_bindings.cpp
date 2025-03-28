@@ -106,7 +106,7 @@ void TScanBundleCounter::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <typename TBundleInstances, typename TCollection>
+template <class TBundleInstances, class TCollection>
 void PopulateInstances(
     const TBundleInstances& bundleInstances,
     const TCollection& instanciesInfo,
@@ -127,7 +127,7 @@ void PopulateInstances(
     }
 }
 
-template <typename TBundleToInstances, typename TCollection>
+template <class TBundleToInstances, class TCollection>
 void PopulateInstancesPerDC(
     const std::string& bundleName,
     const TBundleToInstances& bundleToInstances,
@@ -144,7 +144,7 @@ void PopulateInstancesPerDC(
     }
 }
 
-template <typename TBundleToInstances, typename TCollection>
+template <class TBundleToInstances, class TCollection>
 void PopulateInstancesPerBundle(
     const std::string& bundleName,
     const TBundleToInstances& bundleToInstances,

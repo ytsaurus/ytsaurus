@@ -183,9 +183,9 @@ bool ProcessNodeAssignment(
     if (nodeInfo->UserTags.count(nodeTagFilter) == 0) {
         auto tags = nodeInfo->UserTags;
         tags.insert(nodeTagFilter);
-        mutations->ChangedNodeUserTags[nodeName] = std::move(tags);
+        mutations->ChangedNodeUserTags[nodeName] = mutations->WrapMutation(std::move(tags));
         if (input.Config->DecommissionReleasedNodes) {
-            mutations->ChangedDecommissionedFlag[nodeName] = true;
+            mutations->ChangedDecommissionedFlag[nodeName] = mutations->WrapMutation(true);
         }
 
         YT_LOG_INFO("Setting node tag filter and decommission "
@@ -240,7 +240,7 @@ bool ProcessNodeAssignment(
             "(Bundle: %v, TabletNode: %v)",
             bundleName,
             nodeName);
-        mutations->ChangedDecommissionedFlag[nodeName] = false;
+        mutations->ChangedDecommissionedFlag[nodeName] = mutations->WrapMutation(false);
         return false;
     }
 
@@ -352,7 +352,7 @@ void TryCreateBundleNodesAssignment(
                 nodeInfo->UserTags);
 
             bundleState->BundleNodeReleasements.erase(nodeName);
-            mutations->ChangedDecommissionedFlag[nodeName] = false;
+            mutations->ChangedDecommissionedFlag[nodeName] = mutations->WrapMutation(false);
             continue;
         }
 
@@ -361,7 +361,7 @@ void TryCreateBundleNodesAssignment(
             operation->CreationTime = now;
             bundleState->BundleNodeAssignments[nodeName] = operation;
 
-            YT_LOG_INFO("Creating node tag filter assignment for bundle node (Bundle: %v, TabletNode: %v, NodeUserTags: %v)",
+            YT_LOG_INFO("Creating node tag filter assignment for bundle node (BundleName: %v, TabletNode: %v, NodeUserTags: %v)",
                 bundleName,
                 nodeName,
                 nodeInfo->UserTags);
@@ -491,7 +491,7 @@ void ProcessNodesReleasements(
         if (nodeInfo->UserTags.count(nodeTagFilter) != 0) {
             if (input.Config->DecommissionReleasedNodes) {
                 if (!nodeInfo->Decommissioned) {
-                    mutations->ChangedDecommissionedFlag[nodeName] = true;
+                    mutations->ChangedDecommissionedFlag[nodeName] = mutations->WrapMutation(true);
                     YT_LOG_DEBUG("Releasing node: setting decommissioned flag (Bundle: %v, NodeName: %v)",
                         bundleName,
                         nodeName);
@@ -516,7 +516,7 @@ void ProcessNodesReleasements(
 
             auto userTags = nodeInfo->UserTags;
             userTags.erase(nodeTagFilter);
-            mutations->ChangedNodeUserTags[nodeName] = userTags;
+            mutations->ChangedNodeUserTags[nodeName] = mutations->WrapMutation(userTags);
             continue;
         }
 
@@ -525,7 +525,7 @@ void ProcessNodesReleasements(
                 bundleName,
                 nodeName,
                 leaveDecommissioned);
-            mutations->ChangedDecommissionedFlag[nodeName] = leaveDecommissioned;
+            mutations->ChangedDecommissionedFlag[nodeName] = mutations->WrapMutation(leaveDecommissioned);
             continue;
         }
 
@@ -924,6 +924,8 @@ void InitializeZoneToSpareNodes(TSchedulerInputState& input, TSchedulerMutations
 void ManageNodeTagFilters(TSchedulerInputState& input, TSchedulerMutations* mutations)
 {
     for (const auto& [bundleName, bundleInfo] : input.Bundles) {
+        auto guard = mutations->MakeBundleNameGuard(bundleName);
+
         if (!bundleInfo->EnableBundleController || !bundleInfo->EnableNodeTagFilterManagement) {
             continue;
         }
