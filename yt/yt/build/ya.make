@@ -34,11 +34,13 @@ ELSE()
     SET(YT_VERSION_TYPE "os")
 ENDIF()
 
-IF (OS_LINUX)
-    LDFLAGS(
-        -Wl,--compress-debug-sections=zlib
-    )
-    CFLAGS(GLOBAL -gdwarf64 -mcmodel=large)
+IF (SANITIZER_TYPE == "address")
+    IF (OS_LINUX)
+        LDFLAGS(
+            -Wl,--compress-debug-sections=zlib
+        )
+        CFLAGS(GLOBAL -gdwarf64 -mcmodel=large)
+    ENDIF()
 ENDIF()
 
 SRCS(

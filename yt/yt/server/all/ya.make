@@ -8,11 +8,13 @@ INCLUDE(${ARCADIA_ROOT}/yt/opensource.inc)
 
 ALLOCATOR(TCMALLOC)
 
-IF (OS_LINUX)
-    LDFLAGS(
-        -Wl,--compress-debug-sections=zlib
-    )
-    CFLAGS(-gdwarf64 -mcmodel=large)
+IF (SANITIZER_TYPE == "address")
+    IF (OS_LINUX)
+        LDFLAGS(
+            -Wl,--compress-debug-sections=zlib
+        )
+        CFLAGS(-gdwarf64 -mcmodel=large)
+    ENDIF()
 ENDIF()
 
 SRCS(
