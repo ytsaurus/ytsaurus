@@ -43,6 +43,13 @@ message TQueryProgressValues
     optional TProgressValues total_progress = 1;
     repeated NYT.NProto.TGuid secondary_query_ids = 2;
     repeated TProgressValues secondary_query_progresses = 3;
+    optional NYT.NProto.TGuid query_id = 4;
+}
+
+message TMultiQueryProgressValues
+{
+    optional int64 queries_count = 1;
+    repeated TQueryProgressValues progresses = 2;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -55,6 +62,7 @@ message TReqGetQueryProgress
 message TRspGetQueryProgress
 {
     optional TQueryProgressValues progress = 1;
+    optional TMultiQueryProgressValues multi_progress = 2;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

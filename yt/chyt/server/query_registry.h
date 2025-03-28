@@ -33,6 +33,7 @@ public:
     TFuture<void> GetIdleFuture() const;
 
     TFuture<std::optional<TQueryProgressValues>> GetQueryProgress(TQueryId queryId) const;
+    TFuture<std::vector<TQueryId>> GetAdditionalQueryIds(TQueryId queryId) const;
 
     NYTree::IYPathServicePtr GetOrchidService() const;
 
