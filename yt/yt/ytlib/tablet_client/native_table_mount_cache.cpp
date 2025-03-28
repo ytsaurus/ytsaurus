@@ -416,6 +416,12 @@ private:
                         ? FromProto<ETableToIndexCorrespondence>(protoIndexInfo.index_correspondence())
                         : ETableToIndexCorrespondence::Unknown,
                 };
+
+                if (protoIndexInfo.has_evaluated_columns_schema()) {
+                    indexInfo.EvaluatedColumnsSchema = New<TTableSchema>(
+                        FromProto<TTableSchema>(protoIndexInfo.evaluated_columns_schema()));
+                }
+
                 tableInfo->Indices.push_back(indexInfo);
             }
 

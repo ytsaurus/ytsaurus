@@ -274,7 +274,7 @@ Or simply read the data:
 * This specifies a `scheduling_tag_filter` that none of the cluster nodes match.
 
 ------
-#### **Q: When I start a Merge, Reduce operation, I get error "Maximum allowed data weight violated for a sorted job: xxx > yyy"**
+#### **Q: When I start a Merge, Reduce operation, I get error "Maximum allowed data weight per sorted job exceeds the limit: xxx > yyy"**
 
 **A:** When jobs are bing built, the scheduler estimates that one job is getting too much data (hundreds of gigabytes), and the scheduler is unable to make a smaller job. The following options are available:
 

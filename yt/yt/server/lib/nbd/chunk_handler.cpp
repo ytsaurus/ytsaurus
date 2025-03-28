@@ -95,18 +95,20 @@ public:
         .AsyncVia(Invoker_));
     }
 
-    TFuture<TSharedRef> Read(i64 offset, i64 length) override
+    TFuture<TSharedRef> Read(i64 offset, i64 length, const TReadOptions& options) override
     {
         if (!Initialized_) {
-            YT_LOG_ERROR("Can not read from uninitialized chunk handler (Offset: %v, Length: %v)",
+            YT_LOG_ERROR("Can not read from uninitialized chunk handler (Offset: %v, Length: %v, Cookie: %v)",
                 offset,
-                length);
+                length,
+                options.Cookie);
 
             THROW_ERROR_EXCEPTION("Read from uninitialized chunk handler")
                 << TErrorAttribute("chunk_id", SessionId_.ChunkId)
                 << TErrorAttribute("medium_index", SessionId_.MediumIndex)
                 << TErrorAttribute("offset", offset)
-                << TErrorAttribute("length", length);
+                << TErrorAttribute("length", length)
+                << TErrorAttribute("cookie", options.Cookie);
         }
 
         auto req = Proxy_.Read();
@@ -114,6 +116,7 @@ public:
         ToProto(req->mutable_session_id(), SessionId_);
         req->set_offset(offset);
         req->set_length(length);
+        req->set_cookie(options.Cookie);
 
         return req->Invoke().Apply(BIND([this, this_ = MakeStrong(this)] (const TErrorOr<TDataNodeNbdServiceProxy::TRspReadPtr>& rspOrError) {
             THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError);
@@ -132,24 +135,27 @@ public:
         .AsyncVia(Invoker_));
     }
 
-    TFuture<void> Write(i64 offset, const TSharedRef& data, const TWriteOptions&) override
+    TFuture<void> Write(i64 offset, const TSharedRef& data, const TWriteOptions& options) override
     {
         if (!Initialized_) {
-            YT_LOG_ERROR("Can not write to uninitialized chunk handler (Offset: %v, Length: %v)",
+            YT_LOG_ERROR("Can not write to uninitialized chunk handler (Offset: %v, Length: %v, Cookie: %v)",
                 offset,
-                data.size());
+                data.size(),
+                options.Cookie);
 
             THROW_ERROR_EXCEPTION("Write to uninitialized chunk handler")
                 << TErrorAttribute("chunk_id", SessionId_.ChunkId)
                 << TErrorAttribute("medium_index", SessionId_.MediumIndex)
                 << TErrorAttribute("offset", offset)
-                << TErrorAttribute("length", data.size());
+                << TErrorAttribute("length", data.size())
+                << TErrorAttribute("cookie", options.Cookie);
         }
 
         auto req = Proxy_.Write();
         req->SetTimeout(Config_->DataNodeNbdServiceRpcTimeout);
         ToProto(req->mutable_session_id(), SessionId_);
         req->set_offset(offset);
+        req->set_cookie(options.Cookie);
         SetRpcAttachedBlocks(req, {TBlock(data)});
         return req->Invoke().Apply(BIND([this, this_ = MakeStrong(this)] (const TErrorOr<TDataNodeNbdServiceProxy::TRspWritePtr>& rspOrError) {
             THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError);

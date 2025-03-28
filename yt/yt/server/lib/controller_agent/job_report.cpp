@@ -45,6 +45,12 @@ TControllerJobReport TControllerJobReport::Address(std::optional<std::string> ad
     return std::move(*this);
 }
 
+TControllerJobReport TControllerJobReport::Addresses(std::optional<NNodeTrackerClient::TAddressMap> addresses)
+{
+    Addresses_ = addresses;
+    return std::move(*this);
+}
+
 TControllerJobReport TControllerJobReport::ControllerState(EJobState controllerState)
 {
     ControllerState_ = FormatEnum(controllerState);

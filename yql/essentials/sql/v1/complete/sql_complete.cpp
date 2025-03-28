@@ -5,6 +5,10 @@
 
 #include <yql/essentials/sql/v1/complete/name/static/name_service.h>
 
+// FIXME(YQL-19747): unwanted dependency on a lexer implementation
+#include <yql/essentials/sql/v1/lexer/antlr4_pure/lexer.h>
+#include <yql/essentials/sql/v1/lexer/antlr4_pure_ansi/lexer.h>
+
 #include <util/generic/algorithm.h>
 #include <util/charset/utf8.h>
 
@@ -13,10 +17,12 @@ namespace NSQLComplete {
     class TSqlCompletionEngine: public ISqlCompletionEngine {
     public:
         explicit TSqlCompletionEngine(
+            TLexerSupplier lexer,
             INameService::TPtr names,
-            ISqlCompletionEngine::TConfiguration configuration)
+            ISqlCompletionEngine::TConfiguration configuration
+        )
             : Configuration(std::move(configuration))
-            , ContextInference(MakeSqlContextInference())
+            , ContextInference(MakeSqlContextInference(lexer))
             , Names(std::move(names))
         {
         }
@@ -110,15 +116,25 @@ namespace NSQLComplete {
         INameService::TPtr Names;
     };
 
+    // FIXME(YQL-19747): unwanted dependency on a lexer implementation
     ISqlCompletionEngine::TPtr MakeSqlCompletionEngine() {
-        return MakeSqlCompletionEngine(MakeStaticNameService(MakeDefaultNameSet()));
+        NSQLTranslationV1::TLexers lexers;
+        lexers.Antlr4Pure = NSQLTranslationV1::MakeAntlr4PureLexerFactory();
+        lexers.Antlr4PureAnsi = NSQLTranslationV1::MakeAntlr4PureAnsiLexerFactory();
+
+        INameService::TPtr names = MakeStaticNameService(MakeDefaultNameSet());
+
+        return MakeSqlCompletionEngine([lexers = std::move(lexers)](bool ansi) {
+            return NSQLTranslationV1::MakeLexer(lexers, ansi, /* antlr4 = */ true, /* pure = */ true);
+        }, std::move(names));
     }
 
     ISqlCompletionEngine::TPtr MakeSqlCompletionEngine(
+        TLexerSupplier lexer,
         INameService::TPtr names,
         ISqlCompletionEngine::TConfiguration configuration) {
         return ISqlCompletionEngine::TPtr(
-            new TSqlCompletionEngine(std::move(names), std::move(configuration)));
+            new TSqlCompletionEngine(lexer, std::move(names), std::move(configuration)));   
     }
 
 } // namespace NSQLComplete

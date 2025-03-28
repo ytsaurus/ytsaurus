@@ -48,23 +48,23 @@ TNbdSession::TNbdSession(
     NBD specific calls.
 */
 
-TFuture<TBlock> TNbdSession::Read(i64 offset, i64 length)
+TFuture<TBlock> TNbdSession::Read(i64 offset, i64 length, ui64 cookie)
 {
     // We are reading out some bytes to network so use out throttler.
     auto readThrottler = Bootstrap_->GetOutThrottler(Options_.WorkloadDescriptor);
     auto throttleFuture = readThrottler->Throttle(length);
     return throttleFuture.Apply(BIND([=, this, this_ = MakeStrong(this)] () {
-        return NbdChunkHandler_->Read(offset, length);
+        return NbdChunkHandler_->Read(offset, length, cookie);
     }));
 }
 
-TFuture<NIO::TIOCounters> TNbdSession::Write(i64 offset, const TBlock& block)
+TFuture<NIO::TIOCounters> TNbdSession::Write(i64 offset, const TBlock& block, ui64 cookie)
 {
     // We are writing in some bytes from network so use in throttler.
     auto writeThrottler = Bootstrap_->GetInThrottler(Options_.WorkloadDescriptor);
     auto throttleFuture = writeThrottler->Throttle(block.Size());
     return throttleFuture.Apply(BIND([=, this, this_ = MakeStrong(this)] () {
-        return NbdChunkHandler_->Write(offset, block);
+        return NbdChunkHandler_->Write(offset, block, cookie);
     }));
 }
 

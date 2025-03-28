@@ -36,7 +36,6 @@ jobs:
           user: ${{ secrets.YC_VM_USERNAME }}
           ssh-public-key: ${{ secrets.YC_VM_SSH_PUBLIC_KEY }}
           ttl: PT24H
-          disable-update: true
           runner-home-dir: /actions-runner
 
   checkout:

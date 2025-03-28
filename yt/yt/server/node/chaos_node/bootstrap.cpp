@@ -143,12 +143,12 @@ private:
     }
 
     static void OnDynamicConfigChanged(
-        TWeakPtr<TBootstrap> bootstrap,
+        const TWeakPtr<TBootstrap>& bootstrap,
         const TClusterNodeDynamicConfigPtr& /*oldConfig*/,
         const TClusterNodeDynamicConfigPtr& newConfig)
     {
-        if (auto strongPtr = bootstrap.Lock()) {
-            strongPtr->Reconfigure(newConfig->ChaosNode);
+        if (auto strongBootstrap = bootstrap.Lock()) {
+            strongBootstrap->Reconfigure(newConfig->ChaosNode);
         }
     }
 };

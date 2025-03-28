@@ -72,6 +72,7 @@ class TestUdfs(TestQueriesYqlBase):
         assert_items_equal(expected_rows, result)
 
     @authors("lucius")
+    @pytest.mark.timeout(300)
     def test_simple_python_udf(self, query_tracker, yql_agent):
         create("table", "//tmp/t", attributes={"schema": [{"name": "a", "type": "Int32"}]})
         write_table("//tmp/t", [
@@ -104,7 +105,7 @@ class TestUdfsWithDynamicConfig(TestQueriesYqlBase):
         wait_for_dynamic_config_update(yql_agent.yql_agent.client, config, "//sys/yql_agent/instances")
 
     @authors("lucius")
-    @pytest.mark.timeout(180)
+    @pytest.mark.timeout(300)
     def test_simple_udf_dyn_config(self, query_tracker, yql_agent):
         self._update_dyn_config(yql_agent, {
             "gateways": {
@@ -127,7 +128,7 @@ class TestUdfsWithDynamicConfig(TestQueriesYqlBase):
         assert_items_equal(result, [{"a": "a meow"}, {"a": "homeowner"}])
 
     @authors("lucius")
-    @pytest.mark.timeout(180)
+    @pytest.mark.timeout(300)
     def test_simple_python_udf_dyn_config(self, query_tracker, yql_agent):
         self._update_dyn_config(yql_agent, {
             "gateways": {

@@ -677,6 +677,7 @@ class TestParameterizedBalancing(TestStandaloneTabletBalancerBase, DynamicTables
             tablets = get(table + "/@tablets")
             assert tablets[0]["cell_id"] != tablets[1]["cell_id"]
 
+
 ##################################################################
 
 

@@ -9,9 +9,11 @@
 #include <yql/essentials/minikql/arrow/arrow_util.h>
 #include <yql/essentials/minikql/mkql_type_builder.h>
 #include <yql/essentials/minikql/computation/mkql_computation_node_codegen.h>  // Y_IGNORE
+#include <yql/essentials/minikql/computation/mkql_custom_list.h>
 #include <yql/essentials/minikql/mkql_node_builder.h>
 #include <yql/essentials/minikql/mkql_node_cast.h>
 
+#include <yql/essentials/core/sql_types/block.h>
 #include <yql/essentials/parser/pg_wrapper/interface/arrow.h>
 
 #include <arrow/scalar.h>
@@ -459,6 +461,223 @@ private:
     IComputationNode* const Stream_;
     const TVector<TType*> Types_;
     const size_t MaxLength_;
+};
+
+class TListToBlocksState : public TBlockState {
+public:
+    TListToBlocksState(TMemoryUsageInfo* memInfo, TComputationContext& ctx, const TVector<TType*>& types, size_t blockLengthIndex, size_t maxLength)
+        : TBlockState(memInfo, types.size(), blockLengthIndex)
+        , Builders_(types.size())
+        , BlockLengthIndex_(blockLengthIndex)
+        , MaxLength_(maxLength)
+    {
+        for (size_t i = 0; i < types.size(); ++i) {
+            if (i == blockLengthIndex) {
+                continue;
+            }
+            Builders_[i] = MakeArrayBuilder(TTypeInfoHelper(), types[i], ctx.ArrowMemoryPool, maxLength, &ctx.Builder->GetPgBuilder(), &BuilderAllocatedSize_);
+        }
+        MaxBuilderAllocatedSize_ = MaxAllocatedFactor_ * BuilderAllocatedSize_;
+    }
+
+    void AddRow(const NUdf::TUnboxedValuePod& row) {
+        auto items = row.GetElements();
+        size_t inputStructIdx = 0;
+        for (size_t i = 0; i < Builders_.size(); i++) {
+            if (i == BlockLengthIndex_) {
+                continue;
+            }
+            Builders_[i]->Add(items[inputStructIdx++]);
+        }
+        Rows_++;
+    }
+
+    void MakeBlocks(const THolderFactory& holderFactory) {
+        Values[BlockLengthIndex_] = holderFactory.CreateArrowBlock(arrow::Datum(std::make_shared<arrow::UInt64Scalar>(Rows_)));
+        Rows_ = 0;
+        BuilderAllocatedSize_ = 0;
+
+        for (size_t i = 0; i < Builders_.size(); ++i) {
+            if (i == BlockLengthIndex_) {
+                continue;
+            }
+            Values[i] = holderFactory.CreateArrowBlock(Builders_[i]->Build(IsFinished_));
+        }
+        FillArrays();
+    }
+
+    void Finish() {
+        IsFinished_ = true;
+    }
+
+    bool IsNotFull() const {
+        return Rows_ < MaxLength_ && BuilderAllocatedSize_ <= MaxBuilderAllocatedSize_;
+    }
+
+    bool IsFinished() const {
+        return IsFinished_;
+    }
+
+    bool HasBlocks() const {
+        return Count > 0;
+    }
+
+    bool IsEmpty() const {
+        return Rows_ == 0;
+    }
+
+private:
+    size_t Rows_ = 0;
+    bool IsFinished_ = false;
+
+    size_t BuilderAllocatedSize_ = 0;
+    size_t MaxBuilderAllocatedSize_ = 0;
+
+    std::vector<std::unique_ptr<IArrayBuilder>> Builders_;
+
+    const size_t BlockLengthIndex_;
+    const size_t MaxLength_;
+    static const size_t MaxAllocatedFactor_ = 4;
+};
+
+class TListToBlocksWrapper : public TMutableComputationNode<TListToBlocksWrapper>
+{
+    using TBaseComputation = TMutableComputationNode<TListToBlocksWrapper>;
+
+public:
+    TListToBlocksWrapper(TComputationMutables& mutables,
+        IComputationNode* list,
+        TStructType* structType
+    )
+        : TBaseComputation(mutables, EValueRepresentation::Boxed)
+        , List_(list)
+    {
+        for (size_t i = 0; i < structType->GetMembersCount(); i++) {
+            if (structType->GetMemberName(i) == NYql::BlockLengthColumnName) {
+                BlockLengthIndex_ = i;
+                Types_.push_back(nullptr);
+                continue;
+            }
+            Types_.push_back(AS_TYPE(TBlockType, structType->GetMemberType(i))->GetItemType());
+        }
+
+        MaxLength_ = CalcBlockLen(std::accumulate(Types_.cbegin(), Types_.cend(), 0ULL, [](size_t max, const TType* type){
+            if (!type) {
+                return max;
+            }
+            return std::max(max, CalcMaxBlockItemSize(type));
+        }));
+    }
+
+    NUdf::TUnboxedValuePod DoCalculate(TComputationContext& ctx) const
+    {
+        return ctx.HolderFactory.Create<TListToBlocksValue>(
+            ctx,
+            Types_,
+            BlockLengthIndex_,
+            List_->GetValue(ctx),
+            MaxLength_
+        );
+    }
+
+private:
+    class TListToBlocksValue : public TCustomListValue {
+        using TState = TListToBlocksState;
+
+    public:
+        class TIterator : public TComputationValue<TIterator> {
+        public:
+            TIterator(TMemoryUsageInfo* memInfo, const THolderFactory& holderFactory, NUdf::TUnboxedValue&& blockState, NUdf::TUnboxedValue&& iter)
+                : TComputationValue<TIterator>(memInfo)
+                , HolderFactory_(holderFactory)
+                , BlockState_(std::move(blockState))
+                , Iter_(std::move(iter))
+            {}
+
+        private:
+            bool Next(NUdf::TUnboxedValue& value) final {
+                auto& blockState = *static_cast<TState*>(BlockState_.AsBoxed().Get());
+                const size_t structSize = blockState.Values.size();
+
+                if (!blockState.HasBlocks()) {
+                    while (!blockState.IsFinished() && blockState.IsNotFull()) {
+                        if (Iter_.Next(Row_)) {
+                            blockState.AddRow(Row_);
+                        } else {
+                            blockState.Finish();
+                        }
+                    }
+                    if (blockState.IsEmpty()) {
+                        return false;
+                    }
+                    blockState.MakeBlocks(HolderFactory_);
+                }
+
+                NUdf::TUnboxedValue* items = nullptr;
+                value = HolderFactory_.CreateDirectArrayHolder(structSize, items);
+
+                const auto sliceSize = blockState.Slice();
+                for (size_t i = 0; i < structSize; i++) {
+                    items[i] = blockState.Get(sliceSize, HolderFactory_, i);
+                }
+
+                return true;
+            }
+
+        private:
+            const THolderFactory& HolderFactory_;
+
+            const NUdf::TUnboxedValue BlockState_;
+            const NUdf::TUnboxedValue Iter_;
+
+            NUdf::TUnboxedValue Row_;
+        };
+
+        TListToBlocksValue(TMemoryUsageInfo* memInfo, TComputationContext& ctx,
+            const TVector<TType*>& types, ui32 blockLengthIndex, NUdf::TUnboxedValue&& list, size_t maxLength
+        )
+            : TCustomListValue(memInfo)
+            , CompCtx_(ctx)
+            , Types_(types)
+            , BlockLengthIndex_(blockLengthIndex)
+            , List_(std::move(list))
+            , MaxLength_(maxLength)
+        {}
+
+    private:
+        NUdf::TUnboxedValue GetListIterator() const final {
+            auto state = CompCtx_.HolderFactory.Create<TState>(CompCtx_, Types_, BlockLengthIndex_, MaxLength_);
+            return CompCtx_.HolderFactory.Create<TIterator>(CompCtx_.HolderFactory, std::move(state), List_.GetListIterator());
+        }
+
+        bool HasListItems() const final {
+            if (!HasItems.has_value()) {
+                HasItems = List_.HasListItems();
+            }
+            return *HasItems;
+        }
+
+    private:
+        TComputationContext& CompCtx_;
+
+        const TVector<TType*>& Types_;
+        size_t BlockLengthIndex_ = 0;
+
+        NUdf::TUnboxedValue List_;
+        const size_t MaxLength_;
+    };
+
+    void RegisterDependencies() const final {
+        this->DependsOn(List_);
+    }
+
+private:
+    TVector<TType*> Types_;
+    size_t BlockLengthIndex_ = 0;
+
+    IComputationNode* const List_;
+
+    size_t MaxLength_ = 0;
 };
 
 class TFromBlocksWrapper : public TStatefulFlowCodegeneratorNode<TFromBlocksWrapper> {
@@ -967,6 +1186,208 @@ private:
     const TVector<TType*> Types_;
 };
 
+struct TListFromBlocksState : public TComputationValue<TListFromBlocksState> {
+public:
+    TListFromBlocksState(TMemoryUsageInfo* memInfo, TComputationContext& ctx, const TVector<TType*>& types, size_t blockLengthIndex)
+        : TComputationValue(memInfo)
+        , HolderFactory_(ctx.HolderFactory)
+        , BlockLengthIndex_(blockLengthIndex)
+        , Readers_(types.size())
+        , Converters_(types.size())
+        , ValuesDescr_(ToValueDescr(types))
+    {
+        const auto& pgBuilder = ctx.Builder->GetPgBuilder();
+        for (size_t i = 0; i < types.size(); ++i) {
+            if (i == blockLengthIndex) {
+                continue;
+            }
+            const TType* blockItemType = AS_TYPE(TBlockType, types[i])->GetItemType();
+            Readers_[i] = MakeBlockReader(TTypeInfoHelper(), blockItemType);
+            Converters_[i] = MakeBlockItemConverter(TTypeInfoHelper(), blockItemType, pgBuilder);
+        }
+    }
+
+    NUdf::TUnboxedValue GetRow() {
+        MKQL_ENSURE(CurrentRow_ < RowCount_, "Rows out of range");
+
+        NUdf::TUnboxedValue* outItems = nullptr;
+        auto row = HolderFactory_.CreateDirectArrayHolder(Readers_.size() - 1, outItems);
+
+        size_t outputStructIdx = 0;
+        for (size_t i = 0; i < Readers_.size(); i++) {
+            if (i == BlockLengthIndex_) {
+                continue;
+            }
+
+            const auto& datum = TArrowBlock::From(BlockItems_[i]).GetDatum();
+            ARROW_DEBUG_CHECK_DATUM_TYPES(ValuesDescr_[i], datum.descr());
+
+            TBlockItem item;
+            if (datum.is_scalar()) {
+                item = Readers_[i]->GetScalarItem(*datum.scalar());
+            } else {
+                MKQL_ENSURE(datum.is_array(), "Expecting array");
+                item = Readers_[i]->GetItem(*datum.array(), CurrentRow_);
+            }
+
+            outItems[outputStructIdx++] = Converters_[i]->MakeValue(item, HolderFactory_);
+        }
+
+        CurrentRow_++;
+        return row;
+    }
+
+    void SetBlock(NUdf::TUnboxedValue block) {
+        BlockItems_ = block.GetElements();
+        Block_ = std::move(block);
+
+        CurrentRow_ = 0;
+        RowCount_ = GetBlockCount(BlockItems_[BlockLengthIndex_]);
+    }
+
+    bool HasRows() const {
+        return CurrentRow_ < RowCount_;
+    }
+
+private:
+    const THolderFactory& HolderFactory_;
+
+    size_t CurrentRow_ = 0;
+    size_t RowCount_ = 0;
+
+    size_t BlockLengthIndex_ = 0;
+
+    NUdf::TUnboxedValue Block_;
+    const NUdf::TUnboxedValue* BlockItems_ = nullptr;
+
+    std::vector<std::unique_ptr<IBlockReader>> Readers_;
+    std::vector<std::unique_ptr<IBlockItemConverter>> Converters_;
+    const std::vector<arrow::ValueDescr> ValuesDescr_;
+};
+
+class TListFromBlocksWrapper : public TMutableComputationNode<TListFromBlocksWrapper>
+{
+    using TBaseComputation = TMutableComputationNode<TListFromBlocksWrapper>;
+
+public:
+    TListFromBlocksWrapper(TComputationMutables& mutables,
+        IComputationNode* list,
+        TStructType* structType
+    )
+        : TBaseComputation(mutables, EValueRepresentation::Boxed)
+        , List_(list)
+    {
+        for (size_t i = 0; i < structType->GetMembersCount(); i++) {
+            if (structType->GetMemberName(i) == NYql::BlockLengthColumnName) {
+                BlockLengthIndex_ = i;
+                Types_.push_back(nullptr);
+                continue;
+            }
+            Types_.push_back(structType->GetMemberType(i));
+        }
+    }
+
+    NUdf::TUnboxedValuePod DoCalculate(TComputationContext& ctx) const
+    {
+        return ctx.HolderFactory.Create<TListFromBlocksValue>(
+            ctx,
+            Types_,
+            BlockLengthIndex_,
+            List_->GetValue(ctx)
+        );
+    }
+
+private:
+    class TListFromBlocksValue : public TCustomListValue {
+        using TState = TListFromBlocksState;
+
+    public:
+        class TIterator : public TComputationValue<TIterator> {
+        public:
+            TIterator(TMemoryUsageInfo* memInfo, NUdf::TUnboxedValue&& blockState, NUdf::TUnboxedValue&& iter)
+                : TComputationValue<TIterator>(memInfo)
+                , BlockState_(std::move(blockState))
+                , Iter_(std::move(iter))
+            {}
+
+        private:
+            bool Next(NUdf::TUnboxedValue& value) final {
+                auto& blockState = *static_cast<TState*>(BlockState_.AsBoxed().Get());
+                if (!blockState.HasRows()) {
+                    NUdf::TUnboxedValue block;
+                    if (!Iter_.Next(block)) {
+                        return false;
+                    }
+                    blockState.SetBlock(std::move(block));
+                }
+
+                value = blockState.GetRow();
+                return true;
+            }
+
+        private:
+            const NUdf::TUnboxedValue BlockState_;
+            const NUdf::TUnboxedValue Iter_;
+        };
+
+        TListFromBlocksValue(TMemoryUsageInfo* memInfo, TComputationContext& ctx,
+            const TVector<TType*>& types, ui32 blockLengthIndex, NUdf::TUnboxedValue&& list
+        )
+            : TCustomListValue(memInfo)
+            , CompCtx_(ctx)
+            , Types_(types)
+            , BlockLengthIndex_(blockLengthIndex)
+            , List_(std::move(list))
+        {}
+
+    private:
+        NUdf::TUnboxedValue GetListIterator() const final {
+            auto state = CompCtx_.HolderFactory.Create<TState>(CompCtx_, Types_, BlockLengthIndex_);
+            return CompCtx_.HolderFactory.Create<TIterator>(std::move(state), List_.GetListIterator());
+        }
+
+        bool HasListItems() const final {
+            if (!HasItems.has_value()) {
+                HasItems = List_.HasListItems();
+            }
+            return *HasItems;
+        }
+
+        ui64 GetListLength() const final {
+            if (!Length.has_value()) {
+                auto iter = List_.GetListIterator();
+
+                Length = 0;
+                NUdf::TUnboxedValue block;
+                while (iter.Next(block)) {
+                    auto blockLengthValue = block.GetElement(BlockLengthIndex_);
+                    *Length += GetBlockCount(blockLengthValue);
+                }
+            }
+
+            return *Length;
+        }
+
+    private:
+        TComputationContext& CompCtx_;
+
+        const TVector<TType*>& Types_;
+        size_t BlockLengthIndex_ = 0;
+
+        NUdf::TUnboxedValue List_;
+    };
+
+    void RegisterDependencies() const final {
+        this->DependsOn(List_);
+    }
+
+private:
+    TVector<TType*> Types_;
+    size_t BlockLengthIndex_ = 0;
+
+    IComputationNode* const List_;
+};
+
 class TPrecomputedArrowNode : public IArrowKernelComputationNode {
 public:
     TPrecomputedArrowNode(const arrow::Datum& datum, TStringBuf kernelName)
@@ -1373,6 +1794,23 @@ IComputationNode* WrapWideToBlocks(TCallable& callable, const TComputationNodeFa
     return new TWideToBlocksFlowWrapper(ctx.Mutables, wideFlow, std::move(items));
 }
 
+IComputationNode* WrapListToBlocks(TCallable& callable, const TComputationNodeFactoryContext& ctx) {
+    MKQL_ENSURE(callable.GetInputsCount() == 1, "Expected 1 args, got " << callable.GetInputsCount());
+
+    const auto inputType = callable.GetInput(0).GetStaticType();
+    MKQL_ENSURE(inputType->IsList(), "Expected List as an input");
+    const auto outputType = callable.GetType()->GetReturnType();
+    MKQL_ENSURE(outputType->IsList(), "Expected List as an output");
+
+    const auto inputItemType = AS_TYPE(TListType, inputType)->GetItemType();
+    MKQL_ENSURE(inputItemType->IsStruct(), "Expected List of Struct as an input");
+    const auto outputItemType = AS_TYPE(TListType, outputType)->GetItemType();
+    MKQL_ENSURE(outputItemType->IsStruct(), "Expected List of Struct as an output");
+
+    const auto list = LocateNode(ctx.NodeLocator, callable, 0);
+    return new TListToBlocksWrapper(ctx.Mutables, list, AS_TYPE(TStructType, outputItemType));
+}
+
 IComputationNode* WrapFromBlocks(TCallable& callable, const TComputationNodeFactoryContext& ctx) {
     MKQL_ENSURE(callable.GetInputsCount() == 1, "Expected 1 args, got " << callable.GetInputsCount());
 
@@ -1407,6 +1845,23 @@ IComputationNode* WrapWideFromBlocks(TCallable& callable, const TComputationNode
     const auto wideFlow = dynamic_cast<IComputationWideFlowNode*>(wideFlowOrStream);
     MKQL_ENSURE(wideFlow != nullptr, "Expected wide flow node");
     return new TWideFromBlocksFlowWrapper(ctx.Mutables, wideFlow, std::move(items));
+}
+
+IComputationNode* WrapListFromBlocks(TCallable& callable, const TComputationNodeFactoryContext& ctx) {
+    MKQL_ENSURE(callable.GetInputsCount() == 1, "Expected 1 args, got " << callable.GetInputsCount());
+
+    const auto inputType = callable.GetInput(0).GetStaticType();
+    MKQL_ENSURE(inputType->IsList(), "Expected List as an input");
+    const auto outputType = callable.GetType()->GetReturnType();
+    MKQL_ENSURE(outputType->IsList(), "Expected List as an output");
+
+    const auto inputItemType = AS_TYPE(TListType, inputType)->GetItemType();
+    MKQL_ENSURE(inputItemType->IsStruct(), "Expected List of Struct as an input");
+    const auto outputItemType = AS_TYPE(TListType, outputType)->GetItemType();
+    MKQL_ENSURE(outputItemType->IsStruct(), "Expected List of Struct as an output");
+
+    const auto list = LocateNode(ctx.NodeLocator, callable, 0);
+    return new TListFromBlocksWrapper(ctx.Mutables, list, AS_TYPE(TStructType, inputItemType));
 }
 
 IComputationNode* WrapAsScalar(TCallable& callable, const TComputationNodeFactoryContext& ctx) {

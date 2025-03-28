@@ -1099,6 +1099,10 @@ bool TTableNodeProxy::GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsum
                             .BeginMap()
                                 .Item("index_path").Value(indexPath)
                                 .Item("kind").Value(kind)
+                                .Item("table_to_index_correspondence").Value(secondaryIndex->GetTableToIndexCorrespondence())
+                                .DoIf(secondaryIndex->Predicate().has_value(), [&] (TFluentMap fluent) {
+                                    fluent.Item("predicate").Value(*secondaryIndex->Predicate());
+                                })
                             .EndMap();
                     });
 
@@ -1124,6 +1128,10 @@ bool TTableNodeProxy::GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsum
                     .Item("index_id").Value(secondaryIndex->GetId())
                     .Item("table_path").Value(tablePath)
                     .Item("kind").Value(kind)
+                    .Item("table_to_index_correspondence").Value(secondaryIndex->GetTableToIndexCorrespondence())
+                    .DoIf(secondaryIndex->Predicate().has_value(), [&] (TFluentMap fluent) {
+                        fluent.Item("predicate").Value(*secondaryIndex->Predicate());
+                    })
                 .EndMap();
 
             return true;
@@ -2020,6 +2028,9 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, GetMountInfo)
             ToProto(protoIndexInfo->mutable_unfolded_column(), *unfoldedColumn);
         }
         protoIndexInfo->set_index_correspondence(ToProto(index->GetTableToIndexCorrespondence()));
+        if (const auto& evaluatedColumnsSchema = index->EvaluatedColumnsSchema()) {
+            ToProto(protoIndexInfo->mutable_evaluated_columns_schema(), *evaluatedColumnsSchema);
+        }
     }
 
     if (trunkTable->IsReplicated()) {
@@ -2232,46 +2243,29 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, Alter)
 
         if (table->IsDynamic()) {
             const auto& tableManager = Bootstrap_->GetTableManager();
-            for (auto index : table->SecondaryIndices()) {
-                auto* indexTable = tableManager->GetTableNodeOrThrow(index->GetIndexTableId());
-                const auto& indexTableSchema = indexTable->GetSchema()->AsTableSchema();
-                switch (index->GetKind()) {
-                    case ESecondaryIndexKind::FullSync:
-                        ValidateFullSyncIndexSchema(newTableSchema, indexTableSchema);
-                        break;
-
-                    case ESecondaryIndexKind::Unfolding:
-                        ValidateUnfoldingIndexSchema(newTableSchema, indexTableSchema, *index->UnfoldedColumn());
-                        break;
-
-                    case ESecondaryIndexKind::Unique:
-                        ValidateUniqueIndexSchema(newTableSchema, indexTableSchema);
-                        break;
-
-                    default:
-                        YT_ABORT();
-                }
-            }
 
             if (auto index = table->GetIndexTo()) {
-                auto* indexTable = tableManager->GetTableNodeOrThrow(index->GetTableId());
-                const auto& tableSchema = indexTable->GetSchema()->AsTableSchema();
-                switch (index->GetKind()) {
-                    case ESecondaryIndexKind::FullSync:
-                        ValidateFullSyncIndexSchema(tableSchema, newTableSchema);
-                        break;
+                auto* indexedTable = tableManager->GetTableNodeOrThrow(index->GetTableId());
+                ValidateIndexSchema(
+                    index->GetKind(),
+                    indexedTable->GetSchema()->AsTableSchema(),
+                    newTableSchema,
+                    index->Predicate(),
+                    index->EvaluatedColumnsSchema(),
+                    index->UnfoldedColumn());
+            }
 
-                    case ESecondaryIndexKind::Unfolding:
-                        ValidateUnfoldingIndexSchema(tableSchema, newTableSchema, *index->UnfoldedColumn());
-                        break;
-
-                    case ESecondaryIndexKind::Unique:
-                        ValidateUniqueIndexSchema(tableSchema, newTableSchema);
-                        break;
-
-                    default:
-                        YT_ABORT();
-                }
+            for (const auto index : GetValuesSortedByKey(table->SecondaryIndices())) {
+                const auto& indexTableSchema = tableManager->GetTableNodeOrThrow(index->GetIndexTableId())
+                    ->GetSchema()
+                    ->AsTableSchema();
+                ValidateIndexSchema(
+                    index->GetKind(),
+                    newTableSchema,
+                    indexTableSchema,
+                    index->Predicate(),
+                    index->EvaluatedColumnsSchema(),
+                    index->UnfoldedColumn());
             }
         }
 

@@ -21,9 +21,9 @@ struct INbdChunkHandler
 
     virtual TFuture<void> Destroy() = 0;
 
-    virtual TFuture<NChunkClient::TBlock> Read(i64 offset, i64 length) = 0;
+    virtual TFuture<NChunkClient::TBlock> Read(i64 offset, i64 length, ui64 cookie) = 0;
 
-    virtual TFuture<NIO::TIOCounters> Write(i64 offset, const NChunkClient::TBlock& block) = 0;
+    virtual TFuture<NIO::TIOCounters> Write(i64 offset, const NChunkClient::TBlock& block, ui64 cookie) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(INbdChunkHandler)

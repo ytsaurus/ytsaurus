@@ -545,10 +545,12 @@ func (h *streamHandler) ProcessTaskQueue(ctx context.Context) {
 				break
 			} else {
 				level := slog.LevelWarn
-				if retry > 3 {
+				if backoff == maxBackoff {
 					level = slog.LevelError
 				}
-				h.logger.Log(context.Background(), level, "Error creating pipeline", "error", err)
+				h.logger.Log(context.Background(), level, "Error creating pipeline", "error", err,
+					slog.Duration("backoff", backoff), slog.Int("retry", retry),
+				)
 
 				time.Sleep(backoff)
 				backoff *= 2

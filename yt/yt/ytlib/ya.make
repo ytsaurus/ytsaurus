@@ -753,6 +753,7 @@ PEERDIR(
     yt/yt/client
     yt/yt/client/logging
     yt/yt/library/formats
+    yt/yt/library/query/base
     yt/yt/library/query/engine_api
     yt/yt/library/query/row_comparer_api
     yt/yt/library/query/secondary_index

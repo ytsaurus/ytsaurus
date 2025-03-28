@@ -57,12 +57,12 @@ public:
     std::map<i64, TSharedMutableRef> ReadBlocks(
         std::map<i64, TSharedMutableRef>&& blocks,
         bool fillEmptyBlocksWithZeros,
-        TGuid readId)
+        const TReadOptions& options)
     {
-        YT_LOG_DEBUG("Start reading blocks (Blocks: %v, FillEmptyBlocksWithZeros: %v, ReadId: %v)",
+        YT_LOG_DEBUG("Start reading blocks (Blocks: %v, FillEmptyBlocksWithZeros: %v, Cookie: %v)",
             blocks.size(),
             fillEmptyBlocksWithZeros,
-            readId);
+            options.Cookie);
 
         // First try to get blocks from the cache.
         std::map<i64, TSharedMutableRef> blocksToRead;
@@ -80,9 +80,9 @@ public:
             TSharedRange<TUnversionedRow> rows;
             if (blocksToRead.begin()->first == blocksToRead.rbegin()->first + std::ssize(blocksToRead) - 1) {
                 // The range is contiguous.
-                rows = SelectRows(blocksToRead, readId);
+                rows = SelectRows(blocksToRead, options.Cookie);
             } else {
-                rows = LookupRows(blocksToRead, readId);
+                rows = LookupRows(blocksToRead, options.Cookie);
             }
 
             for (auto row : rows) {
@@ -104,10 +104,10 @@ public:
             }
         }
 
-        YT_LOG_DEBUG("Finish reading blocks (Blocks: %v, FillEmptyBlocksWithZeros: %v, ReadId: %v)",
+        YT_LOG_DEBUG("Finish reading blocks (Blocks: %v, FillEmptyBlocksWithZeros: %v, Cookie: %v)",
             blocks.size(),
             fillEmptyBlocksWithZeros,
-            readId);
+            options.Cookie);
 
         return std::move(blocks);
     }
@@ -115,12 +115,12 @@ public:
     void WriteBlocks(
         std::map<i64, TSharedMutableRef>&& blocks,
         bool flush,
-        TGuid writeId)
+        const TWriteOptions& options)
     {
-        YT_LOG_DEBUG("Start writing blocks (Blocks: %v, Flush: %v, WriteId: %v)",
+        YT_LOG_DEBUG("Start writing blocks (Blocks: %v, Flush: %v, Cookie: %v)",
             blocks.size(),
             flush,
-            writeId);
+            options.Cookie);
 
         for (auto& [blockId, blockPayload] : blocks) {
             BlockCache_[blockId] = blockPayload;
@@ -128,22 +128,22 @@ public:
         }
 
         if (!flush) {
-            YT_LOG_DEBUG("Finish writing blocks (Blocks: %v, Flush: %v, WriteId: %v)",
+            YT_LOG_DEBUG("Finish writing blocks (Blocks: %v, Flush: %v, Cookie: %v)",
                 blocks.size(),
                 flush,
-                writeId);
+                options.Cookie);
             return;
         }
 
-        YT_LOG_DEBUG("Starting tablet transaction (WriteId: %v)",
-            writeId);
+        YT_LOG_DEBUG("Starting tablet transaction (Cookie: %v)",
+            options.Cookie);
 
         auto transaction = WaitFor(Client_->StartTransaction(ETransactionType::Tablet))
             .ValueOrThrow();
 
-        YT_LOG_DEBUG("Started tablet transaction (TransactionId: %v, WriteId: %v)",
+        YT_LOG_DEBUG("Started tablet transaction (TransactionId: %v, Cookie: %v)",
             transaction->GetId(),
-            writeId);
+            options.Cookie);
 
         RowBuffer_->Clear();
         std::vector<TUnversionedRow> rows;
@@ -160,24 +160,24 @@ public:
 
         RowBuffer_->Clear();
 
-        YT_LOG_DEBUG("Start committing tablet transaction (TransactionId: %v, WriteId: %v)",
+        YT_LOG_DEBUG("Start committing tablet transaction (TransactionId: %v, Cookie: %v)",
             transaction->GetId(),
-            writeId);
+            options.Cookie);
 
         WaitFor(transaction->Commit())
             .ValueOrThrow();
 
-        YT_LOG_DEBUG("Finish committing tablet transaction (WriteId: %v)",
-            writeId);
+        YT_LOG_DEBUG("Finish committing tablet transaction (Cookie: %v)",
+            options.Cookie);
 
         for (auto& [blockId, _] : blocks) {
             DirtyBlocks_.erase(blockId);
         }
 
-        YT_LOG_DEBUG("Finish writing blocks (Blocks: %v, Flush: %v, WriteId: %v)",
+        YT_LOG_DEBUG("Finish writing blocks (Blocks: %v, Flush: %v, Cookie: %v)",
             blocks.size(),
             flush,
-            writeId);
+            options.Cookie);
     }
 
     TFuture<void> FlushDirtyBlocks()
@@ -193,7 +193,7 @@ public:
                 dirtyBlocks.emplace(blockId, it->second);
             }
 
-            WriteBlocks(std::move(dirtyBlocks), true /*flush*/, TGuid::Create());
+            WriteBlocks(std::move(dirtyBlocks), true /*flush*/, {.Cookie = 0} /*options*/);
         }
 
         return VoidFuture;
@@ -216,14 +216,14 @@ private:
     std::unordered_set<i64> DirtyBlocks_;
 
 private:
-    TSharedRange<TUnversionedRow> SelectRows(const std::map<i64, TSharedMutableRef>& blocksToRead, TGuid readId)
+    TSharedRange<TUnversionedRow> SelectRows(const std::map<i64, TSharedMutableRef>& blocksToRead, ui64 cookie)
     {
         YT_VERIFY(!blocksToRead.empty());
         YT_VERIFY(blocksToRead.begin()->first == blocksToRead.rbegin()->first + std::ssize(blocksToRead) - 1);
 
-        YT_LOG_DEBUG("Start select (Blocks: %v, ReadId: %v)",
+        YT_LOG_DEBUG("Start select (Blocks: %v, Cookie: %v)",
             blocksToRead.size(),
-            readId);
+            cookie);
 
         const auto query = Sprintf("* FROM [%s] WHERE device_id = %ld AND block_id >= %ld AND block_id <= %ld",
             DeviceConfig_->TablePath.c_str(),
@@ -235,14 +235,14 @@ private:
             .ValueOrThrow()
             .Rowset->GetRows();
 
-        YT_LOG_DEBUG("Finish select (Blocks: %v, ReadId: %v)",
+        YT_LOG_DEBUG("Finish select (Blocks: %v, Cookie: %v)",
             rows.size(),
-            readId);
+            cookie);
 
         return rows;
     }
 
-    TSharedRange<TUnversionedRow> LookupRows(const std::map<i64, TSharedMutableRef>& blocksToRead, TGuid readId)
+    TSharedRange<TUnversionedRow> LookupRows(const std::map<i64, TSharedMutableRef>& blocksToRead, ui64 cookie)
     {
         YT_VERIFY(!blocksToRead.empty());
 
@@ -257,9 +257,9 @@ private:
             keys.push_back(RowBuffer_->CaptureRow(builder.GetRow()));
         }
 
-        YT_LOG_DEBUG("Start lookup (Blocks: %v, ReadId: %v)",
+        YT_LOG_DEBUG("Start lookup (Blocks: %v, Cookie: %v)",
             keys.size(),
-            readId);
+            cookie);
 
         auto rows = WaitFor(Client_->LookupRows(DeviceConfig_->TablePath, NameTable_, MakeSharedRange(std::move(keys), MakeStrong(this))))
             .ValueOrThrow()
@@ -267,9 +267,9 @@ private:
 
         RowBuffer_->Clear();
 
-        YT_LOG_DEBUG("Finish lookup (Blocks: %v, ReadId: %v)",
+        YT_LOG_DEBUG("Finish lookup (Blocks: %v, Cookie: %v)",
             rows.size(),
-            readId);
+            cookie);
 
         return rows;
     }
@@ -318,25 +318,24 @@ public:
 
     virtual TFuture<TSharedRef> Read(
         i64 offset,
-        i64 length) override
+        i64 length,
+        const TReadOptions& options) override
     {
-        auto readId = TGuid::Create();
-
-        YT_LOG_DEBUG("Start read (Offset: %v, Length: %v, ReadId: %v)",
+        YT_LOG_DEBUG("Start read (Offset: %v, Length: %v, Cookie: %v)",
             offset,
             length,
-            readId);
+            options.Cookie);
 
         if (length == 0) {
-            YT_LOG_DEBUG("Finish read (Offset: %v, Length: %v, ReadId: %v)",
+            YT_LOG_DEBUG("Finish read (Offset: %v, Length: %v, Cookie: %v)",
                 offset,
                 length,
-                readId);
+                options.Cookie);
             return MakeFuture<TSharedRef>({});
         }
 
         auto blockIds = CalcRangeBlockIds(offset, length);
-        auto blocks = BlockCache_->ReadBlocks(std::move(blockIds), true /*fillEmptyBlocksWithZeros*/, readId);
+        auto blocks = BlockCache_->ReadBlocks(std::move(blockIds), true /*fillEmptyBlocksWithZeros*/, options);
 
         std::vector<TSharedRef> refs;
         refs.reserve(blocks.size());
@@ -363,9 +362,9 @@ public:
         // Merge refs into single ref.
         auto result = MergeRefsToRef<TDynamicTableBlockDeviceTag>(refs);
 
-        YT_LOG_DEBUG("Finish read (Size: %v, ReadId: %v)",
+        YT_LOG_DEBUG("Finish read (Size: %v, Cookie: %v)",
             result.size(),
-            readId);
+            options.Cookie);
 
         return MakeFuture<TSharedRef>(std::move(result));
     }
@@ -376,33 +375,32 @@ public:
         const TWriteOptions& options) override
     {
         i64 length = data.size();
-        auto writeId = TGuid::Create();
 
-        YT_LOG_DEBUG("Start write (Offset: %v, Length: %v, Flush: %v, WriteId: %v)",
+        YT_LOG_DEBUG("Start write (Offset: %v, Length: %v, Flush: %v, Cookie: %v)",
             offset,
             length,
             options.Flush,
-            writeId);
+            options.Cookie);
 
         if (length == 0) {
-            YT_LOG_DEBUG("Finish write (Offset: %v, Length: %v, Flush: %v, WriteId: %v)",
+            YT_LOG_DEBUG("Finish write (Offset: %v, Length: %v, Flush: %v, Cookie: %v)",
                 offset,
                 length,
                 options.Flush,
-                writeId);
+                options.Cookie);
 
             return VoidFuture;
         }
 
         auto blockIds = CalcRangeBlockIds(offset, length);
-        auto blocks = PrepareBlocksForWriting(std::move(blockIds), data, offset, writeId);
-        BlockCache_->WriteBlocks(std::move(blocks), options.Flush, writeId);
+        auto blocks = PrepareBlocksForWriting(std::move(blockIds), data, offset, options);
+        BlockCache_->WriteBlocks(std::move(blocks), options.Flush, options);
 
-        YT_LOG_DEBUG("Finish write (Offset: %v, Length: %v, Flush: %v, WriteId: %v)",
+        YT_LOG_DEBUG("Finish write (Offset: %v, Length: %v, Flush: %v, Cookie: %v)",
             offset,
             length,
             options.Flush,
-            writeId);
+            options.Cookie);
 
         return VoidFuture;
     }
@@ -456,7 +454,7 @@ public:
 
         // Initialize device and block sizes.
         i64 deviceSize = -1, blockSize = -1;
-        auto blocks = BlockCache_->ReadBlocks({{DeviceSizeBlockId, {}}, {BlockSizeBlockId, {}}}, false /*fillEmptyBlocksWithZeros*/, TGuid::Create());
+        auto blocks = BlockCache_->ReadBlocks({{DeviceSizeBlockId, {}}, {BlockSizeBlockId, {}}}, false /*fillEmptyBlocksWithZeros*/, {.Cookie = 0} /*options*/);
         for (auto& [blockId, blockPayload]: blocks) {
             YT_VERIFY(blockId == DeviceSizeBlockId || blockId == BlockSizeBlockId);
 
@@ -483,7 +481,7 @@ public:
 
             blocks[DeviceSizeBlockId] = TSharedMutableRef::MakeCopy<TDynamicTableBlockDeviceTag>(TSharedRef::FromString(ToString(DeviceConfig_->Size)));
             blocks[BlockSizeBlockId] = TSharedMutableRef::MakeCopy<TDynamicTableBlockDeviceTag>(TSharedRef::FromString(ToString(DeviceConfig_->BlockSize)));
-            BlockCache_->WriteBlocks(std::move(blocks), true /*flush*/, TGuid::Create());
+            BlockCache_->WriteBlocks(std::move(blocks), true /*flush*/, {.Cookie = 0} /*options*/);
 
             YT_LOG_INFO("Finish initialization of dynamic table block device (TablePath: %v)",
                 DeviceConfig_->TablePath);
@@ -547,11 +545,11 @@ private:
         return blockIds;
     }
 
-    std::map<i64, TSharedMutableRef> PrepareBlocksForWriting(std::map<i64, TSharedMutableRef>&& blocks, const TSharedRef& data, i64 offset, TGuid writeId)
+    std::map<i64, TSharedMutableRef> PrepareBlocksForWriting(std::map<i64, TSharedMutableRef>&& blocks, const TSharedRef& data, i64 offset, const TWriteOptions& options)
     {
-        YT_LOG_DEBUG("Start preparing blocks for writing (Blocks: %v, WriteId: %v)",
+        YT_LOG_DEBUG("Start preparing blocks for writing (Blocks: %v, Cookie: %v)",
             blocks.size(),
-            writeId);
+            options.Cookie);
 
         YT_VERIFY(!blocks.empty());
         YT_VERIFY(!data.empty());
@@ -576,7 +574,7 @@ private:
 
         // Read blocks that we are going to overwrite.
         if (!readBlockIds.empty()) {
-            auto readBlocks = BlockCache_->ReadBlocks(std::move(readBlockIds), true /*fillEmptyBlocksWithZeros*/, writeId);
+            auto readBlocks = BlockCache_->ReadBlocks(std::move(readBlockIds), true /*fillEmptyBlocksWithZeros*/, {.Cookie = options.Cookie} /*options*/);
             for (auto& [blockId, blockPayload] : readBlocks) {
                 YT_VERIFY(blocks.contains(blockId));
                 blocks[blockId] = blockPayload;
@@ -626,9 +624,9 @@ private:
         YT_VERIFY(length == 0);
         YT_VERIFY(dataOffset == std::ssize(data));
 
-        YT_LOG_DEBUG("Finish preparing blocks for writing (Blocks: %v, WriteId: %v)",
+        YT_LOG_DEBUG("Finish preparing blocks for writing (Blocks: %v, Cookie: %v)",
             blocks.size(),
-            writeId);
+            options.Cookie);
 
         return std::move(blocks);
     }

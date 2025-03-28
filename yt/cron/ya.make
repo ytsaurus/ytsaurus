@@ -1,5 +1,6 @@
 RECURSE(
     clear_tmp
+    prune_offline_servers
 )
 
 IF (NOT OPENSOURCE)

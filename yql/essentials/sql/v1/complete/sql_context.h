@@ -2,6 +2,8 @@
 
 #include "sql_complete.h"
 
+#include <yql/essentials/sql/v1/lexer/lexer.h>
+
 #include <util/generic/string.h>
 
 namespace NSQLComplete {
@@ -19,6 +21,6 @@ namespace NSQLComplete {
         virtual ~ISqlContextInference() = default;
     };
 
-    ISqlContextInference::TPtr MakeSqlContextInference();
+    ISqlContextInference::TPtr MakeSqlContextInference(TLexerSupplier lexer);
 
 } // namespace NSQLComplete
