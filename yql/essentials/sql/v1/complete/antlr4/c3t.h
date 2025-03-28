@@ -70,8 +70,9 @@ namespace NSQLComplete {
             for (const auto& [token, _] : candidates.tokens) {
                 converted.Tokens.emplace_back(token);
             }
-            for (const auto& [rule, _] : candidates.rules) {
-                converted.Rules.emplace_back(rule);
+            for (auto& [rule, data] : candidates.rules) {
+                converted.Rules.emplace_back(rule, std::move(data.ruleList));
+                converted.Rules.back().ParserCallStack.emplace_back(rule);
             }
             return converted;
         }

@@ -16,6 +16,7 @@ namespace NSQLComplete {
 
     struct TMatchedRule {
         TRuleId Index;
+        TParserCallStack ParserCallStack;
     };
 
     struct TC3Candidates {
