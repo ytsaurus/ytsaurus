@@ -1,10 +1,11 @@
 #pragma once
 
-#include "sql_complete.h"
+#include <yql/essentials/sql/v1/complete/sql_complete.h>
 
 #include <yql/essentials/sql/v1/lexer/lexer.h>
 
 #include <util/generic/string.h>
+#include <util/generic/vector.h>
 
 namespace NSQLComplete {
 

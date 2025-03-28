@@ -1,9 +1,8 @@
 #include "sql_complete.h"
 
-#include "sql_context.h"
-
 #include <yql/essentials/sql/v1/complete/text/word.h>
 #include <yql/essentials/sql/v1/complete/name/static/name_service.h>
+#include <yql/essentials/sql/v1/complete/syntax/sql_context.h>
 
 // FIXME(YQL-19747): unwanted dependency on a lexer implementation
 #include <yql/essentials/sql/v1/lexer/antlr4_pure/lexer.h>
