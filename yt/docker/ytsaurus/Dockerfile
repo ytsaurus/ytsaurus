@@ -106,7 +106,8 @@ FROM base AS build-ytsaurus-python-binaries
 
 ARG PROTOC_VERSION="3.20.1"
 
-RUN curl -sL -o protoc.zip https://github.com/protocolbuffers/protobuf/releases/download/v${PROTOC_VERSION}/protoc-${PROTOC_VERSION}-linux-x86_64.zip \
+RUN PROTOC_ARCH=$(uname -m | sed -e 's/aarch64/aarch_64/') \
+    && curl -sL -o protoc.zip https://github.com/protocolbuffers/protobuf/releases/download/v${PROTOC_VERSION}/protoc-${PROTOC_VERSION}-linux-${PROTOC_ARCH}.zip \
     && unzip protoc.zip -d /usr/local \
     && rm protoc.zip
 

@@ -119,7 +119,7 @@ for package in ${packages[@]}; do
         python3 setup.py bdist_wheel --py-limited-api cp34 --dist-dir ${dist_dir}
         if [[ ${apply_auditwheel} == "true" ]]; then
             for wheel in ${dist_dir}/${package_undescored}*.whl; do
-                auditwheel repair "$wheel" -w "${dist_dir}" --plat manylinux2014_x86_64
+                auditwheel repair "$wheel" -w "${dist_dir}" --plat "manylinux2014_$(uname -m)"
                 # Remove original wheel.
                 rm "$wheel"
             done
