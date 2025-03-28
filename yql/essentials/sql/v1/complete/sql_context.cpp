@@ -1,7 +1,10 @@
 #include "sql_context.h"
 
-#include "c3_engine.h"
+#include "sql_antlr4.h"
 #include "sql_syntax.h"
+
+#include <yql/essentials/sql/v1/complete/antlr4/c3i.h>
+#include <yql/essentials/sql/v1/complete/antlr4/c3t.h>
 
 #include <yql/essentials/core/issue/yql_issue.h>
 
