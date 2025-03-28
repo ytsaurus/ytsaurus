@@ -2,24 +2,12 @@
 
 #include <yql/essentials/sql/v1/format/sql_format.h>
 
-#include <yql/essentials/parser/antlr_ast/gen/v1_antlr4/SQLv1Antlr4Lexer.h>
-#include <yql/essentials/parser/antlr_ast/gen/v1_antlr4/SQLv1Antlr4Parser.h>
-#include <yql/essentials/parser/antlr_ast/gen/v1_ansi_antlr4/SQLv1Antlr4Lexer.h>
-#include <yql/essentials/parser/antlr_ast/gen/v1_ansi_antlr4/SQLv1Antlr4Parser.h>
-
-#define RULE_(mode, name) NALA##mode##Antlr4::SQLv1Antlr4Parser::Rule##name
-
-#define RULE(name) RULE_(Default, name)
-
-#define STATIC_ASSERT_RULE_ID_MODE_INDEPENDENT(name) \
-    static_assert(RULE_(Default, name) == RULE_(Ansi, name))
-
 namespace NSQLComplete {
 
     class TSqlGrammar: public ISqlGrammar {
     public:
-        TSqlGrammar(bool isAnsiLexer)
-            : Vocabulary(GetVocabulary(isAnsiLexer))
+        TSqlGrammar()
+            : Vocabulary(GetVocabularyP())
             , AllTokens(ComputeAllTokens())
             , KeywordTokens(ComputeKeywordTokens())
         {
@@ -51,17 +39,6 @@ namespace NSQLComplete {
                 RULE(Keyword_compat),
             };
 
-            STATIC_ASSERT_RULE_ID_MODE_INDEPENDENT(Keyword);
-            STATIC_ASSERT_RULE_ID_MODE_INDEPENDENT(Keyword_expr_uncompat);
-            STATIC_ASSERT_RULE_ID_MODE_INDEPENDENT(Keyword_table_uncompat);
-            STATIC_ASSERT_RULE_ID_MODE_INDEPENDENT(Keyword_select_uncompat);
-            STATIC_ASSERT_RULE_ID_MODE_INDEPENDENT(Keyword_alter_uncompat);
-            STATIC_ASSERT_RULE_ID_MODE_INDEPENDENT(Keyword_in_uncompat);
-            STATIC_ASSERT_RULE_ID_MODE_INDEPENDENT(Keyword_window_uncompat);
-            STATIC_ASSERT_RULE_ID_MODE_INDEPENDENT(Keyword_hint_uncompat);
-            STATIC_ASSERT_RULE_ID_MODE_INDEPENDENT(Keyword_as_compat);
-            STATIC_ASSERT_RULE_ID_MODE_INDEPENDENT(Keyword_compat);
-
             return KeywordRules;
         }
 
@@ -70,16 +47,11 @@ namespace NSQLComplete {
                 RULE(Type_name_simple),
             };
 
-            STATIC_ASSERT_RULE_ID_MODE_INDEPENDENT(Type_name_simple);
-
             return TypeNameRules;
         }
 
     private:
-        static const antlr4::dfa::Vocabulary* GetVocabulary(bool isAnsiLexer) {
-            if (isAnsiLexer) { // Taking a reference is okay as vocabulary storage is static
-                return &NALAAnsiAntlr4::SQLv1Antlr4Parser(nullptr).getVocabulary();
-            }
+        static const antlr4::dfa::Vocabulary* GetVocabularyP() {
             return &NALADefaultAntlr4::SQLv1Antlr4Parser(nullptr).getVocabulary();
         }
 
@@ -113,13 +85,8 @@ namespace NSQLComplete {
         const std::unordered_set<TTokenId> KeywordTokens;
     };
 
-    const ISqlGrammar& GetSqlGrammar(bool isAnsiLexer) {
-        const static TSqlGrammar DefaultSqlGrammar(/* isAnsiLexer = */ false);
-        const static TSqlGrammar AnsiSqlGrammar(/* isAnsiLexer = */ true);
-
-        if (isAnsiLexer) {
-            return AnsiSqlGrammar;
-        }
+    const ISqlGrammar& GetSqlGrammar() {
+        const static TSqlGrammar DefaultSqlGrammar{};
         return DefaultSqlGrammar;
     }
 

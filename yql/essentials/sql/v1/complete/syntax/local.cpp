@@ -39,7 +39,7 @@ namespace NSQLComplete {
 
     public:
         explicit TSpecializedLocalSyntaxAnalysis(TLexerSupplier lexer)
-            : Grammar(&GetSqlGrammar(IsAnsiLexer))
+            : Grammar(&GetSqlGrammar())
             , Lexer_(lexer(/* ansi = */ IsAnsiLexer))
             , C3(ComputeC3Config())
         {

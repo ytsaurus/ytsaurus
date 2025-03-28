@@ -9,6 +9,14 @@
 
 #include <unordered_set>
 
+#ifdef TOKEN_QUERY // Conflict with the winnt.h
+#undef TOKEN_QUERY
+#endif
+#include <yql/essentials/parser/antlr_ast/gen/v1_antlr4/SQLv1Antlr4Parser.h>
+
+#define RULE_(mode, name) NALA##mode##Antlr4::SQLv1Antlr4Parser::Rule##name
+#define RULE(name) RULE_(Default, name)
+
 namespace NSQLComplete {    
 
     class ISqlGrammar {
@@ -21,6 +29,6 @@ namespace NSQLComplete {
         virtual ~ISqlGrammar() = default;
     };
 
-    const ISqlGrammar& GetSqlGrammar(bool isAnsiLexer);
+    const ISqlGrammar& GetSqlGrammar();
 
 } // namespace NSQLComplete
