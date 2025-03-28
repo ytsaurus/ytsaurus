@@ -141,6 +141,10 @@ namespace NMonitoring {
             Collector_->Collect(value);
         }
 
+        void Collect(double value) {
+            Collector_->Collect(value);
+        }
+
         void Collect(i64 value, ui64 count) {
             Collector_->Collect(value, count);
         }
