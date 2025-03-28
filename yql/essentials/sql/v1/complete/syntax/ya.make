@@ -1,9 +1,9 @@
 LIBRARY()
 
 SRCS(
+    ansi.cpp
+    local.cpp
     sql_antlr4.cpp
-    sql_context.cpp
-    sql_syntax.cpp
 )
 
 ADDINCL(

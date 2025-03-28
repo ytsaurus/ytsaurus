@@ -2,7 +2,7 @@
 
 #include <yql/essentials/sql/v1/complete/text/word.h>
 #include <yql/essentials/sql/v1/complete/name/static/name_service.h>
-#include <yql/essentials/sql/v1/complete/syntax/sql_context.h>
+#include <yql/essentials/sql/v1/complete/syntax/local.h>
 
 // FIXME(YQL-19747): unwanted dependency on a lexer implementation
 #include <yql/essentials/sql/v1/lexer/antlr4_pure/lexer.h>
@@ -21,7 +21,7 @@ namespace NSQLComplete {
             ISqlCompletionEngine::TConfiguration configuration
         )
             : Configuration(std::move(configuration))
-            , ContextInference(MakeSqlContextInference(lexer))
+            , SyntaxAnalysis(MakeLocalSyntaxAnalysis(lexer))
             , Names(std::move(names))
         {
         }
@@ -30,7 +30,7 @@ namespace NSQLComplete {
             auto prefix = input.Text.Head(input.CursorPosition);
             auto completedToken = GetCompletedToken(prefix);
 
-            auto context = ContextInference->Analyze(input);
+            auto context = SyntaxAnalysis->Analyze(input);
 
             TVector<TCandidate> candidates;
             EnrichWithKeywords(candidates, std::move(context.Keywords), completedToken);
@@ -66,7 +66,7 @@ namespace NSQLComplete {
 
         void EnrichWithNames(
             TVector<TCandidate>& candidates,
-            const TCompletionContext& context,
+            const TLocalSyntaxContext& context,
             const TCompletedToken& prefix) {
             if (candidates.size() == Configuration.Limit) {
                 return;
@@ -111,7 +111,7 @@ namespace NSQLComplete {
         }
 
         TConfiguration Configuration;
-        ISqlContextInference::TPtr ContextInference;
+        ILocalSyntaxAnalysis::TPtr SyntaxAnalysis;
         INameService::TPtr Names;
     };
 
