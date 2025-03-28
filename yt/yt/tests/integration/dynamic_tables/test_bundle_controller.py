@@ -1,10 +1,9 @@
 from yt_env_setup import YTEnvSetup
 import yt.yson as yson
 import yt.packages.requests as requests
-from yt_commands import authors, ls, exists, set, get, create, create_tablet_cell_bundle, create_area
+from yt_commands import authors, ls, exists, set, get, create, create_tablet_cell_bundle, create_area, execute_command
 
 import time
-import itertools
 from typing import Tuple
 
 ##################################################################
@@ -66,8 +65,7 @@ class TestBundleController(YTEnvSetup):
         rsp = requests.post(self._set_bundle_config_url(), headers=headers)
         rsp.raise_for_status()
 
-    def _fill_default_bundle(self):
-        set("//sys/tablet_cell_bundles/default/@zone", "zone_default")
+    def _initialize_zone_default(self):
         create("map_node", "//sys/bundle_controller/controller/zones/zone_default", recursive=True, force=True)
         set("//sys/bundle_controller/controller/zones/zone_default/@rpc_proxy_sizes", {
             "medium": {
@@ -181,6 +179,32 @@ class TestBundleController(YTEnvSetup):
             }
         }, recursive=True)
 
+    def _set_bundle_system_quotas_account_for_bundle(self, bundle):
+        account_name = f"{bundle}_bundle_system_quotas"
+        execute_command(
+            "create",
+            {
+                "type": "account",
+                "attributes": {
+                    "name": account_name,
+                    "parent_name": "bundle_system_quotas",
+                },
+            },
+        )
+        set(
+            f"//sys/tablet_cell_bundles/{bundle}/@options/changelog_account",
+            account_name,
+        )
+        set(
+            f"//sys/tablet_cell_bundles/{bundle}/@options/snapshot_account",
+            account_name,
+        )
+
+    def _fill_default_bundle(self):
+        self._initialize_zone_default()
+
+        set("//sys/tablet_cell_bundles/default/@zone", "zone_default")
+
         set("//sys/tablet_cell_bundles/default/@bundle_controller_target_config", {})
         set("//sys/tablet_cell_bundles/default/@bundle_controller_target_config/cpu_limits", {
             "lookup_thread_pool_size": 16,
@@ -197,7 +221,7 @@ class TestBundleController(YTEnvSetup):
             "uncompressed_block_cache": 17179869184,
             "versioned_chunk_meta": 10737418240})
 
-        set("//sys/tablet_cell_bundles/default/@bundle_controller_target_config/rpc_proxy_count", 6)
+        set("//sys/tablet_cell_bundles/default/@bundle_controller_target_config/rpc_proxy_count", 1)
         set("//sys/tablet_cell_bundles/default/@bundle_controller_target_config/tablet_node_count", 1)
 
         set("//sys/tablet_cell_bundles/default/@bundle_controller_target_config/rpc_proxy_resource_guarantee", {
@@ -219,6 +243,8 @@ class TestBundleController(YTEnvSetup):
             "network": 5*1024*1024*1024,
             "memory": 750323855360})
 
+        self._set_bundle_system_quotas_account_for_bundle("default")
+
     def _create_bundle(self, bundle, enable_bundle_controller=True, zone="zone_default", enable_instance_allocation=False, bundle_controller_target_config={}, **kwargs):
         user_attributes = {
             "skip_spare_nodes_monitoring": True,
@@ -235,6 +261,7 @@ class TestBundleController(YTEnvSetup):
             **user_attributes,
             **kwargs,
         })
+        self._set_bundle_system_quotas_account_for_bundle(bundle)
 
     def _get_cypress_config(self, bundle_name):
         config = {}
@@ -291,7 +318,7 @@ class TestBundleController(YTEnvSetup):
         assert expected["bundle_config"]["rpc_proxy_resource_guarantee"] == current["bundle_config"]["rpc_proxy_resource_guarantee"]
         assert expected["bundle_config"]["tablet_node_resource_guarantee"] == current["bundle_config"]["tablet_node_resource_guarantee"]
 
-    def _wait_for_bundle_controller_iterations(self, iterations=(1, 0), start: Tuple[int, int] | None = None, sleep_duration=0.1):
+    def _wait_for_bundle_controller_iterations(self, iterations=(1, 0), start: Tuple[int, int] | None = None, sleep_duration=0.1, fail_on_error=False):
         """
         Waits for `iterations` to be observed.
         """
@@ -302,6 +329,8 @@ class TestBundleController(YTEnvSetup):
             current = self._get_bundle_controller_iteration_count()
             diff = tuple(max(c - s, 0) for c, s in zip(current, start))
             iterations_observed = tuple(io + d for io, d in zip(iterations_observed, diff))
+            if fail_on_error and current[1] > start[1]:
+                raise Exception("Bundle controller iterations failed")
             start = current
             if all(actual >= need for actual, need in zip(iterations_observed, iterations)):
                 break
@@ -317,6 +346,21 @@ class TestBundleController(YTEnvSetup):
         successful = iteration_count["successful"]
         failed = iteration_count["failed"]
         return successful, failed
+
+    def _move_nodes_to_spare_bundle(self):
+        def get_node_config(bundle):
+            return {
+                "allocated": True,
+                "allocated_for_bundle": bundle,
+                "data_center": "default",
+                "nanny_service": "yt_local_is_not_a_service_service",
+                "resources": {},
+                "yp_cluster": "dev_vm_is_not_a_cluster_cluster",
+            }
+
+        nodes = ls("//sys/cluster_nodes")
+        for node in nodes:
+            set(f"//sys/cluster_nodes/{node}/@bundle_controller_annotations", get_node_config("spare"))
 
     @authors("grachevkirill")
     def test_bundle_controller_just_works(self):
@@ -620,21 +664,36 @@ class TestBundleController(YTEnvSetup):
         assert expected_config["resource_quota"] == config["resource_quota"]
 
     @authors("grachevkirill")
-    def test_bundle_controller_skips_faulty_bundles(self):
-        def get_node_config(bundle: str):
-            return {
-                "allocated": True,
-                "allocated_for_bundle": bundle,
-                "data_center": "default",
-                "nanny_service": "yt_local_is_not_a_service_service",
-                "resources": {},
-                "yp_cluster": "dev_vm_is_not_a_cluster_cluster",
-            }
+    def test_bundle_controller_skips_faulty_bundles_with_multiple_zones(self):
+        bundle = "chaplin"
 
+        self._move_nodes_to_spare_bundle()
+        self._fill_default_bundle()
+        self._create_bundle(bundle, bundle_controller_target_config={
+            "tablet_node_count": 1,
+            "cpu_limits": {
+                "write_thread_pool_size": 3,
+            },
+        })
+        self._wait_for_bundle_controller_iterations((5, 0))
+        bundle_id = get(f"//sys/tablet_cell_bundles/{bundle}/@id")
+        # Areas is a new mechanism for Chaos protocol. If a bundle has one area,
+        # backward compatible mechanism is used. Assigning more than one area to
+        # the bundle causes new mechanism (which is not handled by bundle
+        # controller), and bundle contorller fails due to unexpected absence
+        # node_tag_filter attribute.
+        create_area(f"{bundle}-area", cell_bundle_id=bundle_id)
+        self._wait_for_bundle_controller_iterations((2, 2))
+
+    @authors("grachevkirill")
+    def test_bundle_controller_skips_faulty_bundles_with_invalid_medium(self):
         BUNDLE = "chaplin"
         tablet_node_count = 1
         write_thread_pool_size = 3
 
+        self._wait_for_bundle_controller_iterations((2, 0))
+
+        self._move_nodes_to_spare_bundle()
         self._fill_default_bundle()
         self._create_bundle(BUNDLE, bundle_controller_target_config={
             "tablet_node_count": tablet_node_count,
@@ -642,20 +701,7 @@ class TestBundleController(YTEnvSetup):
                 "write_thread_pool_size": write_thread_pool_size,
             },
         })
-        nodes = ls("//sys/cluster_nodes")
-        print(nodes)
-        self._wait_for_bundle_controller_iterations()
-        assert len(nodes) > 1
-        data = list(zip(nodes, itertools.repeat("default")))
-        first_node, _ = data[0]
-        data[0] = (first_node, BUNDLE)
-        for (node, bundle_iter) in data:
-            set(f"//sys/cluster_nodes/{node}/@bundle_controller_annotations", get_node_config(bundle_iter))
-        bundle_id = get(f"//sys/tablet_cell_bundles/{BUNDLE}/@id")
-        # Areas is a new mechanism for Chaos protocol. If a bundle has one area,
-        # backward compatible mechanism is used. Assigning more than one area to
-        # the bundle causes new mechanism (which is not handled by bundle
-        # controller), and bundle contorller fails due to unexpected absence
-        # node_tag_filter attribute.
-        create_area(f"{BUNDLE}-area", cell_bundle_id=bundle_id)
-        self._wait_for_bundle_controller_iterations((2, 2))
+        self._wait_for_bundle_controller_iterations((5, 0), fail_on_error=True)
+        set(f"//sys/tablet_cell_bundles/{BUNDLE}/@options/snapshot_primary_medium", "invalid")
+        set(f"//sys/tablet_cell_bundles/{BUNDLE}/@options/changelog_pirmary_medium", "invalid")
+        self._wait_for_bundle_controller_iterations((3, 1))

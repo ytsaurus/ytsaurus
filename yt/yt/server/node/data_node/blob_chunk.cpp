@@ -519,6 +519,7 @@ void TBlobChunkBase::DoReadSession(
     session->FairShareSlot = fairShareSlotOrError.Value();
 
     session->LocationMemoryGuard = Location_->AcquireLocationMemory(
+        /*useLegacyUsedMemory*/ false,
         std::move(memoryGuardOrError.Value()),
         EIODirection::Read,
         session->Options.WorkloadDescriptor,

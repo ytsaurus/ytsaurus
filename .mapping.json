@@ -38,6 +38,7 @@
   "CONTRIBUTING.md":"yt/opensource/repos/ytsaurus/github_toplevel/CONTRIBUTING.md",
   "LICENSE":"yt/opensource/repos/ytsaurus/github_toplevel/LICENSE",
   "README.md":"yt/opensource/repos/ytsaurus/github_toplevel/README.md",
+  "ROADMAP.md":"yt/opensource/repos/ytsaurus/github_toplevel/ROADMAP.md",
   "SECURITY.md":"yt/opensource/repos/ytsaurus/github_toplevel/SECURITY.md",
   "build.gradle.kts":"",
   "build/CMakeLists.txt":"",

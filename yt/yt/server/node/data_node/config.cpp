@@ -105,6 +105,8 @@ void TChunkLocationConfig::ApplyDynamicInplace(const TChunkLocationDynamicConfig
 
     UpdateYsonStructField(CoalescedReadMaxGapSize, dynamicConfig.CoalescedReadMaxGapSize);
 
+    UpdateYsonStructField(LegacyWriteMemoryLimit, dynamicConfig.LegacyWriteMemoryLimit);
+
     UpdateYsonStructField(ReadMemoryLimit, dynamicConfig.ReadMemoryLimit);
 
     for (auto category : TEnumTraits<EWorkloadCategory>::GetDomainValues()) {
@@ -178,6 +180,8 @@ void TChunkLocationConfig::Register(TRegistrar registrar)
         .Default(false);
 
     registrar.Postprocessor([] (TThis* config) {
+        config->LegacyWriteMemoryLimit = config->WriteMemoryLimit;
+
         for (auto kind : TEnumTraits<EChunkLocationThrottlerKind>::GetDomainValues()) {
             if (!config->Throttlers[kind]) {
                 config->Throttlers[kind] = New<TRelativeThroughputThrottlerConfig>();
@@ -218,6 +222,10 @@ void TChunkLocationDynamicConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("session_count_limit", &TThis::SessionCountLimit)
         .Optional();
+
+    registrar.Postprocessor([] (TThis* config) {
+        config->LegacyWriteMemoryLimit = config->WriteMemoryLimit;
+    });
 }
 
 ////////////////////////////////////////////////////////////////////////////////

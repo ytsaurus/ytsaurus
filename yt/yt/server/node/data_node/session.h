@@ -6,6 +6,8 @@
 
 #include <yt/yt/server/lib/nbd/chunk_block_device.h>
 
+#include <yt/yt/server/node/data_node/location.h>
+
 #include <yt/yt/server/node/cluster_node/public.h>
 
 #include <yt/yt/ytlib/chunk_client/session_id.h>
@@ -27,6 +29,57 @@
 #include <optional>
 
 namespace NYT::NDataNode {
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TProbePutBlocksRequestSupplier
+    : public TRefCounted
+{
+public:
+    struct TRequest
+    {
+        i64 CumulativeBlockSize;
+        TWorkloadDescriptor WorkloadDescriptor;
+
+        std::strong_ordering operator<=>(const TRequest& other) const
+        {
+            return CumulativeBlockSize <=> other.CumulativeBlockSize;
+        }
+    };
+
+public:
+    explicit TProbePutBlocksRequestSupplier(TSessionId sessionId);
+
+    TSessionId GetSessionId() const;
+
+    void CancelRequests();
+    bool IsCanceled() const;
+
+    i64 GetCurrentApprovedMemory() const;
+    i64 GetMaxRequestedMemory() const;
+
+    std::optional<TRequest> DequeueMinRequest();
+    void ApproveRequest(TLocationMemoryGuard&& memoryGuard, TRequest request);
+
+    void PushRequest(TRequest request);
+
+    void ReleaseResourcesForPutBlocks(i64 memory);
+
+private:
+    const TSessionId SessionId_;
+
+    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, Lock_);
+    std::set<TRequest> Requests_;
+
+    bool Canceled_ = false;
+
+    i64 MaxRequestedMemory_ = 0;
+    i64 ApprovedMemory_ = 0;
+
+    TLocationMemoryGuard MemoryGuard_;
+};
+
+DEFINE_REFCOUNTED_TYPE(TProbePutBlocksRequestSupplier)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -109,6 +162,13 @@ struct ISession
         const NChunkClient::TRefCountedChunkMetaPtr& chunkMeta,
         std::optional<int> blockCount,
         bool truncateExtraBlocks) = 0;
+
+    //! Checks is probe put blocks should be used.
+    virtual bool ShouldUseProbePutBlocks() const = 0;
+    //! Prerequest memory for PutBlocks.
+    virtual void ProbePutBlocks(i64 cumulativeBlockSize) = 0;
+    virtual i64 GetApprovedCumulativeBlockSize() const = 0;
+    virtual i64 GetMaxRequestedCumulativeBlockSize() const = 0;
 
     //! Puts a contiguous range of blocks into the window.
     virtual TFuture<NIO::TIOCounters> PutBlocks(

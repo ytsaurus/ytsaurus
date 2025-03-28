@@ -8,7 +8,9 @@ from yt_env_setup import (
 from yt_commands import (
     authors, create_test_tables, print_debug, release_breakpoint, remove, wait, wait_breakpoint, with_breakpoint, create, ls, get,
     set, exists, update_op_parameters, get_job, get_allocation_id_from_job_id, update_controller_agent_config,
-    write_table, map, reduce, map_reduce, merge, erase, vanilla, run_sleeping_vanilla, run_test_vanilla, get_operation, raises_yt_error)
+    write_table, map, reduce, map_reduce, merge, erase, vanilla, run_sleeping_vanilla, run_test_vanilla, get_operation, raises_yt_error,
+    create_user,
+)
 
 from yt_helpers import profiler_factory
 
@@ -1460,3 +1462,59 @@ class TestEnableMultipleJobsOption(YTEnvSetup):
 
         release_breakpoint()
         op.track()
+
+
+##################################################################
+
+
+@pytest.mark.enabled_multidaemon
+class TestControllerLivesWithBannedUser(YTEnvSetup):
+    ENABLE_MULTIDAEMON = True
+    NUM_NODES = 1
+    NUM_SCHEDULERS = 1
+
+    @authors("coteeq")
+    def test_banned_user(self):
+        create_user("user")
+        create("table", "//tmp/table")
+
+        set("//tmp/table/@replication_factor", 1)
+        write_table("<append=%true>//tmp/table", [{"a": "b"}])
+        write_table("<append=%true>//tmp/table", [{"a": "d"}])
+
+        op = map(
+            track=False,
+            in_=["//tmp/table"],
+            out="//tmp/table",
+            mapper_command=with_breakpoint("BREAKPOINT; cat"),
+            spec={
+                "data_weight_per_map_job": 1,
+                "data_weight_per_job": 1,
+            },
+            authenticated_user="user",
+        )
+
+        job_id, = wait_breakpoint()
+        release_breakpoint(job_id=job_id)
+        wait_breakpoint()
+
+        assert op.get_state() == "running"
+
+        def get_incarnation():
+            return get(
+                f"//sys/controller_agents/instances/{op.get_controller_agent_address()}/orchid"
+                "/controller_agent/incarnation_id"
+            )
+
+        incarnation = get_incarnation()
+
+        set("//sys/users/user/@banned", True)
+
+        # NB: release breakpoint, so operation will try to complete.
+        release_breakpoint()
+        with raises_yt_error():
+            op.track()
+
+        # Assert no disconnections happened.
+        time.sleep(1)
+        assert incarnation == get_incarnation()

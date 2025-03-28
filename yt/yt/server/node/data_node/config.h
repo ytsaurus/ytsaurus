@@ -120,6 +120,10 @@ struct TChunkLocationConfig
 
     TEnumIndexedArray<EWorkloadCategory, std::optional<double>> FairShareWorkloadCategoryWeights;
 
+    //! Limit on the maximum memory used in location writes with legacy protocol without probing.
+    // TODO(vvshlyaga): Remove after rolling writer with probing on all nodes.
+    i64 LegacyWriteMemoryLimit;
+
     //! Limit on the maximum memory used of location reads.
     i64 ReadMemoryLimit;
 
@@ -158,6 +162,10 @@ struct TChunkLocationDynamicConfig
     std::optional<i64> CoalescedReadMaxGapSize;
 
     TEnumIndexedArray<EWorkloadCategory, std::optional<double>> FairShareWorkloadCategoryWeights;
+
+    //! Limit on the maximum memory used in location writes with legacy protocol without probing.
+    // TODO(vvshlyaga): Remove after rolling writer with probing on all nodes.
+    std::optional<i64> LegacyWriteMemoryLimit;
 
     //! Limit on the maximum memory used by location reads.
     std::optional<i64> ReadMemoryLimit;

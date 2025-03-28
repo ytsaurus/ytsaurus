@@ -796,8 +796,8 @@ std::tuple<TStoreLocationPtr, TLockedChunkGuard> TChunkStore::AcquireNewChunkLoc
         }
 
         auto memoryLimitFractionForStartingNewSessions = location->GetMemoryLimitFractionForStartingNewSessions();
-        auto usedMemory = location->GetUsedMemory(EIODirection::Write);
-        auto memoryLimit = location->GetWriteMemoryLimit() * memoryLimitFractionForStartingNewSessions;
+        auto usedMemory = location->GetUsedMemory(/*useLegacyUsedMemory*/ true, EIODirection::Write);
+        auto memoryLimit = location->GetLegacyWriteMemoryLimit() * memoryLimitFractionForStartingNewSessions;
         if (memoryLimitFractionForStartingNewSessions &&
             usedMemory > memoryLimit)
         {

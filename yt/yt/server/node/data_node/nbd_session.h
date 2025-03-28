@@ -70,6 +70,11 @@ struct TNbdSession
         std::optional<int> blockCount,
         bool truncateExtraBlocks) override;
 
+    bool ShouldUseProbePutBlocks() const override;
+    void ProbePutBlocks(i64 requestedCumulativeMemorySize) override;
+    i64 GetApprovedCumulativeBlockSize() const override;
+    i64 GetMaxRequestedCumulativeBlockSize() const override;
+
     TFuture<NIO::TIOCounters> PutBlocks(
         int startBlockIndex,
         std::vector<NChunkClient::TBlock> blocks,

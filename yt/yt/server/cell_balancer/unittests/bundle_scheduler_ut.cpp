@@ -2297,7 +2297,7 @@ TEST(TBundleSchedulerSimpleTest, CheckSystemAccountLimit)
         mutations.ChangedRootSystemAccountLimit);
 
     // Check nothing changed is limits are ok
-    input.SystemAccounts["default-bundle-account"]->ResourceLimits = NYTree::CloneYsonStruct(mutations.LiftedSystemAccountLimit["default-bundle-account"]);
+    input.SystemAccounts["default-bundle-account"]->ResourceLimits = NYTree::CloneYsonStruct(mutations.LiftedSystemAccountLimit["default-bundle-account"].Mutation);
     input.RootSystemAccount->ResourceLimits = NYTree::CloneYsonStruct(mutations.ChangedRootSystemAccountLimit);
     mutations = TSchedulerMutations{};
     ScheduleBundles(input, &mutations);
@@ -3241,7 +3241,7 @@ TEST_P(TBundleSchedulerTest, DeallocateAdoptedNodes)
 
     EXPECT_EQ(3 * GetDataCenterCount(), std::ssize(mutations.ChangedNodeUserTags));
     for (auto& [nodeName, tags] : mutations.ChangedNodeUserTags) {
-        EXPECT_EQ(0, std::ssize(tags));
+        EXPECT_EQ(0, std::ssize(tags.Mutation));
         const auto& nodeInfo = GetOrCrash(input.TabletNodes, nodeName);
         nodeInfo->UserTags = tags;
         EXPECT_TRUE(nodesToRemove.count(nodeName));
@@ -3397,7 +3397,7 @@ TEST_P(TProxyRoleManagement, TestBundleProxyRolesAssigned)
 
     THashMap<std::string, THashSet<std::string>> roleToProxies;
     for (const auto& [proxyName, role] : mutations.ChangedProxyRole) {
-        roleToProxies[role].insert(proxyName);
+        roleToProxies[role.Mutation].insert(proxyName);
         input.RpcProxies[proxyName]->Role = role;
     }
 
@@ -3433,7 +3433,7 @@ TEST_P(TProxyRoleManagement, TestBundleProxyCustomRolesAssigned)
 
     THashMap<std::string, THashSet<std::string>> roleToProxies;
     for (const auto& [proxyName, role] : mutations.ChangedProxyRole) {
-        roleToProxies[role].insert(proxyName);
+        roleToProxies[role.Mutation].insert(proxyName);
         input.RpcProxies[proxyName]->Role = role;
     }
 
@@ -4070,7 +4070,7 @@ TEST_P(TNodeTagsFilterManager, TestBundleNodeTagsAssigned)
     THashSet<std::string> newTabletNodes;
     for (const auto& [nodeName, tags] : mutations.ChangedNodeUserTags) {
         EXPECT_TRUE(mutations.ChangedDecommissionedFlag.at(nodeName));
-        EXPECT_TRUE(tags.find(bundleNodeTagFilter) != tags.end());
+        EXPECT_TRUE(tags.Mutation.find(bundleNodeTagFilter) != tags.Mutation.end());
 
         const auto& nodeInfo = GetOrCrash(input.TabletNodes, nodeName);
         nodeInfo->UserTags = tags;
@@ -4203,7 +4203,7 @@ TEST_P(TNodeTagsFilterManager, TestExtraBundleNodesReleasement)
     for (const auto& [nodeName, tags] : mutations.ChangedNodeUserTags) {
         const auto& nodeInfo = GetOrCrash(input.TabletNodes, nodeName);
         nodeInfo->UserTags = tags;
-        EXPECT_TRUE(tags.count(bundleNodeTagFilter) == 0);
+        EXPECT_TRUE(tags.Mutation.count(bundleNodeTagFilter) == 0);
         EXPECT_EQ(1u, releasingNodes.count(nodeName));
     }
 
@@ -4314,7 +4314,7 @@ TEST_P(TNodeTagsFilterManager, TestBundleNodesWithSpare)
 
     for (const auto& [nodeName, tags] : mutations.ChangedNodeUserTags) {
         EXPECT_TRUE(mutations.ChangedDecommissionedFlag.at(nodeName));
-        EXPECT_TRUE(tags.find(BundleNodeTagFilter) != tags.end());
+        EXPECT_TRUE(tags.Mutation.find(BundleNodeTagFilter) != tags.Mutation.end());
         EXPECT_TRUE(spareNodes.find(nodeName) != spareNodes.end());
         usedSpare.insert(nodeName);
 
@@ -4423,7 +4423,7 @@ TEST_P(TNodeTagsFilterManager, TestBundleNodesWithSpare)
 
     for (const auto& [nodeName, tags] : mutations.ChangedNodeUserTags) {
         const auto& nodeInfo = GetOrCrash(input.TabletNodes, nodeName);
-        nodeInfo->UserTags = tags;
+        nodeInfo->UserTags = tags.Mutation;
         EXPECT_EQ(1u, newNodes.count(nodeName));
         nodeInfo->Decommissioned = mutations.ChangedDecommissionedFlag.at(nodeName);
 
@@ -4493,7 +4493,7 @@ TEST_P(TNodeTagsFilterManager, TestBundleNodesWithSpare)
 
     for (auto& [nodeName, tags] : mutations.ChangedNodeUserTags) {
         EXPECT_TRUE(Contains(spareNodeToRelease, nodeName));
-        EXPECT_TRUE(tags.count(BundleNodeTagFilter) == 0);
+        EXPECT_TRUE(tags.Mutation.count(BundleNodeTagFilter) == 0);
         input.TabletNodes[nodeName]->UserTags = tags;
     }
 
@@ -4865,7 +4865,7 @@ TEST_P(TNodeTagsFilterManager, SpareNodesWentOfflineAfterAssigning)
     EXPECT_EQ(GetActiveDataCenterCount(), std::ssize(mutations.ChangedNodeUserTags));
 
     for (auto& [nodeName, tags] : mutations.ChangedNodeUserTags) {
-        input.TabletNodes[nodeName]->UserTags = tags;
+        input.TabletNodes[nodeName]->UserTags = tags.Mutation;
         input.TabletNodes[nodeName]->Decommissioned = mutations.ChangedDecommissionedFlag[nodeName];
 
         EXPECT_TRUE(usingSpareNode.count(nodeName) == 0);
@@ -4934,7 +4934,7 @@ TEST_P(TNodeTagsFilterManager, SpareNodesDecommissionedAfterAssigning)
 
     for (auto& [nodeName, tags] : mutations.ChangedNodeUserTags) {
         const auto& nodeInfo = GetOrCrash(input.TabletNodes, nodeName);
-        nodeInfo->UserTags = tags;
+        nodeInfo->UserTags = tags.Mutation;
         nodeInfo->Decommissioned = mutations.ChangedDecommissionedFlag[nodeName];
 
         EXPECT_TRUE(activeDataCenters.count(*nodeInfo->Annotations->DataCenter) != 0);
@@ -4995,7 +4995,7 @@ TEST_P(TNodeTagsFilterManager, SpareNodesWentOfflineDuringAssigning)
     for (const auto& [nodeName, tags] : mutations.ChangedNodeUserTags) {
         assigningSpare.insert(nodeName);
         const auto& nodeInfo = GetOrCrash(input.TabletNodes, nodeName);
-        nodeInfo->UserTags = tags;
+        nodeInfo->UserTags = tags.Mutation;
         nodeInfo->Decommissioned = mutations.ChangedDecommissionedFlag[nodeName];
         // Set wrong settings
         nodeInfo->TabletSlots.clear();
@@ -5041,7 +5041,7 @@ TEST_P(TNodeTagsFilterManager, SpareNodesWentOfflineDuringAssigning)
 
     for (const auto& [nodeName, tags] : mutations.ChangedNodeUserTags) {
         const auto& nodeInfo = GetOrCrash(input.TabletNodes, nodeName);
-        nodeInfo->UserTags = tags;
+        nodeInfo->UserTags = tags.Mutation;
     }
 
     ApplyChangedStates(&input, mutations);
@@ -5162,7 +5162,7 @@ TEST_P(TNodeTagsFilterManager, SpareNodesWentOfflineDuringReleasing)
     ScheduleBundles(input, &mutations);
     for (auto& [nodeName, tags] : mutations.ChangedNodeUserTags) {
         EXPECT_TRUE(usingSpareNode.count(nodeName) != 0);
-        EXPECT_TRUE(tags.count(bundleNodeTagFilter) == 0);
+        EXPECT_TRUE(tags.Mutation.count(bundleNodeTagFilter) == 0);
         input.TabletNodes[nodeName]->UserTags = tags;
     }
     ApplyChangedStates(&input, mutations);
@@ -5859,6 +5859,14 @@ TEST(TDataCentersProxyPriority, DisruptionMinimizing)
     EXPECT_EQ(2, std::ssize(assigningDC));
     dataCenters.erase(offlineDC);
     EXPECT_EQ(assigningDC, dataCenters);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+[[maybe_unused]]
+void TestTBundleMutationNoImplicitCasts()
+{
+    static_assert(!std::is_assignable_v<TBundleMutation<double>, TBundleMutation<int>>);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
