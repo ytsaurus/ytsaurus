@@ -126,6 +126,8 @@ public:
 
     EJobType GetType() const;
 
+    std::string GetAuthenticatedUser() const;
+
     NControllerAgent::NProto::TJobSpec GetSpec() const;
 
     const std::vector<int>& GetPorts() const;
@@ -147,6 +149,8 @@ public:
 
     const TError& GetJobError() const;
     NControllerAgent::NProto::TJobResult GetResult() const;
+
+    bool HasRpcProxyInJobProxy() const;
 
     double GetProgress() const;
 
@@ -376,6 +380,8 @@ private:
 
     std::optional<TVirtualSandboxData> VirtualSandboxData_;
 
+    std::optional<TSandboxNbdRootVolumeData> SandboxNbdRootVolumeData_;
+
     //! Artifact name -> index of the artifact in #Artifacts_ list.
     THashMap<TString, int> UserArtifactNameToIndex_;
 
@@ -538,6 +544,10 @@ private:
 
     // Build artifacts.
     void InitializeArtifacts();
+
+    void InitializeSandboxNbdRootVolumeData();
+
+    void InitializeNbdExportIds();
 
     TArtifactDownloadOptions MakeArtifactDownloadOptions() const;
 

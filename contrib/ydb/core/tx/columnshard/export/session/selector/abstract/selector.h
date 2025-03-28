@@ -2,6 +2,7 @@
 #include <contrib/ydb/library/conclusion/status.h>
 #include <contrib/ydb/library/conclusion/result.h>
 #include <contrib/ydb/core/tx/columnshard/export/protos/selector.pb.h>
+#include <contrib/ydb/core/tx/columnshard/common/path_id.h>
 #include <contrib/ydb/services/bg_tasks/abstract/interface.h>
 #include <contrib/ydb/core/tx/columnshard/export/session/cursor.h>
 #include <contrib/ydb/core/tx/datashard/datashard.h>
@@ -35,7 +36,7 @@ public:
         DoSerializeToProto(proto);
     }
 
-    virtual ui64 GetPathId() const = 0;
+    virtual TInternalPathId GetPathId() const = 0;
     virtual TString GetClassName() const = 0;
 };
 

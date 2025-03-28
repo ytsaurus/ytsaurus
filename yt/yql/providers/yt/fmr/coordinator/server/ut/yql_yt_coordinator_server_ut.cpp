@@ -25,7 +25,7 @@ TStartOperationRequest CreateOperationRequest(ETaskType taskType = ETaskType::Do
 Y_UNIT_TEST_SUITE(CoordinatorServerTests) {
     Y_UNIT_TEST(SendStartOperationRequestToCoordinatorServer) {
         auto coordinator = MakeFmrCoordinator();
-        ui16 port = 7000;
+        ui16 port = 7001;
         TFmrCoordinatorServerSettings coordinatorServerSettings{.Port = port};
         auto coordinatorServer = MakeFmrCoordinatorServer(coordinator, coordinatorServerSettings);
         coordinatorServer->Start();
@@ -40,7 +40,7 @@ Y_UNIT_TEST_SUITE(CoordinatorServerTests) {
 
     Y_UNIT_TEST(SendGetOperationRequestToCoordinatorServer) {
         auto coordinator = MakeFmrCoordinator();
-        ui16 port = 7000;
+        ui16 port = 7002;
         TFmrCoordinatorServerSettings coordinatorServerSettings{.Port = port};
         auto coordinatorServer = MakeFmrCoordinatorServer(coordinator, coordinatorServerSettings);
         coordinatorServer->Start();
@@ -56,7 +56,7 @@ Y_UNIT_TEST_SUITE(CoordinatorServerTests) {
 
     Y_UNIT_TEST(SendDeleteOperationRequestToCoordinatorServer) {
         auto coordinator = MakeFmrCoordinator();
-        ui16 port = 7000;
+        ui16 port = 7003;
         TFmrCoordinatorServerSettings coordinatorServerSettings{.Port = port};
         auto coordinatorServer = MakeFmrCoordinatorServer(coordinator, coordinatorServerSettings);
         coordinatorServer->Start();

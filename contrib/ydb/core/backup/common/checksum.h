@@ -1,6 +1,6 @@
 #pragma once
 
-#include <contrib/ydb/core/protos/checksum.pb.h>
+#include <contrib/ydb/core/protos/datashard_backup.pb.h>
 
 #include <util/generic/string.h>
 

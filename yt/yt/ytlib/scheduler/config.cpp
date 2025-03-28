@@ -515,6 +515,12 @@ void FromProto(TTmpfsVolumeConfig* tmpfsVolumeConfig, const NControllerAgent::NP
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TNbdDiskConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("data_node_address", &TThis::DataNodeAddress)
+        .Default();
+}
+
 void TDiskRequestConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("disk_space", &TThis::DiskSpace);
@@ -526,8 +532,15 @@ void TDiskRequestConfig::Register(TRegistrar registrar)
     registrar.Parameter("account", &TThis::Account)
         .NonEmpty()
         .Default();
+    registrar.Parameter("nbd_disk", &TThis::NbdDisk)
+        .Default();
 
     registrar.Postprocessor([&] (TDiskRequestConfig* config) {
+        if (config->NbdDisk && static_cast<i64>(20_GB) < config->DiskSpace) {
+            THROW_ERROR_EXCEPTION("\"disk_space\" exceeds maximum limit for NBD disk.")
+                << TErrorAttribute("max_disk_space", 20_GB)
+                << TErrorAttribute("disk_space", config->DiskSpace);
+        }
         if (config->Account && !config->MediumName) {
             THROW_ERROR_EXCEPTION("\"medium_name\" is required in disk request if account is specified");
         }
@@ -545,6 +558,9 @@ void ToProto(
     if (diskRequestConfig.MediumName) {
         YT_VERIFY(diskRequestConfig.MediumIndex);
         protoDiskRequest->set_medium_index(*diskRequestConfig.MediumIndex);
+    }
+    if (diskRequestConfig.NbdDisk && diskRequestConfig.NbdDisk->DataNodeAddress) {
+        protoDiskRequest->mutable_nbd_disk()->set_data_node_address(*diskRequestConfig.NbdDisk->DataNodeAddress);
     }
 }
 

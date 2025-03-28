@@ -591,17 +591,13 @@ private:
             return;
         }
 
-        auto enableNewScanReader =
-            TabletSnapshot_->Settings.MountConfig->EnableNewScanReaderForLookup ||
-            TabletSnapshot_->Settings.MountConfig->EnableNewScanReaderForSelect;
-
         auto result = false;
         if (auto chunkMetaManager = Bootstrap_->GetVersionedChunkMetaManager()) {
             result = chunkMetaManager->InsertMeta(
                 TVersionedChunkMetaCacheKey{
                     .ChunkId = writer->GetChunkId(),
                     .TableSchemaKeyColumnCount = TabletSnapshot_->PhysicalSchema->GetKeyColumnCount(),
-                    .PreparedColumnarMeta = enableNewScanReader,
+                    .PreparedColumnarMeta = true,
                 },
                 New<TRefCountedChunkMeta>(*finalizedMeta));
         }

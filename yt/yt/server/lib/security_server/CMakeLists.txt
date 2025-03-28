@@ -48,12 +48,14 @@ target_link_libraries(server-lib-security_server PUBLIC
   contrib-libs-protobuf
 )
 
-target_proto_messages(server-lib-security_server PRIVATE
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/security_server/proto/security_manager.proto
+target_sources(server-lib-security_server PRIVATE
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/security_server/helpers.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/security_server/permission_checker.cpp
+  ${PROJECT_BINARY_DIR}/yt/yt/server/lib/security_server/proto/security_manager.pb.h
 )
 
-target_sources(server-lib-security_server PRIVATE
-  ${PROJECT_BINARY_DIR}/yt/yt/server/lib/security_server/proto/security_manager.pb.h
+target_proto_messages(server-lib-security_server PRIVATE
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/security_server/proto/security_manager.proto
 )
 
 

@@ -2453,6 +2453,7 @@ OUTPUT {
 | `with_competitors`   | `bool`                                                         | Нет          | `Null`                      | При `Null` возвращаются все джобы; при `True` возвращаются только джобы, для которых были запущены спекулятивные копии вместе с этими копиями; при `False` возвращаются только джобы, у которых нет спекулятивных копий. |
 | `job_competition_id` | `GUID`                                                         | Нет          | `Null`                      | При указании параметра в ответе будет джоб с идентификатором `job_competition_id` и все его спекулятивные копии (если они есть). |
 | `with_monitoring_descriptor`   | `bool`                                                         | Нет          | `Null`                      | При `Null` возвращаются все джобы; при `True` возвращаются только джобы, у которых есть `monitoring_descriptor`; при `False` возвращаются только джобы, у которых нет `monitoring_descriptor`. |
+| `with_interruption_info`       | `bool`                                                         | Нет          | `Null`            | При `Null` возвращаются все джобы; при `True` возвращаются только джобы, у которых есть `interruption_info`; при `False` возвращаются только джобы, у которых нет `interruption_info`. |
 | `task_name`          | `string`                                                       | Нет          | `Null`                      | При указании параметра в ответе будут только джобы с указанным `task_name`. |
 | `sort_field`         | `{none,type,state,start_time,finish_time,address,duration,progress,id}` | Нет      | `none`                      | Поле сортировки.                                             |
 | `sort_order`         | `{ascending,descending}`                                       | Нет          | `ascending`                 | Порядок сортировки.                                          |
@@ -2460,7 +2461,7 @@ OUTPUT {
 | `offset`             | `int`                                                          | Нет          | `0`                         | Смещение на определенное количество джобов.                  |
 | `data_source`        | `EDataSource`                                                  | Нет          | `auto`                      | Источник данных, возможные значения: `runtime`, `archive`, `auto`. |
 
-Параметры `job_type`, `job_state`, `address`, `with_stderr`, `with_fail_context`, `with_competitors`, `with_spec`, `with_monitoring_descriptor`,  задают *фильтр* джобов. В ответе будут перечислены только джобы, удовлетворяющие условию фильтрации.
+Параметры `job_type`, `job_state`, `address`, `with_stderr`, `with_fail_context`, `with_competitors`, `with_spec`, `with_monitoring_descriptor`, `with_interruption_info` задают *фильтр* джобов. В ответе будут перечислены только джобы, удовлетворяющие условию фильтрации.
 
 Параметры `sort_field`, `sort_order` задают порядок джобов в ответе. При этом параметры `limit` и `offset` определяют срез (подмножество) джобов в ответе: отбрасываются первые `offset` джобов и далее выбираются `limit` оставшихся.
 

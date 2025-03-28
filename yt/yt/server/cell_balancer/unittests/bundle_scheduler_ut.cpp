@@ -2367,6 +2367,84 @@ TEST(TBundleSchedulerSimpleTest, CheckSystemAccountLimit)
         mutations.LiftedSystemAccountLimit["default-bundle2-account"]);
 }
 
+TEST(TBundleSchedulerSimpleTest, SplitAccountDiff)
+{
+    constexpr int diskSpacePerMediumInitial = 1331;
+    constexpr int diskSpacePerMediumLowered = diskSpacePerMediumInitial / 2;
+    constexpr int diskSpacePerMediumLifted = diskSpacePerMediumInitial * 2;
+
+    auto input = GenerateSimpleInputContext(1, 1);
+
+    {
+        // Initialize bundle with default limits for 2 mediums.
+
+        input.RootSystemAccount = New<TSystemAccount>();
+        auto& bundleInfo = input.Bundles["bigd"];
+
+        bundleInfo->Options->ChangelogAccount = "default-bundle-account";
+        bundleInfo->Options->SnapshotAccount = "default-bundle-account";
+        bundleInfo->Options->ChangelogPrimaryMedium = "ssd_journal";
+        bundleInfo->Options->SnapshotPrimaryMedium = "default";
+        bundleInfo->EnableSystemAccountManagement = true;
+
+        input.SystemAccounts["default-bundle-account"] = New<TSystemAccount>();
+        const auto& account = input.SystemAccounts["default-bundle-account"];
+        account->ResourceLimits = New<TAccountResources>();
+        auto& limits = account->ResourceLimits;
+
+        limits->NodeCount = 1;
+        limits->ChunkCount = 1;
+        limits->DiskSpacePerMedium["default"] = diskSpacePerMediumInitial;
+        limits->DiskSpacePerMedium["ssd_journal"] = diskSpacePerMediumInitial;
+
+        input.Config->ChunkCountPerCell = 1;
+        input.Config->NodeCountPerCell = 1;
+        input.Config->JournalDiskSpacePerCell = 1_KB;
+        input.Config->SnapshotDiskSpacePerCell = 1_KB;
+        input.Config->MinNodeCount = 1;
+        input.Config->MinChunkCount = 1;
+
+        GenerateNodesForBundle(input, "bigd", 1);
+    }
+
+    {
+        // Check that default limits are really default.
+
+        TSchedulerMutations mutations;
+        ScheduleBundles(input, &mutations);
+        // If checks below are failed, change `diskSpacePerMediumInitial` to
+        // pass these checks.  Bundle controller tries to set default values.
+        EXPECT_EQ(0, std::ssize(mutations.LiftedSystemAccountLimit));
+        EXPECT_EQ(0, std::ssize(mutations.LoweredSystemAccountLimit));
+    }
+
+    {
+        // Change limits manually and check that quota change is splitted.
+
+        input.Config->JournalDiskSpacePerCell *= 2;
+        input.Config->SnapshotDiskSpacePerCell /= 2;
+
+        TSchedulerMutations mutations;
+        ScheduleBundles(input, &mutations);
+
+        {
+            EXPECT_EQ(1, std::ssize(mutations.LoweredSystemAccountLimit));
+            auto& account = mutations.LoweredSystemAccountLimit["default-bundle-account"];
+            // First - lower account.
+            EXPECT_EQ(account->DiskSpacePerMedium["default"], diskSpacePerMediumLowered);
+            EXPECT_EQ(account->DiskSpacePerMedium["ssd_journal"], diskSpacePerMediumInitial);
+        }
+
+        {
+            EXPECT_EQ(1, std::ssize(mutations.LiftedSystemAccountLimit));
+            auto& account = mutations.LiftedSystemAccountLimit["default-bundle-account"];
+            // Second - lift account after lower.
+            EXPECT_EQ(account->DiskSpacePerMedium["default"], diskSpacePerMediumLowered);
+            EXPECT_EQ(account->DiskSpacePerMedium["ssd_journal"], diskSpacePerMediumLifted);
+        }
+    }
+}
+
 TEST_P(TBundleSchedulerTest, ReAllocateOutdatedNodes)
 {
     auto input = GenerateInputContext(5 * GetDataCenterCount());

@@ -103,6 +103,7 @@ static const THashSet<TString> DefaultListJobsAttributes = {
     "start_time",
     "finish_time",
     "address",
+    "addresses",
     "has_spec",
     "progress",
     "stderr_size",
@@ -140,6 +141,7 @@ static const THashMap<TString, int> CompatListJobsAttributesToArchiveVersion = {
     {"archive_features", 51},
     {"operation_incarnation", 55},
     {"allocation_id", 56},
+    {"addresses", 57},
 };
 
 static const auto SupportedJobAttributes = DefaultGetJobAttributes;
@@ -300,12 +302,29 @@ TErrorOr<IChannelPtr> TClient::TryCreateChannelToJobNode(
         ValidateOperationAccess(operationId, jobId, requiredPermissions);
 
         TGetJobOptions options;
-        options.Attributes = {"address"};
+        options.Attributes = {"address", "addresses"};
         // TODO(ignat): support structured return value in GetJob.
         auto jobYsonString = WaitFor(GetJob(operationId, jobId, options))
             .ValueOrThrow();
-        auto address = ConvertToNode(jobYsonString)->AsMap()->GetChildValueOrThrow<TString>("address");
-        return ChannelFactory_->CreateChannel(address);
+        auto jobYsonMap = ConvertToNode(jobYsonString)->AsMap();
+        if (auto addresses = jobYsonMap->FindChildValue<TAddressMap>("addresses")) {
+            YT_LOG_DEBUG(
+                jobNodeDescriptorOrError,
+                "Creating channel using job's address map from archive (OperationId: %v, JobId: %v, Addresses: %v)",
+                operationId,
+                jobId,
+                *addresses);
+            return ChannelFactory_->CreateChannel(*addresses);
+        } else {
+            auto address = ConvertToNode(jobYsonString)->AsMap()->GetChildValueOrThrow<TString>("address");
+            YT_LOG_DEBUG(
+                jobNodeDescriptorOrError,
+                "Creating channel using job's address field from archive (OperationId: %v, JobId: %v, Address: %v)",
+                operationId,
+                jobId,
+                address);
+            return ChannelFactory_->CreateChannel(address);
+        }
     } catch (const std::exception& ex) {
         auto error = TError(ex);
         YT_LOG_DEBUG(error, "Failed to create node channel to job using address from archive (OperationId: %v, JobId: %v)",
@@ -449,33 +468,43 @@ TOperationId TClient::TryGetOperationId(
 void TClient::ValidateOperationAccess(
     TOperationId operationId,
     TJobId jobId,
-    EPermissionSet permissions)
+    EPermissionSet permissions,
+    bool ignoreMissingOperation)
 {
     TGetOperationOptions getOperationOptions;
     getOperationOptions.Attributes = {"runtime_parameters"};
     auto operationOrError = WaitFor(GetOperation(operationId, getOperationOptions));
 
-    if (operationOrError.IsOK()) {
-        ValidateOperationAccess(
-            operationId,
-            operationOrError.Value(),
-            jobId,
-            permissions);
+    // TODO(ignat): ignore resolve errors here.
+    if (!operationOrError.IsOK()) {
+        if (ignoreMissingOperation) {
+            // We check against an empty ACL to allow only "superusers" and "root" access.
+            YT_LOG_WARNING(
+                operationOrError,
+                "Failed to get operation to validate access; "
+                "validating against empty ACL (OperationId: %v, JobId: %v)",
+                operationId,
+                jobId);
+
+            ValidateOperationAccess(
+                operationId,
+                jobId,
+                TAccessControlRule(),
+                permissions);
+        } else {
+            THROW_ERROR_EXCEPTION("Failed to validate operation ACL")
+                << TErrorAttribute("operation_id", operationId)
+                << operationOrError;
+        }
         return;
     }
 
-    // We check against an empty ACL to allow only "superusers" and "root" access.
-    YT_LOG_WARNING(
-        operationOrError,
-        "Failed to get operation to validate access; "
-        "validating against empty ACL (OperationId: %v, JobId: %v)",
-        operationId,
-        jobId);
-
+    const auto& operation = operationOrError
+        .ValueOrThrow();
     ValidateOperationAccess(
         operationId,
+        operation,
         jobId,
-        TAccessControlRule(),
         permissions);
 }
 
@@ -509,7 +538,7 @@ void TClient::ValidateOperationAccess(
     NScheduler::ValidateOperationAccess(
         /*user*/ std::nullopt,
         TOperationId(),
-        AllocationIdFromJobId(jobId),
+        jobId,
         permissions,
         accessControlRule,
         StaticPointerCast<IClient>(MakeStrong(this)),
@@ -547,15 +576,15 @@ void TClient::ValidateOperationAccess(
 }
 
 void TClient::ValidateOperationAccess(
-        TOperationId operationId,
-        TJobId jobId,
-        TAccessControlRule accessControlRule,
-        NYTree::EPermissionSet permissions)
+    TOperationId operationId,
+    TJobId jobId,
+    TAccessControlRule accessControlRule,
+    NYTree::EPermissionSet permissions)
 {
     NScheduler::ValidateOperationAccess(
         Options_.GetAuthenticatedUser(),
         operationId,
-        AllocationIdFromJobId(jobId),
+        jobId,
         permissions,
         accessControlRule,
         StaticPointerCast<IClient>(MakeStrong(this)),
@@ -1176,6 +1205,12 @@ std::vector<TJobTraceEvent> TClient::DoGetJobTrace(
             operationId = ResolveOperationAlias(alias, options, deadline);
         });
 
+    ValidateOperationAccess(
+        operationId,
+        NullJobId,
+        EPermissionSet(EPermission::Read),
+        /*ignoreMissingOperation*/ false);
+
     return DoGetJobTraceFromTraceEventsTable(operationId, options, deadline);
 }
 
@@ -1461,6 +1496,10 @@ static std::vector<TJob> ParseJobsFromArchiveResponse(
             job.Address = record.Address.value_or("");
         }
 
+        if (record.Addresses) {
+            job.Addresses = ConvertTo<TAddressMap>(*record.Addresses);
+        }
+
         if (record.StartTime) {
             job.StartTime = TInstant::MicroSeconds(*record.StartTime);
         } else {
@@ -1589,6 +1628,9 @@ TFuture<std::vector<TJob>> TClient::DoListJobsFromArchiveAsync(
 
     if (GetOrDefault(CompatListJobsAttributesToArchiveVersion, "archive_features") <= archiveVersion) {
         builder.AddSelectExpression("archive_features");
+    }
+    if (GetOrDefault(CompatListJobsAttributesToArchiveVersion, "addresses") <= archiveVersion) {
+        builder.AddSelectExpression("addresses");
     }
 
     if (GetOrDefault(CompatListJobsAttributesToArchiveVersion, "allocation_id") <= archiveVersion) {
@@ -1738,6 +1780,7 @@ static void ParseJobsFromControllerAgentResponse(
     auto needStartTime = attributes.contains("start_time");
     auto needFinishTime = attributes.contains("finish_time");
     auto needAddress = attributes.contains("address");
+    auto needAddresses = attributes.contains("addresses");
     auto needHasSpec = attributes.contains("has_spec");
     auto needProgress = attributes.contains("progress");
     auto needStderrSize = attributes.contains("stderr_size");
@@ -1783,6 +1826,11 @@ static void ParseJobsFromControllerAgentResponse(
         }
         if (needAddress) {
             job.Address = jobMapNode->GetChildValueOrThrow<TString>("address");
+        }
+        if (needAddresses) {
+            if (auto childNode = jobMapNode->FindChild("addresses")) {
+                job.Addresses = childNode->GetValue<TAddressMap>();
+            }
         }
         if (needHasSpec) {
             job.HasSpec = true;
@@ -2067,6 +2115,7 @@ static void MergeJobs(TJob&& controllerAgentJob, TJob* archiveJob)
     mergeNullableField(&TJob::StartTime);
     mergeNullableField(&TJob::FinishTime);
     mergeNullableField(&TJob::Address);
+    mergeNullableField(&TJob::Addresses);
     mergeNullableField(&TJob::Progress);
     mergeNullableField(&TJob::Error);
     mergeNullableField(&TJob::BriefStatistics);

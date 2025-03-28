@@ -24,8 +24,8 @@ NYT::NApi::IClientPtr CreateApiClient(const TClientContext& context)
     auto connectionConfig = New<NApi::NRpcProxy::TConnectionConfig>();
     connectionConfig->SetDefaults();
     connectionConfig->ClusterUrl = context.ServerName;
-    if (context.ProxyRole) {
-        connectionConfig->ProxyRole = *context.ProxyRole;
+    if (context.RpcProxyRole) {
+        connectionConfig->ProxyRole = *context.RpcProxyRole;
     }
     if (context.ProxyAddress) {
         connectionConfig->ProxyAddresses = {*context.ProxyAddress};
@@ -55,9 +55,6 @@ IClientPtr CreateRpcClient(
     const TCreateClientOptions& options)
 {
     auto context = NDetail::CreateClientContext(serverName, options);
-    if (options.ProxyRole_) {
-        context.ProxyRole = *options.ProxyRole_;
-    }
 
     auto globalTxId = GetGuid(context.Config->GlobalTxId);
 

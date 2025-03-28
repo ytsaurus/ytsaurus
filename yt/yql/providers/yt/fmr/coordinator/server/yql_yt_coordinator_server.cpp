@@ -3,8 +3,11 @@
 #include <library/cpp/http/misc/parsed_request.h>
 #include <library/cpp/http/server/http.h>
 #include <library/cpp/http/server/response.h>
+#include <yql/essentials/utils/log/context.h>
+#include <yql/essentials/utils/log/log.h>
 #include <yql/essentials/utils/yql_panic.h>
 #include <yt/yql/providers/yt/fmr/coordinator/interface/proto_helpers/yql_yt_coordinator_proto_helpers.h>
+#include <yt/yql/providers/yt/fmr/utils/yql_yt_log_context.h>
 
 namespace NYql::NFmr {
 
@@ -117,6 +120,7 @@ private:
     const TString Host_;
 
     THttpResponse StartOperationHandler(THttpInput& input) {
+        YQL_LOG_CTX_ROOT_SESSION_SCOPE(GetLogContext(input));
         NProto::TStartOperationRequest protoStartOperationRequest;
         YQL_ENSURE(protoStartOperationRequest.ParseFromString(input.ReadAll()));
         auto startOperationResponse = Coordinator_->StartOperation(StartOperationRequestFromProto(protoStartOperationRequest)).GetValueSync();
@@ -129,6 +133,7 @@ private:
     }
 
     THttpResponse GetOperationHandler(THttpInput& input) {
+        YQL_LOG_CTX_ROOT_SESSION_SCOPE(GetLogContext(input));
         TParsedHttpFull httpRequest(input.FirstLine());
         httpRequest.Path.SkipPrefix("/operation/");
         TGetOperationRequest getOperationRequest{.OperationId = ToString(httpRequest.Path)};
@@ -143,6 +148,7 @@ private:
     }
 
     THttpResponse DeleteOperationHandler(THttpInput& input) {
+        YQL_LOG_CTX_ROOT_SESSION_SCOPE(GetLogContext(input));
         TParsedHttpFull httpRequest(input.FirstLine());
         httpRequest.Path.SkipPrefix("/operation/");
         TDeleteOperationRequest deleteOperationRequest{.OperationId = ToString(httpRequest.Path)};
@@ -157,6 +163,7 @@ private:
     }
 
     THttpResponse SendHeartbeatResponseHandler(THttpInput& input) {
+        YQL_LOG_CTX_ROOT_SESSION_SCOPE(GetLogContext(input));
         NProto::THeartbeatRequest protoHeartbeatRequest;
         YQL_ENSURE(protoHeartbeatRequest.ParseFromString(input.ReadAll()));
 
@@ -170,6 +177,7 @@ private:
     }
 
     THttpResponse GetFmrTableInfoHandler(THttpInput& input) {
+        YQL_LOG_CTX_ROOT_SESSION_SCOPE(GetLogContext(input));
         NProto::TGetFmrTableInfoRequest protoGetFmrTableInfoRequest;
         YQL_ENSURE(protoGetFmrTableInfoRequest.ParseFromString(input.ReadAll()));
 

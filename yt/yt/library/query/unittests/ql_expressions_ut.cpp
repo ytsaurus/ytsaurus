@@ -2380,7 +2380,9 @@ TEST_P(TEvaluateExpressionTest, Basic)
         TColumnSchema("d1", EValueType::Double),
         TColumnSchema("s1", EValueType::String),
         TColumnSchema("s2", EValueType::String),
-        TColumnSchema("any", EValueType::Any)
+        TColumnSchema("any", EValueType::Any),
+        TColumnSchema("b", EValueType::Boolean),
+        TColumnSchema("l", ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int32))),
     });
 
     auto expr = PrepareExpression(exprString, *schema);
@@ -2576,9 +2578,21 @@ INSTANTIATE_TEST_SUITE_P(
             "int64(any)",
             MakeNull()),
         std::tuple<const char*, const char*, TUnversionedValue>(
+            "l=[12;-2;3]",
+            "l",
+            MakeComposite("[12;-2;3]")),
+        std::tuple<const char*, const char*, TUnversionedValue>(
+            "l=[12;-2;3]",
+            "to_any(l)",
+            MakeAny("[12;-2;3]")),
+        std::tuple<const char*, const char*, TUnversionedValue>(
             "any=#",
             "list_contains(any, \"1\")",
             MakeNull()),
+        std::tuple<const char*, const char*, TUnversionedValue>(
+            "l=[12; -2; 3]",
+            "list_contains(l, -2)",
+            MakeBoolean(true)),
         std::tuple<const char*, const char*, TUnversionedValue>(
             "any=[7; 9; 3]",
             "list_contains(any, 5)",
@@ -2635,6 +2649,18 @@ INSTANTIATE_TEST_SUITE_P(
             "d1=5.0",
             "is_finite(d1)",
             MakeBoolean(true)),
+        std::tuple<const char*, const char*, TUnversionedValue>(
+            "l=[12;-2;3]",
+            "yson_length(l)",
+            MakeInt64(3)),
+        std::tuple<const char*, const char*, TUnversionedValue>(
+            "",
+            "make_list(make_entity())",
+            MakeAny("[#]")),
+        std::tuple<const char*, const char*, TUnversionedValue>(
+            "l=[12;-2;3]",
+            "any_to_yson_string(l)",
+            MakeString("[12;-2;3;]")),
         std::tuple<const char*, const char*, TUnversionedValue>(
             "",
             "is_finite(d1)",

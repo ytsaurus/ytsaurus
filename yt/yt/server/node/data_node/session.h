@@ -37,6 +37,7 @@ struct TSessionOptions
     bool EnableMultiplexing = false;
     NChunkClient::TPlacementId PlacementId;
     bool DisableSendBlocks = false;
+    bool UseProbePutBlocks = false;
     std::optional<i64> MinLocationAvailableSpace;
     std::optional<i64> NbdChunkSize;
     std::optional<NNbd::EFilesystemType> NbdChunkFsType;

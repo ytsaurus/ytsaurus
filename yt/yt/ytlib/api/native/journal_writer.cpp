@@ -1497,6 +1497,9 @@ private:
                 if (node->FirstPendingBlockIndex == 0) {
                     req->set_first_block_index(0);
                     req->Attachments().push_back(CurrentChunkSession_->HeaderRow);
+                    if (Config_->EnableChecksums) {
+                        ToProto(req->mutable_block_checksums()->Add(), GetChecksum(CurrentChunkSession_->HeaderRow));
+                    }
                 } else {
                     req->set_first_block_index(node->FirstPendingBlockIndex + 1);
                 }
@@ -1529,6 +1532,11 @@ private:
                     ? batch->Rows
                     : batch->ErasureRows[node->Index];
                 req->Attachments().insert(req->Attachments().end(), rows.begin(), rows.end());
+                if (Config_->EnableChecksums) {
+                    for (const auto& row : rows) {
+                        ToProto(req->mutable_block_checksums()->Add(), GetChecksum(row));
+                    }
+                }
 
                 flushRowCount += batch->RowCount;
                 flushDataSize += GetByteSize(rows);

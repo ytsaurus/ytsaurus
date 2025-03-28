@@ -283,9 +283,6 @@ struct TCustomTableMountConfig
 
     int LookupRpcMultiplexingParallelism;
 
-    bool EnableNewScanReaderForLookup;
-    bool EnableNewScanReaderForSelect;
-
     bool SingleColumnGroupByDefault;
     bool EnableSegmentMetaInBlocks;
     bool EnableColumnMetaInChunkMeta;

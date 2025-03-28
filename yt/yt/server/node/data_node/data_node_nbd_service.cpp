@@ -113,19 +113,27 @@ private:
         auto sessionId = FromProto<TSessionId>(request->session_id());
         auto offset = FromProto<i64>(request->offset());
         auto length = FromProto<i64>(request->length());
+        auto cookie = FromProto<ui64>(request->cookie());
 
-        context->SetRequestInfo("SessionId: %v, Offset: %v, Length: %v",
+        context->SetRequestInfo("SessionId: %v, Offset: %v, Length: %v, Cookie: %v",
             sessionId,
             offset,
-            length);
+            length,
+            cookie);
 
         auto session = GetSessionOrThrow(sessionId);
-        auto future = session->Read(offset, length).Apply(BIND([response] (const TBlock& block) {
+        auto future = session->Read(offset, length, cookie).Apply(BIND([response] (const TBlock& block) {
             SetRpcAttachedBlocks(response, {block});
         })
         .AsyncVia(Bootstrap_->GetStorageLightInvoker()));
 
+        response->set_cookie(cookie);
         response->set_close_session(session->GetStoreLocation()->IsSick());
+
+        context->SetResponseInfo("SessionId: %v, Cookie: %v",
+            sessionId,
+            cookie);
+
         context->ReplyFrom(future);
     }
 
@@ -134,18 +142,26 @@ private:
         auto sessionId = FromProto<TSessionId>(request->session_id());
         auto offset = FromProto<i64>(request->offset());
         auto blocks = GetRpcAttachedBlocks(request, false);
+        auto cookie = FromProto<ui64>(request->cookie());
 
         YT_VERIFY(blocks.size() == 1);
 
-        context->SetRequestInfo("SessionId: %v, Offset: %v, Length: %v",
+        context->SetRequestInfo("SessionId: %v, Offset: %v, Length: %v, Cookie: %v",
             sessionId,
             offset,
-            blocks[0].Size());
+            blocks[0].Size(),
+            cookie);
 
         auto session = GetSessionOrThrow(sessionId);
-        auto future = session->Write(offset, blocks[0]);
+        auto future = session->Write(offset, blocks[0], cookie);
 
+        request->set_cookie(cookie);
         response->set_close_session(session->GetStoreLocation()->IsSick());
+
+        context->SetResponseInfo("SessionId: %v, Cookie: %v",
+            sessionId,
+            cookie);
+
         context->ReplyFrom(future.AsVoid());
     }
 

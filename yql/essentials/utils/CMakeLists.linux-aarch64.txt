@@ -26,12 +26,12 @@ target_link_libraries(yql-essentials-utils PUBLIC
   linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   yutil
+  contrib-libs-miniselect
   library-cpp-time_provider
   cpp-digest-md5
   cpp-string_utils-quote
   cpp-threading-future
   cpp-deprecated-atomic
-  contrib-libs-miniselect
 )
 
 target_sources(yql-essentials-utils PRIVATE

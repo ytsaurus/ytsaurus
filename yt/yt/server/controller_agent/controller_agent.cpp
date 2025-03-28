@@ -990,7 +990,6 @@ public:
         NScheduler::ValidateOperationAccess(
             user,
             operationId,
-            TAllocationId(),
             permission,
             GetOperationOrThrow(operationId)->GetAccessControlRule(),
             Bootstrap_->GetClient(),

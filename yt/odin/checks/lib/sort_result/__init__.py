@@ -63,7 +63,7 @@ def run_check_impl(yt_client, logger, options, states, cloud=False):
         }
 
         if cloud:
-            spec["pool_trees"] = options.get("pool_config", {}).get(options["cluster_name"], ["cloud"])
+            spec["pool_trees"] = options.get("pool_config", {}).get(options["cluster_name"], ["cloud_default"])
 
         logger.info("Starting sort operation")
         operation = yt_client.run_sort(table_path, sort_by="x", sync=False, spec=spec)
