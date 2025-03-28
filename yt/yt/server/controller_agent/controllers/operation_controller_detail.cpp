@@ -481,8 +481,15 @@ void TOperationControllerBase::InitializeClients()
         ->GetClient()
         ->GetNativeConnection()
         ->CreateNativeClient(TClientOptions::FromUser(SchedulerUserName));
-    SchedulerInputClient = Client;
-    SchedulerOutputClient = Client;
+
+    // TODO(coteeq): SchedulerInputClient may seem unexpected since we now can have
+    //               client from another cluster (or even many different clusters).
+    //               For now, InputManager will extract `scheduler` username from
+    //               this client and will create an appropriate client.
+    //               Todo: get rid (or document) of this distinction and make
+    //               InputManager create a client from SchedulerUserName directly.
+    SchedulerInputClient = SchedulerClient;
+    SchedulerOutputClient = SchedulerClient;
 
     InputManager->InitializeClients(InputClient);
 }
