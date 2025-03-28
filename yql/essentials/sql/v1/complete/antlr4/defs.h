@@ -15,4 +15,4 @@ namespace NSQLComplete {
     // std::vector is used to prevent copying a C3 output
     using TParserCallStack = std::vector<TRuleId>;
 
-}
+} // namespace NSQLComplete

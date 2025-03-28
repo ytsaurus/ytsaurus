@@ -18,8 +18,7 @@ namespace NSQLComplete {
         explicit TSqlCompletionEngine(
             TLexerSupplier lexer,
             INameService::TPtr names,
-            ISqlCompletionEngine::TConfiguration configuration
-        )
+            ISqlCompletionEngine::TConfiguration configuration)
             : Configuration(std::move(configuration))
             , SyntaxAnalysis(MakeLocalSyntaxAnalysis(lexer))
             , Names(std::move(names))
@@ -140,7 +139,7 @@ namespace NSQLComplete {
         INameService::TPtr names,
         ISqlCompletionEngine::TConfiguration configuration) {
         return ISqlCompletionEngine::TPtr(
-            new TSqlCompletionEngine(lexer, std::move(names), std::move(configuration)));   
+            new TSqlCompletionEngine(lexer, std::move(names), std::move(configuration)));
     }
 
 } // namespace NSQLComplete

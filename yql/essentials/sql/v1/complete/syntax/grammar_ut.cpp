@@ -3,7 +3,6 @@
 
 #include <library/cpp/testing/unittest/registar.h>
 
-
 Y_UNIT_TEST_SUITE(RuleTests) {
     THolder<antlr4::Parser> GetDummyParser(bool ansi) {
         if (ansi) {
@@ -15,7 +14,7 @@ Y_UNIT_TEST_SUITE(RuleTests) {
     Y_UNIT_TEST(RuleIndexModeIndependent) {
         auto defaultRules = GetDummyParser(/* ansi = */ false)->getRuleIndexMap();
         auto ansiRules = GetDummyParser(/* ansi = */ true)->getRuleIndexMap();
-        
+
         UNIT_ASSERT_EQUAL(defaultRules, ansiRules);
     }
 
@@ -31,8 +30,8 @@ Y_UNIT_TEST_SUITE(RuleTests) {
             UNIT_ASSERT_VALUES_EQUAL(
                 defaultVocab.getDisplayName(type), ansiVocab.getDisplayName(type));
             UNIT_ASSERT_VALUES_EQUAL(
-                defaultVocab.getLiteralName(type), ansiVocab.getLiteralName(type)); 
+                defaultVocab.getLiteralName(type), ansiVocab.getLiteralName(type));
         }
     }
 
-}
+} // Y_UNIT_TEST_SUITE(RuleTests)

@@ -10,4 +10,4 @@ namespace NSQLComplete {
 
     std::unordered_set<TRuleId> GetC3PreferredRules();
 
-}
+} // namespace NSQLComplete

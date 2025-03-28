@@ -25,4 +25,4 @@ namespace NSQLComplete {
 
     ILocalSyntaxAnalysis::TPtr MakeLocalSyntaxAnalysis(TLexerSupplier lexer);
 
-}
+} // namespace NSQLComplete

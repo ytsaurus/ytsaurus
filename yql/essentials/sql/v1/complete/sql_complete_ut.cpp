@@ -35,9 +35,9 @@ public:
 };
 
 Y_UNIT_TEST_SUITE(SqlCompleteTests) {
+    using ECandidateKind::FunctionName;
     using ECandidateKind::Keyword;
     using ECandidateKind::TypeName;
-    using ECandidateKind::FunctionName;
 
     TLexerSupplier MakePureLexerSupplier() {
         NSQLTranslationV1::TLexers lexers;
