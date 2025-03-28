@@ -1,9 +1,5 @@
 LIBRARY()
 
-SRCS(
-
-)
-
 PEERDIR(
     contrib/libs/antlr4_cpp_runtime
     contrib/libs/antlr4-c3
