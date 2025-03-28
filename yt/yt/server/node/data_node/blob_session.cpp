@@ -346,6 +346,7 @@ TFuture<void> TBlobSession::DoStart()
     PendingBlockMemoryGuard_ = TMemoryUsageTrackerGuard::Build(Location_->GetWriteMemoryTracker());
 
     PendingBlockLocationMemoryGuard_ = Location_->AcquireLocationMemory(
+        UseProbePutBlocks_,
         {},
         EIODirection::Write,
         Options_.WorkloadDescriptor,
@@ -546,17 +547,23 @@ TFuture<NIO::TIOCounters> TBlobSession::DoPutBlocks(
 
     bool useCumulativeBlockSize = (cumulativeBlockSize != 0);
 
-    // Updating right boundary of cumulative block sizes. A block with following number was received.
-    if (useCumulativeBlockSize && cumulativeBlockSize > MaxCumulativeBlockSize_) {
-        // Delta is new allocated memory of block's window.
-        auto deltaMaxCumulativeBlockSize = cumulativeBlockSize - MaxCumulativeBlockSize_;
-        MaxCumulativeBlockSize_ = cumulativeBlockSize;
+    // If UseProbePutBlocks_ == true, then all metrics below tracked in TSessionBase in GetMemoryForPutBlocks and ProbePutBlocks.
+    if (!UseProbePutBlocks_) {
+        // Updating right boundary of cumulative block sizes. A block with following number was received.
+        if (useCumulativeBlockSize && cumulativeBlockSize > MaxCumulativeBlockSize_) {
+            // Delta is new allocated memory of block's window.
+            auto deltaMaxCumulativeBlockSize = cumulativeBlockSize - MaxCumulativeBlockSize_;
+            MaxCumulativeBlockSize_ = cumulativeBlockSize;
 
-        // Add memory to guards.
-        // This guard account memory in memory tracker.
-        PendingBlockMemoryGuard_.IncreaseSize(deltaMaxCumulativeBlockSize);
-        // This guard account memory in location - without memory tracker - for per location counting.
-        PendingBlockLocationMemoryGuard_.IncreaseSize(deltaMaxCumulativeBlockSize);
+            // Add memory to guards.
+            // This guard account memory in memory tracker.
+            PendingBlockMemoryGuard_.IncreaseSize(deltaMaxCumulativeBlockSize);
+            // This guard account memory in location - without memory tracker - for per location counting.
+            PendingBlockLocationMemoryGuard_.IncreaseSize(deltaMaxCumulativeBlockSize);
+        }
+    } else {
+        THROW_ERROR_EXCEPTION_IF(ProbePutBlocksRequestSupplier_->GetCurrentApprovedMemory() < cumulativeBlockSize,
+            TError(NChunkClient::EErrorCode::WriteThrottlingActive, "Memory for PutBlocks have to be acquired in probe put blocks"));
     }
 
     auto totalSize = GetByteSize(blocks);
@@ -683,32 +690,37 @@ TFuture<NIO::TIOCounters> TBlobSession::DoPerformPutBlocks(
 
         {
             auto blockSize = block.Size();
+            if (UseProbePutBlocks_) {
+                // Memory already acquired in TSessionBase::ProbePutBlocks.
+                locationMemoryGuards.push_back(GetMemoryForPutBlocks(blockSize));
+            } else {
+                if (useCumulativeBlockSize) {
+                    // Move tracking from pending guards.
+                    if (PendingBlockLocationMemoryGuard_.GetSize() >= blockSize) {
+                        PendingBlockLocationMemoryGuard_.DecreaseSize(blockSize);
+                    } else {
+                        YT_LOG_ALERT(
+                            "Location memory guard is smaller than the size of the incoming block (ChunkId: %v)",
+                            GetChunkId());
+                    }
 
-            if (useCumulativeBlockSize) {
-                // Move tracking from pending guards.
-                if (PendingBlockLocationMemoryGuard_.GetSize() >= blockSize) {
-                    PendingBlockLocationMemoryGuard_.DecreaseSize(blockSize);
-                } else {
-                    YT_LOG_ALERT(
-                        "Location memory guard is smaller than the size of the incoming block (ChunkId: %v)",
-                        GetChunkId());
+                    if (PendingBlockMemoryGuard_.GetSize() >= blockSize) {
+                        PendingBlockMemoryGuard_.DecreaseSize(blockSize);
+                    } else {
+                        YT_LOG_ALERT(
+                            "Memory guard is smaller than the size of the incoming block (ChunkId: %v)",
+                            GetChunkId());
+                    }
                 }
 
-                if (PendingBlockMemoryGuard_.GetSize() >= blockSize) {
-                    PendingBlockMemoryGuard_.DecreaseSize(blockSize);
-                } else {
-                    YT_LOG_ALERT(
-                        "Memory guard is smaller than the size of the incoming block (ChunkId: %v)",
-                        GetChunkId());
-                }
+                // Track memory per location - without memory tracker.
+                locationMemoryGuards.push_back(Location_->AcquireLocationMemory(
+                    /*useLegacyUsedMemory*/ true,
+                    {},
+                    EIODirection::Write,
+                    Options_.WorkloadDescriptor,
+                    blockSize));
             }
-
-            // Track memory per location - without memory tracker.
-            locationMemoryGuards.push_back(Location_->AcquireLocationMemory(
-                {},
-                EIODirection::Write,
-                Options_.WorkloadDescriptor,
-                blockSize));
 
             // Track in memory tracker.
             block.Data = TrackMemory(memoryTracker, std::move(block.Data));
@@ -955,6 +967,13 @@ void TBlobSession::OnAborted(const TError& error)
 {
     YT_ASSERT_INVOKER_AFFINITY(SessionInvoker_);
 
+    for (int blockIndex = WindowStartBlockIndex_; blockIndex < std::ssize(Window_); ++blockIndex) {
+        auto& slot = GetSlot(blockIndex);
+        if (slot.State != ESlotState::Released) {
+            ReleaseBlockSlot(slot);
+        }
+    }
+
     Finished_.Fire(Error_);
 
     if (!error.IsOK()) {
@@ -977,6 +996,7 @@ void TBlobSession::ReleaseBlockSlot(TSlot& slot)
     slot.FairShareSlot.Reset();
     slot.LocationMemoryGuard.Release();
     slot.State = EBlobSessionSlotState::Released;
+    Location_->CheckProbePutBlocksRequests();
 }
 
 void TBlobSession::ReleaseBlocks(int flushedBlockIndex)
