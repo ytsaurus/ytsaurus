@@ -161,10 +161,10 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive TZ=Etc/UTC apt-get install 
   openjdk-17-jdk \
   java-common
 
-RUN ln -s /usr/lib/jvm/java-11-openjdk-amd64 /opt/jdk11
-RUN ln -s /usr/lib/jvm/java-17-openjdk-amd64 /opt/jdk17
-
-RUN update-java-alternatives --set java-1.11.0-openjdk-amd64
+RUN HOST_ARCH=$(dpkg --print-architecture) \
+  && ln -s /usr/lib/jvm/java-11-openjdk-${HOST_ARCH} /opt/jdk11 \
+  && ln -s /usr/lib/jvm/java-17-openjdk-${HOST_ARCH} /opt/jdk17 \
+  && update-java-alternatives --set java-1.11.0-openjdk-${HOST_ARCH}
 
 # Default python to be used by python3 jobs, for compatibility with jupyter tutorial.
 RUN ln -s /usr/bin/python3.8 /usr/bin/python3 -f
