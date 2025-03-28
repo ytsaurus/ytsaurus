@@ -528,6 +528,7 @@ private:
         response->set_close_demanded(IsCloseDemanded(location));
 
         // NB: Block checksums are validated before writing to disk.
+        // NB: Journal block checksums are validated within DoPutBlocks call.
         auto result = session->PutBlocks(
             firstBlockIndex,
             GetRpcAttachedBlocks(request, /*validateChecksums*/ false),
