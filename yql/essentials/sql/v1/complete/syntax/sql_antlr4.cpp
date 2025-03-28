@@ -25,31 +25,6 @@ namespace NSQLComplete {
             return KeywordTokens;
         }
 
-        const TVector<TRuleId>& GetKeywordRules() const override {
-            static const TVector<TRuleId> KeywordRules = {
-                RULE(Keyword),
-                RULE(Keyword_expr_uncompat),
-                RULE(Keyword_table_uncompat),
-                RULE(Keyword_select_uncompat),
-                RULE(Keyword_alter_uncompat),
-                RULE(Keyword_in_uncompat),
-                RULE(Keyword_window_uncompat),
-                RULE(Keyword_hint_uncompat),
-                RULE(Keyword_as_compat),
-                RULE(Keyword_compat),
-            };
-
-            return KeywordRules;
-        }
-
-        const TVector<TRuleId>& GetTypeNameRules() const override {
-            static const TVector<TRuleId> TypeNameRules = {
-                RULE(Type_name_simple),
-            };
-
-            return TypeNameRules;
-        }
-
     private:
         static const antlr4::dfa::Vocabulary* GetVocabularyP() {
             return &NALADefaultAntlr4::SQLv1Antlr4Parser(nullptr).getVocabulary();

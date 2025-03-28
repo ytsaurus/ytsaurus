@@ -1,7 +1,8 @@
 #include "local.h"
 
-#include "sql_antlr4.h"
 #include "ansi.h"
+#include "parser_call_stack.h"
+#include "sql_antlr4.h"
 
 #include <yql/essentials/sql/v1/complete/antlr4/c3i.h>
 #include <yql/essentials/sql/v1/complete/antlr4/c3t.h>
@@ -75,17 +76,7 @@ namespace NSQLComplete {
         }
 
         std::unordered_set<TRuleId> ComputePreferredRules() {
-            const auto& keywordRules = Grammar->GetKeywordRules();
-            const auto& typeNameRules = Grammar->GetTypeNameRules();
-
-            std::unordered_set<TRuleId> preferredRules;
-
-            // Excludes tokens obtained from keyword rules
-            preferredRules.insert(std::begin(keywordRules), std::end(keywordRules));
-
-            preferredRules.insert(std::begin(typeNameRules), std::end(typeNameRules));
-
-            return preferredRules;
+            return GetC3PreferredRules();
         }
 
         bool GetC3Prefix(TCompletionInput input, TStringBuf* prefix) {
@@ -122,10 +113,10 @@ namespace NSQLComplete {
         }
 
         bool IsTypeNameMatched(const TC3Candidates& candidates) {
-            const auto& typeNameRules = Grammar->GetTypeNameRules();
             return FindIf(candidates.Rules, [&](const TMatchedRule& rule) {
-                       return Find(typeNameRules, rule.Index) != std::end(typeNameRules);
-                   }) != std::end(candidates.Rules);
+                TParserCallStack stack = {rule.Index};
+                return IsLikelyTypeStack(stack);
+            }) != std::end(candidates.Rules);
         }
 
         const ISqlGrammar* Grammar;

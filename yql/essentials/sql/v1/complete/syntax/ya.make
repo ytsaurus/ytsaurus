@@ -3,6 +3,7 @@ LIBRARY()
 SRCS(
     ansi.cpp
     local.cpp
+    parser_call_stack.cpp
     sql_antlr4.cpp
 )
 
