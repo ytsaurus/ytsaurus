@@ -81,6 +81,10 @@ namespace NSQLComplete {
                 request.Constraints.TypeName = TTypeName::TConstraints();
             }
 
+            if (context.IsFunctionName) {
+                request.Constraints.Function = TFunctionName::TConstraints();
+            }
+
             if (request.IsEmpty()) {
                 return;
             }
@@ -95,8 +99,11 @@ namespace NSQLComplete {
             for (auto& name : names) {
                 candidates.emplace_back(std::visit([](auto&& name) -> TCandidate {
                     using T = std::decay_t<decltype(name)>;
-                    if constexpr (std::is_base_of_v<TIndentifier, T>) {
+                    if constexpr (std::is_base_of_v<TTypeName, T>) {
                         return {ECandidateKind::TypeName, std::move(name.Indentifier)};
+                    }
+                    if constexpr (std::is_base_of_v<TFunctionName, T>) {
+                        return {ECandidateKind::FunctionName, std::move(name.Indentifier)};
                     }
                 }, std::move(name)));
             }
@@ -146,6 +153,9 @@ void Out<NSQLComplete::ECandidateKind>(IOutputStream& out, NSQLComplete::ECandid
             break;
         case NSQLComplete::ECandidateKind::TypeName:
             out << "TypeName";
+            break;
+        case NSQLComplete::ECandidateKind::FunctionName:
+            out << "FunctionName";
             break;
     }
 }

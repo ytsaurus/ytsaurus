@@ -6,6 +6,8 @@ namespace NSQLComplete {
 
     bool IsLikelyTypeStack(const TParserCallStack& stack);
 
+    bool IsLikelyFunctionStack(const TParserCallStack& stack);
+
     std::unordered_set<TRuleId> GetC3PreferredRules();
 
 }

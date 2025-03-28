@@ -12,6 +12,7 @@ namespace NSQLComplete {
     struct TLocalSyntaxContext {
         TVector<TString> Keywords;
         bool IsTypeName;
+        bool IsFunctionName;
     };
 
     class ILocalSyntaxAnalysis {

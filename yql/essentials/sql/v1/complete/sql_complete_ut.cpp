@@ -37,6 +37,7 @@ public:
 Y_UNIT_TEST_SUITE(SqlCompleteTests) {
     using ECandidateKind::Keyword;
     using ECandidateKind::TypeName;
+    using ECandidateKind::FunctionName;
 
     TLexerSupplier MakePureLexerSupplier() {
         NSQLTranslationV1::TLexers lexers;
@@ -51,6 +52,7 @@ Y_UNIT_TEST_SUITE(SqlCompleteTests) {
         TLexerSupplier lexer = MakePureLexerSupplier();
         INameService::TPtr names = MakeStaticNameService({
             .Types = {"Uint64"},
+            .Functions = {"StartsWith"},
         });
         return MakeSqlCompletionEngine(std::move(lexer), std::move(names));
     }
@@ -261,18 +263,6 @@ Y_UNIT_TEST_SUITE(SqlCompleteTests) {
     Y_UNIT_TEST(Pragma) {
         TVector<TCandidate> expected = {
             {Keyword, "ANSI"},
-            {Keyword, "CALLABLE"},
-            {Keyword, "DICT"},
-            {Keyword, "ENUM"},
-            {Keyword, "FLOW"},
-            {Keyword, "LIST"},
-            {Keyword, "OPTIONAL"},
-            {Keyword, "RESOURCE"},
-            {Keyword, "SET"},
-            {Keyword, "STRUCT"},
-            {Keyword, "TAGGED"},
-            {Keyword, "TUPLE"},
-            {Keyword, "VARIANT"},
         };
 
         auto engine = MakeSqlCompletionEngineUT();
@@ -311,6 +301,7 @@ Y_UNIT_TEST_SUITE(SqlCompleteTests) {
             {Keyword, "TRUE"},
             {Keyword, "TUPLE"},
             {Keyword, "VARIANT"},
+            {FunctionName, "StartsWith"},
         };
 
         auto engine = MakeSqlCompletionEngineUT();
@@ -360,7 +351,7 @@ Y_UNIT_TEST_SUITE(SqlCompleteTests) {
 
     Y_UNIT_TEST(WordBreak) {
         auto engine = MakeSqlCompletionEngineUT();
-        UNIT_ASSERT_VALUES_EQUAL(Complete(engine, {"SELECT ("}).size(), 28);
+        UNIT_ASSERT_VALUES_EQUAL(Complete(engine, {"SELECT ("}).size(), 29);
         UNIT_ASSERT_VALUES_EQUAL(Complete(engine, {"SELECT (1)"}).size(), 30);
         UNIT_ASSERT_VALUES_EQUAL(Complete(engine, {"SELECT 1;"}).size(), 35);
     }

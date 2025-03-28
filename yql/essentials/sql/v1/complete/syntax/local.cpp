@@ -56,6 +56,7 @@ namespace NSQLComplete {
             return {
                 .Keywords = SiftedKeywords(candidates),
                 .IsTypeName = IsTypeNameMatched(candidates),
+                .IsFunctionName = IsFunctionNameMatched(candidates),
             };
         }
 
@@ -113,10 +114,15 @@ namespace NSQLComplete {
         }
 
         bool IsTypeNameMatched(const TC3Candidates& candidates) {
-            return FindIf(candidates.Rules, [&](const TMatchedRule& rule) {
-                TParserCallStack stack = {rule.Index};
-                return IsLikelyTypeStack(stack);
-            }) != std::end(candidates.Rules);
+            return AnyOf(candidates.Rules, [&](const TMatchedRule& rule) {
+                return IsLikelyTypeStack(rule.ParserCallStack);
+            });
+        }
+
+        bool IsFunctionNameMatched(const TC3Candidates& candidates) {
+            return AnyOf(candidates.Rules, [&](const TMatchedRule& rule) {
+                return IsLikelyFunctionStack(rule.ParserCallStack);
+            });
         }
 
         const ISqlGrammar* Grammar;

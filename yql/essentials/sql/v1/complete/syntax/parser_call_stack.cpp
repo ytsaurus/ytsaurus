@@ -25,19 +25,41 @@ namespace NSQLComplete {
         RULE(Type_name_simple),
     };
 
+    const TVector<TRuleId> FunctionNameRules = {
+        RULE(Id_expr),
+        RULE(An_id_or_type),
+        RULE(Id_or_type),
+    };
+
+    bool EndsWith(const TParserCallStack& suffix, const TParserCallStack& stack) {
+        if (stack.size() < suffix.size()) {
+            return false;
+        }
+        const size_t prefixSize = stack.size() - suffix.size();
+        return Equal(std::begin(stack) + prefixSize, std::end(stack), std::begin(suffix));
+    }
+
     bool ContainsRule(TRuleId rule, const TParserCallStack& stack) {
         return Find(stack, rule) != std::end(stack);
     }
 
     bool IsLikelyTypeStack(const TParserCallStack& stack) {
-        return ContainsRule(RULE(Type_name_simple), stack);
+        return EndsWith({RULE(Type_name_simple)}, stack);
+    }
+
+    bool IsLikelyFunctionStack(const TParserCallStack& stack) {
+        return EndsWith({RULE(Unary_casual_subexpr), RULE(Id_expr)}, stack) ||
+               EndsWith({RULE(Unary_casual_subexpr),
+                         RULE(Atom_expr),
+                         RULE(An_id_or_type)}, stack);
     }
 
     std::unordered_set<TRuleId> GetC3PreferredRules() {
         std::unordered_set<TRuleId> preferredRules;
         preferredRules.insert(std::begin(KeywordRules), std::end(KeywordRules));
         preferredRules.insert(std::begin(TypeNameRules), std::end(TypeNameRules));
+        preferredRules.insert(std::begin(FunctionNameRules), std::end(FunctionNameRules));
         return preferredRules;
     }
 
-}
+} // namespace NSQLComplete

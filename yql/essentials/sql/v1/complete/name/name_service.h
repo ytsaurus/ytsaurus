@@ -34,7 +34,7 @@ namespace NSQLComplete {
         size_t Limit = 128;
 
         bool IsEmpty() const {
-            return !Constraints.TypeName;
+            return !Constraints.TypeName && !Constraints.Function;
         }
     };
 
