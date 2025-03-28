@@ -78,7 +78,9 @@ namespace NSQLComplete {
         lexers.Antlr4Pure = NSQLTranslationV1::MakeAntlr4PureLexerFactory();
         lexers.Antlr4PureAnsi = NSQLTranslationV1::MakeAntlr4PureAnsiLexerFactory();
         return MakeSqlCompletionEngine([lexers = std::move(lexers)](bool ansi) {
-            return NSQLTranslationV1::MakeLexer(lexers, ansi, /* antlr4 = */ true, /* pure = */ true);
+            return NSQLTranslationV1::MakeLexer(
+                lexers, ansi, /* antlr4 = */ true, 
+                NSQLTranslationV1::ELexerFlavor::Pure);
         });
     }
 
