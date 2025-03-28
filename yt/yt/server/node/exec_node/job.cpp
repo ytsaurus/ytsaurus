@@ -1638,7 +1638,8 @@ void TJob::HandleJobReport(TNodeJobReport&& jobReport)
         jobReport
             .OperationId(GetOperationId())
             .JobId(GetId())
-            .Address(Bootstrap_->GetLocalDescriptor().GetDefaultAddress()));
+            .Address(Bootstrap_->GetLocalDescriptor().GetDefaultAddress())
+            .Addresses(Bootstrap_->GetLocalDescriptor().Addresses()));
 }
 
 void TJob::ReportSpec()
@@ -3363,6 +3364,28 @@ bool TJob::CanBeAccessedViaVirtualSandbox(const TArtifact& artifact) const
     return true;
 }
 
+void TJob::InitializeSandboxNbdRootVolumeData()
+{
+    if (!UserJobSpec_
+        || !UserJobSpec_->has_disk_request()
+        || !UserJobSpec_->disk_request().has_nbd_disk()
+        || !Bootstrap_->GetNbdServer()) {
+        return;
+    }
+
+    YT_VERIFY(UserJobSpec_->disk_request().has_disk_space());
+    YT_VERIFY(UserJobSpec_->disk_request().has_medium_index());
+
+    SandboxNbdRootVolumeData_ = TSandboxNbdRootVolumeData{
+        .NbdDiskSize = UserJobSpec_->disk_request().disk_space(),
+        .NbdDiskMediumIndex = UserJobSpec_->disk_request().medium_index(),
+    };
+
+    if (UserJobSpec_->disk_request().nbd_disk().has_data_node_address()) {
+        SandboxNbdRootVolumeData_->NbdDiskDataNodeAddress = UserJobSpec_->disk_request().nbd_disk().data_node_address();
+    }
+}
+
 void TJob::InitializeNbdExportIds()
 {
     YT_ASSERT_THREAD_AFFINITY(JobThread);
@@ -3403,20 +3426,12 @@ void TJob::InitializeNbdExportIds()
         }
     }
 
-    if (UserJobSpec_ && UserJobSpec_->disk_request().has_nbd_disk() && Bootstrap_->GetNbdServer()) {
+    // Create NBD export id for NBD root volume.
+    if (SandboxNbdRootVolumeData_) {
         auto nbdExportId = MakeNbdExportId(Id_, nbdExportCount);
         ++nbdExportCount;
 
-        SandboxNbdRootVolumeData_ = std::make_optional<TSandboxNbdRootVolumeData>();
         SandboxNbdRootVolumeData_->NbdExportId = nbdExportId;
-        YT_VERIFY(UserJobSpec_->disk_request().has_disk_space());
-        SandboxNbdRootVolumeData_->NbdDiskSize = UserJobSpec_->disk_request().disk_space();
-        YT_VERIFY(UserJobSpec_->disk_request().has_medium_index());
-        SandboxNbdRootVolumeData_->NbdDiskMediumIndex = UserJobSpec_->disk_request().medium_index();
-
-        if (UserJobSpec_->disk_request().nbd_disk().has_data_node_address()) {
-            SandboxNbdRootVolumeData_->NbdDiskDataNodeAddress = UserJobSpec_->disk_request().nbd_disk().data_node_address();
-        }
     }
 }
 
@@ -3482,6 +3497,8 @@ void TJob::InitializeArtifacts()
             });
         }
     }
+
+    InitializeSandboxNbdRootVolumeData();
 
     InitializeNbdExportIds();
 

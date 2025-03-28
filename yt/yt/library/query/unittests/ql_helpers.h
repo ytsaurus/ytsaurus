@@ -46,6 +46,8 @@ TValue MakeDouble(double value);
 TValue MakeBoolean(bool value);
 TValue MakeString(TStringBuf value);
 TValue MakeNull();
+TValue MakeAny(TStringBuf ysonString);
+TValue MakeComposite(TStringBuf ysonString);
 
 template <class TTypedExpression, class... TArgs>
 TConstExpressionPtr Make(TArgs&&... args)

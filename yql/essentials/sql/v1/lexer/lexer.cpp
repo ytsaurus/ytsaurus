@@ -272,7 +272,10 @@ void SplitByStatements(TTokenIterator begin, TTokenIterator end, TVector<TTokenI
 
 }
 
-bool SplitQueryToStatements(const TString& query, NSQLTranslation::ILexer::TPtr& lexer, TVector<TString>& statements, NYql::TIssues& issues, const TString& file) {
+bool SplitQueryToStatements(
+    const TString& query, NSQLTranslation::ILexer::TPtr& lexer, 
+    TVector<TString>& statements, NYql::TIssues& issues, const TString& file,
+    bool areBlankSkipped) {
     TParsedTokenList allTokens;
     auto onNextToken = [&](NSQLTranslation::TParsedToken&& token) {
         if (token.Name != "EOF") {
@@ -288,12 +291,14 @@ bool SplitQueryToStatements(const TString& query, NSQLTranslation::ILexer::TPtr&
     SplitByStatements(allTokens.begin(), allTokens.end(), statementsTokens);
 
     for (size_t i = 1; i < statementsTokens.size(); ++i) {
-        TStringBuilder currentQueryBuilder;
+        TString statement;
         for (auto it = statementsTokens[i - 1]; it != statementsTokens[i]; ++it) {
-            currentQueryBuilder << it->Content;
+            statement += it->Content;
         }
-        TString statement = currentQueryBuilder;
-        statement = StripStringLeft(statement);
+
+        if (areBlankSkipped) {
+            statement = StripStringLeft(statement);
+        }
 
         bool isBlank = true;
         for (auto c : statement) {
@@ -303,11 +308,11 @@ bool SplitQueryToStatements(const TString& query, NSQLTranslation::ILexer::TPtr&
             }
         };
 
-        if (isBlank) {
+        if (isBlank && areBlankSkipped) {
             continue;
         }
 
-        statements.push_back(statement);
+        statements.emplace_back(std::move(statement));
     }
 
     return true;

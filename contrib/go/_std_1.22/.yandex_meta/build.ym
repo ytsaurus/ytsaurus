@@ -1,0 +1,94 @@
+{% extends '//builtin/run.ym' %}
+
+{% block current_version %}1.22.5{% endblock %}
+
+{% block current_url %}
+https://go.dev/dl/go{{self.version().strip()}}.src.tar.gz
+{% endblock %}
+
+{% set YAGOGEN="contrib/go/yagogen" %}
+
+{% block prepare_env %}
+{{super()}}
+tar xf ${RESOURCES}/{{self.current_url().strip() | basename}} --strip-components=1 --directory=${RESOURCES}
+
+base64 -d << EOF > ${BIN}/gen.py
+{% include '//' + YAGOGEN + '/gen.py/base64' %}
+
+EOF
+{% endblock %}
+
+{% block unpack_source %}
+{{super()}}
+rsync --recursive \
+      --exclude "*.tar.gz" \
+      --exclude "*.sh" \
+      --exclude "*.bash" \
+      --exclude "*.rc" \
+      --exclude "*.bat" \
+      --exclude "*_test.go" \
+      --exclude "testdata" \
+      ${RESOURCES}/* .
+
+rm -rf api bin codereview.cfg doc lib misc pkg src/cmd test
+
+base64 -d << EOF > src/internal/buildcfg/zbootstrap.go
+{% include '//' + YAGOGEN + '/zbootstrap.go/base64' %}
+
+EOF
+sed -i -e "s|__version__|{{self.version().strip()}}|" src/internal/buildcfg/zbootstrap.go 
+
+base64 -d << EOF > src/go/build/zcgo.go
+{% include '//' + YAGOGEN + '/zcgo.go/base64' %}
+
+EOF
+
+base64 -d << EOF > src/runtime/internal/sys/zversion.go
+{% include '//' + YAGOGEN + '/zversion.go/base64' %}
+
+EOF
+
+base64 -d << EOF > src/time/tzdata/zzipdata.go
+{% include '//' + YAGOGEN + '/zzipdata.go/base64' %}
+
+EOF
+{% endblock %}
+
+{% block build_source %}
+sed -i 's/GOTOOLCHAIN=auto/GOTOOLCHAIN=local/g' go.env
+{% endblock %}
+
+{% block prepare_yamake %}
+python3 ${BIN}/gen.py .
+
+rm src/builtin/ya.make
+rm src/crypto/internal/bigmod/_asm/ya.make
+rm src/crypto/internal/edwards25519/field/_asm/ya.make
+
+base64 -d << EOF > src/runtime/cgo/ya.make
+{% include '//' + YAGOGEN + '/cgo.txt/base64' %}
+
+EOF
+
+cat << EOF > ya.make
+SUBSCRIBER(g:contrib hiddenpath)
+RECURSE(
+EOF
+
+find ./src -type f -name ya.make \
+    | sed -e 's|^./|    |' -e 's|/ya.make$||' \
+    | grep -v '/macos' \
+    | grep -v 'net/route' \
+    | sort >> ya.make
+
+echo ')' >> ya.make
+{% endblock %}
+
+{% block run_license_analyzer %}
+:
+{% endblock %}
+
+{% block move_to_output %}
+rsync --recursive --delete --perms ${SRC}/ ${OUTPUT}
+{% endblock %}
+

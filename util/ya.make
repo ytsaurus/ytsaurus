@@ -86,10 +86,10 @@ JOIN_SRCS(
     generic/array_size.cpp
     generic/bitmap.cpp
     generic/bitops.cpp
-    generic/bt_exception.cpp
     generic/buffer.cpp
     generic/cast.cpp
     generic/deque.cpp
+    generic/enum_cast.cpp
     generic/explicit_type.cpp
     generic/fastqueue.cpp
     generic/flags.cpp

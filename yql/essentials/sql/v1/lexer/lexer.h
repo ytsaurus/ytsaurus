@@ -30,6 +30,8 @@ NSQLTranslation::ILexer::TPtr MakeLexer(
 // in SELECT * FROM ... GROUP BY ... - group is a keyword.
 bool IsProbablyKeyword(const NSQLTranslation::TParsedToken& token);
 
-bool SplitQueryToStatements(const TString& query, NSQLTranslation::ILexer::TPtr& lexer,
-    TVector<TString>& statements, NYql::TIssues& issues, const TString& file = "");
+bool SplitQueryToStatements(
+    const TString& query, NSQLTranslation::ILexer::TPtr& lexer,
+    TVector<TString>& statements, NYql::TIssues& issues, const TString& file = "",
+    bool areBlankSkipped = true);
 }

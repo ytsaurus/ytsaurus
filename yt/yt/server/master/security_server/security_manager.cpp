@@ -2750,14 +2750,14 @@ public:
         UserRequestThrottlerConfigChanged_.Fire(user);
     }
 
-    bool TryIncreaseRequestQueueSize(TUser* user) override
+    bool TryIncrementRequestQueueSize(TUser* user) override
     {
-        return RequestTracker_->TryIncreaseRequestQueueSize(user);
+        return RequestTracker_->TryIncrementRequestQueueSize(user);
     }
 
-    void DecreaseRequestQueueSize(TUser* user) override
+    void DecrementRequestQueueSize(TUser* user) override
     {
-        RequestTracker_->DecreaseRequestQueueSize(user);
+        RequestTracker_->DecrementRequestQueueSize(user);
     }
 
     const TSecurityTagsRegistryPtr& GetSecurityTagsRegistry() const override

@@ -184,6 +184,20 @@ std::pair<TJoinClausePtr, TGroupClausePtr> MakeGroupAndJoinClauses(
             aggregate.ResultType));
     }
 
+    TPurityChecker isConstant({});
+
+    while (groupItems.size() > 1) {
+        auto it = std::find_if(groupItems.begin(), groupItems.end(), [&] (const TNamedItem& item) {
+            return isConstant.Check(item.Expression);
+        });
+
+        if (it == groupItems.end()) {
+            break;
+        }
+
+        groupItems.erase(it);
+    }
+
     pushedGroupClause->GroupItems = std::move(groupItems);
     pushedGroupClause->AggregateItems = std::move(pureAggregates);
     pushedGroupClause->TotalsMode = ETotalsMode::None;
@@ -247,21 +261,18 @@ TString MakeDebugString(const TJoinClause& joinClause)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::optional<int> GetPushDownJoinIndex(const NAst::TQuery& ast)
+int GetPushDownJoinCount(const NAst::TQuery& ast)
 {
-    std::optional<int> pushDownJoinIndex;
+    int count = 0;
 
     for (int index = 0; index < std::ssize(ast.Joins); ++index) {
         if (auto* tableJoin = std::get_if<NAst::TJoin>(&ast.Joins[index]);
             tableJoin && tableJoin->Table.Hint->PushDownGroupBy)
         {
-            THROW_ERROR_EXCEPTION_IF(pushDownJoinIndex,
-                "Multiple \"push_down_group_by\" are not supported at the current moment");
-
-            pushDownJoinIndex = index;
+            count++;
         }
     }
-    return pushDownJoinIndex;
+    return count;
 }
 
 void TryPushDownGroupBy(const TQueryPtr& query, const NAst::TQuery& ast, const TLogger& Logger)
@@ -272,14 +283,19 @@ void TryPushDownGroupBy(const TQueryPtr& query, const NAst::TQuery& ast, const T
         return;
     }
 
-    auto pushDownJoinIndex = GetPushDownJoinIndex(ast);
-    if (!pushDownJoinIndex) {
+    auto pushDownGroupByJoinCount = GetPushDownJoinCount(ast);
+    if (pushDownGroupByJoinCount == 0) {
         return;
-    } else if (!query->GroupClause) {
+    }
+
+    THROW_ERROR_EXCEPTION_IF(query->JoinClauses.size() > 1,
+        "\"push_down_group_by\" with multiple join clauses is not supported at the current moment");
+
+    if (!query->GroupClause) {
         THROW_ERROR_EXCEPTION("Found \"push_down_group_by\" hint, but no group clause");
     }
 
-    const auto& joinClause = query->JoinClauses[*pushDownJoinIndex];
+    const auto& joinClause = query->JoinClauses[0];
 
     auto joinRenamedSchema = joinClause->Schema.GetRenamedSchema();
 
@@ -297,7 +313,7 @@ void TryPushDownGroupBy(const TQueryPtr& query, const NAst::TQuery& ast, const T
         MakeDebugString(*newJoinClause),
         MakeDebugString(*newGroupClause));
 
-    query->JoinClauses = {newJoinClause};
+    query->JoinClauses[0] = newJoinClause;
 
     query->GroupClause = newGroupClause;
 }
