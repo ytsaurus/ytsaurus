@@ -30,7 +30,7 @@ namespace NSQLComplete {
             return *Vocabulary;
         }
 
-        const THashMap<TString, TRuleId> GetRuleIdsByName() const override {
+        const THashMap<TString, TRuleId>& GetRuleIdsByName() const override {
             return RuleIdsByName;
         }
 
