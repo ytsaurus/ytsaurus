@@ -43,6 +43,7 @@ public:
         Opts_.AddLongOption("row-count-limit").StoreResult(&RowCountLimit_);
         Opts_.AddLongOption("poll-progress").StoreTrue(&PollProgressFlag_);
         Opts_.AddLongOption("poll-period-ms").StoreResult(&PollPeriodMs_);
+        Opts_.AddLongOption("hide-results").StoreTrue(&HideResultsFlag_);
     }
 
 protected:
@@ -81,58 +82,69 @@ protected:
 
         auto rsp = req->Invoke();
         if (PollProgressFlag_) {
+            Cout << "Polling progress..." << Endl;
             WaitFor(BIND(&TChytQuery::PollProgress, this, proxy, queryId)
                 .AsyncVia(pool->GetInvoker())
                 .Run()).ThrowOnError();
         }
         auto result = WaitFor(rsp)
             .ValueOrThrow();
+        if (!HideResultsFlag_) {
+            Cout << Format("Query id: %v", FromProto<TGuid>(result->query_id())) << Endl;
 
-        Cout << Format("Query id: %v", FromProto<TGuid>(result->query_id())) << Endl;
-
-        const auto& error = FromProto<TError>(result->error());
-        Cout << "Result: " << ((error.IsOK()) ? "OK" : "Error") << Endl;
-        if (error.IsOK()) {
-            for (size_t i = 0; i < result->Attachments().size(); ++i) {
-                if (result->Attachments()[i].Empty()) {
-                    Cout << "Empty attachment" << Endl;
-                    continue;
+            const auto& error = FromProto<TError>(result->error());
+            Cout << "Result: " << ((error.IsOK()) ? "OK" : "Error") << Endl;
+            if (error.IsOK()) {
+                for (size_t i = 0; i < result->Attachments().size(); ++i) {
+                    if (result->Attachments()[i].Empty()) {
+                        Cout << "Empty attachment" << Endl;
+                        continue;
+                    }
+                    auto wireRowset = result->Attachments()[i];
+                    auto wireReader = CreateWireProtocolReader(wireRowset);
+                    auto schema = wireReader->ReadTableSchema();
+                    auto schemaData = IWireProtocolReader::GetSchemaData(schema);
+                    auto rowset = wireReader->ReadSchemafulRowset(schemaData, /*captureData*/ true);
+                    Cout << "Schema: " << ConvertToYsonString(schema, EYsonFormat::Pretty).ToString() << Endl;
+                    Cout << "Rowset:" << Endl;
+                    for (const auto& row : rowset) {
+                        Cout << ToString(row) << Endl;
+                    }
                 }
-                auto wireRowset = result->Attachments()[i];
-                auto wireReader = CreateWireProtocolReader(wireRowset);
-                auto schema = wireReader->ReadTableSchema();
-                auto schemaData = IWireProtocolReader::GetSchemaData(schema);
-                auto rowset = wireReader->ReadSchemafulRowset(schemaData, /*captureData*/ true);
-                Cout << "Schema: " << ConvertToYsonString(schema, EYsonFormat::Pretty).ToString() << Endl;
-                Cout << "Rowset:" << Endl;
-                for (const auto& row : rowset) {
-                    Cout << ToString(row) << Endl;
-                }
+            } else {
+                Cout << ToString(error) << Endl;
             }
-        } else {
-            Cout << ToString(error) << Endl;
         }
     }
 
 private:
-    void PrintProgressAndTs(const NClickHouseServer::NProto::TQueryProgressValues& progress, const TInstant& ts)
+    void PrintProgressAndTs(const NClickHouseServer::NProto::TMultiQueryProgressValues& progress, const TInstant& ts)
     {
-        Cout << '[' << ts << ']' << Endl;
-        int secondaryQueriesCount = progress.secondary_query_ids_size();
-        for (int i = 0; i < secondaryQueriesCount; ++i) {
-            auto queryId = progress.secondary_query_ids()[i];
-            auto queryProgress = progress.secondary_query_progresses()[i];
-
+        Cout << "Queries count: " << progress.queries_count() << Endl;
+        for (int i = 0; i < progress.progresses_size(); ++i) {
+            auto queryProgress = progress.progresses()[i];
             std::string isFinishedStr = "";
-            if (queryProgress.finished()) {
+            if (queryProgress.total_progress().finished()) {
+                isFinishedStr = " - [FINISHED] - ";
+            }
+            Cout << "Query_id: " << Format("%v", FromProto<TGuid>(queryProgress.query_id())) << isFinishedStr << Endl;
+            Cout << '[' << ts << ']' << Endl;
+            int secondaryQueriesCount = queryProgress.secondary_query_ids_size();
+        for (int i = 0; i < secondaryQueriesCount; ++i) {
+            auto queryId = queryProgress.secondary_query_ids()[i];
+            auto secondaryQueryProgress = queryProgress.secondary_query_progresses()[i];
+
+            isFinishedStr = "";
+            if (secondaryQueryProgress.finished()) {
                 isFinishedStr = " - [FINISHED] - ";
             }
 
-            Cout << "   " << Format("%v", FromProto<TGuid>(queryId)) << isFinishedStr << ": Read-row = "<< queryProgress.read_rows() << '/' << queryProgress.total_rows_to_read() <<
-                "; Read-bytes = " << queryProgress.read_bytes() << '/' << queryProgress.total_bytes_to_read() << Endl;
+            Cout << "   " << Format("%v", FromProto<TGuid>(queryId)) << isFinishedStr << ": Read-row = "<< secondaryQueryProgress.read_rows() << '/' << secondaryQueryProgress.total_rows_to_read() <<
+                "; Read-bytes = " << secondaryQueryProgress.read_bytes() << '/' << secondaryQueryProgress.total_bytes_to_read() << Endl;
         }
-        Cout << "   Total progress: Read-rows = " << progress.total_progress().read_rows() << '/' << progress.total_progress().total_rows_to_read() <<
-            "; Read-bytes = " << progress.total_progress().read_bytes() << '/' << progress.total_progress().total_bytes_to_read() << Endl;
+        Cout << "   Total progress: Read-rows = " << queryProgress.total_progress().read_rows() << '/' << queryProgress.total_progress().total_rows_to_read() <<
+            "; Read-bytes = " << queryProgress.total_progress().read_bytes() << '/' << queryProgress.total_progress().total_bytes_to_read() << Endl;
+        }
     }
 
     void PollProgress(TQueryServiceProxy proxy, TGuid queryId)
@@ -145,13 +157,21 @@ private:
                 .ValueOrThrow();
 
             auto start = TInstant::Now();
-            if (result->has_progress()) {
-                PrintProgressAndTs(result->progress(), start);
-                if (result->progress().total_progress().finished()) {
+            if (result->has_multi_progress()) {
+                PrintProgressAndTs(result->multi_progress(), start);
+                auto finished_count = 0;
+                for (int i = 0; i < result->multi_progress().progresses_size(); ++i) {
+                    auto queryProgress = result->multi_progress().progresses()[i];
+                    if (queryProgress.total_progress().finished()) {
+                        finished_count++;
+                    }
+                }
+                Cout << "Finished queries: " << finished_count << Endl << "***" << Endl;
+                if (finished_count == result->multi_progress().progresses_size()) {
                     break;
                 }
             } else {
-                Cout << '[' << start << "] Empty progress" << Endl;
+                Cout << '[' << start << "] Empty progress" << Endl << "***" << Endl;
             }
 
             TDelayedExecutor::WaitForDuration(TDuration::MilliSeconds(PollPeriodMs_));
@@ -164,6 +184,7 @@ private:
     TString QueryPath_;
     i64 RowCountLimit_ = -1;
     bool PollProgressFlag_ = false;
+    bool HideResultsFlag_ = false;
     i64 PollPeriodMs_ = 100;
     THashMap<TString, TString> Settings_;
 };

@@ -14,9 +14,10 @@ namespace NYT::NClickHouseServer {
 struct TQueryFinishInfo
 {
     TStatistics Statistics;
-    TQueryProgressValues Progess;
+    TQueryProgressValues Progress;
     NYTree::IAttributeDictionaryPtr RuntimeVariables;
     std::vector<TQueryId> SecondaryQueryIds;
+    std::vector<TQueryId> AdditionalQueryIds;
     std::vector<std::pair<TString, TString>> HttpHeaders;
 };
 

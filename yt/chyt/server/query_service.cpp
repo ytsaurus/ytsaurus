@@ -27,6 +27,7 @@
 #include <Interpreters/Context.h>
 #include <Interpreters/executeQuery.h>
 #include <Interpreters/Session.h>
+#include <Parsers/parseQuery.h>
 #include <Processors/Executors/CompletedPipelineExecutor.h>
 #include <Processors/Executors/PullingAsyncPipelineExecutor.h>
 
@@ -62,11 +63,11 @@ public:
         : Request_(request)
         , Host_(host)
         , User_(user)
-        , QueryId_(queryId)
+        , InitialQueryId_(queryId)
         , CompositeSettings_(TCompositeSettings::Create(/*convertUnsupportedTypesToString*/ true))
     { }
 
-    TErrorOr<TRowset> Execute()
+    TErrorOr<std::vector<TRowset>> Execute()
     {
         auto completedPromise = NewPromise<void>();
         auto completedFuture = completedPromise.ToFuture();
@@ -88,7 +89,7 @@ public:
             return error;
         }
 
-        return TRowset{WireRowset_, TotalRowCount_};
+        return Result_;
     }
 
 private:
@@ -96,30 +97,49 @@ private:
     THost* Host_;
 
     std::string User_;
-    TQueryId QueryId_;
+    TQueryId InitialQueryId_;
     DB::ContextMutablePtr QueryContext_;
-    TString Query_;
     DB::BlockIO BlockIO_;
     TCompositeSettingsPtr CompositeSettings_;
-
-    TSharedRef WireRowset_;
-    i64 TotalRowCount_ = 0;
+    std::vector<TRowset> Result_;
 
     void Run()
     {
         PrepareContext();
 
-        DB::CurrentThread::QueryScope queryScope(QueryContext_);
+        auto queries = SplitClickHouseQueries(Request_->chyt_request().query(), QueryContext_);
+        std::vector<TQueryId> additionalQueryIds;
+        additionalQueryIds.reserve(queries.size());
+        while (additionalQueryIds.size() < queries.size()) {
+            additionalQueryIds.push_back(TQueryId::Create());
+        }
+        auto traceContext = NTracing::TTraceContext::NewRoot("ChytRpcQueryHandler");
+        if (queries.size() > 1) {
+            // Need fake context to get additional_query_ids from queryRegistry while polling progress.
+            SetupHostContext(Host_, QueryContext_, InitialQueryId_, traceContext, std::nullopt, std::nullopt, nullptr, {}, additionalQueryIds);
+        } else if (queries.size() == 1) {
+            additionalQueryIds[0] = InitialQueryId_;
+        }
+        // Move fake context if has one to keep it alive while processing queries.
+        auto initialHostContext = std::move(QueryContext_->getHostContext());
 
-        BuildPipeline();
-        ProcessPipeline();
+        DB::CurrentThread::QueryScope queryScope(QueryContext_);
+        for (size_t i = 0; i < queries.size(); ++i) {
+            SetupHostContext(Host_, QueryContext_, additionalQueryIds[i], traceContext);
+            SetNextQueryId(additionalQueryIds[i]);
+            BuildPipeline(TString(queries[i]));
+            ProcessPipeline();
+        }
+    }
+
+    void SetNextQueryId(TQueryId queryId)
+    {
+        QueryContext_->setCurrentQueryId(ToString(queryId));
+        QueryContext_->setInitialQueryId(ToString(InitialQueryId_));
     }
 
     void PrepareContext()
     {
-        auto& chytRequest = Request_->chyt_request();
-        Query_ = chytRequest.query();
-
         RegisterNewUser(
             Host_->GetContext()->getAccessControl(),
             User_,
@@ -129,34 +149,33 @@ private:
         // Query context is inherited from session context like it was made in ClickHouse gRPC server.
         DB::Session session(Host_->GetContext(), DB::ClientInfo::Interface::GRPC);
         session.authenticate(User_, /*password=*/ "", DBPoco::Net::SocketAddress());
+        session.makeSessionContext();
         QueryContext_ = session.makeQueryContext();
+        QueryContext_->makeSessionContext();
 
-        QueryContext_->setInitialQueryId(ToString(QueryId_));
-        QueryContext_->setCurrentQueryId(ToString(QueryId_));
         QueryContext_->setInitialUserName(User_);
         QueryContext_->setQueryKind(DB::ClientInfo::QueryKind::INITIAL_QUERY);
+        QueryContext_->setCurrentQueryId(ToString(InitialQueryId_));
 
         DB::SettingsChanges settingsChanges;
+        auto& chytRequest = Request_->chyt_request();
         for (const auto& [key, value] : chytRequest.settings()) {
             std::string_view view(value);
             settingsChanges.emplace_back(key, DB::Field(view));
         }
         QueryContext_->checkSettingsConstraints(settingsChanges, DB::SettingSource::QUERY);
         QueryContext_->applySettingsChanges(settingsChanges);
-
-        auto traceContext = NTracing::TTraceContext::NewRoot("ChytRpcQueryHandler");
-
-        SetupHostContext(Host_, QueryContext_, QueryId_, std::move(traceContext));
     }
 
-    void BuildPipeline()
+    void BuildPipeline(const TString& query)
     {
-        BlockIO_ = DB::executeQuery(Query_, QueryContext_).second;
+        BlockIO_ = DB::executeQuery(query, QueryContext_).second;
     }
 
     void ProcessPipeline()
     {
         if (!BlockIO_.pipeline.initialized()) {
+            BlockIO_.onFinish();
             return;
         }
 
@@ -164,6 +183,7 @@ private:
         if (BlockIO_.pipeline.completed()) {
             DB::CompletedPipelineExecutor executor(BlockIO_.pipeline);
             executor.execute();
+            BlockIO_.onFinish();
             return;
         }
 
@@ -196,19 +216,21 @@ private:
             rowset.resize(Request_->row_count_limit());
         }
 
-        TotalRowCount_ = std::ssize(rowset);
+        auto totalRowCount = std::ssize(rowset);
 
-        ConvertToWireRowset(schema, rowset);
+        auto wireRowset = ConvertToWireRowset(schema, rowset);
+        Result_.emplace_back(TRowset{wireRowset, totalRowCount});
+        BlockIO_.onFinish();
     }
 
-    void ConvertToWireRowset(const TTableSchema& schema, const std::vector<TUnversionedRow>& rowset)
+    TSharedRef ConvertToWireRowset(const TTableSchema& schema, const std::vector<TUnversionedRow>& rowset)
     {
         auto writer = CreateWireProtocolWriter();
         writer->WriteTableSchema(schema);
         writer->WriteSchemafulRowset(rowset);
 
         struct TChytRefMergeTag {};
-        WireRowset_ = MergeRefsToRef<TChytRefMergeTag>(writer->Finish());
+        return MergeRefsToRef<TChytRefMergeTag>(writer->Finish());
     }
 
     std::vector<int> GetColumnIndexToId(const DB::Block& block)
@@ -229,8 +251,25 @@ private:
         }
         return TTableSchema(columnSchemas);
     }
-};
 
+    static std::vector<std::string> SplitClickHouseQueries(const std::string& input, DB::ContextMutablePtr context)
+    {
+        std::vector<std::string> queries;
+
+        const auto & settings = context->getSettingsRef();
+
+        auto parseRes = splitMultipartQuery(input, queries,
+            settings.max_query_size,
+            settings.max_parser_depth,
+            settings.max_parser_backtracks,
+            settings.allow_settings_after_format_in_insert);
+        if (!parseRes.second) {
+            THROW_ERROR_EXCEPTION("Cannot parse and execute the following part of query: %s", parseRes.first);
+        }
+
+        return queries;
+    }
+};
 ////////////////////////////////////////////////////////////////////////////////
 
 class TQueryService
@@ -264,18 +303,22 @@ private:
         ToProto(response->mutable_query_id(), queryId);
 
         TExecuteQueryCall call(request, user, queryId, Host_);
-        auto rowsetOrError = call.Execute();
+        auto rowsetsOrError = call.Execute();
 
-        if (rowsetOrError.IsOK()) {
-            context->SetResponseInfo("QueryId: %v, ResultRowCount: %v",
+        if (rowsetsOrError.IsOK()) {
+            context->SetResponseInfo("QueryId: %v, ResultsCount: %v",
                 queryId,
-                rowsetOrError.Value().TotalRowCount);
-            response->Attachments() = {std::move(rowsetOrError.Value().Rowset)};
+                rowsetsOrError.Value().size());
+            std::vector<TSharedRef> attachments;
+            for (auto& rowset : rowsetsOrError.Value()) {
+                attachments.push_back(std::move(rowset.Rowset));
+            }
+            response->Attachments() = std::move(attachments);
         } else {
             context->SetResponseInfo("QueryId: %v, Error: %v",
                 queryId,
-                rowsetOrError);
-            ToProto(response->mutable_error(), rowsetOrError);
+                rowsetsOrError);
+            ToProto(response->mutable_error(), rowsetsOrError);
         }
 
         context->Reply();
@@ -287,12 +330,18 @@ private:
 
         context->SetRequestInfo("QueryId: %v", queryId);
 
-        auto progress = WaitFor(Host_->GetQueryRegistry()->GetQueryProgress(queryId))
-            .ValueOrThrow();
-
-        if (progress) {
-            context->SetResponseInfo("QueryId: %v, IsFinished: %v", queryId, progress.value().TotalProgress.Finished);
-            ToProto(response->mutable_progress(), progress.value());
+        auto isFinishedCount = 0;
+        auto additionalQueryIds = WaitFor(Host_->GetQueryRegistry()->GetAdditionalQueryIds(queryId)).ValueOrThrow();
+        response->mutable_multi_progress()->set_queries_count(additionalQueryIds.size());
+        for (const auto& additionalQueryId : additionalQueryIds) {
+            auto queryProgress = WaitFor(Host_->GetQueryRegistry()->GetQueryProgress(additionalQueryId)).ValueOrThrow();
+            if (queryProgress && queryProgress->TotalProgress.Finished) {
+                ++isFinishedCount;
+            }
+            ToProto(response->mutable_multi_progress()->mutable_progresses()->Add(), additionalQueryId, queryProgress);
+        }
+        if (response->multi_progress().progresses().size() > 0) {
+            context->SetResponseInfo("QueryId: %v, ProgressesCount: %v, IsFinishedCount: %v", queryId, response->multi_progress().progresses().size(), isFinishedCount);
         } else {
             context->SetResponseInfo(
                 "No progress found because the query has already finished or was initiated on another instance");

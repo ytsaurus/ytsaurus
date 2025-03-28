@@ -469,6 +469,14 @@ public:
             .Run();
     }
 
+    TFuture<std::vector<TQueryId>> GetAdditionalQueryIds(TQueryId queryId) const {
+        YT_ASSERT_THREAD_AFFINITY_ANY();
+
+        return BIND(&TImpl::DoGetAdditionalQueryIds, MakeStrong(this), queryId)
+            .AsyncVia(Invoker_)
+            .Run();
+    }
+
 private:
     TQueryRegistryConfigPtr Config_;
 
@@ -565,10 +573,25 @@ private:
             return it->second->GetQueryProgress();
         }
         if (auto it = QueryFinishInfos_.find(queryId); it != QueryFinishInfos_.end()) {
-            return it->second.Info.Progess;
+            return it->second.Info.Progress;
         }
 
         return std::nullopt;
+    }
+
+    std::vector<TQueryId> DoGetAdditionalQueryIds(TQueryId queryId) const
+    {
+        YT_ASSERT_INVOKER_AFFINITY(Invoker_);
+
+        if (auto it = QueryContexts_.find(queryId); it != QueryContexts_.end()) {
+            return it->second->GetAdditionalQueryIds();
+        }
+
+        if (auto it = QueryFinishInfos_.find(queryId); it != QueryFinishInfos_.end()) {
+            return it->second.Info.AdditionalQueryIds;
+        }
+
+        return {};
     }
 };
 
@@ -644,6 +667,10 @@ TFuture<std::vector<std::optional<TQueryFinishInfo>>> TQueryRegistry::ExtractQue
 TFuture<std::optional<TQueryProgressValues>> TQueryRegistry::GetQueryProgress(TQueryId queryId) const
 {
     return Impl_->GetQueryProgress(queryId);
+}
+
+TFuture<std::vector<TQueryId>> TQueryRegistry::GetAdditionalQueryIds(TQueryId queryId) const {
+    return Impl_->GetAdditionalQueryIds(queryId);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
