@@ -17,12 +17,18 @@ namespace NSQLComplete {
         using TConstraints = std::monostate;
     };
 
+    struct TFunctionName: TIndentifier {
+        using TConstraints = std::monostate;
+    };
+
     using TGenericName = std::variant<
-        TTypeName>;
+        TTypeName,
+        TFunctionName>;
 
     struct TNameRequest {
         struct {
             std::optional<TTypeName::TConstraints> TypeName;
+            std::optional<TTypeName::TConstraints> Function;
         } Constraints;
         TString Prefix = "";
         size_t Limit = 128;
