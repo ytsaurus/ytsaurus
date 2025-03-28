@@ -28,7 +28,7 @@ struct TQueryProgressValues
     THashMap<TGuid, TProgressValues> SecondaryProgress;
 };
 
-void ToProto(NProto::TQueryProgressValues* protoProgress, const TQueryProgressValues& progress);
+void ToProto(NProto::TQueryProgressValues* protoProgress, TQueryId queryId, const std::optional<TQueryProgressValues>& progress);
 
 ////////////////////////////////////////////////////////////////////////////////
 

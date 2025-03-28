@@ -130,7 +130,8 @@ TQueryContext::TQueryContext(
     std::optional<TString> dataLensRequestId,
     std::optional<TString> yqlOperationId,
     const TSecondaryQueryHeaderPtr& secondaryQueryHeader,
-    std::vector<std::pair<TString, TString>> httpHeaders)
+    std::vector<std::pair<TString, TString>> httpHeaders,
+    std::vector<TQueryId> additionalQueryIds)
     : Logger(QueryLogger)
     , User(TString(context->getClientInfo().initial_user))
     , TraceContext(std::move(traceContext))
@@ -140,6 +141,7 @@ TQueryContext::TQueryContext(
     , DataLensRequestId(std::move(dataLensRequestId))
     , YqlOperationId(std::move(yqlOperationId))
     , RowBuffer(New<NTableClient::TRowBuffer>())
+    , AdditionalQueryIds_(std::move(additionalQueryIds))
     , HttpHeaders_(std::move(httpHeaders))
 {
     Logger.AddTag("QueryId: %v", QueryId);
@@ -670,6 +672,10 @@ void TQueryContext::AddSecondaryQueryId(TQueryId id)
     OnSecondaryProgress(id, DB::ReadProgress(0, 0, 0, 0));
 }
 
+std::vector<TQueryId> TQueryContext::GetAdditionalQueryIds() {
+    return AdditionalQueryIds_;
+}
+
 TQueryContext::TStatisticsTimerGuard TQueryContext::CreateStatisticsTimerGuard(TStatisticPath path)
 {
     return TStatisticsTimerGuard(std::move(path), MakeWeak(this));
@@ -684,6 +690,7 @@ TQueryFinishInfo TQueryContext::GetQueryFinishInfo()
         // It is unlikely that the variables will change after query is finished, but let's be safe.
         result.RuntimeVariables = RuntimeVariables_->Clone();
         result.SecondaryQueryIds = SecondaryQueryIds_;
+        result.AdditionalQueryIds = AdditionalQueryIds_;
         result.HttpHeaders = HttpHeaders_;
     }
 
@@ -697,7 +704,7 @@ TQueryFinishInfo TQueryContext::GetQueryFinishInfo()
         "phase_duration_us"_L / TStatisticPathLiteral(ToString(QueryPhase_.load())),
         lastPhaseDuration.MicroSeconds());
 
-    result.Progess = Progress_.GetValues();
+    result.Progress = Progress_.GetValues();
 
     return result;
 }
@@ -853,7 +860,8 @@ void SetupHostContext(THost* host,
     std::optional<TString> dataLensRequestId,
     std::optional<TString> yqlOperationId,
     const TSecondaryQueryHeaderPtr& secondaryQueryHeader,
-    std::vector<std::pair<TString, TString>> httpHeaders)
+    std::vector<std::pair<TString, TString>> httpHeaders,
+    std::vector<TQueryId> additionalQueryIds)
 {
     YT_VERIFY(traceContext);
 
@@ -865,7 +873,8 @@ void SetupHostContext(THost* host,
         std::move(dataLensRequestId),
         std::move(yqlOperationId),
         secondaryQueryHeader,
-        std::move(httpHeaders));
+        std::move(httpHeaders),
+        std::move(additionalQueryIds));
 
     auto prevCallback = context->getProgressCallback();
     auto curCallback = BIND(&TQueryContext::OnProgress, queryContext);
