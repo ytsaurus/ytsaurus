@@ -2,10 +2,7 @@
 
 #include <yql/essentials/sql/v1/complete/antlr4/defs.h>
 
-#include <contrib/libs/antlr4_cpp_runtime/src/Token.h>
 #include <contrib/libs/antlr4_cpp_runtime/src/Vocabulary.h>
-
-#include <util/generic/vector.h>
 
 #include <unordered_set>
 

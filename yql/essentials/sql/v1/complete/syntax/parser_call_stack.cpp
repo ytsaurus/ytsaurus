@@ -1,7 +1,8 @@
 #include "parser_call_stack.h"
 
-#include "sql_antlr4.h"
+#include "grammar.h"
 
+#include <util/generic/vector.h>
 #include <util/generic/algorithm.h>
 #include <util/generic/yexception.h>
 

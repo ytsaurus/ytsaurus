@@ -2,9 +2,9 @@ LIBRARY()
 
 SRCS(
     ansi.cpp
+    grammar.cpp
     local.cpp
     parser_call_stack.cpp
-    sql_antlr4.cpp
 )
 
 ADDINCL(

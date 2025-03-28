@@ -2,7 +2,7 @@
 
 #include "ansi.h"
 #include "parser_call_stack.h"
-#include "sql_antlr4.h"
+#include "grammar.h"
 
 #include <yql/essentials/sql/v1/complete/antlr4/c3i.h>
 #include <yql/essentials/sql/v1/complete/antlr4/c3t.h>
