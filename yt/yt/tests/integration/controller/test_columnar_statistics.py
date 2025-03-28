@@ -1342,15 +1342,6 @@ class TestMaxCompressedDataSizePerJob(_TestColumnarStatisticsBase):
 
         create("table", "//tmp/t_out")
 
-    def _check_statistics(self, progress, expected_job_count, check_compressed_data_size):
-        input_statistics = progress["job_statistics_v2"]["data"]["input"]
-
-        if check_compressed_data_size:
-            assert self.get_completed_summary(input_statistics["compressed_data_size"])["max"] <= self.MAX_COMPRESSED_DATA_SIZE_PER_JOB
-
-        assert self.get_completed_summary(input_statistics["data_weight"])["max"] <= self.DATA_WEIGHT_PER_JOB
-        assert progress["jobs"]["completed"]["total"] == expected_job_count
-
     def _check_initial_job_estimation(self, op, expected_job_count):
         wait(lambda: get(op.get_path() + "/@progress", default=False))
         progress = get(op.get_path() + "/@progress")
@@ -1363,7 +1354,8 @@ class TestMaxCompressedDataSizePerJob(_TestColumnarStatisticsBase):
     @pytest.mark.parametrize("operation", ["merge", "map"])
     @pytest.mark.parametrize("use_data_weight", [False, True])
     @pytest.mark.parametrize("use_compressed_data_size", [False, True])
-    def test_operation_with_column_groups(self, operation, use_data_weight, use_compressed_data_size):
+    @pytest.mark.parametrize("mode", ["unordered", "ordered"])
+    def test_operation_with_column_groups(self, operation, use_data_weight, use_compressed_data_size, mode):
         if not use_data_weight and not use_compressed_data_size:
             pytest.skip()
 
@@ -1378,9 +1370,9 @@ class TestMaxCompressedDataSizePerJob(_TestColumnarStatisticsBase):
                 "suspend_operation_after_materialization": True,
             } | ({
                 "force_transform": True,
-                "mode": "unordered",
+                "mode": mode,
             } if operation == "merge" else {}) | ({
-                "ordered": False,
+                "ordered": mode == "ordered",
                 "mapper": {"command": "cat > /dev/null"},
             } if operation == "map" else {}) | ({
                 "data_weight_per_job": self.DATA_WEIGHT_PER_JOB,
@@ -1399,16 +1391,26 @@ class TestMaxCompressedDataSizePerJob(_TestColumnarStatisticsBase):
         progress = get(op.get_path() + "/@progress")
 
         assert len(progress["tasks"]) == 1
-        assert progress["tasks"][0]["task_name"] == "unordered_merge" if operation == "merge" else "map"
+        if operation == "merge":
+            task_name = mode + "_merge"
+        else:
+            task_name = "map" if mode == "unordered" else "ordered_map"
 
-        self._check_statistics(
-            progress,
-            3 if use_compressed_data_size else 2,
-            use_compressed_data_size)
+        assert progress["tasks"][0]["task_name"] == task_name
+
+        input_statistics = progress["job_statistics_v2"]["data"]["input"]
+
+        if use_compressed_data_size:
+            assert self.get_completed_summary(input_statistics["compressed_data_size"])["max"] <= self.MAX_COMPRESSED_DATA_SIZE_PER_JOB
+
+        assert self.get_completed_summary(input_statistics["data_weight"])["max"] <= self.DATA_WEIGHT_PER_JOB
+        assert progress["jobs"]["completed"]["total"] == 3 if use_compressed_data_size else 2
 
     @authors("apollo1321")
-    def test_unordered_map_operation_explicit_job_count(self):
+    @pytest.mark.parametrize("mode", ["unordered", "ordered"])
+    def test_map_operation_explicit_job_count(self, mode):
         # NB(apollo1321): Merge operation does not takes into account excplicitly set job_count.
+        # NB(apollo1321): Ordered map operation provides job count guarantee only for job_count == 1.
         self._setup_tables()
 
         op = map(
@@ -1417,7 +1419,7 @@ class TestMaxCompressedDataSizePerJob(_TestColumnarStatisticsBase):
             command="cat > /dev/null",
             spec={
                 "suspend_operation_after_materialization": True,
-                "ordered": False,
+                "ordered": mode == "ordered",
                 "max_compressed_data_size_per_job": self.MAX_COMPRESSED_DATA_SIZE_PER_JOB,
                 "data_weight_per_job": self.DATA_WEIGHT_PER_JOB,
                 "job_count": 1,
@@ -1434,7 +1436,7 @@ class TestMaxCompressedDataSizePerJob(_TestColumnarStatisticsBase):
         progress = get(op.get_path() + "/@progress")
 
         assert len(progress["tasks"]) == 1
-        assert progress["tasks"][0]["task_name"] == "map"
+        assert progress["tasks"][0]["task_name"] == "map" if mode == "unordered" else "ordered_map"
 
         # Ensure that max_compressed_data_size does not affect the explicitly set job_count.
         assert progress["jobs"]["completed"]["total"] == 1

@@ -845,7 +845,7 @@ private:
             const auto& suspendableStripe = Stripes_[stripeIndex];
             const auto& stat = suspendableStripe.GetStatistics();
 
-            // We should always return at least one stripe, even we get MaxDataWeightPerJob overflow.
+            // We should always return at least one stripe, even if we get Max...PerJob overflow.
             if (jobStub->GetDataWeight() > 0 &&
                 (!JobSizeConstraints_->IsExplicitJobCount() || jobCounter->GetPending() > 1))
             {

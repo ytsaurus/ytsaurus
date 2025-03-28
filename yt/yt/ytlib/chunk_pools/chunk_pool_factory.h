@@ -16,6 +16,7 @@ IChunkPoolPtr CreateChunkPool(
     NTableClient::ETablePartitionMode partitionMode,
     i64 dataWeightPerPartition,
     std::optional<int> maxPartitionCount,
+    bool useNewSlicingImplementationInOrderedPool,
     NLogging::TLogger logger);
 
 ////////////////////////////////////////////////////////////////////////////////
