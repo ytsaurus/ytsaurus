@@ -955,6 +955,11 @@ class TestYqlColumnOrderDifferentSources(TestQueriesYqlBase):
         write_table("//tmp/t2", [{"a": 43, "b": "bar", "c": 3.0}])
 
         self._test_simple_query("""
+            select a, b, c from primary.`//tmp/t1`
+            union all
+            select a, b, c from primary.`//tmp/t2`
+        """, [{"a": 43, "b": "bar", "c": 3.0}, {"a": 42, "b": "foo", "c": 2.0}])
+        self._test_simple_query("""
             select a, b, c from primary.`//tmp/t2`
             union all
             select a, b, c from primary.`//tmp/t1`
@@ -964,3 +969,33 @@ class TestYqlColumnOrderDifferentSources(TestQueriesYqlBase):
             union all
             select c, a, b from primary.`//tmp/t1`
         """, [{"a": 42, "b": "foo", "c": 2.0}, {"a": 43, "b": "bar", "c": 3.0}])
+
+    @authors("a-romanov")
+    @pytest.mark.timeout(300)
+    def test_different_sources_with_limit(self, query_tracker, yql_agent):
+        create("table", "//tmp/t1", attributes={
+            "schema": [{"name": "a", "type": "int64"}, {"name": "b", "type": "string"}, {"name": "c", "type": "float"}],
+            "dynamic": True,
+            "enable_dynamic_store_read": True,
+        })
+        sync_mount_table("//tmp/t1")
+        insert_rows("//tmp/t1", [{"a": 42, "b": "foo", "c": 2.0}, {"a": 43, "b": "xyz", "c": 3.0}, {"a": 44, "b": "uvw", "c": 4.0}])
+
+        create("table", "//tmp/t2", attributes={
+            "schema": [{"name": "a", "type": "int64"}, {"name": "b", "type": "string"}, {"name": "c", "type": "float"}],
+            "enable_dynamic_store_read": True,
+        })
+        write_table("//tmp/t2", [{"a": 45, "b": "bar", "c": -3.0}, {"a": 46, "b": "abc", "c": -4.0}, {"a": 47, "b": "def", "c": -5.0}])
+
+        self._test_simple_query("""
+            select * from primary.`//tmp/t1`
+            union all
+            select * from primary.`//tmp/t2`
+            limit 4
+       """, [{"a": 42, "b": "foo", "c": 2.0}, {"a": 43, "b": "xyz", "c": 3.0}, {"a": 44, "b": "uvw", "c": 4.0}, {"a": 45, "b": "bar", "c": -3.0}])
+        self._test_simple_query("""
+            select * from primary.`//tmp/t2`
+            union all
+            select * from primary.`//tmp/t1`
+            limit 4
+        """, [{"a": 45, "b": "bar", "c": -3.0}, {"a": 46, "b": "abc", "c": -4.0}, {"a": 47, "b": "def", "c": -5.0}, {"a": 42, "b": "foo", "c": 2.0}])
