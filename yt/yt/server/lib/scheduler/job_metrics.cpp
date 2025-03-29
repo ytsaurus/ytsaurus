@@ -291,7 +291,9 @@ void FromProto(NScheduler::TJobMetrics* jobMetrics, const NControllerAgent::NPro
 
     // TODO(ignat): replace with proto map.
     for (const auto& customValueProto : protoJobMetrics.custom_values()) {
-        TCustomJobMetricDescription customJobMetric{ConvertTo<TStatisticPath>(customValueProto.statistics_path()), customValueProto.profiling_name()};
+        auto statisticPath = ParseStatisticPath(customValueProto.statistics_path())
+            .ValueOrThrow();
+        TCustomJobMetricDescription customJobMetric(std::move(statisticPath), customValueProto.profiling_name());
         (*jobMetrics).CustomValues().emplace(std::move(customJobMetric), customValueProto.value());
     }
 }
