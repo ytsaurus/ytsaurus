@@ -342,7 +342,10 @@ private:
     TStickyUserErrorCache StickyUserErrorCache_;
     std::atomic<bool> EnableTwoLevelCache_ = false;
     std::atomic<bool> EnableCypressTransactionsInSequoia_ = false;
-    std::atomic<TDuration> ScheduleReplyRetryBackoff_ = TDuration::MilliSeconds(100);
+    static constexpr auto DefaultScheduleReplyRetryBackoff = TDuration::MilliSeconds(100);
+    std::atomic<TDuration> ScheduleReplyRetryBackoff_ = DefaultScheduleReplyRetryBackoff;
+    static constexpr double NullPrematureBackoffAlarmProbability = -1.0;
+    std::atomic<double> PrematureBackoffAlarmProbability_ = NullPrematureBackoffAlarmProbability;
 
     static IInvokerPtr GetRpcInvoker()
     {
@@ -361,6 +364,15 @@ private:
     void OnUserCharged(TUser* user, const TUserWorkload& workload);
 
     void SetStickyUserError(const std::string& userName, const TError& error);
+
+    std::optional<double> GetPrematureBackoffAlarmProbability() const
+    {
+        auto prematureBackoffAlarmProbability = PrematureBackoffAlarmProbability_.load(std::memory_order::relaxed);
+        // This also protects from stray NaNs.
+        return prematureBackoffAlarmProbability >= 0.0
+            ? std::optional(prematureBackoffAlarmProbability)
+            : std::nullopt;
+    }
 
     std::function<void()> MakeLocalReadThreadInitializer()
     {
@@ -425,6 +437,7 @@ public:
         , Logger(ObjectServerLogger().WithTag("RequestId: %v", RequestId_))
         , TentativePeerState_(Bootstrap_->GetHydraFacade()->GetHydraManager()->GetAutomatonState())
         , CellSyncSession_(New<TMultiPhaseCellSyncSession>(Bootstrap_, Logger))
+        , PrematureBackoffAlarmProbability_(Owner_->GetPrematureBackoffAlarmProbability())
     { }
 
     ~TExecuteSession()
@@ -522,6 +535,7 @@ private:
     const NLogging::TLogger Logger;
     const EPeerState TentativePeerState_;
     const TMultiPhaseCellSyncSessionPtr CellSyncSession_;
+    const std::optional<double> PrematureBackoffAlarmProbability_;
 
     TDelayedExecutorCookie BackoffAlarmCookie_;
 
@@ -1769,6 +1783,12 @@ private:
         Owner_->ValidateClusterInitialized();
 
         while (*currentSubrequestIndex < TotalSubrequestCount_) {
+            // NB: PrematureBackoffAlarmProbability_ is usually std::nullopt.
+            // NB: This may trigger even at 0 processed subrequests, which is intended.
+            if (Y_UNLIKELY(RandomNumber<double>() <= PrematureBackoffAlarmProbability_)) {
+                OnBackoffAlarm(/*premature*/ true);
+            }
+
             if (InterruptIfCanceled()) {
                 break;
             }
@@ -2270,11 +2290,21 @@ private:
         }
     }
 
-    void OnBackoffAlarm()
+    void OnBackoffAlarm(bool premature = false)
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
 
-        YT_LOG_DEBUG("Backoff alarm triggered");
+        if (Y_UNLIKELY(premature)) {
+            // Premature backoff alarm is only triggered from Automaton or LocalRead threads,
+            // so it's safe to read subrequest indices here.
+            YT_LOG_DEBUG("Backoff alarm triggered prematurely "
+                "(CurrentAutomatonSubrequestIndex: %v, CurrentLocalReadSubrequestIndex: %v, TotalSubrequestCount: %v)",
+                CurrentAutomatonSubrequestIndex_,
+                CurrentLocalReadSubrequestIndex_,
+                TotalSubrequestCount_);
+        } else {
+            YT_LOG_DEBUG("Backoff alarm triggered");
+        }
 
         BackoffAlarmTriggered_.store(true);
 
@@ -2398,6 +2428,7 @@ void TObjectService::OnDynamicConfigChanged(TDynamicClusterConfigPtr /*oldConfig
     const auto& objectServiceConfig = GetDynamicConfig();
     EnableTwoLevelCache_ = objectServiceConfig->EnableTwoLevelCache;
     ScheduleReplyRetryBackoff_ = objectServiceConfig->ScheduleReplyRetryBackoff;
+    PrematureBackoffAlarmProbability_ = objectServiceConfig->Testing->PrematureBackoffAlarmProbability.value_or(NullPrematureBackoffAlarmProbability);
 
     const auto& sequoiaConfig = Bootstrap_->GetConfigManager()->GetConfig()->SequoiaManager;
     EnableCypressTransactionsInSequoia_.store(

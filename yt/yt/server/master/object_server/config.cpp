@@ -157,9 +157,22 @@ void TDynamicObjectServiceConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("local_write_request_throttler", &TThis::LocalWriteRequestThrottler)
         .DefaultNew();
+
+    registrar.Parameter("testing", &TThis::Testing)
+        .DefaultNew();
 }
 
 DEFINE_REFCOUNTED_TYPE(TDynamicObjectServiceConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TDynamicObjectServiceTestingConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("premature_backoff_alarm_probability", &TThis::PrematureBackoffAlarmProbability)
+        .Default();
+}
+
+DEFINE_REFCOUNTED_TYPE(TDynamicObjectServiceTestingConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 

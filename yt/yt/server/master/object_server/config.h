@@ -193,12 +193,29 @@ public:
     //! This throttler is acquired simultaneously with per-user request throttling.
     NConcurrency::TThroughputThrottlerConfigPtr LocalWriteRequestThrottler;
 
+    TDynamicObjectServiceTestingConfigPtr Testing;
+
     REGISTER_YSON_STRUCT(TDynamicObjectServiceConfig);
 
     static void Register(TRegistrar registrar);
 };
 
 DECLARE_REFCOUNTED_CLASS(TDynamicObjectServiceConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TDynamicObjectServiceTestingConfig
+    : public NYTree::TYsonStruct
+{
+public:
+    std::optional<double> PrematureBackoffAlarmProbability;
+
+    REGISTER_YSON_STRUCT(TDynamicObjectServiceTestingConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DECLARE_REFCOUNTED_CLASS(TDynamicObjectServiceTestingConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
