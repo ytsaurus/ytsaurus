@@ -74,6 +74,13 @@ class DynamicTablesSingleCellBase(DynamicTablesBase):
         "resource_limits": {
             "cpu_per_tablet_slot": 1.0,
         },
+        "tablet_node" : {
+            "changelogs" : {
+                "writer": {
+                    "enable_checksums" : True
+                }
+            }
+        }
     }
 
     @authors("babenko")
