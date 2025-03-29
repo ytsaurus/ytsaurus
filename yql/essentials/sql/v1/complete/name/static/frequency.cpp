@@ -1,0 +1,84 @@
+#include "frequency.h"
+
+#include <library/cpp/json/json_reader.h>
+#include <library/cpp/resource/resource.h>
+
+namespace NSQLComplete {
+
+    constexpr struct {
+        struct {
+            const char* Parent = "parent";
+            const char* Rule = "rule";
+            const char* Sum = "sum";
+        } Key;
+        struct {
+            const char* Type = "Type";
+            const char* Func = "FUNC";
+            const char* Module = "MODULE";
+            const char* ModuleFunc = "MODULE_FUNC";
+        } Parent;
+    } Json;
+
+    struct TFrequencyItem {
+        TString Parent;
+        TString Rule;
+        size_t Sum;
+
+        static TFrequencyItem ParseJsonMap(NJson::TJsonValue::TMapType&& json) {
+            return {
+                .Parent = json.at(Json.Key.Parent).GetStringSafe(),
+                .Rule = json.at(Json.Key.Rule).GetStringSafe(),
+                .Sum = json.at(Json.Key.Sum).GetUIntegerSafe(),
+            };
+        }
+
+        static TVector<TFrequencyItem> ParseListFromJsonArray(NJson::TJsonValue::TArray& json) {
+            TVector<TFrequencyItem> items; // TODO(vityman): Reserve
+            for (auto& element : json) {
+                auto item = TFrequencyItem::ParseJsonMap(std::move(element.GetMapSafe()));
+                items.emplace_back(std::move(item));
+            }
+            return items;
+        }
+
+        static TVector<TFrequencyItem> ParseListFromJsonText(const TStringBuf text) {
+            NJson::TJsonValue json = NJson::ReadJsonFastTree(text);
+            return ParseListFromJsonArray(json.GetArraySafe());
+        }
+
+        static TVector<TFrequencyItem> LoadListFromResource(const TStringBuf filename) {
+            TString text;
+            Y_ENSURE(NResource::FindExact(filename, &text));
+            return ParseListFromJsonText(text);
+        }
+    };
+
+    void ToLowerInplace(TString& text) {
+        for (char& ch : text) {
+            ch = ToLower(ch);
+        }
+    }
+
+    TFrequencyData LoadFrequencyData() {
+        TFrequencyData data;
+        for (auto& item : TFrequencyItem::LoadListFromResource("rules_corr_basic.json")) {
+            if (item.Parent == Json.Parent.Type ||
+                item.Parent == Json.Parent.Func ||
+                item.Parent == Json.Parent.ModuleFunc ||
+                item.Parent == Json.Parent.Module) {
+                ToLowerInplace(item.Rule);
+            }
+            if (item.Parent == Json.Parent.Type) {
+                data.Types[item.Rule] += item.Sum;
+            } else if (item.Parent == Json.Parent.Func || item.Parent == Json.Parent.ModuleFunc) {
+                data.Functions[item.Rule] += item.Sum;
+            } else if (item.Parent == Json.Parent.Module) {
+                // Ignore, unsupported: Modules
+            } else {
+                // Ignore, unsupported: Parser Call Stacks
+            }
+        }
+        return data;
+    }
+
+} // namespace NSQLComplete

@@ -1,6 +1,7 @@
 LIBRARY()
 
 SRCS(
+    frequency.cpp
     json_name_set.cpp
     name_service.cpp
 )
@@ -12,6 +13,11 @@ PEERDIR(
 RESOURCE(
     yql/essentials/data/language/types.json types.json
     yql/essentials/data/language/sql_functions.json sql_functions.json
+    yql/essentials/data/language/rules_corr_basic.json rules_corr_basic.json
 )
 
 END()
+
+RECURSE_FOR_TESTS(
+    ut
+)

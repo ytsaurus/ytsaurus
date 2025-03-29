@@ -12,7 +12,7 @@ namespace NSQLComplete {
     }
 
     TVector<TString> Keys(NJson::TJsonValue::TMapType& json) {
-        TVector<TString> keys;
+        TVector<TString> keys; // TODO(vityaman): Reserve
         for (auto& [k, v] : json) {
             keys.emplace_back(k);
         }
