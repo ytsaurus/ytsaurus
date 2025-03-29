@@ -418,14 +418,19 @@ public:
             };
         }
 
-        if (defaultQueryCluster && !usedClusters->contains(*defaultQueryCluster)) {
-            usedClusters->insert(*defaultQueryCluster);
+        std::vector<TString> clustersList;
+        clustersList.reserve(usedClusters->size());
+
+        if (defaultQueryCluster) {
+            // Default cluster must be first in list.
+            usedClusters->erase(*defaultQueryCluster);
+            clustersList.emplace_back(std::move(*defaultQueryCluster));
         }
 
-        std::vector<TString> clustersList(usedClusters->begin(), usedClusters->end());
+        clustersList.insert(clustersList.cend(), usedClusters->begin(), usedClusters->end());
 
         return TClustersResult{
-            .Clusters = clustersList,
+            .Clusters = std::move(clustersList),
         };
     }
 

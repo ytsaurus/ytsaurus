@@ -383,10 +383,23 @@ private:
 
             auto token = IssueToken(queryId, user, clustersResult.Clusters, queryClients, Config_->TokenExpirationTimeout, Config_->IssueTokenAttempts);
 
+
             auto refreshTokenExecutor = New<TPeriodicExecutor>(ControlInvoker_, BIND(&RefreshToken, user, token, queryClients), Config_->RefreshTokenPeriod);
             refreshTokenExecutor->Start();
 
-            const THashMap<TString, THashMap<TString, TString>> credentials = {{"default_yt", {{"category", "yt"}, {"content", token}}}};
+            const auto defaultCluster = clustersResult.Clusters.front();
+            THashMap<TString, THashMap<TString, TString>> credentials = {{"default_yt", {{"category", "yt"}, {"content", token}}}};
+            for (const auto& src : yqlRequest.secrets()) {
+                auto& dst = credentials[src.id()];
+                dst["content"] = ConvertTo<TString>(WaitFor(queryClients[defaultCluster]->GetNode(src.ypath())).ValueOrThrow());
+                if (src.has_category()) {
+                    dst["category"] = src.category();
+                }
+                if (src.has_subcategory()) {
+                    dst["subcategory"] = src.subcategory();
+                }
+            }
+
             // This is a long blocking call.
             const auto result = YqlPlugin_->Run(queryId, user, ConvertToYsonString(credentials), query, settings, files, yqlRequest.mode());
             WaitFor(refreshTokenExecutor->Stop()).ThrowOnError();

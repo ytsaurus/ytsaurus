@@ -88,8 +88,13 @@ public:
         , Settings_(ConvertTo<TYqlSettingsPtr>(SettingsNode_))
         , Stage_(Settings_->Stage.value_or(Config_->Stage))
         , ExecuteMode_(Settings_->ExecuteMode)
+        , Secrets_(MakeSecrets(activeQuery.Secrets))
         , ProgressGetterExecutor_(New<TPeriodicExecutor>(controlInvoker, BIND(&TYqlQueryHandler::GetProgress, MakeWeak(this)), Config_->QueryProgressGetPeriod))
     { }
+
+    static std::vector<TQuerySecretPtr> MakeSecrets(const TYsonString& secrets) {
+        return ConvertTo<std::optional<std::vector<TQuerySecretPtr>>>(secrets).value_or(std::vector<TQuerySecretPtr>());
+    }
 
     void Start() override
     {
@@ -135,6 +140,7 @@ private:
     const TString Stage_;
     const EExecuteMode ExecuteMode_;
     const IInvokerPtr ProgressInvoker_;
+    const std::vector<TQuerySecretPtr> Secrets_;
 
     IRoamingChannelProviderPtr YqlAgentChannelProvider_;
     TString YqlServiceName_;
@@ -172,6 +178,15 @@ private:
             protoFile->set_content(file->Content);
             protoFile->set_type(static_cast<TYqlQueryFile_EContentType>(file->Type));
         }
+
+        for (const auto& secret : Secrets_) {
+            const auto protoSecret = yqlRequest->add_secrets();
+            protoSecret->set_id(secret->Id);
+            protoSecret->set_category(secret->Category);
+            protoSecret->set_subcategory(secret->Subcategory);
+            protoSecret->set_ypath(secret->YPath);
+        }
+
         startQueryReq->set_build_rowsets(true);
 
         {

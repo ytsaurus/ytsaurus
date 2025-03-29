@@ -2875,7 +2875,7 @@ class YtClient(ClientState):
             self,
             engine, query,
             settings=None, files=None, stage=None, annotations=None, access_control_object=None,
-            access_control_objects=None):
+            access_control_objects=None, secrets=None):
         """
         Start query.
 
@@ -2901,7 +2901,7 @@ class YtClient(ClientState):
             engine, query,
             client=self,
             settings=settings, files=files, stage=stage, annotations=annotations, access_control_object=access_control_object,
-            access_control_objects=access_control_objects)
+            access_control_objects=access_control_objects, secrets=secrets)
 
     def start_transaction(
             self,
