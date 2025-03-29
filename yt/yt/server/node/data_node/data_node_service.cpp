@@ -314,7 +314,7 @@ private:
 
         const auto& sessionManager = Bootstrap_->GetSessionManager();
         auto session = sessionManager->StartSession(sessionId, options);
-        response->set_use_probe_put_blocks(false);
+        response->set_use_probe_put_blocks(session->ShouldUseProbePutBlocks());
         ToProto(response->mutable_location_uuid(), session->GetStoreLocation()->GetUuid());
         context->ReplyFrom(session->Start());
     }
@@ -420,7 +420,8 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, PingSession)
     {
-        auto chunkId = FromProto<TSessionId>(request->session_id()).ChunkId;
+        auto sessionId = FromProto<TSessionId>(request->session_id());
+        auto chunkId = sessionId.ChunkId;
         context->SetRequestInfo("ChunkId: %v",
             chunkId);
 
@@ -430,7 +431,28 @@ private:
 
         session->Ping();
 
-        response->set_close_demanded(IsCloseDemanded(location));
+        const auto closeDemanded = IsCloseDemanded(location);
+        response->set_close_demanded(closeDemanded);
+
+        if (session->ShouldUseProbePutBlocks()) {
+            auto maxRequestedCumulativeBlockSize = session->GetMaxRequestedCumulativeBlockSize();
+            auto approvedCumulativeBlockSize = session->GetApprovedCumulativeBlockSize();
+
+            response->mutable_probe_put_blocks_state()->set_requested_cumulative_block_size(maxRequestedCumulativeBlockSize);
+            response->mutable_probe_put_blocks_state()->set_approved_cumulative_block_size(approvedCumulativeBlockSize);
+
+            context->SetResponseInfo("SessionId: %v, CloseDemanded: %v, "
+                "Requested CumulativeBlockSize: %v, "
+                "Approved CumulativeBlockSize: %v",
+                sessionId,
+                closeDemanded,
+                maxRequestedCumulativeBlockSize,
+                approvedCumulativeBlockSize);
+        } else {
+            context->SetResponseInfo("SessionId: %v, CloseDemanded: %v",
+                sessionId,
+                closeDemanded);
+        }
 
         context->Reply();
     }
@@ -441,15 +463,24 @@ private:
             request->session_id(),
             request->cumulative_block_size());
 
-        const auto requestedCumulativeBlockSize = request->cumulative_block_size();
+        const auto chunkId = FromProto<TSessionId>(request->session_id()).ChunkId;
+        const auto cumulativeBlockSize = request->cumulative_block_size();
 
-        response->mutable_probe_put_blocks_state()->set_requested_cumulative_block_size(requestedCumulativeBlockSize);
-        response->mutable_probe_put_blocks_state()->set_approved_cumulative_block_size(requestedCumulativeBlockSize);
+        const auto& sessionManager = Bootstrap_->GetSessionManager();
+        auto session = sessionManager->GetSessionOrThrow(chunkId);
+
+        session->ProbePutBlocks(cumulativeBlockSize);
+
+        auto maxRequestedCumulativeBlockSize = session->GetMaxRequestedCumulativeBlockSize();
+        auto approvedCumulativeBlockSize = session->GetApprovedCumulativeBlockSize();
+
+        response->mutable_probe_put_blocks_state()->set_requested_cumulative_block_size(maxRequestedCumulativeBlockSize);
+        response->mutable_probe_put_blocks_state()->set_approved_cumulative_block_size(approvedCumulativeBlockSize);
 
         context->SetResponseInfo("SessionId: %v, MaxRequestedCumulativeBlockSize: %v, ApprovedCumulativeBlockSize: %v",
             request->session_id(),
-            requestedCumulativeBlockSize,
-            requestedCumulativeBlockSize);
+            maxRequestedCumulativeBlockSize,
+            approvedCumulativeBlockSize);
         context->Reply();
     }
 
@@ -497,6 +528,7 @@ private:
         response->set_close_demanded(IsCloseDemanded(location));
 
         // NB: Block checksums are validated before writing to disk.
+        // NB: Journal block checksums are validated within DoPutBlocks call.
         auto result = session->PutBlocks(
             firstBlockIndex,
             GetRpcAttachedBlocks(request, /*validateChecksums*/ false),

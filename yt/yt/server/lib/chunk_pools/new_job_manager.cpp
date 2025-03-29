@@ -30,7 +30,7 @@ void TNewJobStub::AddDataSlice(const TLegacyDataSlicePtr& dataSlice, IChunkPoolI
 
     int streamIndex = dataSlice->GetInputStreamIndex();
     int rangeIndex = dataSlice->GetRangeIndex();
-    const auto& stripe = GetStripe(streamIndex, rangeIndex, isPrimary);
+    auto& stripe = GetStripe(streamIndex, rangeIndex, isPrimary);
     stripe->DataSlices.emplace_back(dataSlice);
     if (cookie != IChunkPoolInput::NullCookie) {
         InputCookies_.emplace_back(cookie);
@@ -73,8 +73,8 @@ void TNewJobStub::Finalize()
 
     // This order is crucial for ordered map.
     std::sort(StripeList_->Stripes.begin(), StripeList_->Stripes.end(), [] (const TChunkStripePtr& lhs, const TChunkStripePtr& rhs) {
-        const auto& lhsSlice = lhs->DataSlices.front();
-        const auto& rhsSlice = rhs->DataSlices.front();
+        auto& lhsSlice = lhs->DataSlices.front();
+        auto& rhsSlice = rhs->DataSlices.front();
 
         if (lhsSlice->GetTableIndex() != rhsSlice->GetTableIndex()) {
             return lhsSlice->GetTableIndex() < rhsSlice->GetTableIndex();
