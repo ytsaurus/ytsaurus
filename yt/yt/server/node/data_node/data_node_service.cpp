@@ -858,14 +858,16 @@ private:
         const auto& p2pSnooper = Bootstrap_->GetP2PSnooper();
         AddBlockPeers(response->mutable_peer_descriptors(), p2pSnooper->OnBlockProbe(chunkId, blockIndexes));
 
-        auto cachedBlocks = Bootstrap_->GetBlockCache()->GetCachedBlocksByChunkId(chunkId, EBlockType::CompressedData);
         auto cachedBlockSize = 0L;
 
-        for (const auto& blockInfo : cachedBlocks) {
-            TProbeBlockSetBlockInfo* protoBlockInfo = response->add_cached_blocks();
-            protoBlockInfo->set_block_index(blockInfo.BlockIndex);
-            protoBlockInfo->set_block_size(blockInfo.BlockSize);
-            cachedBlockSize += blockInfo.BlockSize;
+        if (GetDynamicConfig()->PropagateCachedBlockInfosToProbing) {
+            auto cachedBlocks = Bootstrap_->GetBlockCache()->GetCachedBlocksByChunkId(chunkId, EBlockType::CompressedData);
+            for (const auto& blockInfo : cachedBlocks) {
+                TProbeBlockSetBlockInfo* protoBlockInfo = response->add_cached_blocks();
+                protoBlockInfo->set_block_index(blockInfo.BlockIndex);
+                protoBlockInfo->set_block_size(blockInfo.BlockSize);
+                cachedBlockSize += blockInfo.BlockSize;
+            }
         }
 
         context->SetResponseInfo(
@@ -880,7 +882,7 @@ private:
             diskThrottling.Enabled,
             diskThrottling.QueueSize,
             response->peer_descriptors_size(),
-            cachedBlocks.size(),
+            response->cached_blocks_size(),
             cachedBlockSize);
 
         context->Reply();

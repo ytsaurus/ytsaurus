@@ -1096,6 +1096,8 @@ public:
 
     std::optional<double> ReadMetaTimeoutFraction;
 
+    bool PropagateCachedBlockInfosToProbing;
+
     TIOThroughputMeterConfigPtr IOThroughputMeter;
 
     TRemoveChunkJobDynamicConfigPtr RemoveChunkJob;

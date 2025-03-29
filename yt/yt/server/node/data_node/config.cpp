@@ -1059,6 +1059,9 @@ void TDataNodeDynamicConfig::Register(TRegistrar registrar)
     registrar.Parameter("read_meta_timeout_fraction", &TThis::ReadMetaTimeoutFraction)
         .Default();
 
+    registrar.Parameter("propage_cached_block_infos_to_probing", &TThis::PropagateCachedBlockInfosToProbing)
+        .Default(false);
+
     registrar.Parameter("io_throughput_meter", &TThis::IOThroughputMeter)
         .DefaultNew();
 
