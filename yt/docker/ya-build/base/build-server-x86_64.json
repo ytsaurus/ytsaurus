@@ -1,0 +1,17 @@
+{
+    "build": {
+        "build::server_binaries": {
+            "targets": [
+                "yt/yt/server/all",
+            ],
+            "build_type": "profile",
+            "thinlto": true,
+            "flags": [
+                {
+                    "name": "NO_STRIP",
+                    "value": "yes",
+                },
+            ],
+        },
+    },
+}
