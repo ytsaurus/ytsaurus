@@ -363,6 +363,23 @@ Y_UNIT_TEST_SUITE(SQLv1Lexer) {
         UNIT_ASSERT_TOKENIZED(lexer, "/* yql\n * yql\n */", "COMMENT(/* yql\n * yql\n */) EOF");
     }
 
+    Y_UNIT_TEST_ON_EACH_LEXER(RecursiveMultiLineComment) {
+        auto lexer = MakeLexer(Lexers, ANSI, ANTLR4, FLAVOR);
+        if (!ANSI) {
+            UNIT_ASSERT_TOKENIZED(lexer, "/* /* yql */", "COMMENT(/* /* yql */) EOF");
+            UNIT_ASSERT_TOKENIZED(lexer, "/* /* yql */ */", "COMMENT(/* /* yql */) WS( ) ASTERISK(*) SLASH(/) EOF");
+        } else {
+            UNIT_ASSERT_TOKENIZED(lexer, "/* /* yql */", "COMMENT(/* /* yql */) EOF");
+            UNIT_ASSERT_TOKENIZED(lexer, "/* yql */ */", "COMMENT(/* yql */) WS( ) ASTERISK(*) SLASH(/) EOF");
+            UNIT_ASSERT_TOKENIZED(lexer, "/* /* /* yql */ */", "COMMENT(/* /* /* yql */ */) EOF");
+            UNIT_ASSERT_TOKENIZED(lexer, "/* /* yql */ */ */", "COMMENT(/* /* yql */ */) WS( ) ASTERISK(*) SLASH(/) EOF");
+            UNIT_ASSERT_TOKENIZED(lexer, "/* /* yql */ */", "COMMENT(/* /* yql */ */) EOF");
+            UNIT_ASSERT_TOKENIZED(lexer, "/*/*/*/", "COMMENT(/*/*/) ASTERISK(*) SLASH(/) EOF");
+            UNIT_ASSERT_TOKENIZED(lexer, "/*/**/*/*/*/", "COMMENT(/*/**/*/) ASTERISK(*) SLASH(/) ASTERISK(*) SLASH(/) EOF");
+            UNIT_ASSERT_TOKENIZED(lexer, "/* /* */ a /* /* */", "COMMENT(/* /* */ a /* /* */) EOF");
+        }
+    }
+
     Y_UNIT_TEST_ON_EACH_LEXER(SimpleQuery) {
         auto lexer = MakeLexer(Lexers, ANSI, ANTLR4, FLAVOR);
         UNIT_ASSERT_TOKENIZED(lexer, "select 1", "SELECT WS( ) DIGITS(1) EOF");
