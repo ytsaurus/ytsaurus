@@ -996,8 +996,14 @@ TFuture<std::vector<TBlock>> TBlobChunkBase::ReadBlockSet(
         auto cookie = Context_->ChunkMetaManager->BeginInsertCachedBlocksExt(Id_);
         auto asyncBlocksExt = cookie.GetValue();
         if (cookie.IsActive()) {
-            auto readMetaFuture = ReadMeta(options);
-            session->Futures.push_back(readMetaFuture.AsVoid());
+            auto readMetaFuture = BIND([=, this, this_ = MakeStrong(this)] {
+                auto readMetaFuture = ReadMeta(options);
+                session->Futures.push_back(readMetaFuture.AsVoid());
+                return readMetaFuture;
+            })
+                .AsyncVia(session->Invoker)
+                .Run();
+
             readMetaFuture
                 .Subscribe(BIND([=, this, this_ = MakeStrong(this), cookie = std::move(cookie)] (const TErrorOr<TRefCountedChunkMetaPtr>& result) mutable {
                     if (result.IsOK()) {
