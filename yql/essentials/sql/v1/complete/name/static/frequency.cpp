@@ -35,7 +35,8 @@ namespace NSQLComplete {
         }
 
         static TVector<TFrequencyItem> ParseListFromJsonArray(NJson::TJsonValue::TArray& json) {
-            TVector<TFrequencyItem> items; // TODO(vityman): Reserve
+            TVector<TFrequencyItem> items;
+            items.reserve(json.size());
             for (auto& element : json) {
                 auto item = TFrequencyItem::ParseJsonMap(std::move(element.GetMapSafe()));
                 items.emplace_back(std::move(item));
