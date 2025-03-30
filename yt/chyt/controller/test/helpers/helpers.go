@@ -30,7 +30,7 @@ type Env struct {
 	StrawberryRoot ypath.Path
 }
 
-func PrepareEnv(t *testing.T) *Env {
+func PrepareEnv(t *testing.T, familyName string) *Env {
 	env := yttest.New(t)
 
 	strawberryRoot := env.TmpPath().Child("strawberry")
@@ -45,7 +45,7 @@ func PrepareEnv(t *testing.T) *Env {
 
 	_, err = env.YT.CreateObject(env.Ctx, yt.NodeAccessControlObjectNamespace, &yt.CreateObjectOptions{
 		Attributes: map[string]any{
-			"name": "sleep",
+			"name": familyName,
 		},
 		IgnoreExisting: true,
 	})
@@ -146,20 +146,18 @@ func PrepareClient(t *testing.T, env *Env, proxy string, server *httpserver.HTTP
 	return client
 }
 
-func PrepareAPI(t *testing.T) (*Env, *RequestClient) {
-	env := PrepareEnv(t)
+func PrepareAPI(t *testing.T, familyName string, factory strawberry.ControllerFactory) (*Env, *RequestClient) {
+	env := PrepareEnv(t, familyName)
 
 	proxy := os.Getenv("YT_PROXY")
 
 	c := api.HTTPAPIConfig{
 		BaseAPIConfig: api.APIConfig{
 			ControllerFactories: map[string]strawberry.ControllerFactory{
-				"sleep": strawberry.ControllerFactory{
-					Ctor: sleep.NewController,
-				},
+				familyName: factory,
 			},
 			ControllerMappings: map[string]string{
-				"*": "sleep",
+				"*": familyName,
 			},
 		},
 		ClusterInfos: []strawberry.AgentInfo{
@@ -167,7 +165,7 @@ func PrepareAPI(t *testing.T) (*Env, *RequestClient) {
 				StrawberryRoot: env.StrawberryRoot,
 				Stage:          "test_stage",
 				Proxy:          proxy,
-				Family:         "sleep",
+				Family:         familyName,
 			},
 		},
 		LocationAliases: map[string][]string{
@@ -178,6 +176,10 @@ func PrepareAPI(t *testing.T) (*Env, *RequestClient) {
 	}
 	apiServer := api.NewServer(c, env.L.Logger())
 	return env, PrepareClient(t, env, proxy, apiServer)
+}
+
+func PrepareSleepAPI(t *testing.T) (*Env, *RequestClient) {
+	return PrepareAPI(t, "sleep", strawberry.ControllerFactory{Ctor: sleep.NewController})
 }
 
 func abortAllOperations(t *testing.T, env *Env) {
@@ -228,7 +230,7 @@ func CreateAgent(env *Env, stage string) *agent.Agent {
 }
 
 func PrepareAgent(t *testing.T) (*Env, *agent.Agent) {
-	env := PrepareEnv(t)
+	env := PrepareEnv(t, "sleep")
 
 	abortAllOperations(t, env)
 

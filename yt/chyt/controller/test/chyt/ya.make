@@ -15,4 +15,6 @@ SRCS(helpers.go)
 
 GO_TEST_SRCS(chyt_test.go)
 
+GO_TEST_SRCS(config_test.go)
+
 END()
