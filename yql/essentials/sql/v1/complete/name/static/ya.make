@@ -4,10 +4,12 @@ SRCS(
     frequency.cpp
     json_name_set.cpp
     name_service.cpp
+    ranking.cpp
 )
 
 PEERDIR(
     yql/essentials/sql/v1/complete/name
+    yql/essentials/sql/v1/complete/text
 )
 
 RESOURCE(

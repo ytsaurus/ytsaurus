@@ -1,5 +1,7 @@
 #include "name_service.h"
 
+#include "ranking.h"
+
 namespace NSQLComplete {
 
     bool NoCaseCompare(const TString& lhs, const TString& rhs) {
@@ -7,7 +9,7 @@ namespace NSQLComplete {
             std::begin(lhs), std::end(lhs),
             std::begin(rhs), std::end(rhs),
             [](const char lhs, const char rhs) {
-                return std::tolower(lhs) < std::tolower(rhs);
+                return ToLower(lhs) < ToLower(rhs);
             });
     }
 
@@ -33,44 +35,11 @@ namespace NSQLComplete {
         }
     }
 
-    size_t KindWeight(const TGenericName& name) {
-        return std::visit([](const auto& name) {
-            using T = std::decay_t<decltype(name)>;
-            if constexpr (std::is_same_v<T, TFunctionName>) {
-                return 1;
-            }
-            if constexpr (std::is_same_v<T, TTypeName>) {
-                return 2;
-            }
-        }, name);
-    }
-
-    const TStringBuf ContentView(const TGenericName& name Y_LIFETIME_BOUND) {
-        return std::visit([](const auto& name) -> TStringBuf {
-            using T = std::decay_t<decltype(name)>;
-            if constexpr (std::is_base_of_v<TIndentifier, T>) {
-                return name.Indentifier;
-            }
-        }, name);
-    }
-
-    void Sort(TVector<TGenericName>& names) {
-        Sort(names, [](const TGenericName& lhs, const TGenericName& rhs) {
-            const auto lhs_weight = KindWeight(lhs);
-            const auto lhs_content = ContentView(lhs);
-
-            const auto rhs_weight = KindWeight(rhs);
-            const auto rhs_content = ContentView(rhs);
-
-            return std::tie(lhs_weight, lhs_content) <
-                   std::tie(rhs_weight, rhs_content);
-        });
-    }
-
     class TStaticNameService: public INameService {
     public:
-        explicit TStaticNameService(NameSet names)
+        explicit TStaticNameService(NameSet names, TRanking ranking)
             : NameSet_(std::move(names))
+            , Ranking_(std::move(ranking))
         {
             Sort(NameSet_.Types, NoCaseCompare);
             Sort(NameSet_.Functions, NoCaseCompare);
@@ -90,7 +59,7 @@ namespace NSQLComplete {
                     FilteredByPrefix(request.Prefix, NameSet_.Functions));
             }
 
-            Sort(response.RankedNames);
+            Ranking_.Sort(response.RankedNames);
 
             response.RankedNames.crop(request.Limit);
             return NThreading::MakeFuture(std::move(response));
@@ -98,10 +67,11 @@ namespace NSQLComplete {
 
     private:
         NameSet NameSet_;
+        TRanking Ranking_;
     };
 
-    INameService::TPtr MakeStaticNameService(NameSet names) {
-        return INameService::TPtr(new TStaticNameService(std::move(names)));
+    INameService::TPtr MakeStaticNameService(NameSet names, TRanking ranking) {
+        return INameService::TPtr(new TStaticNameService(std::move(names), std::move(ranking)));
     }
 
 } // namespace NSQLComplete

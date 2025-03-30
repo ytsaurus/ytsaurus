@@ -3,6 +3,8 @@
 #include <library/cpp/json/json_reader.h>
 #include <library/cpp/resource/resource.h>
 
+#include <util/charset/utf8.h>
+
 namespace NSQLComplete {
 
     constexpr struct {
@@ -53,12 +55,6 @@ namespace NSQLComplete {
         }
     };
 
-    void ToLowerInplace(TString& text) {
-        for (char& ch : text) {
-            ch = ToLower(ch);
-        }
-    }
-
     TFrequencyData LoadFrequencyData() {
         TFrequencyData data;
         for (auto& item : TFrequencyItem::LoadListFromResource("rules_corr_basic.json")) {
@@ -66,8 +62,9 @@ namespace NSQLComplete {
                 item.Parent == Json.Parent.Func ||
                 item.Parent == Json.Parent.ModuleFunc ||
                 item.Parent == Json.Parent.Module) {
-                ToLowerInplace(item.Rule);
+                item.Rule = ToLowerUTF8(item.Rule);
             }
+
             if (item.Parent == Json.Parent.Type) {
                 data.Types[item.Rule] += item.Sum;
             } else if (item.Parent == Json.Parent.Func || item.Parent == Json.Parent.ModuleFunc) {

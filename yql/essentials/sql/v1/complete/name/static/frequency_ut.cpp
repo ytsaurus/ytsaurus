@@ -11,4 +11,4 @@ Y_UNIT_TEST_SUITE(FrequencyTests) {
         Y_UNUSED(data);
     }
 
-}
+} // Y_UNIT_TEST_SUITE(FrequencyTests)

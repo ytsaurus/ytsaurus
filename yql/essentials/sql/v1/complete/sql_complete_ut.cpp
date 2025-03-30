@@ -1,7 +1,9 @@
 #include "sql_complete.h"
 
 #include <yql/essentials/sql/v1/complete/name/fallback/name_service.h>
+#include <yql/essentials/sql/v1/complete/name/static/frequency.h>
 #include <yql/essentials/sql/v1/complete/name/static/name_service.h>
+#include <yql/essentials/sql/v1/complete/name/static/ranking.h>
 
 #include <yql/essentials/sql/v1/lexer/lexer.h>
 #include <yql/essentials/sql/v1/lexer/antlr4_pure/lexer.h>
@@ -45,7 +47,7 @@ Y_UNIT_TEST_SUITE(SqlCompleteTests) {
         lexers.Antlr4PureAnsi = NSQLTranslationV1::MakeAntlr4PureAnsiLexerFactory();
         return [lexers = std::move(lexers)](bool ansi) {
             return NSQLTranslationV1::MakeLexer(
-                lexers, ansi, /* antlr4 = */ true, 
+                lexers, ansi, /* antlr4 = */ true,
                 NSQLTranslationV1::ELexerFlavor::Pure);
         };
     }
@@ -53,9 +55,12 @@ Y_UNIT_TEST_SUITE(SqlCompleteTests) {
     ISqlCompletionEngine::TPtr MakeSqlCompletionEngineUT() {
         TLexerSupplier lexer = MakePureLexerSupplier();
         INameService::TPtr names = MakeStaticNameService({
-            .Types = {"Uint64"},
-            .Functions = {"StartsWith"},
-        });
+                                                             .Types = {"Uint64"},
+                                                             .Functions = {"StartsWith"},
+                                                         }, TRanking({
+                                                                .Types = {},
+                                                                .Functions = {},
+                                                            }));
         return MakeSqlCompletionEngine(std::move(lexer), std::move(names));
     }
 
@@ -433,7 +438,7 @@ Y_UNIT_TEST_SUITE(SqlCompleteTests) {
 
     Y_UNIT_TEST(DefaultNameSet) {
         auto set = MakeDefaultNameSet();
-        auto service = MakeStaticNameService(std::move(set));
+        auto service = MakeStaticNameService(std::move(set), MakeDefaultRanking());
         auto engine = MakeSqlCompletionEngine(MakePureLexerSupplier(), std::move(service));
         {
             TVector<TCandidate> expected = {
@@ -470,7 +475,7 @@ Y_UNIT_TEST_SUITE(SqlCompleteTests) {
         auto silent = MakeHolder<TSilentNameService>();
         auto primary = MakeDeadlinedNameService(std::move(silent), TDuration::MilliSeconds(1));
 
-        auto standby = MakeStaticNameService(MakeDefaultNameSet());
+        auto standby = MakeStaticNameService(MakeDefaultNameSet(), MakeDefaultRanking());
 
         auto fallback = MakeFallbackNameService(std::move(primary), std::move(standby));
 
@@ -478,6 +483,51 @@ Y_UNIT_TEST_SUITE(SqlCompleteTests) {
         UNIT_ASSERT_GE(Complete(engine, {"SELECT CAST (1 AS U"}).size(), 6);
         UNIT_ASSERT_GE(Complete(engine, {"SELECT CAST (1 AS "}).size(), 47);
         UNIT_ASSERT_GE(Complete(engine, {"SELECT "}).size(), 55);
+    }
+
+    Y_UNIT_TEST(Ranking) {
+        auto set = MakeDefaultNameSet();
+        auto ranking = TRanking({
+            .Types = {
+                {"int32", 128},
+                {"int64", 64},
+                {"interval", 32},
+                {"interval64", 32},
+            },
+            .Functions = {
+                {"min", 128},
+                {"max", 64},
+                {"maxof", 64},
+                {"minby", 32},
+                {"maxby", 32},
+            },
+        });
+        auto service = MakeStaticNameService(std::move(set), std::move(ranking));
+        auto engine = MakeSqlCompletionEngine(MakePureLexerSupplier(), std::move(service));
+        {
+            TVector<TCandidate> expected = {
+                {TypeName, "Int32"},
+                {TypeName, "Int64"},
+                {TypeName, "Interval"},
+                {TypeName, "Interval64"},
+                {TypeName, "Int16"},
+                {TypeName, "Int8"},
+            };
+            UNIT_ASSERT_VALUES_EQUAL(Complete(engine, {"SELECT OPTIONAL<I"}), expected);
+        }
+        {
+            TVector<TCandidate> expected = {
+                {FunctionName, "Min"},
+                {FunctionName, "Max"},
+                {FunctionName, "MaxOf"},
+                {FunctionName, "MaxBy"},
+                {FunctionName, "MinBy"},
+                {FunctionName, "Median"},
+                {FunctionName, "MinOf"},
+                {FunctionName, "Mode"},
+            };
+            UNIT_ASSERT_VALUES_EQUAL(Complete(engine, {"SELECT m"}), expected);
+        }
     }
 
 } // Y_UNIT_TEST_SUITE(SqlCompleteTests)

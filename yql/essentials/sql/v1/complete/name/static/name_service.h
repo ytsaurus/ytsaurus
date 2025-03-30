@@ -1,5 +1,7 @@
 #pragma once
 
+#include "ranking.h"
+
 #include <yql/essentials/sql/v1/complete/name/name_service.h>
 
 namespace NSQLComplete {
@@ -11,6 +13,6 @@ namespace NSQLComplete {
 
     NameSet MakeDefaultNameSet();
 
-    INameService::TPtr MakeStaticNameService(NameSet names);
+    INameService::TPtr MakeStaticNameService(NameSet names, TRanking ranking);
 
 } // namespace NSQLComplete
