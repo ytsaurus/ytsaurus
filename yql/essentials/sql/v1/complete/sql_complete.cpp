@@ -127,8 +127,7 @@ namespace NSQLComplete {
         lexers.Antlr4Pure = NSQLTranslationV1::MakeAntlr4PureLexerFactory();
         lexers.Antlr4PureAnsi = NSQLTranslationV1::MakeAntlr4PureAnsiLexerFactory();
 
-        auto ranking = MakeDefaultRanking(LoadFrequencyData());
-        INameService::TPtr names = MakeStaticNameService(MakeDefaultNameSet(), std::move(ranking));
+        INameService::TPtr names = MakeStaticNameService(MakeDefaultNameSet(), MakeDefaultRanking());
 
         return MakeSqlCompletionEngine([lexers = std::move(lexers)](bool ansi) {
             return NSQLTranslationV1::MakeLexer(

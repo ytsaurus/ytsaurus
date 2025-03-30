@@ -437,7 +437,7 @@ Y_UNIT_TEST_SUITE(SqlCompleteTests) {
 
     Y_UNIT_TEST(DefaultNameService) {
         auto set = MakeDefaultNameSet();
-        auto service = MakeStaticNameService(std::move(set), MakeDefaultRanking(LoadFrequencyData()));
+        auto service = MakeStaticNameService(std::move(set), MakeDefaultRanking());
         auto engine = MakeSqlCompletionEngine(MakePureLexerSupplier(), std::move(service));
         {
             TVector<TCandidate> expected = {
