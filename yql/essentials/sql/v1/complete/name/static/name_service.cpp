@@ -70,6 +70,10 @@ namespace NSQLComplete {
         IRanking::TPtr Ranking_;
     };
 
+    INameService::TPtr MakeStaticNameService() {
+        return MakeStaticNameService(MakeDefaultNameSet(), MakeDefaultRanking());
+    }
+
     INameService::TPtr MakeStaticNameService(NameSet names, IRanking::TPtr ranking) {
         return INameService::TPtr(new TStaticNameService(std::move(names), std::move(ranking)));
     }
