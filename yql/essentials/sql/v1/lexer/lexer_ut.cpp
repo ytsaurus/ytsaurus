@@ -14,6 +14,8 @@
 
 #include <library/cpp/testing/unittest/registar.h>
 
+#include <util/string/ascii.h>
+
 #define UNIT_ASSERT_TOKENIZED(LEXER, QUERY, TOKENS) \
     do {                                            \
         auto tokens = Tokenized((LEXER), (QUERY));  \
@@ -65,7 +67,7 @@ TVector<TString> GetTokenViews(ILexer::TPtr& lexer, const TString& query) {
 
 TString ToString(TParsedToken token) {
     TString& string = token.Name;
-    if (token.Name != token.Content && token.Name != "EOF") {
+    if (!AsciiEqualsIgnoreCase(token.Name, token.Content) && token.Name != "EOF") {
         string += "(";
         string += token.Content;
         string += ")";
@@ -379,6 +381,11 @@ Y_UNIT_TEST_SUITE(SQLv1Lexer) {
         UNIT_ASSERT_TOKENIZED(lexer, "/* yql */", "COMMENT(/* yql */) EOF");
         UNIT_ASSERT_TOKENIZED(lexer, "/* yql */ */", "COMMENT(/* yql */) WS( ) ASTERISK(*) SLASH(/) EOF");
         UNIT_ASSERT_TOKENIZED(lexer, "/* yql\n * yql\n */", "COMMENT(/* yql\n * yql\n */) EOF");
+    }
+
+    Y_UNIT_TEST_ON_EACH_LEXER(SimpleQuery) {
+        auto lexer = MakeLexer(Lexers, ANSI, ANTLR4, FLAVOR);
+        UNIT_ASSERT_TOKENIZED(lexer, "select 1", "SELECT WS( ) DIGITS(1) EOF");
     }
 
 } // Y_UNIT_TEST_SUITE(SQLv1Lexer)
