@@ -95,23 +95,6 @@ TString Tokenized(ILexer::TPtr& lexer, const TString& query) {
     return out;
 }
 
-void AssertEq(const TParsedToken& lhs, const TParsedToken& rhs) {
-    if (lhs.Name == "EOF" && rhs.Name == "EOF") {
-        return;
-    }
-
-    UNIT_ASSERT_VALUES_EQUAL(lhs.Name, rhs.Name);
-    UNIT_ASSERT_VALUES_EQUAL(lhs.Content, rhs.Content);
-    UNIT_ASSERT_VALUES_EQUAL(lhs.Line, rhs.Line);
-}
-
-void AssertEq(const TParsedTokenList& lhs, const TParsedTokenList& rhs) {
-    UNIT_ASSERT_VALUES_EQUAL(lhs.size(), rhs.size());
-    for (size_t i = 0; i < lhs.size(); ++i) {
-        AssertEq(lhs.at(i), rhs.at(i));
-    }
-}
-
 Y_UNIT_TEST_SUITE(SQLv1Lexer) {
     Y_UNIT_TEST(UnsupportedIssues) {
         NSQLTranslationV1::TLexers factories;
@@ -149,8 +132,8 @@ Y_UNIT_TEST_SUITE(SQLv1Lexer) {
         UNIT_ASSERT_VALUES_EQUAL(actual, expected);
     }
 
-    Y_UNIT_TEST(AntlrVersionIndependent) {
-        const TVector<TString> queriesUtf8 = {
+    Y_UNIT_TEST_ON_EACH_LEXER(AntlrAndFlavorIndependent) {
+        static const TVector<TString> queries = {
             "",
             "   ",
             "SELECT",
@@ -168,35 +151,31 @@ Y_UNIT_TEST_SUITE(SQLv1Lexer) {
             "\"select\"select",
         };
 
-        NSQLTranslationV1::TLexers lexers;
-        lexers.Antlr3 = NSQLTranslationV1::MakeAntlr3LexerFactory();
-        lexers.Antlr4 = NSQLTranslationV1::MakeAntlr4LexerFactory();
-        lexers.Antlr4Pure = NSQLTranslationV1::MakeAntlr4PureLexerFactory();
+        static TVector<TString> expectations(queries.size());
 
-        auto lexer3 = MakeLexer(lexers, /* ansi = */ false, /* antlr4 = */ false);
-        auto lexer4 = MakeLexer(lexers, /* ansi = */ false, /* antlr4 = */ true);
-        auto lexer4p = MakeLexer(lexers, /* ansi = */ false, /* antlr4 = */ true, ELexerFlavor::Pure);
+        if (ANSI) {
+            return;
+        }
 
-        for (const auto& query : queriesUtf8) {
-            auto [tokens3, issues3] = Tokenize(lexer3, query);
-            auto [tokens4, issues4] = Tokenize(lexer4, query);
-            auto [tokens4p, issues4p] = Tokenize(lexer4p, query);
-            AssertEq(tokens3, tokens4);
-            AssertEq(tokens3, tokens4p);
-            UNIT_ASSERT(issues3.Empty());
-            UNIT_ASSERT(issues4.Empty());
-            UNIT_ASSERT(issues4p.Empty());
+        auto lexer = MakeLexer(Lexers, ANSI, ANTLR4, FLAVOR);
+
+        for (size_t i = 0; i < queries.size(); ++i) {
+            const auto& query = queries[i];
+            auto& expected = expectations[i];
+
+            if (expected.empty()) {
+                expected = Tokenized(lexer, query);
+                return;
+            }
+
+            UNIT_ASSERT_TOKENIZED(lexer, query, expected);
         }
     }
 
     TVector<TString> InvalidQueries();
 
     void TestInvalidTokensSkipped(bool antlr4, const TVector<TVector<TString>>& expected) {
-        NSQLTranslationV1::TLexers lexers;
-        lexers.Antlr3 = NSQLTranslationV1::MakeAntlr3LexerFactory();
-        lexers.Antlr4 = NSQLTranslationV1::MakeAntlr4LexerFactory();
-
-        auto lexer = MakeLexer(lexers, /* ansi = */ false, antlr4);
+        auto lexer = MakeLexer(Lexers, /* ansi = */ false, antlr4);
 
         auto input = InvalidQueries();
         UNIT_ASSERT_VALUES_EQUAL(input.size(), expected.size());
@@ -251,16 +230,10 @@ Y_UNIT_TEST_SUITE(SQLv1Lexer) {
     }
 
     Y_UNIT_TEST(IssuesCollected) {
-        NSQLTranslationV1::TLexers lexers;
-        lexers.Antlr3 = NSQLTranslationV1::MakeAntlr3LexerFactory();
-        lexers.Antlr4 = NSQLTranslationV1::MakeAntlr4LexerFactory();
-        lexers.Antlr4Pure = NSQLTranslationV1::MakeAntlr4PureLexerFactory();
-        lexers.Regex = NSQLTranslationV1::MakeRegexLexerFactory(/* ansi = */ false);
-
-        auto lexer3 = MakeLexer(lexers, /* ansi = */ false, /* antlr4 = */ false);
-        auto lexer4 = MakeLexer(lexers, /* ansi = */ false, /* antlr4 = */ true);
-        auto lexer4p = MakeLexer(lexers, /* ansi = */ false, /* antlr4 = */ true, ELexerFlavor::Pure);
-        auto lexerR = MakeLexer(lexers, /* ansi = */ false, /* antlr4 = */ false, ELexerFlavor::Regex);
+        auto lexer3 = MakeLexer(Lexers, /* ansi = */ false, /* antlr4 = */ false);
+        auto lexer4 = MakeLexer(Lexers, /* ansi = */ false, /* antlr4 = */ true);
+        auto lexer4p = MakeLexer(Lexers, /* ansi = */ false, /* antlr4 = */ true, ELexerFlavor::Pure);
+        auto lexerR = MakeLexer(Lexers, /* ansi = */ false, /* antlr4 = */ false, ELexerFlavor::Regex);
 
         for (const auto& query : InvalidQueries()) {
             auto issues3 = GetIssueMessages(lexer3, query);
@@ -276,9 +249,7 @@ Y_UNIT_TEST_SUITE(SQLv1Lexer) {
     }
 
     Y_UNIT_TEST(IssueMessagesAntlr3) {
-        NSQLTranslationV1::TLexers lexers;
-        lexers.Antlr3 = NSQLTranslationV1::MakeAntlr3LexerFactory();
-        auto lexer3 = MakeLexer(lexers, /* ansi = */ false, /* antlr4 = */ false);
+        auto lexer3 = MakeLexer(Lexers, /* ansi = */ false, /* antlr4 = */ false);
 
         auto actual = GetIssueMessages(lexer3, "\xF0\x9F\x98\x8A SELECT * FR");
 
@@ -293,10 +264,7 @@ Y_UNIT_TEST_SUITE(SQLv1Lexer) {
     }
 
     Y_UNIT_TEST(IssueMessagesAntlr4) {
-        NSQLTranslationV1::TLexers lexers;
-        lexers.Antlr4 = NSQLTranslationV1::MakeAntlr4LexerFactory();
-
-        auto lexer4 = MakeLexer(lexers, /* ansi = */ false, /* antlr4 = */ true);
+        auto lexer4 = MakeLexer(Lexers, /* ansi = */ false, /* antlr4 = */ true);
 
         auto actual = GetIssueMessages(lexer4, "\xF0\x9F\x98\x8A SELECT * FR");
 
