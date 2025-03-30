@@ -15,6 +15,7 @@
 #include <library/cpp/testing/unittest/registar.h>
 
 #include <util/string/ascii.h>
+#include <util/random/random.h>
 
 #define UNIT_ASSERT_TOKENIZED(LEXER, QUERY, TOKENS) \
     do {                                            \
@@ -93,6 +94,23 @@ TString Tokenized(ILexer::TPtr& lexer, const TString& query) {
         out.pop_back();
     }
     return out;
+}
+
+TString RandomMultilineCommentLikeText(size_t maxSize) {
+    auto size = RandomNumber<size_t>(maxSize);
+    TString comment;
+    for (size_t i = 0; i < size; ++i) {
+        if (auto /* isOpen */ _ = RandomNumber<bool>()) {
+            comment += "/*";
+        } else {
+            comment += "*/";
+        }
+
+        for (int gap = RandomNumber<size_t>(2); gap > 0; --gap) {
+            comment += " ";
+        }
+    }
+    return comment;
 }
 
 Y_UNIT_TEST_SUITE(SQLv1Lexer) {
@@ -377,6 +395,24 @@ Y_UNIT_TEST_SUITE(SQLv1Lexer) {
             UNIT_ASSERT_TOKENIZED(lexer, "/*/*/*/", "COMMENT(/*/*/) ASTERISK(*) SLASH(/) EOF");
             UNIT_ASSERT_TOKENIZED(lexer, "/*/**/*/*/*/", "COMMENT(/*/**/*/) ASTERISK(*) SLASH(/) ASTERISK(*) SLASH(/) EOF");
             UNIT_ASSERT_TOKENIZED(lexer, "/* /* */ a /* /* */", "COMMENT(/* /* */ a /* /* */) EOF");
+        }
+    }
+
+    Y_UNIT_TEST_ON_EACH_LEXER(RandomRecursiveMultiLineComment) {
+        if (!ANTLR4 && FLAVOR != ELexerFlavor::Regex || FLAVOR != ELexerFlavor::Pure) {
+            return;
+        }
+
+        auto lexer = MakeLexer(Lexers, ANSI, ANTLR4, FLAVOR);
+        auto reference = MakeLexer(Lexers, ANSI, /* antlr4 = */ true, ELexerFlavor::Pure);
+
+        SetRandomSeed(100);
+        for (size_t i = 0; i < 512; ++i) {
+            auto input = RandomMultilineCommentLikeText(/* maxSize = */ 32);
+            TString actual = Tokenized(lexer, input);
+            TString expected = Tokenized(reference, input);
+
+            UNIT_ASSERT_VALUES_EQUAL_C(actual, expected, "Input: " << input);
         }
     }
 
