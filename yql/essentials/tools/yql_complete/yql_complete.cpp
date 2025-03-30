@@ -9,14 +9,14 @@
 
 replxx::Replxx::Color ColorOf(NSQLComplete::ECandidateKind kind) {
     switch (kind) {
-    case NSQLComplete::ECandidateKind::Keyword:
-        return replxx::Replxx::Color::BLUE;
-    case NSQLComplete::ECandidateKind::TypeName:
-        return replxx::Replxx::Color::GREEN;
-    case NSQLComplete::ECandidateKind::FunctionName:
-        return replxx::Replxx::Color::MAGENTA;
-    default:
-        return replxx::Replxx::Color::DEFAULT;
+        case NSQLComplete::ECandidateKind::Keyword:
+            return replxx::Replxx::Color::BLUE;
+        case NSQLComplete::ECandidateKind::TypeName:
+            return replxx::Replxx::Color::GREEN;
+        case NSQLComplete::ECandidateKind::FunctionName:
+            return replxx::Replxx::Color::MAGENTA;
+        default:
+            return replxx::Replxx::Color::DEFAULT;
     }
 }
 
