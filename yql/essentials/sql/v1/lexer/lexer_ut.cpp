@@ -344,6 +344,18 @@ Y_UNIT_TEST_SUITE(SQLv1Lexer) {
         UNIT_ASSERT_TOKENIZED(lexer, "`local/table`", "ID_QUOTED(`local/table`) EOF");
     }
 
+    Y_UNIT_TEST_ON_EACH_LEXER(Number) {
+        auto lexer = MakeLexer(Lexers, ANSI, ANTLR4, FLAVOR);
+        UNIT_ASSERT_TOKENIZED(lexer, "1", "DIGITS(1) EOF");
+        UNIT_ASSERT_TOKENIZED(lexer, "123", "DIGITS(123) EOF");
+        UNIT_ASSERT_TOKENIZED(lexer, "123u", "INTEGER_VALUE(123u) EOF");
+        UNIT_ASSERT_TOKENIZED(lexer, "123ui", "INTEGER_VALUE(123ui) EOF");
+        UNIT_ASSERT_TOKENIZED(lexer, "123.45", "REAL(123.45) EOF");
+        UNIT_ASSERT_TOKENIZED(lexer, "123.45E10", "REAL(123.45E10) EOF");
+        UNIT_ASSERT_TOKENIZED(lexer, "123.45E+10", "REAL(123.45E+10) EOF");
+        UNIT_ASSERT_TOKENIZED(lexer, "1E+10", "REAL(1E+10) EOF");
+    }
+
     Y_UNIT_TEST_ON_EACH_LEXER(SingleLineString) {
         auto lexer = MakeLexer(Lexers, ANSI, ANTLR4, FLAVOR);
         UNIT_ASSERT_TOKENIZED(lexer, "\"\"", "STRING_VALUE(\"\") EOF");
@@ -386,6 +398,7 @@ Y_UNIT_TEST_SUITE(SQLv1Lexer) {
     Y_UNIT_TEST_ON_EACH_LEXER(SimpleQuery) {
         auto lexer = MakeLexer(Lexers, ANSI, ANTLR4, FLAVOR);
         UNIT_ASSERT_TOKENIZED(lexer, "select 1", "SELECT WS( ) DIGITS(1) EOF");
+        UNIT_ASSERT_TOKENIZED(lexer, "SELect 1", "SELECT WS( ) DIGITS(1) EOF");
     }
 
     Y_UNIT_TEST_ON_EACH_LEXER(ComplexQuery) {

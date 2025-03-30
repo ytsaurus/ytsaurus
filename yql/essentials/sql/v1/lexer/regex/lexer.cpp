@@ -72,7 +72,7 @@ namespace NSQLTranslationV1 {
 
             size_t keywordCount = MatchKeyword(prefix, matches);
             MatchPunctuation(prefix, matches);
-            size_t otherCount = MatchRegex(prefix, matches);
+            MatchRegex(prefix, matches);
             MatchComment(prefix, matches);
 
             if (matches.empty()) {
@@ -92,10 +92,6 @@ namespace NSQLTranslationV1 {
                            return m.Name == name;
                        });
             };
-
-            Y_ENSURE(
-                otherCount <= 1 ||
-                (otherCount == 2 && isMatched("DIGITS") && isMatched("INTEGER_VALUE")));
 
             size_t conflicts = CountIf(matches, [&](const TParsedToken& m) {
                 return m.Content.length() == max->Content.length();
