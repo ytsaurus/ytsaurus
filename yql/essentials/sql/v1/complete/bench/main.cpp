@@ -30,5 +30,5 @@ Y_CPU_BENCHMARK(Complete, iface) {
     for (const auto _ : xrange(iface.Iterations())) {
         auto completion = engine->Complete({"SELECT "});
         Y_FAKE_READ(completion);
-    }    
+    }
 }

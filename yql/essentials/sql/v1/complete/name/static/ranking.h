@@ -8,17 +8,14 @@
 
 namespace NSQLComplete {
 
-    class TRanking {
+    class IRanking {
     public:
-        explicit TRanking(TFrequencyData frequency);
-        void PartialSort(TVector<TGenericName>& names, size_t limit);
+        using TPtr = THolder<IRanking>;
 
-    private:
-        size_t Weight(const TGenericName& name) const;
-
-        TFrequencyData Frequency_;
+        virtual void PartialSort(TVector<TGenericName>& names, size_t limit) = 0;
+        virtual ~IRanking() = default;
     };
 
-    TRanking MakeDefaultRanking();
+    IRanking::TPtr MakeDefaultRanking(TFrequencyData frequency);
 
 } // namespace NSQLComplete

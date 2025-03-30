@@ -54,14 +54,13 @@ Y_UNIT_TEST_SUITE(SqlCompleteTests) {
 
     ISqlCompletionEngine::TPtr MakeSqlCompletionEngineUT() {
         TLexerSupplier lexer = MakePureLexerSupplier();
-        INameService::TPtr names = MakeStaticNameService({
-                                                             .Types = {"Uint64"},
-                                                             .Functions = {"StartsWith"},
-                                                         }, TRanking({
-                                                                .Types = {},
-                                                                .Functions = {},
-                                                            }));
-        return MakeSqlCompletionEngine(std::move(lexer), std::move(names));
+        NameSet names = {
+            .Types = {"Uint64"},
+            .Functions = {"StartsWith"},
+        };
+        auto ranking = MakeDefaultRanking({});
+        INameService::TPtr service = MakeStaticNameService(std::move(names), std::move(ranking));
+        return MakeSqlCompletionEngine(std::move(lexer), std::move(service));
     }
 
     TVector<TCandidate> Complete(ISqlCompletionEngine::TPtr& engine, TStringBuf prefix) {
@@ -436,9 +435,9 @@ Y_UNIT_TEST_SUITE(SqlCompleteTests) {
         UNIT_ASSERT_VALUES_EQUAL_C(Complete(engine, "!;").size(), 0, "Lexer failing");
     }
 
-    Y_UNIT_TEST(DefaultNameSet) {
+    Y_UNIT_TEST(DefaultNameService) {
         auto set = MakeDefaultNameSet();
-        auto service = MakeStaticNameService(std::move(set), MakeDefaultRanking());
+        auto service = MakeStaticNameService(std::move(set), MakeDefaultRanking(LoadFrequencyData()));
         auto engine = MakeSqlCompletionEngine(MakePureLexerSupplier(), std::move(service));
         {
             TVector<TCandidate> expected = {
@@ -475,7 +474,7 @@ Y_UNIT_TEST_SUITE(SqlCompleteTests) {
         auto silent = MakeHolder<TSilentNameService>();
         auto primary = MakeDeadlinedNameService(std::move(silent), TDuration::MilliSeconds(1));
 
-        auto standby = MakeStaticNameService(MakeDefaultNameSet(), MakeDefaultRanking());
+        auto standby = MakeStaticNameService(MakeDefaultNameSet(), MakeDefaultRanking({}));
 
         auto fallback = MakeFallbackNameService(std::move(primary), std::move(standby));
 
@@ -486,8 +485,7 @@ Y_UNIT_TEST_SUITE(SqlCompleteTests) {
     }
 
     Y_UNIT_TEST(Ranking) {
-        auto set = MakeDefaultNameSet();
-        auto ranking = TRanking({
+        TFrequencyData frequency = {
             .Types = {
                 {"int32", 128},
                 {"int64", 64},
@@ -501,8 +499,8 @@ Y_UNIT_TEST_SUITE(SqlCompleteTests) {
                 {"minby", 32},
                 {"maxby", 32},
             },
-        });
-        auto service = MakeStaticNameService(std::move(set), std::move(ranking));
+        };
+        auto service = MakeStaticNameService(MakeDefaultNameSet(), MakeDefaultRanking(frequency));
         auto engine = MakeSqlCompletionEngine(MakePureLexerSupplier(), std::move(service));
         {
             TVector<TCandidate> expected = {

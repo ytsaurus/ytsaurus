@@ -37,7 +37,7 @@ namespace NSQLComplete {
 
     class TStaticNameService: public INameService {
     public:
-        explicit TStaticNameService(NameSet names, TRanking ranking)
+        explicit TStaticNameService(NameSet names, IRanking::TPtr ranking)
             : NameSet_(std::move(names))
             , Ranking_(std::move(ranking))
         {
@@ -59,7 +59,7 @@ namespace NSQLComplete {
                     FilteredByPrefix(request.Prefix, NameSet_.Functions));
             }
 
-            Ranking_.PartialSort(response.RankedNames, request.Limit);
+            Ranking_->PartialSort(response.RankedNames, request.Limit);
             response.RankedNames.crop(request.Limit);
 
             return NThreading::MakeFuture(std::move(response));
@@ -67,10 +67,10 @@ namespace NSQLComplete {
 
     private:
         NameSet NameSet_;
-        TRanking Ranking_;
+        IRanking::TPtr Ranking_;
     };
 
-    INameService::TPtr MakeStaticNameService(NameSet names, TRanking ranking) {
+    INameService::TPtr MakeStaticNameService(NameSet names, IRanking::TPtr ranking) {
         return INameService::TPtr(new TStaticNameService(std::move(names), std::move(ranking)));
     }
 

@@ -13,6 +13,6 @@ namespace NSQLComplete {
 
     NameSet MakeDefaultNameSet();
 
-    INameService::TPtr MakeStaticNameService(NameSet names, TRanking ranking);
+    INameService::TPtr MakeStaticNameService(NameSet names, IRanking::TPtr ranking);
 
 } // namespace NSQLComplete
