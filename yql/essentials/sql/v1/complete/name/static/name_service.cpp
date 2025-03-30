@@ -50,7 +50,7 @@ namespace NSQLComplete {
 
             if (request.Constraints.TypeName) {
                 AppendAs<TTypeName>(response.RankedNames,
-                                    FilteredByPrefix(request.Prefix, NameSet_.Types));
+                    FilteredByPrefix(request.Prefix, NameSet_.Types));
             }
 
             if (request.Constraints.Function) {
@@ -59,8 +59,7 @@ namespace NSQLComplete {
                     FilteredByPrefix(request.Prefix, NameSet_.Functions));
             }
 
-            Ranking_->PartialSort(response.RankedNames, request.Limit);
-            response.RankedNames.crop(request.Limit);
+            Ranking_->CropToSortedPrefix(response.RankedNames, request.Limit);
 
             return NThreading::MakeFuture(std::move(response));
         }

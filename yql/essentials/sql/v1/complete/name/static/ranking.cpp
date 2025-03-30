@@ -8,41 +8,48 @@
 
 namespace NSQLComplete {
 
-    const TStringBuf ContentView(const TGenericName& name Y_LIFETIME_BOUND) {
-        return std::visit([](const auto& name) -> TStringBuf {
-            using T = std::decay_t<decltype(name)>;
-            if constexpr (std::is_base_of_v<TIndentifier, T>) {
-                return name.Indentifier;
-            }
-        }, name);
-    }
-
-    size_t ReversedWeight(size_t weight) {
-        return std::numeric_limits<size_t>::max() - weight;
-    }
-
     class TRanking: public IRanking {
+    private:
+        struct TRow {
+            TGenericName Name;
+            size_t Weight;
+        };
+
     public:
         TRanking(TFrequencyData frequency)
             : Frequency_(std::move(frequency))
         {
         }
 
-        void PartialSort(TVector<TGenericName>& names, size_t limit) override {
+        void CropToSortedPrefix(TVector<TGenericName>& names, size_t limit) override {
             limit = std::min(limit, names.size());
 
-            ::PartialSort(
-                std::begin(names), std::begin(names) + limit, std::end(names),
-                [this](const TGenericName& lhs, const TGenericName& rhs) {
-                    const size_t lhs_weight = ReversedWeight(Weight(lhs));
-                    const auto lhs_content = ContentView(lhs);
+            TVector<TRow> rows;
+            rows.reserve(names.size());
+            for (TGenericName& name : names) {
+                size_t weight = Weight(name);
+                rows.emplace_back(std::move(name), weight);
+            }
 
-                    const size_t rhs_weight = ReversedWeight(Weight(rhs));
-                    const auto rhs_content = ContentView(rhs);
+            ::PartialSort(
+                std::begin(rows), std::begin(rows) + limit, std::end(rows),
+                [this](const TRow& lhs, const TRow& rhs) {
+                    const size_t lhs_weight = ReversedWeight(lhs.Weight);
+                    const auto lhs_content = ContentView(lhs.Name);
+
+                    const size_t rhs_weight = ReversedWeight(rhs.Weight);
+                    const auto rhs_content = ContentView(rhs.Name);
 
                     return std::tie(lhs_weight, lhs_content) <
                            std::tie(rhs_weight, rhs_content);
                 });
+
+            names.crop(limit);
+            rows.crop(limit);
+
+            for (size_t i = 0; i < limit; ++i) {
+                names[i] = std::move(rows[i].Name);
+            }
         }
 
     private:
@@ -50,7 +57,7 @@ namespace NSQLComplete {
             return std::visit([this](const auto& name) -> size_t {
                 using T = std::decay_t<decltype(name)>;
 
-                auto identifier = ToLowerUTF8(name.Indentifier);
+                auto identifier = ToLowerUTF8(ContentView(name));
 
                 if constexpr (std::is_same_v<T, TFunctionName>) {
                     if (auto weight = Frequency_.Functions.FindPtr(identifier)) {
@@ -65,6 +72,19 @@ namespace NSQLComplete {
                 }
 
                 return 0;
+            }, name);
+        }
+
+        static size_t ReversedWeight(size_t weight) {
+            return std::numeric_limits<size_t>::max() - weight;
+        }
+
+        const TStringBuf ContentView(const TGenericName& name Y_LIFETIME_BOUND) const {
+            return std::visit([](const auto& name) -> TStringBuf {
+                using T = std::decay_t<decltype(name)>;
+                if constexpr (std::is_base_of_v<TIndentifier, T>) {
+                    return name.Indentifier;
+                }
             }, name);
         }
 

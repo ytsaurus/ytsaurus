@@ -12,7 +12,7 @@ namespace NSQLComplete {
     public:
         using TPtr = THolder<IRanking>;
 
-        virtual void PartialSort(TVector<TGenericName>& names, size_t limit) = 0;
+        virtual void CropToSortedPrefix(TVector<TGenericName>& names, size_t limit) = 0;
         virtual ~IRanking() = default;
     };
 
