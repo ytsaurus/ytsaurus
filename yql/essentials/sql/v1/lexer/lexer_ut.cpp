@@ -388,4 +388,34 @@ Y_UNIT_TEST_SUITE(SQLv1Lexer) {
         UNIT_ASSERT_TOKENIZED(lexer, "select 1", "SELECT WS( ) DIGITS(1) EOF");
     }
 
+    Y_UNIT_TEST_ON_EACH_LEXER(ComplexQuery) {
+        auto lexer = MakeLexer(Lexers, ANSI, ANTLR4, FLAVOR);
+
+        TString query =
+            "SELECT\n"
+            "  123467,\n"
+            "  \"Hello, {name}!\",\n"
+            "  (1 + (5U * 1 / 0)),\n"
+            "  MIN(identifier),\n"
+            "  Bool(field),\n"
+            "  Math::Sin(var)\n"
+            "FROM `local/test/space/table`\n"
+            "JOIN test;";
+
+        TString expected =
+            "SELECT WS(\n) "
+            "WS( ) WS( ) DIGITS(123467) COMMA(,) WS(\n) "
+            "WS( ) WS( ) STRING_VALUE(\"Hello, {name}!\") COMMA(,) WS(\n) "
+            "WS( ) WS( ) LPAREN(() DIGITS(1) WS( ) PLUS(+) WS( ) LPAREN(() INTEGER_VALUE(5U) WS( ) "
+            "ASTERISK(*) WS( ) DIGITS(1) WS( ) SLASH(/) WS( ) DIGITS(0) RPAREN()) "
+            "RPAREN()) COMMA(,) WS(\n) "
+            "WS( ) WS( ) ID_PLAIN(MIN) LPAREN(() ID_PLAIN(identifier) RPAREN()) COMMA(,) WS(\n) "
+            "WS( ) WS( ) ID_PLAIN(Bool) LPAREN(() ID_PLAIN(field) RPAREN()) COMMA(,) WS(\n) "
+            "WS( ) WS( ) ID_PLAIN(Math) NAMESPACE(::) ID_PLAIN(Sin) LPAREN(() ID_PLAIN(var) RPAREN()) WS(\n) "
+            "FROM WS( ) ID_QUOTED(`local/test/space/table`) WS(\n) "
+            "JOIN WS( ) ID_PLAIN(test) SEMICOLON(;) EOF";
+
+        UNIT_ASSERT_TOKENIZED(lexer, query, expected);
+    }
+
 } // Y_UNIT_TEST_SUITE(SQLv1Lexer)
