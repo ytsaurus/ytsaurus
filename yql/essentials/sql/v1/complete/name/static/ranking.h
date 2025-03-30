@@ -11,7 +11,7 @@ namespace NSQLComplete {
     class TRanking {
     public:
         explicit TRanking(TFrequencyData frequency);
-        void Sort(TVector<TGenericName>& names);
+        void PartialSort(TVector<TGenericName>& names, size_t limit);
 
     private:
         size_t Weight(const TGenericName& name) const;

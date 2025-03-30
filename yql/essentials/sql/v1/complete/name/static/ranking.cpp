@@ -26,17 +26,22 @@ namespace NSQLComplete {
     {
     }
 
-    void TRanking::Sort(TVector<TGenericName>& names) {
-        ::Sort(names, [this](const TGenericName& lhs, const TGenericName& rhs) {
-            const size_t lhs_weight = ReversedWeight(Weight(lhs));
-            const auto lhs_content = ContentView(lhs);
+    void TRanking::PartialSort(TVector<TGenericName>& names, size_t limit) {
+        limit = std::min(limit, names.size());
 
-            const size_t rhs_weight = ReversedWeight(Weight(rhs));
-            const auto rhs_content = ContentView(rhs);
+        ::PartialSort(
+            std::begin(names), std::begin(names) + limit, std::end(names), 
+            [this](const TGenericName& lhs, const TGenericName& rhs) {
+                const size_t lhs_weight = ReversedWeight(Weight(lhs));
+                const auto lhs_content = ContentView(lhs);
 
-            return std::tie(lhs_weight, lhs_content) <
-                   std::tie(rhs_weight, rhs_content);
-        });
+                const size_t rhs_weight = ReversedWeight(Weight(rhs));
+                const auto rhs_content = ContentView(rhs);
+
+                return std::tie(lhs_weight, lhs_content) <
+                       std::tie(rhs_weight, rhs_content);
+            }
+        ); 
     }
 
     size_t TRanking::Weight(const TGenericName& name) const {

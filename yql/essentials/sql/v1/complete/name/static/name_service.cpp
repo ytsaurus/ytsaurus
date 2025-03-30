@@ -59,9 +59,9 @@ namespace NSQLComplete {
                     FilteredByPrefix(request.Prefix, NameSet_.Functions));
             }
 
-            Ranking_.Sort(response.RankedNames);
-
+            Ranking_.PartialSort(response.RankedNames, request.Limit);
             response.RankedNames.crop(request.Limit);
+
             return NThreading::MakeFuture(std::move(response));
         }
 
