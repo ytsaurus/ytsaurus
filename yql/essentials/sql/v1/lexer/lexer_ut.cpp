@@ -1,4 +1,5 @@
 #include "lexer.h"
+#include "lexer_ut.h"
 
 #include <yql/essentials/core/issue/yql_issue.h>
 #include <yql/essentials/sql/settings/translation_settings.h>
@@ -252,5 +253,9 @@ Y_UNIT_TEST_SUITE(SQLv1Lexer) {
         };
 
         UNIT_ASSERT_VALUES_EQUAL(actual, expected);
+    }
+
+    Y_UNIT_TEST_ON_EACH_LEXER(N) {
+        
     }
 }
