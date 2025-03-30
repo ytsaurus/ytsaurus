@@ -49,7 +49,8 @@ namespace NSQLComplete {
             TNameResponse response;
 
             if (request.Constraints.TypeName) {
-                AppendAs<TTypeName>(response.RankedNames,
+                AppendAs<TTypeName>(
+                    response.RankedNames,
                     FilteredByPrefix(request.Prefix, NameSet_.Types));
             }
 
