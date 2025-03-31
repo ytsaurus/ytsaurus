@@ -3,6 +3,7 @@ from __future__ import annotations
 import array
 import asyncio
 import concurrent.futures
+import contextvars
 import math
 import os
 import socket
@@ -764,9 +765,13 @@ class TaskGroup(abc.TaskGroup):
 
                 self._active = False
                 if self._exceptions:
+                    # The exception that got us here should already have been
+                    # added to self._exceptions so it's ok to break exception
+                    # chaining and avoid adding a "During handling of above..."
+                    # for each nesting level.
                     raise BaseExceptionGroup(
                         "unhandled errors in a TaskGroup", self._exceptions
-                    )
+                    ) from None
                 elif exc_val:
                     raise exc_val
             except BaseException as exc:
@@ -970,7 +975,10 @@ class WorkerThread(Thread):
                             self._report_result, future, result, exception
                         )
 
+                    del result, exception
+
                 self.queue.task_done()
+                del item, context, func, args, future, cancel_scope
 
     def stop(self, f: asyncio.Task | None = None) -> None:
         self.stopping = True
@@ -1980,8 +1988,7 @@ class CapacityLimiter(BaseCapacityLimiter):
     def acquire_on_behalf_of_nowait(self, borrower: object) -> None:
         if borrower in self._borrowers:
             raise RuntimeError(
-                "this borrower is already holding one of this CapacityLimiter's "
-                "tokens"
+                "this borrower is already holding one of this CapacityLimiter's tokens"
             )
 
         if self._wait_queue or len(self._borrowers) >= self._total_tokens:
@@ -2430,7 +2437,9 @@ class AsyncIOBackend(AsyncBackend):
                     worker = WorkerThread(root_task, workers, idle_workers)
                     worker.start()
                     workers.add(worker)
-                    root_task.add_done_callback(worker.stop)
+                    root_task.add_done_callback(
+                        worker.stop, context=contextvars.Context()
+                    )
                 else:
                     worker = idle_workers.pop()
 
@@ -2671,13 +2680,13 @@ class AsyncIOBackend(AsyncBackend):
         type: int | SocketKind = 0,
         proto: int = 0,
         flags: int = 0,
-    ) -> list[
+    ) -> Sequence[
         tuple[
             AddressFamily,
             SocketKind,
             int,
             str,
-            tuple[str, int] | tuple[str, int, int, int],
+            tuple[str, int] | tuple[str, int, int, int] | tuple[int, bytes],
         ]
     ]:
         return await get_running_loop().getaddrinfo(

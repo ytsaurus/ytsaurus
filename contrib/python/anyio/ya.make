@@ -2,7 +2,7 @@
 
 PY3_LIBRARY()
 
-VERSION(4.8.0)
+VERSION(4.9.0)
 
 LICENSE(MIT)
 
@@ -37,6 +37,7 @@ PY_SRCS(
     anyio/_core/_subprocesses.py
     anyio/_core/_synchronization.py
     anyio/_core/_tasks.py
+    anyio/_core/_tempfile.py
     anyio/_core/_testing.py
     anyio/_core/_typedattr.py
     anyio/abc/__init__.py
