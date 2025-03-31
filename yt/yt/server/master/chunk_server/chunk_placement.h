@@ -10,6 +10,8 @@
 #include <yt/yt/server/master/node_tracker_server/node_tracker.h>
 #include <yt/yt/server/master/node_tracker_server/node.h>
 
+#include <yt/yt/server/master/chunk_server/packing_max_erasure_replicas_per_rack.h>
+
 #include <yt/yt/client/object_client/helpers.h>
 
 #include <util/generic/map.h>
@@ -188,6 +190,8 @@ private:
     THashSet<const NNodeTrackerServer::TDataCenter*> AliveStorageDataCenters_;
     std::vector<TError> DataCenterSetErrors_;
     std::vector<TError> DataCenterFaultErrors_;
+
+    TPackingMaxErasureReplicasPerRackPtr PackingMaxErasureReplicasPerRack_;
 
     void OnDynamicConfigChanged(NCellMaster::TDynamicClusterConfigPtr /*oldConfig*/);
 

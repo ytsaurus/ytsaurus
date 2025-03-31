@@ -317,6 +317,9 @@ TChunkPlacement::TChunkPlacement(
     : Bootstrap_(bootstrap)
     , Config_(bootstrap->GetConfig()->ChunkManager)
     , ConsistentPlacement_(std::move(consistentPlacement))
+    , PackingMaxErasureReplicasPerRack_(New<TPackingMaxErasureReplicasPerRack>(
+        Config_->DynamicMaxErasureReplicasPerRackStabilizationWindow, Bootstrap_->GetNodeTracker()
+    ))
 {
     const auto& configManager = Bootstrap_->GetConfigManager();
     configManager->SubscribeConfigChanged(BIND_NO_PROPAGATE(&TChunkPlacement::OnDynamicConfigChanged, MakeWeak(this)));
@@ -377,6 +380,7 @@ void TChunkPlacement::RegisterNode(TNode* node)
         return;
     }
 
+    PackingMaxErasureReplicasPerRack_->OnNodeHeartbeat(node);
     InsertToLoadFactorMaps(node);
 }
 
@@ -1453,6 +1457,7 @@ int TChunkPlacement::CapPerRackReplicationFactor(
             break;
         case EObjectType::ErasureChunk:
             result = std::min(result, config->MaxErasureReplicasPerRack);
+            result = std::min(result, PackingMaxErasureReplicasPerRack_->Get(medium->GetIndex(), chunk->GetErasureCodec()));
             break;
         case EObjectType::JournalChunk:
             result = std::min(result, config->MaxJournalReplicasPerRack);

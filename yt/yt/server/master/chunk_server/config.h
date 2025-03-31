@@ -33,6 +33,7 @@ struct TChunkManagerConfig
     int MaxJournalReplicasPerRack;
     //! Same as #MaxReplicasPerRack but only applies to erasure chunks.
     int MaxErasureReplicasPerRack;
+    TDuration DynamicMaxErasureReplicasPerRackStabilizationWindow;
     //! Same as #MaxReplicasPerRack but only applies to erasure journal chunks.
     int MaxErasureJournalReplicasPerRack;
 

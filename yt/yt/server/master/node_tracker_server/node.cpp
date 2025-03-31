@@ -1116,6 +1116,18 @@ bool TNode::HasMedium(int mediumIndex) const
     return it != locations.end();
 }
 
+bool TNode::HasNotFullMedium(int mediumIndex) const
+{
+    const auto& locations = DataNodeStatistics_.chunk_locations();
+    auto it = std::find_if(
+        locations.begin(),
+        locations.end(),
+        [=] (const auto& location) {
+            return location.medium_index() == mediumIndex && !location.full();
+        });
+    return it != locations.end();
+}
+
 std::optional<double> TNode::GetFillFactor(int mediumIndex) const
 {
     return GetOrDefault(FillFactors_, mediumIndex);
