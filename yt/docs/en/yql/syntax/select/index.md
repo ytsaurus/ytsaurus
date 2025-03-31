@@ -33,14 +33,14 @@ The `SELECT` query result is calculated as follows:
 * Assign names set by aliases to expressions in `SELECT`.
 * Apply top-level [DISTINCT](distinct.md) to the resulting columns.
 * Execute similarly every subquery inside [UNION ALL](union.md#union-all), combine them (see [PRAGMA AnsiOrderByLimitInUnionAll](../pragma.md#pragmas)).
-* Perform sorting with [ORDER BY](order-by.md).
-* Apply [OFFSET and LIMIT](limit-offset.md) to the result.
+* Perform sorting with [ORDER BY](order_by.md).
+* Apply [OFFSET and LIMIT](limit_offset.md) to the result.
 
 
 ## Column order in YQL {#orderedcolumns}
 
 The standard SQL is sensitive to the order of columns in projections (that is, in `SELECT`). While the order of columns must be preserved in the query results or when writing data to a new table, some SQL constructs use this order.
-This applies, for example, to [UNION ALL](union.md#union-all) and positional [ORDER BY](order-by.md) (ORDER BY ordinal).
+This applies, for example, to [UNION ALL](union.md#union-all) and positional [ORDER BY](order_by.md) (ORDER BY ordinal).
 
 The column order is ignored in YQL by default:
 
@@ -53,7 +53,7 @@ If you enable `PRAGMA OrderedColumns;`, the order of columns is preserved in the
 * `SELECT` with an asterisk (`SELECT * FROM ...`) inherits the order from its input.
 * The order of columns after [JOIN](../join.md): First output the left-hand columns, then the right-hand ones. If the column order in any of the sides in the `JOIN` output is undefined, the column order in the result is also undefined.
 * The order in `UNION ALL` depends on the [UNION ALL](union.md#union-all) execution mode.
-* The column order for [AS_TABLE](from-as-table.md) is undefined.
+* The column order for [AS_TABLE](from_as_table.md) is undefined.
 
 
 ### Combining queries {#combining-queries}
@@ -86,21 +86,21 @@ If the underlying queries have one of the `ORDER BY/LIMIT/DISCARD/INTO RESULT` o
 ## Clauses supported in SELECT
 
 * [FROM](from.md)
-* [FROM AS_TABLE](from-as-table.md)
-* [FROM SELECT](from-select.md)
+* [FROM AS_TABLE](from_as_table.md)
+* [FROM SELECT](from_select.md)
 * [DISTINCT](distinct.md)
-* [UNIQUE DISTINCT](unique-distinct-hints.md)
+* [UNIQUE DISTINCT](unique_distinct_hints.md)
 * [UNION](union.md)
 * [WITH](with.md)
 * [WITHOUT](without.md)
 * [WHERE](where.md)
-* [ORDER BY](order-by.md)
-* [ASSUME ORDER BY](assume-order-by.md)
-* [LIMIT OFFSET](limit-offset.md)
+* [ORDER BY](order_by.md)
+* [ASSUME ORDER BY](assume_order_by.md)
+* [LIMIT OFFSET](limit_offset.md)
 * [SAMPLE](sample.md)
 * [TABLESAMPLE](sample.md)
-<!-- * [FOLDER](folder.md)
-* [WalkFolders](walk-folders.md)
+* [FOLDER](folder.md)
+* [WalkFolders](walk_folders.md)
 * [VIEW](view.md)
-* [TEMPORARY TABLE](temporary-tables.md) -->
+* [TEMPORARY TABLE](temporary_table.md)
 * [CONCAT](concat.md)

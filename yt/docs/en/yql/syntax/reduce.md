@@ -4,7 +4,7 @@ Groups the input by the specified key columns, then passes the current keys and 
 
 Keywords that can follow:
 
-* `PRESORT` <span style="color: gray;">(optional)</span> — specifies the sequence inside each group. Syntax is similar to that of [ORDER BY](select/order-by.md).
+* `PRESORT` <span style="color: gray;">(optional)</span> — specifies the sequence inside each group. Syntax is similar to that of [ORDER BY](select/order_by.md).
 * `ON` <span style="color: gray;">(required)</span> — specifies key columns.
 * `USING` or `USING ALL` <span style="color: gray;">(required)</span> — UDF call. See the detailed rules below.
 
