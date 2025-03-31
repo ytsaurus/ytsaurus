@@ -1,4 +1,5 @@
 #include "config.h"
+#include "profiler.h"
 #include "query_tracker_proxy.h"
 
 #include <yt/yt/client/api/transaction.h>
@@ -66,7 +67,7 @@ const TString FinishedQueriesByUserAndStartTimeTable = "finished_queries_by_user
 TQuery PartialRecordToQuery(const auto& partialRecord)
 {
     static_assert(pfr::tuple_size<TQuery>::value == 17);
-    static_assert(TActiveQueryDescriptor::FieldCount == 20);
+    static_assert(TActiveQueryDescriptor::FieldCount == 21);
     static_assert(TFinishedQueryDescriptor::FieldCount == 15);
 
     TQuery query;
@@ -779,7 +780,7 @@ void TQueryTrackerProxy::StartQuery(
             }
         }
     } else {
-        static_assert(TActiveQueryDescriptor::FieldCount == 20);
+        static_assert(TActiveQueryDescriptor::FieldCount == 21);
         TActiveQueryPartial newRecord{
             .Key = {.QueryId = queryId},
             .Engine = engine,
@@ -836,11 +837,12 @@ void TQueryTrackerProxy::AbortQuery(
 
     YT_LOG_DEBUG("Aborting query (QueryId: %v, AbortMessage: %v)", queryId, options.AbortMessage);
 
+    TActiveQuery record;
     {
         const auto& idMapping = TActiveQueryDescriptor::Get()->GetIdMapping();
         TLookupRowsOptions options;
         options.Timestamp = transaction->GetStartTimestamp();
-        options.ColumnFilter = {*idMapping.State};
+        options.ColumnFilter = {*idMapping.State, *idMapping.Engine, *idMapping.AssignedTracker, *idMapping.ExecutionStartTime};
         options.KeepMissingRows = true;
         TActiveQueryKey key{.QueryId = queryId};
         std::vector keys{
@@ -862,7 +864,7 @@ void TQueryTrackerProxy::AbortQuery(
                 "Query %v not found or is not running",
                 queryId);
         }
-        const auto& record = *optionalRecords[0];
+        record = *optionalRecords[0];
         if (record.State != EQueryState::Pending && record.State != EQueryState::Running) {
             THROW_ERROR_EXCEPTION("Cannot abort query %v which is in state %Qlv",
                 queryId,
@@ -883,6 +885,20 @@ void TQueryTrackerProxy::AbortQuery(
                 << error;
         }
         THROW_ERROR error;
+    }
+
+    {
+        // Save profile counter.
+        auto now = TInstant::Now();
+        auto time = now - record.StartTime;
+        if (record.State == EQueryState::Running) {
+            time = now - *record.ExecutionStartTime;
+        }
+
+        auto& stateTimeGauge = GetOrCreateProfilingCounter<TStateTimeProfilingCounter>(
+            QueryTrackerProfiler,
+            ProfilingTagsFromActiveQueryRecord(record))->StateTime;
+        stateTimeGauge.Update(time);
     }
 }
 
