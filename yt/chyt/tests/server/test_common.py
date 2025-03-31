@@ -1940,6 +1940,16 @@ class TestClickHouseCommon(ClickHouseTestBase):
             # They are the same for both queries, but read different data.
             assert clique.make_query(query.format("t2")) == [{"a": 2}]
 
+    @authors("buyval01")
+    def test_select_from_subquery(self):
+        create("table", "//tmp/t", attributes={"schema": [{"name": "a", "type": "int64"}]})
+        write_table("//tmp/t", [{"a": 27}, {"a": 3}, {"a": 9}])
+        write_table("//tmp/t", [{"a": 25}, {"a": 125}, {"a": 5}])
+
+        with Clique(3) as clique:
+            query = 'select toString(t1.sub_res) as res from (select max(a) as sub_res from "//tmp/t") as t1'
+            assert clique.make_query(query) == [{"res": "125"}]
+
 
 class TestClickHouseNoCache(ClickHouseTestBase):
     @authors("dakovalkov")

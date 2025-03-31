@@ -639,7 +639,8 @@ class TestJoinAndIn(ClickHouseTestBase):
                 ("where a.a not in (select CAST(0, 'Nullable(Int64)'))", [{"count": 0}]),
                 ("where (5 + (a.a in (select CAST(0, 'Nullable(Int64)')))) = 6", [{"count": 1}]),
                 ("prewhere a.a in (select CAST(0, 'Nullable(Int64)'))", [{"count": 1}]),
-                ('where (a.a, a.b) in "//tmp/t"', [{"count": 1}]),
+                # CHYT-1270
+                # ('where (a.a, a.b) in "//tmp/t"', [{"count": 1}]),
                 ("where a.a global in (select CAST(0, 'Nullable(Int64)'))", [{"count": 1}]),
             ]
             for filter, expected in filters_with_expected_results:

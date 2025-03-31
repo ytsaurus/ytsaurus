@@ -355,13 +355,10 @@ public:
         bool isInsert = SecondaryQueries_[0].Query->as<DB::ASTInsertQuery>();
 
         if (!isInsert) {
-            auto selectQueryOptions = DB::SelectQueryOptions(ProcessingStage_).analyze();
-            DB::Planner planner(
-                QueryInfo_.query_tree,
-                selectQueryOptions,
-                QueryInfo_.planner_context);
-            planner.buildQueryPlanIfNeeded();
-            blockHeader = planner.getQueryPlan().getCurrentDataStream().header;
+            blockHeader = DB::InterpreterSelectQueryAnalyzer::getSampleBlock(
+                QueryInfo_.query,
+                Context_,
+                DB::SelectQueryOptions(ProcessingStage_));
         }
 
         for (size_t index = 0; index < SecondaryQueries_.size(); ++index) {
