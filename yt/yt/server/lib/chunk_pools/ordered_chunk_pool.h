@@ -20,7 +20,6 @@ struct TOrderedChunkPoolOptions
     //! is exceeded, an exception is thrown.
     i64 MaxTotalSliceCount;
     i64 MinTeleportChunkSize = 0;
-    bool SupportLocality = false;
     NControllerAgent::IJobSizeConstraintsPtr JobSizeConstraints;
     bool EnablePeriodicYielder = false;
     bool BuildOutputOrder = false;

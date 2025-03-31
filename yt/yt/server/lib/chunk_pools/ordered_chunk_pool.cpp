@@ -39,7 +39,10 @@ void TOrderedChunkPoolOptions::RegisterMetadata(auto&& registrar)
     PHOENIX_REGISTER_FIELD(1, MaxTotalSliceCount);
     PHOENIX_REGISTER_FIELD(2, MinTeleportChunkSize);
     PHOENIX_REGISTER_FIELD(3, JobSizeConstraints);
-    PHOENIX_REGISTER_FIELD(4, SupportLocality);
+    registrar.template VirtualField<4>("SupportLocality", [] (TThis* /*this_*/, auto& context) {
+        Load<bool>(context);
+    })
+        .BeforeVersion(ESnapshotVersion::DropSupportLocality)();
     PHOENIX_REGISTER_FIELD(5, EnablePeriodicYielder);
     PHOENIX_REGISTER_FIELD(6, ShouldSliceByRowIndices);
     PHOENIX_REGISTER_FIELD(7, Logger);
@@ -68,7 +71,6 @@ public:
         , MinTeleportChunkSize_(options.MinTeleportChunkSize)
         , JobSizeConstraints_(options.JobSizeConstraints)
         , Sampler_(JobSizeConstraints_->GetSamplingRate())
-        , SupportLocality_(options.SupportLocality) // TODO(apollo1321): Remove unused field.
         , MaxTotalSliceCount_(options.MaxTotalSliceCount)
         , ShouldSliceByRowIndices_(options.ShouldSliceByRowIndices)
         , EnablePeriodicYielder_(options.EnablePeriodicYielder)
@@ -193,8 +195,6 @@ private:
     IJobSizeConstraintsPtr JobSizeConstraints_;
     //! Used both for job sampling and teleport chunk sampling.
     TBernoulliSampler Sampler_;
-
-    bool SupportLocality_ = false;
 
     i64 MaxTotalSliceCount_ = 0;
 
@@ -753,7 +753,10 @@ void TOrderedChunkPool::RegisterMetadata(auto&& registrar)
     PHOENIX_REGISTER_FIELD(3, Stripes_);
     PHOENIX_REGISTER_FIELD(4, JobSizeConstraints_);
     PHOENIX_REGISTER_FIELD(5, Sampler_);
-    PHOENIX_REGISTER_FIELD(6, SupportLocality_);
+    registrar.template VirtualField<6>("SupportLocality", [] (TThis* /*this_*/, auto& context) {
+        Load<bool>(context);
+    })
+        .BeforeVersion(ESnapshotVersion::DropSupportLocality)();
     PHOENIX_REGISTER_FIELD(7, MaxTotalSliceCount_);
     PHOENIX_REGISTER_FIELD(8, ShouldSliceByRowIndices_);
     PHOENIX_REGISTER_FIELD(9, EnablePeriodicYielder_);

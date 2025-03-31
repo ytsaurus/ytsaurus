@@ -79,7 +79,6 @@ protected:
         Options_.MinTeleportChunkSize = Inf64;
         Options_.SliceForeignChunks = true;
         Options_.SortedJobOptions.MaxTotalSliceCount = Inf64;
-        Options_.UseNewJobBuilder = true;
         Options_.Logger = GetTestLogger();
         Options_.RowBuffer = RowBuffer_;
         DataSizePerJob_ = Inf64;
