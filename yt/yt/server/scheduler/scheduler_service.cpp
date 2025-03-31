@@ -245,11 +245,7 @@ private:
     {
         auto operationIdOrAlias = FromProto<TOperationIdOrAlias>(*request);
 
-        TSpecPatchList patches;
-        for (const auto& protoChange : request->patches()) {
-            patches.emplace_back(New<TSpecPatch>());
-            FromProto(patches.back(), &protoChange);
-        }
+        auto patches = FromProto<TSpecPatchList>(request->patches());
         context->SetRequestInfo(
             "OperationId: %v, Patches: %v",
             operationIdOrAlias,
@@ -262,7 +258,14 @@ private:
             return;
         }
 
-        context->Reply(TError("PatchSpec is not yet implemented"));
+        auto operation = scheduler->GetOperationOrThrow(operationIdOrAlias);
+
+        auto asyncResult = scheduler->PatchOperationSpec(
+            std::move(operation),
+            context->GetAuthenticationIdentity().User,
+            std::move(patches));
+
+        context->ReplyFrom(std::move(asyncResult));
     }
 
     DECLARE_RPC_SERVICE_METHOD(NProto, GetAllocationBriefInfo)

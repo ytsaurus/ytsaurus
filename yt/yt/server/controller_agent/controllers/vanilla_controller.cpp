@@ -112,6 +112,7 @@ public:
     TVanillaTask() = default;
 
     TString GetTitle() const override;
+    TString GetName() const;
 
     TDataFlowGraph::TVertexDescriptor GetVertexDescriptor() const override;
 
@@ -145,6 +146,8 @@ public:
     int GetTargetJobCount() const noexcept;
 
     IVanillaChunkPoolOutputPtr GetVanillaChunkPool() const noexcept;
+
+    TConfigurator<TVanillaTaskSpec> ConfigureUpdate();
 
 private:
     TVanillaController* VanillaController_ = nullptr;
@@ -256,7 +259,17 @@ public:
 
     void OnOperationIncarnationChanged(bool operationIsReviving, EOperationIncarnationSwitchReason reason);
 
+    TOperationSpecBasePtr ParseTypedSpec(const INodePtr& spec) const override;
+    TOperationSpecBaseConfigurator GetOperationSpecBaseConfigurator() const override;
+
+    using TOperationControllerBase::HasJobUniquenessRequirements;
+
     bool IsOperationGang() const;
+
+    void AbortJobsByCookies(
+        TTask* task,
+        const std::vector<NChunkPools::TOutputCookie>& cookies,
+        EAbortReason abortReason);
 
 private:
     TVanillaOperationSpecPtr Spec_;
@@ -428,9 +441,14 @@ TString TVanillaTask::GetTitle() const
     return Format("Vanilla(%v)", Name_);
 }
 
+TString TVanillaTask::GetName() const
+{
+    return Name_;
+}
+
 TDataFlowGraph::TVertexDescriptor TVanillaTask::GetVertexDescriptor() const
 {
-    return Spec_->TaskTitle;
+    return GetName();
 }
 
 IPersistentChunkPoolInputPtr TVanillaTask::GetChunkPoolInput() const
@@ -591,6 +609,49 @@ IChunkPoolOutput::TCookie TVanillaTask::ExtractCookieForAllocation(
     }
 
     return VanillaChunkPool_->Extract(NodeIdFromAllocationId(allocation.Id));
+}
+
+TConfigurator<TVanillaTaskSpec> TVanillaTask::ConfigureUpdate()
+{
+    TConfigurator<TVanillaTaskSpec> configurator;
+    configurator.Field("job_count", &TVanillaTaskSpec::JobCount)
+        .Validator(BIND_NO_PROPAGATE([&] (const int& oldJobCount, const int& /*newJobCount*/) {
+            YT_VERIFY(oldJobCount == VanillaChunkPool_->GetJobCount());
+            THROW_ERROR_EXCEPTION_IF(
+                VanillaController_->IsOperationGang(),
+                "Cannot update \"job_count\" for gang operations");
+
+            // TODO(coteeq): It is actually saner to check for a single task's
+            // FailOnJobRestart but it is probably not very useful anyway.
+            THROW_ERROR_EXCEPTION_IF(
+                VanillaController_->HasJobUniquenessRequirements(),
+                "Cannot update \"job_count\" when \"fail_on_job_restart\" is set");
+        }))
+        .Updater(BIND_NO_PROPAGATE([&] (const int& oldJobCount, const int& newJobCount) {
+            YT_LOG_DEBUG_IF(
+                oldJobCount != VanillaChunkPool_->GetJobCount(),
+                "Chunk pool's job count is inconsistent with the spec; "
+                "assuming revival (SpecJobCount: %v, ChunkPoolJobCount: %v)",
+                oldJobCount,
+                VanillaChunkPool_->GetJobCount());
+
+            auto cookiesToAbort = VanillaChunkPool_->UpdateJobCount(newJobCount);
+            if (!cookiesToAbort.empty()) {
+                constexpr int MaxCookiesInLog = 5;
+                YT_LOG_DEBUG(
+                    "Try to abort jobs by cookies (Count: %v, Cookies: %v)",
+                    cookiesToAbort.size(),
+                    MakeShrunkFormattableView(cookiesToAbort, TDefaultFormatter(), MaxCookiesInLog));
+
+                VanillaController_->AbortJobsByCookies(
+                    this,
+                    cookiesToAbort,
+                    EAbortReason::JobCountChangedByUserRequest);
+            }
+            UpdateTask();
+        }));
+
+    return configurator;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1184,6 +1245,68 @@ void TVanillaController::TrySwitchToNewOperationIncarnation(bool operationIsRevi
     YT_VERIFY(GangManager_);
 
     GangManager_->TrySwitchToNewIncarnation(operationIsReviving, reason);
+}
+
+TOperationSpecBasePtr TVanillaController::ParseTypedSpec(const INodePtr& spec) const
+{
+    return ParseOperationSpec<TVanillaOperationSpec>(ConvertToNode(spec));
+}
+
+TOperationSpecBaseConfigurator TVanillaController::GetOperationSpecBaseConfigurator() const
+{
+    auto configurator = TConfigurator<TVanillaOperationSpec>();
+
+    auto& tasksRegistrar = configurator.MapField("tasks", &TVanillaOperationSpec::Tasks)
+        .ValidateOnAdded(BIND_NO_PROPAGATE([] (const TString& key, const TVanillaTaskSpecPtr& /*newSpec*/) {
+            THROW_ERROR_EXCEPTION("Cannot create a new task")
+                << TErrorAttribute("new_task_name", key);
+        }))
+        .ValidateOnRemoved(BIND_NO_PROPAGATE([] (const TString& key, const TVanillaTaskSpecPtr& /*oldSpec*/) {
+            THROW_ERROR_EXCEPTION("Cannot remove a task")
+                << TErrorAttribute("old_task_name", key);
+        }))
+        .OnAdded(BIND_NO_PROPAGATE([] (const TString& /*key*/, const TVanillaTaskSpecPtr& /*newSpec*/) -> TConfigurator<TVanillaTaskSpec> {
+            YT_ABORT();
+        }))
+        .OnRemoved(BIND_NO_PROPAGATE([] (const TString& /*key*/, const TVanillaTaskSpecPtr& /*oldSpec*/) {
+            YT_ABORT();
+        }));
+
+    for (const auto& task : Tasks_) {
+        tasksRegistrar.ConfigureChild(task->GetName(), task->ConfigureUpdate());
+    }
+
+    return configurator;
+}
+
+void TVanillaController::AbortJobsByCookies(
+    TTask* task,
+    const std::vector<TOutputCookie>& cookiesVector,
+    EAbortReason abortReason)
+{
+    THashSet<TOutputCookie> cookies(cookiesVector.begin(), cookiesVector.end());
+
+    for (const auto& [_, allocation] : AllocationMap_) {
+        if (cookies.empty()) {
+            break;
+        }
+
+        if (!allocation.Joblet || allocation.Joblet->Task != task) {
+            continue;
+        }
+
+        auto cookieIt = cookies.find(allocation.Joblet->OutputCookie);
+        if (cookieIt != cookies.end()) {
+            DoAbortJob(
+                allocation.Joblet,
+                abortReason,
+                /*requestJobTrackerJobAbortion*/ true,
+                /*force*/ true);
+            cookies.erase(cookieIt);
+        }
+    }
+
+    YT_VERIFY(cookies.empty());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

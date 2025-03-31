@@ -3887,6 +3887,16 @@ private:
         return Spec;
     }
 
+    TOperationSpecBasePtr ParseTypedSpec(const INodePtr& spec) const override
+    {
+        return ParseOperationSpec<TSortOperationSpec>(spec);
+    }
+
+    TOperationSpecBaseConfigurator GetOperationSpecBaseConfigurator() const override
+    {
+        return TConfigurator<TSortOperationSpec>();
+    }
+
     PHOENIX_DECLARE_POLYMORPHIC_TYPE(TSortController, 0xbca37afe);
 };
 
@@ -4848,6 +4858,16 @@ private:
     TYsonStructPtr GetTypedSpec() const override
     {
         return Spec;
+    }
+
+    TOperationSpecBasePtr ParseTypedSpec(const INodePtr& spec) const override
+    {
+        return ParseOperationSpec<TMapReduceOperationSpec>(spec);
+    }
+
+    TOperationSpecBaseConfigurator GetOperationSpecBaseConfigurator() const override
+    {
+        return TConfigurator<TMapReduceOperationSpec>();
     }
 
 private:

@@ -3,7 +3,8 @@ from __future__ import print_function
 from yt.testlib import authors, ASAN_USER_JOB_MEMORY_LIMIT
 from yt.wrapper.testlib.helpers import (TEST_DIR, get_test_file_path, check_rows_equality,
                                         set_config_option, get_tests_sandbox, dumps_yt_config, get_python,
-                                        wait, get_operation_path, random_string, yatest_common)
+                                        wait, get_operation_path, random_string, yatest_common,
+                                        create_job_events)
 
 # Necessary for tests.
 try:
@@ -985,23 +986,42 @@ class TestOperationCommands(object):
     @authors("coteeq")
     def test_patch_operation_spec(self):
         table = TEST_DIR + "/table"
-        yt.write_table("<create=%true>" + table, [{"x": 1}])
-        op = yt.run_map("cat; sleep 10", table, table)
-        with pytest.raises(yt.YtError, match="not yet implemented"):
-            yt.patch_operation_spec(
-                op.id,
-                patches=[
-                    {
-                        "path": "/max_failed_job_count",
-                        "value": 10,
-                    }
-                ]
-            )
+        for i in range(5):
+            yt.write_table("<create=%true;append=%true>" + table, [{"x": 1}])
+
+        job_events = create_job_events()
+        mapper = job_events.with_breakpoint("""
+            BREAKPOINT; if [ ${YT_TASK_JOB_INDEX} -lt 3 ]; then exit 1; else cat; fi
+        """)
+
+        op = yt.run_map(
+            mapper,
+            table,
+            table,
+            sync=False,
+            spec={"max_failed_job_count": 1, "job_count": 5}
+        )
+
+        job_events.wait_breakpoint(job_count=3)
+
         with pytest.raises(yt.YtError, match='Missing required parameter'):
             yt.patch_operation_spec(
                 op.id,
                 patches=[{"value": "value", "not_path": "not_path"}]
             )
+
+        yt.patch_operation_spec(
+            op.id,
+            patches=[
+                {
+                    "path": "/max_failed_job_count",
+                    "value": 10,
+                }
+            ]
+        )
+
+        job_events.release_breakpoint()
+        op.wait()
 
     @authors("ignat")
     def test_abort_operation(self):

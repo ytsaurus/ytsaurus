@@ -795,6 +795,10 @@ private:
 
     void AnalyzeInvalidatedJobs()
     {
+        if (Host_->GetOperationType() == EOperationType::Vanilla) {
+            return;
+        }
+
         i64 invalidatedJobCount = 0;
         for (const auto& task : Host_->GetTasks()) {
             invalidatedJobCount += task->GetJobCounter()->GetInvalidated();

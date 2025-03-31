@@ -56,6 +56,7 @@ target_sources(server-controller_agent-controllers PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/controller_agent/controllers/sink.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/controller_agent/controllers/sort_controller.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/controller_agent/controllers/sorted_controller.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/controller_agent/controllers/spec_manager.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/controller_agent/controllers/speculative_job_manager.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/controller_agent/controllers/table.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/controller_agent/controllers/task.cpp

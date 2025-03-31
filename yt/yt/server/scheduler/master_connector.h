@@ -112,6 +112,8 @@ public:
 
     void UpdateConfig(const TSchedulerConfigPtr& config);
 
+    int GetYsonNestingLevelLimit() const;
+
     //! Raised when connection process starts.
     //! Subscribers may throw and yield.
     DECLARE_SIGNAL(void(), MasterConnecting);

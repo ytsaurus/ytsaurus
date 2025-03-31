@@ -6,6 +6,7 @@
 #include "job_helpers.h"
 #include "job_info.h"
 #include "sink.h"
+#include "spec_manager.h"
 #include "task.h"
 
 #include <yt/yt/server/controller_agent/chunk_list_pool.h>
@@ -144,6 +145,7 @@
 
 #include <yt/yt/core/ytree/virtual.h>
 #include <yt/yt/core/ytree/ypath_resolver.h>
+#include <yt/yt/core/ytree/yson_struct_update.h>
 
 #include <yt/yt/core/logging/fluent_log.h>
 
@@ -207,6 +209,14 @@ using std::placeholders::_1;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TError GetMaxFailedJobCountReachedError(int maxFailedJobCount)
+{
+    return TError(NScheduler::EErrorCode::MaxFailedJobsLimitExceeded, "Failed jobs limit exceeded")
+        << TErrorAttribute("max_failed_job_count", maxFailedJobCount);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TOperationControllerBase::TOperationControllerBase(
     TOperationSpecBasePtr spec,
     TControllerAgentConfigPtr config,
@@ -258,6 +268,7 @@ TOperationControllerBase::TOperationControllerBase(
     , PoolTreeControllerSettingsMap_(operation->PoolTreeControllerSettingsMap())
     , Spec_(std::move(spec))
     , Options_(std::move(options))
+    , SpecManager_(New<TSpecManager>(this, Spec_, Logger))
     , CachedRunningJobs_(
         Config->CachedRunningJobsUpdatePeriod,
         BIND(&TOperationControllerBase::DoBuildJobsYson, Unretained(this)))
@@ -362,6 +373,7 @@ void TOperationControllerBase::BuildTestingState(TFluentAny fluent) const
     fluent
         .BeginMap()
             .Item("commit_sleep_started").Value(CommitSleepStarted_)
+            .Item("dynamic_spec").Value(SpecManager_->GetSpec())
         .EndMap();
 }
 
@@ -535,12 +547,16 @@ IAttributeDictionaryPtr TOperationControllerBase::CreateTransactionAttributes(ET
         .Finish();
 }
 
-TOperationControllerInitializeResult TOperationControllerBase::InitializeReviving(const TControllerTransactionIds& transactions)
+TOperationControllerInitializeResult TOperationControllerBase::InitializeReviving(
+    const TControllerTransactionIds& transactions,
+    INodePtr cumulativeSpecPatch)
 {
     YT_LOG_INFO("Initializing operation for revive");
 
     InitializeClients();
     InitializeInputTransactions();
+
+    SpecManager_->InitializeReviving(std::move(cumulativeSpecPatch));
 
     auto attachTransaction = [&] (TTransactionId transactionId, const NNative::IClientPtr& client, bool ping) -> ITransactionPtr {
         if (!transactionId) {
@@ -1288,6 +1304,8 @@ TOperationControllerMaterializeResult TOperationControllerBase::SafeMaterialize(
         RunningJobStatisticsUpdateExecutor_->Start();
         SendRunningAllocationTimeStatisticsUpdatesExecutor_->Start();
 
+        SpecManager_->SetConfigurator(ConfigureUpdate());
+
         if (auto maybeDelay = Spec_->TestingOperationOptions->DelayInsideMaterialize) {
             TDelayedExecutor::WaitForDuration(*maybeDelay);
         }
@@ -1470,6 +1488,9 @@ TOperationControllerReviveResult TOperationControllerBase::Revive()
     // Monitoring tags are transient by design.
     // So after revive we do reset the corresponding alert.
     SetOperationAlert(EOperationAlertType::UserJobMonitoringLimited, TError());
+
+    SpecManager_->SetConfigurator(ConfigureUpdate());
+    SpecManager_->ApplySpecPatchReviving();
 
     YT_LOG_INFO("Operation revived");
 
@@ -3507,12 +3528,8 @@ bool TOperationControllerBase::OnJobFailed(
         }
     };
 
-    int maxFailedJobCount = Spec_->MaxFailedJobCount;
-    if (FailedJobCount_ >= maxFailedJobCount) {
-        auto failedJobsLimitExceededError = TError(NScheduler::EErrorCode::MaxFailedJobsLimitExceeded, "Failed jobs limit exceeded")
-                << TErrorAttribute("max_failed_job_count", maxFailedJobCount);
-
-        OnOperationFailed(makeOperationFailedError(std::move(failedJobsLimitExceededError)));
+    if (int maxFailedJobCount = SpecManager_->GetSpec()->MaxFailedJobCount; FailedJobCount_ >= maxFailedJobCount) {
+        OnOperationFailed(makeOperationFailedError(GetMaxFailedJobCountReachedError(maxFailedJobCount)));
         return false;
     }
     if (IsJobsFailToleranceExceeded(maybeExitCode)) {
@@ -6051,7 +6068,7 @@ void TOperationControllerBase::SafeAbortJobByJobTracker(TJobId jobId, EAbortReas
 
     YT_LOG_DEBUG("Aborting job by job tracker request (JobId: %v)", jobId);
 
-    DoAbortJob(std::move(joblet), abortReason, /*requestJobTrackerJobAbortion*/ false);
+    DoAbortJob(std::move(joblet), abortReason, /*requestJobTrackerJobAbortion*/ false, /*force*/ false);
 }
 
 void TOperationControllerBase::SuppressLivePreviewIfNeeded()
@@ -8829,6 +8846,55 @@ void TOperationControllerBase::UpdateRuntimeParameters(const TOperationRuntimePa
     }
 }
 
+TOperationSpecBaseSealedConfigurator TOperationControllerBase::ConfigureUpdate()
+{
+    auto configurator = GetOperationSpecBaseConfigurator();
+    configurator.Field("max_failed_job_count", &TOperationSpecBase::MaxFailedJobCount)
+        .Updater(BIND_NO_PROPAGATE([&] (const int& newMaxFailedJobCount) {
+            if (FailedJobCount_ >= newMaxFailedJobCount) {
+                OnOperationFailed(GetMaxFailedJobCountReachedError(newMaxFailedJobCount));
+            }
+        }));
+
+    return std::move(configurator).Seal();
+}
+
+void TOperationControllerBase::PatchSpec(INodePtr newCumulativeSpecPatch, bool dryRun)
+{
+    if (dryRun) {
+        THROW_ERROR_EXCEPTION_UNLESS(
+            State.load() == EControllerState::Running,
+            "Operation is not running");
+        SpecManager_->ValidateSpecPatch(std::move(newCumulativeSpecPatch));
+    } else {
+        switch (State) {
+            case EControllerState::Preparing:
+                YT_ABORT();
+            case EControllerState::Running:
+                // Ok.
+                break;
+            case EControllerState::Failing:
+            case EControllerState::Completed:
+            case EControllerState::Failed:
+            case EControllerState::Aborted: {
+                YT_LOG_WARNING(
+                    "Controller changed state before applying spec patch (ControllerState: %v)",
+                    State.load());
+                return;
+            }
+        }
+        SpecManager_->ApplySpecPatch(std::move(newCumulativeSpecPatch));
+    }
+}
+
+std::any TOperationControllerBase::CreateSafeAssertionGuard() const
+{
+    return NYT::CreateSafeAssertionGuard(
+        Host->GetCoreDumper(),
+        Host->GetCoreSemaphore(),
+        CoreNotes_);
+}
+
 TOperationJobMetrics TOperationControllerBase::PullJobMetricsDelta(bool force)
 {
     auto guard = Guard(JobMetricsDeltaPerTreeLock_);
@@ -11095,13 +11161,14 @@ void TOperationControllerBase::RegisterOutputTables(const std::vector<TRichYPath
 void TOperationControllerBase::DoAbortJob(
     TJobletPtr joblet,
     EAbortReason abortReason,
-    bool requestJobTrackerJobAbortion)
+    bool requestJobTrackerJobAbortion,
+    bool force)
 {
     // NB(renadeen): there must be no context switches before call OnJobAborted.
 
     auto jobId = joblet->JobId;
 
-    if (!ShouldProcessJobEvents()) {
+    if (!force && !ShouldProcessJobEvents()) {
         YT_LOG_DEBUG(
             "Job events processing disabled, abort skipped (JobId: %v, OperationState: %v)",
             joblet->JobId,
@@ -11133,7 +11200,7 @@ void TOperationControllerBase::AbortJob(TJobId jobId, EAbortReason abortReason)
         jobId,
         abortReason);
 
-    DoAbortJob(std::move(joblet), abortReason, /*requestJobTrackerJobAbortion*/ true);
+    DoAbortJob(std::move(joblet), abortReason, /*requestJobTrackerJobAbortion*/ true, /*force*/ false);
 }
 
 bool TOperationControllerBase::CanInterruptJobs() const

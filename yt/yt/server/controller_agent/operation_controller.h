@@ -276,7 +276,9 @@ struct IOperationControllerSchedulerHost
      *
      *  \note Invoker affinity: cancelable Controller invoker
      */
-    virtual TOperationControllerInitializeResult InitializeReviving(const NScheduler::TControllerTransactionIds& transactions) = 0;
+    virtual TOperationControllerInitializeResult InitializeReviving(
+        const NScheduler::TControllerTransactionIds& transactions,
+        NYTree::INodePtr cumulativeSpecPatch) = 0;
 
     //! Performs a lightweight initial preparation.
     /*!
@@ -354,6 +356,8 @@ struct IOperationControllerSchedulerHost
 
     //! Updates runtime parameters.
     virtual void UpdateRuntimeParameters(const NScheduler::TOperationRuntimeParametersUpdatePtr& runtimeParameters) = 0;
+
+    virtual void PatchSpec(NYTree::INodePtr newCumulativeSpecPatch, bool dryRun) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IOperationControllerSchedulerHost)

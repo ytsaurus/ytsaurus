@@ -27,7 +27,9 @@ public:
 
     TControllerEpoch GetEpoch() const override;
 
-    TFuture<TOperationControllerInitializeResult> Initialize(const std::optional<TOperationTransactions>& transactions) override;
+    TFuture<TOperationControllerInitializeResult> Initialize(
+        const std::optional<TOperationTransactions>& transactions,
+        const NYTree::INodePtr& cumulativeSpecPatch) override;
     TFuture<TOperationControllerPrepareResult> Prepare() override;
     TFuture<TOperationControllerMaterializeResult> Materialize() override;
     TFuture<TOperationControllerReviveResult> Revive() override;
@@ -37,6 +39,7 @@ public:
     TFuture<void> Register(const TOperationPtr& operation) override;
     TFuture<TOperationControllerUnregisterResult> Unregister() override;
     TFuture<void> UpdateRuntimeParameters(TOperationRuntimeParametersUpdatePtr update) override;
+    TFuture<void> PatchSpec(const NYTree::INodePtr& newCumulativeSpecPatch, bool dryRun) override;
 
     void OnNonscheduledAllocationAborted(
         TAllocationId allocationId,

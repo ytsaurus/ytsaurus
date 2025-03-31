@@ -28,6 +28,7 @@ SRCS(
     sink.cpp
     sort_controller.cpp
     sorted_controller.cpp
+    spec_manager.cpp
     speculative_job_manager.cpp
     table.cpp
     task.cpp

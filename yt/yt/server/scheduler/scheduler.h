@@ -128,6 +128,11 @@ public:
         const std::string& user,
         NYTree::INodePtr parameters);
 
+    TFuture<void> PatchOperationSpec(
+        TOperationPtr operation,
+        const std::string& user,
+        TSpecPatchList patches);
+
     void OnOperationCompleted(const TOperationPtr& operation);
     void OnOperationAborted(const TOperationPtr& operation, const TError& error);
     void OnOperationFailed(const TOperationPtr& operation, const TError& error);
@@ -186,4 +191,3 @@ DEFINE_REFCOUNTED_TYPE(TScheduler)
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NScheduler
-

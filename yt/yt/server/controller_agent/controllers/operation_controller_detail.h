@@ -12,6 +12,7 @@
 #include "job_memory.h"
 #include "task.h"
 #include "task_host.h"
+#include "spec_manager.h"
 
 #include <yt/yt/server/controller_agent/helpers.h>
 #include <yt/yt/server/controller_agent/operation_controller.h>
@@ -44,6 +45,7 @@
 
 #include <yt/yt/core/misc/histogram.h>
 #include <yt/yt/core/misc/id_generator.h>
+#include <yt/yt/core/ytree/yson_struct_update.h>
 
 #include <library/cpp/yt/memory/atomic_intrusive_ptr.h>
 
@@ -77,6 +79,7 @@ class TOperationControllerBase
     , public virtual ITaskHost
     , public IAlertManagerHost
     , public IInputManagerHost
+    , public ISpecManagerHost
 {
     // In order to make scheduler more stable, we do not allow
     // pure YT_VERIFY to be executed from the controller code (directly
@@ -90,10 +93,7 @@ class TOperationControllerBase
 accessSpecifier: \
     virtual returnType method signature final \
     { \
-        auto safeAssertionsGuard = CreateSafeAssertionGuard( \
-            Host->GetCoreDumper(), \
-            Host->GetCoreSemaphore(), \
-            CoreNotes_); \
+        auto safeAssertionsGuard = CreateSafeAssertionGuard(); \
         try { \
             return Safe ## method args; \
         } catch (const TAssertionFailedException& ex) { \
@@ -252,7 +252,9 @@ public:
     TOperationControllerReviveResult Revive() override;
 
     TOperationControllerInitializeResult InitializeClean() override;
-    TOperationControllerInitializeResult InitializeReviving(const NScheduler::TControllerTransactionIds& transactions) override;
+    TOperationControllerInitializeResult InitializeReviving(
+        const NScheduler::TControllerTransactionIds& transactions,
+        NYTree::INodePtr cumulativeSpecPatch) override;
 
     bool ShouldSkipScheduleAllocationRequest() const noexcept override;
 
@@ -413,6 +415,10 @@ public:
     void Dispose() override;
 
     void UpdateRuntimeParameters(const NScheduler::TOperationRuntimeParametersUpdatePtr& update) override;
+
+    TOperationSpecBaseSealedConfigurator ConfigureUpdate();
+    void PatchSpec(NYTree::INodePtr newSpec, bool dryRun) override;
+    std::any CreateSafeAssertionGuard() const final;
 
     //! Returns the aggregated delta of job metrics and resets it to zero.
     //! When `force` is true, the delta is returned unconditionally, otherwise a zero delta is
@@ -892,7 +898,7 @@ protected:
 
     //! Return a pointer to `YsonSerializable` object that represents
     //! the fully typed operation spec which know more than a simple
-    //! `TOperationSpecBase::Spec`.
+    //! `TOperationSpecBase`.
     virtual NYTree::TYsonStructPtr GetTypedSpec() const = 0;
 
     void ExtractInterruptDescriptor(TCompletedJobSummary& jobSummary, const TJobletPtr& joblet) const;
@@ -1103,6 +1109,16 @@ protected:
 
     virtual void BuildControllerInfoYson(NYTree::TFluentMap fluent) const;
 
+    virtual TOperationSpecBaseConfigurator GetOperationSpecBaseConfigurator() const = 0;
+
+    //! If |force| is set then |DoAbortJob| aborts job even if it should've not
+    //! processed job events (see also |ShouldProcessJobEvents|).
+    void DoAbortJob(
+        TJobletPtr joblet,
+        EAbortReason abortReason,
+        bool requestJobTrackerJobAbortion,
+        bool force);
+
 private:
     NScheduler::TPoolTreeControllerSettingsMap PoolTreeControllerSettingsMap_;
     std::optional<std::vector<TString>> OffloadingPoolTrees_;
@@ -1111,6 +1127,8 @@ private:
 
     TOperationSpecBasePtr Spec_;
     TOperationOptionsPtr Options_;
+
+    TSpecManagerPtr SpecManager_;
 
     NObjectClient::TCellTagList IntermediateOutputCellTagList;
     TChunkListPoolPtr OutputChunkListPool_;
@@ -1430,8 +1448,8 @@ private:
 
     //! An internal helper for invoking OnOperationFailed with an error
     //! built by data from `ex`.
-    void ProcessSafeException(const TAssertionFailedException& ex);
-    void ProcessSafeException(const std::exception& ex);
+    void ProcessSafeException(const TAssertionFailedException& ex) override;
+    void ProcessSafeException(const std::exception& ex) override;
 
     void BuildMemoryUsageYson(NYTree::TFluentAny fluent) const;
     void BuildStateYson(NYTree::TFluentAny fluent) const;
@@ -1517,11 +1535,6 @@ private:
     void SendRunningAllocationTimeStatisticsUpdates();
 
     void RemoveRemainingJobsOnOperationFinished();
-
-    void DoAbortJob(
-        TJobletPtr joblet,
-        EAbortReason abortReason,
-        bool requestJobTrackerJobAbortion);
 
     void OnOperationReady() const;
 

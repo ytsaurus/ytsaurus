@@ -141,6 +141,7 @@ YT_DEFINE_ERROR_ENUM(
     ((NoSuchJob)                                  (4419))
     ((NoJobToSettle)                              (4420))
     ((OperationIsNotRunning)                      (4421))
+    ((ExceptionLeadingToOperationFailure)         (4422))
 );
 
 ////////////////////////////////////////////////////////////////////////////////
