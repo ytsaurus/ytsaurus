@@ -510,6 +510,19 @@ class TestUserJobAndJobIOExperiments(YTEnvSetup):
                         }
                     },
                 },
+                "exp_d1": {
+                    "fraction": 0.1,
+                    "ticket": "ytexp-4",
+                    "ab_treatment_group": {
+                        "fraction": 1.0,
+                        "controller_user_job_spec_template_patch": {
+                            "environment": {
+                                "YT_HTTP_PROXY_ROLE": "ml",
+                                "YT_RPC_PROXY_ROLE": "ml",
+                            },
+                        },
+                    },
+                },
             },
         },
     }
@@ -691,6 +704,30 @@ class TestUserJobAndJobIOExperiments(YTEnvSetup):
         assert spec["sort_job_io"]["foo_spec"] == "patched"
         assert spec["partition_job_io"]["foo_spec"] == "patched"
         assert spec["merge_job_io"]["foo_spec"] == "patched"
+
+    @authors("hiddenpath")
+    def test_patch_job_environment(self):
+        op = vanilla(
+            spec={
+                "experiment_overrides": ["exp_d1.treatment"],
+                "tasks": {
+                    "task_a": {
+                        "job_count": 1,
+                        "command": "true",
+                    },
+                    "task_b": {
+                        "job_count": 1,
+                        "command": "true",
+                        "environment": {
+                            "YT_HTTP_PROXY_ROLE": "data"
+                        }
+                    },
+                }})
+        spec = get_operation(op.id, attributes=["full_spec"])["full_spec"]
+        assert spec["tasks"]["task_a"]["environment"]["YT_HTTP_PROXY_ROLE"] == "ml"
+        assert spec["tasks"]["task_a"]["environment"]["YT_RPC_PROXY_ROLE"] == "ml"
+        assert spec["tasks"]["task_b"]["environment"]["YT_HTTP_PROXY_ROLE"] == "data"
+        assert spec["tasks"]["task_b"]["environment"]["YT_RPC_PROXY_ROLE"] == "ml"
 
 
 @pytest.mark.enabled_multidaemon
