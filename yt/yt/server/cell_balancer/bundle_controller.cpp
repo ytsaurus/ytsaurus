@@ -1350,7 +1350,7 @@ private:
     }
 
     template <class TEntryInfo>
-    requires requires (TEntryInfo entryInfo) {
+    requires requires (TEntryInfo& entryInfo) {
         { entryInfo.BundleName } -> std::convertible_to<std::string>;
     }
     void CreateHulkRequests(
@@ -1371,7 +1371,7 @@ private:
     }
 
     template <class TEntryInfo>
-    requires requires (TEntryInfo entryInfo) {
+    requires requires (TEntryInfo& entryInfo) {
         { entryInfo.BundleName } -> std::convertible_to<std::string>;
     }
     void ChangeHulkRequests(
