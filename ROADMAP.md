@@ -28,6 +28,8 @@
 - [ ] Distributed jobs for data processing: this technology is needed to run GPU batch inference jobs in case of large models that don't fit inside one host.
 - [ ] Support ARM64 host.
 - [ ] Rework sorted chunk pool and make new_sorted_pool default.
+- [ ] Accounting compressed data size in data slicing.
+- [ ] Adaptive buffer row count in jobs: this is useful for heavy jobs to reduce number of job abortions caused by interuption timeout.
 
 ## Queues
 - [x] Implement exactly once write semantics for YTsaurus queues
