@@ -43,7 +43,7 @@ func (e *Encoder) newAuthCall(p Params) *Call {
 	return call
 }
 
-func (e *Encoder) do(ctx context.Context, call *Call, decode func(res *CallResult) error) error {
+func (e *Encoder) do(ctx context.Context, call *Call, decode resultDecoder) error {
 	res, err := e.Invoke(ctx, call)
 	if err != nil {
 		return err
@@ -51,7 +51,7 @@ func (e *Encoder) do(ctx context.Context, call *Call, decode func(res *CallResul
 	return decode(res)
 }
 
-func (e *Encoder) doInTx(ctx context.Context, call *Call, decode func(res *CallResult) error) error {
+func (e *Encoder) doInTx(ctx context.Context, call *Call, decode resultDecoder) error {
 	res, err := e.InvokeInTx(ctx, call)
 	if err != nil {
 		return err
@@ -66,10 +66,7 @@ func (e *Encoder) CreateNode(
 	options *yt.CreateNodeOptions,
 ) (id yt.NodeID, err error) {
 	call := e.newCall(NewCreateNodeParams(path, typ, options))
-	err = e.do(ctx, call, func(res *CallResult) error {
-		err = res.decodeSingle("node_id", &id)
-		return err
-	})
+	err = e.do(ctx, call, CreateNodeResultDecoder(&id))
 	return
 }
 
@@ -79,10 +76,7 @@ func (e *Encoder) CreateObject(
 	options *yt.CreateObjectOptions,
 ) (id yt.NodeID, err error) {
 	call := e.newCall(NewCreateObjectParams(typ, options))
-	err = e.do(ctx, call, func(res *CallResult) error {
-		err = res.decodeSingle("object_id", &id)
-		return err
-	})
+	err = e.do(ctx, call, CreateObjectResultDecoder(&id))
 	return
 }
 
@@ -92,10 +86,7 @@ func (e *Encoder) NodeExists(
 	options *yt.NodeExistsOptions,
 ) (ok bool, err error) {
 	call := e.newCall(NewNodeExistsParams(path, options))
-	err = e.do(ctx, call, func(res *CallResult) error {
-		err = res.decodeValue(&ok)
-		return err
-	})
+	err = e.do(ctx, call, NodeExistsResultDecoder(&ok))
 	return
 }
 
@@ -105,9 +96,7 @@ func (e *Encoder) RemoveNode(
 	options *yt.RemoveNodeOptions,
 ) (err error) {
 	call := e.newCall(NewRemoveNodeParams(path, options))
-	err = e.do(ctx, call, func(res *CallResult) error {
-		return nil
-	})
+	err = e.do(ctx, call, noopResultDecoder)
 	return
 }
 
@@ -118,9 +107,7 @@ func (e *Encoder) GetNode(
 	options *yt.GetNodeOptions,
 ) (err error) {
 	call := e.newCall(NewGetNodeParams(path, options))
-	err = e.do(ctx, call, func(res *CallResult) error {
-		return res.decodeValue(result)
-	})
+	err = e.do(ctx, call, GetNodeResultDecoder(result))
 	return
 }
 
@@ -135,9 +122,7 @@ func (e *Encoder) SetNode(
 	if err != nil {
 		return
 	}
-	err = e.do(ctx, call, func(res *CallResult) error {
-		return nil
-	})
+	err = e.do(ctx, call, noopResultDecoder)
 	return
 }
 
@@ -152,9 +137,7 @@ func (e *Encoder) MultisetAttributes(
 	if err != nil {
 		return
 	}
-	err = e.do(ctx, call, func(res *CallResult) error {
-		return nil
-	})
+	err = e.do(ctx, call, noopResultDecoder)
 	return
 }
 
@@ -165,9 +148,7 @@ func (e *Encoder) ListNode(
 	options *yt.ListNodeOptions,
 ) (err error) {
 	call := e.newCall(NewListNodeParams(path, options))
-	err = e.do(ctx, call, func(res *CallResult) error {
-		return res.decodeValue(result)
-	})
+	err = e.do(ctx, call, ListNodeResultDecoder(result))
 	return
 }
 
@@ -211,9 +192,7 @@ func (e *Encoder) copyMove(
 	ctx context.Context,
 	newParams func(enableCrossCellCopying bool) Params,
 ) (id yt.NodeID, err error) {
-	resultDecoder := func(res *CallResult) error {
-		return res.decodeSingle("node_id", &id)
-	}
+	resultDecoder := CopyMoveNodeResultDecoder(&id)
 	// try copy/move without any extra protection.
 	err = e.do(ctx, e.newCall(newParams(false)), resultDecoder)
 	if yterrors.ContainsErrorCode(err, yterrors.CodeCrossCellAdditionalPath) {
@@ -230,10 +209,7 @@ func (e *Encoder) LinkNode(
 	options *yt.LinkNodeOptions,
 ) (id yt.NodeID, err error) {
 	call := e.newCall(NewLinkNodeParams(target, link, options))
-	err = e.do(ctx, call, func(res *CallResult) error {
-		err = res.decodeSingle("node_id", &id)
-		return err
-	})
+	err = e.do(ctx, call, LinkNodeResultDecoder(&id))
 	return
 }
 
@@ -244,10 +220,7 @@ func (e *Encoder) LockNode(
 	options *yt.LockNodeOptions,
 ) (lr yt.LockResult, err error) {
 	call := e.newCall(NewLockNodeParams(path, mode, options))
-	err = e.do(ctx, call, func(res *CallResult) error {
-		err = res.decode(&lr)
-		return err
-	})
+	err = e.do(ctx, call, LockNodeResultDecoder(&lr))
 	return
 }
 
@@ -257,9 +230,7 @@ func (e *Encoder) UnlockNode(
 	options *yt.UnlockNodeOptions,
 ) (err error) {
 	call := e.newCall(NewUnlockNodeParams(path, options))
-	err = e.do(ctx, call, func(res *CallResult) error {
-		return nil
-	})
+	err = e.do(ctx, call, noopResultDecoder)
 	return
 }
 
@@ -270,9 +241,7 @@ func (e *Encoder) AddMember(
 	options *yt.AddMemberOptions,
 ) (err error) {
 	call := e.newCall(NewAddMemberParams(group, member, options))
-	err = e.do(ctx, call, func(res *CallResult) error {
-		return nil
-	})
+	err = e.do(ctx, call, noopResultDecoder)
 	return
 }
 
@@ -283,9 +252,7 @@ func (e *Encoder) RemoveMember(
 	options *yt.RemoveMemberOptions,
 ) (err error) {
 	call := e.newCall(NewRemoveMemberParams(group, member, options))
-	err = e.do(ctx, call, func(res *CallResult) error {
-		return nil
-	})
+	err = e.do(ctx, call, noopResultDecoder)
 	return
 }
 
@@ -294,10 +261,7 @@ func (e *Encoder) WhoAmI(
 	options *yt.WhoAmIOptions,
 ) (result *yt.WhoAmIResult, err error) {
 	call := e.newAuthCall(NewWhoAmIParams(options))
-	err = e.do(ctx, call, func(res *CallResult) error {
-		// The whoami method returns JSON value, not YSON, so we need to specify the decoding.
-		return res.decodeJSON(&result)
-	})
+	err = e.do(ctx, call, WhoAmIResultDecoder(&result))
 	return
 }
 
@@ -315,9 +279,7 @@ func (e *Encoder) SetUserPassword(
 	}
 
 	call := e.newCall(NewSetUserPasswordParams(user, newPasswordSHA256, currentPasswordSHA256, options))
-	err = e.do(ctx, call, func(res *CallResult) error {
-		return nil
-	})
+	err = e.do(ctx, call, noopResultDecoder)
 	return
 }
 
@@ -332,10 +294,7 @@ func (e *Encoder) IssueToken(
 		passwordSHA256 = encodeSHA256(password)
 	}
 	call := e.newCall(NewIssueTokenParams(user, passwordSHA256, options))
-	err = e.do(ctx, call, func(res *CallResult) error {
-		err = res.decode(&token)
-		return err
-	})
+	err = e.do(ctx, call, IssueTokenResultDecoder(&token))
 	return
 }
 
@@ -353,9 +312,7 @@ func (e *Encoder) RevokeToken(
 	tokenSHA256 := encodeSHA256(token)
 
 	call := e.newCall(NewRevokeTokenParams(user, passwordSHA256, tokenSHA256, options))
-	err = e.do(ctx, call, func(res *CallResult) error {
-		return nil
-	})
+	err = e.do(ctx, call, noopResultDecoder)
 	return
 }
 
@@ -370,10 +327,7 @@ func (e *Encoder) ListUserTokens(
 		passwordSHA256 = encodeSHA256(password)
 	}
 	call := e.newCall(NewListUserTokensParams(user, passwordSHA256, options))
-	err = e.do(ctx, call, func(res *CallResult) error {
-		err = res.decode(&tokens)
-		return err
-	})
+	err = e.do(ctx, call, ListUserTokensResultDecoder(&tokens))
 	return
 }
 
@@ -382,9 +336,7 @@ func (e *Encoder) BuildMasterSnapshots(
 	options *yt.BuildMasterSnapshotsOptions,
 ) (response *yt.BuildMasterSnapshotsResponse, err error) {
 	call := e.newCall(NewBuildMasterSnapshotsParams(options))
-	err = e.do(ctx, call, func(res *CallResult) error {
-		return res.decode(&response)
-	})
+	err = e.do(ctx, call, BuildMasterSnapshotsResultDecoder(&response))
 	return
 }
 
@@ -393,9 +345,7 @@ func (e *Encoder) BuildSnapshot(
 	options *yt.BuildSnapshotOptions,
 ) (response *yt.BuildSnapshotResponse, err error) {
 	call := e.newCall(NewBuildSnapshotParams(options))
-	err = e.do(ctx, call, func(res *CallResult) error {
-		return res.decode(&response)
-	})
+	err = e.do(ctx, call, BuildSnapshotResultDecoder(&response))
 	return
 }
 
@@ -408,9 +358,7 @@ func (e *Encoder) AddMaintenance(
 	options *yt.AddMaintenanceOptions,
 ) (response *yt.AddMaintenanceResponse, err error) {
 	call := e.newCall(NewAddMaintenanceParams(component, address, maintenanceType, comment, options))
-	err = e.do(ctx, call, func(res *CallResult) error {
-		return res.decode(&response)
-	})
+	err = e.do(ctx, call, AddMaintenanceResultDecoder(&response))
 	return
 }
 
@@ -425,9 +373,7 @@ func (e *Encoder) RemoveMaintenance(
 		return
 	}
 	call := e.newCall(params)
-	err = e.do(ctx, call, func(res *CallResult) error {
-		return res.decode(&response)
-	})
+	err = e.do(ctx, call, RemoveMaintenanceResultDecoder(&response))
 	return
 }
 
@@ -440,7 +386,7 @@ func (e *Encoder) TransferPoolResources(
 	options *yt.TransferPoolResourcesOptions,
 ) (err error) {
 	call := e.newCall(NewTransferPoolResourcesParams(srcPool, dstPool, poolTree, resourceDelta, options))
-	err = e.do(ctx, call, func(res *CallResult) error { return nil })
+	err = e.do(ctx, call, noopResultDecoder)
 	return
 }
 
@@ -452,7 +398,7 @@ func (e *Encoder) TransferAccountResources(
 	options *yt.TransferAccountResourcesOptions,
 ) (err error) {
 	call := e.newCall(NewTransferAccountResourcesParams(srcAccount, dstAccount, resourceDelta, options))
-	err = e.do(ctx, call, func(res *CallResult) error { return nil })
+	err = e.do(ctx, call, noopResultDecoder)
 	return
 }
 
@@ -464,9 +410,7 @@ func (e *Encoder) CheckPermission(
 	options *yt.CheckPermissionOptions,
 ) (response *yt.CheckPermissionResponse, err error) {
 	call := e.newCall(NewCheckPermissionParams(user, permission, path, options))
-	err = e.do(ctx, call, func(res *CallResult) error {
-		return res.decode(&response)
-	})
+	err = e.do(ctx, call, CheckPermissionResultDecoder(&response))
 	return
 }
 
@@ -489,10 +433,7 @@ func (e *Encoder) StartTx(
 	options *yt.StartTxOptions,
 ) (id yt.TxID, err error) {
 	call := e.newCall(NewStartTxParams(options))
-	err = e.do(ctx, call, func(res *CallResult) error {
-		err = res.decodeSingle("transaction_id", &id)
-		return err
-	})
+	err = e.do(ctx, call, StartTxResultDecoder(&id))
 	return
 }
 
@@ -501,10 +442,7 @@ func (e *Encoder) StartTabletTx(
 	options *yt.StartTabletTxOptions,
 ) (id yt.TxID, err error) {
 	call := e.newCall(NewStartTabletTxParams(options))
-	err = e.do(ctx, call, func(res *CallResult) error {
-		err = res.decodeSingle("transaction_id", &id)
-		return err
-	})
+	err = e.do(ctx, call, StartTabletTxResultDecoder(&id))
 	return
 }
 
@@ -514,9 +452,7 @@ func (e *Encoder) PingTx(
 	options *yt.PingTxOptions,
 ) (err error) {
 	call := e.newCall(NewPingTxParams(id, options))
-	err = e.do(ctx, call, func(res *CallResult) error {
-		return nil
-	})
+	err = e.do(ctx, call, noopResultDecoder)
 	return
 }
 
@@ -526,9 +462,7 @@ func (e *Encoder) AbortTx(
 	options *yt.AbortTxOptions,
 ) (err error) {
 	call := e.newCall(NewAbortTxParams(id, options))
-	err = e.do(ctx, call, func(res *CallResult) error {
-		return nil
-	})
+	err = e.do(ctx, call, noopResultDecoder)
 	return
 }
 
@@ -538,9 +472,7 @@ func (e *Encoder) CommitTx(
 	options *yt.CommitTxOptions,
 ) (err error) {
 	call := e.newCall(NewCommitTxParams(id, options))
-	err = e.do(ctx, call, func(res *CallResult) error {
-		return nil
-	})
+	err = e.do(ctx, call, noopResultDecoder)
 	return
 }
 
@@ -551,10 +483,7 @@ func (e *Encoder) StartOperation(
 	options *yt.StartOperationOptions,
 ) (opID yt.OperationID, err error) {
 	call := e.newCall(NewStartOperationParams(opType, spec, options))
-	err = e.do(ctx, call, func(res *CallResult) error {
-		err = res.decodeSingle("operation_id", &opID)
-		return err
-	})
+	err = e.do(ctx, call, StartOperationResultDecoder(&opID))
 	return
 }
 
@@ -563,7 +492,7 @@ func (e *Encoder) AbortOperation(
 	opID yt.OperationID,
 	options *yt.AbortOperationOptions,
 ) (err error) {
-	return e.do(ctx, e.newCall(NewAbortOperationParams(opID, options)), func(res *CallResult) error { return nil })
+	return e.do(ctx, e.newCall(NewAbortOperationParams(opID, options)), noopResultDecoder)
 }
 
 func (e *Encoder) SuspendOperation(
@@ -571,7 +500,7 @@ func (e *Encoder) SuspendOperation(
 	opID yt.OperationID,
 	options *yt.SuspendOperationOptions,
 ) (err error) {
-	return e.do(ctx, e.newCall(NewSuspendOperationParams(opID, options)), func(res *CallResult) error { return nil })
+	return e.do(ctx, e.newCall(NewSuspendOperationParams(opID, options)), noopResultDecoder)
 }
 
 func (e *Encoder) ResumeOperation(
@@ -579,7 +508,7 @@ func (e *Encoder) ResumeOperation(
 	opID yt.OperationID,
 	options *yt.ResumeOperationOptions,
 ) (err error) {
-	return e.do(ctx, e.newCall(NewResumeOperationParams(opID, options)), func(res *CallResult) error { return nil })
+	return e.do(ctx, e.newCall(NewResumeOperationParams(opID, options)), noopResultDecoder)
 }
 
 func (e *Encoder) CompleteOperation(
@@ -587,7 +516,7 @@ func (e *Encoder) CompleteOperation(
 	opID yt.OperationID,
 	options *yt.CompleteOperationOptions,
 ) (err error) {
-	return e.do(ctx, e.newCall(NewCompleteOperationParams(opID, options)), func(res *CallResult) error { return nil })
+	return e.do(ctx, e.newCall(NewCompleteOperationParams(opID, options)), noopResultDecoder)
 }
 
 func (e *Encoder) UpdateOperationParameters(
@@ -596,7 +525,7 @@ func (e *Encoder) UpdateOperationParameters(
 	params any,
 	options *yt.UpdateOperationParametersOptions,
 ) (err error) {
-	return e.do(ctx, e.newCall(NewUpdateOperationParametersParams(opID, params, options)), func(res *CallResult) error { return nil })
+	return e.do(ctx, e.newCall(NewUpdateOperationParametersParams(opID, params, options)), noopResultDecoder)
 }
 
 func (e *Encoder) GetOperation(
@@ -606,9 +535,7 @@ func (e *Encoder) GetOperation(
 ) (status *yt.OperationStatus, err error) {
 	status = &yt.OperationStatus{}
 	call := e.newCall(NewGetOperationParams(opID, options))
-	err = e.do(ctx, call, func(res *CallResult) error {
-		return res.decode(status)
-	})
+	err = e.do(ctx, call, GetOperationResultDecoder(&status))
 	return
 }
 
@@ -619,9 +546,7 @@ func (e *Encoder) GetOperationByAlias(
 ) (status *yt.OperationStatus, err error) {
 	status = &yt.OperationStatus{}
 	call := e.newCall(NewGetOperationByAliasParams(alias, options))
-	err = e.do(ctx, call, func(res *CallResult) error {
-		return res.decode(status)
-	})
+	err = e.do(ctx, call, GetOperationByAliasResultDecoder(&status))
 	return
 }
 
@@ -630,9 +555,7 @@ func (e *Encoder) ListOperations(
 	options *yt.ListOperationsOptions,
 ) (operations *yt.ListOperationsResult, err error) {
 	call := e.newCall(NewListOperationsParams(options))
-	err = e.do(ctx, call, func(res *CallResult) error {
-		return res.decode(&operations)
-	})
+	err = e.do(ctx, call, ListOperationsResultDecoder(&operations))
 	return
 }
 
@@ -642,9 +565,7 @@ func (e *Encoder) ListJobs(
 	options *yt.ListJobsOptions,
 ) (r *yt.ListJobsResult, err error) {
 	call := e.newCall(NewListJobsParams(opID, options))
-	err = e.do(ctx, call, func(res *CallResult) error {
-		return res.decode(&r)
-	})
+	err = e.do(ctx, call, ListJobsResultDecoder(&r))
 	return
 }
 
@@ -655,10 +576,7 @@ func (e *Encoder) GetJobStderr(
 	options *yt.GetJobStderrOptions,
 ) (r []byte, err error) {
 	call := e.newCall(NewGetJobStderrParams(opID, jobID, options))
-	err = e.do(ctx, call, func(res *CallResult) error {
-		r = res.YSONValue
-		return nil
-	})
+	err = e.do(ctx, call, GetJobStderrResultDecoder(&r))
 	return
 }
 
@@ -688,14 +606,9 @@ func (e *Encoder) PutFileToCache(
 	options *yt.PutFileToCacheOptions,
 ) (cachedPath ypath.YPath, err error) {
 	call := e.newCall(NewPutFileToCacheParams(path, md5, options))
-	err = e.do(ctx, call, func(res *CallResult) error {
-		var resPath ypath.Path
-		if err := res.decode(&resPath); err != nil {
-			return err
-		}
-		cachedPath = resPath
-		return nil
-	})
+	var resPath ypath.Path
+	err = e.do(ctx, call, PutFileToCacheResultDecoder(&resPath))
+	cachedPath = resPath
 	return
 }
 
@@ -705,16 +618,11 @@ func (e *Encoder) GetFileFromCache(
 	options *yt.GetFileFromCacheOptions,
 ) (path ypath.YPath, err error) {
 	call := e.newCall(NewGetFileFromCacheParams(md5, options))
-	err = e.do(ctx, call, func(res *CallResult) error {
-		var resPath ypath.Path
-		if err := res.decode(&resPath); err != nil {
-			return err
-		}
-		if resPath != "" {
-			path = resPath
-		}
-		return nil
-	})
+	var resPath ypath.Path
+	err = e.do(ctx, call, GetFileFromCacheResultDecoder(&resPath))
+	if resPath != "" {
+		path = resPath
+	}
 	return
 }
 
@@ -726,9 +634,7 @@ func (e *Encoder) WriteTableRaw(
 ) (err error) {
 	call := e.newCall(NewWriteTableParams(path, options))
 	call.YSONValue = body.Bytes()
-	err = e.do(ctx, call, func(res *CallResult) error {
-		return nil
-	})
+	err = e.do(ctx, call, noopResultDecoder)
 	return
 }
 
@@ -854,7 +760,7 @@ func (e *Encoder) PushQueueProducer(
 	}
 
 	res := <-call.WriteRspChan
-	err = res.decode(&result)
+	err = PushQueueProducerResultDecoder(&result)(res)
 
 	return
 }
@@ -878,7 +784,7 @@ func (e *Encoder) PushQueueProducerBatch(
 	}
 
 	res := <-call.WriteRspChan
-	err = res.decode(&result)
+	err = PushQueueProducerBatchResultDecoder(&result)(res)
 	if err != nil {
 		return nil, err
 	}
@@ -894,9 +800,7 @@ func (e *Encoder) CreateQueueProducerSession(
 	options *yt.CreateQueueProducerSessionOptions,
 ) (result *yt.CreateQueueProducerSessionResult, err error) {
 	call := e.newCall(NewCreateQueueProducerSessionParams(producerPath, queuePath, sessionID, options))
-	err = e.do(ctx, call, func(res *CallResult) error {
-		return res.decode(&result)
-	})
+	err = e.do(ctx, call, CreateQueueProducerSessionResultDecoder(&result))
 	return
 }
 
@@ -908,9 +812,7 @@ func (e *Encoder) RemoveQueueProducerSession(
 	options *yt.RemoveQueueProducerSessionOptions,
 ) (err error) {
 	call := e.newCall(NewRemoveQueueProducerSessionParams(producerPath, queuePath, sessionID, options))
-	err = e.do(ctx, call, func(res *CallResult) error {
-		return nil
-	})
+	err = e.do(ctx, call, noopResultDecoder)
 	return
 }
 
@@ -959,9 +861,7 @@ func (e *Encoder) DisableChunkLocations(
 	options *yt.DisableChunkLocationsOptions,
 ) (response *yt.DisableChunkLocationsResponse, err error) {
 	call := e.newCall(NewDisableChunkLocationsParams(nodeAddress, locationUUIDs, options))
-	err = e.do(ctx, call, func(res *CallResult) error {
-		return res.decode(&response)
-	})
+	err = e.do(ctx, call, DisableChunkLocationsResultDecoder(&response))
 	return
 }
 
@@ -973,9 +873,7 @@ func (e *Encoder) DestroyChunkLocations(
 	options *yt.DestroyChunkLocationsOptions,
 ) (response *yt.DestroyChunkLocationsResponse, err error) {
 	call := e.newCall(NewDestroyChunkLocationsParams(nodeAddress, recoverUnlinkedDisks, locationUUIDs, options))
-	err = e.do(ctx, call, func(res *CallResult) error {
-		return res.decode(&response)
-	})
+	err = e.do(ctx, call, DestroyChunkLocationsResultDecoder(&response))
 	return
 }
 
@@ -986,9 +884,7 @@ func (e *Encoder) ResurrectChunkLocations(
 	options *yt.ResurrectChunkLocationsOptions,
 ) (response *yt.ResurrectChunkLocationsResponse, err error) {
 	call := e.newCall(NewResurrectChunkLocationsParams(nodeAddress, locationUUIDs, options))
-	err = e.do(ctx, call, func(res *CallResult) error {
-		return res.decode(&response)
-	})
+	err = e.do(ctx, call, ResurrectChunkLocationsResultDecoder(&response))
 	return
 }
 
@@ -997,7 +893,7 @@ func (e *Encoder) RequestRestart(
 	nodeAddress string,
 	options *yt.RequestRestartOptions,
 ) (err error) {
-	return e.do(ctx, e.newCall(NewRequestRestartParams(nodeAddress, options)), func(res *CallResult) error { return nil })
+	return e.do(ctx, e.newCall(NewRequestRestartParams(nodeAddress, options)), noopResultDecoder)
 }
 
 func (e *Encoder) MountTable(
@@ -1005,7 +901,7 @@ func (e *Encoder) MountTable(
 	path ypath.Path,
 	options *yt.MountTableOptions,
 ) (err error) {
-	return e.do(ctx, e.newCall(NewMountTableParams(path, options)), func(res *CallResult) error { return nil })
+	return e.do(ctx, e.newCall(NewMountTableParams(path, options)), noopResultDecoder)
 }
 
 func (e *Encoder) UnmountTable(
@@ -1013,7 +909,7 @@ func (e *Encoder) UnmountTable(
 	path ypath.Path,
 	options *yt.UnmountTableOptions,
 ) (err error) {
-	return e.do(ctx, e.newCall(NewUnmountTableParams(path, options)), func(res *CallResult) error { return nil })
+	return e.do(ctx, e.newCall(NewUnmountTableParams(path, options)), noopResultDecoder)
 }
 
 func (e *Encoder) RemountTable(
@@ -1021,7 +917,7 @@ func (e *Encoder) RemountTable(
 	path ypath.Path,
 	options *yt.RemountTableOptions,
 ) (err error) {
-	return e.do(ctx, e.newCall(NewRemountTableParams(path, options)), func(res *CallResult) error { return nil })
+	return e.do(ctx, e.newCall(NewRemountTableParams(path, options)), noopResultDecoder)
 }
 
 func (e *Encoder) ReshardTable(
@@ -1029,7 +925,7 @@ func (e *Encoder) ReshardTable(
 	path ypath.Path,
 	options *yt.ReshardTableOptions,
 ) (err error) {
-	return e.do(ctx, e.newCall(NewReshardTableParams(path, options)), func(res *CallResult) error { return nil })
+	return e.do(ctx, e.newCall(NewReshardTableParams(path, options)), noopResultDecoder)
 }
 
 func (e *Encoder) AlterTable(
@@ -1037,7 +933,7 @@ func (e *Encoder) AlterTable(
 	path ypath.Path,
 	options *yt.AlterTableOptions,
 ) (err error) {
-	return e.do(ctx, e.newCall(NewAlterTableParams(path, options)), func(res *CallResult) error { return nil })
+	return e.do(ctx, e.newCall(NewAlterTableParams(path, options)), noopResultDecoder)
 }
 
 func (e *Encoder) FreezeTable(
@@ -1045,7 +941,7 @@ func (e *Encoder) FreezeTable(
 	path ypath.Path,
 	options *yt.FreezeTableOptions,
 ) (err error) {
-	return e.do(ctx, e.newCall(NewFreezeTableParams(path, options)), func(res *CallResult) error { return nil })
+	return e.do(ctx, e.newCall(NewFreezeTableParams(path, options)), noopResultDecoder)
 }
 
 func (e *Encoder) UnfreezeTable(
@@ -1053,7 +949,7 @@ func (e *Encoder) UnfreezeTable(
 	path ypath.Path,
 	options *yt.UnfreezeTableOptions,
 ) (err error) {
-	return e.do(ctx, e.newCall(NewUnfreezeTableParams(path, options)), func(res *CallResult) error { return nil })
+	return e.do(ctx, e.newCall(NewUnfreezeTableParams(path, options)), noopResultDecoder)
 }
 
 func (e *Encoder) AlterTableReplica(
@@ -1061,7 +957,7 @@ func (e *Encoder) AlterTableReplica(
 	id yt.NodeID,
 	options *yt.AlterTableReplicaOptions,
 ) (err error) {
-	return e.do(ctx, e.newCall(NewAlterTableReplicaParams(id, options)), func(res *CallResult) error { return nil })
+	return e.do(ctx, e.newCall(NewAlterTableReplicaParams(id, options)), noopResultDecoder)
 }
 
 func (e *Encoder) CreateTableBackup(
@@ -1070,7 +966,7 @@ func (e *Encoder) CreateTableBackup(
 	options *yt.CreateTableBackupOptions,
 ) (err error) {
 	call := e.newCall(NewCreateTableBackupParams(manifest, options))
-	return e.do(ctx, call, func(res *CallResult) error { return nil })
+	return e.do(ctx, call, noopResultDecoder)
 }
 
 func (e *Encoder) RestoreTableBackup(
@@ -1079,7 +975,7 @@ func (e *Encoder) RestoreTableBackup(
 	options *yt.RestoreTableBackupOptions,
 ) (err error) {
 	call := e.newCall(NewRestoreTableBackupParams(manifest, options))
-	return e.do(ctx, call, func(res *CallResult) error { return nil })
+	return e.do(ctx, call, noopResultDecoder)
 }
 
 func (e *Encoder) LocateSkynetShare(
@@ -1090,9 +986,8 @@ func (e *Encoder) LocateSkynetShare(
 	err = e.do(
 		ctx,
 		e.newCall(NewLocateSkynetShareParams(path, options)),
-		func(res *CallResult) error {
-			return res.decode(&l)
-		})
+		LocateSkynetShareResultDecoder(&l),
+	)
 	return
 }
 
@@ -1103,9 +998,7 @@ func (e *Encoder) GenerateTimestamp(
 	err = e.do(
 		ctx,
 		e.newCall(NewGenerateTimestampParams(options)),
-		func(res *CallResult) error {
-			return res.decodeSingle("timestamp", &ts)
-		})
+		GenerateTimestampResultDecoder(&ts))
 	return
 }
 
@@ -1123,9 +1016,7 @@ func (e *Encoder) GetInSyncReplicas(
 		return nil, err
 	}
 
-	err = e.do(ctx, call, func(res *CallResult) error {
-		return res.decode(&ids)
-	})
+	err = e.do(ctx, call, GetInSyncReplicasResultDecoder(&ids))
 
 	return
 }
@@ -1137,9 +1028,7 @@ func (e *Encoder) StartQuery(
 	options *yt.StartQueryOptions,
 ) (id yt.QueryID, err error) {
 	call := e.newCall(NewStartQueryParams(engine, query, options))
-	err = e.do(ctx, call, func(res *CallResult) error {
-		return res.decodeSingle("query_id", &id)
-	})
+	err = e.do(ctx, call, StartQueryResultDecoder(&id))
 	return
 }
 
@@ -1149,9 +1038,7 @@ func (e *Encoder) AbortQuery(
 	options *yt.AbortQueryOptions,
 ) (err error) {
 	call := e.newCall(NewAbortQueryParams(id, options))
-	err = e.do(ctx, call, func(res *CallResult) error {
-		return nil
-	})
+	err = e.do(ctx, call, noopResultDecoder)
 	return
 }
 
@@ -1161,9 +1048,7 @@ func (e *Encoder) GetQuery(
 	options *yt.GetQueryOptions,
 ) (query *yt.Query, err error) {
 	call := e.newCall(NewGetQueryParams(id, options))
-	err = e.do(ctx, call, func(res *CallResult) error {
-		return res.decode(&query)
-	})
+	err = e.do(ctx, call, GetQueryResultDecoder(&query))
 	return
 }
 
@@ -1172,9 +1057,7 @@ func (e *Encoder) ListQueries(
 	options *yt.ListQueriesOptions,
 ) (result *yt.ListQueriesResult, err error) {
 	call := e.newCall(NewListQueriesParams(options))
-	err = e.do(ctx, call, func(res *CallResult) error {
-		return res.decode(&result)
-	})
+	err = e.do(ctx, call, ListQueriesResultDecoder(&result))
 	return
 }
 
@@ -1185,9 +1068,7 @@ func (e *Encoder) GetQueryResult(
 	options *yt.GetQueryResultOptions,
 ) (result *yt.QueryResult, err error) {
 	call := e.newCall(NewGetQueryResultParams(id, resultIndex, options))
-	err = e.do(ctx, call, func(res *CallResult) error {
-		return res.decode(&result)
-	})
+	err = e.do(ctx, call, GetQueryResultQueryResultDecoder(&result))
 	return
 }
 
@@ -1207,9 +1088,7 @@ func (e *Encoder) AlterQuery(
 	options *yt.AlterQueryOptions,
 ) (err error) {
 	call := e.newCall(NewAlterQueryParams(id, options))
-	err = e.do(ctx, call, func(res *CallResult) error {
-		return nil
-	})
+	err = e.do(ctx, call, noopResultDecoder)
 	return
 }
 
