@@ -667,7 +667,9 @@ private:
                 std::optional<std::vector<std::string>> preferredSyncReplicaClusters;
                 {
                     auto guard = Guard(Lock_);
-                    std::tie(minSyncReplicaCount, maxSyncReplicaCount) = Config_->GetEffectiveMinMaxReplicaCount(std::ssize(Replicas_));
+                    std::tie(minSyncReplicaCount, maxSyncReplicaCount) = Config_->GetEffectiveMinMaxReplicaCount(
+                        ETableReplicaContentType::Data,
+                        std::ssize(Replicas_));
                     asyncReplicas.reserve(Replicas_.size());
                     syncReplicas.reserve(Replicas_.size());
                     for (auto& replica : Replicas_) {
@@ -1229,7 +1231,9 @@ private:
                 GeneralCheckTimeout_.load()));
         }
 
-        const auto [maxSyncReplicaCount,  minSyncReplicaCount] = config->GetEffectiveMinMaxReplicaCount(std::ssize(replicas));
+        const auto [maxSyncReplicaCount,  minSyncReplicaCount] = config->GetEffectiveMinMaxReplicaCount(
+            ETableReplicaContentType::Data,
+            std::ssize(replicas));
 
         YT_LOG_DEBUG("Table %v "
             "(TableId: %v, CollocationId: %v, "
