@@ -69,7 +69,6 @@ public:
         , MinTeleportChunkSize_(options.MinTeleportChunkSize)
         , JobSizeConstraints_(options.JobSizeConstraints)
         , TeleportChunkSampler_(JobSizeConstraints_->GetSamplingRate())
-        , SupportLocality_(options.SupportLocality)
         , ReturnNewDataSlices_(options.ReturnNewDataSlices)
         , RowBuffer_(options.RowBuffer)
     {
@@ -271,8 +270,6 @@ private:
 
     IJobSizeConstraintsPtr JobSizeConstraints_;
     TBernoulliSampler TeleportChunkSampler_;
-
-    bool SupportLocality_ = false;
 
     bool ReturnNewDataSlices_ = true;
 
@@ -758,7 +755,10 @@ void TLegacySortedChunkPool::RegisterMetadata(auto&& registrar)
     PHOENIX_REGISTER_FIELD(10, Stripes_);
     PHOENIX_REGISTER_FIELD(11, JobSizeConstraints_);
     PHOENIX_REGISTER_FIELD(12, TeleportChunkSampler_);
-    PHOENIX_REGISTER_FIELD(13, SupportLocality_);
+    registrar.template VirtualField<13>("SupportLocality_", [] (TThis* /*this_*/, auto& context) {
+        Load<bool>(context);
+    })
+        .BeforeVersion(ESnapshotVersion::DropSupportLocality)();
     PHOENIX_REGISTER_FIELD(14, TeleportChunks_);
     PHOENIX_REGISTER_FIELD(15, IsCompleted_);
     PHOENIX_REGISTER_FIELD(16, ReturnNewDataSlices_);
