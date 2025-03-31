@@ -12,8 +12,8 @@
 # Please refer to the build instructions in the repository for more information about manual
 # changes in this file.
 
-add_subdirectory(base64)
 add_subdirectory(relaxed_escaper)
+add_subdirectory(base64)
 add_subdirectory(quote)
 add_subdirectory(scan)
 add_subdirectory(url)
