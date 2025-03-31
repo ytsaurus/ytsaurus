@@ -34,4 +34,16 @@ void SerializeDominant(const TDetailedFairShare& detailedFairShare, NYTree::TFlu
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void Serialize(const TFairShareFunctionsStatistics& statistics, NYson::IYsonConsumer* consumer)
+{
+    NYTree::BuildYsonFluently(consumer)
+        .BeginMap()
+            .Item("fair_share_by_suggestion_size").Value(statistics.FairShareBySuggestionSize)
+            .Item("fair_share_by_fit_factor_size").Value(statistics.FairShareByFitFactorSize)
+            .Item("max_fit_factor_by_suggestion_size").Value(statistics.MaxFitFactorBySuggestionSize)
+        .EndMap();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NVectorHdrf
