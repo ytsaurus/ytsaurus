@@ -777,7 +777,7 @@ void TChunk::OnMiscExtUpdated(const TMiscExt& miscExt)
 ////////////////////////////////////////////////////////////////////////////////
 
 template <size_t TypicalStoredReplicaCount, size_t LastSeenReplicaCount>
-void TChunk::TReplicasData<TypicalStoredReplicaCount, LastSeenReplicaCount>::Initialize()
+TChunk::TReplicasData<TypicalStoredReplicaCount, LastSeenReplicaCount>::TReplicasData()
 {
     std::fill(LastSeenReplicas.begin(), LastSeenReplicas.end(), InvalidNodeId);
 }

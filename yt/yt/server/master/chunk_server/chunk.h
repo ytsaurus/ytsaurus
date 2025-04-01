@@ -410,8 +410,6 @@ private:
 
         virtual ~TReplicasDataBase() = default;
 
-        virtual void Initialize() = 0;
-
         virtual TRange<TChunkLocationPtrWithReplicaInfo> GetStoredReplicas() const = 0;
         virtual TMutableRange<TChunkLocationPtrWithReplicaInfo> MutableStoredReplicas() = 0;
         virtual void AddStoredReplica(TChunkLocationPtrWithReplicaInfo replica) = 0;
@@ -435,7 +433,7 @@ private:
 
         std::array<TNodeId, LastSeenReplicaCount> LastSeenReplicas;
 
-        void Initialize() override;
+        TReplicasData();
 
         TRange<TNodeId> GetLastSeenReplicas() const override;
         TMutableRange<TNodeId> MutableLastSeenReplicas() override;
