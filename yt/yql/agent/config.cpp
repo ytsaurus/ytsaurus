@@ -10,6 +10,8 @@
 
 #include <yt/yt/core/bus/tcp/config.h>
 
+#include <util/string/vector.h>
+
 #include <array>
 #include <utility>
 
@@ -194,6 +196,8 @@ void TDQYTBackend::Register(TRegistrar registrar)
         .Default(true);
     registrar.Parameter("enforce_job_utc", &TThis::EnforceJobUtc)
         .Default(true);
+    registrar.Parameter("use_local_l_d_library_path", &TThis::UseLocalLDLibraryPath)
+        .Default(false);
 }
 
 void TDQYTCoordinator::Register(TRegistrar registrar)
@@ -238,6 +242,12 @@ IListNodePtr TYqlPluginConfig::MergeClusterDefaultSettings(const IListNodePtr& c
     return MergeDefaultSettings(clusterConfigSettings, DefaultClusterSettings);
 }
 
+void TAdditionalSystemLib::Register(TRegistrar registrar)
+{
+    registrar.Parameter("file", &TThis::File)
+        .Default();
+}
+
 void TYqlPluginConfig::Register(TRegistrar registrar)
 {
     auto defaultRemoteFilePatterns = BuildYsonNodeFluently()
@@ -267,6 +277,8 @@ void TYqlPluginConfig::Register(TRegistrar registrar)
     registrar.Parameter("yt_token_path", &TThis::YTTokenPath)
         .Default();
     registrar.Parameter("yql_plugin_shared_library", &TThis::YqlPluginSharedLibrary)
+        .Default();
+    registrar.Parameter("additional_system_libs", &TThis::AdditionalSystemLibs)
         .Default();
     registrar.Parameter("dq_manager", &TThis::DQManagerConfig)
         .Alias("dq_manager_config")
@@ -307,6 +319,32 @@ void TYqlPluginConfig::Register(TRegistrar registrar)
                 settings = GetEphemeralNodeFactory()->CreateList();
             }
             YT_VERIFY(clusterMap->AddChild("settings", MergeClusterDefaultSettings(settings->AsList())));
+        }
+
+        if (!config->AdditionalSystemLibs.empty()) {
+            auto mrJobSystemLibs = GetEphemeralNodeFactory()->CreateList();
+            for (const auto& lib : config->AdditionalSystemLibs) {
+                auto file = BuildYsonNodeFluently()
+                    .BeginMap()
+                        .Item("file").Value(lib->File)
+                    .EndMap();
+                mrJobSystemLibs->AddChild(std::move(file));
+            }
+
+            gatewayConfig->AddChild("mr_job_system_libs_with_md5", std::move(mrJobSystemLibs));
+
+            for (auto& backend : config->DQManagerConfig->YTBackends) {
+                for (const auto& lib : config->AdditionalSystemLibs) {
+                    auto pathParts = SplitString(lib->File, "/");
+
+                    TVanillaJobFilePtr vanillaJobFile = New<TVanillaJobFile>();
+                    vanillaJobFile->Name = pathParts.back(),
+                    vanillaJobFile->LocalPath = lib->File,
+
+                    backend->VanillaJobFiles.emplace_back(std::move(vanillaJobFile));
+                }
+                backend->UseLocalLDLibraryPath = true;
+            }
         }
 
         auto dqGatewayConfig = config->DQGatewayConfig->AsMap();
