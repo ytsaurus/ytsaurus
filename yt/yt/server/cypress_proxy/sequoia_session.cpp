@@ -331,7 +331,7 @@ public:
                         continue;
                     }
 
-                    // Closes child found.
+                    // Closest child found.
                     break;
                 }
 
