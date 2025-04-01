@@ -1150,6 +1150,28 @@ class TestListJobs(TestListJobsCommon):
         wait(lambda: len(list_jobs(op1.id, with_interruption_info=True)["jobs"]) == 2)
         wait(lambda: len(list_jobs(op1.id, with_interruption_info=False)["jobs"]) == 3)
 
+    @authors("aleksandr.gaev")
+    def test_job_addresses(self):
+        op = run_test_vanilla(
+            with_breakpoint("BREAKPOINT"),
+        )
+        (job_id,) = wait_breakpoint()
+
+        def check_addresses(list_jobs_response):
+            return len(list_jobs_response) == 1 and "address" in list_jobs_response[0] and "addresses" in list_jobs_response[0]
+
+        wait(lambda: check_addresses(list_jobs(op.id, verbose=False)["jobs"]))
+
+        release_breakpoint()
+
+        op.track()
+
+        jobs = list_jobs(op.id, verbose=False)["jobs"]
+        assert check_addresses(jobs)
+        assert len(jobs[0].get("address")) > 0
+        assert len(jobs[0].get("addresses")) > 0
+        assert jobs[0].get("addresses")["default"] == jobs[0].get("address")
+
 
 class TestListJobsAllocation(TestListJobsBase):
     NUM_NODES = 1

@@ -514,6 +514,28 @@ class TestGetJob(_TestGetJobCommon):
 
         get_job(op.id, job_id)
 
+    @authors("aleksandr.gaev")
+    def test_job_addresses(self):
+        op = run_test_vanilla(
+            with_breakpoint("BREAKPOINT"),
+        )
+        (job_id,) = wait_breakpoint()
+
+        def check_addresses(job_info):
+            return "address" in job_info and "addresses" in job_info
+
+        wait(lambda: check_addresses(get_job(op.id, job_id)))
+
+        release_breakpoint()
+
+        op.track()
+
+        job_info = get_job(op.id, job_id)
+        assert check_addresses(job_info)
+        assert len(job_info.get("address")) > 0
+        assert len(job_info.get("addresses")) > 0
+        assert job_info.get("addresses")["default"] == job_info.get("address")
+
 
 class TestGetJobStatisticsLz4(_TestGetJobCommon):
     DELTA_DYNAMIC_NODE_CONFIG = deepcopy(_TestGetJobBase.DELTA_DYNAMIC_NODE_CONFIG)

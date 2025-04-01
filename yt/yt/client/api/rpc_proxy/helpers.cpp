@@ -949,6 +949,9 @@ void ToProto(NProto::TJob* protoJob, const NApi::TJob& job)
     if (job.Address) {
         protoJob->set_address(*job.Address);
     }
+    if (job.Addresses) {
+        ToProto(protoJob->mutable_addresses(), *job.Addresses);
+    }
     if (job.Progress) {
         protoJob->set_progress(*job.Progress);
     }
@@ -1063,6 +1066,11 @@ void FromProto(NApi::TJob* job, const NProto::TJob& protoJob)
         job->Address = protoJob.address();
     } else {
         job->Address.reset();
+    }
+    if (protoJob.has_addresses()) {
+        job->Addresses = FromProto<NNodeTrackerClient::TAddressMap>(protoJob.addresses());
+    } else {
+        job->Addresses = {};
     }
     if (protoJob.has_progress()) {
         job->Progress = protoJob.progress();
