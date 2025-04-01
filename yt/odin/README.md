@@ -84,7 +84,7 @@ To build the image run the following command:
 ```bash
 cd $SOURCE_ROOT
 
-docker build -t ytsaurus-odin:latest --build-arg ROOT_IMAGE=python-base --target odin -f ./yt/docker/ytsaurus/Dockerfile .
+docker build -t ytsaurus-odin:latest --target odin -f ./yt/docker/ytsaurus/Dockerfile .
 ```
 
 The last argument is the location of the YTsaurus source root, which is the current directory, `$SOURCE_ROOT`, in the snippet above.

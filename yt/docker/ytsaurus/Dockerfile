@@ -16,7 +16,6 @@ ARG ODIN_CHECKS_DATA_DIR="${ODIN_RUNTIME_ROOT}/checks-data"
 # Flow control args.
 # copy-ytsaurus-python-binaries or build-ytsaurus-python-binaries
 ARG PYTHON_BUILD_BASE="copy-ytsaurus-python-binaries"
-ARG ROOT_IMAGE="ubuntu-base"
 
 ##########################################################################################
 
@@ -31,14 +30,7 @@ RUN apt-get update \
 
 ##########################################################################################
 
-FROM python:${PYTHON_RUNTIME_VERSION}-slim as python-base
-
-RUN apt-get update && DEBIAN_FRONTEND=noninteractive TZ=Etc/UTC apt-get install -y \
-  linux-perf
-
-##########################################################################################
-
-FROM ${ROOT_IMAGE} AS base
+FROM ubuntu-base AS base
 
 USER root
 
@@ -305,7 +297,7 @@ COPY --from=ytsaurus-server-override-bloated / /
 
 ##########################################################################################
 
-FROM python-base as odin-installer
+FROM base as odin-installer
 
 ARG ODIN_ROOT
 ARG ODIN_VIRTUAL_ENV
