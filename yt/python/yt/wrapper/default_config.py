@@ -102,6 +102,12 @@ default_config = {
         # It is recommended to use only cluster name as alias for proxy url.
         "aliases": {},
 
+        # Proxy role to use in heavy proxies discovering based on the backend type.
+        # If it is set to None, the default will be used.
+        # NB: If the "proxy_discovery_url" config option is set, it is assumed to take priority over "http_proxy_role" option.
+        "http_proxy_role": None,
+        "rpc_proxy_role": None,
+
         # use https for proxy.url (if no schema in proxy.url)
         "prefer_https": False,
 
@@ -166,6 +172,7 @@ default_config = {
         # proxy for heavy request.
         "number_of_top_proxies_for_random_choice": 5,
         # Part of url to get list of heavy proxies.
+        # Deprecated! It's recommended to use the 'http_proxy_role' option instead for configuring proxies.
         "proxy_discovery_url": "hosts",
         # Timeout of proxy ban.
         "proxy_ban_timeout": 120 * 1000,
@@ -761,6 +768,8 @@ def get_default_config():
 
 FORCED_SHORTCUTS = {
     "YT_BASE_LAYER" : "operation_base_layer",
+    "YT_HTTP_PROXY_ROLE": "proxy/http_proxy_role",
+    "YT_RPC_PROXY_ROLE": "proxy/rpc_proxy_role",
 }
 
 
@@ -768,6 +777,9 @@ SHORTCUTS = {
     "YT_PROXY": "proxy/url",
     "YT_PROXY_SUFFIX": "proxy/default_suffix",
     "YT_PROXY_URL_ALIASING_CONFIG": "proxy/aliases",
+    "YT_HTTP_PROXY_ROLE": "proxy/http_proxy_role",
+    "YT_RPC_PROXY_ROLE": "proxy/rpc_proxy_role",
+
     "YT_TOKEN": "token",
     "YT_TOKEN_PATH": "token_path",
     "YT_USE_TOKEN": "enable_token",
