@@ -253,7 +253,11 @@ public:
             const auto& treeParams = GetOrCrash(runtimeParameters->SchedulingOptionsPerPoolTree, treeName);
             auto tree = GetTree(treeName);
 
-            auto registrationResult = tree->RegisterOperation(state, operation->GetStrategySpecForTree(treeName), treeParams);
+            auto registrationResult = tree->RegisterOperation(
+                state,
+                operation->GetStrategySpecForTree(treeName),
+                treeParams,
+                operation->GetOperationOptions());
 
             poolTreeControllerSettingsMap->emplace(
                 treeName,

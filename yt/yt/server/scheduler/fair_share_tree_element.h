@@ -796,11 +796,13 @@ class TSchedulerOperationElement
 {
 public:
     DEFINE_BYREF_RO_PROPERTY(TStrategyOperationSpecPtr, Spec);
+    DEFINE_BYREF_RO_PROPERTY(TOperationOptionsPtr, OperationOptions);
 
 public:
     TSchedulerOperationElement(
         TFairShareStrategyTreeConfigPtr treeConfig,
         TStrategyOperationSpecPtr spec,
+        TOperationOptionsPtr operationOptions,
         TOperationFairShareTreeRuntimeParametersPtr runtimeParameters,
         TFairShareStrategyOperationControllerPtr controller,
         TFairShareStrategyOperationControllerConfigPtr controllerConfig,
@@ -930,6 +932,9 @@ public:
     bool IsIdleCpuPolicyAllowed() const;
 
     const std::optional<TBriefVanillaTaskSpecMap>& GetMaybeBriefVanillaTaskSpecMap() const;
+
+    TDuration GetEffectiveAllocationPreemptionTimeout() const;
+    TDuration GetEffectiveAllocationGracefulPreemptionTimeout() const;
 
 protected:
     //! Pre update methods.

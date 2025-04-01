@@ -1769,6 +1769,7 @@ TSchedulerOperationElementFixedState::TSchedulerOperationElementFixedState(
 TSchedulerOperationElement::TSchedulerOperationElement(
     TFairShareStrategyTreeConfigPtr treeConfig,
     TStrategyOperationSpecPtr spec,
+    TOperationOptionsPtr operationOptions,
     TOperationFairShareTreeRuntimeParametersPtr runtimeParameters,
     TFairShareStrategyOperationControllerPtr controller,
     TFairShareStrategyOperationControllerConfigPtr controllerConfig,
@@ -1788,6 +1789,7 @@ TSchedulerOperationElement::TSchedulerOperationElement(
         logger.WithTag("OperationId: %v", operation->GetId()))
     , TSchedulerOperationElementFixedState(operation, std::move(controllerConfig), TSchedulingTagFilter(spec->SchedulingTagFilter))
     , Spec_(std::move(spec))
+    , OperationOptions_(std::move(operationOptions))
     , RuntimeParameters_(std::move(runtimeParameters))
     , Controller_(std::move(controller))
     , FairShareStrategyOperationState_(std::move(state))
@@ -1799,6 +1801,7 @@ TSchedulerOperationElement::TSchedulerOperationElement(
     : TSchedulerElement(other, clonedParent)
     , TSchedulerOperationElementFixedState(other)
     , Spec_(other.Spec_)
+    , OperationOptions_(other.OperationOptions_)
     , RuntimeParameters_(other.RuntimeParameters_)
     , Controller_(other.Controller_)
 { }
@@ -2424,6 +2427,16 @@ bool TSchedulerOperationElement::IsIdleCpuPolicyAllowed() const
 const std::optional<TBriefVanillaTaskSpecMap>& TSchedulerOperationElement::GetMaybeBriefVanillaTaskSpecMap() const
 {
     return OperationHost_->GetMaybeBriefVanillaTaskSpecs();
+}
+
+TDuration TSchedulerOperationElement::GetEffectiveAllocationPreemptionTimeout() const
+{
+    return OperationOptions_->AllocationPreemptionTimeout.value_or(TreeConfig_->AllocationPreemptionTimeout);
+}
+
+TDuration TSchedulerOperationElement::GetEffectiveAllocationGracefulPreemptionTimeout() const
+{
+    return OperationOptions_->AllocationGracefulPreemptionTimeout.value_or(TreeConfig_->AllocationGracefulPreemptionTimeout);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

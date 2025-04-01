@@ -1345,9 +1345,9 @@ private:
             auto specNode = ConvertSpecStringToNode(specString);
             auto operationType = attributes.Get<EOperationType>("operation_type");
             TPreprocessedSpec preprocessedSpec;
-            ParseSpec(std::move(specNode), /*specTemplate*/ nullptr, operationType, operationId, &preprocessedSpec);
             preprocessedSpec.ExperimentAssignments =
                 attributes.Get<std::vector<TExperimentAssignmentPtr>>("experiment_assignments", {});
+            ParseSpec(std::move(specNode), /*specTemplate*/ nullptr, operationType, operationId, &preprocessedSpec);
             const auto& spec = preprocessedSpec.Spec;
 
             // NB: Keep stuff below in sync with #RequestOperationAttributes.
@@ -1386,6 +1386,7 @@ private:
                 secureVault,
                 attributes.Find<TNodeId>("temporary_token_node_id"),
                 runtimeParameters,
+                std::move(preprocessedSpec.OperationOptions),
                 std::move(baseAcl),
                 user,
                 attributes.Get<TInstant>("start_time"),

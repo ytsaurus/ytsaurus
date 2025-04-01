@@ -1324,4 +1324,14 @@ void TSchedulerProgramConfig::Register(TRegistrar /*registrar*/)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TOperationOptions::Register(TRegistrar registrar)
+{
+    registrar.Parameter("allocation_preemption_timeout", &TThis::AllocationPreemptionTimeout)
+        .Default();
+    registrar.Parameter("allocation_graceful_preemption_timeout", &TThis::AllocationGracefulPreemptionTimeout)
+        .Default();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NScheduler

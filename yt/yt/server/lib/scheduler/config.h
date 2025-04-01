@@ -1084,4 +1084,22 @@ DEFINE_REFCOUNTED_TYPE(TSchedulerProgramConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TOperationOptions
+    : public NYTree::TYsonStruct
+{
+    // Allocation preemption timeout.
+    std::optional<TDuration> AllocationPreemptionTimeout;
+
+    // Allocation graceful preemption timeout.
+    std::optional<TDuration> AllocationGracefulPreemptionTimeout;
+
+    REGISTER_YSON_STRUCT(TOperationOptions)
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TOperationOptions)
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NScheduler
