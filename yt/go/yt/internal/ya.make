@@ -2,6 +2,7 @@ GO_LIBRARY()
 
 SRCS(
     call.go
+    decoder.go
     encoder.go
     error_wrapper.go
     logging.go

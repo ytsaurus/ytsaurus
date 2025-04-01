@@ -34,8 +34,8 @@ struct TQueryAgentConfig
     bool UseQueryPoolForInMemoryLookups;
 
     i64 MaxPullQueueResponseDataWeight;
-    double PullRowsTimeoutShare;
     i64 PullRowsReadDataWeightLimit;
+    TDuration PullRowsTimeoutSlack;
 
     REGISTER_YSON_STRUCT(TQueryAgentConfig);
 

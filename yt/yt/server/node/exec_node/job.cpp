@@ -172,11 +172,11 @@ namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TGuid MakeNbdExportId(TJobId jobId, int nbdExportIndex)
+TString MakeNbdExportId(TJobId jobId, int nbdExportIndex)
 {
     auto nbdExportId = jobId.Underlying();
     nbdExportId.Parts32[0] = nbdExportIndex;
-    return nbdExportId;
+    return ToString(nbdExportId);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1638,7 +1638,8 @@ void TJob::HandleJobReport(TNodeJobReport&& jobReport)
         jobReport
             .OperationId(GetOperationId())
             .JobId(GetId())
-            .Address(Bootstrap_->GetLocalDescriptor().GetDefaultAddress()));
+            .Address(Bootstrap_->GetLocalDescriptor().GetDefaultAddress())
+            .Addresses(Bootstrap_->GetLocalDescriptor().Addresses()));
 }
 
 void TJob::ReportSpec()
@@ -2809,7 +2810,12 @@ void TJob::CleanupNbdExports()
                     artifactKey.data_source().path());
 
                 nbdServer->TryUnregisterDevice(artifactKey.nbd_export_id());
-                std::ignore = WaitFor(device->Finalize());
+                auto error = WaitFor(device->Finalize());
+                if (!error.IsOK()) {
+                    YT_LOG_ERROR(error, "Failed to finalize NBD export (ExportId: %v, Path: %v)",
+                        artifactKey.nbd_export_id(),
+                        artifactKey.data_source().path());
+                }
             }
         }
 
@@ -2819,7 +2825,31 @@ void TJob::CleanupNbdExports()
                     "NBD virtual layer is still registered, unregister it (ExportId: %v)",
                     VirtualSandboxData_->NbdExportId);
                 nbdServer->TryUnregisterDevice(VirtualSandboxData_->NbdExportId);
-                std::ignore = WaitFor(device->Finalize());
+                auto error = WaitFor(device->Finalize());
+                if (!error.IsOK()) {
+                    YT_LOG_ERROR(error, "Failed to finalize NBD export (ExportId: %v)",
+                        VirtualSandboxData_->NbdExportId);
+                }
+            }
+        }
+
+        if (SandboxNbdRootVolumeData_) {
+            if (auto device = nbdServer->GetDevice(SandboxNbdRootVolumeData_->NbdExportId)) {
+                YT_LOG_ERROR(
+                    "NBD export for root volume is still registered, unregister it (ExportId: %v, Size: %v, MediumIndex: %v, DataNodeAddress: %v)",
+                    SandboxNbdRootVolumeData_->NbdExportId,
+                    SandboxNbdRootVolumeData_->NbdDiskSize,
+                    SandboxNbdRootVolumeData_->NbdDiskMediumIndex,
+                    SandboxNbdRootVolumeData_->NbdDiskDataNodeAddress);
+                nbdServer->TryUnregisterDevice(SandboxNbdRootVolumeData_->NbdExportId);
+                auto error = WaitFor(device->Finalize());
+                if (!error.IsOK()) {
+                    YT_LOG_ERROR(error, "Failed to finalize NBD export (ExportId: %v, Size: %v, MediumIndex: %v, DataNodeAddress: %v)",
+                        SandboxNbdRootVolumeData_->NbdExportId,
+                        SandboxNbdRootVolumeData_->NbdDiskSize,
+                        SandboxNbdRootVolumeData_->NbdDiskMediumIndex,
+                        SandboxNbdRootVolumeData_->NbdDiskDataNodeAddress);
+                }
             }
         }
     }
@@ -3277,7 +3307,8 @@ TUserSandboxOptions TJob::BuildUserSandboxOptions()
             options.InodeLimit = UserJobSpec_->inode_limit();
         }
 
-        if (UserJobSpec_->has_disk_request()) {
+        // Do not set space and inode limits if root volume is used.
+        if (UserJobSpec_->has_disk_request() && !SandboxNbdRootVolumeData_) {
             if (UserJobSpec_->disk_request().has_disk_space()) {
                 options.DiskSpaceLimit = UserJobSpec_->disk_request().disk_space();
             }
@@ -3298,6 +3329,7 @@ TUserSandboxOptions TJob::BuildUserSandboxOptions()
     }
 
     options.VirtualSandboxData = VirtualSandboxData_;
+    options.SandboxNbdRootVolumeData = SandboxNbdRootVolumeData_;
 
     return options;
 }
@@ -3330,6 +3362,77 @@ bool TJob::CanBeAccessedViaVirtualSandbox(const TArtifact& artifact) const
     }
 
     return true;
+}
+
+void TJob::InitializeSandboxNbdRootVolumeData()
+{
+    if (!UserJobSpec_
+        || !UserJobSpec_->has_disk_request()
+        || !UserJobSpec_->disk_request().has_nbd_disk()
+        || !Bootstrap_->GetNbdServer()) {
+        return;
+    }
+
+    YT_VERIFY(UserJobSpec_->disk_request().has_disk_space());
+    YT_VERIFY(UserJobSpec_->disk_request().has_medium_index());
+
+    SandboxNbdRootVolumeData_ = TSandboxNbdRootVolumeData{
+        .NbdDiskSize = UserJobSpec_->disk_request().disk_space(),
+        .NbdDiskMediumIndex = UserJobSpec_->disk_request().medium_index(),
+    };
+
+    if (UserJobSpec_->disk_request().nbd_disk().has_data_node_address()) {
+        SandboxNbdRootVolumeData_->NbdDiskDataNodeAddress = UserJobSpec_->disk_request().nbd_disk().data_node_address();
+    }
+}
+
+void TJob::InitializeNbdExportIds()
+{
+    YT_ASSERT_THREAD_AFFINITY(JobThread);
+
+    // Mark NBD layers with NBD export ids.
+    auto nbdExportCount = 0;
+    for (auto& layer : LayerArtifactKeys_) {
+        if (FromProto<ELayerAccessMethod>(layer.access_method()) == ELayerAccessMethod::Nbd) {
+            auto nbdExportId = MakeNbdExportId(Id_, nbdExportCount);
+            ++nbdExportCount;
+
+            ToProto(layer.mutable_nbd_export_id(), nbdExportId);
+        }
+    }
+
+    if (!LayerArtifactKeys_.empty() &&
+        Bootstrap_->GetNbdServer() &&
+        RootVolumeDiskQuotaEnabled_ &&
+        JobSpecExt_.enable_virtual_sandbox())
+    {
+        // Mark artifacts that will be accessed via virtual layer.
+        int virtualSandboxArtifactCount = 0;
+        for (auto& artifact : Artifacts_) {
+            if (CanBeAccessedViaVirtualSandbox(artifact)) {
+                artifact.AccessedViaVirtualSandbox = true;
+                ++virtualSandboxArtifactCount;
+            }
+        }
+
+        if (virtualSandboxArtifactCount != 0) {
+            // The virtual layer can be used. Make nbd export id.
+            auto nbdExportId = MakeNbdExportId(Id_, nbdExportCount);
+            ++nbdExportCount;
+
+            VirtualSandboxData_ = TVirtualSandboxData({
+                .NbdExportId = nbdExportId
+            });
+        }
+    }
+
+    // Create NBD export id for NBD root volume.
+    if (SandboxNbdRootVolumeData_) {
+        auto nbdExportId = MakeNbdExportId(Id_, nbdExportCount);
+        ++nbdExportCount;
+
+        SandboxNbdRootVolumeData_->NbdExportId = nbdExportId;
+    }
 }
 
 // Build artifacts.
@@ -3395,39 +3498,9 @@ void TJob::InitializeArtifacts()
         }
     }
 
-    // Mark NBD layers with NBD export ids.
-    auto nbdExportCount = 0;
-    for (auto& layer : LayerArtifactKeys_) {
-        if (FromProto<ELayerAccessMethod>(layer.access_method()) == ELayerAccessMethod::Nbd) {
-            auto nbdExportId = MakeNbdExportId(Id_, nbdExportCount);
-            layer.set_nbd_export_id(ToString(nbdExportId));
-            ++nbdExportCount;
-        }
-    }
+    InitializeSandboxNbdRootVolumeData();
 
-    if (!LayerArtifactKeys_.empty() &&
-        Bootstrap_->GetNbdServer() &&
-        RootVolumeDiskQuotaEnabled_ &&
-        JobSpecExt_.enable_virtual_sandbox())
-    {
-        // Mark artifacts that will be accessed via virtual layer.
-        int virtualSandboxArtifactCount = 0;
-        for (auto& artifact : Artifacts_) {
-            if (CanBeAccessedViaVirtualSandbox(artifact)) {
-                artifact.AccessedViaVirtualSandbox = true;
-                ++virtualSandboxArtifactCount;
-            }
-        }
-
-        if (virtualSandboxArtifactCount != 0) {
-            // The virtual layer can be used. Make nbd export id.
-            auto nbdExportId = MakeNbdExportId(Id_, nbdExportCount);
-            VirtualSandboxData_ = TVirtualSandboxData({
-                .NbdExportId = ToString(nbdExportId)
-            });
-            ++nbdExportCount;
-        }
-    }
+    InitializeNbdExportIds();
 
     // Mark artifacts that will be accessed via bind.
     for (auto& artifact : Artifacts_) {

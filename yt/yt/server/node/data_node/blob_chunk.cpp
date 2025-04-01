@@ -483,12 +483,6 @@ void TBlobChunkBase::OnBlocksExtLoaded(
                 FailSession(session, error);
             }
         }).Via(session->Invoker));
-
-    session->SessionPromise.OnCanceled(BIND([this, this_ = MakeStrong(this), session] (const TError& error) {
-        FailSession(
-            session,
-            TError(NYT::EErrorCode::Canceled, "Session canceled") << error);
-    }).Via(session->Invoker));
 }
 
 void TBlobChunkBase::DoReadSession(
@@ -525,6 +519,7 @@ void TBlobChunkBase::DoReadSession(
     session->FairShareSlot = fairShareSlotOrError.Value();
 
     session->LocationMemoryGuard = Location_->AcquireLocationMemory(
+        /*useLegacyUsedMemory*/ false,
         std::move(memoryGuardOrError.Value()),
         EIODirection::Read,
         session->Options.WorkloadDescriptor,
@@ -975,6 +970,12 @@ TFuture<std::vector<TBlock>> TBlobChunkBase::ReadBlockSet(
         allCached = false;
     }
 
+    session->SessionPromise.OnCanceled(BIND([this, this_ = MakeStrong(this), session] (const TError& error) {
+        FailSession(
+            session,
+            TError(NYT::EErrorCode::Canceled, "Session canceled") << error);
+    }).Via(session->Invoker));
+
     // Check for fast path.
     if (allCached || !options.FetchFromDisk) {
         return BIND([=, this, this_ = MakeStrong(this)] (const TReadBlockSetSessionPtr session) {
@@ -995,7 +996,15 @@ TFuture<std::vector<TBlock>> TBlobChunkBase::ReadBlockSet(
         auto cookie = Context_->ChunkMetaManager->BeginInsertCachedBlocksExt(Id_);
         auto asyncBlocksExt = cookie.GetValue();
         if (cookie.IsActive()) {
-            ReadMeta(options)
+            auto readMetaFuture = BIND([=, this, this_ = MakeStrong(this)] {
+                auto readMetaFuture = ReadMeta(options);
+                session->Futures.push_back(readMetaFuture.AsVoid());
+                return readMetaFuture;
+            })
+                .AsyncVia(session->Invoker)
+                .Run();
+
+            readMetaFuture
                 .Subscribe(BIND([=, this, this_ = MakeStrong(this), cookie = std::move(cookie)] (const TErrorOr<TRefCountedChunkMetaPtr>& result) mutable {
                     if (result.IsOK()) {
                         auto blocksExt = New<NIO::TBlocksExt>(GetProtoExtension<NChunkClient::NProto::TBlocksExt>(result.Value()->extensions()));

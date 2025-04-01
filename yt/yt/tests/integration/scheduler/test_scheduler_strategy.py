@@ -827,11 +827,11 @@ class TestSchedulerOperationLimits(YTEnvSetup):
 
     def setup_method(self, method):
         super(TestSchedulerOperationLimits, self).setup_method(method)
-        set("//sys/pool_trees/default/@config/max_running_operation_count_per_pool", 1)
-        set("//sys/pool_trees/default/@config/default_parent_pool", "default_pool")
-        default_tree_config_path = "//sys/scheduler/orchid/scheduler/scheduling_info_per_pool_tree/default/config"
-        wait(lambda: get(default_tree_config_path)["default_parent_pool"] == "default_pool")
-        wait(lambda: get(default_tree_config_path)["max_running_operation_count_per_pool"] == 1)
+        update_pool_tree_config("default", {
+            "max_running_operation_count_per_pool": 1,
+            "default_parent_pool": "default_pool",
+            "preemption_satisfaction_threshold": 0.99,
+        })
 
     def _run_operations(self):
         create("table", "//tmp/in")
@@ -1226,18 +1226,6 @@ class TestSchedulerOperationLimits(YTEnvSetup):
                 wait(lambda: get(scheduler_new_orchid_pool_tree_path("default") + "/pools/test_pool/resource_usage/user_slots") == 1)
 
         op = run_test_vanilla(with_breakpoint("BREAKPOINT; sleep 0.5"), job_count=10, pool="test_pool")
-
-        # Temporary, see: YT-24377.
-        update_op_parameters(
-            op.id,
-            parameters={
-                "scheduling_options_per_pool_tree": {
-                    "default": {
-                        "enable_detailed_logs": True,
-                    }
-                }
-            },
-        )
 
         wait_breakpoint()
 

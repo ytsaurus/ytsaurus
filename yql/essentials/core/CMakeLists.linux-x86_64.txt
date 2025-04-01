@@ -30,6 +30,7 @@ add_subdirectory(url_preprocessing)
 add_subdirectory(cbo)
 add_subdirectory(file_storage)
 add_subdirectory(minsketch)
+add_subdirectory(histogram)
 add_subdirectory(expr_nodes)
 add_subdirectory(expr_nodes_gen)
 
@@ -59,6 +60,7 @@ target_link_libraries(yql-essentials-core PUBLIC
   yql-essentials-minikql
   minikql-jsonpath-parser
   essentials-core-minsketch
+  essentials-core-histogram
   yql-essentials-protos
   essentials-public-udf
   public-udf-tz

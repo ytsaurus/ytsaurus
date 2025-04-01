@@ -105,6 +105,8 @@ void TChunkLocationConfig::ApplyDynamicInplace(const TChunkLocationDynamicConfig
 
     UpdateYsonStructField(CoalescedReadMaxGapSize, dynamicConfig.CoalescedReadMaxGapSize);
 
+    UpdateYsonStructField(LegacyWriteMemoryLimit, dynamicConfig.LegacyWriteMemoryLimit);
+
     UpdateYsonStructField(ReadMemoryLimit, dynamicConfig.ReadMemoryLimit);
 
     for (auto category : TEnumTraits<EWorkloadCategory>::GetDomainValues()) {
@@ -178,6 +180,8 @@ void TChunkLocationConfig::Register(TRegistrar registrar)
         .Default(false);
 
     registrar.Postprocessor([] (TThis* config) {
+        config->LegacyWriteMemoryLimit = config->WriteMemoryLimit;
+
         for (auto kind : TEnumTraits<EChunkLocationThrottlerKind>::GetDomainValues()) {
             if (!config->Throttlers[kind]) {
                 config->Throttlers[kind] = New<TRelativeThroughputThrottlerConfig>();
@@ -218,6 +222,10 @@ void TChunkLocationDynamicConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("session_count_limit", &TThis::SessionCountLimit)
         .Optional();
+
+    registrar.Postprocessor([] (TThis* config) {
+        config->LegacyWriteMemoryLimit = config->WriteMemoryLimit;
+    });
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1064,6 +1072,9 @@ void TDataNodeDynamicConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("read_meta_timeout_fraction", &TThis::ReadMetaTimeoutFraction)
         .Default();
+
+    registrar.Parameter("propage_cached_block_infos_to_probing", &TThis::PropagateCachedBlockInfosToProbing)
+        .Default(false);
 
     registrar.Parameter("io_throughput_meter", &TThis::IOThroughputMeter)
         .DefaultNew();

@@ -24,15 +24,13 @@ struct TNbdSession
         NConcurrency::TLease lease,
         TLockedChunkGuard lockedChunkGuard);
 
-    /*
-        NBD specific calls.
-    */
+    // NBD specific calls.
 
     //! Read size bytes from NBD chunk at offset.
-    TFuture<NChunkClient::TBlock> Read(i64 offset, i64 size);
+    TFuture<NChunkClient::TBlock> Read(i64 offset, i64 size, ui64 cookie);
 
     //! Write buffer to NBD chunk at offset.
-    TFuture<NIO::TIOCounters> Write(i64 offset, const NChunkClient::TBlock& block);
+    TFuture<NIO::TIOCounters> Write(i64 offset, const NChunkClient::TBlock& block, ui64 cookie);
 
     //! Create NBD chunk and make filesystem on it.
     TFuture<void> Create();
@@ -40,9 +38,7 @@ struct TNbdSession
     //! Remove NBD chunk and unregister NBD session.
     TFuture<void> Destroy();
 
-    /*
-        Calls from base class.
-    */
+    // Calls from base class.
 
     TChunkId GetChunkId() const& override;
 
@@ -73,6 +69,11 @@ struct TNbdSession
         const NChunkClient::TRefCountedChunkMetaPtr& chunkMeta,
         std::optional<int> blockCount,
         bool truncateExtraBlocks) override;
+
+    bool ShouldUseProbePutBlocks() const override;
+    void ProbePutBlocks(i64 requestedCumulativeMemorySize) override;
+    i64 GetApprovedCumulativeBlockSize() const override;
+    i64 GetMaxRequestedCumulativeBlockSize() const override;
 
     TFuture<NIO::TIOCounters> PutBlocks(
         int startBlockIndex,

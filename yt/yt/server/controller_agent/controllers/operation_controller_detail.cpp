@@ -493,8 +493,15 @@ void TOperationControllerBase::InitializeClients()
         ->GetClient()
         ->GetNativeConnection()
         ->CreateNativeClient(TClientOptions::FromUser(SchedulerUserName));
-    SchedulerInputClient = Client;
-    SchedulerOutputClient = Client;
+
+    // TODO(coteeq): SchedulerInputClient may seem unexpected since we now can have
+    //               client from another cluster (or even many different clusters).
+    //               For now, InputManager will extract `scheduler` username from
+    //               this client and will create an appropriate client.
+    //               Todo: get rid (or document) of this distinction and make
+    //               InputManager create a client from SchedulerUserName directly.
+    SchedulerInputClient = SchedulerClient;
+    SchedulerOutputClient = SchedulerClient;
 
     InputManager->InitializeClients(InputClient);
 }
@@ -3122,7 +3129,9 @@ void TOperationControllerBase::SafeOnJobStarted(const TJobletPtr& joblet)
 
     LogEventFluently(ELogEventType::JobStarted)
         .Item("job_id").Value(joblet->JobId)
+        .Item("allocation_id").Value(AllocationIdFromJobId(joblet->JobId))
         .Item("operation_id").Value(OperationId)
+        .OptionalItem("operation_incarnation", joblet->OperationIncarnation)
         .Item("resource_limits").Value(joblet->ResourceLimits)
         .Item("node_address").Value(joblet->NodeDescriptor.Address)
         .Item("job_type").Value(joblet->JobType)
@@ -3962,6 +3971,7 @@ void TOperationControllerBase::BuildJobAttributes(
         .Item("job_type").Value(joblet->JobType)
         .Item("state").Value(state)
         .Item("address").Value(joblet->NodeDescriptor.Address)
+        .Item("addresses").Value(joblet->NodeDescriptor.Addresses)
         .Item("start_time").Value(joblet->StartTime)
         .Item("account").Value(joblet->DebugArtifactsAccount)
         .Item("progress").Value(joblet->Progress)
@@ -4034,7 +4044,9 @@ TFluentLogEvent TOperationControllerBase::LogFinishedJobFluently(
 
     return LogEventFluently(eventType)
         .Item("job_id").Value(joblet->JobId)
+        .Item("allocation_id").Value(AllocationIdFromJobId(joblet->JobId))
         .Item("operation_id").Value(OperationId)
+        .OptionalItem("operation_incarnation", joblet->OperationIncarnation)
         .Item("start_time").Value(joblet->StartTime)
         .Item("finish_time").Value(joblet->FinishTime)
         .Item("waiting_for_resources_duration").Value(joblet->WaitingForResourcesDuration)
@@ -10166,13 +10178,13 @@ void TOperationControllerBase::InitUserJobSpecTemplate(
 
     jobSpec->set_start_queue_consumer_registration_manager(jobSpecConfig->StartQueueConsumerRegistrationManager);
 
-    // Pass external docker image into job spec as is.
+    // Pass normalized docker image reference into job spec.
     if (jobSpecConfig->DockerImage) {
         TDockerImageSpec dockerImageSpec(*jobSpecConfig->DockerImage, Config->DockerRegistry);
-        if (!dockerImageSpec.IsInternal() || Config->DockerRegistry->ForwardInternalImagesToJobSpecs) {
-            jobSpec->set_docker_image(*jobSpecConfig->DockerImage);
+        if (!dockerImageSpec.IsInternal || Config->DockerRegistry->ForwardInternalImagesToJobSpecs) {
+            jobSpec->set_docker_image(dockerImageSpec.GetDockerImage());
         }
-        if (dockerImageSpec.IsInternal() && Config->DockerRegistry->UseYtTokenForInternalRegistry) {
+        if (dockerImageSpec.IsInternal && Config->DockerRegistry->UseYtTokenForInternalRegistry) {
             GenerateDockerAuthFromToken(SecureVault, AuthenticatedUser, jobSpec);
         }
     }
@@ -11225,6 +11237,7 @@ void TOperationControllerBase::HandleJobReport(const TJobletPtr& joblet, TContro
             .OperationId(OperationId)
             .JobId(joblet->JobId)
             .Address(joblet->NodeDescriptor.Address)
+            .Addresses(joblet->NodeDescriptor.Addresses)
             .Ttl(joblet->ArchiveTtl)
             .AllocationId(AllocationIdFromJobId(joblet->JobId)));
 }
@@ -11283,7 +11296,7 @@ std::vector<TRichYPath> TOperationControllerBase::GetLayerPaths(
         TDockerImageSpec dockerImage(*userJobSpec->DockerImage, Config->DockerRegistry);
 
         // External docker images are not compatible with any additional layers.
-        if (!dockerImage.IsInternal() || !Config->DockerRegistry->TranslateInternalImagesIntoLayers) {
+        if (!dockerImage.IsInternal || !Config->DockerRegistry->TranslateInternalImagesIntoLayers) {
             return {};
         }
 

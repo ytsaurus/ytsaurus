@@ -20,11 +20,12 @@ struct TOrderedChunkPoolOptions
     //! is exceeded, an exception is thrown.
     i64 MaxTotalSliceCount;
     i64 MinTeleportChunkSize = 0;
-    bool SupportLocality = false;
     NControllerAgent::IJobSizeConstraintsPtr JobSizeConstraints;
     bool EnablePeriodicYielder = false;
     bool BuildOutputOrder = false;
     bool ShouldSliceByRowIndices = false;
+    // COMPAT(apollo1321): remove in 25.2 release.
+    bool UseNewSlicingImplementation = true;
     NLogging::TSerializableLogger Logger;
 
     PHOENIX_DECLARE_TYPE(TOrderedChunkPoolOptions, 0xa7e43d2a);

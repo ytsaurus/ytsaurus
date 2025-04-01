@@ -224,20 +224,23 @@ async def connect_tcp(
                 target_addrs.append((af, sa[0]))
 
     oserrors: list[OSError] = []
-    async with create_task_group() as tg:
-        for i, (af, addr) in enumerate(target_addrs):
-            event = Event()
-            tg.start_soon(try_connect, addr, event)
-            with move_on_after(happy_eyeballs_delay):
-                await event.wait()
+    try:
+        async with create_task_group() as tg:
+            for i, (af, addr) in enumerate(target_addrs):
+                event = Event()
+                tg.start_soon(try_connect, addr, event)
+                with move_on_after(happy_eyeballs_delay):
+                    await event.wait()
 
-    if connected_stream is None:
-        cause = (
-            oserrors[0]
-            if len(oserrors) == 1
-            else ExceptionGroup("multiple connection attempts failed", oserrors)
-        )
-        raise OSError("All connection attempts failed") from cause
+        if connected_stream is None:
+            cause = (
+                oserrors[0]
+                if len(oserrors) == 1
+                else ExceptionGroup("multiple connection attempts failed", oserrors)
+            )
+            raise OSError("All connection attempts failed") from cause
+    finally:
+        oserrors.clear()
 
     if tls or tls_hostname or ssl_context:
         try:
@@ -584,6 +587,8 @@ async def getaddrinfo(
     return [
         (family, type, proto, canonname, convert_ipv6_sockaddr(sockaddr))
         for family, type, proto, canonname, sockaddr in gai_res
+        # filter out IPv6 results when IPv6 is disabled
+        if not isinstance(sockaddr[0], int)
     ]
 
 

@@ -192,6 +192,19 @@ void TElement::ResetFairShareFunctions()
     AreFairShareFunctionsPrepared_ = false;
 }
 
+std::optional<TFairShareFunctionsStatistics> TElement::GetFairShareFunctionsStatistics() const
+{
+    if (!AreFairShareFunctionsPrepared_) {
+        return {};
+    }
+
+    return TFairShareFunctionsStatistics{
+        .FairShareBySuggestionSize = static_cast<int>(FairShareBySuggestion_->Segments().size()),
+        .FairShareByFitFactorSize = static_cast<int>(FairShareByFitFactor_->Segments().size()),
+        .MaxFitFactorBySuggestionSize = static_cast<int>(MaxFitFactorBySuggestion_->Segments().size()),
+    };
+}
+
 TResourceVector TElement::ComputeLimitedDemandShare() const
 {
     YT_VERIFY(FairShareBySuggestion_);

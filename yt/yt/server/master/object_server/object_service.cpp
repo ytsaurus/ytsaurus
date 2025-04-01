@@ -450,7 +450,7 @@ public:
         Owner_->EnqueueFinishedSession(TExecuteSessionInfo{
             std::move(EpochCancelableContext_),
             std::move(User_),
-            RequestQueueSizeIncreased_,
+            RequestQueueSizeIncremented_,
         });
     }
 
@@ -547,7 +547,8 @@ private:
         EExecutionSessionSubrequestType Type = EExecutionSessionSubrequestType::Undefined;
         IYPathServiceContextPtr RpcContext;
         std::unique_ptr<TMutation> Mutation;
-        std::optional<TObjectServiceCache::TCookie> ActiveCacheCookie;
+        std::atomic<bool> ActiveCacheCookieSet = false;
+        TObjectServiceCache::TCookie ActiveCacheCookie;
         NRpc::NProto::TRequestHeader RequestHeader;
         const NYTree::NProto::TYPathHeaderExt* YPathExt = nullptr;
         const NObjectClient::NProto::TPrerequisitesExt* PrerequisitesExt = nullptr;
@@ -608,7 +609,7 @@ private:
 
     bool SuppressTransactionCoordinatorSync_ = false;
     bool NeedsUserAccessValidation_ = true;
-    bool RequestQueueSizeIncreased_ = false;
+    bool RequestQueueSizeIncremented_ = false;
 
     std::atomic<bool> ReplyScheduled_ = false;
     std::atomic<bool> LocalExecutionStarted_ = false;
@@ -824,7 +825,8 @@ private:
                 cookie.IsActive());
 
             if (cookie.IsActive()) {
-                subrequest.ActiveCacheCookie.emplace(std::move(cookie));
+                subrequest.ActiveCacheCookie = std::move(cookie);
+                subrequest.ActiveCacheCookieSet.store(true);
             } else {
                 // NB: Postpone subscribing to the cookie to avoid races with CancelPendingCachedSubrequests.
                 pendingCacheSubscriptions.emplace_back(subrequestIndex, cookie.GetValue());
@@ -1670,8 +1672,8 @@ private:
             }
         }
 
-        if (!RequestQueueSizeIncreased_) {
-            if (!securityManager->TryIncreaseRequestQueueSize(User_.Get())) {
+        if (!RequestQueueSizeIncremented_) {
+            if (!securityManager->TryIncrementRequestQueueSize(User_.Get())) {
                 auto cellTag = Bootstrap_->GetMulticellManager()->GetCellTag();
                 auto error = TError(
                     NSecurityClient::EErrorCode::RequestQueueSizeLimitExceeded,
@@ -1682,7 +1684,7 @@ private:
                 Owner_->SetStickyUserError(Identity_.User, error);
                 THROW_ERROR error;
             }
-            RequestQueueSizeIncreased_ = true;
+            RequestQueueSizeIncremented_ = true;
         }
 
         if (!ThrottleRequests()) {
@@ -2083,10 +2085,11 @@ private:
         subrequest->Completed.store(true);
         SomeSubrequestCompleted_.store(true);
 
-        if (subrequest->ActiveCacheCookie) {
+        // Swap out cookie before proceeding to avoid races with CancelPendingCachedSubrequests.
+        if (subrequest->ActiveCacheCookieSet.exchange(false)) {
             Owner_->Cache_->EndLookup(
                 RequestId_,
-                std::move(*subrequest->ActiveCacheCookie),
+                std::move(subrequest->ActiveCacheCookie),
                 subrequest->ResponseMessage,
                 subrequest->Revision,
                 true);
@@ -2251,10 +2254,9 @@ private:
 
         for (int subrequestIndex = 0; subrequestIndex < TotalSubrequestCount_; ++subrequestIndex) {
             auto& subrequest = Subrequests_[subrequestIndex];
-            if (auto& cookie = subrequest.ActiveCacheCookie) {
-                if (cookie->IsActive()) {
-                    cookie->Cancel(TError(NYT::EErrorCode::Canceled, "Cache request canceled"));
-                }
+            if (subrequest.ActiveCacheCookieSet.exchange(false)) {
+                auto cookie = std::move(subrequest.ActiveCacheCookie);
+                cookie.Cancel(TError(NYT::EErrorCode::Canceled, "Cache request canceled"));
             }
         }
     }
@@ -2524,7 +2526,7 @@ void TObjectService::FinishSession(const TExecuteSessionInfo& sessionInfo)
 
     if (sessionInfo.RequestQueueSizeIncreased && IsObjectAlive(sessionInfo.User)) {
         const auto& securityManager = Bootstrap_->GetSecurityManager();
-        securityManager->DecreaseRequestQueueSize(sessionInfo.User.Get());
+        securityManager->DecrementRequestQueueSize(sessionInfo.User.Get());
     }
 }
 

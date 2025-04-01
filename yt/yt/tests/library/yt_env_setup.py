@@ -143,7 +143,7 @@ def prepare_yatest_environment(need_suid, artifact_components=None, force_create
             path = arcadia_interop.prepare_yt_environment(
                 destination,
                 binary_root=get_build_root(),
-                copy_ytserver_all=False,
+                copy_ytserver_all=not ytrecipe,
                 need_suid=need_suid and not ytrecipe,
                 artifact_components=components,
             )
@@ -1537,15 +1537,13 @@ class YTEnvSetup(object):
             )
 
         if self.ENABLE_BUNDLE_CONTROLLER:
-            GB = 1024 ** 3
-            yt_commands.create_account("bundle_system_quotas", attributes={
-                "resource_limits": {
-                    "master_memory": {
-                        "total": 100 * GB,
-                        "chunk_host": 100 * GB,
+            yt_commands.create_account(
+                "bundle_system_quotas",
+                attributes={
+                    "resource_limits": {
                     },
                 },
-            })
+            )
             yt_commands.create("map_node", "//sys/bundle_controller/coordinator", recursive=True, force=True)
             yt_commands.create("map_node", "//sys/bundle_controller/controller", recursive=True, force=True)
             yt_commands.create("map_node", "//sys/bundle_controller/controller/zones", recursive=True, force=True)

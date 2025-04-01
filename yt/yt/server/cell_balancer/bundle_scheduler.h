@@ -1,5 +1,6 @@
 #pragma once
 
+#include "bundle_mutation.h"
 #include "cypress_bindings.h"
 
 namespace NYT::NCellBalancer {
@@ -156,35 +157,46 @@ struct TSchedulerInputState
 
 struct TSchedulerMutations
 {
+private:
+    class TBundleNameGuard;
+
+public:
+    template <class T>
+    using TMutationMap = THashMap<std::string, TBundleMutation<TIntrusivePtr<T>>>;
+
     TIndexedEntries<TAllocationRequest> NewAllocations;
     TIndexedEntries<TAllocationRequest> ChangedAllocations;
     TIndexedEntries<TDeallocationRequest> NewDeallocations;
     TIndexedEntries<TBundleControllerState> ChangedStates;
-    TIndexedEntries<TInstanceAnnotations> ChangeNodeAnnotations;
-    TIndexedEntries<TInstanceAnnotations> ChangedProxyAnnotations;
+    TMutationMap<TInstanceAnnotations> ChangeNodeAnnotations;
+    TMutationMap<TInstanceAnnotations> ChangedProxyAnnotations;
 
-    THashSet<std::string> CompletedAllocations;
+    THashSet<TBundleMutation<std::string>> CompletedAllocations;
 
     using TUserTags = THashSet<std::string>;
-    THashMap<std::string, TUserTags> ChangedNodeUserTags;
+    THashMap<std::string, TBundleMutation<TUserTags>> ChangedNodeUserTags;
 
-    THashMap<std::string, bool> ChangedDecommissionedFlag;
-    THashMap<std::string, bool> ChangedEnableBundleBalancerFlag;
-    THashMap<std::string, bool> ChangedMuteTabletCellsCheck;
-    THashMap<std::string, bool> ChangedMuteTabletCellSnapshotsCheck;
+    THashMap<std::string, TBundleMutation<bool>> ChangedDecommissionedFlag;
+    THashMap<std::string, TBundleMutation<bool>> ChangedEnableBundleBalancerFlag;
+    THashMap<std::string, TBundleMutation<bool>> ChangedMuteTabletCellsCheck;
+    THashMap<std::string, TBundleMutation<bool>> ChangedMuteTabletCellSnapshotsCheck;
 
-    THashMap<std::string, std::string> ChangedProxyRole;
-    THashSet<std::string> RemovedProxyRole;
+    THashMap<std::string, TBundleMutation<std::string>> ChangedProxyRole;
+    THashSet<TBundleMutation<std::string>> RemovedProxyRole;
 
-    std::vector<std::string> CellsToRemove;
+    std::vector<TBundleMutation<std::string>> CellsToRemove;
 
     // Maps bundle name to new tablet cells count to create.
     THashMap<std::string, int> CellsToCreate;
 
     std::vector<TAlert> AlertsToFire;
 
-    THashMap<std::string, TAccountResourcesPtr> LiftedSystemAccountLimit;
-    THashMap<std::string, TAccountResourcesPtr> LoweredSystemAccountLimit;
+    THashMap<std::string, TBundleMutation<TAccountResourcesPtr>> LiftedSystemAccountLimit;
+    THashMap<std::string, TBundleMutation<TAccountResourcesPtr>> LoweredSystemAccountLimit;
+
+    // We store only the last bundle at a time because this mutation could be
+    // annotated with one bundle only in order not to violate liveness.
+    std::string LastBundleWithChangedRootSystemAccountLimit;
     TAccountResourcesPtr ChangedRootSystemAccountLimit;
 
     std::optional<TBundlesDynamicConfig> DynamicConfig;
@@ -195,8 +207,32 @@ struct TSchedulerMutations
     THashMap<std::string, i64> ChangedTabletStaticMemory;
     THashMap<std::string, std::string> ChangedBundleShortName;
 
-    THashMap<std::string, std::string> ChangedNodeTagFilters;
+    THashMap<std::string, TBundleMutation<std::string>> ChangedNodeTagFilters;
     THashMap<std::string, TBundleConfigPtr> InitializedBundleTargetConfig;
+
+    TBundleNameGuard MakeBundleNameGuard(std::string bundleName);
+
+    template <class T, class... Args>
+        requires std::derived_from<T, TBundleNameMixin>
+    TIntrusivePtr<T> NewMutation(Args&&... args);
+
+    template <class T>
+    TBundleMutation<T> WrapMutation(T mutation);
+
+private:
+    class TBundleNameGuard
+        : TNonCopyable
+    {
+    public:
+        TBundleNameGuard(std::string bundleName, TSchedulerMutations* mutations);
+        ~TBundleNameGuard();
+
+    private:
+        std::string PrevBundleName_;
+        TSchedulerMutations* Owner_;
+    };
+
+    std::string BundleNameContext_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -259,3 +295,7 @@ std::string GetReleasedProxyRole(const std::string& rpcProxyRole);
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NCellBalancer
+
+#define BUNDLE_SCHEDULER_INL_H_
+#include "bundle_scheduler-inl.h"
+#undef BUNDLE_SCHEDULER_INL_H_

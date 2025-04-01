@@ -47,6 +47,15 @@ struct TIntegralResourcesState
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TFairShareFunctionsStatistics
+{
+    const int FairShareBySuggestionSize;
+    const int FairShareByFitFactorSize;
+    const int MaxFitFactorBySuggestionSize;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 // TODO(eshcherbin): Sadly, this struct has to become class.
 struct TSchedulableAttributes
 {
@@ -130,6 +139,9 @@ public:
 
     // It is public for testing purposes.
     void ResetFairShareFunctions();
+
+    // Used for diagnostics.
+    std::optional<TFairShareFunctionsStatistics> GetFairShareFunctionsStatistics() const;
 
 protected:
     //! These methods are only available after fair share update.

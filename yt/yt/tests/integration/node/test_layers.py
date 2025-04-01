@@ -1391,8 +1391,9 @@ class TestNbdSquashFSLayers(YTEnvSetup):
         set("//tmp/squashfs.img/@filesystem", "squashfs")
 
     @authors("yuryalekseev")
+    @pytest.mark.parametrize("use_disk_request", [True, False])
     @pytest.mark.parametrize("access_method", ["from_user_spec", "from_cypress"])
-    def test_squashfs_layer(self, access_method):
+    def test_squashfs_layer(self, use_disk_request, access_method):
         # Set up image file.
         create("file", "//tmp/squashfs.img")
         write_file("//tmp/squashfs.img", open("layers/squashfs.img", "rb").read())
@@ -1409,16 +1410,33 @@ class TestNbdSquashFSLayers(YTEnvSetup):
 
         write_table("//tmp/t_in", [{"k": 0, "u": 1, "v": 2}])
 
+        spec = {
+            "max_failed_job_count": 1,
+            "mapper": {
+                "layer_paths": layer_paths,
+            },
+        }
+
+        command = "ls $YT_ROOT_FS/dir 1>&2"
+
+        if use_disk_request:
+            # In case of NBD disk save output of ls to disk.
+            command = "ls $YT_ROOT_FS/dir | tee $YT_ROOT_FS/ls_output.txt 1>&2"
+
+            spec["mapper"]["disk_request"] = {
+                "medium_name": "default",
+                "disk_space": 16 * 1024 * 1024,
+                # Use NBD disk.
+                "nbd_disk": {
+                    "data_node_address": ls("//sys/data_nodes")[0],
+                }
+            }
+
         op = map(
             in_="//tmp/t_in",
             out="//tmp/t_out",
-            command="ls $YT_ROOT_FS/dir 1>&2",
-            spec={
-                "max_failed_job_count": 1,
-                "mapper": {
-                    "layer_paths": layer_paths,
-                },
-            },
+            command=command,
+            spec=spec,
         )
 
         job_ids = op.list_jobs()

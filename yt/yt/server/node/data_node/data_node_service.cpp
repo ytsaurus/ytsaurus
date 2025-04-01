@@ -182,6 +182,7 @@ public:
         RegisterMethod(RPC_SERVICE_METHOD_DESC(FinishChunk)
             .SetCancelable(true));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(CancelChunk));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(ProbePutBlocks));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(PutBlocks)
             .SetQueueSizeLimit(100)
             .SetConcurrencyLimit(100)
@@ -298,19 +299,22 @@ private:
         options.EnableMultiplexing = request->enable_multiplexing();
         options.PlacementId = FromProto<TPlacementId>(request->placement_id());
         options.DisableSendBlocks = GetDynamicConfig()->UseDisableSendBlocks && request->disable_send_blocks();
+        options.UseProbePutBlocks = request->use_probe_put_blocks();
 
-        context->SetRequestInfo("SessionId: %v, Workload: %v, SyncOnClose: %v, EnableMultiplexing: %v, PlacementId: %v, DisableSendBlocks: %v",
+        context->SetRequestInfo("SessionId: %v, Workload: %v, SyncOnClose: %v, EnableMultiplexing: %v, PlacementId: %v, DisableSendBlocks: %v, UseProbePutBlocks: %v",
             sessionId,
             options.WorkloadDescriptor,
             options.SyncOnClose,
             options.EnableMultiplexing,
             options.PlacementId,
-            options.DisableSendBlocks);
+            options.DisableSendBlocks,
+            options.UseProbePutBlocks);
 
         ValidateOnline();
 
         const auto& sessionManager = Bootstrap_->GetSessionManager();
         auto session = sessionManager->StartSession(sessionId, options);
+        response->set_use_probe_put_blocks(session->ShouldUseProbePutBlocks());
         ToProto(response->mutable_location_uuid(), session->GetStoreLocation()->GetUuid());
         context->ReplyFrom(session->Start());
     }
@@ -416,7 +420,8 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, PingSession)
     {
-        auto chunkId = FromProto<TSessionId>(request->session_id()).ChunkId;
+        auto sessionId = FromProto<TSessionId>(request->session_id());
+        auto chunkId = sessionId.ChunkId;
         context->SetRequestInfo("ChunkId: %v",
             chunkId);
 
@@ -426,8 +431,56 @@ private:
 
         session->Ping();
 
-        response->set_close_demanded(IsCloseDemanded(location));
+        const auto closeDemanded = IsCloseDemanded(location);
+        response->set_close_demanded(closeDemanded);
 
+        if (session->ShouldUseProbePutBlocks()) {
+            auto maxRequestedCumulativeBlockSize = session->GetMaxRequestedCumulativeBlockSize();
+            auto approvedCumulativeBlockSize = session->GetApprovedCumulativeBlockSize();
+
+            response->mutable_probe_put_blocks_state()->set_requested_cumulative_block_size(maxRequestedCumulativeBlockSize);
+            response->mutable_probe_put_blocks_state()->set_approved_cumulative_block_size(approvedCumulativeBlockSize);
+
+            context->SetResponseInfo("SessionId: %v, CloseDemanded: %v, "
+                "Requested CumulativeBlockSize: %v, "
+                "Approved CumulativeBlockSize: %v",
+                sessionId,
+                closeDemanded,
+                maxRequestedCumulativeBlockSize,
+                approvedCumulativeBlockSize);
+        } else {
+            context->SetResponseInfo("SessionId: %v, CloseDemanded: %v",
+                sessionId,
+                closeDemanded);
+        }
+
+        context->Reply();
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, ProbePutBlocks)
+    {
+        context->SetRequestInfo("SessionId: %v, CumulativeBlockSize: %v",
+            request->session_id(),
+            request->cumulative_block_size());
+
+        const auto chunkId = FromProto<TSessionId>(request->session_id()).ChunkId;
+        const auto cumulativeBlockSize = request->cumulative_block_size();
+
+        const auto& sessionManager = Bootstrap_->GetSessionManager();
+        auto session = sessionManager->GetSessionOrThrow(chunkId);
+
+        session->ProbePutBlocks(cumulativeBlockSize);
+
+        auto maxRequestedCumulativeBlockSize = session->GetMaxRequestedCumulativeBlockSize();
+        auto approvedCumulativeBlockSize = session->GetApprovedCumulativeBlockSize();
+
+        response->mutable_probe_put_blocks_state()->set_requested_cumulative_block_size(maxRequestedCumulativeBlockSize);
+        response->mutable_probe_put_blocks_state()->set_approved_cumulative_block_size(approvedCumulativeBlockSize);
+
+        context->SetResponseInfo("SessionId: %v, MaxRequestedCumulativeBlockSize: %v, ApprovedCumulativeBlockSize: %v",
+            request->session_id(),
+            maxRequestedCumulativeBlockSize,
+            approvedCumulativeBlockSize);
         context->Reply();
     }
 
@@ -475,6 +528,7 @@ private:
         response->set_close_demanded(IsCloseDemanded(location));
 
         // NB: Block checksums are validated before writing to disk.
+        // NB: Journal block checksums are validated within DoPutBlocks call.
         auto result = session->PutBlocks(
             firstBlockIndex,
             GetRpcAttachedBlocks(request, /*validateChecksums*/ false),
@@ -853,14 +907,16 @@ private:
         const auto& p2pSnooper = Bootstrap_->GetP2PSnooper();
         AddBlockPeers(response->mutable_peer_descriptors(), p2pSnooper->OnBlockProbe(chunkId, blockIndexes));
 
-        auto cachedBlocks = Bootstrap_->GetBlockCache()->GetCachedBlocksByChunkId(chunkId, EBlockType::CompressedData);
         auto cachedBlockSize = 0L;
 
-        for (const auto& blockInfo : cachedBlocks) {
-            TProbeBlockSetBlockInfo* protoBlockInfo = response->add_cached_blocks();
-            protoBlockInfo->set_block_index(blockInfo.BlockIndex);
-            protoBlockInfo->set_block_size(blockInfo.BlockSize);
-            cachedBlockSize += blockInfo.BlockSize;
+        if (GetDynamicConfig()->PropagateCachedBlockInfosToProbing) {
+            auto cachedBlocks = Bootstrap_->GetBlockCache()->GetCachedBlocksByChunkId(chunkId, EBlockType::CompressedData);
+            for (const auto& blockInfo : cachedBlocks) {
+                TProbeBlockSetBlockInfo* protoBlockInfo = response->add_cached_blocks();
+                protoBlockInfo->set_block_index(blockInfo.BlockIndex);
+                protoBlockInfo->set_block_size(blockInfo.BlockSize);
+                cachedBlockSize += blockInfo.BlockSize;
+            }
         }
 
         context->SetResponseInfo(
@@ -875,7 +931,7 @@ private:
             diskThrottling.Enabled,
             diskThrottling.QueueSize,
             response->peer_descriptors_size(),
-            cachedBlocks.size(),
+            response->cached_blocks_size(),
             cachedBlockSize);
 
         context->Reply();

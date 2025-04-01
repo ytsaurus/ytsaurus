@@ -115,8 +115,9 @@ struct IFairShareTree
 
     //! Methods below manipulate directly with tree structure and fields, it should be used in serialized manner.
     virtual TFairShareStrategyTreeConfigPtr GetConfig() const = 0;
-    virtual bool UpdateConfig(const TFairShareStrategyTreeConfigPtr& config) = 0;
     virtual void UpdateControllerConfig(const TFairShareStrategyOperationControllerConfigPtr& config) = 0;
+
+    virtual bool UpdateConfig(const TFairShareStrategyTreeConfigPtr& config) = 0;
 
     virtual const TSchedulingTagFilter& GetNodesFilter() const = 0;
 
@@ -132,7 +133,8 @@ struct IFairShareTree
     virtual TRegistrationResult RegisterOperation(
         const TFairShareStrategyOperationStatePtr& state,
         const TStrategyOperationSpecPtr& spec,
-        const TOperationFairShareTreeRuntimeParametersPtr& runtimeParameters) = 0;
+        const TOperationFairShareTreeRuntimeParametersPtr& runtimeParameters,
+        const TOperationOptionsPtr& operationOptions) = 0;
     virtual void UnregisterOperation(const TFairShareStrategyOperationStatePtr& state) = 0;
 
     virtual void EnableOperation(const TFairShareStrategyOperationStatePtr& state) = 0;

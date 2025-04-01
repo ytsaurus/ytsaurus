@@ -380,6 +380,8 @@ private:
 
     std::optional<TVirtualSandboxData> VirtualSandboxData_;
 
+    std::optional<TSandboxNbdRootVolumeData> SandboxNbdRootVolumeData_;
+
     //! Artifact name -> index of the artifact in #Artifacts_ list.
     THashMap<TString, int> UserArtifactNameToIndex_;
 
@@ -542,6 +544,10 @@ private:
 
     // Build artifacts.
     void InitializeArtifacts();
+
+    void InitializeSandboxNbdRootVolumeData();
+
+    void InitializeNbdExportIds();
 
     TArtifactDownloadOptions MakeArtifactDownloadOptions() const;
 

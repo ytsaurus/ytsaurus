@@ -34,3 +34,7 @@ private:
 #define ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, field, ...) DoIf(filter.IsFieldSuitable(field), [&] (TFluentMap fluent) { \
         fluent.Item(field).Value(__VA_ARGS__); \
     })
+
+#define ITEM_OPTIONAL_VALUE_IF_SUITABLE_FOR_FILTER(filter, field, ...) DoIf(filter.IsFieldSuitable(field), [&] (TFluentMap fluent) { \
+        fluent.OptionalItem(field, __VA_ARGS__); \
+    })

@@ -1154,7 +1154,6 @@ TSecondaryQuery TQueryAnalyzer::CreateSecondaryQuery(
 
         scalars[scalarName] = DB::Block{{DB::DataTypeString().createColumnConst(1, std::string(encodedSpec)), std::make_shared<DB::DataTypeString>(), "scalarName"}};
 
-        tableExpressionNode->setAlias("__" + scalarName);
         if (tableExpressionNode->hasAlias()) {
             tableFunctionNode->setAlias(tableExpressionNode->getAlias());
         }

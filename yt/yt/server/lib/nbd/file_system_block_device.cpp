@@ -106,7 +106,8 @@ public:
 
     virtual TFuture<TSharedRef> Read(
         i64 offset,
-        i64 length) override
+        i64 length,
+        const TReadOptions& /*options*/) override
     {
         auto guard = TCurrentTraceContextGuard(TraceContext_);
 

@@ -292,7 +292,7 @@ TEST_P(TTypeV3TestWithOptimizedFor, TestLookup)
         selected.Rowset->GetRows().ToVector(),
         std::vector<TUnversionedRow>({
             NNamedValue::MakeRow(nameTable, {
-                {"value", EValueType::Composite, "[1;2;3]"}
+                {"value", EValueType::Any, "[1;2;3]"}
             })
         }));
 }
@@ -340,7 +340,7 @@ TEST_P(TTypeV3TestWithOptimizedFor, TestOrdered)
             selected.Rowset->GetRows().ToVector(),
             std::vector<TUnversionedRow>({
                 NNamedValue::MakeRow(nameTable, {
-                    {"value", EValueType::Composite, "[1;2;3]"}
+                    {"value", EValueType::Any, "[1;2;3]"}
                 })
             }));
     };

@@ -138,9 +138,14 @@ FROM base-ytsaurus-python-packages AS base-exec
 
 RUN apt-get update && DEBIAN_FRONTEND=noninteractive TZ=Etc/UTC apt-get install -y \
   containerd \
-  openjdk-11-jdk
+  openjdk-11-jdk \
+  openjdk-17-jdk \
+  java-common
 
 RUN ln -s /usr/lib/jvm/java-11-openjdk-amd64 /opt/jdk11
+RUN ln -s /usr/lib/jvm/java-17-openjdk-amd64 /opt/jdk17
+
+RUN update-java-alternatives --set java-1.11.0-openjdk-amd64
 
 # Default python to be used by python3 jobs, for compatibility with jupyter tutorial.
 RUN ln -s /usr/bin/python3.8 /usr/bin/python3 -f

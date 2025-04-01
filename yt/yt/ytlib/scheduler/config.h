@@ -768,6 +768,19 @@ void FromProto(TTmpfsVolumeConfig* tmpfsVolumeConfig, const NControllerAgent::NP
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TNbdDiskConfig
+    : public NYTree::TYsonStruct
+{
+    //! Address of data node that hosts NBD chunk.
+    std::optional<std::string> DataNodeAddress;
+
+    REGISTER_YSON_STRUCT(TNbdDiskConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TNbdDiskConfig)
+
 struct TDiskRequestConfig
     : public NYTree::TYsonStruct
 {
@@ -780,6 +793,9 @@ struct TDiskRequestConfig
     std::optional<TString> MediumName;
     std::optional<int> MediumIndex;
     std::optional<TString> Account;
+
+    //! Use Network Block Device (NBD) disk.
+    TNbdDiskConfigPtr NbdDisk;
 
     REGISTER_YSON_STRUCT(TDiskRequestConfig);
 
@@ -981,7 +997,6 @@ struct TFastIntermediateMediumTableWriterConfig
     static void Register(TRegistrar registrar);
 };
 
-DECLARE_REFCOUNTED_TYPE(TFastIntermediateMediumTableWriterConfig)
 DEFINE_REFCOUNTED_TYPE(TFastIntermediateMediumTableWriterConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1268,6 +1283,9 @@ public:
 
     //! If |true|, exec node will reuse allocation for multiple jobs.
     std::optional<bool> EnableMultipleJobsInAllocation;
+
+    //! COMPAT(apollo1321): remove in 25.1 release.
+    bool UseNewSlicingImplementationInOrderedPool;
 
     REGISTER_YSON_STRUCT(TOperationSpecBase);
 

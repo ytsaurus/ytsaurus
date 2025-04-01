@@ -18,15 +18,17 @@ void ToProto(NProto::TProgressValues* protoProgress, const TProgressValues& prog
     protoProgress->set_finished(progress.Finished);
 }
 
-void ToProto(NProto::TQueryProgressValues* protoProgress, const TQueryProgressValues& progress)
-{
-    ToProto(protoProgress->mutable_total_progress(), progress.TotalProgress);
+void ToProto(NProto::TQueryProgressValues* protoProgress, TQueryId queryId, const std::optional<TQueryProgressValues>& progress) {
+    ToProto(protoProgress->mutable_query_id(), queryId);
 
-    protoProgress->mutable_secondary_query_ids()->Reserve(progress.SecondaryProgress.size());
-    protoProgress->mutable_secondary_query_progresses()->Reserve(progress.SecondaryProgress.size());
-    for (auto& [queryId, secondaryProgress] : progress.SecondaryProgress) {
-        ToProto(protoProgress->mutable_secondary_query_ids()->Add(), queryId);
-        ToProto(protoProgress->mutable_secondary_query_progresses()->Add(), secondaryProgress);
+    if (progress) {
+        ToProto(protoProgress->mutable_total_progress(), progress->TotalProgress);
+        protoProgress->mutable_secondary_query_ids()->Reserve(progress->SecondaryProgress.size());
+        protoProgress->mutable_secondary_query_progresses()->Reserve(progress->SecondaryProgress.size());
+        for (auto& [queryId, secondaryProgress] : progress->SecondaryProgress) {
+            ToProto(protoProgress->mutable_secondary_query_ids()->Add(), queryId);
+            ToProto(protoProgress->mutable_secondary_query_progresses()->Add(), secondaryProgress);
+        }
     }
 }
 

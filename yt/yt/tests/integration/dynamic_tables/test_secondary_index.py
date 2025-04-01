@@ -13,6 +13,8 @@ from yt_commands import (
 
 from yt.test_helpers import assert_items_equal
 
+import yt.yson as yson
+
 from copy import deepcopy
 import pytest
 import yt_error_codes
@@ -336,6 +338,7 @@ class TestSecondaryIndexMaster(TestSecondaryIndexBase):
             index_id: {
                 "index_path": "//tmp/index_table",
                 "kind": "full_sync",
+                "table_to_index_correspondence": "bijective"
             }
         }
 
@@ -343,6 +346,7 @@ class TestSecondaryIndexMaster(TestSecondaryIndexBase):
             "index_id": index_id,
             "table_path": "//tmp/table",
             "kind": "full_sync",
+            "table_to_index_correspondence": "bijective",
         }
 
         self._create_table("//tmp/index_index_table", INDEX_ON_VALUE_SCHEMA_WITH_EXPRESSION)
@@ -471,6 +475,45 @@ class TestSecondaryIndexMaster(TestSecondaryIndexBase):
         copy("//tmp/index_table", "//tmp/index_table_copy", allow_secondary_index_abandonment=True)
         assert not exists("//tmp/index_table_copy/@index_to")
 
+    @authors("sabdenovch")
+    def test_evaluated(self):
+        index_schema = [
+            {"name": "eva01", "type": "int64", "sort_order": "ascending"},
+            {"name": "key", "type": "int64", "sort_order": "ascending"},
+            {"name": EMPTY_COLUMN_NAME, "type": "int64"},
+        ]
+        table_schema = [
+            {"name": "key", "type": "int64", "sort_order": "ascending"},
+            {"name": "value", "type": "any"},
+        ]
+
+        self._create_table("//tmp/index_table", index_schema)
+        self._create_table("//tmp/table", table_schema)
+        self._create_secondary_index(attributes={
+            "evaluated_columns_schema": [
+                {"name": "eva01", "type": "int64", "expression": "try_get_int64(value, \"/inner_field\")"}
+            ]
+        })
+
+        self._create_table("//tmp/index_table_2", index_schema)
+        if self.NUM_REMOTE_CLUSTERS:
+            collocation_id = get("//tmp/table/@replication_collocation_id")
+            set("//tmp/index_table_2/@replication_collocation_id", collocation_id)
+        with raises_yt_error("Name collision"):
+            create_secondary_index(
+                "//tmp/table",
+                "//tmp/index_table_2",
+                kind="full_sync",
+                attributes={
+                    "evaluated_columns_schema": [{
+                        "name": "eva01",
+                        "type": "int64", "expression":
+                        "try_get_int64(value, \"/inner_field_other\")",
+                    }]
+                }
+            )
+
+
 ##################################################################
 
 
@@ -579,10 +622,15 @@ class TestSecondaryIndexSelect(TestSecondaryIndexBase):
         plan = explain_query("keyA, keyB, valueA from [//tmp/table] with index [//tmp/index_table] where valueA = 100")
         assert plan["query"]["constraints"] == "Constraints:\n100: <universe>"
 
+    @pytest.mark.parametrize("strong_typing", [False, True])
     @authors("sabdenovch")
-    def test_unfolding(self):
+    def test_unfolding(self, strong_typing):
+        table_schema = PRIMARY_SCHEMA_WITH_LIST if strong_typing else [
+            {"name": "key", "type": "int64", "sort_order": "ascending"},
+            {"name": "value", "type": "any"},
+        ]
         self._create_basic_tables(
-            table_schema=PRIMARY_SCHEMA_WITH_LIST,
+            table_schema=table_schema,
             index_schema=UNFOLDING_INDEX_SCHEMA,
             kind="unfolding",
             mount=True,
@@ -591,13 +639,17 @@ class TestSecondaryIndexSelect(TestSecondaryIndexBase):
             },
         )
 
+        # Avoid "twin nulls" problem.
+        format = yson.YsonString(b"yson")
+        format.attributes["enable_null_to_yson_entity_conversion"] = False
+
         insert_rows("//tmp/table", [
             {"key": 0, "value": [14, 13, 12]},
             {"key": 1, "value": [11, 12]},
             {"key": 2, "value": [13, 11]},
             {"key": 3, "value": [None, 12]},
             {"key": 4, "value": None},
-        ])
+        ], input_format=format)
 
         query = """
             key, value from [//tmp/table] with index [//tmp/index_table]
@@ -830,10 +882,15 @@ class TestSecondaryIndexModifications(TestSecondaryIndexBase):
         self._expect_from_index([row(i) for i in range(N - 1, -1, -1)])
         self._expect_from_index([aux_row(i) for i in range(N)], index_table="//tmp/index_table_auxiliary")
 
+    @pytest.mark.parametrize("strong_typing", [False, True])
     @authors("sabdenovch")
-    def test_unfolding_modifications(self):
+    def test_unfolding_modifications(self, strong_typing):
+        table_schema = PRIMARY_SCHEMA_WITH_LIST if strong_typing else [
+            {"name": "key", "type": "int64", "sort_order": "ascending"},
+            {"name": "value", "type": "any"},
+        ]
         self._create_basic_tables(
-            table_schema=PRIMARY_SCHEMA_WITH_LIST,
+            table_schema=table_schema,
             index_schema=UNFOLDING_INDEX_SCHEMA,
             kind="unfolding",
             mount=True,
@@ -842,11 +899,15 @@ class TestSecondaryIndexModifications(TestSecondaryIndexBase):
             },
         )
 
+        # Avoid "twin nulls" problem.
+        format = yson.YsonString(b"yson")
+        format.attributes["enable_null_to_yson_entity_conversion"] = False
+
         self._insert_rows([
             {"key": 0, "value": [1, 1, 1]},
             {"key": 1, "value": [None]},
             {"key": 2, "value": None},
-        ])
+        ], input_format=format)
         self._expect_from_index([
             {"value": None, "key": 1, EMPTY_COLUMN_NAME: None},
             {"value": 1, "key": 0, EMPTY_COLUMN_NAME: None},
@@ -1122,6 +1183,50 @@ class TestSecondaryIndexModifications(TestSecondaryIndexBase):
             {"keyA": 0, "valueA": 0, "valueB": False},
             {"keyA": 1, "valueA": 0, "valueB": False},
         ])
+
+    @authors("sabdenovch")
+    def test_evaluated(self):
+        index_schema = [
+            {"name": "eva01", "type": "int64", "sort_order": "ascending"},
+            {"name": "key", "type": "int64", "sort_order": "ascending"},
+            {"name": EMPTY_COLUMN_NAME, "type": "int64"},
+        ]
+        table_schema = [
+            {"name": "key", "type": "int64", "sort_order": "ascending"},
+            {"name": "value", "type": "any"},
+        ]
+        self._create_basic_tables(
+            table_schema=table_schema,
+            index_schema=index_schema,
+            mount=True,
+            attributes={
+                "evaluated_columns_schema": [{
+                    "name": "eva01",
+                    "type": "int64",
+                    "expression": "try_get_int64(value, \"/field\")",
+                }],
+            },
+        )
+
+        self._insert_rows([
+            {"key": 0, "value": {"field": 31, "name": "Biel"}},
+            {"key": 1, "value": {"field": 13, "name": "Hathaway"}},
+            {"key": 2, "value": {"field": 33, "name": "Coleman"}},
+        ])
+
+        assert select_rows("key, eva01 from [//tmp/index_table] limit 20") == [
+            {"key": 1, "eva01": 13},
+            {"key": 0, "eva01": 31},
+            {"key": 2, "eva01": 33},
+        ]
+
+        # TODO(sabdenovch): Implement expression recognition in predicate.
+        index_query = "key, value from [//tmp/table] with index [//tmp/index_table] where `$index_table`.eva01 = 33"
+        plan = explain_query(index_query)
+        assert plan["query"]["constraints"] == "Constraints:\n33: <universe>"
+
+        query = "key, value from [//tmp/table] where try_get_int64(value, \"/field\") = 33"
+        assert select_rows(query) == select_rows(index_query)
 
 
 ##################################################################

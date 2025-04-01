@@ -1312,8 +1312,6 @@ void TScheduleAllocationsContext::PreemptAllocation(
     TSchedulerOperationElement* element,
     EAllocationPreemptionReason preemptionReason) const
 {
-    const auto& treeConfig = TreeSnapshot_->TreeConfig();
-
     SchedulingContext_->ResourceUsage() -= allocation->ResourceUsage();
     allocation->ResourceUsage() = TJobResources();
 
@@ -1324,7 +1322,10 @@ void TScheduleAllocationsContext::PreemptAllocation(
         TJobResources(),
         /*resetPreemptibleProgress*/ false);
 
-    SchedulingContext_->PreemptAllocation(allocation, treeConfig->AllocationPreemptionTimeout, preemptionReason);
+    SchedulingContext_->PreemptAllocation(
+        allocation,
+        element->GetEffectiveAllocationPreemptionTimeout(),
+        preemptionReason);
 }
 
 TNonOwningOperationElementList TScheduleAllocationsContext::ExtractBadPackingOperations()
@@ -2641,8 +2642,6 @@ void TFairShareTreeAllocationScheduler::PreemptAllocationsGracefully(
 
     NProfiling::TEventTimerGuard eventTimerGuard(GracefulPreemptionTime_);
 
-    const auto& treeConfig = treeSnapshot->TreeConfig();
-
     YT_LOG_TRACE("Looking for gracefully preemptible allocations");
 
     std::vector<TAllocationPtr> candidates;
@@ -2653,11 +2652,11 @@ void TFairShareTreeAllocationScheduler::PreemptAllocationsGracefully(
     }
 
     auto allocationInfos = GetAllocationPreemptionInfos(candidates, treeSnapshot);
-    for (const auto& [allocation, preemptionStatus, _] : allocationInfos) {
+    for (const auto& [allocation, preemptionStatus, element] : allocationInfos) {
         if (preemptionStatus == EAllocationPreemptionStatus::Preemptible) {
             schedulingContext->PreemptAllocation(
                 allocation,
-                treeConfig->AllocationGracefulPreemptionTimeout,
+                element->GetEffectiveAllocationGracefulPreemptionTimeout(),
                 EAllocationPreemptionReason::GracefulPreemption);
         }
     }

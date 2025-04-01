@@ -50,6 +50,16 @@ TValue MakeNull()
     return MakeUnversionedSentinelValue(EValueType::Null);
 }
 
+TValue MakeAny(TStringBuf ysonString)
+{
+    return MakeUnversionedAnyValue(ysonString);
+}
+
+TValue MakeComposite(TStringBuf ysonString)
+{
+    return MakeUnversionedCompositeValue(ysonString);
+}
+
 TTableSchemaPtr GetSampleTableSchema()
 {
     return New<TTableSchema>(std::vector{

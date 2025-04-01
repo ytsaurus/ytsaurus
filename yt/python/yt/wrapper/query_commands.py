@@ -17,7 +17,7 @@ from typing import Iterator, Optional, Tuple
 import logging
 
 
-def start_query(engine, query, settings=None, files=None, stage=None, annotations=None, access_control_object=None, access_control_objects=None, client=None):
+def start_query(engine, query, settings=None, files=None, stage=None, annotations=None, access_control_object=None, access_control_objects=None, secrets=None, client=None):
     """Start query.
 
     :param engine: one of "ql", "yql", "chyt", "spyt".
@@ -45,6 +45,7 @@ def start_query(engine, query, settings=None, files=None, stage=None, annotation
         "files": get_value(files, []),
         "stage": get_value(stage, "production"),
         "annotations": get_value(annotations, {}),
+        "secrets": get_value(secrets, []),
     }
 
     set_param(params, "access_control_object", access_control_object)

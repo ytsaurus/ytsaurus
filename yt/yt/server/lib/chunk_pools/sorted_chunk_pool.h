@@ -16,13 +16,11 @@ namespace NYT::NChunkPools {
 struct TSortedChunkPoolOptions
 {
     TSortedJobOptions SortedJobOptions;
-    bool UseNewJobBuilder = false;
 
     // Used only in legacy pool. Refer to a commentary in legacy pool's StripeList implementation.
     bool ReturnNewDataSlices = true;
 
     i64 MinTeleportChunkSize = 0;
-    bool SupportLocality = false;
     bool SliceForeignChunks = false;
     NControllerAgent::IJobSizeConstraintsPtr JobSizeConstraints;
     NTableClient::TRowBufferPtr RowBuffer;

@@ -1264,7 +1264,7 @@ void TSchedulerConfig::Register(TRegistrar registrar)
         .Default(true);
 
     registrar.Parameter("min_required_archive_version", &TThis::MinRequiredArchiveVersion)
-        .Default(56);
+        .Default(57);
 
     registrar.Parameter("rpc_server", &TThis::RpcServer)
         .DefaultNew();
@@ -1318,6 +1318,16 @@ void TSchedulerBootstrapConfig::Register(TRegistrar registrar)
 
 void TSchedulerProgramConfig::Register(TRegistrar /*registrar*/)
 { }
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TOperationOptions::Register(TRegistrar registrar)
+{
+    registrar.Parameter("allocation_preemption_timeout", &TThis::AllocationPreemptionTimeout)
+        .Default();
+    registrar.Parameter("allocation_graceful_preemption_timeout", &TThis::AllocationGracefulPreemptionTimeout)
+        .Default();
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 

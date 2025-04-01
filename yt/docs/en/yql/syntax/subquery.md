@@ -17,14 +17,13 @@ One or more of the last subquery parameters can be marked with a question as opt
 
 {% note info %}
 
-In large queries, you can use separate files for action definition and include them to the main query using [EXPORT](export_import.md#export) + [IMPORT](export_import.md#import) so that instead of one long text you can have several logical parts that are easier to navigate. An important nuance: the `USE my_cluster;` directive in the import query doesn't affect behavior of actions declared in other subquery files.
+In large queries, you can use separate files for action definition and include them to the main query using [EXPORT](export_import.md#export) + [IMPORT](export_import.md#import) so that instead of one long text you can have several logical parts that are easier to navigate. An important nuance: the `USE my_cluster`; directive in the import query doesn't affect behavior of actions declared in other subquery files.
 
 {% endnote %}
 
 Even if the list of parameters in the subquery template definition is empty, when using it in `FROM`, specify the parentheses `()`. This may help to limit the scope of named expressions used in only one subquery.
 
-In some cases, instead of `DEFINE SUBQUERY` it's more convenient to use an equivalent [lambda function](expressions.md#lambda).
-In this case, the lambda function must accept, as the first argument, the special object called `world` that passes dependencies to make certain PRAGMA or COMMIT statements visible at the query template's point of use. Also, make sure to pass this object as the first argument along with the other arguments (if any) to other query templates, if you use them in your lambda function.
+In some cases, instead of `DEFINE SUBQUERY` it's more convenient to use an equivalent [lambda function](expressions.md#lambda). In this case, the lambda function must accept, as the first argument, the special object called `world` that passes dependencies to make certain PRAGMA or COMMIT statements visible at the query template's point of use. Also, make sure to pass this object as the first argument along with the other arguments (if any) to other query templates, if you use them in your lambda function.
 The return value of the lambda function must have the structure list type (output table) or a list of variants over a tuple of structures (multiple output tables). In the latter case, the following unpacking is usually used at the query template's point of use:
 
 ```yql

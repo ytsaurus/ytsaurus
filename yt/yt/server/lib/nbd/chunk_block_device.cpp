@@ -65,41 +65,46 @@ public:
         return TString();
     }
 
-    TFuture<TSharedRef> Read(i64 offset, i64 length) override
+    TFuture<TSharedRef> Read(i64 offset, i64 length, const TReadOptions& options) override
     {
-        YT_LOG_DEBUG("Start read from chunk (Offset: %v, Length: %v)",
+        YT_LOG_DEBUG("Start read from chunk (Offset: %v, Length: %v, Cookie: %x)",
             offset,
-            length);
+            length,
+            options.Cookie);
 
         if (length == 0) {
-            YT_LOG_DEBUG("Finish read from chunk (Offset: %v, Length: %v)",
+            YT_LOG_DEBUG("Finish read from chunk (Offset: %v, Length: %v, Cookie: %x)",
                 offset,
-                length);
+                length,
+                options.Cookie);
             return MakeFuture<TSharedRef>({});
         }
 
         // NB. For now causal dependancy (i.e. read after write, write after write)
         // is resolved by making reads and writes synchronous.
         WaitFor(ReadThrottler_->Throttle(length)).ThrowOnError();
-        auto data = WaitFor(ChunkHandler_->Read(offset, length)).ValueOrThrow();
+        auto data = WaitFor(ChunkHandler_->Read(offset, length, options)).ValueOrThrow();
 
-        YT_LOG_DEBUG("Finish read from chunk (Offset: %v, ExpectedLength: %v, ResultLength: %v)",
+        YT_LOG_DEBUG("Finish read from chunk (Offset: %v, ExpectedLength: %v, ResultLength: %v, Cookie: %x)",
             offset,
             length,
-            data.Size());
+            data.Size(),
+            options.Cookie);
         return MakeFuture<TSharedRef>(data);
     }
 
     TFuture<void> Write(i64 offset, const TSharedRef& data, const TWriteOptions& options) override
     {
-        YT_LOG_DEBUG("Start write to chunk (Offset: %v, Length: %v)",
+        YT_LOG_DEBUG("Start write to chunk (Offset: %v, Length: %v, Cookie: %x)",
             offset,
-            data.size());
+            data.size(),
+            options.Cookie);
 
         if (data.size() == 0) {
-            YT_LOG_DEBUG("Finish write to chunk (Offset: %v, Length: %v)",
+            YT_LOG_DEBUG("Finish write to chunk (Offset: %v, Length: %v, Cookie: %x)",
                 offset,
-                data.size());
+                data.size(),
+                options.Cookie);
             return VoidFuture;
         }
 
@@ -108,9 +113,10 @@ public:
         WaitFor(WriteThrottler_->Throttle(data.size())).ThrowOnError();
         WaitFor(ChunkHandler_->Write(offset, data, options)).ThrowOnError();
 
-        YT_LOG_DEBUG("Finish write to chunk (Offset: %v, Length: %v)",
+        YT_LOG_DEBUG("Finish write to chunk (Offset: %v, Length: %v, Cookie: %x)",
             offset,
-            data.size());
+            data.size(),
+            options.Cookie);
         return VoidFuture;
     }
 

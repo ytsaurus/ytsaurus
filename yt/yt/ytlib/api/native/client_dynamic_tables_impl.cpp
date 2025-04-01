@@ -124,6 +124,7 @@ using namespace NCypressClient;
 using namespace NHiveClient;
 using namespace NHydra;
 using namespace NNodeTrackerClient;
+using namespace NLogging;
 using namespace NObjectClient;
 using namespace NProfiling;
 using namespace NQueryClient;
@@ -3081,15 +3082,16 @@ public:
     , Request_(std::move(request))
     , Invoker_(std::move(invoker))
     , MemoryTracker_(std::move(memoryTracker))
-    , ReplicationProgress_(std::move(Request_.Progress))
-    , ReplicationRowIndex_(Request_.StartReplicationRowIndex)
     , Logger(logger
         .WithTag("TabletId: %v", TabletInfo_->TabletId))
+    , IsTrivial_(IsUpperTimestampReached(Options_, Request_.Progress, Logger))
+    , ReplicationProgress_(std::move(Request_.Progress))
+    , ReplicationRowIndex_(Request_.StartReplicationRowIndex)
     { }
 
     ~TTabletPullRowsSession()
     {
-        if (MemoryTracker_ && ResultOrError_.IsOK() && ResultOrError_.Value()) {
+        if (MemoryTracker_ && !IsTrivial_ && ResultOrError_.IsOK() && ResultOrError_.Value()) {
             MemoryTracker_->Release(ResultOrError_.Value()->GetTotalSize());
         }
     }
@@ -3134,6 +3136,11 @@ public:
         return ResultOrError_;
     }
 
+    bool IsTrivial() const
+    {
+        return IsTrivial_;
+    }
+
 private:
     const IClientPtr Client_;
     const TTableSchemaPtr Schema_;
@@ -3145,6 +3152,8 @@ private:
     const TTabletRequest Request_;
     const IInvokerPtr Invoker_;
     const IMemoryUsageTrackerPtr MemoryTracker_;
+    const NLogging::TLogger Logger;
+    const bool IsTrivial_;
 
     TErrorOr<TQueryServiceProxy::TRspPullRowsPtr> ResultOrError_;
 
@@ -3153,10 +3162,12 @@ private:
     i64 RowCount_ = 0;
     i64 DataWeight_ = 0;
 
-    const NLogging::TLogger Logger;
-
     TFuture<void> DoPullRows()
     {
+        if (IsTrivial_) {
+            return VoidFuture;
+        }
+
         try {
             const auto& connection = Client_->GetNativeConnection();
             const auto& cellDirectory = connection->GetCellDirectory();
@@ -3177,7 +3188,6 @@ private:
             req->set_max_rows_per_read(Options_.TabletRowsPerRead);
             req->set_max_data_weight(MaxDataWeight_);
             req->set_upper_timestamp(Options_.UpperTimestamp);
-            req->set_request_timeout(ToProto(timeout));
             ToProto(req->mutable_tablet_id(), TabletInfo_->TabletId);
             ToProto(req->mutable_cell_id(), TabletInfo_->CellId);
             ToProto(req->mutable_start_replication_progress(), ReplicationProgress_);
@@ -3196,7 +3206,7 @@ private:
 
         } catch (const std::exception& ex) {
             OnPullRowsResponse(TError("Failed to prepare request") << ex);
-            return MakeFuture(TErrorOr<void>());
+            return VoidFuture;
         }
     }
 
@@ -3230,7 +3240,7 @@ private:
 
     std::vector<TTypeErasedRow> DoGetRows(TTimestamp maxTimestamp, const TRowBufferPtr& outputRowBuffer)
     {
-        if (!ResultOrError_.IsOK()) {
+        if (IsTrivial_ || !ResultOrError_.IsOK()) {
             return {};
         }
 
@@ -3280,6 +3290,26 @@ private:
             rows.push_back(row.ToTypeErasedRow());
         }
         return rows;
+    }
+
+    static bool IsUpperTimestampReached(const TPullRowsOptions& options, const TReplicationProgress& progress, const TLogger& logger)
+    {
+        const auto& Logger = logger;
+
+        if (options.UpperTimestamp == NullTimestamp) {
+            return false;
+        }
+
+        auto progressMinTimestamp = GetReplicationProgressMaxTimestamp(progress);
+        if (progressMinTimestamp >= options.UpperTimestamp) {
+            YT_LOG_DEBUG("Skipping pulling rows because upper timestamp has been reached "
+                "(UpperTimestamp: %v, ProgressMinTimestamp: %v)",
+                options.UpperTimestamp,
+                progressMinTimestamp);
+            return true;
+        }
+
+        return false;
     }
 };
 
@@ -3390,7 +3420,10 @@ TPullRowsResult TClient::DoPullRows(
 
     std::vector<TIntrusivePtr<TTabletPullRowsSession>> sessions;
     std::vector<TFuture<void>> futureResults;
+    sessions.reserve(requests.size());
+    futureResults.reserve(requests.size());
 
+    bool allTrivial = true;
     for (const auto& request : requests) {
         sessions.push_back(New<TTabletPullRowsSession>(
             this,
@@ -3404,6 +3437,7 @@ TPullRowsResult TClient::DoPullRows(
             dataWeightPerResponse,
             options.MemoryTracker,
             Logger));
+        allTrivial &= sessions.back()->IsTrivial();
         futureResults.push_back(sessions.back()->RunRequest());
     }
 
@@ -3427,7 +3461,7 @@ TPullRowsResult TClient::DoPullRows(
 
     bool success = false;
     for (const auto& session : sessions) {
-        if (session->GetResultOrError().IsOK()) {
+        if (!session->IsTrivial() && session->GetResultOrError().IsOK()) {
             success = true;
         }
 
@@ -3450,11 +3484,14 @@ TPullRowsResult TClient::DoPullRows(
         combinedResult.RowCount += session->GetRowCount();
     }
 
-    if (!success) {
+    if (!allTrivial && !success) {
         TError error("All pull rows subrequests failed");
         for (const auto& session : sessions) {
-            error.MutableInnerErrors()->push_back(session->GetResultOrError());
+            if (!session->GetResultOrError().IsOK()) {
+                error.MutableInnerErrors()->push_back(session->GetResultOrError());
+            }
         }
+
         THROW_ERROR_EXCEPTION(error);
     }
 

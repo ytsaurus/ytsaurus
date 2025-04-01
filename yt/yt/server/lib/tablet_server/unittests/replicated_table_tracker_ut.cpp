@@ -1213,6 +1213,47 @@ TEST_F(TReplicatedTableTrackerTest, ReplicaContentTypes)
     Host_->ValidateReplicaModeRemained(queueReplica);
 }
 
+TEST_F(TReplicatedTableTrackerTest, QueueSyncReplicaCount)
+{
+    auto client = Host_->GetMockClient(Cluster1);
+    MockGoodReplicaCluster(client);
+    MockGoodBundle(client);
+    MockGoodTable(client);
+
+    auto client2 = Host_->GetMockClient(Cluster2);
+    MockGoodReplicaCluster(client2);
+    MockGoodBundle(client2);
+    MockGoodTable(client2);
+
+    auto tableId = Host_->CreateReplicatedTable();
+    auto options = Host_->GetTableOptions(tableId);
+    options->MinSyncQueueReplicaCount = 1;
+    Host_->SetTableOptions(tableId, std::move(options));
+
+    auto queueReplica1 = Host_->CreateTableReplica(
+        tableId,
+        ETableReplicaMode::Async,
+        true,
+        Cluster1,
+        TablePath1,
+        /*replicaLagTime*/ TDuration::Zero(),
+        EObjectType::ChaosTableReplica,
+        ETableReplicaContentType::Queue);
+    auto queueReplica2 = Host_->CreateTableReplica(
+        tableId,
+        ETableReplicaMode::Async,
+        true,
+        Cluster2,
+        TablePath1,
+        /*replicaLagTime*/ TDuration::Zero(),
+        EObjectType::ChaosTableReplica,
+        ETableReplicaContentType::Queue);
+
+    WaitForTrackerWarmUp();
+    Host_->ValidateReplicaModeChanged(queueReplica1, ETableReplicaMode::Sync);
+    Host_->ValidateReplicaModeChanged(queueReplica2, ETableReplicaMode::Sync);
+}
+
 TEST_F(TReplicatedTableTrackerTest, ClusterStateChecks)
 {
     Host_->GetConfig()->ClusterStateCache->RefreshTime = CheckPeriod / 2;

@@ -2040,7 +2040,7 @@ private:
                 mountInfo,
                 std::move(indexTableInfos),
                 mergedRows,
-                connection->GetExpressionEvaluatorCache(),
+                connection->GetColumnEvaluatorCache(),
                 Logger);
 
             lookupRowsEvents.push_back(indexModifier->LookupRows());

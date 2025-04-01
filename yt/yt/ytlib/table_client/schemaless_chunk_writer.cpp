@@ -531,7 +531,8 @@ private:
         auto sampleValues = TruncateUnversionedValues(row.Elements(), TruncatedSampleValueBuffer_, {
             .ClipAfterOverflow = false,
             .UseOriginalDataWeightInSamples = Config_->UseOriginalDataWeightInSamples,
-            .MaxTotalSize = MaxSampleSize});
+            .MaxTotalSize = MaxSampleSize,
+        });
 
         auto entry = SerializeToString(sampleValues.Values);
         SamplesExt_.add_entries(entry);

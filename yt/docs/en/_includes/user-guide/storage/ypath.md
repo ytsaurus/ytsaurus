@@ -46,7 +46,7 @@ In YPath, a relative path starts with a slash. Thus, the slash serves not as a s
 
 ### Examples { #simple_ypath_examples }
 
-```json
+```
 % Cypress root
 /
 
@@ -79,38 +79,50 @@ In addition to the above rules, there are some special agreements. Most of them 
 - **Specify all descendants**: You can use the `remove_node` command to remove all descendants of a dict or list. To do this, use the `*` token instead of the name.
    Example:
 
-   ```json
+   ```
    % Clear the user's home folder
    yt remove //home/user/*
    ```
 
-- **Specify all attributes**: `/@` is a YPath form that designates all attributes of an object. It can be used with read (`get_node`, `list_nodes`) and change (`set_node`) commands to access the full collection of all attributes of an object. However, changes via `set_node` apply only to custom attributes.
+- **Specify all attributes**: `/@` is a YPath form that designates all attributes of an object. It can be used with read (`get_node`, `list_nodes`) commands to access the full collection of all attributes of an object.
 
    Examples:
 
-   ```json
+   ```
    % Get the values of all attributes of the user's home folder
    yt get //home/user/@
 
    % Get the names of all attributes of the user's home folder
    yt list //home/user/@
+   ```
 
-   % Remove all custom attributes
+   The full collection of all attributes can also be *modified* via the `set_node` command. However, one should be warned that doing so will remove all attributes not mentioned in the value being set.
+
+   Examples:
+
+   ```
+   % Remove all attributes
    yt set //home/user/@ '{}'
 
-   % Set one custom attribute and remove all other existing custom attributes
-   yt set //home/user/@ '{attr=value}'
+   % Set two attributes and remove all other existing attributes
+   yt set //home/user/@ '{attr1=value1; attr2=value2}'
+   ```
 
-   % Set one custom attribute, do nothing with other custom attributes
+   This way of modifying attributes should not be used when working with Cypress (as opposed to an abstract YSON document) because it may lead to an inadvertent removal of system attributes of a node. Instead, individual attributes should be set.
+
+   Examples:
+
+   ```
+   % Set one attribute, do nothing with other attributes
    yt set //home/user/@attr value
 
-   % Set the nested custom attribute
+   % Set the nested attribute
    yt set //home/user/@attr/some/key value
    ```
 
 - **Specify insertion position in the list**: Use commands that create new nodes (for example, `set_node`) to specify the position of the node to be created in the list in relation to existing ones. To do this, use the special `begin` (beginning of the list), `end` (end of the list), `before:<index>` (position before the descendant with the `<index>` number), and `after:<index>` (position after the descendant with the `<index>` number) strings. Examples:
 
-   ```json
+   ```
    % Add the "value" element to the end of the //home/user/list list
    yt set //home/user/list/end value
 
@@ -129,7 +141,7 @@ In addition to the above rules, there are some special agreements. Most of them 
 - **Disable redirection**: The `&` token can be used to suppress redirections via a [symbolic link](../../../user-guide/storage/links.md).
    Examples:
 
-   ```json
+   ```
    % Find the ID of the link object itself, not the object the link points to
    yt get //home/user/link&/@id
    ```
@@ -140,7 +152,7 @@ In addition to the above rules, there are some special agreements. Most of them 
 
 If there is no `<prefix>` and `<suffix>`, rich  YPath can have, for example, the following form:
 
-```json
+```
 <
   append = %true;
   compression_codec = lz4;
@@ -179,7 +191,7 @@ Examples of column selection modifiers: `{a}`, `{a,b}`, and `{}` .
 
 The formal grammar of column selection modifiers:
 
-```json
+```
 <column-selector> = '{' { <column-selector-item> ',' } [ <column-selector-item> ] '}'
 <column-selector-item> = <string>
 ```
@@ -193,7 +205,7 @@ Examples of row selection modifiers: `[:]`, `[#10:#100]`, `[a:m]`, `[(abc,8):(xy
 
 The formal grammar of row selection modifiers:
 
-```json
+```
 <row-selector> = '[' { <row-range> ',' } [ <row-range> ] ']'
 
 <row-range> = <row-index-range-selector> | <row-key-range-selector> | <row-index> | <row-composite-key> | ''
@@ -219,7 +231,7 @@ Rich paths oftentimes need to be enclosed in single quotes to be parsed by the s
 
 {% endnote %}
 
-```json
+```
 % Read the entire '//home/user/table' table
 yt read '//home/user/table'
 
@@ -275,7 +287,7 @@ yt merge --src '//home/users/table1{a,b,c}' --dst //home/users/table2 --spec '{s
 
 Example: after canonicalizing the `<append=true>//home/user/table[#10:#20]` path, you get the following YSON structure:
 
-```json
+```
 <
   append = true;
   ranges = [

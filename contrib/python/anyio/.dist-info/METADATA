@@ -1,6 +1,6 @@
-Metadata-Version: 2.1
+Metadata-Version: 2.2
 Name: anyio
-Version: 4.8.0
+Version: 4.9.0
 Summary: High level compatibility layer for multiple asynchronous event loop implementations
 Author-email: Alex Grönholm <alex.gronholm@nextday.fi>
 License: MIT
@@ -31,6 +31,7 @@ Provides-Extra: trio
 Requires-Dist: trio>=0.26.1; extra == "trio"
 Provides-Extra: test
 Requires-Dist: anyio[trio]; extra == "test"
+Requires-Dist: blockbuster>=1.5.23; extra == "test"
 Requires-Dist: coverage[toml]>=7; extra == "test"
 Requires-Dist: exceptiongroup>=1.2.0; extra == "test"
 Requires-Dist: hypothesis>=4.0; extra == "test"
@@ -41,7 +42,7 @@ Requires-Dist: truststore>=0.9.1; python_version >= "3.10" and extra == "test"
 Requires-Dist: uvloop>=0.21; (platform_python_implementation == "CPython" and platform_system != "Windows" and python_version < "3.14") and extra == "test"
 Provides-Extra: doc
 Requires-Dist: packaging; extra == "doc"
-Requires-Dist: Sphinx~=7.4; extra == "doc"
+Requires-Dist: Sphinx~=8.2; extra == "doc"
 Requires-Dist: sphinx_rtd_theme; extra == "doc"
 Requires-Dist: sphinx-autodoc-typehints>=1.2.0; extra == "doc"
 

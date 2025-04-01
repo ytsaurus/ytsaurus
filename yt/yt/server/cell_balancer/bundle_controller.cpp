@@ -459,6 +459,16 @@ private:
     inline static const std::string  BundleAttributeNodeTagFilter = "node_tag_filter";
     inline static const std::string  BundleAttributeTargetConfig = "bundle_controller_target_config";
 
+    void MoveBundleToJailAndThrowOnError(const TError& result, const std::string& bundleName)
+    {
+        if (result.IsOK()) {
+            return;
+        }
+        BundleJail_.insert(bundleName);
+        YT_LOG_ERROR(result, "Bundle moved to jail (BundleName: %v)", bundleName);
+        result.ThrowOnError();
+    }
+
     void Mutate(const ITransactionPtr& transaction, const TSchedulerMutations& mutations)
     {
         YT_ASSERT_INVOKER_AFFINITY(Bootstrap_->GetControlInvoker());
@@ -480,7 +490,7 @@ private:
 
         // We should not violate RootSystemAccountLimit when changing per-bundle ones, so we apply changes in specific order.
         SetInstanceAttributes(transaction, BundleSystemQuotasPath, AccountAttributeResourceLimits, mutations.LoweredSystemAccountLimit);
-        SetRootSystemAccountLimits(transaction, mutations.ChangedRootSystemAccountLimit);
+        SetRootSystemAccountLimits(transaction, mutations.ChangedRootSystemAccountLimit, mutations.LastBundleWithChangedRootSystemAccountLimit);
         SetInstanceAttributes(transaction, BundleSystemQuotasPath, AccountAttributeResourceLimits, mutations.LiftedSystemAccountLimit);
 
         CreateTabletCells(transaction, mutations.CellsToCreate);
@@ -491,11 +501,11 @@ private:
             SetBundlesDynamicConfig(transaction, *mutations.DynamicConfig);
         }
 
-        SetInstanceAttributes(transaction, TabletCellBundlesPath, BundleTabletStaticMemoryLimits, mutations.ChangedTabletStaticMemory, &BundleJail_);
-        SetInstanceAttributes(transaction, TabletCellBundlesPath, BundleAttributeShortName, mutations.ChangedBundleShortName, &BundleJail_);
+        SetBundleAttributes(transaction, TabletCellBundlesPath, BundleTabletStaticMemoryLimits, mutations.ChangedTabletStaticMemory);
+        SetBundleAttributes(transaction, TabletCellBundlesPath, BundleAttributeShortName, mutations.ChangedBundleShortName);
 
-        SetInstanceAttributes(transaction, TabletCellBundlesPath, BundleAttributeNodeTagFilter, mutations.ChangedNodeTagFilters, &BundleJail_);
-        SetInstanceAttributes(transaction, TabletCellBundlesPath, BundleAttributeTargetConfig, mutations.InitializedBundleTargetConfig, &BundleJail_);
+        SetBundleAttributes(transaction, TabletCellBundlesPath, BundleAttributeNodeTagFilter, mutations.ChangedNodeTagFilters);
+        SetBundleAttributes(transaction, TabletCellBundlesPath, BundleAttributeTargetConfig, mutations.InitializedBundleTargetConfig);
 
         for (const auto& alert : mutations.AlertsToFire) {
             RegisterAlert(alert);
@@ -528,15 +538,13 @@ private:
             transaction,
             TabletCellBundlesPath,
             BundleAttributeMuteTabletCellSnapshotCheck,
-            mutations.ChangedMuteTabletCellSnapshotsCheck,
-            &BundleJail_);
+            mutations.ChangedMuteTabletCellSnapshotsCheck);
 
         SetInstanceAttributes(
             transaction,
             TabletCellBundlesPath,
             BundleAttributeMuteTabletCellsCheck,
-            mutations.ChangedMuteTabletCellsCheck,
-            &BundleJail_);
+            mutations.ChangedMuteTabletCellsCheck);
     }
 
     void Mutate(
@@ -1207,7 +1215,7 @@ private:
         return inputState;
     }
 
-    template <typename TEntryInfo>
+    template <class TEntryInfo>
     static TIndexedEntries<TEntryInfo> CypressList(const IClientBasePtr& transaction, const TYPath& path)
     {
         TListNodeOptions options;
@@ -1238,7 +1246,7 @@ private:
         return result;
     }
 
-    template <typename TEntryInfo>
+    template <class TEntryInfo>
     static TIndexedEntries<TEntryInfo> CypressGet(const ITransactionPtr& transaction, const TYPath& path)
     {
         TGetNodeOptions options;
@@ -1264,7 +1272,7 @@ private:
         return result;
     }
 
-    template <typename TEntryInfoPtr>
+    template <class TEntryInfoPtr>
     static TEntryInfoPtr CypressGetSingleNode(const ITransactionPtr& transaction, const TYPath& path)
     {
         auto yson = WaitFor(transaction->GetNode(path))
@@ -1272,7 +1280,7 @@ private:
         return ConvertTo<TEntryInfoPtr>(yson);
     }
 
-    template <typename TEntryValue>
+    template <class TEntryValue>
     static void CypressSetSingleNode(
         const ITransactionPtr& transaction,
         const TYPath& path,
@@ -1282,7 +1290,7 @@ private:
             .ThrowOnError();
     }
 
-    template <typename TEntryInfo>
+    template <class TEntryInfo>
     static void CypressSet(
         const ITransactionPtr& transaction,
         const TYPath& basePath,
@@ -1293,7 +1301,7 @@ private:
         }
     }
 
-    template <typename TEntryInfoPtr>
+    template <class TEntryInfoPtr>
     static void CypressSet(
         const ITransactionPtr& transaction,
         const TYPath& basePath,
@@ -1341,8 +1349,11 @@ private:
             .ThrowOnError();
     }
 
-    template <typename TEntryInfo>
-    static void CreateHulkRequests(
+    template <class TEntryInfo>
+    requires requires (TEntryInfo& entryInfo) {
+        { entryInfo.BundleName } -> std::convertible_to<std::string>;
+    }
+    void CreateHulkRequests(
         const ITransactionPtr& transaction,
         const TYPath& basePath,
         const TIndexedEntries<TEntryInfo>& requests)
@@ -1354,13 +1365,16 @@ private:
             createOptions.Attributes = CreateEphemeralAttributes();
             createOptions.Attributes->Set("value", ConvertToYsonString(requestBody));
             createOptions.Recursive = true;
-            WaitFor(transaction->CreateNode(path, EObjectType::Document, createOptions))
-                .ThrowOnError();
+            auto result = WaitFor(transaction->CreateNode(path, EObjectType::Document, createOptions));
+            MoveBundleToJailAndThrowOnError(result, requestBody->BundleName);
         }
     }
 
-    template <typename TEntryInfo>
-    static void ChangeHulkRequests(
+    template <class TEntryInfo>
+    requires requires (TEntryInfo& entryInfo) {
+        { entryInfo.BundleName } -> std::convertible_to<std::string>;
+    }
+    void ChangeHulkRequests(
         const ITransactionPtr& transaction,
         const TYPath& basePath,
         const TIndexedEntries<TEntryInfo>& requests)
@@ -1370,31 +1384,30 @@ private:
 
             TSetNodeOptions setOptions;
             setOptions.Recursive = true;
-            WaitFor(transaction->SetNode(path, ConvertToYsonString(requestBody)))
-                .ThrowOnError();
+            auto result = WaitFor(transaction->SetNode(path, ConvertToYsonString(requestBody)));
+            MoveBundleToJailAndThrowOnError(result, requestBody->BundleName);
         }
     }
 
-    static void CompleteHulkRequests(
+    void CompleteHulkRequests(
         const ITransactionPtr& transaction,
         const TYPath& basePath,
-        const THashSet<std::string>& requestIds)
+        const THashSet<TBundleMutation<std::string>>& requestIds)
     {
         for (const auto& requestId : requestIds) {
-            auto path = Format("%v/%v", basePath, NYPath::ToYPathLiteral(requestId));
+            auto path = Format("%v/%v", basePath, NYPath::ToYPathLiteral(requestId.Mutation));
 
-            WaitFor(transaction->RemoveNode(path, {}))
-                .ThrowOnError();
+            auto result = WaitFor(transaction->RemoveNode(path, {}));
+            MoveBundleToJailAndThrowOnError(result, requestId.BundleName);
         }
     }
 
-    template <typename TAttribute>
-    static void SetInstanceAttributes(
+    template <class TAttribute>
+    void SetInstanceAttributes(
         const IClientBasePtr& client,
         const TYPath& instanceBasePath,
         const std::string& attributeName,
-        const THashMap<std::string, TAttribute>& attributes,
-        THashSet<std::string>* instanceJail = nullptr)
+        const THashMap<std::string, TAttribute>& attributes)
     {
         for (const auto& [instanceName, attribute] : attributes) {
             auto path = Format("%v/%v/@%v",
@@ -1403,36 +1416,71 @@ private:
                 attributeName);
 
             TSetNodeOptions setOptions;
-            auto result = WaitFor(client->SetNode(path, ConvertToYsonString(attribute), setOptions));
-            if (!result.IsOK() && instanceJail) {
-                instanceJail->insert(instanceName);
-            }
-            result.ThrowOnError();
+            WaitFor(client->SetNode(path, ConvertToYsonString(attribute), setOptions))
+                .ThrowOnError();
         }
     }
 
-    static void RemoveInstanceAttributes(
-        const ITransactionPtr& transaction,
+    template <class TAttribute>
+    void SetInstanceAttributes(
+        const IClientBasePtr& client,
         const TYPath& instanceBasePath,
         const std::string& attributeName,
-        const THashSet<std::string>& instances)
+        const THashMap<std::string, TBundleMutation<TAttribute>>& attributes)
     {
-        for (const auto& instanceName : instances) {
+        for (const auto& [instanceName, attribute] : attributes) {
             auto path = Format("%v/%v/@%v",
                 instanceBasePath,
                 NYPath::ToYPathLiteral(instanceName),
                 attributeName);
 
-            YT_LOG_DEBUG("Removing attribute (Path: %v)",
-                path);
-
-            WaitFor(transaction->RemoveNode(path))
-                .ThrowOnError();
+            TSetNodeOptions setOptions;
+            auto result = WaitFor(client->SetNode(path, ConvertToYsonString(attribute.Mutation), setOptions));
+            MoveBundleToJailAndThrowOnError(result, attribute.BundleName);
         }
     }
 
-    template <typename TAttribute>
-    static void SetNodeAttributes(
+    template <class TAttribute>
+    void SetBundleAttributes(
+        const IClientBasePtr& client,
+        const TYPath& bundleBasePath,
+        const std::string& attributeName,
+        const THashMap<std::string, TAttribute>& attributes)
+    {
+        for (const auto& [bundleName, attribute] : attributes) {
+            auto path = Format("%v/%v/@%v",
+                bundleBasePath,
+                NYPath::ToYPathLiteral(bundleName),
+                attributeName);
+
+            TSetNodeOptions setOptions;
+            auto result = WaitFor(client->SetNode(path, ConvertToYsonString(attribute), setOptions));
+            MoveBundleToJailAndThrowOnError(result, bundleName);
+        }
+    }
+
+    void RemoveInstanceAttributes(
+        const ITransactionPtr& transaction,
+        const TYPath& instanceBasePath,
+        const std::string& attributeName,
+        const THashSet<TBundleMutation<std::string>>& instances)
+    {
+        for (const auto& instanceName : instances) {
+            auto path = Format("%v/%v/@%v",
+                instanceBasePath,
+                NYPath::ToYPathLiteral(instanceName.Mutation),
+                attributeName);
+
+            YT_LOG_DEBUG("Removing attribute (Path: %v)",
+                path);
+
+            auto result = WaitFor(transaction->RemoveNode(path));
+            MoveBundleToJailAndThrowOnError(result, instanceName.BundleName);
+        }
+    }
+
+    template <class TAttribute>
+    void SetNodeAttributes(
         const ITransactionPtr& transaction,
         const std::string& attributeName,
         const THashMap<std::string, TAttribute>& attributes)
@@ -1440,7 +1488,7 @@ private:
         SetInstanceAttributes(transaction, TabletNodesPath, attributeName, attributes);
     }
 
-    template <typename TAttribute>
+    template <class TAttribute>
     void SetProxyAttributes(
         const ITransactionPtr& transaction,
         const std::string& attributeName,
@@ -1449,7 +1497,7 @@ private:
         SetInstanceAttributes(transaction, RpcProxiesPath, attributeName, attributes);
     }
 
-    template <typename TEntryInfo>
+    template <class TEntryInfo>
     static TIndexedEntries<TEntryInfo> LoadHulkRequests(
         const ITransactionPtr& transaction,
         const std::vector<TYPath>& basePaths,
@@ -1467,7 +1515,7 @@ private:
         return results;
     }
 
-    template <typename TEntryInfoPtr>
+    template <class TEntryInfoPtr>
     static TEntryInfoPtr LoadHulkRequest(
         const ITransactionPtr& transaction,
         const std::vector<TYPath>& basePaths,
@@ -1504,7 +1552,7 @@ private:
         return ConvertTo<TSysConfigPtr>(yson);
     }
 
-    static void SetRootSystemAccountLimits(const ITransactionPtr& transaction, const TAccountResourcesPtr& limits)
+    void SetRootSystemAccountLimits(const ITransactionPtr& transaction, const TAccountResourcesPtr& limits, const std::string& lastBundle)
     {
         if (!limits) {
             return;
@@ -1512,11 +1560,11 @@ private:
 
         auto path = Format("%v/@%v", BundleSystemQuotasPath, AccountAttributeResourceLimits);
         TSetNodeOptions setOptions;
-        WaitFor(transaction->SetNode(path, ConvertToYsonString(limits), setOptions))
-            .ThrowOnError();
+        auto result = WaitFor(transaction->SetNode(path, ConvertToYsonString(limits), setOptions));
+        MoveBundleToJailAndThrowOnError(result, lastBundle);
     }
 
-    static void CreateTabletCells(const ITransactionPtr& transaction, const THashMap<std::string, int>& cellsToCreate)
+    void CreateTabletCells(const ITransactionPtr& transaction, const THashMap<std::string, int>& cellsToCreate)
     {
         for (const auto& [bundleName, cellCount] : cellsToCreate) {
             TCreateObjectOptions createOptions;
@@ -1524,23 +1572,23 @@ private:
             createOptions.Attributes->Set("tablet_cell_bundle", bundleName);
 
             for (int index = 0; index < cellCount; ++index) {
-                WaitFor(transaction->CreateObject(EObjectType::TabletCell, createOptions))
-                    .ThrowOnError();
+                auto result = WaitFor(transaction->CreateObject(EObjectType::TabletCell, createOptions));
+                MoveBundleToJailAndThrowOnError(result, bundleName);
             }
         }
     }
 
-    static void RemoveTabletCells(const ITransactionPtr& transaction, const std::vector<std::string>& cellsToRemove)
+    void RemoveTabletCells(const ITransactionPtr& transaction, const std::vector<TBundleMutation<std::string>>& cellsToRemove)
     {
         for (const auto& cellId : cellsToRemove) {
-            auto path = TYPath(Format("%v/%v", TabletCellsPath, cellId));
+            auto path = TYPath(Format("%v/%v", TabletCellsPath, cellId.Mutation));
 
             YT_LOG_INFO("Removing tablet cell (CellId: %v, Path: %v)",
-                cellId,
+                cellId.Mutation,
                 path);
 
-            WaitFor(transaction->RemoveNode(path))
-                .ThrowOnError();
+            auto result = WaitFor(transaction->RemoveNode(path));
+            MoveBundleToJailAndThrowOnError(result, cellId.BundleName);
         }
     }
 

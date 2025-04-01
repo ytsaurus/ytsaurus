@@ -106,6 +106,7 @@ public:
         RegisterMethod(RPC_SERVICE_METHOD_DESC(StartChunk));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(FinishChunk));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(CancelChunk));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(ProbePutBlocks));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(PutBlocks));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(SendBlocks));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(FlushBlocks));
@@ -118,6 +119,16 @@ public:
             YT_VERIFY(*SessionId_ == FromProto<TSessionId>(request->session_id()));
         }
 
+        if (UseProbePutBlocks_) {
+            if (AlwaysFail_) {
+                response->mutable_probe_put_blocks_state()->set_approved_cumulative_block_size(0);
+                response->mutable_probe_put_blocks_state()->set_requested_cumulative_block_size(0);
+            } else {
+                response->mutable_probe_put_blocks_state()->set_approved_cumulative_block_size(MaxCumulativeBlockSize_);
+                response->mutable_probe_put_blocks_state()->set_requested_cumulative_block_size(MaxCumulativeBlockSize_);
+            }
+        }
+
         context->Reply();
     }
 
@@ -126,6 +137,9 @@ public:
         YT_VERIFY(!SessionId_.has_value());
         SessionId_ = FromProto<TSessionId>(request->session_id());
         SessionStarted_ = true;
+
+        UseProbePutBlocks_ = request->use_probe_put_blocks();
+        response->set_use_probe_put_blocks(request->use_probe_put_blocks());
 
         context->Reply();
     }
@@ -150,6 +164,22 @@ public:
         context->Reply();
     }
 
+    DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, ProbePutBlocks)
+    {
+        YT_VERIFY(SessionId_.has_value());
+        YT_VERIFY(*SessionId_ == FromProto<TSessionId>(request->session_id()));
+
+        if (AlwaysFail_) {
+            response->mutable_probe_put_blocks_state()->set_approved_cumulative_block_size(0);
+        } else {
+            MaxCumulativeBlockSize_ = std::max(MaxCumulativeBlockSize_, request->cumulative_block_size());
+            response->mutable_probe_put_blocks_state()->set_approved_cumulative_block_size(request->cumulative_block_size());
+        }
+        response->mutable_probe_put_blocks_state()->set_requested_cumulative_block_size(request->cumulative_block_size());
+
+        context->Reply();
+    }
+
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, PutBlocks)
     {
         YT_VERIFY(SessionId_.has_value());
@@ -162,6 +192,10 @@ public:
         bool populateCache = request->populate_cache();
         bool flushBlocks = request->flush_blocks();
         i64 cumulativeBlockSize = request->cumulative_block_size();
+
+        if (UseProbePutBlocks_) {
+            YT_VERIFY(MaxCumulativeBlockSize_ >= cumulativeBlockSize);
+        }
 
         auto blocks = GetRpcAttachedBlocks(request, /*validateChecksums*/ false);
 
@@ -303,6 +337,8 @@ private:
     std::optional<TSessionId> SessionId_;
     bool SessionStarted_ = false;
     bool SessionCanceled_ = false;
+    bool UseProbePutBlocks_ = false;
+    i64 MaxCumulativeBlockSize_ = 0;
 
     // Weak Pointer because of circular dependency
     IChannelFactory* ChannelFactory_ = nullptr;
@@ -314,6 +350,7 @@ private:
 
 struct TWriterTestCase
 {
+    bool UseProbePutBlocks = false;
     size_t ReplicationFactor = 3;
     size_t NodeCount = 3;
     size_t BlockCount = 10;
@@ -345,6 +382,7 @@ public:
     {
         auto testCase = GetParam();
 
+        auto useProbePutBlocks = testCase.UseProbePutBlocks;
         auto replicationFactor = testCase.ReplicationFactor;
         auto blockCount = testCase.BlockCount;
         auto nodeCount = testCase.NodeCount;
@@ -413,6 +451,9 @@ public:
         auto client = Connection->CreateNativeClient(clientOptions);
 
         auto config = New<TReplicationWriterConfig>();
+        config->NodePingPeriod = TDuration::Seconds(1);
+        config->ProbePutBlocksTimeout = TDuration::Seconds(5);
+        config->UseProbePutBlocks = useProbePutBlocks;
         config->MinUploadReplicationFactor = replicationFactor;
         config->UploadReplicationFactor = nodeCount;
         config->NodeChannel = New<TRetryingChannelConfig>();
@@ -533,6 +574,12 @@ INSTANTIATE_TEST_SUITE_P(
             .BlockCount = 1024,
         },
         TWriterTestCase{
+            .UseProbePutBlocks = true,
+            .ReplicationFactor = 3,
+            .NodeCount = 3,
+            .BlockCount = 1024,
+        },
+        TWriterTestCase{
             .ReplicationFactor = 4,
             .NodeCount = 4,
             .BlockCount = 1024,
@@ -555,8 +602,22 @@ INSTANTIATE_TEST_SUITE_P(
             .BlockCount = 1024,
             .ThrottledBlockCount = 5,
             .ThrottlingNodes = {0, 3},
+        },
+        TWriterTestCase{
+            .UseProbePutBlocks = true,
+            .ReplicationFactor = 3,
+            .NodeCount = 5,
+            .BlockCount = 1024,
+            .FailedNodes = {0, 3},
+        },
+        TWriterTestCase{
+            .UseProbePutBlocks = true,
+            .ReplicationFactor = 2,
+            .NodeCount = 5,
+            .BlockCount = 1024,
+            .FailedNodes = {2, 3, 4},
         }
-        // ReplicationWriter doesn't handle failing nodes properly yet
+        // ReplicationWriter doesn't handle failing nodes properly yet without probing
         // TWriterTestCase{
         //     .ReplicationFactor = 3,
         //     .NodeCount = 5,

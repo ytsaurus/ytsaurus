@@ -32,6 +32,8 @@ struct TRowVtable
 {
 public:
     using TUniquePtr = std::unique_ptr<void, std::function<void(void*)>>;
+    using TConstructRefCountedFunction = ::NYT::TRefCounted* (*)(void*);
+    using TCastRefCountedFunction = ::NYT::TRefCounted* (*)(const void*);
     using TUniDataFunction = void (*)(void*);
     using TCopyDataFunction = void (*)(void*, const void*);
     using TMoveDataFunction = void (*)(void*, void*);
@@ -50,6 +52,8 @@ public:
     size_t TypeHash = 0xDEADBEEF;
     ssize_t DataSize = 0;
     TUniDataFunction DefaultConstructor = nullptr;
+    TConstructRefCountedFunction ConstructRefCountedObject = nullptr;
+    TCastRefCountedFunction GetRefCountedObject = nullptr;
     TUniDataFunction Destructor = nullptr;
     TCopyDataFunction CopyConstructor = nullptr;
     TMoveDataFunction MoveConstructor = nullptr;
@@ -57,7 +61,6 @@ public:
     TMoveToUniquePtrFunction MoveToUniquePtr = nullptr;
     THashFunction Hash = nullptr;
     TEqualFunction Equal = nullptr;
-    ::NYT::NTableClient::TLogicalTypePtr YtSchema;
     TRawCoderFactoryFunction RawCoderFactory = &CrashingCoderFactory;
     bool IsManuallyNoncodable = false;
     ssize_t KeyOffset = NotKv;
@@ -70,6 +73,8 @@ public:
         TypeHash,
         DataSize,
         SaveLoadablePointer(DefaultConstructor),
+        SaveLoadablePointer(ConstructRefCountedObject),
+        SaveLoadablePointer(GetRefCountedObject),
         SaveLoadablePointer(Destructor),
         SaveLoadablePointer(CopyConstructor),
         SaveLoadablePointer(MoveConstructor),
@@ -77,7 +82,6 @@ public:
         SaveLoadablePointer(MoveToUniquePtr),
         SaveLoadablePointer(Hash),
         SaveLoadablePointer(Equal),
-        SaveLoadableLogicalType(YtSchema),
         SaveLoadablePointer(RawCoderFactory),
         IsManuallyNoncodable,
         KeyOffset,
@@ -122,6 +126,17 @@ TRowVtable MakeRowVtable()
         vtable.DefaultConstructor = [] (void* data) {
             new(data) T;
         };
+        if constexpr (CIntrusivePtr<T>) {
+            vtable.ConstructRefCountedObject = [] (void* data) -> ::NYT::TRefCounted* {
+                T* ptr = reinterpret_cast<T*>(data);
+                *ptr = ::NYT::New<TemplateParameterType<T>>();
+                return static_cast<::NYT::TRefCounted*>(ptr->Get());
+            };
+            vtable.GetRefCountedObject = [] (const void* data) -> ::NYT::TRefCounted* {
+                const T* ptr = reinterpret_cast<const T*>(data);
+                return static_cast<::NYT::TRefCounted*>(ptr->Get());
+            };
+        }
         vtable.CopyConstructor = [] (void* destination, const void* source) {
             new(destination) T(*reinterpret_cast<const T*>(source));
         };
@@ -152,14 +167,6 @@ TRowVtable MakeRowVtable()
             vtable.Equal = [] (const void* lhs, const void* rhs) -> bool {
                 return *reinterpret_cast<const T*>(lhs) == *reinterpret_cast<const T*>(rhs);
             };
-        }
-        if constexpr (CYsonStruct<T>) {
-            auto o = ::NYT::New<T>();
-            vtable.YtSchema = ::NYT::NFlow::TSerializer::GetSchema(o);
-        }
-        if constexpr (CYsonStructPtr<T>) {
-            auto o = ::NYT::New<TemplateParameterType<T>>();
-            vtable.YtSchema = ::NYT::NFlow::TSerializer::GetSchema(o);
         }
 
         if constexpr (NTraits::IsTKV<T>) {
