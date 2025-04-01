@@ -48,17 +48,11 @@ namespace NSQLComplete {
             NJson::TJsonValue json = NJson::ReadJsonFastTree(text);
             return ParseListFromJsonArray(json.GetArraySafe());
         }
-
-        static TVector<TFrequencyItem> LoadListFromResource(const TStringBuf filename) {
-            TString text;
-            Y_ENSURE(NResource::FindExact(filename, &text));
-            return ParseListFromJsonText(text);
-        }
     };
 
-    TFrequencyData LoadFrequencyData() {
+    TFrequencyData Convert(TVector<TFrequencyItem> items) {
         TFrequencyData data;
-        for (auto& item : TFrequencyItem::LoadListFromResource("rules_corr_basic.json")) {
+        for (auto& item : items) {
             if (item.Parent == Json.Parent.Type ||
                 item.Parent == Json.Parent.Func ||
                 item.Parent == Json.Parent.ModuleFunc ||
@@ -68,7 +62,8 @@ namespace NSQLComplete {
 
             if (item.Parent == Json.Parent.Type) {
                 data.Types[item.Rule] += item.Sum;
-            } else if (item.Parent == Json.Parent.Func || item.Parent == Json.Parent.ModuleFunc) {
+            } else if (item.Parent == Json.Parent.Func ||
+                       item.Parent == Json.Parent.ModuleFunc) {
                 data.Functions[item.Rule] += item.Sum;
             } else if (item.Parent == Json.Parent.Module) {
                 // Ignore, unsupported: Modules
@@ -77,6 +72,16 @@ namespace NSQLComplete {
             }
         }
         return data;
+    }
+
+    TFrequencyData ParseJsonFrequencyData(const TStringBuf text) {
+        return Convert(TFrequencyItem::ParseListFromJsonText(text));
+    }
+
+    TFrequencyData LoadFrequencyData() {
+        TString text;
+        Y_ENSURE(NResource::FindExact("rules_corr_basic.json", &text));
+        return ParseJsonFrequencyData(text);
     }
 
 } // namespace NSQLComplete

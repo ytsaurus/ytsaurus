@@ -10,6 +10,8 @@ namespace NSQLComplete {
         THashMap<TString, size_t> Functions;
     };
 
+    TFrequencyData ParseJsonFrequencyData(const TStringBuf text);
+
     TFrequencyData LoadFrequencyData();
 
 } // namespace NSQLComplete
