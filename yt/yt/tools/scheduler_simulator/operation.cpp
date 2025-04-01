@@ -2,6 +2,8 @@
 
 #include "operation_controller.h"
 
+#include <yt/yt/server/lib/scheduler/config.h>
+
 namespace NYT::NSchedulerSimulator {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -30,6 +32,12 @@ NScheduler::EOperationType TOperation::GetType() const
 NScheduler::EOperationState TOperation::GetState() const
 {
     return State_;
+}
+
+const NScheduler::TOperationOptionsPtr& TOperation::GetOperationOptions() const
+{
+    static auto stub = New<NScheduler::TOperationOptions>();
+    return stub;
 }
 
 std::optional<NScheduler::EUnschedulableReason> TOperation::CheckUnschedulable(const std::optional<TString>& treeId) const

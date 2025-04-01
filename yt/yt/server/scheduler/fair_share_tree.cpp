@@ -431,7 +431,8 @@ public:
     TRegistrationResult RegisterOperation(
         const TFairShareStrategyOperationStatePtr& state,
         const TStrategyOperationSpecPtr& spec,
-        const TOperationFairShareTreeRuntimeParametersPtr& runtimeParameters) override
+        const TOperationFairShareTreeRuntimeParametersPtr& runtimeParameters,
+        const TOperationOptionsPtr& operationOptions) override
     {
         YT_ASSERT_INVOKERS_AFFINITY(FeasibleInvokers_);
 
@@ -442,6 +443,7 @@ public:
         auto operationElement = New<TSchedulerOperationElement>(
             Config_,
             spec,
+            operationOptions,
             runtimeParameters,
             state->GetController(),
             ControllerConfig_,
@@ -3320,6 +3322,8 @@ private:
                 fluent.Item().Value(strategyHost->GetMediumNameByIndex(mediumIndex));
             })
             .Item("unschedulable_reason").Value(element->GetUnschedulableReason())
+            .Item("allocation_preemption_timeout").Value(element->GetEffectiveAllocationPreemptionTimeout())
+            .Item("allocation_graceful_preemption_timeout").Value(element->GetEffectiveAllocationGracefulPreemptionTimeout())
             .Do(BIND(&TFairShareTreeAllocationScheduler::BuildOperationProgress, ConstRef(treeSnapshot), Unretained(element), strategyHost))
             .Do(BIND(&TFairShareTree::DoBuildElementYson, ConstRef(treeSnapshot), Unretained(element), TFieldsFilter{}));
     }

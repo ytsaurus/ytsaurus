@@ -26,6 +26,9 @@ void TExperimentEffectConfig::Register(TRegistrar registrar)
     registrar.Parameter("scheduler_spec_patch", &TThis::SchedulerSpecPatch)
         .Default();
 
+    registrar.Parameter("scheduler_options_patch", &TThis::SchedulerOptionsPatch)
+        .Default();
+
     registrar.Parameter("controller_user_job_spec_template_patch", &TThis::ControllerUserJobSpecTemplatePatch)
         .Default();
     registrar.Parameter("controller_user_job_spec_patch", &TThis::ControllerUserJobSpecPatch)
