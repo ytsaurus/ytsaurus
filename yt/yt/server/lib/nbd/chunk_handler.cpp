@@ -98,7 +98,7 @@ public:
     TFuture<TSharedRef> Read(i64 offset, i64 length, const TReadOptions& options) override
     {
         if (!Initialized_) {
-            YT_LOG_ERROR("Can not read from uninitialized chunk handler (Offset: %v, Length: %v, Cookie: %v)",
+            YT_LOG_ERROR("Can not read from uninitialized chunk handler (Offset: %v, Length: %v, Cookie: %x)",
                 offset,
                 length,
                 options.Cookie);
@@ -138,7 +138,7 @@ public:
     TFuture<void> Write(i64 offset, const TSharedRef& data, const TWriteOptions& options) override
     {
         if (!Initialized_) {
-            YT_LOG_ERROR("Can not write to uninitialized chunk handler (Offset: %v, Length: %v, Cookie: %v)",
+            YT_LOG_ERROR("Can not write to uninitialized chunk handler (Offset: %v, Length: %v, Cookie: %x)",
                 offset,
                 data.size(),
                 options.Cookie);
