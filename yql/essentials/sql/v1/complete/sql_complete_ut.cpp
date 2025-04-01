@@ -441,13 +441,13 @@ Y_UNIT_TEST_SUITE(SqlCompleteTests) {
         auto engine = MakeSqlCompletionEngine(MakePureLexerSupplier(), std::move(service));
         {
             TVector<TCandidate> expected = {
-                {TypeName, "Uint16"},
-                {TypeName, "Uint32"},
                 {TypeName, "Uint64"},
-                {TypeName, "Uint8"},
-                {TypeName, "Unit"},
+                {TypeName, "Uint32"},
                 {TypeName, "Utf8"},
                 {TypeName, "Uuid"},
+                {TypeName, "Uint8"},
+                {TypeName, "Unit"},
+                {TypeName, "Uint16"},
             };
             UNIT_ASSERT_VALUES_EQUAL(Complete(engine, {"SELECT OPTIONAL<U"}), expected);
         }

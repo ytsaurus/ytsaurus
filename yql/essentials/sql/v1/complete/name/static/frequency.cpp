@@ -14,7 +14,7 @@ namespace NSQLComplete {
             const char* Sum = "sum";
         } Key;
         struct {
-            const char* Type = "Type";
+            const char* Type = "TYPE";
             const char* Func = "FUNC";
             const char* Module = "MODULE";
             const char* ModuleFunc = "MODULE_FUNC";
