@@ -22,7 +22,7 @@ struct TSpareNodesInfo
     THashMap<std::string, std::vector<std::string>> UsedByBundle;
     THashMap<std::string, std::vector<std::string>> ReleasingByBundle;
 
-    std::vector<std::string>& FreeInstances()
+    std::vector<std::string>& MutableFreeInstances()
     {
         return FreeNodes;
     }
@@ -42,7 +42,7 @@ struct TSpareProxiesInfo
     std::vector<std::string> FreeProxies;
     THashMap<std::string, std::vector<std::string>> UsedByBundle;
 
-    std::vector<std::string>& FreeInstances()
+    std::vector<std::string>& MutableFreeInstances()
     {
         return FreeProxies;
     }
@@ -54,6 +54,19 @@ struct TSpareProxiesInfo
 };
 
 using TPerDataCenterSpareProxiesInfo = THashMap<std::string, TSpareProxiesInfo>;
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <typename TSpareInstance>
+struct TSpareInstanceAllocator
+{
+    using TZoneToDataCenterToInfo = THashMap<std::string, THashMap<std::string, TSpareInstance>>;
+
+    TZoneToDataCenterToInfo& SpareInstances;
+
+    std::string Allocate(const std::string& zoneName, const std::string& dataCenterName, const std::string& bundleName);
+    bool HasInstances(const std::string& zoneName, const std::string& dataCenterName) const;
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -244,10 +257,10 @@ void ScheduleBundles(TSchedulerInputState& input, TSchedulerMutations* mutations
 std::string GetSpareBundleName(const TZoneInfoPtr& zoneInfo);
 
 void InitializeZoneToSpareNodes(TSchedulerInputState& input, TSchedulerMutations* mutations);
-void ManageNodeTagFilters(TSchedulerInputState& input, TSchedulerMutations* mutations);
+void ManageNodeTagFilters(TSchedulerInputState& input, TSpareInstanceAllocator<TSpareNodesInfo>& spareNodesAllocator, TSchedulerMutations* mutations);
 
 void InitializeZoneToSpareProxies(TSchedulerInputState& input, TSchedulerMutations* mutations);
-void ManageRpcProxyRoles(TSchedulerInputState& input, TSchedulerMutations* mutations);
+void ManageRpcProxyRoles(TSchedulerInputState& input, TSpareInstanceAllocator<TSpareProxiesInfo>& spareProxiesAllocator, TSchedulerMutations* mutations);
 
 DEFINE_ENUM(EGracePeriodBehaviour,
     ((Wait)         (0))
