@@ -673,6 +673,7 @@ public:
             secureVault,
             /*temporaryTokenNodeId*/ std::nullopt,
             runtimeParameters,
+            std::move(preprocessedSpec.OperationOptions),
             std::move(baseAcl),
             user,
             /*startTime*/ TInstant::Now(),

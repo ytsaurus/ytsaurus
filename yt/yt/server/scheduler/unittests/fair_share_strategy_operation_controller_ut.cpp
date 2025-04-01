@@ -192,6 +192,11 @@ public:
         YT_UNIMPLEMENTED();
     }
 
+    const TOperationOptionsPtr& GetOperationOptions() const override
+    {
+        YT_UNIMPLEMENTED();
+    }
+
     TOperationControllerStrategyHostMock& GetOperationControllerStrategyHost()
     {
         return *Controller_.Get();

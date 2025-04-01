@@ -54,6 +54,8 @@ public:
 
     void SetState(NScheduler::EOperationState state);
 
+    const NScheduler::TOperationOptionsPtr& GetOperationOptions() const override;
+
 private:
     std::atomic<bool> Completing_ = {false};
 

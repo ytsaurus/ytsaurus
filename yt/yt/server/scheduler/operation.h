@@ -158,6 +158,8 @@ struct IOperationStrategyHost
 
     virtual TOperationRuntimeParametersPtr GetRuntimeParameters() const = 0;
 
+    virtual const TOperationOptionsPtr& GetOperationOptions() const = 0;
+
     virtual void UpdatePoolAttributes(
         const TString& treeId,
         const TOperationPoolTreeAttributes& operationPoolTreeAttributes) = 0;
@@ -370,6 +372,8 @@ public:
 
     EOperationState GetState() const override;
 
+    const TOperationOptionsPtr& GetOperationOptions() const override;
+
     //! Sets operation state and adds the corresponding event with given attributes.
     void SetStateAndEnqueueEvent(
         EOperationState state,
@@ -451,6 +455,7 @@ public:
         NYTree::IMapNodePtr secureVault,
         std::optional<NCypressClient::TNodeId> temporaryTokenNodeId,
         TOperationRuntimeParametersPtr runtimeParameters,
+        TOperationOptionsPtr operationOptions,
         NSecurityClient::TSerializableAccessControlList baseAcl,
         const std::string& authenticatedUser,
         TInstant startTime,
@@ -474,6 +479,7 @@ private:
     const NYson::TYsonString TrimmedAnnotations_;
     const std::optional<TBriefVanillaTaskSpecMap> BriefVanillaTaskSpecs_;
     const THashMap<TString, TStrategyOperationSpecPtr> CustomSpecPerTree_;
+    const TOperationOptionsPtr OperationOptions_;
     const std::string Codicil_;
     const IInvokerPtr ControlInvoker_;
 
@@ -523,6 +529,7 @@ struct TPreprocessedSpec
     std::vector<TExperimentAssignmentPtr> ExperimentAssignments;
     std::vector<TError> ExperimentAssignmentErrors;
     std::optional<THashMap<std::string, TBriefVanillaTaskSpec>> BriefVanillaTaskSpecs;
+    TOperationOptionsPtr OperationOptions;
 };
 
 //! Fill various spec parts of preprocessed spec.
