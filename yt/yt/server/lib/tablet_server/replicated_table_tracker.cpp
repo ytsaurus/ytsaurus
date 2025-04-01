@@ -1073,11 +1073,9 @@ public:
 
             i64 minSyncReplicaCount;
             i64 maxSyncReplicaCount;
-            std::tie(minSyncReplicaCount, maxSyncReplicaCount) = Options_->GetEffectiveMinMaxReplicaCount(trackedReplicaCount);
-            if (contentType == ETableReplicaContentType::Queue) {
-                minSyncReplicaCount = std::max(minSyncReplicaCount, 1L);
-                maxSyncReplicaCount = std::max(maxSyncReplicaCount, 2L);
-            }
+            std::tie(minSyncReplicaCount, maxSyncReplicaCount) = Options_->GetEffectiveMinMaxReplicaCount(
+                contentType,
+                trackedReplicaCount);
 
             // Replicas with larger lag go first.
             Sort(
