@@ -1,6 +1,7 @@
 #include "grammar.h"
 
 #include <yql/essentials/sql/v1/format/sql_format.h>
+#include <yql/essentials/sql/v1/reflect/sql_reflect.h>
 
 namespace NSQLComplete {
 
@@ -10,6 +11,7 @@ namespace NSQLComplete {
             : Vocabulary(GetVocabularyP())
             , AllTokens(ComputeAllTokens())
             , KeywordTokens(ComputeKeywordTokens())
+            , PunctuationTokens(ComputePunctuationTokens(NSQLReflect::LoadLexerGrammar()))
         {
         }
 
@@ -23,6 +25,10 @@ namespace NSQLComplete {
 
         const std::unordered_set<TTokenId>& GetKeywordTokens() const override {
             return KeywordTokens;
+        }
+
+        const std::unordered_set<TTokenId>& GetPunctuationTokens() const override {
+            return PunctuationTokens;
         }
 
     private:
@@ -55,9 +61,22 @@ namespace NSQLComplete {
             return keywordTokens;
         }
 
+        std::unordered_set<TTokenId> ComputePunctuationTokens(
+            const NSQLReflect::TLexerGrammar& grammar) {
+            const auto& vocabulary = GetVocabulary();
+
+            auto punctuationTokens = GetAllTokens();
+            std::erase_if(punctuationTokens, [&](TTokenId token) {
+                return !grammar.PunctuationNames.contains(vocabulary.getSymbolicName(token));
+            });
+
+            return punctuationTokens;
+        }
+
         const antlr4::dfa::Vocabulary* Vocabulary;
         const std::unordered_set<TTokenId> AllTokens;
         const std::unordered_set<TTokenId> KeywordTokens;
+        const std::unordered_set<TTokenId> PunctuationTokens;
     };
 
     const ISqlGrammar& GetSqlGrammar() {

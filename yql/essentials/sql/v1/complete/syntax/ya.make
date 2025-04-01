@@ -22,6 +22,8 @@ PEERDIR(
 
     # TODO(YQL-19747): Replace with the sql/v1/reflect to get keywords
     yql/essentials/sql/v1/format
+
+    yql/essentials/sql/v1/reflect
 )
 
 END()
