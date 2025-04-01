@@ -2241,13 +2241,30 @@ void TChunkMerger::HydraFinalizeChunkMergeSessions(NProto::TReqFinalizeChunkMerg
 
         YT_VERIFY(result != EMergeSessionResult::None);
 
-        auto accountId = GetIteratorOrCrash(NodesBeingMerged_, nodeId)->second;
-        RemoveFromNodesBeingMerged(nodeId);
+        TAccountId accountId;
+        if (auto it = NodesBeingMerged_.find(nodeId); it == NodesBeingMerged_.end()) {
+            YT_LOG_ALERT("Missing node encountered while finalizing chunk merge sessions (NodeId: %v)",
+                nodeId);
 
-        // IsLeader means we are not in recovery, so all merger stuff happened in this epoch.
-        if (IsLeader()) {
-            EraseOrCrash(RunningSessions_, nodeId);
-            EraseOrCrash(NodeIdToChunkMergerStatus_, nodeId);
+            // Same as below, but without asserts.
+            if (IsLeader()) {
+                RunningSessions_.erase(nodeId);
+                NodeIdToChunkMergerStatus_.erase(nodeId);
+            }
+
+            // NB: It's impossible to fully reproduce the effects of
+            // RemoveFromNodesBeingMerged here as the account ID is unknown.
+
+            continue;
+
+        } else {
+            accountId = it->second;
+            RemoveFromNodesBeingMerged(nodeId);
+            // IsLeader means we are not in recovery, so all merger stuff happened in this epoch.
+            if (IsLeader()) {
+                EraseOrCrash(RunningSessions_, nodeId);
+                EraseOrCrash(NodeIdToChunkMergerStatus_, nodeId);
+            }
         }
 
         auto* chunkOwner = FindChunkOwner(nodeId);
