@@ -1,0 +1,22 @@
+{
+    "data": [
+        {
+            "source": {
+                "type": "ARCADIA",
+                "path": "yt/docker/ytsaurus/Dockerfile",
+            },
+            "destination": {
+                "path": "/Dockerfile",
+            },
+        },
+        {
+            "source": {
+                "type": "ARCADIA",
+                "path": "certs/cacert.pem",
+            },
+            "destination": {
+                "path": "/certs/cacert.pem",
+            },
+        },
+    ],
+}
