@@ -122,7 +122,11 @@ std::unique_ptr<TImpl> TTableNodeTypeHandlerBase<TImpl>::DoCreate(
     bool dynamic = combinedAttributes->GetAndRemove<bool>("dynamic", false);
     auto optionalTabletCellBundleName = combinedAttributes->FindAndRemove<std::string>("tablet_cell_bundle");
     bool optimizeForIsExplicit = context.ExplicitAttributes->Contains("optimize_for");
-    auto optimizeFor = combinedAttributes->GetAndRemove<EOptimizeFor>("optimize_for", dynamic ? EOptimizeFor::Scan : EOptimizeFor::Lookup);
+    auto optimizeFor = combinedAttributes->GetAndRemove<EOptimizeFor>(
+        "optimize_for",
+        dynamic
+            ? cypressManagerConfig->DefaultDynamicTableOptimizeFor
+            : cypressManagerConfig->DefaultOptimizeFor);
     auto optionalChunkFormat = combinedAttributes->FindAndRemove<EChunkFormat>("chunk_format");
     auto hunkErasureCodec = combinedAttributes->GetAndRemove<NErasure::ECodec>("hunk_erasure_codec", NErasure::ECodec::None);
     auto replicationFactor = combinedAttributes->GetAndRemove("replication_factor", cypressManagerConfig->DefaultTableReplicationFactor);
