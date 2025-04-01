@@ -303,7 +303,7 @@ Y_UNIT_TEST_SUITE(SqlCompleteTests) {
             {Keyword, "TRUE"},
             {Keyword, "TUPLE"},
             {Keyword, "VARIANT"},
-            {FunctionName, "StartsWith"},
+            {FunctionName, "StartsWith("},
         };
 
         auto engine = MakeSqlCompletionEngineUT();
@@ -340,7 +340,7 @@ Y_UNIT_TEST_SUITE(SqlCompleteTests) {
             {Keyword, "TRUE"},
             {Keyword, "TUPLE"},
             {Keyword, "VARIANT"},
-            {FunctionName, "StartsWith"},
+            {FunctionName, "StartsWith("},
         };
 
         auto engine = MakeSqlCompletionEngineUT();
