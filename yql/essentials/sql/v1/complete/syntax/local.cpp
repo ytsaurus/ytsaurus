@@ -108,6 +108,12 @@ namespace NSQLComplete {
             for (const auto& token : candidates.Tokens) {
                 if (keywordTokens.contains(token.Number)) {
                     keywords.emplace_back(vocabulary.getDisplayName(token.Number));
+                    for (auto following : token.Following) {
+                        if (keywordTokens.contains(following)) {
+                            keywords.back() += " ";
+                        }
+                        keywords.back() += vocabulary.getDisplayName(following);
+                    }
                 }
             }
             return keywords;

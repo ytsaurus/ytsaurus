@@ -45,7 +45,7 @@ Y_UNIT_TEST_SUITE(SqlCompleteTests) {
         lexers.Antlr4PureAnsi = NSQLTranslationV1::MakeAntlr4PureAnsiLexerFactory();
         return [lexers = std::move(lexers)](bool ansi) {
             return NSQLTranslationV1::MakeLexer(
-                lexers, ansi, /* antlr4 = */ true, 
+                lexers, ansi, /* antlr4 = */ true,
                 NSQLTranslationV1::ELexerFlavor::Pure);
         };
     }
@@ -73,7 +73,7 @@ Y_UNIT_TEST_SUITE(SqlCompleteTests) {
             {Keyword, "CREATE"},
             {Keyword, "DECLARE"},
             {Keyword, "DEFINE"},
-            {Keyword, "DELETE"},
+            {Keyword, "DELETE FROM"},
             {Keyword, "DISCARD"},
             {Keyword, "DO"},
             {Keyword, "DROP"},
@@ -95,7 +95,7 @@ Y_UNIT_TEST_SUITE(SqlCompleteTests) {
             {Keyword, "REVOKE"},
             {Keyword, "ROLLBACK"},
             {Keyword, "SELECT"},
-            {Keyword, "SHOW"},
+            {Keyword, "SHOW CREATE"},
             {Keyword, "UPDATE"},
             {Keyword, "UPSERT"},
             {Keyword, "USE"},
@@ -113,13 +113,13 @@ Y_UNIT_TEST_SUITE(SqlCompleteTests) {
 
     Y_UNIT_TEST(Alter) {
         TVector<TCandidate> expected = {
-            {Keyword, "ASYNC"},
-            {Keyword, "BACKUP"},
+            {Keyword, "ASYNC REPLICATION"},
+            {Keyword, "BACKUP COLLECTION"},
             {Keyword, "DATABASE"},
             {Keyword, "EXTERNAL"},
             {Keyword, "GROUP"},
             {Keyword, "OBJECT"},
-            {Keyword, "RESOURCE"},
+            {Keyword, "RESOURCE POOL"},
             {Keyword, "SEQUENCE"},
             {Keyword, "TABLE"},
             {Keyword, "TABLESTORE"},
@@ -134,17 +134,17 @@ Y_UNIT_TEST_SUITE(SqlCompleteTests) {
 
     Y_UNIT_TEST(Create) {
         TVector<TCandidate> expected = {
-            {Keyword, "ASYNC"},
-            {Keyword, "BACKUP"},
+            {Keyword, "ASYNC REPLICATION"},
+            {Keyword, "BACKUP COLLECTION"},
             {Keyword, "EXTERNAL"},
             {Keyword, "GROUP"},
             {Keyword, "OBJECT"},
-            {Keyword, "OR"},
-            {Keyword, "RESOURCE"},
+            {Keyword, "OR REPLACE"},
+            {Keyword, "RESOURCE POOL"},
             {Keyword, "TABLE"},
             {Keyword, "TABLESTORE"},
-            {Keyword, "TEMP"},
-            {Keyword, "TEMPORARY"},
+            {Keyword, "TEMP TABLE"},
+            {Keyword, "TEMPORARY TABLE"},
             {Keyword, "TOPIC"},
             {Keyword, "TRANSFER"},
             {Keyword, "USER"},
@@ -166,12 +166,12 @@ Y_UNIT_TEST_SUITE(SqlCompleteTests) {
 
     Y_UNIT_TEST(Drop) {
         TVector<TCandidate> expected = {
-            {Keyword, "ASYNC"},
-            {Keyword, "BACKUP"},
+            {Keyword, "ASYNC REPLICATION"},
+            {Keyword, "BACKUP COLLECTION"},
             {Keyword, "EXTERNAL"},
             {Keyword, "GROUP"},
             {Keyword, "OBJECT"},
-            {Keyword, "RESOURCE"},
+            {Keyword, "RESOURCE POOL"},
             {Keyword, "TABLE"},
             {Keyword, "TABLESTORE"},
             {Keyword, "TOPIC"},
@@ -194,7 +194,7 @@ Y_UNIT_TEST_SUITE(SqlCompleteTests) {
             {Keyword, "CREATE"},
             {Keyword, "DECLARE"},
             {Keyword, "DEFINE"},
-            {Keyword, "DELETE"},
+            {Keyword, "DELETE FROM"},
             {Keyword, "DISCARD"},
             {Keyword, "DO"},
             {Keyword, "DROP"},
@@ -209,14 +209,14 @@ Y_UNIT_TEST_SUITE(SqlCompleteTests) {
             {Keyword, "PARALLEL"},
             {Keyword, "PRAGMA"},
             {Keyword, "PROCESS"},
-            {Keyword, "QUERY"},
+            {Keyword, "QUERY PLAN"},
             {Keyword, "REDUCE"},
             {Keyword, "REPLACE"},
             {Keyword, "RESTORE"},
             {Keyword, "REVOKE"},
             {Keyword, "ROLLBACK"},
             {Keyword, "SELECT"},
-            {Keyword, "SHOW"},
+            {Keyword, "SHOW CREATE"},
             {Keyword, "UPDATE"},
             {Keyword, "UPSERT"},
             {Keyword, "USE"},
@@ -230,21 +230,21 @@ Y_UNIT_TEST_SUITE(SqlCompleteTests) {
     Y_UNIT_TEST(Grant) {
         TVector<TCandidate> expected = {
             {Keyword, "ALL"},
-            {Keyword, "ALTER"},
+            {Keyword, "ALTER SCHEMA"},
             {Keyword, "CONNECT"},
             {Keyword, "CREATE"},
-            {Keyword, "DESCRIBE"},
+            {Keyword, "DESCRIBE SCHEMA"},
             {Keyword, "DROP"},
-            {Keyword, "ERASE"},
+            {Keyword, "ERASE ROW"},
             {Keyword, "FULL"},
             {Keyword, "GRANT"},
             {Keyword, "INSERT"},
             {Keyword, "LIST"},
             {Keyword, "MANAGE"},
             {Keyword, "MODIFY"},
-            {Keyword, "REMOVE"},
+            {Keyword, "REMOVE SCHEMA"},
             {Keyword, "SELECT"},
-            {Keyword, "UPDATE"},
+            {Keyword, "UPDATE ROW"},
             {Keyword, "USE"},
         };
 
