@@ -90,9 +90,10 @@ struct TDockerImageSpec
     TString Tag;
     TString Digest;
 
-    TDockerImageSpec(const TString& dockerImage, const TDockerRegistryConfigPtr& config);
+    bool IsInternal = false;
 
-    bool IsInternal() const;
+    TDockerImageSpec(const TString& dockerImage, const TDockerRegistryConfigPtr& config);
+    TString GetDockerImage() const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

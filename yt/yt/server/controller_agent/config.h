@@ -758,8 +758,11 @@ DEFINE_REFCOUNTED_TYPE(TJobTrackerConfig)
 struct TDockerRegistryConfig
     : public NYTree::TYsonStruct
 {
-    //! FQDN of internal docker registry for docker images stored in Cypress.
-    std::string InternalRegistryAddress;
+    //! Address (FQDN[:PORT]) of internal docker registry for docker images stored in Cypress.
+    std::optional<std::string> InternalRegistryAddress;
+
+    //! Alternative addresses for internal docker registry.
+    std::vector<std::string> InternalRegistryAlternativeAddresses;
 
     bool UseYtTokenForInternalRegistry = false;
 
