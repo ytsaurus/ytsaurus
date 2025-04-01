@@ -6,7 +6,11 @@
         "version": "local-{revision}",
     },
     "include": [
-      "yt/docker/ya-build/base/package.json",
+        "yt/docker/ya-build/base/build-server-linux-x86_64.json",
+        "yt/docker/ya-build/base/build-python-linux-x86_64.json",
+        "yt/docker/ya-build/base/data-common.json",
+        "yt/docker/ya-build/base/data-server.json",
+        "yt/docker/ya-build/base/data-python.json",
     ],
     "params": {
         "format": "docker",
@@ -15,19 +19,4 @@
             "PYTHON_BUILD_BASE": "build-ytsaurus-python-binaries"
         },
     },
-    "data": [
-        {
-            "source": {
-                "type": "ARCADIA",
-                "path": "yt/python/yt/environment",
-                "files": [
-                    "init_queue_agent_state.py",
-                    "init_operations_archive.py",
-                ],
-            },
-            "destination": {
-                "path": "/",
-            },
-        },
-    ],
 }
