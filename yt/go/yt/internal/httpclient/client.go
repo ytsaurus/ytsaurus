@@ -265,7 +265,11 @@ func (c *httpClient) logResponse(ctx context.Context, rsp *http.Response) {
 
 // unexpectedStatusCode is last effort attempt to get useful error message from a failed request.
 func unexpectedStatusCode(rsp *http.Response) error {
-	d := json.NewDecoder(rsp.Body)
+	body, err := io.ReadAll(rsp.Body)
+	if err != nil {
+		return xerrors.Errorf("failed to read http response body: %w", err)
+	}
+	d := json.NewDecoder(bytes.NewReader(body))
 	d.UseNumber()
 
 	var ytErr yterrors.Error
@@ -273,7 +277,7 @@ func unexpectedStatusCode(rsp *http.Response) error {
 		return &ytErr
 	}
 
-	return xerrors.Errorf("unexpected status code %d", rsp.StatusCode)
+	return internal.NewHTTPError(rsp.StatusCode, rsp.Header, body)
 }
 
 func (c *httpClient) readResult(rsp *http.Response) (res *internal.CallResult, err error) {
