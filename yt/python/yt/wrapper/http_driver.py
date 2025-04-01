@@ -3,6 +3,7 @@ from .config import get_config, get_option, set_option
 from .compression import get_compressor, has_compressor
 from .common import (require, get_user_agent, total_seconds, forbidden_inside_job, get_started_by_short,
                      generate_uuid, hide_secure_vault, hide_auth_headers)
+from .default_config import default_config
 from .errors import (YtError, YtProxyUnavailable, YtConcurrentOperationsLimitExceeded, YtRequestTimedOut,
                      create_http_response_error)
 from .format import JsonFormat
@@ -104,7 +105,11 @@ class HeavyProxyProvider(ProxyProvider):
         return get_proxy_address_url(client=self.client, replace_host=proxy)
 
     def _discover_heavy_proxies(self):
+        proxy_role = get_config(self.client)["proxy"]["http_proxy_role"]
         discovery_url = get_config(self.client)["proxy"]["proxy_discovery_url"]
+        if discovery_url == default_config["proxy"]["proxy_discovery_url"] and proxy_role is not None:
+            discovery_url += f"?role={proxy_role}"
+
         heavy_proxies = make_request_with_retries(
             "get",
             "{0}/{1}".format(self._get_light_proxy(), discovery_url),
