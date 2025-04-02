@@ -453,6 +453,76 @@ void RegisterBuiltinFunctions(IFunctionRegistryBuilder* builder)
         typeParameterGreatest,
         typeParameterGreatest,
         "greatest");
+
+    const TTypeParameter typeParameterAbs = 0;
+    auto anyConstraintsAbs = std::unordered_map<TTypeParameter, TUnionType>();
+    anyConstraintsAbs[typeParameterAbs] = {
+        EValueType::Int64,
+        EValueType::Uint64,
+        EValueType::Double,
+    };
+
+    builder->RegisterFunction(
+        "abs",
+        anyConstraintsAbs,
+        {typeParameterAbs},
+        EValueType::Null,
+        typeParameterAbs,
+        "abs");
+
+    struct TMathFunction {
+        TString Name;
+        std::vector<TType> ArgumentTypes;
+        EValueType ResultType;
+    };
+
+    std::vector<TMathFunction> mathFunctions = {
+        {"acos", {EValueType::Double}, EValueType::Double},
+        {"asin", {EValueType::Double}, EValueType::Double},
+        {"ceil", {EValueType::Double}, EValueType::Int64},
+        {"cbrt", {EValueType::Double}, EValueType::Double},
+        {"cos", {EValueType::Double}, EValueType::Double},
+        {"cot", {EValueType::Double}, EValueType::Double},
+        {"degrees", {EValueType::Double}, EValueType::Double},
+        {"even", {EValueType::Double}, EValueType::Int64},
+        {"exp", {EValueType::Double}, EValueType::Double},
+        {"floor", {EValueType::Double}, EValueType::Int64},
+        {"gamma", {EValueType::Double}, EValueType::Double},
+        {"is_inf", {EValueType::Double}, EValueType::Boolean},
+        {"lgamma", {EValueType::Double}, EValueType::Double},
+        {"ln", {EValueType::Double}, EValueType::Double},
+        {"log", {EValueType::Double}, EValueType::Double},
+        {"log10", {EValueType::Double}, EValueType::Double},
+        {"log2", {EValueType::Double}, EValueType::Double},
+        {"radians", {EValueType::Double}, EValueType::Double},
+        {"sign", {EValueType::Double}, EValueType::Int64},
+        {"signbit", {EValueType::Double}, EValueType::Boolean},
+        {"sin", {EValueType::Double}, EValueType::Double},
+        {"sqrt", {EValueType::Double}, EValueType::Double},
+        {"tan", {EValueType::Double}, EValueType::Double},
+        {"trunc", {EValueType::Double}, EValueType::Int64},
+        {"bit_count", {EValueType::Uint64}, EValueType::Int64},
+        {"atan2", {EValueType::Double, EValueType::Double}, EValueType::Double},
+        {"factorial", {EValueType::Uint64}, EValueType::Uint64},
+        {"gcd", {EValueType::Uint64, EValueType::Uint64}, EValueType::Uint64},
+        {"lcm", {EValueType::Uint64, EValueType::Uint64}, EValueType::Uint64},
+        {"pow", {EValueType::Double, EValueType::Double}, EValueType::Double},
+        {"round", {EValueType::Double}, EValueType::Int64},
+        {"xor", {EValueType::Uint64, EValueType::Uint64}, EValueType::Uint64},
+    };
+
+    for (const auto& [name, argumentType, resultType] : mathFunctions) {
+        builder->RegisterFunction(
+            name,
+            "math_" + name,
+            {},
+            argumentType,
+            EValueType::Null,
+            resultType,
+            "math",
+            ECallingConvention::Simple,
+            false);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

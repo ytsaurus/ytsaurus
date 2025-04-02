@@ -347,6 +347,51 @@ LLVM_BC(
 )
 
 LLVM_BC(
+    udf/abs.cpp
+    NAME abs
+    SYMBOLS
+        abs
+)
+
+LLVM_BC(
+    udf/math.cpp
+    NAME math
+    SYMBOLS
+        math_acos
+        math_asin
+        math_ceil
+        math_cbrt
+        math_cos
+        math_cot
+        math_degrees
+        math_even
+        math_exp
+        math_floor
+        math_gamma
+        math_is_inf
+        math_lgamma
+        math_ln
+        math_log
+        math_log10
+        math_log2
+        math_radians
+        math_sign
+        math_signbit
+        math_sin
+        math_sqrt
+        math_tan
+        math_trunc
+        math_bit_count
+        math_atan2
+        math_factorial
+        math_gcd
+        math_lcm
+        math_pow
+        math_round
+        math_xor
+)
+
+LLVM_BC(
     udf/dict_sum.c
     NAME dict_sum
     SYMBOLS

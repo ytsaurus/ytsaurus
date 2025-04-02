@@ -1421,6 +1421,7 @@ std::vector<TRow> OrderRowsBy(TRange<TRow> rows, TRange<std::string> columns, co
 }
 
 using TResultMatcher = std::function<void(TRange<TRow>, const TTableSchema&)>;
+static constexpr double Epsilon = 1e-5;
 
 TResultMatcher ResultMatcher(std::vector<TOwningRow> expectedResult, TTableSchemaPtr expectedSchema = nullptr)
 {
@@ -1453,7 +1454,9 @@ TResultMatcher ResultMatcher(std::vector<TOwningRow> expectedResult, TTableSchem
                     if (expectedValue.Type != value.Type) {
                         continue;
                     }
-                    if (expectedValue.Type == EValueType::Any || expectedValue.Type == EValueType::Composite) {
+                    if (expectedValue.Type == EValueType::Double) {
+                        EXPECT_NEAR(expectedValue.Data.Double, value.Data.Double, Epsilon);
+                    } else if (expectedValue.Type == EValueType::Any || expectedValue.Type == EValueType::Composite) {
                         // Slow path.
                         auto expectedYson = TYsonString(expectedValue.AsString());
                         auto expectedStableYson = ConvertToYsonString(ConvertToNode(expectedYson), EYsonFormat::Text);
@@ -10568,6 +10571,825 @@ TEST_F(TQueryEvaluateTest, Greatest)
     Evaluate("greatest(e) as r1, greatest('ada', e) as r2 FROM [//t]", split, source, resultMatcherString);
 
    SUCCEED();
+}
+
+
+TEST_F(TQueryEvaluateTest, MathAbs)
+{
+    auto split = MakeSplit({
+        {"a", EValueType::Int64},
+        {"b", EValueType::Double},
+        {"c", EValueType::Int64},
+        {"d", EValueType::Uint64},
+    });
+
+    auto source = TSource{
+        "a=1;b=2.3;c=3;d=4u",
+        "a=-22;b=-1.4;c=12;d=0u",
+        "a=3;b=#;c=-5;d=19u",
+        "a=-4;b=-109.4;c=10;d=95u",
+        "a=-6;b=153.9;c=#;d=#",
+        "a=2;b=-98.2;c=-92;d=63u",
+        "a=#;b=#;c=#;d=#"
+    };
+
+    auto result = YsonToRows({
+        "a=1;b=2.3;c=3;d=4u",
+        "a=22;b=1.4;c=12;d=0u",
+        "a=3;b=#;c=5;d=19u",
+        "a=4;b=109.4;c=10;d=95u",
+        "a=6;b=153.9;c=#;d=#",
+        "a=2;b=98.2;c=92;d=63u",
+        "a=#;b=#;c=#;d=#"
+    }, split);
+
+    EvaluateOnlyViaNativeExecutionBackend(
+        "abs(a) as a, abs(b) as b, abs(c) as c, abs(d) as d from [//t]",
+        split,
+        source,
+        ResultMatcher(result));
+
+    EXPECT_THROW_THAT(
+        Evaluate(
+            "abs(a, c) as a from [//t]",
+            split,
+            source,
+            AnyMatcher),
+        HasSubstr("Wrong number of arguments"));
+
+    SUCCEED();
+}
+
+TEST_F(TQueryEvaluateTest, MathAcos)
+{
+    auto split = MakeSplit({
+        {"a", EValueType::Double}
+    });
+
+    auto source = TSource{
+        "a=1.",
+        "a=0.2"
+    };
+
+    auto result = YsonToRows({
+        "a=0.",
+        "a=1.3694384"
+    }, MakeSplit({{"a", EValueType::Double}}));
+
+    EvaluateOnlyViaNativeExecutionBackend(
+        "acos(a) as a from [//t]",
+        split,
+        source,
+        ResultMatcher(result));
+
+    SUCCEED();
+}
+
+TEST_F(TQueryEvaluateTest, MathAsin)
+{
+    auto split = MakeSplit({
+        {"a", EValueType::Double}
+    });
+
+    auto source = TSource{
+        "a=0.",
+        "a=0.2"
+    };
+
+    auto result = YsonToRows({
+        "a=0.",
+        "a=0.2013579"
+    }, MakeSplit({{"a", EValueType::Double}}));
+
+    EvaluateOnlyViaNativeExecutionBackend(
+        "asin(a) as a from [//t]",
+        split,
+        source,
+        ResultMatcher(result));
+
+    SUCCEED();
+}
+
+TEST_F(TQueryEvaluateTest, MathCeil)
+{
+    auto split = MakeSplit({
+        {"a", EValueType::Double}
+    });
+
+    auto source = TSource{
+        "a=2.2",
+        "a=-14.2"
+    };
+
+    auto result = YsonToRows({
+        "a=3",
+        "a=-14"
+    }, MakeSplit({{"a", EValueType::Int64}}));
+
+    EvaluateOnlyViaNativeExecutionBackend(
+        "ceil(a) as a from [//t]",
+        split,
+        source,
+        ResultMatcher(result));
+
+    SUCCEED();
+}
+
+TEST_F(TQueryEvaluateTest, MathCbrt)
+{
+    auto split = MakeSplit({
+        {"a", EValueType::Double}
+    });
+
+    auto source = TSource{
+        "a=8.",
+        "a=16.4"
+    };
+
+    auto result = YsonToRows({
+        "a=2.",
+        "a=2.5406681"
+    }, MakeSplit({{"a", EValueType::Double}}));
+
+    EvaluateOnlyViaNativeExecutionBackend(
+        "cbrt(a) as a from [//t]",
+        split,
+        source,
+        ResultMatcher(result));
+
+    SUCCEED();
+}
+
+TEST_F(TQueryEvaluateTest, MathCos)
+{
+    auto split = MakeSplit({
+        {"a", EValueType::Double}
+    });
+
+    auto source = TSource{
+        "a=0.",
+        "a=0.3"
+    };
+
+    auto result = YsonToRows({
+        "a=1.",
+        "a=0.95533648912"
+    }, MakeSplit({{"a", EValueType::Double}}));
+
+    EvaluateOnlyViaNativeExecutionBackend(
+        "cos(a) as a from [//t]",
+        split,
+        source,
+        ResultMatcher(result));
+
+    SUCCEED();
+}
+
+TEST_F(TQueryEvaluateTest, MathCot)
+{
+    auto split = MakeSplit({
+        {"a", EValueType::Double}
+    });
+
+    auto source = TSource{
+        "a=0.5",
+        "a=12.3"
+    };
+
+    auto result = YsonToRows({
+        "a=1.830487721712452",
+        "a=-3.664954802"
+    }, MakeSplit({{"a", EValueType::Double}}));
+
+    EvaluateOnlyViaNativeExecutionBackend(
+        "cot(a) as a from [//t]",
+        split,
+        source,
+        ResultMatcher(result));
+
+    SUCCEED();
+}
+
+TEST_F(TQueryEvaluateTest, MathDegrees)
+{
+    auto split = MakeSplit({
+        {"a", EValueType::Double}
+    });
+
+    auto source = TSource{
+        "a=0.",
+        "a=1.7"
+    };
+
+    auto result = YsonToRows({
+        "a=0.",
+        "a=97.402825"
+    }, MakeSplit({{"a", EValueType::Double}}));
+
+    EvaluateOnlyViaNativeExecutionBackend(
+        "degrees(a) as a from [//t]",
+        split,
+        source,
+        ResultMatcher(result));
+
+    SUCCEED();
+}
+
+TEST_F(TQueryEvaluateTest, MathEven)
+{
+    auto split = MakeSplit({
+        {"a", EValueType::Double}
+    });
+
+    auto source = TSource{
+        "a=2.9",
+        "a=-12.3",
+        "a=0.2",
+    };
+
+    auto result = YsonToRows({
+        "a=4",
+        "a=-14",
+        "a=2",
+    }, MakeSplit({{"a", EValueType::Int64}}));
+
+    EvaluateOnlyViaNativeExecutionBackend(
+        "even(a) as a from [//t]",
+        split,
+        source,
+        ResultMatcher(result));
+
+    SUCCEED();
+}
+
+TEST_F(TQueryEvaluateTest, MathExp)
+{
+    auto split = MakeSplit({
+        {"a", EValueType::Double}
+    });
+
+    auto source = TSource{
+        "a=3.",
+        "a=6.3"
+    };
+
+    auto result = YsonToRows({
+        "a=20.085536923187",
+        "a=544.5719101"
+    }, MakeSplit({{"a", EValueType::Double}}));
+
+    EvaluateOnlyViaNativeExecutionBackend(
+        "exp(a) as a from [//t]",
+        split,
+        source,
+        ResultMatcher(result));
+
+    SUCCEED();
+}
+
+TEST_F(TQueryEvaluateTest, MathFloor)
+{
+    auto split = MakeSplit({
+        {"a", EValueType::Double}
+    });
+
+    auto source = TSource{
+        "a=2.2",
+        "a=-1.125"
+    };
+
+    auto result = YsonToRows({
+        "a=2",
+        "a=-2"
+    }, MakeSplit({{"a", EValueType::Int64}}));
+
+    EvaluateOnlyViaNativeExecutionBackend(
+        "floor(a) as a from [//t]",
+        split,
+        source,
+        ResultMatcher(result));
+
+    SUCCEED();
+}
+
+TEST_F(TQueryEvaluateTest, MathGamma)
+{
+    auto split = MakeSplit({
+        {"a", EValueType::Double}
+    });
+
+    auto source = TSource{
+        "a=3.0",
+        "a=5.2"
+    };
+
+    auto result = YsonToRows({
+        "a=2.0",
+        "a=32.578096"
+    }, MakeSplit({{"a", EValueType::Double}}));
+
+    EvaluateOnlyViaNativeExecutionBackend(
+        "gamma(a) as a from [//t]",
+        split,
+        source,
+        ResultMatcher(result));
+
+    SUCCEED();
+}
+
+TEST_F(TQueryEvaluateTest, MathIsinf)
+{
+    auto split = MakeSplit({
+        {"a", EValueType::Double}
+    });
+
+    auto source = TSource{
+        "a=2.2",
+        "a=%inf"
+    };
+
+    auto result = YsonToRows({
+        "a=%false",
+        "a=%true"
+    }, MakeSplit({{"a", EValueType::Boolean}}));
+
+    EvaluateOnlyViaNativeExecutionBackend(
+        "is_inf(a) as a from [//t]",
+        split,
+        source,
+        ResultMatcher(result));
+
+    SUCCEED();
+}
+
+TEST_F(TQueryEvaluateTest, MathLgamma)
+{
+    auto split = MakeSplit({
+        {"a", EValueType::Double}
+    });
+
+    auto source = TSource{
+        "a=3.0",
+        "a=5.0"
+    };
+
+    auto result = YsonToRows({
+        "a=0.693147",
+        "a=3.1780538303479458"
+    }, MakeSplit({{"a", EValueType::Double}}));
+
+    EvaluateOnlyViaNativeExecutionBackend(
+        "lgamma(a) as a from [//t]",
+        split,
+        source,
+        ResultMatcher(result));
+
+    SUCCEED();
+}
+
+TEST_F(TQueryEvaluateTest, MathLn)
+{
+    auto split = MakeSplit({
+        {"a", EValueType::Double}
+    });
+
+    auto source = TSource{
+        "a=2.2",
+        "a=5.0"
+    };
+
+    auto result = YsonToRows({
+        "a=0.788457",
+        "a=1.60943791243"
+    }, MakeSplit({{"a", EValueType::Double}}));
+
+    EvaluateOnlyViaNativeExecutionBackend(
+        "ln(a) as a from [//t]",
+        split,
+        source,
+        ResultMatcher(result));
+
+    SUCCEED();
+}
+
+TEST_F(TQueryEvaluateTest, MathLog)
+{
+    auto split = MakeSplit({
+        {"a", EValueType::Double}
+    });
+
+    auto source = TSource{
+        "a=100.",
+        "a=10.",
+        "a=1000.",
+    };
+
+    auto result = YsonToRows({
+        "a=2.0",
+        "a=1.0",
+        "a=3.0",
+    }, MakeSplit({{"a", EValueType::Double}}));
+
+    EvaluateOnlyViaNativeExecutionBackend(
+        "log(a) as a from [//t]",
+        split,
+        source,
+        ResultMatcher(result));
+
+    EvaluateOnlyViaNativeExecutionBackend(
+        "log10(a) as a from [//t]",
+        split,
+        source,
+        ResultMatcher(result));
+
+    SUCCEED();
+}
+
+TEST_F(TQueryEvaluateTest, MathLog2)
+{
+    auto split = MakeSplit({
+        {"a", EValueType::Double}
+    });
+
+    auto source = TSource{
+        "a=2.",
+        "a=4.",
+        "a=8.",
+    };
+
+    auto result = YsonToRows({
+        "a=1.0",
+        "a=2.0",
+        "a=3.0",
+    }, MakeSplit({{"a", EValueType::Double}}));
+
+    EvaluateOnlyViaNativeExecutionBackend(
+        "log2(a) as a from [//t]",
+        split,
+        source,
+        ResultMatcher(result));
+
+    SUCCEED();
+}
+
+TEST_F(TQueryEvaluateTest, MathRadians)
+{
+    auto split = MakeSplit({
+        {"a", EValueType::Double}
+    });
+
+    auto source = TSource{
+        "a=180.",
+        "a=45."
+    };
+
+    auto result = YsonToRows({
+        "a=3.141592653589793",
+        "a=0.785398"
+    }, MakeSplit({{"a", EValueType::Double}}));
+
+    EvaluateOnlyViaNativeExecutionBackend(
+        "radians(a) as a from [//t]",
+        split,
+        source,
+        ResultMatcher(result));
+
+    SUCCEED();
+}
+
+TEST_F(TQueryEvaluateTest, MathSign)
+{
+    auto split = MakeSplit({
+        {"a", EValueType::Double}
+    });
+
+    auto source = TSource{
+        "a=1.",
+        "a=-1.",
+    };
+
+    auto result = YsonToRows({
+        "a=1",
+        "a=-1",
+    }, MakeSplit({{"a", EValueType::Int64}}));
+
+    EvaluateOnlyViaNativeExecutionBackend(
+        "sign(a) as a from [//t]",
+        split,
+        source,
+        ResultMatcher(result));
+
+    SUCCEED();
+}
+
+TEST_F(TQueryEvaluateTest, MathSignbit)
+{
+    auto split = MakeSplit({
+        {"a", EValueType::Double}
+    });
+
+    auto source = TSource{
+        "a=1.",
+        "a=-1.",
+        "a=0.",
+    };
+
+    auto result = YsonToRows({
+        "a=%false",
+        "a=%true",
+        "a=%false",
+    }, MakeSplit({{"a", EValueType::Boolean}}));
+
+    EvaluateOnlyViaNativeExecutionBackend(
+        "signbit(a) as a from [//t]",
+        split,
+        source,
+        ResultMatcher(result));
+
+    SUCCEED();
+}
+
+TEST_F(TQueryEvaluateTest, MathSin)
+{
+    auto split = MakeSplit({
+        {"a", EValueType::Double}
+    });
+
+    auto source = TSource{
+        "a=0.",
+        "a=0.5"
+    };
+
+    auto result = YsonToRows({
+        "a=0.",
+        "a=0.4794255386"
+    }, MakeSplit({{"a", EValueType::Double}}));
+
+    EvaluateOnlyViaNativeExecutionBackend(
+        "sin(a) as a from [//t]",
+        split,
+        source,
+        ResultMatcher(result));
+
+    SUCCEED();
+}
+
+TEST_F(TQueryEvaluateTest, MathSqrt)
+{
+    auto split = MakeSplit({
+        {"a", EValueType::Double}
+    });
+
+    auto source = TSource{
+        "a=4.",
+        "a=5.",
+        "a=9.",
+    };
+
+    auto result = YsonToRows({
+        "a=2.",
+        "a=2.23606797749979",
+        "a=3.",
+    }, MakeSplit({{"a", EValueType::Double}}));
+
+    EvaluateOnlyViaNativeExecutionBackend(
+        "sqrt(a) as a from [//t]",
+        split,
+        source,
+        ResultMatcher(result));
+
+    SUCCEED();
+}
+
+TEST_F(TQueryEvaluateTest, MathTan)
+{
+    auto split = MakeSplit({
+        {"a", EValueType::Double}
+    });
+
+    auto source = TSource{
+        "a=0.",
+        "a=0.5"
+    };
+
+    auto result = YsonToRows({
+        "a=0.",
+        "a=0.54630248984"
+    }, MakeSplit({{"a", EValueType::Double}}));
+
+    EvaluateOnlyViaNativeExecutionBackend(
+        "tan(a) as a from [//t]",
+        split,
+        source,
+        ResultMatcher(result));
+
+    SUCCEED();
+}
+
+TEST_F(TQueryEvaluateTest, MathTrunc)
+{
+    auto split = MakeSplit({
+        {"a", EValueType::Double}
+    });
+
+    auto source = TSource{
+        "a=1.5",
+        "a=-1.5",
+    };
+
+    auto result = YsonToRows({
+        "a=1",
+        "a=-1",
+    }, MakeSplit({{"a", EValueType::Int64}}));
+
+    EvaluateOnlyViaNativeExecutionBackend(
+        "trunc(a) as a from [//t]",
+        split,
+        source,
+        ResultMatcher(result));
+
+    SUCCEED();
+}
+
+TEST_F(TQueryEvaluateTest, MathBitCount)
+{
+    auto split = MakeSplit({
+        {"a", EValueType::Uint64}
+    });
+
+    auto source = TSource{
+        "a=1u",
+        "a=2u",
+    };
+
+    auto result = YsonToRows({
+        "a=1",
+        "a=1",
+    }, MakeSplit({{"a", EValueType::Int64}}));
+
+    EvaluateOnlyViaNativeExecutionBackend(
+        "bit_count(a) as a from [//t]",
+        split,
+        source,
+        ResultMatcher(result));
+
+    SUCCEED();
+}
+
+TEST_F(TQueryEvaluateTest, MathAtan2)
+{
+    auto split = MakeSplit({
+        {"a", EValueType::Double},
+        {"b", EValueType::Double}
+    });
+
+    auto source = TSource{
+        "a=1.;b=1.",
+        "a=1.;b=2.",
+    };
+
+    auto result = YsonToRows({
+        "a=0.785398",
+        "a=0.463647609"
+    }, MakeSplit({{"a", EValueType::Double}}));
+
+    EvaluateOnlyViaNativeExecutionBackend(
+        "atan2(a, b) as a from [//t]",
+        split,
+        source,
+        ResultMatcher(result));
+
+    SUCCEED();
+}
+
+TEST_F(TQueryEvaluateTest, MathFactorial)
+{
+    auto split = MakeSplit({
+        {"a", EValueType::Uint64}
+    });
+
+    auto source = TSource{
+        "a=1u",
+        "a=2u",
+        "a=15u",
+    };
+
+    auto result = YsonToRows({
+        "a=1u",
+        "a=2u",
+        "a=1307674368000u"
+    }, MakeSplit({{"a", EValueType::Uint64}}));
+
+    EvaluateOnlyViaNativeExecutionBackend(
+        "factorial(a) as a from [//t]",
+        split,
+        source,
+        ResultMatcher(result));
+
+    SUCCEED();
+}
+
+TEST_F(TQueryEvaluateTest, MathGcd)
+{
+    auto split = MakeSplit({
+        {"a", EValueType::Uint64},
+        {"b", EValueType::Uint64}
+    });
+
+    auto source = TSource{
+        "a=1u;b=1u",
+        "a=8u;b=6u"
+    };
+
+    auto result = YsonToRows({
+        "a=1u",
+        "a=2u",
+    }, MakeSplit({{"a", EValueType::Uint64}}));
+
+    EvaluateOnlyViaNativeExecutionBackend(
+        "gcd(a, b) as a from [//t]",
+        split,
+        source,
+        ResultMatcher(result));
+
+    SUCCEED();
+}
+
+TEST_F(TQueryEvaluateTest, MathLcm)
+{
+    auto split = MakeSplit({
+        {"a", EValueType::Uint64},
+        {"b", EValueType::Uint64}
+    });
+
+    auto source = TSource{
+        "a=1u;b=1u",
+        "a=8u;b=6u"
+    };
+
+    auto result = YsonToRows({
+        "a=1u",
+        "a=24u"
+    }, MakeSplit({{"a", EValueType::Uint64}}));
+
+    EvaluateOnlyViaNativeExecutionBackend(
+        "lcm(a, b) as a from [//t]",
+        split,
+        source,
+        ResultMatcher(result));
+
+    SUCCEED();
+}
+
+TEST_F(TQueryEvaluateTest, MathRound)
+{
+    auto split = MakeSplit({
+        {"a", EValueType::Double}
+    });
+
+    auto source = TSource{
+        "a=1.5",
+        "a=-1.5"
+    };
+
+    auto result = YsonToRows({
+        "a=2",
+        "a=-2",
+    }, MakeSplit({{"a", EValueType::Int64}}));
+
+    EvaluateOnlyViaNativeExecutionBackend(
+        "round(a) as a from [//t]",
+        split,
+        source,
+        ResultMatcher(result));
+
+    SUCCEED();
+}
+
+TEST_F(TQueryEvaluateTest, MathXor)
+{
+    auto split = MakeSplit({
+        {"a", EValueType::Uint64},
+        {"b", EValueType::Uint64}
+    });
+
+    auto source = TSource{
+        "a=1u;b=1u",
+        "a=13u;b=7u"
+    };
+
+    auto result = YsonToRows({
+        "a=0u",
+        "a=10u"
+    }, MakeSplit({{"a", EValueType::Uint64}}));
+
+    EvaluateOnlyViaNativeExecutionBackend(
+        "xor(a, b) as a from [//t]",
+        split,
+        source,
+        ResultMatcher(result));
+
+    SUCCEED();
 }
 
 TEST_F(TQueryEvaluateTest, GreatestError)
