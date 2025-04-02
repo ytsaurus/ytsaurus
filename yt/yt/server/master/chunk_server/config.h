@@ -771,6 +771,9 @@ public:
 
     bool EnableRepairViaReplication;
 
+    // COMPAT(aleksandra-zh)
+    bool UseProperReplicaAdditionReason;
+
     REGISTER_YSON_STRUCT(TDynamicChunkManagerConfig);
 
     static void Register(TRegistrar registrar);
