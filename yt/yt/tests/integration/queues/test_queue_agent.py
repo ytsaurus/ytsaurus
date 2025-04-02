@@ -3277,6 +3277,10 @@ class TestQueueStaticExport(TestQueueStaticExportBase):
         True,
     ])
     def test_export_retries(self, should_export_second_table):
+        # COMPAT(apachee): Disable for old implementation.
+        if getattr(self, "USE_OLD_QUEUE_EXPORTER_IMPL"):
+            pytest.skip()
+
         queue_agent_orchid = QueueAgentOrchid()
 
         _, queue_id = self._create_queue("//tmp/q")
@@ -3332,6 +3336,10 @@ class TestQueueStaticExport(TestQueueStaticExportBase):
 
     @authors("apachee")
     def test_export_segmentation(self):
+        # COMPAT(apachee): Disable for old implementation.
+        if getattr(self, "USE_OLD_QUEUE_EXPORTER_IMPL"):
+            pytest.skip()
+
         _, queue_id = self._create_queue("//tmp/q")
 
         export_dir = "//tmp/export"
@@ -3705,6 +3713,10 @@ class TestQueueStaticExport(TestQueueStaticExportBase):
 
     @authors("apachee")
     def test_export_ttl_for_old_data(self):
+        # COMPAT(apachee): Disable for old implementation.
+        if getattr(self, "USE_OLD_QUEUE_EXPORTER_IMPL"):
+            pytest.skip()
+
         _, queue_id = self._create_queue("//tmp/q")
 
         export_dir = "//tmp/export"
@@ -3877,6 +3889,10 @@ class TestQueueStaticExport(TestQueueStaticExportBase):
 
     @authors("apachee")
     def test_partially_succeeded_export_tasks(self):
+        # COMPAT(apachee): Disable for old implementation.
+        if getattr(self, "USE_OLD_QUEUE_EXPORTER_IMPL"):
+            pytest.skip()
+
         queue_agent_orchid = QueueAgentOrchid()
 
         queue_path = "//tmp/q"
@@ -3973,6 +3989,242 @@ class TestQueueStaticExport(TestQueueStaticExportBase):
         # At this point there should be 2 exported tables from exported_table_names and nothing else in the export directory
         assert len(exported_table_names) == 2
         assert_exported_table_count(2)
+
+        self.remove_export_destination(export_dir)
+
+    # COMPAT(apachee): Ensure old implementation is actually used.
+    @authors("apachee")
+    def test_use_old_queue_exporter_impl(self):
+        config_value = get("//sys/queue_agents/config/queue_agent/controller/queue_exporter/implementation")
+        is_config_value_old = config_value == "old"
+        use_old_queue_exporter_impl = getattr(self, "USE_OLD_QUEUE_EXPORTER_IMPL")
+        print_debug(f"{config_value=}, {is_config_value_old=}, {use_old_queue_exporter_impl=}")
+        assert is_config_value_old == use_old_queue_exporter_impl
+
+
+# COMPAT(apachee): Same tests, but use old implementation.
+@pytest.mark.enabled_multidaemon
+class TestQueueStaticExportOldImpl(TestQueueStaticExport):
+    USE_OLD_QUEUE_EXPORTER_IMPL = True
+
+    # COMPAT(apachee): Override for old queue export impl.
+    @authors("apachee")
+    def test_export_with_no_data(self):
+        """
+        queue_static_export_progress.last_successful_export_iteration_instant should be updated every time queue_agent tries to
+        export new data.
+        Logfeller relies on these watermarks to assess data completeness.
+        """
+
+        _, queue_id = self._create_queue("//tmp/q")
+
+        export_dir = "//tmp/export"
+        self._create_export_destination(export_dir, queue_id)
+
+        set("//tmp/q/@static_export_config", {
+            "default": {
+                "export_directory": export_dir,
+                "export_period": 2 * 1000,
+            },
+        })
+
+        # Writing something so that all attributes are properly set by at least one iteration.
+        insert_rows("//tmp/q", [{"$tablet_index": 0, "data": "foo"}])
+        self._flush_table("//tmp/q")
+
+        wait(lambda: len(ls(export_dir)) == 1)
+        export_progress = get("//tmp/export/@queue_static_export_progress")
+        last_exported_fragment_iteration_instant = datetime.datetime.fromisoformat(export_progress["last_exported_fragment_iteration_instant"])
+        last_successful_export_iteration_instant = datetime.datetime.fromisoformat(export_progress["last_successful_export_iteration_instant"])
+        assert last_exported_fragment_iteration_instant == last_successful_export_iteration_instant
+
+        previous_exported_fragment_iteration_instant = last_exported_fragment_iteration_instant
+
+        time.sleep(10)
+
+        export_progress = get("//tmp/export/@queue_static_export_progress")
+        last_exported_fragment_iteration_instant = datetime.datetime.fromisoformat(export_progress["last_exported_fragment_iteration_instant"])
+        last_successful_export_iteration_instant = datetime.datetime.fromisoformat(export_progress["last_successful_export_iteration_instant"])
+
+        assert last_exported_fragment_iteration_instant == previous_exported_fragment_iteration_instant
+        assert last_exported_fragment_iteration_instant < last_successful_export_iteration_instant
+
+        # 2-second exports, comparing to 3 to account for edge-cases.
+        # time.sleep(10) above should be enough to check the required behavior.
+        assert (datetime.datetime.now(pytz.UTC) - last_successful_export_iteration_instant).seconds <= 3
+
+        self.remove_export_destination(export_dir)
+
+    # COMPAT(apachee): Override for old queue export impl.
+    @authors("nadya73")
+    def test_several_exports(self):
+        queue_agent_orchid = QueueAgentOrchid()
+        cypress_orchid = CypressSynchronizerOrchid()
+
+        export_dir_1 = "//tmp/export1"
+        export_dir_2 = "//tmp/export2"
+        export_dir_3 = "//tmp/export3"
+        create("map_node", export_dir_1)
+        create("map_node", export_dir_2)
+        create("map_node", export_dir_3)
+
+        queue_path = "//tmp/q"
+        _, queue_id = self._create_queue(queue_path)
+
+        self._create_export_destination(export_dir_1, queue_id)
+        self._create_export_destination(export_dir_2, queue_id)
+        self._create_export_destination(export_dir_3, queue_id)
+
+        tx_external = start_transaction()
+        lock(export_dir_1, mode="shared", tx=tx_external)
+        lock(export_dir_2, mode="shared", tx=tx_external)
+        lock(export_dir_3, mode="shared", tx=tx_external)
+
+        set(f"{queue_path}/@static_export_config", {
+            "first": {
+                "export_directory": export_dir_1,
+                "export_period": 1 * 1000,
+            },
+            "second": {
+                "export_directory": export_dir_2,
+                "export_period": 2 * 1000,
+            },
+        })
+
+        cypress_orchid.wait_fresh_pass()
+        queue_agent_orchid.wait_fresh_pass()
+
+        insert_rows(queue_path, [{"$tablet_index": 0, "data": "foo"}] * 6)
+        self._flush_table(queue_path)
+
+        wait(lambda: len(ls(export_dir_1)) == 1)
+        wait(lambda: len(ls(export_dir_2)) == 1)
+
+        insert_rows(queue_path, [{"$tablet_index": 0, "data": "bar"}] * 6)
+        self._flush_table(queue_path)
+
+        wait(lambda: len(ls(export_dir_1)) == 2)
+        wait(lambda: len(ls(export_dir_2)) == 2)
+
+        expected = [["foo"] * 6] + [["bar"] * 6]
+        self._check_export(export_dir_1, expected)
+        self._check_export(export_dir_2, expected)
+
+        set(f"{queue_path}/@static_export_config", {
+            "second": {
+                "export_directory": export_dir_2,
+                "export_period": 2 * 1000,
+            },
+        })
+
+        cypress_orchid.wait_fresh_pass()
+        queue_agent_orchid.wait_fresh_pass()
+
+        insert_rows(queue_path, [{"$tablet_index": 0, "data": "abc"}] * 6)
+        self._flush_table(queue_path)
+
+        wait(lambda: len(ls(export_dir_1)) == 2)
+        wait(lambda: len(ls(export_dir_2)) == 3)
+
+        self._check_export(export_dir_1, expected)
+        self._check_export(export_dir_2, expected + [["abc"] * 6])
+
+        set(f"{queue_path}/@static_export_config", {
+            "second": {
+                "export_directory": export_dir_2,
+                "export_period": 2 * 1000,
+            },
+            "third": {
+                "export_directory": export_dir_3,
+                "export_period": 3 * 1000,
+            },
+        })
+
+        cypress_orchid.wait_fresh_pass()
+        queue_agent_orchid.wait_fresh_pass()
+
+        wait(lambda: len(ls(export_dir_3)) == 1)
+        expected_third = [["foo"] * 6 + ["bar"] * 6 + ["abc"] * 6]
+        self._check_export(export_dir_3, expected_third)
+
+        insert_rows(queue_path, [{"$tablet_index": 0, "data": "def"}] * 6)
+        self._flush_table(queue_path)
+
+        cypress_orchid.wait_fresh_pass()
+        queue_agent_orchid.wait_fresh_pass()
+
+        wait(lambda: len(ls(export_dir_2)) == 4)
+        wait(lambda: len(ls(export_dir_3)) == 2)
+
+        expected_second = expected + [["abc"] * 6] + [["def"] * 6]
+        expected_third = expected_third + [["def"] * 6]
+
+        self._check_export(export_dir_2, expected_second)
+        self._check_export(export_dir_3, expected_third)
+
+        self.remove_export_destination(export_dir_1)
+        self.remove_export_destination(export_dir_2)
+        self.remove_export_destination(export_dir_3)
+
+
+# COMPAT(apachee): Checking compatability for swithcing between queue exporter implementations
+@pytest.mark.enabled_multidaemon
+class TestQueueExporterImplementationSwitch(TestQueueStaticExportBase):
+    ENABLE_MULTIDAEMON = True
+
+    @authors("apachee")
+    @pytest.mark.parametrize("queue_exporter_implementation", ["old", "new"])
+    def test_basic(self, queue_exporter_implementation):
+        self._switch_queue_exporter_implementation(queue_exporter_implementation)
+
+        orchid = QueueAgentOrchid()
+
+        _, queue_id = self._create_queue("//tmp/q")
+        queue_orchid = orchid.get_queue_orchid("primary://tmp/q")
+
+        self._wait_for_global_sync()
+
+        export_dir = "//tmp/export"
+        self._create_export_destination(export_dir, queue_id)
+
+        export_period_seconds = 1
+        set("//tmp/q/@static_export_config", {
+            "default": {
+                "export_directory": export_dir,
+                "export_period": export_period_seconds * 1000,
+            },
+        })
+
+        exporter_orchid = queue_orchid.get_exporter_orchid()
+
+        insert_rows("//tmp/q", [{"data": "foo"}, {"data": "bar"}])
+        self._flush_table("//tmp/q")
+        wait(lambda: len(ls(export_dir)) == 1)
+        self._check_export(
+            export_dir,
+            [["foo", "bar"]],
+            last_export_unix_ts_field_name=("last_exported_fragment_unix_ts" if queue_exporter_implementation == "old" else "last_export_unix_ts")
+        )
+
+        exporter_orchid_value = exporter_orchid.get()
+        assert exporter_orchid_value.attributes["queue_exporter_implementation_type"] == queue_exporter_implementation
+
+        # Check that switching works both ways.
+        queue_exporter_implementation = "new" if queue_exporter_implementation == "old" else "old"
+        print_debug(f"queue_export_implementation: {queue_exporter_implementation}")
+        self._switch_queue_exporter_implementation(queue_exporter_implementation)
+        wait(lambda: exporter_orchid.get().attributes["queue_exporter_implementation_type"] == queue_exporter_implementation, timeout=10)
+
+        insert_rows("//tmp/q", [{"data": "baz"}, {"data": "qux"}, {"data": "quux"}])
+        self._flush_table("//tmp/q")
+        wait(lambda: len(ls(export_dir)) == 2)
+        self._check_export(
+            export_dir,
+            [["foo", "bar"], ["baz", "qux", "quux"]],
+            last_export_unix_ts_field_name=("last_exported_fragment_unix_ts" if queue_exporter_implementation == "old" else "last_export_unix_ts")
+        )
+
+        exporter_orchid_value = exporter_orchid.get()
 
         self.remove_export_destination(export_dir)
 
@@ -4434,6 +4686,21 @@ class TestAutomaticTrimmingWithExports(TestQueueStaticExportBase):
 
         self.remove_export_destination(export_dir)
 
+    # COMPAT(apachee): Ensure old implementation is actually used.
+    @authors("apachee")
+    def test_use_old_queue_exporter_impl(self):
+        config_value = get("//sys/queue_agents/config/queue_agent/controller/queue_exporter/implementation")
+        is_config_value_old = config_value == "old"
+        use_old_queue_exporter_impl = getattr(self, "USE_OLD_QUEUE_EXPORTER_IMPL")
+        print_debug(f"{config_value=}, {is_config_value_old=}, {use_old_queue_exporter_impl=}")
+        assert is_config_value_old == use_old_queue_exporter_impl
+
+
+# COMPAT(apachee): Same tests, but use old implementation.
+@pytest.mark.enabled_multidaemon
+class TestAutomaticTrimmingWithExportsOldImpl(TestAutomaticTrimmingWithExports):
+    USE_OLD_QUEUE_EXPORTER_IMPL = True
+
 
 @pytest.mark.enabled_multidaemon
 class TestQueueStaticExportPortals(TestQueueStaticExport):
@@ -4464,6 +4731,12 @@ class TestQueueStaticExportPortals(TestQueueStaticExport):
         self._check_export(export_dir, [["foo"] * 6])
 
         self.remove_export_destination(export_dir)
+
+
+# COMPAT(apachee): Same tests, but use old implementation.
+@pytest.mark.enabled_multidaemon
+class TestQueueStaticExportPortalsOldImpl(TestQueueStaticExportOldImpl, TestQueueStaticExportPortals):
+    USE_OLD_QUEUE_EXPORTER_IMPL = True
 
 
 @pytest.mark.enabled_multidaemon
@@ -4986,7 +5259,23 @@ class TestMultiClusterReplicatedTableObjectsTrimWithExports(TestMultiClusterRepl
 
         wait_for_all_exports(0)
 
+    # COMPAT(apachee): Ensure old implementation is actually used.
+    @authors("apachee")
+    def test_use_old_queue_exporter_impl(self):
+        config_value = get("//sys/queue_agents/config/queue_agent/controller/queue_exporter/implementation")
+        is_config_value_old = config_value == "old"
+        use_old_queue_exporter_impl = getattr(self, "USE_OLD_QUEUE_EXPORTER_IMPL")
+        print_debug(f"{config_value=}, {is_config_value_old=}, {use_old_queue_exporter_impl=}")
+        assert is_config_value_old == use_old_queue_exporter_impl
 
+
+# COMPAT(apachee): Same tests, but use old implementation.
+@pytest.mark.enabled_multidaemon
+class TestMultiClusterReplicatedTableObjectsTrimWithExportsOldImpl(TestMultiClusterReplicatedTableObjectsTrimWithExports):
+    USE_OLD_QUEUE_EXPORTER_IMPL = True
+
+
+@pytest.mark.enabled_multidaemon
 class TestControllerInfo(TestQueueAgentBase):
     CONTROLLER_DELAY_DURATION_SECONDS = 10
     OLD_PASSES_DISPLAY_LIMIT = 4

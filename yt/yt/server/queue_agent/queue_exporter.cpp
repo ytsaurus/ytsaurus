@@ -1066,6 +1066,9 @@ public:
         auto guard = Guard(Lock_);
 
         fluent
+            .BeginAttributes()
+                .Item("queue_exporter_implementation_type").Value(GetImplementationType())
+            .EndAttributes()
             .BeginMap()
                 .Item("export_config").Value(ExportConfig_)
                 .Item("progress").Value(ExportProgress_)
@@ -1075,6 +1078,11 @@ public:
                 .Item("retry_index").Value(RetryBackoff_.GetInvocationIndex())
                 .Item("retry_backoff_duration").Value(RetryBackoff_.GetBackoff())
             .EndMap();
+    }
+
+    EQueueExporterImplementation GetImplementationType() const override
+    {
+        return EQueueExporterImplementation::New;
     }
 
 private:
