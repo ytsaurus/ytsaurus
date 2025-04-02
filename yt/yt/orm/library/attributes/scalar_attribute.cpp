@@ -431,7 +431,14 @@ protected:
             const auto* reflection = message->GetReflection();
             reflection->ClearField(message, fieldDescriptor);
             for (auto wireStringPart : CurrentValue_) {
-                AddScalarRepeatedFieldEntry(message, fieldDescriptor, wireStringPart).ThrowOnError();
+                if (fieldDescriptor->message_type()) {
+                    MergeMessageFrom(
+                        reflection->AddMessage(message, fieldDescriptor),
+                        wireStringPart);
+                } else {
+                    AddScalarRepeatedFieldEntry(message, fieldDescriptor, wireStringPart)
+                        .ThrowOnError();
+                }
             }
             return;
         }

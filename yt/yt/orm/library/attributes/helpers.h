@@ -18,6 +18,11 @@ const NYson::TProtobufMessageType* GetMessageTypeByYPath(
 NYTree::INodePtr ConvertProtobufToNode(
     const NYson::TProtobufMessageType* rootType,
     const NYPath::TYPath& path,
+    const TWireString& wireStringPayload);
+
+NYTree::INodePtr ConvertProtobufToNode(
+    const NYson::TProtobufMessageType* rootType,
+    const NYPath::TYPath& path,
     const TString& payload);
 
 ////////////////////////////////////////////////////////////////////////////////
