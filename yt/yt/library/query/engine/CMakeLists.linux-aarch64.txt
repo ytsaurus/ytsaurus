@@ -165,6 +165,8 @@ target_sources(library-query-engine.global PRIVATE
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/decbfffe4f4b3496370010ffcd66581e.cpp
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/22cfcf58ea9f30d440ded279b00b2ee6.cpp
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/4538b0b306dcad34198804d167b5c954.cpp
+  ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/72470f2f77dd4e0aff9cdadfa293974d.cpp
+  ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/cdc3a8b56f46c0e8ea4b82e94d367ed7.cpp
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/1e5ca94226708fc7b55334a637d40f12.cpp
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/03f4075187902a2612a670cb9c51b4df.cpp
 )
@@ -1004,6 +1006,58 @@ add_custom_command(
 
 add_custom_command(
   OUTPUT
+  ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/abs_merged.bc
+  DEPENDS
+  ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/udf/abs.cpp.bc
+  COMMAND
+  ${LLVMLINK}
+  ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/udf/abs.cpp.bc
+  -o
+  ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/abs_merged.bc
+)
+
+add_custom_command(
+  OUTPUT
+  ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/abs_optimized.bc
+  DEPENDS
+  ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/abs_merged.bc
+  COMMAND
+  ${LLVMOPT}
+  ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/abs_merged.bc
+  -o
+  ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/abs_optimized.bc
+  -internalize-public-api-list=abs
+  -passes="default<O2>,globalopt,globaldce,internalize"
+)
+
+add_custom_command(
+  OUTPUT
+  ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/math_merged.bc
+  DEPENDS
+  ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/udf/math.cpp.bc
+  COMMAND
+  ${LLVMLINK}
+  ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/udf/math.cpp.bc
+  -o
+  ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/math_merged.bc
+)
+
+add_custom_command(
+  OUTPUT
+  ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/math_optimized.bc
+  DEPENDS
+  ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/math_merged.bc
+  COMMAND
+  ${LLVMOPT}
+  ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/math_merged.bc
+  -o
+  ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/math_optimized.bc
+  -internalize-public-api-list=math_acos#math_asin#math_ceil#math_cbrt#math_cos#math_cot#math_degrees#math_even#math_exp#math_floor#math_gamma#math_is_inf#math_lgamma#math_ln#math_log#math_log10#math_log2#math_radians#math_sign#math_signbit#math_sin#math_sqrt#math_tan#math_trunc#math_bit_count#math_atan2#math_factorial#math_gcd#math_lcm#math_pow#math_round#math_xor
+  -passes="default<O2>,globalopt,globaldce,internalize"
+)
+
+add_custom_command(
+  OUTPUT
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/dict_sum_merged.bc
   DEPENDS
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/udf/dict_sum.c.bc
@@ -1209,6 +1263,22 @@ llvm_compile_cxx(library-query-engine.global
 llvm_compile_cxx(library-query-engine.global
   ${PROJECT_SOURCE_DIR}/yt/yt/library/query/engine/udf/greatest.cpp
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/udf/greatest.cpp.bc
+  ${CLANGPLUSPLUS}
+  -Wno-unknown-warning-option
+  -emit-llvm
+)
+
+llvm_compile_cxx(library-query-engine.global
+  ${PROJECT_SOURCE_DIR}/yt/yt/library/query/engine/udf/abs.cpp
+  ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/udf/abs.cpp.bc
+  ${CLANGPLUSPLUS}
+  -Wno-unknown-warning-option
+  -emit-llvm
+)
+
+llvm_compile_cxx(library-query-engine.global
+  ${PROJECT_SOURCE_DIR}/yt/yt/library/query/engine/udf/math.cpp
+  ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/udf/math.cpp.bc
   ${CLANGPLUSPLUS}
   -Wno-unknown-warning-option
   -emit-llvm
@@ -1507,6 +1577,24 @@ resources(library-query-engine.global
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/greatest_optimized.bc
   KEYS
   /llvm_bc/greatest
+  OPTS
+)
+
+resources(library-query-engine.global
+  ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/72470f2f77dd4e0aff9cdadfa293974d.cpp
+  INPUTS
+  ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/abs_optimized.bc
+  KEYS
+  /llvm_bc/abs
+  OPTS
+)
+
+resources(library-query-engine.global
+  ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/cdc3a8b56f46c0e8ea4b82e94d367ed7.cpp
+  INPUTS
+  ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/math_optimized.bc
+  KEYS
+  /llvm_bc/math
   OPTS
 )
 
