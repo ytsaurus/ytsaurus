@@ -881,6 +881,12 @@ NApi::TTableReaderOptions SerializeOptionsForReadTable(
     return result;
 }
 
+NApi::TReadTablePartitionOptions SerializeOptionsForReadTablePartition(
+    const TTablePartitionReaderOptions& /*options*/)
+{
+    return {};
+}
+
 NApi::TAlterTableOptions SerializeOptionsForAlterTable(
     TMutationId& mutationId,
     const TTransactionId& transactionId,
@@ -977,6 +983,7 @@ NApi::TPartitionTablesOptions SerializeOptionsForGetTablePartitions(
         result.MaxPartitionCount = *options.MaxPartitionCount_;
     }
     result.AdjustDataWeightPerPartition = options.AdjustDataWeightPerPartition_;
+    result.EnableCookies = options.EnableCookies_;
     return result;
 }
 
