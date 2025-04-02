@@ -163,7 +163,7 @@ func (tt *TimberTruck) Serve(ctx context.Context) error {
 			tt.logger.Error("Error initializing stream", "error", err)
 			continue
 		}
-		fileEventChan := make(chan FileEvent, 16)
+		fileEventChan := make(chan FileEvent, 1000)
 		err = tt.fsWatcher.AddLogPath(curHandler.config.LogFile, fileEventChan)
 		if err != nil {
 			close(fileEventChan)
