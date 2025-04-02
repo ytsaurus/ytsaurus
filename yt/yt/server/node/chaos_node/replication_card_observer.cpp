@@ -161,6 +161,10 @@ private:
                 checkExpiredHistory(replicaId, replica, minTimestamp);
             }
         }
+
+        if (!replicationCard->IsMigrated()) {
+            chaosManager->UpdateReplicationCardLagTimes(*replicationCard);
+        }
     }
 };
 
