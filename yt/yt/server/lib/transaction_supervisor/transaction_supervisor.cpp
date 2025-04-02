@@ -2036,6 +2036,11 @@ private:
         NRpc::TCurrentAuthenticationIdentityGuard identityGuard(&identity);
 
         if (stronglyOrdered) {
+            auto state = TransactionManager_->GetTransactionStateOrThrow(transactionId);
+            if (state == ETransactionState::Committed) {
+                return;
+            }
+
             auto guard = Guard(SequencerLock_);
 
             auto transactionState = GetParticipantStronglyOrderedTransactionState(transactionId);
@@ -2135,6 +2140,11 @@ private:
         NRpc::TCurrentAuthenticationIdentityGuard identityGuard(&identity);
 
         if (stronglyOrdered) {
+            auto state = TransactionManager_->GetTransactionStateOrThrow(transactionId);
+            if (state == ETransactionState::Aborted) {
+                return;
+            }
+
             auto guard = Guard(SequencerLock_);
 
             auto transactionState = GetParticipantStronglyOrderedTransactionState(transactionId);

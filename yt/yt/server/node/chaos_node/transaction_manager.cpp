@@ -114,6 +114,12 @@ public:
         TTransactionManagerBase<TTransaction>::DoRegisterTransactionActionHandlers(std::move(descriptor));
     }
 
+    ETransactionState GetTransactionStateOrThrow(TTransactionId transactionId) override
+    {
+        auto* transaction = GetTransactionOrThrow(transactionId);
+        return transaction->GetPersistentState();
+    }
+
     // ITransactionManager implementation.
     TFuture<void> GetReadyToPrepareTransactionCommit(
         const std::vector<TTransactionId>& /*prerequisiteTransactionIds*/,
