@@ -152,9 +152,16 @@ public:
         YT_VERIFY(!PeriodicExecutor_);
         PeriodicExecutor_ = New<TPeriodicExecutor>(
             Bootstrap_->GetControlInvoker(),
-            BIND(&TBundleController::ScanBundles, MakeWeak(this)),
+            BIND(&TBundleController::ScanBundles, MakeWeak(this), /*dryRun*/ false),
             Config_->BundleScanPeriod);
         PeriodicExecutor_->Start();
+    }
+
+    void ExecuteDryRunIteration() override
+    {
+        YT_ASSERT_INVOKER_AFFINITY(Bootstrap_->GetControlInvoker());
+
+        ScanBundles(/*dryRun*/ true);
     }
 
 private:
@@ -204,28 +211,31 @@ private:
 
     THashSet<std::string> BundleJail_;
 
-    void ScanBundles()
+    void ScanBundles(bool dryRun)
     {
         YT_ASSERT_INVOKER_AFFINITY(Bootstrap_->GetControlInvoker());
 
-        if (!IsLeader()) {
+        if (!dryRun && !IsLeader()) {
             ClearState();
 
             YT_LOG_DEBUG("Bundle Controller is not leading");
             return;
         }
 
-        ScanTabletCellBundles();
-        ScanChaosCellBundles();
+        ScanTabletCellBundles(dryRun);
+        ScanChaosCellBundles(dryRun);
     }
 
-    void ScanTabletCellBundles()
+    void ScanTabletCellBundles(bool dryRun)
     {
         try {
             YT_PROFILE_TIMING("/bundle_controller/scan_bundles") {
-                LinkOrchidService();
-                LinkBundleControllerService();
-                DoScanTabletBundles();
+                if (!dryRun) {
+                    LinkOrchidService();
+                    LinkBundleControllerService();
+                }
+
+                DoScanTabletBundles(dryRun);
                 SuccessfulScanBundleCounter_.Increment();
                 OrchidScanBundleCounter_->Successful += 1;
             }
@@ -249,8 +259,13 @@ private:
         }
     }
 
-    void ScanChaosCellBundles()
+    void ScanChaosCellBundles(bool dryRun)
     {
+        if (dryRun) {
+            YT_LOG_DEBUG("Dry run for chaos bundles is not supported");
+            return;
+        }
+
         try {
             DoScanChaosBundles();
         } catch (const std::exception& ex) {
@@ -373,7 +388,7 @@ private:
         return result;
     }
 
-    void DoScanTabletBundles()
+    void DoScanTabletBundles(bool dryRun)
     {
         YT_ASSERT_INVOKER_AFFINITY(Bootstrap_->GetControlInvoker());
 
@@ -386,6 +401,10 @@ private:
 
         TSchedulerMutations mutations;
         ScheduleBundles(inputState, &mutations);
+
+        if (dryRun) {
+            return;
+        }
 
         if (!inputState.SysConfig || !inputState.SysConfig->DisableBundleController) {
             Mutate(transaction, mutations);

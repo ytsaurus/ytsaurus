@@ -131,6 +131,21 @@ public:
         return NativeAuthenticator_;
     }
 
+    void ExecuteDryRunIteration() override
+    {
+        DoInitialize();
+
+        YT_LOG_DEBUG("Dry run iteration started");
+
+        WaitFor(
+            BIND(&IBundleController::ExecuteDryRunIteration, BundleController_)
+                .AsyncVia(GetControlInvoker())
+                .Run())
+            .ThrowOnError();
+
+        YT_LOG_DEBUG("Dry run iteration finished");
+    }
+
 private:
     const TCellBalancerBootstrapConfigPtr Config_;
     const INodePtr ConfigNode_;
