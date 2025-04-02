@@ -707,6 +707,10 @@ void TDockerRegistryConfig::Register(TRegistrar registrar)
             options->InternalRegistryAlternativeAddresses.push_back(*options->InternalRegistryAddress);
         }
 
+        if (options->UseYtTokenForInternalRegistry && !options->InternalRegistryAddress) {
+            THROW_ERROR_EXCEPTION("Enabling \"use_yt_token_for_internal_registry\" without \"internal_registry_address\" is unsafe, tokens could leak outside");
+        }
+
         if (!options->TranslateInternalImagesIntoLayers && !options->ForwardInternalImagesToJobSpecs) {
             THROW_ERROR_EXCEPTION("At least one of forward_internal_images_to_job_specs or translate_internal_images_into_layers must be enabled");
         }
