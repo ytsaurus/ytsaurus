@@ -309,7 +309,8 @@ std::tuple<std::vector<NChunkClient::TInputChunkPtr>, TTableSchemaPtr, bool> Col
     const TFetchChunkSpecConfigPtr& config,
     TTransactionId transactionId,
     std::vector<i32> extensionTags,
-    const TLogger& logger)
+    const TLogger& logger,
+    bool omitSortedDynamicStores)
 {
     auto Logger = logger.WithTag("Path: %v", path.GetPath());
 
@@ -381,6 +382,7 @@ std::tuple<std::vector<NChunkClient::TInputChunkPtr>, TTableSchemaPtr, bool> Col
             }
             req->set_fetch_all_meta_extensions(false);
             SetTransactionId(req, userObject.ExternalTransactionId);
+            req->set_omit_dynamic_stores(dynamic && schema->IsSorted() && omitSortedDynamicStores);
         },
         Logger);
 

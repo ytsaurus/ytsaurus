@@ -112,7 +112,8 @@ void TMultiTablePartitioner::CollectInput()
                 TProtoExtensionTag<NTableClient::NProto::TBoundaryKeysExt>::Value,
                 TProtoExtensionTag<NTableClient::NProto::THeavyColumnStatisticsExt>::Value,
             },
-            Logger);
+            Logger,
+            /*omitSortedDynamicStores*/ true); // TODO(galtsev): do not omit dynamic stores when returning chunk ids for YT-20969
 
         YT_LOG_DEBUG("Input chunks fetched (TableIndex: %v, Path: %v, Schema: %v, ChunkCount: %v)",
             tableIndex,
