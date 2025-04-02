@@ -133,7 +133,8 @@ struct IFairShareTree
     virtual TRegistrationResult RegisterOperation(
         const TFairShareStrategyOperationStatePtr& state,
         const TStrategyOperationSpecPtr& spec,
-        const TOperationFairShareTreeRuntimeParametersPtr& runtimeParameters) = 0;
+        const TOperationFairShareTreeRuntimeParametersPtr& runtimeParameters,
+        const TOperationOptionsPtr& operationOptions) = 0;
     virtual void UnregisterOperation(const TFairShareStrategyOperationStatePtr& state) = 0;
 
     virtual void EnableOperation(const TFairShareStrategyOperationStatePtr& state) = 0;

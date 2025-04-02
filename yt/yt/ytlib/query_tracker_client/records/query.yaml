@@ -60,6 +60,12 @@ types:
         column_type: Timestamp
         lock: client
 
+      - cpp_name: ExecutionStartTime
+        cpp_type: std::optional<TInstant>
+        column_name: execution_start_time
+        column_type: Timestamp
+        lock: client
+
       - cpp_name: FilterFactors
         cpp_type: TString
         column_name: filter_factors
@@ -132,6 +138,13 @@ types:
       - cpp_name: Annotations
         cpp_type: NYson::TYsonString
         column_name: annotations
+        column_type: Any
+        lock: client
+
+      # YSON dictionary.
+      - cpp_name: Secrets
+        cpp_type: NYson::TYsonString
+        column_name: secrets
         column_type: Any
         lock: client
 
@@ -217,6 +230,13 @@ types:
         cpp_type: NYson::TYsonString
         column_name: annotations
         column_type: Any
+
+      # YSON dictionary.
+      - cpp_name: Secrets
+        cpp_type: NYson::TYsonString
+        column_name: secrets
+        column_type: Any
+        lock: client
 
 
   - type_name: TFinishedQueryByStartTime

@@ -110,6 +110,15 @@ func newCHYTEnv(t *testing.T) (env *chytEnv, teardownCb func(t *testing.T)) {
 	return
 }
 
+func PrepareAPI(t *testing.T) (*helpers.Env, *helpers.RequestClient) {
+	binaryDirectory := setupBinaryDirectory(t)
+	ctlConfig := yson.RawValue(fmt.Sprintf("{log_rotation_mode=disabled;local_binaries_dir=\"%v\";}", binaryDirectory))
+	return helpers.PrepareAPI(t, "chyt", strawberry.ControllerFactory{
+		Ctor:   chyt.NewController,
+		Config: ctlConfig,
+	})
+}
+
 func runCHYTClique(env *chytEnv, alias string, specletPatch map[string]any) (teardownCb func()) {
 	speclet := getDefaultSpeclet()
 	pool := createPool(env)

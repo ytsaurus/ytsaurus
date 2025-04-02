@@ -932,7 +932,7 @@ When you use `Likely`, the optimizer won't attempt to perform filtering before 
 
 ## EvaluateExpr, EvaluateAtom {#evaluate_expr_atom}
 
-Evaluate an expression before the start of the main calculation and input its result to the query as a literal (constant). In many contexts where the standard SQL would only expect a constant (for example in table names, number of rows in [LIMIT](../syntax/select/limit-offset.md), and so on), this functionality is automatically activated implicitly.
+Evaluate an expression before the start of the main calculation and input its result to the query as a literal (constant). In many contexts where the standard SQL would only expect a constant (for example in table names, number of rows in [LIMIT](../syntax/select/limit_offset.md), and so on), this functionality is automatically activated implicitly.
 
 EvaluateExpr can be used where the grammar already expects an expression. For example, you can use it to:
 

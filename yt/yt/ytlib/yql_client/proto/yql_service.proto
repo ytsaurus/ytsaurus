@@ -21,6 +21,16 @@ message TYqlQueryFile
 
 ////////////////////////////////////////////////////////////////////////////////
 
+message TYqlSecret
+{
+    optional string id = 1;
+    optional string category = 2;
+    optional string subcategory = 3;
+    optional string ypath = 4;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 // A counterpart to NYql::NEmbedded::TOperationRequest.
 message TYqlRequest
 {
@@ -32,6 +42,7 @@ message TYqlRequest
     optional int64 mode = 6 [default = 2]; // EExecuteMode
     optional bytes settings = 7; // YSON
     repeated TYqlQueryFile files = 8;
+    repeated TYqlSecret secrets = 9;
 }
 
 // A counterpart to NYql::NEmbedded::IOperation and to NYqlClient::TYqlResponse.

@@ -296,18 +296,19 @@ void TryCreateSpareNodesReleasements(
 
 void TryCreateSpareNodesAssignment(
     const std::string& bundleName,
+    const std::string& zoneName,
+    const std::string& dataCenterName,
     const TSchedulerInputState& input,
     int slotsToAdd,
-    TSpareNodesInfo* spareNodesInfo,
+    TSpareInstanceAllocator<TSpareNodesInfo>& spareNodesAllocator,
     const TBundleControllerStatePtr& bundleState)
 {
     const auto& bundleInfo = GetOrCrash(input.Bundles, bundleName);
-    auto& spareNodes = spareNodesInfo->FreeNodes;
     int perNodeSlotCount = bundleInfo->TargetConfig->CpuLimits->WriteThreadPoolSize.value_or(DefaultWriteThreadPoolSize);
     auto now = TInstant::Now();
 
-    while (slotsToAdd > 0 && !spareNodes.empty()) {
-        const auto& nodeName = spareNodes.back();
+    while (slotsToAdd > 0 && spareNodesAllocator.HasInstances(zoneName, dataCenterName)) {
+        auto nodeName = spareNodesAllocator.Allocate(zoneName, dataCenterName, bundleName);
         auto nodeInfo = GetOrCrash(input.TabletNodes, nodeName);
 
         YT_LOG_INFO("Assigning spare node (Bundle: %v, NodeName: %v)",
@@ -319,7 +320,6 @@ void TryCreateSpareNodesAssignment(
         bundleState->SpareNodeAssignments[nodeName] = operation;
 
         slotsToAdd -= perNodeSlotCount;
-        spareNodes.pop_back();
     }
 }
 
@@ -753,12 +753,15 @@ void SetNodeTagFilter(
     const std::string& bundleName,
     const TDataCenterToInstanceMap& bundleNodes,
     const TSchedulerInputState& input,
-    TPerDataCenterSpareNodesInfo& perDataCenterSpareNodes,
+    TSpareInstanceAllocator<TSpareNodesInfo>& spareNodesAllocator,
     TSchedulerMutations* mutations)
 {
     const auto& bundleInfo = GetOrCrash(input.Bundles, bundleName);
+    const auto& zoneName = bundleInfo->Zone;
     const auto& targetConfig = bundleInfo->TargetConfig;
     const auto& bundleState = mutations->ChangedStates[bundleName];
+
+    auto& perDataCenterSpareNodes = spareNodesAllocator.SpareInstances[zoneName];
 
     auto perDataCenterAliveNodes = GetAliveNodes(
         bundleName,
@@ -838,7 +841,7 @@ void SetNodeTagFilter(
         int perNodeSlotCount = targetConfig->CpuLimits->WriteThreadPoolSize.value_or(DefaultWriteThreadPoolSize);
         auto& spareNodes = perDataCenterSpareNodes[dataCenterName];
 
-        auto getSpareSlotCount = [perNodeSlotCount, bundleName] (auto& sparesByBundle) ->int {
+        auto getSpareSlotCount = [perNodeSlotCount, bundleName] (const auto& sparesByBundle) ->int {
             auto it = sparesByBundle.find(bundleName);
             if (it != sparesByBundle.end()) {
                 return perNodeSlotCount * std::ssize(it->second);
@@ -872,7 +875,7 @@ void SetNodeTagFilter(
         if (releasingSlotCount > 0) {
             TryCreateSpareNodesReleasements(bundleName, input, releasingSlotCount, &spareNodes, bundleState);
         } else if (assigningSlotCount > 0) {
-            TryCreateSpareNodesAssignment(bundleName, input, assigningSlotCount, &spareNodes, bundleState);
+            TryCreateSpareNodesAssignment(bundleName, zoneName, dataCenterName, input, assigningSlotCount, spareNodesAllocator, bundleState);
         }
     }
 
@@ -921,7 +924,10 @@ void InitializeZoneToSpareNodes(TSchedulerInputState& input, TSchedulerMutations
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void ManageNodeTagFilters(TSchedulerInputState& input, TSchedulerMutations* mutations)
+void ManageNodeTagFilters(
+    TSchedulerInputState& input,
+    TSpareInstanceAllocator<TSpareNodesInfo>& spareNodesAllocator,
+    TSchedulerMutations* mutations)
 {
     for (const auto& [bundleName, bundleInfo] : input.Bundles) {
         auto guard = mutations->MakeBundleNameGuard(bundleName);
@@ -934,9 +940,8 @@ void ManageNodeTagFilters(TSchedulerInputState& input, TSchedulerMutations* muta
             continue;
         }
 
-        auto& spareNodes = input.ZoneToSpareNodes[bundleInfo->Zone];
         const auto& bundleNodes = input.BundleNodes[bundleName];
-        SetNodeTagFilter(bundleName, bundleNodes, input, spareNodes, mutations);
+        SetNodeTagFilter(bundleName, bundleNodes, input, spareNodesAllocator, mutations);
     }
 }
 

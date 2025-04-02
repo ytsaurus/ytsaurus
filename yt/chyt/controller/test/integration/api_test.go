@@ -21,7 +21,7 @@ import (
 func TestHTTPAPICreateAndRemove(t *testing.T) {
 	t.Parallel()
 
-	env, c := helpers.PrepareAPI(t)
+	env, c := helpers.PrepareSleepAPI(t)
 	alias := helpers.GenerateAlias()
 
 	r := c.MakePostRequest("create", api.RequestParams{
@@ -89,7 +89,7 @@ func TestHTTPAPICreateAndRemove(t *testing.T) {
 func TestHTTPAPIExists(t *testing.T) {
 	t.Parallel()
 
-	_, c := helpers.PrepareAPI(t)
+	_, c := helpers.PrepareSleepAPI(t)
 	alias := helpers.GenerateAlias()
 
 	r := c.MakePostRequest("exists", api.RequestParams{Params: map[string]any{"alias": alias}})
@@ -117,7 +117,7 @@ func TestHTTPAPIExists(t *testing.T) {
 func TestHTTPAPISetAndRemoveOption(t *testing.T) {
 	t.Parallel()
 
-	env, c := helpers.PrepareAPI(t)
+	env, c := helpers.PrepareSleepAPI(t)
 	alias := helpers.GenerateAlias()
 
 	r := c.MakePostRequest("create", api.RequestParams{Params: map[string]any{"alias": alias}})
@@ -202,7 +202,7 @@ func TestHTTPAPISetAndRemoveOption(t *testing.T) {
 func TestHTTPAPIParseParams(t *testing.T) {
 	t.Parallel()
 
-	env, c := helpers.PrepareAPI(t)
+	env, c := helpers.PrepareSleepAPI(t)
 	alias := helpers.GenerateAlias()
 
 	r := c.MakePostRequest("create", api.RequestParams{
@@ -258,7 +258,7 @@ func TestHTTPAPIParseParams(t *testing.T) {
 func TestHTTPAPISetPool(t *testing.T) {
 	t.Parallel()
 
-	env, c := helpers.PrepareAPI(t)
+	env, c := helpers.PrepareSleepAPI(t)
 	alias := helpers.GenerateAlias()
 
 	r := c.MakePostRequest("create", api.RequestParams{
@@ -320,7 +320,7 @@ func TestHTTPAPISetPool(t *testing.T) {
 func TestHTTPAPIDescribeAndPing(t *testing.T) {
 	t.Parallel()
 
-	_, c := helpers.PrepareAPI(t)
+	_, c := helpers.PrepareSleepAPI(t)
 
 	rsp, err := http.Get(c.Endpoint + "/ping")
 	require.NoError(t, err)
@@ -359,7 +359,7 @@ func TestHTTPAPIDescribeAndPing(t *testing.T) {
 func TestHTTPAPIList(t *testing.T) {
 	t.Parallel()
 
-	_, c := helpers.PrepareAPI(t)
+	_, c := helpers.PrepareSleepAPI(t)
 	alias := helpers.GenerateAlias()
 
 	r := c.MakePostRequest("create", api.RequestParams{
@@ -399,7 +399,7 @@ func TestHTTPAPIList(t *testing.T) {
 func TestHTTPAPIGetBriefInfo(t *testing.T) {
 	t.Parallel()
 
-	_, c := helpers.PrepareAPI(t)
+	_, c := helpers.PrepareSleepAPI(t)
 	alias := helpers.GenerateAlias()
 
 	r := c.MakePostRequest("create", api.RequestParams{
@@ -440,7 +440,7 @@ func TestHTTPAPIGetBriefInfo(t *testing.T) {
 func TestHTTPAPIGetSpeclet(t *testing.T) {
 	t.Parallel()
 
-	_, c := helpers.PrepareAPI(t)
+	_, c := helpers.PrepareSleepAPI(t)
 	alias := helpers.GenerateAlias()
 
 	r := c.MakePostRequest("create", api.RequestParams{
@@ -468,7 +468,7 @@ func TestHTTPAPIGetSpeclet(t *testing.T) {
 func TestHTTPAPISetSpeclet(t *testing.T) {
 	t.Parallel()
 
-	env, c := helpers.PrepareAPI(t)
+	env, c := helpers.PrepareSleepAPI(t)
 	alias := helpers.GenerateAlias()
 
 	r := c.MakePostRequest("create", api.RequestParams{
@@ -521,7 +521,7 @@ func TestHTTPAPISetSpeclet(t *testing.T) {
 func TestHTTPAPIGetOption(t *testing.T) {
 	t.Parallel()
 
-	_, c := helpers.PrepareAPI(t)
+	_, c := helpers.PrepareSleepAPI(t)
 	alias := helpers.GenerateAlias()
 
 	r := c.MakePostRequest("create", api.RequestParams{
@@ -546,7 +546,7 @@ func TestHTTPAPIGetOption(t *testing.T) {
 func TestHTTPAPIStop(t *testing.T) {
 	t.Parallel()
 
-	env, c := helpers.PrepareAPI(t)
+	env, c := helpers.PrepareSleepAPI(t)
 	alias := helpers.GenerateAlias()
 
 	r := c.MakePostRequest("create", api.RequestParams{
@@ -568,7 +568,7 @@ func TestHTTPAPIStop(t *testing.T) {
 func TestHTTPAPIRestart(t *testing.T) {
 	t.Parallel()
 
-	env, c := helpers.PrepareAPI(t)
+	env, c := helpers.PrepareSleepAPI(t)
 	alias := helpers.GenerateAlias()
 
 	r := c.MakePostRequest("create", api.RequestParams{
@@ -608,7 +608,7 @@ func TestHTTPAPIRestart(t *testing.T) {
 func TestHTTPAPIStartStopUntracked(t *testing.T) {
 	t.Parallel()
 
-	env, c := helpers.PrepareAPI(t)
+	env, c := helpers.PrepareSleepAPI(t)
 	alias := helpers.GenerateAlias()
 
 	r := c.MakePostRequest("create", api.RequestParams{
@@ -668,7 +668,7 @@ func TestHTTPAPIStartStopUntracked(t *testing.T) {
 func TestHTTPAPISetOptions(t *testing.T) {
 	t.Parallel()
 
-	env, c := helpers.PrepareAPI(t)
+	env, c := helpers.PrepareSleepAPI(t)
 	alias := helpers.GenerateAlias()
 
 	r := c.MakePostRequest("create", api.RequestParams{Params: map[string]any{"alias": alias}})
@@ -750,7 +750,7 @@ func stripOptions(optionGroups []strawberry.OptionGroupDescriptor) []strawberry.
 func TestHTTPAPIDescribeOptions(t *testing.T) {
 	t.Parallel()
 
-	_, c := helpers.PrepareAPI(t)
+	_, c := helpers.PrepareSleepAPI(t)
 	alias := helpers.GenerateAlias()
 
 	r := c.MakePostRequest("create", api.RequestParams{Params: map[string]any{"alias": alias}})
@@ -795,7 +795,7 @@ func TestHTTPAPIDescribeOptions(t *testing.T) {
 func TestHTTPAPIJSONFormat(t *testing.T) {
 	t.Parallel()
 
-	_, c := helpers.PrepareAPI(t)
+	_, c := helpers.PrepareSleepAPI(t)
 	alias := helpers.GenerateAlias()
 
 	r := c.MakePostRequestWithFormat(
@@ -830,7 +830,7 @@ func TestHTTPAPIJSONFormat(t *testing.T) {
 func TestHTTPAPISetArrayInt64ValueUsingJSONFormat(t *testing.T) {
 	t.Parallel()
 
-	_, c := helpers.PrepareAPI(t)
+	_, c := helpers.PrepareSleepAPI(t)
 	alias := helpers.GenerateAlias()
 
 	r := c.MakePostRequest("create", api.RequestParams{Params: map[string]any{"alias": alias}})
@@ -913,7 +913,7 @@ func checkAttrFromListCommand(
 func TestHTTPAPIStateAndStatus(t *testing.T) {
 	t.Parallel()
 
-	env, c := helpers.PrepareAPI(t)
+	env, c := helpers.PrepareSleepAPI(t)
 	alias := helpers.GenerateAlias()
 
 	r := c.MakePostRequest("create", api.RequestParams{
@@ -1034,7 +1034,7 @@ func TestHTTPAPIStateAndStatus(t *testing.T) {
 func TestHTTPAPICreateAndStart(t *testing.T) {
 	t.Parallel()
 
-	env, c := helpers.PrepareAPI(t)
+	env, c := helpers.PrepareSleepAPI(t)
 
 	pool := guid.New().String()
 	nonExistingPool := guid.New().String()
@@ -1085,7 +1085,7 @@ func TestHTTPAPICreateAndStart(t *testing.T) {
 func TestHTTPAPIListWorksIfSpecletIsIncorrect(t *testing.T) {
 	t.Parallel()
 
-	_, c := helpers.PrepareAPI(t)
+	_, c := helpers.PrepareSleepAPI(t)
 	alias := helpers.GenerateAlias()
 
 	r := c.MakePostRequest("create", api.RequestParams{
@@ -1120,7 +1120,7 @@ func TestHTTPAPIListWorksIfSpecletIsIncorrect(t *testing.T) {
 func TestHTTPAPILocationAliases(t *testing.T) {
 	t.Parallel()
 
-	_, c := helpers.PrepareAPI(t)
+	_, c := helpers.PrepareSleepAPI(t)
 
 	c.Proxy = "test_location_alias"
 	r := c.MakePostRequest("list", api.RequestParams{})
@@ -1134,7 +1134,7 @@ func TestHTTPAPILocationAliases(t *testing.T) {
 func TestHTTPAPIEditOptions(t *testing.T) {
 	t.Parallel()
 
-	env, c := helpers.PrepareAPI(t)
+	env, c := helpers.PrepareSleepAPI(t)
 	alias := helpers.GenerateAlias()
 
 	r := c.MakePostRequest("create", api.RequestParams{Params: map[string]any{"alias": alias}})

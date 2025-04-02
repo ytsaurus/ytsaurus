@@ -12,8 +12,6 @@
 
 #include <yt/yt/core/yson/null_consumer.h>
 
-#include <yt/yt/library/vector_hdrf/resource_helpers.h>
-
 #include <library/cpp/iterator/enumerate.h>
 
 #include <library/cpp/testing/gtest/gtest.h>
@@ -473,6 +471,11 @@ public:
         YT_UNIMPLEMENTED();
     }
 
+    const TOperationOptionsPtr& GetOperationOptions() const override
+    {
+        YT_UNIMPLEMENTED();
+    }
+
     TOperationRuntimeParametersPtr GetRuntimeParameters() const override
     {
         YT_UNIMPLEMENTED();
@@ -648,7 +651,7 @@ protected:
         const TFairShareTreeAllocationSchedulerPtr& treeScheduler,
         IOperationStrategyHost* operation,
         TSchedulerCompositeElement* parent,
-        TOperationFairShareTreeRuntimeParametersPtr operationOptions = nullptr,
+        TOperationFairShareTreeRuntimeParametersPtr runtimeParameters = nullptr,
         TStrategyOperationSpecPtr operationSpec = nullptr)
     {
         auto operationController = New<TFairShareStrategyOperationController>(
@@ -656,9 +659,9 @@ protected:
             SchedulerConfig_,
             strategyHost->GetNodeShardInvokers());
 
-        if (!operationOptions) {
-            operationOptions = New<TOperationFairShareTreeRuntimeParameters>();
-            operationOptions->Weight = 1.0;
+        if (!runtimeParameters) {
+            runtimeParameters = New<TOperationFairShareTreeRuntimeParameters>();
+            runtimeParameters->Weight = 1.0;
         }
         if (!operationSpec) {
             operationSpec = New<TStrategyOperationSpec>();
@@ -666,7 +669,8 @@ protected:
         auto operationElement = New<TSchedulerOperationElement>(
             TreeConfig_,
             operationSpec,
-            operationOptions,
+            New<TOperationOptions>(),
+            runtimeParameters,
             operationController,
             SchedulerConfig_,
             New<TFairShareStrategyOperationState>(operation, SchedulerConfig_, strategyHost->GetNodeShardInvokers()),

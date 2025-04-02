@@ -431,7 +431,8 @@ public:
     TRegistrationResult RegisterOperation(
         const TFairShareStrategyOperationStatePtr& state,
         const TStrategyOperationSpecPtr& spec,
-        const TOperationFairShareTreeRuntimeParametersPtr& runtimeParameters) override
+        const TOperationFairShareTreeRuntimeParametersPtr& runtimeParameters,
+        const TOperationOptionsPtr& operationOptions) override
     {
         YT_ASSERT_INVOKERS_AFFINITY(FeasibleInvokers_);
 
@@ -442,6 +443,7 @@ public:
         auto operationElement = New<TSchedulerOperationElement>(
             Config_,
             spec,
+            operationOptions,
             runtimeParameters,
             state->GetController(),
             ControllerConfig_,
@@ -3320,6 +3322,8 @@ private:
                 fluent.Item().Value(strategyHost->GetMediumNameByIndex(mediumIndex));
             })
             .Item("unschedulable_reason").Value(element->GetUnschedulableReason())
+            .Item("allocation_preemption_timeout").Value(element->GetEffectiveAllocationPreemptionTimeout())
+            .Item("allocation_graceful_preemption_timeout").Value(element->GetEffectiveAllocationGracefulPreemptionTimeout())
             .Do(BIND(&TFairShareTreeAllocationScheduler::BuildOperationProgress, ConstRef(treeSnapshot), Unretained(element), strategyHost))
             .Do(BIND(&TFairShareTree::DoBuildElementYson, ConstRef(treeSnapshot), Unretained(element), TFieldsFilter{}));
     }
@@ -3439,6 +3443,8 @@ private:
 
             .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "proposed_integral_share", attributes.ProposedIntegralShare)
             .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "best_allocation_share", persistentAttributes.BestAllocationShare)
+
+            .ITEM_OPTIONAL_VALUE_IF_SUITABLE_FOR_FILTER(filter, "fair_share_functions_statistics", element->GetFairShareFunctionsStatistics())
 
             .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "satisfaction_ratio", element->PostUpdateAttributes().SatisfactionRatio)
             .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "local_satisfaction_ratio", element->PostUpdateAttributes().LocalSatisfactionRatio)

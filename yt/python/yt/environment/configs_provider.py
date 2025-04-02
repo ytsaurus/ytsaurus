@@ -1554,7 +1554,9 @@ def _build_rpc_proxy_configs(multidaemon_config_output,
             "ref_counted_tracker_dump_period": 15000,
             "enable_authentication": False,
             "api_service": {
+                # COMPAT(babenko): rename to user_access_validator
                 "security_manager": {
+                    # COMPAT(babenko): rename to ban_cache
                     "user_cache": {
                         "expire_after_successful_update_time": 0,
                         "refresh_time": 0,

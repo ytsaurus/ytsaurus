@@ -24,8 +24,6 @@
 
 #include <yt/yt/core/ytree/permission.h>
 
-#include <yt/yt/library/vector_hdrf/resource_helpers.h>
-
 namespace NYT::NScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////

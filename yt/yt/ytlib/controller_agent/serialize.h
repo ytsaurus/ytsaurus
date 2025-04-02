@@ -52,6 +52,7 @@ DEFINE_ENUM(ESnapshotVersion,
     ((DynamicVanillaJobCount)                (301712))
     ((AddAddressesToJob)                     (301713))
     ((NewOrderedChunkPoolSlicing)            (301714))
+    ((DropSupportLocality)                   (301715))
 );
 
 ////////////////////////////////////////////////////////////////////////////////

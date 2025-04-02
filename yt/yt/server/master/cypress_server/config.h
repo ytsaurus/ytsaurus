@@ -99,6 +99,9 @@ struct TDynamicCypressManagerConfig
     // COMPAT(h0pless)
     bool UseProperBranchedParentInLockCopyDestination;
 
+    NTableClient::EOptimizeFor DefaultOptimizeFor;
+    NTableClient::EOptimizeFor DefaultDynamicTableOptimizeFor;
+
     REGISTER_YSON_STRUCT(TDynamicCypressManagerConfig);
 
     static void Register(TRegistrar registrar);

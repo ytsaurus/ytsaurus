@@ -2,7 +2,7 @@ GO_LIBRARY()
 
 LICENSE(Apache-2.0)
 
-VERSION(v1.63.2)
+VERSION(v1.69.4)
 
 SRCS(
     experimental.go
@@ -43,7 +43,6 @@ RECURSE(
     envconfig
     googlecloud
     grpclog
-    grpcrand
     grpcsync
     grpctest
     grpcutil
@@ -56,6 +55,7 @@ RECURSE(
     proto
     resolver
     serviceconfig
+    stats
     status
     stubserver
     testutils

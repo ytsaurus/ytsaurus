@@ -1,5 +1,9 @@
 #pragma once
 
+#include <yt/yt/core/yson/public.h>
+
+#include <yt/yt/core/ytree/public.h>
+
 #include <yt/yt/library/numeric/fixed_point_number.h>
 
 // TODO(ignat): migrate to enum class
@@ -99,11 +103,18 @@ TJobResources  operator -  (const TJobResources& resources);
 
 bool operator == (const TJobResources& lhs, const TJobResources& rhs);
 
+std::ostream& operator << (std::ostream& os, const TJobResources& jobResources);
+
 bool Dominates(const TJobResources& lhs, const TJobResources& rhs);
 bool StrictlyDominates(const TJobResources& lhs, const TJobResources& rhs);
 
 TJobResources Max(const TJobResources& lhs, const TJobResources& rhs);
 TJobResources Min(const TJobResources& lhs, const TJobResources& rhs);
+
+void Serialize(const TJobResources& resources, NYson::IYsonConsumer* consumer);
+void Deserialize(TJobResources& resources, NYTree::INodePtr node);
+
+void FormatValue(TStringBuilderBase* builder, const TJobResources& resources, TStringBuf /*spec*/);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -130,6 +141,10 @@ struct TJobResourcesConfig
 
     TJobResourcesConfig& operator+=(const TJobResourcesConfig& addend);
 };
+
+////////////////////////////////////////////////////////////////////////////////
+
+TJobResources ToJobResources(const TJobResourcesConfig& config, TJobResources defaultValue);
 
 ////////////////////////////////////////////////////////////////////////////////
 

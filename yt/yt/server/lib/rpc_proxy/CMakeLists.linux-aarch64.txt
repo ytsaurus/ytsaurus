@@ -34,6 +34,7 @@ target_link_libraries(server-lib-rpc_proxy PUBLIC
   yt-library-error_skeleton
   library-tracing-jaeger
   server-lib-transaction_server
+  server-lib-security_server
   server-lib-signature
   yt-yt-core
 )
@@ -46,6 +47,5 @@ target_sources(server-lib-rpc_proxy PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/rpc_proxy/profilers.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/rpc_proxy/helpers.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/rpc_proxy/proxy_coordinator.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/rpc_proxy/security_manager.cpp
 )
 

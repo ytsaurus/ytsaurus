@@ -41,7 +41,6 @@ inline TChunk::TReplicasDataBase* TChunk::MutableReplicasData()
         } else {
             ReplicasData_ = std::make_unique<TRegularChunkReplicasData>();
         }
-        ReplicasData_->Initialize();
     }
     return ReplicasData_.get();
 }

@@ -29,13 +29,13 @@ SELECT 2 + 2;
 * выражениям в `SELECT` назначаются имена заданные алиасами;
 * к полученным таким образом колонкам применяется top-level [DISTINCT](distinct.md);
 * таким же образом вычисляются все подзапросы в [UNION ALL](union.md#union-all), выполняется их объединение (см. [PRAGMA AnsiOrderByLimitInUnionAll](../pragma.md#pragmas));
-* выполняется сортировка согласно [ORDER BY](order-by.md);
-* к полученному результату применяются [OFFSET и LIMIT](limit-offset.md).
+* выполняется сортировка согласно [ORDER BY](order_by.md);
+* к полученному результату применяются [OFFSET и LIMIT](limit_offset.md).
 
 ## Порядок колонок в YQL {#orderedcolumns}
 
 В стандартном SQL порядок колонок указанных в проекции (в `SELECT`) имеет значение. Помимо того, что порядок колонок должен сохраняться при отображении результатов запроса или при записи в новую таблицу, некоторые конструкции SQL этот порядок используют.
-Это относится в том числе к [UNION ALL](union.md#union-all) и к позиционному [ORDER BY](order-by.md) (ORDER BY ordinal).
+Это относится в том числе к [UNION ALL](union.md#union-all) и к позиционному [ORDER BY](order_by.md) (ORDER BY ordinal).
 
 По умолчанию в YQL порядок колонок игнорируется:
 
@@ -48,7 +48,7 @@ SELECT 2 + 2;
 * `SELECT` со звездочкой (`SELECT * FROM ...`) наследует порядок из своего входа;
 * порядок колонок после [JOIN](../join.md): сначала колонки левой стороны, потом правой. Если порядок какой-либо из сторон присутствующей в выходе `JOIN` не определен, порядок колонок результата также не определен;
 * порядок `UNION ALL` зависит от режима выполнения [UNION ALL](union.md#union-all);
-* порядок колонок для [AS_TABLE](from-as-table.md) не определен;
+* порядок колонок для [AS_TABLE](from_as_table.md) не определен;
 
 
 ### Комбинация запросов {#combining-queries}
@@ -81,22 +81,22 @@ query1 UNION query2 UNION ALL query3
 ## Поддерживаемые конструкции в SELECT
 
 * [FROM](from.md)
-* [FROM AS_TABLE](from-as-table.md)
-* [FROM SELECT](from-select.md)
+* [FROM AS_TABLE](from_as_table.md)
+* [FROM SELECT](from_select.md)
 * [DISTINCT](distinct.md)
-* [UNIQUE DISTINCT](unique-distinct-hints.md)
+* [UNIQUE DISTINCT](unique_distinct_hints.md)
 * [UNION](union.md)
 * [WITH](with.md)
 * [WITHOUT](without.md)
 * [WHERE](where.md)
-* [ORDER BY](order-by.md)
-* [ASSUME ORDER BY](assume-order-by.md)
-* [LIMIT OFFSET](limit-offset.md)
+* [ORDER BY](order_by.md)
+* [ASSUME ORDER BY](assume_order_by.md)
+* [LIMIT OFFSET](limit_offset.md)
 * [SAMPLE](sample.md)
 * [TABLESAMPLE](sample.md)
 * [FOLDER](folder.md)
-* [WalkFolders](walk-folders.md)
+* [WalkFolders](walk_folders.md)
 * [VIEW](view.md)
-* [TEMPORARY TABLE](temporary-tables.md)
+* [TEMPORARY TABLE](temporary_table.md)
 * [CONCAT](concat.md)
 

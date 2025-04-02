@@ -1,10 +1,16 @@
 #include "resource_volume.h"
 
+#include <yt/yt/core/ytree/fluent.h>
+
+#include <yt/yt/library/numeric/serialize/fixed_point_number.h>
+
 namespace NYT::NVectorHdrf {
 
 ////////////////////////////////////////////////////////////////////////////////
 
 using std::round;
+using namespace NYson;
+using namespace NYTree;
 
 TResourceVolume::TResourceVolume(const TJobResources& jobResources, TDuration duration)
 {
@@ -125,6 +131,45 @@ TResourceVolume operator / (const TResourceVolume& lhs, double rhs)
     TResourceVolume result = lhs;
     result /= rhs;
     return result;
+}
+
+void Serialize(const TResourceVolume& volume, NYson::IYsonConsumer* consumer)
+{
+    NYTree::BuildYsonFluently(consumer)
+        .BeginMap()
+            #define XX(name, Name) .Item(#name).Value(volume.Get##Name())
+            ITERATE_JOB_RESOURCES(XX)
+            #undef XX
+        .EndMap();
+}
+
+void Deserialize(TResourceVolume& volume, INodePtr node)
+{
+    auto mapNode = node->AsMap();
+    #define XX(name, Name) \
+        if (auto child = mapNode->FindChild(#name)) { \
+            auto value = volume.Get##Name(); \
+            Deserialize(value, child); \
+            volume.Set##Name(value); \
+        }
+    ITERATE_JOB_RESOURCES(XX)
+    #undef XX
+}
+
+void Deserialize(TResourceVolume& volume, TYsonPullParserCursor* cursor)
+{
+    Deserialize(volume, ExtractTo<INodePtr>(cursor));
+}
+
+void FormatValue(TStringBuilderBase* builder, const TResourceVolume& volume, TStringBuf /*spec*/)
+{
+    builder->AppendFormat(
+        "{UserSlots: %.2f, Cpu: %v, Gpu: %.2f, Memory: %.2fMBs, Network: %.2f}",
+        volume.GetUserSlots(),
+        volume.GetCpu(),
+        volume.GetGpu(),
+        volume.GetMemory() / 1_MB,
+        volume.GetNetwork());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

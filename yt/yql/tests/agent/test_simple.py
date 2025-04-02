@@ -8,6 +8,8 @@ from yt_commands import (authors, create, create_user, sync_mount_table,
 
 from yt_env_setup import YTEnvSetup
 
+from yt_helpers import profiler_factory
+
 from yt.wrapper import yson
 
 import yt_error_codes
@@ -45,6 +47,43 @@ class TestQueriesYqlBase(YTEnvSetup):
             return
 
         assert_items_equal(result, expected)
+
+    def _exists_pending_stage_in_progress(self, query):
+        queryInfo = query.get()
+        if "progress" in queryInfo and "yql_progress" in queryInfo["progress"]:
+            for stage in queryInfo["progress"]["yql_progress"].values():
+                if "pending" in stage and stage["pending"] > 0 :
+                    return True
+        return False
+
+
+class TestMetrics(TestQueriesYqlBase):
+    @authors("mpereskokova")
+    def test_metrics(self, query_tracker, yql_agent):
+        yqla = ls("//sys/yql_agent/instances")[0]
+        profiler = profiler_factory().at_yql_agent(yqla)
+
+        create("table", "//tmp/t", attributes={
+            "schema": [{"name": "a", "type": "int64"}]
+        })
+        rows = [{"a": 42}]
+        write_table("//tmp/t", rows)
+
+        create_pool("small", attributes={"resource_limits": {"user_slots": 0}})
+        query = start_query("yql", 'pragma yt.StaticPool = "small"; select a+1 as result from primary.`//tmp/t`')
+
+        wait(lambda: self._exists_pending_stage_in_progress(query))
+
+        active_queries_metric = profiler.gauge("yql_agent/active_queries")
+        wait(lambda: active_queries_metric.get() == 1)
+
+        set("//sys/pools/small/@resource_limits/user_slots", 1)
+
+        query.track()
+        result = query.read_result(0)
+        assert_items_equal(result, [{"result": 43}])
+
+        wait(lambda: active_queries_metric.get() == 0)
 
 
 class TestSimpleQueriesYql(TestQueriesYqlBase):
@@ -551,14 +590,7 @@ class TestYqlAgent(TestQueriesYqlBase):
         create_pool("small", attributes={"resource_limits": {"user_slots": 0}})
         query = start_query("yql", 'pragma yt.StaticPool = "small"; select a+1 as result from primary.`//tmp/t`')
 
-        def existsPendingStage():
-            queryInfo = query.get()
-            if "progress" in queryInfo and "yql_progress" in queryInfo["progress"]:
-                for stage in queryInfo["progress"]["yql_progress"].values():
-                    if "pending" in stage and stage["pending"] > 0 :
-                        return True
-            return False
-        wait(existsPendingStage)
+        wait(lambda: self._exists_pending_stage_in_progress(query))
 
         set("//sys/pools/small/@resource_limits/user_slots", 1)
 
@@ -955,6 +987,11 @@ class TestYqlColumnOrderDifferentSources(TestQueriesYqlBase):
         write_table("//tmp/t2", [{"a": 43, "b": "bar", "c": 3.0}])
 
         self._test_simple_query("""
+            select a, b, c from primary.`//tmp/t1`
+            union all
+            select a, b, c from primary.`//tmp/t2`
+        """, [{"a": 43, "b": "bar", "c": 3.0}, {"a": 42, "b": "foo", "c": 2.0}])
+        self._test_simple_query("""
             select a, b, c from primary.`//tmp/t2`
             union all
             select a, b, c from primary.`//tmp/t1`
@@ -964,3 +1001,33 @@ class TestYqlColumnOrderDifferentSources(TestQueriesYqlBase):
             union all
             select c, a, b from primary.`//tmp/t1`
         """, [{"a": 42, "b": "foo", "c": 2.0}, {"a": 43, "b": "bar", "c": 3.0}])
+
+    @authors("a-romanov")
+    @pytest.mark.timeout(300)
+    def test_different_sources_with_limit(self, query_tracker, yql_agent):
+        create("table", "//tmp/t1", attributes={
+            "schema": [{"name": "a", "type": "int64"}, {"name": "b", "type": "string"}, {"name": "c", "type": "float"}],
+            "dynamic": True,
+            "enable_dynamic_store_read": True,
+        })
+        sync_mount_table("//tmp/t1")
+        insert_rows("//tmp/t1", [{"a": 42, "b": "foo", "c": 2.0}, {"a": 43, "b": "xyz", "c": 3.0}, {"a": 44, "b": "uvw", "c": 4.0}])
+
+        create("table", "//tmp/t2", attributes={
+            "schema": [{"name": "a", "type": "int64"}, {"name": "b", "type": "string"}, {"name": "c", "type": "float"}],
+            "enable_dynamic_store_read": True,
+        })
+        write_table("//tmp/t2", [{"a": 45, "b": "bar", "c": -3.0}, {"a": 46, "b": "abc", "c": -4.0}, {"a": 47, "b": "def", "c": -5.0}])
+
+        self._test_simple_query("""
+            select * from primary.`//tmp/t1`
+            union all
+            select * from primary.`//tmp/t2`
+            limit 4
+       """, [{"a": 42, "b": "foo", "c": 2.0}, {"a": 43, "b": "xyz", "c": 3.0}, {"a": 44, "b": "uvw", "c": 4.0}, {"a": 45, "b": "bar", "c": -3.0}])
+        self._test_simple_query("""
+            select * from primary.`//tmp/t2`
+            union all
+            select * from primary.`//tmp/t1`
+            limit 4
+        """, [{"a": 45, "b": "bar", "c": -3.0}, {"a": 46, "b": "abc", "c": -4.0}, {"a": 47, "b": "def", "c": -5.0}, {"a": 42, "b": "foo", "c": 2.0}])

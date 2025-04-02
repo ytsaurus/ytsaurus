@@ -1,8 +1,14 @@
 #include "job_resources.h"
 
+#include <yt/yt/core/ytree/fluent.h>
+
+#include <yt/yt/library/numeric/serialize/fixed_point_number.h>
+
 namespace NYT::NVectorHdrf {
 
 using std::round;
+using namespace NYson;
+using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -204,6 +210,11 @@ bool operator == (const TJobResources& lhs, const TJobResources& rhs)
     true;
 }
 
+std::ostream& operator << (std::ostream& os, const TJobResources& jobResources)
+{
+    return os << Format("%v", jobResources);
+}
+
 bool Dominates(const TJobResources& lhs, const TJobResources& rhs)
 {
     return
@@ -238,6 +249,43 @@ TJobResources Min(const TJobResources& lhs, const TJobResources& rhs)
     ITERATE_JOB_RESOURCES(XX)
     #undef XX
     return result;
+}
+
+void Serialize(const TJobResources& resources, IYsonConsumer* consumer)
+{
+    BuildYsonFluently(consumer)
+        .BeginMap()
+    #define XX(name, Name) .Item(#name).Value(resources.Get##Name())
+    ITERATE_JOB_RESOURCES(XX)
+    #undef XX
+        .EndMap();
+}
+
+void Deserialize(TJobResources& resources, INodePtr node)
+{
+    TCpuResource x{};
+    Deserialize(x, node);
+
+    auto mapNode = node->AsMap();
+    #define XX(name, Name) \
+        if (auto child = mapNode->FindChild(#name)) { \
+            auto value = resources.Get##Name(); \
+            Deserialize(value, child); \
+            resources.Set##Name(value); \
+        }
+    ITERATE_JOB_RESOURCES(XX)
+    #undef XX
+}
+
+void FormatValue(TStringBuilderBase* builder, const TJobResources& resources, TStringBuf /*format*/)
+{
+    builder->AppendFormat(
+        "{UserSlots: %v, Cpu: %v, Gpu: %v, Memory: %vMB, Network: %v}",
+        resources.GetUserSlots(),
+        resources.GetCpu(),
+        resources.GetGpu(),
+        resources.GetMemory() / 1_MB,
+        resources.GetNetwork());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -277,5 +325,26 @@ TJobResourcesConfig& TJobResourcesConfig::operator+=(const TJobResourcesConfig& 
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NVectorHdrf
+TJobResources ToJobResources(const TJobResourcesConfig& config, TJobResources defaultValue)
+{
+    if (config.UserSlots) {
+        defaultValue.SetUserSlots(*config.UserSlots);
+    }
+    if (config.Cpu) {
+        defaultValue.SetCpu(*config.Cpu);
+    }
+    if (config.Network) {
+        defaultValue.SetNetwork(*config.Network);
+    }
+    if (config.Memory) {
+        defaultValue.SetMemory(*config.Memory);
+    }
+    if (config.Gpu) {
+        defaultValue.SetGpu(*config.Gpu);
+    }
+    return defaultValue;
+}
 
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NYT::NVectorHdrf

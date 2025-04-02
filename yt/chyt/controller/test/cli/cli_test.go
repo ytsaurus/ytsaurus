@@ -14,7 +14,7 @@ import (
 func TestCLISimple(t *testing.T) {
 	t.Parallel()
 
-	env, c := helpers.PrepareAPI(t)
+	env, c := helpers.PrepareSleepAPI(t)
 	r := cli.NewRunner(env, t)
 
 	r.EnvVariables["CHYT_CTL_ADDRESS"] = c.Endpoint
@@ -34,7 +34,7 @@ func TestCLISimple(t *testing.T) {
 func TestCLIControllerUnavailable(t *testing.T) {
 	t.Parallel()
 
-	env := helpers.PrepareEnv(t)
+	env := helpers.PrepareEnv(t, "sleep")
 	r := cli.NewRunner(env, t)
 
 	r.EnvVariables["CHYT_CTL_ADDRESS"] = "http://this.address.does.not.exists"
@@ -51,7 +51,7 @@ func TestCLIControllerUnavailable(t *testing.T) {
 func TestCLIYsonOutput(t *testing.T) {
 	t.Parallel()
 
-	env, c := helpers.PrepareAPI(t)
+	env, c := helpers.PrepareSleepAPI(t)
 	r := cli.NewRunner(env, t)
 
 	r.EnvVariables["CHYT_CTL_ADDRESS"] = c.Endpoint
@@ -64,7 +64,7 @@ func TestCLIYsonOutput(t *testing.T) {
 func TestCLIListMutuallyExclusiveGroup(t *testing.T) {
 	t.Parallel()
 
-	env, c := helpers.PrepareAPI(t)
+	env, c := helpers.PrepareSleepAPI(t)
 	r := cli.NewRunner(env, t)
 
 	r.EnvVariables["CHYT_CTL_ADDRESS"] = c.Endpoint
@@ -86,7 +86,7 @@ func TestCLIClientConfigFromCluster(t *testing.T) {
 	// NB: This test uses Cypress client_config, so it cannot be executed in parallel.
 	// t.Parallel()
 
-	env, c := helpers.PrepareAPI(t)
+	env, c := helpers.PrepareSleepAPI(t)
 	r := cli.NewRunner(env, t)
 
 	configPath := ypath.Path("//sys/client_config/default")

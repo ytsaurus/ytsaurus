@@ -188,6 +188,25 @@ func (c Controller) getPatchedYtConfig(ctx context.Context, oplet *strawberry.Op
 	} else if !strings.HasPrefix(val.(string), always_blocked_headers) {
 		configAsMap["http_header_blacklist"] = always_blocked_headers + "|(" + strings.ToLower(val.(string)) + ")"
 	}
+	if _, ok := configAsMap["table_attribute_cache"]; !ok {
+		configAsMap["table_attribute_cache"] = make(map[string]any)
+	}
+	tableAttributeCache, err := asMapNode(configAsMap["table_attribute_cache"])
+	if err != nil {
+		err = fmt.Errorf("invalid table_attribute_cache config: %v", err)
+		return
+	}
+	if _, ok := tableAttributeCache["master_read_options"]; !ok {
+		tableAttributeCache["master_read_options"] = make(map[string]any)
+	}
+	masterReadOptions, err := asMapNode(tableAttributeCache["master_read_options"])
+	if err != nil {
+		err = fmt.Errorf("invalid master_read_options config: %v", err)
+		return
+	}
+	if _, ok := masterReadOptions["read_from"]; !ok {
+		masterReadOptions["read_from"] = "cache"
+	}
 	if _, ok := configAsMap["system_log_table_exporters"]; !ok {
 		configAsMap["system_log_table_exporters"] = make(map[string]any)
 	}

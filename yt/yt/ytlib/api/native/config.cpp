@@ -449,7 +449,7 @@ void TConnectionDynamicConfig::Register(TRegistrar registrar)
         .Default(TDuration::Seconds(10));
 
     registrar.Parameter("enable_distributed_replication_collocation_attachment", &TThis::EnableDistributedReplicationCollocationAttachment)
-        .Default(false);
+        .Default(true);
 
     registrar.Postprocessor([] (TConnectionDynamicConfig* config) {
         if (!config->UploadTransactionPingPeriod.has_value()) {

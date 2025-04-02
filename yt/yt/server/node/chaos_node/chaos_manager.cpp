@@ -357,6 +357,22 @@ public:
         return collocation;
     }
 
+    void UpdateReplicationCardLagTimes(const TReplicationCard& replicationCard) override
+    {
+        if (IsReplicationCardMigrated(&replicationCard)) {
+            return;
+        }
+
+        auto replicaLagTimes = ComputeReplicasLag(replicationCard.Replicas());
+        for (const auto& [replicaId, replicaLagTime] : replicaLagTimes) {
+            const auto& replicaCounters = GetOrInsert(ReplicaCounters_, replicaId, [&]() {
+                return CreateReplicaCounters(replicationCard, replicaId);
+            });
+
+            replicaCounters.LagTime.Update(replicaLagTime);
+        }
+    }
+
 private:
     class TReplicationCardOrchidService
         : public TVirtualMapBase
@@ -425,6 +441,7 @@ private:
     TEntityMap<TReplicationCardCollocation> CollocationMap_;
     std::vector<TCellId> CoordinatorCellIds_;
     THashMap<TCellId, TInstant> SuspendedCoordinators_;
+    THashMap<TReplicaId, TReplicaCounters> ReplicaCounters_;
     bool Suspended_ = false;
 
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
@@ -877,6 +894,11 @@ private:
             replicationCard,
             /*collocation*/ nullptr);
         UnbindReplicationCardFromRtt(replicationCard);
+
+        for (const auto& [replicaId, replicaInfo] : replicationCard->Replicas()) {
+            ReplicaCounters_.erase(replicaId);
+        }
+
         ReplicationCardMap_.Remove(replicationCardId);
         MigratedReplicationCardRemover_->ConfirmRemoval(replicationCardId);
 
@@ -926,6 +948,10 @@ private:
                 /*collocation*/ nullptr);
         }
 
+        for (const auto& [replicaId, replicaInfo] : replicationCard->Replicas()) {
+            ReplicaCounters_.erase(replicaId);
+        }
+
         ReplicationCardMap_.Remove(replicationCardId);
         MigratedReplicationCardRemover_->ConfirmRemoval(replicationCardId);
 
@@ -947,6 +973,10 @@ private:
                 !IsReplicationCardMigrated(replicationCard) || replicationCard->GetCurrentTimestamp() != migrationTimestamp)
             {
                 continue;
+            }
+
+            for (const auto& [replicaId, replicaInfo] : replicationCard->Replicas()) {
+                ReplicaCounters_.erase(replicaId);
             }
 
             ReplicationCardMap_.Remove(replicationCardId);
@@ -1100,6 +1130,7 @@ private:
                 << TErrorAttribute("state", replicaInfo->State);
         }
 
+        ReplicaCounters_.erase(replicaId);
         EraseOrCrash(replicationCard->Replicas(), replicaId);
 
         ReplicaDestroyed_.Fire(replicaId);
@@ -2777,6 +2808,24 @@ private:
         }
 
         return convertedCards;
+    }
+
+    TReplicaCounters CreateReplicaCounters(const TReplicationCard& replicationCard, TReplicaId replicaId)
+    {
+        const auto& replica = GetOrCrash(replicationCard.Replicas(), replicaId);
+        auto tagsList = NProfiling::TTagList();
+        tagsList.emplace_back("replica_id", ToString(replicaId));
+        tagsList.emplace_back("replication_card_id", ToString(replicationCard.GetId()));
+        tagsList.emplace_back("replica_cluster_name", replica.ClusterName);
+        tagsList.emplace_back("replica_path", replica.ReplicaPath);
+        tagsList.emplace_back("chaos_cell_bundle", Slot_->GetCellBundleName());
+        if (!replicationCard.GetTablePath().empty()) {
+            tagsList.emplace_back("chaos_replicated_table_cluster", replicationCard.GetTableClusterName());
+            tagsList.emplace_back("chaos_replicated_table_path", replicationCard.GetTablePath());
+        }
+
+        return TReplicaCounters(Slot_->GetProfiler()
+            .WithPrefix("/replication_card").WithTags(NProfiling::TTagSet(tagsList)));
     }
 };
 

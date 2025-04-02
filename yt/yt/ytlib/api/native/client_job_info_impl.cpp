@@ -1808,7 +1808,7 @@ static void ParseJobsFromControllerAgentResponse(
             job.Id = TJobId(TGuid::FromString(jobIdString));
         }
         if (needOperationId) {
-            job.OperationId =operationId;
+            job.OperationId = operationId;
         }
         if (needType) {
             job.Type = jobMapNode->GetChildValueOrThrow<EJobType>("job_type");
