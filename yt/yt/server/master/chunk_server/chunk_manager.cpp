@@ -2987,7 +2987,11 @@ private:
         // We've checked everything in TDataNodeTracker::HydraFullDataNodeHeartbeat.
         auto locationDirectory = ParseLocationDirectory(dataNodeTracker, *request);
 
-        auto announceReplicaRequests = ProcessAddedReplicas(locationDirectory, node, request->chunks());
+        auto announceReplicaRequests = ProcessAddedReplicas(
+            locationDirectory,
+            node,
+            request->chunks(),
+            /*incremental*/ false);
 
         SetAnnounceReplicaRequests(response, node->ChunkLocations(), announceReplicaRequests);
 
@@ -3009,7 +3013,8 @@ private:
         auto announceReplicaRequests = ProcessAddedReplicas(
             {location},
             node,
-            request->chunks());
+            request->chunks(),
+            /*incremental*/ false);
 
         SetAnnounceReplicaRequests(
             response,
@@ -3153,6 +3158,10 @@ private:
         }
 
         auto nodeId = FromProto<TNodeId>(request->node_id());
+        bool isIncrementalHeartbeat = true;
+        if (dynamicConfig->UseProperReplicaAdditionReason && request->has_is_incremental_heartbeat()) {
+            isIncrementalHeartbeat = request->is_incremental_heartbeat();
+        }
 
         const auto& nodeTracker = Bootstrap_->GetNodeTracker();
         auto* node = nodeTracker->GetNodeOrThrow(nodeId);
@@ -3177,7 +3186,11 @@ private:
 
         const auto& config = GetDynamicConfig()->SequoiaChunkReplicas;
         if (config->StoreSequoiaReplicasOnMaster) {
-            ProcessAddedReplicas(locationDirectory, node, request->added_chunks());
+            ProcessAddedReplicas(
+                locationDirectory,
+                node,
+                request->added_chunks(),
+                isIncrementalHeartbeat);
         } else {
             auto deadChunkIds = FromProto<THashSet<TChunkId>>(request->dead_chunk_ids());
             for (const auto& chunkInfo : request->added_chunks()) {
@@ -3188,7 +3201,7 @@ private:
                         node,
                         locationDirectory,
                         chunkInfo,
-                        /*incremental*/ true));
+                        isIncrementalHeartbeat));
                 }
             }
         }
@@ -3491,8 +3504,10 @@ private:
     std::vector<TChunk*> ProcessAddedReplicas(
         TRange<TChunkLocation*> locationDirectory,
         TNode* node,
-        const auto& addedReplicas)
+        const auto& addedReplicas,
+        bool incremental)
     {
+        auto useProperReplicaAdditionReason = GetDynamicConfig()->UseProperReplicaAdditionReason;
         std::vector<TChunk*> announceReplicaRequests;
         for (const auto& chunkInfo : addedReplicas) {
             if (chunkInfo.caused_by_medium_change()) {
@@ -3506,7 +3521,13 @@ private:
                 }
                 continue;
             }
-            if (auto* chunk = ProcessAddedChunk(node, locationDirectory, chunkInfo, true)) {
+
+            if (auto* chunk = ProcessAddedChunk(
+                node,
+                locationDirectory,
+                chunkInfo,
+                useProperReplicaAdditionReason ? incremental : true))
+            {
                 if (chunk->IsBlob()) {
                     announceReplicaRequests.push_back(chunk);
                 }
@@ -3596,7 +3617,11 @@ private:
             }
         }
 
-        auto announceReplicaRequests = ProcessAddedReplicas(locationDirectory, node, request->added_chunks());
+        auto announceReplicaRequests = ProcessAddedReplicas(
+            locationDirectory,
+            node,
+            request->added_chunks(),
+            /*incremental*/ true);
 
         SetAnnounceReplicaRequests(response, node->ChunkLocations(), announceReplicaRequests);
 
