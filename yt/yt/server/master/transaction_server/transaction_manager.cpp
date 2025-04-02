@@ -836,6 +836,8 @@ public:
 
         auto state = transaction->GetPersistentState();
         if (state == ETransactionState::Aborted) {
+            YT_LOG_DEBUG("Transaction is already aborted (TransactionId: %v)",
+                transactionId);
             return;
         }
 
@@ -1176,6 +1178,12 @@ public:
             ThrowNoSuchTransaction(transactionId);
         }
         return transaction;
+    }
+
+    ETransactionState GetTransactionStateOrThrow(TTransactionId transactionId) override
+    {
+        auto* transaction = GetTransactionOrThrow(transactionId);
+        return transaction->GetPersistentState();
     }
 
     TFuture<TInstant> GetLastPingTime(const TTransaction* transaction) override
