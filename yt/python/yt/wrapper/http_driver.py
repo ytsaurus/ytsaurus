@@ -30,6 +30,22 @@ def dump_params(obj, header_format):
         assert False, "Invalid header format"
 
 
+class PatientLogger:
+    def __init__(self, patience):
+        self.patience = patience
+
+    def silence(self):
+        self.patience = 0
+
+    def has_fired(self):
+        return self.patience <= 0
+
+    def pester(self, message):
+        self.patience -= 1
+        if self.patience == 0:
+            logger.warning(message)
+
+
 # NB: It is necessary to avoid reference loop.
 # We cannot store proxy provider in client and client in proxy provider.
 class HeavyProxyProviderState(object):
@@ -149,6 +165,12 @@ def make_request(command_name,
                  mutation_id=None,
                  client=None):
     """Makes request to yt proxy. Command name is the name of command in YT API."""
+
+    if not hasattr(make_request, "patient_logger"):
+        make_request.patient_logger = PatientLogger(1000)
+
+    if (not make_request.patient_logger.has_fired()) and command_name.endswith("_rows"):
+        make_request.patient_logger.pester("PRC proxies are heavily recommended for dynamic tables RPC calls")
 
     if "master_cell_id" in params:
         raise YtError('Option "master_cell_id" is not supported for HTTP backend')
