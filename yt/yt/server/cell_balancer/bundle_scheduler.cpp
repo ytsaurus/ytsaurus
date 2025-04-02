@@ -2696,6 +2696,7 @@ void InitializeVirtualSpareBundle(TSchedulerInputState& input)
         auto spareVirtualBundle = GetSpareBundleName(zoneInfo);
         auto bundleInfo = New<TBundleInfo>();
         bundleInfo->EnableInstanceAllocation = input.Config->HasInstanceAllocatorService;
+        bundleInfo->EnableRpcProxyManagement = input.Config->HasInstanceAllocatorService;
         bundleInfo->TargetConfig = zoneInfo->SpareTargetConfig;
         bundleInfo->EnableBundleController = true;
         bundleInfo->EnableTabletCellManagement = false;
