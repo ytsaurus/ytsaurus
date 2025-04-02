@@ -120,41 +120,57 @@ func (o *output) Add(ctx context.Context, meta pipelines.RowMeta, row pipelines.
 		SequenceNumber: row.SeqNo,
 	}
 
-	retryInterval := 1 * time.Second
-	maxRetryInterval := 1 * time.Minute
-	for {
-		_, err := o.yc.PushQueueProducer(ctx, o.producerPath, o.queuePath, o.sessionID, o.epoch, []any{ytRow}, nil)
-		if err == nil {
-			break
-		}
-		o.logger.Warn("error pushing queue, will retry", "error", err)
-		time.Sleep(retryInterval)
-		retryInterval *= 2
-		if retryInterval > maxRetryInterval {
-			retryInterval = maxRetryInterval
-		}
-	}
+	retry(
+		func() error {
+			_, err := o.yc.PushQueueProducer(ctx, o.producerPath, o.queuePath, o.sessionID, o.epoch, []any{ytRow}, nil)
+			return err
+		},
+		func(err error) { o.logger.Warn("error pushing queue, will retry", "error", err) },
+	)
 }
 
-func (o *output) compressValue(ctx context.Context, value []byte) []byte {
-	retryInterval := time.Second
-	maxRetryInterval := time.Minute
-	for {
-		compressedValue, err := o.compressionCodec.Compress(value)
-		if err == nil {
-			return compressedValue
-		}
-		o.logger.Error("error compress value before pushing queue, will retry", "error", err)
-		time.Sleep(retryInterval)
-		retryInterval *= 2
-		if retryInterval > maxRetryInterval {
-			retryInterval = maxRetryInterval
-		}
-	}
+func (o *output) compressValue(ctx context.Context, value []byte) (compressed []byte) {
+	retry(
+		func() (err error) {
+			compressed, err = o.compressionCodec.Compress(value)
+			return
+		},
+		func(err error) { o.logger.Error("error compress value before pushing queue, will retry", "error", err) },
+	)
+	return
 }
 
 func (o *output) Close(ctx context.Context) {
+	retry(
+		func() error {
+			return o.yc.RemoveQueueProducerSession(
+				ctx,
+				o.producerPath,
+				o.queuePath,
+				o.sessionID,
+				&yt.RemoveQueueProducerSessionOptions{},
+			)
+		},
+		func(err error) { o.logger.Warn("cannot remove queue producer session, will retry", "error", err) },
+	)
 	o.yc.Stop()
+}
+
+func retry(action func() error, errHandler func(error)) {
+	retryInterval := time.Second
+	maxRetryInterval := time.Minute
+	for {
+		err := action()
+		if err == nil {
+			return
+		}
+		errHandler(err)
+		time.Sleep(retryInterval)
+		retryInterval *= 2
+		if retryInterval > maxRetryInterval {
+			retryInterval = maxRetryInterval
+		}
+	}
 }
 
 func newCompressionCodec(codecName string) compression.Codec {
