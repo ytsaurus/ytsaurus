@@ -11,21 +11,21 @@ namespace NSQLComplete {
         return NJson::ReadJsonFastTree(text);
     }
 
-    TVector<TString> Keys(NJson::TJsonValue::TMapType& json) {
+    TVector<TString> Names(NJson::TJsonValue::TArray& json) {
         TVector<TString> keys;
         keys.reserve(json.size());
-        for (auto& [k, v] : json) {
-            keys.emplace_back(k);
+        for (auto& item : json) {
+            keys.emplace_back(item.GetMapSafe().at("name").GetStringSafe());
         }
         return keys;
     }
 
     TVector<TString> ParseTypes(NJson::TJsonValue json) {
-        return Keys(json.GetMapSafe());
+        return Names(json.GetArraySafe());
     }
 
     TVector<TString> ParseFunctions(NJson::TJsonValue json) {
-        return Keys(json.GetMapSafe());
+        return Names(json.GetArraySafe());
     }
 
     NameSet MakeDefaultNameSet() {
