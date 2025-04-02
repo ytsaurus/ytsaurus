@@ -87,7 +87,7 @@ TEST_F(TSignatureValidatorTest, ValidateGoodSignature)
     for (auto [i, header] : Enumerate(headers)) {
         auto headerString = ConvertToYsonString(header);
         auto toSign = PreprocessSignature(headerString, Payload);
-        std::array<std::byte, SignatureSize> signatureBytes;
+        std::array<char, SignatureSize> signatureBytes;
         Key->Sign(toSign, signatureBytes);
 
         TStringStream ss;

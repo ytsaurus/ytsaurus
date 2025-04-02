@@ -6,7 +6,7 @@ namespace NYT::NSignature {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-const TOwnerId& TStubKeyStore::GetOwner()
+const TOwnerId& TStubKeyStore::GetOwner() const
 {
     return OwnerId;
 }
@@ -25,7 +25,7 @@ TFuture<void> TStubKeyStore::RegisterKey(const TKeyInfoPtr& keyInfo)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TFuture<TKeyInfoPtr> TStubKeyStore::FindKey(const TOwnerId& ownerId, const TKeyId& keyId)
+TFuture<TKeyInfoPtr> TStubKeyStore::FindKey(const TOwnerId& ownerId, const TKeyId& keyId) const
 {
     auto ownerIt = Data.find(ownerId);
     if (ownerIt == Data.end()) {

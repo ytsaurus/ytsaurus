@@ -12,7 +12,7 @@ class TMockKeyStoreReader
     : public IKeyStoreReader
 {
 public:
-    MOCK_METHOD(TFuture<TKeyInfoPtr>, FindKey, (const TOwnerId& ownerId, const TKeyId& keyId), (override));
+    MOCK_METHOD(TFuture<TKeyInfoPtr>, FindKey, (const TOwnerId& ownerId, const TKeyId& keyId), (const, override));
 };
 
 DEFINE_REFCOUNTED_TYPE(TMockKeyStoreReader)
@@ -26,7 +26,7 @@ class TMockKeyStoreWriter
     : public IKeyStoreWriter
 {
 public:
-    MOCK_METHOD(const TOwnerId&, GetOwner, (), (override));
+    MOCK_METHOD(const TOwnerId&, GetOwner, (), (const, override));
 
     MOCK_METHOD(TFuture<void>, RegisterKey, (const TKeyInfoPtr& keyInfo), (override));
 };

@@ -104,13 +104,12 @@ TEST_F(TSignatureGeneratorTest, SimpleSign)
     auto toSign = PreprocessSignature(TYsonString(headerString), signature->Payload());
 
     auto signatureNode = ConvertToNode(ConvertToYsonString(signature));
-    auto signatureByteString = signatureNode->AsMap()->GetChildValueOrThrow<std::string>("signature");
-    auto signatureBytes = std::as_bytes(std::span(signatureByteString));
-    EXPECT_EQ(signatureBytes.size(), SignatureSize);
+    auto signatureString = signatureNode->AsMap()->GetChildValueOrThrow<std::string>("signature");
+    EXPECT_EQ(signatureString.size(), SignatureSize);
 
     EXPECT_TRUE(keyInfo->Verify(
         toSign,
-        signatureBytes.template first<SignatureSize>()));
+        std::span<const char, SignatureSize>(signatureString)));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

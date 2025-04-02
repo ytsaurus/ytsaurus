@@ -63,18 +63,18 @@ void Deserialize(TKeyPairMetadata& metadata, NYson::TYsonPullParserCursor* curso
 
 ////////////////////////////////////////////////////////////////////////////////
 
-using TPublicKey = std::array<std::byte, PublicKeySize>;
+using TPublicKey = std::array<char, PublicKeySize>;
 
 class TKeyInfo final
 {
 public:
     TKeyInfo() noexcept = default;
 
-    TKeyInfo(const TPublicKey& key, const TKeyPairMetadata& metadata) noexcept;
+    TKeyInfo(const TPublicKey& key, TKeyPairMetadata metadata) noexcept;
 
     [[nodiscard]] bool Verify(
-        std::span<const std::byte> data,
-        std::span<const std::byte, SignatureSize> signature) const;
+        std::span<const char> data,
+        std::span<const char, SignatureSize> signature) const;
 
     [[nodiscard]] bool operator==(const TKeyInfo& other) const;
 
