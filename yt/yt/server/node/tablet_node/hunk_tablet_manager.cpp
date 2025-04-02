@@ -66,7 +66,6 @@ public:
         , Bootstrap_(bootstrap)
         , Slot_(std::move(slot))
         , TabletMap_(TEntityMapTraits(this))
-        , OrphanedTabletMap_(TEntityMapTraits(this))
         , OrchidService_(TOrchidService::Create(MakeWeak(this), Slot_->GetGuardedAutomatonInvoker()))
     {
         YT_ASSERT_INVOKER_THREAD_AFFINITY(Slot_->GetAutomatonInvoker(), AutomatonThread);
@@ -122,22 +121,6 @@ public:
         }
     }
 
-    void CheckFullyUnlocked(THunkTablet* tablet) override
-    {
-        if (tablet->GetState() != ETabletState::Orphaned) {
-            return;
-        }
-
-        if (tablet->IsFullyUnlocked(/*forceUnmount*/ true)) {
-            auto tabletId = tablet->GetId();
-
-            YT_LOG_DEBUG("Orphaned tablet is fully unlocked; destroying (TabletId: %v)",
-                tabletId);
-
-            Y_UNUSED(OrphanedTabletMap_.Release(tabletId));
-        }
-    }
-
     IYPathServicePtr GetOrchidService() override
     {
         return OrchidService_;
@@ -169,7 +152,8 @@ private:
     };
 
     TEntityMap<THunkTablet, TEntityMapTraits> TabletMap_;
-    TEntityMap<THunkTablet, TEntityMapTraits> OrphanedTabletMap_;
+
+    THashMap<std::pair<TTabletId, NHydra::TRevision>, std::unique_ptr<THunkTablet>> UnmountedTabletMap_;
 
     class TOrchidService
         : public TVirtualMapBase
@@ -308,7 +292,8 @@ private:
         TTabletAutomatonPart::Clear();
 
         TabletMap_.Clear();
-        OrphanedTabletMap_.Clear();
+
+        UnmountedTabletMap_.clear();
     }
 
     void HydraMountHunkTablet(NProto::TReqMountHunkTablet* request)
@@ -383,10 +368,10 @@ private:
         tablet->OnUnmount();
 
         if (force) {
-            DoUnmountTablet(tablet);
+            DoUnmountTablet(tablet, /*force*/ true);
         } else {
             tablet->SetState(ETabletState::UnmountPending);
-            CheckUnmounted(tablet);
+            MaybeUnmountTablet(tablet);
         }
 
         ScheduleScanTablet(tabletId);
@@ -448,7 +433,7 @@ private:
 
         auto tabletId = FromProto<TTabletId>(request->tablet_id());
         auto* tablet = FindTablet(tabletId);
-        // Tablet may be missing if it was forcefully removed.
+        // NB: Tablet may be missing if it was forcefully removed.
         if (!tablet) {
             return;
         }
@@ -517,7 +502,7 @@ private:
             transactionId);
 
         // NB: May destroy tablet.
-        CheckUnmounted(tablet);
+        MaybeUnmountTablet(tablet);
     }
 
     void HydraAbortUpdateHunkTabletStores(
@@ -530,7 +515,7 @@ private:
 
         auto tabletId = FromProto<TTabletId>(request->tablet_id());
         auto* tablet = FindTablet(tabletId);
-        // Tablet may be missing if it was forcefully removed.
+        // NB: Tablet may be missing if it was forcefully removed.
         if (!tablet) {
             return;
         }
@@ -567,7 +552,7 @@ private:
             tabletId);
 
         // NB: May destroy tablet.
-        CheckUnmounted(tablet);
+        MaybeUnmountTablet(tablet);
     }
 
     void HydraPrepareToggleHunkTabletStoreLock(
@@ -626,7 +611,7 @@ private:
         auto lockerTabletId = FromProto<TTabletId>(request->locker_tablet_id());
 
         auto* tablet = FindTablet(tabletId);
-        // NB: Tablet may be missing if is was e.g. forcefully removed.
+        // NB: Tablet may be missing if it was forcefully removed.
         if (!tablet) {
             return;
         }
@@ -693,7 +678,7 @@ private:
         auto lockerTabletId = FromProto<TTabletId>(request->locker_tablet_id());
 
         auto* tablet = FindTablet(tabletId);
-        // NB: Tablet may be missing if is was e.g. forcefully removed.
+        // NB: Tablet may be missing if it was forcefully removed.
         if (!tablet) {
             return;
         }
@@ -721,51 +706,67 @@ private:
             request->lock());
     }
 
-    void CheckUnmounted(THunkTablet* tablet)
+    void MaybeUnmountTablet(THunkTablet* tablet)
     {
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(HasHydraContext());
 
         if (IsInUnmountWorkflow(tablet->GetState()) && tablet->IsReadyToUnmount()) {
-            DoUnmountTablet(tablet);
+            DoUnmountTablet(tablet, /*force*/ false);
         }
     }
 
-    void DoUnmountTablet(THunkTablet* tablet)
+    void DoUnmountTablet(THunkTablet* tablet, bool force)
     {
-        if (tablet->GetState() == ETabletState::Unmounted) {
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
+        YT_VERIFY(HasHydraContext());
+
+        if (tablet->GetState() == ETabletState::Unmounted ||
+            tablet->GetState() == ETabletState::Orphaned)
+        {
             return;
         }
 
-        tablet->SetState(ETabletState::Unmounted);
-
         auto tabletId = tablet->GetId();
+        auto mountRevision = tablet->GetMountRevision();
         auto tabletHolder = TabletMap_.Release(tabletId);
 
-        YT_LOG_DEBUG(
-            "Tablet unmounted (TabletId: %v)",
-            tabletId);
+        if (tablet->IsFullyUnlocked(force)) {
+            YT_LOG_DEBUG("Tablet destroyed (TabletId: %v)",
+                tabletId);
 
-        if (tablet->IsFullyUnlocked()) {
-            YT_LOG_DEBUG(
-                "Tablet destroyed (TabletId: %v)",
-                tabletId);
+            tablet->SetState(ETabletState::Unmounted);
         } else {
-            YT_LOG_DEBUG(
-                "Tablet became orphaned (TabletId: %v)",
-                tabletId);
-            OrphanedTabletMap_.Insert(tabletId, std::move(tabletHolder));
+            YT_VERIFY(force || tablet->IsReadyToUnmount());
+
+            YT_LOG_ALERT_IF(!force && !IsLeader(),
+                "A locked tablet is encountered on a follower within unmount routine "
+                "(TabletId: %v, MountRevision: %v, LockedScan: %v, WriteLockCount: %v)",
+                tabletId,
+                mountRevision,
+                tablet->IsLockedScan(),
+                tablet->GetWriteLockCount());
+
+            tablet->SetState(ETabletState::Orphaned);
+            EmplaceOrCrash(
+                UnmountedTabletMap_,
+                std::make_pair(tabletId, mountRevision),
+                std::move(tabletHolder));
         }
 
         // NB: Do not unregister master avenue since it still has pending messages.
         // It will be unregistered later by TReqUnregisterMasterAvenueEndpoint message.
 
         {
+            YT_LOG_DEBUG("Tablet unmounted (TabletId: %v, MountRevision: %v)",
+                tabletId,
+                mountRevision);
+
             TRspUnmountHunkTablet response;
             ToProto(response.mutable_tablet_id(), tabletId);
 
             if (GetCurrentMutationContext()->Request().Reign >= static_cast<int>(ETabletReign::SmoothTabletMovement)) {
-                response.set_mount_revision(ToProto(tablet->GetMountRevision()));
+                response.set_mount_revision(ToProto(mountRevision));
             }
 
             Slot_->PostMasterMessage(tabletId, response);
@@ -779,6 +780,10 @@ private:
         for (auto [tabletId, tablet] : TabletMap_) {
             ScheduleScanTablet(tabletId);
         }
+
+        // XXX: or just scan it right now without these extra invocations?
+        EpochAutomatonInvoker_->Invoke(
+            BIND(&THunkTabletManager::ScanUnmountedTablets, MakeStrong(this)));
     }
 
     void ScheduleScanTablet(TTabletId tabletId) override
@@ -798,14 +803,53 @@ private:
         }
     }
 
+    void ScanUnmountedTablets()
+    {
+        YT_VERIFY(IsLeader());
+
+        for (auto it = UnmountedTabletMap_.begin(); it != UnmountedTabletMap_.end();) {
+            const auto& tablet = it->second;
+            auto tabletId = tablet->GetId();
+            auto mountRevision = tablet->GetMountRevision();
+
+            YT_VERIFY(tablet->GetState() == ETabletState::Orphaned);
+            YT_VERIFY(tabletId == it->first.first);
+            YT_VERIFY(mountRevision == it->first.second);
+
+            if (tablet->IsFullyUnlocked(/*force*/ true)) {
+                YT_LOG_DEBUG("Unmounted tablet is fully unlocked; destroying (TabletId: %v, MountRevision: %v)",
+                    tabletId,
+                    mountRevision);
+
+                tablet->SetState(ETabletState::Unmounted);
+                UnmountedTabletMap_.erase(it++);
+            } else {
+                YT_LOG_DEBUG("Unmounted tablet is still locked; skipping "
+                    "(TabletId: %v, MountRevision: %v, LockedScan: %v, WriteLockCount: %v)",
+                    tabletId,
+                    mountRevision,
+                    tablet->IsLockedScan(),
+                    tablet->GetWriteLockCount());
+
+                ++it;
+            }
+        }
+    }
+
     template <class TRequest>
     NTabletNode::THunkStorageSettings DeserializeHunkStorageSettings(const TRequest& request, TTabletId tabletId)
     {
         const auto& hunkStorageSettings = request.hunk_storage_settings();
         return {
-            .MountConfig = DeserializeHunkStorageMountConfig(TYsonString{hunkStorageSettings.mount_config()}, tabletId),
-            .StoreWriterConfig = DeserializeHunkStoreWriterConfig(TYsonString{hunkStorageSettings.hunk_store_config()}, tabletId),
-            .StoreWriterOptions = DeserializeHunkStoreWriterOptions(TYsonString{hunkStorageSettings.hunk_store_options()}, tabletId),
+            .MountConfig = DeserializeHunkStorageMountConfig(
+                TYsonString{hunkStorageSettings.mount_config()},
+                tabletId),
+            .StoreWriterConfig = DeserializeHunkStoreWriterConfig(
+                TYsonString{hunkStorageSettings.hunk_store_config()},
+                tabletId),
+            .StoreWriterOptions = DeserializeHunkStoreWriterOptions(
+                TYsonString{hunkStorageSettings.hunk_store_options()},
+                tabletId),
         };
     }
 

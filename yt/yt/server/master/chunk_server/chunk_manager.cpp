@@ -4188,16 +4188,19 @@ private:
             auto* chunk = GetChunkOrThrow(chunkId);
 
             if (chunk->IsForeign()) {
-                THROW_ERROR_EXCEPTION("Cannot export a foreign chunk %v", chunkId);
+                THROW_ERROR_EXCEPTION("Cannot export a foreign chunk %v",
+                    chunkId);
             }
 
             auto cellTag = FromProto<TCellTag>(exportData.destination_cell_tag());
             if (!multicellManager->IsRegisteredMasterCell(cellTag)) {
-                THROW_ERROR_EXCEPTION("Cell %v is not registered", cellTag);
+                THROW_ERROR_EXCEPTION("Cell %v is not registered",
+                    cellTag);
             }
 
             if (chunk->ChunkMeta() && chunk->ChunkMeta()->FindExtension<NTableClient::NProto::THunkChunkRefsExt>()) {
-                THROW_ERROR_EXCEPTION("Chunk %v can not be exported because it has hunk links", chunk->GetId());
+                THROW_ERROR_EXCEPTION("Chunk %v cannot be exported because it has hunk refs",
+                    chunk->GetId());
             }
 
             parsedRequest.emplace_back(chunk, cellTag);
