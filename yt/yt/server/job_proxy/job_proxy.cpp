@@ -23,7 +23,6 @@
 #include <yt/yt/server/lib/rpc_proxy/access_checker.h>
 #include <yt/yt/server/lib/rpc_proxy/api_service.h>
 #include <yt/yt/server/lib/rpc_proxy/proxy_coordinator.h>
-#include <yt/yt/server/lib/rpc_proxy/security_manager.h>
 
 #include <yt/yt/server/lib/signature/cypress_key_store.h>
 #include <yt/yt/server/lib/signature/signature_validator.h>
@@ -780,10 +779,6 @@ void TJobProxy::EnableRpcProxyInJobProxy(int rpcProxyWorkerThreadPoolSize)
     auto proxyCoordinator = CreateProxyCoordinator();
     proxyCoordinator->SetAvailableState(true);
 
-    auto securityManager = CreateSecurityManager(
-        Config_->ApiService->SecurityManager,
-        connection,
-        RpcProxyLogger());
     auto authenticationManager = NAuth::CreateAuthenticationManager(
         Config_->AuthenticationManager,
         NYT::NBus::TTcpDispatcher::Get()->GetXferPoller(),
@@ -797,7 +792,6 @@ void TJobProxy::EnableRpcProxyInJobProxy(int rpcProxyWorkerThreadPoolSize)
         authenticationManager->GetRpcAuthenticator(),
         proxyCoordinator,
         CreateNoopAccessChecker(),
-        securityManager,
         New<TSampler>(),
         RpcProxyLogger(),
         TProfiler(),

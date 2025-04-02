@@ -37,9 +37,9 @@ target_link_libraries(yt-server-job_proxy PUBLIC
   library-containers-cri
   server-lib-exec_node
   server-lib-rpc_proxy
-  yt-server-tools
   server-lib-shell
   server-lib-user_job
+  yt-server-tools
   yt-library-sparse_coredump
   library-query-row_comparer
   library-profiling-solomon
