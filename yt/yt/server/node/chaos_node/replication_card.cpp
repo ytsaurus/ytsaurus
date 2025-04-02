@@ -41,6 +41,12 @@ void TMigration::Persist(const TPersistenceContext& context)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TReplicaCounters::TReplicaCounters(const NProfiling::TProfiler& profiler)
+    : LagTime(profiler.WithSparse().TimeGauge("lag_time"))
+{ }
+
+////////////////////////////////////////////////////////////////////////////////
+
 TReplicationCard::TReplicationCard(TObjectId id)
     : TObjectBase(id)
     , ReplicatedTableOptions_(New<TReplicatedTableOptions>())

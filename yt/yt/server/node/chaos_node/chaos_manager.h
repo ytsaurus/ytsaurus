@@ -91,6 +91,8 @@ struct IChaosManager
     virtual const std::vector<NObjectClient::TCellId>& CoordinatorCellIds() = 0;
     virtual bool IsCoordinatorSuspended(NObjectClient::TCellId coordinatorCellId) = 0;
 
+    virtual void UpdateReplicationCardLagTimes(const TReplicationCard& replicationCard) = 0;
+
     DECLARE_INTERFACE_SIGNAL(void(NTabletServer::TReplicatedTableData), ReplicatedTableCreated);
     DECLARE_INTERFACE_SIGNAL(void(NTableClient::TTableId), ReplicatedTableDestroyed);
     DECLARE_INTERFACE_SIGNAL(void(NTabletServer::TReplicaData), ReplicaCreated);
