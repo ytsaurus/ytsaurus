@@ -251,6 +251,10 @@ private:
                 if (error.GetCode() == NYT::EErrorCode::Timeout) {
                     THROW_ERROR_EXCEPTION(NTabletClient::EErrorCode::BlockedRowWaitTimeout, "Timed out waiting on blocked row");
                 }
+
+                if (!error.IsOK()) {
+                    THROW_ERROR error;
+                }
             }));
     }
 
