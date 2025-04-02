@@ -39,7 +39,7 @@ struct IJobSizeConstraints
     //! Can be overflown if exact job count is provided.
     virtual i64 GetMaxPrimaryDataWeightPerJob() const = 0;
 
-    //! Approximate read data weight provided via operation spec.
+    //! Approximate read data size provided via operation spec.
     virtual i64 GetMaxCompressedDataSizePerJob() const = 0;
 
     virtual i64 GetInputSliceDataWeight() const = 0;
@@ -75,6 +75,11 @@ struct IJobSizeConstraints
     //! knows only the expected input data weight after the sampling, and actual data weight may be different.
     virtual void UpdateInputDataWeight(i64 inputDataWeight) = 0;
     virtual void UpdatePrimaryInputDataWeight(i64 primaryInputDataWeight) = 0;
+
+    //! Constraints priority:
+    //! Max...PerJob
+    //! BatchRowCount
+    //! ...PerJob
 
     PHOENIX_DECLARE_POLYMORPHIC_TYPE(IJobSizeConstraints, 0x1cf8445b);
 };
