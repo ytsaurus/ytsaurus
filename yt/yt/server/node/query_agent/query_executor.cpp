@@ -446,7 +446,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TabletReadItems
+struct TTabletReadItems
 {
     TTabletId TabletId;
 
@@ -593,7 +593,7 @@ private:
 
     using TSubreaderCreator = std::function<ISchemafulUnversionedReaderPtr()>;
 
-    TDataSource GetPrefixReadItems(TRange<TabletReadItems> dataSplits, size_t keyPrefix)
+    TDataSource GetPrefixReadItems(TRange<TTabletReadItems> dataSplits, size_t keyPrefix)
     {
         auto rowBuffer = New<TRowBuffer>(TQuerySubexecutorBufferTag(), MemoryChunkProvider_);
         std::vector<TRowRange> prefixRanges;
@@ -731,7 +731,7 @@ private:
     }
 
     TQueryStatistics DoCoordinateAndExecute(
-        std::vector<std::vector<TabletReadItems>> groupedDataSplits,
+        std::vector<std::vector<TTabletReadItems>> groupedDataSplits,
         const TRowBufferPtr& rowBuffer,
         size_t minKeyWidth)
     {
@@ -1002,11 +1002,11 @@ private:
             });
     }
 
-    std::vector<std::vector<TabletReadItems>> CoordinateDataSourcesOld(
+    std::vector<std::vector<TTabletReadItems>> CoordinateDataSourcesOld(
         std::vector<TDataSource> dataSourcesByTablet,
         const TRowBufferPtr& rowBuffer)
     {
-        std::vector<TabletReadItems> splits;
+        std::vector<TTabletReadItems> splits;
 
         bool sortedDataSource = false;
 
@@ -1020,7 +1020,7 @@ private:
             YT_VERIFY(tabletIdRange.Keys.Empty() != ranges.Empty());
 
             if (!tabletSnapshot->TableSchema->IsSorted() || ranges.Empty()) {
-                splits.push_back(TabletReadItems{
+                splits.push_back(TTabletReadItems{
                     .TabletId = tabletId,
                     .Ranges = ranges,
                     .Keys = keys,
@@ -1046,7 +1046,7 @@ private:
                 Logger);
 
             for (const auto& split : tabletSplits) {
-                splits.push_back(TabletReadItems{
+                splits.push_back(TTabletReadItems{
                     .TabletId = tabletId,
                     .Ranges = split,
                 });
@@ -1073,7 +1073,7 @@ private:
 
         bool regroupByTablets = Query_->GroupClause && Query_->GroupClause->CommonPrefixWithPrimaryKey > 0;
 
-        std::vector<std::vector<TabletReadItems>> groupedDataSplits;
+        std::vector<std::vector<TTabletReadItems>> groupedDataSplits;
 
         auto processSplitsRanges = [&] (int beginIndex, int endIndex) {
             if (beginIndex == endIndex) {
@@ -1235,7 +1235,7 @@ private:
         return classifiedDataSources;
     }
 
-    std::vector<std::vector<TabletReadItems>> CoordinateDataSourcesNew(
+    std::vector<std::vector<TTabletReadItems>> CoordinateDataSourcesNew(
         std::vector<TDataSource> dataSourcesByTablet,
         const TRowBufferPtr& rowBuffer)
     {
@@ -1478,8 +1478,8 @@ private:
         int groupId = 0;
         ui64 nextWeight = (groupId + 1) * totalWeight / targetGroupCount;
 
-        std::vector<std::vector<TabletReadItems>> groupedReadRanges;
-        std::vector<TabletReadItems> tabletBoundsGroup;
+        std::vector<std::vector<TTabletReadItems>> groupedReadRanges;
+        std::vector<TTabletReadItems> tabletBoundsGroup;
 
         bool firstSampleInGroup = true;
 
@@ -1570,8 +1570,8 @@ private:
         bool regroupByTablets = Query_->GroupClause && Query_->GroupClause->CommonPrefixWithPrimaryKey > 0;
 
         if (regroupByTablets) {
-            std::vector<std::vector<TabletReadItems>> regroupedReadRanges;
-            std::vector<TabletReadItems> tabletBoundsGroup;
+            std::vector<std::vector<TTabletReadItems>> regroupedReadRanges;
+            std::vector<TTabletReadItems> tabletBoundsGroup;
 
             for (const auto& group : groupedReadRanges) {
                 for (const auto& tabletReadItems : group) {
@@ -1591,7 +1591,7 @@ private:
     }
 
     ISchemafulUnversionedReaderPtr CreateReaderForDataSources(
-        std::vector<TabletReadItems> dataSplits,
+        std::vector<TTabletReadItems> dataSplits,
         TRowBufferPtr rowBuffer)
     {
         size_t partitionBounds = 0;
