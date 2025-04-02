@@ -1,4 +1,4 @@
-package NYT.NFlow.NProto;
+package NYT.NFlow.NYsonSerializer.NProto;
 
 message TTestMessage
 {

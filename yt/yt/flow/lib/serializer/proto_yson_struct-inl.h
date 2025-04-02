@@ -4,7 +4,7 @@
 #include "proto_yson_struct.h"
 #endif
 
-namespace NYT::NFlow {
+namespace NYT::NFlow::NYsonSerializer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
