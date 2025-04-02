@@ -2,11 +2,13 @@
 
 #include "public.h"
 
-#include <yt/yt/client/signature/public.h>
+#include <yt/yt/server/lib/security_server/public.h>
 
 #include <yt/yt/ytlib/api/native/public.h>
 
 #include <yt/yt/ytlib/misc/public.h>
+
+#include <yt/yt/client/signature/public.h>
 
 #include <yt/yt/library/tracing/jaeger/public.h>
 
@@ -43,7 +45,6 @@ IApiServicePtr CreateApiService(
     NRpc::IAuthenticatorPtr authenticator,
     IProxyCoordinatorPtr proxyCoordinator,
     IAccessCheckerPtr accessChecker,
-    ISecurityManagerPtr securityManager,
     NTracing::TSamplerPtr traceSampler,
     NLogging::TLogger logger,
     NProfiling::TProfiler profiler,

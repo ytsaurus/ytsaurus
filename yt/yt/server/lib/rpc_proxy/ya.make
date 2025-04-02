@@ -10,7 +10,6 @@ SRCS(
     profilers.cpp
     helpers.cpp
     proxy_coordinator.cpp
-    security_manager.cpp
 )
 
 PEERDIR(
@@ -27,6 +26,7 @@ PEERDIR(
     yt/yt/library/tracing/jaeger
 
     yt/yt/server/lib/transaction_server
+    yt/yt/server/lib/security_server
 
     yt/yt/server/lib/signature
 

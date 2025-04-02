@@ -119,8 +119,8 @@
     };
     "yt_alloc_dump_period" = 15000;
     "api_service" = {
-        "security_manager" = {
-            "user_cache" = {
+        "user_access_validator" = {
+            "ban_cache" = {
                 "expire_after_successful_update_time" = 0;
                 "expire_after_failed_update_time" = 0;
                 "refresh_time" = 0;

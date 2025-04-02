@@ -1,4 +1,4 @@
-#include "security_manager.h"
+#include "user_access_validator.h"
 
 #include "config.h"
 
@@ -6,7 +6,7 @@
 
 #include <yt/yt/core/misc/async_expiring_cache.h>
 
-namespace NYT::NRpcProxy {
+namespace NYT::NSecurityServer {
 
 using namespace NApi;
 using namespace NConcurrency;
@@ -18,17 +18,17 @@ using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DECLARE_REFCOUNTED_CLASS(TUserCache)
+DECLARE_REFCOUNTED_CLASS(TUserBanCache)
 
-class TUserCache
+class TUserBanCache
     : public TAsyncExpiringCache<std::string, void>
 {
 public:
-    TUserCache(
+    TUserBanCache(
         TAsyncExpiringCacheConfigPtr config,
         IConnectionPtr connection,
         TLogger logger)
-        : TAsyncExpiringCache(std::move(config), logger.WithTag("Cache: User"))
+        : TAsyncExpiringCache(std::move(config), logger.WithTag("Cache: UserBan"))
         , Connection_(std::move(connection))
         , Logger(std::move(logger))
         , Client_(Connection_->CreateClient(TClientOptions{.User = NRpc::RootUserName}))
@@ -37,7 +37,6 @@ public:
 private:
     const IConnectionPtr Connection_;
     const TLogger Logger;
-
     const IClientPtr Client_;
 
     TFuture<void> DoGet(const std::string& user, bool /*isPeriodicUpdate*/) noexcept override
@@ -71,20 +70,20 @@ private:
     }
 };
 
-DEFINE_REFCOUNTED_TYPE(TUserCache)
+DEFINE_REFCOUNTED_TYPE(TUserBanCache)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TSecurityManager
-    : public ISecurityManager
+class TUserAccessValidator
+    : public IUserAccessValidator
 {
 public:
-    TSecurityManager(
-        TSecurityManagerDynamicConfigPtr config,
+    TUserAccessValidator(
+        TUserAccessValidatorDynamicConfigPtr config,
         IConnectionPtr connection,
         TLogger logger)
-        : UserCache_(New<TUserCache>(
-            config->UserCache,
+        : UserCache_(New<TUserBanCache>(
+            config->BanCache,
             std::move(connection),
             std::move(logger)))
     { }
@@ -97,25 +96,25 @@ public:
             .ThrowOnError();
     }
 
-    void Reconfigure(const TSecurityManagerDynamicConfigPtr& config) override
+    void Reconfigure(const TUserAccessValidatorDynamicConfigPtr& config) override
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
 
-        UserCache_->Reconfigure(config->UserCache);
+        UserCache_->Reconfigure(config->BanCache);
     }
 
 private:
-    const TUserCachePtr UserCache_;
+    const TUserBanCachePtr UserCache_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-ISecurityManagerPtr CreateSecurityManager(
-    TSecurityManagerDynamicConfigPtr config,
+IUserAccessValidatorPtr CreateUserAccessValidator(
+    TUserAccessValidatorDynamicConfigPtr config,
     IConnectionPtr connection,
     NLogging::TLogger logger)
 {
-    return New<TSecurityManager>(
+    return New<TUserAccessValidator>(
         std::move(config),
         std::move(connection),
         std::move(logger));
@@ -123,4 +122,4 @@ ISecurityManagerPtr CreateSecurityManager(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NRpcProxy
+} // namespace NYT::NSecurityServer

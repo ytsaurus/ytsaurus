@@ -1083,7 +1083,9 @@ class TestPessimisticQuotaCheckRpcProxy(TestRpcProxyBase):
 
     DELTA_RPC_PROXY_CONFIG = {
         "api_service": {
+            # COMPAT(babenko): rename to user_access_validator
             "security_manager": {
+                # COMPAT(babenko): rename to ban_cache
                 "user_cache": {
                     "expire_after_successful_update_time": 1000,
                     "refresh_time": 100,
