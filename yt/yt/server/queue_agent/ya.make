@@ -16,6 +16,7 @@ SRCS(
     queue_controller.cpp
     snapshot_representation.cpp
     queue_exporter.cpp
+    queue_exporter_old.cpp
     queue_export_manager.cpp
 )
 

@@ -73,6 +73,8 @@ void TQueueExporterDynamicConfig::Register(TRegistrar registrar)
         .Default(10);
     registrar.Parameter("retry_backoff", &TThis::RetryBackoff)
         .Default(DefaultRetryBackoff);
+    registrar.Parameter("implementation", &TThis::Implementation)
+        .Default(EQueueExporterImplementation::Old);
 
     registrar.Postprocessor([] (TQueueExporterDynamicConfig* config) {
         THROW_ERROR_EXCEPTION_UNLESS(config->RetryBackoff.InvocationCount == DefaultRetryBackoff.InvocationCount, "Invalid value of \"invocation_count\"");

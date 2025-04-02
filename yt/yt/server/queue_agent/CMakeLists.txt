@@ -52,6 +52,7 @@ target_sources(yt-server-queue_agent PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/queue_agent/queue_controller.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/queue_agent/snapshot_representation.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/queue_agent/queue_exporter.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/queue_agent/queue_exporter_old.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/queue_agent/queue_export_manager.cpp
 )
 

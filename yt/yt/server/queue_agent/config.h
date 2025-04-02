@@ -101,6 +101,15 @@ DEFINE_REFCOUNTED_TYPE(TQueueAgentConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DEFINE_ENUM(EQueueExporterImplementation,
+    // Implementation before YT-23208.
+    (Old)
+    // Implementation after YT-23208.
+    (New)
+);
+
+////////////////////////////////////////////////////////////////////////////////
+
 // NB(apachee): Separate config for exports for future refactoring. See YT-23208.
 
 class TQueueExporterDynamicConfig
@@ -110,6 +119,9 @@ public:
     static const TExponentialBackoffOptions DefaultRetryBackoff;
 
     bool Enable;
+
+    // COMPAT(apachee): To differentiate queue export implementations.
+    EQueueExporterImplementation Implementation;
 
     //! Queue exporter pass period. Defines the minimum duration between 2 consecutive export iterations.
     TDuration PassPeriod;
