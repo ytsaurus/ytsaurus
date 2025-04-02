@@ -1,7 +1,5 @@
 #include "fair_share_tree_allocation_scheduler_structs.h"
 
-#include <yt/yt/library/vector_hdrf/resource_helpers.h>
-
 #include <yt/yt/core/ytree/fluent.h>
 
 namespace NYT::NScheduler {

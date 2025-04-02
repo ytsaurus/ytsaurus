@@ -6,7 +6,6 @@
 
 #include <yt/yt/library/vector_hdrf/job_resources.h>
 #include <yt/yt/library/vector_hdrf/resource_volume.h>
-#include <yt/yt/library/vector_hdrf/resource_helpers.h>
 
 namespace NYT::NScheduler {
 
