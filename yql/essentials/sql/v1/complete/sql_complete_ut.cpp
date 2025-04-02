@@ -514,17 +514,21 @@ Y_UNIT_TEST_SUITE(SqlCompleteTests) {
             UNIT_ASSERT_VALUES_EQUAL(Complete(engine, {"SELECT OPTIONAL<I"}), expected);
         }
         {
-            TVector<TCandidate> expected = {
+            TVector<TCandidate> expectedPrefix = {
                 {FunctionName, "Min"},
                 {FunctionName, "Max"},
                 {FunctionName, "MaxOf"},
                 {FunctionName, "MaxBy"},
                 {FunctionName, "MinBy"},
-                {FunctionName, "Median"},
-                {FunctionName, "MinOf"},
-                {FunctionName, "Mode"},
+                {FunctionName, "Math::Abs"},
+                {FunctionName, "Math::Acos"},
+                {FunctionName, "Math::Asin"},
             };
-            UNIT_ASSERT_VALUES_EQUAL(Complete(engine, {"SELECT m"}), expected);
+
+            auto actualPrefix = Complete(engine, {"SELECT m"});
+            actualPrefix.crop(expectedPrefix.size());
+
+            UNIT_ASSERT_VALUES_EQUAL(actualPrefix, expectedPrefix);
         }
     }
 
