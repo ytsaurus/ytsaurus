@@ -128,8 +128,8 @@ void Deserialize(TKeyPairMetadata& metadata, TYsonPullParserCursor* cursor)
 ////////////////////////////////////////////////////////////////////////////////
 
 bool TKeyInfo::Verify(
-    std::span<const std::byte> data,
-    std::span<const std::byte, SignatureSize> signature) const
+    std::span<const char> data,
+    std::span<const char, SignatureSize> signature) const
 {
     return IsKeyPairMetadataValid(Meta()) && crypto_sign_verify_detached(
         reinterpret_cast<const unsigned char*>(signature.data()),
@@ -140,9 +140,9 @@ bool TKeyInfo::Verify(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TKeyInfo::TKeyInfo(const TPublicKey& key, const TKeyPairMetadata& meta) noexcept
+TKeyInfo::TKeyInfo(const TPublicKey& key, TKeyPairMetadata meta) noexcept
     : Key_(key)
-    , Meta_(meta)
+    , Meta_(std::move(meta))
 { }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -172,9 +172,7 @@ void Serialize(const TKeyInfo& keyInfo, IYsonConsumer* consumer)
 {
     BuildYsonFluently(consumer).BeginMap()
         .Item("metadata").Value(keyInfo.Meta())
-        .Item("public_key").Value(TStringBuf(
-            reinterpret_cast<const char*>(keyInfo.Key().data()),
-            keyInfo.Key().size()))
+        .Item("public_key").Value(TStringBuf(keyInfo.Key().data(), keyInfo.Key().size()))
     .EndMap();
 }
 
@@ -186,13 +184,12 @@ void Deserialize(TKeyInfo& keyInfo, INodePtr node)
     keyInfo.Meta_ = mapNode->GetChildValueOrThrow<TKeyPairMetadata>("metadata");
 
     auto keyString = mapNode->GetChildValueOrThrow<std::string>("public_key");
-    auto keyBytes = std::as_bytes(std::span(keyString));
-    if (keyBytes.size() != PublicKeySize) {
+    if (keyString.size() != PublicKeySize) {
         THROW_ERROR_EXCEPTION("Received incorrect public key size")
-            << TErrorAttribute("received", keyBytes.size())
+            << TErrorAttribute("received", keyString.size())
             << TErrorAttribute("expected", PublicKeySize);
     }
-    std::copy(keyBytes.begin(), keyBytes.end(), keyInfo.Key_.begin());
+    std::copy(keyString.begin(), keyString.end(), keyInfo.Key_.begin());
 }
 
 void Deserialize(TKeyInfo& keyInfo, TYsonPullParserCursor* cursor)

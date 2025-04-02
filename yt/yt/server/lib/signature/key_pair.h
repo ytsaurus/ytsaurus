@@ -28,8 +28,8 @@ public:
     [[nodiscard]] const TKeyInfoPtr& KeyInfo() const;
 
     void Sign(
-        std::span<const std::byte> data,
-        std::span<std::byte, SignatureSize> signature) const;
+        std::span<const char> data,
+        std::span<char, SignatureSize> signature) const;
 
     //! Checks that private key matches the public key.
     [[nodiscard]] bool CheckSanity() const;

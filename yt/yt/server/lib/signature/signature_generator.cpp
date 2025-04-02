@@ -49,7 +49,7 @@ TKeyInfoPtr TSignatureGenerator::KeyInfo() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TSignatureGenerator::Sign(const TSignaturePtr& signature)
+void TSignatureGenerator::Resign(const TSignaturePtr& signature) const
 {
     auto signatureId = TGuid::Create();
     auto now = Now();
@@ -84,7 +84,7 @@ void TSignatureGenerator::Sign(const TSignaturePtr& signature)
     }
 
     signature->Signature_.resize(SignatureSize);
-    signingKeyPair->Sign(toSign, std::span<std::byte, SignatureSize>(signature->Signature_));
+    signingKeyPair->Sign(toSign, std::span<char, SignatureSize>(signature->Signature_));
 
     YT_LOG_TRACE(
         "Created signature (SignatureId: %v, Header: %v, Payload: %v)",

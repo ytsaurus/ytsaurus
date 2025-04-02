@@ -41,10 +41,10 @@ TEST(TKeyPairTest, Sign)
     auto metaOk = SimpleMetadata(0h, -1h, 10h);
     auto keyPair = New<TKeyPair>(metaOk);
 
-    std::array<std::byte, 1234> randomData;
+    std::array<char, 1234> randomData;
     std::generate(randomData.begin(), randomData.end(), TRandomByteGenerator());
 
-    std::array<std::byte, SignatureSize> signature;
+    std::array<char, SignatureSize> signature;
     keyPair->Sign(randomData, signature);
 
     EXPECT_TRUE(keyPair->KeyInfo()->Verify(randomData, signature));

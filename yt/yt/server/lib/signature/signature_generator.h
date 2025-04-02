@@ -18,8 +18,6 @@ class TSignatureGenerator
     : public ISignatureGenerator
 {
 public:
-    using ISignatureGenerator::Sign;
-
     explicit TSignatureGenerator(TSignatureGeneratorConfigPtr config);
 
     //! Fills out the Signature_ and Header_ fields in a given TSignature
@@ -28,7 +26,7 @@ public:
     /*!
     *  \note Thread affinity: any
     */
-    void Sign(const TSignaturePtr& signature) final;
+    void Resign(const TSignaturePtr& signature) const final;
 
     /*!
      *  \note Thread affinity: any

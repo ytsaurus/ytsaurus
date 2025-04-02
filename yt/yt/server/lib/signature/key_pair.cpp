@@ -10,7 +10,7 @@ namespace NYT::NSignature {
 
 TKeyPair::TKeyPair(const TKeyPairMetadata& metadata)
 {
-    std::array<std::byte, PrivateKeySize> privateKey;
+    std::array<char, PrivateKeySize> privateKey;
     TPublicKey publicKey;
 
     // NB(pavook): until GLIBC 2.35 msan does not consider getrandom calls as initialization.
@@ -41,8 +41,8 @@ const TKeyInfoPtr& TKeyPair::KeyInfo() const
 ////////////////////////////////////////////////////////////////////////////////
 
 void TKeyPair::Sign(
-    std::span<const std::byte> data,
-    std::span<std::byte, SignatureSize> signature) const
+    std::span<const char> data,
+    std::span<char, SignatureSize> signature) const
 {
     THROW_ERROR_EXCEPTION_IF(
         crypto_sign_detached(
