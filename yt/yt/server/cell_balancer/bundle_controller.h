@@ -11,6 +11,8 @@ struct IBundleController
 {
     virtual void Start() = 0;
 
+    virtual void ExecuteDryRunIteration() = 0;
+
     virtual NYTree::IYPathServicePtr CreateOrchidService() = 0;
 };
 
