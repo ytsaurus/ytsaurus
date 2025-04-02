@@ -332,8 +332,19 @@ public:
         auto locationDirectory = ParseLocationDirectoryOrThrow(node, this, originalRequest);
         THashSet<int> sequoiaLocationIndices;
         for (int i = 0; i < std::ssize(locationDirectory); ++i) {
+            YT_LOG_TRACE("Checking location (LocationIndex: %v, Uuid: %v)",
+                i,
+                locationDirectory[i]->GetUuid());
+
             if (chunkReplicaFetcher->CanHaveSequoiaReplicas(locationDirectory[i])) {
                 InsertOrCrash(sequoiaLocationIndices, i);
+                YT_LOG_TRACE("Location is Sequoia (LocationIndex: %v, Uuid: %v)",
+                    i,
+                    locationDirectory[i]->GetUuid());
+            } else {
+                YT_LOG_TRACE("Location is not Sequoia (LocationIndex: %v, Uuid: %v)",
+                    i,
+                    locationDirectory[i]->GetUuid());
             }
         }
 
@@ -383,6 +394,8 @@ public:
             .ValueOrThrow();
 
         if (preparedRequest->SequoiaRequest->removed_chunks_size() + preparedRequest->SequoiaRequest->added_chunks_size() > 0) {
+            YT_LOG_TRACE("There are Sequoia replicas for this request (NodeId: %v)", nodeId);
+
             auto modifyDeadChunks = BIND([&] {
                 for (const auto& protoChunkInfo : preparedRequest->SequoiaRequest->removed_chunks()) {
                     auto chunkIdWithIndex = DecodeChunkId(FromProto<TChunkId>(protoChunkInfo.chunk_id()));
@@ -409,6 +422,8 @@ public:
 
             WaitFor(chunkManager->ModifySequoiaReplicas(ESequoiaTransactionType::IncrementalHeartbeat, std::move(preparedRequest->SequoiaRequest)))
                 .ThrowOnError();
+        } else {
+            YT_LOG_TRACE("No Sequoia replicas for this request (NodeId: %v)", nodeId);
         }
 
         const auto& hydraFacade = Bootstrap_->GetHydraFacade();
