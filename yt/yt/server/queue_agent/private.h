@@ -18,6 +18,8 @@ YT_DEFINE_GLOBAL(const NLogging::TLogger, QueueAgentLogger, "QueueAgent");
 YT_DEFINE_GLOBAL(const NLogging::TLogger, QueueControllerLogger, "QueueController");
 YT_DEFINE_GLOBAL(const NLogging::TLogger, ConsumerControllerLogger, "ConsumerController");
 YT_DEFINE_GLOBAL(const NLogging::TLogger, QueueExporterLogger, "QueueExporter");
+// COMPAT(apachee): For old queue export implementation.
+YT_DEFINE_GLOBAL(const NLogging::TLogger, QueueStaticTableExporterLogger, "QueueStaticTableExporterLogger");
 YT_DEFINE_GLOBAL(const NLogging::TLogger, QueueExportManagerLogger, "QueueExportManager");
 YT_DEFINE_GLOBAL(const NLogging::TLogger, QueueAgentShardingManagerLogger, "QueueAgentShardingManager");
 YT_DEFINE_GLOBAL(const NLogging::TLogger, CypressSynchronizerLogger, "CypressSynchronizer");
@@ -72,6 +74,8 @@ DECLARE_REFCOUNTED_STRUCT(TQueueAgentComponentDynamicConfig)
 DECLARE_REFCOUNTED_CLASS(TDynamicConfigManager)
 
 DECLARE_REFCOUNTED_STRUCT(IQueueExporter)
+// COMPAT(apachee): For old queue export implementation.
+DECLARE_REFCOUNTED_CLASS(TQueueExporterOld)
 
 DECLARE_REFCOUNTED_STRUCT(IQueueExportManager)
 
@@ -142,6 +146,9 @@ DECLARE_REFCOUNTED_STRUCT(IBootstrap)
 
 DECLARE_REFCOUNTED_CLASS(TQueueTabletExportProgress)
 DECLARE_REFCOUNTED_CLASS(TQueueExportProgress)
+// COMPAT(apachee): For old queue export implementation.
+DECLARE_REFCOUNTED_CLASS(TQueueTabletExportProgressOld)
+DECLARE_REFCOUNTED_CLASS(TQueueExportProgressOld)
 
 ////////////////////////////////////////////////////////////////////////////////
 
