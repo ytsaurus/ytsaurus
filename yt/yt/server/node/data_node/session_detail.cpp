@@ -45,7 +45,7 @@ i64 TProbePutBlocksRequestSupplier::GetMaxRequestedMemory() const
     return MaxRequestedMemory_;
 }
 
-std::optional<TProbePutBlocksRequestSupplier::TRequest> TProbePutBlocksRequestSupplier::DequeueMinRequest()
+std::optional<TProbePutBlocksRequestSupplier::TRequest> TProbePutBlocksRequestSupplier::GetMinRequest()
 {
     auto guard = Guard(Lock_);
     if (Requests_.empty()) {
@@ -53,7 +53,6 @@ std::optional<TProbePutBlocksRequestSupplier::TRequest> TProbePutBlocksRequestSu
     }
 
     auto request = *Requests_.begin();
-    Requests_.erase(Requests_.begin());
 
     return request;
 }

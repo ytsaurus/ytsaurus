@@ -58,7 +58,7 @@ public:
     i64 GetCurrentApprovedMemory() const;
     i64 GetMaxRequestedMemory() const;
 
-    std::optional<TRequest> DequeueMinRequest();
+    std::optional<TRequest> GetMinRequest();
     void ApproveRequest(TLocationMemoryGuard&& memoryGuard, TRequest request);
 
     void PushRequest(TRequest request);

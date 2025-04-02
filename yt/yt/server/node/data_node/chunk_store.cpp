@@ -795,32 +795,34 @@ std::tuple<TStoreLocationPtr, TLockedChunkGuard> TChunkStore::AcquireNewChunkLoc
             }
         }
 
-        auto memoryLimitFractionForStartingNewSessions = location->GetMemoryLimitFractionForStartingNewSessions();
-        auto usedMemory = location->GetUsedMemory(/*useLegacyUsedMemory*/ true, EIODirection::Write);
-        auto memoryLimit = location->GetLegacyWriteMemoryLimit() * memoryLimitFractionForStartingNewSessions;
-        if (memoryLimitFractionForStartingNewSessions &&
-            usedMemory > memoryLimit)
-        {
-            throttledLocations.push_back(location);
-            throttledLocationErrors.push_back(TError("Session cannot be started due to lack of memory")
-                << TErrorAttribute("location_id", location->GetId())
-                << TErrorAttribute("used_memory", usedMemory)
-                << TErrorAttribute("memory_limit", memoryLimit));
-            continue;
-        }
+        if (!options.UseProbePutBlocks) {
+            auto memoryLimitFractionForStartingNewSessions = location->GetMemoryLimitFractionForStartingNewSessions();
+            auto usedMemory = location->GetUsedMemory(/*useLegacyUsedMemory*/ true, EIODirection::Write);
+            auto memoryLimit = location->GetLegacyWriteMemoryLimit() * memoryLimitFractionForStartingNewSessions;
+            if (memoryLimitFractionForStartingNewSessions &&
+                usedMemory > memoryLimit)
+            {
+                throttledLocations.push_back(location);
+                throttledLocationErrors.push_back(TError("Session cannot be started due to lack of memory")
+                    << TErrorAttribute("location_id", location->GetId())
+                    << TErrorAttribute("used_memory", usedMemory)
+                    << TErrorAttribute("memory_limit", memoryLimit));
+                continue;
+            }
 
-        auto trackedMemory = location->GetWriteMemoryTracker()->GetUsed();
-        auto totalMemoryLimit  = location->GetWriteMemoryTracker()->GetLimit() * memoryLimitFractionForStartingNewSessions;
+            auto trackedMemory = location->GetWriteMemoryTracker()->GetUsed();
+            auto totalMemoryLimit  = location->GetWriteMemoryTracker()->GetLimit() * memoryLimitFractionForStartingNewSessions;
 
-        if (memoryLimitFractionForStartingNewSessions &&
-            trackedMemory > totalMemoryLimit)
-        {
-            throttledLocations.push_back(location);
-            throttledLocationErrors.push_back(TError("Session cannot be started due to lack of memory")
-                << TErrorAttribute("location_id", location->GetId())
-                << TErrorAttribute("category_memory_used", trackedMemory)
-                << TErrorAttribute("category_memory_limit", totalMemoryLimit));
-            continue;
+            if (memoryLimitFractionForStartingNewSessions &&
+                trackedMemory > totalMemoryLimit)
+            {
+                throttledLocations.push_back(location);
+                throttledLocationErrors.push_back(TError("Session cannot be started due to lack of memory")
+                    << TErrorAttribute("location_id", location->GetId())
+                    << TErrorAttribute("category_memory_used", trackedMemory)
+                    << TErrorAttribute("category_memory_limit", totalMemoryLimit));
+                continue;
+            }
         }
 
         auto sessionCount = location->GetSessionCount();

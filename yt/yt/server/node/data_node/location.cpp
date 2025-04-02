@@ -946,7 +946,7 @@ void TChunkLocation::DoCheckProbePutBlocksRequests()
             continue;
         }
 
-        auto request = supplier->DequeueMinRequest();
+        auto request = supplier->GetMinRequest();
         if (!request.has_value()) {
             ProbePutBlocksRequests_.erase(supplierIt);
             EraseOrCrash(ProbePutBlocksSuppliers_, supplier->GetSessionId());
@@ -962,7 +962,7 @@ void TChunkLocation::DoCheckProbePutBlocksRequests()
             request->WorkloadDescriptor,
             memoryDifference);
 
-        YT_LOG_TRACE("Resources acquirenment "
+        YT_LOG_DEBUG("Resources acquirenment "
             "(SessionId: %v, MemoryDifference: %v, CumulativeBlockSize: %v, RequestedCumulativeBlockSize: %v, Error: %v)",
             supplier->GetSessionId(),
             memoryDifference,
