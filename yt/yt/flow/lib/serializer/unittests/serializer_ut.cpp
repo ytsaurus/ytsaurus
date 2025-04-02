@@ -1,5 +1,6 @@
 #include <yt/yt/client/table_client/logical_type.h>
 #include <yt/yt/client/table_client/schema.h>
+#include <yt/yt/client/table_client/helpers.h>
 
 #include <yt/yt/core/test_framework/framework.h>
 
@@ -10,7 +11,7 @@
 
 #include <yt/yt/flow/lib/serializer/unittests/proto/test.pb.h>
 
-namespace NYT::NFlow {
+namespace NYT::NFlow::NYsonSerializer {
 
 namespace NProto {
 
@@ -185,7 +186,7 @@ struct TTestStructV2WithoutDefault
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST(TSerializer, Simple)
+TEST(TYsonSerialize, Simple)
 {
     auto ysonStruct = New<TTestYsonStruct>();
     ysonStruct->IntMap["0"] = 0;
@@ -197,11 +198,11 @@ TEST(TSerializer, Simple)
     ysonStruct->StringList.push_back("a");
     ysonStruct->StringList.push_back("b");
 
-    auto schema = TSerializer::GetSchema(ysonStruct);
-    auto row = TSerializer::Serialize(ysonStruct, schema);
+    auto logicalType = GetYsonLogicalType(ysonStruct);
+    auto row = Serialize(ysonStruct, logicalType);
 
     auto copy = New<TTestYsonStruct>();
-    TSerializer::Deserialize(copy, row, schema);
+    Deserialize(copy, row, logicalType);
 
     EXPECT_EQ(ysonStruct->IntMap, copy->IntMap);
     // EXPECT_EQ(ysonStruct->Proto, copy->Proto);
@@ -212,49 +213,49 @@ TEST(TSerializer, Simple)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST(TSerializer, AddField)
+TEST(TYsonSerialize, AddField)
 {
     auto structV1 = New<TTestStructV1>();
     structV1->Int = 5;
 
-    auto schema = TSerializer::GetSchema(structV1);
-    auto row = TSerializer::Serialize(structV1, schema);
+    auto logicalType = GetYsonLogicalType(structV1);
+    auto row = Serialize(structV1, logicalType);
 
     auto structV2 = New<TTestStructV2>();
-    TSerializer::Deserialize(structV2, row, schema);
+    Deserialize(structV2, row, logicalType);
 
     EXPECT_EQ(structV1->Int, structV2->Int);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST(TSerializer, DeleteField)
+TEST(TYsonSerialize, DeleteField)
 {
     auto structV2 = New<TTestStructV2>();
     structV2->Int = 5;
     structV2->String = "abcde";
 
-    auto schema = TSerializer::GetSchema(structV2);
-    auto row = TSerializer::Serialize(structV2, schema);
+    auto logicalType = GetYsonLogicalType(structV2);
+    auto row = Serialize(structV2, logicalType);
 
     auto structV1 = New<TTestStructV1>();
-    TSerializer::Deserialize(structV1, row, schema);
+    Deserialize(structV1, row, logicalType);
 
     EXPECT_EQ(structV1->Int, structV2->Int);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST(TSerializer, WithoutDefault)
+TEST(TYsonSerialize, WithoutDefault)
 {
     {
         auto structV1 = New<TTestStructV2>();
 
-        auto schema = TSerializer::GetSchema(structV1);
-        auto row = TSerializer::Serialize(structV1, schema);
+        auto logicalType = GetYsonLogicalType(structV1);
+        auto row = Serialize(structV1, logicalType);
 
         auto structV2 = New<TTestStructV2WithoutDefault>();
-        TSerializer::Deserialize(structV2, row, schema);
+        Deserialize(structV2, row, logicalType);
 
         EXPECT_EQ(structV1->Int, structV2->Int);
         EXPECT_EQ(structV1->String, structV2->String);
@@ -262,11 +263,11 @@ TEST(TSerializer, WithoutDefault)
     {
         auto structV1 = New<TTestStructV2WithoutDefault>();
 
-        auto schema = TSerializer::GetSchema(structV1);
-        auto row = TSerializer::Serialize(structV1, schema);
+        auto logicalType = GetYsonLogicalType(structV1);
+        auto row = Serialize(structV1, logicalType);
 
         auto structV2 = New<TTestStructV2>();
-        TSerializer::Deserialize(structV2, row, schema);
+        Deserialize(structV2, row, logicalType);
 
         EXPECT_EQ(structV1->Int, structV2->Int);
         EXPECT_EQ(structV1->String, structV2->String);
@@ -274,23 +275,23 @@ TEST(TSerializer, WithoutDefault)
     {
         auto structV1 = New<TTestStructV1>();
 
-        auto schema = TSerializer::GetSchema(structV1);
-        auto row = TSerializer::Serialize(structV1, schema);
+        auto logicalType = GetYsonLogicalType(structV1);
+        auto row = Serialize(structV1, logicalType);
 
         auto structV2 = New<TTestStructV2WithoutDefault>();
         EXPECT_THROW(
-            TSerializer::Deserialize(structV2, row, schema),
+            Deserialize(structV2, row, logicalType),
             TErrorException);
     }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST(TSerializer, ToTableSchema)
+TEST(TYsonSerialize, ToTableSchema)
 {
     auto ysonStruct = New<TTestYsonStruct>();
-    auto schema = TSerializer::GetSchema(ysonStruct);
-    auto tableSchema = ToTableSchema(schema);
+    auto logicalType = GetYsonLogicalType(ysonStruct);
+    auto tableSchema = ToTableSchema(logicalType);
 
     EXPECT_EQ(tableSchema->GetColumnCount(), 14);
     EXPECT_EQ(tableSchema->GetColumn("bool").GetWireType(), EValueType::Boolean);
@@ -315,6 +316,65 @@ TEST(TSerializer, ToTableSchema)
             EXPECT_TRUE(column.Required()) << "column: " << column.Name();
         }
     }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TTestStructV3
+    : public TYsonStruct
+{
+    TString Value;
+    i64 OtherValue;
+    std::optional<double> Undefined;
+
+    REGISTER_YSON_STRUCT(TTestStructV3);
+
+    static void Register(TRegistrar registrar)
+    {
+        registrar.Parameter("value", &TThis::Value)
+            .Default("default");
+        registrar.Parameter("other_value", &TThis::OtherValue)
+            .Default(3);
+        registrar.Parameter("undefined", &TThis::Undefined)
+            .Default();
+    }
+};
+
+TEST(TYsonSerialize, PartialSerialize)
+{
+    auto ysonStruct = New<TTestStructV3>();
+    ysonStruct->Value = "some_value";
+    ysonStruct->OtherValue = 5;
+    auto schema = New<TTableSchema>(
+        std::vector{
+            TColumnSchema("other_value", EValueType::Int64),
+            TColumnSchema("none", EValueType::Uint64),
+            TColumnSchema("value", EValueType::String),
+            TColumnSchema("another_none", EValueType::String),
+            TColumnSchema("undefined", EValueType::Double)
+        }
+    );
+    auto row = Serialize(ysonStruct, schema);
+    ASSERT_EQ(row.GetCount(), 5);
+    EXPECT_EQ(row[0].Id, 0);
+    EXPECT_EQ(row[0].Type, EValueType::Int64);
+    EXPECT_EQ(FromUnversionedValue<i64>(row[0]), 5);
+    EXPECT_EQ(row[1].Id, 1);
+    EXPECT_EQ(row[1].Type, EValueType::Null);
+    EXPECT_EQ(row[2].Id, 2);
+    EXPECT_EQ(row[2].Type, EValueType::String);
+    EXPECT_EQ(FromUnversionedValue<TString>(row[2]), "some_value");
+    EXPECT_EQ(row[3].Id, 3);
+    EXPECT_EQ(row[3].Type, EValueType::Null);
+    EXPECT_EQ(row[4].Id, 4);
+    EXPECT_EQ(row[4].Type, EValueType::Null);
+
+    auto otherStruct = New<TTestStructV3>();
+    Deserialize(otherStruct, row, schema);
+    EXPECT_EQ(otherStruct->Value, ysonStruct->Value);
+    EXPECT_EQ(otherStruct->OtherValue, ysonStruct->OtherValue);
+    EXPECT_FALSE(otherStruct->Undefined.has_value());
+    EXPECT_TRUE(AreNodesEqual(ConvertToNode(otherStruct), ConvertToNode(ysonStruct)));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
