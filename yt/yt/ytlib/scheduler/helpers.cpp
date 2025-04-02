@@ -486,11 +486,6 @@ void ValidateCheckPermissionsResults(
             "Operation access denied")
             << TErrorAttribute("user", userStr)
             << TErrorAttribute("required_permissions", permissionSet);
-        if (accessControlRule.IsAcoName()) {
-            error = error << TErrorAttribute("path", accessControlRule.GetAclString());
-        } else {
-            error = error << TErrorAttribute("acl", accessControlRule.GetAclString());
-        }
         if (operationId) {
             error = error << TErrorAttribute("operation_id", operationId);
         }
