@@ -113,55 +113,6 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// COMPAT(kvk1920): Remove when reign will be greater than ChunkLocationsInReplica.
-//! A compact representation for:
-//! * a pointer to T
-//! * replica index (5 bits)
-//! * medium index (7 bits)
-//! * replica state (2 bits)
-//! - all fit into a single 8-byte pointer.
-template <class T>
-class TCompatPtrWithIndexes
-{
-public:
-    TCompatPtrWithIndexes();
-    TCompatPtrWithIndexes(
-        T* ptr,
-        int replicaIndex,
-        int mediumIndex,
-        EChunkReplicaState state = EChunkReplicaState::Generic);
-
-    explicit operator bool() const;
-
-    T* GetPtr() const;
-    int GetReplicaIndex() const;
-    int GetMediumIndex() const;
-    EChunkReplicaState GetState() const;
-
-    TCompatPtrWithIndexes<T> ToGenericState() const;
-
-    size_t GetHash() const;
-
-    bool operator == (TCompatPtrWithIndexes other) const;
-    bool operator <  (TCompatPtrWithIndexes other) const;
-    bool operator <= (TCompatPtrWithIndexes other) const;
-    bool operator >  (TCompatPtrWithIndexes other) const;
-    bool operator >= (TCompatPtrWithIndexes other) const;
-
-    template <class C>
-    void Save(C& context) const;
-    template <class C>
-    void Load(C& context);
-
-private:
-    static_assert(sizeof(uintptr_t) == 8, "Pointer type must be of size 8.");
-
-    // Use compact 8-byte representation with indexes occupying the highest 12 bits.
-    uintptr_t Value_;
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
 template <class T>
 using TPtrWithMediumIndex = TAugmentedPtr<
     T,
