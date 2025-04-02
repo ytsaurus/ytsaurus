@@ -239,6 +239,12 @@ public:
         return transaction;
     }
 
+    ETransactionState GetTransactionStateOrThrow(TTransactionId transactionId) override
+    {
+        auto* transaction = GetTransactionOrThrow(transactionId);
+        return transaction->GetPersistentState();
+    }
+
     TTransaction* GetOrCreateTransactionOrThrow(
         TTransactionId transactionId,
         TTimestamp startTimestamp,

@@ -67,13 +67,13 @@ public:
 
     TFuture<TSharedRef> Read(i64 offset, i64 length, const TReadOptions& options) override
     {
-        YT_LOG_DEBUG("Start read from chunk (Offset: %v, Length: %v, Cookie: %v)",
+        YT_LOG_DEBUG("Start read from chunk (Offset: %v, Length: %v, Cookie: %x)",
             offset,
             length,
             options.Cookie);
 
         if (length == 0) {
-            YT_LOG_DEBUG("Finish read from chunk (Offset: %v, Length: %v, Cookie: %v)",
+            YT_LOG_DEBUG("Finish read from chunk (Offset: %v, Length: %v, Cookie: %x)",
                 offset,
                 length,
                 options.Cookie);
@@ -85,7 +85,7 @@ public:
         WaitFor(ReadThrottler_->Throttle(length)).ThrowOnError();
         auto data = WaitFor(ChunkHandler_->Read(offset, length, options)).ValueOrThrow();
 
-        YT_LOG_DEBUG("Finish read from chunk (Offset: %v, ExpectedLength: %v, ResultLength: %v, Cookie: %v)",
+        YT_LOG_DEBUG("Finish read from chunk (Offset: %v, ExpectedLength: %v, ResultLength: %v, Cookie: %x)",
             offset,
             length,
             data.Size(),
@@ -95,13 +95,13 @@ public:
 
     TFuture<void> Write(i64 offset, const TSharedRef& data, const TWriteOptions& options) override
     {
-        YT_LOG_DEBUG("Start write to chunk (Offset: %v, Length: %v, Cookie: %v)",
+        YT_LOG_DEBUG("Start write to chunk (Offset: %v, Length: %v, Cookie: %x)",
             offset,
             data.size(),
             options.Cookie);
 
         if (data.size() == 0) {
-            YT_LOG_DEBUG("Finish write to chunk (Offset: %v, Length: %v, Cookie: %v)",
+            YT_LOG_DEBUG("Finish write to chunk (Offset: %v, Length: %v, Cookie: %x)",
                 offset,
                 data.size(),
                 options.Cookie);
@@ -113,7 +113,7 @@ public:
         WaitFor(WriteThrottler_->Throttle(data.size())).ThrowOnError();
         WaitFor(ChunkHandler_->Write(offset, data, options)).ThrowOnError();
 
-        YT_LOG_DEBUG("Finish write to chunk (Offset: %v, Length: %v, Cookie: %v)",
+        YT_LOG_DEBUG("Finish write to chunk (Offset: %v, Length: %v, Cookie: %x)",
             offset,
             data.size(),
             options.Cookie);

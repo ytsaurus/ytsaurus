@@ -1,17 +1,16 @@
 #include "grammar.h"
 
-#include <yql/essentials/sql/v1/format/sql_format.h>
 #include <yql/essentials/sql/v1/reflect/sql_reflect.h>
 
 namespace NSQLComplete {
 
     class TSqlGrammar: public ISqlGrammar {
     public:
-        TSqlGrammar()
+        TSqlGrammar(const NSQLReflect::TLexerGrammar& grammar)
             : Vocabulary(GetVocabularyP())
             , AllTokens(ComputeAllTokens())
-            , KeywordTokens(ComputeKeywordTokens())
-            , PunctuationTokens(ComputePunctuationTokens(NSQLReflect::LoadLexerGrammar()))
+            , KeywordTokens(ComputeKeywordTokens(grammar))
+            , PunctuationTokens(ComputePunctuationTokens(grammar))
         {
         }
 
@@ -48,13 +47,13 @@ namespace NSQLComplete {
             return allTokens;
         }
 
-        std::unordered_set<TTokenId> ComputeKeywordTokens() {
+        std::unordered_set<TTokenId> ComputeKeywordTokens(
+            const NSQLReflect::TLexerGrammar& grammar) {
             const auto& vocabulary = GetVocabulary();
-            const auto keywords = NSQLFormat::GetKeywords();
 
             auto keywordTokens = GetAllTokens();
             std::erase_if(keywordTokens, [&](TTokenId token) {
-                return !keywords.contains(vocabulary.getSymbolicName(token));
+                return !grammar.KeywordNames.contains(vocabulary.getSymbolicName(token));
             });
             keywordTokens.erase(TOKEN_EOF);
 
@@ -80,7 +79,7 @@ namespace NSQLComplete {
     };
 
     const ISqlGrammar& GetSqlGrammar() {
-        const static TSqlGrammar DefaultSqlGrammar{};
+        const static TSqlGrammar DefaultSqlGrammar(NSQLReflect::LoadLexerGrammar());
         return DefaultSqlGrammar;
     }
 

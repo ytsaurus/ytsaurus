@@ -47,6 +47,13 @@ struct TMigration
     void Persist(const TPersistenceContext& context);
 };
 
+struct TReplicaCounters
+{
+    explicit TReplicaCounters(const NProfiling::TProfiler& profiler);
+
+    const NProfiling::TTimeGauge LagTime;
+};
+
 class TReplicationCard
     : public NTabletNode::TObjectBase
     , public TRefTracked<TReplicationCard>

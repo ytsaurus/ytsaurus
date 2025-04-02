@@ -641,6 +641,41 @@ class TNodeTagsFilterManager
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TEST_P(TBundleSchedulerTest, PreventAllocatingNodeTwice)
+{
+    constexpr auto bundleName = "bigd";
+
+    auto input = GenerateSimpleInputContext(1, 1, 0);
+    GenerateNodesForBundle(input, SpareBundleName, 1);
+    GenerateTabletCellsForBundle(input, bundleName, 1);
+
+    input.Config->HasInstanceAllocatorService = false;
+    input.Config->DecommissionReleasedNodes = false;
+    input.Bundles[bundleName]->EnableNodeTagFilterManagement = true;
+
+    GenerateNodeAllocationsForBundle(input, bundleName, 1);
+
+    TSchedulerMutations mutations;
+    ScheduleBundles(input, &mutations);
+
+    // Check that node was either allocated in normal way or allocated via
+    // emergency node allocation mechanism.
+
+    EXPECT_EQ(std::ssize(mutations.NewAllocations), 0);
+
+    auto& perDcInfo = GetOrCrash(input.ZoneToSpareNodes, "default-zone");
+    auto& spareNodesInfo = GetOrCrash(perDcInfo, "default");
+
+    EXPECT_EQ(0, std::ssize(spareNodesInfo.FreeNodes));
+    EXPECT_EQ(1, std::ssize(spareNodesInfo.UsedByBundle[bundleName]));
+
+    bool allocatedViaNormal = std::ssize(mutations.ChangeNodeAnnotations) > 0;
+    bool allocatedViaEmergency = std::ssize(mutations.ChangedNodeUserTags) > 0;
+
+    // One of
+    EXPECT_NE(allocatedViaNormal, allocatedViaEmergency);
+}
+
 TEST_P(TBundleSchedulerTest, AllocationCreated)
 {
     auto input = GenerateInputContext(5 * GetDataCenterCount());
@@ -1100,7 +1135,7 @@ TEST_P(TBundleSchedulerTest, DisableAllocationsCausesDeallocationToSpare)
             Cerr << Format("New alert (Id: %v, BundleName: %v, Description: %v)", alert.Id, alert.BundleName, alert.Description) << Endl;
         }
         EXPECT_EQ(0, CountAlertsExcept(mutations.AlertsToFire, {"no_free_spare_nodes"}));
-        EXPECT_EQ(1, std::ssize(mutations.AlertsToFire));
+        EXPECT_EQ(0, std::ssize(mutations.AlertsToFire));
         EXPECT_EQ(0, std::ssize(mutations.NewDeallocations));
         EXPECT_EQ(0, std::ssize(mutations.ChangedDecommissionedFlag));
         EXPECT_EQ(0, std::ssize(mutations.ChangeNodeAnnotations));

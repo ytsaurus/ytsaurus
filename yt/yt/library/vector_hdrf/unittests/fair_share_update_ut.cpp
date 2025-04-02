@@ -1,5 +1,4 @@
 #include <yt/yt/library/vector_hdrf/fair_share_update.h>
-#include <yt/yt/library/vector_hdrf/resource_helpers.h>
 #include <yt/yt/library/vector_hdrf/private.h>
 
 #include <library/cpp/testing/gtest/gtest.h>

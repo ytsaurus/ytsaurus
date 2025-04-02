@@ -248,7 +248,7 @@ fi
 
 yt_run_params=""
 params=""
-if [ ${enable_debug_logging} == true ]; then
+if [ "${enable_debug_logging}" == true ]; then
     params="--enable-debug-logging"
     yt_backend_tmp="$(realpath ~/)/yt.backend_tmp_$(date +%Y%m%d_%H%M%S)"
     # mkdir $yt_backend_tmp
@@ -264,15 +264,15 @@ if [ ${enable_debug_logging} == true ]; then
     ) >&2
 fi
 
-if [ ${with_auth} == true ]; then
+if [ "${with_auth}" == true ]; then
     params="${params} --enable-auth --create-admin-user"
 fi
 
-if [ ${init_operations_archive} == true ]; then
+if [ "${init_operations_archive}" == true ]; then
     params="${params} --init-operations-archive"
 fi
 
-if [ ${publish_ports} == true ]; then
+if [ "${publish_ports}" == true ]; then
     ports=""
     max_port=$(($port_range_start + 100))
     for port in $(seq $port_range_start $max_port); do
@@ -314,7 +314,7 @@ so you have to provide another port via --proxy-port option."
 fi
 
 
-if [ ${run_prometheus} == true ]; then
+if [ "${run_prometheus}" == true ]; then
 
     targets="['host.docker.internal:${port_range_start}'"
     min_port=$(($port_range_start + 1))

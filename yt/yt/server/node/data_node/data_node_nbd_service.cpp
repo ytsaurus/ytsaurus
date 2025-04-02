@@ -115,7 +115,7 @@ private:
         auto length = FromProto<i64>(request->length());
         auto cookie = FromProto<ui64>(request->cookie());
 
-        context->SetRequestInfo("SessionId: %v, Offset: %v, Length: %v, Cookie: %v",
+        context->SetRequestInfo("SessionId: %v, Offset: %v, Length: %v, Cookie: %x",
             sessionId,
             offset,
             length,
@@ -130,7 +130,7 @@ private:
         response->set_cookie(cookie);
         response->set_close_session(session->GetStoreLocation()->IsSick());
 
-        context->SetResponseInfo("SessionId: %v, Cookie: %v",
+        context->SetResponseInfo("SessionId: %v, Cookie: %x",
             sessionId,
             cookie);
 
@@ -146,7 +146,7 @@ private:
 
         YT_VERIFY(blocks.size() == 1);
 
-        context->SetRequestInfo("SessionId: %v, Offset: %v, Length: %v, Cookie: %v",
+        context->SetRequestInfo("SessionId: %v, Offset: %v, Length: %v, Cookie: %x",
             sessionId,
             offset,
             blocks[0].Size(),
@@ -158,7 +158,7 @@ private:
         request->set_cookie(cookie);
         response->set_close_session(session->GetStoreLocation()->IsSick());
 
-        context->SetResponseInfo("SessionId: %v, Cookie: %v",
+        context->SetResponseInfo("SessionId: %v, Cookie: %x",
             sessionId,
             cookie);
 

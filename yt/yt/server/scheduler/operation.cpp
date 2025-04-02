@@ -6,6 +6,7 @@
 #include "allocation.h"
 #include "controller_agent.h"
 
+#include <yt/yt/server/lib/scheduler/config.h>
 #include <yt/yt/server/lib/scheduler/experiments.h>
 
 #include <yt/yt/ytlib/scheduler/helpers.h>
@@ -98,6 +99,7 @@ TOperation::TOperation(
     IMapNodePtr secureVault,
     std::optional<TNodeId> temporaryTokenNodeId,
     TOperationRuntimeParametersPtr runtimeParameters,
+    TOperationOptionsPtr operationOptions,
     NSecurityClient::TSerializableAccessControlList baseAcl,
     const std::string& authenticatedUser,
     TInstant startTime,
@@ -133,6 +135,7 @@ TOperation::TOperation(
     , TrimmedAnnotations_(std::move(trimmedAnnotations))
     , BriefVanillaTaskSpecs_(std::move(briefVanillaTaskSpecs))
     , CustomSpecPerTree_(std::move(customSpecPerTree))
+    , OperationOptions_(std::move(operationOptions))
     , Codicil_(MakeOperationCodicil(Id_))
     , ControlInvoker_(std::move(controlInvoker))
     , State_(state)
@@ -297,6 +300,11 @@ TCodicilGuard TOperation::MakeCodicilGuard() const
 EOperationState TOperation::GetState() const
 {
     return State_;
+}
+
+const TOperationOptionsPtr& TOperation::GetOperationOptions() const
+{
+    return OperationOptions_;
 }
 
 void TOperation::SetStateAndEnqueueEvent(
@@ -733,6 +741,18 @@ void ParseSpec(
             treeId,
             UpdateYsonStruct(strategySpec, ConvertToNode(optionPerPoolTree)));
     }
+
+    INodePtr schedulerOptions;
+    for (const auto& experiment : preprocessedSpec->ExperimentAssignments) {
+        if (const auto& node = experiment->Effect->SchedulerOptionsPatch) {
+            schedulerOptions = schedulerOptions
+                ? PatchNode(schedulerOptions, node)
+                : node;
+        }
+    }
+    preprocessedSpec->OperationOptions = schedulerOptions
+        ? ConvertTo<TOperationOptionsPtr>(schedulerOptions)
+        : New<TOperationOptions>();
 }
 
 IMapNodePtr ConvertSpecStringToNode(

@@ -140,64 +140,6 @@ int FindNextInstanceId(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <class TSpareInstances>
-class TSpareInstanceAllocator {
-    template <class TValue>
-    using TZoneToDataCenterToValue = THashMap<std::string, THashMap<std::string, TValue>>;
-
-    template <class TContainer>
-    using TIteratorOf = typename TContainer::const_iterator;
-
-    using TFreeInstances = const std::vector<std::string>;
-
-public:
-    explicit TSpareInstanceAllocator(const TZoneToDataCenterToValue<TSpareInstances>& spareInstances)
-        : SpareInstances_(spareInstances)
-    {
-        FirstFreeInstance_.reserve(SpareInstances_.size());
-        for (const auto& [zoneName, perZoneInstances] : SpareInstances_) {
-            for (const auto& [dataCenterName, instances] : perZoneInstances) {
-                FirstFreeInstance_[zoneName][dataCenterName] = instances.FreeInstances().begin();
-            }
-        }
-    }
-
-    std::string Allocate(const std::string& zoneName, const std::string& dataCenterName)
-    {
-        YT_VERIFY(HasInstances(zoneName, dataCenterName));
-        return *GetNext(zoneName, dataCenterName);
-    }
-
-    bool HasInstances(const std::string& zoneName, const std::string& dataCenterName) const
-    {
-        if (!FirstFreeInstance_.contains(zoneName)) {
-            return false;
-        }
-        auto& dcToIterator = GetOrCrash(FirstFreeInstance_, zoneName);
-        if (!dcToIterator.contains(dataCenterName)) {
-            return false;
-        }
-        auto it = GetOrCrash(dcToIterator, dataCenterName);
-        return it != GetEnd(zoneName, dataCenterName);
-    }
-
-private:
-    const TZoneToDataCenterToValue<TSpareInstances>& SpareInstances_;
-    TZoneToDataCenterToValue<TIteratorOf<TFreeInstances>> FirstFreeInstance_;
-
-    TIteratorOf<TFreeInstances> GetNext(const std::string& zoneName, const std::string& dataCenterName)
-    {
-        return FirstFreeInstance_[zoneName][dataCenterName]++;
-    }
-
-    TIteratorOf<TFreeInstances> GetEnd(const std::string& zoneName, const std::string& dataCenterName) const
-    {
-        return GetOrCrash(GetOrCrash(SpareInstances_, zoneName), dataCenterName).FreeInstances().end();
-    }
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
 class TTabletNodeAllocatorAdapter;
 class TRpcProxyAllocatorAdapter;
 
@@ -205,12 +147,12 @@ template <class TInstanceTypeAdapter>
 class TInstanceManager
 {
 public:
-    using TInstanceAllocator = TSpareInstanceAllocator<typename TInstanceTypeAdapter::TSpareInstanceInfo>;
+    using TSpareInstanceAllocator = TSpareInstanceAllocator<typename TInstanceTypeAdapter::TSpareInstanceInfo>;
 
     void ManageInstances(
         const std::string& bundleName,
         TInstanceTypeAdapter* adapter,
-        TInstanceAllocator& spareInstances,
+        TSpareInstanceAllocator& spareInstances,
         const TSchedulerInputState& input,
         TSchedulerMutations* mutations)
     {
@@ -509,7 +451,7 @@ private:
     void ProcessExistingAllocations(
         const std::string& bundleName,
         TInstanceTypeAdapter* adapter,
-        TInstanceAllocator& spareInstances,
+        TSpareInstanceAllocator& spareInstances,
         const TSchedulerInputState& input,
         TSchedulerMutations* mutations)
     {
@@ -626,7 +568,7 @@ private:
         const auto& allocationInfo,
         const std::string& bundleName,
         TInstanceTypeAdapter* adapter,
-        TInstanceAllocator& spareInstances,
+        TSpareInstanceAllocator& spareInstances,
         const TSchedulerInputState& input,
         TSchedulerMutations* mutations)
     {
@@ -660,7 +602,7 @@ private:
             return;
         }
 
-        auto instanceName = spareInstances.Allocate(zoneName, dataCenterName);
+        auto instanceName = spareInstances.Allocate(zoneName, dataCenterName, bundleName);
 
         YT_LOG_INFO("Allocating instance from spare (AllocationId: %v, BundleName: %v, InstanceType: %v, InstanceName: %v)",
             allocationId,
@@ -2769,12 +2711,13 @@ void InitializeVirtualSpareBundle(TSchedulerInputState& input)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void ManageInstances(TSchedulerInputState& input, TSchedulerMutations* mutations)
+void ManageInstances(
+    TSchedulerInputState& input,
+    TSpareInstanceAllocator<TSpareNodesInfo>& spareNodesAllocator,
+    TSpareInstanceAllocator<TSpareProxiesInfo>& spareProxiesAllocator,
+    TSchedulerMutations* mutations)
 {
-    TSpareInstanceAllocator<TSpareNodesInfo> spareNodesAllocator(input.ZoneToSpareNodes);
     TInstanceManager<TTabletNodeAllocatorAdapter> nodeAllocator;
-
-    TSpareInstanceAllocator<TSpareProxiesInfo> spareProxiesAllocator(input.ZoneToSpareProxies);
     TInstanceManager<TRpcProxyAllocatorAdapter> proxyAllocator;
 
     for (const auto& [bundleName, bundleInfo] : input.Bundles) {
@@ -3299,19 +3242,24 @@ void ScheduleBundles(TSchedulerInputState& input, TSchedulerMutations* mutations
         InitializeZoneToSpareProxies(input, mutations);
     }
 
+    TSpareInstanceAllocator<TSpareNodesInfo> spareNodesState(input.ZoneToSpareNodes);
+    TSpareInstanceAllocator<TSpareProxiesInfo> spareProxiesState(input.ZoneToSpareProxies);
+
     ManageBundlesDynamicConfig(input, mutations);
-    ManageInstances(input, mutations);
+    ManageInstances(input, spareNodesState, spareProxiesState, mutations);
     ManageCells(input, mutations);
     ManageSystemAccountLimit(input, mutations);
     ManageResourceLimits(input, mutations);
 
     // TODO(grachevkirill): Remove it later and rewrite node tag filter manager
     // and proxy roles manager.
-    InitializeZoneToSpareNodes(input, mutations);
-    InitializeZoneToSpareProxies(input, mutations);
+    if (input.Config->HasInstanceAllocatorService) {
+        InitializeZoneToSpareNodes(input, mutations);
+        InitializeZoneToSpareProxies(input, mutations);
+    }
 
-    ManageNodeTagFilters(input, mutations);
-    ManageRpcProxyRoles(input, mutations);
+    ManageNodeTagFilters(input, spareNodesState, mutations);
+    ManageRpcProxyRoles(input, spareProxiesState, mutations);
     ManageBundleShortName(input, mutations);
     ManageDrillsMode(input, mutations);
     MiscBundleChecks(input, mutations);

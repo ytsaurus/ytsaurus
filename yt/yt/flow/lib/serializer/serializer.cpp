@@ -19,7 +19,7 @@
 #include <memory>
 #include <stack>
 
-namespace NYT::NFlow {
+namespace NYT::NFlow::NYsonSerializer {
 
 using namespace NYT::NTableClient;
 using namespace NYT::NYson;
@@ -117,6 +117,11 @@ public:
     {
         NameToFieldIndex_.clear();
         Fields_.clear();
+    }
+
+    int GetCount() const
+    {
+        return std::ssize(Fields_);
     }
 
 private:
@@ -321,17 +326,23 @@ class TStructSerializer final
     : public TYsonConsumerBase
 {
 public:
-    explicit TStructSerializer(TLogicalTypePtr schema)
-        : Schema_(std::move(schema))
-        , StructDescriptor_(Schema_->AsStructTypeRef())
-    { }
+    explicit TStructSerializer(TLogicalTypePtr logicalType)
+        : LogicalType_(std::move(logicalType))
+        , StructDescriptor_(LogicalType_->AsStructTypeRef())
+        , Buffer_(New<TRowBuffer>())
+    {
+        Values_.reserve(StructDescriptor_.GetCount());
+        for (int i = 0; i < StructDescriptor_.GetCount(); ++i) {
+            Values_.push_back(MakeUnversionedNullValue(i));
+        }
+    }
 
     void OnStringScalar(TStringBuf value) override
     {
         if (StructLevel()) {
             ValidateSimpleType(CurrentFieldType(), value);
 
-            Builder_.AddValue(MakeUnversionedStringValue(value, FieldId_));
+            AddValue(MakeUnversionedStringValue(value, FieldId_));
         } else {
             FieldSerializer_->OnStringScalar(value);
         }
@@ -342,7 +353,7 @@ public:
         if (StructLevel()) {
             ValidateSimpleType(CurrentFieldType(), value);
 
-            Builder_.AddValue(MakeUnversionedInt64Value(value, FieldId_));
+            AddValue(MakeUnversionedInt64Value(value, FieldId_));
         } else {
             FieldSerializer_->OnInt64Scalar(value);
         }
@@ -353,7 +364,7 @@ public:
         if (StructLevel()) {
             ValidateSimpleType(CurrentFieldType(), value);
 
-            Builder_.AddValue(MakeUnversionedUint64Value(value, FieldId_));
+            AddValue(MakeUnversionedUint64Value(value, FieldId_));
         } else {
             FieldSerializer_->OnUint64Scalar(value);
         }
@@ -364,7 +375,7 @@ public:
         if (StructLevel()) {
             ValidateSimpleType(CurrentFieldType(), value);
 
-            Builder_.AddValue(MakeUnversionedDoubleValue(value, FieldId_));
+            AddValue(MakeUnversionedDoubleValue(value, FieldId_));
         } else {
             FieldSerializer_->OnDoubleScalar(value);
         }
@@ -375,7 +386,7 @@ public:
         if (StructLevel()) {
             ValidateSimpleType(CurrentFieldType(), value);
 
-            Builder_.AddValue(MakeUnversionedBooleanValue(value, FieldId_));
+            AddValue(MakeUnversionedBooleanValue(value, FieldId_));
         } else {
             FieldSerializer_->OnBooleanScalar(value);
         }
@@ -387,7 +398,7 @@ public:
             THROW_ERROR_EXCEPTION_UNLESS(CurrentFieldType().IsNullable(),
                 "Expected optional, but got %v", CurrentFieldType().GetMetatype());
 
-            Builder_.AddValue(MakeUnversionedSentinelValue(EValueType::Null, FieldId_));
+            AddValue(MakeUnversionedSentinelValue(EValueType::Null, FieldId_));
         } else {
             FieldSerializer_->OnEntity();
         }
@@ -420,7 +431,7 @@ public:
         if (FieldLevel()) {
             auto value = std::move(*FieldSerializer_).Build();
             FieldSerializer_.reset();
-            Builder_.AddValue(MakeUnversionedAnyValue(value, FieldId_));
+            AddValue(MakeUnversionedAnyValue(value, FieldId_));
         }
 
         --Depth_;
@@ -459,7 +470,7 @@ public:
         if (FieldLevel()) {
             auto value = std::move(*FieldSerializer_).Build();
             FieldSerializer_.reset();
-            Builder_.AddValue(MakeUnversionedAnyValue(value, FieldId_));
+            AddValue(MakeUnversionedAnyValue(value, FieldId_));
         }
 
         --Depth_;
@@ -487,7 +498,7 @@ public:
 
     TUnversionedOwningRow Build()
     {
-        return Builder_.FinishRow();
+        return TRange(std::move(Values_));
     }
 
 private:
@@ -507,28 +518,36 @@ private:
     }
 
 private:
-    const TLogicalTypePtr Schema_;
+    const TLogicalTypePtr LogicalType_;
     const TStructDescriptor StructDescriptor_;
 
     std::unique_ptr<TFieldSerializer> FieldSerializer_;
 
-    TUnversionedOwningRowBuilder Builder_;
+    const NTableClient::TRowBufferPtr Buffer_;
+    std::vector<NTableClient::TUnversionedValue> Values_;
 
     int Depth_ = 0;
     int FieldId_ = 0;
+
+private:
+    void AddValue(TUnversionedValue&& value)
+    {
+        const auto id = value.Id;
+        Values_[id] = Buffer_->CaptureValue(std::move(value));
+    }
 };
 
 class TStructDeserializer final
     : public TYsonConsumerBase
 {
 public:
-    TStructDeserializer(const TLogicalTypePtr& schema, INodeFactory* factory)
+    TStructDeserializer(const TLogicalTypePtr& logicalType, INodeFactory* factory)
         : Factory_(factory)
     {
-        YT_ASSERT(schema);
+        YT_ASSERT(logicalType);
         YT_ASSERT(Factory_);
 
-        TypeStack_.emplace(schema);
+        TypeStack_.emplace(logicalType);
     }
 
     void OnStringScalar(TStringBuf value) override
@@ -669,6 +688,11 @@ public:
                     cursor.TransferComplexValue(this);
                     break;
                 }
+                case EValueType::Null: {
+                    OnField(value.Id);
+                    OnEntity();
+                    break;
+                }
                 default:
                     THROW_ERROR_EXCEPTION("Unsupported value type %Qlv", value.Type);
             }
@@ -742,7 +766,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TLogicalTypePtr TSerializer::GetSchema(const TYsonStructPtr& ysonStruct)
+TLogicalTypePtr GetYsonLogicalType(const TYsonStructPtr& ysonStruct)
 {
     TStringStream ysonSchema;
     TYsonWriter consumer(&ysonSchema);
@@ -753,23 +777,9 @@ TLogicalTypePtr TSerializer::GetSchema(const TYsonStructPtr& ysonStruct)
     return typeV3.LogicalType;
 }
 
-TUnversionedOwningRow TSerializer::Serialize(
-    const TYsonStructPtr& ysonStruct,
-    const TLogicalTypePtr& schema)
+TTableSchemaPtr GetYsonSchema(const NYTree::TYsonStructPtr& ysonStruct)
 {
-    TStructSerializer serializer(schema);
-    ysonStruct->Save(&serializer);
-    return serializer.Build();
-}
-
-void TSerializer::Deserialize(
-    const TYsonStructPtr& ysonStruct,
-    const TUnversionedRow& row,
-    const TLogicalTypePtr& schema)
-{
-    TStructDeserializer deserializer(schema, GetEphemeralNodeFactory());
-
-    ysonStruct->Load(deserializer.BuildNode(row));
+    return ToTableSchema(GetYsonLogicalType(ysonStruct));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -810,4 +820,40 @@ TLogicalTypePtr ToLogicalType(const TTableSchemaPtr& tableSchema)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NFlow
+TUnversionedOwningRow Serialize(
+    const TYsonStructPtr& ysonStruct,
+    const TLogicalTypePtr& logicalType)
+{
+    TStructSerializer serializer(logicalType);
+    ysonStruct->Save(&serializer);
+    return serializer.Build();
+}
+
+TUnversionedOwningRow Serialize(
+    const TYsonStructPtr& ysonStruct,
+    const TTableSchemaPtr& schema)
+{
+    return Serialize(ysonStruct, ToLogicalType(schema));
+}
+
+void Deserialize(
+    const TYsonStructPtr& ysonStruct,
+    const TUnversionedRow& row,
+    const TLogicalTypePtr& logicalType)
+{
+    TStructDeserializer deserializer(logicalType, GetEphemeralNodeFactory());
+
+    ysonStruct->Load(deserializer.BuildNode(row));
+}
+
+void Deserialize(
+    const NYTree::TYsonStructPtr& ysonStruct,
+    const NTableClient::TUnversionedRow& row,
+    const NTableClient::TTableSchemaPtr& schema)
+{
+    Deserialize(ysonStruct, row, ToLogicalType(schema));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NYT::NFlow::NYsonSerializer

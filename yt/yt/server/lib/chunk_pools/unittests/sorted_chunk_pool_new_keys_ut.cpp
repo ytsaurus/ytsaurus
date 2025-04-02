@@ -53,7 +53,6 @@ protected:
     {
         ChunkPool_ = nullptr;
         MultiChunkPool_ = nullptr;
-        UnderlyingPools_.clear();
         CreatedUnversionedDataSlices_.clear();
         CreatedUnversionedPrimaryDataSlices_.clear();
         CreatedUnversionedForeignDataSlices_.clear();
@@ -67,13 +66,12 @@ protected:
         PrimaryDataWeightPerJob_ = std::numeric_limits<i64>::max() / 4;
         SamplingRate_ = std::nullopt;
         SamplingDataWeightPerJob_ = Inf64;
-        SamplingPrimaryDataWeightPerJob_ = Inf64;
         ExtractedCookies_.clear();
         ChunkIdToUnderlyingPoolIndex_.clear();
         TeleportChunks_.clear();
         PrimaryComparator_ = TComparator();
         ForeignComparator_ = TComparator();
-        MockBuilders_.clear();
+        MockBuilder_.reset();
         Fetchers_.clear();
 
         Options_.MinTeleportChunkSize = Inf64;
@@ -81,34 +79,32 @@ protected:
         Options_.SortedJobOptions.MaxTotalSliceCount = Inf64;
         Options_.Logger = GetTestLogger();
         Options_.RowBuffer = RowBuffer_;
-        DataSizePerJob_ = Inf64;
+        DataWeightPerJob_ = Inf64;
         MaxBuildRetryCount_ = 1;
         MaxDataSlicesPerJob_ = Inf32;
         MaxDataWeightPerJob_ = Inf64;
-        MaxPrimaryDataWeightPerJob_ = Inf64;
-        MaxCompressedDataSizePerJob_ = Inf64;
         InputSliceDataWeight_ = Inf64;
     }
 
     void InitJobConstraints()
     {
         Options_.JobSizeConstraints = CreateExplicitJobSizeConstraints(
-            false /*canAdjustDataWeightPerJob*/,
-            false /*isExplicitJobCount*/,
-            0 /*jobCount*/,
-            DataSizePerJob_,
+            /*canAdjustDataWeightPerJob*/ false,
+            /*isExplicitJobCount*/ false,
+            /*jobCount*/ 0,
+            DataWeightPerJob_,
             PrimaryDataWeightPerJob_,
             MaxDataSlicesPerJob_,
             MaxDataWeightPerJob_,
-            MaxPrimaryDataWeightPerJob_,
-            MaxCompressedDataSizePerJob_,
+            /*maxPrimaryDataWeightPerJob*/ Inf64,
+            /*maxCompressedDataSizePerJob*/ Inf64,
             InputSliceDataWeight_,
-            Inf64 /*inputSliceRowCount*/,
-            {} /*batchRowCount*/,
-            InputSliceDataWeight_,
+            /*inputSliceRowCount*/ Inf64,
+            /*batchRowCount*/ {},
+            /*foreignSliceDataWeight*/ InputSliceDataWeight_,
             SamplingRate_,
             SamplingDataWeightPerJob_,
-            SamplingPrimaryDataWeightPerJob_,
+            /*samplingPrimaryDataWeightPerJob*/ Inf64,
             MaxBuildRetryCount_);
     }
 
@@ -159,6 +155,7 @@ protected:
                 dataSlice,
                 {},
                 {dataSlice->GetSingleUnversionedChunk()->GetDataWeight()});
+            YT_VERIFY(chunkSlices.size() == 1);
             RegisterSliceableUnversionedDataSlice(dataSlice, std::move(chunkSlices));
         }
 
@@ -168,27 +165,29 @@ protected:
         TSortedChunkPoolNewKeysTest* Owner;
     };
 
-    std::vector<TMockChunkSliceFetcherBuilder> MockBuilders_;
+    std::optional<TMockChunkSliceFetcherBuilder> MockBuilder_;
     std::vector<TStrictMockChunkSliceFetcherPtr> Fetchers_;
 
     IChunkSliceFetcherFactoryPtr BuildMockChunkSliceFetcherFactory()
     {
-        YT_VERIFY(Fetchers_.empty());
-        for (auto& mockBuilder : MockBuilders_) {
-            Fetchers_.emplace_back(mockBuilder.Build());
+        if (!MockBuilder_.has_value()) {
+            return nullptr;
         }
+
+        Fetchers_.emplace_back(MockBuilder_->Build());
         return New<TMockChunkSliceFetcherFactory>(&Fetchers_);
     }
 
     void PrepareNewMock()
     {
-        MockBuilders_.emplace_back(this);
+        YT_VERIFY(!MockBuilder_.has_value());
+        MockBuilder_.emplace(this);
     }
 
     TMockChunkSliceFetcherBuilder& CurrentMock()
     {
-        YT_VERIFY(!MockBuilders_.empty());
-        return MockBuilders_.back();
+        YT_VERIFY(MockBuilder_.has_value());
+        return *MockBuilder_;
     }
 
     // In this test we will only deal with integral rows as
@@ -219,9 +218,9 @@ protected:
         int tableIndex,
         i64 size = 1_KB,
         i64 rowCount = 1000,
-        i64 compressedDataSize = -1)
+        std::optional<i64> compressedDataSize = std::nullopt)
     {
-        if (compressedDataSize == -1) {
+        if (!compressedDataSize.has_value()) {
             compressedDataSize = size;
         }
         auto prefixLength = InputTables_[tableIndex].IsForeign()
@@ -233,7 +232,7 @@ protected:
         auto inputChunk = New<TInputChunk>();
         static int ChunkIndex = 1;
         inputChunk->SetChunkId(TChunkId(ChunkIndex++, 0));
-        inputChunk->SetCompressedDataSize(compressedDataSize);
+        inputChunk->SetCompressedDataSize(*compressedDataSize);
         inputChunk->SetTotalUncompressedDataSize(size);
         inputChunk->SetTotalDataWeight(size);
 
@@ -331,7 +330,7 @@ protected:
 
         ChunkPool_ = CreateNewSortedChunkPool(
             Options_,
-            !MockBuilders_.empty() ? BuildMockChunkSliceFetcherFactory() : nullptr,
+            BuildMockChunkSliceFetcherFactory(),
             useGenericInputStreamDirectory ? IntermediateInputStreamDirectory : TInputStreamDirectory(InputTables_));
         ChunkPool_->SubscribeChunkTeleported(
             BIND([this] (TInputChunkPtr teleportChunk, std::any /*tag*/) {
@@ -541,7 +540,6 @@ protected:
         TSaveContext saveContext(&output);
         Save(saveContext, ChunkPool_);
         Save(saveContext, MultiChunkPool_);
-        Save(saveContext, UnderlyingPools_);
         saveContext.Finish();
         auto blob = output.Flush();
         ChunkPool_.Reset();
@@ -550,7 +548,6 @@ protected:
         TLoadContext loadContext(&input, RowBuffer_, GetCurrentSnapshotVersion());
         Load(loadContext, ChunkPool_);
         Load(loadContext, MultiChunkPool_);
-        Load(loadContext, UnderlyingPools_);
         ChunkPool_->SubscribeChunkTeleported(
             BIND([this] (TInputChunkPtr teleportChunk, std::any /*tag*/) {
                 TeleportChunks_.push_back(std::move(teleportChunk));
@@ -810,20 +807,6 @@ protected:
         }
     }
 
-    //! Find all teleport chunks naively (in quadratic time) and check that chunk pool detected exactly
-    //! the same chunks.
-    void CheckTeleportChunks()
-    {
-        // TODO(max42): implement a naive procedure for finding the teleport chunks and compare
-        // its result with `teleportChunks`.
-    }
-
-    //! Check the correctness of joined data (in quadratic time).
-    void CheckCorrectnessOfJoin(const std::vector<TChunkStripeListPtr>& /*stripeLists*/)
-    {
-        // TODO(max42): implement a naive procedure here.
-    }
-
     //! Perform all the correctness checks over the given result of sorted chunk pool invocation
     //! (without any suspends nor job interruptions).
     void CheckEverything(
@@ -833,7 +816,6 @@ protected:
         CheckDataIntegrity(stripeLists);
         CheckSortedOutput(stripeLists);
         TryCheckJobConstraintsSatisfaction(stripeLists);
-        CheckTeleportChunks();
         CheckStripeListsContainOnlyActiveChunks();
         CheckForeignStripesAreMarkedAsForeign();
         if (Options_.SortedJobOptions.EnableKeyGuarantee) {
@@ -897,8 +879,6 @@ protected:
     IPersistentChunkPoolPtr ChunkPool_;
     IMultiChunkPoolPtr MultiChunkPool_;
 
-    std::vector<IPersistentChunkPoolPtr> UnderlyingPools_;
-
     //! Vector containing all unversioned data slices that have ever been created in order of their creation.
     std::vector<TLegacyDataSlicePtr> CreatedUnversionedDataSlices_;
     //! All unversioned primary data slices that have ever been created.
@@ -920,23 +900,19 @@ protected:
 
     TSortedChunkPoolOptions Options_;
 
-    i64 DataSizePerJob_;
+    i64 DataWeightPerJob_;
     i64 PrimaryDataWeightPerJob_ = std::numeric_limits<i64>::max() / 4;
 
     i64 MaxDataWeightPerJob_;
-    i64 MaxPrimaryDataWeightPerJob_;
 
     i64 MaxBuildRetryCount_;
 
     i32 MaxDataSlicesPerJob_;
 
-    i64 MaxCompressedDataSizePerJob_;
-
     i64 InputSliceDataWeight_;
 
     std::optional<double> SamplingRate_;
     i64 SamplingDataWeightPerJob_ = Inf64;
-    i64 SamplingPrimaryDataWeightPerJob_ = Inf64;
 
     std::vector<IChunkPoolOutput::TCookie> ExtractedCookies_;
 
@@ -1458,7 +1434,7 @@ TEST_F(TSortedChunkPoolNewKeysTest, SortedMergeSimpleWithGenericInputStreamDirec
     CurrentMock().RegisterSliceableUnversionedDataSlice(dataSliceB, chunkBSlices);
     CurrentMock().RegisterTriviallySliceableUnversionedDataSlice(dataSliceC);
 
-    CreateChunkPool(true /*useGenericInputStreamDirectory*/);
+    CreateChunkPool(/*useGenericInputStreamDirectory*/ true);
 
     AddDataSlice(dataSliceA);
     AddDataSlice(dataSliceB);
@@ -2042,7 +2018,7 @@ TEST_F(TSortedChunkPoolNewKeysTest, ManiacIsSliced)
         {false} /*isTeleportable*/,
         {false} /*isVersioned*/);
     InitPrimaryComparator(1);
-    DataSizePerJob_ = 100_MB;
+    DataWeightPerJob_ = 100_MB;
     InputSliceDataWeight_ = 16_MB;
     InitJobConstraints();
     PrepareNewMock();
@@ -2074,7 +2050,7 @@ TEST_F(TSortedChunkPoolNewKeysTest, MaxTotalSliceCountExceeded)
         {false, false, false} /*isVersioned*/);
     InitPrimaryComparator(1);
     Options_.SortedJobOptions.MaxTotalSliceCount = 6;
-    DataSizePerJob_ = 1000;
+    DataWeightPerJob_ = 1000;
     InitJobConstraints();
 
     auto chunkA = CreateChunk(BuildRow({1}), BuildRow({3}), 0);
@@ -2104,7 +2080,7 @@ TEST_F(TSortedChunkPoolNewKeysTest, MaxTotalSliceCountRetries)
     InitPrimaryComparator(1);
     Options_.SortedJobOptions.MaxTotalSliceCount = 6;
     MaxBuildRetryCount_ = 5;
-    DataSizePerJob_ = 1000;
+    DataWeightPerJob_ = 1000;
     InitJobConstraints();
 
     auto chunkA = CreateChunk(BuildRow({1}), BuildRow({3}), 0);
@@ -2198,7 +2174,7 @@ TEST_F(TSortedChunkPoolNewKeysTest, RowSlicingCriteria1)
         {false, false} /*isTeleportable*/,
         {false, false} /*isVersioned*/);
     InitPrimaryComparator(1);
-    DataSizePerJob_ = 10_KB;
+    DataWeightPerJob_ = 10_KB;
     InputSliceDataWeight_ = 1;
     InitJobConstraints();
 
@@ -2243,7 +2219,7 @@ TEST_F(TSortedChunkPoolNewKeysTest, RowSlicingCriteria2)
         {false, false} /*isTeleportable*/,
         {false, false} /*isVersioned*/);
     InitPrimaryComparator(1);
-    DataSizePerJob_ = 10_KB;
+    DataWeightPerJob_ = 10_KB;
     InputSliceDataWeight_ = 1;
     InitJobConstraints();
 
@@ -2276,7 +2252,7 @@ TEST_F(TSortedChunkPoolNewKeysTest, RowSlicingCriteria2Dynamic)
         {false, false} /*isTeleportable*/,
         {false, true}  /*isVersioned*/);
     InitPrimaryComparator(1);
-    DataSizePerJob_ = 10_KB;
+    DataWeightPerJob_ = 10_KB;
     InputSliceDataWeight_ = 1;
     InitJobConstraints();
 
@@ -2308,7 +2284,7 @@ TEST_F(TSortedChunkPoolNewKeysTest, RowSlicingCriteria3)
         {false, false, false} /*isTeleportable*/,
         {false, false, false} /*isVersioned*/);
     InitPrimaryComparator(1);
-    DataSizePerJob_ = 10_KB;
+    DataWeightPerJob_ = 10_KB;
     InputSliceDataWeight_ = 1;
     InitJobConstraints();
 
@@ -2347,7 +2323,7 @@ TEST_F(TSortedChunkPoolNewKeysTest, RowSlicingWithForeigns)
         {false, false} /*isVersioned*/);
     InitPrimaryComparator(1);
     InitForeignComparator(1);
-    DataSizePerJob_ = 10_KB;
+    DataWeightPerJob_ = 10_KB;
     InputSliceDataWeight_ = 1;
     InitJobConstraints();
 
@@ -2384,7 +2360,7 @@ TEST_F(TSortedChunkPoolNewKeysTest, TestJobSplitSimple)
         {false} /*isTeleportable*/,
         {false} /*isVersioned*/);
     InitPrimaryComparator(1);
-    DataSizePerJob_ = Inf64;
+    DataWeightPerJob_ = Inf64;
     InitJobConstraints();
     PrepareNewMock();
 
@@ -2431,7 +2407,7 @@ TEST_F(TSortedChunkPoolNewKeysTest, TestJobSplitWithForeign)
         {false, false} /*isVersioned*/);
     InitPrimaryComparator(1);
     InitForeignComparator(1);
-    DataSizePerJob_ = Inf64;
+    DataWeightPerJob_ = Inf64;
     InitJobConstraints();
     PrepareNewMock();
 
@@ -2498,7 +2474,7 @@ TEST_F(TSortedChunkPoolNewKeysTest, SuchForeignMuchData)
         {false, false} /*isVersioned*/);
     InitPrimaryComparator(1);
     InitForeignComparator(1);
-    DataSizePerJob_ = 10_KB;
+    DataWeightPerJob_ = 10_KB;
     InitJobConstraints();
 
     std::vector<TLegacyDataSlicePtr> dataSlices;
@@ -2539,7 +2515,7 @@ TEST_F(TSortedChunkPoolNewKeysTest, TestJobSplitStripeSuspension)
         {false, false} /*isVersioned*/);
     InitPrimaryComparator(1);
     InitForeignComparator(1);
-    DataSizePerJob_ = Inf64;
+    DataWeightPerJob_ = Inf64;
     InitJobConstraints();
     PrepareNewMock();
 
@@ -2606,7 +2582,7 @@ TEST_F(TSortedChunkPoolNewKeysTest, DISABLED_TestCorrectOrderInsideStripe)
         {false} /*isTeleportable*/,
         {false} /*isVersioned*/);
     InitPrimaryComparator(1);
-    DataSizePerJob_ = Inf64;
+    DataWeightPerJob_ = Inf64;
     InitJobConstraints();
     PrepareNewMock();
 
@@ -2652,7 +2628,7 @@ TEST_F(TSortedChunkPoolNewKeysTest, TestTrickyCase)
         {false},
         {false});
     InitPrimaryComparator(1);
-    DataSizePerJob_ = 10_KB;
+    DataWeightPerJob_ = 10_KB;
     InitJobConstraints();
     PrepareNewMock();
 
@@ -2699,7 +2675,7 @@ TEST_F(TSortedChunkPoolNewKeysTest, TestTrickyCase2)
         {false},
         {false});
     InitPrimaryComparator(1);
-    DataSizePerJob_ = 10_KB;
+    DataWeightPerJob_ = 10_KB;
     InitJobConstraints();
     PrepareNewMock();
 
@@ -2738,7 +2714,7 @@ TEST_F(TSortedChunkPoolNewKeysTest, TestTrickyCase3)
         {false, false, false});
     InitPrimaryComparator(2);
     InitForeignComparator(1);
-    DataSizePerJob_ = 10_KB;
+    DataWeightPerJob_ = 10_KB;
     InitJobConstraints();
 
     auto chunkA = CreateChunk(BuildRow({2}), BuildRow({2}), 0, 1_KB / 10);
@@ -2768,7 +2744,7 @@ TEST_F(TSortedChunkPoolNewKeysTest, TestTrickyCase4)
         {false, false, false},
         {false, false, false});
     InitPrimaryComparator(3);
-    DataSizePerJob_ = 10_KB;
+    DataWeightPerJob_ = 10_KB;
     InitJobConstraints();
     PrepareNewMock();
 
@@ -3026,7 +3002,7 @@ TEST_F(TSortedChunkPoolNewKeysTest, SliceByPrimaryDataSize)
         {true, false} /*isForeign*/,
         {false, false} /*isTeleportable*/,
         {false, false} /*isVersioned*/);
-    DataSizePerJob_ = 10_KB;
+    DataWeightPerJob_ = 10_KB;
     PrimaryDataWeightPerJob_ = 1_KB;
     InitPrimaryComparator(1);
     InitForeignComparator(1);
@@ -3066,7 +3042,7 @@ TEST_F(TSortedChunkPoolNewKeysTest, ExtractByDataSize)
         {false} /*isTeleportable*/,
         {false} /*isVersioned*/);
     InitPrimaryComparator(1);
-    DataSizePerJob_ = 1;
+    DataWeightPerJob_ = 1;
     auto chunkA1 = CreateChunk(BuildRow({0}), BuildRow({5}), 0, 10_KB);
     auto chunkA2 = CreateChunk(BuildRow({6}), BuildRow({10}), 0, 5_KB);
     auto chunkA3 = CreateChunk(BuildRow({11}), BuildRow({15}), 0, 15_KB);
@@ -3105,7 +3081,7 @@ TEST_F(TSortedChunkPoolNewKeysTest, MaximumDataWeightPerJobViolation)
         {false, false} /*isTeleportable*/,
         {false, false} /*isVersioned*/);
     InitPrimaryComparator(1);
-    DataSizePerJob_ = 5_KB;
+    DataWeightPerJob_ = 5_KB;
     auto chunkA1 = CreateChunk(BuildRow({0}), BuildRow({5}), 0, 7_KB);
     auto chunkB1 = CreateChunk(BuildRow({3}), BuildRow({8}), 0, 7_KB);
 
@@ -3127,7 +3103,7 @@ TEST_F(TSortedChunkPoolNewKeysTest, SingletonTeleportSingleton)
         {false, true} /*isTeleportable*/,
         {false, false} /*isVersioned*/);
     InitPrimaryComparator(1);
-    DataSizePerJob_ = 100_KB;
+    DataWeightPerJob_ = 100_KB;
     Options_.MinTeleportChunkSize = 0;
     InitJobConstraints();
     PrepareNewMock();
@@ -3168,7 +3144,7 @@ TEST_F(TSortedChunkPoolNewKeysTest, CartesianProductViaJoinReduce)
         {false, false} /*isVersioned*/);
     InitPrimaryComparator(1);
     InitForeignComparator(1);
-    DataSizePerJob_ = Inf64;
+    DataWeightPerJob_ = Inf64;
     PrimaryDataWeightPerJob_ = 10_KB;
     std::vector<TInputChunkPtr> chunks;
     for (int index = 0; index < 1000; ++index) {
@@ -3277,7 +3253,7 @@ TEST_F(TSortedChunkPoolNewKeysTest, TwoTablesWithoutKeyGuarantee)
         {false, false} /*isTeleportable*/,
         {false, false} /*isVersioned*/);
     InitPrimaryComparator(1);
-    DataSizePerJob_ = 1_KB;
+    DataWeightPerJob_ = 1_KB;
     InitJobConstraints();
 
     auto chunkA1 = CreateChunk(BuildRow({1}), BuildRow({2}), 0, 2_KB);
@@ -3307,9 +3283,9 @@ TEST_F(TSortedChunkPoolNewKeysTest, Sampling)
         {false} /*isTeleportable*/,
         {false} /*isVersioned*/);
     InitPrimaryComparator(1);
-    DataSizePerJob_ = 1;
+    DataWeightPerJob_ = 1;
     SamplingRate_ = 0.5;
-    SamplingDataWeightPerJob_ = DataSizePerJob_;
+    SamplingDataWeightPerJob_ = DataWeightPerJob_;
     InitJobConstraints();
 
     CreateChunkPool();
@@ -3345,7 +3321,7 @@ TEST_F(TSortedChunkPoolNewKeysTest, SamplingWithEnlarging)
         {false} /*isTeleportable*/,
         {false} /*isVersioned*/);
     InitPrimaryComparator(1);
-    DataSizePerJob_ = 10_KB;
+    DataWeightPerJob_ = 10_KB;
     SamplingRate_ = 0.5;
     SamplingDataWeightPerJob_ = 1;
     InitJobConstraints();
@@ -3384,7 +3360,7 @@ TEST_F(TSortedChunkPoolNewKeysTest, EnlargingWithTeleportation)
         {false, false} /*isVersioned*/);
     InitPrimaryComparator(1);
     Options_.MinTeleportChunkSize = 0;
-    DataSizePerJob_ = 10_KB;
+    DataWeightPerJob_ = 10_KB;
     SamplingRate_ = 1.0;
     SamplingDataWeightPerJob_ = 10_KB;
     InitJobConstraints();
@@ -3410,7 +3386,7 @@ TEST_F(TSortedChunkPoolNewKeysTest, TrickySliceSortOrder)
         {false} /*isTeleportable*/,
         {false} /*isVersioned*/);
     InitPrimaryComparator(1);
-    DataSizePerJob_ = 10_KB;
+    DataWeightPerJob_ = 10_KB;
     InitJobConstraints();
 
     PrepareNewMock();
@@ -3472,7 +3448,7 @@ TEST_F(TSortedChunkPoolNewKeysTest, TrickySliceSortOrder2)
         {false} /*isTeleportable*/,
         {false} /*isVersioned*/);
     InitPrimaryComparator(1);
-    DataSizePerJob_ = 10_KB;
+    DataWeightPerJob_ = 10_KB;
     InitJobConstraints();
 
     PrepareNewMock();
@@ -3619,7 +3595,7 @@ TEST_F(TSortedChunkPoolNewKeysTest, RowSlicingCorrectnessCustom)
         const int contiguousChunkWidth = 100;
         const int jobCount = 100;
 
-        DataSizePerJob_ = contiguousChunkCount * 100_KB / jobCount;
+        DataWeightPerJob_ = contiguousChunkCount * 100_KB / jobCount;
         InitJobConstraints();
 
         std::vector<TLegacyDataSlicePtr> dataSlices;
@@ -3730,7 +3706,7 @@ TEST_F(TSortedChunkPoolNewKeysTest, RowSlicingCorrectnessStrong)
 
         int jobCount = std::uniform_int_distribution<int>(1, maxJobCount)(Gen_);
 
-        DataSizePerJob_ = totalSize / jobCount;
+        DataWeightPerJob_ = totalSize / jobCount;
         InitJobConstraints();
 
         CreateChunkPool();
@@ -3817,7 +3793,7 @@ TEST_P(TSortedChunkPoolNewKeysTestRandomized, JobDataWeightDistribution)
 
     const int JobCount = 100;
 
-    DataSizePerJob_ = totalDataWeight / JobCount;
+    DataWeightPerJob_ = totalDataWeight / JobCount;
     InitJobConstraints();
 
     CreateChunkPool();
@@ -3850,7 +3826,7 @@ TEST_P(TSortedChunkPoolNewKeysTestRandomized, VariousOperationsWithPoolTest)
         {false} /*isTeleportable*/,
         {false} /*isVersioned*/);
     InitPrimaryComparator(1);
-    DataSizePerJob_ = 1;
+    DataWeightPerJob_ = 1;
     InitJobConstraints();
 
     constexpr int maxChunkCount = 50;
@@ -3867,17 +3843,17 @@ TEST_P(TSortedChunkPoolNewKeysTestRandomized, VariousOperationsWithPoolTest)
 
     bool useMultiPool = get<1>(GetParam());
     int underlyingPoolCount = 0;
-    std::vector<IPersistentChunkPoolPtr> UnderlyingPools_;
+    std::vector<IPersistentChunkPoolPtr> underlyingPools;
     THashSet<int> pendingUnderlyingPoolIndexes;
 
     if (useMultiPool) {
         // Multi pool created of several sorted subpools.
         underlyingPoolCount = std::uniform_int_distribution<>(2, maxUnderlyingPoolCount)(Gen_);
-        UnderlyingPools_.reserve(underlyingPoolCount);
+        underlyingPools.reserve(underlyingPoolCount);
         for (int poolIndex = 0; poolIndex < underlyingPoolCount; ++poolIndex) {
             Options_.SortedJobOptions.PrimaryComparator = PrimaryComparator_;
             Options_.SortedJobOptions.ForeignComparator = ForeignComparator_;
-            UnderlyingPools_.push_back(CreateNewSortedChunkPool(
+            underlyingPools.push_back(CreateNewSortedChunkPool(
                 Options_,
                 nullptr,
                 TInputStreamDirectory(InputTables_)));
@@ -3885,7 +3861,7 @@ TEST_P(TSortedChunkPoolNewKeysTestRandomized, VariousOperationsWithPoolTest)
                 pendingUnderlyingPoolIndexes.insert(poolIndex);
             }
         }
-        MultiChunkPool_ = CreateMultiChunkPool({UnderlyingPools_[0]});
+        MultiChunkPool_ = CreateMultiChunkPool({underlyingPools[0]});
         ChunkPool_ = MultiChunkPool_;
         ChunkPool_->SubscribeChunkTeleported(
             BIND([this] (TInputChunkPtr teleportChunk, std::any /*tag*/) {
@@ -4162,7 +4138,7 @@ TEST_P(TSortedChunkPoolNewKeysTestRandomized, VariousOperationsWithPoolTest)
                 auto poolIndex = *chooseRandomElement(pendingUnderlyingPoolIndexes);
                 pendingUnderlyingPoolIndexes.erase(poolIndex);
                 Cdebug << Format("Adding pool %v to multi pool", poolIndex) << Endl;
-                MultiChunkPool_->AddPool(UnderlyingPools_[poolIndex], poolIndex);
+                MultiChunkPool_->AddPool(underlyingPools[poolIndex], poolIndex);
                 for (const auto& stripe : stripesByPoolIndex[poolIndex]) {
                     registerStripe(stripe);
                 }
@@ -4173,7 +4149,7 @@ TEST_P(TSortedChunkPoolNewKeysTestRandomized, VariousOperationsWithPoolTest)
     if (useMultiPool) {
         // Add empty underlying pools.
         for (auto poolIndex : pendingUnderlyingPoolIndexes) {
-            MultiChunkPool_->AddPool(UnderlyingPools_[poolIndex], poolIndex);
+            MultiChunkPool_->AddPool(underlyingPools[poolIndex], poolIndex);
             MultiChunkPool_->FinishPool(poolIndex);
         }
         MultiChunkPool_->Finalize();

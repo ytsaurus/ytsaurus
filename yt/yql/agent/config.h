@@ -59,6 +59,7 @@ public:
     TString NetworkProject;
     bool CanUseComputeActor;
     bool EnforceJobUtc;
+    bool UseLocalLDLibraryPath;
 
     REGISTER_YSON_STRUCT(TDQYTBackend);
 
@@ -109,6 +110,18 @@ DEFINE_REFCOUNTED_TYPE(TDQManagerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TAdditionalSystemLib
+    : public NYTree::TYsonStruct
+{
+    TString File;
+
+    REGISTER_YSON_STRUCT(TAdditionalSystemLib);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TAdditionalSystemLib)
+
 struct TYqlPluginConfig
     : public NYTree::TYsonStruct
 {
@@ -137,6 +150,8 @@ struct TYqlPluginConfig
 
     //! Path to libyqlplugin.so. Ignored when built with -DYQL_NATIVE=yes.
     std::optional<TString> YqlPluginSharedLibrary;
+
+    std::vector<TAdditionalSystemLibPtr> AdditionalSystemLibs;
 
     REGISTER_YSON_STRUCT(TYqlPluginConfig);
 

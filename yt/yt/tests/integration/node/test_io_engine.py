@@ -290,6 +290,43 @@ class TestIoEngine(YTEnvSetup):
 
         write_table("//tmp/test", ys)
 
+    def _run_throttled_writes_with_probing(self, delta, need_throttle):
+        nodes = ls("//sys/cluster_nodes")
+
+        def seed_counter(node, path):
+            return profiler_factory().at_node(node).counter(path)
+
+        update_nodes_dynamic_config(delta)
+        counters = [seed_counter(node, "location/throttled_probing_writes") for node in nodes]
+
+        responses = []
+        for i in range(10):
+            responses.append(write_table("//tmp/test", [{"key": "x"}], return_response=True))
+
+        if need_throttle:
+            wait(lambda: any(counter.get_delta() > 0 for counter in counters))
+        else:
+            wait(lambda: all(counter.get_delta() == 0 for counter in counters))
+
+        update_nodes_dynamic_config({
+            "data_node": {
+                "store_location_config_per_medium": {
+                    "default": {
+                        "memory_limit_fraction_for_starting_new_sessions": 1.0,
+                        "read_memory_limit": 10000000,
+                        "write_memory_limit": 10000000,
+                        "session_count_limit": 10000000,
+                    }
+                }
+            }
+        })
+
+        for i in range(10):
+            responses.append(write_table("//tmp/test2", [{"key": "x"}], return_response=True))
+
+        for response in responses:
+            response.wait()
+
     def _run_throttled(self, delta, is_read, need_throttle):
         nodes = ls("//sys/cluster_nodes")
 
@@ -323,6 +360,63 @@ class TestIoEngine(YTEnvSetup):
 
         for response in responses:
             response.wait()
+
+    @authors("vvshlyaga")
+    def test_probe_put_blocks(self):
+        REPLICATION_FACTOR = self.NUM_NODES
+
+        create(
+            "table",
+            "//tmp/test",
+            attributes={
+                "primary_medium": "default",
+                "replication_factor": REPLICATION_FACTOR,
+                "chunk_writer": {
+                    "use_probe_put_blocks": True,
+                },
+            })
+
+        create(
+            "table",
+            "//tmp/test2",
+            attributes={
+                "primary_medium": "default",
+                "replication_factor": REPLICATION_FACTOR,
+                "chunk_writer": {
+                    "use_probe_put_blocks": True,
+                },
+            })
+
+        self._run_throttled_writes_with_probing({
+            "data_node": {
+                "store_location_config_per_medium": {
+                    "default": {
+                        "memory_limit_fraction_for_starting_new_sessions": 0,
+                        "write_memory_limit": -1,
+                        "probe_put_blocks_check_tick_period": 5,
+                    }
+                }
+            }
+        }, True)
+
+        self._run_throttled_writes_with_probing({
+            "data_node": {
+                "store_location_config_per_medium": {
+                    "default": {
+                        "write_memory_limit": -1,
+                        "probe_put_blocks_check_tick_period": 5,
+                    }
+                }
+            }
+        }, True)
+
+        self._run_throttled_writes_with_probing({
+            "data_node": {
+                "store_location_config_per_medium": {
+                    "default": {}
+                }
+            }
+        }, False)
 
     @authors("don-dron")
     def test_location_limits(self):

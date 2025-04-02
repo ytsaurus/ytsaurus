@@ -131,6 +131,12 @@ void TDynamicCypressManagerConfig::Register(TRegistrar registrar)
     registrar.Parameter("use_proper_branched_parent_in_lock_copy_destination", &TThis::UseProperBranchedParentInLockCopyDestination)
         .Default(true);
 
+    registrar.Parameter("default_optimize_for", &TThis::DefaultOptimizeFor)
+        .Default(NTableClient::EOptimizeFor::Lookup);
+
+    registrar.Parameter("default_dynamic_table_optimize_for", &TThis::DefaultDynamicTableOptimizeFor)
+        .Default(NTableClient::EOptimizeFor::Scan);
+
     registrar.Postprocessor([] (TThis* config) {
         NJournalClient::ValidateJournalAttributes(
             config->DefaultJournalErasureCodec,

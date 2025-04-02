@@ -1143,6 +1143,41 @@ std::unique_ptr<IInputStream> TRpcRawClient::ReadTable(
     return CreateSyncAdapter(CreateCopyingAdapter(std::move(rowsStream)));
 }
 
+std::unique_ptr<IInputStream> TRpcRawClient::ReadTablePartition(
+    const TString& cookie,
+    const TMaybe<TFormat>& format,
+    const TTablePartitionReaderOptions& options)
+{
+    auto* clientBase = VerifyDynamicCast<NApi::NRpcProxy::TClientBase*>(Client_.Get());
+
+    auto proxy = clientBase->CreateApiServiceProxy();
+
+    auto req = proxy.ReadTablePartition();
+    clientBase->InitStreamingRequest(*req);
+
+    req->set_cookie(cookie);
+
+    auto apiOptions = SerializeOptionsForReadTablePartition(options);
+
+    if (format) {
+        req->set_desired_rowset_format(NApi::NRpcProxy::NProto::RF_FORMAT);
+        req->set_format(NYson::TYsonString(NodeToYsonString(format->Config, NYson::EYsonFormat::Text)).ToString());
+    }
+
+    auto future = NRpc::CreateRpcClientInputStream(std::move(req));
+    auto stream = WaitAndProcess(future);
+
+    auto metaRef = WaitFor(stream->Read()).ValueOrThrow();
+
+    NApi::NRpcProxy::NProto::TRspReadTablePartitionMeta meta;
+    if (!TryDeserializeProto(&meta, metaRef)) {
+        THROW_ERROR_EXCEPTION("Failed to deserialize table reader meta information");
+    }
+
+    auto rowsStream = New<TTableRowsStream>(std::move(stream));
+    return CreateSyncAdapter(CreateCopyingAdapter(std::move(rowsStream)));
+}
+
 std::unique_ptr<IInputStream> TRpcRawClient::ReadBlobTable(
     const TTransactionId& transactionId,
     const TRichYPath& path,

@@ -94,6 +94,8 @@ struct ITransactionManager
         TTransactionId transactionId,
         bool pingAncestors) = 0;
 
+    virtual ETransactionState GetTransactionStateOrThrow(TTransactionId transactionId) = 0;
+
     //! These methods allows to override Commit and Abort RPC calls for some
     //! of the transactions (for example, Cypress transactions that does not require
     //! 2PC for commit).

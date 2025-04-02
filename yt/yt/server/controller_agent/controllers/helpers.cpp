@@ -25,6 +25,7 @@
 #include <yt/yt/client/table_client/row_buffer.h>
 #include <yt/yt/client/table_client/timestamped_schema_helpers.h>
 
+#include <util/string/builder.h>
 #include <util/string/split.h>
 
 namespace NYT::NControllerAgent::NControllers {
@@ -295,6 +296,7 @@ void SafeUpdateAggregatedJobStatistics(
 
 TDockerImageSpec::TDockerImageSpec(const TString& dockerImage, const TDockerRegistryConfigPtr& config)
 {
+    const auto& internalRegistries = config->InternalRegistryAlternativeAddresses;
     TStringBuf imageRef;
     TStringBuf imageTag;
 
@@ -303,10 +305,12 @@ TDockerImageSpec::TDockerImageSpec(const TString& dockerImage, const TDockerRegi
     if (!StringSplitter(dockerImage).Split('/').Limit(2).TryCollectInto(&Registry, &imageRef) ||
         Registry.find_first_of(".:") == TString::npos)
     {
-        Registry = "";
+        // Use main internal registry address.
+        Registry = config->InternalRegistryAddress.value_or("");
+        IsInternal = true;
         imageRef = dockerImage;
-    } else if (Registry == config->InternalRegistryAddress) {
-        Registry = "";
+    } else if (std::ranges::find(internalRegistries, Registry) != internalRegistries.end()) {
+        IsInternal = true;
     }
 
     if (!StringSplitter(imageRef).Split('@').Limit(2).TryCollectInto(&imageTag, &Digest)) {
@@ -322,9 +326,26 @@ TDockerImageSpec::TDockerImageSpec(const TString& dockerImage, const TDockerRegi
     }
 }
 
-bool TDockerImageSpec::IsInternal() const
+TString TDockerImageSpec::GetDockerImage() const
 {
-    return Registry.empty();
+    TStringBuilder reference;
+
+    reference.Preallocate(Registry.length() + Image.length() + Tag.length() + Digest.length() + 3);
+    if (Registry != "") {
+        reference.AppendString(Registry);
+        reference.AppendChar('/');
+    }
+    reference.AppendString(Image);
+    if (Tag != "") {
+        reference.AppendChar(':');
+        reference.AppendString(Tag);
+    }
+    if (Digest != "") {
+        reference.AppendChar('@');
+        reference.AppendString(Digest);
+    }
+
+    return reference.Flush();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

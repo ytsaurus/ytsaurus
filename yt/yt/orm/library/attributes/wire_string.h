@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <yt/yt/core/yson/protobuf_interop_options.h>
+#include <yt/yt/core/yson/protobuf_interop.h>
 
 #include <yt/yt/core/ypath/public.h>
 
@@ -21,6 +21,7 @@ public:
     TWireStringPart();
     TWireStringPart(const ui8* data, size_t size);
 
+    bool IsEmpty() const;
     std::span<const ui8> AsSpan() const;
     std::string_view AsStringView() const;
     static TWireStringPart FromStringView(std::string_view view);
@@ -58,32 +59,86 @@ public:
 
     bool operator==(const TWireString& other) const;
 
+    int ByteLength() const;
+    bool IsEmpty() const;
+
+    void HeadAsHex(TStringBuilderBase* stringBuilder, std::optional<int> maxSize) const;
+
+    // Explicit conversion to human-readable format.
+    // Overriding `Format()` is less preferable, because implicit conversion
+    // and treating as wire string may result in silent data corruption.
+    std::string PrettyPrint() const;
+
     TWireStringPart LastOrEmptyPart() const;
+
+    // Splits wire string and groups by field number.
+    // For field numbers in `extractValuesFor` resulting parts
+    // will not contain tag in the beginning.
+    THashMap<int, TWireString> Unpack(
+        const NProtoBuf::Descriptor* descriptor,
+        const THashSet<int>& extractValuesFor = {}) const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
 // Returns whether parsing was successful.
 // NB! Caller should guarantee that provided element type refers to appropriate
-// cpp type (e.g. FieldDescriptor::TYPE_UINT32 is valid argument for ParseUint64, but not others).
+// cpp type (e.g. FieldDescriptor::TYPE_UINT32 is valid argument for ParseUint(32|64), but not others).
+bool ParseUint32(ui32* value, NYson::TProtobufElementType type, TWireStringPart wireStringPart);
 bool ParseUint64(ui64* value, NYson::TProtobufElementType type, TWireStringPart wireStringPart);
+bool ParseInt32(i32* value, NYson::TProtobufElementType type, TWireStringPart wireStringPart);
 bool ParseInt64(i64* value, NYson::TProtobufElementType type, TWireStringPart wireStringPart);
 bool ParseDouble(double* value, NYson::TProtobufElementType type, TWireStringPart wireStringPart);
 bool ParseBoolean(bool* value, NYson::TProtobufElementType type, TWireStringPart wireStringPart);
+
+std::pair<TWireStringPart, TWireStringPart> ParseKeyValuePair(TWireStringPart wireStringPart);
+NYTree::IAttributeDictionaryPtr ParseAttributeDictionary(const TWireString& wireString);
 
 std::string SerializeUint64(ui64 value, NYson::TProtobufElementType type);
 std::string SerializeInt64(i64 value, NYson::TProtobufElementType type);
 std::string SerializeDouble(double value, NYson::TProtobufElementType type);
 std::string SerializeBoolean(bool value, NYson::TProtobufElementType type);
 
+std::string SerializeKeyValuePair(
+    TWireStringPart key,
+    NYson::TProtobufElementType keyType,
+    const TWireString& value,
+    NYson::TProtobufElementType valueType);
+
 std::string SerializeAttributeDictionary(const NYTree::IAttributeDictionary& attributeDictionary);
 std::string SerializeMessage(
     const NYTree::INodePtr& message,
     const NYson::TProtobufMessageType* messageType,
     NYson::TProtobufWriterOptions options = {});
+std::string SerializeMessage(
+    const NYson::TYsonString& message,
+    const NYson::TProtobufMessageType* messageType,
+    NYson::TProtobufWriterOptions options);
 
 ////////////////////////////////////////////////////////////////////////////////
 
+std::string ConvertMapKeyToWireString(
+    std::string_view key,
+    const NYson::TProtobufScalarElement& scalarElement);
+std::string ConvertScalarToWireString(
+    const NYTree::INodePtr& value,
+    const NYson::TProtobufScalarElement& scalarElement);
+std::vector<std::string> ConvertToWireString(
+    const NYTree::INodePtr& value,
+    const NYson::TProtobufElement& element,
+    const NYson::TProtobufWriterOptions& options = {});
+
+std::string AddWireTag(
+    const NYson::TProtobufMessageType* messageType,
+    std::string_view fieldName,
+    const TString& serializedMessage);
+
+TWireString FlattenCopyWireStringTo(TString* buffer, const TWireString& wireString);
+TWireString FlattenCopyWireStringTo(std::string* buffer, const TWireString& wireString);
+
+////////////////////////////////////////////////////////////////////////////////
+
+void MergeMessageFrom(NProtoBuf::MessageLite* message, TWireStringPart wireStringPart);
 void MergeMessageFrom(NProtoBuf::MessageLite* message, const TWireString& wireString);
 
 ////////////////////////////////////////////////////////////////////////////////

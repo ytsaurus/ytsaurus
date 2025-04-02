@@ -116,6 +116,9 @@ struct IQueueExporter
     virtual void Stop() = 0;
 
     virtual void BuildOrchidYson(NYTree::TFluentAny fluent) const = 0;
+
+    // COMPAT(apachee): To differentiate old and new implementation.
+    virtual EQueueExporterImplementation GetImplementationType() const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IQueueExporter)

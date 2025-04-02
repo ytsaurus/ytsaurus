@@ -121,7 +121,9 @@ public abstract class RetryPolicy {
         public Optional<Duration> getBackoffDuration(Throwable error, RpcOptions options) {
             boolean isRetriable;
 
-            if (error instanceof TimeoutException) {
+            if (error instanceof TimeoutException ||
+                    (error instanceof YTsaurusError &&
+                            ((YTsaurusError) error).matches(YTsaurusErrorCode.Timeout.getCode()))) {
                 isRetriable = oldPolicy.onTimeout();
             } else {
                 isRetriable = oldPolicy.onError(error);
@@ -148,7 +150,8 @@ public abstract class RetryPolicy {
                 YTsaurusErrorCode.TooManyOperations.getCode(),
                 YTsaurusErrorCode.TransportError.getCode(),
                 YTsaurusErrorCode.OperationProgressOutdated.getCode(),
-                YTsaurusErrorCode.Canceled.getCode()
+                YTsaurusErrorCode.Canceled.getCode(),
+                YTsaurusErrorCode.Timeout.getCode()
         ));
 
         private static final HashSet CHUNK_NOT_RETRIABLE_CODES = new HashSet<>(Arrays.asList(

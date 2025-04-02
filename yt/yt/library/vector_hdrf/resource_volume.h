@@ -51,6 +51,12 @@ TResourceVolume operator - (const TResourceVolume& lhs, const TResourceVolume& r
 TResourceVolume operator * (const TResourceVolume& lhs, double rhs);
 TResourceVolume operator / (const TResourceVolume& lhs, double rhs);
 
+void Serialize(const TResourceVolume& volume, NYson::IYsonConsumer* consumer);
+void Deserialize(TResourceVolume& volume, NYTree::INodePtr node);
+void Deserialize(TResourceVolume& volume, NYson::TYsonPullParserCursor* cursor);
+
+void FormatValue(TStringBuilderBase* builder, const TResourceVolume& volume, TStringBuf /*spec*/);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NVectorHdrf

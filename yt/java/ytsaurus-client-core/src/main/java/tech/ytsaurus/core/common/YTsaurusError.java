@@ -141,9 +141,7 @@ public class YTsaurusError extends RuntimeException {
 
     public boolean isUnrecoverable() {
         int code = error.getCode();
-        return code == YTsaurusErrorCode.Timeout.code ||
-                // COMPAT(babenko): drop ProxyBanned in favor of PeerBanned
-                code == YTsaurusErrorCode.ProxyBanned.code ||
+        return code == YTsaurusErrorCode.ProxyBanned.code || // COMPAT(babenko): drop ProxyBanned in favor of PeerBanned
                 code == YTsaurusErrorCode.PeerBanned.code ||
                 code == YTsaurusErrorCode.TransportError.code ||
                 code == YTsaurusErrorCode.Unavailable.code ||

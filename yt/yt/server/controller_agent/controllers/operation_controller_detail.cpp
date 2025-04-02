@@ -10178,13 +10178,13 @@ void TOperationControllerBase::InitUserJobSpecTemplate(
 
     jobSpec->set_start_queue_consumer_registration_manager(jobSpecConfig->StartQueueConsumerRegistrationManager);
 
-    // Pass external docker image into job spec as is.
+    // Pass normalized docker image reference into job spec.
     if (jobSpecConfig->DockerImage) {
         TDockerImageSpec dockerImageSpec(*jobSpecConfig->DockerImage, Config->DockerRegistry);
-        if (!dockerImageSpec.IsInternal() || Config->DockerRegistry->ForwardInternalImagesToJobSpecs) {
-            jobSpec->set_docker_image(*jobSpecConfig->DockerImage);
+        if (!dockerImageSpec.IsInternal || Config->DockerRegistry->ForwardInternalImagesToJobSpecs) {
+            jobSpec->set_docker_image(dockerImageSpec.GetDockerImage());
         }
-        if (dockerImageSpec.IsInternal() && Config->DockerRegistry->UseYtTokenForInternalRegistry) {
+        if (dockerImageSpec.IsInternal && Config->DockerRegistry->UseYtTokenForInternalRegistry) {
             GenerateDockerAuthFromToken(SecureVault, AuthenticatedUser, jobSpec);
         }
     }
@@ -11296,7 +11296,7 @@ std::vector<TRichYPath> TOperationControllerBase::GetLayerPaths(
         TDockerImageSpec dockerImage(*userJobSpec->DockerImage, Config->DockerRegistry);
 
         // External docker images are not compatible with any additional layers.
-        if (!dockerImage.IsInternal() || !Config->DockerRegistry->TranslateInternalImagesIntoLayers) {
+        if (!dockerImage.IsInternal || !Config->DockerRegistry->TranslateInternalImagesIntoLayers) {
             return {};
         }
 

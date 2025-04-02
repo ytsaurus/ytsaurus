@@ -39,6 +39,8 @@ message TReqModifyReplicas
     // when dynamic config changes between transaction submission and commit.
     optional bool enable_chunk_refresh = 7;
     optional bool enable_sequoia_chunk_refresh = 8;
+
+    optional bool is_incremental_heartbeat = 9;
 }
 
 message TRspModifyReplicas

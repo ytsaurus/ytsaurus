@@ -2,7 +2,7 @@ GO_LIBRARY()
 
 LICENSE(Apache-2.0)
 
-VERSION(v1.63.2)
+VERSION(v1.69.4)
 
 SRCS(
     backoff.go
@@ -14,14 +14,13 @@ SRCS(
     doc.go
     interceptor.go
     picker_wrapper.go
-    pickfirst.go
     preloader.go
     resolver_wrapper.go
     rpc_util.go
     server.go
     service_config.go
-    shared_buffer_pool.go
     stream.go
+    stream_interfaces.go
     trace.go
     trace_withtrace.go
     version.go
@@ -40,11 +39,11 @@ GO_TEST_SRCS(
     rpc_util_test.go
     server_test.go
     service_config_test.go
-    shared_buffer_pool_test.go
     trace_test.go
 )
 
 GO_XTEST_SRCS(
+    producer_ext_test.go
     resolver_balancer_ext_test.go
     server_ext_test.go
     stream_test.go
@@ -72,6 +71,7 @@ RECURSE(
     internal
     interop
     keepalive
+    mem
     metadata
     orca
     peer

@@ -323,10 +323,12 @@ TCompositeNeededResources TTask::GetTotalNeededResourcesDelta()
     // Increase maximum runnable jobs exponentially up to MaxRunnableJobCount.
     CurrentMaxRunnableJobCount_ = std::clamp(2 * CurrentMaxRunnableJobCount_, static_cast<i64>(1), MaxRunnableJobCount);
 
-    YT_LOG_DEBUG("Network bandwidth to all remote clusters is available, increase needed resources if necessary "
-        "(OldMaxRunnableJobCount: %v, NewMaxRunnableJobCount: %v)",
-        oldCurrentMaxRunnableJobCount,
-        CurrentMaxRunnableJobCount_);
+    if (oldCurrentMaxRunnableJobCount != CurrentMaxRunnableJobCount_) {
+        YT_LOG_DEBUG("Network bandwidth to all remote clusters is available, increase needed resources if necessary "
+            "(OldMaxRunnableJobCount: %v, NewMaxRunnableJobCount: %v)",
+            oldCurrentMaxRunnableJobCount,
+            CurrentMaxRunnableJobCount_);
+    }
 
     return TTask::GetTotalNeededResourcesDefaultDelta();
 }

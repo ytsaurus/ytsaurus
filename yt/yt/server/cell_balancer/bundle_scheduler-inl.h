@@ -8,6 +8,35 @@ namespace NYT::NCellBalancer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+template <class TSpareInstances>
+bool TSpareInstanceAllocator<TSpareInstances>::HasInstances(const std::string& zoneName, const std::string& dataCenterName) const
+{
+    if (!SpareInstances.contains(zoneName)) {
+        return false;
+    }
+    auto& dcToInfo = GetOrCrash(SpareInstances, zoneName);
+    if (!dcToInfo.contains(dataCenterName)) {
+        return false;
+    }
+    auto& info = GetOrCrash(dcToInfo, dataCenterName);
+    return !info.FreeInstances().empty();
+}
+
+template <typename TSpareInstances>
+std::string TSpareInstanceAllocator<TSpareInstances>::Allocate(const std::string& zoneName, const std::string& dataCenterName, const std::string& bundleName)
+{
+    YT_VERIFY(HasInstances(zoneName, dataCenterName));
+
+    auto& info = GetOrCrash(GetOrCrash(SpareInstances, zoneName), dataCenterName);
+    auto spareInstanceName = info.FreeInstances().back();
+    info.MutableFreeInstances().pop_back();
+    info.UsedByBundle[bundleName].push_back(spareInstanceName);
+
+    return spareInstanceName;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 template <class T>
 TBundleMutation<T> TSchedulerMutations::WrapMutation(T mutation)
 {

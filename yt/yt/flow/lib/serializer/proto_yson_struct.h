@@ -2,7 +2,7 @@
 
 #include <yt/yt/core/ytree/yson_struct.h>
 
-namespace NYT::NFlow {
+namespace NYT::NFlow::NYsonSerializer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
