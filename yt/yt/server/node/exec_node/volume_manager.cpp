@@ -1208,6 +1208,15 @@ private:
 
             YT_VERIFY(volumePath == mountPath);
 
+            auto volumeGuard = Finally([&volumePath, this] {
+                // Do not call ThrowOnError() since we do not want to throw while handling exception.
+                auto error = WaitFor(VolumeExecutor_->UnlinkVolume(volumePath, "self"));
+                if (!error.IsOK()) {
+                    YT_LOG_ERROR(error, "Failed to unlink volume (VolumePath: %v)", volumePath);
+                }
+                NFS::RemoveRecursive(volumePath);
+            });
+
             YT_LOG_INFO("Created volume (Tag: %v, Type: %v, VolumeId: %v, VolumeMountPath: %v)",
                 tag,
                 FromProto<EVolumeType>(volumeMeta.type()),
@@ -1237,6 +1246,10 @@ private:
 
             NFS::Rename(tempVolumeMetaFileName, volumeMetaFileName);
 
+            auto volumeMetaGuard = Finally([&volumeMetaFileName] {
+                NFS::Remove(volumeMetaFileName);
+            });
+
             YT_LOG_INFO("Created volume meta (Tag: %v, Type: %v, VolumeId: %v, MetaFileName: %v)",
                 tag,
                 FromProto<EVolumeType>(volumeMeta.type()),
@@ -1255,6 +1268,9 @@ private:
 
             TVolumeProfilerCounters::Get()->GetGauge(tagSet, "/count")
                 .Update(VolumeCounters().Increment(tagSet));
+
+            volumeGuard.Release();
+            volumeMetaGuard.Release();
 
             return volumeMeta;
         } catch (const std::exception& ex) {
