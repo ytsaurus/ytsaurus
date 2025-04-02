@@ -1203,18 +1203,25 @@ private:
 
             NFS::MakeDirRecursive(mountPath, 0755);
 
-            auto volumePath = WaitFor(VolumeExecutor_->CreateVolume(mountPath, volumeProperties))
+            auto path = WaitFor(VolumeExecutor_->CreateVolume(mountPath, volumeProperties))
                 .ValueOrThrow();
 
-            YT_VERIFY(volumePath == mountPath);
+            YT_VERIFY(path == mountPath);
 
-            auto volumeGuard = Finally([&volumePath, this] {
-                // Do not call ThrowOnError() since we do not want to throw while handling exception.
-                auto error = WaitFor(VolumeExecutor_->UnlinkVolume(volumePath, "self"));
-                if (!error.IsOK()) {
-                    YT_LOG_ERROR(error, "Failed to unlink volume (VolumePath: %v)", volumePath);
+            auto volumeGuard = Finally([&volumePath, &mountPath, this] {
+                try {
+                    WaitFor(VolumeExecutor_->UnlinkVolume(mountPath, "self")).ThrowOnError();
+                } catch (const std::exception& ex) {
+                    YT_LOG_ERROR(ex, "Failed to unlink volume (MountPath: %v)",
+                        mountPath);
                 }
-                NFS::RemoveRecursive(volumePath);
+
+                try {
+                    NFS::RemoveRecursive(volumePath);
+                } catch (const std::exception& ex) {
+                    YT_LOG_ERROR(ex, "Failed to remove volume path (VolumePath: %v)",
+                        volumePath);
+                }
             });
 
             YT_LOG_INFO("Created volume (Tag: %v, Type: %v, VolumeId: %v, VolumeMountPath: %v)",
@@ -1246,8 +1253,13 @@ private:
 
             NFS::Rename(tempVolumeMetaFileName, volumeMetaFileName);
 
-            auto volumeMetaGuard = Finally([&volumeMetaFileName] {
-                NFS::Remove(volumeMetaFileName);
+            auto volumeMetaGuard = Finally([&volumeMetaFileName, this] {
+                try {
+                    NFS::Remove(volumeMetaFileName);
+                } catch (const std::exception& ex) {
+                    YT_LOG_ERROR(ex, "Failed to remove volume meta (VolumeMetaPath: %v)",
+                        volumeMetaFileName);
+                }
             });
 
             YT_LOG_INFO("Created volume meta (Tag: %v, Type: %v, VolumeId: %v, MetaFileName: %v)",
