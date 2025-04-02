@@ -1,6 +1,5 @@
 #include "private.h"
 #include "fair_share_update.h"
-#include "resource_helpers.h"
 
 #include <yt/yt/core/ytree/fluent.h>
 

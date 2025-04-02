@@ -12,8 +12,6 @@
 
 #include <yt/yt/core/yson/null_consumer.h>
 
-#include <yt/yt/library/vector_hdrf/resource_helpers.h>
-
 #include <library/cpp/iterator/enumerate.h>
 
 #include <library/cpp/testing/gtest/gtest.h>
