@@ -515,14 +515,14 @@ Y_UNIT_TEST_SUITE(SqlCompleteTests) {
         }
         {
             TVector<TCandidate> expectedPrefix = {
-                {FunctionName, "Min"},
-                {FunctionName, "Max"},
-                {FunctionName, "MaxOf"},
-                {FunctionName, "MaxBy"},
-                {FunctionName, "MinBy"},
-                {FunctionName, "Math::Abs"},
-                {FunctionName, "Math::Acos"},
-                {FunctionName, "Math::Asin"},
+                {FunctionName, "Min("},
+                {FunctionName, "Max("},
+                {FunctionName, "MaxOf("},
+                {FunctionName, "MaxBy("},
+                {FunctionName, "MinBy("},
+                {FunctionName, "Math::Abs("},
+                {FunctionName, "Math::Acos("},
+                {FunctionName, "Math::Asin("},
             };
 
             auto actualPrefix = Complete(engine, {"SELECT m"});
