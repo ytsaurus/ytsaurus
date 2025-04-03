@@ -936,6 +936,10 @@ private:
         try {
             LookupCachedSubrequests();
 
+            // This shouldn't be done any sooner to avoid races between
+            // CancelPendingCachedSubrequests and LookupCachedSubrequests.
+            SubscribeToCancelation();
+
             // Re-check remote requests to see if resolve cache resolve is still OK.
             DecideSubrequestTypes();
 
@@ -952,6 +956,38 @@ private:
         } catch (const std::exception& ex) {
             Reply(ex);
         }
+    }
+
+    void SubscribeToCancelation()
+    {
+        RpcContext_->SubscribeCanceled(BIND(&TExecuteSession::OnCanceled, MakeWeak(this)));
+    }
+
+    void OnCanceled(const TError& error)
+    {
+        // Since RpcContext_->IsCanceled() is already true, this will not actually
+        // send a reply (see DoReply). Nevertheless, this is crucial for preventing
+        // the following.
+        //
+        // Two batch requests may depend on each other cyclically: the first one
+        // is subscribed, via cache, to a future the second one is responsible
+        // for setting, and vice versa. (This is possible because different batch
+        // requests do cache lookups and subsequent subscribing in parallel.)
+        //
+        // Such a cycle (which, btw, in practice may be of arbitrary length) is
+        // not necessarily bad. After all, the first future to be set will break
+        // the cycle. But currently there's a problem with backoff alarms
+        // (pending a fix in near future).
+        //
+        // When backoff alarm is triggered for a batch request, it will stop
+        // (after processing at least one subrequest) and will not process the
+        // tail of the batch. Normally, this is not an issue as the request is
+        // finished and destroyed soon after. However, if it's a part of a cycle
+        // (of the kind described above), all batch requests in the cycle may
+        // become stuck, each kept alive by a subscription to a future that will
+        // never be set because it's supposed to be set by a subrequest in the
+        // tail of the next batch request in the cycle.
+        Reply(error);
     }
 
     void MarkSubrequestLocal(TSubrequest* subrequest)
