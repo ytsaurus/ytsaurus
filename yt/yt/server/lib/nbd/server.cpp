@@ -151,6 +151,17 @@ public:
         return NameToDevice_.contains(name);
     }
 
+    IBlockDevicePtr GetDevice(const TString& name) const override
+    {
+        auto guard = ReaderGuard(NameToDeviceLock_);
+        auto it = NameToDevice_.find(name);
+        if (it == NameToDevice_.end()) {
+            return nullptr;
+        }
+
+        return it->second;
+    }
+
     const NLogging::TLogger& GetLogger() const override
     {
         return Logger;
@@ -502,8 +513,17 @@ private:
             auto offset = InetToHost(message.Offset);
             auto length = InetToHost(message.Length);
 
-            if (Server_->GetConfig()->TestAbortConnectionOnRead) {
-                YT_LOG_DEBUG("Aborting connection for testing purposes on NBD_CMD_READ request (Cookie: %x, Offset: %v, Length: %v, Flags: %v)",
+            if (Server_->GetConfig()->TestOptions->SetBlockDeviceErrorOnRead) {
+                YT_LOG_DEBUG("Set test error on NBD_CMD_READ request (Cookie: %x, Offset: %v, Length: %v, Flags: %v)",
+                    cookie,
+                    offset,
+                    length,
+                    flags);
+                Device_->SetError(TError("Test error on NBD_CMD_READ"));
+            }
+
+            if (Server_->GetConfig()->TestOptions->AbortConnectionOnRead) {
+                YT_LOG_DEBUG("Do test connection abortion on NBD_CMD_READ request (Cookie: %x, Offset: %v, Length: %v, Flags: %v)",
                     cookie,
                     offset,
                     length,
@@ -514,12 +534,23 @@ private:
             }
 
             if (offset + length > static_cast<ui64>(Device_->GetTotalSize())) {
-                YT_LOG_WARNING("Received an out-of-range NBD_CMD_READ request (Offset: %v, Length: %v, Size: %v)",
+                YT_LOG_WARNING("Received an out-of-range NBD_CMD_READ request (Cookie: %x, Offset: %v, Length: %v, Size: %v)",
+                    cookie,
                     offset,
                     length,
                     Device_->GetTotalSize());
                 WriteServerResponse(EServerError::NBD_EINVAL, cookie);
                 return;
+            }
+
+            if (Server_->GetConfig()->TestOptions->BlockDeviceSleepBeforeRead) {
+                YT_LOG_DEBUG("Do test sleep before NBD_CMD_READ request (Cookie: %x, Offset: %v, Length: %v, Duration: %v)",
+                    cookie,
+                    offset,
+                    length,
+                    Server_->GetConfig()->TestOptions->BlockDeviceSleepBeforeRead);
+
+                TDelayedExecutor::WaitForDuration(*Server_->GetConfig()->TestOptions->BlockDeviceSleepBeforeRead);
             }
 
             YT_LOG_DEBUG("Started serving NBD_CMD_READ request (Cookie: %x, Offset: %v, Length: %v, Flags: %v)",
@@ -534,6 +565,7 @@ private:
                         if (!result.IsOK()) {
                             YT_LOG_WARNING(result, "NBD_CMD_READ request failed (Cookie: %x)",
                                 cookie);
+                            Device_->SetError(result);
                             WriteServerResponse(EServerError::NBD_EIO, cookie);
                             return;
                         }
@@ -555,8 +587,29 @@ private:
             auto length = InetToHost(message.Length);
             auto payload = ReadBuffer(length);
 
+            if (Server_->GetConfig()->TestOptions->SetBlockDeviceErrorOnWrite) {
+                YT_LOG_DEBUG("Set test error on NBD_CMD_WRITE request (Cookie: %x, Offset: %v, Length: %v, Flags: %v)",
+                    cookie,
+                    offset,
+                    length,
+                    flags);
+                Device_->SetError(TError("Test error on NBD_CMD_WRITE"));
+            }
+
+            if (Server_->GetConfig()->TestOptions->AbortConnectionOnRead) {
+                YT_LOG_DEBUG("Do test connection abortion on NBD_CMD_WRITE request (Cookie: %x, Offset: %v, Length: %v, Flags: %v)",
+                    cookie,
+                    offset,
+                    length,
+                    flags);
+
+                Abort_ = true;
+                return;
+            }
+
             if (offset + length > static_cast<ui64>(Device_->GetTotalSize())) {
-                YT_LOG_WARNING("Received an out-of-range NBD_CMD_WRITE request (Offset: %v, Length: %v, Size: %v)",
+                YT_LOG_WARNING("Received an out-of-range NBD_CMD_WRITE request (Cookie: %x, Offset: %v, Length: %v, Size: %v)",
+                    cookie,
                     offset,
                     length,
                     Device_->GetTotalSize());
@@ -565,9 +618,19 @@ private:
             }
 
             if (Device_->IsReadOnly()) {
-                YT_LOG_WARNING("Received NBD_CMD_WRITE request for a read-only device");
+                YT_LOG_WARNING("Received NBD_CMD_WRITE request for a read-only device (Cookie: %x)", cookie);
                 WriteServerResponse(EServerError::NBD_EPERM, cookie);
                 return;
+            }
+
+            if (Server_->GetConfig()->TestOptions->BlockDeviceSleepBeforeWrite) {
+                YT_LOG_DEBUG("Do test sleep before NBD_CMD_WRITE request (Cookie: %x, Offset: %v, Length: %v, Duration: %v)",
+                    cookie,
+                    offset,
+                    length,
+                    Server_->GetConfig()->TestOptions->BlockDeviceSleepBeforeWrite);
+
+                TDelayedExecutor::WaitForDuration(*Server_->GetConfig()->TestOptions->BlockDeviceSleepBeforeWrite);
             }
 
             YT_LOG_DEBUG("Started serving NBD_CMD_WRITE request (Cookie: %x, Offset: %v, Length: %v, Flags: %v)",
@@ -587,11 +650,12 @@ private:
                         if (!error.IsOK()) {
                             YT_LOG_WARNING(error, "NBD_CMD_WRITE request failed (Cookie: %x)",
                                 cookie);
+                            Device_->SetError(error);
                             WriteServerResponse(EServerError::NBD_EIO, cookie);
                             return;
                         }
 
-                        YT_LOG_DEBUG("Finished serving NBD_CMD_READ request (Cookie: %x)",
+                        YT_LOG_DEBUG("Finished serving NBD_CMD_WRITE request (Cookie: %x)",
                             cookie);
 
                         WriteServerResponse(EServerError::NBD_OK, cookie);
@@ -700,6 +764,15 @@ private:
                     if (Device_) {
                         strTagSet = Device_->GetProfileSensorTag();
                         tagSet = TNbdProfilerCounters::MakeTagSet(strTagSet);
+
+                        if (!Abort_) {
+                            Device_->SetError(TError("Connection has been closed without NBD_CMD_DISC"));
+                        }
+
+                        YT_LOG_DEBUG("Connection has been closed by the peer (Abort: %v, DevicDebugString: %v, DeviceError: %v)",
+                            Abort_,
+                            Device_->DebugString(),
+                            Device_->GetError());
                     }
                     TNbdProfilerCounters::Get()->GetCounter(tagSet, "/server/request/zero_read_buffer").Increment(1);
                     THROW_ERROR_EXCEPTION("Read returned zero bytes")

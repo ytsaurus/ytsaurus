@@ -32,6 +32,8 @@ struct INbdServer
 
     virtual bool IsDeviceRegistered(const TString& name) const = 0;
 
+    virtual IBlockDevicePtr GetDevice(const TString& name) const = 0;
+
     virtual const NLogging::TLogger& GetLogger() const = 0;
 
     virtual NApi::NNative::IConnectionPtr GetConnection() const = 0;

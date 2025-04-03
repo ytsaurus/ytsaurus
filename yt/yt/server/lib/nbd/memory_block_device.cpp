@@ -6,7 +6,7 @@ namespace NYT::NNbd {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TMemoryBlockDevice
-    : public IBlockDevice
+    : public TBaseBlockDevice
 {
 public:
     explicit TMemoryBlockDevice(TMemoryBlockDeviceConfigPtr config)

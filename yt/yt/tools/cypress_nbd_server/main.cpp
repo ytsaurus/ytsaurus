@@ -318,7 +318,6 @@ protected:
                 logger);
 
             auto config = New<TFileSystemBlockDeviceConfig>();
-            config->TestSleepBeforeRead = exportConfig->TestSleepBeforeRead;
 
             auto device = CreateFileSystemBlockDevice(
                 exportId,

@@ -12,9 +12,6 @@ class TFileSystemBlockDeviceConfig
     : public NYTree::TYsonStruct
 {
 public:
-    // For testing purposes: how long to sleep before read request
-    TDuration TestSleepBeforeRead;
-
     REGISTER_YSON_STRUCT(TFileSystemBlockDeviceConfig);
 
     static void Register(TRegistrar registrar);
@@ -92,19 +89,37 @@ DEFINE_REFCOUNTED_TYPE(TUdsConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TNbdTestOptions
+    : public NYTree::TYsonStruct
+{
+    std::optional<TDuration> BlockDeviceSleepBeforeRead;
+    std::optional<TDuration> BlockDeviceSleepBeforeWrite;
+    bool SetBlockDeviceErrorOnRead;
+    bool SetBlockDeviceErrorOnWrite;
+    bool AbortConnectionOnRead;
+    bool AbortConnectionOnWrite;
+
+    REGISTER_YSON_STRUCT(TNbdTestOptions);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TNbdTestOptions)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TNbdServerConfig
     : public NYTree::TYsonStruct
 {
 public:
     TIdsConfigPtr InternetDomainSocket;
     TUdsConfigPtr UnixDomainSocket;
-    // For testing purposes: how long to sleep before read request
-    TDuration TestBlockDeviceSleepBeforeRead;
-    // For testing purposes: abort connection on read request
-    bool TestAbortConnectionOnRead;
 
     int ThreadCount;
     i64 BlockCacheCompressedDataCapacity;
+
+    // For testing purposes.
+    TNbdTestOptionsPtr TestOptions;
 
     REGISTER_YSON_STRUCT(TNbdServerConfig);
 

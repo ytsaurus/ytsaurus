@@ -139,35 +139,6 @@ IImageReaderPtr CreateCypressFileImageReader(
         std::move(logger));
 }
 
-IBlockDevicePtr CreateFileSystemBlockDevice(
-    TNbdConfigPtr nbdConfig,
-    IImageReaderPtr reader,
-    TString exportId,
-    IInvokerPtr invoker,
-    const TLogger& logger)
-{
-    YT_LOG_INFO("Creating file system block device (Path: %v, ExportId: %v, Size: %v)",
-        reader->GetPath(),
-        exportId,
-        reader->GetSize());
-
-    auto config = New<TFileSystemBlockDeviceConfig>();
-    config->TestSleepBeforeRead = nbdConfig->Server->TestBlockDeviceSleepBeforeRead;
-
-    auto device = CreateFileSystemBlockDevice(
-        std::move(exportId),
-        std::move(config),
-        std::move(reader),
-        std::move(invoker),
-        logger);
-
-    YT_LOG_INFO("Created file system block device (Path: %v, Size: %v)",
-        device->GetProfileSensorTag(),
-        device->GetTotalSize());
-
-    return device;
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
 class TVolumeProfilerCounters
@@ -2926,14 +2897,12 @@ private:
                 THROW_ERROR(error);
             }
 
-            // TODO(yuryalekseev): user
-            auto clientOptions =  NYT::NApi::TClientOptions::FromUser(NSecurityClient::RootUserName);
-            auto client = nbdServer->GetConnection()->CreateNativeClient(clientOptions);
+            auto config = New<TFileSystemBlockDeviceConfig>();
 
             auto device = CreateFileSystemBlockDevice(
-                Bootstrap_->GetDynamicConfig()->ExecNode->Nbd,
-                std::move(reader),
                 layer.nbd_export_id(),
+                std::move(config),
+                std::move(reader),
                 nbdServer->GetInvoker(),
                 nbdServer->GetLogger());
 

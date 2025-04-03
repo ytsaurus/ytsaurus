@@ -380,6 +380,9 @@ private:
 
     std::optional<TVirtualSandboxData> VirtualSandboxData_;
 
+    //! NBD export ids used by the job.
+    THashSet<TString> NbdExportIds_;
+
     //! Artifact name -> index of the artifact in #Artifacts_ list.
     THashMap<TString, int> UserArtifactNameToIndex_;
 
@@ -542,6 +545,8 @@ private:
 
     // Build artifacts.
     void InitializeArtifacts();
+
+    THashSet<TString> InitializeNbdExportIds();
 
     TArtifactDownloadOptions MakeArtifactDownloadOptions() const;
 

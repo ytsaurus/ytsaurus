@@ -37,7 +37,7 @@ using namespace NTracing;
 ////////////////////////////////////////////////////////////////////////////////
 
 class TFileSystemBlockDevice
-    : public IBlockDevice
+    : public TBaseBlockDevice
 {
 public:
     TFileSystemBlockDevice(
@@ -113,15 +113,6 @@ public:
         TNbdProfilerCounters::Get()->GetCounter(TagSet_, "/device/read_count").Increment(1);
         TNbdProfilerCounters::Get()->GetCounter(TagSet_, "/device/read_bytes").Increment(length);
         NProfiling::TEventTimerGuard readTimeGuard(TNbdProfilerCounters::Get()->GetTimer(TagSet_, "/device/read_time"));
-
-        if (Config_->TestSleepBeforeRead != TDuration::Zero()) {
-            YT_LOG_DEBUG("Sleep for testing purposes prior to starting a read (Offset: %v, Length: %v, Duration: %v)",
-                offset,
-                length,
-                Config_->TestSleepBeforeRead);
-
-            TDelayedExecutor::WaitForDuration(Config_->TestSleepBeforeRead);
-        }
 
         return Reader_->Read(offset, length)
             .Apply(BIND([readTimeGuard = std::move(readTimeGuard), tagSet = TagSet_] (const TErrorOr<TSharedRef>& result) {
