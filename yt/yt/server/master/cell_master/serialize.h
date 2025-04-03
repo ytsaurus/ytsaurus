@@ -245,6 +245,7 @@ DEFINE_ENUM(EMasterReign,
     ((KeyBoundsInTabletChunkManager)                                (2909))  // ifsmirnov
     ((DropChunkMergerCompats)                                       (2910))  // cherepashka
     ((SecondaryIndexEvaluated)                                      (2911))  // sabdenovch
+    ((ResetHunkMediaOnBranchedNodes)                                (2912))  // shakurov
 );
 
 static_assert(TEnumTraits<EMasterReign>::IsMonotonic, "Master reign enum is not monotonic");
