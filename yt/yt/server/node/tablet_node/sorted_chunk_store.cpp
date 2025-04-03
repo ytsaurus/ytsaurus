@@ -459,6 +459,11 @@ IVersionedReaderPtr TSortedChunkStore::CreateReader(
 
     auto wrapReaderWithPerformanceCounting = [&] (IVersionedReaderPtr underlyingReader)
     {
+        // Do not account background activities in user read performance counters.
+        if (workloadCategory && IsSystemWorkloadCategory(*workloadCategory)) {
+            return underlyingReader;
+        }
+
         return CreateVersionedPerformanceCountingReader(
             underlyingReader,
             PerformanceCounters_,
