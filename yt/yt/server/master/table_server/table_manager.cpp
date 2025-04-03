@@ -764,6 +764,11 @@ public:
             kind,
             predicate);
 
+        if (tableId == indexTableId) {
+            THROW_ERROR_EXCEPTION("Table cannot be an index to itself")
+                << TErrorAttribute("table_id", tableId);
+        }
+
         auto* table = GetTableNodeOrThrow(tableId);
         auto* indexTable = FindTableNode(indexTableId);
 

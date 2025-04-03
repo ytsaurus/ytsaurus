@@ -231,6 +231,7 @@ DEFINE_ENUM(EMasterReign,
     ((PersistAuxiliaryNodeStatistics_25_1)                          (2842))  // ifsmirnov
     ((GlobalObjectReplicationRespectsTypeHandlers)                  (2843))  // shakurov
     ((LostVitalChunksSample_25_1)                                   (2844))  // koloshmet
+    ((SecondaryIndexOuroboros)                                      (2845))  // sabdenovch
     // 25.2 starts here.
     ((Start_25_2)                                                   (2900))  // ponasenko-rs
     ((TabletTransactionSerializationType)                           (2901))  // ponasenko-rs
