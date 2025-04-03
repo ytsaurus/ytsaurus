@@ -1,5 +1,5 @@
 image:
-  repository: ghcr.io/ytsaurus/ytsaurus-cron
+  repository: ghcr.io/ytsaurus/cron
   pullPolicy: IfNotPresent
   # Overrides the image tag whose default is the chart appVersion.
   tag: "latest"
