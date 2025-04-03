@@ -30,10 +30,12 @@ TYPathRewrite MakeYPathRewrite(
 
 TDuration ComputeForwardingTimeout(
     TDuration timeout,
-    const TObjectServiceConfigPtr& config);
+    const TObjectServiceConfigPtr& config,
+    bool* reserved = nullptr);
 TDuration ComputeForwardingTimeout(
     const NRpc::IServiceContextPtr& context,
-    const TObjectServiceConfigPtr& config);
+    const TObjectServiceConfigPtr& config,
+    bool* reserved = nullptr);
 
 void ValidateFolderId(const std::string& folderId);
 

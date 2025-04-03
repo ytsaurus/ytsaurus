@@ -44,24 +44,32 @@ TYPathRewrite MakeYPathRewrite(
 
 TDuration ComputeForwardingTimeout(
     TDuration timeout,
-    const TObjectServiceConfigPtr& config)
+    const TObjectServiceConfigPtr& config,
+    bool* reserved)
 {
-    return timeout > 2 * config->ForwardedRequestTimeoutReserve
-        ? timeout - config->ForwardedRequestTimeoutReserve
-        : timeout;
+    if (timeout > 2 * config->ForwardedRequestTimeoutReserve) {
+        if (reserved) {
+            *reserved = true;
+        }
+        return timeout - config->ForwardedRequestTimeoutReserve;
+    } else {
+        if (reserved) {
+            *reserved = false;
+        }
+        return timeout;
+    }
 }
 
 TDuration ComputeForwardingTimeout(
     const NRpc::IServiceContextPtr& context,
-    const TObjectServiceConfigPtr& config)
+    const TObjectServiceConfigPtr& config,
+    bool* reserved)
 {
-    if (!context->GetStartTime() || !context->GetTimeout()) {
-        return config->DefaultExecuteTimeout;
-    }
+    auto suggestedTimeout = !context->GetStartTime() || !context->GetTimeout()
+        ? config->DefaultExecuteTimeout
+        : *context->GetStartTime() + *context->GetTimeout() - NProfiling::GetInstant();
 
-    return ComputeForwardingTimeout(
-        *context->GetStartTime() + *context->GetTimeout() - NProfiling::GetInstant(),
-        config);
+    return ComputeForwardingTimeout(suggestedTimeout, config, reserved);
 }
 
 void ValidateFolderId(const std::string& folderId)

@@ -303,7 +303,8 @@ public:
     TFuture<TSharedRefArray> ForwardObjectRequest(
         const TSharedRefArray& requestMessage,
         TCellTag cellTag,
-        NHydra::EPeerKind peerKind) override;
+        NHydra::EPeerKind peerKind,
+        bool* timeoutReserved) override;
 
     void ReplicateObjectCreationToSecondaryMaster(
         TObject* object,
@@ -584,7 +585,12 @@ public:
 
         auto batchReq = proxy.ExecuteBatchNoBackoffRetries();
         batchReq->SetOriginalRequestId(context->GetRequestId());
-        batchReq->SetTimeout(ComputeForwardingTimeout(context, Bootstrap_->GetConfig()->ObjectService));
+        // Normally, forwarded request timeout is shortened so that backoff alarm on the remote side would trigger
+        // earlier than locally. If the timeout is already too small, however, than, ideally, we should cancel
+        // (local) backoff alarm. However, since such short timeouts are rare, and getting here requires non-warmed-up
+        // resolve cache, and retrying a timed out request should help, and it's not trivial to cancel backoff alarm
+        // from here, it's simpler to ignore this.
+        batchReq->SetTimeout(ComputeForwardingTimeout(context, Bootstrap_->GetConfig()->ObjectService, /*reserved*/ nullptr));
         SetAuthenticationIdentity(batchReq, context->GetAuthenticationIdentity());
         batchReq->AddRequestMessage(std::move(forwardedMessage));
 
@@ -1859,7 +1865,8 @@ void TObjectManager::ValidatePrerequisites(
 TFuture<TSharedRefArray> TObjectManager::ForwardObjectRequest(
     const TSharedRefArray& requestMessage,
     TCellTag cellTag,
-    NHydra::EPeerKind peerKind)
+    NHydra::EPeerKind peerKind,
+    bool* timeoutReserved)
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
 
@@ -1875,7 +1882,8 @@ TFuture<TSharedRefArray> TObjectManager::ForwardObjectRequest(
 
     auto timeout = ComputeForwardingTimeout(
         FromProto<TDuration>(header.timeout()),
-        Bootstrap_->GetConfig()->ObjectService);
+        Bootstrap_->GetConfig()->ObjectService,
+        timeoutReserved);
 
     auto identity = ParseAuthenticationIdentityFromProto(header);
 
