@@ -1419,22 +1419,34 @@ class TestOrderedDynamicTables(TestOrderedDynamicTablesBase):
         sync_reshard_table("//tmp/t", 3)
         sync_mount_table("//tmp/t")
 
+        tablet_ids = [tablet["tablet_id"] for tablet in get("//tmp/t/@tablets")]
+        assert get(f"#{tablet_ids[0]}/orchid/config").get("max_ordered_tablet_data_weight") == 1
+
         for i in range(2):
             insert_rows("//tmp/t", [{"$tablet_index": i, "a": i}])
 
         for i in range(2):
             with raises_yt_error():
-                insert_rows("//tmp/t", [{"$tablet_index": i, "a": i}])
+                insert_rows("//tmp/t", [{"$tablet_index": i, "a": i + 1}])
 
         insert_rows("//tmp/t", [{"$tablet_index": 2, "a": 2}])
         with raises_yt_error():
-            insert_rows("//tmp/t", [{"$tablet_index": 2, "a": i}])
+            insert_rows("//tmp/t", [{"$tablet_index": 2, "a": 3}])
 
         remove("//tmp/t/@mount_config/max_ordered_tablet_data_weight")
         remount_table("//tmp/t")
 
+        def _check():
+            for tablet_id in tablet_ids:
+                config = get(f"#{tablet_id}/orchid/config")
+                if config.get("max_ordered_tablet_data_weight") is not None:
+                    return False
+            return True
+
+        wait(_check)
+
         for i in range(3):
-            insert_rows("//tmp/t", [{"$tablet_index": i, "a": i}])
+            insert_rows("//tmp/t", [{"$tablet_index": i, "a": i + 10}])
 
         sync_unmount_table("//tmp/t")
         set("//tmp/t/@mount_config/max_ordered_tablet_data_weight", 1)
