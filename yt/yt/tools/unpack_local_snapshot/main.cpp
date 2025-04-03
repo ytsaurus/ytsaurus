@@ -4,6 +4,7 @@
 #include <yt/yt/server/lib/hydra/snapshot.h>
 
 #include <yt/yt/core/concurrency/action_queue.h>
+#include <yt/yt/core/concurrency/scheduler_api.h>
 
 #include <util/stream/file.h>
 
