@@ -75,10 +75,9 @@ int main(int argc, const char *argv[]) {
             tableDataService = MakeLocalTableDataService(TLocalTableDataServiceSettings(3));
         }
         auto fmrYtSerivce = MakeFmrYtSerivce();
-        TFmrJobSettings jobSettings{};
         // TODO - add different job Settings here
-        auto func = [tableDataService, fmrYtSerivce, jobSettings] (TTask::TPtr task, std::shared_ptr<std::atomic<bool>> cancelFlag) mutable {
-            return RunJob(task, tableDataService, fmrYtSerivce, cancelFlag, jobSettings);
+        auto func = [tableDataService, fmrYtSerivce] (TTask::TPtr task, std::shared_ptr<std::atomic<bool>> cancelFlag) mutable {
+            return RunJob(task, tableDataService, fmrYtSerivce, cancelFlag);
         };
 
         TFmrJobFactorySettings settings{.Function=func};
