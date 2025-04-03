@@ -185,25 +185,26 @@ void TChunkOwnerBase::Load(NCellMaster::TLoadContext& context)
         Load(context, HunkPrimaryMediumIndex_);
     }
 
-    // Check invariant: null hunk primary medium index <=> empty hunk replication.
-    // COMPAT(shakurov)
-    if (auto hunkPrimaryMediumIndex = GetHunkPrimaryMediumIndex()) {
-        if (HunkReplication().GetSize() == 0) {
-            YT_LOG_ALERT("Chunk owner node with non-null hunk primary index yet empty hunk replication encountered "
-                "(ChunkOwnerNodeId: %v, HunkPrimaryIndex: %v)",
-                GetId(),
-                hunkPrimaryMediumIndex);
-        } else if (!HunkReplication().Get(*hunkPrimaryMediumIndex)) {
-            YT_LOG_ALERT("Chunk owner node with non-null hunk primary index yet zero hunk replication factor encountered "
-                "(ChunkOwnerNodeId: %v, HunkPrimaryIndex: %v)",
-                GetId(),
-                hunkPrimaryMediumIndex);
+    if (IsTrunk()) {
+        // Check invariant: null hunk primary medium index <=> empty hunk replication.
+        if (auto hunkPrimaryMediumIndex = GetHunkPrimaryMediumIndex()) {
+            if (HunkReplication().GetSize() == 0) {
+                YT_LOG_ALERT("Chunk owner node with non-null hunk primary index yet empty hunk replication encountered "
+                    "(ChunkOwnerNodeId: %v, HunkPrimaryIndex: %v)",
+                    GetVersionedId(),
+                    hunkPrimaryMediumIndex);
+            } else if (!HunkReplication().Get(*hunkPrimaryMediumIndex)) {
+                YT_LOG_ALERT("Chunk owner node with non-null hunk primary index yet zero hunk replication factor encountered "
+                    "(ChunkOwnerNodeId: %v, HunkPrimaryIndex: %v)",
+                    GetVersionedId(),
+                    hunkPrimaryMediumIndex);
+            }
+        } else if (HunkReplication().GetSize() != 0) {
+            YT_LOG_ALERT("Chunk owner node with null hunk primary index yet non-empty hunk replication encountered "
+                "(ChunkOwnerNodeId: %v, HunkReplication: %v)",
+                GetVersionedId(),
+                HunkReplication());
         }
-    } else if (HunkReplication().GetSize() != 0) {
-        YT_LOG_ALERT("Chunk owner node with null hunk primary index yet non-empty hunk replication encountered "
-            "(ChunkOwnerNodeId: %v, HunkReplication: %v)",
-            GetId(),
-            HunkReplication());
     }
 }
 
