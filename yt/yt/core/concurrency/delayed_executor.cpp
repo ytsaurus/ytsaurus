@@ -521,7 +521,7 @@ void TDelayedExecutor::Cancel(const TDelayedExecutorCookie& cookie)
 
 void TDelayedExecutor::CancelAndClear(TDelayedExecutorCookie& cookie)
 {
-    NDetail::TDelayedExecutorImpl::Get()->Cancel(std::move(cookie));
+    NDetail::TDelayedExecutorImpl::Get()->Cancel(std::exchange(cookie, {}));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
