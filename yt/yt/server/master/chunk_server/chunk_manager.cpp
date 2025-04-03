@@ -3319,6 +3319,12 @@ private:
     {
         YT_VERIFY(request->added_chunks_size() + request->removed_chunks_size() > 0);
 
+        YT_LOG_TRACE("Modifying Sequoia replicas (AddedChunkCount: %v, RemovedChunkCount: %v, DeadChunkCount: %v, TransactionType: %v)",
+            request->added_chunks_size(),
+            request->removed_chunks_size(),
+            request->dead_chunk_ids_size(),
+            transactionType);
+
         const auto& config = GetDynamicConfig();
         const auto& sequoiaConfig = config->SequoiaChunkReplicas;
         auto enableChunkRefresh = config->EnableChunkRefresh;
@@ -3363,6 +3369,10 @@ private:
                         locationUuid);
 
                     modifiedReplicas[chunkId].AddedReplicas.push_back(replica);
+                    YT_LOG_TRACE("Adding Sequoia replica (ChunkId: %v, ReplicaIndex: %v, LocationUuid: %v)",
+                        chunkId,
+                        chunkIdWithIndex.ReplicaIndex,
+                        locationUuid);
                 }
 
                 std::vector<NRecords::TLocationReplicasKey> keys;
@@ -3381,6 +3391,10 @@ private:
                         .ReplicaIndex = chunkIdWithIndex.ReplicaIndex
                     };
                     keys.push_back(locationReplicaKey);
+                    YT_LOG_TRACE("Preparing removed Sequoia replicas keys (ChunkId: %v, ReplicaIndex: %v, LocationUuid: %v)",
+                        chunkId,
+                        chunkIdWithIndex.ReplicaIndex,
+                        locationUuid);
                 }
 
                 auto replicasFuture = transaction->LookupRows(keys);
@@ -3414,6 +3428,10 @@ private:
                         GenericMediumIndex,
                         locationUuid);
                     modifiedReplicas[chunkId].RemovedReplicas.push_back(replica);
+                    YT_LOG_TRACE("Removing Sequoia replica (ChunkId: %v, ReplicaIndex: %v, LocationUuid: %v)",
+                        chunkId,
+                        chunkIdWithIndex.ReplicaIndex,
+                        locationUuid);
                 }
 
                 for (const auto& [chunkId, chunkModifiedReplicas] : modifiedReplicas) {
@@ -3424,6 +3442,11 @@ private:
                         .StoredReplicas = GetReplicasYson(chunkModifiedReplicas.AddedReplicas, chunkModifiedReplicas.RemovedReplicas),
                         .LastSeenReplicas = GetReplicasListYson(chunkModifiedReplicas.AddedReplicas),
                     };
+                    YT_LOG_TRACE("Sequoia Chunk replicas changed (ChunkId: %v, StoredReplicasDiff: %v, LastSeenReplicasDiff: %v)",
+                        chunkId,
+                        chunkReplicas.StoredReplicas,
+                        chunkReplicas.LastSeenReplicas);
+
                     YT_VERIFY(chunkModifiedReplicas.AddedReplicas.size() + chunkModifiedReplicas.RemovedReplicas.size() > 0);
                     transaction->WriteRow(
                         chunkReplicas,
