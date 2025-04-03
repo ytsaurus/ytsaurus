@@ -368,7 +368,7 @@ void TBlobChunkBase::DoReadMeta(
 
 void TBlobChunkBase::OnBlocksExtLoaded(
     const TReadBlockSetSessionPtr& session,
-    const TBlocksExtPtr& blocksExt) noexcept
+    const TBlocksExtPtr& blocksExt)
 {
     YT_ASSERT_INVOKER_AFFINITY(session->Invoker);
 
@@ -528,7 +528,7 @@ void TBlobChunkBase::DoReadSession(
     DoReadBlockSet(session);
 }
 
-void TBlobChunkBase::DoReadBlockSet(const TReadBlockSetSessionPtr& session) noexcept
+void TBlobChunkBase::DoReadBlockSet(const TReadBlockSetSessionPtr& session)
 {
     YT_ASSERT_INVOKER_AFFINITY(session->Invoker);
 
@@ -777,7 +777,7 @@ void TBlobChunkBase::OnBlocksRead(
     int beginEntryIndex,
     int endEntryIndex,
     THashMap<int, TReadBlockSetSession::TBlockEntry> blockIndexToEntry,
-    const TErrorOr<std::vector<TBlock>>& blocksOrError) noexcept
+    const TErrorOr<std::vector<TBlock>>& blocksOrError)
 {
     YT_ASSERT_INVOKER_AFFINITY(session->Invoker);
 
