@@ -14,6 +14,7 @@ from yt_commands import (
 from yt.test_helpers import assert_items_equal
 
 from copy import deepcopy
+import builtins
 import pytest
 import yt_error_codes
 
@@ -275,7 +276,7 @@ class TestSecondaryIndexReplicatedBase(TestSecondaryIndexBase):
         table_to_index_correspondence="bijective",
         **kwargs
     ):
-        collocation_id = create_table_collocation(table_paths=[table_path, index_table_path])
+        collocation_id = create_table_collocation(table_paths=list(builtins.set([table_path, index_table_path])))
         index_id = create_secondary_index(table_path, index_table_path, kind, table_to_index_correspondence, **kwargs)
         return index_id, collocation_id
 
@@ -314,6 +315,12 @@ class TestSecondaryIndexMaster(TestSecondaryIndexBase):
             create_secondary_index("//tmp/table", "//tmp/index_table", "full_sync", authenticated_user="index_user")
         set("//sys/users/index_user/@allow_create_secondary_indices", True)
         create_secondary_index("//tmp/table", "//tmp/index_table", "full_sync", authenticated_user="index_user")
+
+    @authors("sabdenovch")
+    def test_ouroboros(self):
+        self._create_table("//tmp/table", PRIMARY_SCHEMA)
+        with raises_yt_error("Table cannot be an index to itself"):
+            self._create_secondary_index("//tmp/table", "//tmp/table")
 
     @authors("sabdenovch")
     def test_create_and_delete_index(self):

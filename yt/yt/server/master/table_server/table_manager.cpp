@@ -771,10 +771,13 @@ public:
             kind,
             predicate);
 
-        const auto& tableManager = Bootstrap_->GetTableManager();
+        if (tableId == indexTableId) {
+            THROW_ERROR_EXCEPTION("Table cannot be an index to itself")
+                << TErrorAttribute("table_id", tableId);
+        }
 
-        auto* table = tableManager->GetTableNodeOrThrow(tableId);
-        auto* indexTable = tableManager->FindTableNode(indexTableId);
+        auto* table = GetTableNodeOrThrow(tableId);
+        auto* indexTable = FindTableNode(indexTableId);
 
         if (table->IsNative()) {
             THROW_ERROR_EXCEPTION_IF(!indexTable, "Index table not found by id %v",

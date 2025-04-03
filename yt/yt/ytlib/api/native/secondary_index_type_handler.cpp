@@ -62,6 +62,11 @@ public:
                 << TErrorAttribute("index_table_type", TypeFromId(indexTableId));
         }
 
+        if (tableId == indexTableId) {
+            THROW_ERROR_EXCEPTION("Table cannot be an index to itself")
+                << TErrorAttribute("table_id", tableId);
+        }
+
         auto tableType = TypeFromId(tableId);
         if (tableType != EObjectType::ReplicatedTable && tableType != EObjectType::Table) {
             THROW_ERROR_EXCEPTION("Unsupported table type %Qlv", tableType);

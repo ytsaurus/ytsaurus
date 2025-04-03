@@ -175,7 +175,7 @@ void TTablet::Load(NCellMaster::TLoadContext& context)
     Load(context, PivotKey_);
     Load(context, NodeStatistics_);
     // COMPAT(ifsmirnov)
-    if (context.GetVersion() >= EMasterReign::PersistAuxiliaryNodeStatistics) {
+    if (context.GetVersion() >= EMasterReign::PersistAuxiliaryNodeStatistics_25_1) {
         Load(context, AuxiliaryNodeStatistics_);
     }
     Load(context, TrimmedRowCount_);
