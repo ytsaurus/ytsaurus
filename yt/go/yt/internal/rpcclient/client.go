@@ -6,6 +6,7 @@ import (
 	"errors"
 	"net/http"
 	"time"
+	"net"
 
 	"github.com/cenkalti/backoff/v4"
 	"github.com/golang/protobuf/proto"
@@ -94,6 +95,9 @@ func NewClient(conf *yt.Config) (*client, error) {
 			if conf.PeerAlternativeHostName != "" {
 				// TODO(khlebnikov) use custom VerifyPeerCertificate.
 				busTLSConfig.ServerName = conf.PeerAlternativeHostName
+			} else if host, _, err := net.SplitHostPort(addr); err == nil {
+				// VerifyHostname expects FQDN or IP, both without port.
+				busTLSConfig.ServerName = host
 			} else {
 				busTLSConfig.ServerName = addr
 			}
