@@ -1056,7 +1056,7 @@ TQuery TQueryTrackerProxy::GetQuery(
 
     ValidateQueryPermissions(queryId, StateRoot_, timestamp, user, StateClient_, EPermission::Use, Logger);
 
-    auto lookupKeys = options.Attributes ? std::make_optional(options.Attributes.Keys) : std::nullopt;
+    auto lookupKeys = options.Attributes ? std::make_optional(options.Attributes.Keys()) : std::nullopt;
 
     auto query = LookupQuery(queryId, StateClient_, StateRoot_, lookupKeys, timestamp, Logger);
 
@@ -1095,7 +1095,7 @@ TListQueriesResult TQueryTrackerProxy::ListQueries(
 
     if (!attributes.AdmitsKeySlow("start_time")) {
         YT_VERIFY(attributes);
-        attributes.Keys.push_back("start_time");
+        attributes.AddKey("start_time");
     }
 
     auto userSubjects = GetUserSubjects(user, StateClient_);
@@ -1121,7 +1121,7 @@ TListQueriesResult TQueryTrackerProxy::ListQueries(
 
     auto addSelectExpressionsFromAttributes = [&] (NQueryClient::TQueryBuilder& builder, const TNameTablePtr& nameTable) {
         if (attributes) {
-            for (const auto& key : attributes.Keys) {
+            for (const auto& key : attributes.Keys()) {
                 if (nameTable->FindId(key)) {
                     builder.AddSelectExpression("[" + key + "]");
                 }
@@ -1276,7 +1276,7 @@ TListQueriesResult TQueryTrackerProxy::ListQueries(
         result = std::vector(queries.begin(), queries.begin() + std::min(options.Limit, queries.size()));
     }
 
-    if (!attributes || std::find(attributes.Keys.begin(), attributes.Keys.end(), "access_control_object") != attributes.Keys.end()) {
+    if (!attributes || std::find(attributes.Keys().begin(), attributes.Keys().end(), "access_control_object") != attributes.Keys().end()) {
         for (auto& query : result) {
             ConvertAcoToOldFormat(query);
         }

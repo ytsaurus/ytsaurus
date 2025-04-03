@@ -286,10 +286,10 @@ TListUserTokensResult TClient::DoListUserTokens(
 
     listOptions.Attributes = TAttributeFilter({"user"});
     if (options.WithMetadata) {
-        listOptions.Attributes.Keys.emplace_back("description");
-        listOptions.Attributes.Keys.emplace_back("token_prefix");
-        listOptions.Attributes.Keys.emplace_back("creation_time");
-        listOptions.Attributes.Keys.emplace_back("effective_expiration");
+        listOptions.Attributes.AddKey("description");
+        listOptions.Attributes.AddKey("token_prefix");
+        listOptions.Attributes.AddKey("creation_time");
+        listOptions.Attributes.AddKey("effective_expiration");
     }
 
     auto rootClient = CreateRootClient();

@@ -647,7 +647,7 @@ TFuture<TYsonString> ReturnSerializedPreloadStateFuture(
     const TGetNodeOptions& options)
 {
     if (options.Attributes) {
-        EXPECT_EQ(options.Attributes.Keys, std::vector<std::string>{"preload_state"});
+        EXPECT_EQ(options.Attributes.Keys(), std::vector<std::string>{"preload_state"});
         return MakeFuture(
             BuildYsonStringFluently()
                 .BeginAttributes()
