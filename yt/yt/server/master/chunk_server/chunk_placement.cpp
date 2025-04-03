@@ -1446,7 +1446,6 @@ int TChunkPlacement::CapPerRackReplicationFactor(
     const auto& config = medium->AsDomestic()->Config();
     // TODO(danilalexeev): introduce bounds to the chunk server config options.
     auto result = std::min({replicationFactor, config->MaxReplicasPerRack, MaxReplicationFactor});
-
     switch (chunk->GetType()) {
         case EObjectType::Chunk:
             result = std::min(result, config->MaxRegularReplicasPerRack);
