@@ -328,7 +328,7 @@ void TVirtualStaticTable::DoWriteAttributesFragment(
     attributeFilter.ValidateKeysOnly("virtual static table");
     auto builtinAttributeKeys = GetBuiltinAttributeKeys();
     BuildYsonMapFragmentFluently(consumer)
-        .DoFor(attributeFilter.Keys, [&] (TFluentMap fluent, const std::string& key) {
+        .DoFor(attributeFilter.Keys(), [&] (TFluentMap fluent, const std::string& key) {
             auto internedKey = TInternedAttributeKey::Lookup(key);
             if (builtinAttributeKeys.contains(internedKey)) {
                 fluent
