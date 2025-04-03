@@ -22,11 +22,8 @@ void TChunkBlockDeviceConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TFileSystemBlockDeviceConfig::Register(TRegistrar registrar)
-{
-    registrar.Parameter("test_sleep_before_read", &TThis::TestSleepBeforeRead)
-        .Default(TDuration::Zero());
-}
+void TFileSystemBlockDeviceConfig::Register(TRegistrar)
+{ }
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -73,18 +70,34 @@ void TUdsConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TNbdTestOptions::Register(TRegistrar registrar)
+{
+    registrar.Parameter("block_device_sleep_before_read", &TThis::BlockDeviceSleepBeforeRead)
+        .Default();
+    registrar.Parameter("block_device_sleep_before_write", &TThis::BlockDeviceSleepBeforeWrite)
+        .Default();
+    registrar.Parameter("set_block_device_error_on_read", &TThis::SetBlockDeviceErrorOnRead)
+        .Default();
+    registrar.Parameter("set_block_device_error_on_write", &TThis::SetBlockDeviceErrorOnWrite)
+        .Default();
+    registrar.Parameter("abort_connection_on_read", &TThis::AbortConnectionOnRead)
+        .Default();
+    registrar.Parameter("abort_connection_on_write", &TThis::AbortConnectionOnWrite)
+        .Default();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TNbdServerConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("internet_domain_socket", &TThis::InternetDomainSocket)
         .Default();
     registrar.Parameter("unix_domain_socket", &TThis::UnixDomainSocket)
         .Default();
-    registrar.Parameter("test_block_device_sleep_before_read", &TThis::TestBlockDeviceSleepBeforeRead)
-        .Default();
-    registrar.Parameter("test_abort_connection_on_read", &TThis::TestAbortConnectionOnRead)
-        .Default();
     registrar.Parameter("thread_count", &TThis::ThreadCount)
         .Default(1);
+    registrar.Parameter("test_options", &TThis::TestOptions)
+        .DefaultNew();
 
     registrar.Postprocessor([] (TThis* config) {
         if (config->InternetDomainSocket && config->UnixDomainSocket) {

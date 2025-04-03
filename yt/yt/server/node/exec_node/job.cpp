@@ -947,7 +947,35 @@ void TJob::OnResultReceived(TJobResult jobResult)
                     *jobResult.ReleaseExtension(NControllerAgent::NProto::TJobResultExt::job_result_ext));
             }
 
-            if (auto error = FromProto<TError>(jobResult.error());
+            // Check if we had any NBD errors.
+            TError nbdError;
+            if (auto nbdServer = Bootstrap_->GetNbdServer()) {
+                for (const auto& exportId : NbdExportIds_) {
+                    if (auto device = nbdServer->GetDevice(exportId)) {
+                        if (auto error = device->GetError(); !error.IsOK()) {
+                            YT_LOG_ERROR(error, "NBD error occured during job execution (ExportId: %v)", exportId);
+
+                            // Save the first found NBD error.
+                            if (nbdError.IsOK()) {
+                                nbdError = error;
+                                nbdError <<= TErrorAttribute("abort_reason", EAbortReason::NbdErrors);
+                                // Save job error as well.
+                                if (auto jobError = FromProto<TError>(jobResult.error()); !jobError.IsOK()) {
+                                    nbdError <<= jobError;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            if (!nbdError.IsOK()) {
+                Finalize(
+                    /*finalJobState*/ std::nullopt,
+                    std::move(nbdError),
+                    std::move(jobResultExtension),
+                    /*byJobProxyCompletion*/ true);
+            } else if (auto error = FromProto<TError>(jobResult.error());
                 error.IsOK() || !NeedsGpuCheck())
             {
                 Finalize(
@@ -3386,15 +3414,18 @@ void TJob::InitializeSandboxNbdRootVolumeData()
     }
 }
 
-void TJob::InitializeNbdExportIds()
+THashSet<TString> TJob::InitializeNbdExportIds()
 {
     YT_ASSERT_THREAD_AFFINITY(JobThread);
+
+    THashSet<TString> nbdExportIds;
 
     // Mark NBD layers with NBD export ids.
     auto nbdExportCount = 0;
     for (auto& layer : LayerArtifactKeys_) {
         if (FromProto<ELayerAccessMethod>(layer.access_method()) == ELayerAccessMethod::Nbd) {
             auto nbdExportId = MakeNbdExportId(Id_, nbdExportCount);
+            EmplaceOrCrash(nbdExportIds, nbdExportId);
             ++nbdExportCount;
 
             ToProto(layer.mutable_nbd_export_id(), nbdExportId);
@@ -3418,6 +3449,7 @@ void TJob::InitializeNbdExportIds()
         if (virtualSandboxArtifactCount != 0) {
             // The virtual layer can be used. Make nbd export id.
             auto nbdExportId = MakeNbdExportId(Id_, nbdExportCount);
+            EmplaceOrCrash(nbdExportIds, nbdExportId);
             ++nbdExportCount;
 
             VirtualSandboxData_ = TVirtualSandboxData({
@@ -3429,10 +3461,13 @@ void TJob::InitializeNbdExportIds()
     // Create NBD export id for NBD root volume.
     if (SandboxNbdRootVolumeData_) {
         auto nbdExportId = MakeNbdExportId(Id_, nbdExportCount);
+        EmplaceOrCrash(nbdExportIds, nbdExportId);
         ++nbdExportCount;
 
         SandboxNbdRootVolumeData_->NbdExportId = nbdExportId;
     }
+
+    return nbdExportIds;
 }
 
 // Build artifacts.
@@ -3500,7 +3535,7 @@ void TJob::InitializeArtifacts()
 
     InitializeSandboxNbdRootVolumeData();
 
-    InitializeNbdExportIds();
+    NbdExportIds_ = InitializeNbdExportIds();
 
     // Mark artifacts that will be accessed via bind.
     for (auto& artifact : Artifacts_) {

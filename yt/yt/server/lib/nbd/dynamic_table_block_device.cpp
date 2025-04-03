@@ -281,7 +281,7 @@ DEFINE_REFCOUNTED_TYPE(TBlockCache)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TDynamicTableBlockDevice
-    : public IBlockDevice
+    : public TBaseBlockDevice
 {
 public:
     explicit TDynamicTableBlockDevice(

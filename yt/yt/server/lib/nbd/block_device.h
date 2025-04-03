@@ -47,9 +47,32 @@ struct IBlockDevice
         const TWriteOptions& options = {}) = 0;
 
     virtual TFuture<void> Flush() = 0;
+
+    virtual void SetError(TError error) = 0;
+    virtual const TError& GetError() const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IBlockDevice)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TBaseBlockDevice
+    : public IBlockDevice
+{
+public:
+    void SetError(TError error) override
+    {
+        Error_ = std::move(error);
+    }
+
+    const TError& GetError() const override
+    {
+        return Error_;
+    }
+
+private:
+    TError Error_;
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 

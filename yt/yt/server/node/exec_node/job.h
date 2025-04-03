@@ -382,6 +382,9 @@ private:
 
     std::optional<TSandboxNbdRootVolumeData> SandboxNbdRootVolumeData_;
 
+    //! NBD export ids used by the job.
+    THashSet<TString> NbdExportIds_;
+
     //! Artifact name -> index of the artifact in #Artifacts_ list.
     THashMap<TString, int> UserArtifactNameToIndex_;
 
@@ -547,7 +550,7 @@ private:
 
     void InitializeSandboxNbdRootVolumeData();
 
-    void InitializeNbdExportIds();
+    THashSet<TString> InitializeNbdExportIds();
 
     TArtifactDownloadOptions MakeArtifactDownloadOptions() const;
 

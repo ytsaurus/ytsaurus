@@ -14,7 +14,7 @@ using namespace NRpc;
 ////////////////////////////////////////////////////////////////////////////////
 
 class TChunkBlockDevice
-    : public IBlockDevice
+    : public TBaseBlockDevice
 {
 public:
     TChunkBlockDevice(
