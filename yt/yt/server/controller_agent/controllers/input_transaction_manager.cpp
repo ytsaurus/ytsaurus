@@ -28,8 +28,17 @@ using NApi::NNative::IClientPtr;
 ////////////////////////////////////////////////////////////////////////////////
 
 TClusterResolver::TClusterResolver(const IClientPtr& client)
-    : LocalClusterName_(client->GetClusterName().value_or(""))
+    : LocalClient_(client)
 { }
+
+TFuture<void> TClusterResolver::Init()
+{
+    return LocalClient_->GetClusterName()
+        .Apply(BIND([this, this_ = MakeStrong(this)] (const TErrorOr<std::optional<std::string>>& clusterNameOrError) {
+            LocalClusterName_ = clusterNameOrError.IsOK() ? clusterNameOrError.Value().value_or("") : "";
+            return VoidFuture;
+        }));
+}
 
 TClusterName TClusterResolver::GetClusterName(const TRichYPath& path)
 {

@@ -966,27 +966,26 @@ class TClusterIdentificationTest
 
 TEST_F(TClusterIdentificationTest, FetchFromMaster)
 {
-    auto clusterName = Client_->GetClusterName();
+    auto clusterName = WaitFor(Client_->GetClusterName()).ValueOrThrow();
     ASSERT_TRUE(clusterName);
     ASSERT_EQ(*clusterName, ClusterName_);
 
     {
-        TForbidContextSwitchGuard guard;
-
-        clusterName = Client_->GetClusterName();
+        auto clusterNameFuture = Client_->GetClusterName();
+        auto clusterName = clusterNameFuture.TryGetUnique();
         ASSERT_TRUE(clusterName);
-        ASSERT_EQ(*clusterName, ClusterName_);
+        ASSERT_EQ(clusterName->ValueOrThrow(), ClusterName_);
     }
 
     for (const auto& transactionType : TEnumTraits<ETransactionType>::GetDomainValues()) {
         auto transaction = WaitFor(Client_->StartTransaction(transactionType))
             .ValueOrThrow();
 
-        TForbidContextSwitchGuard guard;
+        auto clusterNameFuture = transaction->GetClient()->GetClusterName();
+        auto clusterName = clusterNameFuture.TryGetUnique();
 
-        clusterName = transaction->GetClient()->GetClusterName();
         ASSERT_TRUE(clusterName);
-        ASSERT_EQ(*clusterName, ClusterName_);
+        ASSERT_EQ(clusterName->ValueOrThrow(), ClusterName_);
     }
 }
 

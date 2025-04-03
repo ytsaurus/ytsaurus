@@ -1486,7 +1486,9 @@ TGetQueryTrackerInfoResult TQueryTrackerProxy::GetQueryTrackerInfo(
 
     if (attributes.AdmitsKeySlow("cluster_name")) {
         YT_LOG_DEBUG("Getting cluster name");
-        clusterName = StateClient_->GetClusterName().value_or("");
+        clusterName = WaitFor(StateClient_->GetClusterName())
+            .ValueOrDefault("")
+            .value_or("");
     }
 
     TNodeExistsOptions nodeExistsOptions;
