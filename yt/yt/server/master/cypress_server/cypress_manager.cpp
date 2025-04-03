@@ -2768,7 +2768,7 @@ private:
 
         // COMPAT(shakurov)
         NeedResetHunkSpecificMediaAndRecomputeTabletStatistics_ =
-            context.GetVersion() < EMasterReign::ResetHunkSpecificMediaAndRecomputeTabletStatistics;
+            context.GetVersion() < EMasterReign::ResetHunkMediaOnBranchedNodes;
     }
 
     void Clear() override
