@@ -459,9 +459,9 @@ void DumpSigcontext(void* uc)
 
 void CrashTimeoutHandler(int /*signal*/)
 {
-    AbortProcessDramatically(
-        EProcessExitCode::GenericError,
-        "Process hung during crash");
+    WriteToStderr("*** Crash signal handler timed out\n");
+
+    __builtin_trap();
 }
 
 void DumpUndumpableBlocksInfo()
