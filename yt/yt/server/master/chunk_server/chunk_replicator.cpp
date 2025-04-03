@@ -1881,6 +1881,13 @@ void TChunkReplicator::ScheduleReplicationJobs(IJobSchedulingContext* context)
 
             for (const auto& replica : replicasOrError.Value()) {
                 auto pushNode = replica.GetPtr()->GetNode();
+                if (!pushNode->ReportedDataNodeHeartbeat()) {
+                    // Refresh is scheduled on node complete unregistration, but I am not sure about
+                    // per location registration here, so it won't hurt.
+                    ScheduleChunkRefresh(chunk);
+                    continue;
+                }
+
                 for (int mediumIndex = 0; mediumIndex < std::ssize(mediumIndexSet); ++mediumIndex) {
                     if (mediumIndexSet.test(mediumIndex)) {
                         if (pushNode->GetTargetReplicationNodeId(chunkId, mediumIndex) != InvalidNodeId) {
