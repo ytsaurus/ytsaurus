@@ -1146,7 +1146,7 @@ private:
 
         if (tablet->IsPhysicallyOrdered()) {
             i64 tabletDataWeight = tablet->GetTotalDataWeight();
-            if (auto maxOrderedTabletDataWeight = tablet->GetSettings().MountConfig->MaxOrderedTabletDataWeight;
+            if (auto maxOrderedTabletDataWeight = mountConfig->MaxOrderedTabletDataWeight;
                 maxOrderedTabletDataWeight && tabletDataWeight >= maxOrderedTabletDataWeight)
             {
                 THROW_ERROR_EXCEPTION(NTabletClient::EErrorCode::RequestThrottled,
