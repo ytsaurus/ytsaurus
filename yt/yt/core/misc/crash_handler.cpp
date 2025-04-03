@@ -514,17 +514,6 @@ void CrashSignalHandler(int /*signal*/, siginfo_t* si, void* uc)
     // Dump codicils.
     NDetail::DumpCodicils();
 
-    // Where did the crash happen?
-    {
-        std::array<const void*, 1> frames{NDetail::GetPC(uc)};
-        NBacktrace::SymbolizeBacktrace(
-            TRange(frames),
-            [] (TStringBuf info) {
-                info.SkipPrefix(" 1. ");
-                WriteToStderr(info);
-            });
-    }
-
     NDetail::DumpSignalInfo(si);
 
     NDetail::DumpSigcontext(uc);
