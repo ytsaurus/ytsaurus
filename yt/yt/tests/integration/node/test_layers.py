@@ -1569,6 +1569,14 @@ class TestNbdConnectionFailuresWithSquashFSLayers(YTEnvSetup):
         }
     }
 
+    DELTA_CONTROLLER_AGENT_CONFIG = {
+        "controller_agent": {
+            "max_job_aborts_until_operation_failure": {
+                "nbd_errors": 2,
+            },
+        }
+    }
+
     USE_PORTO = True
 
     def setup_files(self):
@@ -1597,8 +1605,10 @@ class TestNbdConnectionFailuresWithSquashFSLayers(YTEnvSetup):
                             # So put it at home directory until PORTO-1242 is done, then put it in /tmp.
                             "path": tempfile.mkstemp(dir="/root" if os.environ["USER"] == "root" else "/home/" + os.environ["USER"])[1]
                         },
-                        # Sleep for 10 seconds prior to performing read I/O
-                        "test_block_device_sleep_before_read": 10000,
+                        "test_options": {
+                            # Sleep for 10 seconds prior to performing block device read
+                            "block_device_sleep_before_read": 10000,
+                        },
                     },
                 },
             },
@@ -1632,6 +1642,58 @@ class TestNbdConnectionFailuresWithSquashFSLayers(YTEnvSetup):
             assert len(get("//sys/cluster_nodes/{}/@alerts".format(node))) == 0
 
     @authors("yuryalekseev")
+    def test_read_error(self):
+        self.setup_files()
+
+        update_nodes_dynamic_config({
+            "exec_node": {
+                "nbd": {
+                    "block_cache_compressed_data_capacity": 536870912,
+                    "client": {
+                        # Set read I/O timeout to 1 second
+                        "io_timeout": 1000,
+                    },
+                    "enabled": True,
+                    "server": {
+                        "unix_domain_socket": {
+                            # The best would be to use os.path.join(self.path_to_run, tempfile.mkstemp(dir="/tmp")[1]),
+                            # but it leads to a path with length greater than the maximum allowed 108 bytes.
+                            # So put it at home directory until PORTO-1242 is done, then put it in /tmp.
+                            "path": tempfile.mkstemp(dir="/root" if os.environ["USER"] == "root" else "/home/" + os.environ["USER"])[1]
+                        },
+                        "test_options": {
+                            # Set test error on block device read
+                            "set_block_device_error_on_read": True,
+                        },
+                    },
+                },
+            },
+        })
+
+        with Restarter(self.Env, NODES_SERVICE):
+            pass
+
+        wait_for_nodes()
+
+        create("table", "//tmp/t_in")
+        create("table", "//tmp/t_out")
+
+        write_table("//tmp/t_in", [{"k": 0, "u": 1, "v": 2}])
+
+        with pytest.raises(YtError):
+            map(
+                in_="//tmp/t_in",
+                out="//tmp/t_out",
+                command="ls $YT_ROOT_FS/dir 1>&2",
+                spec={
+                    "max_failed_job_count": 1,
+                    "mapper": {
+                        "layer_paths": ["//tmp/squashfs.img"],
+                    },
+                },
+            )
+
+    @authors("yuryalekseev")
     def test_abort_on_read(self):
         self.setup_files()
 
@@ -1651,8 +1713,10 @@ class TestNbdConnectionFailuresWithSquashFSLayers(YTEnvSetup):
                             # So put it at home directory until PORTO-1242 is done, then put it in /tmp.
                             "path": tempfile.mkstemp(dir="/root" if os.environ["USER"] == "root" else "/home/" + os.environ["USER"])[1]
                         },
-                        # Abort connection prior to read I/O
-                        "test_abort_connection_on_read": True,
+                        "test_options": {
+                            # Abort connection on block device read
+                            "abort_connection_on_read": True,
+                        },
                     },
                 },
             },
