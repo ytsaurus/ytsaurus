@@ -49,12 +49,16 @@ public:
     TClusterResolver() = default;
     explicit TClusterResolver(const NApi::NNative::IClientPtr& client);
 
+    TFuture<void> Init();
+
     NScheduler::TClusterName GetClusterName(const NYPath::TRichYPath& path);
     const std::string& GetLocalClusterName() const;
 
     void Persist(const TPersistenceContext& context);
 
 private:
+    const NApi::NNative::IClientPtr LocalClient_;
+
     std::string LocalClusterName_;
 
     bool IsLocalClusterName(const std::string& name) const;

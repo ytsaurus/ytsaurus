@@ -1872,7 +1872,8 @@ private:
         // TODO(nadya73): check queue producer registration.
 
         // Cluster for queue and producer should be the same.
-        auto cluster = Client_->GetClusterName();
+        auto cluster = WaitFor(Client_->GetClusterName())
+            .ValueOrThrow();
         if (!cluster) {
             THROW_ERROR_EXCEPTION("Cannot serve request, there is a server-side misconfiguration, "
                 "cluster connection was not properly configured with a cluster name");

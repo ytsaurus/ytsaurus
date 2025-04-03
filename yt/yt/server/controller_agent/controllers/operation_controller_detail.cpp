@@ -522,9 +522,13 @@ void TOperationControllerBase::InitializeInputTransactions()
         }
     }
 
+    auto clusterResolver = New<TClusterResolver>(InputClient);
+    WaitFor(clusterResolver->Init())
+        .ThrowOnError();
+
     InputTransactions = New<TInputTransactionManager>(
         InputClient,
-        New<TClusterResolver>(InputClient),
+        std::move(clusterResolver),
         OperationId,
         filesAndTables,
         HasDiskRequestsWithSpecifiedAccount() || TLayerJobExperiment::IsEnabled(Spec_, GetUserJobSpecs()),
