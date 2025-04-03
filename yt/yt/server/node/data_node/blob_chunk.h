@@ -119,13 +119,13 @@ private:
         TCachedChunkMetaCookie cookie);
     void OnBlocksExtLoaded(
         const TReadBlockSetSessionPtr& session,
-        const NIO::TBlocksExtPtr& blocksExt) noexcept;
+        const NIO::TBlocksExtPtr& blocksExt);
 
     void DoReadSession(
         const TReadBlockSetSessionPtr& session,
         i64 pendingDataSize);
     void DoReadBlockSet(
-        const TReadBlockSetSessionPtr& session) noexcept;
+        const TReadBlockSetSessionPtr& session);
     void OnBlocksRead(
         const TReadBlockSetSessionPtr& session,
         int firstBlockIndex,
@@ -133,7 +133,7 @@ private:
         int beginEntryIndex,
         int endEntryIndex,
         THashMap<int, TReadBlockSetSession::TBlockEntry> blockIndexToEntry,
-        const TErrorOr<std::vector<NChunkClient::TBlock>>& blocksOrError) noexcept;
+        const TErrorOr<std::vector<NChunkClient::TBlock>>& blocksOrError);
 
     //! Returns `true` if chunk was written with `sync_on_close` option.
     //! Default value is `true`.
