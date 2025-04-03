@@ -93,8 +93,7 @@ std::tuple<std::vector<NChunkClient::TInputChunkPtr>, TTableSchemaPtr, bool> Col
     const NChunkClient::TFetchChunkSpecConfigPtr& config,
     NObjectClient::TTransactionId transactionId,
     std::vector<i32> extensionTags,
-    const NLogging::TLogger& logger,
-    bool omitSortedDynamicStores = false);
+    const NLogging::TLogger& logger);
 
 ////////////////////////////////////////////////////////////////////////////////
 
