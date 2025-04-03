@@ -2,6 +2,7 @@
 #include "private.h"
 
 #include <yt/yt/core/concurrency/async_stream_pipe.h>
+#include <yt/yt/core/concurrency/scheduler_api.h>
 #include <yt/yt/core/concurrency/thread_pool.h>
 
 #include <yt/yt/python/common/helpers.h>

@@ -2,6 +2,8 @@
 #include "hydra_service_proxy.h"
 #include "private.h"
 
+#include <yt/yt/core/concurrency/scheduler_api.h>
+
 namespace NYT::NHydra {
 
 using namespace NRpc;

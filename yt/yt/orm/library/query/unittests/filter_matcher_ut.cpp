@@ -5,6 +5,7 @@
 
 #include <yt/yt/core/actions/bind.h>
 #include <yt/yt/core/actions/invoker.h>
+#include <yt/yt/core/concurrency/scheduler_api.h>
 #include <yt/yt/core/concurrency/thread_pool.h>
 #include <yt/yt/core/misc/error.h>
 #include <yt/yt/core/test_framework/framework.h>
