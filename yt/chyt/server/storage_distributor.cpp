@@ -296,6 +296,14 @@ public:
                 Context_,
                 requiredColumns);
 
+            // The initial query node may be a subquery with an alias.
+            // For example: (SELECT * FROM t1 JOIN t2 USING (a)) AS t
+            // In this case, modifiedQuery would be '(SELECT * FROM t1) AS t', which is not semantically correct.
+            if (auto queryNode = modifiedQuery->as<DB::QueryNode>()) {
+                queryNode->setIsSubquery(false);
+                queryNode->removeAlias();
+            }
+
             QueryInfo_.query_tree = modifiedQuery;
             QueryInfo_.query = DB::queryNodeToSelectQuery(QueryInfo_.query_tree);
             modifiedQuery->setOriginalAST(QueryInfo_.query);
@@ -384,15 +392,20 @@ public:
                 blockHeader,
                 Logger);
 
+            // In the case of processing up to the FetchColumns stage,
+            // PlannerJoinTree expects that pipe outputs header will have unqualified column names.
+            // This means that we need to explicitly rename all outputs to prevent any aliases and identifiers
+            // that can occur after query processing distribution.
             if (!isInsert && ProcessingStage_ == DB::QueryProcessingStage::FetchColumns) {
                 auto& tableExpressionData = QueryInfo_.planner_context->getTableExpressionDataOrThrow(QueryInfo_.table_expression);
+                const auto& columnNames = tableExpressionData.getSelectedColumnsNames();
+                YT_VERIFY(columnNames.size() == blockHeader.getColumnsWithTypeAndName().size());
 
                 DB::ActionsDAG renameActionsDAG(blockHeader.getColumnsWithTypeAndName());
                 DB::ActionsDAG::NodeRawConstPtrs updatedActionsDAGOutputs;
-                for (auto& outputNode : renameActionsDAG.getOutputs()) {
-                    const auto* columnName = tableExpressionData.getColumnNameOrNull(outputNode->result_name);
-                    YT_VERIFY(columnName);
-                    updatedActionsDAGOutputs.push_back(&renameActionsDAG.addAlias(*outputNode, *columnName));
+                for (const auto& [outputIndex, outputNode] : Enumerate(renameActionsDAG.getOutputs())) {
+                    const auto& columnName = columnNames[outputIndex];
+                    updatedActionsDAGOutputs.push_back(&renameActionsDAG.addAlias(*outputNode, columnName));
                 }
                 renameActionsDAG.getOutputs() = std::move(updatedActionsDAGOutputs);
                 auto renameExpression = std::make_shared<DB::ExpressionActions>(std::move(renameActionsDAG), DB::ExpressionActionsSettings::fromContext(Context_));
