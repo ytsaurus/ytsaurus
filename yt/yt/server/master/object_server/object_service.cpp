@@ -439,6 +439,7 @@ public:
         , TentativePeerState_(Bootstrap_->GetHydraFacade()->GetHydraManager()->GetAutomatonState())
         , CellSyncSession_(New<TMultiPhaseCellSyncSession>(Bootstrap_, Logger))
         , PrematureBackoffAlarmProbability_(Owner_->GetPrematureBackoffAlarmProbability())
+        , ReplyLockCount_(TotalSubrequestCount_)
     { }
 
     ~TExecuteSession()
@@ -563,7 +564,7 @@ private:
         TTraceContextPtr TraceContext;
         NHydra::TRevision Revision = NHydra::NullRevision;
         std::atomic<bool> Uncertain = false;
-        std::atomic<bool> LocallyStarted = false;
+        std::atomic<bool> Started = false;
         std::atomic<bool> Completed = false;
         TRequestProfilingCountersPtr ProfilingCounters;
         // Only for (local) write requests. (Local read requests are handled by
@@ -583,6 +584,34 @@ private:
 
     // For (local) read requests. (Write requests are handled by per-subrequest replication sessions.)
     TTransactionReplicationSessionWithoutBoomerangsPtr RemoteTransactionReplicationSession_;
+
+    // Some subrequests can be outsourced (either by forwarding to remote
+    // service or by subscribing to cache). A session should not be destroyed
+    // until such subrequests are processed, but neither should it be kept alive
+    // for too long because backoff alarms, timeouts and the like may require
+    // early destruction. Blithely capturing a strong reference per outsourced
+    // subrequest may lead to a host of ugly problems, cyclic references between
+    // multiple sessions through cache subscriptions being one of them.
+    //
+    // Basically, there're two ways of dealing with session lifetime here:
+    //
+    //   1. Capture a strong reference per outsourced subrequest but be prepared
+    //     to cancel those subscriptions and destroy corresponding references.
+    //
+    //   2. Capture a weak reference per outsourced subrequest and manage the
+    //     lifetime centrally. #SelfReference_ below does exactly that.
+    //
+    // The first way leaves less garbage around (it destroys not only the
+    // session but subscription callbacks). However, it's hard to implement
+    // efficiently and race-free because, firstly, a vector of cancellation
+    // cookies would require careful synchronization and, secondly, cancelling a
+    // subscription is inherently racy and would require even more
+    // synchronization. Or, and don't forget exceptions that may occur while the
+    // vector is half-filled.
+    //
+    // With the second way, a lot of (no-op) callbacks may outlive a session
+    // object (for a time). But otherwise it's simpler.
+    TIntrusivePtr<TExecuteSession> SelfReference_;
 
     THashMap<TTransactionId, TCompactVector<TSubrequest*, 1>> RemoteTransactionIdToSubrequests_;
 
@@ -612,24 +641,14 @@ private:
     bool RequestQueueSizeIncremented_ = false;
 
     std::atomic<bool> ReplyScheduled_ = false;
-    std::atomic<bool> LocalExecutionStarted_ = false;
     std::atomic<bool> LocalExecutionInterrupted_ = false;
-
-    // If this is locked, the system is currently busy serving
-    // some local subrequest.
-    // NB: only TryAcquire() is called on this lock, never Acquire().
-    YT_DECLARE_SPIN_LOCK(NThreading::TRecursiveSpinLock, LocalExecutionLock_);
 
     // Has the time to backoff come?
     std::atomic<bool> BackoffAlarmTriggered_ = false;
 
     // Once this drops to zero, the request can be replied.
-    // Starts with one to indicate that the "ultimate" lock is initially held.
-    std::atomic<int> ReplyLockCount_ = 1;
-
-    // Set to true when the "ultimate" reply lock is released and
-    // RepyLockCount_ is decremented.
-    std::atomic<bool> UltimateReplyLockReleased_ = false;
+    // Initialized with the total number of subrequests (i.e. batch size).
+    std::atomic<int> ReplyLockCount_;
 
     // Set to true if we're ready to reply with at least one subresponse.
     std::atomic<bool> SomeSubrequestCompleted_ = false;
@@ -828,28 +847,39 @@ private:
                 subrequest.ActiveCacheCookie = std::move(cookie);
                 subrequest.ActiveCacheCookieSet.store(true);
             } else {
-                // NB: Postpone subscribing to the cookie to avoid races with CancelPendingCachedSubrequests.
+                // NB: Postpone subscribing to the cookie to avoid races with CancelPendingCacheSubrequests.
                 pendingCacheSubscriptions.emplace_back(subrequestIndex, cookie.GetValue());
                 subrequest.Type = EExecutionSessionSubrequestType::Cache;
-                AcquireReplyLock();
+                // Strictly speaking, this is unnecessary. The Started flag is
+                // only used to mark subrequests as uncertain (when the session
+                // is interrupted mid-execution). And uncertainty is only used to
+                // properly set retry flags, which aren't required for read
+                // subrequests. So this is just for uniformity's sake.
+                subrequest.Started.store(true);
             }
         }
 
         for (const auto& [subrequestIndex, future] : pendingCacheSubscriptions) {
-            future.Subscribe(BIND([this, this_ = MakeStrong(this), subrequestIndex] (const TErrorOr<TObjectServiceCacheEntryPtr>& entryOrError) {
-                auto& subrequest = Subrequests_[subrequestIndex];
+            // MakeWeak is sufficient - see SelfReference_.
+            future.Subscribe(BIND([weakThis = MakeWeak(this), subrequestIndex] (const TErrorOr<TObjectServiceCacheEntryPtr>& entryOrError) {
+                auto this_ = weakThis.Lock();
+                if (!this_) {
+                    return;
+                }
+
+                auto& subrequest = this_->Subrequests_[subrequestIndex];
                 if (!entryOrError.IsOK()) {
                     if (entryOrError.FindMatching(NYT::EErrorCode::Canceled)) {
-                        Reply(TError(NRpc::EErrorCode::TransientFailure, "Transient failure")
+                        this_->Reply(TError(NRpc::EErrorCode::TransientFailure, "Transient failure")
                             << entryOrError);
                     } else {
-                        Reply(entryOrError);
+                        this_->Reply(entryOrError);
                     }
                     return;
                 }
                 const auto& entry = entryOrError.Value();
                 subrequest.Revision = entry->GetRevision();
-                OnSuccessfulSubresponse(&subrequest, entry->GetResponseMessage());
+                this_->OnCompletedSubresponse(&subrequest, entry->GetResponseMessage());
             }));
         }
     }
@@ -1007,8 +1037,10 @@ private:
         try {
             LookupCachedSubrequests();
 
+            SelfReference_ = MakeStrong(this);
+
             // This shouldn't be done any sooner to avoid races between
-            // CancelPendingCachedSubrequests and LookupCachedSubrequests.
+            // CancelPendingCacheSubrequests and LookupCachedSubrequests.
             SubscribeToCancelation();
 
             // Re-check remote requests to see if resolve cache resolve is still OK.
@@ -1037,27 +1069,8 @@ private:
     void OnCanceled(const TError& error)
     {
         // Since RpcContext_->IsCanceled() is already true, this will not actually
-        // send a reply (see DoReply). Nevertheless, this is crucial for preventing
-        // the following.
-        //
-        // Two batch requests may depend on each other cyclically: the first one
-        // is subscribed, via cache, to a future the second one is responsible
-        // for setting, and vice versa. (This is possible because different batch
-        // requests do cache lookups and subsequent subscribing in parallel.)
-        //
-        // Such a cycle (which, btw, in practice may be of arbitrary length) is
-        // not necessarily bad. After all, the first future to be set will break
-        // the cycle. But currently there's a problem with backoff alarms
-        // (pending a fix in near future).
-        //
-        // When backoff alarm is triggered for a batch request, it will stop
-        // (after processing at least one subrequest) and will not process the
-        // tail of the batch. Normally, this is not an issue as the request is
-        // finished and destroyed soon after. However, if it's a part of a cycle
-        // (of the kind described above), all batch requests in the cycle may
-        // become stuck, each kept alive by a subscription to a future that will
-        // never be set because it's supposed to be set by a subrequest in the
-        // tail of the next batch request in the cycle.
+        // send a reply (see DoReply). Nevertheless, this is crucial for releasing
+        // #SelfReference_ in case of a timeout.
         Reply(error);
     }
 
@@ -1405,12 +1418,8 @@ private:
         }
 
         if (ContainsLocalSubrequests()) {
-            LocalExecutionStarted_.store(true);
             Owner_->EnqueueReadySession(this);
-        } else {
-            ReleaseUltimateReplyLock();
-            // NB: No finish is needed.
-        }
+        } // NB: Else the session is left awaiting being unreferenced and destroyed.
     }
 
     bool ContainsLocalSubrequests()
@@ -1449,7 +1458,16 @@ private:
                     multicellManager->GetMasterChannelOrThrow(cellTag, peerKind));
                 auto batchReq = proxy.ExecuteBatchNoBackoffRetries();
                 batchReq->SetOriginalRequestId(RequestId_);
-                batchReq->SetTimeout(ComputeForwardingTimeout(RpcContext_, Owner_->Config_));
+                auto reserved = false;
+                batchReq->SetTimeout(ComputeForwardingTimeout(RpcContext_, Owner_->Config_, &reserved));
+                if (!reserved) {
+                    // If the timeout for forwarded request has been shortened, backoff alarm on the
+                    // remote side will trigger sooner that locally, and we should deal with the local
+                    // alarm as normal.
+                    // Otherwise both alarms will trigger more or less simultaneously, which makes the
+                    // local alarm useless at best and harmful at worst.
+                    TDelayedExecutor::CancelAndClear(BackoffAlarmCookie_);
+                }
                 NRpc::SetAuthenticationIdentity(batchReq, RpcContext_->GetAuthenticationIdentity());
 
                 it = batchMap.emplace(key, TBatchValue{
@@ -1465,6 +1483,8 @@ private:
                 continue;
             }
 
+            subrequest.Started.store(true);
+
             const auto& requestHeader = subrequest.RequestHeader;
             const auto& ypathExt = *subrequest.YPathExt;
             auto peerKind = subrequest.YPathExt->mutating()
@@ -1474,8 +1494,6 @@ private:
             auto* batch = getOrCreateBatch(subrequest.ForwardedCellTag, peerKind);
             batch->BatchReq->AddRequestMessage(subrequest.RemoteRequestMessage);
             batch->Indexes.push_back(subrequestIndex);
-
-            AcquireReplyLock();
 
             YT_LOG_DEBUG("Forwarding object request (ForwardedRequestId: %v, Method: %v.%v, "
                 "%v%v%v%v, Mutating: %v, CellTag: %v, PeerKind: %v)",
@@ -1505,7 +1523,15 @@ private:
 
         for (auto& [cellTag, batch] : batchMap) {
             batch.BatchReq->Invoke().Subscribe(
-                BIND([=, this, this_ = MakeStrong(this), batch = std::move(batch)] (const TObjectServiceProxy::TErrorOrRspExecuteBatchPtr& batchRspOrError) {
+                // MakeWeak is sufficient - see SelfReference_.
+                BIND([=, weakThis = MakeWeak(this), batch = std::move(batch)] (const TObjectServiceProxy::TErrorOrRspExecuteBatchPtr& batchRspOrError) {
+                    auto this_ = weakThis.Lock();
+                    if (!this_) {
+                        return;
+                    }
+
+                    const auto& Logger = this_->Logger;
+
                     if (batchRspOrError.IsOK()) {
                         YT_LOG_DEBUG("Forwarded request succeeded (ForwardedRequestId: %v, SubrequestIndexes: %v)",
                             batch.BatchReq->GetRequestId(),
@@ -1513,19 +1539,19 @@ private:
 
                         const auto& batchRsp = batchRspOrError.Value();
                         for (auto index : batchRsp->GetUncertainRequestIndexes()) {
-                            MarkSubrequestAsUncertain(batch.Indexes[index]);
+                            this_->MarkSubrequestAsUncertain(batch.Indexes[index]);
                         }
                         for (int index = 0; index < batchRsp->GetSize(); ++index) {
-                            auto* subrequest = &Subrequests_[batch.Indexes[index]];
+                            auto* subrequest = &this_->Subrequests_[batch.Indexes[index]];
                             if (subrequest->Uncertain.load()) {
                                 continue;
                             }
                             auto responseMessage = batchRsp->GetResponseMessage(index);
                             if (responseMessage) {
                                 subrequest->Revision = batchRsp->GetRevision(index);
-                                OnSuccessfulSubresponse(subrequest, std::move(responseMessage));
+                                this_->OnCompletedSubresponse(subrequest, std::move(responseMessage));
                             } else {
-                                OnMissingSubresponse(subrequest);
+                                this_->OnMissingSubresponse(subrequest);
                             }
                         }
                     } else {
@@ -1538,7 +1564,7 @@ private:
                         if (!IsRetriableError(forwardingError) || forwardingError.FindMatching(NHydra::EErrorCode::ReadOnly)) {
                             YT_LOG_DEBUG(forwardingError, "Failing request due to non-retryable forwarding error (SubrequestIndexes: %v)",
                                 batch.Indexes);
-                            Reply(TError(NObjectClient::EErrorCode::ForwardedRequestFailed, "Forwarded request failed")
+                            this_->Reply(TError(NObjectClient::EErrorCode::ForwardedRequestFailed, "Forwarded request failed")
                                 << forwardingError);
                             return;
                         }
@@ -1547,7 +1573,7 @@ private:
                             batch.Indexes);
 
                         for (auto index : batch.Indexes) {
-                            MarkSubrequestAsUncertain(index);
+                            this_->MarkSubrequestAsUncertain(index);
                         }
                     }
                 }));
@@ -1587,24 +1613,6 @@ private:
                 BIND_NO_PROPAGATE(&TExecuteSession::CheckAndReschedule<void>, MakeStrong(this)));
             return false;
         }
-    }
-
-    bool AllSubrequestsProcessed() const
-    {
-        YT_ASSERT_THREAD_AFFINITY_ANY();
-
-        YT_ASSERT(CurrentAutomatonSubrequestIndex_ <= TotalSubrequestCount_);
-        YT_ASSERT(CurrentLocalReadSubrequestIndex_ <= TotalSubrequestCount_);
-
-        if (CurrentAutomatonSubrequestIndex_ < TotalSubrequestCount_) {
-            return false;
-        }
-
-        if (CurrentLocalReadSubrequestIndex_ < TotalSubrequestCount_) {
-            return false;
-        }
-
-        return true;
     }
 
     bool GuardedRunAutomatonFast()
@@ -1809,12 +1817,6 @@ private:
             }
 
             {
-                auto guard = NThreading::TracelessTryGuard(LocalExecutionLock_);
-                if (!guard.WasAcquired()) {
-                    Reschedule();
-                    break;
-                }
-
                 if (LocalExecutionInterrupted_.load()) {
                     break;
                 }
@@ -1826,10 +1828,6 @@ private:
 
                 ++(*currentSubrequestIndex);
             }
-        }
-
-        if (AllSubrequestsProcessed()) {
-            ReleaseUltimateReplyLock();
         }
     }
 
@@ -1886,10 +1884,15 @@ private:
         subrequest->ProfilingCounters->LeaderFallbackRequestCounter.Increment();
 
         const auto& objectManager = Bootstrap_->GetObjectManager();
+        auto timeoutReserved = false;
         auto asyncSubresponse = objectManager->ForwardObjectRequest(
             subrequest->RequestMessage,
             Bootstrap_->GetMulticellManager()->GetCellTag(),
-            NHydra::EPeerKind::Leader);
+            NHydra::EPeerKind::Leader,
+            &timeoutReserved);
+        if (!timeoutReserved) {
+            TDelayedExecutor::CancelAndClear(BackoffAlarmCookie_);
+        }
 
         SubscribeToSubresponse(subrequest, std::move(asyncSubresponse));
     }
@@ -1909,9 +1912,7 @@ private:
 
         YT_VERIFY(!subrequest->RemoteTransactionReplicationFuture || !subrequest->MutationResponseFuture);
 
-        if (!subrequest->LocallyStarted.exchange(true)) {
-            AcquireReplyLock();
-        }
+        subrequest->Started.store(true);
 
         auto timeLeft = GetTimeLeft(subrequest);
 
@@ -2038,7 +2039,7 @@ private:
         // Optimize for the (typical) case of synchronous response.
         const auto& context = subrequest->RpcContext;
         if (context->IsReplied()) {
-            OnSuccessfulSubresponse(subrequest, context->GetResponseMessage());
+            OnCompletedSubresponse(subrequest, context->GetResponseMessage());
         } else {
             SubscribeToSubresponse(subrequest, context->GetAsyncResponseMessage());
         }
@@ -2061,7 +2062,7 @@ private:
             return;
         }
 
-        OnSuccessfulSubresponse(subrequest, result.Value());
+        OnCompletedSubresponse(subrequest, result.Value());
     }
 
     void MarkSubrequestAsUncertain(int index)
@@ -2073,7 +2074,7 @@ private:
         ReleaseReplyLock();
     }
 
-    void OnSuccessfulSubresponse(TSubrequest* subrequest, TSharedRefArray subresponseMessage)
+    void OnCompletedSubresponse(TSubrequest* subrequest, TSharedRefArray subresponseMessage)
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
 
@@ -2129,6 +2130,10 @@ private:
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
 
+        // DoReply is called from a callback holding a strong-reference to this,
+        // so this is just future-proofing.
+        auto finally = Finally([&] { SelfReference_.Reset(); });
+
         TDelayedExecutor::CancelAndClear(BackoffAlarmCookie_);
         CancelPendingCacheSubrequests();
 
@@ -2159,9 +2164,7 @@ private:
             }
 
             if (!subrequest.Completed) {
-                if (subrequest.LocallyStarted) {
-                    // Possible for mutating subrequests because boomerangs are
-                    // launched ASAP but reply locks are taken later.
+                if (subrequest.Started) {
                     uncertainIndexes.push_back(index);
                 }
 
@@ -2312,16 +2315,6 @@ private:
         ScheduleReplyIfNeeded();
     }
 
-    void AcquireReplyLock()
-    {
-        YT_ASSERT_THREAD_AFFINITY_ANY();
-
-        int result = ++ReplyLockCount_;
-        YT_VERIFY(result > 1);
-        YT_LOG_TRACE("Reply lock acquired (LockCount: %v)",
-            result);
-    }
-
     bool ReleaseReplyLock()
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
@@ -2333,18 +2326,6 @@ private:
         return ScheduleReplyIfNeeded();
     }
 
-    bool ReleaseUltimateReplyLock()
-    {
-        YT_ASSERT_THREAD_AFFINITY_ANY();
-
-        if (UltimateReplyLockReleased_.exchange(true)) {
-            return false;
-        }
-
-        LocalExecutionInterrupted_.store(true);
-        return ReleaseReplyLock();
-    }
-
     bool ScheduleReplyIfNeeded()
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
@@ -2353,25 +2334,17 @@ private:
             return true;
         }
 
-        auto guard = NThreading::TracelessTryGuard(LocalExecutionLock_);
-        if (!guard.WasAcquired()) {
-            YT_LOG_DEBUG("Failed to acquire execution lock, backing off and retrying");
-            NConcurrency::TDelayedExecutor::Submit(
-                BIND(IgnoreResult(&TObjectService::TExecuteSession::ScheduleReplyIfNeeded), MakeStrong(this)),
-                Owner_->ScheduleReplyRetryBackoff_.load(),
-                TObjectService::GetRpcInvoker());
-            return false;
-        }
-
         if (ReplyLockCount_.load() == 0) {
             Reply();
             return true;
         }
 
-        if (BackoffAlarmTriggered_ && LocalExecutionStarted_ && SomeSubrequestCompleted_) {
-            YT_LOG_DEBUG("Local execution interrupted due to backoff alarm");
-            LocalExecutionInterrupted_.store(true);
-            return ReleaseUltimateReplyLock();
+        if (BackoffAlarmTriggered_ && SomeSubrequestCompleted_) {
+            if (!LocalExecutionInterrupted_.exchange(true)) {
+                YT_LOG_DEBUG("Local execution interrupted due to backoff alarm");
+            }
+            Reply();
+            return true;
         }
 
         return false;

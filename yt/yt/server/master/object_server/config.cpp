@@ -79,6 +79,14 @@ void TObjectServiceConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("enable_local_read_busy_wait", &TThis::EnableLocalReadBusyWait)
         .Default(true);
+
+    registrar.Postprocessor([] (TThis* config) {
+        if (config->ForwardedRequestTimeoutReserve < config->TimeoutBackoffLeadTime) {
+            THROW_ERROR_EXCEPTION("\"forwarded_request_timeout_reserve\" cannot be shorter than \"timeout_backoff_lead_time\"")
+                << TErrorAttribute("forwarded_request_timeout_reserve", config->ForwardedRequestTimeoutReserve)
+                << TErrorAttribute("timeout_backoff_lead_time", config->TimeoutBackoffLeadTime);
+        }
+    });
 }
 
 DEFINE_REFCOUNTED_TYPE(TObjectServiceConfig)

@@ -228,7 +228,8 @@ struct IObjectManager
     virtual TFuture<TSharedRefArray> ForwardObjectRequest(
         const TSharedRefArray& requestMessage,
         TCellTag cellTag,
-        NHydra::EPeerKind peerKind) = 0;
+        NHydra::EPeerKind peerKind,
+        bool* timeoutReserved = nullptr) = 0;
 
     //! Posts a creation request to the secondary master.
     virtual void ReplicateObjectCreationToSecondaryMaster(
