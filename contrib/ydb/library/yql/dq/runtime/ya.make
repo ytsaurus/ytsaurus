@@ -2,21 +2,23 @@ LIBRARY()
 
 PEERDIR(
     contrib/libs/apache/arrow
-    contrib/ydb/library/yverify_stream
+    contrib/ydb/library/actors/util
+    contrib/ydb/library/formats/arrow
+    contrib/ydb/library/formats/arrow/hash
     contrib/ydb/library/mkql_proto
-    yql/essentials/minikql/comp_nodes
-    yql/essentials/parser/pg_wrapper/interface
-    yql/essentials/public/udf
     contrib/ydb/library/yql/dq/actors/protos
     contrib/ydb/library/yql/dq/common
     contrib/ydb/library/yql/dq/expr_nodes
     contrib/ydb/library/yql/dq/type_ann
+    contrib/ydb/library/yverify_stream
+    yql/essentials/minikql
+    yql/essentials/minikql/arrow
+    yql/essentials/minikql/comp_nodes
+    yql/essentials/minikql/computation
     yql/essentials/parser/pg_wrapper/interface
     yql/essentials/providers/common/comp_nodes
     yql/essentials/providers/common/schema/mkql
     yql/essentials/public/udf
-    contrib/ydb/library/actors/util
-    contrib/ydb/library/formats/arrow/hash
 )
 
 SRCS(

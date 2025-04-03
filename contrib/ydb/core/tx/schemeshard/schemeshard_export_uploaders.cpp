@@ -1,5 +1,5 @@
 #include "schemeshard.h"
-#include "schemeshard_export_scheme_uploader.h"
+#include "schemeshard_export_uploaders.h"
 
 #include <contrib/ydb/core/backup/common/encryption.h>
 #include <contrib/ydb/core/protos/flat_scheme_op.pb.h>
@@ -477,7 +477,6 @@ private:
             }
             writer.CloseMap();
         }
-        writer.Write("exportedObjects", "SchemaMappingV0");
         writer.CloseMap();
         writer.CloseMap();
 

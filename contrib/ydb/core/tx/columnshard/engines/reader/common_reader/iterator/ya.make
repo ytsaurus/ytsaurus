@@ -15,6 +15,7 @@ SRCS(
 
 PEERDIR(
     contrib/ydb/core/tx/columnshard/engines/scheme
+    contrib/ydb/core/formats/arrow/accessor/sub_columns
     yql/essentials/minikql
     contrib/ydb/core/util/evlog
 )
