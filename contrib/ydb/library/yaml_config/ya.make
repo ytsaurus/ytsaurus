@@ -18,6 +18,7 @@ PEERDIR(
     library/cpp/protobuf/json
     contrib/ydb/core/base
     contrib/ydb/core/cms/console/util
+    contrib/ydb/core/config/validation
     contrib/ydb/core/erasure
     contrib/ydb/core/protos
     contrib/ydb/core/protos/out
