@@ -147,18 +147,11 @@ namespace NSQLComplete {
             }
 
             TLocalSyntaxContext::TPragma pragma;
-            if (tokens.size() < 4) {
-                pragma.Namespace = "";
-            } else if (
-                tokens[tokens.size() - 3].Name == "ID_PLAIN" &&
-                tokens[tokens.size() - 2].Name == "DOT") {
+            if (EndsWith(tokens, {"ID_PLAIN", "DOT"})) {
+                pragma.Namespace = tokens[tokens.size() - 2].Content;
+            } else if (EndsWith(tokens, {"ID_PLAIN", "DOT", ""})) {
                 pragma.Namespace = tokens[tokens.size() - 3].Content;
-            } else if (
-                tokens[tokens.size() - 4].Name == "ID_PLAIN" &&
-                tokens[tokens.size() - 3].Name == "DOT") {
-                pragma.Namespace = tokens[tokens.size() - 4].Content;
             }
-
             return pragma;
         }
 
@@ -178,30 +171,39 @@ namespace NSQLComplete {
             }
 
             TLocalSyntaxContext::TFunction function;
-            if (tokens.size() < 4) {
-                function.Namespace = "";
-            } else if (
-                tokens[tokens.size() - 3].Name == "ID_PLAIN" &&
-                tokens[tokens.size() - 2].Name == "NAMESPACE") {
+            if (EndsWith(tokens, {"ID_PLAIN", "NAMESPACE"})) {
+                function.Namespace = tokens[tokens.size() - 2].Content;
+            } else if (EndsWith(tokens, {"ID_PLAIN", "NAMESPACE", ""})) {
                 function.Namespace = tokens[tokens.size() - 3].Content;
-            } else if (
-                tokens[tokens.size() - 4].Name == "ID_PLAIN" &&
-                tokens[tokens.size() - 3].Name == "NAMESPACE") {
-                function.Namespace = tokens[tokens.size() - 4].Content;
             }
-
             return function;
         }
 
         NSQLTranslation::TParsedTokenList Tokenized(const TStringBuf text) {
             NSQLTranslation::TParsedTokenList tokens;
             NYql::TIssues issues;
-            if (!NSQLTranslation::Tokenize( // TODO(YQL-19747): Tokenize query as TStringBuf
+            if (!NSQLTranslation::Tokenize(
                     *Lexer_, TString(text), /* queryName = */ "",
                     tokens, issues, /* maxErrors = */ 0)) {
                 return {};
             }
+            Y_ENSURE(!tokens.empty() && tokens.back().Name == "EOF");
+            tokens.pop_back();
             return tokens;
+        }
+
+        bool EndsWith(
+            const NSQLTranslation::TParsedTokenList& tokens,
+            const TVector<TStringBuf>& pattern) {
+            if (tokens.size() < pattern.size()) {
+                return false;
+            }
+            for (yssize_t i = tokens.ysize() - 1, j = pattern.ysize() - 1; 0 <= j; --i, --j) {
+                if (!pattern[j].empty() && tokens[i].Name != pattern[j]) {
+                    return false;
+                }
+            }
+            return true;
         }
 
         const ISqlGrammar* Grammar;
