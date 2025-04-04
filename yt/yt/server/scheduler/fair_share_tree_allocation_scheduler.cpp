@@ -1920,7 +1920,7 @@ std::optional<EDeactivationReason> TScheduleAllocationsContext::TryStartSchedule
     *availableResourcesOutput = Min(
         availableResourceLimits,
         SchedulingContext_->GetNodeFreeResourcesWithDiscountForOperation(element->GetTreeIndex()));
-    *availableDiskResourcesOutput = SchedulingContext_->GetDiskResourcesWithDiscountForOperation(element->GetTreeIndex());
+    *availableDiskResourcesOutput = SchedulingContext_->GetDiskResourcesWithDiscountForOperation(element->GetTreeIndex(), minNeededResources);
     return {};
 }
 

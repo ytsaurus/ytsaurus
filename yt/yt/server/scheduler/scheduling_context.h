@@ -91,7 +91,7 @@ struct ISchedulingContext
     virtual TJobResourcesWithQuota GetMaxConditionalDiscount() const = 0;
     virtual TJobResourcesWithQuota GetConditionalDiscountForOperation(TOperationIndex operationIndex) const = 0;
     virtual void SetConditionalDiscountForOperation(TOperationIndex operationIndex, const TJobResourcesWithQuota& discount) = 0;
-    virtual TDiskResources GetDiskResourcesWithDiscountForOperation(TOperationIndex operationIndex) const = 0;
+    virtual TDiskResources GetDiskResourcesWithDiscountForOperation(TOperationIndex operationIndex, const TJobResources& allocationResources) const = 0;
     virtual TJobResources GetNodeFreeResourcesWithoutDiscount() const = 0;
     virtual TJobResources GetNodeFreeResourcesWithDiscount() const = 0;
     virtual TJobResources GetNodeFreeResourcesWithDiscountForOperation(TOperationIndex operationIndex) const = 0;
