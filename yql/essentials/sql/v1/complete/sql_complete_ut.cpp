@@ -549,6 +549,16 @@ Y_UNIT_TEST_SUITE(SqlCompleteTests) {
             };
             UNIT_ASSERT_VALUES_EQUAL(Complete(engine, {"SELECT OPTIONAL<U"}), expected);
         }
+        {
+            TVector<TCandidate> expected = {
+                {PragmaName, "yson.AutoConvert"},
+                {PragmaName, "yson.CastToString"},
+                {PragmaName, "yson.DisableCastToString"},
+                {PragmaName, "yson.DisableStrict"},
+                {PragmaName, "yson.Strict"},
+            };
+            UNIT_ASSERT_VALUES_EQUAL(Complete(engine, {"PRAGMA yson"}), expected);
+        }
     }
 
     Y_UNIT_TEST(OnFailingNameService) {
