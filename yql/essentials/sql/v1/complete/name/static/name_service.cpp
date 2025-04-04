@@ -35,41 +35,22 @@ namespace NSQLComplete {
         }
     }
 
-    TString PragmaPrefix(const TNameRequest& request) {
+    TString Prefixed(const TStringBuf requestPrefix, const TNamespaced& namespaced, const TStringBuf delimeter) {
         TString prefix;
-        if (!request.Constraints.Pragma->Namespace.empty()) {
-            prefix += request.Constraints.Pragma->Namespace;
-            prefix += '.';
+        if (!namespaced.Namespace.empty()) {
+            prefix += namespaced.Namespace;
+            prefix += delimeter;
         }
-        prefix += request.Prefix;
+        prefix += requestPrefix;
         return prefix;
     }
 
-    void FixPragmaPrefix(TVector<TStringBuf>& names, const TNamespaced& namespaced) {
+    void FixPrefix(TVector<TStringBuf>& names, const TNamespaced& namespaced, const TStringBuf delimeter) {
         if (namespaced.Namespace.empty()) {
             return;
         }
         for (auto& name : names) {
-            name = name.Skip(namespaced.Namespace.size() + 1);
-        }
-    }
-
-    TString FunctionPrefix(const TNameRequest& request) {
-        TString prefix;
-        if (!request.Constraints.Function->Namespace.empty()) {
-            prefix += request.Constraints.Function->Namespace;
-            prefix += "::";
-        }
-        prefix += request.Prefix;
-        return prefix;
-    }
-
-    void FixFunctionPrefix(TVector<TStringBuf>& names, const TNamespaced& namespaced) {
-        if (namespaced.Namespace.empty()) {
-            return;
-        }
-        for (auto& name : names) {
-            name = name.Skip(namespaced.Namespace.size() + 2);
+            name = name.Skip(namespaced.Namespace.size() + delimeter.size());
         }
     }
 
@@ -88,8 +69,9 @@ namespace NSQLComplete {
             TNameResponse response;
 
             if (request.Constraints.Pragma) {
-                auto names = FilteredByPrefix(PragmaPrefix(request), NameSet_.Pragmas);
-                FixPragmaPrefix(names, *request.Constraints.Pragma);
+                auto prefix = Prefixed(request.Prefix, *request.Constraints.Pragma, ".");
+                auto names = FilteredByPrefix(prefix, NameSet_.Pragmas);
+                FixPrefix(names, *request.Constraints.Pragma, ".");
                 AppendAs<TPragmaName>(response.RankedNames, names);
             }
 
@@ -100,8 +82,9 @@ namespace NSQLComplete {
             }
 
             if (request.Constraints.Function) {
-                auto names = FilteredByPrefix(FunctionPrefix(request), NameSet_.Functions);
-                FixFunctionPrefix(names, *request.Constraints.Function);
+                auto prefix = Prefixed(request.Prefix, *request.Constraints.Function, "::");
+                auto names = FilteredByPrefix(prefix, NameSet_.Functions);
+                FixPrefix(names, *request.Constraints.Function, "::");
                 AppendAs<TFunctionName>(response.RankedNames, names);
             }
 
