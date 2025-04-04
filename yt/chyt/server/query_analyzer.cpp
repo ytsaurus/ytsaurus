@@ -22,7 +22,6 @@
 #include <Analyzer/Passes/QueryAnalysisPass.h>
 #include <Analyzer/IQueryTreeNode.h>
 #include <Analyzer/InDepthQueryTreeVisitor.h>
-#include <Analyzer/createUniqueTableAliases.h>
 #include <Analyzer/QueryTreeBuilder.h>
 #include <Analyzer/ArrayJoinNode.h>
 #include <Analyzer/MatcherNode.h>

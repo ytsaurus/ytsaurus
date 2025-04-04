@@ -323,6 +323,19 @@ void ColumnObject::setDynamicPaths(const std::vector<String> & paths)
     }
 }
 
+void ColumnObject::setDynamicPaths(const std::vector<std::pair<String, ColumnPtr>> & paths)
+{
+    if (paths.size() > max_dynamic_paths)
+        throw Exception(ErrorCodes::LOGICAL_ERROR, "Cannot set dynamic paths to Object column, the number of paths ({}) exceeds the limit ({})", paths.size(), max_dynamic_paths);
+
+    for (const auto & [path, column] : paths)
+    {
+        auto it = dynamic_paths.emplace(path, column).first;
+        dynamic_paths_ptrs[path] = assert_cast<ColumnDynamic *>(it->second.get());
+        sorted_dynamic_paths.insert(it->first);
+    }
+}
+
 void ColumnObject::insert(const Field & x)
 {
     const auto & object = x.safeGet<Object>();
@@ -1240,6 +1253,13 @@ void ColumnObject::prepareForSquashing(const std::vector<ColumnPtr> & source_col
 
     /// Add dynamic paths from this object column.
     add_dynamic_paths(*this);
+
+    /// It might happen that current max_dynamic_paths is less then global_max_dynamic_paths
+    /// but the shared data is empty. For example if this block was deserialized from Native format.
+    /// In this case we should set max_dynamic_paths = global_max_dynamic_paths, so during squashing we
+    /// will insert new types to SharedVariant only when the global limit is reached.
+    if (getSharedDataPathsAndValues().first->empty())
+        max_dynamic_paths = global_max_dynamic_paths;
 
     /// Check if the number of all dynamic paths exceeds the limit.
     if (path_to_total_number_of_non_null_values.size() > max_dynamic_paths)
