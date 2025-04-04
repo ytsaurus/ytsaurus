@@ -76,10 +76,12 @@ namespace NSQLComplete {
                 .Limit = Configuration.Limit - candidates.size(),
             };
 
-            if (context.IsTypeName) {
-                request.Constraints.TypeName = TTypeName::TConstraints();
+            if (context.IsPragmaName) {
+                request.Constraints.Pragma = TPragmaName::TConstraints();
             }
-
+            if (context.IsTypeName) {
+                request.Constraints.Type = TTypeName::TConstraints();
+            }
             if (context.IsFunctionName) {
                 request.Constraints.Function = TFunctionName::TConstraints();
             }
@@ -98,6 +100,9 @@ namespace NSQLComplete {
             for (auto& name : names) {
                 candidates.emplace_back(std::visit([](auto&& name) -> TCandidate {
                     using T = std::decay_t<decltype(name)>;
+                    if constexpr (std::is_base_of_v<TPragmaName, T>) {
+                        return {ECandidateKind::PragmaName, std::move(name.Indentifier)};
+                    }
                     if constexpr (std::is_base_of_v<TTypeName, T>) {
                         return {ECandidateKind::TypeName, std::move(name.Indentifier)};
                     }
@@ -153,6 +158,9 @@ void Out<NSQLComplete::ECandidateKind>(IOutputStream& out, NSQLComplete::ECandid
         case NSQLComplete::ECandidateKind::Keyword:
             out << "Keyword";
             break;
+        case NSQLComplete::ECandidateKind::PragmaName:
+            out << "PragmaName";
+            break;    
         case NSQLComplete::ECandidateKind::TypeName:
             out << "TypeName";
             break;

@@ -11,6 +11,7 @@ namespace NSQLComplete {
 
     struct TLocalSyntaxContext {
         TVector<TString> Keywords;
+        bool IsPragmaName;
         bool IsTypeName;
         bool IsFunctionName;
     };
