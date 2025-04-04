@@ -12,7 +12,7 @@ LICENSE(
 
 LICENSE_TEXTS(.yandex_meta/licenses.list.txt)
 
-VERSION(24.8.5.115)
+VERSION(24.8.14.39)
 
 PEERDIR(
     contrib/clickhouse/base/poco/Crypto
@@ -400,7 +400,7 @@ SRCS(
     Analyzer/ValidationUtils.cpp
     Analyzer/WindowFunctionsUtils.cpp
     Analyzer/WindowNode.cpp
-    Analyzer/createUniqueTableAliases.cpp
+    Analyzer/createUniqueAliasesIfNecessary.cpp
     Backups/BackupCoordinationFileInfos.cpp
     Backups/BackupCoordinationKeeperMapTables.cpp
     Backups/BackupCoordinationLocal.cpp
@@ -2072,6 +2072,7 @@ SRCS(
     Processors/Transforms/MergeSortingTransform.cpp
     Processors/Transforms/MergingAggregatedMemoryEfficientTransform.cpp
     Processors/Transforms/MergingAggregatedTransform.cpp
+    Processors/Transforms/NestedElementsValidationTransform.cpp
     Processors/Transforms/PartialSortingTransform.cpp
     Processors/Transforms/PasteJoinTransform.cpp
     Processors/Transforms/PlanSquashingTransform.cpp
@@ -2314,6 +2315,7 @@ SRCS(
     Storages/ObjectStorage/HDFS/AsynchronousReadBufferFromHDFS.cpp
     Storages/ObjectStorage/HDFS/Configuration.cpp
     Storages/ObjectStorage/HDFS/HDFSCommon.cpp
+    Storages/ObjectStorage/HDFS/HDFSErrorWrapper.cpp
     Storages/ObjectStorage/HDFS/ReadBufferFromHDFS.cpp
     Storages/ObjectStorage/HDFS/WriteBufferFromHDFS.cpp
     Storages/ObjectStorage/ReadBufferIterator.cpp
