@@ -461,6 +461,7 @@ public:
                 healthCheckerConfig,
                 Config_->Path,
                 LocationQueue_->GetInvoker(),
+                DynamicConfigManager_,
                 Logger,
                 profiler);
         }

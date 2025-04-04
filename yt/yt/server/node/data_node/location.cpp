@@ -443,6 +443,7 @@ TChunkLocation::TChunkLocation(
         ChunkContext_->DataNodeConfig->DiskHealthChecker,
         GetPath(),
         GetAuxPoolInvoker(),
+        DynamicConfigManager_,
         DataNodeLogger(),
         Profiler_);
 
