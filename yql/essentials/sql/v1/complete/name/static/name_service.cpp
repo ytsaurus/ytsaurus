@@ -35,7 +35,7 @@ namespace NSQLComplete {
         }
     }
 
-    TString Prefixed(const TStringBuf requestPrefix, const TNamespaced& namespaced, const TStringBuf delimeter) {
+    TString Prefixed(const TStringBuf requestPrefix, const TStringBuf delimeter, const TNamespaced& namespaced) {
         TString prefix;
         if (!namespaced.Namespace.empty()) {
             prefix += namespaced.Namespace;
@@ -45,7 +45,7 @@ namespace NSQLComplete {
         return prefix;
     }
 
-    void FixPrefix(TString& name, const TNamespaced& namespaced, const TStringBuf delimeter) {
+    void FixPrefix(TString& name, const TStringBuf delimeter, const TNamespaced& namespaced) {
         if (namespaced.Namespace.empty()) {
             return;
         }
@@ -56,12 +56,10 @@ namespace NSQLComplete {
         std::visit([&](auto& name) -> size_t {
             using T = std::decay_t<decltype(name)>;
             if constexpr (std::is_same_v<T, TPragmaName>) {
-                FixPrefix(name.Indentifier, *request.Constraints.Pragma, ".");
-            }
-            if constexpr (std::is_same_v<T, TTypeName>) {
+                FixPrefix(name.Indentifier, ".", *request.Constraints.Pragma);
             }
             if constexpr (std::is_same_v<T, TFunctionName>) {
-                FixPrefix(name.Indentifier, *request.Constraints.Function, "::");
+                FixPrefix(name.Indentifier, "::", *request.Constraints.Function);
             }
             return 0;
         }, name);
@@ -82,7 +80,7 @@ namespace NSQLComplete {
             TNameResponse response;
 
             if (request.Constraints.Pragma) {
-                auto prefix = Prefixed(request.Prefix, *request.Constraints.Pragma, ".");
+                auto prefix = Prefixed(request.Prefix, ".", *request.Constraints.Pragma);
                 auto names = FilteredByPrefix(prefix, NameSet_.Pragmas);
                 AppendAs<TPragmaName>(response.RankedNames, names);
             }
@@ -94,7 +92,7 @@ namespace NSQLComplete {
             }
 
             if (request.Constraints.Function) {
-                auto prefix = Prefixed(request.Prefix, *request.Constraints.Function, "::");
+                auto prefix = Prefixed(request.Prefix, "::", *request.Constraints.Function);
                 auto names = FilteredByPrefix(prefix, NameSet_.Functions);
                 AppendAs<TFunctionName>(response.RankedNames, names);
             }

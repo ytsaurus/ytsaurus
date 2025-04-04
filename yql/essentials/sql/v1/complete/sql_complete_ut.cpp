@@ -559,6 +559,10 @@ Y_UNIT_TEST_SUITE(SqlCompleteTests) {
 
     Y_UNIT_TEST(Ranking) {
         TFrequencyData frequency = {
+            .Pragmas = {
+                {"yt.defaultmemorylimit", 16},
+                {"yt.annotations", 8},
+            },
             .Types = {
                 {"int32", 128},
                 {"int64", 64},
@@ -575,6 +579,15 @@ Y_UNIT_TEST_SUITE(SqlCompleteTests) {
         };
         auto service = MakeStaticNameService(MakeDefaultNameSet(), MakeDefaultRanking(frequency));
         auto engine = MakeSqlCompletionEngine(MakePureLexerSupplier(), std::move(service));
+        {
+            TVector<TCandidate> expectedPrefix = {
+                {PragmaName, "DefaultMemoryLimit"},
+                {PragmaName, "Annotations"},
+            };
+            auto actualPrefix = Complete(engine, {"PRAGMA yt."});
+            actualPrefix.crop(expectedPrefix.size());
+            UNIT_ASSERT_VALUES_EQUAL(actualPrefix, expectedPrefix);
+        }
         {
             TVector<TCandidate> expected = {
                 {TypeName, "Int32"},
