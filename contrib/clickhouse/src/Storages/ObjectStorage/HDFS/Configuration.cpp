@@ -24,6 +24,7 @@ namespace ErrorCodes
 {
     extern const int BAD_ARGUMENTS;
     extern const int NUMBER_OF_ARGUMENTS_DOESNT_MATCH;
+    extern const int LOGICAL_ERROR;
 }
 
 StorageHDFSConfiguration::StorageHDFSConfiguration(const StorageHDFSConfiguration & other)
@@ -83,12 +84,13 @@ StorageObjectStorage::QuerySettings StorageHDFSConfiguration::getQuerySettings(c
 
 void StorageHDFSConfiguration::fromAST(ASTs & args, ContextPtr context, bool with_structure)
 {
-    const size_t max_args_num = with_structure ? 4 : 3;
-    if (args.empty() || args.size() > max_args_num)
-    {
-        throw Exception(ErrorCodes::NUMBER_OF_ARGUMENTS_DOESNT_MATCH,
-                        "Expected not more than {} arguments", max_args_num);
-    }
+    if (args.empty() || args.size() > getMaxNumberOfArguments(with_structure))
+        throw Exception(
+            ErrorCodes::NUMBER_OF_ARGUMENTS_DOESNT_MATCH,
+            "Storage HDFS requires 1 to {} arguments. All supported signatures:\n{}",
+            getMaxNumberOfArguments(with_structure),
+            getSignatures(with_structure));
+
 
     std::string url_str;
     url_str = checkAndGetLiteralArgument<String>(args[0], "url");
@@ -158,28 +160,35 @@ void StorageHDFSConfiguration::setURL(const std::string & url_)
     LOG_TRACE(getLogger("StorageHDFSConfiguration"), "Using URL: {}, path: {}", url, path);
 }
 
-void StorageHDFSConfiguration::addStructureAndFormatToArgs(
+void StorageHDFSConfiguration::addStructureAndFormatToArgsIfNeeded(
     ASTs & args,
     const String & structure_,
     const String & format_,
-    ContextPtr context)
+    ContextPtr context,
+    bool with_structure)
 {
-    if (tryGetNamedCollectionWithOverrides(args, context))
+    if (auto collection = tryGetNamedCollectionWithOverrides(args, context))
     {
-        /// In case of named collection, just add key-value pair "structure='...'"
-        /// at the end of arguments to override existed structure.
-        ASTs equal_func_args = {std::make_shared<ASTIdentifier>("structure"), std::make_shared<ASTLiteral>(structure_)};
-        auto equal_func = makeASTFunction("equals", std::move(equal_func_args));
-        args.push_back(equal_func);
+        /// In case of named collection, just add key-value pairs "format='...', structure='...'"
+        /// at the end of arguments to override existed format and structure with "auto" values.
+        if (collection->getOrDefault<String>("format", "auto") == "auto")
+        {
+            ASTs format_equal_func_args = {std::make_shared<ASTIdentifier>("format"), std::make_shared<ASTLiteral>(format_)};
+            auto format_equal_func = makeASTFunction("equals", std::move(format_equal_func_args));
+            args.push_back(format_equal_func);
+        }
+        if (with_structure && collection->getOrDefault<String>("structure", "auto") == "auto")
+        {
+            ASTs structure_equal_func_args = {std::make_shared<ASTIdentifier>("structure"), std::make_shared<ASTLiteral>(structure_)};
+            auto structure_equal_func = makeASTFunction("equals", std::move(structure_equal_func_args));
+            args.push_back(structure_equal_func);
+        }
     }
     else
     {
         size_t count = args.size();
-        if (count == 0 || count > 4)
-        {
-            throw Exception(ErrorCodes::NUMBER_OF_ARGUMENTS_DOESNT_MATCH,
-                            "Expected 1 to 4 arguments in table function, got {}", count);
-        }
+        if (count == 0 || count > getMaxNumberOfArguments())
+            throw Exception(ErrorCodes::LOGICAL_ERROR, "Expected 1 to {} arguments in table function hdfs, got {}", getMaxNumberOfArguments(), count);
 
         auto format_literal = std::make_shared<ASTLiteral>(format_);
         auto structure_literal = std::make_shared<ASTLiteral>(structure_);
@@ -191,23 +200,26 @@ void StorageHDFSConfiguration::addStructureAndFormatToArgs(
         if (count == 1)
         {
             /// Add format=auto before structure argument.
-            args.push_back(std::make_shared<ASTLiteral>("auto"));
-            args.push_back(structure_literal);
+            args.push_back(format_literal);
+            if (with_structure)
+                args.push_back(structure_literal);
         }
         /// hdfs(url, format)
         else if (count == 2)
         {
             if (checkAndGetLiteralArgument<String>(args[1], "format") == "auto")
                 args.back() = format_literal;
-            args.push_back(structure_literal);
+            if (with_structure)
+                args.push_back(structure_literal);
         }
         /// hdfs(url, format, structure)
         /// hdfs(url, format, structure, compression_method)
+        /// hdfs(url, format, compression_method)
         else if (count >= 3)
         {
             if (checkAndGetLiteralArgument<String>(args[1], "format") == "auto")
                 args[1] = format_literal;
-            if (checkAndGetLiteralArgument<String>(args[2], "structure") == "auto")
+            if (with_structure && checkAndGetLiteralArgument<String>(args[2], "structure") == "auto")
                 args[2] = structure_literal;
         }
     }

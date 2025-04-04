@@ -386,7 +386,7 @@ target_sources(contrib-clickhouse-src PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Analyzer/ValidationUtils.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Analyzer/WindowFunctionsUtils.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Analyzer/WindowNode.cpp
-  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Analyzer/createUniqueTableAliases.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Analyzer/createUniqueAliasesIfNecessary.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Backups/BackupCoordinationFileInfos.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Backups/BackupCoordinationKeeperMapTables.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Backups/BackupCoordinationLocal.cpp
@@ -1394,6 +1394,7 @@ target_sources(contrib-clickhouse-src PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Processors/Transforms/MergeSortingTransform.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Processors/Transforms/MergingAggregatedMemoryEfficientTransform.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Processors/Transforms/MergingAggregatedTransform.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Processors/Transforms/NestedElementsValidationTransform.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Processors/Transforms/PartialSortingTransform.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Processors/Transforms/PasteJoinTransform.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Processors/Transforms/PlanSquashingTransform.cpp
@@ -1636,6 +1637,7 @@ target_sources(contrib-clickhouse-src PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Storages/ObjectStorage/HDFS/AsynchronousReadBufferFromHDFS.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Storages/ObjectStorage/HDFS/Configuration.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Storages/ObjectStorage/HDFS/HDFSCommon.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Storages/ObjectStorage/HDFS/HDFSErrorWrapper.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Storages/ObjectStorage/HDFS/ReadBufferFromHDFS.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Storages/ObjectStorage/HDFS/WriteBufferFromHDFS.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Storages/ObjectStorage/ReadBufferIterator.cpp
