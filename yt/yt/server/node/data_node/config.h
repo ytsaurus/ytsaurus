@@ -1057,6 +1057,7 @@ public:
     NConcurrency::TThroughputThrottlerConfigPtr ReadRpsOutThrottler;
     NConcurrency::TThroughputThrottlerConfigPtr AnnounceChunkReplicaRpsOutThrottler;
 
+    NServer::TDiskHealthCheckerDynamicConfigPtr DiskHealthChecker;
     TSlruCacheDynamicConfigPtr ChunkMetaCache;
     TSlruCacheDynamicConfigPtr BlocksExtCache;
     TSlruCacheDynamicConfigPtr BlockMetaCache;
