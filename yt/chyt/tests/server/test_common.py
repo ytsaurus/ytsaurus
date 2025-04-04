@@ -1942,13 +1942,22 @@ class TestClickHouseCommon(ClickHouseTestBase):
 
     @authors("buyval01")
     def test_select_from_subquery(self):
+        # This test checks that secondary query headers are calculated correctly.
+        # The new CH analyzer creates unique table aliases for analysis that override the original aliases.
+        # This functionality is also applied when executing secondary queries.
+        # As a result, the secondary query header and the actual result received by the initiator may have different aliases,
+        # resulting in an execution error.
         create("table", "//tmp/t", attributes={"schema": [{"name": "a", "type": "int64"}]})
         write_table("//tmp/t", [{"a": 27}, {"a": 3}, {"a": 9}])
-        write_table("//tmp/t", [{"a": 25}, {"a": 125}, {"a": 5}])
+        write_table("<append=%true>//tmp/t", [{"a": 25}, {"a": 125}, {"a": 5}])
 
         with Clique(3) as clique:
             query = 'select toString(t1.sub_res) as res from (select max(a) as sub_res from "//tmp/t") as t1'
             assert clique.make_query(query) == [{"res": "125"}]
+            query = ('select t1.val_sqrt as res from '
+                     '(select tt.a as val, t.a as val_sqrt from "//tmp/t" t inner join (select * from "//tmp/t") tt on t.a * t.a = tt.a) as t1 '
+                     'order by (t1.val)')
+            assert clique.make_query(query) == [{"res": 3}, {"res": 5}]
 
 
 class TestClickHouseNoCache(ClickHouseTestBase):
