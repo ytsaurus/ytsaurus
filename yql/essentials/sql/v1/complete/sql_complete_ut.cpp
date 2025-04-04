@@ -269,14 +269,36 @@ Y_UNIT_TEST_SUITE(SqlCompleteTests) {
     }
 
     Y_UNIT_TEST(Pragma) {
-        TVector<TCandidate> expected = {
-            {Keyword, "ANSI"},
-            {PragmaName, "yson.CastToString"}
-        };
-
         auto engine = MakeSqlCompletionEngineUT();
-        UNIT_ASSERT_VALUES_EQUAL(Complete(engine, {"PRAGMA "}), expected);
-        // UNIT_ASSERT_VALUES_EQUAL(Complete(engine, {"PRAGMA yson."}), expected);
+        {
+            TVector<TCandidate> expected = {
+                {Keyword, "ANSI"},
+                {PragmaName, "yson.CastToString"}
+            };
+            auto completion = engine->Complete({"PRAGMA "});
+            UNIT_ASSERT_VALUES_EQUAL(completion.Candidates, expected);
+            UNIT_ASSERT_VALUES_EQUAL(completion.CompletedToken.Content, "");
+        }
+        {
+            TVector<TCandidate> expected = {
+                {PragmaName, "yson.CastToString"}
+            };
+            {
+                auto completion = engine->Complete({"PRAGMA yson"});
+                UNIT_ASSERT_VALUES_EQUAL(completion.Candidates, expected);
+                UNIT_ASSERT_VALUES_EQUAL(completion.CompletedToken.Content, "yson");
+            }
+            {
+                auto completion = engine->Complete({"PRAGMA yson."});
+                UNIT_ASSERT_VALUES_EQUAL(completion.Candidates, expected);
+                UNIT_ASSERT_VALUES_EQUAL(completion.CompletedToken.Content, "yson.");
+            }
+            {
+                auto completion = engine->Complete({"PRAGMA yson.cast"});
+                UNIT_ASSERT_VALUES_EQUAL(completion.Candidates, expected);
+                UNIT_ASSERT_VALUES_EQUAL(completion.CompletedToken.Content, "yson.cast");
+            }
+        }
     }
 
     Y_UNIT_TEST(Select) {
@@ -404,6 +426,10 @@ Y_UNIT_TEST_SUITE(SqlCompleteTests) {
             };
             UNIT_ASSERT_VALUES_EQUAL(Complete(engine, {"SELECT Nothing(Option"}), expected);
         }
+    }
+
+    Y_UNIT_TEST(FunctioName) {
+        // TODO(YQL-19747): Check `SELECT DateTime::` completion.
     }
 
     Y_UNIT_TEST(UTF8Wide) {

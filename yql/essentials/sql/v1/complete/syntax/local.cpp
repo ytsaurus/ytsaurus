@@ -55,7 +55,7 @@ namespace NSQLComplete {
             auto candidates = C3.Complete(prefix);
             return {
                 .Keywords = SiftedKeywords(candidates),
-                .IsPragmaName = IsPragmaNameMatched(candidates),
+                .Pragma = PragmaMatch(prefix, candidates),
                 .IsTypeName = IsTypeNameMatched(candidates),
                 .IsFunctionName = IsFunctionNameMatched(candidates),
             };
@@ -132,10 +132,35 @@ namespace NSQLComplete {
             return name;
         }
 
-        bool IsPragmaNameMatched(const TC3Candidates& candidates) {
-            return AnyOf(candidates.Rules, [&](const TMatchedRule& rule) {
+        std::optional<TLocalSyntaxContext::TPragma> PragmaMatch(
+            const TStringBuf prefix, const TC3Candidates& candidates) {
+            bool isMatched = AnyOf(candidates.Rules, [&](const TMatchedRule& rule) {
                 return IsLikelyPragmaStack(rule.ParserCallStack);
             });
+            if (!isMatched) {
+                return std::nullopt;
+            }
+
+            // TODO(YQL-19747): Actually we tokenize 3 times now. On statement split,
+            //                  on c3 call and on a pragma lookbehind.
+            NSQLTranslation::TParsedTokenList tokens = Tokenized(prefix);
+
+            TLocalSyntaxContext::TPragma pragma;
+            if (tokens.size() < 4) {
+                pragma.Namespace = "";
+            } else if (
+                tokens[tokens.size() - 3].Name == "ID_PLAIN" && 
+                tokens[tokens.size() - 2].Name == "DOT"
+            ) {
+                pragma.Namespace = tokens[tokens.size() - 3].Content;
+            } else if (
+                tokens[tokens.size() - 4].Name == "ID_PLAIN" && 
+                tokens[tokens.size() - 3].Name == "DOT"
+            ) {
+                pragma.Namespace = tokens[tokens.size() - 4].Content;
+            }
+
+            return pragma;
         }
 
         bool IsTypeNameMatched(const TC3Candidates& candidates) {
@@ -148,6 +173,18 @@ namespace NSQLComplete {
             return AnyOf(candidates.Rules, [&](const TMatchedRule& rule) {
                 return IsLikelyFunctionStack(rule.ParserCallStack);
             });
+        }
+
+        NSQLTranslation::TParsedTokenList Tokenized(const TStringBuf text) {
+            NSQLTranslation::TParsedTokenList tokens;
+            NYql::TIssues issues;
+            if (!NSQLTranslation::Tokenize( // TODO(YQL-19747): Tokenize query as TStringBuf
+                    *Lexer_, TString(text), /* queryName = */ "", 
+                    tokens, issues, /* maxErrors = */ 0)
+            ) {
+                return {};
+            }
+            return tokens;
         }
 
         const ISqlGrammar* Grammar;

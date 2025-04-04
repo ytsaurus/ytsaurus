@@ -26,6 +26,7 @@ namespace NSQLComplete {
 
     const TVector<TRuleId> PragmaNameRules = {
         RULE(Opt_id_prefix_or_type),
+        RULE(An_id),
     };
 
     const TVector<TRuleId> TypeNameRules = {
@@ -67,7 +68,8 @@ namespace NSQLComplete {
     }
 
     bool IsLikelyPragmaStack(const TParserCallStack& stack) {
-        return EndsWith({RULE(Pragma_stmt), RULE(Opt_id_prefix_or_type)}, stack);
+        return EndsWith({RULE(Pragma_stmt), RULE(Opt_id_prefix_or_type)}, stack) ||
+               EndsWith({RULE(Pragma_stmt), RULE(An_id)}, stack);
     }
 
     bool IsLikelyTypeStack(const TParserCallStack& stack) {
