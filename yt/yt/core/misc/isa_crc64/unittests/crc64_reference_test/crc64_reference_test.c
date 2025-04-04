@@ -61,10 +61,14 @@ uint64_t crc64_yt_norm_base(
     const unsigned char *buf,
     uint64_t len);
 
+#ifdef __x86_64__
 uint64_t crc64_yt_norm_by8(
     uint64_t init_crc,
     const unsigned char *buf,
     uint64_t len);
+#else
+# define crc64_yt_norm_by8 crc64_yt_norm_base
+#endif
 
 ////////////////////////////////////////////////////////////////////////////////
 
