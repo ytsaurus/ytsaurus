@@ -36,8 +36,7 @@
 
 #include <yt/yt/core/yson/string.h>
 
-namespace NYT::NExecNode
-{
+namespace NYT::NExecNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 

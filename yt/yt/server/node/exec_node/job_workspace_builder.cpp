@@ -14,8 +14,7 @@
 
 #include <yt/yt/core/misc/fs.h>
 
-namespace NYT::NExecNode
-{
+namespace NYT::NExecNode {
 
 using namespace NContainers::NCri;
 using namespace NConcurrency;
