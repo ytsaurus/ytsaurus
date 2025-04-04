@@ -4168,7 +4168,7 @@ class TestJobInputCache(YTEnvSetup):
         block_compressed_cache_size = self._seed_gauge(node, "exec_node/job_input_cache/block_cache/compressed_data/size")
         meta_cache_size = self._seed_gauge(node, "exec_node/job_input_cache/meta_cache/size")
 
-        map(
+        op = map(
             in_="<read_via_exec_node=%true>//tmp/input{}".format("[0:1,3:4]" if sort else ""),
             out="//tmp/output",
             command="cat",
@@ -4211,6 +4211,8 @@ class TestJobInputCache(YTEnvSetup):
             wait(lambda: block_compressed_cache_size.get() > 0)
             wait(lambda: meta_cache_size.get() > 0)
 
+        return op
+
     @pytest.mark.timeout(200)
     @authors("don-dron")
     @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
@@ -4244,6 +4246,31 @@ class TestJobInputCache(YTEnvSetup):
         for node in nodes_to_run:
             self._run_job(node, sort=True, retry=False, cache_disabled=True)
             self._run_job(node, sort=True, retry=True, cache_disabled=True)
+
+    @authors("coteeq")
+    def test_reader_statistics(self):
+        self._set_config()
+        create("table", "//tmp/output")
+        nodes_to_run = [
+            self.find_node_with_flavors(["exec"]),
+            self.find_node_with_flavors(["data", "exec"]),
+        ]
+
+        def check_op(op, is_retry):
+            statistics = op.get_statistics()
+
+            if is_retry:
+                assert extract_statistic_v2(statistics, "chunk_reader_statistics.data_bytes_read_from_disk") == 0
+                assert extract_statistic_v2(statistics, "chunk_reader_statistics.data_bytes_read_from_cache") > 0
+            else:
+                assert extract_statistic_v2(statistics, "chunk_reader_statistics.data_bytes_read_from_disk") > 0
+                assert extract_statistic_v2(statistics, "chunk_reader_statistics.data_bytes_read_from_cache") == 0
+
+        for node in nodes_to_run:
+            remove("//tmp/input", force=True)
+            self._fill_table("//tmp/input", 1, "none", "scan", True, "none")
+            check_op(self._run_job(node, sort=True, retry=False, cache_disabled=False), is_retry=False)
+            check_op(self._run_job(node, sort=True, retry=True, cache_disabled=False), is_retry=True)
 
     @authors("don-dron")
     def test_disable_for_remote_copy(self):

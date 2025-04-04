@@ -95,6 +95,7 @@ private:
     void AttachBlocksToResponse(
         const TIntrusivePtr<TContext>& context,
         TResponse* response,
+        const TChunkReaderStatisticsPtr& chunkReaderStatistics,
         const std::vector<NChunkClient::TBlock>& blocks) const
     {
         auto hasCompleteChunk = true;
@@ -103,11 +104,6 @@ private:
         SetRpcAttachedBlocks(response, blocks);
 
         auto blocksSize = GetByteSize(response->Attachments());
-
-        auto chunkReaderStatistics = New<TChunkReaderStatistics>();
-        chunkReaderStatistics->DataBytesReadFromCache.fetch_add(
-            blocksSize,
-            std::memory_order::relaxed);
 
         ToProto(response->mutable_chunk_reader_statistics(), chunkReaderStatistics);
 
@@ -178,6 +174,7 @@ private:
         IChunkReader::TReadBlocksOptions jobInputCacheOptions;
         jobInputCacheOptions.ClientOptions.WorkloadDescriptor = workloadDescriptor;
         jobInputCacheOptions.ClientOptions.ReadSessionId = readSessionId;
+        jobInputCacheOptions.ClientOptions.ChunkReaderStatistics = New<TChunkReaderStatistics>();
 
         auto result = JobInputCache_->ReadBlocks(chunkId, blockIndexes, jobInputCacheOptions);
         auto withTimeout = WrapWithTimeout(
@@ -187,7 +184,13 @@ private:
                 return std::vector<TBlock>(size);
             }));
         auto responseFuture = withTimeout
-            .Apply(BIND(&TProxyingDataNodeService::AttachBlocksToResponse<TCtxGetBlockSet, TRspGetBlockSet>, MakeStrong(this), context, response));
+            .Apply(
+                BIND(
+                    &TProxyingDataNodeService::AttachBlocksToResponse<TCtxGetBlockSet, TRspGetBlockSet>,
+                    MakeStrong(this),
+                    context,
+                    response,
+                    jobInputCacheOptions.ClientOptions.ChunkReaderStatistics));
         context->ReplyFrom(responseFuture);
     }
 
@@ -222,6 +225,7 @@ private:
         IChunkReader::TReadBlocksOptions jobInputCacheOptions;
         jobInputCacheOptions.ClientOptions.WorkloadDescriptor = workloadDescriptor;
         jobInputCacheOptions.ClientOptions.ReadSessionId = readSessionId;
+        jobInputCacheOptions.ClientOptions.ChunkReaderStatistics = New<TChunkReaderStatistics>();
 
         auto result = JobInputCache_->ReadBlocks(
             chunkId,
@@ -235,7 +239,13 @@ private:
                 return std::vector<TBlock>(size);
             }));
         auto responseFuture = withTimeout
-            .Apply(BIND(&TProxyingDataNodeService::AttachBlocksToResponse<TCtxGetBlockRange, TRspGetBlockRange>, MakeStrong(this), context, response));
+            .Apply(
+                BIND(
+                    &TProxyingDataNodeService::AttachBlocksToResponse<TCtxGetBlockRange, TRspGetBlockRange>,
+                    MakeStrong(this),
+                    context,
+                    response,
+                    jobInputCacheOptions.ClientOptions.ChunkReaderStatistics));
         context->ReplyFrom(responseFuture);
     }
 
