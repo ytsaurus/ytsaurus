@@ -88,6 +88,7 @@ namespace NSQLComplete {
                 AppendAs<TFunctionName>(response.RankedNames, names);
             }
 
+            // FIXME(YQL-19747): Ranking is broken. FixPrefix should be done after crop.
             Ranking_->CropToSortedPrefix(response.RankedNames, request.Limit);
 
             return NThreading::MakeFuture(std::move(response));
