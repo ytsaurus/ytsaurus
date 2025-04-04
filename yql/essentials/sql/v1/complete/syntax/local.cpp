@@ -53,11 +53,16 @@ namespace NSQLComplete {
             }
 
             auto candidates = C3.Complete(prefix);
+
+            // TODO(YQL-19747): Actually we tokenize 3 times now. On statement split,
+            //                  on c3 call and on a pragma lookbehind.
+            NSQLTranslation::TParsedTokenList tokens = Tokenized(prefix);
+
             return {
                 .Keywords = SiftedKeywords(candidates),
-                .Pragma = PragmaMatch(prefix, candidates),
+                .Pragma = PragmaMatch(tokens, candidates),
                 .IsTypeName = IsTypeNameMatched(candidates),
-                .IsFunctionName = IsFunctionNameMatched(candidates),
+                .Function = FunctionMatch(tokens, candidates),
             };
         }
 
@@ -133,17 +138,13 @@ namespace NSQLComplete {
         }
 
         std::optional<TLocalSyntaxContext::TPragma> PragmaMatch(
-            const TStringBuf prefix, const TC3Candidates& candidates) {
+            const NSQLTranslation::TParsedTokenList& tokens, const TC3Candidates& candidates) {
             bool isMatched = AnyOf(candidates.Rules, [&](const TMatchedRule& rule) {
                 return IsLikelyPragmaStack(rule.ParserCallStack);
             });
             if (!isMatched) {
                 return std::nullopt;
             }
-
-            // TODO(YQL-19747): Actually we tokenize 3 times now. On statement split,
-            //                  on c3 call and on a pragma lookbehind.
-            NSQLTranslation::TParsedTokenList tokens = Tokenized(prefix);
 
             TLocalSyntaxContext::TPragma pragma;
             if (tokens.size() < 4) {
@@ -169,10 +170,31 @@ namespace NSQLComplete {
             });
         }
 
-        bool IsFunctionNameMatched(const TC3Candidates& candidates) {
-            return AnyOf(candidates.Rules, [&](const TMatchedRule& rule) {
+        std::optional<TLocalSyntaxContext::TFunction> FunctionMatch(
+            const NSQLTranslation::TParsedTokenList& tokens, const TC3Candidates& candidates) {
+            bool isMatched = AnyOf(candidates.Rules, [&](const TMatchedRule& rule) {
                 return IsLikelyFunctionStack(rule.ParserCallStack);
             });
+            if (!isMatched) {
+                return std::nullopt;
+            }
+
+            TLocalSyntaxContext::TFunction function;
+            if (tokens.size() < 4) {
+                function.Namespace = "";
+            } else if (
+                tokens[tokens.size() - 3].Name == "ID_PLAIN" && 
+                tokens[tokens.size() - 2].Name == "NAMESPACE"
+            ) {
+                function.Namespace = tokens[tokens.size() - 3].Content;
+            } else if (
+                tokens[tokens.size() - 4].Name == "ID_PLAIN" && 
+                tokens[tokens.size() - 3].Name == "NAMESPACE"
+            ) {
+                function.Namespace = tokens[tokens.size() - 4].Content;
+            }
+
+            return function;
         }
 
         NSQLTranslation::TParsedTokenList Tokenized(const TStringBuf text) {
