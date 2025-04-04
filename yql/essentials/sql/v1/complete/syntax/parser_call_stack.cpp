@@ -85,7 +85,8 @@ namespace NSQLComplete {
         return EndsWith({RULE(Unary_casual_subexpr), RULE(Id_expr)}, stack) ||
                EndsWith({RULE(Unary_casual_subexpr),
                          RULE(Atom_expr),
-                         RULE(An_id_or_type)}, stack);
+                         RULE(An_id_or_type)}, stack) ||
+               EndsWith({RULE(Atom_expr), RULE(Id_or_type)}, stack);
     }
 
     std::unordered_set<TRuleId> GetC3PreferredRules() {
