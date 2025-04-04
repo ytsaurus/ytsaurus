@@ -38,7 +38,7 @@ namespace NSQLComplete {
             TLocalSyntaxContext context = SyntaxAnalysis->Analyze(input);
             
             TStringBuf prefix = input.Text.Head(input.CursorPosition);
-            TCompletedToken completedToken = GetCompletedToken(prefix, context);
+            TCompletedToken completedToken = GetCompletedToken(prefix);
 
             TVector<TCandidate> candidates;
             EnrichWithKeywords(candidates, std::move(context.Keywords), completedToken);
@@ -51,18 +51,10 @@ namespace NSQLComplete {
         }
 
     private:
-        TCompletedToken GetCompletedToken(TStringBuf prefix, const TLocalSyntaxContext& ctx) {
-            size_t position = LastWordIndex(prefix);
-
-            if (ctx.Pragma && !ctx.Pragma->Namespace.empty()) {
-                position -= ctx.Pragma->Namespace.size() + 1;
-            } else if (ctx.Function && !ctx.Function->Namespace.empty()) {
-                position -= ctx.Function->Namespace.size() + 2;
-            }
-
+        TCompletedToken GetCompletedToken(TStringBuf prefix) {
             return {
-                .Content = prefix.SubStr(position),
-                .SourcePosition = position,
+                .Content = LastWord(prefix),
+                .SourcePosition = LastWordIndex(prefix),
             };
         }
 
@@ -94,13 +86,19 @@ namespace NSQLComplete {
             };
 
             if (context.Pragma) {
-                request.Constraints.Pragma = TTypeName::TConstraints();
+                TPragmaName::TConstraints constraints;
+                constraints.Namespace = context.Pragma->Namespace;
+                request.Constraints.Pragma = std::move(constraints);
             }
+
             if (context.IsTypeName) {
                 request.Constraints.Type = TTypeName::TConstraints();
             }
+
             if (context.Function) {
-                request.Constraints.Function = TFunctionName::TConstraints();
+                TFunctionName::TConstraints constraints;
+                constraints.Namespace = context.Function->Namespace;
+                request.Constraints.Function = std::move(constraints);
             }
 
             if (request.IsEmpty()) {
