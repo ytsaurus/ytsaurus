@@ -97,7 +97,7 @@ bool IsGroupKeyTooSelective(const TNamedItemList& groupKey, const TJoinClause& j
     const auto& originalSchema = joinClause.Schema.Original;
 
     THashMap<std::string, int> nameToIndex;
-    for (const auto& descriptor : joinClause.Schema.Mapping) {
+    for (const auto& descriptor : joinClause.Schema.GetOrderedSchemaMapping()) {
         InsertOrCrash(nameToIndex, std::pair{descriptor.Name, descriptor.Index});
     }
 
