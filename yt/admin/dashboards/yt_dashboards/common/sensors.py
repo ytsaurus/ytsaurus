@@ -124,21 +124,24 @@ RpcProxyCpu = ProjectSensor("rpc_proxy_cpu", "yt_rpc_proxies")
 RpcProxyMemory =  ProjectSensor("rpc_proxy_memory", "yt_rpc_proxies")  # noqa: E222
 RpcProxyPorto =  ProjectSensor("rpc_proxy_porto", base=RpcBase)  # noqa: E222
 
-# BundleController
+# BundleController.
 BundleController = ProjectSensor("bundle_controller", "yt_bundle_controller")  # noqa: E222
 
-# TabletBalancer
+# TabletBalancer.
 TabletBalancer = ProjectSensor("tablet_balancer", "yt_tablet_balancer")  # noqa: E222
 
-# CHYT
+# CHYT.
 Chyt = ProjectSensor("clickhouse", "chyt")
 
-# Flow
+# Flow.
 FlowController = ProjectSensor("controller")  # noqa: E222
 FlowWorker =     ProjectSensor("worker")  # noqa: E222
 
-# Queue Agent
+# Queue Agent.
 QueueAgent = ProjectSensor("queue_agent_default", "yt-queue-agent")
+
+# Old account sensors.
+Accounts = ProjectSensor("accounts", "yt-accounts")
 
 
 class SplitNodeSensorsGuard:
