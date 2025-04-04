@@ -112,8 +112,7 @@ void TMultiTablePartitioner::CollectInput()
                 TProtoExtensionTag<NTableClient::NProto::TBoundaryKeysExt>::Value,
                 TProtoExtensionTag<NTableClient::NProto::THeavyColumnStatisticsExt>::Value,
             },
-            Logger,
-            /*omitSortedDynamicStores*/ true); // TODO(galtsev): do not omit dynamic stores when returning chunk ids for YT-20969
+            Logger);
 
         YT_LOG_DEBUG("Input chunks fetched (TableIndex: %v, Path: %v, Schema: %v, ChunkCount: %v)",
             tableIndex,
@@ -245,9 +244,9 @@ std::vector<std::vector<TDataSliceDescriptor>> TMultiTablePartitioner::ConvertCh
         for (auto dataSlice : chunkStripe->DataSlices) {
             auto tableIndex = dataSlice->GetInputStreamIndex();
             const auto& comparator = GetComparator(tableIndex);
+            YT_VERIFY(tableIndex < std::ssize(slicesByTable));
+            auto& dataSliceDescriptor = slicesByTable[tableIndex].emplace_back();
             for (auto chunkSlice : dataSlice->ChunkSlices) {
-                YT_VERIFY(tableIndex < std::ssize(slicesByTable));
-                auto& dataSliceDescriptor = slicesByTable[tableIndex].emplace_back();
                 auto& chunkSpec = dataSliceDescriptor.ChunkSpecs.emplace_back();
 
                 ToProto(&chunkSpec, chunkSlice, comparator, dataSlice->Type);
