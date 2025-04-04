@@ -114,7 +114,10 @@ struct TDiskHealthCheckerConfig
     i64 TestSize;
 
     //! Maximum time allowed for execution of a single check.
-    TDuration Timeout;
+    TDuration ExecTimeout;
+
+    //! Maximum time allowed for waiting for execution.
+    TDuration WaitTimeout;
 
     REGISTER_YSON_STRUCT(TDiskHealthCheckerConfig);
 
@@ -122,6 +125,27 @@ struct TDiskHealthCheckerConfig
 };
 
 DEFINE_REFCOUNTED_TYPE(TDiskHealthCheckerConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TDiskHealthCheckerDynamicConfig
+    : public virtual NYTree::TYsonStruct
+{
+    //! Size of the test file.
+    std::optional<i64> TestSize;
+
+    //! Maximum time allowed for execution of a single check.
+    std::optional<TDuration> ExecTimeout;
+
+    //! Maximum time allowed for waiting for execution.
+    std::optional<TDuration> WaitTimeout;
+
+    REGISTER_YSON_STRUCT(TDiskHealthCheckerDynamicConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TDiskHealthCheckerDynamicConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 

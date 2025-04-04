@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include <yt/yt/server/node/cluster_node/public.h>
+
 #include <yt/yt/core/actions/signal.h>
 
 #include <yt/yt/core/concurrency/periodic_executor.h>
@@ -28,6 +30,7 @@ public:
         TDiskHealthCheckerConfigPtr config,
         const TString& path,
         IInvokerPtr invoker,
+        NClusterNode::TClusterNodeDynamicConfigManagerPtr dynamicConfigManager,
         NLogging::TLogger logger,
         const NProfiling::TProfiler& profiler = {});
 
@@ -42,6 +45,7 @@ public:
     DEFINE_SIGNAL(void(const TError&), Failed);
 
 private:
+    const NClusterNode::TClusterNodeDynamicConfigManagerPtr DynamicConfigManager_;
     const TDiskHealthCheckerConfigPtr Config_;
     const TString Path_;
     const IInvokerPtr CheckInvoker_;
@@ -54,12 +58,17 @@ private:
 
     const NConcurrency::TPeriodicExecutorPtr PeriodicExecutor_;
 
-    TError RunCheckWithTimeout();
+    TError RunCheckWithDeadline();
+    void RunCheckWithTimeout();
 
     void OnCheck();
     void OnCheckCompleted(const TError& error);
 
     void DoRunCheck();
+
+    TDuration GetWaitTimeout() const;
+    TDuration GetExecTimeout() const;
+    i64 GetTestSize() const;
 };
 
 DEFINE_REFCOUNTED_TYPE(TDiskHealthChecker)

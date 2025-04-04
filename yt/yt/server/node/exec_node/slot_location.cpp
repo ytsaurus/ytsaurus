@@ -82,6 +82,7 @@ TSlotLocation::TSlotLocation(
         bootstrap->GetConfig()->DataNode->DiskHealthChecker,
         Config_->Path,
         HeavyInvoker_,
+        bootstrap->GetDynamicConfigManager(),
         Logger))
     , DiskResourcesUpdateExecutor_(New<TPeriodicExecutor>(
         HeavyInvoker_,
