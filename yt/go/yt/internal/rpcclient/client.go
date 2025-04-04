@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/tls"
 	"errors"
+	"net"
 	"net/http"
 	"time"
 
@@ -94,6 +95,9 @@ func NewClient(conf *yt.Config) (*client, error) {
 			if conf.PeerAlternativeHostName != "" {
 				// TODO(khlebnikov) use custom VerifyPeerCertificate.
 				busTLSConfig.ServerName = conf.PeerAlternativeHostName
+			} else if host, _, err := net.SplitHostPort(addr); err == nil {
+				// VerifyHostname expects FQDN or IP, both without port.
+				busTLSConfig.ServerName = host
 			} else {
 				busTLSConfig.ServerName = addr
 			}
