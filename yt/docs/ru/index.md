@@ -65,9 +65,6 @@ h3 {
     </div>
 </div>
 
-{% if datahub %}
-{% else %}
-
 ## Полезные ссылки { #links }
 
 {% if audience == "internal" %}
@@ -83,4 +80,3 @@ h3 {
 * [Рассылка для вопросов](mailto:community_ru@ytsaurus.tech)
 {% endif %}
 
-{% endif %}

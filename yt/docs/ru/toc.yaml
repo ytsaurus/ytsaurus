@@ -486,13 +486,11 @@ items:
       - name: Синхронизация пользователей и групп с внешней системой
         href: admin-guide/identity-sync.md
   - name: Release notes
-    when: datahub != true
     href: admin-guide/releases.md
   - name: FAQ
     href: faq/index.md
   - name: Как сообщить о проблеме
-    when: datahub != true
     href: user-guide/problems/howtoreport.md
   - name: Выступления на мероприятиях, публикации и семинары
-    when: audience == "public" and datahub != true
+    when: audience == "public"
     href: other/video-posts.md

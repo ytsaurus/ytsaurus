@@ -28,6 +28,7 @@ IF (NOT OPENSOURCE)
         docs
         docs/yandex-specific
         docs/ytsaurus
+        datahub-docs
         idm-integration
         internal
         jaeger
