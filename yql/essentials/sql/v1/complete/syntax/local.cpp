@@ -54,8 +54,6 @@ namespace NSQLComplete {
 
             auto candidates = C3.Complete(prefix);
 
-            // TODO(YQL-19747): Actually we tokenize 3 times now. On statement split,
-            //                  on c3 call and on a pragma lookbehind.
             NSQLTranslation::TParsedTokenList tokens = Tokenized(prefix);
 
             return {
