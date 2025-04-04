@@ -27,7 +27,7 @@ namespace NSQLComplete {
 
         TCompletion Complete(TCompletionInput input) {
             TLocalSyntaxContext context = SyntaxAnalysis->Analyze(input);
-            
+
             TStringBuf prefix = input.Text.Head(input.CursorPosition);
             TCompletedToken completedToken = GetCompletedToken(prefix);
 
@@ -166,7 +166,7 @@ void Out<NSQLComplete::ECandidateKind>(IOutputStream& out, NSQLComplete::ECandid
             break;
         case NSQLComplete::ECandidateKind::PragmaName:
             out << "PragmaName";
-            break;    
+            break;
         case NSQLComplete::ECandidateKind::TypeName:
             out << "TypeName";
             break;

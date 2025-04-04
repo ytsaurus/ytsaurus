@@ -18,7 +18,7 @@ namespace NSQLComplete {
     };
 
     struct TPragmaName: TIndentifier {
-        struct TConstraints : TNamespaced {};
+        struct TConstraints: TNamespaced {};
     };
 
     struct TTypeName: TIndentifier {
@@ -26,7 +26,7 @@ namespace NSQLComplete {
     };
 
     struct TFunctionName: TIndentifier {
-        struct TConstraints : TNamespaced {};
+        struct TConstraints: TNamespaced {};
     };
 
     using TGenericName = std::variant<
@@ -44,8 +44,8 @@ namespace NSQLComplete {
         size_t Limit = 128;
 
         bool IsEmpty() const {
-            return !Constraints.Pragma && 
-                   !Constraints.Type && 
+            return !Constraints.Pragma &&
+                   !Constraints.Type &&
                    !Constraints.Function;
         }
     };
