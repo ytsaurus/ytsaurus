@@ -1,7 +1,8 @@
 from yt_dashboards.common.runner import run
 
 from yt_dashboards.master import (
-    build_master_global, build_master_local, build_master_merge_jobs)
+    build_master_global, build_master_local, build_master_node_tracker, build_master_cpu, build_master_merge_jobs,
+    build_master_accounts)
 from yt_dashboards.artemis import (
     build_local_artemis, build_bundle_artemis, build_global_artemis, build_local_artemis_container)
 from yt_dashboards.scheduler_internal import build_scheduler_internal
@@ -136,8 +137,20 @@ dashboards = {
         "monitoring": {},
         "grafana": {},
     },
+    "master-node-tracker": {
+        "func": build_master_node_tracker,
+        "monitoring": {},
+    },
+    "master-cpu": {
+        "func": build_master_cpu,
+        "monitoring": {},
+    },
     "master-merge-jobs": {
         "func": build_master_merge_jobs,
+        "monitoring": {},
+    },
+    "master-accounts": {
+        "func": build_master_accounts,
         "monitoring": {},
     },
     "chyt-monitoring-test": {
