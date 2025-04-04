@@ -47,6 +47,8 @@ namespace NSQLComplete {
 
             if (ctx.Pragma && !ctx.Pragma->Namespace.empty()) {
                 position -= ctx.Pragma->Namespace.size() + 1;
+            } else if (ctx.Function && !ctx.Function->Namespace.empty()) {
+                position -= ctx.Function->Namespace.size() + 2;
             }
 
             return {
@@ -88,7 +90,7 @@ namespace NSQLComplete {
             if (context.IsTypeName) {
                 request.Constraints.Type = TTypeName::TConstraints();
             }
-            if (context.IsFunctionName) {
+            if (context.Function) {
                 request.Constraints.Function = TFunctionName::TConstraints();
             }
 
