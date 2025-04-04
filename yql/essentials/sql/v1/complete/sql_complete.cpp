@@ -26,10 +26,10 @@ namespace NSQLComplete {
         }
 
         TCompletion Complete(TCompletionInput input) {
-            auto prefix = input.Text.Head(input.CursorPosition);
-            auto completedToken = GetCompletedToken(prefix);
-
-            auto context = SyntaxAnalysis->Analyze(input);
+            TLocalSyntaxContext context = SyntaxAnalysis->Analyze(input);
+            
+            TStringBuf prefix = input.Text.Head(input.CursorPosition);
+            TCompletedToken completedToken = GetCompletedToken(prefix, context);
 
             TVector<TCandidate> candidates;
             EnrichWithKeywords(candidates, std::move(context.Keywords), completedToken);
@@ -42,10 +42,16 @@ namespace NSQLComplete {
         }
 
     private:
-        TCompletedToken GetCompletedToken(TStringBuf prefix) {
+        TCompletedToken GetCompletedToken(TStringBuf prefix, const TLocalSyntaxContext& ctx) {
+            size_t position = LastWordIndex(prefix);
+
+            if (ctx.Pragma && !ctx.Pragma->Namespace.empty()) {
+                position -= ctx.Pragma->Namespace.size() + 1;
+            }
+
             return {
-                .Content = LastWord(prefix),
-                .SourcePosition = LastWordIndex(prefix),
+                .Content = prefix.SubStr(position),
+                .SourcePosition = position,
             };
         }
 
@@ -76,8 +82,8 @@ namespace NSQLComplete {
                 .Limit = Configuration.Limit - candidates.size(),
             };
 
-            if (context.IsPragmaName) {
-                request.Constraints.Pragma = TPragmaName::TConstraints();
+            if (context.Pragma) {
+                request.Constraints.Pragma = TTypeName::TConstraints();
             }
             if (context.IsTypeName) {
                 request.Constraints.Type = TTypeName::TConstraints();
