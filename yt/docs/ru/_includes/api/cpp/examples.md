@@ -119,7 +119,7 @@ export YT_LOG_LEVEL=INFO
 
 В таком случае можно не сортировать таблицу и использовать Map, а не Reduce. Этот способ используется, если таблица небольшая (до нескольких ГБ).
 
-Входные таблицы те же, что и в предыдущем примере: [с пользователями](https://yt.yandex-team.ru/freud/#page=navigation&path=//home/dev/tutorial/staff_unsorted&offsetMode=row) и [роботами](https://yt.yandex-team.ru/freud/#page=navigation&path=//home/dev/tutorial/is_robot_unsorted&offsetMode=row).
+Входные таблицы те же, что и в предыдущем примере: с пользователями и роботами{% if audience == "internal" %}[с пользователями]({{pages.cpp.staff-unsorted-table}}) и [роботами]({{pages.cpp.robot-unsorted-table}}).{% endif %}
 
 Следующая программа сделает таблицу, в которой останутся только пользователи-роботы.
 
