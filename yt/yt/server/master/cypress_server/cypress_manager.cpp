@@ -2906,7 +2906,7 @@ private:
         if (NeedResetHunkSpecificMediaAndRecomputeTabletStatistics_) {
             const auto& tabletManager = Bootstrap_->GetTabletManager();
             for (auto [nodeId, node] : NodeMap_) {
-                if (!IsObjectAlive(node)) { // Also skips branches.
+                if (!IsObjectAlive(node) && node->IsTrunk()) {
                     continue;
                 }
 
