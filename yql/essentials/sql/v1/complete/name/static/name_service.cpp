@@ -41,6 +41,7 @@ namespace NSQLComplete {
             : NameSet_(std::move(names))
             , Ranking_(std::move(ranking))
         {
+            Sort(NameSet_.Pragmas, NoCaseCompare);
             Sort(NameSet_.Types, NoCaseCompare);
             Sort(NameSet_.Functions, NoCaseCompare);
         }
@@ -48,7 +49,13 @@ namespace NSQLComplete {
         TFuture<TNameResponse> Lookup(TNameRequest request) override {
             TNameResponse response;
 
-            if (request.Constraints.TypeName) {
+            if (request.Constraints.Pragma) {
+                AppendAs<TPragmaName>(
+                    response.RankedNames,
+                    FilteredByPrefix(request.Prefix, NameSet_.Pragmas));
+            }
+
+            if (request.Constraints.Type) {
                 AppendAs<TTypeName>(
                     response.RankedNames,
                     FilteredByPrefix(request.Prefix, NameSet_.Types));

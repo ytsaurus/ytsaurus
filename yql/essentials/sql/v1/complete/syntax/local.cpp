@@ -55,6 +55,7 @@ namespace NSQLComplete {
             auto candidates = C3.Complete(prefix);
             return {
                 .Keywords = SiftedKeywords(candidates),
+                .IsPragmaName = IsPragmaNameMatched(candidates),
                 .IsTypeName = IsTypeNameMatched(candidates),
                 .IsFunctionName = IsFunctionNameMatched(candidates),
             };
@@ -129,6 +130,12 @@ namespace NSQLComplete {
                 name.pop_back();
             }
             return name;
+        }
+
+        bool IsPragmaNameMatched(const TC3Candidates& candidates) {
+            return AnyOf(candidates.Rules, [&](const TMatchedRule& rule) {
+                return IsLikelyPragmaStack(rule.ParserCallStack);
+            });
         }
 
         bool IsTypeNameMatched(const TC3Candidates& candidates) {

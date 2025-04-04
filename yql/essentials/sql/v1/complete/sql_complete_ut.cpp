@@ -40,6 +40,7 @@ Y_UNIT_TEST_SUITE(SqlCompleteTests) {
     using ECandidateKind::FunctionName;
     using ECandidateKind::Keyword;
     using ECandidateKind::TypeName;
+    using ECandidateKind::PragmaName;
 
     TLexerSupplier MakePureLexerSupplier() {
         NSQLTranslationV1::TLexers lexers;
@@ -55,6 +56,7 @@ Y_UNIT_TEST_SUITE(SqlCompleteTests) {
     ISqlCompletionEngine::TPtr MakeSqlCompletionEngineUT() {
         TLexerSupplier lexer = MakePureLexerSupplier();
         NameSet names = {
+            .Pragmas = {"yson.CastToString"},
             .Types = {"Uint64"},
             .Functions = {"StartsWith"},
         };
@@ -269,10 +271,12 @@ Y_UNIT_TEST_SUITE(SqlCompleteTests) {
     Y_UNIT_TEST(Pragma) {
         TVector<TCandidate> expected = {
             {Keyword, "ANSI"},
+            {PragmaName, "yson.CastToString"}
         };
 
         auto engine = MakeSqlCompletionEngineUT();
         UNIT_ASSERT_VALUES_EQUAL(Complete(engine, {"PRAGMA "}), expected);
+        // UNIT_ASSERT_VALUES_EQUAL(Complete(engine, {"PRAGMA yson."}), expected);
     }
 
     Y_UNIT_TEST(Select) {
