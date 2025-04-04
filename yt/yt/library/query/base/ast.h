@@ -34,7 +34,6 @@ XX(TLikeExpression)
 using TIdentifierList = std::vector<TReferenceExpressionPtr>;
 using TExpressionList = std::vector<TExpressionPtr>;
 using TNullableExpressionList = std::optional<TExpressionList>;
-using TNullableIdentifierList = std::optional<TIdentifierList>;
 
 struct TOrderExpression
 {
@@ -91,6 +90,33 @@ struct TDoubleOrDotIntToken
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TColumnReference
+{
+    std::string ColumnName;
+    std::optional<TString> TableName;
+
+    explicit TColumnReference(
+        TStringBuf columnName,
+        const std::optional<TString>& tableName = {})
+        : ColumnName(columnName)
+        , TableName(tableName)
+    { }
+
+    bool operator == (const TColumnReference& other) const = default;
+};
+
+struct TColumnReferenceHasher
+{
+    size_t operator() (const TColumnReference& reference) const;
+};
+
+struct TColumnReferenceEqComparer
+{
+    bool operator() (const TColumnReference& lhs, const TColumnReference& rhs) const;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 using TStructAndTupleMemberAccessorListItem = std::variant<TStructMemberAccessor, TTupleItemIndexAccessor>;
 using TStructAndTupleMemberAccessor = std::vector<TStructAndTupleMemberAccessorListItem>;
 
@@ -107,9 +133,8 @@ struct TCompositeTypeMemberAccessor
 };
 
 struct TReference
+    : public TColumnReference
 {
-    std::string ColumnName;
-    std::optional<TString> TableName;
     TCompositeTypeMemberAccessor CompositeTypeAccessor;
 
     TReference() = default;
@@ -118,8 +143,7 @@ struct TReference
         TStringBuf columnName,
         const std::optional<TString>& tableName = {},
         const TCompositeTypeMemberAccessor& compositeTypeAccessor = {})
-        : ColumnName(columnName)
-        , TableName(tableName)
+        : TColumnReference(columnName, tableName)
         , CompositeTypeAccessor(compositeTypeAccessor)
     { }
 
@@ -128,22 +152,12 @@ struct TReference
 
 struct TReferenceHasher
 {
-    size_t operator() (const NAst::TReference& reference) const;
+    size_t operator() (const TReference& reference) const;
 };
 
 struct TReferenceEqComparer
 {
-    bool operator() (const NAst::TReference& lhs, const NAst::TReference& rhs) const;
-};
-
-struct TCompositeAgnosticReferenceHasher
-{
-    size_t operator() (const NAst::TReference& reference) const;
-};
-
-struct TCompositeAgnosticReferenceEqComparer
-{
-    bool operator() (const NAst::TReference& lhs, const NAst::TReference& rhs) const;
+    bool operator() (const TReference& lhs, const TReference& rhs) const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

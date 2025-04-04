@@ -820,7 +820,7 @@ TUntypedExpression TExprBuilderV1::UnwrapCompositeMemberAccessor(
 TUntypedExpression TExprBuilderV1::OnReference(const NAst::TReference& reference)
 {
     if (AfterGroupBy_) {
-        if (auto type = GetColumnPtr(reference)) {
+        if (auto type = GetColumnType(reference)) {
             return UnwrapCompositeMemberAccessor(reference, type);
         }
     }
@@ -841,7 +841,7 @@ TUntypedExpression TExprBuilderV1::OnReference(const NAst::TReference& reference
     }
 
     if (!AfterGroupBy_) {
-        if (auto type = GetColumnPtr(reference)) {
+        if (auto type = GetColumnType(reference)) {
             return UnwrapCompositeMemberAccessor(reference, type);
         }
     }

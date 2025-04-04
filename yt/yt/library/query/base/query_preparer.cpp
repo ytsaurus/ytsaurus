@@ -379,7 +379,7 @@ void PrepareQuery(
         query->ProjectClause = projectClause;
     } else {
         // Select all columns.
-        builder->PopulateAllColumns();
+        builder->ColumnResolver->PopulateAllColumns(builder->ColumnResolver.get());
     }
 
     DropLimitClauseWhenGroupByOne(query);
@@ -692,8 +692,9 @@ TJoinClausePtr BuildJoinClause(
 
     // BuildPredicate and BuildTypedExpression are used with foreignBuilder.
     auto foreignBuilder = CreateExpressionBuilder(source, functions, aliasMap);
-    foreignBuilder->AddTable(
-        *joinClause->Schema.Original,
+
+    foreignBuilder->ColumnResolver = CreateColumnResolver(
+        joinClause->Schema.Original.Get(),
         tableJoin.Table.Alias,
         &joinClause->Schema.Mapping);
 
@@ -701,12 +702,15 @@ TJoinClausePtr BuildJoinClause(
     selfEquations.reserve(tableJoin.Fields.size() + tableJoin.Lhs.size());
     std::vector<TConstExpressionPtr> foreignEquations;
     foreignEquations.reserve(tableJoin.Fields.size() + tableJoin.Rhs.size());
+
+    THashSet<std::string> commonColumnNames;
     // Merge columns.
     for (const auto& referenceExpr : tableJoin.Fields) {
         auto columnName = InferReferenceName(referenceExpr->Reference);
+        commonColumnNames.insert(columnName);
 
-        auto selfColumnType = builder->GetColumnPtr(referenceExpr->Reference);
-        auto foreignColumnType = foreignBuilder->GetColumnPtr(referenceExpr->Reference);
+        auto selfColumnType = builder->GetColumnType(referenceExpr->Reference);
+        auto foreignColumnType = foreignBuilder->GetColumnType(referenceExpr->Reference);
 
         if (!selfColumnType || !foreignColumnType) {
             THROW_ERROR_EXCEPTION("Column %Qv not found",
@@ -816,7 +820,7 @@ TJoinClausePtr BuildJoinClause(
                     auto aliasedReference = NAst::TReference(column.Name(), tableAlias);
 
                     // Register self evaluated column in the effective schema.
-                    builder->GetColumnPtr(aliasedReference);
+                    builder->GetColumnType(aliasedReference);
 
                     matchingSelfExpression = New<TReferenceExpression>(
                         column.LogicalType(),
@@ -826,7 +830,7 @@ TJoinClausePtr BuildJoinClause(
             }
 
             // Register foreign evaluated column in the effective schema.
-            foreignBuilder->GetColumnPtr(foreignKeyColumnReference);
+            foreignBuilder->GetColumnType(foreignKeyColumnReference);
 
             keySelfEquations.push_back({
                 .Expression=std::move(matchingSelfExpression),
@@ -878,7 +882,14 @@ TJoinClausePtr BuildJoinClause(
             "JOIN-PREDICATE-clause");
     }
 
-    builder->Merge(*foreignBuilder);
+    builder->ColumnResolver = CreateJoinColumnResolver(
+        std::move(builder->ColumnResolver),
+        joinClause->Schema.Original.Get(),
+        tableJoin.Table.Alias,
+        &joinClause->Schema.Mapping,
+        &joinClause->SelfJoinedColumns,
+        &joinClause->ForeignJoinedColumns,
+        commonColumnNames);
 
     return joinClause;
 }
@@ -929,13 +940,14 @@ TJoinClausePtr BuildArrayJoinClause(
         source,
         functions,
         aliasMap);
-    arrayBuilder->AddTable(
-        *arrayJoinClause->Schema.Original,
+
+    arrayBuilder->ColumnResolver = CreateColumnResolver(
+        arrayJoinClause->Schema.Original.Get(),
         std::nullopt,
         &arrayJoinClause->Schema.Mapping);
 
     for (const auto& nestedTableColumn : arrayJoinClause->Schema.Original->Columns()) {
-        auto type = arrayBuilder->GetColumnPtr(NAst::TReference(nestedTableColumn.Name()));
+        auto type = arrayBuilder->GetColumnType(NAst::TReference(nestedTableColumn.Name()));
         YT_ASSERT(type);
     }
 
@@ -946,7 +958,14 @@ TJoinClausePtr BuildArrayJoinClause(
             "JOIN-PREDICATE-clause");
     }
 
-    builder->Merge(*arrayBuilder);
+    builder->ColumnResolver = CreateJoinColumnResolver(
+        std::move(builder->ColumnResolver),
+        arrayJoinClause->Schema.Original.Get(),
+        std::nullopt,
+        &arrayJoinClause->Schema.Mapping,
+        &arrayJoinClause->SelfJoinedColumns,
+        &arrayJoinClause->ForeignJoinedColumns,
+        {});
 
     return arrayJoinClause;
 }
@@ -1048,8 +1067,9 @@ TPlanFragmentPtr PreparePlanFragment(
         source,
         functions,
         aliasMap);
-    builder->AddTable(
-        *query->Schema.Original,
+
+    builder->ColumnResolver = CreateColumnResolver(
+        query->Schema.Original.Get(),
         alias,
         &query->Schema.Mapping);
 
@@ -1082,20 +1102,6 @@ TPlanFragmentPtr PreparePlanFragment(
     }
 
     PrepareQuery(query, queryAst, builder.get());
-
-    // Must be filled after builder.Finish()
-    for (const auto& [reference, entry] : builder->Lookup()) {
-        auto formattedName = InferReferenceName(reference);
-
-        for (size_t index = entry.OriginTableIndex; index < entry.LastTableIndex; ++index) {
-            YT_VERIFY(index < joinClauses.size());
-            joinClauses[index]->SelfJoinedColumns.insert(formattedName);
-        }
-
-        if (entry.OriginTableIndex > 0 && entry.LastTableIndex > 0) {
-            joinClauses[entry.OriginTableIndex - 1]->ForeignJoinedColumns.insert(formattedName);
-        }
-    }
 
     // Why after PrepareQuery? GetTableSchema is called inside PrepareQuery?
     query->JoinClauses.assign(joinClauses.begin(), joinClauses.end());
@@ -1195,7 +1201,9 @@ TQueryPtr PrepareJobQuery(
     functionsFetcher(functionNames, functions);
 
     auto builder = CreateExpressionBuilder(source, functions, aliasMap);
-    builder->AddTable(*tableSchema, std::nullopt, &query->Schema.Mapping);
+
+    builder->ColumnResolver = CreateColumnResolver(
+        tableSchema.Get(), std::nullopt, &query->Schema.Mapping);
 
     PrepareQuery(
         query,
@@ -1230,7 +1238,9 @@ TConstExpressionPtr PrepareExpression(
     std::vector<TColumnDescriptor> mapping;
 
     auto builder = CreateExpressionBuilder(parsedSource.Source, functions, aliasMap);
-    builder->AddTable(tableSchema, std::nullopt, &mapping);
+
+    builder->ColumnResolver = CreateColumnResolver(
+        &tableSchema, std::nullopt, &mapping);
 
     auto result = builder->BuildTypedExpression(expr);
 
