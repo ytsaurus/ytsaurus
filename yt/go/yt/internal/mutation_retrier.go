@@ -10,6 +10,7 @@ import (
 	"go.ytsaurus.tech/library/go/core/log/ctxlog"
 	"go.ytsaurus.tech/yt/go/guid"
 	"go.ytsaurus.tech/yt/go/yt"
+	"go.ytsaurus.tech/yt/go/yterrors"
 )
 
 type MutationRetrier struct {
@@ -35,7 +36,7 @@ func (r *MutationRetrier) Intercept(ctx context.Context, call *Call, invoke Call
 
 	for i := 0; ; i++ {
 		res, err = invoke(ctx, call)
-		if err == nil || !isNetError(err) {
+		if err == nil || !r.shouldRetry(err) {
 			return
 		}
 
@@ -65,4 +66,16 @@ func (r *MutationRetrier) Intercept(ctx context.Context, call *Call, invoke Call
 			return nil, ctx.Err()
 		}
 	}
+}
+
+func (r *MutationRetrier) shouldRetry(err error) bool {
+	if isNetError(err) {
+		return true
+	}
+
+	if yterrors.ContainsErrorCode(err, yterrors.CodeTimeout) {
+		return true
+	}
+
+	return false
 }

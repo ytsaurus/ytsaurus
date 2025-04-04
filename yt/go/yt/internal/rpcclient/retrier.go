@@ -123,6 +123,10 @@ func (r *Retrier) shouldRetry(isRead bool, err error) bool {
 		return true
 	}
 
+	if yterrors.ContainsErrorCode(err, yterrors.CodeTimeout) {
+		return true
+	}
+
 	if isProxyBannedError(err) {
 		return true
 	}
