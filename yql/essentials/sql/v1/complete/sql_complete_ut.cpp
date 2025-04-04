@@ -551,11 +551,11 @@ Y_UNIT_TEST_SUITE(SqlCompleteTests) {
         }
         {
             TVector<TCandidate> expected = {
+                {PragmaName, "yson.DisableStrict"},
                 {PragmaName, "yson.AutoConvert"},
+                {PragmaName, "yson.Strict"},
                 {PragmaName, "yson.CastToString"},
                 {PragmaName, "yson.DisableCastToString"},
-                {PragmaName, "yson.DisableStrict"},
-                {PragmaName, "yson.Strict"},
             };
             UNIT_ASSERT_VALUES_EQUAL(Complete(engine, {"PRAGMA yson"}), expected);
         }
