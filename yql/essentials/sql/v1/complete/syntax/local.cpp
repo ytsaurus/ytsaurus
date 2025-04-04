@@ -150,14 +150,12 @@ namespace NSQLComplete {
             if (tokens.size() < 4) {
                 pragma.Namespace = "";
             } else if (
-                tokens[tokens.size() - 3].Name == "ID_PLAIN" && 
-                tokens[tokens.size() - 2].Name == "DOT"
-            ) {
+                tokens[tokens.size() - 3].Name == "ID_PLAIN" &&
+                tokens[tokens.size() - 2].Name == "DOT") {
                 pragma.Namespace = tokens[tokens.size() - 3].Content;
             } else if (
-                tokens[tokens.size() - 4].Name == "ID_PLAIN" && 
-                tokens[tokens.size() - 3].Name == "DOT"
-            ) {
+                tokens[tokens.size() - 4].Name == "ID_PLAIN" &&
+                tokens[tokens.size() - 3].Name == "DOT") {
                 pragma.Namespace = tokens[tokens.size() - 4].Content;
             }
 
@@ -183,14 +181,12 @@ namespace NSQLComplete {
             if (tokens.size() < 4) {
                 function.Namespace = "";
             } else if (
-                tokens[tokens.size() - 3].Name == "ID_PLAIN" && 
-                tokens[tokens.size() - 2].Name == "NAMESPACE"
-            ) {
+                tokens[tokens.size() - 3].Name == "ID_PLAIN" &&
+                tokens[tokens.size() - 2].Name == "NAMESPACE") {
                 function.Namespace = tokens[tokens.size() - 3].Content;
             } else if (
-                tokens[tokens.size() - 4].Name == "ID_PLAIN" && 
-                tokens[tokens.size() - 3].Name == "NAMESPACE"
-            ) {
+                tokens[tokens.size() - 4].Name == "ID_PLAIN" &&
+                tokens[tokens.size() - 3].Name == "NAMESPACE") {
                 function.Namespace = tokens[tokens.size() - 4].Content;
             }
 
@@ -201,9 +197,8 @@ namespace NSQLComplete {
             NSQLTranslation::TParsedTokenList tokens;
             NYql::TIssues issues;
             if (!NSQLTranslation::Tokenize( // TODO(YQL-19747): Tokenize query as TStringBuf
-                    *Lexer_, TString(text), /* queryName = */ "", 
-                    tokens, issues, /* maxErrors = */ 0)
-            ) {
+                    *Lexer_, TString(text), /* queryName = */ "",
+                    tokens, issues, /* maxErrors = */ 0)) {
                 return {};
             }
             return tokens;

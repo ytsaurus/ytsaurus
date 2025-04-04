@@ -39,8 +39,8 @@ public:
 Y_UNIT_TEST_SUITE(SqlCompleteTests) {
     using ECandidateKind::FunctionName;
     using ECandidateKind::Keyword;
-    using ECandidateKind::TypeName;
     using ECandidateKind::PragmaName;
+    using ECandidateKind::TypeName;
 
     TLexerSupplier MakePureLexerSupplier() {
         NSQLTranslationV1::TLexers lexers;
@@ -273,32 +273,28 @@ Y_UNIT_TEST_SUITE(SqlCompleteTests) {
         {
             TVector<TCandidate> expected = {
                 {Keyword, "ANSI"},
-                {PragmaName, "yson.CastToString"}
-            };
+                {PragmaName, "yson.CastToString"}};
             auto completion = engine->Complete({"PRAGMA "});
             UNIT_ASSERT_VALUES_EQUAL(completion.Candidates, expected);
             UNIT_ASSERT_VALUES_EQUAL(completion.CompletedToken.Content, "");
         }
         {
             TVector<TCandidate> expected = {
-                {PragmaName, "yson.CastToString"}
-            };
+                {PragmaName, "yson.CastToString"}};
             auto completion = engine->Complete({"PRAGMA yson"});
             UNIT_ASSERT_VALUES_EQUAL(completion.Candidates, expected);
             UNIT_ASSERT_VALUES_EQUAL(completion.CompletedToken.Content, "yson");
         }
         {
             TVector<TCandidate> expected = {
-                {PragmaName, "CastToString"}
-            };
+                {PragmaName, "CastToString"}};
             auto completion = engine->Complete({"PRAGMA yson."});
             UNIT_ASSERT_VALUES_EQUAL(completion.Candidates, expected);
             UNIT_ASSERT_VALUES_EQUAL(completion.CompletedToken.Content, "");
         }
         {
             TVector<TCandidate> expected = {
-                {PragmaName, "CastToString"}
-            };
+                {PragmaName, "CastToString"}};
             auto completion = engine->Complete({"PRAGMA yson.cast"});
             UNIT_ASSERT_VALUES_EQUAL(completion.Candidates, expected);
             UNIT_ASSERT_VALUES_EQUAL(completion.CompletedToken.Content, "cast");
