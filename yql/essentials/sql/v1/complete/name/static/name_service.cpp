@@ -45,13 +45,26 @@ namespace NSQLComplete {
         return prefix;
     }
 
-    void FixPrefix(TVector<TStringBuf>& names, const TNamespaced& namespaced, const TStringBuf delimeter) {
+    void FixPrefix(TString& name, const TNamespaced& namespaced, const TStringBuf delimeter) {
         if (namespaced.Namespace.empty()) {
             return;
         }
-        for (auto& name : names) {
-            name = name.Skip(namespaced.Namespace.size() + delimeter.size());
-        }
+        name.remove(0, namespaced.Namespace.size() + delimeter.size());
+    }
+
+    void FixPrefix(TGenericName& name, const TNameRequest& request) {
+        std::visit([&](auto& name) -> size_t {
+            using T = std::decay_t<decltype(name)>;
+            if constexpr (std::is_same_v<T, TPragmaName>) {
+                FixPrefix(name.Indentifier, *request.Constraints.Pragma, ".");
+            }
+            if constexpr (std::is_same_v<T, TTypeName>) {
+            }
+            if constexpr (std::is_same_v<T, TFunctionName>) {
+                FixPrefix(name.Indentifier, *request.Constraints.Function, "::");
+            }
+            return 0;
+        }, name);
     }
 
     class TStaticNameService: public INameService {
@@ -71,7 +84,6 @@ namespace NSQLComplete {
             if (request.Constraints.Pragma) {
                 auto prefix = Prefixed(request.Prefix, *request.Constraints.Pragma, ".");
                 auto names = FilteredByPrefix(prefix, NameSet_.Pragmas);
-                FixPrefix(names, *request.Constraints.Pragma, ".");
                 AppendAs<TPragmaName>(response.RankedNames, names);
             }
 
@@ -84,12 +96,14 @@ namespace NSQLComplete {
             if (request.Constraints.Function) {
                 auto prefix = Prefixed(request.Prefix, *request.Constraints.Function, "::");
                 auto names = FilteredByPrefix(prefix, NameSet_.Functions);
-                FixPrefix(names, *request.Constraints.Function, "::");
                 AppendAs<TFunctionName>(response.RankedNames, names);
             }
 
-            // FIXME(YQL-19747): Ranking is broken. FixPrefix should be done after crop.
             Ranking_->CropToSortedPrefix(response.RankedNames, request.Limit);
+
+            for (auto& name : response.RankedNames) {
+                FixPrefix(name, request);
+            }
 
             return NThreading::MakeFuture(std::move(response));
         }
