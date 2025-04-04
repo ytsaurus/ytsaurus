@@ -13,8 +13,12 @@ namespace NSQLComplete {
         TString Indentifier;
     };
 
+    struct TNamespaced {
+        TString Namespace;
+    };
+
     struct TPragmaName: TIndentifier {
-        using TConstraints = std::monostate;
+        struct TConstraints : TNamespaced {};
     };
 
     struct TTypeName: TIndentifier {
@@ -22,7 +26,7 @@ namespace NSQLComplete {
     };
 
     struct TFunctionName: TIndentifier {
-        using TConstraints = std::monostate;
+        struct TConstraints : TNamespaced {};
     };
 
     using TGenericName = std::variant<
@@ -34,7 +38,7 @@ namespace NSQLComplete {
         struct {
             std::optional<TPragmaName::TConstraints> Pragma;
             std::optional<TTypeName::TConstraints> Type;
-            std::optional<TTypeName::TConstraints> Function;
+            std::optional<TFunctionName::TConstraints> Function;
         } Constraints;
         TString Prefix = "";
         size_t Limit = 128;

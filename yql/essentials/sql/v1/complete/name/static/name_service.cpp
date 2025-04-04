@@ -35,6 +35,44 @@ namespace NSQLComplete {
         }
     }
 
+    TString PragmaPrefix(const TNameRequest& request) {
+        TString prefix;
+        if (!request.Constraints.Pragma->Namespace.empty()) {
+            prefix += request.Constraints.Pragma->Namespace;
+            prefix += '.';
+        }
+        prefix += request.Prefix;
+        return prefix;
+    }
+
+    void FixPragmaPrefix(TVector<TStringBuf>& names, const TNamespaced& namespaced) {
+        if (namespaced.Namespace.empty()) {
+            return;
+        }
+        for (auto& name : names) {
+            name = name.Skip(namespaced.Namespace.size() + 1);
+        }
+    }
+
+    TString FunctionPrefix(const TNameRequest& request) {
+        TString prefix;
+        if (!request.Constraints.Function->Namespace.empty()) {
+            prefix += request.Constraints.Function->Namespace;
+            prefix += "::";
+        }
+        prefix += request.Prefix;
+        return prefix;
+    }
+
+    void FixFunctionPrefix(TVector<TStringBuf>& names, const TNamespaced& namespaced) {
+        if (namespaced.Namespace.empty()) {
+            return;
+        }
+        for (auto& name : names) {
+            name = name.Skip(namespaced.Namespace.size() + 2);
+        }
+    }
+
     class TStaticNameService: public INameService {
     public:
         explicit TStaticNameService(NameSet names, IRanking::TPtr ranking)
@@ -50,9 +88,9 @@ namespace NSQLComplete {
             TNameResponse response;
 
             if (request.Constraints.Pragma) {
-                AppendAs<TPragmaName>(
-                    response.RankedNames,
-                    FilteredByPrefix(request.Prefix, NameSet_.Pragmas));
+                auto names = FilteredByPrefix(PragmaPrefix(request), NameSet_.Pragmas);
+                FixPragmaPrefix(names, *request.Constraints.Pragma);
+                AppendAs<TPragmaName>(response.RankedNames, names);
             }
 
             if (request.Constraints.Type) {
@@ -62,9 +100,9 @@ namespace NSQLComplete {
             }
 
             if (request.Constraints.Function) {
-                AppendAs<TFunctionName>(
-                    response.RankedNames,
-                    FilteredByPrefix(request.Prefix, NameSet_.Functions));
+                auto names = FilteredByPrefix(FunctionPrefix(request), NameSet_.Functions);
+                FixFunctionPrefix(names, *request.Constraints.Function);
+                AppendAs<TFunctionName>(response.RankedNames, names);
             }
 
             Ranking_->CropToSortedPrefix(response.RankedNames, request.Limit);

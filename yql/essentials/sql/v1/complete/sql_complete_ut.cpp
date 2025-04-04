@@ -283,21 +283,25 @@ Y_UNIT_TEST_SUITE(SqlCompleteTests) {
             TVector<TCandidate> expected = {
                 {PragmaName, "yson.CastToString"}
             };
-            {
-                auto completion = engine->Complete({"PRAGMA yson"});
-                UNIT_ASSERT_VALUES_EQUAL(completion.Candidates, expected);
-                UNIT_ASSERT_VALUES_EQUAL(completion.CompletedToken.Content, "yson");
-            }
-            {
-                auto completion = engine->Complete({"PRAGMA yson."});
-                UNIT_ASSERT_VALUES_EQUAL(completion.Candidates, expected);
-                UNIT_ASSERT_VALUES_EQUAL(completion.CompletedToken.Content, "yson.");
-            }
-            {
-                auto completion = engine->Complete({"PRAGMA yson.cast"});
-                UNIT_ASSERT_VALUES_EQUAL(completion.Candidates, expected);
-                UNIT_ASSERT_VALUES_EQUAL(completion.CompletedToken.Content, "yson.cast");
-            }
+            auto completion = engine->Complete({"PRAGMA yson"});
+            UNIT_ASSERT_VALUES_EQUAL(completion.Candidates, expected);
+            UNIT_ASSERT_VALUES_EQUAL(completion.CompletedToken.Content, "yson");
+        }
+        {
+            TVector<TCandidate> expected = {
+                {PragmaName, "CastToString"}
+            };
+            auto completion = engine->Complete({"PRAGMA yson."});
+            UNIT_ASSERT_VALUES_EQUAL(completion.Candidates, expected);
+            UNIT_ASSERT_VALUES_EQUAL(completion.CompletedToken.Content, "");
+        }
+        {
+            TVector<TCandidate> expected = {
+                {PragmaName, "CastToString"}
+            };
+            auto completion = engine->Complete({"PRAGMA yson.cast"});
+            UNIT_ASSERT_VALUES_EQUAL(completion.Candidates, expected);
+            UNIT_ASSERT_VALUES_EQUAL(completion.CompletedToken.Content, "cast");
         }
     }
 
@@ -415,28 +419,37 @@ Y_UNIT_TEST_SUITE(SqlCompleteTests) {
     }
 
     Y_UNIT_TEST(FunctionName) {
-        TVector<TCandidate> expected = {
-            {FunctionName, "DateTime::Split("},
-        };
         auto engine = MakeSqlCompletionEngineUT();
         {
+            TVector<TCandidate> expected = {
+                {FunctionName, "DateTime::Split("},
+            };
             auto completion = engine->Complete({"SELECT Date"});
             UNIT_ASSERT_VALUES_EQUAL(completion.Candidates, expected);
             UNIT_ASSERT_VALUES_EQUAL(completion.CompletedToken.Content, "Date");
         }
         {
+            TVector<TCandidate> expected = {
+                {FunctionName, "Split("},
+            };
             auto completion = engine->Complete({"SELECT DateTime:"});
             UNIT_ASSERT(completion.Candidates.empty());
         }
         {
+            TVector<TCandidate> expected = {
+                {FunctionName, "Split("},
+            };
             auto completion = engine->Complete({"SELECT DateTime::"});
             UNIT_ASSERT_VALUES_EQUAL(completion.Candidates, expected);
-            UNIT_ASSERT_VALUES_EQUAL(completion.CompletedToken.Content, "DateTime::");
+            UNIT_ASSERT_VALUES_EQUAL(completion.CompletedToken.Content, "");
         }
         {
+            TVector<TCandidate> expected = {
+                {FunctionName, "Split("},
+            };
             auto completion = engine->Complete({"SELECT DateTime::s"});
             UNIT_ASSERT_VALUES_EQUAL(completion.Candidates, expected);
-            UNIT_ASSERT_VALUES_EQUAL(completion.CompletedToken.Content, "DateTime::s");
+            UNIT_ASSERT_VALUES_EQUAL(completion.CompletedToken.Content, "s");
         }
     }
 
