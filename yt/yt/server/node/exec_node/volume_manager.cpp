@@ -1163,13 +1163,13 @@ private:
 
         auto volumeId = TVolumeId::Create();
         auto volumePath = GetVolumePath(volumeId);
-
+        auto volumeType = FromProto<EVolumeType>(volumeMeta.type());
         auto mountPath = NFS::CombinePaths(volumePath, MountSuffix);
 
         try {
             YT_LOG_DEBUG("Creating volume (Tag: %v, Type: %v, VolumeId: %v)",
                 tag,
-                FromProto<EVolumeType>(volumeMeta.type()),
+                volumeType,
                 volumeId);
 
             NFS::MakeDirRecursive(mountPath, 0755);
@@ -1197,7 +1197,7 @@ private:
 
             YT_LOG_INFO("Created volume (Tag: %v, Type: %v, VolumeId: %v, VolumeMountPath: %v)",
                 tag,
-                FromProto<EVolumeType>(volumeMeta.type()),
+                volumeType,
                 volumeId,
                 mountPath);
 
@@ -1235,7 +1235,7 @@ private:
 
             YT_LOG_INFO("Created volume meta (Tag: %v, Type: %v, VolumeId: %v, MetaFileName: %v)",
                 tag,
-                FromProto<EVolumeType>(volumeMeta.type()),
+                volumeType,
                 volumeId,
                 volumeMetaFileName);
 
@@ -1261,26 +1261,25 @@ private:
 
             YT_LOG_ERROR(ex, "Failed to create volume (Tag: %v, Type: %v, VolumeId: %v)",
                 tag,
-                FromProto<EVolumeType>(volumeMeta.type()),
+                volumeType,
                 volumeId);
 
-            auto error = TError("Failed to create %v volume %v",
-                FromProto<EVolumeType>(volumeMeta.type()),
+            auto error = TError("Failed to create %Qlv volume %v",
+                volumeType,
                 volumeId) << ex;
 
             // Don't disable location in case of InvalidImage or NBD errors.
             switch (static_cast<EPortoErrorCode>(TError(ex).GetCode())) {
                 case EPortoErrorCode::InvalidFilesystem:
-                    THROW_ERROR_EXCEPTION(
-                        EErrorCode::InvalidImage,
-                        "Failed to create %Qlv volume", FromProto<EVolumeType>(volumeMeta.type()))
-                        << ex;
+                    THROW_ERROR(error);
+
                 case EPortoErrorCode::NbdProtoError:
                 case EPortoErrorCode::NbdSocketError:
                 case EPortoErrorCode::NbdSocketTimeout:
                 case EPortoErrorCode::NbdSocketUnavaliable:
                 case EPortoErrorCode::NbdUnkownExport:
                     break;
+
                 default:
                     Disable(error);
                     break;
