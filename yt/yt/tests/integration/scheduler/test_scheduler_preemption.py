@@ -2181,7 +2181,7 @@ class TestDiskQuotaInRegularPreemptionMultipleMedia(BaseTestDiskPreemption):
         create_pool("second", attributes={"strong_guarantee_resources": {"cpu": 2.0 * 3, "gpu": 8 * 3}})
 
         blocking_op = self._run_sleeping_vanilla_with_ssd(
-            disk_space=2,
+            disk_space=3,
             medium_name=TestDiskQuotaInRegularPreemption.SSD_MEDIUM,
             job_count=2,
             task_patch={"gpu_limit": 8, "cpu_limit": 2.0, "enable_gpu_layers": False},
@@ -2189,7 +2189,7 @@ class TestDiskQuotaInRegularPreemptionMultipleMedia(BaseTestDiskPreemption):
         wait(lambda: self._get_op_cpu_usage(blocking_op) == 2.0 * 2)
 
         starving_op = self._run_sleeping_vanilla_with_ssd(
-            disk_space=2,
+            disk_space=3,
             medium_name=TestDiskQuotaInRegularPreemption.SSD_MEDIUM,
             job_count=3,
             task_patch={"gpu_limit": 8, "cpu_limit": 2.0, "enable_gpu_layers": False},

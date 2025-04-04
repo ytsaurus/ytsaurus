@@ -32,7 +32,7 @@ public:
     TJobResourcesWithQuota GetConditionalDiscountForOperation(TOperationIndex operationIndex) const override;
     void SetConditionalDiscountForOperation(TOperationIndex operationIndex, const TJobResourcesWithQuota& discountForOperation) override;
 
-    TDiskResources GetDiskResourcesWithDiscountForOperation(TOperationIndex operationIndex) const override;
+    TDiskResources GetDiskResourcesWithDiscountForOperation(TOperationIndex operationIndex, const TJobResources& allocationResources) const override;
     TJobResources GetNodeFreeResourcesWithoutDiscount() const override;
     TJobResources GetNodeFreeResourcesWithDiscount() const override;
     TJobResources GetNodeFreeResourcesWithDiscountForOperation(TOperationIndex operationIndex) const override;
