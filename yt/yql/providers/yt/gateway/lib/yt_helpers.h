@@ -44,8 +44,6 @@ bool IterateYamredRows(NYT::ITransactionPtr tx, const NYT::TRichYPath& table, ui
     IExecuteResOrPull& exec, const TTableLimiter& limiter, const TMaybe<TSampleParams>& sampling = {});
 bool IterateYsonRows(NYT::ITransactionPtr tx, const NYT::TRichYPath& table, ui32 tableIndex, TMkqlIOCache& specsCache,
     IExecuteResOrPull& exec, const TTableLimiter& limiter, const TMaybe<TSampleParams>& sampling = {});
-bool SelectRows(NYT::IClientPtr client, const TString& table, ui32 tableIndex, TMkqlIOCache& specsCache,
-    IExecuteResOrPull& exec, TTableLimiter& limiter);
 
 NYT::TNode YqlOpOptionsToSpec(const TYqlOperationOptions& opOpts, const TString& userName, const TVector<std::pair<TString, TString>>& code = {});
 NYT::TNode YqlOpOptionsToAttrs(const TYqlOperationOptions& opOpts);
