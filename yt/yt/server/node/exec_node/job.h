@@ -530,7 +530,7 @@ private:
 
     // Finalization.
     void Cleanup();
-    void CleanupNbdExports();
+    void TryCleanupNbdExports();
 
     // Preparation.
     std::unique_ptr<NNodeTrackerClient::NProto::TNodeDirectory> PrepareNodeDirectory();

@@ -530,11 +530,12 @@ public:
             .Run();
     }
 
-    TFuture<void> RemoveVolume(NProfiling::TTagSet tagSet, const TVolumeId& volumeId)
+    TFuture<void> RemoveVolume(NProfiling::TTagSet tagSet, TVolumeId volumeId)
     {
-        return BIND(&TLayerLocation::DoRemoveVolume, MakeStrong(this), std::move(tagSet), volumeId)
+        return BIND(&TLayerLocation::DoRemoveVolume, MakeStrong(this), std::move(tagSet), std::move(volumeId))
             .AsyncVia(LocationQueue_->GetInvoker())
-            .Run();
+            .Run()
+            .ToUncancelable();
     }
 
     std::vector<TLayerMeta> GetAllLayers() const
@@ -1401,7 +1402,7 @@ private:
             std::move(volumeProperties));
     }
 
-    void DoRemoveVolume(NProfiling::TTagSet tagSet, const TVolumeId& volumeId)
+    void DoRemoveVolume(NProfiling::TTagSet tagSet, TVolumeId volumeId)
     {
         auto volumePath = GetVolumePath(volumeId);
         auto mountPath = NFS::CombinePaths(volumePath, MountSuffix);
@@ -1409,7 +1410,6 @@ private:
 
         {
             auto guard = Guard(SpinLock_);
-            ValidateEnabled();
 
             if (!Volumes_.contains(volumeId)) {
                 YT_LOG_FATAL("Volume already removed (VolumeId: %v, VolumePath: %v, VolumeMetaPath: %v)",
@@ -1440,10 +1440,6 @@ private:
             {
                 auto guard = Guard(SpinLock_);
 
-                if (!IsEnabled()) {
-                    return;
-                }
-
                 YT_VERIFY(Volumes_.erase(volumeId));
 
                 if (Volumes_.empty()) {
@@ -1451,10 +1447,13 @@ private:
                 }
             }
         } catch (const std::exception& ex) {
+            YT_LOG_ERROR(ex, "Failed to remove volume (VolumeId: %v)", volumeId);
+
             TVolumeProfilerCounters::Get()->GetCounter(tagSet, "/remove_errors").Increment(1);
 
-            auto error = TError("Failed to remove volume %v", volumeId)
-                << ex;
+            auto error = TError("Failed to remove volume")
+                << ex
+                << TErrorAttribute("volume_id", volumeId);
 
             // Don't disable location in case of VolumeNotFound, VolumeNotLinked or NBD errors.
             switch (static_cast<EPortoErrorCode>(TError(ex).GetCode())) {
@@ -2441,14 +2440,20 @@ public:
 
         // At first remove volume, then unregister export.
         auto future = Location_->RemoveVolume(TagSet_, volumeId);
-        RemoveFuture_ = future.Apply(BIND([volumeId = volumeId, layer = ArtifactKey_, nbdServer = NbdServer_, volumeRemoveTimeGuard = std::move(volumeRemoveTimeGuard)] {
-            YT_LOG_DEBUG("Removed NBD volume (VolumeId: %v, ExportId: %v, Path: %v)",
-                volumeId,
-                layer.nbd_export_id(),
-                layer.data_source().path());
+        RemoveFuture_ = future.Apply(BIND(
+            [
+                volumeId = volumeId,
+                layer = ArtifactKey_,
+                nbdServer = NbdServer_,
+                volumeRemoveTimeGuard = std::move(volumeRemoveTimeGuard)
+            ] () {
+                YT_LOG_DEBUG("Removed NBD volume (VolumeId: %v, ExportId: %v, Path: %v)",
+                    volumeId,
+                    layer.nbd_export_id(),
+                    layer.data_source().path());
 
-            nbdServer->TryUnregisterDevice(layer.nbd_export_id());
-        }));
+                nbdServer->TryUnregisterDevice(layer.nbd_export_id());
+        })).ToUncancelable();
 
         return RemoveFuture_;
     }
@@ -2528,7 +2533,7 @@ public:
                 futures.push_back(overlayData.Remove());
             }
             return AllSucceeded(std::move(futures));
-        }));
+        })).ToUncancelable();
 
         return RemoveFuture_;
     }
@@ -2609,11 +2614,12 @@ public:
             volumeId,
             volumePath);
 
-        RemoveFuture_ = Location_->RemoveVolume(TagSet_, volumeId).Apply(BIND([volumeId = volumeId, volumePath = volumePath, volumeRemoveTimeGuard = std::move(volumeRemoveTimeGuard)] {
+        auto future = Location_->RemoveVolume(TagSet_, volumeId);
+        RemoveFuture_ = future.Apply(BIND([volumeId = volumeId, volumePath = volumePath, volumeRemoveTimeGuard = std::move(volumeRemoveTimeGuard)] {
             YT_LOG_DEBUG("Removed squashfs volume (VolumeId: %v, VolumePath: %v)",
                 volumeId,
                 volumePath);
-        }));
+        })).ToUncancelable();
 
         return RemoveFuture_;
     }
@@ -2999,8 +3005,6 @@ private:
         TVolumeProfilerCounters::Get()->GetCounter(tagSet, "/created").Increment(1);
         TEventTimerGuard volumeCreateTimeGuard(TVolumeProfilerCounters::Get()->GetTimer(tagSet, "/create_time"));
 
-        // There could be a CreateNbdVolume() failure after a successful PrepareNbdExport().
-        // In such cases NBD exports are unregistered by TJob::Cleanup().
         return PrepareNbdExport(tag, tagSet, artifactKey, reader)
             .Apply(BIND(
                 &TPortoVolumeManager::CreateNbdVolume,
@@ -3009,6 +3013,22 @@ private:
                 std::move(tagSet),
                 Passed(std::move(volumeCreateTimeGuard)),
                 artifactKey)
+            .AsyncVia(GetCurrentInvoker()))
+            .Apply(BIND([this, this_ = MakeStrong(this), tag = tag, artifactKey = artifactKey] (const TErrorOr<TNbdVolumePtr>& errorOrVolume) {
+                if (!errorOrVolume.IsOK()) {
+                    if (auto nbdServer = Bootstrap_->GetNbdServer()) {
+                        nbdServer->TryUnregisterDevice(artifactKey.nbd_export_id());
+                    }
+
+                    YT_LOG_ERROR(errorOrVolume, "Failed to prepare NBD volume (Tag: %v, Path: %v)",
+                        tag,
+                        artifactKey.data_source().path());
+
+                    THROW_ERROR(errorOrVolume);
+                }
+
+                return errorOrVolume.Value();
+            })
             .AsyncVia(GetCurrentInvoker()))
             // This uncancelable future ensures that TOverlayData object owning the volume will be created
             // and protects from Porto volume leak.

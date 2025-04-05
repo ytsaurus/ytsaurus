@@ -2778,11 +2778,10 @@ void TJob::Cleanup()
             "Volume remove failed (VolumePath: %v)",
             RootVolume_->GetPath());
         RootVolume_.Reset();
-
-        // Clean up NBD exports only if root volume has been created.
-        // In this case there is no race between volume destruction and clean up.
-        CleanupNbdExports();
     }
+
+    // Make sure job's NBD exports are unregistered.
+    TryCleanupNbdExports();
 
     if (const auto& slot = GetUserSlot()) {
         if (ShouldCleanSandboxes()) {
@@ -2820,33 +2819,19 @@ void TJob::Cleanup()
     YT_LOG_INFO("Job finished (JobState: %v)", GetState());
 }
 
-//! Make sure NBD exports are unregistered in case of volume creation failures.
-void TJob::CleanupNbdExports()
+//! Make sure NBD exports are unregistered.
+void TJob::TryCleanupNbdExports()
 {
     if (auto nbdServer = Bootstrap_->GetNbdServer()) {
-        for (const auto& artifactKey : LayerArtifactKeys_) {
-            if (!artifactKey.has_nbd_export_id()) {
-                continue;
-            }
-
-            if (nbdServer->IsDeviceRegistered(artifactKey.nbd_export_id())) {
+        for (const auto& exportId : NbdExportIds_) {
+            if (nbdServer->IsDeviceRegistered(exportId) && nbdServer->TryUnregisterDevice(exportId)) {
                 TNbdProfilerCounters::Get()->GetCounter(
-                    TNbdProfilerCounters::MakeTagSet(artifactKey.data_source().path()),
+                    {},
                     "/device/unregistered_unexpected").Increment(1);
 
-                YT_LOG_ERROR(
-                    "NBD export is still registered, unregister it (ExportId: %v, Path: %v)",
-                    artifactKey.nbd_export_id(),
-                    artifactKey.data_source().path());
-                nbdServer->TryUnregisterDevice(artifactKey.nbd_export_id());
+                YT_LOG_ERROR("Unregistered unexpected NBD export (ExportId: %v)",
+                    exportId);
             }
-        }
-
-        if (VirtualSandboxData_ && nbdServer->IsDeviceRegistered(VirtualSandboxData_->NbdExportId)) {
-            YT_LOG_ERROR(
-                "NBD virtual layer is still registered, unregister it (ExportId: %v)",
-                VirtualSandboxData_->NbdExportId);
-            nbdServer->TryUnregisterDevice(VirtualSandboxData_->NbdExportId);
         }
     }
 }
