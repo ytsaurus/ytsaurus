@@ -456,9 +456,14 @@ public:
                 healthCheckerConfig,
                 Config_->Path,
                 LocationQueue_->GetInvoker(),
-                DynamicConfigManager_,
                 Logger,
                 profiler);
+
+            DynamicConfigManager_->SubscribeConfigChanged(BIND_NO_PROPAGATE([
+                healthChecker = HealthChecker_] (const NClusterNode::TClusterNodeDynamicConfigPtr& /*oldConfig*/,
+                    const NClusterNode::TClusterNodeDynamicConfigPtr& newConfig) {
+                    healthChecker->OnDynamicConfigChanged(newConfig->DataNode->DiskHealthChecker);
+                }));
         }
     }
 
