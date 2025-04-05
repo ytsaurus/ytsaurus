@@ -2,8 +2,6 @@
 
 #include "public.h"
 
-#include <yt/yt/server/node/cluster_node/public.h>
-
 #include <yt/yt/core/actions/signal.h>
 
 #include <yt/yt/core/concurrency/periodic_executor.h>
@@ -30,7 +28,6 @@ public:
         TDiskHealthCheckerConfigPtr config,
         const TString& path,
         IInvokerPtr invoker,
-        NClusterNode::TClusterNodeDynamicConfigManagerPtr dynamicConfigManager,
         NLogging::TLogger logger,
         const NProfiling::TProfiler& profiler = {});
 
@@ -42,13 +39,16 @@ public:
 
     TFuture<void> Stop();
 
+    void OnDynamicConfigChanged(const TDiskHealthCheckerDynamicConfigPtr& newConfig);
+
     DEFINE_SIGNAL(void(const TError&), Failed);
 
 private:
-    const NClusterNode::TClusterNodeDynamicConfigManagerPtr DynamicConfigManager_;
     const TDiskHealthCheckerConfigPtr Config_;
     const TString Path_;
     const IInvokerPtr CheckInvoker_;
+
+    TAtomicIntrusivePtr<TDiskHealthCheckerDynamicConfig> DynamicConfig_;
 
     NLogging::TLogger Logger;
 
