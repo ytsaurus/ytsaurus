@@ -2,14 +2,11 @@
 #include "private.h"
 #include "config.h"
 
-#include <yt/yt/server/node/data_node/config.h>
-
-#include <yt/yt/server/node/cluster_node/config.h>
-#include <yt/yt/server/node/cluster_node/dynamic_config_manager.h>
-
 #include <yt/yt/core/actions/future.h>
 
 #include <yt/yt/core/misc/fs.h>
+
+#include <yt/yt/core/profiling/timing.h>
 
 #include <util/random/random.h>
 
@@ -25,11 +22,9 @@ TDiskHealthChecker::TDiskHealthChecker(
     TDiskHealthCheckerConfigPtr config,
     const TString& path,
     IInvokerPtr invoker,
-    NClusterNode::TClusterNodeDynamicConfigManagerPtr dynamicConfigManager,
     TLogger logger,
     const TProfiler& profiler)
-    : DynamicConfigManager_(std::move(dynamicConfigManager))
-    , Config_(std::move(config))
+    : Config_(std::move(config))
     , Path_(path)
     , CheckInvoker_(std::move(invoker))
     , Logger(logger)
@@ -42,23 +37,32 @@ TDiskHealthChecker::TDiskHealthChecker(
         Config_->CheckPeriod))
 {
     Logger.AddTag("Path: %v", Path_);
+    DynamicConfig_.Store(New<TDiskHealthCheckerDynamicConfig>());
+}
+
+void TDiskHealthChecker::OnDynamicConfigChanged(const TDiskHealthCheckerDynamicConfigPtr& newConfig)
+{
+    DynamicConfig_.Store(newConfig);
 }
 
 TDuration TDiskHealthChecker::GetWaitTimeout() const
 {
-    auto waitTimeout = DynamicConfigManager_->GetConfig()->DataNode->DiskHealthChecker->WaitTimeout;
+    auto dynamicConfig = DynamicConfig_.Acquire();
+    auto waitTimeout = dynamicConfig->WaitTimeout;
     return waitTimeout.value_or(Config_->WaitTimeout);
 }
 
 TDuration TDiskHealthChecker::GetExecTimeout() const
 {
-    auto execTimeout = DynamicConfigManager_->GetConfig()->DataNode->DiskHealthChecker->ExecTimeout;
+    auto dynamicConfig = DynamicConfig_.Acquire();
+    auto execTimeout = dynamicConfig->ExecTimeout;
     return execTimeout.value_or(Config_->ExecTimeout);
 }
 
 i64 TDiskHealthChecker::GetTestSize() const
 {
-    auto testSize = DynamicConfigManager_->GetConfig()->DataNode->DiskHealthChecker->TestSize;
+    auto dynamicConfig = DynamicConfig_.Acquire();
+    auto testSize = dynamicConfig->TestSize;
     return testSize.value_or(Config_->TestSize);
 }
 
