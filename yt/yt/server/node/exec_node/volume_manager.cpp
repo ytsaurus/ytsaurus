@@ -1273,12 +1273,18 @@ private:
 
             auto error = TError("Failed to create %Qlv volume %v",
                 volumeType,
-                volumeId) << ex;
+                volumeId)
+                << ex;
 
             // Don't disable location in case of InvalidImage or NBD errors.
             switch (static_cast<EPortoErrorCode>(TError(ex).GetCode())) {
                 case EPortoErrorCode::InvalidFilesystem:
-                    THROW_ERROR(error);
+                    THROW_ERROR_EXCEPTION(
+                        NExecNode::EErrorCode::InvalidImage,
+                        "Invalid filesystem of %Qlv volume %v",
+                        volumeType,
+                        volumeId)
+                        << ex;
 
                 case EPortoErrorCode::NbdProtoError:
                 case EPortoErrorCode::NbdSocketError:
