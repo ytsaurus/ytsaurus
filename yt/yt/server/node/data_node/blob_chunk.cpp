@@ -344,11 +344,7 @@ void TBlobChunkBase::OnBlocksExtLoaded(
     const TReadBlockSetSessionPtr& session,
     const NIO::TBlocksExtPtr& blocksExt)
 {
-    YT_ASSERT_INVOKER_AFFINITY(session->Invoker);
-
-    if (session->Finished.load()) {
-        return;
-    }
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     // Run async cache lookup.
     i64 pendingDataSize = 0;
@@ -445,6 +441,12 @@ void TBlobChunkBase::OnBlocksExtLoaded(
                 FailSession(session, error);
             }
         }).Via(session->Invoker));
+
+    session->SessionPromise.OnCanceled(BIND([session] (const TError& error) {
+        FailSession(
+            session,
+            TError(NYT::EErrorCode::Canceled, "Session canceled") << error);
+    }).Via(session->Invoker));
 }
 
 void TBlobChunkBase::DoReadSession(
@@ -958,31 +960,15 @@ TFuture<std::vector<TBlock>> TBlobChunkBase::ReadBlockSet(
             .Run(session);
     }
 
-    session->SessionPromise.OnCanceled(BIND([session] (const TError& error) {
-        FailSession(
-            session,
-            TError(NYT::EErrorCode::Canceled, "Session canceled") << error);
-    }).Via(session->Invoker));
-
     // Need blocks ext.
     auto blocksExt = FindCachedBlocksExt();
     if (blocksExt) {
-        YT_UNUSED_FUTURE(BIND(&TBlobChunkBase::OnBlocksExtLoaded, MakeStrong(this))
-            .AsyncVia(session->Invoker)
-            .Run(session, blocksExt));
+        OnBlocksExtLoaded(session, blocksExt);
     } else {
         auto cookie = Context_->ChunkMetaManager->BeginInsertCachedBlocksExt(Id_);
         auto asyncBlocksExt = cookie.GetValue();
         if (cookie.IsActive()) {
-            auto readMetaFuture = BIND([=, this, this_ = MakeStrong(this)] {
-                auto readMetaFuture = ReadMeta(options);
-                session->Futures.push_back(readMetaFuture.AsVoid());
-                return readMetaFuture;
-            })
-                .AsyncVia(session->Invoker)
-                .Run();
-
-            readMetaFuture
+            ReadMeta(options)
                 .Subscribe(BIND([=, this, this_ = MakeStrong(this), cookie = std::move(cookie)] (const TErrorOr<TRefCountedChunkMetaPtr>& result) mutable {
                     if (result.IsOK()) {
                         auto blocksExt = New<NIO::TBlocksExt>(GetProtoExtension<NChunkClient::NProto::TBlocksExt>(result.Value()->extensions()));

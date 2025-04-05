@@ -1041,8 +1041,7 @@ private:
             return future;
         }
 
-        auto timeout = *context->GetTimeout() * timeoutFraction.value();
-        auto deadline = *context->GetStartTime() + timeout;
+        auto deadline = *context->GetStartTime() + *context->GetTimeout() * timeoutFraction.value();
 
         return AnySet<T>({
             future
@@ -1056,11 +1055,7 @@ private:
                     }
                 })),
             TDelayedExecutor::MakeDelayed(deadline - TInstant::Now())
-                .Apply(BIND([fallbackValue, future, timeout] {
-                    future.Cancel(TError("Rpc request timed out")
-                        << TErrorAttribute("timeout", timeout));
-                    return fallbackValue();
-                }))
+                .Apply(fallbackValue)
         });
     }
 
