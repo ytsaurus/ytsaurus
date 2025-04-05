@@ -41,7 +41,5 @@ CheckOptions:
     value: UPPER_CASE
   - key: readability-identifier-naming.MacroDefinitionIgnoredRegexp
     value: "^_.*"
-  - key: misc-include-cleaner.IgnoreHeaders
-    value: "library/cpp/testing/gtest/gtest.h"
   - key: misc-header-include-cycle.IgnoredFilesList
     value: "contrib/.*"
