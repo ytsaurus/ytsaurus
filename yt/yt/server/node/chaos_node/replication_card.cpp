@@ -42,7 +42,7 @@ void TMigration::Persist(const TPersistenceContext& context)
 ////////////////////////////////////////////////////////////////////////////////
 
 TReplicaCounters::TReplicaCounters(const NProfiling::TProfiler& profiler)
-    : LagTime(profiler.WithSparse().TimeGauge("lag_time"))
+    : LagTime(profiler.WithSparse().TimeGauge("/lag_time"))
 { }
 
 ////////////////////////////////////////////////////////////////////////////////
