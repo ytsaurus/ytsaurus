@@ -21,6 +21,11 @@ namespace NSQLComplete {
         RULE(Keyword_compat),
     };
 
+    const TVector<TRuleId> PragmaNameRules = {
+        RULE(Opt_id_prefix_or_type),
+        RULE(An_id),
+    };
+
     const TVector<TRuleId> TypeNameRules = {
         RULE(Type_name_simple),
     };
@@ -43,6 +48,11 @@ namespace NSQLComplete {
         return Find(stack, rule) != std::end(stack);
     }
 
+    bool IsLikelyPragmaStack(const TParserCallStack& stack) {
+        return EndsWith({RULE(Pragma_stmt), RULE(Opt_id_prefix_or_type)}, stack) ||
+               EndsWith({RULE(Pragma_stmt), RULE(An_id)}, stack);
+    }
+
     bool IsLikelyTypeStack(const TParserCallStack& stack) {
         return EndsWith({RULE(Type_name_simple)}, stack);
     }
@@ -51,12 +61,14 @@ namespace NSQLComplete {
         return EndsWith({RULE(Unary_casual_subexpr), RULE(Id_expr)}, stack) ||
                EndsWith({RULE(Unary_casual_subexpr),
                          RULE(Atom_expr),
-                         RULE(An_id_or_type)}, stack);
+                         RULE(An_id_or_type)}, stack) ||
+               EndsWith({RULE(Atom_expr), RULE(Id_or_type)}, stack);
     }
 
     std::unordered_set<TRuleId> GetC3PreferredRules() {
         std::unordered_set<TRuleId> preferredRules;
         preferredRules.insert(std::begin(KeywordRules), std::end(KeywordRules));
+        preferredRules.insert(std::begin(PragmaNameRules), std::end(PragmaNameRules));
         preferredRules.insert(std::begin(TypeNameRules), std::end(TypeNameRules));
         preferredRules.insert(std::begin(FunctionNameRules), std::end(FunctionNameRules));
         return preferredRules;
