@@ -537,7 +537,9 @@ private:
     std::unique_ptr<NNodeTrackerClient::NProto::TNodeDirectory> PrepareNodeDirectory();
 
     NJobProxy::TJobProxyInternalConfigPtr CreateConfig();
-    std::vector<NJobProxy::TBindConfigPtr> GetRootFsBinds();
+    std::vector<NJobProxy::TBindConfigPtr> GetRootFSBindConfigs();
+
+    std::vector<NContainers::TBind> GetRootFSBinds();
 
     void PrepareSandboxDirectories();
 
