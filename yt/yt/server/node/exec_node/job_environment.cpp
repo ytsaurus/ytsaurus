@@ -445,11 +445,11 @@ public:
             ConcreteConfig_->PortoExecutor,
             "env_spawn",
             JobEnvironmentProfiler().WithPrefix("/porto")))
-        , CreatePortoExecutor_(CreatePortoExecutor(
+        , PortoCreateExecutor_(CreatePortoExecutor(
             ConcreteConfig_->PortoExecutor,
             "env_create",
             JobEnvironmentProfiler().WithPrefix("/porto_create")))
-        , DestroyPortoExecutor_(CreatePortoExecutor(
+        , PortoDestroyExecutor_(CreatePortoExecutor(
             ConcreteConfig_->PortoExecutor,
             "env_destroy",
             JobEnvironmentProfiler().WithPrefix("/porto_destroy")))
@@ -471,7 +471,11 @@ public:
                 executor->OnDynamicConfigChanged(portoConfig->PortoExecutor);
             }
 
-            if (auto executor = DestroyPortoExecutor_) {
+            if (auto executor = PortoDestroyExecutor_) {
+                executor->OnDynamicConfigChanged(portoConfig->PortoExecutor);
+            }
+
+            if (auto executor = PortoCreateExecutor_) {
                 executor->OnDynamicConfigChanged(portoConfig->PortoExecutor);
             }
 
@@ -643,11 +647,11 @@ private:
     IPortoExecutorPtr PortoExecutor_;
 
     //! Porto connection for container creation that could be long.
-    IPortoExecutorPtr CreatePortoExecutor_;
+    IPortoExecutorPtr PortoCreateExecutor_;
 
     //! Porto connection used for container destruction, which is
     //! possibly a long operation and requires additional retries.
-    IPortoExecutorPtr DestroyPortoExecutor_;
+    IPortoExecutorPtr PortoDestroyExecutor_;
     NProfiling::TCounter ContainerDestroyFailureCounter_;
 
     IInstancePtr SelfInstance_;
@@ -676,13 +680,13 @@ private:
         while (!destroyed) {
             YT_LOG_DEBUG("Start container destruction attempt (RootContainer: %v)", rootContainer);
 
-            auto containers = WaitFor(DestroyPortoExecutor_->ListSubcontainers(rootContainer, false))
+            auto containers = WaitFor(PortoDestroyExecutor_->ListSubcontainers(rootContainer, false))
                 .ValueOrThrow();
 
             std::vector<TFuture<void>> futures;
             for (const auto& container : containers) {
                 YT_LOG_DEBUG("Destroy subcontainer (Container: %v)", container);
-                futures.push_back(DestroyPortoExecutor_->DestroyContainer(container));
+                futures.push_back(PortoDestroyExecutor_->DestroyContainer(container));
             }
 
             auto result = WaitFor(AllSet(futures));
@@ -780,7 +784,7 @@ private:
         auto slotInitFuture = BIND([this, this_ = MakeStrong(this), slotIndex] {
             for (auto slotType : {ESlotType::Common, ESlotType::Idle}) {
                 auto slotContainer = GetFullSlotMetaContainerName(slotIndex, slotType);
-                WaitFor(CreatePortoExecutor_->CreateContainer(slotContainer))
+                WaitFor(PortoCreateExecutor_->CreateContainer(slotContainer))
                     .ThrowOnError();
 
                 // This forces creation of CPU cgroup for this container.
