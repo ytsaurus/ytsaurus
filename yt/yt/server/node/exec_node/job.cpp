@@ -4006,8 +4006,8 @@ std::vector<TShellCommandConfigPtr> TJob::GetSetupCommands()
 
     bool needGpu = NeedGpuLayers() || Bootstrap_->GetGpuManager()->ShouldTestSetupCommands();
     if (needGpu) {
-        auto gpu_commands = Bootstrap_->GetGpuManager()->GetSetupCommands();
-        result.insert(result.end(), gpu_commands.begin(), gpu_commands.end());
+        auto gpuSetupCommands = Bootstrap_->GetGpuManager()->GetSetupCommands();
+        result.insert(result.end(), gpuSetupCommands.begin(), gpuSetupCommands.end());
     }
 
     return result;
