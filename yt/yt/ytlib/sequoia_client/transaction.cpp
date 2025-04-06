@@ -100,8 +100,8 @@ TPerTransactionTypeCounters* GetPerTransactionTypeCounters(ESequoiaTransactionTy
         THashMap<ESequoiaTransactionType, TPerTransactionTypeCounters> counters;
         for (auto type : TEnumTraits<ESequoiaTransactionType>::GetDomainValues()) {
             auto profiler = SequoiaClientProfiler().WithTag("type", FormatEnum(type));
-            counters[type].TransactionCommitsSucceeded = profiler.Counter("transaction_commits_succeeded");
-            counters[type].TransactionCommitsFailed = profiler.Counter("transaction_commits_failed");
+            counters[type].TransactionCommitsSucceeded = profiler.Counter("/transaction_commits_succeeded");
+            counters[type].TransactionCommitsFailed = profiler.Counter("/transaction_commits_failed");
         }
         return counters;
     }();
