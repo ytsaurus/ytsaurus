@@ -1157,7 +1157,7 @@ IInvokerPtr TContext::GetCompressionInvoker() const
         /*band*/ 0,
         /*instant*/ {},
         /*annotations*/ {},
-        /*compressionFairShareTag*/ DriverRequest_.AuthenticatedUser);
+        /*compressionFairShareTag*/ TString(DriverRequest_.AuthenticatedUser));
 
     return Api_->GetDynamicConfig()->UseCompressionThreadPool
         ? NYT::GetCompressionInvoker(workloadDescriptor)
