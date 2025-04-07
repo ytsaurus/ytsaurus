@@ -6,6 +6,7 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nullable;
 
+import tech.ytsaurus.core.cypress.RichYPath;
 import tech.ytsaurus.core.cypress.YPath;
 import tech.ytsaurus.rpcproxy.TRspListQueueConsumerRegistrations;
 
@@ -36,8 +37,8 @@ public class ListQueueConsumerRegistrationsResult {
         private final RegistrationPartitions partitions;
 
         public QueueConsumerRegistration(TRspListQueueConsumerRegistrations.TQueueConsumerRegistration protoValue) {
-            this.queuePath = YPath.simple(protoValue.getQueuePath().toStringUtf8());
-            this.consumerPath = YPath.simple(protoValue.getConsumerPath().toStringUtf8());
+            this.queuePath = RichYPath.fromString(protoValue.getQueuePath().toStringUtf8());
+            this.consumerPath = RichYPath.fromString(protoValue.getConsumerPath().toStringUtf8());
             this.vital = protoValue.getVital();
             this.partitions = protoValue.hasPartitions()
                     ? new RegistrationPartitions(protoValue.getPartitions().getItemsList())
