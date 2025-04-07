@@ -16,26 +16,31 @@
 
 #include <yt/yt/client/api/client.h>
 
-#include <yt/yt/core/ytree/fluent.h>
-
-#include <yt/yt/core/http/helpers.h>
+// TODO(nadya73): move it outside of 'rpc_proxy' or rename it somehow.
+#include <yt/yt/client/api/rpc_proxy/address_helpers.h>
 
 #include <yt/yt/core/concurrency/periodic_executor.h>
 
+#include <yt/yt/core/http/helpers.h>
+
+#include <yt/yt/core/https/config.h>
+
 #include <yt/yt/core/net/local_address.h>
 
-#include <yt/yt/library/profiling/resource_tracker/resource_tracker.h>
-
+#include <yt/yt/core/ytree/fluent.h>
 #include <yt/yt/core/ytree/ypath_proxy.h>
+
+#include <yt/yt/library/profiling/resource_tracker/resource_tracker.h>
 
 #include <yt/yt/build/build.h>
 
 #include <library/cpp/cgiparam/cgiparam.h>
-#include <util/string/split.h>
 
 #include <util/generic/vector.h>
 
 #include <util/random/shuffle.h>
+
+#include <util/string/split.h>
 
 #include <util/system/info.h>
 
@@ -44,6 +49,7 @@ namespace NYT::NHttpProxy {
 static constexpr auto& Logger = HttpProxyLogger;
 
 using namespace NApi;
+using namespace NApi::NRpcProxy;
 using namespace NConcurrency;
 using namespace NTracing;
 using namespace NYTree;
@@ -151,18 +157,46 @@ TCoordinator::TCoordinator(
     {
         TCypressRegistrarOptions options;
         options.RootPath = NApi::HttpProxiesPath + "/" + ToYPathLiteral(Self_->Entry->Endpoint);
-        options.OrchidRemoteAddresses = GetLocalAddresses(
+        options.OrchidRemoteAddresses = NYT::GetLocalAddresses(
             {{"default", Self_->Entry->GetHost()}},
             Bootstrap_->GetConfig()->RpcPort);
+        options.CreateAliveChild = true;
         options.AttributesOnCreation = BuildAttributeDictionaryFluently()
             .Item("role").Value(Self_->Entry->Role)
             .Item("banned").Value(false)
             .Item("liveness").Value(Self_->Entry->Liveness)
             .Finish();
+
+        auto proxyConfig = Bootstrap_->GetConfig();
+
+        auto proxyAddressMap = TProxyAddressMap{
+            {EAddressType::Http, NRpcProxy::GetLocalAddresses(proxyConfig->Addresses, proxyConfig->Port)},
+            {EAddressType::InternalRpc, NRpcProxy::GetLocalAddresses(proxyConfig->Addresses, proxyConfig->RpcPort)},
+            {EAddressType::MonitoringHttp, NRpcProxy::GetLocalAddresses(proxyConfig->Addresses, proxyConfig->MonitoringPort)},
+        };
+
+        if (proxyConfig->HttpsServer) {
+            auto addresses = NRpcProxy::GetLocalAddresses(proxyConfig->Addresses, proxyConfig->HttpsServer->Port);
+            proxyAddressMap.emplace(EAddressType::Https, std::move(addresses));
+        }
+
+        if (proxyConfig->TvmOnlyAuth) {
+            if (proxyConfig->TvmOnlyHttpServer) {
+                auto addresses = NRpcProxy::GetLocalAddresses(proxyConfig->Addresses, proxyConfig->TvmOnlyHttpServer->Port);
+                proxyAddressMap.emplace(EAddressType::TvmOnlyHttp, std::move(addresses));
+            }
+
+            if (proxyConfig->TvmOnlyHttpsServer) {
+                auto addresses = NRpcProxy::GetLocalAddresses(proxyConfig->Addresses, proxyConfig->TvmOnlyHttpsServer->Port);
+                proxyAddressMap.emplace(EAddressType::TvmOnlyHttps, std::move(addresses));
+            }
+        }
+
         options.AttributesOnStart = BuildAttributeDictionaryFluently()
             .Item("version").Value(NYT::GetVersion())
             .Item("start_time").Value(TInstant::Now().ToString())
             .Item("annotations").Value(Bootstrap_->GetConfig()->CypressAnnotations)
+            .Item("addresses").Value(std::move(proxyAddressMap))
             .Finish();
         options.NodeType = EObjectType::ClusterProxyNode;
         CypressRegistrar_ = CreateCypressRegistrar(
