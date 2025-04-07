@@ -1356,7 +1356,7 @@ public:
     void RegisterAggregate(
         const std::string& aggregateName,
         std::unordered_map<TTypeParameter, TUnionType> /*typeParameterConstraints*/,
-        TType /*argumentType*/,
+        std::vector<TType> /*argumentTypes*/,
         TType /*resultType*/,
         TType /*stateType*/,
         TStringBuf implementationFile,

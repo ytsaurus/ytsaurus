@@ -233,7 +233,7 @@ void RegisterBuiltinFunctions(IFunctionRegistryBuilder* builder)
     builder->RegisterAggregate(
         "first",
         anyConstraints,
-        typeParameter,
+        {typeParameter},
         typeParameter,
         typeParameter,
         "first",
@@ -248,7 +248,7 @@ void RegisterBuiltinFunctions(IFunctionRegistryBuilder* builder)
     builder->RegisterAggregate(
         "xdelta",
         xdeltaConstraints,
-        typeParameter,
+        {typeParameter},
         typeParameter,
         typeParameter,
         "xdelta",
@@ -257,22 +257,42 @@ void RegisterBuiltinFunctions(IFunctionRegistryBuilder* builder)
     builder->RegisterAggregate(
         "cardinality",
         std::unordered_map<TTypeParameter, TUnionType>(),
-        std::vector{
+        {TUnionType{
             EValueType::String,
             EValueType::Uint64,
             EValueType::Int64,
             EValueType::Double,
             EValueType::Boolean,
-        },
+        }},
         EValueType::Uint64,
         EValueType::String,
         "hyperloglog",
         ECallingConvention::UnversionedValue);
 
     builder->RegisterAggregate(
+        "array_agg",
+        std::unordered_map<TTypeParameter, TUnionType>(),
+        {
+            TUnionType{
+                EValueType::String,
+                EValueType::Uint64,
+                EValueType::Int64,
+                EValueType::Double,
+                EValueType::Boolean,
+                EValueType::Any,
+                EValueType::Composite,
+            },
+            EValueType::Boolean,
+        },
+        EValueType::Any,
+        EValueType::String,
+        "array_agg",
+        ECallingConvention::UnversionedValue);
+
+    builder->RegisterAggregate(
         "dict_sum",
         std::unordered_map<TTypeParameter, TUnionType>{},
-        TUnionType{EValueType::Any, EValueType::Composite},
+        {TUnionType{EValueType::Any, EValueType::Composite}},
         EValueType::Any,
         EValueType::Any,
         "dict_sum",
@@ -422,7 +442,7 @@ void RegisterBuiltinFunctions(IFunctionRegistryBuilder* builder)
     builder->RegisterAggregate(
         "_yt_stored_replica_set",
         std::unordered_map<TTypeParameter, TUnionType>(),
-        std::vector{EValueType::Any},
+        {EValueType::Any},
         EValueType::Any,
         EValueType::Any,
         "stored_replica_set",
@@ -431,7 +451,7 @@ void RegisterBuiltinFunctions(IFunctionRegistryBuilder* builder)
     builder->RegisterAggregate(
         "_yt_last_seen_replica_set",
         std::unordered_map<TTypeParameter, TUnionType>(),
-        std::vector{EValueType::Any},
+        {EValueType::Any},
         EValueType::Any,
         EValueType::Any,
         "last_seen_replica_set",

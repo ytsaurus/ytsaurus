@@ -130,6 +130,7 @@ target_sources(library-query-engine.global PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/library/query/engine/range_inferrer.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/library/query/engine/new_range_inferrer.cpp
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/a0be0a9e87e4702ae1320a576208a851.cpp
+  ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/fee4f55767e8a84a948e7ea583dfbe42.cpp
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/dda3c4dd6be8a78f1812ae538736ee47.cpp
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/f1f6f56affb584519806d24589f447b7.cpp
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/22027c908ee19396b77d8723f98bb1c3.cpp
@@ -191,6 +192,32 @@ add_custom_command(
   -o
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/hyperloglog_optimized.bc
   -internalize-public-api-list=cardinality_init#cardinality_update#cardinality_merge#cardinality_finalize
+  -passes="default<O2>,globalopt,globaldce,internalize"
+)
+
+add_custom_command(
+  OUTPUT
+  ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/array_agg_merged.bc
+  DEPENDS
+  ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/udf/array_agg.cpp.bc
+  COMMAND
+  ${LLVMLINK}
+  ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/udf/array_agg.cpp.bc
+  -o
+  ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/array_agg_merged.bc
+)
+
+add_custom_command(
+  OUTPUT
+  ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/array_agg_optimized.bc
+  DEPENDS
+  ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/array_agg_merged.bc
+  COMMAND
+  ${LLVMOPT}
+  ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/array_agg_merged.bc
+  -o
+  ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/array_agg_optimized.bc
+  -internalize-public-api-list=array_agg_init#array_agg_update#array_agg_merge#array_agg_finalize
   -passes="default<O2>,globalopt,globaldce,internalize"
 )
 
@@ -1113,6 +1140,14 @@ llvm_compile_cxx(library-query-engine.global
 )
 
 llvm_compile_cxx(library-query-engine.global
+  ${PROJECT_SOURCE_DIR}/yt/yt/library/query/engine/udf/array_agg.cpp
+  ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/udf/array_agg.cpp.bc
+  ${CLANGPLUSPLUS}
+  -Wno-unknown-warning-option
+  -emit-llvm
+)
+
+llvm_compile_cxx(library-query-engine.global
   ${PROJECT_SOURCE_DIR}/yt/yt/library/query/engine/udf/farm_hash.cpp
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/udf/farm_hash.cpp.bc
   ${CLANGPLUSPLUS}
@@ -1294,6 +1329,15 @@ resources(library-query-engine.global
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/hyperloglog_optimized.bc
   KEYS
   /llvm_bc/hyperloglog
+  OPTS
+)
+
+resources(library-query-engine.global
+  ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/fee4f55767e8a84a948e7ea583dfbe42.cpp
+  INPUTS
+  ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/array_agg_optimized.bc
+  KEYS
+  /llvm_bc/array_agg
   OPTS
 )
 

@@ -1897,7 +1897,7 @@ TEST_F(TEvaluateAggregationTest, AggregateFlag)
     builder->RegisterAggregate(
         "xor_aggregate",
         std::unordered_map<TTypeParameter, TUnionType>(),
-        EValueType::Int64,
+        {EValueType::Int64},
         EValueType::Int64,
         EValueType::Int64,
         "xor_aggregate",
@@ -1966,7 +1966,7 @@ TEST_F(TEvaluateAggregationTest, Aliasing)
     builder->RegisterAggregate(
         "concat_all",
         std::unordered_map<TTypeParameter, TUnionType>(),
-        EValueType::String,
+        {EValueType::String},
         EValueType::String,
         EValueType::String,
         "concat_all",
