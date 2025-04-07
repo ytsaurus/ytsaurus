@@ -77,7 +77,13 @@ func newOutput(config *Config, logConfig JSONLogConfig, task timbertruck.TaskArg
 
 func main() {
 	app, config := app.MustNewApp[Config]()
-	defer app.Close()
+	defer func() {
+		err := recover()
+		_ = app.Close() // flush timbertruck's log.
+		if err != nil {
+			panic(err)
+		}
+	}()
 
 	for _, jsonLogConfig := range config.JSONLogs {
 		app.AddStream(jsonLogConfig.StreamConfig, func(task timbertruck.TaskArgs) (p *pipelines.Pipeline, err error) {
