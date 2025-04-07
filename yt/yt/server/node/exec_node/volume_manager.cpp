@@ -340,6 +340,27 @@ struct TVolumeMeta
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TCreateNbdVolumeOptions
+{
+    TString ExportId;
+    TString Filesystem;
+    bool IsReadOnly;
+    bool IsRoot;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TPrepareNbdRootVolumeOptions
+{
+    i64 Size;
+    int MediumIndex;
+    EFilesystemType Filesystem;
+    TString ExportId;
+    std::string DataNodeAddress;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 DECLARE_REFCOUNTED_CLASS(TLayer)
 DECLARE_REFCOUNTED_CLASS(TNbdVolume)
 
@@ -500,12 +521,10 @@ public:
 
     TFuture<TVolumeMeta> CreateNbdVolume(
         TGuid tag,
-        NProfiling::TTagSet tagSet,
+        TTagSet tagSet,
         TEventTimerGuard volumeCreateTimeGuard,
-        const TString& exportId,
-        const TString& filesystem,
-        bool isReadOnly,
-        TNbdConfigPtr nbdConfig)
+        TNbdConfigPtr nbdConfig,
+        TCreateNbdVolumeOptions options)
     {
         return BIND(
             &TLayerLocation::DoCreateNbdVolume,
@@ -513,10 +532,8 @@ public:
                 tag,
                 Passed(std::move(tagSet)),
                 Passed(std::move(volumeCreateTimeGuard)),
-                exportId,
-                filesystem,
-                isReadOnly,
-                Passed(std::move(nbdConfig)))
+                Passed(std::move(nbdConfig)),
+                Passed(std::move(options)))
             .AsyncVia(LocationQueue_->GetInvoker())
             .Run();
     }
@@ -1309,10 +1326,8 @@ private:
         TGuid tag,
         NProfiling::TTagSet tagSet,
         TEventTimerGuard volumeCreateTimeGuard,
-        const TString& exportId,
-        const TString& filesystem,
-        bool isReadOnly,
-        TNbdConfigPtr nbdConfig)
+        TNbdConfigPtr nbdConfig,
+        TCreateNbdVolumeOptions options)
     {
         ValidateEnabled();
 
@@ -1323,7 +1338,7 @@ private:
             {"place", PlacePath_}
         };
 
-        if (isReadOnly) {
+        if (options.IsReadOnly) {
             volumeProperties["read_only"] = "true";
         }
 
@@ -1338,13 +1353,13 @@ private:
         builder.AppendFormat("&reconn-timeout=%v", ToString(nbdConfig->Client->ReconnectTimeout.Seconds()));
 
         auto connectionCount = 1;
-        if (isReadOnly) {
+        if (options.IsReadOnly) {
             connectionCount = nbdConfig->Client->ConnectionCount;
         }
 
         builder.AppendFormat("&num-connections=%v", connectionCount);
-        builder.AppendFormat("&export=%v", exportId);
-        builder.AppendFormat("&fs-type=%v", filesystem);
+        builder.AppendFormat("&export=%v", options.ExportId);
+        builder.AppendFormat("&fs-type=%v", options.Filesystem);
         volumeProperties["storage"] = builder.Flush();
 
         TVolumeMeta volumeMeta;
@@ -2913,11 +2928,13 @@ public:
 
             overlayDataFutures.push_back(PrepareNbdRootVolume(
                 tag,
-                options.SandboxNbdRootVolumeData->NbdDiskSize,
-                options.SandboxNbdRootVolumeData->NbdDiskMediumIndex,
-                options.SandboxNbdRootVolumeData->NbdDiskFsType,
-                options.SandboxNbdRootVolumeData->NbdExportId,
-                nbdDiskDataNodeAddress));
+                {
+                    .Size = options.SandboxNbdRootVolumeData->NbdDiskSize,
+                    .MediumIndex = options.SandboxNbdRootVolumeData->NbdDiskMediumIndex,
+                    .Filesystem = options.SandboxNbdRootVolumeData->NbdDiskFsType,
+                    .ExportId = options.SandboxNbdRootVolumeData->NbdExportId,
+                    .DataNodeAddress = nbdDiskDataNodeAddress,
+                }));
         }
 
         // ToDo(psushin): choose proper invoker.
@@ -3031,34 +3048,31 @@ private:
     TFuture<void> PrepareNbdRootExport(
         TGuid tag,
         TTagSet tagSet,
-        i64 diskSize,
-        int diskMediumIndex,
-        EFilesystemType diskFilesystem,
-        const TString& nbdExportId,
+        TPrepareNbdRootVolumeOptions options,
         IChannelPtr dataNodeChannel)
     {
         auto future = VoidFuture;
         try {
             YT_LOG_DEBUG("Preparing NBD root export (Tag: %v, ExportId: %v, DiskSize: %v, DiskMediumIndex: %v, DiskFilesystem: %v)",
                 tag,
-                nbdExportId,
-                diskSize,
-                diskMediumIndex,
-                diskFilesystem);
+                options.ExportId,
+                options.Size,
+                options.MediumIndex,
+                options.Filesystem);
 
             auto nbdServer = Bootstrap_->GetNbdServer();
             if (!nbdServer) {
                 THROW_ERROR_EXCEPTION("NBD server is not present")
-                    << TErrorAttribute("export_id", nbdExportId);
+                    << TErrorAttribute("export_id", options.ExportId);
             }
 
             auto config = New<TChunkBlockDeviceConfig>();
-            config->Size = diskSize;
-            config->MediumIndex = diskMediumIndex;
-            config->FsType = diskFilesystem;
+            config->Size = options.Size;
+            config->MediumIndex = options.MediumIndex;
+            config->FsType = options.Filesystem;
 
             auto device = CreateChunkBlockDevice(
-                nbdExportId,
+                options.ExportId,
                 std::move(config),
                 Bootstrap_->GetDefaultInThrottler(),
                 Bootstrap_->GetDefaultOutThrottler(),
@@ -3066,27 +3080,27 @@ private:
                 std::move(dataNodeChannel),
                 nbdServer->GetLogger());
 
-                auto initializeFuture = device->Initialize();
-                nbdServer->RegisterDevice(nbdExportId, std::move(device));
+            auto initializeFuture = device->Initialize();
+            nbdServer->RegisterDevice(options.ExportId, std::move(device));
 
-                future = initializeFuture.Apply(BIND([=, Logger = Logger] {
-                    YT_LOG_DEBUG("Prepared NBD root export (Tag: %v, ExportId: %v, DiskSize: %v, DiskMediumIndex: %v, DiskFilesystem: %v)",
-                        tag,
-                        nbdExportId,
-                        diskSize,
-                        diskMediumIndex,
-                        diskFilesystem);
-                })).ToUncancelable();
+            future = initializeFuture.Apply(BIND([tag = tag, options = options, Logger = Logger] {
+                YT_LOG_DEBUG("Prepared NBD root export (Tag: %v, ExportId: %v, DiskSize: %v, DiskMediumIndex: %v, DiskFilesystem: %v)",
+                    tag,
+                    options.ExportId,
+                    options.Size,
+                    options.MediumIndex,
+                    options.Filesystem);
+            })).ToUncancelable();
         } catch (const std::exception& ex) {
             TVolumeProfilerCounters::Get()->GetCounter(tagSet, "/create_errors").Increment(1);
 
             auto error = TError(ex);
             YT_LOG_ERROR(error, "Failed to prepare NBD root export (Tag: %v, ExportId: %v, DiskSize: %v, DiskMediumIndex: %v, DiskFilesystem: %v)",
                 tag,
-                nbdExportId,
-                diskSize,
-                diskMediumIndex,
-                diskFilesystem);
+                options.ExportId,
+                options.Size,
+                options.MediumIndex,
+                options.Filesystem);
             future = MakeFuture<void>(error);
         }
 
@@ -3167,10 +3181,12 @@ private:
                 tag,
                 Passed(std::move(tagSet)),
                 Passed(std::move(volumeCreateTimeGuard)),
-                artifactKey.nbd_export_id(),
-                ToString(FromProto<ELayerFilesystem>(artifactKey.filesystem())),
-                /*isReadOnly*/true,
-                /*isRoot*/false)
+                Passed(TCreateNbdVolumeOptions{
+                    .ExportId = artifactKey.nbd_export_id(),
+                    .Filesystem = ToString(FromProto<ELayerFilesystem>(artifactKey.filesystem())),
+                    .IsReadOnly = true,
+                    .IsRoot = false
+                }))
             .AsyncVia(GetCurrentInvoker()))
             .Apply(BIND([this, this_ = MakeStrong(this), tag = tag, artifactKey = artifactKey] (const TErrorOr<TNbdVolumePtr>& errorOrVolume) {
                 if (!errorOrVolume.IsOK()) {
@@ -3203,64 +3219,62 @@ private:
     //! Create NBD root export (device) prior to creating NBD root volume.
     TFuture<TOverlayData> PrepareNbdRootVolume(
         TGuid tag,
-        i64 volumeSize,
-        int volumeMediumIndex,
-        EFilesystemType volumeFilesystem,
-        const TString& nbdExportId,
-        const std::string& dataNodeAddress)
+        TPrepareNbdRootVolumeOptions options)
     {
         YT_LOG_DEBUG("Prepare NBD root volume (Tag: %v, ExportId: %v, VolumeSize: %v, VolumeMediumIndex: %v, VolumeFilesystem: %v, DataNodeAddress: %v)",
             tag,
-            nbdExportId,
-            volumeSize,
-            volumeMediumIndex,
-            volumeFilesystem,
-            dataNodeAddress);
+            options.ExportId,
+            options.Size,
+            options.MediumIndex,
+            options.Filesystem,
+            options.DataNodeAddress);
 
         // Create channel to data node.
-        auto dataNodeChannel = Bootstrap_->GetConnection()->GetChannelFactory()->CreateChannel(dataNodeAddress);
+        auto dataNodeChannel = Bootstrap_->GetConnection()->GetChannelFactory()->CreateChannel(options.DataNodeAddress);
 
         auto tagSet = NProfiling::TTagSet({{"type", "nbd"}});
         TVolumeProfilerCounters::Get()->GetCounter(tagSet, "/created").Increment(1);
         TEventTimerGuard volumeCreateTimeGuard(TVolumeProfilerCounters::Get()->GetTimer(tagSet, "/create_time"));
 
-        return PrepareNbdRootExport(
-            tag,
-            tagSet,
-            volumeSize,
-            volumeMediumIndex,
-            volumeFilesystem,
-            nbdExportId,
-            std::move(dataNodeChannel))
+        return PrepareNbdRootExport(tag, tagSet, options, std::move(dataNodeChannel))
             .Apply(BIND(
                 &TPortoVolumeManager::CreateNbdVolume,
                 MakeStrong(this),
                 tag,
                 Passed(std::move(tagSet)),
                 Passed(std::move(volumeCreateTimeGuard)),
-                nbdExportId,
-                ToString(volumeFilesystem),
-                /*isReadOnly*/false,
-                /*isRoot*/true)
+                Passed(TCreateNbdVolumeOptions{
+                    .ExportId = options.ExportId,
+                    .Filesystem = ToString(options.Filesystem),
+                    .IsReadOnly = false,
+                    .IsRoot = true,
+                }))
             .AsyncVia(GetCurrentInvoker()))
-            .Apply(BIND([this, this_ = MakeStrong(this), tag = tag, nbdExportId = nbdExportId] (const TErrorOr<TNbdVolumePtr>& errorOrVolume) {
-                if (!errorOrVolume.IsOK()) {
-                    if (auto nbdServer = Bootstrap_->GetNbdServer()) {
-                        nbdServer->TryUnregisterDevice(nbdExportId);
+            .Apply(BIND(
+                [
+                    this,
+                    this_ = MakeStrong(this),
+                    tag = tag,
+                    nbdExportId = options.ExportId
+                ] (const TErrorOr<TNbdVolumePtr>& errorOrVolume) {
+
+                    if (!errorOrVolume.IsOK()) {
+                        if (auto nbdServer = Bootstrap_->GetNbdServer()) {
+                            nbdServer->TryUnregisterDevice(nbdExportId);
+                        }
+
+                        YT_LOG_ERROR(errorOrVolume, "Failed to prepare NBD root volume (Tag: %v, ExportId: %v)",
+                            tag,
+                            nbdExportId);
+
+                        THROW_ERROR(errorOrVolume);
                     }
 
-                    YT_LOG_ERROR(errorOrVolume, "Failed to prepare NBD root volume (Tag: %v, ExportId: %v)",
+                    YT_LOG_DEBUG("Prepared NBD root volume (Tag: %v, ExportId: %v)",
                         tag,
                         nbdExportId);
 
-                    THROW_ERROR(errorOrVolume);
-                }
-
-                YT_LOG_DEBUG("Prepared NBD root volume (Tag: %v, ExportId: %v)",
-                    tag,
-                    nbdExportId);
-
-                return errorOrVolume.Value();
+                    return errorOrVolume.Value();
             })
             .AsyncVia(GetCurrentInvoker()))
             // This uncancelable future ensures that TOverlayData object owning the volume will be created
@@ -3303,17 +3317,14 @@ private:
         TGuid tag,
         NProfiling::TTagSet tagSet,
         TEventTimerGuard volumeCreateTimeGuard,
-        const TString& exportId,
-        const TString& filesystem,
-        bool isReadOnly,
-        bool isRoot)
+        TCreateNbdVolumeOptions options)
     {
         YT_LOG_DEBUG("Creating NBD volume (Tag: %v, ExportId: %v, Filesytem: %v, IsReadOnly: %v, IsRoot: %v)",
             tag,
-            exportId,
-            filesystem,
-            isReadOnly,
-            isRoot);
+            options.ExportId,
+            options.Filesystem,
+            options.IsReadOnly,
+            options.IsRoot);
 
         auto nbdServer = Bootstrap_->GetNbdServer();
 
@@ -3324,8 +3335,8 @@ private:
                 TVolumeProfilerCounters::Get()->GetCounter(tagSet, "/create_errors").Increment(1);
 
                 auto error = TError("NBD is not configured")
-                    << TErrorAttribute("export_id", exportId)
-                    << TErrorAttribute("filesystem", filesystem);
+                    << TErrorAttribute("export_id", options.ExportId)
+                    << TErrorAttribute("filesystem", options.Filesystem);
 
                 THROW_ERROR(error);
             }
@@ -3335,23 +3346,20 @@ private:
                 tag,
                 tagSet,
                 std::move(volumeCreateTimeGuard),
-                exportId,
-                filesystem,
-                isReadOnly,
-                nbdConfig);
+                std::move(nbdConfig),
+                options);
             auto volumeFuture = volumeMetaFuture.ApplyUnique(BIND(
                 [
-                    isRoot = isRoot,
+                    tagSet = std::move(tagSet),
                     location = std::move(location),
-                    nbdExportId = exportId,
                     nbdServer = nbdServer,
-                    tagSet = std::move(tagSet)
+                    options = options
                 ] (TVolumeMeta&& volumeMeta) mutable {
                     return New<TNbdVolume>(
-                        isRoot,
+                        options.IsRoot,
                         std::move(volumeMeta),
                         std::move(location),
-                        std::move(nbdExportId),
+                        std::move(options.ExportId),
                         std::move(nbdServer),
                         std::move(tagSet));
             })).ToUncancelable();
@@ -3364,25 +3372,26 @@ private:
             YT_LOG_DEBUG("Created NBD volume (Tag: %v, VolumeId: %v, ExportId: %v, Filesytem: %v, IsReadOnly: %v, IsRoot: %v)",
                 tag,
                 volume->GetId(),
-                exportId,
-                filesystem,
-                isReadOnly,
-                isRoot);
+                options.ExportId,
+                options.Filesystem,
+                options.IsReadOnly,
+                options.IsRoot);
 
             return volume;
         } catch (const std::exception& ex) {
             YT_LOG_ERROR(ex, "Failed to create NBD volume (Tag: %v, ExportId: %v, Filesytem: %v, IsReadOnly: %v, IsRoot: %v)",
                 tag,
-                exportId,
-                filesystem,
-                isReadOnly,
-                isRoot);
+                options.ExportId,
+                options.Filesystem,
+                options.IsReadOnly,
+                options.IsRoot);
 
-                if (auto device = nbdServer->GetDevice(exportId)) {
-                    nbdServer->TryUnregisterDevice(exportId);
+                if (auto device = nbdServer->GetDevice(options.ExportId)) {
+                    nbdServer->TryUnregisterDevice(options.ExportId);
                     auto error = WaitFor(device->Finalize());
                     if (!error.IsOK()) {
-                        YT_LOG_ERROR("Failed to finalize NBD export (ExportId: %v)", exportId);
+                        YT_LOG_ERROR("Failed to finalize NBD export (ExportId: %v)",
+                            options.ExportId);
                     }
                 }
 
