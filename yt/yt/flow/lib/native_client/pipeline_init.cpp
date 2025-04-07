@@ -77,7 +77,7 @@ IAttributeDictionaryPtr GetCheckpointsTableAttributes()
         /*uniqueKeys*/ true));
 }
 
-IAttributeDictionaryPtr GetTimerMessagesTableAttributes()
+IAttributeDictionaryPtr GetDeprecatedTimerMessagesTableAttributes()
 {
     return CreateDynamicTableAttributes(TTableSchema(
         std::vector{
@@ -87,6 +87,22 @@ IAttributeDictionaryPtr GetTimerMessagesTableAttributes()
             TColumnSchema("message", EValueType::String),
             TColumnSchema("system_timestamp", EValueType::Uint64),
             TColumnSchema("codec", EValueType::Int64),
+        },
+        /*strict*/ true,
+        /*uniqueKeys*/ true));
+}
+
+IAttributeDictionaryPtr GetTimersTableAttributes()
+{
+    return CreateDynamicTableAttributes(TTableSchema(
+        std::vector{
+            TColumnSchema("computation_id", EValueType::String, ESortOrder::Ascending),
+            TColumnSchema("key", EValueType::Any, ESortOrder::Ascending),
+            TColumnSchema("message_id", EValueType::String, ESortOrder::Ascending),
+            TColumnSchema("stream_id", EValueType::String),
+            TColumnSchema("system_timestamp", EValueType::Uint64),
+            TColumnSchema("event_timestamp", EValueType::Uint64),
+            TColumnSchema("trigger_timestamp", EValueType::Uint64),
         },
         /*strict*/ true,
         /*uniqueKeys*/ true));
@@ -151,7 +167,8 @@ auto GetTables()
         {InputMessagesTableName, GetInputMessagesTableAttributes()},
         {OutputMessagesTableName, GetOutputMessagesTableAttributes()},
         {CheckpointsTableName, GetCheckpointsTableAttributes()},
-        {TimerMessagesTableName, GetTimerMessagesTableAttributes()},
+        {DeprecatedTimerMessagesTableName, GetDeprecatedTimerMessagesTableAttributes()},
+        {TimersTableName, GetTimersTableAttributes()},
         {ControllerLogsTableName, GetControllerLogsTableAttributes()},
         {FlowStateTableName, GetFlowStateTableAttributes()},
         {FlowStateObsoleteTableName, GetFlowStateObsoleteTableAttributes()},
