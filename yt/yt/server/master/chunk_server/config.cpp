@@ -296,6 +296,12 @@ void TDanglingLocationCleanerConfig::Register(TRegistrar registrar)
 
 void TDynamicDataNodeTrackerConfig::Register(TRegistrar registrar)
 {
+    registrar.Parameter("max_concurrent_chunk_replicas_during_full_heartbeat", &TThis::MaxConcurrentChunkReplicasDuringFullHeartbeat)
+        .Default(5'000'000)
+        .GreaterThan(0);
+    registrar.Parameter("max_concurrent_chunk_replicas_during_incremental_heartbeat", &TThis::MaxConcurrentChunkReplicasDuringIncrementalHeartbeat)
+        .Default(5'000)
+        .GreaterThan(0);
     registrar.Parameter("max_concurrent_full_heartbeats", &TThis::MaxConcurrentFullHeartbeats)
         .Default(1)
         .GreaterThan(0);
@@ -308,6 +314,8 @@ void TDynamicDataNodeTrackerConfig::Register(TRegistrar registrar)
     registrar.Parameter("dangling_location_cleaner", &TThis::DanglingLocationCleaner)
         .DefaultNew();
     registrar.Parameter("enable_per_location_full_heartbeats", &TThis::EnablePerLocationFullHeartbeats)
+        .Default(false);
+    registrar.Parameter("enable_chunk_replicas_throttling_in_heartbeats", &TThis::EnableChunkReplicasThrottlingInHeartbeats)
         .Default(false);
 }
 
