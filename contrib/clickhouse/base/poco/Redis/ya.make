@@ -11,7 +11,7 @@ LICENSE(
 
 LICENSE_TEXTS(.yandex_meta/licenses.list.txt)
 
-VERSION(24.8.5.115)
+VERSION(24.8.14.39)
 
 PEERDIR(
     contrib/clickhouse/base/poco/Net

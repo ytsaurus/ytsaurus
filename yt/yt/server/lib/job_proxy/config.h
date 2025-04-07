@@ -464,7 +464,7 @@ struct TJobProxyInternalConfig
     i64 AdaptiveRowCountUpperBound;
 
     //! Enable root volume disk quota.
-    //! Apply the quota to the entire RootFs instead of the sandbox and tmp folders individually.
+    //! Apply the quota to the entire root filesystem instead of the sandbox and tmp folders individually.
     bool EnableRootVolumeDiskQuota;
 
     bool StartQueueConsumerRegistrationManager;

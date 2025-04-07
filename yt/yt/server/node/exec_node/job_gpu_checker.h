@@ -16,8 +16,7 @@
 
 #include <yt/yt/ytlib/scheduler/helpers.h>
 
-namespace NYT::NExecNode
-{
+namespace NYT::NExecNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 

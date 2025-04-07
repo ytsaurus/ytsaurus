@@ -2335,17 +2335,7 @@ void TJob::RunWithWorkspaceBuilder()
     YT_ASSERT_THREAD_AFFINITY(JobThread);
     std::vector<TDevice> devices = GetGpuDevices();
 
-    std::vector<TBind> binds;
-    auto rootFsBinds = GetRootFsBinds();
-    binds.reserve(rootFsBinds.size());
-
-    for (const auto& bind : rootFsBinds) {
-        binds.push_back(TBind{
-            .SourcePath = bind->ExternalPath,
-            .TargetPath = bind->InternalPath,
-            .ReadOnly = bind->ReadOnly
-        });
-    }
+    auto binds = GetRootFSBinds();
 
     if (VirtualSandboxData_) {
         BuildVirtualSandbox();
@@ -2776,11 +2766,10 @@ void TJob::Cleanup()
             "Volume remove failed (VolumePath: %v)",
             RootVolume_->GetPath());
         RootVolume_.Reset();
-
-        // Clean up NBD exports only if root volume has been created.
-        // In this case there is no race between volume destruction and clean up.
-        CleanupNbdExports();
     }
+
+    // Make sure job's NBD exports are unregistered.
+    TryCleanupNbdExports();
 
     if (const auto& slot = GetUserSlot()) {
         if (ShouldCleanSandboxes()) {
@@ -2818,66 +2807,18 @@ void TJob::Cleanup()
     YT_LOG_INFO("Job finished (JobState: %v)", GetState());
 }
 
-//! Make sure NBD exports are unregistered in case of volume creation failures.
-void TJob::CleanupNbdExports()
+//! Make sure NBD exports are unregistered.
+void TJob::TryCleanupNbdExports()
 {
     if (auto nbdServer = Bootstrap_->GetNbdServer()) {
-        for (const auto& artifactKey : LayerArtifactKeys_) {
-            if (!artifactKey.has_nbd_export_id()) {
-                continue;
-            }
-
-            if (auto device = nbdServer->GetDevice(artifactKey.nbd_export_id())) {
+        for (const auto& exportId : NbdExportIds_) {
+            if (nbdServer->IsDeviceRegistered(exportId) && nbdServer->TryUnregisterDevice(exportId)) {
                 TNbdProfilerCounters::Get()->GetCounter(
-                    TNbdProfilerCounters::MakeTagSet(artifactKey.data_source().path()),
+                    {},
                     "/device/unregistered_unexpected").Increment(1);
 
-                YT_LOG_ERROR(
-                    "NBD export is still registered, unregister it (ExportId: %v, Path: %v)",
-                    artifactKey.nbd_export_id(),
-                    artifactKey.data_source().path());
-
-                nbdServer->TryUnregisterDevice(artifactKey.nbd_export_id());
-                auto error = WaitFor(device->Finalize());
-                if (!error.IsOK()) {
-                    YT_LOG_ERROR(error, "Failed to finalize NBD export (ExportId: %v, Path: %v)",
-                        artifactKey.nbd_export_id(),
-                        artifactKey.data_source().path());
-                }
-            }
-        }
-
-        if (VirtualSandboxData_) {
-            if (auto device = nbdServer->GetDevice(VirtualSandboxData_->NbdExportId)) {
-                YT_LOG_ERROR(
-                    "NBD virtual layer is still registered, unregister it (ExportId: %v)",
-                    VirtualSandboxData_->NbdExportId);
-                nbdServer->TryUnregisterDevice(VirtualSandboxData_->NbdExportId);
-                auto error = WaitFor(device->Finalize());
-                if (!error.IsOK()) {
-                    YT_LOG_ERROR(error, "Failed to finalize NBD export (ExportId: %v)",
-                        VirtualSandboxData_->NbdExportId);
-                }
-            }
-        }
-
-        if (SandboxNbdRootVolumeData_) {
-            if (auto device = nbdServer->GetDevice(SandboxNbdRootVolumeData_->NbdExportId)) {
-                YT_LOG_ERROR(
-                    "NBD export for root volume is still registered, unregister it (ExportId: %v, Size: %v, MediumIndex: %v, DataNodeAddress: %v)",
-                    SandboxNbdRootVolumeData_->NbdExportId,
-                    SandboxNbdRootVolumeData_->NbdDiskSize,
-                    SandboxNbdRootVolumeData_->NbdDiskMediumIndex,
-                    SandboxNbdRootVolumeData_->NbdDiskDataNodeAddress);
-                nbdServer->TryUnregisterDevice(SandboxNbdRootVolumeData_->NbdExportId);
-                auto error = WaitFor(device->Finalize());
-                if (!error.IsOK()) {
-                    YT_LOG_ERROR(error, "Failed to finalize NBD export (ExportId: %v, Size: %v, MediumIndex: %v, DataNodeAddress: %v)",
-                        SandboxNbdRootVolumeData_->NbdExportId,
-                        SandboxNbdRootVolumeData_->NbdDiskSize,
-                        SandboxNbdRootVolumeData_->NbdDiskMediumIndex,
-                        SandboxNbdRootVolumeData_->NbdDiskDataNodeAddress);
-                }
+                YT_LOG_ERROR("Unregistered unexpected NBD export (ExportId: %v)",
+                    exportId);
             }
         }
     }
@@ -2992,9 +2933,26 @@ std::unique_ptr<NNodeTrackerClient::NProto::TNodeDirectory> TJob::PrepareNodeDir
     return protoNodeDirectory;
 }
 
-std::vector<NJobProxy::TBindConfigPtr> TJob::GetRootFsBinds()
+std::vector<NJobProxy::TBindConfigPtr> TJob::GetRootFSBindConfigs()
 {
     return Bootstrap_->GetConfig()->ExecNode->RootFSBinds;
+}
+
+std::vector<TBind> TJob::GetRootFSBinds()
+{
+    auto bindConfigs = GetRootFSBindConfigs();
+
+    std::vector<TBind> binds;
+    binds.reserve(bindConfigs.size());
+    for (const auto& bindConfig : bindConfigs) {
+        binds.push_back(TBind{
+            .SourcePath = bindConfig->ExternalPath,
+            .TargetPath = bindConfig->InternalPath,
+            .ReadOnly = bindConfig->ReadOnly
+        });
+    }
+
+    return binds;
 }
 
 TJobProxyInternalConfigPtr TJob::CreateConfig()
@@ -3051,7 +3009,7 @@ TJobProxyInternalConfigPtr TJob::CreateConfig()
     }
 
     if (RootVolume_ || DockerImage_) {
-        proxyInternalConfig->Binds = GetRootFsBinds();
+        proxyInternalConfig->Binds = GetRootFSBindConfigs();
 
         for (const auto& artifact : Artifacts_) {
             // Artifact is passed into the job via bind.
@@ -4055,8 +4013,8 @@ std::vector<TShellCommandConfigPtr> TJob::GetSetupCommands()
 
     bool needGpu = NeedGpuLayers() || Bootstrap_->GetGpuManager()->ShouldTestSetupCommands();
     if (needGpu) {
-        auto gpu_commands = Bootstrap_->GetGpuManager()->GetSetupCommands();
-        result.insert(result.end(), gpu_commands.begin(), gpu_commands.end());
+        auto gpuSetupCommands = Bootstrap_->GetGpuManager()->GetSetupCommands();
+        result.insert(result.end(), gpuSetupCommands.begin(), gpuSetupCommands.end());
     }
 
     return result;
@@ -4068,19 +4026,10 @@ NContainers::TRootFS TJob::MakeWritableRootFS()
     YT_VERIFY(RootVolume_);
 
     NContainers::TRootFS rootFS;
-    auto rootFsBinds = GetRootFsBinds();
 
     rootFS.RootPath = RootVolume_->GetPath();
     rootFS.IsRootReadOnly = false;
-    rootFS.Binds.reserve(rootFsBinds.size());
-
-    for (const auto& bind : rootFsBinds) {
-        rootFS.Binds.push_back(TBind{
-            .SourcePath = bind->ExternalPath,
-            .TargetPath = bind->InternalPath,
-            .ReadOnly = bind->ReadOnly
-        });
-    }
+    rootFS.Binds = GetRootFSBinds();
 
     return rootFS;
 }

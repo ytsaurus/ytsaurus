@@ -23,6 +23,7 @@ PEERDIR(
     contrib/ydb/core/sys_view/tablets
     contrib/ydb/core/tx/schemeshard
     contrib/ydb/core/tx/tx_proxy
+    contrib/ydb/core/wrappers
 )
 
 YQL_LAST_ABI_VERSION()

@@ -1013,6 +1013,8 @@ void TDataNodeDynamicConfig::Register(TRegistrar registrar)
     registrar.Parameter("announce_chunk_replica_rps_out_throttler", &TThis::AnnounceChunkReplicaRpsOutThrottler)
         .Optional();
 
+    registrar.Parameter("disk_health_checker", &TThis::DiskHealthChecker)
+        .DefaultNew();
     registrar.Parameter("chunk_meta_cache", &TThis::ChunkMetaCache)
         .DefaultNew();
     registrar.Parameter("blocks_ext_cache", &TThis::BlocksExtCache)

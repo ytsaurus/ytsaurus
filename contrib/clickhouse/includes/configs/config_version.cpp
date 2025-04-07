@@ -2,16 +2,16 @@
 
 #include <Common/config_version.h>
 
-const unsigned VERSION_REVISION = 54493;
+const unsigned VERSION_REVISION = 54503;
 const char * VERSION_NAME = "ClickHouse";
 const unsigned VERSION_MAJOR = 24;
 const unsigned VERSION_MINOR = 8;
-const unsigned VERSION_PATCH = 5;
-const char * VERSION_STRING = "24.8.5.1";
+const unsigned VERSION_PATCH = 15;
+const char * VERSION_STRING = "24.8.15.1";
 const char * VERSION_STRING_SHORT = "24.8";
 const char * VERSION_OFFICIAL = "";
-const char * VERSION_FULL = "ClickHouse 24.8.5.1";
-const char * VERSION_DESCRIBE = "v24.8.5.1-lts";
-const unsigned VERSION_INTEGER = 24008005;
+const char * VERSION_FULL = "ClickHouse 24.8.15.1";
+const char * VERSION_DESCRIBE = "v24.8.15.1-lts";
+const unsigned VERSION_INTEGER = 24008015;
 
-const char * VERSION_GITHASH = "53195bc189b587afaabc52c4ca765aa54beea84f";
+const char * VERSION_GITHASH = "502d03925cf2c9c6629ed5c1b2d16b5de46e4362";

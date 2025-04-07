@@ -793,7 +793,11 @@ private:
                     return total <= totalLimit;
                 });
 
-                auto extraLimit = (config->ExtraLimitRatio * totalLimit + Max<double>(0, totalLimit - totalUsageRate)) / memberCount;
+                double newTotalLimit = 0;
+                for (const auto& [memberId, usageRate] : GetOrCrash(throttlerIdToUsageRates, throttlerId)) {
+                    newTotalLimit += Min(usageRate, defaultLimit);
+                }
+                auto extraLimit = (config->ExtraLimitRatio * totalLimit + Max<double>(0, totalLimit - newTotalLimit)) / memberCount;
 
                 for (const auto& [memberId, usageRate] : GetOrCrash(throttlerIdToUsageRates, throttlerId)) {
                     auto newLimit = Min(usageRate, defaultLimit) + extraLimit;

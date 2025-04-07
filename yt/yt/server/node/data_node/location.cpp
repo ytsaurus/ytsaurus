@@ -446,6 +446,12 @@ TChunkLocation::TChunkLocation(
         DataNodeLogger(),
         Profiler_);
 
+    DynamicConfigManager_->SubscribeConfigChanged(BIND_NO_PROPAGATE([
+        healthChecker = HealthChecker_] (const NClusterNode::TClusterNodeDynamicConfigPtr& /*oldConfig*/,
+            const NClusterNode::TClusterNodeDynamicConfigPtr& newConfig) {
+            healthChecker->OnDynamicConfigChanged(newConfig->DataNode->DiskHealthChecker);
+        }));
+
     ChunkStoreHost_->SubscribePopulateAlerts(
         BIND_NO_PROPAGATE(&TChunkLocation::PopulateAlerts, MakeWeak(this)));
 }

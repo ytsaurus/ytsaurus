@@ -1176,6 +1176,13 @@ void DatabaseReplicated::recoverLostReplica(const ZooKeeperPtr & current_zookeep
         query_context->setSetting("allow_create_index_without_type", 1);
         query_context->setSetting("allow_experimental_s3queue", 1);
 
+        /// We apply the flatten_nested setting after writing the CREATE query to the DDL log,
+        /// but before writing metadata to ZooKeeper. So we have to apply the setting on secondary replicas, but not in recovery mode.
+        /// Set it to false, so it will do nothing on recovery. The metadata in ZooKeeper should be used as is.
+        /// Same for data_type_default_nullable.
+        query_context->setSetting("flatten_nested", false);
+        query_context->setSetting("data_type_default_nullable", false);
+
         auto txn = std::make_shared<ZooKeeperMetadataTransaction>(current_zookeeper, zookeeper_path, false, "");
         query_context->initZooKeeperMetadataTransaction(txn);
         return query_context;
@@ -1216,6 +1223,11 @@ void DatabaseReplicated::recoverLostReplica(const ZooKeeperPtr & current_zookeep
             throw Exception(ErrorCodes::UNKNOWN_DATABASE, "Database was renamed, will retry");
 
         auto table = tryGetTable(table_name, getContext());
+        if (!table)
+        {
+            LOG_WARNING(log, "Was going to detach local table {}.{} but it's gone", db_name, table_name);
+            continue;
+        }
 
         auto move_table_to_database = [&](const String & broken_table_name, const String & to_database_name)
         {
@@ -1630,16 +1642,35 @@ void DatabaseReplicated::renameTable(ContextPtr local_context, const String & ta
     {
         String metadata_zk_path = zookeeper_path + "/metadata/" + escapeForFileName(table_name);
         String metadata_zk_path_to = zookeeper_path + "/metadata/" + escapeForFileName(to_table_name);
+
+        String zk_statement;
+        Coordination::Stat stat;
+        String zk_statement_to;
+        Coordination::Stat stat_to;
+
+        /// When performing an ALTER operation on ReplicatedMergeTree tables,
+        ///  we update the metadata in ZooKeeper before updating it locally.
+        /// To prevent overwriting the new version of the metadata, we fetch and
+        ///  use the latest version and ensure it hasn't changed using a version check.
+        auto zookeeper = txn->getZooKeeper();
+        zookeeper->tryGet(metadata_zk_path, zk_statement, &stat);
+        zookeeper->tryGet(metadata_zk_path_to, zk_statement_to, &stat_to);
+
         if (!txn->isCreateOrReplaceQuery())
-            txn->addOp(zkutil::makeRemoveRequest(metadata_zk_path, -1));
+            txn->addOp(zkutil::makeRemoveRequest(metadata_zk_path, stat.version));
 
         if (exchange)
         {
-            txn->addOp(zkutil::makeRemoveRequest(metadata_zk_path_to, -1));
+            txn->addOp(zkutil::makeRemoveRequest(metadata_zk_path_to, stat_to.version));
             if (!txn->isCreateOrReplaceQuery())
-                txn->addOp(zkutil::makeCreateRequest(metadata_zk_path, statement_to, zkutil::CreateMode::Persistent));
+                txn->addOp(zkutil::makeCreateRequest(metadata_zk_path, zk_statement_to, zkutil::CreateMode::Persistent));
         }
-        txn->addOp(zkutil::makeCreateRequest(metadata_zk_path_to, statement, zkutil::CreateMode::Persistent));
+
+        /// In case of CREATE OR REPLACE there is no statement for the temporary table in ZK, so we use the local definition
+        if (txn->isCreateOrReplaceQuery())
+            txn->addOp(zkutil::makeCreateRequest(metadata_zk_path_to, statement, zkutil::CreateMode::Persistent));
+        else
+            txn->addOp(zkutil::makeCreateRequest(metadata_zk_path_to, zk_statement, zkutil::CreateMode::Persistent));
     }
 
     std::lock_guard lock{metadata_mutex};

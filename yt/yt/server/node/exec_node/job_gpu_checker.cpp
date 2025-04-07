@@ -8,8 +8,7 @@
 
 #include <yt/yt/server/lib/exec_node/config.h>
 
-namespace NYT::NExecNode
-{
+namespace NYT::NExecNode {
 
 using namespace NConcurrency;
 using namespace NContainers;
@@ -21,9 +20,10 @@ TJobGpuChecker::TJobGpuChecker(
     TJobGpuCheckerContext context,
     NLogging::TLogger logger)
     : Context_(std::move(context))
-    , Logger(std::move(logger))
+    , Logger(std::move(logger)
+        .WithTag("Type: %v", Context_.GpuCheckType))
 {
-    YT_LOG_DEBUG("Creating job GPU checker (Type: %v)", Context_.GpuCheckType);
+    YT_LOG_DEBUG("Creating job GPU checker");
 }
 
 TFuture<void> TJobGpuChecker::RunGpuCheck()
@@ -46,7 +46,7 @@ TFuture<void> TJobGpuChecker::RunGpuCheck()
     RunCheck_.Fire();
 
     {
-        YT_LOG_INFO("Verifying GPU check command (Type: %v)", Context_.GpuCheckType);
+        YT_LOG_INFO("Verifying GPU check command");
 
         auto testFileCommand = New<TShellCommandConfig>();
         testFileCommand->Path = "/usr/bin/test";
@@ -72,14 +72,14 @@ TFuture<void> TJobGpuChecker::RunGpuCheck()
             THROW_ERROR error;
         }
 
-        YT_LOG_INFO("%v GPU check command successfully verified", Context_.GpuCheckType);
+        YT_LOG_INFO("GPU check command successfully verified");
     }
 
     auto checkCommand = New<TShellCommandConfig>();
     checkCommand->Path = Context_.GpuCheckBinaryPath;
     checkCommand->Args = std::move(Context_.GpuCheckBinaryArgs);
 
-    YT_LOG_INFO("Running GPU check commands (Type: %v)", Context_.GpuCheckType);
+    YT_LOG_INFO("Running GPU check commands");
 
     if (Context_.TestExtraGpuCheckCommandFailure) {
         YT_LOG_INFO("Testing extra GPU check command failed");
@@ -111,12 +111,11 @@ void TJobGpuChecker::OnGpuCheckFinished(TJobGpuCheckerPtr checker, TErrorOr<std:
         YT_VERIFY(std::ssize(result.Value()) == 1);
         const auto& gpuCheckOutput = result.Value().front();
 
-        YT_LOG_INFO("%v GPU check command completed (Stdout: %Qv, Stderr: %Qv)",
-            checker->Context_.GpuCheckType,
+        YT_LOG_INFO("GPU check command completed (Stdout: %Qv, Stderr: %Qv)",
             gpuCheckOutput.Stdout,
             gpuCheckOutput.Stderr);
     } else {
-        YT_LOG_INFO(result, "%v GPU check command failed", checker->Context_.GpuCheckType);
+        YT_LOG_INFO(result, "GPU check command failed");
     }
 
     checker->FinishCheck_.Fire();
@@ -126,7 +125,7 @@ void TJobGpuChecker::OnGpuCheckFinished(TJobGpuCheckerPtr checker, TErrorOr<std:
 
 TJobGpuChecker::~TJobGpuChecker()
 {
-    YT_LOG_DEBUG("Destroying job GPU checker (Type: %v)", Context_.GpuCheckType);
+    YT_LOG_DEBUG("Destroying job GPU checker");
 }
 
 ////////////////////////////////////////////////////////////////////////////////

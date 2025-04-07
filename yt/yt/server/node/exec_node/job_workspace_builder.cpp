@@ -14,18 +14,13 @@
 
 #include <yt/yt/core/misc/fs.h>
 
-namespace NYT::NExecNode
-{
+namespace NYT::NExecNode {
 
 using namespace NContainers::NCri;
 using namespace NConcurrency;
 using namespace NContainers;
 using namespace NJobAgent;
 using namespace NFS;
-
-////////////////////////////////////////////////////////////////////////////////
-
-static const TString MountSuffix = "mount";
 
 ////////////////////////////////////////////////////////////////////////////////
 

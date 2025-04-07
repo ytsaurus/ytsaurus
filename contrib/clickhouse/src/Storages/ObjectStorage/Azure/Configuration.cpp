@@ -24,6 +24,7 @@ namespace ErrorCodes
 {
     extern const int BAD_ARGUMENTS;
     extern const int NUMBER_OF_ARGUMENTS_DOESNT_MATCH;
+    extern const int LOGICAL_ERROR;
 }
 
 const std::unordered_set<std::string_view> required_configuration_keys = {
@@ -146,12 +147,13 @@ void StorageAzureConfiguration::fromNamedCollection(const NamedCollection & coll
 
 void StorageAzureConfiguration::fromAST(ASTs & engine_args, ContextPtr context, bool with_structure)
 {
-    if (engine_args.size() < 3 || engine_args.size() > (with_structure ? 8 : 7))
+    if (engine_args.size() < 3 || engine_args.size() > getMaxNumberOfArguments(with_structure))
     {
-        throw Exception(ErrorCodes::NUMBER_OF_ARGUMENTS_DOESNT_MATCH,
-                        "Storage AzureBlobStorage requires 3 to 7 arguments: "
-                        "AzureBlobStorage(connection_string|storage_account_url, container_name, blobpath, "
-                        "[account_name, account_key, format, compression, structure)])");
+        throw Exception(
+            ErrorCodes::NUMBER_OF_ARGUMENTS_DOESNT_MATCH,
+            "Storage AzureBlobStorage requires 3 to {} arguments. All supported signatures:\n{}",
+            getMaxNumberOfArguments(with_structure),
+            getSignatures(with_structure));
     }
 
     for (auto & engine_arg : engine_args)
@@ -270,26 +272,30 @@ void StorageAzureConfiguration::fromAST(ASTs & engine_args, ContextPtr context, 
     connection_params = getConnectionParams(connection_url, container_name, account_name, account_key, context);
 }
 
-void StorageAzureConfiguration::addStructureAndFormatToArgs(
-    ASTs & args, const String & structure_, const String & format_, ContextPtr context)
+void StorageAzureConfiguration::addStructureAndFormatToArgsIfNeeded(
+    ASTs & args, const String & structure_, const String & format_, ContextPtr context, bool with_structure)
 {
-    if (tryGetNamedCollectionWithOverrides(args, context))
+    if (auto collection = tryGetNamedCollectionWithOverrides(args, context))
     {
-        /// In case of named collection, just add key-value pair "structure='...'"
-        /// at the end of arguments to override existed structure.
-        ASTs equal_func_args = {std::make_shared<ASTIdentifier>("structure"), std::make_shared<ASTLiteral>(structure_)};
-        auto equal_func = makeASTFunction("equals", std::move(equal_func_args));
-        args.push_back(equal_func);
+        /// In case of named collection, just add key-value pairs "format='...', structure='...'"
+        /// at the end of arguments to override existed format and structure with "auto" values.
+        if (collection->getOrDefault<String>("format", "auto") == "auto")
+        {
+            ASTs format_equal_func_args = {std::make_shared<ASTIdentifier>("format"), std::make_shared<ASTLiteral>(format_)};
+            auto format_equal_func = makeASTFunction("equals", std::move(format_equal_func_args));
+            args.push_back(format_equal_func);
+        }
+        if (with_structure && collection->getOrDefault<String>("structure", "auto") == "auto")
+        {
+            ASTs structure_equal_func_args = {std::make_shared<ASTIdentifier>("structure"), std::make_shared<ASTLiteral>(structure_)};
+            auto structure_equal_func = makeASTFunction("equals", std::move(structure_equal_func_args));
+            args.push_back(structure_equal_func);
+        }
     }
     else
     {
-        if (args.size() < 3 || args.size() > 8)
-        {
-            throw Exception(ErrorCodes::NUMBER_OF_ARGUMENTS_DOESNT_MATCH,
-                            "Storage Azure requires 3 to 7 arguments: "
-                            "StorageObjectStorage(connection_string|storage_account_url, container_name, "
-                            "blobpath, [account_name, account_key, format, compression, structure])");
-        }
+        if (args.size() < 3 || args.size() > getMaxNumberOfArguments())
+            throw Exception(ErrorCodes::LOGICAL_ERROR, "Expected 3 to {} arguments in table function azureBlobStorage, got {}", getMaxNumberOfArguments(), args.size());
 
         for (auto & arg : args)
             arg = evaluateConstantExpressionOrIdentifierAsLiteral(arg, context);
@@ -303,9 +309,12 @@ void StorageAzureConfiguration::addStructureAndFormatToArgs(
         if (args.size() == 3)
         {
             args.push_back(format_literal);
-            /// Add compression = "auto" before structure argument.
-            args.push_back(std::make_shared<ASTLiteral>("auto"));
-            args.push_back(structure_literal);
+            if (with_structure)
+            {
+                /// Add compression = "auto" before structure argument.
+                args.push_back(std::make_shared<ASTLiteral>("auto"));
+                args.push_back(structure_literal);
+            }
         }
         /// (connection_string, container_name, blobpath, structure) or
         /// (connection_string, container_name, blobpath, format)
@@ -318,12 +327,15 @@ void StorageAzureConfiguration::addStructureAndFormatToArgs(
             {
                 if (fourth_arg == "auto")
                     args[3] = format_literal;
-                /// Add compression=auto before structure argument.
-                args.push_back(std::make_shared<ASTLiteral>("auto"));
-                args.push_back(structure_literal);
+                if (with_structure)
+                {
+                    /// Add compression=auto before structure argument.
+                    args.push_back(std::make_shared<ASTLiteral>("auto"));
+                    args.push_back(structure_literal);
+                }
             }
             /// (..., structure) -> (..., format, compression, structure)
-            else
+            else if (with_structure)
             {
                 auto structure_arg = args.back();
                 args[3] = format_literal;
@@ -346,15 +358,19 @@ void StorageAzureConfiguration::addStructureAndFormatToArgs(
             {
                 if (fourth_arg == "auto")
                     args[3] = format_literal;
-                args.push_back(structure_literal);
+                if (with_structure)
+                    args.push_back(structure_literal);
             }
             /// (..., account_name, account_key) -> (..., account_name, account_key, format, compression, structure)
             else
             {
                 args.push_back(format_literal);
-                /// Add compression=auto before structure argument.
-                args.push_back(std::make_shared<ASTLiteral>("auto"));
-                args.push_back(structure_literal);
+                if (with_structure)
+                {
+                    /// Add compression=auto before structure argument.
+                    args.push_back(std::make_shared<ASTLiteral>("auto"));
+                    args.push_back(structure_literal);
+                }
             }
         }
         /// (connection_string, container_name, blobpath, format, compression, structure) or
@@ -370,7 +386,7 @@ void StorageAzureConfiguration::addStructureAndFormatToArgs(
             {
                 if (fourth_arg == "auto")
                     args[3] = format_literal;
-                if (checkAndGetLiteralArgument<String>(args[5], "structure") == "auto")
+                if (with_structure && checkAndGetLiteralArgument<String>(args[5], "structure") == "auto")
                     args[5] = structure_literal;
             }
             /// (..., account_name, account_key, format) -> (..., account_name, account_key, format, compression, structure)
@@ -378,12 +394,15 @@ void StorageAzureConfiguration::addStructureAndFormatToArgs(
             {
                 if (sixth_arg == "auto")
                     args[5] = format_literal;
-                /// Add compression=auto before structure argument.
-                args.push_back(std::make_shared<ASTLiteral>("auto"));
-                args.push_back(structure_literal);
+                if (with_structure)
+                {
+                    /// Add compression=auto before structure argument.
+                    args.push_back(std::make_shared<ASTLiteral>("auto"));
+                    args.push_back(structure_literal);
+                }
             }
             /// (..., account_name, account_key, structure) -> (..., account_name, account_key, format, compression, structure)
-            else
+            else if (with_structure)
             {
                 auto structure_arg = args.back();
                 args[5] = format_literal;
@@ -401,14 +420,15 @@ void StorageAzureConfiguration::addStructureAndFormatToArgs(
             /// (..., format, compression) -> (..., format, compression, structure)
             if (checkAndGetLiteralArgument<String>(args[5], "format") == "auto")
                 args[5] = format_literal;
-            args.push_back(structure_literal);
+            if (with_structure)
+                args.push_back(structure_literal);
         }
         /// (storage_account_url, container_name, blobpath, account_name, account_key, format, compression, structure)
         else if (args.size() == 8)
         {
             if (checkAndGetLiteralArgument<String>(args[5], "format") == "auto")
                 args[5] = format_literal;
-            if (checkAndGetLiteralArgument<String>(args[7], "structure") == "auto")
+            if (with_structure && checkAndGetLiteralArgument<String>(args[7], "structure") == "auto")
                 args[7] = structure_literal;
         }
     }

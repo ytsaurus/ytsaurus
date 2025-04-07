@@ -233,6 +233,7 @@ target_sources(clickhouse-src-Common PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Common/SharedMutex.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Common/ShellCommand.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Common/ShellCommandSettings.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Common/ShellCommandsHolder.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Common/SignalHandlers.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Common/StackTrace.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Common/StatusFile.cpp

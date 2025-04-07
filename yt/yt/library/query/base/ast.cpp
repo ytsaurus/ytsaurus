@@ -34,6 +34,23 @@ double TDoubleOrDotIntToken::AsDouble() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
+size_t TColumnReferenceHasher::operator() (const TColumnReference& reference) const
+{
+    size_t result = 0;
+    HashCombine(result, reference.ColumnName);
+    HashCombine(result, reference.TableName);
+    return result;
+}
+
+bool TColumnReferenceEqComparer::operator() (const TColumnReference& lhs, const TColumnReference& rhs) const
+{
+    return
+        std::tie(lhs.ColumnName, lhs.TableName) ==
+        std::tie(rhs.ColumnName, rhs.TableName);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 bool TCompositeTypeMemberAccessor::IsEmpty() const
 {
     return NestedStructOrTupleItemAccessor.empty() && !DictOrListItemAccessor.has_value();
@@ -69,21 +86,6 @@ size_t TReferenceHasher::operator() (const TReference& reference) const
 bool TReferenceEqComparer::operator() (const TReference& lhs, const TReference& rhs) const
 {
     return lhs == rhs;
-}
-
-size_t TCompositeAgnosticReferenceHasher::operator() (const TReference& reference) const
-{
-    size_t result = 0;
-    HashCombine(result, reference.ColumnName);
-    HashCombine(result, reference.TableName);
-    return result;
-}
-
-bool TCompositeAgnosticReferenceEqComparer::operator() (const TReference& lhs, const TReference& rhs) const
-{
-    return
-        std::tie(lhs.ColumnName, lhs.TableName) ==
-        std::tie(rhs.ColumnName, rhs.TableName);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

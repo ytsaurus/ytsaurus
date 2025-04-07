@@ -123,8 +123,22 @@ void TDiskHealthCheckerConfig::Register(TRegistrar registrar)
     registrar.Parameter("test_size", &TThis::TestSize)
         .InRange(0, 1_GB)
         .Default(1_MB);
-    registrar.Parameter("timeout", &TThis::Timeout)
+    registrar.Parameter("exec_timeout", &TThis::ExecTimeout)
         .Default(TDuration::Seconds(60));
+    registrar.Parameter("wait_timeout", &TThis::WaitTimeout)
+        .Default(TDuration::Minutes(10));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TDiskHealthCheckerDynamicConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("test_size", &TThis::TestSize)
+        .Optional();
+    registrar.Parameter("wait_timeout", &TThis::WaitTimeout)
+        .Optional();
+    registrar.Parameter("exec_timeout", &TThis::ExecTimeout)
+        .Optional();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

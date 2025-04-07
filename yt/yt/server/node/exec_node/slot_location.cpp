@@ -97,6 +97,12 @@ TSlotLocation::TSlotLocation(
         .WithTag("device_name", Config_->DeviceName)
         .WithTag("disk_family", Config_->DiskFamily)
         .AddProducer("", MakeCopyMetricBuffer_);
+
+    Bootstrap_->GetDynamicConfigManager()->SubscribeConfigChanged(BIND_NO_PROPAGATE([
+        healthChecker = HealthChecker_] (const NClusterNode::TClusterNodeDynamicConfigPtr& /*oldConfig*/,
+            const NClusterNode::TClusterNodeDynamicConfigPtr& newConfig) {
+            healthChecker->OnDynamicConfigChanged(newConfig->DataNode->DiskHealthChecker);
+        }));
 }
 
 TFuture<void> TSlotLocation::Initialize()

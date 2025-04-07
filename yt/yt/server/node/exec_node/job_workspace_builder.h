@@ -27,8 +27,7 @@
 
 #include <yt/yt/core/misc/public.h>
 
-namespace NYT::NExecNode
-{
+namespace NYT::NExecNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -39,12 +39,16 @@ public:
 
     TFuture<void> Stop();
 
+    void OnDynamicConfigChanged(const TDiskHealthCheckerDynamicConfigPtr& newConfig);
+
     DEFINE_SIGNAL(void(const TError&), Failed);
 
 private:
     const TDiskHealthCheckerConfigPtr Config_;
     const TString Path_;
     const IInvokerPtr CheckInvoker_;
+
+    TAtomicIntrusivePtr<TDiskHealthCheckerDynamicConfig> DynamicConfig_;
 
     NLogging::TLogger Logger;
 
@@ -54,12 +58,17 @@ private:
 
     const NConcurrency::TPeriodicExecutorPtr PeriodicExecutor_;
 
-    TError RunCheckWithTimeout();
+    TError RunCheckWithDeadline();
+    void RunCheckWithTimeout();
 
     void OnCheck();
     void OnCheckCompleted(const TError& error);
 
     void DoRunCheck();
+
+    TDuration GetWaitTimeout() const;
+    TDuration GetExecTimeout() const;
+    i64 GetTestSize() const;
 };
 
 DEFINE_REFCOUNTED_TYPE(TDiskHealthChecker)

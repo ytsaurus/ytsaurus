@@ -21,7 +21,7 @@ from yt_scheduler_helpers import (
     scheduler_orchid_operation_path, scheduler_orchid_default_pool_tree_config_path,
     scheduler_orchid_path, scheduler_orchid_node_path, scheduler_new_orchid_pool_tree_path)
 
-from yt_helpers import profiler_factory, read_structured_log
+from yt_helpers import profiler_factory, read_structured_log, wait_and_get_controller_incarnation
 
 from yt.test_helpers import are_almost_equal
 
@@ -816,20 +816,9 @@ class TestSchedulingSegments(YTEnvSetup):
 
         op.wait_for_fresh_snapshot()
 
-        def wait_and_get_incarnation(agent):
-            incarnation_id = None
-
-            def check():
-                nonlocal incarnation_id
-                incarnation_id = get("//sys/controller_agents/instances/{}/orchid/controller_agent/incarnation_id".format(agent), default=None)
-                return incarnation_id is not None
-
-            wait(check)
-            return incarnation_id
-
         agent_to_incarnation = {}
         for agent in ls("//sys/controller_agents/instances"):
-            agent_to_incarnation[agent] = wait_and_get_incarnation(agent)
+            agent_to_incarnation[agent] = wait_and_get_controller_incarnation(agent)
 
         with Restarter(self.Env, SCHEDULERS_SERVICE):
             update_pool_tree_config_option("default", "scheduling_segments/initialization_timeout", 60000, wait_for_orchid=False)
@@ -843,7 +832,7 @@ class TestSchedulingSegments(YTEnvSetup):
 
         # NB(eshcherbin): See: YT-14796.
         for agent, old_incarnation in agent_to_incarnation.items():
-            wait(lambda: old_incarnation != get("//sys/controller_agents/instances/{}/orchid/controller_agent/incarnation_id".format(agent), default=None))
+            wait(lambda: old_incarnation != wait_and_get_controller_incarnation(agent))
 
         wait(lambda: len(list(op.get_running_jobs())) == 1)
         jobs = list(op.get_running_jobs())

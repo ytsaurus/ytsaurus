@@ -53,18 +53,7 @@ std::optional<TValue> FoldConstants(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TBaseColumn
-{
-    TBaseColumn(const std::string& name, TLogicalTypePtr type)
-        : Name(name)
-        , LogicalType(type)
-    { }
-
-    std::string Name;
-    TLogicalTypePtr LogicalType;
-};
-
-TString InferReferenceName(const NAst::TReference& ref);
+TString InferReferenceName(const NAst::TColumnReference& ref);
 
 struct TTable
 {
@@ -75,45 +64,49 @@ struct TTable
 
 struct TColumnEntry
 {
-    TBaseColumn Column;
+    TLogicalTypePtr LogicalType;
 
     size_t LastTableIndex;
     size_t OriginTableIndex;
 };
 
+struct IReferenceResolver
+{
+    virtual TLogicalTypePtr Resolve(const NAst::TColumnReference& reference) = 0;
+    virtual void PopulateAllColumns(IReferenceResolver* targetResolver) = 0;
+
+    virtual ~IReferenceResolver() = default;
+};
+
+std::unique_ptr<IReferenceResolver> CreateColumnResolver(
+    const TTableSchema* schema,
+    std::optional<TString> alias,
+    std::vector<TColumnDescriptor>* mapping);
+
+std::unique_ptr<IReferenceResolver> CreateJoinColumnResolver(
+    std::unique_ptr<IReferenceResolver> parentProvider,
+    const TTableSchema* schema,
+    std::optional<TString> alias,
+    std::vector<TColumnDescriptor>* mapping,
+    THashSet<std::string>* selfJoinedColumns,
+    THashSet<std::string>* foreignJoinedColumns,
+    THashSet<std::string> commonColumnNames);
+
 class TExprBuilder
 {
 public:
-    //! Lookup is a cache of resolved columns.
-    using TLookup = THashMap<
-        NAst::TReference,
-        TColumnEntry,
-        NAst::TCompositeAgnosticReferenceHasher,
-        NAst::TCompositeAgnosticReferenceEqComparer>;
-
-    DEFINE_BYREF_RO_PROPERTY(TLookup, Lookup);
     DEFINE_BYVAL_RO_PROPERTY(TStringBuf, Source);
     DEFINE_BYREF_RO_PROPERTY(TConstTypeInferrerMapPtr, Functions);
+
+    std::unique_ptr<IReferenceResolver> ColumnResolver;
 
     TExprBuilder(
         TStringBuf source,
         const TConstTypeInferrerMapPtr& functions);
 
-    void AddTable(
-        const TTableSchema& schema,
-        std::optional<TString> alias,
-        std::vector<TColumnDescriptor>* mapping);
-
-    // Columns already presented in Lookup are shared.
-    // In mapping presented all columns needed for read and renamed schema.
-    // SelfJoinedColumns and ForeignJoinedColumns are built from Lookup using OriginTableIndex and LastTableIndex.
-    void Merge(TExprBuilder& other);
-
-    void PopulateAllColumns();
-
     void SetGroupData(const TNamedItemList* groupItems, TAggregateItemList* aggregateItems);
 
-    TLogicalTypePtr GetColumnPtr(const NAst::TReference& reference);
+    TLogicalTypePtr GetColumnType(const NAst::TColumnReference& reference);
 
     virtual TConstExpressionPtr DoBuildTypedExpression(
         const NAst::TExpression* expr, TRange<EValueType> resultTypes) = 0;
@@ -141,13 +134,6 @@ protected:
     TAggregateItemList* AggregateItems_ = nullptr;
 
     bool AfterGroupBy_ = false;
-
-private:
-    void CheckNoOtherColumn(const NAst::TReference& reference, size_t startTableIndex) const;
-
-    std::pair<const TTable*, TLogicalTypePtr> ResolveColumn(const NAst::TReference& reference) const;
-
-    std::vector<TTable> Tables_;
 };
 
 std::unique_ptr<TExprBuilder> CreateExpressionBuilder(

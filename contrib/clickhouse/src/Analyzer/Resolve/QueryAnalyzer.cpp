@@ -1521,7 +1521,7 @@ void QueryAnalyzer::qualifyColumnNodesWithProjectionNames(const QueryTreeNodes &
             if (need_to_qualify)
                 need_to_qualify = IdentifierResolver::tryBindIdentifierToTableExpressions(identifier_lookup, table_expression_node, scope);
 
-            if (IdentifierResolver::tryBindIdentifierToAliases(identifier_lookup, scope))
+            if (IdentifierResolver::tryBindIdentifierToAliases(identifier_lookup, scope) || IdentifierResolver::tryBindIdentifierToArrayJoinExpressions(identifier_lookup, scope))
                 need_to_qualify = true;
 
             if (need_to_qualify)
@@ -2899,27 +2899,29 @@ ProjectionNames QueryAnalyzer::resolveFunction(QueryTreeNodePtr & node, Identifi
             /// Replace storage with values storage of insertion block
             if (StoragePtr storage = scope.context->getViewSource())
             {
-                QueryTreeNodePtr table_expression;
-                /// Process possibly nested sub-selects
-                for (auto * query_node = in_second_argument->as<QueryNode>(); query_node; query_node = table_expression->as<QueryNode>())
-                    table_expression = extractLeftTableExpression(query_node->getJoinTree());
+                QueryTreeNodePtr table_expression = in_second_argument;
 
-                if (table_expression)
+                /// Process possibly nested sub-selects
+                while (table_expression)
                 {
-                    if (auto * query_table_node = table_expression->as<TableNode>())
-                    {
-                        if (query_table_node->getStorageID().getFullNameNotQuoted() == storage->getStorageID().getFullNameNotQuoted())
-                        {
-                            auto replacement_table_expression = std::make_shared<TableNode>(storage, scope.context);
-                            if (std::optional<TableExpressionModifiers> table_expression_modifiers = query_table_node->getTableExpressionModifiers())
-                                replacement_table_expression->setTableExpressionModifiers(*table_expression_modifiers);
-                            in_second_argument = in_second_argument->cloneAndReplace(table_expression, std::move(replacement_table_expression));
-                        }
-                    }
+                    if (auto * query_node = table_expression->as<QueryNode>())
+                        table_expression = extractLeftTableExpression(query_node->getJoinTree());
+                    else if (auto * union_node = table_expression->as<UnionNode>())
+                        table_expression = union_node->getQueries().getNodes().at(0);
+                    else
+                        break;
+                }
+
+                TableNode * table_expression_table_node = table_expression ? table_expression->as<TableNode>() : nullptr;
+
+                if (table_expression_table_node &&
+                    table_expression_table_node->getStorageID().getFullNameNotQuoted() == storage->getStorageID().getFullNameNotQuoted())
+                {
+                    auto replacement_table_expression_table_node = table_expression_table_node->clone();
+                    replacement_table_expression_table_node->as<TableNode &>().updateStorage(storage, scope.context);
+                    in_second_argument = in_second_argument->cloneAndReplace(table_expression, std::move(replacement_table_expression_table_node));
                 }
             }
-
-            resolveExpressionNode(in_second_argument, scope, false /*allow_lambda_expression*/, true /*allow_table_expression*/);
         }
 
         /// Edge case when the first argument of IN is scalar subquery.
@@ -4835,24 +4837,22 @@ void QueryAnalyzer::resolveArrayJoin(QueryTreeNodePtr & array_join_node, Identif
         throw Exception(ErrorCodes::NUMBER_OF_ARGUMENTS_DOESNT_MATCH,
             "ARRAY JOIN requires at least single expression");
 
+    /// Register expression aliases in the scope
+    for (const auto & elem : array_join_nodes)
+    {
+        for (auto & child : elem->getChildren())
+        {
+            if (child)
+                expressions_visitor.visit(child);
+        }
+    }
+
     std::vector<QueryTreeNodePtr> array_join_column_expressions;
     array_join_column_expressions.reserve(array_join_nodes_size);
 
     for (auto & array_join_expression : array_join_nodes)
     {
         auto array_join_expression_alias = array_join_expression->getAlias();
-
-        for (const auto & elem : array_join_nodes)
-        {
-            if (elem->hasAlias())
-                scope.aliases.array_join_aliases.insert(elem->getAlias());
-
-            for (auto & child : elem->getChildren())
-            {
-                if (child)
-                    expressions_visitor.visit(child);
-            }
-        }
 
         std::string identifier_full_name;
 
@@ -5226,6 +5226,7 @@ void QueryAnalyzer::resolveQueryJoinTreeNode(QueryTreeNodePtr & join_tree_node, 
     };
 
     add_table_expression_alias_into_scope(join_tree_node);
+    scope.registered_table_expression_nodes.insert(join_tree_node);
     scope.table_expressions_in_resolve_process.erase(join_tree_node.get());
 }
 
@@ -5258,6 +5259,16 @@ void QueryAnalyzer::resolveQuery(const QueryTreeNodePtr & query_node, Identifier
             max_subquery_depth);
 
     auto & query_node_typed = query_node->as<QueryNode &>();
+
+    /** It is unsafe to call resolveQuery on already resolved query node, because during identifier resolution process
+      * we replace identifiers with expressions without aliases, also at the end of resolveQuery all aliases from all nodes will be removed.
+      * For subsequent resolveQuery executions it is possible to have wrong projection header, because for nodes
+      * with aliases projection name is alias.
+      *
+      * If for client it is necessary to resolve query node after clone, client must clear projection columns from query node before resolve.
+      */
+    if (query_node_typed.isResolved())
+        return;
 
     if (query_node_typed.isCTE())
         ctes_in_resolve_process.insert(query_node_typed.getCTEName());
@@ -5623,6 +5634,9 @@ void QueryAnalyzer::resolveQuery(const QueryTreeNodePtr & query_node, Identifier
 void QueryAnalyzer::resolveUnion(const QueryTreeNodePtr & union_node, IdentifierResolveScope & scope)
 {
     auto & union_node_typed = union_node->as<UnionNode &>();
+
+    if (union_node_typed.isResolved())
+        return;
 
     if (union_node_typed.isCTE())
         ctes_in_resolve_process.insert(union_node_typed.getCTEName());

@@ -963,7 +963,22 @@ namespace
         storage.set(storage.engine, engine_ast);
     }
 
-}
+    ASTs * getEngineArgsFromCreateQuery(ASTCreateQuery & create_query)
+    {
+        ASTStorage * storage_def = create_query.storage;
+        if (!storage_def)
+            return nullptr;
+
+        if (!storage_def->engine)
+            return nullptr;
+
+        const ASTFunction & engine_def = *storage_def->engine;
+        if (!engine_def.arguments)
+            return nullptr;
+
+        return &engine_def.arguments->children;
+    }
+    }
 
 void InterpreterCreateQuery::setEngine(ASTCreateQuery & create) const
 {
@@ -1627,6 +1642,21 @@ bool InterpreterCreateQuery::doCreateTable(ASTCreateQuery & create,
     /// Before actually creating the table, check if it will lead to cyclic dependencies.
     checkTableCanBeAddedWithNoCyclicDependencies(create, query_ptr, getContext());
 
+    /// Initial queries in Replicated database at this point have query_kind = ClientInfo::QueryKind::SECONNDARY_QUERY,
+    /// so we need to check whether the query is initial through getZooKeeperMetadataTransaction()->isInitialQuery()
+    bool is_initial_query = getContext()->getClientInfo().query_kind == ClientInfo::QueryKind::INITIAL_QUERY ||
+                            (getContext()->getZooKeeperMetadataTransaction() && getContext()->getZooKeeperMetadataTransaction()->isInitialQuery());
+    UInt64 table_num_limit = getContext()->getGlobalContext()->getServerSettings().max_table_num_to_throw;
+    if (table_num_limit > 0 && !internal && is_initial_query)
+    {
+        UInt64 table_count = CurrentMetrics::get(CurrentMetrics::AttachedTable);
+        if (table_count >= table_num_limit)
+            throw Exception(ErrorCodes::TOO_MANY_TABLES,
+                            "Too many tables. "
+                            "The limit (server configuration parameter `max_table_num_to_throw`) is set to {}, the current number of tables is {}",
+                            table_num_limit, table_count);
+    }
+
     StoragePtr res;
     /// NOTE: CREATE query may be rewritten by Storage creator or table function
     if (create.as_table_function)
@@ -1650,7 +1680,11 @@ bool InterpreterCreateQuery::doCreateTable(ASTCreateQuery & create,
             mode);
 
         /// If schema wes inferred while storage creation, add columns description to create query.
-        addColumnsDescriptionToCreateQueryIfNecessary(query_ptr->as<ASTCreateQuery &>(), res);
+        auto & create_query = query_ptr->as<ASTCreateQuery &>();
+        addColumnsDescriptionToCreateQueryIfNecessary(create_query, res);
+        /// Add any inferred engine args if needed. For example, data format for engines File/S3/URL/etc
+        if (auto * engine_args = getEngineArgsFromCreateQuery(create_query))
+            res->addInferredEngineArgsToCreateQuery(*engine_args, getContext());
     }
 
     validateVirtualColumns(*res);
@@ -1690,17 +1724,6 @@ bool InterpreterCreateQuery::doCreateTable(ASTCreateQuery & create,
 
             throw Coordination::Exception(Coordination::Error::ZCONNECTIONLOSS, "Fault injected (during table creation)");
         }
-    }
-
-    UInt64 table_num_limit = getContext()->getGlobalContext()->getServerSettings().max_table_num_to_throw;
-    if (table_num_limit > 0 && !internal)
-    {
-        UInt64 table_count = CurrentMetrics::get(CurrentMetrics::AttachedTable);
-        if (table_count >= table_num_limit)
-            throw Exception(ErrorCodes::TOO_MANY_TABLES,
-                            "Too many tables. "
-                            "The limit (server configuration parameter `max_table_num_to_throw`) is set to {}, the current number of tables is {}",
-                            table_num_limit, table_count);
     }
 
     database->createTable(getContext(), create.getTable(), res, query_ptr);
