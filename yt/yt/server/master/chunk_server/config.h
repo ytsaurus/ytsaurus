@@ -299,17 +299,26 @@ DEFINE_REFCOUNTED_TYPE(TDanglingLocationCleanerConfig)
 struct TDynamicDataNodeTrackerConfig
     : public NYTree::TYsonStruct
 {
+    int MaxConcurrentChunkReplicasDuringFullHeartbeat;
+
+    int MaxConcurrentChunkReplicasDuringIncrementalHeartbeat;
+
     // COMPAT(danilalexeev): YT-23781.
     int MaxConcurrentFullHeartbeats;
 
+    // COMPAT(cherepashka)
     int MaxConcurrentLocationFullHeartbeats;
 
+    // COMPAT(cherepashka)
     int MaxConcurrentIncrementalHeartbeats;
 
     TDanglingLocationCleanerConfigPtr DanglingLocationCleaner;
 
     // COMPAT(danilalexeev): YT-23781.
     bool EnablePerLocationFullHeartbeats;
+
+    // COMPAT(cherepashka)
+    bool EnableChunkReplicasThrottlingInHeartbeats;
 
     REGISTER_YSON_STRUCT(TDynamicDataNodeTrackerConfig);
 

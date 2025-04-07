@@ -246,6 +246,7 @@ DEFINE_ENUM(EMasterReign,
     ((DropChunkMergerCompats)                                       (2910))  // cherepashka
     ((SecondaryIndexEvaluated)                                      (2911))  // sabdenovch
     ((ResetHunkMediaOnBranchedNodes)                                (2912))  // shakurov
+    ((PerChunkReplicaDataNodeRegistrationTrottling)                 (2913))  // cherepashka
 );
 
 static_assert(TEnumTraits<EMasterReign>::IsMonotonic, "Master reign enum is not monotonic");

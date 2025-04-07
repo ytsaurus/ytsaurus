@@ -310,7 +310,8 @@ public:
         const TAsyncSemaphorePtr& semaphore,
         NRpc::IServiceContextPtr context,
         TCallback<std::unique_ptr<TMutation>()> mutationBuilder,
-        TCallback<void(const NHydra::TMutationResponse& response)> replyCallback) override
+        TCallback<void(const NHydra::TMutationResponse& response)> replyCallback,
+        i64 semaphoreSlotsToAquire) override
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
 
@@ -320,7 +321,7 @@ public:
 
         auto expectedMutationCommitDuration = ExpectedMutationCommitDuration_.load(std::memory_order::acquire);
 
-        semaphore->AsyncAcquire().SubscribeUnique(
+        semaphore->AsyncAcquire(semaphoreSlotsToAquire).SubscribeUnique(
             BIND(
                 [
                     =,

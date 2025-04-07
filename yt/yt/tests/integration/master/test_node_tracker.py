@@ -525,3 +525,45 @@ class TestRackCells(TestRack):
 class TestRackDataCenterCells(TestRackDataCenter):
     ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 2
+
+################################################################################
+
+
+class TestNodesThrottling(YTEnvSetup):
+    ENABLE_MULTIDAEMON = False  # There are component restarts.
+    NUM_NODES = 3
+
+    @authors("cherepashka")
+    def test_data_nodes_per_chunk_replica_throttling(self):
+        create("table", "//tmp/t")
+        for _ in range(20):
+            write_table("<append=%true>//tmp/t", [{"a": i} for i in range(10)])
+        # Now each node has approximately 20 chunks, so after registration they will send full heartbeats and will be throttled.
+
+        self.Env.kill_nodes()
+        set("//sys/@config/chunk_manager/data_node_tracker/enable_chunk_replicas_throttling_in_heartbeats", True)
+        set("//sys/@config/chunk_manager/data_node_tracker/max_concurrent_chunk_replicas_during_full_heartbeat", 1)
+        # Disabling `minimize_commit_latency` and make delay between mutations flush, this will help throttling to be visible.
+        set("//sys/@config/hydra_manager/minimize_commit_latency", False)
+        set("//sys/@config/hydra_manager/mutation_flush_period", 1000)  # 1 sec
+        self.Env.start_nodes(sync=False)
+
+        def get_online_nodes_count():
+            node_count = 0
+            for node in ls("//sys/cluster_nodes", attributes=["state"]):
+                if node.attributes["state"] == "online":
+                    node_count += 1
+            return node_count
+
+        # Need to wait until nodes start registering at master.
+        wait(lambda: get_online_nodes_count() == 1)
+
+        # Now nodes have registered and have sent full heartbeats to master.
+        # Heartbeat mutations will be scheduled sequentially due to throttling.
+        # Since flush of mutations occurs with 1 second period, we need to wait a while before the next heartbeat mutation is scheduled and applied.
+
+        time.sleep(2)
+        assert get_online_nodes_count() == 2
+
+        time.sleep(2)
+        assert get_online_nodes_count() == 3
