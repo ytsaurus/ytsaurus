@@ -5,6 +5,7 @@ on:
     branches:
       - main
       - stable/[0-9]+\.[0-9]+
+      - members/ilyaibraev/24.1-enable-runner
 
 env:
   ACTIONS_ALLOW_USE_UNSECURE_NODE_VERSION: true
@@ -36,7 +37,7 @@ jobs:
           user: ${{ secrets.YC_VM_USERNAME }}
           ssh-public-key: ${{ secrets.YC_VM_SSH_PUBLIC_KEY }}
           public-ip: false
-          disable-update: true
+          disable-update: false
           ttl: PT24H
 
   checkout:
