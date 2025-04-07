@@ -180,8 +180,7 @@ CHECKS_LIST = [
     "tablet_cell_snapshots",
     "chaos_cells",
     "unaware_nodes",
-    "wrapper_files_count",
-    "yt_logs",
+    "wrapper_node_count",
 ]
 
 
@@ -274,7 +273,7 @@ def create_odin_checks_config():
                     "warn_threshold": 5,
                 }
             },
-            "wrapper_files_count": {
+            "wrapper_node_count": {
                 "options": {
                     "files_count_threshold": 40000,
                 }
