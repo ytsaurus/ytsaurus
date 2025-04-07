@@ -201,9 +201,8 @@ type daemonApp struct {
 	ctx        context.Context
 	cancelFunc context.CancelFunc
 
-	errorExitDetectorClose func()
-
-	closePid func()
+	closePid     func()
+	closeLogFile func()
 
 	timberTruck *timbertruck.TimberTruck
 	adminPanel  *adminPanel
@@ -244,13 +243,15 @@ func newDaemonApp(config Config, isRestart bool) (app *daemonApp, err error) {
 		return
 	}
 
-	var logFile io.Writer = os.Stderr
+	var logFile io.WriteCloser = os.Stderr
+	app.closeLogFile = func() {}
 	if config.LogFile != "" {
 		logFile, err = misc.NewLogrotatingFile(config.LogFile)
 		if err != nil {
 			err = fmt.Errorf("cannot open log file: %v", err)
 			return
 		}
+		app.closeLogFile = func() { _ = logFile.Close() }
 	}
 	errorCounter := app.metrics.Counter("tt.application.error_log_count")
 	errorCounter.Add(0)
@@ -297,9 +298,9 @@ func (app *daemonApp) Close() error {
 		app.closePid()
 		app.closePid = nil
 	}
-	if app.errorExitDetectorClose != nil {
-		app.errorExitDetectorClose()
-		app.errorExitDetectorClose = nil
+	if app.closeLogFile != nil {
+		app.closeLogFile()
+		app.closeLogFile = nil
 	}
 	return nil
 }
