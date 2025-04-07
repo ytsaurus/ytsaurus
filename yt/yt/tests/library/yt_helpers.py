@@ -292,3 +292,21 @@ def is_uring_disabled():
         return False
     with open(proc_file, "r") as myfile:
         return myfile.read().strip() == '0'
+
+
+def wait_and_get_controller_incarnation(agent: str):
+    """
+    :param agent: Controller agent's address.
+    """
+    incarnation_id = None
+
+    def check():
+        nonlocal incarnation_id
+        incarnation_id = get(
+            f"//sys/controller_agents/instances/{agent}/orchid/controller_agent/incarnation_id",
+            default=None
+        )
+        return incarnation_id is not None
+
+    wait(check)
+    return incarnation_id
