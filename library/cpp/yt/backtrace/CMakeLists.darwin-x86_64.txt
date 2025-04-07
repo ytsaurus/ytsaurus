@@ -13,8 +13,8 @@
 # changes in this file.
 
 add_subdirectory(cursors)
-add_subdirectory(absl_unwinder)
 add_subdirectory(symbolizers)
+add_subdirectory(absl_unwinder)
 
 add_library(cpp-yt-backtrace)
 

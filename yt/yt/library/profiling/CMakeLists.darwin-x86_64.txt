@@ -13,8 +13,8 @@
 # changes in this file.
 
 add_subdirectory(resource_tracker)
-add_subdirectory(tcmalloc)
 add_subdirectory(solomon)
+add_subdirectory(tcmalloc)
 add_subdirectory(perf)
 add_subdirectory(sensors_owner)
 add_subdirectory(unittests)

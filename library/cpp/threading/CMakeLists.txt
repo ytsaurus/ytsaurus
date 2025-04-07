@@ -13,10 +13,10 @@
 # changes in this file.
 
 add_subdirectory(future)
-add_subdirectory(blocking_queue)
 add_subdirectory(thread_local)
 add_subdirectory(hot_swap)
 add_subdirectory(skip_list)
+add_subdirectory(blocking_queue)
 add_subdirectory(cron)
 add_subdirectory(equeue)
 add_subdirectory(light_rw_lock)
