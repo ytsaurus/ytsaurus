@@ -6,7 +6,7 @@ from . import common
 from .config_remote_patch import (RemotePatchableValueBase, RemotePatchableString, RemotePatchableBoolean,
                                   RemotePatchableInteger, _validate_operation_link_pattern,
                                   _validate_query_link_pattern)
-from .constants import DEFAULT_HOST_SUFFIX, SKYNET_MANAGER_URL, PICKLING_DL_ENABLE_AUTO_COLLECTION, STARTED_BY_COMMAND_LENGTH_LIMIT
+from .constants import DEFAULT_HOST_SUFFIX, SKYNET_MANAGER_URL, PICKLING_DL_ENABLE_AUTO_COLLECTION, ENCRYPT_PICKLE_FILES, STARTED_BY_COMMAND_LENGTH_LIMIT
 from .errors import YtConfigError
 from .mappings import VerifiedDict
 
@@ -374,6 +374,8 @@ default_config = {
             r"/lib/python[\d\.]+/(site|dist)-packages/",
             r"/lib/python[\d\.]+/.+\.(py|pyc|so)$",
         ],
+        # Encrypt files with pickle data
+        "encrypt_pickle_files": RemotePatchableBoolean(ENCRYPT_PICKLE_FILES, "python_encrypt_pickle_files"),
     },
 
     # Enables special behavior if client works with local mode cluster.
@@ -853,11 +855,15 @@ SHORTCUTS = {
     "YT_IGNORE_EMPTY_TABLES_IN_MAPREDUCE_LIST": "yamr_mode/ignore_empty_tables_in_mapreduce_list",
 
     "YT_CONFIG_PROFILE": "config_profile",
+
+    "YT_ENCRYPT_PICKLE": "pickling/encrypt_pickle_files",
 }
 
 
-def update_config_from_env(config, config_profile=None):
-    # type: (yt.wrapper.mappings.VerifiedDict, str | None) -> yt.wrapper.mappings.VerifiedDict
+def update_config_from_env(
+    config: VerifiedDict,
+    config_profile: Optional[str] = None
+) -> VerifiedDict:
     """Patch config from envs and the config file."""
 
     _update_from_env_patch(config)
@@ -869,9 +875,10 @@ def update_config_from_env(config, config_profile=None):
     return config
 
 
-def _update_from_env_vars(config, shortcuts=None):
-    # type: (yt.wrapper.mappings.VerifiedDict, dict | None) -> None
-
+def _update_from_env_vars(
+    config: VerifiedDict,
+    shortcuts: Optional[dict] = None
+):
     def _get_var_type(value):
         var_type = type(value)
         # Using int we treat "0" as false, "1" as "true"
@@ -932,9 +939,7 @@ def _update_from_env_vars(config, shortcuts=None):
             _set(config, name, _apply_type(var_type, key, value))
 
 
-def _update_from_env_patch(config):
-    # type: (yt.wrapper.mappings.VerifiedDict) -> None
-
+def _update_from_env_patch(config: VerifiedDict):
     if "YT_CONFIG_PATCHES" in os.environ:
         try:
             patches = yson._loads_from_native_str(os.environ["YT_CONFIG_PATCHES"],
@@ -1076,13 +1081,17 @@ def _update_from_file(
     common.update_inplace(config, config_from_file)
 
 
-def get_config_from_env(config_profile=None):
-    # type: (str) -> yt.wrapper.mappings.VerifiedDict
+def get_config_from_env(
+    config_profile: Optional[str] = None
+) -> VerifiedDict:
     """Get default config with patches from envs"""
     return update_config_from_env(get_default_config(), config_profile=config_profile)
 
 
-def _get_settings_from_cluster_callback(config=None, client=None):
+def _get_settings_from_cluster_callback(
+    config: Optional[VerifiedDict] = None,
+    client=None
+):
     import yt.wrapper as yt
     if config is None and client is None:
         # config=None, client=None

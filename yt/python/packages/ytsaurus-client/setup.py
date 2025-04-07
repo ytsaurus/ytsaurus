@@ -51,6 +51,10 @@ def main():
             "typing-extensions >=4.12.2, ~=4.8",
             "distro >=1.6.0, ~=1.6",
         ],
+
+        extras_require={
+            "recommended": ["brotli", "cryptography"],
+        },
     )
 
 

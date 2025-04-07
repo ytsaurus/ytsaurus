@@ -27,6 +27,7 @@ import os
 import shutil
 import shlex
 import tarfile
+import typing
 import gzip
 import tempfile
 import hashlib
@@ -59,24 +60,26 @@ class TarInfo(tarfile.TarInfo):
 
 
 class WrapResult(object):
-    __slots__ = ["cmd", "tmpfs_size", "environment", "local_files_to_remove", "title"]
+    __slots__ = ["cmd", "tmpfs_size", "environment", "local_files_to_remove", "title", "pickling_encryption_key"]
 
-    def __init__(self, cmd, tmpfs_size=0, environment=None, local_files_to_remove=None, title=None):
+    def __init__(self, cmd, tmpfs_size=0, environment=None, local_files_to_remove=None, title=None, pickling_encryption_key=None):
         self.cmd = cmd
         self.tmpfs_size = tmpfs_size
         self.environment = environment
         self.local_files_to_remove = local_files_to_remove
         self.title = title
+        self.pickling_encryption_key = pickling_encryption_key
 
 
 class OperationParameters(object):
     __slots__ = ["input_format", "output_format", "operation_type", "job_type", "group_by", "should_process_key_switch",
                  "input_table_count", "output_table_count", "use_yamr_descriptors", "attributes", "python_version",
-                 "is_local_mode", "has_state", "redirect_stdout_to_stderr"]
+                 "is_local_mode", "has_state", "redirect_stdout_to_stderr", "pickling_encryption_key"]
 
     def __init__(self, input_format=None, output_format=None, operation_type=None, job_type=None, group_by=None,
                  should_process_key_switch=None, python_version=None, input_table_count=None, output_table_count=None,
-                 use_yamr_descriptors=None, attributes=None, is_local_mode=None, has_state=False, redirect_stdout_to_stderr=None):
+                 use_yamr_descriptors=None, attributes=None, is_local_mode=None, has_state=False,
+                 redirect_stdout_to_stderr=None, pickling_encryption_key=None):
         self.input_format = input_format
         self.output_format = output_format
         self.operation_type = operation_type
@@ -91,6 +94,8 @@ class OperationParameters(object):
         self.is_local_mode = is_local_mode
         self.has_state = has_state
         self.redirect_stdout_to_stderr = redirect_stdout_to_stderr
+        self.pickling_encryption_key = pickling_encryption_key
+        # pickling_encryption_key: None - disabled, "" - autogenerate, "xxx" - use this key
 
 
 def get_local_temp_directory(client):
@@ -518,12 +523,16 @@ def build_caller_arguments(is_standalone_binary, use_local_python_in_jobs, file_
 
 
 def build_function_and_config_arguments(function, create_temp_file, file_argument_builder,
-                                        is_local_mode, params, client):
+                                        is_local_mode, params: OperationParameters, client) -> typing.Tuple[typing.List[str], str]:
     function_filename = create_temp_file(prefix=get_function_name(function) + ".pickle")
 
     pickling_config = get_config(client)["pickling"]
     pickler_name = pickling_config["framework"]
     pickler = Pickler(pickler_name)
+    if params.pickling_encryption_key is not None:
+        encryption_key = pickler.enable_encryption(key=params.pickling_encryption_key)
+    else:
+        encryption_key = None
     dump_kwargs = {}
     if pickler_name == "dill":
         if pickling_config["load_additional_dill_types"]:
@@ -546,9 +555,12 @@ def build_function_and_config_arguments(function, create_temp_file, file_argumen
         config_copy = copy.deepcopy(get_config(client))
         if "token" in config_copy:
             del config_copy["token"]
-        Pickler(config.DEFAULT_PICKLING_FRAMEWORK).dump(config_copy, fout)
+        config_pickler = Pickler(config.DEFAULT_PICKLING_FRAMEWORK)
+        if encryption_key:
+            config_pickler.enable_encryption(key=encryption_key)
+        config_pickler.dump(config_copy, fout)
 
-    return list(map(file_argument_builder, [function_filename, config_filename]))
+    return (list(map(file_argument_builder, [function_filename, config_filename])), encryption_key)
 
 
 def build_modules_arguments(modules_info, create_temp_file, file_argument_builder, client):
@@ -620,7 +632,7 @@ def build_main_file_arguments(function, create_temp_file, file_argument_builder)
     ]
 
 
-def do_wrap(function, tempfiles_manager, local_mode, file_manager, params, client):
+def do_wrap(function, tempfiles_manager, local_mode, file_manager, params: OperationParameters, client) -> WrapResult:
     assert params.job_type in ["mapper", "reducer", "reduce_combiner", "vanilla"]
 
     def create_temp_file(prefix="", suffix=""):
@@ -664,7 +676,7 @@ def do_wrap(function, tempfiles_manager, local_mode, file_manager, params, clien
 
     caller_arguments = build_caller_arguments(is_standalone_binary, use_local_python_in_jobs,
                                               file_argument_builder, environment, client)
-    function_and_config_arguments = build_function_and_config_arguments(
+    function_and_config_files, function_and_config_files_key = build_function_and_config_arguments(
         function,
         create_temp_file,
         file_argument_builder,
@@ -691,12 +703,12 @@ def do_wrap(function, tempfiles_manager, local_mode, file_manager, params, clien
             create_temp_file,
             file_argument_builder)
 
-    cmd = " ".join(caller_arguments + function_and_config_arguments + modules_arguments + main_file_arguments)
-    return WrapResult(cmd=cmd, tmpfs_size=tmpfs_size, environment=environment,
-                      title=title, local_files_to_remove=None)
+    cmd = " ".join(caller_arguments + function_and_config_files + modules_arguments + main_file_arguments)
+    return WrapResult(cmd=cmd, tmpfs_size=tmpfs_size, environment=environment, title=title, local_files_to_remove=None,
+                      pickling_encryption_key=function_and_config_files_key)
 
 
-def wrap(client, **kwargs):
+def wrap(client, **kwargs) -> WrapResult:
     result = do_wrap(client=client, **kwargs)
     result.local_files_to_remove = []
     return result

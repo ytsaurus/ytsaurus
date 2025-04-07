@@ -26,6 +26,7 @@ ELSE()
 
         contrib/libs/brotli/python
         contrib/python/argcomplete
+        contrib/python/cryptography
         contrib/python/decorator
         contrib/python/distro
         contrib/python/six
