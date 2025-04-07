@@ -207,6 +207,9 @@ public:
     std::optional<double> DefaultUserMemoryLimitRatio;
     THashMap<std::string, double> UserToMemoryLimitRatio;
 
+    // COMPAT(ignat): drop the option after 25.2.
+    bool UseCompressionThreadPool;
+
     REGISTER_YSON_STRUCT(TApiDynamicConfig);
 
     static void Register(TRegistrar registrar);
