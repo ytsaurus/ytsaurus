@@ -29,7 +29,7 @@ NSQLComplete::TLexerSupplier MakePureLexerSupplier() {
     };
 }
 
-size_t UTF8PositionToAscii(const TStringBuf text, size_t position) {
+size_t UTF8PositionToBytes(const TStringBuf text, size_t position) {
     const TStringBuf substr = SubstrUTF8(text, position, text.length());
     return substr.begin() - text.begin();
 }
@@ -76,7 +76,7 @@ int Run(int argc, char* argv[]) {
     }
 
     if (pos) {
-        input.CursorPosition = UTF8PositionToAscii(input.Text, *pos);
+        input.CursorPosition = UTF8PositionToBytes(input.Text, *pos);
     } else if (Count(input.Text, '#') == 1) {
         Cerr << "Note: found an only '#', setting the cursor position\n";
         input.CursorPosition = input.Text.find('#');
