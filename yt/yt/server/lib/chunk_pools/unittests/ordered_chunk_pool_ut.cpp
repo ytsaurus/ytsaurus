@@ -752,7 +752,7 @@ TEST_P(TOrderedChunkPoolTest, UnsuccessfulSplitMarksJobUnsplittable)
 
     auto chunk = CreateChunk(
         0,
-        /*size*/ 1_KB,
+        /*dataWeight*/ 1_KB,
         /*rowCount*/ 1);
 
     CreateChunkPool();
@@ -990,11 +990,15 @@ TEST_P(TOrderedChunkPoolJobSizesTestRandomized, BuildJobsInputByCompressedDataSi
         /*isVersioned*/ std::vector<bool>(tableCount));
 
     auto generateSize = [&] () -> i64 {
-        return std::lognormal_distribution<double>()(Gen_) * 100_MB;
+        auto baseSizes = std::to_array({1_KB, 1_MB, 100_MB, 1_GB, 512_GB, 1_TB, 10_TB});
+        i64 baseSize = baseSizes[std::uniform_int_distribution<i64>(0, std::ssize(baseSizes) - 1)(Gen_)];
+        return std::lognormal_distribution<double>()(Gen_) * baseSize;
     };
 
     auto generateRowCount = [&] () -> i64 {
-        return std::lognormal_distribution<double>()(Gen_) * 10'000;
+        auto baseCounts = std::to_array<i64>({100, 1'000, 1'000'000, 1'000'000'000, 1'000'000'000'000});
+        i64 baseCount = baseCounts[std::uniform_int_distribution<i64>(0, std::ssize(baseCounts) - 1)(Gen_)];
+        return std::lognormal_distribution<double>()(Gen_) * baseCount;
     };
 
     auto generateTableIndex = [&] {
@@ -1003,7 +1007,6 @@ TEST_P(TOrderedChunkPoolJobSizesTestRandomized, BuildJobsInputByCompressedDataSi
 
     Options_.BuildOutputOrder = true;
 
-    DataWeightPerJob_ = generateSize();
     InputSliceRowCount_ = generateRowCount();
     InputSliceDataWeight_ = generateSize();
     if (std::uniform_int_distribution(0, 1)(Gen_) == 0) {
@@ -1011,19 +1014,42 @@ TEST_P(TOrderedChunkPoolJobSizesTestRandomized, BuildJobsInputByCompressedDataSi
     }
     Options_.MinTeleportChunkSize = generateSize();
     MaxDataSlicesPerJob_ = std::uniform_int_distribution(1, 1000)(Gen_);
-    MaxCompressedDataSizePerJob_ = generateSize();
+
+    std::vector<TInputChunkPtr> chunks;
+
+    int chunkCount = std::uniform_int_distribution(1, 100)(Gen_);
+    i64 totalDataWeight = 0;
+    i64 totalCompressedDataSize = 0;
+    for (int index = 0; index < chunkCount; ++index) {
+        auto chunk = CreateChunk(
+            /*tableIndex*/ generateTableIndex(),
+            /*dataWeight*/ generateSize(),
+            /*tableIndex*/ generateRowCount());
+        totalDataWeight += chunk->GetDataWeight();
+        totalCompressedDataSize += chunk->GetCompressedDataSize();
+        chunks.push_back(std::move(chunk));
+    };
+
+    DataWeightPerJob_ = std::max<i64>(generateSize(), 1);
+    MaxCompressedDataSizePerJob_ = std::max<i64>(generateSize(), 1);
+
+    // Don't build too many jobs.
+    while (totalDataWeight / DataWeightPerJob_ > 50) {
+        DataWeightPerJob_ *= 10;
+        DataWeightPerJob_ += std::uniform_int_distribution<int>(0, 9)(Gen_);
+    }
+    while (totalCompressedDataSize / MaxCompressedDataSizePerJob_ > 50) {
+        MaxCompressedDataSizePerJob_ *= 10;
+        MaxCompressedDataSizePerJob_ += std::uniform_int_distribution<int>(0, 9)(Gen_);
+    }
 
     InitJobConstraints();
 
     CreateChunkPool();
 
-    int chunkCount = std::uniform_int_distribution(1, 100)(Gen_);
-    for (int index = 0; index < chunkCount; ++index) {
-        AddChunk(CreateChunk(
-            /*tableIndex*/ generateTableIndex(),
-            /*dataWeight*/ generateSize(),
-            /*tableIndex*/ generateRowCount()));
-    };
+    for (auto& chunk : chunks) {
+        AddChunk(std::move(chunk));
+    }
 
     ChunkPool_->Finish();
 

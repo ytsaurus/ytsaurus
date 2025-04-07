@@ -565,6 +565,7 @@ private:
             if (!RowCountUntilJobSplitNew_.has_value() || *RowCountUntilJobSplitNew_ >= chunkSlice->GetRowCount()) {
                 std::swap(chunkSliceToAdd, chunkSlice);
             } else {
+                YT_VERIFY(*RowCountUntilJobSplitNew_ >= 0);
                 std::tie(chunkSliceToAdd, chunkSlice) = chunkSlice->SplitByRowIndex(*RowCountUntilJobSplitNew_);
             }
 
@@ -604,19 +605,16 @@ private:
 
         i64 maxRowCountUntilJobSplit = std::numeric_limits<i64>::max();
 
+        i64 compressedDataSizeUntilJobSplit = std::max<i64>(0, JobSizeConstraints_->GetMaxCompressedDataSizePerJob() - CurrentJob()->GetCompressedDataSize());
+        if (compressedDataSizeUntilJobSplit <= chunkSlice->GetCompressedDataSize()) {
+            maxRowCountUntilJobSplit = (static_cast<double>(compressedDataSizeUntilJobSplit) * chunkSlice->GetRowCount()) / chunkSlice->GetCompressedDataSize();
+            maxRowCountUntilJobSplit = std::clamp<i64>(maxRowCountUntilJobSplit, 0, chunkSlice->GetRowCount());
+        }
+
         // NB: Hitting this limit means we cannot take more than one slice.
         // In this case the final row count of this job might not be divisible by batch row count.
         if (CurrentJob()->GetPreliminarySliceCount() + 1 == JobSizeConstraints_->GetMaxDataSlicesPerJob()) {
-            maxRowCountUntilJobSplit = chunkSlice->GetRowCount();
-        }
-
-        i64 compressedDataSizeUntilJobSplit = std::max<i64>(0, JobSizeConstraints_->GetMaxCompressedDataSizePerJob() - CurrentJob()->GetCompressedDataSize());
-        if (compressedDataSizeUntilJobSplit <= chunkSlice->GetCompressedDataSize()) {
-            maxRowCountUntilJobSplit = std::min(
-                maxRowCountUntilJobSplit,
-                (compressedDataSizeUntilJobSplit * chunkSlice->GetRowCount()) / chunkSlice->GetCompressedDataSize());
-
-            YT_VERIFY(maxRowCountUntilJobSplit <= chunkSlice->GetRowCount());
+            maxRowCountUntilJobSplit = std::min(chunkSlice->GetRowCount(), maxRowCountUntilJobSplit);
         }
 
         // We should always return at least one slice, even if we get Max...PerJob overflow.
@@ -630,7 +628,8 @@ private:
         i64 dataWeightUntilJobSplit = std::max<i64>(0, GetDataWeightPerJob() - CurrentJob()->GetDataWeight());
         if (!RowCountUntilJobSplitNew_.has_value() && dataWeightUntilJobSplit <= chunkSlice->GetDataWeight()) {
             // Finally, we can estimate row count until job split.
-            RowCountUntilJobSplitNew_ = DivCeil(dataWeightUntilJobSplit * chunkSlice->GetRowCount(), chunkSlice->GetDataWeight());
+            RowCountUntilJobSplitNew_ = std::ceil(static_cast<double>(dataWeightUntilJobSplit) * chunkSlice->GetRowCount() / chunkSlice->GetDataWeight());
+            RowCountUntilJobSplitNew_ = std::clamp<i64>(*RowCountUntilJobSplitNew_, 1, chunkSlice->GetRowCount());
         }
 
         if (maxRowCountUntilJobSplit > chunkSlice->GetRowCount()) {
