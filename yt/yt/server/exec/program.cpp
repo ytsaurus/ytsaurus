@@ -31,23 +31,32 @@ TExecProgram::TExecProgram()
 
 void TExecProgram::DoRun(const NLastGetopt::TOptsParseResult& /*parseResult*/)
 {
+    Cerr << "HERE GetConfig" << Endl;
     auto config = GetConfig();
 
+    Cerr << "HERE JobId" << Endl;
     JobId_ = config->JobId;
 
+    Cerr << "HERE 0" << Endl;
     if (HandleConfigOptions()) {
         return;
     }
+    Cerr << "HERE 1" << Endl;
 
     ConfigureUids();
+
+    Cerr << "HERE 2" << Endl;
     ConfigureCrashHandler();
+    Cerr << "HERE 3" << Endl;
 
     TThread::SetCurrentThreadName("ExecMain");
 
+    Cerr << "HERE 4 log manager shutdown" << Endl;
     // Don't start any other singleton or parse config in executor mode.
     // Explicitly shut down log manager to ensure it doesn't spoil dup-ed descriptors.
     NLogging::TLogManager::Get()->Shutdown();
 
+    Cerr << "HERE 5 SetUid" << Endl;
     if (config->Uid > 0) {
         SetUid(config->Uid);
     }
@@ -55,17 +64,22 @@ void TExecProgram::DoRun(const NLastGetopt::TOptsParseResult& /*parseResult*/)
     TError executorError;
 
     try {
+        Cerr << "HERE 6 enable core dump: " << config->EnableCoreDump << Endl;
         auto enableCoreDump = config->EnableCoreDump;
         struct rlimit rlimit = {
             enableCoreDump ? RLIM_INFINITY : 0,
             enableCoreDump ? RLIM_INFINITY : 0
         };
+        Cerr << "HERE 7 setrlimit" << Endl;
 
         auto rv = setrlimit(RLIMIT_CORE, &rlimit);
+        Cerr << "HERE 8 setrlimit finished: '" << rv << "'" << Endl;
         if (rv) {
+            Cerr << "HERE 9 throw error" << Endl;
             THROW_ERROR_EXCEPTION("Failed to configure core dump limits")
                 << TError::FromSystem();
         }
+        Cerr << "HERE 10" << Endl;
 
         for (const auto& pipe : config->Pipes) {
             auto streamFd = pipe->FD;
@@ -96,16 +110,20 @@ void TExecProgram::DoRun(const NLastGetopt::TOptsParseResult& /*parseResult*/)
         }
     } catch (const std::exception& ex) {
         executorError = ex;
+        Cerr << "HERE 11 has executor error" << Endl;
     }
 
     try {
+        Cerr << "HERE 12" << Endl;
         OpenExecutorStderr();
+        Cerr << "HERE 13" << Endl;
     } catch (const std::exception& ex) {
         Exit(ToUnderlying(EProgramExitCode::ExecutorStderrOpenError));
     }
 
     if (!executorError.IsOK()) {
         LogToStderr(Format("Failed to prepare pipes, unexpected executor error\n%v\n", executorError));
+        Cerr << "HERE 14 exit with 102" << Endl;
         Exit(ToUnderlying(EProgramExitCode::ExecutorError));
     }
 
