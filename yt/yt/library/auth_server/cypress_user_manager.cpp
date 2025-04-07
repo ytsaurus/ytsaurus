@@ -69,6 +69,30 @@ ICypressUserManagerPtr CreateCypressUserManager(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TNullCypressUserManager
+    : public ICypressUserManager
+{
+public:
+    TFuture<TObjectId> CreateUser(const TString& /*name*/) override
+    {
+        YT_UNIMPLEMENTED();
+    }
+
+    TFuture<bool> CheckUserExists(const TString& /*name*/) override
+    {
+        return MakeFuture(true);
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+ICypressUserManagerPtr CreateNullCypressUserManager()
+{
+    return New<TNullCypressUserManager>();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TCypressUserManagerCreateUserCache
     : public TAuthCache<TString, TObjectId, std::monostate>
 {

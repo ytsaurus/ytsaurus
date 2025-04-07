@@ -27,6 +27,10 @@ ICypressUserManagerPtr CreateCypressUserManager(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+ICypressUserManagerPtr CreateNullCypressUserManager();
+
+////////////////////////////////////////////////////////////////////////////////
+
 ICypressUserManagerPtr CreateCachingCypressUserManager(
     TCachingCypressUserManagerConfigPtr config,
     ICypressUserManagerPtr userManager,
