@@ -242,7 +242,7 @@ const std::vector<TStatisticsDescription>& GetOperationStatisticsDescriptions()
         {"data/output/*/uncompressed_data_size", "Uncompressed size of blocks written to the output table", "bytes"},
         {"data/output/*/data_weight", "Logical size of data written to the output table", "bytes"},
         {"data/output/*/regular_disk_space", "Only for tables with erasure_codec == none, equals to compressed_data_size + size of the chunk metadata", "bytes"},
-        {"data/output/*/erasure_disk_space", "Only for tables with erasure_codec == none, equals to compressed_data_size + size of parity blocks", "bytes"},
+        {"data/output/*/erasure_disk_space", "Only for tables with erasure_codec != none, equals to compressed_data_size + size of parity blocks", "bytes"},
         {"data/output/*/unmerged_data_weight", "Only for dynamic tables, logical size of unmerged data written to the output table", "bytes"},
         {"data/output/*/unmerged_row_count", "Only for dynamic tables, number of unmerged rows written to the output table", "pieces"},
 
