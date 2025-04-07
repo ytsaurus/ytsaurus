@@ -504,6 +504,13 @@ void FinalizeMasterStateThread()
     threadState.reset();
 }
 
+NCellMaster::TBootstrap* GetBootstrap()
+{
+    auto& threadState = NDetail::ThreadState();
+    YT_VERIFY(threadState);
+    return threadState->Bootstrap;
+}
+
 void BeginEpoch()
 {
     VerifyAutomatonThreadAffinity();
