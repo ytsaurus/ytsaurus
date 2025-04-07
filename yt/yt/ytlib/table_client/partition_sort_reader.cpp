@@ -59,7 +59,7 @@ public:
         TClosure onNetworkReleased,
         TDataSourceDirectoryPtr dataSourceDirectory,
         std::vector<TDataSliceDescriptor> dataSliceDescriptors,
-        int estimatedRowCount,
+        i64 estimatedRowCount,
         bool approximate,
         int partitionTag,
         TClientChunkReadOptions chunkReadOptions,
@@ -77,8 +77,6 @@ public:
         , MergeComparer_(this)
         , MemoryPool_(TPartitionSortReaderTag())
     {
-        YT_VERIFY(EstimatedRowCount_ <= std::numeric_limits<i32>::max());
-
         Shuffle(dataSliceDescriptors.begin(), dataSliceDescriptors.end());
 
         auto options = New<NTableClient::TTableReaderOptions>();
