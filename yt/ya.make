@@ -13,7 +13,6 @@ RECURSE(
     docker
     odin
     styleguide
-    systest
     admin
     cron
 )
