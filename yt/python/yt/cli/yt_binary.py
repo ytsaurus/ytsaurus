@@ -808,6 +808,12 @@ def add_copy_move_preserve_arguments(parser):
     preserve_owner_parser.add_argument("--no-preserve-owner", dest="preserve_owner",
                                        default=None, action="store_false")
 
+    preserve_acl_parser = parser.add_mutually_exclusive_group(required=False)
+    preserve_acl_parser.add_argument("--preserve-acl", dest="preserve_acl",
+                                     default=None, action="store_true")
+    preserve_acl_parser.add_argument("--no-preserve-acl", dest="preserve_acl",
+                                     default=None, action="store_false")
+
     parser.add_argument("--preserve-creation-time", action="store_true",
                         help="preserve creation time of node")
     parser.add_argument("--preserve-modification-time", action="store_true",
@@ -825,12 +831,6 @@ def add_copy_parser(add_parser):
     add_ypath_argument(parser, "destination_path", help="destination address, path must not exist", hybrid=True)
 
     add_copy_move_preserve_arguments(parser)
-
-    preserve_acl_parser = parser.add_mutually_exclusive_group(required=False)
-    preserve_acl_parser.add_argument("--preserve-acl", dest="preserve_acl",
-                                     default=None, action="store_true")
-    preserve_acl_parser.add_argument("--no-preserve-acl", dest="preserve_acl",
-                                     default=None, action="store_false")
 
     parser.add_argument("-r", "--recursive", action="store_true")
     parser.add_argument("-i", "--ignore-existing", action="store_true")
