@@ -6,7 +6,7 @@ from yt_commands import (
     create_pool, insert_rows, select_rows, lookup_rows, write_table,
     map, map_reduce, vanilla, run_test_vanilla, run_sleeping_vanilla,
     abort_job, list_jobs, clean_operations, mount_table, unmount_table, wait_for_cells, sync_create_cells,
-    update_controller_agent_config, print_debug, exists,
+    update_controller_agent_config, print_debug, exists, get_allocation_id_from_job_id,
     make_random_string, raises_yt_error, clear_metadata_caches, ls)
 
 from yt_scheduler_helpers import scheduler_new_orchid_pool_tree_path
@@ -1176,6 +1176,7 @@ class TestListJobs(TestListJobsCommon):
 
 class TestListJobsAllocation(TestListJobsBase):
     NUM_NODES = 1
+    ENABLE_MULTIDAEMON = True
 
     DELTA_NODE_CONFIG = update(TestListJobsBase.DELTA_NODE_CONFIG, {
         "job_resource_manager": {
@@ -1204,20 +1205,22 @@ class TestListJobsAllocation(TestListJobsBase):
             with_breakpoint("BREAKPOINT"),
         )
 
-        def compare_allocation_id_with_archive(job_id):
+        def check_allocation_id(job_id, include_archive=False):
             wait(lambda: len(list_jobs(op.id)["jobs"]) == 1 and "allocation_id" in list_jobs(op.id)["jobs"][0])
             job_from_list = list_jobs(op.id)["jobs"][0]
-            job_allocation_id_from_archive = get_allocation_id_from_archive(op.id, job_id)
-            assert job_from_list["allocation_id"] == job_allocation_id_from_archive
+            if include_archive:
+                job_allocation_id_from_archive = get_allocation_id_from_archive(op.id, job_id)
+                assert job_from_list["allocation_id"] == job_allocation_id_from_archive
+            assert job_from_list["allocation_id"] == get_allocation_id_from_job_id(job_id)
 
         job_ids = wait_breakpoint()
         assert len(job_ids) == 1
-        compare_allocation_id_with_archive(job_ids[0])
+        check_allocation_id(job_ids[0], include_archive=False)
 
         release_breakpoint()
 
         op.track()
-        compare_allocation_id_with_archive(job_ids[0])
+        check_allocation_id(job_ids[0], include_archive=True)
 
     @authors("bystrovserg")
     def test_same_allocation(self):
@@ -1280,6 +1283,12 @@ class TestListJobsRpcProxy(TestListJobs):
 
 class TestListJobsStatisticsLz4RpcProxy(TestListJobsStatisticsLz4):
     ENABLE_MULTIDAEMON = False  # There are component restarts.
+    DRIVER_BACKEND = "rpc"
+    ENABLE_RPC_PROXY = True
+    ENABLE_HTTP_PROXY = True
+
+
+class TestListJobsAllocationdIdRpcProxy(TestListJobsAllocation):
     DRIVER_BACKEND = "rpc"
     ENABLE_RPC_PROXY = True
     ENABLE_HTTP_PROXY = True
