@@ -289,6 +289,9 @@ public:
     NHttp::TServerConfigPtr ChytHttpServer;
     NHttps::TServerConfigPtr ChytHttpsServer;
 
+    //! Known HTTP proxy addresses.
+    NNodeTrackerClient::TNetworkAddressList Addresses;
+
     NDriver::TDriverConfigPtr Driver;
 
     NAuth::TAuthenticationManagerConfigPtr Auth;

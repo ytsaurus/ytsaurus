@@ -15,23 +15,26 @@ from yt_commands import (
     create_user, create_proxy_role, issue_token, make_ace,
     create_access_control_object_namespace, create_access_control_object,
     with_breakpoint, wait_breakpoint, print_debug, raises_yt_error,
-    read_table, write_table, Operation)
+    read_table, write_table, Operation, discover_proxies)
 
-from yt.common import YtResponseError
+from yt.common import YtResponseError, YtError
 import yt.packages.requests as requests
 import yt.yson as yson
 import yt_error_codes
 
+from yt_driver_bindings import Driver
+
 import pytest
 
+from copy import deepcopy
+from datetime import datetime, timedelta
+from typing import Any
 import collections
 import json
 import os
 import struct
 import socket
-from datetime import datetime, timedelta
 import time
-from typing import Any
 
 
 def try_parse_yt_error_headers(rsp):
@@ -155,11 +158,6 @@ class TestHttpProxy(HttpProxyTestBase):
         service = requests.get(self._get_proxy_address() + "/service").json()
         assert "version" in service
         assert "start_time" in service
-
-    @authors("nadya73")
-    def test_discover_proxies(self):
-        rsp = requests.get(self._get_proxy_address() + "/api/v4/discover_proxies?type=http&address_type=internal_rpc")
-        assert rsp.status_code == 400
 
     @authors("levysotsky")
     def test_hosts(self):
@@ -1730,3 +1728,162 @@ class TestHttpsProxy(HttpProxyTestBase):
 
         rsp = requests.get(self._get_https_proxy_url() + "/ping", verify=self._get_ca_cert())
         rsp.raise_for_status()
+
+
+@pytest.mark.enabled_multidaemon
+class TestHttpProxyDiscovery(YTEnvSetup):
+    ENABLE_HTTP_PROXY = True
+    ENABLE_RPC_PROXY = True
+
+    NUM_HTTP_PROXIES = 2
+    NUM_RPC_PROXIES = 1
+
+    ENABLE_MULTIDAEMON = True
+
+    def setup_method(self, method):
+        super(TestHttpProxyDiscovery, self).setup_method(method)
+        driver_config = deepcopy(self.Env.configs["driver"])
+        driver_config["api_version"] = 4
+        self.driver = Driver(driver_config)
+
+    @authors("nadya73")
+    def test_addresses(self):
+        proxy = ls("//sys/http_proxies")[0]
+
+        addresses = get("//sys/http_proxies/" + proxy + "/@addresses")
+        assert "http" in addresses
+        assert "default" in addresses["http"]
+        assert proxy == addresses["http"]["default"]
+
+    @authors("nadya73")
+    def test_discovery(self):
+        configured_proxy_addresses = sorted(self.Env.get_http_proxy_addresses())
+        configured_monitoring_addresses = sorted(self.Env.get_http_proxy_monitoring_addresses())
+
+        for test_name, request, expected_addresses in [
+            (
+                "defaults", {}, configured_proxy_addresses,
+            ),
+            (
+                "explicit_address_type",
+                {},
+                configured_proxy_addresses,
+            ),
+            (
+                "explicit_params",
+                {"network_name": "default"},
+                configured_proxy_addresses,
+            ),
+            (
+                "monitoring_addresses",
+                {"address_type": "monitoring_http", "network_name": "default"},
+                configured_monitoring_addresses,
+            ),
+        ]:
+            proxies = discover_proxies(type_="http", driver=self.driver, **request)
+            assert sorted(proxies) == expected_addresses, test_name
+
+    @authors("nadya73")
+    def test_invalid_address_type(self):
+        with pytest.raises(YtError):
+            discover_proxies(type_="http", driver=self.driver, address_type="invalid")
+
+    @authors("nadya73")
+    def test_invalid_network_name(self):
+        proxies = discover_proxies(type_="http", driver=self.driver, network_name="invalid")
+        assert len(proxies) == 0
+
+
+@pytest.mark.enabled_multidaemon
+class TestHttpProxyDiscoveryRoleFromStaticConfig(YTEnvSetup):
+    ENABLE_HTTP_PROXY = True
+    ENABLE_RPC_PROXY = True
+
+    NUM_HTTP_PROXIES = 2
+    NUM_RPC_PROXIES = 1
+
+    DELTA_PROXY_CONFIG = {
+        "role": "ab",
+    }
+
+    ENABLE_MULTIDAEMON = True
+
+    def setup_method(self, method):
+        super(TestHttpProxyDiscoveryRoleFromStaticConfig, self).setup_method(method)
+        driver_config = deepcopy(self.Env.configs["driver"])
+        driver_config["api_version"] = 4
+        self.driver = Driver(driver_config)
+
+    @authors("nadya73")
+    def test_role(self):
+        proxy = ls("//sys/http_proxies")[0]
+
+        role = get("//sys/http_proxies/" + proxy + "/@role")
+        assert role == "ab"
+
+    @authors("nadya73")
+    def test_discovery(self):
+        configured_proxy_addresses = sorted(self.Env.get_http_proxy_addresses())
+
+        proxies = discover_proxies(type_="http", driver=self.driver, **{})
+        assert sorted(proxies) == []
+
+        proxies = discover_proxies(type_="http", driver=self.driver, **{"role": "ab"})
+        assert sorted(proxies) == configured_proxy_addresses
+
+
+@pytest.mark.enabled_multidaemon
+class TestHttpProxyDiscoveryBalancers(YTEnvSetup):
+    ENABLE_HTTP_PROXY = True
+    ENABLE_RPC_PROXY = True
+
+    NUM_HTTP_PROXIES = 2
+    NUM_RPC_PROXIES = 1
+
+    ENABLE_MULTIDAEMON = True
+
+    def setup_method(self, method):
+        super(TestHttpProxyDiscoveryBalancers, self).setup_method(method)
+        driver_config = deepcopy(self.Env.configs["driver"])
+        driver_config["api_version"] = 4
+        driver_config["proxy_discovery_cache"] = {
+            "expire_after_access_time": 0,
+        }
+        self.driver = Driver(driver_config)
+
+    @authors("nadya73")
+    def test_discovery(self):
+        configured_proxy_addresses = sorted(self.Env.get_http_proxy_addresses())
+        configured_monitoring_addresses = sorted(self.Env.get_http_proxy_monitoring_addresses())
+
+        balancer_first = 'default-balancer.com:9013'
+        balancer_second = 'default-balancer-2.com:9013'
+        set(
+            "//sys/http_proxies/@balancers",
+            {
+                "data": {
+                    "http": {
+                        "default": [balancer_first, balancer_second]
+                    }
+                }
+            },
+        )
+
+        proxies = discover_proxies(type_="http", driver=self.driver, **{})
+        assert proxies == [balancer_first, balancer_second]
+
+        proxies = discover_proxies(type_="http", driver=self.driver, **{"ignore_balancers": True})
+        assert sorted(proxies) == configured_proxy_addresses
+
+        proxies = discover_proxies(type_="http", driver=self.driver, **{"address_type": "monitoring_http"})
+        assert sorted(proxies) == configured_monitoring_addresses
+
+    @authors("nadya73")
+    def test_invalid_address_type(self):
+        with pytest.raises(YtError):
+            discover_proxies(type_="http", driver=self.driver, address_type="invalid")
+
+    @authors("nadya73")
+    def test_invalid_network_name(self):
+        proxies = discover_proxies(type_="http", driver=self.driver, network_name="invalid")
+        assert len(proxies) == 0

@@ -231,8 +231,8 @@ public:
 
 private:
     NApi::EProxyType Type;
-    std::string Role;
-    NApi::NRpcProxy::EAddressType AddressType;
+    std::optional<std::string> Role;
+    std::optional<NApi::NRpcProxy::EAddressType> AddressType;
     std::string NetworkName;
     bool IgnoreBalancers;
 

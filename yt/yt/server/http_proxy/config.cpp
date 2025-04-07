@@ -86,6 +86,12 @@ void TCoordinatorConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("cypress_registrar", &TThis::CypressRegistrar)
         .DefaultNew();
+
+    registrar.Postprocessor([] (TThis* config) {
+        if (!config->CypressRegistrar->AliveChildTtl) {
+            config->CypressRegistrar->AliveChildTtl = config->DeathAge;
+        }
+    });
 }
 
 ////////////////////////////////////////////////////////////////////////////////
