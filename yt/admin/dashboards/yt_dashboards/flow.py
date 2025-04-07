@@ -92,10 +92,14 @@ def build_streams():
                     .unit("UNIT_SECONDS")
                     .precision(1))
             .cell(
-                "User Watermark Lag",
-                MonitoringExpr(FlowController("yt.flow.controller.streams.user_time_lag"))
-                    .all("user_timestamp_id")
-                    .alias("{{stream_id}} - {{user_timestamp_id}}")
+                "Event Watermark Lag",
+                MultiSensor(
+                    MonitoringExpr(FlowController("yt.flow.controller.streams.user_time_lag"))
+                        .all("user_timestamp_id")
+                        .alias("{{stream_id}} - {{user_timestamp_id}}"),
+                    MonitoringExpr(FlowController("yt.flow.controller.streams.event_time_lag"))
+                        .alias("{{stream_id}}"),
+                )
                     .unit("UNIT_SECONDS")
                     .precision(1))
         .row()
@@ -155,9 +159,9 @@ def build_computations():
                 "Registered generated messages bytes rate",
                 MultiSensor(
                     MonitoringExpr(FlowWorker("yt.flow.worker.computation.output_streams.registered_bytes.rate"))
-                        .alias("{{computation_id}}/{{stream_id}} - output"),
+                        .alias("output - {{computation_id}}/{{stream_id}}"),
                     MonitoringExpr(FlowWorker("yt.flow.worker.computation.timer_streams.registered_bytes.rate"))
-                        .alias("{{computation_id}}/{{stream_id}} - timer")
+                        .alias("timer - {{computation_id}}/{{stream_id}}")
                 )
                     .unit("UNIT_BYTES_SI_PER_SECOND"))
     )
