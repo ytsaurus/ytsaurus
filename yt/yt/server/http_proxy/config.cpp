@@ -160,6 +160,9 @@ void TApiDynamicConfig::Register(TRegistrar registrar)
         .Optional();
     registrar.Parameter("user_to_memory_limit_ratio", &TThis::UserToMemoryLimitRatio)
         .Default();
+
+    registrar.Parameter("use_compression_thread_pool", &TThis::UseCompressionThreadPool)
+        .Default(true);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
