@@ -67,7 +67,7 @@ public:
     void RegisterAggregate(
         const std::string& aggregateName,
         std::unordered_map<TTypeParameter, TUnionType> typeParameterConstraints,
-        TType argumentType,
+        std::vector<TType> argumentTypes,
         TType resultType,
         TType stateType,
         TStringBuf /*implementationFile*/,
@@ -76,7 +76,7 @@ public:
     {
         TypeInferrers_->emplace(aggregateName, New<TAggregateFunctionTypeInferrer>(
             typeParameterConstraints,
-            argumentType,
+            std::move(argumentTypes),
             stateType,
             resultType));
     }

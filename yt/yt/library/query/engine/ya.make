@@ -79,6 +79,16 @@ LLVM_BC(
 )
 
 LLVM_BC(
+    udf/array_agg.cpp
+    NAME array_agg
+    SYMBOLS
+        array_agg_init
+        array_agg_update
+        array_agg_merge
+        array_agg_finalize
+)
+
+LLVM_BC(
     udf/farm_hash.cpp
     NAME farm_hash
     SYMBOLS

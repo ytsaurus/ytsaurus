@@ -3428,6 +3428,69 @@ TEST_F(TQueryEvaluateTest, GroupByWithAvgFullCoordinated)
     }
 }
 
+TEST_F(TQueryEvaluateTest, GroupByArrayAgg)
+{
+    auto split = MakeSplit({
+        {"k", EValueType::Int64, ESortOrder::Ascending},
+        {"v", EValueType::String},
+        {"v_any", EValueType::Any},
+        {"ignore_null", EValueType::Boolean}
+    });
+
+    auto sources = std::vector<TSource>{
+        {
+            "k=1;v=\"Anna\"; ignore_null=%true",
+            "k=2;v=\"Kiti\"",
+            "k=3;v=\"Lydia\"",
+            "k=4;v_any=[1;2;3]",
+            "k=5; ignore_null=%true",
+        },
+        {
+            "k=6;v=\"Vronsky\";v_any=6",
+            "k=7;v=\"Levin\";v_any={x=1;y=2;}",
+            "k=8;v=\"Karenin\"; ignore_null=%true",
+            "k=9; ignore_null=%false",
+        },
+    };
+
+    // TODO(dtorilov): Compile WASM.
+    EvaluateCoordinatedGroupByImpl(
+        "any_to_yson_string(array_agg(v, ignore_null)) as av, "
+        "any_to_yson_string(array_agg(k, true)) as ak ,"
+        "any_to_yson_string(array_agg(v_any, true)) as av_any "
+        "FROM [//t] group by 0",
+        split,
+        sources,
+        [] (TRange<TUnversionedRow> rows, const TTableSchema& /* schema */) {
+            ASSERT_EQ(rows.size(), 1ull);
+
+            ASSERT_EQ(rows[0].GetCount(), 3u);
+
+            ASSERT_EQ(rows[0][0].Type, EValueType::String);
+            ASSERT_EQ(rows[0][1].Type, EValueType::String);
+
+            auto av = rows[0][0].AsStringBuf();
+            EXPECT_TRUE(av.Contains("Anna"));
+            EXPECT_TRUE(av.Contains("Kiti"));
+            EXPECT_TRUE(av.Contains("Lydia"));
+            EXPECT_TRUE(av.Contains("Vronsky"));
+            EXPECT_TRUE(av.Contains("Levin"));
+            EXPECT_TRUE(av.Contains("Karenin"));
+            EXPECT_TRUE(av.Contains("#"));
+
+            auto ak = rows[0][1].AsStringBuf();
+            for (int key = 1; key <= 9; ++key) {
+                EXPECT_TRUE(ak.Contains(ToString(key)));
+            }
+
+            auto av_any = rows[0][2].AsStringBuf();
+            EXPECT_TRUE(av_any.Contains("[1;2;3;]"));
+            EXPECT_TRUE(av_any.Contains("6"));
+            EXPECT_TRUE(av_any.Contains("{\"x\"=1;\"y\"=2;}"));
+        },
+        EExecutionBackend::Native);
+}
+
 TEST_F(TQueryEvaluateTest, GroupByOrderByCoordinated1)
 {
     auto split = MakeSplit({

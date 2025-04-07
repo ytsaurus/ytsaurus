@@ -3378,6 +3378,77 @@ void DictSumIteration(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void ArrayAggFinalize(TExpressionContext* context, TUnversionedValue* result, TUnversionedValue* state)
+{
+    auto* resultAtHost = ConvertPointerFromWasmToHost(result);
+    auto* stateAtHost = ConvertPointerFromWasmToHost(state);
+
+    TString resultYson;
+    TStringOutput output(resultYson);
+    NYson::TYsonWriter writer(&output);
+
+    writer.OnBeginList();
+
+    const auto* start = ConvertPointerFromWasmToHost(stateAtHost->Data.String);
+    const auto* end = start + *reinterpret_cast<const i64*>(stateAtHost->Data.String);
+    const auto* cursor = start + sizeof(i64);
+
+    while (cursor < end) {
+        writer.OnListItem();
+
+        auto type = *reinterpret_cast<const EValueType*>(cursor);
+        cursor += sizeof(EValueType);
+
+        if (type == EValueType::Null) {
+            writer.OnEntity();
+            continue;
+        }
+
+        auto data = *reinterpret_cast<const TUnversionedValueData*>(cursor);
+        cursor += sizeof(TUnversionedValueData);
+
+        switch (type) {
+            case EValueType::Int64:
+                writer.OnInt64Scalar(data.Int64);
+                break;
+
+            case EValueType::Boolean:
+                writer.OnBooleanScalar(data.Boolean);
+                break;
+
+            case EValueType::Uint64:
+                writer.OnUint64Scalar(data.Uint64);
+                break;
+
+            case EValueType::Double:
+                writer.OnDoubleScalar(data.Double);
+                break;
+
+            case EValueType::String:
+                writer.OnStringScalar({cursor, data.Uint64});
+                cursor+=data.Uint64;
+                break;
+
+            case EValueType::Any:
+            case EValueType::Composite:
+                writer.OnRaw({cursor, data.Uint64});
+                cursor+=data.Uint64;
+                break;
+
+            default:
+                THROW_ERROR_EXCEPTION("Unsupported element type %Qlv", type);
+        }
+    }
+
+    YT_VERIFY(cursor == end);
+
+    writer.OnEndList();
+
+    *resultAtHost = context->GetRowBuffer()->CaptureValue(MakeUnversionedAnyValue(resultYson));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 // TODO(dtorilov): Add unit-test.
 void HasPermissions(
     TExpressionContext* /*context*/,
@@ -3803,6 +3874,8 @@ void* _ZNK3NYT12NQueryClient16TFunctionContext14GetPrivateDataEv(TFunctionContex
     return context->GetPrivateData();
 }
 
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NRoutines
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -3964,6 +4037,7 @@ REGISTER_TIME_ROUTINE(TimestampFloorMonth);
 REGISTER_TIME_ROUTINE(TimestampFloorQuarter);
 REGISTER_TIME_ROUTINE(TimestampFloorYear);
 REGISTER_ROUTINE(FormatTimestamp);
+REGISTER_ROUTINE(ArrayAggFinalize);
 
 REGISTER_ROUTINE(memcmp);
 REGISTER_ROUTINE(gmtime_r);
