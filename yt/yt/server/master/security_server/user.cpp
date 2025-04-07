@@ -389,17 +389,19 @@ void TUser::InitializeCounters()
 {
     auto profiler = SecurityProfiler()
         .WithSparse()
-        .WithTag("user", Name_);
+        .WithTag("user", Name_)
+        .WithTag("cell_tag", ToString(NObjectServer::GetBootstrap()->GetCellTag()));
+    auto globalProfiler = profiler.WithGlobal();
 
     ReadTimeCounter_ = profiler.TimeCounter("/user_read_time");
     WriteTimeCounter_ = profiler.TimeCounter("/user_write_time");
     ReadRequestCounter_ = profiler.Counter("/user_read_request_count");
-    ReadRequestRateLimitGauge_ = profiler.Gauge("/user_read_request_rate_limit");
+    ReadRequestRateLimitGauge_ = globalProfiler.Gauge("/user_read_request_rate_limit");
     WriteRequestCounter_ = profiler.Counter("/user_write_request_count");
-    WriteRequestRateLimitGauge_ = profiler.Gauge("/user_write_request_rate_limit");
+    WriteRequestRateLimitGauge_ = globalProfiler.Gauge("/user_write_request_rate_limit");
     RequestCounter_ = profiler.Counter("/user_request_count");
     RequestQueueSizeSummary_ = profiler.Summary("/user_request_queue_size");
-    RequestQueueSizeLimitGauge_ = profiler.Gauge("/user_request_queue_size_limit");
+    RequestQueueSizeLimitGauge_ = globalProfiler.Gauge("/user_request_queue_size_limit");
 }
 
 void TUser::SetHashedPassword(std::optional<std::string> hashedPassword)
@@ -422,9 +424,11 @@ void TUser::Charge(const TUserWorkload& workload)
     statistics.RequestCount += workload.RequestCount;
     statistics.RequestTime += workload.RequestTime.MilliSeconds();
 
-    auto updateLimitGauge = [&] (const IReconfigurableThroughputThrottlerPtr& throttler, NProfiling::TGauge* gauge) {
-        if (auto limit = throttler->GetLimit()) {
-            gauge->Update(*limit);
+    auto cellTag = NObjectServer::GetBootstrap()->GetCellTag();
+
+    auto updateLimitGauge = [&] (const TUserRequestLimitsOptionsPtr& limitOptions, NProfiling::TGauge* gauge) {
+        if (auto optionalLimit = limitOptions->GetValue(cellTag)) {
+            gauge->Update(*optionalLimit);
         }
     };
 
@@ -432,12 +436,12 @@ void TUser::Charge(const TUserWorkload& workload)
     switch (workload.Type) {
         case EUserWorkloadType::Read:
             ReadRequestCounter_.Increment(workload.RequestCount);
-            updateLimitGauge(ReadRequestRateThrottler_, &ReadRequestRateLimitGauge_);
+            updateLimitGauge(ObjectServiceRequestLimits_->ReadRequestRateLimits, &ReadRequestRateLimitGauge_);
             ReadTimeCounter_.Add(workload.RequestTime);
             break;
         case EUserWorkloadType::Write:
             WriteRequestCounter_.Increment(workload.RequestCount);
-            updateLimitGauge(WriteRequestRateThrottler_, &WriteRequestRateLimitGauge_);
+            updateLimitGauge(ObjectServiceRequestLimits_->WriteRequestRateLimits, &WriteRequestRateLimitGauge_);
             WriteTimeCounter_.Add(workload.RequestTime);
             break;
         default:

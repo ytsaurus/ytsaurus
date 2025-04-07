@@ -336,6 +336,7 @@ void InitializeMasterStateThread(
     TEpochContextPtr epochContext,
     bool isAutomatonThread);
 void FinalizeMasterStateThread();
+NCellMaster::TBootstrap* GetBootstrap();
 
 void BeginEpoch();
 void EndEpoch();
