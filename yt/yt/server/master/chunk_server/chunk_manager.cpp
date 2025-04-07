@@ -3344,12 +3344,18 @@ private:
                     std::vector<TChunkReplicaWithLocation> RemovedReplicas;
                 };
 
+                THashSet<TChunkId> chunksWithMediumChange;
                 THashMap<TChunkId, TReplicaList> modifiedReplicas;
                 for (const auto& chunkInfo : request->added_chunks()) {
                     auto chunkIdWithIndex = DecodeChunkId(FromProto<TChunkId>(chunkInfo.chunk_id()));
                     auto chunkId = chunkIdWithIndex.Id;
 
                     if (deadChunkIds.contains(chunkId)) {
+                        continue;
+                    }
+
+                    if (chunkInfo.caused_by_medium_change()) {
+                        chunksWithMediumChange.insert(chunkId);
                         continue;
                     }
 
@@ -3375,6 +3381,11 @@ private:
 
                     auto location = locationDirectory[chunkInfo.location_index()];
                     auto locationUuid = location->GetUuid();
+
+                    if (chunkInfo.caused_by_medium_change()) {
+                        chunksWithMediumChange.insert(chunkId);
+                        continue;
+                    }
 
                     NRecords::TLocationReplicasKey locationReplicaKey{
                         .CellTag = Bootstrap_->GetCellTag(),
@@ -3409,6 +3420,13 @@ private:
                     auto chunkId = chunkIdWithIndex.Id;
 
                     if (!chunksWithReplicas.contains(chunkId) || deadChunkIds.contains(chunkId)) {
+                        continue;
+                    }
+
+                    // Just in case.
+                    if (chunkInfo.caused_by_medium_change()) {
+                        YT_LOG_ALERT("Chunk with medium change found pending replica removal (ChunkId: %v)",
+                            chunkId);
                         continue;
                     }
 
@@ -3471,6 +3489,17 @@ private:
                         transaction->DeleteRow(locationReplicaKey);
                     }
                     if (enableSequoiaChunkRefresh && enableChunkRefresh) {
+                        NRecords::TChunkRefreshQueue refreshQueueEntry{
+                            .TabletIndex = GetChunkShardIndex(chunkId),
+                            .ChunkId = chunkId,
+                            .ConfirmationTime = TInstant::Now(),
+                        };
+                        transaction->WriteRow(Bootstrap_->GetCellTag(), refreshQueueEntry);
+                    }
+                }
+
+                if (enableSequoiaChunkRefresh && enableChunkRefresh) {
+                    for (auto chunkId : chunksWithMediumChange) {
                         NRecords::TChunkRefreshQueue refreshQueueEntry{
                             .TabletIndex = GetChunkShardIndex(chunkId),
                             .ChunkId = chunkId,
