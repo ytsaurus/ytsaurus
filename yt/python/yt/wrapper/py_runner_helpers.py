@@ -285,13 +285,19 @@ def process_rows(operation_dump_filename, config_dump_filename, start_time):
             else:
                 yield row
 
+    # TODO: move key to config (with env var)
+    pickling_encryption_key = os.environ.get("YT_PICKLING_KEY", None)
+
     with open(config_dump_filename, "rb") as f_config_dump:
-        yt.wrapper.config.config = Unpickler(yt.wrapper.config.DEFAULT_PICKLING_FRAMEWORK).load(f_config_dump)
+        config_unpickler = Unpickler(yt.wrapper.config.DEFAULT_PICKLING_FRAMEWORK)
+        config_unpickler.enable_encryption(pickling_encryption_key)
+        yt.wrapper.config.config = config_unpickler.load(f_config_dump)
 
     yt.wrapper.py_runner_helpers.check_job_environment_variables()
 
     unpickler_name = yt.wrapper.config.config["pickling"]["framework"]
     unpickler = Unpickler(unpickler_name)
+    unpickler.enable_encryption(pickling_encryption_key)
     if unpickler_name == "dill" and yt.wrapper.config.config["pickling"]["load_additional_dill_types"]:
         unpickler.load_types()
 

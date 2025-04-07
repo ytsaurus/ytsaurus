@@ -38,7 +38,7 @@ def iter_by_chunks(iterable, count):
 
 
 def _to_chunk_stream(stream, format, raw, split_rows, chunk_size, rows_chunk_size):
-    # type: (str | bytes | "filelike" |  typing.Iterable, Format, bool, bool, int, int) -> ItemStream
+    # type: (str | bytes | typing.TextIO | typing.Iterable, Format, bool, bool, int, int) -> ItemStream
     #
     # `raw`: read filelike or str|bytes input and produce:
     #   `split_rows` - parse raw input by Format and produce raw splitted by one recod (ignore `chunk_size`, `rows_chunk_size`)

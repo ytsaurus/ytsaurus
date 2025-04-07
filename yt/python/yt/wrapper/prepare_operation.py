@@ -289,6 +289,7 @@ class SimpleOperationPreparationContext(OperationPreparationContext):
         self._client = client
         self._input_schemas = None
         self._output_schemas = None
+        self._pickling_encryption_key = None
 
     def get_input_count(self):
         return len(self._input_paths)
@@ -323,6 +324,7 @@ class IntermediateOperationPreparationContext(OperationPreparationContext):
         self._output_paths = output_paths
         self._client = client
         self._output_schemas = None
+        self._pickling_encryption_key = None
 
     def get_input_count(self):
         return len(self._input_schemas)

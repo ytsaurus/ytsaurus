@@ -2356,3 +2356,29 @@ print(op.id)
                                         env=self.env, stderr=sys.stderr).strip()
         spec = str(yt.get_operation(op_id)["spec"])
         assert "AQAD" not in spec
+
+    @authors("denvr")
+    def test_pickle_encrypt(self):
+        table = TEST_DIR + "/table"
+        other_table = TEST_DIR + "/other_table"
+        yt.write_table(table, [{"x": i} for i in range(10)])
+
+        def simple_mapper(row):
+            yield row
+
+        with set_config_option("clear_local_temp_files", False):
+            with set_config_option("pickling/encrypt_pickle_files", False):
+                op = yt.run_map(simple_mapper, table, other_table)
+            op_attributes = yt.get_operation(operation_id=op.id)
+            config_file = list(filter(lambda f: f.endswith("config_dump"), op_attributes["spec"]["mapper"]["command"].split(" ")))[0]
+            with open(config_file, "rb") as fh:
+                config_file = fh.read()
+            assert config_file[:3] != b'ENC'
+
+            with set_config_option("pickling/encrypt_pickle_files", True):
+                op = yt.run_map(simple_mapper, table, other_table)
+            op_attributes = yt.get_operation(operation_id=op.id)
+            config_file = list(filter(lambda f: f.endswith("config_dump"), op_attributes["spec"]["mapper"]["command"].split(" ")))[0]
+            with open(config_file, "rb") as fh:
+                config_file = fh.read()
+            assert config_file[:3] == b'ENC'

@@ -32,6 +32,7 @@ import yt.logger as logger
 import functools
 import os
 import shutil
+import typing
 from copy import deepcopy
 
 
@@ -539,8 +540,21 @@ class UserJobSpecBuilder(object):
         builder_func(self)
         return spec_builder
 
-    def _prepare_job_files(self, spec, group_by, should_process_key_switch, operation_type, local_files_to_remove,
-                           uploaded_files, input_format, output_format, input_tables, output_tables, client):
+    def _prepare_job_files(
+        self,
+        spec,
+        group_by,
+        should_process_key_switch,
+        operation_type,
+        local_files_to_remove,
+        uploaded_files,
+        input_format,
+        output_format,
+        input_tables,
+        output_tables,
+        operation_preparation_context,
+        client,
+    ) -> typing.Tuple[typing.Dict, int, typing.List[str]]:
         file_manager = FileManager(client=client)
         files = []
         for file in flatten(spec.get("file_paths", [])):
@@ -563,6 +577,7 @@ class UserJobSpecBuilder(object):
             output_table_count=len(output_tables),
             use_yamr_descriptors=spec.get("use_yamr_descriptors", False),
             redirect_stdout_to_stderr=spec.get("redirect_stdout_to_stderr", False),
+            pickling_encryption_key=operation_preparation_context._pickling_encryption_key,
         )
 
         is_cpp_job = _is_cpp_job(spec["command"])
@@ -603,6 +618,7 @@ class UserJobSpecBuilder(object):
         if _is_python_function(spec["command"]) or is_cpp_job:
             local_mode = is_local_mode(client)
             remove_temp_files = get_config(client)["clear_local_temp_files"] and not local_mode
+
             with TempfilesManager(remove_temp_files, get_local_temp_directory(client)) as tempfiles_manager:
                 prepare_result = _prepare_python_command(
                     spec["command"],
@@ -629,6 +645,8 @@ class UserJobSpecBuilder(object):
         environment = prepare_result.environment
         binary = prepare_result.cmd
         title = prepare_result.title
+
+        operation_preparation_context._pickling_encryption_key = prepare_result.pickling_encryption_key
 
         if local_files_to_remove is not None:
             local_files_to_remove += prepare_result.local_files_to_remove
@@ -727,6 +745,7 @@ class UserJobSpecBuilder(object):
             if spec.get("tmpfs_size", tmpfs_size) > 0 and "tmpfs_path" not in spec:
                 spec["tmpfs_path"] = "tmpfs"
                 spec["tmpfs_size"] = spec.get("tmpfs_size", tmpfs_size)
+
         return spec
 
     def _apply_spec_patch(self, spec):
@@ -742,9 +761,19 @@ class UserJobSpecBuilder(object):
             job_io_spec["control_attributes"] = {}
         job_io_spec["control_attributes"][key] = value
 
-    def build(self, operation_preparation_context, operation_type, requires_command,
-              requires_format, job_io_spec, has_input_query,
-              local_files_to_remove=None, uploaded_files=None, group_by=None, client=None):
+    def build(
+        self,
+        operation_preparation_context: SimpleOperationPreparationContext,
+        operation_type,
+        requires_command,
+        requires_format,
+        job_io_spec,
+        has_input_query,
+        local_files_to_remove=None,
+        uploaded_files=None,
+        group_by=None,
+        client=None,
+    ) -> typing.Tuple[typing.Dict, typing.List[str], typing.List[str]]:
         """Builds final spec."""
         require(self._spec_builder is None, lambda: YtError("The job spec builder is incomplete"))
 
@@ -825,9 +854,16 @@ class UserJobSpecBuilder(object):
         spec = self._prepare_ld_library_path(spec, client)
         spec.setdefault("redirect_stdout_to_stderr",
                         get_config(client)["pickling"]["redirect_stdout_to_stderr"])
+
         spec, tmpfs_size, input_tables = self._prepare_job_files(
             spec, group_by, should_process_key_switch, operation_type, local_files_to_remove, uploaded_files,
-            input_format, output_format, input_tables, output_tables, client)
+            input_format, output_format, input_tables, output_tables, operation_preparation_context, client)
+
+        if operation_preparation_context._pickling_encryption_key:
+            if "environment" not in spec:
+                spec["environment"] = {}
+            spec["environment"]["YT_PICKLING_KEY"] = operation_preparation_context._pickling_encryption_key
+
         spec.setdefault("use_yamr_descriptors",
                         get_config(client)["yamr_mode"]["use_yamr_style_destination_fds"])
         spec.setdefault("check_input_fully_consumed",
@@ -837,6 +873,7 @@ class UserJobSpecBuilder(object):
         spec = BaseLayerDetector.guess_base_layers(spec, client)
         spec = update(spec, self._user_spec)
         spec = update(get_config(client)["user_job_spec_defaults"], spec)
+
         return spec, input_tables, output_tables
 
 
@@ -917,6 +954,8 @@ class SpecBuilder(object):
         self._user_spec = {}
 
         self._prepared_spec = None
+
+        self._pickling_encryption_key = None
 
     @spec_option("The name of the pool in which the operation will work")
     def pool(self, pool_name):
@@ -1061,9 +1100,15 @@ class SpecBuilder(object):
                 else:
                     spec[output_tables_param] = list(map(lambda table: table.to_yson_type(), self._output_table_paths))
 
-    def _prepare_tables(self, spec, single_output_table=False, replace_unexisting_by_empty=True, create_on_cluster=False, client=None):
-        require("input_table_paths" in spec,
-                lambda: YtError("You should specify input_table_paths"))
+    def _prepare_tables(
+        self,
+        spec,
+        single_output_table=False,
+        replace_unexisting_by_empty=True,
+        create_on_cluster=False,
+        client=None
+    ):
+        require("input_table_paths" in spec, lambda: YtError("You should specify input_table_paths"))
         input_tables = _prepare_source_tables(
             spec["input_table_paths"],
             replace_unexisting_by_empty=replace_unexisting_by_empty,
@@ -1074,8 +1119,23 @@ class SpecBuilder(object):
             output_tables = _prepare_destination_tables(spec[output_tables_param], create_on_cluster=create_on_cluster, client=client)
         self._set_tables(spec, input_tables, output_tables, single_output_table=single_output_table)
 
-    def _build_simple_user_job_spec(self, spec, job_type, job_io_type,
-                                    requires_command=True, requires_format=True, group_by=None, client=None):
+    def _build_simple_user_job_spec(
+        self,
+        spec,
+        job_type,
+        job_io_type,
+        requires_command=True,
+        requires_format=True,
+        group_by=None,
+        client=None
+    ):
+        operation_preparation_context = SimpleOperationPreparationContext(
+            self.get_input_table_paths(),
+            self.get_output_table_paths(),
+            client=client,
+        )
+        operation_preparation_context._pickling_encryption_key = "" if get_config(client)["pickling"]["encrypt_pickle_files"] else None
+
         spec, input_tables, output_tables = self._build_user_job_spec(
             spec,
             job_type=job_type,
@@ -1083,23 +1143,25 @@ class SpecBuilder(object):
             requires_command=requires_command,
             requires_format=requires_format,
             group_by=group_by,
+            operation_preparation_context=operation_preparation_context,
             client=client,
         )
         self._set_tables(spec, input_tables, output_tables)
         return spec
 
-    def _build_user_job_spec(self, spec, job_type, job_io_type,
-                             requires_command=True, requires_format=True, group_by=None,
-                             operation_preparation_context=None,
-                             client=None):
-        if operation_preparation_context is None:
-            operation_preparation_context = SimpleOperationPreparationContext(
-                self.get_input_table_paths(),
-                self.get_output_table_paths(),
-                client=client,
-            )
+    def _build_user_job_spec(
+        self,
+        spec,
+        job_type,
+        job_io_type,
+        requires_command=True,
+        requires_format=True,
+        group_by=None,
+        operation_preparation_context: SimpleOperationPreparationContext = None,
+        client=None,
+    ) -> typing.Tuple[typing.Dict, typing.List[str], typing.List[str]]:
         if isinstance(spec[job_type], UserJobSpecBuilder):
-            job_spec_builder = spec[job_type]
+            job_spec_builder: UserJobSpecBuilder = spec[job_type]
             spec[job_type], input_tables, output_tables = job_spec_builder.build(
                 operation_preparation_context=operation_preparation_context,
                 group_by=group_by,
@@ -1114,6 +1176,9 @@ class SpecBuilder(object):
             )
             if spec[job_type] is None:
                 del spec[job_type]
+
+            if operation_preparation_context._pickling_encryption_key:
+                self._set_pickling_encryption_key(spec, operation_preparation_context._pickling_encryption_key)
         else:
             input_tables = operation_preparation_context.get_input_paths()
             output_tables = operation_preparation_context.get_output_paths()
@@ -1209,6 +1274,19 @@ class SpecBuilder(object):
             spec = update({"data_size_per_job": 4 * GB}, spec)
 
         self._prepared_spec = spec
+
+    def _get_pickling_encryption_key(self, spec, client):
+        """Get global (spec scoup) pickling key"""
+        if self._pickling_encryption_key:
+            return self._pickling_encryption_key
+        elif get_config(client)["pickling"]["encrypt_pickle_files"]:
+            return ""
+        return None
+
+    def _set_pickling_encryption_key(self, spec, key):
+        """Set global (spec scoup) pickling key"""
+        self._pickling_encryption_key = key
+        # TODO: use vault here
 
     def get_input_table_paths(self):
         """Returns list of input paths."""
@@ -1758,6 +1836,7 @@ class MapReduceSpecBuilder(SpecBuilder):
             mapper_output_tables,
             client=client,
         )
+        operation_preparation_context._pickling_encryption_key = self._get_pickling_encryption_key(spec, client)
 
         spec, input_tables, mapper_output_tables = self._build_user_job_spec(
             spec,
@@ -1815,6 +1894,8 @@ class MapReduceSpecBuilder(SpecBuilder):
                 [None] * intermediate_stream_count,
                 client=client,
             )
+        operation_preparation_context._pickling_encryption_key = self._get_pickling_encryption_key(spec, client)
+
         spec, input_tables, _ = self._build_user_job_spec(
             spec,
             job_type="reduce_combiner",
@@ -1843,6 +1924,8 @@ class MapReduceSpecBuilder(SpecBuilder):
                 reducer_output_tables,
                 client=client,
             )
+        operation_preparation_context._pickling_encryption_key = self._get_pickling_encryption_key(spec, client)
+
         spec, input_tables, reducer_output_tables = self._build_user_job_spec(
             spec,
             job_type="reducer",
@@ -2252,6 +2335,13 @@ class VanillaSpecBuilder(SpecBuilder):
             self.prepare(client)
         spec = self._prepared_spec
 
+        operation_preparation_context = SimpleOperationPreparationContext(
+            self.get_input_table_paths(),
+            self.get_output_table_paths(),
+            client=client,
+        )
+        operation_preparation_context._pickling_encryption_key = self._get_pickling_encryption_key(spec, client)
+
         for task_path in self._user_job_scripts:
             assert len(task_path) == 2
             assert task_path[0] == "tasks"
@@ -2260,9 +2350,14 @@ class VanillaSpecBuilder(SpecBuilder):
                 spec=spec["tasks"],
                 job_type=task,
                 job_io_type=None,
+                operation_preparation_context=operation_preparation_context,
                 client=client,
                 requires_format=False,
             )
+
+        if "secure_vault" in spec["tasks"]:
+            spec["secure_vault"] = spec["tasks"]["secure_vault"]
+            del spec["tasks"]["secure_vault"]
 
         spec = self._apply_spec_defaults(spec, client=client)
         return spec
