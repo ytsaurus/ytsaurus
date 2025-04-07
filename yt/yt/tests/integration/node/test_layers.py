@@ -1340,8 +1340,18 @@ class TestNbdSquashFSLayers(YTEnvSetup):
         set("//tmp/squashfs.img/@filesystem", "squashfs")
 
     @authors("yuryalekseev")
-    def test_squashfs_layer(self):
-        self.setup_files()
+    @pytest.mark.parametrize("access_method", ["from_user_spec", "from_cypress"])
+    def test_squashfs_layer(self, access_method):
+        # Set up image file.
+        create("file", "//tmp/squashfs.img")
+        write_file("//tmp/squashfs.img", open("layers/squashfs.img", "rb").read())
+        set("//tmp/squashfs.img/@filesystem", "squashfs")
+
+        layer_paths = ["//tmp/squashfs.img"]
+        if access_method == "from_cypress":
+            set("//tmp/squashfs.img/@access_method", "nbd")
+        else:
+            layer_paths = ["<access_method=nbd>//tmp/squashfs.img"]
 
         create("table", "//tmp/t_in")
         create("table", "//tmp/t_out")
@@ -1355,7 +1365,7 @@ class TestNbdSquashFSLayers(YTEnvSetup):
             spec={
                 "max_failed_job_count": 1,
                 "mapper": {
-                    "layer_paths": ["//tmp/squashfs.img"],
+                    "layer_paths": layer_paths,
                 },
             },
         )
