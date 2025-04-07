@@ -6,6 +6,8 @@
 #include <yql/essentials/sql/v1/lexer/antlr4_pure/lexer.h>
 #include <yql/essentials/sql/v1/lexer/antlr4_pure_ansi/lexer.h>
 
+#include <yql/essentials/utils/utf8.h>
+
 #include <library/cpp/getopt/last_getopt.h>
 
 #include <util/charset/utf8.h>
@@ -69,7 +71,7 @@ int Run(int argc, char* argv[]) {
     NSQLComplete::TCompletionInput input;
 
     input.Text = queryString;
-    if (!IsUtf(input.Text)) {
+    if (!NYql::IsUtf8(input.Text)) {
         ythrow yexception() << "provided input is not UTF encoded";
     }
 
