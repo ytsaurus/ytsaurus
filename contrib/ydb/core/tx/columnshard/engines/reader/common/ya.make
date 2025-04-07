@@ -13,4 +13,6 @@ PEERDIR(
     contrib/ydb/core/formats/arrow/reader
 )
 
+GENERATE_ENUM_SERIALIZATION(description.h)
+
 END()
