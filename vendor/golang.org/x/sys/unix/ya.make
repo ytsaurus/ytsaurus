@@ -2,7 +2,7 @@ GO_LIBRARY()
 
 LICENSE(BSD-3-Clause)
 
-VERSION(v0.29.0)
+VERSION(v0.30.0)
 
 BUILD_ONLY_IF(
     WARNING
@@ -19,6 +19,7 @@ IF (OS_LINUX)
     SRCS(
         affinity_linux.go
         aliases.go
+        auxv.go
         bluetooth_linux.go
         constants.go
         dev_linux.go
@@ -56,6 +57,7 @@ IF (OS_LINUX)
     )
 
     GO_XTEST_SRCS(
+        auxv_linux_test.go
         creds_test.go
         dev_linux_test.go
         dirent_test.go
@@ -107,6 +109,7 @@ ENDIF()
 IF (OS_DARWIN)
     SRCS(
         aliases.go
+        auxv.go
         constants.go
         dev_darwin.go
         dirent.go
