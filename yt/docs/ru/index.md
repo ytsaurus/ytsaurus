@@ -43,7 +43,7 @@ h3 {
         <p>Хранение данных в {{product-name}}: дерево метаинформации Кипарис, основные объекты системы, ACL, статические таблицы, транзакции, форматы хранения.</p>
     </div>
     <div class="grid-item">
-        <h3><a lang="ru" href="quickstart">Как попробовать</a></h3>
+        <h3><a lang="ru" href={% if audience == "internal" %}"quickstart"{% else %}"overview/try-yt"{% endif %}>Как попробовать</a></h3>
         <p>Примеры базовых действий c {{product-name}} в CLI и веб-интерфейсе.</p>
     </div>
     <div class="grid-item">
