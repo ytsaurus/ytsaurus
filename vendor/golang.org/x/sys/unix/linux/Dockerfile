@@ -15,10 +15,10 @@ RUN apt-get update && apt-get install -y  --no-install-recommends \
 # Get the git sources. If not cached, this takes O(5 minutes).
 WORKDIR /git
 RUN git config --global advice.detachedHead false
-# Linux Kernel: Released 17 Nov 2024
-RUN git clone --branch v6.12 --depth 1 https://kernel.googlesource.com/pub/scm/linux/kernel/git/torvalds/linux
-# GNU C library: Released 21 July 2024
-RUN git clone --branch release/2.40/master --depth 1 https://sourceware.org/git/glibc.git
+# Linux Kernel: Released 20 Jan 2025
+RUN git clone --branch v6.13 --depth 1 https://kernel.googlesource.com/pub/scm/linux/kernel/git/torvalds/linux
+# GNU C library: Released 29 Jan 2025
+RUN git clone --branch release/2.41/master --depth 1 https://sourceware.org/git/glibc.git
 
 # Get Go
 ENV GOLANG_VERSION=1.23.0

@@ -41,6 +41,40 @@ func TestAVX512HasAVX2AndAVX(t *testing.T) {
 	}
 }
 
+func TestAVX512BF16HasAVX512(t *testing.T) {
+	if runtime.GOARCH == "amd64" {
+		if cpu.X86.HasAVX512BF16 && !cpu.X86.HasAVX512 {
+			t.Fatal("HasAVX512 expected true, got false")
+		}
+	}
+}
+
+func TestAVXVNNIHasAVX(t *testing.T) {
+	if cpu.X86.HasAVXVNNI && !cpu.X86.HasAVX {
+		t.Fatal("HasAVX expected true, got false")
+	}
+}
+
+func TestAVXIFMAHasAVXVNNIAndAVX(t *testing.T) {
+	if cpu.X86.HasAVXIFMA && !cpu.X86.HasAVX {
+		t.Fatal("HasAVX expected true, got false")
+	}
+
+	if cpu.X86.HasAVXIFMA && !cpu.X86.HasAVXVNNI {
+		t.Fatal("HasAVXVNNI expected true, got false")
+	}
+}
+
+func TestAVXVNNIInt8HasAVXVNNIAndAVX(t *testing.T) {
+	if cpu.X86.HasAVXVNNIInt8 && !cpu.X86.HasAVXVNNI {
+		t.Fatal("HasAVXVNNI expected true, got false")
+	}
+
+	if cpu.X86.HasAVXVNNIInt8 && !cpu.X86.HasAVX {
+		t.Fatal("HasAVX expected true, got false")
+	}
+}
+
 func TestARM64minimalFeatures(t *testing.T) {
 	if runtime.GOARCH != "arm64" || runtime.GOOS == "ios" {
 		return
