@@ -1440,6 +1440,10 @@ private:
             {
                 auto guard = Guard(SpinLock_);
 
+                if (!IsEnabled()) {
+                    return;
+                }
+
                 YT_VERIFY(Volumes_.erase(volumeId));
 
                 if (Volumes_.empty()) {
