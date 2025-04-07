@@ -414,7 +414,6 @@ Y_UNIT_TEST_SUITE(SqlCompleteTests) {
         UNIT_ASSERT_VALUES_EQUAL(Complete(engine, {"SELECT OPTIONAL<"}), expected);
     }
 
-<<<<<<< HEAD
     Y_UNIT_TEST(TypeNameAsArgument) {
         auto engine = MakeSqlCompletionEngineUT();
         {
@@ -431,9 +430,6 @@ Y_UNIT_TEST_SUITE(SqlCompleteTests) {
         }
     }
 
-    Y_UNIT_TEST(FunctioName) {
-        // TODO(YQL-19747): Check `SELECT DateTime::` completion.
-=======
     Y_UNIT_TEST(FunctionName) {
         auto engine = MakeSqlCompletionEngineUT();
         {
@@ -467,7 +463,6 @@ Y_UNIT_TEST_SUITE(SqlCompleteTests) {
             UNIT_ASSERT_VALUES_EQUAL(completion.Candidates, expected);
             UNIT_ASSERT_VALUES_EQUAL(completion.CompletedToken.Content, "s");
         }
->>>>>>> 7237d79f4a9 (YQL-19747 Fix namespaced function completion)
     }
 
     Y_UNIT_TEST(UTF8Wide) {
