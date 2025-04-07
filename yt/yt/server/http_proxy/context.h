@@ -134,6 +134,8 @@ private:
 
     void ProcessDelayBeforeCommandTestingOption();
     void AllocateTestData(const NTracing::TTraceContextPtr& traceContext);
+
+    IInvokerPtr GetCompressionInvoker() const;
 };
 
 DEFINE_REFCOUNTED_TYPE(TContext)

@@ -643,10 +643,10 @@ void TContext::SetupInputStream()
             CreateDecompressingAdapter(
                 std::move(profilingRequest),
                 *InputContentEncoding_,
-                // TODO(babenko): consider using compression pool
-                Api_->GetPoller()->GetInvoker()),
+                GetCompressionInvoker()),
             /*blockSize*/ 1_MB);
     }
+
 }
 
 void TContext::SetupOutputStream()
@@ -671,8 +671,7 @@ void TContext::SetupOutputStream()
         DriverRequest_.OutputStream = CreateCompressingAdapter(
             DriverRequest_.OutputStream,
             *OutputContentEncoding_,
-            // TODO(babenko): consider using compression pool
-            Api_->GetPoller()->GetInvoker());
+            GetCompressionInvoker());
     }
 
     if (IsFramingEnabled_) {
@@ -1157,6 +1156,20 @@ void TContext::AllocateTestData(const TTraceContextPtr& traceContext)
             size,
             delay);
     }
+}
+
+IInvokerPtr TContext::GetCompressionInvoker() const
+{
+    auto workloadDescriptor = TWorkloadDescriptor(
+        /*category*/ EWorkloadCategory::UserInteractive,
+        /*band*/ 0,
+        /*instant*/ {},
+        /*annotations*/ {},
+        /*compressionFairShareTag*/ DriverRequest_.AuthenticatedUser);
+
+    return Api_->GetDynamicConfig()->UseCompressionThreadPool
+        ? NYT::GetCompressionInvoker(workloadDescriptor)
+        : Api_->GetPoller()->GetInvoker();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
