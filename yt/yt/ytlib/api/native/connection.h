@@ -26,6 +26,8 @@
 
 #include <yt/yt/ytlib/hive/public.h>
 
+#include <yt/yt/ytlib/yql_client/public.h>
+
 #include <yt/yt/library/auth_server/public.h>
 
 #include <yt/yt/client/cell_master_client/public.h>
@@ -122,7 +124,7 @@ struct IConnection
     virtual NRpc::IChannelPtr FindQueueAgentChannel(TStringBuf stage) const = 0;
     virtual const NQueueClient::TQueueConsumerRegistrationManagerPtr& GetQueueConsumerRegistrationManager() const = 0;
 
-    virtual NRpc::IRoamingChannelProviderPtr GetYqlAgentChannelProviderOrThrow(const TString& stage) const = 0;
+    virtual std::pair<NRpc::IRoamingChannelProviderPtr, NYqlClient::TYqlAgentChannelConfigPtr> GetYqlAgentChannelProviderOrThrow(const TString& stage) const = 0;
 
     virtual const NTabletClient::ITableMountCachePtr& GetTableMountCache() = 0;
     virtual const NChaosClient::IReplicationCardCachePtr& GetReplicationCardCache() = 0;

@@ -205,7 +205,7 @@ public:
         YT_UNIMPLEMENTED();
     }
 
-    NRpc::IRoamingChannelProviderPtr GetYqlAgentChannelProviderOrThrow(const TString& /*stage*/) const override
+    std::pair<NRpc::IRoamingChannelProviderPtr, NYqlClient::TYqlAgentChannelConfigPtr> GetYqlAgentChannelProviderOrThrow(const TString& /*stage*/) const override
     {
         YT_UNIMPLEMENTED();
     }

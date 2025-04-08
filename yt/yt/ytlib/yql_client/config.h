@@ -14,6 +14,9 @@ struct TYqlAgentChannelConfig
     : public NRpc::TBalancingChannelConfig
     , public NRpc::TRetryingChannelConfig
 {
+    //! Default timeout for progress request.
+    TDuration DefaultProgressRequestTimeout;
+
     REGISTER_YSON_STRUCT(TYqlAgentChannelConfig);
 
     static void Register(TRegistrar registrar);

@@ -637,7 +637,7 @@ public:
         return QueueConsumerRegistrationManager_;
     }
 
-    IRoamingChannelProviderPtr GetYqlAgentChannelProviderOrThrow(const TString& stage) const override
+    std::pair<IRoamingChannelProviderPtr, TYqlAgentChannelConfigPtr> GetYqlAgentChannelProviderOrThrow(const TString& stage) const override
     {
         auto clusterConnection = MakeStrong(this);
         auto clusterStage = stage;
@@ -650,7 +650,7 @@ public:
         auto config = clusterConnection->Config_.Acquire();
         const auto& stages = config->YqlAgent->Stages;
         if (auto iter = stages.find(clusterStage); iter != stages.end()) {
-            return CreateYqlAgentChannelProvider(iter->second->Channel);
+            return { CreateYqlAgentChannelProvider(iter->second->Channel), iter->second->Channel };
         } else {
             THROW_ERROR_EXCEPTION("YQL agent stage %Qv is not found in cluster directory", stage);
         }
