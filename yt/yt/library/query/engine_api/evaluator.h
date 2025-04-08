@@ -1,6 +1,7 @@
 #pragma once
 
 #include "builtin_function_profiler.h"
+#include "join_profiler.h"
 #include "public.h"
 
 #include <yt/yt/library/query/base/callbacks.h>
@@ -18,7 +19,7 @@ struct IEvaluator
         const TConstBaseQueryPtr& query,
         const ISchemafulUnversionedReaderPtr& reader,
         const IUnversionedRowsetWriterPtr& writer,
-        const TJoinSubqueryProfiler& joinProfiler,
+        const IJoinSubqueryProfilerPtr& joinProfiler,
         const TConstFunctionProfilerMapPtr& functionProfilers,
         const TConstAggregateProfilerMapPtr& aggregateProfilers,
         const IMemoryChunkProviderPtr& memoryChunkProvider,

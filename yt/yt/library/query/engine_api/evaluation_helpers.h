@@ -2,8 +2,7 @@
 
 #include "expression_context.h"
 #include "position_independent_value.h"
-
-#include "public.h"
+#include "join_profiler.h"
 
 #include <yt/yt/library/web_assembly/api/data_transfer.h>
 #include <yt/yt/library/web_assembly/api/function.h>
@@ -18,10 +17,6 @@
 #include <yt/yt/client/table_client/unversioned_row.h>
 
 #include <library/cpp/yt/memory/chunked_memory_pool.h>
-
-#include <deque>
-#include <unordered_map>
-#include <unordered_set>
 
 #include <sparsehash/dense_hash_set>
 #include <sparsehash/dense_hash_map>
@@ -145,7 +140,7 @@ struct TSingleJoinParameters
     bool IsLeft;
     bool IsPartiallySorted;
     std::vector<size_t> ForeignColumns;
-    TJoinSubqueryEvaluator ExecuteForeign;
+    IJoinRowsProducerPtr JoinRowsProducer;
 };
 
 struct TMultiJoinParameters
@@ -409,13 +404,6 @@ private:
     TCGAggregateCallbacks Callbacks_;
     std::unique_ptr<NWebAssembly::IWebAssemblyCompartment> Compartment_;
 };
-
-////////////////////////////////////////////////////////////////////////////////
-
-std::pair<TQueryPtr, TDataSource> GetForeignQuery(
-    std::vector<TRow> keys,
-    TRowBufferPtr buffer,
-    const TJoinClause& joinClause);
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -1229,7 +1229,7 @@ public:
         TCodegenSource* codegenSource,
         const TConstQueryPtr& query,
         size_t* slotCount,
-        TJoinSubqueryProfiler joinProfiler);
+        IJoinSubqueryProfilerPtr joinProfiler);
 
     void Profile(
         TCodegenSource* codegenSource,
@@ -2067,7 +2067,7 @@ void TQueryProfiler::Profile(
     TCodegenSource* codegenSource,
     const TConstQueryPtr& query,
     size_t* slotCount,
-    TJoinSubqueryProfiler joinProfiler)
+    IJoinSubqueryProfilerPtr joinProfiler)
 {
     Fold(ExecutionBackend_);
     Fold(EFoldingObjectType::ScanOp);
@@ -2250,7 +2250,7 @@ void TQueryProfiler::Profile(
                 .IsLeft = joinClause->IsLeft,
                 .IsPartiallySorted = joinClause->ForeignKeyPrefix < singleJoinParameters.KeySize,
                 .ForeignColumns = joinClause->GetForeignColumnIndices(),
-                .ExecuteForeign = joinProfiler(joinIndex),
+                .JoinRowsProducer = joinProfiler->Profile(joinIndex),
             };
 
             joinParameters.Items.push_back(std::move(singleJoinParameters));
@@ -2408,7 +2408,7 @@ TCGQueryGenerator Profile(
     const TConstBaseQueryPtr& query,
     llvm::FoldingSetNodeID* id,
     TCGVariables* variables,
-    TJoinSubqueryProfiler joinProfiler,
+    IJoinSubqueryProfilerPtr joinProfiler,
     bool useCanonicalNullRelations,
     EExecutionBackend executionBackend,
     const TConstFunctionProfilerMapPtr& functionProfilers,
@@ -2428,7 +2428,7 @@ TCGQueryGenerator Profile(
     TCodegenSource codegenSource = &CodegenEmptyOp;
 
     if (auto derivedQuery = dynamic_cast<const TQuery*>(query.Get())) {
-        profiler.Profile(&codegenSource, derivedQuery, &slotCount, joinProfiler);
+        profiler.Profile(&codegenSource, derivedQuery, &slotCount, std::move(joinProfiler));
     } else if (auto derivedQuery = dynamic_cast<const TFrontQuery*>(query.Get())) {
         profiler.Profile(&codegenSource, derivedQuery, &slotCount);
     } else {

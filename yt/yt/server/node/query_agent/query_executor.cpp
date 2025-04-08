@@ -1,6 +1,5 @@
 #include "query_executor.h"
 #include "config.h"
-#include "helpers.h"
 
 #include <yt/yt/server/node/cluster_node/config.h>
 
@@ -66,6 +65,7 @@
 
 #include <yt/yt/library/query/base/helpers.h>
 #include <yt/yt/library/query/base/query.h>
+#include <yt/yt/library/query/base/query_common.h>
 #include <yt/yt/library/query/base/query_helpers.h>
 #include <yt/yt/library/query/base/coordination_helpers.h>
 #include <yt/yt/library/query/base/private.h>
@@ -77,6 +77,7 @@
 #include <yt/yt/core/concurrency/scheduler.h>
 
 #include <yt/yt/core/misc/collection_helpers.h>
+#include <yt/yt/core/misc/mpsc_queue.h>
 #include <yt/yt/core/misc/range_formatters.h>
 #include <yt/yt/core/misc/tls_cache.h>
 
@@ -362,86 +363,6 @@ private:
     {
         return MultipleTables_ || Map_.empty() ? nullptr : Map_.begin()->second;
     }
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TRowsetSubrangeReader
-    : public ISchemafulUnversionedReader
-{
-public:
-    TRowsetSubrangeReader(
-        TFuture<TSharedRange<TUnversionedRow>> asyncRows,
-        std::optional<std::pair<TKeyBoundRef, TKeyBoundRef>> readRange)
-        : AsyncRows_(std::move(asyncRows))
-        , ReadRange_(std::move(readRange))
-    { }
-
-    IUnversionedRowBatchPtr Read(const TRowBatchReadOptions& options) override
-    {
-        if (!ReadRange_) {
-            return nullptr;
-        }
-        auto readRange = *ReadRange_;
-
-        if (!AsyncRows_.IsSet() || !AsyncRows_.Get().IsOK()) {
-            return CreateEmptyUnversionedRowBatch();
-        }
-
-        const auto& rows = AsyncRows_.Get().Value();
-
-        CurrentRowIndex_ = BinarySearch(CurrentRowIndex_, std::ssize(rows), [&] (i64 index) {
-            return !TestKeyWithWidening(
-                ToKeyRef(rows[index]),
-                readRange.first);
-        });
-
-        auto startIndex = CurrentRowIndex_;
-
-        CurrentRowIndex_ = std::min(CurrentRowIndex_ + options.MaxRowsPerRead, std::ssize(rows));
-
-        CurrentRowIndex_ = BinarySearch(startIndex, CurrentRowIndex_, [&] (i64 index) {
-            return TestKeyWithWidening(
-                ToKeyRef(rows[index]),
-                readRange.second);
-        });
-
-        if (startIndex == CurrentRowIndex_) {
-            return nullptr;
-        }
-
-        return CreateBatchFromUnversionedRows(MakeSharedRange(rows.Slice(startIndex, CurrentRowIndex_), rows));
-    }
-
-    TFuture<void> GetReadyEvent() const override
-    {
-        return AsyncRows_.AsVoid();
-    }
-
-    NChunkClient::NProto::TDataStatistics GetDataStatistics() const override
-    {
-        return NChunkClient::NProto::TDataStatistics();
-    }
-
-    NChunkClient::TCodecStatistics GetDecompressionStatistics() const override
-    {
-        return NChunkClient::TCodecStatistics();
-    }
-
-    bool IsFetchingCompleted() const override
-    {
-        return false;
-    }
-
-    std::vector<NChunkClient::TChunkId> GetFailedChunkIds() const override
-    {
-        return {};
-    }
-
-private:
-    TFuture<TSharedRange<TUnversionedRow>> AsyncRows_;
-    i64 CurrentRowIndex_ = 0;
-    std::optional<std::pair<TKeyBoundRef, TKeyBoundRef>> ReadRange_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -782,146 +703,48 @@ private:
 
                 auto dataSplits = groupedDataSplits[subqueryIndex++];
 
-                auto asyncSubqueryResults = std::make_shared<std::vector<TFuture<TQueryStatistics>>>();
+                // MPSC stack is an overkill in the current implementation but sequaciousness of join subqueries
+                // is not specified anywhere and they might get parrallelized later in the future.
+                auto subqueryResults = New<TMpscStack<TQueryStatistics>>();
 
                 // Copy query to generate new id.
                 auto bottomQuery = New<TQuery>(*bottomQueryPattern);
 
-                bool orderedExecution = bottomQuery->IsOrdered(QueryOptions_.AllowUnorderedGroupByWithLimit);
-
-                auto foreignProfileCallback = [
-                    asyncSubqueryResults,
-                    remoteExecutor,
-                    dataSplits,
-                    orderedExecution,
-                    minKeyWidth,
+                auto executeForeign = [
+                    options = GetJoinSubqueryOptions(QueryOptions_),
                     this,
-                    this_ = MakeStrong(this)
-                ] (int joinIndex) -> TJoinSubqueryEvaluator {
-                    auto joinClause = Query_->JoinClauses[joinIndex];
-
-                    auto remoteOptions = QueryOptions_;
-                    remoteOptions.MaxSubqueries = 1;
-                    remoteOptions.MergeVersionedRows = true;
-
-                    auto remoteFeatureFlags = RequestFeatureFlags_;
-
-                    auto definedKeyColumns = Query_->GetRenamedSchema()->Columns();
-                    definedKeyColumns.resize(minKeyWidth);
-
-                    auto lhsTableWhereClause = SplitPredicateByColumnSubset(Query_->WhereClause, *Query_->GetRenamedSchema()).first;
-                    bool lhsQueryCanBeSelective = SplitPredicateByColumnSubset(lhsTableWhereClause, TTableSchema(definedKeyColumns))
-                        .second->As<TLiteralExpression>() == nullptr;
-                    bool inferredRangesCompletelyDefineRhsRanges = joinClause->CommonKeyPrefix >= minKeyWidth && minKeyWidth > 0;
-                    bool canUseMergeJoin = inferredRangesCompletelyDefineRhsRanges && !orderedExecution && !lhsQueryCanBeSelective;
-
-                    YT_LOG_DEBUG("Profiling query (CommonKeyPrefix: %v, MinKeyWidth: %v, LhsQueryCanBeSelective: %v)",
-                        joinClause->CommonKeyPrefix,
-                        minKeyWidth,
-                        lhsQueryCanBeSelective);
-
-                    if (canUseMergeJoin) {
-                        auto dataSource = GetPrefixReadItems(dataSplits, joinClause->CommonKeyPrefix);
-                        dataSource.ObjectId = joinClause->ForeignObjectId;
-                        dataSource.CellId = joinClause->ForeignCellId;
-                        auto joinSubquery = joinClause->GetJoinSubquery();
-
-                        joinSubquery->InferRanges = false;
-
-                        // COMPAT(lukyan): Use ordered read without modification of protocol
-                        joinSubquery->Limit = OrderedReadWithPrefetchHint;
-
-                        YT_LOG_DEBUG("Evaluating remote subquery (SubqueryId: %v)", joinSubquery->Id);
-
-                        auto writer = New<TSimpleRowsetWriter>(MemoryChunkProvider_);
-
-                        auto asyncResult = BIND(
-                            &IExecutor::Execute,
-                            remoteExecutor,
-                            TPlanFragment{
-                                .Query = std::move(joinSubquery),
-                                .DataSource = std::move(dataSource),
-                            },
-                            ExternalCGInfo_,
-                            writer,
-                            remoteOptions,
-                            remoteFeatureFlags)
-                            .AsyncVia(Invoker_)
-                            .Run();
-
-                        asyncResult.Subscribe(BIND([writer] (const TErrorOr<TQueryStatistics>& error) {
-                            if (!error.IsOK()) {
-                                writer->Fail(error);
-                            }
-                        }));
-
-                        asyncSubqueryResults->push_back(asyncResult);
-
-                        auto asyncRows = writer->GetResult();
-
-                        return [
-                            asyncRows,
-                            foreignKeyPrefix = joinClause->ForeignKeyPrefix
-                        ] (std::vector<TRow> keys, TRowBufferPtr /*permanentBuffer*/) {
-                            std::optional<std::pair<TKeyBoundRef, TKeyBoundRef>> readRange;
-                            if (!keys.empty()) {
-                                readRange = {
-                                    TKeyBoundRef(keys.front().FirstNElements(foreignKeyPrefix), /*inclusive*/ true, /*upper*/ false),
-                                    TKeyBoundRef(keys.back().FirstNElements(foreignKeyPrefix), /*inclusive*/ true, /*upper*/ true)};
-                            }
-
-                            return New<TRowsetSubrangeReader>(asyncRows, readRange);
-                        };
-                    } else {
-                        return [
-                            asyncSubqueryResults,
-                            remoteExecutor,
-                            joinClause,
-                            remoteOptions,
-                            remoteFeatureFlags,
-                            this,
-                            this_ = MakeStrong(this)
-                        ] (std::vector<TRow> keys, TRowBufferPtr permanentBuffer) {
-                            if (keys.empty()) {
-                                return ISchemafulUnversionedReaderPtr{};
-                            }
-                            TDataSource dataSource;
-                            TQueryPtr foreignQuery;
-                            std::tie(foreignQuery, dataSource) = GetForeignQuery(
-                                std::move(keys),
-                                std::move(permanentBuffer),
-                                *joinClause);
-
-                            YT_LOG_DEBUG("Evaluating remote subquery (SubqueryId: %v)", foreignQuery->Id);
-
-                            auto pipe = New<NTableClient::TSchemafulPipe>(MemoryChunkProvider_);
-
-                            auto asyncResult = BIND(
-                                &IExecutor::Execute,
-                                remoteExecutor,
-                                TPlanFragment{
-                                    .Query = std::move(foreignQuery),
-                                    .DataSource = std::move(dataSource),
-                                },
-                                ExternalCGInfo_,
-                                pipe->GetWriter(),
-                                remoteOptions,
-                                remoteFeatureFlags)
-                                .AsyncVia(Invoker_)
-                                .Run();
-
-                            asyncResult.Subscribe(BIND([pipe] (const TErrorOr<TQueryStatistics>& error) {
-                                if (!error.IsOK()) {
-                                    pipe->Fail(error);
-                                }
-                            }));
-
-                            asyncSubqueryResults->push_back(asyncResult);
-
-                            return pipe->GetReader();
-                        };
-                    }
+                    this_ = MakeStrong(this),
+                    remoteExecutor
+                ] (TPlanFragment fragment, IUnversionedRowsetWriterPtr writer) {
+                    return BIND(
+                        &IExecutor::Execute,
+                        remoteExecutor,
+                        fragment,
+                        ExternalCGInfo_,
+                        writer,
+                        options,
+                        RequestFeatureFlags_)
+                        .AsyncVia(Invoker_)
+                        .Run();
                 };
+
+                auto consumeSubqueryStatistics = [=, Logger = Logger] (TQueryStatistics statistics) mutable {
+                    YT_LOG_DEBUG("Remote subquery statistics %v", statistics);
+                    subqueryResults->Enqueue(std::move(statistics));
+                };
+
+                auto joinSubqueryProfiler = CreateJoinProfiler(
+                    Query_,
+                    QueryOptions_,
+                    minKeyWidth,
+                    bottomQuery->IsOrdered(QueryOptions_.AllowUnorderedGroupByWithLimit),
+                    MemoryChunkProvider_,
+                    consumeSubqueryStatistics,
+                    [=, this, this_ = MakeStrong(this)] (size_t keyPrefix) {
+                        return GetPrefixReadItems(dataSplits, keyPrefix);
+                    },
+                    executeForeign,
+                    Logger);
 
                 auto mergingReader = CreateReaderForDataSources(std::move(dataSplits), rowBuffer);
 
@@ -940,7 +763,7 @@ private:
                         bottomQuery,
                         mergingReader,
                         pipe->GetWriter(),
-                        foreignProfileCallback,
+                        joinSubqueryProfiler,
                         functionGenerators,
                         aggregateGenerators,
                         MemoryChunkProvider_,
@@ -948,49 +771,38 @@ private:
                         RequestFeatureFlags_,
                         responseFeatureFlags);
 
-                asyncStatistics = asyncStatistics.Apply(BIND([
-                    =,
-                    this,
-                    this_ = MakeStrong(this)
-                ] (const TErrorOr<TQueryStatistics>& result) -> TFuture<TQueryStatistics> {
+                asyncStatistics = asyncStatistics.ApplyUnique(BIND([=, Logger = Logger] (TErrorOr<TQueryStatistics>&& result) {
                     if (!result.IsOK()) {
                         pipe->Fail(result);
                         YT_LOG_DEBUG(result, "Bottom query failed (SubqueryId: %v)", bottomQuery->Id);
-                        return MakeFuture(result);
+                        return result;
                     } else {
-                        TQueryStatistics statistics = result.Value();
+                        auto& statistics = result.Value();
 
                         YT_LOG_DEBUG("Bottom query finished (SubqueryId: %v, Statistics: %v)",
                             bottomQuery->Id,
                             statistics);
 
-                        return AllSucceeded(*asyncSubqueryResults)
-                        .Apply(BIND([
-                            =,
-                            this,
-                            this_ = MakeStrong(this)
-                        ] (const std::vector<TQueryStatistics>& subqueryResults) mutable {
-                            for (const auto& subqueryResult : subqueryResults) {
-                                YT_LOG_DEBUG("Remote subquery statistics %v", subqueryResult);
-                                statistics.AddInnerStatistics(subqueryResult);
-                            }
-                            return statistics;
-                        }));
+                        subqueryResults->DequeueAll(/*reverse*/ true, [&] (TQueryStatistics& innerStatistics) {
+                            statistics.AddInnerStatistics(std::move(innerStatistics));
+                        });
+
+                        return result;
                     }
                 }));
 
-                return {pipe->GetReader(), asyncStatistics, responseFeatureFlags};
+                return {pipe->GetReader(), std::move(asyncStatistics), responseFeatureFlags};
             },
-            [&, frontQuery = frontQuery] (
+            [=, this, this_ = MakeStrong(this)] (
                 const ISchemafulUnversionedReaderPtr& reader,
                 TFuture<TFeatureFlags> responseFeatureFlags
-            ) -> TQueryStatistics {
+            ) {
                 YT_LOG_DEBUG("Evaluating front query (FrontQueryId: %v)", frontQuery->Id);
                 auto result = Evaluator_->Run(
                     frontQuery,
                     std::move(reader),
                     Writer_,
-                    nullptr,
+                    /*joinProfiler*/ nullptr,
                     functionGenerators,
                     aggregateGenerators,
                     MemoryChunkProvider_,

@@ -97,7 +97,7 @@ void ProfileForBothExecutionBackends(
     const TConstBaseQueryPtr& query,
     llvm::FoldingSetNodeID* id,
     TCGVariables* variables,
-    TJoinSubqueryProfiler joinProfiler);
+    IJoinSubqueryProfilerPtr joinProfiler);
 
 void ProfileForBothExecutionBackends(
     const TConstExpressionPtr& expr,
@@ -108,6 +108,10 @@ void ProfileForBothExecutionBackends(
 ////////////////////////////////////////////////////////////////////////////////
 
 bool EnableWebAssemblyInUnitTests();
+
+////////////////////////////////////////////////////////////////////////////////
+
+IJoinSubqueryProfilerPtr MakeNullJoinSubqueryProfiler();
 
 ////////////////////////////////////////////////////////////////////////////////
 

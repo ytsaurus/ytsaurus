@@ -67,6 +67,8 @@ using NCodegen::EExecutionBackend;
 using TSplitMap = std::map<TYPath, TDataSplit>;
 using TSource = std::vector<std::string>;
 
+YT_DEFINE_GLOBAL(const NLogging::TLogger, Logger, "TestLogger");
+
 ////////////////////////////////////////////////////////////////////////////////
 
 static bool IsTimeDumpEnabled()
@@ -725,9 +727,7 @@ TEST_F(TQueryPrepareTest, SplitWherePredicateWithJoin)
         auto query = PreparePlanFragment(&PrepareMock_, queryString)->Query;
 
         TCGVariables variables;
-        ProfileForBothExecutionBackends(query, &id1, &variables, [] (int) -> TJoinSubqueryEvaluator {
-            return {};
-        });
+        ProfileForBothExecutionBackends(query, &id1, &variables, MakeNullJoinSubqueryProfiler());
     }
 
     llvm::FoldingSetNodeID id2;
@@ -743,9 +743,7 @@ TEST_F(TQueryPrepareTest, SplitWherePredicateWithJoin)
         auto query = PreparePlanFragment(&PrepareMock_, queryString)->Query;
 
         TCGVariables variables;
-        ProfileForBothExecutionBackends(query, &id2, &variables, [] (int) -> TJoinSubqueryEvaluator {
-            return {};
-        });
+        ProfileForBothExecutionBackends(query, &id2, &variables, MakeNullJoinSubqueryProfiler());
     }
 
     EXPECT_EQ(id1, id2);
@@ -773,9 +771,7 @@ TEST_F(TQueryPrepareTest, DisjointGroupBy)
         auto query = PreparePlanFragment(&PrepareMock_, queryString)->Query;
 
         TCGVariables variables;
-        ProfileForBothExecutionBackends(query, &id1, &variables, [] (int) -> TJoinSubqueryEvaluator {
-            return {};
-        });
+        ProfileForBothExecutionBackends(query, &id1, &variables, MakeNullJoinSubqueryProfiler());
     }
 
     llvm::FoldingSetNodeID id2;
@@ -784,9 +780,7 @@ TEST_F(TQueryPrepareTest, DisjointGroupBy)
         auto query = PreparePlanFragment(&PrepareMock_, queryString)->Query;
 
         TCGVariables variables;
-        ProfileForBothExecutionBackends(query, &id2, &variables, [] (int) -> TJoinSubqueryEvaluator {
-            return {};
-        });
+        ProfileForBothExecutionBackends(query, &id2, &variables, MakeNullJoinSubqueryProfiler());
     }
 
     EXPECT_NE(id1, id2);
@@ -805,9 +799,7 @@ TEST_F(TQueryPrepareTest, GroupByWithLimitFolding)
         auto query = PreparePlanFragment(&PrepareMock_, "* from [//t] group by 1")->Query;
 
         TCGVariables variables;
-        ProfileForBothExecutionBackends(query, &id1, &variables, [] (int) -> TJoinSubqueryEvaluator {
-            return {};
-        });
+        ProfileForBothExecutionBackends(query, &id1, &variables, MakeNullJoinSubqueryProfiler());
     }
 
     llvm::FoldingSetNodeID id2;
@@ -815,9 +807,7 @@ TEST_F(TQueryPrepareTest, GroupByWithLimitFolding)
         auto query = PreparePlanFragment(&PrepareMock_, "* from [//t] group by 1 limit 1")->Query;
 
         TCGVariables variables;
-        ProfileForBothExecutionBackends(query, &id2, &variables, [] (int) -> TJoinSubqueryEvaluator {
-            return {};
-        });
+        ProfileForBothExecutionBackends(query, &id2, &variables, MakeNullJoinSubqueryProfiler());
     }
 
     EXPECT_NE(id1, id2);
@@ -1333,7 +1323,7 @@ TQueryStatistics DoExecuteQuery(
     TConstQueryPtr query,
     IUnversionedRowsetWriterPtr writer,
     const TQueryBaseOptions& options,
-    TJoinSubqueryProfiler joinProfiler = nullptr)
+    IJoinSubqueryProfilerPtr joinProfiler = nullptr)
 {
     std::vector<TOwningRow> owningSourceRows;
     for (const auto& row : source) {
@@ -1437,6 +1427,7 @@ TResultMatcher ResultMatcher(std::vector<TOwningRow> expectedResult, TTableSchem
             }
             EXPECT_EQ(expectedResult.size(), result.Size());
             if (expectedResult.size() != result.Size()) {
+                Cerr << Format("expected: %v\nresult: %v", expectedResult, result);
                 return;
             }
 
@@ -1494,6 +1485,7 @@ struct TEvaluateOptions
     i64 OutputRowLimit = std::numeric_limits<i64>::max();
     TYsonStringBuf PlaceholderValues = {};
     int SyntaxVersion = 1;
+    int MinKeyWidth = 0;
     EExecutionBackend ExecutionBackend = EExecutionBackend::Native;
     bool UseCanonicalNullRelations = false;
     bool AllowUnorderedGroupByWithLimit = true;
@@ -1781,58 +1773,81 @@ protected:
         TEvaluateOptions evaluateOptions,
         std::optional<TString> expectedError)
     {
+        SCOPED_TRACE(query);
+
         if (evaluateOptions.ExecutionBackend == EExecutionBackend::WebAssembly && !EnableWebAssemblyInUnitTests()) {
             return {};
         }
 
         auto primaryQuery = Prepare(query, dataSplits, evaluateOptions.PlaceholderValues, evaluateOptions.SyntaxVersion);
 
-        TQueryBaseOptions options;
+        TQueryOptions options;
         options.InputRowLimit = evaluateOptions.InputRowLimit;
         options.OutputRowLimit = evaluateOptions.OutputRowLimit;
         options.UseCanonicalNullRelations = evaluateOptions.UseCanonicalNullRelations;
         options.ExecutionBackend = evaluateOptions.ExecutionBackend;
         options.AllowUnorderedGroupByWithLimit = evaluateOptions.AllowUnorderedGroupByWithLimit;
 
-        size_t sourceIndex = 1;
-
         auto aggregatedStatistics = TQueryStatistics();
 
-        auto profileCallback = [&] (int joinIndex) mutable {
-            auto joinClause = primaryQuery->JoinClauses[joinIndex];
-            auto rows = owningSources[sourceIndex++];
+        auto consumeSubqueryStatistics = [&] (TQueryStatistics joinSubqueryStatistics) {
+            aggregatedStatistics.AddInnerStatistics(std::move(joinSubqueryStatistics));
+        };
 
-            return [&, rows, joinClause] (
-                std::vector<TRow> keys,
-                TRowBufferPtr permanentBuffer) mutable
-            {
-                TDataSource dataSource;
-                TQueryPtr preparedSubquery;
-                std::tie(preparedSubquery, dataSource) = GetForeignQuery(
-                    std::move(keys),
-                    std::move(permanentBuffer),
-                    *joinClause);
+        auto getMergeJoinDataSource = [] (size_t /*keyPrefix*/) {
+            // This callback is usually dependent on the structure of tablets.
+            // Thus, in tests we resort to returning a universal range.
 
-                auto pipe = New<NTableClient::TSchemafulPipe>(GetDefaultMemoryChunkProvider());
+            auto buffer = New<TRowBuffer>();
+            TRowRanges universalRange{{
+                buffer->CaptureRow(NTableClient::MinKey().Get()),
+                buffer->CaptureRow(NTableClient::MaxKey().Get()),
+            }};
 
-                auto statistics = WaitFor(BIND(&DoExecuteQuery)
-                    .AsyncVia(ActionQueue_->GetInvoker())
-                    .Run(
-                        Evaluator_,
-                        rows,
-                        FunctionProfilers_,
-                        AggregateProfilers_,
-                        preparedSubquery,
-                        pipe->GetWriter(),
-                        options,
-                        nullptr))
-                    .ValueOrThrow();
-
-                aggregatedStatistics.AddInnerStatistics(std::move(statistics));
-
-                return pipe->GetReader();
+            return TDataSource{
+                .Ranges = MakeSharedRange(std::move(universalRange), std::move(buffer)),
             };
         };
+
+        auto executeForeign = [&] (TPlanFragment fragment, IUnversionedRowsetWriterPtr writer) {
+            // TODO(sabdenovch): Switch to name- or id-based source rows navigation.
+            // Ideally, do not separate schemas from sources.
+            int sourceIndex = 1;
+            for (const auto& joinClause : primaryQuery->JoinClauses) {
+                if (!joinClause->ArrayExpressions.empty()) {
+                    continue;
+                }
+                if (joinClause->ForeignObjectId == fragment.DataSource.ObjectId) {
+                    break;
+                }
+                sourceIndex++;
+            }
+
+            return BIND(DoExecuteQuery)
+                .AsyncVia(ActionQueue_->GetInvoker())
+                .Run(
+                    Evaluator_,
+                    owningSources.at(sourceIndex),
+                    FunctionProfilers_,
+                    AggregateProfilers_,
+                    fragment.Query,
+                    writer,
+                    options,
+                    /*joinProfiler*/ nullptr);
+        };
+
+        auto orderedExecution = primaryQuery->IsOrdered(evaluateOptions.AllowUnorderedGroupByWithLimit);
+
+        auto joinProfiler = CreateJoinProfiler(
+            primaryQuery,
+            GetJoinSubqueryOptions(options),
+            evaluateOptions.MinKeyWidth,
+            orderedExecution,
+            GetDefaultMemoryChunkProvider(),
+            std::move(consumeSubqueryStatistics),
+            std::move(getMergeJoinDataSource),
+            std::move(executeForeign),
+            Logger());
 
         auto prepareAndExecute = [&] {
             IUnversionedRowsetWriterPtr writer;
@@ -1848,7 +1863,7 @@ protected:
                 primaryQuery,
                 writer,
                 options,
-                profileCallback);
+                joinProfiler);
 
             resultStatistics.AddInnerStatistics(std::move(aggregatedStatistics));
 

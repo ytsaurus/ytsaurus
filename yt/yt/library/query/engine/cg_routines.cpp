@@ -580,10 +580,10 @@ void MultiJoinOpHelper(
 
             auto foreignExecutorCopy = CopyAndConvertFromPI(&foreignContext, orderedKeys, EAddressSpace::WebAssembly);
             SaveAndRestoreCurrentCompartment([&] {
-                auto reader = parameters->Items[joinId].ExecuteForeign(
+                auto reader = parameters->Items[joinId].JoinRowsProducer->FetchJoinedRows(
                     foreignExecutorCopy,
                     foreignContext.GetRowBuffer());
-                readers.push_back(reader);
+                readers.push_back(std::move(reader));
             });
 
             closure.Items[joinId].Lookup.clear();
