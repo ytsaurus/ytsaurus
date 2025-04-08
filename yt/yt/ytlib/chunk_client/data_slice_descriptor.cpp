@@ -88,6 +88,8 @@ TString ToString(const TDataSliceDescriptor& dataSliceDescriptor)
     return stringBuilder.Flush();
 }
 
+namespace {
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TLegacyReadLimit GetAbsoluteReadLimit(const TDataSliceDescriptor& descriptor, bool isUpper, bool versioned, bool sorted)
@@ -117,12 +119,11 @@ TLegacyReadLimit GetAbsoluteReadLimit(const TDataSliceDescriptor& descriptor, bo
         }
     } else {
         const auto& chunkSpec = descriptor.GetSingleChunk();
-        TLegacyReadLimit readLimit;
-        FromProto(&readLimit, isUpper ? chunkSpec.upper_limit() : chunkSpec.lower_limit());
+        TLegacyReadLimit readLimit(isUpper ? chunkSpec.upper_limit() : chunkSpec.lower_limit());
         if (readLimit.HasRowIndex()) {
             result.SetRowIndex(readLimit.GetRowIndex() + chunkSpec.table_row_index());
         } else {
-            result.SetRowIndex(chunkSpec.table_row_index() + isUpper ? chunkSpec.row_count_override() : 0);
+            result.SetRowIndex(chunkSpec.table_row_index() + (isUpper ? chunkSpec.row_count_override() : 0));
         }
 
         if (versioned) {
@@ -137,6 +138,10 @@ TLegacyReadLimit GetAbsoluteReadLimit(const TDataSliceDescriptor& descriptor, bo
 
     return result;
 }
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace
 
 TLegacyReadLimit GetAbsoluteLowerReadLimit(const TDataSliceDescriptor& descriptor, bool versioned, bool sorted)
 {
