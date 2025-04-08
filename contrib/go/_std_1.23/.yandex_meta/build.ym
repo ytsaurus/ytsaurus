@@ -1,0 +1,76 @@
+{% extends '//builtin/run.ym' %}
+
+{% block current_version %}1.23.8{% endblock %}
+
+{% block current_url %}
+https://go.dev/dl/go{{self.version().strip()}}.src.tar.gz
+{% endblock %}
+
+{% set YAGOGEN="contrib/go/yagogen" %}
+
+{% block prepare_env %}
+{{super()}}
+tar xf ${RESOURCES}/{{self.current_url().strip() | basename}} --strip-components=1 --directory=${RESOURCES}
+
+base64 -d << EOF > ${BIN}/gen.py
+{% include '//' + YAGOGEN + '/gen.py/base64' %}
+
+EOF
+{% endblock %}
+
+{% block unpack_source %}
+{{super()}}
+rsync --recursive \
+      --exclude "*.tar.gz" \
+      --exclude "*.rc" \
+      --exclude "*.bat" \
+      --exclude "*_test.go" \
+      --exclude "testdata" \
+      ${RESOURCES}/* .
+{% endblock %}
+
+{% block build_source %}
+
+(cd src && bash ./make.bash --no-banner)
+
+find . \( \
+    -name "*.bash" \
+    -or -name "*.sh" \
+\) -delete
+
+rm -rf api bin codereview.cfg doc lib misc pkg src/cmd test src/net/internal/cgotest
+
+sed -i 's/GOTOOLCHAIN=auto/GOTOOLCHAIN=local/g' go.env
+{% endblock %}
+
+{% block prepare_yamake %}
+python3 ${BIN}/gen.py .
+
+rm src/builtin/ya.make
+rm src/crypto/internal/bigmod/_asm/ya.make
+rm src/crypto/internal/edwards25519/field/_asm/ya.make
+
+base64 -d << EOF > src/runtime/cgo/ya.make
+{% include '//' + YAGOGEN + '/cgo.txt/base64' %}
+
+EOF
+
+cat << EOF > ya.make
+SUBSCRIBER(g:contrib hiddenpath)
+RECURSE(
+EOF
+
+find ./src -type f -name ya.make \
+    | sed -e 's|^./|    |' -e 's|/ya.make$||' \
+    | sort >> ya.make
+
+echo ')' >> ya.make
+{% endblock %}
+
+{% block run_license_analyzer %}
+:
+{% endblock %}
+
+{% block move_to_output %}
+rsync --recursive --delete --perms ${SRC}/ ${OUTPUT}
+{% endblock %}
