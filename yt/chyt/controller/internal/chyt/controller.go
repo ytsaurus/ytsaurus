@@ -33,12 +33,14 @@ type Config struct {
 	EnableYandexSpecificLinks *bool                `yson:"enable_yandex_specific_links"`
 	ExportSystemLogTables     *bool                `yson:"export_system_log_tables"`
 	EnableGeodata             *bool                `yson:"enable_geodata"`
+	EnableRuntimeData         *bool                `yson:"enable_runtime_data"`
 }
 
 const (
 	DefaultEnableYandexSpecificLinks = false
 	DefaultExportSystemLogTables     = false
 	DefaultEnableGeodata             = false
+	DefaultEnableRuntimeData         = false
 )
 
 func (c *Config) LogRotationModeOrDefault() LogRotationModeType {
@@ -67,6 +69,13 @@ func (c *Config) EnableGeodataOrDefault() bool {
 		return *c.EnableGeodata
 	}
 	return DefaultEnableGeodata
+}
+
+func (c *Config) EnableRuntimeDataOrDefault() bool {
+	if c.EnableRuntimeData != nil {
+		return *c.EnableRuntimeData
+	}
+	return DefaultEnableRuntimeData
 }
 
 type Controller struct {
@@ -193,12 +202,6 @@ func (c *Controller) Prepare(ctx context.Context, oplet *strawberry.Oplet) (
 		return
 	}
 
-	// Prepare runtime stuff: stderr/core-table, etc.
-	runtimePaths, err := c.prepareRuntime(ctx, speclet.RuntimeDataPathOrDefault().Child(alias), oplet.NextIncarnationIndex())
-	if err != nil {
-		return
-	}
-
 	// Build command.
 	command := c.buildCommand(&speclet)
 
@@ -219,8 +222,6 @@ func (c *Controller) Prepare(ctx context.Context, oplet *strawberry.Oplet) (
 		},
 		"max_failed_job_count": 10 * 1000,
 		"max_stderr_count":     150,
-		"stderr_table_path":    runtimePaths.StderrTable,
-		"core_table_path":      runtimePaths.CoreTable,
 		"title":                "CHYT clique *" + alias,
 	}
 	annotations = map[string]any{
@@ -232,6 +233,17 @@ func (c *Controller) Prepare(ctx context.Context, oplet *strawberry.Oplet) (
 		spec["secure_vault"] = map[string]any{
 			"TVM_SECRET": c.tvmSecret,
 		}
+	}
+
+	// Prepare runtime stuff if need: stderr/core-table, etc.
+	if speclet.EnableRuntimeDataOrDefault(c.config.EnableRuntimeDataOrDefault()) {
+		var runtimePaths runtimePaths
+		runtimePaths, err = c.prepareRuntime(ctx, speclet.RuntimeDataSpecOrDefault(), alias, oplet.NextIncarnationIndex())
+		if err != nil {
+			return
+		}
+		spec["stderr_table_path"] = runtimePaths.StderrTable
+		spec["core_table_path"] = runtimePaths.CoreTable
 	}
 
 	return

@@ -1,6 +1,8 @@
 package chyt
 
 import (
+	"time"
+
 	"go.ytsaurus.tech/yt/go/ypath"
 )
 
@@ -13,8 +15,10 @@ type Speclet struct {
 	EnableGeodata *bool       `yson:"enable_geodata"`
 	GeodataPath   *ypath.Path `yson:"geodata_path"`
 
+	EnableRuntimeData *bool `yson:"enable_runtime_data"`
 	// RuntimeDataPath defines where all clique table belongings reside (e.g. stderr/core-tables, log dyntables, etc).
-	RuntimeDataPath *ypath.Path `yson:"runtime_data_path"`
+	RuntimeDataPath              *ypath.Path `yson:"runtime_data_path"`
+	RuntimeDataExpirationTimeout *uint64     `yson:"runtime_data_expiration_timeout"`
 
 	// QuerySettings defines default settings for queries.
 	QuerySettings map[string]any `yson:"query_settings"`
@@ -33,13 +37,19 @@ type Speclet struct {
 	QueryStickyGroupSize          *int `yson:"query_sticky_group_size"`
 }
 
+type runtimeDataSpec struct {
+	RuntimeDataPath              ypath.Path
+	RuntimeDataExpirationTimeout uint64
+}
+
 const (
 	DefaultCHYTVersion       = "ytserver-clickhouse"
 	DefaultTrampolineVersion = "clickhouse-trampoline"
 
 	DefaultGeodataPath = ypath.Path("//sys/clickhouse/geodata/geodata.tgz")
 
-	DefaultRuntimeDataPath = ypath.Path("//sys/clickhouse/kolkhoz")
+	DefaultRuntimeDataPath              = ypath.Path("//sys/clickhouse/kolkhoz")
+	DefaultRuntimeDataExpirationTimeout = 12 * 7 * (24 * time.Hour)
 
 	DefaultQueryStickyGroupSize = 2
 )
@@ -72,11 +82,27 @@ func (speclet *Speclet) GeodataPathOrDefault() ypath.Path {
 	return DefaultGeodataPath
 }
 
-func (speclet *Speclet) RuntimeDataPathOrDefault() ypath.Path {
-	if speclet.RuntimeDataPath != nil {
-		return *speclet.RuntimeDataPath
+func (speclet *Speclet) EnableRuntimeDataOrDefault(defaultValue bool) bool {
+	if speclet.EnableRuntimeData != nil {
+		return *speclet.EnableRuntimeData
 	}
-	return DefaultRuntimeDataPath
+	return defaultValue
+}
+
+func (speclet *Speclet) RuntimeDataSpecOrDefault() runtimeDataSpec {
+	spec := runtimeDataSpec{
+		RuntimeDataPath:              DefaultRuntimeDataPath,
+		RuntimeDataExpirationTimeout: uint64(DefaultRuntimeDataExpirationTimeout.Milliseconds()),
+	}
+
+	if speclet.RuntimeDataPath != nil {
+		spec.RuntimeDataPath = *speclet.RuntimeDataPath
+	}
+	if speclet.RuntimeDataExpirationTimeout != nil {
+		spec.RuntimeDataExpirationTimeout = *speclet.RuntimeDataExpirationTimeout
+	}
+
+	return spec
 }
 
 func (speclet *Speclet) ExportSystemLogTablesOrDefault(defaultValue bool) bool {

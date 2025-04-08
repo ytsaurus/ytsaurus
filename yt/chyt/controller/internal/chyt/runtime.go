@@ -14,18 +14,25 @@ type runtimePaths struct {
 	CoreTable   ypath.Path
 }
 
-func (c *Controller) prepareBlobTable(ctx context.Context, kind string, root ypath.Path, incarnationIndex int) (path ypath.Path, err error) {
+func (c *Controller) prepareBlobTable(ctx context.Context, kind string, root ypath.Path, incarnationIndex int, expirationTimeout uint64) (path ypath.Path, err error) {
 	path = root.Child(kind).Child(strconv.Itoa(incarnationIndex))
-	_, err = c.ytc.CreateNode(ctx, path, yt.NodeTable, &yt.CreateNodeOptions{Force: true, Recursive: true})
+	_, err = c.ytc.CreateNode(ctx, path, yt.NodeTable, &yt.CreateNodeOptions{
+		Force:     true,
+		Recursive: true,
+		Attributes: map[string]any{
+			"expiration_timeout": expirationTimeout,
+		},
+	})
 	return
 }
 
-func (c *Controller) prepareRuntime(ctx context.Context, root ypath.Path, incarnationIndex int) (paths runtimePaths, err error) {
-	paths.StderrTable, err = c.prepareBlobTable(ctx, "stderrs", root, incarnationIndex)
+func (c *Controller) prepareRuntime(ctx context.Context, spec runtimeDataSpec, alias string, incarnationIndex int) (paths runtimePaths, err error) {
+	root := spec.RuntimeDataPath.Child(alias)
+	paths.StderrTable, err = c.prepareBlobTable(ctx, "stderrs", root, incarnationIndex, spec.RuntimeDataExpirationTimeout)
 	if err != nil {
 		return
 	}
-	paths.CoreTable, err = c.prepareBlobTable(ctx, "cores", root, incarnationIndex)
+	paths.CoreTable, err = c.prepareBlobTable(ctx, "cores", root, incarnationIndex, spec.RuntimeDataExpirationTimeout)
 	if err != nil {
 		return
 	}
