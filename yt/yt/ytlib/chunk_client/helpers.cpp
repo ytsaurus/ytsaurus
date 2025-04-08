@@ -1036,6 +1036,7 @@ TAllyReplicasInfo TAllyReplicasInfo::FromChunkReplicas(
 
 TAllyReplicasInfo TAllyReplicasInfo::FromWrittenChunkReplicasInfo(TWrittenChunkReplicasInfo replicasInfo)
 {
+    // TODO(kvk1920): Consider using chunk + location instead of chunk + node + medium.
     TAllyReplicasInfo result;
     result.Replicas.reserve(replicasInfo.Replicas.size());
     for (auto replica : replicasInfo.Replicas) {
