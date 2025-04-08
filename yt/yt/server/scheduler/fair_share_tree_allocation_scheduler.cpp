@@ -324,16 +324,6 @@ const EOperationSchedulingPriorityList& GetDescendingSchedulingPriorities()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-bool IsSingleAllocationVanillaOperation(const TSchedulerOperationElement* element)
-{
-    const auto& maybeVanillaTaskSpecs = element->GetMaybeBriefVanillaTaskSpecMap();
-    return maybeVanillaTaskSpecs &&
-        (size(*maybeVanillaTaskSpecs) == 1) &&
-        (maybeVanillaTaskSpecs->begin()->second.JobCount == 1);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 } // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -2710,7 +2700,7 @@ void TFairShareTreeAllocationScheduler::OnOperationMaterialized(const TScheduler
     auto operationId = element->GetOperationId();
     const auto& operationState = GetOperationState(operationId);
     operationState->AggregatedInitialMinNeededResources = element->GetAggregatedInitialMinNeededResources();
-    operationState->SingleAllocationVanillaOperation = IsSingleAllocationVanillaOperation(element);
+    operationState->SingleAllocationVanillaOperation = element->IsSingleAllocationVanillaOperation();
 
     SchedulingSegmentManager_.InitOrUpdateOperationSchedulingSegment(operationId, operationState);
 }
@@ -2721,11 +2711,9 @@ TError TFairShareTreeAllocationScheduler::CheckOperationSchedulingInSeveralTrees
 
     const auto& operationState = GetOperationState(element->GetOperationId());
 
-    bool singleAllocationVanillaOperation = IsSingleAllocationVanillaOperation(element);
-
     auto segment = operationState->SchedulingSegment;
     if (IsModuleAwareSchedulingSegment(*segment) &&
-        (!singleAllocationVanillaOperation || !Config_->AllowSingleJobLargeGpuOperationsInMultipleTrees))
+        (!element->IsSingleAllocationVanillaOperation() || !Config_->AllowSingleJobLargeGpuOperationsInMultipleTrees))
     {
         // NB: This error will be propagated to operation's failure only if operation is launched in several trees.
         return TError(

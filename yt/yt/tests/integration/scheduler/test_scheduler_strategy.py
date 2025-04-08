@@ -4448,8 +4448,9 @@ class TestFifoPools(YTEnvSetup):
         update_pool_tree_config("default", {"preemptive_scheduling_backoff": 0})
 
     @authors("eshcherbin")
-    @pytest.mark.parametrize("with_gang_operation", [False, True])
-    def test_truncate_unsatisfied_child_fair_share_in_fifo_pools(self, with_gang_operation):
+    @pytest.mark.parametrize("gang", [False, True])
+    @pytest.mark.parametrize("allocation_count", [1, 2])
+    def test_truncate_unsatisfied_child_fair_share_in_fifo_pools(self, gang, allocation_count):
         create_pool("fifo", attributes={"mode": "fifo"})
         create_pool("normal")
 
@@ -4458,10 +4459,11 @@ class TestFifoPools(YTEnvSetup):
         wait(lambda: are_almost_equal(get(scheduler_orchid_operation_path(blocking_op1.id) + "/detailed_fair_share/total/cpu"), 0.3))
 
         blocking_op2 = run_sleeping_vanilla(
-            task_patch={"cpu_limit": 3.0},
+            job_count=allocation_count,
+            task_patch={"cpu_limit": 3.0 / allocation_count},
             spec={
                 "pool": "fifo",
-                "is_gang": with_gang_operation,
+                "is_gang": gang,
             })
         blocking_op2.wait_for_state("running")
         wait(lambda: are_almost_equal(get(scheduler_orchid_operation_path(blocking_op2.id) + "/detailed_fair_share/total/cpu"), 0.3))
@@ -4476,7 +4478,9 @@ class TestFifoPools(YTEnvSetup):
 
         set("//sys/pool_trees/default/@config/enable_fair_share_truncation_in_fifo_pool", True)
         wait(lambda: get(scheduler_orchid_default_pool_tree_config_path() + "/enable_fair_share_truncation_in_fifo_pool"))
-        if with_gang_operation:
+
+        should_truncate = gang or allocation_count == 1
+        if should_truncate:
             wait(lambda: are_almost_equal(get(scheduler_orchid_operation_path(blocking_op2.id) + "/detailed_fair_share/total/cpu"), 0.0))
             wait(lambda: are_almost_equal(get(scheduler_orchid_operation_path(op.id) + "/usage_share/cpu"), 0.5))
         else:

@@ -246,7 +246,9 @@ private:
     void DistributeFreeVolume() override;
 
     void ComputeAndSetFairShare(double suggestion, EFairShareType fairShareType, TFairShareUpdateContext* context) override;
+
     void TruncateFairShareInFifoPools(EFairShareType fairShareType) override;
+    void DoTruncateFairShareInFifoPool(EFairShareType fairShareType);
 
     void ComputePromisedGuaranteeFairShare(TFairShareUpdateContext* context) override;
 
@@ -336,7 +338,7 @@ public:
 
     virtual TResourceVector GetBestAllocationShare() const = 0;
 
-    virtual bool IsGang() const = 0;
+    virtual bool IsFairShareTruncationInFifoPoolAllowed() const = 0;
 
 private:
     void PrepareFairShareByFitFactor(TFairShareUpdateContext* context) override;

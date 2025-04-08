@@ -2091,6 +2091,11 @@ TResourceVector TSchedulerOperationElement::GetBestAllocationShare() const
     return PersistentAttributes_.BestAllocationShare;
 }
 
+bool TSchedulerOperationElement::IsFairShareTruncationInFifoPoolAllowed() const
+{
+    return IsGang() || IsSingleAllocationVanillaOperation();
+}
+
 bool TSchedulerOperationElement::IsGang() const
 {
     return Spec_->IsGang;
@@ -2424,9 +2429,12 @@ bool TSchedulerOperationElement::IsIdleCpuPolicyAllowed() const
     return false;
 }
 
-const std::optional<TBriefVanillaTaskSpecMap>& TSchedulerOperationElement::GetMaybeBriefVanillaTaskSpecMap() const
+bool TSchedulerOperationElement::IsSingleAllocationVanillaOperation() const
 {
-    return OperationHost_->GetMaybeBriefVanillaTaskSpecs();
+    const auto& maybeVanillaTaskSpecs = OperationHost_->GetMaybeBriefVanillaTaskSpecs();
+    return maybeVanillaTaskSpecs &&
+        (size(*maybeVanillaTaskSpecs) == 1) &&
+        (maybeVanillaTaskSpecs->begin()->second.JobCount == 1);
 }
 
 TDuration TSchedulerOperationElement::GetEffectiveAllocationPreemptionTimeout() const
