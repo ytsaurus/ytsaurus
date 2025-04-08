@@ -2,7 +2,7 @@ GO_LIBRARY()
 
 LICENSE(BSD-3-Clause)
 
-VERSION(v0.34.0)
+VERSION(v0.35.0)
 
 SRCS(
     ascii.go
@@ -15,7 +15,6 @@ SRCS(
     flow.go
     frame.go
     gotrack.go
-    headermap.go
     http2.go
     pipe.go
     server.go
