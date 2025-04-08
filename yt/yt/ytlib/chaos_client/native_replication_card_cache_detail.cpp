@@ -5,6 +5,7 @@
 #include "master_cache_channel.h"
 
 #include <yt/yt/ytlib/api/native/client.h>
+#include <yt/yt/ytlib/api/native/config.h>
 #include <yt/yt/ytlib/api/native/connection.h>
 
 #include <yt/yt/ytlib/cell_master_client/cell_directory.h>
@@ -154,9 +155,11 @@ public:
         TReplicationCardCache* owner,
         const TReplicationCardCacheKey& key,
         const NLogging::TLogger& logger,
-        TGuid sessionId)
+        TGuid sessionId,
+        TDuration timeout)
         : Owner_(owner)
         , Key_ (key)
+        , Timeout_(timeout)
         , Logger(logger
             .WithTag("ReplicationCardId: %v, CacheSessionId: %v",
                 Key_.CardId,
@@ -167,7 +170,9 @@ public:
     {
         auto channel = Owner_->ChaosCacheChannel_;
         auto proxy = TChaosNodeServiceProxy(channel);
+
         auto req = proxy.GetReplicationCard();
+        req->SetTimeout(Timeout_);
         ToProto(req->mutable_replication_card_id(), Key_.CardId);
         ToProto(req->mutable_fetch_options(), Key_.FetchOptions);
         if (Key_.RefreshEra != InvalidReplicationEra) {
@@ -219,6 +224,7 @@ public:
 private:
     const TIntrusivePtr<TReplicationCardCache> Owner_;
     const TReplicationCardCacheKey Key_;
+    const TDuration Timeout_;
 
     const NLogging::TLogger Logger;
 };
@@ -283,9 +289,10 @@ TFuture<TReplicationCardPtr> TReplicationCardCache::DoGet(const TReplicationCard
                 << TErrorAttribute("replication_card_id", key.CardId));
     }
 
+    auto timeout = connection->GetConfig()->DefaultChaosNodeServiceTimeout;
     auto invoker = connection->GetInvoker();
     auto sessionId = TGuid::Create();
-    auto session = New<TGetSession>(this, key, Logger, sessionId);
+    auto session = New<TGetSession>(this, key, Logger, sessionId, timeout);
 
     YT_LOG_DEBUG("Requesting replication card (ReplicationCardId: %v, CacheSessionId: %v)",
         key.CardId,
