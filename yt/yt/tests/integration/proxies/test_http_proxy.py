@@ -120,7 +120,7 @@ class HttpProxyTestBase(YTEnvSetup):
             default={},
         )
 
-    def _execute_command(self, http_method, command_name, params=PARAMS, user="root"):
+    def _execute_command(self, http_method, command_name, params=PARAMS, user="root", data=None):
         headers = {
             "X-YT-Parameters": yson.dumps(params),
             "X-YT-Header-Format": "<format=text>yson",
@@ -131,6 +131,7 @@ class HttpProxyTestBase(YTEnvSetup):
             http_method,
             "{}/api/v4/{}".format(self._get_proxy_address(), command_name),
             headers=headers,
+            data=data,
         )
 
         try_parse_yt_error_headers(rsp)
@@ -1691,6 +1692,9 @@ class TestHttpProxySignaturesBase(HttpProxyTestBase):
             "cypress_key_writer": {
                 "owner_id": "test-http-proxy",
             },
+            "key_rotator": {
+                "key_rotation_interval": "2h",
+            },
             "generator": dict(),
         },
     }
@@ -1717,14 +1721,6 @@ def deep_update(source: dict[Any, Any], overrides: dict[Any, Any]) -> dict[Any, 
 
 
 class TestHttpProxySignaturesKeyCreation(TestHttpProxySignaturesBase):
-    DELTA_PROXY_CONFIG = deep_update(TestHttpProxySignaturesBase.DELTA_PROXY_CONFIG, {
-        "signature_generation": {
-            "key_rotator": {
-                "key_rotation_interval": "2h",
-            },
-        },
-    })
-
     @authors("pavook")
     @pytest.mark.timeout(60)
     def test_public_key_appears(self):
@@ -1768,6 +1764,25 @@ class TestHttpProxySignaturesKeyRotation(TestHttpProxySignaturesBase):
     @pytest.mark.timeout(60)
     def test_public_key_rotates(self):
         wait(lambda: len(ls(self.KEYS_PATH)) > 1)
+
+
+class TestHttpProxyDistributedWrite(TestHttpProxySignaturesBase):
+    TABLE_PATH = "//tmp/distributed_table"
+
+    @authors("pavook")
+    @pytest.mark.timeout(60)
+    def test_cookie_modification(self):
+        create("table", self.TABLE_PATH, schema=[{"name": "v1", "type": "string", "sort_order": "ascending"}])
+        res = self._execute_command(
+            "POST",
+            "start_distributed_write_session",
+            {"path": self.TABLE_PATH})
+
+        PWN_PATH = b"//tmp/pwned"
+        yson_res = yson.loads(res.content.replace(bytes(self.TABLE_PATH[:len(PWN_PATH)], "utf-8"), PWN_PATH))
+        session = yson_res["session"]
+        with raises_yt_error("Signature validation failed"):
+            self._execute_command("POST", "finish_distributed_write_session", {"session": session, "results": []})
 
 
 class TestHttpsProxy(HttpProxyTestBase):
