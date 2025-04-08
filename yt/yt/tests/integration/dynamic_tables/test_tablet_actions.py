@@ -1405,6 +1405,12 @@ class TabletBalancerBase(TabletActionsBase):
 
     @authors("ifsmirnov")
     def test_tablet_balancer_with_active_action(self):
+        # There are no extra peers available for the "broken" bundle below.
+        set(
+            "//sys/@config/tablet_manager/decommission_through_extra_peers",
+            False,
+        )
+
         node = ls("//sys/cluster_nodes")[0]
         set("//sys/cluster_nodes/{0}/@user_tags".format(node), ["custom"])
 
