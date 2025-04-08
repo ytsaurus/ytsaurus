@@ -4409,7 +4409,7 @@ private:
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         const auto& cypressManager = Bootstrap_->GetCypressManager();
-        auto mutationContext = GetCurrentMutationContext();
+        auto* mutationContext = GetCurrentMutationContext();
 
         for (const auto& protoId : request->node_ids()) {
             auto nodeId = FromProto<TNodeId>(protoId);
