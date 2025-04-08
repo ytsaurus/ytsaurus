@@ -2520,27 +2520,35 @@ class TestHunkValuesDictionaryCompression(TestSortedDynamicTablesHunks):
                     data_hunk_chunk_ids.add(ref["chunk_id"])
         return list(data_hunk_chunk_ids)
 
-    def _find_referenced_dictionary_hunk_chunks(self, path):
+    def _do_find_referenced_dictionary_hunk_chunks(self, path):
         data_hunk_chunk_ids = self._find_data_hunk_chunks(path)
         hunk_chunk_ids = self._get_hunk_chunk_ids(path)
         dictionary_hunk_chunk_ids = [chunk_id for chunk_id in hunk_chunk_ids if chunk_id not in data_hunk_chunk_ids]
 
         tablet_info = get(f"{path}/@tablets/0")
 
-        def is_referenced(chunk_id):
+        def is_referenced_dictionary(chunk_id):
             try:
-                return not get("//sys/cluster_nodes/{}/orchid/tablet_cells/{}/tablets/{}/hunk_chunks/{}/dangling".format(
+                hunk_chunk_info = get("//sys/cluster_nodes/{}/orchid/tablet_cells/{}/tablets/{}/hunk_chunks/{}".format(
                     tablet_info["cell_leader_address"],
                     tablet_info["cell_id"],
                     tablet_info["tablet_id"],
                     chunk_id,
                 ))
+                return "dictionary_compression_policy" in hunk_chunk_info and not hunk_chunk_info["dangling"]
             except YtError as err:
                 if err.contains_code(yt_error_codes.ResolveErrorCode):
                     return False
                 raise
 
-        return [chunk_id for chunk_id in dictionary_hunk_chunk_ids if is_referenced(chunk_id)]
+        return [chunk_id for chunk_id in dictionary_hunk_chunk_ids if is_referenced_dictionary(chunk_id)]
+
+    def _find_referenced_dictionary_hunk_chunks(self, path, expected_count):
+        if expected_count is None:
+            return self._do_find_referenced_dictionary_hunk_chunks(path)
+
+        wait(lambda: len(self._do_find_referenced_dictionary_hunk_chunks(path)) == expected_count)
+        return self._do_find_referenced_dictionary_hunk_chunks(path)
 
     def _perform_forced_compaction(self, path, compaction_type):
         chunk_ids_before_compaction = builtins.set(self._get_store_chunk_ids(path))
@@ -2592,14 +2600,14 @@ class TestHunkValuesDictionaryCompression(TestSortedDynamicTablesHunks):
         sync_flush_table("//tmp/t")
 
         hunk_chunk_ids = self._find_data_hunk_chunks("//tmp/t")
-        dictionary_ids = self._find_referenced_dictionary_hunk_chunks("//tmp/t")
+        dictionary_ids = self._find_referenced_dictionary_hunk_chunks("//tmp/t", 2)
         assert len(hunk_chunk_ids) == 2
         assert len(dictionary_ids) == 2
 
         self._perform_forced_compaction("//tmp/t", "compaction")
 
         new_hunk_chunk_ids = self._find_data_hunk_chunks("//tmp/t")
-        new_dictionary_ids = self._find_referenced_dictionary_hunk_chunks("//tmp/t")
+        new_dictionary_ids = self._find_referenced_dictionary_hunk_chunks("//tmp/t", 2)
         assert len(new_hunk_chunk_ids) == 1
         assert len(new_dictionary_ids) == 2
         assert builtins.set(dictionary_ids) == builtins.set(new_dictionary_ids)
@@ -2643,7 +2651,7 @@ class TestHunkValuesDictionaryCompression(TestSortedDynamicTablesHunks):
 
         self._wait_dictionaries_built("//tmp/t", 1)
 
-        dictionary_ids = self._find_referenced_dictionary_hunk_chunks("//tmp/t")
+        dictionary_ids = self._find_referenced_dictionary_hunk_chunks("//tmp/t", 2)
         assert len(dictionary_ids) == 2
 
         def _has_dictionary_ref(chunk_id, expected_ref_count):
@@ -2693,7 +2701,7 @@ class TestHunkValuesDictionaryCompression(TestSortedDynamicTablesHunks):
         new_store_chunk_ids_4 = self._get_store_chunk_ids("//tmp/t")
         assert len(new_store_chunk_ids_4) == 1
         assert new_store_chunk_ids_3 != new_store_chunk_ids_4
-        dictionary_ids = self._find_referenced_dictionary_hunk_chunks("//tmp/t")
+        dictionary_ids = self._find_referenced_dictionary_hunk_chunks("//tmp/t", None)
         assert _has_dictionary_ref(new_store_chunk_ids_4[0], 1)
 
         set("//tmp/t/@mount_config/value_dictionary_compression/enable", False)
@@ -2802,7 +2810,7 @@ class TestHunkValuesDictionaryCompression(TestSortedDynamicTablesHunks):
         self._wait_dictionaries_built("//tmp/t", 1)
         self._perform_forced_compaction("//tmp/t", "compaction")
 
-        dictionary_ids = self._find_referenced_dictionary_hunk_chunks("//tmp/t")
+        dictionary_ids = self._find_referenced_dictionary_hunk_chunks("//tmp/t", 2)
         assert len(dictionary_ids) == 2
 
         assert get("#{}/@compression_dictionary_id".format(self._get_store_chunk_ids("//tmp/t")[0])) in dictionary_ids
@@ -2822,7 +2830,7 @@ class TestHunkValuesDictionaryCompression(TestSortedDynamicTablesHunks):
         self._wait_dictionaries_built("//tmp/t", 1)
 
         self._perform_forced_compaction("//tmp/t", "store_compaction")
-        new_dictionary_ids = self._find_referenced_dictionary_hunk_chunks("//tmp/t")
+        new_dictionary_ids = self._find_referenced_dictionary_hunk_chunks("//tmp/t", 2)
         assert len(new_dictionary_ids) == 2
         old_dictionary_id = dictionary_ids[0] if dictionary_ids[0] in new_dictionary_ids else dictionary_ids[1]
         assert old_dictionary_id in new_dictionary_ids
@@ -2834,7 +2842,7 @@ class TestHunkValuesDictionaryCompression(TestSortedDynamicTablesHunks):
         assert not exists("#{}/@compression_dictionary_id".format(dictionary_ids[1]))
 
         self._perform_forced_compaction("//tmp/t", "compaction")
-        dictionary_ids = self._find_referenced_dictionary_hunk_chunks("//tmp/t")
+        dictionary_ids = self._find_referenced_dictionary_hunk_chunks("//tmp/t", 1)
         wait(lambda: len(dictionary_ids) == 1)
         assert dictionary_ids[0] in new_dictionary_ids and dictionary_ids[0] != old_dictionary_id
 
@@ -2961,7 +2969,8 @@ class TestHunkValuesDictionaryCompression(TestSortedDynamicTablesHunks):
 
         self._wait_dictionaries_built("//tmp/t", 1)
         self._perform_forced_compaction("//tmp/t", "compaction")
-        dictionary_ids = self._find_referenced_dictionary_hunk_chunks("//tmp/t")
+        dictionary_ids = self._find_referenced_dictionary_hunk_chunks("//tmp/t", 2)
+        assert len(dictionary_ids) == 2
 
         set("//tmp/t/@mount_config/value_dictionary_compression/applied_policies", [])
         remount_table("//tmp/t")
@@ -3031,7 +3040,7 @@ class TestHunkValuesDictionaryCompression(TestSortedDynamicTablesHunks):
         self._wait_dictionaries_built("//tmp/t", 1)
         self._perform_forced_compaction("//tmp/t", "compaction")
 
-        dictionary_ids = self._find_referenced_dictionary_hunk_chunks("//tmp/t")
+        dictionary_ids = self._find_referenced_dictionary_hunk_chunks("//tmp/t", 2)
         assert len(dictionary_ids) == 2
 
         assert exists("#{}".format(dictionary_ids[0]))
