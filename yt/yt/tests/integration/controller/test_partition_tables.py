@@ -646,3 +646,15 @@ class TestPartitionTablesCommand(TestPartitionTablesBase):
 
         with raises_yt_error("Partition must be read by the same user who created it"):
             read_table_partition(partitions[0]["cookie"], authenticated_user="user2")
+
+    @authors("apollo1321")
+    def test_ordered_single_table(self):
+        table = "//tmp/sorted-static"
+        chunk_count = 2
+        rows_per_chunk = 1000
+        row_weight = 1000
+        data_weight = self._create_table(table, chunk_count, rows_per_chunk, row_weight, sorted=False)
+
+        partitions = partition_tables([table], data_weight_per_partition=data_weight * 2, partition_mode="ordered")
+
+        self.check_partitions([table], partitions)
