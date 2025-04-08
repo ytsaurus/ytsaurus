@@ -15,6 +15,7 @@
 #include <yt/yt/ytlib/chunk_client/helpers.h>
 
 #include <yt/yt/ytlib/table_client/schemaless_chunk_writer.h>
+#include <yt/yt/ytlib/table_client/performance_counters.h>
 
 #include <yt/yt/ytlib/tablet_client/proto/tablet_service.pb.h>
 
@@ -1512,6 +1513,8 @@ TFuture<TSharedRange<TUnversionedValue*>> DecodeHunks(
     IChunkFragmentReaderPtr chunkFragmentReader,
     IDictionaryCompressionFactoryPtr dictionaryCompressionFactory,
     TClientChunkReadOptions options,
+    TTabletPerformanceCountersPtr performanceCounters,
+    NTableClient::ERequestType requestType,
     TSharedRange<TUnversionedValue*> values)
 {
     std::optional<TColumnarStatisticsThunk> columnarStatisticsThunk;
@@ -1595,9 +1598,11 @@ TFuture<TSharedRange<TUnversionedValue*>> DecodeHunks(
             compressionDictionaryIds = std::move(compressionDictionaryIds),
             hunkChunkReaderStatistics = std::move(hunkChunkReaderStatistics),
             options = std::move(options),
-            dictionaryCompressionFactory = std::move(dictionaryCompressionFactory)
+            dictionaryCompressionFactory = std::move(dictionaryCompressionFactory),
+            performanceCounters = std::move(performanceCounters)
         ] (IChunkFragmentReader::TReadFragmentsResponse&& response) mutable {
             YT_VERIFY(response.Fragments.size() == requestedValues.size());
+            YT_VERIFY(performanceCounters);
 
             i64 dataWeight = 0;
             for (int index = 0; index < std::ssize(response.Fragments); ++index) {
@@ -1609,13 +1614,24 @@ TFuture<TSharedRange<TUnversionedValue*>> DecodeHunks(
 
             if (hunkChunkReaderStatistics) {
                 // NB: Chunk fragment reader does not update any hunk chunk reader statistics.
-                hunkChunkReaderStatistics->DataWeight() += dataWeight;
                 hunkChunkReaderStatistics->InlineValueCount() += inlineHunkValueCount;
                 hunkChunkReaderStatistics->RefValueCount() += std::ssize(requestedValues);
                 hunkChunkReaderStatistics->BackendReadRequestCount() += response.BackendReadRequestCount;
                 hunkChunkReaderStatistics->BackendHedgingReadRequestCount() += response.BackendHedgingReadRequestCount;
                 hunkChunkReaderStatistics->BackendProbingRequestCount() += response.BackendProbingRequestCount;
+
+                if (compressedValues.empty()) {
+                    hunkChunkReaderStatistics->DataWeight() += dataWeight;
+                }
             }
+
+            if (compressedValues.empty()) {
+                performanceCounters->IncrementHunkDataWeight(
+                    requestType,
+                    dataWeight,
+                    options.WorkloadDescriptor.Category);
+            }
+
 
             auto result = MakeSharedRange(values, values, std::move(response.Fragments));
 
@@ -1625,13 +1641,27 @@ TFuture<TSharedRange<TUnversionedValue*>> DecodeHunks(
                 auto owningCompressedValues = MakeSharedRange(compressedValues, compressedValues, result);
 
                 YT_VERIFY(dictionaryCompressionFactory);
+                auto workloadCategory = options.WorkloadDescriptor.Category;
                 return dictionaryCompressionFactory->CreateDictionaryDecompressionSession()->DecompressValues(
                     std::move(owningCompressedValues),
                     std::move(compressionDictionaryIds),
                     std::move(options))
                     .ApplyUnique(BIND([
-                        result = std::move(result)
+                        result = std::move(result),
+                        hunkChunkReaderStatistics = std::move(hunkChunkReaderStatistics),
+                        performanceCounters = std::move(performanceCounters),
+                        requestType,
+                        workloadCategory
                     ] (std::vector<TSharedRef>&& decompressionResults) {
+                        auto dataWeight = GetByteSize(decompressionResults);
+                        if (hunkChunkReaderStatistics) {
+                            hunkChunkReaderStatistics->DataWeight() += dataWeight;
+                        }
+                        performanceCounters->IncrementHunkDataWeight(
+                            requestType,
+                            dataWeight,
+                            workloadCategory);
+
                         return MakeSharedRange(result, result, std::move(decompressionResults));
                     }));
             }
@@ -1682,6 +1712,8 @@ TFuture<TSharedRange<TRow>> DecodeHunksInRows(
     IChunkFragmentReaderPtr chunkFragmentReader,
     IDictionaryCompressionFactoryPtr dictionaryCompressionFactory,
     TClientChunkReadOptions options,
+    TTabletPerformanceCountersPtr performanceCounters,
+    NTableClient::ERequestType requestType,
     TSharedRange<TRow> rows,
     const TRowVisitor& rowVisitor)
 {
@@ -1690,6 +1722,8 @@ TFuture<TSharedRange<TRow>> DecodeHunksInRows(
             std::move(chunkFragmentReader),
             std::move(dictionaryCompressionFactory),
             std::move(options),
+            std::move(performanceCounters),
+            requestType,
             CollectHunkValues(rows, rowVisitor))
         .ApplyUnique(BIND(
             [rows = std::move(rows)]
@@ -1705,12 +1739,16 @@ TFuture<TSharedRange<TMutableUnversionedRow>> DecodeHunksInSchemafulUnversionedR
     IChunkFragmentReaderPtr chunkFragmentReader,
     IDictionaryCompressionFactoryPtr dictionaryCompressionFactory,
     TClientChunkReadOptions options,
+    TTabletPerformanceCountersPtr performanceCounters,
+    NTableClient::ERequestType requestType,
     TSharedRange<TMutableUnversionedRow> rows)
 {
     return DecodeHunksInRows(
         std::move(chunkFragmentReader),
         std::move(dictionaryCompressionFactory),
         std::move(options),
+        std::move(performanceCounters),
+        requestType,
         std::move(rows),
         TSchemafulUnversionedRowVisitor(schema, columnFilter));
 }
@@ -1719,12 +1757,16 @@ TFuture<TSharedRange<TMutableVersionedRow>> DecodeHunksInVersionedRows(
     IChunkFragmentReaderPtr chunkFragmentReader,
     IDictionaryCompressionFactoryPtr dictionaryCompressionFactory,
     TClientChunkReadOptions options,
+    TTabletPerformanceCountersPtr performanceCounters,
+    NTableClient::ERequestType requestType,
     TSharedRange<TMutableVersionedRow> rows)
 {
     return DecodeHunksInRows(
         std::move(chunkFragmentReader),
         std::move(dictionaryCompressionFactory),
         std::move(options),
+        std::move(performanceCounters),
+        requestType,
         std::move(rows),
         TVersionedRowVisitor());
 }
@@ -1745,12 +1787,14 @@ public:
         TIntrusivePtr<IReader> underlying,
         IChunkFragmentReaderPtr chunkFragmentReader,
         IDictionaryCompressionFactoryPtr dictionaryCompressionFactory,
-        TClientChunkReadOptions options)
+        TClientChunkReadOptions options,
+        TTabletPerformanceCountersPtr performanceCounters)
         : Config_(std::move(config))
         , Underlying_(std::move(underlying))
         , ChunkFragmentReader_(std::move(chunkFragmentReader))
         , DictionaryCompressionFactory_(std::move(dictionaryCompressionFactory))
         , Options_(std::move(options))
+        , PerformanceCounters_(std::move(performanceCounters))
         , Logger(TableClientLogger().WithTag("ReadSessionId: %v",
             Options_.ReadSessionId))
     { }
@@ -1787,6 +1831,7 @@ protected:
     const IChunkFragmentReaderPtr ChunkFragmentReader_;
     const IDictionaryCompressionFactoryPtr DictionaryCompressionFactory_;
     const TClientChunkReadOptions Options_;
+    const TTabletPerformanceCountersPtr PerformanceCounters_;
 
     const NLogging::TLogger Logger;
 
@@ -1881,6 +1926,8 @@ protected:
                 ChunkFragmentReader_,
                 DictionaryCompressionFactory_,
                 Options_,
+                PerformanceCounters_,
+                NTableClient::ERequestType::Read,
                 MakeSharedRange(std::move(values), DecodableRows_))
             .ApplyUnique(
                 BIND(&TBatchHunkReader::OnHunksRead, MakeStrong(this)));
@@ -1917,13 +1964,15 @@ public:
         ISchemafulUnversionedReaderPtr underlying,
         IChunkFragmentReaderPtr chunkFragmentReader,
         IDictionaryCompressionFactoryPtr dictionaryCompressionFactory,
-        TClientChunkReadOptions options)
+        TClientChunkReadOptions options,
+        TTabletPerformanceCountersPtr performanceCounters)
         : TBatchHunkReader(
             std::move(config),
             std::move(underlying),
             std::move(chunkFragmentReader),
             std::move(dictionaryCompressionFactory),
-            std::move(options))
+            std::move(options),
+            std::move(performanceCounters))
         , RowVisitor_(schema, columnFilter)
     { }
 
@@ -1946,7 +1995,8 @@ ISchemafulUnversionedReaderPtr CreateHunkDecodingSchemafulReader(
     ISchemafulUnversionedReaderPtr underlying,
     IChunkFragmentReaderPtr chunkFragmentReader,
     IDictionaryCompressionFactoryPtr dictionaryCompressionFactory,
-    TClientChunkReadOptions options)
+    TClientChunkReadOptions options,
+    TTabletPerformanceCountersPtr performanceCounters)
 {
     if (!schema || !schema->HasHunkColumns()) {
         return underlying;
@@ -1959,7 +2009,8 @@ ISchemafulUnversionedReaderPtr CreateHunkDecodingSchemafulReader(
         std::move(underlying),
         std::move(chunkFragmentReader),
         std::move(dictionaryCompressionFactory),
-        std::move(options));
+        std::move(options),
+        std::move(performanceCounters));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1975,13 +2026,15 @@ public:
         IDictionaryCompressionFactoryPtr dictionaryCompressionFactory,
         TTableSchemaPtr schema,
         THashSet<TChunkId> hunkChunkIdsToForceInline,
-        TClientChunkReadOptions options)
+        TClientChunkReadOptions options,
+        TTabletPerformanceCountersPtr performanceCounters)
         : TBatchHunkReader(
             std::move(config),
             std::move(underlying),
             std::move(chunkFragmentReader),
             std::move(dictionaryCompressionFactory),
-            std::move(options))
+            std::move(options),
+            std::move(performanceCounters))
         , Schema_(std::move(schema))
         , HunkChunkIdsToForceInline_(std::move(hunkChunkIdsToForceInline))
     { }
@@ -2041,7 +2094,8 @@ IVersionedReaderPtr CreateHunkInliningVersionedReader(
     IDictionaryCompressionFactoryPtr dictionaryCompressionFactory,
     TTableSchemaPtr schema,
     THashSet<TChunkId> hunkChunkIdsToForceInline,
-    TClientChunkReadOptions options)
+    TClientChunkReadOptions options,
+    TTabletPerformanceCountersPtr performanceCounters)
 {
     if (!schema->HasHunkColumns()) {
         return underlying;
@@ -2054,7 +2108,8 @@ IVersionedReaderPtr CreateHunkInliningVersionedReader(
         std::move(dictionaryCompressionFactory),
         std::move(schema),
         std::move(hunkChunkIdsToForceInline),
-        std::move(options));
+        std::move(options),
+        std::move(performanceCounters));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -2134,7 +2189,8 @@ ISchemalessChunkReaderPtr CreateHunkDecodingSchemalessChunkReader(
     IChunkFragmentReaderPtr chunkFragmentReader,
     IDictionaryCompressionFactoryPtr dictionaryCompressionFactory,
     TTableSchemaPtr schema,
-    TClientChunkReadOptions options)
+    TClientChunkReadOptions options,
+    TTabletPerformanceCountersPtr performanceCounters)
 {
     YT_VERIFY(!options.HunkChunkReaderStatistics);
 
@@ -2147,7 +2203,8 @@ ISchemalessChunkReaderPtr CreateHunkDecodingSchemalessChunkReader(
         std::move(underlying),
         std::move(chunkFragmentReader),
         std::move(dictionaryCompressionFactory),
-        std::move(options));
+        std::move(options),
+        std::move(performanceCounters));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -2187,7 +2244,8 @@ ISchemalessMultiChunkReaderPtr CreateHunkDecodingSchemalessMultiChunkReader(
     IChunkFragmentReaderPtr chunkFragmentReader,
     IDictionaryCompressionFactoryPtr dictionaryCompressionFactory,
     TTableSchemaPtr schema,
-    TClientChunkReadOptions options)
+    TClientChunkReadOptions options,
+    TTabletPerformanceCountersPtr performanceCounters)
 {
     YT_VERIFY(!options.HunkChunkReaderStatistics);
 
@@ -2200,7 +2258,8 @@ ISchemalessMultiChunkReaderPtr CreateHunkDecodingSchemalessMultiChunkReader(
         std::move(underlying),
         std::move(chunkFragmentReader),
         std::move(dictionaryCompressionFactory),
-        std::move(options));
+        std::move(options),
+        std::move(performanceCounters));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

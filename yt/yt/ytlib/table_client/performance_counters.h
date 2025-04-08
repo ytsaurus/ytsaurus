@@ -2,9 +2,23 @@
 
 #include "public.h"
 
+#include <yt/yt/client/misc/public.h>
+
 #include <yt/yt/core/misc/ema_counter.h>
 
 namespace NYT::NTableClient {
+
+////////////////////////////////////////////////////////////////////////////////
+
+DEFINE_ENUM(EDataSource,
+    (DynamicStore)
+    (ChunkStore)
+);
+
+DEFINE_ENUM(ERequestType,
+    (Lookup)
+    (Read)
+);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -28,8 +42,12 @@ struct TChunkReaderPerformanceCounters
 {
     TPerformanceCountersEma StaticChunkRowRead;
     TPerformanceCountersEma StaticChunkRowReadDataWeight;
+    TPerformanceCountersEma StaticHunkChunkRowReadDataWeight;
     TPerformanceCountersEma StaticChunkRowLookup;
     TPerformanceCountersEma StaticChunkRowLookupDataWeight;
+    TPerformanceCountersEma StaticHunkChunkRowLookupDataWeight;
+
+    void IncrementHunkDataWeight(ERequestType requestType, i64 value, EWorkloadCategory workloadCategory);
 };
 
 DEFINE_REFCOUNTED_TYPE(TChunkReaderPerformanceCounters)
@@ -54,18 +72,6 @@ struct TTabletPerformanceCounters
 };
 
 DEFINE_REFCOUNTED_TYPE(TTabletPerformanceCounters)
-
-////////////////////////////////////////////////////////////////////////////////
-
-DEFINE_ENUM(EDataSource,
-    (DynamicStore)
-    (ChunkStore)
-);
-
-DEFINE_ENUM(ERequestType,
-    (Lookup)
-    (Read)
-);
 
 ////////////////////////////////////////////////////////////////////////////////
 

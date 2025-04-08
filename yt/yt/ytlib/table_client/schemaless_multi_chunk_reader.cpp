@@ -17,6 +17,7 @@
 #include "table_read_spec.h"
 #include "versioned_chunk_reader.h"
 #include "versioned_reader_adapter.h"
+#include "performance_counters.h"
 
 #include <yt/yt/ytlib/api/native/connection.h>
 #include <yt/yt/ytlib/api/native/client.h>
@@ -164,6 +165,8 @@ std::vector<IReaderFactoryPtr> CreateReaderFactories(
         const auto& dataSource = dataSourceDirectory->DataSources()[dataSliceDescriptor.GetDataSourceIndex()];
         auto perClusterChunkReaderHost = chunkReaderHost->CreateHostForCluster(dataSource.GetClusterName());
 
+        auto performanceCounters = New<TTabletPerformanceCounters>();
+
         auto& chunkFragmentReader = chunkFragmentReaders[dataSource.GetClusterName()];
         if (!chunkFragmentReader) {
             chunkFragmentReader = CreateChunkFragmentReader(
@@ -188,7 +191,8 @@ std::vector<IReaderFactoryPtr> CreateReaderFactories(
                 chunkFragmentReader,
                 std::move(dictionaryCompressionFactory),
                 dataSource.Schema(),
-                chunkReadOptions);
+                chunkReadOptions,
+                performanceCounters);
         };
 
         switch (dataSource.GetType()) {
@@ -1499,7 +1503,8 @@ ISchemalessMultiChunkReaderPtr CreateAppropriateSchemalessMultiChunkReader(
                 std::move(chunkFragmentReader),
                 std::move(dictionaryCompressionFactory),
                 dataSource.Schema(),
-                chunkReadOptions);
+                chunkReadOptions,
+                New<TTabletPerformanceCounters>());
         }
 
         case EDataSourceType::UnversionedTable: {

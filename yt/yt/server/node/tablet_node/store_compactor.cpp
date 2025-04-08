@@ -2352,7 +2352,8 @@ private:
                 tablet,
                 stores,
                 logger),
-            chunkReadOptions);
+            chunkReadOptions,
+            tabletSnapshot->PerformanceCounters);
     }
 
     static int GetOverlappingStoreLimit(const TTableMountConfigPtr& config)

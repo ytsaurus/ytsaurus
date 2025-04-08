@@ -299,7 +299,8 @@ ISchemafulUnversionedReaderPtr WrapSchemafulTabletReader(
         std::move(reader),
         tabletSnapshot->ChunkFragmentReader,
         tabletSnapshot->DictionaryCompressionFactory,
-        chunkReadOptions);
+        chunkReadOptions,
+        tabletSnapshot->PerformanceCounters);
 
     return reader;
 }

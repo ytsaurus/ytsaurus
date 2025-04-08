@@ -1,6 +1,7 @@
 #pragma once
 
 #include "public.h"
+#include "performance_counters.h"
 
 #include <yt/yt/ytlib/chunk_client/chunk_fragment_reader.h>
 #include <yt/yt/ytlib/chunk_client/chunk_reader_options.h>
@@ -352,6 +353,8 @@ TFuture<TSharedRange<TMutableUnversionedRow>> DecodeHunksInSchemafulUnversionedR
     NChunkClient::IChunkFragmentReaderPtr chunkFragmentReader,
     IDictionaryCompressionFactoryPtr dictionaryCompressionFactory,
     NChunkClient::TClientChunkReadOptions options,
+    TTabletPerformanceCountersPtr performanceCounters,
+    NTableClient::ERequestType requestType,
     TSharedRange<TMutableUnversionedRow> rows);
 
 //! A versioned counterpart of #ReadAndDecodeHunksInSchemafulRows.
@@ -359,6 +362,8 @@ TFuture<TSharedRange<TMutableVersionedRow>> DecodeHunksInVersionedRows(
     NChunkClient::IChunkFragmentReaderPtr chunkFragmentReader,
     IDictionaryCompressionFactoryPtr dictionaryCompressionFactory,
     NChunkClient::TClientChunkReadOptions options,
+    TTabletPerformanceCountersPtr performanceCounters,
+    NTableClient::ERequestType requestType,
     TSharedRange<TMutableVersionedRow> rows);
 
 //! Constructs a writer performing hunk encoding.
@@ -382,7 +387,8 @@ ISchemafulUnversionedReaderPtr CreateHunkDecodingSchemafulReader(
     ISchemafulUnversionedReaderPtr underlying,
     NChunkClient::IChunkFragmentReaderPtr chunkFragmentReader,
     IDictionaryCompressionFactoryPtr dictionaryCompressionFactory,
-    NChunkClient::TClientChunkReadOptions options);
+    NChunkClient::TClientChunkReadOptions options,
+    TTabletPerformanceCountersPtr performanceCounters);
 
 //! Schemaless counterparts of #CreateHunkDecodingSchemafulReader.
 ISchemalessChunkReaderPtr CreateHunkDecodingSchemalessChunkReader(
@@ -391,14 +397,16 @@ ISchemalessChunkReaderPtr CreateHunkDecodingSchemalessChunkReader(
     NChunkClient::IChunkFragmentReaderPtr chunkFragmentReader,
     IDictionaryCompressionFactoryPtr dictionaryCompressionFactory,
     TTableSchemaPtr schema,
-    NChunkClient::TClientChunkReadOptions options);
+    NChunkClient::TClientChunkReadOptions options,
+    TTabletPerformanceCountersPtr performanceCounters);
 ISchemalessMultiChunkReaderPtr CreateHunkDecodingSchemalessMultiChunkReader(
     TBatchHunkReaderConfigPtr config,
     ISchemalessMultiChunkReaderPtr underlying,
     NChunkClient::IChunkFragmentReaderPtr chunkFragmentReader,
     IDictionaryCompressionFactoryPtr dictionaryCompressionFactory,
     TTableSchemaPtr schema,
-    NChunkClient::TClientChunkReadOptions options);
+    NChunkClient::TClientChunkReadOptions options,
+    TTabletPerformanceCountersPtr performanceCounters);
 
 //! Constructs a reader replacing hunk refs with inline hunks
 //! (obtained by fetching payloads via #chunkFragmentReader).
@@ -412,7 +420,8 @@ IVersionedReaderPtr CreateHunkInliningVersionedReader(
     IDictionaryCompressionFactoryPtr dictionaryCompressionFactory,
     TTableSchemaPtr schema,
     THashSet<NChunkClient::TChunkId> hunkChunkIdsToForceInline,
-    NChunkClient::TClientChunkReadOptions options);
+    NChunkClient::TClientChunkReadOptions options,
+    TTabletPerformanceCountersPtr performanceCounters);
 
 ////////////////////////////////////////////////////////////////////////////////
 
