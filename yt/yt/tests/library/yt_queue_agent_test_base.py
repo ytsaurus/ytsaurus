@@ -13,6 +13,7 @@ from yt.common import YtError, update_inplace, update
 
 import builtins
 import time
+from abc import ABC, abstractmethod
 
 from yt.yson import YsonEntity
 
@@ -331,7 +332,7 @@ class ReplicatedObjectBase(ChaosTestBase):
 ##################################################################
 
 
-class QueueStaticExportHelpers:
+class QueueStaticExportHelpers(ABC):
     @staticmethod
     def _create_export_destination(export_directory, queue_id, **kwargs):
         create("map_node", export_directory, recursive=True, ignore_existing=True, **kwargs)
@@ -371,18 +372,26 @@ class QueueStaticExportHelpers:
         wait(try_remove, ignore_exceptions=True)
         assert all(not exists(export_directory, driver=kwargs.pop("driver", None)) for export_directory in export_directories)
 
-    @staticmethod
+    @classmethod
+    @abstractmethod
+    def _get_default_last_export_unix_ts_field_name(cls) -> str:
+        ...
+
+    @classmethod
     # NB: The last two options should be used carefully: currently they strictly check that all timestamps are within [ts - period, ts], which might not generally be the case.
     def _check_export(
+        cls,
         export_directory,
         expected_data,
         queue_path=None,
         use_upper_bound_for_table_names=False,
         check_lower_bound=False,
-        last_export_unix_ts_field_name="last_export_unix_ts",
+        last_export_unix_ts_field_name=None,
         expected_removed_rows=None,
         **kwargs
     ):
+        last_export_unix_ts_field_name = last_export_unix_ts_field_name or cls._get_default_last_export_unix_ts_field_name()
+
         expected_removed_rows = expected_removed_rows or 0
 
         exported_tables = [name for name in sorted(ls(export_directory, **kwargs)) if f"{export_directory}/{name}" != queue_path]
@@ -465,6 +474,8 @@ class TestQueueAgentBase(YTEnvSetup):
 
     USE_DYNAMIC_TABLES = True
 
+    USE_OLD_QUEUE_EXPORTER_IMPL = False
+
     BASE_QUEUE_AGENT_DYNAMIC_CONFIG = {
         "queue_agent_sharding_manager": {
             "pass_period": 100,
@@ -474,6 +485,7 @@ class TestQueueAgentBase(YTEnvSetup):
             "controller": {
                 "pass_period": 100,
                 "queue_exporter": {
+                    "implementation": "new",
                     "pass_period": 100,
                     # Fixate greater value for tests in case default decreases in the future.
                     "max_exported_table_count_per_task": 10,
@@ -544,7 +556,12 @@ class TestQueueAgentBase(YTEnvSetup):
 
         create("document", cls.config_path, attributes={"value": cls.BASE_QUEUE_AGENT_DYNAMIC_CONFIG})
 
-        cls._apply_dynamic_config_patch(getattr(cls, "DELTA_QUEUE_AGENT_DYNAMIC_CONFIG", dict()))
+        # COMPAT(apachee): Temporary hack to ease compatability with old queue exporter implementation for the time being.
+        delta_queue_agent_dynamic_config = update(
+            getattr(cls, "DELTA_QUEUE_AGENT_DYNAMIC_CONFIG", dict()),
+            cls._get_queue_exporter_implementation_patch("old" if getattr(cls, "USE_OLD_QUEUE_EXPORTER_IMPL") else "new")
+        )
+        cls._apply_dynamic_config_patch(delta_queue_agent_dynamic_config)
 
         cls.INSTANCES = cls._wait_for_instances()
         cls._wait_for_elections()
@@ -816,5 +833,30 @@ class TestQueueAgentBase(YTEnvSetup):
         cls._wait_for_object_passes(instances)
 
         print_debug("Synced all state; elapsed time:", time.time() - start_time)
+
+    @staticmethod
+    def _get_queue_exporter_implementation_patch(queue_exporter_implementation):
+        return {
+            "queue_agent": {
+                "controller": {
+                    "queue_exporter": {
+                        "implementation": queue_exporter_implementation,
+                    },
+                },
+            },
+        }
+
+    @classmethod
+    def _switch_queue_exporter_implementation(cls, queue_exporter_implementation):
+        cls._apply_dynamic_config_patch(cls._get_queue_exporter_implementation_patch(queue_exporter_implementation))
+
+    @classmethod
+    def _is_old_queue_exporter_impl(cls):
+        return getattr(cls, "USE_OLD_QUEUE_EXPORTER_IMPL")
+
+    @classmethod
+    def _get_default_last_export_unix_ts_field_name(cls) -> str:
+        return "last_export_unix_ts" if not getattr(cls, "USE_OLD_QUEUE_EXPORTER_IMPL") else "last_exported_fragment_unix_ts"
+
 
 ##################################################################

@@ -6,6 +6,7 @@
 #include "helpers.h"
 #include "profile_manager.h"
 #include "queue_exporter.h"
+#include "queue_exporter_old.h"
 #include "queue_export_manager.h"
 
 #include <yt/yt/ytlib/hive/cluster_directory.h>
@@ -610,6 +611,7 @@ private:
 
     void UpdateExports(const TQueueSnapshotPtr& nextQueueSnapshot)
     {
+        YT_LOG_DEBUG("Updating exports");
         // NB(apachee): We keep the exports even in the case of "enableQueueStaticExport" being false
         // to allow trimming exported rows, but prevent trimming past them.
 
@@ -619,6 +621,38 @@ private:
 
         auto queueExporterConfig = DynamicConfig_.Acquire()->QueueExporter;
         const auto& staticExportConfig = nextQueueSnapshot->Row.StaticExportConfig;
+
+        // COMPAT(apachee): Create queue exporter depending on implementation set in config.
+        // NB(apachee): We re-create exporters here and not in OnDynamicConfigChanged for simplicity.
+        auto createQueueExporter = [&] (TString name, TQueueStaticExportConfigPtr exportConfig) -> IQueueExporterPtr {
+            switch (queueExporterConfig.Implementation) {
+                case EQueueExporterImplementation::New:
+                    return CreateQueueExporter(
+                        std::move(name),
+                        QueueRef_,
+                        std::move(exportConfig),
+                        queueExporterConfig,
+                        ClientDirectory_->GetUnderlyingClientDirectory(),
+                        Invoker_,
+                        QueueExportManager_,
+                        CreateAlertCollector(AlertManager_),
+                        ProfileManager_->GetQueueProfiler(),
+                        Logger);
+                case EQueueExporterImplementation::Old:
+                    return New<TQueueExporterOld>(
+                        std::move(name),
+                        QueueRef_,
+                        std::move(exportConfig),
+                        queueExporterConfig,
+                        ClientDirectory_->GetUnderlyingClientDirectory(),
+                        Invoker_,
+                        CreateAlertCollector(AlertManager_),
+                        ProfileManager_->GetQueueProfiler(),
+                        Logger);
+            }
+
+            YT_ABORT();
+        };
 
         auto guard = WriterGuard(QueueExportsLock_);
 
@@ -641,20 +675,19 @@ private:
         }
         auto& queueExports = QueueExports_.Value();
         for (const auto& [name, exportConfig] : *staticExportConfig) {
-            if (queueExports.find(name) == queueExports.end()) {
-                queueExports[name] = CreateQueueExporter(
-                    name,
-                    QueueRef_,
-                    exportConfig,
-                    queueExporterConfig,
-                    ClientDirectory_->GetUnderlyingClientDirectory(),
-                    Invoker_,
-                    QueueExportManager_,
-                    CreateAlertCollector(AlertManager_),
-                    ProfileManager_->GetQueueProfiler(),
-                    Logger);
+            auto queueExportsIt = queueExports.find(name);
+            if (queueExportsIt == queueExports.end()) {
+                queueExports[name] = createQueueExporter(name, exportConfig);
+            } else if (queueExportsIt->second->GetImplementationType() != queueExporterConfig.Implementation) {
+                YT_LOG_DEBUG("Chaging exporter implementation (OldImplementation: %v, NewImplementation: %v)",
+                    queueExportsIt->second->GetImplementationType(),
+                    queueExporterConfig.Implementation);
+
+                // NB(apachee): Previous queue exporter is destroyed after assignment, so we stop it.
+                queueExportsIt->second->Stop();
+                queueExportsIt->second = createQueueExporter(name, exportConfig);
             } else {
-                queueExports[name]->OnExportConfigChanged(exportConfig);
+                queueExportsIt->second->OnExportConfigChanged(exportConfig);
             }
         }
 
@@ -671,6 +704,11 @@ private:
             it->second->Stop();
 
             queueExports.erase(it);
+        }
+
+        // COMPAT(apachee): Sanity check that after each UpdateExports all exporters are of proper implementation.
+        for (const auto& [exportName, exporter] : queueExports) {
+            YT_VERIFY(exporter->GetImplementationType() == queueExporterConfig.Implementation);
         }
     }
 
