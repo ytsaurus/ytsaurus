@@ -207,6 +207,8 @@ struct TQueryOptions
 void ToProto(NProto::TQueryOptions* serialized, const TQueryOptions& original);
 void FromProto(TQueryOptions* original, const NProto::TQueryOptions& serialized);
 
+TQueryOptions GetJoinSubqueryOptions(const TQueryOptions& queryOptions);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TFeatureFlags

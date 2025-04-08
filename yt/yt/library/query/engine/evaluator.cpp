@@ -70,7 +70,7 @@ public:
         const TConstBaseQueryPtr& query,
         const ISchemafulUnversionedReaderPtr& reader,
         const IUnversionedRowsetWriterPtr& writer,
-        const TJoinSubqueryProfiler& joinProfiler,
+        const IJoinSubqueryProfilerPtr& joinProfiler,
         const TConstFunctionProfilerMapPtr& functionProfilers,
         const TConstAggregateProfilerMapPtr& aggregateProfilers,
         const IMemoryChunkProviderPtr& memoryChunkProvider,
@@ -178,7 +178,7 @@ private:
     TCGQueryInstance Codegen(
         TConstBaseQueryPtr query,
         TCGVariables& variables,
-        const TJoinSubqueryProfiler& joinProfiler,
+        const IJoinSubqueryProfilerPtr& joinProfiler,
         const TConstFunctionProfilerMapPtr& functionProfilers,
         const TConstAggregateProfilerMapPtr& aggregateProfilers,
         TQueryStatistics& statistics,

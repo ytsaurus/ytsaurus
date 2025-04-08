@@ -13,13 +13,6 @@ namespace NYT::NQueryClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-using TExecuteQueryCallback = std::function<TFuture<void>(
-    const TQueryPtr& query,
-    TDataSource dataSource,
-    IUnversionedRowsetWriterPtr writer)>;
-
-////////////////////////////////////////////////////////////////////////////////
-
 struct IExecutor
     : public virtual TRefCounted
 {
@@ -45,11 +38,6 @@ struct IPrepareCallbacks
     //! Fetches externally defined functions.
     virtual void FetchFunctions(TRange<TString> names, const TTypeInferrerMapPtr& typeInferrers) = 0;
 };
-
-////////////////////////////////////////////////////////////////////////////////
-
-using TJoinSubqueryEvaluator = std::function<ISchemafulUnversionedReaderPtr(std::vector<TRow>, TRowBufferPtr)>;
-using TJoinSubqueryProfiler = std::function<TJoinSubqueryEvaluator(int joinIndex)>;
 
 ////////////////////////////////////////////////////////////////////////////////
 

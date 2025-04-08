@@ -54,6 +54,7 @@ target_sources(library-query-engine_api PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/library/query/engine_api/evaluator.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/library/query/engine_api/expression_context.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/library/query/engine_api/expression_evaluator.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/library/query/engine_api/join_profiler.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/library/query/engine_api/new_range_inferrer.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/library/query/engine_api/position_independent_value.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/library/query/engine_api/position_independent_value_transfer.cpp

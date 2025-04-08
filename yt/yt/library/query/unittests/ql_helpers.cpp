@@ -88,6 +88,7 @@ TDataSplit MakeSimpleSplit()
 TDataSplit MakeSplit(const std::vector<TColumnSchema>& columns)
 {
     TDataSplit dataSplit;
+    dataSplit.ObjectId = TGuid::Create();
     dataSplit.TableSchema = New<TTableSchema>(columns);
     return dataSplit;
 }
@@ -105,7 +106,7 @@ void ProfileForBothExecutionBackends(
     const TConstBaseQueryPtr& query,
     llvm::FoldingSetNodeID* id,
     TCGVariables* variables,
-    TJoinSubqueryProfiler joinProfiler)
+    IJoinSubqueryProfilerPtr joinProfiler)
 {
     Profile(query, id, variables, joinProfiler, /*useCanonicalNullRelations*/ false, EExecutionBackend::Native)();
     if (EnableWebAssemblyInUnitTests()) {
@@ -123,6 +124,25 @@ void ProfileForBothExecutionBackends(
     if (EnableWebAssemblyInUnitTests()) {
         Profile(expr, schema, id, variables, /*useCanonicalNullRelations*/ false, EExecutionBackend::WebAssembly)();
     }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+IJoinSubqueryProfilerPtr MakeNullJoinSubqueryProfiler()
+{
+    class TNullJoinSubqueryProfiler
+        : public IJoinSubqueryProfiler
+    {
+    public:
+        TNullJoinSubqueryProfiler() = default;
+
+        IJoinRowsProducerPtr Profile(int /*joinIndex*/) override
+        {
+            return nullptr;
+        }
+    };
+
+    return New<TNullJoinSubqueryProfiler>();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

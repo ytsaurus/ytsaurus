@@ -406,6 +406,15 @@ void FromProto(TQueryOptions* original, const NProto::TQueryOptions& serialized)
     }
 }
 
+TQueryOptions GetJoinSubqueryOptions(const TQueryOptions& queryOptions)
+{
+    auto result = queryOptions;
+    result.MaxSubqueries = 1;
+    result.MergeVersionedRows = true;
+
+    return result;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 void VerifyIdsInRange(const TRowRange& range)
