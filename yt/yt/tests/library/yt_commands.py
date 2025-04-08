@@ -3755,3 +3755,25 @@ def make_externalized_tx_id(tx_id, externalizing_cell_tag):
         f"{parts[1]:x}",
         f"{shifted_native_cell_tag | externalized_type:x}",
         f"{parts[3] | (int(externalizing_cell_tag) << 16):x}"])
+
+
+def start_distributed_write_session(path: str, cookie_count: int, **kwargs):
+    kwargs["path"] = path
+    kwargs["cookie_count"] = cookie_count
+    return execute_command("start_distributed_write_session", kwargs, parse_yson=True)
+
+
+def write_table_fragment(cookie: yson.YsonType, rows: list | bytes, **kwargs):
+    assert rows is not None
+    if not isinstance(rows, bytes):
+        rows = yson.dumps(rows, yson_type="list_fragment")
+    input_stream = BytesIO(rows)
+
+    kwargs["cookie"] = cookie
+    return execute_command("write_table_fragment", kwargs, input_stream=input_stream, parse_yson=True)
+
+
+def finish_distributed_write_session(session: yson.YsonType, results: list[yson.YsonType], **kwargs):
+    kwargs["session"] = session
+    kwargs["results"] = results
+    execute_command("finish_distributed_write_session", kwargs)
