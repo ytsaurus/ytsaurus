@@ -16,7 +16,6 @@ ARG ODIN_CHECKS_DATA_DIR="${ODIN_RUNTIME_ROOT}/checks-data"
 # Flow control args.
 # copy-ytsaurus-python-binaries or build-ytsaurus-python-binaries
 ARG PYTHON_BUILD_BASE="copy-ytsaurus-python-binaries"
-ARG ROOT_IMAGE="ubuntu-base"
 
 ##########################################################################################
 
@@ -31,55 +30,69 @@ RUN apt-get update \
 
 ##########################################################################################
 
-FROM python:${PYTHON_RUNTIME_VERSION}-slim as python-base
-
-RUN apt-get update && DEBIAN_FRONTEND=noninteractive TZ=Etc/UTC apt-get install -y \
-  linux-perf
-
-##########################################################################################
-
-FROM ${ROOT_IMAGE} AS base
+FROM ubuntu-base AS base
 
 USER root
 
 WORKDIR /tmp
 
-RUN apt-get update \
-    && DEBIAN_FRONTEND=noninteractive TZ=Etc/UTC apt-get install -y \
-      software-properties-common \
-      python3-launchpadlib
-RUN add-apt-repository ppa:deadsnakes/ppa
+RUN <<-EOT
+#!/bin/bash
+set -eux -o pipefail
 
-RUN apt-get update \
-    && DEBIAN_FRONTEND=noninteractive TZ=Etc/UTC apt-get install -y \
-      curl \
-      dnsutils \
-      gdb \
-      iproute2 \
-      iputils-ping \
-      less \
-      libidn11-dev \
-      lsb-release \
-      lsof \
-      python3.11 \
-      python3.11-venv \
-      strace \
-      telnet \
-      tini \
-      unzip \
-      zstd \
-      google-perftools \
-      procps \
-      jq \
-      htop \
-      vim \
-      ncdu \
-      iperf \
-      netcat-openbsd \
-      tcpdump \
-      wget \
-    && apt-get clean \
-    && rm -rf /var/lib/apt/lists/*
+export DEBIAN_FRONTEND=noninteractive
+export TZ=Etc/UTC
+
+apt-get update -q --error-on=any
+apt-get install -y curl
+
+# https://launchpad.net/~deadsnakes/+archive/ubuntu/ppa
+mkdir -p /etc/apt/keyrings
+curl -fsSL "https://keyserver.ubuntu.com/pks/lookup?op=get&search=0xF23C5A6CF475977595C89F51BA6932366A755776" |
+  tee /etc/apt/keyrings/deadsnakes-ubuntu-ppa.asc
+
+cat <<EOF >/etc/apt/sources.list.d/deadsnakes-ubuntu-ppa-focal.list
+deb [signed-by=/etc/apt/keyrings/deadsnakes-ubuntu-ppa.asc] https://ppa.launchpadcontent.net/deadsnakes/ppa/ubuntu focal main
+# deb-src [signed-by=/etc/apt/keyrings/deadsnakes-ubuntu-ppa.asc] https://ppa.launchpadcontent.net/deadsnakes/ppa/ubuntu focal main
+EOF
+
+apt-get update -q --error-on=any
+
+packages=(
+  curl
+  dnsutils
+  gdb
+  iproute2
+  iputils-ping
+  less
+  libidn11-dev
+  lsb-release
+  lsof
+  python3.11
+  python3.11-venv
+  strace
+  telnet
+  tini
+  unzip
+  zstd
+  google-perftools
+  procps
+  jq
+  htop
+  vim
+  ncdu
+  iperf
+  netcat-openbsd
+  tcpdump
+  wget
+)
+
+apt-get install -y "${packages[@]}"
+
+apt-get clean
+rm -rf /var/lib/apt/lists/*
+
+EOT
 
 ##########################################################################################
 
@@ -305,7 +318,7 @@ COPY --from=ytsaurus-server-override-bloated / /
 
 ##########################################################################################
 
-FROM python-base as odin-installer
+FROM base as odin-installer
 
 ARG ODIN_ROOT
 ARG ODIN_VIRTUAL_ENV
