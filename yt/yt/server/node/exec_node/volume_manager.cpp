@@ -1489,7 +1489,9 @@ private:
 
         {
             auto guard = Guard(SpinLock_);
-            if (!Volumes_.contains(volumeId)) {
+
+            // When location is disabled, volumes is empty.
+            if (IsEnabled() && !Volumes_.contains(volumeId)) {
                 YT_LOG_FATAL("Volume already removed (VolumeId: %v, VolumePath: %v, VolumeMetaPath: %v)",
                     volumeId,
                     volumePath,
@@ -1498,6 +1500,9 @@ private:
         }
 
         try {
+            // The location could be disabled while we were getting here.
+            // Any how try to unlink volume and remove associated data.
+
             YT_LOG_DEBUG("Removing volume (VolumeId: %v)",
                 volumeId);
 
@@ -1517,6 +1522,9 @@ private:
 
             {
                 auto guard = Guard(SpinLock_);
+
+                // The location could be disabled while we were getting here.
+                // So check that location is enabled prior to erasing volume.
 
                 if (!IsEnabled()) {
                     return;
