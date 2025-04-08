@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/binary"
 	"io"
+	"sync"
 
 	"go.ytsaurus.tech/library/go/core/xerrors"
 )
@@ -188,6 +189,14 @@ func (s *spackMetric) writeMetric(w io.Writer, version spackVersion) error {
 	return nil
 }
 
+func (s *spackMetric) reset() {
+	s.flags = 0
+	s.nameValueIndex = 0
+	s.labelsCount = 0
+	s.labels.Reset()
+	s.metric = nil
+}
+
 type SpackOpts func(*spackEncoder)
 
 func WithVersion12() func(*spackEncoder) {
@@ -207,7 +216,8 @@ type spackEncoder struct {
 	labelNamePool  bytes.Buffer
 	labelValuePool bytes.Buffer
 
-	metrics Metrics
+	metrics     Metrics
+	metricsPool *sync.Pool
 }
 
 func NewSpackEncoder(ctx context.Context, compression CompressionType, metrics *Metrics, opts ...SpackOpts) *spackEncoder {
@@ -219,6 +229,11 @@ func NewSpackEncoder(ctx context.Context, compression CompressionType, metrics *
 		compression: uint8(compression),
 		version:     version11,
 		metrics:     *metrics,
+		metricsPool: &sync.Pool{
+			New: func() any {
+				return &spackMetric{}
+			},
+		},
 	}
 	for _, op := range opts {
 		op(se)
@@ -226,14 +241,14 @@ func NewSpackEncoder(ctx context.Context, compression CompressionType, metrics *
 	return se
 }
 
-func (se *spackEncoder) writeLabels() ([]spackMetric, error) {
+func (se *spackEncoder) writeLabels() ([]*spackMetric, error) {
 	namesIdx := make(map[string]uint32)
 	valuesIdx := make(map[string]uint32)
-	spackMetrics := make([]spackMetric, len(se.metrics.metrics))
+	spackMetrics := make([]*spackMetric, len(se.metrics.metrics))
 
 	for idx, metric := range se.metrics.metrics {
-		m := spackMetric{metric: metric}
-
+		m := se.metricsPool.Get().(*spackMetric)
+		m.metric = metric
 		var flagsByte byte
 		var err error
 		if se.version >= version12 {
@@ -268,7 +283,12 @@ func (se *spackEncoder) Encode(w io.Writer) (written int, err error) {
 	if err != nil {
 		return written, xerrors.Errorf("writeLabels failed: %w", err)
 	}
-
+	defer func() {
+		for _, m := range spackMetrics {
+			m.reset()
+			se.metricsPool.Put(m)
+		}
+	}()
 	err = se.writeHeader(w)
 	if err != nil {
 		return written, xerrors.Errorf("writeHeader failed: %w", err)
@@ -384,7 +404,7 @@ func (se *spackEncoder) writeCommonLabels(w io.Writer) error {
 	return nil
 }
 
-func (se *spackEncoder) writeMetricsData(w io.Writer, metrics []spackMetric) error {
+func (se *spackEncoder) writeMetricsData(w io.Writer, metrics []*spackMetric) error {
 	for _, s := range metrics {
 		if se.context.Err() != nil {
 			return xerrors.Errorf("streamSpack context error: %w", se.context.Err())
