@@ -50,6 +50,7 @@ target_link_options(unittester-library-auth_server PRIVATE
 
 target_sources(unittester-library-auth_server PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/library/auth_server/unittests/blackbox_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/library/auth_server/unittests/yc_iam_token_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/library/auth_server/unittests/mock_http_server.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/library/auth_server/unittests/secret_vault_ut.cpp
 )
