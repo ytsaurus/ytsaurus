@@ -8,6 +8,24 @@ Is released as packages in [maven](https://central.sonatype.com/artifact/tech.yt
 
 **Releases:**
 
+{% cut "**1.2.9**" %}
+
+**Release date:** 2025-04-08
+
+
+* Add `fullResult` to `QueryResult`.
+* Add `QueryStatistics` to `SelectRowsResult`.
+* Set type 'composite' instead of 'any' for complex types in `UnversionedValue`.
+* Support 'sort_by' in ReduceSpec.
+* Add API methods for working with Shuffle Service.
+* Support retries for cross cell copy/move.
+* Support additional secrets in `StartQuery`.
+* Add retry for timeout `YTsaurusError`.
+* Don't fail on 'cluster' attribute in queue and consumer paths in the listQueueConsumerRegistrations.
+
+{% endcut %}
+
+
 {% cut "**1.2.8**" %}
 
 **Release date:** 2025-01-23
