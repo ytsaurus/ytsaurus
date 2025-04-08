@@ -4,8 +4,11 @@ namespace NYT::NYqlClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TYqlAgentChannelConfig::Register(TRegistrar /*registrar*/)
-{ }
+void TYqlAgentChannelConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("default_progress_request_timeout", &TThis::DefaultProgressRequestTimeout)
+        .Default(TDuration::Minutes(1));
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 

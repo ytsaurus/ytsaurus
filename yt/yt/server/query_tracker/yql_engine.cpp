@@ -10,6 +10,7 @@
 
 #include <yt/yt/ytlib/yql_client/yql_service_proxy.h>
 #include <yt/yt/ytlib/yql_client/public.h>
+#include <yt/yt/ytlib/yql_client/config.h>
 
 #include <yt/yt/core/ytree/convert.h>
 #include <yt/yt/core/ytree/attributes.h>
@@ -98,7 +99,9 @@ public:
 
     void Start() override
     {
-        YqlAgentChannelProvider_ = Connection_->GetYqlAgentChannelProviderOrThrow(Stage_);
+        auto providerInfo = Connection_->GetYqlAgentChannelProviderOrThrow(Stage_);
+        YqlAgentChannelProvider_ = providerInfo.first;
+        YqlAgentChannelProviderConfig_ = providerInfo.second;
         YqlServiceName_ = TYqlServiceProxy::GetDescriptor().ServiceName;
         TryStart();
     }
@@ -143,6 +146,7 @@ private:
     const std::vector<TQuerySecretPtr> Secrets_;
 
     IRoamingChannelProviderPtr YqlAgentChannelProvider_;
+    TYqlAgentChannelConfigPtr YqlAgentChannelProviderConfig_;
     TString YqlServiceName_;
 
     IChannelPtr YqlServiceChannel_;
@@ -216,6 +220,7 @@ private:
     void GetProgress()
     {
         TYqlServiceProxy proxy(YqlServiceChannel_);
+        proxy.SetDefaultTimeout(YqlAgentChannelProviderConfig_->DefaultProgressRequestTimeout);
         auto req = proxy.GetQueryProgress();
         ToProto(req->mutable_query_id(), QueryId_);
 
