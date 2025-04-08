@@ -640,6 +640,10 @@ protected:
     {
         YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
+        if (!Bootstrap_->IsConnected()) {
+            return MakeFuture(TError("Node disconnected"));
+        }
+
         THeartbeatRspFuture variantResult;
         auto state = GetMasterConnectorState(cellTag);
         EmplaceOrCrash(CellTagToMasterConnectorState_, cellTag, state);

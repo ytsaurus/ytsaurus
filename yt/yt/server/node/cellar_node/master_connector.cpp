@@ -162,6 +162,10 @@ protected:
     {
         YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
+        if (!Bootstrap_->IsConnected()) {
+            return MakeFuture(TError("Node disconnected"));
+        }
+
         auto req = BuildHeartbeatRequest(cellTag);
         auto rspFuture = req->Invoke();
         EmplaceOrCrash(CellTagToHeartbeatRspFuture_, cellTag, rspFuture);
