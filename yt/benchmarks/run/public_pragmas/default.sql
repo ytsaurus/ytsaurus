@@ -7,7 +7,7 @@ pragma yt.UseIntermediateStreams;
 pragma yt.EnableFuseMapToMapReduce = 'true';
 pragma config.flags("OptimizerFlags", "FilterPushdownEnableMultiusage",
                     "EarlyExpandSkipNull","FieldSubsetEnableMultiusage", "PushdownComplexFiltersOverAggregate", "ExtractCommonPredicatesFromLogicalOps", "PullUpExtendOverEquiJoin",
-    "DisableEmitSkipNullOnPushDown", "EqualityFilterOverJoin");
+    "DisableEmitSkipNullOnPushDown");
 pragma yt.AutoMerge = "disabled";
 pragma yt.DataSizePerPartition = "64M";
 pragma yt.HybridDqExecution = "false";
