@@ -449,11 +449,13 @@ public:
         auto pipelineConfigurator = New<TQueryPipelineConfigurator>(program);
         {
             auto guard = WriterGuard(ProgressSpinLock_);
-            auto& query = ActiveQueriesProgress_[queryId];
-            query.Program = program;
-            query.PipelineConfigurator = pipelineConfigurator;
-            query.ProgramSharedData = dynamicConfig;
-            query.ProgramFactory = factory;
+            YT_VERIFY(!ActiveQueriesProgress_.contains(queryId));
+            ActiveQueriesProgress_[queryId] = TActiveQuery{
+                .ProgramSharedData = dynamicConfig,
+                .ProgramFactory = factory,
+                .Program = program,
+                .PipelineConfigurator = pipelineConfigurator,
+            };
         }
 
         TVector<std::pair<TString, NYql::TCredential>> credentials;
@@ -661,6 +663,9 @@ public:
             YQL_LOG(DEBUG) << "Query: " << ToString(queryId) << " is aborting";
             program->Abort().GetValueSync();
             YQL_LOG(DEBUG) << "Query: " << ToString(queryId) << " is aborted";
+
+            // TActiveQuery should live longer than TProgram
+            program.Reset();
 
             ExtractQuery(queryId);
         } catch (...) {
