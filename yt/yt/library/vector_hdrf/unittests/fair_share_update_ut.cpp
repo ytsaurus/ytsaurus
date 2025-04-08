@@ -367,18 +367,18 @@ public:
         return TResourceVector::Ones();
     }
 
-    void SetIsGang(bool isGang)
+    void SetFairShareTruncationInFifoPoolAllowed(bool allowed)
     {
-        IsGang_ = isGang;
+        FairShareTruncationInFifoPoolAllowed_ = allowed;
     }
 
-    bool IsGang() const override
+    bool IsFairShareTruncationInFifoPoolAllowed() const override
     {
-        return IsGang_;
+        return FairShareTruncationInFifoPoolAllowed_;
     }
 
 private:
-    bool IsGang_ = false;
+    bool FairShareTruncationInFifoPoolAllowed_ = false;
 };
 
 using TOperationElementMockPtr = TIntrusivePtr<TOperationElementMock>;
@@ -1074,7 +1074,7 @@ TEST_F(TFairShareUpdateTest, TestTruncateUnsatisfiedChildFairShareInFifoPools)
     auto operationAFirst = CreateOperation(poolA.Get(), resourceDemand);
 
     auto operationASecond = CreateOperation(poolA.Get(), resourceDemand);
-    operationASecond->SetIsGang(true);
+    operationASecond->SetFairShareTruncationInFifoPoolAllowed(true);
 
     auto operationBFirst = CreateOperation(poolB.Get(), resourceDemand);
 
