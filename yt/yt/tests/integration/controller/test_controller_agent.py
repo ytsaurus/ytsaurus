@@ -9,7 +9,6 @@ from yt_commands import (
     authors, create_test_tables, print_debug, release_breakpoint, remove, wait, wait_breakpoint, with_breakpoint, create, ls, get,
     set, exists, update_op_parameters, get_job, get_allocation_id_from_job_id, update_controller_agent_config,
     write_table, map, reduce, map_reduce, merge, erase, vanilla, run_sleeping_vanilla, run_test_vanilla, get_operation, raises_yt_error,
-    create_user,
 )
 
 from yt_helpers import profiler_factory
