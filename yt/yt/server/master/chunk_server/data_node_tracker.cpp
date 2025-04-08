@@ -1150,7 +1150,7 @@ private:
         auto cleaningLimit = GetDynamicConfig()->DanglingLocationCleaner->MaxLocationsToCleanPerIteration;
 
         constexpr auto defaultCleaningLimit = TDanglingLocationCleanerConfig::DefaultMaxLocationsToCleanPerIteration;
-        TCompactVector<TGuid, defaultCleaningLimit> expiredDanglingLocations;
+        TCompactVector<TChunkLocationId, defaultCleaningLimit> expiredDanglingLocations;
 
         for (auto [id, location] : ChunkLocationMap_) {
             if (std::ssize(expiredDanglingLocations) >= cleaningLimit) {
