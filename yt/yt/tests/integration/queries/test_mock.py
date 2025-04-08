@@ -290,7 +290,6 @@ class TestQueryTrackerBan(YTEnvSetup):
             "execution_start_time": 0,
             "state": "pending",
             "settings": {},
-            "secrets": {}
         }])
 
         acquisition_iterations = get(f"//sys/query_tracker/instances/{address}/orchid/query_tracker/acquisition_iterations")
@@ -328,7 +327,6 @@ class TestQueryTrackerResults(YTEnvSetup):
             "result_count": 1,
             "finish_time": 0,
             "annotations": None,
-            "secrets": {}
         }])
         full_result = {"cluster": "test", "table_path": "tmp/test"}
         insert_rows("//sys/query_tracker/finished_query_results", [{
@@ -362,7 +360,6 @@ class TestQueryTrackerResults(YTEnvSetup):
             "result_count": 1,
             "finish_time": 0,
             "annotations": None,
-            "secrets": {}
         }])
         insert_rows("//sys/query_tracker/finished_query_results", [{
             "query_id": guid,
@@ -399,7 +396,6 @@ class TestQueryTrackerQueryRestart(YTEnvSetup):
             "annotations": {},
             "state": state,
             "settings": settings,
-            "secrets": {}
         }
         if is_abort:
             query["abort_request"] = {"attributes": {}, "code": 100, "message": error}

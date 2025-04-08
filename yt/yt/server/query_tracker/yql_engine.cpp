@@ -92,7 +92,7 @@ public:
         , ProgressGetterExecutor_(New<TPeriodicExecutor>(controlInvoker, BIND(&TYqlQueryHandler::GetProgress, MakeWeak(this)), Config_->QueryProgressGetPeriod))
     { }
 
-    static std::vector<TQuerySecretPtr> MakeSecrets(const TYsonString& secrets) {
+    static std::vector<TQuerySecretPtr> MakeSecrets(const std::optional<TYsonString>& secrets) {
         return ConvertTo<std::optional<std::vector<TQuerySecretPtr>>>(secrets).value_or(std::vector<TQuerySecretPtr>());
     }
 
