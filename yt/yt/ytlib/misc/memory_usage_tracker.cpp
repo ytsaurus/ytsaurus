@@ -408,6 +408,8 @@ i64 TNodeMemoryTracker::CalculatePoolLimit(i64 limit, const TPool* pool) const
         return limit;
     }
 
+    YT_ASSERT_SPINLOCK_AFFINITY(SpinLock_);
+
     auto result = limit;
 
     auto totalPoolWeight = TotalPoolWeight_.load();
@@ -1016,6 +1018,7 @@ TNodeMemoryTracker::GetOrRegisterPool(const TPoolTag& poolTag)
         });
 
         categoryProfiler.AddFuncGauge("/pool_limit", pool, [this, pool = pool.Get(), this_ = MakeStrong(this), category] {
+            auto guard = Guard(SpinLock_);
             return DoGetLimit(category, pool);
         });
     }
