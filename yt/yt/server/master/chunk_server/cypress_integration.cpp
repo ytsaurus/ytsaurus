@@ -193,13 +193,13 @@ private:
                     return result;
                 }
 
-                const auto& cellChunks = GetOrCrash(LostVitalChunksSample_, cellTag);
-                // CellTags are descending sorted by the number of chunks.
-                if (std::ssize(cellChunks) <= i) {
+                const auto& cellChunkIds = GetOrCrash(LostVitalChunksSample_, cellTag);
+                // Cell tags are descending sorted by the number of chunks.
+                if (std::ssize(cellChunkIds) <= i) {
                     break;
                 }
 
-                result[cellTag].push_back(cellChunks[i]);
+                result[cellTag].push_back(cellChunkIds[i]);
                 --limit;
             }
         }
