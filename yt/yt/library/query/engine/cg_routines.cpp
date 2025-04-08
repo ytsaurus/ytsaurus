@@ -2396,9 +2396,9 @@ int XdeltaMerge(
         TValue* resultAtHost = ConvertPointerFromWasmToHost(result); \
         *resultAtHost = MakeUnversionedNullValue();) \
     DEFINE_YPATH_GET_IMPL2(, TYPE, STATEMENT_OK, \
-        THROW_ERROR_EXCEPTION("Value of type %Qlv is not found at YPath %v", \
+        THROW_ERROR_EXCEPTION("Value of type %Qlv is not found at YPath %Qv", \
             EValueType::TYPE, \
-            ypathDataAtHost);)
+            TStringBuf(ypathDataAtHost, ypathAtHost->Length));)
 
 #define DEFINE_YPATH_GET(TYPE) \
     DEFINE_YPATH_GET_IMPL(TYPE, \
