@@ -477,12 +477,11 @@ TFuture<TReadResponse> IIOEngine::ReadAll(
                 category,
                 GetRefCountedTypeCookie<TReadAllBufferTag>(),
                 sessionId)
-                .Apply(BIND(
-                    [=, this, this_ = MakeStrong(this), handle = handle]
-                    (TReadResponse response)
-                {
+                .Apply(BIND([
+                    =, this, this_ = MakeStrong(this)
+                ] (TReadResponse response) mutable {
                     YT_VERIFY(response.OutputBuffers.size() == 1);
-                    return Close({.Handle = handle}, category)
+                    return Close({.Handle = std::move(handle)}, category)
                         // ignore result as Close here won't trigger sync requests
                         .AsVoid()
                         .Apply(BIND([response = std::move(response)] () mutable {
