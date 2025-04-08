@@ -18,7 +18,12 @@ work_dir: /yt/disk2/hume-data/master-logs/timbertruck
 # OPTIONAL.
 # Log file. If not specified timbertruck writes logs to stderr.
 # Timbertruck reopens logfile when receives SIGHUP.
-log_file: /yt/disk2/hume-data/master-logs/timbertruck.log
+log_file: /yt/disk2/hume-data/master-logs/timbertruck.debug.log
+
+# OPTIONAL.
+# Log file for errors. If not specified timbertruck does not duplicate error logs to a separate file.
+# Timbertruck reopens logfile when receives SIGHUP.
+error_log_file: /yt/disk2/hume-data/master-logs/timbertruck.error.log
 
 # OPTIONAL.
 # TVM Auth info. Used to Logbroker and YT authentication.
