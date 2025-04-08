@@ -1,6 +1,7 @@
 package misc
 
 import (
+	"context"
 	"errors"
 	"io"
 	"log"
@@ -36,8 +37,13 @@ func getLogrotatingLogger() *slog.Logger {
 	return logrotatingLogger
 }
 
+type loggingStarted struct{}
+
+var LoggingStartedKey loggingStarted
+
 func LogLoggingStarted(logger *slog.Logger) {
-	logger.Info("Logging started", "version", buildinfo.Info.ProgramVersion)
+	ctx := context.WithValue(context.Background(), &LoggingStartedKey, 1)
+	logger.InfoContext(ctx, "Logging started", "version", buildinfo.Info.ProgramVersion)
 }
 
 // Open new file and register SIGHUP handler to reopen it.
