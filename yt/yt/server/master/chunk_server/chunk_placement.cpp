@@ -358,7 +358,6 @@ void TChunkPlacement::OnDynamicConfigChanged(TDynamicClusterConfigPtr /*oldConfi
     EnableTwoRandomChoicesWriteTargetAllocation_ = GetDynamicConfig()->EnableTwoRandomChoicesWriteTargetAllocation;
     NodesToCheckBeforeGivingUpOnWriteTargetAllocation_ = GetDynamicConfig()->NodesToCheckBeforeGivingUpOnWriteTargetAllocation;
 
-    // If enabled recompute must respect calculated before faulty datacenters
     if (!IsDataCenterFailureDetectorEnabled_) {
         FaultyStorageDataCenters_.clear();
         DataCenterFaultErrors_.clear();
@@ -1396,7 +1395,9 @@ TError TChunkPlacement::ComputeDataCenterFaultiness(
 
     const auto& dataCenterThresholdsMap = config->DataCenterThresholds;
     auto dataCenterThresholds = GetOrDefault(
-        dataCenterThresholdsMap, dataCenter->GetName(), config->DefaultThresholds);
+        dataCenterThresholdsMap,
+        dataCenter->GetName(),
+        config->DefaultThresholds);
 
     auto onlineNodeCount = dataCenterStatistics.OnlineNodeCount;
     auto targetOnlineNodeCount = dataCenterIsEnabled

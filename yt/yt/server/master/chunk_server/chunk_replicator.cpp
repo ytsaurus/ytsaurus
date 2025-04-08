@@ -2936,7 +2936,7 @@ void TChunkReplicator::OnCheckEnabledSecondary()
         Bootstrap_->GetRootClient(),
         NApi::EMasterChannelKind::Leader);
 
-    auto [enabledRsp, faultyStorageDCsRsp] = WaitFor(proxy.ExecuteAll(
+    auto [enabledRsp, faultyStorageDCsRsp] = WaitFor(proxy.ExecuteMany(
         TYPathProxy::Get("//sys/@chunk_replicator_enabled"),
         TYPathProxy::Get("//sys/@faulty_storage_data_centers")))
         .ValueOrThrow();

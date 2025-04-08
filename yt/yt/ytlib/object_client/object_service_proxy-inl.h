@@ -97,7 +97,7 @@ TObjectServiceProxy::Execute(TIntrusivePtr<TTypedRequest> innerRequest)
 template <std::derived_from<NYTree::TYPathRequest>... TTypedRequests>
     requires (sizeof...(TTypedRequests) > 0)
 TFuture<std::tuple<TIntrusivePtr<typename TTypedRequests::TTypedResponse>...>>
-TObjectServiceProxy::ExecuteAll(TIntrusivePtr<TTypedRequests>... innerRequests)
+TObjectServiceProxy::ExecuteMany(TIntrusivePtr<TTypedRequests>... innerRequests)
 {
     auto outerRequest = ExecuteBatch();
     (outerRequest->AddRequest(innerRequests), ...);
