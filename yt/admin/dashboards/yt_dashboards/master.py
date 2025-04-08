@@ -589,20 +589,25 @@ def build_master_merge_jobs():
     return dashboard
 
 def build_accounts_rowsets():
-    disk_usage = (MultiSensor(
+
+    def _build_disk_usage(parameter_tag):
+        return (MultiSensor(
             MonitoringExpr(Accounts("disk_space_limit_in_gb"))
-                .alias("Disk limit")
+                .alias(f"{{{{{parameter_tag}}}}} limit")
                 .sensor_stack(False),
             MonitoringExpr(Accounts("detailed_disk_space_in_gb")
                 .value("status", "committed"))
-                .alias("Disk usage committed"),
+                .alias(f"{{{{{parameter_tag}}}}} usage committed"),
             MonitoringExpr(Accounts("detailed_disk_space_in_gb")
                 .value("status", "uncommitted"))
-                .alias("Disk usage uncommitted"),
+                .alias(f"{{{{{parameter_tag}}}}} usage uncommitted"),
             )
-        .value("medium", "{{medium}}")
+        .value("medium", f"{{{{{parameter_tag}}}}}")
         .unit("UNIT_GIBIBYTES")
         .stack(True))
+
+    left_disk_usage = _build_disk_usage("left_medium")
+    right_disk_usage = _build_disk_usage("right_medium")
 
     def _build_account_multisensor(resource_name, metric_infix):
         return (MultiSensor(
@@ -625,7 +630,8 @@ def build_accounts_rowsets():
     return [
         Rowset()
             .row(height=10)
-                .cell("Disk usage/limit", disk_usage, yaxis_label="Disk space", display_legend=True),
+                .cell("Disk usage/limit", left_disk_usage, yaxis_label="Disk space", display_legend=True)
+                .cell("Disk usage/limit", right_disk_usage, yaxis_label="Disk space", display_legend=True),
         Rowset()
             .row(height=2)
                 .cell("", Text("""Disk space usage and limit represents raw space available for account and total usage of this raw space.
@@ -659,9 +665,14 @@ def build_master_accounts():
         MonitoringLabelDashboardParameter("yt", "account", "sys"),
         backends=["monitoring"])
     dashboard.add_parameter(
-        "medium",
-        "Medium",
+        "left_medium",
+        "Left medium",
         MonitoringLabelDashboardParameter("yt", "medium", "default"),
+        backends=["monitoring"])
+    dashboard.add_parameter(
+        "right_medium",
+        "Right medium",
+        MonitoringLabelDashboardParameter("yt", "medium", "ssd_blobs"),
         backends=["monitoring"])
 
     dashboard.value("host", "none")
