@@ -1333,7 +1333,8 @@ TObject* TObjectManager::GetObjectOrThrow(TObjectId id)
         THROW_ERROR_EXCEPTION(
             NYTree::EErrorCode::ResolveError,
             "No such object %v",
-            id);
+            id)
+            << TErrorAttribute("missing_object_id", id);
     }
 
     return object;
