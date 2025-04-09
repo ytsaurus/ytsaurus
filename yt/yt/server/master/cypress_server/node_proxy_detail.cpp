@@ -1713,12 +1713,17 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Create)
         ThrowCannotHaveChildren(this);
     }
 
-    ICompositeNodePtr parent;
+    auto* node = GetThisImpl();
+
+    // The node inside which the new node must be created.
+    TCypressNode* intendedParentNode = node;
     if (replace) {
-        parent = GetParent();
-        if (!parent) {
+        if (!node->GetParent()) {
             ThrowCannotReplaceNode(this);
         }
+
+        const auto& cypressManager = Bootstrap_->GetCypressManager();
+        intendedParentNode = cypressManager->GetVersionedNode(node->GetParent(), Transaction_);
     }
 
     IAttributeDictionaryPtr explicitAttributes;
@@ -1726,12 +1731,8 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Create)
         explicitAttributes = FromProto(request->node_attributes());
     }
 
-    auto* node = GetThisImpl();
-
     ValidateCreatePermissions(node, replace, explicitAttributes.Get());
 
-    // The node inside which the new node must be created.
-    auto* intendedParentNode = replace ? node->GetParent() : node;
     auto* account = intendedParentNode->Account().Get();
 
     auto inheritedAttributes = New<TInheritedAttributeDictionary>(Bootstrap_);
@@ -1761,7 +1762,8 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Create)
     auto thisNodePath = YT_EVALUATE_FOR_ACCESS_LOG_IF(IsAccessLoggedType(type), GetPath());
 
     if (replace) {
-        parent->ReplaceChild(this, newProxy);
+        auto* parentTrunkNode = intendedParentNode->GetTrunkNode();
+        GetProxy(parentTrunkNode)->AsComposite()->ReplaceChild(this, newProxy);
     } else {
         SetChildNode(
             factory.get(),

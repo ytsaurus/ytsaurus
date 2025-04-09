@@ -4212,6 +4212,18 @@ class TestCypress(YTEnvSetup):
         # Shouldn't crash.
         get("//tmp")
 
+    @authors("h0pless")
+    def test_yt24775(self):
+        create("map_node", "//tmp/map_node")
+        set("//tmp/map_node/@compression_codec", "lz4")
+
+        tx = start_transaction()
+        set("//tmp/map_node/@compression_codec", "zstd_17", tx=tx)
+        create("table", "//tmp/map_node/table", tx=tx)
+        assert get("//tmp/map_node/table/@compression_codec", tx=tx) == "zstd_17"
+        create("table", "//tmp/map_node/table", tx=tx, force=True)
+        assert get("//tmp/map_node/table/@compression_codec", tx=tx) == "zstd_17"
+
 
 ##################################################################
 
