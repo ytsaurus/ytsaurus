@@ -2745,24 +2745,38 @@ class TestCypress(YTEnvSetup):
 
     @authors("cherepashka")
     @not_implemented_in_sequoia
-    def test_prerequisite_revisions_restriction(self):
+    @pytest.mark.parametrize("make_link", [False, True])
+    def test_prerequisite_revisions_restriction(self, make_link):
         set("//sys/@config/object_manager/prohibit_prerequisite_revisions_differ_from_execution_paths", True)
-        create("table", "//home/revision_node", recursive=True, force=True)
         create("map_node", "//home/test_node", recursive=True, force=True)
+        revision_node_id = None
+        if make_link:
+            create("table", "//home/original_revision_node", recursive=True, force=True)
+            revision_node_id = link("//home/original_revision_node", "//home/revision_node", force=True)
+        else:
+            revision_node_id = create("table", "//home/revision_node", recursive=True, force=True)
+        home_id = get("//home/@id")
         revision = get("//home/revision_node/@revision")
 
-        with raises_yt_error("Requests with prerequisite paths different from target paths are prohibited in Cypress"):
-            create(
-                "map_node",
-                "//tmp/test_node",
-                prerequisite_revisions=[
-                    {
-                        "path": "//home/revision_node",
-                        "transaction_id": "0-0-0-0",
-                        "revision": revision,
-                    }
-                ],
-            )
+        forbidden_paths = [
+            "//home/revision_node",
+            f"#{revision_node_id}",
+            f"#{home_id}/revision_node",
+        ]
+
+        for prerequitise_path in forbidden_paths:
+            with raises_yt_error("Requests with prerequisite paths different from target paths are prohibited in Cypress"):
+                create(
+                    "map_node",
+                    "//tmp/test_node",
+                    prerequisite_revisions=[
+                        {
+                            "path": prerequitise_path,
+                            "transaction_id": "0-0-0-0",
+                            "revision": revision,
+                        }
+                    ],
+                )
         with raises_yt_error("Requests with prerequisite paths different from target paths are prohibited in Cypress"):
             copy(
                 "//home/test_node",
@@ -2781,16 +2795,31 @@ class TestCypress(YTEnvSetup):
         ]
 
         for path in fine_paths:
-            for prerequitise_path in fine_paths:
-                prerequisite_revisions = [
-                    {
-                        "path": prerequitise_path,
-                        "transaction_id": "0-0-0-0",
-                        "revision": revision,
-                    },
-                ]
-                # Shouldn't throw.
-                get(path, prerequisite_revisions=prerequisite_revisions)
+            revision = get(f"{path}/@revision")
+            prerequisite_revisions = [
+                {
+                    "path": path,
+                    "transaction_id": "0-0-0-0",
+                    "revision": revision,
+                },
+            ]
+            # Shouldn't throw.
+            get(path, prerequisite_revisions=prerequisite_revisions)
+
+        # Cross-cell copy-move with prerequisite revision is prohibited.
+        if make_link and get("//home/@native_cell_tag") == get("//tmp/@native_cell_tag"):
+            # There is bug in resolve of prerequisite path now.
+            with raises_yt_error("Requests with prerequisite paths different from target paths are prohibited in Cypress"):
+                copy(
+                    "//home/revision_node",
+                    "//tmp/revision_node",
+                    prerequisite_revisions=[
+                        {
+                            "path": "//home/revision_node",
+                            "transaction_id": "0-0-0-0",
+                            "revision": revision,
+                        }
+                    ])
 
         set("//sys/@config/object_manager/prohibit_prerequisite_revisions_differ_from_execution_paths", False)
 

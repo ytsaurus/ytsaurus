@@ -358,7 +358,7 @@ void TObjectProxyBase::BeforeInvoke(const IYPathServiceContextPtr& context)
             GetOriginalRequestAdditionalPaths(requestHeader),
             prerequisitesExt.revisions());
 
-        objectManager->ValidatePrerequisites(originalTargetPath, originalAdditionalPaths, prerequisitesExt);
+        objectManager->ValidatePrerequisites(context->GetMethod(), originalTargetPath, originalAdditionalPaths, prerequisitesExt);
     }
 
     for (const auto& additionalPath : ypathExt.additional_paths()) {
