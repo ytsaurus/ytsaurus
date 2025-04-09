@@ -79,7 +79,7 @@ public:
 
     TSharedRef Track(TSharedRef reference, bool keepExistingTracker) override
     {
-        return MemoryTracker_->Track(reference, Category_, keepExistingTracker);
+        return MemoryTracker_->Track(reference, Category_, /*poolTag*/ std::nullopt, keepExistingTracker);
     }
 
 private:
@@ -243,17 +243,19 @@ public:
     TSharedRef Track(
         TSharedRef reference,
         EMemoryCategory category,
+        std::optional<TPoolTag> poolTag,
         bool keepHolder) override
     {
-        return Underlying_->Track(std::move(reference), category, keepHolder);
+        return Underlying_->Track(std::move(reference), category, std::move(poolTag), keepHolder);
     }
 
     TErrorOr<TSharedRef> TryTrack(
         TSharedRef reference,
         EMemoryCategory category,
+        std::optional<TPoolTag> poolTag,
         bool keepHolder) override
     {
-        return Underlying_->TryTrack(std::move(reference), category, keepHolder);
+        return Underlying_->TryTrack(std::move(reference), category, std::move(poolTag), keepHolder);
     }
 
 private:
@@ -294,6 +296,21 @@ TEST(TMemoryUsageTrackerTest, Pool)
     EXPECT_TRUE(tracker->IsExceeded(category, "some_pool"));
     EXPECT_TRUE(tracker->IsPoolExceeded("some_pool"));
     tracker->ClearTrackers();
+}
+
+TEST(TMemoryUsageTrackerTest, PoolRef)
+{
+    auto memoryTracker = New<TTestNodeMemoryTracker>();
+
+    {
+        auto reference = CreateReference(1);
+        EXPECT_TRUE(memoryTracker->IsEmpty());
+        reference = memoryTracker->WithCategory(EMemoryCategory::P2P, "some_pool")->Track(std::move(reference));
+        EXPECT_TRUE(memoryTracker->GetPoolUsed("some_pool") == 1);
+    }
+
+    EXPECT_TRUE(memoryTracker->IsEmpty());
+    memoryTracker->ClearTrackers();
 }
 
 TEST(TMemoryUsageTrackerTest, Register)

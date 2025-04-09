@@ -53,12 +53,14 @@ struct INodeMemoryTracker
     virtual TSharedRef Track(
         TSharedRef reference,
         EMemoryCategory category,
+        std::optional<TPoolTag> poolTag,
         bool keepExistingTracking) = 0;
 
     //! Returns an error if overcommit has occurred.
     virtual TErrorOr<TSharedRef> TryTrack(
         TSharedRef reference,
         EMemoryCategory category,
+        std::optional<TPoolTag> poolTag,
         bool keepExistingTracking) = 0;
 
     virtual IMemoryUsageTrackerPtr WithCategory(
