@@ -38,6 +38,7 @@ public:
 
 Y_UNIT_TEST_SUITE(SqlCompleteTests) {
     using ECandidateKind::FunctionName;
+    using ECandidateKind::HintName;
     using ECandidateKind::Keyword;
     using ECandidateKind::PragmaName;
     using ECandidateKind::TypeName;
@@ -59,6 +60,10 @@ Y_UNIT_TEST_SUITE(SqlCompleteTests) {
             .Pragmas = {"yson.CastToString"},
             .Types = {"Uint64"},
             .Functions = {"StartsWith", "DateTime::Split"},
+            .Hints = {
+                {EStatementKind::Select, {"XLOCK"}},
+                {EStatementKind::Insert, {"EXPIRATION"}},
+            },
         };
         auto ranking = MakeDefaultRanking({});
         INameService::TPtr service = MakeStaticNameService(std::move(names), std::move(ranking));
@@ -463,6 +468,28 @@ Y_UNIT_TEST_SUITE(SqlCompleteTests) {
             UNIT_ASSERT_VALUES_EQUAL(completion.Candidates, expected);
             UNIT_ASSERT_VALUES_EQUAL(completion.CompletedToken.Content, "s");
         }
+    }
+
+    Y_UNIT_TEST(SelectTableHintName) {
+        TVector<TCandidate> expected = {
+            {Keyword, "COLUMNS"},
+            {Keyword, "SCHEMA"},
+            {HintName, "XLOCK"},
+        };
+
+        auto engine = MakeSqlCompletionEngineUT();
+        UNIT_ASSERT_VALUES_EQUAL(Complete(engine, {"SELECT key FROM my_table WITH "}), expected);
+    }
+
+    Y_UNIT_TEST(InsertTableHintName) {
+        TVector<TCandidate> expected = {
+            {Keyword, "COLUMNS"},
+            {Keyword, "SCHEMA"},
+            {HintName, "EXPIRATION"},
+        };
+
+        auto engine = MakeSqlCompletionEngineUT();
+        UNIT_ASSERT_VALUES_EQUAL(Complete(engine, {"INSERT INTO my_table WITH "}), expected);
     }
 
     Y_UNIT_TEST(UTF8Wide) {

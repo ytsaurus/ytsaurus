@@ -61,6 +61,7 @@ namespace NSQLComplete {
                 .Pragma = PragmaMatch(tokens, candidates),
                 .IsTypeName = IsTypeNameMatched(candidates),
                 .Function = FunctionMatch(tokens, candidates),
+                .Hint = HintMatch(candidates),
             };
         }
 
@@ -175,6 +176,26 @@ namespace NSQLComplete {
                 function.Namespace = tokens[tokens.size() - 3].Content;
             }
             return function;
+        }
+
+        std::optional<TLocalSyntaxContext::THint> HintMatch(const TC3Candidates& candidates) {
+            // TODO(YQL-19747): detect local contexts with a single iteration through the candidates.Rules
+            // TODO(YQL-19747): add RuleAdapted :: (stack -> bool) -> rule -> bool
+            auto rule = FindIf(candidates.Rules, [&](const TMatchedRule& rule) {
+                return IsLikelyHintStack(rule.ParserCallStack);
+            });
+            if (rule == std::end(candidates.Rules)) {
+                return std::nullopt;
+            }
+
+            auto stmt = StatementKindOf(rule->ParserCallStack);
+            if (stmt == std::nullopt) {
+                return std::nullopt;
+            }
+
+            return TLocalSyntaxContext::THint{
+                .StatementKind = *stmt,
+            };
         }
 
         NSQLTranslation::TParsedTokenList Tokenized(const TStringBuf text) {
