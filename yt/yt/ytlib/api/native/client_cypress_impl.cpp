@@ -2380,11 +2380,11 @@ private:
         const auto& rsp = rspOrError.Value();
 
         auto uploadTransactionId = FromProto<TTransactionId>(rsp->upload_transaction_id());
-        UploadTransaction_ = Client_->TransactionManager_->Attach(uploadTransactionId, TTransactionAttachOptions{
-            .AutoAbort = true,
-            .PingPeriod = Client_->Connection_->GetConfig()->UploadTransactionPingPeriod,
-            .PingAncestors = Options_.PingAncestors,
-        });
+        TTransactionAttachOptions attachOptions = {};
+        attachOptions.AutoAbort = true;
+        attachOptions.PingAncestors = Options_.PingAncestors;
+        attachOptions.PingPeriod = Client_->Connection_->GetConfig()->UploadTransactionPingPeriod,
+        UploadTransaction_ = Client_->TransactionManager_->Attach(uploadTransactionId, attachOptions);
     }
 
     TCellTagList GetAffectedCellTags()

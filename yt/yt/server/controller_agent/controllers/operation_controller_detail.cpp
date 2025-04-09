@@ -2244,7 +2244,9 @@ void TOperationControllerBase::CommitOutputCompletionTransaction()
         }
 
         if (Config->TestingOptions->AbortOutputTransactionAfterCompletionTransactionCommit) {
-            WaitFor(OutputTransaction->Abort({.Force = true}))
+            TTransactionAbortOptions options;
+            options.Force = true;
+            WaitFor(OutputTransaction->Abort(options))
                 .ThrowOnError();
         }
     }

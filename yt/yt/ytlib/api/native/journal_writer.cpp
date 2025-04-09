@@ -154,16 +154,14 @@ private:
             }
 
             if (Options_.TransactionId) {
-                TTransactionAttachOptions attachOptions{
-                    .Ping = true
-                };
+                TTransactionAttachOptions attachOptions;
+                attachOptions.Ping = true;
                 Transaction_ = Client_->AttachTransaction(Options_.TransactionId, attachOptions);
             }
 
             for (auto transactionId : Options_.PrerequisiteTransactionIds) {
-                TTransactionAttachOptions attachOptions{
-                    .Ping = false
-                };
+                TTransactionAttachOptions attachOptions = {};
+                attachOptions.Ping = false;
                 auto transaction = Client_->AttachTransaction(transactionId, attachOptions);
                 StartProbeTransaction(transaction, Config_->PrerequisiteTransactionProbePeriod);
             }

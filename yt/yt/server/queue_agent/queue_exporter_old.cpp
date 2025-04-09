@@ -604,14 +604,14 @@ private:
 
         auto uploadTransactionId = FromProto<TTransactionId>(rsp->upload_transaction_id());
 
+        auto attachOptions = TTransactionAttachOptions{};
+        attachOptions.AutoAbort = true;
+        attachOptions.PingPeriod = Connection_->GetConfig()->UploadTransactionPingPeriod;
+        attachOptions.Ping = true;
+        attachOptions.PingAncestors = true;
         UploadTransaction_ = Client_->GetTransactionManager()->Attach(
             uploadTransactionId,
-            TTransactionAttachOptions{
-                .AutoAbort = true,
-                .PingPeriod = Connection_->GetConfig()->UploadTransactionPingPeriod,
-                .Ping = true,
-                .PingAncestors = true,
-            });
+            attachOptions);
 
         YT_LOG_DEBUG(
             "Started upload transaction for queue export (Destination: %v, UploadTransactionId: %v, OutputTableSchemaId: %v)",

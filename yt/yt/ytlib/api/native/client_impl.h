@@ -126,8 +126,11 @@ public:
         NTransactionClient::ETransactionType type,
         const TTransactionStartOptions& options) override;
     NApi::ITransactionPtr AttachTransaction(
-        NCypressClient::TTransactionId transactionId,
+        NTransactionClient::TTransactionId transactionId,
         const TTransactionAttachOptions& options) override;
+    NApi::IPrerequisitePtr AttachPrerequisite(
+        NObjectClient::TObjectId prerequisiteId,
+        const TPrerequisiteAttachOptions& options) override;
 
 #define DROP_BRACES(...) __VA_ARGS__
 #define IMPLEMENT_OVERLOADED_METHOD(returnType, method, doMethod, signature, args) \

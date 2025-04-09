@@ -1344,7 +1344,10 @@ TEST_F(TPingTransactionsTest, Basic)
 
     auto cellId = CellTagFromId(tx1->GetId());
     auto unknownTransactionId = MakeId(EObjectType::Transaction, cellId, RandomNumber<ui32>(), RandomNumber<ui32>());
-    auto unknownTx = Client_->AttachTransaction(unknownTransactionId, TTransactionAttachOptions{.Ping = false});
+
+    TTransactionAttachOptions attachOptions = {};
+    attachOptions.Ping = false;
+    auto unknownTx = Client_->AttachTransaction(unknownTransactionId, attachOptions);
 
     auto pingResult1 = WaitFor(tx1->Ping());
     auto unknownPingResult = WaitFor(unknownTx->Ping());

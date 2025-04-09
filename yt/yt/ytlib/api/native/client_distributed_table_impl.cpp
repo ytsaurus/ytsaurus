@@ -357,9 +357,9 @@ TFuture<void> TClient::FinishDistributedWriteSession(
 
     auto attributes = IAttributeDictionary::FromMap(patchInfo.TableAttributes->AsMap());
 
-    auto transaction = AttachTransaction(session.MainTransactionId, TTransactionAttachOptions{
-        .AutoAbort = true,
-    });
+    TTransactionAttachOptions attachOptions = {};
+    attachOptions.AutoAbort = true;
+    auto transaction = AttachTransaction(session.MainTransactionId, attachOptions);
 
     const auto tableUploadOptions = GetTableUploadOptions(
         patchInfo.RichPath,

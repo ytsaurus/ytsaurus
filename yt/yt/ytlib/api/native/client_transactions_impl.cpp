@@ -6,6 +6,7 @@
 namespace NYT::NApi::NNative {
 
 using namespace NTransactionClient;
+using namespace NPrerequisiteClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -41,6 +42,16 @@ NApi::ITransactionPtr TClient::AttachTransaction(
     const TTransactionAttachOptions& options)
 {
     return AttachNativeTransaction(transactionId, options);
+}
+
+NApi::IPrerequisitePtr TClient::AttachPrerequisite(
+    TPrerequisiteId prerequisiteId,
+    const TPrerequisiteAttachOptions& options)
+{
+    TTransactionAttachOptions attachOptions = {};
+    static_cast<TPrerequisiteAttachOptions&>(attachOptions) = options;
+
+    return AttachTransaction(prerequisiteId, attachOptions);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

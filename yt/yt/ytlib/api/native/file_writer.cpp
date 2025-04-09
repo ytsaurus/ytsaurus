@@ -255,11 +255,11 @@ private:
                 auto rsp = batchRsp->GetResponse<TFileYPathProxy::TRspBeginUpload>("begin_upload").Value();
                 auto uploadTransactionId = FromProto<TTransactionId>(rsp->upload_transaction_id());
 
-                UploadTransaction_ = Client_->AttachTransaction(uploadTransactionId, TTransactionAttachOptions{
-                    .AutoAbort = true,
-                    .PingPeriod = Client_->GetNativeConnection()->GetConfig()->UploadTransactionPingPeriod,
-                    .PingAncestors = Options_.PingAncestors
-                });
+                TTransactionAttachOptions attachOptions = {};
+                attachOptions.AutoAbort = true;
+                attachOptions.PingAncestors = Options_.PingAncestors;
+                attachOptions.PingPeriod = Client_->GetNativeConnection()->GetConfig()->UploadTransactionPingPeriod;
+                UploadTransaction_ = Client_->AttachTransaction(uploadTransactionId, attachOptions);
                 StartListenTransaction(UploadTransaction_);
 
                 YT_LOG_INFO("File upload started (UploadTransactionId: %v)",

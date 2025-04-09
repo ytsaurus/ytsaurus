@@ -1392,7 +1392,7 @@ private:
     {
         auto transactionId = FromProto<TTransactionId>(request->transaction_id());
 
-        TTransactionAttachOptions attachOptions;
+        TTransactionAttachOptions attachOptions = {};
         attachOptions.Ping = false;
         attachOptions.PingAncestors = request->ping_ancestors();
 
@@ -1428,14 +1428,14 @@ private:
             options.PrerequisiteTransactionIds,
             options.AdditionalParticipantCellIds);
 
+        TTransactionAttachOptions attachOptions = {};
+        attachOptions.Ping = false;
+        attachOptions.PingAncestors = false;
         auto transaction = GetTransactionOrThrow(
             context,
             request,
             transactionId,
-            TTransactionAttachOptions{
-                .Ping = false,
-                .PingAncestors = false
-            });
+            attachOptions);
 
         ExecuteCall(
             context,
@@ -1459,14 +1459,14 @@ private:
         context->SetRequestInfo("TransactionId: %v",
             transactionId);
 
+        TTransactionAttachOptions attachOptions = {};
+        attachOptions.Ping = false;
+        attachOptions.PingAncestors = false;
         auto transaction = GetTransactionOrThrow(
             context,
             request,
             transactionId,
-            TTransactionAttachOptions{
-                .Ping = false,
-                .PingAncestors = false
-            });
+            attachOptions);
 
         ExecuteCall(
             context,
@@ -1492,14 +1492,14 @@ private:
         context->SetRequestInfo("TransactionId: %v",
             transactionId);
 
+        TTransactionAttachOptions attachOptions = {};
+        attachOptions.Ping = false;
+        attachOptions.PingAncestors = false;
         auto transaction = GetTransactionOrThrow(
             context,
             request,
             transactionId,
-            TTransactionAttachOptions{
-                .Ping = false,
-                .PingAncestors = false
-            });
+            attachOptions);
 
         ExecuteCall(
             context,

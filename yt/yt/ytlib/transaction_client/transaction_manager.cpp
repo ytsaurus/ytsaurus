@@ -482,7 +482,7 @@ public:
         }
     }
 
-    TFuture<void> Abort(const TTransactionAbortOptions& options = TTransactionAbortOptions())
+    TFuture<void> Abort(const TTransactionAbortOptions& options = {})
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
 
@@ -497,7 +497,7 @@ public:
         return SendAbort(options);
     }
 
-    TFuture<void> Ping(const TTransactionPingOptions& options = {})
+    TFuture<void> Ping(const TPrerequisitePingOptions& options = {})
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
 
@@ -1327,7 +1327,7 @@ private:
         return result;
     }
 
-    TFuture<void> SendPing(const TTransactionPingOptions& options = {})
+    TFuture<void> SendPing(const TPrerequisitePingOptions& options = {})
     {
         auto isCypressTransaction = IsCypressTransactionType(TypeFromId(Id_));
         if (isCypressTransaction && Owner_->Config_.Acquire()->UseCypressTransactionService) {
@@ -1340,7 +1340,7 @@ private:
         return DoPingTransaction(options);
     }
 
-    TFuture<void> DoPingCypressTransaction(TCellId cellId, const TTransactionPingOptions& options)
+    TFuture<void> DoPingCypressTransaction(TCellId cellId, const TPrerequisitePingOptions& options)
     {
         YT_LOG_DEBUG("Pinging Cypress transaction (TransactionId: %v, MasterCellId: %v)",
             Id_,
@@ -1409,7 +1409,7 @@ private:
     }
 
 
-    TFuture<void> DoPingTransaction(const TTransactionPingOptions& options = {})
+    TFuture<void> DoPingTransaction(const TPrerequisitePingOptions& options = {})
     {
         std::vector<TFuture<void>> asyncResults;
         for (auto cellId : GetRegisteredParticipantIds()) {
@@ -1848,7 +1848,7 @@ void TTransaction::Detach()
     Impl_->Detach();
 }
 
-TFuture<void> TTransaction::Ping(const TTransactionPingOptions& options)
+TFuture<void> TTransaction::Ping(const TPrerequisitePingOptions& options)
 {
     return Impl_->Ping(options);
 }
