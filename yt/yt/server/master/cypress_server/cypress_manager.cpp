@@ -1601,7 +1601,7 @@ public:
     TCypressNode* ResolvePathToTrunkNode(const TYPath& path, TTransaction* transaction) override
     {
         const auto& objectManager = Bootstrap_->GetObjectManager();
-        auto* object = objectManager->ResolvePathToObject(
+        auto* object = objectManager->ResolvePathToLocalObject(
             path,
             transaction,
             IObjectManager::TResolvePathOptions{});

@@ -203,9 +203,15 @@ struct IObjectManager
         bool EnablePartialResolve = false;
     };
 
-    //! Handles paths to versioned and most unversioned objects.
-    virtual TObject* ResolvePathToObject(
+    //! Handles paths to versioned and most unversioned local objects.
+    virtual TObject* ResolvePathToLocalObject(
         const NYPath::TYPath& path,
+        NTransactionServer::TTransaction* transaction,
+        const TResolvePathOptions& options) = 0;
+
+    virtual TObjectId ResolvePathToObjectId(
+        const NYPath::TYPath& path,
+        const std::string& method,
         NTransactionServer::TTransaction* transaction,
         const TResolvePathOptions& options) = 0;
 
@@ -220,6 +226,7 @@ struct IObjectManager
 
     //! Validates prerequisites, throws on failure.
     virtual void ValidatePrerequisites(
+        const std::string& method,
         NYTree::TYPathMaybeRef originalTargetPath,
         const google::protobuf::RepeatedPtrField<TProtobufString>& originalAdditionalPaths,
         const NObjectClient::NProto::TPrerequisitesExt& prerequisites) = 0;

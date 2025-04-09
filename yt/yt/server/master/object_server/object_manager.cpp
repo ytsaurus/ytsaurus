@@ -153,49 +153,36 @@ TPathResolver::TResolveResult ResolvePath(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static bool PrerequisitePathIsValidForExecution(const TProtobufString& prerequisitePath, const TProtobufString& path)
-{
-    auto maybeCropPath = [] (std::string_view path) {
-        auto pathLength = std::ssize(path);
-        // It is considered that path is a valid YPath.
-        for (int i = 0; i < pathLength; ++i) {
-            if (path[i] == '@') {
-                // Since it is valid YPath, `/` precedes `@`.
-                return path.substr(0, i - 1);
-            }
-            if (path[i] == '&') {
-                // Path either ends with `&`, either have attributes straight after `&`.
-                if (i + 1 == pathLength || (i + 3 <= pathLength && path.substr(i, 3) == "&/@")) {
-                    return path.substr(0, i);
-                }
-            }
-        }
-        return path;
-    };
-
-    auto croppedPrerequisitePath = maybeCropPath(prerequisitePath);
-    auto croppedPath = maybeCropPath(path);
-    return croppedPrerequisitePath == croppedPath;
-}
-
 static TError ValidatePrerequisiteRevisionPaths(
+    NCellMaster::TBootstrap* bootstrap,
+    const std::string& method,
     TYPathMaybeRef originalTargetPath,
     const google::protobuf::RepeatedPtrField<TProtobufString>& originalAdditionalPaths,
-    const TProtobufString& prerequisitePath)
+    TObjectId prerequisiteObjectId)
 {
-    if (PrerequisitePathIsValidForExecution(prerequisitePath, originalTargetPath)) {
-        return TError();
+    const auto& objectManager = bootstrap->GetObjectManager();
+    try {
+        auto originalObjectId = objectManager->ResolvePathToObjectId(originalTargetPath, method, /*transaction*/ nullptr, /*options*/ {});
+        if (originalObjectId == prerequisiteObjectId) {
+            return TError();
+        }
+    } catch (const TErrorException& ex) {
+        // Object at originalTargetPath could be not created yet.
+        if (!ex.Error().FindMatching(NYTree::EErrorCode::ResolveError)) {
+            return ex.Error();
+        }
     }
     for (const auto& additionalPath : originalAdditionalPaths) {
-        if (PrerequisitePathIsValidForExecution(prerequisitePath, additionalPath)) {
+        auto additionalObjectId = objectManager->ResolvePathToObjectId(additionalPath, method, /*transaction*/ nullptr, /*options*/ {});
+        if (additionalObjectId == prerequisiteObjectId) {
             return TError();
         }
     }
     return TError(
         NObjectClient::EErrorCode::PrerequisitePathDifferFromExecutionPaths,
         "Requests with prerequisite paths different from target paths are prohibited in Cypress "
-        "(PrerequisitePath: %v, TargetPath: %v, AdditionalPaths: %v)",
-        prerequisitePath,
+        "(PrerequisiteObjectId: %v, TargetPath: %v, AdditionalPaths: %v)",
+        prerequisiteObjectId,
         originalTargetPath,
         originalAdditionalPaths);
 }
@@ -287,15 +274,22 @@ public:
     bool IsObjectLifeStageValid(const TObject* object) const override;
     void ValidateObjectLifeStage(const TObject* object) const override;
 
-    TObject* ResolvePathToObject(
+    TObject* ResolvePathToLocalObject(
         const TYPath& path,
         TTransaction* transaction,
+        const TResolvePathOptions& options) override;
+
+    TObjectId ResolvePathToObjectId(
+        const NYPath::TYPath& path,
+        const std::string& method,
+        NTransactionServer::TTransaction* transaction,
         const TResolvePathOptions& options) override;
 
     TFuture<std::vector<TErrorOr<TVersionedObjectPath>>> ResolveObjectIdsToPaths(
         const std::vector<TVersionedObjectId>& objectIds) override;
 
     void ValidatePrerequisites(
+        const std::string& method,
         NYTree::TYPathMaybeRef originalTargetPath,
         const google::protobuf::RepeatedPtrField<TProtobufString>& originalAdditionalPaths,
         const NObjectClient::NProto::TPrerequisitesExt& prerequisites) override;
@@ -533,11 +527,26 @@ public:
             for (int index = 0; index < prerequisitesExt->revisions_size(); ++index) {
                 auto* prerequisite = prerequisitesExt->mutable_revisions(index);
                 const auto& prerequisitePath = prerequisite->path();
-                if (Bootstrap_->GetDynamicConfig()->ObjectManager->ProhibitPrerequisiteRevisionsDifferFromExecutionPaths) {
-                    THROW_ERROR_EXCEPTION_IF_FAILED(ValidatePrerequisiteRevisionPaths(originalTargetPath, originalAdditionalPaths, prerequisitePath));
-                }
                 auto prerequisiteResolveResult = ResolvePath(Bootstrap_, prerequisitePath, context);
+                // TODO(cherepashka): Unite std::get_if with Visit below after 25.1.
                 const auto* prerequisitePayload = std::get_if<TPathResolver::TRemoteObjectPayload>(&prerequisiteResolveResult.Payload);
+                if (Bootstrap_->GetDynamicConfig()->ObjectManager->ProhibitPrerequisiteRevisionsDifferFromExecutionPaths) {
+                    auto optionalPrerequisiteObjectId = Visit(
+                        prerequisiteResolveResult.Payload,
+                        [] (const TPathResolver::TLocalObjectPayload& payload) {
+                            return std::make_optional(payload.Object->GetId());
+                        },
+                        [] (const TPathResolver::TRemoteObjectPayload& payload) {
+                            return std::make_optional(payload.ObjectId);
+                        },
+                        [] (...) -> std::optional<TObjectId> {
+                            return std::nullopt;
+                        });
+
+                    if (optionalPrerequisiteObjectId) {
+                        THROW_ERROR_EXCEPTION_IF_FAILED(ValidatePrerequisiteRevisionPaths(Bootstrap_, context->GetMethod(), originalTargetPath, originalAdditionalPaths, *optionalPrerequisiteObjectId));
+                    }
+                }
                 if (!prerequisitePayload || CellTagFromId(prerequisitePayload->ObjectId) != ForwardedCellTag_) {
                     TError error(
                         NObjectClient::EErrorCode::CrossCellRevisionPrerequisitePath,
@@ -1741,7 +1750,7 @@ void TObjectManager::AdvanceObjectLifeStageAtForeignMasterCells(TObject* object)
     multicellManager->PostToMasters(advanceRequest, replicationCellTags);
 }
 
-TObject* TObjectManager::ResolvePathToObject(const TYPath& path, TTransaction* transaction, const TResolvePathOptions& options)
+TObject* TObjectManager::ResolvePathToLocalObject(const TYPath& path, TTransaction* transaction, const TResolvePathOptions& options)
 {
     static const TString NullService;
     static const TString NullMethod;
@@ -1762,6 +1771,41 @@ TObject* TObjectManager::ResolvePathToObject(const TYPath& path, TTransaction* t
     }
 
     return payload->Object;
+}
+
+TObjectId TObjectManager::ResolvePathToObjectId(
+    const NYPath::TYPath& path,
+    const std::string& method,
+    NTransactionServer::TTransaction* transaction,
+    const TResolvePathOptions& options)
+{
+    static const std::string NullService;
+    TPathResolver resolver(
+        Bootstrap_,
+        NullService,
+        method,
+        path,
+        transaction);
+
+    auto result = resolver.Resolve(TPathResolverOptions{
+        .EnablePartialResolve = options.EnablePartialResolve,
+    });
+    auto optionalObjectId = Visit(
+        result.Payload,
+        [] (const TPathResolver::TLocalObjectPayload& payload) {
+            return std::make_optional(payload.Object->GetId());
+        },
+        [] (const TPathResolver::TRemoteObjectPayload& payload) {
+            return std::make_optional(payload.ObjectId);
+        },
+        [] (...) -> std::optional<TObjectId> {
+            return std::nullopt;
+        });
+
+    if (optionalObjectId) {
+        return *optionalObjectId;
+    }
+    THROW_ERROR_EXCEPTION("Failed to resolve path %v, object is either missing or lies in Sequoia", path);
 }
 
 auto TObjectManager::ResolveObjectIdsToPaths(const std::vector<TVersionedObjectId>& objectIds)
@@ -1809,6 +1853,7 @@ auto TObjectManager::ResolveObjectIdsToPaths(const std::vector<TVersionedObjectI
 }
 
 void TObjectManager::ValidatePrerequisites(
+    const std::string& method,
     NYTree::TYPathMaybeRef originalTargetPath,
     const google::protobuf::RepeatedPtrField<TProtobufString>& originalAdditionalPaths,
     const NObjectClient::NProto::TPrerequisitesExt& prerequisites)
@@ -1836,9 +1881,6 @@ void TObjectManager::ValidatePrerequisites(
 
     for (const auto& prerequisite : prerequisites.revisions()) {
         const auto& path = prerequisite.path();
-        if (GetDynamicConfig()->ProhibitPrerequisiteRevisionsDifferFromExecutionPaths) {
-            THROW_ERROR_EXCEPTION_IF_FAILED(ValidatePrerequisiteRevisionPaths(originalTargetPath, originalAdditionalPaths, path));
-        }
         auto revision = FromProto<NHydra::TRevision>(prerequisite.revision());
 
         TCypressNode* trunkNode;
@@ -1850,6 +1892,9 @@ void TObjectManager::ValidatePrerequisites(
                 "Prerequisite check failed: failed to resolve path %v",
                 path)
                 << ex;
+        }
+        if (GetDynamicConfig()->ProhibitPrerequisiteRevisionsDifferFromExecutionPaths) {
+            THROW_ERROR_EXCEPTION_IF_FAILED(ValidatePrerequisiteRevisionPaths(Bootstrap_, method, originalTargetPath, originalAdditionalPaths, trunkNode->GetId()));
         }
 
         if (trunkNode->GetRevision() != revision) {
