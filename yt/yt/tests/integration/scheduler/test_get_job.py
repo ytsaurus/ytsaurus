@@ -5,7 +5,7 @@ from yt_helpers import profiler_factory
 from yt_commands import (
     authors, wait, retry, wait_no_assert, wait_breakpoint, release_breakpoint, with_breakpoint, create,
     create_pool, insert_rows, run_sleeping_vanilla, print_debug,
-    update_controller_agent_config,
+    update_controller_agent_config, get_allocation_id_from_job_id,
     lookup_rows, delete_rows, write_table, map, vanilla, run_test_vanilla, abort_job, get_job, set, sync_create_cells, raises_yt_error)
 
 import yt_error_codes
@@ -569,8 +569,9 @@ class TestGetJobMonitoring(_TestGetJobBase):
             is not None)
 
 
-class TestGetJobAllocation(_TestGetJobBase):
+class TestGetJobAllocationBase(_TestGetJobBase):
     NUM_NODES = 1
+    ENABLE_MULTIDAEMON = True
 
     DELTA_NODE_CONFIG = update(_TestGetJobBase.DELTA_NODE_CONFIG, {
         "job_resource_manager": {
@@ -592,24 +593,46 @@ class TestGetJobAllocation(_TestGetJobBase):
         },
     })
 
-    @authors("bystrovserg")
-    def test_allocation_id(self):
+    def _check_allocation_id(self, op_id, job_id, include_archive=False):
+        wait(lambda: "allocation_id" in get_job(op_id, job_id))
+        allocation_id_from_get_job = get_job(op_id, job_id)["allocation_id"]
+        if include_archive:
+            job_allocation_id_from_archive = get_allocation_id_from_archive(op_id, job_id)
+            assert allocation_id_from_get_job == job_allocation_id_from_archive
+        assert allocation_id_from_get_job == get_allocation_id_from_job_id(job_id)
+
+    def _run_operation_and_check_allocation_id(self):
         op = run_test_vanilla(
             with_breakpoint("BREAKPOINT"),
         )
 
-        def check_allocation_id(job_id):
-            wait(lambda: "allocation_id" in get_job(op.id, job_id))
-            job_allocation_id_from_archive = get_allocation_id_from_archive(op.id, job_id)
-            assert get_job(op.id, job_id)["allocation_id"] == job_allocation_id_from_archive
-
         (job_id,) = wait_breakpoint()
-        check_allocation_id(job_id)
-
+        self._check_allocation_id(op.id, job_id, include_archive=False)
         release_breakpoint(job_id=job_id)
-
         op.track()
-        check_allocation_id(job_id)
+        return op, job_id
+
+
+class TestGetJobAllocationWithoutArchive(TestGetJobAllocationBase):
+    DELTA_CONTROLLER_AGENT_CONFIG = update(_TestGetJobBase.DELTA_CONTROLLER_AGENT_CONFIG, {
+        # Disable archive by setting a high reporting_period
+        "controller_agent": {
+            "job_reporter": {
+                "reporting_period": 1000000,
+            },
+        }
+    })
+
+    @authors("bystrovserg")
+    def test_allocation_id_from_controller(self):
+        self._run_operation_and_check_allocation_id()
+
+
+class TestGetJobAllocation(TestGetJobAllocationBase):
+    @authors("bystrovserg")
+    def test_allocation_id(self):
+        op, job_id = self._run_operation_and_check_allocation_id()
+        self._check_allocation_id(op.id, job_id, include_archive=True)
 
     @authors("bystrovserg")
     def test_same_allocation(self):
@@ -666,6 +689,13 @@ class TestGetJobRpcProxy(TestGetJob):
 
 
 class TestGetJobStatisticsLz4RpcProxy(TestGetJobStatisticsLz4):
+    USE_DYNAMIC_TABLES = True
+    DRIVER_BACKEND = "rpc"
+    ENABLE_RPC_PROXY = True
+    ENABLE_HTTP_PROXY = True
+
+
+class TestGetJobAllocationIdRpcProxy(TestGetJobAllocation):
     USE_DYNAMIC_TABLES = True
     DRIVER_BACKEND = "rpc"
     ENABLE_RPC_PROXY = True

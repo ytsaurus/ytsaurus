@@ -2114,6 +2114,7 @@ static void MergeJobs(TJob&& controllerAgentJob, TJob* archiveJob)
     mergeNullableField(&TJob::PoolTree);
     mergeNullableField(&TJob::JobCookie);
     mergeNullableField(&TJob::OperationIncarnation);
+    mergeNullableField(&TJob::AllocationId);
     if (controllerAgentJob.StderrSize && archiveJob->StderrSize.value_or(0) < controllerAgentJob.StderrSize) {
         archiveJob->StderrSize = controllerAgentJob.StderrSize;
     }
