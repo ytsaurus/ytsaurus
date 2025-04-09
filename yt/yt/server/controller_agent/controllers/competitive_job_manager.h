@@ -41,7 +41,7 @@ public:
 
     virtual int GetTotalJobCount() const = 0;
 
-    //! returns if the cookie should be returned back to the pool
+    //! Returns true if the cookie should be returned back to the pool.
     virtual bool OnJobAborted(const TJobletPtr& joblet, EAbortReason reason) = 0;
     virtual bool OnJobFailed(const TJobletPtr& joblet) = 0;
 
@@ -49,7 +49,7 @@ public:
 
     virtual void OnJobScheduled(const TJobletPtr& joblet) = 0;
 
-    //! returns if the cookie processing is finished
+    //! Returns true if the cookie processing is finished.
     virtual bool OnJobCompleted(const TJobletPtr& joblet) = 0;
 
     virtual std::optional<EAbortReason> ShouldAbortCompletingJob(const TJobletPtr& joblet) = 0;

@@ -1,8 +1,8 @@
 #pragma once
 
-#include <util/generic/vector.h>
-
 #include "competitive_job_manager.h"
+
+#include <util/generic/vector.h>
 
 namespace NYT::NControllerAgent::NControllers {
 
@@ -59,8 +59,8 @@ protected:
     {
         TJobId MainJobId;
         std::vector<TSecondary> Secondaries;
-        int Pending;
-        int NotCompleted;
+        int Pending = 0;
+        int NotCompleted = 0;
 
         PHOENIX_DECLARE_TYPE(TReplicas, 0x9f237b97);
     };
@@ -75,7 +75,7 @@ private:
     TTask* Task_;
 
     NLogging::TSerializableLogger Logger;
-    i64 PendingDataWeight_;
+    i64 PendingDataWeight_ = 0;
 
     bool IsRelevant(const TJobletPtr& joblet) const;
 

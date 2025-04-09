@@ -48,16 +48,12 @@ std::pair<NChunkPools::IChunkPoolOutput::TCookie, int> TMultiJobManager::PeekJob
 
 bool TMultiJobManager::OnJobAborted(const TJobletPtr& joblet, EAbortReason reason)
 {
-    return OnUnsuccessfulJobFinish(
-        joblet,
-        reason);
+    return OnUnsuccessfulJobFinish(joblet, reason);
 }
 
 bool TMultiJobManager::OnJobFailed(const TJobletPtr& joblet)
 {
-    return OnUnsuccessfulJobFinish(
-        joblet,
-        EAbortReason::OperationFailed);
+    return OnUnsuccessfulJobFinish(joblet, EAbortReason::OperationFailed);
 }
 
 void TMultiJobManager::OnJobLost(IChunkPoolOutput::TCookie)
@@ -84,11 +80,11 @@ void TMultiJobManager::OnJobScheduled(const TJobletPtr& joblet)
         InsertOrCrash(PendingCookies_, joblet->OutputCookie);
     } else {
         auto replicas = GetOrCrash(CookieToReplicas_, joblet->OutputCookie);
-        auto &secondary = replicas->Secondaries[joblet->OutputCookieGroupIndex - 1];
+        auto& secondary = replicas->Secondaries[joblet->OutputCookieGroupIndex - 1];
         secondary.JobId = joblet->JobId;
         secondary.ProgressCounterGuard.SetCategory(EProgressCategory::Running);
         joblet->MainJobId = replicas->MainJobId;
-        replicas->Pending--;
+        --replicas->Pending;
         if (!replicas->Pending) {
             EraseOrCrash(PendingCookies_, joblet->OutputCookie);
         }
@@ -101,15 +97,16 @@ bool TMultiJobManager::OnJobCompleted(const TJobletPtr& joblet)
         return true;
     }
 
-    auto replicas = CookieToReplicas_.find(joblet->OutputCookie);
-    if (replicas != CookieToReplicas_.end()) {
+    auto replicas_it = CookieToReplicas_.find(joblet->OutputCookie);
+    if (replicas_it != CookieToReplicas_.end()) {
+        auto& replicas = replicas_it->second;
         if (joblet->OutputCookieGroupIndex != 0) {
-            replicas->second->Secondaries[joblet->OutputCookieGroupIndex - 1].ProgressCounterGuard.SetCategory(EProgressCategory::Completed);
+            replicas->Secondaries[joblet->OutputCookieGroupIndex - 1].ProgressCounterGuard.SetCategory(EProgressCategory::Completed);
         }
-        --replicas->second->NotCompleted;
-        YT_VERIFY(replicas->second->NotCompleted >= 0);
-        if (!replicas->second->NotCompleted) {
-            CookieToReplicas_.erase(joblet->OutputCookie);
+        --replicas->NotCompleted;
+        YT_VERIFY(replicas->NotCompleted >= 0);
+        if (!replicas->NotCompleted) {
+            EraseOrCrash(CookieToReplicas_, joblet->OutputCookie);
             return true;
         }
     }
@@ -158,13 +155,14 @@ bool TMultiJobManager::OnUnsuccessfulJobFinish(
         return true;
     }
 
-    auto replicas = CookieToReplicas_.find(joblet->OutputCookie);
-    if (replicas != CookieToReplicas_.end()) {
-        Task_->GetTaskHost()->AsyncAbortJob(replicas->second->MainJobId, abortReason);
-        for (auto& secondary : replicas->second->Secondaries) {
+    auto replicas_it = CookieToReplicas_.find(joblet->OutputCookie);
+    if (replicas_it != CookieToReplicas_.end()) {
+        auto& replicas = replicas_it->second;
+        Task_->GetTaskHost()->AsyncAbortJob(replicas->MainJobId, abortReason);
+        for (const auto& secondary : replicas->Secondaries) {
             Task_->GetTaskHost()->AsyncAbortJob(secondary.JobId, abortReason);
         }
-        CookieToReplicas_.erase(joblet->OutputCookie);
+        EraseOrCrash(CookieToReplicas_, joblet->OutputCookie);
         return true;
     }
     return false;

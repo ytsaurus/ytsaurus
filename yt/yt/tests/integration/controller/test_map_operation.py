@@ -1969,7 +1969,7 @@ fi
                 },
             )
 
-        assert not exists('//tmp/t_output1')
+        assert not exists("//tmp/t_output1")
 
     @authors("ifsmirnov")
     def test_disallow_partially_sorted_output(self):
