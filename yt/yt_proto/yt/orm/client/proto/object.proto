@@ -280,6 +280,8 @@ message TIndexOption
     optional string reference = 10;
     optional string hash_expression = 5;
     optional EIndexMode mode = 6;
+    // Indexed values must be distinct. Repeated index with a unique flag is treated as a disjoint set
+    // and must not contain duplicates within each list.
     optional bool unique = 7;
     optional string predicate = 8;
     optional string custom_table_name = 9;
