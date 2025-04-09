@@ -17,7 +17,7 @@ Different formats enable users to work with different types of data.
 Structured data is a node tree with attributes, where nodes correspond to [YSON types](../../../user-guide/storage/yson.md) (map, list, primitive types) with attributes.
 Structured data can be obtained using the [`get`](../../../api/commands.md#get) command.
 
-Supported formats: `json`, `yson`.
+Supported formats: `json`, `yson`, `yaml`.
 
 Example: [Cypress](../../../user-guide/storage/cypress.md) nodes, their attributes.
 
@@ -267,6 +267,111 @@ JSON represents bytes numbered 0–32 (namely \u00XX) in a non-compact way. When
 
 {% endnote %}
 
+## YAML { #yaml }
+
+[YAML](https://yaml.org/) is a human-readable data serialization format that has become a standard for configuration files and infrastructure-as-code. It offers a more compact and readable syntax compared to JSON, with features like comments and anchors.
+
+YAML is available in {{product-name}} starting from version 24.2.
+
+Reading a Cypress node in YAML format:
+
+```bash
+yt get //path/to/some_table/@ --format yaml
+```
+
+Example output:
+
+```yaml
+id: 7b7-154e6-13440191-489067e7
+type: table
+ref_counter: 1
+foreign: false
+native_cell_tag: 4932
+revision: 8482560616109
+acl: []
+owner: max
+path: null
+key: squirrels
+creation_time: '2023-12-06T22:03:43.498610Z'
+modification_time: '2023-12-06T22:20:05.142350Z'
+access_time: '2024-11-05T23:39:45.599145Z'
+access_counter: 1012
+resource_usage:
+  node_count: 1
+  chunk_count: 1
+  disk_space_per_medium:
+    default: 560736
+  disk_space: 560736
+  chunk_host_cell_master_memory: 0
+  master_memory: 0
+  detailed_master_memory:
+    nodes: 0
+    chunks: 0
+    attributes: 0
+    tablets: 0
+    schemas: 0
+  tablet_count: 0
+  tablet_static_memory: 0
+recursive_resource_usage: null
+...
+```
+
+### Type System
+
+YAML format in {{product-name}} uses a [YAML schema](https://yaml.org/spec/1.2.2/#schema) approach for type deduction. The implementation follows the [Core schema](https://yaml.org/spec/1.2.2/#core-schema), which is widely used by most YAML parsers:
+
+- On parsing, the system complies with specific tags and deduces non-specific tags using Core schema regexps, which detect integer/float/string/boolean/null values
+  - For example, `123`, `3.14`, `true`, `null` are detected as integer, float, boolean and null value respectively, and `foo`, `bar`, `baz` are detected as strings
+- On writing:
+  - Non-string scalars are serialized in plain (unquoted) manner, e.g. `123`, `3.14`, `true`, `false`, `null`
+  - String scalars are serialized in plain (unquoted) manner if syntactically possible and if the unquoted representation doesn't match null/bool/int/float regexps, e.g. `foo`, `bar`, `baz`, but `"null"`, `"true"`, `"false"`, `"123"`, `"3.14"` (otherwise they would be interpreted by most YAML parsers as types other than strings)
+
+### Signed/Unsigned Integer Handling
+
+To handle unsigned integers explicitly, a custom tag `!yt/uint` is introduced. The format has a `write_uint_tag` option (false by default) which forces the writer to use this tag for all uint64 scalars.
+
+On parsing:
+- If a tag `!yt/uint` is present, the value is interpreted as an uint64
+- If a tag is missing or is a standard YAML `!!int`:
+  - For decimal form, numbers in range [-2^63, 2^63) are interpreted as int64 and numbers in range [2^63, 2^64) as uint64
+  - For hexadecimal/octal form, values are always interpreted as uint64
+
+On writing:
+- If `write_uint_tag = %false`, all integers are output in plain (unquoted) untagged form
+- If `write_uint_tag = %true`, int64 is output in plain untagged decimal form, and uint64 in plain decimal form with tag `!yt/uint`
+
+### Attribute Representation
+
+Nodes with attributes are represented as a 2-element sequence tagged with `!yt/attrnode` to distinguish them from regular lists:
+
+```
+YSON:
+{
+    "foo" = <
+        "x" = 1;
+        "y" = 2;
+    > {
+        "bar" = 3;
+    };
+}
+YAML:
+foo: !yt/attrnode
+- x: 1
+  y: 2
+- bar: 3
+```
+
+### Limitations
+
+- **Comments**: YAML comments are dropped when writing, as they are not a part of the node structure
+- **Anchors and Aliases**: Only non-recursive anchors and aliases are supported, also aliases must refer to a node defined somewhere before them; aliases are not preserved on parsing, i.e. they are immediately resolved
+- **Merge Operator**: The YAML 1.1 merge operator ("<<") is not supported and is treated as a regular scalar key
+
+**Parameters**
+
+The values are specified in parentheses by default.
+- **write_uint_tag** (`false`) — enable using the `!yt/uint` tag for all uint64 scalars on writing
+
 ## DSV (TSKV) { #dsv }
 
 **DSV** — Delimiter-Separated Values.
@@ -341,7 +446,7 @@ In practice, an arbitrary string is a valid DSV record. If there is no key-value
 This format is a variation of DSV. With SCHEMAFUL_DSV, data is generated as a set of values separated by tabs.
 The format has a mandatory `columns` attribute, in which you specify the names of the columns you need, separated by a semicolon. If the value of one of the columns is missing from at least one of the records, an error occurs (see **missing_value_mode**).
 
-For example, if a table has two records `{a=10;b=11} {c=100}` and the format `<columns=[a]>schemaful_dsv` is specified, the following error occurs — `Column "a" is in schema but missing`.
+For example, if a table has two records `{a=10;b=11} {c=100}` and the format `<columns=[a]>schemaful_dsv` is specified, the following error occurs — `Column "a" is in schema but missing`.
 If only the first record is in the table, the job will receive record `10` as input.
 
 {% note info "Note" %}
