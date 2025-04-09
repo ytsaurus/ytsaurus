@@ -633,6 +633,10 @@ Y_UNIT_TEST_SUITE(SqlCompleteTests) {
                 {"minby", 32},
                 {"maxby", 32},
             },
+            .Hints = {
+                {"xlock", 4},
+                {"unordered", 2},
+            },
         };
         auto service = MakeStaticNameService(MakeDefaultNameSet(), MakeDefaultRanking(frequency));
         auto engine = MakeSqlCompletionEngine(MakePureLexerSupplier(), std::move(service));
@@ -669,6 +673,19 @@ Y_UNIT_TEST_SUITE(SqlCompleteTests) {
             };
 
             auto actualPrefix = Complete(engine, {"SELECT m"});
+            actualPrefix.crop(expectedPrefix.size());
+
+            UNIT_ASSERT_VALUES_EQUAL(actualPrefix, expectedPrefix);
+        }
+        {
+            TVector<TCandidate> expectedPrefix = {
+                {Keyword, "COLUMNS"},
+                {Keyword, "SCHEMA"},
+                {HintName, "XLOCK"},
+                {HintName, "UNORDERED"},
+            };
+
+            auto actualPrefix = Complete(engine, {"SELECT * FROM a WITH "});
             actualPrefix.crop(expectedPrefix.size());
 
             UNIT_ASSERT_VALUES_EQUAL(actualPrefix, expectedPrefix);
