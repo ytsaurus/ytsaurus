@@ -612,7 +612,7 @@ type TResponseHeader struct {
 	extensionFields protoimpl.ExtensionFields
 
 	RequestId *misc.TGuid `protobuf:"bytes,1,opt,name=request_id,json=requestId" json:"request_id,omitempty"`
-	// May be blank.
+	// NB: In some cases we deliberately omit setting these fields.
 	Service *string `protobuf:"bytes,7,opt,name=service" json:"service,omitempty"`
 	Method  *string `protobuf:"bytes,8,opt,name=method" json:"method,omitempty"`
 	// If omitted then OK is assumed.
