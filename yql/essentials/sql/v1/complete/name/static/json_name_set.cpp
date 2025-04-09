@@ -56,24 +56,18 @@ namespace NSQLComplete {
     THashMap<EStatementKind, TVector<TString>> ParseHints(NJson::TJsonValue json) {
         THashMap<EStatementKind, TVector<TString>> hints;
 
-        hints[EStatementKind::Select] = ParseNames(
-            json
-                .GetMapSafe()
-                .at("read")
-                .GetMapSafe()
-                .at("yt")
-                .GetMapSafe()
-                .at("hints")
-                .GetArraySafe());
-        hints[EStatementKind::Insert] = ParseNames(
-            json
-                .GetMapSafe()
-                .at("insert")
-                .GetMapSafe()
-                .at("yt")
-                .GetMapSafe()
-                .at("hints")
-                .GetArraySafe());
+        THashMap<EStatementKind, TString> StatementNames = {
+            {EStatementKind::Select, "read"},
+            {EStatementKind::Insert, "insert"},
+        };
+
+        for (const auto& [k, kname] : StatementNames) {
+            for (auto& [_, values] : json.GetMapSafe().at(kname).GetMapSafe()) {
+                for (auto& name : ParseNames(values.GetMapSafe().at("hints").GetArraySafe())) {
+                    hints[k].emplace_back(std::move(name));
+                }
+            }
+        }
 
         for (auto& [_, hints] : hints) {
             for (auto& hint : hints) {
