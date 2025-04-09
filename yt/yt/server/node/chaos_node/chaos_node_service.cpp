@@ -65,7 +65,6 @@ public:
         RegisterMethod(RPC_SERVICE_METHOD_DESC(RemoveReplicationCard));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetReplicationCard));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(WatchReplicationCard));
-        // COMPAT(gryzlov-ad)
         RegisterMethod(RPC_SERVICE_METHOD_DESC(FindReplicationCard));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(AlterReplicationCard));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(CreateTableReplica));
@@ -77,11 +76,6 @@ public:
         RegisterMethod(RPC_SERVICE_METHOD_DESC(CreateReplicationCardCollocation));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetReplicationCardCollocation));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(ForsakeCoordinator));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(CreateChaosLease));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(GetChaosLease));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(PingChaosLease));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(RemoveChaosLease));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(FindChaosObject));
     }
 
 private:
@@ -116,7 +110,7 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NChaosClient::NProto, ForsakeCoordinator)
     {
-        auto coordinatorCellId = FromProto<TCellId>(request->coordinator_cell_id());
+        auto coordinatorCellId = FromProto<TReplicationCardId>(request->coordinator_cell_id());
 
         context->SetRequestInfo("CoordinatorCellId: %v",
             coordinatorCellId);
@@ -180,33 +174,6 @@ private:
         context->Reply();
     }
 
-    void DoFindChaosObject(TChaosObjectId chaosObjectId)
-    {
-        const auto& chaosManager = Slot_->GetChaosManager();
-
-        switch (TypeFromId(chaosObjectId)) {
-            case EObjectType::ReplicationCard: {
-                auto* replicationCard = chaosManager->GetReplicationCardOrThrow(chaosObjectId);
-                Y_UNUSED(replicationCard);
-                break;
-            }
-            case EObjectType::ReplicationCardCollocation: {
-                auto* collocation = chaosManager->GetReplicationCardCollocationOrThrow(chaosObjectId);
-                Y_UNUSED(collocation);
-                break;
-            }
-            case EObjectType::ChaosLease: {
-                auto* chaosLease = chaosManager->GetChaosLeaseOrThrow(chaosObjectId);
-                Y_UNUSED(chaosLease);
-                break;
-            }
-            default:
-                THROW_ERROR_EXCEPTION("Unsupported object type: %v",
-                    TypeFromId(chaosObjectId));
-        }
-    }
-
-    // COMPAT(gryzlov-ad)
     DECLARE_RPC_SERVICE_METHOD(NChaosClient::NProto, FindReplicationCard)
     {
         SyncWithUpstream();
@@ -217,22 +184,23 @@ private:
             objectId,
             TypeFromId(objectId));
 
-        DoFindChaosObject(objectId);
+        const auto& chaosManager = Slot_->GetChaosManager();
 
-        context->Reply();
-    }
-
-    DECLARE_RPC_SERVICE_METHOD(NChaosClient::NProto, FindChaosObject)
-    {
-        SyncWithUpstream();
-
-        auto objectId = FromProto<TChaosObjectId>(request->chaos_object_id());
-
-        context->SetRequestInfo("ChaosObjectId: %v, Type: %v",
-            objectId,
-            TypeFromId(objectId));
-
-        DoFindChaosObject(objectId);
+        switch (TypeFromId(objectId)) {
+            case EObjectType::ReplicationCard: {
+                auto* replicationCard = chaosManager->GetReplicationCardOrThrow(objectId);
+                Y_UNUSED(replicationCard);
+                break;
+            }
+            case EObjectType::ReplicationCardCollocation: {
+                auto* collocation = chaosManager->GetReplicationCardCollocationOrThrow(objectId);
+                Y_UNUSED(collocation);
+                break;
+            }
+            default:
+                THROW_ERROR_EXCEPTION("Unsupported object type: %v",
+                    TypeFromId(objectId));
+        }
 
         context->Reply();
     }
@@ -391,57 +359,6 @@ private:
             replicationCardId,
             cacheTimestamp,
             CreateReplicationCardWatcherCallbacks(std::move(context)));
-    }
-
-    DECLARE_RPC_SERVICE_METHOD(NChaosClient::NProto, CreateChaosLease)
-    {
-        context->SetRequestInfo();
-
-        const auto& chaosManager = Slot_->GetChaosManager();
-        chaosManager->CreateChaosLease(std::move(context));
-    }
-
-    DECLARE_RPC_SERVICE_METHOD(NChaosClient::NProto, GetChaosLease)
-    {
-        auto chaosLeaseId = FromProto<TChaosLeaseId>(request->chaos_lease_id());
-
-        context->SetRequestInfo("ChaosLeaseId: %v",
-            chaosLeaseId);
-
-        const auto& chaosManager = Slot_->GetChaosManager();
-        auto* chaosLease = chaosManager->GetChaosLeaseOrThrow(chaosLeaseId);
-
-        auto* protoChaosLease = response->mutable_chaos_lease();
-        Y_UNUSED(chaosLease, protoChaosLease);
-
-        context->Reply();
-    }
-
-    DECLARE_RPC_SERVICE_METHOD(NChaosClient::NProto, PingChaosLease)
-    {
-        // TODO(gryzlov-ad): Support pings for chaos leases.
-        auto chaosLeaseId = FromProto<TChaosLeaseId>(request->chaos_lease_id());
-
-        context->SetRequestInfo("ChaosLeaseId: %v",
-            chaosLeaseId);
-
-        const auto& chaosManager = Slot_->GetChaosManager();
-        auto* chaosLease = chaosManager->GetChaosLeaseOrThrow(chaosLeaseId);
-
-        Y_UNUSED(chaosLease);
-
-        context->Reply();
-    }
-
-    DECLARE_RPC_SERVICE_METHOD(NChaosClient::NProto, RemoveChaosLease)
-    {
-        auto chaosLeaseId = FromProto<TChaosLeaseId>(request->chaos_lease_id());
-
-        context->SetRequestInfo("ChaosLeaseId: %v",
-            chaosLeaseId);
-
-        const auto& chaosManager = Slot_->GetChaosManager();
-        chaosManager->RemoveChaosLease(std::move(context));
     }
 };
 

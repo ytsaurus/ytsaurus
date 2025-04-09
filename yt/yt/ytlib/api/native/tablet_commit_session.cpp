@@ -260,8 +260,13 @@ private:
             ToProto(req->mutable_hunk_chunks_info(), *HunkChunksInfo_);
         }
 
+        auto prerequisiteTransactionIds = transaction->GetPrerequisiteTransactionIds();
+        prerequisiteTransactionIds.insert(
+            prerequisiteTransactionIds.end(),
+            Options_.PrerequisiteTransactionIds.begin(),
+            Options_.PrerequisiteTransactionIds.end());
         if (batchIndex == 0) {
-            ToProto(req->mutable_prerequisite_transaction_ids(), Options_.PrerequisiteTransactionIds);
+            ToProto(req->mutable_prerequisite_transaction_ids(), prerequisiteTransactionIds);
         }
 
         YT_LOG_DEBUG("Sending transaction rows (BatchIndex: %v/%v, RowCount: %v, "
@@ -286,7 +291,7 @@ private:
                             }));
                 }
             }),
-            Options_.PrerequisiteTransactionIds);
+            prerequisiteTransactionIds);
 
         req->Invoke().Subscribe(
             BIND(&TTabletCommitSession::OnResponse, MakeStrong(this), commitContext));

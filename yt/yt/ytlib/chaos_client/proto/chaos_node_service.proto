@@ -1,7 +1,6 @@
 package NYT.NChaosClient.NProto;
 
 import "yt_proto/yt/client/chaos_client/proto/replication_card.proto";
-import "yt_proto/yt/client/chaos_client/proto/chaos_lease.proto";
 import "yt_proto/yt/core/misc/proto/guid.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -64,16 +63,6 @@ message TReqFindReplicationCard
 }
 
 message TRspFindReplicationCard
-{ }
-
-////////////////////////////////////////////////////////////////////////////////
-
-message TReqFindChaosObject
-{
-    required NYT.NProto.TGuid chaos_object_id = 1; // NChaosClient::TChaosObjectId
-}
-
-message TRspFindChaosObject
 { }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -266,67 +255,13 @@ message TRspGetReplicationCardResidency
 
 ////////////////////////////////////////////////////////////////////////////////
 
-message TReqGetChaosObjectResidency
-{
-    required NYT.NProto.TGuid chaos_object_id = 1;
-    optional uint32 force_refresh_chaos_object_cell_tag = 2;
-}
-
-message TRspGetChaosObjectResidency
-{
-    required uint32 chaos_object_cell_tag = 1;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 message TReqForsakeCoordinator
 {
     required NYT.NProto.TGuid coordinator_cell_id = 1;
 }
 
 message TRspForsakeCoordinator
-{ }
-
-////////////////////////////////////////////////////////////////////////////////
-
-message TReqCreateChaosLease
-{ }
-
-message TRspCreateChaosLease
 {
-    required NYT.NProto.TGuid chaos_lease_id = 1; // NChaosClient::TChaosLeaseId
 }
-
-////////////////////////////////////////////////////////////////////////////////
-
-message TReqGetChaosLease
-{
-    required NYT.NProto.TGuid chaos_lease_id = 1; // NChaosClient::TChaosLeaseId
-}
-
-message TRspGetChaosLease
-{
-    required TChaosLease chaos_lease = 1;
- }
-
-////////////////////////////////////////////////////////////////////////////////
-
-message TReqRemoveChaosLease
-{
-     required NYT.NProto.TGuid chaos_lease_id = 1; // NChaosClient::TChaosLeaseId
-}
-
-message TRspRemoveChaosLease
-{ }
-
-////////////////////////////////////////////////////////////////////////////////
-
-message TReqPingChaosLease
-{
-    required NYT.NProto.TGuid chaos_lease_id = 1; // NChaosClient::TChaosLeaseId
-}
-
-message TRspPingChaosLease
-{ }
 
 ////////////////////////////////////////////////////////////////////////////////

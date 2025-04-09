@@ -4,7 +4,6 @@
 #include "bootstrap.h"
 #include "chaos_cell_synchronizer.h"
 #include "chaos_slot.h"
-#include "chaos_lease.h"
 #include "foreign_migrated_replication_card_remover.h"
 #include "migrated_replication_card_remover.h"
 #include "replication_card.h"
@@ -34,8 +33,6 @@
 
 #include <yt/yt/client/chaos_client/helpers.h>
 #include <yt/yt/client/chaos_client/replication_card_serialization.h>
-
-#include <yt/yt/client/object_client/helpers.h>
 
 #include <yt/yt/client/tablet_client/helpers.h>
 
@@ -156,8 +153,6 @@ public:
         RegisterMethod(BIND_NO_PROPAGATE(&TChaosManager::HydraCreateReplicationCardCollocation, Unretained(this)));
         RegisterMethod(BIND_NO_PROPAGATE(&TChaosManager::HydraChaosNodeRemoveMigratedReplicationCards, Unretained(this)));
         RegisterMethod(BIND_NO_PROPAGATE(&TChaosManager::HydraForsakeCoordinator, Unretained(this)));
-        RegisterMethod(BIND_NO_PROPAGATE(&TChaosManager::HydraCreateChaosLease, Unretained(this)));
-        RegisterMethod(BIND_NO_PROPAGATE(&TChaosManager::HydraRemoveChaosLease, Unretained(this)));
     }
 
     void Initialize() override
@@ -325,7 +320,6 @@ public:
 
     DECLARE_ENTITY_MAP_ACCESSORS_OVERRIDE(ReplicationCard, TReplicationCard);
     DECLARE_ENTITY_MAP_ACCESSORS_OVERRIDE(ReplicationCardCollocation, TReplicationCardCollocation);
-    DECLARE_ENTITY_MAP_ACCESSORS_OVERRIDE(ChaosLease, TChaosLease);
 
     TReplicationCard* GetReplicationCardOrThrow(TReplicationCardId replicationCardId, bool allowMigrated=false) override
     {
@@ -377,65 +371,6 @@ public:
 
             replicaCounters.LagTime.Update(replicaLagTime);
         }
-    }
-
-    void CreateChaosLease(const TCtxCreateChaosLeasePtr& context) override
-    {
-        auto mutation = CreateMutation(
-            HydraManager_,
-            context,
-            &TChaosManager::HydraCreateChaosLease,
-            this);
-        YT_UNUSED_FUTURE(mutation->CommitAndReply(context));
-    }
-
-    void RemoveChaosLease(const TCtxRemoveChaosLeasePtr& context) override
-    {
-        auto mutation = CreateMutation(
-            HydraManager_,
-            context,
-            &TChaosManager::HydraRemoveChaosLease,
-            this);
-        YT_UNUSED_FUTURE(mutation->CommitAndReply(context));
-    }
-
-    TChaosLease* GetChaosLeaseOrThrow(TChaosLeaseId chaosLeaseId) override
-    {
-        auto* chaosLease = FindChaosLease(chaosLeaseId);
-        if (!chaosLease) {
-            THROW_ERROR_EXCEPTION(NYTree::EErrorCode::ResolveError, "No such chaos lease")
-                << TErrorAttribute("chaos_lease_id", chaosLeaseId);
-        }
-
-        return chaosLease;
-    }
-
-    TChaosObjectBase* FindChaosObject(TChaosObjectId chaosObjectId) override
-    {
-        switch (TypeFromId(chaosObjectId)) {
-            case EObjectType::ReplicationCard:
-                return ReplicationCardMap_.Find(chaosObjectId);
-
-            case EObjectType::ChaosLease:
-                return ChaosLeaseMap_.Find(chaosObjectId);
-
-            default:
-                return nullptr;
-        }
-    }
-
-    TChaosObjectBase* GetChaosObjectOrThrow(TChaosObjectId chaosObjectId)
-    {
-        auto* chaosObject = FindChaosObject(chaosObjectId);
-        if (!chaosObject) {
-            THROW_ERROR_EXCEPTION(
-                NYTree::EErrorCode::ResolveError,
-                "Chaos object %v of type %Qlv does not exist",
-                chaosObjectId,
-                TypeFromId(chaosObjectId));
-        }
-
-        return chaosObject;
     }
 
 private:
@@ -504,7 +439,6 @@ private:
 
     TEntityMap<TReplicationCard> ReplicationCardMap_;
     TEntityMap<TReplicationCardCollocation> CollocationMap_;
-    TEntityMap<TChaosLease> ChaosLeaseMap_;
     std::vector<TCellId> CoordinatorCellIds_;
     THashMap<TCellId, TInstant> SuspendedCoordinators_;
     THashMap<TReplicaId, TReplicaCounters> ReplicaCounters_;
@@ -519,7 +453,6 @@ private:
 
         ReplicationCardMap_.SaveKeys(context);
         CollocationMap_.SaveKeys(context);
-        ChaosLeaseMap_.SaveKeys(context);
     }
 
     void SaveValues(TSaveContext& context) const
@@ -530,7 +463,6 @@ private:
 
         ReplicationCardMap_.SaveValues(context);
         CollocationMap_.SaveValues(context);
-        ChaosLeaseMap_.SaveValues(context);
         Save(context, CoordinatorCellIds_);
         Save(context, SuspendedCoordinators_);
         Save(context, Suspended_);
@@ -543,9 +475,6 @@ private:
 
         ReplicationCardMap_.LoadKeys(context);
         CollocationMap_.LoadKeys(context);
-        if (context.GetVersion() >= EChaosReign::IntroduceChaosObjectAndLease) {
-            ChaosLeaseMap_.LoadKeys(context);
-        }
     }
 
     void LoadValues(TLoadContext& context)
@@ -556,9 +485,6 @@ private:
 
         ReplicationCardMap_.LoadValues(context);
         CollocationMap_.LoadValues(context);
-        if (context.GetVersion() >= EChaosReign::IntroduceChaosObjectAndLease) {
-            ChaosLeaseMap_.LoadValues(context);
-        }
 
         Load(context, CoordinatorCellIds_);
         Load(context, SuspendedCoordinators_);
@@ -574,7 +500,6 @@ private:
 
         ReplicationCardMap_.Clear();
         CollocationMap_.Clear();
-        ChaosLeaseMap_.Clear();
         CoordinatorCellIds_.clear();
         SuspendedCoordinators_.clear();
         MigratedReplicationCardRemover_->Clear();
@@ -1323,33 +1248,28 @@ private:
         std::vector<TReplicationCardId> replicationCardIds;
 
         for (const auto& shortcut : request->shortcuts()) {
+            auto replicationCardId = FromProto<TReplicationCardId>(shortcut.replication_card_id());
             auto era = shortcut.era();
 
-            auto chaosObjectId = FromProto<TChaosObjectId>(shortcut.chaos_object_id());
-            TChaosObjectBase* chaosObject = FindChaosObject(chaosObjectId);
-
-            if (!chaosObject) {
-                YT_LOG_WARNING("Got grant shortcut response for an unknown object (ChaosObjectId: %v, Type: %v)",
-                    chaosObjectId,
-                    TypeFromId(chaosObjectId));
+            auto* replicationCard = ReplicationCardMap_.Find(replicationCardId);
+            if (!replicationCard) {
+                YT_LOG_WARNING("Got grant shortcut response for an unknown replication card (ReplicationCardId: %v)",
+                    replicationCardId);
                 continue;
             }
 
-            if (chaosObject->GetEra() != era) {
-                YT_LOG_ALERT("Got grant shortcut response with invalid era (ChaosObjectId: %v, Type: %v, "
-                    "Era: %v, ResponseEra: %v)",
-                    chaosObjectId,
-                    TypeFromId(chaosObjectId),
-                    chaosObject->GetEra(),
+            if (replicationCard->GetEra() != era) {
+                YT_LOG_ALERT("Got grant shortcut response with invalid era (ReplicationCardId: %v, Era: %v, ResponseEra: %v)",
+                    replicationCardId,
+                    replicationCard->GetEra(),
                     era);
                 continue;
             }
 
-            if (auto it = chaosObject->Coordinators().find(coordinatorCellId); !it || it->second.State != EShortcutState::Granting) {
+            if (auto it = replicationCard->Coordinators().find(coordinatorCellId); !it || it->second.State != EShortcutState::Granting) {
                 YT_LOG_WARNING("Got grant shortcut response but shortcut is not waiting for it "
-                    "(ChaosObjectId: %v, Type: %v, Era: %v, CoordinatorCellId: %v, ShortcutState: %v)",
-                    chaosObjectId,
-                    TypeFromId(chaosObjectId),
+                    "(ReplicationCardId: %v, Era: %v, CoordinatorCellId: %v, ShortcutState: %v)",
+                    replicationCardId,
                     era,
                     coordinatorCellId,
                     it ? std::make_optional(it->second.State) : std::nullopt);
@@ -1357,11 +1277,8 @@ private:
                 continue;
             }
 
-            if (IsReplicationCardType(TypeFromId(chaosObjectId))) {
-                replicationCardIds.push_back(chaosObjectId);
-            }
-
-            chaosObject->Coordinators()[coordinatorCellId].State = EShortcutState::Granted;
+            replicationCardIds.push_back(replicationCardId);
+            replicationCard->Coordinators()[coordinatorCellId].State = EShortcutState::Granted;
         }
 
         if (suspended) {
@@ -1384,48 +1301,38 @@ private:
         std::vector<TReplicationCardId> replicationCardIds;
 
         for (const auto& shortcut : request->shortcuts()) {
+            auto replicationCardId = FromProto<TReplicationCardId>(shortcut.replication_card_id());
             auto era = shortcut.era();
 
-            auto chaosObjectId = FromProto<TChaosObjectId>(shortcut.chaos_object_id());
-            TChaosObjectBase* chaosObject = FindChaosObject(chaosObjectId);
-
-            if (!chaosObject) {
-                YT_LOG_WARNING("Got revoke shortcut response for an unknown object (ChaosObjectId: %v, Type: %v)",
-                    chaosObjectId,
-                    TypeFromId(chaosObjectId));
+            auto* replicationCard = ReplicationCardMap_.Find(replicationCardId);
+            if (!replicationCard) {
+                YT_LOG_WARNING("Got revoke shortcut response for an unknown replication card (ReplicationCardId: %v)",
+                    replicationCardId);
                 continue;
             }
 
-            if (chaosObject->GetEra() != era) {
-                YT_LOG_ALERT("Got revoke shortcut response with invalid era "
-                    "(ChaosObjectId: %v, Type: %v, Era: %v, ResponseEra: %v)",
-                    chaosObjectId,
-                    TypeFromId(chaosObjectId),
-                    chaosObject->GetEra(),
+            if (replicationCard->GetEra() != era) {
+                YT_LOG_ALERT("Got revoke shortcut response with invalid era (ReplicationCardId: %v, Era: %v, ResponseEra: %v)",
+                    replicationCardId,
+                    replicationCard->GetEra(),
                     era);
                 continue;
             }
 
-            if (auto it = chaosObject->Coordinators().find(coordinatorCellId); it && it->second.State != EShortcutState::Revoking) {
+            if (auto it = replicationCard->Coordinators().find(coordinatorCellId); it && it->second.State != EShortcutState::Revoking) {
                 YT_LOG_WARNING("Got revoke shortcut response but shortcut is not waiting for it "
-                    "(ChaosObjectId: %v, Type: %v, Era: %v CoordinatorCellId: %v, ShortcutState: %v)",
-                    chaosObjectId,
-                    TypeFromId(chaosObjectId),
-                    chaosObject->GetEra(),
+                    "(ReplicationCardId: %v, Era: %v CoordinatorCellId: %v, ShortcutState: %v)",
+                    replicationCard->GetId(),
+                    replicationCard->GetEra(),
                     coordinatorCellId,
                     it->second.State);
 
                 continue;
             }
 
-            EraseOrCrash(chaosObject->Coordinators(), coordinatorCellId);
-
-            // TODO(gryzlov-ad): Add migration logic to ChaosBaseObject
-            // so leases can migrate too, as they have different states
-            if (IsReplicationCardType(TypeFromId(chaosObjectId))) {
-                replicationCardIds.push_back(chaosObjectId);
-                HandleReplicationCardStateTransition(static_cast<TReplicationCard*>(chaosObject));
-            }
+            replicationCardIds.push_back(replicationCardId);
+            EraseOrCrash(replicationCard->Coordinators(), coordinatorCellId);
+            HandleReplicationCardStateTransition(replicationCard);
         }
 
         YT_LOG_DEBUG("Shortcuts revoked (CoordinatorCellId: %v, ReplicationCardIds: %v)",
@@ -1435,7 +1342,7 @@ private:
         NotifyWatchers(std::move(replicationCardIds));
     }
 
-    void RevokeShortcuts(TChaosObjectBase* chaosObject)
+    void RevokeShortcuts(TReplicationCard* replicationCard)
     {
         YT_VERIFY(HasMutationContext());
 
@@ -1443,16 +1350,15 @@ private:
         NChaosNode::NProto::TReqRevokeShortcuts req;
         ToProto(req.mutable_chaos_cell_id(), Slot_->GetCellId());
         auto* shortcut = req.add_shortcuts();
-        ToProto(shortcut->mutable_chaos_object_id(), chaosObject->GetId());
-        shortcut->set_era(chaosObject->GetEra());
+        ToProto(shortcut->mutable_replication_card_id(), replicationCard->GetId());
+        shortcut->set_era(replicationCard->GetEra());
 
-        for (auto [cellId, coordinator] : GetValuesSortedByKey(chaosObject->Coordinators())) {
+        for (auto [cellId, coordinator] : GetValuesSortedByKey(replicationCard->Coordinators())) {
             if (coordinator->State == EShortcutState::Revoking) {
                 YT_LOG_DEBUG("Will not revoke shortcut since it already is revoking "
-                    "(ChaosObjectId: %v, Type: %v, Era: %v CoordinatorCellId: %v)",
-                    chaosObject->GetId(),
-                    TypeFromId(chaosObject->GetId()),
-                    chaosObject->GetEra(),
+                    "(ReplicationCardId: %v, Era: %v CoordinatorCellId: %v)",
+                    replicationCard->GetId(),
+                    replicationCard->GetEra(),
                     cellId);
 
                 continue;
@@ -1463,20 +1369,18 @@ private:
             auto mailbox = hiveManager->GetMailbox(cellId);
             hiveManager->PostMessage(mailbox, req);
 
-            YT_LOG_DEBUG("Revoking shortcut (ChaosObjectId: %v, Type: %v, Era: %v CoordinatorCellId: %v)",
-                chaosObject->GetId(),
-                TypeFromId(chaosObject->GetId()),
-                chaosObject->GetEra(),
+            YT_LOG_DEBUG("Revoking shortcut (ReplicationCardId: %v, Era: %v CoordinatorCellId: %v)",
+                replicationCard->GetId(),
+                replicationCard->GetEra(),
                 cellId);
         }
 
-        YT_LOG_DEBUG("Finished revoking shortcuts (ChaosObjectId: %v, Type: %v, Era: %v)",
-            chaosObject->GetId(),
-            TypeFromId(chaosObject->GetId()),
-            chaosObject->GetEra());
+        YT_LOG_DEBUG("Finished revoking shortcuts (ReplicationCardId: %v, Era: %v)",
+            replicationCard->GetId(),
+            replicationCard->GetEra());
     }
 
-    void GrantShortcuts(TChaosObjectBase* chaosObject, const std::vector<TCellId> coordinatorCellIds, bool strict = true)
+    void GrantShortcuts(TReplicationCard* replicationCard, const std::vector<TCellId> coordinatorCellIds, bool strict = true)
     {
         YT_VERIFY(HasMutationContext());
 
@@ -1484,8 +1388,8 @@ private:
         NChaosNode::NProto::TReqGrantShortcuts req;
         ToProto(req.mutable_chaos_cell_id(), Slot_->GetCellId());
         auto* shortcut = req.add_shortcuts();
-        ToProto(shortcut->mutable_chaos_object_id(), chaosObject->GetId());
-        shortcut->set_era(chaosObject->GetEra());
+        ToProto(shortcut->mutable_replication_card_id(), replicationCard->GetId());
+        shortcut->set_era(replicationCard->GetEra());
 
         std::vector<TCellId> suspendedCoordinators;
 
@@ -1497,35 +1401,32 @@ private:
 
             // TODO(savrus) This could happen in case if coordinator cell id has been removed from CoordinatorCellIds_ and then added.
             // Need to make a better protocol (YT-16072).
-            if (chaosObject->Coordinators().contains(cellId)) {
+            if (replicationCard->Coordinators().contains(cellId)) {
                 if (strict) {
-                    YT_LOG_ALERT("Will not grant shortcut as the coordinator is already present for the object"
-                        "(ChaosObjectId: %v, Type: %v, Era: %v, CoordinatorCellId: %v, CoordinatorState: %v)",
-                        chaosObject->GetId(),
-                        TypeFromId(chaosObject->GetId()),
-                        chaosObject->GetEra(),
+                    YT_LOG_ALERT("Will not grant shortcut since it already is in replication card "
+                        "(ReplicationCardId: %v, Era: %v, CoordinatorCellId: %v, CoordinatorState: %v)",
+                        replicationCard->GetId(),
+                        replicationCard->GetEra(),
                         cellId,
-                        chaosObject->Coordinators()[cellId].State);
+                        replicationCard->Coordinators()[cellId].State);
                 }
 
                 continue;
             }
 
-            chaosObject->Coordinators().insert(std::pair(cellId, TCoordinatorInfo{EShortcutState::Granting}));
+            replicationCard->Coordinators().insert(std::pair(cellId, TCoordinatorInfo{EShortcutState::Granting}));
             auto mailbox = hiveManager->GetOrCreateCellMailbox(cellId);
             hiveManager->PostMessage(mailbox, req);
 
-            YT_LOG_DEBUG("Granting shortcut to coordinator (ChaosObjectId: %v, Type: %v, Era: %v, CoordinatorCellId: %v",
-                chaosObject->GetId(),
-                TypeFromId(chaosObject->GetId()),
-                chaosObject->GetEra(),
+            YT_LOG_DEBUG("Granting shortcut to coordinator (ReplicationCardId: %v, Era: %v, CoordinatorCellId: %v",
+                replicationCard->GetId(),
+                replicationCard->GetEra(),
                 cellId);
         }
 
-        YT_LOG_DEBUG("Finished granting shortcuts (ChaosObjectId: %v, Type: %v, Era: %v, SuspendedCoordinators: %v)",
-            chaosObject->GetId(),
-            TypeFromId(chaosObject->GetId()),
-            chaosObject->GetEra(),
+        YT_LOG_DEBUG("Finished granting shortcuts (ReplicationCardId: %v, Era: %v, SuspendedCoordinators: %v)",
+            replicationCard->GetId(),
+            replicationCard->GetEra(),
             suspendedCoordinators);
     }
 
@@ -2233,7 +2134,7 @@ private:
                 it && (it->second.State == EShortcutState::Granted || it->second.State == EShortcutState::Granting))
             {
                 auto* shortcut = req.add_shortcuts();
-                ToProto(shortcut->mutable_chaos_object_id(), replicationCard->GetId());
+                ToProto(shortcut->mutable_replication_card_id(), replicationCard->GetId());
                 shortcut->set_era(replicationCard->GetEra());
 
                 it->second.State = EShortcutState::Revoking;
@@ -2262,7 +2163,7 @@ private:
                 !it || (it->second.State == EShortcutState::Revoked || it->second.State == EShortcutState::Revoking))
             {
                 auto* shortcut = req.add_shortcuts();
-                ToProto(shortcut->mutable_chaos_object_id(), replicationCard->GetId());
+                ToProto(shortcut->mutable_replication_card_id(), replicationCard->GetId());
                 shortcut->set_era(replicationCard->GetEra());
 
                 if (it) {
@@ -2489,52 +2390,6 @@ private:
         }
     }
 
-    void HydraCreateChaosLease(
-        const TCtxCreateChaosLeasePtr& context,
-        NChaosClient::NProto::TReqCreateChaosLease* /*request*/,
-        NChaosClient::NProto::TRspCreateChaosLease* response)
-    {
-        auto chaosLeaseId = GenerateNewChaosLeaseId();
-
-        auto chaosLease = std::make_unique<TChaosLease>(chaosLeaseId);
-        auto* chaosLeasePtr = ChaosLeaseMap_.Insert(chaosLeaseId, std::move(chaosLease));
-
-        ToProto(response->mutable_chaos_lease_id(), chaosLeaseId);
-
-        YT_LOG_DEBUG("Created chaos lease (LeaseId: %v)",
-            chaosLeaseId);
-
-        GrantShortcuts(chaosLeasePtr, CoordinatorCellIds_);
-
-        if (context) {
-            context->SetResponseInfo("ChaosLeaseId: %v",
-                chaosLeaseId);
-        }
-    }
-
-    void HydraRemoveChaosLease(
-        const TCtxRemoveChaosLeasePtr& context,
-        NChaosClient::NProto::TReqRemoveChaosLease* request,
-        NChaosClient::NProto::TRspRemoveChaosLease* /*response*/)
-    {
-        auto chaosLeaseId = FromProto<TChaosLeaseId>(request->chaos_lease_id());
-        auto* chaosLease = GetChaosLeaseOrThrow(chaosLeaseId);
-
-        // TODO(gryzlov-ad): Add option to wait for full shortcut revocation and not just hive enqueue.
-        RevokeShortcuts(chaosLease);
-
-        // TODO(gryzlov-ad): Handle lease migration.
-        ChaosLeaseMap_.Remove(chaosLeaseId);
-
-        YT_LOG_DEBUG("Chaos lease removed (ChaosLeaseId: %v)",
-            chaosLeaseId);
-
-        if (context) {
-            context->SetResponseInfo("ChaosLeaseId: %v",
-                chaosLeaseId);
-        }
-    }
-
     void UpdateReplicationCardCollocation(
         TReplicationCard* replicationCard,
         TReplicationCardCollocation* collocation,
@@ -2654,11 +2509,6 @@ private:
                 return replicaId;
             }
         }
-    }
-
-    TReplicationCardId GenerateNewChaosLeaseId()
-    {
-        return MakeChaosLeaseId(Slot_->GenerateId(EObjectType::ChaosLease));
     }
 
     void FireReplicationCardCollocationUpdated(TReplicationCardCollocation* collocation)
@@ -2981,7 +2831,6 @@ private:
 
 DEFINE_ENTITY_MAP_ACCESSORS(TChaosManager, ReplicationCard, TReplicationCard, ReplicationCardMap_);
 DEFINE_ENTITY_MAP_ACCESSORS(TChaosManager, ReplicationCardCollocation, TReplicationCardCollocation, CollocationMap_);
-DEFINE_ENTITY_MAP_ACCESSORS(TChaosManager, ChaosLease, TChaosLease, ChaosLeaseMap_);
 
 ////////////////////////////////////////////////////////////////////////////////
 

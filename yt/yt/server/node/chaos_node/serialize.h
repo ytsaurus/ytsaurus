@@ -21,7 +21,6 @@ DEFINE_ENUM(EChaosReign,
     ((NoDetachOnDistributedCollocationAttach)   (300018)) // osidorkin
     // 25.2 starts here
     ((PersistMigrationToken)                    (300101)) // gryzlov-ad
-    ((IntroduceChaosObjectAndLease)             (300102)) // gryzlov-ad
 );
 
 static_assert(TEnumTraits<EChaosReign>::IsMonotonic, "Chaos reign enum is not monotonic");

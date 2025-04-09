@@ -1,6 +1,7 @@
 #pragma once
 
 #include "public.h"
+#include "replication_card.h"
 
 #include <yt/yt/ytlib/chaos_client/public.h>
 
