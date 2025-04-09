@@ -113,7 +113,7 @@ namespace NSQLTranslationV1 {
             size_t count = 0;
             for (const auto& keyword : Grammar_.KeywordNames) {
                 const TStringBuf content = prefix.substr(0, keyword.length());
-                if (AsciiEqualsIgnoreCase(content, keyword)) {
+                if (AsciiEqualsIgnoreCase(content, NSQLReflect::TLexerGrammar::KeywordBlock(keyword))) {
                     matches.emplace_back(keyword, TString(content));
                     count += 1;
                 }
