@@ -27,6 +27,7 @@ target_link_libraries(ytserver-clickhouse PUBLIC
   linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   yutil
+  contrib-libs-tcmalloc
   library-cpp-cpuid_check
   yt-library-re2
   yt-chyt-server
@@ -35,7 +36,6 @@ target_link_libraries(ytserver-clickhouse PUBLIC
 
 target_allocator(ytserver-clickhouse
   cpp-malloc-tcmalloc
-  contrib-libs-tcmalloc
 )
 
 target_link_options(ytserver-clickhouse PRIVATE

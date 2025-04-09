@@ -26,6 +26,7 @@ target_link_libraries(yt-yt-library-undumpable-unittests PUBLIC
   linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   yutil
+  contrib-libs-tcmalloc
   cpp-testing-gtest
   cpp-testing-gtest_main
   yt-library-undumpable
@@ -33,7 +34,6 @@ target_link_libraries(yt-yt-library-undumpable-unittests PUBLIC
 
 target_allocator(yt-yt-library-undumpable-unittests
   cpp-malloc-tcmalloc
-  contrib-libs-tcmalloc
 )
 
 target_link_options(yt-yt-library-undumpable-unittests PRIVATE

@@ -26,6 +26,7 @@ target_link_libraries(core-rpc-allocation-tags PUBLIC
   linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   yutil
+  contrib-libs-tcmalloc
   cpp-testing-gtest
   cpp-testing-gtest_main
   yt-library-ytprof
@@ -39,7 +40,6 @@ target_link_libraries(core-rpc-allocation-tags PUBLIC
 
 target_allocator(core-rpc-allocation-tags
   cpp-malloc-tcmalloc
-  contrib-libs-tcmalloc
 )
 
 target_link_options(core-rpc-allocation-tags PRIVATE
