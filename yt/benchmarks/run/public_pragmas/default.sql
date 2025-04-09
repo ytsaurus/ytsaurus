@@ -24,4 +24,7 @@ pragma yt.LookupJoinMaxRows="2000";
 pragma yt.MaxKeyRangeCount="2000";
 pragma yt.MaxExtraJobMemoryToFuseOperations="3G";
 pragma yt.ExtendedStatsMaxChunkCount="100000";
+pragma yt.JobBlockInput;
+pragma yt.JobBlockTableContent;
+pragma yt.DefaultMemoryLimit = "5G";
 pragma CostBasedOptimizer="native";
