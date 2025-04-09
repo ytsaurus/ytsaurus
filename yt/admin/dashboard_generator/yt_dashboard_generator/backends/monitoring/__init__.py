@@ -229,6 +229,7 @@ class MonitoringDictSerializer(MonitoringSerializerBase):
         axis_to_range = {}
         axis_to_unit = {}
         axis_to_precision = {}
+        axis_to_type = {}
         downsampling_aggregation = None
         targets = []
         for sensor in sensors:
@@ -244,6 +245,9 @@ class MonitoringDictSerializer(MonitoringSerializerBase):
             if SystemFields.Precision in tags:
                 precision, axis = tags[SystemFields.Precision]
                 axis_to_precision[axis] = precision
+            if SystemFields.AxisType in tags:
+                axis_type, axis = tags[SystemFields.AxisType]
+                axis_to_type[axis] = axis_type
             if MonitoringSystemFields.DownsamplingAggregation in tags:
                 downsampling_aggregation = tags[MonitoringSystemFields.DownsamplingAggregation]
             structure = {}
@@ -294,6 +298,10 @@ class MonitoringDictSerializer(MonitoringSerializerBase):
             assert axis in (SystemFields.LeftAxis, SystemFields.RightAxis)
             axisKey = "left" if axis == SystemFields.LeftAxis else "right"
             settings.setdefault("yaxis_settings", {}).setdefault(axisKey, {})["precision"] = precision
+        for axis, axis_type in axis_to_type.items():
+            assert axis in (SystemFields.LeftAxis, SystemFields.RightAxis)
+            axisKey = "left" if axis == SystemFields.LeftAxis else "right"
+            settings.setdefault("yaxis_settings", {}).setdefault(axisKey, {})["type"] = axis_type
 
         if "yaxis_settings" not in settings:
             settings["yaxis_settings"] = {}
