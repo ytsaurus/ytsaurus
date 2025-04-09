@@ -1,13 +1,13 @@
 #include "chaos_residency_cache.h"
 
-#include "chaos_cell_directory_synchronizer.h"
 #include "chaos_node_service_proxy.h"
+#include "chaos_cell_directory_synchronizer.h"
 #include "config.h"
 #include "master_cache_channel.h"
 
 #include <yt/yt/ytlib/api/native/client.h>
-#include <yt/yt/ytlib/api/native/config.h>
 #include <yt/yt/ytlib/api/native/connection.h>
+#include <yt/yt/ytlib/api/native/config.h>
 
 #include <yt/yt/ytlib/hive/cell_directory.h>
 
@@ -17,9 +17,9 @@
 #include <yt/yt/core/misc/protobuf_helpers.h>
 
 #include <yt/yt/core/rpc/balancing_channel.h>
+#include <yt/yt/core/rpc/retrying_channel.h>
 #include <yt/yt/core/rpc/config.h>
 #include <yt/yt/core/rpc/helpers.h>
-#include <yt/yt/core/rpc/retrying_channel.h>
 
 #include <yt/yt/core/logging/log.h>
 
@@ -53,9 +53,9 @@ public:
     TFuture<TCellTag> GetChaosResidency(TObjectId objectId) override;
     void ForceRefresh(TObjectId objectId, TCellTag cellTag) override;
     void Clear() override;
-    void UpdateChaosObjectResidency(TObjectId objectId, TCellTag cellTag) override;
-    void RemoveChaosObjectResidency(TObjectId objectId) override;
-    void PingChaosObjectResidency(TObjectId objectId) override;
+    void UpdateReplicationCardResidency(NObjectClient::TObjectId objectId, NObjectClient::TCellTag cellTag) override;
+    void RemoveReplicationCardResidency(NObjectClient::TObjectId objectId) override;
+    void PingReplicationCardResidency(NObjectClient::TObjectId objectId) override;
     void Reconfigure(TChaosResidencyCacheConfigPtr config) override;
 
 protected:
@@ -138,9 +138,9 @@ public:
     TFuture<TCellTag> GetChaosResidency(TObjectId objectId) override;
     void ForceRefresh(TObjectId objectId, TCellTag cellTag) override;
     void Clear() override;
-    void UpdateChaosObjectResidency(TObjectId objectId, TCellTag cellTag) override;
-    void RemoveChaosObjectResidency(TObjectId objectId) override;
-    void PingChaosObjectResidency(TObjectId objectId) override;
+    void UpdateReplicationCardResidency(NObjectClient::TObjectId objectId, NObjectClient::TCellTag cellTag) override;
+    void RemoveReplicationCardResidency(NObjectClient::TObjectId objectId) override;
+    void PingReplicationCardResidency(NObjectClient::TObjectId objectId) override;
     void Reconfigure(TChaosResidencyCacheConfigPtr config) override;
 
 private:
@@ -184,7 +184,7 @@ protected:
 
 TChaosResidencyCacheBase::TChaosResidencyCacheBase(
     TChaosResidencyCacheConfigPtr config,
-    IConnectionPtr connection,
+    NNative::IConnectionPtr connection,
     const NLogging::TLogger& logger)
     : TAsyncExpiringCache(config)
     , Connection_(connection)
@@ -206,19 +206,19 @@ void TChaosResidencyCacheBase::Clear()
     TAsyncExpiringCache::Clear();
 }
 
-void TChaosResidencyCacheBase::UpdateChaosObjectResidency(
-    TObjectId objectId,
-    TCellTag cellTag)
+void TChaosResidencyCacheBase::UpdateReplicationCardResidency(
+    NObjectClient::TObjectId objectId,
+    NObjectClient::TCellTag cellTag)
 {
     TAsyncExpiringCache::Set(objectId, cellTag);
 }
 
-void TChaosResidencyCacheBase::RemoveChaosObjectResidency(TObjectId objectId)
+void TChaosResidencyCacheBase::RemoveReplicationCardResidency(NObjectClient::TObjectId objectId)
 {
     TAsyncExpiringCache::InvalidateActive(objectId);
 }
 
-void TChaosResidencyCacheBase::PingChaosObjectResidency(TObjectId objectId)
+void TChaosResidencyCacheBase::PingReplicationCardResidency(NObjectClient::TObjectId objectId)
 {
     TAsyncExpiringCache::Ping(objectId);
 }
@@ -294,22 +294,18 @@ public:
 
         auto defaultTimeout = connection->GetConfig()->DefaultChaosNodeServiceTimeout;
         auto channelFuture = EnsureChaosCellChannel(connection, CellTag_);
-        // COMPAT(gryzlov-ad)
-        bool useFindChaosObject = connection->GetConfig()->UseFindChaosObject;
         auto checkLastSeenResidencyFuture = channelFuture.IsSet()
             ? CheckLastSeenResidency(
                 ObjectId_,
                 CellTag_,
                 defaultTimeout,
-                useFindChaosObject,
                 std::move(channelFuture.GetUnique()
                     .ValueOrDefault(nullptr)))
             : channelFuture.ApplyUnique(BIND(
                 TGetSession::CheckLastSeenResidency,
                 ObjectId_,
                 CellTag_,
-                defaultTimeout,
-                useFindChaosObject));
+                defaultTimeout));
 
         auto fullLookupFuture = checkLastSeenResidencyFuture.ApplyUnique(BIND(
             [
@@ -324,7 +320,7 @@ public:
                     return MakeFuture(sameResidencyValue);
                 }
 
-                return LookForObjectOnAllChaosCells(connection->GetCellDirectory(), defaultTimeout);
+                return LookForCardOnAllChaosCells(connection->GetCellDirectory(), defaultTimeout);
             }
         ));
 
@@ -338,7 +334,6 @@ private:
         const TObjectId& objectId,
         TCellTag cellTag,
         TDuration timeout,
-        bool useFindChaosObject,
         IChannelPtr&& channel)
     {
         if (!channel) {
@@ -347,41 +342,24 @@ private:
 
         auto proxy = TChaosNodeServiceProxy(channel);
         proxy.SetDefaultTimeout(timeout);
+        auto req = proxy.FindReplicationCard();
+        ToProto(req->mutable_replication_card_id(), objectId);
 
-        // COMPAT(gryzlov-ad)
-        if (useFindChaosObject) {
-            auto req = proxy.FindChaosObject();
-            ToProto(req->mutable_chaos_object_id(), objectId);
-
-            return req->Invoke()
-                .ApplyUnique(BIND(
-                    [
-                        cellTag = cellTag
-                    ] (TErrorOr<TChaosNodeServiceProxy::TRspFindChaosObjectPtr>&& rspOrError)
-                    {
-                        return rspOrError.IsOK() ? cellTag : InvalidCellTag;
-                    }
-                ));
-        } else {
-            auto req = proxy.FindReplicationCard();
-            ToProto(req->mutable_replication_card_id(), objectId);
-
-            return req->Invoke()
-                .ApplyUnique(BIND(
-                    [
-                        cellTag = cellTag
-                    ] (TErrorOr<TChaosNodeServiceProxy::TRspFindReplicationCardPtr>&& rspOrError)
-                    {
-                        return rspOrError.IsOK() ? cellTag : InvalidCellTag;
-                    }
-                ));
-        }
+        return req->Invoke()
+            .ApplyUnique(BIND(
+                [
+                    cellTag = cellTag
+                ] (TErrorOr<TChaosNodeServiceProxy::TRspFindReplicationCardPtr>&& rspOrError)
+                {
+                    return rspOrError.IsOK() ? cellTag : InvalidCellTag;
+                }
+            ));
     }
 
-    TFuture<TCellTag> LookForObjectOnAllChaosCells(const ICellDirectoryPtr& cellDirectory, TDuration timeout)
+    TFuture<TCellTag> LookForCardOnAllChaosCells(const NHiveClient::ICellDirectoryPtr& cellDirectory, TDuration timeout)
     {
-        using TResponse = TIntrusivePtr<TChaosNodeServiceProxy::TRspFindChaosObject>;
-        std::vector<TFuture<TResponse>> foundFutures;
+        using TResponse = TIntrusivePtr<TChaosNodeServiceProxy::TRspFindReplicationCard>;
+        std::vector<TFuture<TResponse>> futureFoundReplicationCards;
         std::vector<TCellTag> futureCellTags;
         auto chaosCellTags = GetChaosCellTags(cellDirectory);
 
@@ -393,10 +371,10 @@ private:
 
             auto proxy = TChaosNodeServiceProxy(channel);
             proxy.SetDefaultTimeout(timeout);
-            auto req = proxy.FindChaosObject();
-            ToProto(req->mutable_chaos_object_id(), ObjectId_);
+            auto req = proxy.FindReplicationCard();
+            ToProto(req->mutable_replication_card_id(), ObjectId_);
 
-            foundFutures.push_back(req->Invoke());
+            futureFoundReplicationCards.push_back(req->Invoke());
             futureCellTags.push_back(cellTag);
         }
 
@@ -404,11 +382,11 @@ private:
             Type_,
             futureCellTags);
 
-        return AnyNSucceeded(foundFutures, 1).ApplyUnique(BIND(
+        return AnyNSucceeded(futureFoundReplicationCards, 1).ApplyUnique(BIND(
             [
                 type = Type_,
                 objectId = ObjectId_,
-                foundFutures = std::move(foundFutures),
+                futureFoundReplicationCards = std::move(futureFoundReplicationCards),
                 futureCellTags = std::move(futureCellTags)
             ] (
                 TErrorOr<std::vector<TResponse>>&& resultOrError
@@ -425,8 +403,8 @@ private:
                     << resultOrError;
                 }
 
-                for (int index = 0; index < std::ssize(foundFutures); ++index) {
-                    const auto& future = foundFutures[index];
+                for (int index = 0; index < std::ssize(futureFoundReplicationCards); ++index) {
+                    const auto& future = futureFoundReplicationCards[index];
                     if (!future.IsSet()) {
                         continue;
                     }
@@ -512,10 +490,10 @@ public:
 
         auto proxy = TChaosNodeServiceProxy(Owner_->ChaosCacheChannel_);
         proxy.SetDefaultTimeout(connection->GetConfig()->DefaultChaosNodeServiceTimeout);
-        auto req = proxy.GetChaosObjectResidency();
-        ToProto(req->mutable_chaos_object_id(), ObjectId_);
+        auto req = proxy.GetReplicationCardResidency();
+        ToProto(req->mutable_replication_card_id(), ObjectId_);
         if (ForceRefresh_) {
-            req->set_force_refresh_chaos_object_cell_tag(ToProto<ui32>(CellTag_));
+            req->set_force_refresh_replication_card_cell_tag(ToProto<ui32>(CellTag_));
         }
 
         SetChaosCacheStickyGroupBalancingHint(
@@ -527,7 +505,7 @@ public:
             [
                 type = Type_,
                 objectId = ObjectId_
-            ] (TErrorOr<TChaosNodeServiceProxy::TRspGetChaosObjectResidencyPtr>&& resultOrError)
+            ] (TErrorOr<TChaosNodeServiceProxy::TRspGetReplicationCardResidencyPtr>&& resultOrError)
         {
             if (!resultOrError.IsOK()) {
                 THROW_ERROR_EXCEPTION(NRpc::EErrorCode::Unavailable, "Unable to locate %v %v",
@@ -536,7 +514,7 @@ public:
                     << resultOrError;
             }
 
-            return FromProto<TCellTag>(resultOrError.Value()->chaos_object_cell_tag());
+            return FromProto<TCellTag>(resultOrError.Value()->replication_card_cell_tag());
         }));
     }
 
@@ -549,7 +527,7 @@ private:
 
 TChaosResidencyClientCache::TChaosResidencyClientCache(
     TChaosResidencyCacheConfigPtr config,
-    IConnectionPtr connection,
+    NNative::IConnectionPtr connection,
     IChannelPtr chaosCacheChannel,
     const NLogging::TLogger& logger)
     : TChaosResidencyCacheBase(
@@ -601,30 +579,30 @@ void TChaosResidencyCompoundCache::Clear()
     MasterCache_->Clear();
 }
 
-void TChaosResidencyCompoundCache::UpdateChaosObjectResidency(
-    TObjectId objectId,
-    TCellTag cellTag)
+void TChaosResidencyCompoundCache::UpdateReplicationCardResidency(
+    NObjectClient::TObjectId objectId,
+    NObjectClient::TCellTag cellTag)
 {
     return ActiveCacheIsClient_
-        ? ClientCache_->UpdateChaosObjectResidency(objectId, cellTag)
-        : MasterCache_->UpdateChaosObjectResidency(objectId, cellTag);
+        ? ClientCache_->UpdateReplicationCardResidency(objectId, cellTag)
+        : MasterCache_->UpdateReplicationCardResidency(objectId, cellTag);
 }
 
-void TChaosResidencyCompoundCache::RemoveChaosObjectResidency(TObjectId objectId)
+void TChaosResidencyCompoundCache::RemoveReplicationCardResidency(NObjectClient::TObjectId objectId)
 {
     if (ActiveCacheIsClient_) {
-        ClientCache_->RemoveChaosObjectResidency(objectId);
+        ClientCache_->RemoveReplicationCardResidency(objectId);
     } else {
-        MasterCache_->RemoveChaosObjectResidency(objectId);
+        MasterCache_->RemoveReplicationCardResidency(objectId);
     }
 }
 
-void TChaosResidencyCompoundCache::PingChaosObjectResidency(TObjectId objectId)
+void TChaosResidencyCompoundCache::PingReplicationCardResidency(NObjectClient::TObjectId objectId)
 {
     if (ActiveCacheIsClient_) {
-        ClientCache_->PingChaosObjectResidency(objectId);
+        ClientCache_->PingReplicationCardResidency(objectId);
     } else {
-        MasterCache_->PingChaosObjectResidency(objectId);
+        MasterCache_->PingReplicationCardResidency(objectId);
     }
 }
 

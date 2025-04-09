@@ -164,7 +164,7 @@ private:
             guard.Release();
             YT_LOG_DEBUG("Replication card changed (Response: %v)", response);
             if (residencyCache) {
-                residencyCache->PingChaosObjectResidency(replicationCardId);
+                residencyCache->PingReplicationCardResidency(replicationCardId);
             }
 
             Callbacks_->OnReplicationCardUpdated(replicationCardId, std::move(replicationCard), timestamp);
@@ -176,7 +176,7 @@ private:
             guard.Release();
             YT_LOG_DEBUG("Replication card not changed (Response: %v)", response);
             if (residencyCache) {
-                residencyCache->PingChaosObjectResidency(replicationCardId);
+                residencyCache->PingReplicationCardResidency(replicationCardId);
             }
 
             Callbacks_->OnNothingChanged(replicationCardId);
@@ -188,7 +188,7 @@ private:
             auto newCellId = FromProto<TCellId>(migratedResponse.migrate_to_cell_id());
             auto newCellTag = NObjectClient::CellTagFromId(newCellId);
             if (residencyCache) {
-                residencyCache->UpdateChaosObjectResidency(replicationCardId, newCellTag);
+                residencyCache->UpdateReplicationCardResidency(replicationCardId, newCellTag);
             }
 
             future = WatchUpstream(replicationCardId, timestamp);
@@ -200,7 +200,7 @@ private:
 
         if (value->has_instance_is_not_leader()) {
             if (residencyCache) {
-                residencyCache->RemoveChaosObjectResidency(replicationCardId);
+                residencyCache->RemoveReplicationCardResidency(replicationCardId);
             }
 
             future = WatchUpstream(replicationCardId, timestamp);

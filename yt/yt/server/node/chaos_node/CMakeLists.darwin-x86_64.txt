@@ -49,11 +49,9 @@ target_sources(server-node-chaos_node PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/chaos_node/automaton.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/chaos_node/bootstrap.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/chaos_node/chaos_cell_synchronizer.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/node/chaos_node/chaos_lease.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/chaos_node/chaos_manager.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/chaos_node/chaos_node_service.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/chaos_node/chaos_slot.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/node/chaos_node/chaos_object_base.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/chaos_node/coordinator_manager.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/chaos_node/coordinator_service.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/chaos_node/foreign_migrated_replication_card_remover.cpp

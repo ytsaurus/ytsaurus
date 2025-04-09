@@ -1737,17 +1737,6 @@ private:
         return it->second;
     }
 
-    std::vector<TFuture<void>> GetTableSessionsPrepareFutures(const std::vector<TTableCommitSessionPtr>& tableSessions)
-    {
-        std::vector<TFuture<void>> prepareFutures;
-        prepareFutures.reserve(tableSessions.size());
-        for (const auto& tableSession : tableSessions) {
-            prepareFutures.push_back(tableSession->GetPrepareFuture());
-        }
-
-        return prepareFutures;
-    }
-
     ITabletCommitSessionPtr GetOrCreateTabletSession(
         const TTabletInfoPtr& tabletInfo,
         const TTableMountInfoPtr& tableInfo,
@@ -2109,7 +2098,13 @@ private:
             decltype(PendingSessions_) pendingSessions;
             std::swap(PendingSessions_, pendingSessions);
 
-            return AllSucceeded(GetTableSessionsPrepareFutures(pendingSessions))
+            std::vector<TFuture<void>> prepareFutures;
+            prepareFutures.reserve(pendingSessions.size());
+            for (const auto& tableSession : pendingSessions) {
+                prepareFutures.push_back(tableSession->GetPrepareFuture());
+            }
+
+            return AllSucceeded(std::move(prepareFutures))
                 .Apply(BIND([=, this, pendingRequests = std::move(pendingRequests)] {
                     std::vector<TFuture<void>> writeHunksFutures;
 
@@ -2169,15 +2164,8 @@ private:
     {
         CommitOptions_ = options;
 
-        // NB: Include prerequisite ids which have been set during start_transaction call.
-        auto prerequisiteIds = Transaction_->GetPrerequisiteTransactionIds();
-        for (const auto& prerequisiteId : CommitOptions_.PrerequisiteTransactionIds) {
-            prerequisiteIds.push_back(prerequisiteId);
-        }
-
         THashSet<NObjectClient::TCellId> selectedCellIds;
         THashSet<NChaosClient::TReplicationCardId> requestedReplicationCardIds;
-        bool affectsChaosTables = false;
 
         for (const auto& [path, session] : TablePathToSession_) {
             if (session->GetInfo()->SerializationType == ETabletTransactionSerializationType::PerRow ||
@@ -2192,7 +2180,6 @@ private:
                 replicationCard->Era > InitialReplicationEra &&
                 !options.CoordinatorCellId)
             {
-                affectsChaosTables = true;
                 if (!requestedReplicationCardIds.insert(replicationCardId).second) {
                     YT_LOG_DEBUG("Coordinator for replication card already selected, skipping "
                         "(Path: %v, ReplicationCardId: %v, Era: %v)",
@@ -2242,18 +2229,6 @@ private:
                 NChaosClient::NProto::TReqReplicatedCommit request;
                 ToProto(request.mutable_replication_card_id(), replicationCardId);
                 request.set_replication_era(session->GetReplicationCard()->Era);
-                for (const auto& prerequisiteId : prerequisiteIds) {
-                    auto prerequisiteType = TypeFromId(prerequisiteId);
-                    if (!IsChaosLeaseType(prerequisiteType)) {
-                        THROW_ERROR_EXCEPTION(
-                            "Transaction commit affects chaos tables, only chaos leases allowed as prerequisite ids.")
-                            << TErrorAttribute("prerequisite_id", prerequisiteId)
-                            << TErrorAttribute("prerequisite_type", prerequisiteType)
-                            << TErrorAttribute("table_path", path);
-                    }
-
-                    ToProto(request.add_prerequisite_ids(), prerequisiteId);
-                }
 
                 DoAddAction(coordinatorCellId, MakeTransactionActionData(request));
 
@@ -2269,14 +2244,6 @@ private:
                     replicationCard->Era,
                     coordinatorCellId);
             }
-        }
-
-        if (affectsChaosTables) {
-            // NB: If commit affects chaos tables, then the list of prerequisite ids can contain only chaos leases,
-            // As the tab nodes can only handle master transactions as prerequisites, we send them only to chaos coordinators.
-            CommitOptions_.PrerequisiteTransactionIds = {};
-        } else {
-            CommitOptions_.PrerequisiteTransactionIds = std::move(prerequisiteIds);
         }
     }
 
@@ -2312,18 +2279,17 @@ private:
 
         return
             [&] {
-                return needsFlush
-                    ? AllSucceeded(GetTableSessionsPrepareFutures(PendingSessions_))
-                    : VoidFuture;
+                // NB: During requests preparation some of the commit options
+                // like prerequisite transaction ids are required, so we firstly
+                // store raw commit options and then adjust them.
+                CommitOptions_ = options;
+
+                return needsFlush ? PrepareRequests() : VoidFuture;
             }()
             .Apply(
                 BIND([=, this, this_ = MakeStrong(this)] {
                     BuildAdjustedCommitOptions(options);
 
-                    return needsFlush ? PrepareRequests() : VoidFuture;
-                }).AsyncVia(SerializedInvoker_))
-            .Apply(
-                BIND([=, this, this_ = MakeStrong(this)] {
                     Transaction_->ChooseCoordinator(CommitOptions_);
 
                     return Transaction_->ValidateNoDownedParticipants();

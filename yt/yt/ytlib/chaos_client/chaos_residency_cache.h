@@ -17,9 +17,9 @@ struct IChaosResidencyCache
 {
     virtual TFuture<NObjectClient::TCellTag> GetChaosResidency(NObjectClient::TObjectId objectId) = 0;
     virtual void ForceRefresh(NObjectClient::TObjectId objectId, NObjectClient::TCellTag cellTag) = 0;
-    virtual void UpdateChaosObjectResidency(NObjectClient::TObjectId objectId, NObjectClient::TCellTag cellTag) = 0;
-    virtual void RemoveChaosObjectResidency(NObjectClient::TObjectId objectId) = 0;
-    virtual void PingChaosObjectResidency(NObjectClient::TObjectId objectId) = 0;
+    virtual void UpdateReplicationCardResidency(NObjectClient::TObjectId objectId, NObjectClient::TCellTag cellTag) = 0;
+    virtual void RemoveReplicationCardResidency(NObjectClient::TObjectId objectId) = 0;
+    virtual void PingReplicationCardResidency(NObjectClient::TObjectId objectId) = 0;
     virtual void Clear() = 0;
     virtual void Reconfigure(TChaosResidencyCacheConfigPtr config) = 0;
 };

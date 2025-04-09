@@ -344,9 +344,6 @@ struct TConnectionDynamicConfig
     // COMPAT(sabdenovch)
     bool GroupByWithLimitIsUnordered;
 
-    // COMPAT(gryzlov-ad)
-    bool UseFindChaosObject;
-
     TDuration FlowPipelineControllerRpcTimeout;
 
     EMasterChannelKind ReadOperationsArchiveStateFrom;
