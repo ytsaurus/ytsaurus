@@ -79,6 +79,14 @@ class ChaosTestBase(DynamicTablesBase):
         orchids = [get("#{0}/orchid".format(tablet_id), driver=driver) for tablet_id in tablet_ids]
         return orchids
 
+    def _get_chaos_cell_orchid_path(self, cell_id, driver=None):
+        address = get("#{0}/@peers/0/address".format(cell_id), driver=driver)
+        return "//sys/cluster_nodes/{0}/orchid/chaos_cells/{1}".format(address, cell_id)
+
+    def _get_chaos_cell_orchid(self, cell_id, path, driver=None):
+        orchid_path = self._get_chaos_cell_orchid_path(cell_id, driver=driver)
+        return get("{0}{1}".format(orchid_path, path), driver=driver)
+
     def _wait_for_card_era(self, path, card_id, era=1, check_write=False, driver=None):
         import logging
         logger = logging.getLogger()

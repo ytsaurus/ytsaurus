@@ -6,10 +6,12 @@ SRCS(
     automaton.cpp
     bootstrap.cpp
     chaos_cell_synchronizer.cpp
+    chaos_lease.cpp
     chaos_manager.cpp
     chaos_manager.proto
     chaos_node_service.cpp
     chaos_slot.cpp
+    chaos_object_base.cpp
     coordinator_manager.cpp
     coordinator_service.cpp
     foreign_migrated_replication_card_remover.cpp

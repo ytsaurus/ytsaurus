@@ -13,7 +13,7 @@ from yt_commands import (
     sync_create_cells, sync_mount_table, sync_unmount_table, sync_flush_table,
     suspend_coordinator, resume_coordinator, reshard_table, alter_table, remount_table,
     insert_rows, delete_rows, lookup_rows, select_rows, pull_rows, trim_rows, lock_rows,
-    create_replication_card, alter_table_replica, abort_transaction,
+    create_replication_card, create_chaos_lease, alter_table_replica, abort_transaction,
     build_snapshot, wait_for_cells, wait_for_chaos_cell, create_chaos_area,
     sync_create_chaos_cell, create_chaos_cell_bundle, generate_chaos_cell_id,
     align_chaos_cell_tag, migrate_replication_cards, alter_replication_card,
@@ -2675,12 +2675,8 @@ class TestChaos(ChaosTestBase):
         ]
         card_id, replica_ids = self._create_chaos_tables(cell_id, replicas[:2])
 
-        def _get_orchid(cell_id, path):
-            address = get("#{0}/@peers/0/address".format(cell_id))
-            return get("//sys/cluster_nodes/{0}/orchid/chaos_cells/{1}{2}".format(address, cell_id, path))
-
         def _get_shortcuts(cell_id):
-            return _get_orchid(cell_id, "/coordinator_manager/shortcuts")
+            return self._get_chaos_cell_orchid(cell_id, "/coordinator_manager/shortcuts")
 
         assert list(_get_shortcuts(cell_id).keys()) == [card_id]
         assert list(_get_shortcuts(coordinator_cell_id).keys()) == [card_id]
@@ -2690,11 +2686,11 @@ class TestChaos(ChaosTestBase):
 
         suspend_coordinator(coordinator_cell_id)
         # NB: Chaos cell orchid reads from follower do not sync with upstream.
-        wait(lambda: _get_orchid(coordinator_cell_id, "/coordinator_manager/internal/suspended"))
+        wait(lambda: self._get_chaos_cell_orchid(coordinator_cell_id, "/coordinator_manager/internal/suspended"))
         wait(lambda: get("#{0}/@coordinator_cell_ids".format(card_id)) == [cell_id])
 
         resume_coordinator(coordinator_cell_id)
-        wait(lambda: not _get_orchid(coordinator_cell_id, "/coordinator_manager/internal/suspended"))
+        wait(lambda: not self._get_chaos_cell_orchid(coordinator_cell_id, "/coordinator_manager/internal/suspended"))
         wait(lambda: sorted(get("#{0}/@coordinator_cell_ids".format(card_id))) == sorted(chaos_cell_ids))
 
     @authors("savrus")
@@ -3654,10 +3650,7 @@ class TestChaos(ChaosTestBase):
             assert get("{0}/@replication_collocation_id".format(crt)) == collocation_id
             assert sorted(get("{0}/@collocated_replication_card_ids".format(crt))) == cards
 
-        def _get_orchid(cell_id, path):
-            address = get("#{0}/@peers/0/address".format(cell_id))
-            return get("//sys/cluster_nodes/{0}/orchid/chaos_cells/{1}{2}".format(address, cell_id, path))
-        collocation = _get_orchid(cell_id, "/chaos_manager/replication_card_collocations/{0}".format(collocation_id))
+        collocation = self._get_chaos_cell_orchid(cell_id, "/chaos_manager/replication_card_collocations/{0}".format(collocation_id))
         assert collocation["state"] == "normal"
         assert collocation["size"] == 2
 
@@ -3770,9 +3763,7 @@ class TestChaos(ChaosTestBase):
         dst_cell_id = self._sync_create_chaos_cell()
         self._sync_migrate_replication_cards(cell_id, [card1], dst_cell_id)
 
-        address = get("#{0}/@peers/0/address".format(dst_cell_id))
-        collocation_path = f"//sys/cluster_nodes/{address}/orchid/chaos_cells/{dst_cell_id}/chaos_manager/replication_card_collocations/{collocation_id}"
-        collocation = get(collocation_path)
+        collocation = self._get_chaos_cell_orchid(dst_cell_id, f"/chaos_manager/replication_card_collocations/{collocation_id}")
         assert_items_equal(collocation["options"], collocation_options)
 
         execute_batch(
@@ -3790,7 +3781,7 @@ class TestChaos(ChaosTestBase):
         wait(lambda: card2 in get(f"#{collocation_id}/@replication_card_ids"))
         wait(lambda: card3 in get(f"#{collocation_id}/@replication_card_ids"))
 
-        collocation = get(collocation_path)
+        collocation = self._get_chaos_cell_orchid(dst_cell_id, f"/chaos_manager/replication_card_collocations/{collocation_id}")
         assert collocation["state"] == "normal"
         assert collocation["size"] == 3
         assert card1 in collocation["replication_card_ids"]
@@ -3802,7 +3793,7 @@ class TestChaos(ChaosTestBase):
         alter_replication_card(card2, enable_replicated_table_tracker=True)
         alter_replication_card(card3, enable_replicated_table_tracker=True)
 
-        rtt_iteration_count = (f"//sys/cluster_nodes/{address}/orchid/chaos_cells/{dst_cell_id}/replicated_table_tracker/internal/iteration_count")
+        rtt_iteration_count = self._get_chaos_cell_orchid(dst_cell_id, "/replicated_table_tracker/internal/iteration_count")
 
         current_iteration_count = get(rtt_iteration_count)
         # Second iteration is to ensure that RTT commands are actually executed.
@@ -3838,10 +3829,7 @@ class TestChaos(ChaosTestBase):
             "table_paths": [crt1, crt2]
         })
 
-        def _get_orchid_path(cell_id, path):
-            address = get("#{0}/@peers/0/address".format(cell_id))
-            return "//sys/cluster_nodes/{0}/orchid/chaos_cells/{1}{2}".format(address, cell_id, path)
-        collocation_path = _get_orchid_path(cell_id, "/chaos_manager/replication_card_collocations")
+        collocation_path = "{0}/chaos_manager/replication_card_collocations".format(self._get_chaos_cell_orchid_path(cell_id))
         assert len(get("{0}/{1}/replication_card_ids".format(collocation_path, collocation_id))) == 2
 
         def _unbind(crt, card):
@@ -4674,6 +4662,73 @@ class TestChaos(ChaosTestBase):
         hint = "\"{require_sync_replica=%false;}\""
         assert select_rows(f"T.value AS v from [{path}] AS T with hint {hint}") == [{"v": 0}]
 
+    @authors("gryzlov-ad")
+    def test_chaos_lease_basic(self):
+        cell_id = self._sync_create_chaos_bundle_and_cell()
+
+        replicas = [
+            {"cluster_name": "primary", "content_type": "data", "mode": "sync", "enabled": True, "replica_path": "//tmp/t"},
+            {"cluster_name": "remote_0", "content_type": "queue", "mode": "sync", "enabled": True, "replica_path": "//tmp/r0"},
+            {"cluster_name": "remote_1", "content_type": "data", "mode": "async", "enabled": True, "replica_path": "//tmp/r1"}
+        ]
+        self._create_chaos_tables(cell_id, replicas)
+        _, remote_driver0, remote_driver1 = self._get_drivers()
+
+        lease_id = create_chaos_lease(cell_id)
+        tx = start_transaction(type="tablet", prerequisite_transaction_ids=[lease_id])
+
+        values = [{"key": 0, "value": "0"}]
+        insert_rows("//tmp/t", values, tx=tx)
+
+        commit_transaction(tx)
+
+        assert lookup_rows("//tmp/t", [{"key": 0}]) == values
+        wait(lambda: lookup_rows("//tmp/r1", [{"key": 0}], driver=remote_driver1) == values)
+
+        remove(f"#{lease_id}")
+
+        tx = start_transaction(type="tablet", prerequisite_transaction_ids=[lease_id])
+
+        values = [{"key": 1, "value": "0"}]
+        insert_rows("//tmp/t", values, tx=tx)
+
+        with pytest.raises(YtError):
+            commit_transaction(tx)
+
+    @authors("gryzlov-ad")
+    def test_chaos_lease_two_coordinators(self):
+        cell_id = self._sync_create_chaos_bundle_and_cell()
+        another_cell_id = self._sync_create_chaos_cell()
+
+        wait(lambda: len(self._get_chaos_cell_orchid(cell_id, "/chaos_manager/coordinators")) == 2)
+
+        tx_count = 3
+
+        replicas = [
+            {"cluster_name": "primary", "content_type": "data", "mode": "sync", "enabled": True, "replica_path": "//tmp/t"},
+            {"cluster_name": "remote_0", "content_type": "queue", "mode": "sync", "enabled": True, "replica_path": "//tmp/r0"},
+            {"cluster_name": "remote_1", "content_type": "data", "mode": "async", "enabled": True, "replica_path": "//tmp/r1"}
+        ]
+        self._create_chaos_tables(cell_id, replicas)
+        _, remote_driver0, remote_driver1 = self._get_drivers()
+
+        lease_id = create_chaos_lease(cell_id)
+
+        def _get_shortcuts(cell_id):
+            return self._get_chaos_cell_orchid(cell_id, "/coordinator_manager/shortcuts")
+
+        wait(lambda: lease_id in _get_shortcuts(cell_id))
+        wait(lambda: lease_id in _get_shortcuts(another_cell_id))
+
+        txs = [start_transaction(type="tablet", prerequisite_transaction_ids=[lease_id]) for i in range(tx_count)]
+        rows = [{"key": i, "value": str(i)} for i in range(tx_count)]
+
+        for tx, row in zip(txs, rows):
+            insert_rows("//tmp/t", [row], tx=tx)
+            commit_transaction(tx)
+
+        assert select_rows("* from [//tmp/t]") == rows
+
 
 ##################################################################
 
@@ -5086,8 +5141,7 @@ class TestChaosMetaCluster(ChaosTestBase):
         assert all(area["cell_count"] == 1 for area in areas.values())
 
         def _get_coordinators(cell, driver):
-            peer = get("//sys/chaos_cells/{0}/@peers/0/address".format(cell), driver=driver)
-            return get("//sys/cluster_nodes/{0}/orchid/chaos_cells/{1}/chaos_manager/coordinators".format(peer, cell), driver=driver)
+            return self._get_chaos_cell_orchid(cell, "/chaos_manager/coordinators", driver=driver)
 
         wait(lambda: len(_get_coordinators(cells[0], drivers[-2])) == 2)
         wait(lambda: len(_get_coordinators(cells[1], drivers[-1])) == 2)
@@ -5123,16 +5177,12 @@ class TestChaosMetaCluster(ChaosTestBase):
         ]
         card_id, replica_ids = self._create_chaos_tables(cells[0], replicas)
 
-        def _get_orchid_path(cell_id, driver=None):
-            address = get("#{0}/@peers/0/address".format(cell_id), driver=driver)
-            return "//sys/cluster_nodes/{0}/orchid/chaos_cells/{1}".format(address, cell_id)
-
         def _migrate(cell_id, card_ids, driver):
             if method == "migrate":
                 migrate_replication_cards(cell_id, card_ids)
             else:
                 suspend_chaos_cells([cell_id])
-                suspended_path = "{0}/chaos_manager/internal/suspended".format(_get_orchid_path(cell_id, driver=driver))
+                suspended_path = "{0}/chaos_manager/internal/suspended".format(self._get_chaos_cell_orchid(cell_id, driver=driver))
                 wait(lambda: get(suspended_path, driver=driver))
                 resume_chaos_cells([cell_id])
                 assert not get(suspended_path, driver=driver)
@@ -5150,10 +5200,14 @@ class TestChaosMetaCluster(ChaosTestBase):
 
         _migrate(cells[0], [card_id], drivers[-2])
 
-        migration_path = "{0}/chaos_manager/replication_cards/{1}".format(_get_orchid_path(cells[0], driver=drivers[-2]), card_id)
+        migration_path = "{0}/chaos_manager/replication_cards/{1}".format(
+            self._get_chaos_cell_orchid_path(cells[0], driver=drivers[-2]), card_id
+        )
         wait(_migrated(migration_path, origin=True, driver=drivers[-2]))
 
-        migrated_card_path = "{0}/chaos_manager/replication_cards/{1}".format(_get_orchid_path(cells[1], driver=drivers[-1]), card_id)
+        migrated_card_path = "{0}/chaos_manager/replication_cards/{1}".format(
+            self._get_chaos_cell_orchid_path(cells[1], driver=drivers[-1]), card_id
+        )
         wait(lambda: exists(migrated_card_path, driver=drivers[-1]))
 
         self._sync_replication_era(card_id, replicas)
@@ -5189,12 +5243,8 @@ class TestChaosMetaCluster(ChaosTestBase):
         ]
         self._create_chaos_tables(alpha_cell, replicas)
 
-        def _get_orchid_path(cell_id, driver=None):
-            address = get("#{0}/@peers/0/address".format(cell_id), driver=driver)
-            return "//sys/cluster_nodes/{0}/orchid/chaos_cells/{1}".format(address, cell_id)
-
         orchids_paths = {
-            cell_id: _get_orchid_path(cell_id, driver=driver)
+            cell_id: self._get_chaos_cell_orchid_path(cell_id, driver=driver)
             for cell_id, driver in zip([alpha_cell, beta_cell], [remote_driver1, remote_driver2])
         }
 
