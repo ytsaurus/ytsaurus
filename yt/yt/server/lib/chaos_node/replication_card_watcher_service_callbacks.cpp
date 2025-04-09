@@ -80,7 +80,7 @@ DEFINE_REFCOUNTED_TYPE(TReplicationCardWatcherCallbacks);
 
 } // namespace
 
-NChaosClient::IReplicationCardWatcherCallbacksPtr CreateReplicationCardWatcherCallbacks(
+IReplicationCardWatcherCallbacksPtr CreateReplicationCardWatcherCallbacks(
     TCtxReplicationCardWatcherPtr context)
 {
     return New<TReplicationCardWatcherCallbacks>(std::move(context));

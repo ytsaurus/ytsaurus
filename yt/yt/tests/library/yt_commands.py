@@ -2423,21 +2423,28 @@ def create_s3_medium(name, config, **kwargs):
     return execute_command("create", kwargs)
 
 
-def create_replication_card(chaos_cell_id, **kwargs):
-    kwargs["type"] = "replication_card"
+def create_chaos_object(type, explicit_attirbutes, **kwargs):
+    kwargs["type"] = type
     if "attributes" not in kwargs:
-        kwargs["attributes"] = dict()
-    kwargs["attributes"]["chaos_cell_id"] = chaos_cell_id
+        kwargs["attributes"] = {}
+    kwargs["attributes"].update(**explicit_attirbutes)
     return execute_command("create", kwargs, parse_yson=True)
+
+
+def create_replication_card(chaos_cell_id, **kwargs):
+    return create_chaos_object("replication_card", {"chaos_cell_id": chaos_cell_id}, **kwargs)
+
+
+def create_chaos_lease(chaos_cell_id, **kwargs):
+    return create_chaos_object("chaos_lease", {"chaos_cell_id": chaos_cell_id}, **kwargs)
 
 
 def create_chaos_table_replica(cluster_name, replica_path, **kwargs):
-    kwargs["type"] = "chaos_table_replica"
-    if "attributes" not in kwargs:
-        kwargs["attributes"] = dict()
-    kwargs["attributes"]["cluster_name"] = cluster_name
-    kwargs["attributes"]["replica_path"] = replica_path
-    return execute_command("create", kwargs, parse_yson=True)
+    attributes = {
+        "cluster_name": cluster_name,
+        "replica_path": replica_path
+    }
+    return create_chaos_object("chaos_table_replica", attributes, **kwargs)
 
 
 def suspend_chaos_cells(cell_ids, **kwargs):

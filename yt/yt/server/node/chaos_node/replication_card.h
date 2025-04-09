@@ -1,5 +1,6 @@
 #pragma once
 
+#include "chaos_object_base.h"
 #include "public.h"
 
 #include <yt/yt/server/node/tablet_node/object_detail.h>
@@ -12,13 +13,6 @@ namespace NYT::NChaosNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DEFINE_ENUM(EShortcutState,
-    ((Granting)     (0))
-    ((Granted)      (1))
-    ((Revoking)     (2))
-    ((Revoked)      (3))
-);
-
 DEFINE_ENUM(EReplicationCardState,
     ((Normal)                           (0))
     ((RevokingShortcutsForAlter)        (1))
@@ -29,24 +23,6 @@ DEFINE_ENUM(EReplicationCardState,
     ((RemoteCollocationAttachPrepared)  (6))
 );
 
-struct TCoordinatorInfo
-{
-    EShortcutState State;
-
-    void Persist(const TPersistenceContext& context);
-};
-
-struct TMigration
-{
-    NObjectClient::TCellId OriginCellId;
-    NObjectClient::TCellId ImmigratedToCellId;
-    NObjectClient::TCellId EmigratedFromCellId;
-    TInstant ImmigrationTime;
-    TInstant EmigrationTime;
-
-    void Persist(const TPersistenceContext& context);
-};
-
 struct TReplicaCounters
 {
     explicit TReplicaCounters(const NProfiling::TProfiler& profiler);
@@ -55,7 +31,7 @@ struct TReplicaCounters
 };
 
 class TReplicationCard
-    : public NTabletNode::TObjectBase
+    : public TChaosObjectBase
     , public TRefTracked<TReplicationCard>
 {
 public:
@@ -64,19 +40,13 @@ public:
 
     DEFINE_BYVAL_RW_PROPERTY(NChaosClient::TReplicaIdIndex, CurrentReplicaIdIndex);
 
-    using TCoordinators = THashMap<NObjectClient::TCellId, TCoordinatorInfo>;
-    DEFINE_BYREF_RW_PROPERTY(TCoordinators, Coordinators);
-
-    DEFINE_BYVAL_RW_PROPERTY(NChaosClient::TReplicationEra, Era, NChaosClient::InitialReplicationEra);
     DEFINE_BYVAL_RW_PROPERTY(NTableClient::TTableId, TableId);
     DEFINE_BYVAL_RW_PROPERTY(NYPath::TYPath, TablePath);
     DEFINE_BYVAL_RW_PROPERTY(std::string, TableClusterName);
     DEFINE_BYVAL_RW_PROPERTY(NTransactionClient::TTimestamp, CurrentTimestamp);
     DEFINE_BYVAL_RW_PROPERTY(NTabletClient::TReplicatedTableOptionsPtr, ReplicatedTableOptions);
 
-    DEFINE_BYREF_RW_PROPERTY(TMigration, Migration);
     DEFINE_BYVAL_RW_PROPERTY(EReplicationCardState, State);
-    DEFINE_BYVAL_RW_PROPERTY(NObjectClient::TObjectId, MigrationToken);
 
     DEFINE_BYVAL_RW_PROPERTY(TReplicationCardCollocation*, Collocation);
     DEFINE_BYVAL_RW_PROPERTY(TReplicationCardCollocationId, AwaitingCollocationId);
