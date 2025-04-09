@@ -2,7 +2,6 @@
 
 #include "bootstrap.h"
 #include "ordered_chunk_store.h"
-#include "private.h"
 #include "slot_manager.h"
 #include "store.h"
 #include "store_manager.h"
@@ -221,6 +220,7 @@ private:
             &TStoreTrimmer::FindReplicationLogTrimRowIndex,
             MakeWeak(this),
             tablet->GetId(),
+            tablet->GetMountRevision(),
             tablet->GetEpochAutomatonInvoker(),
             minTimestamp,
             slot));
@@ -228,6 +228,7 @@ private:
 
     void FindReplicationLogTrimRowIndex(
         TTabletId tabletId,
+        TRevision mountRevision,
         IInvokerPtr tabletInvoker,
         TTimestamp trimTimestamp,
         ITabletSlotPtr slot)
@@ -236,6 +237,15 @@ private:
 
         auto tabletSnapshot = snapshotStore->FindLatestTabletSnapshot(tabletId);
         if (!tabletSnapshot) {
+            return;
+        }
+
+        if (tabletSnapshot->MountRevision != mountRevision) {
+            YT_LOG_DEBUG("Skipping replication log trim iteration due to mount revision mismatch "
+                "(TabletId: %v, RequestedMountRevision: %v, CurrentMountRevision: %v)",
+                tabletId,
+                mountRevision,
+                tabletSnapshot->MountRevision);
             return;
         }
 
