@@ -1,6 +1,6 @@
 #!/bin/bash -ex
 
-pip3 install wheel auditwheel patchelf
+pip3 install wheel==0.45.1 auditwheel patchelf
 
 script_name=$0
 ytsaurus_source_path="."
