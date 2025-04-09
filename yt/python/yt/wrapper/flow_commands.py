@@ -270,6 +270,33 @@ def get_flow_view(pipeline_path, view_path=None, cache=None, format=None, client
     return result
 
 
+def flow_execute(pipeline_path: str, flow_command: str, flow_argument=None, input_format=None, output_format=None, client=None):
+    """Execute YT Flow specific command
+
+    :param pipeline_path: path to pipeline.
+    :param flow_command: name of the command to execute.
+    :param flow_argument: optional argument of the command.
+    """
+
+    is_format_specified = input_format is not None
+    input_format = get_structured_format(input_format, client=client)
+    if not is_format_specified:
+        flow_argument = input_format.dumps_node(flow_argument)
+
+    params = {
+        "pipeline_path": YPath(pipeline_path, client=client),
+        "input_format": input_format.to_yson_type(),
+        "flow_command": flow_command,
+    }
+
+    return make_formatted_request(
+        "flow_execute",
+        params,
+        data=flow_argument,
+        format=output_format,
+        client=client)
+
+
 def get_controller_logs(pipeline_path, count, offset=None, client=None):
     """Get YT Flow controller logs
 

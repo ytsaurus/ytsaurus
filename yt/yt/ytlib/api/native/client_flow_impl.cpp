@@ -70,10 +70,11 @@ TControllerServiceProxy TClient::CreatePipelineControllerLeaderProxy(const TYPat
 
 TGetPipelineSpecResult TClient::DoGetPipelineSpec(
     const NYPath::TYPath& pipelinePath,
-    const TGetPipelineSpecOptions& /*options*/)
+    const TGetPipelineSpecOptions& options)
 {
     auto proxy = CreatePipelineControllerLeaderProxy(pipelinePath);
     auto req = proxy.GetSpec();
+    req->SetTimeout(options.Timeout);
     auto rsp = WaitFor(req->Invoke())
         .ValueOrThrow();
     return {
@@ -89,6 +90,7 @@ TSetPipelineSpecResult TClient::DoSetPipelineSpec(
 {
     auto proxy = CreatePipelineControllerLeaderProxy(pipelinePath);
     auto req = proxy.SetSpec();
+    req->SetTimeout(options.Timeout);
     req->set_spec(spec.ToString());
     req->set_force(options.Force);
     if (options.ExpectedVersion) {
@@ -103,10 +105,11 @@ TSetPipelineSpecResult TClient::DoSetPipelineSpec(
 
 TGetPipelineDynamicSpecResult TClient::DoGetPipelineDynamicSpec(
     const NYPath::TYPath& pipelinePath,
-    const TGetPipelineDynamicSpecOptions& /*options*/)
+    const TGetPipelineDynamicSpecOptions& options)
 {
     auto proxy = CreatePipelineControllerLeaderProxy(pipelinePath);
     auto req = proxy.GetDynamicSpec();
+    req->SetTimeout(options.Timeout);
     auto rsp = WaitFor(req->Invoke())
         .ValueOrThrow();
     return {
@@ -122,6 +125,7 @@ TSetPipelineDynamicSpecResult TClient::DoSetPipelineDynamicSpec(
 {
     auto proxy = CreatePipelineControllerLeaderProxy(pipelinePath);
     auto req = proxy.SetDynamicSpec();
+    req->SetTimeout(options.Timeout);
     req->set_spec(spec.ToString());
     if (options.ExpectedVersion) {
         req->set_expected_version(ToProto(*options.ExpectedVersion));
@@ -135,40 +139,44 @@ TSetPipelineDynamicSpecResult TClient::DoSetPipelineDynamicSpec(
 
 void TClient::DoStartPipeline(
     const TYPath& pipelinePath,
-    const TStartPipelineOptions& /*options*/)
+    const TStartPipelineOptions& options)
 {
     auto proxy = CreatePipelineControllerLeaderProxy(pipelinePath);
     auto req = proxy.StartPipeline();
+    req->SetTimeout(options.Timeout);
     WaitFor(req->Invoke())
         .ThrowOnError();
 }
 
 void TClient::DoStopPipeline(
     const TYPath& pipelinePath,
-    const TStopPipelineOptions& /*options*/)
+    const TStopPipelineOptions& options)
 {
     auto proxy = CreatePipelineControllerLeaderProxy(pipelinePath);
     auto req = proxy.StopPipeline();
+    req->SetTimeout(options.Timeout);
     WaitFor(req->Invoke())
         .ThrowOnError();
 }
 
 void TClient::DoPausePipeline(
     const TYPath& pipelinePath,
-    const TPausePipelineOptions& /*options*/)
+    const TPausePipelineOptions& options)
 {
     auto proxy = CreatePipelineControllerLeaderProxy(pipelinePath);
     auto req = proxy.PausePipeline();
+    req->SetTimeout(options.Timeout);
     WaitFor(req->Invoke())
         .ThrowOnError();
 }
 
 TPipelineState TClient::DoGetPipelineState(
     const TYPath& pipelinePath,
-    const TGetPipelineStateOptions& /*options*/)
+    const TGetPipelineStateOptions& options)
 {
     auto proxy = CreatePipelineControllerLeaderProxy(pipelinePath);
     auto req = proxy.GetPipelineState();
+    req->SetTimeout(options.Timeout);
     auto rsp = WaitFor(req->Invoke())
         .ValueOrThrow();
     return {
@@ -183,12 +191,33 @@ TGetFlowViewResult TClient::DoGetFlowView(
 {
     auto proxy = CreatePipelineControllerLeaderProxy(pipelinePath);
     auto req = proxy.GetFlowView();
+    req->SetTimeout(options.Timeout);
     req->set_path(viewPath);
     req->set_cache(options.Cache);
     auto rsp = WaitFor(req->Invoke())
         .ValueOrThrow();
     return {
         .FlowViewPart = TYsonString(rsp->flow_view_part()),
+    };
+}
+
+TFlowExecuteResult TClient::DoFlowExecute(
+    const NYPath::TYPath& pipelinePath,
+    const TString& command,
+    const NYson::TYsonString& argument,
+    const TFlowExecuteOptions& options)
+{
+    auto proxy = CreatePipelineControllerLeaderProxy(pipelinePath);
+    auto req = proxy.FlowExecute();
+    req->SetTimeout(options.Timeout);
+    req->set_command(command);
+    if (argument) {
+        req->set_argument(argument.ToString());
+    }
+    auto rsp = WaitFor(req->Invoke())
+        .ValueOrThrow();
+    return {
+        .Result = rsp->has_result() ? TYsonString(rsp->result()) : TYsonString{},
     };
 }
 

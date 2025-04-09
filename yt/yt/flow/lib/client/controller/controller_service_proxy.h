@@ -30,6 +30,8 @@ public:
     DEFINE_RPC_PROXY_METHOD(NProto, StartPipeline);
     DEFINE_RPC_PROXY_METHOD(NProto, PausePipeline);
     DEFINE_RPC_PROXY_METHOD(NProto, StopPipeline);
+
+    DEFINE_RPC_PROXY_METHOD(NProto, FlowExecute);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

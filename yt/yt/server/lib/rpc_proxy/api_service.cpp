@@ -823,6 +823,7 @@ public:
         RegisterMethod(RPC_SERVICE_METHOD_DESC(PausePipeline));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetPipelineState));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetFlowView));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(FlowExecute));
 
         RegisterMethod(RPC_SERVICE_METHOD_DESC(StartQuery));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(AbortQuery));
@@ -6662,6 +6663,29 @@ private:
             [] (const auto& context, const auto& result) {
                 auto* response = &context->Response();
                 response->set_flow_view_part(result.FlowViewPart.ToString());
+            });
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, FlowExecute)
+    {
+        auto client = GetAuthenticatedClientOrThrow(context, request);
+
+        TFlowExecuteOptions options;
+        SetTimeoutOptions(&options, context.Get());
+
+        auto pipelinePath = FromProto<TYPath>(request->pipeline_path());
+        auto command = request->command();
+        auto argument = NYson::TYsonString(request->argument());
+        context->SetRequestInfo("PipelinePath: %v, Command: %v", pipelinePath, command);
+
+        ExecuteCall(
+            context,
+            [=] {
+                return client->FlowExecute(pipelinePath, command, argument, options);
+            },
+            [] (const auto& context, const auto& result) {
+                auto* response = &context->Response();
+                response->set_result(result.Result.ToString());
             });
     }
 

@@ -459,7 +459,7 @@ def execute_command(
     if verbose:
 
         def _is_text_yson(fmt):
-            return fmt is not None and str(fmt) == "yson" and fmt.attributes.get("format", None) == "text"
+            return fmt is not None and str(fmt) == 'yson' and hasattr(fmt, 'attributes') and fmt.attributes.get("format", None) == "text"
 
         pretty_parameters = pycopy.deepcopy(parameters)
         for key in ["input_format", "output_format"]:
@@ -3736,6 +3736,30 @@ def get_flow_view(pipeline_path, view_path=None, cache=None, **kwargs):
         kwargs["cache"] = cache
 
     return execute_command("get_flow_view", kwargs, parse_yson=True)
+
+
+def flow_execute(pipeline_path: str, flow_command: str, flow_argument=None, is_raw=False, **kwargs):
+    is_input_raw = is_raw or "input_format" in kwargs
+    if not is_input_raw:
+        flow_argument = yson.dumps(flow_argument)
+    elif isinstance(flow_argument, str):
+        flow_argument = flow_argument.encode("utf-8")
+    elif not isinstance(flow_argument, (bytes, bytearray)):
+        raise TypeError(
+            "Serialized flow_argument must be str, bytes or bytearray, "
+            "actual type: {}".format(flow_argument.__class__)
+        )
+
+    kwargs["pipeline_path"] = pipeline_path
+    kwargs["flow_command"] = flow_command
+
+    is_output_raw = is_raw or "output_format" in kwargs
+    return execute_command(
+        "flow_execute",
+        kwargs,
+        input_stream=BytesIO(flow_argument),
+        parse_yson=not is_output_raw,
+        unwrap_v4_result=False)
 
 
 def make_externalized_tx_id(tx_id, externalizing_cell_tag):

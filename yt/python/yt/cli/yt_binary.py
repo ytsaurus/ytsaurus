@@ -2588,6 +2588,7 @@ def add_flow_parser(root_subparsers):
     add_flow_get_pipeline_state_parser(add_flow_subparser)
     add_flow_get_flow_view_parser(add_flow_subparser)
     add_flow_show_logs_parser(add_flow_subparser)
+    add_flow_execute_parser(add_flow_subparser)
 
 
 def wait_pipeline_change(operation, state):
@@ -2745,6 +2746,26 @@ def add_flow_show_logs_parser(add_parser):
                         help="Logs reading period in seconds")
     parser.add_argument("--print-host", action="store_true", default=False,
                         help="Print controller's hostname")
+
+
+@copy_docstring_from(yt.flow_execute)
+def show_flow_execute_result(**kwargs):
+    result = yt.flow_execute(**kwargs)
+    if kwargs["output_format"] is None:
+        result = dump_data(result)
+    print_to_output(result)
+
+
+def add_flow_execute_parser(add_parser):
+    parser = add_parser("execute", show_flow_execute_result,
+                        help="Execute YT Flow specific command")
+    add_ypath_argument(parser, "pipeline_path", hybrid=True)
+    add_hybrid_argument(parser, "flow_command", group_required=True,
+                        help="name of the command to execute")
+    add_hybrid_argument(parser, "flow_argument", group_required=False,
+                        help="argument of the command (optional)")
+    add_structured_format_argument(parser, "--input-format")
+    add_structured_format_argument(parser, "--output-format")
 
 
 @copy_docstring_from(yt.run_command_with_lock)
