@@ -1260,7 +1260,7 @@ int TChunkPlacement::GetMaxReplicasPerDataCenter(
     const auto* medium = chunkManager->GetMediumByIndex(mediumIndex);
     auto replicaCount = replicationFactorOverride.value_or(
         chunk->GetPhysicalReplicationFactor(mediumIndex, chunkRequisitionRegistry));
-    replicaCount = CapTotalReplicationFactor(replicaCount, medium);
+    replicaCount = CapTotalReplicationFactor(replicaCount, chunk, medium);
     auto aliveStorageDataCenterCount = std::ssize(AliveStorageDataCenters_);
     if (aliveStorageDataCenterCount == 0) {
         // Dividing by zero is bad, so case of zero alive data centers is handled separately.
@@ -1432,10 +1432,20 @@ TError TChunkPlacement::ComputeDataCenterFaultiness(
 
 int TChunkPlacement::CapTotalReplicationFactor(
     int replicationFactor,
+    const TChunk* chunk,
     const TMedium* medium) const
 {
    const auto& config = medium->AsDomestic()->Config();
-   return std::min({replicationFactor, config->MaxReplicationFactor, MaxReplicationFactor});
+   switch (chunk->GetType()) {
+        case EObjectType::Chunk:
+        case EObjectType::JournalChunk:
+            return std::min({replicationFactor, config->MaxReplicationFactor, MaxReplicationFactor});
+        case EObjectType::ErasureChunk:
+        case EObjectType::ErasureJournalChunk:
+            return replicationFactor;
+        default:
+            YT_ABORT();
+    }
 }
 
 int TChunkPlacement::CapPerRackReplicationFactor(
