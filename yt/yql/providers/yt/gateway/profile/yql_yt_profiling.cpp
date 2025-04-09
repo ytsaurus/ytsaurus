@@ -191,6 +191,11 @@ public:
         return Slave_->GetClusterConnection(std::move(options));
     }
 
+    TMaybe<TString> GetTableFilePath(const TGetTableFilePathOptions&& options) override {
+        YQL_PROFILE_FUNC(TRACE);
+        return Slave_->GetTableFilePath(std::move(options));
+    }
+
 private:
     IYtGateway::TPtr Slave_;
 };

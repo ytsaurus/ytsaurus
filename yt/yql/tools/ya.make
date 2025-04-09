@@ -1,4 +1,5 @@
 RECURSE(
+    fmrrun
     mrjob
     ytrun
 )

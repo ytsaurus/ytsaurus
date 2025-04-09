@@ -14,6 +14,7 @@ ENDIF()
 
 PEERDIR(
     library/cpp/getopt
+    library/cpp/yson/node
     yt/yql/providers/yt/fmr/coordinator/server
     yt/yql/providers/yt/fmr/coordinator/impl
     yql/essentials/utils/log

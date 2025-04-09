@@ -312,6 +312,10 @@ public:
         return NativeGateway_->GetClusterConnection(std::move(options));
     }
 
+    TMaybe<TString> GetTableFilePath(const TGetTableFilePathOptions&& options) override {
+        return NativeGateway_->GetTableFilePath(std::move(options));
+    }
+
 private:
     NFile::TYtFileServices::TPtr FileServices_;
     IYtGateway::TPtr FileGateway_;

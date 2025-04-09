@@ -1,4 +1,6 @@
-RECURSE(
+RECURSE (
+    file
+    impl
     interface
     mock
 )

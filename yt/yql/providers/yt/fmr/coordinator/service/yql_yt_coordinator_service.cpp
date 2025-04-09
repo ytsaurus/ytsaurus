@@ -1,4 +1,6 @@
 #include <library/cpp/getopt/last_getopt.h>
+#include <library/cpp/yson/node/node_io.h>
+#include <util/stream/file.h>
 #include <util/system/interrupt_signals.h>
 #include <yt/yql/providers/yt/fmr/coordinator/server/yql_yt_coordinator_server.h>
 #include <yt/yql/providers/yt/fmr/coordinator/impl/yql_yt_coordinator_impl.h>
@@ -17,6 +19,7 @@ public:
     TString Host;
     ui32 WorkersNum;
     int Verbosity;
+    TString FmrOperationSpecFilePath;
 
     void InitLogger() {
         NLog::ELevel level = NLog::ELevelHelpers::FromInt(Verbosity);
@@ -42,6 +45,7 @@ int main(int argc, const char *argv[]) {
         opts.AddLongOption('w', "workers-num", "Number of fast map reduce workers").StoreResult(&options.WorkersNum).DefaultValue(1);
         opts.AddLongOption('v', "verbosity", "Logging verbosity level").StoreResult(&options.Verbosity).DefaultValue(static_cast<int>(TLOG_ERR));
         opts.AddLongOption("mem-limit", "Set memory limit in megabytes").Handler1T<ui32>(0, SetAddressSpaceLimit);
+        opts.AddLongOption('s', "fmr-operation-spec-path", "Path to file with fmr operation spec settings").Optional().StoreResult(&options.FmrOperationSpecFilePath);
         opts.SetFreeArgsMax(0);
 
         auto res = NLastGetopt::TOptsParseResult(&opts, argc, argv);
@@ -49,6 +53,11 @@ int main(int argc, const char *argv[]) {
         options.InitLogger();
 
         TFmrCoordinatorSettings coordinatorSettings{.WorkersNum = options.WorkersNum, .RandomProvider = CreateDefaultRandomProvider()};
+        if (options.FmrOperationSpecFilePath) {
+            TFileInput input(options.FmrOperationSpecFilePath);
+            auto fmrOperationSpec = NYT::NodeFromYsonStream(&input);
+            coordinatorSettings.DefaultFmrOperationSpec = fmrOperationSpec;
+        }
         TFmrCoordinatorServerSettings coordinatorServerSettings{.Port = options.Port, .Host = options.Host};
         auto coordinator = MakeFmrCoordinator(coordinatorSettings);
         auto coordinatorServer = MakeFmrCoordinatorServer(coordinator, coordinatorServerSettings);
