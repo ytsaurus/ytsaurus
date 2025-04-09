@@ -177,43 +177,12 @@ jobs:
       runs-on-value: ${{ needs.start-vm.outputs.label }}
     uses: ./.github/workflows/check-jobs.yaml
 
-  systest:
-    name: systest
-    if: github.ref_name == 'main'
-    needs:
-      - start-vm
-      - tag
-      - check
-      - docker-ya-make
-    runs-on: ${{ needs.start-vm.outputs.label }}
-    steps:
-      - name: Mark latest nightly
-        run: |
-          if [[ ${{ needs.tag.outputs.image-tag }} == 'dev' ]]
-          then
-            NIGHTLY_IMAGE_TAG=${{ needs.tag.outputs.nightly-image-tag }}-relwithdebinfo
-            docker tag ghcr.io/ytsaurus/ytsaurus-nightly:${NIGHTLY_IMAGE_TAG} ghcr.io/ytsaurus/ytsaurus-nightly:latest
-            docker push ghcr.io/ytsaurus/ytsaurus-nightly:latest
-          fi
-
-      - name: Download benchmarks
-        uses: robinraju/release-downloader@v1.8
-        with:
-          latest: true
-          fileName: "benchmark-0.0.1.tgz"
-
-      - name: Docker systest
-        shell: bash
-        run: |
-          mkdir -p ../docker-systest-build
-          bash ./ytsaurus/yt/docker/systest/build.sh --ytsaurus-source-path $(pwd)/ytsaurus --ytsaurus-build-path ../build --output-path ../docker-systest-build --image-tag latest --image-cr ghcr.io/
-          docker push ghcr.io/ytsaurus/ytsaurus-systest:latest
-
   stop-vm:
     name: Stop VM
     needs:
       - start-vm
-      - systest
+      - check
+      - docker-ya-make
     runs-on: trampoline
     if: ${{ always() }}
     steps:
