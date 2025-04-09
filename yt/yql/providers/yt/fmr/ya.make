@@ -1,5 +1,6 @@
 RECURSE(
     coordinator
+    fmr_tool_lib
     job
     job_factory
     proto

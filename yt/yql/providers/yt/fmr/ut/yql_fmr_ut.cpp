@@ -1,14 +1,8 @@
 #include <yql/essentials/minikql/invoke_builtins/mkql_builtins.h>
-#include <yt/yql/providers/yt/fmr/coordinator/impl/yql_yt_coordinator_impl.h>
-#include <yt/yql/providers/yt/fmr/job/impl/yql_yt_job_impl.h>
-#include <yt/yql/providers/yt/fmr/job_factory/impl/yql_yt_job_factory_impl.h>
-#include <yt/yql/providers/yt/fmr/table_data_service/local/yql_yt_table_data_service_local.h>
-#include <yt/yql/providers/yt/fmr/yt_service/impl/yql_yt_yt_service_impl.h>
-#include <yt/yql/providers/yt/fmr/worker/impl/yql_yt_worker_impl.h>
+#include <yt/yql/providers/yt/fmr/fmr_tool_lib/yql_yt_fmr_initializer.h>
 #include <yt/yql/providers/yt/provider/yql_yt_provider.h>
 #include <yt/yql/providers/yt/gateway/file/yql_yt_file.h>
 #include <yt/yql/providers/yt/gateway/file/yql_yt_file_services.h>
-#include <yt/yql/providers/yt/gateway/fmr/yql_yt_fmr.h>
 #include <yql/essentials/core/cbo/simple/cbo_simple.h>
 #include <yql/essentials/core/facade/yql_facade.h>
 #include <yql/essentials/providers/common/provider/yql_provider_names.h>
@@ -70,21 +64,8 @@ bool RunProgram(const TString& query, const TRunSettings& runSettings) {
     auto functionRegistry = NKikimr::NMiniKQL::CreateFunctionRegistry(NKikimr::NMiniKQL::CreateBuiltinRegistry());
     auto yqlNativeServices = NFile::TYtFileServices::Make(functionRegistry.Get(), runSettings.Tables, {}, "");
     auto ytGateway = CreateYtFileGateway(yqlNativeServices);
-    auto coordinator = NFmr::MakeFmrCoordinator();
-    auto tableDataService = MakeLocalTableDataService(NFmr::TLocalTableDataServiceSettings(3));
-    auto fmrYtSerivce = NFmr::MakeFmrYtSerivce();
 
-    auto func = [tableDataService, fmrYtSerivce] (NFmr::TTask::TPtr task, std::shared_ptr<std::atomic<bool>> cancelFlag) mutable {
-        return NFmr::RunJob(task, tableDataService, fmrYtSerivce, cancelFlag);
-    };
-
-    NFmr::TFmrJobFactorySettings settings{.Function=func};
-    auto jobFactory = MakeFmrJobFactory(settings);
-    NFmr::TFmrWorkerSettings workerSettings{.WorkerId = 0, .RandomProvider = CreateDefaultRandomProvider(),
-        .TimeToSleepBetweenRequests=TDuration::Seconds(1)};
-    auto worker = MakeFmrWorker(coordinator, jobFactory, workerSettings);
-    worker->Start();
-    auto fmrGateway = CreateYtFmrGateway(ytGateway, coordinator);
+    auto [fmrGateway, worker] = InitializeFmrGateway(ytGateway, false, TString(), true);
 
     TVector<TDataProviderInitializer> dataProvidersInit;
     dataProvidersInit.push_back(GetYtNativeDataProviderInitializer(fmrGateway, MakeSimpleCBOOptimizerFactory(), {}));
@@ -126,7 +107,7 @@ bool RunProgram(const TString& query, const TRunSettings& runSettings) {
     return status == TProgram::TStatus::Ok;
 }
 
-/*Y_UNIT_TEST_SUITE(FastMapReduceTests) {
+Y_UNIT_TEST_SUITE(FastMapReduceTests) {
     Y_UNIT_TEST(InsertTmpTable) {
         auto query = "use plato; insert into Output with truncate select * from Input";
         TTempFileHandle outputFile;
@@ -151,6 +132,5 @@ bool RunProgram(const TString& query, const TRunSettings& runSettings) {
         auto expected = NYT::NodeToCanonicalYsonString(NYT::NodeFromYsonString(filteredInputData, NYT::NYson::EYsonType::ListFragment));
         UNIT_ASSERT_NO_DIFF(sqlQueryResult, expected);
     }
-}*/
+}
 
-// Tests will work when we add yt file service implementation and fmrrun
