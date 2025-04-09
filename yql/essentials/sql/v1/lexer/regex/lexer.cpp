@@ -28,11 +28,14 @@ namespace NSQLTranslationV1 {
             : Grammar_(std::move(grammar))
             , Ansi_(ansi)
         {
+            RE2::Options custom;
+            custom.set_longest_match(true);
+
             for (const auto& [token, regex] : RegexByOtherName) {
                 if (token == CommentTokenName) {
                     CommentRegex_.Reset(new RE2(regex));
                 } else {
-                    OtherRegexes_.emplace_back(token, new RE2(regex));
+                    OtherRegexes_.emplace_back(token, new RE2(regex, custom));
                 }
             }
         }
