@@ -17,6 +17,22 @@ StringRef ToStringRef(TRef ref)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TCGIRBuilderPtr::TCGIRBuilderPtr(TCGIRBuilder* builder)
+    : Builder_(builder)
+{ }
+
+TCGIRBuilder* TCGIRBuilderPtr::operator->() const noexcept
+{
+    return Builder_;
+}
+
+TCGIRBuilder* TCGIRBuilderPtr::GetBuilder() const noexcept
+{
+    return Builder_;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 Type* GetABIType(llvm::LLVMContext& context, NYT::NTableClient::EValueType staticType)
 {
     return TDataTypeBuilder::Get(context, staticType);
@@ -31,7 +47,545 @@ Type* GetLLVMType(llvm::LLVMContext& context, NYT::NTableClient::EValueType stat
     return GetABIType(context, staticType);
 }
 
+TCGValue::TCGValue(EValueType staticType, Value* isNull, Value* isAggregate, Value* length, Value* data, Twine name)
+    : IsNull_(isNull)
+    , IsAggregate_(isAggregate)
+    , Length_(length)
+    , Data_(data)
+    , StaticType_(staticType)
+    , Name_(name.str())
+{
+    YT_VERIFY(
+        StaticType_ == EValueType::Int64 ||
+        StaticType_ == EValueType::Uint64 ||
+        StaticType_ == EValueType::Double ||
+        StaticType_ == EValueType::Boolean ||
+        StaticType_ == EValueType::String ||
+        StaticType_ == EValueType::Any ||
+        StaticType_ == EValueType::Composite);
+}
+
+TCGValue::TCGValue(TCGValue&& other) noexcept
+    : IsNull_(other.IsNull_)
+    , IsAggregate_(other.IsAggregate_)
+    , Length_(other.Length_)
+    , Data_(other.Data_)
+    , StaticType_(other.StaticType_)
+    , Name_(std::move(other.Name_))
+{
+    other.Reset();
+}
+
+TCGValue& TCGValue::operator=(TCGValue&& other)
+{
+    IsNull_ = other.IsNull_;
+    IsAggregate_ = other.IsAggregate_;
+    Length_ = other.Length_;
+    Data_ = other.Data_;
+    StaticType_ = other.StaticType_;
+
+    other.Reset();
+
+    return *this;
+}
+
+TCGValue&& TCGValue::Steal()
+{
+    return std::move(*this);
+}
+
+void TCGValue::Reset()
+{
+    IsNull_ = nullptr;
+    IsAggregate_ = nullptr;
+    Length_ = nullptr;
+    Data_ = nullptr;
+    StaticType_ = EValueType::TheBottom;
+}
+
+EValueType TCGValue::GetStaticType() const
+{
+    return StaticType_;
+}
+
+TCGValue TCGValue::Create(
+    const TCGIRBuilderPtr& builder,
+    Value* isNull,
+    Value* isAggregate,
+    Value* length,
+    Value* data,
+    EValueType staticType,
+    Twine name)
+{
+    YT_VERIFY(
+        isNull->getType() == builder->getInt1Ty() ||
+        isNull->getType() == builder->getInt8Ty());
+    if (IsStringLikeType(staticType)) {
+        YT_VERIFY(length->getType() == TValueTypeBuilder::TLength::Get(builder->getContext()));
+    }
+    YT_VERIFY(
+        data->getType() == GetLLVMType(builder->getContext(), staticType) ||
+        data->getType() == TDataTypeBuilder::Get(builder->getContext()));
+    return TCGValue(staticType, isNull, isAggregate, length, data, name);
+}
+
+TCGValue TCGValue::Create(
+    const TCGIRBuilderPtr& builder,
+    Value* isNull,
+    Value* length,
+    Value* data,
+    EValueType staticType,
+    Twine name)
+{
+    return Create(builder, isNull, nullptr, length, data, staticType, name);
+}
+
+TCGValue TCGValue::CreateNull(
+    const TCGIRBuilderPtr& builder,
+    EValueType staticType,
+    Twine name)
+{
+    Value* length = nullptr;
+    if (IsStringLikeType(staticType)) {
+        length = llvm::UndefValue::get(TValueTypeBuilder::TLength::Get(builder->getContext()));
+    }
+
+    return Create(
+        builder,
+        builder->getTrue(),
+        length,
+        llvm::UndefValue::get(GetLLVMType(builder->getContext(), staticType)),
+        staticType,
+        name);
+}
+
+TCGValue TCGValue::LoadFromRowValues(
+    const TCGIRBuilderPtr& builder,
+    Value* rowValues,
+    int index,
+    bool nullable,
+    bool aggregate,
+    EValueType staticType,
+    Twine name)
+{
+    Type* valueType = TValueTypeBuilder::Get(builder->getContext());
+
+    Value* isNull = builder->getFalse();
+    if (nullable) {
+        Value* typePtr = builder->CreateConstInBoundsGEP2_32(
+            valueType,
+            rowValues,
+            index,
+            TValueTypeBuilder::Type,
+            name + ".typePtr");
+
+        isNull = builder->CreateLoad(
+            TValueTypeBuilder::TType::Get(builder->getContext()),
+            typePtr,
+            name + ".type");
+    }
+
+    Value* isAggregate = nullptr;
+    if (aggregate) {
+        Value* aggregatePtr = builder->CreateConstInBoundsGEP2_32(
+            valueType,
+            rowValues,
+            index,
+            TValueTypeBuilder::Aggregate,
+            name + ".aggregatePtr");
+
+        isAggregate = builder->CreateLoad(
+            TValueTypeBuilder::TAggregate::Get(builder->getContext()),
+            aggregatePtr,
+            name + ".aggregate");
+    }
+
+    Value* length = nullptr;
+    if (IsStringLikeType(staticType)) {
+        Value* lengthPtr = builder->CreateConstInBoundsGEP2_32(
+            valueType,
+            rowValues,
+            index,
+            TValueTypeBuilder::Length,
+            name + ".lengthPtr");
+
+        length = builder->CreateLoad(
+            TValueTypeBuilder::TLength::Get(builder->getContext()),
+            lengthPtr,
+            name + ".length");
+    }
+
+    Value* dataPtr = builder->CreateConstInBoundsGEP2_32(
+        valueType,
+        rowValues,
+        index,
+        TValueTypeBuilder::Data,
+        name + ".dataPtr");
+
+    Value* data = builder->CreateLoad(
+        TValueTypeBuilder::TData::Get(builder->getContext()),
+        dataPtr,
+        name + ".data");
+
+    if (NTableClient::IsStringLikeType(staticType)) {
+        Value* dataPtrAsInt = builder->CreatePtrToInt(dataPtr, data->getType());
+        data = builder->CreateAdd(data, dataPtrAsInt, name + ".NonPIData");  // Similar to GetStringPosition.
+    }
+
+    return Create(builder, isNull, isAggregate, length, data, staticType, name);
+}
+
+TCGValue TCGValue::LoadFromRowValues(
+    const TCGIRBuilderPtr& builder,
+    Value* rowValues,
+    int index,
+    EValueType staticType,
+    Twine name)
+{
+    return LoadFromRowValues(
+        builder,
+        rowValues,
+        index,
+        /*nullable*/ true,
+        /*aggregate*/ false,
+        staticType,
+        name);
+}
+
+TCGValue TCGValue::LoadFromRowValue(
+    const TCGIRBuilderPtr& builder,
+    Value* valuePtr,
+    bool nullable,
+    EValueType staticType,
+    Twine name)
+{
+    return LoadFromRowValues(builder, valuePtr, /*index*/ 0, nullable, /*aggregate*/ false, staticType, name);
+}
+
+TCGValue TCGValue::LoadFromRowValue(
+    const TCGIRBuilderPtr& builder,
+    Value* valuePtr,
+    EValueType staticType,
+    Twine name)
+{
+    return LoadFromRowValue(builder, valuePtr, /*nullable*/ true, staticType, name);
+}
+
+TCGValue TCGValue::LoadFromAggregate(
+    const TCGIRBuilderPtr& builder,
+    Value* valuePtr,
+    EValueType staticType,
+    Twine name)
+{
+    return LoadFromRowValues(
+        builder,
+        valuePtr,
+        /*index*/ 0,
+        /*nullable*/ true,
+        /*aggregate*/ true,
+        staticType,
+        name);
+}
+
+void TCGValue::StoreToValues(
+    const TCGIRBuilderPtr& builder,
+    Value* valuePtr,
+    size_t index,
+    Twine name) const
+{
+    if (IsNull_->getType() == builder->getInt1Ty()) {
+        Type* type = TValueTypeBuilder::TType::Get(builder->getContext());
+        builder->CreateStore(
+            builder->CreateSelect(
+                GetIsNull(builder),
+                ConstantInt::get(type, static_cast<int>(EValueType::Null)),
+                ConstantInt::get(type, static_cast<int>(StaticType_))),
+            builder->CreateConstInBoundsGEP2_32(
+                TValueTypeBuilder::Get(builder->getContext()),
+                valuePtr,
+                index,
+                TValueTypeBuilder::Type,
+                name + ".typePtr"));
+    } else {
+        builder->CreateStore(
+            IsNull_,
+            builder->CreateConstInBoundsGEP2_32(
+                TValueTypeBuilder::Get(builder->getContext()),
+                valuePtr,
+                index,
+                TValueTypeBuilder::Type,
+                name + ".typePtr"));
+    }
+
+    if (IsAggregate_) {
+        builder->CreateStore(
+            IsAggregate_,
+            builder->CreateConstInBoundsGEP2_32(
+                TValueTypeBuilder::Get(builder->getContext()),
+                valuePtr,
+                index,
+                TValueTypeBuilder::Aggregate,
+                name + ".aggregatePtr"));
+    }
+
+    if (IsStringLikeType(StaticType_)) {
+        builder->CreateStore(
+            Length_,
+            builder->CreateConstInBoundsGEP2_32(
+                TValueTypeBuilder::Get(builder->getContext()),
+                valuePtr,
+                index,
+                TValueTypeBuilder::Length,
+                name + ".lengthPtr"));
+    }
+
+    Value* data = nullptr;
+    auto targetType = TDataTypeBuilder::Get(builder->getContext());
+
+    Value* dataPtr = builder->CreateConstInBoundsGEP2_32(
+        TValueTypeBuilder::Get(builder->getContext()),
+        valuePtr,
+        index,
+        TValueTypeBuilder::Data,
+        name + ".dataPtr");
+
+    if (Data_->getType()->isPointerTy()) {
+        data = builder->CreatePtrToInt(Data_, targetType);
+    } else if (Data_->getType()->isFloatingPointTy()) {
+        data = builder->CreateBitCast(Data_, targetType);
+    } else {
+        data = builder->CreateIntCast(Data_, targetType, /*isSigned*/ false);
+    }
+
+    if (IsStringLikeType(StaticType_)) {
+        Value* dataPtrAsInt = builder->CreatePtrToInt(dataPtr, data->getType());
+        Value* stringPointer = builder->CreatePtrToInt(Data_, targetType);
+        data = builder->CreateSub(stringPointer, dataPtrAsInt, name + ".PIdata");  // Similar to SetStringPosition.
+    }
+
+    builder->CreateStore(
+        data,
+        dataPtr);
+}
+
+void TCGValue::StoreToValues(
+    const TCGIRBuilderPtr& builder,
+    Value* valuePtr,
+    size_t index) const
+{
+    StoreToValues(builder, valuePtr, index, Name_);
+}
+
+void TCGValue::StoreToValue(
+    const TCGIRBuilderPtr& builder,
+    Value* valuePtr,
+    Twine name) const
+{
+    StoreToValues(builder, valuePtr, 0, name);
+}
+
+Value* TCGValue::IsNull() const
+{
+    return IsNull_;
+}
+
+Value* TCGValue::GetIsNull(const TCGIRBuilderPtr& builder) const
+{
+    if (IsNull_->getType() == builder->getInt1Ty()) {
+        return IsNull_;
+    }
+    return builder->CreateICmpEQ(
+        IsNull_,
+        ConstantInt::get(IsNull_->getType(), static_cast<int>(EValueType::Null)));
+}
+
+Value* TCGValue::GetLength() const
+{
+    return Length_;
+}
+
+Value* TCGValue::GetData() const
+{
+    return Data_;
+}
+
+Value* TCGValue::GetTypedData(const TCGIRBuilderPtr& builder, bool isAbi) const
+{
+    Value* castedData = nullptr;
+    Type* targetType = (isAbi ? GetABIType : GetLLVMType)(builder->getContext(), StaticType_);
+
+    if (targetType->isPointerTy()) {
+        castedData = builder->CreateIntToPtr(Data_,
+            targetType);
+    } else if (targetType->isFloatingPointTy()) {
+        castedData = builder->CreateBitCast(Data_,
+            targetType);
+    } else {
+        castedData = builder->CreateIntCast(Data_,
+            targetType,
+            false);
+    }
+
+    return castedData;
+}
+
+TCGValue TCGValue::Cast(const TCGIRBuilderPtr& builder, EValueType destination) const
+{
+    if (destination == StaticType_) {
+        return *this;
+    }
+
+    auto value = GetTypedData(builder);
+
+    Value* result;
+    switch (destination) {
+        case EValueType::Int64: {
+            auto destType = TDataTypeBuilder::TInt64::Get(builder->getContext());
+            if (StaticType_ == EValueType::Uint64 || StaticType_ == EValueType::Boolean) {
+                result = builder->CreateIntCast(value, destType, /*isSigned*/ false);
+            } else if (StaticType_ == EValueType::Double) {
+                result = builder->CreateFPToSI(value, destType);
+            } else {
+                YT_ABORT();
+            }
+            break;
+        }
+        case EValueType::Uint64: {
+            // signed/unsigned are equal to llvm
+            auto destType = TDataTypeBuilder::TInt64::Get(builder->getContext());
+            if (StaticType_ == EValueType::Int64 || StaticType_ == EValueType::Boolean) {
+                result = builder->CreateIntCast(value, destType, /*isSigned*/ true);
+            } else if (StaticType_ == EValueType::Double) {
+                result = builder->CreateFPToUI(value, destType);
+            } else {
+                YT_ABORT();
+            }
+            break;
+        }
+        case EValueType::Double: {
+            auto destType = TDataTypeBuilder::TDouble::Get(builder->getContext());
+            if (StaticType_ == EValueType::Uint64) {
+                result = builder->CreateUIToFP(value, destType);
+            } else if (StaticType_ == EValueType::Int64) {
+                result = builder->CreateSIToFP(value, destType);
+            } else {
+                YT_ABORT();
+            }
+            break;
+        }
+        case EValueType::Boolean: {
+            if (StaticType_ == EValueType::Int64 || StaticType_ == EValueType::Uint64) {
+                result = builder->CreateIsNotNull(value);
+            } else {
+                YT_ABORT();
+            }
+            break;
+        }
+        default:
+            YT_ABORT();
+    }
+
+    return Create(
+        builder,
+        // type changed, so we have to get isNull explicitly
+        GetIsNull(builder),
+        IsStringLikeType(StaticType_)
+            ? GetLength()
+            : nullptr,
+        result,
+        destination);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
+
+TCGBaseContext::TCGBaseContext(
+    const TCGIRBuilderPtr& base,
+    const TCGModulePtr& cgModule)
+    : TCGIRBuilderPtr(base)
+    , Module(cgModule)
+{ }
+
+TCGBaseContext::TCGBaseContext(
+    const TCGIRBuilderPtr& base,
+    const TCGBaseContext& other)
+    : TCGIRBuilderPtr(base)
+    , Module(other.Module)
+{ }
+
+TCGOpaqueValuesContext::TCGOpaqueValuesContext(
+    const TCGBaseContext& base,
+    Value* literals,
+    Value* opaqueValues)
+    : TCGBaseContext(base)
+    , Literals_(literals)
+    , OpaqueValues_(opaqueValues)
+{ }
+
+TCGOpaqueValuesContext::TCGOpaqueValuesContext(
+    const TCGBaseContext& base,
+    const TCGOpaqueValuesContext& other)
+    : TCGBaseContext(base)
+    , Literals_(other.Literals_)
+    , OpaqueValues_(other.OpaqueValues_)
+
+{ }
+
+Value* TCGOpaqueValuesContext::GetLiterals() const
+{
+    return Builder_->ViaClosure(Literals_, "literals");
+}
+
+Value* TCGOpaqueValuesContext::GetOpaqueValues() const
+{
+    return Builder_->ViaClosure(OpaqueValues_, "opaqueValues");
+}
+
+Value* TCGOpaqueValuesContext::GetOpaqueValue(size_t index) const
+{
+    Value* opaqueValues = GetOpaqueValues();
+    auto opaqueValuePtr = Builder_->CreateConstGEP1_32(
+        Builder_->getPtrTy(),
+        opaqueValues,
+        index);
+    return Builder_->CreateLoad(
+        Builder_->getPtrTy(),
+        opaqueValuePtr,
+        "opaqueValues." + Twine(index));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TCGExprData::TCGExprData(
+    const TCodegenFragmentInfos& expressionFragments,
+    Value* buffer,
+    Value* rowValues,
+    Value* expressionClosurePtr)
+    : ExpressionFragments(expressionFragments)
+    , Buffer(buffer)
+    , RowValues(rowValues)
+    , ExpressionClosurePtr(expressionClosurePtr)
+{ }
+
+////////////////////////////////////////////////////////////////////////////////
+
+TCGExprContext::TCGExprContext(
+    const TCGOpaqueValuesContext& base,
+    TCGExprData exprData)
+    : TCGOpaqueValuesContext(base)
+    , TCGExprData(exprData)
+{ }
+
+TCGExprContext::TCGExprContext(
+    const TCGOpaqueValuesContext& base,
+    const TCGExprContext& other)
+    : TCGOpaqueValuesContext(base)
+    , TCGExprData(other)
+{ }
+
+Value* TCGExprContext::GetExpressionClosurePtr()
+{
+    return ExpressionClosurePtr;
+}
 
 Value* TCGExprContext::GetFragmentResult(size_t index) const
 {
@@ -151,12 +705,29 @@ TCGExprContext TCGExprContext::Make(
             expressionClosurePtr));
 }
 
-Value* TCGExprContext::GetExpressionClosurePtr()
-{
-    return ExpressionClosurePtr;
-}
-
 ////////////////////////////////////////////////////////////////////////////////
+
+TCGOperatorContext::TCGOperatorContext(
+    const TCGOpaqueValuesContext& base,
+    Value* executionContext,
+    std::vector<std::shared_ptr<TCodegenConsumer>>* consumers)
+    : TCGOpaqueValuesContext(base)
+    , ExecutionContext_(executionContext)
+    , Consumers_(consumers)
+{ }
+
+TCGOperatorContext::TCGOperatorContext(
+    const TCGOpaqueValuesContext& base,
+    const TCGOperatorContext& other)
+    : TCGOpaqueValuesContext(base)
+    , ExecutionContext_(other.ExecutionContext_)
+    , Consumers_(other.Consumers_)
+{ }
+
+Value* TCGOperatorContext::GetExecutionContext() const
+{
+    return Builder_->ViaClosure(ExecutionContext_, "executionContext");
+}
 
 TCodegenConsumer& TCGOperatorContext::operator[] (size_t index) const
 {
@@ -165,6 +736,13 @@ TCodegenConsumer& TCGOperatorContext::operator[] (size_t index) const
     }
     return *(*Consumers_)[index];
 }
+
+TCGContext::TCGContext(
+    const TCGOperatorContext& base,
+    Value* buffer)
+    : TCGOperatorContext(base)
+    , Buffer(buffer)
+{ }
 
 ////////////////////////////////////////////////////////////////////////////////
 
