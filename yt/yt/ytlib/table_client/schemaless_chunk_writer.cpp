@@ -2793,10 +2793,10 @@ private:
             Logger,
             /*setUploadTxTimeout*/ true);
 
-        UploadTransaction_ = Client_->AttachTransaction(uploadTransactionId, TTransactionAttachOptions{
-            .AutoAbort = true,
-            .PingPeriod = Client_->GetNativeConnection()->GetConfig()->UploadTransactionPingPeriod,
-        });
+        TTransactionAttachOptions attachOptions = {};
+        attachOptions.AutoAbort = true;
+        attachOptions.PingPeriod = Client_->GetNativeConnection()->GetConfig()->UploadTransactionPingPeriod,
+        UploadTransaction_ = Client_->AttachTransaction(uploadTransactionId, attachOptions);
 
         StartListenTransaction(UploadTransaction_);
 

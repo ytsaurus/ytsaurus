@@ -169,7 +169,7 @@ public:
     }
 
 
-    TFuture<void> Ping(const TTransactionPingOptions& options = {}) override
+    TFuture<void> Ping(const TPrerequisitePingOptions& options = {}) override
     {
         return Transaction_->Ping(options);
     }
@@ -199,7 +199,7 @@ public:
             .Run(options, needsFlush);
     }
 
-    TFuture<void> Abort(const TTransactionAbortOptions& options = {}) override
+    TFuture<void> Abort(const TTransactionAbortOptions& options) override
     {
         auto guard = Guard(SpinLock_);
 

@@ -919,7 +919,7 @@ private:
 
         if (PrerequisiteTransaction_) {
             YT_LOG_DEBUG("Checking prerequisite transaction");
-            TTransactionPingOptions options{
+            TPrerequisitePingOptions options{
                 .EnableRetries = true
             };
             return PrerequisiteTransaction_->Ping(options);

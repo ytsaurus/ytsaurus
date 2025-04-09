@@ -83,9 +83,11 @@ private:
         for (const auto& txNode : transactions->GetChildren()) {
             auto tx = txNode->AsString();
             if (tx->Attributes().Get("cypress_transaction", false)) {
+                NApi::TTransactionAbortOptions abortOptions = {};
+                abortOptions.Force = true;
                 abortFutures.push_back(Client_
                     ->AttachTransaction(ConvertTo<TTransactionId>(tx->GetValue()))
-                    ->Abort(NApi::TTransactionAbortOptions{.Force = true}));
+                    ->Abort(abortOptions));
             }
         }
 
