@@ -1405,13 +1405,15 @@ private:
         int archiveVersion,
         NScheduler::TOperationId operationId,
         TInstant deadline,
-        const TListJobsOptions& options);
+        const TListJobsOptions& options,
+        const THashSet<TString>& attributes);
 
     TFuture<TListJobsFromControllerAgentResult> DoListJobsFromControllerAgentAsync(
         NScheduler::TOperationId operationId,
         const std::optional<TString>& controllerAgentAddress,
         TInstant deadline,
-        const TListJobsOptions& options);
+        const TListJobsOptions& options,
+        const THashSet<TString>& attributes);
 
     std::optional<TJob> DoGetJobFromArchive(
         int archiveVersion,
