@@ -247,6 +247,7 @@ DEFINE_ENUM(EMasterReign,
     ((SecondaryIndexEvaluated)                                      (2911))  // sabdenovch
     ((ResetHunkMediaOnBranchedNodes)                                (2912))  // shakurov
     ((PerChunkReplicaDataNodeRegistrationTrottling)                 (2913))  // cherepashka
+    ((MissingObjectErrorAttribute)                                  (2914))  // kvk1920
 );
 
 static_assert(TEnumTraits<EMasterReign>::IsMonotonic, "Master reign enum is not monotonic");

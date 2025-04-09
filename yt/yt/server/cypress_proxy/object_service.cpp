@@ -617,18 +617,36 @@ private:
 
         auto originError = FromProto<TError>(header.error());
 
-        auto noSuchObjectErrorMessage = Format("No such object %v", subrequest->ResolvedNodeId);
-
         auto noSuchObjectError = originError.FindMatching([&] (const TError& error) {
             if (error.GetCode() != NYTree::EErrorCode::ResolveError) {
                 return false;
             }
 
-            // TODO(kvk1920): design some way to avoid comparing full error
-            // message.
+            if (!error.HasAttributes()) {
+                return false;
+            }
 
-            return error.GetMessage() == noSuchObjectErrorMessage;
+            const auto& attributes = error.Attributes();
+            try {
+                if (auto id = attributes.Find<TObjectId>("missing_object_id")) {
+                    return *id == subrequest->ResolvedNodeId;
+                }
+            } catch (const std::exception& ex) {
+                YT_LOG_ALERT(ex, "Failed to parse resolve error attribute");
+            }
+
+            return false;
         });
+
+        // COMPAT(kvk1920): remove after 25.2.
+        if (!noSuchObjectError.has_value()) {
+            auto noSuchObjectErrorMessage = Format("No such object %v", subrequest->ResolvedNodeId);
+            noSuchObjectError = originError.FindMatching([&] (const TError& error) {
+                return
+                    error.GetCode() == NYTree::EErrorCode::ResolveError &&
+                    error.GetMessage() == noSuchObjectErrorMessage;
+            });
+        }
 
         if (!noSuchObjectError.has_value()) {
             return {};
