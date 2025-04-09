@@ -96,7 +96,6 @@ namespace NSQLComplete {
     }
 
     bool IsLikelyHintStack(const TParserCallStack& stack) {
-        DEBUG_SYMBOLIZE_STACK(stack);
         return ContainsRule(RULE(Id_hint), stack);
     }
 
