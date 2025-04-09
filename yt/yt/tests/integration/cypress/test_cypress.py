@@ -4213,6 +4213,7 @@ class TestCypress(YTEnvSetup):
         get("//tmp")
 
     @authors("h0pless")
+    @not_implemented_in_sequoia
     def test_yt24775(self):
         create("map_node", "//tmp/map_node")
         set("//tmp/map_node/@compression_codec", "lz4")
