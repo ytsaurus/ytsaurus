@@ -74,6 +74,12 @@ Y_UNIT_TEST_SUITE(SqlCompleteTests) {
         return engine->Complete(input).Candidates;
     }
 
+    TVector<TCandidate> CompleteTop(size_t limit, ISqlCompletionEngine::TPtr& engine, TCompletionInput input) {
+        auto candidates = Complete(engine, input);
+        candidates.crop(limit);
+        return candidates;
+    }
+
     Y_UNIT_TEST(Beginning) {
         TVector<TCandidate> expected = {
             {Keyword, "ALTER"},
@@ -641,13 +647,11 @@ Y_UNIT_TEST_SUITE(SqlCompleteTests) {
         auto service = MakeStaticNameService(MakeDefaultNameSet(), MakeDefaultRanking(frequency));
         auto engine = MakeSqlCompletionEngine(MakePureLexerSupplier(), std::move(service));
         {
-            TVector<TCandidate> expectedPrefix = {
+            TVector<TCandidate> expected = {
                 {PragmaName, "DefaultMemoryLimit"},
                 {PragmaName, "Annotations"},
             };
-            auto actualPrefix = Complete(engine, {"PRAGMA yt."});
-            actualPrefix.crop(expectedPrefix.size());
-            UNIT_ASSERT_VALUES_EQUAL(actualPrefix, expectedPrefix);
+            UNIT_ASSERT_VALUES_EQUAL(CompleteTop(expected.size(), engine, {"PRAGMA yt."}), expected);
         }
         {
             TVector<TCandidate> expected = {
@@ -661,7 +665,7 @@ Y_UNIT_TEST_SUITE(SqlCompleteTests) {
             UNIT_ASSERT_VALUES_EQUAL(Complete(engine, {"SELECT OPTIONAL<I"}), expected);
         }
         {
-            TVector<TCandidate> expectedPrefix = {
+            TVector<TCandidate> expected = {
                 {FunctionName, "Min("},
                 {FunctionName, "Max("},
                 {FunctionName, "MaxOf("},
@@ -671,24 +675,16 @@ Y_UNIT_TEST_SUITE(SqlCompleteTests) {
                 {FunctionName, "Math::Acos("},
                 {FunctionName, "Math::Asin("},
             };
-
-            auto actualPrefix = Complete(engine, {"SELECT m"});
-            actualPrefix.crop(expectedPrefix.size());
-
-            UNIT_ASSERT_VALUES_EQUAL(actualPrefix, expectedPrefix);
+            UNIT_ASSERT_VALUES_EQUAL(CompleteTop(expected.size(), engine, {"SELECT m"}), expected);
         }
         {
-            TVector<TCandidate> expectedPrefix = {
+            TVector<TCandidate> expected = {
                 {Keyword, "COLUMNS"},
                 {Keyword, "SCHEMA"},
                 {HintName, "XLOCK"},
                 {HintName, "UNORDERED"},
             };
-
-            auto actualPrefix = Complete(engine, {"SELECT * FROM a WITH "});
-            actualPrefix.crop(expectedPrefix.size());
-
-            UNIT_ASSERT_VALUES_EQUAL(actualPrefix, expectedPrefix);
+            UNIT_ASSERT_VALUES_EQUAL(CompleteTop(expected.size(), engine, {"SELECT * FROM a WITH "}), expected);
         }
     }
 
