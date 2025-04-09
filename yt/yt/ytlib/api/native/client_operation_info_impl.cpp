@@ -1,6 +1,7 @@
 #include "client_impl.h"
 #include "config.h"
 #include "connection.h"
+#include "helpers.h"
 #include "list_operations.h"
 #include "private.h"
 #include "rpc_helpers.h"
@@ -378,19 +379,6 @@ static THashSet<TString> MakeIgnoredArchiveAttributes(THashSet<TString> ignoredA
     return ignoredAttributes;
 }
 
-static THashSet<TString> DeduceActualAttributes(
-    const std::optional<THashSet<TString>>& originalAttributes,
-    const THashSet<TString>& requiredAttributes,
-    const THashSet<TString>& defaultAttributes,
-    const THashSet<TString>& ignoredAttributes)
-{
-    auto attributes = originalAttributes.value_or(defaultAttributes);
-    attributes.insert(requiredAttributes.begin(), requiredAttributes.end());
-    for (const auto& attribute : ignoredAttributes) {
-        attributes.erase(attribute);
-    }
-    return attributes;
-}
 
 std::optional<TOperation> TClient::DoGetOperationFromArchive(
     NScheduler::TOperationId operationId,

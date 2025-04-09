@@ -1480,7 +1480,8 @@ class YtClient(ClientState):
             job_type=None, job_state=None, address=None, job_competition_id=None, with_competitors=None,
             sort_field=None, sort_order=None, limit=None, offset=None, with_stderr=None, with_spec=None,
             with_fail_context=None, with_monitoring_descriptor=None, with_interruption_info=None,
-            include_cypress=None, include_runtime=None, include_archive=None, data_source=None, format=None):
+            include_cypress=None, include_runtime=None, include_archive=None, data_source=None, attributes=None,
+            format=None):
         """
         List jobs of operation.
         """
@@ -1492,7 +1493,7 @@ class YtClient(ClientState):
             offset=offset, with_stderr=with_stderr, with_spec=with_spec, with_fail_context=with_fail_context,
             with_monitoring_descriptor=with_monitoring_descriptor, with_interruption_info=with_interruption_info,
             include_cypress=include_cypress, include_runtime=include_runtime, include_archive=include_archive,
-            data_source=data_source, format=format)
+            data_source=data_source, attributes=attributes, format=format)
 
     def list_operations(
             self,

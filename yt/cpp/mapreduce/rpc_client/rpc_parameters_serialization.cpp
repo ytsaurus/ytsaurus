@@ -252,6 +252,14 @@ NJobTrackerClient::EJobState ToApiJobState(EJobState state)
     YT_ABORT();
 }
 
+THashSet<TString> ToApiJobAttributes(const THashSet<EJobAttribute>& attributes) {
+    THashSet<TString> result;
+    for (const auto& attribute : attributes) {
+        result.insert(ToString(attribute));
+    }
+    return result;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 // Generates a new mutation ID based on the given conditions.
@@ -650,6 +658,14 @@ NYson::TYsonString SerializeParametersForUpdateOperationParameters(const TUpdate
     return NYson::TYsonString(NodeToYsonString(result, NYson::EYsonFormat::Binary));
 }
 
+NApi::TGetJobOptions SerializeOptionsForGetJob(const TGetJobOptions& options) {
+    NApi::TGetJobOptions result;
+    if (options.AttributeFilter_) {
+        result.Attributes = ToApiJobAttributes(options.AttributeFilter_->Attributes_);
+    }
+    return result;
+}
+
 NApi::TListJobsOptions SerializeOptionsForListJobs(const TListJobsOptions& options)
 {
     NApi::TListJobsOptions result;
@@ -712,6 +728,9 @@ NApi::TListJobsOptions SerializeOptionsForListJobs(const TListJobsOptions& optio
     }
     if (options.Offset_) {
         result.Offset = *options.Offset_;
+    }
+    if (options.AttributeFilter_) {
+        result.Attributes = ToApiJobAttributes(options.AttributeFilter_->Attributes_);
     }
     return result;
 }

@@ -4,6 +4,7 @@ from .helpers import TEST_DIR, create_job_events, wait
 import yt.environment.arcadia_interop as arcadia_interop
 
 from yt.wrapper.job_shell import JobShell
+from yt.wrapper.spec_builders import VanillaSpecBuilder
 import yt.yson
 import yt.ypath
 
@@ -250,6 +251,28 @@ class TestJobCommands(object):
         job_id = job_events.wait_breakpoint()[0]
 
         assert "job_spec_ext" in yt.get_job_spec(job_id)
+
+        job_events.release_breakpoint()
+        op.wait()
+
+    @authors("bystrovserg")
+    def test_list_jobs_attributes(self, job_events):
+        command = job_events.with_breakpoint("BREAKPOINT")
+
+        task_spec = yt.TaskSpecBuilder() \
+            .job_count(1) \
+            .command(command) \
+
+        op_spec = VanillaSpecBuilder() \
+            .task("common", task_spec)
+
+        op = yt.run_operation(op_spec, sync=False)
+
+        job_events.wait_breakpoint()[0]
+
+        job_attributes = yt.list_jobs(op.id, attributes=["job_id", "start_time", "is_stale"])["jobs"][0]
+        assert len(job_attributes) == 3
+        assert frozenset(job_attributes) == frozenset(["id", "start_time", "is_stale"])
 
         job_events.release_breakpoint()
         op.wait()

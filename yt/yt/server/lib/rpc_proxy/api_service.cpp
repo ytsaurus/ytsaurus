@@ -3166,6 +3166,10 @@ private:
         if (request->has_continuation_token()) {
             options.ContinuationToken = request->continuation_token();
         }
+        if (request->has_attributes()) {
+            options.Attributes.emplace();
+            NYT::CheckedHashSetFromProto(&(*options.Attributes), request->attributes().keys());
+        }
 
         options.SortField = FromProto<EJobSortField>(request->sort_field());
         options.SortOrder = FromProto<EJobSortDirection>(request->sort_order());
@@ -3182,7 +3186,8 @@ private:
 
         context->SetRequestInfo(
             "OperationIdOrAlias: %v, Type: %v, State: %v, Address: %v, IncludeCypress: %v, "
-            "IncludeControllerAgent: %v, IncludeArchive: %v, JobCompetitionId: %v, WithCompetitors: %v, WithMonitoringDescriptor: %v, WithInterruptionInfo: %v",
+            "IncludeControllerAgent: %v, IncludeArchive: %v, JobCompetitionId: %v, WithCompetitors: %v, "
+            "WithMonitoringDescriptor: %v, WithInterruptionInfo: %v, Attributes: %v",
             operationIdOrAlias,
             options.Type,
             options.State,
@@ -3193,7 +3198,8 @@ private:
             options.JobCompetitionId,
             options.WithCompetitors,
             options.WithMonitoringDescriptor,
-            options.WithInterruptionInfo);
+            options.WithInterruptionInfo,
+            options.Attributes);
 
         ExecuteCall(
             context,

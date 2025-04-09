@@ -11,7 +11,7 @@ from yt_commands import (
 
 from yt_scheduler_helpers import scheduler_new_orchid_pool_tree_path
 
-from yt_operations_archive_helpers import get_allocation_id_from_archive
+from yt_operations_archive_helpers import get_allocation_id_from_archive, get_job_from_archive
 
 import yt_error_codes
 
@@ -517,7 +517,7 @@ class TestListJobsCommon(TestListJobsBase):
         job_ids["map"] = job_ids["completed_map"] + job_ids["failed_map"] + job_ids["aborted_map"]
         return op, job_ids
 
-    @authors("omgronny")
+    @authors("omgronny", "bystrovserg")
     @add_failed_operation_stderrs_to_error_message
     def test_list_jobs_attributes(self):
         create_pool("my_pool")
@@ -568,9 +568,19 @@ class TestListJobsCommon(TestListJobsBase):
         assert completed_map_job["pool"] == "my_pool"
         assert completed_map_job["pool_tree"] == "default"
         assert completed_map_job["job_cookie"] >= 0
+        assert "events" not in completed_map_job
+        assert "statistics" not in completed_map_job
 
         stderr_size = len(b"STDERR-OUTPUT\n")
         assert completed_map_job["stderr_size"] == stderr_size
+
+        jobs_with_extra_attributes = [job for job in checked_list_jobs(op.id, attributes=["events", "statistics"])["jobs"] if job["id"] == completed_map_job_id]
+        assert len(jobs_with_extra_attributes) == 1
+        job_with_event = jobs_with_extra_attributes[0]
+        assert "events" in job_with_event
+        assert "statistics" in job_with_event
+        assert len(job_with_event["events"]) > 0
+        assert all(field in job_with_event["events"][0] for field in ["phase", "state", "time"])
 
         aborted_map_job_list = [job for job in res["jobs"] if job["id"] == aborted_map_job_id]
         assert len(aborted_map_job_list) == 1
@@ -579,6 +589,8 @@ class TestListJobsCommon(TestListJobsBase):
         check_times(aborted_map_job)
         assert aborted_map_job["type"] == "partition_map"
         assert aborted_map_job.get("abort_reason") == "user_request"
+        assert "events" not in aborted_map_job
+        assert "statistics" not in completed_map_job
 
     @authors("omgronny")
     @pytest.mark.timeout(150)
@@ -941,7 +953,7 @@ class TestListJobs(TestListJobsCommon):
         for job in non_monitored_jobs:
             assert "monitoring_descriptor" not in job
 
-    @authors("omgronny")
+    @authors("omgronny", "bystrovserg")
     def test_list_jobs_sort_by_task_name(self):
         op = vanilla(
             track=False,
@@ -967,6 +979,12 @@ class TestListJobs(TestListJobsCommon):
         wait_breakpoint(breakpoint_name="b", job_count=1)
         wait_breakpoint(breakpoint_name="c", job_count=1)
 
+        def check_sorted_list_jobs_with_attr(attr):
+            jobs = list_jobs(op.id, sort_field="task_name", attributes=attr)["jobs"]
+            assert get_job_from_archive(op.id, jobs[0]["id"])["task_name"] == "a"
+            assert get_job_from_archive(op.id, jobs[1]["id"])["task_name"] == "b"
+            assert get_job_from_archive(op.id, jobs[2]["id"])["task_name"] == "c"
+
         def check_sorted_list_jobs():
             jobs = list_jobs(op.id, sort_field="task_name")["jobs"]
             assert jobs[0]["task_name"] == "a"
@@ -974,6 +992,8 @@ class TestListJobs(TestListJobsCommon):
             assert jobs[2]["task_name"] == "c"
 
         check_sorted_list_jobs()
+        check_sorted_list_jobs_with_attr([])
+        check_sorted_list_jobs_with_attr(["task_name"])
 
         release_breakpoint(breakpoint_name="a")
         release_breakpoint(breakpoint_name="b")
@@ -982,6 +1002,8 @@ class TestListJobs(TestListJobsCommon):
         op.track()
 
         check_sorted_list_jobs()
+        check_sorted_list_jobs_with_attr([])
+        check_sorted_list_jobs_with_attr(["task_name"])
 
     @authors("omgronny")
     def test_list_jobs_continuation_token(self):
@@ -1172,6 +1194,40 @@ class TestListJobs(TestListJobsCommon):
         assert len(jobs[0].get("address")) > 0
         assert len(jobs[0].get("addresses")) > 0
         assert jobs[0].get("addresses")["default"] == jobs[0].get("address")
+
+    @authors("bystrovserg")
+    def test_attributes_simple(self):
+        op = run_test_vanilla(
+            with_breakpoint("BREAKPOINT"),
+            job_count=1,
+        )
+        (job_id,) = wait_breakpoint()
+
+        def test_attributes(attr, expected_attr, is_optional=False):
+            wait(lambda: len(list_jobs(op.id, attributes=attr)["jobs"]) == 1)
+            jobs = list_jobs(op.id, attributes=attr)["jobs"]
+            assert len(jobs) == 1
+            if not is_optional:
+                assert len(jobs[0]) == len(expected_attr)
+            for attribute in jobs[0].keys():
+                assert attribute in expected_attr
+            if isinstance(expected_attr, dict):
+                assert all(jobs[0].get(attribute) == value for attribute, value in expected_attr.items())
+
+        # Test default attributes.
+        test_attributes([], ["id"])
+
+        test_attributes(["job_id", "type", "start_time"], ["id", "type", "start_time"])
+        test_attributes(["state"], ["id", "state", "archive_state", "controller_state"], True)
+        test_attributes(["operation_id"], {"id" : job_id, "operation_id" : op.id})
+
+        release_breakpoint()
+        op.track()
+
+        test_attributes([], ["id"])
+        test_attributes(["job_id", "type", "start_time"], ["id", "type", "start_time"])
+        test_attributes(["state"], ["id", "state", "archive_state", "controller_state"], True)
+        test_attributes(["operation_id"], {"id" : job_id, "operation_id" : op.id})
 
 
 class TestListJobsAllocation(TestListJobsBase):
