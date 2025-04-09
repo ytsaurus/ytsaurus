@@ -33,7 +33,7 @@ import itertools
 from random import randint
 from time import sleep
 
-# TODO: drop after opensource tests migration to python >= 3.12
+# COMPAT(ngc224): drop after opensource tests migration to python >= 3.12
 try:
     from typing import override
 except ImportError:
