@@ -341,7 +341,7 @@ struct TFlushFileUringRequest
     i64 IOSyncRequests = 0;
 
     void TrySetResponse() override {
-        Promise.TrySet(TFlushFileResponse{
+        Promise.TrySet({
             .IOSyncRequests = IOSyncRequests,
         });
     }
@@ -367,7 +367,7 @@ struct TWriteUringRequest
     bool SyncedFileRange = false;
 
     void TrySetResponse() override {
-        Promise.TrySet(TWriteResponse{
+        Promise.TrySet({
             .IOWriteRequests = IOWriteRequests,
             .IOSyncRequests = IOSyncRequests,
             .WrittenBytes = WrittenBytes,
@@ -398,7 +398,7 @@ struct TReadUringRequest
     { }
 
     void TrySetResponse() override {
-        Promise.TrySet(TReadResponse{
+        Promise.TrySet({
             .PaddedBytes = PaddedBytes,
             .IORequests = IORequests,
         });
@@ -1737,10 +1737,10 @@ public:
         ThreadPool_->SubmitRequests(uringRequests, category, sessionId);
 
         return AllSucceeded(std::move(futures))
-            .Apply(BIND([] (const std::vector<TWriteResponse>& subresponces) {
+            .Apply(BIND([] (const std::vector<TWriteResponse>& subresponses) {
                 TWriteResponse response;
 
-                for (const auto& subresponse: subresponces) {
+                for (const auto& subresponse : subresponses) {
                     response.WrittenBytes += subresponse.WrittenBytes;
                     response.IOWriteRequests += subresponse.IOWriteRequests;
                     response.IOSyncRequests += subresponse.IOSyncRequests;
@@ -1887,7 +1887,7 @@ private:
                     .OutputBuffers = std::move(combiner->ReleaseOutputBuffers()),
                 };
 
-                for (const auto& subresponse: subresponses) {
+                for (const auto& subresponse : subresponses) {
                     response.PaddedBytes += subresponse.PaddedBytes;
                     response.IORequests += subresponse.IORequests;
                 }
