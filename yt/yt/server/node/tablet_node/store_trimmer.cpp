@@ -73,6 +73,7 @@ public:
 
 private:
     IBootstrap* const Bootstrap_;
+    TFuture<void> TrimmerFuture_ = VoidFuture;
 
 
     void OnScanSlot(const ITabletSlotPtr& slot)
@@ -204,6 +205,13 @@ private:
             return;
         }
 
+        if (!TrimmerFuture_.IsSet()) {
+            YT_LOG_DEBUG("Skipping replication log trimming because previous iteration is not finished yet "
+                "(TabletId: %v)",
+                tablet->GetId());
+            return;
+        }
+
         auto minTimestamp = MaxTimestamp;
         auto lower = tablet->GetPivotKey().Get();
         auto upper = tablet->GetNextPivotKey().Get();
@@ -216,14 +224,16 @@ private:
             minTimestamp = std::min(minTimestamp, replicaMinTimestamp);
         }
 
-        Bootstrap_->GetTableReplicatorPoolInvoker()->Invoke(BIND(
+        TrimmerFuture_ = BIND(
             &TStoreTrimmer::FindReplicationLogTrimRowIndex,
             MakeWeak(this),
             tablet->GetId(),
             tablet->GetMountRevision(),
             tablet->GetEpochAutomatonInvoker(),
             minTimestamp,
-            slot));
+            slot)
+            .AsyncVia(Bootstrap_->GetTableReplicatorPoolInvoker())
+            .Run();
     }
 
     void FindReplicationLogTrimRowIndex(
