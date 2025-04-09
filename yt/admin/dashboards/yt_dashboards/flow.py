@@ -74,7 +74,7 @@ def build_flow_layout_mutations():
     return (Rowset()
         .stack(False)
         .row()
-            .cell("Job statuses", FlowController("yt.flow.controller.job_status.*").unit("UNIT_COUNT"))
+            .cell("Job statuses", FlowController("yt.flow.controller.job_status.*").unit("UNIT_COUNT").axis_type("YAXIS_TYPE_LOGARITHMIC"))
             .cell("Layout mutations", FlowController("yt.flow.controller.mutations.*.rate").unit("UNIT_COUNTS_PER_SECOND"))
             .cell("Job manage mutations", FlowController("yt.flow.controller.job_manager.*.rate").unit("UNIT_COUNTS_PER_SECOND"))
     ).owner
