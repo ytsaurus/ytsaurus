@@ -920,6 +920,12 @@ public: \
         const NYPath::TYPath& viewPath,
         const TGetFlowViewOptions& options),
         (pipelinePath, viewPath, options))
+    IMPLEMENT_METHOD(TFlowExecuteResult, FlowExecute, (
+        const NYPath::TYPath& pipelinePath,
+        const TString& command,
+        const NYson::TYsonString& argument,
+        const TFlowExecuteOptions& options),
+        (pipelinePath, command, argument, options))
 
     IMPLEMENT_METHOD(TShuffleHandlePtr, StartShuffle, (
         const std::string& account,

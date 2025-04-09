@@ -869,6 +869,23 @@ class YtClient(ClientState):
             client=self,
             discovery_path=discovery_path)
 
+    def flow_execute(
+            self,
+            pipeline_path, flow_command,
+            flow_argument=None, input_format=None, output_format=None):
+        """
+        Execute YT Flow specific command
+
+        :param pipeline_path: path to pipeline.
+        :param flow_command: name of the command to execute.
+        :param flow_argument: optional argument of the command.
+
+        """
+        return client_api.flow_execute(
+            pipeline_path, flow_command,
+            client=self,
+            flow_argument=flow_argument, input_format=input_format, output_format=output_format)
+
     def freeze_table(
             self,
             path,

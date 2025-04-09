@@ -111,3 +111,16 @@ message TRspStopPipeline
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+
+message TReqFlowExecute
+{
+    optional string command = 1;
+    optional bytes argument = 2 [(NYT.NYson.NProto.yson_string) = true];
+}
+
+message TRspFlowExecute
+{
+    optional bytes result = 1 [(NYT.NYson.NProto.yson_string) = true];
+}
+
+////////////////////////////////////////////////////////////////////////////////
