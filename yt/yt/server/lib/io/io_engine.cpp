@@ -39,7 +39,8 @@ using namespace NProfiling;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TInternalReadResponse {
+struct TInternalReadResponse
+{
     i64 IORequests = 0;
 };
 
@@ -226,7 +227,7 @@ TWriteResponse DoWrite(
 
     if ((syncFlush || asyncFlush) && writeResponse.WrittenBytes) {
         auto flushFileRangeResponse = DoFlushFileRange(
-            TFlushFileRangeRequest{
+            {
                 .Handle = request.Handle,
                 .Offset = request.Offset,
                 .Size = writeResponse.WrittenBytes,
@@ -482,9 +483,9 @@ TFuture<TReadResponse> IIOEngine::ReadAll(
                 ] (TReadResponse response) mutable {
                     YT_VERIFY(response.OutputBuffers.size() == 1);
                     return Close({.Handle = std::move(handle)}, category)
-                        // ignore result as Close here won't trigger sync requests
-                        .AsVoid()
-                        .Apply(BIND([response = std::move(response)] () mutable {
+                        .Apply(BIND([
+                            response = std::move(response)
+                        ] (const TCloseResponse& /*response*/) mutable {
                             return std::move(response);
                         }));
                 }));
@@ -770,7 +771,7 @@ public:
             .Apply(BIND([
                 response = std::move(response)
             ] (const std::vector<TInternalReadResponse>& subresponses) mutable {
-                for (const auto& subresponse: subresponses) {
+                for (const auto& subresponse : subresponses) {
                     response.IORequests += subresponse.IORequests;
                 }
 
@@ -822,7 +823,7 @@ public:
             .Apply(BIND([] (const std::vector<TWriteResponse>& subresponses) {
                 TWriteResponse response;
 
-                for (const auto& subresponse: subresponses) {
+                for (const auto& subresponse : subresponses) {
                     response.IOWriteRequests += subresponse.IOWriteRequests;
                     response.IOSyncRequests += subresponse.IOSyncRequests;
                     response.WrittenBytes += subresponse.WrittenBytes;
@@ -858,7 +859,7 @@ public:
             .Apply(BIND([] (const std::vector<TFlushFileRangeResponse>& subresponses) {
                 TFlushFileRangeResponse response;
 
-                for (const auto& subresponse: subresponses) {
+                for (const auto& subresponse : subresponses) {
                     response.IOSyncRequests += subresponse.IOSyncRequests;
                 }
 
@@ -1003,7 +1004,7 @@ public:
             .Apply(BIND([
                 response = std::move(response)
             ] (const std::vector<TInternalReadResponse>& subresponses) mutable {
-                for (const auto& subresponse: subresponses) {
+                for (const auto& subresponse : subresponses) {
                     response.IORequests += subresponse.IORequests;
                 }
 
@@ -1077,7 +1078,7 @@ public:
             .Apply(BIND([] (const std::vector<TWriteResponse>& subresponses) {
                 TWriteResponse response;
 
-                for (const auto& subresponse: subresponses) {
+                for (const auto& subresponse : subresponses) {
                     response.IOWriteRequests += subresponse.IOWriteRequests;
                     response.IOSyncRequests += subresponse.IOSyncRequests;
                     response.WrittenBytes += subresponse.WrittenBytes;
@@ -1155,7 +1156,7 @@ public:
             .Apply(BIND([] (const std::vector<TFlushFileRangeResponse>& subresponses) {
                 TFlushFileRangeResponse response;
 
-                for (const auto& subresponse: subresponses) {
+                for (const auto& subresponse : subresponses) {
                     response.IOSyncRequests += subresponse.IOSyncRequests;
                 }
 
