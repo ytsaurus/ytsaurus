@@ -484,7 +484,7 @@ TJobSpec TClient::FetchJobSpecFromArchive(TJobId jobId)
     };
     auto keys = FromRecordKeys(TRange(std::array{recordKey}));
 
-    auto resultOrError = WaitFor(LookupRows(
+    auto resultOrError = WaitFor(GetOperationsArchiveClient()->LookupRows(
         GetOperationsArchiveJobSpecsPath(),
         NRecords::TJobSpecDescriptor::Get()->GetNameTable(),
         keys,
@@ -534,7 +534,7 @@ TOperationId TClient::TryGetOperationId(
     };
     auto keys = FromRecordKeys(TRange(std::array{recordKey}));
 
-    auto rowsetOrError = WaitFor(LookupRows(
+    auto rowsetOrError = WaitFor(GetOperationsArchiveClient()->LookupRows(
         GetOperationsArchiveOperationIdsPath(),
         NRecords::TOperationIdDescriptor::Get()->GetNameTable(),
         keys,
@@ -1146,7 +1146,7 @@ TSharedRef TClient::DoGetJobStderrFromArchive(
         };
         auto keys = FromRecordKeys(TRange(std::array{recordKey}));
 
-        auto rowset = WaitFor(LookupRows(
+        auto rowset = WaitFor(GetOperationsArchiveClient()->LookupRows(
             GetOperationsArchiveJobStderrsPath(),
             NRecords::TJobStderrDescriptor::Get()->GetNameTable(),
             keys,
@@ -1260,7 +1260,7 @@ std::vector<TJobTraceEvent> TClient::DoGetJobTraceFromTraceEventsTable(
         builder.AddWhereConjunct(Format("event_time <= %v", *options.ToTime));
     }
 
-    auto rowset = WaitFor(SelectRows(builder.Build(), GetDefaultSelectRowsOptions(deadline)))
+    auto rowset = WaitFor(GetOperationsArchiveClient()->SelectRows(builder.Build(), GetDefaultSelectRowsOptions(deadline)))
         .ValueOrThrow()
         .Rowset;
 
@@ -1368,7 +1368,7 @@ TSharedRef TClient::DoGetJobFailContextFromArchive(
         lookupOptions.ColumnFilter = NTableClient::TColumnFilter({*idMapping.FailContext});
         lookupOptions.KeepMissingRows = true;
 
-        auto rowset = WaitFor(LookupRows(
+        auto rowset = WaitFor(GetOperationsArchiveClient()->LookupRows(
             GetOperationsArchiveJobFailContextsPath(),
             NRecords::TJobFailContextDescriptor::Get()->GetNameTable(),
             std::move(keys),
@@ -1496,7 +1496,7 @@ TFuture<TListJobsStatistics> TClient::ListJobsStatisticsFromArchiveAsync(
     builder.AddGroupByExpression("job_type");
     builder.AddGroupByExpression("node_state");
 
-    return SelectRows(builder.Build(), GetDefaultSelectRowsOptions(deadline)).Apply(BIND([=] (const TSelectRowsResult& result) {
+    return GetOperationsArchiveClient()->SelectRows(builder.Build(), GetDefaultSelectRowsOptions(deadline)).Apply(BIND([=] (const TSelectRowsResult& result) {
         TListJobsStatistics statistics;
         for (auto row : result.Rowset->GetRows()) {
             // Skip jobs that was not fully written (usually it is written only by controller).
@@ -1841,7 +1841,7 @@ TFuture<std::vector<TJob>> TClient::DoListJobsFromArchiveAsync(
         AddOrderByExpression(&builder, options);
     }
 
-    return SelectRows(builder.Build(), GetDefaultSelectRowsOptions(deadline)).Apply(BIND(
+    return GetOperationsArchiveClient()->SelectRows(builder.Build(), GetDefaultSelectRowsOptions(deadline)).Apply(BIND(
         [operationId, attributes = std::move(attributes), this_ = MakeStrong(this)] (const TSelectRowsResult& result) {
         auto idMapping = NRecords::TJobPartial::TRecordDescriptor::TIdMapping(result.Rowset->GetNameTable());
         auto records = ToRecords<NRecords::TJobPartial>(result.Rowset->GetRows(), idMapping);
@@ -2555,7 +2555,7 @@ std::optional<TJob> TClient::DoGetJobFromArchive(
     lookupOptions.KeepMissingRows = true;
     lookupOptions.Timeout = deadline - Now();
 
-    auto rowset = WaitFor(LookupRows(
+    auto rowset = WaitFor(GetOperationsArchiveClient()->LookupRows(
         GetOperationsArchiveJobsPath(),
         jobsTable,
         keys,
