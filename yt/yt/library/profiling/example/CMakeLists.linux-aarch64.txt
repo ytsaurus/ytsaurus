@@ -26,7 +26,6 @@ target_link_libraries(profiling-example PUBLIC
   linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   yutil
-  contrib-libs-tcmalloc
   library-profiling-solomon
   library-profiling-tcmalloc
   library-profiling-perf
@@ -34,6 +33,7 @@ target_link_libraries(profiling-example PUBLIC
 
 target_allocator(profiling-example
   cpp-malloc-tcmalloc
+  contrib-libs-tcmalloc
 )
 
 target_link_options(profiling-example PRIVATE
