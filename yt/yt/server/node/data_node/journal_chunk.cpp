@@ -12,6 +12,7 @@
 
 #include <yt/yt/ytlib/chunk_client/chunk_meta_extensions.h>
 #include <yt/yt/ytlib/chunk_client/chunk_reader_statistics.h>
+#include <yt/yt/ytlib/chunk_client/helpers.h>
 #include <yt/yt/ytlib/chunk_client/ref_counted_proto.h>
 
 #include <yt/yt/core/concurrency/scheduler.h>
@@ -208,10 +209,10 @@ void TJournalChunk::DoReadBlockRange(const TReadBlockRangeSessionPtr& session)
         int lastBlockIndex = session->FirstBlockIndex + session->BlockCount - 1; // inclusive
         int blockCount = session->BlockCount;
 
-        YT_LOG_DEBUG("Started reading journal chunk blocks (BlockIds: %v:%v-%v, LocationId: %v)",
+        YT_LOG_DEBUG("Started reading journal chunk blocks ("
+            "ChunkId: %v, Blocks: %v, LocationId: %v)",
             Id_,
-            firstBlockIndex,
-            lastBlockIndex,
+            FormatBlocks(firstBlockIndex, lastBlockIndex),
             Location_->GetId());
 
         TWallTimer timer;
@@ -241,11 +242,11 @@ void TJournalChunk::DoReadBlockRange(const TReadBlockRangeSessionPtr& session)
         // TODO(ngc224): propagate proper value in YT-23540
         session->Options.ChunkReaderStatistics->DataIORequests.fetch_add(1, std::memory_order::relaxed);
 
-        YT_LOG_DEBUG("Finished reading journal chunk blocks (BlockIds: %v:%v-%v, LocationId: %v, BlocksReadActually: %v, "
+        YT_LOG_DEBUG("Finished reading journal chunk blocks ("
+            "ChunkId: %v, Blocks: %v, LocationId: %v, BlocksReadActually: %v, "
             "BytesReadActually: %v, Time: %v)",
             Id_,
-            firstBlockIndex,
-            lastBlockIndex,
+            FormatBlocks(firstBlockIndex, lastBlockIndex),
             Location_->GetId(),
             blocksRead,
             bytesRead,

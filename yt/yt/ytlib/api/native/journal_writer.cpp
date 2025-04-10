@@ -1546,11 +1546,14 @@ private:
                 return;
             }
 
-            YT_LOG_DEBUG("Writing journal replica (Address: %v, BlockIds: %v:%v-%v, Rows: %v-%v, DataSize: %v, LagTime: %v)",
+            YT_LOG_DEBUG("Writing journal replica ("
+                "Address: %v, ChunkId: %v, Blocks: %v, Rows: %v-%v, "
+                "DataSize: %v, LagTime: %v)",
                 node->Descriptor.GetDefaultAddress(),
                 CurrentChunkSession_->Id,
-                node->FirstPendingBlockIndex,
-                node->FirstPendingBlockIndex + flushRowCount - 1,
+                FormatBlocks(
+                    node->FirstPendingBlockIndex,
+                    node->FirstPendingBlockIndex + flushRowCount - 1),
                 node->FirstPendingRowIndex,
                 node->FirstPendingRowIndex + flushRowCount - 1,
                 flushDataSize,
@@ -1597,12 +1600,14 @@ private:
                 writeObserver->RegisterJournalWrite(flushDataSize, response->statistics().data_bytes_written_to_medium());
             }
 
-            YT_LOG_DEBUG("Journal replica written (Address: %v, BlockIds: %v:%v-%v, Rows: %v-%v, "
+            YT_LOG_DEBUG("Journal replica written ("
+                "Address: %v, ChunkId: %v, Blocks: %v, Rows: %v-%v, "
                 "MediumWrittenBytes: %v, JournalWrittenBytes: %v)",
                 node->Descriptor.GetDefaultAddress(),
                 session->Id,
-                node->FirstPendingBlockIndex,
-                node->FirstPendingBlockIndex + flushRowCount - 1,
+                FormatBlocks(
+                    node->FirstPendingBlockIndex,
+                    node->FirstPendingBlockIndex + flushRowCount - 1),
                 node->FirstPendingRowIndex,
                 node->FirstPendingRowIndex + flushRowCount - 1,
                 response->statistics().data_bytes_written_to_medium(),

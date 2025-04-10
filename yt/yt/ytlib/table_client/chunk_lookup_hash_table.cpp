@@ -197,7 +197,7 @@ TChunkLookupHashTablePtr CreateChunkLookupHashTable(
     int lastBlockIndex = endBlockIndex - 1;
     if (lastBlockIndex > MaxBlockIndex) {
         YT_LOG_INFO("Cannot create lookup hash table because chunk has too many blocks "
-            "(ChunkId: %v, LastBlockIndex: %v)",
+            "(ChunkId: %v, LastBlock: %v)",
             chunkId,
             lastBlockIndex);
         return nullptr;
@@ -214,7 +214,7 @@ TChunkLookupHashTablePtr CreateChunkLookupHashTable(
         auto uncompressedBlock = blockCache->FindBlock(blockId, EBlockType::UncompressedData);
         if (!uncompressedBlock) {
             YT_LOG_INFO("Cannot create lookup hash table because chunk data is missing in the cache "
-                "(ChunkId: %v, BlockIndex: %v)",
+                "(ChunkId: %v, Block: %v)",
                 chunkId,
                 blockIndex);
             return nullptr;

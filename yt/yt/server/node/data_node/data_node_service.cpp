@@ -504,12 +504,11 @@ private:
         auto blocksWindowShifted = cumulativeBlockSize == 0 || cumulativeBlockSize != 0 && firstBlockIndex >= session->GetWindowSize();
 
         context->SetRequestInfo(
-            "BlockIds: %v:%v-%v, PopulateCache: %v, "
+            "ChunkId: %v, Blocks: %v, PopulateCache: %v, "
             "FlushBlocks: %v, Medium: %v, "
             "DisableSendBlocks: %v, CumulativeBlockSize: %v, BlocksWindowShifted: %v",
             chunkId,
-            firstBlockIndex,
-            lastBlockIndex,
+            FormatBlocks(firstBlockIndex, lastBlockIndex),
             populateCache,
             flushBlocks,
             location->GetMediumName(),
@@ -596,10 +595,10 @@ private:
         i64 cumulativeBlockSize = request->cumulative_block_size();
         auto targetDescriptor = FromProto<TNodeDescriptor>(request->target_descriptor());
 
-        context->SetRequestInfo("BlockIds: %v:%v-%v, CumulativeBlockSize: %v, Target: %v",
+        context->SetRequestInfo(
+            "ChunkId: %v, Blocks: %v, CumulativeBlockSize: %v, Target: %v",
             chunkId,
-            firstBlockIndex,
-            lastBlockIndex,
+            FormatBlocks(firstBlockIndex, lastBlockIndex),
             cumulativeBlockSize,
             targetDescriptor);
 
@@ -627,7 +626,7 @@ private:
         auto chunkId = FromProto<TSessionId>(request->session_id()).ChunkId;
         int blockIndex = request->block_index();
 
-        context->SetRequestInfo("BlockId: %v:%v",
+        context->SetRequestInfo("ChunkId: %v, Block: %v",
             chunkId,
             blockIndex);
 
@@ -869,9 +868,10 @@ private:
         auto blockIndexes = FromProto<std::vector<int>>(request->block_indexes());
         auto workloadDescriptor = GetRequestWorkloadDescriptor(context);
 
-        context->SetRequestInfo("BlockIds: %v:%v, Workload: %v",
+        context->SetRequestInfo("ChunkId: %v, Blocks: %v, BlockCount: %v, Workload: %v",
             chunkId,
             MakeShrunkFormattableView(blockIndexes, TDefaultFormatter(), 3),
+            blockIndexes.size(),
             workloadDescriptor);
 
         ValidateOnline();
@@ -1135,10 +1135,12 @@ private:
         bool fetchFromCache = request->fetch_from_cache();
         bool fetchFromDisk = request->fetch_from_disk();
 
-        context->SetRequestInfo("BlockIds: %v:%v, PopulateCache: %v, FetchFromCache: %v, "
+        context->SetRequestInfo(
+            "ChunkId: %v, Blocks: %v, "
+            "PopulateCache: %v, FetchFromCache: %v, "
             "FetchFromDisk: %v, Workload: %v",
             chunkId,
-            MakeShrunkFormattableView(blockIndexes, TDefaultFormatter(), 3),
+            MakeCompactIntervalView(blockIndexes),
             populateCache,
             fetchFromCache,
             fetchFromDisk,
@@ -1271,10 +1273,9 @@ private:
         bool populateCache = request->populate_cache();
 
         context->SetRequestInfo(
-            "BlockIds: %v:%v-%v, PopulateCache: %v, Workload: %v",
+            "ChunkId: %v, Blocks: %v, PopulateCache: %v, Workload: %v",
             chunkId,
-            firstBlockIndex,
-            firstBlockIndex + blockCount - 1,
+            FormatBlocks(firstBlockIndex, firstBlockIndex + blockCount - 1),
             populateCache,
             workloadDescriptor);
 

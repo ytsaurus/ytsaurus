@@ -299,27 +299,6 @@ private:
 
 DEFINE_REFCOUNTED_TYPE(TGroup)
 
-////////////////////////////////////////////////////////////////////////////////
-
-namespace {
-
-TString FormatBlocks(int startBlockIndex, int endBlockIndex)
-{
-    TStringBuilder builder;
-
-    if (startBlockIndex == endBlockIndex) {
-        builder.AppendFormat("[%v]", startBlockIndex);
-    } else {
-        builder.AppendFormat("[%v-%v]", startBlockIndex, endBlockIndex);
-    }
-
-    return builder.Flush();
-}
-
-} // anonymous namespace
-
-////////////////////////////////////////////////////////////////////////////////
-
 class TReplicationWriter
     : public IChunkWriter
 {

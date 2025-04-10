@@ -641,9 +641,9 @@ private:
                 writeBlocks.push_back(block);
             }
 
-            YT_LOG_DEBUG("Enqueuing blocks for replication (Blocks: %v-%v)",
-                currentBlockIndex,
-                currentBlockIndex + std::ssize(writeBlocks) - 1);
+            YT_LOG_DEBUG("Enqueuing blocks for replication (Blocks: %v)",
+                FormatBlocks(currentBlockIndex,
+                    currentBlockIndex + std::ssize(writeBlocks) - 1));
 
             auto writeResult = writer->WriteBlocks(writeBlocksOptions, workloadDescriptor, writeBlocks);
             if (!writeResult) {

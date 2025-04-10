@@ -126,7 +126,7 @@ private:
         auto workloadDescriptor = GetRequestWorkloadDescriptor(context);
 
         context->SetRequestInfo(
-            "BlockIds: %v:%v, Workload: %v",
+            "ChunkId: %v, Blocks: %v, Workload: %v",
             chunkId,
             MakeShrunkFormattableView(blockIndexes, TDefaultFormatter(), 3),
             workloadDescriptor);
@@ -155,9 +155,9 @@ private:
             : TReadSessionId{};
 
         context->SetRequestInfo(
-            "BlockIds: %v:%v, Workload: %v",
+            "ChunkId: %v, Blocks: %v, Workload: %v",
             chunkId,
-            MakeShrunkFormattableView(blockIndexes, TDefaultFormatter(), 3),
+            MakeCompactIntervalView(blockIndexes),
             workloadDescriptor);
 
         if (JobInputCache_->IsBlockCacheMemoryLimitExceeded()) {
@@ -205,10 +205,9 @@ private:
             : TReadSessionId{};
 
         context->SetRequestInfo(
-            "BlockIds: %v:%v-%v, Workload: %v",
+            "ChunkId: %v, Blocks: %v, Workload: %v",
             chunkId,
-            firstBlockIndex,
-            firstBlockIndex + blockCount - 1,
+            FormatBlocks(firstBlockIndex, firstBlockIndex + blockCount - 1),
             workloadDescriptor);
 
         if (JobInputCache_->IsBlockCacheMemoryLimitExceeded()) {

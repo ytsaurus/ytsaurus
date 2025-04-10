@@ -1074,4 +1074,19 @@ bool IsLargeEnoughChunkWeight(i64 chunkWeight, i64 chunkWeightThreshold)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TString FormatBlocks(int startBlockIndex, int endBlockIndex)
+{
+    TStringBuilder builder;
+
+    if (startBlockIndex == endBlockIndex) {
+        builder.AppendFormat("[%v]", startBlockIndex);
+    } else {
+        builder.AppendFormat("[%v-%v]", startBlockIndex, endBlockIndex);
+    }
+
+    return builder.Flush();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NChunkClient

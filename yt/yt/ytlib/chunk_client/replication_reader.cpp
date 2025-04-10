@@ -2365,7 +2365,7 @@ private:
                 std::memory_order::relaxed);
         }
 
-        YT_LOG_DEBUG("Fetched blocks from block cache (Count: %v, BlockIndexes: %v)",
+        YT_LOG_DEBUG("Fetched blocks from block cache (Count: %v, Blocks: %v)",
             fetchedBlockIndexes.size(),
             MakeCompactIntervalView(fetchedBlockIndexes));
     }
@@ -2474,7 +2474,8 @@ public:
         , BlockCount_(blockCount)
         , EstimatedSize_(options.EstimatedSize)
     {
-        YT_LOG_DEBUG("Will read block range (Blocks: %v)", FormatBlocks());
+        YT_LOG_DEBUG("Will read block range (Blocks: %v)",
+            FormatBlocks(FirstBlockIndex_, FirstBlockIndex_ + BlockCount_ - 1));
     }
 
     TFuture<std::vector<TBlock>> Run()
@@ -2554,7 +2555,7 @@ private:
 
         YT_LOG_DEBUG("Requesting blocks from peer (Address: %v, Blocks: %v, EstimatedSize: %v, BytesThrottled: %v)",
             peerAddress,
-            FormatBlocks(),
+            FormatBlocks(FirstBlockIndex_, FirstBlockIndex_ + BlockCount_ - 1),
             EstimatedSize_,
             BytesThrottled_);
 
@@ -2656,10 +2657,9 @@ private:
             }
         }
 
-        YT_LOG_DEBUG("Finished processing block response (Address: %v, BlocksReceived: %v-%v, BytesReceived: %v)",
+        YT_LOG_DEBUG("Finished processing block response (Address: %v, BlocksReceived: %v, BytesReceived: %v)",
             peerAddress,
-            FirstBlockIndex_,
-            FirstBlockIndex_ + blocksReceived - 1,
+            FormatBlocks(FirstBlockIndex_, FirstBlockIndex_ + blocksReceived - 1),
             bytesReceived);
 
         if (ShouldThrottle(peerAddress, TotalBytesReceived_ > BytesThrottled_)) {
@@ -2679,7 +2679,8 @@ private:
 
     void OnSessionSucceeded()
     {
-        YT_LOG_DEBUG("Some blocks are fetched (Blocks: %v)", FormatBlocks());
+        YT_LOG_DEBUG("Some blocks are fetched (Blocks: %v)",
+            FormatBlocks(FirstBlockIndex_, FirstBlockIndex_ + BlockCount_ - 1));
 
         AccountExtraMediumBandwidth(BytesThrottled_);
 
@@ -2715,21 +2716,6 @@ private:
             << error;
         TSessionBase::OnCanceled(wrappedError);
         Promise_.TrySet(wrappedError);
-    }
-
-    TString FormatBlocks() const
-    {
-        TStringBuilder builder;
-
-        if (BlockCount_ == 1) {
-            builder.AppendFormat("[%v]", FirstBlockIndex_);
-        } else {
-            builder.AppendFormat("[%v-%v]",
-                FirstBlockIndex_,
-                FirstBlockIndex_ + BlockCount_ - 1);
-        }
-
-        return builder.Flush();
     }
 };
 
@@ -3818,11 +3804,10 @@ private:
         YT_ASSERT_SPINLOCK_AFFINITY(Lock_);
 
         YT_LOG_DEBUG(
-            "Start new batch request (Address: %v, RequestType: %v, BlockIds: %v, BlockCount: %v)",
+            "Start new batch request (Address: %v, RequestType: %v, Blocks: %v)",
             request.Address,
             GetRequestLogName<TResponse>(),
-            MakeShrunkFormattableView(request.BlockIndexes, TDefaultFormatter(), 3),
-            request.BlockIndexes.size());
+            MakeCompactIntervalView(request.BlockIndexes));
 
         auto batch = BuildRequestBatch<TResponse>(request);
 
@@ -3845,11 +3830,10 @@ private:
         YT_ASSERT_SPINLOCK_AFFINITY(Lock_);
 
         YT_LOG_DEBUG(
-            "Add blocks to next batch request (Address: %v, RequestType: %v, BlockIds: %v, BlockCount: %v)",
+            "Add blocks to next batch request (Address: %v, RequestType: %v, Blocks: %v)",
             request.Address,
             GetRequestLogName<TResponse>(),
-            MakeShrunkFormattableView(request.BlockIndexes, TDefaultFormatter(), 3),
-            request.BlockIndexes.size());
+            MakeCompactIntervalView(request.BlockIndexes));
 
         nextBatch.Channel = request.Channel;
         nextBatch.Session = request.Session;
@@ -3894,11 +3878,10 @@ private:
             auto& nextBatch = state.Current;
 
             YT_LOG_DEBUG(
-                "Start next batch request (Address: %v, RequestType: %v, BlockIds: %v, BlockCount: %v, RequestCount: %v)",
+                "Start next batch request (Address: %v, RequestType: %v, Blocks: %v, RequestCount: %v)",
                 address,
                 GetRequestLogName<TResponse>(),
-                MakeShrunkFormattableView(nextBatch.BlockIds, TDefaultFormatter(), 3),
-                nextBatch.BlockIds.size(),
+                MakeCompactIntervalView(nextBatch.BlockIds),
                 nextBatch.RequestCount);
 
             auto requestFuture = ExecuteBatchRequest(nextBatch);

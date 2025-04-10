@@ -432,7 +432,7 @@ std::vector<TP2PSuggestion> TP2PSnooper::OnBlockRead(
             }
 
             if (blockPeers.empty()) {
-                YT_LOG_DEBUG("Failed to allocate block peers (ChunkId: %v, BlockIndex: %v)", chunk->GetKey(), blockIndex);
+                YT_LOG_DEBUG("Failed to allocate block peers (ChunkId: %v, Block: %v)", chunk->GetKey(), blockIndex);
                 continue;
             }
 
@@ -694,9 +694,14 @@ void TP2PDistributor::DistributeBlocks()
                     req->add_block_indexes(block.BlockIndex);
                 }
 
-                YT_LOG_DEBUG("Sending blocks (BlockIds: %v:%v, Size: %v, Destination: %v)",
+                YT_LOG_DEBUG("Sending blocks ("
+                    "ChunkId: %v, "
+                    "Blocks: %v, "
+                    "BlockCount: %v, "
+                    "Size: %v, Destination: %v)",
                     chunkId,
                     MakeShrunkFormattableView(blockIndexes, TDefaultFormatter(), 3),
+                    blockIndexes.size(),
                     blockSize,
                     destinationAddress);
             }

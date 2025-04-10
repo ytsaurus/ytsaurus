@@ -14,6 +14,7 @@
 #include <yt/yt/ytlib/chunk_client/block_cache.h>
 #include <yt/yt/ytlib/chunk_client/chunk_meta_extensions.h>
 #include <yt/yt/ytlib/chunk_client/chunk_reader_statistics.h>
+#include <yt/yt/ytlib/chunk_client/helpers.h>
 
 #include <yt/yt/ytlib/misc/memory_usage_tracker.h>
 
@@ -399,7 +400,7 @@ void TBlobChunkBase::OnBlocksExtLoaded(
         entry.BeginOffset = blockInfo.Offset;
         entry.EndOffset = blockInfo.Offset + blockInfo.Size;
 
-        YT_LOG_TRACE("Block entry (EntryIndex: %v, BlockIndex: %v, Cached: %v, BeginOffset: %v, EndOffset: %v)",
+        YT_LOG_TRACE("Block entry (EntryIndex: %v, Block: %v, Cached: %v, BeginOffset: %v, EndOffset: %v)",
             entryIndex,
             entry.BlockIndex,
             entry.Cached,
@@ -567,7 +568,7 @@ void TBlobChunkBase::DoReadBlockSet(const TReadBlockSetSessionPtr& session)
     int firstBlockIndex = session->Entries[beginEntryIndex].BlockIndex;
     const TReadBlockSetSession::TBlockEntry* previousEntry = &session->Entries[beginEntryIndex];
 
-    YT_LOG_TRACE("Starting run at block (EntryIndex: %v, BlockIndex: %v)",
+    YT_LOG_TRACE("Starting run at block (EntryIndex: %v, Block: %v)",
         beginEntryIndex,
         firstBlockIndex);
 
@@ -590,18 +591,20 @@ void TBlobChunkBase::DoReadBlockSet(const TReadBlockSetSessionPtr& session)
         YT_VERIFY(readGapSize >= 0);
 
         if (readGapSize > Location_->GetCoalescedReadMaxGapSize()) {
-            YT_LOG_TRACE("Stopping run due to large gap (GapBlockIndexes: %v-%v, GapBlockOffsets: [%v,%v), GapBlockCount: %v, GapSize: %v)",
-                previousEntry->BlockIndex + 1,
-                entry.BlockIndex - 1,
+            YT_LOG_TRACE("Stopping run due to large gap ("
+                "GapBlocks: %v, GapBlockOffsets: [%v,%v), "
+                "GapBlockCount: %v, GapSize: %v)",
+                FormatBlocks(previousEntry->BlockIndex + 1, entry.BlockIndex + 1),
                 previousEntry->EndOffset,
                 entry.BeginOffset,
                 entry.BlockIndex - previousEntry->BlockIndex - 1,
                 readGapSize);
             break;
         } else if (readGapSize > 0) {
-            YT_LOG_TRACE("Coalesced read gap (GapBlockIndexes: %v-%v, GapBlockOffsets: [%v,%v), GapBlockCount: %v, GapSize: %v)",
-                previousEntry->BlockIndex + 1,
-                entry.BlockIndex,
+            YT_LOG_TRACE("Coalesced read gap ("
+                "GapBlocks: %v, GapBlockOffsets: [%v,%v), "
+                "GapBlockCount: %v, GapSize: %v)",
+                FormatBlocks(previousEntry->BlockIndex + 1, entry.BlockIndex),
                 previousEntry->EndOffset,
                 entry.BeginOffset,
                 entry.BlockIndex - previousEntry->BlockIndex - 1,
@@ -724,14 +727,13 @@ void TBlobChunkBase::DoReadBlockSet(const TReadBlockSetSessionPtr& session)
         session->LocationMemoryGuard.IncreaseSize(additionalMemory);
     }
 
-    YT_LOG_DEBUG(
-        "Started reading blob chunk blocks (BlockIds: %v:%v-%v, "
+    YT_LOG_DEBUG("Started reading blob chunk blocks ("
+        "ChunkId: %v, Blocks: %v, "
         "LocationId: %v, WorkloadDescriptor: %v, "
         "ReadSessionId: %v, GapBlockCount: %v, "
         "LeftBorder: %v, RightBorder: %v, Size: %v)",
         Id_,
-        firstBlockIndex,
-        previousEntry->BlockIndex,
+        FormatBlocks(firstBlockIndex, previousEntry->BlockIndex),
         Location_->GetId(),
         session->Options.WorkloadDescriptor,
         session->Options.ReadSessionId,
@@ -852,12 +854,12 @@ void TBlobChunkBase::OnBlocksRead(
     auto gapBlockCount = blocksToRead - usefulBlockCount;
     auto gapBlockSize = bytesRead - usefulBlockSize;
 
-    YT_LOG_DEBUG("Finished reading blob chunk blocks (BlockIds: %v:%v-%v, LocationId: %v, BytesRead: %v, "
+    YT_LOG_DEBUG("Finished reading blob chunk blocks ("
+        "ChunkId: %v, Blocks: %v, LocationId: %v, BytesRead: %v, "
         "ReadTime: %v, UsefulBlockSize: %v, UsefulBlockCount: %v, PopulateCacheTime: %v, ReadSessionId: %v, "
         "GapBlockSize: %v, GapBlockCount: %v)",
         Id_,
-        firstBlockIndex,
-        firstBlockIndex + blocksToRead - 1,
+        FormatBlocks(firstBlockIndex, firstBlockIndex + blocksToRead - 1),
         Location_->GetId(),
         bytesRead,
         readTime,
