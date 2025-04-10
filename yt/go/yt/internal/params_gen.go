@@ -5681,3 +5681,63 @@ func (p *GetInSyncReplicasParams) MarshalHTTP(w *yson.Writer) {
 	w.Any(p.ts)
 	writeGetInSyncReplicasOptions(w, p.options)
 }
+
+func writeExecuteBatchOptions(w *yson.Writer, o *ExecuteBatchOptions) {
+	if o == nil {
+		return
+	}
+	if o.Concurrency != nil {
+		w.MapKeyString("concurrency")
+		w.Any(o.Concurrency)
+	}
+	writeMutatingOptions(w, o.MutatingOptions)
+}
+
+type ExecuteBatchParams struct {
+	verb     Verb
+	requests []BatchSubrequest
+	options  *ExecuteBatchOptions
+}
+
+func NewExecuteBatchParams(
+	requests []BatchSubrequest,
+	options *ExecuteBatchOptions,
+) *ExecuteBatchParams {
+	if options == nil {
+		options = &ExecuteBatchOptions{}
+	}
+	optionsCopy := *options
+	return &ExecuteBatchParams{
+		Verb("execute_batch"),
+		requests,
+		&optionsCopy,
+	}
+}
+
+func (p *ExecuteBatchParams) HTTPVerb() Verb {
+	return p.verb
+}
+func (p *ExecuteBatchParams) YPath() (ypath.YPath, bool) {
+	return nil, false
+}
+func (p *ExecuteBatchParams) Log() []log.Field {
+	fields := []log.Field{
+		log.Any("requests", p.requests),
+	}
+	if v, ok := any(p.options).(interface {
+		Log() []log.Field
+	}); ok {
+		fields = append(fields, v.Log()...)
+	}
+	return fields
+}
+
+func (p *ExecuteBatchParams) MarshalHTTP(w *yson.Writer) {
+	w.MapKeyString("requests")
+	w.Any(p.requests)
+	writeExecuteBatchOptions(w, p.options)
+}
+
+func (p *ExecuteBatchParams) MutatingOptions() **yt.MutatingOptions {
+	return &p.options.MutatingOptions
+}

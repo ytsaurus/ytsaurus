@@ -2315,3 +2315,8 @@ func (e *Encoder) AlterQuery(
 	err = xerrors.New("method AlterQuery is not implemented")
 	return
 }
+
+func (e *Encoder) NewBatchRequest() (req yt.BatchRequest, err error) {
+	err = xerrors.New("method NewBatchRequest is not implemented")
+	return
+}

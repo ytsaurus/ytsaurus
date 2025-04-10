@@ -2,9 +2,9 @@ package internal
 
 type resultDecoder func(res *CallResult) error
 type valueResultDecoder[T any] func(value T) resultDecoder
-type anyValueResultDecoder = valueResultDecoder[any]
+type AnyValueResultDecoder = valueResultDecoder[any]
 
-func newSingleValueResultDecoder(key string) anyValueResultDecoder {
+func newSingleValueResultDecoder(key string) AnyValueResultDecoder {
 	return func(value any) resultDecoder {
 		return func(res *CallResult) error {
 			return res.decodeSingle(key, value)
@@ -12,7 +12,7 @@ func newSingleValueResultDecoder(key string) anyValueResultDecoder {
 	}
 }
 
-func newValueResultDecoder() anyValueResultDecoder {
+func newValueResultDecoder() AnyValueResultDecoder {
 	return func(value any) resultDecoder {
 		return func(res *CallResult) error {
 			return res.decode(value)
@@ -20,7 +20,7 @@ func newValueResultDecoder() anyValueResultDecoder {
 	}
 }
 
-func newJSONValueResultDecoder() anyValueResultDecoder {
+func newJSONValueResultDecoder() AnyValueResultDecoder {
 	return func(value any) resultDecoder {
 		return func(res *CallResult) error {
 			return res.decodeJSON(value)
@@ -39,44 +39,44 @@ func newRawValueResultDecoder() valueResultDecoder[*[]byte] {
 
 var (
 	noopResultDecoder         resultDecoder         = func(res *CallResult) error { return nil }
-	CreateNodeResultDecoder   anyValueResultDecoder = newSingleValueResultDecoder("node_id")
-	CreateObjectResultDecoder anyValueResultDecoder = newSingleValueResultDecoder("object_id")
-	NodeExistsResultDecoder   anyValueResultDecoder = newSingleValueResultDecoder("value")
-	GetNodeResultDecoder      anyValueResultDecoder = newSingleValueResultDecoder("value")
-	ListNodeResultDecoder     anyValueResultDecoder = newSingleValueResultDecoder("value")
-	CopyMoveNodeResultDecoder anyValueResultDecoder = newSingleValueResultDecoder("node_id")
-	LinkNodeResultDecoder     anyValueResultDecoder = newSingleValueResultDecoder("node_id")
-	LockNodeResultDecoder     anyValueResultDecoder = newValueResultDecoder()
+	CreateNodeResultDecoder   AnyValueResultDecoder = newSingleValueResultDecoder("node_id")
+	CreateObjectResultDecoder AnyValueResultDecoder = newSingleValueResultDecoder("object_id")
+	NodeExistsResultDecoder   AnyValueResultDecoder = newSingleValueResultDecoder("value")
+	GetNodeResultDecoder      AnyValueResultDecoder = newSingleValueResultDecoder("value")
+	ListNodeResultDecoder     AnyValueResultDecoder = newSingleValueResultDecoder("value")
+	CopyMoveNodeResultDecoder AnyValueResultDecoder = newSingleValueResultDecoder("node_id")
+	LinkNodeResultDecoder     AnyValueResultDecoder = newSingleValueResultDecoder("node_id")
+	LockNodeResultDecoder     AnyValueResultDecoder = newValueResultDecoder()
 	// The whoami method returns JSON value, not YSON, so we need to specify the decoding.
-	WhoAmIResultDecoder                     anyValueResultDecoder       = newJSONValueResultDecoder()
-	IssueTokenResultDecoder                 anyValueResultDecoder       = newValueResultDecoder()
-	ListUserTokensResultDecoder             anyValueResultDecoder       = newValueResultDecoder()
-	BuildMasterSnapshotsResultDecoder       anyValueResultDecoder       = newValueResultDecoder()
-	BuildSnapshotResultDecoder              anyValueResultDecoder       = newValueResultDecoder()
-	AddMaintenanceResultDecoder             anyValueResultDecoder       = newValueResultDecoder()
-	RemoveMaintenanceResultDecoder          anyValueResultDecoder       = newValueResultDecoder()
-	CheckPermissionResultDecoder            anyValueResultDecoder       = newValueResultDecoder()
-	StartTxResultDecoder                    anyValueResultDecoder       = newSingleValueResultDecoder("transaction_id")
-	StartTabletTxResultDecoder              anyValueResultDecoder       = newSingleValueResultDecoder("transaction_id")
-	StartOperationResultDecoder             anyValueResultDecoder       = newSingleValueResultDecoder("operation_id")
-	GetOperationResultDecoder               anyValueResultDecoder       = newValueResultDecoder()
-	GetOperationByAliasResultDecoder        anyValueResultDecoder       = newValueResultDecoder()
-	ListOperationsResultDecoder             anyValueResultDecoder       = newValueResultDecoder()
-	ListJobsResultDecoder                   anyValueResultDecoder       = newValueResultDecoder()
+	WhoAmIResultDecoder                     AnyValueResultDecoder       = newJSONValueResultDecoder()
+	IssueTokenResultDecoder                 AnyValueResultDecoder       = newValueResultDecoder()
+	ListUserTokensResultDecoder             AnyValueResultDecoder       = newValueResultDecoder()
+	BuildMasterSnapshotsResultDecoder       AnyValueResultDecoder       = newValueResultDecoder()
+	BuildSnapshotResultDecoder              AnyValueResultDecoder       = newValueResultDecoder()
+	AddMaintenanceResultDecoder             AnyValueResultDecoder       = newValueResultDecoder()
+	RemoveMaintenanceResultDecoder          AnyValueResultDecoder       = newValueResultDecoder()
+	CheckPermissionResultDecoder            AnyValueResultDecoder       = newValueResultDecoder()
+	StartTxResultDecoder                    AnyValueResultDecoder       = newSingleValueResultDecoder("transaction_id")
+	StartTabletTxResultDecoder              AnyValueResultDecoder       = newSingleValueResultDecoder("transaction_id")
+	StartOperationResultDecoder             AnyValueResultDecoder       = newSingleValueResultDecoder("operation_id")
+	GetOperationResultDecoder               AnyValueResultDecoder       = newValueResultDecoder()
+	GetOperationByAliasResultDecoder        AnyValueResultDecoder       = newValueResultDecoder()
+	ListOperationsResultDecoder             AnyValueResultDecoder       = newValueResultDecoder()
+	ListJobsResultDecoder                   AnyValueResultDecoder       = newValueResultDecoder()
 	GetJobStderrResultDecoder               valueResultDecoder[*[]byte] = newRawValueResultDecoder()
-	PutFileToCacheResultDecoder             anyValueResultDecoder       = newValueResultDecoder()
-	GetFileFromCacheResultDecoder           anyValueResultDecoder       = newValueResultDecoder()
-	PushQueueProducerResultDecoder          anyValueResultDecoder       = newValueResultDecoder()
-	PushQueueProducerBatchResultDecoder     anyValueResultDecoder       = newValueResultDecoder()
-	CreateQueueProducerSessionResultDecoder anyValueResultDecoder       = newValueResultDecoder()
-	DisableChunkLocationsResultDecoder      anyValueResultDecoder       = newValueResultDecoder()
-	DestroyChunkLocationsResultDecoder      anyValueResultDecoder       = newValueResultDecoder()
-	ResurrectChunkLocationsResultDecoder    anyValueResultDecoder       = newValueResultDecoder()
-	LocateSkynetShareResultDecoder          anyValueResultDecoder       = newValueResultDecoder()
-	GenerateTimestampResultDecoder          anyValueResultDecoder       = newSingleValueResultDecoder("timestamp")
-	GetInSyncReplicasResultDecoder          anyValueResultDecoder       = newValueResultDecoder()
-	StartQueryResultDecoder                 anyValueResultDecoder       = newSingleValueResultDecoder("query_id")
-	GetQueryResultDecoder                   anyValueResultDecoder       = newValueResultDecoder()
-	ListQueriesResultDecoder                anyValueResultDecoder       = newValueResultDecoder()
-	GetQueryResultQueryResultDecoder        anyValueResultDecoder       = newValueResultDecoder()
+	PutFileToCacheResultDecoder             AnyValueResultDecoder       = newValueResultDecoder()
+	GetFileFromCacheResultDecoder           AnyValueResultDecoder       = newValueResultDecoder()
+	PushQueueProducerResultDecoder          AnyValueResultDecoder       = newValueResultDecoder()
+	PushQueueProducerBatchResultDecoder     AnyValueResultDecoder       = newValueResultDecoder()
+	CreateQueueProducerSessionResultDecoder AnyValueResultDecoder       = newValueResultDecoder()
+	DisableChunkLocationsResultDecoder      AnyValueResultDecoder       = newValueResultDecoder()
+	DestroyChunkLocationsResultDecoder      AnyValueResultDecoder       = newValueResultDecoder()
+	ResurrectChunkLocationsResultDecoder    AnyValueResultDecoder       = newValueResultDecoder()
+	LocateSkynetShareResultDecoder          AnyValueResultDecoder       = newValueResultDecoder()
+	GenerateTimestampResultDecoder          AnyValueResultDecoder       = newSingleValueResultDecoder("timestamp")
+	GetInSyncReplicasResultDecoder          AnyValueResultDecoder       = newValueResultDecoder()
+	StartQueryResultDecoder                 AnyValueResultDecoder       = newSingleValueResultDecoder("query_id")
+	GetQueryResultDecoder                   AnyValueResultDecoder       = newValueResultDecoder()
+	ListQueriesResultDecoder                AnyValueResultDecoder       = newValueResultDecoder()
+	GetQueryResultQueryResultDecoder        AnyValueResultDecoder       = newValueResultDecoder()
 )
