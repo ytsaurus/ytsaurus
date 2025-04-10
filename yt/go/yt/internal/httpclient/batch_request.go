@@ -5,9 +5,8 @@ import (
 	"context"
 	"sync"
 
-	"github.com/ydb-platform/fq-connector-go/library/go/ptr"
-
 	"go.ytsaurus.tech/library/go/core/xerrors"
+	"go.ytsaurus.tech/library/go/ptr"
 	"go.ytsaurus.tech/yt/go/ypath"
 	"go.ytsaurus.tech/yt/go/yson"
 	"go.ytsaurus.tech/yt/go/yt"
