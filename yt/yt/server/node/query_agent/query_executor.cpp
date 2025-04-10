@@ -1147,7 +1147,7 @@ private:
 
                 int partitionIndex = static_cast<int>(partitionIt - partitions.begin());
 
-                TRange<TLegacyKey> paritionSampleKeys = (*partitionIt)->SampleKeys->Keys;
+                TRange<TLegacyKey> partitionSampleKeys = (*partitionIt)->SampleKeys->Keys;
 
                 // Alternatively can group items by original sample ranges with weight 1 and concat them afterwise.
                 // It does not make difference because of original ranges width.
@@ -1156,7 +1156,7 @@ private:
                 if (QueryOptions_.MergeVersionedRows) {
                     weights.push_back(1);
 
-                    for (auto key : paritionSampleKeys) {
+                    for (auto key : partitionSampleKeys) {
                         sampleKeyPrefixes.push_back(ToKeyRef(key));
                         weights.push_back(1);
                     }
@@ -1173,14 +1173,14 @@ private:
                         YT_LOG_DEBUG("Preparing sample key prefixes (PartitionIndex: %v, KeyWidth: %v, SamplesInPartition: %v)",
                             partitionIndex,
                             keyWidth,
-                            std::ssize(paritionSampleKeys));
+                            std::ssize(partitionSampleKeys));
                     }
 
-                    auto maxKeyWidth = paritionSampleKeys.Empty() ? keyWidth : paritionSampleKeys.Front().GetCount();
+                    auto maxKeyWidth = partitionSampleKeys.Empty() ? keyWidth : partitionSampleKeys.Front().GetCount();
 
                     auto optimalKeyWidth = ExponentialSearch(keyWidth, maxKeyWidth, [&] (size_t keyWidth) {
                         std::tie(sampleKeyPrefixes, weights) = GetSampleKeysForPrefix(
-                            paritionSampleKeys,
+                            partitionSampleKeys,
                             keyWidth,
                             (*partitionIt)->PivotKey);
 
@@ -1198,11 +1198,11 @@ private:
                         }
 
                         // Stop when maxWeight is less than square root of sample key count per parittion.
-                        return maxWeight * maxWeight > std::ssize(paritionSampleKeys);
+                        return maxWeight * maxWeight > std::ssize(partitionSampleKeys);
                     });
 
                     std::tie(sampleKeyPrefixes, weights) = GetSampleKeysForPrefix(
-                        paritionSampleKeys,
+                        partitionSampleKeys,
                         optimalKeyWidth,
                         (*partitionIt)->PivotKey);
 
@@ -1219,7 +1219,7 @@ private:
                     rowCountInPartition += store->GetRowCount();
                 }
 
-                ui64 rowCountPerSampleRange = std::max<ui64>(rowCountInPartition / (paritionSampleKeys.size() + 1), 1);
+                ui64 rowCountPerSampleRange = std::max<ui64>(rowCountInPartition / (partitionSampleKeys.size() + 1), 1);
                 YT_VERIFY(rowCountPerSampleRange > 0);
 
                 if (QueryOptions_.VerboseLogging) {
