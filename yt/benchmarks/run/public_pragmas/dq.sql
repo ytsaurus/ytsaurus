@@ -2,7 +2,6 @@ pragma AnsiInForEmptyOrNullableItemsCollections;
 pragma AnsiOptionalAs;
 pragma CompactGroupBy;
 pragma TablePathPrefix = "home/tpcds/3Tb";
-pragma config.flags("OptimizerFlags", "FieldSubsetEnableMultiusage");
 pragma yt.AutoMerge = "disabled";
 pragma yt.DataSizePerJob = "16M";
 pragma yt.DataSizePerMapJob = "24M";
