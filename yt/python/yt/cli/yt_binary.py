@@ -2083,6 +2083,7 @@ def add_list_jobs_parser(add_parser):
         "--data-source",
         choices=("auto", "runtime", "archive", "manual"),
         help='data sources to list jobs from')
+    parser.add_argument("--attribute", action="append", dest="attributes", help="desired attributes in the response")
     add_structured_format_argument(parser)
 
 

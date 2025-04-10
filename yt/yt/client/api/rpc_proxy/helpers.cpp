@@ -1023,6 +1023,12 @@ void ToProto(NProto::TJob* protoJob, const NApi::TJob& job)
     if (job.AllocationId) {
         ToProto(protoJob->mutable_allocation_id(), *job.AllocationId);
     }
+    if (job.Events) {
+        protoJob->set_events(job.Events.ToString());
+    }
+    if (job.Statistics) {
+        protoJob->set_statistics(job.Statistics.ToString());
+    }
 }
 
 void FromProto(NApi::TJob* job, const NProto::TJob& protoJob)
@@ -1089,8 +1095,6 @@ void FromProto(NApi::TJob* job, const NProto::TJob& protoJob)
     }
     if (protoJob.has_has_spec()) {
         job->HasSpec = protoJob.has_spec();
-    } else {
-        job->HasSpec = false;
     }
     if (protoJob.has_error()) {
         job->Error = TYsonString(protoJob.error());
@@ -1129,13 +1133,9 @@ void FromProto(NApi::TJob* job, const NProto::TJob& protoJob)
     }
     if (protoJob.has_has_competitors()) {
         job->HasCompetitors = protoJob.has_competitors();
-    } else {
-        job->HasCompetitors = false;
     }
     if (protoJob.has_has_probing_competitors()) {
         job->HasProbingCompetitors = protoJob.has_probing_competitors();
-    } else {
-        job->HasProbingCompetitors = false;
     }
     if (protoJob.has_is_stale()) {
         job->IsStale = protoJob.is_stale();
@@ -1167,6 +1167,11 @@ void FromProto(NApi::TJob* job, const NProto::TJob& protoJob)
     } else {
         job->JobCookie.reset();
     }
+    if (protoJob.has_events()) {
+        job->Events = TYsonString(protoJob.events());
+    } else {
+        job->Events = TYsonString();
+    }
     if (protoJob.has_archive_features()) {
         job->ArchiveFeatures = TYsonString(protoJob.archive_features());
     } else {
@@ -1186,6 +1191,11 @@ void FromProto(NApi::TJob* job, const NProto::TJob& protoJob)
         job->AllocationId = NScheduler::TAllocationId(FromProto<TGuid>(protoJob.allocation_id()));
     } else {
         job->AllocationId = {};
+    }
+    if (protoJob.has_statistics()) {
+        job->Statistics = TYsonString(protoJob.statistics());
+    } else {
+        job->Statistics = TYsonString();
     }
 }
 

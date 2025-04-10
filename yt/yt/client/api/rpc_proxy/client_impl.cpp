@@ -1539,6 +1539,9 @@ TFuture<TListJobsResult> TClient::ListJobs(
     if (options.ContinuationToken) {
         req->set_continuation_token(*options.ContinuationToken);
     }
+    if (options.Attributes) {
+        ToProto(req->mutable_attributes()->mutable_keys(), *options.Attributes);
+    }
 
     req->set_sort_field(static_cast<NProto::EJobSortField>(options.SortField));
     req->set_sort_order(static_cast<NProto::EJobSortDirection>(options.SortOrder));

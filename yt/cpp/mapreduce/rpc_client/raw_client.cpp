@@ -513,11 +513,12 @@ void TRpcRawClient::UpdateOperationParameters(
 NYson::TYsonString TRpcRawClient::GetJob(
     const TOperationId& operationId,
     const TJobId& jobId,
-    const TGetJobOptions& /*options*/)
+    const TGetJobOptions& options)
 {
     auto future = Client_->GetJob(
         NScheduler::TOperationId(YtGuidFromUtilGuid(operationId)),
-        NJobTrackerClient::TJobId(YtGuidFromUtilGuid(jobId)));
+        NJobTrackerClient::TJobId(YtGuidFromUtilGuid(jobId)),
+        SerializeOptionsForGetJob(options));
     auto result = WaitFor(future).ValueOrThrow();
     return result;
 }

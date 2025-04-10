@@ -107,6 +107,8 @@ NApi::TListOperationsOptions SerializeOptionsForListOperations(const TListOperat
 
 NYson::TYsonString SerializeParametersForUpdateOperationParameters(const TUpdateOperationParametersOptions& options);
 
+NApi::TGetJobOptions SerializeOptionsForGetJob(const TGetJobOptions& options);
+
 NApi::TListJobsOptions SerializeOptionsForListJobs(const TListJobsOptions& options);
 
 NApi::TGetJobTraceOptions SerializeOptionsForGetJobTrace(const TGetJobTraceOptions& options);
