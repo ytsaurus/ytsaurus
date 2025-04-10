@@ -1092,6 +1092,18 @@ func (e *Encoder) AlterQuery(
 	return
 }
 
+func (e *Encoder) ExecuteBatch(
+	ctx context.Context,
+	requests []BatchSubrequest,
+	options *ExecuteBatchOptions,
+) (results []BatchSubrequestResult, err error) {
+	call := e.newCall(NewExecuteBatchParams(requests, options))
+	err = e.do(ctx, call, func(res *CallResult) error {
+		return res.decodeSingle("results", &results)
+	})
+	return
+}
+
 func encodeSHA256(input string) string {
 	return fmt.Sprintf("%x", sha256.Sum256([]byte(input)))
 }

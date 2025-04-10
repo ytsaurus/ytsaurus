@@ -46,7 +46,15 @@ func parseOptions(typeSpec *ast.TypeSpec) (option *optionsType, err error) {
 	option.name = typeSpec.Name.Name
 	for _, field := range structType.Fields.List {
 		if star, ok := field.Type.(*ast.StarExpr); ok && len(field.Names) == 0 {
-			option.embedded = append(option.embedded, star.X.(*ast.Ident).Name)
+			switch x := star.X.(type) {
+			case *ast.Ident:
+				option.embedded = append(option.embedded, x.Name)
+			case *ast.SelectorExpr:
+				option.embedded = append(option.embedded, fmt.Sprintf("%s.%s", x.X.(*ast.Ident).Name, x.Sel.Name))
+			default:
+				err = errorf(field.Pos(), "unexpected embedded field type %T", x)
+				return
+			}
 		} else {
 			var f optionField
 			f.fieldName = field.Names[0].Name
@@ -118,7 +126,7 @@ const (
 	methodTagHTTPExtra  = "http:extra"
 )
 
-func parseClient(typeSpec *ast.TypeSpec) (c *interfaceType, err error) {
+func parseClient(typeSpec *ast.TypeSpec, packagePrefix string) (c *interfaceType, err error) {
 	c = &interfaceType{}
 
 	ifaceType, ok := typeSpec.Type.(*ast.InterfaceType)
@@ -190,7 +198,7 @@ func parseClient(typeSpec *ast.TypeSpec) (c *interfaceType, err error) {
 				case *ast.Ident:
 					typeName = typ.Name
 					if unicode.IsUpper(rune(typeName[0])) {
-						typeName = "yt." + typeName
+						typeName = packagePrefix + typeName
 					}
 				case *ast.InterfaceType:
 					typeName = "any"
@@ -241,11 +249,18 @@ func parseClient(typeSpec *ast.TypeSpec) (c *interfaceType, err error) {
 }
 
 type file struct {
-	clients []*interfaceType
-	options []*optionsType
+	clients     []*interfaceType
+	options     []*optionsType
+	packageName string
 }
 
 func parseFile(node *ast.File) (f file, err error) {
+	f.packageName = node.Name.Name
+	var packagePrefix string
+	if f.packageName != "internal" {
+		packagePrefix = f.packageName + "."
+	}
+
 	for _, decl := range node.Decls {
 		genDecl, ok := decl.(*ast.GenDecl)
 		if !ok {
@@ -264,7 +279,7 @@ func parseFile(node *ast.File) (f file, err error) {
 		switch typeSpec.Type.(type) {
 		case *ast.InterfaceType:
 			var iface *interfaceType
-			iface, err = parseClient(typeSpec)
+			iface, err = parseClient(typeSpec, packagePrefix)
 			if err != nil {
 				return
 			}

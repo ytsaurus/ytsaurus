@@ -45,7 +45,7 @@ import (
 	"go.ytsaurus.tech/yt/go/yterrors"
 )
 
-//go:generate yt-gen-client -interface interface.go -output internal/params_gen.go
+//go:generate internal/yt-gen-client/yt-gen-client -interface interface.go -interface internal/interface.go -output internal/params_gen.go
 
 // TransactionOptions control transactional context of cypress command.
 //
@@ -1787,6 +1787,9 @@ type Client interface {
 	) (ids []NodeID, err error)
 
 	NewRowBatchWriter() RowBatchWriter
+
+	// NewBatchRequest creates batch request object that allows to execute several light requests in parallel.
+	NewBatchRequest() (BatchRequest, error)
 
 	// Stop() cancels and waits for completion of all background activity associated with this client.
 	//

@@ -6,6 +6,7 @@ SRCS(
     encoder.go
     error_wrapper.go
     errors.go
+    interface.go
     logging.go
     mutation_retrier.go
     params_gen.go

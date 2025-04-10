@@ -1,6 +1,7 @@
 GO_LIBRARY()
 
 SRCS(
+    batch_request.go
     batch.go
     client.go
     http_reader.go
