@@ -1481,6 +1481,74 @@ class TestSortedDynamicTablesHunks(TestSortedDynamicTablesBase):
         # Bytes throttled within first lookup call have been released by now.
         assert lookup_rows("//tmp/t", [{"key": 1}], timeout=1000) == rows[1:]
 
+    @authors("akozhikhov")
+    def test_hunks_performance_counters_1(self):
+        sync_create_cells(1)
+        self._create_table()
+
+        sync_mount_table("//tmp/t")
+
+        insert_rows("//tmp/t", [{"key": i, "value": "value" + str(i)} for i in range(5)])
+        insert_rows("//tmp/t", [{"key": i, "value": "value" + str(i) + "x" * 20} for i in range(5, 10)])
+        sync_flush_table("//tmp/t")
+
+        lookup_rows("//tmp/t", [{"key": i} for i in range(10)])
+
+        lookup_data_weight = "//tmp/t/@tablets/0/performance_counters/static_chunk_row_lookup_data_weight_count"
+        hunk_lookup_data_weight = "//tmp/t/@tablets/0/performance_counters/static_hunk_chunk_row_lookup_data_weight_count"
+        wait(lambda: get(lookup_data_weight) > 0)
+        wait(lambda: get(hunk_lookup_data_weight) > 0)
+
+        prev_value = get(lookup_data_weight)
+        hunk_prev_value = get(hunk_lookup_data_weight)
+        lookup_rows("//tmp/t", [{"key": i} for i in range(5)])
+        wait(lambda: get(lookup_data_weight) > prev_value)
+        assert get(hunk_lookup_data_weight) == hunk_prev_value
+
+        hunk_select_data_weight = "//tmp/t/@tablets/0/performance_counters/static_hunk_chunk_row_read_data_weight_count"
+        hunk_prev_value = get(hunk_select_data_weight)
+        select_rows("key, value from [//tmp/t]")
+        wait(lambda: get(hunk_select_data_weight) > hunk_prev_value)
+
+        hunk_prev_value = get(hunk_select_data_weight)
+        select_rows("key, value from [//tmp/t] where key in (0, 1, 2, 3, 4, 5, 6, 7, 8, 9)")
+        wait(lambda: get(hunk_select_data_weight) > hunk_prev_value)
+
+        hunk_prev_value = get(hunk_select_data_weight)
+        select_rows("key, value from [//tmp/t] where key in (0, 1, 2, 3, 4)")
+        time.sleep(3)
+        assert get(hunk_select_data_weight) == hunk_prev_value
+
+    @authors("akozhikhov")
+    def test_hunks_performance_counters_2(self):
+        sync_create_cells(1)
+        self._create_table()
+
+        sync_mount_table("//tmp/t")
+
+        insert_rows("//tmp/t", [{"key": i, "value": "value" + str(i)} for i in range(5)])
+        insert_rows("//tmp/t", [{"key": i, "value": "value" + str(i) + "x" * 20} for i in range(5, 10)])
+        sync_flush_table("//tmp/t")
+
+        lookup_data_weight = "//tmp/t/@tablets/0/performance_counters/static_hunk_chunk_row_lookup_data_weight_count"
+        select_data_weight = "//tmp/t/@tablets/0/performance_counters/static_hunk_chunk_row_read_data_weight_count"
+        lookup_data_weight_value = get(lookup_data_weight)
+        select_data_weight_value = get(select_data_weight)
+
+        chunk_ids_before_compaction = builtins.set(self._get_store_chunk_ids("//tmp/t"))
+        set("//tmp/t/@forced_compaction_revision", 1)
+        remount_table("//tmp/t")
+
+        def _check_forced_compaction():
+            chunk_ids = builtins.set(self._get_store_chunk_ids("//tmp/t"))
+            return chunk_ids_before_compaction.isdisjoint(chunk_ids)
+
+        wait(_check_forced_compaction)
+
+        time.sleep(3)
+        assert lookup_data_weight_value == get(lookup_data_weight)
+        assert select_data_weight_value == get(select_data_weight)
+
 
 ################################################################################
 

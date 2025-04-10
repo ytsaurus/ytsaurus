@@ -112,6 +112,20 @@ ETabletDistributedThrottlerKind GetThrottlerKindFromQueryKind(EInitialQueryKind 
     }
 }
 
+ERequestType GetRequestTypeFromQueryKind(EInitialQueryKind queryKind)
+{
+    switch (queryKind) {
+        case EInitialQueryKind::LookupRows:
+            return ERequestType::Lookup;
+
+        case EInitialQueryKind::SelectRows:
+            return ERequestType::Read;
+
+        default:
+            YT_ABORT();
+    }
+}
+
 class TAdapterBase
 {
 protected:
@@ -806,6 +820,7 @@ protected:
         , ChunkFragmentReader_(tabletSnapshot->ChunkFragmentReader)
         , DictionaryCompressionFactory_(tabletSnapshot->DictionaryCompressionFactory)
         , ChunkReadOptions_(chunkReadOptions)
+        , PerformanceCounters_(tabletSnapshot->PerformanceCounters)
     {
         if (const auto& hedgingManagerRegistry = tabletSnapshot->HedgingManagerRegistry) {
             ChunkReadOptions_.HedgingManager = hedgingManagerRegistry->GetOrCreateHedgingManager(
@@ -850,6 +865,7 @@ private:
     NChunkClient::IChunkFragmentReaderPtr ChunkFragmentReader_;
     NTableClient::IDictionaryCompressionFactoryPtr DictionaryCompressionFactory_;
     NChunkClient::TClientChunkReadOptions ChunkReadOptions_;
+    NTableClient::TTabletPerformanceCountersPtr PerformanceCounters_;
 
     std::vector<TMutableRow> HunkEncodedRows_;
     bool HunksDecoded_ = false;
@@ -866,6 +882,8 @@ private:
             std::move(ChunkFragmentReader_),
             std::move(DictionaryCompressionFactory_),
             std::move(ChunkReadOptions_),
+            std::move(PerformanceCounters_),
+            GetRequestTypeFromQueryKind(TBasePipeline::TAdapter::QueryKind),
             std::move(rows));
     }
 
@@ -878,6 +896,8 @@ private:
             std::move(ChunkFragmentReader_),
             std::move(DictionaryCompressionFactory_),
             std::move(ChunkReadOptions_),
+            std::move(PerformanceCounters_),
+            GetRequestTypeFromQueryKind(TBasePipeline::TAdapter::QueryKind),
             std::move(rows));
     }
 };
@@ -1672,7 +1692,10 @@ TFuture<TSharedRef> TTabletLookupRequest::RunTabletLookupSession(
             TTimestampReadOptions timestampReadOptions;
             if (isTimestampedLookup) {
                 if (columnFilter.IsUniversal()) {
-                    for (int columnIndex = physicalSchema->GetKeyColumnCount(); columnIndex < physicalSchema->GetColumnCount(); ++columnIndex) {
+                    for (int columnIndex = physicalSchema->GetKeyColumnCount();
+                        columnIndex < physicalSchema->GetColumnCount();
+                        ++columnIndex)
+                    {
                         timestampReadOptions.TimestampColumnMapping.push_back({
                             .ColumnIndex = columnIndex,
                             .TimestampColumnIndex = columnIndex + physicalSchema->GetValueColumnCount(),
@@ -1802,7 +1825,9 @@ TTabletLookupSession<TPipeline>::TTabletLookupSession(
             std::memory_order::relaxed);
     })
     , Logger(lookupSession->Logger().WithTag("TabletId: %v", TabletSnapshot_->TabletId))
-{ }
+{
+    YT_VERIFY(TPipeline::TAdapter::QueryKind == EInitialQueryKind::LookupRows);
+}
 
 template <class TPipeline>
 TTabletLookupSession<TPipeline>::TTabletLookupSession(
@@ -1854,7 +1879,9 @@ TTabletLookupSession<TPipeline>::TTabletLookupSession(
         }
     })
     , Logger(logger.WithTag("TabletId: %v", TabletSnapshot_->TabletId))
-{ }
+{
+    YT_VERIFY(TPipeline::TAdapter::QueryKind == EInitialQueryKind::SelectRows);
+}
 
 template <class TPipeline>
 auto TTabletLookupSession<TPipeline>::Run() -> TFuture<typename decltype(TPipeline::TAdapter::ResultPromise_)::TValueType>

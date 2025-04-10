@@ -17,6 +17,23 @@ void TPerformanceCountersEma::UpdateEma()
     Ema.Update(Counter.load(std::memory_order::relaxed));
 }
 
+void TChunkReaderPerformanceCounters::IncrementHunkDataWeight(
+    ERequestType requestType,
+    i64 value,
+    EWorkloadCategory workloadCategory)
+{
+    // NB: Do not account background activities in user read performance counters.
+    if (IsSystemWorkloadCategory(workloadCategory)) {
+        return;
+    }
+
+    if (requestType == ERequestType::Lookup) {
+        StaticHunkChunkRowLookupDataWeight.Counter.fetch_add(value, std::memory_order::relaxed);
+    } else {
+        StaticHunkChunkRowReadDataWeight.Counter.fetch_add(value, std::memory_order::relaxed);
+    }
+}
+
 void UpdatePerformanceCounters(
     const NChunkClient::NProto::TDataStatistics& statistics,
     const TTabletPerformanceCountersPtr& performanceCounters,
@@ -72,7 +89,7 @@ public:
     }
 
 private:
-    IReaderBasePtr Reader_;
+    const IReaderBasePtr Reader_;
 };
 
 class TVersionedPerformanceCountingReader
@@ -187,4 +204,3 @@ ISchemafulUnversionedReaderPtr CreateSchemafulPerformanceCountingReader(
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NTableClient
-

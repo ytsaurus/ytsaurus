@@ -497,7 +497,8 @@ private:
             tabletSnapshot->DictionaryCompressionFactory,
             tabletSnapshot->PhysicalSchema,
             referencedHunkChunkIds,
-            chunkReadOptions);
+            chunkReadOptions,
+            tabletSnapshot->PerformanceCounters);
 
         WaitForFast(reader->Open())
             .ThrowOnError();
