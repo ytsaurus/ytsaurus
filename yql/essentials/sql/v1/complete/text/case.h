@@ -4,14 +4,7 @@
 
 namespace NSQLComplete {
 
-    inline bool NoCaseCompare(const TString& lhs, const TString& rhs) {
-        return std::lexicographical_compare(
-            std::begin(lhs), std::end(lhs),
-            std::begin(rhs), std::end(rhs),
-            [](const char lhs, const char rhs) {
-                return ToLower(lhs) < ToLower(rhs);
-            });
-    }
+    bool NoCaseCompare(const TString& lhs, const TString& rhs);
 
     inline auto NoCaseCompareLimit(size_t size) {
         return [size](const TString& lhs, const TString& rhs) -> bool {
