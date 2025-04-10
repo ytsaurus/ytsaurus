@@ -855,7 +855,7 @@ extend google.protobuf.FieldOptions
     optional string raw_protobuf = 31051;
 }
 
-// Next field 32015.
+// Next field 32016.
 extend google.protobuf.MessageOptions
 {
     optional string message_lock_group = 32001;
@@ -864,11 +864,16 @@ extend google.protobuf.MessageOptions
     // Compat option, remove after YT-14511 is ready.
     optional bool no_etc_column_suffix = 32009;
 
-    // Makes user-defined attributes within the message updatable by superuser only. By default,
+    // Set the default update mode for all non-column attributes in this message. Overridden by
+    // the update_policy set for the field this message is instantiated from. By default,
     // user-defined attributes are updatable by any user having corresponding write permission.
     //
     // Note that the option does not affect system attributes, e.g.:
     // /meta/{creation_time,uuid,name,parent_key} etc.
+    optional EUpdatePolicy default_update_policy = 32015;
+
+    // This option is deprecated in favor of default_update_policy.
+    // TODO(melkov): check that this option is no more mentioned in code and delete it around 2025-07.
     optional bool attributes_updatable_by_superuser_only = 32003;
 
     // Marks the message as transplantable to the output package under the new mixins codegen
