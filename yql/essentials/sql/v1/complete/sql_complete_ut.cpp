@@ -602,6 +602,13 @@ Y_UNIT_TEST_SUITE(SqlCompleteTests) {
             };
             UNIT_ASSERT_VALUES_EQUAL(Complete(engine, {"PRAGMA yson"}), expected);
         }
+        {
+            TVector<TCandidate> expected = {
+                {HintName, "IGNORE_TYPE_V3"},
+                {HintName, "IGNORETYPEV3"},
+            };
+            UNIT_ASSERT_VALUES_EQUAL(Complete(engine, {"REDUCE a WITH ig"}), expected);
+        }
     }
 
     Y_UNIT_TEST(OnFailingNameService) {
