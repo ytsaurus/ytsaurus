@@ -450,8 +450,7 @@ public:
         EXPECT_CALL(*Connection, GetPrimaryMasterCellTag).Times(testing::AtLeast(1));
         EXPECT_CALL(*Connection, GetSecondaryMasterCellTags).Times(testing::AtLeast(1));
 
-        NApi::TClientOptions clientOptions{.User = "test_user"};
-        auto client = Connection->CreateNativeClient(clientOptions);
+        auto client = Connection->CreateNativeClient(NApi::TClientOptions::FromUser("test_user"));
 
         auto config = New<TReplicationWriterConfig>();
         config->NodePingPeriod = TDuration::Seconds(1);

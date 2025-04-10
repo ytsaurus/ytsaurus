@@ -31,7 +31,7 @@ public:
         : TAsyncExpiringCache(std::move(config), logger.WithTag("Cache: UserBan"))
         , Connection_(std::move(connection))
         , Logger(std::move(logger))
-        , Client_(Connection_->CreateClient(TClientOptions{.User = NRpc::RootUserName}))
+        , Client_(Connection_->CreateClient(TClientOptions::Root()))
     { }
 
 private:

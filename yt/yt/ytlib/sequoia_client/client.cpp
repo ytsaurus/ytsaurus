@@ -59,7 +59,7 @@ public:
                                 ->GetNativeConnection()
                                 ->GetClusterDirectory()
                                 ->GetConnection(*Config_->GroundClusterName);
-                            auto groundClient = groundConnection->CreateNativeClient({.User = NSecurityClient::RootUserName});
+                            auto groundClient = groundConnection->CreateNativeClient(TClientOptions::Root());
                             SetGroundClient(std::move(groundClient));
                         }
                     }));

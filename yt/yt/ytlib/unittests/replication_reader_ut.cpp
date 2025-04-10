@@ -302,7 +302,7 @@ TChunkReaderHostPtr GetChunkReaderHost(const NApi::NNative::IConnectionPtr conne
         /*rack*/ {},
         /*dc*/ {});
     return New<TChunkReaderHost>(
-        connection->CreateNativeClient({ .User = "user" }),
+        connection->CreateNativeClient(NApi::TClientOptions::FromUser("user")),
         std::move(localDescriptor),
         CreateClientBlockCache(
             New<TBlockCacheConfig>(),
