@@ -420,7 +420,7 @@ class TestParameterizedBalancing(TestStandaloneTabletBalancerBase, DynamicTables
         "parameterized_balancing_metric",
         [
             "double([/performance_counters/dynamic_row_write_count])",
-            "double([/statistics/uncompressed_data_size])"
+            "double([/statistics/uncompressed_data_size])",
         ],
     )
     @pytest.mark.parametrize("in_memory_mode", ["none", "uncompressed"])
@@ -597,7 +597,7 @@ class TestParameterizedBalancing(TestStandaloneTabletBalancerBase, DynamicTables
         wait(lambda: get("//tmp/t/@tablet_count") == 2)
         assert [[], [200]] == get("//tmp/t/@pivot_keys")
 
-    @authors("h0tmi")
+    @authors("h0tmi", "alexelexa")
     @pytest.mark.parametrize(
         "config_source",
         [
@@ -676,6 +676,28 @@ class TestParameterizedBalancing(TestStandaloneTabletBalancerBase, DynamicTables
         for table in tables:
             tablets = get(table + "/@tablets")
             assert tablets[0]["cell_id"] != tablets[1]["cell_id"]
+
+    @authors("alexelexa")
+    def test_aliases(self):
+        cells = sync_create_cells(2)
+
+        self._set_default_metric("write_1h")
+        set("//sys/tablet_cell_bundles/default/@tablet_balancer_config/enable_verbose_logging", True)
+        set("//sys/tablet_cell_bundles/default/@tablet_balancer_config/enable_parameterized_by_default", True)
+
+        self._create_sorted_table("//tmp/t")
+        set("//tmp/t/@tablet_balancer_config/enable_auto_reshard", False)
+        sync_reshard_table("//tmp/t", [[], [10], [20], [30]])
+        sync_mount_table("//tmp/t", first_tablet_index=0, last_tablet_index=1, cell_id=cells[0])
+        sync_mount_table("//tmp/t", first_tablet_index=2, last_tablet_index=3, cell_id=cells[1])
+
+        insert_rows("//tmp/t", [{"key": i * 10 + 1, "value": str(i)} for i in range(2)])
+
+        def _check():
+            tablets = get("//tmp/t/@tablets")
+            return tablets[0]["cell_id"] != tablets[1]["cell_id"]
+
+        wait(lambda: _check())
 
 
 ##################################################################
