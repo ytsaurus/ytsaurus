@@ -341,14 +341,6 @@ private:
                     << HardErrorAttribute;
             }
 
-            auto configGuard = ChaosAgent_->TryGetConfigLockGuard();
-            if (!configGuard) {
-                YT_LOG_DEBUG("Tablet is being reconfigured right now, skipping replication iteration");
-                return;
-            }
-
-            ChaosAgent_->ReconfigureTablet();
-
             auto replicationCard = tabletSnapshot->TabletRuntimeData->ReplicationCard.Acquire();
             if (!replicationCard) {
                 THROW_ERROR_EXCEPTION("No replication card");
@@ -396,7 +388,22 @@ private:
             }
             ReplicationRound_ = replicationRound;
 
-            if (auto writeMode = tabletSnapshot->TabletRuntimeData->WriteMode.load(); writeMode != ETabletWriteMode::Pull) {
+            TAsyncSemaphoreGuard configGuard;
+            auto writeMode = tabletSnapshot->TabletRuntimeData->WriteMode.load();
+            if (writeMode == ETabletWriteMode::Pull) {
+                configGuard = ChaosAgent_->TryGetConfigLockGuard();
+                if (!configGuard) {
+                    YT_LOG_DEBUG("Tablet is being reconfigured right now, skipping replication iteration");
+                    return;
+                }
+
+                ChaosAgent_->ReconfigureTablet();
+
+                // writeMode might change during reconfiguration so load it again.
+                writeMode = tabletSnapshot->TabletRuntimeData->WriteMode.load();
+            }
+
+            if (writeMode != ETabletWriteMode::Pull) {
                 YT_LOG_DEBUG("Will not pull rows since tablet write mode does not imply pulling (WriteMode: %v)",
                     writeMode);
                 UpdatePullerErrors(tabletSnapshot->TabletRuntimeData->Errors, TError());
