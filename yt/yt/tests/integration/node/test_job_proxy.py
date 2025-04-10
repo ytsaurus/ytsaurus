@@ -386,8 +386,8 @@ class TestRpcProxyInJobProxy(YTEnvSetup):
         release_breakpoint(breakpoint_name="op1", job_id=job_ids1[1])
         release_breakpoint(breakpoint_name="op2")
 
-        wait(lambda: rpc_proxy_in_job_proxy_gauge.get(tags={"user": "u1"}) == 0)
-        wait(lambda: rpc_proxy_in_job_proxy_gauge.get(tags={"user": "u2"}) == 0)
+        wait(lambda: rpc_proxy_in_job_proxy_gauge.get(tags={"user": "u1"}) is None)
+        wait(lambda: rpc_proxy_in_job_proxy_gauge.get(tags={"user": "u2"}) is None)
 
 
 class TestUnavailableJobProxy(JobProxyTestBase):

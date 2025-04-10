@@ -131,6 +131,12 @@ public:
 
         Profiler_.AddProducer("/gpu_utilization", GpuUtilizationBuffer_);
         Profiler_.AddProducer("", JobCountBuffer_);
+
+        ExecNodeProfiler()
+            .WithGlobal()
+            .WithSparse()
+            .WithProducerRemoveSupport()
+                .AddProducer("", RpcProxyInJobProxyCountBuffer_);
     }
 
     void Initialize() override
@@ -572,8 +578,8 @@ private:
     TProcessExitProfiler JobProxyExitProfiler_;
     TBufferedProducerPtr GpuUtilizationBuffer_ = New<TBufferedProducer>();
     TBufferedProducerPtr JobCountBuffer_ = New<TBufferedProducer>();
+    TBufferedProducerPtr RpcProxyInJobProxyCountBuffer_ = New<TBufferedProducer>();
     THashMap<EJobState, TCounter> JobFinalStateCounters_;
-    THashMap<std::string, TGauge> UserToRpcProxyCountGauges_;
 
     // Chunk cache counters.
     TCounter CacheHitArtifactsSizeCounter_;
@@ -763,23 +769,6 @@ private:
 
     }
 
-    TGauge& GetUserToRpcProxyCountGauge(const std::string& user)
-    {
-        YT_ASSERT_THREAD_AFFINITY(JobThread);
-
-        auto it = UserToRpcProxyCountGauges_.find(user);
-        if (it == UserToRpcProxyCountGauges_.end()) {
-            it = UserToRpcProxyCountGauges_.emplace(
-                user,
-                ExecNodeProfiler()
-                    .WithSparse()
-                    .WithGlobal()
-                    .WithTag("user", user)
-                    .Gauge("/rpc_proxy_in_job_proxy_count")).first;
-        }
-        return it->second;
-    }
-
     void OnProfiling()
     {
         YT_ASSERT_THREAD_AFFINITY(JobThread);
@@ -857,14 +846,12 @@ private:
             }
         }
 
-        for (const auto& [user, count] : userToRpcProxyCount) {
-            GetUserToRpcProxyCountGauge(user).Update(count);
-        }
-        for (auto& [user, gauge] : UserToRpcProxyCountGauges_) {
-            if (!userToRpcProxyCount.contains(user)) {
-                gauge.Update(0);
+        RpcProxyInJobProxyCountBuffer_->Update([&userToRpcProxyCount] (ISensorWriter* writer) {
+            for (const auto& [user, count] : userToRpcProxyCount) {
+                TWithTagGuard tagGuard(writer, "user", user);
+                writer->AddGauge("/rpc_proxy_in_job_proxy_count", count);
             }
-        }
+        });
 
         TmpfsUsageGauge_.Update(tmpfsUsage);
         TmpfsLimitGauge_.Update(tmpfsLimit);
