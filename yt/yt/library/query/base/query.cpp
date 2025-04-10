@@ -262,14 +262,6 @@ std::vector<TColumnDescriptor> TMappedSchema::GetOrderedSchemaMapping() const
             return lhs.Index < rhs.Index;
         });
 
-    // Repeated columns can occur if column is used in join equation and further in query.
-    orderedSchemaMapping.erase(std::unique(
-        orderedSchemaMapping.begin(),
-        orderedSchemaMapping.end(),
-        [] (const TColumnDescriptor& lhs, const TColumnDescriptor& rhs) {
-            return lhs.Index == rhs.Index;
-        }), orderedSchemaMapping.end());
-
     return orderedSchemaMapping;
 }
 

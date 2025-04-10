@@ -55,42 +55,45 @@ std::optional<TValue> FoldConstants(
 
 TString InferReferenceName(const NAst::TColumnReference& ref);
 
-struct TTable
+struct TNameSource
 {
     const TTableSchema& Schema;
     std::optional<TString> Alias;
     std::vector<TColumnDescriptor>* Mapping = nullptr;
+
+    // Columns inherited from previous sources.
+    THashSet<std::string>* SelfJoinedColumns = nullptr;
+    // Columns from current source.
+    THashSet<std::string>* ForeignJoinedColumns = nullptr;
+    THashSet<std::string> SharedColumns = {};
 };
 
-struct TColumnEntry
+class TReferenceResolver
 {
-    TLogicalTypePtr LogicalType;
+public:
+    void AddTable(TNameSource nameSource);
 
-    size_t LastTableIndex;
-    size_t OriginTableIndex;
+    TLogicalTypePtr Resolve(const NAst::TColumnReference& reference);
+
+    void PopulateAllColumns();
+
+    void Finish();
+
+private:
+    struct TResolvedInfo
+    {
+        TLogicalTypePtr Type;
+        int SourceIndex;
+    };
+
+    THashMap<
+        NAst::TColumnReference,
+        TResolvedInfo,
+        NAst::TColumnReferenceHasher,
+        NAst::TColumnReferenceEqComparer> Lookup_;
+
+    std::vector<TNameSource> NameSources_;
 };
-
-struct IReferenceResolver
-{
-    virtual TLogicalTypePtr Resolve(const NAst::TColumnReference& reference) = 0;
-    virtual void PopulateAllColumns(IReferenceResolver* targetResolver) = 0;
-
-    virtual ~IReferenceResolver() = default;
-};
-
-std::unique_ptr<IReferenceResolver> CreateColumnResolver(
-    const TTableSchema* schema,
-    std::optional<TString> alias,
-    std::vector<TColumnDescriptor>* mapping);
-
-std::unique_ptr<IReferenceResolver> CreateJoinColumnResolver(
-    std::unique_ptr<IReferenceResolver> parentProvider,
-    const TTableSchema* schema,
-    std::optional<TString> alias,
-    std::vector<TColumnDescriptor>* mapping,
-    THashSet<std::string>* selfJoinedColumns,
-    THashSet<std::string>* foreignJoinedColumns,
-    THashSet<std::string> commonColumnNames);
 
 class TExprBuilder
 {
@@ -98,15 +101,20 @@ public:
     DEFINE_BYVAL_RO_PROPERTY(TStringBuf, Source);
     DEFINE_BYREF_RO_PROPERTY(TConstTypeInferrerMapPtr, Functions);
 
-    std::unique_ptr<IReferenceResolver> ColumnResolver;
-
     TExprBuilder(
         TStringBuf source,
         const TConstTypeInferrerMapPtr& functions);
 
-    void SetGroupData(const TNamedItemList* groupItems, TAggregateItemList* aggregateItems);
+    virtual void AddTable(TNameSource nameSource) = 0;
+    virtual TLogicalTypePtr ResolveColumn(const NAst::TColumnReference& reference) = 0;
+    virtual void PopulateAllColumns() = 0;
+    virtual void Finish() = 0;
 
-    TLogicalTypePtr GetColumnType(const NAst::TColumnReference& reference);
+    virtual void SetGroupData(const TNamedItemList* groupItems, TAggregateItemList* aggregateItems) = 0;
+
+    virtual TString InferGroupItemName(
+        const TConstExpressionPtr& typedExpression,
+        const NAst::TExpression& expressionsAst) = 0;
 
     virtual TConstExpressionPtr DoBuildTypedExpression(
         const NAst::TExpression* expr, TRange<EValueType> resultTypes) = 0;
@@ -125,15 +133,6 @@ public:
         });
 
     virtual ~TExprBuilder() = default;
-
-protected:
-    // TODO: Combine in Structure? Move out?
-    const TNamedItemList* GroupItems_ = nullptr;
-    // TODO: Enrich TMappedSchema with alias and keep here pointers to TMappedSchema.
-
-    TAggregateItemList* AggregateItems_ = nullptr;
-
-    bool AfterGroupBy_ = false;
 };
 
 std::unique_ptr<TExprBuilder> CreateExpressionBuilder(

@@ -212,8 +212,7 @@ TGroupClausePtr BuildGroupClause(
 
     for (const auto& expressionAst : expressionsAst) {
         auto typedExpr = builder->BuildTypedExpression(expressionAst, ComparableTypes);
-
-        groupClause->AddGroupItem(typedExpr, InferColumnName(*expressionAst));
+        groupClause->AddGroupItem(typedExpr, builder->InferGroupItemName(typedExpr, *expressionAst));
     }
 
     builder->SetGroupData(
@@ -379,10 +378,12 @@ void PrepareQuery(
         query->ProjectClause = projectClause;
     } else {
         // Select all columns.
-        builder->ColumnResolver->PopulateAllColumns(builder->ColumnResolver.get());
+        builder->PopulateAllColumns();
     }
 
     DropLimitClauseWhenGroupByOne(query);
+
+    builder->Finish();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -693,10 +694,10 @@ TJoinClausePtr BuildJoinClause(
     // BuildPredicate and BuildTypedExpression are used with foreignBuilder.
     auto foreignBuilder = CreateExpressionBuilder(source, functions, aliasMap);
 
-    foreignBuilder->ColumnResolver = CreateColumnResolver(
-        joinClause->Schema.Original.Get(),
+    foreignBuilder->AddTable({
+        *joinClause->Schema.Original,
         tableJoin.Table.Alias,
-        &joinClause->Schema.Mapping);
+        &joinClause->Schema.Mapping});
 
     std::vector<TSelfEquation> selfEquations;
     selfEquations.reserve(tableJoin.Fields.size() + tableJoin.Lhs.size());
@@ -709,8 +710,8 @@ TJoinClausePtr BuildJoinClause(
         auto columnName = InferReferenceName(referenceExpr->Reference);
         commonColumnNames.insert(columnName);
 
-        auto selfColumnType = builder->GetColumnType(referenceExpr->Reference);
-        auto foreignColumnType = foreignBuilder->GetColumnType(referenceExpr->Reference);
+        auto selfColumnType = builder->ResolveColumn(referenceExpr->Reference);
+        auto foreignColumnType = foreignBuilder->ResolveColumn(referenceExpr->Reference);
 
         if (!selfColumnType || !foreignColumnType) {
             THROW_ERROR_EXCEPTION("Column %Qv not found",
@@ -820,7 +821,7 @@ TJoinClausePtr BuildJoinClause(
                     auto aliasedReference = NAst::TReference(column.Name(), tableAlias);
 
                     // Register self evaluated column in the effective schema.
-                    builder->GetColumnType(aliasedReference);
+                    builder->ResolveColumn(aliasedReference);
 
                     matchingSelfExpression = New<TReferenceExpression>(
                         column.LogicalType(),
@@ -830,7 +831,7 @@ TJoinClausePtr BuildJoinClause(
             }
 
             // Register foreign evaluated column in the effective schema.
-            foreignBuilder->GetColumnType(foreignKeyColumnReference);
+            foreignBuilder->ResolveColumn(foreignKeyColumnReference);
 
             keySelfEquations.push_back({
                 .Expression=std::move(matchingSelfExpression),
@@ -882,14 +883,13 @@ TJoinClausePtr BuildJoinClause(
             "JOIN-PREDICATE-clause");
     }
 
-    builder->ColumnResolver = CreateJoinColumnResolver(
-        std::move(builder->ColumnResolver),
-        joinClause->Schema.Original.Get(),
+    builder->AddTable({
+        *joinClause->Schema.Original,
         tableJoin.Table.Alias,
         &joinClause->Schema.Mapping,
         &joinClause->SelfJoinedColumns,
         &joinClause->ForeignJoinedColumns,
-        commonColumnNames);
+        commonColumnNames});
 
     return joinClause;
 }
@@ -941,13 +941,13 @@ TJoinClausePtr BuildArrayJoinClause(
         functions,
         aliasMap);
 
-    arrayBuilder->ColumnResolver = CreateColumnResolver(
-        arrayJoinClause->Schema.Original.Get(),
+    arrayBuilder->AddTable({
+        *arrayJoinClause->Schema.Original,
         std::nullopt,
-        &arrayJoinClause->Schema.Mapping);
+        &arrayJoinClause->Schema.Mapping});
 
     for (const auto& nestedTableColumn : arrayJoinClause->Schema.Original->Columns()) {
-        auto type = arrayBuilder->GetColumnType(NAst::TReference(nestedTableColumn.Name()));
+        auto type = arrayBuilder->ResolveColumn(NAst::TReference(nestedTableColumn.Name()));
         YT_ASSERT(type);
     }
 
@@ -958,14 +958,12 @@ TJoinClausePtr BuildArrayJoinClause(
             "JOIN-PREDICATE-clause");
     }
 
-    builder->ColumnResolver = CreateJoinColumnResolver(
-        std::move(builder->ColumnResolver),
-        arrayJoinClause->Schema.Original.Get(),
+    builder->AddTable({
+        *arrayJoinClause->Schema.Original,
         std::nullopt,
         &arrayJoinClause->Schema.Mapping,
         &arrayJoinClause->SelfJoinedColumns,
-        &arrayJoinClause->ForeignJoinedColumns,
-        {});
+        &arrayJoinClause->ForeignJoinedColumns});
 
     return arrayJoinClause;
 }
@@ -1068,10 +1066,10 @@ TPlanFragmentPtr PreparePlanFragment(
         functions,
         aliasMap);
 
-    builder->ColumnResolver = CreateColumnResolver(
-        query->Schema.Original.Get(),
+    builder->AddTable({
+        *query->Schema.Original,
         alias,
-        &query->Schema.Mapping);
+        &query->Schema.Mapping});
 
     std::vector<TJoinClausePtr> joinClauses;
     size_t commonKeyPrefix = std::numeric_limits<size_t>::max();
@@ -1202,8 +1200,8 @@ TQueryPtr PrepareJobQuery(
 
     auto builder = CreateExpressionBuilder(source, functions, aliasMap);
 
-    builder->ColumnResolver = CreateColumnResolver(
-        tableSchema.Get(), std::nullopt, &query->Schema.Mapping);
+    builder->AddTable({
+        *tableSchema, std::nullopt, &query->Schema.Mapping});
 
     PrepareQuery(
         query,
@@ -1239,8 +1237,8 @@ TConstExpressionPtr PrepareExpression(
 
     auto builder = CreateExpressionBuilder(parsedSource.Source, functions, aliasMap);
 
-    builder->ColumnResolver = CreateColumnResolver(
-        &tableSchema, std::nullopt, &mapping);
+    builder->AddTable({
+        tableSchema, std::nullopt, &mapping});
 
     auto result = builder->BuildTypedExpression(expr);
 

@@ -611,174 +611,91 @@ std::optional<TValue> FoldConstants(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TTableReferenceResolver
-    : public IReferenceResolver
+void TReferenceResolver::AddTable(TNameSource nameSource)
 {
-    const TTableSchema* Schema;
-    std::optional<TString> Alias;
-    std::vector<TColumnDescriptor>* Mapping;
-
-    TTableReferenceResolver(
-        const TTableSchema* schema,
-        std::optional<TString> alias,
-        std::vector<TColumnDescriptor>* mapping)
-        : Schema(schema)
-        , Alias(alias)
-        , Mapping(mapping)
-    { }
-
-    THashMap<
-        NAst::TColumnReference,
-        TLogicalTypePtr,
-        NAst::TColumnReferenceHasher,
-        NAst::TColumnReferenceEqComparer> Lookup;
-
-    TLogicalTypePtr Resolve(const NAst::TColumnReference& reference) override
-    {
-        auto foundIt = Lookup.find(reference);
-        if (foundIt != Lookup.end()) {
-            return foundIt->second;
-        }
-
-        if (Alias == reference.TableName) {
-            if (auto* column = Schema->FindColumn(reference.ColumnName)) {
-                if (Mapping) {
-                    Mapping->push_back(TColumnDescriptor{
-                        InferReferenceName(reference),
-                        Schema->GetColumnIndex(*column)
-                    });
-                }
-
-                Lookup.emplace(reference, column->LogicalType());
-
-                return column->LogicalType();
-            }
-        }
-
-        return nullptr;
-    }
-
-    void PopulateAllColumns(IReferenceResolver* targetResolver) override
-    {
-        for (const auto& column : Schema->Columns()) {
-            targetResolver->Resolve(NAst::TReference(column.Name(), Alias));
-        }
-    }
-};
-
-std::unique_ptr<IReferenceResolver> CreateColumnResolver(
-    const TTableSchema* schema,
-    std::optional<TString> alias,
-    std::vector<TColumnDescriptor>* mapping)
-{
-    return std::make_unique<TTableReferenceResolver>(schema, alias, mapping);
+    NameSources_.push_back(std::move(nameSource));
 }
 
-struct TJoinReferenceResolver
-    : public IReferenceResolver
+TLogicalTypePtr TReferenceResolver::Resolve(const NAst::TColumnReference& reference)
 {
-    std::unique_ptr<IReferenceResolver> ParentProvider;
+    TLogicalTypePtr type;
+    int sourceIndex = 0;
 
-    const TTableSchema* Schema;
-    std::optional<TString> Alias;
-    std::vector<TColumnDescriptor>* Mapping;
+    auto lookupIt = Lookup_.find(reference);
+    if (lookupIt != Lookup_.end()) {
+        type = lookupIt->second.Type;
+        sourceIndex = lookupIt->second.SourceIndex;
+    }
 
-    THashSet<std::string>* SelfJoinedColumns;
-    THashSet<std::string>* ForeignJoinedColumns;
-    THashSet<std::string> CommonColumnNames;
-
-    THashMap<
-        NAst::TColumnReference,
-        TLogicalTypePtr,
-        NAst::TColumnReferenceHasher,
-        NAst::TColumnReferenceEqComparer> Lookup;
-
-    TJoinReferenceResolver(
-        std::unique_ptr<IReferenceResolver> parentProvider,
-        const TTableSchema* schema,
-        std::optional<TString> alias,
-        std::vector<TColumnDescriptor>* mapping,
-        THashSet<std::string>* selfJoinedColumns,
-        THashSet<std::string>* foreignJoinedColumns,
-        THashSet<std::string> commonColumnNames)
-        : ParentProvider(std::move(parentProvider))
-        , Schema(schema)
-        , Alias(alias)
-        , Mapping(mapping)
-        , SelfJoinedColumns(selfJoinedColumns)
-        , ForeignJoinedColumns(foreignJoinedColumns)
-        , CommonColumnNames(commonColumnNames)
-    { }
-
-    TLogicalTypePtr Resolve(const NAst::TColumnReference& reference) override
-    {
-        auto foundIt = Lookup.find(reference);
-        if (foundIt != Lookup.end()) {
-            return foundIt->second;
-        }
-
-        auto type = ParentProvider->Resolve(reference);
+    for (; sourceIndex < std::ssize(NameSources_); ++sourceIndex) {
+        const auto& [schema, alias, mapping, selfColumns, foreignColumns, sharedColumns] = NameSources_[sourceIndex];
 
         auto formattedName = InferReferenceName(reference);
 
-        if (type) {
-            SelfJoinedColumns->insert(formattedName);
-            Lookup.emplace(reference, type);
+        if (type && selfColumns) {
+            selfColumns->insert(formattedName);
         }
 
-        if (Alias == reference.TableName) {
-            if (auto* column = Schema->FindColumn(reference.ColumnName)) {
+        if (alias == reference.TableName) {
+            if (auto* column = schema.FindColumn(reference.ColumnName)) {
                 if (type) {
-                    if (!CommonColumnNames.contains(formattedName)) {
+                    if (!sharedColumns.contains(formattedName)) {
                         THROW_ERROR_EXCEPTION("Ambiguous resolution for column %Qv",
                             formattedName);
                     }
                 } else {
-                    if (Mapping) {
-                        Mapping->push_back(TColumnDescriptor{
+                    if (mapping) {
+                        mapping->push_back(TColumnDescriptor{
                             formattedName,
-                            Schema->GetColumnIndex(*column)
+                            schema.GetColumnIndex(*column)
                         });
                     }
 
-                    ForeignJoinedColumns->insert(formattedName);
-                    Lookup.emplace(reference, column->LogicalType());
+                    if (foreignColumns) {
+                        foreignColumns->insert(formattedName);
+                    }
 
                     type = column->LogicalType();
                 }
             }
         }
-
-        return type;
     }
 
-    void PopulateAllColumns(IReferenceResolver* targetResolver) override
-    {
-        ParentProvider->PopulateAllColumns(targetResolver);
+    if (type) {
+        lookupIt = Lookup_.emplace(reference, TResolvedInfo{type, 0}).first;
+        lookupIt->second.SourceIndex = std::ssize(NameSources_);
+    }
 
-        for (const auto& column : Schema->Columns()) {
-            targetResolver->Resolve(NAst::TReference(column.Name(), Alias));
+    return type;
+}
+
+void TReferenceResolver::PopulateAllColumns()
+{
+    for (const auto& nameSource : NameSources_) {
+        for (const auto& column : nameSource.Schema.Columns()) {
+            Resolve(NAst::TReference(column.Name(), nameSource.Alias));
         }
     }
-};
+}
 
-std::unique_ptr<IReferenceResolver> CreateJoinColumnResolver(
-    std::unique_ptr<IReferenceResolver> parentProvider,
-    const TTableSchema* schema,
-    std::optional<TString> alias,
-    std::vector<TColumnDescriptor>* mapping,
-    THashSet<std::string>* selfJoinedColumns,
-    THashSet<std::string>* foreignJoinedColumns,
-    THashSet<std::string> commonColumnNames)
+void TReferenceResolver::Finish()
 {
-    return std::make_unique<TJoinReferenceResolver>(
-        std::move(parentProvider),
-        schema,
-        alias,
-        mapping,
-        selfJoinedColumns,
-        foreignJoinedColumns,
-        commonColumnNames);
+    for (const auto& nameSource : NameSources_) {
+        if (nameSource.Mapping) {
+            std::sort(nameSource.Mapping->begin(), nameSource.Mapping->end(),
+                [] (const TColumnDescriptor& lhs, const TColumnDescriptor& rhs) {
+                    return lhs.Index < rhs.Index;
+                });
+
+            // Repeated columns can occur if column is used in join equation and further in query.
+            nameSource.Mapping->erase(std::unique(
+                nameSource.Mapping->begin(),
+                nameSource.Mapping->end(),
+                [] (const TColumnDescriptor& lhs, const TColumnDescriptor& rhs) {
+                    return lhs.Index == rhs.Index;
+                }), nameSource.Mapping->end());
+        }
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -789,35 +706,6 @@ TExprBuilder::TExprBuilder(
     : Source_(source)
     , Functions_(functions)
 { }
-
-void TExprBuilder::SetGroupData(const TNamedItemList* groupItems, TAggregateItemList* aggregateItems)
-{
-    YT_VERIFY(!GroupItems_ && !AggregateItems_);
-
-    GroupItems_ = groupItems;
-    AggregateItems_ = aggregateItems;
-    AfterGroupBy_ = true;
-}
-
-TLogicalTypePtr TExprBuilder::GetColumnType(const NAst::TColumnReference& reference)
-{
-    if (AfterGroupBy_) {
-        // Search other way after group by.
-        if (reference.TableName) {
-            return nullptr;
-        }
-
-        for (int index = 0; index < std::ssize(*GroupItems_); ++index) {
-            const auto& item = (*GroupItems_)[index];
-            if (item.Name == reference.ColumnName) {
-                return item.Expression->LogicalType;
-            }
-        }
-        return nullptr;
-    }
-
-    return ColumnResolver->Resolve(reference);
-}
 
 TConstExpressionPtr TExprBuilder::BuildTypedExpression(
     const NAst::TExpression* expr, TRange<EValueType> resultTypes)
