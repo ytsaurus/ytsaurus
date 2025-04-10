@@ -12,7 +12,7 @@ from yt_sequoia_helpers import (
 from yt.sequoia_tools import DESCRIPTORS
 
 from yt_commands import (
-    authors, commit_transaction, create, get, raises_yt_error, remove, get_singular_chunk_id, write_table, read_table, wait,
+    authors, commit_transaction, create, get, get_cell_tag, raises_yt_error, remove, get_singular_chunk_id, write_table, read_table, wait,
     exists, create_domestic_medium, ls, set, get_account_disk_space_limit, set_account_disk_space_limit,
     link, build_master_snapshots, start_transaction, abort_transaction, get_active_primary_master_leader_address,
     sync_mount_table, sync_unmount_table, sync_compact_table)
@@ -681,3 +681,12 @@ class TestSequoiaPrerequisites(YTEnvSetup):
             create("table", "//tmp/t3", prerequisite_transaction_ids=[tx], attributes={"external_cell_tag": 13})
         with raises_yt_error(f"Prerequisite check failed: transaction {tx} is missing in Sequoia"):
             create("table", "//tmp/t3", prerequisite_transaction_ids=[tx], attributes={"external_cell_tag": 12})
+
+    @authors("cherepashka")
+    @pytest.skip("TODO(cherepashka): YT-24792")
+    def test_start_tx_with_prerequisite(self):
+        tx1 = start_transaction(coordinator_master_cell_tag=11)
+        tx2 = start_transaction(coordinator_master_cell_tag=12)
+        assert get_cell_tag(tx1) == 11 and get_cell_tag(tx2) == 12
+        with raises_yt_error("Multiple prerequisite transactions from different cells specified"):
+            start_transaction(prerequisite_transaction_ids=[tx1, tx2])
