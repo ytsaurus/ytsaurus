@@ -342,7 +342,7 @@ void TCoordinator::UpdateReadOnly()
         responses.push_back(Client_->GetNode(instance + "/orchid/monitoring/hydra", options));
     }
 
-    bool readOnly = true;
+    std::optional<bool> readOnly = std::nullopt;
     for (const auto& future : responses) {
         auto ysonOrError = WaitFor(future);
         if (!ysonOrError.IsOK()) {
@@ -355,10 +355,15 @@ void TCoordinator::UpdateReadOnly()
             continue;
         }
 
-        readOnly &= ConvertTo<bool>(rspMap->GetChildOrThrow("read_only"));
+        if (!ConvertTo<bool>(rspMap->GetChildOrThrow("active"))) {
+            continue;
+        }
+
+        auto peerReadOnly = ConvertTo<bool>(rspMap->GetChildOrThrow("read_only"));
+        readOnly = readOnly ? (*readOnly || peerReadOnly) : peerReadOnly;
     }
 
-    MastersInReadOnly_ = readOnly;
+    MastersInReadOnly_ = readOnly ? *readOnly : true;
 }
 
 void TCoordinator::UpdateState()
