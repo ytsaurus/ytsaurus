@@ -412,6 +412,7 @@ def build_cpu_rowsets():
         .unit("UNIT_PERCENT"))
 
     user_requests = (Master("yt.security.user_{}_{}.rate")
+        .all("cell_tag")
         .top())
     user_write_time = build_segmented_user_sensors(user_requests("write", "time").unit("UNIT_PERCENT_UNIT"))
     user_write_request_rate = build_segmented_user_sensors(user_requests("write", "request_count").unit("UNIT_WRITES_PER_SECOND"))
