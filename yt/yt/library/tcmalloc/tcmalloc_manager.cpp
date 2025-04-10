@@ -339,11 +339,7 @@ private:
 
     TLimitsAdjuster() = default;
 
-    struct TAllocatorMemoryLimit
-    {
-        size_t Limit;
-        bool Hard;
-    };
+    using TAllocatorMemoryLimit = tcmalloc::MallocExtension::MemoryLimit;
 
     TAllocatorMemoryLimit AppliedLimit_;
     i64 AggressiveReleaseThreshold_ = 0;
@@ -353,21 +349,16 @@ private:
     {
         auto proposed = ProposeHeapMemoryLimit(totalMemory, config);
 
-        if (proposed.Limit == AppliedLimit_.Limit && proposed.Hard == AppliedLimit_.Hard) {
+        if (proposed.limit == AppliedLimit_.limit && proposed.hard == AppliedLimit_.hard) {
             // Already applied.
             return;
         }
 
         YT_LOG_INFO("Changing TCMalloc memory limit (Limit: %v, Hard: %v)",
-            proposed.Limit,
-            proposed.Hard);
+            proposed.limit,
+            proposed.hard);
 
-        if (proposed.Hard) {
-            tcmalloc::MallocExtension::SetMemoryLimit(proposed.Limit, tcmalloc::MallocExtension::LimitKind::kHard);
-        } else {
-            tcmalloc::MallocExtension::SetMemoryLimit(proposed.Limit, tcmalloc::MallocExtension::LimitKind::kSoft);
-        }
-
+        tcmalloc::MallocExtension::SetMemoryLimit(proposed);
         AppliedLimit_ = proposed;
     }
 
@@ -394,12 +385,12 @@ private:
         }
 
         TAllocatorMemoryLimit proposed;
-        proposed.Hard = heapSizeConfig->Hard;
+        proposed.hard = heapSizeConfig->Hard;
 
         if (heapSizeConfig->ContainerMemoryMargin) {
-            proposed.Limit = totalMemory - *heapSizeConfig->ContainerMemoryMargin;
+            proposed.limit = totalMemory - *heapSizeConfig->ContainerMemoryMargin;
         } else {
-            proposed.Limit = *heapSizeConfig->ContainerMemoryRatio * totalMemory;
+            proposed.limit = *heapSizeConfig->ContainerMemoryRatio * totalMemory;
         }
 
         return proposed;
@@ -422,7 +413,7 @@ public:
 
     void Configure(const TTCMallocConfigPtr& config)
     {
-        tcmalloc::MallocExtension::SetProfileSamplingInterval(config->ProfileSamplingRate);
+        tcmalloc::MallocExtension::SetProfileSamplingRate(config->ProfileSamplingRate);
         tcmalloc::MallocExtension::SetMaxPerCpuCacheSize(config->MaxPerCpuCacheSize);
         tcmalloc::MallocExtension::SetMaxTotalThreadCacheBytes(config->MaxTotalThreadCacheBytes);
         tcmalloc::MallocExtension::SetBackgroundReleaseRate(
@@ -431,7 +422,7 @@ public:
         tcmalloc::MallocExtension::EnableForkSupport();
 
         if (config->GuardedSamplingRate) {
-            tcmalloc::MallocExtension::SetGuardedSamplingInterval(*config->GuardedSamplingRate);
+            tcmalloc::MallocExtension::SetGuardedSamplingRate(*config->GuardedSamplingRate);
             tcmalloc::MallocExtension::ActivateGuardedSampling();
         }
 
