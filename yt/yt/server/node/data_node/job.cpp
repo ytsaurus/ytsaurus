@@ -2985,7 +2985,7 @@ private:
         return Bootstrap_
             ->GetClient()
             ->GetNativeConnection()
-            ->CreateNativeClient({.User = NSecurityClient::RootUserName})
+            ->CreateNativeClient(NApi::TClientOptions::Root())
             ->GetChannelFactory();
     }
 };
@@ -3088,4 +3088,3 @@ TMasterJobBasePtr CreateJob(
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NDataNode
-

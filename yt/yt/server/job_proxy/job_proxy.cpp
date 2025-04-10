@@ -868,9 +868,9 @@ TJobResult TJobProxy::RunJob()
         auto supervisorChannel = NRpc::NBus::CreateBusChannel(supervisorClient);
         if (TvmBridge_) {
             auto serviceTicketAuth = CreateServiceTicketAuth(TvmBridge_, TvmBridge_->GetSelfTvmId());
-            supervisorChannel = CreateServiceTicketInjectingChannel(
+            supervisorChannel = NAuth::CreateServiceTicketInjectingChannel(
                 std::move(supervisorChannel),
-                NAuth::TAuthenticationOptions::FromServiceTicketAuth(serviceTicketAuth));
+                {.ServiceTicketAuth = serviceTicketAuth});
         }
 
         if (Config_->UseRetryingChannels) {

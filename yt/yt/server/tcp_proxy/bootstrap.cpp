@@ -173,7 +173,7 @@ private:
         HttpServer_ = NHttp::CreateServer(Config_->CreateMonitoringHttpServerConfig());
 
         NativeConnection_ = NApi::NNative::CreateConnection(Config_->ClusterConnection);
-        NativeRootClient_ = NativeConnection_->CreateNativeClient({.User = NSecurityClient::RootUserName});
+        NativeRootClient_ = NativeConnection_->CreateNativeClient(NApi::TClientOptions::Root());
         NativeAuthenticator_ = NApi::NNative::CreateNativeAuthenticator(NativeConnection_);
 
         DynamicConfigManager_ = New<TDynamicConfigManager>(this);

@@ -95,7 +95,7 @@ public:
     {
         auto settings = ConvertToAttributes(activeQuery.Settings);
         auto cluster = settings->Find<std::string>("cluster").value_or(Config_->DefaultCluster);
-        auto queryClient = ClusterDirectory_->GetConnectionOrThrow(cluster)->CreateClient(TClientOptions{.User = activeQuery.User});
+        auto queryClient = ClusterDirectory_->GetConnectionOrThrow(cluster)->CreateClient(TClientOptions::FromUser(activeQuery.User));
         return New<TQLQueryHandler>(StateClient_, StateRoot_, Config_, activeQuery, queryClient, ControlQueue_->GetInvoker());
     }
 
