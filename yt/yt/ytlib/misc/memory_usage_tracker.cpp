@@ -23,6 +23,7 @@ using namespace NThreading;
 
 using ECategory = INodeMemoryTracker::ECategory;
 using TPoolTag = INodeMemoryTracker::TPoolTag;
+using TCategoryPoolPair = std::pair<EMemoryCategory, std::optional<TPoolTag>>;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -75,10 +76,11 @@ public:
 
     void ClearTrackers() override;
 
-    TSharedRef Track(TSharedRef reference, EMemoryCategory category, bool keepExistingTracking) override;
+    TSharedRef Track(TSharedRef reference, EMemoryCategory category, std::optional<TPoolTag> poolTag, bool keepExistingTracking) override;
     TErrorOr<TSharedRef> TryTrack(
         TSharedRef reference,
         EMemoryCategory category,
+        std::optional<TPoolTag> poolTag,
         bool keepExistingTracking) override;
 
 private:
@@ -89,15 +91,17 @@ private:
         TTrackedReferenceHolder(
             TNodeMemoryTrackerPtr tracker,
             TSharedRef underlying,
-            EMemoryCategory category)
+            EMemoryCategory category,
+            std::optional<TPoolTag> poolTag)
             : Tracker_(std::move(tracker))
             , Underlying_(std::move(underlying))
             , Category_(category)
+            , PoolTag_(std::move(poolTag))
         { }
 
         ~TTrackedReferenceHolder() override
         {
-            Tracker_->RemoveStateOrDecreaseUsageConter(Underlying_, Category_);
+            Tracker_->RemoveStateOrDecreaseUsageConter(Underlying_, Category_, std::move(PoolTag_));
         }
 
         // TSharedRangeHolder overrides.
@@ -118,6 +122,7 @@ private:
         const TNodeMemoryTrackerPtr Tracker_;
         const TSharedRef Underlying_;
         const EMemoryCategory Category_;
+        const std::optional<TPoolTag> PoolTag_;
     };
 
     const TLogger Logger;
@@ -157,7 +162,7 @@ private:
     struct TState
     {
         TRef Reference;
-        THashMap<EMemoryCategory, i64> CategoryToUsage;
+        THashMap<TCategoryPoolPair, i64> CategoryPoolPairToUsage;
         TMemoryUsageTrackerGuard MemoryGuard;
     };
 
@@ -197,13 +202,16 @@ private:
 
     TReferenceKey GetReferenceKey(TRef ref);
     TReferenceAddressMapShard& GetReferenceAddressMapShard(TReferenceKey key);
-    TError TryCreateStateOrIncrementUsageCounter(TRef rawReference, EMemoryCategory category, bool allowOvercommit);
-    void RemoveStateOrDecreaseUsageConter(TRef rawReference, EMemoryCategory category);
-    TError TryChangeCategoryUsage(TState* state, EMemoryCategory category, i64 delta, bool allowOvercommit);
-    std::optional<EMemoryCategory> GetCategoryByUsage(const THashMap<EMemoryCategory, i64>& usage);
+    TError TryCreateStateOrIncrementUsageCounter(TRef rawReference, EMemoryCategory category, std::optional<TPoolTag> poolTag, bool allowOvercommit);
+    void RemoveStateOrDecreaseUsageConter(TRef rawReference, EMemoryCategory category, std::optional<TPoolTag> poolTag);
+    TError TryChangeCategoryPoolUsage(TState* state, EMemoryCategory category, std::optional<TPoolTag> poolTag, i64 delta, bool allowOvercommit);
+    std::optional<TCategoryPoolPair> GetCategoryPoolByUsage(const THashMap<TCategoryPoolPair, i64>& usage);
+    ECategory GetCategoryByUsage(const THashMap<TCategoryPoolPair, i64>& usage);
+    std::optional<TPoolTag> GetPoolTagByUsage(const THashMap<TCategoryPoolPair, i64>& usage);
     TErrorOr<TSharedRef> DoTryTrackMemory(
         TSharedRef reference,
         EMemoryCategory category,
+        std::optional<TPoolTag> poolTag,
         bool keepExistingTracking,
         bool allowOvercommit);
 };
@@ -272,14 +280,14 @@ public:
         TSharedRef reference,
         bool keepHolder) override
     {
-        return MemoryTracker_->Track(std::move(reference), Category_, keepHolder);
+        return MemoryTracker_->Track(std::move(reference), Category_, PoolTag_, keepHolder);
     }
 
     virtual TErrorOr<TSharedRef> TryTrack(
         TSharedRef reference,
         bool keepHolder) override
     {
-        return MemoryTracker_->TryTrack(std::move(reference), Category_, keepHolder);
+        return MemoryTracker_->TryTrack(std::move(reference), Category_, PoolTag_, keepHolder);
     }
 
 private:
@@ -812,11 +820,13 @@ TNodeMemoryTracker::TReferenceAddressMapShard& TNodeMemoryTracker::GetReferenceA
 TSharedRef TNodeMemoryTracker::Track(
     TSharedRef reference,
     EMemoryCategory category,
+    std::optional<TPoolTag> poolTag,
     bool keepExistingTracking)
 {
     auto refOrError = DoTryTrackMemory(
         std::move(reference),
         category,
+        std::move(poolTag),
         keepExistingTracking,
         /*allowOvercommit*/ true);
 
@@ -827,11 +837,13 @@ TSharedRef TNodeMemoryTracker::Track(
 TErrorOr<TSharedRef> TNodeMemoryTracker::TryTrack(
     TSharedRef reference,
     EMemoryCategory category,
+    std::optional<TPoolTag> poolTag,
     bool keepExistingTracking)
 {
     return DoTryTrackMemory(
         std::move(reference),
         category,
+        std::move(poolTag),
         keepExistingTracking,
         /*allowOvercommit*/ false);
 }
@@ -839,6 +851,7 @@ TErrorOr<TSharedRef> TNodeMemoryTracker::TryTrack(
 TErrorOr<TSharedRef> TNodeMemoryTracker::DoTryTrackMemory(
     TSharedRef reference,
     EMemoryCategory category,
+    std::optional<TPoolTag> poolTag,
     bool keepExistingTracking,
     bool allowOvercommit)
 {
@@ -855,7 +868,7 @@ TErrorOr<TSharedRef> TNodeMemoryTracker::DoTryTrackMemory(
         return reference;
     }
 
-    auto error = TryCreateStateOrIncrementUsageCounter(rawReference, category, allowOvercommit);
+    auto error = TryCreateStateOrIncrementUsageCounter(rawReference, category, poolTag, allowOvercommit);
     if (!error.IsOK()) {
         return error;
     }
@@ -864,12 +877,13 @@ TErrorOr<TSharedRef> TNodeMemoryTracker::DoTryTrackMemory(
     auto underlyingReference = TSharedRef(rawReference, std::move(underlyingHolder));
     return TSharedRef(
         rawReference,
-        New<TTrackedReferenceHolder>(this, std::move(underlyingReference), category));
+        New<TTrackedReferenceHolder>(this, std::move(underlyingReference), category, std::move(poolTag)));
 }
 
 TError TNodeMemoryTracker::TryCreateStateOrIncrementUsageCounter(
     TRef rawReference,
     EMemoryCategory category,
+    std::optional<TPoolTag> poolTag,
     bool allowOvercommit)
 {
     auto key = GetReferenceKey(rawReference);
@@ -878,14 +892,14 @@ TError TNodeMemoryTracker::TryCreateStateOrIncrementUsageCounter(
     auto guard = Guard(shard.SpinLock);
 
     if (auto it = shard.Map.find(key); it != shard.Map.end()) {
-        return TryChangeCategoryUsage(&it->second, category, /*delta*/ 1, allowOvercommit);
+        return TryChangeCategoryPoolUsage(&it->second, category, std::move(poolTag), /*delta*/ 1, allowOvercommit);
     }
 
     auto it = EmplaceOrCrash(shard.Map, key, TState{.Reference = rawReference});
-    return TryChangeCategoryUsage(&it->second, category, /*delta*/ 1, allowOvercommit);
+    return TryChangeCategoryPoolUsage(&it->second, category, std::move(poolTag), /*delta*/ 1, allowOvercommit);
 }
 
-void TNodeMemoryTracker::RemoveStateOrDecreaseUsageConter(TRef rawReference, EMemoryCategory category)
+void TNodeMemoryTracker::RemoveStateOrDecreaseUsageConter(TRef rawReference, EMemoryCategory category, std::optional<TPoolTag> poolTag)
 {
     auto key = GetReferenceKey(rawReference);
     auto& shard = GetReferenceAddressMapShard(key);
@@ -895,49 +909,51 @@ void TNodeMemoryTracker::RemoveStateOrDecreaseUsageConter(TRef rawReference, EMe
     auto& state = it->second;
 
     // Overcommit is not expected when while state is removing, because the counter is not incremented.
-    YT_VERIFY(TryChangeCategoryUsage(&state, category, /*delta*/ -1, /*allowOvercommit*/ true)
+    YT_VERIFY(TryChangeCategoryPoolUsage(&state, category, std::move(poolTag), /*delta*/ -1, /*allowOvercommit*/ true)
         .IsOK());
 
-    if (state.CategoryToUsage.empty()) {
+    if (state.CategoryPoolPairToUsage.empty()) {
         shard.Map.erase(it);
     }
 }
 
-TError TNodeMemoryTracker::TryChangeCategoryUsage(
+TError TNodeMemoryTracker::TryChangeCategoryPoolUsage(
     TState* state,
     EMemoryCategory category,
+    std::optional<TPoolTag> poolTag,
     i64 delta,
     bool allowOvercommit)
 {
-    auto oldCategory = GetCategoryByUsage(state->CategoryToUsage);
+    auto oldCategoryPoolPair = GetCategoryPoolByUsage(state->CategoryPoolPairToUsage);
+    TCategoryPoolPair categoryPoolPair = {category, std::move(poolTag)};
 
-    if (state->CategoryToUsage.contains(category) &&
-        state->CategoryToUsage[category] + delta != 0)
+    if (state->CategoryPoolPairToUsage.contains(categoryPoolPair) &&
+        state->CategoryPoolPairToUsage[categoryPoolPair] + delta != 0)
     {
-        state->CategoryToUsage[category] += delta;
+        state->CategoryPoolPairToUsage[categoryPoolPair] += delta;
         return TError();
     }
 
-    state->CategoryToUsage[category] += delta;
+    state->CategoryPoolPairToUsage[categoryPoolPair] += delta;
 
-    if (state->CategoryToUsage[category] == 0) {
-        state->CategoryToUsage.erase(category);
+    if (state->CategoryPoolPairToUsage[categoryPoolPair] == 0) {
+        state->CategoryPoolPairToUsage.erase(categoryPoolPair);
     }
 
-    auto newCategory = GetCategoryByUsage(state->CategoryToUsage);
-    if (!newCategory) {
+    auto newCategoryPoolPair = GetCategoryPoolByUsage(state->CategoryPoolPairToUsage);
+    if (!newCategoryPoolPair) {
         state->MemoryGuard.Release();
         return TError();
     }
 
-    if ((oldCategory && newCategory && *oldCategory != *newCategory) || !oldCategory) {
+    if ((oldCategoryPoolPair && newCategoryPoolPair && *oldCategoryPoolPair != *newCategoryPoolPair) || !oldCategoryPoolPair) {
         if (allowOvercommit) {
             state->MemoryGuard = TMemoryUsageTrackerGuard::Acquire(
-                WithCategory(*newCategory),
+                WithCategory(newCategoryPoolPair->first, newCategoryPoolPair->second),
                 std::ssize(state->Reference));
         } else {
             auto guardOrError = TMemoryUsageTrackerGuard::TryAcquire(
-                WithCategory(*newCategory),
+                WithCategory(newCategoryPoolPair->first, newCategoryPoolPair->second),
                 std::ssize(state->Reference));
             if (!guardOrError.IsOK()) {
                 return guardOrError;
@@ -949,40 +965,43 @@ TError TNodeMemoryTracker::TryChangeCategoryUsage(
     return TError();
 }
 
-std::optional<EMemoryCategory> TNodeMemoryTracker::GetCategoryByUsage(const THashMap<EMemoryCategory, i64>& usage)
+EMemoryCategory TNodeMemoryTracker::GetCategoryByUsage(const THashMap<TCategoryPoolPair, i64>& usage)
 {
+    YT_VERIFY(!usage.empty());
+
     auto anotherCategory = [&] (EMemoryCategory skipCategory) {
-        for (auto& [category, _]: usage) {
-            if (category != skipCategory) {
-                return category;
+        for (const auto& [categoryPoolPair, _] : usage) {
+            if (categoryPoolPair.first != skipCategory) {
+                return categoryPoolPair.first;
             }
         }
         YT_ABORT();
     };
 
-    if (usage.empty()) {
-        return std::nullopt;
-    }
-
-    if (usage.size() == 1) {
-        return usage.begin()->first;
-    }
+    auto containsCategory = [&] (EMemoryCategory category) {
+        for (const auto& [categoryPoolPair, _] : usage) {
+            if (categoryPoolPair.first == category) {
+                return true;
+            }
+        }
+        return false;
+    };
 
     if (usage.size() == 2) {
-        if (usage.contains(EMemoryCategory::Unknown)) {
+        if (containsCategory(EMemoryCategory::Unknown)) {
             return anotherCategory(EMemoryCategory::Unknown);
         }
-        if (usage.contains(EMemoryCategory::BlockCache)) {
+        if (containsCategory(EMemoryCategory::BlockCache)) {
             return anotherCategory(EMemoryCategory::BlockCache);
         }
         return EMemoryCategory::Mixed;
     }
 
     if (usage.size() == 3) {
-        if (usage.contains(EMemoryCategory::Unknown) && usage.contains(EMemoryCategory::BlockCache)) {
-            for (auto [category, _]: usage) {
-                if (category != EMemoryCategory::Unknown && category != EMemoryCategory::BlockCache) {
-                    return category;
+        if (containsCategory(EMemoryCategory::Unknown) && containsCategory(EMemoryCategory::BlockCache)) {
+            for (const auto& [categoryPoolPair, _] : usage) {
+                if (categoryPoolPair.first != EMemoryCategory::Unknown && categoryPoolPair.first != EMemoryCategory::BlockCache) {
+                    return categoryPoolPair.first;
                 }
             }
         }
@@ -990,6 +1009,32 @@ std::optional<EMemoryCategory> TNodeMemoryTracker::GetCategoryByUsage(const THas
     }
 
     return EMemoryCategory::Mixed;
+
+}
+
+std::optional<TPoolTag> TNodeMemoryTracker::GetPoolTagByUsage(const THashMap<TCategoryPoolPair, i64>& usage)
+{
+    YT_VERIFY(!usage.empty());
+
+    auto resultPool = usage.begin()->first.second;
+    for (const auto& [categoryPoolPair, _] : usage) {
+        if (categoryPoolPair.second != resultPool) {
+            return std::nullopt;
+        }
+    }
+    return resultPool;
+}
+
+std::optional<TCategoryPoolPair> TNodeMemoryTracker::GetCategoryPoolByUsage(const THashMap<TCategoryPoolPair, i64>& usage)
+{
+    if (usage.empty()) {
+        return std::nullopt;
+    }
+
+    if (usage.size() == 1) {
+        return usage.begin()->first;
+    }
+    return TCategoryPoolPair({GetCategoryByUsage(usage), GetPoolTagByUsage(usage)});
 }
 
 typename TNodeMemoryTracker::TPool*

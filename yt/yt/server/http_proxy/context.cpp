@@ -881,6 +881,13 @@ void TContext::Run()
                 << TErrorAttribute("pool_memory_usage", Api_->GetMemoryUsageTracker()->GetPoolUsed(userPoolTag));
         }
 
+        if (Descriptor_->Heavy && Api_->GetMemoryUsageTracker()->IsExceeded(EMemoryCategory::HeavyRequest))
+        {
+            THROW_ERROR_EXCEPTION(error)
+                << TErrorAttribute("heavy_request_memory_limit", Api_->GetMemoryUsageTracker()->GetLimit(EMemoryCategory::HeavyRequest))
+                << TErrorAttribute("heavy_request_memory_usage", Api_->GetMemoryUsageTracker()->GetUsed(EMemoryCategory::HeavyRequest));
+        }
+
         if (Descriptor_->Heavy && Api_->GetMemoryUsageTracker()->IsExceeded(
             EMemoryCategory::HeavyRequest,
             userPoolTag))
