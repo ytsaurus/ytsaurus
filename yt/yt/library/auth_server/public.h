@@ -31,6 +31,7 @@ DECLARE_REFCOUNTED_CLASS(TOAuthCookieAuthenticatorConfig)
 DECLARE_REFCOUNTED_CLASS(TOAuthTokenAuthenticatorConfig)
 DECLARE_REFCOUNTED_CLASS(TCachingOAuthCookieAuthenticatorConfig)
 DECLARE_REFCOUNTED_CLASS(TCachingOAuthTokenAuthenticatorConfig)
+DECLARE_REFCOUNTED_CLASS(TYCIAMTokenAuthenticatorConfig)
 DECLARE_REFCOUNTED_CLASS(TStringReplacementConfig)
 DECLARE_REFCOUNTED_CLASS(TOAuthServiceConfig)
 DECLARE_REFCOUNTED_CLASS(TCypressUserManagerConfig)
@@ -141,6 +142,20 @@ constexpr TStringBuf BlackboxSessionIdCookieName = "Session_id";
 constexpr TStringBuf BlackboxSslSessionIdCookieName = "sessionid2";
 constexpr TStringBuf CypressCookieName = "YTCypressCookie";
 constexpr TStringBuf OAuthAccessTokenCookieName = "access_token";
+
+////////////////////////////////////////////////////////////////////////////////
+
+YT_DEFINE_ERROR_ENUM(
+    // User error.
+    ((InvalidUserCredentials)     (30000))
+    // YT communication error with YC IAM service.
+    ((YCIAMProtocolError)           (30001))
+    // Server error.
+    ((YCIAMRetryableServerError)    (30002))
+    // Unexpected errors.
+    ((UnexpectedClientYCIAMError)   (30003))
+    ((UnexpectedServerYCIAMError)   (30004))
+);
 
 ////////////////////////////////////////////////////////////////////////////////
 
