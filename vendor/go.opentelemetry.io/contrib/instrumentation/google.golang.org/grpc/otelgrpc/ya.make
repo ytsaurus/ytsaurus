@@ -2,7 +2,7 @@ GO_LIBRARY()
 
 LICENSE(Apache-2.0)
 
-VERSION(v0.54.0)
+VERSION(v0.60.0)
 
 SRCS(
     config.go
@@ -23,6 +23,7 @@ GO_TEST_SRCS(
 GO_XTEST_SRCS(
     benchmark_test.go
     example_test.go
+    version_test.go
 )
 
 END()

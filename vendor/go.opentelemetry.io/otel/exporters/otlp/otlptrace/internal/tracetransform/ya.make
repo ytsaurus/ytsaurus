@@ -2,7 +2,7 @@ GO_LIBRARY()
 
 LICENSE(Apache-2.0)
 
-VERSION(v1.29.0)
+VERSION(v1.35.0)
 
 SRCS(
     attribute.go
@@ -13,6 +13,7 @@ SRCS(
 
 GO_TEST_SRCS(
     attribute_test.go
+    instrumentation_test.go
     resource_test.go
     span_test.go
 )

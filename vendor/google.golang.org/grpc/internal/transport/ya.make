@@ -2,7 +2,7 @@ GO_LIBRARY()
 
 LICENSE(Apache-2.0)
 
-VERSION(v1.69.4)
+VERSION(v1.71.0)
 
 SRCS(
     bdp_estimator.go
@@ -26,6 +26,10 @@ GO_TEST_SRCS(
     keepalive_test.go
     proxy_test.go
     transport_test.go
+)
+
+GO_XTEST_SRCS(
+    # proxy_ext_test.go
 )
 
 END()

@@ -1,96 +1,79 @@
+// Code created by gotmpl. DO NOT MODIFY.
+// source: internal/shared/semconv/httpconv_test.go.tmpl
+
 // Copyright The OpenTelemetry Authors
 // SPDX-License-Identifier: Apache-2.0
 
 package semconv
 
 import (
-	"errors"
-	"fmt"
 	"net/http"
-	"net/http/httptest"
-	"strings"
+	"strconv"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
 )
 
-func TestNewTraceRequest(t *testing.T) {
-	t.Setenv("OTEL_SEMCONV_STABILITY_OPT_IN", "http/dup")
-	serv := NewHTTPServer(nil)
-	want := func(req testServerReq) []attribute.KeyValue {
-		return []attribute.KeyValue{
-			attribute.String("http.request.method", "GET"),
-			attribute.String("url.scheme", "http"),
-			attribute.String("server.address", req.hostname),
-			attribute.Int("server.port", req.serverPort),
-			attribute.String("network.peer.address", req.peerAddr),
-			attribute.Int("network.peer.port", req.peerPort),
-			attribute.String("user_agent.original", "Go-http-client/1.1"),
-			attribute.String("client.address", req.clientIP),
-			attribute.String("network.protocol.version", "1.1"),
-			attribute.String("url.path", "/"),
-			attribute.String("http.method", "GET"),
-			attribute.String("http.scheme", "http"),
-			attribute.String("net.host.name", req.hostname),
-			attribute.Int("net.host.port", req.serverPort),
-			attribute.String("net.sock.peer.addr", req.peerAddr),
-			attribute.Int("net.sock.peer.port", req.peerPort),
-			attribute.String("user_agent.original", "Go-http-client/1.1"),
-			attribute.String("http.client_ip", req.clientIP),
-			attribute.String("net.protocol.version", "1.1"),
-			attribute.String("http.target", "/"),
-		}
-	}
-	testTraceRequest(t, serv, want)
-}
+func TestCurrentHttpServer_MetricAttributes(t *testing.T) {
+	defaultRequest, err := http.NewRequest("GET", "http://example.com/path?query=test", nil)
+	require.NoError(t, err)
 
-func TestNewTraceResponse(t *testing.T) {
-	testCases := []struct {
-		name string
-		resp ResponseTelemetry
-		want []attribute.KeyValue
+	tests := []struct {
+		name                 string
+		server               string
+		req                  *http.Request
+		statusCode           int
+		additionalAttributes []attribute.KeyValue
+		wantFunc             func(t *testing.T, attrs []attribute.KeyValue)
 	}{
 		{
-			name: "empty",
-			resp: ResponseTelemetry{},
-			want: nil,
+			name:                 "routine testing",
+			server:               "",
+			req:                  defaultRequest,
+			statusCode:           200,
+			additionalAttributes: []attribute.KeyValue{attribute.String("test", "test")},
+			wantFunc: func(t *testing.T, attrs []attribute.KeyValue) {
+				require.Len(t, attrs, 7)
+				assert.ElementsMatch(t, []attribute.KeyValue{
+					attribute.String("http.request.method", "GET"),
+					attribute.String("url.scheme", "http"),
+					attribute.String("server.address", "example.com"),
+					attribute.String("network.protocol.name", "http"),
+					attribute.String("network.protocol.version", "1.1"),
+					attribute.Int64("http.response.status_code", 200),
+					attribute.String("test", "test"),
+				}, attrs)
+			},
 		},
 		{
-			name: "no errors",
-			resp: ResponseTelemetry{
-				StatusCode: 200,
-				ReadBytes:  701,
-				WriteBytes: 802,
-			},
-			want: []attribute.KeyValue{
-				attribute.Int("http.request.body.size", 701),
-				attribute.Int("http.response.body.size", 802),
-				attribute.Int("http.response.status_code", 200),
-			},
-		},
-		{
-			name: "with errors",
-			resp: ResponseTelemetry{
-				StatusCode: 200,
-				ReadBytes:  701,
-				ReadError:  fmt.Errorf("read error"),
-				WriteBytes: 802,
-				WriteError: fmt.Errorf("write error"),
-			},
-			want: []attribute.KeyValue{
-				attribute.Int("http.request.body.size", 701),
-				attribute.Int("http.response.body.size", 802),
-				attribute.Int("http.response.status_code", 200),
+			name:                 "use server address",
+			server:               "example.com:9999",
+			req:                  defaultRequest,
+			statusCode:           200,
+			additionalAttributes: nil,
+			wantFunc: func(t *testing.T, attrs []attribute.KeyValue) {
+				require.Len(t, attrs, 7)
+				assert.ElementsMatch(t, []attribute.KeyValue{
+					attribute.String("http.request.method", "GET"),
+					attribute.String("url.scheme", "http"),
+					attribute.String("server.address", "example.com"),
+					attribute.Int("server.port", 9999),
+					attribute.String("network.protocol.name", "http"),
+					attribute.String("network.protocol.version", "1.1"),
+					attribute.Int64("http.response.status_code", 200),
+				}, attrs)
 			},
 		},
 	}
 
-	for _, tt := range testCases {
+	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := newHTTPServer{}.ResponseTraceAttrs(tt.resp)
-			assert.ElementsMatch(t, tt.want, got)
+			got := CurrentHTTPServer{}.MetricAttributes(tt.server, tt.req, tt.statusCode, tt.additionalAttributes)
+			tt.wantFunc(t, got)
 		})
 	}
 }
@@ -123,104 +106,153 @@ func TestNewMethod(t *testing.T) {
 
 	for _, tt := range testCases {
 		t.Run(tt.method, func(t *testing.T) {
-			got, gotOrig := newHTTPServer{}.method(tt.method)
+			got, gotOrig := CurrentHTTPServer{}.method(tt.method)
 			assert.Equal(t, tt.want, got)
 			assert.Equal(t, tt.wantOrig, gotOrig)
 		})
 	}
 }
 
-func TestNewTraceRequest_Client(t *testing.T) {
-	t.Setenv("OTEL_SEMCONV_STABILITY_OPT_IN", "http/dup")
-	body := strings.NewReader("Hello, world!")
-	url := "https://example.com:8888/foo/bar?stuff=morestuff"
-	req := httptest.NewRequest("pOST", url, body)
-	req.Header.Set("User-Agent", "go-test-agent")
-
-	want := []attribute.KeyValue{
-		attribute.String("http.request.method", "POST"),
-		attribute.String("http.request.method_original", "pOST"),
-		attribute.String("http.method", "pOST"),
-		attribute.String("url.full", url),
-		attribute.String("http.url", url),
-		attribute.String("server.address", "example.com"),
-		attribute.Int("server.port", 8888),
-		attribute.String("network.protocol.version", "1.1"),
-		attribute.String("net.peer.name", "example.com"),
-		attribute.Int("net.peer.port", 8888),
-		attribute.String("user_agent.original", "go-test-agent"),
-		attribute.Int("http.request_content_length", 13),
-	}
-	client := NewHTTPClient(nil)
-	assert.ElementsMatch(t, want, client.RequestTraceAttrs(req))
-}
-
-func TestNewTraceResponse_Client(t *testing.T) {
-	t.Setenv("OTEL_SEMCONV_STABILITY_OPT_IN", "http/dup")
-	testcases := []struct {
-		resp http.Response
-		want []attribute.KeyValue
+func TestHTTPClientStatus(t *testing.T) {
+	tests := []struct {
+		code int
+		stat codes.Code
+		msg  bool
 	}{
-		{resp: http.Response{StatusCode: 200, ContentLength: 123}, want: []attribute.KeyValue{attribute.Int("http.response.status_code", 200), attribute.Int("http.status_code", 200), attribute.Int("http.response_content_length", 123)}},
-		{resp: http.Response{StatusCode: 404, ContentLength: 0}, want: []attribute.KeyValue{attribute.Int("http.response.status_code", 404), attribute.Int("http.status_code", 404), attribute.String("error.type", "404")}},
+		{0, codes.Error, true},
+		{http.StatusContinue, codes.Unset, false},
+		{http.StatusSwitchingProtocols, codes.Unset, false},
+		{http.StatusProcessing, codes.Unset, false},
+		{http.StatusEarlyHints, codes.Unset, false},
+		{http.StatusOK, codes.Unset, false},
+		{http.StatusCreated, codes.Unset, false},
+		{http.StatusAccepted, codes.Unset, false},
+		{http.StatusNonAuthoritativeInfo, codes.Unset, false},
+		{http.StatusNoContent, codes.Unset, false},
+		{http.StatusResetContent, codes.Unset, false},
+		{http.StatusPartialContent, codes.Unset, false},
+		{http.StatusMultiStatus, codes.Unset, false},
+		{http.StatusAlreadyReported, codes.Unset, false},
+		{http.StatusIMUsed, codes.Unset, false},
+		{http.StatusMultipleChoices, codes.Unset, false},
+		{http.StatusMovedPermanently, codes.Unset, false},
+		{http.StatusFound, codes.Unset, false},
+		{http.StatusSeeOther, codes.Unset, false},
+		{http.StatusNotModified, codes.Unset, false},
+		{http.StatusUseProxy, codes.Unset, false},
+		{306, codes.Unset, false},
+		{http.StatusTemporaryRedirect, codes.Unset, false},
+		{http.StatusPermanentRedirect, codes.Unset, false},
+		{http.StatusBadRequest, codes.Error, false},
+		{http.StatusUnauthorized, codes.Error, false},
+		{http.StatusPaymentRequired, codes.Error, false},
+		{http.StatusForbidden, codes.Error, false},
+		{http.StatusNotFound, codes.Error, false},
+		{http.StatusMethodNotAllowed, codes.Error, false},
+		{http.StatusNotAcceptable, codes.Error, false},
+		{http.StatusProxyAuthRequired, codes.Error, false},
+		{http.StatusRequestTimeout, codes.Error, false},
+		{http.StatusConflict, codes.Error, false},
+		{http.StatusGone, codes.Error, false},
+		{http.StatusLengthRequired, codes.Error, false},
+		{http.StatusPreconditionFailed, codes.Error, false},
+		{http.StatusRequestEntityTooLarge, codes.Error, false},
+		{http.StatusRequestURITooLong, codes.Error, false},
+		{http.StatusUnsupportedMediaType, codes.Error, false},
+		{http.StatusRequestedRangeNotSatisfiable, codes.Error, false},
+		{http.StatusExpectationFailed, codes.Error, false},
+		{http.StatusTeapot, codes.Error, false},
+		{http.StatusMisdirectedRequest, codes.Error, false},
+		{http.StatusUnprocessableEntity, codes.Error, false},
+		{http.StatusLocked, codes.Error, false},
+		{http.StatusFailedDependency, codes.Error, false},
+		{http.StatusTooEarly, codes.Error, false},
+		{http.StatusUpgradeRequired, codes.Error, false},
+		{http.StatusPreconditionRequired, codes.Error, false},
+		{http.StatusTooManyRequests, codes.Error, false},
+		{http.StatusRequestHeaderFieldsTooLarge, codes.Error, false},
+		{http.StatusUnavailableForLegalReasons, codes.Error, false},
+		{499, codes.Error, false},
+		{http.StatusInternalServerError, codes.Error, false},
+		{http.StatusNotImplemented, codes.Error, false},
+		{http.StatusBadGateway, codes.Error, false},
+		{http.StatusServiceUnavailable, codes.Error, false},
+		{http.StatusGatewayTimeout, codes.Error, false},
+		{http.StatusHTTPVersionNotSupported, codes.Error, false},
+		{http.StatusVariantAlsoNegotiates, codes.Error, false},
+		{http.StatusInsufficientStorage, codes.Error, false},
+		{http.StatusLoopDetected, codes.Error, false},
+		{http.StatusNotExtended, codes.Error, false},
+		{http.StatusNetworkAuthenticationRequired, codes.Error, false},
+		{600, codes.Error, true},
 	}
 
-	for _, tt := range testcases {
-		client := NewHTTPClient(nil)
-		assert.ElementsMatch(t, tt.want, client.ResponseTraceAttrs(&tt.resp))
+	for _, test := range tests {
+		t.Run(strconv.Itoa(test.code), func(t *testing.T) {
+			c, msg := HTTPClient{}.Status(test.code)
+			assert.Equal(t, test.stat, c)
+			if test.msg && msg == "" {
+				t.Errorf("expected non-empty message for %d", test.code)
+			} else if !test.msg && msg != "" {
+				t.Errorf("expected empty message for %d, got: %s", test.code, msg)
+			}
+		})
 	}
 }
 
-func TestClientRequest(t *testing.T) {
-	body := strings.NewReader("Hello, world!")
-	url := "https://example.com:8888/foo/bar?stuff=morestuff"
-	req := httptest.NewRequest("pOST", url, body)
-	req.Header.Set("User-Agent", "go-test-agent")
+func TestCurrentHttpClient_MetricAttributes(t *testing.T) {
+	defaultRequest, err := http.NewRequest("GET", "http://example.com/path?query=test", nil)
+	require.NoError(t, err)
 
-	want := []attribute.KeyValue{
-		attribute.String("http.request.method", "POST"),
-		attribute.String("http.request.method_original", "pOST"),
-		attribute.String("url.full", url),
-		attribute.String("server.address", "example.com"),
-		attribute.Int("server.port", 8888),
-		attribute.String("network.protocol.version", "1.1"),
-	}
-	got := newHTTPClient{}.RequestTraceAttrs(req)
-	assert.ElementsMatch(t, want, got)
-}
-
-func TestClientResponse(t *testing.T) {
-	testcases := []struct {
-		resp http.Response
-		want []attribute.KeyValue
+	tests := []struct {
+		name                 string
+		server               string
+		req                  *http.Request
+		statusCode           int
+		additionalAttributes []attribute.KeyValue
+		wantFunc             func(t *testing.T, attrs []attribute.KeyValue)
 	}{
-		{resp: http.Response{StatusCode: 200, ContentLength: 123}, want: []attribute.KeyValue{attribute.Int("http.response.status_code", 200)}},
-		{resp: http.Response{StatusCode: 404, ContentLength: 0}, want: []attribute.KeyValue{attribute.Int("http.response.status_code", 404), attribute.String("error.type", "404")}},
+		{
+			name:                 "routine testing",
+			req:                  defaultRequest,
+			statusCode:           200,
+			additionalAttributes: []attribute.KeyValue{attribute.String("test", "test")},
+			wantFunc: func(t *testing.T, attrs []attribute.KeyValue) {
+				require.Len(t, attrs, 7)
+				assert.ElementsMatch(t, []attribute.KeyValue{
+					attribute.String("http.request.method", "GET"),
+					attribute.String("server.address", "example.com"),
+					attribute.String("url.scheme", "http"),
+					attribute.String("network.protocol.name", "http"),
+					attribute.String("network.protocol.version", "1.1"),
+					attribute.Int64("http.response.status_code", 200),
+					attribute.String("test", "test"),
+				}, attrs)
+			},
+		},
+		{
+			name:                 "use server address",
+			req:                  defaultRequest,
+			statusCode:           200,
+			additionalAttributes: nil,
+			wantFunc: func(t *testing.T, attrs []attribute.KeyValue) {
+				require.Len(t, attrs, 6)
+				assert.ElementsMatch(t, []attribute.KeyValue{
+					attribute.String("http.request.method", "GET"),
+					attribute.String("server.address", "example.com"),
+					attribute.String("url.scheme", "http"),
+					attribute.String("network.protocol.name", "http"),
+					attribute.String("network.protocol.version", "1.1"),
+					attribute.Int64("http.response.status_code", 200),
+				}, attrs)
+			},
+		},
 	}
 
-	for _, tt := range testcases {
-		got := newHTTPClient{}.ResponseTraceAttrs(&tt.resp)
-		assert.ElementsMatch(t, tt.want, got)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := CurrentHTTPClient{}.MetricAttributes(tt.req, tt.statusCode, tt.additionalAttributes)
+			tt.wantFunc(t, got)
+		})
 	}
-}
-
-func TestRequestErrorType(t *testing.T) {
-	testcases := []struct {
-		err  error
-		want attribute.KeyValue
-	}{
-		{err: errors.New("http: nil Request.URL"), want: attribute.String("error.type", "*errors.errorString")},
-		{err: customError{}, want: attribute.String("error.type", "go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp/internal/semconv.customError")},
-	}
-
-	for _, tt := range testcases {
-		got := newHTTPClient{}.ErrorType(tt.err)
-		assert.Equal(t, tt.want, got)
-	}
-}
-
-type customError struct{}
-
-func (customError) Error() string {
-	return "custom error"
 }

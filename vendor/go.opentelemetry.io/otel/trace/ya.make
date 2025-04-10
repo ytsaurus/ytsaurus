@@ -2,9 +2,10 @@ GO_LIBRARY()
 
 LICENSE(Apache-2.0)
 
-VERSION(v1.33.0)
+VERSION(v1.35.0)
 
 SRCS(
+    auto.go
     config.go
     context.go
     doc.go
@@ -18,6 +19,7 @@ SRCS(
 )
 
 GO_TEST_SRCS(
+    auto_test.go
     config_test.go
     context_test.go
     noop_test.go
@@ -32,5 +34,6 @@ END()
 RECURSE(
     embedded
     gotest
+    internal
     noop
 )
