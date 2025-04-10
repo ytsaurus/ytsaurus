@@ -1418,6 +1418,7 @@ def _build_native_driver_configs(master_connection_configs,
     for cell_index in xrange(yt_config.secondary_cell_count + 1):
         config = default_config.get_driver_config()
         init_chunk_client_dispatcher(config)
+        config["start_queue_consumer_registration_manager"] = True
 
         if cell_index == 0:
             tag = primary_cell_tag

@@ -110,7 +110,9 @@ public:
                             Logger);
 
                         nativeConnection->GetClusterDirectorySynchronizer()->Start();
-                        nativeConnection->GetQueueConsumerRegistrationManager()->StartSync();
+                        if (driverConfig->StartQueueConsumerRegistrationManager) {
+                            nativeConnection->GetQueueConsumerRegistrationManager()->StartSync();
+                        }
                     }
 
                     NChunkClient::TDispatcher::Get()->Configure(driverConfig->ChunkClientDispatcher);

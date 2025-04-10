@@ -20,6 +20,7 @@ class TNativeDriverConfig
 public:
     NAuth::TTvmServiceConfigPtr TvmService;
     NChunkClient::TDispatcherConfigPtr ChunkClientDispatcher;
+    bool StartQueueConsumerRegistrationManager;
 
     REGISTER_YSON_STRUCT(TNativeDriverConfig);
 
