@@ -495,7 +495,6 @@ EValueType RefineUnaryExprTypes(
     return argType;
 }
 
-
 ////////////////////////////////////////////////////////////////////////////////
 
 using TExpressionGenerator = std::function<TConstExpressionPtr(EValueType)>;
@@ -524,6 +523,62 @@ public:
 
     TConstExpressionPtr DoBuildTypedExpression(const NAst::TExpression* expr, TRange<EValueType> resultTypes) override;
 
+    void AddTable(TNameSource nameSource) override
+    {
+        ColumnResolver_.AddTable(std::move(nameSource));
+    }
+
+    TLogicalTypePtr ResolveColumn(const NAst::TColumnReference& reference) override
+    {
+        return ColumnResolver_.Resolve(reference);
+    }
+
+    void PopulateAllColumns() override
+    {
+        ColumnResolver_.PopulateAllColumns();
+    }
+
+    void Finish() override
+    {
+        ColumnResolver_.Finish();
+    }
+
+    TLogicalTypePtr GetColumnType(const NAst::TColumnReference& reference)
+    {
+        if (AfterGroupBy_) {
+            // Search other way after group by.
+            if (reference.TableName) {
+                return nullptr;
+            }
+
+            for (int index = 0; index < std::ssize(*GroupItems_); ++index) {
+                const auto& item = (*GroupItems_)[index];
+                if (item.Name == reference.ColumnName) {
+                    return item.Expression->LogicalType;
+                }
+            }
+            return nullptr;
+        }
+
+        return ColumnResolver_.Resolve(reference);
+    }
+
+    void SetGroupData(const TNamedItemList* groupItems, TAggregateItemList* aggregateItems) override
+    {
+        YT_VERIFY(!GroupItems_ && !AggregateItems_);
+
+        GroupItems_ = groupItems;
+        AggregateItems_ = aggregateItems;
+        AfterGroupBy_ = true;
+    }
+
+    TString InferGroupItemName(
+        const TConstExpressionPtr& /*typedExpression*/,
+        const NAst::TExpression& expressionsAst) override
+    {
+        return InferColumnName(expressionsAst);
+    }
+
 private:
     struct ResolveNestedTypesResult
     {
@@ -537,6 +592,15 @@ private:
     int Depth_ = 0;
 
     THashMap<std::pair<TString, EValueType>, TConstExpressionPtr> AggregateLookup_;
+
+    TReferenceResolver ColumnResolver_;
+
+    const TNamedItemList* GroupItems_ = nullptr;
+    // TODO: Enrich TMappedSchema with alias and keep here pointers to TMappedSchema.
+
+    TAggregateItemList* AggregateItems_ = nullptr;
+
+    bool AfterGroupBy_ = false;
 
     ResolveNestedTypesResult ResolveNestedTypes(
         const TLogicalTypePtr& type,
