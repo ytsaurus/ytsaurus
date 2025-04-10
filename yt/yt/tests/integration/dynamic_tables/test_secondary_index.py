@@ -73,7 +73,8 @@ INDEX_ON_VALUE_SCHEMA_WITH_EXPRESSION = [
 INDEX_ON_KEY_SCHEMA = [
     {"name": "keyB", "type": "string", "sort_order": "ascending"},
     {"name": "keyA", "type": "int64", "sort_order": "ascending"},
-    {"name": EMPTY_COLUMN_NAME, "type": "int64"},
+    {"name": "valueA", "type": "int64"},
+    {"name": "valueB", "type": "boolean"},
 ]
 
 PRIMARY_SCHEMA_WITH_LIST = [
@@ -920,6 +921,37 @@ class TestSecondaryIndexModifications(TestSecondaryIndexBase):
         self._expect_from_index([row(i, None if N // 4 <= i and i < N - N // 4 else i % 3) for i in range(N)])
 
     @authors("sabdenovch")
+    def test_lookup_skip(self):
+        self._create_basic_tables(
+            mount=True,
+            table_path="//tmp/lookupless",
+            index_schema=INDEX_ON_KEY_SCHEMA + [{"name": "eva01", "type": "int64"}],
+            attributes={
+                "evaluated_columns_schema": [{
+                    "name": "eva01",
+                    "type": "int64",
+                    "expression": "-keyA",
+                }],
+            })
+
+        N = 8
+
+        assert self._get_table_profiling("//tmp/lookupless").get_counter("lookup/row_count") == 0
+
+        def row(i, a):
+            return {"keyA": i, "keyB": f"b{(N - i) % 3}", "valueA": a, "valueB": None}
+
+        def index_row(i, a):
+            return {"keyA": i, "keyB": f"b{(N - i) % 3}", "valueA": a, "valueB": None, "eva01": -i}
+
+        self._insert_rows([row(i, 11) for i in range(N)], table="//tmp/lookupless")
+        self._expect_from_index([index_row(i, 11) for i in range(N)])
+        self._insert_rows([row(i, 22) for i in range(N // 2, N + N // 2)], table="//tmp/lookupless")
+        self._expect_from_index([index_row(i, 11) for i in range(N // 2)] + [index_row(i, 22) for i in range(N // 2, N + N // 2)])
+
+        assert self._get_table_profiling("//tmp/lookupless").get_counter("lookup/row_count") == 0
+
+    @authors("sabdenovch")
     def test_multiple_indices(self):
         self._create_basic_tables()
         self._create_table("//tmp/index_table_auxiliary", INDEX_ON_KEY_SCHEMA)
@@ -941,13 +973,10 @@ class TestSecondaryIndexModifications(TestSecondaryIndexBase):
         def row(i):
             return {"keyA": i, "keyB": "b%02x" % i, "valueA": N - i - 1, "valueB": i % 2 == 0}
 
-        def aux_row(i):
-            return {"keyB": "b%02x" % i, "keyA": i, EMPTY_COLUMN_NAME: None}
-
         self._insert_rows([row(i) for i in range(N)])
 
         self._expect_from_index([row(i) for i in range(N - 1, -1, -1)])
-        self._expect_from_index([aux_row(i) for i in range(N)], index_table="//tmp/index_table_auxiliary")
+        self._expect_from_index([row(i) for i in range(N)], index_table="//tmp/index_table_auxiliary")
 
     @pytest.mark.parametrize("strong_typing", [False, True])
     @authors("sabdenovch")

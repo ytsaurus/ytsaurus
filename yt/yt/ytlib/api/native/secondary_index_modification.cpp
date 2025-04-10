@@ -98,6 +98,8 @@ private:
     TInitialRowMap InitialRowMap_;
     TResultingRowMap ResultingRowMap_;
 
+    bool CanSkipLookup_ = false;
+
     void SetInitialAndResultingRows(TSharedRange<NTableClient::TUnversionedRow> lookedUpRows);
 
     TFuture<TSharedRange<TRowModification>> ProduceModificationsForIndex(int index) const;
@@ -133,6 +135,9 @@ private:
         std::optional<int> predicatePosition) const;
 
     bool IsPredicateGood(std::optional<int> predicatePosition, TUnversionedRow value) const;
+
+    static bool IsNotValueColumn(const TTableSchema& tableSchema, TStringBuf columnName);
+    static bool AreIndexColumnsDependentOnlyOnKeyColumns(const TTableSchema& tableSchema, const TTableSchema& indexTableSchema);
 };
 
 DEFINE_REFCOUNTED_TYPE(TSecondaryIndexModifier)
@@ -173,6 +178,8 @@ TSecondaryIndexModifier::TSecondaryIndexModifier(
         }
         PositionToIdMapping_.push_back(NameTable_->GetId(keyColumn.Name()));
     }
+
+    CanSkipLookup_ = true;
 
     TColumnSet evaluatedExpressionsColumns;
     IndexDescriptors_.resize(IndexTableMountInfos_.size());
@@ -241,6 +248,8 @@ TSecondaryIndexModifier::TSecondaryIndexModifier(
                 PositionToIdMapping_.push_back(id);
             }
         }
+
+        CanSkipLookup_ = CanSkipLookup_ && AreIndexColumnsDependentOnlyOnKeyColumns(*tableSchema, indexSchema);
     }
 
     for (const auto& column : evaluatedExpressionsColumns) {
@@ -274,6 +283,17 @@ TSecondaryIndexModifier::TSecondaryIndexModifier(
     }
 
     ResultingSchema_ = New<TTableSchema>(std::move(resultingColumns));
+
+    CanSkipLookup_ = CanSkipLookup_ && std::all_of(
+        evaluatedExpressionsColumns.begin(),
+        evaluatedExpressionsColumns.end(),
+        [&] (const std::string& column) {
+            return IsNotValueColumn(*tableSchema, column);
+        });
+
+    YT_LOG_DEBUG("Prepared secondary index modification pipeline (IntermediateSchema: %v, SkipLookup: %v)",
+        ResultingSchema_,
+        CanSkipLookup_);
 }
 
 TFuture<void> TSecondaryIndexModifier::LookupRows()
@@ -288,6 +308,11 @@ TFuture<void> TSecondaryIndexModifier::LookupRows()
         if (inserted) {
             lookupKeys.push_back(RowBuffer_->CaptureRow(key.Elements()));
         }
+    }
+
+    if (CanSkipLookup_) {
+        SetInitialAndResultingRows({});
+        return VoidFuture;
     }
 
     TLookupRowsOptions options;
@@ -750,6 +775,33 @@ bool TSecondaryIndexModifier::IsPredicateGood(
     YT_VERIFY(value.Type == EValueType::Boolean);
 
     return value.Data.Boolean;
+}
+
+bool TSecondaryIndexModifier::IsNotValueColumn(const TTableSchema& schema, TStringBuf columnName)
+{
+    auto* column = schema.FindColumn(columnName);
+    return !column || column->SortOrder();
+}
+
+bool TSecondaryIndexModifier::AreIndexColumnsDependentOnlyOnKeyColumns(
+    const TTableSchema& tableSchema,
+    const TTableSchema& indexTableSchema)
+{
+    for (const auto& indexKeyColumn : indexTableSchema.Columns()) {
+        if (!indexKeyColumn.SortOrder()) {
+            break;
+        }
+
+        if (auto* tableColumn = tableSchema.FindColumn(indexKeyColumn.Name())) {
+            if (!tableColumn->SortOrder()) {
+                return false;
+            } else {
+                continue;
+            }
+        }
+    }
+
+    return true;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
