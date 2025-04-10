@@ -6,19 +6,6 @@
 #include <util/generic/typetraits.h>
 #include <type_traits>
 
-namespace NRoren {
-
-////////////////////////////////////////////////////////////////////////////////
-
-template <typename>
-class TOutput;
-
-class IExecutionContext;
-
-////////////////////////////////////////////////////////////////////////////////
-
-} // namespace NRoren
-
 namespace NRoren::NPrivate {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -33,22 +20,25 @@ concept CYsonStruct = std::derived_from<T, ::NYT::NYTree::TYsonStruct>;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <class X>
+template <class T>
 struct TTemplateParameterTraits;
 
-template <template<class> class P, class T>
-struct TTemplateParameterTraits<P<T>>
+template <template<class...> class P, class... Ts>
+struct TTemplateParameterTraits<P<Ts...>>
 {
-    using type = T;
+    using type = TTypeList<Ts...>;
 };
 
 template <class T>
-using TemplateParameterType = typename TTemplateParameterTraits<T>::type;
+using TExtractTemplateArgs = typename TTemplateParameterTraits<T>::type;
+
+template <class T, size_t N = 0>
+using TExtractTemplateArg = typename TExtractTemplateArgs<T>::template TGet<N>;
 
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class T>
-concept CYsonStructPtr = CIntrusivePtr<T> && CYsonStruct<TemplateParameterType<T>>;
+concept CYsonStructPtr = CIntrusivePtr<T> && CYsonStruct<TExtractTemplateArg<T>>;
 
 ////////////////////////////////////////////////////////////////////////////////
 
