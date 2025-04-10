@@ -232,9 +232,8 @@ private:
         auto blockCount = std::ssize(blocks);
         auto totalSize = GetByteSize(blocks);
 
-        YT_LOG_DEBUG("Started writing blocks (BlockIndexes: %v-%v, TotalSize: %v)",
-            firstBlockIndex,
-            firstBlockIndex + blockCount - 1,
+        YT_LOG_DEBUG("Started writing blocks (Blocks: %v, TotalSize: %v)",
+            FormatBlocks(firstBlockIndex, firstBlockIndex + blockCount - 1),
             totalSize);
 
         TWallTimer timer;
@@ -246,9 +245,8 @@ private:
             BIND([=, this, this_ = MakeStrong(this)] {
                 auto time = timer.GetElapsedTime();
 
-                YT_LOG_DEBUG("Finished writing blocks (BlockIndexes: %v-%v, Time: %v)",
-                    firstBlockIndex,
-                    firstBlockIndex + blockCount - 1,
+                YT_LOG_DEBUG("Finished writing blocks (Blocks: %v, Time: %v)",
+                    FormatBlocks(firstBlockIndex, firstBlockIndex + blockCount - 1),
                     time);
 
                 auto& performanceCounters = Location_->GetPerformanceCounters();
@@ -750,7 +748,7 @@ TFuture<NIO::TIOCounters> TBlobSession::DoPerformPutBlocks(
     TotalByteSize_.fetch_add(totalSize);
 
     YT_LOG_DEBUG_UNLESS(receivedBlockIndexes.empty(), "Blocks received (Blocks: %v, TotalSize: %v)",
-        receivedBlockIndexes,
+        MakeCompactIntervalView(receivedBlockIndexes),
         totalSize);
 
     // Organize blocks in packs of BytesPerWrite size and pass them to the pipeline.
@@ -904,7 +902,7 @@ TFuture<ISession::TFlushBlocksResult> TBlobSession::DoFlushBlocks(int blockIndex
     YT_ASSERT_INVOKER_AFFINITY(SessionInvoker_);
 
     if (!IsInWindow(blockIndex)) {
-        YT_LOG_DEBUG("Blocks are already flushed (BlockIndex: %v)",
+        YT_LOG_DEBUG("Blocks are already flushed (Block: %v)",
             blockIndex);
         return MakeFuture(TFlushBlocksResult {
             .IOCounters = {},

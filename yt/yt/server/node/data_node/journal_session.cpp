@@ -12,6 +12,7 @@
 #include <yt/yt/server/lib/hydra/file_changelog.h>
 
 #include <yt/yt/ytlib/chunk_client/proto/chunk_info.pb.h>
+#include <yt/yt/ytlib/chunk_client/helpers.h>
 
 namespace NYT::NDataNode {
 
@@ -134,17 +135,19 @@ TFuture<NIO::TIOCounters> TJournalSession::DoPutBlocks(
     int recordCount = Changelog_->GetRecordCount();
 
     if (startBlockIndex > recordCount) {
-        THROW_ERROR_EXCEPTION("Missing blocks %v:%v-%v",
-            GetId(),
-            recordCount,
-            startBlockIndex - 1);
+        auto error = TError("Missing blocks")
+            << TErrorAttribute("chunk_id", SessionId_.ChunkId)
+            << TErrorAttribute("medium_index", SessionId_.MediumIndex)
+            << TErrorAttribute("start_block_index", recordCount)
+            << TErrorAttribute("end_block_index", startBlockIndex - 1);
+
+        THROW_ERROR error;
     }
 
     if (startBlockIndex < recordCount) {
-        YT_LOG_DEBUG("Skipped duplicate blocks (BlockIds: %v:%v-%v)",
-            GetId(),
-            startBlockIndex,
-            recordCount - 1);
+        YT_LOG_DEBUG("Skipped duplicate blocks (ChunkId: %v, Blocks: %v)",
+            SessionId_.ChunkId,
+            FormatBlocks(startBlockIndex, recordCount - 1));
     }
 
     i64 payloadSize = 0;
@@ -207,10 +210,13 @@ TFuture<ISession::TFlushBlocksResult> TJournalSession::DoFlushBlocks(int blockIn
     int recordCount = Changelog_->GetRecordCount();
 
     if (blockIndex > recordCount) {
-        THROW_ERROR_EXCEPTION("Missing blocks %v:%v-%v",
-            GetId(),
-            recordCount - 1,
-            blockIndex);
+        auto error = TError("Missing blocks")
+            << TErrorAttribute("chunk_id", SessionId_.ChunkId)
+            << TErrorAttribute("medium_index", SessionId_.MediumIndex)
+            << TErrorAttribute("start_block_index", recordCount - 1)
+            << TErrorAttribute("end_block_index", blockIndex);
+
+        THROW_ERROR error;
     }
 
     return LastAppendResult_

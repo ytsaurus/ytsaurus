@@ -262,7 +262,7 @@ std::vector<TFuture<TBlock>> TBlockFetcher::FetchBlocks(const std::vector<TBlock
             auto chunkId = Chunks_[readerIndex].Reader->GetChunkId();
 
             YT_LOG_DEBUG("Fetching block out of turn "
-                "(ChunkId: %v, BlockIndex: %v, WindowIndex: %v)",
+                "(ChunkId: %v, Block: %v, WindowIndex: %v)",
                 chunkId,
                 blockIndex,
                 windowIndex);
@@ -424,7 +424,7 @@ void TBlockFetcher::DecompressBlocks(
             uncompressedBlock = std::move(compressedBlock.Data);
         } else {
             YT_LOG_DEBUG("Started decompressing block "
-                "(ChunkId: %v, BlockIndex: %v, WindowIndex: %v, Codec: %v)",
+                "(ChunkId: %v, Block: %v, WindowIndex: %v, Codec: %v)",
                 chunkId,
                 blockIndex,
                 windowIndex,
@@ -438,7 +438,7 @@ void TBlockFetcher::DecompressBlocks(
             }
 
             YT_LOG_DEBUG("Finished decompressing block "
-                "(ChunkId: %v, BlockIndex: %v, WindowIndex: %v, CompressedSize: %v, UncompressedSize: %v, Codec: %v)",
+                "(ChunkId: %v, Block: %v, WindowIndex: %v, CompressedSize: %v, UncompressedSize: %v, Codec: %v)",
                 chunkId,
                 blockIndex,
                 windowIndex,
@@ -510,7 +510,7 @@ void TBlockFetcher::FetchNextGroup(const TErrorOr<TMemoryUsageGuardPtr>& memoryU
         if (windowIndexes.empty() || uncompressedSize + blockInfo.UncompressedDataSize <= availableSlots) {
             if (Window_[FirstUnfetchedWindowIndex_].FetchStarted.test_and_set()) {
                 // This block has been already requested out of order.
-                YT_LOG_DEBUG("Skipping out of turn block (ChunkId: %v, BlockIndex: %v, WindowIndex: %v)",
+                YT_LOG_DEBUG("Skipping out of turn block (ChunkId: %v, Block: %v, WindowIndex: %v)",
                     chunkId,
                     blockIndex,
                     FirstUnfetchedWindowIndex_);

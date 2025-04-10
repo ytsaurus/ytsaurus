@@ -204,11 +204,10 @@ public:
         auto blocks = GetRpcAttachedBlocks(request, /*validateChecksums*/ false);
 
         context->SetRequestInfo(
-            "BlockIds: %v:%v-%v, PopulateCache: %v, "
+            "ChunkId: %v, Blocks: %v, PopulateCache: %v, "
             "FlushBlocks: %v, CumulativeBlockSize: %v",
             chunkId,
-            firstBlockIndex,
-            lastBlockIndex,
+            FormatBlocks(firstBlockIndex, lastBlockIndex),
             populateCache,
             flushBlocks,
             cumulativeBlockSize);
@@ -244,10 +243,10 @@ public:
         i64 cumulativeBlockSize = request->cumulative_block_size();
         auto targetDescriptor = FromProto<NNodeTrackerClient::TNodeDescriptor>(request->target_descriptor());
 
-        context->SetRequestInfo("BlockIds: %v:%v-%v, CumulativeBlockSize: %v, Target: %v",
+        context->SetRequestInfo(
+            "ChunkId: %v, Blocks: %v, CumulativeBlockSize: %v, Target: %v",
             chunkId,
-            firstBlockIndex,
-            lastBlockIndex,
+            FormatBlocks(firstBlockIndex, lastBlockIndex),
             cumulativeBlockSize,
             targetDescriptor);
 

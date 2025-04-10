@@ -1075,13 +1075,13 @@ private:
             blockFetcher->Start();
 
             for (int index = 0; index < blockCount; ++index) {
-                YT_LOG_DEBUG("Downloading block (BlockIndex: %v)",
+                YT_LOG_DEBUG("Downloading block (Block: %v)",
                     index);
 
                 auto block = WaitFor(blockFetcher->FetchBlock(index))
                     .ValueOrThrow();
 
-                YT_LOG_DEBUG("Writing block (BlockIndex: %v)",
+                YT_LOG_DEBUG("Writing block (Block: %v)",
                     index);
 
                 if (!checkedChunkWriter->WriteBlock(writeBlocksOptions, chunkReadOptions.WorkloadDescriptor, block)) {

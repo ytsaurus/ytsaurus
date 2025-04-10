@@ -644,9 +644,8 @@ TInMemoryChunkDataPtr PreloadInMemoryStore(
         endBlockIndex - startBlockIndex);
 
     if (preThrottledBytes) {
-        YT_LOG_DEBUG("Preliminary throttling of network bandwidth for preload (Blocks: %v-%v, Bytes: %v)",
-            startBlockIndex,
-            endBlockIndex,
+        YT_LOG_DEBUG("Preliminary throttling of network bandwidth for preload (Blocks: %v, Bytes: %v)",
+            FormatBlocks(startBlockIndex, endBlockIndex),
             preThrottledBytes);
 
         WaitFor(networkThrottler->Throttle(*preThrottledBytes))
@@ -665,9 +664,8 @@ TInMemoryChunkDataPtr PreloadInMemoryStore(
             .ValueOrThrow();
 
         int readBlockCount = compressedBlocks.size();
-        YT_LOG_DEBUG("Finished reading chunk blocks (Blocks: %v-%v)",
-            blockIndex,
-            blockIndex + readBlockCount - 1);
+        YT_LOG_DEBUG("Finished reading chunk blocks (Blocks: %v)",
+            FormatBlocks(blockIndex, blockIndex + readBlockCount - 1));
 
         for (const auto& compressedBlock : compressedBlocks) {
             compressedDataSize += compressedBlock.Size();
@@ -685,9 +683,8 @@ TInMemoryChunkDataPtr PreloadInMemoryStore(
             }
 
             case EInMemoryMode::Uncompressed: {
-                YT_LOG_DEBUG("Decompressing chunk blocks (Blocks: %v-%v, Codec: %v)",
-                    blockIndex,
-                    blockIndex + readBlockCount - 1,
+                YT_LOG_DEBUG("Decompressing chunk blocks (Blocks: %v, Codec: %v)",
+                    FormatBlocks(blockIndex, blockIndex + readBlockCount - 1),
                     compressionCodec->GetId());
 
                 std::vector<TFuture<std::pair<TSharedRef, TDuration>>> asyncUncompressedBlocks;
@@ -969,7 +966,7 @@ private:
             ToProto(req->mutable_session_id(), node->SessionId);
 
             for (const auto& block : blocks) {
-                YT_LOG_DEBUG("Sending in-memory block (ChunkId: %v, BlockIndex: %v, SessionId: %v, Address: %v)",
+                YT_LOG_DEBUG("Sending in-memory block (ChunkId: %v, Block: %v, SessionId: %v, Address: %v)",
                     block.first.ChunkId,
                     block.first.BlockIndex,
                     node->SessionId,
