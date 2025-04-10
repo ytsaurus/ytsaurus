@@ -743,6 +743,66 @@ class TestSecondaryIndexSelect(TestSecondaryIndexBase):
         plan = explain_query("* from [//tmp/table] WITH INDEX [//tmp/index_table] where valueA = 100")
         assert plan["query"]["constraints"] == "Constraints:\n100: <universe>"
 
+    @authors("sabdenovch")
+    def test_unfolding_text(self):
+        table_schema = [
+            {"name": "key", "type": "int64", "sort_order": "ascending"},
+            {"name": "text", "type": "string"},
+            {"name": "tokens", "type_v3": {
+                "type_name": "list",
+                "item": {
+                    "type_name": "optional",
+                    "item": "string",
+                },
+            }},
+        ]
+        index_schema = [
+            {"name": "tokens", "type": "string", "sort_order": "ascending"},
+            {"name": "key", "type": "int64", "sort_order": "ascending"},
+            {"name": EMPTY_COLUMN_NAME, "type": "int64"}
+        ]
+        self._create_basic_tables(
+            table_schema=table_schema,
+            index_schema=index_schema,
+            kind="unfolding",
+            mount=True,
+            attributes={
+                "unfolded_column": "tokens"
+            },
+        )
+
+        def make_row(key, text: str):
+            return {"key": key, "text": text, "tokens": text.split(" ")}
+
+        insert_rows("//tmp/table", [
+            make_row(1, "Lorem ipsum dolor sit amet, consectetur adipiscing elit"),
+            make_row(2, "Phasellus in felis cursus, pellentesque nisi quis, luctus velit"),
+            make_row(3, "Nullam sed orci sit amet orci malesuada consequat eu ac lacus"),
+            make_row(4, "Nunc ante magna, porttitor eu pharetra a, accumsan id tellus"),
+            make_row(5, "Nam nec accumsan augue, eu hendrerit ex"),
+            make_row(6, "Phasellus ultrices varius mi, vitae feugiat enim placerat in"),
+            make_row(7, "Quisque egestas egestas dui, non mattis urna dapibus eget"),
+            make_row(8, "Vivamus eros dolor, maximus vel blandit non, ultricies sit amet est"),
+        ])
+
+        # lines with token eu
+        query = """
+            key from [//tmp/table] with index [//tmp/index_table]
+            where tokens in ("eu") group by key
+        """
+        rows = select_rows(query)
+        assert builtins.set([3, 4, 5]) == builtins.set([row["key"] for row in rows])
+        assert explain_query(query)["query"]["constraints"] != "Constraints: <universe>"
+
+        # lines with tokens starting with ma
+        query = """
+            key from [//tmp/table] with index [//tmp/index_table]
+            where is_prefix("ma", `$index_table`.tokens) group by key
+        """
+        rows = select_rows(query)
+        assert builtins.set([3, 4, 7, 8]) == builtins.set([row["key"] for row in rows])
+        assert explain_query(query)["query"]["constraints"] != "Constraints: <universe>"
+
 
 ##################################################################
 
