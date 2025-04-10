@@ -82,7 +82,7 @@ private:
 
     void InitializeFromProto(const NTableClient::NProto::TTableSchemaExt& protoSchema);
 
-    void DeserializeToProto(NTableClient::NProto::TTableSchemaExt* protoSchema) const;
+    void SerializeToProto(NTableClient::NProto::TTableSchemaExt* protoSchema) const;
 
     friend void ToProto(NTableClient::NProto::TTableSchemaExt* protoSchema, const TCompactTableSchema& schema);
 };

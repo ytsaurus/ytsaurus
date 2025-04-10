@@ -127,7 +127,7 @@ struct IMulticellManager
     /*!
      *  \note Thread affinity: any
      */
-    virtual THashSet<NTransactionServer::TTransactionId>& GetLocalMasterIssuedLeaseIds(NObjectClient::TCellTag cellTag) = 0;
+    virtual THashSet<NTransactionServer::TTransactionId>* GetLocalMasterIssuedLeaseIds(NObjectClient::TCellTag cellTag) = 0;
 
     //! Returns the set of cells configured for a given role.
     /*!

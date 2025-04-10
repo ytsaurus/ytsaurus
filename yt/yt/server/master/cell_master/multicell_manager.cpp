@@ -321,12 +321,12 @@ public:
         return it == MasterCellRolesMap_.end() ? EMasterCellRoles::None : it->second;
     }
 
-    THashSet<TTransactionId>& GetLocalMasterIssuedLeaseIds(TCellTag cellTag) override
+    THashSet<TTransactionId>* GetLocalMasterIssuedLeaseIds(TCellTag cellTag) override
     {
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(HasHydraContext());
 
-        return GetOrCrash(LocalMasterIssuedLeaseIds_, cellTag);
+        return &GetOrCrash(LocalMasterIssuedLeaseIds_, cellTag);
     }
 
     TCellTagList GetRoleMasterCells(EMasterCellRole cellRole) const override

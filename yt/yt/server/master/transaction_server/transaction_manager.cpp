@@ -1632,7 +1632,7 @@ public:
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         const auto& request = context->Request();
-        const auto& mutationId = context->GetMutationId();
+        auto mutationId = context->GetMutationId();
 
         auto transactionId = FromProto<TTransactionId>(request.transaction_id());
         auto* transaction = GetTransactionOrThrow(transactionId);
@@ -1699,7 +1699,7 @@ public:
             return false;
         }
 
-        const auto& mutationId = context->GetMutationId();
+        auto mutationId = context->GetMutationId();
         if (mutationId) {
             const auto& responseKeeper = Bootstrap_->GetHydraFacade()->GetResponseKeeper();
             if (auto result = responseKeeper->FindRequest(mutationId, context->IsRetry())) {
@@ -2689,7 +2689,7 @@ private:
                 break;
             }
             case EObjectType::MasterCell: {
-                cellLeaseTransactionIds = &multicellManager->GetLocalMasterIssuedLeaseIds(CellTagFromId(cellId));
+                cellLeaseTransactionIds = multicellManager->GetLocalMasterIssuedLeaseIds(CellTagFromId(cellId));
                 break;
             }
             default: {
@@ -2785,7 +2785,7 @@ private:
                             break;
                         }
                         case EObjectType::MasterCell: {
-                            cellLeaseTransactionIds = &multicellManager->GetLocalMasterIssuedLeaseIds(CellTagFromId(cellId));
+                            cellLeaseTransactionIds = multicellManager->GetLocalMasterIssuedLeaseIds(CellTagFromId(cellId));
                             break;
                         }
                         default: {
@@ -3415,7 +3415,7 @@ private:
             }
             case EObjectType::MasterCell: {
                 const auto& multicellManager = Bootstrap_->GetMulticellManager();
-                cellLeaseTransactionIds = &multicellManager->GetLocalMasterIssuedLeaseIds(CellTagFromId(cellId));
+                cellLeaseTransactionIds = multicellManager->GetLocalMasterIssuedLeaseIds(CellTagFromId(cellId));
                 break;
             }
             default: {

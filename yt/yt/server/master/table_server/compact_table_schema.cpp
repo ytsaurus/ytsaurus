@@ -83,15 +83,14 @@ const TTableSchema& TCompactTableSchema::AsHeavyTableSchema() const
     // Offload cache expiration into heavy invoker.
     TDelayedExecutor::Submit(
         BIND([this, weakThis = MakeWeak(this)] () {
-            auto this_ = weakThis.Lock();
-            if (this_) {
+            if (auto this_ = weakThis.Lock()) {
                 auto writerGuard = WriterGuard(Cache_.TableSchemaLock);
                 Cache_.TableSchema.Release();
             }
         }),
         TCompactTableSchema::CacheExpirationTimeout.Load(),
         NRpc::TDispatcher::Get()->GetHeavyInvoker());
-    // TODO(cherepashka): Extend schema lifetime when it is accessed.
+    // TODO(cherepashka): Prolong schema lifetime when it is accessed.
     return *Cache_.TableSchema;
 }
 
@@ -132,9 +131,9 @@ const std::vector<ESortOrder>& TCompactTableSchema::GetSortOrders() const
 
 i64 TCompactTableSchema::GetMemoryUsage() const
 {
-    i64 memoryUsage = sizeof(TCompactTableSchema);
+    static constexpr i64 CompactTableSchemaSize = sizeof(TCompactTableSchema);
     // NB: +1 for termination character of each key column.
-    memoryUsage += std::ssize(KeyColumns_);
+    i64 memoryUsage = CompactTableSchemaSize + std::ssize(KeyColumns_);
     for (const auto& keyColumn : KeyColumns_) {
         memoryUsage += keyColumn.size();
     }
@@ -211,7 +210,7 @@ void TCompactTableSchema::InitializeFromProto(const NTableClient::NProto::TTable
     }
 }
 
-void TCompactTableSchema::DeserializeToProto(NTableClient::NProto::TTableSchemaExt* protoSchema) const
+void TCompactTableSchema::SerializeToProto(NTableClient::NProto::TTableSchemaExt* protoSchema) const
 {
     THROW_ERROR_EXCEPTION_UNLESS(
         protoSchema->ParseFromString(TableSchema_),
@@ -227,7 +226,7 @@ NThreading::TAtomicObject<TDuration> TCompactTableSchema::CacheExpirationTimeout
 void ToProto(NTableClient::NProto::TTableSchemaExt* protoSchema, const TCompactTableSchema& schema)
 {
     protoSchema->Clear();
-    schema.DeserializeToProto(protoSchema);
+    schema.SerializeToProto(protoSchema);
 }
 
 void ToProto(NTableClient::NProto::TTableSchemaExt* protoSchema, const TCompactTableSchemaPtr& schema)
