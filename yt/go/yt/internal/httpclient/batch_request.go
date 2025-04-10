@@ -27,7 +27,7 @@ type batchRequest struct {
 	client *httpClient
 }
 
-func (r *batchRequest) ExecuteBatch(ctx context.Context, options *yt.BatchRequestOptions) error {
+func (r *batchRequest) ExecuteBatch(ctx context.Context, options *yt.ExecuteBatchRequestOptions) error {
 	if err := r.setExecuted(); err != nil {
 		return err
 	}
@@ -37,13 +37,20 @@ func (r *batchRequest) ExecuteBatch(ctx context.Context, options *yt.BatchReques
 		concurrency = *options.Concurrency
 	}
 
+	batchPartMaxSize := concurrency * 5
+	if options != nil && options.BatchPartMaxSize != nil {
+		batchPartMaxSize = *options.BatchPartMaxSize
+	}
+
 	var mutatingOptions *yt.MutatingOptions
 	if options != nil && options.MutatingOptions != nil {
 		mutatingOptions = options.MutatingOptions
 	}
 
-	results, err := r.client.ExecuteBatch(
-		ctx, r.subrequests, &internal.ExecuteBatchOptions{Concurrency: &concurrency, MutatingOptions: mutatingOptions},
+	results, err := r.executeBatchSubrequests(
+		ctx,
+		batchPartMaxSize,
+		&internal.ExecuteBatchOptions{Concurrency: &concurrency, MutatingOptions: mutatingOptions},
 	)
 	result := batchSubrequestResult{err: err}
 	for i, resultCh := range r.resultChs {
@@ -58,6 +65,27 @@ func (r *batchRequest) ExecuteBatch(ctx context.Context, options *yt.BatchReques
 	}
 
 	return err
+}
+
+func (r *batchRequest) executeBatchSubrequests(
+	ctx context.Context,
+	batchPartMaxSize int,
+	opts *internal.ExecuteBatchOptions,
+) ([]internal.BatchSubrequestResult, error) {
+	subrequestsToExecute := r.subrequests
+	var results []internal.BatchSubrequestResult
+	for len(subrequestsToExecute) > 0 {
+		subrequestsToExecuteCount := min(len(subrequestsToExecute), batchPartMaxSize)
+
+		batchResults, err := r.client.ExecuteBatch(ctx, subrequestsToExecute[:subrequestsToExecuteCount], opts)
+		if err != nil {
+			return nil, err
+		}
+
+		results = append(results, batchResults...)
+		subrequestsToExecute = subrequestsToExecute[subrequestsToExecuteCount:]
+	}
+	return results, nil
 }
 
 func (r *batchRequest) CreateNode(

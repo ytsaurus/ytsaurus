@@ -8,6 +8,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"go.ytsaurus.tech/library/go/ptr"
 	"go.ytsaurus.tech/yt/go/guid"
 	"go.ytsaurus.tech/yt/go/ypath"
 	"go.ytsaurus.tech/yt/go/yt"
@@ -33,8 +34,10 @@ func TestBatchRequest(t *testing.T) {
 }
 
 func (s *Suite) TestBatchCreateMultipleTables(ctx context.Context, t *testing.T, yc yt.Client) {
-	var paths []ypath.Path
-	paths = append(paths, s.TmpPath(), s.TmpPath(), s.TmpPath())
+	paths := make([]ypath.Path, 0, 5)
+	for i := 0; i < 5; i++ {
+		paths = append(paths, s.TmpPath())
+	}
 
 	batchReq, err := yc.NewBatchRequest()
 	require.NoError(t, err)
@@ -46,7 +49,7 @@ func (s *Suite) TestBatchCreateMultipleTables(ctx context.Context, t *testing.T,
 		responses = append(responses, resp)
 	}
 
-	err = batchReq.ExecuteBatch(ctx, nil)
+	err = batchReq.ExecuteBatch(ctx, &yt.ExecuteBatchRequestOptions{BatchPartMaxSize: ptr.T(2)})
 	require.NoError(t, err)
 
 	err = batchReq.ExecuteBatch(ctx, nil)
@@ -117,7 +120,7 @@ func (s *Suite) TestBatchRemoveWithMutatingOptions(ctx context.Context, t *testi
 	resp1, err := batchReq1.RemoveNode(ctx, path, nil)
 	require.NoError(t, err)
 
-	err = batchReq1.ExecuteBatch(ctx, &yt.BatchRequestOptions{MutatingOptions: &yt.MutatingOptions{MutationID: mutationID}})
+	err = batchReq1.ExecuteBatch(ctx, &yt.ExecuteBatchRequestOptions{MutatingOptions: &yt.MutatingOptions{MutationID: mutationID}})
 	require.NoError(t, err)
 
 	require.NoError(t, resp1.Error())
@@ -131,7 +134,7 @@ func (s *Suite) TestBatchRemoveWithMutatingOptions(ctx context.Context, t *testi
 	resp2, err := batchReq2.RemoveNode(ctx, path, nil)
 	require.NoError(t, err)
 
-	err = batchReq2.ExecuteBatch(ctx, &yt.BatchRequestOptions{MutatingOptions: &yt.MutatingOptions{MutationID: mutationID, Retry: true}})
+	err = batchReq2.ExecuteBatch(ctx, &yt.ExecuteBatchRequestOptions{MutatingOptions: &yt.MutatingOptions{MutationID: mutationID, Retry: true}})
 	require.NoError(t, err)
 
 	require.NoError(t, resp2.Error())
