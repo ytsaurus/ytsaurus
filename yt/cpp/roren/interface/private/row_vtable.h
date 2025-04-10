@@ -129,7 +129,7 @@ TRowVtable MakeRowVtable()
         if constexpr (CIntrusivePtr<T>) {
             vtable.ConstructRefCountedObject = [] (void* data) -> ::NYT::TRefCounted* {
                 T* ptr = reinterpret_cast<T*>(data);
-                *ptr = ::NYT::New<TemplateParameterType<T>>();
+                *ptr = ::NYT::New<TExtractTemplateArg<T>>();
                 return static_cast<::NYT::TRefCounted*>(ptr->Get());
             };
             vtable.GetRefCountedObject = [] (const void* data) -> ::NYT::TRefCounted* {
