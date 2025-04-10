@@ -24,7 +24,7 @@ type BatchRequest interface {
 	//
 	// Single BatchRequest instance may be executed only once and cannot be modified (filled with additional requests) after execution.
 	// Error will be returned on attempt to modify executed batch request or execute it again.
-	ExecuteBatch(ctx context.Context, options *BatchRequestOptions) error
+	ExecuteBatch(ctx context.Context, options *ExecuteBatchRequestOptions) error
 
 	// CreateNode creates cypress node.
 	//
@@ -160,14 +160,22 @@ type VoidBatchResponse interface {
 	Error() error
 }
 
-// BatchRequestOptions are the options for BatchRequest.ExecuteBatch.
-type BatchRequestOptions struct {
+// ExecuteBatchRequestOptions are the options for BatchRequest.ExecuteBatch.
+type ExecuteBatchRequestOptions struct {
 	// Concurrency determines how many requests will be executed in parallel on the cluster.
 	//
 	// This parameter could be used to avoid RequestLimitExceeded errors.
 	//
 	// Default value is 50.
 	Concurrency *int
+
+	// BatchPartMaxSize is the maximum size of a batch sent in one request to the server.
+	//
+	// Huge batches are executed using multiple requests.
+	// BatchPartMaxSize is maximum size of single request that goes to server.
+	//
+	// If not specified it is set to 'Concurrency * 5'.
+	BatchPartMaxSize *int
 
 	// MutatingOptions will be used for executing subrequests.
 	//
