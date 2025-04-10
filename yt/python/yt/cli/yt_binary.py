@@ -1786,6 +1786,12 @@ def add_update_op_parameters_parser(add_parser):
     add_structured_argument(parser, "parameters")
 
 
+def add_patch_op_spec_parser(add_parser):
+    parser = add_parser("patch-op-spec", yt.patch_operation_spec)
+    operation_id_args(parser, dest="operation_id")
+    add_structured_argument(parser, "patches")
+
+
 @copy_docstring_from(yt.get_operation)
 def get_operation(**kwargs):
     result = yt.get_operation(**kwargs)
@@ -2975,6 +2981,7 @@ def _prepare_parser():
     add_track_op_parser(add_parser)
     add_complete_op_parser(add_parser)
     add_update_op_parameters_parser(add_parser)
+    add_patch_op_spec_parser(add_parser)
     add_get_operation_parser(add_parser)
     add_list_operations_parser(add_parser)
 
