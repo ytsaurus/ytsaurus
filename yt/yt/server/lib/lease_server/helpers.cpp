@@ -24,8 +24,8 @@ TFuture<void> IssueLeasesForCell(
     const IHiveManagerPtr& hiveManager,
     TCellId selfCellId,
     bool synWithAllLeaseTransactionCoordinators,
-    TCallback<TCellId(TCellTag)> getMasterCellId,
-    TCallback<IChannelPtr(TCellTag)> findMasterChannel)
+    std::function<TCellId(TCellTag)> getMasterCellId,
+    std::function<IChannelPtr(TCellTag)> findMasterChannel)
 {
     THashMap<TCellTag, std::vector<TLeaseId>> coordinatorCellTagToTransactionIds;
     THashSet<TCellTag> coordinatorCellTagsToSyncWith;

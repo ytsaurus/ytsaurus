@@ -20,8 +20,8 @@ TFuture<void> IssueLeasesForCell(
     const NHiveServer::IHiveManagerPtr& hiveManager,
     NObjectClient::TCellId selfCellId,
     bool synWithAllLeaseTransactionCoordinators,
-    TCallback<NObjectClient::TCellId(NObjectClient::TCellTag)> getMasterCellId,
-    TCallback<NRpc::IChannelPtr(NObjectClient::TCellTag)> findMasterChannel);
+    std::function<NObjectClient::TCellId(NObjectClient::TCellTag)> getMasterCellId,
+    std::function<NRpc::IChannelPtr(NObjectClient::TCellTag)> findMasterChannel);
 
 ////////////////////////////////////////////////////////////////////////////////
 

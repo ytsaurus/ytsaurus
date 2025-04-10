@@ -428,7 +428,7 @@ TSequoiaSessionPtr TSequoiaSession::Start(
     const std::vector<TTransactionId>& cypressPrerequisiteTransactionIds)
 {
     auto sequoiaClient = bootstrap->GetSequoiaClient();
-    const auto& dynamicConfig = bootstrap->GetDynamicConfigManager()->GetConfig();
+    auto dynamicConfig = bootstrap->GetDynamicConfigManager()->GetConfig();
 
     // Best effort pre-check for mutating requests before starting execution of master commit sessions,
     // doesn't guarantee that prerequisite transactions will be alive during execution on master.
