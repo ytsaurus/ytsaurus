@@ -1,3 +1,6 @@
+// Code created by gotmpl. DO NOT MODIFY.
+// source: internal/shared/semconv/env_test.go.tmpl
+
 // Copyright The OpenTelemetry Authors
 // SPDX-License-Identifier: Apache-2.0
 
@@ -8,11 +11,10 @@ import (
 	"net/http"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/metric"
-	"go.opentelemetry.io/otel/metric/embedded"
 	"go.opentelemetry.io/otel/metric/noop"
 )
 
@@ -53,6 +55,51 @@ func TestHTTPServerDoesNotPanic(t *testing.T) {
 	}
 }
 
+func TestServerNetworkTransportAttr(t *testing.T) {
+	for _, tt := range []struct {
+		name     string
+		optinVal string
+		network  string
+
+		wantAttributes []attribute.KeyValue
+	}{
+		{
+			name:    "without any opt-in",
+			network: "tcp",
+
+			wantAttributes: []attribute.KeyValue{
+				attribute.String("net.transport", "ip_tcp"),
+			},
+		},
+		{
+			name:     "without an old optin",
+			optinVal: "old",
+			network:  "tcp",
+
+			wantAttributes: []attribute.KeyValue{
+				attribute.String("net.transport", "ip_tcp"),
+			},
+		},
+		{
+			name:     "without a dup optin",
+			optinVal: "http/dup",
+			network:  "tcp",
+
+			wantAttributes: []attribute.KeyValue{
+				attribute.String("net.transport", "ip_tcp"),
+				attribute.String("network.transport", "tcp"),
+			},
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Setenv(OTelSemConvStabilityOptIn, tt.optinVal)
+			s := NewHTTPServer(nil)
+
+			assert.Equal(t, tt.wantAttributes, s.NetworkTransportAttr(tt.network))
+		})
+	}
+}
+
 func TestHTTPClientDoesNotPanic(t *testing.T) {
 	testCases := []struct {
 		name   string
@@ -84,7 +131,7 @@ func TestHTTPClientDoesNotPanic(t *testing.T) {
 					Req:        req,
 					StatusCode: 200,
 				})
-				tt.client.RecordResponseSize(context.Background(), 40, opts.AddOptions())
+				tt.client.RecordResponseSize(context.Background(), 40, opts)
 				tt.client.RecordMetrics(context.Background(), MetricData{
 					RequestSize: 20,
 					ElapsedTime: 1,
@@ -94,41 +141,128 @@ func TestHTTPClientDoesNotPanic(t *testing.T) {
 	}
 }
 
-type testInst struct {
-	embedded.Int64Counter
-	embedded.Float64Histogram
+func TestHTTPClientTraceAttributes(t *testing.T) {
+	for _, tt := range []struct {
+		name     string
+		optinVal string
 
-	intValue   int64
-	floatValue float64
-	attributes []attribute.KeyValue
-}
+		wantAttributes []attribute.KeyValue
+	}{
+		{
+			name: "with no optin set",
 
-func (t *testInst) Add(ctx context.Context, incr int64, options ...metric.AddOption) {
-	t.intValue = incr
-	cfg := metric.NewAddConfig(options)
-	attr := cfg.Attributes()
-	t.attributes = attr.ToSlice()
-}
+			wantAttributes: []attribute.KeyValue{
+				attribute.String("net.host.name", "example.com"),
+			},
+		},
+		{
+			name:     "with optin set to old only",
+			optinVal: "old",
 
-func (t *testInst) Record(ctx context.Context, value float64, options ...metric.RecordOption) {
-	t.floatValue = value
-	cfg := metric.NewRecordConfig(options)
-	attr := cfg.Attributes()
-	t.attributes = attr.ToSlice()
-}
+			wantAttributes: []attribute.KeyValue{
+				attribute.String("net.host.name", "example.com"),
+			},
+		},
+		{
+			name:     "with optin set to duplicate",
+			optinVal: "http/dup",
 
-func NewTestHTTPServer() HTTPServer {
-	return HTTPServer{
-		requestBytesCounter:  &testInst{},
-		responseBytesCounter: &testInst{},
-		serverLatencyMeasure: &testInst{},
+			wantAttributes: []attribute.KeyValue{
+				attribute.String("net.host.name", "example.com"),
+				attribute.String("server.address", "example.com"),
+			},
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Setenv(OTelSemConvStabilityOptIn, tt.optinVal)
+
+			c := NewHTTPClient(nil)
+			a := c.TraceAttributes("example.com")
+			assert.Equal(t, tt.wantAttributes, a)
+		})
 	}
 }
 
-func NewTestHTTPClient() HTTPClient {
-	return HTTPClient{
-		requestBytesCounter:  &testInst{},
-		responseBytesCounter: &testInst{},
-		latencyMeasure:       &testInst{},
+func TestClientTraceAttributes(t *testing.T) {
+	for _, tt := range []struct {
+		name     string
+		optinVal string
+		host     string
+
+		wantAttributes []attribute.KeyValue
+	}{
+		{
+			name: "without any opt-in",
+			host: "example.com",
+
+			wantAttributes: []attribute.KeyValue{
+				attribute.String("net.host.name", "example.com"),
+			},
+		},
+		{
+			name:     "without an old optin",
+			optinVal: "old",
+			host:     "example.com",
+
+			wantAttributes: []attribute.KeyValue{
+				attribute.String("net.host.name", "example.com"),
+			},
+		},
+		{
+			name:     "without a dup optin",
+			optinVal: "http/dup",
+			host:     "example.com",
+
+			wantAttributes: []attribute.KeyValue{
+				attribute.String("net.host.name", "example.com"),
+				attribute.String("server.address", "example.com"),
+			},
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Setenv(OTelSemConvStabilityOptIn, tt.optinVal)
+			s := NewHTTPClient(nil)
+
+			assert.Equal(t, tt.wantAttributes, s.TraceAttributes(tt.host))
+		})
+	}
+}
+
+func BenchmarkRecordMetrics(b *testing.B) {
+	benchmarks := []struct {
+		name   string
+		server HTTPServer
+	}{
+		{
+			name:   "empty",
+			server: HTTPServer{},
+		},
+		{
+			name:   "nil meter",
+			server: NewHTTPServer(nil),
+		},
+		{
+			name:   "with Meter",
+			server: NewHTTPServer(noop.Meter{}),
+		},
+	}
+
+	for _, bm := range benchmarks {
+		b.Run(bm.name, func(b *testing.B) {
+			req, _ := http.NewRequest("GET", "http://example.com", nil)
+			_ = bm.server.RequestTraceAttrs("stuff", req)
+			_ = bm.server.ResponseTraceAttrs(ResponseTelemetry{StatusCode: 200})
+			ctx := context.Background()
+			b.ReportAllocs()
+			b.ResetTimer()
+			for i := 0; i < b.N; i++ {
+				bm.server.RecordMetrics(ctx, ServerMetricData{
+					ServerName: bm.name,
+					MetricAttributes: MetricAttributes{
+						Req: req,
+					},
+				})
+			}
+		})
 	}
 }

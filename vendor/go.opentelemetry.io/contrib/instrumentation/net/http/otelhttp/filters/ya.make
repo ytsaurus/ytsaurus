@@ -2,7 +2,7 @@ GO_LIBRARY()
 
 LICENSE(Apache-2.0)
 
-VERSION(v0.57.0)
+VERSION(v0.60.0)
 
 SRCS(
     filters.go

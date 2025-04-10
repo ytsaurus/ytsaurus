@@ -1,3 +1,6 @@
+// Code created by gotmpl. DO NOT MODIFY.
+// source: internal/shared/semconv/util_test.go.tmpl
+
 // Copyright The OpenTelemetry Authors
 // SPDX-License-Identifier: Apache-2.0
 
@@ -34,8 +37,39 @@ func TestSplitHostPort(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		h, p := splitHostPort(test.hostport)
+		h, p := SplitHostPort(test.hostport)
 		assert.Equal(t, test.host, h, test.hostport)
 		assert.Equal(t, test.port, p, test.hostport)
+	}
+}
+
+func TestStandardizeHTTPMethod(t *testing.T) {
+	tests := []struct {
+		method string
+		want   string
+	}{
+		{"GET", "GET"},
+		{"get", "GET"},
+		{"POST", "POST"},
+		{"post", "POST"},
+		{"PUT", "PUT"},
+		{"put", "PUT"},
+		{"DELETE", "DELETE"},
+		{"delete", "DELETE"},
+		{"HEAD", "HEAD"},
+		{"head", "HEAD"},
+		{"OPTIONS", "OPTIONS"},
+		{"options", "OPTIONS"},
+		{"CONNECT", "CONNECT"},
+		{"connect", "CONNECT"},
+		{"TRACE", "TRACE"},
+		{"trace", "TRACE"},
+		{"PATCH", "PATCH"},
+		{"patch", "PATCH"},
+		{"unknown", "_OTHER"},
+		{"", "_OTHER"},
+	}
+	for _, test := range tests {
+		assert.Equal(t, test.want, standardizeHTTPMethod(test.method))
 	}
 }
