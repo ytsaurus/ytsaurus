@@ -3227,9 +3227,11 @@ void LastSeenReplicaSetMerge(
     ParseReplicas(state2, &newReplicas);
     for (const auto& replica : newReplicas) {
         // Linear complexity should be fine.
-        if (std::find(lastSeenReplicas.begin(), lastSeenReplicas.end(), replica) == lastSeenReplicas.end()) {
-            lastSeenReplicas.push_back(replica);
+        auto it = std::find(lastSeenReplicas.begin(), lastSeenReplicas.end(), replica);
+        if (it != lastSeenReplicas.end()) {
+            lastSeenReplicas.erase(it);
         }
+        lastSeenReplicas.push_back(replica);
     }
 
     std::optional<bool> isErasure;
