@@ -30,14 +30,14 @@
       - Если у вас Linux x86_64 — установите [Docker Engine](https://docs.docker.com/engine/install/ubuntu/).
       - Если у вас Mac — установите [Docker Desktop](https://docs.docker.com/desktop/setup/install/mac-install/) либо [Podman](https://podman.io/docs/installation) в качестве альтернативы. Убедитесь, что у вас установлена и включена [Rosetta 2](https://support.apple.com/ru-ru/102527).
 
-  1. Скачайте скрипт [run_local_cluster.sh](https://github.com/ytsaurus/ytsaurus/tree/main/yt/docker/local) для развёртывания кластера и выставьте права на исполнение:
+  2. Скачайте скрипт [run_local_cluster.sh](https://github.com/ytsaurus/ytsaurus/tree/main/yt/docker/local) для развёртывания кластера и выставьте права на исполнение:
      ```bash
      mkdir ~/yt-local && cd ~/yt-local
      curl -s https://raw.githubusercontent.com/ytsaurus/ytsaurus/main/yt/docker/local/run_local_cluster.sh > run_local_cluster.sh
      chmod +x run_local_cluster.sh
      ```
 
-  1. Чтобы поднять кластер, запустите скрипт:
+  3. Чтобы поднять кластер, запустите скрипт:
      ```bash
      ./run_local_cluster.sh
      ```
@@ -51,7 +51,7 @@
      - `localhost:8001` — адрес веб-интерфейса. Можно открыть его в браузере.
      - `localhost:8000` — адрес серверной части кластера. Этот адрес нужно будет [указать](#set-vars) в качестве адреса прокси для доступа к кластеру через CLI.
 
-  1. Чтобы убедиться, что всё работает, запустите команду:
+  4. Чтобы убедиться, что всё работает, запустите команду:
      ```bash
      $ docker ps | grep yt
      CONTAINER ID   IMAGE                           COMMAND                  CREATED         STATUS         PORTS              NAMES
@@ -93,7 +93,7 @@
 
        {% endcut %}
 
-  1. Готово! Теперь {{product-name}} поднят и готов к использованию. Можно переходить к следующему шагу. После того как вы закончите работу с примерами, не забудьте [удалить](#stop-cluster) кластер.
+  5. Готово! Теперь {{product-name}} поднят и готов к использованию. Можно переходить к следующему шагу. После того как вы закончите работу с примерами, не забудьте [удалить](#stop-cluster) кластер.
 
 - Minikube
 
