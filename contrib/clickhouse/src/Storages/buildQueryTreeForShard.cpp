@@ -174,18 +174,18 @@ private:
     void tryRewriteTableNodeIfNeeded(const QueryTreeNodePtr & table_node)
     {
         const auto & table_node_typed = table_node->as<TableNode &>();
-        const auto * distributed_storage = typeid_cast<const StorageDistributed *>(table_node_typed.getStorage().get());
-        if (!distributed_storage)
+        if (!table_node_typed.getStorage()->supportsDistributedProduct())
             return;
 
-        bool distributed_valid_for_rewrite = distributed_storage->getShardCount() >= 2;
-        if (!distributed_valid_for_rewrite)
-            return;
 
         auto distributed_product_mode = getSettings().distributed_product_mode;
 
         if (distributed_product_mode == DistributedProductMode::LOCAL)
         {
+            const auto * distributed_storage = typeid_cast<const StorageDistributed *>(table_node_typed.getStorage().get());
+            if (!distributed_storage)
+                return;
+
             StorageID remote_storage_id = StorageID{distributed_storage->getRemoteDatabaseName(),
                 distributed_storage->getRemoteTableName()};
             auto resolved_remote_storage_id = getContext()->resolveStorageID(remote_storage_id);
