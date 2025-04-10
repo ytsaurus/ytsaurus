@@ -324,6 +324,7 @@ Y_UNIT_TEST_SUITE(SqlCompleteTests) {
             {Keyword, "CURRENT_TIMESTAMP"},
             {Keyword, "DICT<"},
             {Keyword, "DISTINCT"},
+            {FunctionName, "DateTime::Split("},
             {Keyword, "EMPTY_ACTION"},
             {Keyword, "ENUM"},
             {Keyword, "EXISTS("},
@@ -340,12 +341,11 @@ Y_UNIT_TEST_SUITE(SqlCompleteTests) {
             {Keyword, "SET<"},
             {Keyword, "STREAM"},
             {Keyword, "STRUCT"},
+            {FunctionName, "StartsWith("},
             {Keyword, "TAGGED<"},
             {Keyword, "TRUE"},
             {Keyword, "TUPLE"},
             {Keyword, "VARIANT"},
-            {FunctionName, "DateTime::Split("},
-            {FunctionName, "StartsWith("},
         };
 
         auto engine = MakeSqlCompletionEngineUT();
@@ -362,6 +362,7 @@ Y_UNIT_TEST_SUITE(SqlCompleteTests) {
             {Keyword, "CURRENT_TIME"},
             {Keyword, "CURRENT_TIMESTAMP"},
             {Keyword, "DICT<"},
+            {FunctionName, "DateTime::Split("},
             {Keyword, "EMPTY_ACTION"},
             {Keyword, "ENUM"},
             {Keyword, "EXISTS("},
@@ -378,12 +379,11 @@ Y_UNIT_TEST_SUITE(SqlCompleteTests) {
             {Keyword, "SET<"},
             {Keyword, "STREAM<"},
             {Keyword, "STRUCT"},
+            {FunctionName, "StartsWith("},
             {Keyword, "TAGGED<"},
             {Keyword, "TRUE"},
             {Keyword, "TUPLE"},
             {Keyword, "VARIANT"},
-            {FunctionName, "DateTime::Split("},
-            {FunctionName, "StartsWith("},
         };
 
         auto engine = MakeSqlCompletionEngineUT();
@@ -415,8 +415,8 @@ Y_UNIT_TEST_SUITE(SqlCompleteTests) {
             {Keyword, "STRUCT"},
             {Keyword, "TAGGED<"},
             {Keyword, "TUPLE"},
-            {Keyword, "VARIANT<"},
             {TypeName, "Uint64"},
+            {Keyword, "VARIANT<"},
         };
 
         auto engine = MakeSqlCompletionEngineUT();
@@ -490,8 +490,8 @@ Y_UNIT_TEST_SUITE(SqlCompleteTests) {
     Y_UNIT_TEST(InsertTableHintName) {
         TVector<TCandidate> expected = {
             {Keyword, "COLUMNS"},
-            {Keyword, "SCHEMA"},
             {HintName, "EXPIRATION"},
+            {Keyword, "SCHEMA"},
         };
 
         auto engine = MakeSqlCompletionEngineUT();
@@ -592,7 +592,7 @@ Y_UNIT_TEST_SUITE(SqlCompleteTests) {
     Y_UNIT_TEST(OnFailingNameService) {
         auto service = MakeHolder<TFailingNameService>();
         auto engine = MakeSqlCompletionEngine(MakePureLexerSupplier(), std::move(service));
-        UNIT_ASSERT_NO_EXCEPTION(Complete(engine, {""}));
+        UNIT_ASSERT_EXCEPTION(Complete(engine, {""}), TDummyException);
         UNIT_ASSERT_EXCEPTION(Complete(engine, {"SELECT OPTIONAL<U"}), TDummyException);
         UNIT_ASSERT_EXCEPTION(Complete(engine, {"SELECT CAST (1 AS "}).size(), TDummyException);
     }
@@ -679,10 +679,10 @@ Y_UNIT_TEST_SUITE(SqlCompleteTests) {
         }
         {
             TVector<TCandidate> expected = {
-                {Keyword, "COLUMNS"},
-                {Keyword, "SCHEMA"},
                 {HintName, "XLOCK"},
                 {HintName, "UNORDERED"},
+                {Keyword, "COLUMNS"},
+                {HintName, "FORCEINFERSCHEMA"},
             };
             UNIT_ASSERT_VALUES_EQUAL(CompleteTop(expected.size(), engine, {"SELECT * FROM a WITH "}), expected);
         }
