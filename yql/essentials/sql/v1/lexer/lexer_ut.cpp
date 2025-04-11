@@ -371,6 +371,7 @@ Y_UNIT_TEST_SUITE(SQLv1Lexer) {
         UNIT_ASSERT_TOKENIZED(lexer, "@@ @@@", "STRING_VALUE(@@ @@@) EOF");
         UNIT_ASSERT_TOKENIZED(lexer, "@@test@@", "STRING_VALUE(@@test@@) EOF");
         UNIT_ASSERT_TOKENIZED(lexer, "@@line1\nline2@@", "STRING_VALUE(@@line1\nline2@@) EOF");
+        UNIT_ASSERT_TOKENIZED(lexer, "@@@@ @@A@@ @@@A@@", "STRING_VALUE(@@@@) WS( ) STRING_VALUE(@@A@@) WS( ) STRING_VALUE(@@@A@@) EOF");
     }
 
     Y_UNIT_TEST_ON_EACH_LEXER(SingleLineComment) {
