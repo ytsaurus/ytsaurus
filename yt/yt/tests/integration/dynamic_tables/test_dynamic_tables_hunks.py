@@ -79,7 +79,12 @@ class TestSortedDynamicTablesHunks(TestSortedDynamicTablesBase):
             schema[1]["max_inline_hunk_size"] = max_inline_hunk_size
         return schema
 
-    def _create_table(self, chunk_format="table_versioned_simple", max_inline_hunk_size=10, hunk_erasure_codec="none", schema=SCHEMA, dynamic=True):
+    def _create_table(self,
+                      chunk_format="table_versioned_simple",
+                      max_inline_hunk_size=10,
+                      hunk_erasure_codec="none",
+                      schema=SCHEMA,
+                      dynamic=True):
         create_table_function = self._create_simple_table if dynamic else self._create_simple_static_table
         schema = self._get_table_schema(schema, max_inline_hunk_size)
         if not dynamic:
@@ -1991,8 +1996,6 @@ class TestOrderedDynamicTablesHunks(TestSortedDynamicTablesBase):
         assert store_chunk_ids == new_store_chunk_ids
         assert hunk_chunk_ids == new_hunk_chunk_ids
 
-        # XXX(akozhikhov): YT-24195.
-        '''
         sync_mount_table("//tmp/h")
         sync_mount_table("//tmp/t")
 
@@ -2022,10 +2025,39 @@ class TestOrderedDynamicTablesHunks(TestSortedDynamicTablesBase):
         assert_items_equal(select_rows("* from [//tmp/t]"), rows)
 
         sync_unmount_table("//tmp/t")
-        sync_unmount_table("//tmp/h")
+        sync_mount_table("//tmp/t")
 
-        assert_items_equal(select_rows("* from [//tmp/t]"), rows)
-        '''
+    @authors("akozhikhov", "shakurov")
+    def test_hunk_storage_force_unmount(self):
+        sync_create_cells(1)
+        self._create_table()
+
+        hunk_storage_id = create(
+            "hunk_storage",
+            "//tmp/h",
+            attributes={
+                "store_rotation_period": 120000,
+                "store_removal_grace_period": 120000,
+            })
+
+        set("//tmp/t/@hunk_storage_id", hunk_storage_id)
+        sync_mount_table("//tmp/h")
+        sync_mount_table("//tmp/t")
+
+        rows = [{"key": 0, "value": "a" * 100} for i in range(10)]
+        insert_rows("//tmp/t", rows)
+
+        sync_unmount_table("//tmp/t")
+        sync_unmount_table("//tmp/h")
+        sync_mount_table("//tmp/h")
+
+        sync_unmount_table("//tmp/h", force=True)
+
+        sync_mount_table("//tmp/h")
+        sync_unmount_table("//tmp/h", force=True)
+
+        sync_mount_table("//tmp/h")
+        sync_mount_table("//tmp/t")
 
 
 ################################################################################

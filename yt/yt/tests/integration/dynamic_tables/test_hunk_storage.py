@@ -317,9 +317,8 @@ class TestHunkStorage(YTEnvSetup):
 
         sync_unmount_table("//tmp/h")
 
-    @authors("gritukan")
-    @pytest.mark.xfail(run=False, reason="WIP")
-    def test_force_unmount(self):
+    @authors("gritukan", "akozhikhov")
+    def test_force_unmount_hunk_storage(self):
         sync_create_cells(1)
         self._create_hunk_storage("//tmp/h")
         set("//tmp/h/@store_rotation_period", 1000000)
