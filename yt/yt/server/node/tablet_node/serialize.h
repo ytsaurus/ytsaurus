@@ -48,10 +48,12 @@ DEFINE_ENUM(ETabletReign,
     ((FixPrepareToggleHunkTabletStore)             (101103)) // akozhikhov
     ((CancelTabletTransition_25_1)                 (101104)) // ifsmirnov
     ((PerRowSequencer_25_1_NOOP)                   (101105)) // ponasenko-rs
+    ((FixHunkStorageUnmountRoutine_25_1)           (101106)) // akozhikhov
     // 25.2 starts here.
     ((Start_25_2)                                  (101200)) // ponasenko-rs
     ((CancelTabletTransition)                      (101201)) // ifsmirnov
     ((PerRowSequencer)                             (101202)) // ponasenko-rs
+    ((FixHunkStorageUnmountRoutine)                (101203)) // akozhikhov
 );
 
 static_assert(TEnumTraits<ETabletReign>::IsMonotonic, "Tablet reign enum is not monotonic");

@@ -62,8 +62,8 @@ public:
 
     int GetAllocatedStoreCount() const;
 
-    bool IsReadyToUnmount(bool force = false) const;
-    bool IsFullyUnlocked(bool forceUnmount = false) const;
+    bool IsReadyToUnmount() const;
+    bool IsFullyUnlocked(bool force) const;
 
     void OnStopLeading();
     void OnUnmount();
@@ -77,11 +77,14 @@ public:
 
     bool TryLockScan();
     void UnlockScan();
+    bool IsLockedScan() const;
 
     void ValidateMountRevision(NHydra::TRevision mountRevision) const;
     void ValidateMounted(NHydra::TRevision mountRevision) const;
 
     void BuildOrchidYson(NYson::IYsonConsumer* consumer) const;
+
+    int GetWriteLockCount() const;
 
     const NLogging::TLogger& GetLogger() const;
 
