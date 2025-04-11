@@ -156,6 +156,8 @@ class YtTestEnvironment(object):
             rpc_proxy_count=yt_instance_params.get("rpc_proxy_count", 1),
             http_proxy_count=yt_instance_params.get("http_proxy_count", 1),
             master_cache_count=yt_instance_params.get("master_cache_count", 1),
+            queue_agent_count=yt_instance_params.get("queue_agent_count", 0),
+            queue_agent_config=yt_instance_params.get("queue_agent_config", {}),
             path=path,
             id=self.yt_instance_id,
             fqdn="localhost",
@@ -219,3 +221,17 @@ def yt_env_two_clusters(request):
     environments = YtMultipleInstancesTestEnvironment(2)
     request.addfinalizer(lambda: environments.cleanup())
     return environments
+
+
+@pytest.fixture(scope="function")
+def yt_env_one_queue_agent(request):
+    environment = YtTestEnvironment({
+        "queue_agent_count": 1,
+        "queue_agent_config": {
+            "dynamic_config_manager": {
+                "update_period": 1000,  # 1 second
+            },
+        },
+    })
+    request.addfinalizer(lambda: environment.cleanup())
+    return environment

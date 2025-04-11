@@ -30,6 +30,7 @@ RECURSE(
     query_tracker_yql_liveness
     query_tracker_dq_liveness
     queue_agent_alerts
+    queue_agent_controller_liveness
     queue_api
     quorum_health
     quorum_health
