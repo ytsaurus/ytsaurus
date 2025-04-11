@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include <yt/yt/client/chunk_client/chunk_replica.h>
+
 #include <yt/yt/ytlib/chunk_client/chunk_service_proxy.h>
 
 #include <yt/yt/ytlib/node_tracker_client/public.h>
@@ -16,10 +18,14 @@ namespace NYT::NChunkClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-using TChunkLocatedHandler = TCallback<void(
-    TChunkId chunkId,
-    const TChunkReplicaWithMediumList& replicas,
-    bool missing)>;
+struct TScrapedChunkInfo
+{
+    TChunkId ChunkId;
+    TChunkReplicaWithMediumList Replicas;
+    bool Missing;
+};
+
+using TChunkBatchLocatedHandler = TCallback<void(const std::vector<TScrapedChunkInfo>&)>;
 
 //! A chunk scraper for unavailable chunks.
 class TChunkScraper
@@ -27,14 +33,14 @@ class TChunkScraper
 {
 public:
     TChunkScraper(
-        const TChunkScraperConfigPtr config,
-        const IInvokerPtr invoker,
+        TChunkScraperConfigPtr config,
+        IInvokerPtr invoker,
         TThrottlerManagerPtr throttlerManager,
         NApi::NNative::IClientPtr client,
         NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
         const THashSet<TChunkId>& chunkIds,
-        TChunkLocatedHandler onChunkLocated,
-        const NLogging::TLogger& logger);
+        TChunkBatchLocatedHandler onChunkBatchLocated,
+        NLogging::TLogger logger);
 
     //! Starts periodic polling.
     /*!
@@ -44,7 +50,7 @@ public:
     void Start();
 
     //! Stops periodic polling.
-    TFuture<void> Stop();
+    void Stop();
 
 private:
     const TChunkScraperConfigPtr Config_;
@@ -52,13 +58,10 @@ private:
     const TThrottlerManagerPtr ThrottlerManager_;
     const NApi::NNative::IClientPtr Client_;
     const NNodeTrackerClient::TNodeDirectoryPtr NodeDirectory_;
-    const TChunkLocatedHandler OnChunkLocated_;
+    const TChunkBatchLocatedHandler OnChunkBatchLocated_;
     const NLogging::TLogger Logger;
 
     std::vector<TScraperTaskPtr> ScraperTasks_;
-
-    void DoStart();
-    TFuture<void> DoStop();
 
     //! Create scraper tasks for each cell.
     void CreateTasks(const THashSet<TChunkId>& chunkIds);

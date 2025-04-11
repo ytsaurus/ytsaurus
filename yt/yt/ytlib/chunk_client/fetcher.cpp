@@ -37,17 +37,17 @@ class TFetcherChunkScraper
 {
 public:
     TFetcherChunkScraper(
-        const TChunkScraperConfigPtr config,
-        const IInvokerPtr invoker,
+        TChunkScraperConfigPtr config,
+        IInvokerPtr invoker,
         TThrottlerManagerPtr throttlerManager,
         NNative::IClientPtr client,
         TNodeDirectoryPtr nodeDirectory,
         const NLogging::TLogger& logger)
-        : Config_(config)
-        , Invoker_(CreateSerializedInvoker(invoker))
-        , ThrottlerManager_(throttlerManager)
-        , Client_(client)
-        , NodeDirectory_(nodeDirectory)
+        : Config_(std::move(config))
+        , Invoker_(CreateSerializedInvoker(std::move(invoker)))
+        , ThrottlerManager_(std::move(throttlerManager))
+        , Client_(std::move(client))
+        , NodeDirectory_(std::move(nodeDirectory))
         , Logger(logger.WithTag("FetcherChunkScraperId: %v", TGuid::Create()))
     { }
 
@@ -83,14 +83,13 @@ private:
     std::atomic<i64> UnavailableFetcherChunkCount_ = 0;
     TPromise<void> BatchLocatedPromise_ = NewPromise<void>();
 
-    int ChunkLocatedCallCount_ = 0;
-
     TFuture<void> DoScrapeChunks(const THashSet<TInputChunkPtr>& chunkSpecs)
     {
         YT_ASSERT_SERIALIZED_INVOKER_AFFINITY(Invoker_);
 
         THashSet<TChunkId> chunkIds;
         ChunkMap_.clear();
+        chunkIds.reserve(size(chunkSpecs));
         for (const auto& chunkSpec : chunkSpecs) {
             auto chunkId = chunkSpec->GetChunkId();
             chunkIds.insert(chunkId);
@@ -105,7 +104,7 @@ private:
             Client_,
             NodeDirectory_,
             std::move(chunkIds),
-            BIND(&TFetcherChunkScraper::OnChunkLocated, MakeWeak(this)),
+            BIND(&TFetcherChunkScraper::OnChunkBatchLocated, MakeWeak(this)),
             Logger);
         Scraper_->Start();
 
@@ -117,62 +116,59 @@ private:
     void OnCanceled(const TError& error)
     {
         YT_LOG_DEBUG(error, "Fetcher chunk scraper canceled");
-        YT_UNUSED_FUTURE(Scraper_->Stop());
+        Scraper_->Stop();
     }
 
-    void OnChunkLocated(TChunkId chunkId, const TChunkReplicaWithMediumList& replicas, bool missing)
+    void OnChunkBatchLocated(const std::vector<TScrapedChunkInfo>& chunkInfos)
     {
-        ++ChunkLocatedCallCount_;
-        if (ChunkLocatedCallCount_ >= Config_->MaxChunksPerRequest) {
-            ChunkLocatedCallCount_ = 0;
-            YT_LOG_DEBUG(
-                "Located another batch of chunks (Count: %v, UnavailableFetcherChunkCount: %v)",
-                Config_->MaxChunksPerRequest,
-                UnavailableFetcherChunkCount_.load());
-        }
+        YT_LOG_DEBUG(
+            "Located another batch of chunks (Count: %v, UnavailableFetcherChunkCount: %v)",
+            size(chunkInfos),
+            UnavailableFetcherChunkCount_.load());
 
-        YT_LOG_TRACE("Fetcher chunk is located (ChunkId: %v, Replicas: %v, Missing: %v)",
-            chunkId,
-            replicas,
-            missing);
+        for (const auto& chunkInfo : chunkInfos) {
+            YT_LOG_TRACE(
+                "Fetcher chunk is located (ChunkId: %v, Replicas: %v, Missing: %v)",
+                chunkInfo.ChunkId,
+                chunkInfo.Replicas,
+                chunkInfo.Missing);
 
-        if (missing) {
-            YT_LOG_DEBUG("Chunk being scraped is missing; scraper terminated (ChunkId: %v)", chunkId);
-            auto asyncError = Scraper_->Stop()
-                .Apply(BIND([=] {
-                    THROW_ERROR_EXCEPTION("Chunk scraper failed: chunk %v is missing", chunkId);
-                }));
+            if (chunkInfo.Missing) {
+                YT_LOG_DEBUG("Chunk being scraped is missing; scraper terminated (ChunkId: %v)", chunkInfo.ChunkId);
+                Scraper_->Stop();
 
-            BatchLocatedPromise_.TrySetFrom(asyncError);
-            return;
-        }
+                BatchLocatedPromise_.TrySet(TError("Chunk scraper failed: chunk %v is missing", chunkInfo.ChunkId));
+                return;
+            }
 
-        if (replicas.empty()) {
-            return;
-        }
+            if (chunkInfo.Replicas.empty()) {
+                continue;
+            }
 
-        auto& description = GetOrCrash(ChunkMap_, chunkId);
-        YT_VERIFY(!description.ChunkSpecs.empty());
+            auto& description = GetOrCrash(ChunkMap_, chunkInfo.ChunkId);
+            YT_VERIFY(!description.ChunkSpecs.empty());
 
-        if (!std::exchange(description.IsWaiting, false)) {
-            return;
-        }
+            if (!std::exchange(description.IsWaiting, false)) {
+                continue;
+            }
 
-        YT_LOG_TRACE("Fetcher chunk is available (ChunkId: %v, Replicas: %v)",
-            chunkId,
-            replicas);
+            YT_LOG_TRACE(
+                "Fetcher chunk is available (ChunkId: %v, Replicas: %v)",
+                chunkInfo.ChunkId,
+                chunkInfo.Replicas);
 
-        // Update replicas in place for all input chunks with current chunkId.
-        for (const auto& chunkSpec : description.ChunkSpecs) {
-            chunkSpec->SetReplicaList(replicas);
-        }
+            // Update replicas in place for all input chunks with current chunkId.
+            for (const auto& chunkSpec : description.ChunkSpecs) {
+                chunkSpec->SetReplicaList(chunkInfo.Replicas);
+            }
 
-        auto observedCount = UnavailableFetcherChunkCount_.fetch_sub(1) - 1;
-        YT_VERIFY(observedCount >= 0);
-        if (observedCount == 0) {
-            // Wait for all scraper callbacks to finish before session completion.
-            BatchLocatedPromise_.TrySetFrom(Scraper_->Stop());
-            YT_LOG_DEBUG("All fetcher chunks are available");
+            auto observedCount = UnavailableFetcherChunkCount_.fetch_sub(1) - 1;
+            YT_VERIFY(observedCount >= 0);
+            if (observedCount == 0) {
+                BatchLocatedPromise_.TrySet();
+                YT_LOG_DEBUG("All fetcher chunks are available");
+                return;
+            }
         }
     }
 };
@@ -182,19 +178,19 @@ DEFINE_REFCOUNTED_TYPE(TFetcherChunkScraper)
 ////////////////////////////////////////////////////////////////////////////////
 
 IFetcherChunkScraperPtr CreateFetcherChunkScraper(
-    const TChunkScraperConfigPtr config,
-    const IInvokerPtr invoker,
+    TChunkScraperConfigPtr config,
+    IInvokerPtr invoker,
     TThrottlerManagerPtr throttlerManager,
     NNative::IClientPtr client,
     TNodeDirectoryPtr nodeDirectory,
     const NLogging::TLogger& logger)
 {
     return New<TFetcherChunkScraper>(
-        config,
-        invoker,
-        throttlerManager,
-        client,
-        nodeDirectory,
+        std::move(config),
+        std::move(invoker),
+        std::move(throttlerManager),
+        std::move(client),
+        std::move(nodeDirectory),
         logger);
 }
 
@@ -209,7 +205,7 @@ TFetcherBase::TFetcherBase(
     const NLogging::TLogger& logger)
     : Config_(std::move(config))
     , NodeDirectory_(std::move(nodeDirectory))
-    , Invoker_(CreateSerializedInvoker(invoker))
+    , Invoker_(CreateSerializedInvoker(std::move(invoker)))
     , ChunkScraper_(std::move(chunkScraper))
     , Logger(logger)
     , Client_(std::move(client))
@@ -217,7 +213,7 @@ TFetcherBase::TFetcherBase(
 
 void TFetcherBase::AddChunk(TInputChunkPtr chunk)
 {
-    Chunks_.push_back(chunk);
+    Chunks_.push_back(std::move(chunk));
 }
 
 int TFetcherBase::GetChunkCount() const
@@ -229,6 +225,7 @@ int TFetcherBase::GetChunkCount() const
 THashSet<int> TFetcherBase::GetChunkIndexesToFetch()
 {
     THashSet<int> indexes;
+    indexes.reserve(size(Chunks_));
 
     for (int chunkIndex = 0; chunkIndex < std::ssize(Chunks_); ++chunkIndex) {
         const auto& chunk = Chunks_[chunkIndex];
@@ -265,6 +262,7 @@ TFuture<void> TFetcherBase::Fetch()
         AllSucceeded(std::move(asyncNodeDescriptors))
             .AsVoid()
             .WithTimeout(Config_->NodeDirectorySynchronizationTimeout)
+            // TODO(pogorelov): Implement TFutureState<void>::SubscribeUnique and use it here.
             .Apply(BIND(&TFetcherBase::StartFetchingRound, MakeWeak(this))
                 .AsyncVia(Invoker_)));
     auto future = Promise_.ToFuture();
@@ -376,8 +374,9 @@ TFuture<void> TFetcherBase::PerformFetchingRoundFromNode(NNodeTrackerClient::TNo
         nodeAddress,
         NodeToChunkIndexesToFetch_[nodeId].size());
 
-    PerformFetchingRoundStep(promise, nodeId);
-    return promise.ToFuture();
+    auto future = promise.ToFuture();
+    PerformFetchingRoundStep(std::move(promise), nodeId);
+    return future;
 }
 
 void TFetcherBase::StartFetchingRound(const TError& preparationError)
@@ -395,7 +394,8 @@ void TFetcherBase::StartFetchingRound(const TError& preparationError)
         return;
     }
 
-    YT_LOG_DEBUG("Start fetching round (UnfetchedChunkCount: %v, DeadNodes: %v, DeadChunks: %v)",
+    YT_LOG_DEBUG(
+        "Starting fetching round (UnfetchedChunkCount: %v, DeadNodes: %v, DeadChunks: %v)",
         UnfetchedChunkIndexes_.size(),
         DeadNodes_.size(),
         DeadChunks_.size());
@@ -404,11 +404,12 @@ void TFetcherBase::StartFetchingRound(const TError& preparationError)
     auto now = TInstant::Now();
     while (!BannedNodes_.empty() && BannedNodes_.begin()->first <= now) {
         auto nodeId = BannedNodes_.begin()->second;
-        YT_LOG_DEBUG("Unban node (Address: %v, Now: %v)",
+        YT_LOG_DEBUG(
+            "Unbaning node (Address: %v, Now: %v)",
             NodeDirectory_->GetDescriptor(nodeId).GetDefaultAddress(),
             now);
 
-        YT_VERIFY(UnbanTime_.erase(nodeId) == 1);
+        EraseOrCrash(UnbanTime_, nodeId);
         BannedNodes_.erase(BannedNodes_.begin());
     }
 
@@ -425,7 +426,7 @@ void TFetcherBase::StartFetchingRound(const TError& preparationError)
         for (auto replica : replicas) {
             auto nodeId = replica.GetNodeId();
             if (!DeadNodes_.contains(nodeId) &&
-                DeadChunks_.find(std::pair(nodeId, chunkId)) == DeadChunks_.end())
+                !DeadChunks_.contains(std::pair(nodeId, chunkId)))
             {
                 if (!UnbanTime_.contains(nodeId)) {
                     nodeIdToChunkIndexes[nodeId].push_back(chunkIndex);
@@ -449,14 +450,15 @@ void TFetcherBase::StartFetchingRound(const TError& preparationError)
 
     if (!unavailableChunks.empty()) {
         YT_VERIFY(ChunkScraper_);
-        YT_LOG_DEBUG("Found unavailable chunks, starting scraper (UnavailableChunkCount: %v)",
+        YT_LOG_DEBUG(
+            "Found unavailable chunks, starting scraper (UnavailableChunkCount: %v)",
             unavailableChunks.size());
         auto error = WaitFor(ChunkScraper_->ScrapeChunks(std::move(unavailableChunks)));
         YT_LOG_DEBUG("All unavailable chunks are located");
         DeadNodes_.clear();
         DeadChunks_.clear();
         Invoker_->Invoke(
-            BIND(&TFetcherBase::OnFetchingRoundCompleted, MakeWeak(this), /*backoff*/ false, error));
+            BIND(&TFetcherBase::OnFetchingRoundCompleted, MakeWeak(this), /*backoff*/ false, std::move(error)));
         return;
     }
 
@@ -464,6 +466,7 @@ void TFetcherBase::StartFetchingRound(const TError& preparationError)
 
     // Sort nodes by number of chunks (in decreasing order).
     std::vector<TNodeIdToChunkIndexes::iterator> nodeIts;
+    nodeIts.reserve(size(nodeIdToChunkIndexes));
     for (auto it = nodeIdToChunkIndexes.begin(); it != nodeIdToChunkIndexes.end(); ++it) {
         nodeIts.push_back(it);
     }
@@ -476,11 +479,11 @@ void TFetcherBase::StartFetchingRound(const TError& preparationError)
 
     // Pick nodes greedily.
     std::vector<TFuture<void>> asyncResults;
+    asyncResults.reserve(size(nodeIts));
     THashSet<int> requestedChunkIndexes;
     for (const auto& it : nodeIts) {
         for (int chunkIndex : it->second) {
-            if (requestedChunkIndexes.find(chunkIndex) == requestedChunkIndexes.end()) {
-                YT_VERIFY(requestedChunkIndexes.insert(chunkIndex).second);
+            if (requestedChunkIndexes.insert(chunkIndex).second) {
                 NodeToChunkIndexesToFetch_[it->first].insert(chunkIndex);
             }
         }
@@ -494,7 +497,7 @@ void TFetcherBase::StartFetchingRound(const TError& preparationError)
 
     bool backoff = asyncResults.empty();
 
-    auto future = AllSucceeded(asyncResults);
+    auto future = AllSucceeded(std::move(asyncResults));
     future.Subscribe(
         BIND(&TFetcherBase::OnFetchingRoundCompleted, MakeWeak(this), backoff)
             .Via(Invoker_));
@@ -515,17 +518,18 @@ void TFetcherBase::OnChunkFailed(TNodeId nodeId, int chunkIndex, const TError& e
 
     if (error.FindMatching(NYT::EErrorCode::Timeout)) {
         YT_LOG_DEBUG(error, "Timed out fetching chunk info (ChunkId: %v, Address: %v)", chunkId, address);
-        YT_VERIFY(NodeToChunkIndexesToFetch_[nodeId].insert(chunkIndex).second);
+        EmplaceOrCrash(NodeToChunkIndexesToFetch_[nodeId], chunkIndex);
     } else {
         YT_LOG_DEBUG(error, "Error fetching chunk info (ChunkId: %v, Address: %v)", chunkId, address);
         DeadChunks_.emplace(nodeId, chunkId);
-        YT_VERIFY(UnfetchedChunkIndexes_.insert(chunkIndex).second);
+        EmplaceOrCrash(UnfetchedChunkIndexes_, chunkIndex);
     }
 }
 
 void TFetcherBase::OnNodeFailed(TNodeId nodeId, const std::vector<int>& chunkIndexes)
 {
-    YT_LOG_DEBUG("Error fetching chunks from node (Address: %v, ChunkCount: %v)",
+    YT_LOG_DEBUG(
+        "Error fetching chunks from node (Address: %v, ChunkCount: %v)",
         NodeDirectory_->GetDescriptor(nodeId).GetDefaultAddress(),
         chunkIndexes.size());
 
@@ -536,7 +540,8 @@ void TFetcherBase::OnNodeFailed(TNodeId nodeId, const std::vector<int>& chunkInd
 void TFetcherBase::OnRequestThrottled(TNodeId nodeId, const std::vector<int>& chunkIndexes)
 {
     auto nodeAddress = NodeDirectory_->GetDescriptor(nodeId).GetDefaultAddress();
-    YT_LOG_DEBUG("Fetch request throttled by node (Address: %v, ChunkCount: %v)",
+    YT_LOG_DEBUG(
+        "Fetch request throttled by node (Address: %v, ChunkCount: %v)",
         nodeAddress,
         chunkIndexes.size());
 
@@ -549,12 +554,13 @@ void TFetcherBase::OnRequestThrottled(TNodeId nodeId, const std::vector<int>& ch
 
     unbanTime = std::max(unbanTime, TInstant::Now() + Config_->NodeBanDuration);
 
-    YT_LOG_DEBUG("Node banned (Address: %v, UnbanTime: %v)",
+    YT_LOG_DEBUG(
+        "Node banned (Address: %v, UnbanTime: %v)",
         nodeAddress,
         unbanTime);
 
-    YT_VERIFY(BannedNodes_.emplace(unbanTime, nodeId).second);
-    YT_VERIFY(UnbanTime_.emplace(nodeId, unbanTime).second);
+    EmplaceOrCrash(BannedNodes_, unbanTime, nodeId);
+    EmplaceOrCrash(UnbanTime_, nodeId, unbanTime);
 
     UnfetchedChunkIndexes_.insert(chunkIndexes.begin(), chunkIndexes.end());
 }

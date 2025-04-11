@@ -60,6 +60,7 @@ TFuture<void> TChunkMetaFetcher::FetchFromNode(TNodeId nodeId, std::vector<int> 
     // TODO(max42): optimize it.
 
     std::vector<TFuture<TDataNodeServiceProxy::TRspGetChunkMetaPtr>> asyncResults;
+    asyncResults.reserve(size(chunkIndexes));
 
     for (int index : chunkIndexes) {
         const auto& chunk = Chunks_[index];
@@ -80,8 +81,8 @@ TFuture<void> TChunkMetaFetcher::FetchFromNode(TNodeId nodeId, std::vector<int> 
     }
 
     return AllSucceeded(std::move(asyncResults))
-        .Apply(BIND(&TChunkMetaFetcher::OnResponse, MakeStrong(this), nodeId, chunkIndexes)
-            .AsyncVia(Invoker_));
+        .ApplyUnique(BIND(&TChunkMetaFetcher::OnResponse, MakeStrong(this), nodeId, Passed(std::move(chunkIndexes)))
+            .Via(Invoker_));
 }
 
 void TChunkMetaFetcher::OnFetchingStarted()
@@ -92,14 +93,16 @@ void TChunkMetaFetcher::OnFetchingStarted()
 void TChunkMetaFetcher::OnResponse(
     NYT::NNodeTrackerClient::TNodeId nodeId,
     std::vector<int> requestedChunkIndexes,
-    const TErrorOr<std::vector<TDataNodeServiceProxy::TRspGetChunkMetaPtr>>& rspOrError)
+    TErrorOr<std::vector<TDataNodeServiceProxy::TRspGetChunkMetaPtr>>&& rspOrError)
 {
-    YT_LOG_DEBUG("Node response received (NodeId: %v, ChunkIndexes: %v)",
+    YT_LOG_DEBUG(
+        "Node response received (NodeId: %v, ChunkIndexes: %v)",
         nodeId,
         requestedChunkIndexes);
 
     if (!rspOrError.IsOK()) {
-        YT_LOG_INFO("Failed to get chunk slices meta from node (Address: %v, NodeId: %v)",
+        YT_LOG_INFO(
+            "Failed to get chunk slices meta from node (Address: %v, NodeId: %v)",
             NodeDirectory_->GetDescriptor(nodeId).GetDefaultAddress(),
             nodeId);
 
@@ -107,7 +110,7 @@ void TChunkMetaFetcher::OnResponse(
         return;
     }
 
-    const auto& responses = rspOrError.Value();
+    auto& responses = rspOrError.Value();
 
     YT_VERIFY(responses.size() == requestedChunkIndexes.size());
 
@@ -121,7 +124,7 @@ void TChunkMetaFetcher::OnResponse(
             continue;
         }
         YT_VERIFY(chunkIndex < std::ssize(ChunkMetas_));
-        ChunkMetas_[chunkIndex] = New<TRefCountedChunkMeta>(std::move(rsp->chunk_meta()));
+        ChunkMetas_[chunkIndex] = New<TRefCountedChunkMeta>(std::move(*rsp->mutable_chunk_meta()));
     }
 
     if (!throttledChunkIndexes.empty()) {
