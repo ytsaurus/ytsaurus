@@ -160,20 +160,23 @@ static TError ValidatePrerequisiteRevisionPaths(
     const google::protobuf::RepeatedPtrField<TProtobufString>& originalAdditionalPaths,
     TObjectId prerequisiteObjectId)
 {
+    std::vector<TObjectId> resolvedObjectIds;
     const auto& objectManager = bootstrap->GetObjectManager();
     try {
+        // Object at originalTargetPath could be not created yet, so it is possible to get an error here.
         auto originalObjectId = objectManager->ResolvePathToObjectId(originalTargetPath, method, /*transaction*/ nullptr, /*options*/ {});
+        resolvedObjectIds.push_back(originalObjectId);
         if (originalObjectId == prerequisiteObjectId) {
             return TError();
         }
     } catch (const TErrorException& ex) {
-        // Object at originalTargetPath could be not created yet.
         if (!ex.Error().FindMatching(NYTree::EErrorCode::ResolveError)) {
             return ex.Error();
         }
     }
     for (const auto& additionalPath : originalAdditionalPaths) {
         auto additionalObjectId = objectManager->ResolvePathToObjectId(additionalPath, method, /*transaction*/ nullptr, /*options*/ {});
+        resolvedObjectIds.push_back(additionalObjectId);
         if (additionalObjectId == prerequisiteObjectId) {
             return TError();
         }
@@ -181,8 +184,10 @@ static TError ValidatePrerequisiteRevisionPaths(
     return TError(
         NObjectClient::EErrorCode::PrerequisitePathDifferFromExecutionPaths,
         "Requests with prerequisite paths different from target paths are prohibited in Cypress "
-        "(PrerequisiteObjectId: %v, TargetPath: %v, AdditionalPaths: %v)",
+        "(Method: %v, PrerequisiteObjectId: %v, ResolvedVerbObjectIds: %v, TargetPath: %v, AdditionalPaths: %v)",
+        method,
         prerequisiteObjectId,
+        resolvedObjectIds,
         originalTargetPath,
         originalAdditionalPaths);
 }
