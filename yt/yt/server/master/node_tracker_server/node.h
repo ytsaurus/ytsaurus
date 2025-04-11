@@ -373,6 +373,7 @@ public:
     // Returns true iff the node has at least one location belonging to the
     // specified medium.
     bool HasMedium(int mediumIndex) const;
+    bool HasNotFullMedium(int mediumIndex) const;
 
     //! Returns null if there's no storage of specified medium on this node.
     std::optional<double> GetFillFactor(int mediumIndex) const;
