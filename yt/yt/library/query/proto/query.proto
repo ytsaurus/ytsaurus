@@ -163,6 +163,9 @@ message TAggregateItem
     optional uint32 result_type = 5;
     // COMPAT(sabdenovch): Legacy clients may omit this field.
     repeated TExpression arguments = 6;
+
+    optional NTableClient.NProto.TLogicalType state_logical_type = 7;
+    optional NTableClient.NProto.TLogicalType result_logical_type = 8;
 }
 
 message TSelfEquation
