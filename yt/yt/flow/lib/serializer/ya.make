@@ -1,7 +1,6 @@
 LIBRARY()
 
 SRCS(
-    proto_yson_struct.cpp
     serializer.cpp
 )
 

@@ -5,30 +5,27 @@
 #endif
 #undef SERIALIZER_INL_H_
 
+#include <yt/yt/core/ytree/convert.h>
+
 namespace NYT::NFlow::NYsonSerializer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <class TYsonStruct>
-TIntrusivePtr<TYsonStruct> Deserialize(
-    const NTableClient::TUnversionedRow& row,
-    const NTableClient::TLogicalTypePtr& logicalType)
+template <class T>
+NTableClient::TTableSchemaPtr GetYsonTableSchema()
 {
-    auto ysonStruct = New<TYsonStruct>();
-    Deserialize(ysonStruct, row, logicalType);
-    return ysonStruct;
+    return GetYsonTableSchema(New<T>());
 }
 
-template <class TYsonStruct>
-TIntrusivePtr<TYsonStruct> Deserialize(
-    const NTableClient::TUnversionedRow& row,
-    const NTableClient::TTableSchemaPtr& schema)
-{
-    auto ysonStruct = New<TYsonStruct>();
-    Deserialize(ysonStruct, row, schema);
-    return ysonStruct;
-}
+////////////////////////////////////////////////////////////////////////////////
 
+template <class T>
+TIntrusivePtr<T> Deserialize(const NTableClient::TUnversionedRow& row, const NTableClient::TTableSchemaPtr& schema)
+{
+    auto result = New<T>();
+    Deserialize(result, row, schema);
+    return result;
+}
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NFlow::NYsonSerializer

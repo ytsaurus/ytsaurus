@@ -6,39 +6,27 @@
 
 #include <yt/yt/core/ytree/yson_struct.h>
 
-#include <yt/yt/flow/lib/serializer/proto_yson_struct.h>
 #include <yt/yt/flow/lib/serializer/serializer.h>
 
 #include <yt/yt/flow/lib/serializer/unittests/proto/test.pb.h>
 
+#include <google/protobuf/util/message_differencer.h>
+
 namespace NYT::NFlow::NYsonSerializer {
-
-namespace NProto {
-
-bool operator==(const TTestMessage& lhs, const TTestMessage& rhs)
-{
-    return lhs.GetInt32() == rhs.GetInt32() && lhs.GetString() == rhs.GetString();
-}
-
-} // namespace NYT::NFlow::NProto
 
 namespace {
 
 using namespace NYT::NTableClient;
 using namespace NYT::NYson;
 using namespace NYT::NYTree;
+using google::protobuf::util::MessageDifferencer;
 
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TTestSubStruct
-    : public TYsonStruct
+    : public virtual TYsonStruct
 {
     ui32 Uint;
-
-    bool operator==(const TTestSubStruct& other) const noexcept
-    {
-        return Uint == other.Uint;
-    }
 
     REGISTER_YSON_STRUCT(TTestSubStruct);
 
@@ -52,14 +40,9 @@ struct TTestSubStruct
 using TTestSubStructPtr = TIntrusivePtr<TTestSubStruct>;
 
 struct TTestSubStructLite
-    : public TYsonStructLite
+    : public virtual TYsonStructLite
 {
     i32 Int;
-
-    bool operator==(const TTestSubStructLite& other) const noexcept
-    {
-        return Int == other.Int;
-    }
 
     REGISTER_YSON_STRUCT_LITE(TTestSubStructLite);
 
@@ -72,14 +55,16 @@ struct TTestSubStructLite
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TTestYsonStruct
-    : public TYsonStruct
+struct TTestSchemaYsonStruct
+    : public virtual TYsonStruct
 {
     TString String;
     TTestSubStructPtr Sub;
+    TTestSubStructLite RequiredSub;
     std::vector<TTestSubStructLite> SubList;
     std::vector<TString> StringList;
     std::unordered_map<TString, int> IntMap;
+    std::optional<std::unordered_map<TString, int>> OptionalIntMap;
     std::optional<i64> NullableInt;
     unsigned int Uint;
     bool Bool;
@@ -88,269 +73,206 @@ struct TTestYsonStruct
     ui8 Ubyte;
     i16 Short;
     ui16 Ushort;
-    TProtoYsonStruct<NProto::TTestMessage> Proto;
+    TProtoSerializedAsString<NProto::TTestMessage> Proto;
+    NProto::TTestMessage YsonProto;
+    std::tuple<double, TString> Tuple;
 
-    REGISTER_YSON_STRUCT(TTestYsonStruct);
+    REGISTER_YSON_STRUCT(TTestSchemaYsonStruct);
 
     static void Register(TRegistrar registrar)
     {
         registrar.Parameter("string", &TThis::String);
-        registrar.Parameter("nullable_sub", &TThis::Sub)
-            .DefaultNew();
-        registrar.Parameter("sub_list", &TThis::SubList)
-            .Default();
-        registrar.Parameter("int_map", &TThis::IntMap)
-            .Default();
-        registrar.Parameter("string_list", &TThis::StringList)
-            .Default();
-        registrar.Parameter("nullable_int", &TThis::NullableInt)
-            .Default();
-        registrar.Parameter("uint", &TThis::Uint)
-            .Default();
-        registrar.Parameter("bool", &TThis::Bool)
-            .Default();
-        registrar.Parameter("char", &TThis::Char)
-            .Default();
-        registrar.Parameter("byte", &TThis::Byte)
-            .Default();
-        registrar.Parameter("ubyte", &TThis::Ubyte)
-            .Default();
-        registrar.Parameter("short", &TThis::Short)
-            .Default();
-        registrar.Parameter("ushort", &TThis::Ushort)
-            .Default();
-        registrar.Parameter("proto", &TThis::Proto)
-            .Default();
+        registrar.Parameter("nullable_sub", &TThis::Sub);
+        registrar.Parameter("required_sub", &TThis::RequiredSub);
+        registrar.Parameter("sub_list", &TThis::SubList);
+        registrar.Parameter("int_map", &TThis::IntMap);
+        registrar.Parameter("optional_int_map", &TThis::OptionalIntMap);
+        registrar.Parameter("string_list", &TThis::StringList);
+        registrar.Parameter("nullable_int", &TThis::NullableInt);
+        registrar.Parameter("uint", &TThis::Uint);
+        registrar.Parameter("bool", &TThis::Bool);
+        registrar.Parameter("char", &TThis::Char);
+        registrar.Parameter("byte", &TThis::Byte);
+        registrar.Parameter("ubyte", &TThis::Ubyte);
+        registrar.Parameter("short", &TThis::Short);
+        registrar.Parameter("ushort", &TThis::Ushort);
+        registrar.Parameter("proto", &TThis::Proto);
+        registrar.Parameter("yson_proto", &TThis::YsonProto);
+        registrar.Parameter("tuple", &TThis::Tuple);
     }
 };
 
-using TTestYsonStructPtr = TIntrusivePtr<TTestYsonStruct>;
+using TTestSchemaYsonStructPtr = TIntrusivePtr<TTestSchemaYsonStruct>;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TTestStructV1
-    : public TYsonStruct
+TEST(TYsonSerialize, YsonTableSchema)
 {
-    i32 Int;
+    auto ysonStruct = New<TTestSchemaYsonStruct>();
+    auto schema = GetYsonTableSchema(ysonStruct);
+    auto expectedSchema = New<TTableSchema>(
+        std::vector{
+            TColumnSchema("bool", ESimpleLogicalValueType::Boolean).SetRequired(true),
+            TColumnSchema("byte", ESimpleLogicalValueType::Int8).SetRequired(true),
+            TColumnSchema("char", ESimpleLogicalValueType::Int8).SetRequired(true),
+            TColumnSchema("int_map", ESimpleLogicalValueType::Any).SetRequired(true),
+            TColumnSchema("nullable_int", ESimpleLogicalValueType::Int64).SetRequired(false),
+            TColumnSchema("nullable_sub", ESimpleLogicalValueType::Any).SetRequired(false),
+            TColumnSchema("optional_int_map", ESimpleLogicalValueType::Any).SetRequired(false),
+            TColumnSchema("proto", ESimpleLogicalValueType::String).SetRequired(true),
+            TColumnSchema("required_sub", ESimpleLogicalValueType::Any).SetRequired(true),
+            TColumnSchema("short", ESimpleLogicalValueType::Int16).SetRequired(true),
+            TColumnSchema("string", ESimpleLogicalValueType::String).SetRequired(true),
+            TColumnSchema("string_list", ESimpleLogicalValueType::Any).SetRequired(true),
+            TColumnSchema("sub_list", ESimpleLogicalValueType::Any).SetRequired(true),
+            TColumnSchema("tuple", ESimpleLogicalValueType::Any).SetRequired(true),
+            TColumnSchema("ubyte", ESimpleLogicalValueType::Uint8).SetRequired(true),
+            TColumnSchema("uint", ESimpleLogicalValueType::Uint32).SetRequired(true),
+            TColumnSchema("ushort", ESimpleLogicalValueType::Uint16).SetRequired(true),
+            TColumnSchema("yson_proto", ESimpleLogicalValueType::Any).SetRequired(true),
+    });
+    EXPECT_EQ(*schema, *expectedSchema);
+}
 
-    bool operator==(const TTestStructV1& other) const noexcept
-    {
-        return Int == other.Int;
-    }
+////////////////////////////////////////////////////////////////////////////////
 
-    REGISTER_YSON_STRUCT(TTestStructV1);
+struct TTestSerializeYsonSub
+    : public virtual TYsonStruct
+{
+    THashMap<TString, TString> Strings;
+
+    REGISTER_YSON_STRUCT(TTestSerializeYsonSub);
 
     static void Register(TRegistrar registrar)
     {
-        registrar.Parameter("int", &TThis::Int)
-            .Default(5);
+        registrar.Parameter("strings", &TThis::Strings)
+            .Default();
     }
 };
 
-struct TTestStructV2
-    : public TYsonStruct
+using TTestSerializeYsonSubPtr = TIntrusivePtr<TTestSerializeYsonSub>;
+
+struct TTestSerializeYson
+    : public virtual TYsonStruct
 {
-    i32 Int;
-    TString String;
+    ui64 Uint64;
+    std::optional<double> OptionalDoubleEmpty;
+    std::optional<double> OptionalDouble;
+    TTestSerializeYsonSubPtr Sub;
+    THashMap<TString, TTestSerializeYsonSubPtr> Subs;
+    std::pair<TString, i64> Pair;
 
-    bool operator==(const TTestStructV2& other) const noexcept
-    {
-        return Int == other.Int && String == other.String;
-    }
-
-    REGISTER_YSON_STRUCT(TTestStructV2);
+    REGISTER_YSON_STRUCT(TTestSerializeYson);
 
     static void Register(TRegistrar registrar)
     {
-        registrar.Parameter("int", &TThis::Int)
-            .Default(55);
-        registrar.Parameter("string", &TThis::String)
-            .Default("default");
+        registrar.Parameter("uint64", &TThis::Uint64)
+            .Default();
+        registrar.Parameter("optional_double_empty", &TThis::OptionalDoubleEmpty)
+            .Default();
+        registrar.Parameter("optional_double", &TThis::OptionalDouble)
+            .Default();
+        registrar.Parameter("sub", &TThis::Sub)
+            .Default();
+        registrar.Parameter("subs", &TThis::Subs)
+            .Default();
+        registrar.Parameter("pair", &TThis::Pair)
+            .Default();
     }
 };
 
-struct TTestStructV2WithoutDefault
-    : public TYsonStruct
+using TTestSerializeYsonPtr = TIntrusivePtr<TTestSerializeYson>;
+
+TEST(TYsonSerialize, YsonSerialize)
 {
-    i32 Int;
-    TString String;
+    auto schema = GetYsonTableSchema<TTestSerializeYson>();
 
-    REGISTER_YSON_STRUCT(TTestStructV2WithoutDefault);
+    auto ysonStruct = New<TTestSerializeYson>();
+    ysonStruct->Uint64 = 123456789u;
+    ysonStruct->OptionalDoubleEmpty = {};
+    ysonStruct->OptionalDouble = 5.0;
+    const auto sub = New<TTestSerializeYsonSub>();
+    sub->Strings["asbasdf"] = "fdsfds";
+    ysonStruct->Sub = sub;
+    const auto subKey = New<TTestSerializeYsonSub>();
+    subKey->Strings["some_key"] = "some_string";
+    ysonStruct->Subs["key"] = subKey;
+    ysonStruct->Pair = std::pair{"abra", 345};
 
-    static void Register(TRegistrar registrar)
+    auto row = Serialize(ysonStruct, schema);
+    // ordered by alphabet
+    EXPECT_EQ(schema->Columns()[0].Name(), "optional_double");
+    EXPECT_EQ(FromUnversionedValue<std::optional<double>>(row[0]), 5.0);
+    EXPECT_EQ(schema->Columns()[1].Name(), "optional_double_empty");
+    EXPECT_EQ(FromUnversionedValue<std::optional<double>>(row[1]), std::nullopt);
+
+    EXPECT_EQ(schema->Columns()[2].Name(), "pair");
     {
-        registrar.Parameter("int", &TThis::Int);
-        registrar.Parameter("string", &TThis::String);
+        const auto parsedPair = ConvertTo<std::pair<TString, i64>>(FromUnversionedValue<TYsonString>(row[2]));
+        const auto expectedPair = std::pair{"abra", 345};
+        EXPECT_EQ(parsedPair, expectedPair);
     }
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-TEST(TYsonSerialize, Simple)
-{
-    auto ysonStruct = New<TTestYsonStruct>();
-    ysonStruct->IntMap["0"] = 0;
-    ysonStruct->IntMap["1"] = 1;
-    ysonStruct->Proto->SetString("str");
-    ysonStruct->Proto->SetInt32(5);
-    ysonStruct->Bool = true;
-    ysonStruct->SubList.emplace_back().Int = 5;
-    ysonStruct->StringList.push_back("a");
-    ysonStruct->StringList.push_back("b");
-
-    auto logicalType = GetYsonLogicalType(ysonStruct);
-    auto row = Serialize(ysonStruct, logicalType);
-
-    auto copy = New<TTestYsonStruct>();
-    Deserialize(copy, row, logicalType);
-
-    EXPECT_EQ(ysonStruct->IntMap, copy->IntMap);
-    // EXPECT_EQ(ysonStruct->Proto, copy->Proto);
-    EXPECT_EQ(ysonStruct->Bool, copy->Bool);
-    EXPECT_EQ(ysonStruct->SubList, copy->SubList);
-    EXPECT_EQ(ysonStruct->StringList, copy->StringList);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-TEST(TYsonSerialize, AddField)
-{
-    auto structV1 = New<TTestStructV1>();
-    structV1->Int = 5;
-
-    auto logicalType = GetYsonLogicalType(structV1);
-    auto row = Serialize(structV1, logicalType);
-
-    auto structV2 = New<TTestStructV2>();
-    Deserialize(structV2, row, logicalType);
-
-    EXPECT_EQ(structV1->Int, structV2->Int);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-TEST(TYsonSerialize, DeleteField)
-{
-    auto structV2 = New<TTestStructV2>();
-    structV2->Int = 5;
-    structV2->String = "abcde";
-
-    auto logicalType = GetYsonLogicalType(structV2);
-    auto row = Serialize(structV2, logicalType);
-
-    auto structV1 = New<TTestStructV1>();
-    Deserialize(structV1, row, logicalType);
-
-    EXPECT_EQ(structV1->Int, structV2->Int);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-TEST(TYsonSerialize, WithoutDefault)
-{
+    EXPECT_EQ(schema->Columns()[3].Name(), "sub");
     {
-        auto structV1 = New<TTestStructV2>();
-
-        auto logicalType = GetYsonLogicalType(structV1);
-        auto row = Serialize(structV1, logicalType);
-
-        auto structV2 = New<TTestStructV2WithoutDefault>();
-        Deserialize(structV2, row, logicalType);
-
-        EXPECT_EQ(structV1->Int, structV2->Int);
-        EXPECT_EQ(structV1->String, structV2->String);
+        const auto parsedSub = ConvertTo<TTestSerializeYsonSubPtr>(FromUnversionedValue<TYsonString>(row[3]));
+        EXPECT_EQ(*parsedSub, *sub);
     }
+    EXPECT_EQ(schema->Columns()[4].Name(), "subs");
     {
-        auto structV1 = New<TTestStructV2WithoutDefault>();
-
-        auto logicalType = GetYsonLogicalType(structV1);
-        auto row = Serialize(structV1, logicalType);
-
-        auto structV2 = New<TTestStructV2>();
-        Deserialize(structV2, row, logicalType);
-
-        EXPECT_EQ(structV1->Int, structV2->Int);
-        EXPECT_EQ(structV1->String, structV2->String);
-    }
-    {
-        auto structV1 = New<TTestStructV1>();
-
-        auto logicalType = GetYsonLogicalType(structV1);
-        auto row = Serialize(structV1, logicalType);
-
-        auto structV2 = New<TTestStructV2WithoutDefault>();
-        EXPECT_THROW(
-            Deserialize(structV2, row, logicalType),
-            TErrorException);
-    }
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-TEST(TYsonSerialize, ToTableSchema)
-{
-    auto ysonStruct = New<TTestYsonStruct>();
-    auto logicalType = GetYsonLogicalType(ysonStruct);
-    auto tableSchema = ToTableSchema(logicalType);
-
-    EXPECT_EQ(tableSchema->GetColumnCount(), 14);
-    EXPECT_EQ(tableSchema->GetColumn("bool").GetWireType(), EValueType::Boolean);
-    EXPECT_EQ(tableSchema->GetColumn("byte").GetWireType(), EValueType::Int64);
-    EXPECT_EQ(tableSchema->GetColumn("char").GetWireType(), EValueType::Int64);
-    EXPECT_EQ(tableSchema->GetColumn("int_map").GetWireType(), EValueType::Composite);
-    EXPECT_EQ(tableSchema->GetColumn("nullable_int").GetWireType(), EValueType::Int64);
-    EXPECT_EQ(tableSchema->GetColumn("nullable_sub").GetWireType(), EValueType::Composite);
-    EXPECT_EQ(tableSchema->GetColumn("proto").GetWireType(), EValueType::String);
-    EXPECT_EQ(tableSchema->GetColumn("short").GetWireType(), EValueType::Int64);
-    EXPECT_EQ(tableSchema->GetColumn("string").GetWireType(), EValueType::String);
-    EXPECT_EQ(tableSchema->GetColumn("string_list").GetWireType(), EValueType::Composite);
-    EXPECT_EQ(tableSchema->GetColumn("sub_list").GetWireType(), EValueType::Composite);
-    EXPECT_EQ(tableSchema->GetColumn("ubyte").GetWireType(), EValueType::Uint64);
-    EXPECT_EQ(tableSchema->GetColumn("uint").GetWireType(), EValueType::Uint64);
-    EXPECT_EQ(tableSchema->GetColumn("ushort").GetWireType(), EValueType::Uint64);
-
-    for (const auto& column : tableSchema->Columns()) {
-        if (column.Name().starts_with("nullable_")) {
-            EXPECT_FALSE(column.Required()) << "column: " << column.Name();
-        } else {
-            EXPECT_TRUE(column.Required()) << "column: " << column.Name();
+        const auto raw = ConvertToNode(FromUnversionedValue<TYsonString>(row[4]));
+        const auto parsedSubs = ConvertTo<THashMap<TString, TTestSerializeYsonSubPtr>>(raw);
+        const auto expectedSubs = ysonStruct->Subs;
+        EXPECT_EQ(parsedSubs.size(), expectedSubs.size());
+        for (const auto& [key, value] : parsedSubs) {
+            EXPECT_EQ(*value, *expectedSubs.at(key));
         }
     }
+    EXPECT_EQ(schema->Columns()[5].Name(), "uint64");
+    EXPECT_EQ(FromUnversionedValue<ui64>(row[5]), 123456789u);
+
+    auto deserializedStruct = Deserialize<TTestSerializeYson>(row, schema);
+    EXPECT_EQ(*deserializedStruct, *ysonStruct);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TTestStructV3
-    : public TYsonStruct
+struct TTestPartialSerializeYson
+    : public virtual TYsonStruct
 {
     TString Value;
-    i64 OtherValue;
+    std::optional<i64> OtherValue;
     std::optional<double> Undefined;
+    TString Unserialized;
 
-    REGISTER_YSON_STRUCT(TTestStructV3);
+    REGISTER_YSON_STRUCT(TTestPartialSerializeYson);
 
     static void Register(TRegistrar registrar)
     {
         registrar.Parameter("value", &TThis::Value)
             .Default("default");
         registrar.Parameter("other_value", &TThis::OtherValue)
-            .Default(3);
+            .Default();
         registrar.Parameter("undefined", &TThis::Undefined)
             .Default();
+        registrar.Parameter("unserialized", &TThis::Unserialized)
+            .Default("default_value");
     }
 };
 
+using TTestPartialSerializeYsonPtr = TIntrusivePtr<TTestPartialSerializeYson>;
+
 TEST(TYsonSerialize, PartialSerialize)
 {
-    auto ysonStruct = New<TTestStructV3>();
+    auto ysonStruct = New<TTestPartialSerializeYson>();
     ysonStruct->Value = "some_value";
     ysonStruct->OtherValue = 5;
+    ysonStruct->Unserialized = "random_value";
     auto schema = New<TTableSchema>(
         std::vector{
             TColumnSchema("other_value", EValueType::Int64),
-            TColumnSchema("none", EValueType::Uint64),
+            TColumnSchema("unknown", EValueType::Uint64),
             TColumnSchema("value", EValueType::String),
-            TColumnSchema("another_none", EValueType::String),
+            TColumnSchema("another_unknown", EValueType::String),
             TColumnSchema("undefined", EValueType::Double)
         }
     );
@@ -369,12 +291,70 @@ TEST(TYsonSerialize, PartialSerialize)
     EXPECT_EQ(row[4].Id, 4);
     EXPECT_EQ(row[4].Type, EValueType::Null);
 
-    auto otherStruct = New<TTestStructV3>();
-    Deserialize(otherStruct, row, schema);
+    auto otherStruct = Deserialize<TTestPartialSerializeYson>(row, schema);
     EXPECT_EQ(otherStruct->Value, ysonStruct->Value);
     EXPECT_EQ(otherStruct->OtherValue, ysonStruct->OtherValue);
-    EXPECT_FALSE(otherStruct->Undefined.has_value());
-    EXPECT_TRUE(AreNodesEqual(ConvertToNode(otherStruct), ConvertToNode(ysonStruct)));
+    EXPECT_EQ(otherStruct->Undefined, ysonStruct->Undefined);
+    EXPECT_NE(otherStruct->Unserialized, ysonStruct->Unserialized);
+    EXPECT_EQ(otherStruct->Unserialized, "default_value");
+
+    auto fullSchema = GetYsonTableSchema<TTestPartialSerializeYson>();
+    auto fullRow = Serialize(ysonStruct, fullSchema);
+    auto fullOtherStruct = Deserialize<TTestPartialSerializeYson>(fullRow, fullSchema);
+    EXPECT_EQ(*fullOtherStruct, *ysonStruct);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TTestYsonStructWithProto
+    : public virtual TYsonStruct
+{
+    NProto::TTestMessage YsonProto;
+    TProtoSerializedAsString<NProto::TTestMessage> StringProto;
+
+    REGISTER_YSON_STRUCT(TTestYsonStructWithProto);
+
+    static void Register(TRegistrar registrar)
+    {
+        registrar.Parameter("yson_proto", &TThis::YsonProto)
+            .Default();
+        registrar.Parameter("string_proto", &TThis::StringProto)
+            .Default();
+    }
+};
+
+using TTestYsonStructWithProtoPtr = TIntrusivePtr<TTestYsonStructWithProto>;
+
+TEST(TYsonSerialize, ProtoSerialize)
+{
+    NProto::TTestMessage proto;
+    proto.SetInt32(234);
+    proto.SetString("abcdef");
+    auto ysonStruct = New<TTestYsonStructWithProto>();
+    ysonStruct->YsonProto.CopyFrom(proto);
+    ysonStruct->StringProto.CopyFrom(proto);
+
+    auto schema = GetYsonTableSchema(ysonStruct);
+    auto expectedSchema = New<TTableSchema>(
+        std::vector{
+            TColumnSchema("string_proto", EValueType::String).SetRequired(true),
+            TColumnSchema("yson_proto", EValueType::Any).SetRequired(true),
+        }
+    );
+    EXPECT_EQ(*schema, *expectedSchema);
+    const auto row = Serialize(ysonStruct, schema);
+    NProto::TTestMessage parsedProto;
+    parsedProto.ParseFromStringOrThrow(FromUnversionedValue<TStringBuf>(row[0]));
+    EXPECT_TRUE(MessageDifferencer::Equals(parsedProto, proto));
+    const auto parsedNode = ConvertToNode(FromUnversionedValue<TYsonString>(row[1]));
+    const auto expectedNode = BuildYsonNodeFluently()
+        .BeginMap()
+            .Item("Int32").Value(234)
+            .Item("String").Value("abcdef")
+        .EndMap();
+    EXPECT_TRUE(AreNodesEqual(parsedNode, expectedNode));
+    auto otherStruct = Deserialize<TTestYsonStructWithProto>(row, schema);
+    EXPECT_EQ(*ysonStruct, *otherStruct);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
