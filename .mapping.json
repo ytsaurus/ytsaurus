@@ -8,6 +8,7 @@
   ".github/workflows/check-jobs.yaml":"yt/opensource/repos/ytsaurus/github_toplevel/.github/workflows/check-jobs.yaml",
   ".github/workflows/chyt_release.yaml":"yt/opensource/repos/ytsaurus/github_toplevel/.github/workflows/chyt_release.yaml",
   ".github/workflows/cpp.yaml":"yt/opensource/repos/ytsaurus/github_toplevel/.github/workflows/cpp.yaml",
+  ".github/workflows/cron-release.yaml":"yt/opensource/repos/ytsaurus/github_toplevel/.github/workflows/cron-release.yaml",
   ".github/workflows/docker-jobs.yaml":"yt/opensource/repos/ytsaurus/github_toplevel/.github/workflows/docker-jobs.yaml",
   ".github/workflows/docs-build.yaml":"yt/opensource/repos/ytsaurus/github_toplevel/.github/workflows/docs-build.yaml",
   ".github/workflows/docs-post-build.yaml":"yt/opensource/repos/ytsaurus/github_toplevel/.github/workflows/docs-post-build.yaml",
