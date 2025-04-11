@@ -998,8 +998,8 @@ TUntypedExpression TExprBuilderV1::OnFunction(const NAst::TFunctionExpression* f
                 typedOperands,
                 functionName,
                 subexpressionName,
-                stateType,
-                type);
+                MakeLogicalType(GetLogicalType(stateType), /*required*/ false),
+                MakeLogicalType(GetLogicalType(type), /*required*/ false));
 
             auto expr = New<TReferenceExpression>(
                 MakeLogicalType(GetLogicalType(type), /*required*/ false),

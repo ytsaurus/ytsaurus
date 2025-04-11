@@ -1602,13 +1602,13 @@ void TQueryProfiler::Profile(
             }
             codegenAggregates.push_back(aggregate->Profile(
                 std::move(wireTypes),
-                aggregateItem.StateType,
-                aggregateItem.ResultType,
+                GetWireType(aggregateItem.StateType),
+                GetWireType(aggregateItem.ResultType),
                 aggregateItem.Name,
                 ExecutionBackend_,
                 Id_));
-            stateTypes.push_back(aggregateItem.StateType);
-            aggregatedTypes.push_back(aggregateItem.ResultType);
+            stateTypes.push_back(GetWireType(aggregateItem.StateType));
+            aggregatedTypes.push_back(GetWireType(aggregateItem.ResultType));
         }
 
         auto fragmentInfos = expressionFragments.ToFragmentInfos("groupExpression");
@@ -1955,7 +1955,7 @@ void TQueryProfiler::Profile(
                 }
 
                 for (const auto& item : query->GroupClause->AggregateItems) {
-                    intermediateTypes.emplace_back(item.StateType);
+                    intermediateTypes.emplace_back(GetWireType(item.StateType));
                 }
 
                 totalsSlot = MakeCodegenAddStreamOp(
@@ -1983,7 +1983,7 @@ void TQueryProfiler::Profile(
                 }
 
                 for (const auto& item : query->GroupClause->AggregateItems) {
-                    aggregatedTypes.emplace_back(item.ResultType);
+                    aggregatedTypes.emplace_back(GetWireType(item.ResultType));
                 }
 
                 aggregatedSlot = MakeCodegenAddStreamOp(

@@ -79,6 +79,15 @@ TFunctionExpression::TFunctionExpression(
     , Arguments(std::move(arguments))
 { }
 
+TFunctionExpression::TFunctionExpression(
+    TLogicalTypePtr type,
+    const std::string& functionName,
+    std::vector<TConstExpressionPtr> arguments)
+    : TExpression(type)
+    , FunctionName(functionName)
+    , Arguments(std::move(arguments))
+{ }
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TUnaryOpExpression::TUnaryOpExpression(
@@ -243,8 +252,8 @@ TAggregateItem::TAggregateItem(
     std::vector<TConstExpressionPtr> arguments,
     const std::string& aggregateFunction,
     const std::string& name,
-    EValueType stateType,
-    EValueType resultType)
+    TLogicalTypePtr stateType,
+    TLogicalTypePtr resultType)
     : Arguments(std::move(arguments))
     , Name(name)
     , AggregateFunction(aggregateFunction)
@@ -946,6 +955,39 @@ void FromProto(TCompositeMemberAccessorPath* original, const NProto::TCompositeM
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void SerializeLogicalType(auto proto, auto wireProto, auto logicalProto, TLogicalTypePtr logicalType)
+{
+    // N.B. backward compatibility old `type` proto field could contain only
+    // Int64,Uint64,String,Boolean,Null,Any types.
+    const auto wireType = NTableClient::GetPhysicalType(
+        NTableClient::CastToV1Type(logicalType).first);
+
+    (proto->*wireProto)(ToProto(wireType));
+
+    //ToQLType: uint8 -> uint64
+
+    if (!IsV1Type(logicalType) ||
+        *logicalType != *MakeLogicalType(GetLogicalType(wireType), /*required*/ false))
+    {
+        ToProto((proto->*logicalProto)(), logicalType);
+    }
+}
+
+TLogicalTypePtr DeserializeLogicalType(auto proto, auto wireProto, auto hasLogicalProto, auto logicalProto)
+{
+    TLogicalTypePtr type;
+    if ((proto.*hasLogicalProto)()) {
+        FromProto(&type, (proto.*logicalProto)());
+    } else {
+        auto wireType = FromProto<EValueType>((proto.*wireProto)());
+        type = MakeLogicalType(GetLogicalType(wireType), /*required*/ false);
+    }
+
+    return type;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void ToProto(NProto::TExpression* serialized, const TConstExpressionPtr& original)
 {
     if (!original) {
@@ -953,20 +995,11 @@ void ToProto(NProto::TExpression* serialized, const TConstExpressionPtr& origina
         return;
     }
 
-    // N.B. backward compatibility old `type` proto field could contain only
-    // Int64,Uint64,String,Boolean,Null,Any types.
-    const auto wireType = NTableClient::GetPhysicalType(
-        NTableClient::CastToV1Type(original->LogicalType).first);
-
-    serialized->set_type(ToProto(wireType));
-
-    //ToQLType: uint8 -> uint64
-
-    if (!IsV1Type(original->LogicalType) ||
-        *original->LogicalType != *MakeLogicalType(GetLogicalType(wireType), /*required*/ false))
-    {
-        ToProto(serialized->mutable_logical_type(), original->LogicalType);
-    }
+    SerializeLogicalType(
+        serialized,
+        &NProto::TExpression::set_type,
+        &NProto::TExpression::mutable_logical_type,
+        original->LogicalType);
 
     if (auto literalExpr = original->As<TLiteralExpression>()) {
         serialized->set_kind(ToProto(EExpressionKind::Literal));
@@ -1105,13 +1138,11 @@ void ToProto(NProto::TExpression* serialized, const TConstExpressionPtr& origina
 
 void FromProto(TConstExpressionPtr* original, const NProto::TExpression& serialized)
 {
-    TLogicalTypePtr type;
-    if (serialized.has_logical_type()) {
-        FromProto(&type, serialized.logical_type());
-    } else {
-        auto wireType = FromProto<EValueType>(serialized.type());
-        type = MakeLogicalType(GetLogicalType(wireType), /*required*/ false);
-    }
+    auto type = DeserializeLogicalType(
+        serialized,
+        &NProto::TExpression::type,
+        &NProto::TExpression::has_logical_type,
+        &NProto::TExpression::logical_type);
 
     auto kind = FromProto<EExpressionKind>(serialized.kind());
     switch (kind) {
@@ -1302,8 +1333,19 @@ void ToProto(NProto::TAggregateItem* serialized, const TAggregateItem& original)
 
     ToProto(serialized->mutable_expression(), original.Arguments.front());
     serialized->set_aggregate_function_name(ToProto(original.AggregateFunction));
-    serialized->set_state_type(ToProto(original.StateType));
-    serialized->set_result_type(ToProto(original.ResultType));
+
+    SerializeLogicalType(
+        serialized,
+        &NProto::TAggregateItem::set_state_type,
+        &NProto::TAggregateItem::mutable_state_logical_type,
+        original.StateType);
+
+    SerializeLogicalType(
+        serialized,
+        &NProto::TAggregateItem::set_result_type,
+        &NProto::TAggregateItem::mutable_result_logical_type,
+        original.ResultType);
+
     ToProto(serialized->mutable_name(), original.Name);
     ToProto(serialized->mutable_arguments(), original.Arguments);
 }
@@ -1312,8 +1354,19 @@ void FromProto(TAggregateItem* original, const NProto::TAggregateItem& serialize
 {
     original->AggregateFunction = serialized.aggregate_function_name();
     original->Name = serialized.name();
-    original->StateType = FromProto<EValueType>(serialized.state_type());
-    original->ResultType = FromProto<EValueType>(serialized.result_type());
+
+    original->StateType = DeserializeLogicalType(
+        serialized,
+        &NProto::TAggregateItem::state_type,
+        &NProto::TAggregateItem::has_state_logical_type,
+        &NProto::TAggregateItem::state_logical_type);
+
+    original->ResultType = DeserializeLogicalType(
+        serialized,
+        &NProto::TAggregateItem::result_type,
+        &NProto::TAggregateItem::has_result_logical_type,
+        &NProto::TAggregateItem::result_logical_type);
+
     // COMPAT(sabdenovch)
     if (serialized.arguments_size() > 0) {
         original->Arguments = FromProto<std::vector<TConstExpressionPtr>>(serialized.arguments());

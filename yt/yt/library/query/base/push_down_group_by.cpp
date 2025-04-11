@@ -175,7 +175,7 @@ std::pair<TJoinClausePtr, TGroupClausePtr> MakeGroupAndJoinClauses(
         newGroupClause->AggregateItems.push_back(TAggregateItem(
             {
                 New<TReferenceExpression>(
-                    MakeLogicalType(GetLogicalType(aggregate.ResultType), /*required*/ false),
+                    aggregate.ResultType,
                     aggregate.Name),
             },
             aggregate.AggregateFunction,

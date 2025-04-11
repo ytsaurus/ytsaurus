@@ -89,6 +89,11 @@ struct TFunctionExpression
         EValueType type,
         const std::string& functionName,
         std::vector<TConstExpressionPtr> arguments);
+
+    TFunctionExpression(
+        TLogicalTypePtr type,
+        const std::string& functionName,
+        std::vector<TConstExpressionPtr> arguments);
 };
 
 DEFINE_REFCOUNTED_TYPE(TFunctionExpression)
@@ -261,8 +266,8 @@ struct TAggregateItem
     std::vector<TConstExpressionPtr> Arguments;
     std::string Name;
     std::string AggregateFunction;
-    EValueType StateType;
-    EValueType ResultType;
+    TLogicalTypePtr StateType;
+    TLogicalTypePtr ResultType;
 
     TAggregateItem() = default;
 
@@ -270,8 +275,8 @@ struct TAggregateItem
         std::vector<TConstExpressionPtr> arguments,
         const std::string& aggregateFunction,
         const std::string& name,
-        EValueType stateType,
-        EValueType resultType);
+        TLogicalTypePtr stateType,
+        TLogicalTypePtr resultType);
 };
 
 using TAggregateItemList = std::vector<TAggregateItem>;
