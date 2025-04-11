@@ -3112,6 +3112,121 @@ TEST_F(TExpressionStrConvTest, ErrorConvertStringToNumericTest) {
         HasSubstr("Cannot convert value"));
 }
 
+class TIllegalDoubleToIntCast
+    : public ::testing::Test
+{
+protected:
+    void SetUp() override
+    { }
+
+    TTableSchemaPtr Schema_ = New<TTableSchema>();
+    TRowBufferPtr RowBuffer_ = New<TRowBuffer>();
+};
+
+TEST_F(TIllegalDoubleToIntCast, NanToZero)
+{
+    TUnversionedValue result{};
+
+    for (bool webAssembly : {false, true}) {
+        SCOPED_TRACE(Format("EnableWebAssembly: %v", webAssembly));
+        EXPECT_THROW_THAT(
+            EvaluateExpression(
+                PrepareExpression("uint64(0.0/0.0)", *Schema_),
+                "",
+                Schema_,
+                &result,
+                RowBuffer_,
+                webAssembly),
+            HasSubstr("NaN is not convertible to integer"));
+    }
+}
+
+TEST_F(TIllegalDoubleToIntCast, UnsignedBoundaries)
+{
+    TUnversionedValue result{};
+
+    static const double DoubleBeyondUpperUint64 = 18446744073709551616.0;
+    static const double DoubleBelowLowerUint64 = -0.000001;
+
+    for (bool webAssembly : {false, true}) {
+        SCOPED_TRACE(Format("EnableWebAssembly: %v", webAssembly));
+        for (bool lower : {false, true}) {
+            SCOPED_TRACE(Format("Boundary: %v", lower ? "lower" : "upper"));
+            auto converted = lower ? DoubleBelowLowerUint64 : DoubleBeyondUpperUint64;
+            EXPECT_THROW_THAT(
+                EvaluateExpression(
+                    PrepareExpression(Format("uint64(%v)", converted), *Schema_),
+                    "",
+                    Schema_,
+                    &result,
+                    RowBuffer_,
+                    webAssembly),
+                HasSubstr("Floating point value out of integer range"));
+        }
+    }
+
+    // Sanity check.
+    for (bool webAssembly : {false, true}) {
+        EXPECT_NO_THROW(EvaluateExpression(
+            PrepareExpression("uint64(0.0)", *Schema_),
+            "",
+            Schema_,
+            &result,
+            RowBuffer_,
+            webAssembly));
+        EXPECT_NO_THROW(EvaluateExpression(
+            PrepareExpression("uint64(18000000000000000000.0)", *Schema_),
+            "",
+            Schema_,
+            &result,
+            RowBuffer_,
+            webAssembly));
+    }
+}
+
+TEST_F(TIllegalDoubleToIntCast, SignedBoundaries)
+{
+    TUnversionedValue result{};
+
+    static const ui64 DoubleBeyondUpperInt64 = 0x43e0000000000000; // 9223372036854775808.0
+    static const ui64 DoubleBelowLowerInt64 = 0xc3e0000000000001; // -9223372036854777856.0
+
+    for (bool webAssembly : {false, true}) {
+        SCOPED_TRACE(Format("EnableWebAssembly: %v", webAssembly));
+        for (bool lower : {false, true}) {
+            SCOPED_TRACE(Format("Boundary: %v", lower ? "lower" : "upper"));
+            auto converted = std::bit_cast<double>(lower ? DoubleBelowLowerInt64 : DoubleBeyondUpperInt64);
+            EXPECT_THROW_THAT(
+                EvaluateExpression(
+                    PrepareExpression(Format("int64(%v)", converted), *Schema_),
+                    "",
+                    Schema_,
+                    &result,
+                    RowBuffer_,
+                    webAssembly),
+                HasSubstr("Floating point value out of integer range"));
+        }
+    }
+
+    // Sanity check.
+    for (bool webAssembly : {false, true}) {
+        EXPECT_NO_THROW(EvaluateExpression(
+            PrepareExpression("int64(9000000000000000000.0)", *Schema_),
+            "",
+            Schema_,
+            &result,
+            RowBuffer_,
+            webAssembly));
+        EXPECT_NO_THROW(EvaluateExpression(
+            PrepareExpression("int64(-9000000000000000000.0)", *Schema_),
+            "",
+            Schema_,
+            &result,
+            RowBuffer_,
+            webAssembly));
+    }
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
