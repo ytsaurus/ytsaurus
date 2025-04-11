@@ -26,7 +26,6 @@ target_link_libraries(flow-lib-serializer PUBLIC
 )
 
 target_sources(flow-lib-serializer PRIVATE
-  ${PROJECT_SOURCE_DIR}/yt/yt/flow/lib/serializer/proto_yson_struct.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/lib/serializer/serializer.cpp
 )
 

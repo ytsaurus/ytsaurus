@@ -8,43 +8,19 @@ namespace NYT::NFlow::NYsonSerializer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-NTableClient::TLogicalTypePtr GetYsonLogicalType(const NYTree::TYsonStructPtr& ysonStruct);
-NTableClient::TTableSchemaPtr GetYsonSchema(const NYTree::TYsonStructPtr& ysonStruct);
+NTableClient::TTableSchemaPtr GetYsonTableSchema(const NYTree::TYsonStructPtr& ysonStruct);
+
+template <class T>
+NTableClient::TTableSchemaPtr GetYsonTableSchema();
 
 ////////////////////////////////////////////////////////////////////////////////
 
-NTableClient::TTableSchemaPtr ToTableSchema(const NTableClient::TLogicalTypePtr& logicalType);
-NTableClient::TLogicalTypePtr ToLogicalType(const NTableClient::TTableSchemaPtr& tableSchema);
+NTableClient::TUnversionedOwningRow Serialize(const NYTree::TYsonStructPtr& ysonStruct, const NTableClient::TTableSchemaPtr& schema);
 
-////////////////////////////////////////////////////////////////////////////////
+void Deserialize(const NYTree::TYsonStructPtr& ysonStruct, const NTableClient::TUnversionedRow& row, const NTableClient::TTableSchemaPtr& schema);
 
-NTableClient::TUnversionedOwningRow Serialize(
-    const NYTree::TYsonStructPtr& ysonStruct,
-    const NTableClient::TLogicalTypePtr& logicalType);
-
-NTableClient::TUnversionedOwningRow Serialize(
-    const NYTree::TYsonStructPtr& ysonStruct,
-    const NTableClient::TTableSchemaPtr& schema);
-
-void Deserialize(
-    const NYTree::TYsonStructPtr& ysonStruct,
-    const NTableClient::TUnversionedRow& row,
-    const NTableClient::TLogicalTypePtr& logicalType);
-
-void Deserialize(
-    const NYTree::TYsonStructPtr& ysonStruct,
-    const NTableClient::TUnversionedRow& row,
-    const NTableClient::TTableSchemaPtr& schema);
-
-template <class TYsonStruct>
-TIntrusivePtr<TYsonStruct> Deserialize(
-    const NTableClient::TUnversionedRow& row,
-    const NTableClient::TLogicalTypePtr& logicalType);
-
-template <class TYsonStruct>
-TIntrusivePtr<TYsonStruct> Deserialize(
-    const NTableClient::TUnversionedRow& row,
-    const NTableClient::TTableSchemaPtr& schema);
+template <class T>
+TIntrusivePtr<T> Deserialize(const NTableClient::TUnversionedRow& row, const NTableClient::TTableSchemaPtr& schema);
 
 ////////////////////////////////////////////////////////////////////////////////
 
