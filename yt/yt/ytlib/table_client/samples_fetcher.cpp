@@ -48,11 +48,11 @@ TSamplesFetcher::TSamplesFetcher(
     NApi::NNative::IClientPtr client,
     const NLogging::TLogger& logger)
     : TFetcherBase(
-        config,
-        nodeDirectory,
-        invoker,
-        chunkScraper,
-        client,
+        std::move(config),
+        std::move(nodeDirectory),
+        std::move(invoker),
+        std::move(chunkScraper),
+        std::move(client),
         logger)
     , RowBuffer_(std::move(rowBuffer))
     , SamplingPolicy_(samplingPolicy)
@@ -67,12 +67,13 @@ void TSamplesFetcher::AddChunk(TInputChunkPtr chunk)
 {
     TotalDataSize_ += chunk->GetUncompressedDataSize();
 
-    TFetcherBase::AddChunk(chunk);
+    TFetcherBase::AddChunk(std::move(chunk));
 }
 
 TFuture<void> TSamplesFetcher::Fetch()
 {
-    YT_LOG_DEBUG("Started fetching chunk samples (ChunkCount: %v, DesiredSampleCount: %v)",
+    YT_LOG_DEBUG(
+        "Started fetching chunk samples (ChunkCount: %v, DesiredSampleCount: %v)",
         Chunks_.size(),
         DesiredSampleCount_);
 
@@ -160,7 +161,9 @@ void TSamplesFetcher::OnResponse(
     const TDataNodeServiceProxy::TErrorOrRspGetTableSamplesPtr& rspOrError)
 {
     if (!rspOrError.IsOK()) {
-        YT_LOG_INFO(rspOrError, "Failed to get samples from node (Address: %v, NodeId: %v)",
+        YT_LOG_INFO(
+            rspOrError,
+            "Failed to get samples from node (Address: %v, NodeId: %v)",
             NodeDirectory_->GetDescriptor(nodeId).GetDefaultAddress(),
             nodeId);
         OnNodeFailed(nodeId, requestedChunkIndexes);
@@ -182,7 +185,8 @@ void TSamplesFetcher::OnResponse(
             continue;
         }
 
-        YT_LOG_TRACE("Received %v samples for chunk #%v",
+        YT_LOG_TRACE(
+            "Received %v samples for chunk #%v",
             sampleResponse.samples_size(),
             requestedChunkIndexes[index]);
 

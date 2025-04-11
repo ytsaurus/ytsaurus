@@ -61,10 +61,10 @@ public:
         const NLogging::TLogger& logger)
         : TFetcherBase(
             config,
-            nodeDirectory,
-            invoker,
-            chunkScraper,
-            client,
+            std::move(nodeDirectory),
+            std::move(invoker),
+            std::move(chunkScraper),
+            std::move(client),
             logger)
         , Config_(std::move(config))
         , RowBuffer_(std::move(rowBuffer))
@@ -77,7 +77,7 @@ public:
 
     void AddDataSliceForSlicing(
         TLegacyDataSlicePtr dataSlice,
-        const TComparator& comparator,
+        TComparator comparator,
         i64 sliceDataWeight,
         bool sliceByKeys,
         std::optional<i64> minManiacDataWeight) override
@@ -106,21 +106,22 @@ public:
         chunkSliceCopy->LowerLimit() = dataSlice->LowerLimit();
         chunkSliceCopy->UpperLimit() = dataSlice->UpperLimit();
 
-        auto dataSliceCopy = CreateUnversionedInputDataSlice(chunkSliceCopy);
+        auto dataSliceCopy = CreateUnversionedInputDataSlice(std::move(chunkSliceCopy));
 
         TChunkSliceRequest chunkSliceRequest {
-            .Comparator = comparator,
+            .Comparator = std::move(comparator),
             .ChunkSliceDataWeight = sliceDataWeight,
             .SliceByKeys = sliceByKeys,
-            .DataSlice = dataSliceCopy,
-            .MinManiacDataWeight = std::move(minManiacDataWeight),
+            .DataSlice = std::move(dataSliceCopy),
+            .MinManiacDataWeight = minManiacDataWeight,
         };
-        YT_VERIFY(ChunkToChunkSliceRequest_.emplace(chunk, chunkSliceRequest).second);
+        EmplaceOrCrash(ChunkToChunkSliceRequest_, std::move(chunk), std::move(chunkSliceRequest));
     }
 
     TFuture<void> Fetch() override
     {
-        YT_LOG_DEBUG("Started fetching chunk slices (ChunkCount: %v)",
+        YT_LOG_DEBUG(
+            "Started fetching chunk slices (ChunkCount: %v)",
             Chunks_.size());
         return TFetcherBase::Fetch();
     }
@@ -225,8 +226,8 @@ private:
             }
 
             const auto& comparator = sliceRequest.Comparator;
-            auto minKey = chunk->BoundaryKeys()->MinKey;
-            auto maxKey = chunk->BoundaryKeys()->MaxKey;
+            const auto& minKey = chunk->BoundaryKeys()->MinKey;
+            const auto& maxKey = chunk->BoundaryKeys()->MaxKey;
             auto chunkSliceDataWeight = sliceRequest.ChunkSliceDataWeight;
             auto sliceByKeys = sliceRequest.SliceByKeys;
             auto minManiacDataWeight = sliceRequest.MinManiacDataWeight;
@@ -266,7 +267,7 @@ private:
 
         flushBatch();
 
-        return AllSucceeded(futures);
+        return AllSucceeded(std::move(futures));
     }
 
     void OnResponse(
@@ -275,7 +276,8 @@ private:
         const NChunkClient::TDataNodeServiceProxy::TErrorOrRspGetChunkSlicesPtr& rspOrError)
     {
         if (!rspOrError.IsOK()) {
-            YT_LOG_INFO("Failed to get chunk slices from node (Address: %v, NodeId: %v)",
+            YT_LOG_INFO(
+                "Failed to get chunk slices from node (Address: %v, NodeId: %v)",
                 NodeDirectory_->GetDescriptor(nodeId).GetDefaultAddress(),
                 nodeId);
 
@@ -320,7 +322,8 @@ private:
                 continue;
             }
 
-            YT_LOG_TRACE("Received %v chunk slices for chunk #%v",
+            YT_LOG_TRACE(
+                "Received %v chunk slices for chunk #%v",
                 sliceResponse.chunk_slices_size(),
                 index);
 
@@ -339,13 +342,13 @@ private:
                     InferLimitsFromBoundaryKeys(chunkSlice);
                 }
                 chunkSlice->SetSliceIndex(chunkSliceIndex++);
-                SlicesByChunkIndex_[index].push_back(chunkSlice);
+                SlicesByChunkIndex_[index].push_back(std::move(chunkSlice));
                 SliceCount_++;
             }
         }
     }
 
-    void InferLimitsFromBoundaryKeys(const TInputChunkSlicePtr chunkSlice) const
+    void InferLimitsFromBoundaryKeys(const TInputChunkSlicePtr& chunkSlice) const
     {
         // New data slices infer their limits from chunk slice limits, so it is
         // more convenient (though it is not necessary) to have chunk slices that
@@ -371,7 +374,7 @@ private:
         const auto& sliceRequest = GetOrCrash(ChunkToChunkSliceRequest_, chunk);
         auto chunkSlice = sliceRequest.DataSlice->ChunkSlices[0];
 
-        SlicesByChunkIndex_[chunkIndex].push_back(chunkSlice);
+        SlicesByChunkIndex_[chunkIndex].push_back(std::move(chunkSlice));
         // NB: We cannot infer limits from boundary keys here since chunk may actually be a dynamic store.
         SliceCount_++;
     }
@@ -389,12 +392,12 @@ IChunkSliceFetcherPtr CreateChunkSliceFetcher(
     const NLogging::TLogger& logger)
 {
     return New<TChunkSliceFetcher>(
-        config,
-        nodeDirectory,
-        invoker,
-        chunkScraper,
-        client,
-        rowBuffer,
+        std::move(config),
+        std::move(nodeDirectory),
+        std::move(invoker),
+        std::move(chunkScraper),
+        std::move(client),
+        std::move(rowBuffer),
         logger);
 }
 
@@ -458,7 +461,7 @@ public:
 
     void AddDataSliceForSlicing(
         NChunkClient::TLegacyDataSlicePtr dataSlice,
-        const TComparator& comparator,
+        TComparator comparator,
         i64 sliceDataWeight,
         bool sliceByKeys,
         std::optional<i64> minManiacDataWeight) override
@@ -466,7 +469,12 @@ public:
         YT_VERIFY(dataSlice->GetTableIndex() < std::ssize(TableIndexToFetcherIndex_));
         auto fetcherIndex = TableIndexToFetcherIndex_[dataSlice->GetTableIndex()];
         YT_VERIFY(fetcherIndex < std::ssize(ChunkSliceFetchers_));
-        ChunkSliceFetchers_[fetcherIndex]->AddDataSliceForSlicing(dataSlice, comparator, sliceDataWeight, sliceByKeys, std::move(minManiacDataWeight));
+        ChunkSliceFetchers_[fetcherIndex]->AddDataSliceForSlicing(
+            dataSlice,
+            std::move(comparator),
+            sliceDataWeight,
+            sliceByKeys,
+            std::move(minManiacDataWeight));
     }
 
     i64 GetChunkSliceCount() const override

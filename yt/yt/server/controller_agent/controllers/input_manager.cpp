@@ -1010,7 +1010,7 @@ void TInputManager::InitInputChunkScrapers()
             std::move(clusterToChunkIds[cluster]),
             MakeSafe(
                 MakeWeak(Host_),
-                BIND(&TInputManager::OnInputChunkLocated, MakeWeak(this)))
+                BIND(&TInputManager::OnInputChunkBatchLocated, MakeWeak(this)))
                     .Via(Host_->GetCancelableInvoker()),
             Logger);
         if (!cluster->UnavailableInputChunkIds().empty()) {
@@ -1088,42 +1088,38 @@ TInputChunkPtr TInputManager::GetInputChunk(NChunkClient::TChunkId chunkId, int 
     return *chunkIt;
 }
 
-void TInputManager::OnInputChunkLocated(
-    TChunkId chunkId,
-    const TChunkReplicaWithMediumList& replicas,
-    bool missing)
+void TInputManager::OnInputChunkBatchLocated(
+    const std::vector<TScrapedChunkInfo>& chunkBatch)
 {
     YT_ASSERT_INVOKER_AFFINITY(Host_->GetCancelableInvoker());
 
-    if (missing) {
-        // We must have locked all the relevant input chunks, but when user transaction is aborted
-        // there can be a race between operation completion and chunk scraper.
-        Host_->OnOperationFailed(TError("Input chunk %v is missing", chunkId));
-        return;
-    }
+    for (const auto& chunkInfo : chunkBatch) {
+        if (chunkInfo.Missing) {
+            // We must have locked all the relevant input chunks, but when user transaction is aborted
+            // there can be a race between operation completion and chunk scraper.
+            Host_->OnOperationFailed(TError("Input chunk %v is missing", chunkInfo.ChunkId));
+            return;
+        }
 
-    ++ChunkLocatedCallCount_;
-    if (ChunkLocatedCallCount_ >= Host_->GetConfig()->ChunkScraper->MaxChunksPerRequest) {
-        ChunkLocatedCallCount_ = 0;
-        YT_LOG_DEBUG(
-            "Located another batch of chunks (Count: %v)",
-            Host_->GetConfig()->ChunkScraper->MaxChunksPerRequest);
+        auto& descriptor = GetOrCrash(InputChunkMap_, chunkInfo.ChunkId);
+        YT_VERIFY(!descriptor.InputChunks.empty());
 
-        for (const auto& [_, cluster] : Clusters_) {
-            cluster->ReportIfHasUnavailableChunks();
+        const auto& chunkSpec = descriptor.InputChunks.front();
+        auto codecId = chunkSpec->GetErasureCodec();
+
+        if (IsUnavailable(chunkInfo.Replicas, codecId, Host_->GetChunkAvailabilityPolicy())) {
+            OnInputChunkUnavailable(chunkInfo.ChunkId, &descriptor);
+        } else {
+            OnInputChunkAvailable(chunkInfo.ChunkId, chunkInfo.Replicas, &descriptor);
         }
     }
 
-    auto& descriptor = GetOrCrash(InputChunkMap_, chunkId);
-    YT_VERIFY(!descriptor.InputChunks.empty());
+    YT_LOG_DEBUG(
+        "Located another batch of chunks (Count: %v)",
+        Host_->GetConfig()->ChunkScraper->MaxChunksPerRequest);
 
-    const auto& chunkSpec = descriptor.InputChunks.front();
-    auto codecId = chunkSpec->GetErasureCodec();
-
-    if (IsUnavailable(replicas, codecId, Host_->GetChunkAvailabilityPolicy())) {
-        OnInputChunkUnavailable(chunkId, &descriptor);
-    } else {
-        OnInputChunkAvailable(chunkId, replicas, &descriptor);
+    for (const auto& [_, cluster] : Clusters_) {
+        cluster->ReportIfHasUnavailableChunks();
     }
 }
 
@@ -1142,7 +1138,7 @@ void TInputManager::OnInputChunkAvailable(
 
     auto& cluster = GetClusterOrCrash(*descriptor);
     if (cluster->UnavailableInputChunkIds().empty()) {
-        YT_UNUSED_FUTURE(cluster->ChunkScraper()->Stop());
+        cluster->ChunkScraper()->Stop();
     }
 
     // Update replicas in place for all input chunks with current chunkId.
@@ -1409,7 +1405,9 @@ std::pair<TCombiningSamplesFetcherPtr, TUnavailableChunksWatcherPtr> TInputManag
     int maxSampleSize) const
 {
     std::vector<IFetcherChunkScraperPtr> fetcherChunkScrapers;
+    fetcherChunkScrapers.reserve(size(Clusters_));
     std::vector<TSamplesFetcherPtr> samplesFetchers;
+    samplesFetchers.reserve(size(Clusters_));
 
     for (const auto& [clusterName, cluster] : Clusters_) {
         fetcherChunkScrapers.push_back(CreateFetcherChunkScraper(cluster));
@@ -1439,7 +1437,7 @@ std::pair<TCombiningSamplesFetcherPtr, TUnavailableChunksWatcherPtr> TInputManag
         }
 
         samplesFetcher->SetCancelableContext(Host_->GetCancelableContext());
-        samplesFetchers.push_back(samplesFetcher);
+        samplesFetchers.push_back(std::move(samplesFetcher));
     }
     return std::pair(
         New<TCombiningSamplesFetcher>(std::move(samplesFetchers)),
