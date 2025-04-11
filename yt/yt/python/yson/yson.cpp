@@ -29,7 +29,8 @@
 #include <yt/yt/core/yson/pull_parser.h>
 
 #include <yt/yt/core/misc/crash_handler.h>
-#include <yt/yt/core/misc/signal_registry.h>
+
+#include <yt/yt/library/signals/signal_registry.h>
 
 #include <google/protobuf/io/coded_stream.h>
 #include <google/protobuf/io/zero_copy_stream_impl_lite.h>
@@ -42,6 +43,7 @@ namespace NYT::NPython {
 
 using namespace NYTree;
 using namespace NYson;
+using namespace NSignals;
 
 ////////////////////////////////////////////////////////////////////////////////
 

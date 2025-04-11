@@ -18,6 +18,7 @@ PEERDIR(
     yt/yt/library/profiling/tcmalloc
     yt/yt/library/ytprof
     yt/yt/library/tcmalloc # for tcmalloc singleton
+    yt/yt/library/signals
     library/cpp/yt/string
     library/cpp/yt/system
     library/cpp/yt/backtrace/absl_unwinder

@@ -13,7 +13,6 @@
 #include <yt/yt/client/api/transaction.h>
 
 #include <yt/yt/core/misc/crash_handler.h>
-#include <yt/yt/core/misc/signal_registry.h>
 #include <yt/yt/core/misc/shutdown.h>
 
 #include <yt/yt/core/logging/log_manager.h>
@@ -29,6 +28,8 @@
 
 #include <yt/yt/core/tracing/trace_context.h>
 
+#include <yt/yt/library/signals/signal_registry.h>
+
 namespace NYT::NPython {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -38,6 +39,7 @@ using namespace NYTree;
 using namespace NDriver;
 using namespace NConcurrency;
 using namespace NTracing;
+using namespace NSignals;
 
 ////////////////////////////////////////////////////////////////////////////////
 

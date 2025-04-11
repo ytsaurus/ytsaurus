@@ -1,9 +1,10 @@
-#include <yt/yt/core/misc/signal_registry.h>
 #include <yt/yt/core/misc/crash_handler.h>
 
 #include <yt/yt/core/concurrency/thread_pool.h>
 
 #include <yt/yt/core/actions/future.h>
+
+#include <yt/yt/library/signals/signal_registry.h>
 
 #include <library/cpp/yt/misc/tls.h>
 
@@ -12,6 +13,7 @@
 namespace NYT {
 
 using namespace NConcurrency;
+using namespace NSignals;
 
 ////////////////////////////////////////////////////////////////////////////////
 

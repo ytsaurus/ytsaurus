@@ -29,13 +29,13 @@
 
 #include <yt/yt/core/logging/log_manager.h>
 
-#include <yt/yt/core/misc/signal_registry.h>
-
 #include <yt/yt/core/http/server.h>
 
 #include <yt/yt/core/rpc/bus/server.h>
 
 #include <yt/yt/core/ytree/virtual.h>
+
+#include <yt/yt/library/signals/signal_registry.h>
 
 #include <contrib/clickhouse/src/Common/Exception.h>
 
@@ -51,6 +51,7 @@ using namespace NOrchid;
 using namespace NProfiling;
 using namespace NRpc;
 using namespace NYTree;
+using namespace NSignals;
 
 ////////////////////////////////////////////////////////////////////////////////
 
