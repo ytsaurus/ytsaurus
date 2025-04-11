@@ -12,9 +12,9 @@
 
 #include <yt/yt/core/http/server.h>
 
-#include <yt/yt/core/misc/signal_registry.h>
-
 #include <yt/yt/core/logging/log_manager.h>
+
+#include <yt/yt/library/signals/signal_registry.h>
 
 #include <library/cpp/yt/system/exit.h>
 
@@ -22,6 +22,7 @@ namespace NYT::NLogTailer {
 
 using namespace NApi::NNative;
 using namespace NConcurrency;
+using namespace NSignals;
 
 ////////////////////////////////////////////////////////////////////////////////
 

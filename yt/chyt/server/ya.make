@@ -24,6 +24,7 @@ PEERDIR(
     yt/yt/library/tracing/jaeger
     yt/yt/library/profiling/perf
     yt/yt/library/server_program
+    yt/yt/library/signals
     library/cpp/yt/mlock
     contrib/clickhouse/src
     contrib/clickhouse/base/base

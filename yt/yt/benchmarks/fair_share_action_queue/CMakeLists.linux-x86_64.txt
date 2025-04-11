@@ -29,6 +29,7 @@ target_link_libraries(fair_share_action_queue PUBLIC
   library-cpp-cpuid_check
   yt-yt-core
   library-cpp-getopt
+  yt-library-signals
 )
 
 target_allocator(fair_share_action_queue

@@ -37,6 +37,7 @@ target_link_libraries(columnar_merge PUBLIC
   yt-yt-ytlib
   yt-server-node
   server-lib-io
+  yt-library-signals
   library-cpp-getopt
 )
 

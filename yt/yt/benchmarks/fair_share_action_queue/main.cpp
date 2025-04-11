@@ -11,7 +11,8 @@
 
 #include <yt/yt/core/misc/common.h>
 #include <yt/yt/core/misc/crash_handler.h>
-#include <yt/yt/core/misc/signal_registry.h>
+
+#include <yt/yt/library/signals/signal_registry.h>
 
 #include <library/cpp/yt/threading/count_down_latch.h>
 
@@ -36,6 +37,7 @@ using namespace NYT;
 using namespace NConcurrency;
 using namespace NThreading;
 using namespace NProfiling;
+using namespace NSignals;
 
 const NLogging::TLogger Logger("Main");
 

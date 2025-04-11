@@ -12,6 +12,7 @@ SRCS(
 PEERDIR(
   yt/yt/core
   library/cpp/getopt
+  yt/yt/library/signals
 )
 
 END()

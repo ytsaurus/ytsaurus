@@ -27,6 +27,7 @@ RECURSE(
     profiling
     program
     server_program
+    signals
     stockpile
     quantile_digest
     query

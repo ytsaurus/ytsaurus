@@ -27,6 +27,7 @@ target_link_libraries(yt-library-program PUBLIC
   library-profiling-tcmalloc
   yt-library-ytprof
   yt-library-tcmalloc
+  yt-library-signals
   cpp-yt-string
   cpp-yt-system
   yt-backtrace-absl_unwinder

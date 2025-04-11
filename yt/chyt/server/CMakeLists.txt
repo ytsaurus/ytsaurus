@@ -55,6 +55,7 @@ target_link_libraries(yt-chyt-server PUBLIC
   library-tracing-jaeger
   library-profiling-perf
   yt-library-server_program
+  yt-library-signals
   cpp-yt-mlock
   contrib-clickhouse-src
   clickhouse-base-base
@@ -174,6 +175,7 @@ target_link_libraries(yt-chyt-server.global PUBLIC
   library-tracing-jaeger
   library-profiling-perf
   yt-library-server_program
+  yt-library-signals
   cpp-yt-mlock
   contrib-clickhouse-src
   clickhouse-base-base

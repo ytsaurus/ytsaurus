@@ -22,6 +22,7 @@ target_link_libraries(crash_handler_tests PUBLIC
   contrib-libs-cxxsupp
   yutil
   yt-yt-core
+  yt-library-signals
 )
 
 target_allocator(crash_handler_tests
