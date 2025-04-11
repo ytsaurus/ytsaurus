@@ -358,9 +358,9 @@ from-clause
 ;
 
 with-index-clause
-    : KwWithIndex Identifier[path]
+    : KwWithIndex Identifier[path] optional-alias[alias]
         {
-            $$ = TTableDescriptor($path);
+            $$ = TTableDescriptor($path, std::move($alias));
         }
     |
         {
