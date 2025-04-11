@@ -704,7 +704,7 @@ private:
                 auto dataSplits = groupedDataSplits[subqueryIndex++];
 
                 // MPSC stack is an overkill in the current implementation but sequaciousness of join subqueries
-                // is not specified anywhere and they might get parrallelized later in the future.
+                // is not specified anywhere and they might get parallelized later in the future.
                 auto subqueryResults = New<TMpscStack<TQueryStatistics>>();
 
                 // Copy query to generate new id.
