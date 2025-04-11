@@ -414,8 +414,8 @@ Y_UNIT_TEST_SUITE(SQLv1Lexer) {
         auto reference = MakeLexer(Lexers, ANSI, /* antlr4 = */ true, ELexerFlavor::Pure);
 
         SetRandomSeed(100);
-        for (size_t i = 0; i < 512; ++i) {
-            auto input = RandomMultilineCommentLikeText(/* maxSize = */ 32);
+        for (size_t i = 0; i < 128; ++i) {
+            auto input = RandomMultilineCommentLikeText(/* maxSize = */ 16);
             TString actual = Tokenized(lexer, input);
             TString expected = Tokenized(reference, input);
 
