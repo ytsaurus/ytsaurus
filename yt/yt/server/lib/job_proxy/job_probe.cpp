@@ -9,6 +9,8 @@
 
 #include <yt/yt/client/job_tracker_client/public.h>
 
+#include <yt/yt/server/lib/exec_node/config.h>
+
 namespace NYT::NJobProxy {
 
 using NBus::TBusClientConfigPtr;
@@ -18,6 +20,7 @@ using NJobTrackerClient::TJobId;
 
 using namespace NApi;
 using namespace NConcurrency;
+using namespace NExecNode;
 using namespace NJobProberClient;
 using namespace NTransactionClient;
 
@@ -30,8 +33,9 @@ class TJobProberClient
     : public IJobProbe
 {
 public:
-    TJobProberClient(TBusClientConfigPtr config)
-        : TcpBusClientConfig_(config)
+    TJobProberClient(TBusClientConfigPtr busClientConfig, TJobProbeConfigPtr probeConfig)
+        : TcpBusClientConfig_(std::move(busClientConfig))
+        , ProbeConfig_(std::move(probeConfig))
     { }
 
     std::vector<TChunkId> DumpInputContext(TTransactionId transactionId) override
@@ -146,6 +150,7 @@ public:
 
 private:
     const TBusClientConfigPtr TcpBusClientConfig_;
+    const TJobProbeConfigPtr ProbeConfig_;
 
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, SpinLock_);
     std::unique_ptr<TJobProberServiceProxy> JobProberProxy_;
@@ -158,6 +163,7 @@ private:
             auto client = CreateBusClient(TcpBusClientConfig_);
             auto channel = NRpc::NBus::CreateBusChannel(std::move(client));
             JobProberProxy_ = std::make_unique<TJobProberServiceProxy>(std::move(channel));
+            JobProberProxy_->SetDefaultTimeout(ProbeConfig_->RpcTimeout);
         }
         return JobProberProxy_.get();
     }
@@ -166,9 +172,10 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 IJobProbePtr CreateJobProbe(
-    NBus::TBusClientConfigPtr config)
+    NBus::TBusClientConfigPtr busClientConfig,
+    TJobProbeConfigPtr probeConfig)
 {
-    return New<TJobProberClient>(config);
+    return New<TJobProberClient>(std::move(busClientConfig), std::move(probeConfig));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

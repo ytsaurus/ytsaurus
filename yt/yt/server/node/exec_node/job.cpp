@@ -4071,7 +4071,7 @@ void TJob::InitializeJobProbe()
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
 
-    auto probe = CreateJobProbe(GetUserSlot()->GetBusClientConfig());
+    auto probe = CreateJobProbe(GetUserSlot()->GetBusClientConfig(), CommonConfig_->JobProbe);
     {
         auto guard = Guard(JobProbeLock_);
         std::swap(JobProbe_, probe);

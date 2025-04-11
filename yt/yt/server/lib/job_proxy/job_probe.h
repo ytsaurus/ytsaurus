@@ -10,6 +10,8 @@
 
 #include <yt/yt/core/bus/tcp/public.h>
 
+#include <yt/yt/server/lib/exec_node/public.h>
+
 namespace NYT::NJobProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -42,7 +44,8 @@ DEFINE_REFCOUNTED_TYPE(IJobProbe)
 ////////////////////////////////////////////////////////////////////////////////
 
 IJobProbePtr CreateJobProbe(
-    NBus::TBusClientConfigPtr config);
+    NBus::TBusClientConfigPtr busClientConfig,
+    NExecNode::TJobProbeConfigPtr probeConfig);
 
 ////////////////////////////////////////////////////////////////////////////////
 
