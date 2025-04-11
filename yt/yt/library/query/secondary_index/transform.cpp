@@ -212,7 +212,10 @@ void TransformWithIndexStatement(
         }
     }
 
-    index.Alias = SecondaryIndexAlias;
+    if (!index.Alias) {
+        index.Alias = SecondaryIndexAlias;
+    }
+
 
     if (unfoldedColumn) {
         NAst::TReference repeatedIndexedColumn(unfoldedColumn->Name(), table.Alias);

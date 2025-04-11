@@ -797,8 +797,8 @@ class TestSecondaryIndexSelect(TestSecondaryIndexBase):
 
         # lines with tokens starting with ma
         query = """
-            key from [//tmp/table] with index [//tmp/index_table]
-            where is_prefix("ma", `$index_table`.tokens) group by key
+            key from [//tmp/table] with index [//tmp/index_table] AS Unfolded
+            where is_prefix("ma", Unfolded.tokens) group by key
         """
         rows = select_rows(query)
         assert builtins.set([3, 4, 7, 8]) == builtins.set([row["key"] for row in rows])
@@ -1317,7 +1317,7 @@ class TestSecondaryIndexModifications(TestSecondaryIndexBase):
         ]
 
         # TODO(sabdenovch): Implement expression recognition in predicate.
-        index_query = "key, value from [//tmp/table] with index [//tmp/index_table] where `$index_table`.eva01 = 33"
+        index_query = "key, value from [//tmp/table] with index [//tmp/index_table] AS Index where Index.eva01 = 33"
         plan = explain_query(index_query)
         assert plan["query"]["constraints"] == "Constraints:\n33: <universe>"
 
