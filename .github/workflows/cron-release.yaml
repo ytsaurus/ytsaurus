@@ -37,7 +37,7 @@ jobs:
         run: |
           sed -i 's/tag: .*/tag: "${{ steps.tag.outputs.RELEASE_VERSION }}"/' yt/docker/charts/ytsaurus-cron/values.yaml
           helm package yt/docker/charts/ytsaurus-cron --version ${{ steps.tag.outputs.RELEASE_VERSION }}
-          helm push cron-chart-${{ steps.tag.outputs.RELEASE_VERSION }}.tgz oci://ghcr.io/ytsaurus
+          helm push ytsaurus-cron-${{ steps.tag.outputs.RELEASE_VERSION }}.tgz oci://ghcr.io/ytsaurus
 
       - name: Build And Push Docker Image
         run: |
