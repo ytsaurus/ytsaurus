@@ -2358,6 +2358,8 @@ void EvaluateExpression(
         result,
         row.Elements(),
         buffer);
+
+    buffer->CaptureValue(result);
 }
 
 class TEvaluateExpressionTest
@@ -2389,15 +2391,20 @@ TEST_P(TEvaluateExpressionTest, Basic)
 
     auto buffer = New<TRowBuffer>();
     TUnversionedValue result{};
-    bool enableWebAssembly = true;
+
+    EvaluateExpression(expr, rowString, schema, &result, buffer, /*enableWebAssembly*/ false);
+    EXPECT_EQ(result, expected);
+
     // TODO(dtorilov): build and link is_finite and *_localtime udf
     if (auto function = expr->As<TFunctionExpression>();
-        function && (function->FunctionName == "is_finite" || function->FunctionName.ends_with("_localtime")))
+        function &&
+        (function->FunctionName == "is_finite" || function->FunctionName.ends_with("_localtime")) ||
+        !EnableWebAssemblyInUnitTests())
     {
-        enableWebAssembly = false;
+        return;
     }
-    EvaluateExpression(expr, rowString, schema, &result, buffer, enableWebAssembly);
 
+    EvaluateExpression(expr, rowString, schema, &result, buffer, /*enableWebAssembly*/ true);
     EXPECT_EQ(result, expected);
 }
 
