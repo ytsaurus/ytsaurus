@@ -58,6 +58,8 @@ Type* GetABIType(llvm::LLVMContext& context, NYT::NTableClient::EValueType stati
 
 Type* GetLLVMType(llvm::LLVMContext& context, NYT::NTableClient::EValueType staticType);
 
+class TCGBaseContext;
+
 class TCGValue
 {
 public:
@@ -89,7 +91,7 @@ public:
 
     Value* GetTypedData(const TCGIRBuilderPtr& builder, bool isAbi = false) const;
 
-    TCGValue Cast(const TCGIRBuilderPtr& builder, EValueType destination) const;
+    TCGValue Cast(TCGBaseContext& builder, EValueType destination) const;
 
     static TCGValue Create(
         const TCGIRBuilderPtr& builder,
