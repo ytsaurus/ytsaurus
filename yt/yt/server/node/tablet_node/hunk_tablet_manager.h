@@ -27,8 +27,6 @@ struct IHunkTabletManager
 
     virtual THunkTablet* GetTabletOrThrow(TTabletId tabletId) = 0;
 
-    virtual void CheckFullyUnlocked(THunkTablet* tablet) = 0;
-
     virtual NYTree::IYPathServicePtr GetOrchidService() = 0;
 };
 
