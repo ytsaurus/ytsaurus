@@ -466,8 +466,15 @@ Y_UNIT_TEST_SUITE(SQLv1Lexer) {
         auto lexer = MakeLexer(Lexers, ANSI, ANTLR4, FLAVOR);
         UNIT_ASSERT_TOKENIZED(
             lexer,
-            "SELECT YQL::@@(Uint32 '100500)@@, YQL::@@(String '[WAT])@@;",
-            "SELECT WS( ) ID_PLAIN(YQL) NAMESPACE(::) STRING_VALUE(@@(Uint32 '100500)@@) COMMA(,) WS( ) ID_PLAIN(YQL) NAMESPACE(::) STRING_VALUE(@@(String '[WAT])@@) SEMICOLON(;) EOF");
+            R"(
+SELECT
+ YQL::@@(Uint32 '100500)@@,
+ YQL::@@(String '[WAT])@@
+;)",
+            "WS(\n) "
+            "SELECT WS(\n) WS( ) ID_PLAIN(YQL) NAMESPACE(::) STRING_VALUE(@@(Uint32 '100500)@@) COMMA(,) WS(\n) "
+            "WS( ) ID_PLAIN(YQL) NAMESPACE(::) STRING_VALUE(@@(String '[WAT])@@) WS(\n) "
+            "SEMICOLON(;) EOF");
     }
 
 } // Y_UNIT_TEST_SUITE(SQLv1Lexer)
