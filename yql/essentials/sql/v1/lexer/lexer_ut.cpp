@@ -309,8 +309,10 @@ Y_UNIT_TEST_SUITE(SQLv1Lexer) {
         UNIT_ASSERT_TOKENIZED(lexer, "from", "FROM(from) EOF");
         if (ANTLR4 || FLAVOR == ELexerFlavor::Regex) {
             UNIT_ASSERT_TOKENIZED(lexer, "sKip", "TSKIP(sKip) EOF");
+            UNIT_ASSERT_TOKENIZED(lexer, "SELECT AS skip", "SELECT WS( ) AS WS( ) TSKIP(skip) EOF");
         } else {
             UNIT_ASSERT_TOKENIZED(lexer, "sKip", "SKIP(sKip) EOF");
+            UNIT_ASSERT_TOKENIZED(lexer, "SELECT AS skip", "SELECT WS( ) AS WS( ) SKIP(skip) EOF");
         }
     }
 
@@ -458,6 +460,14 @@ Y_UNIT_TEST_SUITE(SQLv1Lexer) {
             "JOIN WS( ) ID_PLAIN(test) SEMICOLON(;) EOF";
 
         UNIT_ASSERT_TOKENIZED(lexer, query, expected);
+    }
+
+    Y_UNIT_TEST_ON_EACH_LEXER(Examples) {
+        auto lexer = MakeLexer(Lexers, ANSI, ANTLR4, FLAVOR);
+        UNIT_ASSERT_TOKENIZED(
+            lexer,
+            "SELECT YQL::@@(Uint32 '100500)@@, YQL::@@(String '[WAT])@@;",
+            "SELECT WS( ) ID_PLAIN(YQL) NAMESPACE(::) STRING_VALUE(@@(Uint32 '100500)@@) COMMA(,) WS( ) ID_PLAIN(YQL) NAMESPACE(::) STRING_VALUE(@@(String '[WAT])@@) SEMICOLON(;) EOF");
     }
 
 } // Y_UNIT_TEST_SUITE(SQLv1Lexer)
