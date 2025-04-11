@@ -284,7 +284,7 @@ Events:
 
 ## Установка веб-интерфейса {{product-name}}
 
-### Работа с [ytop-chart](https://github.com/ytsaurus/ytsaurus-k8s-operator/pkgs/container/ytop-chart)
+### Установка helm chart
 
 Выполните все необходимые действия для [запуска кластера {{product-name}}](#starting-cluster). Затем установите чарт:
 
@@ -299,8 +299,8 @@ helm upgrade --install ytsaurus-ui ytsaurus-ui/packages/ui-helm-chart/
 
 Ниже приведена инструкция по запуску веб-интерфейса {{product-name}} с помощью helm-чарта. На данном этапе у вас должны быть:
 
-* настроенный CLI-инструмент для `kubectl` (например, можно использовать [minikube](https://minikube.sigs.k8s.io/docs/start/));
-* запущенный кластер {{product-name}} и имя хоста `http_proxy`;
+* настроенная CLI-утилита `kubectl`;
+* запущенный кластер {{product-name}} и адрес HTTP прокси (`http_proxy`);
 * специальный пользователь-робот для веб-интерфейса {{product-name}} с выписанным для него токеном (см. раздел [Управление токенами](../../user-guide/storage/auth.md#token-management)).
 
 #### Быстрый старт
@@ -354,3 +354,135 @@ helm upgrade --install yt-ui ytsaurus-ui/packages/ui-helm-chart/ -f values.yaml 
 ```
 kubectl port-forward deployment/yt-ui-ytsaurus-ui-chart 8080:80
 ```
+
+## Установка Cron
+
+### Описание
+
+Для {{product-name}} есть набор cron-задач, которые полезны при эксплуатации кластера, таких как очистка временных директорий или удаление неактивных нод. Поддерживаются как встроенные, так и пользовательские задачи.
+
+Список встроенных скриптов:
+
+* `clear_tmp` - скрипт, который очищает временные файлы на кластере. Код скрипта живет [здесь](https://github.com/ytsaurus/ytsaurus/tree/main/yt/cron/clear_tmp).
+* `prune_offline_servers` - скрипт, который удаляет из Кипариса offline ноды. Код скрипта живет [здесь](https://github.com/ytsaurus/ytsaurus/blob/main/yt/cron/prune_offline_servers).
+
+### Предварительные требования
+
+На данном этапе у вас должны быть:
+
+* Helm 3.x
+* запущенный кластер {{product-name}} и адрес HTTP прокси (`http_proxy`);
+* специальный пользователь-робот для Cron с выписанным для него токеном (см. раздел [Управление токенами](../../user-guide/storage/auth.md#token-management)).
+
+### Базовая установка
+
+```bash
+helm install ytsaurus-cron oci://ghcr.io/ytsaurus/cron-chart \
+  --version 0.0.1 \
+  --set yt.proxy="http_proxy" \
+  --set yt.token="<ROBOT-CRON-TOKEN>" \
+  --set image.tag="0.0.1"
+```
+
+### Конфигурация
+
+Все параметры чарта можно задать через `values.yaml` или с помощью `--set` в командной строке.
+
+### Аутентификация в YTsaurus
+
+Укажите токен напрямую:
+
+```yaml
+yt:
+  proxy: yt.company.com
+  token: Qwerty123!
+```
+
+Или настройте использование Kubernetes-секрета:
+
+```yaml
+unmanagedSecret:
+  enabled: true
+  secretKeyRef:
+    name: ytadminsec
+    key: token
+```
+
+### Встроенные задачи (`jobs`)
+
+Каждая задача задаётся структурой:
+- `name`: Уникальное имя задачи
+- `enabled`: Включена ли задача
+- `args`: Аргументы командной строки
+- `schedule`: Расписание в формате cron
+- `restartPolicy`: Политика перезапуска (рекомендуется `Never`)
+
+Пример включения задачи:
+
+```bash
+helm upgrade --install ytsaurus-cron oci://ghcr.io/ytsaurus/cron-chart \
+  --version 0.0.1 \
+  --set jobs[1].enabled=true \
+  --set jobs[1].args[5]="tmp_files"
+```
+
+Индексация массива `jobs` идёт с нуля — следите за порядком задач.
+
+### Пользовательские задачи
+
+Можно определить собственные задачи:
+
+```yaml
+additionalJobs:
+  - name: my_cleanup
+    enabled: true
+    args:
+      - clear_tmp
+      - --directory "//my/custom/path"
+    schedule: "0 */6 * * *"
+    restartPolicy: Never
+```
+
+### Пример `values.yaml`
+
+```yaml
+yt:
+  proxy: yt.mycompany.com
+  token: my-secret-token
+
+jobs:
+  - name: clear_tmp_files
+    enabled: true
+    args:
+      - clear_tmp
+      - --directory "//tmp/yt_wrapper/file_storage"
+      - --account "tmp_files"
+    schedule: "*/30 * * * *"
+    restartPolicy: Never
+
+unmanagedSecret:
+  enabled: false
+```
+
+Запуск:
+
+```bash
+helm upgrade --install ytsaurus-cron oci://ghcr.io/ytsaurus/cron-chart \
+  --version 0.0.1 \
+  -f my-values.yaml
+```
+
+### Часто используемые параметры
+
+| Параметр                      | Описание                                         |
+|------------------------------|--------------------------------------------------|
+| `yt.proxy`                   | HTTP-прокси для доступа к {{product-name}}       |
+| `yt.token`                   | Токен доступа (если `unmanagedSecret` отключён)  |
+| `unmanagedSecret`            | Использовать Kubernetes-секрет                   |
+| `image.repository`           | Образ Docker                                     |
+| `image.tag`                  | Тег образа                                       |
+| `schedule`                   | Расписание по умолчанию (если не указано в job)  |
+| `concurrencyPolicy`          | `Allow`, `Forbid`, или `Replace`                 |
+| `successfulJobsHistoryLimit`| Сколько успешных задач хранить                    |
+| `failedJobsHistoryLimit`    | Сколько неудачных задач хранить                   |
+
