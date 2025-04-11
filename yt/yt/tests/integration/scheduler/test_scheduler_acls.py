@@ -62,7 +62,6 @@ class TestSchedulerAcls(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 3
     NUM_SCHEDULERS = 1
-    USE_PORTO = True
 
     DELTA_NODE_CONFIG = {
         "exec_node": {
