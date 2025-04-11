@@ -865,7 +865,7 @@ def get_latest_version():
     return migration.get_latest_version()
 
 
-def create_tables(client, target_version=None, override_tablet_cell_bundle="default", shard_count=1, archive_path=DEFAULT_ARCHIVE_PATH):
+def create_tables(client, target_version=None, override_tablet_cell_bundle="default", shard_count=1, archive_path=DEFAULT_ARCHIVE_PATH, close_access=True):
     """ Creates operation archive tables of given version """
     migration = prepare_migration(client, archive_path)
 
@@ -882,6 +882,9 @@ def create_tables(client, target_version=None, override_tablet_cell_bundle="defa
         shard_count=shard_count,
         override_tablet_cell_bundle=override_tablet_cell_bundle,
     )
+
+    if close_access:
+        client.set("//sys/operations_archive/@inherit_acl", False)
 
 
 # Warning! This function does NOT perform actual transformations, it only creates tables with latest schemas.
