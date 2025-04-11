@@ -116,8 +116,9 @@ namespace NSQLTranslationV1 {
         bool MatchKeyword(const TStringBuf prefix, TParsedTokenList& matches) {
             size_t count = 0;
             for (const auto& keyword : Grammar_.KeywordNames) {
-                const TStringBuf content = prefix.substr(0, keyword.length());
-                if (AsciiEqualsIgnoreCase(content, NSQLReflect::TLexerGrammar::KeywordBlock(keyword))) {
+                const TStringBuf block = NSQLReflect::TLexerGrammar::KeywordBlock(keyword);
+                const TStringBuf content = prefix.substr(0, block.length());
+                if (AsciiEqualsIgnoreCase(content, block)) {
                     matches.emplace_back(keyword, TString(content));
                     count += 1;
                 }
