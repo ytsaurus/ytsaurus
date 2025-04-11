@@ -254,7 +254,7 @@ class TestTableFunctions(ClickHouseTestBase):
             with raises_yt_error(QueryFailedError):
                 clique.make_query("select $path from ytListLogTables('//tmp/dir3')")
 
-    @authors("dakovalkov")
+    @authors("dakovalkov", "buyval01")
     def test_yt_tables(self):
         create("map_node", "//tmp/dir1")
         create("map_node", "//tmp/dir2")
@@ -311,3 +311,14 @@ class TestTableFunctions(ClickHouseTestBase):
             with raises_yt_error(QueryFailedError):
                 # dir1 contains subdir.
                 clique.make_query("select * from ytTables(ytListNodes('//tmp/dir1'))")
+
+            subquery = "select $path from ytListTables('//tmp/dir1') where splitByChar('/',assumeNotNull($path))[-1] = 't0'"
+            assert clique.make_query(subquery) == [
+                {"$path": "//tmp/dir1/t0"},
+            ]
+            # The new CH analyzer does not work with subqueries not wrapped in a table view function as function arguments.
+            with raises_yt_error(QueryFailedError):
+                clique.make_query(f"select * from ytTables({subquery})")
+            assert clique.make_query(f"select * from ytTables(view({subquery})) order by a") == [
+                {"a": 0},
+            ]
