@@ -7,6 +7,17 @@ from ..common.sensors import *
 
 ##################################################################
 
+def action_queue_utilization(sensor_cls):
+    utilization_all = (
+        (MonitoringExpr(sensor_cls("yt.action_queue.time.cumulative.rate")) /
+            MonitoringExpr(sensor_cls("yt.resource_tracker.thread_count")))
+        .all("thread")
+        .alias("{{thread}} {{container}}")
+        .top_max(10)
+        .top(False))
+
+    return utilization_all
+
 cpu_usage = (lambda thread: MultiSensor(
     MonitoringExpr(TabNodeCpu("yt.resource_tracker.thread_count")).top_max(1).alias("Limit"),
     MonitoringExpr(TabNodeCpu("yt.resource_tracker.total_cpu")) / 100)
