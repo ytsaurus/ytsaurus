@@ -1,14 +1,11 @@
 #include "case.h"
 
+#include <util/string/ascii.h>
+
 namespace NSQLComplete {
 
     bool NoCaseCompare(const TString& lhs, const TString& rhs) {
-        return std::lexicographical_compare(
-            std::begin(lhs), std::end(lhs),
-            std::begin(rhs), std::end(rhs),
-            [](const char lhs, const char rhs) {
-                return ToLower(lhs) < ToLower(rhs);
-            });
+        return AsciiCompareIgnoreCase(lhs, rhs) < 0;
     }
 
 } // namespace NSQLComplete
