@@ -108,6 +108,13 @@ default_config = {
         "http_proxy_role": None,
         "rpc_proxy_role": None,
 
+        # For testing purposes only.
+        # If there are no heavy proxies, we can fallback to the light proxy.
+        "allow_light_proxy_for_heavy_requests": True,
+
+        # The name of the network from which the address will be returned during proxy discovery.
+        "network_name": None,
+
         # use https for proxy.url (if no schema in proxy.url)
         "prefer_https": False,
 
@@ -173,7 +180,7 @@ default_config = {
         "number_of_top_proxies_for_random_choice": 5,
         # Part of url to get list of heavy proxies.
         # Deprecated! It's recommended to use the 'http_proxy_role' option instead for configuring proxies.
-        "proxy_discovery_url": "hosts",
+        "proxy_discovery_url": RemotePatchableString("hosts", "http_proxy_discovery_url"),
         # Timeout of proxy ban.
         "proxy_ban_timeout": 120 * 1000,
 

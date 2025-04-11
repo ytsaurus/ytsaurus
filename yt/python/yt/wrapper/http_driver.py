@@ -3,7 +3,6 @@ from .config import get_config, get_option, set_option
 from .compression import get_compressor, has_compressor
 from .common import (require, get_user_agent, total_seconds, forbidden_inside_job, get_started_by_short,
                      generate_uuid, hide_secure_vault, hide_auth_headers)
-from .default_config import default_config
 from .errors import (YtError, YtProxyUnavailable, YtConcurrentOperationsLimitExceeded, YtRequestTimedOut,
                      create_http_response_error)
 from .format import JsonFormat
@@ -16,6 +15,7 @@ import yt.json_wrapper as json
 
 from yt.packages.requests.auth import AuthBase
 
+import collections
 import random
 from copy import deepcopy
 from datetime import datetime
@@ -84,7 +84,10 @@ class HeavyProxyProvider(ProxyProvider):
             unbanned_proxies = []
             heavy_proxies = self._discover_heavy_proxies()
             if not heavy_proxies:
-                return self._get_light_proxy()
+                if get_config(self.client)["proxy"]["allow_light_proxy_for_heavy_requests"]:
+                    return self._get_light_proxy()
+                else:
+                    raise YtError("There are no heavy proxies and using light proxy is forbidden")
 
             for proxy in heavy_proxies:
                 if proxy not in self.state.banned_proxies:
@@ -113,23 +116,50 @@ class HeavyProxyProvider(ProxyProvider):
             self.state.banned_proxies[proxy] = datetime.now()
 
     def _configure_proxy(self, proxy):
-        # set up port for TVM and add schema
-        tvm_only = get_config(self.client)["proxy"]["tvm_only"]
-        if tvm_only:
-            if ":" in proxy:
-                raise YtError('Cannot create TVM-only proxy for {}'.format(proxy))
         return get_proxy_address_url(client=self.client, replace_host=proxy)
 
     def _discover_heavy_proxies(self):
-        proxy_role = get_config(self.client)["proxy"]["http_proxy_role"]
-        discovery_url = get_config(self.client)["proxy"]["proxy_discovery_url"]
-        if discovery_url == default_config["proxy"]["proxy_discovery_url"] and proxy_role is not None:
-            discovery_url += f"?role={proxy_role}"
+        proxy_config = get_config(self.client)["proxy"]
+        proxy_role = proxy_config["http_proxy_role"]
+        discovery_url = str(proxy_config["proxy_discovery_url"])
+        network_name = proxy_config["network_name"]
 
-        heavy_proxies = make_request_with_retries(
+        def _get_address_type(proxy_config):
+            tvm_only = proxy_config["tvm_only"]
+            prefer_https = proxy_config["prefer_https"]
+
+            address_type = ""
+            if tvm_only:
+                address_type = "tvm_only_"
+            if prefer_https:
+                address_type += "https"
+            else:
+                address_type += "http"
+            return address_type
+
+        # `/hosts` ignores it, `/api/v4/discover_proxies` uses it and returns addresses with appropriate ports.
+        query_separator = "&" if "?" in discovery_url else "?"
+        discovery_url += f"{query_separator}address_type={_get_address_type(proxy_config)}"
+
+        if "role" not in discovery_url and proxy_role is not None:
+            discovery_url += f"&role={proxy_role}"
+
+        if network_name is not None:
+            discovery_url += f"&network_name={network_name}"
+
+        heavy_proxies_response = make_request_with_retries(
             "get",
             "{0}/{1}".format(self._get_light_proxy(), discovery_url),
             client=self.client).json()
+
+        if isinstance(heavy_proxies_response, collections.abc.Mapping):
+            heavy_proxies = heavy_proxies_response.get("proxies", None)
+            if heavy_proxies is None:
+                logger.error("Discover proxies handler returned unexpected response: %s", heavy_proxies_response)
+                raise YtError("Unexpected server response for \"discover_proxies\": missing key \"proxies\"")
+        else:
+            heavy_proxies = heavy_proxies_response
+
         return list(map(self._configure_proxy, heavy_proxies))
 
 
