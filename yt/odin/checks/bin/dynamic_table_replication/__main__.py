@@ -1,6 +1,6 @@
 from yt_odin_checks.lib.check_runner import main
 
-from yt.test_helpers import wait, WaitFailed
+from yt.common import wait, WaitFailed
 
 from yt.wrapper.client import Yt
 
