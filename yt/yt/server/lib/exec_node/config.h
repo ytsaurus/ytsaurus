@@ -472,6 +472,18 @@ struct TTestingConfig
 
 DEFINE_REFCOUNTED_TYPE(TTestingConfig)
 
+struct TJobProbeConfig
+    : public NYTree::TYsonStruct
+{
+    TDuration RpcTimeout;
+
+    REGISTER_YSON_STRUCT(TJobProbeConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TJobProbeConfig)
+
 struct TJobCommonConfig
     : public NYTree::TYsonStruct
 {
@@ -508,6 +520,8 @@ struct TJobCommonConfig
     NJobProxy::TJobThrottlerConfigPtr JobThrottler;
 
     i64 VirtualSandboxSquashFSBlockSize;
+
+    TJobProbeConfigPtr JobProbe;
 
     TTestingConfigPtr Testing;
 

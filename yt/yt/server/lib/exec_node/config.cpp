@@ -528,6 +528,12 @@ void TTestingConfig::Register(TRegistrar registrar)
         .Default(false);
 }
 
+void TJobProbeConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("rpc_timeout", &TThis::RpcTimeout)
+        .Default(TDuration::Seconds(60));
+}
+
 void TJobCommonConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("node_directory_prepare_retry_count", &TThis::NodeDirectoryPrepareRetryCount)
@@ -577,6 +583,9 @@ void TJobCommonConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("virtual_sandbox_squash_fs_block_size", &TThis::VirtualSandboxSquashFSBlockSize)
         .Default(128_KB);
+
+    registrar.Parameter("job_probe", &TThis::JobProbe)
+        .DefaultNew();
 
     registrar.Parameter("testing", &TThis::Testing)
         .Default();
