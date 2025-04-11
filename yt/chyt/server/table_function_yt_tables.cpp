@@ -136,7 +136,10 @@ public:
                 // Wrap it with 'SELECT $path FROM <tableFunction>' and execute.
                 auto functionTableExpression = std::make_shared<DB::ASTTableExpression>();
                 functionTableExpression->table_function = arg;
-                std::vector<TString> columnNames = {"$path"};
+                std::optional<std::vector<TString>> columnNames;
+                if (functionArg->name != "view") {
+                    columnNames = {"$path"};
+                }
 
                 auto subqueryTableExpression = WrapTableExpressionWithSubquery(functionTableExpression, columnNames);
                 auto subquery = subqueryTableExpression->as<DB::ASTTableExpression>()->subquery->as<DB::ASTSubquery>();
@@ -170,6 +173,7 @@ private:
     mutable DB::StoragePtr Storage_;
 
     static const inline THashSet<TString> AllowedTableFunctions {
+        "view",
         "ytListNodes",
         "ytListNodesL",
         "ytListTables",
