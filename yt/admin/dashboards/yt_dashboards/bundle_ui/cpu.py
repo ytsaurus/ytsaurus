@@ -1,11 +1,11 @@
 # flake8: noqa
 from yt_dashboard_generator.dashboard import Rowset
-from yt_dashboard_generator.sensor import MultiSensor
+from yt_dashboard_generator.sensor import EmptyCell, MultiSensor
 from yt_dashboard_generator.backends.monitoring import MonitoringTag
 from yt_dashboard_generator.backends.monitoring.sensors import MonitoringExpr
 from yt_dashboard_generator.specific_tags.tags import DuplicateTag
 
-from .common import cpu_usage
+from .common import action_queue_utilization, cpu_usage
 
 from .resources import vcpu_guarantee, container_vcpu_usage
 
@@ -71,7 +71,10 @@ def build_user_thread_cpu():
             .cell("ChunkReader thread pool CPU usage", cpu_usage("ChunkReader"))
         .row()
             .cell("BusXfer thread pool CPU usage", cpu_usage("BusXfer|BusXferFS"))
+            .cell("", EmptyCell())
+        .row()
             .cell(
                 "Threads utilization",
                 MultiSensor(utilization_all, utilization_aggr).top(False))
+            .cell("Action queue utilization", action_queue_utilization(TabNodeCpu))
         ).owner

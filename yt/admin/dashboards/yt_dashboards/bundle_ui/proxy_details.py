@@ -1,8 +1,10 @@
 # flake8: noqa
 from yt_dashboard_generator.dashboard import Rowset
-from yt_dashboard_generator.sensor import MultiSensor
+from yt_dashboard_generator.sensor import EmptyCell, MultiSensor
 from yt_dashboard_generator.backends.monitoring.sensors import MonitoringExpr
 from yt_dashboard_generator.specific_tags.tags import TemplateTag
+
+from .common import action_queue_utilization
 
 from ..common.sensors import *
 
@@ -37,7 +39,10 @@ def build_rpc_proxy_cpu():
             .row()
                 .cell("CPU wait (all threads)", MonitoringExpr(RpcProxyCpu("yt.resource_tracker.cpu_wait")
                                                             .aggr("thread"))/100)
+                .cell("", EmptyCell())
+            .row()
                 .cell("Threads utilization", utilization)
+                .cell("Action queue utilization", action_queue_utilization(RpcProxyCpu))
             ).owner
 
 
