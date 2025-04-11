@@ -2079,3 +2079,50 @@ def test_operations_with_other_cluster(yt_env_multicluster_v4):  # noqa
 
     assert client_2.exists(TABLE_CLUSTER_2)
     assert client_1.exists(TABLE_LOCAL)
+
+
+@pytest.mark.usefixtures("yt_env")
+class TestProxyDiscovery(object):
+    @authors("nadya73")
+    def test_hosts(self):
+        if yt.config["backend"] == "native":
+            pytest.skip()
+
+        table = TEST_DIR + "/table"
+
+        yt.create("table", table)
+        check_rows_equality([], yt.read_table(table))
+
+        yt.write_table(table, [{"x": 1}, {"y": 2}])
+        check_rows_equality([{"x": 1}, {"y": 2}], yt.read_table(table))
+
+    @authors("nadya73")
+    def test_discover_proxies(self):
+        if yt.config["backend"] == "native":
+            pytest.skip()
+
+        yt.config["proxy"]["allow_light_proxy_for_heavy_requests"] = False
+        yt.config["proxy"]["proxy_discovery_url"] = "api/v4/discover_proxies?type=http"
+
+        table = TEST_DIR + "/table"
+
+        yt.create("table", table)
+        check_rows_equality([], yt.read_table(table))
+
+        yt.write_table(table, [{"x": 1}, {"y": 2}])
+        check_rows_equality([{"x": 1}, {"y": 2}], yt.read_table(table))
+
+        yt.config["proxy"]["http_proxy_role"] = "data"
+        check_rows_equality([{"x": 1}, {"y": 2}], yt.read_table(table))
+
+        with pytest.raises(yt.YtError, match="There are no heavy proxies and using light proxy is forbidden"):
+            yt.config["proxy"]["http_proxy_role"] = "unknown_role"
+            yt.read_table(table)
+
+        yt.config["proxy"]["http_proxy_role"] = "data"
+        yt.config["proxy"]["network_name"] = "default"
+        check_rows_equality([{"x": 1}, {"y": 2}], yt.read_table(table))
+
+        with pytest.raises(yt.YtError, match="There are no heavy proxies and using light proxy is forbidden"):
+            yt.config["proxy"]["network_name"] = "unknown_network"
+            yt.read_table(table)

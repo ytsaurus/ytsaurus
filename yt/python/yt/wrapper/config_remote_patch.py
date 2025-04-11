@@ -172,6 +172,9 @@ class RemotePatchableString(RemotePatchableValueBase):
     def __ne__(self, other):
         return str(self) != str(other)
 
+    def __contains__(self, item):
+        return item in str(self)
+
     def to_yson_type(self):
         return yson.YsonUnicode(str(self))
 
