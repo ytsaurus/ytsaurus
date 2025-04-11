@@ -307,12 +307,22 @@ Y_UNIT_TEST_SUITE(SQLv1Lexer) {
         UNIT_ASSERT_TOKENIZED(lexer, "INSERT", "INSERT EOF");
         UNIT_ASSERT_TOKENIZED(lexer, "FROM", "FROM EOF");
         UNIT_ASSERT_TOKENIZED(lexer, "from", "FROM(from) EOF");
+    }
+
+    Y_UNIT_TEST_ON_EACH_LEXER(KeywordSkip) {
+        auto lexer = MakeLexer(Lexers, ANSI, ANTLR4, FLAVOR);
         if (ANTLR4 || FLAVOR == ELexerFlavor::Regex) {
             UNIT_ASSERT_TOKENIZED(lexer, "sKip", "TSKIP(sKip) EOF");
+            UNIT_ASSERT_TOKENIZED(lexer, "SKIP", "TSKIP(SKIP) EOF");
+            UNIT_ASSERT_TOKENIZED(lexer, " SKIP ", "WS( ) TSKIP(SKIP) WS( ) EOF");
             UNIT_ASSERT_TOKENIZED(lexer, "SELECT AS skip", "SELECT WS( ) AS WS( ) TSKIP(skip) EOF");
+            UNIT_ASSERT_TOKENIZED(lexer, "AFTER MATCH SKIP TO NEXT ROW", "AFTER WS( ) MATCH WS( ) TSKIP(SKIP) WS( ) TO WS( ) NEXT WS( ) ROW EOF");
         } else {
             UNIT_ASSERT_TOKENIZED(lexer, "sKip", "SKIP(sKip) EOF");
+            UNIT_ASSERT_TOKENIZED(lexer, "SKIP", "SKIP EOF");
+            UNIT_ASSERT_TOKENIZED(lexer, " SKIP ", "WS( ) SKIP WS( ) EOF");
             UNIT_ASSERT_TOKENIZED(lexer, "SELECT AS skip", "SELECT WS( ) AS WS( ) SKIP(skip) EOF");
+            UNIT_ASSERT_TOKENIZED(lexer, "AFTER MATCH SKIP TO NEXT ROW", "AFTER WS( ) MATCH WS( ) SKIP WS( ) TO WS( ) NEXT WS( ) ROW EOF");
         }
     }
 
