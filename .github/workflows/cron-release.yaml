@@ -35,13 +35,13 @@ jobs:
 
       - name: Package And Push Helm Chart
         run: |
-          sed -i 's/tag: .*/tag: "${{ steps.tag.outputs.RELEASE_VERSION }}"/' yt/docker/charts/ytsaurus-cron/values.yaml
-          helm package yt/docker/charts/ytsaurus-cron --version ${{ steps.tag.outputs.RELEASE_VERSION }} --name cron-chart
+          sed -i 's/tag: .*/tag: "${{ steps.tag.outputs.RELEASE_VERSION }}"/' yt/docker/charts/cron-chart/values.yaml
+          helm package yt/docker/charts/cron-chart --version ${{ steps.tag.outputs.RELEASE_VERSION }}
           helm push cron-chart-${{ steps.tag.outputs.RELEASE_VERSION }}.tgz oci://ghcr.io/ytsaurus
 
       - name: Build And Push Docker Image
         run: |
-          cd yt/docker/ytsaurus-cron
+          cd yt/docker/cron
           make docker-build IMAGE_TAG=${{ steps.tag.outputs.RELEASE_VERSION }}
           make docker-push IMAGE_TAG=${{ steps.tag.outputs.RELEASE_VERSION }}
 
