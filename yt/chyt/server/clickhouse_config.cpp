@@ -3,6 +3,7 @@
 #include <yt/yt/core/ytree/fluent.h>
 
 #include <Core/Defines.h>
+#include <Core/SettingsEnums.h>
 
 namespace NYT::NClickHouseServer {
 
@@ -213,6 +214,7 @@ void TClickHouseConfig::Register(TRegistrar registrar)
             // CH hedged requests use their own poller implementation over epoll, which is kind of
             // broken around our 2.04 branch (it imposes busy loop in polling thread).
             map["use_hedged_requests"] = NYTree::ConvertToNode(0);
+            map["distributed_product_mode"] = NYTree::ConvertToNode("allow");
             return map;
         });
 

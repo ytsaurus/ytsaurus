@@ -49,10 +49,10 @@ class TestJoinAndIn(ClickHouseTestBase):
             assert clique.make_query('select * from "//tmp/t1" t1 global join "//tmp/t3" t3 '
                                      'on t3.a = t1.a order by t3.a') == expected_on
 
-            assert clique.make_query('select * from "//tmp/t1" global join "//tmp/t2" on a = c') == expected
-            assert clique.make_query('select * from "//tmp/t1" global join "//tmp/t2" on c = a') == expected
+            assert clique.make_query('select * from "//tmp/t1" t1 global join "//tmp/t2" t2 on t1.a = t2.c') == expected
+            assert clique.make_query('select * from "//tmp/t1" t1 global join "//tmp/t2" t2 on t2.c = t1.a') == expected
             assert (
-                clique.make_query('select * from "//tmp/t1" global join "//tmp/t3" using a order by a')
+                clique.make_query('select * from "//tmp/t1" t1 global join "//tmp/t3" t3 using a order by a')
                 == expected_using
             )
 
