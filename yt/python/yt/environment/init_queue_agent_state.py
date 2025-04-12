@@ -425,15 +425,11 @@ def build_arguments_parser():
     return parser
 
 
-# COMPAT(apachee): Creates missing tables for compatability with
-# previous version of init_queue_agent_state.
+# Creates missing tables for compatability with previous version of init_queue_agent_state,
+# and handle cases when some tables were removed manually.
 def _create_missing_tables(client, root, migration):
     if not client.exists(root):
         # This case is handled by migrationlib
-        return
-    root_attributes = client.get("{0}/@".format(root))
-    if "version" in root_attributes:
-        # Everything should already be fine
         return
 
     for table, table_info in migration.initial_table_infos.items():
