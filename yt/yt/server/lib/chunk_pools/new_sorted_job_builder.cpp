@@ -111,14 +111,18 @@ public:
         SegmentPrimaryEndpoints_.resize(teleportChunks.size() + 1);
     }
 
-    void AddDataSlice(const TLegacyDataSlicePtr& dataSlice) override
+    void AddDataSlice(const TLegacyDataSlicePtr& originalDataSlice) override
     {
+        // Making a copy here is crucial since the copy may be modified in-place,
+        // while the caller assumes that the original will not be modified.
+        auto dataSlice = CreateInputDataSlice(originalDataSlice);
+
         YT_VERIFY(!dataSlice->IsLegacy);
         YT_VERIFY(dataSlice->LowerLimit().KeyBound);
         YT_VERIFY(dataSlice->UpperLimit().KeyBound);
 
-        // Making a copy here is crucial since provided data slice object may be modified in-place.
-        InputDataSlices_.push_back(CreateInputDataSlice(dataSlice));
+        // Log the original data slices that should not be modified.
+        InputDataSlices_.push_back(originalDataSlice);
 
         auto inputStreamIndex = dataSlice->GetInputStreamIndex();
         auto isPrimary = InputStreamDirectory_.GetDescriptor(inputStreamIndex).IsPrimary();
