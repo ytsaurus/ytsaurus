@@ -255,7 +255,7 @@ public:
         : RealColumnNames_(realColumnNames)
         , VirtualColumnNames_(virtualColumnNames)
         , QueryInfo_(queryInfo)
-        , Context_(DB::Context::createCopy(context))
+        , Context_(context)
         , QueryContext_(queryContext)
         , StorageContext_(storageContext)
         , ProcessingStage_(processingStage)
@@ -803,6 +803,11 @@ public:
     }
 
     bool supportsFiltersAnalysis() const override
+    {
+        return true;
+    }
+
+    bool supportsDistributedProduct() const override
     {
         return true;
     }
@@ -1360,6 +1365,11 @@ private:
         auto [realColumnNames, virtualColumnNames] = DecoupleColumns(columnNames, metadataSnapshot);
 
         ValidateReadPermissions(realColumnNames, Tables_, queryContext);
+
+        auto& settings = context->getSettingsRef();
+        if (settings.distributed_product_mode.changed && settings.distributed_product_mode == DB::DistributedProductMode::DENY) {
+            THROW_ERROR_EXCEPTION("CHYT does not support distributed_product_mode = DENY");
+        }
 
         TDistributedQueryPreparer preparer(
             realColumnNames,

@@ -71,6 +71,8 @@
 #include <Parsers/IAST.h>
 #include <Parsers/makeASTForLogicalFunction.h>
 
+#include <Storages/buildQueryTreeForShard.h>
+
 #include <library/cpp/string_utils/base64/base64.h>
 #include <library/cpp/iterator/enumerate.h>
 
@@ -314,7 +316,7 @@ EReadInOrderMode GetReadInOrderColumnDirection(ESortOrder sortOrder, DB::SortDir
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void buildTableExpressionPtrsStackImpl(DB::QueryTreeNodePtr& joinTreeNode, std::vector<DB::QueryTreeNodePtr*>& result)
+void extractTableExpressionPtrsImpl(DB::QueryTreeNodePtr& joinTreeNode, std::vector<DB::QueryTreeNodePtr*>& result)
 {
     auto node_type = joinTreeNode->getNodeType();
 
@@ -329,15 +331,13 @@ void buildTableExpressionPtrsStackImpl(DB::QueryTreeNodePtr& joinTreeNode, std::
         }
         case DB::QueryTreeNodeType::ARRAY_JOIN: {
             auto & array_join_node = joinTreeNode->as<DB::ArrayJoinNode&>();
-            buildTableExpressionPtrsStackImpl(array_join_node.getTableExpression(), result);
-            result.push_back(&joinTreeNode);
+            extractTableExpressionPtrsImpl(array_join_node.getTableExpression(), result);
             break;
         }
         case DB::QueryTreeNodeType::JOIN: {
             auto & join_node = joinTreeNode->as<DB::JoinNode&>();
-            buildTableExpressionPtrsStackImpl(join_node.getLeftTableExpression(), result);
-            buildTableExpressionPtrsStackImpl(join_node.getRightTableExpression(), result);
-            result.push_back(std::move(&joinTreeNode));
+            extractTableExpressionPtrsImpl(join_node.getLeftTableExpression(), result);
+            extractTableExpressionPtrsImpl(join_node.getRightTableExpression(), result);
             break;
         }
         default: {
@@ -348,10 +348,10 @@ void buildTableExpressionPtrsStackImpl(DB::QueryTreeNodePtr& joinTreeNode, std::
     }
 }
 
-std::vector<DB::QueryTreeNodePtr*> buildTableExpressionPtrsStack(DB::QueryTreeNodePtr& joinTreeNode)
+std::vector<DB::QueryTreeNodePtr*> extractTableExpressionPtrs(DB::QueryTreeNodePtr& joinTreeNode)
 {
     std::vector<DB::QueryTreeNodePtr*> result;
-    buildTableExpressionPtrsStackImpl(joinTreeNode, result);
+    extractTableExpressionPtrsImpl(joinTreeNode, result);
     return result;
 }
 
@@ -524,7 +524,7 @@ void TQueryAnalyzer::InferSortedJoinKeyColumns(bool needSortedPool)
     // Make sense only when joined table is not YT-table.
     std::vector<DB::QueryTreeNodePtr> joinKeyExpressions(leftTableSchema.GetKeyColumnCount());
 
-    if (TwoYTTableJoin_) {
+    if (TwoYTTableJoin_ ) {
         // Two YT table join always requires sorted pool.
         YT_VERIFY(needSortedPool);
 
@@ -683,10 +683,9 @@ void TQueryAnalyzer::ParseQuery()
     visitor.visit(QueryInfo_.query_tree);
     HasInOperator_ = visitor.HasInOperator();
 
-    auto tableExpressionsStack = buildTableExpressionPtrsStack(selectQuery->getJoinTree());
+    auto tableExpressionsStack = DB::buildTableExpressionsStack(selectQuery->getJoinTree());
     for (int index = 0; index < std::ssize(tableExpressionsStack); ++index) {
-        auto tableExpressionPtr = tableExpressionsStack[index];
-        auto tableExpression = *tableExpressionPtr;
+        auto tableExpression = tableExpressionsStack[index];
         auto tableExpressionNodeType = tableExpression->getNodeType();
 
         if (tableExpressionNodeType == DB::QueryTreeNodeType::ARRAY_JOIN) {
@@ -720,7 +719,7 @@ void TQueryAnalyzer::ParseQuery()
         }
 
         TableExpressions_.emplace_back(tableExpression);
-        TableExpressionPtrs_.emplace_back(tableExpressionPtr);
+        TableExpressionDataPtrs_.emplace_back(QueryInfo_.planner_context->getTableExpressionDataOrNull(tableExpression));
     }
 
     YT_VERIFY(TableExpressions_.size() >= 1);
@@ -741,6 +740,13 @@ void TQueryAnalyzer::ParseQuery()
 
     YT_VERIFY(YtTableCount_ > 0);
 
+    // In the case of a global join, the second table will materialize on read.
+    // Therefore, there is no need to consider it as a table in further analysis.
+    if (YtTableCount_ == 2 && GlobalJoin_) {
+        YtTableCount_ = 1;
+        Storages_.back() = nullptr;
+    }
+
     if (YtTableCount_ == 2) {
         if (!CrossJoin_) {
             YT_LOG_DEBUG("Query is a two-YT-table join");
@@ -750,7 +756,7 @@ void TQueryAnalyzer::ParseQuery()
             YtTableCount_ = 1;
             TwoYTTableJoin_ = false;
             TableExpressions_.pop_back();
-            TableExpressionPtrs_.pop_back();
+            TableExpressionDataPtrs_.pop_back();
             Storages_.pop_back();
         }
     }
@@ -1061,8 +1067,9 @@ TQueryAnalysisResult TQueryAnalyzer::Analyze() const
 
                 selectQuery->getWhere() = std::move(prevWhere);
             } else {
-                const auto& tableExpressionData = QueryInfo_.planner_context->getTableExpressionDataOrThrow(TableExpressions_[index]);
-                if (const auto& filterActions = tableExpressionData.getFilterActions()) {
+                auto* tableExpressionDataPtr = TableExpressionDataPtrs_[index];
+                YT_VERIFY(tableExpressionDataPtr);
+                if (const auto& filterActions = tableExpressionDataPtr->getFilterActions()) {
                     filterActionsDAG = std::make_shared<const DB::ActionsDAG>(filterActions->clone());
                 }
             }
@@ -1086,6 +1093,18 @@ TQueryAnalysisResult TQueryAnalyzer::Analyze() const
     return result;
 }
 
+void TQueryAnalyzer::LazyProcessQueryTree() {
+    if (GlobalJoin_) {
+        QueryInfo_.query_tree = DB::buildQueryTreeForShard(QueryInfo_.planner_context, QueryInfo_.query_tree);
+        QueryInfo_.query = DB::queryNodeToSelectQuery(QueryInfo_.query_tree);
+    }
+
+    auto* selectQuery = QueryInfo_.query_tree->as<DB::QueryNode>();
+    TableExpressionPtrs_ = extractTableExpressionPtrs(selectQuery->getJoinTree());
+
+    QueryTreeProcessed_ = true;
+}
+
 TSecondaryQuery TQueryAnalyzer::CreateSecondaryQuery(
     const TRange<TSubquery>& threadSubqueries,
     TSubquerySpec specTemplate,
@@ -1096,6 +1115,10 @@ TSecondaryQuery TQueryAnalyzer::CreateSecondaryQuery(
     if (!Prepared_) {
         THROW_ERROR_EXCEPTION("Query analyzer is not prepared but CreateSecondaryQuery method is already called; "
             "this is a bug; please, file an issue in CHYT queue");
+    }
+
+    if (!QueryTreeProcessed_) {
+        LazyProcessQueryTree();
     }
 
     auto Logger = this->Logger.WithTag("SubqueryIndex: %v", subqueryIndex);
