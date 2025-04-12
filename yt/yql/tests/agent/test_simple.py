@@ -263,6 +263,8 @@ class TestYqlAgentBan(TestQueriesYqlBase):
 
 
 class TestYqlAgentDynConfig(TestQueriesYqlBase):
+    NUM_TEST_PARTITIONS = 8
+    CLASS_TEST_LIMIT = 20 * 60
     NUM_YQL_AGENTS = 1
 
     def _update_dyn_config(self, yql_agent, dyn_config):
@@ -292,8 +294,33 @@ class TestYqlAgentDynConfig(TestQueriesYqlBase):
         self._test_simple_query("select * from primary.`//tmp/t`", rows)
 
     @authors("lucius")
-    @pytest.mark.timeout(180)
-    def test_yql_agent_broken_dyn_config(self, query_tracker, yql_agent):
+    @pytest.mark.timeout(300)
+    def test_yql_agent_dyn_config_replace_cluster(self, query_tracker, yql_agent):
+        instances = ls("//sys/yql_agent/instances")
+        assert instances
+        config_path = "//sys/yql_agent/instances/" + instances[0] + "/orchid/config"
+        config = get(config_path)
+        cluster_mapping = config["yql_agent"]["gateway_config"]["cluster_mapping"]
+        # expected cluster_mapping =
+        # [
+        #     {
+        #         'default': true,
+        #         'cluster': 'localhost:29782',
+        #         'name': 'primary',
+        #         'settings': [
+        #             {'name': 'QueryCacheChunkLimit', 'value': '100000'},
+        #             {'name': '_UseKeyBoundApi', 'value': 'true'}
+        #         ]
+        #     }
+        # ]
+        assert len(cluster_mapping) == 1
+        primary = cluster_mapping[0]
+        assert primary["name"] == "primary"
+        assert primary["settings"]
+        settings = {s["name"]: s["value"] for s in primary["settings"]}
+        assert "QueryCacheChunkLimit" in settings
+        assert "_EnableDq" not in settings
+
         create("table", "//tmp/t", attributes={
             "schema": [{"name": "a", "type": "int64"}, {"name": "b", "type": "string"}]
         })
@@ -301,20 +328,37 @@ class TestYqlAgentDynConfig(TestQueriesYqlBase):
         write_table("//tmp/t", rows)
         self._test_simple_query("select * from primary.`//tmp/t`", rows)
 
+        # add new attr and update existing one
         self._update_dyn_config(yql_agent, {
             "gateways": {
                 "yt": {
                     "cluster_mapping": [
                         {
-                            "name": "cluster does not exist",
+                            "name": "primary",
+                            "settings": [
+                                {"name": "_EnableDq", "value": "true"},
+                                {"name": "QueryCacheChunkLimit", "value": "200000"},
+                            ],
                         },
                     ],
                 },
             },
         })
-        with raises_yt_error("Cluster address must be specified"):
+        self._test_simple_query("select * from primary.`//tmp/t`", rows)
+
+    def _dyn_config_expect_error(self, yql_agent, dyn_config, expected_error):
+        create("table", "//tmp/t", attributes={
+            "schema": [{"name": "a", "type": "int64"}, {"name": "b", "type": "string"}]
+        })
+        rows = [{"a": 42, "b": "foo"}, {"a": -17, "b": "bar"}]
+        write_table("//tmp/t", rows)
+        self._test_simple_query("select * from primary.`//tmp/t`", rows)
+
+        self._update_dyn_config(yql_agent, dyn_config)
+        with raises_yt_error(expected_error):
             self._test_simple_query("select * from primary.`//tmp/t`", rows)
 
+        # should work after fixing
         self._update_dyn_config(yql_agent, {
             "gateways": {
                 "yt": {
@@ -324,6 +368,67 @@ class TestYqlAgentDynConfig(TestQueriesYqlBase):
             },
         })
         self._test_simple_query("select * from primary.`//tmp/t`", rows)
+
+    @authors("lucius")
+    @pytest.mark.timeout(300)
+    def test_yql_agent_broken_dyn_config_without_address(self, query_tracker, yql_agent):
+        self._dyn_config_expect_error(
+            yql_agent,
+            {
+                "gateways": {
+                    "yt": {
+                        "cluster_mapping": [
+                            {
+                                "name": "cluster_without_address",
+                            },
+                        ],
+                    },
+                },
+            },
+            "Cluster address must be specified",
+        )
+
+    @authors("lucius")
+    @pytest.mark.timeout(300)
+    def test_yql_agent_broken_dyn_config_wrong_address(self, query_tracker, yql_agent):
+        self._dyn_config_expect_error(
+            yql_agent,
+            {
+                "gateways": {
+                    "yt": {
+                        "cluster_mapping": [
+                            {
+                                "name": "primary",
+                                "cluster": "host_does_not_exist:80",
+                            },
+                        ],
+                    },
+                },
+            },
+            "can not resolve host_does_not_exist:80",
+        )
+
+    @authors("lucius")
+    @pytest.mark.timeout(300)
+    def test_yql_agent_broken_dyn_config_wrong_settings(self, query_tracker, yql_agent):
+        self._dyn_config_expect_error(
+            yql_agent,
+            {
+                "gateways": {
+                    "yt": {
+                        "cluster_mapping": [
+                            {
+                                "name": "primary",
+                                "settings": [
+                                    {"name": "QueryCacheChunkLimit", "value": "-1.23"},
+                                ],
+                            },
+                        ],
+                    },
+                },
+            },
+            """Bad "QueryCacheChunkLimit" setting for "primary" cluster""",
+        )
 
 
 class TestComplexQueriesYql(TestQueriesYqlBase):

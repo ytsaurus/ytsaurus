@@ -236,6 +236,81 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+namespace {
+
+void MergeRepeatedFields(google::protobuf::Message& message);
+
+void MergeRepeatedFields(google::protobuf::Message& message, const google::protobuf::FieldDescriptor& field)
+{
+    const auto fieldMessageType = field.message_type();
+    if (!fieldMessageType) {
+        // Plain field - nothing to merge.
+        return;
+    }
+
+    const auto reflection = message.GetReflection();
+    if (!field.is_repeated()) {
+        if (reflection->HasField(message, &field)) {
+            const auto submessage = reflection->MutableMessage(&message, &field);
+            MergeRepeatedFields(*submessage);
+        }
+        return;
+    }
+
+    const auto nameField = fieldMessageType->FindFieldByName("Name");
+    if (!nameField || nameField->type() != google::protobuf::FieldDescriptor::TYPE_STRING) {
+        // Skip messages without 'string Name' field.
+        return;
+    }
+
+    const int repeatedCount = reflection->FieldSize(message, &field);
+    if (!repeatedCount) {
+        return;
+    }
+
+    THashMap<TString, int> map;
+    for (int i = 0; i < repeatedCount; ++i) {
+        const auto& nextMessage = reflection->GetRepeatedMessage(message, &field, i);
+        const TString name = nextMessage.GetReflection()->GetString(nextMessage, nameField);
+        const auto it = map.find(name);
+        if (it != map.end()) {
+            const auto uniqueMessage = reflection->MutableRepeatedMessage(&message, &field, it->second);
+            uniqueMessage->MergeFrom(nextMessage);
+            // Could have more repeated submessages with 'Name', so we need to merge them too.
+            MergeRepeatedFields(*uniqueMessage);
+        } else {
+            const int unique = map.ysize();
+            if (unique != i) {
+                // Move first values with unique names to the left (leave removed ones on the right).
+                reflection->SwapElements(&message, &field, unique, i);
+            }
+            map[name] = unique;
+        }
+    }
+    for (int i = map.ysize(); i < repeatedCount; ++i) {
+        reflection->RemoveLast(&message, &field);
+    }
+}
+
+void MergeRepeatedFields(google::protobuf::Message& message)
+{
+    const auto description = message.GetDescriptor();
+    for (int i = 0; i < description->field_count(); ++i) {
+        const auto field = description->field(i);
+        MergeRepeatedFields(message, *field);
+    }
+}
+
+void MergeGatewaysConfig(NYql::TGatewaysConfig& target, const NYql::TGatewaysConfig& source)
+{
+    target.MergeFrom(source);
+    MergeRepeatedFields(target);
+}
+
+} // namespace
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TYqlPlugin
     : public IYqlPlugin
 {
@@ -697,7 +772,7 @@ public:
         }
 
         auto newGatewaysConfig = GatewaysConfigInitial_;
-        newGatewaysConfig.MergeFrom(dynamicGatewaysConfig);
+        MergeGatewaysConfig(newGatewaysConfig, dynamicGatewaysConfig);
 
         YQL_LOG(DEBUG) << __FUNCTION__ << ": GatewaysConfigInitial_ = " << GatewaysConfigInitial_.ShortDebugString();
         YQL_LOG(DEBUG) << __FUNCTION__ << ": dynamicGatewaysConfig = " << dynamicGatewaysConfig.ShortDebugString();
