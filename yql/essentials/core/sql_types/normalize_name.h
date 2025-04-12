@@ -10,4 +10,4 @@ namespace NYql {
     TMaybe<TIssue> NormalizeName(TPosition position, TString& name);
     TString NormalizeName(const TStringBuf& name);
 
-}
+} // namespace NYql

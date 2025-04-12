@@ -47,4 +47,4 @@ Y_UNIT_TEST_SUITE(Misc) {
         CheckIssues("a_B_c_d_e_f", "a_B_c_d_e_f");
         CheckIssues("_a_B_c_d_e_f", "_a_B_c_d_e_f");
     }
-}
+} // Y_UNIT_TEST_SUITE(Misc)

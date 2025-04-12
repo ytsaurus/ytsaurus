@@ -26,17 +26,16 @@ namespace NYql {
                 } else {
                     ++startCharPos;
                 }
-            }
-            else {
+            } else {
                 atStart = false;
                 justSkippedUnderscore = false;
             }
         }
-    
+
         if (totalSkipped >= 5) {
             return TIssue(position, TStringBuilder() << "\"" << name << "\" looks weird, has multiple consecutive underscores");
         }
-    
+
         ui32 outPos = startCharPos;
         for (ui32 i = startCharPos; i < inputLength; i++) {
             const char c = name.at(i);
@@ -47,10 +46,10 @@ namespace NYql {
                 ++outPos;
             }
         }
-    
+
         name.resize(outPos);
         Y_ABORT_UNLESS(inputLength - outPos == totalSkipped);
-    
+
         return Nothing();
     }
 
@@ -61,4 +60,4 @@ namespace NYql {
         return result;
     }
 
-}
+} // namespace NYql
