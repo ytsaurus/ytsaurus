@@ -79,6 +79,7 @@ private:
     DB::SelectQueryInfo QueryInfo_;
     NLogging::TLogger Logger;
     std::vector<DB::QueryTreeNodePtr> TableExpressions_;
+    std::vector<DB::TableExpressionData*> TableExpressionDataPtrs_;
     int YtTableCount_ = 0;
     std::vector<DB::QueryTreeNodePtr*> TableExpressionPtrs_;
     std::vector<IStorageDistributorPtr> Storages_;
@@ -96,6 +97,7 @@ private:
     bool HasInOperator_ = false;
 
     bool Prepared_ = false;
+    bool QueryTreeProcessed_ = false;
 
     int KeyColumnCount_ = 0;
     bool JoinedByKeyColumns_ = false;
@@ -132,6 +134,8 @@ private:
     void AddBoundConditionToJoinedSubquery(
         NTableClient::TOwningKeyBound lowerBound,
         NTableClient::TOwningKeyBound upperBound);
+
+    void LazyProcessQueryTree();
 };
 
 ////////////////////////////////////////////////////////////////////////////////
