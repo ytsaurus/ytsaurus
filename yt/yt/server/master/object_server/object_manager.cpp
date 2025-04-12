@@ -173,6 +173,9 @@ static TError ValidatePrerequisiteRevisionPaths(
         if (!ex.Error().FindMatching(NYTree::EErrorCode::ResolveError)) {
             return ex.Error();
         }
+        YT_LOG_WARNING("Failed to resolve target path, error occured (Path: %v, Error: %v)",
+            originalTargetPath,
+            ex.Error());
     }
     for (const auto& additionalPath : originalAdditionalPaths) {
         auto additionalObjectId = objectManager->ResolvePathToObjectId(additionalPath, method, /*transaction*/ nullptr, /*options*/ {});
