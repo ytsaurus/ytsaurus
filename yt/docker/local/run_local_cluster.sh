@@ -276,7 +276,7 @@ if [ "${publish_ports}" == true ]; then
     ports=""
     max_port=$(($port_range_start + 100))
     for port in $(seq $port_range_start $max_port); do
-       ports+="-p $port:$port "
+        ports+="-p $port:$port "
     done
     yt_run_params="${yt_run_params} ${ports}"
 fi
@@ -313,19 +313,39 @@ if [ "$?" != "0" ]; then
 so you have to provide another port via --proxy-port option."
 fi
 
+# wait yt.backend rediness
+YT_BACKEND_LOGS=$(mktemp)
+docker logs -f yt.backend >$YT_BACKEND_LOGS &
+echo Wait until yt.backend is ready...
+for i in {60..1}; do
+    (
+        sleep 1
+        echo $i seconds...
+        grep "Local YT started" $YT_BACKEND_LOGS
+    ) >&2 && export ytBackendStarted=true && break
+done
+
+if [ "${ytBackendStarted}" = "true" ]; then
+    rm -f $YT_BACKEND_LOGS
+else
+    (
+        cat $YT_BACKEND_LOGS
+        rm -f $YT_BACKEND_LOGS
+        echo -e "\nError: yt.backend has not started in 60 seconds, see output of 'docker logs yt.backend' above\n"
+    ) >&2 && exit 1
+fi
 
 if [ "${run_prometheus}" == true ]; then
 
-    targets="['host.docker.internal:${port_range_start}'"
+    targets="['yt.backend:${port_range_start}'"
     min_port=$(($port_range_start + 1))
     max_port=$(($port_range_start + 100))
     for port in $(seq $min_port $max_port); do
-       targets+=", 'host.docker.internal:${port}'"
+        targets+=", 'yt.backend:${port}'"
     done
     targets+="]"
 
-
-    cat << EOF > prometheus.yml
+    cat <<EOF >prometheus.yml
 global:
  scrape_interval: 15s
 
