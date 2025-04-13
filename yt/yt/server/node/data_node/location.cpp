@@ -1565,7 +1565,10 @@ TLockedChunkGuard TChunkLocation::TryLockChunk(TChunkId chunkId)
     YT_ASSERT_THREAD_AFFINITY_ANY();
 
     auto guard = Guard(LockedChunksLock_);
+
     if (!LockedChunkIds_.insert(chunkId).second) {
+        YT_LOG_DEBUG("Chunk is already locked (ChunkId: %v)",
+            chunkId);
         return {};
     }
     YT_LOG_DEBUG("Chunk locked (ChunkId: %v)",

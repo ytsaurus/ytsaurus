@@ -30,17 +30,14 @@ TFuture<void> TJobGpuChecker::RunGpuCheck()
 {
     YT_ASSERT_THREAD_AFFINITY(JobThread);
 
-    int checkStartIndex = 0;
-
+    std::string tag;
     switch (Context_.GpuCheckType) {
         case EGpuCheckType::Preliminary:
-            checkStartIndex = Context_.CurrentStartIndex;
+            tag = "prelim";
             break;
         case EGpuCheckType::Extra:
-            checkStartIndex = Context_.CurrentStartIndex + 2;
+            tag = "extra";
             break;
-        default:
-            Y_UNREACHABLE();
     }
 
     RunCheck_.Fire();
@@ -53,13 +50,13 @@ TFuture<void> TJobGpuChecker::RunGpuCheck()
         testFileCommand->Args = {"-f", Context_.GpuCheckBinaryPath};
 
         auto testFileResultOrError = WaitFor(
-            Context_.Slot->RunSetupCommands(
+            Context_.Slot->RunPreparationCommands(
                 Context_.Job->GetId(),
                 {testFileCommand},
                 Context_.RootFS,
                 Context_.CommandUser,
                 /*devices*/ std::nullopt,
-                /*startIndex*/ checkStartIndex));
+                tag + "_test"));
 
         if (!testFileResultOrError.IsOK()) {
             auto error = TError(NExecNode::EErrorCode::GpuCheckCommandIncorrect, "Failed to verify GPU check binary")
@@ -87,13 +84,15 @@ TFuture<void> TJobGpuChecker::RunGpuCheck()
         return MakeFuture(TError("Testing extra GPU check command failed"));
     }
 
-    return Context_.Slot->RunSetupCommands(
+    // TODO(ignat): it is not a preparation command in case of extra GPU check.
+    // This place requires refactoring.
+    return Context_.Slot->RunPreparationCommands(
         Context_.Job->GetId(),
         {checkCommand},
         Context_.RootFS,
         Context_.CommandUser,
         Context_.GpuDevices,
-        /*startIndex*/ checkStartIndex + 1)
+        std::move(tag))
         // We want to destroy checker in job thread,
         // so we pass the only reference to it in callback calling in job thread.
         .ApplyUnique(BIND(&OnGpuCheckFinished, Passed(MakeStrong(this)))

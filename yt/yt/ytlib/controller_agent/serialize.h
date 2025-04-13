@@ -53,6 +53,7 @@ DEFINE_ENUM(ESnapshotVersion,
     ((AddAddressesToJob)                     (301713))
     ((NewOrderedChunkPoolSlicing)            (301714))
     ((DropSupportLocality)                   (301715))
+    ((PrepareGpuCheckFSDuration)             (301716))
 );
 
 ////////////////////////////////////////////////////////////////////////////////

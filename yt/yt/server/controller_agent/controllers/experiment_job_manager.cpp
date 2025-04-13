@@ -73,7 +73,7 @@ void TLayerJobExperiment::PatchUserJobSpec(
         joblet->JobId,
         BaseLayer_.Path);
 
-    for (auto& layerSpec : *jobSpec->mutable_layers()) {
+    for (auto& layerSpec : *jobSpec->mutable_root_volume_layers()) {
         if (layerSpec.data_source().path() == DefaultBaseLayerPath_) {
             BuildFileSpec(&layerSpec, BaseLayer_, layerSpec.copy_file(), EnableBypassArtifactCache_);
         }

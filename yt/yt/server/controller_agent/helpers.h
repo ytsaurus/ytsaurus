@@ -46,6 +46,7 @@ struct TUserFile
     NTableClient::TTableSchemaPtr Schema = New<NTableClient::TTableSchema>();
     bool Dynamic = false;
     bool Layer = false;
+    bool GpuCheck = false;
     std::optional<ELayerAccessMethod> AccessMethod;
     std::optional<ELayerFilesystem> Filesystem;
 

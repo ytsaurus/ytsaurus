@@ -520,6 +520,12 @@ void TOperationControllerBase::InitializeInputTransactions()
         for (const auto& path : layerPaths) {
             filesAndTables.push_back(path);
         }
+
+        if (Options_->GpuCheck->UseSeparateRootVolume && userJobSpec->EnableGpuCheck) {
+            for (const auto& path : Options_->GpuCheck->LayerPaths) {
+                filesAndTables.push_back(path);
+            }
+        }
     }
 
     auto clusterResolver = New<TClusterResolver>(InputClient);
@@ -768,8 +774,8 @@ TOperationControllerInitializeResult TOperationControllerBase::InitializeClean()
 
 bool TOperationControllerBase::HasUserJobFilesOrLayers() const
 {
-    for (const auto& userJobSpec : GetUserJobSpecs()) {
-        if (!userJobSpec->FilePaths.empty() || !GetLayerPaths(userJobSpec).empty()) {
+    for (const auto& [_, files] : UserJobFiles_) {
+        if (!files.empty()) {
             return true;
         }
     }
@@ -837,7 +843,7 @@ void TOperationControllerBase::InitializeStructures()
             files.push_back(TUserFile(
                 path,
                 InputTransactions->GetTransactionIdForObject(path),
-                false));
+                /*layer*/ false));
         }
 
         // Add layer files.
@@ -846,7 +852,19 @@ void TOperationControllerBase::InitializeStructures()
             files.push_back(TUserFile(
                 path,
                 InputTransactions->GetTransactionIdForObject(path),
-                true));
+                /*layer*/ true));
+        }
+
+        // Add gpu check layers.
+        if (Options_->GpuCheck->UseSeparateRootVolume && userJobSpec->EnableGpuCheck) {
+            for (const auto& path : Options_->GpuCheck->LayerPaths) {
+                auto file = TUserFile(
+                    path,
+                    InputTransactions->GetTransactionIdForObject(path),
+                    /*layer*/ true);
+                file.GpuCheck = true;
+                files.push_back(std::move(file));
+            }
         }
     }
 
@@ -10006,7 +10024,7 @@ void TOperationControllerBase::InitUserJobSpecTemplate(
     const std::vector<TUserFile>& files,
     const TString& debugArtifactsAccount)
 {
-    const auto& userJobOptions = Options_->UserJobOptions;
+    const auto& userJobOptions = Options_->UserJob;
 
     jobSpec->set_shell_command(jobSpecConfig->Command);
     if (jobSpecConfig->JobTimeLimit) {
@@ -10108,15 +10126,23 @@ void TOperationControllerBase::InitUserJobSpecTemplate(
         jobSpec->set_cuda_toolkit_version(*jobSpecConfig->CudaToolkitVersion);
     }
 
-    if (Config->GpuCheckLayerDirectoryPath &&
-        jobSpecConfig->GpuCheckBinaryPath &&
-        jobSpecConfig->GpuCheckLayerName &&
-        jobSpecConfig->EnableGpuLayers)
-    {
-        jobSpec->set_gpu_check_binary_path(*jobSpecConfig->GpuCheckBinaryPath);
-        if (auto gpuCheckBinaryArgs = jobSpecConfig->GpuCheckBinaryArgs) {
-            for (const auto& argument : *gpuCheckBinaryArgs) {
-                ToProto(jobSpec->add_gpu_check_binary_args(), argument);
+    if (const auto& options = Options_->GpuCheck; options->UseSeparateRootVolume) {
+        if (jobSpecConfig->EnableGpuCheck) {
+            jobSpec->set_gpu_check_binary_path(options->BinaryPath);
+            ToProto(jobSpec->mutable_gpu_check_binary_args(), options->BinaryArgs);
+        }
+    } else {
+        // COMPAT(ignat)
+        if (Config->GpuCheckLayerDirectoryPath &&
+            jobSpecConfig->GpuCheckBinaryPath &&
+            jobSpecConfig->GpuCheckLayerName &&
+            jobSpecConfig->EnableGpuLayers)
+        {
+            jobSpec->set_gpu_check_binary_path(*jobSpecConfig->GpuCheckBinaryPath);
+            if (auto gpuCheckBinaryArgs = jobSpecConfig->GpuCheckBinaryArgs) {
+                for (const auto& argument : *gpuCheckBinaryArgs) {
+                    ToProto(jobSpec->add_gpu_check_binary_args(), argument);
+                }
             }
         }
     }
@@ -11326,7 +11352,9 @@ std::vector<TRichYPath> TOperationControllerBase::GetLayerPaths(
         auto path = *Config->CudaToolkitLayerDirectoryPath + "/" + *userJobSpec->CudaToolkitVersion;
         layerPaths.insert(layerPaths.begin(), path);
     }
-    if (Config->GpuCheckLayerDirectoryPath &&
+    // COMPAT(ignat)
+    if (!Options_->GpuCheck->UseSeparateRootVolume &&
+        Config->GpuCheckLayerDirectoryPath &&
         userJobSpec->GpuCheckLayerName &&
         userJobSpec->GpuCheckBinaryPath &&
         !layerPaths.empty() &&

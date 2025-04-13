@@ -50,7 +50,7 @@ struct IJobEnvironment
 
     virtual i64 GetMajorPageFaultCount() const = 0;
 
-    virtual TFuture<std::vector<TShellCommandOutput>> RunSetupCommands(
+    virtual TFuture<std::vector<TShellCommandOutput>> RunCommands(
         int slotIndex,
         ESlotType slotType,
         TJobId jobId,
@@ -58,7 +58,7 @@ struct IJobEnvironment
         const NContainers::TRootFS& rootFS,
         const std::string& user,
         const std::optional<std::vector<NContainers::TDevice>>& devices,
-        int startIndex) = 0;
+        std::string tag) = 0;
 
     virtual TJobWorkspaceBuilderPtr CreateJobWorkspaceBuilder(
         IInvokerPtr invoker,
