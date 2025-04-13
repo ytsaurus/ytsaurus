@@ -513,4 +513,14 @@ SELECT
         }
     }
 
+    Y_UNIT_TEST_ON_EACH_LEXER(Utf8BOM) {
+        auto lexer = MakeLexer(Lexers, ANSI, ANTLR4, FLAVOR);
+        if (ANTLR4 || FLAVOR == ELexerFlavor::Regex) {
+            UNIT_ASSERT_TOKENIZED(lexer, "\xEF\xBB\xBF 1", "WS( ) DIGITS(1) EOF");
+            UNIT_ASSERT_TOKENIZED(lexer, "\xEF\xBB\xBF \xEF\xBB\xBF", "[INVALID] WS( ) EOF");
+        } else {
+            UNIT_ASSERT_TOKENIZED(lexer, "\xEF\xBB\xBF 1", "[INVALID] WS( ) DIGITS(1) EOF");
+        }
+    }
+
 } // Y_UNIT_TEST_SUITE(SQLv1Lexer)
