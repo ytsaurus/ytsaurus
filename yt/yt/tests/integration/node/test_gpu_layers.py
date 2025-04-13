@@ -4,7 +4,7 @@ from yt_commands import (
     authors, wait, create, ls, get, set, exists,
     start_transaction, commit_transaction,
     write_file, read_table, write_table,
-    map, vanilla, update_nodes_dynamic_config,
+    map, vanilla, update_nodes_dynamic_config, update_controller_agent_config,
     sync_create_cells, get_job, create_pool,
     run_test_vanilla, list_jobs,
     with_breakpoint, wait_breakpoint, release_breakpoint,
@@ -972,7 +972,7 @@ class TestRootFS(YTEnvSetup):
 
 
 class GpuCheckBase(object):
-    def setup_gpu_layer_and_reset_nodes(self):
+    def setup_gpu_layer_and_reset_nodes(self, prepare_gpu_base_layer=False):
         create("map_node", "//tmp/gpu_check")
 
         create("file", "//tmp/gpu_check/0", attributes={"replication_factor": 1})
@@ -991,6 +991,24 @@ class GpuCheckBase(object):
             file_writer={"upload_replication_factor": 1},
         )
 
+        if prepare_gpu_base_layer:
+            # Using same layer for root volume and GPU check volume could causes job aborts.
+            #
+            # Explanation: using same layer for these two volume could cause job abort with error
+            # 'Cannot find a suitable location for artifact chunk' while GPU check volume preparation.
+            # The root cause of this abort is following: exec node cannot download chunk in cache if the chunk is in removing state in cache.
+            # And we face this situation in case when the node tries to download chunk the second time for prepare the same layer second time.
+            #
+            # Note that layer cache can help to avoid this problem, but it is disabled because of another issue, see detailed in
+            # `yt/python/yt/environment/default_config.py`.
+            create("file", "//tmp/gpu_base_layer", attributes={"replication_factor": 1})
+            file_name = "rootfs/rootfs.tar.gz"
+            write_file(
+                "//tmp/gpu_base_layer",
+                open(file_name, "rb").read(),
+                file_writer={"upload_replication_factor": 1},
+            )
+
         # Reload node to reset alerts.
         with Restarter(self.Env, NODES_SERVICE):
             pass
@@ -1007,6 +1025,13 @@ class GpuCheckBase(object):
             "table",
             "//tmp/t_out",
             attributes={"replication_factor": 1},
+        )
+
+    def init_operations_archive(self):
+        sync_create_cells(1)
+        init_operations_archive.create_tables_latest_version(
+            self.Env.create_native_client(),
+            override_tablet_cell_bundle="default",
         )
 
 
@@ -1079,6 +1104,8 @@ class TestGpuCheck(YTEnvSetup, GpuCheckBase):
 
         self.setup_tables()
 
+        update_controller_agent_config("map_operation_options/gpu_check/use_separate_root_volume", False)
+
         write_table("//tmp/t_in", [{"k": 0}])
         op = map(
             in_="//tmp/t_in",
@@ -1104,16 +1131,107 @@ class TestGpuCheck(YTEnvSetup, GpuCheckBase):
         assert res == b"AAA\n"
 
     @pytest.mark.timeout(180)
+    def test_gpu_check_with_separate_volume(self):
+        self.setup_gpu_layer_and_reset_nodes(prepare_gpu_base_layer=True)
+        self.setup_tables()
+        self.init_operations_archive()
+
+        # TODO(ignat): it doesn't work since default values in subconfigs has higher priority than patch in operation_options.
+        # update_controller_agent_config(
+        #     "operation_options/gpu_check",
+        #     {
+        #         "use_separate_root_volume": True,
+        #         "layer_paths": ["//tmp/gpu_check/0", "//tmp/gpu_base_layer"],
+        #         "binary_path": "/gpu_check/gpu_check_success",
+        #     }
+        # )
+        update_controller_agent_config(
+            "map_operation_options/gpu_check",
+            {
+                "use_separate_root_volume": True,
+                "layer_paths": ["//tmp/gpu_check/0", "//tmp/gpu_base_layer"],
+                "binary_path": "/gpu_check/gpu_check_success",
+                "binary_args": [],
+            }
+        )
+
+        write_table("//tmp/t_in", [{"k": 0}])
+        op = map(
+            in_="//tmp/t_in",
+            out="//tmp/t_out",
+            command="echo AAA >&2",
+            spec={
+                "max_failed_job_count": 1,
+                "mapper": {
+                    "job_count": 1,
+                    "layer_paths": ["//tmp/base_layer"],
+                    "enable_gpu_layers": True,
+                    "enable_gpu_check": True,
+                },
+            },
+        )
+
+        job_ids = op.list_jobs()
+        # XXX: some job can be aborted with error "Cannot find a suitable location for artifact chunk"
+        # Looks like a problem with putting chunks in cache
+        assert len(job_ids) == 1
+        job_id = job_ids[0]
+
+        res = op.read_stderr(job_id)
+        assert res == b"AAA\n"
+
+        events = get_job(op.id, job_id)["events"]
+        phases = [event["phase"] for event in events if "phase" in event]
+        assert "running_gpu_check_command" in phases
+
+    @pytest.mark.timeout(180)
+    def test_gpu_check_success_with_failed_job_with_separate_volume(self):
+        self.setup_gpu_layer_and_reset_nodes(prepare_gpu_base_layer=True)
+        self.setup_tables()
+        self.init_operations_archive()
+
+        update_controller_agent_config(
+            "map_operation_options/gpu_check",
+            {
+                "use_separate_root_volume": True,
+                "layer_paths": ["//tmp/gpu_check/0", "//tmp/gpu_base_layer"],
+                "binary_path": "/gpu_check/gpu_check_success",
+                "binary_args": [],
+            }
+        )
+
+        write_table("//tmp/t_in", [{"k": 0}])
+        op = map(
+            in_="//tmp/t_in",
+            out="//tmp/t_out",
+            command="echo AAA >&2; exit 1",
+            spec={
+                "max_failed_job_count": 1,
+                "mapper": {
+                    "job_count": 1,
+                    "layer_paths": ["//tmp/base_layer"],
+                    "enable_gpu_layers": True,
+                    "enable_gpu_check": True,
+                },
+            },
+            track=False,
+        )
+
+        wait(lambda: op.get_state() == "failed", timeout=INCREASED_TIMEOUT)
+
+        job_ids = op.list_jobs()
+        assert len(job_ids) == 1
+        job_id = job_ids[0]
+
+        events = get_job(op.id, job_id)["events"]
+        phases = [event["phase"] for event in events if "phase" in event]
+        assert "running_extra_gpu_check_command" in phases
+
+    @pytest.mark.timeout(180)
     def test_gpu_check_success_with_failed_job(self):
         self.setup_gpu_layer_and_reset_nodes()
-
         self.setup_tables()
-
-        sync_create_cells(1)
-        init_operations_archive.create_tables_latest_version(
-            self.Env.create_native_client(),
-            override_tablet_cell_bundle="default",
-        )
+        self.init_operations_archive()
 
         write_table("//tmp/t_in", [{"k": 0}])
         op = map(

@@ -329,6 +329,21 @@ void TUserJobOptions::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TGpuCheckOptions::Register(TRegistrar registrar)
+{
+    registrar.Parameter("use_separate_root_volume", &TThis::UseSeparateRootVolume)
+        // COMPAT(ignat): change default to true and then delete this option.
+        .Default(false);
+    registrar.Parameter("layer_paths", &TThis::LayerPaths)
+        .Default();
+    registrar.Parameter("binary_path", &TThis::BinaryPath)
+        .Default();
+    registrar.Parameter("binary_args", &TThis::BinaryArgs)
+        .Default();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TOperationOptions::Register(TRegistrar registrar)
 {
     registrar.Parameter("spec_template", &TThis::SpecTemplate)
@@ -407,7 +422,12 @@ void TOperationOptions::Register(TRegistrar registrar)
     registrar.Parameter("custom_statistics_count_limit", &TThis::CustomStatisticsCountLimit)
         .Default(1024);
 
-    registrar.Parameter("user_job_options", &TThis::UserJobOptions)
+    registrar.Parameter("user_job", &TThis::UserJob)
+        // COMPAT
+        .Alias("user_job_options")
+        .DefaultNew();
+
+    registrar.Parameter("gpu_check", &TThis::GpuCheck)
         .DefaultNew();
 
     registrar.Postprocessor([&] (TOperationOptions* options) {
@@ -1093,6 +1113,7 @@ void TControllerAgentConfig::Register(TRegistrar registrar)
     registrar.Parameter("cuda_toolkit_layer_directory_path", &TThis::CudaToolkitLayerDirectoryPath)
         .Default();
 
+    // COMPAT(ignat)
     registrar.Parameter("gpu_check_layer_directory_path", &TThis::GpuCheckLayerDirectoryPath)
         .Default();
 

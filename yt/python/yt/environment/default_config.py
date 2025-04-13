@@ -457,6 +457,15 @@ def get_controller_agent_config():
 
 
 def get_node_config():
+    """
+    Note about disable layers cache (/data_node/volume_manager/enable_layers_cache = %false).
+
+    It is disabled by the issues of tests stability in Porto environment.
+    The layer unpacking is performed by Porto in dedicated cgroup. The layer cache (as well as all
+    test artifacts) is allocated on tmpfs. In such circumstances the unpacked layer
+    is accounted to this dedicated cgroup, it causes starvation in this cgroup and layer unpacking
+    is getting stuck.
+    """
     return yson.loads(b"""
 {
     orchid_cache_update_period = 0;

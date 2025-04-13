@@ -861,7 +861,6 @@ private:
         TAsyncSlruCacheBase::OnRemoved(chunk);
     }
 
-
     std::tuple<TCacheLocationPtr, TLockedChunkGuard> AcquireNewChunkLocation(TChunkId chunkId) const
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
@@ -947,7 +946,6 @@ private:
         return true;
     }
 
-
     TClientChunkReadOptions MakeClientChunkReadOptions(
         TArtifactDownloadOptions artifactDownloadOptions,
         bool bypassArtifactCache)
@@ -965,7 +963,6 @@ private:
             .ReadSessionId = TReadSessionId::Create()
         };
     }
-
 
     void DownloadChunk(
         const TArtifactKey& key,

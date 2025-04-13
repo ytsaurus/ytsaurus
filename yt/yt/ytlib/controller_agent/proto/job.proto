@@ -70,6 +70,7 @@ message TTimeStatistics
     optional int64 artifacts_download_duration = 3;
     optional int64 prepare_root_fs_duration = 4;
     optional int64 gpu_check_duration = 5;
+    optional int64 prepare_gpu_check_fs_duration = 7;
 }
 
 // Describes the current job status.
@@ -162,7 +163,8 @@ message TUserJobSpec
 {
     // Additional files (tables) to be placed into the sandbox.
     repeated TFileDescriptor files = 1;
-    repeated TFileDescriptor layers = 34;
+    repeated TFileDescriptor root_volume_layers = 34;
+    repeated TFileDescriptor gpu_check_volume_layers = 78;
 
     // The external docker image specified for operation,
     // images from internal registry are resolved into layers.
