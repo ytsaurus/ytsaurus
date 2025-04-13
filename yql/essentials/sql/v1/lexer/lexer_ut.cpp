@@ -494,4 +494,22 @@ SELECT
         UNIT_ASSERT_TOKENIZED(lexer, "\r", "WS(\r) EOF");    // Carriage Return
     }
 
+    Y_UNIT_TEST_ON_EACH_LEXER(AsciiEscapeCanon) {
+        static THashMap<char, TString> canon;
+
+        auto lexer = MakeLexer(Lexers, ANSI, ANTLR4, FLAVOR);
+
+        for (char c = 0; c < std::numeric_limits<char>::max(); ++c) {
+            TString input;
+            input += c;
+
+            TString& expected = canon[c];
+            if (expected.empty()) {
+                expected = Tokenized(lexer, input);
+            }
+
+            UNIT_ASSERT_TOKENIZED(lexer, input, expected);
+        }
+    }
+
 } // Y_UNIT_TEST_SUITE(SQLv1Lexer)
