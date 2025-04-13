@@ -484,4 +484,14 @@ SELECT
             "SEMICOLON(;) EOF");
     }
 
+    Y_UNIT_TEST_ON_EACH_LEXER(AsciiEscape) {
+        auto lexer = MakeLexer(Lexers, ANSI, ANTLR4, FLAVOR);
+        UNIT_ASSERT_TOKENIZED(lexer, "\0", "EOF");           // Null character
+        UNIT_ASSERT_TOKENIZED(lexer, "\t", "WS(\t) EOF");    // Horizontal Tab
+        UNIT_ASSERT_TOKENIZED(lexer, "\n", "WS(\n) EOF");    // Line Feed
+        UNIT_ASSERT_TOKENIZED(lexer, "\v", "[INVALID] EOF"); // Vertical Tabulation
+        UNIT_ASSERT_TOKENIZED(lexer, "\f", "WS(\x0C) EOF");  // Form Feed
+        UNIT_ASSERT_TOKENIZED(lexer, "\r", "WS(\r) EOF");    // Carriage Return
+    }
+
 } // Y_UNIT_TEST_SUITE(SQLv1Lexer)
