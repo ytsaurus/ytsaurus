@@ -492,6 +492,7 @@ SELECT
         UNIT_ASSERT_TOKENIZED(lexer, "\v", "[INVALID] EOF"); // Vertical Tabulation
         UNIT_ASSERT_TOKENIZED(lexer, "\f", "WS(\x0C) EOF");  // Form Feed
         UNIT_ASSERT_TOKENIZED(lexer, "\r", "WS(\r) EOF");    // Carriage Return
+        UNIT_ASSERT_TOKENIZED(lexer, "\r\n", "WS(\r) WS(\n) EOF");
     }
 
     Y_UNIT_TEST_ON_EACH_LEXER(AsciiEscapeCanon) {
