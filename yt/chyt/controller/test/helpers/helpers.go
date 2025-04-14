@@ -217,6 +217,7 @@ func CreateAgent(env *Env, stage string) *agent.Agent {
 
 	agent := agent.NewAgent(
 		"test",
+		"fake-token",
 		env.YT,
 		l,
 		sleep.NewController(l.WithName("strawberry"),

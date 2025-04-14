@@ -20,13 +20,26 @@ func (c Controller) artifactDir(alias string) ypath.Path {
 	return c.root.Child(alias).Child("artifacts")
 }
 
-func (c *Controller) uploadConfig(ctx context.Context, alias string, filename string, config jupytServerConfig) (richPath ypath.Rich, err error) {
+func (c *Controller) uploadConfig(
+	ctx context.Context, alias string, filename string, config jupytServerConfig, creator string,
+) (richPath ypath.Rich, err error) {
 	configJSON, err := json.MarshalIndent(config, "", "    ")
 	if err != nil {
 		return
 	}
 	path := c.artifactDir(alias).Child(filename)
 	_, err = c.ytc.CreateNode(ctx, path, yt.NodeFile, &yt.CreateNodeOptions{IgnoreExisting: true})
+	if err != nil {
+		return
+	}
+	err = c.ytc.SetNode(
+		ctx, path.Child("@acl"),
+		[]yt.ACE{{
+			Action:      yt.ActionAllow,
+			Subjects:    []string{creator},
+			Permissions: []yt.Permission{yt.PermissionRead}},
+		}, nil,
+	)
 	if err != nil {
 		return
 	}
