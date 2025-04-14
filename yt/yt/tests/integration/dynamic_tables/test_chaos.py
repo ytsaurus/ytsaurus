@@ -751,7 +751,17 @@ class TestChaos(ChaosTestBase):
         self._sync_alter_replica(card_id, replicas, replica_ids, 1, mode="sync")
 
         values = [{"key": 1, "value": "1"}]
-        insert_rows("//tmp/t", values)
+
+        def _try_insert_rows():
+            try:
+                insert_rows("//tmp/t", values)
+                return True
+            except YtError as e:
+                if e.contains_code(yt_error_codes.ChaosCoordinatorsAreNotAvailable):
+                    return False
+                raise e
+
+        wait(_try_insert_rows)
         assert lookup_rows("//tmp/t", [{"key": 1}]) == values
 
     @authors("savrus")
@@ -771,7 +781,17 @@ class TestChaos(ChaosTestBase):
         self._sync_alter_replica(card_id, replicas, replica_ids, 1, enabled=True)
 
         values = [{"key": 1, "value": "1"}]
-        insert_rows("//tmp/t", values)
+
+        def _try_insert_rows():
+            try:
+                insert_rows("//tmp/t", values)
+                return True
+            except YtError as e:
+                if e.contains_code(yt_error_codes.ChaosCoordinatorsAreNotAvailable):
+                    return False
+                raise e
+
+        wait(_try_insert_rows)
         assert lookup_rows("//tmp/t", [{"key": 1}]) == values
 
     @authors("savrus")
