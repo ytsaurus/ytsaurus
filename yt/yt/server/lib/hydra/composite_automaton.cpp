@@ -238,6 +238,11 @@ void TCompositeAutomaton::SetSerializationDumpMode(ESerializationDumpMode mode)
     SerializationDumpMode_ = mode;
 }
 
+void TCompositeAutomaton::SetSerializationDumpScopeFilter(TSerializationDumpScopeFilter filter)
+{
+    SerializationDumpScopeFilter_ = std::move(filter);
+}
+
 void TCompositeAutomaton::RegisterPart(TCompositeAutomatonPartPtr part)
 {
     YT_VERIFY(part);
@@ -259,7 +264,7 @@ void TCompositeAutomaton::RegisterPart(TCompositeAutomatonPartPtr part)
 
 void TCompositeAutomaton::SetupLoadContext(TLoadContext* context)
 {
-    context->Dumper().SetMode(SerializationDumpMode_);
+    context->ConfigureDump(SerializationDumpMode_, SerializationDumpScopeFilter_);
 }
 
 void TCompositeAutomaton::RegisterMethod(
