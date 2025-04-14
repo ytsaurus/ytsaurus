@@ -188,9 +188,9 @@ private: \
     IMPLEMENT_SAFE_METHOD(
         public,
         void,
-        OnIntermediateChunkLocated,
-        (NChunkClient::TChunkId chunkId, const NChunkClient::TChunkReplicaWithMediumList& replicas, bool missing),
-        (chunkId, replicas, missing),
+        OnIntermediateChunkBatchLocated,
+        (const std::vector<NChunkClient::TScrapedChunkInfo>& chunkBatch),
+        (chunkBatch),
         false)
 
     //! Called by `TSnapshotBuilder` when snapshot is built.

@@ -3,6 +3,7 @@
 #include "private.h"
 #include "task_host.h"
 
+#include <yt/yt/ytlib/chunk_client/chunk_scraper.h>
 #include <yt/yt/ytlib/scheduler/config.h>
 
 #include <yt/yt/ytlib/chunk_pools/chunk_pool.h>
@@ -264,7 +265,6 @@ private:
     };
 
     THashMap<NChunkClient::TChunkId, TInputChunkDescriptor> InputChunkMap_;
-    int ChunkLocatedCallCount_ = 0;
 
     bool InputHasOrderedDynamicStores_ = false;
     bool InputHasStaticTableWithHunks_ = false;
@@ -275,11 +275,9 @@ private:
 
     void RegisterInputChunk(const NChunkClient::TInputChunkPtr& inputChunk);
 
-    //! Callback called by TChunkScraper when information on some chunk is fetched.
-    void OnInputChunkLocated(
-        NChunkClient::TChunkId chunkId,
-        const NChunkClient::TChunkReplicaWithMediumList& replicas,
-        bool missing);
+    //! Callback called by TChunkScraper when information on some chunk batch is fetched.
+    void OnInputChunkBatchLocated(
+        const std::vector<NChunkClient::TScrapedChunkInfo>& chunkBatch);
     void OnInputChunkUnavailable(
         NChunkClient::TChunkId chunkId,
         TInputChunkDescriptor* descriptor);

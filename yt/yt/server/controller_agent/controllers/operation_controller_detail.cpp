@@ -1860,7 +1860,7 @@ void TOperationControllerBase::InitIntermediateChunkScraper()
                 return THashSet<TChunkId>();
             }
         }),
-        BIND_NO_PROPAGATE(&TThis::OnIntermediateChunkLocated, MakeWeak(this))
+        BIND_NO_PROPAGATE(&TThis::OnIntermediateChunkBatchLocated, MakeWeak(this))
             .Via(GetCancelableInvoker()),
         Logger);
 }
@@ -4106,23 +4106,23 @@ void TOperationControllerBase::OnChunkFailed(TChunkId chunkId, TJobId jobId)
     }
 }
 
-void TOperationControllerBase::SafeOnIntermediateChunkLocated(
-    TChunkId chunkId,
-    const TChunkReplicaWithMediumList& replicas,
-    bool missing)
+void TOperationControllerBase::SafeOnIntermediateChunkBatchLocated(
+    const std::vector<TScrapedChunkInfo>& chunkBatch)
 {
     YT_ASSERT_INVOKER_AFFINITY(GetCancelableInvoker());
 
-    if (missing) {
-        // We can unstage intermediate chunks (e.g. in automerge) - just skip them.
-        return;
-    }
+    for (const auto& chunkInfo : chunkBatch) {
+        if (chunkInfo.Missing) {
+            // We can unstage intermediate chunks (e.g. in automerge) - just skip them.
+            return;
+        }
 
-    // Intermediate chunks are always replicated.
-    if (IsUnavailable(replicas, NErasure::ECodec::None, GetChunkAvailabilityPolicy())) {
-        OnIntermediateChunkUnavailable(chunkId);
-    } else {
-        OnIntermediateChunkAvailable(chunkId, replicas);
+        // Intermediate chunks are always replicated.
+        if (IsUnavailable(chunkInfo.Replicas, NErasure::ECodec::None, GetChunkAvailabilityPolicy())) {
+            OnIntermediateChunkUnavailable(chunkInfo.ChunkId);
+        } else {
+            OnIntermediateChunkAvailable(chunkInfo.ChunkId, chunkInfo.Replicas);
+        }
     }
 }
 
