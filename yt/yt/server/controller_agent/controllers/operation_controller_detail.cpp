@@ -1925,7 +1925,7 @@ bool TOperationControllerBase::TryInitAutoMerge(int outputChunkCountEstimate)
 
     const i64 desiredChunkSize = autoMergeSpec->JobIO->TableWriter->DesiredChunkSize;
     const i64 maxChunkDataWeight = std::max<i64>(std::min(autoMergeSpec->JobIO->TableWriter->DesiredChunkWeight / 2, Spec_->MaxDataWeightPerJob / 2), 1);
-    const i64 desiredChunkDataWeight = std::clamp<i64>(desiredChunkSize / InputCompressionRatio, 1, maxChunkDataWeight);
+    const i64 desiredChunkDataWeight = std::clamp<i64>(SignedSaturationConversion(desiredChunkSize / InputCompressionRatio), 1, maxChunkDataWeight);
     const i64 dataWeightPerJob = desiredChunkDataWeight;
 
     // NB: If row count limit is set on any output table, we do not
