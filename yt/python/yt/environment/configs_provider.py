@@ -1720,6 +1720,7 @@ def _build_cluster_connection_config(yt_config,
             "is_client_mode_active" : True,
         },
         "upload_transaction_timeout": 5000,
+        "read_operations_archive_state_from": "follower",
     }
 
     if len(cypress_proxy_rpc_ports) > 0:
