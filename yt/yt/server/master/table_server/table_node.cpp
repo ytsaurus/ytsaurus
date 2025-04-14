@@ -751,8 +751,9 @@ void TTableNode::ValidateReshard(
             }
 
             // Validate pivot keys against table schema.
+            auto heavySchema = GetSchema()->AsHeavyTableSchema();
             for (const auto& pivotKey : pivotKeys) {
-                ValidatePivotKey(pivotKey, GetSchema()->AsTableSchema());
+                ValidatePivotKey(pivotKey, *heavySchema);
             }
         }
 

@@ -1066,7 +1066,7 @@ public:
             GetDynamicConfig());
         ValidateTableMountConfig(table, tableSettings.EffectiveMountConfig, GetDynamicConfig());
 
-        const auto& schema = table->GetSchema()->AsTableSchema();
+        auto schema = table->GetSchema()->AsHeavyTableSchema();
 
         if (table->GetReplicationCardId() && !table->IsSorted()) {
             if (table->GetCommitOrdering() != ECommitOrdering::Strong) {
@@ -1074,13 +1074,13 @@ public:
                     ECommitOrdering::Strong);
             }
 
-            if (!schema.FindColumn(TimestampColumnName)) {
+            if (!schema->FindColumn(TimestampColumnName)) {
                 THROW_ERROR_EXCEPTION("Ordered dynamic table bound for chaos replication should have %Qlv column",
                     TimestampColumnName);
             }
         }
 
-        for (const auto& column : schema.Columns()) {
+        for (const auto& column : schema->Columns()) {
             if (column.GetWireType() == EValueType::Null) {
                 THROW_ERROR_EXCEPTION("Cannot mount table since it has column %Qv with value type %Qlv",
                     column.Name(),

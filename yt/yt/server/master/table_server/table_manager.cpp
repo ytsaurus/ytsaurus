@@ -728,8 +728,8 @@ public:
         }
 
         const auto& dynamicConfig = Bootstrap_->GetConfigManager()->GetConfig();
-        const auto& deserializedEffectiveTableSchema = effectiveTableSchema->AsHeavyTableSchema();
-        ValidateTableSchemaUpdateInternal(TTableSchema(), deserializedEffectiveTableSchema, GetSchemaUpdateEnabledFeatures(dynamicConfig), dynamic, true);
+        auto deserializedEffectiveTableSchema = effectiveTableSchema->AsHeavyTableSchema();
+        ValidateTableSchemaUpdateInternal(TTableSchema(), *deserializedEffectiveTableSchema, GetSchemaUpdateEnabledFeatures(dynamicConfig), dynamic, true);
 
         if (!dynamicConfig->EnableDescendingSortOrder || (dynamic && !dynamicConfig->EnableDescendingSortOrderDynamic)) {
             ValidateNoDescendingSortOrder(effectiveTableSchema->GetSortOrders(), effectiveTableSchema->GetKeyColumns());
@@ -737,7 +737,7 @@ public:
 
         if (!dynamicConfig->EnableTableColumnRenaming ||
             dynamic && !dynamicConfig->EnableDynamicTableColumnRenaming) {
-            ValidateNoRenamedColumns(deserializedEffectiveTableSchema);
+            ValidateNoRenamedColumns(*deserializedEffectiveTableSchema);
         }
 
         if (type == EObjectType::ReplicationLogTable && !effectiveTableSchema->IsSorted()) {
@@ -835,12 +835,13 @@ public:
 
             table->ValidateAllTabletsUnmounted("Cannot create index on a mounted table");
 
-            const auto& indexTableSchema = indexTable->GetSchema()->AsTableSchema();
+            auto indexTableSchema = indexTable->GetSchema()->AsHeavyTableSchema();
+            auto tableSchema = table->GetSchema()->AsHeavyTableSchema();
 
             ValidateIndexSchema(
                 kind,
-                table->GetSchema()->AsTableSchema(),
-                indexTableSchema,
+                *tableSchema,
+                *indexTableSchema,
                 predicate,
                 evaluatedColumnsSchema,
                 unfoldedColumnName);
@@ -1960,13 +1961,15 @@ private:
         if (NeedToFindUnfoldedColumnName_) {
             for (const auto& [id, secondaryIndex] : SecondaryIndexMap_) {
                 if (secondaryIndex->GetKind() == ESecondaryIndexKind::Unfolding) {
+                    auto secondaryIndexSchema = GetTableNodeOrThrow(secondaryIndex->GetTableId())
+                        ->GetSchema()
+                        ->AsHeavyTableSchema();
+                    auto secondaryIndexTableSchema = GetTableNodeOrThrow(secondaryIndex->GetIndexTableId())
+                        ->GetSchema()
+                        ->AsHeavyTableSchema();
                     const auto& indexUnfoldedColumn = FindUnfoldingColumnAndValidate(
-                        GetTableNodeOrThrow(secondaryIndex->GetTableId())
-                            ->GetSchema()
-                            ->AsTableSchema(),
-                        GetTableNodeOrThrow(secondaryIndex->GetIndexTableId())
-                            ->GetSchema()
-                            ->AsTableSchema(),
+                        *secondaryIndexSchema,
+                        *secondaryIndexTableSchema,
                         secondaryIndex->Predicate(),
                         secondaryIndex->EvaluatedColumnsSchema());
 
