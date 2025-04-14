@@ -46,6 +46,8 @@ struct TChunkContext final
     IJournalDispatcherPtr JournalDispatcher;
     IBlobReaderCachePtr BlobReaderCache;
 
+    NClusterNode::TClusterNodeDynamicConfigManagerPtr DynamicConfigManager;
+
     static TChunkContextPtr Create(NClusterNode::IBootstrapBase* bootstrap);
 };
 
