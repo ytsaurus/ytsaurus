@@ -2713,28 +2713,28 @@ class TestCypress(YTEnvSetup):
     @authors("ignat")
     @not_implemented_in_sequoia
     def test_prerequisite_revisions(self):
-        create("map_node", "//tmp/test_node")
-        revision = get("//tmp/test_node/@revision")
+        set("//tmp/test_node/inner_node", "value", recursive=True)
+        revision = get("//tmp/test_node/inner_node/@revision")
 
-        with pytest.raises(YtError):
-            create(
-                "map_node",
+        with raises_yt_error("Prerequisite check failed"):
+            set(
                 "//tmp/test_node/inner_node",
+                "another value",
                 prerequisite_revisions=[
                     {
-                        "path": "//tmp/test_node",
+                        "path": "//tmp/test_node/inner_node",
                         "transaction_id": "0-0-0-0",
                         "revision": revision + 1,
                     }
                 ],
             )
 
-        create(
-            "map_node",
+        set(
             "//tmp/test_node/inner_node",
+            "another value",
             prerequisite_revisions=[
                 {
-                    "path": "//tmp/test_node",
+                    "path": "//tmp/test_node/inner_node",
                     "transaction_id": "0-0-0-0",
                     "revision": revision,
                 }
@@ -2764,9 +2764,9 @@ class TestCypress(YTEnvSetup):
 
         for prerequitise_path in forbidden_paths:
             with raises_yt_error("Requests with prerequisite paths different from target paths are prohibited in Cypress"):
-                create(
-                    "map_node",
+                set(
                     "//tmp/test_node",
+                    "test",
                     prerequisite_revisions=[
                         {
                             "path": prerequitise_path,
