@@ -6,17 +6,7 @@ namespace NYT::NControllerAgent::NControllers {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IOperationControllerPtr CreateOrderedMergeController(
-    TControllerAgentConfigPtr config,
-    IOperationControllerHostPtr host,
-    TOperation* operation);
-
-IOperationControllerPtr CreateOrderedMapController(
-    TControllerAgentConfigPtr config,
-    IOperationControllerHostPtr host,
-    TOperation* operation);
-
-IOperationControllerPtr CreateEraseController(
+IOperationControllerPtr CreateRemoteCopyController(
     TControllerAgentConfigPtr config,
     IOperationControllerHostPtr host,
     TOperation* operation);

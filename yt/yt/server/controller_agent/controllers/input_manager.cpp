@@ -537,7 +537,7 @@ TFetchInputTablesStatistics TInputManager::FetchInputTables()
         fetchChunkSpecFutures.push_back(fetcher->Fetch());
     }
 
-    auto hasHunkColumns = [&] () {
+    auto hasHunkColumns = [&] {
         return std::find_if(InputTables_.begin(), InputTables_.end(), [] (const auto& table) {
             return table->Schema->HasHunkColumns();
         }) != InputTables_.end();
@@ -831,7 +831,7 @@ void TInputManager::FetchInputTablesAttributes()
                 "enable_dynamic_store_read",
                 "tablet_state",
                 "account",
-                "mount_config"
+                "mount_config",
             });
             AddCellTagToSyncWith(req, table->ObjectId);
             SetTransactionId(req, table->ExternalTransactionId);

@@ -55,6 +55,16 @@ IJobSizeConstraintsPtr CreateMergeJobSizeConstraints(
     int primaryInputTableCount = 1,
     EDataSizePerMergeJobHint dataSizeHint = EDataSizePerMergeJobHint::DesiredChunkSize);
 
+IJobSizeConstraintsPtr CreateRemoteCopyJobSizeConstraints(
+    const NScheduler::TSimpleOperationSpecBasePtr& spec,
+    const NControllerAgent::TSimpleOperationOptionsPtr& options,
+    NLogging::TLogger logger,
+    i64 inputChunkCount,
+    i64 inputDataWeight,
+    i64 inputCompressedDataSize,
+    double dataWeightRatio,
+    double compressionRatio);
+
 IJobSizeConstraintsPtr CreateSimpleSortJobSizeConstraints(
     const NScheduler::TSortOperationSpecBasePtr& spec,
     const NControllerAgent::TSortOperationOptionsBasePtr& options,

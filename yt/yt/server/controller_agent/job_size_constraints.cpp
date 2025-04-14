@@ -899,6 +899,30 @@ IJobSizeConstraintsPtr CreateMergeJobSizeConstraints(
         dataSizeHint);
 }
 
+IJobSizeConstraintsPtr CreateRemoteCopyJobSizeConstraints(
+    const NScheduler::TSimpleOperationSpecBasePtr& spec,
+    const TSimpleOperationOptionsPtr& options,
+    TLogger logger,
+    i64 inputChunkCount,
+    i64 inputDataWeight,
+    i64 inputCompressedDataSize,
+    double dataWeightRatio,
+    double compressionRatio)
+{
+    return New<TMergeJobSizeConstraints>(
+        spec,
+        options,
+        std::move(logger),
+        inputChunkCount,
+        inputDataWeight,
+        inputCompressedDataSize,
+        dataWeightRatio,
+        compressionRatio,
+        /*inputTableCount*/ 1,
+        /*primaryInputTableCount*/ 1,
+        EDataSizePerMergeJobHint::OperationOptions);
+}
+
 IJobSizeConstraintsPtr CreateSimpleSortJobSizeConstraints(
     const TSortOperationSpecBasePtr& spec,
     const TSortOperationOptionsBasePtr& options,

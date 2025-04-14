@@ -550,6 +550,7 @@ bool IsBulkInsertAllowedForUser(
 bool HasCompressionDictionaries(
     const IAttributeDictionaryPtr& tableAttributes)
 {
+    // TODO(alexelexa, YT-20044): Support compression dicrionaries remote copy.
     auto dictionaryCompressionNode =
         tableAttributes->Get<IMapNodePtr>("mount_config")->FindChild("value_dictionary_compression");
     if (dictionaryCompressionNode) {

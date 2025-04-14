@@ -7,6 +7,7 @@
 #include <yt/yt/library/ytprof/heap_profiler.h>
 
 #include <yt/yt/server/controller_agent/controllers/ordered_controller.h>
+#include <yt/yt/server/controller_agent/controllers/remote_copy_controller.h>
 #include <yt/yt/server/controller_agent/controllers/sort_controller.h>
 #include <yt/yt/server/controller_agent/controllers/sorted_controller.h>
 #include <yt/yt/server/controller_agent/controllers/unordered_controller.h>
