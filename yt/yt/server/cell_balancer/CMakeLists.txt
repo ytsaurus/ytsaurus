@@ -39,6 +39,7 @@ target_link_libraries(yt-server-cell_balancer PUBLIC
   ytserver
   server-lib-cypress_election
   server-lib-tablet_server
+  server-lib-cypress_registrar
   yt-server-master
 )
 
@@ -52,7 +53,6 @@ target_sources(yt-server-cell_balancer PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/cell_balancer/cluster_state_provider.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/cell_balancer/cypress_bindings.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/cell_balancer/config.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/cell_balancer/master_connector.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/cell_balancer/node_tag_filters_manager.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/cell_balancer/orchid_bindings.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/cell_balancer/program.cpp
