@@ -289,6 +289,10 @@ func (c *Controller) GetScalerTarget(ctx context.Context, opletInfo strawberry.O
 	return nil, nil
 }
 
+func (c *Controller) RunAsUser() bool {
+	return false
+}
+
 func parseConfig(rawConfig yson.RawValue) Config {
 	var controllerConfig Config
 	if rawConfig != nil {

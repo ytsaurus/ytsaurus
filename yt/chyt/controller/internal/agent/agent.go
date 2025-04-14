@@ -25,6 +25,7 @@ type Agent struct {
 
 	hostname string
 	proxy    string
+	token    string
 	family   string
 	root     ypath.Path
 
@@ -46,7 +47,7 @@ type Agent struct {
 	scalingTargetCh  chan []scalingRequest
 }
 
-func NewAgent(proxy string, ytc yt.Client, l log.Logger, controller strawberry.Controller, config *Config) *Agent {
+func NewAgent(proxy, token string, ytc yt.Client, l log.Logger, controller strawberry.Controller, config *Config) *Agent {
 	hostname, err := os.Hostname()
 	if err != nil {
 		l.Fatal("error getting hostname", log.Error(err))
@@ -62,6 +63,7 @@ func NewAgent(proxy string, ytc yt.Client, l log.Logger, controller strawberry.C
 		family:           controller.Family(),
 		root:             controller.Root(),
 		proxy:            proxy,
+		token:            token,
 		backgroundStopCh: make(chan struct{}),
 		healthState: newAgentHealthState(
 			time.Duration(tf*float64(config.PassPeriodOrDefault())),
@@ -470,6 +472,7 @@ func (a *Agent) GetAgentInfo() strawberry.AgentInfo {
 		Hostname:              a.hostname,
 		Stage:                 a.config.Stage,
 		Proxy:                 a.proxy,
+		ServiceToken:          a.token,
 		Family:                a.family,
 		OperationNamespace:    a.OperationNamespace(),
 		RobotUsername:         a.config.RobotUsername,
@@ -484,7 +487,7 @@ func (a *Agent) getOpletOptions(alias string) strawberry.OpletOptions {
 		Alias:        alias,
 		Controller:   a.controller,
 		Logger:       a.l,
-		UserClient:   a.ytc,
+		UserClient:   nil,
 		SystemClient: a.ytc,
 		PassTimeout: max(
 			time.Duration(a.config.MinOpletPassTimeoutOrDefault()),
