@@ -73,7 +73,6 @@ public:
         , MinManiacDataWeight_(options.MinManiacDataWeight)
         , JobSizeConstraints_(options.JobSizeConstraints)
         , TeleportChunkSampler_(JobSizeConstraints_->GetSamplingRate())
-        , SupportLocality_(options.SupportLocality)
         , RowBuffer_(options.RowBuffer)
     {
         Logger = options.Logger;
@@ -266,8 +265,6 @@ private:
 
     IJobSizeConstraintsPtr JobSizeConstraints_;
     TBernoulliSampler TeleportChunkSampler_;
-
-    bool SupportLocality_ = false;
 
     TRowBufferPtr RowBuffer_;
 
@@ -807,7 +804,10 @@ void TNewSortedChunkPool::RegisterMetadata(auto&& registrar)
     PHOENIX_REGISTER_FIELD(12, Stripes_);
     PHOENIX_REGISTER_FIELD(13, JobSizeConstraints_);
     PHOENIX_REGISTER_FIELD(14, TeleportChunkSampler_);
-    PHOENIX_REGISTER_FIELD(15, SupportLocality_);
+    registrar.template VirtualField<15>("SupportLocality_", [] (TThis* /*this_*/, auto& context) {
+        Load<bool>(context);
+    })
+        .BeforeVersion(ESnapshotVersion::DropSupportLocality)();
     PHOENIX_REGISTER_FIELD(16, TeleportChunks_);
     PHOENIX_REGISTER_FIELD(17, IsCompleted_);
     PHOENIX_REGISTER_FIELD(18, StructuredLogger);
