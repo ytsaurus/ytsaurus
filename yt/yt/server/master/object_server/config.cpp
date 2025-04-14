@@ -31,8 +31,7 @@ void TDynamicObjectManagerConfig::Register(TRegistrar registrar)
     registrar.Parameter("gc_sweep_period", &TThis::GCSweepPeriod)
         .Default(TDuration::MilliSeconds(1000));
     registrar.Parameter("enable_gc", &TThis::EnableGC)
-        .Default(true)
-        .DontSerializeDefault();
+        .Default(true);
     registrar.Parameter("object_removal_cells_sync_period", &TThis::ObjectRemovalCellsSyncPeriod)
         .Default(TDuration::MilliSeconds(100));
     registrar.Parameter("mutation_idempotizer", &TThis::MutationIdempotizer)
@@ -45,11 +44,9 @@ void TDynamicObjectManagerConfig::Register(TRegistrar registrar)
     registrar.Parameter("profiling_period", &TThis::ProfilingPeriod)
         .Default(DefaultProfilingPeriod);
     registrar.Parameter("reset_hunk_storage_in_table_destroy", &TThis::ResetHunkStorageInTableDestroy)
-        .Default(true)
-        .DontSerializeDefault();
+        .Default(true);
     registrar.Parameter("prohibit_prerequisite_revisions_differ_from_execution_paths", &TThis::ProhibitPrerequisiteRevisionsDifferFromExecutionPaths)
-        .Default(false)
-        .DontSerializeDefault();
+        .Default(false);
 }
 
 DEFINE_REFCOUNTED_TYPE(TDynamicObjectManagerConfig)
@@ -144,8 +141,7 @@ void TDynamicObjectServiceConfig::Register(TRegistrar registrar)
         .Default(4);
     registrar.Parameter("local_read_offload_thread_count", &TThis::LocalReadOffloadThreadCount)
         .GreaterThan(0)
-        .Default(8)
-        .DontSerializeDefault();
+        .Default(8);
     registrar.Parameter("schedule_reply_retry_backoff", &TThis::ScheduleReplyRetryBackoff)
         .Default(TDuration::MilliSeconds(100));
 

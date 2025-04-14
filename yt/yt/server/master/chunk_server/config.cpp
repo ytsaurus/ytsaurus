@@ -253,15 +253,13 @@ void TDynamicChunkReincarnatorConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("enable_verbose_logging", &TThis::EnableVerboseLogging)
         .Default(false)
-        .DontSerializeDefault();
+        ;
 
     registrar.Parameter("forced_underfilled_batch_replacement_period", &TThis::ForcedUnderfilledBatchReplacementPeriod)
-        .Default(TDuration::Minutes(5))
-        .DontSerializeDefault();
+        .Default(TDuration::Minutes(5));
 
     registrar.Parameter("skip_versioned_chunks", &TThis::SkipVersionedChunks)
-        .Default(false)
-        .DontSerializeDefault();
+        .Default(false);
 }
 
 bool TDynamicChunkReincarnatorConfig::ShouldRescheduleAfterChange(
@@ -735,45 +733,37 @@ void TDynamicChunkManagerConfig::Register(TRegistrar registrar)
 
 
     registrar.Parameter("removal_job_schedule_delay", &TThis::RemovalJobScheduleDelay)
-        .Default(TDuration::Minutes(3))
-        .DontSerializeDefault();
+        .Default(TDuration::Minutes(3));
 
     registrar.Parameter("disposed_pending_restart_node_chunk_refresh_delay", &TThis::DisposedPendingRestartNodeChunkRefreshDelay)
-        .Default(TDuration::Minutes(1))
-        .DontSerializeDefault();
+        .Default(TDuration::Minutes(1));
 
     registrar.Parameter("enable_fix_requisition_update_on_merge", &TThis::EnableFixRequisitionUpdateOnMerge)
-        .Default(false)
-        .DontSerializeDefault();
+        .Default(false);
 
     registrar.Parameter("enable_chunk_schemas", &TThis::EnableChunkSchemas)
         .Default(true);
 
     registrar.Parameter("enable_two_random_choices_write_target_allocation", &TThis::EnableTwoRandomChoicesWriteTargetAllocation)
-        .Default(true)
-        .DontSerializeDefault();
+        .Default(true);
 
     registrar.Parameter("nodes_to_check_before_giving_up_on_write_target_allocation", &TThis::NodesToCheckBeforeGivingUpOnWriteTargetAllocation)
-        .Default(32)
-        .DontSerializeDefault();
+        .Default(32);
 
     registrar.Parameter("data_center_failure_detector", &TThis::DataCenterFailureDetector)
         .DefaultNew();
 
     registrar.Parameter("validate_resource_usage_increase_on_primary_medium_change", &TThis::ValidateResourceUsageIncreaseOnPrimaryMediumChange)
-        .Default(true)
-        .DontSerializeDefault();
+        .Default(true);
 
     registrar.Parameter("use_hunk_specific_media_for_requisition_updates", &TThis::UseHunkSpecificMediaForRequisitionUpdates)
         .Default(true);
 
     registrar.Parameter("enable_repair_via_replication", &TThis::EnableRepairViaReplication)
-        .Default(false)
-        .DontSerializeDefault();
+        .Default(false);
 
     registrar.Parameter("use_proper_replica_addition_reason", &TThis::UseProperReplicaAdditionReason)
-        .Default(false)
-        .DontSerializeDefault();
+        .Default(false);
 
     registrar.Postprocessor([] (TThis* config) {
         auto& jobTypeToThrottler = config->JobTypeToThrottler;
