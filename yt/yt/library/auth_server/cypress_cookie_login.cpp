@@ -78,8 +78,20 @@ private:
         const IRequestPtr& req,
         const IResponseWriterPtr& rsp)
     {
-        auto replyAndLogError = [&] (const TError& error, const std::optional<std::string>& user = {}) {
-            ReplyError(rsp, error);
+        auto replyAndLogError = [&] (
+            const TError& error,
+            const std::optional<std::string>& user = {},
+            bool replyWithGenericError = false)
+        {
+            if (replyWithGenericError) {
+                // Hide details about unsuccessful login attempts for security reasons.
+                auto genericError = error;
+                genericError.SetMessage("Incorrect login or password");
+                ReplyError(rsp, genericError);
+            }
+            else {
+                ReplyError(rsp, error);
+            }
             YT_LOG_DEBUG(error, "Failed to login user using password (ConnectionId: %v, User: %v)",
                 req->GetConnectionId(),
                 user);
@@ -123,7 +135,7 @@ private:
                 HandleRegularRequest(rsp);
 
                 error = TError("No such user %Qlv or user has no password set", user) << error;
-                replyAndLogError(error, TString{user});
+                replyAndLogError(error, TString{user}, true);
                 return;
             }
 
@@ -137,7 +149,7 @@ private:
             HandleRegularRequest(rsp);
 
             auto error = TError("Invalid password");
-            replyAndLogError(error, TString{user});
+            replyAndLogError(error, TString{user}, true);
             return;
         }
 
