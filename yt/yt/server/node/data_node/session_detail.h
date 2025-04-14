@@ -61,10 +61,12 @@ public:
         i64 cumulativeBlockSize,
         bool enableCaching) override;
 
-    TFuture<NChunkClient::TDataNodeServiceProxy::TRspPutBlocksPtr> SendBlocks(
+    TFuture<TSendBlocksResult> SendBlocks(
         int startBlockIndex,
         int blockCount,
         i64 cumulativeBlockSize,
+        TDuration requestTimeout,
+        bool instantReplyOnThrottling,
         const NNodeTrackerClient::TNodeDescriptor& targetDescriptor) override;
 
     TFuture<TFlushBlocksResult> FlushBlocks(int blockIndex) override;
@@ -119,10 +121,12 @@ protected:
         std::vector<NChunkClient::TBlock> blocks,
         i64 cumulativeBlockSize,
         bool enableCaching) = 0;
-    virtual TFuture<NChunkClient::TDataNodeServiceProxy::TRspPutBlocksPtr> DoSendBlocks(
+    virtual TFuture<TSendBlocksResult> DoSendBlocks(
         int startBlockIndex,
         int blockCount,
         i64 cumulativeBlockSize,
+        TDuration requestTimeout,
+        bool enableThrottling,
         const NNodeTrackerClient::TNodeDescriptor& target) = 0;
     virtual TFuture<TFlushBlocksResult> DoFlushBlocks(int blockIndex) = 0;
 

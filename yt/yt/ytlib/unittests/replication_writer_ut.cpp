@@ -94,6 +94,8 @@ class TTestDataNodeService
 public:
     explicit TTestDataNodeService(size_t throttledBlockCount,
         bool alwaysFail,
+        bool netThrottling,
+        bool useErrorOnNetThrottling,
         IInvokerPtr invoker)
         : TServiceBase(
             std::move(invoker),
@@ -101,6 +103,8 @@ public:
             NLogging::TLogger("Test"))
         , ThrottledBlockCount_(throttledBlockCount)
         , AlwaysFail_(alwaysFail)
+        , NetThrottling_(netThrottling)
+        , UseErrorOnNetThrottling_(useErrorOnNetThrottling)
     {
         RegisterMethod(RPC_SERVICE_METHOD_DESC(PingSession));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(StartChunk));
@@ -131,6 +135,14 @@ public:
                 response->mutable_probe_put_blocks_state()->set_approved_cumulative_block_size(MaxCumulativeBlockSize_);
                 response->mutable_probe_put_blocks_state()->set_requested_cumulative_block_size(MaxCumulativeBlockSize_);
             }
+        }
+
+        if (NetThrottling_) {
+            response->set_net_throttling(true);
+            response->set_net_queue_size(10000);
+        } else {
+            response->set_net_throttling(false);
+            response->set_net_queue_size(0);
         }
 
         context->Reply();
@@ -250,10 +262,17 @@ public:
             cumulativeBlockSize,
             targetDescriptor);
 
-        if (AlwaysFail_) {
-            context->Reply(TError(
-                NChunkClient::EErrorCode::WriteThrottlingActive,
-                "Write throttling active"));
+        if (NetThrottling_) {
+            if (UseErrorOnNetThrottling_) {
+                context->Reply(TError(
+                    NChunkClient::EErrorCode::WriteThrottlingActive,
+                    "Write throttling active"));
+                return;
+            } else {
+                response->set_net_throttling(true);
+                response->set_net_queue_size(1000);
+                context->Reply();
+            }
             return;
         }
 
@@ -334,6 +353,7 @@ public:
 private:
     size_t ThrottledBlockCount_;
     bool AlwaysFail_;
+    bool NetThrottling_;
 
     size_t PutBlocksCounter_ = 0;
 
@@ -341,6 +361,7 @@ private:
     bool SessionStarted_ = false;
     bool SessionCanceled_ = false;
     bool UseProbePutBlocks_ = false;
+    bool UseErrorOnNetThrottling_ = true;
     i64 MaxCumulativeBlockSize_ = 0;
 
     // Weak Pointer because of circular dependency
@@ -358,6 +379,7 @@ struct TWriterTestCase
     size_t NodeCount = 3;
     size_t BlockCount = 10;
     size_t ThrottledBlockCount = 1;
+    std::set<i32> NetThrottlingNodes;
     std::set<i32> ThrottlingNodes;
     std::set<i32> FailedNodes;
 };
@@ -390,6 +412,7 @@ public:
         auto blockCount = testCase.BlockCount;
         auto nodeCount = testCase.NodeCount;
         size_t throttledBlockCount = testCase.ThrottledBlockCount;
+        std::set<i32> netThrottlingNodes = testCase.NetThrottlingNodes;
         std::set<i32> throttlingNodes = testCase.ThrottlingNodes;
         std::set<i32> failedNodes = testCase.FailedNodes;
 
@@ -419,6 +442,8 @@ public:
 
             Services.push_back(New<TTestDataNodeService>(throttlingNodes.contains(index) ? throttledBlockCount : 1,
                     failedNodes.contains(index),
+                    netThrottlingNodes.contains(index),
+                    false,
                     Invoker));
 
             addressToService[address] = Services.back();
@@ -618,6 +643,18 @@ INSTANTIATE_TEST_SUITE_P(
             .NodeCount = 5,
             .BlockCount = 1024,
             .FailedNodes = {2, 3, 4},
+        },
+        TWriterTestCase{
+            .ReplicationFactor = 3,
+            .NodeCount = 3,
+            .BlockCount = 1024,
+            .NetThrottlingNodes = {0, 1, 2},
+        },
+        TWriterTestCase{
+            .ReplicationFactor = 5,
+            .NodeCount = 5,
+            .BlockCount = 1024,
+            .NetThrottlingNodes = {0, 1, 2},
         }
         // ReplicationWriter doesn't handle failing nodes properly yet without probing
         // TWriterTestCase{

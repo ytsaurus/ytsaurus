@@ -418,6 +418,55 @@ class TestIoEngine(YTEnvSetup):
             }
         }, False)
 
+    @authors("vvshlyaga")
+    def test_write_without_send_blocks(self):
+        update_nodes_dynamic_config({
+            "data_node": {
+                "enable_send_blocks_net_throttling": True,
+                "testing_options": {
+                    "always_throttle_net_on_send_blocks": True
+                }
+            }
+        })
+        REPLICATION_FACTOR = self.NUM_NODES
+
+        create(
+            "table",
+            "//tmp/test",
+            attributes={
+                "primary_medium": "default",
+                "replication_factor": REPLICATION_FACTOR,
+            })
+
+        self._run_throttled({
+            "data_node": {
+                "store_location_config_per_medium": {
+                    "default": {
+                        "memory_limit_fraction_for_starting_new_sessions": 0,
+                        'write_memory_limit': -1,
+                    }
+                }
+            }
+        }, False, True)
+
+        self._run_throttled({
+            "data_node": {
+                "store_location_config_per_medium": {
+                    "default": {
+                        "write_memory_limit": -1,
+                    }
+                }
+            }
+        }, False, True)
+
+        self._run_throttled({
+            "data_node": {
+                "store_location_config_per_medium": {
+                    "default": {}
+                }
+            }
+        }, False, False)
+
     @authors("don-dron")
     def test_location_limits(self):
         REPLICATION_FACTOR = self.NUM_NODES

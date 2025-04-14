@@ -224,10 +224,12 @@ TFuture<NIO::TIOCounters> TNbdSession::PutBlocks(
     THROW_ERROR_EXCEPTION("Not implemented");
 }
 
-TFuture<NChunkClient::TDataNodeServiceProxy::TRspPutBlocksPtr> TNbdSession::SendBlocks(
+TFuture<TNbdSession::TSendBlocksResult> TNbdSession::SendBlocks(
     int /* startBlockIndex */,
     int /* blockCount */,
     i64 /* cumulativeBlockSize */,
+    TDuration /* requestTimeout */,
+    bool /* instantReplyOnThrottling */,
     const NNodeTrackerClient::TNodeDescriptor& /* target */)
 {
     THROW_ERROR_EXCEPTION("Not implemented");

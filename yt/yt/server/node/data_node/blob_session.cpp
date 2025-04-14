@@ -858,10 +858,12 @@ void TBlobSession::OnBlocksWritten(int beginBlockIndex, int endBlockIndex, const
     }
 }
 
-TFuture<TDataNodeServiceProxy::TRspPutBlocksPtr> TBlobSession::DoSendBlocks(
+TFuture<TBlobSession::TSendBlocksResult> TBlobSession::DoSendBlocks(
     int firstBlockIndex,
     int blockCount,
     i64 cumulativeBlockSize,
+    TDuration requestTimeout,
+    bool instantReplyOnThrottling,
     const TNodeDescriptor& targetDescriptor)
 {
     YT_ASSERT_INVOKER_AFFINITY(SessionInvoker_);
@@ -872,7 +874,7 @@ TFuture<TDataNodeServiceProxy::TRspPutBlocksPtr> TBlobSession::DoSendBlocks(
         ->GetChannelFactory();
     auto channel = channelFactory->CreateChannel(targetDescriptor.GetAddressOrThrow(Bootstrap_->GetLocalNetworks()));
     TDataNodeServiceProxy proxy(channel);
-    proxy.SetDefaultTimeout(Config_->NodeRpcTimeout);
+    proxy.SetDefaultTimeout(requestTimeout);
 
     auto req = proxy.PutBlocks();
     req->SetResponseHeavy(true);
@@ -892,9 +894,23 @@ TFuture<TDataNodeServiceProxy::TRspPutBlocksPtr> TBlobSession::DoSendBlocks(
     SetRpcAttachedBlocks(req, blocks);
 
     const auto& throttler = Bootstrap_->GetOutThrottler(Options_.WorkloadDescriptor);
-    return throttler->Throttle(requestSize).Apply(BIND([=] {
-        return req->Invoke();
-    }));
+    auto netIsThrottling = !throttler->TryAcquire(requestSize);
+    TFuture<void> throttleFuture = VoidFuture;
+    if (netIsThrottling) {
+        if (instantReplyOnThrottling) {
+            return MakeFuture<TSendBlocksResult>(TSendBlocksResult{.NetThrottling = true, .TargetNodePutBlocksResult = nullptr});
+        } else {
+            throttleFuture = throttler->Throttle(requestSize);
+        }
+    }
+
+    return throttleFuture
+        .Apply(BIND([=] {
+            return req->Invoke();
+        }))
+        .Apply(BIND([&] (const TDataNodeServiceProxy::TRspPutBlocksPtr& rsp) {
+            return TSendBlocksResult{.NetThrottling = false, .TargetNodePutBlocksResult = std::move(rsp)};
+        }));
 }
 
 TFuture<ISession::TFlushBlocksResult> TBlobSession::DoFlushBlocks(int blockIndex)

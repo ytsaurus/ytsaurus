@@ -209,6 +209,26 @@ public:
         return ApprovedMemory_;
     }
 
+    bool IsNetThrottling() const
+    {
+        return NetThrottling_;
+    }
+
+    void SetNetThrottling(bool value)
+    {
+        NetThrottling_ = value;
+    }
+
+    i64 GetNetQueueSize() const
+    {
+        return NetQueueSize_;
+    }
+
+    void SetNetQueueSize(i64 value)
+    {
+        NetQueueSize_ = value;
+    }
+
     const std::string& GetDefaultAddress() const
     {
         return Descriptor_.GetDefaultAddress();
@@ -231,6 +251,8 @@ private:
 
     i64 RequestedMemory_ = 0;
     i64 ApprovedMemory_ = 0;
+    bool NetThrottling_ = false;
+    i64 NetQueueSize_ = 0;
 };
 
 void FormatValue(TStringBuilderBase* builder, const TNodePtr& node, TStringBuf spec)
@@ -1004,6 +1026,9 @@ private:
                 rsp->probe_put_blocks_state().requested_cumulative_block_size(),
                 rsp->probe_put_blocks_state().approved_cumulative_block_size());
         }
+
+        node->SetNetThrottling(rsp->net_throttling());
+        node->SetNetQueueSize(rsp->net_queue_size());
     }
 
     void CloseSessions(const IChunkWriter::TWriteBlocksOptions& options)
@@ -1301,14 +1326,27 @@ void TGroup::PutGroup(const TReplicationWriterPtr& writer, const IChunkWriter::T
     YT_ASSERT_THREAD_AFFINITY(writer->WriterThread);
 
     std::vector<TNodePtr> selectedNodes;
+    std::vector<TNodePtr> nodesWithoutBlocks;
     for (int index = 0; index < std::ssize(writer->Nodes_); ++index) {
         const auto& node = writer->Nodes_[index];
 
-        if (!node->IsAlive()) {
+        if (!node->IsAlive() || SentTo_[node->GetIndex()]) {
             continue;
         }
 
         YT_VERIFY(node->IsAlive() && !SentTo_[node->GetIndex()] && node->GetApprovedMemory() >= CumulativeBlockSize_);
+        nodesWithoutBlocks.push_back(node);
+    }
+
+    std::sort(
+        nodesWithoutBlocks.begin(),
+        nodesWithoutBlocks.end(),
+        [&] (const auto& lhs, const auto& rhs) {
+            return lhs->GetNetQueueSize() < rhs->GetNetQueueSize();
+        });
+
+    for (int index = 0; index < std::ssize(nodesWithoutBlocks); ++index) {
+        const auto& node = nodesWithoutBlocks[index];
 
         if (std::ssize(selectedNodes) < writer->DirectUploadNodeCount_) {
             selectedNodes.push_back(node);
@@ -1441,10 +1479,23 @@ void TGroup::SendGroup(
 
         auto rspOrError = WaitFor(sendBlocksFutures[i]);
         if (rspOrError.IsOK()) {
-            if (rspOrError.Value()->close_demanded()) {
+            auto &rsp = rspOrError.Value();
+            if (rsp->close_demanded()) {
                 YT_LOG_DEBUG("Close demanded by node (NodeAddress: %v)", dstNode->GetDefaultAddress());
                 writer->DemandClose();
             }
+
+            srcNode->SetNetThrottling(rsp->net_throttling());
+            srcNode->SetNetQueueSize(rsp->net_queue_size());
+
+            if (srcNode->IsNetThrottling()) {
+                YT_LOG_DEBUG("Blocks are not sent, because of net throttling (Blocks: %v, SrcAddress: %v, DstAddress: %v)",
+                    FormatBlocks(FirstBlockIndex_, GetEndBlockIndex()),
+                    srcNode->GetDefaultAddress(),
+                    dstNode->GetDefaultAddress());
+                continue;
+            }
+
             SentTo_[dstNode->GetIndex()] = true;
 
             writer->AccountTraffic(Size_, srcNode->GetDescriptor(), dstNode->GetDescriptor());
@@ -1521,9 +1572,9 @@ void TGroup::Process(const IChunkWriter::TWriteBlocksOptions& options)
     YT_LOG_DEBUG("Processing blocks (Blocks: %v)",
         FormatBlocks(FirstBlockIndex_, GetEndBlockIndex()));
 
-    std::vector<TNodePtr> nodesWithBlocks;
     std::vector<TNodePtr> nodesWithAcquiredResources;
     std::vector<TNodePtr> nodesWithRequestedResources;
+    std::vector<TNodePtr> nodesWithPossibleToSendBlocks;
     bool emptyNodeFound = false;
     for (int nodeIndex = 0; nodeIndex < std::ssize(SentTo_); ++nodeIndex) {
         const auto& node = writer->Nodes_[nodeIndex];
@@ -1538,7 +1589,9 @@ void TGroup::Process(const IChunkWriter::TWriteBlocksOptions& options)
 
             if (SentTo_[nodeIndex]) {
                 YT_VERIFY(node->GetApprovedMemory() >= CumulativeBlockSize_);
-                nodesWithBlocks.push_back(node);
+                if (!node->IsNetThrottling()) {
+                    nodesWithPossibleToSendBlocks.push_back(node);
+                }
             } else {
                 emptyNodeFound = true;
             }
@@ -1547,16 +1600,18 @@ void TGroup::Process(const IChunkWriter::TWriteBlocksOptions& options)
 
     if (!emptyNodeFound) {
         writer->ShiftWindow(options);
-    } else if (nodesWithBlocks.empty() &&
+    } else if (nodesWithPossibleToSendBlocks.empty() &&
         // Retry ProbePutBlocks requests only if they were preempted.
-        nodesWithRequestedResources.size() < static_cast<size_t>(writer->AliveNodeCount_)) {
+        nodesWithRequestedResources.size() < static_cast<size_t>(writer->AliveNodeCount_))
+    {
         ProbePutBlocks(writer, options);
         // ProbePutBlocks request before retries.
         if (!ProbeStartTime_.has_value()) {
             ProbeStartTime_ = TInstant::Now();
         }
-    } else if (nodesWithBlocks.empty() &&
-        nodesWithAcquiredResources.size() < static_cast<size_t>(writer->AliveNodeCount_)) {
+    } else if (nodesWithPossibleToSendBlocks.empty() &&
+        nodesWithAcquiredResources.size() < static_cast<size_t>(writer->AliveNodeCount_))
+    {
         YT_VERIFY(ProbeStartTime_.has_value());
         for (auto node : writer->Nodes_) {
             if (node->IsAlive() &&
@@ -1568,10 +1623,10 @@ void TGroup::Process(const IChunkWriter::TWriteBlocksOptions& options)
         }
         TDelayedExecutor::Submit(BIND(&TGroup::ScheduleProcess, MakeWeak(this), options),
             writer->Config_->NodePingPeriod);
-    } else if (nodesWithBlocks.empty()) {
+    } else if (nodesWithPossibleToSendBlocks.empty()) {
         PutGroup(writer, options);
     } else {
-        SendGroup(writer, options, nodesWithBlocks);
+        SendGroup(writer, options, nodesWithPossibleToSendBlocks);
     }
 }
 

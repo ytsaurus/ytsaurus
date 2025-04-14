@@ -543,6 +543,9 @@ public:
     // Stop trash scanning at initialization
     std::optional<bool> EnableTrashScanningBarrier;
 
+    // Always return on SendBlocks that network is throttling.
+    std::optional<bool> AlwaysThrottleNetOnSendBlocks;
+
     REGISTER_YSON_STRUCT(TDataNodeTestingOptions);
 
     static void Register(TRegistrar registrar);
@@ -926,6 +929,9 @@ struct TDataNodeConfig
     //! Smoothing interval for net out limit throttling.
     TDuration NetOutThrottlingDuration;
 
+    //! If |true| data node will reply instantly when network is throttling.
+    bool EnableSendBlocksNetThrottling;
+
     //! Write requests are throttled when the number of bytes queued for write exceeds this limit.
     //! This is a per-location limit.
     i64 DiskWriteThrottlingLimit;
@@ -1102,6 +1108,8 @@ struct TDataNodeDynamicConfig
 
     std::optional<i64> DiskWriteThrottlingLimit;
     std::optional<i64> DiskReadThrottlingLimit;
+
+    std::optional<bool> EnableSendBlocksNetThrottling;
 
     //! Testing options.
     TDataNodeTestingOptionsPtr TestingOptions;

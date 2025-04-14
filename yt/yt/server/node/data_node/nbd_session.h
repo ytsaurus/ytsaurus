@@ -81,10 +81,12 @@ struct TNbdSession
         i64 cumulativeBlockSize,
         bool enableCaching) override;
 
-    TFuture<NChunkClient::TDataNodeServiceProxy::TRspPutBlocksPtr> SendBlocks(
+    TFuture<TSendBlocksResult> SendBlocks(
         int startBlockIndex,
         int blockCount,
         i64 cumulativeBlockSize,
+        TDuration requestTimeout,
+        bool instantReplyOnThrottling,
         const NNodeTrackerClient::TNodeDescriptor& target) override;
 
     TFuture<TFlushBlocksResult> FlushBlocks(int blockIndex) override;
