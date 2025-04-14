@@ -189,7 +189,7 @@ void TChunkStore::ReconfigureLocation(const TChunkLocationPtr& location)
         return;
     }
 
-    const auto& staticLocationConfig = storeLocation->GetStaticConfig();;
+    const auto& staticLocationConfig = storeLocation->GetStaticConfig();
     auto it = DynamicConfig_->StoreLocationConfigPerMedium.find(storeLocation->GetMediumName());
     auto locationConfig = it == DynamicConfig_->StoreLocationConfigPerMedium.end()
         ? staticLocationConfig

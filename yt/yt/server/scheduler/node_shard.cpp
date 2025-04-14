@@ -2181,7 +2181,7 @@ void TNodeShard::OnAllocationRunning(const TAllocationPtr& allocation, NProto::T
             allocation,
             operationState);
 
-        allocationToSubmitToStrategy.ResourceUsageUpdated = true;;
+        allocationToSubmitToStrategy.ResourceUsageUpdated = true;
     }
 }
 

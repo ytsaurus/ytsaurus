@@ -4111,7 +4111,7 @@ private:
             RegisterEndorsement(chunk);
             chunk->SetEndorsementRequired(false);
 
-            logQueue.push_back(chunk->GetId());;
+            logQueue.push_back(chunk->GetId());
             maybeFlushLogQueue(false);
         }
 

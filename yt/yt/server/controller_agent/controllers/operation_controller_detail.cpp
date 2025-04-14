@@ -6667,7 +6667,7 @@ void TOperationControllerBase::LockOutputTablesAndGetAttributes()
         const auto& batchRsp = batchRspOrError.Value();
         for (const auto& rspOrError : batchRsp->GetResponses<TCypressYPathProxy::TRspLock>()) {
             const auto& rsp = rspOrError.Value();
-            const auto& table = std::any_cast<TOutputTablePtr>(rsp->Tag());;
+            const auto& table = std::any_cast<TOutputTablePtr>(rsp->Tag());
 
             auto objectId = FromProto<TObjectId>(rsp->node_id());
             table->Revision = FromProto<NHydra::TRevision>(rsp->revision());
