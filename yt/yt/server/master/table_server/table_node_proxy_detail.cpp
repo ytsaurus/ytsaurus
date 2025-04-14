@@ -132,10 +132,10 @@ void TTableNodeProxy::GetBasicAttributes(TGetBasicAttributesContext* context)
         } else if (securityManager->HasColumnarAce(Object_, user)) {
             // If the object lacks a columnar ACE, column-level permissions
             // are skipped during the permission check.
-            const auto& tableSchema = table->GetSchema()->AsTableSchema();
+            auto tableSchema = table->GetSchema()->AsHeavyTableSchema();
             checkOptions.Columns.emplace();
-            checkOptions.Columns->reserve(tableSchema.Columns().size());
-            for (const auto& columnSchema : tableSchema.Columns()) {
+            checkOptions.Columns->reserve(tableSchema->Columns().size());
+            for (const auto& columnSchema : tableSchema->Columns()) {
                 checkOptions.Columns->push_back(columnSchema.Name());
             }
         }
@@ -2231,11 +2231,12 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, Alter)
         }
 
         const auto& config = Bootstrap_->GetConfigManager()->GetConfig();
-        const auto& newTableSchema = schema->AsHeavyTableSchema();
+        auto newTableSchema = schema->AsHeavyTableSchema();
+        auto tableSchema = table->GetSchema()->AsHeavyTableSchema();
 
         ValidateTableSchemaUpdateInternal(
-            table->GetSchema()->AsTableSchema(),
-            newTableSchema,
+            *tableSchema,
+            *newTableSchema,
             GetSchemaUpdateEnabledFeatures(config),
             dynamic,
             table->IsEmpty() && !table->IsDynamic(),
@@ -2245,24 +2246,26 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, Alter)
             const auto& tableManager = Bootstrap_->GetTableManager();
 
             if (auto index = table->GetIndexTo()) {
-                auto* indexedTable = tableManager->GetTableNodeOrThrow(index->GetTableId());
+                auto indexTableSchema = tableManager->GetTableNodeOrThrow(index->GetTableId())
+                    ->GetSchema()
+                    ->AsHeavyTableSchema();
                 ValidateIndexSchema(
                     index->GetKind(),
-                    indexedTable->GetSchema()->AsTableSchema(),
-                    newTableSchema,
+                    *indexTableSchema,
+                    *newTableSchema,
                     index->Predicate(),
                     index->EvaluatedColumnsSchema(),
                     index->UnfoldedColumn());
             }
 
             for (const auto index : GetValuesSortedByKey(table->SecondaryIndices())) {
-                const auto& indexTableSchema = tableManager->GetTableNodeOrThrow(index->GetIndexTableId())
+                auto indexTableSchema = tableManager->GetTableNodeOrThrow(index->GetIndexTableId())
                     ->GetSchema()
-                    ->AsTableSchema();
+                    ->AsHeavyTableSchema();
                 ValidateIndexSchema(
                     index->GetKind(),
-                    newTableSchema,
-                    indexTableSchema,
+                    *newTableSchema,
+                    *indexTableSchema,
                     index->Predicate(),
                     index->EvaluatedColumnsSchema(),
                     index->UnfoldedColumn());
@@ -2278,7 +2281,7 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, Alter)
         if (!config->EnableTableColumnRenaming ||
             dynamic && !config->EnableDynamicTableColumnRenaming)
         {
-            ValidateNoRenamedColumns(newTableSchema);
+            ValidateNoRenamedColumns(*newTableSchema);
         }
 
         if (options.Dynamic) {

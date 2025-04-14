@@ -86,7 +86,7 @@ const TCompactTableSchemaPtr& TMasterTableSchema::AsCompactTableSchema(bool cras
     return CompactTableSchema_;
 }
 
-const TTableSchema& TMasterTableSchema::AsTableSchema(bool crashOnZombie) const
+TTableSchemaPtr TMasterTableSchema::AsHeavyTableSchema(bool crashOnZombie) const
 {
     YT_VERIFY(IsObjectAlive(this) || !crashOnZombie);
 
@@ -108,8 +108,8 @@ const TFuture<TYsonString>& TMasterTableSchema::AsYsonAsync() const
         return MemoizedYson_;
     }
 
-    MemoizedYson_ = BIND([schema = AsTableSchema()] {
-        return ConvertToYsonString(schema);
+    MemoizedYson_ = BIND([schema = AsHeavyTableSchema()] {
+        return ConvertToYsonString(*schema);
     })
         .AsyncVia(NRpc::TDispatcher::Get()->GetHeavyInvoker())
         .Run();
@@ -127,7 +127,7 @@ TYsonString TMasterTableSchema::AsYsonSync() const
     }
 
     // There's no escape - serialize it right here and now.
-    return ConvertToYsonString(AsTableSchema());
+    return ConvertToYsonString(*AsHeavyTableSchema());
 }
 
 bool TMasterTableSchema::RefBy(TAccount* account, int delta)

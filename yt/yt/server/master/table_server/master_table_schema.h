@@ -54,7 +54,7 @@ public:
 
     const TCompactTableSchemaPtr& AsCompactTableSchema(bool crashOnZombie = true) const;
     // Triggers deserialization of underlying `CompactTableSchema_`, so if possible, prefer the above.
-    const NTableClient::TTableSchema& AsTableSchema(bool crashOnZombie = true) const;
+    NTableClient::TTableSchemaPtr AsHeavyTableSchema(bool crashOnZombie = true) const;
     const TFuture<NYson::TYsonString>& AsYsonAsync() const;
     // Whenever possible, prefer the above.
     NYson::TYsonString AsYsonSync() const;

@@ -260,7 +260,7 @@ public:
 
         // Initialize new tablet chunk lists.
         if (table->IsPhysicallySorted()) {
-            auto comparator = table->GetSchema()->AsTableSchema().ToComparator();
+            auto comparator = table->GetSchema()->AsCompactTableSchema()->ToComparator();
 
             // This excludes hunk chunks.
             std::vector<TChunkTree*> chunksOrViews;

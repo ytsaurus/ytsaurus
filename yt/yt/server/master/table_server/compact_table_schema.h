@@ -31,7 +31,9 @@ public:
 
     bool operator==(const TCompactTableSchema& other) const = default;
 
-    const NTableClient::TTableSchema& AsHeavyTableSchema() const;
+    // Triggers deserialization from wire protobuf and caching with expiration of the result.
+    // It is important to return copy of TIntrusivePtr for correct lifetime management of TTableSchema object.
+    NTableClient::TTableSchemaPtr AsHeavyTableSchema() const;
     const std::string& AsWireProto() const;
 
     bool IsSorted() const;
