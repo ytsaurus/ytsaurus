@@ -1088,81 +1088,14 @@ NJobAgent::TTimeStatistics TJob::GetTimeStatistics() const
 {
     YT_ASSERT_THREAD_AFFINITY(JobThread);
 
-    auto getWaitForResourcesDuration = [&] () -> std::optional<TDuration> {
-        if (!ResourcesAcquiredTime_) {
-            return TInstant::Now() - CreationTime_;
+    auto getDuration = [] (std::optional<TInstant> startTime, std::optional<TInstant> finishTime) -> std::optional<TDuration> {
+        if (!startTime) {
+            return std::nullopt;
+        } else {
+            return (finishTime ? *finishTime : TInstant::Now()) - *startTime;
         }
+    };
 
-        return *ResourcesAcquiredTime_ - CreationTime_;
-    };
-
-    auto getPrepareDuration = [&] () -> std::optional<TDuration> {
-        // TODO(arkady-e1ppa): Fix PrepareStartTime semantics.
-        if (!StartTime_) {
-            return std::nullopt;
-        }
-        if (!PreparationStartTime_) {
-            return std::nullopt;
-        } else if (!ExecStartTime_) {
-            return TInstant::Now() - *PreparationStartTime_;
-        } else {
-            return *ExecStartTime_ - *PreparationStartTime_;
-        }
-    };
-    auto getPrepareRootFSDuration = [&] () -> std::optional<TDuration> {
-        if (!PrepareRootVolumeStartTime_) {
-            return std::nullopt;
-        } else if (!PrepareRootVolumeFinishTime_) {
-            return TInstant::Now() - *PrepareRootVolumeStartTime_;
-        } else {
-            return *PrepareRootVolumeFinishTime_ - *PrepareRootVolumeStartTime_;
-        }
-    };
-    auto getArtifactsDownloadDuration = [&] () -> std::optional<TDuration> {
-        if (!PreparationStartTime_) {
-            return std::nullopt;
-        } else if (!CopyFinishTime_) {
-            return TInstant::Now() - *PreparationStartTime_;
-        } else {
-            return *CopyFinishTime_ - *PreparationStartTime_;
-        }
-    };
-    auto getExecDuration = [&] () -> std::optional<TDuration> {
-        if (!ExecStartTime_) {
-            return std::nullopt;
-        } else if (!FinishTime_) {
-            return TInstant::Now() - *ExecStartTime_;
-        } else {
-            return *FinishTime_ - *ExecStartTime_;
-        }
-    };
-    auto getPrepareGpuCheckFSDuration = [&] () -> std::optional<TDuration> {
-        if (!PrepareGpuCheckVolumeStartTime_) {
-            return std::nullopt;
-        } else if (!PrepareGpuCheckVolumeFinishTime_) {
-            return TInstant::Now() - *PrepareGpuCheckVolumeStartTime_;
-        } else {
-            return *PrepareGpuCheckVolumeFinishTime_ - *PrepareGpuCheckVolumeStartTime_;
-        }
-    };
-    auto getPreliminaryGpuCheckDuration = [&] () -> std::optional<TDuration> {
-        if (!PreliminaryGpuCheckStartTime_) {
-            return std::nullopt;
-        } else if (!PreliminaryGpuCheckFinishTime_) {
-            return TInstant::Now() - *PreliminaryGpuCheckStartTime_;
-        } else {
-            return *PreliminaryGpuCheckFinishTime_ - *PreliminaryGpuCheckStartTime_;
-        }
-    };
-    auto getExtraGpuCheckDuration = [&] () -> std::optional<TDuration> {
-        if (!ExtraGpuCheckStartTime_) {
-            return std::nullopt;
-        } else if (!ExtraGpuCheckFinishTime_) {
-            return TInstant::Now() - *ExtraGpuCheckStartTime_;
-        } else {
-            return *ExtraGpuCheckFinishTime_ - *ExtraGpuCheckStartTime_;
-        }
-    };
     auto sumOptionals = [&] (std::optional<TDuration> lhs, std::optional<TDuration> rhs) -> std::optional<TDuration> {
         if (!lhs && !rhs) {
             return std::nullopt;
@@ -1176,13 +1109,15 @@ NJobAgent::TTimeStatistics TJob::GetTimeStatistics() const
     };
 
     return {
-        .WaitingForResourcesDuration = getWaitForResourcesDuration(),
-        .PrepareDuration = getPrepareDuration(),
-        .ArtifactsDownloadDuration = getArtifactsDownloadDuration(),
-        .PrepareRootFSDuration = getPrepareRootFSDuration(),
-        .ExecDuration = getExecDuration(),
-        .PrepareGpuCheckFSDuration = getPrepareGpuCheckFSDuration(),
-        .GpuCheckDuration = sumOptionals(getPreliminaryGpuCheckDuration(), getExtraGpuCheckDuration())
+        .WaitingForResourcesDuration = getDuration(std::make_optional(CreationTime_), ResourcesAcquiredTime_),
+        .PrepareDuration = getDuration(PreparationStartTime_, ExecStartTime_),
+        .ArtifactsDownloadDuration = getDuration(PreparationStartTime_, CopyFinishTime_),
+        .PrepareRootFSDuration = getDuration(PrepareRootVolumeStartTime_, PrepareRootVolumeFinishTime_),
+        .ExecDuration = getDuration(ExecStartTime_, FinishTime_),
+        .PrepareGpuCheckFSDuration = getDuration(PrepareGpuCheckVolumeStartTime_, PrepareGpuCheckVolumeFinishTime_),
+        .GpuCheckDuration = sumOptionals(
+            getDuration(PreliminaryGpuCheckStartTime_, PreliminaryGpuCheckFinishTime_),
+            getDuration(ExtraGpuCheckStartTime_, ExtraGpuCheckFinishTime_)),
     };
 }
 
@@ -2394,22 +2329,21 @@ void TJob::RunWithWorkspaceBuilder()
     workspaceBuilder->SubscribeUpdateBuilderPhase(
         BIND_NO_PROPAGATE(&TJob::SetJobPhase, MakeWeak(this)));
 
-    // TODO(pogorelov): Do not pass TJobWorkspaceBuilderPtr, define structure.
-    workspaceBuilder->SubscribeUpdateTimers(
-        BIND_NO_PROPAGATE([this, weakThis = MakeWeak(this)] (const TJobWorkspaceBuilderPtr& workspace) {
+    workspaceBuilder->SubscribeUpdateTimePoints(
+        BIND_NO_PROPAGATE([this, weakThis = MakeWeak(this)] (TJobWorkspaceBuilderTimePoints timePoints) {
             auto this_ = weakThis.Lock();
             if (!this_) {
                 return;
             }
 
-            PreliminaryGpuCheckStartTime_ = workspace->GetGpuCheckStartTime();
-            PreliminaryGpuCheckFinishTime_ = workspace->GetGpuCheckFinishTime();
+            PreliminaryGpuCheckStartTime_ = timePoints.GpuCheckStartTime;
+            PreliminaryGpuCheckFinishTime_ = timePoints.GpuCheckFinishTime;
 
-            PrepareRootVolumeStartTime_ = workspace->GetPrepareRootVolumeStartTime();
-            PrepareRootVolumeFinishTime_ = workspace->GetPrepareRootVolumeFinishTime();
+            PrepareRootVolumeStartTime_ = timePoints.PrepareRootVolumeStartTime;
+            PrepareRootVolumeFinishTime_ = timePoints.PrepareRootVolumeFinishTime;
 
-            PrepareGpuCheckVolumeStartTime_ = workspace->GetPrepareGpuCheckVolumeStartTime();
-            PrepareGpuCheckVolumeFinishTime_ = workspace->GetPrepareGpuCheckVolumeFinishTime();
+            PrepareGpuCheckVolumeStartTime_ = timePoints.PrepareGpuCheckVolumeStartTime;
+            PrepareGpuCheckVolumeFinishTime_ = timePoints.PrepareGpuCheckVolumeFinishTime;
         })
             .Via(Invoker_));
 

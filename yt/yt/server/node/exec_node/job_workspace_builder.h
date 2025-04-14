@@ -73,22 +73,27 @@ struct TJobWorkspaceBuildingResult
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TJobWorkspaceBuilderTimePoints
+{
+    std::optional<TInstant> PrepareRootVolumeStartTime;
+    std::optional<TInstant> PrepareRootVolumeFinishTime;
+
+    std::optional<TInstant> PrepareGpuCheckVolumeStartTime;
+    std::optional<TInstant> PrepareGpuCheckVolumeFinishTime;
+
+    std::optional<TInstant> GpuCheckStartTime;
+    std::optional<TInstant> GpuCheckFinishTime;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TJobWorkspaceBuilder
     : public TRefCounted
 {
 public:
     DEFINE_SIGNAL(void(EJobPhase phase), UpdateBuilderPhase);
     DEFINE_SIGNAL(void(i64 compressedDataSize, bool cacheHit), UpdateArtifactStatistics);
-    DEFINE_SIGNAL(void(TJobWorkspaceBuilderPtr), UpdateTimers);
-
-    DEFINE_BYVAL_RO_PROPERTY(std::optional<TInstant>, PrepareRootVolumeStartTime);
-    DEFINE_BYVAL_RO_PROPERTY(std::optional<TInstant>, PrepareRootVolumeFinishTime);
-
-    DEFINE_BYVAL_RO_PROPERTY(std::optional<TInstant>, PrepareGpuCheckVolumeStartTime);
-    DEFINE_BYVAL_RO_PROPERTY(std::optional<TInstant>, PrepareGpuCheckVolumeFinishTime);
-
-    DEFINE_BYVAL_RO_PROPERTY(std::optional<TInstant>, GpuCheckStartTime);
-    DEFINE_BYVAL_RO_PROPERTY(std::optional<TInstant>, GpuCheckFinishTime);
+    DEFINE_SIGNAL(void(TJobWorkspaceBuilderTimePoints), UpdateTimePoints);
 
 public:
     TJobWorkspaceBuilder(
@@ -106,6 +111,8 @@ protected:
     const IJobDirectoryManagerPtr DirectoryManager_;
 
     TJobWorkspaceBuildingResult ResultHolder_;
+
+    TJobWorkspaceBuilderTimePoints TimePoints_;
 
     const NLogging::TLogger& Logger;
 
@@ -128,6 +135,8 @@ protected:
     void MakeArtifactSymlinks();
 
     void PrepareArtifactBinds();
+
+    void SetNowTime(std::optional<TInstant>& timeField);
 
 private:
     template<TFuture<void>(TJobWorkspaceBuilder::*Step)()>
