@@ -230,6 +230,12 @@ void TJobWorkspaceBuilder::PrepareArtifactBinds()
     YT_LOG_INFO("Permissions for artifacts set");
 }
 
+void TJobWorkspaceBuilder::SetNowTime(std::optional<TInstant>& timeField)
+{
+    timeField = TInstant::Now();
+    UpdateTimePoints_.Fire(TimePoints_);
+}
+
 TFuture<TJobWorkspaceBuildingResult> TJobWorkspaceBuilder::Run()
 {
     YT_ASSERT_THREAD_AFFINITY(JobThread);
@@ -420,8 +426,7 @@ private:
         }
 
         if (!layerArtifactKeys.empty()) {
-            PrepareRootVolumeStartTime_ = TInstant::Now();
-            UpdateTimers_.Fire(MakeStrong(this));
+            SetNowTime(TimePoints_.PrepareRootVolumeStartTime);
 
             YT_LOG_INFO("Preparing root volume (LayerCount: %v, HasVirtualSandbox: %v)",
                 layerArtifactKeys.size(),
@@ -448,8 +453,7 @@ private:
 
                     ResultHolder_.RootVolume = volumeOrError.Value();
 
-                    PrepareRootVolumeFinishTime_ = TInstant::Now();
-                    UpdateTimers_.Fire(MakeStrong(this));
+                    SetNowTime(TimePoints_.PrepareRootVolumeFinishTime);
                 }));
         } else {
             YT_LOG_DEBUG("Root volume preparation is not needed");
@@ -468,8 +472,7 @@ private:
         const auto& layerArtifactKeys = Context_.GpuCheckVolumeLayerArtifactKeys;
 
         if (!layerArtifactKeys.empty()) {
-            PrepareGpuCheckVolumeStartTime_ = TInstant::Now();
-            UpdateTimers_.Fire(MakeStrong(this));
+            SetNowTime(TimePoints_.PrepareGpuCheckVolumeStartTime);
 
             YT_LOG_INFO("Preparing GPU check volume (LayerCount: %v)",
                 layerArtifactKeys.size());
@@ -494,8 +497,7 @@ private:
 
                     ResultHolder_.GpuCheckVolume = volumeOrError.Value();
 
-                    PrepareGpuCheckVolumeFinishTime_ = TInstant::Now();
-                    UpdateTimers_.Fire(MakeStrong(this));
+                    SetNowTime(TimePoints_.PrepareGpuCheckVolumeFinishTime);
                 }));
         } else {
             YT_LOG_DEBUG("GPU check volume preparation is not needed");
@@ -627,13 +629,11 @@ private:
             auto checker = New<TJobGpuChecker>(std::move(context), Logger);
 
             checker->SubscribeRunCheck(BIND_NO_PROPAGATE([this, this_ = MakeStrong(this)] {
-                GpuCheckStartTime_ = TInstant::Now();
-                UpdateTimers_.Fire(MakeStrong(this));
+                SetNowTime(TimePoints_.GpuCheckStartTime);
             }));
 
             checker->SubscribeFinishCheck(BIND_NO_PROPAGATE([this, this_ = MakeStrong(this)] {
-                GpuCheckFinishTime_ = TInstant::Now();
-                UpdateTimers_.Fire(MakeStrong(this));
+                SetNowTime(TimePoints_.GpuCheckFinishTime);
             }));
 
             YT_LOG_INFO("Starting preliminary GPU check");
@@ -707,8 +707,7 @@ private:
         }
 
         if (dockerImage) {
-            PrepareRootVolumeStartTime_ = TInstant::Now();
-            UpdateTimers_.Fire(MakeStrong(this));
+            SetNowTime(TimePoints_.PrepareRootVolumeStartTime);
 
             TCriImageDescriptor imageDescriptor {
                 .Image = *dockerImage,
@@ -739,8 +738,7 @@ private:
 
                     ResultHolder_.DockerImage = imageId.Image;
 
-                    PrepareRootVolumeFinishTime_ = TInstant::Now();
-                    UpdateTimers_.Fire(MakeStrong(this));
+                    SetNowTime(TimePoints_.PrepareRootVolumeFinishTime);
                 }));
         } else {
             YT_LOG_DEBUG("Root volume preparation is not needed");
