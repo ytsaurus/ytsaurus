@@ -536,6 +536,7 @@ private:
         // Sequoia in future.
         TTransactionStartOptions options{
             .Timeout = Config_->LeaseTransactionTimeout,
+            .AutoAbort = false,
             .PingPeriod = Config_->LeaseTransactionPingPeriod,
             .SuppressStartTimestampGeneration = true,
             .CoordinatorMasterCellTag = connection->GetPrimaryMasterCellTag(),
