@@ -754,6 +754,13 @@ class UserJobSpecBuilder(object):
     def _supports_row_index(self, operation_type):
         return (self._job_type != "reducer" and self._job_type != "reduce_combiner") or operation_type != "map_reduce"
 
+    def _set_user_job_pickling_encryption_key(self, spec, key, client):
+        pickling_mode = get_config(client)["pickling"]["encrypt_pickle_files"]
+        if key and pickling_mode and pickling_mode != 2:
+            if "environment" not in spec:
+                spec["environment"] = {}
+            spec["environment"]["_PICKLING_KEY"] = key
+
     @staticmethod
     def _set_control_attribute(job_io_spec, key, value):
         assert job_io_spec is not None
@@ -860,9 +867,11 @@ class UserJobSpecBuilder(object):
             input_format, output_format, input_tables, output_tables, operation_preparation_context, client)
 
         if operation_preparation_context._pickling_encryption_key:
-            if "environment" not in spec:
-                spec["environment"] = {}
-            spec["environment"]["YT_PICKLING_KEY"] = operation_preparation_context._pickling_encryption_key
+            self._set_user_job_pickling_encryption_key(
+                spec,
+                operation_preparation_context._pickling_encryption_key,
+                client,
+            )
 
         spec.setdefault("use_yamr_descriptors",
                         get_config(client)["yamr_mode"]["use_yamr_style_destination_fds"])
@@ -1178,7 +1187,11 @@ class SpecBuilder(object):
                 del spec[job_type]
 
             if operation_preparation_context._pickling_encryption_key:
-                self._set_pickling_encryption_key(spec, operation_preparation_context._pickling_encryption_key)
+                self._set_pickling_encryption_key(
+                    spec,
+                    operation_preparation_context._pickling_encryption_key,
+                    client,
+                )
         else:
             input_tables = operation_preparation_context.get_input_paths()
             output_tables = operation_preparation_context.get_output_paths()
@@ -1283,10 +1296,14 @@ class SpecBuilder(object):
             return ""
         return None
 
-    def _set_pickling_encryption_key(self, spec, key):
+    def _set_pickling_encryption_key(self, spec, key, client):
         """Set global (spec scoup) pickling key"""
         self._pickling_encryption_key = key
-        # TODO: use vault here
+        # TODO: move key to protected section YT-24616
+        if get_config(client)["pickling"]["encrypt_pickle_files"] == 2:
+            if "secure_vault" not in spec:
+                spec["secure_vault"] = dict()
+            spec["secure_vault"]["_PICKLING_KEY"] = key
 
     def get_input_table_paths(self):
         """Returns list of input paths."""
