@@ -7,6 +7,7 @@
 
 #include <yt/yt/ytlib/query_client/query_service_proxy.h>
 
+#include <yt/yt/client/table_client/helpers.h>
 #include <yt/yt/client/table_client/row_batch.h>
 #include <yt/yt/client/table_client/row_buffer.h>
 #include <yt/yt/client/table_client/schema.h>
@@ -218,18 +219,13 @@ private:
         std::vector<TUnversionedRow> rowset;
         i64 dataWeight = 0;
 
-        while (auto batch = reader->Read()) {
-            if (batch->IsEmpty()) {
-                WaitFor(reader->GetReadyEvent())
-                    .ThrowOnError();
-            } else {
-                for (auto row : batch->MaterializeRows()) {
-                    // Could verify sortedness declared in schema, while we're at it.
-                    auto capturedRow = rowBuffer->CaptureRow(row);
-                    // TWireProtocolRowsetReader does not support GetDataStatistics method.
-                    dataWeight += GetDataWeight(capturedRow);
-                    rowset.push_back(capturedRow);
-                }
+        while (auto batch = ReadRowBatch(reader)) {
+            for (auto row : batch->MaterializeRows()) {
+                // Could verify sortedness declared in schema, while we're at it.
+                auto capturedRow = rowBuffer->CaptureRow(row);
+                // TWireProtocolRowsetReader does not support GetDataStatistics method.
+                dataWeight += GetDataWeight(capturedRow);
+                rowset.push_back(capturedRow);
             }
         }
 

@@ -2432,7 +2432,7 @@ ISchemafulUnversionedReaderPtr CreateLookupSessionReader(
         chunkReadOptions);
 
     YT_LOG_DEBUG("Creating lookup session reader (TabletId: %v, CellId: %v, WorkloadDescriptor: %v, "
-        "ReadSessionId: %v, ColumnFilter: %v, LookupKeyCount: %v, UseLookupCache: %v, Timestamp: %v, ",
+        "ReadSessionId: %v, ColumnFilter: %v, LookupKeyCount: %v, UseLookupCache: %v, Timestamp: %v)",
         tabletSnapshot->TabletId,
         tabletSnapshot->CellId,
         chunkReadOptions.WorkloadDescriptor,
