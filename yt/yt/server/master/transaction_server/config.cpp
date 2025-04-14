@@ -76,12 +76,10 @@ void TDynamicTransactionManagerConfig::Register(TRegistrar registrar)
         .Default(false);
 
     registrar.Parameter("forbid_transaction_actions_for_cypress_transactions", &TThis::ForbidTransactionActionsForCypressTransactions)
-        .Default(false)
-        .DontSerializeDefault();
+        .Default(false);
 
     registrar.Parameter("enable_start_foreign_transaction_fixes", &TThis::EnableStartForeignTransactionFixes)
-        .Default(false)
-        .DontSerializeDefault();
+        .Default(false);
 
     registrar.Parameter("enable_cypress_mirrorred_to_sequoia_prerequisite_transaction_validation_via_leases", &TThis::EnableCypressMirroredToSequoiaPrerequisiteTransactionValidationViaLeases)
         // COMPAT(cherepashka)

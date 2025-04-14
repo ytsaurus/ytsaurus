@@ -61,8 +61,7 @@ void TDynamicSecurityManagerConfig::Register(TRegistrar registrar)
         .Default(false);
 
     registrar.Parameter("enable_subject_tag_filters", &TThis::EnableSubjectTagFilters)
-        .Default(true)
-        .DontSerializeDefault();
+        .Default(true);
 
     registrar.Parameter("user_statistics_flush_period", &TThis::UserStatisticsFlushPeriod)
         .GreaterThan(TDuration::Zero())

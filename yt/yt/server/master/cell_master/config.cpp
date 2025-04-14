@@ -154,8 +154,7 @@ void TTestConfig::Register(TRegistrar registrar)
     registrar.Parameter("master_cell_directory_override", &TThis::MasterCellDirectoryOverride)
         .Default();
     registrar.Parameter("frozen_hive_edges", &TThis::FrozenHiveEdges)
-        .Default()
-        .DontSerializeDefault();
+        .Default();
     registrar.Parameter("discovered_masters_cell_tags", &TThis::DiscoveredMastersCellTags)
         .Default();
     registrar.Parameter("allow_master_cell_with_empty_role", &TThis::AllowMasterCellWithEmptyRole)
@@ -406,8 +405,7 @@ void TDynamicClusterConfig::Register(TRegistrar registrar)
     registrar.Parameter("cell_manager", &TThis::CellManager)
         .DefaultNew();
     registrar.Parameter("table_manager", &TThis::TableManager)
-        .DefaultNew()
-        .DontSerializeDefault();
+        .DefaultNew();
     registrar.Parameter("tablet_manager", &TThis::TabletManager)
         .DefaultNew();
     registrar.Parameter("chaos_manager", &TThis::ChaosManager)
