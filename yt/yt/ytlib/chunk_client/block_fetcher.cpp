@@ -319,7 +319,6 @@ std::vector<TFuture<TBlock>> TBlockFetcher::FetchBlocks(const std::vector<TBlock
     if (!windowIndicesToRequest.empty()) {
         std::vector<int> groupWindowIndices;
         std::vector<TBlockDescriptor> groupBlockDescriptors;
-        i64 estimatedCompressedSize = 0;
 
         auto requestBlocks = [&] {
             YT_LOG_DEBUG("Requesting blocks async (BlockDescriptors: %v)",
@@ -330,8 +329,6 @@ std::vector<TFuture<TBlock>> TBlockFetcher::FetchBlocks(const std::vector<TBlock
                     MakeWeak(this),
                     std::move(groupWindowIndices),
                     std::move(groupBlockDescriptors)));
-
-            estimatedCompressedSize = 0;
         };
 
         i64 index = 0;
@@ -340,9 +337,7 @@ std::vector<TFuture<TBlock>> TBlockFetcher::FetchBlocks(const std::vector<TBlock
             auto windowIndex = windowIndicesToRequest[index];
             const auto& blockInfo = BlockInfos_[windowIndex];
 
-            i64 estimatedCompressedBlockSize = blockInfo.UncompressedDataSize * CompressionRatio_;
-            bool canGroupBlocks = Config_->GroupOutOfOrderBlocks
-                && estimatedCompressedSize + estimatedCompressedBlockSize <= Config_->GroupSize;
+            bool canGroupBlocks = Config_->GroupOutOfOrderBlocks;
 
             if (groupWindowIndices.empty() || canGroupBlocks) {
                 groupWindowIndices.push_back(windowIndex);
@@ -351,7 +346,6 @@ std::vector<TFuture<TBlock>> TBlockFetcher::FetchBlocks(const std::vector<TBlock
                     .BlockIndex = blockInfo.BlockIndex,
                 });
 
-                estimatedCompressedSize += estimatedCompressedBlockSize;
                 ++index;
             } else {
                 requestBlocks();
