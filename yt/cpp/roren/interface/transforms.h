@@ -80,7 +80,7 @@ namespace NRoren {
 ///
 ///     class TMyParDo : public NRoren::IDoFn<TString, int>
 ///     ...
-///     auto transform = ParDo(MakeIntrusive<TMyParDo>());
+///     auto transform = ParDo(NYT::New<TMyParDo>());
 ///
 /// @param attributes contains attributes of a function, they will be merged with
 /// attributes provided by `func' (values from `attributes' have higher precedence).
@@ -100,7 +100,7 @@ template <typename F, typename... TArgs>
 auto ParDo(F&& func, TArgs&&... args);
 
 template <NPrivate::CDoFn TFunc>
-auto ParDo(TIntrusivePtr<TFunc> func);
+auto ParDo(NYT::TIntrusivePtr<TFunc> func);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -165,7 +165,7 @@ private:
 template <typename T>
 TReadTransform<T> DummyRead(const TString& name = "")
 {
-    return TReadTransform<T>{MakeIntrusive<NPrivate::TRawDummyRead>(NPrivate::MakeRowVtable<T>()), name};
+    return TReadTransform<T>{NYT::New<NPrivate::TRawDummyRead>(NPrivate::MakeRowVtable<T>()), name};
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -210,7 +210,7 @@ private:
 template <typename T>
 TWriteTransform<T> DummyWrite()
 {
-    return TWriteTransform<T>{MakeIntrusive<NPrivate::TRawDummyWriter>(NPrivate::MakeRowVtable<T>())};
+    return TWriteTransform<T>{NYT::New<NPrivate::TRawDummyWriter>(NPrivate::MakeRowVtable<T>())};
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -288,7 +288,7 @@ private:
 };
 
 template <NPrivate::CDoFn TFunc>
-auto ParDo(TIntrusivePtr<TFunc> func)
+auto ParDo(NYT::TIntrusivePtr<TFunc> func)
 {
     using TInputRow = std::decay_t<typename TFunc::TInputRow>;
     using TOutputRow = typename TFunc::TOutputRow;
@@ -299,7 +299,7 @@ auto ParDo(TIntrusivePtr<TFunc> func)
 template <NPrivate::CDoFn F, typename... TArgs>
 auto MakeParDo(TArgs&&... args)
 {
-    return ParDo(::MakeIntrusive<F>(std::forward<TArgs>(args)...));
+    return ParDo(NYT::New<F>(std::forward<TArgs>(args)...));
 }
 
 template <typename F, typename... TArgs>
@@ -394,7 +394,7 @@ private:
 };
 
 template <NPrivate::CStatefulDoFn TFunc, typename TKey, typename TState>
-auto StatefulParDo(TPState<TKey, TState> pState, TIntrusivePtr<TFunc> func)
+auto StatefulParDo(TPState<TKey, TState> pState, NYT::TIntrusivePtr<TFunc> func)
 {
     static_assert(
         std::is_same_v<TState, typename TFunc::TState>,
@@ -413,10 +413,11 @@ auto MakeStatefulParDo(
     TPState<typename std::decay_t<typename T::TInputRow>::TKey, typename T::TState> pState,
     TArgs&&... args)
 {
-    return StatefulParDo(pState, MakeIntrusive<T>(std::forward<TArgs>(args)...));
+    return StatefulParDo(pState, NYT::New<T>(std::forward<TArgs>(args)...));
 }
 
 template <typename TKey, typename TState, typename F, typename... TArgs>
+    requires (!NPrivate::CStatefulDoFn<F>)
 auto StatefulParDo(TPState<TKey, TState> pState, F&& func, TArgs&&... args)
 {
     auto bind = BindBack(std::forward<F>(func), std::forward<TArgs>(args)...);
@@ -475,10 +476,10 @@ auto StatefulTimerParDo(TPState<TKey, TState> pState, TFn fn, const TFnAttribute
 {
     using TDecayedF = std::decay_t<TFn>;
     if constexpr (NPrivate::CIntrusivePtr<TDecayedF>) {
-        static_assert(std::is_same_v<TState, typename TDecayedF::TValueType::TState>, "Type of PState doesn't match StatefulTimerDoFn");
+        static_assert(std::is_same_v<TState, typename TDecayedF::TUnderlying::TState>, "Type of PState doesn't match StatefulTimerDoFn");
 
-        using TInput = typename TDecayedF::TValueType::TInputRow;
-        using TOutput = typename TDecayedF::TValueType::TOutputRow;
+        using TInput = typename TDecayedF::TUnderlying::TInputRow;
+        using TOutput = typename TDecayedF::TUnderlying::TOutputRow;
         auto rawFn = NPrivate::MakeRawStatefulTimerParDo(fn, attributes);
         auto rawState = NPrivate::GetRawPStateNode(pState);
         return TStatefulTimerParDoTransform<TInput, TOutput, TState>{rawFn, rawState};
@@ -490,7 +491,7 @@ auto StatefulTimerParDo(TPState<TKey, TState> pState, TFn fn, const TFnAttribute
 template <typename T, typename... Args>
 auto MakeStatefulTimerParDo(TPState<typename T::TInputRow::TKey, typename T::TState> pState, Args... args)
 {
-    return StatefulTimerParDo(pState, MakeIntrusive<T>(args...));
+    return StatefulTimerParDo(pState, NYT::New<T>(args...));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -557,7 +558,7 @@ public:
     using TCombineOutput = typename TCombineFn::TOutputRow;
 
 public:
-    explicit TCombinePerKeyTransform(::TIntrusivePtr<TCombineFn> combineFn)
+    explicit TCombinePerKeyTransform(NYT::TIntrusivePtr<TCombineFn> combineFn)
         : CombineFn_(std::move(combineFn))
     { }
 
@@ -603,7 +604,7 @@ private:
         return Attributes_.GetAttribute(key);
     }
 
-    const ::TIntrusivePtr<TCombineFn> CombineFn_;
+    const NYT::TIntrusivePtr<TCombineFn> CombineFn_;
     NPrivate::TAttributes Attributes_;
 };
 
@@ -622,7 +623,7 @@ auto CombinePerKey(F&& func, TArgs&&... args)
     using TRow = std::decay_t<std::remove_pointer_t<TFunctionArg<TFunctor, 0>>>;
     static_assert(std::same_as<TFunctionArg<TFunctor, 0>, TRow*>);
     static_assert(std::same_as<TFunctionArg<TFunctor, 1>, const TRow&>);
-    return CombinePerKey(::MakeIntrusive<TFunctorCombineFn<TFunctor, TRow>>(std::move(bind)));
+    return CombinePerKey(NYT::New<TFunctorCombineFn<TFunctor, TRow>>(std::move(bind)));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

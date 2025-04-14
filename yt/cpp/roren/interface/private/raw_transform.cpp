@@ -125,7 +125,7 @@ const void* TRawDummyRead::NextRaw()
 ISerializable<IRawRead>::TDefaultFactoryFunc TRawDummyRead::GetDefaultFactory() const
 {
     return []() -> NPrivate::IRawReadPtr {
-        return MakeIntrusive<TRawDummyRead>();
+        return NYT::New<TRawDummyRead>();
     };
 }
 
@@ -168,7 +168,7 @@ void TRawDummyWriter::Close()
 ISerializable<IRawWrite>::TDefaultFactoryFunc TRawDummyWriter::GetDefaultFactory() const
 {
     return []() -> IRawWritePtr {
-        auto result = ::MakeIntrusive<TRawDummyWriter>();
+        auto result = NYT::New<TRawDummyWriter>();
         return result.Get();
     };
 }

@@ -13,10 +13,8 @@ namespace NRoren {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class IRawTimerFn;
-
 class IExecutionContext
-    : public TThrRefBase
+    : public NYT::TRefCounted
 {
 public:
     virtual ~IExecutionContext() = default;
@@ -42,6 +40,8 @@ public:
         return casted;
     }
 };
+
+DEFINE_REFCOUNTED_TYPE(IExecutionContext);
 
 IExecutionContextPtr DummyExecutionContext();
 

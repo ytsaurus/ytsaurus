@@ -18,11 +18,10 @@ namespace NRoren::NPrivate {
 ////////////////////////////////////////////////////////////////////////////////
 
 template <typename T>
-concept CStatefulDoFn = std::default_initializable<T>
-    && std::derived_from<T, IStatefulDoFn<typename T::TInputRow, typename T::TOutputRow, typename T::TState>>;
+concept CStatefulDoFn = std::derived_from<T, IStatefulDoFn<typename T::TInputRow, typename T::TOutputRow, typename T::TState>>;
 
 template <typename TFunc, typename TInputRow, typename TOutputRow, typename TState>
-class TFunctorStatefulDoFn final
+class TFunctorStatefulDoFn
     : public IStatefulDoFn<TInputRow, TOutputRow, TState>
 {
 public:
@@ -62,7 +61,7 @@ class TRawStatefulParDo
 public:
     TRawStatefulParDo() = default;
 
-    TRawStatefulParDo(TIntrusivePtr<TFunction> func)
+    TRawStatefulParDo(NYT::TIntrusivePtr<TFunction> func)
         : Func_(std::move(func))
         , InputTag_("stateful-do-fn-input", MakeRowVtable<TInputRow>())
         , OutputTags_(Func_->GetOutputTags())
@@ -171,7 +170,7 @@ public:
     [[nodiscard]] TDefaultFactoryFunc GetDefaultFactory() const override
     {
         return [] () -> IRawStatefulParDoPtr {
-            return MakeIntrusive<TRawStatefulParDo>();
+            return NYT::New<TRawStatefulParDo>();
         };
     }
 
@@ -193,7 +192,7 @@ private:
     }
 
 private:
-    TIntrusivePtr<TFunction> Func_ = MakeIntrusive<TFunction>();
+    NYT::TIntrusivePtr<TFunction> Func_ = NYT::New<TFunction>();
     TDynamicTypeTag InputTag_;
     std::vector<TDynamicTypeTag> OutputTags_;
     TFnAttributes FnAttributes_;
@@ -204,9 +203,9 @@ private:
 };
 
 template <typename TFunction>
-IRawStatefulParDoPtr MakeRawStatefulParDo(TIntrusivePtr<TFunction> fn)
+IRawStatefulParDoPtr MakeRawStatefulParDo(NYT::TIntrusivePtr<TFunction> fn)
 {
-    return ::MakeIntrusive<TRawStatefulParDo<TFunction>>(fn);
+    return NYT::New<TRawStatefulParDo<TFunction>>(fn);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

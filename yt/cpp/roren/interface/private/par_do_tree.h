@@ -18,6 +18,8 @@ public:
     virtual TString GetDebugDescription() const = 0;
 };
 
+DEFINE_REFCOUNTED_TYPE(IParDoTree);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TParDoTreeBuilder

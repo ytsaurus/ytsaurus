@@ -1,6 +1,6 @@
 #pragma once
 
-#include <util/generic/ptr.h>
+#include <library/cpp/yt/memory/public.h>
 
 namespace NRoren {
 
@@ -16,8 +16,7 @@ class TMultiPCollection;
 
 class TPipeline;
 
-class IExecutor;
-using IExecutorPtr = ::TIntrusivePtr<IExecutor>;
+DECLARE_REFCOUNTED_CLASS(IExecutor);
 
 class TGroupByKey;
 
@@ -30,7 +29,7 @@ template <typename T>
 class TInputPtr;
 
 using TMultiInput = TInput<TMultiRow>;
-using TMultiInputPtr = ::TIntrusivePtr<TMultiInput>;
+using TMultiInputPtr = NYT::TIntrusivePtr<TMultiInput>;
 
 template <typename T>
 class TOutput;
@@ -73,8 +72,7 @@ struct TNonCodableTag;
 template <typename>
 struct TIsManuallyNonCodable;
 
-class IExecutionContext;
-using IExecutionContextPtr = ::TIntrusivePtr<IExecutionContext>;
+DECLARE_REFCOUNTED_CLASS(IExecutionContext);
 
 template <typename K, typename V>
 class TKV;

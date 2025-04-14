@@ -84,11 +84,11 @@ namespace NRoren {
 ////////////////////////////////////////////////////////////////////////////////
 
 NPrivate::IRawParDoPtr CreateAddTableIndexProtoParDo(ssize_t index) {
-    return NPrivate::MakeRawParDo(::MakeIntrusive<NPrivate::TAddTableIndexToProtoDoFn>(index));
+    return NPrivate::MakeRawParDo(NYT::New<NPrivate::TAddTableIndexToProtoDoFn>(index));
 }
 
 NPrivate::IRawParDoPtr CreateAddTableIndexParDo(ssize_t index) {
-    return NPrivate::MakeRawParDo(::MakeIntrusive<NPrivate::TAddTableIndexDoFn>(index));
+    return NPrivate::MakeRawParDo(NYT::New<NPrivate::TAddTableIndexDoFn>(index));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

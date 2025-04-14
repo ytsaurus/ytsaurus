@@ -52,7 +52,7 @@ public:
 
 IExecutionContextPtr DummyExecutionContext()
 {
-    return MakeIntrusive<TDummyExecutionContext>();
+    return NYT::New<TDummyExecutionContext>();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

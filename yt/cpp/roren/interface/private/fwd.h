@@ -1,7 +1,6 @@
 #pragma once
 
-#include <util/generic/ptr.h>
-#include <util/generic/yexception.h>
+#include <library/cpp/yt/memory/ref_counted.h>
 
 namespace NRoren::NPrivate {
 
@@ -10,72 +9,31 @@ namespace NRoren::NPrivate {
 template <typename, typename>
 struct TIsRowCoderRequired;
 
-class IRawCoder;
-using IRawCoderPtr = TIntrusivePtr<IRawCoder>;
-
-class IRawTransform;
-using IRawTransformPtr = TIntrusivePtr<IRawTransform>;
-
-struct IRawRead;
-using IRawReadPtr = TIntrusivePtr<IRawRead>;
-
-struct IRawWrite;
-using IRawWritePtr = TIntrusivePtr<IRawWrite>;
-
-class IRawInput;
-using IRawInputPtr = TIntrusivePtr<IRawInput>;
-
-class IRawOutput;
-using IRawOutputPtr = TIntrusivePtr<IRawOutput>;
-
-class IRawParDo;
-using IRawParDoPtr = TIntrusivePtr<IRawParDo>;
-
-class IRawGroupByKey;
-using IRawGroupByKeyPtr = TIntrusivePtr<IRawGroupByKey>;
-
-class IRawCombine;
-using IRawCombinePtr = TIntrusivePtr<IRawCombine>;
-
-class IRawFlatten;
-using IRawFlattenPtr = TIntrusivePtr<IRawFlatten>;
-
-class TRawPipeline;
-using TRawPipelinePtr = TIntrusivePtr<TRawPipeline>;
-
-class IRawCoGroupByKey;
-using IRawCoGroupByKeyPtr = TIntrusivePtr<IRawCoGroupByKey>;
-
-class TPCollectionNode;
-using TPCollectionNodePtr = TIntrusivePtr<TPCollectionNode>;
-
-class TTransformNode;
-using TTransformNodePtr = TIntrusivePtr<TTransformNode>;
+DECLARE_REFCOUNTED_CLASS(IRawCoder);
+DECLARE_REFCOUNTED_CLASS(IRawTransform);
+DECLARE_REFCOUNTED_STRUCT(IRawRead);
+DECLARE_REFCOUNTED_STRUCT(IRawWrite);
+DECLARE_REFCOUNTED_CLASS(IRawInput);
+DECLARE_REFCOUNTED_CLASS(IRawOutput);
+DECLARE_REFCOUNTED_CLASS(IRawParDo);
+DECLARE_REFCOUNTED_CLASS(IRawGroupByKey);
+DECLARE_REFCOUNTED_CLASS(IRawCombine);
+DECLARE_REFCOUNTED_CLASS(IRawFlatten);
+DECLARE_REFCOUNTED_CLASS(TRawPipeline);
+DECLARE_REFCOUNTED_CLASS(IRawCoGroupByKey);
+DECLARE_REFCOUNTED_CLASS(TPCollectionNode);
+DECLARE_REFCOUNTED_CLASS(TTransformNode);
 
 struct TRowVtable;
 
-class IRawStatefulParDo;
-using IRawStatefulParDoPtr = TIntrusivePtr<IRawStatefulParDo>;
-
-class IRawStatefulTimerParDo;
-using IRawStatefulTimerParDoPtr = TIntrusivePtr<IRawStatefulTimerParDo>;
-
-class IParDoTree;
-using IParDoTreePtr = TIntrusivePtr<IParDoTree>;
-
-class IRawStateStore;
-using IRawStateStorePtr = TIntrusivePtr<IRawStateStore>;
-
-class TRawPStateNode;
-using TRawPStateNodePtr = TIntrusivePtr<TRawPStateNode>;
+DECLARE_REFCOUNTED_CLASS(IRawStatefulParDo);
+DECLARE_REFCOUNTED_CLASS(IRawStatefulTimerParDo);
+DECLARE_REFCOUNTED_CLASS(IParDoTree);
+DECLARE_REFCOUNTED_CLASS(IRawStateStore);
+DECLARE_REFCOUNTED_CLASS(TRawPStateNode);
 
 class TAttributes;
 class TFnAttributesOps;
-
-#define THROW_NOT_IMPLEMENTED_YET() \
-do { \
-    ythrow yexception() << "not supported yet " << __FUNCTION__; \
-} while (0)
 
 ////////////////////////////////////////////////////////////////////////////////
 
