@@ -331,7 +331,7 @@ THashSet<std::string> GenerateNodesForBundle(
         nodeInfo->Banned = false;
         nodeInfo->Decommissioned = false;
         nodeInfo->Host = Format("seneca-ayt-%v.%v.yandex.net", nodeIndex, options.DC);
-        nodeInfo->State = "online";
+        nodeInfo->State = InstanceStateOnline;
         nodeInfo->Annotations->Allocated = true;
         nodeInfo->Annotations->NannyService = Format("nanny-tablet-nodes-%v", options.DC);
         nodeInfo->Annotations->YPCluster = Format("yp-%v", options.DC);
