@@ -752,7 +752,7 @@ void TOrderedChunkPool::RegisterMetadata(auto&& registrar)
     PHOENIX_REGISTER_FIELD(3, Stripes_);
     PHOENIX_REGISTER_FIELD(4, JobSizeConstraints_);
     PHOENIX_REGISTER_FIELD(5, Sampler_);
-    registrar.template VirtualField<6>("SupportLocality", [] (TThis* /*this_*/, auto& context) {
+    registrar.template VirtualField<6>("SupportLocality_", [] (TThis* /*this_*/, auto& context) {
         Load<bool>(context);
     })
         .BeforeVersion(ESnapshotVersion::DropSupportLocality)();
