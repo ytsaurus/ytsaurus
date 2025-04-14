@@ -25,6 +25,7 @@ SRCS(
     operation_controller_detail.cpp
     ordered_controller.cpp
     probing_job_manager.cpp
+    remote_copy_controller.cpp
     sink.cpp
     sort_controller.cpp
     sorted_controller.cpp

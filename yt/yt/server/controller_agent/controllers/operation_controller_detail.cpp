@@ -8127,20 +8127,8 @@ std::vector<TLegacyDataSlicePtr> TOperationControllerBase::CollectPrimaryInputDa
         dataSlicesByTableIndex[dataSlice->GetTableIndex()].emplace_back(std::move(dataSlice));
     }
 
-    if (OperationType == EOperationType::RemoteCopy) {
-        for (const auto& chunk : InputManager->CollectPrimaryVersionedChunks()) {
-            auto dataSlice = CreateUnversionedInputDataSlice(CreateInputChunkSlice(chunk));
-            dataSlice->SetInputStreamIndex(InputStreamDirectory_.GetInputStreamIndex(chunk->GetTableIndex(), chunk->GetRangeIndex()));
-
-            const auto& inputTable = InputManager->GetInputTables()[dataSlice->GetTableIndex()];
-            dataSlice->TransformToNew(RowBuffer, inputTable->Comparator);
-
-            dataSlicesByTableIndex[dataSlice->GetTableIndex()].emplace_back(std::move(dataSlice));
-        }
-    } else {
-        for (auto& dataSlice : CollectPrimaryVersionedDataSlices(versionedSliceSize)) {
-            dataSlicesByTableIndex[dataSlice->GetTableIndex()].emplace_back(std::move(dataSlice));
-        }
+    for (auto& dataSlice : CollectPrimaryVersionedDataSlices(versionedSliceSize)) {
+        dataSlicesByTableIndex[dataSlice->GetTableIndex()].emplace_back(std::move(dataSlice));
     }
 
     std::vector<TLegacyDataSlicePtr> dataSlices;
