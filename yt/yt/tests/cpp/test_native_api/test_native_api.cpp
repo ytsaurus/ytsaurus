@@ -1404,7 +1404,7 @@ TEST_F(TPingTransactionsTest, Reconfigure)
         .ThrowOnError();
     auto batchPeriod = timer.GetElapsedTime();
 
-    ReconfigurePingBatcher(2 * batchPeriod);;
+    ReconfigurePingBatcher(2 * batchPeriod);
 
     timer.Start();
     future = tx->Ping();

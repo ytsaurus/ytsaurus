@@ -114,7 +114,7 @@ private:
         YT_PROFILE_TIMING("/monitoring/update_time") {
             auto newRoot = GetEphemeralNodeFactory()->CreateMap();
 
-            THashMap<TString, NYson::TYsonProducer> pathToProducer;;
+            THashMap<TString, NYson::TYsonProducer> pathToProducer;
             {
                 auto guard = Guard(SpinLock_);
                 pathToProducer = PathToProducer_;

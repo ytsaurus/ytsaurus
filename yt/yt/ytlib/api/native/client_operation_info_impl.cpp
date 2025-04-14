@@ -109,7 +109,7 @@ bool TClient::DoesOperationsArchiveExist()
 std::optional<int> TClient::TryGetOperationsArchiveVersion()
 {
     TGetNodeOptions getNodeOptions;
-    getNodeOptions.ReadFrom = Connection_->GetConfig()->ReadOperationsArchiveStateFrom;;
+    getNodeOptions.ReadFrom = Connection_->GetConfig()->ReadOperationsArchiveStateFrom;
 
     auto asyncVersionResult = GetOperationsArchiveClient()->GetNode(GetOperationsArchiveVersionPath(), getNodeOptions);
 

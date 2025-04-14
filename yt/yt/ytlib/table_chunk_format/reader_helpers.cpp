@@ -65,7 +65,7 @@ void FilterSingleRowVersion(
     TChunkedMemoryPool* memoryPool)
 {
     const auto* beginValues = row.BeginValues();;
-    const auto* endValues = row.EndValues();;
+    const auto* endValues = row.EndValues();
     auto* output = row.BeginValues();
     for (const auto* input = beginValues; input != endValues; ++input) {
         if (input == beginValues || input->Id != (input - 1)->Id || aggregateFlags[input->Id]) {

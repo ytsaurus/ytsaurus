@@ -91,7 +91,7 @@ public:
     {
         auto callId = TGuid::Create();
         const auto& token = credentials.Token;
-        const auto& userIP = credentials.UserIP;;
+        const auto& userIP = credentials.UserIP;
         auto tokenHash = GetCryptoHash(token);
 
         YT_LOG_DEBUG(

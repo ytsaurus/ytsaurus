@@ -18,7 +18,7 @@ using namespace NConcurrency;
 
 struct TCookieAuthenticatorCacheKey
 {
-    THashMap<TString, TString> Cookies;;
+    THashMap<TString, TString> Cookies;
     TString UserIPFactor;
 
     operator size_t() const

@@ -268,7 +268,7 @@ TEST(TDiscoveryTest, Ban)
     config->BanTimeout = TDuration::MilliSeconds(50);
     auto discovery = New<TDiscovery>(config, MockClient, GetCurrentInvoker(), keys, TLogger("Test"));
     WaitFor(discovery->StartPolling())
-        .ThrowOnError();;
+        .ThrowOnError();
 
     EXPECT_THAT(discovery->List(), ResultOf(GetNames, expected));
 
