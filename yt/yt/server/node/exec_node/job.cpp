@@ -779,13 +779,19 @@ void TJob::Terminate(EJobState finalState, TError error)
                 Error_);
             break;
 
-        default:
+        case EJobPhase::WaitingForCleanup:
+        case EJobPhase::Cleanup:
+        case EJobPhase::Finished:
             YT_LOG_INFO(
                 "Cannot terminate job (JobState: %v, JobPhase: %v)",
                 JobState_,
                 JobPhase_);
 
             YT_VERIFY(IsFinished());
+            break;
+
+        case EJobPhase::Missing:
+            YT_LOG_FATAL("Missing job phase is unexpected");
             break;
     }
 }
