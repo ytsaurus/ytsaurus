@@ -506,18 +506,18 @@ TColumnarStatistics GetColumnarStatistics(
         return columnarStatistics;
     }
 
-    i64 totalDataWeight = 0;
+    i64 schemaColumnsDataWeight = 0;
     THashMap<std::string_view, i64> columnGroupToDataWeight;
     for (const auto& column : tableSchema->Columns()) {
         i64 columnDataWeight = estimateColumnDataWeight(column.StableName());
-        totalDataWeight += columnDataWeight;
+        schemaColumnsDataWeight += columnDataWeight;
         if (!column.Group()) {
             continue;
         }
         columnGroupToDataWeight[*column.Group()] += columnDataWeight;
     }
 
-    i64 uncompressedReadDataSizeEstimate = 0;
+    i64 dataWeightWithColumnGroups = 0;
     bool shouldCountOtherColumns = false;
     THashSet<std::string_view> visitedColumnGroups;
     for (const auto& columnName : columnNames) {
@@ -525,18 +525,18 @@ TColumnarStatistics GetColumnarStatistics(
         if (!column && !tableSchema->IsStrict()) {
             shouldCountOtherColumns = true;
         } else if (column && !column->Group()) {
-            uncompressedReadDataSizeEstimate += estimateColumnDataWeight(columnName);
+            dataWeightWithColumnGroups += estimateColumnDataWeight(columnName);
         } else if (column && visitedColumnGroups.insert(*column->Group()).second) {
-            uncompressedReadDataSizeEstimate += columnGroupToDataWeight[*column->Group()];
+            dataWeightWithColumnGroups += columnGroupToDataWeight[*column->Group()];
         }
     }
 
     if (shouldCountOtherColumns) {
-        uncompressedReadDataSizeEstimate += std::max<i64>(0, chunk->GetUncompressedDataSize() - totalDataWeight);
+        dataWeightWithColumnGroups += std::max<i64>(0, chunk->GetDataWeight() - schemaColumnsDataWeight);
     }
 
-    double compressionRatio = static_cast<double>(chunk->GetCompressedDataSize()) / chunk->GetUncompressedDataSize();
-    columnarStatistics.ReadDataSizeEstimate = uncompressedReadDataSizeEstimate * compressionRatio;
+    double compressedDataSizeToDataWeightRatio = static_cast<double>(chunk->GetCompressedDataSize()) / chunk->GetDataWeight();
+    columnarStatistics.ReadDataSizeEstimate = dataWeightWithColumnGroups * compressedDataSizeToDataWeightRatio;
 
     return columnarStatistics;
 }

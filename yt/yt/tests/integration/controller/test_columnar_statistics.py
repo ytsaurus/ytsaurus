@@ -787,21 +787,25 @@ class TestColumnarStatisticsOperations(_TestColumnarStatisticsBase):
 
         progress = get(op.get_path() + "/@progress")
         statistics = progress["estimated_input_statistics"]
+        estimated_data_weight = statistics["data_weight"]
         estimated_compressed_data_size = statistics["compressed_data_size"]
         estimated_uncompressed_data_size = statistics["uncompressed_data_size"]
 
-        if mode == "from_nodes":
-            job_input_statistics = progress["job_statistics_v2"]["data"]["input"]
-            actual_compressed_data_size = job_input_statistics["compressed_data_size"][0]["summary"]["sum"]
-            actual_uncompressed_data_size = job_input_statistics["uncompressed_data_size"][0]["summary"]["sum"]
+        job_input_statistics = progress["job_statistics_v2"]["data"]["input"]
+        actual_compressed_data_size = job_input_statistics["compressed_data_size"][0]["summary"]["sum"]
+        actual_uncompressed_data_size = job_input_statistics["uncompressed_data_size"][0]["summary"]["sum"]
+        actual_data_weight = job_input_statistics["data_weight"][0]["summary"]["sum"]
 
+        assert 0.99 * estimated_data_weight <= actual_data_weight <= 1.01 * estimated_data_weight
+
+        if mode == "from_nodes":
             assert 0.99 * estimated_compressed_data_size <= actual_compressed_data_size <= 1.01 * estimated_compressed_data_size
             assert 0.99 * estimated_uncompressed_data_size <= actual_uncompressed_data_size <= 1.01 * estimated_uncompressed_data_size
         else:
-            # Mode "from_master" doest not account for rle encoding, input size estimation
+            # Mode "from_master" does not account for rle encoding, input size estimation
             # is rather inaccurate in this case.
-            assert 10000 <= estimated_compressed_data_size <= 12000
-            assert 10000 <= estimated_uncompressed_data_size <= 12000
+            assert 0.5 * estimated_compressed_data_size <= actual_compressed_data_size <= 3 * estimated_compressed_data_size
+            assert 0.5 * estimated_uncompressed_data_size <= actual_uncompressed_data_size <= 3 * estimated_uncompressed_data_size
 
     @authors("coteeq")
     @pytest.mark.parametrize("mode", ["from_nodes", "from_master", "fallback"])
