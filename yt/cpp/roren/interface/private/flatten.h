@@ -7,6 +7,8 @@ namespace NRoren::NPrivate {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+namespace {
+
 class TRawFlatten
     : public IRawFlatten
 {
@@ -35,7 +37,7 @@ public:
     TDefaultFactoryFunc GetDefaultFactory() const override
     {
         return [] () -> IRawFlattenPtr {
-            return ::MakeIntrusive<TRawFlatten>();
+            return NYT::New<TRawFlatten>();
         };
     }
 
@@ -46,11 +48,12 @@ private:
     Y_SAVELOAD_DEFINE_OVERRIDE(InputCount_, RowVtable_);
 };
 
+} // namespace
 
 template <typename TRow>
 IRawFlattenPtr MakeRawFlatten(TRowVtable rowVtable, ssize_t inputCount)
 {
-    return new TRawFlatten(rowVtable, inputCount);
+    return NYT::New<TRawFlatten>(rowVtable, inputCount);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

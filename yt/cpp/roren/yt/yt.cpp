@@ -82,7 +82,7 @@ TPipeline MakeYtPipeline(const TString& cluster, const TString& workingDir)
 
 TPipeline MakeYtPipeline(TYtPipelineConfig config)
 {
-    return NPrivate::MakePipeline(MakeIntrusive<TYtExecutor>(std::move(config)));
+    return NPrivate::MakePipeline(NYT::New<TYtExecutor>(std::move(config)));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

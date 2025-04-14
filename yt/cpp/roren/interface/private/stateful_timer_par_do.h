@@ -15,8 +15,7 @@ namespace NRoren::NPrivate {
 ////////////////////////////////////////////////////////////////////////////////
 
 template <typename T>
-concept CStatefulTimerDoFn = std::default_initializable<T>
-    && std::derived_from<T, IStatefulTimerDoFn<typename T::TInputRow, typename T::TOutputRow, typename T::TState>>;
+concept CStatefulTimerDoFn = std::derived_from<T, IStatefulTimerDoFn<typename T::TInputRow, typename T::TOutputRow, typename T::TState>>;
 
 template <CStatefulTimerDoFn TFunction>
 class TRawStatefulTimerParDo
@@ -31,7 +30,7 @@ class TRawStatefulTimerParDo
 public:
     TRawStatefulTimerParDo() = default;
 
-    TRawStatefulTimerParDo(TIntrusivePtr<TFunction> func, std::vector<TDynamicTypeTag> outputTags, TFnAttributes fnAttributes)
+    TRawStatefulTimerParDo(NYT::TIntrusivePtr<TFunction> func, std::vector<TDynamicTypeTag> outputTags, TFnAttributes fnAttributes)
         : Func_(std::move(func))
         , InputTag_("stateful-timer-do-fn-input", MakeRowVtable<TInputRow>())
         , OutputTags_(std::move(outputTags))
@@ -137,7 +136,7 @@ public:
     [[nodiscard]] TDefaultFactoryFunc GetDefaultFactory() const override
     {
         return [] () -> IRawStatefulTimerParDoPtr {
-            return MakeIntrusive<TRawStatefulTimerParDo>();
+            return NYT::New<TRawStatefulTimerParDo>();
         };
     }
 
@@ -169,7 +168,7 @@ private:
     }
 
 private:
-    TIntrusivePtr<TFunction> Func_ = MakeIntrusive<TFunction>();
+    NYT::TIntrusivePtr<TFunction> Func_ = NYT::New<TFunction>();
     TDynamicTypeTag InputTag_;
     std::vector<TDynamicTypeTag> OutputTags_;
     TFnAttributes FnAttributes_;
@@ -180,9 +179,9 @@ private:
 };
 
 template <typename TFunction>
-IRawStatefulTimerParDoPtr MakeRawStatefulTimerParDo(TIntrusivePtr<TFunction> fn, TFnAttributes fnAttributes)
+IRawStatefulTimerParDoPtr MakeRawStatefulTimerParDo(NYT::TIntrusivePtr<TFunction> fn, TFnAttributes fnAttributes)
 {
-    return ::MakeIntrusive<TRawStatefulTimerParDo<TFunction>>(fn, fn->GetOutputTags(), std::move(fnAttributes));
+    return NYT::New<TRawStatefulTimerParDo<TFunction>>(fn, fn->GetOutputTags(), std::move(fnAttributes));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -2,8 +2,10 @@
 
 #include <yt/yt/core/ytree/yson_struct.h>  // ::NYT::NYTree::TYsonStruct
 
-#include <util/generic/ptr.h>
+#include <library/cpp/yt/memory/public.h>
+
 #include <util/generic/typetraits.h>
+
 #include <type_traits>
 
 namespace NRoren::NPrivate {
@@ -11,12 +13,12 @@ namespace NRoren::NPrivate {
 ////////////////////////////////////////////////////////////////////////////////
 
 template <typename T>
-concept CIntrusivePtr = TIsSpecializationOf<TIntrusivePtr, T>::value || TIsSpecializationOf<NYT::TIntrusivePtr, T>::value;
+concept CIntrusivePtr = TIsSpecializationOf<NYT::TIntrusivePtr, T>::value;
 
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class T>
-concept CYsonStruct = std::derived_from<T, ::NYT::NYTree::TYsonStruct>;
+concept CYsonStruct = std::derived_from<T, NYT::NYTree::TYsonStruct>;
 
 ////////////////////////////////////////////////////////////////////////////////
 

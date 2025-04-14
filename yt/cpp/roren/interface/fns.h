@@ -25,7 +25,7 @@ namespace NRoren {
 ////////////////////////////////////////////////////////////////////////////////
 
 class IFnBase
-    : public TThrRefBase
+    : public NYT::TRefCounted
 {
 public:
     void SetExecutionContext(IExecutionContextPtr context)
@@ -251,7 +251,7 @@ public:
 };
 
 template <typename TFunc, typename TRow>
-class TFunctorCombineFn final
+class TFunctorCombineFn
     : public ICombineFn<TRow, TRow, TRow>
 {
 public:
@@ -294,16 +294,16 @@ private:
 
 template <typename TFn>
 concept CCombineFnPtr = NPrivate::CIntrusivePtr<TFn> && requires (TFn t) {
-    typename TFn::TValueType::TInputRow;
-    typename TFn::TValueType::TAccumRow;
-    typename TFn::TValueType::TOutputRow;
+    typename TFn::TUnderlying::TInputRow;
+    typename TFn::TUnderlying::TAccumRow;
+    typename TFn::TUnderlying::TOutputRow;
     std::is_base_of_v<
         ICombineFn<
-            typename TFn::TValueType::TInputRow,
-            typename TFn::TValueType::TAccumRow,
-            typename TFn::TValueType::TOutputRow
+            typename TFn::TUnderlying::TInputRow,
+            typename TFn::TUnderlying::TAccumRow,
+            typename TFn::TUnderlying::TOutputRow
         >,
-        typename TFn::TValueType
+        typename TFn::TUnderlying
     >;
 };
 

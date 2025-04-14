@@ -21,6 +21,10 @@ namespace NRoren::NPrivate {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+namespace {
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TPipePCollectionNode
     : public IRawOutput
 {
@@ -82,7 +86,11 @@ private:
     std::vector<IRawParDoPtr> MoveParDos_;
 };
 
-using TPipePCollectionNodePtr = ::TIntrusivePtr<TPipePCollectionNode>;
+using TPipePCollectionNodePtr = NYT::TIntrusivePtr<TPipePCollectionNode>;
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -153,7 +161,7 @@ public:
     TDefaultFactoryFunc GetDefaultFactory() const override
     {
         return [] () -> IRawParDoPtr {
-            return ::MakeIntrusive<TParDoTree>();
+            return NYT::New<TParDoTree>();
         };
     }
 
@@ -254,7 +262,7 @@ private:
         PipePCollectionNodes_.clear();
         PipePCollectionNodes_.reserve(pipePCollectionNodeOutputs.size());
         for (auto& [outputs, parDos] : pipePCollectionNodeOutputs) {
-            auto node = ::MakeIntrusive<TPipePCollectionNode>(std::move(outputs), std::move(parDos));
+            auto node = NYT::New<TPipePCollectionNode>(std::move(outputs), std::move(parDos));
             PipePCollectionNodes_.push_back(std::move(node));
         }
     }
@@ -435,7 +443,7 @@ IParDoTreePtr TParDoTreeBuilder::Build()
     CheckNoHangingPCollectionNodes();
 
     Built_ = true;
-    return ::MakeIntrusive<TParDoTree>(
+    return NYT::New<TParDoTree>(
         std::move(ParDoNodes_),
         PCollectionNodes_,
         std::move(MarkedOutputTypeTags_));
@@ -453,7 +461,7 @@ const TParDoTreeBuilder::TParDoNode& TParDoTreeBuilder::FindParDoByOutput(int pC
 
 void TParDoTreeBuilder::CheckNoHangingPCollectionNodes() const
 {
-    auto index_of = [](const auto& container, const auto& v) {
+    auto index_of = [] (const auto& container, const auto& v) {
         return std::distance(container.begin(), std::find(container.begin(), container.end(), v));
     };
     THashSet<TPCollectionNodeId> parDoInputs;

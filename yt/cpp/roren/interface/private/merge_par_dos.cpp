@@ -226,7 +226,7 @@ private:
 private:
     const THashMap<TTransformNode*, TPCollectionNode*> TransformNodeToRoot_;
     THashMap<TPCollectionNode*, TUnifiedParDo> RootToUnifiedParDos_;
-    TRawPipelinePtr RawPipeline_ = ::MakeIntrusive<TRawPipeline>();
+    TRawPipelinePtr RawPipeline_ = NYT::New<TRawPipeline>();
     THashMap<TPCollectionNode*, TPCollectionNode*> PCollectionNodeMapping_;
 };
 

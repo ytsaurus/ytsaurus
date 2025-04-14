@@ -54,7 +54,7 @@ public:
 
 IExecutionContextPtr CreateYtExecutionContext()
 {
-    return ::MakeIntrusive<TYtExecutionContext>();
+    return NYT::New<TYtExecutionContext>();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -82,7 +82,7 @@ public:
         signal(SIGSEGV, [] (int) {PrintBackTrace(); Y_ABORT("FAIL");});
 
         try {
-            auto executionContext = ::MakeIntrusive<TYtExecutionContext>();
+            auto executionContext = NYT::New<TYtExecutionContext>();
             Y_ABORT_UNLESS(ParDo_->GetOutputTags().empty());
             ParDo_->Start(executionContext, {});
             int impulse = 0;
@@ -151,7 +151,7 @@ public:
                 outputs.emplace_back(std::move(output));
             }
 
-            auto executionContext = ::MakeIntrusive<TYtExecutionContext>();
+            auto executionContext = NYT::New<TYtExecutionContext>();
 
             computation->Start(executionContext, outputs);
 
@@ -335,7 +335,7 @@ public:
     TDefaultFactoryFunc GetDefaultFactory() const override
     {
         return [] () -> IRawParDoPtr {
-            return ::MakeIntrusive<TGbkImpulseReadNodeParDo>(nullptr);
+            return NYT::New<TGbkImpulseReadNodeParDo>(nullptr);
         };
     }
 
@@ -499,8 +499,8 @@ public:
             const auto statefulParDo = SerializableFromNode<IRawStatefulParDo>(State_.At(ComputationKey_));
             const auto stateVtable = TYtStateVtable::SerializableFromNode(State_[StateVtableKey_]);
 
-            auto executionContext = ::MakeIntrusive<TYtExecutionContext>();
-            auto rawStateStore = ::MakeIntrusive<TRawStateStore>();
+            auto executionContext = NYT::New<TYtExecutionContext>();
+            auto rawStateStore = NYT::New<TRawStateStore>();
 
             std::vector<IRawOutputPtr> outputs;
             const auto& rawOutputs = State_[OutputsKey_].AsList();
@@ -642,7 +642,7 @@ public:
     TDefaultFactoryFunc GetDefaultFactory() const override
     {
         return [] () -> IRawParDoPtr {
-            return ::MakeIntrusive<TStateDecodingParDo>();
+            return NYT::New<TStateDecodingParDo>();
         };
     }
 
@@ -719,7 +719,7 @@ public:
     TDefaultFactoryFunc GetDefaultFactory() const override
     {
         return [] () -> IRawParDoPtr {
-            return ::MakeIntrusive<TStateEncodingParDo>();
+            return NYT::New<TStateEncodingParDo>();
         };
     }
 
@@ -763,7 +763,7 @@ private:
         void* RawState_ = nullptr;
     };
 
-    using TRawStateStorePtr = ::TIntrusivePtr<TRawStateStore>;
+    using TRawStateStorePtr = NYT::TIntrusivePtr<TRawStateStore>;
 
     void StatefulProcessOneGroup(
         const IRawStatefulParDoPtr& statefulParDo,
@@ -837,7 +837,7 @@ public:
         Processed_ = false;
 
         Output_ = outputs[0];
-        RawStateStore_ = ::MakeIntrusive<TRawStateStore>();
+        RawStateStore_ = NYT::New<TRawStateStore>();
 
         RawStatefulParDo_->Start(context, RawStateStore_, outputs);
 
@@ -888,7 +888,7 @@ public:
     TDefaultFactoryFunc GetDefaultFactory() const override
     {
         return [] () -> IRawParDoPtr {
-            return ::MakeIntrusive<TStatefulParDoReducerImpulseReadNode>();
+            return NYT::New<TStatefulParDoReducerImpulseReadNode>();
         };
     }
 
@@ -971,7 +971,7 @@ public:
     TDefaultFactoryFunc GetDefaultFactory() const override
     {
         return [] () -> IRawParDoPtr {
-            return ::MakeIntrusive<TCoGbkImpulseReadNodeParDo>();
+            return NYT::New<TCoGbkImpulseReadNodeParDo>();
         };
     }
 
@@ -1071,7 +1071,7 @@ public:
     TDefaultFactoryFunc GetDefaultFactory() const override
     {
         return [] () -> IRawParDoPtr {
-            return ::MakeIntrusive<TCombineCombinerImpulseReadNodeParDo>();
+            return NYT::New<TCombineCombinerImpulseReadNodeParDo>();
         };
     }
 
@@ -1137,7 +1137,7 @@ public:
         for (; rangesReader->IsValid(); rangesReader->Next()) {
             auto range = &rangesReader->GetRange();
             auto keySavingInput =
-                ::MakeIntrusive<TKeySavingInput>(keyVtable, accumVtable, range);
+                NYT::New<TKeySavingInput>(keyVtable, accumVtable, range);
             keySavingInput->SaveNextKeyTo(out.GetKeyOfKV());
             RawCombine_->MergeAccumulators(accum.GetData(), keySavingInput);
             RawCombine_->ExtractOutput(out.GetValueOfKV(), accum.GetData());
@@ -1158,7 +1158,7 @@ public:
     TDefaultFactoryFunc GetDefaultFactory() const override
     {
         return [] () -> IRawParDoPtr {
-            return ::MakeIntrusive<TCombineReducerImpulseReadNodeParDo>();
+            return NYT::New<TCombineReducerImpulseReadNodeParDo>();
         };
     }
 
@@ -1262,7 +1262,7 @@ IRawJobPtr CreateSplitStateKvMap(
 
 IRawParDoPtr CreateGbkImpulseReadNodeParDo(IRawGroupByKeyPtr rawGroupByKey)
 {
-    return ::MakeIntrusive<TGbkImpulseReadNodeParDo>(std::move(rawGroupByKey));
+    return NYT::New<TGbkImpulseReadNodeParDo>(std::move(rawGroupByKey));
 }
 
 IRawJobPtr CreateMultiJoinKvReduce(
@@ -1277,7 +1277,7 @@ IRawParDoPtr CreateCoGbkImpulseReadNodeParDo(
     IRawCoGroupByKeyPtr rawCoGbk,
     std::vector<TRowVtable> rowVtableList)
 {
-    return ::MakeIntrusive<TCoGbkImpulseReadNodeParDo>(std::move(rawCoGbk), std::move(rowVtableList));
+    return NYT::New<TCoGbkImpulseReadNodeParDo>(std::move(rawCoGbk), std::move(rowVtableList));
 }
 
 IRawJobPtr CreateStatefulKvReduce(
@@ -1291,17 +1291,17 @@ IRawJobPtr CreateStatefulKvReduce(
 
 IRawParDoPtr CreateStateDecodingParDo(const TYtStateVtable& stateVtable)
 {
-    return ::MakeIntrusive<TStateDecodingParDo>(stateVtable);
+    return NYT::New<TStateDecodingParDo>(stateVtable);
 }
 
 IRawParDoPtr CreateStateEncodingParDo(const TYtStateVtable& stateVtable)
 {
-    return ::MakeIntrusive<TStateEncodingParDo>(stateVtable);
+    return NYT::New<TStateEncodingParDo>(stateVtable);
 }
 
 IRawParDoPtr CreateStatefulParDoReducerImpulseReadNode(IRawStatefulParDoPtr rawStatefulParDo, const TYtStateVtable& stateVtable)
 {
-    return ::MakeIntrusive<TStatefulParDoReducerImpulseReadNode>(std::move(rawStatefulParDo), stateVtable);
+    return NYT::New<TStatefulParDoReducerImpulseReadNode>(std::move(rawStatefulParDo), stateVtable);
 }
 
 IRawJobPtr CreateCombineCombiner(
@@ -1313,7 +1313,7 @@ IRawJobPtr CreateCombineCombiner(
 
 IRawParDoPtr CreateCombineCombinerImpulseReadNodeParDo(IRawCombinePtr rawCombine)
 {
-    return ::MakeIntrusive<TCombineCombinerImpulseReadNodeParDo>(std::move(rawCombine));
+    return NYT::New<TCombineCombinerImpulseReadNodeParDo>(std::move(rawCombine));
 }
 
 IRawJobPtr CreateCombineReducer(
@@ -1334,7 +1334,7 @@ IRawJobPtr CreateCombineReducer(
 
 IRawParDoPtr CreateCombineReducerImpulseReadNodeParDo(IRawCombinePtr rawCombine)
 {
-    return ::MakeIntrusive<TCombineReducerImpulseReadNodeParDo>(std::move(rawCombine));
+    return NYT::New<TCombineReducerImpulseReadNodeParDo>(std::move(rawCombine));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

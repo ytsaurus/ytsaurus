@@ -2,14 +2,12 @@
 
 #include "../fwd.h"
 
-#include <util/generic/ptr.h>
-
 namespace NRoren::NPrivate {
 
 ////////////////////////////////////////////////////////////////////////////////
 
 class IRawStateStore
-    : public TThrRefBase
+    : public NYT::TRefCounted
 {
 public:
     virtual void* GetStateRaw(const void* key) = 0;
@@ -20,6 +18,8 @@ public:
         return reinterpret_cast<TStateStore<TKey, TState>*>(this);
     }
 };
+
+DEFINE_REFCOUNTED_TYPE(IRawStateStore);
 
 ////////////////////////////////////////////////////////////////////////////////
 
