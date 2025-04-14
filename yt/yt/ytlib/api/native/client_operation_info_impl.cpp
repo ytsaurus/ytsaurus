@@ -96,32 +96,22 @@ static const THashSet<TString> ArchiveOnlyAttributes = {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-bool TClient::DoesOperationsArchiveExist(bool useOperationsArchiveClient)
+bool TClient::DoesOperationsArchiveExist()
 {
     // NB: We suppose that archive should exist and work correctly if this map node is presented.
     TNodeExistsOptions nodeExistsOptions;
-    nodeExistsOptions.ReadFrom = Connection_->GetConfig()->ReadOperationsArchiveStateFrom;;
+    nodeExistsOptions.ReadFrom = Connection_->GetConfig()->ReadOperationsArchiveStateFrom;
 
-    IClient* client = this;
-    if (useOperationsArchiveClient) {
-        client = GetOperationsArchiveClient().Get();
-    }
-
-    return WaitFor(client->NodeExists(GetOperationsArchivePath(), nodeExistsOptions))
+    return WaitFor(NodeExists(GetOperationsArchivePath(), nodeExistsOptions))
         .ValueOrThrow();
 }
 
-std::optional<int> TClient::TryGetOperationsArchiveVersion(bool useOperationsArchiveClient)
+std::optional<int> TClient::TryGetOperationsArchiveVersion()
 {
     TGetNodeOptions getNodeOptions;
     getNodeOptions.ReadFrom = Connection_->GetConfig()->ReadOperationsArchiveStateFrom;;
 
-    IClient* client = this;
-    if (useOperationsArchiveClient) {
-        client = GetOperationsArchiveClient().Get();
-    }
-
-    auto asyncVersionResult = client->GetNode(GetOperationsArchiveVersionPath(), getNodeOptions);
+    auto asyncVersionResult = GetOperationsArchiveClient()->GetNode(GetOperationsArchiveVersionPath(), getNodeOptions);
 
     auto versionNodeOrError = WaitFor(asyncVersionResult);
 
@@ -1347,7 +1337,7 @@ TListOperationsResult TClient::DoListOperations(const TListOperationsOptions& ol
     }
 
     // Fetching progress and alert_events for operations with mentioned ids.
-    if (DoesOperationsArchiveExist()) {
+    if (GetOperationsArchiveClient()->DoesOperationsArchiveExist()) {
         std::vector<TOperationId> ids;
         for (const auto& operation : result.Operations) {
             ids.push_back(*operation.Id);
