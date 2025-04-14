@@ -895,7 +895,8 @@ private:
         TAllocationId currentAllocationId;
 
         if (auto resourceOwner = resourceHolder->GetOwner()) {
-            if (currentAllocation = DynamicPointerCast<TAllocation>(std::move(resourceOwner))) {
+            currentAllocation = DynamicPointerCast<TAllocation>(std::move(resourceOwner));
+            if (currentAllocation) {
                 currentAllocationId = currentAllocation->GetId();
 
                 YT_LOG_INFO(

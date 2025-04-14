@@ -756,7 +756,8 @@ public:
             auto peekInputRow = [&] {
                 if (currentRowIndex >= std::ssize(inputRows)) {
                     flushOutputRows();
-                    if (inputBatch = ReadRowBatch(reader, readOptions)) {
+                    inputBatch = ReadRowBatch(reader, readOptions);
+                    if (inputBatch) {
                         readRowCount += inputBatch->GetRowCount();
                         inputRows = inputBatch->MaterializeRows();
                         currentRowIndex = 0;
