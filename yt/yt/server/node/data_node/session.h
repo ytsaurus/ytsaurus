@@ -119,6 +119,12 @@ struct ISession
         NChunkClient::TChunkWriterStatisticsPtr ChunkWriterStatistics;
     };
 
+    struct TSendBlocksResult
+    {
+        bool NetThrottling;
+        NChunkClient::TDataNodeServiceProxy::TRspPutBlocksPtr TargetNodePutBlocksResult;
+    };
+
     //! Returns the TChunkId being uploaded.
     virtual TChunkId GetChunkId() const& = 0;
 
@@ -178,10 +184,12 @@ struct ISession
         bool enableCaching) = 0;
 
     //! Sends a range of blocks (from the current window) to another data node.
-    virtual TFuture<NChunkClient::TDataNodeServiceProxy::TRspPutBlocksPtr> SendBlocks(
+    virtual TFuture<TSendBlocksResult> SendBlocks(
         int startBlockIndex,
         int blockCount,
         i64 cumulativeBlockSize,
+        TDuration requestTimeout,
+        bool instantReplyOnThrottling,
         const NNodeTrackerClient::TNodeDescriptor& target) = 0;
 
     //! Flushes blocks up to a given one.

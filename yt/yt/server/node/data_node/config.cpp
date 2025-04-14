@@ -551,6 +551,9 @@ void TDataNodeTestingOptions::Register(TRegistrar registrar)
 
     registrar.Parameter("enable_trash_scanning_barrier", &TThis::EnableTrashScanningBarrier)
         .Default();
+
+    registrar.Parameter("always_throttle_net_on_send_blocks", &TThis::AlwaysThrottleNetOnSendBlocks)
+        .Default();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -853,6 +856,8 @@ void TDataNodeConfig::Register(TRegistrar registrar)
         .Default(512_MB);
     registrar.Parameter("net_out_throttling_duration", &TThis::NetOutThrottlingDuration)
         .Default(TDuration::Seconds(30));
+    registrar.Parameter("enable_send_blocks_net_throttling", &TThis::EnableSendBlocksNetThrottling)
+        .Default(false);
 
     registrar.Parameter("disk_write_throttling_limit", &TThis::DiskWriteThrottlingLimit)
         .GreaterThan(0)
@@ -1104,6 +1109,9 @@ void TDataNodeDynamicConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("net_out_throttling_limit", &TThis::NetOutThrottlingLimit)
         .Default();
+
+    registrar.Parameter("enable_send_blocks_net_throttling", &TThis::EnableSendBlocksNetThrottling)
+        .Optional();
 
     registrar.Parameter("disk_write_throttling_limit", &TThis::DiskWriteThrottlingLimit)
         .Default();

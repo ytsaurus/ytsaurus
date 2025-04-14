@@ -192,10 +192,12 @@ TFuture<NIO::TIOCounters> TJournalSession::DoPutBlocks(
     });
 }
 
-TFuture<TDataNodeServiceProxy::TRspPutBlocksPtr> TJournalSession::DoSendBlocks(
+TFuture<TJournalSession::TSendBlocksResult> TJournalSession::DoSendBlocks(
     int /*startBlockIndex*/,
     int /*blockCount*/,
     i64 /*cumulativeBlockSize*/,
+    TDuration /*requestTimeout*/,
+    bool /*instantReplyOnThrottling*/,
     const TNodeDescriptor& /*target*/)
 {
     YT_ASSERT_INVOKER_AFFINITY(SessionInvoker_);

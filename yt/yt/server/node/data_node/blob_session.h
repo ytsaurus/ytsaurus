@@ -101,10 +101,12 @@ private:
         int endBlockIndex,
         const TError& error);
 
-    TFuture<NChunkClient::TDataNodeServiceProxy::TRspPutBlocksPtr> DoSendBlocks(
+    TFuture<TSendBlocksResult> DoSendBlocks(
         int startBlockIndex,
         int blockCount,
         i64 cumulativeBlockSize,
+        TDuration requestTimeout,
+        bool instantReplyOnThrottling,
         const NNodeTrackerClient::TNodeDescriptor& targetDescriptor) override;
 
     TFuture<TFlushBlocksResult> DoFlushBlocks(int blockIndex) override;

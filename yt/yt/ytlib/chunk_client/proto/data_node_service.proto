@@ -158,6 +158,8 @@ message TReqSendBlocks
 message TRspSendBlocks
 {
     optional bool close_demanded = 1 [default = false];
+    optional bool net_throttling = 2 [default = false];
+    optional int64 net_queue_size = 3 [default = 0];
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -425,6 +427,8 @@ message TRspPingSession
 {
     optional bool close_demanded = 1 [default = false];
     optional TProbePutBlocksState probe_put_blocks_state = 2;
+    optional bool net_throttling = 3 [default = false];
+    optional int64 net_queue_size = 4 [default = 0];
 }
 
 ////////////////////////////////////////////////////////////////////////////////

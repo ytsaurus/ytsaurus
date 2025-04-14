@@ -428,6 +428,7 @@ private:
         const auto& sessionManager = Bootstrap_->GetSessionManager();
         auto session = sessionManager->GetSessionOrThrow(chunkId);
         const auto& location = session->GetStoreLocation();
+        auto netThrottling = CheckNetOutThrottling(context, session->GetSessionOptions().WorkloadDescriptor);
 
         session->Ping();
 
@@ -453,6 +454,10 @@ private:
                 sessionId,
                 closeDemanded);
         }
+
+        // Inform writer about net state on data node.
+        response->set_net_throttling(netThrottling.Enabled);
+        response->set_net_queue_size(netThrottling.QueueSize);
 
         context->Reply();
     }
@@ -606,19 +611,42 @@ private:
 
         const auto& sessionManager = Bootstrap_->GetSessionManager();
         auto session = sessionManager->GetSessionOrThrow(chunkId);
-        session->SendBlocks(firstBlockIndex, blockCount, cumulativeBlockSize, targetDescriptor)
-            .Subscribe(BIND([=] (const TDataNodeServiceProxy::TErrorOrRspPutBlocksPtr& errorOrRsp) {
-                if (errorOrRsp.IsOK()) {
-                    response->set_close_demanded(errorOrRsp.Value()->close_demanded());
-                    context->Reply();
-                } else {
-                    context->Reply(TError(
-                        NChunkClient::EErrorCode::SendBlocksFailed,
-                        "Error putting blocks to %v",
-                        targetDescriptor.GetDefaultAddress())
-                        << errorOrRsp);
-                }
-            }));
+
+        auto sessionOptions = session->GetSessionOptions();
+        auto netThrottling = CheckNetOutThrottling(context, sessionOptions.WorkloadDescriptor);
+        auto alwaysThrottleOnSendBlocks = GetDynamicConfig()->TestingOptions->AlwaysThrottleNetOnSendBlocks.value_or(false);
+        netThrottling.Enabled |= alwaysThrottleOnSendBlocks;
+
+        response->set_net_throttling(netThrottling.Enabled);
+        response->set_net_queue_size(netThrottling.QueueSize);
+
+        auto enableSendBlocksNetThrottling = GetDynamicConfig()->EnableSendBlocksNetThrottling.value_or(Config_->EnableSendBlocksNetThrottling);
+
+        if (enableSendBlocksNetThrottling && netThrottling.Enabled) {
+            context->Reply();
+        } else {
+            auto fraction = GetFallbackTimeoutFraction().value_or(1);
+            auto timeout = *context->GetTimeout() * fraction;
+            context->ReplyFrom(session->SendBlocks(firstBlockIndex, blockCount, cumulativeBlockSize, timeout, enableSendBlocksNetThrottling, targetDescriptor)
+                .Apply(BIND([=] (const TErrorOr<ISession::TSendBlocksResult>& errorOrRsp) {
+                    if (errorOrRsp.IsOK()) {
+                        if (errorOrRsp.Value().NetThrottling) {
+                            response->set_net_throttling(true);
+                            return TError();
+                        }
+
+                        YT_VERIFY(errorOrRsp.Value().TargetNodePutBlocksResult != nullptr);
+                        response->set_close_demanded(errorOrRsp.Value().TargetNodePutBlocksResult->close_demanded());
+                        return TError();
+                    } else {
+                        return TError(
+                            NChunkClient::EErrorCode::SendBlocksFailed,
+                            "Error putting blocks to %v",
+                            targetDescriptor.GetDefaultAddress())
+                            << errorOrRsp;
+                    }
+                })));
+        }
     }
 
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, FlushBlocks)

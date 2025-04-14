@@ -393,10 +393,12 @@ TFuture<NIO::TIOCounters> TSessionBase::PutBlocks(
         .Run();
 }
 
-TFuture<TDataNodeServiceProxy::TRspPutBlocksPtr> TSessionBase::SendBlocks(
+TFuture<TSessionBase::TSendBlocksResult> TSessionBase::SendBlocks(
     int startBlockIndex,
     int blockCount,
     i64 cumulativeBlockSize,
+    TDuration requestTimeout,
+    bool instantReplyOnThrottling,
     const TNodeDescriptor& targetDescriptor)
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
@@ -408,7 +410,7 @@ TFuture<TDataNodeServiceProxy::TRspPutBlocksPtr> TSessionBase::SendBlocks(
             ValidateActive();
             Ping();
 
-            return DoSendBlocks(startBlockIndex, blockCount, cumulativeBlockSize, targetDescriptor);
+            return DoSendBlocks(startBlockIndex, blockCount, cumulativeBlockSize, requestTimeout, instantReplyOnThrottling, targetDescriptor);
         })
         .AsyncVia(SessionInvoker_)
         .Run();
