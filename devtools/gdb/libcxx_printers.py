@@ -118,6 +118,19 @@ def destructure_compressed_pair(val):
     return (get_pair_element(val.cast(base_type_first), base_type_first),
             get_pair_element(val.cast(base_type_second), base_type_second))
 
+def name_or_first_compressed_pair(val, name, name_in_pair):
+    try:
+        return val[name]
+    except:
+        return destructure_compressed_pair(val[name_in_pair])[0]
+
+def first_compressed_pair_or_name(val, name, name_in_pair=None):
+    name_in_pair = name_in_pair or name
+    try:
+        return destructure_compressed_pair(val[name_in_pair])[0]
+    except:
+        return val[name]
+
 def get_variant_value(val):
     """
     val must be a std::variant.
@@ -152,6 +165,11 @@ def find_type(orig, name):
             raise ValueError("Cannot find type %s::%s" % (str(orig), name))
         typ = field.type
 
+
+def rep_field(node):
+    return name_or_first_compressed_pair(node, '__rep_', '__r_')
+
+
 class StdStringPrinter:
     "Print a std::basic_string of some kind"
 
@@ -160,10 +178,11 @@ class StdStringPrinter:
         self.typename = typename
 
     def to_string(self):
-        ss = destructure_compressed_pair(self.val['__r_'])[0]['__s']
+        value_field = rep_field(self.val)
+        ss = value_field['__s']
         is_long = ss['__is_long_']
         if is_long:
-            sl = destructure_compressed_pair(self.val['__r_'])[0]['__l']
+            sl = value_field['__l']
             ptr = sl['__data_']
             size = sl['__size_']
         else:
@@ -233,11 +252,11 @@ class UniquePointerPrinter:
         self.val = val
 
     def children (self):
-        v, _ = destructure_compressed_pair(self.val['__ptr_'])
+        v = first_compressed_pair_or_name(self.val, '__ptr_')
         return [('get()', v)]
 
     def to_string (self):
-        v, _ = destructure_compressed_pair(self.val['__ptr_'])
+        v = first_compressed_pair_or_name(self.val, '__ptr_')
         return ('%s<%s>' % (str(self.typename), print_type(v.type.target())))
 
 class AtomicPrinter:
@@ -378,13 +397,13 @@ class StdForwardListPrinter:
     def __init__(self, typename, val):
         self.val = val
         self.typename = typename
-        self.head = destructure_compressed_pair(val['__before_begin_'])[0]['__next_']
+        self.head = first_compressed_pair_or_name(val, '__before_begin_')
 
     def children(self):
-        return self._iterator(self.head)
+        return self._iterator(self.head['__next_'])
 
     def to_string(self):
-        if self.head == 0:
+        if self.head['__next_'] == 0:
             return 'empty %s' % (self.typename)
         return '%s' % (self.typename)
 
@@ -461,7 +480,7 @@ class StdVectorPrinter:
                 return ('%s<bool> (length=%d, capacity=%d)' % (self.typename, int(length), int(capacity)))
         else:
             finish = self.val['__end_']
-            end, _ = destructure_compressed_pair(self.val['__end_cap_'])
+            end = name_or_first_compressed_pair(self.val, '__cap_', '__end_cap_')
             length = finish - start
             capacity = end - start
             if length == 0:
@@ -532,7 +551,7 @@ class StdDequePrinter:
     def __init__(self, typename, val):
         self.typename = typename
         self.val = val
-        self.size, _ = destructure_compressed_pair(val['__size_'])
+        self.size = first_compressed_pair_or_name(val, '__size_')
 
     def to_string(self):
         if self.size == 0:
@@ -658,7 +677,7 @@ class RbtreeIterator(Iterator):
         tree_type_name = rbtree.type.strip_typedefs().name
         self.node_type = gdb.lookup_type(tree_type_name + '::__node_pointer')
         self.node = rbtree['__begin_node_'].cast(self.node_type)
-        self.size, _ = destructure_compressed_pair(rbtree['__pair3_'])
+        self.size = name_or_first_compressed_pair(rbtree, '__size_', '__pair3_')
         self.count = 0
 
     def __iter__(self):
@@ -757,9 +776,10 @@ class StdMapIteratorPrinter:
 
 class HashtableIterator(Iterator):
     def __init__ (self, hashtable):
-        self.node_ptr_type = destructure_compressed_pair(hashtable['__p1_'])[0].type.template_argument(0)
-        self.node = destructure_compressed_pair(hashtable['__p1_'])[0]['__next_']
-        self.size, _ = destructure_compressed_pair(hashtable['__p2_'])
+        sentinel = name_or_first_compressed_pair(hashtable, '__first_node_', '__p1_')
+        self.node_ptr_type = sentinel.type.template_argument(0)
+        self.node = sentinel['__next_']
+        self.size = name_or_first_compressed_pair(hashtable, '__size_', '__p2_')
 
     def __iter__ (self):
         return self
@@ -805,7 +825,7 @@ class UnorderedSetPrinter:
         self.typename = typename
         self.val = val
         self.hashtable = val['__table_']
-        self.size, _ = destructure_compressed_pair(self.hashtable['__p2_'])
+        self.size = name_or_first_compressed_pair(self.hashtable, '__size_', '__p2_')
         self.hashtableiter = HashtableIterator(self.hashtable)
 
     def hashtable (self):
@@ -832,7 +852,7 @@ class UnorderedMapPrinter:
         self.typename = typename
         self.val = val
         self.hashtable = val['__table_']
-        self.size, _ = destructure_compressed_pair(self.hashtable['__p2_'])
+        self.size = name_or_first_compressed_pair(self.hashtable, '__size_', '__p2_')
         self.hashtableiter = HashtableIterator(self.hashtable)
 
     def hashtable (self):

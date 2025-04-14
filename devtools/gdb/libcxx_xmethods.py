@@ -1,7 +1,7 @@
 import gdb
 import gdb.xmethod
 import re
-from libcxx_printers import destructure_compressed_pair, get_variant_value
+from libcxx_printers import get_variant_value, rep_field, first_compressed_pair_or_name
 
 _versioned_namespace = 'std::__y1::'
 
@@ -120,10 +120,11 @@ class StringSizeWorker(gdb.xmethod.XMethodWorker):
         return self.result_type
 
     def __call__(self, obj):
-        ss = destructure_compressed_pair(obj['__r_'])[0]['__s']
+        value_field = rep_field(obj)
+        ss = value_field['__s']
         is_long = ss['__is_long_']
         if is_long:
-            sl = destructure_compressed_pair(obj['__r_'])[0]['__l']
+            sl = value_field['__l']
             return sl['__size_']
         else:
             return ss['__size_']
@@ -143,10 +144,11 @@ class StringIndexWorker(gdb.xmethod.XMethodWorker):
         return self.result_type
 
     def __call__(self, obj, idx):
-        ss = destructure_compressed_pair(obj['__r_'])[0]['__s']
+        value_field = rep_field(obj)
+        ss = value_field['__s']
         is_long = ss['__is_long_']
         if is_long:
-            sl = destructure_compressed_pair(obj['__r_'])[0]['__l']
+            sl = value_field['__l']
             return sl['__data_'][idx].cast(self.result_type)
         else:
             return ss['__data_'][idx].reference_value().cast(self.result_type)
@@ -165,10 +167,11 @@ class StringDataWorker(gdb.xmethod.XMethodWorker):
         return self.result_type
 
     def __call__(self, obj):
-        ss = destructure_compressed_pair(obj['__r_'])[0]['__s']
+        value_field = rep_field(obj)
+        ss = value_field['__s']
         is_long = ss['__is_long_']
         if is_long:
-            sl = destructure_compressed_pair(obj['__r_'])[0]['__l']
+            sl = value_field['__l']
             return sl['__data_'].cast(self.result_type)
         else:
             return ss['__data_'].address.cast(self.result_type)
@@ -268,7 +271,7 @@ class UniquePtrGetWorker(gdb.xmethod.XMethodWorker):
         return self.value_type.pointer()
 
     def __call__(self, obj):
-        return destructure_compressed_pair(obj['__ptr_'])[0]
+        return first_compressed_pair_or_name(obj, '__ptr_')
 
 
 class UniquePtrGetRefWorker(gdb.xmethod.XMethodWorker):
@@ -284,7 +287,7 @@ class UniquePtrGetRefWorker(gdb.xmethod.XMethodWorker):
         return self.value_type.reference()
 
     def __call__(self, obj):
-        return destructure_compressed_pair(obj['__ptr_'])[0].dereference().reference_value()
+        return first_compressed_pair_or_name(obj, '__ptr_').dereference().reference_value()
 
 
 class UniquePtrMatcher(gdb.xmethod.XMethodMatcher):
@@ -382,7 +385,7 @@ class DequeSizeWorker(gdb.xmethod.XMethodWorker):
         return self.result_type
 
     def __call__(self, obj):
-        return destructure_compressed_pair(obj['__size_'])[0]
+        return first_compressed_pair_or_name(obj, '__size_')
 
 
 class DequeIndexWorker(gdb.xmethod.XMethodMatcher):
