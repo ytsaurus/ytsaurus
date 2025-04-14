@@ -7,6 +7,7 @@
 
 #include <yt/yt/server/node/cluster_node/bootstrap.h>
 #include <yt/yt/server/node/cluster_node/config.h>
+#include <yt/yt/server/node/cluster_node/dynamic_config_manager.h>
 
 #include <yt/yt/ytlib/chunk_client/chunk_meta_extensions.h>
 
@@ -40,6 +41,7 @@ TChunkContextPtr TChunkContext::Create(NClusterNode::IBootstrapBase* bootstrap)
             ? bootstrap->GetDataNodeBootstrap()->GetJournalDispatcher()
             : nullptr,
         .BlobReaderCache = bootstrap->GetBlobReaderCache(),
+        .DynamicConfigManager = bootstrap->GetDynamicConfigManager(),
     });
 }
 
@@ -305,12 +307,18 @@ void TChunkBase::StartReadSession(
 
     session->Options = options;
     session->ChunkReadGuard = TChunkReadGuard::Acquire(this);
-    session->SessionAliveCheckFuture = TDelayedExecutor::MakeDelayed(Context_->DataNodeConfig->LongLiveReadSessionTreshold)
-        .Apply(BIND([sessionWptr = MakeWeak(session), chunkId = GetId()] (const TError& error) {
+    auto dynamicLongLiveReadSessionThreshold = Context_->DynamicConfigManager->GetConfig()->DataNode->LongLiveReadSessionThreshold;
+    auto longLiveReadSessionThreshold = dynamicLongLiveReadSessionThreshold.value_or(Context_->DataNodeConfig->LongLiveReadSessionThreshold);
+    session->SessionAliveCheckFuture = TDelayedExecutor::MakeDelayed(longLiveReadSessionThreshold)
+        .Apply(BIND([weakSession = MakeWeak(session), chunkId = GetId()] (const TError& error) {
             if (error.IsOK()) {
-                YT_LOG_ALERT_IF(!sessionWptr.IsExpired(), "Long live read session (ChunkId: %v)", chunkId);
+                YT_LOG_ALERT_IF(!weakSession.IsExpired(),
+                    "Long live read session (ChunkId: %v)",
+                    chunkId);
             } else {
-                YT_LOG_DEBUG("Session completed before timeout (ChunkId: %v): %v", chunkId, error);
+                YT_LOG_TRACE(error,
+                    "Session completed before timeout (ChunkId: %v)",
+                    chunkId);
             }
         }));
 }

@@ -837,7 +837,7 @@ void TDataNodeConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("session_timeout", &TThis::SessionTimeout)
         .Default(TDuration::Seconds(120));
-    registrar.Parameter("long_live_read_session_treshold", &TThis::LongLiveReadSessionTreshold)
+    registrar.Parameter("long_live_read_session_threshold", &TThis::LongLiveReadSessionThreshold)
         .Default(TDuration::Minutes(60));
     registrar.Parameter("session_block_reorder_timeout", &TThis::SessionBlockReorderTimeout)
         .Default(TDuration::Seconds(10));
@@ -1037,6 +1037,9 @@ void TDataNodeDynamicConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("ally_replica_manager", &TThis::AllyReplicaManager)
         .DefaultNew();
+
+    registrar.Parameter("long_live_read_session_threshold", &TThis::LongLiveReadSessionThreshold)
+        .Optional();
 
     registrar.Parameter("chunk_reader_retention_timeout", &TThis::ChunkReaderRetentionTimeout)
         .Default(TDuration::Minutes(1));

@@ -905,7 +905,7 @@ struct TDataNodeConfig
     TDuration SessionTimeout;
 
     //! After that time alert about long live read sessions will be sent.
-    TDuration LongLiveReadSessionTreshold;
+    TDuration LongLiveReadSessionThreshold;
 
     TDuration SessionBlockReorderTimeout;
 
@@ -1050,6 +1050,9 @@ struct TDataNodeDynamicConfig
 
     TMasterConnectorDynamicConfigPtr MasterConnector;
     TAllyReplicaManagerDynamicConfigPtr AllyReplicaManager;
+
+    //! After that time alert about long live read sessions will be sent.
+    std::optional<TDuration> LongLiveReadSessionThreshold;
 
     //! Prepared chunk readers are kept open during this period of time after the last use.
     TDuration ChunkReaderRetentionTimeout;
