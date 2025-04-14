@@ -6,7 +6,7 @@
 #include <util/generic/hash.h>
 #include <util/generic/hash_set.h>
 
-namespace SQLHighlight {
+namespace NSQLHighlight {
 
     struct Syntax {
         NSQLReflect::TLexerGrammar Grammar;
@@ -203,39 +203,39 @@ namespace SQLHighlight {
         return h;
     }
 
-} // namespace SQLHighlight
+} // namespace NSQLHighlight
 
 template <>
-void Out<SQLHighlight::EHUnitKind>(IOutputStream& out, SQLHighlight::EHUnitKind kind) {
+void Out<NSQLHighlight::EHUnitKind>(IOutputStream& out, NSQLHighlight::EHUnitKind kind) {
     switch (kind) {
-        case SQLHighlight::Keyword:
+        case NSQLHighlight::Keyword:
             out << "Keyword";
             break;
-        case SQLHighlight::Punctuation:
+        case NSQLHighlight::Punctuation:
             out << "Punctuation";
             break;
-        case SQLHighlight::Identifier:
+        case NSQLHighlight::Identifier:
             out << "Identifier";
             break;
-        case SQLHighlight::QuotedIdentifier:
+        case NSQLHighlight::QuotedIdentifier:
             out << "QuotedIdentifier";
             break;
-        case SQLHighlight::BindParamterIdentifier:
+        case NSQLHighlight::BindParamterIdentifier:
             out << "BindParamterIdentifier";
             break;
-        case SQLHighlight::TypeIdentifier:
+        case NSQLHighlight::TypeIdentifier:
             out << "TypeIdentifier";
             break;
-        case SQLHighlight::FunctionIdentifier:
+        case NSQLHighlight::FunctionIdentifier:
             out << "FunctionIdentifier";
             break;
-        case SQLHighlight::Literal:
+        case NSQLHighlight::Literal:
             out << "Literal";
             break;
-        case SQLHighlight::StringLiteral:
+        case NSQLHighlight::StringLiteral:
             out << "StringLiteral";
             break;
-        case SQLHighlight::Comment:
+        case NSQLHighlight::Comment:
             out << "Comment";
             break;
     }

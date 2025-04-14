@@ -6,7 +6,7 @@
 #include <util/generic/vector.h>
 #include <util/generic/map.h>
 
-namespace SQLHighlight {
+namespace NSQLHighlight {
 
     using TMetaToken = TVector<TString>;
 
@@ -44,4 +44,4 @@ namespace SQLHighlight {
 
     THumanHighlighting MakeHighlighting(NSQLReflect::TLexerGrammar grammar);
 
-} // namespace SQLHighlight
+} // namespace NSQLHighlight

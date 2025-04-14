@@ -4,7 +4,7 @@
 
 #include <util/string/join.h>
 
-using namespace SQLHighlight;
+using namespace NSQLHighlight;
 
 Y_UNIT_TEST_SUITE(SqlHighlightTests) {
 
