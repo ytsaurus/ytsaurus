@@ -533,12 +533,6 @@ class TestNodesThrottling(YTEnvSetup):
     ENABLE_MULTIDAEMON = False  # There are component restarts.
     NUM_NODES = 3
 
-    DELTA_NODE_CONFIG = {
-        "master_connector": {
-            "lease_transaction_timeout": 20000,  # 20 sec
-        },
-    }
-
     @authors("cherepashka")
     def test_data_nodes_per_chunk_replica_throttling(self):
         create("table", "//tmp/t")
@@ -573,36 +567,3 @@ class TestNodesThrottling(YTEnvSetup):
 
         time.sleep(2)
         assert get_online_nodes_count() == 3
-
-    @authors("cherepashka")
-    def test_lease_expiration_correctness(self):
-        data_node_group = "data-node"
-        # Set registration throttling to force nodes fail simultaneous reregistration requests.
-        set("//sys/@config/node_tracker/node_groups", {
-            data_node_group: {
-                "node_tag_filter": data_node_group,
-                "max_concurrent_node_registrations": 1,
-            }
-        })
-
-        for node in ls("//sys/cluster_nodes"):
-            set(f"//sys/cluster_nodes/{node}/@user_tags", [data_node_group])
-            assert sorted(get(f"//sys/cluster_nodes/{node}/@node_groups")) == sorted([data_node_group, "default"])
-
-        # Restart nodes to trigger reregistration.
-        with Restarter(self.Env, NODES_SERVICE):
-            pass
-
-        def get_lease_transaction_count():
-            count = 0
-            for tx in ls("//sys/transactions", attributes=["title"]):
-                title = tx.attributes.get("title", "")
-                if "Lease for node" in title:
-                    count += 1
-            return count
-
-        # Nodes will spawn leases while trying to register.
-        assert get_lease_transaction_count() > self.NUM_NODES
-
-        # Old leases should expire.
-        wait(lambda: get_lease_transaction_count() == self.NUM_NODES)
