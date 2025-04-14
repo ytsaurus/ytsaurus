@@ -90,6 +90,7 @@ private:
             else {
                 ReplyError(rsp, error);
             }
+
             YT_LOG_DEBUG(error, "Failed to login user using password (ConnectionId: %v, User: %v)",
                 req->GetConnectionId(),
                 user);
