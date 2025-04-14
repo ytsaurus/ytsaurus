@@ -1118,7 +1118,7 @@ class TestPortals(YTEnvSetup):
 
         copier = move if remove_source else copy
 
-        with pytest.raises(YtError):
+        with raises_yt_error("//tmp/l1 is not a local object"):
             copier("//tmp/l1", "//tmp/l1_copy")
 
         copier("//tmp/p/l2", "//tmp/l2_copy")
@@ -1146,7 +1146,7 @@ class TestPortals(YTEnvSetup):
         assert get("//tmp/l1&/@target_path") == "//tmp/t"
         assert get("//tmp/l1&/@broken") == remove_source
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Cross-cell links are not supported"):
             copier("//tmp/p/l2", "//tmp/p/l2_copy")
 
     @authors("shakurov")
@@ -1251,7 +1251,7 @@ class TestPortals(YTEnvSetup):
         create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 11})
         create("map_node", "//tmp/p", ignore_existing=True)
         create("table", "//tmp/t")
-        with pytest.raises(YtError):
+        with raises_yt_error("//tmp/t already exists and has type \"table\" while node of \"map_node\" type is about to be created"):
             create("map_node", "//tmp/t", ignore_existing=True)
 
     @authors("kvk1920")
