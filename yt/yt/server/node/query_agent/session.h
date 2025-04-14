@@ -21,7 +21,7 @@ namespace NYT::NQueryAgent {
 struct TSessionRowset
 {
     TSharedRange<NTableClient::TUnversionedRow> Rowset;
-    i64 DataWeight;
+    i64 DataWeight = {};
     NTableClient::TTableSchemaPtr Schema;
 };
 
