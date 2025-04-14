@@ -1344,6 +1344,7 @@ std::optional<TReshardDescriptor> TParameterizedResharder::MergeTablets(
         IsPossibleToAddTablet(statistics, enlargedTabletSize, enlargedTabletMetric, leftTabletIndex - 1))
     {
         --leftTabletIndex;
+
         enlargedTabletSize += statistics.TabletSizes[leftTabletIndex];
         enlargedTabletMetric += statistics.TabletMetrics[leftTabletIndex];
 
@@ -1360,12 +1361,13 @@ std::optional<TReshardDescriptor> TParameterizedResharder::MergeTablets(
     {
         enlargedTabletSize += statistics.TabletSizes[rightTabletIndex];
         enlargedTabletMetric += statistics.TabletMetrics[rightTabletIndex];
-        ++rightTabletIndex;
 
         deviation = std::min({
             deviation,
             statistics.TabletMetrics[rightTabletIndex] / statistics.DesiredTabletMetric,
             static_cast<double>(statistics.TabletSizes[rightTabletIndex]) / statistics.DesiredTabletSize});
+
+        ++rightTabletIndex;
     }
 
     if (rightTabletIndex - leftTabletIndex == 1) {
