@@ -8,5 +8,3 @@ default:
   feature_udf_noncpp: false
   feature_declare: false
 
-public:
-  example_cluster: 'cluster_name'

@@ -1,3 +1,4 @@
+# Common presets for both ru and en languages.
 default:
     yt-server-version: 24.1.0
     k8s-operator-version: 0.20.0
@@ -10,3 +11,13 @@ default:
     java-sdk-version: 1.2.5
     python-yson-version: 0.4.9
     cert-manager-version: v1.17.1
+
+public:
+  example_cluster: 'cluster_name'
+  yql:
+    pages:
+      syntax:
+        pragma:
+          package: '"project.package", "/path/to/package"'
+          package-var: '"project.package", "{$_path}/to/package"'
+          error-code-list: https://github.com/ytsaurus/ytsaurus/blob/main/yql/essentials/core/issue/protos/issue_id.proto

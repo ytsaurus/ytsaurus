@@ -72,5 +72,5 @@
 {% if audience == "internal" %}
 ## Примечание
 
-{{yql.pages.types.type-string-note}}
+Это формат представления общеяндексовых типов данных, он базируется на YQL. Формат описан [тут]({{yql.pages.types.type-stringification}}). Если вам удобнее читать на C++ вместо русского &mdash; реализация вышеизложенного находится [тут]({{yql.pages.types.yql-type-string}}).
 {% endif %}
