@@ -3817,7 +3817,7 @@ void TJob::EnrichStatisticsWithGpuInfo(TStatistics* statistics, const std::vecto
             *slotStatisticsLastUpdateTime,
             period);
 
-        slotStatisticsLastUpdateTime = gpuInfo.UpdateTime;
+        slotStatisticsLastUpdateTime = std::max(gpuInfo.UpdateTime, *slotStatisticsLastUpdateTime);
 
         aggregatedGpuStatistics.CumulativeUtilizationGpu += slotStatistics.CumulativeUtilizationGpu;
         aggregatedGpuStatistics.CumulativeUtilizationMemory += slotStatistics.CumulativeUtilizationMemory;
