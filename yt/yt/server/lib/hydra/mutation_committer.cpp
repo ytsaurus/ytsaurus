@@ -312,9 +312,6 @@ void TLeaderCommitter::SerializeMutations()
     YT_LOG_TRACE("Started serializing mutations");
 
     if (!LeaderLease_->IsValid() || EpochContext_->LeaderLeaseExpired) {
-        auto error = TError(
-            NRpc::EErrorCode::Unavailable,
-            "Leader lease is no longer valid");
         // Ensure monotonicity: once Hydra rejected a mutation, no more mutations are accepted.
         EpochContext_->LeaderLeaseExpired = true;
         LoggingFailed_.Fire(TError(
