@@ -27,6 +27,6 @@ except ImportError:
     YSON_PACKAGE_INSTALLATION_TEXT = 'as pip package "ytsaurus-yson"'
     RPC_PACKAGE_INSTALLATION_TEXT = 'as pip package "ytsaurus-rpc-driver"'
     PICKLING_DL_ENABLE_AUTO_COLLECTION = True
-    ENCRYPT_PICKLE_FILES = False
+    ENCRYPT_PICKLE_FILES = None
     ENABLE_YP_SERVICE_DISCOVERY = False
     STARTED_BY_COMMAND_LENGTH_LIMIT = 4096
