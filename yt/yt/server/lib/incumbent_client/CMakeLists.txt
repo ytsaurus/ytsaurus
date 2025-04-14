@@ -34,6 +34,9 @@ add_library(server-lib-incumbent_client)
 target_compile_options(server-lib-incumbent_client PRIVATE
   -Wdeprecated-this-capture
   -Wimplicit-fallthrough
+  -Wparentheses
+  -Wno-logical-op-parentheses
+  -Wno-bitwise-op-parentheses
 )
 
 target_include_directories(server-lib-incumbent_client PUBLIC

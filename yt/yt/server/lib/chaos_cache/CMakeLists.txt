@@ -20,6 +20,9 @@ add_library(server-lib-chaos_cache)
 target_compile_options(server-lib-chaos_cache PRIVATE
   -Wdeprecated-this-capture
   -Wimplicit-fallthrough
+  -Wparentheses
+  -Wno-logical-op-parentheses
+  -Wno-bitwise-op-parentheses
 )
 
 target_link_libraries(server-lib-chaos_cache PUBLIC

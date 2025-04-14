@@ -21,6 +21,9 @@ add_library(yt-library-backtrace_introspector)
 target_compile_options(yt-library-backtrace_introspector PRIVATE
   -Wdeprecated-this-capture
   -Wimplicit-fallthrough
+  -Wparentheses
+  -Wno-logical-op-parentheses
+  -Wno-bitwise-op-parentheses
 )
 
 target_link_libraries(yt-library-backtrace_introspector PUBLIC

@@ -32,6 +32,9 @@ add_executable(mapreduce_protobuf)
 target_compile_options(mapreduce_protobuf PRIVATE
   -Wdeprecated-this-capture
   -Wimplicit-fallthrough
+  -Wparentheses
+  -Wno-logical-op-parentheses
+  -Wno-bitwise-op-parentheses
 )
 
 target_link_libraries(mapreduce_protobuf PUBLIC

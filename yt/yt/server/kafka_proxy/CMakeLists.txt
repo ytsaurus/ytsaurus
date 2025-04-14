@@ -22,6 +22,9 @@ add_library(yt-server-kafka_proxy)
 target_compile_options(yt-server-kafka_proxy PRIVATE
   -Wdeprecated-this-capture
   -Wimplicit-fallthrough
+  -Wparentheses
+  -Wno-logical-op-parentheses
+  -Wno-bitwise-op-parentheses
 )
 
 target_include_directories(yt-server-kafka_proxy PUBLIC

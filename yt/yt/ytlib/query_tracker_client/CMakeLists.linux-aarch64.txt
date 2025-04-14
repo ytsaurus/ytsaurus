@@ -36,6 +36,9 @@ add_library(yt-ytlib-query_tracker_client)
 target_compile_options(yt-ytlib-query_tracker_client PRIVATE
   -Wdeprecated-this-capture
   -Wimplicit-fallthrough
+  -Wparentheses
+  -Wno-logical-op-parentheses
+  -Wno-bitwise-op-parentheses
 )
 
 target_link_libraries(yt-ytlib-query_tracker_client PUBLIC

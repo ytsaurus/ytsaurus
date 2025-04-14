@@ -20,6 +20,9 @@ add_library(yt-server-queue_agent)
 target_compile_options(yt-server-queue_agent PRIVATE
   -Wdeprecated-this-capture
   -Wimplicit-fallthrough
+  -Wparentheses
+  -Wno-logical-op-parentheses
+  -Wno-bitwise-op-parentheses
 )
 
 target_link_libraries(yt-server-queue_agent PUBLIC

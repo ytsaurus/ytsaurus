@@ -20,6 +20,9 @@ add_library(library-ytprof-http)
 target_compile_options(library-ytprof-http PRIVATE
   -Wdeprecated-this-capture
   -Wimplicit-fallthrough
+  -Wparentheses
+  -Wno-logical-op-parentheses
+  -Wno-bitwise-op-parentheses
 )
 
 target_link_libraries(library-ytprof-http PUBLIC

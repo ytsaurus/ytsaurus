@@ -18,6 +18,9 @@ add_executable(unittester-core-json)
 target_compile_options(unittester-core-json PRIVATE
   -Wdeprecated-this-capture
   -Wimplicit-fallthrough
+  -Wparentheses
+  -Wno-logical-op-parentheses
+  -Wno-bitwise-op-parentheses
 )
 
 target_link_libraries(unittester-core-json PUBLIC

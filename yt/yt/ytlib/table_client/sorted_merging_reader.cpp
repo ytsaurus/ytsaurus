@@ -86,7 +86,8 @@ public:
             .MaxDataWeightPerRead = std::max<i64>(1_KB, static_cast<i64>(options.MaxDataWeightPerRead * Fraction_))
         };
 
-        if (Batch_ = Reader_->Read(adjustedOptions)) {
+        Batch_ = Reader_->Read(adjustedOptions);
+        if (Batch_) {
             Rows_ = Batch_->MaterializeRows();
             Keys_.resize(Rows_.size());
             for (i64 index = 0; index < std::ssize(Rows_); ++index) {

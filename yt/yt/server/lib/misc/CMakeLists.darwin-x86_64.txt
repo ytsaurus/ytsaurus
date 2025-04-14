@@ -18,6 +18,9 @@ add_library(server-lib-misc)
 target_compile_options(server-lib-misc PRIVATE
   -Wdeprecated-this-capture
   -Wimplicit-fallthrough
+  -Wparentheses
+  -Wno-logical-op-parentheses
+  -Wno-bitwise-op-parentheses
 )
 
 target_link_libraries(server-lib-misc PUBLIC
@@ -59,6 +62,9 @@ add_global_library_for(server-lib-misc.global
 target_compile_options(server-lib-misc.global PRIVATE
   -Wdeprecated-this-capture
   -Wimplicit-fallthrough
+  -Wparentheses
+  -Wno-logical-op-parentheses
+  -Wno-bitwise-op-parentheses
 )
 
 target_link_libraries(server-lib-misc.global PUBLIC

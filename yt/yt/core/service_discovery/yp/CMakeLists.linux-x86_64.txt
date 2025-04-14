@@ -20,6 +20,9 @@ add_library(core-service_discovery-yp)
 target_compile_options(core-service_discovery-yp PRIVATE
   -Wdeprecated-this-capture
   -Wimplicit-fallthrough
+  -Wparentheses
+  -Wno-logical-op-parentheses
+  -Wno-bitwise-op-parentheses
 )
 
 target_link_libraries(core-service_discovery-yp PUBLIC
@@ -43,6 +46,9 @@ add_global_library_for(core-service_discovery-yp.global
 target_compile_options(core-service_discovery-yp.global PRIVATE
   -Wdeprecated-this-capture
   -Wimplicit-fallthrough
+  -Wparentheses
+  -Wno-logical-op-parentheses
+  -Wno-bitwise-op-parentheses
 )
 
 target_link_libraries(core-service_discovery-yp.global PUBLIC

@@ -36,6 +36,9 @@ add_library(yt-server-master)
 target_compile_options(yt-server-master PRIVATE
   -Wdeprecated-this-capture
   -Wimplicit-fallthrough
+  -Wparentheses
+  -Wno-logical-op-parentheses
+  -Wno-bitwise-op-parentheses
 )
 
 target_include_directories(yt-server-master PUBLIC

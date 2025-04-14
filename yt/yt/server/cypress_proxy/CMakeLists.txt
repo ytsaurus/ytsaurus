@@ -20,6 +20,9 @@ add_library(yt-server-cypress_proxy)
 target_compile_options(yt-server-cypress_proxy PRIVATE
   -Wdeprecated-this-capture
   -Wimplicit-fallthrough
+  -Wparentheses
+  -Wno-logical-op-parentheses
+  -Wno-bitwise-op-parentheses
 )
 
 target_link_libraries(yt-server-cypress_proxy PUBLIC

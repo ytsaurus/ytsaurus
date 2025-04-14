@@ -22,6 +22,9 @@ add_executable(ytserver-all)
 target_compile_options(ytserver-all PRIVATE
   -Wdeprecated-this-capture
   -Wimplicit-fallthrough
+  -Wparentheses
+  -Wno-logical-op-parentheses
+  -Wno-bitwise-op-parentheses
 )
 
 target_link_libraries(ytserver-all PUBLIC

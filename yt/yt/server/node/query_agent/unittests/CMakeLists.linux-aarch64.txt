@@ -20,6 +20,9 @@ add_executable(unittester-query-agent)
 target_compile_options(unittester-query-agent PRIVATE
   -Wdeprecated-this-capture
   -Wimplicit-fallthrough
+  -Wparentheses
+  -Wno-logical-op-parentheses
+  -Wno-bitwise-op-parentheses
 )
 
 target_link_libraries(unittester-query-agent PUBLIC

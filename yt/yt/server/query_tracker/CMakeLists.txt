@@ -22,6 +22,9 @@ add_library(yt-server-query_tracker)
 target_compile_options(yt-server-query_tracker PRIVATE
   -Wdeprecated-this-capture
   -Wimplicit-fallthrough
+  -Wparentheses
+  -Wno-logical-op-parentheses
+  -Wno-bitwise-op-parentheses
 )
 
 target_link_libraries(yt-server-query_tracker PUBLIC

@@ -20,6 +20,9 @@ add_executable(unittester-signature-service)
 target_compile_options(unittester-signature-service PRIVATE
   -Wdeprecated-this-capture
   -Wimplicit-fallthrough
+  -Wparentheses
+  -Wno-logical-op-parentheses
+  -Wno-bitwise-op-parentheses
 )
 
 target_link_libraries(unittester-signature-service PUBLIC

@@ -20,6 +20,9 @@ add_library(yt-server-exec)
 target_compile_options(yt-server-exec PRIVATE
   -Wdeprecated-this-capture
   -Wimplicit-fallthrough
+  -Wparentheses
+  -Wno-logical-op-parentheses
+  -Wno-bitwise-op-parentheses
 )
 
 target_link_libraries(yt-server-exec PUBLIC

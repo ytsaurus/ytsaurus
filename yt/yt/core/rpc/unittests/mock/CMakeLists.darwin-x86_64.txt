@@ -18,6 +18,9 @@ add_library(rpc-unittests-mock)
 target_compile_options(rpc-unittests-mock PRIVATE
   -Wdeprecated-this-capture
   -Wimplicit-fallthrough
+  -Wparentheses
+  -Wno-logical-op-parentheses
+  -Wno-bitwise-op-parentheses
 )
 
 target_link_libraries(rpc-unittests-mock PUBLIC

@@ -18,6 +18,9 @@ add_executable(multiple_input_reduce_tnode)
 target_compile_options(multiple_input_reduce_tnode PRIVATE
   -Wdeprecated-this-capture
   -Wimplicit-fallthrough
+  -Wparentheses
+  -Wno-logical-op-parentheses
+  -Wno-bitwise-op-parentheses
 )
 
 target_link_libraries(multiple_input_reduce_tnode PUBLIC

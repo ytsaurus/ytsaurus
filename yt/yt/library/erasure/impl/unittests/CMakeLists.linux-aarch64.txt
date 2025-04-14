@@ -20,6 +20,9 @@ add_executable(unittester-library-erasure)
 target_compile_options(unittester-library-erasure PRIVATE
   -Wdeprecated-this-capture
   -Wimplicit-fallthrough
+  -Wparentheses
+  -Wno-logical-op-parentheses
+  -Wno-bitwise-op-parentheses
 )
 
 target_link_libraries(unittester-library-erasure PUBLIC

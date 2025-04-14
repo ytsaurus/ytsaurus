@@ -24,6 +24,9 @@ add_library(yt-chyt-server)
 target_compile_options(yt-chyt-server PRIVATE
   -Wdeprecated-this-capture
   -Wimplicit-fallthrough
+  -Wparentheses
+  -Wno-logical-op-parentheses
+  -Wno-bitwise-op-parentheses
 )
 
 target_include_directories(yt-chyt-server PRIVATE
@@ -144,6 +147,9 @@ add_global_library_for(yt-chyt-server.global
 target_compile_options(yt-chyt-server.global PRIVATE
   -Wdeprecated-this-capture
   -Wimplicit-fallthrough
+  -Wparentheses
+  -Wno-logical-op-parentheses
+  -Wno-bitwise-op-parentheses
 )
 
 target_include_directories(yt-chyt-server.global PRIVATE

@@ -18,6 +18,9 @@ add_executable(unittester-library-numeric)
 target_compile_options(unittester-library-numeric PRIVATE
   -Wdeprecated-this-capture
   -Wimplicit-fallthrough
+  -Wparentheses
+  -Wno-logical-op-parentheses
+  -Wno-bitwise-op-parentheses
 )
 
 target_include_directories(unittester-library-numeric PRIVATE

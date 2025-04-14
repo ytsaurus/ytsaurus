@@ -20,6 +20,9 @@ add_executable(unittester-core-tracing)
 target_compile_options(unittester-core-tracing PRIVATE
   -Wdeprecated-this-capture
   -Wimplicit-fallthrough
+  -Wparentheses
+  -Wno-logical-op-parentheses
+  -Wno-bitwise-op-parentheses
 )
 
 target_link_libraries(unittester-core-tracing PUBLIC

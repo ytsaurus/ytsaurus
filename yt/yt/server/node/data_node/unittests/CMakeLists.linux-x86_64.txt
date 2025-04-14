@@ -20,6 +20,9 @@ add_executable(unittester-data-node)
 target_compile_options(unittester-data-node PRIVATE
   -Wdeprecated-this-capture
   -Wimplicit-fallthrough
+  -Wparentheses
+  -Wno-logical-op-parentheses
+  -Wno-bitwise-op-parentheses
 )
 
 target_link_libraries(unittester-data-node PUBLIC

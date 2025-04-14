@@ -20,6 +20,9 @@ add_library(yt-library-tcmalloc)
 target_compile_options(yt-library-tcmalloc PRIVATE
   -Wdeprecated-this-capture
   -Wimplicit-fallthrough
+  -Wparentheses
+  -Wno-logical-op-parentheses
+  -Wno-bitwise-op-parentheses
 )
 
 target_link_libraries(yt-library-tcmalloc PUBLIC
@@ -45,6 +48,9 @@ add_global_library_for(yt-library-tcmalloc.global
 target_compile_options(yt-library-tcmalloc.global PRIVATE
   -Wdeprecated-this-capture
   -Wimplicit-fallthrough
+  -Wparentheses
+  -Wno-logical-op-parentheses
+  -Wno-bitwise-op-parentheses
 )
 
 target_link_libraries(yt-library-tcmalloc.global PUBLIC

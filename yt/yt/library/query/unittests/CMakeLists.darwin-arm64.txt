@@ -21,6 +21,9 @@ add_executable(unittester-query)
 target_compile_options(unittester-query PRIVATE
   -Wdeprecated-this-capture
   -Wimplicit-fallthrough
+  -Wparentheses
+  -Wno-logical-op-parentheses
+  -Wno-bitwise-op-parentheses
 )
 
 target_include_directories(unittester-query PRIVATE
