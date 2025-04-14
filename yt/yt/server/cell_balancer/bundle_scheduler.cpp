@@ -1231,6 +1231,7 @@ void CalculateResourceUsage(TSchedulerInputState& input)
 
         {
             auto aliveResourceUsage = New<NBundleControllerClient::TInstanceResources>();
+            // Default values are non-zero, so we need to clear them.
             aliveResourceUsage->Clear();
 
             TBundleControllerStatePtr bundleState;
