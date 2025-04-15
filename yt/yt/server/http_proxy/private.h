@@ -23,7 +23,7 @@ extern const NLogging::TLogger HttpStructuredProxyLogger;
 
 DECLARE_REFCOUNTED_CLASS(TFramingAsyncOutputStream)
 
-DECLARE_REFCOUNTED_CLASS(TApiTestingOptions)
+DECLARE_REFCOUNTED_STRUCT(TApiTestingOptions)
 
 ////////////////////////////////////////////////////////////////////////////////
 

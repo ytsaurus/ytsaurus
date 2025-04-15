@@ -49,10 +49,10 @@ class TMasterConnector;
 
 DECLARE_REFCOUNTED_CLASS(TBootstrap)
 
-DECLARE_REFCOUNTED_CLASS(TPersistentStrategyState)
-DECLARE_REFCOUNTED_CLASS(TPersistentTreeState)
-DECLARE_REFCOUNTED_CLASS(TPersistentPoolState)
-DECLARE_REFCOUNTED_CLASS(TPersistentSchedulingSegmentsState)
+DECLARE_REFCOUNTED_STRUCT(TPersistentStrategyState)
+DECLARE_REFCOUNTED_STRUCT(TPersistentTreeState)
+DECLARE_REFCOUNTED_STRUCT(TPersistentPoolState)
+DECLARE_REFCOUNTED_STRUCT(TPersistentSchedulingSegmentsState)
 
 // TODO(mrkastep) Move to private.h
 DECLARE_REFCOUNTED_CLASS(TFairShareStrategyOperationState)

@@ -118,8 +118,8 @@ class TSamplingRowMerger;
 
 struct IVersionedRowMerger;
 
-DECLARE_REFCOUNTED_CLASS(TTableWriterOptions)
-DECLARE_REFCOUNTED_CLASS(TTableReaderOptions)
+DECLARE_REFCOUNTED_STRUCT(TTableWriterOptions)
+DECLARE_REFCOUNTED_STRUCT(TTableReaderOptions)
 
 DECLARE_REFCOUNTED_STRUCT(TBlobTableWriterConfig)
 DECLARE_REFCOUNTED_STRUCT(TBufferedTableWriterConfig)

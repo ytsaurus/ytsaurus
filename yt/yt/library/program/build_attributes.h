@@ -11,10 +11,9 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TBuildInfo
+struct TBuildInfo
     : public NYTree::TYsonStruct
 {
-public:
     std::optional<TString> Name;
     TString Version;
     TString BuildHost;

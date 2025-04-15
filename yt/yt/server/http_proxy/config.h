@@ -117,10 +117,9 @@ DEFINE_REFCOUNTED_TYPE(TCoordinatorConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TDelayBeforeCommand
+struct TDelayBeforeCommand
     : public NYTree::TYsonStruct
 {
-public:
     TDuration Delay;
     TString ParameterPath;
     TString Substring;
@@ -130,14 +129,13 @@ public:
     static void Register(TRegistrar registrar);
 };
 
-////////////////////////////////////////////////////////////////////////////////
-
 DEFINE_REFCOUNTED_TYPE(TDelayBeforeCommand)
 
-class TApiTestingOptions
+////////////////////////////////////////////////////////////////////////////////
+
+struct TApiTestingOptions
     : public NYTree::TYsonStruct
 {
-public:
     THashMap<TString, TIntrusivePtr<TDelayBeforeCommand>> DelayBeforeCommand;
 
     NServer::THeapProfilerTestingOptionsPtr HeapProfiler;

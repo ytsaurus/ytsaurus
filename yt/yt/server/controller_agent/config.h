@@ -55,10 +55,9 @@ DEFINE_REFCOUNTED_TYPE(TIntermediateChunkScraperConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TTestingOptions
+struct TTestingOptions
     : public NYTree::TYsonStruct
 {
-public:
     //! Testing option that enables snapshot build/load cycle after operation materialization.
     bool EnableSnapshotCycleAfterMaterialization;
 
@@ -240,10 +239,9 @@ DEFINE_REFCOUNTED_TYPE(TJobSplitterConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TSuspiciousJobsOptions
+struct TSuspiciousJobsOptions
     : public NYTree::TYsonStruct
 {
-public:
     //! Duration of no activity by job to be considered as suspicious.
     TDuration InactivityTimeout;
 
@@ -271,10 +269,9 @@ DEFINE_REFCOUNTED_TYPE(TSuspiciousJobsOptions)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TDataBalancerOptions
+struct TDataBalancerOptions
     : public NYTree::TYsonStruct
 {
-public:
     i64 LoggingMinConsecutiveViolationCount;
     TDuration LoggingPeriod;
     double Tolerance;
@@ -289,10 +286,9 @@ DEFINE_REFCOUNTED_TYPE(TDataBalancerOptions)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TUserJobOptions
+struct TUserJobOptions
     : public NYTree::TYsonStruct
 {
-public:
     //! Thread limit for the user job is ceil(#InitialThreadLimit + #ThreadLimitMultiplier * JobCpuLimit);
     i64 ThreadLimitMultiplier;
     i64 InitialThreadLimit;
@@ -307,10 +303,9 @@ DEFINE_REFCOUNTED_TYPE(TUserJobOptions)
 ////////////////////////////////////////////////////////////////////////////////
 
 //! This config is applicable only in case of enabled separate root volume.
-class TGpuCheckOptions
+struct TGpuCheckOptions
     : public NYTree::TYsonStruct
 {
-public:
     bool UseSeparateRootVolume;
 
     //! Path to layers for separate volume of GPU check.
@@ -331,11 +326,10 @@ DEFINE_REFCOUNTED_TYPE(TGpuCheckOptions)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TOperationOptions
+struct TOperationOptions
     : public NYTree::TYsonStruct
     , public virtual NPhoenix::TPolymorphicBase
 {
-public:
     NYTree::INodePtr SpecTemplate;
 
     //! Controls finer initial slicing of input data to ensure even distribution of data split sizes among jobs.
@@ -403,10 +397,9 @@ DEFINE_REFCOUNTED_TYPE(TOperationOptions)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TSimpleOperationOptions
+struct TSimpleOperationOptions
     : public TOperationOptions
 {
-public:
     int MaxJobCount;
     i64 DataWeightPerJob;
 
@@ -422,10 +415,9 @@ DEFINE_REFCOUNTED_TYPE(TSimpleOperationOptions)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TMapOperationOptions
+struct TMapOperationOptions
     : public TSimpleOperationOptions
 {
-public:
     NChunkPools::TJobSizeAdjusterConfigPtr JobSizeAdjuster;
 
     REGISTER_YSON_STRUCT(TMapOperationOptions);
@@ -440,10 +432,9 @@ DEFINE_REFCOUNTED_TYPE(TMapOperationOptions)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TUnorderedMergeOperationOptions
+struct TUnorderedMergeOperationOptions
     : public TSimpleOperationOptions
 {
-public:
     REGISTER_YSON_STRUCT(TUnorderedMergeOperationOptions);
 
     static void Register(TRegistrar registrar);
@@ -456,10 +447,9 @@ DEFINE_REFCOUNTED_TYPE(TUnorderedMergeOperationOptions)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TOrderedMergeOperationOptions
+struct TOrderedMergeOperationOptions
     : public TSimpleOperationOptions
 {
-public:
     REGISTER_YSON_STRUCT(TOrderedMergeOperationOptions);
 
     static void Register(TRegistrar registrar);
@@ -472,10 +462,9 @@ DEFINE_REFCOUNTED_TYPE(TOrderedMergeOperationOptions)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TSortedMergeOperationOptions
+struct TSortedMergeOperationOptions
     : public TSimpleOperationOptions
 {
-public:
     REGISTER_YSON_STRUCT(TSortedMergeOperationOptions);
 
     static void Register(TRegistrar registrar);
@@ -488,10 +477,9 @@ DEFINE_REFCOUNTED_TYPE(TSortedMergeOperationOptions)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TReduceOperationOptions
+struct TReduceOperationOptions
     : public TSortedMergeOperationOptions
 {
-public:
     REGISTER_YSON_STRUCT(TReduceOperationOptions);
 
     static void Register(TRegistrar registrar);
@@ -504,10 +492,9 @@ DEFINE_REFCOUNTED_TYPE(TReduceOperationOptions)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TEraseOperationOptions
+struct TEraseOperationOptions
     : public TOrderedMergeOperationOptions
 {
-public:
     REGISTER_YSON_STRUCT(TEraseOperationOptions);
 
     static void Register(TRegistrar registrar);
@@ -520,10 +507,9 @@ DEFINE_REFCOUNTED_TYPE(TEraseOperationOptions)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TSortOperationOptionsBase
+struct TSortOperationOptionsBase
     : public TOperationOptions
 {
-public:
     int MaxPartitionJobCount;
     int MaxPartitionCount;
     int MaxNewPartitionCount;
@@ -549,10 +535,9 @@ DEFINE_REFCOUNTED_TYPE(TSortOperationOptionsBase)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TSortOperationOptions
+struct TSortOperationOptions
     : public TSortOperationOptionsBase
 {
-public:
     REGISTER_YSON_STRUCT(TSortOperationOptions);
 
     static void Register(TRegistrar registrar);
@@ -565,10 +550,9 @@ DEFINE_REFCOUNTED_TYPE(TSortOperationOptions)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TMapReduceOperationOptions
+struct TMapReduceOperationOptions
     : public TSortOperationOptionsBase
 {
-public:
     REGISTER_YSON_STRUCT(TMapReduceOperationOptions);
 
     static void Register(TRegistrar registrar);
@@ -581,10 +565,9 @@ DEFINE_REFCOUNTED_TYPE(TMapReduceOperationOptions)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TRemoteCopyOperationOptions
+struct TRemoteCopyOperationOptions
     : public TSimpleOperationOptions
 {
-public:
     NScheduler::TCpuResource CpuLimit;
     std::optional<NNodeTrackerClient::TNetworkPreferenceList> Networks;
 
@@ -614,10 +597,9 @@ DEFINE_REFCOUNTED_TYPE(TGangManagerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TVanillaOperationOptions
+struct TVanillaOperationOptions
     : public TOperationOptions
 {
-public:
     //! Maximum number of tasks allowed.
     int MaxTaskCount;
 
@@ -743,10 +725,9 @@ DEFINE_REFCOUNTED_TYPE(TUserFileLimitsPatchConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TJobTrackerTestingOptions
+struct TJobTrackerTestingOptions
     : public NYTree::TYsonStruct
 {
-public:
     NScheduler::TDelayConfigPtr DelayInSettleJob;
 
     REGISTER_YSON_STRUCT(TJobTrackerTestingOptions);

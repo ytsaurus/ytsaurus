@@ -57,7 +57,7 @@ struct TPermissionCheckResponse
 DECLARE_REFCOUNTED_STRUCT(IResourceLimitsManager)
 DECLARE_REFCOUNTED_STRUCT(IUserAccessValidator)
 
-DECLARE_REFCOUNTED_CLASS(TUserAccessValidatorDynamicConfig)
+DECLARE_REFCOUNTED_STRUCT(TUserAccessValidatorDynamicConfig)
 
 DEFINE_ENUM(EAccessControlEvent,
     (UserCreated)

@@ -29,10 +29,9 @@ struct TUserWorkloadStatistics
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TUserRequestLimitsOptions
+struct TUserRequestLimitsOptions
     : public NYTree::TYsonStruct
 {
-public:
     std::optional<int> Default;
     THashMap<NObjectServer::TCellTag, int> PerCell;
 
@@ -48,10 +47,9 @@ DEFINE_REFCOUNTED_TYPE(TUserRequestLimitsOptions)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TUserQueueSizeLimitsOptions
+struct TUserQueueSizeLimitsOptions
     : public NYTree::TYsonStruct
 {
-public:
     int Default;
     THashMap<NObjectServer::TCellTag, int> PerCell;
 
@@ -67,10 +65,9 @@ DEFINE_REFCOUNTED_TYPE(TUserQueueSizeLimitsOptions)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TUserReadRequestComplexityLimitsOptions
+struct TUserReadRequestComplexityLimitsOptions
     : public NYTree::TYsonStruct
 {
-public:
     std::optional<i64> NodeCount;
     std::optional<i64> ResultSize;
 
@@ -103,7 +100,7 @@ DEFINE_REFCOUNTED_TYPE(TUserRequestLimitsConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TSerializableUserRequestLimitsOptions
+struct TSerializableUserRequestLimitsOptions
     : public NYTree::TYsonStruct
 {
 public:

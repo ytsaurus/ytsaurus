@@ -27,7 +27,7 @@ DEFINE_REFCOUNTED_TYPE(TJournalHunkChunkWriterConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TJournalHunkChunkWriterOptions
+struct TJournalHunkChunkWriterOptions
     : public NApi::TJournalChunkWriterOptions
 {
     REGISTER_YSON_STRUCT(TJournalHunkChunkWriterOptions);

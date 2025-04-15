@@ -62,10 +62,9 @@ DEFINE_ENUM(EDeactivationReason,
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TStrategyTestingOptions
+struct TStrategyTestingOptions
     : public NYTree::TYsonStruct
 {
-public:
     // Testing option that enables sleeping during fair share strategy update.
     std::optional<TDuration> DelayInsideFairShareUpdate;
 
@@ -269,10 +268,9 @@ DEFINE_REFCOUNTED_TYPE(TBatchOperationSchedulingConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TTreeTestingOptions
+struct TTreeTestingOptions
     : public NYTree::TYsonStruct
 {
-public:
     TDelayConfigPtr DelayInsideFairShareUpdate;
 
     std::optional<TDuration> DelayInsideResourceUsageInitializationInTree;
@@ -499,10 +497,9 @@ DEFINE_REFCOUNTED_TYPE(TPoolTreesTemplateConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TOperationStuckCheckOptions
+struct TOperationStuckCheckOptions
     : public NYTree::TYsonStruct
 {
-public:
     TDuration Period;
 
     //! During this timeout after activation operation can not be considered as stuck.
@@ -589,10 +586,9 @@ DEFINE_REFCOUNTED_TYPE(TFairShareStrategyConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TTestingOptions
+struct TTestingOptions
     : public NYTree::TYsonStruct
 {
-public:
     // Testing options that enables random master disconnections.
     bool EnableRandomMasterDisconnection;
     TDuration RandomMasterDisconnectionMaxBackoff;

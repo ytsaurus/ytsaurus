@@ -34,10 +34,9 @@ DEFINE_ENUM(EIOEngineRequestType,
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TIOEngineConfigBase
+struct TIOEngineConfigBase
     : public NYTree::TYsonStruct
 {
-public:
     int AuxThreadCount;
     int FsyncThreadCount;
 
