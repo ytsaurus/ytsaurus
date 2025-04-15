@@ -1064,7 +1064,7 @@ private:
         {
             std::vector<TSampleRange> SampleRanges;
 
-            // PartitionIndex is used to determine which partiton to read if range intersects partition's bound.
+            // PartitionIndex is used to determine which partition to read if range intersects partition's bound.
             int PartitionIndex;
         };
 
