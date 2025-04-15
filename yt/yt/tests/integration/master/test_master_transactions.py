@@ -718,6 +718,26 @@ class TestMasterTransactionsShardedTx(TestMasterTransactionsMulticell):
         "15": {"roles": ["transaction_coordinator"]},
     }
 
+    @authors("kvk1920")
+    @pytest.mark.parametrize("finish_tx", [commit_transaction, abort_transaction])
+    def test_external_transaction_finish_order_order(self, finish_tx):
+        table_id = create("table", "//tmp/t", attributes={"external_cell_tag": 12})
+        topmost_tx = start_transaction()
+        outer_tx = start_transaction(tx=topmost_tx)
+        inner_tx = start_transaction(tx=outer_tx)
+        lock("//tmp/t", mode="exclusive", tx=inner_tx)["lock_id"]
+        outer_lock = lock("//tmp/t", mode="exclusive", tx=outer_tx, waitable=True)["lock_id"]
+        finish_tx(outer_tx)
+
+        if finish_tx is commit_transaction:
+            assert get(f"#{outer_lock}/@state") == "acquired"
+            assert outer_lock in get(f"#{topmost_tx}/@lock_ids").get("11", {})
+            assert table_id in get(f"#{topmost_tx}/@locked_node_ids").get("11", {})
+        else:
+            gc_collect()
+            assert not exists(f"#{outer_lock}")
+            assert table_id not in get(f"#{topmost_tx}/@locked_node_ids").get("11", {})
+
     @authors("shakurov")
     def test_prerequisite_transactions_on_commit2(self):
         # Currently there's no way to force particular transaction

@@ -250,6 +250,7 @@ DEFINE_ENUM(EMasterReign,
     ((MissingObjectErrorAttribute)                                  (2914))  // kvk1920
     ((FixAttributeInheritanceInCreateVerb)                          (2915))  // h0pless
     ((FixLastSeenReplicas)                                          (2916))  // kvk1920
+    ((FixReplicatedTransactionFinish)                               (2917))  // kvk1920
 );
 
 static_assert(TEnumTraits<EMasterReign>::IsMonotonic, "Master reign enum is not monotonic");

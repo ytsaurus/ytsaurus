@@ -653,8 +653,7 @@ public:
 
     void CommitTransaction(
         TTransaction* transaction,
-        const TTransactionCommitOptions& options,
-        bool replicateViaHive = true)
+        const TTransactionCommitOptions& options)
     {
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(HasHydraContext());
@@ -698,32 +697,44 @@ public:
 
         SetTimestampHolderTimestamp(transactionId, options.CommitTimestamp);
 
-        const auto& multicellManager = Bootstrap_->GetMulticellManager();
-
-        if (replicateViaHive && !transaction->ReplicatedToCellTags().empty()) {
-            NProto::TReqCommitTransaction request;
-            ToProto(request.mutable_transaction_id(), transactionId);
-            request.set_commit_timestamp(options.CommitTimestamp);
-            const auto* mutationContext = GetCurrentMutationContext();
-            request.set_native_commit_mutation_revision(ToProto(mutationContext->GetVersion().ToRevision()));
-            multicellManager->PostToMasters(request, transaction->ReplicatedToCellTags());
-        }
-
-        if (!transaction->ExternalizedToCellTags().empty()) {
-            NProto::TReqCommitTransaction request;
-            ToProto(request.mutable_transaction_id(), MakeExternalizedTransactionId(transactionId, multicellManager->GetCellTag()));
-            request.set_commit_timestamp(options.CommitTimestamp);
-            const auto* mutationContext = GetCurrentMutationContext();
-            request.set_native_commit_mutation_revision(ToProto(mutationContext->GetVersion().ToRevision()));
-            multicellManager->PostToMasters(request, transaction->ExternalizedToCellTags());
-        }
-
-        // Abort of nested transactions has to be done after replicating commit
-        // to participants and that's why:
-        // abort of nested transactions cause posting "remove object"
-        // mutations via Hive. It must be done only after tx abort on foreign
-        // cells since txs hold refs to objects and "remove object" checks if
-        // object's refcount is zero.
+        // On every transaction finish:
+        //   1. nested transactions are aborted (and their aborts are
+        //      replicated);
+        //   2. current transaction finish is replicated to participant (and
+        //      external) cells via Hive;
+        //   3. Cypress changes caused by transaction finish are handled.
+        // At first sight, replicating finish of transaction subtree root is
+        // sufficient since every participant master cell knows transaction
+        // hierarchy. But Cypress changes can be replicated to external cells
+        // too (e.g. object destruction, waitable lock acquiring). This actions
+        // together with transaction finished have to be equally ordered on
+        // every cell, so replication of finish for every transaction is
+        // unavoidable.
+        //
+        // Tricky corner case to highlight the problem:
+        // Consider the following client code:
+        //   topmost_tx = start_tx()
+        //   parent_tx = start_tx(tx=topmost_tx)
+        //   nested_tx = start_tx(tx=parent_tx)
+        //   nested_lock = lock(node, tx=nested_tx)
+        //   parent_lock = lock(node, tx=parent_tx, waitable=True)
+        //   commit(parent_tx)
+        // Expected semantic:
+        //   1. nested_tx is aborted;
+        //   2. nested_lock is released;
+        //   3. parent_lock is acquired since it's pending and there is no other
+        //      locks for node;
+        //   4. parent_tx is committed;
+        //   5. parent_lock is promoted to topmost_tx.
+        // Waitable lock acquiring occurs on node's native cell and is
+        // replicated to external cell. On the one hand, waitable lock
+        // acquiring must happen after nested_tx commit on external cell since
+        // lock under parent_tx cannot be acquired while node is still locked
+        // under nested_tx. On the other hand, waitable lock acquiring must
+        // happen before parent_tx is committed because lock cannot be acquired
+        // if transaction is not alive. Therefore, lock acquiring should be
+        // replicated exactly between replication of parent_tx commit and
+        // nested_tx abort.
         TCompactVector<TTransaction*, 16> nestedTransactions(
             transaction->NestedTransactions().begin(),
             transaction->NestedTransactions().end());
@@ -735,15 +746,34 @@ public:
             TTransactionAbortOptions options{
                 .Force = true,
             };
-            // NB: Disable replication via Hive as the commit sent above will
-            // abort them implicitly.
             AbortTransaction(
                 nestedTransaction,
                 options,
-                /*validatePermissions*/ false,
-                /*replicateViaHive*/ false);
+                /*validatePermissions*/ false);
         }
         YT_VERIFY(transaction->NestedTransactions().empty());
+
+        const auto& multicellManager = Bootstrap_->GetMulticellManager();
+        // NB: mirrored Cypress transactions are committed with Sequoia
+        // transaction actions instead of Hive.
+        auto replicateCommitViaHive = !IsCypressTransactionMirroredToSequoia(transactionId) || !GetSequoiaContext();
+        if (replicateCommitViaHive && !transaction->ReplicatedToCellTags().empty()) {
+            NProto::TReqCommitTransaction request;
+            ToProto(request.mutable_transaction_id(), transactionId);
+            request.set_commit_timestamp(options.CommitTimestamp);
+            const auto* mutationContext = GetCurrentMutationContext();
+            request.set_native_commit_mutation_revision(ToProto(mutationContext->GetVersion().ToRevision()));
+            multicellManager->PostToMasters(request, transaction->ReplicatedToCellTags());
+        }
+        // Externalized transactions are always finished via Hive.
+        if (!transaction->ExternalizedToCellTags().empty()) {
+            NProto::TReqCommitTransaction request;
+            ToProto(request.mutable_transaction_id(), MakeExternalizedTransactionId(transactionId, multicellManager->GetCellTag()));
+            request.set_commit_timestamp(options.CommitTimestamp);
+            const auto* mutationContext = GetCurrentMutationContext();
+            request.set_native_commit_mutation_revision(ToProto(mutationContext->GetVersion().ToRevision()));
+            multicellManager->PostToMasters(request, transaction->ExternalizedToCellTags());
+        }
 
         if (IsLeader()) {
             CloseLease(transaction);
@@ -818,15 +848,13 @@ public:
         AbortTransaction(
             transaction,
             options,
-            /*validatePermissions*/ false,
-            /*replicateViaHive*/ true);
+            /*validatePermissions*/ false);
     }
 
     void AbortTransaction(
         TTransaction* transaction,
         const TTransactionAbortOptions& options,
-        bool validatePermissions,
-        bool replicateViaHive)
+        bool validatePermissions)
     {
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
@@ -861,22 +889,7 @@ public:
             securityManager->ValidatePermission(transaction, EPermission::Write);
         }
 
-        const auto& multicellManager = Bootstrap_->GetMulticellManager();
-
-        if (replicateViaHive && !transaction->ReplicatedToCellTags().empty()) {
-            NProto::TReqAbortTransaction request;
-            ToProto(request.mutable_transaction_id(), transactionId);
-            request.set_force(true);
-            multicellManager->PostToMasters(request, transaction->ReplicatedToCellTags());
-        }
-
-        if (!transaction->ExternalizedToCellTags().empty()) {
-            NProto::TReqAbortTransaction request;
-            ToProto(request.mutable_transaction_id(), MakeExternalizedTransactionId(transactionId, multicellManager->GetCellTag()));
-            request.set_force(true);
-            multicellManager->PostToMasters(request, transaction->ExternalizedToCellTags());
-        }
-
+        // See the same place in CommitTransaction().
         TCompactVector<TTransaction*, 16> nestedTransactions(
             transaction->NestedTransactions().begin(),
             transaction->NestedTransactions().end());
@@ -891,10 +904,25 @@ public:
             AbortTransaction(
                 nestedTransaction,
                 options,
-                /*validatePermissions*/ false,
-                /*replicateViaHive*/ false);
+                /*validatePermissions*/ false);
         }
         YT_VERIFY(transaction->NestedTransactions().empty());
+
+        // NB: see similar place CommitTransaction().
+        const auto& multicellManager = Bootstrap_->GetMulticellManager();
+        auto replicateAbortViaHive = !IsCypressTransactionMirroredToSequoia(transactionId) || !GetSequoiaContext();
+        if (replicateAbortViaHive && !transaction->ReplicatedToCellTags().empty()) {
+            NProto::TReqAbortTransaction request;
+            ToProto(request.mutable_transaction_id(), transactionId);
+            request.set_force(true);
+            multicellManager->PostToMasters(request, transaction->ReplicatedToCellTags());
+        }
+        if (!transaction->ExternalizedToCellTags().empty()) {
+            NProto::TReqAbortTransaction request;
+            ToProto(request.mutable_transaction_id(), MakeExternalizedTransactionId(transactionId, multicellManager->GetCellTag()));
+            request.set_force(true);
+            multicellManager->PostToMasters(request, transaction->ExternalizedToCellTags());
+        }
 
         if (IsLeader()) {
             CloseLease(transaction);
@@ -904,6 +932,7 @@ public:
 
         TransactionAborted_.Fire(transaction);
 
+        auto sequoiaContext = MaybeCreateSequoiaContextGuard(transaction);
         RunAbortTransactionActions(transaction, options);
 
         const auto& objectManager = Bootstrap_->GetObjectManager();
@@ -1530,8 +1559,7 @@ public:
         AbortTransaction(
             transaction,
             options,
-            /*validatePermissions*/ true,
-            /*replicateViaHive*/ true);
+            /*validatePermissions*/ true);
     }
 
     TFuture<void> PingTransaction(
@@ -1856,7 +1884,6 @@ public:
         auto request = BuildAbortCypressTransactionRequest(
             transactionId,
             force,
-            /*replicateViaHive*/ true,
             NRpc::GetCurrentAuthenticationIdentity());
 
         auto mutation = CreateMutation(HydraManager_, request);
@@ -2390,8 +2417,7 @@ private:
             PrepareAndCommitCypressTransaction(
                 transaction,
                 prerequisiteTransactionIds,
-                request->commit_timestamp(),
-                /*replicateViaHive*/ false);
+                request->commit_timestamp());
         } catch (const std::exception& ex) {
             // Abort it reliably.
             // TODO(kvk1920): proper way to abort mirrored tx from master.
@@ -2405,8 +2431,7 @@ private:
     void PrepareAndCommitCypressTransaction(
         TTransaction* transaction,
         const std::vector<TTransactionId>& prerequisiteTransactionIds,
-        TTimestamp commitTimestamp,
-        bool replicateViaHive)
+        TTimestamp commitTimestamp)
     {
         YT_VERIFY(HasHydraContext());
 
@@ -2423,7 +2448,7 @@ private:
             .CommitTimestamp = commitTimestamp,
             .CommitTimestampClusterTag = Bootstrap_->GetPrimaryCellTag(),
         };
-        CommitTransaction(transaction, commitOptions, replicateViaHive);
+        CommitTransaction(transaction, commitOptions);
     }
 
     void HydraCommitCypressTransaction(
@@ -2445,8 +2470,7 @@ private:
             PrepareAndCommitCypressTransaction(
                 transaction,
                 prerequisiteTransactionIds,
-                request->commit_timestamp(),
-                /*replicateViaHive*/ true);
+                request->commit_timestamp());
         } catch (const std::exception& ex) {
             YT_LOG_DEBUG(ex, "Failed to commit transaction, aborting (TransactionId: %v)",
                 transactionId);
@@ -2457,8 +2481,7 @@ private:
             AbortTransaction(
                 transaction,
                 abortOptions,
-                /*validatePermissions*/ true,
-                /*replicateViaHive*/ true);
+                /*validatePermissions*/ true);
 
             throw;
         }
@@ -2473,7 +2496,6 @@ private:
 
         auto transactionId = FromProto<TTransactionId>(request->transaction_id());
         YT_VERIFY(IsCypressTransactionMirroredToSequoia(transactionId));
-        YT_VERIFY(!request->replicate_via_hive());
 
         HydraAbortCypressTransaction(/*context*/ nullptr, request, /*response*/ nullptr);
     }
@@ -2512,8 +2534,7 @@ private:
         AbortTransaction(
             transaction,
             abortOptions,
-            /*validatePermissions*/ true,
-            request->replicate_via_hive());
+            /*validatePermissions*/ true);
     }
 
     void HydraCommitMarkCypressTransactionsReplicatedToCell(
@@ -2863,16 +2884,10 @@ public:
             TTransactionAbortOptions options{
                 .Force = true,
             };
-            // Some dependent transactions may be not mirrored to Sequoia
-            // Ground so their abort have to be replicated via Hive.
-            bool suppressReplicationViaHive =
-                IsMirroringToSequoiaEnabled() &&
-                IsCypressTransactionMirroredToSequoia(dependentTransaction->GetId());
             AbortTransaction(
                 dependentTransaction,
                 options,
-                /*validatePermissions*/ false,
-                /*replicateViaHive*/ !suppressReplicationViaHive);
+                /*validatePermissions*/ false);
         }
         transaction->DependentTransactions().clear();
 

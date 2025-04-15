@@ -27,7 +27,6 @@ NProto::TReqCommitCypressTransaction BuildCommitCypressTransactionRequest(
 NProto::TReqAbortCypressTransaction BuildAbortCypressTransactionRequest(
     NTransactionClient::TTransactionId transactionId,
     bool force,
-    bool replicateViaHive,
     const NRpc::TAuthenticationIdentity& authenticationIdentity);
 
 ////////////////////////////////////////////////////////////////////////////////
