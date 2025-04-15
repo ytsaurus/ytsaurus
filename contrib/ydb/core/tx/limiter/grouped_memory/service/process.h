@@ -2,7 +2,7 @@
 #include "group.h"
 #include "ids.h"
 
-#include <contrib/ydb/core/tx/columnshard/counters/common/object_counter.h>
+#include <contrib/ydb/library/signals/object_counter.h>
 
 #include <contrib/ydb/library/accessor/validator.h>
 

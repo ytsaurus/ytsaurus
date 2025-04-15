@@ -10,7 +10,7 @@ SRCS(
 )
 
 PEERDIR(
-    contrib/ydb/core/tx/columnshard/counters/common
+    contrib/ydb/library/signals
     contrib/ydb/core/tx/columnshard/engines/changes/counters
     contrib/ydb/core/tablet_flat
     yql/essentials/core/expr_nodes

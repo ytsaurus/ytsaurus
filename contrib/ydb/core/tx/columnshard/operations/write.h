@@ -5,7 +5,7 @@
 #include <contrib/ydb/core/protos/tx_columnshard.pb.h>
 #include <contrib/ydb/core/tablet_flat/flat_cxx_database.h>
 #include <contrib/ydb/core/tx/columnshard/common/snapshot.h>
-#include <contrib/ydb/core/tx/columnshard/counters/common/object_counter.h>
+#include <contrib/ydb/library/signals/object_counter.h>
 #include <contrib/ydb/core/tx/columnshard/engines/defs.h>
 #include <contrib/ydb/core/tx/columnshard/engines/scheme/versions/abstract_scheme.h>
 #include <contrib/ydb/core/tx/columnshard/common/path_id.h>

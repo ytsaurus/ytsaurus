@@ -21,7 +21,7 @@ SRCS(
 PEERDIR(
     library/cpp/monlib/dynamic_counters
     contrib/ydb/core/tx/columnshard/counters/aggregation
-    contrib/ydb/core/tx/columnshard/counters/common
+    contrib/ydb/library/signals
     contrib/ydb/core/base
     contrib/ydb/library/actors/core
 )

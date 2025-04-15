@@ -10,7 +10,7 @@ PEERDIR(
     contrib/ydb/library/actors/core
     contrib/ydb/core/tablet_flat
     contrib/ydb/core/tx/columnshard/blobs_action/counters
-    contrib/ydb/core/tx/columnshard/counters/common
+    contrib/ydb/library/signals
 )
 
 GENERATE_ENUM_SERIALIZATION(changes.h)

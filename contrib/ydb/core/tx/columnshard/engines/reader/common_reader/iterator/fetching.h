@@ -1,7 +1,7 @@
 #pragma once
 #include "columns_set.h"
 
-#include <contrib/ydb/core/tx/columnshard/counters/common/owner.h>
+#include <contrib/ydb/library/signals/owner.h>
 #include <contrib/ydb/core/tx/columnshard/counters/scan.h>
 #include <contrib/ydb/core/tx/columnshard/engines/reader/common/conveyor_task.h>
 
