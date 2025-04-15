@@ -1360,8 +1360,8 @@ public:
             leaseAgnosticPrerequisiteTransactionIds.reserve(prerequisiteTransactionIds.size());
             leaseAwarePrerequisiteTransactionIds.reserve(prerequisiteTransactionIds.size());
             for (auto transactionId : prerequisiteTransactionIds) {
-                if (IsMirroringToSequoiaEnabled() && IsCypressTransactionMirroredToSequoia(transactionId)
-                    && GetDynamicConfig()->EnableCypressMirroredToSequoiaPrerequisiteTransactionValidationViaLeases)
+                if (IsMirroringToSequoiaEnabled() && IsCypressTransactionMirroredToSequoia(transactionId) &&
+                    GetDynamicConfig()->EnableCypressMirroredToSequoiaPrerequisiteTransactionValidationViaLeases)
                 {
                     leaseAwarePrerequisiteTransactionIds.push_back(transactionId);
                 } else {
@@ -1652,9 +1652,9 @@ public:
             }
         }
 
-        auto revokeLeases = transaction->GetSuccessorTransactionLeaseCount() > 0
-            || (GetDynamicConfig()->EnableCypressMirroredToSequoiaPrerequisiteTransactionValidationViaLeases
-            && IsMirroringToSequoiaEnabled() && IsCypressTransactionMirroredToSequoia(transactionId));
+        auto revokeLeases = transaction->GetSuccessorTransactionLeaseCount() > 0 ||
+            (GetDynamicConfig()->EnableCypressMirroredToSequoiaPrerequisiteTransactionValidationViaLeases &&
+            IsMirroringToSequoiaEnabled() && IsCypressTransactionMirroredToSequoia(transactionId));
 
         auto readyEvent = GetReadyToPrepareTransactionCommit(
             prerequisiteTransactionIds,
@@ -1727,9 +1727,9 @@ public:
             }
         }
 
-        auto revokeLeases = transaction->GetSuccessorTransactionLeaseCount() > 0
-            || (GetDynamicConfig()->EnableCypressMirroredToSequoiaPrerequisiteTransactionValidationViaLeases
-            && IsMirroringToSequoiaEnabled() && IsCypressTransactionMirroredToSequoia(transactionId));
+        auto revokeLeases = transaction->GetSuccessorTransactionLeaseCount() > 0 ||
+            (GetDynamicConfig()->EnableCypressMirroredToSequoiaPrerequisiteTransactionValidationViaLeases &&
+            IsMirroringToSequoiaEnabled() && IsCypressTransactionMirroredToSequoia(transactionId));
 
         auto readyEvent = GetReadyToPrepareTransactionCommit(
             prerequisiteTransactionIds,

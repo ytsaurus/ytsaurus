@@ -120,7 +120,7 @@ public:
         YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         const auto& configManager = Bootstrap_->GetConfigManager();
-        configManager->SubscribeBeforeConfigChanged(BIND_NO_PROPAGATE(&TMulticellManager::OnBeforeDynamicConfigChanged, MakeWeak(this)));
+        configManager->SubscribeValidateConfigChanged(BIND_NO_PROPAGATE(&TMulticellManager::OnValidateConfigChanged, MakeWeak(this)));
         configManager->SubscribeConfigChanged(BIND_NO_PROPAGATE(&TMulticellManager::OnDynamicConfigChanged, MakeWeak(this)));
 
         const auto& alertManager = Bootstrap_->GetAlertManager();
@@ -1299,7 +1299,7 @@ private:
         hiveManager->FreezeEdges(std::move(edgesToFreeze));
     }
 
-    void OnBeforeDynamicConfigChanged(TDynamicClusterConfigPtr newConfig)
+    void OnValidateConfigChanged(TDynamicClusterConfigPtr newConfig)
     {
         // All validations should happen before replicating dynamic config to secondary masters.
         if (IsSecondaryMaster()) {
