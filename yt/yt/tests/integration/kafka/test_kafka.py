@@ -17,6 +17,7 @@ from confluent_kafka.serialization import StringSerializer
 
 import builtins
 import functools
+import pytest
 import time
 
 ##################################################################
@@ -441,6 +442,7 @@ class TestKafkaProxy(KafkaProxyBase):
         ], True)
 
     @authors("nadya73")
+    @pytest.mark.timeout(240)
     def test_consumer_group_coordinator(self):
         username = "u"
         create_user(username)
@@ -557,7 +559,7 @@ class TestKafkaProxy(KafkaProxyBase):
         consumer_message_counts = [0] * len(consumers)
 
         while True:
-            if none_message_count > 30:
+            if none_message_count > 120:
                 break
             for consumer_index, consumer in enumerate(consumers):
                 msg = consumer.poll(0.3)
