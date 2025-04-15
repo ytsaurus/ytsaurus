@@ -186,6 +186,8 @@ struct TQueryOptions
     bool SuppressAccessTracking = false;
     // COMPAT(lukyan)
     bool NewRangeInference = true;
+    // COMPAT(dtorilov)
+    bool AdaptiveOrderedSchemafulReader = false;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

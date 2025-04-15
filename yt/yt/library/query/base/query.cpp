@@ -1632,6 +1632,7 @@ void ToProto(NProto::TQueryOptions* serialized, const TQueryOptions& original)
     serialized->set_retention_timestamp(original.TimestampRange.RetentionTimestamp);
     serialized->set_verbose_logging(original.VerboseLogging);
     serialized->set_new_range_inference(original.NewRangeInference);
+    serialized->set_adaptive_ordered_schemaful_reader(original.AdaptiveOrderedSchemafulReader);
     serialized->set_use_canonical_null_relations(original.UseCanonicalNullRelations);
     serialized->set_execution_backend(ToProto(original.ExecutionBackend));
     serialized->set_max_subqueries(original.MaxSubqueries);
@@ -1690,6 +1691,9 @@ void FromProto(TQueryOptions* original, const NProto::TQueryOptions& serialized)
     }
     if (serialized.has_new_range_inference()) {
         original->NewRangeInference = serialized.new_range_inference();
+    }
+    if (serialized.has_adaptive_ordered_schemaful_reader()) {
+        original->AdaptiveOrderedSchemafulReader = serialized.adaptive_ordered_schemaful_reader();
     }
     if (serialized.has_use_canonical_null_relations()) {
         original->UseCanonicalNullRelations = serialized.use_canonical_null_relations();

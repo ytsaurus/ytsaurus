@@ -769,6 +769,9 @@ private:
             Query_->IsOrdered(QueryOptions_.AllowUnorderedGroupByWithLimit),
             Query_->IsPrefetching(),
             splitCount,
+            Query_->Offset,
+            Query_->Limit,
+            QueryOptions_.AdaptiveOrderedSchemafulReader,
             [
                 &,
                 bottomQueryPattern = bottomQueryPattern,

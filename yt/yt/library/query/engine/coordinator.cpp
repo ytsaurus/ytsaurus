@@ -135,17 +135,128 @@ TSharedRange<TRowRange> GetPrunedRanges(
         query->Id);
 }
 
+////////////////////////////////////////////////////////////////////////////////
+
+namespace NDetail {
+
+////////////////////////////////////////////////////////////////////////////////
+
+DECLARE_REFCOUNTED_STRUCT(TSubplanHolders)
+
+struct TSubplanHolders final
+    : public std::vector<TFutureHolder<TQueryStatistics>> // Use TFutureHolder to prevent leaking subqueries.
+{ };
+
+DEFINE_REFCOUNTED_TYPE(TSubplanHolders)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TAdaptiveReaderGenerator
+{
+public:
+    TAdaptiveReaderGenerator(
+        std::function<ISchemafulUnversionedReaderPtr()> getNextReader,
+        const TSubplanHoldersPtr& subplanHolders,
+        i64 offset,
+        i64 limit)
+        : GetNextReader_(getNextReader)
+        , SubplanHolders_(subplanHolders)
+        , Offset_(offset)
+        , Limit_(limit)
+    {
+        YT_VERIFY(Limit_ != UnorderedReadHint && Limit_ != OrderedReadWithPrefetchHint);
+    }
+
+    ISchemafulUnversionedReaderPtr Next()
+    {
+        if (EstimateProcessedRowCount() < (Limit_ + Offset_) * FullPrefetchThreshold) {
+            return GetNextReader_();
+        }
+
+        while (auto nextReader = GetNextReader_()) {
+            FullPrefetch_.push_back(nextReader);
+        }
+
+        if (FullPrefetchIndex_ == std::ssize(FullPrefetch_)) {
+            return nullptr;
+        }
+
+        return FullPrefetch_[FullPrefetchIndex_++];
+    }
+
+private:
+    // We will switch to a full parallel prefetch after we have read `(OFFSET + LIMIT) * FullPrefetchThreshold` rows,
+    // because the predicate turned out to be too selective.
+    static constexpr i64 FullPrefetchThreshold = 3;
+
+    const std::function<ISchemafulUnversionedReaderPtr()> GetNextReader_;
+    const TSubplanHoldersPtr SubplanHolders_;
+    const i64 Offset_ = 0;
+    const i64 Limit_ = 0;
+
+    std::vector<ISchemafulUnversionedReaderPtr> FullPrefetch_;
+    i64 FullPrefetchIndex_ = 0;
+
+    i64 EstimateProcessedRowCount()
+    {
+        i64 rowCount = 0;
+
+        for (auto& subplan : *SubplanHolders_) {
+            if (!subplan->IsSet()) {
+                continue;
+            }
+
+            auto statisticsOrError = WaitForFast(subplan.Get());
+            if (!statisticsOrError.IsOK()) {
+                continue;
+            }
+
+            rowCount += statisticsOrError.Value().RowsRead;
+        }
+
+        return rowCount;
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NDetail
+
+// If the query text uses `LIMIT` without `ORDER BY`, we will first try to read the minimum required number of rows.
+// If the filtering predicate turns out to be too selective, we switch to full prefetching.
+ISchemafulUnversionedReaderPtr CreateAdaptiveOrderedSchemafulReader(
+    std::function<ISchemafulUnversionedReaderPtr()> getNextReader,
+    const NDetail::TSubplanHoldersPtr& subplanHolders,
+    i64 offset,
+    i64 limit,
+    bool useAdaptiveOrderedSchemafulReader)
+{
+    if (!useAdaptiveOrderedSchemafulReader) {
+        return CreateOrderedSchemafulReader(std::move(getNextReader));
+    }
+
+    auto generator = NDetail::TAdaptiveReaderGenerator(getNextReader, subplanHolders, offset, limit);
+    auto readerGenerator = [generator = std::move(generator)] () mutable -> ISchemafulUnversionedReaderPtr {
+        return generator.Next();
+    };
+    return CreateUnorderedSchemafulReader(readerGenerator, 1);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TQueryStatistics CoordinateAndExecute(
     bool ordered,
     bool prefetch,
     int splitCount,
+    i64 offset,
+    i64 limit,
+    bool useAdaptiveOrderedSchemafulReader,
     TSubQueryEvaluator evaluateSubQuery,
     TTopQueryEvaluator evaluateTopQuery)
 {
     std::vector<ISchemafulUnversionedReaderPtr> splitReaders;
 
-    // Use TFutureHolder to prevent leaking subqueries.
-    std::vector<TFutureHolder<TQueryStatistics>> subqueryHolders;
+    auto subplanHolders = New<NDetail::TSubplanHolders>();
 
     auto responseFeatureFlags = NewPromise<TFeatureFlags>();
 
@@ -158,7 +269,7 @@ TQueryStatistics CoordinateAndExecute(
     auto subqueryReaderCreator = [&] () mutable -> ISchemafulUnversionedReaderPtr {
         auto evaluateResult = evaluateSubQuery();
         if (evaluateResult.Reader) {
-            subqueryHolders.push_back(evaluateResult.Statistics);
+            subplanHolders->push_back(evaluateResult.Statistics);
 
             // One single feature flags response is enough, ignore others.
             responseFeatureFlags.TrySetFrom(evaluateResult.ResponseFeatureFlags);
@@ -170,13 +281,13 @@ TQueryStatistics CoordinateAndExecute(
     auto topReader = ordered
         ? (prefetch
             ? CreateFullPrefetchingOrderedSchemafulReader(std::move(subqueryReaderCreator))
-            : CreateOrderedSchemafulReader(std::move(subqueryReaderCreator)))
+            : CreateAdaptiveOrderedSchemafulReader(std::move(subqueryReaderCreator), subplanHolders, offset, limit, useAdaptiveOrderedSchemafulReader))
         : CreateUnorderedSchemafulReader(std::move(subqueryReaderCreator), /*concurrency*/ splitCount);
 
     auto queryStatistics = evaluateTopQuery(std::move(topReader), responseFeatureFlags);
 
-    for (int index = 0; index < std::ssize(subqueryHolders); ++index) {
-        auto subqueryStatisticsOrError = WaitForFast(subqueryHolders[index].Get());
+    for (int index = 0; index < std::ssize(*subplanHolders); ++index) {
+        auto subqueryStatisticsOrError = WaitForFast((*subplanHolders)[index].Get());
         if (subqueryStatisticsOrError.IsOK()) {
             auto subqueryStatistics = std::move(subqueryStatisticsOrError).ValueOrThrow();
             queryStatistics.AddInnerStatistics(std::move(subqueryStatistics));
