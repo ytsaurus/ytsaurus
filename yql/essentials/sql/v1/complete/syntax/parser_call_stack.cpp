@@ -47,6 +47,11 @@ namespace NSQLComplete {
         RULE(An_id),
     };
 
+    const TVector<TRuleId> TableNameRules = {
+        RULE(Object_ref),
+        RULE(Table_ref),
+    };
+
     TVector<std::string> Symbolized(const TParserCallStack& stack) {
         const ISqlGrammar& grammar = GetSqlGrammar();
 
@@ -99,6 +104,18 @@ namespace NSQLComplete {
     bool IsLikelyHintStack(const TParserCallStack& stack) {
         return ContainsRule(RULE(Id_hint), stack) ||
                Contains({RULE(External_call_param), RULE(An_id)}, stack);
+    }
+
+    bool IsLikelyTableStack(const TParserCallStack& stack) {
+        return !Contains({RULE(Create_table_stmt),
+                          RULE(Simple_table_ref)}, stack) &&
+               (Contains({RULE(Simple_table_ref),
+                          RULE(Simple_table_ref_core),
+                          RULE(Object_ref)}, stack) ||
+                Contains({RULE(Single_source),
+                          RULE(Table_ref),
+                          RULE(Table_key),
+                          RULE(Id_table_or_type)}, stack));
     }
 
     std::optional<EStatementKind> StatementKindOf(const TParserCallStack& stack) {

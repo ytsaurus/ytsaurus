@@ -99,6 +99,12 @@ namespace NSQLComplete {
                     FilteredByPrefix(request.Prefix, NameSet_.Hints[stmt]));
             }
 
+            if (request.Constraints.Table) {
+                AppendAs<TTableName>(
+                    response.RankedNames,
+                    FilteredByPrefix(request.Prefix, NameSet_.Tables));
+            }
+
             Ranking_->CropToSortedPrefix(response.RankedNames, request.Limit);
 
             for (auto& name : response.RankedNames) {

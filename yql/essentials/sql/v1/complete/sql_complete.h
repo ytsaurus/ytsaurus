@@ -24,6 +24,7 @@ namespace NSQLComplete {
         TypeName,
         FunctionName,
         HintName,
+        TableName,
     };
 
     struct TCandidate {

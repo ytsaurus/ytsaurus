@@ -29,6 +29,7 @@ namespace NSQLComplete {
         bool IsTypeName;
         std::optional<TFunction> Function;
         std::optional<THint> Hint;
+        bool IsTableName;
     };
 
     class ILocalSyntaxAnalysis {
