@@ -74,9 +74,8 @@ message TReqAbortCypressTransaction
     required string user = 3;
     optional string user_tag = 4;
 
-    // Used for transactions mirrored to Sequoia.
-    // COMPAT(kvk1920): make it required after 24.2.
-    optional bool replicate_via_hive = 5 [default = true];
+    // COMPAT(kvk1920): remove after 25.2.
+    reserved 5;
 }
 
 message TReqMarkCypressTransactionsReplicatedToCells

@@ -65,6 +65,9 @@ public:
 private:
     NSecurityServer::TAuthenticatedUserGuard UserGuard_;
     NTracing::TTraceContextGuard TraceContextGuard_;
+    // TODO(kvk1920): separate user guard and Sequoia context guard.
+    bool NeedRestoreSequoiaContext_ = false;
+    ISequoiaContextPtr PreviousSequoiaContext_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
