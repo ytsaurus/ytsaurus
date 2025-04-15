@@ -77,10 +77,9 @@ DEFINE_REFCOUNTED_TYPE(TQueryCorpusReporterConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TApiTestingOptions
+struct TApiTestingOptions
     : public NYTree::TYsonStruct
 {
-public:
     NServer::THeapProfilerTestingOptionsPtr HeapProfiler;
 
     REGISTER_YSON_STRUCT(TApiTestingOptions);

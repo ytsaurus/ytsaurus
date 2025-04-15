@@ -13,7 +13,7 @@ DECLARE_REFCOUNTED_STRUCT(IJournalChunkWriter)
 DECLARE_REFCOUNTED_STRUCT(IJournalHunkChunkWriter)
 
 DECLARE_REFCOUNTED_STRUCT(TJournalHunkChunkWriterConfig)
-DECLARE_REFCOUNTED_CLASS(TJournalHunkChunkWriterOptions)
+DECLARE_REFCOUNTED_STRUCT(TJournalHunkChunkWriterOptions)
 
 ////////////////////////////////////////////////////////////////////////////////
 

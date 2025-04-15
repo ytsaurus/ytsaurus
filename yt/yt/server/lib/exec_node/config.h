@@ -204,10 +204,9 @@ DEFINE_REFCOUNTED_TYPE(TVolumeManagerDynamicConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TUserJobSensor
+struct TUserJobSensor
     : public NYTree::TYsonStruct
 {
-public:
     NProfiling::EMetricType Type;
 
     TString ProfilingName;
@@ -222,10 +221,9 @@ DEFINE_REFCOUNTED_TYPE(TUserJobSensor)
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Description of a user job monitoring sensor which is produced from a given job statistic.
-class TUserJobStatisticSensor
+struct TUserJobStatisticSensor
     : public TUserJobSensor
 {
-public:
     NYPath::TYPath Path;
 
     REGISTER_YSON_STRUCT(TUserJobStatisticSensor);
@@ -253,10 +251,9 @@ DEFINE_REFCOUNTED_TYPE(TUserJobMonitoringDynamicConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class THeartbeatReporterDynamicConfigBase
+struct THeartbeatReporterDynamicConfigBase
     : public NYTree::TYsonStruct
 {
-public:
     NConcurrency::TRetryingPeriodicExecutorOptions HeartbeatExecutor;
 
     //! Timeout of the exec node heartbeat RPC request.

@@ -12,10 +12,9 @@ namespace NYT::NTabletNode {
 
 //! Collection of patches for table IO configs. All patches are applied after
 //! user-provided config.
-class TTableIOConfigPatch
+struct TTableIOConfigPatch
     : public NYTree::TYsonStruct
 {
-public:
     NYTree::IMapNodePtr StoreReaderConfig;
     NYTree::IMapNodePtr HunkReaderConfig;
     NYTree::IMapNodePtr StoreWriterConfig;
@@ -36,10 +35,9 @@ DEFINE_REFCOUNTED_TYPE(TTableIOConfigPatch)
 //! - mount config template patch (applied before user-provided config)
 //! - mount config patch (applied after user-provided config)
 //! - IO patches (applied after user-provided config)
-class TTableConfigPatch
+struct TTableConfigPatch
     : public virtual NYTree::TYsonStruct
 {
-public:
     NYTree::IMapNodePtr MountConfigTemplatePatch;
     NYTree::IMapNodePtr MountConfigPatch;
     TTableIOConfigPatchPtr IOConfigPatch;
@@ -58,10 +56,9 @@ DEFINE_REFCOUNTED_TYPE(TTableConfigPatch)
 //! Description of a table config experiment. An experiment is made of, roughly speaking,
 //! a patch ("which options are changed"), selectors ("which tables belong to the domain")
 //! and a fraction ("which portion of tables of the domain should be affected").
-class TTableConfigExperiment
+struct TTableConfigExperiment
     : public NYTree::TYsonStruct
 {
-public:
     //! Patch to apply.
     TTableConfigPatchPtr Patch;
 
@@ -132,10 +129,9 @@ DEFINE_REFCOUNTED_TYPE(TTableConfigExperiment)
 //!     };
 //!     table_config_experiments = {};
 //! };
-class TClusterTableConfigPatchSet
+struct TClusterTableConfigPatchSet
     : public TTableConfigPatch
 {
-public:
     std::map<TString, TTableConfigExperimentPtr> TableConfigExperiments;
 
     REGISTER_YSON_STRUCT(TClusterTableConfigPatchSet);

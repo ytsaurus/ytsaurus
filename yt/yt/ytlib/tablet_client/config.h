@@ -17,11 +17,10 @@ namespace NYT::NTabletClient {
 ////////////////////////////////////////////////////////////////////////////////
 
 //! These options are directly controllable via object attributes.
-class TTabletCellOptions
+struct TTabletCellOptions
     : public NHydra::TRemoteSnapshotStoreOptions
     , public NHydra::TRemoteChangelogStoreOptions
 {
-public:
     int PeerCount;
     bool IndependentPeers;
     NApi::TClusterTag ClockClusterTag;
@@ -36,10 +35,9 @@ DEFINE_REFCOUNTED_TYPE(TTabletCellOptions)
 ////////////////////////////////////////////////////////////////////////////////
 
 //! These options can be changed in runtime.
-class TDynamicTabletCellOptions
+struct TDynamicTabletCellOptions
     : public NYTree::TYsonStruct
 {
-public:
     std::optional<double> CpuPerTabletSlot;
     std::optional<bool> SuppressTabletCellDecommission;
     double ForcedRotationMemoryRatio;

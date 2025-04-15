@@ -54,10 +54,9 @@ namespace NYT::NClusterNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TMemoryLimit
+struct TMemoryLimit
     : public NYTree::TYsonStruct
 {
-public:
     // COMPAT(gritukan): Drop optional after configs migration.
     std::optional<NNodeTrackerClient::EMemoryLimitType> Type;
 
@@ -120,10 +119,9 @@ DEFINE_REFCOUNTED_TYPE(TResourceLimitsConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TResourceLimitsOverrides
+struct TResourceLimitsOverrides
     : public NYTree::TYsonStruct
 {
-public:
     #define XX(name, Name) \
         std::optional<decltype(NNodeTrackerClient::NProto::TNodeResourceLimitsOverrides::default_instance().name())> Name;
     ITERATE_NODE_RESOURCE_LIMITS_DYNAMIC_CONFIG_OVERRIDES(XX)

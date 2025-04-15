@@ -28,7 +28,7 @@ struct TMutationIdempotizerConfig
     static void Register(TRegistrar registrar);
 };
 
-DECLARE_REFCOUNTED_STRUCT(TMutationIdempotizerConfig)
+DEFINE_REFCOUNTED_TYPE(TMutationIdempotizerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -84,7 +84,7 @@ struct TDynamicObjectManagerConfig
     static void Register(TRegistrar registrar);
 };
 
-DECLARE_REFCOUNTED_STRUCT(TDynamicObjectManagerConfig)
+DEFINE_REFCOUNTED_TYPE(TDynamicObjectManagerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -122,14 +122,13 @@ struct TObjectServiceConfig
     static void Register(TRegistrar registrar);
 };
 
-DECLARE_REFCOUNTED_STRUCT(TObjectServiceConfig)
+DEFINE_REFCOUNTED_TYPE(TObjectServiceConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TReadRequestComplexityLimitsConfigBase
+struct TReadRequestComplexityLimitsConfigBase
     : public NYTree::TYsonStruct
 {
-public:
     i64 NodeCount;
     i64 ResultSize;
 
@@ -151,6 +150,7 @@ struct TDefaultReadRequestComplexityLimitsConfig
     static void Register(TRegistrar registrar);
 };
 
+DEFINE_REFCOUNTED_TYPE(TDefaultReadRequestComplexityLimitsConfig)
 
 struct TMaxReadRequestComplexityLimitsConfig
     : public TReadRequestComplexityLimitsConfigBase
@@ -159,6 +159,8 @@ struct TMaxReadRequestComplexityLimitsConfig
 
     static void Register(TRegistrar registrar);
 };
+
+DEFINE_REFCOUNTED_TYPE(TMaxReadRequestComplexityLimitsConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -195,14 +197,13 @@ struct TDynamicObjectServiceConfig
     static void Register(TRegistrar registrar);
 };
 
-DECLARE_REFCOUNTED_STRUCT(TDynamicObjectServiceConfig)
+DEFINE_REFCOUNTED_TYPE(TDynamicObjectServiceConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TDynamicObjectServiceTestingConfig
+struct TDynamicObjectServiceTestingConfig
     : public NYTree::TYsonStruct
 {
-public:
     std::optional<double> PrematureBackoffAlarmProbability;
 
     REGISTER_YSON_STRUCT(TDynamicObjectServiceTestingConfig);
@@ -210,7 +211,7 @@ public:
     static void Register(TRegistrar registrar);
 };
 
-DECLARE_REFCOUNTED_CLASS(TDynamicObjectServiceTestingConfig)
+DEFINE_REFCOUNTED_TYPE(TDynamicObjectServiceTestingConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 

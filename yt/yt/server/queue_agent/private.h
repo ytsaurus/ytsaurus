@@ -144,11 +144,11 @@ inline const TString NoneObjectType = "none";
 
 DECLARE_REFCOUNTED_STRUCT(IBootstrap)
 
-DECLARE_REFCOUNTED_CLASS(TQueueTabletExportProgress)
-DECLARE_REFCOUNTED_CLASS(TQueueExportProgress)
+DECLARE_REFCOUNTED_STRUCT(TQueueTabletExportProgress)
+DECLARE_REFCOUNTED_STRUCT(TQueueExportProgress)
 // COMPAT(apachee): For old queue export implementation.
-DECLARE_REFCOUNTED_CLASS(TQueueTabletExportProgressOld)
-DECLARE_REFCOUNTED_CLASS(TQueueExportProgressOld)
+DECLARE_REFCOUNTED_STRUCT(TQueueTabletExportProgressOld)
+DECLARE_REFCOUNTED_STRUCT(TQueueExportProgressOld)
 
 ////////////////////////////////////////////////////////////////////////////////
 

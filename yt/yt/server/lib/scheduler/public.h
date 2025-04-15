@@ -188,15 +188,15 @@ static constexpr int MaxNodeShardCount = 64;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DECLARE_REFCOUNTED_CLASS(TStrategyTestingOptions)
-DECLARE_REFCOUNTED_CLASS(TOperationStuckCheckOptions)
+DECLARE_REFCOUNTED_STRUCT(TStrategyTestingOptions)
+DECLARE_REFCOUNTED_STRUCT(TOperationStuckCheckOptions)
 DECLARE_REFCOUNTED_STRUCT(TFairShareStrategyConfig)
 DECLARE_REFCOUNTED_STRUCT(TFairShareStrategyOperationControllerConfig)
 DECLARE_REFCOUNTED_CLASS(TFairShareStrategyControllerThrottling)
-DECLARE_REFCOUNTED_CLASS(TTreeTestingOptions)
+DECLARE_REFCOUNTED_STRUCT(TTreeTestingOptions)
 DECLARE_REFCOUNTED_STRUCT(TFairShareStrategyTreeConfig)
 DECLARE_REFCOUNTED_STRUCT(TDelayConfig)
-DECLARE_REFCOUNTED_CLASS(TTestingOptions)
+DECLARE_REFCOUNTED_STRUCT(TTestingOptions)
 DECLARE_REFCOUNTED_STRUCT(TOperationsCleanerConfig)
 DECLARE_REFCOUNTED_STRUCT(TControllerAgentTrackerConfig)
 DECLARE_REFCOUNTED_STRUCT(TResourceMeteringConfig)

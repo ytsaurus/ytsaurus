@@ -511,10 +511,9 @@ DEFINE_REFCOUNTED_TYPE(TAllyReplicaManagerDynamicConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TDataNodeTestingOptions
+struct TDataNodeTestingOptions
     : public NYTree::TYsonStruct
 {
-public:
     //! This duration will be used to insert delays within [0, MaxDelay] after each
     //! chunk meta fetch for GetColumnarStatistics.
     std::optional<TDuration> ColumnarStatisticsChunkMetaFetchMaxDelay;

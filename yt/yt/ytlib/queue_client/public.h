@@ -24,11 +24,11 @@ constexpr auto NullRowRevision = NHydra::NullRevision;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DECLARE_REFCOUNTED_CLASS(TReplicaInfo)
-DECLARE_REFCOUNTED_CLASS(TChaosReplicaInfo)
-DECLARE_REFCOUNTED_CLASS(TReplicatedTableMeta)
-DECLARE_REFCOUNTED_CLASS(TChaosReplicatedTableMeta)
-DECLARE_REFCOUNTED_CLASS(TGenericReplicatedTableMeta)
+DECLARE_REFCOUNTED_STRUCT(TReplicaInfo)
+DECLARE_REFCOUNTED_STRUCT(TChaosReplicaInfo)
+DECLARE_REFCOUNTED_STRUCT(TReplicatedTableMeta)
+DECLARE_REFCOUNTED_STRUCT(TChaosReplicatedTableMeta)
+DECLARE_REFCOUNTED_STRUCT(TGenericReplicatedTableMeta)
 
 
 DECLARE_REFCOUNTED_CLASS(TQueueTable)

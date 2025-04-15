@@ -8,10 +8,9 @@ namespace NYT::NSecurityServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TUserAccessValidatorDynamicConfig
+struct TUserAccessValidatorDynamicConfig
     : public virtual NYTree::TYsonStruct
 {
-public:
     TAsyncExpiringCacheConfigPtr BanCache;
 
     REGISTER_YSON_STRUCT(TUserAccessValidatorDynamicConfig);

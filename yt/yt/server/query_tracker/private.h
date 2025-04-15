@@ -63,7 +63,7 @@ DECLARE_REFCOUNTED_STRUCT(TYqlEngineConfig)
 DECLARE_REFCOUNTED_STRUCT(TChytEngineConfig)
 DECLARE_REFCOUNTED_STRUCT(TSpytEngineConfig)
 DECLARE_REFCOUNTED_STRUCT(TQLEngineConfig)
-DECLARE_REFCOUNTED_CLASS(TEngineConfigBase)
+DECLARE_REFCOUNTED_STRUCT(TEngineConfigBase)
 
 ////////////////////////////////////////////////////////////////////////////////
 

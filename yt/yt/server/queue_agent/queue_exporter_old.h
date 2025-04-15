@@ -26,10 +26,9 @@ namespace NYT::NQueueAgent {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TQueueTabletExportProgressOld
+struct TQueueTabletExportProgressOld
     : public NYTree::TYsonStruct
 {
-public:
     NChunkClient::TChunkId LastChunk;
     NHiveClient::TTimestamp MaxTimestamp;
     i64 RowCount;
@@ -44,10 +43,9 @@ DEFINE_REFCOUNTED_TYPE(TQueueTabletExportProgressOld)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TQueueExportProgressOld
+struct TQueueExportProgressOld
     : public NYTree::TYsonStruct
 {
-public:
     TInstant LastSuccessfulExportIterationInstant;
     TInstant LastExportedFramgentIterationInstant;
     ui64 LastExportedFragmentUnixTs;

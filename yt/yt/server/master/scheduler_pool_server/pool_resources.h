@@ -10,10 +10,9 @@ namespace NYT::NSchedulerPoolServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TPoolResources
+struct TPoolResources
     : public NYTree::TYsonStruct
 {
-public:
     NScheduler::TJobResourcesConfigPtr StrongGuaranteeResources;
     NScheduler::TJobResourcesConfigPtr BurstGuaranteeResources;
     NScheduler::TJobResourcesConfigPtr ResourceFlow;

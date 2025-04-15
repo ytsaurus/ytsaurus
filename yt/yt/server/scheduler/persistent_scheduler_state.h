@@ -11,10 +11,9 @@ namespace NYT::NScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TPersistentPoolState
+struct TPersistentPoolState
     : public NYTree::TYsonStruct  // TODO(renadeen): Try to make it lite.
 {
-public:
     TResourceVolume AccumulatedResourceVolume;
 
     REGISTER_YSON_STRUCT(TPersistentPoolState);
@@ -28,10 +27,9 @@ void FormatValue(TStringBuilderBase* builder, const TPersistentPoolStatePtr& sta
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TPersistentTreeState
+struct TPersistentTreeState
     : public NYTree::TYsonStruct
 {
-public:
     THashMap<TString, TPersistentPoolStatePtr> PoolStates;
 
     NYTree::INodePtr AllocationSchedulerState;
@@ -45,10 +43,9 @@ DEFINE_REFCOUNTED_TYPE(TPersistentTreeState)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TPersistentStrategyState
+struct TPersistentStrategyState
     : public NYTree::TYsonStruct
 {
-public:
     THashMap<TString, TPersistentTreeStatePtr> TreeStates;
 
     REGISTER_YSON_STRUCT(TPersistentStrategyState);

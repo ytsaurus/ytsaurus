@@ -101,10 +101,9 @@ DEFINE_REFCOUNTED_TYPE(TAccessCheckerDynamicConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TProxyMemoryLimits
+struct TProxyMemoryLimits
     : public NYTree::TYsonStruct
 {
-public:
     std::optional<i64> Total;
     std::optional<i64> HeavyRequest;
 

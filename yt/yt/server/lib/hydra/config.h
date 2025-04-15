@@ -83,10 +83,9 @@ DEFINE_REFCOUNTED_TYPE(TFileChangelogStoreConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TSnapshotStoreConfigBase
+struct TSnapshotStoreConfigBase
     : public NYTree::TYsonStruct
 {
-public:
     ESnapshotStoreType StoreType;
 
     REGISTER_YSON_STRUCT(TSnapshotStoreConfigBase);
