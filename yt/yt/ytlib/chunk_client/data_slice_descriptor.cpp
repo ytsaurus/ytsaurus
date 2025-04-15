@@ -122,7 +122,7 @@ TLegacyReadLimit GetAbsoluteReadLimit(const TDataSliceDescriptor& descriptor, bo
         if (readLimit.HasRowIndex()) {
             result.SetRowIndex(readLimit.GetRowIndex() + chunkSpec.table_row_index());
         } else {
-            result.SetRowIndex(chunkSpec.table_row_index() + isUpper ? chunkSpec.row_count_override() : 0);
+            result.SetRowIndex(chunkSpec.table_row_index() + (isUpper ? chunkSpec.row_count_override() : 0));
         }
 
         if (versioned) {
