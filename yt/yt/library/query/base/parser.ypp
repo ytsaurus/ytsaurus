@@ -640,9 +640,17 @@ relational-op-expr
         {
             $$ = MakeExpression<TBetweenExpression>(head, @$, $expr, $ranges);
         }
+    | additive-op-expr[expr] KwIn LeftParenthesis RightParenthesis
+        {
+            $$ = MakeExpression<TLiteralExpression>(head, @$, TLiteralValue(false));
+        }
     | additive-op-expr[expr] KwIn LeftParenthesis const-tuple-list[args] RightParenthesis
         {
             $$ = MakeExpression<TInExpression>(head, @$, $expr, $args);
+        }
+    | additive-op-expr[expr] KwNot KwIn LeftParenthesis RightParenthesis
+        {
+            $$ = MakeExpression<TLiteralExpression>(head, @$, TLiteralValue(true));
         }
     | additive-op-expr[expr] KwNot KwIn LeftParenthesis const-tuple-list[args] RightParenthesis
         {
