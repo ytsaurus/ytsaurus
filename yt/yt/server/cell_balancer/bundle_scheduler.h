@@ -18,6 +18,7 @@ using TBundlesDynamicConfig = THashMap<std::string, TBundleDynamicConfigPtr>;
 struct TSpareNodesInfo
 {
     std::vector<std::string> FreeNodes;
+    std::vector<std::string> ScheduledForMaintenance;
     std::vector<std::string> ExternallyDecommissioned;
     THashMap<std::string, std::vector<std::string>> UsedByBundle;
     THashMap<std::string, std::vector<std::string>> ReleasingByBundle;
@@ -40,6 +41,7 @@ using TPerDataCenterSpareNodesInfo = THashMap<std::string, TSpareNodesInfo>;
 struct TSpareProxiesInfo
 {
     std::vector<std::string> FreeProxies;
+    std::vector<std::string> ScheduledForMaintenance;
     THashMap<std::string, std::vector<std::string>> UsedByBundle;
 
     std::vector<std::string>& MutableFreeInstances()

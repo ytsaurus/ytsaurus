@@ -3404,6 +3404,42 @@ TEST_P(TBundleSchedulerTest, CreateNewCellsRemoveMultiPeer)
     EXPECT_EQ(3, std::ssize(mutations.CellsToRemove));
 }
 
+TEST_P(TBundleSchedulerTest, DoNotAllocateNodesWithMaintenanceRequests)
+{
+    if (GetDataCenterCount() != 1) {
+        GTEST_SKIP_("This feature is for 1-DC clusters only");
+    }
+    auto input = GenerateInputContext(DefaultNodeCount, 5, 2 * GetDataCenterCount());
+    GenerateNodesForBundle(input, SpareBundleName, DefaultNodeCount, {.SlotCount = 5,});
+    GenerateProxiesForBundle(input, SpareBundleName, 2 * GetDataCenterCount());
+
+    GenerateNodeAllocationsForBundle(input, "bigd", 1);
+    GenerateProxyAllocationsForBundle(input, "bigd", 1);
+
+    input.Bundles["bigd"]->EnableInstanceAllocation = true;
+    input.Bundles["bigd"]->EnableRpcProxyManagement = true;
+    input.Bundles["bigd"]->EnableNodeTagFilterManagement = true;
+
+    input.Config->HasInstanceAllocatorService = false;
+
+    for (const auto& [nodeName, nodeInfo] : input.TabletNodes) {
+        nodeInfo->CmsMaintenanceRequests["tab_request_id"] = New<TCmsMaintenanceRequest>();
+    }
+    for (const auto& [proxyName, proxyInfo] : input.RpcProxies) {
+        proxyInfo->CmsMaintenanceRequests["rpc_request_id"] = New<TCmsMaintenanceRequest>();
+    }
+
+    TSchedulerMutations mutations;
+    ScheduleBundles(input, &mutations);
+
+    EXPECT_EQ(std::ssize(GetOrCrash(GetOrCrash(input.ZoneToSpareNodes, "default-zone"), "default").ScheduledForMaintenance), DefaultNodeCount);
+
+    EXPECT_EQ(2, std::ssize(mutations.AlertsToFire));
+    for (const auto& alert : mutations.AlertsToFire) {
+        EXPECT_EQ(alert.Id, "no_spare_instances_available");
+    }
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 // TODO: rename just to TProxyRoleManagement

@@ -109,9 +109,15 @@ TPerDataCenterSpareNodesInfo GetSpareNodesInfo(
         for (const auto& spareNodeName : aliveNodes) {
             auto nodeInfo = GetOrCrash(input.TabletNodes, spareNodeName);
 
+            bool hasMaintenanceRequests = !nodeInfo->CmsMaintenanceRequests.empty();
+
             auto assignedBundlesNames = GetBundlesByTag(nodeInfo, filterTagToBundleName);
             if (assignedBundlesNames.empty() && operationsToBundle.count(spareNodeName) == 0) {
-                spareNodes.FreeNodes.push_back(spareNodeName);
+                if (hasMaintenanceRequests) {
+                    spareNodes.ScheduledForMaintenance.push_back(spareNodeName);
+                } else {
+                    spareNodes.FreeNodes.push_back(spareNodeName);
+                }
                 continue;
             }
 
