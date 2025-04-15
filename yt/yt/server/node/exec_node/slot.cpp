@@ -322,6 +322,26 @@ public:
             });
     }
 
+    TFuture<IVolumePtr> PrepareGpuCheckVolume(
+        const std::vector<TArtifactKey>& layers,
+        const TArtifactDownloadOptions& downloadOptions) override
+    {
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
+
+        VerifyEnabled();
+
+        if (!VolumeManager_) {
+            return MakeFuture<IVolumePtr>(TError("Porto layers and custom root FS are not supported"));
+        }
+
+        return RunPreparationAction(
+            /*actionName*/ "PrepareGpuCheckVolume",
+            /*uncancelable*/ false,
+            [&] {
+                return VolumeManager_->PrepareVolume(layers, downloadOptions, TUserSandboxOptions{});
+            });
+    }
+
     int GetSlotIndex() const override
     {
         VerifyEnabled();
@@ -391,24 +411,23 @@ public:
             });
     }
 
-    TFuture<std::vector<TShellCommandOutput>> RunSetupCommands(
+    TFuture<std::vector<TShellCommandOutput>> RunPreparationCommands(
         TJobId jobId,
         const std::vector<TShellCommandConfigPtr>& commands,
         const NContainers::TRootFS& rootFS,
         const std::string& user,
         const std::optional<std::vector<TDevice>>& devices,
-        int startIndex) override
+        std::string tag) override
     {
         YT_ASSERT_THREAD_AFFINITY(JobThread);
 
         VerifyEnabled();
 
         return RunPreparationAction(
-            /*actionName*/ "RunSetupCommands",
-            // Setup commands are uncancelable since they are run in separate processes.
+            /*actionName*/ "RunPreparationCommands",
             /*uncancelable*/ true,
             [&] {
-                return JobEnvironment_->RunSetupCommands(
+                return JobEnvironment_->RunCommands(
                     SlotIndex_,
                     SlotGuard_->GetSlotType(),
                     jobId,
@@ -416,7 +435,7 @@ public:
                     rootFS,
                     user,
                     devices,
-                    startIndex);
+                    std::move(tag));
             });
     }
 

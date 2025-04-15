@@ -23,6 +23,8 @@ using namespace NContainers;
 using namespace NJobAgent;
 using namespace NFS;
 
+static const std::string SetupCommandsTag = "setup";
+
 ////////////////////////////////////////////////////////////////////////////////
 
 static const TString MountSuffix = "mount";
@@ -89,6 +91,8 @@ constexpr const char* TJobWorkspaceBuilder::GetStepName()
 {
     if (Step == &TJobWorkspaceBuilder::DoPrepareRootVolume) {
         return "DoPrepareRootVolume";
+    } else if (Step == &TJobWorkspaceBuilder::DoPrepareGpuCheckVolume) {
+        return "DoPrepareGpuCheckVolume";
     } else if (Step == &TJobWorkspaceBuilder::DoPrepareSandboxDirectories) {
         return "DoPrepareSandboxDirectories";
     } else if (Step == &TJobWorkspaceBuilder::DoRunSetupCommand) {
@@ -237,6 +241,7 @@ TFuture<TJobWorkspaceBuildingResult> TJobWorkspaceBuilder::Run()
 
     auto future = MakeStep<&TJobWorkspaceBuilder::DoPrepareRootVolume>()
         .Run()
+        .Apply(MakeStep<&TJobWorkspaceBuilder::DoPrepareGpuCheckVolume>())
         .Apply(MakeStep<&TJobWorkspaceBuilder::DoPrepareSandboxDirectories>())
         .Apply(MakeStep<&TJobWorkspaceBuilder::DoRunSetupCommand>())
         .Apply(MakeStep<&TJobWorkspaceBuilder::DoRunGpuCheckCommand>())
@@ -284,7 +289,7 @@ private:
             binds.push_back(bind);
         }
 
-        return TRootFS {
+        return TRootFS{
             .RootPath = ResultHolder_.RootVolume->GetPath(),
             .IsRootReadOnly = false,
             .Binds = std::move(binds),
@@ -300,7 +305,7 @@ private:
         ValidateJobPhase(EJobPhase::DownloadingArtifacts);
         SetJobPhase(EJobPhase::PreparingRootVolume);
 
-        if (!Context_.LayerArtifactKeys.empty()) {
+        if (!Context_.RootVolumeLayerArtifactKeys.empty()) {
             return MakeFuture(TError(
                 NExecNode::EErrorCode::LayerUnpackingFailed,
                 "Porto layers are not supported in simple job environment"));
@@ -315,11 +320,23 @@ private:
         return VoidFuture;
     }
 
+    TFuture<void> DoPrepareGpuCheckVolume() override
+    {
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
+
+        YT_LOG_DEBUG("GPU check volume preparation is not supported in simple workspace");
+
+        ValidateJobPhase(EJobPhase::PreparingRootVolume);
+        SetJobPhase(EJobPhase::PreparingGpuCheckVolume);
+
+        return VoidFuture;
+    }
+
     TFuture<void> DoPrepareSandboxDirectories() override
     {
         YT_ASSERT_THREAD_AFFINITY(JobThread);
 
-        ValidateJobPhase(EJobPhase::PreparingRootVolume);
+        ValidateJobPhase(EJobPhase::PreparingGpuCheckVolume);
         SetJobPhase(EJobPhase::PreparingSandboxDirectories);
 
         YT_LOG_INFO("Started preparing sandbox directories");
@@ -399,7 +416,7 @@ private:
         SetJobPhase(EJobPhase::PreparingRootVolume);
 
         const auto& slot = Context_.Slot;
-        const auto& layerArtifactKeys = Context_.LayerArtifactKeys;
+        const auto& layerArtifactKeys = Context_.RootVolumeLayerArtifactKeys;
 
         if (Context_.DockerImage && layerArtifactKeys.empty()) {
             return MakeFuture(TError(
@@ -408,7 +425,7 @@ private:
         }
 
         if (!layerArtifactKeys.empty()) {
-            VolumePrepareStartTime_ = TInstant::Now();
+            PrepareRootVolumeStartTime_ = TInstant::Now();
             UpdateTimers_.Fire(MakeStrong(this));
 
             YT_LOG_INFO("Preparing root volume (LayerCount: %v, HasVirtualSandbox: %v)",
@@ -434,9 +451,10 @@ private:
 
                     YT_LOG_DEBUG("Root volume prepared");
 
-                    VolumePrepareFinishTime_ = TInstant::Now();
-                    UpdateTimers_.Fire(MakeStrong(this));
                     ResultHolder_.RootVolume = volumeOrError.Value();
+
+                    PrepareRootVolumeFinishTime_ = TInstant::Now();
+                    UpdateTimers_.Fire(MakeStrong(this));
                 }));
         } else {
             YT_LOG_DEBUG("Root volume preparation is not needed");
@@ -444,11 +462,59 @@ private:
         }
     }
 
-    TFuture<void> DoPrepareSandboxDirectories() override
+    TFuture<void> DoPrepareGpuCheckVolume() override
     {
         YT_ASSERT_THREAD_AFFINITY(JobThread);
 
         ValidateJobPhase(EJobPhase::PreparingRootVolume);
+        SetJobPhase(EJobPhase::PreparingGpuCheckVolume);
+
+        const auto& slot = Context_.Slot;
+        const auto& layerArtifactKeys = Context_.GpuCheckVolumeLayerArtifactKeys;
+
+        if (!layerArtifactKeys.empty()) {
+            PrepareGpuCheckVolumeStartTime_ = TInstant::Now();
+            UpdateTimers_.Fire(MakeStrong(this));
+
+            YT_LOG_INFO("Preparing GPU check volume (LayerCount: %v)",
+                layerArtifactKeys.size());
+
+            for (const auto& layer : layerArtifactKeys) {
+                i64 layerSize = layer.GetCompressedDataSize();
+                UpdateArtifactStatistics(layerSize, slot->IsLayerCached(layer));
+            }
+
+            return slot->PrepareGpuCheckVolume(
+                layerArtifactKeys,
+                Context_.ArtifactDownloadOptions)
+                .Apply(BIND([this, this_ = MakeStrong(this)] (const TErrorOr<IVolumePtr>& volumeOrError) {
+                    if (!volumeOrError.IsOK()) {
+                        YT_LOG_WARNING(volumeOrError, "Failed to prepare GPU check volume");
+
+                        THROW_ERROR_EXCEPTION(NExecNode::EErrorCode::RootVolumePreparationFailed, "Failed to prepare GPU check volume")
+                            << volumeOrError;
+                    }
+
+                    YT_LOG_DEBUG("GPU check volume prepared");
+
+                    ResultHolder_.GpuCheckVolume = volumeOrError.Value();
+
+                    PrepareGpuCheckVolumeFinishTime_ = TInstant::Now();
+                    UpdateTimers_.Fire(MakeStrong(this));
+                }));
+        } else {
+            YT_LOG_DEBUG("GPU check volume preparation is not needed");
+            return VoidFuture;
+        }
+
+        return VoidFuture;
+    }
+
+    TFuture<void> DoPrepareSandboxDirectories() override
+    {
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
+
+        ValidateJobPhase(EJobPhase::PreparingGpuCheckVolume);
         SetJobPhase(EJobPhase::PreparingSandboxDirectories);
 
         YT_LOG_INFO("Started preparing sandbox directories");
@@ -490,6 +556,19 @@ private:
         };
     }
 
+    TRootFS MakeWritableGpuCheckRootFS()
+    {
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
+
+        YT_VERIFY(ResultHolder_.GpuCheckVolume);
+
+        return TRootFS{
+            .RootPath = ResultHolder_.GpuCheckVolume->GetPath(),
+            .IsRootReadOnly = false,
+            .Binds = {},
+        };
+    }
+
     TFuture<void> DoRunSetupCommand() override
     {
         YT_ASSERT_THREAD_AFFINITY(JobThread);
@@ -514,14 +593,14 @@ private:
 
         YT_LOG_INFO("Running setup commands");
 
-        auto future = slot->RunSetupCommands(
+        return slot->RunPreparationCommands(
             Context_.Job->GetId(),
             commands,
             MakeWritableRootFS(),
             Context_.CommandUser,
             /*devices*/ std::nullopt,
-            /*startIndex*/ 0);
-        return future.AsVoid();
+            /*tag*/ SetupCommandsTag)
+            .AsVoid();
     }
 
     TFuture<void> DoRunGpuCheckCommand() override
@@ -532,10 +611,13 @@ private:
         SetJobPhase(EJobPhase::RunningGpuCheckCommand);
 
         if (Context_.NeedGpuCheck) {
-            TJobGpuCheckerContext settings {
+            auto context = TJobGpuCheckerContext{
                 .Slot = Context_.Slot,
                 .Job = Context_.Job,
-                .RootFS = MakeWritableRootFS(),
+                .RootFS = ResultHolder_.GpuCheckVolume
+                    ? MakeWritableGpuCheckRootFS()
+                    // COMPAT(ignat)
+                    : MakeWritableRootFS(),
                 .CommandUser = Context_.CommandUser,
 
                 .GpuCheckBinaryPath = *Context_.GpuCheckBinaryPath,
@@ -544,10 +626,10 @@ private:
                 .CurrentStartIndex = ResultHolder_.SetupCommandCount,
                 // It is preliminary (not extra) GPU check.
                 .TestExtraGpuCheckCommandFailure = false,
-                .GpuDevices = Context_.GpuDevices
+                .GpuDevices = Context_.GpuDevices,
             };
 
-            auto checker = New<TJobGpuChecker>(std::move(settings), Logger);
+            auto checker = New<TJobGpuChecker>(std::move(context), Logger);
 
             checker->SubscribeRunCheck(BIND_NO_PROPAGATE([this, this_ = MakeStrong(this)] {
                 GpuCheckStartTime_ = TInstant::Now();
@@ -623,14 +705,14 @@ private:
 
         const auto& dockerImage = Context_.DockerImage;
 
-        if (!dockerImage && !Context_.LayerArtifactKeys.empty()) {
+        if (!dockerImage && !Context_.RootVolumeLayerArtifactKeys.empty()) {
             return MakeFuture(TError(
                 NExecNode::EErrorCode::LayerUnpackingFailed,
                 "Porto layers are not supported in CRI job environment"));
         }
 
         if (dockerImage) {
-            VolumePrepareStartTime_ = TInstant::Now();
+            PrepareRootVolumeStartTime_ = TInstant::Now();
             UpdateTimers_.Fire(MakeStrong(this));
 
             TCriImageDescriptor imageDescriptor {
@@ -661,7 +743,8 @@ private:
                     YT_LOG_INFO("Root volume prepared (ImageId: %v)", imageId);
 
                     ResultHolder_.DockerImage = imageId.Image;
-                    VolumePrepareFinishTime_ = TInstant::Now();
+
+                    PrepareRootVolumeFinishTime_ = TInstant::Now();
                     UpdateTimers_.Fire(MakeStrong(this));
                 }));
         } else {
@@ -670,11 +753,23 @@ private:
         }
     }
 
+    TFuture<void> DoPrepareGpuCheckVolume() override
+    {
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
+
+        YT_LOG_DEBUG_IF(Context_.NeedGpuCheck, "Skip preparing GPU check volume since GPU check is not support in CRI environment");
+
+        ValidateJobPhase(EJobPhase::PreparingRootVolume);
+        SetJobPhase(EJobPhase::PreparingGpuCheckVolume);
+
+        return VoidFuture;
+    }
+
     TFuture<void> DoPrepareSandboxDirectories() override
     {
         YT_ASSERT_THREAD_AFFINITY(JobThread);
 
-        ValidateJobPhase(EJobPhase::PreparingRootVolume);
+        ValidateJobPhase(EJobPhase::PreparingGpuCheckVolume);
         SetJobPhase(EJobPhase::PreparingSandboxDirectories);
 
         YT_LOG_INFO("Started preparing sandbox directories");
@@ -714,13 +809,13 @@ private:
         });
 
         ResultHolder_.SetupCommandCount = Context_.SetupCommands.size();
-        return Context_.Slot->RunSetupCommands(
+        return Context_.Slot->RunPreparationCommands(
             Context_.Job->GetId(),
             Context_.SetupCommands,
             rootFS,
             Context_.CommandUser,
             /*devices*/ std::nullopt,
-            /*startIndex*/ 0)
+            /*tag*/ SetupCommandsTag)
             .AsVoid();
     }
 

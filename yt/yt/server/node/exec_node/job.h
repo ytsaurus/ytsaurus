@@ -354,8 +354,11 @@ private:
     std::optional<TInstant> FinishTime_;
     std::optional<TInstant> ResultReceivedTime_;
 
-    std::optional<TInstant> StartPrepareVolumeTime_;
-    std::optional<TInstant> FinishPrepareVolumeTime_;
+    std::optional<TInstant> PrepareRootVolumeStartTime_;
+    std::optional<TInstant> PrepareRootVolumeFinishTime_;
+
+    std::optional<TInstant> PrepareGpuCheckVolumeStartTime_;
+    std::optional<TInstant> PrepareGpuCheckVolumeFinishTime_;
 
     std::optional<TInstant> PreliminaryGpuCheckStartTime_;
     std::optional<TInstant> PreliminaryGpuCheckFinishTime_;
@@ -375,7 +378,8 @@ private:
     NThreading::TAtomicObject<THashMap<NChunkClient::TChunkId, TRefCountedChunkSpecPtr>> ProxiableChunks_;
 
     std::vector<TArtifact> Artifacts_;
-    std::vector<NDataNode::TArtifactKey> LayerArtifactKeys_;
+    std::vector<NDataNode::TArtifactKey> RootVolumeLayerArtifactKeys_;
+    std::vector<NDataNode::TArtifactKey> GpuCheckVolumeLayerArtifactKeys_;
     std::optional<TString> DockerImage_;
 
     std::optional<TVirtualSandboxData> VirtualSandboxData_;
@@ -387,6 +391,7 @@ private:
     THashMap<TString, int> UserArtifactNameToIndex_;
 
     IVolumePtr RootVolume_;
+    IVolumePtr GpuCheckVolume_;
 
     bool IsGpuRequested_;
 
@@ -553,8 +558,6 @@ private:
     // Start async artifacts download.
     TFuture<std::vector<NDataNode::IChunkPtr>> DownloadArtifacts();
 
-    TFuture<void> RunSetupCommands();
-
     // Analyse results.
     static TError BuildJobProxyError(const TError& spawnError);
 
@@ -580,6 +583,7 @@ private:
     std::vector<TShellCommandConfigPtr> GetSetupCommands();
 
     NContainers::TRootFS MakeWritableRootFS();
+    NContainers::TRootFS MakeWritableGpuCheckRootFS();
 
     TNodeJobReport MakeDefaultJobReport();
 

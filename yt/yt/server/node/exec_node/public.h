@@ -43,6 +43,9 @@ struct TVirtualSandboxData
     NNbd::IImageReaderPtr Reader;
 };
 
+// TODO(ignat): refactor this class and its usages.
+// For example: it looks weird as an agrument in PrepareVolume in TVolumeManager,
+// and some of the options is irrelevant for TVolumeManager..
 struct TUserSandboxOptions
 {
     std::vector<TTmpfsVolume> TmpfsVolumes;

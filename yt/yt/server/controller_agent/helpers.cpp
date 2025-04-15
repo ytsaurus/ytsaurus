@@ -83,6 +83,8 @@ void TUserFile::RegisterMetadata(auto&& registrar)
     PHOENIX_REGISTER_FIELD(9, Layer);
     PHOENIX_REGISTER_FIELD(10, Filesystem);
     PHOENIX_REGISTER_FIELD(11, AccessMethod);
+    PHOENIX_REGISTER_FIELD(12, GpuCheck,
+        .SinceVersion(NControllerAgent::ESnapshotVersion::PrepareGpuCheckFSDuration));
 }
 
 PHOENIX_DEFINE_TYPE(TUserFile);
@@ -167,9 +169,14 @@ void BuildFileSpecs(
     bool enableBypassArtifactCache)
 {
     for (const auto& file : files) {
-        auto* descriptor = file.Layer
-            ? jobSpec->add_layers()
-            : jobSpec->add_files();
+        NControllerAgent::NProto::TFileDescriptor* descriptor;
+        if (file.GpuCheck) {
+            descriptor = jobSpec->add_gpu_check_volume_layers();
+        } else if (file.Layer) {
+            descriptor = jobSpec->add_root_volume_layers();
+        } else {
+            descriptor = jobSpec->add_files();
+        }
 
         BuildFileSpec(descriptor, file, config->CopyFiles, enableBypassArtifactCache);
     }

@@ -474,9 +474,9 @@ public:
             .Run();
     }
 
-    TFuture<TLayerMeta> ImportLayer(const TArtifactKey& artifactKey, const TString& archivePath, const TString& container, TGuid tag)
+    TFuture<TLayerMeta> ImportLayer(const TArtifactKey& artifactKey, const TString& archivePath, const TString& container, TLayerId layerId, TGuid tag)
     {
-        return BIND(&TLayerLocation::DoImportLayer, MakeStrong(this), artifactKey, archivePath, container, tag)
+        return BIND(&TLayerLocation::DoImportLayer, MakeStrong(this), artifactKey, archivePath, container, layerId, tag)
             .AsyncVia(LocationQueue_->GetInvoker())
             .Run();
     }
@@ -976,21 +976,21 @@ private:
             tag);
     }
 
-    TLayerMeta DoImportLayer(const TArtifactKey& artifactKey, const TString& archivePath, const TString& container, TGuid tag)
+    TLayerMeta DoImportLayer(const TArtifactKey& artifactKey, const TString& archivePath, const TString& container, TLayerId layerId, TGuid tag)
     {
         ValidateEnabled();
 
-        auto id = TLayerId::Create();
+        auto Logger = ExecNodeLogger()
+            .WithTag("Tag: %v, LayerId: %v", tag, layerId);
+
         LayerImportsInProgress_.fetch_add(1);
 
         auto finally = Finally([&]{
             LayerImportsInProgress_.fetch_add(-1);
         });
         try {
-            YT_LOG_DEBUG("Ensure that cached layer archive is not in use (LayerId: %v, ArchivePath: %v, Tag: %v)",
-                id,
-                archivePath,
-                tag);
+            YT_LOG_DEBUG("Ensure that cached layer archive is not in use (ArchivePath: %v)",
+                archivePath);
 
             {
                 // Take exclusive lock in blocking fashion to ensure that no
@@ -999,22 +999,19 @@ private:
                 file.Flock(LOCK_EX);
             }
 
-            auto layerDirectory = GetLayerPath(id);
+            auto layerDirectory = GetLayerPath(layerId);
             i64 layerSize = 0;
 
             try {
-                YT_LOG_DEBUG("Unpack layer (Path: %v, Tag: %v)",
-                    layerDirectory,
-                    tag);
+                YT_LOG_DEBUG("Unpack layer (Path: %v)",
+                    layerDirectory);
 
                 TEventTimerGuard timer(PerformanceCounters_.ImportLayerTimer);
-                WaitFor(LayerExecutor_->ImportLayer(archivePath, ToString(id), PlacePath_, container))
+                WaitFor(LayerExecutor_->ImportLayer(archivePath, ToString(layerId), PlacePath_, container))
                     .ThrowOnError();
             } catch (const std::exception& ex) {
-                YT_LOG_ERROR(ex, "Layer unpacking failed (LayerId: %v, ArchivePath: %v, Tag: %v)",
-                    id,
-                    archivePath,
-                    tag);
+                YT_LOG_ERROR(ex, "Layer unpacking failed (ArchivePath: %v)",
+                    archivePath);
                 THROW_ERROR_EXCEPTION(NExecNode::EErrorCode::LayerUnpackingFailed, "Layer unpacking failed")
                     << ex;
             }
@@ -1025,17 +1022,16 @@ private:
             config->DeduplicateByINodes = true;
 
             layerSize = RunTool<TGetDirectorySizesAsRootTool>(config).front();
-            YT_LOG_DEBUG("Calculated layer size (LayerId: %v, Size: %v, Tag: %v)",
-                id,
+            YT_LOG_DEBUG("Calculated layer size (Size: %v, Tag: %v)",
                 layerSize,
                 tag);
 
             TLayerMeta layerMeta;
             layerMeta.Path = layerDirectory;
-            layerMeta.Id = id;
+            layerMeta.Id = layerId;
             layerMeta.mutable_artifact_key()->MergeFrom(artifactKey);
             layerMeta.set_size(layerSize);
-            ToProto(layerMeta.mutable_id(), id);
+            ToProto(layerMeta.mutable_id(), layerId);
 
             DoFinalizeLayerImport(layerMeta, tag);
 
@@ -1045,7 +1041,7 @@ private:
 
             return layerMeta;
         } catch (const std::exception& ex) {
-            auto error = TError("Failed to import layer %v", id)
+            auto error = TError("Failed to import layer %v", layerId)
                 << TErrorAttribute("layer_path", artifactKey.data_source().path())
                 << ex;
 
@@ -1074,21 +1070,20 @@ private:
         auto layerPath = GetLayerPath(layerId);
         auto layerMetaPath = GetLayerMetaPath(layerId);
 
+        auto Logger = ExecNodeLogger()
+            .WithTag("LayerId: %v, LayerPath: %v", layerId, layerPath);
+
         {
             auto guard = Guard(SpinLock_);
             ValidateEnabled();
 
             if (!Layers_.contains(layerId)) {
-                YT_LOG_FATAL("Layer already removed (LayerId: %v, LayerPath: %v)",
-                    layerId,
-                    layerPath);
+                YT_LOG_FATAL("Layer already removed");
             }
         }
 
         try {
-            YT_LOG_INFO("Removing layer (LayerId: %v, LayerPath: %v)",
-                layerId,
-                layerPath);
+            YT_LOG_INFO("Removing layer");
 
             auto async = DynamicConfigManager_
                 ->GetConfig()
@@ -1877,7 +1872,8 @@ private:
         const auto& client = Bootstrap_->GetClient();
 
         auto tag = TGuid::Create();
-        auto Logger = ExecNodeLogger().WithTag("Tag: %v", tag);
+        auto Logger = ExecNodeLogger()
+            .WithTag("Tag: %v", tag);
 
         YT_LOG_INFO("Started updating tmpfs layers");
 
@@ -2334,16 +2330,20 @@ private:
         TGuid tag,
         TLayerLocationPtr location)
     {
-        YT_LOG_DEBUG("Start loading layer into cache (Tag: %v, ArtifactPath: %v, HasTargetLocation: %v)",
-            tag,
-            artifactKey.data_source().path(),
+        auto layerId = TLayerId::Create();
+
+        auto Logger = ExecNodeLogger()
+            .WithTag("Tag: %v, LayerId: %v, ArtifactPath: %v",
+                tag,
+                layerId,
+                artifactKey.data_source().path());
+
+        YT_LOG_DEBUG("Start loading layer into cache (HasTargetLocation: %v)",
             static_cast<bool>(location));
 
         return ChunkCache_->DownloadArtifact(artifactKey, downloadOptions)
             .Apply(BIND([=, this, this_ = MakeStrong(this)] (const IVolumeArtifactPtr& artifactChunk) mutable {
-                YT_LOG_DEBUG("Layer artifact loaded, starting import (Tag: %v, ArtifactPath: %v)",
-                    tag,
-                    artifactKey.data_source().path());
+                YT_LOG_DEBUG("Layer artifact loaded, starting import");
 
                 // NB(psushin): we limit number of concurrently imported layers, since this is heavy operation
                 // which may delay light operations performed in the same IO thread pool inside Porto daemon.
@@ -2365,7 +2365,7 @@ private:
                     container = "self";
                 }
 
-                auto layerMeta = WaitFor(location->ImportLayer(artifactKey, artifactChunk->GetFileName(), container, tag))
+                auto layerMeta = WaitFor(location->ImportLayer(artifactKey, artifactChunk->GetFileName(), container, layerId, tag))
                     .ValueOrThrow();
                 return New<TLayer>(layerMeta, artifactKey, location);
             })

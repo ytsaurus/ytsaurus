@@ -45,7 +45,8 @@ struct TJobWorkspaceBuildingContext
 
     std::vector<TArtifact> Artifacts;
     std::vector<NContainers::TBind> Binds;
-    std::vector<NDataNode::TArtifactKey> LayerArtifactKeys;
+    std::vector<NDataNode::TArtifactKey> RootVolumeLayerArtifactKeys;
+    std::vector<NDataNode::TArtifactKey> GpuCheckVolumeLayerArtifactKeys;
     std::vector<TShellCommandConfigPtr> SetupCommands;
     std::optional<TString> DockerImage;
     NContainers::NCri::TCriAuthConfigPtr DockerAuth;
@@ -62,6 +63,7 @@ struct TJobWorkspaceBuildingContext
 struct TJobWorkspaceBuildingResult
 {
     IVolumePtr RootVolume;
+    IVolumePtr GpuCheckVolume;
     std::optional<TString> DockerImage;
     std::vector<TString> TmpfsPaths;
     std::vector<NContainers::TBind> RootBinds;
@@ -80,8 +82,11 @@ public:
     DEFINE_SIGNAL(void(i64 compressedDataSize, bool cacheHit), UpdateArtifactStatistics);
     DEFINE_SIGNAL(void(TJobWorkspaceBuilderPtr), UpdateTimers);
 
-    DEFINE_BYVAL_RO_PROPERTY(std::optional<TInstant>, VolumePrepareStartTime);
-    DEFINE_BYVAL_RO_PROPERTY(std::optional<TInstant>, VolumePrepareFinishTime);
+    DEFINE_BYVAL_RO_PROPERTY(std::optional<TInstant>, PrepareRootVolumeStartTime);
+    DEFINE_BYVAL_RO_PROPERTY(std::optional<TInstant>, PrepareRootVolumeFinishTime);
+
+    DEFINE_BYVAL_RO_PROPERTY(std::optional<TInstant>, PrepareGpuCheckVolumeStartTime);
+    DEFINE_BYVAL_RO_PROPERTY(std::optional<TInstant>, PrepareGpuCheckVolumeFinishTime);
 
     DEFINE_BYVAL_RO_PROPERTY(std::optional<TInstant>, GpuCheckStartTime);
     DEFINE_BYVAL_RO_PROPERTY(std::optional<TInstant>, GpuCheckFinishTime);
@@ -106,6 +111,8 @@ protected:
     const NLogging::TLogger& Logger;
 
     virtual TFuture<void> DoPrepareRootVolume() = 0;
+
+    virtual TFuture<void> DoPrepareGpuCheckVolume() = 0;
 
     virtual TFuture<void> DoPrepareSandboxDirectories() = 0;
 

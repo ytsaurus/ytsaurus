@@ -311,6 +311,31 @@ DEFINE_REFCOUNTED_TYPE(TUserJobOptions)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! This config is applicable only in case of enabled separate root volume.
+class TGpuCheckOptions
+    : public NYTree::TYsonStruct
+{
+public:
+    bool UseSeparateRootVolume;
+
+    //! Path to layers for separate volume of GPU check.
+    std::vector<NYPath::TRichYPath> LayerPaths;
+
+    //! Path to the file with GPU check binary inside layer.
+    std::string BinaryPath;
+
+    //! Command line arguments for the GPU check binary.
+    std::vector<std::string> BinaryArgs;
+
+    REGISTER_YSON_STRUCT(TGpuCheckOptions);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TGpuCheckOptions)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TOperationOptions
     : public NYTree::TYsonStruct
     , public virtual NPhoenix::TPolymorphicBase
@@ -367,7 +392,9 @@ public:
     //! Limit for number of aggregated custom job statistics per operation.
     i64 CustomStatisticsCountLimit;
 
-    TUserJobOptionsPtr UserJobOptions;
+    TUserJobOptionsPtr UserJob;
+
+    TGpuCheckOptionsPtr GpuCheck;
 
     REGISTER_YSON_STRUCT(TOperationOptions);
 

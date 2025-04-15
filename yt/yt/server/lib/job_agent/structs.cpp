@@ -46,6 +46,7 @@ bool TTimeStatistics::IsEmpty() const
         !PrepareDuration &&
         !ArtifactsDownloadDuration &&
         !PrepareRootFSDuration &&
+        !PrepareGpuCheckFSDuration &&
         !GpuCheckDuration;
 }
 
@@ -56,6 +57,8 @@ void TTimeStatistics::RegisterMetadata(auto&& registrar)
     PHOENIX_REGISTER_FIELD(2, ArtifactsDownloadDuration);
     PHOENIX_REGISTER_FIELD(3, PrepareRootFSDuration);
     PHOENIX_REGISTER_FIELD(4, ExecDuration);
+    PHOENIX_REGISTER_FIELD(7, PrepareGpuCheckFSDuration,
+        .SinceVersion(NControllerAgent::ESnapshotVersion::PrepareGpuCheckFSDuration));
     PHOENIX_REGISTER_FIELD(5, GpuCheckDuration);
 
     PHOENIX_REGISTER_FIELD(6, WaitingForResourcesDuration,
@@ -77,6 +80,9 @@ void ToProto(
     }
     if (timeStatistics.PrepareRootFSDuration) {
         timeStatisticsProto->set_prepare_root_fs_duration(ToProto(*timeStatistics.PrepareRootFSDuration));
+    }
+    if (timeStatistics.PrepareGpuCheckFSDuration) {
+        timeStatisticsProto->set_prepare_gpu_check_fs_duration(ToProto(*timeStatistics.PrepareGpuCheckFSDuration));
     }
     if (timeStatistics.ExecDuration) {
         timeStatisticsProto->set_exec_duration(ToProto(*timeStatistics.ExecDuration));
@@ -102,6 +108,9 @@ void FromProto(
     if (timeStatisticsProto.has_prepare_root_fs_duration()) {
         timeStatistics->PrepareRootFSDuration = FromProto<TDuration>(timeStatisticsProto.prepare_root_fs_duration());
     }
+    if (timeStatisticsProto.has_prepare_gpu_check_fs_duration()) {
+        timeStatistics->PrepareGpuCheckFSDuration = FromProto<TDuration>(timeStatisticsProto.prepare_gpu_check_fs_duration());
+    }
     if (timeStatisticsProto.has_exec_duration()) {
         timeStatistics->ExecDuration = FromProto<TDuration>(timeStatisticsProto.exec_duration());
     }
@@ -125,6 +134,9 @@ void Serialize(const TTimeStatistics& timeStatistics, NYson::IYsonConsumer* cons
             })
             .DoIf(static_cast<bool>(timeStatistics.PrepareRootFSDuration), [&] (auto fluent) {
                 fluent.Item("prepare_root_fs").Value(*timeStatistics.PrepareRootFSDuration);
+            })
+            .DoIf(static_cast<bool>(timeStatistics.PrepareGpuCheckFSDuration), [&] (auto fluent) {
+                fluent.Item("prepare_gpu_check_fs").Value(*timeStatistics.PrepareGpuCheckFSDuration);
             })
             .DoIf(static_cast<bool>(timeStatistics.ExecDuration), [&] (auto fluent) {
                 fluent.Item("exec").Value(*timeStatistics.ExecDuration);

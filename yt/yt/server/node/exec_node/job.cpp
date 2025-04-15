@@ -760,6 +760,7 @@ void TJob::Terminate(EJobState finalState, TError error)
         case EJobPhase::PreparingNodeDirectory:
         case EJobPhase::DownloadingArtifacts:
         case EJobPhase::PreparingRootVolume:
+        case EJobPhase::PreparingGpuCheckVolume:
         case EJobPhase::PreparingSandboxDirectories:
         case EJobPhase::RunningSetupCommands:
         case EJobPhase::RunningGpuCheckCommand:
@@ -1111,12 +1112,12 @@ NJobAgent::TTimeStatistics TJob::GetTimeStatistics() const
         }
     };
     auto getPrepareRootFSDuration = [&] () -> std::optional<TDuration> {
-        if (!StartPrepareVolumeTime_) {
+        if (!PrepareRootVolumeStartTime_) {
             return std::nullopt;
-        } else if (!FinishPrepareVolumeTime_) {
-            return TInstant::Now() - *StartPrepareVolumeTime_;
+        } else if (!PrepareRootVolumeFinishTime_) {
+            return TInstant::Now() - *PrepareRootVolumeStartTime_;
         } else {
-            return *FinishPrepareVolumeTime_ - *StartPrepareVolumeTime_;
+            return *PrepareRootVolumeFinishTime_ - *PrepareRootVolumeStartTime_;
         }
     };
     auto getArtifactsDownloadDuration = [&] () -> std::optional<TDuration> {
@@ -1135,6 +1136,15 @@ NJobAgent::TTimeStatistics TJob::GetTimeStatistics() const
             return TInstant::Now() - *ExecStartTime_;
         } else {
             return *FinishTime_ - *ExecStartTime_;
+        }
+    };
+    auto getPrepareGpuCheckFSDuration = [&] () -> std::optional<TDuration> {
+        if (!PrepareGpuCheckVolumeStartTime_) {
+            return std::nullopt;
+        } else if (!PrepareGpuCheckVolumeFinishTime_) {
+            return TInstant::Now() - *PrepareGpuCheckVolumeStartTime_;
+        } else {
+            return *PrepareGpuCheckVolumeFinishTime_ - *PrepareGpuCheckVolumeStartTime_;
         }
     };
     auto getPreliminaryGpuCheckDuration = [&] () -> std::optional<TDuration> {
@@ -1173,6 +1183,7 @@ NJobAgent::TTimeStatistics TJob::GetTimeStatistics() const
         .ArtifactsDownloadDuration = getArtifactsDownloadDuration(),
         .PrepareRootFSDuration = getPrepareRootFSDuration(),
         .ExecDuration = getExecDuration(),
+        .PrepareGpuCheckFSDuration = getPrepareGpuCheckFSDuration(),
         .GpuCheckDuration = sumOptionals(getPreliminaryGpuCheckDuration(), getExtraGpuCheckDuration())
     };
 }
@@ -2366,7 +2377,8 @@ void TJob::RunWithWorkspaceBuilder()
 
         .Artifacts = Artifacts_,
         .Binds = binds,
-        .LayerArtifactKeys = LayerArtifactKeys_,
+        .RootVolumeLayerArtifactKeys = RootVolumeLayerArtifactKeys_,
+        .GpuCheckVolumeLayerArtifactKeys = GpuCheckVolumeLayerArtifactKeys_,
         .SetupCommands = GetSetupCommands(),
         .DockerImage = DockerImage_,
         .DockerAuth = BuildDockerAuthConfig(),
@@ -2405,8 +2417,11 @@ void TJob::RunWithWorkspaceBuilder()
             PreliminaryGpuCheckStartTime_ = workspace->GetGpuCheckStartTime();
             PreliminaryGpuCheckFinishTime_ = workspace->GetGpuCheckFinishTime();
 
-            StartPrepareVolumeTime_ = workspace->GetVolumePrepareStartTime();
-            FinishPrepareVolumeTime_ = workspace->GetVolumePrepareFinishTime();
+            PrepareRootVolumeStartTime_ = workspace->GetPrepareRootVolumeStartTime();
+            PrepareRootVolumeFinishTime_ = workspace->GetPrepareRootVolumeFinishTime();
+
+            PrepareGpuCheckVolumeStartTime_ = workspace->GetPrepareGpuCheckVolumeStartTime();
+            PrepareGpuCheckVolumeFinishTime_ = workspace->GetPrepareGpuCheckVolumeFinishTime();
         })
             .Via(Invoker_));
 
@@ -2435,6 +2450,7 @@ void TJob::OnWorkspacePreparationFinished(const TErrorOr<TJobWorkspaceBuildingRe
             auto& result = resultOrError.Value();
             TmpfsPaths_ = result.TmpfsPaths;
             RootVolume_ = result.RootVolume;
+            GpuCheckVolume_ = result.GpuCheckVolume;
             // Workspace builder may add or replace docker image.
             DockerImage_ = result.DockerImage;
             SetupCommandCount_ = result.SetupCommandCount;
@@ -2493,7 +2509,8 @@ void TJob::RunJobProxy()
     YT_ASSERT_THREAD_AFFINITY(JobThread);
 
     if (JobPhase_ != EJobPhase::RunningSetupCommands &&
-        JobPhase_ != EJobPhase::RunningGpuCheckCommand) {
+        JobPhase_ != EJobPhase::RunningGpuCheckCommand)
+    {
         YT_LOG_ALERT("Unexpected phase before run job proxy (ActualPhase: %v)", JobPhase_);
     }
 
@@ -2633,10 +2650,13 @@ void TJob::OnJobProxyFinished(const TError& error)
     if (!currentError.IsOK() && NeedsGpuCheck()) {
         SetJobPhase(EJobPhase::RunningExtraGpuCheckCommand);
 
-        TJobGpuCheckerContext context {
+        auto context = TJobGpuCheckerContext{
             .Slot = GetUserSlot(),
             .Job = MakeStrong(this),
-            .RootFS = MakeWritableRootFS(),
+            .RootFS = GpuCheckVolume_
+                ? MakeWritableGpuCheckRootFS()
+                // COMPAT(ignat)
+                : MakeWritableRootFS(),
             .CommandUser = CommonConfig_->SetupCommandUser,
 
             .GpuCheckBinaryPath = UserJobSpec_->gpu_check_binary_path(),
@@ -2770,15 +2790,20 @@ void TJob::Cleanup()
         ResourceHolder_->ReleaseNonSlotResources();
     }
 
-    if (RootVolume_) {
-        auto removeResult = WaitFor(RootVolume_->Remove());
-        YT_LOG_ERROR_IF(
-            !removeResult.IsOK(),
-            removeResult,
-            "Volume remove failed (VolumePath: %v)",
-            RootVolume_->GetPath());
-        RootVolume_.Reset();
-    }
+    auto removeVolume = [this] (IVolumePtr& volume) {
+        if (volume) {
+            auto removeResult = WaitFor(volume->Remove());
+            YT_LOG_ERROR_IF(
+                !removeResult.IsOK(),
+                removeResult,
+                "Volume remove failed (VolumePath: %v)",
+                volume->GetPath());
+            volume.Reset();
+        }
+    };
+
+    removeVolume(RootVolume_);
+    removeVolume(GpuCheckVolume_);
 
     // Make sure job's NBD exports are unregistered.
     TryCleanupNbdExports();
@@ -2906,7 +2931,11 @@ std::unique_ptr<NNodeTrackerClient::NProto::TNodeDirectory> TJob::PrepareNodeDir
             validateNodeIds(artifact.Key.chunk_specs(), nodeDirectory);
         }
 
-        for (const auto& artifactKey : LayerArtifactKeys_) {
+        for (const auto& artifactKey : RootVolumeLayerArtifactKeys_) {
+            validateNodeIds(artifactKey.chunk_specs(), nodeDirectory);
+        }
+
+        for (const auto& artifactKey : GpuCheckVolumeLayerArtifactKeys_) {
             validateNodeIds(artifactKey.chunk_specs(), nodeDirectory);
         }
 
@@ -3349,7 +3378,7 @@ THashSet<TString> TJob::InitializeNbdExportIds()
 
     // Mark NBD layers with NBD export ids.
     auto nbdExportCount = 0;
-    for (auto& layer : LayerArtifactKeys_) {
+    for (auto& layer : RootVolumeLayerArtifactKeys_) {
         if (FromProto<ELayerAccessMethod>(layer.access_method()) == ELayerAccessMethod::Nbd) {
             auto nbdExportId = MakeNbdExportId(Id_, nbdExportCount);
             EmplaceOrCrash(nbdExportIds, nbdExportId);
@@ -3359,7 +3388,7 @@ THashSet<TString> TJob::InitializeNbdExportIds()
         }
     }
 
-    if (!LayerArtifactKeys_.empty() &&
+    if (!RootVolumeLayerArtifactKeys_.empty() &&
         Bootstrap_->GetNbdServer() &&
         RootVolumeDiskQuotaEnabled_ &&
         JobSpecExt_.enable_virtual_sandbox())
@@ -3410,18 +3439,27 @@ void TJob::InitializeArtifacts()
         bool needGpuLayers = NeedGpuLayers() || Bootstrap_->GetGpuManager()->ShouldTestLayers();
 
         if (needGpuLayers && UserJobSpec_->enable_gpu_layers()) {
-            if (UserJobSpec_->layers().empty()) {
+            if (UserJobSpec_->root_volume_layers().empty()) {
                 THROW_ERROR_EXCEPTION(NExecNode::EErrorCode::GpuJobWithoutLayers,
                     "No layers specified for GPU job; at least a base layer is required to use GPU");
             }
 
             for (auto&& layerKey : Bootstrap_->GetGpuManager()->GetToppingLayers()) {
-                LayerArtifactKeys_.push_back(std::move(layerKey));
+                RootVolumeLayerArtifactKeys_.push_back(std::move(layerKey));
+            }
+            if (!UserJobSpec_->gpu_check_volume_layers().empty()) {
+                for (auto&& layerKey : Bootstrap_->GetGpuManager()->GetToppingLayers()) {
+                    GpuCheckVolumeLayerArtifactKeys_.push_back(std::move(layerKey));
+                }
             }
         }
 
-        for (const auto& layerKey : UserJobSpec_->layers()) {
-            LayerArtifactKeys_.emplace_back(layerKey);
+        for (const auto& layerKey : UserJobSpec_->root_volume_layers()) {
+            RootVolumeLayerArtifactKeys_.emplace_back(layerKey);
+        }
+
+        for (const auto& layerKey : UserJobSpec_->gpu_check_volume_layers()) {
+            GpuCheckVolumeLayerArtifactKeys_.emplace_back(layerKey);
         }
 
         if (UserJobSpec_->has_docker_image()) {
@@ -3976,6 +4014,19 @@ std::vector<TShellCommandConfigPtr> TJob::GetSetupCommands()
     }
 
     return result;
+}
+
+NContainers::TRootFS TJob::MakeWritableGpuCheckRootFS()
+{
+    YT_ASSERT_THREAD_AFFINITY(JobThread);
+    YT_VERIFY(GpuCheckVolume_);
+
+    NContainers::TRootFS rootFS;
+
+    rootFS.RootPath = GpuCheckVolume_->GetPath();
+    rootFS.IsRootReadOnly = false;
+
+    return rootFS;
 }
 
 NContainers::TRootFS TJob::MakeWritableRootFS()

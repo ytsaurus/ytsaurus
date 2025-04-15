@@ -1224,6 +1224,8 @@ void TUserJobSpec::Register(TRegistrar registrar)
         .Default(true);
     registrar.Parameter("cuda_toolkit_version", &TThis::CudaToolkitVersion)
         .Default();
+    registrar.Parameter("enable_gpu_check", &TThis::EnableGpuCheck)
+        .Default(false);
     registrar.Parameter("gpu_check_layer_name", &TThis::GpuCheckLayerName)
         .Default();
     registrar.Parameter("gpu_check_binary_path", &TThis::GpuCheckBinaryPath)

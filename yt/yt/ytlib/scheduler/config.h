@@ -1409,12 +1409,19 @@ public:
 
     std::optional<TString> CudaToolkitVersion;
 
+    //! Enables running GPU check.
+    //! This option applicable only in case of separate root volume.
+    bool EnableGpuCheck;
+
+    // COMPAT(ignat)
     //! Name of layer with GPU check.
     std::optional<TString> GpuCheckLayerName;
 
+    // COMPAT(ignat)
     //! Path to the file with GPU check binary inside layer.
     std::optional<TString> GpuCheckBinaryPath;
 
+    // COMPAT(ignat)
     //! Command line arguments for the GPU check binary.
     std::optional<std::vector<TString>> GpuCheckBinaryArgs;
 
