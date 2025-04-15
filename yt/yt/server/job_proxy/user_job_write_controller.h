@@ -5,6 +5,8 @@
 #include <yt/yt/ytlib/chunk_client/data_slice_descriptor.h>
 #include <yt/yt/ytlib/chunk_client/chunk_writer.h>
 
+#include <yt/yt/ytlib/job_proxy/public.h>
+
 #include <yt/yt/ytlib/table_client/public.h>
 
 #include <yt/yt/core/logging/log.h>
@@ -19,9 +21,9 @@ public:
     explicit TUserJobWriteController(IJobHostPtr host);
     ~TUserJobWriteController();
 
-    void Init();
+    void Init(TCpuInstant ioStartTime);
 
-    std::vector<NTableClient::ISchemalessMultiChunkWriterPtr> GetWriters() const;
+    std::vector<IProfilingMultiChunkWriterPtr> GetWriters() const;
     int GetOutputStreamCount() const;
     IOutputStream* GetStderrTableWriter() const;
 
@@ -40,7 +42,7 @@ protected:
 
     std::atomic<bool> Initialized_ = false;
 
-    std::vector<NTableClient::ISchemalessMultiChunkWriterPtr> Writers_;
+    std::vector<IProfilingMultiChunkWriterPtr> Writers_;
     std::vector<std::unique_ptr<NTableClient::IFlushableValueConsumer>> ValueConsumers_;
     std::unique_ptr<NTableClient::TBlobTableWriter> StderrTableWriter_;
 
