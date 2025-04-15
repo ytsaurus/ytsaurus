@@ -79,6 +79,7 @@ private:
         if (maybeCollocationOptions) {
             req->set_options(ConvertToYsonString(*maybeCollocationOptions).ToString());
         }
+        req->SetTimeout(options.Timeout.value_or(Client_->GetNativeConnection()->GetConfig()->DefaultChaosNodeServiceTimeout));
 
         auto rsp = WaitFor(req->Invoke())
             .ValueOrThrow();
@@ -154,6 +155,7 @@ private:
         auto proxy = TChaosNodeServiceProxy(std::move(channel));
         auto req = proxy.GetReplicationCardCollocation();
         ToProto(req->mutable_replication_card_collocation_id(), replicationCardCollocationId);
+        req->SetTimeout(Client_->GetNativeConnection()->GetConfig()->DefaultChaosNodeServiceTimeout);
 
         auto rsp = WaitFor(req->Invoke())
             .ValueOrThrow();
