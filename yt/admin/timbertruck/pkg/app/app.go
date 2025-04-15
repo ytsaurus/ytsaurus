@@ -264,7 +264,7 @@ func newDaemonApp(config Config, isRestart bool) (app *daemonApp, err error) {
 		logrotatingFile, err = misc.NewLogrotatingFile(config.ErrorLogFile)
 		if err != nil {
 			err = fmt.Errorf("cannot open error log file: %v", err)
-			return nil, err
+			return
 		}
 		errorLogFile = logrotatingFile
 		closeErrorLogFile = func() { _ = logrotatingFile.Close() }
