@@ -41,12 +41,17 @@ namespace NSQLComplete {
         };
     };
 
+    struct TTableName: TIndentifier {
+        using TConstraints = std::monostate;
+    };
+
     using TGenericName = std::variant<
         TKeyword,
         TPragmaName,
         TTypeName,
         TFunctionName,
-        THintName>;
+        THintName,
+        TTableName>;
 
     struct TNameRequest {
         TVector<TString> Keywords;
@@ -55,6 +60,7 @@ namespace NSQLComplete {
             std::optional<TTypeName::TConstraints> Type;
             std::optional<TFunctionName::TConstraints> Function;
             std::optional<THintName::TConstraints> Hint;
+            std::optional<TTableName::TConstraints> Table;
         } Constraints;
         TString Prefix = "";
         size_t Limit = 128;
@@ -64,7 +70,8 @@ namespace NSQLComplete {
                    !Constraints.Pragma &&
                    !Constraints.Type &&
                    !Constraints.Function &&
-                   !Constraints.Hint;
+                   !Constraints.Hint &&
+                   !Constraints.Table;
         }
     };
 

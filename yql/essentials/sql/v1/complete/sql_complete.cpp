@@ -87,6 +87,10 @@ namespace NSQLComplete {
                 request.Constraints.Hint = std::move(constraints);
             }
 
+            if (context.IsTableName) {
+                request.Constraints.Table = TTableName::TConstraints();
+            }
+
             if (request.IsEmpty()) {
                 return {};
             }
@@ -119,6 +123,9 @@ namespace NSQLComplete {
                     }
                     if constexpr (std::is_base_of_v<THintName, T>) {
                         return {ECandidateKind::HintName, std::move(name.Indentifier)};
+                    }
+                    if constexpr (std::is_base_of_v<TTableName, T>) {
+                        return {ECandidateKind::TableName, std::move(name.Indentifier)};
                     }
                 }, std::move(name)));
             }
@@ -172,6 +179,9 @@ void Out<NSQLComplete::ECandidateKind>(IOutputStream& out, NSQLComplete::ECandid
             break;
         case NSQLComplete::ECandidateKind::HintName:
             out << "HintName";
+            break;
+        case NSQLComplete::ECandidateKind::TableName:
+            out << "TableName";
             break;
     }
 }

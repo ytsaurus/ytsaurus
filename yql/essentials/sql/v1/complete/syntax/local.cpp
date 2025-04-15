@@ -70,6 +70,7 @@ namespace NSQLComplete {
                 .IsTypeName = IsTypeNameMatched(candidates),
                 .Function = FunctionMatch(tokens, candidates),
                 .Hint = HintMatch(candidates),
+                .IsTableName = IsTableNameMatched(candidates),
             };
         }
 
@@ -181,6 +182,10 @@ namespace NSQLComplete {
             return TLocalSyntaxContext::THint{
                 .StatementKind = *stmt,
             };
+        }
+
+        bool IsTableNameMatched(const TC3Candidates& candidates) {
+            return AnyOf(candidates.Rules, RuleAdapted(IsLikelyTableStack));
         }
 
         NSQLTranslation::TParsedTokenList Tokenized(const TStringBuf text) {

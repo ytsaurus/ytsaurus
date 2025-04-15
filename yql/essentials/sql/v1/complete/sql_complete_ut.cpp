@@ -41,6 +41,7 @@ Y_UNIT_TEST_SUITE(SqlCompleteTests) {
     using ECandidateKind::HintName;
     using ECandidateKind::Keyword;
     using ECandidateKind::PragmaName;
+    using ECandidateKind::TableName;
     using ECandidateKind::TypeName;
 
     TLexerSupplier MakePureLexerSupplier() {
@@ -64,6 +65,7 @@ Y_UNIT_TEST_SUITE(SqlCompleteTests) {
                 {EStatementKind::Select, {"XLOCK"}},
                 {EStatementKind::Insert, {"EXPIRATION"}},
             },
+            .Tables = {"example_table"},
         };
         auto ranking = MakeDefaultRanking({});
         INameService::TPtr service = MakeStaticNameService(std::move(names), std::move(ranking));
@@ -172,6 +174,15 @@ Y_UNIT_TEST_SUITE(SqlCompleteTests) {
         UNIT_ASSERT_VALUES_EQUAL(Complete(engine, {"CREATE "}), expected);
     }
 
+    Y_UNIT_TEST(CreateTable) {
+        TVector<TCandidate> expected = {
+            {Keyword, "IF NOT EXISTS"},
+        };
+
+        auto engine = MakeSqlCompletionEngineUT();
+        UNIT_ASSERT_VALUES_EQUAL(Complete(engine, {"CREATE TABLE "}), expected);
+    }
+
     Y_UNIT_TEST(Delete) {
         TVector<TCandidate> expected = {
             {Keyword, "FROM"},
@@ -179,6 +190,15 @@ Y_UNIT_TEST_SUITE(SqlCompleteTests) {
 
         auto engine = MakeSqlCompletionEngineUT();
         UNIT_ASSERT_VALUES_EQUAL(Complete(engine, {"DELETE "}), expected);
+    }
+
+    Y_UNIT_TEST(DeleteFrom) {
+        TVector<TCandidate> expected = {
+            {TableName, "example_table"},
+        };
+
+        auto engine = MakeSqlCompletionEngineUT();
+        UNIT_ASSERT_VALUES_EQUAL(Complete(engine, {"DELETE FROM "}), expected);
     }
 
     Y_UNIT_TEST(Drop) {
@@ -279,6 +299,15 @@ Y_UNIT_TEST_SUITE(SqlCompleteTests) {
         UNIT_ASSERT_VALUES_EQUAL(Complete(engine, {"INSERT "}), expected);
     }
 
+    Y_UNIT_TEST(InsertInto) {
+        TVector<TCandidate> expected = {
+            {TableName, "example_table"},
+        };
+
+        auto engine = MakeSqlCompletionEngineUT();
+        UNIT_ASSERT_VALUES_EQUAL(Complete(engine, {"INSERT INTO "}), expected);
+    }
+
     Y_UNIT_TEST(Pragma) {
         auto engine = MakeSqlCompletionEngineUT();
         {
@@ -350,6 +379,28 @@ Y_UNIT_TEST_SUITE(SqlCompleteTests) {
 
         auto engine = MakeSqlCompletionEngineUT();
         UNIT_ASSERT_VALUES_EQUAL(Complete(engine, {"SELECT "}), expected);
+    }
+
+    Y_UNIT_TEST(SelectFrom) {
+        TVector<TCandidate> expected = {
+            {Keyword, "ANY"},
+            {Keyword, "CALLABLE"},
+            {Keyword, "DICT"},
+            {Keyword, "ENUM"},
+            {Keyword, "FLOW"},
+            {Keyword, "LIST"},
+            {Keyword, "OPTIONAL"},
+            {Keyword, "RESOURCE"},
+            {Keyword, "SET"},
+            {Keyword, "STRUCT"},
+            {Keyword, "TAGGED"},
+            {Keyword, "TUPLE"},
+            {Keyword, "VARIANT"},
+            {TableName, "example_table"},
+        };
+
+        auto engine = MakeSqlCompletionEngineUT();
+        UNIT_ASSERT_VALUES_EQUAL(Complete(engine, {"SELECT * FROM "}), expected);
     }
 
     Y_UNIT_TEST(SelectWhere) {
