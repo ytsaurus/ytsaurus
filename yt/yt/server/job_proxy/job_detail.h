@@ -51,6 +51,7 @@ public:
 protected:
     const IJobHostPtr Host_;
     const TInstant StartTime_;
+    TCpuInstant IOStartTime_;
 
     std::unique_ptr<IJobProfiler> JobProfiler_;
 
@@ -90,8 +91,8 @@ protected:
 
     NChunkClient::IMultiReaderMemoryManagerPtr MultiReaderMemoryManager_;
 
-    NTableClient::ISchemalessMultiChunkReaderPtr Reader_;
-    NTableClient::ISchemalessMultiChunkWriterPtr Writer_;
+    IProfilingMultiChunkReaderPtr Reader_;
+    IProfilingMultiChunkWriterPtr Writer_;
 
     TSchemalessMultiChunkReaderFactory ReaderFactory_;
     TSchemalessMultiChunkWriterFactory WriterFactory_;

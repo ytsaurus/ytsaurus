@@ -14,6 +14,9 @@
 #include <yt/yt/ytlib/chunk_client/data_source.h>
 #include <yt/yt/ytlib/chunk_client/chunk_reader.h>
 
+#include <yt/yt/ytlib/job_proxy/profiling_reader.h>
+#include <yt/yt/ytlib/job_proxy/profiling_writer.h>
+
 #include <yt/yt/library/query/base/query.h>
 
 #include <yt/yt/client/table_client/adapters.h>
@@ -62,7 +65,8 @@ public:
         TClosure onNetworkRelease,
         std::optional<TString> udfDirectory,
         TDuration threshold,
-        i64 adaptiveRowCountUpperBound)
+        i64 adaptiveRowCountUpperBound,
+        TCpuInstant ioStartTime)
         : JobSpecHelper_(std::move(jobSpecHelper))
         , SerializedInvoker_(CreateSerializedInvoker(std::move(invoker), "user_job_read_controller"))
         , ChunkReadOptions_(std::move(chunkReadOptions))
@@ -75,6 +79,7 @@ public:
                 : TDuration::Zero(),
             JobSpecHelper_->GetJobIOConfig()->BufferRowCount,
             std::min<i64>(adaptiveRowCountUpperBound, JobSpecHelper_->GetJobIOConfig()->AdaptiveRowCountUpperBound))
+        , IOStartTime_(ioStartTime)
     { }
 
     //! Returns closure that launches data transfer to given async output.
@@ -214,6 +219,23 @@ public:
             .ValueOrThrow();
     }
 
+    std::optional<TCpuDuration> GetReaderTimeToFirstBatch() const override
+    {
+        if (Initialized_) {
+            return Reader_->GetTimeToFirstBatch();
+        }
+        return std::nullopt;
+    }
+
+    std::optional<TCpuDuration> GetWriterTimeToFirstBatch() const override
+    {
+        if (!FormatWriters_.empty()) {
+            YT_VERIFY(FormatWriters_.size() == 1);
+            return FormatWriters_[0]->GetTimeToFirstBatch();
+        }
+        return std::nullopt;
+    }
+
 private:
     const IJobSpecHelperPtr JobSpecHelper_;
     const IInvokerPtr SerializedInvoker_;
@@ -221,9 +243,9 @@ private:
     const TChunkReaderHostPtr ChunkReaderHost_;
     const TClosure OnNetworkRelease_;
 
-    ISchemalessMultiChunkReaderPtr Reader_;
+    IProfilingMultiChunkReaderPtr Reader_;
     std::optional<NChunkClient::NProto::TDataStatistics> PreparationDataStatistics_;
-    std::vector<ISchemalessFormatWriterPtr> FormatWriters_;
+    std::vector<IProfilingSchemalessFormatWriterPtr> FormatWriters_;
     std::optional<TString> UdfDirectory_;
     std::atomic<bool> Initialized_ = {false};
     std::atomic<bool> Interrupted_ = {false};
@@ -287,6 +309,7 @@ private:
     };
 
     TOptimalRowCountGuesser Guesser_;
+    const TCpuInstant IOStartTime_;
 
 private:
     bool IsContextSavingEnabled() const
@@ -343,9 +366,9 @@ private:
             writer = New<TAnyToCompositeConverter>(std::move(writer), schemas, Reader_->GetNameTable());
         }
 
-        FormatWriters_.push_back(writer);
+        FormatWriters_.push_back(CreateProfilingSchemalessFormatWriter(std::move(writer), IOStartTime_));
 
-        return writer;
+        return FormatWriters_.back();
     }
 
     void ConnectPipeReaderToWriter(
@@ -424,9 +447,12 @@ private:
                         JobSpecHelper_->GetJobIOConfig()->ControlAttributes,
                         0);
 
-                    FormatWriters_.push_back(schemalessWriter);
+                    FormatWriters_.push_back(
+                        CreateProfilingSchemalessFormatWriter(
+                            std::move(schemalessWriter),
+                            IOStartTime_));
 
-                    return schemalessWriter;
+                    return FormatWriters_.back();
                 },
                 UdfDirectory_);
             WaitFor(asyncOutput->Close())
@@ -449,7 +475,7 @@ private:
             OnNetworkRelease_,
             std::move(nameTable),
             columnFilter);
-        Reader_ = std::move(result.Reader);
+        Reader_ = CreateProfilingMultiChunkReader(std::move(result.Reader), IOStartTime_);
         PreparationDataStatistics_ = std::move(result.PreparationDataStatistics);
         Initialized_ = true;
     }
@@ -510,6 +536,16 @@ public:
     {
         return 0;
     }
+
+    std::optional<TCpuDuration> GetReaderTimeToFirstBatch() const override
+    {
+        return std::nullopt;
+    }
+
+    std::optional<TCpuDuration> GetWriterTimeToFirstBatch() const override
+    {
+        return std::nullopt;
+    }
 };
 
 DEFINE_REFCOUNTED_TYPE(TVanillaUserJobReadController)
@@ -525,7 +561,8 @@ IUserJobReadControllerPtr CreateUserJobReadController(
     TClientChunkReadOptions chunkReadOptions,
     TString /*localHostName*/,
     TDuration adaptiveConfigTimeoutThreshold,
-    i64 adaptiveRowCountUpperBound)
+    i64 adaptiveRowCountUpperBound,
+    TCpuInstant ioStartTime)
 {
     if (jobSpecHelper->GetJobType() != EJobType::Vanilla) {
         if (jobSpecHelper->GetJobSpecExt().has_input_query_spec()) {
@@ -545,7 +582,8 @@ IUserJobReadControllerPtr CreateUserJobReadController(
             onNetworkRelease,
             udfDirectory,
             adaptiveConfigTimeoutThreshold,
-            adaptiveRowCountUpperBound);
+            adaptiveRowCountUpperBound,
+            ioStartTime);
     } else {
         return New<TVanillaUserJobReadController>();
     }

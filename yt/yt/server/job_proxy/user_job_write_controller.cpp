@@ -14,6 +14,7 @@
 #include <yt/yt/ytlib/controller_agent/proto/job.pb.h>
 
 #include <yt/yt/ytlib/job_proxy/user_job_io_factory.h>
+#include <yt/yt/ytlib/job_proxy/profiling_writer.h>
 
 #include <yt/yt/ytlib/table_client/blob_table_writer.h>
 #include <yt/yt/ytlib/table_client/config.h>
@@ -202,7 +203,7 @@ TUserJobWriteController::TUserJobWriteController(IJobHostPtr host)
 
 TUserJobWriteController::~TUserJobWriteController() = default;
 
-void TUserJobWriteController::Init()
+void TUserJobWriteController::Init(TCpuInstant ioStartTime)
 {
     YT_LOG_INFO("Opening writers");
 
@@ -261,7 +262,7 @@ void TUserJobWriteController::Init()
             dataSink,
             OutputWriteBlocksOptions_.emplace_back());
 
-        Writers_.push_back(writer);
+        Writers_.push_back(CreateProfilingMultiChunkWriter(std::move(writer), ioStartTime));
     }
 
     if (jobSpecExt.user_job_spec().has_stderr_table_spec()) {
@@ -294,7 +295,7 @@ void TUserJobWriteController::Init()
     }
 }
 
-std::vector<ISchemalessMultiChunkWriterPtr> TUserJobWriteController::GetWriters() const
+std::vector<IProfilingMultiChunkWriterPtr> TUserJobWriteController::GetWriters() const
 {
     if (Initialized_) {
         return Writers_;
