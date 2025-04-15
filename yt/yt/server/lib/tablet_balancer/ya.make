@@ -5,6 +5,7 @@ INCLUDE(${ARCADIA_ROOT}/yt/ya_cpp.make.inc)
 SRCS(
     balancing_helpers.cpp
     config.cpp
+    helpers.cpp
     parameterized_balancing_helpers.cpp
     table.cpp
     tablet.cpp

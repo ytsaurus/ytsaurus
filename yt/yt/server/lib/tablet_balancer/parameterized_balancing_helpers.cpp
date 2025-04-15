@@ -3,6 +3,7 @@
 #include "balancing_helpers.h"
 #include "bounded_priority_queue.h"
 #include "config.h"
+#include "helpers.h"
 #include "table.h"
 #include "tablet.h"
 #include "tablet_cell.h"
@@ -135,19 +136,28 @@ public:
     TParameterizedMetricsCalculator(
         TString metric,
         std::vector<TString> performanceCountersKeys,
-        TTableSchemaPtr performanceCountersTableSchema)
+        TTableSchemaPtr performanceCountersTableSchema,
+        const TLogger& logger)
     : PerformanceCountersKeys_(std::move(performanceCountersKeys))
     , PerformanceCountersTableSchema_(std::move(performanceCountersTableSchema))
     , Metric_(std::move(metric))
-    , Evaluator_(NOrm::NQuery::CreateOrmExpressionEvaluator(
-        Metric_,
-        ParameterizedBalancingAttributes))
-    { }
+    , Logger(logger)
+    {
+        auto newMetric = ReplaceAliases(Metric_);
+        YT_LOG_DEBUG_IF(newMetric != Metric_,
+            "Replaced aliases in parameterized balancing metric (OldMetric: %v, NewMetric: %v)",
+            Metric_,
+            newMetric);
+        Evaluator_ = NOrm::NQuery::CreateOrmExpressionEvaluator(
+            std::move(newMetric),
+            ParameterizedBalancingAttributes);
+    }
 
 protected:
     const std::vector<TString> PerformanceCountersKeys_;
     const TTableSchemaPtr PerformanceCountersTableSchema_;
     const TString Metric_;
+    const TLogger Logger;
     NOrm::NQuery::IExpressionEvaluatorPtr Evaluator_;
 
     double GetTabletMetric(const TTabletPtr& tablet) const
@@ -305,7 +315,8 @@ TParameterizedReassignSolver::TParameterizedReassignSolver(
     : TParameterizedMetricsCalculator(
         config.Metric,
         std::move(performanceCountersKeys),
-        std::move(performanceCountersTableSchema))
+        std::move(performanceCountersTableSchema),
+        logger)
     , Bundle_(std::move(bundle))
     , Logger(logger
         .WithTag("BundleName: %v", Bundle_->Name)
@@ -1137,7 +1148,8 @@ TParameterizedResharder::TParameterizedResharder(
     : TParameterizedMetricsCalculator(
         config.Metric,
         std::move(performanceCountersKeys),
-        std::move(performanceCountersTableSchema))
+        std::move(performanceCountersTableSchema),
+        logger)
     , Bundle_(std::move(bundle))
     , Logger(logger
         .WithTag("BundleName: %v", Bundle_->Name)
