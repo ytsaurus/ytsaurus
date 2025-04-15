@@ -355,10 +355,10 @@ void TObjectProxyBase::BeforeInvoke(const IYPathServiceContextPtr& context)
             GetOriginalRequestAdditionalPaths(requestHeader),
             prerequisitesExt.revisions());
 
-        objectManager->ValidatePrerequisites(context->GetRequestHeader(), context->GetMethod(), GetId(), prerequisitesExt);
+        objectManager->ValidatePrerequisites(requestHeader, context->GetMethod(), GetId(), prerequisitesExt);
     }
 
-    // TODO(cherepashka): move this resolve above after 25.1.
+    // TODO(cherepashka): move this resolve above after 25.1 and remove resolve from ValidatePrerequisites.
     for (const auto& additionalPath : ypathExt.additional_paths()) {
         TPathResolver resolver(
             Bootstrap_,
