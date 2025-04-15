@@ -54,6 +54,8 @@
 
 #include <yt/yt/ytlib/event_log/event_log.h>
 
+#include <yt/yt/ytlib/hive/hive_service_proxy.h>
+
 #include <yt/yt/ytlib/object_client/helpers.h>
 #include <yt/yt/ytlib/object_client/master_ypath_proxy.h>
 #include <yt/yt/ytlib/object_client/object_service_proxy.h>
@@ -2287,6 +2289,23 @@ void TOperationControllerBase::ManuallyMergeBranchedCypressNode(
         OperationId);
 
     try {
+        auto targetCellTag = CellTagFromId(nodeId);
+
+        if (auto coordinatorCellTag = CellTagFromId(transactionId); coordinatorCellTag != targetCellTag) {
+            // Output completion transaction should become committed on node's
+            // native cell.
+            auto channel = Host->GetClient()->GetMasterChannelOrThrow(
+                EMasterChannelKind::Leader,
+                targetCellTag);
+            auto proxy = NHiveClient::THiveServiceProxy(std::move(channel));
+            auto request = proxy.SyncWithOthers();
+            ToProto(
+                request->add_src_cell_ids(),
+                Client->GetNativeConnection()->GetMasterCellId(coordinatorCellTag));
+            WaitFor(request->Invoke())
+                .ThrowOnError();
+        }
+
         // It is just a way to run custom logic at master.
         // Note that output completion transaction cannot be used here because
         // it's a Cypress transaction while a system is required to run
@@ -2294,7 +2313,7 @@ void TOperationControllerBase::ManuallyMergeBranchedCypressNode(
         auto helperTransaction = WaitFor(Host->GetClient()->StartNativeTransaction(
             NTransactionClient::ETransactionType::Master,
             {
-                .CoordinatorMasterCellTag = CellTagFromId(nodeId),
+                .CoordinatorMasterCellTag = targetCellTag,
                 .StartCypressTransaction = false,
             }))
             .ValueOrThrow();
@@ -2302,7 +2321,7 @@ void TOperationControllerBase::ManuallyMergeBranchedCypressNode(
         ToProto(reqCommitBranchNode.mutable_transaction_id(), transactionId);
         ToProto(reqCommitBranchNode.mutable_node_id(), nodeId);
         helperTransaction->AddAction(
-            Client->GetNativeConnection()->GetMasterCellId(CellTagFromId(nodeId)),
+            Client->GetNativeConnection()->GetMasterCellId(targetCellTag),
             MakeTransactionActionData(reqCommitBranchNode));
 
         TTransactionCommitOptions options;
