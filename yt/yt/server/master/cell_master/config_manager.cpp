@@ -80,7 +80,7 @@ public:
         newConfig->SetUnrecognizedStrategy(EUnrecognizedStrategy::KeepRecursive);
         newConfig->Load(configNode);
 
-        BeforeConfigChanged_.Fire(newConfig);
+        ValidateConfigChanged_.Fire(newConfig);
 
         auto oldConfig = std::move(Config_);
 
@@ -97,7 +97,7 @@ public:
         ConfigChanged_.Fire(oldConfig);
     }
 
-    DEFINE_SIGNAL_OVERRIDE(void(TDynamicClusterConfigPtr), BeforeConfigChanged);
+    DEFINE_SIGNAL_OVERRIDE(void(TDynamicClusterConfigPtr), ValidateConfigChanged);
     DEFINE_SIGNAL_OVERRIDE(void(TDynamicClusterConfigPtr), ConfigChanged);
 
 private:

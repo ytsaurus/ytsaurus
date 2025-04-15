@@ -197,7 +197,8 @@ void TCompactTableSchema::InitializeFromProto(const NTableClient::NProto::TTable
 {
     InitializePartial(
         protoSchema.columns().empty(),
-        protoSchema.strict(), protoSchema.unique_keys(),
+        protoSchema.strict(),
+        protoSchema.unique_keys(),
         CheckedEnumCast<ETableSchemaModification>(protoSchema.schema_modification()));
 
     for (const auto& column : protoSchema.columns()) {
