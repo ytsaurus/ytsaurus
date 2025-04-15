@@ -1070,6 +1070,8 @@ public:
             ++CrpChunkCount_;
         }
 
+        UpdateChunkCount(chunk, +1);
+
         YT_ASSERT(chunk->GetLocalRequisitionIndex() == (isErasure ? MigrationErasureChunkRequisitionIndex : MigrationChunkRequisitionIndex));
 
         int mediumIndex = medium->GetIndex();
@@ -1256,6 +1258,8 @@ public:
         }
 
         ++ChunksDestroyed_;
+
+        UpdateChunkCount(chunk, -1);
 
         if (chunk->HasConsistentReplicaPlacementHash()) {
             --CrpChunkCount_;
@@ -2428,6 +2432,9 @@ private:
     i64 ChunkListsDestroyed_ = 0;
 
     i64 CrpChunkCount_ = 0;
+
+    i64 ErasureChunkCount_ = 0;
+    i64 RegularChunkCount_ = 0;
 
     i64 ImmediateAllyReplicasAnnounced_ = 0;
     i64 DelayedAllyReplicasAnnounced_ = 0;
@@ -4826,6 +4833,15 @@ private:
         histogram.LoadSnapshot(snapshot);
     }
 
+    void UpdateChunkCount(TChunk* chunk, int delta)
+    {
+        if (chunk->IsErasure()) {
+            ErasureChunkCount_ += delta;
+        } else {
+            RegularChunkCount_ += delta;
+        }
+    }
+
     void LoadValues(NCellMaster::TLoadContext& context)
     {
         using NYT::Load;
@@ -4904,6 +4920,8 @@ private:
                 TotalReplicaCount_ += std::ssize(chunk->StoredReplicas());
 
                 runner.Add(chunk);
+
+                UpdateChunkCount(chunk, +1);
             }
 
             runner.Run([] (TChunk* chunk) {
@@ -6183,6 +6201,9 @@ private:
             buffer.AddGauge("/consistent_placement_enabled_chunk_count", CrpChunkCount_);
             buffer.AddCounter("/chunks_created", ChunksCreated_);
             buffer.AddCounter("/chunks_destroyed", ChunksDestroyed_);
+
+            buffer.AddGauge("/erasure_chunk_count", ErasureChunkCount_);
+            buffer.AddGauge("/regular_chunk_count", RegularChunkCount_);
 
             buffer.AddGauge("/chunk_replica_count", TotalReplicaCount_);
             buffer.AddCounter("/chunk_replicas_added", ChunkReplicasAdded_);
