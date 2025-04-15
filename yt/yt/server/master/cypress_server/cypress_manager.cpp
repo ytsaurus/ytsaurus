@@ -4685,8 +4685,26 @@ private:
 
         auto* currentNode = FindNode(versionedId);
         if (!currentNode) {
-            YT_LOG_DEBUG("Manual node unbranching failed; no such node %Qv", versionedId);
+            YT_LOG_DEBUG("Manual node unbranching failed; no such node (NodeId: %v)", versionedId);
             return;
+        }
+
+        auto* transaction = currentNode->GetTransaction();
+        if (!transaction) {
+            YT_LOG_ALERT("Skipping manual node unbranching: node is already trunk (NodeId: %v)", versionedId);
+        }
+
+        for (auto nestedTransaction : transaction->NestedTransactions()) {
+            if (auto* branch = FindNode({nodeId, nestedTransaction->GetId()})) {
+                if (branch->GetLockMode() != ELockMode::Snapshot) {
+                    YT_LOG_ALERT("Manual node unbranching failed: node has deeper branches "
+                        "(NodeId: %v, TargetTransactionId: %v, NestedTransactionId: %v)",
+                        nodeId,
+                        transactionId,
+                        nestedTransaction->GetId());
+                }
+                return;
+            }
         }
 
         YT_LOG_DEBUG("Manually unlocking and merging Cypress node (NodeId: %v)", versionedId);
