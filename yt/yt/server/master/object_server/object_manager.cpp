@@ -537,7 +537,7 @@ public:
                         });
 
                     if (optionalPrerequisiteObjectId) {
-                        THROW_ERROR_EXCEPTION_IF_FAILED(ValidatePrerequisiteRevisionPaths(context->GetRequestHeader(), ObjectId_, additionalObjectIds, *optionalPrerequisiteObjectId));
+                        THROW_ERROR_EXCEPTION_IF_FAILED(ValidatePrerequisiteRevisionPaths(forwardedRequestHeader, ObjectId_, additionalObjectIds, *optionalPrerequisiteObjectId));
                     }
                 }
                 if (!prerequisitePayload || CellTagFromId(prerequisitePayload->ObjectId) != ForwardedCellTag_) {
@@ -1888,7 +1888,7 @@ void TObjectManager::ValidatePrerequisites(
         }
         if (GetDynamicConfig()->ProhibitPrerequisiteRevisionsDifferFromExecutionPaths) {
             std::vector<TObjectId> additionalObjectIds;
-            for (const auto& additionalPath : GetOriginalRequestAdditionalPaths(requestHeader)) {
+            for (const auto& additionalPath : GetRequestAdditionalPaths(requestHeader)) {
                 auto additionalObjectId = ResolvePathToObjectId(additionalPath, method, /*transaction*/ nullptr, /*options*/ {});
                 additionalObjectIds.push_back(additionalObjectId);
             }
