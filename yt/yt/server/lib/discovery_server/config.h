@@ -16,6 +16,7 @@ struct TDiscoveryServerConfig
     TDuration AttributesUpdatePeriod;
     int MaxMembersPerGossip;
     int GossipBatchSize;
+    TDuration DiscoveryServerRpcTimeout;
 
     // It is not guaranteed that these limits won't be exceeded.
     // A server won't accept a heartbeat from a new member if adding it would exceed one of the limits,

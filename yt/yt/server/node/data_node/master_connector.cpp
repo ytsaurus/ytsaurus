@@ -650,6 +650,7 @@ protected:
 
         auto masterChannel = Bootstrap_->GetMasterChannel(cellTag);
         TDataNodeTrackerServiceProxy proxy(std::move(masterChannel));
+        proxy.SetDefaultTimeout(GetDynamicConfig()->FullHeartbeatTimeout);
 
         switch (state) {
             case EMasterConnectorState::Registered: {

@@ -334,6 +334,7 @@ private:
                 protoMember->set_group_id(member->GetGroupId());
                 protoMember->set_lease_deadline(ToProto(member->GetLeaseDeadline()));
             }
+            req->SetTimeout(Config_->DiscoveryServerRpcTimeout);
             req->Invoke().Subscribe(
                 BIND([=, this, this_ = MakeStrong(this)] (const TErrorOr<TDiscoveryServerServiceProxy::TRspProcessGossipPtr>& rspOrError) {
                     if (rspOrError.IsOK()) {
