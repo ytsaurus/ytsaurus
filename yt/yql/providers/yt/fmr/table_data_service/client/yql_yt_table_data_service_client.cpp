@@ -28,8 +28,12 @@ public:
             " To table data service worker with host: " << workerConnection.Host << " and port: " << ToString(workerConnection.Port);
 
         auto putTableDataServiceFunc = [&]() {
-            httpClient.DoPost(putRequestUrl, value, nullptr, GetHeadersWithLogContext(Headers_));
-            return NThreading::MakeFuture();
+            try {
+                httpClient.DoPost(putRequestUrl, value, nullptr, GetHeadersWithLogContext(Headers_));
+                return NThreading::MakeFuture();
+            } catch (...) {
+                return NThreading::MakeErrorFuture<void>(std::current_exception());
+            }
         };
         return *DoWithRetry<NThreading::TFuture<void>, yexception>(putTableDataServiceFunc, RetryPolicy_, true, OnFail_);
     }
@@ -45,13 +49,17 @@ public:
             " To table data service worker with host: " << workerConnection.Host << " and port: " << ToString(workerConnection.Port);
 
         auto getTableDataServiceFunc = [&]() {
-            httpClient.DoGet(getRequestUrl,&outputStream, GetHeadersWithLogContext(Headers_));
-            TString value = outputStream.ReadAll();
-            TMaybe<TString> result;
-            if (value) {
-                result = value;
+            try {
+                httpClient.DoGet(getRequestUrl,&outputStream, GetHeadersWithLogContext(Headers_));
+                TString value = outputStream.ReadAll();
+                TMaybe<TString> result;
+                if (value) {
+                    result = value;
+                }
+                return NThreading::MakeFuture(result);
+            } catch (...) {
+                return NThreading::MakeErrorFuture<TMaybe<TString>>(std::current_exception());
             }
-            return NThreading::MakeFuture(result);
         };
         return *DoWithRetry<NThreading::TFuture<TMaybe<TString>>, yexception>(getTableDataServiceFunc, RetryPolicy_, true, OnFail_);
     }
@@ -66,8 +74,12 @@ public:
             " To table data service worker with host: " << workerConnection.Host << " and port: " << ToString(workerConnection.Port);
 
         auto deleteTableDataServiceFunc = [&]() {
-            httpClient.DoRequest("DELETE", deleteRequestUrl, "", nullptr, GetHeadersWithLogContext(Headers_));
-            return NThreading::MakeFuture();
+            try {
+                httpClient.DoRequest("DELETE", deleteRequestUrl, "", nullptr, GetHeadersWithLogContext(Headers_));
+                return NThreading::MakeFuture();
+            } catch (...) {
+                return NThreading::MakeErrorFuture<void>(std::current_exception());
+            }
         };
         return *DoWithRetry<NThreading::TFuture<void>, yexception>(deleteTableDataServiceFunc, RetryPolicy_, true, OnFail_);
     }
