@@ -2,6 +2,7 @@ allowHTML: true
 apply-presets: true
 varsPreset: public
 langs: ['ru', 'en']
+allow-custom-resources: true
 
 docs-viewer:
   project-name: YTsaurus
@@ -32,6 +33,11 @@ docs-viewer:
 
   gtm:
     id: GTM-W2MMVTR
+
+resources:
+  csp:
+    - script-src-elem:
+        - https://mc.yandex.ru
 
 # This configuration parameter is used to directly control the Edit button behaviour.
 vcs:
