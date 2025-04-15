@@ -738,7 +738,7 @@ class TestChaos(ChaosTestBase):
         ]
         card_id, replica_ids = self._create_chaos_tables(cell_id, replicas)
 
-        alter_table_replica(replica_ids[1], mode="async")
+        alter_table_replica(replica_ids[1], mode="async", force=True)
         wait(lambda: get("#{0}/@coordinator_cell_ids".format(card_id)) == [])
         assert get("#{0}/@mode".format(replica_ids[1])) == "sync_to_async"
 
@@ -774,7 +774,7 @@ class TestChaos(ChaosTestBase):
         ]
         card_id, replica_ids = self._create_chaos_tables(cell_id, replicas)
 
-        alter_table_replica(replica_ids[1], enabled=False)
+        alter_table_replica(replica_ids[1], enabled=False, force=True)
         wait(lambda: get("#{0}/@coordinator_cell_ids".format(card_id)) == [])
         assert get("#{0}/@state".format(replica_ids[1])) == "disabling"
 
@@ -3837,6 +3837,52 @@ class TestChaos(ChaosTestBase):
         wait(lambda: _get_sync_replica_clusters("//tmp/a-crt") == _get_sync_replica_clusters("//tmp/c-crt"))
         assert _get_sync_replica_clusters("//tmp/b-crt") == [clusters[0]]
         assert _get_sync_replica_clusters("//tmp/c-crt") == [clusters[0]]
+
+    @authors("osidorkin")
+    def test_alter_replication_queues_min_count(self):
+        self._init_replicated_table_tracker()
+        cell_id = self._sync_create_chaos_bundle_and_cell()
+        set("//sys/chaos_cell_bundles/c/@metadata_cell_id", cell_id)
+
+        replicated_table_options = {
+            "enable_replicated_table_tracker": False,
+            "min_sync_queue_replica_count": 2,
+        }
+
+        replicas = [
+            {"cluster_name": "primary", "content_type": "queue", "mode": "sync", "enabled": True, "replica_path": "//tmp/qp"},
+            {"cluster_name": "remote_0", "content_type": "queue", "mode": "async", "enabled": True, "replica_path": "//tmp/qr0"},
+            {"cluster_name": "remote_1", "content_type": "queue", "mode": "sync", "enabled": True, "replica_path": "//tmp/qr1"},
+            {"cluster_name": "primary", "content_type": "data", "mode": "sync", "enabled": True, "replica_path": "//tmp/dp"},
+        ]
+        card_id, replica_ids = self._create_chaos_tables(cell_id, replicas)
+
+        create("chaos_replicated_table", "//tmp/crt", attributes={
+            "chaos_cell_bundle": "c",
+            "replication_card_id": card_id,
+        })
+
+        alter_replication_card(card_id, replicated_table_options=replicated_table_options)
+
+        with pytest.raises(YtError, match="Queue replica cannot be disabled because there will not be enough sync queues"):
+            alter_table_replica(replica_ids[0], enabled=False)
+        with pytest.raises(YtError, match="Queue replica cannot be switched to async mode because there will not be enough sync queues"):
+            alter_table_replica(replica_ids[0], mode="async")
+
+        alter_table_replica(replica_ids[1], mode="sync")
+        alter_table_replica(replica_ids[0], enabled=False)
+        alter_table_replica(replica_ids[0], enabled=True)
+        alter_table_replica(replica_ids[0], mode="async")
+
+        with pytest.raises(YtError, match="Queue replica cannot be switched to async mode because there will not be enough sync queues"):
+            alter_table_replica(replica_ids[1], mode="async")
+
+        replicated_table_options["min_sync_queue_replica_count"] = 1
+        alter_replication_card(card_id, replicated_table_options=replicated_table_options)
+        alter_table_replica(replica_ids[1], mode="async")
+
+        with pytest.raises(YtError, match="Queue replica cannot be switched to async mode because there will not be enough sync queues"):
+            alter_table_replica(replica_ids[2], mode="async")
 
     @authors("savrus")
     @pytest.mark.parametrize("method", ["alter", "remove"])
