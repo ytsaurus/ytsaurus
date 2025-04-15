@@ -1,8 +1,8 @@
 #pragma once
 #include "sub_columns.h"
 
-#include "common/histogram.h"
-#include "common/owner.h"
+#include <contrib/ydb/library/signals/histogram.h>
+#include <contrib/ydb/library/signals/owner.h>
 
 #include <contrib/ydb/core/protos/table_stats.pb.h>
 #include <contrib/ydb/core/tx/columnshard/resource_subscriber/counters.h>

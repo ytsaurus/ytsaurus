@@ -1,5 +1,5 @@
 #pragma once
-#include "common/owner.h"
+#include <contrib/ydb/library/signals/owner.h>
 
 #include <contrib/ydb/core/base/logoblob.h>
 #include <contrib/ydb/core/tx/columnshard/blobs_action/abstract/blob_set.h>

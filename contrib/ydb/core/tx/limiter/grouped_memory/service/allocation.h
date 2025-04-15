@@ -1,5 +1,5 @@
 #pragma once
-#include <contrib/ydb/core/tx/columnshard/counters/common/object_counter.h>
+#include <contrib/ydb/library/signals/object_counter.h>
 #include <contrib/ydb/core/tx/limiter/grouped_memory/usage/abstract.h>
 
 namespace NKikimr::NOlap::NGroupedMemoryManager {

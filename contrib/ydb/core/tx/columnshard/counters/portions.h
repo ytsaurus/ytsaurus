@@ -1,7 +1,7 @@
 #pragma once
-#include "common/agent.h"
-#include "common/client.h"
-#include "common/owner.h"
+#include <contrib/ydb/library/signals/agent.h>
+#include <contrib/ydb/library/signals/client.h>
+#include <contrib/ydb/library/signals/owner.h>
 
 #include <contrib/ydb/library/actors/core/log.h>
 
