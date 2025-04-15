@@ -640,9 +640,10 @@ TFuture<void> TBootstrap::Run()
 
 void TBootstrap::LoadSnapshot(
     const TString& fileName,
-    ESerializationDumpMode dumpMode)
+    ESerializationDumpMode dumpMode,
+    TSerializationDumpScopeFilter dumpScopeFilter)
 {
-    BIND(&TBootstrap::DoLoadSnapshot, MakeStrong(this), fileName, dumpMode)
+    BIND(&TBootstrap::DoLoadSnapshot, MakeStrong(this), fileName, dumpMode, std::move(dumpScopeFilter))
         .AsyncVia(GetControlInvoker())
         .Run()
         .Get()
@@ -1237,7 +1238,8 @@ void TBootstrap::DoStart()
 
 void TBootstrap::DoLoadSnapshot(
     const TString& fileName,
-    ESerializationDumpMode dumpMode)
+    ESerializationDumpMode dumpMode,
+    TSerializationDumpScopeFilter dumpScopeFilter)
 {
     auto snapshotId = TryFromString<int>(NFS::GetFileNameWithoutExtension(fileName));
     if (snapshotId.Empty()) {
@@ -1254,6 +1256,7 @@ void TBootstrap::DoLoadSnapshot(
 
     const auto& automaton = HydraFacade_->GetAutomaton();
     automaton->SetSerializationDumpMode(dumpMode);
+    automaton->SetSerializationDumpScopeFilter(std::move(dumpScopeFilter));
 
     dryRunHydraManager->DryRunLoadSnapshot(
         std::move(snapshotReader),

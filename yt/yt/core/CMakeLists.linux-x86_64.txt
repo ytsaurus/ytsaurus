@@ -218,6 +218,7 @@ target_sources(yt-yt-core PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/ref_counted_tracker_statistics_producer.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/ref_counted_tracker_profiler.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/serialize.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/serialize_dump.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/shutdown.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/signal_registry.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/slab_allocator.cpp
