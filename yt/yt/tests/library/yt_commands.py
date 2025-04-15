@@ -2810,20 +2810,30 @@ _MAINTENANCE_FLAGS = {
 }
 
 
-def clear_node_maintenance_flag(address, type, driver=None):
+def clear_node_maintenance_flag(address, type, driver=None, forbid_maintenance_attribute_writes=None):
     path = f"//sys/cluster_nodes/{address}"
     # COMPAT(kvk1920)
-    if get("//sys/@config/node_tracker/forbid_maintenance_attribute_writes", default=False, driver=driver):
+    if forbid_maintenance_attribute_writes is None:
+        forbid_maintenance_attribute_writes = get(
+            "//sys/@config/node_tracker/forbid_maintenance_attribute_writes",
+            default=False,
+            driver=driver)
+    if forbid_maintenance_attribute_writes:
         remove_maintenance("cluster_node", address, type=type, driver=driver)
     else:
         flag = _MAINTENANCE_FLAGS[type]
         set(f"{path}/@{flag}", False, driver=driver)
 
 
-def set_node_maintenance_flag(address, type, reason="", driver=None):
+def set_node_maintenance_flag(address, type, reason="", driver=None, forbid_maintenance_attribute_writes=None):
     path = f"//sys/cluster_nodes/{address}"
     # COMPAT(kvk1920)
-    if get("//sys/@config/node_tracker/forbid_maintenance_attribute_writes", default=False, driver=driver):
+    if forbid_maintenance_attribute_writes is None:
+        forbid_maintenance_attribute_writes = get(
+            "//sys/@config/node_tracker/forbid_maintenance_attribute_writes",
+            default=False,
+            driver=driver)
+    if forbid_maintenance_attribute_writes:
         # NB: Maintenance request api was changed in 23.1.
         add_maintenance("cluster_node", address, type, reason, driver=driver)
     else:
@@ -2831,22 +2841,39 @@ def set_node_maintenance_flag(address, type, reason="", driver=None):
         set(f"{path}/@{flag}", True, driver=driver)
 
 
-def _ban_node(address, reason="", driver=None):
-    set_node_maintenance_flag(address, "ban", reason, driver=driver)
+def _ban_node(address, reason="", driver=None, forbid_maintenance_attribute_writes=None):
+    set_node_maintenance_flag(
+        address,
+        "ban",
+        reason,
+        driver=driver,
+        forbid_maintenance_attribute_writes=forbid_maintenance_attribute_writes)
 
 
-def _unban_node(address, driver=None):
-    clear_node_maintenance_flag(address, "ban", driver=driver)
+def _unban_node(address, driver=None, forbid_maintenance_attribute_writes=None):
+    clear_node_maintenance_flag(
+        address,
+        "ban",
+        driver=driver,
+        forbid_maintenance_attribute_writes=forbid_maintenance_attribute_writes)
 
 
 def set_nodes_banned(nodes, value, wait_for_master=True, wait_for_scheduler=False, driver=None):
+    forbid_maintenance_attribute_writes = get(
+        "//sys/@config/node_tracker/forbid_maintenance_attribute_writes",
+        default=False,
+        driver=driver)
     if value:
         for node in nodes:
-            _ban_node(node, reason="set_nodes_banned", driver=driver)
+            _ban_node(
+                node,
+                reason="set_nodes_banned",
+                driver=driver,
+                forbid_maintenance_attribute_writes=forbid_maintenance_attribute_writes)
         state = "offline"
     else:
         for node in nodes:
-            _unban_node(node, driver=driver)
+            _unban_node(node, driver=driver, forbid_maintenance_attribute_writes=forbid_maintenance_attribute_writes)
         state = "online"
     if wait_for_master:
         print_debug(f"Waiting for nodes {nodes} to become {state} at master...")

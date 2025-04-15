@@ -15,7 +15,7 @@ from yt_commands import (
     authors, commit_transaction, create, get, get_cell_tag, raises_yt_error, remove, get_singular_chunk_id, write_table, read_table, wait,
     exists, create_domestic_medium, ls, set, get_account_disk_space_limit, set_account_disk_space_limit,
     link, build_master_snapshots, start_transaction, abort_transaction, get_active_primary_master_leader_address,
-    sync_mount_table, sync_unmount_table, sync_compact_table)
+    sync_mount_table, sync_unmount_table, sync_compact_table, set_nodes_banned, set_node_banned)
 
 from yt.wrapper import yson
 
@@ -272,6 +272,39 @@ class TestSequoiaReplicas(YTEnvSetup):
         wait(lambda: len(get("#{}/@last_seen_replicas".format(chunk_id))) == 3)
 
         remove("//tmp/t")
+
+    @authors("kvk1920")
+    def test_last_seen_replicas_fairness(self):
+
+        create("table", "//tmp/t")
+        write_table("//tmp/t", [{"key": 42, "value": "hello!"}])
+        chunk_id = get_singular_chunk_id("//tmp/t")
+
+        def get_stored_replicas():
+            return {str(r) for r in get(f"#{chunk_id}/@stored_replicas")}
+
+        wait(lambda: len(get_stored_replicas()) == 3)
+
+        replicas = get_stored_replicas()
+        # This makes current test deterministic.
+        set_nodes_banned([node for node in ls("//sys/cluster_nodes") if node not in replicas], True)
+
+        def get_last_seen_replicas():
+            return {str(r) for r in get(f"#{chunk_id}/@last_seen_replicas")}
+
+        flaky_node = list(replicas)[0]
+
+        # Last seen replica count is 3 for Sequoia.
+        for _ in range(4):
+            wait(lambda: len(get_stored_replicas()) == 3)
+            set_node_banned(flaky_node, True)
+            wait(lambda: len(get_stored_replicas()) == 2)
+            set_node_banned(flaky_node, False)
+            wait(lambda: len(get_stored_replicas()) == 3)
+
+        stored_replicas = get_stored_replicas()
+        last_seen_replicas = get_last_seen_replicas()
+        assert stored_replicas == last_seen_replicas
 
     @authors("aleksandra-zh")
     @pytest.mark.parametrize("erasure_codec", ["none", "lrc_12_2_2"])

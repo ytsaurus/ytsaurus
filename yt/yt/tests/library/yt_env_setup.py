@@ -1068,7 +1068,7 @@ class YTEnvSetup(object):
         yt_commands.set(f"{unapproved_chunk_replicas_path}/@mount_config/min_data_ttl", 0, driver=ground_driver)
         yt_commands.set(f"{unapproved_chunk_replicas_path}/@mount_config/max_data_ttl", 5000, driver=ground_driver)
 
-        response_keeper_path = DESCRIPTORS.unapproved_chunk_replicas.get_default_path()
+        response_keeper_path = DESCRIPTORS.response_keeper.get_default_path()
         yt_commands.set(f"{response_keeper_path}/@mount_config/min_data_versions", 0, driver=ground_driver)
         yt_commands.set(f"{response_keeper_path}/@mount_config/max_data_versions", 1, driver=ground_driver)
         yt_commands.set(f"{response_keeper_path}/@mount_config/min_data_ttl", 0, driver=ground_driver)
@@ -1079,7 +1079,11 @@ class YTEnvSetup(object):
 
         for descriptor in DESCRIPTORS.as_dict().values():
             for table_path in get_table_paths(descriptor):
-                yt_commands.sync_mount_table(table_path, driver=ground_driver)
+                yt_commands.mount_table(table_path, driver=ground_driver)
+
+        for descriptor in DESCRIPTORS.as_dict().values():
+            for table_path in get_table_paths(descriptor):
+                yt_commands.wait_for_tablet_state(table_path, "mounted", driver=ground_driver)
 
     @classmethod
     def apply_node_dynamic_config_patches(cls, config, ytserver_version, cluster_index):
