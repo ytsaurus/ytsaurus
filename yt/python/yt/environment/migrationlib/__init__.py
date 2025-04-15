@@ -134,7 +134,7 @@ class TableInfo(object):
         logging.info("Creating table %s with attributes %s", path, attributes)
         client.create("table", path, recursive=True, attributes=attributes)
 
-    def create_dynamic_table(self, client, path):
+    def create_dynamic_table(self, client, path, ignore_existing=False):
         attributes = _make_dynamic_table_attributes(self.schema, self.key_columns, self.optimize_for)
         attributes.update(self.attributes)
 
@@ -142,7 +142,7 @@ class TableInfo(object):
             attributes["account"] = SYS_ACCOUNT_NAME
 
         logging.info("Creating dynamic table %s with attributes %s", path, attributes)
-        client.create("table", path, recursive=True, attributes=attributes)
+        client.create("table", path, recursive=True, attributes=attributes, ignore_existing=ignore_existing)
 
     def to_dynamic_table(self, client, path):
         attributes = _make_dynamic_table_attributes(self.schema, self.key_columns, self.optimize_for)
@@ -313,7 +313,7 @@ class Migration(object):
             table_info.attributes["pivot_keys"] = table_info.get_pivot_keys(shard_count)
         if table_info.in_memory:
             table_info.attributes["in_memory_mode"] = "compressed"
-        table_info.create_dynamic_table(client, table_path)
+        table_info.create_dynamic_table(client, table_path, ignore_existing=True)
 
     def _initialize_migration(self, client, tables_path, version=None, tablet_cell_bundle=None, shard_count=1, mount=False):
         if version is None:
