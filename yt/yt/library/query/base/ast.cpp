@@ -235,8 +235,6 @@ void TTableHint::Register(TRegistrar registrar)
         .Default(false);
 }
 
-const TTableHintPtr DefaultHint = New<TTableHint>();
-
 void FormatValue(TStringBuilderBase* builder, const TTableHint& hint, TStringBuf /*spec*/)
 {
     builder->AppendString("\"{");
@@ -460,6 +458,8 @@ void FormatReference(TStringBuilderBase* builder, const TReference& ref, int dep
 
 void FormatTableDescriptor(TStringBuilderBase* builder, const TTableDescriptor& descriptor)
 {
+    static const TTableHintPtr DefaultHint = New<TTableHint>();
+
     FormatId(builder, descriptor.Path);
     if (descriptor.Alias) {
         builder->AppendString(" AS ");
