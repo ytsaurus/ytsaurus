@@ -23,7 +23,7 @@ def _replicated_tables_filter_callback(client, table_path):
 DEFAULT_TABLET_CELL_BUNDLE = "default"
 SYS_TABLET_CELL_BUNDLE = "sys"
 YT_QUEUE_AGENT_TABLET_CELL_BUNDLE = "yt-queue-agent"
-# NB(apachee): Bundle that will be used if no tablet_cell_bundle was specified in table attributes. See _prepare_migration.
+# NB(apachee): Bundle that will be used if no tablet_cell_bundle was specified in table attributes. See prepare_migration.
 # This variable SHOULD NOT be changed to ensure consistency between different versions of this script.
 QUEUE_AGENT_STATE_DEFAULT_TABLET_CELL_BUNDLE = YT_QUEUE_AGENT_TABLET_CELL_BUNDLE
 
@@ -342,7 +342,7 @@ def _select_tablet_cell_bundle(client, desired_tablet_cell_bundle):
     return desired_tablet_cell_bundle
 
 
-def _prepare_migration(client):
+def prepare_migration(client):
     def update_tablet_cell_bundle(table_info):
         tablet_cell_bundle = table_info.attributes.get("tablet_cell_bundle", QUEUE_AGENT_STATE_DEFAULT_TABLET_CELL_BUNDLE)
         table_info.attributes["tablet_cell_bundle"] = _select_tablet_cell_bundle(client, tablet_cell_bundle)
@@ -376,7 +376,7 @@ def create_tables_latest_version(client, root=DEFAULT_ROOT, shard_count=DEFAULT_
     """ Creates queue agent state tables of latest version """
 
     if override_tablet_cell_bundle is None:
-        migration = _prepare_migration(client)
+        migration = prepare_migration(client)
     else:
         # NB(apachee): No reason to prepare migration if override_tablet_cell_bundle is not None
         migration = MIGRATION
@@ -425,15 +425,11 @@ def build_arguments_parser():
     return parser
 
 
-# COMPAT(apachee): Creates missing tables for compatability with
-# previous version of init_queue_agent_state.
+# Creates missing tables for compatability with previous version of init_queue_agent_state,
+# and handle cases when some tables were removed manually.
 def _create_missing_tables(client, root, migration):
     if not client.exists(root):
         # This case is handled by migrationlib
-        return
-    root_attributes = client.get("{0}/@".format(root))
-    if "version" in root_attributes:
-        # Everything should already be fine
         return
 
     for table, table_info in migration.initial_table_infos.items():
@@ -442,11 +438,21 @@ def _create_missing_tables(client, root, migration):
             table_info.create_dynamic_table(client, table_path)
 
 
+def run_migration(migration, client, tables_path, shard_count, target_version, force):
+    migration.run(
+        client,
+        tables_path=tables_path,
+        shard_count=shard_count,
+        target_version=target_version,
+        force=force,
+    )
+
+
 def main():
     args = build_arguments_parser().parse_args()
     client = YtClient(proxy=args.proxy, token=config["token"])
 
-    migration = _prepare_migration(client)
+    migration = prepare_migration(client)
 
     _create_missing_tables(client, args.root, migration)
 
@@ -454,13 +460,7 @@ def main():
     if args.latest:
         target_version = MIGRATION.get_latest_version()
 
-    migration.run(
-        client,
-        tables_path=args.root,
-        shard_count=args.shard_count,
-        target_version=target_version,
-        force=args.force
-    )
+    run_migration(migration, client, args.root, args.shard_count, target_version, args.force)
 
 
 if __name__ == "__main__":

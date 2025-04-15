@@ -1,7 +1,9 @@
-from yt_env_setup import (Restarter, QUEUE_AGENTS_SERVICE)
+from yt_env_setup import (YTEnvSetup, Restarter, QUEUE_AGENTS_SERVICE)
 from yt_queue_agent_test_base import (OrchidWithRegularPasses, QueueStaticExportHelpers, TestQueueAgentBase, ReplicatedObjectBase, QueueAgentOrchid,
                                       CypressSynchronizerOrchid, AlertManagerOrchid, QueueAgentShardingManagerOrchid,
                                       ObjectAlertHelper)
+
+from yt.environment.init_queue_agent_state import get_latest_version, run_migration, prepare_migration
 
 from yt_commands import (authors, commit_transaction, get, get_batch_output, get_driver, set, ls, wait, assert_yt_error, create, sync_mount_table, insert_rows,
                          delete_rows, remove, raises_yt_error, exists, start_transaction, select_rows,
@@ -5377,3 +5379,21 @@ class TestControllerInfo(TestQueueAgentBase):
             "queue_count": 0,
             "consumer_count": 0,
         }
+
+
+@pytest.mark.enabled_multidaemon
+class TestMigration(YTEnvSetup):
+    ENABLE_MULTIDAEMON = True
+
+    @authors("nadya73")
+    def test_run_migration(self):
+        sync_create_cells(1)
+        client = self.Env.create_native_client()
+        migration = prepare_migration(client)
+        run_migration(
+            migration, client,
+            tables_path="//sys/queue_agent",
+            target_version=get_latest_version(),
+            shard_count=1,
+            force=False,
+        )
