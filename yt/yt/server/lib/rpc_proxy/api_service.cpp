@@ -2636,15 +2636,18 @@ private:
             options.ReplicaPath = request->replica_path();
         }
 
+        options.Force = request->force();
+
         context->SetRequestInfo("ReplicaId: %v, Enabled: %v, Mode: %v, Atomicity: %v, PreserveTimestamps: %v, "
-            "EnableReplicatedTableTracker: %v, ReplicaPath: %v",
+            "EnableReplicatedTableTracker: %v, ReplicaPath: %v, Force: %v",
             replicaId,
             options.Enabled,
             options.Mode,
             options.Atomicity,
             options.PreserveTimestamps,
             options.EnableReplicatedTableTracker,
-            options.ReplicaPath);
+            options.ReplicaPath,
+            options.Force);
 
         ExecuteCall(
             context,

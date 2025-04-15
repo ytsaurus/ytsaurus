@@ -1668,6 +1668,13 @@ void TAlterTableReplicaCommand::Register(TRegistrar registrar)
         })
         .Optional(/*init*/ false);
 
+    registrar.ParameterWithUniversalAccessor<bool>(
+        "force",
+        [] (TThis* command) -> auto& {
+            return command->Options.Force;
+        })
+        .Optional(/*init*/ false);
+
 }
 
 void TAlterTableReplicaCommand::DoExecute(ICommandContextPtr context)

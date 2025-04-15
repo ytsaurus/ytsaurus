@@ -493,6 +493,10 @@ TFuture<void> TClient::AlterTableReplica(
         req->set_replica_path(*options.ReplicaPath);
     }
 
+    if (options.Force) {
+        req->set_force(true);
+    }
+
     ToProto(req->mutable_mutating_options(), options);
 
     return req->Invoke().As<void>();

@@ -40,6 +40,7 @@ public:
         if (options.Atomicity) {
             THROW_ERROR_EXCEPTION("Cannot alter \"atomicity\" for chaos replica");
         }
+
         if (options.PreserveTimestamps) {
             THROW_ERROR_EXCEPTION("Cannot alter \"preserve_timestamps\" for chaos replica");
         }
@@ -67,6 +68,10 @@ public:
 
         if (options.ReplicaPath) {
             req->set_replica_path(*options.ReplicaPath);
+        }
+
+        if (options.Force) {
+            req->set_force(true);
         }
 
         WaitFor(req->Invoke())

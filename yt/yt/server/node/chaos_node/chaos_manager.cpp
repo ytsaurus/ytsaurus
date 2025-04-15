@@ -1164,6 +1164,7 @@ private:
         auto replicaPath = request->has_replica_path()
             ? std::make_optional(request->replica_path())
             : std::nullopt;
+        bool force = request->force();
 
         if (mode && !IsStableReplicaMode(*mode)) {
             THROW_ERROR_EXCEPTION("Invalid replica mode %Qlv", *mode);
@@ -1179,6 +1180,20 @@ private:
                 << TErrorAttribute("state", replicationCard->GetState());
         }
 
+        bool shouldForbidReplicaSwitchToAsync = false;
+        int minSyncQueuesCount = 0;
+        int syncReplicasCount = MaxReplicasPerReplicationCard;
+
+        if (IsSyncQueueReplica(*replicaInfo)) {
+            minSyncQueuesCount = GetMinRequiredSyncQueuesCount(*replicationCard);
+            syncReplicasCount = CountSyncQueueReplicas(*replicationCard);
+            shouldForbidReplicaSwitchToAsync = minSyncQueuesCount >= syncReplicasCount;
+        }
+
+        // COMPAT(osidorkin)
+        int reign = GetCurrentMutationContext()->Request().Reign;
+        bool shouldThrowOnLowQueuesCount = reign >= static_cast<int>(EChaosReign::ForbidSyncQueuesCountBelowLimit);
+
         bool revoke = false;
 
         if (mode && replicaInfo->Mode != *mode) {
@@ -1188,6 +1203,24 @@ private:
                     break;
 
                 case ETableReplicaMode::Async:
+                    if (shouldForbidReplicaSwitchToAsync) {
+                        if (!force && shouldThrowOnLowQueuesCount) {
+                            THROW_ERROR_EXCEPTION(
+                                "Queue replica cannot be switched to async mode because there will not be enough sync queues")
+                                << TErrorAttribute("replication_card_id", replicationCardId)
+                                << TErrorAttribute("replica_id", replicaId)
+                                << TErrorAttribute("min_sync_queues_count", minSyncQueuesCount);
+                        } else {
+                            YT_LOG_WARNING(
+                                "Forcing queue replica switch beyond the minimum sync queues count "
+                                "(ReplicationCardId: %v, ReplicaId: %v, MinSyncQueuesCount: %v, SyncQueuesCount: %v)",
+                                replicationCardId,
+                                replicaId,
+                                minSyncQueuesCount,
+                                syncReplicasCount);
+                        }
+                    }
+
                     replicaInfo->Mode = ETableReplicaMode::SyncToAsync;
                     break;
 
@@ -1201,6 +1234,24 @@ private:
 
         bool currentlyEnabled = replicaInfo->State == ETableReplicaState::Enabled;
         if (enabled && *enabled != currentlyEnabled) {
+            if (!(*enabled) && shouldForbidReplicaSwitchToAsync) {
+                if (!force && shouldThrowOnLowQueuesCount) {
+                    THROW_ERROR_EXCEPTION(
+                        "Queue replica cannot be disabled because there will not be enough sync queues")
+                            << TErrorAttribute("replication_card_id", replicationCardId)
+                        << TErrorAttribute("replica_id", replicaId)
+                        << TErrorAttribute("min_sync_queues_count", minSyncQueuesCount);
+                } else {
+                    YT_LOG_WARNING(
+                        "Forcing queue replica disabling beyond the minimum sync queues count "
+                        "(ReplicationCardId: %v, ReplicaId: %v, MinSyncQueuesCount: %v, SyncQueuesCount: %v)",
+                        replicationCardId,
+                        replicaId,
+                        minSyncQueuesCount,
+                        syncReplicasCount);
+                }
+            }
+
             replicaInfo->State = *enabled
                 ? ETableReplicaState::Enabling
                 : ETableReplicaState::Disabling;
@@ -2049,22 +2100,14 @@ private:
             return;
         }
 
-        auto hasSyncQueue = [&] {
-            for (const auto& [replicaId, replicaInfo] : replicationCard->Replicas()) {
-                if (replicaInfo.ContentType == ETableReplicaContentType::Queue &&
-                    GetTargetReplicaState(replicaInfo.State) == ETableReplicaState::Enabled &&
-                    GetTargetReplicaMode(replicaInfo.Mode) == ETableReplicaMode::Sync)
-                {
-                    return true;
-                }
-            }
-            return false;
-        }();
-
-        if (!hasSyncQueue) {
-            YT_LOG_DEBUG("Will not commence new replication era since there would be no sync queue replicas "
-                "(ReplicationCard: %v)",
-                *replicationCard);
+        int minSyncQueuesCount = GetMinRequiredSyncQueuesCount(*replicationCard);
+        int syncQueuesCount = CountSyncQueueReplicas(*replicationCard);
+        if (syncQueuesCount < minSyncQueuesCount) {
+            YT_LOG_DEBUG("Will not commence new replication era since there would be not enough sync queue replicas "
+                "(ReplicationCard: %v, MinSyncQueuesCount: %v, SyncQueuesCount: %v)",
+                *replicationCard,
+                minSyncQueuesCount,
+                syncQueuesCount);
             return;
         }
 
@@ -2826,6 +2869,31 @@ private:
 
         return TReplicaCounters(Slot_->GetProfiler()
             .WithPrefix("/replication_card").WithTags(NProfiling::TTagSet(tagsList)));
+    }
+
+    static int GetMinRequiredSyncQueuesCount(const TReplicationCard& replicationCard)
+    {
+        const auto& replicatedTableOptions = replicationCard.GetReplicatedTableOptions();
+        return replicatedTableOptions->MinSyncQueueReplicaCount.value_or(
+            replicatedTableOptions->MinSyncReplicaCount.value_or(1)
+        );
+    }
+
+    static bool IsSyncQueueReplica(const TReplicaInfo& replicaInfo)
+    {
+        return replicaInfo.ContentType == ETableReplicaContentType::Queue &&
+            GetTargetReplicaState(replicaInfo.State) == ETableReplicaState::Enabled &&
+            GetTargetReplicaMode(replicaInfo.Mode) == ETableReplicaMode::Sync;
+    }
+
+    static int CountSyncQueueReplicas(const TReplicationCard& replicationCard)
+    {
+        int syncQueuesCount = 0;
+        for (const auto& [replicaId, replicaInfo] : replicationCard.Replicas()) {
+            syncQueuesCount += IsSyncQueueReplica(replicaInfo);
+        }
+
+        return syncQueuesCount;
     }
 };
 

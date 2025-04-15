@@ -2004,7 +2004,8 @@ message TReqAlterTableReplica
     optional bool preserve_timestamps = 4;
     optional EAtomicity atomicity = 5;
     optional bool enable_replicated_table_tracker = 6;
-    optional string replica_path = 7;
+    optional bytes replica_path = 7; // YPath
+    optional bool force = 8;
 
     optional TMutatingOptions mutating_options = 100;
 }
