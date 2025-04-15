@@ -342,6 +342,30 @@ INSTANTIATE_TEST_SUITE_P(
         std::tuple(
             "[{name=k;type=int64;}; {name=l;type=int64}; {name=a;type=int64}]",
             "[k;l]",
+            "k in ()",
+            "false",
+            std::vector<const char*>{"1;3"}),
+        std::tuple(
+            "[{name=k;type=int64;}; {name=l;type=int64}; {name=a;type=int64}]",
+            "[k;l]",
+            "(k,l) in ()",
+            "false",
+            std::vector<const char*>{"1;3"}),
+        std::tuple(
+            "[{name=k;type=int64;}; {name=l;type=int64}; {name=a;type=int64}]",
+            "[k;l]",
+            "k not in ()",
+            "true",
+            std::vector<const char*>{"1;3"}),
+        std::tuple(
+            "[{name=k;type=int64;}; {name=l;type=int64}; {name=a;type=int64}]",
+            "[k;l]",
+            "(k,l) not in ()",
+            "true",
+            std::vector<const char*>{"1;3"}),
+        std::tuple(
+            "[{name=k;type=int64;}; {name=l;type=int64}; {name=a;type=int64}]",
+            "[k;l]",
             "(k,l) in ((1,2),(3,4))",
             "false",
             std::vector<const char*>{"1;3"}),

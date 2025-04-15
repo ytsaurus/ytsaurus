@@ -1367,6 +1367,13 @@ TEST_F(TQueryCoordinateTest, SingleSplit)
     });
 }
 
+TEST_F(TQueryCoordinateTest, EmptyIn)
+{
+    EXPECT_NO_THROW({
+        Coordinate("k from [//t] where k in ()", 0);
+    });
+}
+
 TEST_F(TQueryCoordinateTest, UsesKeyToPruneSplits)
 {
     EXPECT_NO_THROW({
