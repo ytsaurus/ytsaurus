@@ -1,7 +1,7 @@
 from yt_env_setup import YTEnvSetup, Restarter, NODES_SERVICE, MASTERS_SERVICE, with_additional_threads
 
 from yt_commands import (
-    authors, create_user, wait, create, ls, get, set, remove, exists,
+    authors, create_user, set_nodes_banned, wait, create, ls, get, set, remove, exists,
     start_transaction, insert_rows, build_snapshot, gc_collect, concatenate, create_account, create_rack,
     read_table, write_table, write_journal, merge, sync_create_cells, sync_mount_table, sync_unmount_table,
     sync_control_chunk_replicator, get_singular_chunk_id, multicell_sleep, update_nodes_dynamic_config,
@@ -462,6 +462,34 @@ class TestChunkServer(YTEnvSetup):
         # Replication should still work.
         set("//tmp/t1/@replication_factor", 4)
         wait(lambda: len(get(f"#{chunk_id}/@stored_replicas")) == 4)
+
+    @authors("kvk1920")
+    def test_last_seen_replicas(self):
+        # This makes current test deterministic.
+        nodes = ls("//sys/data_nodes")
+        set_nodes_banned(nodes[3:], True)
+
+        create("table", "//tmp/t")
+        write_table("//tmp/t", [{"key": 42, "value": "hello!"}])
+        chunk_id = get_singular_chunk_id("//tmp/t")
+
+        def get_stored_replicas():
+            return {str(r) for r in get(f"#{chunk_id}/@stored_replicas")}
+
+        def get_last_seen_replicas():
+            return {str(r) for r in get(f"#{chunk_id}/@last_seen_replicas")}
+
+        # Last seen replica count is 5 for regular chunks.
+        for _ in range(6):
+            wait(lambda: len(get_stored_replicas()) == 3)
+            set_node_banned(nodes[0], True)
+            wait(lambda: len(get_stored_replicas()) == 2)
+            set_node_banned(nodes[0], False)
+            wait(lambda: len(get_stored_replicas()) == 3)
+
+        stored_replicas = get_stored_replicas()
+        last_seen_replicas = get_last_seen_replicas()
+        assert stored_replicas == last_seen_replicas
 
 
 ##################################################################

@@ -1173,7 +1173,6 @@ private:
                         }
                     }
 
-                    SortUnique(replicas);
                     return BuildYsonStringFluently()
                         .DoListFor(replicas, [&] (TFluentList fluent, TNodePtrWithReplicaIndex replica) {
                             fluent.Item()
