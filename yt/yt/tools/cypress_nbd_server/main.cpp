@@ -31,11 +31,10 @@
 #include <yt/yt/core/concurrency/thread_pool.h>
 #include <yt/yt/core/concurrency/thread_pool_poller.h>
 
-#include <yt/yt/core/misc/memory_usage_tracker.h>
-
 #include <yt/yt/core/ytree/convert.h>
 #include <yt/yt/core/ytree/yson_struct.h>
 
+#include <library/cpp/yt/memory/memory_usage_tracker.h>
 
 namespace NYT::NNbd {
 

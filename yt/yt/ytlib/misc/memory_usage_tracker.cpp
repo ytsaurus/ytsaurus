@@ -4,12 +4,13 @@
 
 #include <yt/yt/core/logging/log.h>
 
-#include <yt/yt/core/misc/memory_usage_tracker.h>
 #include <yt/yt/core/misc/error.h>
 
 #include <yt/yt/core/concurrency/periodic_executor.h>
 
 #include <library/cpp/yt/containers/enum_indexed_array.h>
+
+#include <library/cpp/yt/memory/memory_usage_tracker.h>
 
 #include <algorithm>
 

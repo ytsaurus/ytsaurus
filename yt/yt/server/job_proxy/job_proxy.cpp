@@ -107,7 +107,6 @@
 #include <yt/yt/core/tracing/trace_context.h>
 
 #include <yt/yt/core/misc/fs.h>
-#include <yt/yt/core/misc/memory_usage_tracker.h>
 #include <yt/yt/core/misc/proc.h>
 #include <yt/yt/core/misc/ref_counted_tracker.h>
 
@@ -127,6 +126,8 @@
 #include <yt/yt/library/dns_over_rpc/client/dns_over_rpc_resolver.h>
 
 #include <yt/yt/library/oom/oom.h>
+
+#include <library/cpp/yt/memory/memory_usage_tracker.h>
 
 #include <util/system/fs.h>
 #include <util/system/execpath.h>

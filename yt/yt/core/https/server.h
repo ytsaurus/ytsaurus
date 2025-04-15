@@ -8,6 +8,8 @@
 
 #include <yt/yt/core/http/public.h>
 
+#include <library/cpp/yt/memory/memory_usage_tracker.h>
+
 namespace NYT::NHttps {
 
 ////////////////////////////////////////////////////////////////////////////////

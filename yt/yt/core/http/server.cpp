@@ -20,6 +20,8 @@
 
 #include <yt/yt/core/profiling/timing.h>
 
+#include <library/cpp/yt/memory/memory_usage_tracker.h>
+
 namespace NYT::NHttp {
 
 using namespace NConcurrency;

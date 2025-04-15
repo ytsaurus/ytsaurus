@@ -30,13 +30,13 @@
 
 #include <yt/yt/core/logging/fluent_log.h>
 
-#include <yt/yt/core/misc/memory_usage_tracker.h>
-
 #include <yt/yt/core/rpc/authenticator.h>
 
 #include <yt/yt/core/tracing/trace_context.h>
 
 #include <yt/yt/core/ytree/fluent.h>
+
+#include <library/cpp/yt/memory/memory_usage_tracker.h>
 
 #include <util/random/random.h>
 
