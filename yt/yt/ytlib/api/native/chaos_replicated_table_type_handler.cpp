@@ -2,6 +2,7 @@
 
 #include "type_handler_detail.h"
 #include "client_impl.h"
+#include "config.h"
 #include "connection.h"
 #include "transaction.h"
 
@@ -112,6 +113,7 @@ private:
         auto proxy = TChaosNodeServiceProxy(std::move(channel));
 
         auto req = proxy.GenerateReplicationCardId();
+        req->SetTimeout(Client_->GetNativeConnection()->GetConfig()->DefaultChaosNodeServiceTimeout);
 
         auto rsp = WaitFor(req->Invoke())
             .ValueOrThrow();

@@ -2,6 +2,7 @@
 
 #include "type_handler_detail.h"
 #include "client_impl.h"
+#include "config.h"
 
 #include <yt/yt/ytlib/chaos_client/chaos_node_service_proxy.h>
 
@@ -69,6 +70,7 @@ public:
         if (options.ReplicaPath) {
             req->set_replica_path(*options.ReplicaPath);
         }
+        req->SetTimeout(options.Timeout.value_or(Client_->GetNativeConnection()->GetConfig()->DefaultChaosNodeServiceTimeout));
 
         if (options.Force) {
             req->set_force(true);
@@ -146,6 +148,7 @@ private:
         if (replicationProgress) {
             ToProto(req->mutable_replication_progress(), *replicationProgress);
         }
+        req->SetTimeout(options.Timeout.value_or(Client_->GetNativeConnection()->GetConfig()->DefaultChaosNodeServiceTimeout));
 
         auto rsp = WaitFor(req->Invoke())
             .ValueOrThrow();
@@ -203,6 +206,7 @@ private:
         Client_->SetMutationId(req, options);
         ToProto(req->mutable_replication_card_id(), replicationCardId);
         ToProto(req->mutable_replica_id(), replicaId);
+        req->SetTimeout(options.Timeout.value_or(Client_->GetNativeConnection()->GetConfig()->DefaultChaosNodeServiceTimeout));
 
         WaitFor(req->Invoke())
             .ThrowOnError();
