@@ -202,6 +202,8 @@ struct TQueryOptions
     bool SuppressAccessTracking = false;
     // COMPAT(lukyan)
     bool NewRangeInference = true;
+    // COMPAT(dtorilov)
+    bool AdaptiveOrderedSchemafulReader = false;
 };
 
 void ToProto(NProto::TQueryOptions* serialized, const TQueryOptions& original);

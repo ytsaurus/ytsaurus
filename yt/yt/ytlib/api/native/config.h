@@ -339,6 +339,8 @@ struct TConnectionDynamicConfig
 
     bool DisableNewRangeInference;
 
+    bool DisableAdaptiveOrderedSchemafulReader;
+
     bool UseWebAssembly;
 
     // COMPAT(sabdenovch)
