@@ -645,7 +645,7 @@ private:
             bundleName,
             DeallocationStrategyReturnToBB);
 
-        if (!adapter->EnsureDeallocatedInstanceTagsSet(instanceName, DeallocationStrategyReturnToBB, input, mutations)) {
+        if (!adapter->EnsureDeallocatedInstanceTagsSet(bundleName, instanceName, DeallocationStrategyReturnToBB, input, mutations)) {
             return true;
         }
 
@@ -676,15 +676,12 @@ private:
             bundleName,
             DeallocationStrategyReturnToSpareBundle);
 
-        if (!adapter->EnsureDeallocatedInstanceTagsSet(instanceName, DeallocationStrategyReturnToSpareBundle, input, mutations)) {
+        if (!adapter->EnsureDeallocatedInstanceTagsSet(bundleName, instanceName, DeallocationStrategyReturnToSpareBundle, input, mutations)) {
             return true;
         }
 
-        // Avoid race condition between initializing new deallocations and
-        // marking node as node not from this bundle.
-
         if (annotations->AllocatedForBundle != spareBundleName) {
-            YT_VERIFY(annotations->AllocatedForBundle == bundleName);
+            YT_VERIFY(annotations->AllocatedForBundle.empty());
 
             auto newAnnotations = NYTree::CloneYsonStruct(annotations);
             newAnnotations->AllocatedForBundle = spareBundleName;
@@ -692,6 +689,8 @@ private:
 
             adapter->SetDefaultSpareAttributes(instanceName, mutations);
 
+            // Avoid race condition between initializing new deallocations and
+            // marking node as node not from this bundle.
             return true;
         }
 
@@ -758,7 +757,7 @@ private:
         }
 
         if (IsAllocationCompleted(it->second) &&
-            adapter->EnsureDeallocatedInstanceTagsSet(instanceName, DeallocationStrategyHulkRequest, input, mutations))
+            adapter->EnsureDeallocatedInstanceTagsSet(bundleName, instanceName, DeallocationStrategyHulkRequest, input, mutations))
         {
             YT_LOG_INFO("Instance deallocation completed (InstanceName: %v, DeallocationId: %v)",
                 instanceName,
@@ -2228,6 +2227,7 @@ public:
     }
 
     bool EnsureDeallocatedInstanceTagsSet(
+        const std::string& bundleName,
         const std::string& nodeName,
         const std::string& strategy,
         const TSchedulerInputState& input,
@@ -2241,6 +2241,15 @@ public:
             auto newAnnotations = New<TInstanceAnnotations>();
             newAnnotations->DeallocatedAt = TInstant::Now();
             newAnnotations->DeallocationStrategy = strategy;
+            mutations->ChangeNodeAnnotations[nodeName] = mutations->WrapMutation(newAnnotations);
+            return false;
+        }
+
+        // Prevent node from applying wrong node config and from setting
+        // wrong node tag filters.
+        if (strategy == DeallocationStrategyReturnToSpareBundle && annotations->AllocatedForBundle == bundleName) {
+            auto newAnnotations = NYTree::CloneYsonStruct(annotations);
+            newAnnotations->AllocatedForBundle = "";
             mutations->ChangeNodeAnnotations[nodeName] = mutations->WrapMutation(newAnnotations);
             return false;
         }
@@ -2546,6 +2555,7 @@ public:
     }
 
     bool EnsureDeallocatedInstanceTagsSet(
+        const std::string& bundleName,
         const std::string& proxyName,
         const std::string& strategy,
         const TSchedulerInputState& input,
@@ -2563,7 +2573,14 @@ public:
             return false;
         }
 
-        if (strategy != DeallocationStrategyReturnToSpareBundle && (instanceInfo->Role != TrashRole)) {
+        if (strategy == DeallocationStrategyReturnToSpareBundle && annotations->AllocatedForBundle == bundleName) {
+            auto newAnnotations = NYTree::CloneYsonStruct(annotations);
+            newAnnotations->AllocatedForBundle = "";
+            mutations->ChangedProxyAnnotations[proxyName] = mutations->WrapMutation(newAnnotations);
+            return false;
+        }
+
+        if (instanceInfo->Role != TrashRole) {
             mutations->ChangedProxyRole[proxyName] = mutations->WrapMutation(TrashRole);
             return false;
         }

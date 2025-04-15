@@ -75,8 +75,10 @@ struct TZoneSensors final
     TGauge OfflineProxyThreshold;
 
     TGauge FreeSpareNodeCount;
+    TGauge ScheduledForMaintenanceSpareNodeCount;
     TGauge ExternallyDecommissionedNodeCount;
     TGauge FreeSpareProxyCount;
+    TGauge ScheduledForMaintenanceSpareProxyCount;
     TGauge RequiredSpareNodeCount;
 };
 
@@ -951,6 +953,7 @@ private:
             for (const auto& [dataCenter, spareInfo] : perDCSpareInfo) {
                 auto zoneSensor = GetZoneSensors(zoneName, dataCenter);
                 zoneSensor->FreeSpareNodeCount.Update(std::ssize(spareInfo.FreeNodes));
+                zoneSensor->ScheduledForMaintenanceSpareNodeCount.Update(std::ssize(spareInfo.ScheduledForMaintenance));
                 zoneSensor->ExternallyDecommissionedNodeCount.Update(std::ssize(spareInfo.ExternallyDecommissioned));
 
                 for (const auto& [bundleName, instances] : spareInfo.UsedByBundle) {
@@ -965,6 +968,7 @@ private:
             for (const auto& [dataCenter, spareInfo] : perDCSpareInfo) {
                 auto zoneSensor = GetZoneSensors(zoneName, dataCenter);
                 zoneSensor->FreeSpareProxyCount.Update(std::ssize(spareInfo.FreeProxies));
+                zoneSensor->ScheduledForMaintenanceSpareProxyCount.Update(std::ssize(spareInfo.ScheduledForMaintenance));
 
                 for (const auto& [bundleName, instances] : spareInfo.UsedByBundle) {
                     // TODO: make per dc bundle sensors here
@@ -1083,8 +1087,10 @@ private:
         sensors->OfflineProxyThreshold = zoneProfiler.Gauge("/offline_proxy_threshold");
 
         sensors->FreeSpareNodeCount = zoneProfiler.Gauge("/free_spare_node_count");
+        sensors->ScheduledForMaintenanceSpareNodeCount = zoneProfiler.Gauge("/scheduled_for_maintenance_spare_node_count");
         sensors->ExternallyDecommissionedNodeCount = zoneProfiler.Gauge("/externally_decommissioned_node_count");
         sensors->FreeSpareProxyCount = zoneProfiler.Gauge("/free_spare_proxy_count");
+        sensors->ScheduledForMaintenanceSpareProxyCount = zoneProfiler.Gauge("/scheduled_for_maintenance_spare_proxy_count");
         sensors->RequiredSpareNodeCount = zoneProfiler.Gauge("/required_spare_nodes_count");
 
         ZoneSensors_[zoneName] = sensors;
