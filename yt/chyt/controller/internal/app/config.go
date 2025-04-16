@@ -49,7 +49,8 @@ type Config struct {
 
 	BaseACL []yt.ACE `yson:"base_acl"`
 
-	DisableAPIAuth bool `yson:"disable_api_auth"`
+	DisableAPIAuth      bool `yson:"disable_api_auth"`
+	ShowOnlyOwnSpeclets bool `yson:"show_only_own_speclets"`
 }
 
 const (

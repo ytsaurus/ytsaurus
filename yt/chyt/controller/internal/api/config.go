@@ -16,6 +16,7 @@ type APIConfig struct {
 	RobotUsername             string
 	ValidatePoolAccess        *bool
 	AssignAdministerToCreator bool
+	ShowOnlyOwnSpeclets       bool
 }
 
 const (

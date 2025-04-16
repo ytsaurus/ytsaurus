@@ -593,7 +593,8 @@ type AliasWithAttrs struct {
 
 func (a *API) List(ctx context.Context, attributes []string, filters map[string]any) ([]AliasWithAttrs, error) {
 	var attributesToList []string
-	if len(attributes) != 0 || len(filters) != 0 {
+	processAttributes := len(attributes) != 0 || len(filters) != 0 || a.cfg.ShowOnlyOwnSpeclets
+	if processAttributes {
 		attributesToList = strawberry.CypressStateAttributes
 	}
 
@@ -628,17 +629,26 @@ func (a *API) List(ctx context.Context, attributes []string, filters map[string]
 		}
 	}
 
+	currentUser, err := getUser(ctx)
+	if err != nil {
+		return nil, err
+	}
+
 	result := make([]AliasWithAttrs, 0, len(ops))
 	for alias, node := range ops {
 		var resultAttrs map[string]any
 
-		if len(attributes) != 0 || len(filters) != 0 {
+		if processAttributes {
 			briefInfo, err := a.getOpletBriefInfoFromYson(alias, node, acls[alias].ACL)
 			// NB: Should never happen.
 			if err != nil {
 				return nil, err
 			}
 			opletAttrs := strawberry.GetOpBriefAttributes(briefInfo)
+
+			if a.cfg.ShowOnlyOwnSpeclets && opletAttrs["creator"] != currentUser {
+				continue
+			}
 
 			filterMismatch := false
 			for filterAttr, filterValue := range filters {
