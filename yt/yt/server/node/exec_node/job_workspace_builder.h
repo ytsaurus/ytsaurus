@@ -54,6 +54,7 @@ struct TJobWorkspaceBuildingContext
     bool NeedGpuCheck;
     std::optional<TString> GpuCheckBinaryPath;
     std::optional<std::vector<TString>> GpuCheckBinaryArgs;
+    std::optional<THashMap<TString, TString>> GpuCheckEnvironment;
     EGpuCheckType GpuCheckType;
     std::vector<NContainers::TDevice> GpuDevices;
 };

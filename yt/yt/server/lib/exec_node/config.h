@@ -466,6 +466,7 @@ class TShellCommandConfig
 public:
     TString Path;
     std::vector<TString> Args;
+    THashMap<TString, TString> EnvironmentVariables;
 
     REGISTER_YSON_STRUCT(TShellCommandConfig);
 

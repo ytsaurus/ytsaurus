@@ -284,6 +284,7 @@ message TUserJobSpec
     optional int64 thread_limit = 60 [default = 1000000];
 
     repeated string gpu_check_binary_args = 63;
+    map<string, string> gpu_check_environment = 79;
 
     // The following options must be used only with network projects.
     // Enables NAT64 - YT-15665.

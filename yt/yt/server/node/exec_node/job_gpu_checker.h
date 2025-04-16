@@ -30,6 +30,7 @@ struct TJobGpuCheckerContext
 
     TString GpuCheckBinaryPath;
     std::vector<TString> GpuCheckBinaryArgs;
+    THashMap<TString, TString> GpuCheckEnvironment;
     EGpuCheckType GpuCheckType;
     int CurrentStartIndex;
     bool TestExtraGpuCheckCommandFailure;

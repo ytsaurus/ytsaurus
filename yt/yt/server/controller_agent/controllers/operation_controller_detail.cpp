@@ -10122,6 +10122,9 @@ void TOperationControllerBase::InitUserJobSpecTemplate(
         if (jobSpecConfig->EnableGpuCheck) {
             jobSpec->set_gpu_check_binary_path(options->BinaryPath);
             ToProto(jobSpec->mutable_gpu_check_binary_args(), options->BinaryArgs);
+
+            auto* protoEnvironment = jobSpec->mutable_gpu_check_environment();
+            (*protoEnvironment)["YT_OPERATION_ID"] = ToString(OperationId);
         }
     } else {
         // COMPAT(ignat)
@@ -10132,9 +10135,7 @@ void TOperationControllerBase::InitUserJobSpecTemplate(
         {
             jobSpec->set_gpu_check_binary_path(*jobSpecConfig->GpuCheckBinaryPath);
             if (auto gpuCheckBinaryArgs = jobSpecConfig->GpuCheckBinaryArgs) {
-                for (const auto& argument : *gpuCheckBinaryArgs) {
-                    ToProto(jobSpec->add_gpu_check_binary_args(), argument);
-                }
+                ToProto(jobSpec->mutable_gpu_check_binary_args(), *gpuCheckBinaryArgs);
             }
         }
     }
@@ -10246,6 +10247,20 @@ void TOperationControllerBase::InitUserJobSpec(
     jobSpec->add_environment(Format("YT_JOB_COOKIE=%v", joblet->OutputCookie));
     if (joblet->StartRowIndex >= 0) {
         jobSpec->add_environment(Format("YT_START_ROW_INDEX=%v", joblet->StartRowIndex));
+    }
+    if (joblet->OperationIncarnation) {
+        jobSpec->add_environment(Format("YT_OPERATION_INCARNATION=%v", *joblet->OperationIncarnation));
+    }
+
+    if (const auto& options = Options_->GpuCheck; options->UseSeparateRootVolume && jobSpec->has_gpu_check_binary_path()) {
+        auto* protoEnvironment = jobSpec->mutable_gpu_check_environment();
+        (*protoEnvironment)["YT_JOB_INDEX"] = ToString(joblet->JobIndex);
+        (*protoEnvironment)["YT_TASK_JOB_INDEX"] = ToString(joblet->TaskJobIndex);
+        (*protoEnvironment)["YT_JOB_ID"] = ToString(joblet->JobId);
+        (*protoEnvironment)["YT_JOB_COOKIE"] = ToString(joblet->JobId);
+        if (joblet->OperationIncarnation) {
+            (*protoEnvironment)["YT_OPERATION_INCARNATION"] = ToString(*joblet->OperationIncarnation);
+        }
     }
 
     if (joblet->EnabledJobProfiler && joblet->EnabledJobProfiler->Type == EProfilerType::Cuda) {

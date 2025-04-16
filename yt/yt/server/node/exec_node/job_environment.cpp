@@ -599,7 +599,7 @@ public:
                     launcher->SetDevices(*devices);
                 }
 
-                auto instanceOrError = WaitFor(launcher->Launch(command->Path, command->Args, {}));
+                auto instanceOrError = WaitFor(launcher->Launch(command->Path, command->Args, command->EnvironmentVariables));
                 YT_LOG_WARNING_IF(!instanceOrError.IsOK(), instanceOrError, "Failed to launch command (JobId: %v)",
                     jobId);
                 const auto& instance = instanceOrError.ValueOrThrow();
@@ -626,10 +626,11 @@ public:
                 outputs.push_back(instanceOutput);
 
                 YT_LOG_DEBUG(
-                    "Command finished (JobId: %v, Path: %v, Args: %v)",
+                    "Command finished (JobId: %v, Path: %v, Args: %v, EnvironmentVariables: %v)",
                     jobId,
                     command->Path,
-                    command->Args);
+                    command->Args,
+                    command->EnvironmentVariables);
             }
 
             return outputs;
@@ -1148,6 +1149,7 @@ public:
                 PodDescriptors_[slotIndex],
                 PodSpecs_[slotIndex]);
             process->AddArguments(command->Args);
+            // TODO(ignat): add envs.
             process->SetWorkingDirectory("/slot/home");
 
             results.push_back(
