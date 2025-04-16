@@ -1556,6 +1556,9 @@ class TestLookupCache(TestSortedDynamicTablesBase):
 
     COUNTER_NAME = "lookup"
 
+    def _performance_counter_type(self):
+        return self.COUNTER_NAME if self.COUNTER_NAME == "lookup" else "read"
+
     def _read(self, table, keys, column_names=None, **kwargs):
         return lookup_rows(table, [{"key": key} for key in keys], column_names=column_names, **kwargs)
 
@@ -1594,10 +1597,10 @@ class TestLookupCache(TestSortedDynamicTablesBase):
             actual = self._read("//tmp/t", range(100, 200, 2 * step), use_lookup_cache=True)
             assert_items_equal(actual, expected)
 
-        # Lookup key without polluting cache to increment static_chunk_row_lookup_count.
+        # Lookup key without polluting cache to increment static_chunk_row_{lookup/read}_count.
         self._read("//tmp/t", [2])
 
-        path = "//tmp/t/@tablets/0/performance_counters/static_chunk_row_lookup_count"
+        path = f"//tmp/t/@tablets/0/performance_counters/static_chunk_row_{self._performance_counter_type()}_count"
         wait(lambda: get(path) > 50)
         assert get(path) == 51
 
@@ -1648,10 +1651,10 @@ class TestLookupCache(TestSortedDynamicTablesBase):
         expected = [{"key": i, "value": _make_value(i)} for i in range(100, 200, 2)]
         assert_items_equal(actual, expected)
 
-        # Lookup key without polluting cache to increment static_chunk_row_lookup_count.
+        # Lookup key without polluting cache to increment static_chunk_row_{lookup/read}_count.
         self._read("//tmp/t", [2])
 
-        path = "//tmp/t/@tablets/0/performance_counters/static_chunk_row_lookup_count"
+        path = f"//tmp/t/@tablets/0/performance_counters/static_chunk_row_{self._performance_counter_type()}_count"
         wait(lambda: get(path) > 50)
         assert get(path) == 51
 
@@ -1677,7 +1680,7 @@ class TestLookupCache(TestSortedDynamicTablesBase):
         # Lookup key without cache.
         self._read("//tmp/t", [2], use_lookup_cache=False)
 
-        path = "//tmp/t/@tablets/0/performance_counters/static_chunk_row_lookup_count"
+        path = f"//tmp/t/@tablets/0/performance_counters/static_chunk_row_{self._performance_counter_type()}_count"
         wait(lambda: get(path) > 101)
         assert get(path) == 102
 
@@ -1714,7 +1717,7 @@ class TestLookupCache(TestSortedDynamicTablesBase):
         # Lookup key without cache.
         self._read("//tmp/t", [2])
 
-        path = "//tmp/t/@tablets/0/performance_counters/static_chunk_row_lookup_count"
+        path = f"//tmp/t/@tablets/0/performance_counters/static_chunk_row_{self._performance_counter_type()}_count"
         wait(lambda: get(path) > 0)
         assert get(path) == 1
 
