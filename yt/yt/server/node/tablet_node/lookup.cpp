@@ -112,14 +112,14 @@ ETabletDistributedThrottlerKind GetThrottlerKindFromQueryKind(EInitialQueryKind 
     }
 }
 
-ERequestType GetRequestTypeFromQueryKind(EInitialQueryKind queryKind)
+EPerformanceCountedRequestType GetRequestTypeFromQueryKind(EInitialQueryKind queryKind)
 {
     switch (queryKind) {
         case EInitialQueryKind::LookupRows:
-            return ERequestType::Lookup;
+            return EPerformanceCountedRequestType::Lookup;
 
         case EInitialQueryKind::SelectRows:
-            return ERequestType::Read;
+            return EPerformanceCountedRequestType::Read;
 
         default:
             YT_ABORT();
@@ -1127,6 +1127,12 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TClientChunkReadOptions PatchChunkReadOptionsRequestType(TClientChunkReadOptions chunkReadOptions, EInitialQueryKind queryKind)
+{
+    chunkReadOptions.RequestType = GetRequestTypeFromQueryKind(queryKind);
+    return chunkReadOptions;
+}
+
 template <class TPipeline>
 class TTabletLookupSession
     : public TRefCounted
@@ -1801,7 +1807,7 @@ TTabletLookupSession<TPipeline>::TTabletLookupSession(
     , TabletSnapshot_(std::move(tabletSnapshot))
     , Timestamp_(lookupSession->TimestampRange_.Timestamp)
     , ProduceAllVersions_(produceAllVersions)
-    , ChunkReadOptions_(lookupSession->ChunkReadOptions_)
+    , ChunkReadOptions_(PatchChunkReadOptionsRequestType(lookupSession->ChunkReadOptions_, TPipeline::TAdapter::QueryKind))
     , ColumnFilter_(std::move(columnFilter))
     , LookupKeys_(std::move(lookupKeys))
     , ChunkLookupKeys_(TPipeline::Initialize(LookupKeys_))
@@ -1855,7 +1861,7 @@ TTabletLookupSession<TPipeline>::TTabletLookupSession(
     , TabletSnapshot_(std::move(tabletSnapshot))
     , Timestamp_(readTimestampRange.Timestamp)
     , ProduceAllVersions_(produceAllVersions)
-    , ChunkReadOptions_(chunkReadOptions)
+    , ChunkReadOptions_(PatchChunkReadOptionsRequestType(chunkReadOptions, TPipeline::TAdapter::QueryKind))
     , ColumnFilter_(std::move(columnFilter))
     , LookupKeys_(std::move(lookupKeys))
     , ChunkLookupKeys_(TPipeline::Initialize(LookupKeys_))

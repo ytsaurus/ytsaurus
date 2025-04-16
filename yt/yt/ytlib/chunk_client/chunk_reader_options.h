@@ -38,6 +38,7 @@ struct TClientChunkReadOptions
     IMemoryUsageTrackerPtr MemoryUsageTracker;
 
     NTableClient::IGranuleFilterPtr GranuleFilter;
+    NTableClient::EPerformanceCountedRequestType RequestType = NTableClient::EPerformanceCountedRequestType::Lookup;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

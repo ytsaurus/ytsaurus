@@ -615,7 +615,7 @@ class TestQuery(DynamicTablesBase):
 
         assert sorted_dicts(expected) == sorted_dicts(actual)
 
-        read_count_path = "//tmp/jr/@tablets/0/performance_counters/dynamic_row_lookup_count"
+        read_count_path = "//tmp/jr/@tablets/0/performance_counters/dynamic_row_read_count"
         wait(lambda: get(read_count_path) > 0)
         assert get(read_count_path) == 3
 
