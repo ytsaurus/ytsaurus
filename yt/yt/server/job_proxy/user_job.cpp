@@ -50,6 +50,7 @@
 #include <yt/yt/ytlib/file_client/file_chunk_output.h>
 
 #include <yt/yt/ytlib/job_proxy/helpers.h>
+#include <yt/yt/ytlib/job_proxy/profiling_writer.h>
 #include <yt/yt/ytlib/job_proxy/user_job_read_controller.h>
 
 #include <yt/yt/ytlib/query_client/functions_cache.h>
@@ -288,6 +289,9 @@ public:
     {
         TJob::Initialize();
 
+        IOStartTime_ = GetCpuInstant();
+        YT_LOG_INFO("Starting to count I/O time (IOStartTime: %v)", CpuDurationToDuration(IOStartTime_));
+
         UserJobReadController_ = CreateUserJobReadController(
             Host_->GetJobSpecHelper(),
             Host_->GetChunkReaderHost(),
@@ -304,7 +308,7 @@ public:
     {
         YT_LOG_INFO("Starting job process");
 
-        UserJobWriteController_->Init();
+        UserJobWriteController_->Init(IOStartTime_);
 
         Prepare();
 
@@ -1430,12 +1434,24 @@ private:
             result.TimingStatistics = *timingStatistics;
         }
 
+        result.LatencyStatistics.InputTimeToFirstReadBatch = OptionalCpuDurationToDuration(
+            UserJobReadController_->GetReaderTimeToFirstBatch());
+        result.LatencyStatistics.InputTimeToFirstWrittenBatch = OptionalCpuDurationToDuration(
+            UserJobReadController_->GetWriterTimeToFirstBatch());
+
+        auto writers = UserJobWriteController_->GetWriters();
+        result.LatencyStatistics.OutputTimeToFirstReadBatch.reserve(writers.size());
+        for (const auto& writer : writers) {
+            result.LatencyStatistics.OutputTimeToFirstReadBatch.emplace_back(
+                OptionalCpuDurationToDuration(
+                    writer->GetTimeToFirstBatch()));
+        }
+
         result.ChunkReaderStatistics = ChunkReadOptions_.ChunkReaderStatistics;
         for (const auto& writeBlocksOptions: UserJobWriteController_->GetOutputWriteBlocksOptions()) {
             result.ChunkWriterStatistics.push_back(writeBlocksOptions.ClientOptions.ChunkWriterStatistics);
         }
 
-        auto writers = UserJobWriteController_->GetWriters();
         for (const auto& writer : writers) {
             result.OutputStatistics.emplace_back() = {
                 .DataStatistics = writer->GetDataStatistics(),

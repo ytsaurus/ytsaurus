@@ -15,7 +15,7 @@ from yt_commands import (
 
 from yt_type_helpers import make_schema, normalize_schema, make_column, list_type, tuple_type, optional_type
 
-from yt_helpers import skip_if_no_descending, skip_if_old, skip_if_renaming_disabled
+from yt_helpers import skip_if_no_descending, skip_if_old, skip_if_renaming_disabled, skip_if_component_old
 
 import yt.yson as yson
 from yt.test_helpers import assert_items_equal
@@ -2345,6 +2345,73 @@ done
             set_nodes_banned(table_nodes, False)
 
         assert sorted_dicts(read_table("//tmp/t_out")) == sorted_dicts(data)
+
+    @authors("coteeq")
+    @pytest.mark.parametrize("mode", ["query", "passthrough"])
+    def test_latency_statistics(self, mode):
+        skip_if_component_old(self.Env, (25, 1), "controller-agent")
+        skip_if_component_old(self.Env, (25, 1), "node")
+        create("table", "//tmp/t1")
+        create("table", "//tmp/t_out0")
+        create("table", "//tmp/t_out1")
+        create("table", "//tmp/t_out2")
+
+        maybe_input_query = {}
+        if mode == "query":
+            maybe_input_query = {
+                "input_query": "key * 2, value"
+            }
+            alter_table(
+                "//tmp/t1",
+                schema=[
+                    {"name": "key", "type": "int64", "sort_order": "ascending"},
+                    {"name": "value", "type": "string"},
+                ]
+            )
+
+        write_table("//tmp/t1", [{"key": i, "value": "val_{i}"} for i in range(10)])
+        op = map(
+            in_=["//tmp/t1"],
+            out=["//tmp/t_out0", "//tmp/t_out1", "//tmp/t_out2"],
+            # For non-native bash speakers:
+            # this command sleeps 1 sec, writes to descriptor 4,
+            # sleeps 1 more sec and writes to stdout (aka descriptor 1).
+            command="sleep 1 && tee /proc/self/fd/4 | (sleep 1 && cat)",
+            spec={
+                **maybe_input_query
+            }
+        )
+        op.track()
+
+        statistics = get(op.get_path() + "/@progress/job_statistics_v2")
+
+        first_read = extract_statistic_v2(statistics, "latency.input.time_to_first_read_batch")
+        first_written = extract_statistic_v2(statistics, "latency.input.time_to_first_written_batch")
+
+        first_read_from_job_0 = extract_statistic_v2(statistics, "latency.output.0.time_to_first_read_batch")
+        first_read_from_job_1 = extract_statistic_v2(statistics, "latency.output.1.time_to_first_read_batch")
+        first_read_from_job_2 = extract_statistic_v2(statistics, "latency.output.2.time_to_first_read_batch")
+
+        first_read_from_job_total = extract_statistic_v2(statistics, "latency.output.total.min_time_to_first_read_batch")
+
+        assert 0 < first_read <= first_written
+        assert first_written <= first_read_from_job_0
+        assert first_written <= first_read_from_job_1
+        # No writes to third table.
+        assert first_read_from_job_2 is None
+
+        assert first_read_from_job_total == min(first_read_from_job_0, first_read_from_job_1)
+
+        assert first_read_from_job_0 >= 2000
+        assert first_read_from_job_1 >= 1000
+
+        chunk_reader_spent_time = sum([
+            extract_statistic_v2(statistics, "chunk_reader_statistics.read_time"),
+            extract_statistic_v2(statistics, "chunk_reader_statistics.wait_time"),
+            extract_statistic_v2(statistics, "chunk_reader_statistics.idle_time"),
+        ])
+
+        assert first_read <= first_written <= chunk_reader_spent_time
 
 
 ##################################################################

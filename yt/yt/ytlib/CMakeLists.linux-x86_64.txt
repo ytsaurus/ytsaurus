@@ -440,6 +440,8 @@ target_sources(yt-yt-ytlib PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/job_proxy/helpers.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/job_proxy/job_spec_helper.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/job_proxy/private.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/job_proxy/profiling_reader.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/job_proxy/profiling_writer.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/job_proxy/user_job_io_factory.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/job_proxy/user_job_read_controller.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/journal_client/chunk_reader.cpp

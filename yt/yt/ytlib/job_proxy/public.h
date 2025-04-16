@@ -11,6 +11,10 @@ DECLARE_REFCOUNTED_STRUCT(IUserJobWriterFactory)
 DECLARE_REFCOUNTED_STRUCT(IUserJobReadController)
 DECLARE_REFCOUNTED_CLASS(TJobTestingOptions)
 
+DECLARE_REFCOUNTED_CLASS(IProfilingMultiChunkReader);
+DECLARE_REFCOUNTED_CLASS(IProfilingMultiChunkWriter);
+DECLARE_REFCOUNTED_CLASS(IProfilingSchemalessFormatWriter);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NJobProxy

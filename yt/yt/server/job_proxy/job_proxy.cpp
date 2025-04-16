@@ -1158,6 +1158,30 @@ TStatistics TJobProxy::GetEnrichedStatistics() const
                 dumpPipeStatistics("/user_job/pipes/output"_SP / TStatisticPathLiteral(ToString(index)), pipeStatistics->OutputPipeStatistics[index]);
             }
         }
+
+        if (auto time = extendedStatistics.LatencyStatistics.InputTimeToFirstReadBatch) {
+            statistics.AddSample("/latency/input/time_to_first_read_batch"_SP, *time);
+        }
+        if (auto time = extendedStatistics.LatencyStatistics.InputTimeToFirstWrittenBatch) {
+            statistics.AddSample("/latency/input/time_to_first_written_batch"_SP, *time);
+        }
+
+        TDuration minOutputTimeToFirstBatch = TDuration::Max();
+        for (const auto& [index, time] : Enumerate(extendedStatistics.LatencyStatistics.OutputTimeToFirstReadBatch)) {
+            if (!time) {
+                continue;
+            }
+            minOutputTimeToFirstBatch = std::min(minOutputTimeToFirstBatch, *time);
+            statistics.AddSample(
+                "/latency/output"_SP / TStatisticPathLiteral(ToString(index)) / "time_to_first_read_batch"_L,
+                *time);
+        }
+
+        if (minOutputTimeToFirstBatch != TDuration::Max()) {
+            statistics.AddSample(
+                "/latency/output/total/min_time_to_first_read_batch"_SP,
+                minOutputTimeToFirstBatch);
+        }
     }
 
     if (auto environment = FindJobProxyEnvironment()) {

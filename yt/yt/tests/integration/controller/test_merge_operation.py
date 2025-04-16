@@ -1,7 +1,7 @@
 from yt_env_setup import YTEnvSetup, parametrize_external
 
 from yt_commands import (
-    authors, remount_table, wait, create, ls, get, set, copy,
+    authors, extract_statistic_v2, remount_table, wait, create, ls, get, set, copy,
     remove, exists, sorted_dicts,
     start_transaction, abort_transaction, insert_rows, trim_rows, read_table, write_table, merge, sort, interrupt_job,
     sync_create_cells, sync_mount_table, sync_unmount_table, sync_freeze_table, sync_unfreeze_table, sync_flush_table,
@@ -2934,6 +2934,46 @@ class TestSchedulerMergeCommands(YTEnvSetup):
             return row
 
         assert read_table("//tmp/t_static") == [drop_value2(row) for row in dynamic_table_rows]
+
+    @authors("coteeq")
+    @pytest.mark.parametrize("mode", ["query", "passthrough"])
+    def test_latency_statistics(self, mode):
+        skip_if_component_old(self.Env, (25, 1), "controller-agent")
+        skip_if_component_old(self.Env, (25, 1), "node")
+        create("table", "//tmp/t1")
+        create("table", "//tmp/t_out")
+
+        maybe_input_query = {}
+        if mode == "query":
+            maybe_input_query = {
+                "input_query": "key * 2, value"
+            }
+            alter_table(
+                "//tmp/t1",
+                schema=[
+                    {"name": "key", "type": "int64", "sort_order": "ascending"},
+                    {"name": "value", "type": "string"},
+                ]
+            )
+
+        write_table("//tmp/t1", [{"key": i, "value": "val_{i}"} for i in range(10)])
+        op = merge(
+            mode="unordered",
+            in_=["//tmp/t1"],
+            out="//tmp/t_out",
+            spec={
+                "force_transform": True,
+                **maybe_input_query
+            }
+        )
+        op.track()
+
+        statistics = get(op.get_path() + "/@progress/job_statistics_v2")
+
+        first_read = extract_statistic_v2(statistics, "latency.input.time_to_first_read_batch", job_type="unordered_merge")
+        first_written = extract_statistic_v2(statistics, "latency.output.0.time_to_first_read_batch", job_type="unordered_merge")
+
+        assert 0 < first_read <= first_written
 
 
 ##################################################################
