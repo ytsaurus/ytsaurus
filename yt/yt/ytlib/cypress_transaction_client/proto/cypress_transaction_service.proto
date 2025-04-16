@@ -32,6 +32,7 @@ message TReqCommitTransaction
 {
     required NYT.NProto.TGuid transaction_id = 1;
     repeated NYT.NProto.TGuid prerequisite_transaction_ids = 2;
+    optional bool dynamic_tables_locked = 3 [default = false];
 }
 
 message TRspCommitTransaction

@@ -25,6 +25,9 @@ using TRspReplicateTransactions = NTransactionClient::NProto::TRspReplicateTrans
 using TReqIssueLeases = NTransactionClient::NProto::TReqIssueLeases;
 using TRspIssueLeases = NTransactionClient::NProto::TRspIssueLeases;
 
+using TReqRegisterLockableDynamicTables = NTransactionClient::NProto::TReqRegisterLockableDynamicTables;
+using TRspRegisterLockableDynamicTables = NTransactionClient::NProto::TRspRegisterLockableDynamicTables;
+
 } // namespace NProto
 
 ////////////////////////////////////////////////////////////////////////////////

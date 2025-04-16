@@ -77,10 +77,12 @@
 #include <yt/yt/ytlib/file_client/file_ypath_proxy.h>
 
 #include <yt/yt/ytlib/tablet_client/backup.h>
+#include <yt/yt/ytlib/tablet_client/bulk_insert_locking.h>
 #include <yt/yt/ytlib/tablet_client/helpers.h>
 
 #include <yt/yt/ytlib/transaction_client/action.h>
 #include <yt/yt/ytlib/transaction_client/helpers.h>
+#include <yt/yt/ytlib/transaction_client/transaction_service_proxy.h>
 
 #include <yt/yt/ytlib/api/native/client.h>
 #include <yt/yt/ytlib/api/native/config.h>
@@ -2514,7 +2516,27 @@ void TOperationControllerBase::SafeCommit()
     CustomCommit();
     CommitFeatures();
 
-    LockOutputDynamicTables();
+    if (Config->RegisterLockableDynamicTables) {
+        THashMap<TCellTag, std::vector<TTableId>> lockableOutputDynamicTables;
+        ForEachLockableDynamicTable([&lockableOutputDynamicTables] (const TOutputTablePtr& table) {
+            lockableOutputDynamicTables[table->ExternalCellTag].push_back(table->ObjectId);
+        });
+        RegisterLockableDynamicTables(lockableOutputDynamicTables);
+    } else {
+        THashMap<TCellTag, std::vector<TLockableDynamicTable>> lockableOutputDynamicTables;
+        ForEachLockableDynamicTable([&lockableOutputDynamicTables] (const TOutputTablePtr& table) {
+            lockableOutputDynamicTables[table->ExternalCellTag].push_back(TLockableDynamicTable{
+                .TableId = table->ObjectId,
+                .ExternalTransactionId = table->ExternalTransactionId,
+            });
+        });
+        LockDynamicTables(
+            std::move(lockableOutputDynamicTables),
+            OutputClient->GetNativeConnection(),
+            Config->BulkInsertLockChecker,
+            Logger);
+    }
+
     CommitOutputCompletionTransaction();
     CommitDebugCompletionTransaction();
     SleepInCommitStage(EDelayInsideOperationCommitStage::Stage6);
@@ -2525,162 +2547,28 @@ void TOperationControllerBase::SafeCommit()
     YT_LOG_INFO("Results committed");
 }
 
-void TOperationControllerBase::LockOutputDynamicTables()
+void TOperationControllerBase::RegisterLockableDynamicTables(
+    const THashMap<TCellTag, std::vector<TTableId>>& lockableOutputDynamicTables)
 {
-    if (auto explicitOption = Spec_->LockOutputDynamicTables) {
-        if (!*explicitOption) {
-            YT_LOG_DEBUG("Will not lock output dynamic tables since locking is disabled in spec");
-            return;
-        }
-    } else {
-        if (Spec_->Atomicity == EAtomicity::None && !Config->LockNonAtomicOutputDynamicTables) {
-            YT_LOG_DEBUG("Will not lock output tables with atomicity %Qlv", EAtomicity::None);
-            return;
-        }
-    }
+    YT_VERIFY(Config->RegisterLockableDynamicTables);
 
-    if (OperationType == EOperationType::RemoteCopy) {
+    if (lockableOutputDynamicTables.empty() || !OutputTransaction) {
         return;
     }
 
-    THashMap<TCellTag, std::vector<TOutputTablePtr>> externalCellTagToTables;
-    for (const auto& table : UpdatingTables_) {
-        if (table->Dynamic && !table->Path.GetOutputTimestamp()) {
-            externalCellTagToTables[table->ExternalCellTag].push_back(table);
-        }
-    }
+    auto transactionCoordinatorCellTag = CellTagFromId(OutputTransaction->GetId());
+    auto channel = OutputClient->GetMasterChannelOrThrow(
+        EMasterChannelKind::Leader,
+        transactionCoordinatorCellTag);
+    TTransactionServiceProxy proxy(channel);
 
-    if (externalCellTagToTables.empty()) {
-        return;
-    }
+    auto req = proxy.RegisterLockableDynamicTables();
 
-    YT_LOG_INFO("Locking output dynamic tables");
+    ToProto(req->mutable_transaction_id(), OutputTransaction->GetId());
+    ToProto(req->mutable_lockable_dynamic_tables(), lockableOutputDynamicTables);
 
-    const auto& timestampProvider = OutputClient->GetNativeConnection()->GetTimestampProvider();
-    auto currentTimestampOrError = WaitFor(timestampProvider->GenerateTimestamps());
-    THROW_ERROR_EXCEPTION_IF_FAILED(currentTimestampOrError, "Error generating timestamp to lock output dynamic tables");
-    auto currentTimestamp = currentTimestampOrError.Value();
-
-    std::vector<TFuture<TObjectServiceProxy::TRspExecuteBatchPtr>> asyncResults;
-    std::vector<TCellTag> externalCellTags;
-    for (const auto& [externalCellTag, tables] : externalCellTagToTables) {
-        auto proxy = CreateObjectServiceWriteProxy(OutputClient, externalCellTag);
-        auto batchReq = proxy.ExecuteBatch();
-
-        for (const auto& table : tables) {
-            auto req = TTableYPathProxy::LockDynamicTable(table->GetObjectIdPath());
-            req->set_timestamp(currentTimestamp);
-            AddCellTagToSyncWith(req, table->ObjectId);
-            SetTransactionId(req, table->ExternalTransactionId);
-            GenerateMutationId(req);
-            batchReq->AddRequest(req);
-        }
-
-        asyncResults.push_back(batchReq->Invoke());
-        externalCellTags.push_back(externalCellTag);
-    }
-
-    auto combinedResultOrError = WaitFor(AllSet(asyncResults));
-    THROW_ERROR_EXCEPTION_IF_FAILED(combinedResultOrError, "Error locking output dynamic tables");
-    auto& combinedResult = combinedResultOrError.Value();
-
-    for (const auto& batchRspOrError : combinedResult) {
-        THROW_ERROR_EXCEPTION_IF_FAILED(GetCumulativeError(batchRspOrError), "Error locking output dynamic tables");
-    }
-
-    YT_LOG_INFO("Waiting for dynamic tables lock to complete");
-
-    std::vector<TError> innerErrors;
-    auto sleepDuration = Config->DynamicTableLockCheckingIntervalDurationMin;
-    for (int attempt = 0; attempt < Config->DynamicTableLockCheckingAttemptCountLimit; ++attempt) {
-        asyncResults.clear();
-        externalCellTags.clear();
-        innerErrors.clear();
-
-        for (const auto& [externalCellTag, tables] : externalCellTagToTables) {
-            auto proxy = CreateObjectServiceReadProxy(
-                OutputClient,
-                EMasterChannelKind::Follower,
-                externalCellTag);
-            auto batchReq = proxy.ExecuteBatch();
-
-            for (const auto& table : tables) {
-                auto objectIdPath = FromObjectId(table->ObjectId);
-                auto req = TTableYPathProxy::CheckDynamicTableLock(objectIdPath);
-                AddCellTagToSyncWith(req, table->ObjectId);
-                SetTransactionId(req, table->ExternalTransactionId);
-                batchReq->AddRequest(req);
-            }
-
-            asyncResults.push_back(batchReq->Invoke());
-            externalCellTags.push_back(externalCellTag);
-        }
-
-        auto combinedResultOrError = WaitFor(AllSet(asyncResults));
-        if (!combinedResultOrError.IsOK()) {
-            innerErrors.push_back(combinedResultOrError);
-            continue;
-        }
-        auto& combinedResult = combinedResultOrError.Value();
-
-        for (size_t cellIndex = 0; cellIndex < externalCellTags.size(); ++cellIndex) {
-            auto& batchRspOrError = combinedResult[cellIndex];
-            auto cumulativeError = GetCumulativeError(batchRspOrError);
-            if (!cumulativeError.IsOK()) {
-                if (cumulativeError.FindMatching(NTransactionClient::EErrorCode::NoSuchTransaction)) {
-                    cumulativeError.ThrowOnError();
-                }
-                innerErrors.push_back(cumulativeError);
-                YT_LOG_DEBUG(cumulativeError, "Error while checking dynamic table lock");
-                continue;
-            }
-
-            const auto& batchRsp = batchRspOrError.Value();
-            auto checkLockRspsOrError = batchRsp->GetResponses<TTableYPathProxy::TRspCheckDynamicTableLock>();
-
-            auto& tables = externalCellTagToTables[externalCellTags[cellIndex]];
-            std::vector<TOutputTablePtr> pendingTables;
-
-            for (size_t index = 0; index < tables.size(); ++index) {
-                const auto& rspOrError = checkLockRspsOrError[index];
-                const auto& table = tables[index];
-
-                if (!rspOrError.IsOK()) {
-                    if (rspOrError.FindMatching(NTransactionClient::EErrorCode::NoSuchTransaction)) {
-                        rspOrError.ThrowOnError();
-                    }
-                    innerErrors.push_back(rspOrError);
-                    YT_LOG_DEBUG(rspOrError, "Error while checking dynamic table lock");
-                }
-
-                if (!rspOrError.IsOK() || !rspOrError.Value()->confirmed()) {
-                    pendingTables.push_back(table);
-                }
-            }
-
-            tables = std::move(pendingTables);
-            if (tables.empty()) {
-                externalCellTagToTables.erase(externalCellTags[cellIndex]);
-            }
-        }
-
-        if (externalCellTagToTables.empty()) {
-            break;
-        }
-
-        TDelayedExecutor::WaitForDuration(sleepDuration);
-
-        sleepDuration = std::min(
-            sleepDuration * Config->DynamicTableLockCheckingIntervalScale,
-            Config->DynamicTableLockCheckingIntervalDurationMax);
-    }
-
-    if (!innerErrors.empty()) {
-        THROW_ERROR_EXCEPTION("Could not lock output dynamic tables")
-            << std::move(innerErrors);
-    }
-
-    YT_LOG_INFO("Dynamic tables locking completed");
+    WaitFor(req->Invoke())
+        .ThrowOnError();
 }
 
 void TOperationControllerBase::CommitTransactions()
@@ -6469,6 +6357,32 @@ void TOperationControllerBase::ValidateUpdatingTablesTypes() const
 EObjectType TOperationControllerBase::GetOutputTableDesiredType() const
 {
     return EObjectType::Table;
+}
+
+void TOperationControllerBase::ForEachLockableDynamicTable(std::function<void(const TOutputTablePtr&)> handler)
+{
+    if (auto explicitOption = Spec_->LockOutputDynamicTables) {
+        if (!*explicitOption) {
+            YT_LOG_DEBUG("Will not lock output dynamic tables since locking is disabled in spec");
+            return;
+        }
+    } else {
+        if (Spec_->Atomicity == EAtomicity::None && !Config->LockNonAtomicOutputDynamicTables) {
+            YT_LOG_DEBUG("Will not lock output tables with atomicity %Qlv", EAtomicity::None);
+            return;
+        }
+    }
+
+    if (OperationType == EOperationType::RemoteCopy) {
+        YT_LOG_DEBUG("Will not lock output tables since operation is remote copy");
+        return;
+    }
+
+    for (const auto& table : UpdatingTables_) {
+        if (table->Dynamic && !table->Path.GetOutputTimestamp()) {
+            handler(table);
+        }
+    }
 }
 
 void TOperationControllerBase::ValidateOutputDynamicTablesAllowed() const

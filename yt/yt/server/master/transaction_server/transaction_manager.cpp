@@ -68,6 +68,8 @@
 #include <yt/yt/ytlib/sequoia_client/helpers.h>
 #include <yt/yt/ytlib/sequoia_client/transaction.h>
 
+#include <yt/yt/ytlib/tablet_client/bulk_insert_locking.h>
+
 #include <yt/yt/client/hive/timestamp_map.h>
 
 #include <yt/yt/client/object_client/helpers.h>
@@ -117,6 +119,7 @@ using namespace NYson;
 using namespace NConcurrency;
 using namespace NCypressServer;
 using namespace NTableClient;
+using namespace NTabletClient;
 using namespace NTransactionClient;
 using namespace NTransactionClient::NProto;
 using namespace NSecurityServer;
@@ -180,6 +183,7 @@ public:
         TCompositeAutomatonPart::RegisterMethod(BIND_NO_PROPAGATE(&TTransactionManager::HydraRemoveStuckBoomerangWaves, Unretained(this)));
         TCompositeAutomatonPart::RegisterMethod(BIND_NO_PROPAGATE(&TTransactionManager::HydraIssueLeases, Unretained(this)));
         TCompositeAutomatonPart::RegisterMethod(BIND_NO_PROPAGATE(&TTransactionManager::HydraRevokeLeases, Unretained(this)));
+        TCompositeAutomatonPart::RegisterMethod(BIND_NO_PROPAGATE(&TTransactionManager::HydraRegisterLockableDynamicTables, Unretained(this)));
 
         RegisterLoader(
             "TransactionManager.Keys",
@@ -651,6 +655,36 @@ public:
         CommitTransaction(transaction, options);
     }
 
+    bool ProcessBulkInsertStateOnTransactionCommit(
+        TTransaction* transaction,
+        TTimestamp commitTimestamp)
+    {
+        auto& bulkInsertState = transaction->BulkInsertState();
+        bulkInsertState.OnTransactionCommitted(TimestampHolderMap_.contains(transaction->GetId()));
+
+        // The timestamp from the holder is used by two parties:
+        //  - chunk view sets override timestamp when fetched;
+        //  - tablet manager sends this timestamp to the node when the tablet is unlocked.
+        // If all outputs are empty, there are no chunk views so we have to ref the
+        // holder so tablet manager has access to the timestamp.
+        // There is a corner case when all outputs are empty and no table is locked
+        // (the user may ignore atomicity and explicitly ask not to lock his tables,
+        // mostly non-atomic ones). However, in this case the tablet may be safely
+        // unlocked with null timestamp.
+        bool temporarilyRefTimestampHolder = false;
+        if (!bulkInsertState.LockedDynamicTables().empty()) {
+            temporarilyRefTimestampHolder = true;
+            CreateOrRefTimestampHolder(transaction->GetId());
+        }
+
+        SetTimestampHolderTimestamp(transaction->GetId(), commitTimestamp);
+        for (auto transactionId : bulkInsertState.DescendantTransactionsPresentedInTimestampHolder()) {
+            SetTimestampHolderTimestamp(transactionId, commitTimestamp);
+        }
+
+        return temporarilyRefTimestampHolder;
+    }
+
     void CommitTransaction(
         TTransaction* transaction,
         const TTransactionCommitOptions& options)
@@ -680,22 +714,7 @@ public:
         // This is ensured by PrepareTransactionCommit in the same mutation.
         YT_VERIFY(transaction->GetSuccessorTransactionLeaseCount() == 0);
 
-        // The timestamp from the holder is used by two parties:
-        //  - chunk view sets override timestamp when fetched;
-        //  - tablet manager sends this timestamp to the node when the tablet is unlocked.
-        // If all outputs are empty, there are no chunk views so we have to ref the
-        // holder so tablet manager has access to the timestamp.
-        // There is a corner case when all outputs are empty and no table is locked
-        // (the user may ignore atomicity and explicitly ask not to lock his tables,
-        // mostly non-atomic ones). However, in this case the tablet may be safely
-        // unlocked with null timestamp.
-        bool temporaryRefTimestampHolder = false;
-        if (!transaction->LockedDynamicTables().empty()) {
-            temporaryRefTimestampHolder = true;
-            CreateOrRefTimestampHolder(transactionId);
-        }
-
-        SetTimestampHolderTimestamp(transactionId, options.CommitTimestamp);
+        bool temporarilyRefTimestampHolder = ProcessBulkInsertStateOnTransactionCommit(transaction, options.CommitTimestamp);
 
         // On every transaction finish:
         //   1. nested transactions are aborted (and their aborts are
@@ -783,7 +802,7 @@ public:
 
         TransactionCommitted_.Fire(transaction);
 
-        if (temporaryRefTimestampHolder) {
+        if (temporarilyRefTimestampHolder) {
             UnrefTimestampHolder(transactionId);
         }
 
@@ -927,6 +946,8 @@ public:
         if (IsLeader()) {
             CloseLease(transaction);
         }
+
+        transaction->BulkInsertState().OnTransactionAborted();
 
         transaction->SetPersistentState(ETransactionState::Aborted);
 
@@ -1351,6 +1372,16 @@ public:
             this);
     }
 
+    std::unique_ptr<NHydra::TMutation> CreateRegisterLockableDynamicTablesMutation(
+        TCtxRegisterLockableDynamicTablesPtr context) override
+    {
+        return CreateMutation(
+            Bootstrap_->GetHydraFacade()->GetHydraManager(),
+            std::move(context),
+            &TTransactionManager::HydraRegisterLockableDynamicTables,
+            this);
+    }
+
     // ITransactionManager implementation.
     TFuture<void> GetReadyToPrepareTransactionCommit(
         const std::vector<TTransactionId>& prerequisiteTransactionIds,
@@ -1655,6 +1686,21 @@ public:
         YT_UNUSED_FUTURE(mutation->CommitAndReply(context));
     }
 
+    void ThrowIfDynamicTablesNotLocked(TTransaction* transaction, bool dynamicTablesLocked)
+    {
+        const auto& bulkInsertState = transaction->BulkInsertState();
+
+        if (!transaction->GetParent() &&
+            !bulkInsertState.LockableDynamicTables().empty() &&
+            !dynamicTablesLocked)
+        {
+            THROW_ERROR_EXCEPTION(NTransactionClient::EErrorCode::NeedLockDynamicTablesBeforeCommit,
+                "Lock dynamic tables before commit and pass \"dynamic_tables_locked\" flag")
+                << TErrorAttribute("transaction_id", transaction->GetId())
+                << TErrorAttribute("lockable_dynamic_tables", ConvertToYsonString(bulkInsertState.LockableDynamicTables(), EYsonFormat::Text));
+        }
+    }
+
     void CommitCypressTransaction(const TCtxCommitCypressTransactionPtr& context) override
     {
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
@@ -1666,6 +1712,8 @@ public:
         auto* transaction = GetTransactionOrThrow(transactionId);
 
         YT_VERIFY(transaction->GetIsCypressTransaction());
+
+        ThrowIfDynamicTablesNotLocked(transaction, request.dynamic_tables_locked());
 
         // TODO(kvk1920): optimize.
         // For mirrored transactions it's enough to lock some rows in
@@ -1737,13 +1785,15 @@ public:
         }
 
         auto participantCellIds = FromProto<std::vector<TCellId>>(request.participant_cell_ids());
-        auto force2PC = request.force_2pc();
-        if (request.force_2pc() || !participantCellIds.empty()) {
+        bool force2PC = request.force_2pc();
+        if (force2PC || !participantCellIds.empty()) {
             THROW_ERROR_EXCEPTION("Cypress transactions cannot be committed via 2PC")
                 << TErrorAttribute("transaction_id", transactionId)
                 << TErrorAttribute("force_2pc", force2PC)
                 << TErrorAttribute("participant_cell_ids", participantCellIds);
         }
+
+        ThrowIfDynamicTablesNotLocked(transaction, request.dynamic_tables_locked());
 
         std::vector<TTransactionId> prerequisiteTransactionIds;
         if (context->GetRequestHeader().HasExtension(NObjectClient::NProto::TPrerequisitesExt::prerequisites_ext)) {
@@ -2745,6 +2795,33 @@ private:
                 hiveManager->PostMessage(mailbox, message);
             }
         }
+    }
+
+    void HydraRegisterLockableDynamicTables(
+        const TCtxRegisterLockableDynamicTablesPtr& /*context*/,
+        NProto::TReqRegisterLockableDynamicTables* request,
+        NProto::TRspRegisterLockableDynamicTables* /*response*/)
+    {
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
+
+        auto transactionId = FromProto<TTransactionId>(request->transaction_id());
+        auto lockableDynamicTablesToAdd = FromProto<std::vector<std::pair<TCellTag, std::vector<TTableId>>>>(request->lockable_dynamic_tables());
+
+        auto* transaction = GetTransactionOrThrow(transactionId);
+        auto& bulkInsertState = transaction->BulkInsertState();
+
+        for (const auto& [externalCellTag, tableIds]: lockableDynamicTablesToAdd) {
+            for (auto tableId : tableIds) {
+                if (bulkInsertState.HasConflict(tableId)) {
+                    THROW_ERROR_EXCEPTION("Duplicate lockable dynamic table")
+                        << TErrorAttribute("transaction_id", transactionId)
+                        << TErrorAttribute("topmost_transaction_id", transaction->GetTopmostTransaction()->GetId())
+                        << TErrorAttribute("table_id", tableId);
+                }
+            }
+        }
+
+        bulkInsertState.AddLockableDynamicTables(std::move(lockableDynamicTablesToAdd));
     }
 
     void HydraRevokeLeases(NProto::TReqRevokeLeases* request)

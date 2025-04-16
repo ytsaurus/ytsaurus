@@ -1169,14 +1169,30 @@ void TControllerAgentConfig::Register(TRegistrar registrar)
     registrar.Parameter("custom_job_metrics", &TThis::CustomJobMetrics)
         .Default();
 
-    registrar.Parameter("dynamic_table_lock_checking_attempt_count_limit", &TThis::DynamicTableLockCheckingAttemptCountLimit)
-        .Default(10);
-    registrar.Parameter("dynamic_table_lock_checking_interval_scale", &TThis::DynamicTableLockCheckingIntervalScale)
-        .Default(1.5);
-    registrar.Parameter("dynamic_table_lock_checking_interval_duration_min", &TThis::DynamicTableLockCheckingIntervalDurationMin)
-        .Default(TDuration::Seconds(1));
-    registrar.Parameter("dynamic_table_lock_checking_interval_duration_max", &TThis::DynamicTableLockCheckingIntervalDurationMax)
-        .Default(TDuration::Seconds(30));
+    registrar.ParameterWithUniversalAccessor<int>(
+        "dynamic_table_lock_checking_attempt_count_limit",
+        [] (TThis* config) -> auto& {
+            return config->BulkInsertLockChecker.InvocationCount;
+        })
+        .Optional();
+    registrar.ParameterWithUniversalAccessor<double>(
+        "dynamic_table_lock_checking_interval_scale",
+        [] (TThis* config) -> auto& {
+            return config->BulkInsertLockChecker.BackoffMultiplier;
+        })
+        .Optional();
+    registrar.ParameterWithUniversalAccessor<TDuration>(
+        "dynamic_table_lock_checking_interval_duration_min",
+        [] (TThis* config) -> auto& {
+            return config->BulkInsertLockChecker.MinBackoff;
+        })
+        .Optional();
+    registrar.ParameterWithUniversalAccessor<TDuration>(
+        "dynamic_table_lock_checking_interval_duration_max",
+        [] (TThis* config) -> auto& {
+            return config->BulkInsertLockChecker.MaxBackoff;
+        })
+        .Optional();
 
     registrar.Parameter("desired_block_size", &TThis::DesiredBlockSize)
         .Default(2_MB);
@@ -1322,6 +1338,9 @@ void TControllerAgentConfig::Register(TRegistrar registrar)
         .Default()
         .GreaterThan(0);
 
+    registrar.Parameter("register_lockable_dynamic_tables", &TThis::RegisterLockableDynamicTables)
+        .Default(false);
+
     registrar.Preprocessor([&] (TControllerAgentConfig* config) {
         config->ChunkLocationThrottler->Limit = 10'000;
 
@@ -1337,6 +1356,13 @@ void TControllerAgentConfig::Register(TRegistrar registrar)
 
         config->OperationOptions->AsMap()->AddChild("controller_building_job_spec_count_limit", NYTree::ConvertToNode(100));
         config->OperationOptions->AsMap()->AddChild("controller_total_building_job_spec_slice_count_limit", NYTree::ConvertToNode(200'000));
+
+        config->BulkInsertLockChecker = {
+            .InvocationCount = 10,
+            .MinBackoff = TDuration::Seconds(1),
+            .MaxBackoff = TDuration::Seconds(30),
+            .BackoffMultiplier = 1.5,
+        };
     });
 
     registrar.Postprocessor([&] (TControllerAgentConfig* config) {

@@ -2324,7 +2324,7 @@ private:
             commit->GetTransactionId());
 
         auto responseMessage = CreateErrorResponseMessage(error);
-        SetCommitResponse(commit, responseMessage, /*remember*/ false);
+        SetCommitResponse(commit, std::move(responseMessage), /*remember*/ false);
     }
 
     void SetCommitSucceeded(TCommit* commit)

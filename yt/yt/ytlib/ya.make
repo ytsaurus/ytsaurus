@@ -501,6 +501,7 @@ SRCS(
 
     tablet_client/backup.cpp
     tablet_client/config.cpp
+    tablet_client/bulk_insert_locking.cpp
     tablet_client/helpers.cpp
     tablet_client/native_table_mount_cache.cpp
     tablet_client/pivot_keys_builder.cpp
@@ -508,6 +509,7 @@ SRCS(
     tablet_client/public.cpp
 
     tablet_client/proto/backup.proto
+    tablet_client/proto/bulk_insert_locking.proto
     tablet_client/proto/heartbeat.proto
     tablet_client/proto/master_tablet_service.proto
     tablet_client/proto/table_replica_ypath.proto

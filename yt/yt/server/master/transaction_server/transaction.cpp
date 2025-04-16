@@ -20,10 +20,12 @@ namespace NYT::NTransactionServer {
 
 using namespace NCellMaster;
 using namespace NChunkClient;
+using namespace NCypressServer;
 using namespace NHydra;
 using namespace NObjectClient;
 using namespace NObjectServer;
 using namespace NSecurityServer;
+using namespace NTableClient;
 using namespace NYson;
 using namespace NYTree;
 
@@ -59,18 +61,18 @@ TBranchedNodeSet::TIterator TBranchedNodeSet::end() const noexcept
     return Nodes_.end();
 }
 
-NCypressServer::TCypressNode* TBranchedNodeSet::GetAnyNode()
+TCypressNode* TBranchedNodeSet::GetAnyNode()
 {
     return Nodes_.back();
 }
 
-void TBranchedNodeSet::InsertOrCrash(NCypressServer::TCypressNode* node)
+void TBranchedNodeSet::InsertOrCrash(TCypressNode* node)
 {
     NYT::EmplaceOrCrash(NodeToIndex_, node, Nodes_.size());
     Nodes_.push_back(node);
 }
 
-void TBranchedNodeSet::EraseOrCrash(NCypressServer::TCypressNode* node)
+void TBranchedNodeSet::EraseOrCrash(TCypressNode* node)
 {
     auto it = NodeToIndex_.find(node);
     YT_VERIFY(it != NodeToIndex_.end());
@@ -96,6 +98,110 @@ void TBranchedNodeSet::Persist(const NCellMaster::TPersistenceContext& context)
         NodeToIndex_.reserve(Nodes_.size());
         for (int index = 0; index < std::ssize(Nodes_); ++index) {
             EmplaceOrCrash(NodeToIndex_, Nodes_[index], index);
+        }
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TBulkInsertState::TBulkInsertState(TTransaction* transaction)
+    : Transaction_(transaction)
+{
+    YT_VERIFY(Transaction_);
+}
+
+void TBulkInsertState::OnTransactionCommitted(bool isTimestampPresentInHolder)
+{
+    YT_VERIFY(Transaction_);
+    FindTopmostTransaction();
+
+    if (auto parentTransaction = Transaction_->GetParent()) {
+        auto& parentBulkInsertState = parentTransaction->BulkInsertState();
+
+        if (isTimestampPresentInHolder) {
+            parentBulkInsertState.DescendantTransactionsPresentedInTimestampHolder_.push_back(Transaction_->GetId());
+        }
+
+        parentBulkInsertState.DescendantTransactionsPresentedInTimestampHolder_.insert(
+            parentBulkInsertState.DescendantTransactionsPresentedInTimestampHolder_.end(),
+            DescendantTransactionsPresentedInTimestampHolder_.begin(),
+            DescendantTransactionsPresentedInTimestampHolder_.end());
+
+        parentBulkInsertState.AddToLockableDynamicTables(std::move(LockableDynamicTables_));
+    }
+}
+
+void TBulkInsertState::OnTransactionAborted()
+{
+    YT_VERIFY(Transaction_);
+    FindTopmostTransaction();
+
+    if (TopmostTransaction_ != Transaction_) {
+        for (const auto& [externalCellTag, tableIds] : LockableDynamicTables_) {
+            for (auto tableId : tableIds) {
+                EraseOrCrash(TopmostTransaction_->BulkInsertState().AllTablesLockedByDescendantTransactions_, tableId);
+            }
+        }
+    }
+}
+
+bool TBulkInsertState::HasConflict(TTableId tableId)
+{
+    YT_VERIFY(Transaction_);
+    FindTopmostTransaction();
+
+    return TopmostTransaction_->BulkInsertState().AllTablesLockedByDescendantTransactions_.contains(tableId);
+}
+
+void TBulkInsertState::AddLockableDynamicTables(
+    std::vector<std::pair<TCellTag, std::vector<TTableId>>>&& lockableDynamicTables)
+{
+    YT_VERIFY(Transaction_);
+    FindTopmostTransaction();
+
+    auto& conflictResolver = TopmostTransaction_->BulkInsertState().AllTablesLockedByDescendantTransactions_;
+    for (const auto& [externalCellTag, tableIds] : lockableDynamicTables) {
+        conflictResolver.insert(tableIds.begin(), tableIds.end());
+    }
+
+    AddToLockableDynamicTables(std::move(lockableDynamicTables));
+}
+
+void TBulkInsertState::Persist(const NCellMaster::TPersistenceContext& context)
+{
+    using NYT::Persist;
+
+    // COMPAT(dave11ar)
+    if (context.GetVersion() < EMasterReign::AddLockableDynamicTables) {
+        Persist(context, LockedDynamicTables_);
+    } else {
+        Persist(context, LockableDynamicTables_);
+        Persist(context, LockedDynamicTables_);
+        Persist(context, AllTablesLockedByDescendantTransactions_);
+        Persist(context, DescendantTransactionsPresentedInTimestampHolder_);
+    }
+}
+
+void TBulkInsertState::FindTopmostTransaction()
+{
+    if (TopmostTransaction_ == nullptr) {
+        TopmostTransaction_ = Transaction_->GetTopmostTransaction();
+    }
+}
+
+template <class TLockableDynamicTables>
+void TBulkInsertState::AddToLockableDynamicTables(TLockableDynamicTables&& lockableDynamicTables)
+{
+    for (auto&& externalCellTagToTableIds : lockableDynamicTables) {
+        const auto& [externalCellTag, tableIds] = externalCellTagToTableIds;
+
+        TCellTagToLockableTables::insert_ctx mapInsertContext;
+        if (auto it = LockableDynamicTables_.find(externalCellTag, mapInsertContext);
+            it == LockableDynamicTables_.end())
+        {
+            LockableDynamicTables_.insert_direct(std::move(externalCellTagToTableIds), mapInsertContext);
+        } else {
+            std::ranges::move(tableIds, std::back_inserter(it->second));
         }
     }
 }
@@ -166,7 +272,7 @@ void TTransaction::Save(NCellMaster::TSaveContext& context) const
     Save(context, PrerequisiteTransactions_);
     Save(context, DependentTransactions_);
     Save(context, Deadline_);
-    Save(context, LockedDynamicTables_);
+    Save(context, BulkInsertState_);
     Save(context, TablesWithBackupCheckpoints_);
     Save(context, Depth_);
     Save(context, Upload_);
@@ -213,7 +319,7 @@ void TTransaction::Load(NCellMaster::TLoadContext& context)
     Load(context, PrerequisiteTransactions_);
     Load(context, DependentTransactions_);
     Load(context, Deadline_);
-    Load(context, LockedDynamicTables_);
+    Load(context, BulkInsertState_);
     Load(context, TablesWithBackupCheckpoints_);
     Load(context, Depth_);
     Load(context, Upload_);
@@ -299,7 +405,7 @@ int TTransaction::GetRecursiveLockCount() const
     return RecursiveLockCount_;
 }
 
-void TTransaction::AttachLock(NCypressServer::TLock* lock, const IObjectManagerPtr& objectManager)
+void TTransaction::AttachLock(TLock* lock, const IObjectManagerPtr& objectManager)
 {
     YT_VERIFY(!IsSequoiaTransaction());
 
@@ -322,7 +428,7 @@ void TTransaction::AttachLock(NCypressServer::TLock* lock, const IObjectManagerP
 }
 
 void TTransaction::DetachLock(
-    NCypressServer::TLock* lock,
+    TLock* lock,
     const IObjectManagerPtr& objectManager,
     bool resetLockTransaction)
 {

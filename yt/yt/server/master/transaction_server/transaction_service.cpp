@@ -14,6 +14,8 @@
 #include <yt/yt/server/lib/hydra/mutation.h>
 #include <yt/yt/server/lib/hydra/persistent_response_keeper.h>
 
+#include <yt/yt/ytlib/tablet_client/bulk_insert_locking.h>
+
 #include <yt/yt/ytlib/transaction_client/transaction_service_proxy.h>
 
 #include <yt/yt/client/object_client/helpers.h>
@@ -25,6 +27,7 @@ using namespace NConcurrency;
 using namespace NHydra;
 using namespace NObjectClient;
 using namespace NRpc;
+using namespace NTableClient;
 using namespace NTransactionClient;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -47,6 +50,8 @@ public:
         RegisterMethod(RPC_SERVICE_METHOD_DESC(ReplicateTransactions)
             .SetHeavy(true));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(IssueLeases)
+            .SetHeavy(true));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(RegisterLockableDynamicTables)
             .SetHeavy(true));
 
         DeclareServerFeature(EMasterFeature::PortalExitSynchronization);
@@ -173,6 +178,23 @@ private:
 
         const auto& transactionManager = Bootstrap_->GetTransactionManager();
         auto mutation = transactionManager->CreateIssueLeasesMutation(context);
+        mutation->SetCurrentTraceContext();
+        YT_UNUSED_FUTURE(mutation->CommitAndReply(context));
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NTransactionClient::NProto, RegisterLockableDynamicTables)
+    {
+        ValidatePeer(EPeerKind::Leader);
+
+        auto transactionId = FromProto<TTransactionId>(request->transaction_id());
+        auto lockableDynamicTables = FromProto<std::vector<std::pair<TCellTag, std::vector<TTableId>>>>(request->lockable_dynamic_tables());
+
+        context->SetRequestInfo("TransactionId: %v, LockableDynamicTables: %v",
+            transactionId,
+            lockableDynamicTables);
+
+        const auto& transactionManager = Bootstrap_->GetTransactionManager();
+        auto mutation = transactionManager->CreateRegisterLockableDynamicTablesMutation(context);
         mutation->SetCurrentTraceContext();
         YT_UNUSED_FUTURE(mutation->CommitAndReply(context));
     }

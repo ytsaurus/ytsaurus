@@ -1,0 +1,13 @@
+package NYT.NTabletClient.NProto;
+
+import "yt_proto/yt/core/misc/proto/guid.proto";
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TExternalCellTagToTableIds
+{
+    required uint32 external_cell_tag = 1;
+    repeated NYT.NProto.TGuid table_ids = 2;
+}
+
+////////////////////////////////////////////////////////////////////////////////

@@ -252,6 +252,7 @@ DEFINE_ENUM(EMasterReign,
     ((FixLastSeenReplicas)                                          (2916))  // kvk1920
     ((FixReplicatedTransactionFinish)                               (2917))  // kvk1920
     ((FixSysOperationCommittedAttribute)                            (2918))  // kvk1920
+    ((AddLockableDynamicTables)                                     (2919))  // dave11ar
 );
 
 static_assert(TEnumTraits<EMasterReign>::IsMonotonic, "Master reign enum is not monotonic");
