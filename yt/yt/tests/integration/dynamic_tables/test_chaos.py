@@ -2223,6 +2223,53 @@ class TestChaos(ChaosTestBase):
         _check("1", 1)
         _check("2", 2)
 
+    @authors("osidorkin")
+    def test_queue_trimming_multiple_cells(self):
+        cell_id = self._sync_create_chaos_bundle_and_cell()
+
+        replicas = [
+            {"cluster_name": "primary", "content_type": "data", "mode": "async", "enabled": True, "replica_path": "//tmp/t"},
+            {"cluster_name": "primary", "content_type": "queue", "mode": "sync", "enabled": True, "replica_path": "//tmp/q0"},
+            {"cluster_name": "primary", "content_type": "queue", "mode": "sync", "enabled": True, "replica_path": "//tmp/q1"},
+            {"cluster_name": "primary", "content_type": "queue", "mode": "sync", "enabled": True, "replica_path": "//tmp/q2"},
+            {"cluster_name": "primary", "content_type": "queue", "mode": "sync", "enabled": True, "replica_path": "//tmp/q3"},
+            {"cluster_name": "primary", "content_type": "queue", "mode": "sync", "enabled": True, "replica_path": "//tmp/q4"},
+            {"cluster_name": "primary", "content_type": "queue", "mode": "sync", "enabled": True, "replica_path": "//tmp/q5"},
+        ]
+
+        primary = self._get_drivers()[0]
+        sync_create_cells(12, driver=primary)
+
+        card_id, replica_ids = self._create_chaos_tables(
+            cell_id,
+            replicas,
+            sync_replication_era=False,
+            mount_tables=False,
+            create_tablet_cells=False
+        )
+
+        queue_shards = [[], [1], [2], [3], [4]]
+        for queue in replicas[1:]:
+            replica_path = queue["replica_path"]
+            reshard_table(replica_path, queue_shards)
+            sync_mount_table(replica_path)
+        sync_mount_table(replicas[0]["replica_path"])
+        self._sync_replication_era(card_id, replicas)
+
+        def _check(row_count: int):
+            rows = [{"key": i, "value": str(row_count)} for i in range(len(queue_shards))]
+            keys = [{"key": i} for i in range(len(queue_shards))]
+            insert_rows("//tmp/q0", rows)
+            wait(lambda: lookup_rows("//tmp/t", keys) == rows)
+            for queue in replicas[1:]:
+                replica_path = queue["replica_path"]
+                wait(lambda: get(replica_path + "/@tablets/0/trimmed_row_count", driver=primary) == row_count)
+                sync_flush_table(replica_path, driver=primary)
+                wait(lambda: len(get(replica_path + "/@chunk_ids", driver=primary)) == 0)
+
+        _check(1)
+        _check(2)
+
     @authors("savrus")
     def test_initially_disabled_replica(self):
         cell_id = self._sync_create_chaos_bundle_and_cell()
