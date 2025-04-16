@@ -747,9 +747,11 @@ TTablet::TTablet(
     TTableReplicaId upstreamReplicaId,
     TTimestamp retainedTimestamp,
     i64 cumulativeDataWeight,
-    ETabletTransactionSerializationType serializationType)
+    ETabletTransactionSerializationType serializationType,
+    TInstant mountTime)
     : TObjectBase(tabletId)
     , MountRevision_(mountRevision)
+    , MountTime_(mountTime)
     , TableId_(tableId)
     , TablePath_(path)
     , SchemaId_(schemaId)
@@ -855,6 +857,7 @@ void TTablet::Save(TSaveContext& context) const
 
     Save(context, TableId_);
     Save(context, MountRevision_);
+    Save(context, MountTime_);
     Save(context, TablePath_);
     Save(context, MasterAvenueEndpointId_);
     Save(context, GetPersistentState());
@@ -932,6 +935,12 @@ void TTablet::Load(TLoadContext& context)
 
     Load(context, TableId_);
     Load(context, MountRevision_);
+
+    // COMPAT(alexelexa)
+    if (context.GetVersion() >= ETabletReign::AddTabletMountTime) {
+        Load(context, MountTime_);
+    }
+
     Load(context, TablePath_);
     Load(context, MasterAvenueEndpointId_);
     Load(context, State_);

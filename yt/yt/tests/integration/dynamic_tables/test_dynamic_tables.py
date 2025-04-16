@@ -3423,6 +3423,35 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
         create("table", "//tmp/t_static")
         set_custom_runtime_data("//tmp/t_static", {"salut": "le monde"})
 
+    @authors("alexelexa")
+    @pytest.mark.parametrize("is_sorted", [True, False])
+    def test_tablet_orchid(self, is_sorted):
+        sync_create_cells(1)
+        if is_sorted:
+            self._create_sorted_table("//tmp/t")
+        else:
+            self._create_ordered_table("//tmp/t")
+        sync_mount_table("//tmp/t")
+
+        tablet_id = get("//tmp/t/@tablets/0/tablet_id")
+
+        mount_revision = get(f"//sys/tablets/{tablet_id}/orchid/mount_revision")
+        mount_time = get(f"//sys/tablets/{tablet_id}/orchid/mount_time")
+
+        assert mount_revision == get("//tmp/t/@tablets/0/mount_revision")
+        assert mount_time >= get("//tmp/t/@tablets/0/mount_time")
+
+        sync_unmount_table("//tmp/t")
+        sync_mount_table("//tmp/t")
+
+        new_mount_revision = get(f"//sys/tablets/{tablet_id}/orchid/mount_revision")
+        new_mount_time = get(f"//sys/tablets/{tablet_id}/orchid/mount_time")
+
+        assert mount_revision < new_mount_revision
+        assert mount_time < new_mount_time
+        assert new_mount_revision == get("//tmp/t/@tablets/0/mount_revision")
+        assert new_mount_time >= get("//tmp/t/@tablets/0/mount_time")
+
 
 ##################################################################
 

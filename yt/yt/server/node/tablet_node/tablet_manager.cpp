@@ -1080,6 +1080,7 @@ private:
                 ? request->replicatable_content().field_name() \
                 : request->field_name ## _deprecated())
 
+        auto* mutationContext = GetCurrentMutationContext();
         auto tabletId = FromProto<TTabletId>(request->tablet_id());
         auto mountRevision = FromProto<NHydra::TRevision>(request->mount_revision());
         auto tableId = FromProto<TObjectId>(request->table_id());
@@ -1107,6 +1108,7 @@ private:
             ? TYsonString(request->replicatable_content().custom_runtime_data())
             : TYsonString();
         auto serializationType = FromProto<ETabletTransactionSerializationType>(request->serialization_type());
+        auto mountTime = mutationContext->GetTimestamp();
 
         rawSettings.DropIrrelevantExperiments(
             {
@@ -1129,7 +1131,7 @@ private:
             CellTagFromId(tabletId),
             // Make first ids look like 1-1-... rather than 0-1-...
             /*counter*/ 1ull << 32,
-            /*seed*/ GetCurrentMutationContext()->RandomGenerator()->Generate<ui64>());
+            /*seed*/ mutationContext->RandomGenerator()->Generate<ui64>());
 
         auto tabletHolder = std::make_unique<TTablet>(
             tabletId,
@@ -1148,7 +1150,8 @@ private:
             upstreamReplicaId,
             retainedTimestamp,
             cumulativeDataWeight,
-            serializationType);
+            serializationType,
+            mountTime);
         tabletHolder->RawSettings() = rawSettings;
 
         tabletHolder->CustomRuntimeData() = std::move(customRuntimeData);
@@ -4389,6 +4392,8 @@ private:
                         .Item("smooth_movement").DoMap(
                             BIND(&TSmoothMovementData::BuildOrchidYson, &tablet->SmoothMovementData()));
                 })
+                .Item("mount_revision").Value(tablet->GetMountRevision())
+                .Item("mount_time").Value(tablet->GetMountTime())
             .EndMap();
     }
 
