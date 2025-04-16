@@ -892,10 +892,6 @@ void TVanillaController::InitUserJobSpec(
     YT_ASSERT_INVOKER_AFFINITY(GetJobSpecBuildInvoker());
 
     TOperationControllerBase::InitUserJobSpec(proto, joblet);
-
-    if (joblet->OperationIncarnation) {
-        proto->add_environment(Format("YT_OPERATION_INCARNATION=%v", *joblet->OperationIncarnation));
-    }
 }
 
 bool TVanillaController::OnJobCompleted(

@@ -1159,7 +1159,7 @@ class TestGpuCheck(YTEnvSetup, GpuCheckBase):
         op = map(
             in_="//tmp/t_in",
             out="//tmp/t_out",
-            command="echo AAA >&2",
+            command='echo "$YT_OPERATION_ID $YT_JOB_ID" >&2',
             spec={
                 "max_failed_job_count": 1,
                 "mapper": {
@@ -1178,7 +1178,7 @@ class TestGpuCheck(YTEnvSetup, GpuCheckBase):
         job_id = job_ids[0]
 
         res = op.read_stderr(job_id)
-        assert res == b"AAA\n"
+        assert res == "{} {}\n".format(op.id, job_id).encode("ascii")
 
         events = get_job(op.id, job_id)["events"]
         phases = [event["phase"] for event in events if "phase" in event]
