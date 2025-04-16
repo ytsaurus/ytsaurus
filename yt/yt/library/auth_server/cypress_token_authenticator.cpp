@@ -22,9 +22,6 @@ using namespace NYson;
 
 static constexpr auto& Logger = AuthLogger;
 
-static const std::string NewUserAuthAttribute = "@user_id";
-static const std::string OldUserAuthAttribute = "@user";
-
 ////////////////////////////////////////////////////////////////////////////////
 
 class TCypressTokenAuthenticator
@@ -47,10 +44,10 @@ public:
             userIP);
 
         // Firstly, try to authenticate the user using the newer @user_id attribute.
-        auto path = Format("%v/%v/",
+        auto path = Format("%v/%v/@user_id",
             Config_->RootPath ? Config_->RootPath : "//sys/cypress_tokens",
             ToYPathLiteral(tokenHash));
-        return Client_->GetNode(path + NewUserAuthAttribute, /*options*/ {})
+        return Client_->GetNode(path, /*options*/ {})
             .Apply(BIND(
                 &TCypressTokenAuthenticator::OnCallLoginResult,
                 MakeStrong(this),
@@ -70,10 +67,10 @@ private:
         if (!rspOrError.IsOK()) {
             if (withUserIdAttribute) {
                 // Fallback to the old token schema using the @user attribute.
-                auto path = Format("%v/%v/",
+                auto path = Format("%v/%v/@user",
                     Config_->RootPath ? Config_->RootPath : "//sys/cypress_tokens",
                     ToYPathLiteral(tokenHash));
-                return Client_->GetNode(path + OldUserAuthAttribute, /*options*/ {})
+                return Client_->GetNode(path, /*options*/ {})
                     .Apply(BIND(
                         &TCypressTokenAuthenticator::OnCallLoginResult,
                         MakeStrong(this),

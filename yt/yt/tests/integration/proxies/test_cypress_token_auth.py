@@ -1,14 +1,13 @@
 from yt_env_setup import YTEnvSetup
 from yt_commands import (
-    authors, create_user, issue_token, revoke_token, wait, get, set, set_user_password, create, print_debug
+    authors, create_user, issue_token, revoke_token, wait, get, set, set_user_password, create
 )
-from yt.common import YtError, YtResponseError
+from yt.common import YtResponseError
 
 import pytest
 
 import requests
 import hashlib
-from time import sleep
 
 
 ##################################################################
