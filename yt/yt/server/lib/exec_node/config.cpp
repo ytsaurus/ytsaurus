@@ -518,6 +518,8 @@ void TShellCommandConfig::Register(TRegistrar registrar)
         .NonEmpty();
     registrar.Parameter("args", &TThis::Args)
         .Default();
+    registrar.Parameter("environment_variables", &TThis::EnvironmentVariables)
+        .Default();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

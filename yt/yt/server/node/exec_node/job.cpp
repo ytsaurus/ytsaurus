@@ -2295,6 +2295,13 @@ void TJob::RunWithWorkspaceBuilder()
 
     TUserSandboxOptions options = BuildUserSandboxOptions();
 
+    THashMap<TString, TString> gpuCheckEnvironment;
+    if (UserJobSpec_) {
+        for (const auto& [key, value] : UserJobSpec_->gpu_check_environment()) {
+            gpuCheckEnvironment.insert(std::make_pair(key, value));
+        }
+    }
+
     TJobWorkspaceBuildingContext context{
         .Logger = Logger,
         .UserSandboxOptions = options,
@@ -2319,6 +2326,11 @@ void TJob::RunWithWorkspaceBuilder()
         .GpuCheckBinaryArgs = UserJobSpec_
             ? std::make_optional(FromProto<std::vector<TString>>(UserJobSpec_->gpu_check_binary_args()))
             : std::optional<std::vector<TString>>(),
+        .GpuCheckEnvironment = UserJobSpec_
+            // TODO(ignat): support FromProto
+            // ? FromProto<std::THashMap<TString, TString>>(UserJobSpec_->gpu_check_environment())
+            ? std::make_optional(gpuCheckEnvironment)
+            : std::nullopt,
         .GpuCheckType = EGpuCheckType::Preliminary,
         .GpuDevices = devices
     };
@@ -2578,6 +2590,11 @@ void TJob::OnJobProxyFinished(const TError& error)
     if (!currentError.IsOK() && NeedsGpuCheck()) {
         SetJobPhase(EJobPhase::RunningExtraGpuCheckCommand);
 
+        THashMap<TString, TString> gpuCheckEnvironment;
+        for (const auto& [key, value] : UserJobSpec_->gpu_check_environment()) {
+            gpuCheckEnvironment.insert(std::make_pair(key, value));
+        }
+
         auto context = TJobGpuCheckerContext{
             .Slot = GetUserSlot(),
             .Job = MakeStrong(this),
@@ -2589,6 +2606,9 @@ void TJob::OnJobProxyFinished(const TError& error)
 
             .GpuCheckBinaryPath = UserJobSpec_->gpu_check_binary_path(),
             .GpuCheckBinaryArgs = FromProto<std::vector<TString>>(UserJobSpec_->gpu_check_binary_args()),
+            // TODO(ignat): support FromProto
+            // .GpuCheckEnvironment = FromProto<THashMap<TString, TString>>(UserJobSpec_->gpu_check_environment()),
+            .GpuCheckEnvironment = std::move(gpuCheckEnvironment),
             .GpuCheckType = EGpuCheckType::Extra,
             .CurrentStartIndex = SetupCommandCount_,
             .TestExtraGpuCheckCommandFailure = Bootstrap_->GetGpuManager()->ShouldTestExtraGpuCheckCommandFailure(),

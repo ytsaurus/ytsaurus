@@ -75,6 +75,7 @@ TFuture<void> TJobGpuChecker::RunGpuCheck()
     auto checkCommand = New<TShellCommandConfig>();
     checkCommand->Path = Context_.GpuCheckBinaryPath;
     checkCommand->Args = std::move(Context_.GpuCheckBinaryArgs);
+    checkCommand->EnvironmentVariables = std::move(Context_.GpuCheckEnvironment);
 
     YT_LOG_INFO("Running GPU check commands");
 
