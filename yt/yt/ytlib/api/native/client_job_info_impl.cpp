@@ -102,6 +102,8 @@ static const THashSet<TString> SupportedJobsAttributes = {
     "job_id",
     "type",
     "state",
+    // COMPAT(bystrovserg)
+    "controller_state",
     "start_time",
     "finish_time",
     "address",
@@ -125,7 +127,6 @@ static const THashSet<TString> SupportedJobsAttributes = {
     "statistics",
     "allocation_id",
     "pool",
-    "controller_state",
     "progress",
     "exec_attributes",
     "events",
@@ -180,7 +181,6 @@ static const THashSet<TString> DefaultListJobsAttributes = {
     "brief_statistics",
     "allocation_id",
     "pool",
-    "controller_state",
     "progress",
     "is_stale",
 };
@@ -1671,6 +1671,7 @@ static void AddSelectExpressionForAttribute(TQueryBuilder* builder, const TStrin
     } else if (attribute == "state") {
         builder->AddSelectExpression("if(is_null(state), transient_state, state)", "node_state");
         if (DoesArchiveContainAttribute("controller_state", archiveVersion)) {
+            builder->AddSelectExpression("controller_state");
             builder->AddSelectExpression(
                 Format(
                     "if(NOT is_null(node_state) AND NOT is_null(controller_state), "
@@ -1816,6 +1817,10 @@ TFuture<std::vector<TJob>> TClient::DoListJobsFromArchiveAsync(
     builder.SetLimit(options.Limit + options.Offset);
 
     for (const auto& attribute : attributes) {
+        // COMPAT(bystrovserg): Remove after dropping "controller_state" from supported attributes.
+        if (attribute == "controller_state" && attributes.contains("state")) {
+            continue;
+        }
         AddSelectExpressionForAttribute(&builder, attribute, archiveVersion);
     }
 
@@ -2484,8 +2489,6 @@ TListJobsResult TClient::DoListJobs(
 static std::vector<TString> MakeJobArchiveAttributes(const THashSet<TString>& attributes, int archiveVersion)
 {
     std::vector<TString> result;
-    // Plus 3 as operation_id, job_id and allocation_id are split into hi and lo.
-    result.reserve(attributes.size() + 3);
     for (const auto& attribute : attributes) {
         if (!DoesArchiveContainAttribute(attribute, archiveVersion)) {
             continue;
@@ -2496,9 +2499,13 @@ static std::vector<TString> MakeJobArchiveAttributes(const THashSet<TString>& at
         } else if (attribute == "state") {
             result.emplace_back("state");
             result.emplace_back("transient_state");
+            result.emplace_back("controller_state");
         } else if (attribute == "statistics") {
             result.emplace_back("statistics");
             result.emplace_back("statistics_lz4");
+        } else if (attribute == "contoller_state" && !attributes.contains("state")){
+            // COMPAT(bystrovserg): Remove after dropping "controller_state" from supported attributes.
+            result.emplace_back("controller_state");
         } else if (attribute == "progress" || attribute == "pool") {
             // Progress and pool are missing from job archive.
         } else {

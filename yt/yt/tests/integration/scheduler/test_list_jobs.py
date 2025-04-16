@@ -1225,7 +1225,8 @@ class TestListJobs(TestListJobsCommon):
 
         test_attributes([], ["id"])
         test_attributes(["job_id", "type", "start_time"], ["id", "type", "start_time"])
-        test_attributes(["state"], ["id", "state", "archive_state", "controller_state"], True)
+        test_attributes(["state"], ["id", "state", "archive_state", "controller_state"])
+        test_attributes(["state", "controller_state"], ["id", "state", "archive_state", "controller_state"])
         test_attributes(["operation_id"], {"id" : job_id, "operation_id" : op.id})
 
 
