@@ -271,7 +271,7 @@ public:
                 }
 
                 // Take non-local chunks.
-                std::optional<int> freeStripesSize = std::ssize(FreeStripes_);
+                int freeStripesSize = std::ssize(FreeStripes_);
                 AddStripesToJob(
                     jobStub.get(),
                     FreeStripes_.begin(),
