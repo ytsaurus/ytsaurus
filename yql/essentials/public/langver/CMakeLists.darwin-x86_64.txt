@@ -12,25 +12,15 @@
 # Please refer to the build instructions in the repository for more information about manual
 # changes in this file.
 
-add_library(essentials-sql-settings)
+add_library(essentials-public-langver)
 
 
-target_link_libraries(essentials-sql-settings PUBLIC
+target_link_libraries(essentials-public-langver PUBLIC
   contrib-libs-cxxsupp
   yutil
-  cpp-deprecated-split
-  library-cpp-json
-  essentials-public-issue
-  essentials-public-langver
-  essentials-core-issue
-  essentials-core-pg_settings
-  core-issue-protos
-  yql-essentials-utils
 )
 
-target_sources(essentials-sql-settings PRIVATE
-  ${PROJECT_SOURCE_DIR}/yql/essentials/sql/settings/partitioning.cpp
-  ${PROJECT_SOURCE_DIR}/yql/essentials/sql/settings/translation_settings.cpp
-  ${PROJECT_SOURCE_DIR}/yql/essentials/sql/settings/translator.cpp
+target_sources(essentials-public-langver PRIVATE
+  ${PROJECT_SOURCE_DIR}/yql/essentials/public/langver/yql_langver.cpp
 )
 
