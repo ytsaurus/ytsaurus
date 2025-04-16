@@ -545,6 +545,7 @@ class TTablet
 {
 public:
     DEFINE_BYVAL_RO_PROPERTY(NHydra::TRevision, MountRevision);
+    DEFINE_BYVAL_RO_PROPERTY(TInstant, MountTime);
     DEFINE_BYVAL_RO_PROPERTY(NObjectClient::TObjectId, TableId);
     DEFINE_BYVAL_RO_PROPERTY(NYPath::TYPath, TablePath);
     DEFINE_BYVAL_RW_PROPERTY(NHiveServer::TAvenueEndpointId, MasterAvenueEndpointId);
@@ -682,7 +683,8 @@ public:
         NTabletClient::TTableReplicaId upstreamReplicaId,
         TTimestamp retainedTimestamp,
         i64 cumulativeDataWeight,
-        NTableClient::ETabletTransactionSerializationType serializationType);
+        NTableClient::ETabletTransactionSerializationType serializationType,
+        TInstant mountTime);
 
     ETabletState GetPersistentState() const;
 

@@ -90,7 +90,8 @@ void TSimpleTabletManager::InitializeTablet(TTabletOptions options)
             TTableReplicaId(),
             /*retainedTimestamp*/ NullTimestamp,
             /*cumulativeDataWeight*/ 0,
-            /*serializationType*/ ETabletTransactionSerializationType::Coarse);
+            /*serializationType*/ ETabletTransactionSerializationType::Coarse,
+            TInstant::Now());
 
         TRawTableSettings rawSettings;
         rawSettings.CreateNewProvidedConfigs();
