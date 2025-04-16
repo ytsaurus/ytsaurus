@@ -28,14 +28,16 @@
 
 #include <yt/yt/server/lib/misc/release_queue.h>
 
+#include <yt/yt/ytlib/api/native/public.h>
+
 #include <yt/yt/ytlib/chunk_client/helpers.h>
 #include <yt/yt/ytlib/chunk_client/public.h>
 
 #include <yt/yt/ytlib/chunk_pools/chunk_stripe_key.h>
 
-#include <yt/yt/ytlib/api/native/public.h>
-
 #include <yt/yt/ytlib/scheduler/job_resources_with_quota.h>
+
+#include <yt/yt/ytlib/tablet_client/public.h>
 
 #include <yt/yt/library/query/base/public.h>
 
@@ -811,7 +813,8 @@ protected:
     void BeginUploadOutputTables(const std::vector<TOutputTablePtr>& tables);
     void AttachOutputChunks(const std::vector<TOutputTablePtr>& tableList);
     void EndUploadOutputTables(const std::vector<TOutputTablePtr>& tables);
-    void LockOutputDynamicTables();
+    void RegisterLockableDynamicTables(
+        const THashMap<NObjectClient::TCellTag, std::vector<NTableClient::TTableId>>& lockableOutputDynamicTables);
     void CommitTransactions();
     virtual void CustomCommit();
     void VerifySortedOutput(TOutputTablePtr table);
@@ -849,6 +852,7 @@ protected:
 
     //! Called to extract output table paths from the spec.
     virtual std::vector<NYPath::TRichYPath> GetOutputTablePaths() const = 0;
+    void ForEachLockableDynamicTable(std::function<void(const TOutputTablePtr&)> handler);
 
     const TProgressCounterPtr& GetTotalJobCounter() const override;
 

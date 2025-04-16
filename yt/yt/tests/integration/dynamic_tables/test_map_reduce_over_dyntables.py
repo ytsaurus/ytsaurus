@@ -1508,6 +1508,7 @@ class TestSchedulerMapReduceDynamic(MROverOrderedDynTablesHelper):
         )
         assert read_table("//tmp/t_out") == rows
 
+
 ##################################################################
 
 

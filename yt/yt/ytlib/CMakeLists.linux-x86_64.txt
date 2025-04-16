@@ -171,6 +171,7 @@ target_proto_messages(yt-yt-ytlib PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/table_client/proto/table_ypath.proto
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/table_client/proto/virtual_value_directory.proto
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/tablet_client/proto/backup.proto
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/tablet_client/proto/bulk_insert_locking.proto
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/tablet_client/proto/heartbeat.proto
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/tablet_client/proto/master_tablet_service.proto
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/tablet_client/proto/table_replica_ypath.proto
@@ -542,6 +543,7 @@ target_sources(yt-yt-ytlib PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/table_client/virtual_value_directory.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/tablet_client/backup.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/tablet_client/config.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/tablet_client/bulk_insert_locking.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/tablet_client/helpers.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/tablet_client/native_table_mount_cache.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/tablet_client/pivot_keys_builder.cpp
@@ -689,6 +691,7 @@ target_sources(yt-yt-ytlib PRIVATE
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/table_client/proto/table_ypath.pb.h
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/table_client/proto/virtual_value_directory.pb.h
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/tablet_client/proto/backup.pb.h
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/tablet_client/proto/bulk_insert_locking.pb.h
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/tablet_client/proto/heartbeat.pb.h
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/tablet_client/proto/master_tablet_service.pb.h
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/tablet_client/proto/table_replica_ypath.pb.h

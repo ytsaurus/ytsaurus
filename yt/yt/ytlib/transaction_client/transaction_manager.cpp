@@ -17,6 +17,7 @@
 #include <yt/yt/ytlib/hive/cluster_directory.h>
 #include <yt/yt/ytlib/hive/downed_cell_tracker.h>
 
+#include <yt/yt/ytlib/tablet_client/bulk_insert_locking.h>
 #include <yt/yt/ytlib/tablet_client/tablet_service_proxy.h>
 
 #include <yt/yt/ytlib/transaction_client/clock_manager.h>
@@ -57,8 +58,10 @@ using namespace NHydra;
 using namespace NObjectClient;
 using namespace NRpc;
 using namespace NTabletClient;
+using namespace NTableClient;
 using namespace NTransactionSupervisor;
 using namespace NYTree;
+using namespace NCypressClient;
 
 using NYT::ToProto;
 using NYT::FromProto;
@@ -1105,6 +1108,11 @@ private:
         return TError();
     }
 
+    bool ShouldUseCypressTransactionService()
+    {
+        return IsCypressTransactionType(TypeFromId(Id_)) && Owner_->Config_.Acquire()->UseCypressTransactionService;
+    }
+
     TFuture<TTransactionCommitResult> DoCommitAtomic(const TTransactionCommitOptions& options)
     {
         if (RegisteredParticipantIds_.empty()) {
@@ -1119,8 +1127,7 @@ private:
         try {
             YT_VERIFY(CoordinatorCellId_);
 
-            auto isCypressTransaction = IsCypressTransactionType(TypeFromId(Id_));
-            if (isCypressTransaction && Owner_->Config_.Acquire()->UseCypressTransactionService) {
+            if (ShouldUseCypressTransactionService()) {
                 return DoCommitCypressTransaction(options);
             }
 
@@ -1130,7 +1137,7 @@ private:
         }
     }
 
-    TFuture<TTransactionCommitResult> DoCommitCypressTransaction(const TTransactionCommitOptions& options)
+    TFuture<TTransactionCommitResult> DoCommitCypressTransaction(const TTransactionCommitOptions& options, bool dynamicTablesLocked = false)
     {
         YT_LOG_DEBUG("Committing Cypress transaction (TransactionId: %v, CoordinatorCellId: %v)",
             Id_,
@@ -1152,16 +1159,18 @@ private:
         req->SetUser(Owner_->User_);
         SetPrerequisites(req, options);
         ToProto(req->mutable_transaction_id(), Id_);
+        req->set_dynamic_tables_locked(dynamicTablesLocked);
         SetOrGenerateMutationId(req, options.MutationId, options.Retry);
 
         return req->Invoke().Apply(
             BIND(
                 &TImpl::OnAtomicTransactionCommitted<TCypressTransactionServiceProxy::TErrorOrRspCommitTransactionPtr>,
                 MakeStrong(this),
-                CoordinatorCellId_));
+                CoordinatorCellId_,
+                /*commitOptions*/ nullptr));
     }
 
-    TFuture<TTransactionCommitResult> DoCommitTransaction(const TTransactionCommitOptions& options)
+    TFuture<TTransactionCommitResult> DoCommitTransaction(const TTransactionCommitOptions& options, bool dynamicTablesLocked = false)
     {
         auto supervisorParticipantCellIds = GetSupervisorParticipantIds();
         auto supervisorPrepareOnlyParticipantCellIds = GetSupervisorPrepareOnlyParticipantIds();
@@ -1195,13 +1204,15 @@ private:
         req->set_max_allowed_commit_timestamp(options.MaxAllowedCommitTimestamp);
         req->set_clock_cluster_tag(ToProto(ClockClusterTag_));
         req->set_strongly_ordered(options.StronglyOrdered);
+        req->set_dynamic_tables_locked(dynamicTablesLocked);
         SetOrGenerateMutationId(req, options.MutationId, options.Retry);
 
         return req->Invoke().Apply(
             BIND(
                 &TImpl::OnAtomicTransactionCommitted<TTransactionSupervisorServiceProxy::TErrorOrRspCommitTransactionPtr>,
                 MakeStrong(this),
-                CoordinatorCellId_));
+                CoordinatorCellId_,
+                Passed(std::make_unique<TTransactionCommitOptions>(std::move(options)))));
     }
 
     TFuture<TTransactionCommitResult> DoCommitNonAtomic()
@@ -1299,16 +1310,73 @@ private:
             }));
     }
 
+    TTransactionId GetTransactionIdForExternalCell(TNodeId nodeId, TCellTag externalCellTag)
+    {
+        auto nativeCellTag = CellTagFromId(nodeId);
+        return nativeCellTag == externalCellTag
+            ? Id_
+            : MakeExternalizedTransactionId(Id_, nativeCellTag);
+    }
+
     template <class TErrorOrRsp>
     TErrorOr<TTransactionCommitResult> OnAtomicTransactionCommitted(
         TCellId coordinatorCellId,
+        std::unique_ptr<TTransactionCommitOptions> commitOptions,
         const TErrorOrRsp& rspOrError)
     {
         if (!rspOrError.IsOK()) {
-            auto error = TError("Error committing transaction %v at cell %v",
-                Id_,
-                coordinatorCellId)
-                << rspOrError;
+            TError error;
+            auto initializeError = [&] (TError innerError) {
+                error = TError("Error committing transaction %v at cell %v",
+                    Id_,
+                    coordinatorCellId)
+                    << std::move(innerError);
+            };
+
+            if (const auto& lockError = rspOrError.FindMatching(NTransactionClient::EErrorCode::NeedLockDynamicTablesBeforeCommit)) {
+                YT_VERIFY(commitOptions);
+                YT_VERIFY(State_ == ETransactionState::Committing);
+
+                auto lockableDynamicTablesAttribute = lockError->Attributes().template
+                    Get<THashMap<std::string, std::vector<TTableId>>>("lockable_dynamic_tables");
+
+                THashMap<TCellTag, std::vector<TLockableDynamicTable>> lockableDynamicTables;
+                for (const auto& [externalCellTagString, tableIds] : lockableDynamicTablesAttribute) {
+                    TCellTag externalCellTag(FromString<TCellTag::TUnderlying>(externalCellTagString));
+
+                    std::vector<TLockableDynamicTable> tables;
+                    tables.reserve(tableIds.size());
+                    for (auto tableId : tableIds) {
+                        tables.push_back(TLockableDynamicTable{
+                            .TableId = tableId,
+                            .ExternalTransactionId = GetTransactionIdForExternalCell(tableId, externalCellTag),
+                        });
+                    }
+
+                    lockableDynamicTables.emplace(externalCellTag, std::move(tables));
+                }
+
+                try {
+                    LockDynamicTables(
+                        std::move(lockableDynamicTables),
+                        TryLockConnection().ValueOrThrow(),
+                        Owner_->Config_.Acquire()->BulkInsertLockChecker,
+                        Logger);
+
+                    if (ShouldUseCypressTransactionService()) {
+                        return WaitFor(DoCommitCypressTransaction(*commitOptions, /*dynamicTablesLocked*/ true))
+                            .ValueOrThrow();
+                    } else {
+                        return WaitFor(DoCommitTransaction(*commitOptions, /*dynamicTablesLocked*/ true))
+                            .ValueOrThrow();
+                    }
+                } catch (const std::exception& ex) {
+                    initializeError(ex);
+                }
+            } else {
+                initializeError(rspOrError);
+            }
+
             UpdateDownedParticipants();
             OnFailure(error);
             return error;
@@ -1329,8 +1397,7 @@ private:
 
     TFuture<void> SendPing(const TPrerequisitePingOptions& options = {})
     {
-        auto isCypressTransaction = IsCypressTransactionType(TypeFromId(Id_));
-        if (isCypressTransaction && Owner_->Config_.Acquire()->UseCypressTransactionService) {
+        if (ShouldUseCypressTransactionService()) {
             auto participantIds = GetRegisteredParticipantIds();
             YT_VERIFY(participantIds.size() == 1);
 
@@ -1560,8 +1627,7 @@ private:
 
     TFuture<void> SendAbortToCell(TCellId cellId, const TTransactionAbortOptions& options = {})
     {
-        auto isCypressTransaction = IsCypressTransactionType(TypeFromId(Id_));
-        if (isCypressTransaction && Owner_->Config_.Acquire()->UseCypressTransactionService) {
+        if (ShouldUseCypressTransactionService()) {
             return DoAbortCypressTransaction(cellId, options);
         }
 

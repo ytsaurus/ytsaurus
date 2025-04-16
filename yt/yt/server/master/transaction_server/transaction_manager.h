@@ -188,6 +188,13 @@ struct ITransactionManager
     virtual std::unique_ptr<NHydra::TMutation> CreateIssueLeasesMutation(
         TCtxIssueLeasesPtr context) = 0;
 
+    using TCtxRegisterLockableDynamicTables = NRpc::TTypedServiceContext<
+        NProto::TReqRegisterLockableDynamicTables,
+        NProto::TRspRegisterLockableDynamicTables>;
+    using TCtxRegisterLockableDynamicTablesPtr = TIntrusivePtr<TCtxRegisterLockableDynamicTables>;
+    virtual std::unique_ptr<NHydra::TMutation> CreateRegisterLockableDynamicTablesMutation(
+        TCtxRegisterLockableDynamicTablesPtr context) = 0;
+
     virtual void CreateOrRefTimestampHolder(TTransactionId transactionId) = 0;
     virtual void SetTimestampHolderTimestamp(TTransactionId transactionId, TTimestamp timestamp) = 0;
     virtual TTimestamp GetTimestampHolderTimestamp(TTransactionId transactionId) = 0;

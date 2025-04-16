@@ -10,25 +10,25 @@
 
 #include <yt/yt/server/lib/scheduler/job_metrics.h>
 
-#include <yt/yt/ytlib/scheduler/config.h>
+#include <yt/yt/ytlib/api/native/public.h>
 
 #include <yt/yt/ytlib/chunk_client/config.h>
-
-#include <yt/yt/ytlib/api/native/public.h>
 
 #include <yt/yt/ytlib/event_log/public.h>
 
 #include <yt/yt/ytlib/node_tracker_client/public.h>
 
-#include <yt/yt/library/server_program/config.h>
+#include <yt/yt/ytlib/scheduler/config.h>
 
 #include <yt/yt/client/job_tracker_client/public.h>
 
 #include <yt/yt/client/ypath/rich.h>
 
-#include <yt/yt/library/re2/public.h>
-
 #include <yt/yt/library/program/config.h>
+
+#include <yt/yt/library/server_program/config.h>
+
+#include <yt/yt/library/re2/public.h>
 
 #include <yt/yt/core/concurrency/public.h>
 
@@ -1141,10 +1141,9 @@ struct TControllerAgentConfig
 
     std::vector<NScheduler::TCustomJobMetricDescription> CustomJobMetrics;
 
-    int DynamicTableLockCheckingAttemptCountLimit;
-    double DynamicTableLockCheckingIntervalScale;
-    TDuration DynamicTableLockCheckingIntervalDurationMin;
-    TDuration DynamicTableLockCheckingIntervalDurationMax;
+    // COMPAT(dave11ar): Migrate values and remove when new dynamic tables locking
+    // protocol will be enabled. Use transaction client config instead.
+    TExponentialBackoffOptions BulkInsertLockChecker;
 
     i64 DesiredBlockSize;
     i64 MaxEstimatedWriteBufferSize;
@@ -1253,6 +1252,9 @@ struct TControllerAgentConfig
     bool EnableJobFailsTolerance;
 
     std::optional<ui32> AllocationJobCountLimit;
+
+    // COMPAT(dave11ar): Remove when all masters will be 25.2.
+    bool RegisterLockableDynamicTables;
 
     REGISTER_YSON_STRUCT(TControllerAgentConfig);
 

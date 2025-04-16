@@ -1647,7 +1647,7 @@ public:
                     continue;
                 }
 
-                transaction->LockedDynamicTables().erase(typedTable);
+                transaction->BulkInsertState().LockedDynamicTables().erase(typedTable);
             }
 
             if (auto replicationCollocation = typedTable->GetReplicationCollocation()) {
@@ -1682,7 +1682,7 @@ public:
         const auto& hiveManager = Bootstrap_->GetHiveManager();
         const auto& transactionManager = Bootstrap_->GetTransactionManager();
 
-        transaction->LockedDynamicTables().erase(originatingNode);
+        transaction->BulkInsertState().LockedDynamicTables().erase(originatingNode);
 
         i64 totalMemorySizeDelta = 0;
 
@@ -2452,7 +2452,7 @@ public:
             hiveManager->PostMessage(mailbox, req);
         }
 
-        transaction->LockedDynamicTables().insert(table);
+        transaction->BulkInsertState().LockedDynamicTables().insert(table);
         table->AddDynamicTableLock(transaction->GetId(), timestamp, pendingTabletCount);
 
         YT_LOG_DEBUG("Waiting for tablet lock confirmation (TableId: %v, TransactionId: %v, PendingTabletCount: %v)",
@@ -4400,7 +4400,7 @@ private:
         const auto& hiveManager = Bootstrap_->GetHiveManager();
 
         for (auto tableIt : GetSortedIterators(
-            transaction->LockedDynamicTables(),
+            transaction->BulkInsertState().LockedDynamicTables(),
             TObjectIdComparer()))
         {
             auto table = *tableIt;
@@ -4429,7 +4429,7 @@ private:
             table->RemoveDynamicTableLock(transaction->GetId());
         }
 
-        transaction->LockedDynamicTables().clear();
+        transaction->BulkInsertState().LockedDynamicTables().clear();
     }
 
     void DoRemount(
