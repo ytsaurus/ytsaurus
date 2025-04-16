@@ -36,6 +36,9 @@ public:
     TFuture<TAuthenticationResult> Authenticate(
         const TTokenCredentials& credentials) override
     {
+        static const std::string NewUserAuthAttribute = "@user_id";
+        static const std::string OldUserAuthAttribute = "@user";
+
         const auto& token = credentials.Token;
         const auto& userIP = credentials.UserIP;
         auto tokenHash = GetSha256HexDigestLowerCase(token);
@@ -43,25 +46,43 @@ public:
             tokenHash,
             userIP);
 
-        auto path = Format("%v/%v/@user",
+        auto path = Format("%v/%v/",
             Config_->RootPath ? Config_->RootPath : "//sys/cypress_tokens",
             ToYPathLiteral(tokenHash));
-        return Client_->GetNode(path, /*options*/ {})
+        try {
+            // Firstly, try to authenticate using the newer @user_id attribute.
+            return Client_->GetNode(path + NewUserAuthAttribute, /*options*/ {})
+                .Apply(BIND(
+                    &TCypressTokenAuthenticator::OnCallLoginResult,
+                    MakeStrong(this),
+                    tokenHash,
+                    true));
+        } catch (const TErrorException&) {
+            // Exception here probably means that the user was authenticated with the old
+            // schema (using @user attribute). Fallback and retry the procedure with this attribute.
+            YT_LOG_DEBUG("Could not authenticate user with the new schema, fallbacking to the old one "
+                "(TokenHash: %v)", tokenHash);
+        }
+        return Client_->GetNode(path + OldUserAuthAttribute, /*options*/ {})
             .Apply(BIND(
-                &TCypressTokenAuthenticator::OnCallResult,
+                &TCypressTokenAuthenticator::OnCallLoginResult,
                 MakeStrong(this),
-                std::move(tokenHash)));
+                tokenHash,
+                false));
     }
 
 private:
     const TCypressTokenAuthenticatorConfigPtr Config_;
     const IClientPtr Client_;
 
-    TAuthenticationResult OnCallResult(const TString& tokenHash, const TErrorOr<TYsonString>& rspOrError)
+    TFuture<TAuthenticationResult> OnCallLoginResult(
+        const TString& tokenHash,
+        bool rspIsUserId,
+        const TErrorOr<TYsonString>& rspOrError)
     {
         if (!rspOrError.IsOK()) {
             if (rspOrError.FindMatching(NYTree::EErrorCode::ResolveError)) {
-                YT_LOG_DEBUG(rspOrError, "Token is missing in Cypress (TokenHash: %v)",
+                YT_LOG_DEBUG(rspOrError, "Token is missing in Cypress (TokenHash: %v) FOOOBAAAAR",
                     tokenHash);
                 THROW_ERROR_EXCEPTION(NRpc::EErrorCode::InvalidCredentials,
                     "Token is missing in Cypress")
@@ -72,6 +93,47 @@ private:
                     tokenHash);
                 THROW_ERROR_EXCEPTION("Cypress authentication failed")
                     << TErrorAttribute("token_hash", tokenHash)
+                    << rspOrError;
+            }
+        }
+
+        auto login = ConvertTo<TString>(rspOrError.Value());
+        if (rspIsUserId) {
+            // We need to get the username given the user ID which we received.
+            auto path = Format("#%v/@name", ToYPathLiteral(login));
+            return Client_->GetNode(path, /*options*/ {})
+                .Apply(BIND(
+                    &TCypressTokenAuthenticator::OnCallUsernameResult,
+                    MakeStrong(this),
+                    std::move(tokenHash),
+                    std::move(login)));
+        }
+
+        YT_LOG_DEBUG("Cypress authentication succeeded (TokenHash: %v, Login: %v)",
+            tokenHash,
+            login);
+        return MakeFuture(TAuthenticationResult{
+            .Login = login,
+        });
+    }
+
+    TAuthenticationResult OnCallUsernameResult(
+        const TString& tokenHash,
+        const TString& userId,
+        const TErrorOr<TYsonString>& rspOrError)
+    {
+        if (!rspOrError.IsOK()) {
+            if (rspOrError.FindMatching(NYTree::EErrorCode::ResolveError)) {
+                YT_LOG_DEBUG(rspOrError, "Could not get username by user ID (User ID: %v)",
+                    userId);
+                THROW_ERROR_EXCEPTION("Could not get username by user ID")
+                    << TErrorAttribute("token_hash", userId)
+                    << rspOrError;
+            } else {
+                YT_LOG_DEBUG(rspOrError, "Cypress authentication failed (User ID: %v)",
+                    userId);
+                THROW_ERROR_EXCEPTION("Cypress authentication failed")
+                    << TErrorAttribute("user_id", userId)
                     << rspOrError;
             }
         }

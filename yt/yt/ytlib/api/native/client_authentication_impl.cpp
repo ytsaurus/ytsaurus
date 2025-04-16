@@ -142,7 +142,22 @@ TIssueTokenResult TClient::DoIssueTokenImpl(
     TCreateNodeOptions createOptions;
     static_cast<TTimeoutOptions&>(createOptions) = options;
 
-    attributes->Set("user", user);
+    auto rootClient = CreateRootClient();
+    auto userIdRspOrError = WaitFor(rootClient->GetNode(
+        Format("//sys/users/%v/@id", user),
+        /*options*/ {}));
+    if (!userIdRspOrError.IsOK()) {
+        YT_LOG_DEBUG(userIdRspOrError, "Failed to issue new token for user: "
+            "could not get user ID by username "
+            "(User: %v, TokenPrefix: %v, TokenHash: %v)",
+            user,
+            tokenPrefix,
+            tokenHash);
+        auto error = TError("Failed to issue new token for user") << userIdRspOrError;
+        THROW_ERROR error;
+    }
+
+    attributes->Set("user_id", ConvertTo<TString>(userIdRspOrError.Value()));
     attributes->Set("token_prefix", tokenPrefix);
 
     createOptions.Attributes = attributes;
@@ -152,7 +167,6 @@ TIssueTokenResult TClient::DoIssueTokenImpl(
         tokenPrefix,
         tokenHash);
 
-    auto rootClient = CreateRootClient();
     auto path = Format("//sys/cypress_tokens/%v", ToYPathLiteral(tokenHash));
     auto rspOrError = WaitFor(rootClient->CreateNode(
         path,
@@ -226,20 +240,30 @@ void TClient::DoRevokeToken(
 
     TGetNodeOptions getOptions;
     static_cast<TTimeoutOptions&>(getOptions) = options;
-    auto tokenUserOrError = WaitFor(rootClient->GetNode(Format("%v/@user", path), getOptions));
-    if (!tokenUserOrError.IsOK()) {
-        if (tokenUserOrError.FindMatching(NYTree::EErrorCode::ResolveError)) {
+    TErrorOr<TYsonString> tokenUsernameOrError;
+    auto tokenUserIdOrError = WaitFor(rootClient->GetNode(Format("%v/@user_id", path), getOptions));
+    if (tokenUserIdOrError.IsOK()) {
+        // Resolve the username with the retrieved user_id.
+        auto userId = ConvertTo<TString>(tokenUserIdOrError.Value());
+        tokenUsernameOrError = WaitFor(rootClient->GetNode(Format("#%v/@name", ToYPathLiteral(userId)), getOptions));
+    } else if (tokenUserIdOrError.FindMatching(NYTree::EErrorCode::ResolveError)) {
+        // This case could mean that the token was issued using the old schema (with @user attribute). Try to find it by that attribute.
+        tokenUsernameOrError = WaitFor(rootClient->GetNode(Format("%v/@user", path), getOptions));
+    }
+
+    if (!tokenUsernameOrError.IsOK()) {
+        if (tokenUsernameOrError.FindMatching(NYTree::EErrorCode::ResolveError)) {
             THROW_ERROR_EXCEPTION("Provided token is not recognized as a valid token for user %Qv", user);
         }
 
-        YT_LOG_DEBUG(tokenUserOrError, "Failed to get user for token (TokenHash: %v)",
+        YT_LOG_DEBUG(tokenUsernameOrError, "Failed to get user for token (TokenHash: %v)",
             tokenSha256);
         auto error = TError("Failed to get user for token")
-            << tokenUserOrError;
+            << tokenUsernameOrError;
         THROW_ERROR error;
     }
 
-    auto tokenUser = ConvertTo<TString>(tokenUserOrError.Value());
+    auto tokenUser = ConvertTo<TString>(tokenUsernameOrError.Value());
     if (tokenUser != user) {
         THROW_ERROR_EXCEPTION("Provided token is not recognized as a valid token for user %Qv", user);
     }

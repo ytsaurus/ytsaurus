@@ -1,12 +1,13 @@
 from yt_env_setup import YTEnvSetup
 from yt_commands import (
-    authors, create_user, issue_token, revoke_token, wait, get, set_user_password
+    authors, create_user, issue_token, revoke_token, wait, get, set, set_user_password, create
 )
 
 import pytest
 
 import requests
 import hashlib
+from time import sleep
 
 
 ##################################################################
@@ -51,7 +52,7 @@ class TestCypressTokenAuth(TestCypressTokenAuthBase):
             "cypress_token_authenticator": {
                 "cache": {
                     "cache_ttl": "5s",
-                    "optimistic_cache_ttl": "1m",
+                    "optimistic_cache_ttl": "5s",
                     "error_ttl": "1s",
                 },
             },
@@ -81,6 +82,41 @@ class TestCypressTokenAuth(TestCypressTokenAuthBase):
         self._check_allow(token=t)  # Activate cache.
         revoke_token("u2", t_hash)
         wait(lambda: self._check_deny(token=t))
+
+    @authors("pavel-bash")
+    def test_correct_user_id_in_token(self):
+        create_user("u1")
+        user1_id = get("//sys/users/u1/@id")
+        t1, t1_hash = issue_token("u1")
+        assert get(f"//sys/cypress_tokens/{t1_hash}/@user_id") == user1_id
+
+        create_user("u2")
+        user2_id = get("//sys/users/u2/@id")
+        t2, t2_hash = issue_token("u2")
+        assert get(f"//sys/cypress_tokens/{t2_hash}/@user_id") == user2_id
+
+        assert user1_id != user2_id
+
+    @authors("pavel-bash")
+    def test_user_rename(self):
+        create_user("u1")
+        t, t_hash = issue_token("u1")
+        self._check_allow(token=t)
+
+        set("//sys/users/u1/@name", "u2")
+        sleep(7)
+        self._check_allow(token=t)
+
+    @authors("pavel-bash")
+    def test_username_to_user_id_backward_compatibility(self):
+        # In this test we're issuing the token using the old schema ourselves, the authentication
+        # should still succeed.
+        create_user("u1")
+        token = "XXX"
+        token_sha = hashlib.sha256(token.encode("utf-8")).hexdigest()
+        create("file", f"//sys/cypress_tokens/{token_sha}", attributes={"user": "u1", "token_prefix": ""})
+
+        self._check_allow(token=token)
 
 
 @pytest.mark.enabled_multidaemon
