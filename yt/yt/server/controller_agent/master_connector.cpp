@@ -586,7 +586,7 @@ private:
                 if (!connection) {
                     continue;
                 }
-                auto proxy = CreateObjectServiceReadProxy(Bootstrap_->GetClient(), EMasterChannelKind::Follower);
+                auto proxy = CreateObjectServiceReadProxy(connection, EMasterChannelKind::Follower, cellTag);
                 batchReqs[cellTag] = proxy.ExecuteBatch();
             }
 
@@ -1701,5 +1701,3 @@ void TMasterConnector::SetControllerAgentAlert(EControllerAgentAlertType alertTy
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NControllerAgent
-
-

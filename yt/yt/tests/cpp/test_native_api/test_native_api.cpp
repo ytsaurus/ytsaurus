@@ -259,6 +259,29 @@ private:
     int SubrequestCounter_ = 0;
 };
 
+TEST_F(TBatchRequestTest, TestInvalidObjectIdError)
+{
+    auto client = DynamicPointerCast<NApi::NNative::IClient>(Client_);
+    auto proxy = CreateObjectServiceReadProxy(client, EMasterChannelKind::Follower);
+    auto batchRequest = proxy.ExecuteBatch();
+    auto unexistingObject = MakeId(EObjectType::MapNode, TCellTag(10), 0, 0);
+    auto invalidCellTag = MakeId(EObjectType::MapNode, TCellTag(9), 0, 0);
+
+    batchRequest->AddRequest(TYPathProxy::Get(FromObjectId(unexistingObject)));
+    batchRequest->AddRequest(TYPathProxy::Get(FromObjectId(invalidCellTag)));
+
+    auto batchResponse = WaitFor(batchRequest->Invoke())
+        .ValueOrThrow();
+
+    auto unexistingObjectResponse = batchResponse->GetResponse<TYPathProxy::TRspGet>(0);
+    EXPECT_FALSE(unexistingObjectResponse.IsOK());
+    EXPECT_EQ(unexistingObjectResponse.InnerErrors().front().GetMessage(), Format("No such object %v", unexistingObject));
+
+    auto invalidCellTagResponse = batchResponse->GetResponse<TYPathProxy::TRspGet>(1);
+    EXPECT_FALSE(invalidCellTagResponse.IsOK());
+    EXPECT_EQ(invalidCellTagResponse.GetMessage(), Format("Unknown cell tag %v", TCellTag(9)));
+}
+
 TEST_F(TBatchRequestTest, TestEmptyBatchRequest)
 {
     TestBatchRequest(0);
