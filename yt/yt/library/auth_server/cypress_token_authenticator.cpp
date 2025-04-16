@@ -22,6 +22,9 @@ using namespace NYson;
 
 static constexpr auto& Logger = AuthLogger;
 
+static const std::string NewUserAuthAttribute = "@user_id";
+static const std::string OldUserAuthAttribute = "@user";
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TCypressTokenAuthenticator
@@ -36,9 +39,6 @@ public:
     TFuture<TAuthenticationResult> Authenticate(
         const TTokenCredentials& credentials) override
     {
-        static const std::string NewUserAuthAttribute = "@user_id";
-        static const std::string OldUserAuthAttribute = "@user";
-
         const auto& token = credentials.Token;
         const auto& userIP = credentials.UserIP;
         auto tokenHash = GetSha256HexDigestLowerCase(token);
@@ -46,29 +46,16 @@ public:
             tokenHash,
             userIP);
 
+        // Firstly, try to authenticate the user using the newer @user_id attribute.
         auto path = Format("%v/%v/",
             Config_->RootPath ? Config_->RootPath : "//sys/cypress_tokens",
             ToYPathLiteral(tokenHash));
-        try {
-            // Firstly, try to authenticate using the newer @user_id attribute.
-            return Client_->GetNode(path + NewUserAuthAttribute, /*options*/ {})
-                .Apply(BIND(
-                    &TCypressTokenAuthenticator::OnCallLoginResult,
-                    MakeStrong(this),
-                    tokenHash,
-                    true));
-        } catch (const TErrorException&) {
-            // Exception here probably means that the user was authenticated with the old
-            // schema (using @user attribute). Fallback and retry the procedure with this attribute.
-            YT_LOG_DEBUG("Could not authenticate user with the new schema, fallbacking to the old one "
-                "(TokenHash: %v)", tokenHash);
-        }
-        return Client_->GetNode(path + OldUserAuthAttribute, /*options*/ {})
+        return Client_->GetNode(path + NewUserAuthAttribute, /*options*/ {})
             .Apply(BIND(
                 &TCypressTokenAuthenticator::OnCallLoginResult,
                 MakeStrong(this),
                 tokenHash,
-                false));
+                true));
     }
 
 private:
@@ -77,12 +64,25 @@ private:
 
     TFuture<TAuthenticationResult> OnCallLoginResult(
         const TString& tokenHash,
-        bool rspIsUserId,
+        bool withUserIdAttribute,
         const TErrorOr<TYsonString>& rspOrError)
     {
         if (!rspOrError.IsOK()) {
+            if (withUserIdAttribute) {
+                // Fallback to the old token schema using the @user attribute.
+                auto path = Format("%v/%v/",
+                    Config_->RootPath ? Config_->RootPath : "//sys/cypress_tokens",
+                    ToYPathLiteral(tokenHash));
+                return Client_->GetNode(path + OldUserAuthAttribute, /*options*/ {})
+                    .Apply(BIND(
+                        &TCypressTokenAuthenticator::OnCallLoginResult,
+                        MakeStrong(this),
+                        tokenHash,
+                        false));
+            }
+
             if (rspOrError.FindMatching(NYTree::EErrorCode::ResolveError)) {
-                YT_LOG_DEBUG(rspOrError, "Token is missing in Cypress (TokenHash: %v) FOOOBAAAAR",
+                YT_LOG_DEBUG(rspOrError, "Token is missing in Cypress (TokenHash: %v)",
                     tokenHash);
                 THROW_ERROR_EXCEPTION(NRpc::EErrorCode::InvalidCredentials,
                     "Token is missing in Cypress")
@@ -98,7 +98,7 @@ private:
         }
 
         auto login = ConvertTo<TString>(rspOrError.Value());
-        if (rspIsUserId) {
+        if (withUserIdAttribute) {
             // We need to get the username given the user ID which we received.
             auto path = Format("#%v/@name", ToYPathLiteral(login));
             return Client_->GetNode(path, /*options*/ {})

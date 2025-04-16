@@ -1,7 +1,8 @@
 from yt_env_setup import YTEnvSetup
 from yt_commands import (
-    authors, create_user, issue_token, revoke_token, wait, get, set, set_user_password, create
+    authors, create_user, issue_token, revoke_token, wait, get, set, set_user_password, create, print_debug
 )
+from yt.common import YtError, YtResponseError
 
 import pytest
 
@@ -84,6 +85,14 @@ class TestCypressTokenAuth(TestCypressTokenAuthBase):
         wait(lambda: self._check_deny(token=t))
 
     @authors("pavel-bash")
+    def test_old_user_attribute_is_not_created(self):
+        create_user("u1")
+        t, t_hash = issue_token("u1")
+        with pytest.raises(YtResponseError) as exc:
+            get(f"//sys/cypress_tokens/{t_hash}/@user")
+        assert exc.match("Attribute \"user\" is not found")
+
+    @authors("pavel-bash")
     def test_correct_user_id_in_token(self):
         create_user("u1")
         user1_id = get("//sys/users/u1/@id")
@@ -98,25 +107,42 @@ class TestCypressTokenAuth(TestCypressTokenAuthBase):
         assert user1_id != user2_id
 
     @authors("pavel-bash")
+    def test_username_to_user_id_backward_compatibility(self):
+        # In this test we're manually issuing the token using the old schema;
+        # the authentication should still succeed.
+        create_user("u1")
+        token = "XXX"
+        token_sha = hashlib.sha256(token.encode("utf-8")).hexdigest()
+        create("file", f"//sys/cypress_tokens/{token_sha}", attributes={"user": "u1", "token_prefix": ""})
+        self._check_allow(token=token)
+
+
+@pytest.mark.enabled_multidaemon
+class TestCypressTokenAuthWithoutCache(TestCypressTokenAuthBase):
+    DELTA_PROXY_CONFIG = {
+        "auth": {
+            "enable_authentication": True,
+            "cypress_token_authenticator": {
+                "cache": {
+                    "cache_ttl": "1ms",
+                    "optimistic_cache_ttl": "1ms",
+                    "error_ttl": "1ms",
+                },
+            },
+        },
+    }
+    ENABLE_MULTIDAEMON = True
+
+    @authors("pavel-bash")
     def test_user_rename(self):
+        # This test does not pass when the cache is used; at least, until we introduce the logic
+        # of authentication cache invalidation.
         create_user("u1")
         t, t_hash = issue_token("u1")
         self._check_allow(token=t)
 
         set("//sys/users/u1/@name", "u2")
-        sleep(7)
         self._check_allow(token=t)
-
-    @authors("pavel-bash")
-    def test_username_to_user_id_backward_compatibility(self):
-        # In this test we're issuing the token using the old schema ourselves, the authentication
-        # should still succeed.
-        create_user("u1")
-        token = "XXX"
-        token_sha = hashlib.sha256(token.encode("utf-8")).hexdigest()
-        create("file", f"//sys/cypress_tokens/{token_sha}", attributes={"user": "u1", "token_prefix": ""})
-
-        self._check_allow(token=token)
 
 
 @pytest.mark.enabled_multidaemon
