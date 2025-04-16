@@ -1449,30 +1449,33 @@ private:
             TObjectServiceProxy::TReqExecuteBatchBasePtr BatchReq;
             TCompactVector<int, 16> Indexes;
         };
-        THashMap<TBatchKey, TBatchValue> batchMap;
+        THashMap<TBatchKey, TErrorOr<TBatchValue>> batchMap;
         auto getOrCreateBatch = [&] (TCellTag cellTag, NHydra::EPeerKind peerKind) {
             auto key = std::tuple(cellTag, peerKind);
             auto it = batchMap.find(key);
             if (it == batchMap.end()) {
-                auto proxy = TObjectServiceProxy::FromDirectMasterChannel(
-                    multicellManager->GetMasterChannelOrThrow(cellTag, peerKind));
-                auto batchReq = proxy.ExecuteBatchNoBackoffRetries();
-                batchReq->SetOriginalRequestId(RequestId_);
-                auto reserved = false;
-                batchReq->SetTimeout(ComputeForwardingTimeout(RpcContext_, Owner_->Config_, &reserved));
-                if (!reserved) {
-                    // If the timeout for forwarded request has been shortened, backoff alarm on the
-                    // remote side will trigger sooner that locally, and we should deal with the local
-                    // alarm as normal.
-                    // Otherwise both alarms will trigger more or less simultaneously, which makes the
-                    // local alarm useless at best and harmful at worst.
-                    TDelayedExecutor::CancelAndClear(BackoffAlarmCookie_);
+                try {
+                    auto proxy = TObjectServiceProxy::FromDirectMasterChannel(
+                        multicellManager->GetMasterChannelOrThrow(cellTag, peerKind));
+                    auto batchReq = proxy.ExecuteBatchNoBackoffRetries();
+                    batchReq->SetOriginalRequestId(RequestId_);
+                    auto reserved = false;
+                    batchReq->SetTimeout(ComputeForwardingTimeout(RpcContext_, Owner_->Config_, &reserved));
+                    if (!reserved) {
+                        // If the timeout for forwarded request has been shortened, backoff alarm on the
+                        // remote side will trigger sooner that locally, and we should deal with the local
+                        // alarm as normal.
+                        // Otherwise both alarms will trigger more or less simultaneously, which makes the
+                        // local alarm useless at best and harmful at worst.
+                        TDelayedExecutor::CancelAndClear(BackoffAlarmCookie_);
+                    }
+                    NRpc::SetAuthenticationIdentity(batchReq, RpcContext_->GetAuthenticationIdentity());
+                    it = batchMap.emplace(key, TBatchValue{
+                        .BatchReq = std::move(batchReq)
+                    }).first;
+                } catch (const std::exception& ex) {
+                    it = batchMap.emplace(key, TError(ex)).first;
                 }
-                NRpc::SetAuthenticationIdentity(batchReq, RpcContext_->GetAuthenticationIdentity());
-
-                it = batchMap.emplace(key, TBatchValue{
-                    .BatchReq = std::move(batchReq)
-                }).first;
             }
             return &it->second;
         };
@@ -1491,13 +1494,28 @@ private:
                 ? NHydra::EPeerKind::Leader
                 : NHydra::EPeerKind::Follower;
 
-            auto* batch = getOrCreateBatch(subrequest.ForwardedCellTag, peerKind);
-            batch->BatchReq->AddRequestMessage(subrequest.RemoteRequestMessage);
-            batch->Indexes.push_back(subrequestIndex);
+            auto* batchOrError = getOrCreateBatch(subrequest.ForwardedCellTag, peerKind);
+
+            if (!batchOrError->IsOK()) {
+                YT_LOG_DEBUG(
+                    *batchOrError,
+                    "Error forwarding subrequest (SubrequestIndex: %v, CellTag: %v, PeerKind: %v, Mutating: %v, Method: %v)",
+                    subrequestIndex,
+                    subrequest.ForwardedCellTag,
+                    peerKind,
+                    subrequest.YPathExt->mutating(),
+                    requestHeader.method());
+                OnCompletedSubresponse(&subrequest, CreateErrorResponseMessage(*batchOrError));
+                continue;
+            }
+
+            auto& batch = batchOrError->Value();
+            batch.BatchReq->AddRequestMessage(subrequest.RemoteRequestMessage);
+            batch.Indexes.push_back(subrequestIndex);
 
             YT_LOG_DEBUG("Forwarding object request (ForwardedRequestId: %v, Method: %v.%v, "
                 "%v%v%v%v, Mutating: %v, CellTag: %v, PeerKind: %v)",
-                batch->BatchReq->GetRequestId(),
+                batch.BatchReq->GetRequestId(),
                 requestHeader.service(),
                 requestHeader.method(),
                 MakeFormatterWrapper([&] (auto* builder) {
@@ -1521,7 +1539,12 @@ private:
                 peerKind);
         }
 
-        for (auto& [cellTag, batch] : batchMap) {
+        for (auto& [cellTag, batchReqOrError] : batchMap) {
+            if (!batchReqOrError.IsOK()) {
+                continue;
+            }
+
+            auto& batch = batchReqOrError.Value();
             batch.BatchReq->Invoke().Subscribe(
                 // MakeWeak is sufficient - see SelfReference_.
                 BIND([=, weakThis = MakeWeak(this), batch = std::move(batch)] (const TObjectServiceProxy::TErrorOrRspExecuteBatchPtr& batchRspOrError) {

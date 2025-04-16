@@ -1161,6 +1161,19 @@ TObjectServiceProxy CreateObjectServiceReadProxy(
         std::move(stickyGroupSizeCache));
 }
 
+TObjectServiceProxy CreateObjectServiceReadProxy(
+    IConnectionPtr connection,
+    NApi::EMasterChannelKind readFrom,
+    TCellTag cellTag,
+    TStickyGroupSizeCachePtr stickyGroupSizeCache)
+{
+    return TObjectServiceProxy(
+        std::move(connection),
+        readFrom,
+        cellTag,
+        std::move(stickyGroupSizeCache));
+}
+
 TObjectServiceProxy CreateObjectServiceWriteProxy(
     NApi::NNative::IClientPtr client,
     TCellTag cellTag)
