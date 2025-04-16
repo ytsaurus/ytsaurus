@@ -3316,6 +3316,7 @@ bool TOperationControllerBase::OnJobCompleted(
 
         if (restartNeeded) {
             if (joblet->Revived) {
+                // TODO(pogorelov): Fix it, we already send it from node.
                 // NB: We lose the original interrupt reason during the revival,
                 // so we set it to Unknown.
                 jobSummary->InterruptionReason = EInterruptionReason::Unknown;

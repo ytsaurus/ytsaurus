@@ -45,7 +45,7 @@ void TOutputOrder::TEntry::RegisterMetadata(auto&& registrar)
     PHOENIX_REGISTER_FIELD(1, Content_);
 }
 
-bool TOutputOrder::TEntry::operator ==(const TOutputOrder::TEntry& other) const
+bool TOutputOrder::TEntry::operator == (const TOutputOrder::TEntry& other) const
 {
     return Content_ == other.Content_;
 }
