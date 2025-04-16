@@ -1133,7 +1133,7 @@ std::unique_ptr<IInputStream> TRpcRawClient::ReadTable(
     auto future = NRpc::CreateRpcClientInputStream(std::move(req));
     auto stream = WaitAndProcess(future);
 
-    auto metaRef = WaitFor(stream->Read()).ValueOrThrow();
+    auto metaRef = WaitAndProcess(stream->Read());
 
     NApi::NRpcProxy::NProto::TRspReadTableMeta meta;
     if (!TryDeserializeProto(&meta, metaRef)) {
@@ -1168,7 +1168,7 @@ std::unique_ptr<IInputStream> TRpcRawClient::ReadTablePartition(
     auto future = NRpc::CreateRpcClientInputStream(std::move(req));
     auto stream = WaitAndProcess(future);
 
-    auto metaRef = WaitFor(stream->Read()).ValueOrThrow();
+    auto metaRef = WaitAndProcess(stream->Read());
 
     NApi::NRpcProxy::NProto::TRspReadTablePartitionMeta meta;
     if (!TryDeserializeProto(&meta, metaRef)) {
