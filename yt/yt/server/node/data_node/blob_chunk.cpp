@@ -443,11 +443,15 @@ void TBlobChunkBase::OnBlocksExtLoaded(
             }
         }).Via(session->Invoker));
 
-    session->SessionPromise.OnCanceled(BIND([session] (const TError& error) {
+    auto cancelHandler = BIND([session] (const TError& error) {
         FailSession(
             session,
             TError(NYT::EErrorCode::Canceled, "Session canceled") << error);
-    }).Via(session->Invoker));
+    }).Via(session->Invoker);
+
+    if (!session->SessionPromise.OnCanceled(cancelHandler)) {
+        cancelHandler.Run(TError(NYT::EErrorCode::Canceled, "Session canceled before setting cancel handler"));
+    }
 }
 
 void TBlobChunkBase::DoReadSession(
@@ -487,6 +491,12 @@ void TBlobChunkBase::DoReadBlockSet(const TReadBlockSetSessionPtr& session)
             "Read session trimmed due to deadline (Deadline: %v, TrimmedBlockCount: %v)",
             session->Options.ReadBlocksDeadline,
             session->CurrentEntryIndex);
+        auto error = TError(NChunkClient::EErrorCode::ReaderTimeout, "Read session trimmed due to deadline");
+        for (auto i = session->CurrentEntryIndex; i < session->EntryCount; ++i) {
+            if (!session->Entries[i].Cached) {
+                session->Entries[i].Cookie->SetBlock(error);
+            }
+        }
         session->DiskFetchPromise.TrySet();
         return;
     }
