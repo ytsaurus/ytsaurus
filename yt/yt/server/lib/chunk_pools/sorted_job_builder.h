@@ -23,6 +23,7 @@ struct TSortedJobOptions
     int PrimaryPrefixLength = 0;
     int ForeignPrefixLength = 0;
     bool EnablePeriodicYielder = true;
+    // Used only in legacy pool.
     bool ShouldSlicePrimaryTableByKeys = false;
     bool ValidateOrder = true;
 

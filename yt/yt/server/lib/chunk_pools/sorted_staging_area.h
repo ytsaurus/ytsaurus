@@ -69,10 +69,9 @@ ISortedStagingAreaPtr CreateSortedStagingArea(
     bool enableKeyGuarantee,
     NTableClient::TComparator primaryComparator,
     NTableClient::TComparator foreignComparator,
-    const NTableClient::TRowBufferPtr& rowBuffer,
+    NTableClient::TRowBufferPtr rowBuffer,
     i64 initialTotalDataSliceCount,
     i64 maxTotalDataSliceCount,
-    const TInputStreamDirectory& inputStreamDirectory,
     const NLogging::TLogger& logger);
 
 ////////////////////////////////////////////////////////////////////////////////
