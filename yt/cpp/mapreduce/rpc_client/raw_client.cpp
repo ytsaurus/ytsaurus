@@ -14,6 +14,8 @@
 #include <yt/yt/client/api/rpc_proxy/row_stream.h>
 
 #include <yt/yt/client/table_client/blob_reader.h>
+#include <yt/yt/client/table_client/name_table.h>
+#include <yt/yt/client/table_client/row_buffer.h>
 
 #include <yt/yt/client/transaction_client/timestamp_provider.h>
 
@@ -1012,12 +1014,66 @@ void TRpcRawClient::ReshardTableByTabletCount(
     WaitAndProcess(future);
 }
 
-void TRpcRawClient::InsertRows(
-    const TYPath& /*path*/,
-    const TNode::TListType& /*rows*/,
-    const TInsertRowsOptions& /*options*/)
+NTableClient::TNameTablePtr GetNameTable(const TNode::TListType& rows)
 {
-    YT_UNIMPLEMENTED();
+    auto nameTable = New<NTableClient::TNameTable>();
+    for (const auto& row : rows) {
+        for (const auto& [key, _] : row.AsMap()) {
+            nameTable->GetIdOrRegisterName(key);
+        }
+    }
+    return nameTable;
+}
+
+TSharedRange<NTableClient::TUnversionedRow> GetSharedKeysRange(
+    const NTableClient::TNameTablePtr& nameTable,
+    const TNode::TListType& rows)
+{
+    auto rowBuffer = New<NTableClient::TRowBuffer>();
+    TVector<NTableClient::TUnversionedRow> unversionedKeys;
+    for (const auto& row : rows) {
+        const auto& rowMap = row.AsMap();
+        if (std::ssize(rowMap) != nameTable->GetSize()) {
+            // Ignore invalid input instead of failing
+            continue;
+        }
+
+        std::vector<TNode> rowNodes(rowMap.size());
+        for (const auto& [key, value] : rowMap) {
+            auto id = nameTable->GetId(key);
+            rowNodes[id] = value;
+        }
+
+        auto values = TNode::CreateList();
+        for (auto&& node : rowNodes) {
+            values.Add(std::move(node));
+        }
+
+        NTableClient::TLegacyOwningKey owningKey;
+        Deserialize(owningKey, NYTree::ConvertToNode(NYson::TYsonString(
+            NodeToYsonString(values, NYson::EYsonFormat::Binary))));
+        unversionedKeys.push_back(rowBuffer->CaptureRow(owningKey));
+    }
+
+    return MakeSharedRange(std::move(unversionedKeys), std::move(rowBuffer));
+}
+
+void TRpcRawClient::InsertRows(
+    const TYPath& path,
+    const TNode::TListType& rows,
+    const TInsertRowsOptions& options)
+{
+    auto transaction = WaitAndProcess(
+        Client_->StartTransaction(
+            NTransactionClient::ETransactionType::Tablet,
+            SerializeOptionsForStartTransaction(options)));
+
+    auto nameTable = GetNameTable(rows);
+    auto keysRange = GetSharedKeysRange(nameTable, rows);
+
+    transaction->WriteRows(path, nameTable, keysRange, SerializeOptionsForInsertRows(options));
+
+    WaitAndProcess(transaction->Commit());
 }
 
 void TRpcRawClient::TrimRows(
@@ -1031,11 +1087,33 @@ void TRpcRawClient::TrimRows(
 }
 
 TNode::TListType TRpcRawClient::LookupRows(
-    const TYPath& /*path*/,
-    const TNode::TListType& /*keys*/,
-    const TLookupRowsOptions& /*options*/)
+    const TYPath& path,
+    const TNode::TListType& keys,
+    const TLookupRowsOptions& options)
 {
-    YT_UNIMPLEMENTED();
+    auto nameTable = GetNameTable(keys);
+    auto keysRange = GetSharedKeysRange(nameTable, keys);
+
+    auto future = Client_->LookupRows(path, nameTable, keysRange, SerializeOptionsForLookupRows(nameTable, options));
+    auto lookupRowsResult = WaitAndProcess(future);
+
+    const auto& rowset = lookupRowsResult.Rowset;
+    const auto columnNames = rowset->GetSchema()->GetColumnNames();
+
+    auto result = TNode::CreateList();
+    for (const auto& row : rowset->GetRows()) {
+        YT_VERIFY(row.GetCount() == columnNames.size());
+
+        auto rowNode = TNode::CreateMap();
+        for (const auto& [columnIdx, columnName] : Enumerate(columnNames)) {
+            TNode value;
+            TNodeBuilder builder(&value);
+            Serialize(row[columnIdx], &builder);
+            rowNode[columnName] = value;
+        }
+        result.Add(std::move(rowNode));
+    }
+    return result.AsList();
 }
 
 TNode::TListType TRpcRawClient::SelectRows(
@@ -1046,7 +1124,7 @@ TNode::TListType TRpcRawClient::SelectRows(
     auto selectRowsResult = WaitAndProcess(future);
 
     const auto& rowset = selectRowsResult.Rowset;
-    const auto columnNames  = rowset->GetSchema()->GetColumnNames();
+    const auto columnNames = rowset->GetSchema()->GetColumnNames();
 
     auto result = TNode::CreateList();
     for (const auto& row : rowset->GetRows()) {
@@ -1247,11 +1325,21 @@ void TRpcRawClient::AlterTableReplica(
 }
 
 void TRpcRawClient::DeleteRows(
-    const TYPath& /*path*/,
-    const TNode::TListType& /*keys*/,
-    const TDeleteRowsOptions& /*options*/)
+    const TYPath& path,
+    const TNode::TListType& keys,
+    const TDeleteRowsOptions& options)
 {
-    YT_UNIMPLEMENTED();
+    auto transaction = WaitAndProcess(
+        Client_->StartTransaction(
+            NTransactionClient::ETransactionType::Tablet,
+            SerializeOptionsForStartTransaction(options)));
+
+    auto nameTable = GetNameTable(keys);
+    auto keysRange = GetSharedKeysRange(nameTable, keys);
+
+    transaction->DeleteRows(path, nameTable, keysRange, SerializeOptionsForDeleteRows(options));
+
+    WaitAndProcess(transaction->Commit());
 }
 
 void TRpcRawClient::FreezeTable(

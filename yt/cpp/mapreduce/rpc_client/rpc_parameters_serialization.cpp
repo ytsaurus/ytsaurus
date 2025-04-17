@@ -7,6 +7,8 @@
 
 #include <yt/yt/client/api/config.h>
 
+#include <yt/yt/client/table_client/name_table.h>
+
 #include <library/cpp/yson/node/node_io.h>
 
 namespace NYT::NDetail {
@@ -119,6 +121,16 @@ NYTree::EPermission ToApiPermission(EPermission permission)
             return NYTree::EPermission::Manage;
     }
     YT_ABORT();
+}
+
+NTransactionClient::EAtomicity ToApiAtomicity(EAtomicity atomicity)
+{
+    switch (atomicity) {
+        case EAtomicity::None:
+            return NTransactionClient::EAtomicity::None;
+        case EAtomicity::Full:
+            return NTransactionClient::EAtomicity::Full;
+    }
 }
 
 NApi::EJobSortField ToApiJobSortField(EJobSortField field)
@@ -866,6 +878,46 @@ NApi::TReshardTableOptions SerializeOptionsForReshardTable(
     return result;
 }
 
+NApi::TModifyRowsOptions SerializeOptionsForInsertRows(const TInsertRowsOptions& options)
+{
+    NApi::TModifyRowsOptions result;
+    if (options.RequireSyncReplica_) {
+        result.RequireSyncReplica = *options.RequireSyncReplica_;
+    }
+    if (options.Update_) {
+        result.AllowMissingKeyColumns = *options.Update_;
+    }
+    return result;
+}
+
+NApi::TLookupRowsOptions SerializeOptionsForLookupRows(
+    const NTableClient::TNameTablePtr& nameTable,
+    const TLookupRowsOptions& options)
+{
+    NApi::TLookupRowsOptions result;
+    result.KeepMissingRows = options.KeepMissingRows_;
+    if (options.Columns_) {
+        const auto& columnNames = options.Columns_->Parts_;
+
+        std::vector<int> indexes;
+        indexes.reserve(columnNames.size());
+        for (const auto& columnName : columnNames) {
+            indexes.push_back(nameTable->GetIdOrThrow(columnName));
+        }
+
+        result.ColumnFilter = NTableClient::TColumnFilter(indexes);
+    }
+    if (options.Timeout_) {
+        result.Timeout = *options.Timeout_;
+    }
+    if (options.Versioned_) {
+        NTableClient::TVersionedReadOptions versionedReadOptions;
+        versionedReadOptions.ReadMode = NTableClient::EVersionedIOMode::LatestTimestamp;
+        result.VersionedReadOptions = std::move(versionedReadOptions);
+    }
+    return result;
+}
+
 NApi::TSelectRowsOptions SerializeOptionsForSelectRows(const TSelectRowsOptions& options)
 {
     NApi::TSelectRowsOptions result;
@@ -941,6 +993,15 @@ NApi::TAlterTableReplicaOptions SerializeOptionsForAlterTableReplica(
     }
     if (options.Mode_) {
         result.Mode = NTabletClient::ETableReplicaMode(*options.Mode_);
+    }
+    return result;
+}
+
+NApi::TModifyRowsOptions SerializeOptionsForDeleteRows(const TDeleteRowsOptions& options)
+{
+    NApi::TModifyRowsOptions result;
+    if (options.RequireSyncReplica_) {
+        result.RequireSyncReplica = *options.RequireSyncReplica_;
     }
     return result;
 }
