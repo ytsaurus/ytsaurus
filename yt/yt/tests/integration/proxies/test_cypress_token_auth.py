@@ -54,7 +54,7 @@ class TestCypressTokenAuth(TestCypressTokenAuthBase):
             "cypress_token_authenticator": {
                 "cache": {
                     "cache_ttl": "5s",
-                    "optimistic_cache_ttl": "5s",
+                    "optimistic_cache_ttl": "1m",
                     "error_ttl": "1s",
                 },
             },
