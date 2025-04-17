@@ -412,14 +412,16 @@ TQueryAnalyzer::TQueryAnalyzer(
     , QueryInfo_(queryInfo)
     , Logger(logger)
 {
-    // When allow_experimental_analyzer = 0, SelectQueryInfo does not contain a query_tree.
-    // Therefore, we initialize it ourselves.
+    // When the query is not processed by InterpreterSelectQueryAnalyzer,
+    // SelectQueryInfo does not contain query_tree and planner_context.
+    // So we initialize them ourselves.
     if (!QueryInfo_.query_tree) {
-        auto selectQueryOptions = DB::SelectQueryOptions().analyze();
-        QueryInfo_.query_tree = DB::InterpreterSelectQueryAnalyzer(
+        auto analyzedQueryInfo = DB::InterpreterSelectQueryAnalyzer(
             QueryInfo_.query,
             getContext(),
-            selectQueryOptions).getPlanner().buildSelectQueryInfo().query_tree;
+            DB::SelectQueryOptions().analyze()).getPlanner().buildSelectQueryInfo();
+        QueryInfo_.query_tree = analyzedQueryInfo.query_tree;
+        QueryInfo_.planner_context  = analyzedQueryInfo.planner_context;
     }
     ParseQuery();
 }
