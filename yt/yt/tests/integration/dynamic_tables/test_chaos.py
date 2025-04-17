@@ -49,16 +49,6 @@ class TestChaos(ChaosTestBase):
     NUM_TEST_PARTITIONS = 30
     NUM_SCHEDULERS = 1
 
-    DELTA_DRIVER_CONFIG = {
-        "enable_distributed_replication_collocation_attachment": True
-    }
-
-    DELTA_RPC_PROXY_CONFIG = {
-        "cluster_connection": {
-            "enable_distributed_replication_collocation_attachment": True
-        }
-    }
-
     def setup_method(self, method):
         super(TestChaos, self).setup_method(method)
 
