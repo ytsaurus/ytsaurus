@@ -17,6 +17,7 @@ from confluent_kafka.serialization import StringSerializer
 
 import builtins
 import functools
+import logging
 import pytest
 import time
 
@@ -444,6 +445,8 @@ class TestKafkaProxy(KafkaProxyBase):
     @authors("nadya73")
     @pytest.mark.timeout(240)
     def test_consumer_group_coordinator(self):
+        logger = logging.getLogger()
+
         username = "u"
         create_user(username)
         token, _ = issue_token(username)
@@ -492,9 +495,16 @@ class TestKafkaProxy(KafkaProxyBase):
 
         messages = []
         consumer_message_counts = [0] * len(consumers)
+        consumer_none_message_counts = [0] * len(consumers)
+        consumer_error_counts = [0] * len(consumers)
 
         while True:
             if none_message_count > 30:
+                logger.debug("Total none message count limit was reached (TotalNoneMessageCount: %s, NoneMessageCounts: %s, MessageCounts: %s, ErrorCounts: %s)",
+                             none_message_count,
+                             consumer_none_message_counts,
+                             consumer_message_counts,
+                             consumer_error_counts)
                 break
             for consumer_index, consumer in enumerate(consumers):
                 msg = consumer.poll(0.3)
@@ -506,6 +516,11 @@ class TestKafkaProxy(KafkaProxyBase):
                 if msg.error():
                     error_count += 1
                     if error_count > 6:
+                        logger.debug("Error count limit was reached (ErrorCount: %s, NoneMessageCounts: %s, MessageCounts: %s, ErrorCounts: %s)",
+                                     error_count,
+                                     consumer_none_message_counts,
+                                     consumer_message_counts,
+                                     consumer_error_counts)
                         assert not msg.error()
                     continue
 
@@ -543,9 +558,9 @@ class TestKafkaProxy(KafkaProxyBase):
             consumers.append(c)
 
         # Wait rebalancing.
-        for _ in range(5):
+        for _ in range(15):
             for consumer_index, consumer in enumerate(consumers):
-                consumer.poll(0.2)
+                consumer.poll(0.1)
 
         consumer_count *= 2
         rows *= 2
@@ -557,20 +572,33 @@ class TestKafkaProxy(KafkaProxyBase):
         insert_rows(queue_path, rows)
 
         consumer_message_counts = [0] * len(consumers)
+        consumer_none_message_counts = [0] * len(consumers)
+        consumer_error_counts = [0] * len(consumers)
 
         while True:
             if none_message_count > 120:
+                logger.debug("Total none message count limit was reached (TotalNoneMessageCount: %s, NoneMessageCounts: %s, MessageCounts: %s, ErrorCounts: %s)",
+                             none_message_count,
+                             consumer_none_message_counts,
+                             consumer_message_counts,
+                             consumer_error_counts)
                 break
             for consumer_index, consumer in enumerate(consumers):
                 msg = consumer.poll(0.3)
 
                 if msg is None:
+                    consumer_none_message_counts[consumer_index] += 1
                     none_message_count += 1
                     continue
 
                 if msg.error():
                     error_count += 1
                     if error_count > 100:
+                        logger.debug("Error count limit was reached (ErrorCount: %s, NoneMessageCounts: %s, MessageCounts: %s, ErrorCounts: %s)",
+                                     error_count,
+                                     consumer_none_message_counts,
+                                     consumer_message_counts,
+                                     consumer_error_counts)
                         assert not msg.error()
                     continue
 
@@ -582,7 +610,7 @@ class TestKafkaProxy(KafkaProxyBase):
         for consumer in consumers:
             consumer.close()
 
-        assert len(messages) == row_count
+        assert len(messages) == row_count, f"Read {len(messages)} messages, {row_count} messages were expected"
 
         for consumer_message_count in consumer_message_counts:
             assert consumer_message_count == 2
