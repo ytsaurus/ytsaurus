@@ -2744,32 +2744,19 @@ private:
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(HasHydraContext());
 
-        const auto& cellManager = Bootstrap_->GetTamedCellManager();
         const auto& hiveManager = Bootstrap_->GetHiveManager();
-        const auto& multicellManager = Bootstrap_->GetMulticellManager();
 
         auto transactionIds = FromProto<std::vector<TTransactionId>>(request->transaction_ids());
         auto cellId = FromProto<TCellId>(request->cell_id());
         auto cellType = TypeFromId(cellId);
 
-        THashSet<TTransactionId>* cellLeaseTransactionIds;
-        switch (cellType) {
-            case EObjectType::TabletCell: {
-                auto* cell = cellManager->GetCellOrThrow(cellId);
-                cellLeaseTransactionIds = &cell->LeaseTransactionIds();
-                break;
-            }
-            case EObjectType::MasterCell: {
-                cellLeaseTransactionIds = multicellManager->GetLocalMasterIssuedLeaseIds(CellTagFromId(cellId));
-                break;
-            }
-            default: {
-                YT_LOG_ALERT(
-                    "Requested to issue leases for unknown cell type, ignored (TransactionIds: %v, CellType: %v)",
-                    transactionIds,
-                    cellType);
-                return;
-            }
+        auto* cellLeaseTransactionIds = GetCellLeaseTransactionIds(cellId);
+        if (!cellId){
+            YT_LOG_ALERT(
+                "Requested to issue leases for unknown cell type, ignored (TransactionIds: %v, CellType: %v)",
+                transactionIds,
+                cellType);
+            return;
         }
 
         for (auto transactionId : transactionIds) {
@@ -2847,8 +2834,6 @@ private:
         YT_VERIFY(HasHydraContext());
 
         const auto& hiveManager = Bootstrap_->GetHiveManager();
-        const auto& cellManager = Bootstrap_->GetTamedCellManager();
-        const auto& multicellManager = Bootstrap_->GetMulticellManager();
 
         auto revokeTransaction = [&] (TTransaction* transaction) {
             YT_LOG_DEBUG(
@@ -2875,30 +2860,39 @@ private:
                 hiveManager->PostMessage(mailbox, message);
 
                 if (force) {
-                    THashSet<TTransactionId>* cellLeaseTransactionIds;
-                    switch (cellType) {
-                        case EObjectType::TabletCell: {
-                            auto* cell = cellManager->GetCell(cellId);
-                            cellLeaseTransactionIds = &cell->LeaseTransactionIds();
-                            break;
-                        }
-                        case EObjectType::MasterCell: {
-                            cellLeaseTransactionIds = multicellManager->GetLocalMasterIssuedLeaseIds(CellTagFromId(cellId));
-                            break;
-                        }
-                        default: {
-                            YT_LOG_ALERT(
-                                "Requested to revoke leases for unknown cell type, ignored (TransactionId: %v, CellType: %v)",
-                                transaction->GetId(),
-                                cellType);
-                            return;
-                        }
+                    auto* cellLeaseTransactionIds = GetCellLeaseTransactionIds(cellId);
+                    if (!cellLeaseTransactionIds) {
+                        YT_LOG_ALERT(
+                            "Requested to revoke leases for unknown cell type, ignored (TransactionId: %v, CellType: %v)",
+                            transaction->GetId(),
+                            cellType);
+                        return;
                     }
                     UnregisterTransactionLease(transaction, cellId, cellLeaseTransactionIds);
                 }
             }
         };
         IterateSuccessorTransactions(transaction, BIND(revokeTransaction));
+    }
+
+    THashSet<TTransactionId>* GetCellLeaseTransactionIds(TCellId cellId)
+    {
+        const auto& cellManager = Bootstrap_->GetTamedCellManager();
+        const auto& multicellManager = Bootstrap_->GetMulticellManager();
+
+        auto cellType = TypeFromId(cellId);
+        switch (cellType) {
+            case EObjectType::TabletCell: {
+                auto* cell = cellManager->GetCellOrThrow(cellId);
+                return &cell->LeaseTransactionIds();
+            }
+            case EObjectType::MasterCell: {
+                return multicellManager->GetLocalMasterIssuedLeaseIds(CellTagFromId(cellId));
+            }
+            default: {
+                return nullptr;
+            }
+        }
     }
 
 public:
