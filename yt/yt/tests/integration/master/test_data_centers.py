@@ -143,15 +143,15 @@ class TestDataCentersBase(YTEnvSetup):
             dc_to_counter[rack] += 1
         return max(dc_to_counter.values())
 
-    def _create_chunk(self, replication_factor=None, erasure_codec=None):
-        if exists("//tmp/t"):
-            remove("//tmp/t")
+    def _create_chunk(self, replication_factor=None, erasure_codec=None, path="//tmp/t"):
+        if exists(path):
+            remove(path)
         if replication_factor:
-            create("table", "//tmp/t", attributes={"replication_factor": replication_factor})
+            create("table", path, attributes={"replication_factor": replication_factor})
         else:
-            create("table", "//tmp/t", attributes={"erasure_codec": erasure_codec})
-        write_table("//tmp/t", [{"x": 42}])
-        chunk_id = get_singular_chunk_id("//tmp/t")
+            create("table", path, attributes={"erasure_codec": erasure_codec})
+        write_table(path, [{"x": 42}])
+        chunk_id = get_singular_chunk_id(path)
         if replication_factor:
             wait(lambda: len(self._get_replica_nodes(chunk_id)) == replication_factor)
         return chunk_id
@@ -184,6 +184,44 @@ class TestDataCentersBase(YTEnvSetup):
         set("//sys/@config/chunk_manager/banned_storage_data_centers", data_centers)
 
 ##################################################################
+
+
+class TestPackingToRacks(TestDataCentersBase):
+    DELTA_MASTER_CONFIG = {
+        "chunk_manager": {
+            "packing_max_erasure_replicas_per_rack_stabilization_window": 0,
+        },
+    }
+
+    @authors("faucct")
+    def test_packing_to_7_racks(self):
+        node_to_rack_map = self._init_n_racks(7)
+        rack_to_dc_map = self._init_n_data_centers(3)
+        set("//sys/@config/chunk_manager/storage_data_centers", ["d0", "d1", "d2"])
+
+        chunk_id_1 = self._create_chunk(erasure_codec="isa_reed_solomon_3_3", path="//tmp/t1")
+        chunk_id_2 = self._create_chunk(erasure_codec="isa_reed_solomon_6_3", path="//tmp/t2")
+        chunk_id_3 = self._create_chunk(erasure_codec="isa_lrc_12_2_2", path="//tmp/t3")
+        assert all([
+            not get("#{}/@replication_status/default/unsafely_placed".format(chunk_id_1)),
+            not {rack: count for rack, count in collections.Counter(self._get_replica_racks(chunk_id_1)).items() if count > 1},
+            not get("#{}/@replication_status/default/unsafely_placed".format(chunk_id_2)),
+            not {rack: count for rack, count in collections.Counter(self._get_replica_racks(chunk_id_2)).items() if count > 2},
+            not get("#{}/@replication_status/default/unsafely_placed".format(chunk_id_3)),
+            not {rack: count for rack, count in collections.Counter(self._get_replica_racks(chunk_id_3)).items() if count > 3},
+        ])
+
+        set_nodes_banned([node for node, rack in node_to_rack_map.items() if rack_to_dc_map[rack] == 'd0'], True)
+        wait(lambda: 'd0' not in self._get_replica_data_centers(chunk_id_1))
+        wait(lambda: not get("#{}/@replication_status/default/unsafely_placed".format(chunk_id_1)))
+        wait(lambda: not get("#{}/@replication_status/default/unsafely_placed".format(chunk_id_2)))
+        assert all([
+            not get("#{}/@replication_status/default/unsafely_placed".format(chunk_id_1)),
+            not {rack: count for rack, count in collections.Counter(self._get_replica_racks(chunk_id_1)).items() if count > 2},
+            not get("#{}/@replication_status/default/unsafely_placed".format(chunk_id_2)),
+            not {rack: count for rack, count in collections.Counter(self._get_replica_racks(chunk_id_2)).items() if count > 3},
+            get("#{}/@replication_status/default/lost".format(chunk_id_3)),
+        ])
 
 
 @pytest.mark.enabled_multidaemon
