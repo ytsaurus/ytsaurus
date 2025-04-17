@@ -4,18 +4,21 @@ from yt_helpers import profiler_factory
 
 from yt_commands import (
     authors, wait, retry, wait_no_assert, wait_breakpoint, release_breakpoint, with_breakpoint, create,
-    create_pool, insert_rows, run_sleeping_vanilla, print_debug,
+    create_pool, run_sleeping_vanilla, print_debug,
     update_controller_agent_config, get_allocation_id_from_job_id,
-    lookup_rows, delete_rows, write_table, map, vanilla, run_test_vanilla, abort_job, get_job, set, sync_create_cells, raises_yt_error)
+    lookup_rows, write_table, map, vanilla, run_test_vanilla,
+    abort_job, get_job, set, get, sync_create_cells, raises_yt_error, exists)
 
 import yt_error_codes
 
 from yt_operations_archive_helpers import (
-    get_allocation_id_from_archive, get_job_from_archive, JOB_ARCHIVE_TABLE, OPERATION_IDS_TABLE)
+    get_allocation_id_from_archive, get_job_from_archive,
+    delete_job_from_archive, update_job_in_archive, get_controller_state_from_archive,
+    OPERATION_IDS_TABLE)
 
 import yt.environment.init_operations_archive as init_operations_archive
 
-from yt.common import date_string_to_datetime, uuid_to_parts, parts_to_uuid, update
+from yt.common import date_string_to_datetime, uuid_to_parts, parts_to_uuid, update, date_string_to_timestamp_mcs
 
 from flaky import flaky
 
@@ -24,48 +27,6 @@ import builtins
 import time
 import datetime
 from copy import deepcopy
-
-
-def _delete_job_from_archive(op_id, job_id):
-    op_id_hi, op_id_lo = uuid_to_parts(op_id)
-    job_id_hi, job_id_lo = uuid_to_parts(job_id)
-    delete_rows(
-        JOB_ARCHIVE_TABLE,
-        [
-            {
-                "operation_id_hi": op_id_hi,
-                "operation_id_lo": op_id_lo,
-                "job_id_hi": job_id_hi,
-                "job_id_lo": job_id_lo,
-            }
-        ],
-        atomicity="none",
-    )
-
-
-def _update_job_in_archive(op_id, job_id, attributes):
-    op_id_hi, op_id_lo = uuid_to_parts(op_id)
-    job_id_hi, job_id_lo = uuid_to_parts(job_id)
-    attributes.update(
-        {
-            "operation_id_hi": op_id_hi,
-            "operation_id_lo": op_id_lo,
-            "job_id_hi": job_id_hi,
-            "job_id_lo": job_id_lo,
-        }
-    )
-
-    def do_update_job_in_archive():
-        insert_rows(JOB_ARCHIVE_TABLE, [attributes], update=True, atomicity="none")
-        return True
-
-    wait(do_update_job_in_archive, ignore_exceptions=True)
-
-
-def _get_controller_state_from_archive(op_id, job_id):
-    wait(lambda: get_job_from_archive(op_id, job_id) is not None)
-    job_from_archive = get_job_from_archive(op_id, job_id)
-    return job_from_archive.get("controller_state")
 
 
 class _TestGetJobBase(YTEnvSetup):
@@ -221,7 +182,7 @@ class _TestGetJobCommon(_TestGetJobBase):
         assert len(events) > 0
         assert all(field in events[0] for field in ["phase", "state", "time"])
 
-        _delete_job_from_archive(op.id, job_id)
+        delete_job_from_archive(op.id, job_id)
 
         # Controller agent must be able to respond as it stores
         # zombie operation orchids.
@@ -279,6 +240,14 @@ class TestGetJob(_TestGetJobCommon):
             },
         },
     })
+
+    def _compare_time_from_archive_with_api(self, op_id, job_id, time_name):
+        job_from_api = get_job(op_id, job_id)
+        job_from_archive = get_job_from_archive(op_id, job_id)
+
+        assert job_from_api.get(time_name) is not None
+        assert job_from_archive.get("controller_" + time_name) is not None
+        return date_string_to_timestamp_mcs(job_from_api[time_name]) == job_from_archive["controller_" + time_name]
 
     @authors("gritukan")
     def test_get_job_task_name_attribute_vanilla(self):
@@ -345,7 +314,7 @@ class TestGetJob(_TestGetJobCommon):
 
         @wait_no_assert
         def _check_get_job():
-            _update_job_in_archive(op.id, job_id, job_from_archive)
+            update_job_in_archive(op.id, job_id, job_from_archive)
             job_info = retry(lambda: get_job(op.id, job_id))
             assert job_info["job_id"] == job_id
             assert job_info["archive_state"] == "running"
@@ -355,7 +324,7 @@ class TestGetJob(_TestGetJobCommon):
             else:
                 assert controller_state == "aborted"
 
-        _delete_job_from_archive(op.id, job_id)
+        delete_job_from_archive(op.id, job_id)
 
         self._check_get_job(
             op.id,
@@ -377,7 +346,7 @@ class TestGetJob(_TestGetJobCommon):
 
         wait(lambda: get_job(op.id, job_id).get("controller_state") == "running")
 
-        wait(lambda: _get_controller_state_from_archive(op.id, job_id) == "running")
+        wait(lambda: get_controller_state_from_archive(op.id, job_id) == "running")
 
         if should_abort:
             abort_job(job_id)
@@ -385,9 +354,9 @@ class TestGetJob(_TestGetJobCommon):
         op.track()
 
         if should_abort:
-            wait(lambda: _get_controller_state_from_archive(op.id, job_id) == "aborted")
+            wait(lambda: get_controller_state_from_archive(op.id, job_id) == "aborted")
         else:
-            wait(lambda: _get_controller_state_from_archive(op.id, job_id) == "completed")
+            wait(lambda: get_controller_state_from_archive(op.id, job_id) == "completed")
 
     @authors("omgronny")
     def test_abort_vanished_jobs_in_archive(self):
@@ -403,8 +372,8 @@ class TestGetJob(_TestGetJobCommon):
         release_breakpoint()
         op.track()
 
-        _update_job_in_archive(op.id, job_id, {"transient_state": "running"})
-        wait(lambda: _get_controller_state_from_archive(op.id, job_id) == "aborted")
+        update_job_in_archive(op.id, job_id, {"transient_state": "running"})
+        wait(lambda: get_controller_state_from_archive(op.id, job_id) == "aborted")
 
     @authors("arkady-e1ppa")
     @pytest.mark.parametrize("use_get_job", [True, False])
@@ -540,6 +509,39 @@ class TestGetJob(_TestGetJobCommon):
         assert len(job_info.get("address")) > 0
         assert len(job_info.get("addresses")) > 0
         assert job_info.get("addresses")["default"] == job_info.get("address")
+
+    @authors("bystrovserg")
+    def test_controller_start_finish_time(self):
+        op = run_test_vanilla(
+            with_breakpoint("BREAKPOINT"),
+        )
+        (job_id,) = wait_breakpoint()
+
+        self._compare_time_from_archive_with_api(op.id, job_id, "start_time")
+        release_breakpoint()
+        op.track()
+
+        self._compare_time_from_archive_with_api(op.id, job_id, "start_time")
+        self._compare_time_from_archive_with_api(op.id, job_id, "finish_time")
+
+    @authors("bystrovserg")
+    def test_finish_time_on_broken_node(self):
+        op = run_test_vanilla(
+            with_breakpoint("BREAKPOINT"),
+        )
+        (job_id,) = wait_breakpoint()
+
+        with Restarter(self.Env, NODES_SERVICE):
+            pass
+
+        release_breakpoint()
+        op.track()
+
+        orchid_path = op.get_orchid_path()
+        wait(lambda: exists(orchid_path))
+        wait(lambda: len(get(orchid_path + "/retained_finished_jobs")) == 0)
+
+        wait(lambda: self._compare_time_from_archive_with_api(op.id, job_id, "finish_time"), ignore_exceptions=True)
 
 
 @pytest.mark.enabled_multidaemon

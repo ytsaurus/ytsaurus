@@ -3057,6 +3057,7 @@ void TOperationControllerBase::SafeOnJobStarted(const TJobletPtr& joblet)
     ReportJobCookieToArchive(joblet);
     ReportOperationIncarnationToArchive(joblet);
     ReportControllerStateToArchive(joblet, EJobState::Running);
+    ReportStartTimeToArchive(joblet);
 
     LogEventFluently(ELogEventType::JobStarted)
         .Item("job_id").Value(joblet->JobId)
@@ -5661,6 +5662,7 @@ void TOperationControllerBase::OnJobFinished(std::unique_ptr<TJobSummary> summar
     }
 
     ReportControllerStateToArchive(joblet, summary->State);
+    ReportFinishTimeToArchive(joblet);
 
     bool shouldRetainJob =
         (retainJob && RetainedJobCount_ < Config->MaxRetainedJobsPerOperation) ||
@@ -11507,6 +11509,18 @@ void TOperationControllerBase::ReportOperationIncarnationToArchive(const TJoblet
         HandleJobReport(joblet, TControllerJobReport()
             .OperationIncarnation(static_cast<const std::string&>(*joblet->OperationIncarnation)));
     }
+}
+
+void TOperationControllerBase::ReportStartTimeToArchive(const TJobletPtr& joblet) const
+{
+    HandleJobReport(joblet, TControllerJobReport()
+        .StartTime(joblet->StartTime));
+}
+
+void TOperationControllerBase::ReportFinishTimeToArchive(const TJobletPtr& joblet) const
+{
+    HandleJobReport(joblet, TControllerJobReport()
+        .FinishTime(joblet->FinishTime));
 }
 
 void TOperationControllerBase::SendRunningAllocationTimeStatisticsUpdates()

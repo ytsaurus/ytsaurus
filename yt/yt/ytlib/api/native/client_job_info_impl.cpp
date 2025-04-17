@@ -198,6 +198,7 @@ static const THashMap<std::string, std::optional<int>> JobAttributeToMinArchiveV
     {"job_id", {}},
     {"type", {}},
     {"state", {}},
+    // Start and finish time according to node.
     {"start_time", {}},
     {"finish_time", {}},
     {"address", {}},
@@ -224,6 +225,8 @@ static const THashMap<std::string, std::optional<int>> JobAttributeToMinArchiveV
     {"operation_incarnation", 55},
     {"allocation_id", 56},
     {"addresses", 57},
+    {"controller_start_time", 58},
+    {"controller_finish_time", 58},
 };
 
 static bool DoesArchiveContainAttribute(const TString& attribute, int archiveVersion) {
@@ -1593,7 +1596,10 @@ static std::vector<TJob> ParseJobsFromArchiveResponse(
             job.Addresses = ConvertTo<TAddressMap>(*record.Addresses);
         }
 
-        if (record.StartTime) {
+        if (record.ControllerStartTime) {
+            // COMPAT(bystrovserg): Remove this after switching get_job to select_rows.
+            job.StartTime = TInstant::MicroSeconds(*record.ControllerStartTime);
+        } else if (record.StartTime) {
             job.StartTime = TInstant::MicroSeconds(*record.StartTime);
         } else if (responseIdMapping.StartTime) {
             // TODO(bystrovserg): For this and other attributes remove "non-optional" compat.
@@ -1601,7 +1607,10 @@ static std::vector<TJob> ParseJobsFromArchiveResponse(
             job.StartTime.emplace();
         }
 
-        if (record.FinishTime) {
+        if (record.ControllerFinishTime) {
+            // COMPAT(bystrovserg): Remove this after switching get_job to select_rows.
+            job.FinishTime = TInstant::MicroSeconds(*record.ControllerFinishTime);
+        } else if (record.FinishTime) {
             job.FinishTime = TInstant::MicroSeconds(*record.FinishTime);
         }
 
@@ -1678,6 +1687,19 @@ static void AddSelectExpressionForAttribute(TQueryBuilder* builder, const TStrin
     if (attribute == "job_id" || attribute == "allocation_id" || attribute == "operation_id") {
         builder->AddSelectExpression(attribute + "_hi");
         builder->AddSelectExpression(attribute + "_lo");
+    } else if (attribute == "start_time" || attribute == "finish_time") {
+        auto controllerAttribute = "controller_" + attribute;
+        if (DoesArchiveContainAttribute(controllerAttribute, archiveVersion)) {
+            builder->AddSelectExpression(
+                Format(
+                    "if(is_null(%v), %v, %v)",
+                    controllerAttribute,
+                    attribute,
+                    controllerAttribute),
+                attribute);
+        } else {
+            builder->AddSelectExpression(attribute);
+        }
     } else if (attribute == "type") {
         builder->AddSelectExpression("type", "job_type");
     } else if (attribute == "brief_statistics" || attribute == "statistics") {
@@ -2522,6 +2544,9 @@ static std::vector<TString> MakeJobArchiveAttributes(const THashSet<TString>& at
         } else if (attribute == "contoller_state" && !attributes.contains("state")){
             // COMPAT(bystrovserg): Remove after dropping "controller_state" from supported attributes.
             result.emplace_back("controller_state");
+        } else if (attribute == "start_time" || attribute == "finish_time") {
+            result.emplace_back("controller_" + attribute);
+            result.emplace_back(attribute);
         } else if (attribute == "progress" || attribute == "pool") {
             // Progress and pool are missing from job archive.
         } else {

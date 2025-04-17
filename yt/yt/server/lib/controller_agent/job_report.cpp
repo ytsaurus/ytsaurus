@@ -75,6 +75,18 @@ TControllerJobReport TControllerJobReport::AllocationId(TAllocationId allocation
     return std::move(*this);
 }
 
+TControllerJobReport TControllerJobReport::StartTime(TInstant startTime)
+{
+    ControllerStartTime_ = startTime.MicroSeconds();
+    return std::move(*this);
+}
+
+TControllerJobReport TControllerJobReport::FinishTime(TInstant finishTime)
+{
+    ControllerFinishTime_ = finishTime.MicroSeconds();
+    return std::move(*this);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NControllerAgent
