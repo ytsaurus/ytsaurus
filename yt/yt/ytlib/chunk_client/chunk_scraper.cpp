@@ -234,6 +234,11 @@ TChunkScraper::TChunkScraper(
     CreateTasks(chunkIds);
 }
 
+TChunkScraper::~TChunkScraper()
+{
+    Stop();
+}
+
 void TChunkScraper::Start()
 {
     for (const auto& task : ScraperTasks_) {
