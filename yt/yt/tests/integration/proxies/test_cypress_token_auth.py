@@ -1,7 +1,7 @@
 from yt_env_setup import YTEnvSetup
 from yt_commands import (
     authors, create_user, issue_token, revoke_token, list_user_tokens,
-    wait, get, set, set_user_password, create
+    wait, get, set, set_user_password, create, raises_yt_error
 )
 from yt.common import YtResponseError
 from yt.environment.helpers import assert_items_equal
@@ -88,32 +88,31 @@ class TestCypressTokenAuth(TestCypressTokenAuthBase):
     @authors("pavel-bash")
     def test_list_user_tokens(self):
         create_user("u1")
-        t1, t1_hash = issue_token("u1")
-        t2, t2_hash = issue_token("u1")
+        _, t1_hash = issue_token("u1")
+        _, t2_hash = issue_token("u1")
         assert_items_equal(list_user_tokens("u1"), [t1_hash, t2_hash])
 
         create_user("u2")
-        t3, t3_hash = issue_token("u2")
+        _, t3_hash = issue_token("u2")
         assert_items_equal(list_user_tokens("u2"), [t3_hash])
 
     @authors("pavel-bash")
     def test_old_user_attribute_is_not_created(self):
         create_user("u1")
-        t, t_hash = issue_token("u1")
-        with pytest.raises(YtResponseError) as exc:
+        _, t_hash = issue_token("u1")
+        with raises_yt_error("Attribute \"user\" is not found"):
             get(f"//sys/cypress_tokens/{t_hash}/@user")
-        assert exc.match("Attribute \"user\" is not found")
 
     @authors("pavel-bash")
     def test_correct_user_id_in_token(self):
         create_user("u1")
         user1_id = get("//sys/users/u1/@id")
-        t1, t1_hash = issue_token("u1")
+        _, t1_hash = issue_token("u1")
         assert get(f"//sys/cypress_tokens/{t1_hash}/@user_id") == user1_id
 
         create_user("u2")
         user2_id = get("//sys/users/u2/@id")
-        t2, t2_hash = issue_token("u2")
+        _, t2_hash = issue_token("u2")
         assert get(f"//sys/cypress_tokens/{t2_hash}/@user_id") == user2_id
 
         assert user1_id != user2_id
@@ -139,7 +138,7 @@ class TestCypressTokenAuth(TestCypressTokenAuthBase):
         token_manual_hash = hashlib.sha256(token_manual.encode("utf-8")).hexdigest()
         create("file", f"//sys/cypress_tokens/{token_manual_hash}", attributes={"user": "u1", "token_prefix": ""})
 
-        token_usual, token_usual_hash = issue_token("u1")
+        _, token_usual_hash = issue_token("u1")
 
         assert_items_equal(list_user_tokens("u1"), [token_manual_hash, token_usual_hash])
 
@@ -165,7 +164,7 @@ class TestCypressTokenAuthWithoutCache(TestCypressTokenAuthBase):
         # This test does not pass when the cache is used; at least, until we introduce the logic
         # of authentication cache invalidation.
         create_user("u1")
-        t, t_hash = issue_token("u1")
+        t, _ = issue_token("u1")
         self._check_allow(token=t)
 
         set("//sys/users/u1/@name", "u2")
