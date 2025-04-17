@@ -281,6 +281,7 @@ struct TConnectionDynamicConfig
     TDuration DefaultRegisterTransactionActionsTimeout;
     TDuration DefaultGetOrderedTabletSafeTrimRowCountTimeout;
     TDuration DefaultChaosReplicatedTableGetTabletCountTimeout;
+    TDuration DefaultShuffleServiceTimeout;
 
     int CypressWriteYsonNestingLevelLimit;
 
