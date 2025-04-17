@@ -53,7 +53,7 @@ public:
         };
         return Client_->GetNode(path, options)
             .Apply(BIND(
-                &TCypressTokenAuthenticator::OnCallLoginResult,
+                &TCypressTokenAuthenticator::OnCallTokenResult,
                 MakeStrong(this),
                 tokenHash));
     }
@@ -62,7 +62,7 @@ private:
     const TCypressTokenAuthenticatorConfigPtr Config_;
     const IClientPtr Client_;
 
-    TFuture<TAuthenticationResult> OnCallLoginResult(
+    TFuture<TAuthenticationResult> OnCallTokenResult(
         const TString& tokenHash,
         const TErrorOr<TYsonString>& rspOrError)
     {
@@ -82,24 +82,24 @@ private:
                     << rspOrError;
             }
         }
-        auto nodePtr = ConvertTo<INodePtr>(rspOrError.Value());
-        const auto& nodeAttributes = nodePtr->Attributes();
+        auto tokenNode = ConvertTo<INodePtr>(rspOrError.Value());
+        const auto& tokenAttributes = tokenNode->Attributes();
 
-        auto userAttribute = nodeAttributes.Find<TString>("user_id");
-        if (userAttribute) {
+        auto userIdAttribute = tokenAttributes.Find<TString>("user_id");
+        if (userIdAttribute) {
             // New authentication schema: now we need to get the username given the user ID which we received.
-            auto path = Format("#%v/@name", ToYPathLiteral(*userAttribute));
+            auto path = Format("#%v/@name", ToYPathLiteral(*userIdAttribute));
             return Client_->GetNode(path, /*options*/ {})
                 .Apply(BIND(
                     &TCypressTokenAuthenticator::OnCallUsernameResult,
                     MakeStrong(this),
                     std::move(tokenHash),
-                    std::move(*userAttribute)));
+                    std::move(*userIdAttribute)));
         }
 
-        userAttribute = nodeAttributes.Find<TString>("user");
+        auto userAttribute = tokenAttributes.Find<TString>("user");
         if (userAttribute) {
-            // Old authetication schema: we already retrieved the username.
+            // Old authentication schema: we already retrieved the username.
             YT_LOG_DEBUG("Cypress authentication succeeded (TokenHash: %v, Login: %v)",
                 tokenHash,
                 *userAttribute);
