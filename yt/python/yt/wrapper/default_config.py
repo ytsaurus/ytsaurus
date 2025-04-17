@@ -744,6 +744,10 @@ default_config = {
         # When dumping a table, the size of the result row groups will exceed the set value.
         "min_batch_row_count": 0,
     },
+
+    # if enabled, the password strength will be verified by the client when performing
+    # a set_user_password request
+    "enable_password_strength_validation": RemotePatchableBoolean(False, "python_enable_password_strength_validation"),
 }
 
 # pydoc :: default_config :: end
