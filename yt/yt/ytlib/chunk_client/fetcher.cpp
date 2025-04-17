@@ -77,6 +77,8 @@ private:
     const TNodeDirectoryPtr NodeDirectory_;
     const NLogging::TLogger Logger;
 
+    i64 Epoch_ = 0;
+
     TChunkScraperPtr Scraper_;
 
     THashMap<TChunkId, TFetcherChunkDescriptor> ChunkMap_;
@@ -97,6 +99,21 @@ private:
         }
         UnavailableFetcherChunkCount_.store(chunkIds.size());
 
+        if (Scraper_) {
+            Scraper_->Stop();
+        }
+
+        // NB(pogorelov): Actually we don't need epoch here since we stop scraper at the end of sync step.
+        // Or if future canceled, ScrapeChunks shouldn't be called again.
+        // But this contract is pretty fragile, so we introduce epoch to protect us
+        // from race between current and previous scraper incarnations.
+        ++Epoch_;
+
+        YT_LOG_DEBUG(
+            "Starting to scrape chunks (ChunkCount: %v, Epoch: %v)",
+            size(chunkSpecs),
+            Epoch_);
+
         Scraper_ = New<TChunkScraper>(
             Config_,
             Invoker_,
@@ -104,23 +121,53 @@ private:
             Client_,
             NodeDirectory_,
             std::move(chunkIds),
-            BIND(&TFetcherChunkScraper::OnChunkBatchLocated, MakeWeak(this)),
+            BIND(&TFetcherChunkScraper::OnChunkBatchLocated, MakeWeak(this), Epoch_),
             Logger);
         Scraper_->Start();
 
         BatchLocatedPromise_ = NewPromise<void>();
-        BatchLocatedPromise_.OnCanceled(BIND(&TFetcherChunkScraper::OnCanceled, MakeWeak(this)));
-        return BatchLocatedPromise_;
+        BatchLocatedPromise_.OnCanceled(BIND_NO_PROPAGATE(&TFetcherChunkScraper::OnCanceled, MakeWeak(this), Epoch_));
+        auto future = BatchLocatedPromise_.ToFuture();
+        future.Subscribe(BIND_NO_PROPAGATE(&TFetcherChunkScraper::OnLocated, MakeWeak(this), Epoch_));
+        return future;
     }
 
-    void OnCanceled(const TError& error)
+    void OnCanceled(i64 epoch, const TError& error)
     {
+        if (epoch != Epoch_) {
+            YT_LOG_WARNING(
+                "Previous incarnation of scraper canceled (Epoch: %v, CurrentEpoch: %v)",
+                epoch,
+                Epoch_);
+            return;
+        }
         YT_LOG_DEBUG(error, "Fetcher chunk scraper canceled");
         Scraper_->Stop();
     }
 
-    void OnChunkBatchLocated(const std::vector<TScrapedChunkInfo>& chunkInfos)
+    void OnLocated(i64 epoch, const TError& error)
     {
+        if (epoch != Epoch_) {
+            YT_LOG_WARNING(
+                "Stopping previous incarnation of scraper (Epoch: %v, CurrentEpoch: %v)",
+                epoch,
+                Epoch_);
+            return;
+        }
+        YT_LOG_DEBUG(error, "Stopping fetcher chunk scraper");
+        Scraper_->Stop();
+    }
+
+    void OnChunkBatchLocated(i64 epoch, const std::vector<TScrapedChunkInfo>& chunkInfos)
+    {
+        if (epoch != Epoch_) {
+            YT_LOG_WARNING(
+                "Previous incarnation of scraper located chunks (Epoch: %v, CurrentEpoch: %v)",
+                epoch,
+                Epoch_);
+            return;
+        }
+
         YT_LOG_DEBUG(
             "Located another batch of chunks (Count: %v, UnavailableFetcherChunkCount: %v)",
             size(chunkInfos),
@@ -135,7 +182,6 @@ private:
 
             if (chunkInfo.Missing) {
                 YT_LOG_DEBUG("Chunk being scraped is missing; scraper terminated (ChunkId: %v)", chunkInfo.ChunkId);
-                Scraper_->Stop();
 
                 BatchLocatedPromise_.TrySet(TError("Chunk scraper failed: chunk %v is missing", chunkInfo.ChunkId));
                 return;
