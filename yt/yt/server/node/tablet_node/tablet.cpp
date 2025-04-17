@@ -1,10 +1,14 @@
 #include "tablet.h"
 
 #include "automaton.h"
-#include "compression_dictionary_manager.h"
 #include "bootstrap.h"
+#include "compression_dictionary_manager.h"
 #include "distributed_throttler_manager.h"
+#include "hedging_manager_registry.h"
+#include "hunk_chunk.h"
+#include "hunk_lock_manager.h"
 #include "partition.h"
+#include "serialize.h"
 #include "sorted_chunk_store.h"
 #include "sorted_dynamic_store.h"
 #include "store_manager.h"
@@ -14,10 +18,6 @@
 #include "tablet_slot.h"
 #include "tablet_profiling.h"
 #include "transaction_manager.h"
-#include "hunk_chunk.h"
-#include "hunk_lock_manager.h"
-#include "hedging_manager_registry.h"
-#include "serialize.h"
 
 #include <yt/yt/server/node/cluster_node/config.h>
 #include <yt/yt/server/node/cluster_node/dynamic_config_manager.h>
@@ -25,33 +25,31 @@
 #include <yt/yt/server/lib/misc/profiling_helpers.h>
 
 #include <yt/yt/server/lib/tablet_node/config.h>
+
 #include <yt/yt/server/lib/tablet_node/proto/tablet_manager.pb.h>
 
 #include <yt/yt/server/lib/hydra/distributed_hydra_manager.h>
 
-#include <yt/yt_proto/yt/client/table_chunk_format/proto/chunk_meta.pb.h>
+#include <yt/yt/client/chaos_client/helpers.h>
+
+#include <yt/yt/ytlib/chunk_client/chunk_fragment_reader.h>
+
+#include <yt/yt/ytlib/hive/cell_directory.h>
+
+#include <yt/yt/ytlib/table_client/helpers.h>
+
+#include <yt/yt/ytlib/tablet_client/config.h>
+
+#include <yt/yt/ytlib/transaction_client/helpers.h>
 
 #include <yt/yt/client/table_client/schema.h>
-
 #include <yt/yt/client/table_client/wire_protocol.h>
 
 #include <yt/yt/client/transaction_client/timestamp_provider.h>
 
 #include <yt/yt/client/object_client/helpers.h>
 
-#include <yt/yt/client/chaos_client/helpers.h>
-
-#include <yt/yt/ytlib/chunk_client/chunk_fragment_reader.h>
-
-#include <yt/yt/ytlib/tablet_client/config.h>
-
-#include <yt/yt/ytlib/transaction_client/helpers.h>
-
-#include <yt/yt/library/query/engine_api/column_evaluator.h>
-
-#include <yt/yt/ytlib/table_client/helpers.h>
-
-#include <yt/yt/ytlib/hive/cell_directory.h>
+#include <yt/yt_proto/yt/client/table_chunk_format/proto/chunk_meta.pb.h>
 
 #include <yt/yt/core/actions/cancelable_context.h>
 
@@ -63,6 +61,8 @@
 #include <yt/yt/core/misc/protobuf_helpers.h>
 #include <yt/yt/core/misc/serialize.h>
 #include <yt/yt/core/misc/tls_cache.h>
+
+#include <yt/yt/library/query/engine_api/column_evaluator.h>
 
 namespace NYT::NTabletNode {
 
