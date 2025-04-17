@@ -467,6 +467,9 @@ extend google.protobuf.FileOptions
     optional uint32 default_geohash_length = 30043;
 
     optional TCommonHistoryOptions history_options = 30044;
+
+    // Enables meta.type, meta.key, meta.parent_key, meta.fqid attributes.
+    optional bool enable_additional_meta_key_attributes = 30045 [default = true];
 }
 
 enum EGenerationPolicy
