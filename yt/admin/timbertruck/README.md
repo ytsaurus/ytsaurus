@@ -26,6 +26,10 @@ log_file: /yt/disk2/hume-data/master-logs/timbertruck.debug.log
 error_log_file: /yt/disk2/hume-data/master-logs/timbertruck.error.log
 
 # OPTIONAL.
+# LogrotatingTimeout defines the interval before reopening the log file, e.g., "5s" for 5 seconds, "10m" for 10 minutes.
+reopen_log_file_interval: 16m
+
+# OPTIONAL.
 # TVM Auth info. Used to Logbroker and YT authentication.
 # If not specified Timbertruck searches env variable LB_TOKEN,
 # and env variable YT_TOKEN or file ~/.yt/token for corresponding authentication tokens.
