@@ -644,7 +644,7 @@ ISchemafulUnversionedReaderPtr TOrderedDynamicStore::CreateReader(
             columnFilter),
         PerformanceCounters_,
         NTableClient::EDataSource::DynamicStore,
-        ERequestType::Read);
+        EPerformanceCountedRequestType::Read);
 }
 
 void TOrderedDynamicStore::OnSetPassive()

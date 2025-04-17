@@ -190,6 +190,13 @@ class TestDynamicTablesProfiling(TestSortedDynamicTablesBase):
         assert get(path + "/static_chunk_row_read_data_weight_count") == 0
         assert get(path + "/static_chunk_row_lookup_data_weight_count") == 0
 
+        before = get(path + "/dynamic_row_read_data_weight_count")
+        select_rows("* from [//tmp/t] where key in (0, 1, 2, 3)")
+
+        # Dynamic read must change, lookup must not change
+        wait(lambda: get(path + "/dynamic_row_read_data_weight_count") > before)
+        assert get(path + "/dynamic_row_lookup_data_weight_count") == before
+
         sync_flush_table("//tmp/t")
 
         select_rows("* from [//tmp/t]")
@@ -205,6 +212,13 @@ class TestDynamicTablesProfiling(TestSortedDynamicTablesBase):
         assert get(path + "/static_chunk_row_read_data_weight_count") == get(
             path + "/static_chunk_row_lookup_data_weight_count"
         )
+
+        before = get(path + "/static_chunk_row_read_data_weight_count")
+        select_rows("* from [//tmp/t] where key in (0, 1, 2, 3)")
+
+        # Static read must change, lookup must not change
+        wait(lambda: get(path + "/static_chunk_row_read_data_weight_count") > before)
+        assert get(path + "/static_chunk_row_lookup_data_weight_count") == before
 
     @authors("prime")
     def test_bundle_solomon_tag(self):

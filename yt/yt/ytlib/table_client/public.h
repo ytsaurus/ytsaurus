@@ -163,6 +163,11 @@ DECLARE_REFCOUNTED_STRUCT(IDictionaryCompressionSession)
 DECLARE_REFCOUNTED_STRUCT(IDictionaryDecompressionSession)
 DECLARE_REFCOUNTED_STRUCT(IDictionaryCompressionFactory)
 
+DEFINE_ENUM(EPerformanceCountedRequestType,
+    (Lookup)
+    (Read)
+);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NTableClient

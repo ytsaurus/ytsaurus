@@ -2171,7 +2171,7 @@ IVersionedReaderPtr TSortedDynamicStore::CreateReader(
             columnFilter),
         tabletSnapshot->PerformanceCounters,
         NTableClient::EDataSource::DynamicStore,
-        ERequestType::Read);
+        EPerformanceCountedRequestType::Read);
 }
 
 IVersionedReaderPtr TSortedDynamicStore::CreateReader(
@@ -2180,7 +2180,7 @@ IVersionedReaderPtr TSortedDynamicStore::CreateReader(
     TTimestamp timestamp,
     bool produceAllVersions,
     const TColumnFilter& columnFilter,
-    const TClientChunkReadOptions& /*chunkReadOptions*/,
+    const TClientChunkReadOptions& chunkReadOptions,
     std::optional<EWorkloadCategory> /*workloadCategory*/)
 {
     return CreateVersionedPerformanceCountingReader(
@@ -2193,7 +2193,7 @@ IVersionedReaderPtr TSortedDynamicStore::CreateReader(
             columnFilter),
         tabletSnapshot->PerformanceCounters,
         NTableClient::EDataSource::DynamicStore,
-        ERequestType::Lookup);
+        chunkReadOptions.RequestType);
 }
 
 bool TSortedDynamicStore::CheckRowLocks(
