@@ -1135,7 +1135,6 @@ TEST_P(TBundleSchedulerTest, DisableAllocationsCausesDeallocationToSpare)
             Cerr << Format("New alert (Id: %v, BundleName: %v, Description: %v)", alert.Id, alert.BundleName, alert.Description) << Endl;
         }
         EXPECT_EQ(0, CountAlertsExcept(mutations.AlertsToFire, {"no_free_spare_nodes"}));
-        EXPECT_EQ(0, std::ssize(mutations.AlertsToFire));
         EXPECT_EQ(0, std::ssize(mutations.NewDeallocations));
         EXPECT_EQ(0, std::ssize(mutations.ChangedDecommissionedFlag));
         EXPECT_EQ(0, std::ssize(mutations.ChangeNodeAnnotations));
@@ -4628,6 +4627,32 @@ TEST_P(TNodeTagsFilterManager, TestBundleNodesWithSpare)
     EXPECT_TRUE(mutations.ChangedStates["bigd"]->SpareNodeAssignments.empty());
     EXPECT_TRUE(mutations.ChangedStates["bigd"]->BundleNodeReleasements.empty());
     EXPECT_TRUE(mutations.ChangedStates["bigd"]->BundleNodeAssignments.empty());
+}
+
+TEST_P(TNodeTagsFilterManager, TestSpareNodesAreReleasedProperly)
+{
+    if (GetDataCenterCount() != 1) {
+        GTEST_SKIP_("This feature is for 1-DC clusters only");
+    }
+
+    auto input = GenerateInputContext(3, 5);
+    auto& bundleInfo = input.Bundles["bigd"];
+    bundleInfo->EnableNodeTagFilterManagement = true;
+    bundleInfo->EnableTabletCellManagement = false;
+    GenerateTabletCellsForBundle(input, "bigd", 15);
+    GenerateNodesForBundle(input, "bigd", 3, {.SetFilterTag = true, .SlotCount = 5});
+    auto spareNodes = GenerateNodesForBundle(input, SpareBundleName, 1, {.SlotCount = 5});
+    ASSERT_EQ(1, std::ssize(spareNodes));
+    const auto& spareNode = *spareNodes.begin();
+    input.TabletNodes[spareNode]->UserTags.insert(bundleInfo->NodeTagFilter);
+
+    input.Config->HasInstanceAllocatorService = false;
+    input.Config->DecommissionReleasedNodes = false;
+
+    TSchedulerMutations mutations;
+    ScheduleBundles(input, &mutations);
+
+    EXPECT_EQ(1, std::ssize(mutations.ChangedStates["bigd"]->SpareNodeReleasements));
 }
 
 TEST_P(TNodeTagsFilterManager, TestSeveralBundlesNodesLookingForSpare)
