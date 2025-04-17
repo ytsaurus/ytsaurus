@@ -1,8 +1,8 @@
 from yt_env_setup import YTEnvSetup, Restarter, NODES_SERVICE, CONTROLLER_AGENTS_SERVICE
 
 from yt_commands import (
-    authors, wait, retry, wait_no_assert, wait_breakpoint, release_breakpoint, with_breakpoint, create,
-    get, create_tmpdir,
+    authors, wait, retry, wait_no_assert, wait_breakpoint,
+    release_breakpoint, with_breakpoint, create, get, create_tmpdir,
     create_pool, insert_rows, select_rows, lookup_rows, write_table,
     map, map_reduce, vanilla, run_test_vanilla, run_sleeping_vanilla,
     abort_job, list_jobs, clean_operations, mount_table, unmount_table, wait_for_cells, sync_create_cells,
@@ -19,7 +19,7 @@ import yt.yson as yson
 import yt.environment.init_operations_archive as init_operations_archive
 from yt.wrapper.operation_commands import add_failed_operation_stderrs_to_error_message
 from yt.wrapper.common import uuid_hash_pair, YtError
-from yt.common import date_string_to_datetime, datetime_to_string, utcnow, update
+from yt.common import date_string_to_datetime, date_string_to_timestamp_mcs, datetime_to_string, utcnow, update
 
 import os
 import time
@@ -1118,14 +1118,14 @@ class TestListJobs(TestListJobsCommon):
         wait_breakpoint(breakpoint_name="b", job_count=1)
 
         # For running jobs to_time filter uses start_time attribute for comparison
-        # so we expect both jobs to be detected
+        # so we expect both jobs to be detected.
         middle_time_before_breakpoint = datetime_to_string(utcnow())
         check_filter(2, from_time=start_time, to_time=middle_time_before_breakpoint)
 
         release_breakpoint(breakpoint_name="a")
         wait(lambda: len(list_jobs(op.id, state="completed")["jobs"]) == 1)
 
-        # Now we expect only running job to be detected
+        # Now we expect only running job to be detected.
         check_filter(1, from_time=start_time, to_time=middle_time_before_breakpoint)
 
         middle_time_after_breakpoint = datetime_to_string(utcnow())
@@ -1229,6 +1229,59 @@ class TestListJobs(TestListJobsCommon):
         test_attributes(["state"], ["id", "state", "archive_state", "controller_state"])
         test_attributes(["state", "controller_state"], ["id", "state", "archive_state", "controller_state"])
         test_attributes(["operation_id"], {"id" : job_id, "operation_id" : op.id})
+
+    @authors("bystrovserg")
+    @flaky(max_runs=3)
+    def test_controller_start_finish_time(self):
+        op = run_test_vanilla(
+            with_breakpoint("BREAKPOINT"),
+        )
+        (job_id,) = wait_breakpoint()
+
+        def check_times(op_finished):
+            jobs = list_jobs(op.id)["jobs"]
+            assert len(jobs) == 1
+            job_from_api = jobs[0]
+            job_from_archive = get_job_from_archive(op.id, job_id)
+
+            start_time_by_list_jobs = date_string_to_timestamp_mcs(job_from_api["start_time"])
+            assert job_from_archive.get("controller_start_time") is not None
+            assert start_time_by_list_jobs == job_from_archive["controller_start_time"]
+            assert job_from_archive["start_time"] != job_from_archive["controller_start_time"]
+
+            if op_finished:
+                finish_time_by_list_jobs = date_string_to_timestamp_mcs(job_from_api["finish_time"])
+                assert job_from_archive.get("controller_finish_time") is not None
+                assert finish_time_by_list_jobs == job_from_archive["controller_finish_time"]
+                assert job_from_archive["finish_time"] != job_from_archive["controller_finish_time"]
+
+        wait_no_assert(lambda: check_times(op_finished=False))
+
+        release_breakpoint()
+        op.track()
+
+        wait_no_assert(lambda: check_times(op_finished=True))
+
+    # Before setting start_time and finish_time by the controller agent,
+    # "list_jobs" returned the controller agent's times for running jobs
+    # and the node's times for completed jobs. Test checks that these times stay the same now.
+    @authors("bystrovserg")
+    def test_same_time_for_running_and_completed_jobs(self):
+        op = run_test_vanilla(
+            with_breakpoint("BREAKPOINT"),
+        )
+        wait_breakpoint()
+
+        wait(lambda: len(list_jobs(op.id)["jobs"]) == 1)
+        running_jobs = list_jobs(op.id)["jobs"]
+
+        release_breakpoint()
+        op.track()
+
+        wait(lambda: len(list_jobs(op.id)["jobs"]) == 1)
+        completed_jobs = list_jobs(op.id)["jobs"]
+
+        assert frozenset(job["start_time"] for job in running_jobs) == frozenset(job["start_time"] for job in completed_jobs)
 
 
 class TestListJobsAllocation(TestListJobsBase):

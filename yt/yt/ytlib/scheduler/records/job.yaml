@@ -207,3 +207,12 @@ types:
         column_name: allocation_id_lo
         column_type: Uint64
 
+      - cpp_name: ControllerStartTime
+        cpp_type: i64
+        column_name: controller_start_time
+        column_type: Int64
+
+      - cpp_name: ControllerFinishTime
+        cpp_type: i64
+        column_name: controller_finish_time
+        column_type: Int64

@@ -113,6 +113,8 @@ public:
     DEFINE_BYREF_RO_PROPERTY(std::optional<TDuration>, Ttl);
     DEFINE_BYREF_RO_PROPERTY(std::optional<std::string>, OperationIncarnation);
     DEFINE_BYREF_RO_PROPERTY(NScheduler::TAllocationId, AllocationId);
+    DEFINE_BYREF_RO_PROPERTY(std::optional<i64>, ControllerStartTime);
+    DEFINE_BYREF_RO_PROPERTY(std::optional<i64>, ControllerFinishTime);
 
 protected:
     TJobReport() = default;
