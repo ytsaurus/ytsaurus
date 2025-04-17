@@ -250,8 +250,8 @@ void TClient::DoRevokeToken(
             << tokenNodeOrError;
         THROW_ERROR error;
     }
-    auto tokenNodePtr = ConvertTo<INodePtr>(tokenNodeOrError.Value());
-    const auto& tokenAttributes = tokenNodePtr->Attributes();
+    auto tokenNode = ConvertTo<INodePtr>(tokenNodeOrError.Value());
+    const auto& tokenAttributes = tokenNode->Attributes();
 
     getOptions.Attributes = {};
     TString tokenUser;
