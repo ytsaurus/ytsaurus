@@ -156,13 +156,14 @@ TPerDataCenterSpareNodesInfo GetSpareNodesInfo(
                 continue;
             }
 
-            if (!mutations->ChangedStates.contains(bundleName)) {
-                continue;
+            TBundleControllerStatePtr bundleState;
+            if (const auto it = mutations->ChangedStates.find(bundleName); it != mutations->ChangedStates.end()) {
+                bundleState = it->second;
+            } else if (const auto it = input.BundleStates.find(bundleName); it != input.BundleStates.end()) {
+                bundleState = it->second;
             }
 
-            const auto& bundleState = GetOrCrash(mutations->ChangedStates, bundleName);
-
-            if (bundleState->SpareNodeReleasements.count(spareNodeName)) {
+            if (bundleState && bundleState->SpareNodeReleasements.count(spareNodeName) != 0) {
                 spareNodes.ReleasingByBundle[bundleName].push_back(spareNodeName);
             } else {
                 spareNodes.UsedByBundle[bundleName].push_back(spareNodeName);
