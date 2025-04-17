@@ -367,6 +367,13 @@ const std::vector<TStatisticsDescription>& GetOperationStatisticsDescriptions()
         {"chunk_reader_statistics/session_count", "Total number of read sessions", "pieces"},
         {"chunk_reader_statistics/retry_count", "Total number of chunk reader retries", "pieces"},
         {"chunk_reader_statistics/pass_count", "Total number of chunk reader passes", "pieces"},
+
+        {"chunk_writer_statistics/*/data_bytes_written_to_disk", "Amount of chunk data written to disk", "bytes"},
+        {"chunk_writer_statistics/*/data_io_sync_requests", "Number of requests to flush chunk data from kernel buffers to disk", "pieces"},
+        {"chunk_writer_statistics/*/data_io_write_requests", "Number of write requests for chunk data", "pieces"},
+        {"chunk_writer_statistics/*/meta_bytes_written_to_disk", "Amount of chunk metadata written to disk", "bytes"},
+        {"chunk_writer_statistics/*/meta_io_sync_requests", "Number of requests to flush chunk metadata from kernel buffers to disk", "pieces"},
+        {"chunk_writer_statistics/*/meta_io_write_requests", "Number of write requests for chunk metadata", "pieces"},
     };
 
     return statisticsHints;
