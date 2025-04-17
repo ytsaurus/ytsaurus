@@ -43,16 +43,19 @@ public:
             tokenHash,
             userIP);
 
-        // Firstly, try to authenticate the user using the newer @user_id attribute.
-        auto path = Format("%v/%v/@user_id",
+        // Try to retrieve both old (@user) and new (@user_id) token attributes
+        // at the same time to speed up the process.
+        auto path = Format("%v/%v",
             Config_->RootPath ? Config_->RootPath : "//sys/cypress_tokens",
             ToYPathLiteral(tokenHash));
-        return Client_->GetNode(path, /*options*/ {})
+        auto options = TGetNodeOptions{
+            .Attributes = TAttributeFilter({"user", "user_id"}),
+        };
+        return Client_->GetNode(path, options)
             .Apply(BIND(
                 &TCypressTokenAuthenticator::OnCallLoginResult,
                 MakeStrong(this),
-                tokenHash,
-                true));
+                tokenHash));
     }
 
 private:
@@ -61,23 +64,9 @@ private:
 
     TFuture<TAuthenticationResult> OnCallLoginResult(
         const TString& tokenHash,
-        bool withUserIdAttribute,
         const TErrorOr<TYsonString>& rspOrError)
     {
         if (!rspOrError.IsOK()) {
-            if (withUserIdAttribute) {
-                // Fallback to the old token schema using the @user attribute.
-                auto path = Format("%v/%v/@user",
-                    Config_->RootPath ? Config_->RootPath : "//sys/cypress_tokens",
-                    ToYPathLiteral(tokenHash));
-                return Client_->GetNode(path, /*options*/ {})
-                    .Apply(BIND(
-                        &TCypressTokenAuthenticator::OnCallLoginResult,
-                        MakeStrong(this),
-                        tokenHash,
-                        false));
-            }
-
             if (rspOrError.FindMatching(NYTree::EErrorCode::ResolveError)) {
                 YT_LOG_DEBUG(rspOrError, "Token is missing in Cypress (TokenHash: %v)",
                     tokenHash);
@@ -93,25 +82,37 @@ private:
                     << rspOrError;
             }
         }
+        auto nodePtr = ConvertTo<INodePtr>(rspOrError.Value());
+        const auto& nodeAttributes = nodePtr->Attributes();
 
-        auto login = ConvertTo<TString>(rspOrError.Value());
-        if (withUserIdAttribute) {
-            // We need to get the username given the user ID which we received.
-            auto path = Format("#%v/@name", ToYPathLiteral(login));
+        auto userAttribute = nodeAttributes.Find<TString>("user_id");
+        if (userAttribute) {
+            // New authentication schema: now we need to get the username given the user ID which we received.
+            auto path = Format("#%v/@name", ToYPathLiteral(*userAttribute));
             return Client_->GetNode(path, /*options*/ {})
                 .Apply(BIND(
                     &TCypressTokenAuthenticator::OnCallUsernameResult,
                     MakeStrong(this),
                     std::move(tokenHash),
-                    std::move(login)));
+                    std::move(*userAttribute)));
         }
 
-        YT_LOG_DEBUG("Cypress authentication succeeded (TokenHash: %v, Login: %v)",
-            tokenHash,
-            login);
-        return MakeFuture(TAuthenticationResult{
-            .Login = login,
-        });
+        userAttribute = nodeAttributes.Find<TString>("user");
+        if (userAttribute) {
+            // Old authetication schema: we already retrieved the username.
+            YT_LOG_DEBUG("Cypress authentication succeeded (TokenHash: %v, Login: %v)",
+                tokenHash,
+                *userAttribute);
+            return MakeFuture(TAuthenticationResult{
+                .Login = *userAttribute,
+            });
+        }
+
+        YT_LOG_DEBUG(rspOrError, "Cypress authentication failed (TokenHash: %v)",
+            tokenHash);
+        THROW_ERROR_EXCEPTION("Cypress authentication failed")
+            << TErrorAttribute("token_hash", tokenHash)
+            << rspOrError;
     }
 
     TAuthenticationResult OnCallUsernameResult(

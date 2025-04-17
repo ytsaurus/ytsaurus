@@ -1,8 +1,10 @@
 from yt_env_setup import YTEnvSetup
 from yt_commands import (
-    authors, create_user, issue_token, revoke_token, wait, get, set, set_user_password, create
+    authors, create_user, issue_token, revoke_token, list_user_tokens,
+    wait, get, set, set_user_password, create
 )
 from yt.common import YtResponseError
+from yt.environment.helpers import assert_items_equal
 
 import pytest
 
@@ -84,6 +86,17 @@ class TestCypressTokenAuth(TestCypressTokenAuthBase):
         wait(lambda: self._check_deny(token=t))
 
     @authors("pavel-bash")
+    def test_list_user_tokens(self):
+        create_user("u1")
+        t1, t1_hash = issue_token("u1")
+        t2, t2_hash = issue_token("u1")
+        assert_items_equal(list_user_tokens("u1"), [t1_hash, t2_hash])
+
+        create_user("u2")
+        t3, t3_hash = issue_token("u2")
+        assert_items_equal(list_user_tokens("u2"), [t3_hash])
+
+    @authors("pavel-bash")
     def test_old_user_attribute_is_not_created(self):
         create_user("u1")
         t, t_hash = issue_token("u1")
@@ -106,14 +119,29 @@ class TestCypressTokenAuth(TestCypressTokenAuthBase):
         assert user1_id != user2_id
 
     @authors("pavel-bash")
-    def test_username_to_user_id_backward_compatibility(self):
+    def test_username_to_user_id_backward_compatibility_issue_revoke(self):
         # In this test we're manually issuing the token using the old schema;
-        # the authentication should still succeed.
+        # the authentication and token revocation should still succeed.
         create_user("u1")
         token = "XXX"
-        token_sha = hashlib.sha256(token.encode("utf-8")).hexdigest()
-        create("file", f"//sys/cypress_tokens/{token_sha}", attributes={"user": "u1", "token_prefix": ""})
+        token_hash = hashlib.sha256(token.encode("utf-8")).hexdigest()
+        create("file", f"//sys/cypress_tokens/{token_hash}", attributes={"user": "u1", "token_prefix": ""})
         self._check_allow(token=token)
+
+        revoke_token("u1", token_hash)
+        wait(lambda: self._check_deny(token=token))
+
+    @authors("pavel-bash")
+    def test_username_to_user_id_backward_compatibility_list_mixed(self):
+        # Tokens from the old schema and from the new schema must both be listed.
+        create_user("u1")
+        token_manual = "XXX"
+        token_manual_hash = hashlib.sha256(token_manual.encode("utf-8")).hexdigest()
+        create("file", f"//sys/cypress_tokens/{token_manual_hash}", attributes={"user": "u1", "token_prefix": ""})
+
+        token_usual, token_usual_hash = issue_token("u1")
+
+        assert_items_equal(list_user_tokens("u1"), [token_manual_hash, token_usual_hash])
 
 
 @pytest.mark.enabled_multidaemon
