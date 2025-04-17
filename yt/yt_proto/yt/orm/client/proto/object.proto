@@ -521,6 +521,10 @@ enum EUpdatePolicy
     // Explicit changes will result in an error.
     // For the superuser, it behaves as OPAQUE_UPDATABLE.
     UP_OPAQUE_READ_ONLY = 3;
+
+    // Ignores implicit changes.
+    // Can not be updated via API, only by server-side plugins.
+    UP_PLUGIN_ONLY_UPDATABLE = 5;
 }
 
 message TReferenceOption
