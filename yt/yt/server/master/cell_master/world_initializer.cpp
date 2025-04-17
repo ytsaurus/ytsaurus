@@ -401,6 +401,7 @@ private:
                     BuildYsonStringFluently()
                         .BeginMap()
                             .Item("opaque").Value(true)
+                            .Item("inherit_acl").Value(false)
                         .EndMap());
             }
 
