@@ -66,6 +66,7 @@ import (
 	"runtime/pprof"
 	"slices"
 	"syscall"
+	"time"
 
 	"golang.org/x/sys/unix"
 	"gopkg.in/yaml.v3"
@@ -87,6 +88,10 @@ type Config struct {
 
 	// File for error logs of timbertruck itself
 	ErrorLogFile string `yaml:"error_log_file"`
+
+	// ReopenLogFileInterval defines the interval before reopening the log file,
+	// e.g., "5s" for 5 seconds, "10m" for 10 minutes.
+	ReopenLogFileInterval time.Duration `yaml:"reopen_log_file_interval"`
 
 	// File to write pid info. Locked while timbertruck is running, so second instance cannot be launched.
 	PidFile string `yaml:"pid_file"`
@@ -246,10 +251,15 @@ func newDaemonApp(config Config, isRestart bool) (app *daemonApp, err error) {
 		return
 	}
 
+	reopenLogFileInterval := 16 * time.Minute
+	if config.ReopenLogFileInterval != 0 {
+		reopenLogFileInterval = config.ReopenLogFileInterval
+	}
+
 	var logFile io.WriteCloser = os.Stderr
 	closeLogFile := func() {}
 	if config.LogFile != "" {
-		logFile, err = misc.NewLogrotatingFile(config.LogFile)
+		logFile, err = misc.NewLogrotatingFile(config.LogFile, reopenLogFileInterval)
 		if err != nil {
 			err = fmt.Errorf("cannot open log file: %v", err)
 			return
@@ -261,7 +271,7 @@ func newDaemonApp(config Config, isRestart bool) (app *daemonApp, err error) {
 	closeErrorLogFile := func() {}
 	if config.ErrorLogFile != "" {
 		var logrotatingFile io.WriteCloser
-		logrotatingFile, err = misc.NewLogrotatingFile(config.ErrorLogFile)
+		logrotatingFile, err = misc.NewLogrotatingFile(config.ErrorLogFile, reopenLogFileInterval)
 		if err != nil {
 			err = fmt.Errorf("cannot open error log file: %v", err)
 			return
