@@ -86,8 +86,7 @@ private:
             if (maskError) {
                 // Hide details about unsuccessful login attempts for security reasons.
                 ReplyError(rsp, TError("Incorrect login or password"));
-            }
-            else {
+            } else {
                 ReplyError(rsp, error);
             }
 
@@ -140,7 +139,7 @@ private:
 
             // Unknown error, reply 500.
             error = TError("Failed to fetch info for user %Qlv during logging", user) << error;
-            replyAndLogError(error, /*maskError*/ true, TString{user});
+            replyAndLogError(error, /*maskError*/ false, TString{user});
             throw;
         }
 
