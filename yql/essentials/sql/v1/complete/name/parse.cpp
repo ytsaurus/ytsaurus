@@ -1,4 +1,4 @@
-#include "namespacing.h"
+#include "parse.h"
 
 namespace NSQLComplete {
 

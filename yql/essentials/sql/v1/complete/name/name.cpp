@@ -1,6 +1,6 @@
-#include "name_service.h"
+#include "name.h"
 
-#include <yql/essentials/sql/v1/complete/name/service/name_service.h>
+#include <util/stream/output.h>
 
 namespace {
 

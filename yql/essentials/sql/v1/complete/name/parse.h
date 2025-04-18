@@ -1,8 +1,6 @@
 #pragma once
 
-#include "name_service.h"
-
-#include <util/generic/string.h>
+#include "name.h"
 
 namespace NSQLComplete {
 
