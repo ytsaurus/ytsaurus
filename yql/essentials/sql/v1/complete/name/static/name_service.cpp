@@ -4,6 +4,8 @@
 
 #include <yql/essentials/sql/v1/complete/text/case.h>
 
+#include <library/cpp/threading/future/wait/wait.h>
+
 namespace NSQLComplete {
 
     const TVector<TStringBuf> FilteredByPrefix(
@@ -52,20 +54,33 @@ namespace NSQLComplete {
         }, name);
     }
 
-    class TStaticNameService: public INameService {
-    public:
-        explicit TStaticNameService(NameSet names, IRanking::TPtr ranking)
-            : NameSet_(std::move(names))
-            , Ranking_(std::move(ranking))
-        {
-            Sort(NameSet_.Pragmas, NoCaseCompare);
-            Sort(NameSet_.Types, NoCaseCompare);
-            Sort(NameSet_.Functions, NoCaseCompare);
-            for (auto& [_, hints] : NameSet_.Hints) {
-                Sort(hints, NoCaseCompare);
-            }
+    void FixPrefix(TVector<TGenericName>& names, const TNameRequest& request) {
+        for (auto& name : names) {
+            FixPrefix(name, request);
         }
+    }
 
+    void InstallPrefix(TGenericName& name, const TNameRequest& request) {
+        std::visit([&](auto& name) -> size_t {
+            using T = std::decay_t<decltype(name)>;
+            if constexpr (std::is_same_v<T, TPragmaName>) {
+                name.Indentifier = Prefixed(name.Indentifier, ".", *request.Constraints.Pragma);
+            }
+            if constexpr (std::is_same_v<T, TFunctionName>) {
+                name.Indentifier = Prefixed(name.Indentifier, "::", *request.Constraints.Function);
+            }
+            return 0;
+        }, name);
+    }
+
+    void InstallPrefix(TVector<TGenericName>& names, const TNameRequest& request) {
+        for (auto& name : names) {
+            InstallPrefix(name, request);
+        }
+    }
+
+    class TKeywordNameService: public INameService {
+    public:
         TFuture<TNameResponse> Lookup(TNameRequest request) override {
             TNameResponse response;
 
@@ -74,48 +89,178 @@ namespace NSQLComplete {
                 response.RankedNames,
                 FilteredByPrefix(request.Prefix, request.Keywords));
 
+            return NThreading::MakeFuture(std::move(response));
+        }
+    };
+
+    class TPragmaNameService: public INameService {
+    public:
+        explicit TPragmaNameService(TVector<TString> pragmas)
+            : Pragmas_(std::move(pragmas))
+        {
+            Sort(Pragmas_, NoCaseCompare);
+        }
+
+        TFuture<TNameResponse> Lookup(TNameRequest request) override {
+            TNameResponse response;
+
             if (request.Constraints.Pragma) {
                 auto prefix = Prefixed(request.Prefix, ".", *request.Constraints.Pragma);
-                auto names = FilteredByPrefix(prefix, NameSet_.Pragmas);
+                auto names = FilteredByPrefix(prefix, Pragmas_);
                 AppendAs<TPragmaName>(response.RankedNames, names);
             }
+
+            FixPrefix(response.RankedNames, request);
+
+            return NThreading::MakeFuture(std::move(response));
+        }
+
+    private:
+        TVector<TString> Pragmas_;
+    };
+
+    class TTypeNameService: public INameService {
+    public:
+        explicit TTypeNameService(TVector<TString> types)
+            : Types_(std::move(types))
+        {
+            Sort(Types_, NoCaseCompare);
+        }
+
+        TFuture<TNameResponse> Lookup(TNameRequest request) override {
+            TNameResponse response;
 
             if (request.Constraints.Type) {
                 AppendAs<TTypeName>(
                     response.RankedNames,
-                    FilteredByPrefix(request.Prefix, NameSet_.Types));
-            }
-
-            if (request.Constraints.Function) {
-                auto prefix = Prefixed(request.Prefix, "::", *request.Constraints.Function);
-                auto names = FilteredByPrefix(prefix, NameSet_.Functions);
-                AppendAs<TFunctionName>(response.RankedNames, names);
-            }
-
-            if (request.Constraints.Hint) {
-                const auto stmt = request.Constraints.Hint->Statement;
-                AppendAs<THintName>(
-                    response.RankedNames,
-                    FilteredByPrefix(request.Prefix, NameSet_.Hints[stmt]));
-            }
-
-            if (request.Constraints.Table) {
-                AppendAs<TTableName>(
-                    response.RankedNames,
-                    FilteredByPrefix(request.Prefix, NameSet_.Tables));
-            }
-
-            Ranking_->CropToSortedPrefix(response.RankedNames, request.Limit);
-
-            for (auto& name : response.RankedNames) {
-                FixPrefix(name, request);
+                    FilteredByPrefix(request.Prefix, Types_));
             }
 
             return NThreading::MakeFuture(std::move(response));
         }
 
     private:
+        TVector<TString> Types_;
+    };
+
+    class TFunctionNameService: public INameService {
+    public:
+        explicit TFunctionNameService(TVector<TString> functions)
+            : Functions_(std::move(functions))
+        {
+            Sort(Functions_, NoCaseCompare);
+        }
+
+        TFuture<TNameResponse> Lookup(TNameRequest request) override {
+            TNameResponse response;
+
+            if (request.Constraints.Function) {
+                auto prefix = Prefixed(request.Prefix, "::", *request.Constraints.Function);
+                auto names = FilteredByPrefix(prefix, Functions_);
+                AppendAs<TFunctionName>(response.RankedNames, names);
+            }
+
+            FixPrefix(response.RankedNames, request);
+
+            return NThreading::MakeFuture(std::move(response));
+        }
+
+    private:
+        TVector<TString> Functions_;
+    };
+
+    class THintNameService: public INameService {
+    public:
+        explicit THintNameService(THashMap<EStatementKind, TVector<TString>> Hints)
+            : Hints_(std::move(Hints))
+        {
+            for (auto& [_, hints] : Hints_) {
+                Sort(hints, NoCaseCompare);
+            }
+        }
+
+        TFuture<TNameResponse> Lookup(TNameRequest request) override {
+            TNameResponse response;
+
+            if (request.Constraints.Hint) {
+                const auto stmt = request.Constraints.Hint->Statement;
+                AppendAs<THintName>(
+                    response.RankedNames,
+                    FilteredByPrefix(request.Prefix, Hints_[stmt]));
+            }
+
+            return NThreading::MakeFuture(std::move(response));
+        }
+
+    private:
+        THashMap<EStatementKind, TVector<TString>> Hints_;
+    };
+
+    class TStaticNameService: public INameService {
+    public:
+        explicit TStaticNameService(NameSet names, IRanking::TPtr ranking)
+            : NameSet_(std::move(names))
+            , Keyword_()
+            , PragmaName_(std::move(NameSet_.Pragmas))
+            , TypeName_(std::move(NameSet_.Types))
+            , FunctionName_(std::move(NameSet_.Functions))
+            , HintName_(std::move(NameSet_.Hints))
+            , Ranking_(std::move(ranking))
+        {
+            Sort(NameSet_.Tables, NoCaseCompare);
+        }
+
+        TFuture<TNameResponse> Lookup(TNameRequest request) override {
+            TNameResponse response;
+
+            TVector<TFuture<TNameResponse>> subresponses;
+            if (!request.Keywords.empty()) {
+                subresponses.emplace_back(Keyword_.Lookup(request));
+            }
+            if (request.Constraints.Pragma) {
+                subresponses.emplace_back(PragmaName_.Lookup(request));
+            }
+            if (request.Constraints.Type) {
+                subresponses.emplace_back(TypeName_.Lookup(request));
+            }
+            if (request.Constraints.Function) {
+                subresponses.emplace_back(FunctionName_.Lookup(request));
+            }
+            if (request.Constraints.Hint) {
+                subresponses.emplace_back(HintName_.Lookup(request));
+            }
+
+            // TODO(YQL-19747): Waiting without a timeout and error checking
+            NThreading::WaitExceptionOrAll(subresponses).GetValueSync();
+
+            for (auto& subrespons : subresponses) {
+                const auto& names = subrespons.GetValueSync().RankedNames;
+                std::ranges::copy(names, std::back_inserter(response.RankedNames));
+            }
+
+            // TODO(YQL-19747): Extract to schema service
+            if (request.Constraints.Table) {
+                AppendAs<TTableName>(
+                    response.RankedNames,
+                    FilteredByPrefix(request.Prefix, NameSet_.Tables));
+            }
+
+            InstallPrefix(response.RankedNames, request);
+            Ranking_->CropToSortedPrefix(response.RankedNames, request.Limit);
+            FixPrefix(response.RankedNames, request);
+
+            return NThreading::MakeFuture(std::move(response));
+        }
+
+    private:
         NameSet NameSet_;
+
+        TKeywordNameService Keyword_;
+        TPragmaNameService PragmaName_;
+        TTypeNameService TypeName_;
+        TFunctionNameService FunctionName_;
+        THintNameService HintName_;
+
         IRanking::TPtr Ranking_;
     };
 
