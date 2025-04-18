@@ -94,26 +94,34 @@ namespace NSQLComplete {
             // User should prepare a robust INameService
             TNameResponse response = Names->Lookup(std::move(request)).ExtractValueSync();
 
-            return Convert(std::move(response.RankedNames), std::move(context.Keywords));
+            return Convert(std::move(response.RankedNames), std::move(context));
         }
 
-        TVector<TCandidate> Convert(TVector<TGenericName> names, TLocalSyntaxContext::TKeywords keywords) {
+        TVector<TCandidate> Convert(TVector<TGenericName> names, TLocalSyntaxContext context) {
             TVector<TCandidate> candidates;
             for (auto& name : names) {
                 candidates.emplace_back(std::visit([&](auto&& name) -> TCandidate {
                     using T = std::decay_t<decltype(name)>;
                     if constexpr (std::is_base_of_v<TKeyword, T>) {
-                        TVector<TString>& seq = keywords[name.Content];
+                        TVector<TString>& seq = context.Keywords[name.Content];
                         seq.insert(std::begin(seq), name.Content);
                         return {ECandidateKind::Keyword, FormatKeywords(seq)};
                     }
                     if constexpr (std::is_base_of_v<TPragmaName, T>) {
+                        if (context.Pragma->Namespace.empty() && !name.Namespace.empty()) {
+                            name.Indentifier.prepend(".");
+                            name.Indentifier.prepend(name.Namespace);
+                        }
                         return {ECandidateKind::PragmaName, std::move(name.Indentifier)};
                     }
                     if constexpr (std::is_base_of_v<TTypeName, T>) {
                         return {ECandidateKind::TypeName, std::move(name.Indentifier)};
                     }
                     if constexpr (std::is_base_of_v<TFunctionName, T>) {
+                        if (context.Function->Namespace.empty() && !name.Namespace.empty()) {
+                            name.Indentifier.prepend("::");
+                            name.Indentifier.prepend(name.Namespace);
+                        }
                         name.Indentifier += "(";
                         return {ECandidateKind::FunctionName, std::move(name.Indentifier)};
                     }

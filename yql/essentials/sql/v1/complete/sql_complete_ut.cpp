@@ -701,9 +701,11 @@ Y_UNIT_TEST_SUITE(SqlCompleteTests) {
                 {"select", 2},
                 {"insert", 4},
             },
-            .Pragmas = {
-                {"yt.defaultmemorylimit", 16},
-                {"yt.annotations", 8},
+            .PragmasBySpace = {
+                {"yt", {
+                           {"defaultmemorylimit", 16},
+                           {"annotations", 8},
+                       }},
             },
             .Types = {
                 {"int32", 128},
@@ -711,12 +713,14 @@ Y_UNIT_TEST_SUITE(SqlCompleteTests) {
                 {"interval", 32},
                 {"interval64", 32},
             },
-            .Functions = {
-                {"min", 128},
-                {"max", 64},
-                {"maxof", 64},
-                {"minby", 32},
-                {"maxby", 32},
+            .FunctionsBySpace = {
+                {"", {
+                         {"min", 128},
+                         {"max", 64},
+                         {"maxof", 64},
+                         {"minby", 32},
+                         {"maxby", 32},
+                     }},
             },
             .Hints = {
                 {"xlock", 4},

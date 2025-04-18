@@ -17,11 +17,7 @@ namespace NSQLComplete {
             NThreading::TFuture<TNameResponse> Lookup(TNameRequest request) override {
                 // TODO(YQL-19747): Waiting without a timeout and error checking
                 TNameResponse response = Source_->Lookup(request).ExtractValueSync();
-
-                InsertNamespace(response.RankedNames, request);
                 Ranking_->CropToSortedPrefix(response.RankedNames, request.Limit);
-                RemoveNamespace(response.RankedNames, request);
-
                 return NThreading::MakeFuture(std::move(response));
             }
 

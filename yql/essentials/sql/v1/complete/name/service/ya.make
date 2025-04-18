@@ -1,6 +1,7 @@
 LIBRARY()
 
 SRCS(
+    name_service.cpp
     namespacing.cpp
 )
 
