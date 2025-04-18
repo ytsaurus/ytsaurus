@@ -409,14 +409,12 @@ TEST_F(TQueryPrepareTest, MisuseAggregateFunction)
         ContainsRegex("Misuse of aggregate .*"));
 }
 
-TEST_F(TQueryPrepareTest, FailedTypeInference)
+TEST_F(TQueryPrepareTest, NullTypeInference)
 {
     EXPECT_CALL(PrepareMock_, GetInitialSplit("//t"))
         .WillOnce(Return(MakeFuture(MakeSimpleSplit())));
 
-    ExpectPrepareThrowsWithDiagnostics(
-        "null from [//t]",
-        ContainsRegex("Type inference failed"));
+    PreparePlanFragment(&PrepareMock_, "null from [//t]", {}, 1);
 }
 
 TEST_F(TQueryPrepareTest, AdditionPrecedence)

@@ -67,15 +67,9 @@ bool Unify(TTypeSet* genericAssignments, const TTypeSet& types)
     }
 }
 
-EValueType GetFrontWithCheck(const TTypeSet& typeSet, TStringBuf source)
+EValueType GetFrontWithCheck(const TTypeSet& typeSet, TStringBuf /*source*/)
 {
-    auto result = typeSet.GetFront();
-    if (result == EValueType::Null) {
-        THROW_ERROR_EXCEPTION("Type inference failed")
-            << TErrorAttribute("actual_type", EValueType::Null)
-            << TErrorAttribute("source", source);
-    }
-    return result;
+    return typeSet.GetFront();
 }
 
 TTypeSet InferFunctionTypes(

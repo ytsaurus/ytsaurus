@@ -56,6 +56,7 @@ TCGValue::TCGValue(EValueType staticType, Value* isNull, Value* isAggregate, Val
     , Name_(name.str())
 {
     YT_VERIFY(
+        StaticType_ == EValueType::Null ||
         StaticType_ == EValueType::Int64 ||
         StaticType_ == EValueType::Uint64 ||
         StaticType_ == EValueType::Double ||
@@ -124,6 +125,7 @@ TCGValue TCGValue::Create(
         YT_VERIFY(length->getType() == TValueTypeBuilder::TLength::Get(builder->getContext()));
     }
     YT_VERIFY(
+        staticType == EValueType::Null ||
         data->getType() == GetLLVMType(builder->getContext(), staticType) ||
         data->getType() == TDataTypeBuilder::Get(builder->getContext()));
     return TCGValue(staticType, isNull, isAggregate, length, data, name);
@@ -154,7 +156,7 @@ TCGValue TCGValue::CreateNull(
         builder,
         builder->getTrue(),
         length,
-        llvm::UndefValue::get(GetLLVMType(builder->getContext(), staticType)),
+        llvm::UndefValue::get(GetLLVMType(builder->getContext(), staticType == EValueType::Null ? EValueType::Int64 : staticType)),
         staticType,
         name);
 }
@@ -412,7 +414,7 @@ Value* TCGValue::GetData() const
 Value* TCGValue::GetTypedData(const TCGIRBuilderPtr& builder, bool isAbi) const
 {
     Value* castedData = nullptr;
-    Type* targetType = (isAbi ? GetABIType : GetLLVMType)(builder->getContext(), StaticType_);
+    Type* targetType = (isAbi ? GetABIType : GetLLVMType)(builder->getContext(), StaticType_ == EValueType::Null ? EValueType::Int64 : StaticType_);
 
     if (targetType->isPointerTy()) {
         castedData = builder->CreateIntToPtr(Data_,
@@ -464,6 +466,10 @@ TCGValue TCGValue::Cast(TCGBaseContext& builder, EValueType destination) const
 {
     if (destination == StaticType_) {
         return *this;
+    }
+
+    if (StaticType_ == EValueType::Null) {
+        return CreateNull(builder, destination);
     }
 
     auto value = GetTypedData(builder);

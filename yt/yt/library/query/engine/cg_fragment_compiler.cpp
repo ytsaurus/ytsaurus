@@ -1802,6 +1802,11 @@ TCodegenExpression MakeCodegenRelationalBinaryOpExpr(
                                 });
                             break;
                         }
+                        case EValueType::Null: {
+                            cmpResult = builder->getFalse();
+                            break;
+                        }
+
                         default:
                             YT_ABORT();
                     }
