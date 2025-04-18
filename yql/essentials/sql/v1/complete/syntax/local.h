@@ -25,10 +25,10 @@ namespace NSQLComplete {
         };
 
         TKeywords Keywords;
-        std::optional<TPragma> Pragma;
+        TMaybe<TPragma> Pragma;
         bool IsTypeName;
-        std::optional<TFunction> Function;
-        std::optional<THint> Hint;
+        TMaybe<TFunction> Function;
+        TMaybe<THint> Hint;
         bool IsTableName;
     };
 

@@ -54,11 +54,11 @@ namespace NSQLComplete {
     struct TNameRequest {
         TVector<TString> Keywords;
         struct {
-            std::optional<TPragmaName::TConstraints> Pragma;
-            std::optional<TTypeName::TConstraints> Type;
-            std::optional<TFunctionName::TConstraints> Function;
-            std::optional<THintName::TConstraints> Hint;
-            std::optional<TTableName::TConstraints> Table;
+            TMaybe<TPragmaName::TConstraints> Pragma;
+            TMaybe<TTypeName::TConstraints> Type;
+            TMaybe<TFunctionName::TConstraints> Function;
+            TMaybe<THintName::TConstraints> Hint;
+            TMaybe<TTableName::TConstraints> Table;
         } Constraints;
         TString Prefix = "";
         size_t Limit = 128;
