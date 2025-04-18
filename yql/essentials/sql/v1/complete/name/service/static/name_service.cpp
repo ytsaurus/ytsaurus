@@ -20,8 +20,14 @@ namespace NSQLComplete {
 
     template <class T, class S = TStringBuf>
     void AppendAs(TVector<TGenericName>& target, const TVector<S>& source) {
-        for (const auto& element : source) {
-            target.emplace_back(T{TString(element)});
+        for (const S& element : source) {
+            if constexpr (std::is_same_v<T, TPragmaName>) {
+                target.emplace_back(ParsePragma(element));
+            } else if constexpr (std::is_same_v<T, TFunctionName>) {
+                target.emplace_back(ParseFunction(element));
+            } else {
+                target.emplace_back(T{TString(element)});
+            }
         }
     }
 
@@ -57,8 +63,6 @@ namespace NSQLComplete {
 
                 AppendAs<TPragmaName>(response.RankedNames, names);
             }
-
-            RemoveNamespace(response.RankedNames, request);
 
             return NThreading::MakeFuture(std::move(response));
         }
@@ -109,8 +113,6 @@ namespace NSQLComplete {
 
                 AppendAs<TFunctionName>(response.RankedNames, names);
             }
-
-            RemoveNamespace(response.RankedNames, request);
 
             return NThreading::MakeFuture(std::move(response));
         }

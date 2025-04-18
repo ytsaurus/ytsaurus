@@ -21,15 +21,15 @@ namespace NSQLComplete {
         TString Content;
     };
 
-    struct TPragmaName: TIndentifier {
+    struct TPragmaName: TIndentifier, TNamespaced {
         struct TConstraints: TNamespaced {};
     };
 
     struct TTypeName: TIndentifier {
-        using TConstraints = std::monostate;
+        struct TConstraints {};
     };
 
-    struct TFunctionName: TIndentifier {
+    struct TFunctionName: TIndentifier, TNamespaced {
         struct TConstraints: TNamespaced {};
     };
 
@@ -40,7 +40,7 @@ namespace NSQLComplete {
     };
 
     struct TTableName: TIndentifier {
-        using TConstraints = std::monostate;
+        struct TConstraints {};
     };
 
     using TGenericName = std::variant<

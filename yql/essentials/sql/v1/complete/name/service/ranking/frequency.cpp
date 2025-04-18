@@ -1,5 +1,7 @@
 #include "frequency.h"
 
+#include <yql/essentials/sql/v1/complete/name/service/namespacing.h>
+
 #include <library/cpp/json/json_reader.h>
 #include <library/cpp/resource/resource.h>
 
@@ -69,7 +71,8 @@ namespace NSQLComplete {
             }
 
             if (item.Parent == Json.Parent.Pragma) {
-                data.Pragmas[item.Rule] += item.Sum;
+                TPragmaName pragma = ParsePragma(item.Rule);
+                data.PragmasBySpace[pragma.Namespace][pragma.Indentifier] += item.Sum;
             } else if (item.Parent == Json.Parent.Type) {
                 data.Types[item.Rule] += item.Sum;
             } else if (item.Parent == Json.Parent.Keyword) {
@@ -78,7 +81,8 @@ namespace NSQLComplete {
                 // Ignore, unsupported: Modules
             } else if (item.Parent == Json.Parent.Func ||
                        item.Parent == Json.Parent.ModuleFunc) {
-                data.Functions[item.Rule] += item.Sum;
+                TFunctionName function = ParseFunction(item.Rule);
+                data.FunctionsBySpace[function.Namespace][function.Indentifier] += item.Sum;
             } else if (item.Parent == Json.Parent.ReadHint ||
                        item.Parent == Json.Parent.InsertHint) {
                 data.Hints[item.Rule] += item.Sum;
