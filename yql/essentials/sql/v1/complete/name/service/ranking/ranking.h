@@ -10,7 +10,7 @@ namespace NSQLComplete {
 
     class IRanking {
     public:
-        using TPtr = THolder<IRanking>;
+        using TPtr = TAtomicSharedPtr<IRanking>;
 
         virtual void CropToSortedPrefix(TVector<TGenericName>& names, size_t limit) = 0;
         virtual ~IRanking() = default;

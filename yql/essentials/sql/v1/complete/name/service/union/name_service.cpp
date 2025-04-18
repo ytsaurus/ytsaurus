@@ -8,8 +8,10 @@ namespace NSQLComplete {
 
         class TNameService: public INameService {
         public:
-            explicit TNameService(TVector<INameService::TPtr> children)
+            explicit TNameService(
+                TVector<INameService::TPtr> children, IRanking::TPtr ranking)
                 : Children_(std::move(children))
+                , Ranking_(std::move(ranking))
             {
             }
 
@@ -27,17 +29,20 @@ namespace NSQLComplete {
                     std::ranges::copy(names, std::back_inserter(response.RankedNames));
                 }
 
+                Ranking_->CropToSortedPrefix(response.RankedNames, request.Limit);
                 return NThreading::MakeFuture(response);
             }
 
         private:
             TVector<INameService::TPtr> Children_;
+            IRanking::TPtr Ranking_;
         };
 
     } // namespace
 
-    INameService::TPtr MakeUnionNameService(TVector<INameService::TPtr> children) {
-        return INameService::TPtr(new TNameService(std::move(children)));
+    INameService::TPtr MakeUnionNameService(
+        TVector<INameService::TPtr> children, IRanking::TPtr ranking) {
+        return INameService::TPtr(new TNameService(std::move(children), std::move(ranking)));
     }
 
 } // namespace NSQLComplete

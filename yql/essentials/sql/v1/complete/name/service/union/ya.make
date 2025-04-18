@@ -6,6 +6,7 @@ SRCS(
 
 PEERDIR(
     yql/essentials/sql/v1/complete/name/service
+    yql/essentials/sql/v1/complete/name/service/ranking
 )
 
 END()

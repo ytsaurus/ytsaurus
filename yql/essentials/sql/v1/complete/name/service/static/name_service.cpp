@@ -166,7 +166,7 @@ namespace NSQLComplete {
                 children.emplace_back(new TFunctionNameService(std::move(NameSet_.Functions)));
                 children.emplace_back(new THintNameService(std::move(NameSet_.Hints)));
                 return children;
-            }()))
+            }(), ranking))
             , Ranking_(std::move(ranking))
         {
             Sort(NameSet_.Tables, NoCaseCompare);
@@ -184,7 +184,6 @@ namespace NSQLComplete {
             }
 
             Ranking_->CropToSortedPrefix(response.RankedNames, request.Limit);
-
             return NThreading::MakeFuture(std::move(response));
         }
 
