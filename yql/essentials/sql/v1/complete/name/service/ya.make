@@ -1,5 +1,9 @@
 LIBRARY()
 
+SRCS(
+    namespacing.cpp
+)
+
 END()
 
 RECURSE(
