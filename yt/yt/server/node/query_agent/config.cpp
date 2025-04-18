@@ -92,6 +92,8 @@ void TQueryAgentDynamicConfig::Register(TRegistrar registrar)
         .Optional();
     registrar.Parameter("use_query_pool_for_lookups", &TThis::UseQueryPoolForLookups)
         .Optional();
+    registrar.Parameter("use_query_pool_for_in_memory_lookups", &TThis::UseQueryPoolForInMemoryLookups)
+        .Optional();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

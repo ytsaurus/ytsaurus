@@ -1059,12 +1059,22 @@ class TestLookup(TestSortedDynamicTablesBase):
     @authors("sabdenovch")
     @pytest.mark.parametrize("in_memory", [False, True])
     def test_migrate_to_query_pool(self, in_memory):
+        flag_name = f"use_query_pool_for{'_in_memory' if in_memory else ''}_lookups"
+
         set("//sys/cluster_nodes/@config", {"%true": {
             "query_agent": {
-                f"use_query_pool_for{'_in_memory' if in_memory else ''}_lookups": True
+                flag_name: True
             }
         }})
+
+        def _wait_func():
+            return all([
+                get(f"//sys/cluster_nodes/{node}/orchid/dynamic_config_manager/applied_config")
+                .get("query_agent", {})
+                .get(flag_name, None) for node in ls("//sys/cluster_nodes")])
+
         sync_create_cells(1)
+        wait(_wait_func)
 
         table_path = "//tmp/t"
 

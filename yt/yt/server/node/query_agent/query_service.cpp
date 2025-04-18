@@ -302,10 +302,13 @@ private:
         const auto& ext = requestHeader.GetExtension(NQueryClient::NProto::TReqMultireadExt::req_multiread_ext);
         auto inMemoryMode = FromProto<EInMemoryMode>(ext.in_memory_mode());
 
+        auto useQueryPoolForLookups = UseQueryPoolForLookups_.load();
+        auto useQueryPoolForInMemoryLookups = UseQueryPoolForInMemoryLookups_.load();
+
         if ((inMemoryMode == EInMemoryMode::None &&
-            UseQueryPoolForLookups_.load(std::memory_order_relaxed)) ||
+            useQueryPoolForLookups) ||
             (inMemoryMode != EInMemoryMode::None &&
-            UseQueryPoolForInMemoryLookups_.load(std::memory_order_relaxed)))
+            useQueryPoolForInMemoryLookups))
         {
             std::string tag;
             std::string poolName;
@@ -1761,7 +1764,7 @@ private:
         UseQueryPoolForLookups_.store(
             newConfig->QueryAgent->UseQueryPoolForLookups.value_or(Config_->UseQueryPoolForLookups));
         UseQueryPoolForInMemoryLookups_.store(
-            newConfig->QueryAgent->UseQueryPoolForLookups.value_or(Config_->UseQueryPoolForInMemoryLookups));
+            newConfig->QueryAgent->UseQueryPoolForInMemoryLookups.value_or(Config_->UseQueryPoolForInMemoryLookups));
     }
 
     DECLARE_RPC_SERVICE_METHOD(NQueryClient::NProto, CreateDistributedSession)
