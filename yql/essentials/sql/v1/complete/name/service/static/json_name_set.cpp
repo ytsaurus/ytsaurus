@@ -1,4 +1,4 @@
-#include "name_service.h"
+#include "name_set.h"
 
 #include <library/cpp/json/json_reader.h>
 #include <library/cpp/resource/resource.h>
