@@ -722,13 +722,13 @@ public:
         //   2. current transaction finish is replicated to participant (and
         //      external) cells via Hive;
         //   3. Cypress changes caused by transaction finish are handled.
-        // At first sight, replicating finish of transaction subtree root is
-        // sufficient since every participant master cell knows transaction
-        // hierarchy. But Cypress changes can be replicated to external cells
-        // too (e.g. object destruction, waitable lock acquiring). This actions
-        // together with transaction finished have to be equally ordered on
-        // every cell, so replication of finish for every transaction is
-        // unavoidable.
+        // At first glance, it's enough to replicate the finish of a topmost
+        // transaction in a given subtree since every participant master cell
+        // knows transaction hierarchy. But Cypress changes can be replicated to
+        // external cells too (e.g. object destruction, waitable lock
+        // acquisition). These actions together with transaction finish have to
+        // be ordered in the same manner on every cell, so replication of finish
+        // for every transaction is unavoidable.
         //
         // Tricky corner case to highlight the problem:
         // Consider the following client code:
@@ -745,13 +745,13 @@ public:
         //      locks for node;
         //   4. parent_tx is committed;
         //   5. parent_lock is promoted to topmost_tx.
-        // Waitable lock acquiring occurs on node's native cell and is
+        // Waitable lock acquisition occurs on node's native cell and is
         // replicated to external cell. On the one hand, waitable lock
-        // acquiring must happen after nested_tx commit on external cell since
+        // acquisition must happen after nested_tx commit on external cell since
         // lock under parent_tx cannot be acquired while node is still locked
-        // under nested_tx. On the other hand, waitable lock acquiring must
+        // under nested_tx. On the other hand, waitable lock acquisition must
         // happen before parent_tx is committed because lock cannot be acquired
-        // if transaction is not alive. Therefore, lock acquiring should be
+        // if transaction is not alive. Therefore, lock acquisition should be
         // replicated exactly between replication of parent_tx commit and
         // nested_tx abort.
         TCompactVector<TTransaction*, 16> nestedTransactions(
