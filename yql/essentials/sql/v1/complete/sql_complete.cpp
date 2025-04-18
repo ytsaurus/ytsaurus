@@ -1,7 +1,7 @@
 #include "sql_complete.h"
 
 #include <yql/essentials/sql/v1/complete/text/word.h>
-#include <yql/essentials/sql/v1/complete/name/static/name_service.h>
+#include <yql/essentials/sql/v1/complete/name/service/static/name_service.h>
 #include <yql/essentials/sql/v1/complete/syntax/local.h>
 #include <yql/essentials/sql/v1/complete/syntax/format.h>
 
