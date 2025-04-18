@@ -1679,49 +1679,61 @@ static std::vector<TJob> ParseJobsFromArchiveResponse(
     return jobs;
 }
 
-static void AddSelectExpressionForAttribute(TQueryBuilder* builder, const TString& attribute, int archiveVersion) {
-    if (!DoesArchiveContainAttribute(attribute, archiveVersion)) {
-        return;
-    }
+static void AddSelectExpressions(
+    TQueryBuilder* builder,
+    const THashSet<TString>& attributes,
+    int archiveVersion)
+{
+    for (const auto& attribute : attributes) {
+        if (!DoesArchiveContainAttribute(attribute, archiveVersion)) {
+            continue;
+        }
 
-    if (attribute == "job_id" || attribute == "allocation_id" || attribute == "operation_id") {
-        builder->AddSelectExpression(attribute + "_hi");
-        builder->AddSelectExpression(attribute + "_lo");
-    } else if (attribute == "start_time" || attribute == "finish_time") {
-        auto controllerAttribute = "controller_" + attribute;
-        if (DoesArchiveContainAttribute(controllerAttribute, archiveVersion)) {
-            builder->AddSelectExpression(
-                Format(
-                    "if(is_null(%v), %v, %v)",
-                    controllerAttribute,
-                    attribute,
-                    controllerAttribute),
-                attribute);
+        if (attribute == "job_id" || attribute == "allocation_id" || attribute == "operation_id") {
+            builder->AddSelectExpression(attribute + "_hi");
+            builder->AddSelectExpression(attribute + "_lo");
+        } else if (attribute == "start_time" || attribute == "finish_time") {
+            auto controllerAttribute = "controller_" + attribute;
+            if (DoesArchiveContainAttribute(controllerAttribute, archiveVersion)) {
+                builder->AddSelectExpression(
+                    Format(
+                        "if(is_null(%v), %v, %v)",
+                        controllerAttribute,
+                        attribute,
+                        controllerAttribute),
+                    attribute);
+            } else {
+                builder->AddSelectExpression(attribute);
+            }
+        } else if (attribute == "type") {
+            builder->AddSelectExpression("type", "job_type");
+        } else if (attribute == "statistics") {
+            builder->AddSelectExpression("statistics");
+            builder->AddSelectExpression("statistics_lz4");
+        } else if (attribute == "brief_statistics" && !attributes.contains("statistics")) {
+            // TODO(bystrovserg): Switch to brief_statistics when request "brief_statistics".
+            builder->AddSelectExpression("statistics");
+            builder->AddSelectExpression("statistics_lz4");
+        } else if (attribute == "state") {
+            builder->AddSelectExpression("if(is_null(state), transient_state, state)", "node_state");
+            if (DoesArchiveContainAttribute("controller_state", archiveVersion)) {
+                builder->AddSelectExpression("controller_state");
+                builder->AddSelectExpression(
+                    Format(
+                        "if(NOT is_null(node_state) AND NOT is_null(controller_state), "
+                        "   if(node_state IN (%v), node_state, controller_state), "
+                        "if(is_null(node_state), controller_state, node_state))",
+                        FinishedJobStatesString),
+                    "job_state");
+            } else {
+                builder->AddSelectExpression("state", "job_state");
+            }
+        } else if (attribute == "controller_state" && attributes.contains("state")) {
+            // COMPAT(bystrovserg): Remove after dropping "controller_state" from supported attributes.
+            continue;
         } else {
             builder->AddSelectExpression(attribute);
         }
-    } else if (attribute == "type") {
-        builder->AddSelectExpression("type", "job_type");
-    } else if (attribute == "brief_statistics" || attribute == "statistics") {
-        // TODO(bystrovserg): Switch to brief_statistics when request "brief_statistics".
-        builder->AddSelectExpression("statistics");
-        builder->AddSelectExpression("statistics_lz4");
-    } else if (attribute == "state") {
-        builder->AddSelectExpression("if(is_null(state), transient_state, state)", "node_state");
-        if (DoesArchiveContainAttribute("controller_state", archiveVersion)) {
-            builder->AddSelectExpression("controller_state");
-            builder->AddSelectExpression(
-                Format(
-                    "if(NOT is_null(node_state) AND NOT is_null(controller_state), "
-                    "   if(node_state IN (%v), node_state, controller_state), "
-                    "if(is_null(node_state), controller_state, node_state))",
-                    FinishedJobStatesString),
-                "job_state");
-        } else {
-            builder->AddSelectExpression("state", "job_state");
-        }
-    } else {
-        builder->AddSelectExpression(attribute);
     }
 }
 
@@ -1854,13 +1866,7 @@ TFuture<std::vector<TJob>> TClient::DoListJobsFromArchiveAsync(
 
     builder.SetLimit(options.Limit + options.Offset);
 
-    for (const auto& attribute : attributes) {
-        // COMPAT(bystrovserg): Remove after dropping "controller_state" from supported attributes.
-        if (attribute == "controller_state" && attributes.contains("state")) {
-            continue;
-        }
-        AddSelectExpressionForAttribute(&builder, attribute, archiveVersion);
-    }
+    AddSelectExpressions(&builder, attributes, archiveVersion);
 
     AddWhereExpressions(&builder, options, archiveVersion);
 
