@@ -3,6 +3,7 @@
 #include <yql/essentials/sql/v1/complete/name/parse.h>
 #include <yql/essentials/sql/v1/complete/name/service/ranking/name_service.h>
 #include <yql/essentials/sql/v1/complete/name/service/ranking/ranking.h>
+#include <yql/essentials/sql/v1/complete/name/service/union/name_service.cpp>
 #include <yql/essentials/sql/v1/complete/text/case.h>
 
 #include <library/cpp/threading/future/wait/wait.h>
@@ -158,42 +159,22 @@ namespace NSQLComplete {
     public:
         explicit TStaticNameService(NameSet names)
             : NameSet_(std::move(names))
-            , Keyword_()
-            , PragmaName_(std::move(NameSet_.Pragmas))
-            , TypeName_(std::move(NameSet_.Types))
-            , FunctionName_(std::move(NameSet_.Functions))
-            , HintName_(std::move(NameSet_.Hints))
+            , Basic_(MakeUnionNameService([&] {
+                TVector<INameService::TPtr> children;
+                children.emplace_back(new TKeywordNameService());
+                children.emplace_back(new TPragmaNameService(std::move(NameSet_.Pragmas)));
+                children.emplace_back(new TTypeNameService(std::move(NameSet_.Types)));
+                children.emplace_back(new TFunctionNameService(std::move(NameSet_.Functions)));
+                children.emplace_back(new THintNameService(std::move(NameSet_.Hints)));
+                return children;
+            }()))
         {
             Sort(NameSet_.Tables, NoCaseCompare);
         }
 
         NThreading::TFuture<TNameResponse> Lookup(TNameRequest request) override {
-            TNameResponse response;
-
-            TVector<NThreading::TFuture<TNameResponse>> subresponses;
-            if (!request.Keywords.empty()) {
-                subresponses.emplace_back(Keyword_.Lookup(request));
-            }
-            if (request.Constraints.Pragma) {
-                subresponses.emplace_back(PragmaName_.Lookup(request));
-            }
-            if (request.Constraints.Type) {
-                subresponses.emplace_back(TypeName_.Lookup(request));
-            }
-            if (request.Constraints.Function) {
-                subresponses.emplace_back(FunctionName_.Lookup(request));
-            }
-            if (request.Constraints.Hint) {
-                subresponses.emplace_back(HintName_.Lookup(request));
-            }
-
             // TODO(YQL-19747): Waiting without a timeout and error checking
-            NThreading::WaitExceptionOrAll(subresponses).GetValueSync();
-
-            for (auto& subrespons : subresponses) {
-                const auto& names = subrespons.GetValueSync().RankedNames;
-                std::ranges::copy(names, std::back_inserter(response.RankedNames));
-            }
+            TNameResponse response = Basic_->Lookup(request).GetValueSync();
 
             // TODO(YQL-19747): Extract to schema service
             if (request.Constraints.Table) {
@@ -208,11 +189,7 @@ namespace NSQLComplete {
     private:
         NameSet NameSet_;
 
-        TKeywordNameService Keyword_;
-        TPragmaNameService PragmaName_;
-        TTypeNameService TypeName_;
-        TFunctionNameService FunctionName_;
-        THintNameService HintName_;
+        INameService::TPtr Basic_;
     };
 
     INameService::TPtr MakeStaticNameService() {

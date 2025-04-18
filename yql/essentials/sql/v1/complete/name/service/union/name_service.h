@@ -4,6 +4,6 @@
 
 namespace NSQLComplete {
 
-    INameService::TPtr MakeUnionNameService();
+    INameService::TPtr MakeUnionNameService(TVector<INameService::TPtr> children);
 
 } // namespace NSQLComplete
