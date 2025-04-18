@@ -305,10 +305,10 @@ message TDataSource
 
     required uint64 mount_revision = 2;
     required bytes ranges = 3;
-    optional bool lookup_supported = 4 [default = true];
+    reserved 4; // deprecated
 
     optional bytes keys = 5;
-    optional uint64 key_width = 6 [default = 0];
+    reserved 6; // deprecated
 }
 
 ////////////////////////////////////////////////////////////////////////////////

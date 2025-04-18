@@ -615,7 +615,6 @@ private:
             options,
             requestFeatureFlags,
             writer,
-            tableInfo->IsSorted(),
             std::move(groupedDataSplits));
     }
 
@@ -675,7 +674,6 @@ private:
         const TQueryOptions& options,
         const TFeatureFlags& requestFeatureFlags,
         const IUnversionedRowsetWriterPtr& writer,
-        bool sortedDataSource,
         std::vector<std::pair<std::vector<TDataSource>, TString>> groupedDataSplits)
     {
         auto Logger = MakeQueryLogger(query);
@@ -735,7 +733,6 @@ private:
                     options,
                     requestFeatureFlags,
                     std::move(dataSources),
-                    sortedDataSource,
                     address);
             },
             [&, frontQuery = frontQuery] (
@@ -763,7 +760,6 @@ private:
         const TQueryOptions& options,
         const TFeatureFlags& requestFeatureFlags,
         std::vector<TDataSource> dataSources,
-        bool sortedDataSource,
         const std::string& address)
     {
         auto Logger = MakeQueryLogger(query);
@@ -803,24 +799,7 @@ private:
                 schema.push_back(query->Schema.Original->Columns()[index].LogicalType());
             }
 
-            auto lookupSupported = sortedDataSource;
-            size_t minKeyWidth = std::numeric_limits<size_t>::max();
-            for (const auto& split : dataSources) {
-                for (const auto& range : split.Ranges) {
-                    minKeyWidth = std::min({
-                        minKeyWidth,
-                        GetSignificantWidth(range.first),
-                        GetSignificantWidth(range.second)});
-                }
-
-                for (const auto& key : split.Keys) {
-                    minKeyWidth = std::min(
-                        minKeyWidth,
-                        static_cast<size_t>(key.GetCount()));
-                }
-            }
-
-            ToProto(req->mutable_data_sources(), dataSources, schema, lookupSupported, minKeyWidth);
+            ToProto(req->mutable_data_sources(), dataSources, schema);
             req->set_response_codec(ToProto(config->SelectRowsResponseCodec));
         }
 

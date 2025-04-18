@@ -235,9 +235,7 @@ TString ToString(const TFeatureFlags& featureFlags)
 void ToProto(
     NProto::TDataSource* serialized,
     const TDataSource& original,
-    TRange<TLogicalTypePtr> schema,
-    bool lookupSupported,
-    size_t keyWidth)
+    TRange<TLogicalTypePtr> schema)
 {
     ToProto(serialized->mutable_object_id(), original.ObjectId);
     ToProto(serialized->mutable_cell_id(), original.CellId);
@@ -262,10 +260,6 @@ void ToProto(
         keysWriter->WriteSchemafulRowset(original.Keys);
         ToProto(serialized->mutable_keys(), MergeRefsToString(keysWriter->Finish()));
     }
-
-    // COMPAT(lukyan)
-    serialized->set_lookup_supported(lookupSupported);
-    serialized->set_key_width(keyWidth);
 }
 
 void FromProto(
