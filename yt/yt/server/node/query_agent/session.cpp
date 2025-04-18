@@ -1,11 +1,13 @@
 #include "session.h"
 #include "private.h"
 
-#include <yt/yt/server/node/query_agent/config.h>
-
 #include <yt/yt/ytlib/node_tracker_client/channel.h>
 
 #include <yt/yt/ytlib/query_client/query_service_proxy.h>
+
+#include <yt/yt/library/query/base/query.h>
+
+#include <yt/yt/library/query/distributed/shuffle.h>
 
 #include <yt/yt/client/table_client/helpers.h>
 #include <yt/yt/client/table_client/row_batch.h>
@@ -66,14 +68,17 @@ public:
     {
         auto rowBuffer = New<TRowBuffer>(TDistributedSessionRowsetTag(), MemoryChunkProvider_);
 
-        auto futureRowset = BIND(MakeRowset, std::move(reader), std::move(schema), std::move(rowBuffer))
+        auto asyncRowset = BIND(MakeRowset, std::move(reader), std::move(rowBuffer))
             .AsyncVia(GetCurrentInvoker())
             .Run();
 
         {
             auto guard = Guard(SessionLock_);
 
-            auto [_, inserted] = RowsetMap_.emplace(rowsetId, std::move(futureRowset));
+            auto [_, inserted] = RowsetMap_.emplace(rowsetId, TSessionRowset{
+                .AsyncRowset = std::move(asyncRowset),
+                .Schema = std::move(schema),
+            });
             THROW_ERROR_EXCEPTION_UNLESS(inserted,
                 "Rowset %v is already present in session %v",
                 rowsetId,
@@ -81,7 +86,7 @@ public:
         }
     }
 
-    TFuture<TSessionRowset> GetOrThrow(TRowsetId rowsetId) const override
+    TSessionRowset GetOrThrow(TRowsetId rowsetId) const override
     {
         auto guard = Guard(SessionLock_);
 
@@ -124,9 +129,8 @@ public:
 
     TFuture<void> PushRowset(
         const std::string& nodeAddress,
-        TRowsetId rowsetId,
+        const TShufflePart& shufflePart,
         TTableSchemaPtr schema,
-        const std::vector<TRange<TUnversionedRow>>& subranges,
         INodeChannelFactoryPtr channelFactory,
         i64 desiredUncompressedBlockSize) override
     {
@@ -144,6 +148,7 @@ public:
             if (MemoryLimitPerNode_) {
                 request->set_memory_limit_per_node(*MemoryLimitPerNode_);
             }
+            request->SetTimeout(RetentionTime_);
 
             WaitFor(request->Invoke())
                 .ValueOrThrow();
@@ -160,7 +165,7 @@ public:
 
         bool ready = true;
         int rowCount = 0;
-        for (const auto& subrange : subranges) {
+        for (const auto& subrange : shufflePart.Subranges) {
             rowCount += subrange.Size();
             if (!ready) {
                 WaitFor(rowsetEncoder->GetReadyEvent())
@@ -172,13 +177,14 @@ public:
         {
             YT_LOG_DEBUG("Pushing rowset (SessionId: %v, RowsetId: %v, RowCount: %v)",
                 SessionId_,
-                rowsetId,
+                shufflePart.RowsetId,
                 rowCount);
 
             auto request = proxy.PushRowset();
             ToProto(request->mutable_session_id(), SessionId_);
-            ToProto(request->mutable_rowset_id(), rowsetId);
+            ToProto(request->mutable_rowset_id(), shufflePart.RowsetId);
             ToProto(request->mutable_schema(), schema);
+            request->SetTimeout(RetentionTime_);
 
             request->Attachments() = rowsetEncoder->GetCompressedBlocks();
 
@@ -201,7 +207,7 @@ private:
 
     YT_DECLARE_SPIN_LOCK(TSpinLock, SessionLock_);
     THashSet<std::string> PropagationAddressQueue_;
-    THashMap<TRowsetId, TFuture<TSessionRowset>> RowsetMap_;
+    THashMap<TRowsetId, TSessionRowset> RowsetMap_;
 
     void PropagateToNode(const std::string& address)
     {
@@ -211,29 +217,20 @@ private:
     }
 
 
-    static TSessionRowset MakeRowset(
+    static TSharedRange<NTableClient::TUnversionedRow> MakeRowset(
         ISchemafulUnversionedReaderPtr reader,
-        TTableSchemaPtr schema,
         TRowBufferPtr rowBuffer)
     {
         std::vector<TUnversionedRow> rowset;
-        i64 dataWeight = 0;
 
         while (auto batch = ReadRowBatch(reader)) {
             for (auto row : batch->MaterializeRows()) {
                 // Could verify sortedness declared in schema, while we're at it.
-                auto capturedRow = rowBuffer->CaptureRow(row);
-                // TWireProtocolRowsetReader does not support GetDataStatistics method.
-                dataWeight += GetDataWeight(capturedRow);
-                rowset.push_back(capturedRow);
+                rowset.push_back(rowBuffer->CaptureRow(row));
             }
         }
 
-        return {
-            MakeSharedRange(std::move(rowset), std::move(rowBuffer)),
-            dataWeight,
-            std::move(schema),
-        };
+        return MakeSharedRange(std::move(rowset), std::move(rowBuffer));
     }
 };
 

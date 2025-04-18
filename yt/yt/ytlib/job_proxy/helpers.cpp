@@ -75,7 +75,7 @@ void RunQuery(
         query,
         reader,
         writer,
-        nullptr,
+        /*joinProfilers*/ {},
         functionGenerators,
         aggregateGenerators,
         GetDefaultMemoryChunkProvider(),

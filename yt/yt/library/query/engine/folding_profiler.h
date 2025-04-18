@@ -35,7 +35,7 @@ TCGQueryGenerator Profile(
     const TConstBaseQueryPtr& query,
     llvm::FoldingSetNodeID* id,
     TCGVariables* variables,
-    IJoinSubqueryProfilerPtr joinProfiler,
+    const std::vector<IJoinProfilerPtr>& joinProfilers,
     bool useCanonicalNullRelations = false,
     NCodegen::EExecutionBackend executionBackend = NCodegen::EExecutionBackend::Native,
     const TConstFunctionProfilerMapPtr& functionProfilers = GetBuiltinFunctionProfilers().Get(),

@@ -4,6 +4,8 @@
 
 #include <yt/yt/ytlib/query_client/public.h>
 
+#include <yt/yt/library/query/distributed/public.h>
+
 #include <yt/yt/core/actions/public.h>
 
 #include <yt/yt/core/compression/public.h>
