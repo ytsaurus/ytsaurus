@@ -17,6 +17,7 @@ from .table_commands import is_empty, is_sorted
 from .table_helpers import (FileManager, _prepare_operation_formats, _is_python_function,
                             _prepare_python_command, _prepare_source_tables, _prepare_destination_tables,
                             _prepare_table_writer, _prepare_stderr_table)
+from .transaction import Transaction
 from .prepare_operation import (TypedJob, run_operation_preparation,
                                 SimpleOperationPreparationContext, IntermediateOperationPreparationContext)
 from .local_mode import is_local_mode, enable_local_files_usage_in_job
@@ -103,7 +104,12 @@ def _is_tables_sorted(table, client):
         return True
 
     table = TablePath(table, client=client)
-    table_attributes = get(table + "/@", attributes=["type", "sorted", "sorted_by"], client=client)
+    if 'transaction_id' in table.attributes:
+        with Transaction(transaction_id=table.attributes["transaction_id"], ping=False, client=client):
+            table_attributes = get(table + "/@", attributes=["type", "sorted", "sorted_by"], client=client)
+    else:
+        table_attributes = get(table + "/@", attributes=["type", "sorted", "sorted_by"], client=client)
+
     return apply_function_to_result(_is_sorted, table_attributes)
 
 
