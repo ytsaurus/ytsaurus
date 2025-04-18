@@ -25,4 +25,6 @@ pragma yt.MaxKeyRangeCount="2000";
 pragma yt.MaxExtraJobMemoryToFuseOperations="3G";
 pragma yt.JobBlockInput;
 pragma yt.JobBlockTableContent;
+pragma BlockEngine='auto';
+pragma yt.BlockMapJoin;
 pragma yt.DefaultMemoryLimit = "5G";
