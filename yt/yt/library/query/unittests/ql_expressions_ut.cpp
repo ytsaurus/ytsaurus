@@ -1069,7 +1069,6 @@ TEST_F(TExpressionTest, FunctionNullArgument)
 
     {
         auto expr = PrepareExpression("int64(null)", *schema);
-
         EXPECT_EQ(*expr->LogicalType, *OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64)));
 
         Evaluate(expr, schema, buffer, row, [&] (const TUnversionedValue& result) {
@@ -1077,17 +1076,32 @@ TEST_F(TExpressionTest, FunctionNullArgument)
         });
     }
 
-    EXPECT_THROW_THAT(
-        PrepareExpression("if(null, null, null)", *schema),
-        HasSubstr("Type inference failed"));
+    {
+        auto expr = PrepareExpression("is_null(null)", *schema);
+        EXPECT_EQ(*expr->LogicalType, *OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Boolean)));
 
-    EXPECT_THROW_THAT(
-        PrepareExpression("if(true, null, null)", *schema),
-        HasSubstr("Type inference failed"));
+        Evaluate(expr, schema, buffer, row, [&] (const TUnversionedValue& result) {
+            EXPECT_EQ(result, MakeBoolean(true));
+        });
+    }
 
-    EXPECT_THROW_THAT(
-        PrepareExpression("is_null(null)", *schema),
-        HasSubstr("Type inference failed"));
+    {
+        auto expr = PrepareExpression("if(null, null, null)", *schema);
+        EXPECT_EQ(*expr->LogicalType, *SimpleLogicalType(ESimpleLogicalValueType::Null));
+
+        Evaluate(expr, schema, buffer, row, [&] (const TUnversionedValue& result) {
+            EXPECT_EQ(result, MakeNull());
+        });
+    }
+
+    {
+        auto expr = PrepareExpression("if(true, null, null)", *schema);
+        EXPECT_EQ(*expr->LogicalType, *SimpleLogicalType(ESimpleLogicalValueType::Null));
+
+        Evaluate(expr, schema, buffer, row, [&] (const TUnversionedValue& result) {
+            EXPECT_EQ(result, MakeNull());
+        });
+    }
 
     {
         auto expr = PrepareExpression("if(null, 1, 2)", *schema);

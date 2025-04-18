@@ -123,11 +123,12 @@ TConstTypeInferrerMapPtr CreateBuiltinTypeInferrers()
         std::vector<TType>{EValueType::Double},
         EValueType::Boolean));
 
-    const TTypeParameter castable = 1;
+    const TTypeParameter castable = 0;
 
     {
         auto castConstraints = std::unordered_map<TTypeParameter, TUnionType>();
         castConstraints[castable] = std::vector<EValueType>{
+            EValueType::Null,
             EValueType::Int64,
             EValueType::Uint64,
             EValueType::Double,
@@ -156,6 +157,7 @@ TConstTypeInferrerMapPtr CreateBuiltinTypeInferrers()
     {
         auto castConstraints = std::unordered_map<TTypeParameter, TUnionType>();
         castConstraints[castable] = std::vector<EValueType>{
+            EValueType::Null,
             EValueType::Int64,
             EValueType::Uint64,
             EValueType::Boolean,
@@ -188,7 +190,7 @@ TConstTypeInferrerMapPtr CreateBuiltinTypeInferrers()
         std::vector<TType>{primitive, primitive},
         primitive));
 
-    const TTypeParameter nullable = 2;
+    const TTypeParameter nullable = 0;
 
     std::unordered_map<TTypeParameter, TUnionType> coalesceConstraints;
     coalesceConstraints[nullable] = {
@@ -206,7 +208,7 @@ TConstTypeInferrerMapPtr CreateBuiltinTypeInferrers()
         nullable,
         nullable));
 
-    const TTypeParameter summable = 3;
+    const TTypeParameter summable = 0;
     auto sumConstraints = std::unordered_map<TTypeParameter, TUnionType>();
     sumConstraints[summable] = {
         EValueType::Int64,
@@ -220,7 +222,7 @@ TConstTypeInferrerMapPtr CreateBuiltinTypeInferrers()
         summable,
         summable));
 
-    const TTypeParameter comparable = 4;
+    const TTypeParameter comparable = 0;
     auto minMaxConstraints = std::unordered_map<TTypeParameter, TUnionType>();
     minMaxConstraints[comparable] = {
         EValueType::Int64,
@@ -238,7 +240,7 @@ TConstTypeInferrerMapPtr CreateBuiltinTypeInferrers()
     }
 
     auto argMinMaxConstraints = std::unordered_map<TTypeParameter, TUnionType>();
-    argMinMaxConstraints[comparable] = {
+    argMinMaxConstraints[0] = {
         EValueType::Int64,
         EValueType::Uint64,
         EValueType::Boolean,
@@ -248,9 +250,9 @@ TConstTypeInferrerMapPtr CreateBuiltinTypeInferrers()
     for (const auto& name : {"argmin", "argmax"}) {
         result->emplace(name, New<TAggregateFunctionTypeInferrer>(
             argMinMaxConstraints,
-            std::vector<TType>{primitive, comparable},
+            std::vector<TType>{1, 0},
             EValueType::String,
-            primitive));
+            1));
     }
 
     result->emplace("avg", New<TAggregateFunctionTypeInferrer>(
