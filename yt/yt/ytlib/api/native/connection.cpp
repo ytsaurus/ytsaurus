@@ -265,7 +265,8 @@ public:
 
         PermissionCache_ = New<TPermissionCache>(
             config->PermissionCache,
-            this);
+            this,
+            Profiler_.WithPrefix("/permission_cache"));
 
         UserAttributeCache_ = New<TUserAttributeCache>(
             config->UserAttributeCache,
