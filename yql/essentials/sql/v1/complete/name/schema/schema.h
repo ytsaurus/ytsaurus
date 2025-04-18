@@ -9,6 +9,7 @@
 
 namespace NSQLComplete {
 
+    // `Path` structure is defined by a `System`.
     using TPath = TString;
 
     using TObjectType = TString;
@@ -29,18 +30,25 @@ namespace NSQLComplete {
 
     struct TListRequest {
         const TString& System;
+
+        // Can end with a folder entry name hint.
+        // For example, `/local/exa` lists a folder `/local`,
+        // but can rank and filter entries by a hint `exa`.
         const TPath& Path;
+
         const TListFilter& Filter;
         size_t Limit;
     };
 
     struct TListResponse {
-        size_t NameLength;
+        size_t NameHintLength;
         TVector<TFolderEntry> Entries;
     };
 
     class ISchema {
     public:
+        using TPtr = THolder<ISchema>;
+
         ~ISchema() = default;
 
         virtual NThreading::TFuture<TListResponse> List(const TListRequest& request) = 0;
