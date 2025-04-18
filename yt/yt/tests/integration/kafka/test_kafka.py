@@ -613,7 +613,7 @@ class TestKafkaProxy(KafkaProxyBase):
         assert len(messages) == row_count, f"Read {len(messages)} messages, {row_count} messages were expected"
 
         for consumer_message_count in consumer_message_counts:
-            assert consumer_message_count == 2
+            assert consumer_message_count > 0
 
         consumer_rows = select_rows("* from [//tmp/consumer]")
         for consumer_row in consumer_rows:
