@@ -1,6 +1,8 @@
 #include "sql_complete.h"
 
 #include <yql/essentials/sql/v1/complete/name/fallback/name_service.h>
+#include <yql/essentials/sql/v1/complete/name/schema/schema.h>
+#include <yql/essentials/sql/v1/complete/name/schema/static/schema.h>
 #include <yql/essentials/sql/v1/complete/name/static/frequency.h>
 #include <yql/essentials/sql/v1/complete/name/static/name_service.h>
 #include <yql/essentials/sql/v1/complete/name/static/ranking.h>
