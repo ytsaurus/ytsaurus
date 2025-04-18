@@ -1,7 +1,6 @@
 #include "name_service.h"
 
 #include <yql/essentials/sql/v1/complete/name/parse.h>
-#include <yql/essentials/sql/v1/complete/name/service/ranking/name_service.h>
 #include <yql/essentials/sql/v1/complete/name/service/ranking/ranking.h>
 #include <yql/essentials/sql/v1/complete/name/service/union/name_service.cpp>
 #include <yql/essentials/sql/v1/complete/text/case.h>
@@ -157,7 +156,7 @@ namespace NSQLComplete {
 
     class TStaticNameService: public INameService {
     public:
-        explicit TStaticNameService(NameSet names)
+        explicit TStaticNameService(NameSet names, IRanking::TPtr ranking)
             : NameSet_(std::move(names))
             , Basic_(MakeUnionNameService([&] {
                 TVector<INameService::TPtr> children;
@@ -168,6 +167,7 @@ namespace NSQLComplete {
                 children.emplace_back(new THintNameService(std::move(NameSet_.Hints)));
                 return children;
             }()))
+            , Ranking_(std::move(ranking))
         {
             Sort(NameSet_.Tables, NoCaseCompare);
         }
@@ -183,13 +183,15 @@ namespace NSQLComplete {
                     FilteredByPrefix(request.Prefix, NameSet_.Tables));
             }
 
+            Ranking_->CropToSortedPrefix(response.RankedNames, request.Limit);
+
             return NThreading::MakeFuture(std::move(response));
         }
 
     private:
         NameSet NameSet_;
-
         INameService::TPtr Basic_;
+        IRanking::TPtr Ranking_;
     };
 
     INameService::TPtr MakeStaticNameService() {
@@ -197,8 +199,7 @@ namespace NSQLComplete {
     }
 
     INameService::TPtr MakeStaticNameService(NameSet names, IRanking::TPtr ranking) {
-        return MakeRankingNameService(
-            MakeHolder<TStaticNameService>(std::move(names)), std::move(ranking));
+        return INameService::TPtr(new TStaticNameService(std::move(names), std::move(ranking)));
     }
 
 } // namespace NSQLComplete

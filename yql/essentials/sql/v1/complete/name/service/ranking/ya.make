@@ -2,7 +2,6 @@ LIBRARY()
 
 SRCS(
     frequency.cpp
-    name_service.cpp
     ranking.cpp
 )
 
