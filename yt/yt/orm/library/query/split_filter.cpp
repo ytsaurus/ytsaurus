@@ -33,12 +33,9 @@ struct TFilterType
 {
     EFilterPlace Place = EFilterPlace::Unknown;
     TString JoinName;
-};
 
-bool operator==(const TFilterType& lhs, const TFilterType& rhs)
-{
-    return lhs.Place == rhs.Place && lhs.JoinName == rhs.JoinName;
-}
+    bool operator==(const TFilterType& other) const = default;
+};
 
 class TFilterSplitter
     : public TBaseAstVisitor<TFilterType, TFilterSplitter>
