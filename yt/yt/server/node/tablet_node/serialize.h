@@ -23,20 +23,6 @@ NHydra::EFinalRecoveryAction GetActionToRecoverFromReign(NHydra::TReign reign);
 ////////////////////////////////////////////////////////////////////////////////
 
 DEFINE_ENUM(ETabletReign,
-    // 24.1 starts here.
-    ((NoMountRevisionCheckInBulkInsert)            (100900)) // ifsmirnov
-    ((SharedWriteLocks)                            (100901)) // ponasenko-rs
-    ((TabletPrerequisites)                         (100902)) // gritukan
-    ((ValueDictionaryCompression)                  (100903)) // akozhikhov
-    ((SaneTxActionAbort)                           (100904)) // kvk1920
-    ((HunkValueDictionaryCompression)              (100905)) // akozhikhov
-    ((SaneTxActionAbortFix)                        (100906)) // kvk1920
-    ((SmoothTabletMovement)                        (100907)) // ifsmirnov
-    ((DistributedTabletPrerequisites)              (100908)) // gritukan
-    ((HiveManagerLamportTimestamp)                 (100909)) // danilalexeev
-    ((ChunkReplicaAlwaysPrecache)                  (100910)) // osidorkin
-    ((FixCDWComputationForChaosReplicas)           (100911)) // akozhikhov
-    ((DropBuiltinAttrsFromMountConfig)             (100912)) // ifsmirnov
     // 24.2 starts here.
     ((Start_24_2)                                  (101000)) // ponasenko-rs
     ((AddTabletCustomRuntimeData)                  (101001)) // gryzlov-ad

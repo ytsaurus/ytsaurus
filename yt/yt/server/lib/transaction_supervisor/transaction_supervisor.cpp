@@ -2374,13 +2374,6 @@ private:
 
             const auto& prerequisiteTransactionIds = commit->PrerequisiteTransactionIds();
 
-            // COMPAT(gritukan): Remove after ETabletReign::DistributedTabletPrerequisites.
-            auto reign = GetCurrentMutationContext()->Request().Reign;
-            auto isOldTabletReign = (reign >= 100600 && reign < 100907);
-            if (isOldTabletReign) {
-                YT_VERIFY(prerequisiteTransactionIds.empty());
-            }
-
             TTransactionPrepareOptions options{
                 .Persistent = true,
                 .LatePrepare = latePrepare,

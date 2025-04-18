@@ -94,7 +94,6 @@ void TTransactionBase<TBase>::Load(TStreamLoadContext& context)
     constexpr int ChaosReignBase = 300'000;
     constexpr int ChaosReignSaneTxActionAbortFix = 300'014;
     constexpr int TabletReignBase = 100'000;
-    constexpr int TabletReignSaneTxActionAbortFix = 100'906;
     constexpr int MasterReignSaneTxActionAbortFix = 2528;
 
     bool hasPreparedActionCount;
@@ -103,7 +102,7 @@ void TTransactionBase<TBase>::Load(TStreamLoadContext& context)
     if (version > ChaosReignBase) {
         hasPreparedActionCount = version >= ChaosReignSaneTxActionAbortFix;
     } else if (version > TabletReignBase) {
-        hasPreparedActionCount = version >= TabletReignSaneTxActionAbortFix;
+        hasPreparedActionCount = true;
     } else {
         hasPreparedActionCount = version >= MasterReignSaneTxActionAbortFix;
     }

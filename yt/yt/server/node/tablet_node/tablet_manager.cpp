@@ -962,11 +962,6 @@ private:
                 avenueDirectory->UpdateEndpoint(siblingEndpointId, movementData.GetSiblingCellId());
             }
         }
-
-        // COMPAT(gritukan): Remove it after ETabletReign::TabletPrerequisites.
-        if (CellLifeStage_ == ETabletCellLifeStage::DecommissioningOnNode || Suspending_) {
-            Slot_->GetLeaseManager()->SetDecommission(/*decommission*/ true);
-        }
     }
 
     void Clear() override
@@ -1053,17 +1048,6 @@ private:
 
         for (auto [tabletId, tablet] : TabletMap_) {
             StopTabletEpoch(tablet);
-        }
-    }
-
-    // COMPAT(ifsmirnov)
-    // Replace all callers with |request.set_mount_revision(...)| when removing the compat.
-    template <class TResponse>
-    void SetMountRevisionCompat(TResponse* response, TTablet* tablet)
-    {
-        const auto* context = GetCurrentMutationContext();
-        if (context->Request().Reign >= static_cast<int>(ETabletReign::SmoothTabletMovement)) {
-            response->set_mount_revision(ToProto(tablet->GetMountRevision()));
         }
     }
 
@@ -1266,7 +1250,7 @@ private:
             TRspMountTablet response;
             ToProto(response.mutable_tablet_id(), tabletId);
             response.set_frozen(freeze);
-            SetMountRevisionCompat(&response, tablet);
+            response.set_mount_revision(ToProto(tablet->GetMountRevision()));
             PostMasterMessage(tablet, response, /*forceCellMailbox*/ true);
         }
 
@@ -1573,7 +1557,7 @@ private:
 
         TRspUnfreezeTablet response;
         ToProto(response.mutable_tablet_id(), tabletId);
-        SetMountRevisionCompat(&response, tablet);
+        response.set_mount_revision(ToProto(tablet->GetMountRevision()));
         PostMasterMessage(tablet, response);
     }
 
@@ -1659,15 +1643,6 @@ private:
         auto* tablet = FindTablet(tabletId);
         if (!tablet) {
             return;
-        }
-        const auto* context = GetCurrentMutationContext();
-        if (static_cast<ETabletReign>(context->Request().Reign) < ETabletReign::NoMountRevisionCheckInBulkInsert) {
-            if (request->has_mount_revision() && request->mount_revision() != 0) {
-                auto mountRevision = FromProto<NHydra::TRevision>(request->mount_revision());
-                if (mountRevision != tablet->GetMountRevision()) {
-                    return;
-                }
-            }
         }
 
         auto transactionId = FromProto<TTabletId>(request->transaction_id());
@@ -1828,7 +1803,7 @@ private:
                 if (auto replicationProgress = tablet->RuntimeData()->ReplicationProgress.Acquire()) {
                     ToProto(response.mutable_replication_progress(), *replicationProgress);
                 }
-                SetMountRevisionCompat(&response, tablet);
+                response.set_mount_revision(ToProto(tablet->GetMountRevision()));
 
                 // NB: Do not unregister master avenue since it still has pending messages.
                 // It will be unregistered later by TReqUnregisterMasterAvenueEndpoint message.
@@ -1875,7 +1850,7 @@ private:
                     TRspFreezeTablet response;
                     ToProto(response.mutable_tablet_id(), tablet->GetId());
                     *response.mutable_mount_hint() = tablet->GetMountHint();
-                    SetMountRevisionCompat(&response, tablet);
+                    response.set_mount_revision(ToProto(tablet->GetMountRevision()));
                     PostMasterMessage(tablet, response);
                 }
 
@@ -2141,12 +2116,9 @@ private:
             }
         }
 
-        // COMPAT(ifsmirnov)
-        if (GetCurrentMutationContext()->Request().Reign >= static_cast<int>(ETabletReign::SmoothTabletMovement)) {
-            if (tablet->GetStoresUpdatePreparedTransactionId()) {
-                THROW_ERROR_EXCEPTION("Cannot prepare stores update since it is already prepared by transaction %v",
-                    tablet->GetStoresUpdatePreparedTransactionId());
-            }
+        if (tablet->GetStoresUpdatePreparedTransactionId()) {
+            THROW_ERROR_EXCEPTION("Cannot prepare stores update since it is already prepared by transaction %v",
+                tablet->GetStoresUpdatePreparedTransactionId());
         }
 
         // Prepare.
@@ -2212,10 +2184,7 @@ private:
             }
         }
 
-        // COMPAT(ifsmirnov)
-        if (GetCurrentMutationContext()->Request().Reign >= static_cast<int>(ETabletReign::SmoothTabletMovement)) {
-            tablet->SetStoresUpdatePreparedTransactionId(transaction->GetId());
-        }
+        tablet->SetStoresUpdatePreparedTransactionId(transaction->GetId());
 
         // TODO(ifsmirnov): log preparation errors as well.
         structuredLogger->OnTabletStoresUpdatePrepared(
@@ -2375,23 +2344,20 @@ private:
             return;
         }
 
-        // COMPAT(ifsmirnov)
-        if (GetCurrentMutationContext()->Request().Reign >= static_cast<int>(ETabletReign::SmoothTabletMovement)) {
-            auto expectedTransactionId = tablet->GetStoresUpdatePreparedTransactionId();
+        auto expectedTransactionId = tablet->GetStoresUpdatePreparedTransactionId();
 
-            if (expectedTransactionId == transaction->GetId()) {
-                tablet->SetStoresUpdatePreparedTransactionId({});
-            } else {
-                // This is fine because out-of-order aborts may come for transactions
-                // that were not even prepared.
-                YT_LOG_DEBUG("Unexpected stores update transaction aborted, ignored "
-                    "(%v, TransactionId: %v, PreparedTransactionId: %v)",
-                    tablet->GetLoggingTag(),
-                    transaction->GetId(),
-                    expectedTransactionId);
+        if (expectedTransactionId == transaction->GetId()) {
+            tablet->SetStoresUpdatePreparedTransactionId({});
+        } else {
+            // This is fine because out-of-order aborts may come for transactions
+            // that were not even prepared.
+            YT_LOG_DEBUG("Unexpected stores update transaction aborted, ignored "
+                "(%v, TransactionId: %v, PreparedTransactionId: %v)",
+                tablet->GetLoggingTag(),
+                transaction->GetId(),
+                expectedTransactionId);
 
-                // Continue nevertheless to mimic old behaviour.
-            }
+            // Continue nevertheless to mimic old behaviour.
         }
 
         THashSet<TChunkId> hunkChunkIdsToAdd;
@@ -2505,18 +2471,15 @@ private:
             return;
         }
 
-        // COMPAT(ifsmirnov)
-        if (GetCurrentMutationContext()->Request().Reign >= static_cast<int>(ETabletReign::SmoothTabletMovement)) {
-            auto expectedTransactionId = tablet->GetStoresUpdatePreparedTransactionId();
-            if (expectedTransactionId != transaction->GetId()) {
-                YT_LOG_ALERT("Unexpected stores update transaction committed "
-                    "(%v, TransactionId: %v, PreparedTransactionId: %v)",
-                    tablet->GetLoggingTag(),
-                    transaction->GetId(),
-                    expectedTransactionId);
+        auto expectedTransactionId = tablet->GetStoresUpdatePreparedTransactionId();
+        if (expectedTransactionId != transaction->GetId()) {
+            YT_LOG_ALERT("Unexpected stores update transaction committed "
+                "(%v, TransactionId: %v, PreparedTransactionId: %v)",
+                tablet->GetLoggingTag(),
+                transaction->GetId(),
+                expectedTransactionId);
 
-                // Continue nevertheless to mimic old behaviour.
-            }
+            // Continue nevertheless to mimic old behaviour.
         }
 
         tablet->SetStoresUpdatePreparedTransactionId({});
@@ -4513,28 +4476,13 @@ private:
             ? ConvertTo<IMapNodePtr>(TYsonString(tableSettings.extra_mount_config_attributes()))
             : nullptr;
 
-        // COMPAT(ifsmirnov)
-        if (auto* context = TryGetCurrentMutationContext()) {
-            auto reign = static_cast<ETabletReign>(context->Request().Reign);
-            if (reign >= ETabletReign::DropBuiltinAttrsFromMountConfig) {
-                if (extraMountConfigAttributes) {
-                    for (auto key : TBuiltinTableMountConfig::NonDynamicallyModifiableFields) {
-                        if (extraMountConfigAttributes->RemoveChild(key)) {
-                            YT_LOG_DEBUG("Removed invalid builtin key from extra mount config "
-                                "(TabletId: %v, Key: %v)",
-                                tabletId,
-                                key);
-                        }
-                    }
-                }
-            } else {
-                // Drop enable_dynamic_store_read even in replay mode
-                // because it would've crashed the node anyway.
-                if (extraMountConfigAttributes && extraMountConfigAttributes->FindChild("enable_dynamic_store_read")) {
-                    YT_LOG_ALERT("Found enable_dynamic_store_read in extra mount config attributes, will drop "
-                        "(TabletId: %v)",
-                        tabletId);
-                    extraMountConfigAttributes->RemoveChild("enable_dynamic_store_read");
+        if (HasMutationContext() && extraMountConfigAttributes) {
+            for (auto key : TBuiltinTableMountConfig::NonDynamicallyModifiableFields) {
+                if (extraMountConfigAttributes->RemoveChild(key)) {
+                    YT_LOG_DEBUG("Removed invalid builtin key from extra mount config "
+                        "(TabletId: %v, Key: %v)",
+                        tabletId,
+                        key);
                 }
             }
         }

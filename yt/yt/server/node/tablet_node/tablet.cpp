@@ -1090,33 +1090,24 @@ void TTablet::Load(TLoadContext& context)
     TabletWriteManager_->Load(context);
 
     Load(context, LastDiscardStoresRevision_);
-    // COMPAT(ifsmirnov)
-    if (context.GetVersion() >= ETabletReign::SmoothTabletMovement) {
-        Load(context, StoresUpdatePreparedTransactionId_);
-    }
+    Load(context, StoresUpdatePreparedTransactionId_);
     Load(context, PreparedReplicatorTransactionIds_);
 
     Load(context, IdGenerator_);
 
-    // COMPAT(akozhikhov)
-    if (context.GetVersion() >= ETabletReign::ValueDictionaryCompression) {
-        Load(context, CompressionDictionaryInfos_);
-        for (auto policy : TEnumTraits<EDictionaryCompressionPolicy>::GetDomainValues()) {
-            auto chunkId = CompressionDictionaryInfos_[policy].ChunkId;
-            if (!chunkId) {
-                continue;
-            }
-            auto dictionaryHunkChunk = GetHunkChunk(chunkId);
-            YT_VERIFY(!dictionaryHunkChunk->IsAttachedCompressionDictionary());
-            dictionaryHunkChunk->SetAttachedCompressionDictionary(true);
-            UpdateDanglingHunkChunks(dictionaryHunkChunk);
+    Load(context, CompressionDictionaryInfos_);
+    for (auto policy : TEnumTraits<EDictionaryCompressionPolicy>::GetDomainValues()) {
+        auto chunkId = CompressionDictionaryInfos_[policy].ChunkId;
+        if (!chunkId) {
+            continue;
         }
+        auto dictionaryHunkChunk = GetHunkChunk(chunkId);
+        YT_VERIFY(!dictionaryHunkChunk->IsAttachedCompressionDictionary());
+        dictionaryHunkChunk->SetAttachedCompressionDictionary(true);
+        UpdateDanglingHunkChunks(dictionaryHunkChunk);
     }
 
-    // COMPAT(ifsmirnov)
-    if (context.GetVersion() >= ETabletReign::SmoothTabletMovement) {
-        Load(context, SmoothMovementData_);
-    }
+    Load(context, SmoothMovementData_);
 
     // COMPAT(gryzlov-ad)
     if (context.GetVersion() >= ETabletReign::AddTabletCustomRuntimeData) {
@@ -1236,15 +1227,6 @@ void TTablet::AsyncLoad(TLoadContext& context)
     Load(context, *Settings_.StoreWriterOptions);
     Load(context, *Settings_.HunkWriterConfig);
     Load(context, *Settings_.HunkWriterOptions);
-
-    // COMPAT(osidorkin)
-    if (context.GetVersion() < ETabletReign::ChunkReplicaAlwaysPrecache) {
-        const auto& mountConfig = Settings_.MountConfig;
-        if (!mountConfig->PrecacheChunkReplicasOnMount && !mountConfig->RegisterChunkReplicasOnStoresUpdate) {
-            mountConfig->PrecacheChunkReplicasOnMount = true;
-            mountConfig->RegisterChunkReplicasOnStoresUpdate = true;
-        }
-    }
 
     auto& providedSettings = RawSettings_.Provided;
 

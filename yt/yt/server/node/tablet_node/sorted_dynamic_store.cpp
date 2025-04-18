@@ -1909,9 +1909,6 @@ TError TSortedDynamicStore::CheckRowLocks(
             }
 
             if (!lock->SharedWriteTransactions.empty()) {
-                // COMPAT(ponasenko-rs)
-                YT_VERIFY(!HasMutationContext() ||
-                    static_cast<ETabletReign>(GetCurrentMutationContext()->Request().Reign) >= ETabletReign::SharedWriteLocks);
                 YT_VERIFY(!lock->WriteTransaction);
                 error = TError(
                     NTabletClient::EErrorCode::TransactionLockConflict,
@@ -1936,10 +1933,6 @@ TError TSortedDynamicStore::CheckRowLocks(
             if (lockType != ELockType::SharedWrite) {
                 auto lastSharedWriteTimestamp = GetLastSharedWriteTimestamp(row, index);
                 if (lastSharedWriteTimestamp > transaction->GetStartTimestamp()) {
-                    // COMPAT(ponasenko-rs)
-                    YT_VERIFY(!HasMutationContext() ||
-                        static_cast<ETabletReign>(GetCurrentMutationContext()->Request().Reign) >= ETabletReign::SharedWriteLocks);
-
                     error = TError(
                         NTabletClient::EErrorCode::TransactionLockConflict,
                         "Row lock conflict due to concurrent shared write")
@@ -1956,10 +1949,6 @@ TError TSortedDynamicStore::CheckRowLocks(
 
             if (lockType == ELockType::SharedStrong || lockType == ELockType::SharedWeak) {
                 if (!lock->SharedWriteTransactions.empty()) {
-                    // COMPAT(ponasenko-rs)
-                    YT_VERIFY(!HasMutationContext() ||
-                        static_cast<ETabletReign>(GetCurrentMutationContext()->Request().Reign) >= ETabletReign::SharedWriteLocks);
-
                     YT_VERIFY(!lock->WriteTransaction);
                     error = TError(
                         NTabletClient::EErrorCode::TransactionLockConflict,
@@ -1970,10 +1959,6 @@ TError TSortedDynamicStore::CheckRowLocks(
             }
 
             if (lockType == ELockType::SharedWrite) {
-                // COMPAT(ponasenko-rs)
-                YT_VERIFY(!HasMutationContext() ||
-                    static_cast<ETabletReign>(GetCurrentMutationContext()->Request().Reign) >= ETabletReign::SharedWriteLocks);
-
                 if (lock->ReadLockCount > 0) {
                     YT_VERIFY(!lock->WriteTransaction);
                     error = TError(
@@ -2647,10 +2632,7 @@ void TSortedDynamicStore::AsyncLoad(TLoadContext& context)
         auto lastExclusiveLockTimestampPtr = lastExclusiveLockTimestamps.begin();
 
         std::vector<TTimestamp> lastSharedWriteLockTimestamps;
-        // COMPAT(ponasenko-rs)
-        if (context.GetVersion() >= ETabletReign::SharedWriteLocks) {
-            Load(context, lastSharedWriteLockTimestamps);
-        }
+        Load(context, lastSharedWriteLockTimestamps);
         auto lastSharedWriteLockTimestampsPtr = lastSharedWriteLockTimestamps.begin();
 
         auto lastReadLockTimestamps = Load<std::vector<TTimestamp>>(context);
@@ -2705,19 +2687,13 @@ void TSortedDynamicStore::AsyncLoad(TLoadContext& context)
 
             for (auto row : batch->MaterializeRows()) {
                 scratchData.LastExclusiveLockTimestamps = lastExclusiveLockTimestampPtr;
-
-                scratchData.LastSharedWriteLockTimestamps = nullptr;
-                // COMPAT(ponasenko-rs)
-                if (context.GetVersion() >= ETabletReign::SharedWriteLocks) {
-                    scratchData.LastSharedWriteLockTimestamps = lastSharedWriteLockTimestampsPtr;
-                    lastSharedWriteLockTimestampsPtr += ColumnLockCount_;
-                }
-
+                scratchData.LastSharedWriteLockTimestamps = lastSharedWriteLockTimestampsPtr;
                 scratchData.LastReadLockTimestamps = lastReadLockTimestampPtr;
 
                 LoadRow(row, &scratchData);
 
                 lastExclusiveLockTimestampPtr += ColumnLockCount_;
+                lastSharedWriteLockTimestampsPtr += ColumnLockCount_;
                 lastReadLockTimestampPtr += ColumnLockCount_;
             }
         }
