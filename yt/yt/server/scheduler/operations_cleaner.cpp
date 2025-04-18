@@ -887,6 +887,7 @@ private:
 
     TCounter ArchivedOperationCounter_ = Profiler().Counter("/archived");
     TCounter RemovedOperationCounter_ = Profiler().Counter("/removed");
+    TCounter DroppedOperationCounter_ = Profiler().Counter("/dropped");
     TCounter CommittedDataWeightCounter_ = Profiler().Counter("/committed_data_weight");
     TCounter ArchiveErrorCounter_ = Profiler().Counter("/archive_errors");
     TCounter RemoveOperationErrorCounter_ = Profiler().Counter("/remove_errors");
@@ -1222,6 +1223,8 @@ private:
             // This method is only called for operations that went through the SubmitForArchivation
             // pipeline, so it is safe to assume that it is present in OperationMap_.
             EnqueueForRemoval(GetRequest(operationId));
+
+            DroppedOperationCounter_.Increment();
         }
     }
 
