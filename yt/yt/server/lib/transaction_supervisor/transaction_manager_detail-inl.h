@@ -23,14 +23,13 @@ void TTransactionManagerBase<TTransaction>::DoRegisterTransactionActionHandlers(
 template <class TTransaction>
 void TTransactionManagerBase<TTransaction>::RunPrepareTransactionActions(
     TTransaction* transaction,
-    const TTransactionPrepareOptions& options,
-    bool requireLegacyBehavior)
+    const TTransactionPrepareOptions& options)
 {
     // We don't need to run abort tx actions for transient prepare.
-    auto rememberPreparedTransactionActionCount = !requireLegacyBehavior && options.Persistent;
+    auto rememberPreparedTransactionActionCount = options.Persistent;
 
-    // |PreparedActionCount| should never be |nullopt| after update to current
-    // version until |requireLegacyBehavior| is |true|.
+    // COMPAT(kvk1920): |PreparedActionCount| should never be |nullopt|
+    // yet it could stay |nullopt| until abort if no RunPrepareTransactionActions was called.
     if (rememberPreparedTransactionActionCount) {
         transaction->SetPreparedActionCount(0);
     }

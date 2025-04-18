@@ -39,13 +39,6 @@ TLogicalTimeRegistry::TLogicalTimeRegistry(
 
 TLogicalTime TLogicalTimeRegistry::TLamportClock::Tick(TLogicalTime externalTime)
 {
-    // COMPAT(danilalexeev)
-    auto reign = GetCurrentMutationContext()->Request().Reign;
-    // ETabletReign::HiveManagerLamportTimestamp = 100909.
-    if (reign >= 100000 && reign < 100909) {
-        return {};
-    }
-
     Time_ = std::max(Time_, externalTime);
     auto time = TLogicalTime(++Time_.Underlying());
     Tick_.Fire(time);

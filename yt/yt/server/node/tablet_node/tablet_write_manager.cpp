@@ -496,10 +496,7 @@ public:
         updateProfileCounters(persistentWriteState->LocklessWriteLog);
         updateProfileCounters(persistentWriteState->LockedWriteLog);
 
-        // COMPAT(ponasenko-rs)
-        if (auto reign = static_cast<ETabletReign>(GetCurrentMutationContext()->Request().Reign);
-            reign < ETabletReign::SharedWriteLocks || !NeedsSortedSharedWriteSerialization(transaction))
-        {
+        if (!NeedsSortedSharedWriteSerialization(transaction)) {
             CommitLockedRows(transaction);
         }
 
@@ -581,18 +578,10 @@ public:
         auto transientWriteState = GetOrCreateTransactionTransientWriteState(transaction->GetId());
         YT_VERIFY(transientWriteState->PrelockedRows.empty());
 
-        // COMPAT(ponasenko-rs)
-        if (auto reign = static_cast<ETabletReign>(GetCurrentMutationContext()->Request().Reign);
-            reign < ETabletReign::SharedWriteLocks)
-        {
-            YT_VERIFY(transientWriteState->LockedRows.empty());
+        if (transientWriteState->LockedRows.empty()) {
             CommitLocklessRows(transaction, /*delayed*/ true);
         } else {
-            if (transientWriteState->LockedRows.empty()) {
-                CommitLocklessRows(transaction, /*delayed*/ true);
-            } else {
-                CommitLockedRows(transaction);
-            }
+            CommitLockedRows(transaction);
         }
 
         EraseOrCrash(transaction->CoarseSerializingTabletIds(), Tablet_->GetId());
@@ -695,13 +684,6 @@ public:
     bool NeedsSerialization(TTransaction* transaction) override
     {
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
-
-        // COMPAT(ponasenko-rs)
-        if (auto reign = static_cast<ETabletReign>(GetCurrentMutationContext()->Request().Reign);
-            reign < ETabletReign::SharedWriteLocks)
-        {
-            return NeedsLocklessSerialization(transaction);
-        }
 
         return NeedsLocklessSerialization(transaction) || NeedsSortedSharedWriteSerialization(transaction);
     }

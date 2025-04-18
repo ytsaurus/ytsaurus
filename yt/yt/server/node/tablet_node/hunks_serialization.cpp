@@ -33,9 +33,7 @@ void Load<THunkChunkRef, NTabletNode::TLoadContext>(
     Load(context, hunkChunkRef.ErasureCodec);
     Load(context, hunkChunkRef.HunkCount);
     Load(context, hunkChunkRef.TotalHunkLength);
-    if (context.GetVersion() >= NTabletNode::ETabletReign::HunkValueDictionaryCompression) {
-        Load(context, hunkChunkRef.CompressionDictionaryId);
-    }
+    Load(context, hunkChunkRef.CompressionDictionaryId);
 }
 
 template <>
