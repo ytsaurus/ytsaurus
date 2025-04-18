@@ -6,7 +6,6 @@
 
 namespace NSQLComplete {
 
-    std::tuple<TStringBuf, TStringBuf> ParseNamespaced(const TStringBuf delim, const TStringBuf text);
     TPragmaName ParsePragma(const TStringBuf text);
     TFunctionName ParseFunction(const TStringBuf text);
 
