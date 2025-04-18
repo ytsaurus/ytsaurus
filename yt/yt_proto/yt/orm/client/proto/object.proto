@@ -707,7 +707,7 @@ enum EFilterPlace
 
 message TJoinedColumnOption
 {
-    optional bool select_allowed = 1;
+    optional bool select_allowed = 1 [default = true];
     optional EFilterPlace filter_place = 2;
     // Field evaluation expression. Mutually exlusive with name and aggregation.
     optional string expression = 3;
