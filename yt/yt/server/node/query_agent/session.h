@@ -2,11 +2,15 @@
 
 #include "public.h"
 
+#include <yt/yt/server/node/tablet_node/public.h>
+
 #include <yt/yt/ytlib/node_tracker_client/public.h>
 
 #include <yt/yt/ytlib/query_client/public.h>
 
 #include <yt/yt/library/query/distributed/public.h>
+
+#include <yt/yt/library/query/engine_api/join_profiler.h>
 
 #include <yt/yt/client/table_client/unversioned_reader.h>
 
@@ -20,8 +24,7 @@ namespace NYT::NQueryAgent {
 
 struct TSessionRowset
 {
-    TSharedRange<NTableClient::TUnversionedRow> Rowset;
-    i64 DataWeight = {};
+    TFuture<TSharedRange<NTableClient::TUnversionedRow>> AsyncRowset;
     NTableClient::TTableSchemaPtr Schema;
 };
 
@@ -35,7 +38,7 @@ struct IDistributedSession
         NTableClient::ISchemafulUnversionedReaderPtr rowset,
         NTableClient::TTableSchemaPtr schema) = 0;
 
-    virtual TFuture<TSessionRowset> GetOrThrow(NQueryClient::TRowsetId id) const = 0;
+    virtual TSessionRowset GetOrThrow(NQueryClient::TRowsetId id) const = 0;
 
     virtual void RenewLease() const = 0;
 
@@ -49,9 +52,8 @@ struct IDistributedSession
 
     virtual TFuture<void> PushRowset(
         const std::string& nodeAddress,
-        NQueryClient::TRowsetId rowsetId,
+        const NQueryClient::TShufflePart& shufflePart,
         NTableClient::TTableSchemaPtr schema,
-        const std::vector<TRange<NTableClient::TUnversionedRow>>& subranges,
         NNodeTrackerClient::INodeChannelFactoryPtr channelFactory,
         i64 desiredUncompressedResponseBlockSize) = 0;
 };

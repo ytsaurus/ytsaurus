@@ -106,11 +106,11 @@ void ProfileForBothExecutionBackends(
     const TConstBaseQueryPtr& query,
     llvm::FoldingSetNodeID* id,
     TCGVariables* variables,
-    IJoinSubqueryProfilerPtr joinProfiler)
+    const std::vector<IJoinProfilerPtr>& joinProfilers)
 {
-    Profile(query, id, variables, joinProfiler, /*useCanonicalNullRelations*/ false, EExecutionBackend::Native)();
+    Profile(query, id, variables, joinProfilers, /*useCanonicalNullRelations*/ false, EExecutionBackend::Native)();
     if (EnableWebAssemblyInUnitTests()) {
-        Profile(query, id, variables, joinProfiler, /*useCanonicalNullRelations*/ false, EExecutionBackend::WebAssembly)();
+        Profile(query, id, variables, joinProfilers, /*useCanonicalNullRelations*/ false, EExecutionBackend::WebAssembly)();
     }
 }
 
@@ -128,15 +128,15 @@ void ProfileForBothExecutionBackends(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IJoinSubqueryProfilerPtr MakeNullJoinSubqueryProfiler()
+IJoinProfilerPtr MakeNullJoinSubqueryProfiler()
 {
     class TNullJoinSubqueryProfiler
-        : public IJoinSubqueryProfiler
+        : public IJoinProfiler
     {
     public:
         TNullJoinSubqueryProfiler() = default;
 
-        IJoinRowsProducerPtr Profile(int /*joinIndex*/) override
+        IJoinRowsProducerPtr Profile() override
         {
             return nullptr;
         }

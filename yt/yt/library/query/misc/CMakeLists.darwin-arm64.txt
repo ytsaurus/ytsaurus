@@ -30,11 +30,16 @@ target_include_directories(library-query-misc PUBLIC
 target_link_libraries(library-query-misc PUBLIC
   contrib-libs-cxxsupp
   yutil
+  yt-yt-client
+  yt-library-numeric
   cpp-yt-assert
+  cpp-yt-memory
 )
 
 target_sources(library-query-misc PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/library/query/misc/objects_holder.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/library/query/misc/function_context.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/library/query/misc/rowset_subrange_reader.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/library/query/misc/rowset_writer.cpp
 )
 

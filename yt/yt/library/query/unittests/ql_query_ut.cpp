@@ -4,6 +4,7 @@
 
 #include <yt/yt/library/query/base/callbacks.h>
 #include <yt/yt/library/query/base/query.h>
+#include <yt/yt/library/query/base/query_helpers.h>
 #include <yt/yt/library/query/base/query_preparer.h>
 #include <yt/yt/library/query/base/functions.h>
 
@@ -725,7 +726,7 @@ TEST_F(TQueryPrepareTest, SplitWherePredicateWithJoin)
         auto query = PreparePlanFragment(&PrepareMock_, queryString)->Query;
 
         TCGVariables variables;
-        ProfileForBothExecutionBackends(query, &id1, &variables, MakeNullJoinSubqueryProfiler());
+        ProfileForBothExecutionBackends(query, &id1, &variables, {MakeNullJoinSubqueryProfiler()});
     }
 
     llvm::FoldingSetNodeID id2;
@@ -741,7 +742,7 @@ TEST_F(TQueryPrepareTest, SplitWherePredicateWithJoin)
         auto query = PreparePlanFragment(&PrepareMock_, queryString)->Query;
 
         TCGVariables variables;
-        ProfileForBothExecutionBackends(query, &id2, &variables, MakeNullJoinSubqueryProfiler());
+        ProfileForBothExecutionBackends(query, &id2, &variables, {MakeNullJoinSubqueryProfiler()});
     }
 
     EXPECT_EQ(id1, id2);
@@ -769,7 +770,7 @@ TEST_F(TQueryPrepareTest, DisjointGroupBy)
         auto query = PreparePlanFragment(&PrepareMock_, queryString)->Query;
 
         TCGVariables variables;
-        ProfileForBothExecutionBackends(query, &id1, &variables, MakeNullJoinSubqueryProfiler());
+        ProfileForBothExecutionBackends(query, &id1, &variables, {MakeNullJoinSubqueryProfiler()});
     }
 
     llvm::FoldingSetNodeID id2;
@@ -778,7 +779,7 @@ TEST_F(TQueryPrepareTest, DisjointGroupBy)
         auto query = PreparePlanFragment(&PrepareMock_, queryString)->Query;
 
         TCGVariables variables;
-        ProfileForBothExecutionBackends(query, &id2, &variables, MakeNullJoinSubqueryProfiler());
+        ProfileForBothExecutionBackends(query, &id2, &variables, {MakeNullJoinSubqueryProfiler()});
     }
 
     EXPECT_NE(id1, id2);
@@ -797,7 +798,7 @@ TEST_F(TQueryPrepareTest, GroupByWithLimitFolding)
         auto query = PreparePlanFragment(&PrepareMock_, "* from [//t] group by 1")->Query;
 
         TCGVariables variables;
-        ProfileForBothExecutionBackends(query, &id1, &variables, MakeNullJoinSubqueryProfiler());
+        ProfileForBothExecutionBackends(query, &id1, &variables, {MakeNullJoinSubqueryProfiler()});
     }
 
     llvm::FoldingSetNodeID id2;
@@ -805,7 +806,7 @@ TEST_F(TQueryPrepareTest, GroupByWithLimitFolding)
         auto query = PreparePlanFragment(&PrepareMock_, "* from [//t] group by 1 limit 1")->Query;
 
         TCGVariables variables;
-        ProfileForBothExecutionBackends(query, &id2, &variables, MakeNullJoinSubqueryProfiler());
+        ProfileForBothExecutionBackends(query, &id2, &variables, {MakeNullJoinSubqueryProfiler()});
     }
 
     EXPECT_NE(id1, id2);
@@ -1328,7 +1329,7 @@ TQueryStatistics DoExecuteQuery(
     TConstQueryPtr query,
     IUnversionedRowsetWriterPtr writer,
     const TQueryBaseOptions& options,
-    IJoinSubqueryProfilerPtr joinProfiler = nullptr)
+    const std::vector<IJoinProfilerPtr>& joinProfilers = {})
 {
     std::vector<TOwningRow> owningSourceRows;
     for (const auto& row : source) {
@@ -1385,7 +1386,7 @@ TQueryStatistics DoExecuteQuery(
         query,
         readerMock,
         writer,
-        joinProfiler,
+        joinProfilers,
         functionProfilers,
         aggregateProfilers,
         GetDefaultMemoryChunkProvider(),
@@ -1799,22 +1800,7 @@ protected:
             aggregatedStatistics.AddInnerStatistics(std::move(joinSubqueryStatistics));
         };
 
-        auto getMergeJoinDataSource = [] (size_t /*keyPrefix*/) {
-            // This callback is usually dependent on the structure of tablets.
-            // Thus, in tests we resort to returning a universal range.
-
-            auto buffer = New<TRowBuffer>();
-            TRowRanges universalRange{{
-                buffer->CaptureRow(NTableClient::MinKey().Get()),
-                buffer->CaptureRow(NTableClient::MaxKey().Get()),
-            }};
-
-            return TDataSource{
-                .Ranges = MakeSharedRange(std::move(universalRange), std::move(buffer)),
-            };
-        };
-
-        auto executeForeign = [&] (TPlanFragment fragment, IUnversionedRowsetWriterPtr writer) {
+        auto executePlan = [&] (TPlanFragment fragment, IUnversionedRowsetWriterPtr writer) {
             // TODO(sabdenovch): Switch to name- or id-based source rows navigation.
             // Ideally, do not separate schemas from sources.
             int sourceIndex = 1;
@@ -1838,21 +1824,43 @@ protected:
                     fragment.Query,
                     writer,
                     options,
-                    /*joinProfiler*/ nullptr);
+                    /*joinProfilers*/ {});
         };
 
-        auto orderedExecution = primaryQuery->IsOrdered(evaluateOptions.AllowUnorderedGroupByWithLimit);
+        std::vector<IJoinProfilerPtr> joinProfilers;
+        for (const auto& joinClause : primaryQuery->JoinClauses) {
+            auto getPrefetchJoinDataSource = [=] () -> std::optional<TDataSource> {
+                // This callback is usually dependent on the structure of tablets.
+                // Thus, in tests we resort to returning a universal range.
 
-        auto joinProfiler = CreateJoinProfiler(
-            primaryQuery,
-            GetJoinSubqueryOptions(options),
-            evaluateOptions.MinKeyWidth,
-            orderedExecution,
-            GetDefaultMemoryChunkProvider(),
-            std::move(consumeSubqueryStatistics),
-            std::move(getMergeJoinDataSource),
-            std::move(executeForeign),
-            Logger());
+                if (ShouldPrefetchJoinSource(
+                    primaryQuery,
+                    *joinClause,
+                    evaluateOptions.MinKeyWidth,
+                    primaryQuery->IsOrdered(/*allowUnorderedGroupByWithLimit*/ true)))
+                {
+                    auto buffer = New<TRowBuffer>();
+                    TRowRanges universalRange{{
+                        buffer->CaptureRow(NTableClient::MinKey().Get()),
+                        buffer->CaptureRow(NTableClient::MaxKey().Get()),
+                    }};
+
+                    return TDataSource{
+                        .Ranges = MakeSharedRange(std::move(universalRange), std::move(buffer)),
+                    };
+                } else {
+                    return std::nullopt;
+                }
+            };
+
+            joinProfilers.push_back(CreateJoinSubqueryProfiler(
+                joinClause,
+                std::move(executePlan),
+                std::move(consumeSubqueryStatistics),
+                std::move(getPrefetchJoinDataSource),
+                GetDefaultMemoryChunkProvider(),
+                Logger()));
+        }
 
         auto prepareAndExecute = [&] {
             IUnversionedRowsetWriterPtr writer;
@@ -1868,7 +1876,7 @@ protected:
                 primaryQuery,
                 writer,
                 options,
-                joinProfiler);
+                joinProfilers);
 
             resultStatistics.AddInnerStatistics(std::move(aggregatedStatistics));
 
@@ -1959,7 +1967,7 @@ protected:
                 bottomQuery,
                 readerMock,
                 pipe->GetWriter(),
-                /*joinProfiler*/ nullptr,
+                /*joinProfilers*/ {},
                 FunctionProfilers_,
                 AggregateProfilers_,
                 GetDefaultMemoryChunkProvider(),
@@ -1982,7 +1990,7 @@ protected:
             frontQuery,
             frontReader,
             writer,
-            /*joinProfiler*/ nullptr,
+            /*joinProfilers*/ {},
             FunctionProfilers_,
             AggregateProfilers_,
             GetDefaultMemoryChunkProvider(),
@@ -2052,7 +2060,7 @@ protected:
             query,
             readerMock,
             pipe->GetWriter(),
-            /*joinProfiler*/ nullptr,
+            /*joinProfilers*/ {},
             FunctionProfilers_,
             AggregateProfilers_,
             GetDefaultMemoryChunkProvider(),
@@ -2099,7 +2107,7 @@ protected:
             query,
             reader,
             pipe->GetWriter(),
-            /*joinProfiler*/ nullptr,
+            /*joinProfilers*/ {},
             FunctionProfilers_,
             AggregateProfilers_,
             GetDefaultMemoryChunkProvider(),
@@ -2143,7 +2151,7 @@ protected:
             frontQuery,
             reader,
             writer,
-            /*joinProfiler*/ nullptr,
+            /*joinProfilers*/ {},
             FunctionProfilers_,
             AggregateProfilers_,
             GetDefaultMemoryChunkProvider(),

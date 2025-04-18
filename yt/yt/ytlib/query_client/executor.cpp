@@ -556,8 +556,6 @@ private:
             VerifyIdsInKeys(dataSource.first.Keys);
         }
 
-        bool sortedDataSource = tableInfo->IsSorted();
-
         std::vector<std::pair<std::vector<TDataSource>, TString>> groupedDataSplits;
 
         if (coordinatedQuery->IsOrdered(options.AllowUnorderedGroupByWithLimit)) {
@@ -617,7 +615,7 @@ private:
             options,
             requestFeatureFlags,
             writer,
-            sortedDataSource,
+            tableInfo->IsSorted(),
             std::move(groupedDataSplits));
     }
 
@@ -662,7 +660,7 @@ private:
             query,
             reader,
             writer,
-            nullptr,
+            /*joinProfilers*/ {},
             functionGenerators,
             aggregateGenerators,
             MemoryChunkProvider_,
@@ -749,7 +747,7 @@ private:
                     std::move(frontQuery),
                     std::move(reader),
                     writer,
-                    nullptr,
+                    /*joinProfilers*/ {},
                     functionGenerators,
                     aggregateGenerators,
                     MemoryChunkProvider_,

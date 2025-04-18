@@ -1229,7 +1229,7 @@ public:
         TCodegenSource* codegenSource,
         const TConstQueryPtr& query,
         size_t* slotCount,
-        IJoinSubqueryProfilerPtr joinProfiler);
+        const std::vector<IJoinProfilerPtr>& joinProfilers);
 
     void Profile(
         TCodegenSource* codegenSource,
@@ -2067,7 +2067,7 @@ void TQueryProfiler::Profile(
     TCodegenSource* codegenSource,
     const TConstQueryPtr& query,
     size_t* slotCount,
-    IJoinSubqueryProfilerPtr joinProfiler)
+    const std::vector<IJoinProfilerPtr>& joinProfilers)
 {
     Fold(ExecutionBackend_);
     Fold(EFoldingObjectType::ScanOp);
@@ -2250,7 +2250,7 @@ void TQueryProfiler::Profile(
                 .IsLeft = joinClause->IsLeft,
                 .IsPartiallySorted = joinClause->ForeignKeyPrefix < singleJoinParameters.KeySize,
                 .ForeignColumns = joinClause->GetForeignColumnIndices(),
-                .JoinRowsProducer = joinProfiler->Profile(joinIndex),
+                .JoinRowsProducer = joinProfilers[joinIndex]->Profile(),
             };
 
             joinParameters.Items.push_back(std::move(singleJoinParameters));
@@ -2408,7 +2408,7 @@ TCGQueryGenerator Profile(
     const TConstBaseQueryPtr& query,
     llvm::FoldingSetNodeID* id,
     TCGVariables* variables,
-    IJoinSubqueryProfilerPtr joinProfiler,
+    const std::vector<IJoinProfilerPtr>& joinProfilers,
     bool useCanonicalNullRelations,
     EExecutionBackend executionBackend,
     const TConstFunctionProfilerMapPtr& functionProfilers,
@@ -2428,7 +2428,7 @@ TCGQueryGenerator Profile(
     TCodegenSource codegenSource = &CodegenEmptyOp;
 
     if (auto derivedQuery = dynamic_cast<const TQuery*>(query.Get())) {
-        profiler.Profile(&codegenSource, derivedQuery, &slotCount, std::move(joinProfiler));
+        profiler.Profile(&codegenSource, derivedQuery, &slotCount, joinProfilers);
     } else if (auto derivedQuery = dynamic_cast<const TFrontQuery*>(query.Get())) {
         profiler.Profile(&codegenSource, derivedQuery, &slotCount);
     } else {

@@ -12,7 +12,6 @@ THashMap<TString, TShufflePart> Shuffle(
 
     for (const auto& [destination, ranges] : shuffleNavigator.DestinationMap) {
         std::vector<TRange<TRow>> subrangesForDestination;
-        std::vector<TRowRange> rowsetKeyBounds;
 
         for (const auto& range : ranges) {
             auto begin = std::lower_bound(rows.Begin(), rows.End(), range.first, [&] (TRow lhs, TRow rhs) {
@@ -26,19 +25,14 @@ THashMap<TString, TShufflePart> Shuffle(
             }
 
             subrangesForDestination.emplace_back(begin, end);
-            rowsetKeyBounds.emplace_back(range.first, range.second);
         }
 
         if (subrangesForDestination.empty()) {
             continue;
         }
 
-        TDataSource dataSource;
-        dataSource.ObjectId = TGuid::Create();
-        dataSource.Ranges = MakeSharedRange(std::move(rowsetKeyBounds));
-
         shuffle[destination] = {
-            .DataSource = std::move(dataSource),
+            .RowsetId = TGuid::Create(),
             .Subranges = std::move(subrangesForDestination),
         };
     }
