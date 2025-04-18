@@ -638,7 +638,7 @@ class TestUsers(YTEnvSetup):
         rev4 = get("//sys/users/u/@password_revision")
         assert rev4 > rev3
 
-    @authors("gritukan", "aleksandr.gaev")
+    @authors("gritukan", "aleksandr.gaev", "pavel-bash")
     def test_tokens(self):
         if self.DRIVER_BACKEND == "rpc":
             return
@@ -650,7 +650,7 @@ class TestUsers(YTEnvSetup):
 
         t1_token, t1_hash = issue_token("u")
         assert t1_token[:5] == "ytct-" and t1_token[9] == "-"
-        assert get(f"//sys/cypress_tokens/{t1_hash}/@user") == "u"
+        assert get(f"//sys/cypress_tokens/{t1_hash}/@user_id") == get("//sys/users/u/@id")
         assert_items_equal(list_user_tokens("u"), [t1_hash])
         assert list_user_tokens("v") == []
 
@@ -663,7 +663,7 @@ class TestUsers(YTEnvSetup):
         with raises_yt_error("Token issuance can be performed"):
             issue_token("u", "v", authenticated_user="v")
 
-        with raises_yt_error("Provided token is not recognized"):
+        with raises_yt_error("Failed to get token"):
             revoke_token("u", "xxx", "u", authenticated_user="u")
         with raises_yt_error("User provided invalid password"):
             revoke_token("u", t1_hash, "a", authenticated_user="u")

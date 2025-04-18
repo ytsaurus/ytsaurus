@@ -43,21 +43,28 @@ public:
             tokenHash,
             userIP);
 
-        auto path = Format("%v/%v/@user",
+        // Try to retrieve both old (@user) and new (@user_id) token attributes
+        // at the same time to speed up the process.
+        auto path = Format("%v/%v",
             Config_->RootPath ? Config_->RootPath : "//sys/cypress_tokens",
             ToYPathLiteral(tokenHash));
-        return Client_->GetNode(path, /*options*/ {})
+        auto options = TGetNodeOptions{
+            .Attributes = TAttributeFilter({"user", "user_id"}),
+        };
+        return Client_->GetNode(path, options)
             .Apply(BIND(
-                &TCypressTokenAuthenticator::OnCallResult,
+                &TCypressTokenAuthenticator::OnCallTokenResult,
                 MakeStrong(this),
-                std::move(tokenHash)));
+                tokenHash));
     }
 
 private:
     const TCypressTokenAuthenticatorConfigPtr Config_;
     const IClientPtr Client_;
 
-    TAuthenticationResult OnCallResult(const TString& tokenHash, const TErrorOr<TYsonString>& rspOrError)
+    TFuture<TAuthenticationResult> OnCallTokenResult(
+        const TString& tokenHash,
+        const TErrorOr<TYsonString>& rspOrError)
     {
         if (!rspOrError.IsOK()) {
             if (rspOrError.FindMatching(NYTree::EErrorCode::ResolveError)) {
@@ -72,6 +79,59 @@ private:
                     tokenHash);
                 THROW_ERROR_EXCEPTION("Cypress authentication failed")
                     << TErrorAttribute("token_hash", tokenHash)
+                    << rspOrError;
+            }
+        }
+        auto tokenNode = ConvertTo<INodePtr>(rspOrError.Value());
+        const auto& tokenAttributes = tokenNode->Attributes();
+
+        auto userIdAttribute = tokenAttributes.Find<TString>("user_id");
+        if (userIdAttribute) {
+            // New authentication schema: now we need to get the username given the user ID which we received.
+            auto path = Format("#%v/@name", ToYPathLiteral(*userIdAttribute));
+            return Client_->GetNode(path, /*options*/ {})
+                .Apply(BIND(
+                    &TCypressTokenAuthenticator::OnCallUsernameResult,
+                    MakeStrong(this),
+                    std::move(tokenHash),
+                    std::move(*userIdAttribute)));
+        }
+
+        auto userAttribute = tokenAttributes.Find<TString>("user");
+        if (userAttribute) {
+            // Old authentication schema: we already retrieved the username.
+            YT_LOG_DEBUG("Cypress authentication succeeded (TokenHash: %v, Login: %v)",
+                tokenHash,
+                *userAttribute);
+            return MakeFuture(TAuthenticationResult{
+                .Login = *userAttribute,
+            });
+        }
+
+        YT_LOG_DEBUG(rspOrError, "Cypress authentication failed (TokenHash: %v)",
+            tokenHash);
+        THROW_ERROR_EXCEPTION("Cypress authentication failed")
+            << TErrorAttribute("token_hash", tokenHash)
+            << rspOrError;
+    }
+
+    TAuthenticationResult OnCallUsernameResult(
+        const TString& tokenHash,
+        const TString& userId,
+        const TErrorOr<TYsonString>& rspOrError)
+    {
+        if (!rspOrError.IsOK()) {
+            if (rspOrError.FindMatching(NYTree::EErrorCode::ResolveError)) {
+                YT_LOG_DEBUG(rspOrError, "Could not get username by user ID (User ID: %v)",
+                    userId);
+                THROW_ERROR_EXCEPTION("Could not get username by user ID")
+                    << TErrorAttribute("token_hash", userId)
+                    << rspOrError;
+            } else {
+                YT_LOG_DEBUG(rspOrError, "Cypress authentication failed (User ID: %v)",
+                    userId);
+                THROW_ERROR_EXCEPTION("Cypress authentication failed")
+                    << TErrorAttribute("user_id", userId)
                     << rspOrError;
             }
         }
