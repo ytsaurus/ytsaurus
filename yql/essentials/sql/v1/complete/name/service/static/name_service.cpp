@@ -1,5 +1,6 @@
 #include "name_service.h"
 
+#include <yql/essentials/sql/v1/complete/name/service/namespacing.h>
 #include <yql/essentials/sql/v1/complete/name/service/ranking/name_service.h>
 #include <yql/essentials/sql/v1/complete/name/service/ranking/ranking.h>
 #include <yql/essentials/sql/v1/complete/text/case.h>
@@ -21,42 +22,6 @@ namespace NSQLComplete {
     void AppendAs(TVector<TGenericName>& target, const TVector<S>& source) {
         for (const auto& element : source) {
             target.emplace_back(T{TString(element)});
-        }
-    }
-
-    TString Prefixed(const TStringBuf requestPrefix, const TStringBuf delimeter, const TNamespaced& namespaced) {
-        TString prefix;
-        if (!namespaced.Namespace.empty()) {
-            prefix += namespaced.Namespace;
-            prefix += delimeter;
-        }
-        prefix += requestPrefix;
-        return prefix;
-    }
-
-    void FixPrefix(TString& name, const TStringBuf delimeter, const TNamespaced& namespaced) {
-        if (namespaced.Namespace.empty()) {
-            return;
-        }
-        name.remove(0, namespaced.Namespace.size() + delimeter.size());
-    }
-
-    void FixPrefix(TGenericName& name, const TNameRequest& request) {
-        std::visit([&](auto& name) -> size_t {
-            using T = std::decay_t<decltype(name)>;
-            if constexpr (std::is_same_v<T, TPragmaName>) {
-                FixPrefix(name.Indentifier, ".", *request.Constraints.Pragma);
-            }
-            if constexpr (std::is_same_v<T, TFunctionName>) {
-                FixPrefix(name.Indentifier, "::", *request.Constraints.Function);
-            }
-            return 0;
-        }, name);
-    }
-
-    void FixPrefix(TVector<TGenericName>& names, const TNameRequest& request) {
-        for (auto& name : names) {
-            FixPrefix(name, request);
         }
     }
 
@@ -86,12 +51,14 @@ namespace NSQLComplete {
             TNameResponse response;
 
             if (request.Constraints.Pragma) {
-                auto prefix = Prefixed(request.Prefix, ".", *request.Constraints.Pragma);
-                auto names = FilteredByPrefix(prefix, Pragmas_);
+                InsertNamespace(request.Prefix, ".", *request.Constraints.Pragma);
+                auto names = FilteredByPrefix(request.Prefix, Pragmas_);
+                RemoveNamespace(request.Prefix, ".", *request.Constraints.Pragma);
+
                 AppendAs<TPragmaName>(response.RankedNames, names);
             }
 
-            FixPrefix(response.RankedNames, request);
+            RemoveNamespace(response.RankedNames, request);
 
             return NThreading::MakeFuture(std::move(response));
         }
@@ -136,12 +103,14 @@ namespace NSQLComplete {
             TNameResponse response;
 
             if (request.Constraints.Function) {
-                auto prefix = Prefixed(request.Prefix, "::", *request.Constraints.Function);
-                auto names = FilteredByPrefix(prefix, Functions_);
+                InsertNamespace(request.Prefix, "::", *request.Constraints.Function);
+                auto names = FilteredByPrefix(request.Prefix, Functions_);
+                RemoveNamespace(request.Prefix, "::", *request.Constraints.Function);
+
                 AppendAs<TFunctionName>(response.RankedNames, names);
             }
 
-            FixPrefix(response.RankedNames, request);
+            RemoveNamespace(response.RankedNames, request);
 
             return NThreading::MakeFuture(std::move(response));
         }
