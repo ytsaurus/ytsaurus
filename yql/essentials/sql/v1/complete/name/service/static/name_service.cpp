@@ -1,7 +1,7 @@
 #include "name_service.h"
 
-#include "ranking.h"
-
+#include <yql/essentials/sql/v1/complete/name/service/ranking/name_service.h>
+#include <yql/essentials/sql/v1/complete/name/service/ranking/ranking.h>
 #include <yql/essentials/sql/v1/complete/text/case.h>
 
 #include <library/cpp/threading/future/wait/wait.h>
@@ -57,25 +57,6 @@ namespace NSQLComplete {
     void FixPrefix(TVector<TGenericName>& names, const TNameRequest& request) {
         for (auto& name : names) {
             FixPrefix(name, request);
-        }
-    }
-
-    void InstallPrefix(TGenericName& name, const TNameRequest& request) {
-        std::visit([&](auto& name) -> size_t {
-            using T = std::decay_t<decltype(name)>;
-            if constexpr (std::is_same_v<T, TPragmaName>) {
-                name.Indentifier = Prefixed(name.Indentifier, ".", *request.Constraints.Pragma);
-            }
-            if constexpr (std::is_same_v<T, TFunctionName>) {
-                name.Indentifier = Prefixed(name.Indentifier, "::", *request.Constraints.Function);
-            }
-            return 0;
-        }, name);
-    }
-
-    void InstallPrefix(TVector<TGenericName>& names, const TNameRequest& request) {
-        for (auto& name : names) {
-            InstallPrefix(name, request);
         }
     }
 
@@ -198,14 +179,13 @@ namespace NSQLComplete {
 
     class TStaticNameService: public INameService {
     public:
-        explicit TStaticNameService(NameSet names, IRanking::TPtr ranking)
+        explicit TStaticNameService(NameSet names)
             : NameSet_(std::move(names))
             , Keyword_()
             , PragmaName_(std::move(NameSet_.Pragmas))
             , TypeName_(std::move(NameSet_.Types))
             , FunctionName_(std::move(NameSet_.Functions))
             , HintName_(std::move(NameSet_.Hints))
-            , Ranking_(std::move(ranking))
         {
             Sort(NameSet_.Tables, NoCaseCompare);
         }
@@ -245,10 +225,6 @@ namespace NSQLComplete {
                     FilteredByPrefix(request.Prefix, NameSet_.Tables));
             }
 
-            InstallPrefix(response.RankedNames, request);
-            Ranking_->CropToSortedPrefix(response.RankedNames, request.Limit);
-            FixPrefix(response.RankedNames, request);
-
             return NThreading::MakeFuture(std::move(response));
         }
 
@@ -260,8 +236,6 @@ namespace NSQLComplete {
         TTypeNameService TypeName_;
         TFunctionNameService FunctionName_;
         THintNameService HintName_;
-
-        IRanking::TPtr Ranking_;
     };
 
     INameService::TPtr MakeStaticNameService() {
@@ -269,7 +243,8 @@ namespace NSQLComplete {
     }
 
     INameService::TPtr MakeStaticNameService(NameSet names, IRanking::TPtr ranking) {
-        return INameService::TPtr(new TStaticNameService(std::move(names), std::move(ranking)));
+        return MakeRankingNameService(
+            MakeHolder<TStaticNameService>(std::move(names)), std::move(ranking));
     }
 
 } // namespace NSQLComplete

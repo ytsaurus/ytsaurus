@@ -1,14 +1,13 @@
 LIBRARY()
 
 SRCS(
-    frequency.cpp
     json_name_set.cpp
     name_service.cpp
-    ranking.cpp
 )
 
 PEERDIR(
     yql/essentials/sql/v1/complete/name
+    yql/essentials/sql/v1/complete/name/service/ranking
     yql/essentials/sql/v1/complete/text
 )
 
@@ -22,7 +21,3 @@ RESOURCE(
 )
 
 END()
-
-RECURSE_FOR_TESTS(
-    ut
-)
