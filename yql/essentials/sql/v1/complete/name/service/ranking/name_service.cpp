@@ -67,7 +67,7 @@ namespace NSQLComplete {
             {
             }
 
-            TFuture<TNameResponse> Lookup(TNameRequest request) override {
+            NThreading::TFuture<TNameResponse> Lookup(TNameRequest request) override {
                 // TODO(YQL-19747): Waiting without a timeout and error checking
                 TNameResponse response = Source_->Lookup(request).ExtractValueSync();
 

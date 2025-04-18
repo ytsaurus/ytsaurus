@@ -9,8 +9,6 @@
 
 namespace NSQLComplete {
 
-    using NThreading::TFuture;
-
     struct TIndentifier {
         TString Indentifier;
     };
@@ -83,7 +81,7 @@ namespace NSQLComplete {
     public:
         using TPtr = THolder<INameService>;
 
-        virtual TFuture<TNameResponse> Lookup(TNameRequest request) = 0;
+        virtual NThreading::TFuture<TNameResponse> Lookup(TNameRequest request) = 0;
         virtual ~INameService() = default;
     };
 

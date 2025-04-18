@@ -62,7 +62,7 @@ namespace NSQLComplete {
 
     class TKeywordNameService: public INameService {
     public:
-        TFuture<TNameResponse> Lookup(TNameRequest request) override {
+        NThreading::TFuture<TNameResponse> Lookup(TNameRequest request) override {
             TNameResponse response;
 
             Sort(request.Keywords, NoCaseCompare);
@@ -82,7 +82,7 @@ namespace NSQLComplete {
             Sort(Pragmas_, NoCaseCompare);
         }
 
-        TFuture<TNameResponse> Lookup(TNameRequest request) override {
+        NThreading::TFuture<TNameResponse> Lookup(TNameRequest request) override {
             TNameResponse response;
 
             if (request.Constraints.Pragma) {
@@ -108,7 +108,7 @@ namespace NSQLComplete {
             Sort(Types_, NoCaseCompare);
         }
 
-        TFuture<TNameResponse> Lookup(TNameRequest request) override {
+        NThreading::TFuture<TNameResponse> Lookup(TNameRequest request) override {
             TNameResponse response;
 
             if (request.Constraints.Type) {
@@ -132,7 +132,7 @@ namespace NSQLComplete {
             Sort(Functions_, NoCaseCompare);
         }
 
-        TFuture<TNameResponse> Lookup(TNameRequest request) override {
+        NThreading::TFuture<TNameResponse> Lookup(TNameRequest request) override {
             TNameResponse response;
 
             if (request.Constraints.Function) {
@@ -160,7 +160,7 @@ namespace NSQLComplete {
             }
         }
 
-        TFuture<TNameResponse> Lookup(TNameRequest request) override {
+        NThreading::TFuture<TNameResponse> Lookup(TNameRequest request) override {
             TNameResponse response;
 
             if (request.Constraints.Hint) {
@@ -190,10 +190,10 @@ namespace NSQLComplete {
             Sort(NameSet_.Tables, NoCaseCompare);
         }
 
-        TFuture<TNameResponse> Lookup(TNameRequest request) override {
+        NThreading::TFuture<TNameResponse> Lookup(TNameRequest request) override {
             TNameResponse response;
 
-            TVector<TFuture<TNameResponse>> subresponses;
+            TVector<NThreading::TFuture<TNameResponse>> subresponses;
             if (!request.Keywords.empty()) {
                 subresponses.emplace_back(Keyword_.Lookup(request));
             }
