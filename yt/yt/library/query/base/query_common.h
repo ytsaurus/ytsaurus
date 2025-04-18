@@ -150,9 +150,7 @@ void VerifyIdsInKeys(TRange<TRow> keys);
 void ToProto(
     NProto::TDataSource* serialized,
     const TDataSource& original,
-    TRange<TLogicalTypePtr> schema,
-    bool lookupSupported,
-    size_t keyWidth);
+    TRange<TLogicalTypePtr> schema);
 void FromProto(
     TDataSource* original,
     const NProto::TDataSource& serialized,
