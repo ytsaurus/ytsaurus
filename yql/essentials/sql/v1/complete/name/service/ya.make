@@ -1,8 +1,7 @@
 LIBRARY()
 
-SRCS(
-    name_service.cpp
-    namespacing.cpp
+PEERDIR(
+    yql/essentials/sql/v1/complete/name
 )
 
 END()

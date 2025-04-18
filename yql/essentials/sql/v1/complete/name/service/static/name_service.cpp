@@ -1,6 +1,6 @@
 #include "name_service.h"
 
-#include <yql/essentials/sql/v1/complete/name/service/namespacing.h>
+#include <yql/essentials/sql/v1/complete/name/parse.h>
 #include <yql/essentials/sql/v1/complete/name/service/ranking/name_service.h>
 #include <yql/essentials/sql/v1/complete/name/service/ranking/ranking.h>
 #include <yql/essentials/sql/v1/complete/text/case.h>

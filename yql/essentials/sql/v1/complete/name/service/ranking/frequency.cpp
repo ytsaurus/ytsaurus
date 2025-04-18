@@ -1,6 +1,6 @@
 #include "frequency.h"
 
-#include <yql/essentials/sql/v1/complete/name/service/namespacing.h>
+#include <yql/essentials/sql/v1/complete/name/parse.h>
 
 #include <library/cpp/json/json_reader.h>
 #include <library/cpp/resource/resource.h>
