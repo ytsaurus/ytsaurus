@@ -1,7 +1,9 @@
 LIBRARY()
 
 SRCS(
+    frequency.cpp
     name_service.cpp
+    ranking.cpp
 )
 
 PEERDIR(
@@ -9,3 +11,7 @@ PEERDIR(
 )
 
 END()
+
+RECURSE_FOR_TESTS(
+    ut
+)
