@@ -160,7 +160,7 @@ func TestClusterURL(t *testing.T) {
 				UseTVMOnlyEndpoint: test.config.useTVM,
 			}
 
-			clusterURL, err := conf.GetCusterURL()
+			clusterURL, err := conf.GetClusterURL()
 			require.NoError(t, err)
 
 			url := clusterURL.Scheme + "://" + clusterURL.Address

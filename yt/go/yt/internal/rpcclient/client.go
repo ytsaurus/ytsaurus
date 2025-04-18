@@ -43,7 +43,7 @@ type client struct {
 }
 
 func NewClient(conf *yt.Config) (*client, error) {
-	clusterURL, err := conf.GetCusterURL()
+	clusterURL, err := conf.GetClusterURL()
 	if err != nil {
 		return nil, err
 	}
