@@ -7,6 +7,8 @@
 
 #include <library/cpp/threading/future/wait/wait.h>
 
+#include <util/string/cast.h>
+
 namespace NSQLComplete {
 
     const TVector<TStringBuf> FilteredByPrefix(
@@ -57,11 +59,13 @@ namespace NSQLComplete {
             TNameResponse response;
 
             if (request.Constraints.Pragma) {
-                InsertNamespace(request.Prefix, ".", *request.Constraints.Pragma);
-                auto names = FilteredByPrefix(request.Prefix, Pragmas_);
-                RemoveNamespace(request.Prefix, ".", *request.Constraints.Pragma);
+                TPragmaName pragma;
+                pragma.Namespace = request.Constraints.Pragma->Namespace;
+                pragma.Indentifier = request.Prefix;
 
-                AppendAs<TPragmaName>(response.RankedNames, names);
+                AppendAs<TPragmaName>(
+                    response.RankedNames,
+                    FilteredByPrefix(ToString(pragma), Pragmas_));
             }
 
             return NThreading::MakeFuture(std::move(response));
@@ -107,11 +111,13 @@ namespace NSQLComplete {
             TNameResponse response;
 
             if (request.Constraints.Function) {
-                InsertNamespace(request.Prefix, "::", *request.Constraints.Function);
-                auto names = FilteredByPrefix(request.Prefix, Functions_);
-                RemoveNamespace(request.Prefix, "::", *request.Constraints.Function);
+                TFunctionName function;
+                function.Namespace = request.Constraints.Function->Namespace;
+                function.Indentifier = request.Prefix;
 
-                AppendAs<TFunctionName>(response.RankedNames, names);
+                AppendAs<TFunctionName>(
+                    response.RankedNames,
+                    FilteredByPrefix(ToString(function), Functions_));
             }
 
             return NThreading::MakeFuture(std::move(response));
