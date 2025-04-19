@@ -366,7 +366,7 @@ private:
 
         std::vector<TSharedRef> wireRowsets;
         try {
-            auto query = Format("pragma yt.UseNativeYtTypes; pragma ResultRowsLimit=\"%v\";\n%v", request.row_count_limit(), yqlRequest.query());
+            auto query = Format("pragma yt.UseNativeYtTypes;\npragma yt.UseNativeDynamicTableRead;\npragma ResultRowsLimit=\"%v\";\n%v", request.row_count_limit(), yqlRequest.query());
             auto settings = yqlRequest.has_settings() ? TYsonString(yqlRequest.settings()) : EmptyMap;
 
             std::vector<NYqlPlugin::TQueryFile> files;
