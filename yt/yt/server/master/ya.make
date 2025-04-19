@@ -454,6 +454,7 @@ PEERDIR(
     yt/yt/server/lib/hydra
     yt/yt/server/lib/incumbent_client
     yt/yt/server/lib/node_tracker_server
+    yt/yt/server/lib/object_server
     yt/yt/server/lib/security_server
     yt/yt/server/lib/table_server
     yt/yt/server/lib/tablet_balancer

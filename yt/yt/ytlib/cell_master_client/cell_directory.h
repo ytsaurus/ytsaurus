@@ -50,6 +50,13 @@ struct ICellDirectory
         NApi::EMasterChannelKind kind,
         NObjectClient::TCellId cellId) = 0;
 
+    virtual NRpc::IChannelPtr FindNakedMasterChannel(
+        NApi::EMasterChannelKind kind,
+        NObjectClient::TCellTag cellTag = NObjectClient::PrimaryMasterCellTagSentinel) = 0;
+    virtual NRpc::IChannelPtr GetNakedMasterChannelOrThrow(
+        NApi::EMasterChannelKind kind,
+        NObjectClient::TCellTag cellTag = NObjectClient::PrimaryMasterCellTagSentinel) = 0;
+
     virtual NObjectClient::TCellTagList GetMasterCellTagsWithRole(EMasterCellRole role) = 0;
 
     virtual NObjectClient::TCellId GetRandomMasterCellWithRoleOrThrow(EMasterCellRole role) = 0;

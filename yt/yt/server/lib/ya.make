@@ -56,6 +56,7 @@ RECURSE(
     misc
     nbd
     node_tracker_server
+    object_server
     rpc_proxy
     scheduler
     security_server

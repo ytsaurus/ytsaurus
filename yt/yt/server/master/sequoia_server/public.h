@@ -21,7 +21,7 @@ DECLARE_REFCOUNTED_STRUCT(TDynamicSequoiaManagerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DECLARE_REFCOUNTED_STRUCT(ICypressProxyTracker)
+DECLARE_REFCOUNTED_CLASS(ICypressProxyTracker)
 
 DECLARE_ENTITY_TYPE(TCypressProxyObject, NObjectServer::TObjectId, NObjectClient::TObjectIdEntropyHash)
 

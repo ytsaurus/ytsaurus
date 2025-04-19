@@ -28,6 +28,8 @@
 
 #include <yt/yt/server/lib/hive/hive_manager.h>
 
+#include <yt/yt/server/lib/object_server/helpers.h>
+
 #include <yt/yt/server/lib/transaction_server/helpers.h>
 
 #include <yt/yt/server/lib/transaction_supervisor/transaction_supervisor.h>
@@ -1460,7 +1462,13 @@ private:
                     auto batchReq = proxy.ExecuteBatchNoBackoffRetries();
                     batchReq->SetOriginalRequestId(RequestId_);
                     auto reserved = false;
-                    batchReq->SetTimeout(ComputeForwardingTimeout(RpcContext_, Owner_->Config_, &reserved));
+                    const auto& config = Owner_->Config_;
+                    batchReq->SetTimeout(
+                        ComputeForwardingTimeout(
+                            RpcContext_->GetTimeout().value_or(config->DefaultExecuteTimeout),
+                            RpcContext_->GetStartTime(),
+                            config->ForwardedRequestTimeoutReserve,
+                            &reserved));
                     if (!reserved) {
                         // If the timeout for forwarded request has been shortened, backoff alarm on the
                         // remote side will trigger sooner that locally, and we should deal with the local

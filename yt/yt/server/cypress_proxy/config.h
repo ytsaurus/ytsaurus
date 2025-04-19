@@ -90,6 +90,8 @@ struct TObjectServiceDynamicConfig
     NConcurrency::TThroughputThrottlerConfigPtr DefaultPerUserReadRequestWeightThrottler;
     NConcurrency::TThroughputThrottlerConfigPtr DefaultPerUserWriteRequestWeightThrottler;
 
+    TDuration ForwardedRequestTimeoutReserve;
+
     // For testing purposes.
     bool EnableFastPathPrerequisiteTransactionCheck;
 

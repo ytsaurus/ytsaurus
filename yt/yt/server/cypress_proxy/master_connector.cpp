@@ -17,6 +17,8 @@
 #include <yt/yt/core/net/address.h>
 #include <yt/yt/core/net/local_address.h>
 
+#include <yt/yt/build/build.h>
+
 #include <library/cpp/yt/threading/atomic_object.h>
 
 namespace NYT::NCypressProxy {
@@ -79,16 +81,23 @@ private:
 
     TAtomicObject<TError> RegistrationError_;
 
+    // NB: when master is in read-only mode heartbeats should not be sent to
+    // leader since there is no active leader.
+    bool RequireLeader_ = true;
+
     void Heartbeat()
     {
         auto connection = Bootstrap_->GetNativeConnection();
-        auto proxy = TCypressProxyTrackerServiceProxy(
-            connection->GetMasterChannelOrThrow(
-                EMasterChannelKind::Leader,
-                PrimaryMasterCellTagSentinel));
+        auto channel = connection->GetMasterChannelOrThrow(
+            RequireLeader_
+                ? EMasterChannelKind::Leader
+                : EMasterChannelKind::Follower,
+            PrimaryMasterCellTagSentinel);
+        auto proxy = TCypressProxyTrackerServiceProxy(std::move(channel));
         auto request = proxy.Heartbeat();
         request->set_address(SelfAddress_);
         request->set_sequoia_reign(ToProto(GetCurrentSequoiaReign()));
+        request->set_version(GetVersion());
 
         auto error = WaitFor(request->Invoke());
 
@@ -96,13 +105,26 @@ private:
             if (error.FindMatching(NSequoiaClient::EErrorCode::InvalidSequoiaReign)) {
                 YT_LOG_ALERT(error, "Failed to send heartbeat; retrying");
             } else {
+                // TODO(kvk1920): Consider to not log "master in read-only mode"
+                // many times.
                 YT_LOG_ERROR(error, "Failed to send heartbeat; retrying");
+            }
+
+            // Cypress proxies should remain available during master restart and
+            // read-only mode.
+            if (auto readOnly = error.FindMatching(NHydra::EErrorCode::ReadOnly); IsRetriableError(error) || readOnly) {
+                // Fallback to mutation-less protocol.
+                RequireLeader_ = !readOnly;
+                return;
             }
 
             error = WrapCypressProxyRegistrationError(std::move(error));
         } else if (!IsRegistered()) {
             YT_LOG_DEBUG("Cypress proxy registered at primary master");
         }
+
+        // By default require leader to update last seen time.
+        RequireLeader_ = true;
 
         RegistrationError_.Store(std::move(error));
     }

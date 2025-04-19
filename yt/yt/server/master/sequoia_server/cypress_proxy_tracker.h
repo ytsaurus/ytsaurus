@@ -6,13 +6,15 @@
 
 #include <yt/yt/server/lib/hydra/entity_map.h>
 
+#include <yt/yt/ytlib/sequoia_client/public.h>
+
 #include <yt/yt/core/rpc/service_detail.h>
 
 namespace NYT::NSequoiaServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct ICypressProxyTracker
+class ICypressProxyTracker
     : public virtual TRefCounted
 {
 public:
@@ -24,6 +26,7 @@ public:
      *  Thread affinity: any.
      */
     virtual void ProcessCypressProxyHeartbeat(const TCtxHeartbeatPtr& context) = 0;
+    virtual bool TryProcessCypressProxyHeartbeatWithoutMutation(const TCtxHeartbeatPtr& context) = 0;
 
     virtual void Initialize() = 0;
 
