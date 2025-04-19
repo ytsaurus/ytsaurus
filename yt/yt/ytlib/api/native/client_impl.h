@@ -1315,6 +1315,7 @@ private:
     void DoListOperationsFromCypress(
         TListOperationsCountingFilter& countingFilter,
         const TListOperationsOptions& options,
+        const TListOperationsContextPtr& context,
         THashMap<NScheduler::TOperationId, TOperation>* idToOperation,
         const NLogging::TLogger& Logger);
 
@@ -1330,6 +1331,7 @@ private:
         TInstant deadline,
         TListOperationsCountingFilter& countingFilter,
         const TListOperationsOptions& options,
+        const TListOperationsContextPtr& context,
         int archiveVersion,
         const NLogging::TLogger& Logger);
 
