@@ -82,6 +82,11 @@ struct TJobMonitoringDescriptor
     auto operator<=>(const TJobMonitoringDescriptor& other) const = default;
 };
 
+inline const TJobMonitoringDescriptor NullMonitoringDescriptor{
+    .IncarnationId = TIncarnationId(),
+    .Index = -1,
+};
+
 void FormatValue(TStringBuilderBase* builder, const TJobMonitoringDescriptor& descriptor, TStringBuf /*spec*/);
 
 struct TLivePreviewTableBase;
