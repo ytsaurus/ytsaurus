@@ -134,10 +134,11 @@ enum EObjectWithReferenceRemovalPolicy
 enum ECascadingRemovalPolicy
 {
     // Remove object with all its descendants.
-    // Ff object has active finalizers, still tries to remove descendants, but the object itself becomes finalized.
+    // If object has active finalizers, the descendants are removed, but the object itself becomes finalized.
     CRP_REMOVE = 0;
     // If object has no active finalizers, this policy acts like `CRP_REMOVE`.
-    // If object has active finalizers, adds `_orm_parent` finalizer to descendants.
+    // If object has active finalizers, adds `_orm_parent` finalizer to descendants without finalizers.
+    // The descendants will be removed once all parent finalizers become completed.
     CRP_FINALIZE = 1;
     // Forbid object removal with existing descendants.
     CRP_FORBID = 2;
