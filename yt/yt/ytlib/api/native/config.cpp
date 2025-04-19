@@ -456,6 +456,9 @@ void TConnectionDynamicConfig::Register(TRegistrar registrar)
     registrar.Parameter("enable_distributed_replication_collocation_attachment", &TThis::EnableDistributedReplicationCollocationAttachment)
         .Default(true);
 
+    registrar.Parameter("strict_scheduler_commands_access_validation", &TThis::StrictSchedulerCommandsAccessValidation)
+        .Default(false);
+
     registrar.Postprocessor([] (TConnectionDynamicConfig* config) {
         if (!config->UploadTransactionPingPeriod.has_value()) {
             config->UploadTransactionPingPeriod = config->UploadTransactionTimeout / 2;
