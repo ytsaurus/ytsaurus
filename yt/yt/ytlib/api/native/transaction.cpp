@@ -2146,6 +2146,10 @@ private:
 
     TFuture<void> DoCommitTabletSessions()
     {
+        if (TabletIdToSession_.empty()) {
+            return VoidFuture;
+        }
+
         std::vector<ITabletCommitSessionPtr> sessions;
         sessions.reserve(TabletIdToSession_.size());
         for (const auto& [tabletId, session] : TabletIdToSession_) {

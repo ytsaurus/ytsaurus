@@ -37,6 +37,7 @@ target_link_libraries(yt-server-cypress_proxy PUBLIC
   yt-yt-ytlib
   server-lib-admin
   server-lib-misc
+  server-lib-object_server
   server-lib-sequoia
 )
 

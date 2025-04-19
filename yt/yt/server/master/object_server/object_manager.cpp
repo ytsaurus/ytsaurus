@@ -49,6 +49,8 @@
 
 #include <yt/yt/server/lib/misc/interned_attributes.h>
 
+#include <yt/yt/server/lib/object_server/helpers.h>
+
 #include <yt/yt/server/lib/transaction_server/helpers.h>
 
 #include <yt/yt/ytlib/cypress_client/cypress_ypath_proxy.h>
@@ -587,12 +589,18 @@ public:
 
         auto batchReq = proxy.ExecuteBatchNoBackoffRetries();
         batchReq->SetOriginalRequestId(context->GetRequestId());
+        const auto& config = Bootstrap_->GetConfig()->ObjectService;
         // Normally, forwarded request timeout is shortened so that backoff alarm on the remote side would trigger
         // earlier than locally. If the timeout is already too small, however, than, ideally, we should cancel
         // (local) backoff alarm. However, since such short timeouts are rare, and getting here requires non-warmed-up
         // resolve cache, and retrying a timed out request should help, and it's not trivial to cancel backoff alarm
         // from here, it's simpler to ignore this.
-        batchReq->SetTimeout(ComputeForwardingTimeout(context, Bootstrap_->GetConfig()->ObjectService, /*reserved*/ nullptr));
+        batchReq->SetTimeout(
+            ComputeForwardingTimeout(
+                context->GetTimeout().value_or(config->DefaultExecuteTimeout),
+                context->GetStartTime(),
+                config->ForwardedRequestTimeoutReserve,
+                /*reserved*/ nullptr));
         SetAuthenticationIdentity(batchReq, context->GetAuthenticationIdentity());
         batchReq->AddRequestMessage(std::move(forwardedMessage));
 
@@ -1926,7 +1934,8 @@ TFuture<TSharedRefArray> TObjectManager::ForwardObjectRequest(
 
     auto timeout = ComputeForwardingTimeout(
         FromProto<TDuration>(header.timeout()),
-        Bootstrap_->GetConfig()->ObjectService,
+        YT_OPTIONAL_FROM_PROTO(header, start_time, TInstant),
+        Bootstrap_->GetConfig()->ObjectService->ForwardedRequestTimeoutReserve,
         timeoutReserved);
 
     auto identity = ParseAuthenticationIdentityFromProto(header);

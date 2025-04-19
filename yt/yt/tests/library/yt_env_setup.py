@@ -306,7 +306,7 @@ class YTEnvSetup(object):
     NUM_QUEUE_AGENTS = 0
     NUM_KAFKA_PROXIES = 0
     NUM_TABLET_BALANCERS = 0
-    NUM_CYPRESS_PROXIES = 0
+    NUM_CYPRESS_PROXIES = 1
     NUM_REPLICATED_TABLE_TRACKERS = 0
     ENABLE_RESOURCE_TRACKING = False
     ENABLE_TVM_ONLY_PROXIES = False
@@ -672,7 +672,10 @@ class YTEnvSetup(object):
             use_native_auth = has_tvm_service_support
 
         secondary_cell_count = 0 if cls._is_ground_cluster(index) else cls.get_param("NUM_SECONDARY_MASTER_CELLS", index)
-        cypress_proxy_count = 0 if cls._is_ground_cluster(index) or not cls.get_param("USE_SEQUOIA", index) else cls.get_param("NUM_CYPRESS_PROXIES", index)
+        cypress_proxy_count = 0 if cls._is_ground_cluster(index) else cls.get_param("NUM_CYPRESS_PROXIES", index)
+        if not cls.get_param("USE_SEQUOIA", index) and not cls._cypress_proxies_properly_supported():
+            cypress_proxy_count = 0
+
         clock_count = 0
         if cls.get_param("USE_SEQUOIA", index):
             if cls._is_ground_cluster(index):
@@ -893,6 +896,15 @@ class YTEnvSetup(object):
             raise
 
     @classmethod
+    def _cypress_proxies_properly_supported(cls):
+        # COMPAT(kvk1920)
+        for version, components in cls.ARTIFACT_COMPONENTS.items():
+            if ("master" in components or "cypress_proxy" in components) and version in ("23_2", "24_1", "24_2", "25_1"):
+                return False
+
+        return True
+
+    @classmethod
     def _setup_cluster_configuration(cls, index, clusters):
         cluster_name = cls.get_cluster_name(index)
 
@@ -973,9 +985,9 @@ class YTEnvSetup(object):
                 clusters[instance._cluster_name] = instance.get_cluster_configuration()["cluster_connection"]
 
             for cluster_index in range(cls.NUM_REMOTE_CLUSTERS + 1):
-                cls._setup_cluster_configuration(cluster_index, clusters)
                 if cls.USE_SEQUOIA:
                     cls._setup_cluster_configuration(cluster_index + cls.get_ground_index_offset(), clusters)
+                cls._setup_cluster_configuration(cluster_index, clusters)
 
         # TODO(babenko): wait for cluster sync
         if cls.remote_envs:
@@ -1227,7 +1239,8 @@ class YTEnvSetup(object):
             configs["cypress_proxy"][index] = cls.update_timestamp_provider_config(cluster_index, config)
             configs["cypress_proxy"][index] = cls.update_sequoia_connection_config(cluster_index, config)
             cls.modify_cypress_proxy_config(configs["cypress_proxy"][index])
-
+            yt_commands.print_debug("Cypress proxy config patch: " + str(cls.get_param("DELTA_CYPRESS_PROXY_CONFIG", cluster_index)))
+            yt_commands.print_debug(f"Updated Cypress proxy config: {config}")
             configs["multi"]["daemons"][f"cypress_proxy_{index}"]["config"] = configs["cypress_proxy"][index]
 
         for key, config in configs["driver"].items():
@@ -1456,7 +1469,6 @@ class YTEnvSetup(object):
         if not self.get_param("ENABLE_TMP_ROOTSTOCK", cluster_index) and \
                 self.get_param("USE_SEQUOIA", cluster_index) and \
                 not self._is_ground_cluster(cluster_index) and \
-                self.get_param("NUM_CYPRESS_PROXIES", cluster_index) > 0 and \
                 any("sequoia_node_host" in cell_descriptor["roles"]
                     for cell_descriptor in self.get_param(
                         "MASTER_CELL_DESCRIPTORS",

@@ -1506,7 +1506,13 @@ public:
             return;
         }
 
+        const auto& leaseManager = Bootstrap_->GetLeaseManager();
         for (auto prerequisiteTransactionId : options.PrerequisiteTransactionIds) {
+            if (IsCypressTransactionMirroredToSequoia(prerequisiteTransactionId) &&
+                leaseManager->FindLease(prerequisiteTransactionId))
+            {
+                continue;
+            }
             GetAndValidatePrerequisiteTransaction(prerequisiteTransactionId);
         }
 

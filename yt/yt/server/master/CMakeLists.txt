@@ -65,6 +65,7 @@ target_link_libraries(yt-server-master PUBLIC
   server-lib-hydra
   server-lib-incumbent_client
   server-lib-node_tracker_server
+  server-lib-object_server
   server-lib-security_server
   server-lib-table_server
   server-lib-tablet_balancer

@@ -38,6 +38,7 @@ PEERDIR(
 
     yt/yt/server/lib/admin
     yt/yt/server/lib/misc
+    yt/yt/server/lib/object_server
     yt/yt/server/lib/sequoia
 )
 

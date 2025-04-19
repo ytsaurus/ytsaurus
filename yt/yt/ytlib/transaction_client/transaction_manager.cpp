@@ -30,6 +30,8 @@
 
 #include <yt/yt/client/object_client/helpers.h>
 
+#include <yt/yt/client/sequoia_client/public.h>
+
 #include <yt/yt/client/transaction_client/helpers.h>
 #include <yt/yt/client/transaction_client/timestamp_provider.h>
 
@@ -262,7 +264,8 @@ private:
         static const auto Result = BIND_NO_PROPAGATE([] (const TError& error) {
             return
                 IsRetriableError(error) ||
-                error.FindMatching(NTransactionClient::EErrorCode::TransactionSuccessorHasLeases);
+                error.FindMatching(NTransactionClient::EErrorCode::TransactionSuccessorHasLeases) ||
+                error.FindMatching(NSequoiaClient::EErrorCode::SequoiaRetriableError);
         });
         return Result;
     }
@@ -1152,6 +1155,11 @@ private:
         auto channel = connection->GetMasterChannelOrThrow(
             EMasterChannelKind::Leader,
             CoordinatorMasterCellTag_);
+
+        channel = CreateRetryingChannel(
+            Owner_->Config_.Acquire(),
+            std::move(channel),
+            Owner_->GetCommitRetryChecker());
 
         TCypressTransactionServiceProxy proxy(channel);
         auto req = proxy.CommitTransaction();

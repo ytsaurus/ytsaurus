@@ -42,36 +42,6 @@ TYPathRewrite MakeYPathRewrite(
     };
 }
 
-TDuration ComputeForwardingTimeout(
-    TDuration timeout,
-    const TObjectServiceConfigPtr& config,
-    bool* reserved)
-{
-    if (timeout > 2 * config->ForwardedRequestTimeoutReserve) {
-        if (reserved) {
-            *reserved = true;
-        }
-        return timeout - config->ForwardedRequestTimeoutReserve;
-    } else {
-        if (reserved) {
-            *reserved = false;
-        }
-        return timeout;
-    }
-}
-
-TDuration ComputeForwardingTimeout(
-    const NRpc::IServiceContextPtr& context,
-    const TObjectServiceConfigPtr& config,
-    bool* reserved)
-{
-    auto suggestedTimeout = !context->GetStartTime() || !context->GetTimeout()
-        ? config->DefaultExecuteTimeout
-        : *context->GetStartTime() + *context->GetTimeout() - NProfiling::GetInstant();
-
-    return ComputeForwardingTimeout(suggestedTimeout, config, reserved);
-}
-
 void ValidateFolderId(const std::string& folderId)
 {
     static constexpr size_t MaxFolderIdLength = 256;

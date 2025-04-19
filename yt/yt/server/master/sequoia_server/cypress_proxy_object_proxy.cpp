@@ -63,7 +63,8 @@ private:
         TBase::ListSystemAttributes(descriptors);
 
         descriptors->emplace_back(EInternedAttributeKey::SequoiaReign);
-        descriptors->emplace_back(EInternedAttributeKey::LastSeenTime);
+        descriptors->emplace_back(EInternedAttributeKey::LastPersistentHeartbeatTime);
+        descriptors->emplace_back(EInternedAttributeKey::Version);
     }
 
     bool GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsumer* consumer) override
@@ -76,9 +77,14 @@ private:
                     .Value(proxyObject->GetSequoiaReign());
                 return true;
 
-            case EInternedAttributeKey::LastSeenTime:
+            case EInternedAttributeKey::LastPersistentHeartbeatTime:
                 BuildYsonFluently(consumer)
-                    .Value(proxyObject->GetLastSeenTime());
+                    .Value(proxyObject->GetLastPersistentHeartbeatTime());
+                return true;
+
+            case EInternedAttributeKey::Version:
+                BuildYsonFluently(consumer)
+                    .Value(proxyObject->GetVersion());
                 return true;
 
             default:

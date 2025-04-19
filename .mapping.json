@@ -5344,6 +5344,7 @@
   "yt/yt/server/lib/node_tracker_server/CMakeLists.linux-aarch64.txt":"",
   "yt/yt/server/lib/node_tracker_server/CMakeLists.linux-x86_64.txt":"",
   "yt/yt/server/lib/node_tracker_server/CMakeLists.txt":"",
+  "yt/yt/server/lib/object_server/CMakeLists.txt":"",
   "yt/yt/server/lib/rpc/CMakeLists.darwin-arm64.txt":"",
   "yt/yt/server/lib/rpc/CMakeLists.darwin-x86_64.txt":"",
   "yt/yt/server/lib/rpc/CMakeLists.linux-aarch64.txt":"",
