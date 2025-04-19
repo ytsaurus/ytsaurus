@@ -594,6 +594,11 @@ TVanillaTask::TNewJobConstraints TVanillaTask::GetNewJobConstraints(const TAlloc
     if (allocation.LastJobInfo && VanillaController_->IsOperationGang()) {
         result.OutputCookie = allocation.LastJobInfo.OutputCookie;
         result.MonitoringDescriptor = allocation.LastJobInfo.MonitoringDescriptor;
+        if (!result.MonitoringDescriptor) {
+            // NB(pogorelov): If it would be just unset optional,
+            // we could get descriptor intended for another allocation.
+            result.MonitoringDescriptor = NullMonitoringDescriptor;
+        }
     }
 
     return result;

@@ -9064,7 +9064,14 @@ std::optional<TJobMonitoringDescriptor> TOperationControllerBase::RegisterJobFor
     TJobId jobId,
     const std::optional<TJobMonitoringDescriptor>& descriptorHint)
 {
-    YT_LOG_DEBUG("Trying to assign monitoring descriptor to job (JobId: %v)", jobId);
+    YT_LOG_DEBUG(
+        "Trying to assign monitoring descriptor to job (JobId: %v, DescriptorHint: %v)",
+        jobId,
+        descriptorHint);
+
+    if (descriptorHint == NullMonitoringDescriptor) {
+        return std::nullopt;
+    }
 
     std::optional<TJobMonitoringDescriptor> descriptor;
 
