@@ -264,7 +264,8 @@ public:
 
         PermissionCache_ = New<TPermissionCache>(
             config->PermissionCache,
-            this);
+            this,
+            Profiler_.WithPrefix("/permission_cache"));
 
         JobShellDescriptorCache_ = New<TJobShellDescriptorCache>(
             config->JobShellDescriptorCache,
