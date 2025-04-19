@@ -353,6 +353,9 @@ struct TConnectionDynamicConfig
 
     bool EnableDistributedReplicationCollocationAttachment;
 
+    //! Enables strict access validation in scheduler commands.
+    bool StrictSchedulerCommandsAccessValidation;
+
     REGISTER_YSON_STRUCT(TConnectionDynamicConfig);
 
     static void Register(TRegistrar registrar);

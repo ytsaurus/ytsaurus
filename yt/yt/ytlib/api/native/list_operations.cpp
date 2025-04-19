@@ -593,7 +593,8 @@ public:
         cursor->ParseMap([&] (TYsonPullParserCursor* cursor) {
             YT_VERIFY((*cursor)->GetType() == EYsonItemType::StringValue);
             auto key = (*cursor)->UncheckedAsString();
-            if (Options_.AccessFilter && key == TStringBuf("acl")) {
+            if (key == TStringBuf("acl") &&
+                (Options_.StrictSchedulerCommandsAccessValidation || Options_.AccessFilter)) {
                 cursor->Next();
                 HasAcl_ = true;
                 Deserialize(Acl_, cursor);
@@ -736,6 +737,21 @@ private:
             (Options_.ToTime && CurrentOperation_.StartTime >= *Options_.ToTime))
         {
             return false;
+        }
+
+        // Verify that the user has "read" access to the operation.
+        if (Options_.StrictSchedulerCommandsAccessValidation &&
+            !Options_.UserTransitiveClosure.contains(SuperusersGroupName)) {
+            if (!HasAcl_) {
+                return false;
+            }
+            auto userReadSecurityAction = CheckPermissionsByAclAndSubjectClosure(
+                Acl_,
+                Options_.UserTransitiveClosure,
+                EPermissionSet::Read);
+            if (userReadSecurityAction != ESecurityAction::Allow) {
+                return false;
+            }
         }
 
         if (Options_.AccessFilter) {

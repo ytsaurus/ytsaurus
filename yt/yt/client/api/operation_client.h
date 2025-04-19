@@ -158,6 +158,10 @@ struct TListOperationsOptions
 
     TDuration ArchiveFetchingTimeout = TDuration::Seconds(3);
 
+    // These parameters cannot be set from list_operations command, they must be computed.
+    THashSet<std::string> UserTransitiveClosure = {};
+    bool StrictSchedulerCommandsAccessValidation = false;
+
     TListOperationsOptions()
     {
         ReadFrom = EMasterChannelKind::Cache;
