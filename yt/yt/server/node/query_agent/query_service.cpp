@@ -622,8 +622,7 @@ private:
             ? request->max_data_weight()
             : std::numeric_limits<i64>::max();
         auto requestTimeout = context->GetTimeout()
-            ? *context->GetTimeout()
-            : Bootstrap_->GetConnection()->GetConfig()->DefaultPullRowsTimeout;
+            .value_or(Bootstrap_->GetConnection()->GetConfig()->DefaultPullRowsTimeout);
 
         // TODO(savrus): Extract this out of RPC request.
         TClientChunkReadOptions chunkReadOptions{

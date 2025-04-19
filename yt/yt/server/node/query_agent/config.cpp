@@ -57,7 +57,7 @@ void TQueryAgentConfig::Register(TRegistrar registrar)
         .GreaterThan(0)
         .Default(8_GB);
 
-        registrar.Parameter("pull_rows_timeout_slack", &TThis::PullRowsTimeoutSlack)
+    registrar.Parameter("pull_rows_timeout_slack", &TThis::PullRowsTimeoutSlack)
         .Default(TDuration::Seconds(6));
 
     registrar.Preprocessor([] (TThis* config) {
