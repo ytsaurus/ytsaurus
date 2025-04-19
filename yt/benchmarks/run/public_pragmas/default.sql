@@ -28,5 +28,5 @@ pragma yt.JobBlockInput;
 pragma yt.JobBlockTableContent;
 pragma BlockEngine='auto';
 pragma yt.BlockMapJoin;
-pragma yt.DefaultMemoryLimit = "5G";
+pragma yt.DefaultMemoryLimit = "15G";
 pragma CostBasedOptimizer="native";
