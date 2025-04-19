@@ -48,10 +48,12 @@ class TestCypressCookieAuth(YTEnvSetup):
     def _get_proxy_address(self):
         return "http://" + self.Env.get_proxy_address()
 
-    def _check_login_page(self, rsp):
+    def _check_login_page(self, rsp, check_generic_msg = False):
         assert rsp.status_code == 401
         print_debug(rsp.content)
         assert rsp.headers["WWW-Authenticate"] == "Basic"
+        if check_generic_msg:
+            assert rsp.json()["message"] == "Incorrect login or password"
 
     def _try_login(self, user, password):
         auth = HTTPBasicAuth(user, password)
@@ -130,15 +132,15 @@ class TestCypressCookieAuth(YTEnvSetup):
     @authors("gritukan")
     def test_login_failed(self):
         # No such user.
-        self._check_login_page(self._try_login("v", "1234"))
+        self._check_login_page(self._try_login("v", "1234"), True)
 
         create_user("u")
         # User has no password set.
-        self._check_login_page(self._try_login("u", ""))
+        self._check_login_page(self._try_login("u", ""), True)
 
         set_user_password("u", "1234")
         # Invalid password.
-        self._check_login_page(self._try_login("u", "123"))
+        self._check_login_page(self._try_login("u", "123"), True)
 
     @authors("gritukan")
     def test_weird_password(self):
