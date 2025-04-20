@@ -25,10 +25,8 @@ namespace NSQLComplete {
             TLexerSupplier lexer, INameService::TPtr names,
             ISqlCompletionEngine::TConfiguration configuration)
             : Configuration(std::move(configuration))
-            ,
-            SyntaxAnalysis(MakeLocalSyntaxAnalysis(lexer))
-            ,
-            Names(std::move(names))
+            , SyntaxAnalysis(MakeLocalSyntaxAnalysis(lexer))
+            , Names(std::move(names))
         {
         }
 

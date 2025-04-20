@@ -50,7 +50,6 @@ namespace NSQLComplete {
         using TPtr = THolder<ISchema>;
 
         ~ISchema() = default;
-
         virtual NThreading::TFuture<TListResponse> List(const TListRequest& request) = 0;
     };
 
