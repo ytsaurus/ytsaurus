@@ -5,14 +5,6 @@
 #include <yql/essentials/sql/v1/complete/syntax/local.h>
 #include <yql/essentials/sql/v1/complete/text/word.h>
 
-<<<<<<< HEAD
-#include <util/generic/algorithm.h>
-=======
-// FIXME(YQL-19747): unwanted dependency on a lexer implementation
-#include <yql/essentials/sql/v1/lexer/antlr4_pure/lexer.h>
-#include <yql/essentials/sql/v1/lexer/antlr4_pure_ansi/lexer.h>
-
->>>>>>> 20e1a4fcf5c (YQL-19747 Reuse Name ToString)
 #include <util/charset/utf8.h>
 #include <util/generic/algorithm.h>
 #include <util/string/cast.h>
@@ -151,38 +143,11 @@ namespace NSQLComplete {
         INameService::TPtr Names;
     };
 
-<<<<<<< HEAD
-    ISqlCompletionEngine::TPtr MakeSqlCompletionEngine(
-        TLexerSupplier lexer,
-        INameService::TPtr names,
-        ISqlCompletionEngine::TConfiguration configuration) {
-        return ISqlCompletionEngine::TPtr(
-            new TSqlCompletionEngine(lexer, std::move(names), std::move(configuration)));
-=======
-    // FIXME(YQL-19747): unwanted dependency on a lexer implementation
-    ISqlCompletionEngine::TPtr MakeSqlCompletionEngine() {
-        NSQLTranslationV1::TLexers lexers;
-        lexers.Antlr4Pure = NSQLTranslationV1::MakeAntlr4PureLexerFactory();
-        lexers.Antlr4PureAnsi = NSQLTranslationV1::MakeAntlr4PureAnsiLexerFactory();
-
-        INameService::TPtr names =
-            MakeStaticNameService(MakeDefaultNameSet(), MakeDefaultRanking());
-
-        return MakeSqlCompletionEngine(
-            [lexers = std::move(lexers)](bool ansi) {
-                return NSQLTranslationV1::MakeLexer(
-                    lexers, ansi, /* antlr4 = */ true,
-                    NSQLTranslationV1::ELexerFlavor::Pure);
-            },
-            std::move(names));
-    }
-
     ISqlCompletionEngine::TPtr
     MakeSqlCompletionEngine(TLexerSupplier lexer, INameService::TPtr names,
                             ISqlCompletionEngine::TConfiguration configuration) {
         return ISqlCompletionEngine::TPtr(new TSqlCompletionEngine(
             lexer, std::move(names), std::move(configuration)));
->>>>>>> 20e1a4fcf5c (YQL-19747 Reuse Name ToString)
     }
 
 } // namespace NSQLComplete
