@@ -33,7 +33,7 @@ namespace NSQLComplete {
         }
     }
 
-    class TKeywordNameService: public INameService {
+    class TUnsafeKeywordNameService: public INameService {
     public:
         NThreading::TFuture<TNameResponse> Lookup(TNameRequest request) override {
             TNameResponse response;
@@ -47,9 +47,9 @@ namespace NSQLComplete {
         }
     };
 
-    class TPragmaNameService: public INameService {
+    class TUnsafePragmaNameService: public INameService {
     public:
-        explicit TPragmaNameService(TVector<TString> pragmas)
+        explicit TUnsafePragmaNameService(TVector<TString> pragmas)
             : Pragmas_(std::move(pragmas))
         {
             Sort(Pragmas_, NoCaseCompare);
@@ -75,9 +75,9 @@ namespace NSQLComplete {
         TVector<TString> Pragmas_;
     };
 
-    class TTypeNameService: public INameService {
+    class TUnsafeTypeNameService: public INameService {
     public:
-        explicit TTypeNameService(TVector<TString> types)
+        explicit TUnsafeTypeNameService(TVector<TString> types)
             : Types_(std::move(types))
         {
             Sort(Types_, NoCaseCompare);
@@ -99,9 +99,9 @@ namespace NSQLComplete {
         TVector<TString> Types_;
     };
 
-    class TFunctionNameService: public INameService {
+    class TUnsafeFunctionNameService: public INameService {
     public:
-        explicit TFunctionNameService(TVector<TString> functions)
+        explicit TUnsafeFunctionNameService(TVector<TString> functions)
             : Functions_(std::move(functions))
         {
             Sort(Functions_, NoCaseCompare);
@@ -127,9 +127,9 @@ namespace NSQLComplete {
         TVector<TString> Functions_;
     };
 
-    class THintNameService: public INameService {
+    class TUnsafeHintNameService: public INameService {
     public:
-        explicit THintNameService(THashMap<EStatementKind, TVector<TString>> Hints)
+        explicit TUnsafeHintNameService(THashMap<EStatementKind, TVector<TString>> Hints)
             : Hints_(std::move(Hints))
         {
             for (auto& [_, hints] : Hints_) {
@@ -160,11 +160,11 @@ namespace NSQLComplete {
             : NameSet_(std::move(names))
             , Basic_(MakeUnionNameService([&] {
                 TVector<INameService::TPtr> children;
-                children.emplace_back(new TKeywordNameService());
-                children.emplace_back(new TPragmaNameService(std::move(NameSet_.Pragmas)));
-                children.emplace_back(new TTypeNameService(std::move(NameSet_.Types)));
-                children.emplace_back(new TFunctionNameService(std::move(NameSet_.Functions)));
-                children.emplace_back(new THintNameService(std::move(NameSet_.Hints)));
+                children.emplace_back(new TUnsafeKeywordNameService());
+                children.emplace_back(new TUnsafePragmaNameService(std::move(NameSet_.Pragmas)));
+                children.emplace_back(new TUnsafeTypeNameService(std::move(NameSet_.Types)));
+                children.emplace_back(new TUnsafeFunctionNameService(std::move(NameSet_.Functions)));
+                children.emplace_back(new TUnsafeHintNameService(std::move(NameSet_.Hints)));
                 return children;
             }(), ranking))
             , Ranking_(std::move(ranking))
