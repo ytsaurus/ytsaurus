@@ -43,7 +43,6 @@ TExecNodeDescriptorPtr TExecNode::BuildExecDescriptor() const
 {
     return New<TExecNodeDescriptor>(
         Id_,
-        GetDefaultAddress(),
         GetAddresses(),
         NodeDescriptor_.GetDataCenter(),
         IOWeight_,

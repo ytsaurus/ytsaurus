@@ -1036,7 +1036,7 @@ void TScheduleAllocationsContext::AnalyzePreemptibleAllocations(
                 operationElement->GetId(),
                 operationState->SchedulingSegment,
                 NodeSchedulingSegment_,
-                SchedulingContext_->GetNodeDescriptor()->Address,
+                NNodeTrackerClient::GetDefaultAddress(SchedulingContext_->GetNodeDescriptor()->Addresses),
                 SchedulingContext_->GetNodeDescriptor()->DataCenter);
 
             forcefullyPreemptibleAllocations->insert(allocation.Get());
@@ -1267,7 +1267,7 @@ void TScheduleAllocationsContext::PreemptAllocationsAfterScheduling(
             FormatResources(SchedulingContext_->ResourceLimits()),
             FormatResources(SchedulingContext_->ResourceUsage()),
             SchedulingContext_->GetNodeDescriptor()->Id,
-            SchedulingContext_->GetNodeDescriptor()->Address);
+            NNodeTrackerClient::GetDefaultAddress(SchedulingContext_->GetNodeDescriptor()->Addresses));
     }
 }
 
@@ -1278,7 +1278,7 @@ void TScheduleAllocationsContext::AbortAllocationsSinceResourcesOvercommit() con
         FormatResources(SchedulingContext_->ResourceLimits()),
         FormatResources(SchedulingContext_->ResourceUsage()),
         SchedulingContext_->GetNodeDescriptor()->Id,
-        SchedulingContext_->GetNodeDescriptor()->Address);
+        NNodeTrackerClient::GetDefaultAddress(SchedulingContext_->GetNodeDescriptor()->Addresses));
 
     auto allocationInfos = CollectRunningAllocationsWithPreemptionInfo(SchedulingContext_, TreeSnapshot_);
     SortAllocationsWithPreemptionInfo(&allocationInfos);
@@ -1296,7 +1296,7 @@ void TScheduleAllocationsContext::AbortAllocationsSinceResourcesOvercommit() con
                 allocationInfo.Allocation->GetId(),
                 allocationInfo.OperationElement->GetId(),
                 allocationInfo.PreemptionStatus,
-                SchedulingContext_->GetNodeDescriptor()->Address);
+                NNodeTrackerClient::GetDefaultAddress(SchedulingContext_->GetNodeDescriptor()->Addresses));
 
             allocationInfo.Allocation->SetPreemptionReason("Preempted due to node resource ovecommit");
             PreemptAllocation(allocationInfo.Allocation, allocationInfo.OperationElement, EAllocationPreemptionReason::ResourceOvercommit);
@@ -1731,7 +1731,7 @@ bool TScheduleAllocationsContext::ScheduleAllocation(TSchedulerOperationElement*
             FormatResources(SchedulingContext_->GetConditionalDiscountForOperation(element->GetTreeIndex())),
             FormatResources(element->AggregatedMinNeededAllocationResources()),
             element->GroupedNeededResources(),
-            SchedulingContext_->GetNodeDescriptor()->Address);
+            NNodeTrackerClient::GetDefaultAddress(SchedulingContext_->GetNodeDescriptor()->Addresses));
 
         OnMinNeededResourcesUnsatisfied(
             element,
@@ -2409,7 +2409,7 @@ void TScheduleAllocationsContext::LogStageStatistics()
         StageState_->TotalHeapElementCount,
         StageState_->DeactivationReasons,
         SchedulingContext_->CanStartMoreAllocations(),
-        SchedulingContext_->GetNodeDescriptor()->Address,
+        NNodeTrackerClient::GetDefaultAddress(SchedulingContext_->GetNodeDescriptor()->Addresses),
         NodeSchedulingSegment_,
         StageState_->MaxSchedulingIndex);
 }
@@ -2532,7 +2532,7 @@ void TFairShareTreeAllocationScheduler::ProcessSchedulingHeartbeat(
     if (!nodeState) {
         YT_LOG_DEBUG("Skipping scheduling heartbeat because node is not registered in tree (NodeId: %v, NodeAddress: %v)",
             nodeId,
-            schedulingContext->GetNodeDescriptor()->Address);
+            NNodeTrackerClient::GetDefaultAddress(schedulingContext->GetNodeDescriptor()->Addresses));
 
         return;
     }
@@ -2567,7 +2567,7 @@ void TFairShareTreeAllocationScheduler::ProcessSchedulingHeartbeat(
             ? "enabled"
             : "disabled",
         nodeState->Descriptor->Id,
-        nodeState->Descriptor->Address);
+        NNodeTrackerClient::GetDefaultAddress(nodeState->Descriptor->Addresses));
 
     nodeState->SpecifiedSchedulingSegment = [&] () -> std::optional<ESchedulingSegment> {
         const auto& schedulingOptions = nodeState->Descriptor->SchedulingOptions;
@@ -2581,7 +2581,7 @@ void TFairShareTreeAllocationScheduler::ProcessSchedulingHeartbeat(
         } catch (const std::exception& ex) {
             YT_LOG_DEBUG(ex, "Failed to parse specified scheduling segment (NodeId: %v, NodeAddress: %v)",
                 nodeState->Descriptor->Id,
-                nodeState->Descriptor->Address);
+                NNodeTrackerClient::GetDefaultAddress(nodeState->Descriptor->Addresses));
 
             return {};
         }
