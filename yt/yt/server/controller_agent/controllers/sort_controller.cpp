@@ -2131,13 +2131,13 @@ protected:
             YT_LOG_DEBUG("Partition assigned (Index: %v, DataWeight: %v, Address: %v)",
                 partition->Index,
                 partition->ChunkPoolOutput->GetDataWeightCounter()->GetTotal(),
-                node->Descriptor->Address);
+                NNodeTrackerClient::GetDefaultAddress(node->Descriptor->Addresses));
         }
 
         for (const auto& node : nodeHeap) {
             if (node->AssignedDataWeight > 0) {
                 YT_LOG_DEBUG("Node used (Address: %v, Weight: %.4lf, AssignedDataWeight: %v, AdjustedDataWeight: %v)",
-                    node->Descriptor->Address,
+                    NNodeTrackerClient::GetDefaultAddress(node->Descriptor->Addresses),
                     node->Weight,
                     node->AssignedDataWeight,
                     static_cast<i64>(node->AssignedDataWeight / node->Weight));

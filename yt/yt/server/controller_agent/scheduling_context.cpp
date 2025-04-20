@@ -55,7 +55,7 @@ void TSchedulingContext::FormatCommonPart(TStringBuilderBase& builder) const
     builder.AppendFormat(
         "AllocationId: %v, NodeAddress: %v, PoolPath: %v",
         AllocationId_,
-        NodeDescriptor_.Address,
+        NNodeTrackerClient::GetDefaultAddress(NodeDescriptor_.Addresses),
         PoolPath_);
 }
 

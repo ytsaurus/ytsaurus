@@ -3169,7 +3169,7 @@ const std::string& TJobTracker::GetNodeAddressForLogging(TNodeId nodeId)
         static const std::string NotReceivedAddress{"<address not received>"};
         return NotReceivedAddress;
     } else {
-        return nodeIt->second->Address;
+        return NNodeTrackerClient::GetDefaultAddress(nodeIt->second->Addresses);
     }
 }
 

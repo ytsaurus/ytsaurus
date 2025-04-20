@@ -837,7 +837,7 @@ void TSchedulingSegmentManager::ValidateInfinibandClusterTags(TUpdateSchedulingS
     for (const auto& [nodeId, node] : context->NodeStates) {
         auto error = validateNodeDescriptor(*node.Descriptor);
         if (!error.IsOK()) {
-            error = error << TErrorAttribute("node_address", node.Descriptor->Address);
+            error = error << TErrorAttribute("node_address", NNodeTrackerClient::GetDefaultAddress(node.Descriptor->Addresses));
             context->Error = TError("Node's infiniband cluster tags validation failed in tree %Qv", TreeId_)
                 << std::move(error);
             break;
@@ -935,7 +935,7 @@ void TSchedulingSegmentManager::DoRebalanceSegments(TUpdateSchedulingSegmentsCon
             auto oldSegment = nextAvailableNode->SchedulingSegment;
 
             YT_LOG_DEBUG("Moving node to a new scheduling segment (Address: %v, OldSegment: %v, NewSegment: %v, Module: %v, Penalty: %v)",
-                nextAvailableNode->Descriptor->Address,
+                NNodeTrackerClient::GetDefaultAddress(nextAvailableNode->Descriptor->Addresses),
                 nextAvailableNode->SchedulingSegment,
                 segment,
                 GetNodeModule(*nextAvailableNode),
@@ -1170,7 +1170,7 @@ void TSchedulingSegmentManager::GetMovableNodes(
                 "RunningAllocationIds: %v, RunningAllocationStatistics: %v, LastRunningAllocationStatisticsUpdateTime: %v, "
                 "MovableNodeIndex: %v, AggressivelyMovableNodeIndex: %v)",
                 nodeId,
-                node.Descriptor->Address,
+                NNodeTrackerClient::GetDefaultAddress(node.Descriptor->Addresses),
                 node.SchedulingSegment,
                 node.SpecifiedSchedulingSegment,
                 GetNodeModule(node),
@@ -1202,7 +1202,7 @@ void TSchedulingSegmentManager::SetNodeSegment(
 
     context->MovedNodes.push_back(TSetNodeSchedulingSegmentOptions{
         .NodeId = node->Descriptor->Id,
-        .NodeAddress = node->Descriptor->Address,
+        .NodeAddress = NNodeTrackerClient::GetDefaultAddress(node->Descriptor->Addresses),
         .OldSegment = node->SchedulingSegment,
         .NewSegment = segment,
     });
@@ -1339,7 +1339,7 @@ void TSchedulingSegmentManager::BuildGpuNodeInfo(
     }
 
     fluent
-        .Item(nodeState.Descriptor->Address).BeginMap()
+        .Item(NNodeTrackerClient::GetDefaultAddress(nodeState.Descriptor->Addresses)).BeginMap()
             .Item("id").Value(nodeState.Descriptor->Id)
             .Item("scheduling_segment").Value(nodeState.SchedulingSegment)
             .Item("specified_scheduling_segment").Value(nodeState.SpecifiedSchedulingSegment)
@@ -1367,7 +1367,7 @@ void TSchedulingSegmentManager::BuildPersistentState(TUpdateSchedulingSegmentsCo
             nodeId,
             TPersistentNodeSchedulingSegmentState{
                 .Segment = node.SchedulingSegment,
-                .Address = node.Descriptor->Address,
+                .Address = NNodeTrackerClient::GetDefaultAddress(node.Descriptor->Addresses),
             });
     }
 
