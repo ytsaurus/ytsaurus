@@ -7,6 +7,7 @@
 #include <util/generic/fwd.h>
 #include <util/generic/string.h>
 #include <util/generic/vector.h>
+#include <util/generic/maybe.h>
 
 #include <unordered_set>
 
@@ -26,6 +27,7 @@ namespace NSQLComplete {
     struct TC3Candidates {
         TVector<TSuggestedToken> Tokens;
         TVector<TMatchedRule> Rules;
+        size_t CaretTokenIndex;
     };
 
     class IC3Engine {

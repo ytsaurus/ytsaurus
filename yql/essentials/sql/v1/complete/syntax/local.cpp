@@ -62,8 +62,13 @@ namespace NSQLComplete {
 
             auto candidates = C3.Complete(statement);
 
-            NSQLTranslation::TParsedTokenList tokens = Tokenized(
-                statement.Text.Head(statement.CursorPosition));
+            NSQLTranslation::TParsedTokenList tokens = Tokenized(statement.Text);
+            tokens.crop(candidates.CaretTokenIndex + 1 + 1);
+
+            if (candidates.CaretTokenIndex + 1 < tokens.size()) {
+                const NSQLTranslation::TParsedToken& token = tokens.at(candidates.CaretTokenIndex + 1);
+                Cerr << token.Name << Endl;
+            }
 
             return {
                 .Keywords = SiftedKeywords(candidates),

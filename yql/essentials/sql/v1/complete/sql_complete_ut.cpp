@@ -389,7 +389,6 @@ Y_UNIT_TEST_SUITE(SqlCompleteTests) {
         };
         auto engine = MakeSqlCompletionEngineUT();
         UNIT_ASSERT_VALUES_EQUAL(Complete(engine, "SELECT * FROM "), expected);
-        UNIT_ASSERT_VALUES_EQUAL(Complete(engine, "SELECT * FROM `#`"), expected);
     }
 
     Y_UNIT_TEST(SelectWhere) {
@@ -552,6 +551,14 @@ Y_UNIT_TEST_SUITE(SqlCompleteTests) {
 
         auto engine = MakeSqlCompletionEngineUT();
         UNIT_ASSERT_VALUES_EQUAL(Complete(engine, "INSERT INTO my_table WITH "), expected);
+    }
+
+    Y_UNIT_TEST(Enclosed) {
+        TVector<TCandidate> expected = {};
+
+        auto engine = MakeSqlCompletionEngineUT();
+        UNIT_ASSERT_VALUES_EQUAL(Complete(engine, "SELECT \"#\""), expected);
+        UNIT_ASSERT_VALUES_EQUAL(Complete(engine, "SELECT `#`"), expected);
     }
 
     Y_UNIT_TEST(UTF8Wide) {

@@ -12,7 +12,6 @@
 #include <util/generic/fwd.h>
 #include <util/generic/string.h>
 #include <util/generic/vector.h>
-#include <util/generic/yexception.h>
 
 namespace NSQLComplete {
 
@@ -33,7 +32,6 @@ namespace NSQLComplete {
             , Tokens(&Lexer)
             , Parser(&Tokens)
             , CompletionCore(&Parser)
-            , PunctuationTokens(std::move(config.PunctuationTokens))
         {
             Lexer.removeErrorListeners();
             Parser.removeErrorListeners();
@@ -43,8 +41,9 @@ namespace NSQLComplete {
         }
 
         TC3Candidates Complete(TCompletionInput input) override {
-            Assign(input.Text.Head(input.CursorPosition));
-            const auto caretTokenIndex = CaretTokenIndex();
+            auto prefix = input.Text.Head(input.CursorPosition);
+            Assign(prefix);
+            const auto caretTokenIndex = CaretTokenIndex(prefix);
             auto candidates = CompletionCore.collectCandidates(caretTokenIndex);
             return Converted(std::move(candidates));
         }
@@ -57,16 +56,12 @@ namespace NSQLComplete {
             Tokens.fill();
         }
 
-        size_t CaretTokenIndex() {
-            Y_ENSURE(0 < Tokens.size());
-            auto index = Tokens.size() - 1;
-            if (1 <= index) {
-                antlr4::Token* token = Tokens.get(index - 1);
-                if (!PunctuationTokens.contains(token->getType())) {
-                    index -= 1;
-                }
+        size_t CaretTokenIndex(TStringBuf prefix) {
+            const auto tokensCount = Tokens.size();
+            if (2 <= tokensCount && !LastWord(prefix).Empty()) {
+                return tokensCount - 2;
             }
-            return index;
+            return tokensCount - 1;
         }
 
         static TC3Candidates Converted(c3::CandidatesCollection candidates) {
@@ -86,7 +81,6 @@ namespace NSQLComplete {
         antlr4::BufferedTokenStream Tokens;
         G::TParser Parser;
         c3::CodeCompletionCore CompletionCore;
-        std::unordered_set<TTokenId> PunctuationTokens;
     };
 
 } // namespace NSQLComplete
