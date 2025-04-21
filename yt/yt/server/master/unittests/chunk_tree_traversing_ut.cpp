@@ -1527,13 +1527,15 @@ TEST_F(TChunkTreeTraversingTest, SortedHunkListAsMain)
 
     {
         auto visitor = New<TTestChunkVisitor>();
-        TraverseHunkChunkTree(
+        TraverseChunkTree(
             context,
             visitor,
             roots,
             TReadLimit(),
             TReadLimit(),
-            TComparator());
+            TComparator(),
+            /*testingOptions*/ {},
+            EChunkListContentType::Hunk);
 
         std::set<TChunkInfo> expected{
             TChunkInfo(hunkChunk1),
@@ -1556,13 +1558,15 @@ TEST_F(TChunkTreeTraversingTest, SortedHunkListAsMain)
         TLegacyReadLimit upperLimit;
         upperLimit.SetChunkIndex(2);
 
-        TraverseHunkChunkTree(
+        TraverseChunkTree(
             context,
             visitor,
             roots,
             lowerLimit,
             upperLimit,
-            MakeComparator(1));
+            MakeComparator(1),
+            /*testingOptions*/ {},
+            EChunkListContentType::Hunk);
         EXPECT_EQ(TraverseNaively(hunkRoot, false, false, lowerLimit, upperLimit), visitor->GetChunkInfos());
 
         std::set<TChunkInfo> expected{
@@ -1580,13 +1584,15 @@ TEST_F(TChunkTreeTraversingTest, SortedHunkListAsMain)
 
         TLegacyReadLimit upperLimit;
 
-        TraverseHunkChunkTree(
+        TraverseChunkTree(
             context,
             visitor,
             roots,
             lowerLimit,
             upperLimit,
-            MakeComparator(1));
+            MakeComparator(1),
+            /*testingOptions*/ {},
+            EChunkListContentType::Hunk);
         EXPECT_EQ(TraverseNaively(hunkRoot, false, false, lowerLimit, upperLimit), visitor->GetChunkInfos());
     }
 
@@ -1612,13 +1618,15 @@ TEST_F(TChunkTreeTraversingTest, SortedHunkListAsMain)
         auto expected = TraverseNaively(hunkRoot, false, false, lowerLimit, upperLimit);
 
         auto visitor = New<TTestChunkVisitor>();
-        TraverseHunkChunkTree(
+        TraverseChunkTree(
             context,
             visitor,
             roots,
             lowerLimit,
             upperLimit,
-            /*keyColumnCount*/ {});
+            /*keyColumnCount*/ {},
+            /*testingOptions*/ {},
+            EChunkListContentType::Hunk);
 
         EXPECT_EQ(expected, visitor->GetChunkInfos());
     }

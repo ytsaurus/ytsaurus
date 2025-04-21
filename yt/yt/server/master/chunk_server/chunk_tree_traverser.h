@@ -116,16 +116,8 @@ void TraverseChunkTree(
     const NChunkClient::TReadLimit& lowerLimit,
     const NChunkClient::TReadLimit& upperLimit,
     NTableClient::TComparator comparator,
-    TTraverserTestingOptions testingOptions = {});
-
-void TraverseHunkChunkTree(
-    IChunkTraverserContextPtr traverserContext,
-    IChunkVisitorPtr visitor,
-    const TChunkLists& roots,
-    const NChunkClient::TReadLimit& lowerLimit,
-    const NChunkClient::TReadLimit& upperLimit,
-    NTableClient::TComparator comparator,
-    TTraverserTestingOptions testingOptions = {});
+    TTraverserTestingOptions testingOptions = {},
+    EChunkListContentType contentType = EChunkListContentType::Main);
 
 //! Legacy version of previous function. Works by transforming legacy lower and upper
 //! limits into new read limits and invoking previous version.
@@ -145,16 +137,8 @@ void TraverseChunkTree(
     const NChunkClient::TLegacyReadLimit& legacyLowerLimit,
     const NChunkClient::TLegacyReadLimit& legacyUpperLimit,
     NTableClient::TComparator comparator,
-    TTraverserTestingOptions testingOptions = {});
-
-void TraverseHunkChunkTree(
-    IChunkTraverserContextPtr traverserContext,
-    IChunkVisitorPtr visitor,
-    const TChunkLists& roots,
-    const NChunkClient::TLegacyReadLimit& legacyLowerLimit,
-    const NChunkClient::TLegacyReadLimit& legacyUpperLimit,
-    NTableClient::TComparator comparator,
-    TTraverserTestingOptions testingOptions = {});
+    TTraverserTestingOptions testingOptions = {},
+    EChunkListContentType contentType = EChunkListContentType::Main);
 
 //! Traverses the subtree at #root. No bounds are being checked,
 //! #visitor is notified of each child in the subtree (including hunk chunks, if any).
