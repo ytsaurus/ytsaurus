@@ -102,7 +102,7 @@ public:
         }
     }
 
-    const TFairShareHierarchicalSchedulerPtr<TString> GetFairShareHierarchicalScheduler() override
+    const TFairShareHierarchicalSchedulerPtr<std::string> GetFairShareHierarchicalScheduler() override
     {
         return Bootstrap_->GetFairShareHierarchicalScheduler();
     }

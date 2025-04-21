@@ -54,7 +54,7 @@ private:
     struct TSlot
     {
         ESlotState State = ESlotState::Empty;
-        TLocationFairShareSlotPtr FairShareSlot = nullptr;
+        TLocationFairShareSlotPtr FairShareSlot;
         NChunkClient::TBlock Block;
 
         TPromise<void> ReceivedPromise = NewPromise<void>();

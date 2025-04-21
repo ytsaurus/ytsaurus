@@ -37,7 +37,7 @@ struct IChunkStoreHost
     virtual void CancelLocationSessions(const TChunkLocationPtr& location) = 0;
     virtual bool CanPassSessionOutOfTurn(TChunkId chunkId) = 0;
     virtual void RemoveChunkFromCache(TChunkId chunkId) = 0;
-    virtual const TFairShareHierarchicalSchedulerPtr<TString> GetFairShareHierarchicalScheduler() = 0;
+    virtual const TFairShareHierarchicalSchedulerPtr<std::string> GetFairShareHierarchicalScheduler() = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IChunkStoreHost)

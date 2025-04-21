@@ -239,7 +239,7 @@ IIOEnginePtr CreateIOEngine(
     TString locationId = "default",
     NProfiling::TProfiler profiler = {},
     NLogging::TLogger logger = {},
-    TFairShareHierarchicalSlotQueuePtr<TString> fairShareQueue = nullptr);
+    TFairShareHierarchicalSlotQueuePtr<std::string> fairShareQueue = nullptr);
 
 std::vector<EIOEngineType> GetSupportedIOEngineTypes();
 

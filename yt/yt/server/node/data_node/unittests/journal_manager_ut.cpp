@@ -75,7 +75,7 @@ public:
     void RemoveChunkFromCache(TChunkId /*chunkId*/) override
     { }
 
-    const TFairShareHierarchicalSchedulerPtr<TString> GetFairShareHierarchicalScheduler()  override
+    const TFairShareHierarchicalSchedulerPtr<std::string> GetFairShareHierarchicalScheduler()  override
     {
         return nullptr;
     }

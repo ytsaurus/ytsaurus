@@ -171,8 +171,8 @@ void TLocationPerformanceCounters::ReportThrottledWrite()
 ////////////////////////////////////////////////////////////////////////////////
 
 TLocationFairShareSlot::TLocationFairShareSlot(
-    TFairShareHierarchicalSlotQueuePtr<TString> queue,
-    TFairShareHierarchicalSlotQueueSlotPtr<TString> slot)
+    TFairShareHierarchicalSlotQueuePtr<std::string> queue,
+    TFairShareHierarchicalSlotQueueSlotPtr<std::string> slot)
     : Queue_(std::move(queue))
     , Slot_(std::move(slot))
 {
@@ -180,7 +180,7 @@ TLocationFairShareSlot::TLocationFairShareSlot(
     YT_VERIFY(Slot_);
 }
 
-TFairShareHierarchicalSlotQueueSlotPtr<TString> TLocationFairShareSlot::GetSlot() const
+TFairShareHierarchicalSlotQueueSlotPtr<std::string> TLocationFairShareSlot::GetSlot() const
 {
     return Slot_;
 }
@@ -387,7 +387,7 @@ TChunkLocation::TChunkLocation(
 
     PerformanceCounters_ = New<TLocationPerformanceCounters>(Profiler_);
 
-    IOFairShareQueue_ = CreateFairShareHierarchicalSlotQueue<TString>(
+    IOFairShareQueue_ = CreateFairShareHierarchicalSlotQueue<std::string>(
         ChunkStoreHost_->GetFairShareHierarchicalScheduler(),
         Profiler_.WithPrefix("/fair_share_hierarchical_queue"));
 
@@ -459,7 +459,7 @@ TChunkLocation::TChunkLocation(
 TErrorOr<TLocationFairShareSlotPtr> TChunkLocation::AddFairShareQueueSlot(
     i64 size,
     std::vector<IFairShareHierarchicalSlotQueueResourcePtr> resources,
-    std::vector<TFairShareHierarchyLevel<TString>> levels)
+    std::vector<TFairShareHierarchyLevel<std::string>> levels)
 {
     auto slotOrError = IOFairShareQueue_->EnqueueSlot(
         size,

@@ -370,7 +370,7 @@ public:
         return Config_;
     }
 
-    const TFairShareHierarchicalSchedulerPtr<TString>& GetFairShareHierarchicalScheduler() const override
+    const TFairShareHierarchicalSchedulerPtr<std::string>& GetFairShareHierarchicalScheduler() const override
     {
         return FairShareHierarchicalScheduler_;
     }
@@ -707,7 +707,7 @@ private:
     TNodeResourceManagerPtr NodeResourceManager_;
     TBufferedProducerPtr BufferedProducer_;
 
-    TFairShareHierarchicalSchedulerPtr<TString> FairShareHierarchicalScheduler_;
+    TFairShareHierarchicalSchedulerPtr<std::string> FairShareHierarchicalScheduler_;
 
     IReconfigurableThroughputThrottlerPtr LegacyRawTotalInThrottler_;
     IThroughputThrottlerPtr LegacyTotalInThrottler_;
@@ -901,7 +901,7 @@ private:
             LegacyTotalOutThrottler_ = IThroughputThrottlerPtr(LegacyRawTotalOutThrottler_);
         }
 
-        FairShareHierarchicalScheduler_ = CreateFairShareHierarchicalScheduler<TString>(
+        FairShareHierarchicalScheduler_ = CreateFairShareHierarchicalScheduler<std::string>(
             New<TFairShareHierarchicalSchedulerDynamicConfig>(),
             ClusterNodeProfiler().WithPrefix("/fair_share_hierarchical_scheduler"));
 
@@ -1802,7 +1802,7 @@ const TBufferedProducerPtr& TBootstrapBase::GetBufferedProducer() const
     return Bootstrap_->GetBufferedProducer();
 }
 
-const TFairShareHierarchicalSchedulerPtr<TString>& TBootstrapBase::GetFairShareHierarchicalScheduler() const
+const TFairShareHierarchicalSchedulerPtr<std::string>& TBootstrapBase::GetFairShareHierarchicalScheduler() const
 {
     return Bootstrap_->GetFairShareHierarchicalScheduler();
 }
