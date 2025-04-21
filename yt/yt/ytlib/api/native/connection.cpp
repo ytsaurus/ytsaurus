@@ -310,6 +310,7 @@ public:
             StaticConfig_->ChaosCellDirectorySynchronizer,
             CellDirectory_,
             this,
+            GetCellDirectorySynchronizerSourceOfTruthCellIds(),
             Logger);
 
         if (StaticConfig_->ReplicationCardCache || StaticConfig_->ChaosCellDirectorySynchronizer->SyncAllChaosCells) {
