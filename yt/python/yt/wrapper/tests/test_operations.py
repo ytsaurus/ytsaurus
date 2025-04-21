@@ -1520,10 +1520,11 @@ class TestPythonOperations(object):
         output_table = TEST_DIR + "/my_table"
         yt.write_table(table, [{"x": 1}, {"x": 2}])
 
-        for protection_type in ("none", "close"):
-            with set_config_option("pickling/stdout_fd_protection", protection_type):
-                with pytest.raises(yt.YtOperationFailedError):
-                    yt.run_map(mapper, table, output_table)
+        with set_config_option("pickling/redirect_stdout_to_stderr", False):
+            for protection_type in ("none", "close"):
+                with set_config_option("pickling/stdout_fd_protection", protection_type):
+                    with pytest.raises(yt.YtOperationFailedError):
+                        yt.run_map(mapper, table, output_table)
 
         for protection_type in ("redirect_to_stderr", "drop"):
             yt.write_table(output_table, [])
