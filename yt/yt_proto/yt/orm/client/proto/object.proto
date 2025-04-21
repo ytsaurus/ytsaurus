@@ -183,7 +183,7 @@ message TAttributeMigration
     optional bool custom_reverse_writer = 7;
 }
 
-// Next field number 51.
+// Next field number 53.
 message TObjectTypeOption
 {
     reserved 6, 7, 15, 17, 20, 21, 28, 29, 38, 46;
@@ -279,6 +279,8 @@ message TObjectTypeOption
 
     // meta.account_id column was mistakenly added to some ORM's.
     optional bool remove_legacy_meta_account_id = 47;
+
+    optional bool keep_removal_time = 52;
 }
 
 message TIndexOption
@@ -390,7 +392,7 @@ message THistoryTableOptions
     optional bool use_deprecated_hashing = 10;
 }
 
-// Next field 30049.
+// Next field 30050.
 extend google.protobuf.FileOptions
 {
     repeated TObjectTypeOption object_type = 30000;
@@ -463,6 +465,8 @@ extend google.protobuf.FileOptions
     // Whether to create and use by default pending_removals table for object deletion.
     // If true, mode can be overridden with remove_mode option in object manager.
     optional bool enable_asynchronous_removals = 30033 [default = true];
+    // Only actual with `enable_asynchronous_removals=false` option.
+    optional bool keep_removal_time = 30049;
 
     optional bool enable_finalizers = 30030;
 
