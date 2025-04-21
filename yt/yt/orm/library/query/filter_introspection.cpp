@@ -255,6 +255,94 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TQueryVisitorForDefinedAlwaysFalse
+    : public TBaseAstVisitor<bool, TQueryVisitorForDefinedAlwaysFalse>
+{
+public:
+    TQueryVisitorForDefinedAlwaysFalse()
+    { }
+
+    bool Run(const TExpressionPtr expression)
+    {
+        return Visit(expression);
+    }
+
+    bool OnLiteral(const TLiteralExpressionPtr literalExpr)
+    {
+        return std::holds_alternative<bool>(literalExpr->Value) && !std::get<bool>(literalExpr->Value);
+    }
+
+    bool OnReference(const TReferenceExpressionPtr /*referenceExpr*/)
+    {
+        return false;
+    }
+
+    bool OnAlias(const TAliasExpressionPtr /*aliasExpr*/)
+    {
+        return false;
+    }
+
+    bool OnUnary(const TUnaryOpExpressionPtr /*unaryExpr*/)
+    {
+        return false;
+    }
+
+    bool OnBinary(const TBinaryOpExpressionPtr binaryExpr)
+    {
+        switch (binaryExpr->Opcode) {
+            case EBinaryOp::Or:
+                return Visit(binaryExpr->Lhs) && Visit(binaryExpr->Rhs);
+            case EBinaryOp::And:
+                return Visit(binaryExpr->Lhs) || Visit(binaryExpr->Rhs);
+            default:
+                return false;
+        }
+    }
+
+    bool OnFunction(const TFunctionExpressionPtr /*functionExpr*/)
+    {
+        return false;
+    }
+
+    bool OnIn(const TInExpressionPtr /*inExpr*/)
+    {
+        return false;
+    }
+
+    bool OnBetween(const TBetweenExpressionPtr /*betweenExpr*/)
+    {
+        return false;
+    }
+
+    bool OnTransform(const TTransformExpressionPtr /*transformExpr*/)
+    {
+        return false;
+    }
+
+    bool OnCase(const TCaseExpressionPtr /*caseExpr*/)
+    {
+        return false;
+    }
+
+    bool OnLike(const TLikeExpressionPtr /*likeExpr*/)
+    {
+        return false;
+    }
+
+private:
+    using TBaseAstVisitor<bool, TQueryVisitorForDefinedAlwaysFalse>::Visit;
+
+    bool Visit(const TExpressionList& expressions)
+    {
+        if (expressions.size() == 1) {
+            return Visit(expressions[0]);
+        }
+        return false;
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TQueryVisitorForAttributeReferences
     : public TAstVisitor<TQueryVisitorForAttributeReferences>
 {
@@ -388,6 +476,12 @@ bool IntrospectQueryForFullScan(
     // TODO(dgolear): Enrich filter introspection with range extraction and fail if broad ranges are used.
     Y_UNUSED(orderedByPrimaryKey);
     return !filteredByPrimaryKey;
+}
+
+bool IntrospectFilterIsAlwaysFalse(NQueryClient::NAst::TExpressionPtr filterExpression)
+{
+    return TQueryVisitorForDefinedAlwaysFalse()
+        .Run(filterExpression);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
