@@ -1,5 +1,6 @@
 #include "sql_complete.h"
 
+#include <util/charset/utf8.h>
 #include <yql/essentials/sql/v1/complete/name/fallback/name_service.h>
 #include <yql/essentials/sql/v1/complete/name/static/frequency.h>
 #include <yql/essentials/sql/v1/complete/name/static/name_service.h>
@@ -596,6 +597,31 @@ Y_UNIT_TEST_SUITE(SqlCompleteTests) {
         for (std::size_t size = 0; size <= queryUtf16.size(); ++size) {
             const TWtringBuf prefixUtf16(queryUtf16, 0, size);
             auto completion = engine->Complete({TString::FromUtf16(prefixUtf16)});
+            Y_DO_NOT_OPTIMIZE_AWAY(completion);
+        }
+    }
+
+    Y_UNIT_TEST(Tabbing) {
+        const TString query = 
+            "SELECT \n"
+            "  123467, \"Hello, {name}! 编码\"}, \n"
+            "  (1 + (5 * 1 / 0)), MIN(identifier), \n"
+            "  Bool(field), Math::Sin(var) \n"
+            "FROM `local/test/space/table` JOIN test;";
+
+        auto engine = MakeSqlCompletionEngineUT();
+
+        const auto* begin = reinterpret_cast<const unsigned char*>(query.c_str());
+        const auto* end = reinterpret_cast<const unsigned char*>(begin + query.size());
+        const auto* ptr = begin;
+
+        wchar32 rune;
+        while (ptr < end) {
+            Y_ENSURE(ReadUTF8CharAndAdvance(rune, ptr, end) == RECODE_OK);
+            auto completion = engine->Complete({
+                .Text = query,
+                .CursorPosition = static_cast<size_t>(std::distance(begin, ptr)),
+            });
             Y_DO_NOT_OPTIMIZE_AWAY(completion);
         }
     }
