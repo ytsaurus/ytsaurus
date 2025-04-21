@@ -207,6 +207,9 @@ message TObjectTypeOption
     optional ECascadingRemovalPolicy parent_removal_policy = 50;
     optional EParentKeyStoragePolicy parent_key_storage_policy = 34;
 
+    // Overrides global option.
+    optional bool enable_finalizers = 51;
+
     optional EHashPolicy hash_policy = 24;
     optional THistoryOptions history = 43;
     repeated TWatchLogOption watch_logs = 8;
