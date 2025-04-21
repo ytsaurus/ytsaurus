@@ -81,7 +81,7 @@ Y_UNIT_TEST_SUITE(SqlCompleteTests) {
         }
 
         Y_ENSURE(!TStringBuf(text).Tail(pos + 1).Contains(delim));
-        text.erase(pos);
+        text.erase(pos, 1);
         return {
             .Text = text,
             .CursorPosition = pos,
@@ -369,6 +369,35 @@ Y_UNIT_TEST_SUITE(SqlCompleteTests) {
         auto engine = MakeSqlCompletionEngineUT();
         UNIT_ASSERT_VALUES_EQUAL(Complete(engine, "SELECT "), expected);
         UNIT_ASSERT_VALUES_EQUAL(Complete(engine, "SELECT # FROM"), expected);
+    }
+
+    Y_UNIT_TEST(SelectFrom) {
+        {
+            TVector<TCandidate> expected = {
+                {Keyword, "ANY"},
+                {Keyword, "CALLABLE"},
+                {Keyword, "DICT"},
+                {Keyword, "ENUM"},
+                {Keyword, "FLOW"},
+                {Keyword, "LIST"},
+                {Keyword, "OPTIONAL"},
+                {Keyword, "RESOURCE"},
+                {Keyword, "SET"},
+                {Keyword, "STRUCT"},
+                {Keyword, "TAGGED"},
+                {Keyword, "TUPLE"},
+                {Keyword, "VARIANT"},
+            };
+            auto engine = MakeSqlCompletionEngineUT();
+            UNIT_ASSERT_VALUES_EQUAL(Complete(engine, "SELECT * FROM "), expected);
+        }
+        {
+            TVector<TCandidate> expected = {
+
+            };
+            auto engine = MakeSqlCompletionEngineUT();
+            UNIT_ASSERT_VALUES_EQUAL(Complete(engine, "SELECT * FROM `#`"), expected);
+        }
     }
 
     Y_UNIT_TEST(SelectWhere) {

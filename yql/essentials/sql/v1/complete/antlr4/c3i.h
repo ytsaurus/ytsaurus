@@ -36,6 +36,7 @@ namespace NSQLComplete {
         struct TConfig {
             std::unordered_set<TTokenId> IgnoredTokens;
             std::unordered_set<TRuleId> PreferredRules;
+            std::unordered_set<TTokenId> PunctuationTokens;
         };
 
         virtual TC3Candidates Complete(TCompletionInput input) = 0;

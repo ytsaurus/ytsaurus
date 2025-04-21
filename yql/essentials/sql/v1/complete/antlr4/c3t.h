@@ -32,6 +32,7 @@ namespace NSQLComplete {
             , Tokens(&Lexer)
             , Parser(&Tokens)
             , CompletionCore(&Parser)
+            , PunctuationTokens(std::move(config.PunctuationTokens))
         {
             Lexer.removeErrorListeners();
             Parser.removeErrorListeners();
@@ -58,10 +59,10 @@ namespace NSQLComplete {
         size_t CaretTokenIndex(TCompletionInput input) {
             size_t cursor = 0;
             for (size_t i = 0; i < Tokens.size(); ++i) {
-                cursor += Tokens.get(i)->getText().size();
+                antlr4::Token* token = Tokens.get(i);
+                cursor += token->getText().size();
                 if (input.CursorPosition <= cursor) {
-                    TStringBuf prefix = input.Text.Head(input.CursorPosition);
-                    if (LastWord(prefix).Empty()) {
+                    if (PunctuationTokens.contains(token->getType())) {
                         return i + 1;
                     }
                     return i;
@@ -87,6 +88,7 @@ namespace NSQLComplete {
         antlr4::BufferedTokenStream Tokens;
         G::TParser Parser;
         c3::CodeCompletionCore CompletionCore;
+        std::unordered_set<TTokenId> PunctuationTokens;
     };
 
 } // namespace NSQLComplete

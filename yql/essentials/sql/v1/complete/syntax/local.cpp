@@ -79,6 +79,7 @@ namespace NSQLComplete {
             return {
                 .IgnoredTokens = ComputeIgnoredTokens(),
                 .PreferredRules = ComputePreferredRules(),
+                .PunctuationTokens = Grammar->GetPunctuationTokens(),
             };
         }
 
