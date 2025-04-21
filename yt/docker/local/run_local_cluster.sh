@@ -10,6 +10,7 @@ set -e
 script_name=$0
 
 # Set options defaults
+cluster_name=locasaurus
 proxy_port=8000
 docker_hostname=localhost
 interface_port=8001
@@ -28,6 +29,7 @@ enable_debug_logging=false
 extra_yt_docker_opts=''
 yt_fqdn=''
 init_operations_archive=false
+disable_query_tracker=false
 
 network_name=yt_local_cluster_network
 ui_network=$network_name
@@ -46,6 +48,7 @@ prometheus_port=9090
 print_usage() {
     cat <<EOF
 Usage: $script_name [-h|--help]
+                    [--cluster-name name]
                     [--proxy-port port]
                     [--docker-hostname hostname]
                     [--interface-port port]
@@ -67,8 +70,10 @@ Usage: $script_name [-h|--help]
                     [--init-operations-archive]
                     [--run-prometheus]
                     [--prometheus-port port]
+                    [--disable-query-tracker]
                     [--stop]
 
+  --cluster-name: Sets name of cluster '//sys/@cluster_name' (default: $cluster_name)
   --proxy-port: Sets the proxy port on docker host (default: $proxy_port)
   --interface-port: Sets the web interface port on docker host (default: $interface_port)
   --docker-hostname: Sets the hostname where docker engine is run (default: $docker_hostname)
@@ -85,6 +90,7 @@ Usage: $script_name [-h|--help]
   --port-range-start: Assign ports from continuous range starting from this port number (default: $port_range_start)
   --node-count: Sets the number of cluster nodes to start in yt local cluster (default: $node_count)
   --queue-agent-count: Sets the number of queue agents to start in yt local cluster (default: $queue_agent_count)
+  --disable-query-tracker: Turns off QueryTracker related services (default: $disable_query_tracker)
   --with-auth: Enables authentication and creates admin user
   --enable-debug-logging: Enable debug logging in backend container
   --extra-yt-docker-opts: Any extra configuration for backend docker container (default: $extra_yt_docker_opts)
@@ -100,6 +106,10 @@ EOF
 while [[ $# -gt 0 ]]; do
     key="$1"
     case $key in
+    --cluster-name)
+        cluster_name="$2"
+        shift 2
+        ;;
     --proxy-port)
         proxy_port="$2"
         shift 2
@@ -193,13 +203,16 @@ while [[ $# -gt 0 ]]; do
         yt_fqdn="$2"
         shift 2
         ;;
-
+    --disable-query-tracker)
+        disable_query_tracker=true
+        shift 1
+        ;;
     -h | --help)
         print_usage
         shift
         ;;
     --stop)
-        docker stop $ui_container_name $yt_container_name
+        docker stop $ui_container_name $yt_container_name $prometheus_container_name
         exit
         ;;
     *) # unknown option
@@ -221,8 +234,8 @@ if [ -z "$(which docker)" ]; then
 refer to the instructions at URL $url"
 fi
 
-yt_image=ghcr.io/ytsaurus/local:$yt_version
-ui_image=ghcr.io/ytsaurus/ui:$ui_version
+yt_image=${__YTSAURUS_IMAGE:-ghcr.io/ytsaurus/local}:$yt_version
+ui_image=${__YTSAURUS_UI_IMAGE:-ghcr.io/ytsaurus/ui}:$ui_version
 
 if [ -n "$local_cypress_dir" ]; then
     if [ ! -d "$local_cypress_dir" ]; then
@@ -281,6 +294,10 @@ if [ "${publish_ports}" == true ]; then
     yt_run_params="${yt_run_params} ${ports}"
 fi
 
+if [ "${disable_query_tracker}" != "true" ]; then
+    params="$params -c {name=query-tracker} -c {name=yql-agent;config={path=\"/usr/bin\";count=1;artifacts_path=\"/usr/bin\"}}"
+fi
+
 set +e
 cluster_container=$(
     docker run -itd \
@@ -303,8 +320,7 @@ cluster_container=$(
         --queue-agent-count ${queue_agent_count} \
         --address-resolver-config "{enable_ipv4=%true;enable_ipv6=%false;}" \
         --native-client-supported \
-        --id primary \
-        -c '{name=query-tracker}' -c '{name=yql-agent;config={path="/usr/bin";count=1;artifacts_path="/usr/bin"}}' \
+        --id ${cluster_name} \
         ${params}
 )
 
@@ -336,7 +352,6 @@ else
 fi
 
 if [ "${run_prometheus}" == true ]; then
-
     targets="['yt.backend:${port_range_start}'"
     min_port=$(($port_range_start + 1))
     max_port=$(($port_range_start + 100))
@@ -345,7 +360,7 @@ if [ "${run_prometheus}" == true ]; then
     done
     targets+="]"
 
-    cat <<EOF >prometheus.yml
+    cat <<EOF >prometheus.yml.tmp
 global:
  scrape_interval: 15s
 
@@ -361,13 +376,16 @@ EOF
             --network $network_name \
             --name ${prometheus_container_name} \
             -p ${prometheus_port}:${prometheus_port} \
-            -v $(pwd)/prometheus.yml:/etc/prometheus/prometheus.yml \
+            -v $(pwd)/prometheus.yml.tmp:/etc/prometheus/prometheus.yml \
+            --rm \
             ${prometheus_image}
     )
     if [ "$?" != "0" ]; then
         die "Image $prometheus_image failed to run. Most likely that was because the port $prometheus_port is \
     already busy, so you have to provide another port via --prometheus-port option."
     fi
+
+    PROMETHEUS_BASE_URL=http://yt.prometheus:9090
 fi
 
 interface_container=$(
@@ -375,10 +393,12 @@ interface_container=$(
         --network $ui_network \
         --name $ui_container_name \
         -p ${interface_port}:80 \
+        -e YT_LOCAL_CLUSTER_ID=${cluster_name} \
         -e PROXY=${docker_hostname}:${proxy_port} \
         -e PROXY_INTERNAL=$ui_proxy_internal \
         -e APP_ENV=local \
         -e APP_INSTALLATION=${app_installation} \
+        -e PROMETHEUS_BASE_URL=${PROMETHEUS_BASE_URL} \
         --rm \
         $ui_image
 )
