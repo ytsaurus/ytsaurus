@@ -81,6 +81,7 @@ protected:
         MockBuilders_.clear();
         Fetchers_.clear();
 
+        // TODO(apollo1321): Support MinTeleportChunkSize for new sorted pool.
         Options_.MinTeleportChunkSize = Inf64;
         Options_.SliceForeignChunks = true;
         Options_.SortedJobOptions.MaxTotalSliceCount = Inf64;

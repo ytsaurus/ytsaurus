@@ -5,8 +5,6 @@
 #include "new_job_manager.h"
 #include "sorted_job_builder.h"
 
-#include <yt/yt/ytlib/table_client/public.h>
-
 #include <yt/yt/ytlib/chunk_client/public.h>
 
 namespace NYT::NChunkPools {
@@ -30,7 +28,7 @@ DEFINE_REFCOUNTED_TYPE(INewSortedJobBuilder)
 INewSortedJobBuilderPtr CreateNewSortedJobBuilder(
     const TSortedJobOptions& options,
     NControllerAgent::IJobSizeConstraintsPtr jobSizeConstraints,
-    const NTableClient::TRowBufferPtr& rowBuffer,
+    NTableClient::TRowBufferPtr rowBuffer,
     const std::vector<NChunkClient::TInputChunkPtr>& teleportChunks,
     int retryIndex,
     const TInputStreamDirectory& inputStreamDirectory,

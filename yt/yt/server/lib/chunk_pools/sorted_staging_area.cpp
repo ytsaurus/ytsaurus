@@ -133,17 +133,15 @@ public:
         bool enableKeyGuarantee,
         TComparator primaryComparator,
         TComparator foreignComparator,
-        const TRowBufferPtr& rowBuffer,
+        TRowBufferPtr rowBuffer,
         i64 initialTotalDataSliceCount,
         i64 maxTotalDataSliceCount,
-        const TInputStreamDirectory& inputStreamDirectory,
         const TLogger& logger)
         : EnableKeyGuarantee_(enableKeyGuarantee)
-        , PrimaryComparator_(primaryComparator)
-        , ForeignComparator_(foreignComparator)
+        , PrimaryComparator_(std::move(primaryComparator))
+        , ForeignComparator_(std::move(foreignComparator))
         , MaxTotalDataSliceCount_(maxTotalDataSliceCount)
-        , RowBuffer_(rowBuffer)
-        , InputStreamDirectory_(inputStreamDirectory)
+        , RowBuffer_(std::move(rowBuffer))
         , Logger(logger)
         , TotalDataSliceCount_(initialTotalDataSliceCount)
         , MainDomain_("Main", logger, PrimaryComparator_)
@@ -274,12 +272,11 @@ public:
     }
 
 private:
-    bool EnableKeyGuarantee_;
+    const bool EnableKeyGuarantee_;
     TComparator PrimaryComparator_;
     TComparator ForeignComparator_;
-    i64 MaxTotalDataSliceCount_;
-    TRowBufferPtr RowBuffer_;
-    TInputStreamDirectory InputStreamDirectory_;
+    const i64 MaxTotalDataSliceCount_;
+    const TRowBufferPtr RowBuffer_;
     TLogger Logger;
 
     //! Upper bound using which all data slices in Main domain are to be cut.
@@ -582,8 +579,6 @@ private:
         }
     }
 
-    //! If there is at least one data slice in the main domain, form a job and return true.
-    //! Otherwise, return false.
     void DoFlush()
     {
         YT_VERIFY(!IsExhausted());
@@ -681,20 +676,18 @@ ISortedStagingAreaPtr CreateSortedStagingArea(
     bool enableKeyGuarantee,
     TComparator primaryComparator,
     TComparator foreignComparator,
-    const TRowBufferPtr& rowBuffer,
+    TRowBufferPtr rowBuffer,
     i64 initialTotalDataSliceCount,
     i64 maxTotalDataSliceCount,
-    const TInputStreamDirectory& inputStreamDirectory,
     const TLogger& logger)
 {
     return New<TSortedStagingArea>(
         enableKeyGuarantee,
-        primaryComparator,
-        foreignComparator,
-        rowBuffer,
+        std::move(primaryComparator),
+        std::move(foreignComparator),
+        std::move(rowBuffer),
         initialTotalDataSliceCount,
         maxTotalDataSliceCount,
-        inputStreamDirectory,
         logger);
 }
 

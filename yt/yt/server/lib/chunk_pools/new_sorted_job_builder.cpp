@@ -1,9 +1,8 @@
 #include "new_sorted_job_builder.h"
 
-#include "helpers.h"
 #include "input_stream.h"
-#include "new_job_manager.h"
 #include "job_size_tracker.h"
+#include "new_job_manager.h"
 #include "sorted_staging_area.h"
 
 #include <yt/yt/server/lib/controller_agent/job_size_constraints.h>
@@ -11,8 +10,8 @@
 #include <yt/yt/ytlib/chunk_client/input_chunk.h>
 #include <yt/yt/ytlib/chunk_client/legacy_data_slice.h>
 
-#include <yt/yt/client/table_client/row_buffer.h>
 #include <yt/yt/client/table_client/key_bound_compressor.h>
+#include <yt/yt/client/table_client/row_buffer.h>
 
 #include <yt/yt/library/random/bernoulli_sampler.h>
 
@@ -20,18 +19,15 @@
 
 #include <yt/yt/core/logging/fluent_log.h>
 
-#include <yt/yt/core/misc/collection_helpers.h>
-#include <yt/yt/core/misc/finally.h>
-
 #include <cmath>
 
 namespace NYT::NChunkPools {
 
-using namespace NTableClient;
 using namespace NChunkClient;
 using namespace NConcurrency;
 using namespace NControllerAgent;
 using namespace NLogging;
+using namespace NTableClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -59,7 +55,7 @@ public:
     TNewSortedJobBuilder(
         const TSortedJobOptions& options,
         IJobSizeConstraintsPtr jobSizeConstraints,
-        const TRowBufferPtr& rowBuffer,
+        TRowBufferPtr rowBuffer,
         const std::vector<TInputChunkPtr>& teleportChunks,
         int retryIndex,
         const TInputStreamDirectory& inputStreamDirectory,
@@ -70,7 +66,7 @@ public:
         , ForeignComparator_(options.ForeignComparator)
         , JobSizeConstraints_(std::move(jobSizeConstraints))
         , JobSampler_(JobSizeConstraints_->GetSamplingRate())
-        , RowBuffer_(rowBuffer)
+        , RowBuffer_(std::move(rowBuffer))
         , RetryIndex_(retryIndex)
         , InputStreamDirectory_(inputStreamDirectory)
         , Logger(logger)
@@ -124,8 +120,8 @@ public:
         // Log the original data slices that should not be modified.
         InputDataSlices_.push_back(originalDataSlice);
 
-        auto inputStreamIndex = dataSlice->GetInputStreamIndex();
-        auto isPrimary = InputStreamDirectory_.GetDescriptor(inputStreamIndex).IsPrimary();
+        int inputStreamIndex = dataSlice->GetInputStreamIndex();
+        bool isPrimary = InputStreamDirectory_.GetDescriptor(inputStreamIndex).IsPrimary();
 
         const auto& comparator = isPrimary ? PrimaryComparator_ : ForeignComparator_;
 
@@ -989,7 +985,6 @@ private:
             RowBuffer_,
             /*initialTotalDataSliceCount*/ TotalDataSliceCount_,
             Options_.MaxTotalSliceCount,
-            InputStreamDirectory_,
             Logger);
 
         // Iterate over groups of coinciding endpoints.
@@ -1082,7 +1077,7 @@ DEFINE_REFCOUNTED_TYPE(TNewSortedJobBuilder)
 INewSortedJobBuilderPtr CreateNewSortedJobBuilder(
     const TSortedJobOptions& options,
     IJobSizeConstraintsPtr jobSizeConstraints,
-    const TRowBufferPtr& rowBuffer,
+    TRowBufferPtr rowBuffer,
     const std::vector<TInputChunkPtr>& teleportChunks,
     int retryIndex,
     const TInputStreamDirectory& inputStreamDirectory,
@@ -1092,7 +1087,7 @@ INewSortedJobBuilderPtr CreateNewSortedJobBuilder(
     return New<TNewSortedJobBuilder>(
         options,
         std::move(jobSizeConstraints),
-        rowBuffer,
+        std::move(rowBuffer),
         teleportChunks,
         retryIndex,
         inputStreamDirectory,
