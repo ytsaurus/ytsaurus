@@ -28,7 +28,7 @@ struct TChunkReadOptions
     TInstant ReadBlocksDeadline = TInstant::Max();
     TInstant ReadMetaDeadLine = TInstant::Max();
 
-    std::vector<std::pair<TString, double>> FairShareTags;
+    std::vector<std::pair<std::string, double>> FairShareTags;
 };
 
 //! Represents a chunk stored locally at Data Node.

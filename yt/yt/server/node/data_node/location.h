@@ -125,21 +125,20 @@ class TLocationFairShareSlot
 {
 public:
     TLocationFairShareSlot(
-        TFairShareHierarchicalSlotQueuePtr<TString> queue,
-        TFairShareHierarchicalSlotQueueSlotPtr<TString> slot);
+        TFairShareHierarchicalSlotQueuePtr<std::string> queue,
+        TFairShareHierarchicalSlotQueueSlotPtr<std::string> slot);
 
-    TFairShareHierarchicalSlotQueueSlotPtr<TString> GetSlot() const;
+    TFairShareHierarchicalSlotQueueSlotPtr<std::string> GetSlot() const;
 
     ~TLocationFairShareSlot();
 
 private:
-    void MoveFrom(TLocationFairShareSlot&& other);
+    TFairShareHierarchicalSlotQueuePtr<std::string> Queue_;
+    TFairShareHierarchicalSlotQueueSlotPtr<std::string> Slot_;
 
-    TFairShareHierarchicalSlotQueuePtr<TString> Queue_;
-    TFairShareHierarchicalSlotQueueSlotPtr<TString> Slot_;
+    void MoveFrom(TLocationFairShareSlot&& other);
 };
 
-DECLARE_REFCOUNTED_CLASS(TLocationFairShareSlot)
 DEFINE_REFCOUNTED_TYPE(TLocationFairShareSlot)
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -295,7 +294,7 @@ public:
     TErrorOr<TLocationFairShareSlotPtr> AddFairShareQueueSlot(
         i64 size,
         std::vector<IFairShareHierarchicalSlotQueueResourcePtr> resources,
-        std::vector<TFairShareHierarchyLevel<TString>> levels);
+        std::vector<TFairShareHierarchyLevel<std::string>> levels);
 
     //! Prepares the location to accept new writes.
     /*!
@@ -591,7 +590,7 @@ private:
     NIO::IIOEngineWorkloadModelPtr IOEngineModel_;
     NIO::IIOEnginePtr IOEngine_;
 
-    TFairShareHierarchicalSlotQueuePtr<TString> IOFairShareQueue_;
+    TFairShareHierarchicalSlotQueuePtr<std::string> IOFairShareQueue_;
 
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, LockedChunksLock_);
     THashSet<TChunkId> LockedChunkIds_;
