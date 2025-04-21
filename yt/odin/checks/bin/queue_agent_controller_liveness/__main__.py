@@ -73,6 +73,7 @@ def run_check(secrets, yt_client: YtClient, logger: Logger, options, states):
     queue_agent_instances = client.list("//sys/queue_agents/instances", attributes=[BANNED_QUEUE_AGENT_INSTANCE_ATTRIBUTE_NAME])
 
     now = datetime.datetime.now(pytz.UTC)
+    logger.info(f"Using {now} as now() value")
 
     failed_instances = []
     # Instances for which at least 1 controller is running regularly.
@@ -96,7 +97,7 @@ def run_check(secrets, yt_client: YtClient, logger: Logger, options, states):
             else:
                 raise
 
-        logger.info(f"Controller info on instance {instance}: {controller_info}")
+        logger.debug(f"Controller info on instance {instance}: {controller_info}")
 
         failed = False
 
@@ -107,9 +108,12 @@ def run_check(secrets, yt_client: YtClient, logger: Logger, options, states):
             running_instances.append(instance)
             least_active_object = getattr(controller_info.inactive_objects, field)[0]
             least_active_object_ts = least_active_object[1]
-            if now - least_active_object_ts > datetime.timedelta(milliseconds=max_lag_ms):
+            lag_ms = (now - least_active_object_ts).total_seconds() * 1000
+            if lag_ms > max_lag_ms:
                 failed = True
-                logger.error(f"Max lag milliseconds ({max_lag_ms}) exceeded for {field} controller passes on instance {instance} for pass {least_active_object}")
+                logger.error(f"Max lag milliseconds ({max_lag_ms}) exceeded (lag is {lag_ms}) for {field} controller passes on instance {instance} for pass {least_active_object}")
+            else:
+                logger.info(f"Lag is {lag_ms} for {field} controller passes on instance {instance} for pass {least_active_object}")
 
         if failed:
             failed_instances.append(instance)
