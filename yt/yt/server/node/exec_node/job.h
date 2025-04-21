@@ -227,7 +227,7 @@ public:
 
     bool GetStored() const;
     void SetStored();
-    bool IsGrowingStale(TDuration maxDelay) const;
+    bool ShouldResend(TDuration maxDelay) const;
     TFuture<void> GetStoredEvent() const;
 
     void OnEvictedFromAllocation() noexcept;
@@ -408,8 +408,8 @@ private:
 
     //! True if agent asked to store this job.
     bool Stored_ = false;
-    TInstant LastStoredTime_;
-    TPromise<void> StoredEvent_ = NewPromise<void>();
+    TInstant JobResendBackoffStartTime_;
+    TPromise<void> StoredEventPromise_ = NewPromise<void>();
 
     TPromise<void> CleanupFinished_ = NewPromise<void>();
 
