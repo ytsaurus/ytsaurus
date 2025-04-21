@@ -341,26 +341,10 @@ std::vector<TWireYqlRowset> BuildRowsets(
             YT_LOG_DEBUG("Rowset built (ResultBytes: %v)", rowset.WireRowset.size());
             rowsets.push_back(std::move(rowset));
         }
-        return rowsets;
     } catch (const std::exception& ex) {
-        rowsets.clear();
-        const auto error = TError(ex);
-        YT_LOG_DEBUG(error, "Error building rowset result from yson. Try fallback to skiff");
-    }
-
-    // TODO: Remove the code below after switch on Yson in the plugin.
-    const auto results = ConvertTo<std::vector<INodePtr>>(TYsonString(yqlYsonResults));
-    for (const auto& [index, result] : Enumerate(results)) {
-        try {
-            YT_LOG_DEBUG("Building rowset for query result (ResultIndex: %v)", index);
-            auto rowset = MakeWireYqlRowset(BuildRowsetFromSkiff(clientDirectory, result, index, rowCountLimit));
-            YT_LOG_DEBUG("Rowset built (ResultBytes: %v)", rowset.WireRowset.size());
-            rowsets.push_back(std::move(rowset));
-        } catch (const std::exception& ex) {
-            auto error = TError(ex);
-            YT_LOG_DEBUG(error, "Error building rowset result (ResultIndex: %v)", index);
-            rowsets.push_back({.Error = error});
-        }
+        auto error = TError(ex);
+        YT_LOG_DEBUG(error, "Error building rowset result.");
+        rowsets.push_back({.Error = error});
     }
     return rowsets;
 }
