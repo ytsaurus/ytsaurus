@@ -50,6 +50,10 @@ void TDynamicTransactionManagerConfig::Register(TRegistrar registrar)
     registrar.Parameter("alert_transaction_is_not_compatible_with_method", &TThis::AlertTransactionIsNotCompatibleWithMethod)
         .Default(false);
 
+    registrar.Parameter("recompute_strongly_ordered_transaction_refs", &TThis::RecomputeStronglyOrderedTransactionRefs)
+        .Default(0)
+        .DontSerializeDefault();
+
     THashMap<EObjectType, THashSet<TString>> defaultWhitelist;
     defaultWhitelist[EObjectType::UploadTransaction] = {
         "BeginUpload",
