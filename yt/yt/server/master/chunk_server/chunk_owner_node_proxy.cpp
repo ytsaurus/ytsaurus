@@ -378,7 +378,7 @@ private:
     const TCtxFetchPtr RpcContext_;
     TFetchContext FetchContext_;
     const TComparator Comparator_;
-    EChunkListContentType ContentType_;
+    const EChunkListContentType ContentType_;
 
     std::vector<TEphemeralObjectPtr<TChunk>> Chunks_;
 
@@ -397,23 +397,15 @@ private:
             Bootstrap_,
             NCellMaster::EAutomatonThreadQueue::ChunkFetchingTraverser);
 
-        if (ContentType_ == EChunkListContentType::Hunk) {
-            TraverseHunkChunkTree(
-                std::move(context),
-                this,
-                ChunkLists_,
-                FetchContext_.Ranges[CurrentRangeIndex_].LowerLimit(),
-                FetchContext_.Ranges[CurrentRangeIndex_].UpperLimit(),
-                Comparator_);
-        } else {
-            TraverseChunkTree(
-                std::move(context),
-                this,
-                ChunkLists_,
-                FetchContext_.Ranges[CurrentRangeIndex_].LowerLimit(),
-                FetchContext_.Ranges[CurrentRangeIndex_].UpperLimit(),
-                Comparator_);
-        }
+        TraverseChunkTree(
+            std::move(context),
+            this,
+            ChunkLists_,
+            FetchContext_.Ranges[CurrentRangeIndex_].LowerLimit(),
+            FetchContext_.Ranges[CurrentRangeIndex_].UpperLimit(),
+            Comparator_,
+            /*testingOptions*/ {},
+            ContentType_);
     }
 
     bool PopulateReplicas()
