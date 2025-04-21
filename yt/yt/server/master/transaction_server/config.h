@@ -77,6 +77,9 @@ struct TDynamicTransactionManagerConfig
     // COMPAT(cherepashka)
     bool EnableCypressMirroredToSequoiaPrerequisiteTransactionValidationViaLeases;
 
+    // COMPAT(aleksandra-zh)
+    int RecomputeStronglyOrderedTransactionRefs;
+
     REGISTER_YSON_STRUCT(TDynamicTransactionManagerConfig);
 
     static void Register(TRegistrar registrar);

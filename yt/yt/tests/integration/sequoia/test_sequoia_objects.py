@@ -56,6 +56,9 @@ class TestSequoiaReplicas(YTEnvSetup):
         "chunk_manager": {
             "allow_multiple_erasure_parts_per_node": True,
         },
+        "transaction_supervisor": {
+            "validate_strongly_ordered_transaction_refs": True,
+        },
     }
 
     DELTA_DYNAMIC_MASTER_CONFIG = {

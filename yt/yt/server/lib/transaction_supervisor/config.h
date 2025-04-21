@@ -17,6 +17,8 @@ struct TTransactionSupervisorConfig
 
     bool EnableWaitUntilPreparedTransactionsFinished;
 
+    bool ValidateStronglyOrderedTransactionRefs;
+
     REGISTER_YSON_STRUCT(TTransactionSupervisorConfig);
 
     static void Register(TRegistrar registrar);
