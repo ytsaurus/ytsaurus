@@ -42,8 +42,9 @@ namespace NSQLComplete {
         }
 
         TC3Candidates Complete(TCompletionInput input) override {
-            Assign(input.Text);
-            const auto caretTokenIndex = CaretTokenIndex(input);
+            auto prefix = input.Text.Head(input.CursorPosition);
+            Assign(prefix);
+            const auto caretTokenIndex = CaretTokenIndex(prefix);
             auto candidates = CompletionCore.collectCandidates(caretTokenIndex);
             return Converted(std::move(candidates));
         }
@@ -56,12 +57,12 @@ namespace NSQLComplete {
             Tokens.fill();
         }
 
-        size_t CaretTokenIndex(TCompletionInput input) {
+        size_t CaretTokenIndex(TStringBuf prefix) {
             size_t cursor = 0;
             for (size_t i = 0; i < Tokens.size(); ++i) {
                 antlr4::Token* token = Tokens.get(i);
                 cursor += token->getText().size();
-                if (input.CursorPosition <= cursor) {
+                if (prefix.size() <= cursor) {
                     if (PunctuationTokens.contains(token->getType())) {
                         return i + 1;
                     }
