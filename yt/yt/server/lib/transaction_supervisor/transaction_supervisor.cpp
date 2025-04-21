@@ -63,6 +63,7 @@ using namespace NSecurityServer;
 using namespace NTransactionClient;
 using namespace NYTree;
 using namespace NYson;
+using namespace NProfiling;
 
 using NYT::ToProto;
 using NYT::FromProto;
@@ -258,6 +259,24 @@ public:
         return it->second.ToFuture();
     }
 
+    // COMPAT(aleksandra-zh): remove that after Sequencer is more stable.
+    void RecomputeStronglyOrderedTransactionRefsOnCoordinator() override
+    {
+        YT_VERIFY(HasMutationContext());
+
+        auto guard = Guard(SequencerLock_);
+
+        DoRecomputeStronglyOrderedTransactionRefsOnCoordinator();
+    }
+
+    void OnProfiling(TSensorBuffer* buffer) override
+    {
+        buffer->AddGauge("/transaction_supervisor/prepared_strongly_ordered_transaction_count", PreparedTransactionsTimestamps_.size());
+
+        buffer->AddGauge("/transaction_supervisor/ready_to_commit_strongly_ordered_transaction_count", ReadyToCommitTransactions_.size());
+        buffer->AddGauge("/transaction_supervisor/external_ready_to_commit_strongly_ordered_transaction_count", ExternalReadyToCommitTransactions_.size());
+    }
+
 private:
     const TTransactionSupervisorConfigPtr Config_;
     const IHydraManagerPtr HydraManager_;
@@ -278,6 +297,8 @@ private:
         TTransactionId TransactionId;
         TClusterTag CommitTimestampClusterTag;
         bool IsCoordinator;
+
+        bool operator==(const TTransactionInfo& other) const = default;
 
         void Persist(const TStreamPersistenceContext& context)
         {
@@ -1601,15 +1622,25 @@ private:
     {
         YT_ASSERT_SPINLOCK_AFFINITY(SequencerLock_);
 
-        EmplaceOrCrash(UncommittedTransactionSequenceNumbers_, NextStronglyOrderedTransactionSequenceNumber_);
-        EmplaceOrCrash(TransactionIdToSequenceNumber_, transactionId, NextStronglyOrderedTransactionSequenceNumber_);
+        DoRegisterStronglyOrderedTransaction(transactionId, prepareTimestamp, NextStronglyOrderedTransactionSequenceNumber_);
+        ++NextStronglyOrderedTransactionSequenceNumber_;
+    }
+
+    void DoRegisterStronglyOrderedTransaction(
+        TTransactionId transactionId,
+        TTimestamp prepareTimestamp,
+        i64 sequenceNumber)
+    {
+        YT_ASSERT_SPINLOCK_AFFINITY(SequencerLock_);
+
+        EmplaceOrCrash(UncommittedTransactionSequenceNumbers_, sequenceNumber);
+        EmplaceOrCrash(TransactionIdToSequenceNumber_, transactionId, sequenceNumber);
 
         YT_LOG_DEBUG("Preparing strongly ordered transaction (TransactionId: %v, SequenceNumber: %v, PrepareTimestamp: %v)",
             transactionId,
-            NextStronglyOrderedTransactionSequenceNumber_,
+            sequenceNumber,
             prepareTimestamp);
 
-        ++NextStronglyOrderedTransactionSequenceNumber_;
         ++PreparedTransactionsTimestamps_[prepareTimestamp];
     }
 
@@ -1775,6 +1806,35 @@ private:
         }
     }
 
+    void OnTransactionAbortedOnCoordinator(TCommit* commit)
+    {
+        YT_VERIFY(HasMutationContext());
+
+        if (!commit->GetStronglyOrdered()) {
+            return;
+        }
+
+        auto transactionId = commit->GetTransactionId();
+
+        auto guard = Guard(SequencerLock_);
+        if (commit->GetPersistentState() == ECommitState::Prepare) {
+            auto prepareTimestamp = commit->PrepareTimestamp();
+            UnregisterStronglyOrderedTransaction(prepareTimestamp);
+            RemoveUncommittedTransactionsSequenceNumber(transactionId);
+        } else if (commit->GetPersistentState() == ECommitState::ReadyToCommit) {
+            auto commitTimestamp = commit->CommitTimestamps().GetTimestamp(CellTagFromId(SelfCellId_));
+            // Transactions can still be in ReadyToCommitTransactions_ if coordinator prepare was never called.
+            auto it = ReadyToCommitTransactions_.find(commitTimestamp);
+            if (it != ReadyToCommitTransactions_.end()) {
+                YT_LOG_DEBUG("Transaction was found in ReadyToCommitTransactions when aborting it, removing (TransactionId: %v)",
+                    transactionId);
+                ReadyToCommitTransactions_.erase(it);
+
+                RemoveUncommittedTransactionsSequenceNumber(transactionId);
+            }
+        }
+    }
+
     void HydraCoordinatorAbortDistributedTransactionPhaseTwo(NTransactionSupervisor::NProto::TReqCoordinatorAbortDistributedTransactionPhaseTwo* request)
     {
         auto transactionId = FromProto<TTransactionId>(request->transaction_id());
@@ -1816,32 +1876,16 @@ private:
                 NRpc::GetCurrentAuthenticationIdentity());
         }
 
-        if (commit->GetStronglyOrdered()) {
-            auto guard = Guard(SequencerLock_);
-            if (commit->GetPersistentState() == ECommitState::Prepare) {
-                auto prepareTimestamp = commit->PrepareTimestamp();
-                UnregisterStronglyOrderedTransaction(prepareTimestamp);
-                RemoveUncommittedTransactionsSequenceNumber(transactionId);
-            } else {
-                YT_VERIFY(commit->GetPersistentState() == ECommitState::ReadyToCommit);
-                auto commitTimestamp = commit->CommitTimestamps().GetTimestamp(CellTagFromId(SelfCellId_));
-                // Transaction should be removed from ReadyToCommitTransactions_ when flushing strongly ordered
-                // commits, but let's check here just in case.
-                auto it = ReadyToCommitTransactions_.find(commitTimestamp);
-                if (it != ReadyToCommitTransactions_.end()) {
-                    YT_LOG_ALERT("Transaction is still ready to commit after coordinator prepare failed (TransactionId: %v)",
-                        transactionId);
-                    ReadyToCommitTransactions_.erase(it);
-
-                    RemoveUncommittedTransactionsSequenceNumber(transactionId);
-                }
-            }
-        }
+        OnTransactionAbortedOnCoordinator(commit);
 
         SetCommitFailed(commit, error);
         ChangeCommitPersistentState(commit, ECommitState::Abort);
         ChangeCommitTransientState(commit, ECommitState::Abort);
 
+        if (commit->GetStronglyOrdered()) {
+            auto guard = Guard(SequencerLock_);
+            FlushStronglyOrderedCommits();
+        }
 
         YT_LOG_DEBUG("Coordinator aborted (TransactionId: %v, State: %v, %v)",
             transactionId,
@@ -1876,6 +1920,8 @@ private:
 
         auto* commit = FindCommit(transactionId);
         if (commit) {
+            OnTransactionAbortedOnCoordinator(commit);
+
             auto error = TError("Transaction %v was aborted", transactionId);
             SetCommitFailed(commit, error);
 
@@ -1884,6 +1930,11 @@ private:
                 ChangeCommitPersistentState(commit, ECommitState::Abort);
             } else {
                 RemoveTransientCommit(commit);
+            }
+
+            if (commit->GetStronglyOrdered()) {
+                auto guard = Guard(SequencerLock_);
+                FlushStronglyOrderedCommits();
             }
         }
 
@@ -2470,10 +2521,108 @@ private:
         }
     }
 
+    void DoRecomputeStronglyOrderedTransactionRefsOnCoordinator()
+    {
+        YT_VERIFY(HasMutationContext());
+        YT_ASSERT_SPINLOCK_AFFINITY(SequencerLock_);
+
+        YT_LOG_INFO("Recomputing strongly ordered transaction refs (UncommittedTransactionSequenceNumbers: %v, TransactionIdToSequenceNumber: %v,"
+            "PreparedTransactionsTimestamps: %v, ReadyToCommitTransactions: %v)",
+            UncommittedTransactionSequenceNumbers_.size(),
+            TransactionIdToSequenceNumber_.size(),
+            PreparedTransactionsTimestamps_.size(),
+            ReadyToCommitTransactions_.size());
+
+        auto uncommittedTransactionSequenceNumbers = std::move(UncommittedTransactionSequenceNumbers_);
+        auto transactionIdToSequenceNumber = std::move(TransactionIdToSequenceNumber_);
+        auto preparedTransactionsTimestamps = std::move(PreparedTransactionsTimestamps_);
+        auto readyToCommitTransactions = std::move(ReadyToCommitTransactions_);
+
+        UncommittedTransactionSequenceNumbers_.clear();
+        TransactionIdToSequenceNumber_.clear();
+        PreparedTransactionsTimestamps_.clear();
+        ReadyToCommitTransactions_.clear();
+
+        for (auto [transactionId, commit] : PersistentCommitMap_) {
+            if (!commit->GetStronglyOrdered()) {
+                continue;
+            }
+
+            auto state = commit->GetPersistentState();
+            YT_LOG_INFO("Found strongly ordered transaction (TransactionId: %v, State: %v)",
+                transactionId,
+                state);
+
+            if (state != ECommitState::Prepare && state != ECommitState::ReadyToCommit) {
+                continue;
+            }
+
+            auto it = transactionIdToSequenceNumber.find(transactionId);
+            if (it == transactionIdToSequenceNumber.end()) {
+                YT_LOG_ALERT("Transaction was not in transactionIdToSequenceNumber (TransactionId: %v)",
+                    transactionId);
+                continue;
+            }
+            auto sequenceNumber = it->second;
+            auto prepareTimestamp = commit->PrepareTimestamp();
+
+            if (state == ECommitState::Prepare) {
+                DoRegisterStronglyOrderedTransaction(transactionId, prepareTimestamp, sequenceNumber);
+            } else {
+                DoRegisterStronglyOrderedTransaction(transactionId, prepareTimestamp, sequenceNumber);
+                UnregisterStronglyOrderedTransaction(prepareTimestamp);
+
+                const auto& commitTimestamps = commit->CommitTimestamps();
+                auto commitTimestamp = commitTimestamps.GetTimestamp(CellTagFromId(SelfCellId_));
+                TTransactionInfo transactionInfo{
+                    .TransactionId = transactionId,
+                    .CommitTimestampClusterTag = SelfClockClusterTag_,
+                    .IsCoordinator = true,
+                };
+                EmplaceOrCrash(ReadyToCommitTransactions_, commitTimestamp, transactionInfo);
+            }
+        }
+
+        auto makeFormattableReadyToCommitTransactions = [] (const auto& readyToCommitTransactions) {
+            return MakeFormattableView(readyToCommitTransactions, [] (auto* builder, const auto& pair) {
+                builder->AppendFormat("<%v, %v>",
+                    pair.first,
+                    pair.second.TransactionId);
+            });
+        };
+        YT_LOG_ALERT_IF(uncommittedTransactionSequenceNumbers != UncommittedTransactionSequenceNumbers_,
+            "UncommittedTransactionSequenceNumbers is different after recompute (OldUncommittedTransactionSequenceNumbers: %v, NewUncommittedTransactionSequenceNumbers: %v",
+            uncommittedTransactionSequenceNumbers,
+            UncommittedTransactionSequenceNumbers_);
+        YT_LOG_ALERT_IF(transactionIdToSequenceNumber != TransactionIdToSequenceNumber_,
+            "TransactionIdToSequenceNumber is different after recompute (OldTransactionIdToSequenceNumber: %v, NewTransactionIdToSequenceNumber: %v",
+            transactionIdToSequenceNumber,
+            TransactionIdToSequenceNumber_);
+        YT_LOG_ALERT_IF(preparedTransactionsTimestamps != PreparedTransactionsTimestamps_,
+            "PreparedTransactionsTimestamps is different after recompute (OldPreparedTransactionsTimestamps: %v, NewPreparedTransactionsTimestamps: %v",
+            preparedTransactionsTimestamps,
+            PreparedTransactionsTimestamps_);
+        YT_LOG_ALERT_IF(readyToCommitTransactions != ReadyToCommitTransactions_,
+            "ReadyToCommitTransactions is different after recompute (OldReadyToCommitTransactions: %v, NewReadyToCommitTransactions: %v",
+            makeFormattableReadyToCommitTransactions(readyToCommitTransactions),
+            makeFormattableReadyToCommitTransactions(ReadyToCommitTransactions_));
+
+        YT_LOG_INFO("Finished recomputing strongly ordered transaction refs (UncommittedTransactionSequenceNumbers: %v, TransactionIdToSequenceNumber: %v,"
+            "PreparedTransactionsTimestamps: %v, ReadyToCommitTransactions: %v)",
+            UncommittedTransactionSequenceNumbers_.size(),
+            TransactionIdToSequenceNumber_.size(),
+            PreparedTransactionsTimestamps_.size(),
+            ReadyToCommitTransactions_.size());
+    }
+
     void FlushStronglyOrderedCommits()
     {
         YT_ASSERT_SPINLOCK_AFFINITY(SequencerLock_);
         YT_VERIFY(HasMutationContext());
+
+        if (Config_->ValidateStronglyOrderedTransactionRefs) {
+            DoRecomputeStronglyOrderedTransactionRefsOnCoordinator();
+        }
 
         while (!ReadyToCommitTransactions_.empty()) {
             auto it = ReadyToCommitTransactions_.begin();

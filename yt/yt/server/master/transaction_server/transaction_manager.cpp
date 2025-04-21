@@ -3331,15 +3331,19 @@ private:
     {
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
+        TSensorBuffer buffer;
         if (TransactionPresenceCache_) {
-            TSensorBuffer buffer;
-
             buffer.AddGauge("/cached_replicated_transaction_count", TransactionPresenceCache_->GetReplicatedTransactionCount());
             buffer.AddGauge("/cached_recently_finished_transaction_count", TransactionPresenceCache_->GetRecentlyFinishedTransactionCount());
             buffer.AddGauge("/subscribed_remote_transaction_replication_count", TransactionPresenceCache_->GetSubscribedRemoteTransactionReplicationCount());
-
-            BufferedProducer_->Update(std::move(buffer));
         }
+
+        const auto& transactionSupervisor = Bootstrap_->GetTransactionSupervisor();
+        if (transactionSupervisor) {
+            transactionSupervisor->OnProfiling(&buffer);
+        }
+
+        BufferedProducer_->Update(std::move(buffer));
     }
 
     const TDynamicTransactionManagerConfigPtr& GetDynamicConfig()
@@ -3347,9 +3351,17 @@ private:
         return Bootstrap_->GetConfigManager()->GetConfig()->TransactionManager;
     }
 
-    void OnDynamicConfigChanged(TDynamicClusterConfigPtr /*oldConfig*/)
+    void OnDynamicConfigChanged(TDynamicClusterConfigPtr oldConfig)
     {
-        ProfilingExecutor_->SetPeriod(GetDynamicConfig()->ProfilingPeriod);
+        const auto& newConfig = GetDynamicConfig();
+        ProfilingExecutor_->SetPeriod(newConfig->ProfilingPeriod);
+
+        if (HasMutationContext()) {
+            if (oldConfig->TransactionManager->RecomputeStronglyOrderedTransactionRefs != newConfig->RecomputeStronglyOrderedTransactionRefs) {
+                const auto& transactionSupervisor = Bootstrap_->GetTransactionSupervisor();
+                transactionSupervisor->RecomputeStronglyOrderedTransactionRefsOnCoordinator();
+            }
+        }
     }
 
     void ThrowTransactionSuccessorHasLeases(TTransaction* transaction)

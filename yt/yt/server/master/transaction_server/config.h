@@ -80,6 +80,9 @@ public:
     // COMPAT(shakurov)
     bool EnableStartForeignTransactionFixes;
 
+    // COMPAT(aleksandra-zh)
+    int RecomputeStronglyOrderedTransactionRefs;
+
     REGISTER_YSON_STRUCT(TDynamicTransactionManagerConfig);
 
     static void Register(TRegistrar registrar);
