@@ -582,7 +582,6 @@ class UserJobSpecBuilder(object):
             input_table_count=len(input_tables),
             output_table_count=len(output_tables),
             use_yamr_descriptors=spec.get("use_yamr_descriptors", False),
-            redirect_stdout_to_stderr=spec.get("redirect_stdout_to_stderr", False),
             pickling_encryption_key=operation_preparation_context._pickling_encryption_key,
         )
 
@@ -864,10 +863,9 @@ class UserJobSpecBuilder(object):
         if output_format is not None:
             spec["output_format"] = output_format.to_yson_type()
 
-        spec = self._prepare_ld_library_path(spec, client)
-        spec.setdefault("redirect_stdout_to_stderr",
-                        get_config(client)["pickling"]["redirect_stdout_to_stderr"])
+        can_redirect_stdout = type(spec.get("command")) != str and not getattr(spec.get("command"), "attributes", {}).get("is_raw_io")
 
+        spec = self._prepare_ld_library_path(spec, client)
         spec, tmpfs_size, input_tables = self._prepare_job_files(
             spec, group_by, should_process_key_switch, operation_type, local_files_to_remove, uploaded_files,
             input_format, output_format, input_tables, output_tables, operation_preparation_context, client)
@@ -881,8 +879,10 @@ class UserJobSpecBuilder(object):
 
         spec.setdefault("use_yamr_descriptors",
                         get_config(client)["yamr_mode"]["use_yamr_style_destination_fds"])
-        spec.setdefault("check_input_fully_consumed",
-                        get_config(client)["yamr_mode"]["check_input_fully_consumed"])
+        if not spec.get("use_yamr_descriptors", False) and can_redirect_stdout:
+            # apply default for python code "mappers" and not for yamr mode
+            spec.setdefault("redirect_stdout_to_stderr", get_config(client)["pickling"]["redirect_stdout_to_stderr"])
+        spec.setdefault("check_input_fully_consumed", get_config(client)["yamr_mode"]["check_input_fully_consumed"])
         spec = self._prepare_tmpfs(spec, tmpfs_size, client)
         spec = self._prepare_memory_limit(spec, client)
         spec = BaseLayerDetector.guess_base_layers(spec, client)
