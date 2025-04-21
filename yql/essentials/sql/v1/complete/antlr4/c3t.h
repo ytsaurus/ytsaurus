@@ -12,6 +12,7 @@
 #include <util/generic/fwd.h>
 #include <util/generic/string.h>
 #include <util/generic/vector.h>
+#include <util/generic/yexception.h>
 
 namespace NSQLComplete {
 
@@ -42,9 +43,8 @@ namespace NSQLComplete {
         }
 
         TC3Candidates Complete(TCompletionInput input) override {
-            auto prefix = input.Text.Head(input.CursorPosition);
-            Assign(prefix);
-            const auto caretTokenIndex = CaretTokenIndex(prefix);
+            Assign(input.Text.Head(input.CursorPosition));
+            const auto caretTokenIndex = CaretTokenIndex();
             auto candidates = CompletionCore.collectCandidates(caretTokenIndex);
             return Converted(std::move(candidates));
         }
@@ -57,19 +57,16 @@ namespace NSQLComplete {
             Tokens.fill();
         }
 
-        size_t CaretTokenIndex(TStringBuf prefix) {
-            size_t cursor = 0;
-            for (size_t i = 0; i < Tokens.size(); ++i) {
-                antlr4::Token* token = Tokens.get(i);
-                cursor += token->getText().size();
-                if (prefix.size() <= cursor) {
-                    if (PunctuationTokens.contains(token->getType())) {
-                        return i + 1;
-                    }
-                    return i;
+        size_t CaretTokenIndex() {
+            Y_ENSURE(0 < Tokens.size());
+            auto index = Tokens.size() - 1;
+            if (1 <= index) {
+                antlr4::Token* token = Tokens.get(index - 1);
+                if (!PunctuationTokens.contains(token->getType())) {
+                    index -= 1;
                 }
             }
-            return Tokens.size() - 1;
+            return index;
         }
 
         static TC3Candidates Converted(c3::CandidatesCollection candidates) {
