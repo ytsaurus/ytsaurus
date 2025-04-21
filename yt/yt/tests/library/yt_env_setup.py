@@ -1239,8 +1239,6 @@ class YTEnvSetup(object):
             configs["cypress_proxy"][index] = cls.update_timestamp_provider_config(cluster_index, config)
             configs["cypress_proxy"][index] = cls.update_sequoia_connection_config(cluster_index, config)
             cls.modify_cypress_proxy_config(configs["cypress_proxy"][index])
-            yt_commands.print_debug("Cypress proxy config patch: " + str(cls.get_param("DELTA_CYPRESS_PROXY_CONFIG", cluster_index)))
-            yt_commands.print_debug(f"Updated Cypress proxy config: {config}")
             configs["multi"]["daemons"][f"cypress_proxy_{index}"]["config"] = configs["cypress_proxy"][index]
 
         for key, config in configs["driver"].items():
