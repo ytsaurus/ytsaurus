@@ -1058,7 +1058,7 @@ private:
             }
 
             if (job->GetStored()) {
-                if (!jobConfirmationRequested && !job->IsGrowingStale(context->JobStalenessDelay)) {
+                if (!jobConfirmationRequested && !job->ShouldResend(context->JobStalenessDelay)) {
                     continue;
                 }
 

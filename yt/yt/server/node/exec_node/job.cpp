@@ -1049,6 +1049,12 @@ void TJob::UpdateControllerAgentDescriptor(TControllerAgentDescriptor descriptor
     ControllerAgentConnector_ = Bootstrap_
             ->GetControllerAgentConnectorPool()
             ->GetControllerAgentConnector(ControllerAgentDescriptor_);
+
+    if (Stored_) {
+        JobResendBackoffStartTime_ = TInstant::Now();
+        YT_LOG_DEBUG(
+            "Job reset backoff start time reset");
+    }
 }
 
 EJobType TJob::GetType() const
@@ -1502,7 +1508,8 @@ TBriefJobInfo TJob::GetBriefInfo() const
         JobEvents_,
         CoreInfos_,
         ExecAttributes_,
-        tryGetMonitoringDescriptor());
+        tryGetMonitoringDescriptor(),
+        JobResendBackoffStartTime_);
 }
 
 NYTree::IYPathServicePtr TJob::CreateStaticOrchidService()
@@ -1921,24 +1928,24 @@ void TJob::SetStored()
     YT_LOG_DEBUG("Requested to store job");
 
     Stored_ = true;
-    LastStoredTime_ = TInstant::Now();
-    StoredEvent_.TrySet();
+    JobResendBackoffStartTime_ = TInstant::Now();
+    StoredEventPromise_.TrySet();
 }
 
-bool TJob::IsGrowingStale(TDuration maxDelay) const
+bool TJob::ShouldResend(TDuration maxDelay) const
 {
     YT_ASSERT_THREAD_AFFINITY(JobThread);
 
     YT_VERIFY(Stored_);
 
-    return LastStoredTime_ + maxDelay <= TInstant::Now();
+    return JobResendBackoffStartTime_ + maxDelay <= TInstant::Now();
 }
 
 TFuture<void> TJob::GetStoredEvent() const
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
 
-    return StoredEvent_;
+    return StoredEventPromise_.ToFuture();
 }
 
 void TJob::OnEvictedFromAllocation() noexcept
@@ -2003,7 +2010,6 @@ TControllerAgentConnectorPool::TControllerAgentConnectorPtr TJob::GetControllerA
 
     return ControllerAgentConnector_.Lock();
 }
-
 void TJob::Interrupt(
     TDuration timeout,
     EInterruptionReason interruptionReason,
