@@ -2,7 +2,7 @@
 
 #include <yql/essentials/sql/v1/complete/name/parse.h>
 #include <yql/essentials/sql/v1/complete/name/service/ranking/ranking.h>
-#include <yql/essentials/sql/v1/complete/name/service/union/name_service.cpp>
+#include <yql/essentials/sql/v1/complete/name/service/union/name_service.h>
 #include <yql/essentials/sql/v1/complete/text/case.h>
 
 #include <library/cpp/threading/future/wait/wait.h>
@@ -157,38 +157,27 @@ namespace NSQLComplete {
     class TStaticNameService: public INameService {
     public:
         explicit TStaticNameService(NameSet names, IRanking::TPtr ranking)
-            : NameSet_(std::move(names))
-            , Basic_(MakeUnionNameService([&] {
+            : Basic_(MakeUnionNameService([&] {
                 TVector<INameService::TPtr> children;
                 children.emplace_back(new TUnsafeKeywordNameService());
-                children.emplace_back(new TUnsafePragmaNameService(std::move(NameSet_.Pragmas)));
-                children.emplace_back(new TUnsafeTypeNameService(std::move(NameSet_.Types)));
-                children.emplace_back(new TUnsafeFunctionNameService(std::move(NameSet_.Functions)));
-                children.emplace_back(new TUnsafeHintNameService(std::move(NameSet_.Hints)));
+                children.emplace_back(new TUnsafePragmaNameService(std::move(names.Pragmas)));
+                children.emplace_back(new TUnsafeTypeNameService(std::move(names.Types)));
+                children.emplace_back(new TUnsafeFunctionNameService(std::move(names.Functions)));
+                children.emplace_back(new TUnsafeHintNameService(std::move(names.Hints)));
                 return children;
             }(), ranking))
             , Ranking_(std::move(ranking))
         {
-            Sort(NameSet_.Tables, NoCaseCompare);
         }
 
         NThreading::TFuture<TNameResponse> Lookup(TNameRequest request) override {
             // TODO(YQL-19747): Waiting without a timeout and error checking
             TNameResponse response = Basic_->Lookup(request).GetValueSync();
-
-            // TODO(YQL-19747): Extract to schema service
-            if (request.Constraints.Table) {
-                AppendAs<TTableName>(
-                    response.RankedNames,
-                    FilteredByPrefix(request.Prefix, NameSet_.Tables));
-            }
-
             Ranking_->CropToSortedPrefix(response.RankedNames, request.Limit);
             return NThreading::MakeFuture(std::move(response));
         }
 
     private:
-        NameSet NameSet_;
         INameService::TPtr Basic_;
         IRanking::TPtr Ranking_;
     };

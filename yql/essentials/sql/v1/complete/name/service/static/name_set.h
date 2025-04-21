@@ -13,7 +13,6 @@ namespace NSQLComplete {
         TVector<TString> Types;
         TVector<TString> Functions;
         THashMap<EStatementKind, TVector<TString>> Hints;
-        TVector<TString> Tables;
     };
 
     NameSet MakeDefaultNameSet();

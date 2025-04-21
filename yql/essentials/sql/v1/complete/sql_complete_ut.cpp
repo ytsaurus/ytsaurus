@@ -5,7 +5,9 @@
 #include <yql/essentials/sql/v1/complete/name/service/fallback/name_service.h>
 #include <yql/essentials/sql/v1/complete/name/service/ranking/frequency.h>
 #include <yql/essentials/sql/v1/complete/name/service/ranking/ranking.h>
+#include <yql/essentials/sql/v1/complete/name/service/schema/name_service.h>
 #include <yql/essentials/sql/v1/complete/name/service/static/name_service.h>
+#include <yql/essentials/sql/v1/complete/name/service/union/name_service.h>
 
 #include <yql/essentials/sql/v1/lexer/lexer.h>
 #include <yql/essentials/sql/v1/lexer/antlr4_pure/lexer.h>
@@ -59,6 +61,7 @@ Y_UNIT_TEST_SUITE(SqlCompleteTests) {
 
     ISqlCompletionEngine::TPtr MakeSqlCompletionEngineUT() {
         TLexerSupplier lexer = MakePureLexerSupplier();
+
         NameSet names = {
             .Pragmas = {"yson.CastToString"},
             .Types = {"Uint64"},
@@ -67,19 +70,47 @@ Y_UNIT_TEST_SUITE(SqlCompleteTests) {
                 {EStatementKind::Select, {"XLOCK"}},
                 {EStatementKind::Insert, {"EXPIRATION"}},
             },
-            .Tables = {"example_table"},
         };
+
+        auto schema = MakeStaticSchema({
+            {"", {{ObjectType.Folder, "local"},
+                  {ObjectType.Folder, "test"},
+                  {ObjectType.Folder, "prod"}}},
+            {"local", {{ObjectType.Table, "example"},
+                       {ObjectType.Table, "account"}}},
+        });
+
         auto ranking = MakeDefaultRanking({});
-        INameService::TPtr service = MakeStaticNameService(std::move(names), std::move(ranking));
+        INameService::TPtr service = MakeUnionNameService([&] {
+            TVector<INameService::TPtr> children;
+            children.emplace_back(MakeSchemaNameService(std::move(schema)));
+            children.emplace_back(MakeStaticNameService(std::move(names), ranking));
+            return children;
+        }(), ranking);
+
         return MakeSqlCompletionEngine(std::move(lexer), std::move(service));
     }
 
-    TVector<TCandidate> Complete(ISqlCompletionEngine::TPtr& engine, TCompletionInput input) {
+    TVector<TCandidate> Complete(ISqlCompletionEngine::TPtr& engine, TString text) {
+        auto pos = text.find_first_of('#');
+        if (pos != TString::npos) {
+            text.erase(pos);
+        } else {
+            pos = text.length();
+        }
+
+        return engine->Complete({
+            .Text = text,
+            .CursorPosition = pos,
+        }).Candidates;
+    }
+
+    TVector<TCandidate> CompleteI(ISqlCompletionEngine::TPtr& engine, TCompletionInput input) {
         return engine->Complete(input).Candidates;
     }
 
     TVector<TCandidate> CompleteTop(size_t limit, ISqlCompletionEngine::TPtr& engine, TCompletionInput input) {
-        auto candidates = Complete(engine, input);
+        auto candidates = CompleteI(engine, input);
         candidates.crop(limit);
         return candidates;
     }
@@ -124,12 +155,12 @@ Y_UNIT_TEST_SUITE(SqlCompleteTests) {
         };
 
         auto engine = MakeSqlCompletionEngineUT();
-        UNIT_ASSERT_VALUES_EQUAL(Complete(engine, {""}), expected);
-        UNIT_ASSERT_VALUES_EQUAL(Complete(engine, {" "}), expected);
-        UNIT_ASSERT_VALUES_EQUAL(Complete(engine, {"  "}), expected);
-        UNIT_ASSERT_VALUES_EQUAL(Complete(engine, {";"}), expected);
-        UNIT_ASSERT_VALUES_EQUAL(Complete(engine, {"; "}), expected);
-        UNIT_ASSERT_VALUES_EQUAL(Complete(engine, {" ; "}), expected);
+        UNIT_ASSERT_VALUES_EQUAL(Complete(engine, ""), expected);
+        UNIT_ASSERT_VALUES_EQUAL(Complete(engine, " "), expected);
+        UNIT_ASSERT_VALUES_EQUAL(Complete(engine, "  "), expected);
+        UNIT_ASSERT_VALUES_EQUAL(Complete(engine, ";"), expected);
+        UNIT_ASSERT_VALUES_EQUAL(Complete(engine, "; "), expected);
+        UNIT_ASSERT_VALUES_EQUAL(Complete(engine, " ; "), expected);
     }
 
     Y_UNIT_TEST(Alter) {
@@ -150,7 +181,7 @@ Y_UNIT_TEST_SUITE(SqlCompleteTests) {
         };
 
         auto engine = MakeSqlCompletionEngineUT();
-        UNIT_ASSERT_VALUES_EQUAL(Complete(engine, {"ALTER "}), expected);
+        UNIT_ASSERT_VALUES_EQUAL(Complete(engine, "ALTER "), expected);
     }
 
     Y_UNIT_TEST(Create) {
@@ -173,7 +204,7 @@ Y_UNIT_TEST_SUITE(SqlCompleteTests) {
         };
 
         auto engine = MakeSqlCompletionEngineUT();
-        UNIT_ASSERT_VALUES_EQUAL(Complete(engine, {"CREATE "}), expected);
+        UNIT_ASSERT_VALUES_EQUAL(Complete(engine, "CREATE "), expected);
     }
 
     Y_UNIT_TEST(CreateTable) {
@@ -182,7 +213,7 @@ Y_UNIT_TEST_SUITE(SqlCompleteTests) {
         };
 
         auto engine = MakeSqlCompletionEngineUT();
-        UNIT_ASSERT_VALUES_EQUAL(Complete(engine, {"CREATE TABLE "}), expected);
+        UNIT_ASSERT_VALUES_EQUAL(Complete(engine, "CREATE TABLE "), expected);
     }
 
     Y_UNIT_TEST(Delete) {
@@ -191,7 +222,7 @@ Y_UNIT_TEST_SUITE(SqlCompleteTests) {
         };
 
         auto engine = MakeSqlCompletionEngineUT();
-        UNIT_ASSERT_VALUES_EQUAL(Complete(engine, {"DELETE "}), expected);
+        UNIT_ASSERT_VALUES_EQUAL(Complete(engine, "DELETE "), expected);
     }
 
     Y_UNIT_TEST(DeleteFrom) {
@@ -200,7 +231,7 @@ Y_UNIT_TEST_SUITE(SqlCompleteTests) {
         };
 
         auto engine = MakeSqlCompletionEngineUT();
-        UNIT_ASSERT_VALUES_EQUAL(Complete(engine, {"DELETE FROM "}), expected);
+        UNIT_ASSERT_VALUES_EQUAL(Complete(engine, "DELETE FROM "), expected);
     }
 
     Y_UNIT_TEST(Drop) {
@@ -220,7 +251,7 @@ Y_UNIT_TEST_SUITE(SqlCompleteTests) {
         };
 
         auto engine = MakeSqlCompletionEngineUT();
-        UNIT_ASSERT_VALUES_EQUAL(Complete(engine, {"DROP "}), expected);
+        UNIT_ASSERT_VALUES_EQUAL(Complete(engine, "DROP "), expected);
     }
 
     Y_UNIT_TEST(Explain) {
@@ -263,7 +294,7 @@ Y_UNIT_TEST_SUITE(SqlCompleteTests) {
         };
 
         auto engine = MakeSqlCompletionEngineUT();
-        UNIT_ASSERT_VALUES_EQUAL(Complete(engine, {"EXPLAIN "}), expected);
+        UNIT_ASSERT_VALUES_EQUAL(Complete(engine, "EXPLAIN "), expected);
     }
 
     Y_UNIT_TEST(Grant) {
@@ -288,7 +319,7 @@ Y_UNIT_TEST_SUITE(SqlCompleteTests) {
         };
 
         auto engine = MakeSqlCompletionEngineUT();
-        UNIT_ASSERT_VALUES_EQUAL(Complete(engine, {"GRANT "}), expected);
+        UNIT_ASSERT_VALUES_EQUAL(Complete(engine, "GRANT "), expected);
     }
 
     Y_UNIT_TEST(Insert) {
@@ -298,7 +329,7 @@ Y_UNIT_TEST_SUITE(SqlCompleteTests) {
         };
 
         auto engine = MakeSqlCompletionEngineUT();
-        UNIT_ASSERT_VALUES_EQUAL(Complete(engine, {"INSERT "}), expected);
+        UNIT_ASSERT_VALUES_EQUAL(Complete(engine, "INSERT "), expected);
     }
 
     Y_UNIT_TEST(InsertInto) {
@@ -307,7 +338,7 @@ Y_UNIT_TEST_SUITE(SqlCompleteTests) {
         };
 
         auto engine = MakeSqlCompletionEngineUT();
-        UNIT_ASSERT_VALUES_EQUAL(Complete(engine, {"INSERT INTO "}), expected);
+        UNIT_ASSERT_VALUES_EQUAL(Complete(engine, "INSERT INTO "), expected);
     }
 
     Y_UNIT_TEST(Pragma) {
@@ -380,7 +411,7 @@ Y_UNIT_TEST_SUITE(SqlCompleteTests) {
         };
 
         auto engine = MakeSqlCompletionEngineUT();
-        UNIT_ASSERT_VALUES_EQUAL(Complete(engine, {"SELECT "}), expected);
+        UNIT_ASSERT_VALUES_EQUAL(Complete(engine, "SELECT "), expected);
     }
 
     Y_UNIT_TEST(SelectFrom) {
@@ -402,7 +433,7 @@ Y_UNIT_TEST_SUITE(SqlCompleteTests) {
         };
 
         auto engine = MakeSqlCompletionEngineUT();
-        UNIT_ASSERT_VALUES_EQUAL(Complete(engine, {"SELECT * FROM "}), expected);
+        UNIT_ASSERT_VALUES_EQUAL(Complete(engine, "SELECT * FROM "), expected);
     }
 
     Y_UNIT_TEST(SelectWhere) {
@@ -440,7 +471,7 @@ Y_UNIT_TEST_SUITE(SqlCompleteTests) {
         };
 
         auto engine = MakeSqlCompletionEngineUT();
-        UNIT_ASSERT_VALUES_EQUAL(Complete(engine, {"SELECT * FROM a WHERE "}), expected);
+        UNIT_ASSERT_VALUES_EQUAL(Complete(engine, "SELECT * FROM a WHERE "), expected);
     }
 
     Y_UNIT_TEST(Upsert) {
@@ -450,7 +481,7 @@ Y_UNIT_TEST_SUITE(SqlCompleteTests) {
         };
 
         auto engine = MakeSqlCompletionEngineUT();
-        UNIT_ASSERT_VALUES_EQUAL(Complete(engine, {"UPSERT "}), expected);
+        UNIT_ASSERT_VALUES_EQUAL(Complete(engine, "UPSERT "), expected);
     }
 
     Y_UNIT_TEST(TypeName) {
@@ -473,9 +504,9 @@ Y_UNIT_TEST_SUITE(SqlCompleteTests) {
         };
 
         auto engine = MakeSqlCompletionEngineUT();
-        UNIT_ASSERT_VALUES_EQUAL(Complete(engine, {"CREATE TABLE table (id "}), expected);
-        UNIT_ASSERT_VALUES_EQUAL(Complete(engine, {"SELECT CAST (1 AS "}), expected);
-        UNIT_ASSERT_VALUES_EQUAL(Complete(engine, {"SELECT OPTIONAL<"}), expected);
+        UNIT_ASSERT_VALUES_EQUAL(Complete(engine, "CREATE TABLE table (id "), expected);
+        UNIT_ASSERT_VALUES_EQUAL(Complete(engine, "SELECT CAST (1 AS "), expected);
+        UNIT_ASSERT_VALUES_EQUAL(Complete(engine, "SELECT OPTIONAL<"), expected);
     }
 
     Y_UNIT_TEST(TypeNameAsArgument) {
@@ -484,13 +515,13 @@ Y_UNIT_TEST_SUITE(SqlCompleteTests) {
             TVector<TCandidate> expected = {
                 {TypeName, "Uint64"},
             };
-            UNIT_ASSERT_VALUES_EQUAL(Complete(engine, {"SELECT Nothing(Uint"}), expected);
+            UNIT_ASSERT_VALUES_EQUAL(Complete(engine, "SELECT Nothing(Uint"), expected);
         }
         {
             TVector<TCandidate> expected = {
                 {Keyword, "OPTIONAL<"},
             };
-            UNIT_ASSERT_VALUES_EQUAL(Complete(engine, {"SELECT Nothing(Option"}), expected);
+            UNIT_ASSERT_VALUES_EQUAL(Complete(engine, "SELECT Nothing(Option"), expected);
         }
     }
 
@@ -535,7 +566,7 @@ Y_UNIT_TEST_SUITE(SqlCompleteTests) {
             TVector<TCandidate> expected = {
                 {HintName, "XLOCK"},
             };
-            UNIT_ASSERT_VALUES_EQUAL(Complete(engine, {"PROCESS my_table USING $udf(TableRows()) WITH "}), expected);
+            UNIT_ASSERT_VALUES_EQUAL(Complete(engine, "PROCESS my_table USING $udf(TableRows()) WITH "), expected);
         }
         {
             TVector<TCandidate> expected = {
@@ -543,7 +574,7 @@ Y_UNIT_TEST_SUITE(SqlCompleteTests) {
                 {Keyword, "SCHEMA"},
                 {HintName, "XLOCK"},
             };
-            UNIT_ASSERT_VALUES_EQUAL(Complete(engine, {"REDUCE my_table WITH "}), expected);
+            UNIT_ASSERT_VALUES_EQUAL(Complete(engine, "REDUCE my_table WITH "), expected);
         }
         {
             TVector<TCandidate> expected = {
@@ -551,7 +582,7 @@ Y_UNIT_TEST_SUITE(SqlCompleteTests) {
                 {Keyword, "SCHEMA"},
                 {HintName, "XLOCK"},
             };
-            UNIT_ASSERT_VALUES_EQUAL(Complete(engine, {"SELECT key FROM my_table WITH "}), expected);
+            UNIT_ASSERT_VALUES_EQUAL(Complete(engine, "SELECT key FROM my_table WITH "), expected);
         }
     }
 
@@ -563,20 +594,20 @@ Y_UNIT_TEST_SUITE(SqlCompleteTests) {
         };
 
         auto engine = MakeSqlCompletionEngineUT();
-        UNIT_ASSERT_VALUES_EQUAL(Complete(engine, {"INSERT INTO my_table WITH "}), expected);
+        UNIT_ASSERT_VALUES_EQUAL(Complete(engine, "INSERT INTO my_table WITH "), expected);
     }
 
     Y_UNIT_TEST(UTF8Wide) {
         auto engine = MakeSqlCompletionEngineUT();
-        UNIT_ASSERT_VALUES_EQUAL(Complete(engine, {"\xF0\x9F\x98\x8A"}).size(), 0);
-        UNIT_ASSERT_VALUES_EQUAL(Complete(engine, {"编码"}).size(), 0);
+        UNIT_ASSERT_VALUES_EQUAL(Complete(engine, "\xF0\x9F\x98\x8A").size(), 0);
+        UNIT_ASSERT_VALUES_EQUAL(Complete(engine, "编码").size(), 0);
     }
 
     Y_UNIT_TEST(WordBreak) {
         auto engine = MakeSqlCompletionEngineUT();
-        UNIT_ASSERT_GE(Complete(engine, {"SELECT ("}).size(), 29);
-        UNIT_ASSERT_GE(Complete(engine, {"SELECT (1)"}).size(), 30);
-        UNIT_ASSERT_GE(Complete(engine, {"SELECT 1;"}).size(), 35);
+        UNIT_ASSERT_GE(Complete(engine, "SELECT (").size(), 29);
+        UNIT_ASSERT_GE(Complete(engine, "SELECT (1)").size(), 30);
+        UNIT_ASSERT_GE(Complete(engine, "SELECT 1;").size(), 35);
     }
 
     Y_UNIT_TEST(Typing) {
@@ -602,31 +633,31 @@ Y_UNIT_TEST_SUITE(SqlCompleteTests) {
         };
 
         auto engine = MakeSqlCompletionEngineUT();
-        UNIT_ASSERT_VALUES_EQUAL(Complete(engine, {"se"}), expected);
-        UNIT_ASSERT_VALUES_EQUAL(Complete(engine, {"sE"}), expected);
-        UNIT_ASSERT_VALUES_EQUAL(Complete(engine, {"Se"}), expected);
-        UNIT_ASSERT_VALUES_EQUAL(Complete(engine, {"SE"}), expected);
+        UNIT_ASSERT_VALUES_EQUAL(Complete(engine, "se"), expected);
+        UNIT_ASSERT_VALUES_EQUAL(Complete(engine, "sE"), expected);
+        UNIT_ASSERT_VALUES_EQUAL(Complete(engine, "Se"), expected);
+        UNIT_ASSERT_VALUES_EQUAL(Complete(engine, "SE"), expected);
     }
 
     Y_UNIT_TEST(InvalidStatementsRecovery) {
         auto engine = MakeSqlCompletionEngineUT();
-        UNIT_ASSERT_GE(Complete(engine, {"select select; "}).size(), 35);
-        UNIT_ASSERT_GE(Complete(engine, {"select select;"}).size(), 35);
-        UNIT_ASSERT_VALUES_EQUAL_C(Complete(engine, {"!;"}).size(), 0, "Lexer failing");
+        UNIT_ASSERT_GE(Complete(engine, "select select; ").size(), 35);
+        UNIT_ASSERT_GE(Complete(engine, "select select;").size(), 35);
+        UNIT_ASSERT_VALUES_EQUAL_C(Complete(engine, "!;").size(), 0, "Lexer failing");
     }
 
     Y_UNIT_TEST(InvalidCursorPosition) {
         auto engine = MakeSqlCompletionEngineUT();
 
-        UNIT_ASSERT_NO_EXCEPTION(Complete(engine, {"", 0}));
-        UNIT_ASSERT_EXCEPTION(Complete(engine, {"", 1}), yexception);
+        UNIT_ASSERT_NO_EXCEPTION(CompleteI(engine, {"", 0}));
+        UNIT_ASSERT_EXCEPTION(CompleteI(engine, {"", 1}), yexception);
 
-        UNIT_ASSERT_NO_EXCEPTION(Complete(engine, {"s", 0}));
-        UNIT_ASSERT_NO_EXCEPTION(Complete(engine, {"s", 1}));
+        UNIT_ASSERT_NO_EXCEPTION(CompleteI(engine, {"s", 0}));
+        UNIT_ASSERT_NO_EXCEPTION(CompleteI(engine, {"s", 1}));
 
-        UNIT_ASSERT_NO_EXCEPTION(Complete(engine, {"ы", 0}));
-        UNIT_ASSERT_EXCEPTION(Complete(engine, {"ы", 1}), yexception);
-        UNIT_ASSERT_NO_EXCEPTION(Complete(engine, {"ы", 2}));
+        UNIT_ASSERT_NO_EXCEPTION(CompleteI(engine, {"ы", 0}));
+        UNIT_ASSERT_EXCEPTION(CompleteI(engine, {"ы", 1}), yexception);
+        UNIT_ASSERT_NO_EXCEPTION(CompleteI(engine, {"ы", 2}));
     }
 
     Y_UNIT_TEST(DefaultNameService) {
@@ -643,7 +674,7 @@ Y_UNIT_TEST_SUITE(SqlCompleteTests) {
                 {TypeName, "Unit"},
                 {TypeName, "Uint16"},
             };
-            UNIT_ASSERT_VALUES_EQUAL(Complete(engine, {"SELECT OPTIONAL<U"}), expected);
+            UNIT_ASSERT_VALUES_EQUAL(Complete(engine, "SELECT OPTIONAL<U"), expected);
         }
         {
             TVector<TCandidate> expected = {
@@ -653,23 +684,23 @@ Y_UNIT_TEST_SUITE(SqlCompleteTests) {
                 {PragmaName, "yson.CastToString"},
                 {PragmaName, "yson.DisableCastToString"},
             };
-            UNIT_ASSERT_VALUES_EQUAL(Complete(engine, {"PRAGMA yson"}), expected);
+            UNIT_ASSERT_VALUES_EQUAL(Complete(engine, "PRAGMA yson"), expected);
         }
         {
             TVector<TCandidate> expected = {
                 {HintName, "IGNORE_TYPE_V3"},
                 {HintName, "IGNORETYPEV3"},
             };
-            UNIT_ASSERT_VALUES_EQUAL(Complete(engine, {"REDUCE a WITH ig"}), expected);
+            UNIT_ASSERT_VALUES_EQUAL(Complete(engine, "REDUCE a WITH ig"), expected);
         }
     }
 
     Y_UNIT_TEST(OnFailingNameService) {
         auto service = MakeHolder<TFailingNameService>();
         auto engine = MakeSqlCompletionEngine(MakePureLexerSupplier(), std::move(service));
-        UNIT_ASSERT_EXCEPTION(Complete(engine, {""}), TDummyException);
-        UNIT_ASSERT_EXCEPTION(Complete(engine, {"SELECT OPTIONAL<U"}), TDummyException);
-        UNIT_ASSERT_EXCEPTION(Complete(engine, {"SELECT CAST (1 AS "}).size(), TDummyException);
+        UNIT_ASSERT_EXCEPTION(Complete(engine, ""), TDummyException);
+        UNIT_ASSERT_EXCEPTION(Complete(engine, "SELECT OPTIONAL<U"), TDummyException);
+        UNIT_ASSERT_EXCEPTION(Complete(engine, "SELECT CAST (1 AS ").size(), TDummyException);
     }
 
     Y_UNIT_TEST(OnSilentNameService) {
@@ -677,8 +708,8 @@ Y_UNIT_TEST_SUITE(SqlCompleteTests) {
         auto deadlined = MakeDeadlinedNameService(std::move(silent), TDuration::MilliSeconds(1));
 
         auto engine = MakeSqlCompletionEngine(MakePureLexerSupplier(), std::move(deadlined));
-        UNIT_ASSERT_EXCEPTION(Complete(engine, {"SELECT OPTIONAL<U"}), NThreading::TFutureException);
-        UNIT_ASSERT_EXCEPTION(Complete(engine, {"SELECT OPTIONAL<"}), NThreading::TFutureException);
+        UNIT_ASSERT_EXCEPTION(Complete(engine, "SELECT OPTIONAL<U"), NThreading::TFutureException);
+        UNIT_ASSERT_EXCEPTION(Complete(engine, "SELECT OPTIONAL<"), NThreading::TFutureException);
     }
 
     Y_UNIT_TEST(OnFallbackNameService) {
@@ -690,9 +721,9 @@ Y_UNIT_TEST_SUITE(SqlCompleteTests) {
         auto fallback = MakeFallbackNameService(std::move(primary), std::move(standby));
 
         auto engine = MakeSqlCompletionEngine(MakePureLexerSupplier(), std::move(fallback));
-        UNIT_ASSERT_GE(Complete(engine, {"SELECT CAST (1 AS U"}).size(), 6);
-        UNIT_ASSERT_GE(Complete(engine, {"SELECT CAST (1 AS "}).size(), 47);
-        UNIT_ASSERT_GE(Complete(engine, {"SELECT "}).size(), 55);
+        UNIT_ASSERT_GE(Complete(engine, "SELECT CAST (1 AS U").size(), 6);
+        UNIT_ASSERT_GE(Complete(engine, "SELECT CAST (1 AS ").size(), 47);
+        UNIT_ASSERT_GE(Complete(engine, "SELECT ").size(), 55);
     }
 
     Y_UNIT_TEST(Ranking) {

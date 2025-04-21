@@ -14,14 +14,14 @@ namespace NSQLComplete {
 
     using TObjectType = TString;
 
-    constexpr struct {
-        const char* Folder = "Folder";
-        const char* Table = "Table";
+    struct {
+        TString Folder = "Folder";
+        TString Table = "Table";
     } ObjectType;
 
     struct TFolderEntry {
-        TString Name;
         TObjectType Type;
+        TString Name;
     };
 
     struct TListFilter {
@@ -29,14 +29,14 @@ namespace NSQLComplete {
     };
 
     struct TListRequest {
-        const TString& System;
+        TString System;
 
         // Can end with a folder entry name hint.
         // For example, `/local/exa` lists a folder `/local`,
         // but can rank and filter entries by a hint `exa`.
-        const TPath& Path;
+        TPath Path;
 
-        const TListFilter& Filter;
+        TListFilter Filter;
         size_t Limit;
     };
 
@@ -49,7 +49,7 @@ namespace NSQLComplete {
     public:
         using TPtr = THolder<ISchema>;
 
-        ~ISchema() = default;
+        virtual ~ISchema() = default;
         virtual NThreading::TFuture<TListResponse> List(const TListRequest& request) = 0;
     };
 

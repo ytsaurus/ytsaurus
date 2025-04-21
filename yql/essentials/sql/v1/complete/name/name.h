@@ -36,6 +36,9 @@ namespace NSQLComplete {
         };
     };
 
+    struct TFolderName: TIndentifier {
+    };
+
     struct TTableName: TIndentifier {
         struct TConstraints {};
     };
@@ -46,6 +49,7 @@ namespace NSQLComplete {
         TTypeName,
         TFunctionName,
         THintName,
+        TFolderName,
         TTableName>;
 
 } // namespace NSQLComplete

@@ -1,5 +1,9 @@
 #include "schema.h"
 
+#include <yql/essentials/sql/v1/complete/text/case.h>
+
+#include <util/charset/utf8.h>
+
 namespace NSQLComplete {
 
     namespace {
@@ -15,7 +19,15 @@ namespace NSQLComplete {
                 auto [path, prefix] = ParsePath(request.Path);
 
                 TVector<TFolderEntry> entries = Data_[path];
-                // TODO(YQL-19747): filtration by the prefix.
+                EraseIf(entries, [prefix = ToLowerUTF8(prefix)](const TFolderEntry& entry) {
+                    return !entry.Name.StartsWith(prefix);
+                });
+
+                for (TFolderEntry& entry : entries) {
+                    if (path.empty()) {
+                        entry.Name.prepend('/');
+                    }
+                }
 
                 TListResponse response = {
                     .NameHintLength = prefix.size(),

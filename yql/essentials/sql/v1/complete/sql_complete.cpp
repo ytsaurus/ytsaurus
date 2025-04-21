@@ -129,6 +129,10 @@ namespace NSQLComplete {
                         if constexpr (std::is_base_of_v<THintName, T>) {
                             return {ECandidateKind::HintName, std::move(name.Indentifier)};
                         }
+                        if constexpr (std::is_base_of_v<TFolderName, T>) {
+                            name.Indentifier += "/"; // FIXME: folder candidate kind
+                            return {ECandidateKind::TableName, std::move(name.Indentifier)};
+                        }
                         if constexpr (std::is_base_of_v<TTableName, T>) {
                             return {ECandidateKind::TableName, std::move(name.Indentifier)};
                         }

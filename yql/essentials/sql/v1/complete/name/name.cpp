@@ -40,6 +40,11 @@ void Out<NSQLComplete::THintName>(IOutputStream& out, const NSQLComplete::THintN
 }
 
 template <>
+void Out<NSQLComplete::TFolderName>(IOutputStream& out, const NSQLComplete::TFolderName& name) {
+    out << name.Indentifier;
+}
+
+template <>
 void Out<NSQLComplete::TTableName>(IOutputStream& out, const NSQLComplete::TTableName& name) {
     out << name.Indentifier;
 }
