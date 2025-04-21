@@ -63,11 +63,20 @@ namespace NSQLComplete {
             auto candidates = C3.Complete(statement);
 
             NSQLTranslation::TParsedTokenList tokens = Tokenized(statement.Text);
-            tokens.crop(candidates.CaretTokenIndex + 1 + 1);
+            if (!tokens.empty()) {
+                tokens.crop(CaretTokenIndex(tokens, statement.CursorPosition) + 1);
 
-            if (candidates.CaretTokenIndex + 1 < tokens.size()) {
-                const NSQLTranslation::TParsedToken& token = tokens.at(candidates.CaretTokenIndex + 1);
-                Cerr << token.Name << Endl;
+                const auto& token = tokens.back();
+                if (token.Name == "STRING_VALUE" ||
+                    token.Name == "DIGIGTS" ||
+                    token.Name == "INTEGER_VALUE" ||
+                    token.Name == "REAL") {
+                    return {};
+                }
+
+                if (token.Name == "ID_QUOTED") {
+                    return {}; // TODO(YQL-19747): complete object names and folders
+                }
             }
 
             return {
@@ -84,7 +93,6 @@ namespace NSQLComplete {
             return {
                 .IgnoredTokens = ComputeIgnoredTokens(),
                 .PreferredRules = ComputePreferredRules(),
-                .PunctuationTokens = Grammar->GetPunctuationTokens(),
             };
         }
 
@@ -221,6 +229,21 @@ namespace NSQLComplete {
                 }
             }
             return true;
+        }
+
+        size_t CaretTokenIndex(
+            const NSQLTranslation::TParsedTokenList& tokens,
+            size_t cursorPosition) {
+            size_t cursor = 0;
+            for (size_t i = 0; i < tokens.size(); ++i) {
+                const auto& token = tokens[i];
+                cursor += token.Content.size();
+                if (cursorPosition <= cursor) {
+                    return i;
+                }
+            }
+            Y_ENSURE(tokens.empty());
+            return tokens.size() - 1;
         }
 
         const ISqlGrammar* Grammar;

@@ -559,6 +559,15 @@ Y_UNIT_TEST_SUITE(SqlCompleteTests) {
         auto engine = MakeSqlCompletionEngineUT();
         UNIT_ASSERT_VALUES_EQUAL(Complete(engine, "SELECT \"#\""), expected);
         UNIT_ASSERT_VALUES_EQUAL(Complete(engine, "SELECT `#`"), expected);
+        UNIT_ASSERT_VALUES_EQUAL(Complete(engine, "SELECT 21#21"), expected);
+    }
+
+    Y_UNIT_TEST(SemiEnclosed) {
+        TVector<TCandidate> expected = {};
+
+        auto engine = MakeSqlCompletionEngineUT();
+        UNIT_ASSERT_VALUES_EQUAL(Complete(engine, "SELECT \""), expected);
+        UNIT_ASSERT_VALUES_EQUAL(Complete(engine, "SELECT `"), expected);
     }
 
     Y_UNIT_TEST(UTF8Wide) {

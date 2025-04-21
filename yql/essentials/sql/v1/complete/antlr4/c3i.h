@@ -27,7 +27,6 @@ namespace NSQLComplete {
     struct TC3Candidates {
         TVector<TSuggestedToken> Tokens;
         TVector<TMatchedRule> Rules;
-        size_t CaretTokenIndex;
     };
 
     class IC3Engine {
@@ -38,7 +37,6 @@ namespace NSQLComplete {
         struct TConfig {
             std::unordered_set<TTokenId> IgnoredTokens;
             std::unordered_set<TRuleId> PreferredRules;
-            std::unordered_set<TTokenId> PunctuationTokens;
         };
 
         virtual TC3Candidates Complete(TCompletionInput input) = 0;
