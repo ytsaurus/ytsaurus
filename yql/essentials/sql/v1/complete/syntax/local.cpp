@@ -55,14 +55,15 @@ namespace NSQLComplete {
         }
 
         TLocalSyntaxContext Analyze(TCompletionInput input) override {
-            TStringBuf prefix;
-            if (!GetC3Prefix(input, &prefix)) {
+            TCompletionInput statement;
+            if (!GetStatement(input, statement)) {
                 return {};
             }
 
-            auto candidates = C3.Complete(prefix);
+            auto candidates = C3.Complete(statement);
 
-            NSQLTranslation::TParsedTokenList tokens = Tokenized(prefix);
+            NSQLTranslation::TParsedTokenList tokens = Tokenized(
+                statement.Text.Head(statement.CursorPosition));
 
             return {
                 .Keywords = SiftedKeywords(candidates),
@@ -96,23 +97,29 @@ namespace NSQLComplete {
             return GetC3PreferredRules();
         }
 
-        bool GetC3Prefix(TCompletionInput input, TStringBuf* prefix) {
-            *prefix = input.Text.Head(input.CursorPosition);
-
+        bool GetStatement(TCompletionInput input, TCompletionInput& output) {
             TVector<TString> statements;
             NYql::TIssues issues;
             if (!NSQLTranslationV1::SplitQueryToStatements(
-                    TString(*prefix) + (prefix->EndsWith(';') ? ";" : ""), Lexer_,
+                    TString(input.Text) + ";", Lexer_,
                     statements, issues, /* file = */ "",
                     /* areBlankSkipped = */ false)) {
                 return false;
             }
 
-            if (statements.empty()) {
-                return true;
+            size_t cursor = 0;
+            for (const auto& statement : statements) {
+                if (input.CursorPosition < cursor + statement.size()) {
+                    output = {
+                        .Text = input.Text.SubStr(cursor, statement.size()),
+                        .CursorPosition = input.CursorPosition - cursor,
+                    };
+                    return true;
+                }
+                cursor += statement.size();
             }
 
-            *prefix = prefix->Last(statements.back().size());
+            output = input;
             return true;
         }
 
@@ -188,7 +195,7 @@ namespace NSQLComplete {
             NYql::TIssues issues;
             if (!NSQLTranslation::Tokenize(
                     *Lexer_, TString(text), /* queryName = */ "",
-                    tokens, issues, /* maxErrors = */ 0)) {
+                    tokens, issues, /* maxErrors = */ 1)) {
                 return {};
             }
             Y_ENSURE(!tokens.empty() && tokens.back().Name == "EOF");

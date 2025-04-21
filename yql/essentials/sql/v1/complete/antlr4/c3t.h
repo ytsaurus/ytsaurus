@@ -40,9 +40,9 @@ namespace NSQLComplete {
             CompletionCore.preferredRules = std::move(config.PreferredRules);
         }
 
-        TC3Candidates Complete(TStringBuf prefix) override {
-            Assign(prefix);
-            const auto caretTokenIndex = CaretTokenIndex(prefix);
+        TC3Candidates Complete(TCompletionInput input) override {
+            Assign(input.Text);
+            const auto caretTokenIndex = CaretTokenIndex(input);
             auto candidates = CompletionCore.collectCandidates(caretTokenIndex);
             return Converted(std::move(candidates));
         }
@@ -55,12 +55,19 @@ namespace NSQLComplete {
             Tokens.fill();
         }
 
-        size_t CaretTokenIndex(TStringBuf prefix) {
-            const auto tokensCount = Tokens.size();
-            if (2 <= tokensCount && !LastWord(prefix).Empty()) {
-                return tokensCount - 2;
+        size_t CaretTokenIndex(TCompletionInput input) {
+            size_t cursor = 0;
+            for (size_t i = 0; i < Tokens.size(); ++i) {
+                cursor += Tokens.get(i)->getText().size();
+                if (input.CursorPosition <= cursor) {
+                    TStringBuf prefix = input.Text.Head(input.CursorPosition);
+                    if (LastWord(prefix).Empty()) {
+                        return i + 1;
+                    }
+                    return i;
+                }
             }
-            return tokensCount - 1;
+            return Tokens.size() - 1;
         }
 
         static TC3Candidates Converted(c3::CandidatesCollection candidates) {
