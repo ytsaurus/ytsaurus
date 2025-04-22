@@ -707,7 +707,7 @@ TJoinClausePtr BuildJoinClause(
     THashSet<std::string> commonColumnNames;
     // Merge columns.
     for (const auto& referenceExpr : tableJoin.Fields) {
-        auto columnName = InferReferenceName(referenceExpr->Reference);
+        auto columnName = InferColumnName(referenceExpr->Reference);
         commonColumnNames.insert(columnName);
 
         auto selfColumnType = builder->ResolveColumn(referenceExpr->Reference);

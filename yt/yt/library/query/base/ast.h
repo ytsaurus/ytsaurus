@@ -573,7 +573,7 @@ TString FormatJoin(const TJoin& join);
 TString FormatArrayJoin(const TArrayJoin& join);
 TString FormatQuery(const TQuery& query);
 TString InferColumnName(const TExpression& expr);
-TString InferColumnName(const TReference& ref);
+TString InferColumnName(const TColumnReference& ref);
 void FormatValue(TStringBuilderBase* builder, const TTableHint& hint, TStringBuf spec);
 
 ////////////////////////////////////////////////////////////////////////////////
