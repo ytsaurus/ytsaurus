@@ -42,8 +42,10 @@ using namespace NApi;
 using namespace NConcurrency;
 using namespace NHydra;
 using namespace NObjectClient;
+using namespace NLogging;
 using namespace NTabletNode::NProto;
 using namespace NTabletServer::NProto;
+using namespace NTracing;
 using namespace NTransactionClient;
 using namespace NYTree;
 using namespace NTabletClient;
@@ -53,10 +55,45 @@ using NYT::ToProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static constexpr auto& Logger = TabletNodeLogger;
+class TChaosDataTrimProgressGuard
+    : public TMoveOnly
+{
+public:
+    TChaosDataTrimProgressGuard(TChaosTabletDataPtr chaosTabletData, TLogger logger)
+        : Logger(std::move(logger))
+        , ChaosTabletData_(std::move(chaosTabletData))
+    {
+        if (ChaosTabletData_) {
+            ChaosTabletData_->IsTrimInProgress.store(true);
+        }
+    }
+
+    TChaosDataTrimProgressGuard(TChaosDataTrimProgressGuard&& guard)
+        : Logger(std::move(guard.Logger))
+        , ChaosTabletData_(std::move(guard.ChaosTabletData_))
+    { }
+
+    ~TChaosDataTrimProgressGuard()
+    {
+        if (ChaosTabletData_) {
+            ChaosTabletData_->IsTrimInProgress.store(false);
+
+            YT_LOG_DEBUG("Replication log trimming finished without actually trimming");
+        }
+    }
+
+    void Release()
+    {
+        ChaosTabletData_.Reset();
+    }
+
+private:
+    const TLogger Logger;
+
+    TChaosTabletDataPtr ChaosTabletData_;
+};
 
 ////////////////////////////////////////////////////////////////////////////////
-
 class TStoreTrimmer
     : public IStoreTrimmer
 {
@@ -182,7 +219,15 @@ private:
             trimmedRowCount = chunkStore->GetStartingRowIndex() + chunkStore->GetRowCount();
         }
 
-        CommitTrimRowsMutation(slot, tablet->GetId(), trimmedRowCount);
+        auto logger = TabletNodeLogger()
+            .WithTag("%v", tablet->GetLoggingTag());
+        auto finallyGuard = TChaosDataTrimProgressGuard(nullptr, logger);
+        CommitTrimRowsMutation(
+            std::move(slot),
+            tablet->GetId(),
+            trimmedRowCount,
+            std::move(finallyGuard),
+            std::move(logger));
     }
 
     void RequestReplicationLogStoreTrim(
@@ -203,6 +248,16 @@ private:
             return;
         }
 
+        auto tabletId = tablet->GetId();
+        auto tabletChaosData = tablet->ChaosData();
+
+        auto Logger = TabletNodeLogger().WithTag("%v", tablet->GetLoggingTag());
+
+        if (tabletChaosData->IsTrimInProgress.load()) {
+            YT_LOG_DEBUG("Skipping replication log trimming because previous iteration is not finished yet");
+            return;
+        }
+
         auto minTimestamp = MaxTimestamp;
         auto lower = tablet->GetPivotKey().Get();
         auto upper = tablet->GetNextPivotKey().Get();
@@ -215,37 +270,78 @@ private:
             minTimestamp = std::min(minTimestamp, replicaMinTimestamp);
         }
 
-        Bootstrap_->GetTableReplicatorPoolInvoker()->Invoke(BIND(
-            &TStoreTrimmer::FindReplicationLogTrimRowIndex,
-            MakeWeak(this),
-            tablet->GetId(),
+        auto finallyGuard = TChaosDataTrimProgressGuard(std::move(tabletChaosData), Logger);
+
+        TTraceContextGuard traceContextGuard(TTraceContext::NewRoot("ChaosReplicationLogStoreTrim"));
+
+        YT_LOG_DEBUG("Replication log trimming started");
+
+        auto startRowIndexFuture = BIND(
+            &TStoreTrimmer::ComputeReplicationLogTrimRowIndex,
+            MakeStrong(this),
+            tabletId,
             tablet->GetMountRevision(),
-            tablet->GetEpochAutomatonInvoker(),
             minTimestamp,
-            slot));
+            Logger)
+            .AsyncVia(Bootstrap_->GetTableReplicatorPoolInvoker())
+            .Run();
+
+        auto tabletInvoker = tablet->GetEpochAutomatonInvoker();
+        startRowIndexFuture.SubscribeUnique(
+            BIND([
+                tabletId,
+                slot = std::move(slot),
+                tabletInvoker = std::move(tabletInvoker),
+                finallyGuard = std::move(finallyGuard),
+                Logger
+            ] (TErrorOr<std::optional<i64>>&& errorOrStartRowIndex) mutable {
+                if (!errorOrStartRowIndex.IsOK()) {
+                    YT_LOG_DEBUG(errorOrStartRowIndex,
+                        "Skipping replication log trimming due to start index calculation error");
+                    return;
+                }
+
+                if (!errorOrStartRowIndex.Value()) {
+                    YT_LOG_DEBUG("Skipping replication log trimming due to start index calculated to null");
+                    return;
+                }
+
+                tabletInvoker->Invoke(BIND([
+                    tabletId,
+                    slot = std::move(slot),
+                    startRowIndex = *errorOrStartRowIndex.Value(),
+                    finallyGuard = std::move(finallyGuard),
+                    logger = Logger
+                ] () mutable {
+                    TStoreTrimmer::CommitTrimRowsMutation(
+                        std::move(slot),
+                        tabletId,
+                        startRowIndex,
+                        std::move(finallyGuard),
+                        std::move(logger));
+                }));
+            }));
     }
 
-    void FindReplicationLogTrimRowIndex(
+    std::optional<i64> ComputeReplicationLogTrimRowIndex(
         TTabletId tabletId,
         TRevision mountRevision,
-        IInvokerPtr tabletInvoker,
         TTimestamp trimTimestamp,
-        ITabletSlotPtr slot)
+        TLogger Logger)
     {
         const auto& snapshotStore = Bootstrap_->GetTabletSnapshotStore();
 
         auto tabletSnapshot = snapshotStore->FindLatestTabletSnapshot(tabletId);
         if (!tabletSnapshot) {
-            return;
+            return std::nullopt;
         }
 
         if (tabletSnapshot->MountRevision != mountRevision) {
             YT_LOG_DEBUG("Skipping replication log trim iteration due to mount revision mismatch "
-                "(TabletId: %v, RequestedMountRevision: %v, CurrentMountRevision: %v)",
-                tabletId,
+                "(RequestedMountRevision: %v, CurrentMountRevision: %v)",
                 mountRevision,
                 tabletSnapshot->MountRevision);
-            return;
+            return std::nullopt;
         }
 
         try {
@@ -264,36 +360,27 @@ private:
                 trimTimestamp,
                 chunkReadOptions);
 
-            YT_LOG_DEBUG("Computed replication log trim row count (TabletId: %v, TrimTimestamp: %v, TrimRowCount: %v)",
-                tabletId,
+            YT_LOG_DEBUG("Computed replication log trim row count (TrimTimestamp: %v, TrimRowCount: %v)",
                 trimTimestamp,
                 startRowIndex);
 
-            if (!startRowIndex) {
-                return;
-            }
-
-            tabletInvoker->Invoke(BIND(
-                &TStoreTrimmer::CommitTrimRowsMutation,
-                MakeWeak(this),
-                slot,
-                tabletId,
-                *startRowIndex));
+            return startRowIndex;
         } catch (const std::exception& ex) {
-            YT_LOG_ERROR(ex, "Error computing replication log trim row count (TabletId: %v)",
-                tabletId);
+            YT_LOG_ERROR(ex, "Error computing replication log trim row count");
+            return std::nullopt;
         }
     }
 
-    void CommitTrimRowsMutation(
+    static void CommitTrimRowsMutation(
         ITabletSlotPtr slot,
         TTabletId tabletId,
-        i64 trimmedRowCount)
+        i64 trimmedRowCount,
+        TChaosDataTrimProgressGuard&& finallyGuard,
+        TLogger Logger)
     {
         auto* tablet = slot->GetTabletManager()->FindTablet(tabletId);
         if (!tablet) {
-            YT_LOG_ALERT("Tablet not found while we are in tablet automaton invoker (TabletId: %v)",
-                tabletId);
+            YT_LOG_ALERT("Tablet not found while we are in tablet automaton invoker");
             return;
         }
 
@@ -306,7 +393,8 @@ private:
         hydraRequest.set_mount_revision(ToProto(tablet->GetMountRevision()));
         hydraRequest.set_trimmed_row_count(trimmedRowCount);
         YT_UNUSED_FUTURE(CreateMutation(slot->GetHydraManager(), hydraRequest)
-            ->CommitAndLog(Logger()));
+            ->CommitAndLog(Logger));
+        finallyGuard.Release();
     }
 
     void TrimStores(
