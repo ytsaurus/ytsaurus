@@ -4,6 +4,7 @@ RECURSE(
 
 IF (NOT OPENSOURCE)
     RECURSE(
+        core_logging
         gtest_main
         lib
         util
