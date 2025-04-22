@@ -34,7 +34,7 @@ namespace NSQLComplete {
     };
 
     struct TListResponse {
-        size_t NameHintLength;
+        size_t NameHintLength = 0;
         TVector<TFolderEntry> Entries;
     };
 
