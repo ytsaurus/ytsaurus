@@ -1,5 +1,7 @@
 #include "frequency.h"
 
+#include <yql/essentials/core/sql_types/normalize_name.h>
+
 #include <library/cpp/json/json_reader.h>
 #include <library/cpp/resource/resource.h>
 
@@ -65,7 +67,7 @@ namespace NSQLComplete {
                 item.Parent == Json.Parent.Module ||
                 item.Parent == Json.Parent.ReadHint ||
                 item.Parent == Json.Parent.InsertHint) {
-                item.Rule = ToLowerUTF8(item.Rule);
+                item.Rule = NYql::NormalizeName(item.Rule);
             }
 
             if (item.Parent == Json.Parent.Pragma) {
