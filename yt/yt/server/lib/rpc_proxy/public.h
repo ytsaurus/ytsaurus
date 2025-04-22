@@ -13,6 +13,8 @@ namespace NYT::NRpcProxy {
 DECLARE_REFCOUNTED_STRUCT(TApiServiceConfig)
 DECLARE_REFCOUNTED_STRUCT(TApiServiceDynamicConfig)
 DECLARE_REFCOUNTED_STRUCT(TUserAccessValidatorDynamicConfig)
+DECLARE_REFCOUNTED_STRUCT(TMultiproxyPresetDynamicConfig)
+DECLARE_REFCOUNTED_STRUCT(TMultiproxyDynamicConfig)
 DECLARE_REFCOUNTED_STRUCT(TStructuredLoggingTopicDynamicConfig)
 DECLARE_REFCOUNTED_STRUCT(TStructuredLoggingMethodDynamicConfig)
 DECLARE_REFCOUNTED_STRUCT(TQueryCorpusReporterConfig)
@@ -24,6 +26,10 @@ DECLARE_REFCOUNTED_STRUCT(IAccessChecker)
 DECLARE_REFCOUNTED_STRUCT(IProxyCoordinator)
 DECLARE_REFCOUNTED_STRUCT(IApiService)
 DECLARE_REFCOUNTED_STRUCT(IQueryCorpusReporter)
+DECLARE_REFCOUNTED_STRUCT(IMultiproxyAccessValidator)
+
+enum class EMultiproxyEnabledMethods;
+enum class EMultiproxyMethodKind;
 
 ////////////////////////////////////////////////////////////////////////////////
 
