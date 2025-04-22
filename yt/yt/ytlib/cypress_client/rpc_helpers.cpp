@@ -118,6 +118,18 @@ int GetResolveDepth(const NRpc::NProto::TRequestHeader& header)
         : 0;
 }
 
+void SetCausedByNodeExpiration(NRpc::NProto::TRequestHeader* header)
+{
+    header->SetExtension(TExpirationExt::caused_by_node_expiration, true);
+}
+
+bool GetCausedByNodeExpiration(const NRpc::NProto::TRequestHeader& header)
+{
+    return header.HasExtension(TExpirationExt::caused_by_node_expiration)
+        ? header.GetExtension(TExpirationExt::caused_by_node_expiration)
+        : false;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NCypressClient

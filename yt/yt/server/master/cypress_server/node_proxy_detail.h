@@ -138,6 +138,11 @@ protected:
         TRspGet* response,
         const TCtxGetPtr& context) override;
 
+    void RemoveSelf(
+        TReqRemove* request,
+        TRspRemove* response,
+        const TCtxRemovePtr& context) override;
+
     void DoRemoveSelf(bool recursive, bool force) override;
 
     // Suppress access handling in the cases below.

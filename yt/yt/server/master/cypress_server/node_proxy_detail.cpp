@@ -1161,6 +1161,25 @@ void TNontemplateCypressNodeProxyBase::GetSelf(
     }));
 }
 
+void TNontemplateCypressNodeProxyBase::RemoveSelf(
+    TReqRemove* request,
+    TRspRemove* response,
+    const TCtxRemovePtr& context)
+{
+    auto nodeId = TrunkNode_->GetId();
+    auto path = GetPath();
+
+    TNodeBase::RemoveSelf(request, response, context);
+    // Node is unreachable after this point.
+
+    YT_LOG_ACCESS_IF(
+        GetCausedByNodeExpiration(context->RequestHeader()),
+        nodeId,
+        path,
+        nullptr,
+        "TtlRemove");
+}
+
 void TNontemplateCypressNodeProxyBase::DoRemoveSelf(bool recursive, bool force)
 {
     auto* node = GetThisImpl();
