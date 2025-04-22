@@ -1897,6 +1897,10 @@ private:
             return;
         }
 
+        auto finallyGuard = Finally([tablet] {
+            tablet->ChaosData()->IsTrimInProgress.store(false);
+        });
+
         auto trimmedRowCount = request->trimmed_row_count();
 
         auto identity = NRpc::ParseAuthenticationIdentityFromProto(*request);
@@ -4176,6 +4180,7 @@ private:
             return;
         }
 
+        tablet->ChaosData()->IsTrimInProgress.store(false);
         AddChaosAgent(tablet, replicationCardId);
         tablet->GetChaosAgent()->Enable();
         tablet->GetTablePuller()->Enable();
