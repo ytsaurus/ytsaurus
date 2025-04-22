@@ -1,47 +1,15 @@
 #include "name_service.h"
 
+#include "name_index.h"
 #include "ranking.h"
 
 #include <yql/essentials/sql/v1/complete/text/case.h>
 
-#include <yql/essentials/core/sql_types/normalize_name.h>
-
 namespace NSQLComplete {
-
-    struct TNameIndexEntry {
-        TString Normalized;
-        TString Original;
-    };
-
-    using TNameIndex = TVector<TNameIndexEntry>;
-
-    bool NameIndexCompare(const TNameIndexEntry& lhs, const TNameIndexEntry& rhs) {
-        return NoCaseCompare(lhs.Normalized, rhs.Normalized);
-    }
-
-    auto NameIndexCompareLimit(size_t limit) {
-        return [cmp = NoCaseCompareLimit(limit)](const TNameIndexEntry& lhs, const TNameIndexEntry& rhs) {
-            return cmp(lhs.Normalized, rhs.Normalized);
-        };
-    }
-
-    TNameIndex BuildNameIndex(TVector<TString> originals) {
-        TNameIndex index;
-        for (auto& original : originals) {
-            TNameIndexEntry entry = {
-                .Normalized = NYql::NormalizeName(original),
-                .Original = std::move(original),
-            };
-            index.emplace_back(std::move(entry));
-        }
-
-        Sort(index, NameIndexCompare);
-        return index;
-    }
 
     const TVector<TStringBuf> FilteredByPrefix(const TString& prefix, const TNameIndex& index Y_LIFETIME_BOUND) {
         TNameIndexEntry normalized = {
-            .Normalized = NYql::NormalizeName(prefix),
+            .Normalized = NormalizeName(prefix),
             .Original = "",
         };
 
@@ -105,13 +73,13 @@ namespace NSQLComplete {
     class TStaticNameService: public INameService {
     public:
         explicit TStaticNameService(NameSet names, IRanking::TPtr ranking)
-            : Pragmas_(BuildNameIndex(std::move(names.Pragmas)))
-            , Types_(BuildNameIndex(std::move(names.Types)))
-            , Functions_(BuildNameIndex(std::move(names.Functions)))
+            : Pragmas_(BuildNameIndex(std::move(names.Pragmas), NormalizeName))
+            , Types_(BuildNameIndex(std::move(names.Types), NormalizeName))
+            , Functions_(BuildNameIndex(std::move(names.Functions), NormalizeName))
             , Hints_([hints = std::move(names.Hints)] {
                 THashMap<EStatementKind, TNameIndex> index;
                 for (auto& [k, hints] : hints) {
-                    index.emplace(k, BuildNameIndex(std::move(hints)));
+                    index.emplace(k, BuildNameIndex(std::move(hints), NormalizeName));
                 }
                 return index;
             }())

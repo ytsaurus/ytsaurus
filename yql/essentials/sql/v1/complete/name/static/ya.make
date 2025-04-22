@@ -3,6 +3,7 @@ LIBRARY()
 SRCS(
     frequency.cpp
     json_name_set.cpp
+    name_index.cpp
     name_service.cpp
     ranking.cpp
 )

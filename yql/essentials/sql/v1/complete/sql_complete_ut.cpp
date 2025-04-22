@@ -604,7 +604,6 @@ Y_UNIT_TEST_SUITE(SqlCompleteTests) {
         }
         {
             TVector<TCandidate> expected = {
-                {HintName, "IGNORETYPEV3"},
                 {HintName, "IGNORE_TYPE_V3"},
             };
             UNIT_ASSERT_VALUES_EQUAL(Complete(engine, {"REDUCE a WITH ig"}), expected);
@@ -648,10 +647,9 @@ Y_UNIT_TEST_SUITE(SqlCompleteTests) {
         auto engine = MakeSqlCompletionEngine(MakePureLexerSupplier(), std::move(service));
 
         TVector<TCandidate> expected = {
-            {HintName, "IGNORETYPEV3"},
             {HintName, "IGNORE_TYPE_V3"},
         };
-        UNIT_ASSERT_VALUES_EQUAL(Complete(engine, {"REDUCE a WITH ignore_t"}), expected);
+        UNIT_ASSERT_VALUES_EQUAL(Complete(engine, {"REDUCE a WITH ignoret"}), expected);
     }
 
     Y_UNIT_TEST(Ranking) {
@@ -727,7 +725,7 @@ Y_UNIT_TEST_SUITE(SqlCompleteTests) {
                 {HintName, "XLOCK"},
                 {HintName, "UNORDERED"},
                 {Keyword, "COLUMNS"},
-                {HintName, "FORCEINFERSCHEMA"},
+                {HintName, "FORCE_INFER_SCHEMA"},
             };
             UNIT_ASSERT_VALUES_EQUAL(CompleteTop(expected.size(), engine, {"SELECT * FROM a WITH "}), expected);
         }
