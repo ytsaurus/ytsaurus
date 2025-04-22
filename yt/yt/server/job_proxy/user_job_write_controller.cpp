@@ -13,8 +13,8 @@
 
 #include <yt/yt/ytlib/controller_agent/proto/job.pb.h>
 
-#include <yt/yt/ytlib/job_proxy/user_job_io_factory.h>
 #include <yt/yt/ytlib/job_proxy/profiling_writer.h>
+#include <yt/yt/ytlib/job_proxy/user_job_io_factory.h>
 
 #include <yt/yt/ytlib/table_client/blob_table_writer.h>
 #include <yt/yt/ytlib/table_client/config.h>

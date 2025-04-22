@@ -3,7 +3,6 @@
 
 #include <yt/yt/client/table_client/row_batch.h>
 
-
 namespace NYT::NJobProxy {
 
 using namespace NChunkClient;
@@ -85,7 +84,7 @@ public:
     }
 
 private:
-    ISchemalessMultiChunkWriterPtr Underlying_;
+    const ISchemalessMultiChunkWriterPtr Underlying_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -165,7 +164,7 @@ public:
     }
 
 private:
-    ISchemalessFormatWriterPtr Underlying_;
+    const ISchemalessFormatWriterPtr Underlying_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

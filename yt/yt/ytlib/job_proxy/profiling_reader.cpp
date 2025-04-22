@@ -111,8 +111,7 @@ public:
     }
 
 private:
-    ISchemalessMultiChunkReaderPtr Underlying_;
-
+    const ISchemalessMultiChunkReaderPtr Underlying_;
 };
 
 IProfilingMultiChunkReaderPtr CreateProfilingMultiChunkReader(
