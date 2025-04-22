@@ -531,28 +531,17 @@ private:
 
         if (TabletSnapshot_->Settings.MountConfig->RegisterChunkReplicasOnStoresUpdate) {
             const auto& chunkReplicaCache = Bootstrap_->GetConnection()->GetChunkReplicaCache();
-            auto registerReplicas = [&] (TChunkId chunkId, const auto& replicasInfo) {
-                // TODO(kvk1920): Consider using chunk + location instead of chunk + node + medium.
-                NChunkClient::TAllyReplicasInfo newReplicas;
-                newReplicas.Revision = replicasInfo.ConfirmationRevision;
-                newReplicas.Replicas.reserve(replicasInfo.Replicas.size());
-                for (auto replica : replicasInfo.Replicas) {
-                    newReplicas.Replicas.push_back(replica);
-                }
-
-                chunkReplicaCache->UpdateReplicas(chunkId, newReplicas);
-            };
 
             for (const auto& writer : Writers_) {
                 for (const auto& [chunkId, replicasInfo] : writer->GetWrittenChunkReplicasInfos()) {
-                    registerReplicas(chunkId, replicasInfo);
+                    chunkReplicaCache->UpdateReplicas(chunkId, TAllyReplicasInfo::FromWrittenChunkReplicasInfo(replicasInfo));
                 }
             }
 
             if (HunkChunkPayloadWriter_->HasHunks()) {
-                registerReplicas(
+                chunkReplicaCache->UpdateReplicas(
                     HunkChunkWriter_->GetChunkId(),
-                    HunkChunkWriter_->GetWrittenChunkReplicasInfo());
+                    TAllyReplicasInfo::FromChunkWriter(HunkChunkWriter_));
             }
         }
 
