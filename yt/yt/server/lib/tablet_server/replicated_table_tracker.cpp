@@ -871,10 +871,13 @@ public:
             if (TableAttributesFuture_.IsSet()) {
                 CurrentTableAttributes_ = TableAttributesFuture_.Get();
 
-                TGetNodeOptions options;
+                std::vector<TString> keys;
                 if (checkPreloadState) {
-                    options.Attributes = {"preload_state"};
+                    keys.push_back("preload_state");
                 }
+
+                TGetNodeOptions options;
+                options.Attributes = TAttributeFilter(std::move(keys));
                 TableAttributesFuture_ = client->GetNode(TablePath_, options);
             }
 
