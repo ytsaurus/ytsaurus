@@ -16,6 +16,8 @@
 #include <yt/yt/ytlib/chaos_client/replication_cards_watcher.h>
 #include <yt/yt/ytlib/chaos_client/replication_cards_watcher_client.h>
 
+#include <yt/yt/client/object_client/helpers.h>
+
 #include <yt/yt/client/chaos_client/replication_card_serialization.h>
 
 #include <yt/yt/core/rpc/service_detail.h>
@@ -181,6 +183,7 @@ public:
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetReplicationCard));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(WatchReplicationCard));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetReplicationCardResidency));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(GetChaosObjectResidency));
     }
 
     ~TChaosCacheService()
@@ -197,6 +200,11 @@ private:
     DECLARE_RPC_SERVICE_METHOD(NChaosClient::NProto, GetReplicationCard);
     DECLARE_RPC_SERVICE_METHOD(NChaosClient::NProto, WatchReplicationCard);
     DECLARE_RPC_SERVICE_METHOD(NChaosClient::NProto, GetReplicationCardResidency);
+    DECLARE_RPC_SERVICE_METHOD(NChaosClient::NProto, GetChaosObjectResidency);
+
+    TFuture<TCellTag> DoGetChaosObjectResidency(
+        TChaosObjectId chaosObjectId,
+        std::optional<TCellTag> cellTagToForceRefresh);
 };
 
 DEFINE_RPC_SERVICE_METHOD(TChaosCacheService, GetReplicationCard)
@@ -299,6 +307,58 @@ DEFINE_RPC_SERVICE_METHOD(TChaosCacheService, WatchReplicationCard)
     }
 }
 
+TFuture<TCellTag> TChaosCacheService::DoGetChaosObjectResidency(
+    TChaosObjectId chaosObjectId,
+    std::optional<TCellTag> cellTagToForceRefresh)
+{
+    auto chaosResidencyCache = Client_->GetNativeConnection()->GetChaosResidencyCache();
+    auto residencyFuture = chaosResidencyCache->GetChaosResidency(chaosObjectId);
+    if (!cellTagToForceRefresh) {
+        return residencyFuture;
+    }
+
+    auto refreshedFuture = residencyFuture
+        .Apply(BIND([
+            chaosResidencyCache = std::move(chaosResidencyCache),
+            chaosObjectId,
+            cellTagToForceRefresh = *cellTagToForceRefresh
+        ] (const TCellTag& cellTag)
+        {
+            if (cellTagToForceRefresh == cellTag) {
+                chaosResidencyCache->ForceRefresh(chaosObjectId, cellTag);
+                return chaosResidencyCache->GetChaosResidency(chaosObjectId);
+            } else {
+                return MakeFuture(cellTag);
+            }
+        }));
+    return refreshedFuture;
+}
+
+DEFINE_RPC_SERVICE_METHOD(TChaosCacheService, GetChaosObjectResidency)
+{
+    auto chaosObjectId = FromProto<TReplicationCardId>(request->chaos_object_id());
+    auto cellTagToForceRefresh =
+        request->has_force_refresh_chaos_object_cell_tag()
+            ? std::make_optional(FromProto<TCellTag>(
+                request->force_refresh_chaos_object_cell_tag()))
+            : std::optional<TCellTag>();
+
+    context->SetRequestInfo("ChaosObjectId: %v, ChaosObjectType: %v CellTagToForceRefresh: %v",
+        chaosObjectId,
+        TypeFromId(chaosObjectId),
+        cellTagToForceRefresh);
+
+    auto replier = BIND([context, response] (const TCellTag& cellTag) {
+        response->set_chaos_object_cell_tag(ToProto<ui32>(cellTag));
+    });
+
+    auto residencyFuture = DoGetChaosObjectResidency(chaosObjectId, cellTagToForceRefresh);
+
+    context->ReplyFrom(residencyFuture
+        .Apply(replier));
+}
+
+// COMPAT(gryzlov-ad)
 DEFINE_RPC_SERVICE_METHOD(TChaosCacheService, GetReplicationCardResidency)
 {
     auto replicationCardId = FromProto<TReplicationCardId>(request->replication_card_id());
@@ -316,30 +376,9 @@ DEFINE_RPC_SERVICE_METHOD(TChaosCacheService, GetReplicationCardResidency)
         response->set_replication_card_cell_tag(ToProto<ui32>(cellTag));
     });
 
-    auto chaosResidencyCache = Client_->GetNativeConnection()->GetChaosResidencyCache();
-    auto residencyFuture = chaosResidencyCache->GetChaosResidency(replicationCardId);
-    if (!cellTagToForceRefresh) {
-        context->ReplyFrom(residencyFuture
-            .Apply(replier));
-        return;
-    }
+    auto residencyFuture = DoGetChaosObjectResidency(replicationCardId, cellTagToForceRefresh);
 
-    auto refreshedFuture = residencyFuture
-        .Apply(BIND([
-            chaosResidencyCache = std::move(chaosResidencyCache),
-            replicationCardId,
-            cellTagToForceRefresh = *cellTagToForceRefresh
-        ] (const TCellTag& cellTag)
-        {
-            if (cellTagToForceRefresh == cellTag) {
-                chaosResidencyCache->ForceRefresh(replicationCardId, cellTag);
-                return chaosResidencyCache->GetChaosResidency(replicationCardId);
-            } else {
-                return MakeFuture(cellTag);
-            }
-        }));
-
-    context->ReplyFrom(refreshedFuture
+    context->ReplyFrom(residencyFuture
         .Apply(replier));
 }
 

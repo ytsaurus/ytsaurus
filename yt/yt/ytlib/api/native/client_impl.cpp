@@ -1,6 +1,7 @@
 #include "client_impl.h"
 
 #include "box.h"
+#include "chaos_lease_type_handler.h"
 #include "chaos_replicated_table_type_handler.h"
 #include "chaos_table_replica_type_handler.h"
 #include "config.h"
@@ -142,6 +143,7 @@ TClient::TClient(
         CreateQueueConsumerTypeHandler(this),
         CreateQueueProducerTypeHandler(this),
         CreatePipelineTypeHandler(this),
+        CreateChaosLeaseTypeHandler(this),
         CreateReplicatedTableReplicaTypeHandler(this),
         CreateSecondaryIndexTypeHandler(this),
         CreateReplicationCardTypeHandler(this),

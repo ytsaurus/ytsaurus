@@ -47,14 +47,21 @@ DEFINE_ENUM(EAutomatonThreadQueue,
     (MigrationDepartment)
 );
 
+class TChaosObjectBase;
+
+using TChaosObjectId = NChaosClient::TChaosObjectId;
+
 using TReplicationCardId = NChaosClient::TReplicationCardId;
-DECLARE_ENTITY_TYPE(TReplicationCard, NChaosClient::TReplicationCardId, NObjectClient::TObjectIdEntropyHash)
+DECLARE_ENTITY_TYPE(TReplicationCard, TReplicationCardId, NObjectClient::TObjectIdEntropyHash)
 
 using TReplicationCardCollocationId = NChaosClient::TReplicationCardCollocationId;
-DECLARE_ENTITY_TYPE(TReplicationCardCollocation, NChaosClient::TReplicationCardCollocationId, NObjectClient::TObjectIdEntropyHash)
+DECLARE_ENTITY_TYPE(TReplicationCardCollocation, TReplicationCardCollocationId, NObjectClient::TObjectIdEntropyHash)
 
 using TTransactionId = NTransactionClient::TTransactionId;
 DECLARE_ENTITY_TYPE(TTransaction, TTransactionId, ::THash<TTransactionId>)
+
+using TChaosLeaseId = NChaosClient::TChaosLeaseId;
+DECLARE_ENTITY_TYPE(TChaosLease, TChaosLeaseId, NObjectClient::TObjectIdEntropyHash)
 
 using TTimestamp = NTransactionClient::TTimestamp;
 
