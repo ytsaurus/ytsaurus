@@ -100,6 +100,7 @@ struct TChaosTabletData
     NThreading::TAtomicObject<THashMap<TTabletId, i64>> CurrentReplicationRowIndexes;
     TTransactionId PreparedWritePulledRowsTransactionId;
     TTransactionId PreparedAdvanceReplicationProgressTransactionId;
+    std::atomic<bool> IsTrimInProgress = false;
 };
 
 DEFINE_REFCOUNTED_TYPE(TChaosTabletData)
