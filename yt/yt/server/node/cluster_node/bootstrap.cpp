@@ -271,6 +271,19 @@ public:
             TDuration::MilliSeconds(500)))
     { }
 
+    TBootstrap(
+        TClusterNodeBootstrapConfigPtr config,
+        INodePtr configNode,
+        IServiceLocatorPtr serviceLocator,
+        NApi::NNative::IConnectionPtr connection)
+        : NYT::NClusterNode::TBootstrap(
+            std::move(config),
+            std::move(configNode),
+            std::move(serviceLocator))
+    {
+        Connection_ = std::move(connection);
+    }
+
     void Initialize() final
     {
         BIND(&TBootstrap::DoInitialize, MakeStrong(this))
@@ -840,9 +853,11 @@ private:
         connectionOptions.ConnectionInvoker = ConnectionThreadPool_->GetInvoker();
         connectionOptions.BlockCache = GetBlockCache();
 
-        Connection_ = NApi::NNative::CreateConnection(
-            Config_->ClusterConnection,
-            std::move(connectionOptions));
+        if (!Connection_) {
+            Connection_ = NApi::NNative::CreateConnection(
+                Config_->ClusterConnection,
+                std::move(connectionOptions));
+        }
 
         // Cycles are fine for bootstrap.
         Connection_->GetMasterCellDirectory()->SubscribeCellDirectoryChanged(
@@ -1737,6 +1752,19 @@ IBootstrapPtr CreateNodeBootstrap(
         std::move(config),
         std::move(configNode),
         std::move(serviceLocator));
+}
+
+IBootstrapPtr CreateNodeBootstrap(
+    TClusterNodeBootstrapConfigPtr config,
+    INodePtr configNode,
+    IServiceLocatorPtr serviceLocator,
+    NApi::NNative::IConnectionPtr connection)
+{
+    return New<TBootstrap>(
+        std::move(config),
+        std::move(configNode),
+        std::move(serviceLocator),
+        std::move(connection));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
