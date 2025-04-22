@@ -194,10 +194,6 @@ class TCypressNode
     , public TRefTracked<TCypressNode>
 {
 public:
-    //! Contains all nodes with parent pointing here.
-    //! When a node dies parent pointers of its immediate descendants are reset.
-    DEFINE_BYREF_RW_PROPERTY(THashSet<TCypressNode*>, ImmediateDescendants);
-
     DEFINE_BYVAL_RW_PROPERTY(TCypressNode*, TrunkNode);
 
     DEFINE_BYVAL_RW_PROPERTY(NTransactionServer::TTransaction*, Transaction);
@@ -274,7 +270,6 @@ public:
 
     using TObject::TObject;
     explicit TCypressNode(TVersionedNodeId id);
-    virtual ~TCypressNode();
 
     // COMPAT(shakurov): delete the #branchIsOk parameters.
     TInstant GetTouchTime(bool branchIsOk = false) const;
@@ -305,9 +300,12 @@ public:
      */
     virtual NYTree::ENodeType GetNodeType() const = 0;
 
-    TCypressNode* GetParent() const;
-    void SetParent(TCypressNode* parent);
-    void ResetParent();
+    TCompositeCypressNode* GetParent() const;
+    void SetParent(TCompositeCypressNode* parent);
+
+    //! In contrast to |SetParent(nullptr)|, does not update the set of immediate descendats,
+    //! just zeroes out the parent pointer.
+    void DropParent();
 
     TCypressNode* GetOriginator() const;
     void SetOriginator(TCypressNode* originator);
@@ -367,7 +365,7 @@ public:
     void VerifySequoia() const;
 
 private:
-    TCypressNodeRawPtr Parent_;
+    TCompositeCypressNodeRawPtr Parent_;
     TCypressNodeRawPtr Originator_;
     std::unique_ptr<TCypressNodeLockingState> LockingState_;
     NTransactionServer::TTransactionId TransactionId_;
@@ -380,7 +378,7 @@ private:
 DEFINE_MASTER_OBJECT_TYPE(TCypressNode)
 
 // Think twice before increasing this.
-YT_STATIC_ASSERT_SIZEOF_SANITY(TCypressNode, 408);
+YT_STATIC_ASSERT_SIZEOF_SANITY(TCypressNode, 376);
 
 ////////////////////////////////////////////////////////////////////////////////
 

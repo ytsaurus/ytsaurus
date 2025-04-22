@@ -55,6 +55,7 @@ DECLARE_ENTITY_TYPE(TAccessControlObject, TAccessControlObjectId, NObjectClient:
 DECLARE_ENTITY_TYPE(TAccessControlObjectNamespace, TAccessControlObjectNamespaceId, NObjectClient::TObjectIdEntropyHash)
 
 DECLARE_MASTER_OBJECT_TYPE(TCypressNode)
+DECLARE_MASTER_OBJECT_TYPE(TCompositeCypressNode)
 DECLARE_MASTER_OBJECT_TYPE(TLock)
 DECLARE_MASTER_OBJECT_TYPE(TCypressShard)
 DECLARE_MASTER_OBJECT_TYPE(TAccessControlObject)
@@ -63,6 +64,11 @@ DECLARE_MASTER_OBJECT_TYPE(TPortalEntranceNode)
 DECLARE_MASTER_OBJECT_TYPE(TPortalExitNode)
 DECLARE_MASTER_OBJECT_TYPE(TRootstockNode)
 DECLARE_MASTER_OBJECT_TYPE(TScionNode)
+DECLARE_MASTER_OBJECT_TYPE(TLinkNode)
+DECLARE_MASTER_OBJECT_TYPE(TDocumentNode)
+
+class TInheritedAttributeDictionary;
+using TConstInheritedAttributeDictionaryPtr = TIntrusivePtr<const TInheritedAttributeDictionary>;
 
 using TCypressNodeList = TCompactVector<TCypressNode*, 8>;
 using TCypressNodeExpirationMap = std::multimap<TInstant, TCypressNode*>;
@@ -83,14 +89,6 @@ using TInt64Node   = TScalarNode<i64>;
 using TUint64Node  = TScalarNode<ui64>;
 using TDoubleNode  = TScalarNode<double>;
 using TBooleanNode = TScalarNode<bool>;
-
-class TLinkNode;
-class TDocumentNode;
-class TPortalEntranceNode;
-class TPortalExitNode;
-class TCompositeNodeBase;
-class TRootstockNode;
-class TScionNode;
 
 template <class T>
 class TScalarNodeTypeHandler;
