@@ -9,6 +9,8 @@ namespace NSQLComplete {
     namespace {
 
         class TSchemaGateway: public ISchemaGateway {
+            static constexpr size_t MaxLimit = 4 * 1024;
+
         public:
             explicit TSchemaGateway(THashMap<TString, TVector<TFolderEntry>> data)
                 : Data_(std::move(data))
@@ -31,9 +33,8 @@ namespace NSQLComplete {
                     return types && !types->contains(entry.Type);
                 });
 
-                if (request.Limit) {
-                    entries.crop(*request.Limit);
-                }
+                Y_ENSURE(request.Limit <= MaxLimit);
+                entries.crop(request.Limit);
 
                 TListResponse response = {
                     .NameHintLength = prefix.size(),

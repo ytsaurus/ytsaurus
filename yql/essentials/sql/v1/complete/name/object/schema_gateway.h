@@ -30,7 +30,7 @@ namespace NSQLComplete {
         TString Path;
 
         TListFilter Filter;
-        TMaybe<size_t> Limit;
+        size_t Limit = 128;
     };
 
     struct TListResponse {
