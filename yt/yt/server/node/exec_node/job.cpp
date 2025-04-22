@@ -3331,10 +3331,11 @@ bool TJob::CanBeAccessedViaVirtualSandbox(const TArtifact& artifact) const
 
 void TJob::InitializeSandboxNbdRootVolumeData()
 {
-    if (!UserJobSpec_
-        || !UserJobSpec_->has_disk_request()
-        || !UserJobSpec_->disk_request().has_nbd_disk()
-        || !Bootstrap_->GetNbdServer()) {
+    if (!UserJobSpec_ ||
+        !UserJobSpec_->has_disk_request() ||
+        !UserJobSpec_->disk_request().has_nbd_disk() ||
+        !Bootstrap_->GetNbdServer())
+    {
         return;
     }
 
