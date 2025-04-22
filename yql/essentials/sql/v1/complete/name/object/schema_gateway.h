@@ -21,7 +21,7 @@ namespace NSQLComplete {
     };
 
     struct TListRequest {
-        TString System;
+        TString Cluster;
 
         // `Path` structure is defined by a `System`.
         // Can end with a folder entry name hint.
