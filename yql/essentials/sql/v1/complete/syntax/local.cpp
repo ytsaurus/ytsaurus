@@ -1,8 +1,9 @@
 #include "local.h"
 
 #include "ansi.h"
-#include "parser_call_stack.h"
 #include "grammar.h"
+#include "parser_call_stack.h"
+#include "token.h"
 
 #include <yql/essentials/sql/v1/complete/antlr4/c3i.h>
 #include <yql/essentials/sql/v1/complete/antlr4/c3t.h>
@@ -22,8 +23,6 @@
 #include <yql/essentials/parser/antlr_ast/gen/v1_ansi_antlr4/SQLv1Antlr4Parser.h>
 
 namespace NSQLComplete {
-
-    using NSQLTranslation::TParsedTokenList;
 
     template <std::regular_invocable<TParserCallStack> StackPredicate>
     std::regular_invocable<TMatchedRule> auto RuleAdapted(StackPredicate predicate) {
@@ -48,11 +47,6 @@ namespace NSQLComplete {
             TAnsiYQLGrammar,
             TDefaultYQLGrammar>;
 
-        struct TCaretTokenPosition {
-            size_t PrevTokenIndex;
-            size_t NextTokenIndex;
-        };
-
     public:
         explicit TSpecializedLocalSyntaxAnalysis(TLexerSupplier lexer)
             : Grammar(&GetSqlGrammar())
@@ -63,7 +57,7 @@ namespace NSQLComplete {
 
         TLocalSyntaxContext Analyze(TCompletionInput input) override {
             TCompletionInput statement;
-            if (!GetStatement(input, statement)) {
+            if (!GetStatement(Lexer_, input, statement)) {
                 return {};
             }
 
@@ -109,32 +103,6 @@ namespace NSQLComplete {
 
         std::unordered_set<TRuleId> ComputePreferredRules() {
             return GetC3PreferredRules();
-        }
-
-        bool GetStatement(TCompletionInput input, TCompletionInput& output) {
-            TVector<TString> statements;
-            NYql::TIssues issues;
-            if (!NSQLTranslationV1::SplitQueryToStatements(
-                    TString(input.Text) + ";", Lexer_,
-                    statements, issues, /* file = */ "",
-                    /* areBlankSkipped = */ false)) {
-                return false;
-            }
-
-            size_t cursor = 0;
-            for (const auto& statement : statements) {
-                if (input.CursorPosition < cursor + statement.size()) {
-                    output = {
-                        .Text = input.Text.SubStr(cursor, statement.size()),
-                        .CursorPosition = input.CursorPosition - cursor,
-                    };
-                    return true;
-                }
-                cursor += statement.size();
-            }
-
-            output = input;
-            return true;
         }
 
         TLocalSyntaxContext::TKeywords SiftedKeywords(const TC3Candidates& candidates) {
@@ -220,20 +188,6 @@ namespace NSQLComplete {
             return true;
         }
 
-        TCaretTokenPosition CaretTokenPosition(const TParsedTokenList& tokens, size_t cursorPosition) {
-            size_t cursor = 0;
-            for (size_t i = 0; i < tokens.size(); ++i) {
-                const auto& content = tokens[i].Content;
-                cursor += content.size();
-                if (cursorPosition < cursor) {
-                    return {i, i};
-                } else if (cursorPosition == cursor && IsWordBoundary(content.back())) {
-                    return {i, i + 1};
-                }
-            }
-            return {std::max(tokens.size(), static_cast<size_t>(1)) - 1, tokens.size()};
-        }
-
         bool IsCaretEnslosed(const TParsedTokenList& tokens, TCaretTokenPosition caret) {
             if (tokens.empty() || caret.PrevTokenIndex != caret.NextTokenIndex) {
                 return false;
@@ -245,18 +199,6 @@ namespace NSQLComplete {
                    token.Name == "DIGIGTS" ||
                    token.Name == "INTEGER_VALUE" ||
                    token.Name == "REAL";
-        }
-
-        bool EndsWith(const TParsedTokenList& tokens, const TVector<TStringBuf>& pattern) {
-            if (tokens.size() < pattern.size()) {
-                return false;
-            }
-            for (yssize_t i = tokens.ysize() - 1, j = pattern.ysize() - 1; 0 <= j; --i, --j) {
-                if (!pattern[j].empty() && tokens[i].Name != pattern[j]) {
-                    return false;
-                }
-            }
-            return true;
         }
 
         const ISqlGrammar* Grammar;
