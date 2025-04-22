@@ -189,15 +189,13 @@ class TestSimpleQueriesYql(TestQueriesYqlBase):
                 TzDate32("1960-11-24,America/Cayenne") as `TzDate32`,
                 TzDatetime64("1950-11-24T11:20:59,Europe/Samara") as `TzDatetime64`,
                 TzTimestamp64("1940-11-24T13:42:11,Iceland") as `TzTimestamp64`,
-        """,
-        [{
-            "TzDate": "2024-11-25,CET",
-            "TzDatetime": "2024-11-24T11:20:59,Australia/NSW",
-            "TzTimestamp": "2024-11-24T13:42:11,Africa/Nairobi",
-            "TzDate32": "1960-11-24,America/Cayenne",
-            "TzDatetime64": "1950-11-24T11:20:59,Europe/Samara",
-            "TzTimestamp64": "1940-11-24T13:42:11,Iceland",
-        }])
+        """, [{"TzDate": "2024-11-25,CET",
+               "TzDatetime": "2024-11-24T11:20:59,Australia/NSW",
+               "TzTimestamp": "2024-11-24T13:42:11,Africa/Nairobi",
+               "TzDate32": "1960-11-24,America/Cayenne",
+               "TzDatetime64": "1950-11-24T11:20:59,Europe/Samara",
+               "TzTimestamp64": "1940-11-24T13:42:11,Iceland"
+               }])
 
     @authors("a-romanov")
     def test_exotic_types(self, query_tracker, yql_agent):
