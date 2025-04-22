@@ -493,7 +493,7 @@ void TBlobChunkBase::DoReadBlockSet(const TReadBlockSetSessionPtr& session)
             session->CurrentEntryIndex);
         auto error = TError(NChunkClient::EErrorCode::ReaderTimeout, "Read session trimmed due to deadline");
         for (auto i = session->CurrentEntryIndex; i < session->EntryCount; ++i) {
-            if (!session->Entries[i].Cached) {
+            if (!session->Entries[i].Cached && session->Entries[i].Cookie) {
                 session->Entries[i].Cookie->SetBlock(error);
             }
         }
