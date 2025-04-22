@@ -1216,7 +1216,7 @@ void TNontemplateCypressNodeProxyBase::GetAttribute(
         ? FromProto<TAttributeFilter>(request->attributes())
         : TAttributeFilter();
 
-    context->SetRequestInfo("AttributeFilter: %v",
+    context->SetIncrementalRequestInfo("AttributeFilter: %v",
         MakeShrunkFormattableView(
             attributeFilter,
             GetDynamicCypressManagerConfig()->MaxAttributeFilterSizeToLog));
