@@ -58,6 +58,8 @@ void TQueueStaticExportConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("export_period", &TThis::ExportPeriod)
         .GreaterThan(TDuration::Zero());
+    registrar.Parameter("export_cron", &TThis::ExportCronExpression)
+        .NonEmpty();
     registrar.Parameter("export_directory", &TThis::ExportDirectory);
     registrar.Parameter("export_ttl", &TThis::ExportTtl)
         .Default(TDuration::Zero());
@@ -67,8 +69,20 @@ void TQueueStaticExportConfig::Register(TRegistrar registrar)
         .Default(false);
 
     registrar.Postprocessor([] (TThis* config) {
-        if (config->ExportPeriod.GetValue() % TDuration::Seconds(1).GetValue() != 0) {
-            THROW_ERROR_EXCEPTION("The value of \"export_period\" must be a multiple of 1000 (1 second)");
+        if (config->ExportPeriod) {
+            if (config->ExportPeriod->GetValue() % TDuration::Seconds(1).GetValue() != 0) {
+                THROW_ERROR_EXCEPTION("The value of \"export_period\" must be a multiple of 1000 (1 second)");
+            }
+            config->ExportSchedule = *config->ExportPeriod;
+        } else if (config->ExportCronExpression) {
+            try {
+                auto cronExpression = NQueueAgent::NCron::make_cron(*config->ExportCronExpression);
+                config->ExportSchedule = std::move(cronExpression);
+            } catch (const NQueueAgent::NCron::bad_cronexpr&) {
+                THROW_ERROR_EXCEPTION("The value of \"export_schedule\" is not a well-formed CRON expression");
+            }
+        } else {
+            THROW_ERROR_EXCEPTION("One of {export_period, export_schedule} must be specified");
         }
     });
 }

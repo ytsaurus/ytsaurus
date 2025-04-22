@@ -8,6 +8,8 @@
 
 #include <yt/yt/core/ytree/yson_struct.h>
 
+#include <yt/yt/server/queue_agent/croncpp.h>
+
 namespace NYT::NQueueClient {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -64,8 +66,17 @@ bool operator==(const TQueueAutoTrimConfig& lhs, const TQueueAutoTrimConfig& rhs
 struct TQueueStaticExportConfig
     : public NYTree::TYsonStruct
 {
-    //! Export will be performed at times that are multiple of this period.
-    TDuration ExportPeriod;
+    //! Export will be performed at times that are multiple of this period. Mutually exclusive
+    //! with ExportSchedule parameter.
+    std::optional<TDuration> ExportPeriod;
+
+    //! Export will be performed at schedule that is defined by this CRON expression. Mutually exclusive
+    //! with ExportPeriod parameter.
+    std::optional<TString> ExportCronExpression;
+
+    //! Either the export period or the CRON expression; part of the configuration to avoid creating
+    //! structures many times during the execution of the program.
+    std::variant<TDuration, NQueueAgent::NCron::cronexpr> ExportSchedule;
 
     //! Path to directory that will contain resulting static tables with exported data.
     NYPath::TYPath ExportDirectory;
