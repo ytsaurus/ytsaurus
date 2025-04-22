@@ -94,16 +94,15 @@ namespace NSQLComplete {
 
         for (auto& [_, group] : groups) {
             Sort(group, [](const auto& lhs, const auto& rhs) {
-                const auto& [_, lhs_freq] = lhs;
-                const auto& [__, rhs_freq] = rhs;
-                return lhs_freq < rhs_freq;
+                return std::get<1>(lhs) < std::get<1>(rhs);
             });
         }
 
         names = TVector<TString>();
+        names.reserve(groups.size());
         for (auto& [_, group] : groups) {
             Y_ASSERT(!group.empty());
-            names.emplace_back(std::get<0>(group.back()));
+            names.emplace_back(std::move(std::get<0>(group.back())));
         }
         return names;
     }
