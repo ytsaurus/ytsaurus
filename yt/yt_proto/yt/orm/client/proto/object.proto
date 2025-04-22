@@ -183,7 +183,21 @@ message TAttributeMigration
     optional bool custom_reverse_writer = 7;
 }
 
-// Next field number 53.
+// TODO(grigminakov): Support `MIGRATE_COLUMN_TO_ETC`, `MIGRATE_FROM_ETC_TO_ETC`.
+enum ELocalAttributeMigrationType
+{
+    MIGRATE_ETC_TO_COLUMN = 0;
+}
+
+message TLocalAttributeMigration
+{
+    optional ELocalAttributeMigrationType type = 1;
+    optional string path = 2;
+    optional string old_data_group = 3;
+    optional string old_lock_group = 4;
+}
+
+// Next field number 54.
 message TObjectTypeOption
 {
     reserved 6, 7, 15, 17, 20, 21, 28, 29, 38, 46;
@@ -275,7 +289,11 @@ message TObjectTypeOption
     // For internal use only. Marks objects directly handled by ORM core.
     optional bool builtin_object = 42;
 
+    // Migrations moving data from one attribute to another. E.g. moving "/spec/name" -> "/status/full_name".
     repeated TAttributeMigration attribute_migrations = 45;
+
+    // Migrations changing underlying storage of attribute. E.g. moving "/spec/age" from [spec.etc] to [spec.age].
+    repeated TLocalAttributeMigration local_attribute_migrations = 53;
 
     // meta.account_id column was mistakenly added to some ORM's.
     optional bool remove_legacy_meta_account_id = 47;
