@@ -563,11 +563,14 @@ Y_UNIT_TEST_SUITE(SqlCompleteTests) {
         UNIT_ASSERT_VALUES_EQUAL(Complete(engine, "SELECT `#`"), empty);
         UNIT_ASSERT_VALUES_EQUAL(Complete(engine, "SELECT 21#21"), empty);
 
-        UNIT_ASSERT_GT(Complete(engine, "SELECT `name`").size(), 0);
-        UNIT_ASSERT_GT(Complete(engine, "SELECT #`name`").size(), 0);
+        UNIT_ASSERT(FindPtr(Complete(engine, "SELECT `name`#"), TCandidate{Keyword, "FROM"}) != nullptr);
+        UNIT_ASSERT(FindPtr(Complete(engine, "SELECT #`name`"), TCandidate{FunctionName, "StartsWith("}) != nullptr);
 
-        UNIT_ASSERT_GT(Complete(engine, "SELECT \"a\"#\"b\"").size(), 0);
+        UNIT_ASSERT_GT_C(Complete(engine, "SELECT \"a\"#\"b\"").size(), 0, "Between tokens");
         UNIT_ASSERT_VALUES_EQUAL_C(Complete(engine, "SELECT `a`#`b`"), empty, "Solid ID_QUOTED");
+        UNIT_ASSERT_VALUES_EQUAL_C(Complete(engine, "SELECT `a#\\`b`"), empty, "Solid ID_QUOTED");
+        UNIT_ASSERT_VALUES_EQUAL_C(Complete(engine, "SELECT `a\\#`b`"), empty, "Solid ID_QUOTED");
+        UNIT_ASSERT_VALUES_EQUAL_C(Complete(engine, "SELECT `a\\`#b`"), empty, "Solid ID_QUOTED");
     }
 
     Y_UNIT_TEST(SemiEnclosed) {
