@@ -212,7 +212,10 @@ while [[ $# -gt 0 ]]; do
         shift
         ;;
     --stop)
-        docker stop $ui_container_name $yt_container_name $prometheus_container_name
+        docker stop $ui_container_name $yt_container_name
+        if [ "$(docker ps -q -f name=^/${prometheus_container_name}$)" ]; then
+          docker stop $prometheus_container_name
+        fi
         exit
         ;;
     *) # unknown option
