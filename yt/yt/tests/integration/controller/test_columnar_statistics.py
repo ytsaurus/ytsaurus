@@ -1132,6 +1132,7 @@ class TestReadSizeEstimation(_TestColumnarStatisticsBase):
     NUM_NODES = 16
 
     @authors("apollo1321")
+    @pytest.mark.timeout(300)
     @pytest.mark.parametrize("strict", [False, True])
     @pytest.mark.parametrize("mode", ["from_nodes", "from_master"])
     @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
