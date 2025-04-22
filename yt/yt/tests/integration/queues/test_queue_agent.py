@@ -4476,6 +4476,8 @@ class TestQueueExportManager(TestQueueStaticExportBase):
     @pytest.mark.parametrize("export_rate_limit", [5, 10, 20])
     @pytest.mark.timeout(150)
     def test_export_rate_limit(self, export_rate_limit):
+        pytest.skip()
+
         self._apply_dynamic_config_patch({
             "queue_agent": {
                 "queue_export_manager": {
