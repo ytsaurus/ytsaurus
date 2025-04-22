@@ -9,6 +9,7 @@ namespace NSQLComplete {
 
     using NSQLTranslation::TParsedTokenList;
 
+    // `PrevTokenIndex` = `NextTokenIndex`, iff caret is enclosed
     struct TCaretTokenPosition {
         size_t PrevTokenIndex;
         size_t NextTokenIndex;
