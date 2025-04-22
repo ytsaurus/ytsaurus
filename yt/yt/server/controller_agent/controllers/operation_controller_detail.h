@@ -1521,6 +1521,8 @@ private:
     void ReportJobCookieToArchive(const TJobletPtr& joblet) const;
     void ReportControllerStateToArchive(const TJobletPtr& joblet, EJobState state) const;
     void ReportOperationIncarnationToArchive(const TJobletPtr& joblet) const;
+    void ReportStartTimeToArchive(const TJobletPtr& joblet) const;
+    void ReportFinishTimeToArchive(const TJobletPtr& joblet) const;
 
     std::unique_ptr<TAbortedJobSummary> RegisterOutputChunkReplicas(
         const TJobSummary& jobSummary,

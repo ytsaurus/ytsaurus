@@ -20,6 +20,8 @@ public:
     TControllerJobReport Ttl(std::optional<TDuration> ttl);
     TControllerJobReport OperationIncarnation(std::string operationIncarnation);
     TControllerJobReport AllocationId(TAllocationId allocationId);
+    TControllerJobReport StartTime(TInstant startTime);
+    TControllerJobReport FinishTime(TInstant finishTime);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

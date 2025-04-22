@@ -660,12 +660,6 @@ class TestControllerAgentZombieOrchids(YTEnvSetup):
     def _create_table(self, table):
         create("table", table, attributes={"replication_factor": 1})
 
-    def _get_operation_orchid_path(self, op):
-        controller_agent = get(op.get_path() + "/@controller_agent_address")
-        return "//sys/controller_agents/instances/{}/orchid/controller_agent/operations/{}".format(
-            controller_agent, op.id
-        )
-
     def test_zombie_operation_orchids(self):
         self._create_table("//tmp/t_in")
         self._create_table("//tmp/t_out")
@@ -673,7 +667,7 @@ class TestControllerAgentZombieOrchids(YTEnvSetup):
 
         op = map(command="cat", in_=["//tmp/t_in"], out="//tmp/t_out")
 
-        orchid_path = self._get_operation_orchid_path(op)
+        orchid_path = op.get_orchid_path()
         wait(lambda: exists(orchid_path))
         assert get(orchid_path + "/state") == "completed"
         wait(lambda: not exists(orchid_path))
@@ -693,7 +687,7 @@ class TestControllerAgentZombieOrchids(YTEnvSetup):
             fail_fast=False
         )
 
-        orchid_path = self._get_operation_orchid_path(op)
+        orchid_path = op.get_orchid_path()
         wait(lambda: exists(orchid_path))
         retained_finished_jobs = get(orchid_path + "/retained_finished_jobs")
         assert len(retained_finished_jobs) == 1
