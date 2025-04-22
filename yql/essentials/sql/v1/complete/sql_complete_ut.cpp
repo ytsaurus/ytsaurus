@@ -1,6 +1,5 @@
 #include "sql_complete.h"
 
-#include <util/charset/utf8.h>
 #include <yql/essentials/sql/v1/complete/name/fallback/name_service.h>
 #include <yql/essentials/sql/v1/complete/name/static/frequency.h>
 #include <yql/essentials/sql/v1/complete/name/static/name_service.h>
@@ -11,6 +10,8 @@
 #include <yql/essentials/sql/v1/lexer/antlr4_pure_ansi/lexer.h>
 
 #include <library/cpp/testing/unittest/registar.h>
+
+#include <util/charset/utf8.h>
 
 using namespace NSQLComplete;
 
@@ -602,12 +603,14 @@ Y_UNIT_TEST_SUITE(SqlCompleteTests) {
     }
 
     Y_UNIT_TEST(Tabbing) {
-        const TString query = 
+        TString query =
             "SELECT \n"
             "  123467, \"Hello, {name}! 编码\"}, \n"
             "  (1 + (5 * 1 / 0)), MIN(identifier), \n"
             "  Bool(field), Math::Sin(var) \n"
             "FROM `local/test/space/table` JOIN test;";
+        query += query + ";";
+        query += query + ";";
 
         auto engine = MakeSqlCompletionEngineUT();
 

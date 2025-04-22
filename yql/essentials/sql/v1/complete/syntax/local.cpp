@@ -23,6 +23,8 @@
 
 namespace NSQLComplete {
 
+    using NSQLTranslation::TParsedTokenList;
+
     template <std::regular_invocable<TParserCallStack> StackPredicate>
     std::regular_invocable<TMatchedRule> auto RuleAdapted(StackPredicate predicate) {
         return [=](const TMatchedRule& rule) {
@@ -62,21 +64,9 @@ namespace NSQLComplete {
 
             auto candidates = C3.Complete(statement);
 
-            NSQLTranslation::TParsedTokenList tokens = Tokenized(statement.Text);
-            if (!tokens.empty()) {
-                tokens.crop(CaretTokenIndex(tokens, statement.CursorPosition) + 1);
-
-                const auto& token = tokens.back();
-                if (token.Name == "STRING_VALUE" ||
-                    token.Name == "DIGIGTS" ||
-                    token.Name == "INTEGER_VALUE" ||
-                    token.Name == "REAL") {
-                    return {};
-                }
-
-                if (token.Name == "ID_QUOTED") {
-                    return {}; // TODO(YQL-19747): complete object names and folders
-                }
+            TParsedTokenList tokens = TokenizedPrefix(statement);
+            if (IsCaretEnslosed(tokens)) {
+                return {};
             }
 
             return {
@@ -154,7 +144,7 @@ namespace NSQLComplete {
         }
 
         std::optional<TLocalSyntaxContext::TPragma> PragmaMatch(
-            const NSQLTranslation::TParsedTokenList& tokens, const TC3Candidates& candidates) {
+            const TParsedTokenList& tokens, const TC3Candidates& candidates) {
             if (!AnyOf(candidates.Rules, RuleAdapted(IsLikelyPragmaStack))) {
                 return std::nullopt;
             }
@@ -173,7 +163,7 @@ namespace NSQLComplete {
         }
 
         std::optional<TLocalSyntaxContext::TFunction> FunctionMatch(
-            const NSQLTranslation::TParsedTokenList& tokens, const TC3Candidates& candidates) {
+            const TParsedTokenList& tokens, const TC3Candidates& candidates) {
             if (!AnyOf(candidates.Rules, RuleAdapted(IsLikelyFunctionStack))) {
                 return std::nullopt;
             }
@@ -204,36 +194,23 @@ namespace NSQLComplete {
             };
         }
 
-        NSQLTranslation::TParsedTokenList Tokenized(const TStringBuf text) {
-            NSQLTranslation::TParsedTokenList tokens;
+        TParsedTokenList TokenizedPrefix(TCompletionInput input) {
+            TParsedTokenList tokens;
             NYql::TIssues issues;
             if (!NSQLTranslation::Tokenize(
-                    *Lexer_, TString(text), /* queryName = */ "",
+                    *Lexer_, TString(input.Text), /* queryName = */ "",
                     tokens, issues, /* maxErrors = */ 1)) {
                 return {};
             }
+
             Y_ENSURE(!tokens.empty() && tokens.back().Name == "EOF");
             tokens.pop_back();
+
+            tokens.crop(CaretTokenIndex(tokens, input.CursorPosition) + 1);
             return tokens;
         }
 
-        bool EndsWith(
-            const NSQLTranslation::TParsedTokenList& tokens,
-            const TVector<TStringBuf>& pattern) {
-            if (tokens.size() < pattern.size()) {
-                return false;
-            }
-            for (yssize_t i = tokens.ysize() - 1, j = pattern.ysize() - 1; 0 <= j; --i, --j) {
-                if (!pattern[j].empty() && tokens[i].Name != pattern[j]) {
-                    return false;
-                }
-            }
-            return true;
-        }
-
-        size_t CaretTokenIndex(
-            const NSQLTranslation::TParsedTokenList& tokens,
-            size_t cursorPosition) {
+        size_t CaretTokenIndex(const TParsedTokenList& tokens, size_t cursorPosition) {
             size_t cursor = 0;
             for (size_t i = 0; i < tokens.size(); ++i) {
                 const auto& token = tokens[i];
@@ -244,6 +221,32 @@ namespace NSQLComplete {
             }
             Y_ENSURE(tokens.empty());
             return tokens.size() - 1;
+        }
+
+        // TODO(YQL-19747): complete object names and folders
+        bool IsCaretEnslosed(const TParsedTokenList& tokens) {
+            if (tokens.empty()) {
+                return false;
+            }
+
+            const auto& token = tokens.back();
+            return token.Name == "STRING_VALUE" ||
+                   token.Name == "ID_QUOTED" ||
+                   token.Name == "DIGIGTS" ||
+                   token.Name == "INTEGER_VALUE" ||
+                   token.Name == "REAL";
+        }
+
+        bool EndsWith(const TParsedTokenList& tokens, const TVector<TStringBuf>& pattern) {
+            if (tokens.size() < pattern.size()) {
+                return false;
+            }
+            for (yssize_t i = tokens.ysize() - 1, j = pattern.ysize() - 1; 0 <= j; --i, --j) {
+                if (!pattern[j].empty() && tokens[i].Name != pattern[j]) {
+                    return false;
+                }
+            }
+            return true;
         }
 
         const ISqlGrammar* Grammar;
