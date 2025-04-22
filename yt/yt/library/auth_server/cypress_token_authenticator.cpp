@@ -46,7 +46,10 @@ public:
         auto path = Format("%v/%v/@user",
             Config_->RootPath ? Config_->RootPath : "//sys/cypress_tokens",
             ToYPathLiteral(tokenHash));
-        return Client_->GetNode(path, /*options*/ {})
+
+        TGetNodeOptions options;
+        options.ReadFrom = EMasterChannelKind::Cache;
+        return Client_->GetNode(path, options)
             .Apply(BIND(
                 &TCypressTokenAuthenticator::OnCallResult,
                 MakeStrong(this),

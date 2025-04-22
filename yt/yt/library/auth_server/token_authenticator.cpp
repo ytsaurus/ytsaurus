@@ -203,7 +203,10 @@ public:
         auto path = Format("%v/%v",
             Config_->RootPath ? Config_->RootPath : "//sys/tokens",
             ToYPathLiteral(Config_->Secure ? tokenHash : token));
-        return Client_->GetNode(path)
+
+        TGetNodeOptions options;
+        options.ReadFrom = EMasterChannelKind::Cache;
+        return Client_->GetNode(path, options)
             .Apply(BIND(
                 &TLegacyCypressTokenAuthenticator::OnCallResult,
                 MakeStrong(this),
