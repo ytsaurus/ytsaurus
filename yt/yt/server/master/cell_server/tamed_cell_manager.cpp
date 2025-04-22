@@ -2751,7 +2751,7 @@ private:
             }
 
             // Finally, cell bundles are referenced by corresponding inherited attributes.
-            if (auto* compositeNode = dynamic_cast<TCompositeNodeBase*>(node)) {
+            if (auto* compositeNode = dynamic_cast<TCompositeCypressNode*>(node)) {
                 if (const auto* attributes = compositeNode->FindAttributes()) {
                     if (auto tabletCellBundle = attributes->TabletCellBundle.ToOptional()) {
                         ++refCounters[*tabletCellBundle];

@@ -34,7 +34,6 @@ public:
     using TObject::TObject;
     explicit TNonversionedMapObjectBase(TObjectId id, bool isRoot = false);
 
-    void ResetParent();
     //! Root objects cannot be attached to a parent but can have custom names.
     bool IsRoot() const;
 

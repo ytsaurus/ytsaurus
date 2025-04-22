@@ -156,6 +156,7 @@ SRCS(
     cypress_server/access_control_object_type_handler.cpp
     cypress_server/access_control_object.cpp
     cypress_server/access_tracker.cpp
+    cypress_server/composite_node.cpp
     cypress_server/config.cpp
     cypress_server/cypress_integration.cpp
     cypress_server/cypress_manager.cpp

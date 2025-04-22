@@ -47,7 +47,7 @@ void TNonversionedMapObjectBase<TSelf>::DetachChild(TSelf* child) noexcept
 {
     YT_VERIFY(child);
     YT_VERIFY(child->GetParent() == this);
-    child->ResetParent();
+    child->SetParent(nullptr);
     for (auto* node = As<TSelf>(); node; node = node->GetParent()) {
         node->SubtreeSize_ -= child->SubtreeSize_;
     }
@@ -121,12 +121,6 @@ std::string TNonversionedMapObjectBase<TSelf>::GetRootName() const
 {
     YT_VERIFY(IsRoot());
     return NObjectClient::FromObjectId(GetId());
-}
-
-template <class TSelf>
-void TNonversionedMapObjectBase<TSelf>::ResetParent()
-{
-    SetParent(nullptr);
 }
 
 template <class TSelf>
