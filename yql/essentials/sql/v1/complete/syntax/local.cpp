@@ -48,6 +48,11 @@ namespace NSQLComplete {
             TAnsiYQLGrammar,
             TDefaultYQLGrammar>;
 
+        struct TCaretTokenPosition {
+            size_t PrevTokenIndex;
+            size_t NextTokenIndex;
+        };
+
     public:
         explicit TSpecializedLocalSyntaxAnalysis(TLexerSupplier lexer)
             : Grammar(&GetSqlGrammar())
@@ -64,8 +69,13 @@ namespace NSQLComplete {
 
             auto candidates = C3.Complete(statement);
 
-            TParsedTokenList tokens = TokenizedPrefix(statement);
-            if (IsCaretEnslosed(tokens)) {
+            TParsedTokenList tokens;
+            TCaretTokenPosition caret;
+            if (!TokenizePrefix(statement, tokens, caret)) {
+                return {};
+            }
+
+            if (IsCaretEnslosed(tokens, caret)) {
                 return {};
             }
 
@@ -194,38 +204,38 @@ namespace NSQLComplete {
             };
         }
 
-        TParsedTokenList TokenizedPrefix(TCompletionInput input) {
-            TParsedTokenList tokens;
+        bool TokenizePrefix(TCompletionInput input, TParsedTokenList& tokens, TCaretTokenPosition& caret) {
             NYql::TIssues issues;
             if (!NSQLTranslation::Tokenize(
                     *Lexer_, TString(input.Text), /* queryName = */ "",
                     tokens, issues, /* maxErrors = */ 1)) {
-                return {};
+                return false;
             }
 
             Y_ENSURE(!tokens.empty() && tokens.back().Name == "EOF");
             tokens.pop_back();
 
-            tokens.crop(CaretTokenIndex(tokens, input.CursorPosition) + 1);
-            return tokens;
+            caret = CaretTokenPosition(tokens, input.CursorPosition);
+            tokens.crop(caret.NextTokenIndex + 1);
+            return true;
         }
 
-        size_t CaretTokenIndex(const TParsedTokenList& tokens, size_t cursorPosition) {
+        TCaretTokenPosition CaretTokenPosition(const TParsedTokenList& tokens, size_t cursorPosition) {
             size_t cursor = 0;
             for (size_t i = 0; i < tokens.size(); ++i) {
-                const auto& token = tokens[i];
-                cursor += token.Content.size();
-                if (cursorPosition <= cursor) {
-                    return i;
+                const auto& content = tokens[i].Content;
+                cursor += content.size();
+                if (cursorPosition < cursor) {
+                    return {i, i};
+                } else if (cursorPosition == cursor && IsWordBoundary(content.back())) {
+                    return {i, i + 1};
                 }
             }
-            Y_ENSURE(tokens.empty());
-            return tokens.size() - 1;
+            return {std::max(tokens.size(), static_cast<size_t>(1)) - 1, tokens.size()};
         }
 
-        // TODO(YQL-19747): complete object names and folders
-        bool IsCaretEnslosed(const TParsedTokenList& tokens) {
-            if (tokens.empty()) {
+        bool IsCaretEnslosed(const TParsedTokenList& tokens, TCaretTokenPosition caret) {
+            if (tokens.empty() || caret.PrevTokenIndex != caret.NextTokenIndex) {
                 return false;
             }
 
