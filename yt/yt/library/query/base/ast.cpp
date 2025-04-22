@@ -428,14 +428,21 @@ void FormatExpressions(TStringBuilderBase* builder, const TExpressionList& exprs
 void FormatExpression(TStringBuilderBase* builder, const TExpression& expr, int depth = 0, bool expandAliases = true, bool isFinal = false);
 void FormatExpression(TStringBuilderBase* builder, const TExpressionList& expr, int depth = 0, bool expandAliases = true);
 
-void FormatReference(TStringBuilderBase* builder, const TReference& ref, int depth = 0, bool isFinal = false)
+void FormatColumnReference(TStringBuilderBase* builder, const TColumnReference& ref, bool isFinal = false)
 {
+    // TODO(lukyan): Do not use final = true if query has any table aliases.
+
     if (ref.TableName) {
-        FormatId(builder, *ref.TableName);
+        FormatId(builder, *ref.TableName, isFinal);
         builder->AppendChar('.');
     }
 
     FormatId(builder, ref.ColumnName, isFinal);
+}
+
+void FormatReference(TStringBuilderBase* builder, const TReference& ref, int depth = 0, bool isFinal = false)
+{
+    FormatColumnReference(builder, ref, isFinal);
 
     for (const auto& item : ref.CompositeTypeAccessor.NestedStructOrTupleItemAccessor) {
         Visit(item,
@@ -840,10 +847,10 @@ TString InferColumnName(const TExpression& expr)
     return builder.Flush();
 }
 
-TString InferColumnName(const TReference& ref)
+TString InferColumnName(const TColumnReference& ref)
 {
     TStringBuilder builder;
-    FormatReference(&builder, ref, /*depth*/ 0, /*isFinal*/ true);
+    FormatColumnReference(&builder, ref, /*isFinal*/ true);
     return builder.Flush();
 }
 
