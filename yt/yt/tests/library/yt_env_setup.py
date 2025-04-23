@@ -1099,6 +1099,25 @@ class YTEnvSetup(object):
 
     @classmethod
     def apply_node_dynamic_config_patches(cls, config, ytserver_version, cluster_index):
+        node_version = None
+        controller_agent_version = None
+
+        for version, components in cls.ARTIFACT_COMPONENTS.items():
+            if "node" in components:
+                node_version = version
+            if "controller-agent" in components:
+                controller_agent_version = version
+
+        resend_full_job_info_not_supported = False
+        if (node_version or "25.2") <= "25.1":
+            resend_full_job_info_not_supported = True
+
+        if (controller_agent_version or "25.2") <= "25.1":
+            resend_full_job_info_not_supported = True
+
+        if resend_full_job_info_not_supported:
+            config["%true"]["exec_node"]["job_controller"]["resend_full_job_info"] = False
+
         delta_node_config = cls.get_param("DELTA_DYNAMIC_NODE_CONFIG", cluster_index)
 
         update_inplace(config, delta_node_config)
