@@ -1851,6 +1851,10 @@ class TestCrossCellCopy(YTEnvSetup):
             # Some other nodes don't support "ls" command.
             try:
                 for child_node in ls(next_path, tx=tx):
+                    # Done to ensure that test with special YPath symbols works.
+                    if child_node.startswith("["):
+                        child_node = f"\\{child_node}"
+
                     paths_to_check.append(f"{next_path}/{child_node}")
             except YtError as err:
                 if err.contains_code(yt_error_codes.NoSuchMethod):
@@ -2446,6 +2450,17 @@ class TestCrossCellCopy(YTEnvSetup):
         else:
             self.execute_command(src_path, dst_path, lock_existing=True)
 
+    @authors("h0pless")
+    def test_ypath_special_symbols(self):
+        src_path = "//tmp/map_node"
+        self.create_map_node(src_path)
+
+        bad_path = src_path + r"/\[b16:0:b00b:5:0:15:0:c001]:1337"
+        self.create_map_node(bad_path)
+
+        dst_path = "//tmp/portal/map_node"
+
+        self.execute_command(src_path, dst_path)
 
 ################################################################################
 

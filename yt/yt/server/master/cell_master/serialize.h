@@ -255,6 +255,7 @@ DEFINE_ENUM(EMasterReign,
     ((AddLockableDynamicTables)                                     (2919))  // dave11ar
     ((DeterministicStateHashComputationInResponseKeeper)            (2920))  // koloshmet
     ((CypressProxyVersion)                                          (2921))  // kvk1920
+    ((AddEscapingInCrossCellCopy)                                   (2922))  // h0pless
 );
 
 static_assert(TEnumTraits<EMasterReign>::IsMonotonic, "Master reign enum is not monotonic");

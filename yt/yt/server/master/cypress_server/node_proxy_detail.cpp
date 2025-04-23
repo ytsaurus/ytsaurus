@@ -2315,7 +2315,7 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, AssembleTreeCopy)
 
                 currentNodeProxy->SetChildNode(
                     /*factory*/ nullptr,
-                    "/" + child.key(),
+                    "/" + ToYPathLiteral(child.key()),
                     GetProxy(childTrunkNode),
                     /*recursive*/ false);
 
