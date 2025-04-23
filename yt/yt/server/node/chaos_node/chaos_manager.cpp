@@ -360,6 +360,10 @@ public:
     void UpdateReplicationCardLagTimes(const TReplicationCard& replicationCard) override
     {
         if (IsReplicationCardMigrated(&replicationCard)) {
+            for (const auto& [replicaId, replicaInfo] : replicationCard.Replicas()) {
+                ReplicaCounters_.erase(replicaId);
+            }
+
             return;
         }
 
