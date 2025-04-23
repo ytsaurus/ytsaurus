@@ -1993,18 +1993,10 @@ class YTEnvSetup(object):
             config, self.get_param("DELTA_DYNAMIC_MASTER_CONFIG", cluster_index)
         )
         config["multicell_manager"]["cell_descriptors"] = master_cell_descriptors
-        if self.Env.get_component_version("ytserver-master").abi >= (20, 4):
-            config["enable_descending_sort_order"] = True
-            config["enable_descending_sort_order_dynamic"] = True
-        if self.Env.get_component_version("ytserver-master").abi >= (22, 1):
-            config["enable_table_column_renaming"] = True
-        allow_dynamic_renames = \
-            self.Env.get_component_version("ytserver-master").abi >= (23, 1) and \
-            self.ENABLE_DYNAMIC_TABLE_COLUMN_RENAMES
-
-        if allow_dynamic_renames:
-            config["enable_dynamic_table_column_renaming"] = True
-
+        config["enable_descending_sort_order"] = True
+        config["enable_descending_sort_order_dynamic"] = True
+        config["enable_table_column_renaming"] = True
+        config["enable_dynamic_table_column_renaming"] = self.ENABLE_DYNAMIC_TABLE_COLUMN_RENAMES
         config["enable_static_table_drop_column"] = self.ENABLE_STATIC_DROP_COLUMN
         config["enable_dynamic_table_drop_column"] = self.ENABLE_DYNAMIC_DROP_COLUMN
         config["allow_everyone_create_secondary_indices"] = self.ENABLE_ALLOW_SECONDARY_INDICES
