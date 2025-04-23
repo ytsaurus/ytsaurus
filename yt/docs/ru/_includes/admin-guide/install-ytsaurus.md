@@ -364,7 +364,7 @@ kubectl port-forward deployment/yt-ui-ytsaurus-ui-chart 8080:80
 Список встроенных скриптов:
 
 * `clear_tmp` - скрипт, который очищает временные файлы на кластере. Код скрипта живет [здесь](https://github.com/ytsaurus/ytsaurus/tree/main/yt/cron/clear_tmp).
-* `prune_offline_servers` - скрипт, который удаляет из Кипариса offline ноды. Код скрипта живет [здесь](https://github.com/ytsaurus/ytsaurus/blob/main/yt/cron/prune_offline_servers).
+* `prune_offline_cluster_nodes` - скрипт, который удаляет из Кипариса offline ноды. Код скрипта живет [здесь](https://github.com/ytsaurus/ytsaurus/blob/main/yt/cron/prune_offline_cluster_nodes).
 
 ### Предварительные требования
 

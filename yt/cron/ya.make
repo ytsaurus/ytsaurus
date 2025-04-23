@@ -1,6 +1,6 @@
 RECURSE(
     clear_tmp
-    prune_offline_servers
+    prune_offline_cluster_nodes
 )
 
 IF (NOT OPENSOURCE)

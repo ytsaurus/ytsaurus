@@ -55,7 +55,7 @@ def prune(dry_run: bool, nodes_path: str, node_flavors: list[str], node_ttl: int
 
 
 def main():
-    parser = ArgumentParser(description="Prunes offline server nodes from Cypress")
+    parser = ArgumentParser(description="Prunes offline cluster nodes from Cypress")
     parser.add_argument("--log-level", default="INFO")
     parser.add_argument("--path", default="//sys/cluster_nodes", help="Search path (//sys/cluster_nodes by default)")
     parser.add_argument("--node-flavors", default=["exe", "flavor:exec"], help="Comma separated of node flavors to be processes (exec by default)")
