@@ -727,6 +727,9 @@ public:
 
         auto transactionId = transaction->GetId();
 
+        const auto& securityManager = Bootstrap_->GetSecurityManager();
+        securityManager->ValidatePermission(transaction, EPermission::Write);
+
         auto state = transaction->GetPersistentState();
         if (state == ETransactionState::Committed) {
             YT_LOG_DEBUG("Transaction is already committed (TransactionId: %v)",
@@ -879,7 +882,6 @@ public:
             options.CommitTimestampClusterTag,
             time);
 
-        const auto& securityManager = Bootstrap_->GetSecurityManager();
         securityManager->ChargeUser(user, {EUserWorkloadType::Write, 1, time});
     }
 
@@ -1921,6 +1923,7 @@ public:
                 transactionId,
                 prerequisiteTransactionIds,
                 std::move(mutationId),
+                NRpc::GetCurrentAuthenticationIdentity(),
                 isRetry)
                     .AsyncVia(EpochAutomatonInvoker_));
     }
@@ -1929,6 +1932,7 @@ public:
         TTransactionId transactionId,
         std::vector<TTransactionId> prerequisiteTransactionIds,
         NRpc::TMutationId mutationId,
+        NRpc::TAuthenticationIdentity authenticationIdentity,
         bool isRetry,
         const TErrorOr<TTimestamp>& timestampOrError)
     {
@@ -1950,14 +1954,14 @@ public:
                 transactionId,
                 std::move(prerequisiteTransactionIds),
                 commitTimestamp,
-                NRpc::GetCurrentAuthenticationIdentity());
+                authenticationIdentity);
         }
 
         auto request = BuildCommitCypressTransactionRequest(
             transactionId,
             commitTimestamp,
             prerequisiteTransactionIds,
-            NRpc::GetCurrentAuthenticationIdentity());
+            authenticationIdentity);
 
         auto mutation = CreateMutation(HydraManager_, request);
         mutation->SetMutationId(mutationId, isRetry);
@@ -2568,6 +2572,10 @@ private:
 
         auto transactionId = FromProto<TTransactionId>(request->transaction_id());
         auto* transaction = GetTransactionOrThrow(transactionId);
+
+        const auto& securityManager = Bootstrap_->GetSecurityManager();
+        TAuthenticatedUserGuard userGuard(securityManager);
+        securityManager->ValidatePermission(transaction, EPermission::Write);
 
         auto prerequisiteTransactionIds = FromProto<std::vector<TTransactionId>>(request->prerequisite_transaction_ids());
 

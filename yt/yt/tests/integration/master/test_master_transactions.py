@@ -480,6 +480,23 @@ class TestMasterTransactions(YTEnvSetup):
         tx = start_transaction(authenticated_user="u")
         assert get("#{0}/@owner".format(tx)) == "u"
 
+    @authors("faucct")
+    def test_not_owner(self):
+        create_user("u")
+        set("//sys/schemas/transaction/@acl", [*get("//sys/schemas/transaction/@acl"), {
+            "action": "deny",
+            "subjects": ["u"],
+            "permissions": ["write"],
+            "inheritance_mode": "object_and_descendants",
+        }])
+        tx = start_transaction()
+        create("map_node", "//tmp/wut", tx=tx)
+        with pytest.raises(YtError):
+            abort_transaction(tx, authenticated_user="u")
+        with pytest.raises(YtError):
+            commit_transaction(tx, authenticated_user="u")
+        commit_transaction(tx)
+
     @authors("ignat")
     def test_prerequisite_transactions(self):
         tx_a = start_transaction()
