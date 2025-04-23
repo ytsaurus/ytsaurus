@@ -3430,9 +3430,8 @@ private:
                         continue;
                     }
 
-                    // Just in case.
                     if (chunkInfo.caused_by_medium_change()) {
-                        YT_LOG_ALERT("Chunk with medium change found pending replica removal (ChunkId: %v)",
+                        YT_LOG_TRACE("Chunk with medium change found pending replica removal (ChunkId: %v)",
                             chunkId);
                         continue;
                     }
