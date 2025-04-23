@@ -180,6 +180,24 @@ class TestSimpleQueriesYql(TestQueriesYqlBase):
                }])
 
     @authors("a-romanov")
+    def test_datetime_tz_types(self, query_tracker, yql_agent):
+        self._test_simple_query("""
+            select
+                TzDate("2024-11-25,CET") as `TzDate`,
+                TzDatetime("2024-11-24T11:20:59,Australia/NSW") as `TzDatetime`,
+                TzTimestamp("2024-11-24T13:42:11,Africa/Nairobi") as `TzTimestamp`,
+                TzDate32("1960-11-24,America/Cayenne") as `TzDate32`,
+                TzDatetime64("1950-11-24T11:20:59,Europe/Samara") as `TzDatetime64`,
+                TzTimestamp64("1940-11-24T13:42:11,Iceland") as `TzTimestamp64`,
+        """, [{"TzDate": "2024-11-25,CET",
+               "TzDatetime": "2024-11-24T11:20:59,Australia/NSW",
+               "TzTimestamp": "2024-11-24T13:42:11,Africa/Nairobi",
+               "TzDate32": "1960-11-24,America/Cayenne",
+               "TzDatetime64": "1950-11-24T11:20:59,Europe/Samara",
+               "TzTimestamp64": "1940-11-24T13:42:11,Iceland"
+               }])
+
+    @authors("a-romanov")
     def test_exotic_types(self, query_tracker, yql_agent):
         self._test_simple_query("""
             select
@@ -193,6 +211,7 @@ class TestSimpleQueriesYql(TestQueriesYqlBase):
                 {("One"u, 1UL), ("Two"u, 2UL)} as `Set`,
                 AsVariant(88L, "var") as `Variant`,
                 AsTagged(123, "tag") as `Tagged`,
+                Decimal("123456.789", 13, 3) as `Decimal`,
                 '[1, "text", 3.14]'j as `Json`,
                 Just('[7u; "str"; -3.14]'y) as `Yson`,
         """, [{"EmptyDict": None,
@@ -204,6 +223,7 @@ class TestSimpleQueriesYql(TestQueriesYqlBase):
                "Set": [[["Two", 2], None], [["One", 1], None]],
                "Variant": ["var", 88],
                "Tagged": 123,
+               "Decimal": "123456.789",
                "Json": '[1, "text", 3.14]',
                "Yson": [7, 'str', -3.14]
                }])
