@@ -378,13 +378,20 @@ TFuture<TYsonString> TNontemplateCypressNodeProxyBase::GetExternalBuiltinAttribu
     AddCellTagToSyncWith(req, GetId());
     SetTransactionId(req, transactionId);
 
+    const auto& securityManager = Bootstrap_->GetSecurityManager();
+    auto* user = securityManager->GetAuthenticatedUser();
+
     auto proxy = CreateObjectServiceReadProxy(
-        Bootstrap_->GetRootClient(),
+        Bootstrap_->GetClusterConnection(),
         NApi::EMasterChannelKind::Follower,
         externalCellTag);
-    return proxy.Execute(req).Apply(BIND([=, this, this_ = MakeStrong(this)] (const TYPathProxy::TErrorOrRspGetPtr& rspOrError) {
-        if (!rspOrError.IsOK()) {
-            auto code = rspOrError.GetCode();
+    auto batchReq = proxy.ExecuteBatch();
+    SetAuthenticationIdentity(batchReq, NRpc::TAuthenticationIdentity(user->GetName()));
+    batchReq->AddRequest(std::move(req));
+    return batchReq->Invoke().Apply(BIND([=, this, this_ = MakeStrong(this)] (const TObjectServiceProxy::TErrorOrRspExecuteBatchPtr& batchRspOrError) {
+        auto error = GetCumulativeError(batchRspOrError);
+        if (!error.IsOK()) {
+            auto code = error.GetCode();
             if (code == NYTree::EErrorCode::ResolveError || code == NTransactionClient::EErrorCode::NoSuchTransaction) {
                 return TYsonString();
             }
@@ -392,9 +399,11 @@ TFuture<TYsonString> TNontemplateCypressNodeProxyBase::GetExternalBuiltinAttribu
                 key,
                 GetVersionedId(),
                 externalCellTag)
-                << rspOrError;
+                << error;
         }
 
+        const auto& batchRsp = batchRspOrError.Value();
+        const auto& rspOrError = batchRsp->GetResponse<TYPathProxy::TRspGet>(0);
         const auto& rsp = rspOrError.Value();
         return TYsonString(rsp->value());
     }));
