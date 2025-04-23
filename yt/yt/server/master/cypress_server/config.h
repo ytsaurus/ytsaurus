@@ -100,6 +100,9 @@ public:
     // COMPAT(h0pless)
     bool UseProperBranchedParentInLockCopyDestination;
 
+    // COMPAT(h0pless)
+    bool EnableChildKeyEscapingInAssembleTreeCopy;
+
     REGISTER_YSON_STRUCT(TDynamicCypressManagerConfig);
 
     static void Register(TRegistrar registrar);

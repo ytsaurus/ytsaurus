@@ -1837,6 +1837,10 @@ class TestCrossCellCopy(YTEnvSetup):
             # Some other nodes don't support "ls" command.
             try:
                 for child_node in ls(next_path, tx=tx):
+                    # Done to ensure that test with special YPath symbols works.
+                    if child_node.startswith("["):
+                        child_node = f"\\{child_node}"
+
                     paths_to_check.append(f"{next_path}/{child_node}")
             except YtError as err:
                 if err.contains_code(yt_error_codes.NoSuchMethod):
@@ -2374,6 +2378,25 @@ class TestCrossCellCopy(YTEnvSetup):
                 self.execute_command(src_path, dst_path, lock_existing=True)
         else:
             self.execute_command(src_path, dst_path, lock_existing=True)
+
+    @authors("h0pless")
+    @pytest.mark.parametrize("use_escaping", [False, True])
+    def test_ypath_special_symbols(self, use_escaping):
+        set("//sys/@config/cypress_manager/enable_child_key_escaping_in_assemble_tree_copy", use_escaping)
+
+        src_path = "//tmp/map_node"
+        self.create_map_node(src_path)
+
+        bad_path = src_path + r"/\[b16:0:b00b:5:0:15:0:c001]:1337"
+        self.create_map_node(bad_path)
+
+        dst_path = "//tmp/portal/map_node"
+
+        if not use_escaping:
+            with raises_yt_error("Expected \"literal\" in YPath but found \"range\" token"):
+                self.execute_command(src_path, dst_path)
+        else:
+            self.execute_command(src_path, dst_path)
 
 
 ################################################################################

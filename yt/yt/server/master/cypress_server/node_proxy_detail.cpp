@@ -2297,9 +2297,13 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, AssembleTreeCopy)
                 auto* childNode = cypressManager->GetNode({childId, Transaction_->GetId()});
                 auto* childTrunkNode = childNode->GetTrunkNode();
 
+                auto childKey = GetDynamicCypressManagerConfig()->EnableChildKeyEscapingInAssembleTreeCopy
+                    ? ToYPathLiteral(child.key())
+                    : child.key();
+
                 currentNodeProxy->SetChildNode(
                     /*factory*/ nullptr,
-                    "/" + child.key(),
+                    "/" + childKey,
                     GetProxy(childTrunkNode),
                     /*recursive*/ false);
 
