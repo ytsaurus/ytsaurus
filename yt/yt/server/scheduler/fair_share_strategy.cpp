@@ -1339,7 +1339,10 @@ public:
 
         for (const auto& [treeId, _] : GetOperationState(operationId)->TreeIdToPoolNameMap()) {
             auto tree = GetTree(treeId);
-            tree->OnOperationMaterialized(operationId);
+            auto error = tree->OnOperationMaterialized(operationId);
+            if (!error.IsOK()) {
+                return error;
+            }
         }
 
         // TODO(eshcherbin): Move to std::string.
