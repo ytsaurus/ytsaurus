@@ -1289,6 +1289,15 @@ class BaseTestSchedulingSegmentsMultiModule(YTEnvSetup):
         wait(lambda: are_almost_equal(self._get_usage_ratio(op.id), 0.1))
         wait(lambda: big_module == self._get_operation_module(op))
 
+    @authors("ignat")
+    def test_missing_specified_module(self):
+        with pytest.raises(YtError):
+            run_sleeping_vanilla(
+                spec={"pool": "large_gpu", "scheduling_segment_modules": ["UNKNOWN"]},
+                task_patch={"gpu_limit": 8, "enable_gpu_layers": False},
+                track=True,
+            )
+
     @authors("eshcherbin")
     def test_reserve_fair_resource_amount(self):
         module = self._get_all_modules()[0]

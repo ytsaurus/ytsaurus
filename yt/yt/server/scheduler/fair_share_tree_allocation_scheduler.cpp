@@ -2693,7 +2693,7 @@ void TFairShareTreeAllocationScheduler::UnregisterOperation(const TSchedulerOper
     EraseOrCrash(OperationIdToSharedState_, operationId);
 }
 
-void TFairShareTreeAllocationScheduler::OnOperationMaterialized(const TSchedulerOperationElement* element)
+TError TFairShareTreeAllocationScheduler::OnOperationMaterialized(const TSchedulerOperationElement* element)
 {
     YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
@@ -2702,7 +2702,7 @@ void TFairShareTreeAllocationScheduler::OnOperationMaterialized(const TScheduler
     operationState->AggregatedInitialMinNeededResources = element->GetAggregatedInitialMinNeededResources();
     operationState->SingleAllocationVanillaOperation = element->IsSingleAllocationVanillaOperation();
 
-    SchedulingSegmentManager_.InitOrUpdateOperationSchedulingSegment(operationId, operationState);
+    return SchedulingSegmentManager_.InitOrUpdateOperationSchedulingSegment(operationId, operationState);
 }
 
 TError TFairShareTreeAllocationScheduler::CheckOperationSchedulingInSeveralTreesAllowed(const TSchedulerOperationElement* element) const
@@ -3104,7 +3104,8 @@ void TFairShareTreeAllocationScheduler::UpdateConfig(TFairShareStrategyTreeConfi
     SchedulingSegmentManager_.UpdateConfig(Config_->SchedulingSegments);
     if (oldConfig->SchedulingSegments->Mode != Config_->SchedulingSegments->Mode) {
         for (const auto& [operationId, operationState] : OperationIdToState_) {
-            SchedulingSegmentManager_.InitOrUpdateOperationSchedulingSegment(operationId, operationState);
+            // TODO(ignat): support abortion for operations with invalid scheduling segment configuration.
+            Y_UNUSED(SchedulingSegmentManager_.InitOrUpdateOperationSchedulingSegment(operationId, operationState));
         }
     }
 
