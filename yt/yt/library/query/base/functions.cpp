@@ -1,5 +1,7 @@
 #include "functions.h"
 
+#include <yt/yt/client/table_client/logical_type.h>
+
 #include <library/cpp/yt/misc/variant.h>
 
 namespace NYT::NQueryClient {
@@ -97,6 +99,93 @@ int TFunctionTypeInferrer::GetNormalizedConstraints(
     return getIndex(ResultType_);
 }
 
+std::vector<TTypeId> TFunctionTypeInferrer::InferTypes(TTypingCtx* typingCtx, TRange<TLogicalTypePtr> argumentTypes, TStringBuf name) const
+{
+    std::vector<TTypeId> argumentTypeIds;
+    for (auto type : argumentTypes) {
+        argumentTypeIds.push_back(typingCtx->GetTypeId(GetWireType(type)));
+    }
+
+    auto signature = GetSignature(typingCtx, std::ssize(argumentTypes));
+
+    return typingCtx->InferFunctionType(name, {signature}, argumentTypeIds);
+}
+
+TTypingCtx::TFunctionSignature TFunctionTypeInferrer::GetSignature(TTypingCtx* typingCtx, int argumentCount) const
+{
+    TTypingCtx::TFunctionSignature signature({});
+    int nextGenericId = 0;
+
+    auto registerConstraints = [&] (int id, const TUnionType& unionType) {
+        if (id >= std::ssize(signature.Constraints)) {
+            signature.Constraints.resize(id + 1);
+        }
+        for (auto type : unionType) {
+            signature.Constraints[id].push_back(typingCtx->GetTypeId(type));
+        }
+    };
+
+    Visit(ResultType_,
+        [&] (TTypeParameter genericId) {
+            signature.Types.push_back(-(1 + genericId));
+            nextGenericId = std::min(nextGenericId, genericId + 1);
+        },
+        [&] (EValueType fixedType) {
+            signature.Types.push_back(typingCtx->GetTypeId(fixedType));
+        },
+        [&] (const TUnionType& /*unionType*/) {
+            THROW_ERROR_EXCEPTION("Result type cannot be union");
+        });
+
+    for (const auto& formalArgument : ArgumentTypes_) {
+        Visit(formalArgument,
+            [&] (TTypeParameter genericId) {
+                signature.Types.push_back(-(1 + genericId));
+                nextGenericId = std::min(nextGenericId, genericId + 1);
+            },
+            [&] (EValueType fixedType) {
+                signature.Types.push_back(typingCtx->GetTypeId(fixedType));
+            },
+            [&] (const TUnionType& unionType) {
+                signature.Types.push_back(-(1 + nextGenericId));
+                registerConstraints(nextGenericId, unionType);
+                ++nextGenericId;
+            });
+    }
+
+    if (!(std::holds_alternative<EValueType>(RepeatedArgumentType_) &&
+        std::get<EValueType>(RepeatedArgumentType_) == EValueType::Null))
+    {
+        Visit(RepeatedArgumentType_,
+            [&] (TTypeParameter genericId) {
+                for (int i = std::ssize(ArgumentTypes_); i < argumentCount; ++i) {
+                    signature.Types.push_back(-(1 + genericId));
+                }
+                nextGenericId = std::min(nextGenericId, genericId + 1);
+            },
+            [&] (EValueType fixedType) {
+                for (int i = std::ssize(ArgumentTypes_); i < argumentCount; ++i) {
+                    signature.Types.push_back(typingCtx->GetTypeId(fixedType));
+                }
+            },
+            [&] (const TUnionType& unionType) {
+                for (int i = std::ssize(ArgumentTypes_); i < argumentCount; ++i) {
+                    signature.Types.push_back(-(1 + nextGenericId));
+                    registerConstraints(nextGenericId, unionType);
+                    ++nextGenericId;
+                }
+            });
+    }
+
+    for (const auto& [parameterId, unionType] : TypeParameterConstraints_) {
+        registerConstraints(parameterId, unionType);
+    }
+
+    return signature;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TAggregateFunctionTypeInferrer::TAggregateFunctionTypeInferrer(
     std::unordered_map<TTypeParameter, TUnionType> typeParameterConstraints,
     std::vector<TType> argumentTypes,
@@ -157,6 +246,80 @@ std::pair<int, int> TAggregateFunctionTypeInferrer::GetNormalizedConstraints(
     return std::pair(getIndex(StateType_), getIndex(ResultType_));
 }
 
+std::vector<TTypeId> TAggregateFunctionTypeInferrer::InferTypes(TTypingCtx* typingCtx, TRange<TLogicalTypePtr> argumentTypes, TStringBuf name) const
+{
+    std::vector<TTypeId> argumentTypeIds;
+    for (auto type : argumentTypes) {
+        argumentTypeIds.push_back(typingCtx->GetTypeId(GetWireType(type)));
+    }
+
+    auto signature = GetSignature(typingCtx);
+
+    // TODO: Argument types and additional types (result, state)
+    // Return two vectors?
+    return typingCtx->InferFunctionType(name, {signature}, argumentTypeIds, 2);
+}
+
+TTypingCtx::TFunctionSignature TAggregateFunctionTypeInferrer::GetSignature(TTypingCtx* typingCtx) const
+{
+    TTypingCtx::TFunctionSignature signature({});
+    int nextGenericId = 0;
+
+    auto registerConstraints = [&] (int id, const TUnionType& unionType) {
+        if (id >= std::ssize(signature.Constraints)) {
+            signature.Constraints.resize(id + 1);
+        }
+        for (auto type : unionType) {
+            signature.Constraints[id].push_back(typingCtx->GetTypeId(type));
+        }
+    };
+
+    Visit(ResultType_,
+        [&] (TTypeParameter genericId) {
+            signature.Types.push_back(-(1 + genericId));
+            nextGenericId = std::min(nextGenericId, genericId + 1);
+        },
+        [&] (EValueType fixedType) {
+            signature.Types.push_back(typingCtx->GetTypeId(fixedType));
+        },
+        [&] (const TUnionType& /*unionType*/) {
+            THROW_ERROR_EXCEPTION("Result type cannot be union");
+        });
+
+    Visit(StateType_,
+        [&] (TTypeParameter genericId) {
+            signature.Types.push_back(-(1 + genericId));
+            nextGenericId = std::min(nextGenericId, genericId + 1);
+        },
+        [&] (EValueType fixedType) {
+            signature.Types.push_back(typingCtx->GetTypeId(fixedType));
+        },
+        [&] (const TUnionType& /*unionType*/) {
+            THROW_ERROR_EXCEPTION("State type cannot be union");
+        });
+
+    for (const auto& formalArgument : ArgumentTypes_) {
+        Visit(formalArgument,
+            [&] (TTypeParameter genericId) {
+                signature.Types.push_back(-(1 + genericId));
+                nextGenericId = std::min(nextGenericId, genericId + 1);
+            },
+            [&] (EValueType fixedType) {
+                signature.Types.push_back(typingCtx->GetTypeId(fixedType));
+            },
+            [&] (const TUnionType& unionType) {
+                signature.Types.push_back(-(1 + nextGenericId));
+                registerConstraints(nextGenericId, unionType);
+                ++nextGenericId;
+            });
+    }
+
+    for (const auto& [parameterId, unionType] : TypeParameterConstraints_) {
+        registerConstraints(parameterId, unionType);
+    }
+
+    return signature;
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 

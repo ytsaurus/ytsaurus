@@ -2545,6 +2545,11 @@ void ToAny(TExpressionContext* context, TValue* result, TValue* value)
     // TODO(babenko): for some reason, flags are garbage here.
     valueCopy.Flags = {};
 
+    if (value->Type == EValueType::Null) {
+        result->Type = EValueType::Null;
+        return;
+    }
+
     // NB: TRowBuffer should be used with caution while executing via WebAssembly engine.
     TValue buffer = EncodeUnversionedAnyValue(valueCopy, context->GetRowBuffer().Get()->GetPool());
 

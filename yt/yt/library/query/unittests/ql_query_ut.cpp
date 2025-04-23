@@ -126,7 +126,7 @@ protected:
     {
         EXPECT_THROW_THAT(
             BIND([&] {
-                PreparePlanFragment(&PrepareMock_, query, placeholderValues, syntaxVersion);
+                ParseAndPreparePlanFragment(&PrepareMock_, query, placeholderValues, syntaxVersion);
             })
             .AsyncVia(ActionQueue_->GetInvoker())
             .Run()
@@ -376,7 +376,7 @@ TEST_F(TQueryPrepareTest, BigQuery)
     EXPECT_CALL(PrepareMock_, GetInitialSplit("//t"))
         .WillOnce(Return(MakeFuture(MakeSimpleSplit())));
 
-    PreparePlanFragment(&PrepareMock_, query);
+    ParseAndPreparePlanFragment(&PrepareMock_, query);
 }
 
 TEST_F(TQueryPrepareTest, ResultSchemaCollision)
@@ -415,7 +415,7 @@ TEST_F(TQueryPrepareTest, NullTypeInference)
     EXPECT_CALL(PrepareMock_, GetInitialSplit("//t"))
         .WillOnce(Return(MakeFuture(MakeSimpleSplit())));
 
-    PreparePlanFragment(&PrepareMock_, "null from [//t]", {}, 1);
+    ParseAndPreparePlanFragment(&PrepareMock_, "null from [//t]", {}, 1);
 }
 
 TEST_F(TQueryPrepareTest, AdditionPrecedence)
@@ -423,8 +423,8 @@ TEST_F(TQueryPrepareTest, AdditionPrecedence)
     EXPECT_CALL(PrepareMock_, GetInitialSplit("//t"))
         .WillRepeatedly(Return(MakeFuture(MakeSimpleSplit())));
 
-    PreparePlanFragment(&PrepareMock_, "1 + 2 IN (3, 4, 5) from [//t]");
-    PreparePlanFragment(&PrepareMock_, "1 + 2 BETWEEN 3 AND 4 from [//t]");
+    ParseAndPreparePlanFragment(&PrepareMock_, "1 + 2 IN (3, 4, 5) from [//t]");
+    ParseAndPreparePlanFragment(&PrepareMock_, "1 + 2 BETWEEN 3 AND 4 from [//t]");
 }
 
 TEST_F(TQueryPrepareTest, JoinColumnCollision)
@@ -487,7 +487,7 @@ TEST_F(TQueryPrepareTest, SelectColumns)
         }))));
 
     {
-        auto query = PreparePlanFragment(&PrepareMock_, "* from [//t]")->Query;
+        auto query = ParseAndPreparePlanFragment(&PrepareMock_, "* from [//t]")->Query;
         auto schema = query->GetReadSchema();
 
         EXPECT_EQ(schema->GetColumnCount(), 5);
@@ -499,7 +499,7 @@ TEST_F(TQueryPrepareTest, SelectColumns)
     }
 
     {
-        auto query = PreparePlanFragment(&PrepareMock_, "d, c, a from [//t]")->Query;
+        auto query = ParseAndPreparePlanFragment(&PrepareMock_, "d, c, a from [//t]")->Query;
         auto schema = query->GetReadSchema();
 
         EXPECT_EQ(schema->GetColumnCount(), 3);
@@ -559,7 +559,7 @@ TEST_F(TQueryPrepareTest, SortMergeJoin)
             left join [//DirectPhraseStat] S on (D.cid, D.pid, uint64(D.PhraseID)) = (S.ExportID, S.GroupExportID, S.PhraseID)
             left join [//phrases] P on (D.pid, D.__shard__) = (P.pid, P.__shard__))");
 
-        auto query = PreparePlanFragment(&PrepareMock_, queryString)->Query;
+        auto query = ParseAndPreparePlanFragment(&PrepareMock_, queryString)->Query;
 
         EXPECT_EQ(query->JoinClauses.size(), 3u);
         const auto& joinClauses = query->JoinClauses;
@@ -580,7 +580,7 @@ TEST_F(TQueryPrepareTest, SortMergeJoin)
             left join [//DirectPhraseStat] S on (D.cid, D.pid, uint64(D.PhraseID)) = (S.ExportID, S.GroupExportID, S.PhraseID)
             left join [//phrases] P on (D.pid, D.__shard__) = (P.pid, P.__shard__))");
 
-        auto query = PreparePlanFragment(&PrepareMock_, queryString)->Query;
+        auto query = ParseAndPreparePlanFragment(&PrepareMock_, queryString)->Query;
 
         EXPECT_EQ(query->JoinClauses.size(), 3u);
         const auto& joinClauses = query->JoinClauses;
@@ -601,7 +601,7 @@ TEST_F(TQueryPrepareTest, SortMergeJoin)
             left join [//campaigns] C on (D.cid, D.__shard__) = (C.cid, C.__shard__)
             left join [//phrases] P on (D.pid, D.__shard__) = (P.pid, P.__shard__))");
 
-        auto query = PreparePlanFragment(&PrepareMock_, queryString)->Query;
+        auto query = ParseAndPreparePlanFragment(&PrepareMock_, queryString)->Query;
 
         EXPECT_EQ(query->JoinClauses.size(), 3u);
         const auto& joinClauses = query->JoinClauses;
@@ -655,7 +655,7 @@ TEST_F(TQueryPrepareTest, ArrayJoin)
         }))));
 
     {
-        auto query = PreparePlanFragment(&PrepareMock_, "key, nested, N FROM [//t] ARRAY JOIN nested AS N")->Query;
+        auto query = ParseAndPreparePlanFragment(&PrepareMock_, "key, nested, N FROM [//t] ARRAY JOIN nested AS N")->Query;
         const auto* originalColumn = query->Schema.Original->FindColumn("nested");
         const auto* flattenedColumn = query->JoinClauses[0]->Schema.Original->FindColumn("N");
         EXPECT_EQ(originalColumn->GetWireType(), EValueType::Composite);
@@ -669,7 +669,7 @@ TEST_F(TQueryPrepareTest, ArrayJoin)
     }
 
     {
-        auto query = PreparePlanFragment(&PrepareMock_, "T.key, T.nested, N FROM [//t] AS T ARRAY JOIN T.nested AS N")->Query;
+        auto query = ParseAndPreparePlanFragment(&PrepareMock_, "T.key, T.nested, N FROM [//t] AS T ARRAY JOIN T.nested AS N")->Query;
         const auto* originalColumn = query->Schema.Original->FindColumn("nested");
         const auto* flattenedColumn = query->JoinClauses[0]->Schema.Original->FindColumn("N");
         EXPECT_EQ(originalColumn->GetWireType(), EValueType::Composite);
@@ -683,7 +683,7 @@ TEST_F(TQueryPrepareTest, ArrayJoin)
     }
 
     {
-        auto query = PreparePlanFragment(&PrepareMock_, "T.key FROM [//t] AS T ARRAY JOIN T.nested AS N AND N = 2")->Query;
+        auto query = ParseAndPreparePlanFragment(&PrepareMock_, "T.key FROM [//t] AS T ARRAY JOIN T.nested AS N AND N = 2")->Query;
         const auto* originalColumn = query->Schema.Original->FindColumn("nested");
         const auto* flattenedColumn = query->JoinClauses[0]->Schema.Original->FindColumn("N");
         EXPECT_EQ(originalColumn->GetWireType(), EValueType::Composite);
@@ -751,7 +751,7 @@ TEST_F(TQueryPrepareTest, SplitWherePredicateWithJoin)
             if(NOT is_null(e.tags), list_contains(e.tags, "0"), false) AND (l.profile IN ("")) AND (l.track IN ("")) AND NOT if(NOT is_null(e.tags), list_contains(e.tags, "1"), false)
             ORDER BY e._key DESC OFFSET 0 LIMIT 200
         )");
-        auto query = PreparePlanFragment(&PrepareMock_, queryString)->Query;
+        auto query = ParseAndPreparePlanFragment(&PrepareMock_, queryString)->Query;
 
         TCGVariables variables;
         ProfileForBothExecutionBackends(query, &id1, &variables, {MakeNullJoinSubqueryProfiler()});
@@ -767,7 +767,7 @@ TEST_F(TQueryPrepareTest, SplitWherePredicateWithJoin)
             (l.profile IN ("")) AND (l.track IN ("")) AND if(NOT is_null(e.tags), list_contains(e.tags, "0"), false) AND NOT if(NOT is_null(e.tags), list_contains(e.tags, "1"), false)
             ORDER BY e._key DESC OFFSET 0 LIMIT 200
         )");
-        auto query = PreparePlanFragment(&PrepareMock_, queryString)->Query;
+        auto query = ParseAndPreparePlanFragment(&PrepareMock_, queryString)->Query;
 
         TCGVariables variables;
         ProfileForBothExecutionBackends(query, &id2, &variables, {MakeNullJoinSubqueryProfiler()});
@@ -795,7 +795,7 @@ TEST_F(TQueryPrepareTest, DisjointGroupBy)
     llvm::FoldingSetNodeID id1;
     {
         auto queryString = std::string("* FROM [//t] GROUP by a");
-        auto query = PreparePlanFragment(&PrepareMock_, queryString)->Query;
+        auto query = ParseAndPreparePlanFragment(&PrepareMock_, queryString)->Query;
 
         TCGVariables variables;
         ProfileForBothExecutionBackends(query, &id1, &variables, {MakeNullJoinSubqueryProfiler()});
@@ -804,7 +804,7 @@ TEST_F(TQueryPrepareTest, DisjointGroupBy)
     llvm::FoldingSetNodeID id2;
     {
         auto queryString = std::string("* FROM [//s] GROUP by a");
-        auto query = PreparePlanFragment(&PrepareMock_, queryString)->Query;
+        auto query = ParseAndPreparePlanFragment(&PrepareMock_, queryString)->Query;
 
         TCGVariables variables;
         ProfileForBothExecutionBackends(query, &id2, &variables, {MakeNullJoinSubqueryProfiler()});
@@ -823,7 +823,7 @@ TEST_F(TQueryPrepareTest, GroupByWithLimitFolding)
 
     llvm::FoldingSetNodeID id1;
     {
-        auto query = PreparePlanFragment(&PrepareMock_, "* from [//t] group by 1")->Query;
+        auto query = ParseAndPreparePlanFragment(&PrepareMock_, "* from [//t] group by 1")->Query;
 
         TCGVariables variables;
         ProfileForBothExecutionBackends(query, &id1, &variables, {MakeNullJoinSubqueryProfiler()});
@@ -831,7 +831,7 @@ TEST_F(TQueryPrepareTest, GroupByWithLimitFolding)
 
     llvm::FoldingSetNodeID id2;
     {
-        auto query = PreparePlanFragment(&PrepareMock_, "* from [//t] group by 1 limit 1")->Query;
+        auto query = ParseAndPreparePlanFragment(&PrepareMock_, "* from [//t] group by 1 limit 1")->Query;
 
         TCGVariables variables;
         ProfileForBothExecutionBackends(query, &id2, &variables, {MakeNullJoinSubqueryProfiler()});
@@ -853,19 +853,19 @@ TEST_F(TQueryPrepareTest, GroupByPrimaryKey)
 
     {
         auto queryString = std::string("* from [//t] group by hash, a, b");
-        auto query = PreparePlanFragment(&PrepareMock_, queryString)->Query;
+        auto query = ParseAndPreparePlanFragment(&PrepareMock_, queryString)->Query;
         EXPECT_TRUE(query->UseDisjointGroupBy);
     }
 
     {
         auto queryString = std::string("* from [//t] group by a, b");
-        auto query = PreparePlanFragment(&PrepareMock_, queryString)->Query;
+        auto query = ParseAndPreparePlanFragment(&PrepareMock_, queryString)->Query;
         EXPECT_TRUE(query->UseDisjointGroupBy);
     }
 
     {
         auto queryString = std::string("* from [//t] group by a, v");
-        auto query = PreparePlanFragment(&PrepareMock_, queryString)->Query;
+        auto query = ParseAndPreparePlanFragment(&PrepareMock_, queryString)->Query;
         EXPECT_EQ(query->GroupClause->CommonPrefixWithPrimaryKey, 1u);
         EXPECT_FALSE(query->UseDisjointGroupBy);
     }
@@ -882,16 +882,16 @@ TEST_F(TQueryPrepareTest, OrderByPrimaryKeyPrefix)
             TColumnSchema("v", EValueType::Int64),
         }))));
 
-    auto query = PreparePlanFragment(&PrepareMock_, "* from [//t] order by hash, a limit 10")->Query;
+    auto query = ParseAndPreparePlanFragment(&PrepareMock_, "* from [//t] order by hash, a limit 10")->Query;
     EXPECT_FALSE(query->OrderClause);
 
-    query = PreparePlanFragment(&PrepareMock_, "* from [//t] order by hash, a, b limit 10")->Query;
+    query = ParseAndPreparePlanFragment(&PrepareMock_, "* from [//t] order by hash, a, b limit 10")->Query;
     EXPECT_FALSE(query->OrderClause);
 
-    query = PreparePlanFragment(&PrepareMock_, "* from [//t] order by hash, a offset 5 limit 5")->Query;
+    query = ParseAndPreparePlanFragment(&PrepareMock_, "* from [//t] order by hash, a offset 5 limit 5")->Query;
     EXPECT_FALSE(query->OrderClause);
 
-    query = PreparePlanFragment(&PrepareMock_, "* from [//t] order by a, b limit 10")->Query;
+    query = ParseAndPreparePlanFragment(&PrepareMock_, "* from [//t] order by a, b limit 10")->Query;
     EXPECT_TRUE(query->OrderClause);
 }
 
@@ -966,11 +966,12 @@ TEST_F(TQueryPrepareTest, InvalidUdfImpl)
 
     auto schema = New<TTableSchema>(std::vector<TColumnSchema>{
         {"a", EValueType::Int64},
-        {"b", EValueType::Int64}
+        {"b", EValueType::Int64},
+        {"s", EValueType::String}
     });
 
     { // ShortInvalidUdfImpl
-        auto expr = PrepareExpression("short_invalid_ir(a)", *schema, TypeInferrers_);
+        auto expr = ParseAndPrepareExpression("short_invalid_ir(a)", *schema, TypeInferrers_);
 
         TCGVariables variables;
 
@@ -988,7 +989,7 @@ TEST_F(TQueryPrepareTest, InvalidUdfImpl)
     }
 
     { // LongInvalidUdfImpl
-        auto expr = PrepareExpression("long_invalid_ir(a)", *schema, TypeInferrers_);
+        auto expr = ParseAndPrepareExpression("long_invalid_ir(a)", *schema, TypeInferrers_);
 
         TCGVariables variables;
 
@@ -1006,7 +1007,7 @@ TEST_F(TQueryPrepareTest, InvalidUdfImpl)
     }
 
     { // InvalidUdfArity
-        auto expr = PrepareExpression("abs_udf_arity(a, b)", *schema, TypeInferrers_);
+        auto expr = ParseAndPrepareExpression("abs_udf_arity(a, b)", *schema, TypeInferrers_);
 
         TCGVariables variables;
 
@@ -1025,8 +1026,8 @@ TEST_F(TQueryPrepareTest, InvalidUdfImpl)
 
     { // InvalidUdfType
         EXPECT_THROW_THAT({
-            PrepareExpression("abs_udf_double(a)", *schema, TypeInferrers_);
-        }, HasSubstr("Wrong type for argument"));
+            ParseAndPrepareExpression("abs_udf_double(s)", *schema, TypeInferrers_);
+        }, HasSubstr("No matching function"));
     }
 }
 
@@ -1038,8 +1039,8 @@ TEST_F(TQueryPrepareTest, WronglyTypedAggregate)
         }))));
 
     EXPECT_THROW_THAT({
-        PreparePlanFragment(&PrepareMock_, "avg(a) from [//t] group by 1");
-    }, HasSubstr("Wrong type for argument 1 to function \"avg\""));
+        ParseAndPreparePlanFragment(&PrepareMock_, "avg(a) from [//t] group by 1");
+    }, HasSubstr("No matching function"));
 }
 
 TEST_F(TQueryPrepareTest, OrderByWithoutLimit)
@@ -1050,7 +1051,7 @@ TEST_F(TQueryPrepareTest, OrderByWithoutLimit)
         }))));
 
     EXPECT_THROW_THAT({
-        PreparePlanFragment(&PrepareMock_, "* from [//t] order by a");
+        ParseAndPreparePlanFragment(&PrepareMock_, "* from [//t] order by a");
     }, HasSubstr("ORDER BY used without LIMIT"));
 }
 
@@ -1062,7 +1063,7 @@ TEST_F(TQueryPrepareTest, OrderByWithNegativeLimit)
         }))));
 
     EXPECT_THROW_THAT({
-        PreparePlanFragment(&PrepareMock_, "* from [//t] order by a limit -1");
+        ParseAndPreparePlanFragment(&PrepareMock_, "* from [//t] order by a limit -1");
     }, HasSubstr("Error while parsing query: syntax error, unexpected `-`, expecting int64 literal"));
 }
 
@@ -1074,7 +1075,7 @@ TEST_F(TQueryPrepareTest, OffsetLimit)
         }))));
 
     EXPECT_THROW_THAT({
-        PreparePlanFragment(&PrepareMock_, "* from [//t] offset 5");
+        ParseAndPreparePlanFragment(&PrepareMock_, "* from [//t] offset 5");
     }, HasSubstr("OFFSET used without LIMIT"));
 }
 
@@ -1152,7 +1153,7 @@ TEST_F(TQueryPrepareTest, PushDownGroupBy)
             on (L.key_0) = (C.key_0)
             group by C.key_0)");
 
-        auto plan = PreparePlanFragment(&PrepareMock_, query);
+        auto plan = ParseAndPreparePlanFragment(&PrepareMock_, query);
 
         ASSERT_TRUE(plan->Query->JoinClauses[0]->GroupClause);
         EXPECT_EQ(fmt(plan->Query->JoinClauses[0]->GroupClause->GroupItems), std::string("C.key_0"));
@@ -1163,7 +1164,7 @@ TEST_F(TQueryPrepareTest, PushDownGroupBy)
             on (L.key_0) = (C.key_0)
             group by L.key_0)");
 
-        auto plan = PreparePlanFragment(&PrepareMock_, query);
+        auto plan = ParseAndPreparePlanFragment(&PrepareMock_, query);
 
         ASSERT_TRUE(plan->Query->JoinClauses[0]->GroupClause);
         EXPECT_EQ(fmt(plan->Query->JoinClauses[0]->GroupClause->GroupItems), std::string("C.key_0"));
@@ -1174,7 +1175,7 @@ TEST_F(TQueryPrepareTest, PushDownGroupBy)
             using key_0
             group by key_0)");
 
-        auto plan = PreparePlanFragment(&PrepareMock_, query);
+        auto plan = ParseAndPreparePlanFragment(&PrepareMock_, query);
 
         ASSERT_TRUE(plan->Query->JoinClauses[0]->GroupClause);
         EXPECT_EQ(fmt(plan->Query->JoinClauses[0]->GroupClause->GroupItems), std::string("key_0"));
@@ -1185,7 +1186,7 @@ TEST_F(TQueryPrepareTest, PushDownGroupBy)
             on 1 = 1
             group by value_0 + key_1)");
 
-        auto plan = PreparePlanFragment(&PrepareMock_, query);
+        auto plan = ParseAndPreparePlanFragment(&PrepareMock_, query);
 
         ASSERT_TRUE(plan->Query->JoinClauses[0]->GroupClause);
         EXPECT_EQ(fmt(plan->Query->JoinClauses[0]->GroupClause->GroupItems), std::string("key_1"));
@@ -1197,7 +1198,7 @@ TEST_F(TQueryPrepareTest, PushDownGroupBy)
             group by value_0 % 10)");
 
         EXPECT_THROW_THAT(
-            PreparePlanFragment(&PrepareMock_, query),
+            ParseAndPreparePlanFragment(&PrepareMock_, query),
             HasSubstr("neither idempotent nor can be pushed behind join clause"));
     }
     {
@@ -1206,7 +1207,7 @@ TEST_F(TQueryPrepareTest, PushDownGroupBy)
             using key_0
             group by value_0 + key_1)");
 
-        auto plan = PreparePlanFragment(&PrepareMock_, query);
+        auto plan = ParseAndPreparePlanFragment(&PrepareMock_, query);
 
         EXPECT_FALSE(plan->Query->JoinClauses[0]->GroupClause);
     }
@@ -1219,7 +1220,7 @@ TEST_F(TQueryPrepareTest, PushDownGroupBy)
             group by 3)");
 
         EXPECT_THROW_THAT(
-            PreparePlanFragment(&PrepareMock_, query),
+            ParseAndPreparePlanFragment(&PrepareMock_, query),
             HasSubstr("is not supported at the current moment"));
     }
 }
@@ -1259,7 +1260,7 @@ protected:
 
     void Coordinate(TStringBuf source, size_t subqueriesCount)
     {
-        auto fragment = PreparePlanFragment(&PrepareMock_, source);
+        auto fragment = ParseAndPreparePlanFragment(&PrepareMock_, source);
 
         auto options = TQueryOptions{
             .RangeExpansionLimit = 1000,
@@ -1790,7 +1791,7 @@ protected:
                 .WillOnce(Return(MakeFuture(dataSplit.second)));
         }
 
-        auto fragment = PreparePlanFragment(
+        auto fragment = ParseAndPreparePlanFragment(
             &PrepareMock_,
             query,
             placeholderValues,
@@ -10418,7 +10419,7 @@ INSTANTIATE_TEST_SUITE_P(
             "Expression inside CASE WHEN should be scalar"),
         std::tuple(
             "case when a then a end as m from [//t]",
-            "Expression inside CASE WHEN should be boolean"),
+            "Types mismatch in CASE WHEN expression"),
         std::tuple(
             "case a when 2 then (1, 2) end as m from [//t]",
             "Expression inside CASE THEN should be scalar"),
@@ -10427,19 +10428,19 @@ INSTANTIATE_TEST_SUITE_P(
             "Expression inside CASE THEN should be scalar"),
         std::tuple(
             "case a when 1 then 1 when 2 then '2' end as m from [//t]",
-            "Types mismatch in CASE THEN expression"),
+            "Types mismatch in CASE THEN/ELSE expression"),
         std::tuple(
             "case when a > 2 then 1 when a > 1 then '2' end as m from [//t]",
-            "Types mismatch in CASE THEN expression"),
+            "Types mismatch in CASE THEN/ELSE expression"),
         std::tuple(
             "case a when 1 then 1 else (1,2,3) end as m from [//t]",
             "Expression inside CASE ELSE should be scalar"),
         std::tuple(
             "case a when 1 then 1 else '2' end as m from [//t]",
-            "Types mismatch in CASE ELSE expression"),
+            "Types mismatch in CASE THEN/ELSE expression"),
         std::tuple(
             "case when a > 1 then 1 else '2' end as m from [//t]",
-            "Types mismatch in CASE ELSE expression")));
+            "Types mismatch in CASE THEN/ELSE expression")));
 
 TEST_P(TQueryEvaluateCaseWithIncorrectSemanticsTest, Simple)
 {
@@ -10734,7 +10735,7 @@ TEST_F(TQueryEvaluateTest, MathAbs)
             split,
             source,
             AnyMatcher),
-        HasSubstr("Wrong number of arguments"));
+        HasSubstr("No matching function"));
 
     SUCCEED();
 }

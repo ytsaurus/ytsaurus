@@ -133,7 +133,12 @@ public:
     virtual ~TExprBuilder() = default;
 };
 
-std::unique_ptr<TExprBuilder> CreateExpressionBuilder(
+std::unique_ptr<TExprBuilder> CreateExpressionBuilderV1(
+    TStringBuf source,
+    const TConstTypeInferrerMapPtr& functions,
+    const NAst::TAliasMap& aliasMap);
+
+std::unique_ptr<TExprBuilder> CreateExpressionBuilderV2(
     TStringBuf source,
     const TConstTypeInferrerMapPtr& functions,
     const NAst::TAliasMap& aliasMap);

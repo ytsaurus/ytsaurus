@@ -23,7 +23,7 @@
 // TCompareExpressionTest
 // TEliminateLookupPredicateTest
 // TEliminatePredicateTest
-// TPrepareExpressionTest
+// TParseAndPrepareExpressionTest
 // TArithmeticTest
 // TCompareWithNullTest
 // TEvaluateExpressionTest
@@ -199,8 +199,8 @@ TEST_P(TExtractSubexpressionPredicateTest, Simple)
     auto tableSchema = ConvertTo<TTableSchema>(TYsonString(TString(schemaString)));
     auto tableSubschema = ConvertTo<TTableSchema>(TYsonString(TString(subschemaString)));
 
-    auto predicate = PrepareExpression(predicateString, tableSchema);
-    auto expected = PrepareExpression(extractedString, tableSubschema);
+    auto predicate = ParseAndPrepareExpression(predicateString, tableSchema);
+    auto expected = ParseAndPrepareExpression(extractedString, tableSubschema);
 
     TConstExpressionPtr extracted;
     TConstExpressionPtr remaining;
@@ -313,8 +313,8 @@ TEST_P(TEliminateLookupPredicateTest, Simple)
         keysString += TString(keysString.size() > 0 ? ", " : "") + "[" + keyString + "]";
     }
 
-    auto predicate = PrepareExpression(predicateString, tableSchema);
-    auto expected = PrepareExpression(refinedString, tableSchema);
+    auto predicate = ParseAndPrepareExpression(predicateString, tableSchema);
+    auto expected = ParseAndPrepareExpression(refinedString, tableSchema);
     auto refined = Eliminate(keys, predicate, keyColumns);
 
     EXPECT_TRUE(Equal(refined, expected))
@@ -454,8 +454,8 @@ TEST_P(TEliminatePredicateTest, Simple)
     Deserialize(tableSchema, ConvertToNode(TYsonString(TString(schemaString))));
     Deserialize(keyColumns, ConvertToNode(TYsonString(TString(keyString))));
 
-    auto predicate = PrepareExpression(predicateString, tableSchema);
-    auto expected = PrepareExpression(refinedString, tableSchema);
+    auto predicate = ParseAndPrepareExpression(predicateString, tableSchema);
+    auto expected = ParseAndPrepareExpression(refinedString, tableSchema);
 
     std::vector<TKeyRange> owningRanges;
     for (size_t i = 0; i < keyStrings.size() / 2; ++i) {
@@ -643,7 +643,7 @@ INSTANTIATE_TEST_SUITE_P(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TPrepareExpressionTest
+class TParseAndPrepareExpressionTest
     : public ::testing::Test
     , public ::testing::WithParamInterface<std::tuple<TConstExpressionPtr, const char*>>
     , public TCompareExpressionTest
@@ -653,26 +653,26 @@ protected:
     { }
 };
 
-TEST_F(TPrepareExpressionTest, Basic)
+TEST_F(TParseAndPrepareExpressionTest, Basic)
 {
     auto schema = GetSampleTableSchema();
 
     auto expr1 = Make<TReferenceExpression>("k");
-    auto expr2 = PrepareExpression(TString("k"), *schema);
+    auto expr2 = ParseAndPrepareExpression(TString("k"), *schema);
 
     EXPECT_TRUE(Equal(expr1, expr2))
         << "expr1: " << ::testing::PrintToString(expr1) << std::endl
         << "expr2: " << ::testing::PrintToString(expr2);
 
     expr1 = Make<TLiteralExpression>(MakeInt64(90));
-    expr2 = PrepareExpression(TString("90"), *schema);
+    expr2 = ParseAndPrepareExpression(TString("90"), *schema);
 
     EXPECT_TRUE(Equal(expr1, expr2))
         << "expr1: " << ::testing::PrintToString(expr1) << std::endl
         << "expr2: " << ::testing::PrintToString(expr2);
 
     expr1 = Make<TReferenceExpression>("a"),
-    expr2 = PrepareExpression(TString("k"), *schema);
+    expr2 = ParseAndPrepareExpression(TString("k"), *schema);
 
     EXPECT_FALSE(Equal(expr1, expr2))
         << "expr1: " << ::testing::PrintToString(expr1) << std::endl
@@ -681,21 +681,21 @@ TEST_F(TPrepareExpressionTest, Basic)
     auto str1 = TString("k + 3 - a > 4 * l and (k <= m or k + 1 < 3* l)");
     auto str2 = TString("k + 3 - a > 4 * l and (k <= m or k + 2 < 3* l)");
 
-    expr1 = PrepareExpression(str1, *schema);
-    expr2 = PrepareExpression(str1, *schema);
+    expr1 = ParseAndPrepareExpression(str1, *schema);
+    expr2 = ParseAndPrepareExpression(str1, *schema);
 
     EXPECT_TRUE(Equal(expr1, expr2))
         << "expr1: " << ::testing::PrintToString(expr1) << std::endl
         << "expr2: " << ::testing::PrintToString(expr2);
 
-    expr2 = PrepareExpression(str2, *schema);
+    expr2 = ParseAndPrepareExpression(str2, *schema);
 
     EXPECT_FALSE(Equal(expr1, expr2))
         << "expr1: " << ::testing::PrintToString(expr1) << std::endl
         << "expr2: " << ::testing::PrintToString(expr2);
 }
 
-TEST_F(TPrepareExpressionTest, CompareTuple)
+TEST_F(TParseAndPrepareExpressionTest, CompareTuple)
 {
     auto schema = New<TTableSchema>(std::vector{
         TColumnSchema("a", EValueType::Int64),
@@ -716,19 +716,19 @@ TEST_F(TPrepareExpressionTest, CompareTuple)
 
     TKeyColumns keyColumns;
 
-    auto expr = PrepareExpression("(a, b, c, d, e, f, g, h, i, j, k, l, m, n) < (0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)", *schema);
+    auto expr = ParseAndPrepareExpression("(a, b, c, d, e, f, g, h, i, j, k, l, m, n) < (0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)", *schema);
 
     TCGVariables variables;
     ProfileForBothExecutionBackends(expr, schema, nullptr, &variables);
 }
 
-TEST_P(TPrepareExpressionTest, Simple)
+TEST_P(TParseAndPrepareExpressionTest, Simple)
 {
     auto schema = GetSampleTableSchema();
     auto& param = GetParam();
 
     auto expr1 = std::get<0>(param);
-    auto expr2 = PrepareExpression(std::get<1>(param), *schema);
+    auto expr2 = ParseAndPrepareExpression(std::get<1>(param), *schema);
 
     EXPECT_TRUE(Equal(expr1, expr2))
         << "expr1: " << ::testing::PrintToString(expr1) << std::endl
@@ -737,7 +737,7 @@ TEST_P(TPrepareExpressionTest, Simple)
 
 INSTANTIATE_TEST_SUITE_P(
     CheckExpressions,
-    TPrepareExpressionTest,
+    TParseAndPrepareExpressionTest,
     ::testing::Values(
         std::tuple<TConstExpressionPtr, const char*>(
             Make<TBinaryOpExpression>(EBinaryOp::GreaterOrEqual,
@@ -852,50 +852,52 @@ TSharedRange<TRow> MakeRows(const TString& yson)
     return MakeSharedRange(std::move(rows), buffer);
 }
 
-TEST_F(TPrepareExpressionTest, Negative1)
+TEST_F(TParseAndPrepareExpressionTest, Negative1)
 {
     auto schema = GetSampleTableSchema();
 
     EXPECT_THROW_THAT(
-        PrepareExpression(TString("ki in (1, 2u, \"abc\")"), *schema),
+        ParseAndPrepareExpression(TString("ki in (1, 2u, \"abc\")"), *schema),
         HasSubstr("Types mismatch in tuple"));
 
     EXPECT_THROW_THAT(
-        PrepareExpression(TString("ku = \"abc\""), *schema),
+        ParseAndPrepareExpression(TString("ku = \"abc\""), *schema),
         HasSubstr("Type mismatch in expression"));
 
     EXPECT_THROW_THAT(
-        PrepareExpression(TString("kd = 4611686018427387903"), *schema),
+        ParseAndPrepareExpression(TString("kd = 4611686018427387903"), *schema),
         HasSubstr("to double: inaccurate conversion"));
 
     EXPECT_THROW_THAT(
-        PrepareExpression(TString("kd = 9223372036854775807u"), *schema),
+        ParseAndPrepareExpression(TString("kd = 9223372036854775807u"), *schema),
+        HasSubstr("to double: inaccurate conversion"));
+
+    if (NYT::NQueryClient::DefaultExpressionBuilderVersion == 1) {
+        EXPECT_THROW_THAT(
+            ParseAndPrepareExpression(TString("ki = 18446744073709551606u"), *schema),
+            HasSubstr("Type mismatch in expression"));
+
+        EXPECT_THROW_THAT(
+            ParseAndPrepareExpression(TString("ku = 1.5"), *schema),
+            HasSubstr("Type mismatch in expression"));
+
+        EXPECT_THROW_THAT(
+            ParseAndPrepareExpression(TString("ki = 1.5"), *schema),
+            HasSubstr("Type mismatch in expression"));
+    }
+
+    EXPECT_THROW_THAT(
+        ParseAndPrepareExpression(TString("(1u - 2) / 3.0"), *schema),
         HasSubstr("to double: inaccurate conversion"));
 
     EXPECT_THROW_THAT(
-        PrepareExpression(TString("ki = 18446744073709551606u"), *schema),
-        HasSubstr("Type mismatch in expression"));
-
-    EXPECT_THROW_THAT(
-        PrepareExpression(TString("ku = 1.5"), *schema),
-        HasSubstr("Type mismatch in expression"));
-
-    EXPECT_THROW_THAT(
-        PrepareExpression(TString("ki = 1.5"), *schema),
-        HasSubstr("Type mismatch in expression"));
-
-    EXPECT_THROW_THAT(
-        PrepareExpression(TString("(1u - 2) / 3.0"), *schema),
-        HasSubstr("to double: inaccurate conversion"));
-
-    EXPECT_THROW_THAT(
-        PrepareExpression(TString("k = 1 and ku"), *schema),
+        ParseAndPrepareExpression(TString("k = 1 and ku"), *schema),
         HasSubstr("Type mismatch in expression"));
 }
 
 INSTANTIATE_TEST_SUITE_P(
     CheckExpressions2,
-    TPrepareExpressionTest,
+    TParseAndPrepareExpressionTest,
     ::testing::Values(
         std::tuple<TConstExpressionPtr, const char*>(
             Make<TBinaryOpExpression>(EBinaryOp::Equal,
@@ -960,7 +962,7 @@ INSTANTIATE_TEST_SUITE_P(
 
 INSTANTIATE_TEST_SUITE_P(
     CheckPriorities,
-    TPrepareExpressionTest,
+    TParseAndPrepareExpressionTest,
     ::testing::Values(
         std::tuple<TConstExpressionPtr, const char*>(
             Make<TBinaryOpExpression>(EBinaryOp::Modulo,
@@ -1053,7 +1055,7 @@ TEST_P(TExpressionTest, ConstantFolding)
     auto& rhs = std::get<3>(param);
     auto expected = Make<TLiteralExpression>(std::get<4>(param));
 
-    auto got = PrepareExpression(TString(lhs) + " " + op + " " + rhs, *schema);
+    auto got = ParseAndPrepareExpression(TString(lhs) + " " + op + " " + rhs, *schema);
 
     EXPECT_TRUE(Equal(got, expected))
         << "got: " <<  ::testing::PrintToString(got) << std::endl
@@ -1068,7 +1070,7 @@ TEST_F(TExpressionTest, FunctionNullArgument)
     TUnversionedOwningRow row;
 
     {
-        auto expr = PrepareExpression("int64(null)", *schema);
+        auto expr = ParseAndPrepareExpression("int64(null)", *schema);
         EXPECT_EQ(*expr->LogicalType, *OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64)));
 
         Evaluate(expr, schema, buffer, row, [&] (const TUnversionedValue& result) {
@@ -1077,7 +1079,7 @@ TEST_F(TExpressionTest, FunctionNullArgument)
     }
 
     {
-        auto expr = PrepareExpression("is_null(null)", *schema);
+        auto expr = ParseAndPrepareExpression("is_null(null)", *schema);
         EXPECT_EQ(*expr->LogicalType, *OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Boolean)));
 
         Evaluate(expr, schema, buffer, row, [&] (const TUnversionedValue& result) {
@@ -1086,7 +1088,7 @@ TEST_F(TExpressionTest, FunctionNullArgument)
     }
 
     {
-        auto expr = PrepareExpression("if(null, null, null)", *schema);
+        auto expr = ParseAndPrepareExpression("if(null, null, null)", *schema);
         EXPECT_EQ(*expr->LogicalType, *SimpleLogicalType(ESimpleLogicalValueType::Null));
 
         Evaluate(expr, schema, buffer, row, [&] (const TUnversionedValue& result) {
@@ -1095,7 +1097,7 @@ TEST_F(TExpressionTest, FunctionNullArgument)
     }
 
     {
-        auto expr = PrepareExpression("if(true, null, null)", *schema);
+        auto expr = ParseAndPrepareExpression("if(true, null, null)", *schema);
         EXPECT_EQ(*expr->LogicalType, *SimpleLogicalType(ESimpleLogicalValueType::Null));
 
         Evaluate(expr, schema, buffer, row, [&] (const TUnversionedValue& result) {
@@ -1104,7 +1106,7 @@ TEST_F(TExpressionTest, FunctionNullArgument)
     }
 
     {
-        auto expr = PrepareExpression("if(null, 1, 2)", *schema);
+        auto expr = ParseAndPrepareExpression("if(null, 1, 2)", *schema);
         EXPECT_EQ(*expr->LogicalType, *OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64)));
 
         Evaluate(expr, schema, buffer, row, [&] (const TUnversionedValue& result) {
@@ -1113,7 +1115,7 @@ TEST_F(TExpressionTest, FunctionNullArgument)
     }
 
     {
-        auto expr = PrepareExpression("if(false, 1, null)", *schema);
+        auto expr = ParseAndPrepareExpression("if(false, 1, null)", *schema);
         EXPECT_EQ(*expr->LogicalType, *OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64)));
 
         Evaluate(expr, schema, buffer, row, [&] (const TUnversionedValue& result) {
@@ -1129,7 +1131,7 @@ TEST_F(TExpressionTest, Aliasing)
     });
 
     auto buffer = New<TRowBuffer>();
-    auto expr = PrepareExpression("lower(s)", *schema);
+    auto expr = ParseAndPrepareExpression("lower(s)", *schema);
 
     {
         auto variables = TCGVariables();
@@ -1224,7 +1226,7 @@ TEST_P(TExpressionTest, Evaluate)
     columns[1].SetLogicalType(OptionalLogicalType(SimpleLogicalType(GetLogicalType(rhsType))));
     auto schema = New<TTableSchema>(std::move(columns));
 
-    auto expr = PrepareExpression(TString("k") + " " + op + " " + "l", *schema);
+    auto expr = ParseAndPrepareExpression(TString("k") + " " + op + " " + "l", *schema);
     auto buffer = New<TRowBuffer>();
     auto row = YsonToSchemafulRow(TString("k=") + lhs + ";l=" + rhs, *schema, true);
 
@@ -1254,7 +1256,7 @@ TEST_P(TExpressionTest, EvaluateLhsValueRhsLiteral)
     columns[1].SetLogicalType(OptionalLogicalType(SimpleLogicalType(GetLogicalType(rhsType))));
     auto schema = New<TTableSchema>(std::move(columns));
 
-    auto expr = PrepareExpression(TString("k") + " " + op + " " + rhs, *schema);
+    auto expr = ParseAndPrepareExpression(TString("k") + " " + op + " " + rhs, *schema);
     auto row = YsonToSchemafulRow(TString("k=") + lhs, *schema, true);
     auto buffer = New<TRowBuffer>();
 
@@ -1284,7 +1286,7 @@ TEST_P(TExpressionTest, EvaluateLhsLiteralRhsValue)
     columns[1].SetLogicalType(OptionalLogicalType(SimpleLogicalType(GetLogicalType(rhsType))));
     auto schema = New<TTableSchema>(std::move(columns));
 
-    auto expr = PrepareExpression(TString(lhs) + " " + op + " " + "l", *schema);
+    auto expr = ParseAndPrepareExpression(TString(lhs) + " " + op + " " + "l", *schema);
     auto row = YsonToSchemafulRow(TString("l=") + rhs, *schema, true);
     auto buffer = New<TRowBuffer>();
 
@@ -1635,7 +1637,7 @@ TEST_F(TArithmeticExpressionTest, Test)
                                 if (lhsLiteral && rhsLiteral) {
                                     auto queryString = Format("%v %v %v", UnversionedValueToString(lhsValue), GetBinaryOpcodeLexeme(op), UnversionedValueToString(rhsValue));
 
-                                    auto got = PrepareExpression(queryString, *emptySchema);
+                                    auto got = ParseAndPrepareExpression(queryString, *emptySchema);
                                     auto expected = Make<TLiteralExpression>(expectedValue);
 
                                     EXPECT_TRUE(Equal(got, expected))
@@ -1654,18 +1656,18 @@ TEST_F(TArithmeticExpressionTest, Test)
                                 if (lhsLiteral) {
                                     schema = New<TTableSchema>(std::vector{
                                         TColumnSchema("b", rhsValue.Type)});
-                                    expr = PrepareExpression(Format("%v %v b", UnversionedValueToString(lhsValue), GetBinaryOpcodeLexeme(op)), *schema);
+                                    expr = ParseAndPrepareExpression(Format("%v %v b", UnversionedValueToString(lhsValue), GetBinaryOpcodeLexeme(op)), *schema);
                                     row = YsonToSchemafulRow(Format("b=%v", UnversionedValueToString(rhsValue)), *schema, true);
                                 } else if (rhsLiteral) {
                                     schema = New<TTableSchema>(std::vector{
                                         TColumnSchema("a", lhsValue.Type)});
-                                    expr = PrepareExpression(Format("a %v %v", GetBinaryOpcodeLexeme(op), UnversionedValueToString(rhsValue)), *schema);
+                                    expr = ParseAndPrepareExpression(Format("a %v %v", GetBinaryOpcodeLexeme(op), UnversionedValueToString(rhsValue)), *schema);
                                     row = YsonToSchemafulRow(Format("a=%v", UnversionedValueToString(lhsValue)), *schema, true);
                                 } else {
                                     schema = New<TTableSchema>(std::vector{
                                         TColumnSchema("a", lhsValue.Type),
                                         TColumnSchema("b", rhsValue.Type)});
-                                    expr = PrepareExpression(Format("a %v b", GetBinaryOpcodeLexeme(op)), *schema);
+                                    expr = ParseAndPrepareExpression(Format("a %v b", GetBinaryOpcodeLexeme(op)), *schema);
                                     row = YsonToSchemafulRow(Format("a=%v;b=%v", UnversionedValueToString(lhsValue), UnversionedValueToString(rhsValue)), *schema, true);
                                 }
 
@@ -1831,7 +1833,7 @@ TEST_P(TCompareWithNullTest, Simple)
     auto schema = GetSampleTableSchema();
 
     auto row = YsonToSchemafulRow(rowString, *schema, /*treatMissingAsNull*/ true);
-    auto expr = PrepareExpression(exprString, *schema);
+    auto expr = ParseAndPrepareExpression(exprString, *schema);
 
     auto buffer = New<TRowBuffer>();
 
@@ -2425,7 +2427,7 @@ TEST_P(TEvaluateExpressionTest, Basic)
         TColumnSchema("l", ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int32))),
     });
 
-    auto expr = PrepareExpression(exprString, *schema);
+    auto expr = ParseAndPrepareExpression(exprString, *schema);
 
     auto buffer = New<TRowBuffer>();
     TUnversionedValue result{};
@@ -2722,7 +2724,7 @@ TEST_P(TEvaluateLikeExpressionTest, Basic)
     const auto& exprString = std::get<0>(param);
     const auto& expected = std::get<1>(param);
     auto schema = New<TTableSchema>();
-    auto expr = PrepareExpression(exprString, *schema);
+    auto expr = ParseAndPrepareExpression(exprString, *schema);
     auto buffer = New<TRowBuffer>();
     TUnversionedValue result{};
     EvaluateExpression(expr, "", schema, &result, buffer);
@@ -2828,7 +2830,7 @@ TEST_F(TFormatTimestampExpressionTest, TooSmallTimestamp)
 {
     auto schema = New<TTableSchema>();
 
-    auto expr = PrepareExpression("format_timestamp(-62135596801, '')", *schema);
+    auto expr = ParseAndPrepareExpression("format_timestamp(-62135596801, '')", *schema);
     auto buffer = New<TRowBuffer>();
 
     TUnversionedValue result{};
@@ -2842,7 +2844,7 @@ TEST_F(TFormatTimestampExpressionTest, TooLargeTimestamp)
 {
     auto schema = New<TTableSchema>();
 
-    auto expr = PrepareExpression("format_timestamp(253402300800, '%Y%m%d')", *schema);
+    auto expr = ParseAndPrepareExpression("format_timestamp(253402300800, '%Y%m%d')", *schema);
     auto buffer = New<TRowBuffer>();
 
     TUnversionedValue result{};
@@ -2856,7 +2858,7 @@ TEST_F(TFormatTimestampExpressionTest, InvalidFormat)
 {
     auto schema = New<TTableSchema>();
 
-    auto expr = PrepareExpression("format_timestamp(0, '11111111112222222222333333333344')", *schema);
+    auto expr = ParseAndPrepareExpression("format_timestamp(0, '11111111112222222222333333333344')", *schema);
     auto buffer = New<TRowBuffer>();
 
     TUnversionedValue result{};
@@ -2881,7 +2883,7 @@ TEST_F(TExpressionErrorTest, Int64_DivisionByZero)
         TColumnSchema("i2", EValueType::Int64)
     });
 
-    auto expr = PrepareExpression("i1 / i2", *schema);
+    auto expr = ParseAndPrepareExpression("i1 / i2", *schema);
     auto buffer = New<TRowBuffer>();
 
     TUnversionedValue result{};
@@ -2898,7 +2900,7 @@ TEST_F(TExpressionErrorTest, Int64_ModuloByZero)
         TColumnSchema("i2", EValueType::Int64)
     });
 
-    auto expr = PrepareExpression("i1 % i2", *schema);
+    auto expr = ParseAndPrepareExpression("i1 % i2", *schema);
     auto buffer = New<TRowBuffer>();
 
     TUnversionedValue result{};
@@ -2915,7 +2917,7 @@ TEST_F(TExpressionErrorTest, UInt64_DivisionByZero)
         TColumnSchema("u2", EValueType::Uint64)
     });
 
-    auto expr = PrepareExpression("u1 / u2", *schema);
+    auto expr = ParseAndPrepareExpression("u1 / u2", *schema);
     auto buffer = New<TRowBuffer>();
 
     TUnversionedValue result{};
@@ -2932,7 +2934,7 @@ TEST_F(TExpressionErrorTest, UInt64_ModuloByZero)
         TColumnSchema("u2", EValueType::Uint64)
     });
 
-    auto expr = PrepareExpression("u1 % u2", *schema);
+    auto expr = ParseAndPrepareExpression("u1 % u2", *schema);
     auto buffer = New<TRowBuffer>();
 
     TUnversionedValue result{};
@@ -2949,7 +2951,7 @@ TEST_F(TExpressionErrorTest, Int64_DivisionIntMinByMinusOne)
         TColumnSchema("i2", EValueType::Int64)
     });
 
-    auto expr = PrepareExpression("i1 / i2", *schema);
+    auto expr = ParseAndPrepareExpression("i1 / i2", *schema);
     auto buffer = New<TRowBuffer>();
 
     TUnversionedValue result{};
@@ -2970,21 +2972,21 @@ TEST_F(TExpressionErrorTest, ConvertFromAny)
 
     EXPECT_THROW_THAT(
         [&] {
-            auto expr = PrepareExpression("string(any)", *schema);
+            auto expr = ParseAndPrepareExpression("string(any)", *schema);
             EvaluateExpression(expr, "any=1", schema, &result, buffer);
         }(),
         HasSubstr("Cannot convert value"));
 
     EXPECT_THROW_THAT(
         [&] {
-            auto expr = PrepareExpression("int64(any)", *schema);
+            auto expr = ParseAndPrepareExpression("int64(any)", *schema);
             EvaluateExpression(expr, "any=\"hello\"", schema, &result, buffer);
         }(),
         HasSubstr("Cannot convert value"));
 
     EXPECT_THROW_THAT(
         [&] {
-            auto expr = PrepareExpression("int64(any)", *schema);
+            auto expr = ParseAndPrepareExpression("int64(any)", *schema);
             EvaluateExpression(expr, "any=%true", schema, &result, buffer);
         }(),
         HasSubstr("Cannot convert value"));
@@ -2998,10 +3000,10 @@ TEST_F(TExpressionErrorTest, ListContainsAny)
 
     EXPECT_THROW_THAT(
         [&] {
-            auto expr = PrepareExpression("list_contains(to_any(\"a\"), to_any(42))", *schema);
+            auto expr = ParseAndPrepareExpression("list_contains(to_any(\"a\"), to_any(42))", *schema);
             EvaluateExpression(expr, "", schema, &result, buffer);
         }(),
-        HasSubstr("Wrong type for argument"));
+        HasSubstr("No matching function"));
 }
 
 TEST_F(TExpressionErrorTest, ConcatenateOperator)
@@ -3017,28 +3019,28 @@ TEST_F(TExpressionErrorTest, ConcatenateOperator)
 
     EXPECT_THROW_THAT(
         [&] {
-            auto expr = PrepareExpression("1 || 2", *schema);
+            auto expr = ParseAndPrepareExpression("1 || 2", *schema);
             EvaluateExpression(expr, "", schema, &result, buffer);
         }(),
         HasSubstr("Type mismatch in expression"));
 
     EXPECT_THROW_THAT(
         [&] {
-            auto expr = PrepareExpression("i1 || i2", *schema);
+            auto expr = ParseAndPrepareExpression("i1 || i2", *schema);
             EvaluateExpression(expr, "i1=1;i2=2", schema, &result, buffer);
         }(),
         HasSubstr("Type mismatch in expression"));
 
     EXPECT_THROW_THAT(
         [&] {
-            auto expr = PrepareExpression("s1 || 2", *schema);
+            auto expr = ParseAndPrepareExpression("s1 || 2", *schema);
             EvaluateExpression(expr, "s1=abc", schema, &result, buffer);
         }(),
         HasSubstr("Type mismatch in expression"));
 
     EXPECT_THROW_THAT(
         [&] {
-            auto expr = PrepareExpression("s1 || i2", *schema);
+            auto expr = ParseAndPrepareExpression("s1 || i2", *schema);
             EvaluateExpression(expr, "s1=abc;i2=2", schema, &result, buffer);
         }(),
         HasSubstr("Type mismatch in expression"));
@@ -3063,7 +3065,7 @@ TEST_P(TExpressionStrConvTest, Basic)
         TColumnSchema("string", EValueType::String)
     });
 
-    auto expr = PrepareExpression(exprString, *schema);
+    auto expr = ParseAndPrepareExpression(exprString, *schema);
 
     auto buffer = New<TRowBuffer>();
     TUnversionedValue result{};
@@ -3144,7 +3146,7 @@ TEST_F(TExpressionStrConvTest, ErrorConvertStringToNumericTest) {
 
     EXPECT_THROW_THAT(
         [&] {
-            auto expr = PrepareExpression("parse_int64(string)", *schema);
+            auto expr = ParseAndPrepareExpression("parse_int64(string)", *schema);
             EvaluateExpression(expr, "string=\"hello\"", schema, &result, buffer);
         }(),
         HasSubstr("Cannot convert value"));
@@ -3169,7 +3171,7 @@ TEST_F(TIllegalDoubleToIntCast, NanToZero)
         SCOPED_TRACE(Format("EnableWebAssembly: %v", webAssembly));
         EXPECT_THROW_THAT(
             EvaluateExpression(
-                PrepareExpression("uint64(0.0/0.0)", *Schema_),
+                ParseAndPrepareExpression("uint64(0.0/0.0)", *Schema_),
                 "",
                 Schema_,
                 &result,
@@ -3193,7 +3195,7 @@ TEST_F(TIllegalDoubleToIntCast, UnsignedBoundaries)
             auto converted = lower ? DoubleBelowLowerUint64 : DoubleBeyondUpperUint64;
             EXPECT_THROW_THAT(
                 EvaluateExpression(
-                    PrepareExpression(Format("uint64(%v)", converted), *Schema_),
+                    ParseAndPrepareExpression(Format("uint64(%v)", converted), *Schema_),
                     "",
                     Schema_,
                     &result,
@@ -3206,14 +3208,14 @@ TEST_F(TIllegalDoubleToIntCast, UnsignedBoundaries)
     // Sanity check.
     for (bool webAssembly : {false, true}) {
         EXPECT_NO_THROW(EvaluateExpression(
-            PrepareExpression("uint64(0.0)", *Schema_),
+            ParseAndPrepareExpression("uint64(0.0)", *Schema_),
             "",
             Schema_,
             &result,
             RowBuffer_,
             webAssembly));
         EXPECT_NO_THROW(EvaluateExpression(
-            PrepareExpression("uint64(18000000000000000000.0)", *Schema_),
+            ParseAndPrepareExpression("uint64(18000000000000000000.0)", *Schema_),
             "",
             Schema_,
             &result,
@@ -3236,7 +3238,7 @@ TEST_F(TIllegalDoubleToIntCast, SignedBoundaries)
             auto converted = std::bit_cast<double>(lower ? DoubleBelowLowerInt64 : DoubleBeyondUpperInt64);
             EXPECT_THROW_THAT(
                 EvaluateExpression(
-                    PrepareExpression(Format("int64(%v)", converted), *Schema_),
+                    ParseAndPrepareExpression(Format("int64(%v)", converted), *Schema_),
                     "",
                     Schema_,
                     &result,
@@ -3249,14 +3251,14 @@ TEST_F(TIllegalDoubleToIntCast, SignedBoundaries)
     // Sanity check.
     for (bool webAssembly : {false, true}) {
         EXPECT_NO_THROW(EvaluateExpression(
-            PrepareExpression("int64(9000000000000000000.0)", *Schema_),
+            ParseAndPrepareExpression("int64(9000000000000000000.0)", *Schema_),
             "",
             Schema_,
             &result,
             RowBuffer_,
             webAssembly));
         EXPECT_NO_THROW(EvaluateExpression(
-            PrepareExpression("int64(-9000000000000000000.0)", *Schema_),
+            ParseAndPrepareExpression("int64(-9000000000000000000.0)", *Schema_),
             "",
             Schema_,
             &result,

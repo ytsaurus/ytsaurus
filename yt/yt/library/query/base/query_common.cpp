@@ -5,6 +5,7 @@
 #include <yt/yt/client/table_client/row_buffer.h>
 #include <yt/yt/client/table_client/schema.h>
 #include <yt/yt/client/table_client/wire_protocol.h>
+#include <yt/yt/client/table_client/helpers.h>
 
 namespace NYT::NQueryClient {
 
@@ -150,10 +151,15 @@ bool IsStringBinaryOp(EBinaryOp opcode)
     }
 }
 
-TValue CastValueWithCheck(TValue value, EValueType targetType)
+TOwningValue CastValueWithCheck(TValue value, EValueType targetType)
 {
     if (value.Type == targetType || value.Type == EValueType::Null) {
         return value;
+    }
+
+    if (targetType == EValueType::Any) {
+        TChunkedMemoryPool pool;
+        return EncodeUnversionedAnyValue(value, &pool);
     }
 
     if (value.Type == EValueType::Int64) {

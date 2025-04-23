@@ -1667,6 +1667,7 @@ TSelectRowsResult TClient::DoSelectRowsOnce(
         parsedQuery->Source,
         *astQuery,
         parsedQuery->AstHead.AliasMap,
+        options.ExpressionBuilderVersion,
         HeavyRequestMemoryUsageTracker_);
     const auto& query = fragment->Query;
 
@@ -1812,6 +1813,7 @@ NYson::TYsonString TClient::DoExplainQuery(
         parsedQuery->Source,
         *astQuery,
         parsedQuery->AstHead.AliasMap,
+        options.ExpressionBuilderVersion,
         HeavyRequestMemoryUsageTracker_);
 
     auto memoryChunkProvider = MemoryProvider_->GetProvider(
