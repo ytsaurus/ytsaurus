@@ -313,9 +313,23 @@ Publishes as docker images.
 
 Publishes as docker images.
 
-**Current release:** 2.5.0 (`ghcr.io/ytsaurus/spyt:2.5.0`)
+**Current release:** 2.6.0 (`ghcr.io/ytsaurus/spyt:2.6.0`)
 
 **All releases:**
+
+{% cut "**2.6.0**" %}
+
+- Java 17 support
+- Support for UUID and Json YTsaurus types
+- Support for RPC-job proxy in direct submit
+- Support for additional task parameters in YTsaurus operation specification via Spark config in direct submit
+- Support for taking snapshots locks at reading time
+- Explicit flag for truncated result of Query Tracker queries
+- Fix compatibility with Spark 3.5.4 and 3.5.5
+- Fix for date- and timestamp SQL-functions via Query Tracker
+- Many stability and other bug fixes
+
+{% endcut %}
 
 {% cut "**2.5.0**" %}
 

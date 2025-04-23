@@ -8,6 +8,23 @@ Is released as a docker image.
 
 **Releases:**
 
+{% cut "**2.6.0**" %}
+
+**Release date:** 2025-04-23
+
+
+- Java 17 support
+- Support for UUID and Json YTsaurus types
+- Support for RPC-job proxy in direct submit
+- Support for additional task parameters in YTsaurus operation specification via Spark config in direct submit
+- Support for taking snapshots locks at reading time
+- Explicit flag for truncated result of Query Tracker queries
+- Fix compatibility with Spark 3.5.4 and 3.5.5
+- Fix for date- and timestamp SQL-functions via Query Tracker
+- Many stability and other bug fixes
+
+{% endcut %}
+
 {% cut "**2.5.0**" %}
 
 **Release date:** 2024-12-25
