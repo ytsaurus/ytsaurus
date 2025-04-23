@@ -226,6 +226,8 @@ def parse_args():
         builder.add_argument("insertion_batch_size", metavar="N", type=int)
         builder.add_yesno_argument("trim")
 
+    with builder.group("queues specifics", "queues"):
+        builder.add_yesno_argument("use_hunk_storage")
 
     with builder.group("schema", "schema"):
         builder.add_bool_mixin_argument("simple_schema", help="schema with two int64 key columns and one string value column")

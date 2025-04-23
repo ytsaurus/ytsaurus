@@ -173,7 +173,7 @@ class Opaque():
 spec_template = {
     "seed": None,
     "mode": "iterative",
-    "table_type": "sorted", #Variable(["sorted", "ordered"], VariationPolicy.PickRandom),
+    "table_type": "sorted", #Variable(["sorted", "ordered", "queues"], VariationPolicy.PickRandom),
     "replicas": [],
     "chunk_format": Variable(["table_versioned_simple", "table_versioned_columnar", "table_versioned_slim"], VariationPolicy.PickRandom),
     "in_memory_mode": Variable(["none", "compressed", "uncompressed"], VariationPolicy.PickRandom),
@@ -223,6 +223,10 @@ spec_template = {
         "rows_per_tablet": 10000,
         "insertion_batch_size": 100,
         "trim": True,
+    },
+
+    "queues": {
+        "use_hunk_storage": False,
     },
 
     "replicated": {
