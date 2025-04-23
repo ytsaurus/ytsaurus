@@ -147,4 +147,39 @@ IJoinProfilerPtr MakeNullJoinSubqueryProfiler()
 
 ////////////////////////////////////////////////////////////////////////////////
 
+int DefaultExpressionBuilderVersion = 1;
+
+TPlanFragmentPtr ParseAndPreparePlanFragment(
+    IPrepareCallbacks* callbacks,
+    TStringBuf source,
+    NYson::TYsonStringBuf placeholderValues,
+    int syntaxVersion,
+    IMemoryUsageTrackerPtr memoryTracker)
+{
+    auto parsedSource = ParseSource(source, EParseMode::Query, placeholderValues, syntaxVersion);
+    return PreparePlanFragment(
+        callbacks,
+        parsedSource->Source,
+        std::get<NAst::TQuery>(parsedSource->AstHead.Ast),
+        parsedSource->AstHead.AliasMap,
+        DefaultExpressionBuilderVersion,
+        std::move(memoryTracker));
+}
+
+TConstExpressionPtr ParseAndPrepareExpression(
+    TStringBuf source,
+    const TTableSchema& tableSchema,
+    const TConstTypeInferrerMapPtr& functions,
+    THashSet<std::string>* references)
+{
+    return PrepareExpression(
+        *ParseSource(source, EParseMode::Expression),
+        tableSchema,
+        DefaultExpressionBuilderVersion,
+        functions,
+        references);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NQueryClient

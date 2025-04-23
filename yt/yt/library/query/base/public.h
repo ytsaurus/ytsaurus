@@ -151,8 +151,9 @@ using TMutableRowRanges = std::vector<TMutableRowRange>;
 
 using TColumnSet = THashSet<std::string>;
 
-using TLogicalTypePtr = NTableClient::TLogicalTypePtr;
-using ELogicalMetatype = NTableClient::ELogicalMetatype;
+using NTableClient::TLogicalTypePtr;
+using NTableClient::ELogicalMetatype;
+using NTableClient::ESimpleLogicalValueType;
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -3,6 +3,7 @@
 #include "public.h"
 
 #include "functions_common.h"
+#include "typing.h"
 
 namespace NYT::NQueryClient {
 
@@ -52,11 +53,16 @@ public:
         std::vector<int>* formalArguments,
         std::optional<std::pair<int, bool>>* repeatedType) const;
 
+    std::vector<TTypeId> InferTypes(TTypingCtx* typingCtx, TRange<TLogicalTypePtr> argumentTypes, TStringBuf name) const;
+
 private:
     const std::unordered_map<TTypeParameter, TUnionType> TypeParameterConstraints_;
     const std::vector<TType> ArgumentTypes_;
     const TType RepeatedArgumentType_;
     const TType ResultType_;
+
+
+    TTypingCtx::TFunctionSignature GetSignature(TTypingCtx* typingCtx, int argumentCount) const;
 };
 
 class TAggregateFunctionTypeInferrer
@@ -85,11 +91,15 @@ public:
         std::vector<TTypeSet>* typeConstraints,
         std::vector<int>* argumentConstraintIndexes) const;
 
+    std::vector<TTypeId> InferTypes(TTypingCtx* typingCtx, TRange<TLogicalTypePtr> argumentTypes, TStringBuf name) const;
+
 private:
     const std::unordered_map<TTypeParameter, TUnionType> TypeParameterConstraints_;
     const std::vector<TType> ArgumentTypes_;
     const TType StateType_;
     const TType ResultType_;
+
+    TTypingCtx::TFunctionSignature GetSignature(TTypingCtx* typingCtx) const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
