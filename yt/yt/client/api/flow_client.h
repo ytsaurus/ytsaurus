@@ -82,6 +82,15 @@ struct TGetFlowViewResult
     NYson::TYsonString FlowViewPart;
 };
 
+struct TFlowExecuteOptions
+    : public TTimeoutOptions
+{ };
+
+struct TFlowExecuteResult
+{
+    NYson::TYsonString Result;
+};
+
 struct IFlowClient
 {
     ~IFlowClient() = default;
@@ -124,6 +133,12 @@ struct IFlowClient
         const NYPath::TYPath& pipelinePath,
         const NYPath::TYPath& viewPath,
         const TGetFlowViewOptions& options = {}) = 0;
+
+    virtual TFuture<TFlowExecuteResult> FlowExecute(
+        const NYPath::TYPath& pipelinePath,
+        const TString& command,
+        const NYson::TYsonString& argument,
+        const TFlowExecuteOptions& options = {}) = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
