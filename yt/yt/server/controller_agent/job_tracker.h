@@ -297,11 +297,18 @@ private:
         i64 ProtoStatisticsMessageBytes = 0;
     };
 
+    struct TStoredJobInfo
+    {
+        TJobId JobId;
+        TOperationId OperationId;
+    };
+
     struct THeartbeatRequest
     {
         THashMap<TOperationId, std::vector<TJobEventSummary>> GroupedJobSummaries;
         THashSet<TAllocationId> AllocationIdsRunningOnNode;
         std::vector<TJobId> UnconfirmedJobIds;
+        std::vector<TStoredJobInfo> StoredJobs;
     };
 
     struct THeartbeatProcessingContext
