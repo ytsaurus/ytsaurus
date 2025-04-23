@@ -100,7 +100,7 @@ public:
 
     void UpdateSchedulingSegments(TUpdateSchedulingSegmentsContext* context);
 
-    void InitOrUpdateOperationSchedulingSegment(
+    TError InitOrUpdateOperationSchedulingSegment(
         TOperationId operationId,
         const TFairShareTreeAllocationSchedulerOperationStatePtr& operationState) const;
 

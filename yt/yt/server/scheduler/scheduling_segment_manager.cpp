@@ -159,13 +159,15 @@ void TSchedulingSegmentManager::UpdateSchedulingSegments(TUpdateSchedulingSegmen
     BuildPersistentState(context);
 }
 
-void TSchedulingSegmentManager::InitOrUpdateOperationSchedulingSegment(
+TError TSchedulingSegmentManager::InitOrUpdateOperationSchedulingSegment(
     TOperationId operationId,
     const TFairShareTreeAllocationSchedulerOperationStatePtr& operationState) const
 {
+    TError error;
+
     if (!operationState->AggregatedInitialMinNeededResources) {
         // May happen if we're updating segments config, and there's an operation that hasn't materialized yet.
-        return;
+        return error;
     }
 
     auto segment = [&] {
@@ -202,10 +204,27 @@ void TSchedulingSegmentManager::InitOrUpdateOperationSchedulingSegment(
 
         operationState->SchedulingSegment = segment;
         operationState->SpecifiedSchedulingSegmentModules = operationState->Spec->SchedulingSegmentModules;
-        if (!IsModuleAwareSchedulingSegment(segment)) {
+        if (IsModuleAwareSchedulingSegment(segment)) {
+            YT_LOG_INFO("XXX (SpecifiedSchedulingSegmentModules: %v, AllModules: %v)", operationState->SpecifiedSchedulingSegmentModules, Config_->GetModules());
+            if (operationState->SpecifiedSchedulingSegmentModules) {
+                bool hasKnownModule = false;
+                for (const auto& module : *operationState->SpecifiedSchedulingSegmentModules) {
+                    if (Config_->GetModules().contains(module)) {
+                        hasKnownModule = true;
+                        break;
+                    }
+                }
+                if (!hasKnownModule) {
+                    error = TError("Segment modules %v are not found in the tree", *operationState->SpecifiedSchedulingSegmentModules)
+                        << TErrorAttribute("modules", Config_->GetModules());
+                }
+            }
+        } else {
             operationState->SchedulingSegmentModule.reset();
         }
     }
+
+    return error;
 }
 
 void TSchedulingSegmentManager::UpdateConfig(TFairShareStrategySchedulingSegmentsConfigPtr config)
