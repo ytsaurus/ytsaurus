@@ -6,11 +6,10 @@ LICENSE(
     MIT
 )
 
-VERSION(v1.17.9)
+VERSION(v1.17.11)
 
 SRCS(
     compress.go
-    compress_go120.go
     transport.go
 )
 
