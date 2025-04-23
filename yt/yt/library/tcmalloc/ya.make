@@ -12,6 +12,7 @@ PEERDIR(
     yt/yt/core
     yt/yt/library/ytprof
     yt/yt/library/profiling/resource_tracker
+    yt/yt/library/profiling/solomon
     contrib/libs/tcmalloc/malloc_extension
 )
 
