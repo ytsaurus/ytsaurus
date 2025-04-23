@@ -3994,6 +3994,68 @@ class TestQueueStaticExport(TestQueueStaticExportBase):
 
         self.remove_export_destination(export_dir)
 
+    @authors("pavel-bash")
+    def test_cron_annotation_schedule(self):
+        # Check that the new CRON annotation works correctly, at least for this
+        # use-case. It's hard and long to test others as CRON cannot go subminute.
+
+        _, queue_id = self._create_queue("//tmp/q")
+
+        export_dir = "//tmp/export"
+        self._create_export_destination(export_dir, queue_id)
+
+        export_cron_expression = "* * * * * *"  # Every minute.
+
+        set("//tmp/q/@static_export_config", {
+            "default": {
+                "export_directory": export_dir,
+                "export_cron": export_cron_expression,
+            }
+        })
+
+        self._wait_for_component_passes()
+
+        insert_rows("//tmp/q", [{"data": "vim"}])
+        self._flush_table("//tmp/q")
+        wait(lambda: len(ls(export_dir)) == 1, timeout=60)
+
+        insert_rows("//tmp/q", [{"data": "nano"}])
+        self._flush_table("//tmp/q")
+        wait(lambda: len(ls(export_dir)) == 2, timeout=60)
+
+        self.remove_export_destination(export_dir)
+
+    @authors("pavel-bash")
+    def test_cron_annotation_schedule_malformed(self):
+        # Check that the new CRON annotation works correctly, at least for this
+        # use-case. It's hard and long to test others as CRON cannot go subminute.
+
+        _, queue_id = self._create_queue("//tmp/q")
+
+        export_dir = "//tmp/export"
+        self._create_export_destination(export_dir, queue_id)
+
+        export_cron_expression = "* * * * * *"  # Every minute.
+
+        set("//tmp/q/@static_export_config", {
+            "default": {
+                "export_directory": export_dir,
+                "export_cron": export_cron_expression,
+            }
+        })
+
+        self._wait_for_component_passes()
+
+        insert_rows("//tmp/q", [{"data": "vim"}])
+        self._flush_table("//tmp/q")
+        wait(lambda: len(ls(export_dir)) == 1, timeout=60)
+
+        insert_rows("//tmp/q", [{"data": "nano"}])
+        self._flush_table("//tmp/q")
+        wait(lambda: len(ls(export_dir)) == 2, timeout=60)
+
+        self.remove_export_destination(export_dir)
+
     # COMPAT(apachee): Ensure old implementation is actually used.
     @authors("apachee")
     def test_use_old_queue_exporter_impl(self):

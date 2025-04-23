@@ -74,7 +74,7 @@ struct TQueueStaticExportConfig
     //! with ExportPeriod parameter.
     std::optional<TString> ExportCronExpression;
 
-    //! Either the export period or the CRON expression; part of the configuration to avoid creating
+    //! Either the export period or the CRON expression; it is a part of the configuration to avoid creating
     //! structures many times during the execution of the program.
     std::variant<TDuration, NQueueAgent::NCron::cronexpr> ExportSchedule;
 

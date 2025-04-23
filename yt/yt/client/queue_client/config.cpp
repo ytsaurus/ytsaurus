@@ -57,9 +57,11 @@ bool operator==(const TQueueAutoTrimConfig& lhs, const TQueueAutoTrimConfig& rhs
 void TQueueStaticExportConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("export_period", &TThis::ExportPeriod)
-        .GreaterThan(TDuration::Zero());
+        .GreaterThan(TDuration::Zero())
+        .Optional();
     registrar.Parameter("export_cron", &TThis::ExportCronExpression)
-        .NonEmpty();
+        .NonEmpty()
+        .Optional();
     registrar.Parameter("export_directory", &TThis::ExportDirectory);
     registrar.Parameter("export_ttl", &TThis::ExportTtl)
         .Default(TDuration::Zero());
@@ -78,18 +80,22 @@ void TQueueStaticExportConfig::Register(TRegistrar registrar)
             try {
                 auto cronExpression = NQueueAgent::NCron::make_cron(*config->ExportCronExpression);
                 config->ExportSchedule = std::move(cronExpression);
-            } catch (const NQueueAgent::NCron::bad_cronexpr&) {
-                THROW_ERROR_EXCEPTION("The value of \"export_schedule\" is not a well-formed CRON expression");
+            } catch (const NQueueAgent::NCron::bad_cronexpr& exc) {
+                THROW_ERROR_EXCEPTION(
+                    "The value of \"export_cron\" is not a well-formed CRON expression (Value: '%v', Error: '%v')",
+                    *config->ExportCronExpression,
+                    exc.what());
             }
         } else {
-            THROW_ERROR_EXCEPTION("One of {export_period, export_schedule} must be specified");
+            THROW_ERROR_EXCEPTION("One of \"export_period\", \"export_cron\" must be specified");
         }
     });
 }
 
 bool operator==(const TQueueStaticExportConfig& lhs, const TQueueStaticExportConfig& rhs)
 {
-    return std::tie(lhs.ExportPeriod, lhs.ExportDirectory) == std::tie(rhs.ExportPeriod, rhs.ExportDirectory);
+    return std::tie(lhs.ExportPeriod, lhs.ExportCronExpression, lhs.ExportDirectory) ==
+        std::tie(rhs.ExportPeriod, lhs.ExportCronExpression, rhs.ExportDirectory);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
