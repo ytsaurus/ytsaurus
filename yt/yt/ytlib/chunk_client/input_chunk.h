@@ -128,6 +128,8 @@ public:
     //! NB: This factor overrides the value of the column selectivity factor.
     DEFINE_BYVAL_RW_PROPERTY(std::optional<double>, BlockSelectivityFactor);
 
+    DEFINE_BYREF_RO_PROPERTY(std::optional<TChunkId>, CompressionDictionaryId);
+
 public:
     TInputChunk() = default;
     TInputChunk(TInputChunk&& other) = default;

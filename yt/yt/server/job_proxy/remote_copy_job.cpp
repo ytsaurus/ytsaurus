@@ -123,6 +123,17 @@ public:
                 FromProto<TChunkId>(mapping.input_hunk_chunk_id()),
                 FromProto<TChunkId>(mapping.output_hunk_chunk_id()));
         }
+
+        for (const auto& mapping : RemoteCopyJobSpecExt_.compression_dictionary_id_mapping()) {
+            EmplaceOrCrash(
+                HunkChunkIdMapping_,
+                FromProto<TChunkId>(mapping.input_hunk_chunk_id()),
+                FromProto<TChunkId>(mapping.output_hunk_chunk_id()));
+            EmplaceOrCrash(
+                CompressionDictionaryIdMapping_,
+                FromProto<TChunkId>(mapping.input_hunk_chunk_id()),
+                FromProto<TChunkId>(mapping.output_hunk_chunk_id()));
+        }
     }
 
     void PopulateInputNodeDirectory() const override
@@ -341,6 +352,7 @@ private:
 
     THashMap<TChunkId, TChunkId> HunkChunkIdMapping_;
     THashMap<TChunkId, TChunkId> ResultHunkChunkIdMapping_;
+    THashMap<TChunkId, TChunkId> CompressionDictionaryIdMapping_;
 
     TTraceContextPtr InputTraceContext_;
     TTraceContextFinishGuard InputFinishGuard_;
@@ -437,7 +449,7 @@ private:
 
         auto chunkMeta = GetChunkMeta(inputChunkId, readers);
         ReplaceHunkChunkIds(chunkMeta);
-        CheckNoCompressionDictionaries(chunkMeta, inputChunkId);
+        ReplaceCompressionDictionaryIds(chunkMeta, inputChunkId);
 
         // We do not support node reallocation for erasure chunks.
         auto remoteWriterOptions = New<TRemoteWriterOptions>();
@@ -873,7 +885,7 @@ private:
 
         chunkMeta = GetChunkMeta(inputChunkId, {reader});
         ReplaceHunkChunkIds(chunkMeta);
-        CheckNoCompressionDictionaries(chunkMeta, inputChunkId);
+        ReplaceCompressionDictionaryIds(chunkMeta, inputChunkId);
 
         auto writer = CreateReplicationWriter(
             WriterConfig_,
@@ -1191,6 +1203,43 @@ private:
                 << TErrorAttribute("chunk_id", chunkId)
                 << TErrorAttribute("job_type", EJobType::RemoteCopy);
         }
+    }
+
+    void ReplaceCompressionDictionaryIds(const TDeferredChunkMetaPtr& chunkMeta, TChunkId inputChunkId)
+    {
+        if (CompressionDictionaryIdMapping_.empty()) {
+            CheckNoCompressionDictionaries(chunkMeta, inputChunkId);
+            return;
+        }
+
+        auto miscExt = GetProtoExtension<TMiscExt>(chunkMeta->extensions());
+        if (miscExt.has_compression_dictionary_id()) {
+            auto chunkId = FromProto<TChunkId>(miscExt.compression_dictionary_id());
+            ToProto(
+                miscExt.mutable_compression_dictionary_id(),
+                GetOrCrash(CompressionDictionaryIdMapping_, chunkId));
+
+            SetProtoExtension<TMiscExt>(
+                chunkMeta->mutable_extensions(),
+                miscExt);
+        }
+
+        auto optionalHunkChunkRefsExt = FindProtoExtension<NTableClient::NProto::THunkChunkRefsExt>(
+            chunkMeta->extensions());
+        if (!optionalHunkChunkRefsExt) {
+            return;
+        }
+
+        for (auto& ref : *optionalHunkChunkRefsExt->mutable_refs()) {
+            if (ref.has_compression_dictionary_id()) {
+                auto chunkId = FromProto<TChunkId>(ref.compression_dictionary_id());
+                ToProto(ref.mutable_compression_dictionary_id(), GetOrCrash(CompressionDictionaryIdMapping_, chunkId));
+            }
+        }
+
+        SetProtoExtension<NTableClient::NProto::THunkChunkRefsExt>(
+            chunkMeta->mutable_extensions(),
+            *optionalHunkChunkRefsExt);
     }
 };
 

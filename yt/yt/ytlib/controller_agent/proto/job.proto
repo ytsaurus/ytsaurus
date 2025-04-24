@@ -750,6 +750,7 @@ message TRemoteCopyJobSpecExt
     optional bool repair_erasure_chunks = 6;
 
     repeated THunkChunkIdMapping hunk_chunk_id_mapping = 7;
+    repeated THunkChunkIdMapping compression_dictionary_id_mapping = 9;
 
     optional string remote_cluster_name = 8;
 }

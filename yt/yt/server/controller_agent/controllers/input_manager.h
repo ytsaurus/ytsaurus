@@ -227,8 +227,6 @@ public:
         i64 sampleCount,
         int maxSampleSize) const;
 
-    bool HasDynamicTableWithHunkChunks() const;
-
     // NB: Asserts that there is only one input table.
     TFuture<NYTree::IAttributeDictionaryPtr> FetchSingleInputTableAttributes(
         const std::optional<std::vector<TString>>& attributeKeys) const;

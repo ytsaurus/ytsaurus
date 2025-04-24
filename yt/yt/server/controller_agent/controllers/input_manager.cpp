@@ -961,7 +961,7 @@ void TInputManager::FetchInputTablesAttributes()
                 THROW_ERROR_EXCEPTION("Remote copy for dynamic tables with hunks is disabled");
             }
 
-            if (HasCompressionDictionaries(attributes)) {
+            if (!Host_->GetConfig()->EnableCompressionDictionaryRemoteCopy && HasCompressionDictionaries(attributes)) {
                 THROW_ERROR_EXCEPTION("Table with compression dictionaries cannot be copied to another cluster")
                     << TErrorAttribute("table_path", table->Path);
             }
@@ -1442,21 +1442,6 @@ std::pair<TCombiningSamplesFetcherPtr, TUnavailableChunksWatcherPtr> TInputManag
     return std::pair(
         New<TCombiningSamplesFetcher>(std::move(samplesFetchers)),
         New<TUnavailableChunksWatcher>(std::move(fetcherChunkScrapers)));
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-bool TInputManager::HasDynamicTableWithHunkChunks() const
-{
-    for (const auto& table : InputTables_) {
-        if (table->Dynamic &&
-            table->Schema->HasHunkColumns() &&
-            !table->HunkChunks.empty())
-        {
-            return true;
-        }
-    }
-    return false;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

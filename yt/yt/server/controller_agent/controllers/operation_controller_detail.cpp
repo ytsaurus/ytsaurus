@@ -2845,11 +2845,20 @@ void TOperationControllerBase::AttachOutputChunks(const std::vector<TOutputTable
                     }
 
                     std::vector<TChunkId> hunkChunkIds;
+                    if (chunk->CompressionDictionaryId()) {
+                        YT_VERIFY(table->Schema->HasHunkColumns());
+                        YT_VERIFY(!table->OutputHunkChunks.empty());
+                        hunkChunkIds.push_back(*chunk->CompressionDictionaryId());
+                    }
+
                     if (chunk->HunkChunkRefsExt()) {
                         YT_VERIFY(table->Schema->HasHunkColumns());
                         YT_VERIFY(!table->OutputHunkChunks.empty());
                         for (const auto& hunkChunkRef : chunk->HunkChunkRefsExt()->refs()) {
                             hunkChunkIds.push_back(FromProto<TChunkId>(hunkChunkRef.chunk_id()));
+                            if (hunkChunkRef.has_compression_dictionary_id()) {
+                                hunkChunkIds.push_back(FromProto<TChunkId>(hunkChunkRef.compression_dictionary_id()));
+                            }
                         }
                     }
 

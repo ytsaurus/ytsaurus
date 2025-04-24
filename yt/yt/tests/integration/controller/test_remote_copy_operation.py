@@ -14,7 +14,7 @@ from yt_commands import (
     sync_reshard_table, sync_flush_table, sync_compact_table, remount_table,
     multicell_sleep, set_node_banned, set_nodes_banned, set_all_nodes_banned, sorted_dicts,
     raises_yt_error, get_driver, ls, disable_write_sessions_on_node,
-    create_pool, update_pool_tree_config_option,
+    create_pool, update_pool_tree_config_option, create_dynamic_table,
     update_controller_agent_config, remember_controller_agent_config,
     write_file, wait_for_nodes, read_file, get_singular_chunk_id)
 
@@ -1850,26 +1850,6 @@ class TestSchedulerRemoteCopyDynamicTablesWithHunks(TestSchedulerRemoteCopyDynam
         self._check_all_read_methods("//tmp/t1", "//tmp/t2", keys, rows, source_driver=self.remote_driver, dest_driver=None)
 
     @authors("alexelexa")
-    def test_no_compression_dictionaries(self):
-        self._create_sorted_table("//tmp/t1", max_inline_hunk_size=1, driver=self.remote_driver)
-        self._create_sorted_table("//tmp/t2", max_inline_hunk_size=1)
-
-        set("//tmp/t1/@mount_config/value_dictionary_compression", {"enable": True}, driver=self.remote_driver)
-        set("//tmp/t2/@mount_config/value_dictionary_compression", {"enable": True})
-
-        remount_table("//tmp/t1", driver=self.remote_driver)
-        remount_table("//tmp/t2")
-
-        with raises_yt_error():
-            remote_copy(
-                in_="//tmp/t1",
-                out="//tmp/t2",
-                spec={
-                    "cluster_name": self.REMOTE_CLUSTER_NAME,
-                }
-            )
-
-    @authors("alexelexa")
     def test_no_hunks_in_static_table(self):
         self._create_sorted_table("//tmp/t1", max_inline_hunk_size=1, dynamic=False, driver=self.remote_driver)
         self._create_sorted_table("//tmp/t2", max_inline_hunk_size=1, dynamic=False)
@@ -1971,6 +1951,91 @@ class TestSchedulerRemoteCopyDynamicTablesWithHunks(TestSchedulerRemoteCopyDynam
 
         delete_rows("//tmp/t2", [{"key": i} for i in range(1, 8, 2)])
         assert_items_equal(select_rows("* from [//tmp/t2]"), [{"key": i, "value": hunk_value(i)} for i in range(0, 8, 2)])
+
+    @authors("alexelexa")
+    def test_remote_copy_hunks_with_compression_dictionaries(self):
+        SCHEMA_WITH_MULTIPLE_COLUMNS = [
+            {"name": "key", "type": "int64", "sort_order": "ascending"},
+            {"name": "value", "type": "string", "max_inline_hunk_size": 10},
+            {"name": "value2", "type": "string", "max_inline_hunk_size": 200},
+        ]
+
+        for path, driver in [("//tmp/t1", self.remote_driver), ("//tmp/t2", None)]:
+            create_dynamic_table(
+                path,
+                schema=SCHEMA_WITH_MULTIPLE_COLUMNS,
+                enable_dynamic_store_read=False,
+                hunk_chunk_reader={
+                    "max_decompression_blob_size": 100,
+                },
+                max_hunk_compaction_garbage_ratio=0.5,
+                chunk_format="table_versioned_simple",
+                mount_config={
+                    "value_dictionary_compression": {
+                        "enable": True,
+                        "column_dictionary_size": 256,
+                        "max_processed_chunk_count": 2,
+                    }},
+                driver=driver)
+
+            sync_create_cells(1, driver=driver)
+
+        sync_mount_table("//tmp/t1", driver=self.remote_driver)
+
+        rows = [{"key": i, "value": "value" + str(i) + "x" * 100, "value2": "y" * 100} for i in range(100)]
+        insert_rows("//tmp/t1", rows, driver=self.remote_driver)
+        sync_flush_table("//tmp/t1", driver=self.remote_driver)
+
+        wait(lambda: len(self._get_chunk_ids("//tmp/t1", "hunk", driver=self.remote_driver)) == 3)
+
+        chunk_ids_before_compaction = builtins.set(self._get_chunk_ids("//tmp/t1", "table", driver=self.remote_driver))
+        set("//tmp/t1/@forced_store_compaction_revision", 1, driver=self.remote_driver)
+        remount_table("//tmp/t1", driver=self.remote_driver)
+
+        def _check_forced_compaction():
+            chunk_ids = builtins.set(self._get_chunk_ids("//tmp/t1", "table", driver=self.remote_driver))
+            return chunk_ids_before_compaction.isdisjoint(chunk_ids)
+        wait(_check_forced_compaction)
+
+        def _get_linked_compression_dictionary_ids(path, driver=None):
+            chunk_ids = self._get_chunk_ids(path, "table", driver=driver)
+            compression_dictionary_ids = builtins.set()
+            for chunk_id in chunk_ids:
+                hunk_chunk_refs = get("#{}/@hunk_chunk_refs".format(chunk_id), driver=driver)
+                for ref in hunk_chunk_refs:
+                    if ref["hunk_count"] == 0:
+                        compression_dictionary_ids.add(ref["chunk_id"])
+            return compression_dictionary_ids
+
+        keys = [{"key": i} for i in range(100)]
+        assert_items_equal(lookup_rows("//tmp/t1", keys, driver=self.remote_driver), rows)
+        assert len(self._get_chunk_ids("//tmp/t1", "hunk", driver=self.remote_driver)) == 3
+        assert len(_get_linked_compression_dictionary_ids("//tmp/t1", driver=self.remote_driver)) == 1
+
+        sync_unmount_table("//tmp/t1", driver=self.remote_driver)
+
+        remote_copy(
+            in_="//tmp/t1",
+            out="//tmp/t2",
+            spec={
+                "cluster_name": self.REMOTE_CLUSTER_NAME,
+            }
+        )
+
+        assert len(self._get_chunk_ids("//tmp/t2", "hunk")) == 2
+        assert len(_get_linked_compression_dictionary_ids("//tmp/t2")) == 1
+
+        sync_mount_table("//tmp/t1", driver=self.remote_driver)
+        sync_mount_table("//tmp/t2")
+
+        self._check_all_read_methods("//tmp/t1", "//tmp/t2", keys, rows, source_driver=self.remote_driver, dest_driver=None)
+
+        rows2 = [{"key": i, "value": "value" + str(i) + "x" * 100, "value2": "y" * 100} for i in range(100, 200)]
+        insert_rows("//tmp/t2", rows2)
+        sync_flush_table("//tmp/t2")
+
+        wait(lambda: len(self._get_chunk_ids("//tmp/t2", "hunk")) == 5)
+        assert_items_equal(select_rows("* from [//tmp/t2]"), rows + rows2)
 
 
 ##################################################################
@@ -2103,6 +2168,7 @@ class TestSchedulerRemoteCopyDynamicTablesErasure(TestSchedulerRemoteCopyDynamic
         wait(lambda: get("//sys/parity_missing_chunks/@count") == 0)
 
         check()
+
 
 ##################################################################
 

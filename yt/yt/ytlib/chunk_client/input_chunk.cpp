@@ -213,6 +213,13 @@ TInputChunk::TInputChunk(const NProto::TChunkSpec& chunkSpec, std::optional<int>
             BoundaryKeys_->MaxKey = GetKeyPrefix(BoundaryKeys_->MaxKey, *keyColumnCount);
         }
     }
+
+    const auto& chunkMeta = chunkSpec.chunk_meta();
+    if (auto miscExt = FindProtoExtension<NProto::TMiscExt>(chunkMeta.extensions())) {
+        if (miscExt->has_compression_dictionary_id()) {
+            CompressionDictionaryId_ = FromProto<TChunkId>(miscExt->compression_dictionary_id());
+        }
+    }
 }
 
 void TInputChunk::RegisterMetadata(auto&& registrar)
@@ -240,6 +247,7 @@ void TInputChunk::RegisterMetadata(auto&& registrar)
     PHOENIX_REGISTER_FIELD(8, HunkChunkRefsExt_,
         .SinceVersion(static_cast<int>(ESnapshotVersion::RemoteCopyDynamicTableWithHunks))
         .template Serializer<TUniquePtrSerializer<>>());
+    PHOENIX_REGISTER_FIELD(9, CompressionDictionaryId_);
 }
 
 size_t TInputChunk::SpaceUsed() const
@@ -440,7 +448,7 @@ void FormatValue(TStringBuilderBase* builder, const TInputChunkPtr& inputChunk, 
         "{ChunkId: %v, Replicas: %v, TableIndex: %v, ErasureCodec: %v, StripedErasure: %v, TableRowIndex: %v, "
         "RangeIndex: %v, ChunkIndex: %v, TabletIndex: %v, ChunkFormat: %v, UncompressedDataSize: %v, RowCount: %v, "
         "CompressedDataSize: %v, DataWeight: %v, MaxBlockSize: %v, LowerLimit: %v, UpperLimit: %v, "
-        "BoundaryKeys: {%v}, PartitionsExt: {%v}, HunkChunkRefsExt: {%v}}",
+        "BoundaryKeys: {%v}, PartitionsExt: {%v}, HunkChunkRefsExt: {%v}%v}",
         inputChunk->GetChunkId(),
         inputChunk->GetReplicaList(),
         inputChunk->GetTableIndex(),
@@ -460,7 +468,13 @@ void FormatValue(TStringBuilderBase* builder, const TInputChunkPtr& inputChunk, 
         inputChunk->UpperLimit() ? std::make_optional(*inputChunk->UpperLimit()) : std::nullopt,
         inputChunk->BoundaryKeys() ? boundaryKeys : "",
         inputChunk->PartitionsExt() ? inputChunk->PartitionsExt()->ShortDebugString() : "",
-        inputChunk->HunkChunkRefsExt() ? inputChunk->HunkChunkRefsExt()->ShortDebugString() : "");
+        inputChunk->HunkChunkRefsExt() ? inputChunk->HunkChunkRefsExt()->ShortDebugString() : "",
+        MakeFormatterWrapper([&] (auto* builder) {
+            if (inputChunk->CompressionDictionaryId()) {
+                builder->AppendFormat(", CompressionDictionaryId: %v",
+                    inputChunk->CompressionDictionaryId());
+            }
+        }));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
