@@ -332,6 +332,9 @@ private:
 
         auto isFinishedCount = 0;
         auto additionalQueryIds = WaitFor(Host_->GetQueryRegistry()->GetAdditionalQueryIds(queryId)).ValueOrThrow();
+        if (additionalQueryIds.empty()) {
+            additionalQueryIds.push_back(queryId);
+        }
         response->mutable_multi_progress()->set_queries_count(additionalQueryIds.size());
         for (const auto& additionalQueryId : additionalQueryIds) {
             auto queryProgress = WaitFor(Host_->GetQueryRegistry()->GetQueryProgress(additionalQueryId)).ValueOrThrow();
