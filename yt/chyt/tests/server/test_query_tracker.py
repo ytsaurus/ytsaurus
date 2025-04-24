@@ -1,5 +1,5 @@
 from yt_commands import (authors, create_access_control_object_namespace,
-                         create_access_control_object, create, write_table,
+                         create_access_control_object, create, exists, read_table, write_table,
                          raises_yt_error, create_user, set, make_ace, wait)
 
 from yt.test_helpers import assert_items_equal
@@ -310,3 +310,48 @@ class TestQueriesChyt(ClickHouseTestBase):
                 "dt": "2019-01-01 00:00:00.00",
                 "en": "hello",
             }]
+
+    @authors("a-dyu")
+    def test_multiquery(self, query_tracker):
+        root_dir = "//tmp/exporter"
+        create("map_node", root_dir)
+        patch = {
+            "yt": {
+                "system_log_table_exporters": {
+                    "cypress_root_directory": root_dir,
+                    "default": {
+                        "enabled": True,
+                        "max_rows_to_keep": 100000,
+                    },
+                },
+            }
+        }
+        create("table", "//tmp/t", attributes={"schema": [{"name": "a", "type": "int64"}]})
+        write_table("//tmp/t", [{"a": 1}])
+        with Clique(1, config_patch=patch, alias="*ch_alias"):
+            settings = {"clique": "ch_alias", "cluster": "primary"}
+            query = start_query(
+                "chyt",
+                """
+                                select 1; // some comment
+                                 set param_x=42; select {x:UInt32} as result; /* block comment */
+                                 select a from '//tmp/t';
+                                """,
+                settings=settings,
+            )
+            query.track()
+
+            query_info = query.get()
+            assert query_info["result_count"] == 3
+            assert_items_equal(query.read_result(0), [{"1": 1}])
+            assert_items_equal(query.read_result(1), [{"result": 42}])
+            assert_items_equal(query.read_result(2), [{"a": 1}])
+
+            def match(row):
+                return row["initial_query_id"] == query.id and row["type"] == "QueryFinish" and row["is_initial_query"]
+
+            table_path = root_dir + "/query_log/0"
+            wait(lambda: exists(table_path))
+            wait(lambda: len([r for r in read_table(table_path) if match(r)]) > 0)
+            rows = [r for r in read_table(table_path) if match(r)]
+            assert len(rows) == 4

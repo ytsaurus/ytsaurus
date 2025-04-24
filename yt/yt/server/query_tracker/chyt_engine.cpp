@@ -307,7 +307,12 @@ private:
 
         auto errorOrProgress = WaitFor(req->Invoke());
         if (errorOrProgress.IsOK()) {
-            SetProgress(errorOrProgress.Value()->progress());
+            if (errorOrProgress.Value()->has_multi_progress()) {
+                SetProgress(errorOrProgress.Value()->multi_progress());
+            } else {
+                IsProgressImplemented_ = false;
+                return;
+            }
         } else {
             if (errorOrProgress.FindMatching(NRpc::EErrorCode::NoSuchMethod)) {
                 IsProgressImplemented_ = false;
@@ -329,22 +334,28 @@ private:
             .EndMap();
     }
 
-    void SetProgress(const NClickHouseServer::NProto::TQueryProgressValues& progress)
+    void SetProgress(const NClickHouseServer::NProto::TMultiQueryProgressValues& progress)
     {
         // ConvertToYsonString(progress)
-        auto progressYson = BuildYsonStringFluently()
-            .BeginMap()
-                .Item("total_progress").Value(ProgressValuesToYsonString(progress.total_progress()))
-                .Item("secondary_queries").DoMap([&] (TFluentMap fluent) {
-                    for (int index = 0; index < progress.secondary_query_ids_size(); ++index) {
-                        auto queryId = ToString(FromProto<TGuid>(progress.secondary_query_ids()[index]));
-                        auto queryProgress = progress.secondary_query_progresses()[index];
-                        fluent.Item(queryId).Value(ProgressValuesToYsonString(queryProgress));
-                    }
-                })
-            .EndMap();
-
-        OnProgress(std::move(progressYson));
+        auto multiQueryProgressMap = BuildYsonStringFluently().BeginMap();
+        multiQueryProgressMap.Item("queries_count").Value(progress.queries_count());
+        auto progressList = multiQueryProgressMap.Item("progress").BeginList();
+        for (int i = 0; i < progress.progresses_size(); ++i) {
+            auto queryProgress = progress.progresses()[i];
+            auto queryProgressMap = progressList.Item().BeginMap();
+            queryProgressMap.Item("query_id").Value(ToString(FromProto<TGuid>(queryProgress.query_id())));
+            queryProgressMap.Item("total_progress").Value(ProgressValuesToYsonString(queryProgress.total_progress()));
+            queryProgressMap.Item("secondary_queries").DoMap([&] (TFluentMap fluent) {
+                for (int j = 0; j < queryProgress.secondary_query_ids_size(); ++j) {
+                    auto queryId = ToString(FromProto<TGuid>(queryProgress.secondary_query_ids()[j]));
+                    auto secondaryQueryProgress = queryProgress.secondary_query_progresses()[j];
+                    fluent.Item(queryId).Value(ProgressValuesToYsonString(secondaryQueryProgress));
+                }
+            });
+            queryProgressMap.EndMap();
+        }
+        progressList.EndList();
+        OnProgress(multiQueryProgressMap.EndMap());
     }
 
     void OnChytResponse(const TErrorOr<TExecuteQueryResponse>& rspOrError)
