@@ -250,6 +250,10 @@ void TDynamicTabletManagerConfig::Register(TRegistrar registrar)
     registrar.Parameter("enable_hunk_specific_media", &TThis::EnableHunkSpecificMedia)
         .Default(true);
 
+    registrar.Parameter("safe_check_secondary_cell_storage", &TThis::SafeCheckSecondaryCellStorage)
+        .Default(false)
+        .DontSerializeDefault();
+
     registrar.Preprocessor([] (TThis* config) {
         config->StoreChunkReader->SuspiciousNodeGracePeriod = TDuration::Minutes(5);
         config->StoreChunkReader->BanPeersPermanently = false;
