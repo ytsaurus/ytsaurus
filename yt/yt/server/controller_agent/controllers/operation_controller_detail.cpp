@@ -1,6 +1,8 @@
 #include "operation_controller_detail.h"
 
 #include "auto_merge_task.h"
+#include "common_profilers.h"
+#include "common_state.h"
 #include "helpers.h"
 #include "input_transaction_manager.h"
 #include "job_helpers.h"
@@ -13,7 +15,6 @@
 #include <yt/yt/server/controller_agent/config.h>
 #include <yt/yt/server/controller_agent/counter_manager.h>
 #include <yt/yt/server/controller_agent/intermediate_chunk_scraper.h>
-#include <yt/yt/server/controller_agent/job_profiler.h>
 #include <yt/yt/server/controller_agent/operation.h>
 #include <yt/yt/server/controller_agent/private.h>
 #include <yt/yt/server/controller_agent/scheduling_context.h>
@@ -1549,7 +1550,7 @@ void TOperationControllerBase::AbortAllJoblets(EAbortReason abortReason, bool ho
             .Item("reason").Value(abortReason);
         UpdateAggregatedFinishedJobStatistics(joblet, jobSummary);
 
-        Host->GetJobProfiler()->ProfileAbortedJob(*joblet, jobSummary);
+        GetJobProfiler()->ProfileAbortedJob(*joblet, jobSummary);
 
         if (honestly) {
             joblet->Task->OnJobAborted(joblet, jobSummary);
@@ -3041,7 +3042,7 @@ void TOperationControllerBase::SafeOnJobStarted(const TJobletPtr& joblet)
     joblet->LastActivityTime = TInstant::Now();
     joblet->TaskName = joblet->Task->GetVertexDescriptor();
 
-    Host->GetJobProfiler()->ProfileStartedJob(*joblet);
+    GetJobProfiler()->ProfileStartedJob(*joblet);
 
     YT_VERIFY(!std::exchange(joblet->JobState, EJobState::Waiting));
 
@@ -3299,7 +3300,7 @@ bool TOperationControllerBase::OnJobCompleted(
             optionalRowCount = VectorAtOr(*jobSummary->OutputDataStatistics, *RowCountLimitTableIndex).row_count();
         }
 
-        Host->GetJobProfiler()->ProfileCompletedJob(*joblet, *jobSummary);
+        GetJobProfiler()->ProfileCompletedJob(*joblet, *jobSummary);
 
         OnJobFinished(std::move(jobSummary), /*retainJob*/ false);
 
@@ -3411,7 +3412,7 @@ bool TOperationControllerBase::OnJobFailed(
 
         jobSummary->ReleaseFlags.ArchiveJobSpec = true;
 
-        Host->GetJobProfiler()->ProfileFailedJob(*joblet, *jobSummary);
+        GetJobProfiler()->ProfileFailedJob(*joblet, *jobSummary);
 
         OnJobFinished(std::move(jobSummary), /*retainJob*/ true);
 
@@ -3573,7 +3574,7 @@ bool TOperationControllerBase::OnJobAborted(
 
         bool retainJob = (abortReason == EAbortReason::UserRequest) || WasJobGracefullyAborted(jobSummary);
 
-        Host->GetJobProfiler()->ProfileAbortedJob(*joblet, *jobSummary);
+        GetJobProfiler()->ProfileAbortedJob(*joblet, *jobSummary);
 
         OnJobFinished(std::move(jobSummary), retainJob);
 
@@ -3793,7 +3794,7 @@ void TOperationControllerBase::OnJobRunning(
 
     UpdateJobletFromSummary(*jobSummary, joblet);
 
-    Host->GetJobProfiler()->ProfileRunningJob(*joblet);
+    GetJobProfiler()->ProfileRunningJob(*joblet);
 
     joblet->JobState = EJobState::Running;
 
@@ -11606,7 +11607,7 @@ void TOperationControllerBase::OnOperationReady() const
                 .JobId = allocation.Joblet->JobId,
             };
 
-            Host->GetJobProfiler()->ProfileRevivedJob(*allocation.Joblet);
+            GetJobProfiler()->ProfileRevivedJob(*allocation.Joblet);
         }
 
         revivedAllocations.push_back(std::move(revivedAllocationInfo));

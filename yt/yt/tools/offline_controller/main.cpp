@@ -242,11 +242,6 @@ public:
         YT_UNIMPLEMENTED();
     }
 
-    TJobProfiler* GetJobProfiler() const override
-    {
-        return nullptr;
-    }
-
     int GetAvailableExecNodeCount() override
     {
         return 0;
