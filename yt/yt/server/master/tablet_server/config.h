@@ -328,6 +328,9 @@ struct TDynamicTabletManagerConfig
     // COMPAT(shakurov)
     bool EnableHunkSpecificMedia;
 
+    // COMPAT(danilalexeev)
+    bool SafeCheckSecondaryCellStorage;
+
     REGISTER_YSON_STRUCT(TDynamicTabletManagerConfig);
 
     static void Register(TRegistrar registrar);
