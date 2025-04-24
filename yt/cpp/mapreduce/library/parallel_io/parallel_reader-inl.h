@@ -149,7 +149,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::optional<TTableReaderOptions> GetOptionsOverride(const TTableReaderOptions& options, int tableIndex);
+TTableReaderOptions GetOptionsOverride(const TTableReaderOptions& options, int tableIndex);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -197,8 +197,7 @@ public:
         }
 
         auto optionsOverride = GetOptionsOverride(Options_, TableIndex_);
-
-        entry.Reader = Client_->CreateTableReader<TRow>(std::move(path), optionsOverride ? *optionsOverride : Options_);
+        entry.Reader = Client_->CreateTableReader<TRow>(std::move(path), optionsOverride);
         return entry;
     }
 
@@ -256,8 +255,7 @@ public:
         }
 
         auto optionsOverride = GetOptionsOverride(Options_, TableIndex_);
-
-        entry.Reader = Client_->CreateTableReader<TRow>(std::move(path), optionsOverride ? *optionsOverride : Options_);
+        entry.Reader = Client_->CreateTableReader<TRow>(std::move(path), optionsOverride);
         return entry;
     }
 
