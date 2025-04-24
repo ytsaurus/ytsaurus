@@ -849,7 +849,7 @@ TUntypedExpression TExprBuilderV1::UnwrapCompositeMemberAccessor(
     const NAst::TReference& reference,
     const TLogicalTypePtr& type)
 {
-    auto columnReference = New<TReferenceExpression>(type, InferReferenceName(reference));
+    auto columnReference = New<TReferenceExpression>(type, InferColumnName(reference));
 
     if (reference.CompositeTypeAccessor.IsEmpty()) {
         auto generator = [columnReference] (EValueType /*type*/) {
@@ -905,7 +905,7 @@ TUntypedExpression TExprBuilderV1::OnReference(const NAst::TReference& reference
     }
 
     THROW_ERROR_EXCEPTION("Undefined reference %Qv",
-        InferReferenceName(reference));
+        InferColumnName(reference));
 }
 
 TUntypedExpression TExprBuilderV1::OnFunction(const NAst::TFunctionExpression* functionExpr)

@@ -370,6 +370,9 @@ void TControllerAgentConnectorDynamicConfig::Register(TRegistrar registrar)
         .Default(TDuration::Seconds(30));
     registrar.Parameter("job_staleness_delay", &TThis::JobStalenessDelay)
         .Default(TDuration::Minutes(10));
+
+    registrar.Parameter("resend_full_job_info", &TThis::ResendFullJobInfo)
+        .Default(true);
 }
 
 void FormatValue(TStringBuilderBase* builder, const TControllerAgentConnectorDynamicConfig& config, TStringBuf spec)

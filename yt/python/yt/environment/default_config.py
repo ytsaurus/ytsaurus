@@ -744,6 +744,7 @@ def get_dynamic_node_config():
                         "splay": 100,
                     },
                     "enable_tracing": True,
+                    "resend_full_job_info": False,
                 },
                 "scheduler_connector": {
                     "failed_heartbeat_backoff_start_time": 50,

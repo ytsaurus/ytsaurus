@@ -2,6 +2,7 @@
 
 #include "config.h"
 
+#include <yt/yt/library/profiling/solomon/registry.h>
 #include <yt/yt/library/profiling/resource_tracker/resource_tracker.h>
 
 #include <yt/yt/library/ytprof/external_pprof.h>
@@ -163,6 +164,19 @@ private:
         auto manifestPath = GetManifestPath(timestamp);
         manifest->CurrentProfilePath = GetCurrentDumpPath(timestamp);
         manifest->PeakProfilePath = GetPeakDumpPath(timestamp);
+
+        auto tags = NProfiling::TSolomonRegistry::Get()->GetDynamicTags();
+        auto now = TInstant::Now();
+        Cerr << now.FormatLocalTime("%Y-%m-%d %H:%M:%S,")
+            << Sprintf("%06d", now.MicroSecondsOfSecond())
+            << "\tMemory limit reached ("
+            << JoinToString(
+                tags.begin(),
+                tags.end(),
+                [] (TStringBuilderBase* builder, const NProfiling::TTag& tag) {
+                    builder->AppendFormat("%v: %v", tag.first, tag.second);
+                })
+            << ')' << Endl;
 
         Cerr << "*** Forking process to write heap profiles" << Endl
             << "  current:  " << manifest->CurrentProfilePath << Endl

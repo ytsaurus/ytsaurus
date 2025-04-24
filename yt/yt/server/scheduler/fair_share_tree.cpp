@@ -1032,12 +1032,12 @@ public:
         TreeScheduler_->InitPersistentState(persistentState->AllocationSchedulerState);
     }
 
-    void OnOperationMaterialized(TOperationId operationId) override
+    TError OnOperationMaterialized(TOperationId operationId) override
     {
         YT_ASSERT_INVOKERS_AFFINITY(FeasibleInvokers_);
 
         auto element = GetOperationElement(operationId);
-        TreeScheduler_->OnOperationMaterialized(element.Get());
+        return TreeScheduler_->OnOperationMaterialized(element.Get());
     }
 
     TError CheckOperationJobResourceLimitsRestrictions(TOperationId operationId, bool revivedFromSnapshot) override

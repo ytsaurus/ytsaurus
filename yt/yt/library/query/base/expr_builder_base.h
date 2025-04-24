@@ -53,8 +53,6 @@ std::optional<TValue> FoldConstants(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TString InferReferenceName(const NAst::TColumnReference& ref);
-
 struct TNameSource
 {
     const TTableSchema& Schema;

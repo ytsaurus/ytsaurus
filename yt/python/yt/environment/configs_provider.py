@@ -1794,12 +1794,6 @@ def _build_cluster_connection_config(yt_config,
             },
             "rpc_acknowledge_timeout": 100,
         }
-        cluster_connection["chaos_residency_cache"] = {
-            "expire_after_successful_update_time": 100,
-            "expire_after_failed_update_time": 100,
-            "expire_after_access_time": 100,
-            "refresh_time": 50,
-        }
 
     if not yt_config.enable_permission_cache:
         cluster_connection["permission_cache"] = {

@@ -1059,15 +1059,28 @@ private:
             }
 
             if (job->GetStored()) {
-                if (!jobConfirmationRequested && !job->ShouldResend(context->JobStalenessDelay)) {
+                YT_VERIFY(job->IsFinished());
+                bool shouldResend = job->ShouldResend(context->JobStalenessDelay);
+                if (!jobConfirmationRequested && !shouldResend) {
                     continue;
                 }
 
+                {
+                    auto* storedJob = request->add_stored_jobs();
+                    ToProto(storedJob->mutable_job_id(), job->GetId());
+                    ToProto(storedJob->mutable_operation_id(), job->GetOperationId());
+                }
+
                 YT_LOG_DEBUG(
-                    "Confirming job (JobId: %v, OperationId: %v, State: %v)",
+                    "Confirming job (JobId: %v, OperationId: %v, State: %v, Reason: %v)",
                     job->GetId(),
                     job->GetOperationId(),
-                    job->GetState());
+                    job->GetState(),
+                    shouldResend ? "resend" : "confirmation");
+
+                if (!context->ResendFullJobInfo && !jobConfirmationRequested) {
+                    continue;
+                }
             }
 
             switch (job->GetState()) {
@@ -1079,7 +1092,6 @@ private:
                 case EJobState::Failed:
                 case EJobState::Completed:
                     sendFinishedJob(job);
-
                     break;
                 default:
                     break;

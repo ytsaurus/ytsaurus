@@ -2831,7 +2831,7 @@ private:
         for (auto [nodeId, node] : NodeMap_) {
             // Reconstruct immediate ancestor sets.
             if (auto* parent = node->GetParent()) {
-                YT_VERIFY(parent->ImmediateDescendants().insert(node).second);
+                InsertOrCrash(parent->ImmediateDescendants(), node);
             }
 
             // Reconstruct TrunkNode and Transaction.

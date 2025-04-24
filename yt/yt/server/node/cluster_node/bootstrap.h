@@ -230,6 +230,12 @@ IBootstrapPtr CreateNodeBootstrap(
     NYTree::INodePtr configNode,
     NFusion::IServiceLocatorPtr serviceLocator);
 
+IBootstrapPtr CreateNodeBootstrap(
+    TClusterNodeBootstrapConfigPtr config,
+    NYTree::INodePtr configNode,
+    NFusion::IServiceLocatorPtr serviceLocator,
+    NApi::NNative::IConnectionPtr connection);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TBootstrapBase

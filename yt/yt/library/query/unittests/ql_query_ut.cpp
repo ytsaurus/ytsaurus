@@ -617,6 +617,34 @@ TEST_F(TQueryPrepareTest, SortMergeJoin)
     }
 }
 
+TEST_F(TQueryPrepareTest, TableAliasIsKeyword)
+{
+    EXPECT_CALL(PrepareMock_, GetInitialSplit("//index"))
+        .WillRepeatedly(Return(MakeFuture(MakeSplit({
+        TColumnSchema("id", EValueType::String, ESortOrder::Ascending),
+        TColumnSchema("value", EValueType::String)
+    }))));
+
+    EXPECT_CALL(PrepareMock_, GetInitialSplit("//order"))
+        .WillRepeatedly(Return(MakeFuture(MakeSplit({
+        TColumnSchema("id", EValueType::String, ESortOrder::Ascending),
+        TColumnSchema("value", EValueType::String)
+    }))));
+
+    {
+        auto queryString = std::string(R"(* from [//index] as index
+            join [//order] as order on index.id = order.id)");
+
+        auto query = PreparePlanFragment(&PrepareMock_, queryString)->Query;
+
+        EXPECT_EQ(query->JoinClauses.size(), 1u);
+        const auto& joinClauses = query->JoinClauses;
+
+        EXPECT_EQ(joinClauses[0]->ForeignKeyPrefix, 1u);
+        EXPECT_EQ(joinClauses[0]->CommonKeyPrefix, 1u);
+    }
+}
+
 TEST_F(TQueryPrepareTest, ArrayJoin)
 {
     EXPECT_CALL(PrepareMock_, GetInitialSplit("//t"))

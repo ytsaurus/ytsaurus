@@ -4,15 +4,19 @@
 
 namespace NYT::NAuth {
 
+////////////////////////////////////////////////////////////////////////////////
+
 class TMockTvmService
     : public ITvmService
 {
 public:
     MOCK_METHOD(TTvmId, GetSelfTvmId, (), (override));
-    MOCK_METHOD(TString, GetServiceTicket, (const TString&), (override));
-    MOCK_METHOD(TString, GetServiceTicket, (TTvmId), (override));
-    MOCK_METHOD(TParsedTicket, ParseUserTicket, (const TString&), (override));
-    MOCK_METHOD(TParsedServiceTicket, ParseServiceTicket, (const TString&), (override));
+    MOCK_METHOD(std::string, GetServiceTicket, (const std::string&), (override));
+    MOCK_METHOD(std::string, GetServiceTicket, (TTvmId), (override));
+    MOCK_METHOD(TParsedTicket, ParseUserTicket, (const std::string&), (override));
+    MOCK_METHOD(TParsedServiceTicket, ParseServiceTicket, (const std::string&), (override));
 };
+
+////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NAuth

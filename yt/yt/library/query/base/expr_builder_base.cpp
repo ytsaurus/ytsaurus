@@ -174,23 +174,6 @@ TSharedRange<TRowRange> LiteralRangesListToRows(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TString InferReferenceName(const NAst::TColumnReference& ref)
-{
-    TStringBuilder builder;
-
-    if (ref.TableName) {
-        builder.AppendString(*ref.TableName);
-        builder.AppendChar('.');
-    }
-
-    // TODO(lukyan): Do not use final = true if query has any table aliases.
-    NAst::FormatIdFinal(&builder, ref.ColumnName);
-
-    return builder.Flush();
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 struct TNotExpressionPropagator
     : public TRewriter<TNotExpressionPropagator>
 {
@@ -630,7 +613,7 @@ TLogicalTypePtr TReferenceResolver::Resolve(const NAst::TColumnReference& refere
     for (; sourceIndex < std::ssize(NameSources_); ++sourceIndex) {
         const auto& [schema, alias, mapping, selfColumns, foreignColumns, sharedColumns] = NameSources_[sourceIndex];
 
-        auto formattedName = InferReferenceName(reference);
+        auto formattedName = InferColumnName(reference);
 
         if (type && selfColumns) {
             selfColumns->insert(formattedName);

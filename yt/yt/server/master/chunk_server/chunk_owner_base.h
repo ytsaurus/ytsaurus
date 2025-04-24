@@ -174,7 +174,7 @@ private:
 DEFINE_MASTER_OBJECT_TYPE(TChunkOwnerBase)
 
 // Think twice before increasing this.
-YT_STATIC_ASSERT_SIZEOF_SANITY(TChunkOwnerBase, 608);
+YT_STATIC_ASSERT_SIZEOF_SANITY(TChunkOwnerBase, 576);
 
 ////////////////////////////////////////////////////////////////////////////////
 

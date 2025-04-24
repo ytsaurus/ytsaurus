@@ -817,6 +817,41 @@ TEST_F(TRefineKeyRangeTest, Empty)
     ExpectIsEmpty(result);
 }
 
+TEST_F(TRefineKeyRangeTest, IsNull)
+{
+    auto expr = PrepareExpression("k is null", *GetSampleTableSchema());
+
+    auto rowBuffer = New<TRowBuffer>();
+    auto keyColumns = GetSampleKeyColumns();
+    auto constraints = TConstraintsHolder(keyColumns.size(), GetRefCountedTypeCookie<TRangeInferrerTestBufferTag>(), GetDefaultMemoryChunkProvider());
+    auto constraintRef = constraints.ExtractFromExpression(expr, keyColumns, rowBuffer);
+    auto result = GetRangesFromConstraints(rowBuffer, std::ssize(keyColumns), constraints, constraintRef);
+
+    EXPECT_EQ(1u, result.size());
+
+    EXPECT_EQ(YsonToKey(_NULL_), result[0].first);
+    EXPECT_EQ(YsonToKey(_NULL_ ";" _MAX_), result[0].second);
+}
+
+TEST_F(TRefineKeyRangeTest, NotIsNull)
+{
+    auto expr = PrepareExpression("k is not null", *GetSampleTableSchema());
+
+    auto rowBuffer = New<TRowBuffer>();
+    auto keyColumns = GetSampleKeyColumns();
+    auto constraints = TConstraintsHolder(keyColumns.size(), GetRefCountedTypeCookie<TRangeInferrerTestBufferTag>(), GetDefaultMemoryChunkProvider());
+    auto constraintRef = constraints.ExtractFromExpression(expr, keyColumns, rowBuffer);
+    auto result = GetRangesFromConstraints(rowBuffer, std::ssize(keyColumns), constraints, constraintRef);
+
+    EXPECT_EQ(2u, result.size());
+
+    EXPECT_EQ(YsonToKey(""), result[0].first);
+    EXPECT_EQ(YsonToKey(_NULL_), result[0].second);
+
+    EXPECT_EQ(YsonToKey(_NULL_ ";" _MAX_), result[1].first);
+    EXPECT_EQ(YsonToKey(_MAX_), result[1].second);
+}
+
 TEST_F(TRefineKeyRangeTest, ContradictiveConjuncts)
 {
     auto expr = PrepareExpression("k >= 90 and k < 10", *GetSampleTableSchema());

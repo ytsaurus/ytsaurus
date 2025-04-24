@@ -8,6 +8,21 @@ Availabe as a package in [PyPI](https://pypi.org/project/ytsaurus-client/).
 
 **Releases:**
 
+{% cut "**0.13.27**" %}
+
+**Release date:** 2025-04-18
+
+
+### Features
+* Active users of dynamic tables APIs are encouraged to use RPC proxies
+* Support using /api/v4/discover_proxies handler instead of /hosts
+
+### Fixes
+* Error on getting `impersonation_user` setting from configuration
+
+{% endcut %}
+
+
 {% cut "**0.13.26**" %}
 
 **Release date:** 2025-03-25

@@ -609,7 +609,7 @@ public:
     void RegisterOperation(const TSchedulerOperationElement* element);
     void UnregisterOperation(const TSchedulerOperationElement* element);
 
-    void OnOperationMaterialized(const TSchedulerOperationElement* element);
+    TError OnOperationMaterialized(const TSchedulerOperationElement* element);
     TError CheckOperationSchedulingInSeveralTreesAllowed(const TSchedulerOperationElement* element) const;
 
     void EnableOperation(const TSchedulerOperationElement* element) const;

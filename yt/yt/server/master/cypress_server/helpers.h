@@ -111,11 +111,11 @@ THashSet<std::string> ListNodeAttributes(
 // Use the following Attach/Detach methods with caution
 // as they ignore node reachability control.
 void AttachChildToNode(
-    TCypressNode* trunkParent,
+    TCompositeCypressNode* trunkParent,
     TCypressNode* child);
 
 void DetachChildFromNode(
-    TCypressNode* trunkParent,
+    TCompositeCypressNode* trunkParent,
     TCypressNode* child);
 
 // NB: #parent is _not_ required to be trunk node.

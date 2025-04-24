@@ -61,7 +61,7 @@ public:
         PeriodicExecutor_->ScheduleOutOfBand();
     }
 
-    TString GetServiceTicket(TTvmId serviceId) override
+    std::string GetServiceTicket(TTvmId serviceId) override
     {
         auto guard = ReaderGuard(Lock_);
 
@@ -78,17 +78,17 @@ public:
         return Config_->SelfTvmId;
     }
 
-    TString GetServiceTicket(const TString& /*serviceAlias*/) override
+    std::string GetServiceTicket(const std::string& /*serviceAlias*/) override
     {
         YT_UNIMPLEMENTED();
     }
 
-    TParsedTicket ParseUserTicket(const TString& /*ticket*/) override
+    TParsedTicket ParseUserTicket(const std::string& /*ticket*/) override
     {
         YT_UNIMPLEMENTED();
     }
 
-    TParsedServiceTicket ParseServiceTicket(const TString& /*ticket*/) override
+    TParsedServiceTicket ParseServiceTicket(const std::string& /*ticket*/) override
     {
         YT_UNIMPLEMENTED();
     }
@@ -100,7 +100,7 @@ private:
     const TLogger Logger;
 
     YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, Lock_);
-    THashMap<TTvmId, TErrorOr<TString>> ServiceIdToTicket_;
+    THashMap<TTvmId, TErrorOr<std::string>> ServiceIdToTicket_;
 
     TPeriodicExecutorPtr PeriodicExecutor_;
 
@@ -173,7 +173,7 @@ private:
     {
         auto guard = WriterGuard(Lock_);
 
-        for (auto result : rsp.results()) {
+        for (const auto& result : rsp.results()) {
             auto destination = result.destination();
 
             if (result.has_ticket()) {
@@ -185,7 +185,7 @@ private:
                     YT_LOG_DEBUG("Service ticket updated (Destination: %v)", destination);
                 }
 
-                ServiceIdToTicket_[destination] = result.ticket();
+                ServiceIdToTicket_[destination] = std::string(result.ticket());
             } else {
                 YT_VERIFY(result.has_error());
 

@@ -74,6 +74,8 @@ def process_data(data):
 
         @classmethod
         def get_from_index(cls, hid):
+            if hid not in cls.index:
+                cls.index[hid] = cls()
             return cls.index[hid]
 
         @classmethod

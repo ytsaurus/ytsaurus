@@ -314,6 +314,54 @@ TConstraintRef TConstraintsHolder::Unite(TConstraintRef lhs, TConstraintRef rhs)
     return result;
 }
 
+TConstraintRef TConstraintsHolder::Invert(TConstraintRef constraints)
+{
+    if (constraints.ColumnId == SentinelColumnId) {
+        return constraints;
+    }
+
+    auto& columnConstraints = (*this)[constraints.ColumnId];
+
+    TConstraintRef result;
+    result.ColumnId = constraints.ColumnId;
+    result.StartIndex = columnConstraints.size();
+
+    auto currentBound = MinBound;
+
+    for (auto index = constraints.StartIndex; index != constraints.EndIndex; ++index) {
+        const auto& item = columnConstraints[index];
+
+        auto lower = item.GetLowerBound();
+        auto upper = item.GetUpperBound();
+
+        if (currentBound < lower) {
+            columnConstraints.push_back(TConstraint::Make(
+                currentBound,
+                lower));
+        }
+
+        if (item.Next.ColumnId != SentinelColumnId) {
+            auto invertedNext = Invert(item.Next);
+            columnConstraints.push_back(TConstraint::Make(
+                lower,
+                upper,
+                invertedNext));
+        }
+
+        currentBound = upper;
+    }
+
+    if (currentBound < MaxBound) {
+        columnConstraints.push_back(TConstraint::Make(
+            currentBound,
+            MaxBound));
+    }
+
+    result.EndIndex = columnConstraints.size();
+
+    return result;
+}
+
 TString ToString(const TConstraintsHolder& constraints, TConstraintRef root)
 {
     TStringBuilder result;
