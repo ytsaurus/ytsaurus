@@ -356,6 +356,10 @@ struct TConnectionDynamicConfig
 
     bool EnableDistributedReplicationCollocationAttachment;
 
+    bool EnableReadFromInSyncAsyncReplicas;
+
+    THashSet<std::string> BannedInSyncReplicaClusters;
+
     REGISTER_YSON_STRUCT(TConnectionDynamicConfig);
 
     static void Register(TRegistrar registrar);
