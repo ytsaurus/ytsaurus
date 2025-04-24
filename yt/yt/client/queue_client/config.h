@@ -8,8 +8,6 @@
 
 #include <yt/yt/core/ytree/yson_struct.h>
 
-#include <library/cpp/cron_expression/cron_expression.h>
-
 namespace NYT::NQueueClient {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -72,11 +70,7 @@ struct TQueueStaticExportConfig
 
     //! Export will be performed at schedule that is defined by this CRON expression. Mutually exclusive
     //! with ExportPeriod parameter.
-    std::optional<TString> ExportCronExpression;
-
-    //! Either the export period or the CRON expression; it is a part of the configuration to avoid creating
-    //! structures many times during the execution of the program.
-    std::variant<TDuration, TCronExpression> ExportSchedule;
+    std::optional<TString> ExportCronSchedule;
 
     //! Path to directory that will contain resulting static tables with exported data.
     NYPath::TYPath ExportDirectory;

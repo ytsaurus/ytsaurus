@@ -4005,12 +4005,12 @@ class TestQueueStaticExport(TestQueueStaticExportBase):
         export_dir = "//tmp/export"
         self._create_export_destination(export_dir, queue_id)
 
-        export_cron_expression = "0/30 * * * * *"  # Every 30 seconds.
+        export_cron_expression = "0/5 * * * * *"  # Every 5 seconds.
 
         set("//tmp/q/@static_export_config", {
             "default": {
                 "export_directory": export_dir,
-                "export_cron": export_cron_expression,
+                "export_cron_schedule": export_cron_expression,
             }
         })
 
@@ -4018,11 +4018,11 @@ class TestQueueStaticExport(TestQueueStaticExportBase):
 
         insert_rows("//tmp/q", [{"data": "vim"}])
         self._flush_table("//tmp/q")
-        wait(lambda: len(ls(export_dir)) == 1, timeout=35)
+        wait(lambda: len(ls(export_dir)) == 1, timeout=7)
 
         insert_rows("//tmp/q", [{"data": "nano"}])
         self._flush_table("//tmp/q")
-        wait(lambda: len(ls(export_dir)) == 2, timeout=35)
+        wait(lambda: len(ls(export_dir)) == 2, timeout=7)
 
         self.remove_export_destination(export_dir)
 

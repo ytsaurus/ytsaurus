@@ -1,5 +1,7 @@
 #include "config.h"
 
+#include <library/cpp/cron_expression/cron_expression.h>
+
 namespace NYT::NQueueClient {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -59,7 +61,7 @@ void TQueueStaticExportConfig::Register(TRegistrar registrar)
     registrar.Parameter("export_period", &TThis::ExportPeriod)
         .GreaterThan(TDuration::Zero())
         .Optional();
-    registrar.Parameter("export_cron", &TThis::ExportCronExpression)
+    registrar.Parameter("export_cron_schedule", &TThis::ExportCronSchedule)
         .NonEmpty()
         .Optional();
     registrar.Parameter("export_directory", &TThis::ExportDirectory);
@@ -75,15 +77,12 @@ void TQueueStaticExportConfig::Register(TRegistrar registrar)
             if (config->ExportPeriod->GetValue() % TDuration::Seconds(1).GetValue() != 0) {
                 THROW_ERROR_EXCEPTION("The value of \"export_period\" must be a multiple of 1000 (1 second)");
             }
-            config->ExportSchedule = *config->ExportPeriod;
-        } else if (config->ExportCronExpression) {
+        } else if (config->ExportCronSchedule) {
             try {
-                config->ExportSchedule.emplace<TCronExpression>(*config->ExportCronExpression);
-            } catch (const yexception& exc) {
-                THROW_ERROR_EXCEPTION(
-                    "The value of \"export_cron\" is not a well-formed CRON expression (Value: '%v', Error: '%v')",
-                    *config->ExportCronExpression,
-                    exc.what());
+                TCronExpression{*config->ExportCronSchedule};
+            } catch (const std::exception& ex) {
+                THROW_ERROR_EXCEPTION("Export CRON schedule %Qv is not well-formed", *config->ExportCronSchedule)
+                    << ex;
             }
         } else {
             THROW_ERROR_EXCEPTION("One of \"export_period\", \"export_cron\" must be specified");
@@ -93,8 +92,8 @@ void TQueueStaticExportConfig::Register(TRegistrar registrar)
 
 bool operator==(const TQueueStaticExportConfig& lhs, const TQueueStaticExportConfig& rhs)
 {
-    return std::tie(lhs.ExportPeriod, lhs.ExportCronExpression, lhs.ExportDirectory) ==
-        std::tie(rhs.ExportPeriod, lhs.ExportCronExpression, rhs.ExportDirectory);
+    return std::tie(lhs.ExportPeriod, lhs.ExportCronSchedule, lhs.ExportDirectory) ==
+        std::tie(rhs.ExportPeriod, lhs.ExportCronSchedule, rhs.ExportDirectory);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
