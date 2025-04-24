@@ -5,7 +5,7 @@ pragma TablePathPrefix = "home/tpcds/3Tb";
 pragma EmitUnionMerge;
 pragma yt.UseIntermediateStreams;
 pragma yt.EnableFuseMapToMapReduce = 'true';
-pragma config.flags("OptimizerFlags", "FilterPushdownEnableMultiusage",
+pragma config.flags("OptimizerFlags", "EmitPruneKeys", "FilterPushdownEnableMultiusage",
                     "EarlyExpandSkipNull", "PushdownComplexFiltersOverAggregate", "ExtractCommonPredicatesFromLogicalOps", "PullUpExtendOverEquiJoin",
                     "DisableEmitSkipNullOnPushDown");
 pragma yt.AutoMerge = "disabled";
