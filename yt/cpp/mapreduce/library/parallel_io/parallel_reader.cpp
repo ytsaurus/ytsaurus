@@ -60,14 +60,13 @@ i64 TTableSlicer::GetUpperLimit() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::optional<TTableReaderOptions> GetOptionsOverride(const TTableReaderOptions& options, int tableIndex)
+TTableReaderOptions GetOptionsOverride(const TTableReaderOptions& options, int tableIndex)
 {
-    std::optional<TTableReaderOptions> optionsOverride;
-    if (options.FormatHints_ && options.FormatHints_->SkiffRowHints_) {
-        optionsOverride = options;
-        optionsOverride->FormatHints_->SkiffRowHints_->TableIndex_ = TMaybe<int>(tableIndex);
+    auto result = options;
+    if (result.FormatHints_ && result.FormatHints_->SkiffRowHints_) {
+        result.FormatHints_->SkiffRowHints_->TableIndex_ = TMaybe<int>(tableIndex);
     }
-    return optionsOverride;
+    return result;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
