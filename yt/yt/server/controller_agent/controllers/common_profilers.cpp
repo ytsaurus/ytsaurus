@@ -1,6 +1,6 @@
-#include "job_profiler.h"
+#include "common_profilers.h"
 
-#include <yt/yt/server/controller_agent/controllers/job_info.h>
+#include "job_info.h"
 
 #include <yt/yt/server/lib/controller_agent/structs.h>
 
