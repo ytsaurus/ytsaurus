@@ -357,7 +357,29 @@ public:
                 blockHeader,
                 Logger);
 
-            QueryContext_->AddSecondaryQueryId(remoteQueryId);
+            // In the case of processing up to the FetchColumns stage,
+            // PlannerJoinTree expects that pipe outputs header will have unqualified column names.
+            // This means that we need to explicitly rename all outputs to prevent any aliases and identifiers
+            // that can occur after query processing distribution.
+            if (!isInsert && ProcessingStage_ == DB::QueryProcessingStage::FetchColumns) {
+                auto& tableExpressionData = QueryInfo_.planner_context->getTableExpressionDataOrThrow(QueryInfo_.table_expression);
+                const auto& columnNames = tableExpressionData.getSelectedColumnsNames();
+                YT_VERIFY(columnNames.size() == blockHeader.getColumnsWithTypeAndName().size());
+
+                DB::ActionsDAG renameActionsDAG(blockHeader.getColumnsWithTypeAndName());
+                DB::ActionsDAG::NodeRawConstPtrs updatedActionsDAGOutputs;
+                for (const auto& [outputIndex, outputNode] : Enumerate(renameActionsDAG.getOutputs())) {
+                    const auto& columnName = columnNames[outputIndex];
+                    updatedActionsDAGOutputs.push_back(&renameActionsDAG.addAlias(*outputNode, columnName));
+                }
+                renameActionsDAG.getOutputs() = std::move(updatedActionsDAGOutputs);
+                auto renameExpression = std::make_shared<DB::ExpressionActions>(std::move(renameActionsDAG), DB::ExpressionActionsSettings::fromContext(Context_));
+                pipe.addSimpleTransform([&] (const DB::Block& header) {
+                    return std::make_shared<DB::ExpressionTransform>(header, renameExpression);
+                });
+            }
+
+            QueryContext_->AddSecondaryQueryId(remoteQueryId, secondaryQuery.TotalRowsToRead, secondaryQuery.TotalBytesToRead);
 
             Pipes_.emplace_back(std::move(pipe));
         }

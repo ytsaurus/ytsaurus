@@ -1060,7 +1060,10 @@ TSecondaryQuery TQueryAnalyzer::CreateSecondaryQuery(
 
     YT_LOG_DEBUG("Query rewritten (NewQuery: %v)", *secondaryQueryAst);
 
-    return {std::move(secondaryQueryAst), std::move(scalars)};
+    return {std::move(secondaryQueryAst),
+        std::move(scalars),
+        static_cast<ui64>(totalRowCount),
+        static_cast<ui64>(totalDataWeight)};
 }
 
 IStorageDistributorPtr TQueryAnalyzer::GetStorage(const DB::ASTTableExpression* tableExpression) const
