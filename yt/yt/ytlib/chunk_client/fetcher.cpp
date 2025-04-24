@@ -451,7 +451,7 @@ void TFetcherBase::StartFetchingRound(const TError& preparationError)
     while (!BannedNodes_.empty() && BannedNodes_.begin()->first <= now) {
         auto nodeId = BannedNodes_.begin()->second;
         YT_LOG_DEBUG(
-            "Unbaning node (Address: %v, Now: %v)",
+            "Unbanning node (Address: %v, Now: %v)",
             NodeDirectory_->GetDescriptor(nodeId).GetDefaultAddress(),
             now);
 
@@ -528,17 +528,18 @@ void TFetcherBase::StartFetchingRound(const TError& preparationError)
     asyncResults.reserve(size(nodeIts));
     THashSet<int> requestedChunkIndexes;
     for (const auto& it : nodeIts) {
-        for (int chunkIndex : it->second) {
+        const auto& [nodeId, chunkIndexes] = *it;
+        for (int chunkIndex : chunkIndexes) {
             if (requestedChunkIndexes.insert(chunkIndex).second) {
-                NodeToChunkIndexesToFetch_[it->first].insert(chunkIndex);
+                NodeToChunkIndexesToFetch_[nodeId].insert(chunkIndex);
             }
         }
 
-        if (NodeToChunkIndexesToFetch_[it->first].empty()) {
+        if (NodeToChunkIndexesToFetch_[nodeId].empty()) {
             continue;
         }
 
-        asyncResults.push_back(PerformFetchingRoundFromNode(it->first));
+        asyncResults.push_back(PerformFetchingRoundFromNode(nodeId));
     }
 
     bool backoff = asyncResults.empty();

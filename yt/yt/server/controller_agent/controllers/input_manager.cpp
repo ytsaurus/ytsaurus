@@ -1116,7 +1116,7 @@ void TInputManager::OnInputChunkBatchLocated(
 
     YT_LOG_DEBUG(
         "Located another batch of chunks (Count: %v)",
-        Host_->GetConfig()->ChunkScraper->MaxChunksPerRequest);
+        size(chunkBatch));
 
     for (const auto& [_, cluster] : Clusters_) {
         cluster->ReportIfHasUnavailableChunks();

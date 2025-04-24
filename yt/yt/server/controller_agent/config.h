@@ -1252,7 +1252,7 @@ struct TControllerAgentConfig
 
     bool EnableJobFailsTolerance;
 
-    std::optional<ui32> AllocationJobCountLimit;
+    std::optional<int> AllocationJobCountLimit;
 
     // COMPAT(dave11ar): Remove when all masters will be 25.2.
     bool RegisterLockableDynamicTables;
