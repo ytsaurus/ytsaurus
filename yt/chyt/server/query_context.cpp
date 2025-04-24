@@ -664,12 +664,13 @@ void TQueryContext::MergeStatistics(const TStatistics& statistics)
     Statistics_.Merge(statistics);
 }
 
-void TQueryContext::AddSecondaryQueryId(TQueryId id)
+void TQueryContext::AddSecondaryQueryId(TQueryId id, DB::UInt64 totalRows, DB::UInt64 totalBytes)
 {
     auto guard = Guard(QueryLogLock_);
     SecondaryQueryIds_.push_back(id);
+    OnProgress({0, 0, totalRows, totalBytes});
     // Create map node here for thread-safety.
-    OnSecondaryProgress(id, DB::ReadProgress(0, 0, 0, 0));
+    OnSecondaryProgress(id, DB::ReadProgress(0, 0, totalRows, totalBytes));
 }
 
 std::vector<TQueryId> TQueryContext::GetAdditionalQueryIds() {
