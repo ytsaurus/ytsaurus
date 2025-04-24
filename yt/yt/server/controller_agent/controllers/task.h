@@ -517,9 +517,7 @@ private:
         const TSchedulingContext& context,
         TJobId jobId,
         bool treeIsTentative,
-        NChunkPools::IChunkPoolOutput::TCookie outputCookie,
-        int outputCookieGroupIndex,
-        std::optional<EJobCompetitionType> competitionType,
+        TOutputCookieInfo outputCookieInfo,
         const TNewJobConstraints& newJobConstraints);
 
     std::optional<TDuration> InferWaitingForResourcesTimeout(

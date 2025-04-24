@@ -24,26 +24,26 @@ public:
         TTask* host,
         NLogging::TLogger logger);
 
-    i64 GetPendingCandidatesDataWeight() const override;
+    i64 GetPendingCandidatesDataWeight() const override final;
 
-    int GetPendingJobCount() const override;
+    int GetPendingJobCount() const override final;
 
-    int GetTotalJobCount() const override;
+    int GetTotalJobCount() const override final;
 
     std::pair<NChunkPools::IChunkPoolOutput::TCookie, int> PeekJobCandidate() const;
 
-    bool OnJobAborted(const TJobletPtr& joblet, EAbortReason reason) override;
-    bool OnJobFailed(const TJobletPtr& joblet) override;
-    void OnJobLost(NChunkPools::IChunkPoolOutput::TCookie cookie) override;
+    bool OnJobAborted(const TJobletPtr& joblet, EAbortReason reason) override final;
+    bool OnJobFailed(const TJobletPtr& joblet) override final;
+    void OnJobLost(NChunkPools::IChunkPoolOutput::TCookie cookie) override final;
 
-    void OnJobScheduled(const TJobletPtr& joblet) override;
-    bool OnJobCompleted(const TJobletPtr& joblet) override;
+    void OnJobScheduled(const TJobletPtr& joblet) override final;
+    bool OnJobCompleted(const TJobletPtr& joblet) override final;
 
-    std::optional<EAbortReason> ShouldAbortCompletingJob(const TJobletPtr& joblet) override;
+    std::optional<EAbortReason> ShouldAbortCompletingJob(const TJobletPtr& joblet) override final;
 
-    bool IsFinished() const override;
+    bool IsFinished() const override final;
 
-    TProgressCounterPtr GetProgressCounter() const override;
+    TProgressCounterPtr GetProgressCounter() const override final;
 
 protected:
     struct TSecondary
@@ -55,19 +55,17 @@ protected:
     };
 
     struct TReplicas
-        : public TRefCounted
     {
         TJobId MainJobId;
         std::vector<TSecondary> Secondaries;
         int Pending = 0;
-        int NotCompleted = 0;
+        int NotCompletedCount = 0;
 
         PHOENIX_DECLARE_TYPE(TReplicas, 0x9f237b97);
     };
-    using TReplicasPtr = TIntrusivePtr<TReplicas>;
 
 private:
-    THashMap<NChunkPools::IChunkPoolOutput::TCookie, TReplicasPtr> CookieToReplicas_;
+    THashMap<NChunkPools::IChunkPoolOutput::TCookie, TReplicas> CookieToReplicas_;
     THashSet<NChunkPools::IChunkPoolOutput::TCookie> PendingCookies_;
     THashSet<NChunkPools::IChunkPoolOutput::TCookie> BannedCookies_;
     TProgressCounterPtr JobCounter_;
@@ -75,7 +73,6 @@ private:
     TTask* Task_;
 
     NLogging::TSerializableLogger Logger;
-    i64 PendingDataWeight_ = 0;
 
     bool IsRelevant(const TJobletPtr& joblet) const;
 
