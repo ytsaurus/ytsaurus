@@ -329,6 +329,7 @@ struct TTestCase
     bool EnableChunkProber = false;
     bool PartiallyThrottling = false;
     bool PartiallyBanns = false;
+    std::optional<i64> BlockSetSubrequestThreshold;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -404,6 +405,7 @@ TEST_P(TReplicationReaderTest, ReadTest)
     config->BackoffTimeMultiplier = 1;
     config->MinBackoffTime = TDuration::MilliSeconds(1);
     config->MaxBackoffTime = TDuration::MilliSeconds(1);
+    config->BlockSetSubrequestThreshold = testCase.BlockSetSubrequestThreshold;
 
     auto reader = CreateReplicationReader(
         std::move(config),
@@ -438,13 +440,17 @@ TEST_P(TReplicationReaderTest, ReadTest)
                 std::swap(blockIndexes[index], blockIndexes[generator.Generate<ui64>() % (index + 1)]);
             }
 
+            auto estimatedBytesToRead = 0;
             for (int blockIndex : blockIndexes) {
                 maxBytesToRead += blocks[blockIndex].Size();
+                estimatedBytesToRead += blocks[blockIndex].Size();
                 if (!requestedBlockMask[blockIndex]) {
                     requestedBlockMask[blockIndex] = true;
                     minBytesToRead += blocks[blockIndex].Size();
                 }
             }
+
+            readBlockOptions.EstimatedSize = estimatedBytesToRead;
 
             auto future = reader->ReadBlocks(readBlockOptions, blockIndexes)
                 .Apply(BIND([=] (const std::vector<TBlock>& returnedBlocks) {
@@ -636,6 +642,182 @@ INSTANTIATE_TEST_SUITE_P(
             .EnableChunkProber = true,
             .PartiallyThrottling = true,
             .PartiallyBanns = true,
+        },
+        TTestCase{
+            .BatchCount = 16,
+            .NodeCount = 3,
+            .BlockCount = 1024,
+            .RequestInBatch = 32,
+            .BlockInRequest = 16,
+            .Sequentially = true,
+            .EnableChunkProber = false,
+            .BlockSetSubrequestThreshold = 4,
+        },
+        TTestCase{
+            .BatchCount = 16,
+            .NodeCount = 3,
+            .BlockCount = 1024,
+            .RequestInBatch = 32,
+            .BlockInRequest = 16,
+            .Sequentially = false,
+            .EnableChunkProber = false,
+            .BlockSetSubrequestThreshold = 4,
+        },
+        TTestCase{
+            .BatchCount = 16,
+            .NodeCount = 3,
+            .BlockCount = 1024,
+            .RequestInBatch = 32,
+            .BlockInRequest = 16,
+            .Sequentially = false,
+            .EnableChunkProber = true,
+            .BlockSetSubrequestThreshold = 4,
+        },
+        TTestCase{
+            .BatchCount = 16,
+            .NodeCount = 3,
+            .BlockCount = 1024,
+            .RequestInBatch = 32,
+            .BlockInRequest = 16,
+            .Sequentially = true,
+            .EnableChunkProber = true,
+            .BlockSetSubrequestThreshold = 4,
+        },
+        TTestCase{
+            .BatchCount = 16,
+            .NodeCount = 3,
+            .BlockCount = 1024,
+            .RequestInBatch = 32,
+            .BlockInRequest = 16,
+            .Sequentially = true,
+            .EnableChunkProber = false,
+            .PartiallyThrottling = true,
+            .BlockSetSubrequestThreshold = 240,
+        },
+        TTestCase{
+            .BatchCount = 16,
+            .NodeCount = 3,
+            .BlockCount = 1024,
+            .RequestInBatch = 32,
+            .BlockInRequest = 16,
+            .Sequentially = false,
+            .EnableChunkProber = false,
+            .PartiallyThrottling = true,
+            .BlockSetSubrequestThreshold = 4,
+        },
+        TTestCase{
+            .BatchCount = 16,
+            .NodeCount = 3,
+            .BlockCount = 1024,
+            .RequestInBatch = 32,
+            .BlockInRequest = 16,
+            .Sequentially = false,
+            .EnableChunkProber = true,
+            .PartiallyThrottling = true,
+            .BlockSetSubrequestThreshold = 240,
+        },
+        TTestCase{
+            .BatchCount = 16,
+            .NodeCount = 3,
+            .BlockCount = 1024,
+            .RequestInBatch = 32,
+            .BlockInRequest = 16,
+            .Sequentially = true,
+            .EnableChunkProber = true,
+            .PartiallyThrottling = true,
+            .BlockSetSubrequestThreshold = 4,
+        },
+        TTestCase{
+            .BatchCount = 16,
+            .NodeCount = 3,
+            .BlockCount = 1024,
+            .RequestInBatch = 32,
+            .BlockInRequest = 16,
+            .Sequentially = true,
+            .EnableChunkProber = false,
+            .PartiallyBanns = true,
+            .BlockSetSubrequestThreshold = 240,
+        },
+        TTestCase{
+            .BatchCount = 16,
+            .NodeCount = 3,
+            .BlockCount = 1024,
+            .RequestInBatch = 32,
+            .BlockInRequest = 16,
+            .Sequentially = false,
+            .EnableChunkProber = false,
+            .PartiallyBanns = true,
+            .BlockSetSubrequestThreshold = 4,
+        },
+        TTestCase{
+            .BatchCount = 16,
+            .NodeCount = 3,
+            .BlockCount = 1024,
+            .RequestInBatch = 32,
+            .BlockInRequest = 16,
+            .Sequentially = false,
+            .EnableChunkProber = true,
+            .PartiallyBanns = true,
+            .BlockSetSubrequestThreshold = 240,
+        },
+        TTestCase{
+            .BatchCount = 16,
+            .NodeCount = 3,
+            .BlockCount = 1024,
+            .RequestInBatch = 32,
+            .BlockInRequest = 16,
+            .Sequentially = true,
+            .EnableChunkProber = true,
+            .PartiallyBanns = true,
+            .BlockSetSubrequestThreshold = 4,
+        },
+        TTestCase{
+            .BatchCount = 16,
+            .NodeCount = 3,
+            .BlockCount = 1024,
+            .RequestInBatch = 32,
+            .BlockInRequest = 16,
+            .Sequentially = true,
+            .EnableChunkProber = false,
+            .PartiallyThrottling = true,
+            .PartiallyBanns = true,
+            .BlockSetSubrequestThreshold = 240,
+        },
+        TTestCase{
+            .BatchCount = 16,
+            .NodeCount = 3,
+            .BlockCount = 1024,
+            .RequestInBatch = 32,
+            .BlockInRequest = 16,
+            .Sequentially = false,
+            .EnableChunkProber = false,
+            .PartiallyThrottling = true,
+            .PartiallyBanns = true,
+            .BlockSetSubrequestThreshold = 4,
+        },
+        TTestCase{
+            .BatchCount = 16,
+            .NodeCount = 3,
+            .BlockCount = 1024,
+            .RequestInBatch = 32,
+            .BlockInRequest = 16,
+            .Sequentially = false,
+            .EnableChunkProber = true,
+            .PartiallyThrottling = true,
+            .PartiallyBanns = true,
+            .BlockSetSubrequestThreshold = 240,
+        },
+        TTestCase{
+            .BatchCount = 16,
+            .NodeCount = 3,
+            .BlockCount = 1024,
+            .RequestInBatch = 32,
+            .BlockInRequest = 16,
+            .Sequentially = true,
+            .EnableChunkProber = true,
+            .PartiallyThrottling = true,
+            .PartiallyBanns = true,
+            .BlockSetSubrequestThreshold = 4,
         }));
 
 ////////////////////////////////////////////////////////////////////////////////
