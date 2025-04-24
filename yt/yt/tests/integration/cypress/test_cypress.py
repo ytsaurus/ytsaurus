@@ -58,7 +58,7 @@ class TestCypressRootCreationTime(YTEnvSetup):
 
 def not_implemented_in_sequoia(func):
     def wrapper(func, self, *args, **kwargs):
-        if isinstance(self, TestSequoia):
+        if isinstance(self, TestCypressSequoia):
             pytest.skip("Not implemented in Sequoia")
         return func(self, *args, **kwargs)
 
@@ -5101,7 +5101,7 @@ class TestAccessControlObjects(YTEnvSetup):
 
 
 @pytest.mark.enabled_multidaemon
-class TestSequoia(TestCypressMulticell):
+class TestCypressSequoia(TestCypressMulticell):
     ENABLE_MULTIDAEMON = True
     NUM_NODES = 5
     USE_SEQUOIA = True
