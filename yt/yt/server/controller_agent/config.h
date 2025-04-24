@@ -1160,6 +1160,7 @@ struct TControllerAgentConfig
     bool EnableBulkInsertForEveryone;
     bool EnableVersionedRemoteCopy;
     bool EnableHunksRemoteCopy;
+    bool EnableCompressionDictionaryRemoteCopy;
 
     NScheduler::EEnablePorto DefaultEnablePorto;
 

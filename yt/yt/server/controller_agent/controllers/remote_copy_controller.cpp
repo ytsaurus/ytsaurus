@@ -149,6 +149,19 @@ protected:
     protected:
         TRemoteCopyController* Controller_;
 
+        THashMap<TChunkId, TChunkId> GetResultHunkChunkIdMapping(const TJobResultExt& jobResultExt) const
+        {
+            THashMap<TChunkId, TChunkId> hunkChunkIdMapping;
+            hunkChunkIdMapping.reserve(jobResultExt.hunk_chunk_id_mapping_size());
+            for (const auto& mapping : jobResultExt.hunk_chunk_id_mapping()) {
+                EmplaceOrCrash(
+                    hunkChunkIdMapping,
+                    FromProto<TChunkId>(mapping.input_hunk_chunk_id()),
+                    FromProto<TChunkId>(mapping.output_hunk_chunk_id()));
+            }
+            return hunkChunkIdMapping;
+        }
+
     private:
         IPersistentChunkPoolPtr ChunkPool_;
 
@@ -261,11 +274,12 @@ protected:
 
         void UpdateState()
         {
-            Controller_->UpdateTask(this);
-
             if (Dependencies_.empty()) {
                 Controller_->FillJobSpecHunkChunkIdMapping();
+                Controller_->FillJobSpecCompressionDictionaryIdMapping();
             }
+
+            Controller_->UpdateTask(this);
         }
 
         void RemoveDependents()
@@ -329,15 +343,7 @@ protected:
         TJobFinishedResult OnJobCompleted(TJobletPtr joblet, TCompletedJobSummary& jobSummary) override
         {
             auto& jobResultExt = jobSummary.GetJobResultExt();
-            THashMap<TChunkId, TChunkId> newHunkChunkIdMapping;
-            for (const auto& mapping : jobResultExt.hunk_chunk_id_mapping()) {
-                EmplaceOrCrash(
-                    newHunkChunkIdMapping,
-                    FromProto<TChunkId>(mapping.input_hunk_chunk_id()),
-                    FromProto<TChunkId>(mapping.output_hunk_chunk_id()));
-            }
-            Controller_->UpdateHunkChunkIdMapping(newHunkChunkIdMapping);
-
+            Controller_->UpdateHunkChunkIdMapping(GetResultHunkChunkIdMapping(jobResultExt));
             return TRemoteCopyTaskBase::OnJobCompleted(joblet, jobSummary);
         }
 
@@ -350,7 +356,41 @@ protected:
         PHOENIX_DECLARE_POLYMORPHIC_TYPE(TRemoteCopyHunkTask, 0xaba78386);
     };
 
+    class TRemoteCopyCompressionDictionaryTask
+        : public TRemoteCopyTaskBase
+    {
+    public:
+        TRemoteCopyCompressionDictionaryTask()
+            : TRemoteCopyTaskBase()
+        { }
+
+        TRemoteCopyCompressionDictionaryTask(TRemoteCopyController* controller)
+            : TRemoteCopyTaskBase(controller)
+        { }
+
+        TString GetTitle() const override
+        {
+            return "CompressionDictionaryRemoteCopy";
+        }
+
+        TJobFinishedResult OnJobCompleted(TJobletPtr joblet, TCompletedJobSummary& jobSummary) override
+        {
+            auto& jobResultExt = jobSummary.GetJobResultExt();
+            Controller_->UpdateCompressionDictionaryIdMapping(GetResultHunkChunkIdMapping(jobResultExt));
+            return TRemoteCopyTaskBase::OnJobCompleted(joblet, jobSummary);
+        }
+
+    private:
+        void ValidateAllDataHaveBeenCopied() override
+        {
+            Controller_->ValidateCompressionDictionariesConsistency();
+        }
+
+        PHOENIX_DECLARE_POLYMORPHIC_TYPE(TRemoteCopyCompressionDictionaryTask, 0xaba78387);
+    };
+
     using TRemoteCopyHunkTaskPtr = TIntrusivePtr<TRemoteCopyHunkTask>;
+    using TRemoteCopyCompressionDictionaryTaskPtr = TIntrusivePtr<TRemoteCopyCompressionDictionaryTask>;
 
 private:
     TRemoteCopyOperationSpecPtr Spec_;
@@ -371,15 +411,20 @@ private:
     IAttributeDictionaryPtr InputTableAttributes_;
 
     THashMap<TChunkId, TChunkId> HunkChunkIdMapping_;
+    THashMap<TChunkId, TChunkId> CompressionDictionaryIdMapping_;
+    THashSet<TChunkId> CompressionDictionaryIds_;
+    THashSet<TChunkId> HunkChunkIds_;
 
     TRemoteCopyTaskPtr MainTask_;
     TRemoteCopyHunkTaskPtr HunkTask_;
+    TRemoteCopyCompressionDictionaryTaskPtr CompressionDictionaryTask_;
 
     bool IsCompleted() const override
     {
         return MainTask_ &&
             MainTask_->IsCompleted() &&
-            (!HunkTask_ || HunkTask_->IsCompleted());
+            (!HunkTask_ || HunkTask_->IsCompleted()) &&
+            (!CompressionDictionaryTask_ || CompressionDictionaryTask_->IsCompleted());
     }
 
     void ValidateTableType(const auto& table) const
@@ -652,15 +697,25 @@ private:
         CreateTasks();
 
         RegisterTask(MainTask_);
+
         if (HunkTask_) {
             RegisterTask(HunkTask_);
+        }
+
+        if (CompressionDictionaryTask_) {
+            RegisterTask(CompressionDictionaryTask_);
         }
 
         ProcessInputs();
 
         FinishTaskInput(MainTask_);
+
         if (HunkTask_) {
             FinishTaskInput(HunkTask_);
+        }
+
+        if (CompressionDictionaryTask_) {
+            FinishTaskInput(CompressionDictionaryTask_);
         }
 
         FinishPreparation();
@@ -668,12 +723,25 @@ private:
 
     void CreateTasks()
     {
-        bool hasDynamicTableWithHunkChunks = InputManager->HasDynamicTableWithHunkChunks();
+        for (const auto& table : InputManager->GetInputTables()) {
+            CollectHunkChunkIdsByType(table, GetPtr(HunkChunkIds_), GetPtr(CompressionDictionaryIds_));
+        }
 
         MainTask_ = New<TRemoteCopyTask>(this);
-        if (hasDynamicTableWithHunkChunks) {
+        if (!HunkChunkIds_.empty() || !CompressionDictionaryIds_.empty()) {
             HunkTask_ = New<TRemoteCopyHunkTask>(this);
             MainTask_->AddDependency(HunkTask_);
+        }
+
+        if (!CompressionDictionaryIds_.empty()) {
+            CompressionDictionaryTask_ = New<TRemoteCopyCompressionDictionaryTask>(this);
+
+            YT_VERIFY(HunkTask_);
+            HunkTask_->AddDependency(CompressionDictionaryTask_);
+            CompressionDictionaryTask_->FinishInitialization();
+        }
+
+        if (HunkTask_) {
             HunkTask_->FinishInitialization();
         }
 
@@ -718,6 +786,7 @@ private:
         TPeriodicYielder yielder(PrepareYieldPeriod);
 
         std::vector<TLegacyDataSlicePtr> hunkChunkSlices;
+        std::vector<TLegacyDataSlicePtr> compressionDictionarySlices;
         std::vector<TLegacyDataSlicePtr> chunkSlices;
 
         for (const auto& chunk : Concatenate(InputManager->CollectPrimaryUnversionedChunks(), InputManager->CollectPrimaryVersionedChunks())) {
@@ -729,14 +798,22 @@ private:
 
             ValidateInputDataSlice(dataSlice);
             if (chunk->IsHunk()) {
-                hunkChunkSlices.emplace_back(std::move(dataSlice));
+                // There might be hunk chunks that are not referenced by any chunks, so we don't need to copy them.
+                if (CompressionDictionaryIds_.contains(chunk->GetChunkId())) {
+                    compressionDictionarySlices.emplace_back(std::move(dataSlice));
+                } else if (HunkChunkIds_.contains(chunk->GetChunkId())) {
+                    hunkChunkSlices.emplace_back(std::move(dataSlice));
+                }
             } else {
                 chunkSlices.emplace_back(std::move(dataSlice));
             }
         }
 
+        YT_VERIFY(std::ssize(HunkChunkIds_) == std::ssize(hunkChunkSlices));
+        YT_VERIFY(std::ssize(CompressionDictionaryIds_) == std::ssize(compressionDictionarySlices));
+
         int sliceCount = 0;
-        auto addInputSlices = [&] (const TRemoteCopyTaskBasePtr& task, std::vector<TLegacyDataSlicePtr>& slices) {
+        auto addInputSlices = [&] (const TRemoteCopyTaskBasePtr& task, std::vector<TLegacyDataSlicePtr>&& slices) {
             sliceCount += std::ssize(slices);
             for (auto& slice : slices) {
                 task->AddInput(CreateChunkStripe(std::move(slice)));
@@ -744,12 +821,20 @@ private:
             }
         };
 
-        addInputSlices(MainTask_, chunkSlices);
+        addInputSlices(MainTask_, std::move(chunkSlices));
+
         if (HunkTask_) {
-            addInputSlices(HunkTask_, hunkChunkSlices);
+            addInputSlices(HunkTask_, std::move(hunkChunkSlices));
         } else {
             YT_VERIFY(hunkChunkSlices.empty());
         }
+
+        if (CompressionDictionaryTask_) {
+            addInputSlices(CompressionDictionaryTask_, std::move(compressionDictionarySlices));
+        } else {
+            YT_VERIFY(compressionDictionarySlices.empty());
+        }
+
         return sliceCount;
     }
 
@@ -978,19 +1063,106 @@ private:
         }
     }
 
+    void UpdateCompressionDictionaryIdMapping(const THashMap<TGuid, TGuid>& newMapping)
+    {
+        for (const auto& mapping : newMapping) {
+            EmplaceOrCrash(
+                CompressionDictionaryIdMapping_,
+                mapping.first,
+                mapping.second);
+        }
+    }
+
+    void ValidateConsistency(const THashMap<TChunkId, TChunkId>& mapping, const THashSet<TChunkId>& chunkIds, const TStringBuf& chunkName) const
+    {
+        if (mapping.size() != chunkIds.size()) {
+            for (const auto& compressionDictionaryId : CompressionDictionaryIds_) {
+                YT_LOG_FATAL_IF(!CompressionDictionaryIdMapping_.contains(compressionDictionaryId),
+                    "Validate %v consistency failed. Chunk %v was not copied",
+                    chunkName,
+                    compressionDictionaryId);
+            }
+            for (const auto& [oldId, newId] : mapping) {
+                YT_LOG_FATAL_IF(!chunkIds.contains(oldId),
+                    "Validate %v consistency failed. Chunk %v should not have been copied as %v",
+                    chunkName,
+                    oldId,
+                    newId);
+            }
+        }
+    }
+
     void ValidateHunkChunksConsistency() const
     {
-        YT_VERIFY(HunkChunkIdMapping_.size() == InputManager->GetInputTables()[0]->HunkChunks.size());
+        static const TStringBuf chunkName = "hunk chunks";
+        ValidateConsistency(HunkChunkIdMapping_, HunkChunkIds_, chunkName);
+
+    }
+
+    void ValidateCompressionDictionariesConsistency() const
+    {
+        static const TStringBuf chunkName = "compression dictionaries";
+        ValidateConsistency(CompressionDictionaryIdMapping_, CompressionDictionaryIds_, chunkName);
     }
 
     void FillJobSpecHunkChunkIdMapping()
     {
         auto* remoteCopyJobSpecExt = JobSpecTemplate_.MutableExtension(TRemoteCopyJobSpecExt::remote_copy_job_spec_ext);
+        if (remoteCopyJobSpecExt->hunk_chunk_id_mapping_size() > 0) {
+            // We should fill mapping exactly once.
+            return;
+        }
 
         for (const auto& mapping : HunkChunkIdMapping_) {
             auto* protoMapping = remoteCopyJobSpecExt->add_hunk_chunk_id_mapping();
             ToProto(protoMapping->mutable_input_hunk_chunk_id(), mapping.first);
             ToProto(protoMapping->mutable_output_hunk_chunk_id(), mapping.second);
+        }
+    }
+
+    void FillJobSpecCompressionDictionaryIdMapping()
+    {
+        auto* remoteCopyJobSpecExt = JobSpecTemplate_.MutableExtension(TRemoteCopyJobSpecExt::remote_copy_job_spec_ext);
+        if (remoteCopyJobSpecExt->compression_dictionary_id_mapping_size() > 0) {
+            // We should fill mapping exactly once.
+            return;
+        }
+
+        for (const auto& mapping : CompressionDictionaryIdMapping_) {
+            auto* protoMapping = remoteCopyJobSpecExt->add_compression_dictionary_id_mapping();
+            ToProto(protoMapping->mutable_input_hunk_chunk_id(), mapping.first);
+            ToProto(protoMapping->mutable_output_hunk_chunk_id(), mapping.second);
+        }
+    }
+
+    void CollectHunkChunkIdsByType(
+        const TInputTablePtr& table,
+        TNonNullPtr<THashSet<TChunkId>> hunkChunkIds,
+        TNonNullPtr<THashSet<TChunkId>> compressionDictionaryIds) const
+    {
+        if (table->HunkChunks.empty()) {
+            return;
+        }
+
+        for (const auto& chunk : table->Chunks) {
+            if (chunk->CompressionDictionaryId()) {
+                compressionDictionaryIds->insert(*chunk->CompressionDictionaryId());
+            }
+
+            if (!chunk->HunkChunkRefsExt()) {
+                continue;
+            }
+
+            for (const auto& hunkChunkRef : chunk->HunkChunkRefsExt()->refs()) {
+                hunkChunkIds->insert(FromProto<TChunkId>(hunkChunkRef.chunk_id()));
+                if (hunkChunkRef.has_compression_dictionary_id()) {
+                    compressionDictionaryIds->insert(FromProto<TChunkId>(hunkChunkRef.compression_dictionary_id()));
+                }
+            }
+        }
+
+        for (auto compressionDictionaryId : *compressionDictionaryIds) {
+            hunkChunkIds->erase(compressionDictionaryId);
         }
     }
 
@@ -1009,13 +1181,17 @@ void TRemoteCopyController::RegisterMetadata(auto&& registrar)
     PHOENIX_REGISTER_FIELD(3, InputTableAttributes_,
         .template Serializer<TAttributeDictionarySerializer>());
     PHOENIX_REGISTER_FIELD(4, Networks_);
-    PHOENIX_REGISTER_FIELD(5, HunkChunkIdMapping_);
-    PHOENIX_REGISTER_FIELD(6, JobIOConfig_);
-    PHOENIX_REGISTER_FIELD(7, JobSpecTemplate_);
-    PHOENIX_REGISTER_FIELD(8, JobSizeConstraints_);
-    PHOENIX_REGISTER_FIELD(9, InputSliceDataWeight_);
-    PHOENIX_REGISTER_FIELD(10, MainTask_);
-    PHOENIX_REGISTER_FIELD(11, HunkTask_);
+    PHOENIX_REGISTER_FIELD(5, JobIOConfig_);
+    PHOENIX_REGISTER_FIELD(6, JobSpecTemplate_);
+    PHOENIX_REGISTER_FIELD(7, JobSizeConstraints_);
+    PHOENIX_REGISTER_FIELD(8, InputSliceDataWeight_);
+    PHOENIX_REGISTER_FIELD(9, MainTask_);
+    PHOENIX_REGISTER_FIELD(10, HunkTask_);
+    PHOENIX_REGISTER_FIELD(11, CompressionDictionaryTask_);
+    PHOENIX_REGISTER_FIELD(12, HunkChunkIdMapping_);
+    PHOENIX_REGISTER_FIELD(13, CompressionDictionaryIdMapping_);
+    PHOENIX_REGISTER_FIELD(14, CompressionDictionaryIds_);
+    PHOENIX_REGISTER_FIELD(15, HunkChunkIds_);
 
     registrar.AfterLoad([] (TThis* this_, auto& /*context*/) {
         if (this_->InputTableAttributes_ && this_->InputTableAttributes_->ListKeys().empty()) {
@@ -1058,6 +1234,15 @@ void TRemoteCopyController::TRemoteCopyHunkTask::RegisterMetadata(auto&& registr
 }
 
 PHOENIX_DEFINE_TYPE(TRemoteCopyController::TRemoteCopyHunkTask);
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TRemoteCopyController::TRemoteCopyCompressionDictionaryTask::RegisterMetadata(auto&& registrar)
+{
+    registrar.template BaseType<TRemoteCopyTaskBase>();
+}
+
+PHOENIX_DEFINE_TYPE(TRemoteCopyController::TRemoteCopyCompressionDictionaryTask);
 
 ////////////////////////////////////////////////////////////////////////////////
 
