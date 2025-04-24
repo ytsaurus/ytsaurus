@@ -2304,7 +2304,7 @@ void TNodeShard::IncrementFinishedAllocationProfilingCounter(const TAllocationPt
         return SchedulerProfiler()
             .WithTags(TTagSet(TTagList{
                 {ProfilingPoolTreeKey, allocation->GetTreeId()},
-                {"aborted", aborted ? "true" : "false"},
+                {"aborted", std::string(FormatBool(aborted))},
             }))
             .Counter("/allocations/finished_allocation_count");
     };
