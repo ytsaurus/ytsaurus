@@ -5889,12 +5889,13 @@ std::expected<TJobId, EScheduleFailReason> TOperationControllerBase::GenerateJob
     auto jobIdGuid = previousJobId ? previousJobId.Underlying() : allocationId.Underlying();
 
     if (Config->JobIdUnequalToAllocationId || previousJobId) {
-        auto currentJobCount = jobIdGuid.Parts32[0] >> 24;
+        int currentJobCount = jobIdGuid.Parts32[0] >> 24;
 
         jobIdGuid.Parts32[0] += 1 << 24;
 
         if (jobIdGuid.Parts32[0] >> 24 == 0 ||
-            currentJobCount >= Config->AllocationJobCountLimit.value_or(std::numeric_limits<ui32>::max()))
+            currentJobCount >= Config->AllocationJobCountLimit.value_or(
+                std::numeric_limits<decltype(Config->AllocationJobCountLimit)::value_type>::max()))
         {
             YT_LOG_DEBUG(
                 "Allocation job count reached limit (JobCount: %v, AllocationId: %v, PreviousJobId: %v)",
@@ -9590,10 +9591,11 @@ TJobStartInfo TOperationControllerBase::SafeSettleJob(TAllocationId allocationId
     }
 
     if (!allocation.Joblet) {
-        THROW_ERROR_EXCEPTION_IF(
-            allocation.NewJobsForbiddenReason,
-            "Settling new job in allocation is forbidden, reason is %v",
-            *allocation.NewJobsForbiddenReason);
+        if (allocation.NewJobsForbiddenReason) {
+            THROW_ERROR_EXCEPTION(
+                "Settling new job in allocation is forbidden")
+                << TErrorAttribute("reason", *allocation.NewJobsForbiddenReason);
+        }
 
         YT_VERIFY(lastJobId);
         auto failReason = TryScheduleNextJob(allocation, GetLaterJobId(allocation.LastJobInfo.JobId, *lastJobId));

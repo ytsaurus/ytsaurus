@@ -1295,7 +1295,7 @@ public:
 
     bool EnableJobFailsTolerance;
 
-    std::optional<ui32> AllocationJobCountLimit;
+    std::optional<int> AllocationJobCountLimit;
 
     REGISTER_YSON_STRUCT(TControllerAgentConfig);
 
