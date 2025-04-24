@@ -670,7 +670,7 @@ private:
     }
 
     //! Decide if range of slices defined by their left endpoints must be added as a whole, or if it
-    //! May be added one by one with row slicing.
+    //! may be added one by one with row slicing.
     ERowSliceabilityDecision DecideRowSliceability(TRange<TPrimaryEndpoint> endpoints, TKeyBound nextPrimaryLowerBound)
     {
         YT_VERIFY(!endpoints.empty());
@@ -876,10 +876,8 @@ private:
                 if (rowCount == upperRowIndex - lowerRowIndex) {
                     // In some borderline cases this may still happen... just put the original data slice.
                     Stage(std::move(dataSlice), ESliceType::Solid);
-                    return;
                 } else if (rowCount == 0) {
                     dataSlices.emplace_front(std::move(dataSlice));
-                    return;
                 } else {
                     Stage(std::move(leftDataSlice), ESliceType::Solid);
                     dataSlices.emplace_front(std::move(rightDataSlice));

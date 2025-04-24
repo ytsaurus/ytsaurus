@@ -241,7 +241,7 @@ protected:
     // Partition task of i-th level is a task which takes all the i-th level partitions as a input
     // and splits them into (i+1)-th level partitions.
     // Partition task is called final if its outputs are final partitions. Other partition tasks are called intermediate.
-    // Partitions task of level 0 is called root partition task.
+    // Partition task of level 0 is called root partition task.
     // For MapReduce operations root partition task is a partition map task, and all other tasks are partition tasks.
     // For Sort operations all the tasks are partition tasks.
     //
