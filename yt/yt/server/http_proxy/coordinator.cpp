@@ -333,7 +333,7 @@ std::vector<TCoordinatorProxyPtr> TCoordinator::ListCypressProxies()
 void TCoordinator::UpdateReadOnly()
 {
     TGetNodeOptions options;
-    options.ReadFrom = EMasterChannelKind::Follower;
+    options.ReadFrom = EMasterChannelKind::Cache;
     options.Timeout = Config_->OrchidTimeout;
 
     auto instances = TComponentDiscoverer::GetCypressPaths(Client_, /*masterReadOptions*/ options, EClusterComponentType::PrimaryMaster);
