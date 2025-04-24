@@ -1297,6 +1297,109 @@ class TestSchedulerRemoteCopyCommands(TestSchedulerRemoteCopyCommandsBase):
 
 ##################################################################
 
+class TestSchedulerRemoteCopyCommandsRevive(TestSchedulerRemoteCopyCommandsBase):
+    REMOTE_TRANSACTION_COORDINATOR = hex(20)[2:]
+
+    @authors("ignat")
+    def test_revive(self):
+        create("table", "//tmp/t1", driver=self.remote_driver)
+        write_table("//tmp/t1", {"a": "b"}, driver=self.remote_driver)
+
+        create("table", "//tmp/t2")
+
+        op = remote_copy(
+            track=False,
+            in_="//tmp/t1",
+            out="//tmp/t2",
+            spec={
+                "cluster_name": self.REMOTE_CLUSTER_NAME,
+                "job_io": {
+                    "table_writer": {
+                        "testing_delay": 5000,
+                    }
+                },
+            },
+        )
+
+        wait(lambda: op.get_state() == "running")
+        wait(lambda: exists(op.get_path() + "/snapshot"))
+
+        input_tx = get(op.get_path() + "/@input_transaction_id")
+
+        tx_cell_tag = self.REMOTE_TRANSACTION_COORDINATOR
+        assert input_tx.split('-')[2] == tx_cell_tag + "0001"
+
+        with Restarter(self.Env, [SCHEDULERS_SERVICE, CONTROLLER_AGENTS_SERVICE]):
+            time.sleep(1)
+
+        op.track()
+
+        assert input_tx == get(op.get_path() + "/@input_transaction_id")
+
+        assert read_table("//tmp/t2") == [{"a": "b"}]
+
+    @authors("ignat")
+    def test_revive_with_specified_connection(self):
+        create("table", "//tmp/t1", driver=self.remote_driver)
+        write_table(
+            "//tmp/t1",
+            [{"a": i} for i in range(10)],
+            max_row_buffer_size=1,
+            table_writer={"desired_chunk_size": 1},
+            driver=self.remote_driver,
+        )
+
+        create("table", "//tmp/t2")
+
+        clusters = get("//sys/clusters")
+        cluster_connection = clusters[self.REMOTE_CLUSTER_NAME]
+        try:
+            set("//sys/clusters", {})
+            # TODO(babenko): wait for cluster sync
+            time.sleep(2)
+            op = remote_copy(
+                track=False,
+                in_="//tmp/t1",
+                out="//tmp/t2",
+                spec={"cluster_connection": cluster_connection, "job_count": 10, "resource_limits": {"user_slots": 1}},
+            )
+
+            wait(lambda: op.get_state() == "running")
+            wait(lambda: exists(op.get_path() + "/snapshot"))
+
+            input_tx = get(op.get_path() + "/@input_transaction_id")
+
+            with Restarter(self.Env, [SCHEDULERS_SERVICE, CONTROLLER_AGENTS_SERVICE]):
+                time.sleep(1)
+
+            op.track()
+
+            assert input_tx == get(op.get_path() + "/@input_transaction_id")
+        finally:
+            set("//sys/clusters", clusters)
+            # TODO(babenko): wait for cluster sync
+            time.sleep(2)
+
+        assert read_table("//tmp/t2") == [{"a": i} for i in range(10)]
+
+
+##################################################################
+
+
+class TestSchedulerRemoteCopyCommandsShardedTx(TestSchedulerRemoteCopyCommandsRevive):
+    NUM_TEST_PARTITIONS = 2
+    NUM_SECONDARY_MASTER_CELLS_REMOTE_0 = 2
+    MASTER_CELL_DESCRIPTORS_REMOTE_0 = {
+        "20": {"roles": ["cypress_node_host"]},
+        "21": {"roles": ["transaction_coordinator"]},
+        "22": {"roles": ["chunk_host"]},
+    }
+
+    REMOTE_TRANSACTION_COORDINATOR = hex(21)[2:]
+
+
+##################################################################
+
 
 @pytest.mark.enabled_multidaemon
 class TestSchedulerRemoteCopyNetworks(TestSchedulerRemoteCopyCommandsBase):

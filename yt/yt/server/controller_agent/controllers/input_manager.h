@@ -234,7 +234,7 @@ public:
 private:
     // NB: InputManager does not outlive its host.
     IInputManagerHost* Host_;
-    NLogging::TSerializableLogger Logger; // NOLINT
+    NLogging::TSerializableLogger Logger;
 
     THashMap<NScheduler::TClusterName, TInputClusterPtr> Clusters_;
     TClusterResolverPtr ClusterResolver_;
