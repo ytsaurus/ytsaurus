@@ -683,7 +683,20 @@ IChaosResidencyCachePtr CreateChaosResidencyCache(
     EChaosResidencyCacheType mode,
     const NLogging::TLogger& logger)
 {
-    if (mode == EChaosResidencyCacheType::MasterCache || !chaosCacheChannelConfig) {
+    bool isClientCache = mode == EChaosResidencyCacheType::Client;
+    bool chaosChannelConfigAddressesInvalid = isClientCache &&
+        chaosCacheChannelConfig &&
+        chaosCacheChannelConfig->Addresses &&
+        chaosCacheChannelConfig->Addresses->empty();
+
+    if (chaosChannelConfigAddressesInvalid) {
+        auto& Logger = logger;
+        YT_LOG_WARNING(
+            "Chaos cache channel addresses are present but empty, "
+            "falling back to master cache variant of chaos residency cache");
+    }
+
+    if (!isClientCache || !chaosCacheChannelConfig || chaosChannelConfigAddressesInvalid) {
         return CreateChaosResidencyMasterCache(
             std::move(config),
             std::move(connection),

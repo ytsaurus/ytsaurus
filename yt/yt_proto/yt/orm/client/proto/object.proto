@@ -197,7 +197,7 @@ message TLocalAttributeMigration
     optional string old_lock_group = 4;
 }
 
-// Next field number 54.
+// Next field number 55.
 message TObjectTypeOption
 {
     reserved 6, 7, 15, 17, 20, 21, 28, 29, 38, 46;
@@ -218,7 +218,17 @@ message TObjectTypeOption
     optional string human_readable_name = 4;
 
     optional string parent = 5;
+
+    // Allows to override global removal policy.
+    // Can be overridden in dynamic config via
+    // `parent_removal_policy_override` and `parent_removal_policy_per_{child/parent}_type`.
     optional ECascadingRemovalPolicy parent_removal_policy = 50;
+    // Priority order is
+    // - objects' `parent_removal_policy` ->
+    // - parent's `children_removal_policy_default` ->
+    // - global `parent_removal_policy`.
+    optional ECascadingRemovalPolicy children_removal_policy_default = 54;
+
     optional EParentKeyStoragePolicy parent_key_storage_policy = 34;
 
     // Overrides global option.

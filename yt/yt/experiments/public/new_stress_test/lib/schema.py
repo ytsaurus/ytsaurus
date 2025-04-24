@@ -243,8 +243,9 @@ class Schema():
 
     @staticmethod
     def from_spec(spec):
+        is_sorted = spec.table_type == "sorted"
         return Schema.from_parameters(
-            spec.schema.key_column_count or random.randint(3, 5) if hasattr(spec, "sorted") else 0,
+            spec.schema.key_column_count or random.randint(3, 5) if is_sorted else 0,
             spec.schema.value_column_count or random.randint(5, 10),
             spec.sorted.max_inline_hunk_size if hasattr(spec, "sorted") else None,
             spec.schema.key_column_types,

@@ -121,8 +121,8 @@ bool IsRelationalBinaryOp(EBinaryOp opcode);
 //! Classifies binary opcode according to classification above.
 bool IsStringBinaryOp(EBinaryOp opcode);
 
-//! Cast numeric values.
-TValue CastValueWithCheck(TValue value, EValueType targetType);
+//! Cast values.
+TOwningValue CastValueWithCheck(TValue value, EValueType targetType);
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -39,7 +39,7 @@ protected:
 
     TSharedRange<TRowRange> Coordinate(const TString& source, ui64 rangeExpansionLimit = 1000)
     {
-        auto fragment = PreparePlanFragment(
+        auto fragment = ParseAndPreparePlanFragment(
             &PrepareMock_,
             source);
         const auto& query = fragment->Query;
@@ -64,7 +64,7 @@ protected:
 
     TSharedRange<TRowRange> CoordinateForeign(const TString& source)
     {
-        auto fragment = PreparePlanFragment(
+        auto fragment = ParseAndPreparePlanFragment(
             &PrepareMock_,
             source);
         const auto& query = fragment->Query;

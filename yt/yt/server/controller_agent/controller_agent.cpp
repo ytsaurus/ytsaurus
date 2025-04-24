@@ -4,7 +4,7 @@
 #include "bootstrap.h"
 #include "helpers.h"
 #include "job_monitoring_index_manager.h"
-#include "job_profiler.h"
+#include "controllers/common_profilers.h"
 #include "job_tracker.h"
 #include "master_connector.h"
 #include "memory_watchdog.h"
@@ -226,7 +226,6 @@ public:
             std::move(configNode),
             Bootstrap_))
         , JobTracker_(New<TJobTracker>(Bootstrap_, JobReporter_))
-        , JobProfiler_(New<TJobProfiler>())
         , JobEventsInvoker_(CreateSerializedInvoker(NRpc::TDispatcher::Get()->GetHeavyInvoker(), "controller_agent"))
         , CachedExecNodeDescriptorsByTags_(New<TSyncExpiringCache<TSchedulingTagFilter, TFilteredExecNodeDescriptors>>(
             BIND_NO_PROPAGATE(&TImpl::FilterExecNodes, MakeStrong(this)),
@@ -390,13 +389,6 @@ public:
         YT_ASSERT_THREAD_AFFINITY_ANY();
 
         return JobTracker_.Get();
-    }
-
-    TJobProfiler* GetJobProfiler() const
-    {
-        YT_ASSERT_THREAD_AFFINITY_ANY();
-
-        return JobProfiler_.Get();
     }
 
     const TMediumDirectoryPtr& GetMediumDirectory() const
@@ -1124,7 +1116,6 @@ private:
     const TJobReporterPtr JobReporter_;
     const std::unique_ptr<TMasterConnector> MasterConnector_;
     const TJobTrackerPtr JobTracker_;
-    const TJobProfilerPtr JobProfiler_;
 
     bool Connected_= false;
     bool ConnectScheduled_ = false;
@@ -2354,11 +2345,6 @@ TMasterConnector* TControllerAgent::GetMasterConnector()
 TJobTracker* TControllerAgent::GetJobTracker() const
 {
     return Impl_->GetJobTracker();
-}
-
-TJobProfiler* TControllerAgent::GetJobProfiler() const
-{
-    return Impl_->GetJobProfiler();
 }
 
 bool TControllerAgent::IsConnected() const

@@ -25,6 +25,7 @@ class Registry(object):
         self.tablet_size = base + ".tablet_size"
         self.consumer = base + ".consumer"
         self.producer = base + ".producer"
+        self.hunk_storage = base + ".hunk_storage"
 
     def make_iter_tables(self, iteration):
         self.iter_data = self.base + ".iter.{}".format(iteration)
@@ -71,6 +72,10 @@ def create_tables(registry, schema, attributes, spec, args):
     create_tablet_size_table(registry.tablet_size, spec.size.tablet_count)
 
     if not spec.testing.skip_write:
+        if spec.queues.use_hunk_storage:
+            hunk_storage_id = yt.create("hunk_storage", registry.hunk_storage)
+            attributes["hunk_storage_id"] = hunk_storage_id
+
         create_dynamic_table(
             registry.base,
             schema,
@@ -194,7 +199,7 @@ def test_queues(base_path, spec, attributes, args):
     attributes.pop("chunk_format", None)
 
     registry = Registry(table_path)
-    schema = Schema.from_spec(sorted=False, spec=spec)
+    schema = Schema.from_spec(spec=spec)
 
     logger.info("Schema data weight is %s", schema.data_weight())
 

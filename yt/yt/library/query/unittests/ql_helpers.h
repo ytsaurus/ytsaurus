@@ -115,4 +115,21 @@ IJoinProfilerPtr MakeNullJoinSubqueryProfiler();
 
 ////////////////////////////////////////////////////////////////////////////////
 
+extern int DefaultExpressionBuilderVersion;
+
+TPlanFragmentPtr ParseAndPreparePlanFragment(
+    IPrepareCallbacks* callbacks,
+    TStringBuf source,
+    NYson::TYsonStringBuf placeholderValues = {},
+    int syntaxVersion = 1,
+    IMemoryUsageTrackerPtr memoryTracker = nullptr);
+
+TConstExpressionPtr ParseAndPrepareExpression(
+    TStringBuf source,
+    const TTableSchema& tableSchema,
+    const TConstTypeInferrerMapPtr& functions = GetBuiltinTypeInferrers(),
+    THashSet<std::string>* references = nullptr);
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NQueryClient

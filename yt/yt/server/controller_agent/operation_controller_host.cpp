@@ -408,11 +408,6 @@ const TAsyncSemaphorePtr& TOperationControllerHost::GetCoreSemaphore()
     return Bootstrap_->GetControllerAgent()->GetCoreSemaphore();
 }
 
-TJobProfiler* TOperationControllerHost::GetJobProfiler() const
-{
-    return Bootstrap_->GetControllerAgent()->GetJobProfiler();
-}
-
 int TOperationControllerHost::GetAvailableExecNodeCount()
 {
     return Bootstrap_->GetControllerAgent()->GetAvailableExecNodeCount();

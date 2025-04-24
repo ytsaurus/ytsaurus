@@ -130,10 +130,10 @@ jobs:
     schedule: "*/15 * * * *"
     restartPolicy: Never
 
-  - name: prune_offline_servers
+  - name: prune_offline_cluster_nodes
     enabled: false
     args:
-      - prune_offline_servers
+      - prune_offline_cluster_nodes
       - --node-flavors exe,flavor:exec
       - --node-ttl 1d
       - --no-dry-run

@@ -149,8 +149,6 @@ public:
     const NServer::TJobReporterPtr& GetJobReporter() override;
     const NChunkClient::TMediumDirectoryPtr& GetMediumDirectory() override;
 
-    TJobProfiler* GetJobProfiler() const override;
-
     int GetAvailableExecNodeCount() override;
     TRefCountedExecNodeDescriptorMapPtr GetExecNodeDescriptors(const NScheduler::TSchedulingTagFilter& filter, bool onlineOnly = false) override;
     TJobResources GetMaxAvailableResources(const NScheduler::TSchedulingTagFilter& filter) override;
