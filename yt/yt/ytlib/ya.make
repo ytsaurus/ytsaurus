@@ -742,6 +742,7 @@ PEERDIR(
     library/cpp/erasure
     library/cpp/iterator
     library/cpp/yt/backtrace/symbolizers/dwarf
+    library/cpp/cron_expression
     yt/yt/library/erasure/impl
     yt/yt/library/containers
     yt/yt/library/disk_manager

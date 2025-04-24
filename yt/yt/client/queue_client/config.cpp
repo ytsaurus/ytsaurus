@@ -78,9 +78,8 @@ void TQueueStaticExportConfig::Register(TRegistrar registrar)
             config->ExportSchedule = *config->ExportPeriod;
         } else if (config->ExportCronExpression) {
             try {
-                auto cronExpression = NQueueAgent::NCron::make_cron(*config->ExportCronExpression);
-                config->ExportSchedule = std::move(cronExpression);
-            } catch (const NQueueAgent::NCron::bad_cronexpr& exc) {
+                config->ExportSchedule.emplace<TCronExpression>(*config->ExportCronExpression);
+            } catch (const yexception& exc) {
                 THROW_ERROR_EXCEPTION(
                     "The value of \"export_cron\" is not a well-formed CRON expression (Value: '%v', Error: '%v')",
                     *config->ExportCronExpression,

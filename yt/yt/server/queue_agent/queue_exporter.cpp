@@ -1,6 +1,5 @@
 #include "queue_exporter.h"
 
-#include "croncpp.h"
 #include "private.h"
 #include "queue_export_manager.h"
 
@@ -79,44 +78,53 @@ namespace {
 // Unix timestamp T corresponds to TInstant::Seconds(T).
 // Most of calculations are done with unix time, since we chose our granularity to be in seconds.
 
-//! Find export unix ts range containing #unixTs for a given #exportPeriod.
+//! Find export unix ts range containing #now for a given #exportPeriod.
 //!
 //! Returns [#beginTs; endTs), where endTs is also export unix ts describing the range.
 //! Alternatively, beginTs is export unix ts that comes before endTs.
 std::pair<ui64, ui64> GetExportUnixTsRange(
-    ui64 unixTs,
-    const std::variant<TDuration, NCron::cronexpr>& exportSetting)
+    TInstant now,
+    std::variant<TDuration, TCronExpression>& exportSetting)
 {
     if (exportSetting.index() == 0) {
         auto period = std::get<0>(exportSetting).Seconds();
         YT_VERIFY(period > 0);
 
         std::pair<ui64, ui64> result;
-        result.first = (unixTs / period) * period;
+        result.first = (now.Seconds() / period) * period;
         result.second = result.first + period;
         return result;
     }
 
-    // This approach is not perfect - there are some rare counter-examples - but will work most of the time.
-    const auto& cronExpression = std::get<1>(exportSetting);
-    auto nextOccurence = NCron::cron_next(cronExpression, unixTs);
-    auto subsequentOccurence = NCron::cron_next(cronExpression, nextOccurence);
+    static const auto UTCTimezone = NDatetime::TTimeZone{};
+    auto nowCivilSecond = NDatetime::Convert(now, UTCTimezone);
+    auto& cronExpression = std::get<1>(exportSetting);
+    return std::pair<ui64, ui64>{
+        NDatetime::Convert(cronExpression.CronPrev(nowCivilSecond), UTCTimezone).Seconds(),
+        NDatetime::Convert(cronExpression.CronNext(nowCivilSecond), UTCTimezone).Seconds()};
+}
 
-    return std::pair<ui64, ui64>{nextOccurence - (subsequentOccurence - nextOccurence), nextOccurence};
+std::pair<ui64, ui64> GetExportUnixTsRange(
+    ui64 unixTs,
+    std::variant<TDuration, TCronExpression>& exportSetting)
+{
+    return GetExportUnixTsRange(TInstant::Seconds(unixTs), exportSetting);
 }
 
 //! The greatest export unix ts lower than #now according to #exportPeriod.
 ui64 GetExportUnixTsUpperBound(
     TInstant now,
-    const std::variant<TDuration, NCron::cronexpr>& exportSetting)
+    std::variant<TDuration, TCronExpression>& exportSetting)
 {
-    return GetExportUnixTsRange(now.Seconds(), exportSetting).first;
+    return GetExportUnixTsRange(now, exportSetting).first;
 }
 
 //! Get the period (in seconds) of a CRON expression.
-ui64 GetCronExpressionPeriod(const NCron::cronexpr& cronExpression) {
-    auto firstOccurence = NCron::cron_next(cronExpression, 0);
-    auto secondOccurence = NCron::cron_next(cronExpression, firstOccurence);
+ui64 GetCronExpressionPeriod(TCronExpression& cronExpression) {
+    // There are some counter-examples to this method - difference between two last days of
+    // the month is not always equal, for instance - but generally this approach will work.
+    auto firstOccurence = cronExpression.CronNext(NDatetime::TCivilSecond{0});
+    auto secondOccurence = cronExpression.CronNext(firstOccurence);
     return secondOccurence - firstOccurence;
 }
 
@@ -707,7 +715,7 @@ private:
 
     TString GetOutputTableName(ui64 unixTs)
     {
-        const auto& exportSchedule = ExportConfig_->ExportSchedule;
+        auto& exportSchedule = ExportConfig_->ExportSchedule;
         ui64 periodInSeconds;
         switch (exportSchedule.index()) {
             case 0: {
@@ -1159,7 +1167,7 @@ private:
         auto now = TInstant::Now();
 
         auto exportConfig = GetExportConfig();
-        auto exportUnixTs = GetExportUnixTsRange(now.Seconds(), exportConfig->ExportSchedule).first;
+        auto exportUnixTs = GetExportUnixTsRange(now, exportConfig->ExportSchedule).first;
 
         if (exportUnixTs <= LastSuccessfulExportUnixTs_.load()) {
             // Too early to run new export task.
@@ -1264,7 +1272,7 @@ private:
     void ProfileExport(const TQueueStaticExportConfigPtr& exportConfig, bool hasError)
     {
         auto now = TInstant::Now();
-        const auto& exportSchedule = exportConfig->ExportSchedule;
+        auto& exportSchedule = exportConfig->ExportSchedule;
         auto exportUnixTsUpperBound = GetExportUnixTsUpperBound(now, exportSchedule);
 
         ui64 timeLagSeconds = 0;

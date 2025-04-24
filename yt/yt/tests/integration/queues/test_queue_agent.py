@@ -3998,15 +3998,14 @@ class TestQueueStaticExport(TestQueueStaticExportBase):
     @authors("pavel-bash")
     @pytest.mark.timeout(150)
     def test_cron_annotation_schedule(self):
-        # Check that the new CRON annotation works correctly, at least for this
-        # use-case. It's hard and long to test others as CRON cannot go subminute.
+        # Check that the new CRON annotation works correctly, at least for this use-case.
 
         _, queue_id = self._create_queue("//tmp/q")
 
         export_dir = "//tmp/export"
         self._create_export_destination(export_dir, queue_id)
 
-        export_cron_expression = "0 * * * * *"  # Every minute.
+        export_cron_expression = "0/30 * * * * *"  # Every 30 seconds.
 
         set("//tmp/q/@static_export_config", {
             "default": {
@@ -4019,11 +4018,11 @@ class TestQueueStaticExport(TestQueueStaticExportBase):
 
         insert_rows("//tmp/q", [{"data": "vim"}])
         self._flush_table("//tmp/q")
-        wait(lambda: len(ls(export_dir)) == 1, timeout=60)
+        wait(lambda: len(ls(export_dir)) == 1, timeout=35)
 
         insert_rows("//tmp/q", [{"data": "nano"}])
         self._flush_table("//tmp/q")
-        wait(lambda: len(ls(export_dir)) == 2, timeout=60)
+        wait(lambda: len(ls(export_dir)) == 2, timeout=35)
 
         self.remove_export_destination(export_dir)
 
