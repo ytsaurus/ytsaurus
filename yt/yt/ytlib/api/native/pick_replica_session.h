@@ -37,7 +37,8 @@ IPickReplicaSessionPtr CreatePickReplicaSession(
     const IConnectionPtr& connection,
     const NTabletClient::ITableMountCachePtr& mountCache,
     const ITableReplicaSynchronicityCachePtr& cache,
-    const TSelectRowsOptionsBase& options);
+    const TSelectRowsOptionsBase& options,
+    NTransactionClient::TTimestamp timestamp);
 
 ////////////////////////////////////////////////////////////////////////////////
 

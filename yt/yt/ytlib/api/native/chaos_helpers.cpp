@@ -172,6 +172,7 @@ TTableReplicaInfoPtrList PickInSyncChaosReplicas(
 
     YT_ASSERT(tableInfo->ReplicationCardId);
 
+    auto connectionConfig = connection->GetConfig();
     auto replicationCard = GetSyncReplicationCard(connection, tableInfo);
     auto replicaIds = GetChaosTableInSyncReplicas(
         tableInfo,
@@ -182,7 +183,9 @@ TTableReplicaInfoPtrList PickInSyncChaosReplicas(
             : nullptr,
         /*keys*/ {},
         /*allKeys*/ true,
-        options.Timestamp);
+        connectionConfig->EnableReadFromInSyncAsyncReplicas
+            ? options.Timestamp
+            : SyncLastCommittedTimestamp);
 
     auto bannedReplicaTracker = connection->GetBannedReplicaTrackerCache()->GetTracker(tableInfo->TableId);
     bannedReplicaTracker->SyncReplicas(replicationCard);

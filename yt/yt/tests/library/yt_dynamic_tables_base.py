@@ -3,7 +3,7 @@ from yt_env_setup import YTEnvSetup
 from yt_helpers import profiler_factory
 
 from yt_commands import (
-    wait, ls, get, set, exists, create_dynamic_table, set_node_decommissioned,
+    wait, ls, get, set, exists, remove, create_dynamic_table, set_node_decommissioned,
     disable_tablet_cells_on_node, get_driver, get_cluster_drivers, print_debug
 )
 
@@ -152,6 +152,49 @@ class DynamicTablesBase(YTEnvSetup):
 
                     peers = get("#{0}/@peers".format(cell_id), driver=driver)
                     assert all(peer.get("alien", False) or peer["state"] == "none" for peer in peers)
+
+    class RpcProxyDynamicConfig:
+        def __init__(self, config_path, new_value, driver=None):
+            self._config_path = config_path
+            self._driver = driver
+            self._new_value = new_value
+            self._old_config = None
+            if exists("//sys/rpc_proxies/@config", driver=driver):
+                self._old_config = get("//sys/rpc_proxies/@config", driver=driver)
+
+        def __enter__(self):
+            self._set_proxies_config(self._config_path, self._new_value, self._driver)
+
+        def __exit__(self, exc_type, exception, traceback):
+            self._set_proxies_config("", self._old_config, self._driver)
+
+        def _update_and_wait(self, callback, driver):
+            proxies = ls("//sys/rpc_proxies", driver=driver)
+            orchid_path = "orchid/dynamic_config_manager/last_config_change_time"
+            update_times = {proxy: get(f"//sys/rpc_proxies/{proxy}/{orchid_path}", driver=driver) for proxy in proxies}
+            callback()
+            wait(lambda: all(get(f"//sys/rpc_proxies/{proxy}/{orchid_path}", driver=driver) != update_times[proxy] for proxy in proxies))
+
+        def _set_proxies_config(self, config_path, config_value, driver=None):
+            if config_value is not None:
+                prev = 0
+                while config_path.find('/', prev) != -1:
+                    next = config_path.find('/', prev)
+                    path = "//sys/rpc_proxies/@config" + config_path[:next]
+                    if not exists(path, driver=driver):
+                        set(path, {}, driver=driver)
+                    prev = next + 1
+
+                self._update_and_wait(lambda: set(f"//sys/rpc_proxies/@config{config_path}", config_value, driver=driver), driver)
+
+                if config_path != "":
+                    proxies = ls("//sys/rpc_proxies", driver=driver)
+                    orchid_path = f"orchid/dynamic_config_manager/effective_config{config_path}"
+                    for proxy in proxies:
+                        assert get(f"//sys/rpc_proxies/{proxy}/{orchid_path}", driver=driver) == config_value
+            else:
+                assert config_path == ""
+                self._update_and_wait(lambda: remove("//sys/rpc_proxies/@config", driver=driver), driver)
 
     def _create_sorted_table(self, path, **attributes):
         if "schema" not in attributes:

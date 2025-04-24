@@ -459,6 +459,12 @@ void TConnectionDynamicConfig::Register(TRegistrar registrar)
     registrar.Parameter("enable_distributed_replication_collocation_attachment", &TThis::EnableDistributedReplicationCollocationAttachment)
         .Default(true);
 
+    registrar.Parameter("enable_read_from_async_replicas", &TThis::EnableReadFromInSyncAsyncReplicas)
+        .Default(false);
+
+    registrar.Parameter("banned_in_sync_replica_clusters", &TThis::BannedInSyncReplicaClusters)
+        .Default();
+
     registrar.Postprocessor([] (TConnectionDynamicConfig* config) {
         if (!config->UploadTransactionPingPeriod.has_value()) {
             config->UploadTransactionPingPeriod = config->UploadTransactionTimeout / 2;
