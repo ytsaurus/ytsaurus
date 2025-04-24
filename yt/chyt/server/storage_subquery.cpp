@@ -273,8 +273,6 @@ public:
                     }
                 }
             }
-            sourcePtr->addTotalRowsApprox(rowCount);
-            sourcePtr->addTotalBytes(dataWeight);
             YT_LOG_DEBUG(
                 "Thread table reader stream created (ThreadIndex: %v, RowCount: %v, DataWeight: %v, DataSliceCount: %v)",
                 threadIndex,
