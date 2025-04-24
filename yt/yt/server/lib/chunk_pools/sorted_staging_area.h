@@ -31,7 +31,7 @@ struct ISortedStagingArea
     //!   getting into the job.
     //! - Solid: primary data slice which was already row sliced before putting into staging area;
     //!   in this case data slice will not be sliced by upper bound and will be taken as a whole
-    //!   into ne next job.
+    //!   into the next job.
     //! - Foreign: foreign data slice. Despite to previous two kinds, its lower bound may not be
     //!   equal to current upper bound inverse.
     virtual void Put(NChunkClient::TLegacyDataSlicePtr dataSlice, ESliceType sliceType) = 0;

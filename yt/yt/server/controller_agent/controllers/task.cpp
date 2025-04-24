@@ -1367,7 +1367,7 @@ TJobFinishedResult TTask::OnJobCompleted(TJobletPtr joblet, TCompletedJobSummary
                 joblet->ChunkListIds[index] = NullChunkListId;
             }
             if (joblet->ChunkListIds[index] && OutputStreamDescriptors_[index]->ImmediatelyUnstageChunkLists) {
-                this->TaskHost_->ReleaseChunkTrees({joblet->ChunkListIds[index]}, /*unstageRecursively*/ false);
+                TaskHost_->ReleaseChunkTrees({joblet->ChunkListIds[index]}, /*unstageRecursively*/ false);
                 joblet->ChunkListIds[index] = NullChunkListId;
             }
         }
