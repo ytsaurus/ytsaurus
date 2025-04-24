@@ -12,8 +12,8 @@ namespace NYT::NKafkaProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::vector<NKafka::TMessage> ConvertQueueRowsToMessages(
-    const NApi::IUnversionedRowsetPtr& rowset);
+NKafka::TRecordBatch ConvertQueueRowsToRecordBatch(
+    const NQueueClient::IQueueRowsetPtr& rowset);
 
 ////////////////////////////////////////////////////////////////////////////////
 

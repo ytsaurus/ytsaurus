@@ -13,6 +13,7 @@ SRCS(
     config.cpp
     connection.cpp
     dynamic_config_manager.cpp
+    group_coordinator.cpp
     helpers.cpp
     program.cpp
     server.cpp
@@ -29,6 +30,7 @@ PEERDIR(
     yt/yt/library/server_program
 
     library/cpp/getopt
+    library/cpp/iterator
 )
 
 END()

@@ -127,21 +127,30 @@ class TestKafkaProxy(TestQueueAgentBase, ReplicatedObjectBase, YTEnvSetup):
         create("table", path, attributes=attributes)
         sync_mount_table(path)
 
-    def _consume_messages(self, queue_path, consumer_path, token, message_count=3):
+    def _consume_messages(self, queue_path, consumer_path, token, message_count=3, sasl_mechanism="OAUTHBEARER", assign_partitions=None):
         address = self.Env.get_kafka_proxy_address()
 
         consumer_config = {
             "bootstrap.servers": address,
             "security.protocol": "SASL_PLAINTEXT",
-            "sasl.mechanisms": "OAUTHBEARER",
-            'oauth_cb': functools.partial(_get_token, token),
+            "sasl.mechanisms": sasl_mechanism,
             "client.id": "1234567",
             "group.id": consumer_path,
             "debug": "all",
         }
+
+        if sasl_mechanism == "OAUTHBEARER":
+            consumer_config["oauth_cb"] = functools.partial(_get_token, token)
+        elif sasl_mechanism == "PLAIN":
+            consumer_config["sasl.username"] = "u"
+            consumer_config["sasl.password"] = token
+
         c = Consumer(consumer_config)
 
-        c.assign([TopicPartition(queue_path, 0)])
+        if assign_partitions:
+            c.assign([TopicPartition(queue_path, partition_index) for partition_index in assign_partitions])
+        else:
+            c.subscribe([queue_path])
 
         none_message_count = 0
         error_count = 0
@@ -246,42 +255,47 @@ class TestKafkaProxy(TestQueueAgentBase, ReplicatedObjectBase, YTEnvSetup):
         set(f"{queue_path}/@acl/end", make_ace("allow", "u", ["read"]))
         set(f"{consumer_path}/@acl/end", make_ace("allow", "u", ["read", "write"]))
 
-        messages = self._consume_messages(queue_path, consumer_path, token, message_count=3)
+        messages = self._consume_messages(queue_path, consumer_path, token, message_count=3, assign_partitions=[0])
         assert len(messages) == 3
 
         assert select_rows("* from [//tmp/consumer]")[0]["offset"] == len(messages)
 
     @authors("nadya73")
-    def test_unsupported_sasl_mechanism(self):
-        address = self.Env.get_kafka_proxy_address()
+    def test_basic_plain_sasl_mechanism(self):
+        username = "u"
+        create_user(username)
+        token, _ = issue_token(username)
+
+        self._create_cells()
 
         queue_path = "primary://tmp/queue"
         consumer_path = "primary://tmp/consumer"
 
-        consumer_config = {
-            "bootstrap.servers": address,
-            "security.protocol": "SASL_PLAINTEXT",
-            "sasl.mechanisms": "PLAIN",
-            "sasl.username": "user123",
-            "sasl.password": "password123",
-            "client.id": "123",
-            "group.id": consumer_path,
-            "log_level": 7,
-            "debug": 'all'
-        }
-        c = Consumer(consumer_config)
+        TestKafkaProxy._create_queue(queue_path)
+        self._create_registered_consumer(consumer_path, queue_path)
 
-        c.assign([TopicPartition(queue_path, 0)])
+        insert_rows(queue_path, [
+            {"surname": "foo-0", "number": 0},
+            {"surname": "foo-1", "number": 1},
+            {"surname": "foo-2", "number": 2},
+        ])
 
-        poll_count = 0
-        while True:
-            msg = c.poll(1.0)
+        set(f"{queue_path}/@inherit_acl", False)
+        set(f"{consumer_path}/@inherit_acl", False)
 
-            assert msg is None or msg.error()
-            poll_count += 1
+        with raises_yt_error("permission"):
+            pull_queue(queue_path, authenticated_user=username, partition_index=0, offset=0)
 
-            if poll_count > 10:
-                break
+        with raises_yt_error("permission"):
+            pull_consumer(consumer_path, queue_path, authenticated_user=username, partition_index=0, offset=0)
+
+        set(f"{queue_path}/@acl/end", make_ace("allow", "u", ["read"]))
+        set(f"{consumer_path}/@acl/end", make_ace("allow", "u", ["read", "write"]))
+
+        messages = self._consume_messages(queue_path, consumer_path, token, message_count=3, sasl_mechanism="PLAIN", assign_partitions=[0])
+        assert len(messages) == 3
+
+        assert select_rows("* from [//tmp/consumer]")[0]["offset"] == len(messages)
 
     @authors("nadya73")
     def test_producer(self):
@@ -414,13 +428,162 @@ class TestKafkaProxy(TestQueueAgentBase, ReplicatedObjectBase, YTEnvSetup):
                 "value": row,
             }
 
-        messages = self._consume_messages(queue_path, consumer_path, token, message_count=3)
+        messages = self._consume_messages(queue_path, consumer_path, token, message_count=3, assign_partitions=[0])
         messages.assert_matching([generic_queue_message(row) for row in queue_rows], False)
 
-        messages = self._consume_messages(kafka_queue_path, consumer_path, token, message_count=3)
+        messages = self._consume_messages(kafka_queue_path, consumer_path, token, message_count=3, assign_partitions=[0])
         messages.assert_matching([
             {
                 "key": row["key"],
                 "value": row["value"],
             } for row in kafka_queue_rows
         ], True)
+
+    @authors("nadya73")
+    def test_consumer_group_coordinator(self):
+        username = "u"
+        create_user(username)
+        token, _ = issue_token(username)
+
+        self._create_cells()
+
+        queue_path = "primary://tmp/queue"
+        consumer_path = "primary://tmp/consumer"
+
+        tablet_count = 6
+        row_count = tablet_count
+
+        TestKafkaProxy._create_queue(queue_path, tablet_count=tablet_count)
+        self._create_registered_consumer(consumer_path, queue_path)
+
+        consumer_count = 3
+        rows = [
+            {"surname": "foo-0", "number": i, "$tablet_index": i} for i in range(row_count)
+        ]
+
+        insert_rows(queue_path, rows)
+
+        address = self.Env.get_kafka_proxy_address()
+
+        consumers = []
+        for consumer_id in range(consumer_count):
+            consumer_config = {
+                "bootstrap.servers": address,
+                "security.protocol": "SASL_PLAINTEXT",
+                "sasl.mechanisms": "PLAIN",
+                "client.id": f"consumer-{consumer_id}",
+                "group.id": consumer_path,
+                "debug": "all",
+                "sasl.username": "u",
+                "sasl.password": token,
+                "partition.assignment.strategy": "range",
+                "heartbeat.interval.ms": 150,
+            }
+
+            c = Consumer(consumer_config)
+            c.subscribe([queue_path])
+            consumers.append(c)
+
+        none_message_count = 0
+        error_count = 0
+
+        messages = []
+        consumer_message_counts = [0] * len(consumers)
+
+        while True:
+            if none_message_count > 30:
+                break
+            for consumer_index, consumer in enumerate(consumers):
+                msg = consumer.poll(0.3)
+
+                if msg is None:
+                    none_message_count += 1
+                    continue
+
+                if msg.error():
+                    error_count += 1
+                    if error_count > 6:
+                        assert not msg.error()
+                    continue
+
+                messages += [msg]
+                consumer_message_counts[consumer_index] += 1
+
+                consumer.commit(msg)
+
+        assert len(messages) == row_count
+
+        for consumer_message_count in consumer_message_counts:
+            assert consumer_message_count == 2
+
+        consumer_rows = select_rows("* from [//tmp/consumer]")
+        for consumer_row in consumer_rows:
+            consumer_row["offset"] == 1
+
+        # Create more consumers.
+        for consumer_id in range(consumer_count, consumer_count * 2):
+            consumer_config = {
+                "bootstrap.servers": address,
+                "security.protocol": "SASL_PLAINTEXT",
+                "sasl.mechanisms": "PLAIN",
+                "client.id": f"consumer-{consumer_id}",
+                "group.id": consumer_path,
+                "debug": "all",
+                "sasl.username": "u",
+                "sasl.password": token,
+                "partition.assignment.strategy": "range",
+                "heartbeat.interval.ms": 300,
+            }
+
+            c = Consumer(consumer_config)
+            c.subscribe([queue_path])
+            consumers.append(c)
+
+        # Wait rebalancing.
+        for _ in range(5):
+            for consumer_index, consumer in enumerate(consumers):
+                consumer.poll(0.2)
+
+        consumer_count *= 2
+        rows *= 2
+        row_count *= 2
+        messages = []
+        none_message_count = 0
+        error_count = 0
+
+        insert_rows(queue_path, rows)
+
+        consumer_message_counts = [0] * len(consumers)
+
+        while True:
+            if none_message_count > 30:
+                break
+            for consumer_index, consumer in enumerate(consumers):
+                msg = consumer.poll(0.3)
+
+                if msg is None:
+                    none_message_count += 1
+                    continue
+
+                if msg.error():
+                    error_count += 1
+                    if error_count > 100:
+                        assert not msg.error()
+                    continue
+
+                messages += [msg]
+                consumer_message_counts[consumer_index] += 1
+
+                consumer.commit(msg)
+
+        for consumer in consumers:
+            consumer.close()
+
+        assert len(messages) == row_count
+
+        for consumer_message_count in consumer_message_counts:
+            assert consumer_message_count == 2
+
+        consumer_rows = select_rows("* from [//tmp/consumer]")
+        for consumer_row in consumer_rows:
+            consumer_row["offset"] == 2

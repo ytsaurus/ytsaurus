@@ -27,7 +27,7 @@ struct IServer
     virtual void Start() = 0;
 
     //! Represents abstract Kafka request handler.
-    using THandler = TCallback<TSharedRef(TConnectionId, NKafka::IKafkaProtocolReader*, int)>;
+    using THandler = TCallback<TSharedRef(TConnectionId, NKafka::IKafkaProtocolReader*, const NKafka::TRequestHeader&)>;
     virtual void RegisterHandler(
         NKafka::ERequestType requestType,
         THandler handler) = 0;
