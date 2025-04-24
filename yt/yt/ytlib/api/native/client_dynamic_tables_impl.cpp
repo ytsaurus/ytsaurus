@@ -973,7 +973,7 @@ TLookupRowsResult<IRowset> TClient::DoLookupRowsOnce(
             << TErrorAttribute("timestamp", options.Timestamp);
     }
 
-    const auto& connectionConfig = Connection_->GetConfig();
+    const auto connectionConfig = Connection_->GetConfig();
 
     const auto& tableMountCache = Connection_->GetTableMountCache();
     NProfiling::TWallTimer timer;
@@ -1091,7 +1091,9 @@ TLookupRowsResult<IRowset> TClient::DoLookupRowsOnce(
                     evaluator,
                     MakeSharedRange(keys),
                     /*allKeys*/ false,
-                    options.Timestamp);
+                    connectionConfig->EnableReadFromInSyncAsyncReplicas
+                        ? options.Timestamp
+                        : SyncLastCommittedTimestamp);
 
                 YT_LOG_DEBUG("Picked in-sync replicas for lookup (ReplicaIds: %v, Timestamp: %v, ReplicationCard: %v)",
                     replicaIds,
@@ -1133,6 +1135,8 @@ TLookupRowsResult<IRowset> TClient::DoLookupRowsOnce(
             std::vector<TTableReplicaId> bannedSyncReplicaIds;
             for (const auto& replicaInfo : pickedSyncReplicas) {
                 if (bannedReplicaTracker && bannedReplicaTracker->IsReplicaBanned(replicaInfo->ReplicaId)) {
+                    bannedSyncReplicaIds.push_back(replicaInfo->ReplicaId);
+                } else if (connectionConfig->BannedInSyncReplicaClusters.contains(replicaInfo->ClusterName)) {
                     bannedSyncReplicaIds.push_back(replicaInfo->ReplicaId);
                 } else {
                     inSyncReplicas.push_back(replicaInfo);
@@ -1618,13 +1622,17 @@ TSelectRowsResult TClient::DoSelectRowsOnce(
 
     TransformWithIndexStatement(astQuery, mountCache, &parsedQuery->AstHead);
 
-    auto replicaStatusCache = Connection_->GetTableReplicaSynchronicityCache();
+    auto dynamicConfig = GetNativeConnection()->GetConfig();
+    auto replicaStatusCache = GetNativeConnection()->GetTableReplicaSynchronicityCache();
     auto pickReplicaSession = CreatePickReplicaSession(
         astQuery,
         GetNativeConnection(),
         mountCache,
         replicaStatusCache,
-        options);
+        options,
+        dynamicConfig->EnableReadFromInSyncAsyncReplicas
+            ? options.Timestamp
+            : SyncLastCommittedTimestamp);
 
     if (pickReplicaSession->IsFallbackRequired()) {
         return std::get<TSelectRowsResult>(pickReplicaSession->Execute(
@@ -1641,8 +1649,6 @@ TSelectRowsResult TClient::DoSelectRowsOnce(
                     .ValueOrThrow();
             }));
     }
-
-    auto dynamicConfig = GetNativeConnection()->GetConfig();
 
     auto queryOptions = GetQueryOptions(options, dynamicConfig);
     queryOptions.ReadSessionId = TReadSessionId::Create();
@@ -1765,13 +1771,17 @@ NYson::TYsonString TClient::DoExplainQuery(
 
     TransformWithIndexStatement(astQuery, cache, &parsedQuery->AstHead);
 
+    auto dynamicConfig = GetNativeConnection()->GetConfig();
     auto replicaStatusCache = Connection_->GetTableReplicaSynchronicityCache();
     auto pickReplicaSession = CreatePickReplicaSession(
         astQuery,
         GetNativeConnection(),
         mountCache,
         replicaStatusCache,
-        options);
+        options,
+        dynamicConfig->EnableReadFromInSyncAsyncReplicas
+            ? options.Timestamp
+            : SyncLastCommittedTimestamp);
 
     if (pickReplicaSession->IsFallbackRequired()) {
         return std::get<NYson::TYsonString>(pickReplicaSession->Execute(
@@ -1791,7 +1801,7 @@ NYson::TYsonString TClient::DoExplainQuery(
 
     auto udfRegistryPath = options.UdfRegistryPath
         ? *options.UdfRegistryPath
-        : GetNativeConnection()->GetConfig()->UdfRegistryPath;
+        : dynamicConfig->UdfRegistryPath;
 
     auto queryPreparer = New<TQueryPreparer>(
         cache,
@@ -2514,8 +2524,9 @@ IQueueRowsetPtr TClient::DoPullQueueImpl(
             : WaitFor(PickInSyncReplicas(Connection_, tableInfo, options))
                 .ValueOrThrow();
 
+        auto connectionConfig = Connection_->GetConfig();
         auto retryCountLimit = isChaos
-            ? Connection_->GetConfig()->ReplicaFallbackRetryCount
+            ? connectionConfig->ReplicaFallbackRetryCount
             : 0;
 
         TErrorOr<IQueueRowsetPtr> resultOrError;
@@ -2525,6 +2536,8 @@ IQueueRowsetPtr TClient::DoPullQueueImpl(
             std::vector<TTableReplicaId> bannedSyncReplicaIds;
             for (const auto& replicaInfo : pickedSyncReplicas) {
                 if (bannedReplicaTracker && bannedReplicaTracker->IsReplicaBanned(replicaInfo->ReplicaId)) {
+                    bannedSyncReplicaIds.push_back(replicaInfo->ReplicaId);
+                } else if (connectionConfig->BannedInSyncReplicaClusters.contains(replicaInfo->ClusterName)) {
                     bannedSyncReplicaIds.push_back(replicaInfo->ReplicaId);
                 } else {
                     inSyncReplicas.push_back(replicaInfo);

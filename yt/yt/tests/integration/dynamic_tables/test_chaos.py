@@ -52,12 +52,14 @@ class TestChaos(ChaosTestBase):
     NUM_SCHEDULERS = 1
 
     DELTA_DRIVER_CONFIG = {
-        "enable_distributed_replication_collocation_attachment": True
+        "enable_distributed_replication_collocation_attachment": True,
+        "enable_read_from_async_replicas": True,
     }
 
     DELTA_RPC_PROXY_CONFIG = {
         "cluster_connection": {
-            "enable_distributed_replication_collocation_attachment": True
+            "enable_distributed_replication_collocation_attachment": True,
+            "enable_read_from_async_replicas": True,
         }
     }
 
@@ -4796,6 +4798,55 @@ class TestChaosRpcProxy(TestChaos):
 
         assert lookup_rows("//tmp/t", [{"key": 0}]) == values
         wait(lambda: lookup_rows("//tmp/r1", [{"key": 0}], driver=remote_driver1) == values)
+
+    @authors("savrus")
+    def test_in_sync_async_replicas(self):
+        cell_id = self._sync_create_chaos_bundle_and_cell()
+        primary_driver, remote_driver0, _ = self._get_drivers()
+
+        set("//sys/chaos_cell_bundles/c/@metadata_cell_id", cell_id)
+
+        sorted_schema = self._get_schemas_by_name(["sorted_simple"])[0]
+        create("chaos_replicated_table", "//tmp/crt", attributes={"chaos_cell_bundle": "c", "schema": sorted_schema})
+        card_id = get("//tmp/crt/@replication_card_id")
+
+        replicas = [
+            {"cluster_name": "remote_0", "content_type": "data", "mode": "async", "enabled": True, "replica_path": "//tmp/r"},
+            {"cluster_name": "primary", "content_type": "queue", "mode": "sync", "enabled": True, "replica_path": "//tmp/q"},
+        ]
+
+        replica_ids = self._create_chaos_table_replicas(replicas, table_path="//tmp/crt")
+        self._create_replica_tables(replicas, replica_ids, schema=sorted_schema)
+        self._sync_replication_era(card_id)
+
+        rows = [{"key": 1, "value": "1"}]
+        keys = [{"key": 1}]
+        insert_rows("//tmp/crt", rows, require_sync_replica=False)
+
+        replica_id = replica_ids[0]
+        timestamp = generate_timestamp()
+        wait(lambda: get_in_sync_replicas("//tmp/crt", keys, timestamp=timestamp) == [replica_id])
+        assert get_in_sync_replicas("//tmp/crt", [], timestamp=timestamp) == [replica_id]
+
+        assert select_rows("* from [//tmp/r]", driver=remote_driver0) == rows
+        assert lookup_rows("//tmp/r", keys, driver=remote_driver0) == rows
+
+        # TODO(savrus): Remove first wrapper after defaulting enable_read_from_async_replicas to False in tests.
+        with self.RpcProxyDynamicConfig("/cluster_connection/enable_read_from_async_replicas", False):
+            with raises_yt_error("No single cluster contains in-sync replicas for table //tmp/crt"):
+                select_rows("* from [//tmp/crt]", timestamp=timestamp)
+            with raises_yt_error("No working in-sync replicas found for table //tmp/crt"):
+                lookup_rows("//tmp/crt", keys, timestamp=timestamp)
+
+            with self.RpcProxyDynamicConfig("/cluster_connection/enable_read_from_async_replicas", True):
+                assert select_rows("* from [//tmp/crt]", timestamp=timestamp) == rows
+                assert lookup_rows("//tmp/crt", keys, timestamp=timestamp) == rows
+
+                with self.RpcProxyDynamicConfig("/cluster_connection/banned_in_sync_replica_clusters", ["remote_0"]):
+                    with raises_yt_error("No single cluster contains in-sync replicas for table //tmp/crt"):
+                        select_rows("* from [//tmp/crt]", timestamp=timestamp)
+                    with raises_yt_error("No working in-sync replicas found for table //tmp/crt"):
+                        lookup_rows("//tmp/crt", keys, timestamp=timestamp)
 
 
 ##################################################################
