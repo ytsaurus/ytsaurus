@@ -32,6 +32,7 @@ def _build_master_metrics(d):
     )
     d.add(Rowset()
         .all("host")
+        .value("user", TemplateTag("user"))
         .row()
             .stack(True)
             .cell("Read RPS", master_rps_sensor("read"))
@@ -60,6 +61,7 @@ def _build_http_proxy_metrics(d):
     )
     d.add(Rowset()
         .aggr("host")
+        .value("user", TemplateTag("user"))
         .row()
             .all("error_code")
             .cell(
@@ -85,6 +87,20 @@ def _build_http_proxy_metrics(d):
             .cell("Out bytes", bytes_rate("out"))
             .cell("In bytes", bytes_rate("in"))
     )
+    d.add(Rowset()
+        .aggr("host")
+        .row()
+            .value("pool", TemplateTag("user"))
+            .value("category", "heavy_request")
+            .cell("Memory usage: data proxy",
+                HttpProxy("yt.http_proxy.memory_usage.pool_used|yt.http_proxy.memory_usage.pool_limit")
+                    .value("proxy_role", "data")
+            )
+            .cell("Memory usage: ML proxy",
+                HttpProxy("yt.http_proxy.memory_usage.pool_used|yt.http_proxy.memory_usage.pool_limit")
+                    .value("proxy_role", "ml")
+            )
+    )
 
 
 def build_user_load():
@@ -92,7 +108,6 @@ def build_user_load():
     _build_master_metrics(d)
     _build_http_proxy_metrics(d)
 
-    d.value("user", TemplateTag("user"))
     d.set_description("User load")
 
     d.set_monitoring_serializer_options(dict(default_row_height=9))
