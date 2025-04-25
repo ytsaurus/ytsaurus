@@ -605,6 +605,7 @@ Running an operation that contains a custom code requires:
 
 - Inheriting from one of the interfaces (`IMapper`, `IReducer`).
 - Defining the `Do()` function that should contain the record handler.
+- Creating default constructor.
 - Using one of the `REGISTER_*` macros.
 - Calling the client/transaction method corresponding to the operation type in the client code.
 
