@@ -256,7 +256,6 @@ private:
 
     ui64 GetMinFragmentUnixTs(TTimestamp timestamp)
     {
-        // TODO: fix it correctly, or leave like that just to be compiled?
         auto period = ExportConfig_->ExportPeriod->Seconds();
         YT_VERIFY(period > 0);
 

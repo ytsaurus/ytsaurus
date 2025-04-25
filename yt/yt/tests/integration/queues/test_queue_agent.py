@@ -3996,9 +3996,10 @@ class TestQueueStaticExport(TestQueueStaticExportBase):
         self.remove_export_destination(export_dir)
 
     @authors("pavel-bash")
-    @pytest.mark.timeout(150)
     def test_cron_annotation_schedule(self):
         # Check that the new CRON annotation works correctly, at least for this use-case.
+        if getattr(self, "USE_OLD_QUEUE_EXPORTER_IMPL"):
+            pytest.skip()
 
         _, queue_id = self._create_queue("//tmp/q")
 
@@ -4025,6 +4026,31 @@ class TestQueueStaticExport(TestQueueStaticExportBase):
         wait(lambda: len(ls(export_dir)) == 2, timeout=7)
 
         self.remove_export_destination(export_dir)
+
+    @authors("pavel-bash")
+    def test_use_cron_annotation_with_old_implementation(self):
+        if not getattr(self, "USE_OLD_QUEUE_EXPORTER_IMPL"):
+            pytest.skip()
+
+        queue_agent_orchid = QueueAgentOrchid()
+
+        _, queue_id = self._create_queue("//tmp/q")
+
+        export_dir = "//tmp/export"
+        self._create_export_destination(export_dir, queue_id)
+
+        set("//tmp/q/@static_export_config", {
+            "default": {
+                "export_directory": export_dir,
+                "export_cron_schedule": "* * * * *",
+            }
+        })
+        self._wait_for_component_passes()
+
+        alerts = queue_agent_orchid.get_queue_orchid("primary://tmp/q").get_alerts()
+        alerts.assert_matching(
+            "queue_agent_queue_controller_static_export_misconfiguration",
+            text="Queue exporter configuration requires an \"ExportPeriod\" parameter")
 
     # COMPAT(apachee): Ensure old implementation is actually used.
     @authors("apachee")

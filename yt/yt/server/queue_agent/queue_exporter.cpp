@@ -85,10 +85,10 @@ namespace {
 //! Alternatively, beginTs is export unix ts that comes before endTs.
 std::pair<ui64, ui64> GetExportUnixTsRange(
     TInstant now,
-    const TQueueStaticExportConfig& exportConfig)
+    const TQueueStaticExportConfigPtr exportConfig)
 {
-    if (exportConfig.ExportPeriod) {
-        auto period = exportConfig.ExportPeriod->Seconds();
+    if (exportConfig->ExportPeriod) {
+        auto period = exportConfig->ExportPeriod->Seconds();
         YT_VERIFY(period > 0);
 
         std::pair<ui64, ui64> result;
@@ -99,7 +99,7 @@ std::pair<ui64, ui64> GetExportUnixTsRange(
 
     static const auto UTCTimezone = NDatetime::TTimeZone{};
     auto nowCivilSecond = NDatetime::Convert(now, UTCTimezone);
-    TCronExpression cronExpression{*exportConfig.ExportCronSchedule};
+    TCronExpression cronExpression{*exportConfig->ExportCronSchedule};
     return std::pair<ui64, ui64>{
         NDatetime::Convert(cronExpression.CronPrev(nowCivilSecond), UTCTimezone).Seconds(),
         NDatetime::Convert(cronExpression.CronNext(nowCivilSecond), UTCTimezone).Seconds()};
@@ -107,7 +107,7 @@ std::pair<ui64, ui64> GetExportUnixTsRange(
 
 std::pair<ui64, ui64> GetExportUnixTsRange(
     ui64 unixTs,
-    const TQueueStaticExportConfig& exportConfig)
+    const TQueueStaticExportConfigPtr exportConfig)
 {
     return GetExportUnixTsRange(TInstant::Seconds(unixTs), exportConfig);
 }
@@ -115,17 +115,21 @@ std::pair<ui64, ui64> GetExportUnixTsRange(
 //! The greatest export unix ts lower than #now according to #exportPeriod.
 ui64 GetExportUnixTsUpperBound(
     TInstant now,
-    const TQueueStaticExportConfig& exportConfig)
+    const TQueueStaticExportConfigPtr exportConfig)
 {
     return GetExportUnixTsRange(now, exportConfig).first;
 }
 
-//! Get the difference between #now and the previous CRON
-//! occurence, according to the provided #cronExpressionString.
-ui64 GetCronExpressionPeriod(ui64 now, const TString& cronExpressionString) {
+//! Calculate how long the export period before timestamp #now was, according to the provided #exportConfig.
+ui64 GetLastExportPeriod(ui64 now, const TQueueStaticExportConfigPtr exportConfig)
+{
+    if (exportConfig->ExportPeriod) {
+        return exportConfig->ExportPeriod->Seconds();
+    }
+
     static const auto UTCTimezone = NDatetime::TTimeZone{};
 
-    TCronExpression cronExpression{cronExpressionString};
+    TCronExpression cronExpression{*exportConfig->ExportCronSchedule};
     auto nowCivilSecond = NDatetime::Convert(TInstant::Seconds(now), UTCTimezone);
     return now - NDatetime::Convert(cronExpression.CronPrev(nowCivilSecond), UTCTimezone).Seconds();
 }
@@ -346,7 +350,7 @@ private:
             transactionId);
 
         TaskInstant_ = TInstant::Now();
-        ExportUnixTsUpperBound_ = GetExportUnixTsUpperBound(TaskInstant_, *ExportConfig_);
+        ExportUnixTsUpperBound_ = GetExportUnixTsUpperBound(TaskInstant_, ExportConfig_);
 
         QueueObject_ = TUserObject(FromObjectId(queueObjectId), transactionId);
 
@@ -499,7 +503,7 @@ private:
     {
         // NB: The timestamp is in range [unixTs, unixTs + 1). Since our granularity is in seconds, we can compute the
         // next export unix ts as the strict next tick for the lower bound.
-        return GetExportUnixTsRange(UnixTimeFromTimestamp(timestamp), *ExportConfig_).second;
+        return GetExportUnixTsRange(UnixTimeFromTimestamp(timestamp), ExportConfig_).second;
     }
 
     static void GetAndFillBasicAttributes(
@@ -644,7 +648,7 @@ private:
         // NB(apachee): It is possible that rows corresponding to the last exported table were flushed late, in which case we export those rows to the next exported table.
         auto initialAccumulatedMinExportUnixTs = GetExportUnixTsRange(
             currentExportProgress->LastExportUnixTs,
-            *ExportConfig_).second;
+            ExportConfig_).second;
 
         for (const auto& [tabletIndex, chunkSpecs] : tabletToChunkSpecs) {
             auto lastExportedSpecIt = std::find_if(chunkSpecs.begin(), chunkSpecs.end(), [&, tabletIndex = tabletIndex] (auto* chunkSpec) {
@@ -717,12 +721,7 @@ private:
 
     TString GetOutputTableName(ui64 unixTs)
     {
-        ui64 periodInSeconds;
-        if (ExportConfig_->ExportPeriod) {
-            periodInSeconds = ExportConfig_->ExportPeriod->Seconds();
-        } else {
-            periodInSeconds = GetCronExpressionPeriod(unixTs, *ExportConfig_->ExportCronSchedule);
-        }
+        auto periodInSeconds = GetLastExportPeriod(unixTs, ExportConfig_);
 
         if (!ExportConfig_->UseUpperBoundForTableNames) {
             unixTs -= periodInSeconds;
@@ -1163,7 +1162,7 @@ private:
         auto now = TInstant::Now();
 
         auto exportConfig = GetExportConfig();
-        auto exportUnixTs = GetExportUnixTsRange(now, *exportConfig).first;
+        auto exportUnixTs = GetExportUnixTsRange(now, exportConfig).first;
 
         if (exportUnixTs <= LastSuccessfulExportUnixTs_.load()) {
             // Too early to run new export task.
@@ -1268,7 +1267,7 @@ private:
     void ProfileExport(const TQueueStaticExportConfigPtr& exportConfig, bool hasError)
     {
         auto now = TInstant::Now();
-        auto exportUnixTsUpperBound = GetExportUnixTsUpperBound(now, *exportConfig);
+        auto exportUnixTsUpperBound = GetExportUnixTsUpperBound(now, exportConfig);
 
         ui64 timeLagSeconds = 0;
         auto exportProgress = GetExportProgress();
@@ -1278,13 +1277,7 @@ private:
         }
 
         // NB(apachee): Table lag is rounded up, since export period could've changed after the last successful export task.
-        ui64 exportPeriodSeconds;
-        if (exportConfig->ExportPeriod) {
-            exportPeriodSeconds = exportConfig->ExportPeriod->Seconds();
-        } else {
-            exportPeriodSeconds = GetCronExpressionPeriod(exportUnixTsUpperBound, *exportConfig->ExportCronSchedule);
-        }
-
+        auto exportPeriodSeconds = GetLastExportPeriod(exportUnixTsUpperBound, exportConfig);
         ui64 tableLag = (timeLagSeconds + exportPeriodSeconds - 1) / exportPeriodSeconds;
 
         if (hasError) {
