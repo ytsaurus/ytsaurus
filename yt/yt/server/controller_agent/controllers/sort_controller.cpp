@@ -1664,11 +1664,16 @@ protected:
 
         void RegisterAllOutputs()
         {
-            for (auto& jobOutputs : JobOutputs_) {
+            for (const auto& [partitionIndex, jobOutputs] : Enumerate(JobOutputs_)) {
+                i64 outputRowCount = 0;
                 for (auto& jobOutput : jobOutputs) {
-                    Controller_->AccountRows(jobOutput.JobSummary);
+                    outputRowCount += Controller_->AccountRows(jobOutput.JobSummary);
                     RegisterOutput(jobOutput.JobSummary, jobOutput.Joblet->ChunkListIds, jobOutput.Joblet);
                 }
+                YT_LOG_DEBUG(
+                    "Register outputs (PartitionIndex: %v, OutputRowCount: %v)",
+                    partitionIndex,
+                    outputRowCount);
             }
         }
 
@@ -2742,13 +2747,15 @@ protected:
         }
     }
 
-    void AccountRows(const TCompletedJobSummary& jobSummary)
+    i64 AccountRows(const TCompletedJobSummary& jobSummary)
     {
         if (jobSummary.Abandoned) {
-            return;
+            return 0;
         }
         YT_VERIFY(jobSummary.TotalOutputDataStatistics);
-        TotalOutputRowCount += jobSummary.TotalOutputDataStatistics->row_count();
+        auto outputRowCount = jobSummary.TotalOutputDataStatistics->row_count();
+        TotalOutputRowCount += outputRowCount;
+        return outputRowCount;
     }
 
     void ValidateMergeDataSliceLimit()
