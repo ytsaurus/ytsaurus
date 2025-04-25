@@ -23,6 +23,10 @@ namespace NSQLComplete {
         }
 
         TCompletion Complete(TCompletionInput input) override {
+            return CompleteAsync(std::move(input)).ExtractValueSync();
+        }
+
+        virtual NThreading::TFuture<TCompletion> CompleteAsync(TCompletionInput input) override {
             if (
                 input.CursorPosition < input.Text.length() &&
                     IsUTF8ContinuationByte(input.Text.at(input.CursorPosition)) ||
@@ -37,14 +41,13 @@ namespace NSQLComplete {
             TStringBuf prefix = input.Text.Head(input.CursorPosition);
             TCompletedToken completedToken = GetCompletedToken(prefix);
 
-            return {
-                .CompletedToken = std::move(completedToken),
-                .Candidates = GetCanidates(std::move(context), completedToken),
-            };
-        }
-
-        virtual NThreading::TFuture<TCompletion> CompleteAsync(TCompletionInput input) override {
-            return NThreading::MakeFuture<TCompletion>(Complete(input));
+            return GetCanidates(std::move(context), completedToken)
+                .Apply([completedToken](NThreading::TFuture<TVector<TCandidate>> f) {
+                    return TCompletion{
+                        .CompletedToken = std::move(completedToken),
+                        .Candidates = f.ExtractValue(),
+                    };
+                });
         }
 
     private:
@@ -55,7 +58,7 @@ namespace NSQLComplete {
             };
         }
 
-        TVector<TCandidate> GetCanidates(TLocalSyntaxContext context, const TCompletedToken& prefix) {
+        NThreading::TFuture<TVector<TCandidate>> GetCanidates(TLocalSyntaxContext context, const TCompletedToken& prefix) {
             TNameRequest request = {
                 .Prefix = TString(prefix.Content),
                 .Limit = Configuration.Limit,
@@ -88,16 +91,17 @@ namespace NSQLComplete {
             }
 
             if (request.IsEmpty()) {
-                return {};
+                return NThreading::MakeFuture<TVector<TCandidate>>({});
             }
 
-            // User should prepare a robust INameService
-            TNameResponse response = Names->Lookup(std::move(request)).ExtractValueSync();
-
-            return Convert(std::move(response.RankedNames), std::move(context.Keywords));
+            return Names->Lookup(std::move(request))
+                .Apply([keywords = std::move(context.Keywords)](NThreading::TFuture<TNameResponse> f) {
+                    TNameResponse response = f.ExtractValue();
+                    return Convert(std::move(response.RankedNames), std::move(keywords));
+                });
         }
 
-        TVector<TCandidate> Convert(TVector<TGenericName> names, TLocalSyntaxContext::TKeywords keywords) {
+        static TVector<TCandidate> Convert(TVector<TGenericName> names, TLocalSyntaxContext::TKeywords keywords) {
             TVector<TCandidate> candidates;
             for (auto& name : names) {
                 candidates.emplace_back(std::visit([&](auto&& name) -> TCandidate {
