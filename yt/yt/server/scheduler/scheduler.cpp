@@ -756,8 +756,7 @@ public:
             THROW_ERROR_EXCEPTION("Operation is not started yet");
         }
 
-        WaitFor(ValidateOperationAccess(user, operation->GetId(), EPermissionSet(EPermission::Manage)))
-            .ThrowOnError();
+        ValidateOperationManagementAccess(user, operation, EPermissionSet(EPermission::Manage), EOperationManagementAction::Abort);
 
         if (operation->IsFinishingState() || operation->IsFinishedState()) {
             YT_LOG_INFO(error, "Operation is already shutting down (OperationId: %v, State: %v)",
@@ -789,8 +788,7 @@ public:
             THROW_ERROR_EXCEPTION("Operation is not started yet");
         }
 
-        WaitFor(ValidateOperationAccess(user, operation->GetId(), EPermissionSet(EPermission::Manage)))
-            .ThrowOnError();
+        ValidateOperationManagementAccess(user, operation, EPermissionSet(EPermission::Manage), EOperationManagementAction::Suspend);
 
         if (operation->IsFinishingState() || operation->IsFinishedState()) {
             return MakeFuture(TError(NScheduler::EErrorCode::InvalidOperationState,
@@ -819,8 +817,7 @@ public:
             THROW_ERROR_EXCEPTION("Operation is not started yet");
         }
 
-        WaitFor(ValidateOperationAccess(user, operation->GetId(), EPermissionSet(EPermission::Manage)))
-            .ThrowOnError();
+        ValidateOperationManagementAccess(user, operation, EPermissionSet(EPermission::Manage), EOperationManagementAction::Resume);
 
         if (!operation->GetSuspended()) {
             return MakeFuture(TError(NScheduler::EErrorCode::InvalidOperationState,
@@ -848,8 +845,7 @@ public:
 
         auto codicilGuard = operation->MakeCodicilGuard();
 
-        WaitFor(ValidateOperationAccess(user, operation->GetId(), EPermissionSet(EPermission::Manage)))
-            .ThrowOnError();
+        ValidateOperationManagementAccess(user, operation, EPermissionSet(EPermission::Manage), EOperationManagementAction::Complete);
 
         if (operation->IsFinishingState() || operation->IsFinishedState()) {
             YT_LOG_INFO(error, "Operation is already shutting down (OperationId: %v, State: %v)",
@@ -1055,6 +1051,14 @@ public:
 
         WaitFor(ValidateOperationAccess(user, operation->GetId(), update->GetRequiredPermissions()))
             .ThrowOnError();
+
+        // TODO(ignat): YT-23056: support more sophisticated checks for UpdateOperationParameters.
+        // std::vector<TFuture<void>> validateFutures{ValidateOperationAccess(user, operation->GetId(), update->GetRequiredPermissions())};
+        // if (Config_->OperationActionsAllowedForPoolManagers.contains(EOperationManagementAction::UpdateParameters)) {
+        //     validateFutures.push_back(Strategy_->ValidateOperationPoolPermissions(operation.Get(), user, update->GetRequiredPermissions()));
+        // }
+        // WaitFor(AnySucceeded(validateFutures))
+        //     .ThrowOnError();
 
         for (const auto& [jobShellName, _] : update->OptionsPerJobShell) {
             WaitFor(ValidateJobShellAccess(user, jobShellName, operation->GetJobShellOwners(jobShellName)))
@@ -4103,6 +4107,30 @@ private:
     const THashMap<TString, TString>& GetUserDefaultParentPoolMap() const override
     {
         return UserToDefaultPoolMap_;
+    }
+
+    void ValidateOperationManagementAccess(
+        const std::string& user,
+        const TOperationPtr& operation,
+        EPermissionSet permissions,
+        EOperationManagementAction action)
+    {
+        std::vector<TFuture<void>> futures{ValidateOperationAccess(user, operation->GetId(), permissions)};
+        if (Config_->OperationActionsAllowedForPoolManagers.contains(action)) {
+            futures.push_back(Strategy_->ValidateOperationPoolPermissions(operation.Get(), user, permissions));
+        }
+
+        auto error = WaitFor(AnySucceeded(futures));
+        if (!error.IsOK()) {
+            std::vector<TError> errors;
+            errors.reserve(futures.size());
+            for (const auto& future : futures) {
+                YT_VERIFY(future.IsSet());
+                errors.push_back(future.Get());
+            }
+            THROW_ERROR_EXCEPTION("Access to perform %v of operation %v denied", action, operation->GetId())
+                << errors;
+        }
     }
 
     struct TOperationFinishedLogEventAttributes
