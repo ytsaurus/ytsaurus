@@ -188,6 +188,13 @@ void Serialize(const TPoolName& value, IYsonConsumer* consumer)
 
 void TJobIOConfig::Register(TRegistrar registrar)
 {
+    registrar.Preprocessor([] (TJobIOConfig* config) {
+        config->ErrorFileWriter->UploadReplicationFactor = 1;
+
+        config->DynamicTableWriter->DesiredChunkSize = 100_MB;
+        config->DynamicTableWriter->BlockSize = 256_KB;
+    });
+
     registrar.Parameter("table_reader", &TThis::TableReader)
         .DefaultNew();
     registrar.Parameter("table_writer", &TThis::TableWriter)
@@ -231,11 +238,10 @@ void TJobIOConfig::Register(TRegistrar registrar)
     registrar.Parameter("testing_options", &TThis::Testing)
         .DefaultNew();
 
-    registrar.Preprocessor([] (TJobIOConfig* config) {
-        config->ErrorFileWriter->UploadReplicationFactor = 1;
-
-        config->DynamicTableWriter->DesiredChunkSize = 100_MB;
-        config->DynamicTableWriter->BlockSize = 256_KB;
+    registrar.Postprocessor([] (TJobIOConfig* config) {
+        THROW_ERROR_EXCEPTION_IF(
+            config->UseAdaptiveRowCount && !config->UseDeliveryFencedPipeWriter,
+            "\"use_adaptive_buffer_row_count\" mastn't be set if \"use_delivery_fenced_pipe_writer\" is not set");
     });
 }
 
