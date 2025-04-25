@@ -33,6 +33,7 @@ target_link_libraries(unittester-library-process PUBLIC
   yt-yt-core
   yt-core-test_framework
   yt-library-process
+  yt-library-signals
 )
 
 target_allocator(unittester-library-process
