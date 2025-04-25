@@ -220,9 +220,6 @@ private:
         TCookiePool::iterator CookiePoolIterator_;
         IChunkPoolOutput::TCookie Cookie_;
 
-        //! Is true for a job if it is present in owner's CookiePool_.
-        //! Changes of this flag are accompanied with AddSelf()/RemoveSelf().
-        bool InPool_ = false;
         //! Is true for a job if it is in the pending state and has suspended stripes.
         //! Changes of this flag are accompanied with SuspendSelf()/ResumeSelf().
         bool Suspended_ = false;
@@ -239,6 +236,9 @@ private:
 
         void RemoveSelf();
         void AddSelf();
+
+        //! Is true for a job if it is present in owner's CookiePool_.
+        bool InPool() const;
 
         void SuspendSelf();
         void ResumeSelf();
