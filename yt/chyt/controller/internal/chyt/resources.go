@@ -213,6 +213,24 @@ func (c *Controller) populateResourcesClique(resources *Resources) error {
 	return nil
 }
 
+func totalMemoryToInstanceMemory(instanceTotalMemory uint64) InstanceMemory {
+	var mem InstanceMemory
+
+	scale := float64(instanceTotalMemory-memNonElastic) / memElastic
+
+	applyScale := func(value uint64) *uint64 {
+		return ptr.Uint64(uint64(float64(value) * scale))
+	}
+
+	mem.ChunkMetaCache = applyScale(mem.ChunkMetaCacheOrDefault())
+	mem.CompressedBlockCache = applyScale(mem.CompressedBlockCacheOrDefault())
+	mem.UncompressedBlockCache = applyScale(mem.UncompressedBlockCacheOrDefault())
+	mem.ClickHouse = applyScale(mem.ClickHouseOrDefault())
+	mem.Reader = applyScale(mem.ReaderOrDefault())
+
+	return mem
+}
+
 func (c *Controller) populateResourcesInstance(resources *Resources) error {
 	c.l.Debug("populating resources in instance mode")
 	if resources.InstanceCount == nil {
@@ -238,18 +256,7 @@ func (c *Controller) populateResourcesInstance(resources *Resources) error {
 		}
 
 		// Transform InstanceTotalMemory into InstanceMemory.
-
-		scale := float64(instanceTotalMemory-memNonElastic) / memElastic
-
-		applyScale := func(value uint64) *uint64 {
-			return ptr.Uint64(uint64(float64(value) * scale))
-		}
-
-		mem.ChunkMetaCache = applyScale(mem.ChunkMetaCacheOrDefault())
-		mem.CompressedBlockCache = applyScale(mem.CompressedBlockCacheOrDefault())
-		mem.UncompressedBlockCache = applyScale(mem.UncompressedBlockCacheOrDefault())
-		mem.ClickHouse = applyScale(mem.ClickHouseOrDefault())
-		mem.Reader = applyScale(mem.ReaderOrDefault())
+		mem = totalMemoryToInstanceMemory(instanceTotalMemory)
 	}
 	*resources = *buildResources(*resources.InstanceCount, *resources.InstanceCPU, &mem)
 	return nil
@@ -262,7 +269,8 @@ func (c *Controller) populateResources(speclet *Speclet) (err error) {
 	} else if speclet.InstanceCPU != nil || speclet.InstanceTotalMemory != nil || speclet.InstanceMemory != nil || speclet.InstanceCount != nil {
 		err = c.populateResourcesInstance(&speclet.Resources)
 	} else {
-		speclet.Resources = *buildResources(defaultInstanceCount, defaultInstanceCPU, &InstanceMemory{})
+		instanceMemory := totalMemoryToInstanceMemory(c.config.getDefaultMemory())
+		speclet.Resources = *buildResources(defaultInstanceCount, c.config.getDefaultInstanceCPU(), &instanceMemory)
 	}
 	return
 }
