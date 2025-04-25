@@ -223,7 +223,7 @@ private:
 
         auto reign = static_cast<ESequoiaReign>(request.sequoia_reign());
         auto error = NSequoiaServer::CheckSequoiaReign(reign);
-        YT_LOG_ALERT_UNLESS(error.IsOK(), error, "Attempt to register Cypress proxy with invalid reign")
+        YT_LOG_ALERT_UNLESS(error.IsOK(), error, "Attempt to register Cypress proxy with invalid reign");
         return error;
     }
 
