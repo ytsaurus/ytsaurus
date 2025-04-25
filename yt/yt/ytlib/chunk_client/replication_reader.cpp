@@ -2291,10 +2291,6 @@ private:
                 continue;
             }
 
-            auto sourceDescriptor = ReaderOptions_->EnableP2P
-                ? std::optional<TNodeDescriptor>(GetPeerDescriptor(respondedPeer.Address))
-                : std::optional<TNodeDescriptor>(std::nullopt);
-
             if (auto& cookie = blocks[index].Cookie) {
                 cookie->SetBlock(block);
             } else if (reader->Config_->UseBlockCache) {
