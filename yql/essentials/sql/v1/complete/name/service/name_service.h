@@ -72,11 +72,11 @@ namespace NSQLComplete {
         TVector<TGenericName> RankedNames;
     };
 
-    class INameService {
+    class INameService: public TThrRefBase {
     public:
-        using TPtr = THolder<INameService>;
+        using TPtr = TIntrusivePtr<INameService>;
 
-        virtual TFuture<TNameResponse> Lookup(TNameRequest request) = 0;
+        virtual TFuture<TNameResponse> Lookup(TNameRequest request) const = 0;
         virtual ~INameService() = default;
     };
 
