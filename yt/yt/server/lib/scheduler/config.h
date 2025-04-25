@@ -1019,6 +1019,8 @@ struct TSchedulerConfig
     //! operation node is created, this will ensure it is cleaned up eventually.
     TDuration TemporaryOperationTokenExpirationTimeout;
 
+    THashSet<EOperationManagementAction> OperationActionsAllowedForPoolManagers;
+
     REGISTER_YSON_STRUCT(TSchedulerConfig);
 
     static void Register(TRegistrar registrar);
