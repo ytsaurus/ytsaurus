@@ -4,6 +4,8 @@
 #include <yql/essentials/sql/v1/complete/name/name_service.h>
 #include <yql/essentials/sql/v1/lexer/lexer.h>
 
+#include <library/cpp/threading/future/future.h>
+
 #include <util/generic/string.h>
 #include <util/generic/vector.h>
 
@@ -42,8 +44,9 @@ namespace NSQLComplete {
             size_t Limit = 256;
         };
 
-        virtual TCompletion Complete(TCompletionInput input) = 0;
         virtual ~ISqlCompletionEngine() = default;
+        virtual TCompletion Complete(TCompletionInput input) = 0;
+        virtual NThreading::TFuture<TCompletion> CompleteAsync(TCompletionInput input) = 0;
     };
 
     using TLexerSupplier = std::function<NSQLTranslation::ILexer::TPtr(bool ansi)>;

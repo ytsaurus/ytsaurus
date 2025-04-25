@@ -67,7 +67,7 @@ Y_UNIT_TEST_SUITE(SqlCompleteTests) {
     }
 
     TVector<TCandidate> Complete(ISqlCompletionEngine::TPtr& engine, TString sharped) {
-        return engine->Complete(SharpedInput(sharped)).Candidates;
+        return engine->CompleteAsync(SharpedInput(sharped)).GetValueSync().Candidates;
     }
 
     TVector<TCandidate> CompleteTop(size_t limit, ISqlCompletionEngine::TPtr& engine, TString sharped) {
@@ -281,28 +281,28 @@ Y_UNIT_TEST_SUITE(SqlCompleteTests) {
             TVector<TCandidate> expected = {
                 {Keyword, "ANSI"},
                 {PragmaName, "yson.CastToString"}};
-            auto completion = engine->Complete({"PRAGMA "});
+            auto completion = engine->CompleteAsync({"PRAGMA "}).GetValueSync();
             UNIT_ASSERT_VALUES_EQUAL(completion.Candidates, expected);
             UNIT_ASSERT_VALUES_EQUAL(completion.CompletedToken.Content, "");
         }
         {
             TVector<TCandidate> expected = {
                 {PragmaName, "yson.CastToString"}};
-            auto completion = engine->Complete({"PRAGMA yson"});
+            auto completion = engine->CompleteAsync({"PRAGMA yson"}).GetValueSync();
             UNIT_ASSERT_VALUES_EQUAL(completion.Candidates, expected);
             UNIT_ASSERT_VALUES_EQUAL(completion.CompletedToken.Content, "yson");
         }
         {
             TVector<TCandidate> expected = {
                 {PragmaName, "CastToString"}};
-            auto completion = engine->Complete({"PRAGMA yson."});
+            auto completion = engine->CompleteAsync({"PRAGMA yson."}).GetValueSync();
             UNIT_ASSERT_VALUES_EQUAL(completion.Candidates, expected);
             UNIT_ASSERT_VALUES_EQUAL(completion.CompletedToken.Content, "");
         }
         {
             TVector<TCandidate> expected = {
                 {PragmaName, "CastToString"}};
-            auto completion = engine->Complete({"PRAGMA yson.cast"});
+            auto completion = engine->CompleteAsync({"PRAGMA yson.cast"}).GetValueSync();
             UNIT_ASSERT_VALUES_EQUAL(completion.Candidates, expected);
             UNIT_ASSERT_VALUES_EQUAL(completion.CompletedToken.Content, "cast");
         }
@@ -465,7 +465,7 @@ Y_UNIT_TEST_SUITE(SqlCompleteTests) {
             TVector<TCandidate> expected = {
                 {FunctionName, "DateTime::Split("},
             };
-            auto completion = engine->Complete({"SELECT Date"});
+            auto completion = engine->CompleteAsync({"SELECT Date"}).GetValueSync();
             UNIT_ASSERT_VALUES_EQUAL(completion.Candidates, expected);
             UNIT_ASSERT_VALUES_EQUAL(completion.CompletedToken.Content, "Date");
         }
@@ -473,14 +473,14 @@ Y_UNIT_TEST_SUITE(SqlCompleteTests) {
             TVector<TCandidate> expected = {
                 {FunctionName, "Split("},
             };
-            auto completion = engine->Complete({"SELECT DateTime:"});
+            auto completion = engine->CompleteAsync({"SELECT DateTime:"}).GetValueSync();
             UNIT_ASSERT(completion.Candidates.empty());
         }
         {
             TVector<TCandidate> expected = {
                 {FunctionName, "Split("},
             };
-            auto completion = engine->Complete({"SELECT DateTime::"});
+            auto completion = engine->CompleteAsync({"SELECT DateTime::"}).GetValueSync();
             UNIT_ASSERT_VALUES_EQUAL(completion.Candidates, expected);
             UNIT_ASSERT_VALUES_EQUAL(completion.CompletedToken.Content, "");
         }
@@ -488,7 +488,7 @@ Y_UNIT_TEST_SUITE(SqlCompleteTests) {
             TVector<TCandidate> expected = {
                 {FunctionName, "Split("},
             };
-            auto completion = engine->Complete({"SELECT DateTime::s"});
+            auto completion = engine->CompleteAsync({"SELECT DateTime::s"}).GetValueSync();
             UNIT_ASSERT_VALUES_EQUAL(completion.Candidates, expected);
             UNIT_ASSERT_VALUES_EQUAL(completion.CompletedToken.Content, "s");
         }
@@ -582,7 +582,7 @@ Y_UNIT_TEST_SUITE(SqlCompleteTests) {
 
         for (std::size_t size = 0; size <= queryUtf16.size(); ++size) {
             const TWtringBuf prefixUtf16(queryUtf16, 0, size);
-            auto completion = engine->Complete({TString::FromUtf16(prefixUtf16)});
+            TCompletion completion = engine->CompleteAsync({TString::FromUtf16(prefixUtf16)}).GetValueSync();
             Y_DO_NOT_OPTIMIZE_AWAY(completion);
         }
     }
@@ -606,10 +606,11 @@ Y_UNIT_TEST_SUITE(SqlCompleteTests) {
         wchar32 rune;
         while (ptr < end) {
             Y_ENSURE(ReadUTF8CharAndAdvance(rune, ptr, end) == RECODE_OK);
-            auto completion = engine->Complete({
-                .Text = query,
-                .CursorPosition = static_cast<size_t>(std::distance(begin, ptr)),
-            });
+            TCompletion completion = engine->CompleteAsync({
+                                                               .Text = query,
+                                                               .CursorPosition = static_cast<size_t>(std::distance(begin, ptr)),
+                                                           })
+                                         .GetValueSync();
             Y_DO_NOT_OPTIMIZE_AWAY(completion);
         }
     }
@@ -641,15 +642,15 @@ Y_UNIT_TEST_SUITE(SqlCompleteTests) {
     Y_UNIT_TEST(InvalidCursorPosition) {
         auto engine = MakeSqlCompletionEngineUT();
 
-        UNIT_ASSERT_NO_EXCEPTION(engine->Complete({"", 0}));
-        UNIT_ASSERT_EXCEPTION(engine->Complete({"", 1}), yexception);
+        UNIT_ASSERT_NO_EXCEPTION(engine->CompleteAsync({"", 0}).GetValueSync());
+        UNIT_ASSERT_EXCEPTION(engine->CompleteAsync({"", 1}).GetValueSync(), yexception);
 
-        UNIT_ASSERT_NO_EXCEPTION(engine->Complete({"s", 0}));
-        UNIT_ASSERT_NO_EXCEPTION(engine->Complete({"s", 1}));
+        UNIT_ASSERT_NO_EXCEPTION(engine->CompleteAsync({"s", 0}).GetValueSync());
+        UNIT_ASSERT_NO_EXCEPTION(engine->CompleteAsync({"s", 1}).GetValueSync());
 
-        UNIT_ASSERT_NO_EXCEPTION(engine->Complete({"ы", 0}));
-        UNIT_ASSERT_EXCEPTION(engine->Complete({"ы", 1}), yexception);
-        UNIT_ASSERT_NO_EXCEPTION(engine->Complete({"ы", 2}));
+        UNIT_ASSERT_NO_EXCEPTION(engine->CompleteAsync({"ы", 0}).GetValueSync());
+        UNIT_ASSERT_EXCEPTION(engine->CompleteAsync({"ы", 1}).GetValueSync(), yexception);
+        UNIT_ASSERT_NO_EXCEPTION(engine->CompleteAsync({"ы", 2}).GetValueSync());
     }
 
     Y_UNIT_TEST(DefaultNameService) {

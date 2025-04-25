@@ -22,7 +22,7 @@ namespace NSQLComplete {
         {
         }
 
-        TCompletion Complete(TCompletionInput input) {
+        TCompletion Complete(TCompletionInput input) override {
             if (
                 input.CursorPosition < input.Text.length() &&
                     IsUTF8ContinuationByte(input.Text.at(input.CursorPosition)) ||
@@ -41,6 +41,10 @@ namespace NSQLComplete {
                 .CompletedToken = std::move(completedToken),
                 .Candidates = GetCanidates(std::move(context), completedToken),
             };
+        }
+
+        virtual NThreading::TFuture<TCompletion> CompleteAsync(TCompletionInput input) override {
+            return NThreading::MakeFuture<TCompletion>(Complete(input));
         }
 
     private:
