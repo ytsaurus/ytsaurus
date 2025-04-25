@@ -1,6 +1,5 @@
 #include "sql_complete.h"
 
-#include <yql/essentials/sql/v1/complete/name/fallback/name_service.h>
 #include <yql/essentials/sql/v1/complete/name/static/frequency.h>
 #include <yql/essentials/sql/v1/complete/name/static/name_service.h>
 #include <yql/essentials/sql/v1/complete/name/static/ranking.h>
@@ -14,29 +13,6 @@
 #include <util/charset/utf8.h>
 
 using namespace NSQLComplete;
-
-class TDummyException: public std::runtime_error {
-public:
-    TDummyException()
-        : std::runtime_error("T_T") {
-    }
-};
-
-class TFailingNameService: public INameService {
-public:
-    TFuture<TNameResponse> Lookup(TNameRequest) const override {
-        auto e = std::make_exception_ptr(TDummyException());
-        return NThreading::MakeErrorFuture<TNameResponse>(e);
-    }
-};
-
-class TSilentNameService: public INameService {
-public:
-    TFuture<TNameResponse> Lookup(TNameRequest) const override {
-        auto promise = NThreading::NewPromise<TNameResponse>();
-        return promise.GetFuture();
-    }
-};
 
 Y_UNIT_TEST_SUITE(SqlCompleteTests) {
     using ECandidateKind::FunctionName;
@@ -708,37 +684,6 @@ Y_UNIT_TEST_SUITE(SqlCompleteTests) {
             };
             UNIT_ASSERT_VALUES_EQUAL(Complete(engine, "REDUCE a WITH ig"), expected);
         }
-    }
-
-    Y_UNIT_TEST(OnFailingNameService) {
-        auto service = MakeHolder<TFailingNameService>();
-        auto engine = MakeSqlCompletionEngine(MakePureLexerSupplier(), std::move(service));
-        UNIT_ASSERT_EXCEPTION(Complete(engine, ""), TDummyException);
-        UNIT_ASSERT_EXCEPTION(Complete(engine, "SELECT OPTIONAL<U"), TDummyException);
-        UNIT_ASSERT_EXCEPTION(Complete(engine, "SELECT CAST (1 AS ").size(), TDummyException);
-    }
-
-    Y_UNIT_TEST(OnSilentNameService) {
-        auto silent = MakeHolder<TSilentNameService>();
-        auto deadlined = MakeDeadlinedNameService(std::move(silent), TDuration::MilliSeconds(1));
-
-        auto engine = MakeSqlCompletionEngine(MakePureLexerSupplier(), std::move(deadlined));
-        UNIT_ASSERT_EXCEPTION(Complete(engine, "SELECT OPTIONAL<U"), NThreading::TFutureException);
-        UNIT_ASSERT_EXCEPTION(Complete(engine, "SELECT OPTIONAL<"), NThreading::TFutureException);
-    }
-
-    Y_UNIT_TEST(OnFallbackNameService) {
-        auto silent = MakeHolder<TSilentNameService>();
-        auto primary = MakeDeadlinedNameService(std::move(silent), TDuration::MilliSeconds(1));
-
-        auto standby = MakeStaticNameService(MakeDefaultNameSet(), MakeDefaultRanking({}));
-
-        auto fallback = MakeFallbackNameService(std::move(primary), std::move(standby));
-
-        auto engine = MakeSqlCompletionEngine(MakePureLexerSupplier(), std::move(fallback));
-        UNIT_ASSERT_GE(Complete(engine, "SELECT CAST (1 AS U").size(), 6);
-        UNIT_ASSERT_GE(Complete(engine, "SELECT CAST (1 AS ").size(), 47);
-        UNIT_ASSERT_GE(Complete(engine, "SELECT ").size(), 55);
     }
 
     Y_UNIT_TEST(NameNormalization) {

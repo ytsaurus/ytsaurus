@@ -7,7 +7,6 @@ PEERDIR(
 END()
 
 RECURSE(
-    fallback
     object
     static
 )
