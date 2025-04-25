@@ -43,7 +43,7 @@ namespace NSQLComplete {
         using TPtr = TAtomicSharedPtr<ISchemaGateway>;
 
         virtual ~ISchemaGateway() = default;
-        virtual NThreading::TFuture<TListResponse> List(const TListRequest& request) = 0;
+        virtual NThreading::TFuture<TListResponse> List(const TListRequest& request) const = 0;
     };
 
 } // namespace NSQLComplete

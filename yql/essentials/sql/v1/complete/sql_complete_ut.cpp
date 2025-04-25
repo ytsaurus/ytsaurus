@@ -24,7 +24,7 @@ public:
 
 class TFailingNameService: public INameService {
 public:
-    TFuture<TNameResponse> Lookup(TNameRequest) override {
+    TFuture<TNameResponse> Lookup(TNameRequest) const override {
         auto e = std::make_exception_ptr(TDummyException());
         return NThreading::MakeErrorFuture<TNameResponse>(e);
     }
@@ -32,7 +32,7 @@ public:
 
 class TSilentNameService: public INameService {
 public:
-    TFuture<TNameResponse> Lookup(TNameRequest) override {
+    TFuture<TNameResponse> Lookup(TNameRequest) const override {
         auto promise = NThreading::NewPromise<TNameResponse>();
         return promise.GetFuture();
     }

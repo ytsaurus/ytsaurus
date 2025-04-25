@@ -10,7 +10,7 @@ namespace NSQLComplete {
         {
         }
 
-        TFuture<TNameResponse> Lookup(TNameRequest request) override {
+        TFuture<TNameResponse> Lookup(TNameRequest request) const override {
             auto future = Origin_->Lookup(std::move(request));
             if (!future.Wait(Timeout_)) {
                 auto e = NThreading::TFutureException() << "Timeout " << Timeout_;
@@ -32,7 +32,7 @@ namespace NSQLComplete {
         {
         }
 
-        TFuture<TNameResponse> Lookup(TNameRequest request) override {
+        TFuture<TNameResponse> Lookup(TNameRequest request) const override {
             auto future = Primary_->Lookup(request);
             future.Wait();
             if (future.HasException()) {
