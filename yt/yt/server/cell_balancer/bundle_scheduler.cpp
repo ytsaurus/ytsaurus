@@ -2728,6 +2728,28 @@ void InitializeVirtualSpareBundle(TSchedulerInputState& input)
     }
 }
 
+void InitializeBundleChangedStates(const TSchedulerInputState& input, TSchedulerMutations* mutations)
+{
+    for (const auto& [bundleName, bundleInfo] : input.Bundles) {
+        if (!bundleInfo->EnableBundleController) {
+            continue;
+        }
+
+        const auto& zoneName = bundleInfo->Zone;
+
+        if (auto zoneIt = input.Zones.find(zoneName); zoneIt == input.Zones.end()) {
+            continue;
+        }
+
+        auto& bundleState = mutations->ChangedStates[bundleName];
+        if (auto it = input.BundleStates.find(bundleName); it != input.BundleStates.end()) {
+            bundleState = NYTree::CloneYsonStruct(it->second);
+        } else {
+            bundleState = New<TBundleControllerState>();
+        }
+    }
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 void ManageInstances(
@@ -2752,11 +2774,7 @@ void ManageInstances(
             continue;
         }
 
-        auto bundleState = New<TBundleControllerState>();
-        if (auto it = input.BundleStates.find(bundleName); it != input.BundleStates.end()) {
-            bundleState = NYTree::CloneYsonStruct(it->second);
-        }
-        mutations->ChangedStates[bundleName] = bundleState;
+        auto bundleState = GetOrCrash(mutations->ChangedStates, bundleName);
 
         if (!bundleInfo->EnableInstanceAllocation) {
             continue;
@@ -3255,11 +3273,10 @@ void ScheduleBundles(TSchedulerInputState& input, TSchedulerMutations* mutations
     input.DatacenterDisrupted = GetDataCenterDisruptedState(input);
     input.BundleToShortName = MapBundlesToShortNames(input);
 
-    // TODO(grachevkirill): Remove condition later.
-    if (!input.Config->HasInstanceAllocatorService) {
-        InitializeZoneToSpareNodes(input, mutations);
-        InitializeZoneToSpareProxies(input, mutations);
-    }
+    InitializeBundleChangedStates(input, mutations);
+
+    InitializeZoneToSpareNodes(input, mutations);
+    InitializeZoneToSpareProxies(input, mutations);
 
     TSpareInstanceAllocator<TSpareNodesInfo> spareNodesState(input.ZoneToSpareNodes);
     TSpareInstanceAllocator<TSpareProxiesInfo> spareProxiesState(input.ZoneToSpareProxies);
@@ -3269,13 +3286,6 @@ void ScheduleBundles(TSchedulerInputState& input, TSchedulerMutations* mutations
     ManageCells(input, mutations);
     ManageSystemAccountLimit(input, mutations);
     ManageResourceLimits(input, mutations);
-
-    // TODO(grachevkirill): Remove it later and rewrite node tag filter manager
-    // and proxy roles manager.
-    if (input.Config->HasInstanceAllocatorService) {
-        InitializeZoneToSpareNodes(input, mutations);
-        InitializeZoneToSpareProxies(input, mutations);
-    }
 
     ManageNodeTagFilters(input, spareNodesState, mutations);
     ManageRpcProxyRoles(input, spareProxiesState, mutations);
