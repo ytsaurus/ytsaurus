@@ -238,7 +238,7 @@ func (c *Controller) populateResourcesInstance(resources *Resources) error {
 	}
 
 	if resources.InstanceCPU == nil {
-		resources.InstanceCPU = ptr.Uint64(defaultInstanceCPU)
+		resources.InstanceCPU = ptr.Uint64(c.config.getDefaultInstanceCPU())
 	}
 
 	if resources.InstanceTotalMemory != nil && resources.InstanceMemory != nil {
@@ -258,6 +258,11 @@ func (c *Controller) populateResourcesInstance(resources *Resources) error {
 		// Transform InstanceTotalMemory into InstanceMemory.
 		mem = totalMemoryToInstanceMemory(instanceTotalMemory)
 	}
+
+	if resources.CliqueMemory == nil && resources.InstanceMemory == nil {
+		mem = totalMemoryToInstanceMemory(c.config.getDefaultMemory())
+	}
+
 	*resources = *buildResources(*resources.InstanceCount, *resources.InstanceCPU, &mem)
 	return nil
 }
