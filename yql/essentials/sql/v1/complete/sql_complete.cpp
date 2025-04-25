@@ -41,7 +41,7 @@ namespace NSQLComplete {
             TStringBuf prefix = input.Text.Head(input.CursorPosition);
             TCompletedToken completedToken = GetCompletedToken(prefix);
 
-            return GetCanidates(std::move(context), completedToken)
+            return GetCandidates(std::move(context), completedToken)
                 .Apply([completedToken](NThreading::TFuture<TVector<TCandidate>> f) {
                     return TCompletion{
                         .CompletedToken = std::move(completedToken),
@@ -58,7 +58,7 @@ namespace NSQLComplete {
             };
         }
 
-        NThreading::TFuture<TVector<TCandidate>> GetCanidates(TLocalSyntaxContext context, const TCompletedToken& prefix) {
+        NThreading::TFuture<TVector<TCandidate>> GetCandidates(TLocalSyntaxContext context, const TCompletedToken& prefix) {
             TNameRequest request = {
                 .Prefix = TString(prefix.Content),
                 .Limit = Configuration.Limit,
