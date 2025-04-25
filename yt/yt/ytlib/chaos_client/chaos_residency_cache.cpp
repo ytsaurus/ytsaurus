@@ -287,7 +287,7 @@ public:
     {
         auto connection = Owner_->Connection_.Lock();
         if (!connection) {
-            THROW_ERROR_EXCEPTION("Unable to locate %v %v: connection terminated",
+            THROW_ERROR_EXCEPTION("Unable to locate %Qlv %v: connection terminated",
                 Type_,
                 ObjectId_);
         }
@@ -433,7 +433,7 @@ private:
                         THROW_ERROR *resolveError;
                     }
 
-                    THROW_ERROR_EXCEPTION(NRpc::EErrorCode::Unavailable, "Unable to locate %v %v",
+                    THROW_ERROR_EXCEPTION(NRpc::EErrorCode::Unavailable, "Unable to locate %Qlv %v",
                         type,
                         objectId)
                     << errorOr;
@@ -519,7 +519,7 @@ public:
     {
         auto connection = Owner_->Connection_.Lock();
         if (!connection) {
-            THROW_ERROR_EXCEPTION("Unable to locate %v %v: connection terminated",
+            THROW_ERROR_EXCEPTION("Unable to locate %Qlv %v: connection terminated",
                 Type_,
                 ObjectId_);
         }
@@ -544,7 +544,7 @@ public:
             ] (TErrorOr<TChaosNodeServiceProxy::TRspGetChaosObjectResidencyPtr>&& resultOrError)
         {
             if (!resultOrError.IsOK()) {
-                THROW_ERROR_EXCEPTION(NRpc::EErrorCode::Unavailable, "Unable to locate %v %v",
+                THROW_ERROR_EXCEPTION(NRpc::EErrorCode::Unavailable, "Unable to locate %Qlv %v",
                     type,
                     objectId)
                     << resultOrError;
