@@ -46,12 +46,12 @@ namespace NSQLComplete {
         INameService::TPtr Standby_;
     };
 
-    INameService::TPtr MakeDeadlinedNameService(INameService::TPtr origin, TDuration timeout) {
-        return INameService::TPtr(new TDeadlinedNameService(std::move(origin), std::move(timeout)));
+    THolder<INameService> MakeDeadlinedNameService(INameService::TPtr origin, TDuration timeout) {
+        return MakeHolder<TDeadlinedNameService>(std::move(origin), std::move(timeout));
     }
 
-    INameService::TPtr MakeFallbackNameService(INameService::TPtr primary, INameService::TPtr standby) {
-        return INameService::TPtr(new TFallbackNameService(std::move(primary), std::move(standby)));
+    THolder<INameService> MakeFallbackNameService(INameService::TPtr primary, INameService::TPtr standby) {
+        return MakeHolder<TFallbackNameService>(std::move(primary), std::move(standby));
     }
 
 } // namespace NSQLComplete

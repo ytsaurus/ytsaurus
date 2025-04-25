@@ -114,12 +114,12 @@ namespace NSQLComplete {
         TFrequencyData Frequency_;
     };
 
-    IRanking::TPtr MakeDefaultRanking() {
-        return IRanking::TPtr(new TRanking(LoadFrequencyData()));
+    THolder<IRanking> MakeDefaultRanking() {
+        return MakeHolder<TRanking>(LoadFrequencyData());
     }
 
-    IRanking::TPtr MakeDefaultRanking(TFrequencyData frequency) {
-        return IRanking::TPtr(new TRanking(frequency));
+    THolder<IRanking> MakeDefaultRanking(TFrequencyData frequency) {
+        return MakeHolder<TRanking>(TRanking(frequency));
     }
 
 } // namespace NSQLComplete

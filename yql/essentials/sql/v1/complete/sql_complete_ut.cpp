@@ -56,7 +56,7 @@ Y_UNIT_TEST_SUITE(SqlCompleteTests) {
         };
     }
 
-    ISqlCompletionEngine::TPtr MakeSqlCompletionEngineUT() {
+    THolder<ISqlCompletionEngine> MakeSqlCompletionEngineUT() {
         TLexerSupplier lexer = MakePureLexerSupplier();
         NameSet names = {
             .Pragmas = {"yson.CastToString"},

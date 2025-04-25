@@ -16,8 +16,8 @@ namespace NSQLComplete {
         virtual ~IRanking() = default;
     };
 
-    IRanking::TPtr MakeDefaultRanking();
+    THolder<IRanking> MakeDefaultRanking();
 
-    IRanking::TPtr MakeDefaultRanking(TFrequencyData frequency);
+    THolder<IRanking> MakeDefaultRanking(TFrequencyData frequency);
 
 } // namespace NSQLComplete

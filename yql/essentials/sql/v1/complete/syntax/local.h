@@ -39,6 +39,6 @@ namespace NSQLComplete {
         virtual ~ILocalSyntaxAnalysis() = default;
     };
 
-    ILocalSyntaxAnalysis::TPtr MakeLocalSyntaxAnalysis(TLexerSupplier lexer);
+    THolder<ILocalSyntaxAnalysis> MakeLocalSyntaxAnalysis(TLexerSupplier lexer);
 
 } // namespace NSQLComplete

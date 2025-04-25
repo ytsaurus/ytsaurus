@@ -4,10 +4,10 @@
 
 namespace NSQLComplete {
 
-    INameService::TPtr MakeDeadlinedNameService(
+    THolder<INameService> MakeDeadlinedNameService(
         INameService::TPtr origin, TDuration timeout);
 
-    INameService::TPtr MakeFallbackNameService(
+    THolder<INameService> MakeFallbackNameService(
         INameService::TPtr primary, INameService::TPtr standby);
 
 } // namespace NSQLComplete

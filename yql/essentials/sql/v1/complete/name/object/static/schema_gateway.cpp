@@ -61,7 +61,7 @@ namespace NSQLComplete {
 
     } // namespace
 
-    ISchemaGateway::TPtr MakeStaticSchemaGateway(THashMap<TString, TVector<TFolderEntry>> fs) {
+    THolder<ISchemaGateway> MakeStaticSchemaGateway(THashMap<TString, TVector<TFolderEntry>> fs) {
         return MakeHolder<TSchemaGateway>(std::move(fs));
     }
 

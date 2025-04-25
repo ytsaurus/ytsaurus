@@ -232,8 +232,8 @@ namespace NSQLComplete {
         TSpecializedLocalSyntaxAnalysis</* IsAnsiLexer = */ true> AnsiEngine;
     };
 
-    ILocalSyntaxAnalysis::TPtr MakeLocalSyntaxAnalysis(TLexerSupplier lexer) {
-        return TLocalSyntaxAnalysis::TPtr(new TLocalSyntaxAnalysis(lexer));
+    THolder<ILocalSyntaxAnalysis> MakeLocalSyntaxAnalysis(TLexerSupplier lexer) {
+        return MakeHolder<TLocalSyntaxAnalysis>(lexer);
     }
 
 } // namespace NSQLComplete
