@@ -332,13 +332,13 @@ THashSet<std::string> GenerateNodesForBundle(
         nodeInfo->Decommissioned = false;
         nodeInfo->Host = Format("seneca-ayt-%v.%v.yandex.net", nodeIndex, options.DC);
         nodeInfo->State = InstanceStateOnline;
-        nodeInfo->Annotations->Allocated = true;
-        nodeInfo->Annotations->NannyService = Format("nanny-tablet-nodes-%v", options.DC);
-        nodeInfo->Annotations->YPCluster = Format("yp-%v", options.DC);
-        nodeInfo->Annotations->DataCenter = options.DC;
-        nodeInfo->Annotations->AllocatedForBundle = bundleName;
-        nodeInfo->Annotations->DeallocationStrategy = DeallocationStrategyHulkRequest;
-        nodeInfo->Annotations->Resource = CloneYsonStruct(targetConfig->TabletNodeResourceGuarantee);
+        nodeInfo->BundleControllerAnnotations->Allocated = true;
+        nodeInfo->BundleControllerAnnotations->NannyService = Format("nanny-tablet-nodes-%v", options.DC);
+        nodeInfo->BundleControllerAnnotations->YPCluster = Format("yp-%v", options.DC);
+        nodeInfo->BundleControllerAnnotations->DataCenter = options.DC;
+        nodeInfo->BundleControllerAnnotations->AllocatedForBundle = bundleName;
+        nodeInfo->BundleControllerAnnotations->DeallocationStrategy = DeallocationStrategyHulkRequest;
+        nodeInfo->BundleControllerAnnotations->Resource = CloneYsonStruct(targetConfig->TabletNodeResourceGuarantee);
 
         for (int index = 0; index < options.SlotCount; ++index) {
             nodeInfo->TabletSlots.push_back(New<TTabletSlot>());
@@ -379,13 +379,13 @@ THashSet<std::string> GenerateProxiesForBundle(
             dataCenterName);
         auto proxyInfo = New<TRpcProxyInfo>();
         proxyInfo->Alive = New<TRpcProxyAlive>();
-        proxyInfo->Annotations->Allocated = true;
-        proxyInfo->Annotations->NannyService = Format("nanny-rpc-proxies-%v", dataCenterName);
-        proxyInfo->Annotations->YPCluster = Format("yp-%v", dataCenterName);
-        proxyInfo->Annotations->AllocatedForBundle = bundleName;
-        proxyInfo->Annotations->DeallocationStrategy = DeallocationStrategyHulkRequest;
-        proxyInfo->Annotations->Resource = CloneYsonStruct(targetConfig->RpcProxyResourceGuarantee);
-        proxyInfo->Annotations->DataCenter = dataCenterName;
+        proxyInfo->BundleControllerAnnotations->Allocated = true;
+        proxyInfo->BundleControllerAnnotations->NannyService = Format("nanny-rpc-proxies-%v", dataCenterName);
+        proxyInfo->BundleControllerAnnotations->YPCluster = Format("yp-%v", dataCenterName);
+        proxyInfo->BundleControllerAnnotations->AllocatedForBundle = bundleName;
+        proxyInfo->BundleControllerAnnotations->DeallocationStrategy = DeallocationStrategyHulkRequest;
+        proxyInfo->BundleControllerAnnotations->Resource = CloneYsonStruct(targetConfig->RpcProxyResourceGuarantee);
+        proxyInfo->BundleControllerAnnotations->DataCenter = dataCenterName;
 
         if (setRole) {
             auto& bundleInfo = GetOrCrash(inputState.Bundles, bundleName);
@@ -870,7 +870,7 @@ TEST_P(TBundleSchedulerTest, AllocationProgressTrackCompleted)
 
     const std::string nodeId = input.BundleNodes[bundleName].at(dataCenterName).front();
 
-    GetOrCrash(input.TabletNodes, nodeId)->Annotations = New<TInstanceAnnotations>();
+    GetOrCrash(input.TabletNodes, nodeId)->BundleControllerAnnotations = New<TBundleControllerInstanceAnnotations>();
 
     {
         auto& request = input.AllocationRequests.begin()->second;
@@ -916,7 +916,7 @@ TEST_P(TBundleSchedulerTest, AllocationProgressTrackCompleted)
             EXPECT_EQ(orchidAllocatingInfo->InstanceInfo->Resource->Memory, static_cast<i64>(88_GB));
         }
 
-        input.TabletNodes[nodeId]->Annotations = annotations;
+        input.TabletNodes[nodeId]->BundleControllerAnnotations = annotations;
     }
 
     // Schedule one more time with annotation tags set
@@ -1423,7 +1423,7 @@ TEST_P(TBundleSchedulerTest, DeallocationProgressTrackCompleted)
             EXPECT_TRUE(TInstant::Now() - *annotations->DeallocatedAt < TDuration::Minutes(10));
             EXPECT_EQ(nodesToDeallocate.count(nodeId), 1u);
 
-            input.TabletNodes[nodeId]->Annotations = annotations;
+            input.TabletNodes[nodeId]->BundleControllerAnnotations = annotations;
         }
     }
 
@@ -1614,7 +1614,7 @@ TEST_P(TBundleSchedulerTest, CheckSingleDCDisruptedState)
     }
 
     for (auto& [_, nodeInfo] : input.TabletNodes) {
-        if (nodeInfo->Annotations->DataCenter == dataCenters.front()) {
+        if (nodeInfo->BundleControllerAnnotations->DataCenter == dataCenters.front()) {
             nodeInfo->State = InstanceStateOffline;
         }
     }
@@ -1807,7 +1807,7 @@ TEST_P(TBundleSchedulerTest, ProxyAllocationProgressTrackCompleted)
     GenerateProxyAllocationsForBundle(input, "bigd", 1, dataCenterName);
 
     const std::string proxyName = input.BundleProxies["bigd"].at(dataCenterName).front();
-    GetOrCrash(input.RpcProxies, proxyName)->Annotations = New<TInstanceAnnotations>();
+    GetOrCrash(input.RpcProxies, proxyName)->BundleControllerAnnotations = New<TBundleControllerInstanceAnnotations>();
 
     {
         auto& request = input.AllocationRequests.begin()->second;
@@ -1851,7 +1851,7 @@ TEST_P(TBundleSchedulerTest, ProxyAllocationProgressTrackCompleted)
             EXPECT_EQ(orchidAllocatingInfo->InstanceInfo->Resource->Memory, static_cast<i64>(18_GB));
         }
 
-        input.RpcProxies[proxyName]->Annotations = annotations;
+        input.RpcProxies[proxyName]->BundleControllerAnnotations = annotations;
     }
 
     // Schedule one more time with annotation tags set
@@ -2007,7 +2007,7 @@ TEST_P(TBundleSchedulerTest, ProxyCreateNewDeallocationsLegacyInstances)
     }
 
     for (auto& [_, proxyInfo] : input.RpcProxies) {
-        proxyInfo->Annotations->DeallocationStrategy.clear();
+        proxyInfo->BundleControllerAnnotations->DeallocationStrategy.clear();
     }
 
     TSchedulerMutations mutations;
@@ -2107,7 +2107,7 @@ TEST_P(TBundleSchedulerTest, ProxyDeallocationProgressTrackCompleted)
             EXPECT_TRUE(annotations->DeallocatedAt);
             EXPECT_TRUE(TInstant::Now() - *annotations->DeallocatedAt < TDuration::Minutes(10));
 
-            input.RpcProxies[proxyName]->Annotations = annotations;
+            input.RpcProxies[proxyName]->BundleControllerAnnotations = annotations;
         }
     }
 
@@ -2498,8 +2498,8 @@ TEST_P(TBundleSchedulerTest, ReAllocateOutdatedNodes)
     EXPECT_EQ(0, std::ssize(mutations.NewAllocations));
 
     for (auto& [_, nodeInfo] : input.TabletNodes) {
-        nodeInfo->Annotations->Resource->Vcpu /= 2;
-        EXPECT_TRUE(nodeInfo->Annotations->Resource->Vcpu);
+        nodeInfo->BundleControllerAnnotations->Resource->Vcpu /= 2;
+        EXPECT_TRUE(nodeInfo->BundleControllerAnnotations->Resource->Vcpu);
     }
 
     mutations = TSchedulerMutations{};
@@ -2529,8 +2529,8 @@ TEST_P(TBundleSchedulerTest, ReAllocateOutdatedNetworkLimits)
     EXPECT_EQ(0, std::ssize(mutations.NewAllocations));
 
     for (auto& [_, nodeInfo] : input.TabletNodes) {
-        nodeInfo->Annotations->Resource->NetBytes = *nodeInfo->Annotations->Resource->NetBytes / 2;
-        EXPECT_TRUE(nodeInfo->Annotations->Resource->Vcpu);
+        nodeInfo->BundleControllerAnnotations->Resource->NetBytes = *nodeInfo->BundleControllerAnnotations->Resource->NetBytes / 2;
+        EXPECT_TRUE(nodeInfo->BundleControllerAnnotations->Resource->Vcpu);
     }
 
     mutations = TSchedulerMutations{};
@@ -2561,7 +2561,7 @@ TEST_P(TBundleSchedulerTest, DoNotReAllocateOutdatedNetworkLimitsIfDisabled)
     EXPECT_EQ(0, std::ssize(mutations.NewAllocations));
 
     for (auto& [_, nodeInfo] : input.TabletNodes) {
-        nodeInfo->Annotations->Resource->NetBytes = nodeInfo->Annotations->Resource->NetBytes.value_or(1024 / 8) / 2;
+        nodeInfo->BundleControllerAnnotations->Resource->NetBytes = nodeInfo->BundleControllerAnnotations->Resource->NetBytes.value_or(1024 / 8) / 2;
     }
 
     mutations = TSchedulerMutations{};
@@ -2591,8 +2591,8 @@ TEST_P(TBundleSchedulerTest, ReAllocateOutdatedProxies)
     EXPECT_EQ(0, std::ssize(mutations.NewAllocations));
 
     for (auto& [_, proxyInfo] : input.RpcProxies) {
-        proxyInfo->Annotations->Resource->Memory /= 2;
-        EXPECT_TRUE(proxyInfo->Annotations->Resource->Memory);
+        proxyInfo->BundleControllerAnnotations->Resource->Memory /= 2;
+        EXPECT_TRUE(proxyInfo->BundleControllerAnnotations->Resource->Memory);
     }
 
     mutations = TSchedulerMutations{};
@@ -2620,7 +2620,7 @@ TEST_P(TBundleSchedulerTest, ReAllocateOutdatedNetworkProxies)
     EXPECT_EQ(0, std::ssize(mutations.NewAllocations));
 
     for (auto& [_, proxyInfo] : input.RpcProxies) {
-        proxyInfo->Annotations->Resource->NetBytes = 1024 / 8;
+        proxyInfo->BundleControllerAnnotations->Resource->NetBytes = 1024 / 8;
     }
 
     mutations = TSchedulerMutations{};
@@ -2647,8 +2647,8 @@ TEST_P(TBundleSchedulerTest, DeallocateOutdatedNodes)
         for (const auto& nodeName : dataCenterNodesToRemove) {
             nodesToRemove.insert(nodeName);
             auto& nodeInfo = GetOrCrash(input.TabletNodes, nodeName);
-            nodeInfo->Annotations->Resource->Memory *= 2;
-            EXPECT_TRUE(nodeInfo->Annotations->Resource->Memory);
+            nodeInfo->BundleControllerAnnotations->Resource->Memory *= 2;
+            EXPECT_TRUE(nodeInfo->BundleControllerAnnotations->Resource->Memory);
         }
     }
 
@@ -2688,8 +2688,8 @@ TEST_P(TBundleSchedulerTest, DeallocateOutdatedProxies)
         for (const auto& proxyName : dataCenterProxiesToRemove) {
             proxiesToRemove.insert(proxyName);
             auto& proxyInfo = GetOrCrash(input.RpcProxies, proxyName);
-            proxyInfo->Annotations->Resource->Vcpu *= 2;
-            EXPECT_TRUE(proxyInfo->Annotations->Resource->Vcpu);
+            proxyInfo->BundleControllerAnnotations->Resource->Vcpu *= 2;
+            EXPECT_TRUE(proxyInfo->BundleControllerAnnotations->Resource->Vcpu);
         }
     }
 
@@ -2787,7 +2787,7 @@ TEST_P(TBundleSchedulerTest, ReallocateNodeUnderMaintenanceAndOutdated)
 
     for (auto& [_, nodeInfo] : input.TabletNodes) {
         nodeInfo->CmsMaintenanceRequests["test_service"] = New<TCmsMaintenanceRequest>();
-        nodeInfo->Annotations->Resource->Vcpu /= 2;
+        nodeInfo->BundleControllerAnnotations->Resource->Vcpu /= 2;
     }
 
     mutations = TSchedulerMutations{};
@@ -2886,9 +2886,9 @@ TEST_P(TBundleSchedulerTest, RemoveProxyCypressNodes)
         for (auto& proxyName : dcProxiesToRemove) {
             proxiesToRemove.insert(proxyName);
             auto& proxyInfo = GetOrCrash(input.RpcProxies, proxyName);
-            proxyInfo->Annotations->Allocated = false;
-            proxyInfo->Annotations->DeallocatedAt = DateInThePast;
-            proxyInfo->Annotations->DeallocationStrategy = DeallocationStrategyHulkRequest;
+            proxyInfo->BundleControllerAnnotations->Allocated = false;
+            proxyInfo->BundleControllerAnnotations->DeallocatedAt = DateInThePast;
+            proxyInfo->BundleControllerAnnotations->DeallocationStrategy = DeallocationStrategyHulkRequest;
         }
     }
 
@@ -2933,9 +2933,9 @@ TEST_P(TBundleSchedulerTest, RemoveTabletNodeCypressNodes)
         for (const auto& nodeName : dcNodesToRemove) {
             nodesToRemove.insert(nodeName);
             auto& nodeInfo = GetOrCrash(input.TabletNodes, nodeName);
-            nodeInfo->Annotations->Allocated = false;
-            nodeInfo->Annotations->DeallocationStrategy = DeallocationStrategyHulkRequest;
-            nodeInfo->Annotations->DeallocatedAt = DateInThePast;
+            nodeInfo->BundleControllerAnnotations->Allocated = false;
+            nodeInfo->BundleControllerAnnotations->DeallocationStrategy = DeallocationStrategyHulkRequest;
+            nodeInfo->BundleControllerAnnotations->DeallocatedAt = DateInThePast;
         }
     }
 
@@ -3194,9 +3194,9 @@ TEST_P(TBundleSchedulerTest, DeallocateAdoptedNodes)
         for (auto& nodeName : dcNodesToRemove) {
             nodesToRemove.insert(nodeName);
             auto& nodeInfo = GetOrCrash(input.TabletNodes, nodeName);
-            nodeInfo->Annotations->Resource->Memory *= 2;
-            nodeInfo->Annotations->DeallocationStrategy = DeallocationStrategyReturnToBB;
-            EXPECT_TRUE(nodeInfo->Annotations->Resource->Memory);
+            nodeInfo->BundleControllerAnnotations->Resource->Memory *= 2;
+            nodeInfo->BundleControllerAnnotations->DeallocationStrategy = DeallocationStrategyReturnToBB;
+            EXPECT_TRUE(nodeInfo->BundleControllerAnnotations->Resource->Memory);
             nodeInfo->EnableBundleBalancer = false;
         }
     }
@@ -3266,7 +3266,7 @@ TEST_P(TBundleSchedulerTest, DeallocateAdoptedNodes)
             EXPECT_TRUE(TInstant::Now() - *annotations->DeallocatedAt < TDuration::Minutes(10));
             EXPECT_EQ(annotations->DeallocationStrategy, DeallocationStrategyReturnToBB);
 
-            input.TabletNodes[nodeId]->Annotations = annotations;
+            input.TabletNodes[nodeId]->BundleControllerAnnotations = annotations;
         }
     }
 
@@ -3316,9 +3316,9 @@ TEST_P(TBundleSchedulerTest, DontRemoveTabletNodeCypressNodesFromBB)
         auto nodesToRemove = GetRandomElements(nodeNames, 3);
         for (auto& nodeName : nodesToRemove) {
             auto& nodeInfo = GetOrCrash(input.TabletNodes, nodeName);
-            nodeInfo->Annotations->Allocated = false;
-            nodeInfo->Annotations->DeallocationStrategy = DeallocationStrategyReturnToBB;
-            nodeInfo->Annotations->DeallocatedAt = DateInThePast;
+            nodeInfo->BundleControllerAnnotations->Allocated = false;
+            nodeInfo->BundleControllerAnnotations->DeallocationStrategy = DeallocationStrategyReturnToBB;
+            nodeInfo->BundleControllerAnnotations->DeallocatedAt = DateInThePast;
         }
     }
 
@@ -4240,7 +4240,7 @@ TEST_P(TNodeTagsFilterManager, TestExtraBundleNodesReleasement)
         const auto& nodeInfo = GetOrCrash(input.TabletNodes, nodeName);
         nodeInfo->Decommissioned = decommissioned;
 
-        EXPECT_EQ(dataCenters.back(), nodeInfo->Annotations->DataCenter);
+        EXPECT_EQ(dataCenters.back(), nodeInfo->BundleControllerAnnotations->DataCenter);
 
         releasingNodes.insert(nodeName);
     }
@@ -5083,7 +5083,7 @@ TEST_P(TNodeTagsFilterManager, SpareNodesDecommissionedAfterAssigning)
         nodeInfo->UserTags = tags.Mutation;
         nodeInfo->Decommissioned = mutations.ChangedDecommissionedFlag[nodeName];
 
-        EXPECT_TRUE(activeDataCenters.count(*nodeInfo->Annotations->DataCenter) != 0);
+        EXPECT_TRUE(activeDataCenters.count(*nodeInfo->BundleControllerAnnotations->DataCenter) != 0);
         EXPECT_TRUE(usingSpareNode.count(nodeName) == 0);
     }
 
@@ -5429,7 +5429,7 @@ TEST_P(TNodeTagsFilterManager, ReleasingExtraSpareNodes)
     THashSet<std::string> releasingDC;
     for (const auto& [nodeName, _] : mutations.ChangedDecommissionedFlag) {
         const auto& nodeInfo = GetOrCrash(input.TabletNodes, nodeName);
-        releasingDC.insert(*nodeInfo->Annotations->DataCenter);
+        releasingDC.insert(*nodeInfo->BundleControllerAnnotations->DataCenter);
     }
 
     // Releasing data centers are all from single datacenter.
@@ -5497,7 +5497,7 @@ TEST(TDataCentersPriority, AlphaNumDC)
     THashSet<std::string> assigningDC;
     for (const auto& [nodeName, _] : assignments) {
         const auto& nodeInfo = GetOrCrash(input.TabletNodes, nodeName);
-        assigningDC.insert(*nodeInfo->Annotations->DataCenter);
+        assigningDC.insert(*nodeInfo->BundleControllerAnnotations->DataCenter);
     }
 
     // Releasing data centers are all from single datacenter.
@@ -5548,7 +5548,7 @@ TEST(TDataCentersPriority, Feasibility)
     THashSet<std::string> assigningDC;
     for (const auto& [nodeName, _] : mutations.ChangedStates.at("bigd")->SpareNodeAssignments) {
         const auto& nodeInfo = GetOrCrash(input.TabletNodes, nodeName);
-        assigningDC.insert(*nodeInfo->Annotations->DataCenter);
+        assigningDC.insert(*nodeInfo->BundleControllerAnnotations->DataCenter);
     }
 
     // Releasing data centers are all from single datacenter.
@@ -5590,7 +5590,7 @@ TEST(TDataCentersPriority, Forbidden)
     THashSet<std::string> assigningDC;
     for (const auto& [nodeName, _] : mutations.ChangedStates.at("bigd")->BundleNodeAssignments) {
         const auto& nodeInfo = GetOrCrash(input.TabletNodes, nodeName);
-        assigningDC.insert(*nodeInfo->Annotations->DataCenter);
+        assigningDC.insert(*nodeInfo->BundleControllerAnnotations->DataCenter);
     }
 
     // Releasing data centers are all from single datacenter.
@@ -5628,7 +5628,7 @@ TEST(TDataCentersPriority, PerBundleForbidden)
     THashSet<std::string> assigningDC;
     for (const auto& [nodeName, _] : mutations.ChangedStates.at("bigd")->BundleNodeAssignments) {
         const auto& nodeInfo = GetOrCrash(input.TabletNodes, nodeName);
-        assigningDC.insert(*nodeInfo->Annotations->DataCenter);
+        assigningDC.insert(*nodeInfo->BundleControllerAnnotations->DataCenter);
     }
 
     // Releasing data centers are all from single datacenter.
@@ -5680,7 +5680,7 @@ TEST(TDataCentersPriority, DisruptionMinimizing)
     THashSet<std::string> assigningDC;
     for (const auto& [nodeName, _] : mutations.ChangedStates.at("bigd")->BundleNodeAssignments) {
         const auto& nodeInfo = GetOrCrash(input.TabletNodes, nodeName);
-        assigningDC.insert(*nodeInfo->Annotations->DataCenter);
+        assigningDC.insert(*nodeInfo->BundleControllerAnnotations->DataCenter);
     }
 
     // Releasing data centers are all from single datacenter.
@@ -5727,7 +5727,7 @@ TEST(TDataCentersPriority, MinimizingTabletMoves)
     THashSet<std::string> releasingDC;
     for (const auto& [nodeName, _] : mutations.ChangedStates.at("bigd")->BundleNodeReleasements) {
         const auto& nodeInfo = GetOrCrash(input.TabletNodes, nodeName);
-        releasingDC.insert(*nodeInfo->Annotations->DataCenter);
+        releasingDC.insert(*nodeInfo->BundleControllerAnnotations->DataCenter);
     }
 
     // Releasing data centers are all from single datacenter.
@@ -5764,7 +5764,7 @@ TEST(TDataCentersPriority, ChangeForbiddenSeveralTimes)
 
     for (const auto& [nodeName, _] : mutations.ChangedStates.at("bigd")->BundleNodeReleasements) {
         const auto& nodeInfo = GetOrCrash(input.TabletNodes, nodeName);
-        EXPECT_EQ(nodeInfo->Annotations->DataCenter, "dc-1");
+        EXPECT_EQ(nodeInfo->BundleControllerAnnotations->DataCenter, "dc-1");
     }
 
     EXPECT_EQ(3, std::ssize(mutations.ChangedDecommissionedFlag));
@@ -5790,12 +5790,12 @@ TEST(TDataCentersPriority, ChangeForbiddenSeveralTimes)
 
     for (const auto& [nodeName, _] : mutations.ChangedStates.at("bigd")->BundleNodeReleasements) {
         const auto& nodeInfo = GetOrCrash(input.TabletNodes, nodeName);
-        EXPECT_EQ(nodeInfo->Annotations->DataCenter, "dc-2");
+        EXPECT_EQ(nodeInfo->BundleControllerAnnotations->DataCenter, "dc-2");
     }
 
     for (const auto& [nodeName, decommissioned] : mutations.ChangedDecommissionedFlag) {
         const auto& nodeInfo = GetOrCrash(input.TabletNodes, nodeName);
-        EXPECT_EQ(decommissioned, nodeInfo->Annotations->DataCenter == "dc-2");
+        EXPECT_EQ(decommissioned, nodeInfo->BundleControllerAnnotations->DataCenter == "dc-2");
         nodeInfo->Decommissioned = decommissioned;
     }
 
@@ -5833,7 +5833,7 @@ TEST(TDataCentersProxyPriority, AlphaNumDC)
             continue;
         }
         const auto& proxyInfo = GetOrCrash(input.RpcProxies, proxyName);
-        assigningDC.insert(*proxyInfo->Annotations->DataCenter);
+        assigningDC.insert(*proxyInfo->BundleControllerAnnotations->DataCenter);
     }
 
     EXPECT_EQ(2, std::ssize(assigningDC));
@@ -5880,7 +5880,7 @@ TEST(TDataCentersProxyPriority, Feasibility)
             continue;
         }
         const auto& proxyInfo = GetOrCrash(input.RpcProxies, proxyName);
-        assigningDC.insert(*proxyInfo->Annotations->DataCenter);
+        assigningDC.insert(*proxyInfo->BundleControllerAnnotations->DataCenter);
     }
 
     // Releasing data centers are all from single datacenter.
@@ -5919,7 +5919,7 @@ TEST(TDataCentersProxyPriority, Forbidden)
             continue;
         }
         const auto& proxyInfo = GetOrCrash(input.RpcProxies, proxyName);
-        assigningDC.insert(*proxyInfo->Annotations->DataCenter);
+        assigningDC.insert(*proxyInfo->BundleControllerAnnotations->DataCenter);
     }
     // Releasing data centers are all from single datacenter.
     EXPECT_EQ(2, std::ssize(assigningDC));
@@ -5954,7 +5954,7 @@ TEST(TDataCentersProxyPriority, PerBundleForbidden)
             continue;
         }
         const auto& proxyInfo = GetOrCrash(input.RpcProxies, proxyName);
-        assigningDC.insert(*proxyInfo->Annotations->DataCenter);
+        assigningDC.insert(*proxyInfo->BundleControllerAnnotations->DataCenter);
     }
 
     // Releasing data centers are all from single datacenter.
@@ -5998,7 +5998,7 @@ TEST(TDataCentersProxyPriority, DisruptionMinimizing)
             continue;
         }
         const auto& proxyInfo = GetOrCrash(input.RpcProxies, proxyName);
-        assigningDC.insert(*proxyInfo->Annotations->DataCenter);
+        assigningDC.insert(*proxyInfo->BundleControllerAnnotations->DataCenter);
     }
 
     // Releasing data centers are all from single datacenter.
