@@ -74,7 +74,7 @@ namespace NSQLComplete {
 
     class INameService {
     public:
-        using TPtr = THolder<INameService>;
+        using TPtr = TAtomicSharedPtr<INameService>;
 
         virtual TFuture<TNameResponse> Lookup(TNameRequest request) = 0;
         virtual ~INameService() = default;

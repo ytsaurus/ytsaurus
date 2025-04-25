@@ -40,7 +40,7 @@ namespace NSQLComplete {
 
     class ISchemaGateway {
     public:
-        using TPtr = THolder<ISchemaGateway>;
+        using TPtr = TAtomicSharedPtr<ISchemaGateway>;
 
         virtual ~ISchemaGateway() = default;
         virtual NThreading::TFuture<TListResponse> List(const TListRequest& request) = 0;
