@@ -51,12 +51,26 @@ class TestChaos(ChaosTestBase):
 
     DELTA_DRIVER_CONFIG = {
         "enable_read_from_async_replicas": True,
+        "chaos_residency_cache": {
+            "enable_client_mode" : True,
+        },
     }
 
     DELTA_RPC_PROXY_CONFIG = {
         "cluster_connection": {
             "enable_read_from_async_replicas": True,
-        }
+            "chaos_residency_cache": {
+                "enable_client_mode" : True,
+            },
+        },
+    }
+
+    DELTA_NODE_CONFIG = {
+        "cluster_connection": {
+            "chaos_residency_cache": {
+                "enable_client_mode": True,
+            },
+        },
     }
 
     def setup_method(self, method):
