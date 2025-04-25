@@ -1,7 +1,7 @@
 #pragma once
 
 #include <yql/essentials/sql/v1/complete/core/input.h>
-#include <yql/essentials/sql/v1/complete/name/name_service.h>
+#include <yql/essentials/sql/v1/complete/name/service/name_service.h>
 #include <yql/essentials/sql/v1/lexer/lexer.h>
 
 #include <library/cpp/threading/future/future.h>
