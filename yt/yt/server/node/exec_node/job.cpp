@@ -1480,6 +1480,10 @@ TBriefJobInfo TJob::GetBriefInfo() const
     }
 
     auto tryGetMonitoringDescriptor = [&] () -> std::optional<std::string> {
+        if (!UserJobSpec_) {
+            return std::nullopt;
+        }
+
         const auto& monitoringConfig = UserJobSpec_->monitoring_config();
         if (!monitoringConfig.enable()) {
             return std::nullopt;
