@@ -217,9 +217,7 @@ TCompositePendingJobCount TTask::GetPendingJobCount() const
     }
 
     TCompositePendingJobCount result;
-    auto userJobSpec = GetUserJobSpec();
-    auto cookieGroupSize = userJobSpec ? userJobSpec->CookieGroupSize : 1;
-    result.DefaultCount = cookieGroupSize * GetChunkPoolOutput()->GetJobCounter()->GetPending() +
+    result.DefaultCount = MultiJobManager_.GetCookieGroupSize() * GetChunkPoolOutput()->GetJobCounter()->GetPending() +
         SpeculativeJobManager_.GetPendingJobCount() +
         ExperimentJobManager_.GetPendingJobCount() +
         MultiJobManager_.GetPendingJobCount();
@@ -890,7 +888,6 @@ std::expected<NScheduler::TJobResourcesWithQuota, EScheduleFailReason> TTask::Tr
     }
 
     if (userJobSpec) {
-        joblet->CookieGroupSize = userJobSpec->CookieGroupSize;
         i64 totalTmpfsSize = 0;
         for (const auto& volume : userJobSpec->TmpfsVolumes) {
             totalTmpfsSize += volume->Size;

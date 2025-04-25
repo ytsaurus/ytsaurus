@@ -156,7 +156,6 @@ struct TJoblet
 
     NChunkPools::TChunkStripeListPtr InputStripeList;
     NChunkPools::IChunkPoolOutput::TCookie OutputCookie = -1;
-    int CookieGroupSize = 1;
     int OutputCookieGroupIndex = 0;
 
     //! All chunk lists allocated for this job.

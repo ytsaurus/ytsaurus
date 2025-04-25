@@ -45,6 +45,8 @@ public:
 
     TProgressCounterPtr GetProgressCounter() const override final;
 
+    int GetCookieGroupSize() const;
+
 protected:
     struct TSecondary
     {
@@ -74,7 +76,7 @@ private:
 
     NLogging::TSerializableLogger Logger;
 
-    bool IsRelevant(const TJobletPtr& joblet) const;
+    bool IsRelevant() const;
 
     bool OnUnsuccessfulJobFinish(
         const TJobletPtr& joblet,

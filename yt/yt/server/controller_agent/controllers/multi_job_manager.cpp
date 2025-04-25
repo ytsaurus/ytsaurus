@@ -64,21 +64,21 @@ void TMultiJobManager::OnJobLost(IChunkPoolOutput::TCookie)
 
 void TMultiJobManager::OnJobScheduled(const TJobletPtr& joblet)
 {
-    if (!IsRelevant(joblet)) {
+    if (!IsRelevant()) {
         return;
     }
     if (joblet->OutputCookieGroupIndex == 0) {
         auto [it, inserted] = CookieToReplicas_.try_emplace(joblet->OutputCookie);
         YT_VERIFY(inserted);
         auto& replicas = it->second;
-        for (int i = 1; i < joblet->CookieGroupSize; i++) {
+        for (int i = 1; i < GetCookieGroupSize(); i++) {
             auto guard = TProgressCounterGuard(JobCounter_);
             guard.SetCategory(EProgressCategory::Pending);
             replicas.Secondaries.push_back({.ProgressCounterGuard = std::move(guard)});
         }
         replicas.MainJobId = joblet->JobId;
-        replicas.Pending = joblet->CookieGroupSize - 1;
-        replicas.NotCompletedCount = joblet->CookieGroupSize;
+        replicas.Pending = GetCookieGroupSize() - 1;
+        replicas.NotCompletedCount = GetCookieGroupSize();
         InsertOrCrash(PendingCookies_, joblet->OutputCookie);
     } else {
         auto& replicas = GetOrCrash(CookieToReplicas_, joblet->OutputCookie);
@@ -95,7 +95,7 @@ void TMultiJobManager::OnJobScheduled(const TJobletPtr& joblet)
 
 bool TMultiJobManager::OnJobCompleted(const TJobletPtr& joblet)
 {
-    if (!IsRelevant(joblet)) {
+    if (!IsRelevant()) {
         return true;
     }
 
@@ -130,9 +130,14 @@ TProgressCounterPtr TMultiJobManager::GetProgressCounter() const
     return JobCounter_;
 }
 
-bool TMultiJobManager::IsRelevant(const TJobletPtr& joblet) const
+int TMultiJobManager::GetCookieGroupSize() const {
+    auto userJobSpec = Task_->GetUserJobSpec();
+    return userJobSpec ? userJobSpec->CookieGroupSize : 1;
+}
+
+bool TMultiJobManager::IsRelevant() const
 {
-    return joblet->CookieGroupSize > 1;
+    return GetCookieGroupSize() > 1;
 }
 
 void TMultiJobManager::RegisterMetadata(auto&& registrar)
@@ -151,7 +156,7 @@ bool TMultiJobManager::OnUnsuccessfulJobFinish(
     const TJobletPtr& joblet,
     EAbortReason abortReason)
 {
-    if (!IsRelevant(joblet)) {
+    if (!IsRelevant()) {
         // By default after unsuccessful finish of job a cookie is returned to chunk pool.
         return true;
     }
