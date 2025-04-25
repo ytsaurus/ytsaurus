@@ -422,7 +422,7 @@ void TDrillsModeOperationState::Register(TRegistrar registrar)
         .Default();
 }
 
-void TBundleControllerAnnotations::Register(TRegistrar registrar)
+void TBundleControllerInstanceAnnotations::Register(TRegistrar registrar)
 {
     registrar.Parameter("yp_cluster", &TThis::YPCluster)
         .Default();

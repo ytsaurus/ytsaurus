@@ -30,7 +30,7 @@ DECLARE_REFCOUNTED_STRUCT(TDeallocationRequestSpec)
 DECLARE_REFCOUNTED_STRUCT(TDeallocationRequestStatus)
 DECLARE_REFCOUNTED_STRUCT(TDeallocationRequest)
 DECLARE_REFCOUNTED_STRUCT(TDeallocationRequestState)
-DECLARE_REFCOUNTED_STRUCT(TBundleControllerAnnotations)
+DECLARE_REFCOUNTED_STRUCT(TBundleControllerInstanceAnnotations)
 DECLARE_REFCOUNTED_STRUCT(TCypressAnnotations)
 DECLARE_REFCOUNTED_STRUCT(TTabletNodeInfo)
 DECLARE_REFCOUNTED_STRUCT(TTabletNodeMemoryStatistics)
@@ -642,7 +642,7 @@ DEFINE_REFCOUNTED_TYPE(TBundleControllerState)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TBundleControllerAnnotations
+struct TBundleControllerInstanceAnnotations
     : public NYTree::TYsonStruct
 {
     std::string YPCluster;
@@ -656,12 +656,12 @@ struct TBundleControllerAnnotations
 
     std::optional<std::string> DataCenter;
 
-    REGISTER_YSON_STRUCT(TBundleControllerAnnotations);
+    REGISTER_YSON_STRUCT(TBundleControllerInstanceAnnotations);
 
     static void Register(TRegistrar registrar);
 };
 
-DEFINE_REFCOUNTED_TYPE(TBundleControllerAnnotations)
+DEFINE_REFCOUNTED_TYPE(TBundleControllerInstanceAnnotations)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -763,7 +763,7 @@ struct TTabletNodeInfo
     std::string State;
     THashSet<std::string> Tags;
     THashSet<std::string> UserTags;
-    TBundleControllerAnnotationsPtr BundleControllerAnnotations;
+    TBundleControllerInstanceAnnotationsPtr BundleControllerAnnotations;
     TCypressAnnotationsPtr CypressAnnotations;
     std::vector<TTabletSlotPtr> TabletSlots;
     THashMap<std::string, TCmsMaintenanceRequestPtr> CmsMaintenanceRequests;
@@ -797,7 +797,7 @@ struct TRpcProxyInfo
 {
     bool Banned;
     std::string Role;
-    TBundleControllerAnnotationsPtr BundleControllerAnnotations;
+    TBundleControllerInstanceAnnotationsPtr BundleControllerAnnotations;
     TCypressAnnotationsPtr CypressAnnotations;
     THashMap<std::string, TCmsMaintenanceRequestPtr> CmsMaintenanceRequests;
     TInstant ModificationTime;

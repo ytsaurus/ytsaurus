@@ -183,8 +183,8 @@ public:
     TIndexedEntries<TAllocationRequest> ChangedAllocations;
     TIndexedEntries<TDeallocationRequest> NewDeallocations;
     TIndexedEntries<TBundleControllerState> ChangedStates;
-    TIndexedEntries<TBundleControllerAnnotations> ChangeNodeAnnotations;
-    TIndexedEntries<TBundleControllerAnnotations> ChangedProxyAnnotations;
+    TIndexedEntries<TBundleControllerInstanceAnnotations> ChangeNodeAnnotations;
+    TIndexedEntries<TBundleControllerInstanceAnnotations> ChangedProxyAnnotations;
 
     THashSet<TBundleMutation<std::string>> CompletedAllocations;
 
@@ -296,7 +296,7 @@ TIndexedEntries<TBundleControllerState> MergeBundleStates(
     const TSchedulerInputState& schedulerState,
     const TSchedulerMutations& mutations);
 
-std::string GetPodIdForInstance(const TCypressAnnotationsPtr& cypress_annotations, const std::string& name);
+std::string GetPodIdForInstance(const TCypressAnnotationsPtr& cypressAnnotations, const std::string& name);
 
 std::string GetInstanceSize(const NBundleControllerClient::TInstanceResourcesPtr& resource);
 

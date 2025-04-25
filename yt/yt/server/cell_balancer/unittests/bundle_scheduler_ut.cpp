@@ -870,7 +870,7 @@ TEST_P(TBundleSchedulerTest, AllocationProgressTrackCompleted)
 
     const std::string nodeId = input.BundleNodes[bundleName].at(dataCenterName).front();
 
-    GetOrCrash(input.TabletNodes, nodeId)->BundleControllerAnnotations = New<TBundleControllerAnnotations>();
+    GetOrCrash(input.TabletNodes, nodeId)->BundleControllerAnnotations = New<TBundleControllerInstanceAnnotations>();
 
     {
         auto& request = input.AllocationRequests.begin()->second;
@@ -1807,7 +1807,7 @@ TEST_P(TBundleSchedulerTest, ProxyAllocationProgressTrackCompleted)
     GenerateProxyAllocationsForBundle(input, "bigd", 1, dataCenterName);
 
     const std::string proxyName = input.BundleProxies["bigd"].at(dataCenterName).front();
-    GetOrCrash(input.RpcProxies, proxyName)->BundleControllerAnnotations = New<TBundleControllerAnnotations>();
+    GetOrCrash(input.RpcProxies, proxyName)->BundleControllerAnnotations = New<TBundleControllerInstanceAnnotations>();
 
     {
         auto& request = input.AllocationRequests.begin()->second;
