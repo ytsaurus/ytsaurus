@@ -1535,8 +1535,6 @@ class TestMultipleAgents(TestQueueAgentBase):
 class TestOrchid(TestMultipleAgents):
     NUM_QUEUE_AGENTS = 2
 
-    ENABLE_MULTIDAEMON = True
-
     @authors("apachee")
     def test_queue_agent_orchid_for_queues_and_consumers(self):
         queues = []
@@ -5449,10 +5447,7 @@ class TestControllerInfo(TestQueueAgentBase):
         }
 
 
-@pytest.mark.enabled_multidaemon
 class TestMigration(YTEnvSetup):
-    ENABLE_MULTIDAEMON = True
-
     @authors("nadya73")
     def test_run_migration(self):
         sync_create_cells(1)
