@@ -2147,7 +2147,10 @@ private:
                 for (size_t j = start; j < end; ++j) {
                     subrequest.push_back(std::move(blocks[j]));
                 }
-                subrequests.push_back(std::move(subrequest));
+
+                if (!subrequest.empty()) {
+                    subrequests.push_back(std::move(subrequest));
+                }
                 start = end;
             }
 
