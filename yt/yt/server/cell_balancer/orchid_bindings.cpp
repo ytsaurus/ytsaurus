@@ -115,10 +115,11 @@ void PopulateInstances(
     for (const auto& name : bundleInstances) {
         auto instance = New<TInstanceInfo>();
         const auto& instanceInfo = GetOrCrash(instanciesInfo, name);
-        const auto& annotations = instanceInfo->Annotations;
+        const auto& annotations = instanceInfo->BundleControllerAnnotations;
+        const auto& cypressAnnotations = instanceInfo->CypressAnnotations;
 
         instance->Resource = annotations->Resource;
-        instance->PodId = GetPodIdForInstance(name);
+        instance->PodId = GetPodIdForInstance(cypressAnnotations, name);
         instance->YPCluster = annotations->YPCluster;
 
         instance->DataCenter = annotations->DataCenter;
