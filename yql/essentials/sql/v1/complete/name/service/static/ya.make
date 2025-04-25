@@ -10,7 +10,7 @@ SRCS(
 
 PEERDIR(
     yql/essentials/core/sql_types
-    yql/essentials/sql/v1/complete/name
+    yql/essentials/sql/v1/complete/name/service
     yql/essentials/sql/v1/complete/text
 )
 
