@@ -139,12 +139,12 @@ namespace NSQLComplete {
         IRanking::TPtr Ranking_;
     };
 
-    THolder<INameService> MakeStaticNameService() {
+    INameService::TPtr MakeStaticNameService() {
         return MakeStaticNameService(MakeDefaultNameSet(), MakeDefaultRanking());
     }
 
-    THolder<INameService> MakeStaticNameService(NameSet names, IRanking::TPtr ranking) {
-        return MakeHolder<TStaticNameService>(std::move(names), std::move(ranking));
+    INameService::TPtr MakeStaticNameService(NameSet names, IRanking::TPtr ranking) {
+        return MakeIntrusive<TStaticNameService>(std::move(names), std::move(ranking));
     }
 
 } // namespace NSQLComplete

@@ -134,12 +134,12 @@ namespace NSQLComplete {
         INameService::TPtr Names;
     };
 
-    THolder<ISqlCompletionEngine> MakeSqlCompletionEngine(
+    ISqlCompletionEngine::TPtr MakeSqlCompletionEngine(
         TLexerSupplier lexer,
         INameService::TPtr names,
         ISqlCompletionEngine::TConfiguration configuration) {
-        return ISqlCompletionEngine::TPtr(
-            new TSqlCompletionEngine(lexer, std::move(names), std::move(configuration)));
+        return MakeHolder<TSqlCompletionEngine>(
+            lexer, std::move(names), std::move(configuration));
     }
 
 } // namespace NSQLComplete

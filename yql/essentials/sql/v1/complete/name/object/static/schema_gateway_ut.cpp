@@ -6,7 +6,7 @@ using namespace NSQLComplete;
 
 Y_UNIT_TEST_SUITE(StaticSchemaGatewayTests) {
 
-    THolder<ISchemaGateway> MakeStaticSchemaGatewayUT() {
+    ISchemaGateway::TPtr MakeStaticSchemaGatewayUT() {
         THashMap<TString, TVector<TFolderEntry>> fs = {
             {"/", {{"Folder", "local"},
                    {"Folder", "test"},

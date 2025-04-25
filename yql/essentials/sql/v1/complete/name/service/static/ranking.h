@@ -8,16 +8,16 @@
 
 namespace NSQLComplete {
 
-    class IRanking {
+    class IRanking: public TThrRefBase {
     public:
-        using TPtr = TAtomicSharedPtr<IRanking>;
+        using TPtr = TIntrusivePtr<IRanking>;
 
         virtual void CropToSortedPrefix(TVector<TGenericName>& names, size_t limit) const = 0;
         virtual ~IRanking() = default;
     };
 
-    THolder<IRanking> MakeDefaultRanking();
+    IRanking::TPtr MakeDefaultRanking();
 
-    THolder<IRanking> MakeDefaultRanking(TFrequencyData frequency);
+    IRanking::TPtr MakeDefaultRanking(TFrequencyData frequency);
 
 } // namespace NSQLComplete

@@ -47,7 +47,7 @@ Y_UNIT_TEST_SUITE(SqlCompleteTests) {
         };
     }
 
-    THolder<ISqlCompletionEngine> MakeSqlCompletionEngineUT() {
+    ISqlCompletionEngine::TPtr MakeSqlCompletionEngineUT() {
         TLexerSupplier lexer = MakePureLexerSupplier();
         NameSet names = {
             .Pragmas = {"yson.CastToString"},
@@ -703,7 +703,7 @@ Y_UNIT_TEST_SUITE(SqlCompleteTests) {
     }
 
     Y_UNIT_TEST(OnFailingNameService) {
-        auto service = MakeHolder<TFailingNameService>();
+        auto service = MakeIntrusive<TFailingNameService>();
         auto engine = MakeSqlCompletionEngine(MakePureLexerSupplier(), std::move(service));
         UNIT_ASSERT_EXCEPTION(Complete(engine, ""), TDummyException);
         UNIT_ASSERT_EXCEPTION(Complete(engine, "SELECT OPTIONAL<U"), TDummyException);

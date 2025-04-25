@@ -51,7 +51,7 @@ namespace NSQLComplete {
 
     using TLexerSupplier = std::function<NSQLTranslation::ILexer::TPtr(bool ansi)>;
 
-    THolder<ISqlCompletionEngine> MakeSqlCompletionEngine(
+    ISqlCompletionEngine::TPtr MakeSqlCompletionEngine(
         TLexerSupplier lexer,
         INameService::TPtr names,
         ISqlCompletionEngine::TConfiguration configuration = {});

@@ -232,7 +232,7 @@ namespace NSQLComplete {
         TSpecializedLocalSyntaxAnalysis</* IsAnsiLexer = */ true> AnsiEngine;
     };
 
-    THolder<ILocalSyntaxAnalysis> MakeLocalSyntaxAnalysis(TLexerSupplier lexer) {
+    ILocalSyntaxAnalysis::TPtr MakeLocalSyntaxAnalysis(TLexerSupplier lexer) {
         return MakeHolder<TLocalSyntaxAnalysis>(lexer);
     }
 

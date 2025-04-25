@@ -4,6 +4,6 @@
 
 namespace NSQLComplete {
 
-    THolder<ISchemaGateway> MakeStaticSchemaGateway(THashMap<TString, TVector<TFolderEntry>> fs);
+    ISchemaGateway::TPtr MakeStaticSchemaGateway(THashMap<TString, TVector<TFolderEntry>> fs);
 
 } // namespace NSQLComplete
