@@ -98,7 +98,7 @@ int Run(int argc, char* argv[]) {
         input.CursorPosition = queryString.size();
     }
 
-    auto output = engine->Complete(input);
+    auto output = engine->CompleteAsync(input).ExtractValueSync();
     for (const auto& c : output.Candidates) {
         Cout << "[" << c.Kind << "] " << c.Content << "\n";
     }
