@@ -14,6 +14,21 @@
 
 using namespace NSQLComplete;
 
+class TDummyException: public std::runtime_error {
+public:
+    TDummyException()
+        : std::runtime_error("T_T") {
+    }
+};
+
+class TFailingNameService: public INameService {
+public:
+    TFuture<TNameResponse> Lookup(TNameRequest) const override {
+        auto e = std::make_exception_ptr(TDummyException());
+        return NThreading::MakeErrorFuture<TNameResponse>(e);
+    }
+};
+
 Y_UNIT_TEST_SUITE(SqlCompleteTests) {
     using ECandidateKind::FunctionName;
     using ECandidateKind::HintName;
@@ -685,6 +700,14 @@ Y_UNIT_TEST_SUITE(SqlCompleteTests) {
             };
             UNIT_ASSERT_VALUES_EQUAL(Complete(engine, "REDUCE a WITH ig"), expected);
         }
+    }
+
+    Y_UNIT_TEST(OnFailingNameService) {
+        auto service = MakeHolder<TFailingNameService>();
+        auto engine = MakeSqlCompletionEngine(MakePureLexerSupplier(), std::move(service));
+        UNIT_ASSERT_EXCEPTION(Complete(engine, ""), TDummyException);
+        UNIT_ASSERT_EXCEPTION(Complete(engine, "SELECT OPTIONAL<U"), TDummyException);
+        UNIT_ASSERT_EXCEPTION(Complete(engine, "SELECT CAST (1 AS ").size(), TDummyException);
     }
 
     Y_UNIT_TEST(NameNormalization) {
