@@ -273,6 +273,11 @@ struct ISchedulerStrategy
         const TOperationRuntimeParametersPtr& runtimeParameters,
         bool validatePools) = 0;
 
+    virtual TFuture<void> ValidateOperationPoolPermissions(
+        const IOperationStrategyHost* operation,
+        const std::string& user,
+        NYTree::EPermissionSet permissions) = 0;
+
     virtual void ValidatePoolLimitsOnPoolChange(
         IOperationStrategyHost* operation,
         const TOperationRuntimeParametersPtr& runtimeParameters) = 0;

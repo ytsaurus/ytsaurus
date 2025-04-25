@@ -188,6 +188,17 @@ static constexpr int MaxNodeShardCount = 64;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DEFINE_ENUM(EOperationManagementAction,
+    (Suspend)
+    (Resume)
+    (Abort)
+    (Complete)
+    // TODO(ignat): YT-23056: support more sophisticated checks for UpdateOperationParameters.
+    // (UpdateParameters)
+);
+
+////////////////////////////////////////////////////////////////////////////////
+
 DECLARE_REFCOUNTED_STRUCT(TStrategyTestingOptions)
 DECLARE_REFCOUNTED_STRUCT(TOperationStuckCheckOptions)
 DECLARE_REFCOUNTED_STRUCT(TFairShareStrategyConfig)
