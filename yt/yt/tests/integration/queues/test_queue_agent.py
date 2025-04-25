@@ -3228,10 +3228,14 @@ class TestQueueStaticExport(TestQueueStaticExportBase):
     # TODO(achulkov2): Add test that replicated/chaos queues are not exported.
 
     @authors("apachee")
-    def test_long_exports(self):
+    @pytest.mark.parametrize("use_cron", [False, True])
+    def test_long_exports(self, use_cron):
         # Just a little sanity check to at least somewhat verify that we do not export data that is not yet ready, e.g.
         # we do not make daily export for this day before the end of it.
         # This test assumes making an export does not take too long (less than a couple of seconds).
+
+        if use_cron and getattr(self, "USE_OLD_QUEUE_EXPORTER_IMPL"):
+            pytest.skip()
 
         _, queue_id = self._create_queue("//tmp/q")
 
@@ -3240,12 +3244,20 @@ class TestQueueStaticExport(TestQueueStaticExportBase):
 
         export_period_seconds = 15
 
-        set("//tmp/q/@static_export_config", {
-            "default": {
-                "export_directory": export_dir,
-                "export_period": export_period_seconds * 1000,
-            }
-        })
+        if not use_cron:
+            set("//tmp/q/@static_export_config", {
+                "default": {
+                    "export_directory": export_dir,
+                    "export_period": export_period_seconds * 1000,
+                }
+            })
+        else:
+            set("//tmp/q/@static_export_config", {
+                "default": {
+                    "export_directory": export_dir,
+                    "export_cron_schedule": "0/15 * * * * *",  # Every 15 seconds.
+                }
+            })
 
         orchid = QueueAgentOrchid()
         self._wait_for_component_passes()
@@ -3612,20 +3624,35 @@ class TestQueueStaticExport(TestQueueStaticExportBase):
 
     @authors("achulkov2", "nadya73")
     @pytest.mark.parametrize("use_upper_bound_for_table_names", [False, True])
-    def test_table_name_formatting(self, use_upper_bound_for_table_names):
+    @pytest.mark.parametrize("use_cron", [False, True])
+    def test_table_name_formatting(self, use_upper_bound_for_table_names, use_cron):
+        if use_cron and getattr(self, "USE_OLD_QUEUE_EXPORTER_IMPL"):
+            pytest.skip()
+
         export_dir = "//tmp/export"
         export_period_seconds = 3
 
         _, queue_id = self._create_queue("//tmp/q")
         self._create_export_destination(export_dir, queue_id)
-        set("//tmp/q/@static_export_config", {
-            "default": {
-                "export_directory": export_dir,
-                "export_period": export_period_seconds * 1000,
-                "output_table_name_pattern": "%ISO-period-is-%PERIOD-fmt-%Y.%m.%d.%H.%M.%S",
-                "use_upper_bound_for_table_names": use_upper_bound_for_table_names,
-            }
-        })
+
+        if not use_cron:
+            set("//tmp/q/@static_export_config", {
+                "default": {
+                    "export_directory": export_dir,
+                    "export_period": export_period_seconds * 1000,
+                    "output_table_name_pattern": "%ISO-period-is-%PERIOD-fmt-%Y.%m.%d.%H.%M.%S",
+                    "use_upper_bound_for_table_names": use_upper_bound_for_table_names,
+                }
+            })
+        else:
+            set("//tmp/q/@static_export_config", {
+                "default": {
+                    "export_directory": export_dir,
+                    "export_cron_schedule": "0/3 * * * * *",  # Every 3 seconds.
+                    "output_table_name_pattern": "%ISO-period-is-%PERIOD-fmt-%Y.%m.%d.%H.%M.%S",
+                    "use_upper_bound_for_table_names": use_upper_bound_for_table_names,
+                }
+            })
 
         start = datetime.datetime.now(datetime.timezone.utc)
 
@@ -3657,19 +3684,32 @@ class TestQueueStaticExport(TestQueueStaticExportBase):
         self.remove_export_destination(export_dir)
 
     @authors("achulkov2", "nadya73")
-    def test_lower_bound_naming(self):
+    @pytest.mark.parametrize("use_cron", [False, True])
+    def test_lower_bound_naming(self, use_cron):
+        if use_cron and getattr(self, "USE_OLD_QUEUE_EXPORTER_IMPL"):
+            pytest.skip()
+
         _, queue_id = self._create_queue("//tmp/q")
 
         export_dir = "//tmp/export"
         self._create_export_destination(export_dir, queue_id)
 
-        set("//tmp/q/@static_export_config", {
-            "default": {
-                "export_directory": export_dir,
-                "export_period": 10 * 1000,
-                "use_upper_bound_for_table_names": False,
-            }
-        })
+        if not use_cron:
+            set("//tmp/q/@static_export_config", {
+                "default": {
+                    "export_directory": export_dir,
+                    "export_period": 10 * 1000,
+                    "use_upper_bound_for_table_names": False,
+                }
+            })
+        else:
+            set("//tmp/q/@static_export_config", {
+                "default": {
+                    "export_directory": export_dir,
+                    "export_cron_schedule": "0/10 * * * * *",  # Every 10 seconds.
+                    "use_upper_bound_for_table_names": False,
+                }
+            })
 
         # This way we assure that we write the rows at the beginning of the period, so that all rows are physically written and flushed before the next export instant arrives.
         mid_export = self._sleep_until_next_export_instant(period=10, offset=0.5)
