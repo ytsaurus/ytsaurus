@@ -1717,7 +1717,7 @@ def _build_cluster_connection_config(yt_config,
             "expire_after_successful_update_time": 72000000,  # 20h
             "expire_after_failed_update_time": 100,
             "refresh_time": 0,
-            "enable_client_mode" : True,
+            "is_client_mode_active" : True,
         },
         "upload_transaction_timeout": 5000,
         "read_operations_archive_state_from": "follower",
