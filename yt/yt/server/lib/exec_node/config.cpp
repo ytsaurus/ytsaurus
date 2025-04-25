@@ -427,6 +427,16 @@ void TJobInputCacheDynamicConfig::Register(TRegistrar registrar)
     registrar.Parameter("fallback_timeout_fraction", &TThis::FallbackTimeoutFraction)
         .InRange(0.0, 1.0)
         .Default(0.8);
+
+    registrar.Parameter("reader", &TThis::Reader)
+        // COMPAT(coteeq): For safe rolling. Remove in 25.2
+        .DefaultCtor([] {
+            auto reader = New<NChunkClient::TErasureReaderConfig>();
+            reader->EnableAutoRepair = true;
+            reader->UseChunkProber = true;
+            reader->UseReadBlocksBatcher = true;
+            return reader;
+        });
 }
 
 ////////////////////////////////////////////////////////////////////////////////

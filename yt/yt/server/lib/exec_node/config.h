@@ -350,6 +350,7 @@ struct TJobInputCacheDynamicConfig
 
     NChunkClient::TBlockCacheDynamicConfigPtr BlockCache;
     TSlruCacheDynamicConfigPtr MetaCache;
+    NChunkClient::TErasureReaderConfigPtr Reader;
 
     i64 TotalInFlightBlockSize;
 
