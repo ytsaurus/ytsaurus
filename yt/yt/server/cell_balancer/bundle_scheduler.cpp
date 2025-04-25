@@ -429,13 +429,13 @@ private:
         }
 
         for (const auto& [id, state] : adapter->DeallocationsState()) {
-            const auto deallocationRequest = GetOrDefault(input.DeallocationRequests, id, nullptr);
+            auto deallocationRequest = GetOrDefault(input.DeallocationRequests, id, nullptr);
             if (deallocationRequest) {
                 knownPodIds.push_back(deallocationRequest->Spec->PodId);
                 continue;
             }
 
-            const auto instanceInfo = adapter->FindInstanceInfo(state->InstanceName, input);
+            auto instanceInfo = adapter->FindInstanceInfo(state->InstanceName, input);
             if (instanceInfo) {
                 knownPodIds.push_back(GetPodIdForInstance(instanceInfo->CypressAnnotations, state->InstanceName));
                 continue;
