@@ -980,6 +980,7 @@ struct TFastIntermediateMediumTableWriterConfig
     : public NYTree::TYsonStruct
 {
     int MinUploadReplicationFactor;
+    std::optional<int> DirectUploadNodeCount;
     int UploadReplicationFactor;
     NErasure::ECodec ErasureCodec;
     bool EnableStripedErasure;
@@ -1004,6 +1005,9 @@ struct TOperationSpecBase
 
     //! Replication factor for intermediate data.
     int IntermediateDataReplicationFactor;
+
+    //! Direct upload replication factor for intermediate data.
+    std::optional<int> IntermediateDirectUploadNodeCount;
 
     //! Minimum replication factor for intermediate data.
     int MinIntermediateDataReplicationFactor;

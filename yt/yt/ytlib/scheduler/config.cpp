@@ -700,6 +700,8 @@ void TFastIntermediateMediumTableWriterConfig::Register(TRegistrar registrar)
         .Default(DefaultIntermediateDataReplicationFactor);
     registrar.Parameter("min_upload_replication_factor", &TThis::MinUploadReplicationFactor)
         .Default(1);
+    registrar.Parameter("direct_upload_node_count", &TThis::DirectUploadNodeCount)
+        .Default();
     registrar.Parameter("erasure_codec", &TThis::ErasureCodec)
         .Default(NErasure::ECodec::None);
     registrar.Parameter("enable_striped_erasure", &TThis::EnableStripedErasure)
@@ -719,6 +721,8 @@ void TOperationSpecBase::Register(TRegistrar registrar)
         .Default(NCompression::ECodec::Lz4);
     registrar.Parameter("intermediate_data_replication_factor", &TThis::IntermediateDataReplicationFactor)
         .Default(DefaultIntermediateDataReplicationFactor);
+    registrar.Parameter("intermediate_direct_upload_node_count", &TThis::IntermediateDirectUploadNodeCount)
+        .Default();
     registrar.Parameter("min_intermediate_data_replication_factor", &TThis::MinIntermediateDataReplicationFactor)
         .Alias("intermediate_min_data_replication_factor")
         .Default(1);
