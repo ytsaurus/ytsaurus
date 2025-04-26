@@ -1390,7 +1390,7 @@ class TestPortals(YTEnvSetup):
     @authors("cherepashka")
     def test_revoke_cypress_node_host_role_validation(self):
         create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 11})
-        with raises_yt_error("it still hosts cypress nodes"):
+        with raises_yt_error("it still hosts Cypress nodes"):
             set("//sys/@config/multicell_manager/cell_descriptors", {"11": {"roles": ["chunk_host"]}})
 
 

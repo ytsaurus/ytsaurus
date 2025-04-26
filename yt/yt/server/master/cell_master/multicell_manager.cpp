@@ -1322,7 +1322,7 @@ private:
                     const auto& multicellNodeStatistics = Bootstrap_->GetMulticellStatisticsCollector()->GetMulticellNodeStatistics();
                     auto chunkCount = multicellNodeStatistics.GetChunkCount(cellTag);
                     auto error = TError(
-                        "Role %Qv cannot be removed from master cell %v, because it still hosts chunks",
+                        "Role %Qlv cannot be removed from master cell %v, because it still hosts chunks",
                         EMasterCellRoles::ChunkHost,
                         cellTag)
                         << TErrorAttribute("chunk_count", chunkCount)
@@ -1334,7 +1334,7 @@ private:
                 if (Any(oldRoles & EMasterCellRoles::CypressNodeHost) && !Any(newRoles & EMasterCellRoles::CypressNodeHost)) {
                     auto portalCount = portalManager->CountPortalsLeadingToCell(cellTag);
                     auto error = TError(
-                        "Role %Qv cannot be removed from master cell %v, because it still hosts cypress nodes",
+                        "Role %Qlv cannot be removed from master cell %v, because it still hosts Cypress nodes",
                         EMasterCellRoles::CypressNodeHost,
                         cellTag)
                         << TErrorAttribute("portal_count", portalCount)
