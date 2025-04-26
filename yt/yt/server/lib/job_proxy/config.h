@@ -461,8 +461,6 @@ struct TJobProxyInternalConfig
 
     i64 AdaptiveRowCountUpperBound;
 
-    bool UseNewDeliveryFencedConnection;
-
     //! Enable root volume disk quota.
     //! Apply the quota to the entire root filesystem instead of the sandbox and tmp folders individually.
     bool EnableRootVolumeDiskQuota;
@@ -511,7 +509,6 @@ struct TJobProxyDynamicConfig
     NJobProxy::TJobTraceEventProcessorConfigPtr JobTraceEventProcessor;
 
     i64 AdaptiveRowCountUpperBound;
-    bool UseNewDeliveryFencedConnection;
 
     std::optional<TString> MemoryProfileDumpPath;
 

@@ -17,8 +17,6 @@
 #include <yt/yt/core/misc/proc.h>
 #include <yt/yt/core/misc/shutdown.h>
 
-#include <yt/yt/library/signals/signal_blocking.h>
-
 #include <library/cpp/yt/system/exit.h>
 
 #include <library/cpp/yt/phdr_cache/phdr_cache.h>
@@ -32,8 +30,6 @@ namespace NYT::NJobProxy {
 static constexpr auto& Logger = JobProxyLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
-
-YT_BLOCK_SIGNAL_FOR_PROCESS(SIGRTMIN);
 
 class TJobProxyProgram
     : public virtual TProgram
