@@ -28,7 +28,6 @@ TNamedPipe::TNamedPipe(const TString& path, std::optional<int> capacity, bool ow
 
 TNamedPipe::~TNamedPipe()
 {
-    YT_LOG_DEBUG("Destroying named pipe (Path: %v)", Path_);
     if (!Owning_) {
         return;
     }
@@ -65,15 +64,10 @@ IConnectionReaderPtr TNamedPipe::CreateAsyncReader()
     return CreateInputConnectionFromPath(Path_, TIODispatcher::Get()->GetPoller(), MakeStrong(this));
 }
 
-IConnectionWriterPtr TNamedPipe::CreateAsyncWriter(EDeliveryFencedMode deliveryFencedMode)
+IConnectionWriterPtr TNamedPipe::CreateAsyncWriter(bool useDeliveryFence)
 {
     YT_VERIFY(!Path_.empty());
-    return CreateOutputConnectionFromPath(
-        Path_,
-        TIODispatcher::Get()->GetPoller(),
-        MakeStrong(this),
-        Capacity_,
-        deliveryFencedMode);
+    return CreateOutputConnectionFromPath(Path_, TIODispatcher::Get()->GetPoller(), MakeStrong(this), Capacity_, useDeliveryFence);
 }
 
 TString TNamedPipe::GetPath() const

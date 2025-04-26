@@ -15,7 +15,6 @@ PEERDIR(
     yt/yt/core
     yt/yt/core/test_framework
     yt/yt/library/process
-    yt/yt/library/signals
 )
 
 SIZE(MEDIUM)

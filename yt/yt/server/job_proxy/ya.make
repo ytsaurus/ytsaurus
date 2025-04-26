@@ -51,7 +51,6 @@ PEERDIR(
     yt/yt/library/profiling/solomon
     yt/yt/library/tracing/jaeger
     yt/yt/library/server_program
-    yt/yt/library/signals
 )
 
 END()

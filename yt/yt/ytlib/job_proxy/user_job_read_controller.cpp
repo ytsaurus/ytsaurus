@@ -377,15 +377,21 @@ private:
         const TRowBatchReadOptions& options,
         TDuration pipeDelay)
     {
-        TCallback<void(TRowBatchReadOptions* mutableOptions, TDuration timeForBatch)> batchRorCountOptionsUpdater;
         if (Guesser_.IsEnabled()) {
-            batchRorCountOptionsUpdater = BIND_NO_PROPAGATE(&TUserJobReadController::UpdateRowBatchReadOptions, MakeStrong(this));
+            PipeReaderToWriterByBatches(
+                CreateApiFromSchemalessChunkReaderAdapter(reader),
+                writer,
+                options,
+                BIND(&TUserJobReadController::UpdateRowBatchReadOptions, MakeStrong(this)),
+                pipeDelay);
+            return;
         }
+
         PipeReaderToWriterByBatches(
             CreateApiFromSchemalessChunkReaderAdapter(reader),
             writer,
             options,
-            std::move(batchRorCountOptionsUpdater),
+            /*optionsUpdater*/ {},
             pipeDelay);
     }
 

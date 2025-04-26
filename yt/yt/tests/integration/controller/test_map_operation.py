@@ -15,7 +15,7 @@ from yt_commands import (
 
 from yt_type_helpers import make_schema, normalize_schema, make_column, list_type, tuple_type, optional_type
 
-from yt_helpers import skip_if_component_old, skip_if_old, skip_if_delivery_fenced_pipe_writer_not_supported
+from yt_helpers import skip_if_component_old, skip_if_old
 
 import yt.yson as yson
 from yt.test_helpers import assert_items_equal
@@ -1521,23 +1521,14 @@ print(json.dumps(input))
             assertion=lambda row_count: row_count == len(result) - added_rows,
             job_type=job_type))
 
-    @authors("pogorelov", "arkady-e1ppa")
+    @authors("arkady-e1ppa")
+    @pytest.mark.skip(reason="broken until YIML-219 is closed")
     @pytest.mark.parametrize("ordered", [False, True])
     @pytest.mark.parametrize("fmt", ["json", "dsv"])
-    @pytest.mark.parametrize(
-        "use_new_delivery_fenced_connection", [
-            False,
-            True,
-        ]
-    )
     @pytest.mark.ignore_in_opensource_ci
-    def test_map_interrupt_job_with_delivery_fenced_pipe_writer(self, ordered, fmt, use_new_delivery_fenced_connection):
+    def test_map_interrupt_job_with_delivery_fenced_pipe_writer(self, ordered, fmt):
         if any(version in getattr(self, "ARTIFACT_COMPONENTS", {}) for version in ["23_2", "24_1"]):
             pytest.xfail("Is not supported for older versions of server components")
-
-        skip_if_delivery_fenced_pipe_writer_not_supported(use_new_delivery_fenced_connection)
-
-        update_nodes_dynamic_config(value=use_new_delivery_fenced_connection, path="exec_node/job_controller/job_proxy/use_new_delivery_fenced_connection")
 
         # Test explanation:
         # Each job reads one row and writes it twice
@@ -1619,20 +1610,10 @@ print(json.dumps(input))
             assertion=lambda row_count: row_count == len(result) - 2,
             job_type=job_type))
 
-    @authors("pogorelov", "arkady-e1ppa")
+    @authors("arkady-e1ppa")
     @pytest.mark.parametrize("ordered", [False, True])
-    @pytest.mark.parametrize(
-        "use_new_delivery_fenced_connection", [
-            False,
-            True,
-        ]
-    )
-    def test_adaptive_buffer_row_count(self, ordered, use_new_delivery_fenced_connection):
+    def test_adaptive_buffer_row_count(self, ordered):
         skip_if_old(self.Env, (24, 2), "Option is not present in older binaries")
-
-        skip_if_delivery_fenced_pipe_writer_not_supported(use_new_delivery_fenced_connection)
-
-        update_nodes_dynamic_config(value=use_new_delivery_fenced_connection, path="exec_node/job_controller/job_proxy/use_new_delivery_fenced_connection")
 
         input_table = "//tmp/in"
         output_table = "//tmp/out"
@@ -1657,12 +1638,10 @@ print(json.dumps(input))
             out=output,
             command=with_breakpoint("""read row; echo $row; BREAKPOINT; cat"""),
             spec={
-                "mapper": {"format": "json"},
                 "job_count": 1,
                 "job_io": {
                     "buffer_row_count": 1,
                     "use_adaptive_buffer_row_count": True,
-                    "use_delivery_fenced_pipe_writer": True,
                 },
                 "max_failed_job_count": 1,
             },

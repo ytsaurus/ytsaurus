@@ -19,7 +19,7 @@ public:
     static TNamedPipePtr FromPath(const TString& path);
 
     NNet::IConnectionReaderPtr CreateAsyncReader();
-    NNet::IConnectionWriterPtr CreateAsyncWriter(NNet::EDeliveryFencedMode deliveryFencedMode = NNet::EDeliveryFencedMode::None);
+    NNet::IConnectionWriterPtr CreateAsyncWriter(bool useDeliveryFence = false);
 
     TString GetPath() const;
 

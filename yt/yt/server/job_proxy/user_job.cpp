@@ -1164,12 +1164,7 @@ private:
         auto format = ConvertTo<TFormat>(TYsonString(UserJobSpec_.input_format()));
 
         auto reader = pipe->CreateAsyncReader();
-        auto asyncOutput = pipe->CreateAsyncWriter(
-            JobIOConfig_->UseDeliveryFencedPipeWriter
-                ? Config_->UseNewDeliveryFencedConnection
-                    ? EDeliveryFencedMode::New
-                    : EDeliveryFencedMode::Old
-                : EDeliveryFencedMode::None);
+        auto asyncOutput = pipe->CreateAsyncWriter(JobIOConfig_->UseDeliveryFencedPipeWriter);
 
         TablePipeWriters_.push_back(asyncOutput);
 
