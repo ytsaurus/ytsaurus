@@ -182,6 +182,12 @@ public:
         SetChaosCacheStickyGroupBalancingHint(Key_.CardId,
             req->Header().MutableExtension(NRpc::NProto::TBalancingExt::balancing_ext));
 
+        SetChaosCacheCachingHeader(
+            Owner_->Config_->ExpireAfterSuccessfulUpdateTime,
+            Owner_->Config_->ExpireAfterFailedUpdateTime,
+            Key_.RefreshEra,
+            req->Header().MutableExtension(NYTree::NProto::TCachingHeaderExt::caching_header_ext));
+
         auto rsp = WaitFor(req->Invoke())
             .ValueOrThrow();
 

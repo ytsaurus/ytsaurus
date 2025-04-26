@@ -204,14 +204,10 @@ DEFINE_RPC_SERVICE_METHOD(TChaosCacheService, GetReplicationCard)
     auto requestId = context->GetRequestId();
     auto replicationCardId = FromProto<TReplicationCardId>(request->replication_card_id());
     auto fetchOptions = FromProto<TReplicationCardFetchOptions>(request->fetch_options());
+    // TODO(osidorkin): Get rid of refresh_era here, use cachingRequestHeaderExt.refresh_revision.
     auto refreshEra = request->has_refresh_era()
         ? request->refresh_era()
         : InvalidReplicationEra;
-
-    context->SetRequestInfo("ReplicationCardId: %v, FetchOptions: %v, RefreshEra: %v",
-        replicationCardId,
-        fetchOptions,
-        refreshEra);
 
     const auto& extendedFetchOptions = MinimalFetchOptions.Contains(fetchOptions)
         ? MinimalFetchOptions
@@ -221,17 +217,27 @@ DEFINE_RPC_SERVICE_METHOD(TChaosCacheService, GetReplicationCard)
     const auto& requestHeader = context->GetRequestHeader();
     if (requestHeader.HasExtension(TCachingHeaderExt::caching_header_ext)) {
         const auto& cachingRequestHeaderExt = requestHeader.GetExtension(TCachingHeaderExt::caching_header_ext);
+        if (refreshEra == InvalidReplicationEra) {
+            if (cachingRequestHeaderExt.has_refresh_revision()) {
+                refreshEra = cachingRequestHeaderExt.refresh_revision();
+            }
+        }
+
         const auto& user = context->GetAuthenticationIdentity().User;
+
+        context->SetRequestInfo("ReplicationCardId: %v, FetchOptions: %v, RefreshEra: %v",
+            replicationCardId,
+            fetchOptions,
+            refreshEra);
 
         auto key = TChaosCacheKey{
             .CardId = replicationCardId,
             .FetchOptions = extendedFetchOptions,
         };
 
-        YT_LOG_DEBUG("Serving request from cache (RequestId: %v, Key: %v, User: %v)",
+        YT_LOG_DEBUG("Serving request from cache (RequestId: %v, Key: %v)",
             requestId,
-            key,
-            user);
+            key);
 
         auto expireAfterSuccessfulUpdateTime = FromProto<TDuration>(cachingRequestHeaderExt.expire_after_successful_update_time());
         auto expireAfterFailedUpdateTime = FromProto<TDuration>(cachingRequestHeaderExt.expire_after_failed_update_time());
@@ -267,6 +273,13 @@ DEFINE_RPC_SERVICE_METHOD(TChaosCacheService, GetReplicationCard)
                 })));
         }
     } else {
+        context->SetRequestInfo("ReplicationCardId: %v, FetchOptions: %v",
+            replicationCardId,
+            fetchOptions);
+
+        YT_LOG_DEBUG("Serving request directly (RequestId: %v)", requestId);
+
+        // TODO(osidorkin): Get rid of Client_ here: No need to call WaitFor and checking options again inside it.
         NApi::TGetReplicationCardOptions getCardOptions;
         getCardOptions.BypassCache = true;
         static_cast<TReplicationCardFetchOptions&>(getCardOptions) = fetchOptions;
