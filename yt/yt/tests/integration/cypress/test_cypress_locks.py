@@ -19,7 +19,7 @@ import decorator
 
 def not_implemented_in_sequoia(func):
     def wrapper(func, self, *args, **kwargs):
-        if isinstance(self, TestCypressLocksInSequoia):
+        if isinstance(self, TestCypressLocksSequoia):
             pytest.skip("Not implemented in Sequoia")
         return func(self, *args, **kwargs)
 
@@ -29,7 +29,7 @@ def not_implemented_in_sequoia(func):
 def cannot_be_implemented_in_sequoia(reason):
     def wrapper_factory(func):
         def wrapper(func, self, *args, **kwargs):
-            if isinstance(self, TestCypressLocksInSequoia):
+            if isinstance(self, TestCypressLocksSequoia):
                 pytest.skip(f"Cannot be imlpemented in Sequoia: {reason}")
             return func(self, *args, **kwargs)
 
@@ -49,7 +49,7 @@ class TestCypressLocks(YTEnvSetup):
     NUM_TEST_PARTITIONS = 4
 
     def _in_sequoia(self):
-        return isinstance(self, TestCypressLocksInSequoia)
+        return isinstance(self, TestCypressLocksSequoia)
 
     @authors("panin", "ignat")
     def test_invalid_cases(self):
@@ -1772,7 +1772,7 @@ class TestCypressLocksMirroredTx(TestCypressLocksShardedTxCTxS):
 
 
 @pytest.mark.enabled_multidaemon
-class TestCypressLocksInSequoia(TestCypressLocksMirroredTx):
+class TestCypressLocksSequoia(TestCypressLocksMirroredTx):
     ENABLE_MULTIDAEMON = True
     ENABLE_TMP_ROOTSTOCK = True
     NUM_CYPRESS_PROXIES = 1
