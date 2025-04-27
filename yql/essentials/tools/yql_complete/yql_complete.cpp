@@ -15,7 +15,7 @@
 
 NSQLComplete::TFrequencyData LoadFrequencyDataFromFile(TString filepath) {
     TString text = TUnbufferedFileInput(filepath).ReadAll();
-    return NSQLComplete::ParseJsonFrequencyData(text);
+    return NSQLComplete::Pruned(NSQLComplete::ParseJsonFrequencyData(text));
 }
 
 NSQLComplete::TLexerSupplier MakePureLexerSupplier() {

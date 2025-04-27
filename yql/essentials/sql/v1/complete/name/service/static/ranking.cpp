@@ -115,7 +115,7 @@ namespace NSQLComplete {
     };
 
     IRanking::TPtr MakeDefaultRanking() {
-        return MakeIntrusive<TRanking>(LoadFrequencyData());
+        return MakeDefaultRanking(Pruned(LoadFrequencyData()));
     }
 
     IRanking::TPtr MakeDefaultRanking(TFrequencyData frequency) {

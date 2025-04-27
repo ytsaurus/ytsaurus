@@ -108,7 +108,7 @@ namespace NSQLComplete {
     }
 
     NameSet Pruned(NameSet names) {
-        auto frequency = LoadFrequencyDataForPrunning();
+        auto frequency = LoadFrequencyData();
         names.Pragmas = Pruned(std::move(names.Pragmas), frequency.Pragmas);
         names.Types = Pruned(std::move(names.Types), frequency.Types);
         names.Functions = Pruned(std::move(names.Functions), frequency.Functions);
