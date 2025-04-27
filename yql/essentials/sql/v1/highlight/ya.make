@@ -2,6 +2,7 @@ LIBRARY()
 
 SRCS(
     sql_highlight.cpp
+    sql_highlighter.cpp
 )
 
 PEERDIR(

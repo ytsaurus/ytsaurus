@@ -10,12 +10,6 @@
 
 namespace NSQLHighlight {
 
-    bool TPattern::IsPlain() const {
-        static RE2 PlainRe("[a-zA-Z]+");
-        return RE2::FullMatch(BodyRe, PlainRe) &&
-               RE2::FullMatch(AfterRe, PlainRe);
-    }
-
     struct Syntax {
         NSQLReflect::TLexerGrammar Grammar;
         THashMap<TString, TString> RegexByOtherName;
@@ -36,6 +30,13 @@ namespace NSQLHighlight {
         }
     };
 
+    TPattern CaseInsensitive(TStringBuf text) {
+        return {
+            .BodyRe = TString(text),
+            .IsCaseInsensitive = true,
+        };
+    }
+
     template <EUnitKind K>
     TUnit MakeUnit(Syntax& syntax);
 
@@ -46,7 +47,7 @@ namespace NSQLHighlight {
         TUnit unit = {.Kind = EUnitKind::Keyword};
         for (const auto& keyword : s.Grammar.KeywordNames) {
             const TStringBuf content = TLexerGrammar::KeywordBlock(keyword);
-            unit.Patterns.push_back({TString(content)});
+            unit.Patterns.push_back(CaseInsensitive(content));
         }
         return unit;
     }
@@ -59,16 +60,6 @@ namespace NSQLHighlight {
             unit.Patterns.push_back({content});
         }
         return unit;
-    }
-
-    template <>
-    TUnit MakeUnit<EUnitKind::Identifier>(Syntax& s) {
-        return {
-            .Kind = EUnitKind::Identifier,
-            .Patterns = {
-                {s.Get("ID_PLAIN")},
-            },
-        };
     }
 
     template <>
@@ -97,41 +88,41 @@ namespace NSQLHighlight {
             .Kind = EUnitKind::TypeIdentifier,
             .Patterns = {
                 {s.Get("ID_PLAIN"), s.Get("LESS")},
-                {"Decimal"},
-                {"Bool"},
-                {"Int8"},
-                {"Int16"},
-                {"Int32"},
-                {"Int64"},
-                {"Uint8"},
-                {"Uint16"},
-                {"Uint32"},
-                {"Uint64"},
-                {"Float"},
-                {"Double"},
-                {"DyNumber"},
-                {"String"},
-                {"Utf8"},
-                {"Json"},
-                {"JsonDocument"},
-                {"Yson"},
-                {"Uuid"},
-                {"Date"},
-                {"Datetime"},
-                {"Timestamp"},
-                {"Interval"},
-                {"TzDate"},
-                {"TzDateTime"},
-                {"TzTimestamp"},
-                {"Callable"},
-                {"Resource"},
-                {"Tagged"},
-                {"Generic"},
-                {"Unit"},
-                {"Null"},
-                {"Void"},
-                {"EmptyList"},
-                {"EmptyDict"},
+                CaseInsensitive("Decimal"),
+                CaseInsensitive("Bool"),
+                CaseInsensitive("Int8"),
+                CaseInsensitive("Int16"),
+                CaseInsensitive("Int32"),
+                CaseInsensitive("Int64"),
+                CaseInsensitive("Uint8"),
+                CaseInsensitive("Uint16"),
+                CaseInsensitive("Uint32"),
+                CaseInsensitive("Uint64"),
+                CaseInsensitive("Float"),
+                CaseInsensitive("Double"),
+                CaseInsensitive("DyNumber"),
+                CaseInsensitive("String"),
+                CaseInsensitive("Utf8"),
+                CaseInsensitive("Json"),
+                CaseInsensitive("JsonDocument"),
+                CaseInsensitive("Yson"),
+                CaseInsensitive("Uuid"),
+                CaseInsensitive("Date"),
+                CaseInsensitive("Datetime"),
+                CaseInsensitive("Timestamp"),
+                CaseInsensitive("Interval"),
+                CaseInsensitive("TzDate"),
+                CaseInsensitive("TzDateTime"),
+                CaseInsensitive("TzTimestamp"),
+                CaseInsensitive("Callable"),
+                CaseInsensitive("Resource"),
+                CaseInsensitive("Tagged"),
+                CaseInsensitive("Generic"),
+                CaseInsensitive("Unit"),
+                CaseInsensitive("Null"),
+                CaseInsensitive("Void"),
+                CaseInsensitive("EmptyList"),
+                CaseInsensitive("EmptyDict"),
             },
         };
     }
@@ -143,6 +134,16 @@ namespace NSQLHighlight {
             .Patterns = {
                 {s.Concat({"ID_PLAIN", "NAMESPACE", "ID_PLAIN"})},
                 {s.Get("ID_PLAIN"), s.Get("LPAREN")},
+            },
+        };
+    }
+
+    template <>
+    TUnit MakeUnit<EUnitKind::Identifier>(Syntax& s) {
+        return {
+            .Kind = EUnitKind::Identifier,
+            .Patterns = {
+                {s.Get("ID_PLAIN")},
             },
         };
     }
@@ -164,7 +165,10 @@ namespace NSQLHighlight {
         return {
             .Kind = EUnitKind::StringLiteral,
             .Patterns = {
-                {s.Get("STRING_VALUE")},
+                {
+                    .BodyRe = s.Get("STRING_VALUE"),
+                    .IsLongestMatch = false,
+                },
             },
         };
     }
@@ -174,7 +178,20 @@ namespace NSQLHighlight {
         return {
             .Kind = EUnitKind::Comment,
             .Patterns = {
-                {s.Get("COMMENT")},
+                {
+                    .BodyRe = s.Get("COMMENT"),
+                    .IsLongestMatch = false,
+                },
+            },
+        };
+    }
+
+    template <>
+    TUnit MakeUnit<EUnitKind::Whitespace>(Syntax& s) {
+        return {
+            .Kind = EUnitKind::Whitespace,
+            .Patterns = {
+                {s.Get("WS")},
             },
         };
     }
@@ -189,21 +206,22 @@ namespace NSQLHighlight {
     }
 
     THighlighting MakeHighlighting(NSQLReflect::TLexerGrammar grammar) {
-        Syntax syntax = MakeSyntax(std::move(grammar));
+        Syntax s = MakeSyntax(std::move(grammar));
 
         THighlighting h;
-        h.Units.emplace_back(MakeUnit<EUnitKind::Keyword>(syntax));
-        h.Units.emplace_back(MakeUnit<EUnitKind::Punctuation>(syntax));
-        h.Units.emplace_back(MakeUnit<EUnitKind::Identifier>(syntax));
-        h.Units.emplace_back(MakeUnit<EUnitKind::QuotedIdentifier>(syntax));
-        h.Units.emplace_back(MakeUnit<EUnitKind::BindParamterIdentifier>(syntax));
-        h.Units.emplace_back(MakeUnit<EUnitKind::TypeIdentifier>(syntax));
-        h.Units.emplace_back(MakeUnit<EUnitKind::FunctionIdentifier>(syntax));
-        h.Units.emplace_back(MakeUnit<EUnitKind::Literal>(syntax));
-        h.Units.emplace_back(MakeUnit<EUnitKind::StringLiteral>(syntax));
-        h.Units.emplace_back(MakeUnit<EUnitKind::Comment>(syntax));
+        h.Units.emplace_back(MakeUnit<EUnitKind::Keyword>(s));
+        h.Units.emplace_back(MakeUnit<EUnitKind::Punctuation>(s));
+        h.Units.emplace_back(MakeUnit<EUnitKind::QuotedIdentifier>(s));
+        h.Units.emplace_back(MakeUnit<EUnitKind::BindParamterIdentifier>(s));
+        h.Units.emplace_back(MakeUnit<EUnitKind::TypeIdentifier>(s));
+        h.Units.emplace_back(MakeUnit<EUnitKind::FunctionIdentifier>(s));
+        h.Units.emplace_back(MakeUnit<EUnitKind::Identifier>(s));
+        h.Units.emplace_back(MakeUnit<EUnitKind::Literal>(s));
+        h.Units.emplace_back(MakeUnit<EUnitKind::StringLiteral>(s));
+        h.Units.emplace_back(MakeUnit<EUnitKind::Comment>(s));
+        h.Units.emplace_back(MakeUnit<EUnitKind::Whitespace>(s));
 
-        h.Whitespace = {syntax.Get("WS")};
+        h.Whitespace = {s.Get("WS")};
 
         return h;
     }
@@ -219,9 +237,6 @@ void Out<NSQLHighlight::EUnitKind>(IOutputStream& out, NSQLHighlight::EUnitKind 
         case NSQLHighlight::EUnitKind::Punctuation:
             out << "Punctuation";
             break;
-        case NSQLHighlight::EUnitKind::Identifier:
-            out << "Identifier";
-            break;
         case NSQLHighlight::EUnitKind::QuotedIdentifier:
             out << "QuotedIdentifier";
             break;
@@ -234,6 +249,9 @@ void Out<NSQLHighlight::EUnitKind>(IOutputStream& out, NSQLHighlight::EUnitKind 
         case NSQLHighlight::EUnitKind::FunctionIdentifier:
             out << "FunctionIdentifier";
             break;
+        case NSQLHighlight::EUnitKind::Identifier:
+            out << "Identifier";
+            break;
         case NSQLHighlight::EUnitKind::Literal:
             out << "Literal";
             break;
@@ -242,6 +260,9 @@ void Out<NSQLHighlight::EUnitKind>(IOutputStream& out, NSQLHighlight::EUnitKind 
             break;
         case NSQLHighlight::EUnitKind::Comment:
             out << "Comment";
+            break;
+        case NSQLHighlight::EUnitKind::Whitespace:
+            out << "Ws";
             break;
     }
 }

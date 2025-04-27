@@ -9,9 +9,9 @@ using namespace NSQLHighlight;
 Y_UNIT_TEST_SUITE(SqlHighlightTests) {
 
     Y_UNIT_TEST(Example) {
-        const auto human = MakeHighlighting(NSQLReflect::LoadLexerGrammar());
+        auto highlighting = MakeHighlighting(NSQLReflect::LoadLexerGrammar());
 
-        for (const auto& unit : human.Units) {
+        for (const auto& unit : highlighting.Units) {
             Cout << "Unit " << unit.Kind << Endl;
             for (const auto& pattern : unit.Patterns) {
                 Cout << "- " << pattern.BodyRe;

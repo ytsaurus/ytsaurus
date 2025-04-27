@@ -11,21 +11,23 @@ namespace NSQLHighlight {
     enum class EUnitKind {
         Keyword,
         Punctuation,
-        Identifier,
         QuotedIdentifier,
         BindParamterIdentifier,
         TypeIdentifier,
         FunctionIdentifier,
+        Identifier,
         Literal,
         StringLiteral,
         Comment,
+        Whitespace,
     };
 
+    // TODO: abstract TRegex = (Re, IsCaseInsensitive)
     struct TPattern {
         TString BodyRe;
         TString AfterRe = "";
-
-        bool IsPlain() const;
+        bool IsCaseInsensitive = false;
+        bool IsLongestMatch = true;
     };
 
     struct TUnit {
