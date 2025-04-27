@@ -1,8 +1,8 @@
 #include "name_service.h"
 
 #include "name_index.h"
-#include "ranking.h"
 
+#include <yql/essentials/sql/v1/complete/name/service/ranking/ranking.h>
 #include <yql/essentials/sql/v1/complete/text/case.h>
 
 namespace NSQLComplete {
