@@ -49,7 +49,7 @@ Y_UNIT_TEST_SUITE(SqlCompleteTests) {
 
     ISqlCompletionEngine::TPtr MakeSqlCompletionEngineUT() {
         TLexerSupplier lexer = MakePureLexerSupplier();
-        NameSet names = {
+        TNameSet names = {
             .Pragmas = {"yson.CastToString"},
             .Types = {"Uint64"},
             .Functions = {"StartsWith", "DateTime::Split"},

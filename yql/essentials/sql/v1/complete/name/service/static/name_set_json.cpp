@@ -108,7 +108,7 @@ namespace NSQLComplete {
         return names;
     }
 
-    NameSet Pruned(NameSet names) {
+    TNameSet Pruned(TNameSet names) {
         auto frequency = LoadFrequencyData();
         names.Pragmas = Pruned(std::move(names.Pragmas), frequency.Pragmas);
         names.Types = Pruned(std::move(names.Types), frequency.Types);
@@ -119,7 +119,7 @@ namespace NSQLComplete {
         return names;
     }
 
-    NameSet MakeDefaultNameSet() {
+    TNameSet MakeDefaultNameSet() {
         return Pruned({
             .Pragmas = ParsePragmas(LoadJsonResource("pragmas_opensource.json")),
             .Types = ParseTypes(LoadJsonResource("types.json")),

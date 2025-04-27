@@ -8,13 +8,16 @@
 
 namespace NSQLComplete {
 
-    struct NameSet {
+    struct TNameSet {
         TVector<TString> Pragmas;
         TVector<TString> Types;
         TVector<TString> Functions;
         THashMap<EStatementKind, TVector<TString>> Hints;
     };
 
-    NameSet MakeDefaultNameSet();
+    // TODO(YQL-19747): Migrate YDB CLI
+    using NameSet = TNameSet;
+
+    TNameSet MakeDefaultNameSet();
 
 } // namespace NSQLComplete

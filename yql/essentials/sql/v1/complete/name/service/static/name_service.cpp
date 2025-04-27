@@ -72,7 +72,7 @@ namespace NSQLComplete {
 
     class TStaticNameService: public INameService {
     public:
-        explicit TStaticNameService(NameSet names, IRanking::TPtr ranking)
+        explicit TStaticNameService(TNameSet names, IRanking::TPtr ranking)
             : Pragmas_(BuildNameIndex(std::move(names.Pragmas), NormalizeName))
             , Types_(BuildNameIndex(std::move(names.Types), NormalizeName))
             , Functions_(BuildNameIndex(std::move(names.Functions), NormalizeName))
@@ -143,7 +143,7 @@ namespace NSQLComplete {
         return MakeStaticNameService(MakeDefaultNameSet(), MakeDefaultRanking());
     }
 
-    INameService::TPtr MakeStaticNameService(NameSet names, IRanking::TPtr ranking) {
+    INameService::TPtr MakeStaticNameService(TNameSet names, IRanking::TPtr ranking) {
         return MakeIntrusive<TStaticNameService>(std::move(names), std::move(ranking));
     }
 
