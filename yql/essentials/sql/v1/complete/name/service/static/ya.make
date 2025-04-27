@@ -1,7 +1,7 @@
 LIBRARY()
 
 SRCS(
-    json_name_set.cpp
+    name_set_json.cpp
     name_index.cpp
     name_service.cpp
 )

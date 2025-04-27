@@ -1,19 +1,11 @@
 #pragma once
 
 #include "ranking.h"
+#include "name_set.h"
 
 #include <yql/essentials/sql/v1/complete/name/service/name_service.h>
 
 namespace NSQLComplete {
-
-    struct NameSet {
-        TVector<TString> Pragmas;
-        TVector<TString> Types;
-        TVector<TString> Functions;
-        THashMap<EStatementKind, TVector<TString>> Hints;
-    };
-
-    NameSet MakeDefaultNameSet();
 
     INameService::TPtr MakeStaticNameService();
 
