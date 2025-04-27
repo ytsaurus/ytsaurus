@@ -139,8 +139,10 @@ namespace NSQLComplete {
         IRanking::TPtr Ranking_;
     };
 
-    INameService::TPtr MakeStaticNameService() {
-        return MakeStaticNameService(MakeDefaultNameSet(), MakeDefaultRanking());
+    INameService::TPtr MakeStaticNameService(TNameSet names, TFrequencyData frequency) {
+        return INameService::TPtr(new TStaticNameService(
+            Pruned(std::move(names), frequency),
+            MakeDefaultRanking(std::move(frequency))));
     }
 
     INameService::TPtr MakeStaticNameService(TNameSet names, IRanking::TPtr ranking) {

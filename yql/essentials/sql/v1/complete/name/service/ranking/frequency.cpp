@@ -80,7 +80,7 @@ namespace NSQLComplete {
         return data;
     }
 
-    THashMap<TString, size_t> PrunedBy(THashMap<TString, size_t> data, auto normalize) {
+    THashMap<TString, size_t> PrunedBy(const THashMap<TString, size_t>& data, auto normalize) {
         THashMap<TString, size_t> pruned;
         for (const auto& [name, count] : data) {
             pruned[normalize(name)] += count;
@@ -88,16 +88,17 @@ namespace NSQLComplete {
         return pruned;
     }
 
-    TFrequencyData PrunedBy(TFrequencyData data, auto normalize) {
-        data.Keywords = PrunedBy(std::move(data.Keywords), normalize);
-        data.Pragmas = PrunedBy(std::move(data.Pragmas), normalize);
-        data.Types = PrunedBy(std::move(data.Types), normalize);
-        data.Functions = PrunedBy(std::move(data.Functions), normalize);
-        data.Hints = PrunedBy(std::move(data.Hints), normalize);
-        return data;
+    TFrequencyData PrunedBy(const TFrequencyData& data, auto normalize) {
+        return {
+            .Keywords = PrunedBy(data.Keywords, normalize),
+            .Pragmas = PrunedBy(data.Pragmas, normalize),
+            .Types = PrunedBy(data.Types, normalize),
+            .Functions = PrunedBy(data.Functions, normalize),
+            .Hints = PrunedBy(data.Hints, normalize),
+        };
     }
 
-    TFrequencyData Pruned(TFrequencyData data) {
+    TFrequencyData Pruned(const TFrequencyData& data) {
         return PrunedBy(data, [](TStringBuf s) {
             return NYql::NormalizeName(s);
         });

@@ -66,18 +66,18 @@ int Run(int argc, char* argv[]) {
         queryString = in.ReadAll();
     }
 
-    NSQLComplete::IRanking::TPtr ranking;
+    NSQLComplete::TFrequencyData frequency;
     if (freqFileName.empty()) {
-        ranking = NSQLComplete::MakeDefaultRanking();
+        frequency = NSQLComplete::LoadFrequencyData();
     } else {
-        auto freq = LoadFrequencyDataFromFile(freqFileName);
-        ranking = NSQLComplete::MakeDefaultRanking(std::move(freq));
+        frequency = LoadFrequencyDataFromFile(freqFileName);
     }
+
     auto engine = NSQLComplete::MakeSqlCompletionEngine(
         MakePureLexerSupplier(),
         NSQLComplete::MakeStaticNameService(
-            NSQLComplete::MakeDefaultNameSet(),
-            std::move(ranking)));
+            NSQLComplete::LoadDefaultNameSet(), 
+            std::move(frequency)));
 
     NSQLComplete::TCompletionInput input;
 
