@@ -30,7 +30,7 @@ namespace NSQLHighlight {
 
         TString Get(const TStringBuf name) const {
             if (Grammar.PunctuationNames.contains(name)) {
-                return Grammar.BlockByName.at(name);
+                return RE2::QuoteMeta(Grammar.BlockByName.at(name));
             }
             return RegexByOtherName.at(name);
         }
@@ -55,7 +55,7 @@ namespace NSQLHighlight {
     TUnit MakeUnit<EUnitKind::Punctuation>(Syntax& s) {
         TUnit unit = {.Kind = EUnitKind::Punctuation};
         for (const auto& name : s.Grammar.PunctuationNames) {
-            const TString content = s.Grammar.BlockByName.at(name);
+            const TString content = s.Get(name);
             unit.Patterns.push_back({content});
         }
         return unit;
