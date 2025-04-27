@@ -1,6 +1,6 @@
 #include "sql_complete.h"
 
-#include <yql/essentials/sql/v1/complete/name/service/static/frequency.h>
+#include <yql/essentials/sql/v1/complete/name/service/ranking/frequency.h>
 #include <yql/essentials/sql/v1/complete/name/service/static/name_service.h>
 #include <yql/essentials/sql/v1/complete/name/service/static/ranking.h>
 

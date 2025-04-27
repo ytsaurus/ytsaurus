@@ -1,7 +1,6 @@
 #pragma once
 
-#include "frequency.h"
-
+#include <yql/essentials/sql/v1/complete/name/service/ranking/frequency.h>
 #include <yql/essentials/sql/v1/complete/name/service/name_service.h>
 
 #include <util/generic/hash.h>
