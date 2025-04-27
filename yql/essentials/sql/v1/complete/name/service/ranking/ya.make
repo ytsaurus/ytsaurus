@@ -2,10 +2,12 @@ LIBRARY()
 
 SRCS(
     frequency.cpp
+    ranking.cpp
 )
 
 PEERDIR(
     yql/essentials/core/sql_types
+    yql/essentials/sql/v1/complete/name/service
 )
 
 RESOURCE(
