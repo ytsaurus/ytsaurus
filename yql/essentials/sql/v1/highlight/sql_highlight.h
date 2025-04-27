@@ -22,7 +22,8 @@ namespace NSQLHighlight {
         Whitespace,
     };
 
-    // TODO: abstract TRegex = (Re, IsCaseInsensitive)
+    // TODO: Add an generic lexer powered by TPattern.
+    //       Use it for both sql/v1/lexer/regex and sql/v1/highlight
     struct TPattern {
         TString BodyRe;
         TString AfterRe = "";
