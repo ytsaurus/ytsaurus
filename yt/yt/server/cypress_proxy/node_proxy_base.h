@@ -1,7 +1,7 @@
 #pragma once
 
-#include "public.h"
 #include "private.h"
+#include "node_proxy.h"
 
 #include <yt/yt/core/ytree/ypath_detail.h>
 
@@ -10,10 +10,10 @@ namespace NYT::NCypressProxy {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TNodeProxyBase
-    : public TRefCounted
+    : public INodeProxy
 {
 public:
-    EInvokeResult Invoke(const ISequoiaServiceContextPtr& context);
+    EInvokeResult Invoke(const ISequoiaServiceContextPtr& context) override;
 
 protected:
     IBootstrap* const Bootstrap_;

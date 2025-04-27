@@ -15,7 +15,7 @@ DECLARE_REFCOUNTED_STRUCT(IBootstrap)
 using ISequoiaServiceContext = NYTree::IYPathServiceContext;
 using ISequoiaServiceContextPtr = NYTree::IYPathServiceContextPtr;
 
-DECLARE_REFCOUNTED_CLASS(TNodeProxyBase)
+DECLARE_REFCOUNTED_STRUCT(INodeProxy)
 
 DECLARE_REFCOUNTED_STRUCT(IObjectService)
 DECLARE_REFCOUNTED_STRUCT(ISequoiaService)
@@ -34,6 +34,8 @@ DECLARE_REFCOUNTED_STRUCT(IMasterConnector)
 
 DECLARE_REFCOUNTED_STRUCT(TObjectServiceDynamicConfig)
 DECLARE_REFCOUNTED_STRUCT(TSequoiaResponseKeeperDynamicConfig)
+DECLARE_REFCOUNTED_STRUCT(TCypressProxyBootstrapConfig)
+DECLARE_REFCOUNTED_STRUCT(TCypressProxyProgramConfig)
 DECLARE_REFCOUNTED_STRUCT(TCypressProxyDynamicConfig)
 DECLARE_REFCOUNTED_STRUCT(TUserDirectorySynchronizerConfig)
 
@@ -58,6 +60,11 @@ using TResolveResult = std::variant<
 DEFINE_ENUM(EUserWorkloadType,
     (Read)
     (Write)
+);
+
+DEFINE_ENUM(EInvokeResult,
+    (Executed)
+    (ForwardToMaster)
 );
 
 ////////////////////////////////////////////////////////////////////////////////
