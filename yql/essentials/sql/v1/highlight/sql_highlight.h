@@ -22,8 +22,19 @@ namespace NSQLHighlight {
         Whitespace,
     };
 
-    // TODO: Add an generic lexer powered by TPattern.
-    //       Use it for both sql/v1/lexer/regex and sql/v1/highlight
+    // TODO: Introfuce the GenericLexer powered by TPattern.
+    //
+    //       Use it for both sql/v1/lexer/regex and sql/v1/highlight.
+    //       - /sql/v1/lexer/regex/generic.h
+    //       - /sql/v1/lexer/regex/lexer.h
+    //
+    //       Translatation. Grammar -> Highlighting -> GenericLexerGrammar.
+    //
+    //       GenericLexer:
+    //         Uses [{TokenKind: TString, Matcher}] for matching
+    //         Matcher = FunctionRef<TMaybe<TStringBuf>(TStringBuf prefix)>
+    //         RegexMatcher(TPattern) -> Matcher
+    //         TToken = { Kind: TStringBuf, Begin: size_t, size_t Length }
     struct TPattern {
         TString BodyRe;
         TString AfterRe = "";
