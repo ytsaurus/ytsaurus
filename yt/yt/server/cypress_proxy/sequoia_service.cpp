@@ -195,7 +195,7 @@ public:
     {
         static_assert(std::variant_size<std::decay_t<decltype(resolveResult)>>() == 2);
 
-        TNodeProxyBasePtr proxy;
+        INodeProxyPtr proxy;
         if (const auto* cypressResolveResult = std::get_if<TCypressResolveResult>(&resolveResult)) {
             if (context->GetRequestHeader().method() != "Create") {
                 return EInvokeResult::ForwardToMaster;

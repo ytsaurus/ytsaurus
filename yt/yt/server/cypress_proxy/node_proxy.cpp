@@ -1654,7 +1654,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TNodeProxyBasePtr CreateNodeProxy(
+INodeProxyPtr CreateNodeProxy(
     IBootstrap* bootstrap,
     TSequoiaSessionPtr session,
     TSequoiaResolveResult resolveResult)
