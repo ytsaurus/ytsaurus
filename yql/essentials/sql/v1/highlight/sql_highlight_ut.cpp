@@ -13,13 +13,13 @@ Y_UNIT_TEST_SUITE(SqlHighlightTests) {
 
         for (const auto& unit : human.Units) {
             Cout << "Unit " << unit.Kind << Endl;
-            for (const auto& token : unit.Tokens) {
-                Cout << "- " << JoinSeq(" ", token) << Endl;
+            for (const auto& pattern : unit.Patterns) {
+                Cout << "- " << pattern.BodyRe;
+                if (!pattern.AfterRe.empty()) {
+                    Cout << "(?=" << pattern.AfterRe + ")";
+                }
+                Cout << Endl;
             }
-        }
-
-        for (const auto& [name, content] : human.References) {
-            Cout << "Ref " << name << ": " << content << Endl;
         }
     }
 

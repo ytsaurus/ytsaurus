@@ -8,9 +8,7 @@
 
 namespace NSQLHighlight {
 
-    using TMetaToken = TVector<TString>;
-
-    enum EHUnitKind {
+    enum class EUnitKind {
         Keyword,
         Punctuation,
         Identifier,
@@ -23,25 +21,23 @@ namespace NSQLHighlight {
         Comment,
     };
 
-    struct THumanHighlighting {
-        struct TUnit {
-            EHUnitKind Kind;
-            TVector<TMetaToken> Tokens;
-        };
+    struct TPattern {
+        TString BodyRe;
+        TString AfterRe = "";
 
-        TVector<TUnit> Units;
-        TMap<TString, TString> References;
+        bool IsPlain() const;
     };
 
-    struct TMachineHighlighting {
-        struct TUnit {
-            EHUnitKind Kind;
-            TString Regex;
-        };
-
-        TVector<TUnit> Units;
+    struct TUnit {
+        EUnitKind Kind;
+        TVector<TPattern> Patterns;
     };
 
-    THumanHighlighting MakeHighlighting(NSQLReflect::TLexerGrammar grammar);
+    struct THighlighting {
+        TVector<TUnit> Units;
+        TPattern Whitespace;
+    };
+
+    THighlighting MakeHighlighting(NSQLReflect::TLexerGrammar grammar);
 
 } // namespace NSQLHighlight

@@ -81,7 +81,7 @@ TString Format(const TMap<TString, TString>& map) {
 template <>
 void Generate<ETarget::Readme>(IOutputStream& out) {
     TString text;
-    Y_ENSURE(NResource::FindExact("README.md.in", &text));
+    Y_ENSURE(NResource::FindExact("README.md", &text));
 
     auto grammar = NSQLReflect::LoadLexerGrammar();
     auto highlighting = NSQLHighlight::MakeHighlighting(std::move(grammar));

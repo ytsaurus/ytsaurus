@@ -12,7 +12,7 @@ IF (NOT EXPORT_CMAKE OR NOT OPENSOURCE OR OPENSOURCE_PROJECT != "yt")
     )
 
     RESOURCE(
-        DONT_PARSE yql/essentials/tools/yql_highlight/resource/README.md.in README.md.in
+        DONT_PARSE yql/essentials/tools/yql_highlight/resource/README.md README.md
     )
 
     END()

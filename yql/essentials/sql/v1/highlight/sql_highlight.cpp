@@ -2,26 +2,33 @@
 
 #include <yql/essentials/sql/v1/lexer/regex/regex.h>
 
+#include <contrib/libs/re2/re2/re2.h>
+
 #include <util/generic/algorithm.h>
 #include <util/generic/hash.h>
 #include <util/generic/hash_set.h>
 
 namespace NSQLHighlight {
 
+    bool TPattern::IsPlain() const {
+        static RE2 PlainRe("[a-zA-Z]+");
+        return RE2::FullMatch(BodyRe, PlainRe) &&
+               RE2::FullMatch(AfterRe, PlainRe);
+    }
+
     struct Syntax {
         NSQLReflect::TLexerGrammar Grammar;
         THashMap<TString, TString> RegexByOtherName;
-        THashSet<TString> Referenced;
 
-        TString Ref(const TStringBuf name) {
-            Y_ENSURE(
-                Grammar.PunctuationNames.contains(name) ||
-                    RegexByOtherName.contains(name), name);
-            Referenced.emplace(name);
-            return TString(name);
+        TString Concat(const TVector<TStringBuf>& names) {
+            TString concat;
+            for (const auto& name : names) {
+                concat += Get(name);
+            }
+            return concat;
         }
 
-        TString Inl(const TStringBuf name) const {
+        TString Get(const TStringBuf name) const {
             if (Grammar.PunctuationNames.contains(name)) {
                 return Grammar.BlockByName.at(name);
             }
@@ -29,65 +36,67 @@ namespace NSQLHighlight {
         }
     };
 
-    template <EHUnitKind K>
-    THumanHighlighting::TUnit MakeUnit(Syntax& syntax);
+    template <EUnitKind K>
+    TUnit MakeUnit(Syntax& syntax);
 
     template <>
-    THumanHighlighting::TUnit MakeUnit<EHUnitKind::Keyword>(Syntax& syntax) {
-        THumanHighlighting::TUnit unit = {.Kind = EHUnitKind::Keyword};
-        for (const auto& keyword : syntax.Grammar.KeywordNames) {
-            const TStringBuf content = NSQLReflect::TLexerGrammar::KeywordBlock(keyword);
-            unit.Tokens.push_back({TString(content)});
+    TUnit MakeUnit<EUnitKind::Keyword>(Syntax& s) {
+        using NSQLReflect::TLexerGrammar;
+
+        TUnit unit = {.Kind = EUnitKind::Keyword};
+        for (const auto& keyword : s.Grammar.KeywordNames) {
+            const TStringBuf content = TLexerGrammar::KeywordBlock(keyword);
+            unit.Patterns.push_back({TString(content)});
         }
         return unit;
     }
 
     template <>
-    THumanHighlighting::TUnit MakeUnit<EHUnitKind::Punctuation>(Syntax& syntax) {
-        THumanHighlighting::TUnit unit = {.Kind = EHUnitKind::Punctuation};
-        for (const auto& name : syntax.Grammar.PunctuationNames) {
-            const TString content = syntax.Grammar.BlockByName.at(name);
-            unit.Tokens.push_back({content});
+    TUnit MakeUnit<EUnitKind::Punctuation>(Syntax& s) {
+        TUnit unit = {.Kind = EUnitKind::Punctuation};
+        for (const auto& name : s.Grammar.PunctuationNames) {
+            const TString content = s.Grammar.BlockByName.at(name);
+            unit.Patterns.push_back({content});
         }
         return unit;
     }
 
     template <>
-    THumanHighlighting::TUnit MakeUnit<EHUnitKind::Identifier>(Syntax& syntax) {
+    TUnit MakeUnit<EUnitKind::Identifier>(Syntax& s) {
         return {
-            .Kind = EHUnitKind::Identifier,
-            .Tokens = {
-                {syntax.Ref("ID_PLAIN")},
+            .Kind = EUnitKind::Identifier,
+            .Patterns = {
+                {s.Get("ID_PLAIN")},
             },
         };
     }
 
     template <>
-    THumanHighlighting::TUnit MakeUnit<EHUnitKind::QuotedIdentifier>(Syntax& syntax) {
+    TUnit MakeUnit<EUnitKind::QuotedIdentifier>(Syntax& s) {
         return {
-            .Kind = EHUnitKind::QuotedIdentifier,
-            .Tokens = {
-                {syntax.Inl("ID_QUOTED")},
+            .Kind = EUnitKind::QuotedIdentifier,
+            .Patterns = {
+                {s.Get("ID_QUOTED")},
             },
         };
     }
 
     template <>
-    THumanHighlighting::TUnit MakeUnit<EHUnitKind::BindParamterIdentifier>(Syntax& syntax) {
+    TUnit MakeUnit<EUnitKind::BindParamterIdentifier>(Syntax& s) {
         return {
-            .Kind = EHUnitKind::BindParamterIdentifier,
-            .Tokens = {
-                {syntax.Inl("DOLLAR"), syntax.Ref("ID_PLAIN")},
+            .Kind = EUnitKind::BindParamterIdentifier,
+            .Patterns = {
+                {s.Concat({"DOLLAR", "ID_PLAIN"})},
             },
         };
     }
 
     template <>
-    THumanHighlighting::TUnit MakeUnit<EHUnitKind::TypeIdentifier>(Syntax& syntax) {
+    TUnit MakeUnit<EUnitKind::TypeIdentifier>(Syntax& s) {
         return {
-            .Kind = EHUnitKind::TypeIdentifier,
-            .Tokens = {
-                {syntax.Ref("ID_PLAIN"), syntax.Inl("LESS")},
+            .Kind = EUnitKind::TypeIdentifier,
+            .Patterns = {
+                {s.Get("ID_PLAIN"), s.Get("LESS")},
                 {"Decimal"},
                 {"Bool"},
                 {"Int8"},
@@ -128,44 +137,44 @@ namespace NSQLHighlight {
     }
 
     template <>
-    THumanHighlighting::TUnit MakeUnit<EHUnitKind::FunctionIdentifier>(Syntax& syntax) {
+    TUnit MakeUnit<EUnitKind::FunctionIdentifier>(Syntax& s) {
         return {
-            .Kind = EHUnitKind::FunctionIdentifier,
-            .Tokens = {
-                {syntax.Ref("ID_PLAIN"), syntax.Inl("NAMESPACE"), syntax.Ref("ID_PLAIN")},
-                {syntax.Ref("ID_PLAIN"), syntax.Inl("LPAREN")},
+            .Kind = EUnitKind::FunctionIdentifier,
+            .Patterns = {
+                {s.Concat({"ID_PLAIN", "NAMESPACE", "ID_PLAIN"})},
+                {s.Get("ID_PLAIN"), s.Get("LPAREN")},
             },
         };
     }
 
     template <>
-    THumanHighlighting::TUnit MakeUnit<EHUnitKind::Literal>(Syntax& syntax) {
+    TUnit MakeUnit<EUnitKind::Literal>(Syntax& s) {
         return {
-            .Kind = EHUnitKind::Literal,
-            .Tokens = {
-                {syntax.Inl("DIGITS")},
-                {syntax.Inl("INTEGER_VALUE")},
-                {syntax.Inl("REAL")},
+            .Kind = EUnitKind::Literal,
+            .Patterns = {
+                {s.Get("DIGITS")},
+                {s.Get("INTEGER_VALUE")},
+                {s.Get("REAL")},
             },
         };
     }
 
     template <>
-    THumanHighlighting::TUnit MakeUnit<EHUnitKind::StringLiteral>(Syntax& syntax) {
+    TUnit MakeUnit<EUnitKind::StringLiteral>(Syntax& s) {
         return {
-            .Kind = EHUnitKind::StringLiteral,
-            .Tokens = {
-                {syntax.Inl("STRING_VALUE")},
+            .Kind = EUnitKind::StringLiteral,
+            .Patterns = {
+                {s.Get("STRING_VALUE")},
             },
         };
     }
 
     template <>
-    THumanHighlighting::TUnit MakeUnit<EHUnitKind::Comment>(Syntax& syntax) {
+    TUnit MakeUnit<EUnitKind::Comment>(Syntax& s) {
         return {
-            .Kind = EHUnitKind::Comment,
-            .Tokens = {
-                {syntax.Inl("COMMENT")},
+            .Kind = EUnitKind::Comment,
+            .Patterns = {
+                {s.Get("COMMENT")},
             },
         };
     }
@@ -179,26 +188,22 @@ namespace NSQLHighlight {
         return syntax;
     }
 
-    THumanHighlighting MakeHighlighting(NSQLReflect::TLexerGrammar grammar) {
+    THighlighting MakeHighlighting(NSQLReflect::TLexerGrammar grammar) {
         Syntax syntax = MakeSyntax(std::move(grammar));
 
-        THumanHighlighting h;
-        h.Units.emplace_back(MakeUnit<EHUnitKind::Keyword>(syntax));
-        h.Units.emplace_back(MakeUnit<EHUnitKind::Punctuation>(syntax));
-        h.Units.emplace_back(MakeUnit<EHUnitKind::Identifier>(syntax));
-        h.Units.emplace_back(MakeUnit<EHUnitKind::QuotedIdentifier>(syntax));
-        h.Units.emplace_back(MakeUnit<EHUnitKind::BindParamterIdentifier>(syntax));
-        h.Units.emplace_back(MakeUnit<EHUnitKind::TypeIdentifier>(syntax));
-        h.Units.emplace_back(MakeUnit<EHUnitKind::FunctionIdentifier>(syntax));
-        h.Units.emplace_back(MakeUnit<EHUnitKind::Literal>(syntax));
-        h.Units.emplace_back(MakeUnit<EHUnitKind::StringLiteral>(syntax));
-        h.Units.emplace_back(MakeUnit<EHUnitKind::Comment>(syntax));
+        THighlighting h;
+        h.Units.emplace_back(MakeUnit<EUnitKind::Keyword>(syntax));
+        h.Units.emplace_back(MakeUnit<EUnitKind::Punctuation>(syntax));
+        h.Units.emplace_back(MakeUnit<EUnitKind::Identifier>(syntax));
+        h.Units.emplace_back(MakeUnit<EUnitKind::QuotedIdentifier>(syntax));
+        h.Units.emplace_back(MakeUnit<EUnitKind::BindParamterIdentifier>(syntax));
+        h.Units.emplace_back(MakeUnit<EUnitKind::TypeIdentifier>(syntax));
+        h.Units.emplace_back(MakeUnit<EUnitKind::FunctionIdentifier>(syntax));
+        h.Units.emplace_back(MakeUnit<EUnitKind::Literal>(syntax));
+        h.Units.emplace_back(MakeUnit<EUnitKind::StringLiteral>(syntax));
+        h.Units.emplace_back(MakeUnit<EUnitKind::Comment>(syntax));
 
-        syntax.Ref("WS");
-        for (auto& referenced : syntax.Referenced) {
-            TString content = syntax.Inl(referenced);
-            h.References.emplace(std::move(referenced), std::move(content));
-        }
+        h.Whitespace = {syntax.Get("WS")};
 
         return h;
     }
@@ -206,36 +211,36 @@ namespace NSQLHighlight {
 } // namespace NSQLHighlight
 
 template <>
-void Out<NSQLHighlight::EHUnitKind>(IOutputStream& out, NSQLHighlight::EHUnitKind kind) {
+void Out<NSQLHighlight::EUnitKind>(IOutputStream& out, NSQLHighlight::EUnitKind kind) {
     switch (kind) {
-        case NSQLHighlight::Keyword:
+        case NSQLHighlight::EUnitKind::Keyword:
             out << "Keyword";
             break;
-        case NSQLHighlight::Punctuation:
+        case NSQLHighlight::EUnitKind::Punctuation:
             out << "Punctuation";
             break;
-        case NSQLHighlight::Identifier:
+        case NSQLHighlight::EUnitKind::Identifier:
             out << "Identifier";
             break;
-        case NSQLHighlight::QuotedIdentifier:
+        case NSQLHighlight::EUnitKind::QuotedIdentifier:
             out << "QuotedIdentifier";
             break;
-        case NSQLHighlight::BindParamterIdentifier:
+        case NSQLHighlight::EUnitKind::BindParamterIdentifier:
             out << "BindParamterIdentifier";
             break;
-        case NSQLHighlight::TypeIdentifier:
+        case NSQLHighlight::EUnitKind::TypeIdentifier:
             out << "TypeIdentifier";
             break;
-        case NSQLHighlight::FunctionIdentifier:
+        case NSQLHighlight::EUnitKind::FunctionIdentifier:
             out << "FunctionIdentifier";
             break;
-        case NSQLHighlight::Literal:
+        case NSQLHighlight::EUnitKind::Literal:
             out << "Literal";
             break;
-        case NSQLHighlight::StringLiteral:
+        case NSQLHighlight::EUnitKind::StringLiteral:
             out << "StringLiteral";
             break;
-        case NSQLHighlight::Comment:
+        case NSQLHighlight::EUnitKind::Comment:
             out << "Comment";
             break;
     }
