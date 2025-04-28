@@ -120,9 +120,6 @@ private:
     //! One iteration of state polling and object store updating.
     void Pass();
 
-    //! Stops periodic passes and destroys all controllers.
-    void DoStop();
-
     TTaggedProfilingCounters& GetOrCreateTaggedProfilingCounters(const NQueueClient::TProfilingTags& profilingTags);
 
     void Profile();

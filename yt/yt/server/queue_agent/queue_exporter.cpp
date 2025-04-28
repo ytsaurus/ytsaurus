@@ -1059,6 +1059,7 @@ public:
     void Stop() override
     {
         AlertCollector_->Stop();
+        YT_UNUSED_FUTURE(Executor_->Stop());
     }
 
     void BuildOrchidYson(NYTree::TFluentAny fluent) const override
