@@ -6,8 +6,6 @@
 
 #include <yt/yt/ytlib/scheduler/config.h>
 
-#include <yt/yt/ytlib/table_client/config.h>
-
 #include <yt/yt/core/logging/serializable_logger.h>
 
 #include <library/cpp/yt/misc/numeric_helpers.h>
@@ -16,9 +14,9 @@
 
 namespace NYT::NControllerAgent {
 
+using namespace NLogging;
 using namespace NScheduler;
 using namespace NTableClient;
-using namespace NLogging;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -846,13 +844,13 @@ IJobSizeConstraintsPtr CreateUserJobSizeConstraints(
     int outputTableCount,
     double dataWeightRatio,
     i64 inputChunkCount,
-    i64 primaryInputDataSize,
+    i64 primaryInputDataWeight,
     i64 primaryInputCompressedDataSize,
     i64 inputRowCount,
-    i64 foreignInputDataSize,
+    i64 foreignInputDataWeight,
     i64 foreignInputCompressedDataSize,
-    int mergeInputTableCount,
-    int mergePrimaryInputTableCount,
+    int inputTableCount,
+    int primaryInputTableCount,
     bool sortedOperation)
 {
     return New<TUserJobSizeConstraints>(
@@ -862,18 +860,18 @@ IJobSizeConstraintsPtr CreateUserJobSizeConstraints(
         outputTableCount,
         dataWeightRatio,
         inputChunkCount,
-        primaryInputDataSize,
+        primaryInputDataWeight,
         primaryInputCompressedDataSize,
         inputRowCount,
-        foreignInputDataSize,
+        foreignInputDataWeight,
         foreignInputCompressedDataSize,
-        mergeInputTableCount,
-        mergePrimaryInputTableCount,
+        inputTableCount,
+        primaryInputTableCount,
         sortedOperation);
 }
 
 IJobSizeConstraintsPtr CreateMergeJobSizeConstraints(
-    const NScheduler::TSimpleOperationSpecBasePtr& spec,
+    const TSimpleOperationSpecBasePtr& spec,
     const TSimpleOperationOptionsPtr& options,
     TLogger logger,
     i64 inputChunkCount,
@@ -900,7 +898,7 @@ IJobSizeConstraintsPtr CreateMergeJobSizeConstraints(
 }
 
 IJobSizeConstraintsPtr CreateRemoteCopyJobSizeConstraints(
-    const NScheduler::TSimpleOperationSpecBasePtr& spec,
+    const TSimpleOperationSpecBasePtr& spec,
     const TSimpleOperationOptionsPtr& options,
     TLogger logger,
     i64 inputChunkCount,
