@@ -66,7 +66,7 @@ void TMultiJobManager::OnJobScheduled(const TJobletPtr& joblet)
     if (!IsRelevant()) {
         return;
     }
-    if (joblet->OutputCookieGroupIndex == 0) {
+    if (joblet->MultiJob.OutputCookieGroupIndex == 0) {
         auto [it, inserted] = CookieToReplicas_.try_emplace(joblet->OutputCookie);
         YT_VERIFY(inserted);
         auto& replicas = it->second;
@@ -81,10 +81,10 @@ void TMultiJobManager::OnJobScheduled(const TJobletPtr& joblet)
         InsertOrCrash(PendingCookies_, joblet->OutputCookie);
     } else {
         auto& replicas = GetOrCrash(CookieToReplicas_, joblet->OutputCookie);
-        auto& secondary = replicas.Secondaries[joblet->OutputCookieGroupIndex - 1];
+        auto& secondary = replicas.Secondaries[joblet->MultiJob.OutputCookieGroupIndex - 1];
         secondary.JobId = joblet->JobId;
         secondary.ProgressCounterGuard.SetCategory(EProgressCategory::Running);
-        joblet->MainJobId = replicas.MainJobId;
+        joblet->MultiJob.MainJobId = replicas.MainJobId;
         --replicas.Pending;
         if (!replicas.Pending) {
             EraseOrCrash(PendingCookies_, joblet->OutputCookie);
@@ -101,8 +101,8 @@ bool TMultiJobManager::OnJobCompleted(const TJobletPtr& joblet)
     auto replicasIt = CookieToReplicas_.find(joblet->OutputCookie);
     if (replicasIt != CookieToReplicas_.end()) {
         auto& replicas = replicasIt->second;
-        if (joblet->OutputCookieGroupIndex != 0) {
-            replicas.Secondaries[joblet->OutputCookieGroupIndex - 1].ProgressCounterGuard.SetCategory(EProgressCategory::Completed);
+        if (joblet->MultiJob.OutputCookieGroupIndex != 0) {
+            replicas.Secondaries[joblet->MultiJob.OutputCookieGroupIndex - 1].ProgressCounterGuard.SetCategory(EProgressCategory::Completed);
         }
         --replicas.NotCompletedCount;
         YT_VERIFY(replicas.NotCompletedCount >= 0);

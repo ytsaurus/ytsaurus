@@ -818,7 +818,7 @@ std::expected<NScheduler::TJobResourcesWithQuota, EScheduleFailReason> TTask::Tr
         treeIsTentative);
 
     joblet->OutputCookie = outputCookieInfo.OutputCookie;
-    joblet->OutputCookieGroupIndex = outputCookieInfo.OutputCookieGroupIndex;
+    joblet->MultiJob.OutputCookieGroupIndex = outputCookieInfo.OutputCookieGroupIndex;
     joblet->CompetitionType = outputCookieInfo.CompetitionType;
 
     auto chunkPoolOutput = GetChunkPoolOutput();
@@ -1703,7 +1703,7 @@ void TTask::AddSequentialInputSpec(
 {
     YT_ASSERT_INVOKER_AFFINITY(TaskHost_->GetJobSpecBuildInvoker());
 
-    if (joblet->OutputCookieGroupIndex > 0) {
+    if (joblet->MultiJob.OutputCookieGroupIndex > 0) {
         return;
     }
     auto* jobSpecExt = jobSpec->MutableExtension(TJobSpecExt::job_spec_ext);
@@ -1731,7 +1731,7 @@ void TTask::AddParallelInputSpec(
     YT_ASSERT_INVOKER_AFFINITY(TaskHost_->GetJobSpecBuildInvoker());
 
     auto* jobSpecExt = jobSpec->MutableExtension(TJobSpecExt::job_spec_ext);
-    if (joblet->OutputCookieGroupIndex > 0) {
+    if (joblet->MultiJob.OutputCookieGroupIndex > 0) {
         return;
     }
     auto directoryBuilderFactory = TNodeDirectoryBuilderFactory(
@@ -1854,7 +1854,7 @@ void TTask::AddOutputTableSpecs(
     const auto& outputStreamDescriptors = joblet->OutputStreamDescriptors;
     YT_VERIFY(joblet->ChunkListIds.size() == outputStreamDescriptors.size());
     auto* jobSpecExt = jobSpec->MutableExtension(TJobSpecExt::job_spec_ext);
-    if (joblet->OutputCookieGroupIndex > 0) {
+    if (joblet->MultiJob.OutputCookieGroupIndex > 0) {
         SetProtoExtension<NChunkClient::NProto::TDataSourceDirectoryExt>(
             jobSpecExt->mutable_extensions(),
             New<TDataSourceDirectory>());
@@ -2088,7 +2088,7 @@ void TTask::FinishTaskInput(const TTaskPtr& task) const
 
 void TTask::SetStreamDescriptors(TJobletPtr joblet) const
 {
-    if (joblet->OutputCookieGroupIndex == 0) {
+    if (joblet->MultiJob.OutputCookieGroupIndex == 0) {
         joblet->OutputStreamDescriptors = OutputStreamDescriptors_;
         joblet->InputStreamDescriptors = InputStreamDescriptors_;
     }

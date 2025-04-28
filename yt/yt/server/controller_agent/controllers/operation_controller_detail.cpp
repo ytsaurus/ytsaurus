@@ -3973,7 +3973,7 @@ void TOperationControllerBase::BuildJobAttributes(
         .Item("statistics").Value(joblet->BuildCombinedStatistics())
         .Item("suspicious").Value(joblet->Suspicious)
         .Item("job_competition_id").Value(joblet->CompetitionIds[EJobCompetitionType::Speculative])
-        .Item("main_job_id").Value(joblet->MainJobId)
+        .Item("main_job_id").Value(joblet->MultiJob.MainJobId)
         .Item("probing_job_competition_id").Value(joblet->CompetitionIds[EJobCompetitionType::Probing])
         .Item("has_competitors").Value(joblet->HasCompetitors[EJobCompetitionType::Speculative])
         .Item("has_probing_competitors").Value(joblet->HasCompetitors[EJobCompetitionType::Probing])
@@ -3981,7 +3981,7 @@ void TOperationControllerBase::BuildJobAttributes(
         .Item("speculative").Value(joblet->CompetitionType == EJobCompetitionType::Speculative)
         .Item("task_name").Value(joblet->TaskName)
         .Item("job_cookie").Value(joblet->OutputCookie)
-        .Item("job_cookie_group_index").Value(joblet->OutputCookieGroupIndex)
+        .Item("job_cookie_group_index").Value(joblet->MultiJob.OutputCookieGroupIndex)
         .DoIf(joblet->UserJobMonitoringDescriptor.has_value(), [&] (TFluentMap fluent) {
             fluent.Item("monitoring_descriptor").Value(ToString(*joblet->UserJobMonitoringDescriptor));
         })
@@ -10216,8 +10216,8 @@ void TOperationControllerBase::InitUserJobSpec(
     jobSpec->add_environment(Format("YT_TASK_JOB_INDEX=%v", joblet->TaskJobIndex));
     jobSpec->add_environment(Format("YT_JOB_ID=%v", joblet->JobId));
     jobSpec->add_environment(Format("YT_JOB_COOKIE=%v", joblet->OutputCookie));
-    jobSpec->add_environment(Format("YT_JOB_COOKIE_GROUP_INDEX=%v", joblet->OutputCookieGroupIndex));
-    jobSpec->add_environment(Format("YT_JOB_COOKIE_MAIN_JOB_ID=%v", joblet->MainJobId));
+    jobSpec->add_environment(Format("YT_JOB_COOKIE_GROUP_INDEX=%v", joblet->MultiJob.OutputCookieGroupIndex));
+    jobSpec->add_environment(Format("YT_JOB_COOKIE_MAIN_JOB_ID=%v", joblet->MultiJob.MainJobId));
     if (joblet->StartRowIndex >= 0) {
         jobSpec->add_environment(Format("YT_START_ROW_INDEX=%v", joblet->StartRowIndex));
     }

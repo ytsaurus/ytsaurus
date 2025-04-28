@@ -267,6 +267,12 @@ void TJoblet::Persist(const TPersistenceContext& context)
     if (context.IsLoad()) {
         Revived = true;
     }
+    Persist(context, MultiJob);
+}
+
+void TJoblet::TMultiJob::Persist(const TPersistenceContext& context) {
+    using NYT::Persist;
+    Persist(context, MainJobId);
     Persist(context, OutputCookieGroupIndex);
 }
 
