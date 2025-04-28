@@ -483,13 +483,12 @@ class TestMasterTransactions(YTEnvSetup):
     @authors("faucct")
     def test_not_owner(self):
         create_user("u")
-        set("//sys/schemas/transaction/@acl", [*get("//sys/schemas/transaction/@acl"), {
+        tx = start_transaction(attributes={"acl": [{
             "action": "deny",
             "subjects": ["u"],
             "permissions": ["write"],
             "inheritance_mode": "object_and_descendants",
-        }])
-        tx = start_transaction()
+        }]})
         create("map_node", "//tmp/wut", tx=tx)
         with pytest.raises(YtError):
             abort_transaction(tx, authenticated_user="u")
