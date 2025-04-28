@@ -91,5 +91,12 @@
       "kkkkkk llllllp ssssssssssssssssp pl p pl p l p lppp fffpiiiiiiiiiip kkkk qqqqqqqqqqqqqqqqqqqqqqqq kkkk iiiip"
     ],
     ["SELECT Bool(phone) FROM customer", "kkkkkk ttttpiiiiip kkkk iiiiiiii"]
+  ],
+  "ANSI": [
+    ["--_ansi_lexer\n\n/*/**/*/", "cccccccccccccc ccccccpp"],
+    ["--!ansi_lexer\n\n/*/**/*/", "cccccccccccccc cccccccc"],
+    ["--_ansi_lexer\n\n\"\\\"\"", "cccccccccccccc ssss"],
+    ["--!ansi_lexer\n\n\"\\\"\"", "cccccccccccccc ssse"],
+    ["\n --!ansi_lexer\n\n/*/**/*/", "  cccccccccccccc cccccccc"]
   ]
 }

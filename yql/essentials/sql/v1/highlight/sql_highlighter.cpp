@@ -1,5 +1,7 @@
 #include "sql_highlighter.h"
 
+#include <yql/essentials/sql/v1/lexer/regex/lexer.h>
+
 #include <contrib/libs/re2/re2/re2.h>
 
 #include <util/generic/deque.h>
@@ -37,10 +39,26 @@ namespace NSQLHighlight {
         return kinds;
     }();
 
-    IGenericLexer::TGrammar ToGenericLexerGrammar(THighlighting highlighting) {
+    IGenericLexer::TGrammar ToGenericLexerGrammar(const THighlighting& highlighting, bool ansi) {
+        using NSQLTranslationV1::ANSICommentMatcher;
+
         IGenericLexer::TGrammar grammar;
         for (const auto& unit : highlighting.Units) {
-            for (const auto& pattern : unit.Patterns) {
+            const auto* patterns = &unit.Patterns;
+            if (!unit.PatternsANSI.empty() && ansi) {
+                patterns = &unit.PatternsANSI;
+            }
+
+            if (unit.Kind == EUnitKind::Comment && ansi) {
+                Y_ENSURE(unit.Patterns.size() == 1);
+                const auto& pattern = unit.Patterns[0];
+                grammar.emplace_back(IGenericLexer::TTokenMatcher{
+                    .TokenName = NamesByUnitKind.at(unit.Kind),
+                    .Match = ANSICommentMatcher(Compile(pattern)),
+                });
+            }
+
+            for (const auto& pattern : *patterns) {
                 grammar.emplace_back(IGenericLexer::TTokenMatcher{
                     .TokenName = NamesByUnitKind.at(unit.Kind),
                     .Match = Compile(pattern),
@@ -52,9 +70,8 @@ namespace NSQLHighlight {
 
     class THighlighter: public IHighlighter {
     public:
-        explicit THighlighter(THighlighting highlighting)
-            : Lexer_(NSQLTranslationV1::MakeGenericLexer(
-                  ToGenericLexerGrammar(std::move(highlighting))))
+        explicit THighlighter(NSQLTranslationV1::IGenericLexer::TPtr lexer)
+            : Lexer_(std::move(lexer))
         {
         }
 
@@ -76,6 +93,32 @@ namespace NSQLHighlight {
         NSQLTranslationV1::IGenericLexer::TPtr Lexer_;
     };
 
+    class TCombinedHighlighter: public IHighlighter {
+    public:
+        explicit TCombinedHighlighter(const THighlighting& highlighting)
+            : LexerDefault_(NSQLTranslationV1::MakeGenericLexer(
+                  ToGenericLexerGrammar(highlighting, /* ansi = */ false)))
+            , LexerANSI_(NSQLTranslationV1::MakeGenericLexer(
+                  ToGenericLexerGrammar(highlighting, /* ansi = */ true)))
+        {
+        }
+
+        void Tokenize(TStringBuf text, const TTokenCallback& onNext) const override {
+            Alt(text).Tokenize(text, onNext);
+        }
+
+    private:
+        const IHighlighter& Alt(TStringBuf text) const {
+            if (text.After('-').StartsWith("-!ansi_lexer")) {
+                return LexerANSI_;
+            }
+            return LexerDefault_;
+        }
+
+        THighlighter LexerDefault_;
+        THighlighter LexerANSI_;
+    };
+
     TVector<TToken> Tokenize(IHighlighter& highlighter, TStringBuf text) {
         TVector<TToken> tokens;
         highlighter.Tokenize(text, [&](TToken&& token) {
@@ -84,8 +127,8 @@ namespace NSQLHighlight {
         return tokens;
     }
 
-    IHighlighter::TPtr MakeHighlighter(THighlighting highlighting) {
-        return IHighlighter::TPtr(new THighlighter(std::move(highlighting)));
+    IHighlighter::TPtr MakeHighlighter(const THighlighting& highlighting) {
+        return IHighlighter::TPtr(new TCombinedHighlighter(highlighting));
     }
 
 } // namespace NSQLHighlight

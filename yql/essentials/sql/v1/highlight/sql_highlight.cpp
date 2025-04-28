@@ -12,7 +12,8 @@ namespace NSQLHighlight {
 
     struct Syntax {
         const NSQLReflect::TLexerGrammar* Grammar;
-        THashMap<TString, TString> RegexByOtherName;
+        THashMap<TString, TString> RegexesDefault;
+        THashMap<TString, TString> RegexesANSI;
 
         TString Concat(const TVector<TStringBuf>& names) {
             TString concat;
@@ -22,11 +23,14 @@ namespace NSQLHighlight {
             return concat;
         }
 
-        TString Get(const TStringBuf name) const {
+        TString Get(const TStringBuf name, bool ansi = false) const {
             if (Grammar->PunctuationNames.contains(name)) {
                 return RE2::QuoteMeta(Grammar->BlockByName.at(name));
             }
-            return RegexByOtherName.at(name);
+            if (ansi) {
+                return RegexesANSI.at(name);
+            }
+            return RegexesDefault.at(name);
         }
     };
 
@@ -170,6 +174,12 @@ namespace NSQLHighlight {
                     .IsLongestMatch = false,
                 },
             },
+            .PatternsANSI = {
+                {
+                    .Body = s.Get("STRING_VALUE", /* ansi = */ true),
+                    .IsLongestMatch = false,
+                },
+            },
         };
     }
 
@@ -183,6 +193,7 @@ namespace NSQLHighlight {
                     .IsLongestMatch = false,
                 },
             },
+            .PatternsANSI = {},
         };
     }
 
@@ -197,10 +208,15 @@ namespace NSQLHighlight {
     }
 
     Syntax MakeSyntax(const NSQLReflect::TLexerGrammar& grammar) {
+        using NSQLTranslationV1::MakeRegexByOtherName;
+
         Syntax syntax;
         syntax.Grammar = &grammar;
-        for (auto& [k, v] : NSQLTranslationV1::MakeRegexByOtherName(*syntax.Grammar, /* ansi = */ false)) {
-            syntax.RegexByOtherName.emplace(std::move(k), std::move(v));
+        for (auto& [k, v] : MakeRegexByOtherName(*syntax.Grammar, /* ansi = */ false)) {
+            syntax.RegexesDefault.emplace(std::move(k), std::move(v));
+        }
+        for (auto& [k, v] : MakeRegexByOtherName(*syntax.Grammar, /* ansi = */ true)) {
+            syntax.RegexesANSI.emplace(std::move(k), std::move(v));
         }
         return syntax;
     }

@@ -25,6 +25,6 @@ namespace NSQLHighlight {
 
     TVector<TToken> Tokenize(IHighlighter& highlighter, TStringBuf text);
 
-    IHighlighter::TPtr MakeHighlighter(THighlighting highlighting);
+    IHighlighter::TPtr MakeHighlighter(const THighlighting& highlighting);
 
 } // namespace NSQLHighlight
