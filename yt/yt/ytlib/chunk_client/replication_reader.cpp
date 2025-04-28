@@ -2329,6 +2329,9 @@ private:
         if (ShouldThrottle(respondedPeer.Address, TotalBytesReceived_ > BytesThrottled_)) {
             auto delta = TotalBytesReceived_ - BytesThrottled_;
             BytesThrottled_ = TotalBytesReceived_;
+
+            guard.Release();
+
             if (!SyncThrottle(CombinedDataByteThrottler_, delta)) {
                 CancelAllBlocks(
                     blocks,
