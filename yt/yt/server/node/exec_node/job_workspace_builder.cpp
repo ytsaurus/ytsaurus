@@ -618,6 +618,7 @@ private:
                     : MakeWritableRootFS(),
                 .CommandUser = Context_.CommandUser,
 
+                .SetupCommands = Context_.GpuCheckSetupCommands,
                 .GpuCheckBinaryPath = *Context_.GpuCheckBinaryPath,
                 .GpuCheckBinaryArgs = *Context_.GpuCheckBinaryArgs,
                 .GpuCheckEnvironment = *Context_.GpuCheckEnvironment,
