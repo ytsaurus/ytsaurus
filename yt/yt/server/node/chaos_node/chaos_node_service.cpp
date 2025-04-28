@@ -172,10 +172,9 @@ private:
             protoReplicationCard->set_replicated_table_options(ConvertToYsonString(replicationCard->GetReplicatedTableOptions()).ToString());
         }
 
-        context->SetResponseInfo("ReplicationCardId: %v, CoordinatorCellIds: %v, ReplicationCard: %v",
+        context->SetResponseInfo("ReplicationCardId: %v, CoordinatorCellIds: %v",
             replicationCardId,
-            coordinators,
-            *replicationCard);
+            coordinators);
 
         context->Reply();
     }
