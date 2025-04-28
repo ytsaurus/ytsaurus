@@ -1278,7 +1278,15 @@ def main():
     logging.basicConfig(format="%(asctime)s - %(levelname)s - %(message)s", level=logging.INFO)
 
     args = build_arguments_parser().parse_args()
-    client = YtClient(proxy=args.proxy, token=config["token"])
+    client = YtClient(
+        proxy=args.proxy,
+        token=config["token"],
+        config={
+            "pickling": {
+                "ignore_system_modules": False,
+            },
+        },
+    )
 
     target_version = args.target_version
     if args.latest:
