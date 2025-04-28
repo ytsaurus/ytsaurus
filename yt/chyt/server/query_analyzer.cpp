@@ -641,7 +641,17 @@ public:
         if (!DB::functionIsInOrGlobalInOperator(functionNode->getFunctionName())) {
             return;
         }
-        HasInOperator_ = true;
+        if (functionNode->getArguments().getNodes().size() != 2) {
+            THROW_ERROR_EXCEPTION("Wrong number of arguments passed to function (FunctionName: %v, NumberOfArguments: %v)",
+                functionNode->getFunctionName(),
+                functionNode->getArguments().getNodes().size());
+        }
+
+        auto rhs = functionNode->getArguments().getNodes()[1];
+        if (rhs->getNodeType() == DB::QueryTreeNodeType::QUERY || rhs->getNodeType() == DB::QueryTreeNodeType::TABLE) {
+            HasInOperator_ = true;
+            return;
+        }
 
         // CH deduplicates QueryTree nodes, making pointers to a single QueryTreeNode.
         // In case of IN function for secondary queries to work correctly, we must duplicate them back.

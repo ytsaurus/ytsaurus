@@ -724,6 +724,38 @@ class TestJoinAndIn(ClickHouseTestBase):
                     having count in (select 1)'''
             assert clique.make_query(query) == [{"count": 1}]
 
+    @authors("a-dyu")
+    def test_left_join_with_cte_and_in_operator(self):
+        create(
+            "table",
+            "//tmp/t1",
+            attributes={
+                "schema": [
+                    {"name": "a", "type": "int64"}
+                ]
+            },
+        )
+        create(
+            "table",
+            "//tmp/t2",
+            attributes={
+                "schema": [
+                    {"name": "a", "type": "int64"}
+                ]
+            },
+        )
+        rows = [{"a": 0}]
+        write_table("//tmp/t1", rows)
+        write_table("//tmp/t2", rows)
+        with Clique(1) as clique:
+            query = '''with cte as (select a from "//tmp/t1")
+                       select count(*) as count
+                       from "//tmp/t2" as t1
+                       left join cte t2
+                       on t1.a = t2.a
+                       where t1.a in (0, 1)'''
+            assert clique.make_query(query) == [{"count": 1}]
+
     @authors("gudqeit")
     def test_join_for_unsorted_tables(self):
         schema = [{"name": "a", "type": "int64"}]
