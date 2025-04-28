@@ -809,7 +809,7 @@ void TJob::Finalize(TError error)
 
     // NB: We should disable slot here to give scheduler information about job failure.
     if (currentError.FindMatching(NExecNode::EErrorCode::GpuCheckCommandFailed) &&
-        !currentError.FindMatching(NExecNode::EErrorCode::GpuCheckCommandIncorrect))
+        !currentError.FindMatching(NExecNode::EErrorCode::GpuCheckCommandPreparationFailed))
     {
         Bootstrap_->GetSlotManager()->OnGpuCheckCommandFailed(currentError);
     }
@@ -2401,6 +2401,9 @@ void TJob::RunWithWorkspaceBuilder()
         .DockerAuth = BuildDockerAuthConfig(),
 
         .NeedGpuCheck = NeedsGpuCheck(),
+        .GpuCheckSetupCommands = UserJobSpec_ && !GpuCheckVolumeLayerArtifactKeys_.empty()
+            ? Bootstrap_->GetGpuManager()->GetSetupCommands()
+            : std::vector<TShellCommandConfigPtr>(),
         .GpuCheckBinaryPath = UserJobSpec_
             ? std::make_optional(UserJobSpec_->gpu_check_binary_path())
             : std::nullopt,
@@ -2685,6 +2688,10 @@ void TJob::OnJobProxyFinished(const TError& error)
                 // COMPAT(ignat)
                 : MakeWritableRootFS(),
             .CommandUser = CommonConfig_->SetupCommandUser,
+
+            .SetupCommands = GpuCheckVolume_
+                ? Bootstrap_->GetGpuManager()->GetSetupCommands()
+                : std::vector<TShellCommandConfigPtr>(),
 
             .GpuCheckBinaryPath = UserJobSpec_->gpu_check_binary_path(),
             .GpuCheckBinaryArgs = FromProto<std::vector<TString>>(UserJobSpec_->gpu_check_binary_args()),
@@ -3811,7 +3818,7 @@ bool TJob::IsFatalError(const TError& error)
         error.FindMatching(NTableClient::EErrorCode::FormatCannotRepresentRow) ||
         error.FindMatching(NExecNode::EErrorCode::SetupCommandFailed) ||
         error.FindMatching(NExecNode::EErrorCode::GpuJobWithoutLayers) ||
-        error.FindMatching(NExecNode::EErrorCode::GpuCheckCommandIncorrect) ||
+        error.FindMatching(NExecNode::EErrorCode::GpuCheckCommandPreparationFailed) ||
         error.FindMatching(NExecNode::EErrorCode::TmpfsOverflow) ||
         error.FindMatching(NExecNode::EErrorCode::FatalJobPreparationTimeout) ||
         error.FindMatching(NFormats::EErrorCode::InvalidFormat);
