@@ -1145,9 +1145,11 @@ TLookupRowsResult<IRowset> TClient::DoLookupRowsOnce(
 
             if (inSyncReplicas.empty()) {
                 std::vector<TError> replicaErrors;
-                for (auto bannedReplicaId : bannedSyncReplicaIds) {
-                    if (auto error = bannedReplicaTracker->GetReplicaError(bannedReplicaId); !error.IsOK()) {
-                        replicaErrors.push_back(std::move(error));
+                if (bannedReplicaTracker) {
+                    for (auto bannedReplicaId : bannedSyncReplicaIds) {
+                        if (auto error = bannedReplicaTracker->GetReplicaError(bannedReplicaId); !error.IsOK()) {
+                            replicaErrors.push_back(std::move(error));
+                        }
                     }
                 }
 
@@ -2546,9 +2548,11 @@ IQueueRowsetPtr TClient::DoPullQueueImpl(
 
             if (inSyncReplicas.empty()) {
                 std::vector<TError> replicaErrors;
-                for (auto bannedReplicaId : bannedSyncReplicaIds) {
-                    if (auto error = bannedReplicaTracker->GetReplicaError(bannedReplicaId); !error.IsOK()) {
-                        replicaErrors.push_back(std::move(error));
+                if (bannedReplicaTracker) {
+                    for (auto bannedReplicaId : bannedSyncReplicaIds) {
+                        if (auto error = bannedReplicaTracker->GetReplicaError(bannedReplicaId); !error.IsOK()) {
+                            replicaErrors.push_back(std::move(error));
+                        }
                     }
                 }
 
