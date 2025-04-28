@@ -3,7 +3,8 @@
 #include "sql_highlight.h"
 
 #include <util/generic/ptr.h>
-#include <util/generic/function_ref.h>
+
+#include <functional>
 
 namespace NSQLHighlight {
 
@@ -16,7 +17,7 @@ namespace NSQLHighlight {
     class IHighlighter: public TThrRefBase {
     public:
         using TPtr = TIntrusivePtr<IHighlighter>;
-        using TTokenCallback = TFunctionRef<void(TToken&& token)>;
+        using TTokenCallback = std::function<void(TToken&& token)>;
 
         virtual ~IHighlighter() = default;
         virtual void Tokenize(TStringBuf text, const TTokenCallback& onNext) const = 0;
