@@ -30,9 +30,9 @@ namespace NSQLComplete {
                 return {head, tail};
             }
 
-            NThreading::TFuture<TVector<TFolderEntry>> List(TString path) const override {
+            NThreading::TFuture<TVector<TFolderEntry>> List(TString folder) const override {
                 TVector<TFolderEntry> entries;
-                if (const auto* data = Data_.FindPtr(path)) {
+                if (const auto* data = Data_.FindPtr(folder)) {
                     entries = *data;
                 }
                 return NThreading::MakeFuture(std::move(entries));

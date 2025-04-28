@@ -15,7 +15,7 @@ namespace NSQLComplete {
 
         virtual ~ISimpleSchemaGateway() = default;
         virtual TSplittedPath Split(TStringBuf path) const = 0;
-        virtual NThreading::TFuture<TVector<TFolderEntry>> List(TString path) const = 0;
+        virtual NThreading::TFuture<TVector<TFolderEntry>> List(TString folder) const = 0;
     };
 
     ISchemaGateway::TPtr MakeSimpleSchemaGateway(ISimpleSchemaGateway::TPtr simple);
