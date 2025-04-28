@@ -1448,31 +1448,28 @@ class TestMaxCompressedDataSizePerJob(_TestColumnarStatisticsBase):
 
     @authors("apollo1321")
     @pytest.mark.parametrize("operation", ["map", "merge"])
-    @pytest.mark.parametrize("mode", ["ordered", "unordered"])
-    def test_operation_with_skewed_input_data(self, operation, mode):
+    def test_operation_with_skewed_input_data_ordered(self, operation):
         # Test the scenario when chunk sizes are distributed like this:
         #
-        #                      max_compressed_data_size_per_job-----+
-        #                                   data_weight_per_job----+|
-        # +-------+---------------------+-----------------------+  ||
-        # |       | #     #         #   |                       |<-+|
-        # |  Size | #     #         #   |                       |<--+
-        # |       | #     #         #   |                       |
-        # |       | # _   # _  ...  # _ | _ #   _ #   _ #   _ # |
-        # +-------+---------------------+-----------------------+
-        # |  Type | w s   w s  ...  w s | w s   w s   w s   w s |
-        # +-------+---------------------+-----------------------+
-        # | Chunk |  1     2   ...   10 |  11    12    13    14 |
-        # +-------+---------------------------------------------+
-        # |  Jobs |  1  |  2 | ... | 10 |     11    |     12    |
-        # +-------+---------------------------------------------+
+        # +--------+--------------+------------+
+        # |        | #  #       # |            | <- data_weight_per_job = 3900
+        # | Data   | #  #       # |            |
+        # | Weight | #  #       # |            |
+        # |        | #  #  ...  # | _  _  _  _ |
+        # +--------+--------------+------------+
+        # | Compr. |              |            |
+        # | Data   |              |            | <- max_compressed_data_size_per_job = 2200
+        # | Size   | _  _  ...  _ | #  #  #  # |
+        # +--------+--------------+------------+
+        # | Chunk  | 1  2  ...  10| 11 12 13 14|
+        # +--------+--------------+------------+
+        # |  Jobs  | 1| 2| ...| 10| 11   | 12  |
+        # +--------+--------------+------------+
         #
-        # Height of column of # defines the size of chunk.
+        # Height of a column of # defines the size of chunk.
         #
         # # - 1000 bytes
         # _ - negligible small size
-        # w - data weight
-        # c - compressed data size
         #
         # Previous tests could work without max_compressed_data_per_job support
         # in chunk pools, because data_weight_per_job is updated internally
@@ -1480,12 +1477,15 @@ class TestMaxCompressedDataSizePerJob(_TestColumnarStatisticsBase):
         # work when the size distribution of chunks is skewed.
         #
         # Job counts:
-        #  - By compressed_data_size ~ ceil(5200  / 2200) = 3
-        #  - By data_weight          ~ ceil(40000 / 3900) = 11
+        #  - By max_compressed_data_size ~ ceil(5200  / 2200) = 3
+        #  - By data_weight              ~ ceil(40000 / 3900) = 11
         #
         # Initially, jobs will be sliced by data_weight. For the last 4 chunks
-        # data weight is negligible and jobs will be sliced by compressed data
-        # size. In the end we should get 12 jobs.
+        # data weight is negligible and jobs will be sliced by max compressed
+        # data size. In the end we should get 12 jobs.
+        #
+        # NB: unordered merge/map may flap in this scenario, so test them
+        # separetely with simpler input.
 
         create("table", "//tmp/t_in", attributes={
             "schema": make_schema([
@@ -1500,7 +1500,7 @@ class TestMaxCompressedDataSizePerJob(_TestColumnarStatisticsBase):
                 "col1": "a" * 4000
             })
 
-        # Ensure that compression took place and compressed data size is small.
+        # Ensure that compression and rle took place and compressed data size is small.
         assert get("//tmp/t_in/@compressed_data_size") < 1200
         assert get("//tmp/t_in/@data_weight") >= 40000
 
@@ -1527,9 +1527,9 @@ class TestMaxCompressedDataSizePerJob(_TestColumnarStatisticsBase):
                 "max_compressed_data_size_per_job": 2200,
             } | ({
                 "force_transform": True,
-                "mode": mode,
+                "mode": "ordered",
             } if operation == "merge" else {}) | ({
-                "ordered": mode == "ordered",
+                "ordered": True,
                 "mapper": {"command": "cat > /dev/null"},
             } if operation == "map" else {}),
         )
@@ -1538,3 +1538,93 @@ class TestMaxCompressedDataSizePerJob(_TestColumnarStatisticsBase):
         input_statistics = progress["job_statistics_v2"]["data"]["input"]
         assert self.get_completed_summary(input_statistics["compressed_data_size"])["max"] <= 2200
         assert progress["jobs"]["completed"]["total"] == 12
+
+    @authors("apollo1321")
+    @pytest.mark.parametrize("operation", ["map", "merge"])
+    def test_operation_with_skewed_input_data_unordered(self, operation):
+        # This test verifies that the max_compressed_data_size_per_job remains unaffected
+        # by data_weight_per_job, even implicitly via job_count. The distribution of
+        # chunk sizes is as follows:
+        #
+        # +-------+---------------+
+        # |       | #             |
+        # | Data  | #             |
+        # | Weight| #             |
+        # |       | #  _  _  _  _ |
+        # +-------+---------------+
+        # |       | #  #  #  #  # |
+        # | Compr.| #  #  #  #  # |
+        # | Data  | #  #  #  #  # |
+        # | Size  | #  #  #  #  # |
+        # +-------+---------------+
+        # | Chunk | 1  2  3  4  5 |
+        # +-------+---------------+
+        #
+        # Height of a column of # defines the size of chunk.
+        #
+        # # - 1000 bytes
+        # _ - negligible small size
+        #
+        # Job counts:
+        #  - By max_compressed_data_size ~ ceil(22000 / 100000) = 1
+        #  - By data_weight              ~ ceil(24000 / 50)     = 480
+        #
+        # Unordered chunk pool does not guarantees sequential ordering of input
+        # chunks and may process input chunks in the following orders:
+        #  1. [B][SSSS] - 2 jobs
+        #  2. [SB][SSS] - 2 jobs
+        #  3. [SSB][SS] - 2 jobs
+        #  4. [SSSB][S] - 2 jobs
+        #  5. [SSSSB]   - 1 job
+        #
+        # Where:
+        #  - "S": DW = 4000, CS -> 0
+        #  - "B": DW -> 0, CS = 4000
+
+        create("table", "//tmp/t_in", attributes={
+            "schema": make_schema([
+                {"name": "col1", "type": "string", "group": "custom"},
+                {"name": "col2", "type": "string", "group": "custom"},
+            ]),
+            "optimize_for": "scan",
+        })
+
+        write_table("<append=%true>//tmp/t_in", {
+            "col1": "a" * 4000,
+            "col2": self._make_random_string(4000),
+        })
+
+        # Ensure that compression and rle took place and compressed data size is small.
+        assert get("//tmp/t_in/@compressed_data_size") < 4200
+        assert get("//tmp/t_in/@data_weight") >= 8000
+
+        for _ in range(4):
+            write_table("<append=%true>//tmp/t_in", {
+                "col1": "a",
+                "col2": self._make_random_string(4000),
+            })
+
+        assert 20000 <= get("//tmp/t_in/@compressed_data_size") <= 22000
+        assert 24000 <= get("//tmp/t_in/@data_weight") <= 25000
+
+        create("table", "//tmp/t_out")
+
+        op_function = merge if operation == "merge" else map
+
+        op = op_function(
+            in_="//tmp/t_in{col1}",
+            out="//tmp/t_out",
+            spec={
+                "data_weight_per_job": 50,
+                "max_compressed_data_size_per_job": 100000,
+            } | ({
+                "force_transform": True,
+                "mode": "unordered",
+            } if operation == "merge" else {}) | ({
+                "ordered": False,
+                "mapper": {"command": "cat > /dev/null"},
+            } if operation == "map" else {}),
+        )
+
+        progress = get(op.get_path() + "/@progress")
+        assert progress["jobs"]["completed"]["total"] <= 2
