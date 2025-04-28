@@ -636,6 +636,7 @@ TTask::GetOutputCookieInfoForFirstJob(const TAllocation& allocation, const TNewJ
 
     TOutputCookieInfo result;
 
+    // The order here is very important: we want to prioritize jobs on incomplete groups over new groups.
     if (MultiJobManager_.GetPendingJobCount() != 0) {
         auto [cookie, index] = MultiJobManager_.PeekJobCandidate();
         result.CompetitionType = EJobCompetitionType::Multi;
@@ -673,6 +674,7 @@ TTask::GetOutputCookieInfoForNextJob(const TAllocation& allocation, const TNewJo
 
     TOutputCookieInfo result;
 
+    // The order here is very important: we want to prioritize jobs on incomplete groups over new groups.
     if (MultiJobManager_.GetPendingJobCount() != 0) {
         auto [cookie, index] = MultiJobManager_.PeekJobCandidate();
         result.CompetitionType = EJobCompetitionType::Multi;

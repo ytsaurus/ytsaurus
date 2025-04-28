@@ -8,10 +8,9 @@ namespace NYT::NControllerAgent::NControllers {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Speculative job are the copy of another slow job that launched on the same data.
-//! Some jobs can be very slow due to load of underlying node and if this job is one of the last, the operation time can be significantly increased.
-//! Speculative job launched on another node can perform faster so operation will finish earlier.
-//! TSpeculativeJobManager tracks these jobs and if one of the job processing the same data is completed, other jobs are aborted.
+//! Multiple jobs are created when CookieGroupSize is >1.
+//! The cookie group counts as completed when all the jobs successfully complete.
+//! When some jobs fail, then it gets restarted.
 
 class TMultiJobManager
     : public IExtraJobManager

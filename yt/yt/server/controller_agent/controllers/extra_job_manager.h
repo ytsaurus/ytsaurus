@@ -4,11 +4,9 @@
 
 #include <yt/yt/server/lib/chunk_pools/chunk_pool.h>
 
-// #include <yt/yt/server/lib/controller_agent/helpers.h>
-
-// #include <yt/yt/client/job_tracker_client/public.h>
-
 namespace NYT::NControllerAgent::NControllers {
+
+/////////////////////////////////////////////////////////////////////////////////
 
 class IExtraJobManager
 {
@@ -39,4 +37,6 @@ public:
     virtual TProgressCounterPtr GetProgressCounter() const = 0;
 };
 
-}
+/////////////////////////////////////////////////////////////////////////////////
+
+} // NYT::NControllerAgent::NControllers

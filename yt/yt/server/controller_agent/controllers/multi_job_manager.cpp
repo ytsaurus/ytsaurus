@@ -55,12 +55,11 @@ bool TMultiJobManager::OnJobAborted(const TJobletPtr& joblet, EAbortReason reaso
 
 bool TMultiJobManager::OnJobFailed(const TJobletPtr& joblet)
 {
-    return OnUnsuccessfulJobFinish(joblet, EAbortReason::OperationFailed);
+    return OnUnsuccessfulJobFinish(joblet, EAbortReason::CookieGroupDisbanded);
 }
 
 void TMultiJobManager::OnJobLost(IChunkPoolOutput::TCookie)
-{
-}
+{ }
 
 void TMultiJobManager::OnJobScheduled(const TJobletPtr& joblet)
 {
