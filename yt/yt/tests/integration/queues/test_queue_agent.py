@@ -19,6 +19,7 @@ import copy
 import datetime
 import time
 import pytz
+import bisect
 
 import pytest
 
@@ -3244,20 +3245,13 @@ class TestQueueStaticExport(TestQueueStaticExportBase):
 
         export_period_seconds = 15
 
-        if not use_cron:
-            set("//tmp/q/@static_export_config", {
-                "default": {
-                    "export_directory": export_dir,
-                    "export_period": export_period_seconds * 1000,
-                }
-            })
-        else:
-            set("//tmp/q/@static_export_config", {
-                "default": {
-                    "export_directory": export_dir,
-                    "export_cron_schedule": "0/15 * * * * *",  # Every 15 seconds.
-                }
-            })
+        set("//tmp/q/@static_export_config", {
+            "default": {
+                "export_directory": export_dir,
+                "export_cron_schedule": "0/15 * * * * *" if use_cron else None,
+                "export_period": export_period_seconds * 1000 if not use_cron else None,
+            }
+        })
 
         orchid = QueueAgentOrchid()
         self._wait_for_component_passes()
@@ -3635,24 +3629,15 @@ class TestQueueStaticExport(TestQueueStaticExportBase):
         _, queue_id = self._create_queue("//tmp/q")
         self._create_export_destination(export_dir, queue_id)
 
-        if not use_cron:
-            set("//tmp/q/@static_export_config", {
-                "default": {
-                    "export_directory": export_dir,
-                    "export_period": export_period_seconds * 1000,
-                    "output_table_name_pattern": "%ISO-period-is-%PERIOD-fmt-%Y.%m.%d.%H.%M.%S",
-                    "use_upper_bound_for_table_names": use_upper_bound_for_table_names,
-                }
-            })
-        else:
-            set("//tmp/q/@static_export_config", {
-                "default": {
-                    "export_directory": export_dir,
-                    "export_cron_schedule": "0/3 * * * * *",  # Every 3 seconds.
-                    "output_table_name_pattern": "%ISO-period-is-%PERIOD-fmt-%Y.%m.%d.%H.%M.%S",
-                    "use_upper_bound_for_table_names": use_upper_bound_for_table_names,
-                }
-            })
+        set("//tmp/q/@static_export_config", {
+            "default": {
+                "export_directory": export_dir,
+                "output_table_name_pattern": "%ISO-period-is-%PERIOD-fmt-%Y.%m.%d.%H.%M.%S",
+                "use_upper_bound_for_table_names": use_upper_bound_for_table_names,
+                "export_cron_schedule": "0/3 * * * * *" if use_cron else None,
+                "export_period": export_period_seconds * 1000 if not use_cron else None,
+            }
+        })
 
         start = datetime.datetime.now(datetime.timezone.utc)
 
@@ -3694,22 +3679,16 @@ class TestQueueStaticExport(TestQueueStaticExportBase):
         export_dir = "//tmp/export"
         self._create_export_destination(export_dir, queue_id)
 
-        if not use_cron:
-            set("//tmp/q/@static_export_config", {
-                "default": {
-                    "export_directory": export_dir,
-                    "export_period": 10 * 1000,
-                    "use_upper_bound_for_table_names": False,
-                }
-            })
-        else:
-            set("//tmp/q/@static_export_config", {
-                "default": {
-                    "export_directory": export_dir,
-                    "export_cron_schedule": "0/10 * * * * *",  # Every 10 seconds.
-                    "use_upper_bound_for_table_names": False,
-                }
-            })
+        export_period_seconds = 10
+
+        set("//tmp/q/@static_export_config", {
+            "default": {
+                "export_directory": export_dir,
+                "use_upper_bound_for_table_names": False,
+                "export_cron_schedule": "0/10 * * * * *" if use_cron else None,
+                "export_period": export_period_seconds * 1000 if not use_cron else None,
+            }
+        })
 
         # This way we assure that we write the rows at the beginning of the period, so that all rows are physically written and flushed before the next export instant arrives.
         mid_export = self._sleep_until_next_export_instant(period=10, offset=0.5)
@@ -4064,6 +4043,54 @@ class TestQueueStaticExport(TestQueueStaticExportBase):
         insert_rows("//tmp/q", [{"data": "nano"}])
         self._flush_table("//tmp/q")
         wait(lambda: len(ls(export_dir)) == 2, timeout=7)
+
+        self.remove_export_destination(export_dir)
+
+    @authors("pavel-bash")
+    def test_cron_aperiodic_interval(self):
+        if getattr(self, "USE_OLD_QUEUE_EXPORTER_IMPL"):
+            pytest.skip()
+
+        _, queue_id = self._create_queue("//tmp/q")
+
+        export_dir = "//tmp/export"
+        self._create_export_destination(export_dir, queue_id)
+
+        export_seconds = [0, 17, 29, 45]
+        export_cron_expression = "0,17,29,45 * * * * *"  # Every ~15 seconds.
+
+        set("//tmp/q/@static_export_config", {
+            "default": {
+                "export_directory": export_dir,
+                "export_cron_schedule": export_cron_expression,
+            }
+        })
+
+        self._wait_for_component_passes()
+
+        insert_rows("//tmp/q", [{"data": "vim"}])
+        self._flush_table("//tmp/q")
+        wait(lambda: len(ls(export_dir)) == 1, timeout=20)
+        time1_second = datetime.datetime.now().second
+
+        insert_rows("//tmp/q", [{"data": "nano"}])
+        self._flush_table("//tmp/q")
+        wait(lambda: len(ls(export_dir)) == 2, timeout=20)
+        time2_second = datetime.datetime.now().second
+
+        # The seconds which we acquired must be (almost) equal to the ones
+        # specified in the CRON expression and they must be consecutive.
+        time1_second_found = None
+        time2_second_found = None
+        for second in export_seconds:
+            if time1_second >= second:
+                time1_second_found = second
+            if time2_second >= second:
+                time2_second_found = second
+
+        assert (time1_second - time1_second_found) <= 5
+        assert (time2_second - time2_second_found) <= 5
+        assert abs(export_seconds.index(time1_second_found) - export_seconds.index(time2_second_found)) == 1
 
         self.remove_export_destination(export_dir)
 

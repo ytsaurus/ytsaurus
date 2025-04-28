@@ -732,7 +732,7 @@ private:
         for (const auto& [_, config] : configs) {
             if (queueExporterImplementation == EQueueExporterImplementation::Old && !config->ExportPeriod) {
                 YT_LOG_DEBUG("Old queue exporter implementation is being constructed with no export period set");
-                return TError("Queue exporter configuration requires an \"ExportPeriod\" parameter");
+                return TError("Queue exporter configuration requires an \"export_period\" parameter");
             }
 
             if (auto [_, inserted] = directories.insert(config->ExportDirectory); !inserted) {
