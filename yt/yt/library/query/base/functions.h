@@ -5,6 +5,8 @@
 #include "functions_common.h"
 #include "typing.h"
 
+#include <yt/yt/client/table_client/logical_type.h>
+
 namespace NYT::NQueryClient {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -61,7 +63,6 @@ private:
     const TType RepeatedArgumentType_;
     const TType ResultType_;
 
-
     TTypingCtx::TFunctionSignature GetSignature(TTypingCtx* typingCtx, int argumentCount) const;
 };
 
@@ -69,6 +70,8 @@ class TAggregateFunctionTypeInferrer
     : public ITypeInferrer
 {
 public:
+    TAggregateFunctionTypeInferrer() = default;
+
     TAggregateFunctionTypeInferrer(
         std::unordered_map<TTypeParameter, TUnionType> typeParameterConstraints,
         std::vector<TType> argumentTypes,
@@ -91,7 +94,7 @@ public:
         std::vector<TTypeSet>* typeConstraints,
         std::vector<int>* argumentConstraintIndexes) const;
 
-    std::vector<TTypeId> InferTypes(TTypingCtx* typingCtx, TRange<TLogicalTypePtr> argumentTypes, TStringBuf name) const;
+    virtual std::vector<TTypeId> InferTypes(TTypingCtx* typingCtx, TRange<TLogicalTypePtr> argumentTypes, TStringBuf name) const;
 
 private:
     const std::unordered_map<TTypeParameter, TUnionType> TypeParameterConstraints_;
@@ -100,6 +103,15 @@ private:
     const TType ResultType_;
 
     TTypingCtx::TFunctionSignature GetSignature(TTypingCtx* typingCtx) const;
+};
+
+class TArrayAggTypeInferrer
+    : public TAggregateFunctionTypeInferrer
+{
+public:
+    using TAggregateFunctionTypeInferrer::TAggregateFunctionTypeInferrer;
+
+    std::vector<TTypeId> InferTypes(TTypingCtx* typingCtx, TRange<TLogicalTypePtr> argumentTypes, TStringBuf /*name*/) const override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

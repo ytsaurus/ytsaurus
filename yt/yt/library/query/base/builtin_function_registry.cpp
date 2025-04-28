@@ -270,26 +270,6 @@ void RegisterBuiltinFunctions(IFunctionRegistryBuilder* builder)
         ECallingConvention::UnversionedValue);
 
     builder->RegisterAggregate(
-        "array_agg",
-        {},
-        {
-            TUnionType{
-                EValueType::String,
-                EValueType::Uint64,
-                EValueType::Int64,
-                EValueType::Double,
-                EValueType::Boolean,
-                EValueType::Any,
-                EValueType::Composite,
-            },
-            EValueType::Boolean,
-        },
-        EValueType::Any,
-        EValueType::String,
-        "array_agg",
-        ECallingConvention::UnversionedValue);
-
-    builder->RegisterAggregate(
         "dict_sum",
         {},
         {TUnionType{EValueType::Any, EValueType::Composite}},

@@ -261,6 +261,23 @@ TConstTypeInferrerMapPtr CreateBuiltinTypeInferrers()
         EValueType::String,
         EValueType::Double));
 
+    result->emplace("array_agg", New<TArrayAggTypeInferrer>(
+        std::unordered_map<TTypeParameter, TUnionType>{},
+        std::vector<TType>{
+            TUnionType{
+                EValueType::String,
+                EValueType::Uint64,
+                EValueType::Int64,
+                EValueType::Double,
+                EValueType::Boolean,
+                EValueType::Any,
+                EValueType::Composite,
+            },
+            EValueType::Boolean,
+        },
+        EValueType::String,
+        EValueType::Any));
+
     TTypeInferrerFunctionRegistryBuilder builder{result.Get()};
     RegisterBuiltinFunctions(&builder);
 

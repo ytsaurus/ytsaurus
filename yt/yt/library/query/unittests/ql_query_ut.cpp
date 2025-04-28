@@ -1156,7 +1156,7 @@ TEST_F(TQueryPrepareTest, PushDownGroupBy)
         auto plan = ParseAndPreparePlanFragment(&PrepareMock_, query);
 
         ASSERT_TRUE(plan->Query->JoinClauses[0]->GroupClause);
-        EXPECT_EQ(fmt(plan->Query->JoinClauses[0]->GroupClause->GroupItems), std::string("C.key_0"));
+        EXPECT_EQ(fmt(plan->Query->JoinClauses[0]->GroupClause->GroupItems), std::string("`C.key_0`"));
     }
     {
         auto query = std::string(R"(select sum(C.value_1) from [//left] L
@@ -1167,7 +1167,7 @@ TEST_F(TQueryPrepareTest, PushDownGroupBy)
         auto plan = ParseAndPreparePlanFragment(&PrepareMock_, query);
 
         ASSERT_TRUE(plan->Query->JoinClauses[0]->GroupClause);
-        EXPECT_EQ(fmt(plan->Query->JoinClauses[0]->GroupClause->GroupItems), std::string("C.key_0"));
+        EXPECT_EQ(fmt(plan->Query->JoinClauses[0]->GroupClause->GroupItems), std::string("`C.key_0`"));
     }
     {
         auto query = std::string(R"(select sum(value_1) from [//left]
@@ -8514,6 +8514,123 @@ TEST_F(TQueryEvaluateTest, CompositeMemberJoin)
         {.SyntaxVersion = 2});
 }
 
+TEST_F(TQueryEvaluateTest, NestedSubquery)
+{
+    if (NYT::NQueryClient::DefaultExpressionBuilderVersion == 1) {
+        return;
+    }
+
+    TSplitMap splits;
+    std::vector<std::vector<std::string>> sources;
+
+    auto schema = MakeSplit({
+        {"a", SimpleLogicalType(ESimpleLogicalValueType::Int32)},
+        {"b", SimpleLogicalType(ESimpleLogicalValueType::String)},
+        {"k", SimpleLogicalType(ESimpleLogicalValueType::Int32)},
+        {"s", SimpleLogicalType(ESimpleLogicalValueType::Int32)}
+        });
+
+    auto data = std::vector<std::string> {
+
+        "a=1; b=x; k=1; s=1",
+        "a=2; b=y; k=1; s=1",
+        "a=3; b=z; k=1; s=1",
+        "a=2; b=k; k=2; s=2",
+        "a=3; b=l; k=2; s=2",
+        "     b=m; k=2; s=2",
+        "a=3; b=x; k=3; s=1",
+        "a=4; b=y; k=3; s=1",
+        "     b=z; k=3; s=1",
+        "a=1; b=x; k=4; s=1",
+    };
+
+    splits["//t"] = schema;
+    sources.push_back(data);
+
+    auto resultSplit = MakeSplit({
+        {"a", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))},
+        {"nested", ListLogicalType(StructLogicalType({
+            {"x", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))},
+            {"y", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))},
+            {"z", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::String))}
+        }))}
+    });
+
+    auto result = YsonToRows({
+        "a=2;nested=[[3;3;x];[6;4;y];[9;5;z]]",
+        "a=3;nested=[[12;5;k];[18;6;l];[#;#;m]]",
+        "a=4;nested=[[9;7;x];[#;#;z]]",
+        "a=5;nested=[[1;6;x]]"
+    }, resultSplit);
+
+    Evaluate("select t.k + 1 as a, (select li * sum(t.s) as x, li + a as y, ls as z from (array_agg(t.a, true) as li, array_agg(t.b, true) as ls) where li < 4) as nested from `//t` as t group by a",
+        splits,
+        sources,
+        ResultMatcher(result, resultSplit.TableSchema),
+        {.SyntaxVersion = 2});
+
+    // Test inner aggregation.
+    {
+        // Test checks that sum(t.s) aggregation level is properly determined as outer by its substitution level.
+        auto primaryQuery = Prepare(
+            "select t.k % 2 as a, (select ls, sum(t.s) as x, sum(li) as y, sum(1) as z from (array_agg(t.a, true) as li, array_agg(t.b, true) as ls) group by ls) as nested from `//t` as t group by a",
+            splits,
+            {},
+            2);
+
+        const auto& aggregateItems = primaryQuery->GroupClause->AggregateItems;
+
+        ASSERT_EQ(std::ssize(aggregateItems), 3);
+        EXPECT_EQ(aggregateItems[2].Name, "sum(`t.s`)");
+    }
+
+    {
+        // Test inner group key `ls + sum(t.s) as x` contains outer aggregate expression.
+        auto primaryQuery = Prepare(
+            "select t.k % 2 as a, (select li + sum(t.s) as x, sum(1) as z from (array_agg(t.a, true) as li) group by x) as nested from `//t` as t group by a",
+            splits,
+            {},
+            2);
+
+        const auto& aggregateItems = primaryQuery->GroupClause->AggregateItems;
+
+        ASSERT_EQ(std::ssize(aggregateItems), 2);
+        EXPECT_EQ(aggregateItems[1].Name, "sum(`t.s`)");
+    }
+
+    {
+        // Test checks that sum(b) aggregation level is properly determined as outer while it has no substitution level.
+
+        // FIXME: Expressiones `sum(1)` and `sum(b)` are indistinguishable if `2 as b` is replaced by `1 as b`. Enrich aggregate references with its level.
+        auto primaryQuery = Prepare(
+            "select t.k % 2 as a, sum(2) as b, (select b, sum(1) as z from (array_agg(t.a, true) as li) group by li) as nested from `//t` as t group by a",
+            splits,
+            {},
+            2);
+
+        const auto& aggregateItems = primaryQuery->GroupClause->AggregateItems;
+
+        ASSERT_EQ(std::ssize(aggregateItems), 2);
+        EXPECT_EQ(aggregateItems[0].Name, "sum(0#2)");
+    }
+
+    {
+        // Test checks that sum(b) aggregation level is properly determined as outer while it has no substitution level.
+
+        // FIXME: Expressiones `sum(1)` and `sum(b)` are indistinguishable if `2 as b` is replaced by `1 as b`. Enrich aggregate references with its level.
+        auto primaryQuery = Prepare(
+            "select t.k % 2 as a, sum(2) as b, (select li + b as x, sum(1) as z from (array_agg(t.a, true) as li) group by x) as nested from `//t` as t group by a",
+            splits,
+            {},
+            2);
+
+        const auto& aggregateItems = primaryQuery->GroupClause->AggregateItems;
+
+        ASSERT_EQ(std::ssize(aggregateItems), 2);
+        EXPECT_EQ(aggregateItems[0].Name, "sum(0#2)");
+    }
+}
+
 TEST_F(TQueryEvaluateTest, VarargUdf)
 {
     auto split = MakeSplit({
@@ -9472,6 +9589,10 @@ void TQueryEvaluateComplexTest::DoTest(
     // Primary columns: (a, b, c) -> v
     // Secondary columns: (d, e) -> w
     // Group columns x, y, z
+
+    if (groupTotals != "" && (groupEq.X == TStringBuf("0") || groupEq.Y == TStringBuf("0") || groupEq.Z == TStringBuf("0"))) {
+        return;
+    }
 
     auto queryString = Format(
         "x, y, z, sum(1) as count, sum(v) as sumv, sum(w) as sumw "

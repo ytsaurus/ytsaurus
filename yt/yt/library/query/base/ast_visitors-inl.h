@@ -46,6 +46,8 @@ TResult TAbstractAstVisitor<TResult, TDerived, TNode>::Visit(TNode node)
         return Derived()->OnCase(caseExpr);
     } else if (auto* likeExpr = expr->template As<TLikeExpression>()) {
         return Derived()->OnLike(likeExpr);
+    } else if (auto* queryExpr = expr->template As<TQueryExpression>()) {
+        return Derived()->OnQuery(queryExpr);
     }
     YT_ABORT();
 }
@@ -56,6 +58,12 @@ template <class TResult, class TDerived>
 TExpressionPtr TBaseAstVisitor<TResult, TDerived>::GetExpression(TExpressionPtr expr)
 {
     return expr;
+}
+
+template <class TResult, class TDerived>
+TResult TBaseAstVisitor<TResult, TDerived>::OnQuery(const TQueryExpressionPtr /*queryExpr*/)
+{
+    THROW_ERROR_EXCEPTION("Subquery expression not supported yet");
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -128,6 +136,10 @@ void TAstVisitor<TDerived>::OnLike(const TLikeExpressionPtr likeExpr)
     Visit(likeExpr->Pattern);
     Visit(likeExpr->EscapeCharacter);
 }
+
+template <class TDerived>
+void TAstVisitor<TDerived>::OnQuery(const TQueryExpressionPtr /*queryExpr*/)
+{ }
 
 template <class TDerived>
 void TAstVisitor<TDerived>::Visit(const std::vector<TExpressionPtr>& tuple)
@@ -306,6 +318,12 @@ TExpressionPtr TRewriter<TDerived>::OnLike(TLikeExpressionPtr likeExpr)
             std::move(newPattern),
             std::move(newEscape));
     }
+}
+
+template <class TDerived>
+TExpressionPtr TRewriter<TDerived>::OnQuery(TQueryExpressionPtr queryExpr)
+{
+    return queryExpr;
 }
 
 template <class TDerived>
