@@ -3320,7 +3320,9 @@ class TestQueueStaticExport(TestQueueStaticExportBase):
             insert_rows("//tmp/q", [{"data": "second sample"}] * 2)
             self._flush_table("//tmp/q")
 
+        self._sleep_until_next_export_instant(export_period_seconds, offset=1.5)
         self._sleep_until_next_export_instant(export_period_seconds)
+
         abort_transaction(tx)
         expected_table_count = 2 if should_export_second_table else 1
 
