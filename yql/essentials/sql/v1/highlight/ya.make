@@ -10,6 +10,8 @@ PEERDIR(
     yql/essentials/sql/v1/reflect
 )
 
+RESOURCE(yql/essentials/sql/v1/highlight/ut/suite.json suite.json)
+
 END()
 
 RECURSE_FOR_TESTS(
