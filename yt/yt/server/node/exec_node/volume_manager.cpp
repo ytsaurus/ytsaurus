@@ -2203,12 +2203,18 @@ public:
                 TArtifactKey key;
                 key.MergeFrom(layerMeta.artifact_key());
 
-                YT_LOG_DEBUG("Loading existing cached Porto layer (LayerId: %v)", layerMeta.Id);
+                YT_LOG_DEBUG("Loading existing cached Porto layer (LayerId: %v, ArtifactPath: %v)",
+                    layerMeta.Id,
+                    layerMeta.artifact_key().data_source().path());
 
                 auto layer = New<TLayer>(layerMeta, key, location);
                 auto cookie = BeginInsert(layer->GetKey());
                 if (cookie.IsActive()) {
                     cookie.EndInsert(layer);
+                } else {
+                    YT_LOG_DEBUG("Failed to insert cached porto layer (LayerId: %v, ArtifactPath: %v)",
+                        layerMeta.Id,
+                        layerMeta.artifact_key().data_source().path());
                 }
             }
         }
@@ -2292,16 +2298,24 @@ public:
             DownloadAndImportLayer(artifactKey, downloadOptions, tag, nullptr)
                 .Subscribe(BIND([=, cookie = std::move(cookie)] (const TErrorOr<TLayerPtr>& layerOrError) mutable {
                     if (layerOrError.IsOK()) {
+                        YT_LOG_DEBUG("Layer has been inserted into cache (Tag: %v, ArtifactPath: %v, LayerId: %v)",
+                            tag,
+                            artifactKey.data_source().path(),
+                            layerOrError.Value()->GetMeta().Id);
                         cookie.EndInsert(layerOrError.Value());
                     } else {
+                        YT_LOG_DEBUG(layerOrError, "Insert layer into cache canceled (Tag: %v, ArtifactPath: %v)",
+                            tag,
+                            artifactKey.data_source().path());
                         cookie.Cancel(layerOrError);
                     }
                 })
                 .Via(GetCurrentInvoker()));
         } else {
-            YT_LOG_DEBUG("Layer is already being loaded into cache (Tag: %v, ArtifactPath: %v)",
+            YT_LOG_DEBUG("Layer is already being loaded into cache (Tag: %v, ArtifactPath: %v, LayerId: %v)",
                 tag,
-                artifactKey.data_source().path());
+                artifactKey.data_source().path(),
+                value.IsSet() && value.Get().IsOK() ? ToString(value.Get().Value()->GetMeta().Id) : "Importing");
         }
 
         return value;
