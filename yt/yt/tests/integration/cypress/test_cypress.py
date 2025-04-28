@@ -1,8 +1,9 @@
-from yt_env_setup import YTEnvSetup, with_additional_threads
+from yt_env_setup import (
+    YTEnvSetup, with_additional_threads)
 
-from yt_type_helpers import (
-    make_schema
-)
+from yt_sequoia_helpers import not_implemented_in_sequoia
+
+from yt_type_helpers import make_schema
 
 from yt_commands import (
     authors, wait, create, ls, get, set, copy, move, remove, link, exists,
@@ -29,7 +30,6 @@ import pytest
 import requests
 
 from copy import deepcopy
-import decorator
 from io import BytesIO
 import json
 from datetime import timedelta
@@ -54,15 +54,6 @@ class TestCypressRootCreationTime(YTEnvSetup):
         create("map_node", "//a", tx=tx)
         commit_transaction(tx)
         assert creation_time == get("//@creation_time")
-
-
-def not_implemented_in_sequoia(func):
-    def wrapper(func, self, *args, **kwargs):
-        if isinstance(self, TestCypressSequoia):
-            pytest.skip("Not implemented in Sequoia")
-        return func(self, *args, **kwargs)
-
-    return decorator.decorate(func, wrapper)
 
 
 @pytest.mark.enabled_multidaemon
