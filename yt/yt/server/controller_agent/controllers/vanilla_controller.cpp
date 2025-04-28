@@ -5,8 +5,8 @@
 #include "table.h"
 #include "task.h"
 
-#include <yt/yt/server/controller_agent/operation.h>
 #include <yt/yt/server/controller_agent/config.h>
+#include <yt/yt/server/controller_agent/operation.h>
 
 #include <yt/yt/server/lib/chunk_pools/vanilla_chunk_pool.h>
 
@@ -20,17 +20,19 @@
 
 #include <yt/yt/client/ypath/rich.h>
 
+#include <library/cpp/yt/memory/non_null_ptr.h>
+
 namespace NYT::NControllerAgent::NControllers {
 
-using namespace NControllerAgent::NProto;
-using namespace NScheduler;
-using namespace NScheduler::NProto;
 using namespace NChunkPools;
-using namespace NYTree;
+using namespace NConcurrency;
+using namespace NControllerAgent::NProto;
+using namespace NScheduler::NProto;
+using namespace NScheduler;
 using namespace NTableClient;
 using namespace NYPath;
+using namespace NYTree;
 using namespace NYson;
-using namespace NConcurrency;
 
 using NYT::ToProto;
 
