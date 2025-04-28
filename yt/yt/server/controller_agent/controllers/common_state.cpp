@@ -21,8 +21,10 @@ void InitCommonState(const NProfiling::TProfiler& profiler)
 {
     InitVanillaProfilers(profiler);
 
-    YT_VERIFY(!JobProfilerInstance);
-    JobProfilerInstance = New<TJobProfiler>();
+    // NB(pogorelov): We have tests with multidaemon mode, so several CAs may run in the same process.
+    if (!JobProfilerInstance) {
+        JobProfilerInstance = New<TJobProfiler>();
+    }
 }
 
 const TJobProfilerPtr& GetJobProfiler()
