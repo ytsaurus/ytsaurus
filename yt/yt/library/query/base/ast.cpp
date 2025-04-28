@@ -206,6 +206,13 @@ bool operator == (const TExpression& lhs, const TExpression& rhs)
             typedLhs->Opcode == typedRhs->Opcode &&
             typedLhs->Pattern == typedRhs->Pattern &&
             typedLhs->EscapeCharacter == typedRhs->EscapeCharacter;
+    } else if (const auto* typedLhs = lhs.As<TQueryExpression>()) {
+        const auto* typedRhs = rhs.As<TQueryExpression>();
+        if (!typedRhs) {
+            return false;
+        }
+        return
+            typedLhs->Query == typedRhs->Query;
     } else {
         YT_ABORT();
     }
@@ -312,6 +319,7 @@ std::vector<TStringBuf> GetKeywords()
     XX(left)
     XX(as)
     XX(on)
+    XX(unnest)
     XX(and)
     XX(or)
     XX(not)
@@ -427,6 +435,7 @@ void FormatIdFinal(TStringBuilderBase* builder, TStringBuf id)
 void FormatExpressions(TStringBuilderBase* builder, const TExpressionList& exprs, int depth = 0, bool expandAliases = true);
 void FormatExpression(TStringBuilderBase* builder, const TExpression& expr, int depth = 0, bool expandAliases = true, bool isFinal = false);
 void FormatExpression(TStringBuilderBase* builder, const TExpressionList& expr, int depth = 0, bool expandAliases = true);
+void FormatQuery(TStringBuilderBase* builder, const TQuery& query);
 
 void FormatColumnReference(TStringBuilderBase* builder, const TColumnReference& ref, bool isFinal = false)
 {
@@ -621,6 +630,11 @@ void FormatExpression(TStringBuilderBase* builder, const TExpression& expr, int 
             builder->AppendString(" ESCAPE ");
             FormatExpressions(builder, *typedExpr->EscapeCharacter, depth + 1, expandAliases);
         }
+    } else if (auto* typedExpr = expr.As<TQueryExpression>()) {
+        builder->AppendChar('(');
+        builder->AppendString(" SELECT ");
+        FormatQuery(builder, typedExpr->Query);
+        builder->AppendChar(')');
     } else {
         YT_ABORT();
     }
@@ -729,6 +743,11 @@ void FormatQuery(TStringBuilderBase* builder, const TQuery& query)
                 builder->AppendString(" AS ");
                 FormatId(builder, *subquery->Alias);
             }
+        },
+        [&] (const NAst::TExpressionList& expression) {
+            builder->AppendChar('(');
+            FormatExpression(builder, expression);
+            builder->AppendChar(')');
         });
 
     if (query.WithIndex) {
@@ -864,6 +883,9 @@ NYPath::TYPath GetMainTablePath(const TQuery& query)
         },
         [] (const TQueryAstHeadPtr& subquery) {
             return GetMainTablePath(subquery->Ast);
+        },
+        [] (const TExpressionList& /*expression*/) -> NYPath::TYPath {
+            THROW_ERROR_EXCEPTION("Unknown main table path");
         });
 }
 

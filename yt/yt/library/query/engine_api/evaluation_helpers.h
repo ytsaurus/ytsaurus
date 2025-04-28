@@ -200,6 +200,18 @@ struct TWriteOpClosure
     explicit TWriteOpClosure(IMemoryChunkProviderPtr chunkProvider);
 };
 
+struct TSubqueryParameters
+{
+    std::vector<EValueType> FromTypes;
+    int BindedRowSize;
+};
+
+struct TSubqueryWriteOpClosure
+{
+    std::vector<TValue*> OutputRowsBatch;
+    int RowSize;
+};
+
 struct TExecutionContext
 {
     ISchemafulUnversionedReaderPtr Reader;
