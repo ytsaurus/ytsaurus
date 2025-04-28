@@ -510,7 +510,9 @@ public:
     }
 
     void Stop() override
-    { }
+    {
+        YT_UNUSED_FUTURE(PassExecutor_->Stop());
+    }
 
     TRefCountedPtr GetLatestSnapshot() const override
     {
