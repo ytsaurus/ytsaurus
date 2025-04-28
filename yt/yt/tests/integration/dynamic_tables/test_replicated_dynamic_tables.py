@@ -523,6 +523,15 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
         with raises_yt_error("No working in-sync replicas found for table //tmp/t"):
             lookup_rows("//tmp/t", keys, timestamp=timestamp)
 
+        # NB: Check only select since lookup doesn't support reading from async replicas for replicated tables
+        if self.DRIVER_BACKEND == "rpc":
+            with self.RpcProxyDynamicConfig("/cluster_connection/enable_read_from_async_replicas", True):
+                assert select_rows("* from [//tmp/t]", timestamp=timestamp) == rows
+
+                with self.RpcProxyDynamicConfig("/cluster_connection/banned_in_sync_replica_clusters", ["remote_0"]):
+                    with raises_yt_error("No single cluster contains in-sync replicas for table //tmp/t"):
+                        select_rows("* from [//tmp/t]", timestamp=timestamp)
+
     @authors("ponasenko-rs")
     @pytest.mark.parametrize("replica_ordering", ["sorted", "ordered"])
     def test_incompatible_orderings(self, replica_ordering):
