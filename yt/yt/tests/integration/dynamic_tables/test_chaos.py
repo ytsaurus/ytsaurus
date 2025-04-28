@@ -46,7 +46,7 @@ class TestChaos(ChaosTestBase):
     # TODO(nadya73): split this test suite.
     ENABLE_MULTIDAEMON = False  # There are component restarts.
     NUM_REMOTE_CLUSTERS = 2
-    NUM_TEST_PARTITIONS = 30
+    NUM_TEST_PARTITIONS = 40
     NUM_SCHEDULERS = 1
 
     DELTA_DRIVER_CONFIG = {
