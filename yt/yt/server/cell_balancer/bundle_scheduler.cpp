@@ -542,7 +542,7 @@ private:
             }
 
             if (input.Config->HasInstanceAllocatorService) {
-                YT_LOG_DEBUG("Tracking existing allocation (AllocationId: %v, Bundle: %v,  InstanceName: %v)",
+                YT_LOG_DEBUG("Tracking existing allocation (AllocationId: %v, Bundle: %v, InstanceName: %v)",
                     allocationId,
                     bundleName,
                     instanceName);
@@ -1219,9 +1219,10 @@ void CalculateResourceUsage(TSchedulerInputState& input)
     };
 
     input.AliveNodesBySize.clear();
-    input.AllocatedProxiesBySize.clear();
-    input.AllocatedProxiesBySize.clear();
+    input.AllocatedNodesBySize.clear();
+
     input.AliveProxiesBySize.clear();
+    input.AllocatedProxiesBySize.clear();
 
     for (const auto& [bundleName, bundleInfo] : input.Bundles) {
         if (!bundleInfo->EnableBundleController || !bundleInfo->TargetConfig) {
@@ -1256,7 +1257,9 @@ void CalculateResourceUsage(TSchedulerInputState& input)
 
         {
             auto allocated = New<NBundleControllerClient::TInstanceResources>();
+            // Default values are non-zero, so we need to clear them.
             allocated->Clear();
+
             calculateResources(FlattenBundleInstances(input.BundleNodes[bundleName]), input.TabletNodes, allocated, input.AllocatedNodesBySize[bundleName]);
             calculateResources(FlattenBundleInstances(input.BundleProxies[bundleName]), input.RpcProxies, allocated, input.AllocatedProxiesBySize[bundleName]);
 
@@ -2714,7 +2717,6 @@ void InitializeVirtualSpareBundle(TSchedulerInputState& input)
         auto spareVirtualBundle = GetSpareBundleName(zoneInfo);
         auto bundleInfo = New<TBundleInfo>();
         bundleInfo->EnableInstanceAllocation = input.Config->HasInstanceAllocatorService;
-        bundleInfo->EnableRpcProxyManagement = input.Config->HasInstanceAllocatorService;
         bundleInfo->TargetConfig = zoneInfo->SpareTargetConfig;
         bundleInfo->EnableBundleController = true;
         bundleInfo->EnableTabletCellManagement = false;
@@ -2876,7 +2878,7 @@ TIndexedEntries<TBundleControllerState> GetActuallyChangedStates(
         if (AreNodesEqual(ConvertTo<NYTree::INodePtr>(it->second), ConvertTo<NYTree::INodePtr>(possiblyChangedState))) {
             unchangedBundleStates.push_back(bundleName);
         } else {
-            YT_LOG_DEBUG("Bundle state changed (Bundle: %v,  OldState: %v, NewSatate: %v)",
+            YT_LOG_DEBUG("Bundle state changed (Bundle: %v, OldState: %v, NewSatate: %v)",
                 bundleName,
                 ConvertToYsonString(it->second, EYsonFormat::Text),
                 ConvertToYsonString(possiblyChangedState, EYsonFormat::Text));
@@ -3196,6 +3198,7 @@ void InitializeBundleTargetConfig(TSchedulerInputState& input, TSchedulerMutatio
         if (!bundleInfo->EnableBundleController || bundleInfo->TargetConfig) {
             continue;
         }
+
         auto targetConfig = New<TBundleConfig>();
         bundleInfo->TargetConfig = targetConfig;
         mutations->InitializedBundleTargetConfig[bundleName] = targetConfig;
