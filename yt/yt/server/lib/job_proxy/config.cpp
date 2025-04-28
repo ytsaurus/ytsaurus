@@ -206,6 +206,11 @@ void TCriJobEnvironmentConfig::Register(TRegistrar registrar)
         .Default();
 
     registrar.Parameter("use_job_proxy_from_image", &TThis::UseJobProxyFromImage);
+
+    registrar.Parameter("pod_descriptor", &TThis::PodDescriptor)
+        .DefaultNew();
+    registrar.Parameter("pod_spec", &TThis::PodSpec)
+        .DefaultNew();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

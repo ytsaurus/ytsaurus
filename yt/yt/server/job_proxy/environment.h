@@ -190,13 +190,22 @@ struct IJobProxyEnvironment
     virtual std::optional<i64> GetJobOomKillCount() const noexcept = 0;
 
     virtual bool UseExecFromLayer() const = 0;
+
+    virtual void StartSidecars(
+        IJobHostPtr jobProxy,
+        const NControllerAgent::NProto::TJobSpecExt& jobSpecExt,
+        std::function<void(TError)> failJobCallback) = 0;
+    virtual void StartSidecar(const std::string& name) = 0;
+    virtual void SidecarFinished(const std::string& sidecarName, const TErrorOr<void> &value) = 0;
+    virtual void KillSidecars() = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IJobProxyEnvironment)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IJobProxyEnvironmentPtr CreateJobProxyEnvironment(TJobEnvironmentConfig config);
+IJobProxyEnvironmentPtr CreateJobProxyEnvironment(
+    TJobProxyInternalConfigPtr config);
 
 ////////////////////////////////////////////////////////////////////////////////
 

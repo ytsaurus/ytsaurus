@@ -10234,14 +10234,54 @@ void TOperationControllerBase::InitUserJobSpecTemplate(
 
     jobSpec->set_start_queue_consumer_registration_manager(jobSpecConfig->StartQueueConsumerRegistrationManager);
 
-    // Pass normalized docker image reference into job spec.
-    if (jobSpecConfig->DockerImage) {
-        TDockerImageSpec dockerImageSpec(*jobSpecConfig->DockerImage, Config_->DockerRegistry);
+    const auto normalizeDockerImage = [this](const TString& dockerImage, auto* jobSpec)
+    {
+        std::optional<TString> normalizedImage;
+
+        TDockerImageSpec dockerImageSpec(dockerImage, Config_->DockerRegistry);
         if (!dockerImageSpec.IsInternal || Config_->DockerRegistry->ForwardInternalImagesToJobSpecs) {
-            jobSpec->set_docker_image(dockerImageSpec.GetDockerImage());
+            normalizedImage = dockerImageSpec.GetDockerImage();
         }
         if (dockerImageSpec.IsInternal && Config_->DockerRegistry->UseYtTokenForInternalRegistry) {
             GenerateDockerAuthFromToken(SecureVault_, AuthenticatedUser_, jobSpec);
+        }
+
+        return normalizedImage;
+    };
+
+    // Pass normalized docker image reference into job spec.
+    if (jobSpecConfig->DockerImage) {
+        auto normalizedImage = normalizeDockerImage(*jobSpecConfig->DockerImage, jobSpec);
+        if (normalizedImage) {
+            jobSpec->set_docker_image(*normalizedImage);
+        }
+    }
+
+    if (jobSpecConfig->Sidecars) {
+        auto* protoSidecars = jobSpec->mutable_sidecars();
+        for (const auto& [sidecarName, sidecarSpec]: *jobSpecConfig->Sidecars) {
+            NControllerAgent::NProto::TSidecarJobSpec sidecar;
+
+            sidecar.set_command(sidecarSpec->Command);
+
+            if (sidecarSpec->CpuLimit) {
+                sidecar.set_cpu_limit(*sidecarSpec->CpuLimit);
+            }
+
+            if (sidecarSpec->MemoryLimit) {
+                sidecar.set_memory_limit(*sidecarSpec->MemoryLimit);
+            }
+
+            if (sidecarSpec->DockerImage) {
+                auto normalizedImage = normalizeDockerImage(*sidecarSpec->DockerImage, jobSpec);
+                if (normalizedImage) {
+                    sidecar.set_docker_image(*normalizedImage);
+                }
+            }
+
+            sidecar.set_restart_policy(ToProto(sidecarSpec->RestartPolicy));
+
+            (*protoSidecars)[sidecarName] = std::move(sidecar);
         }
     }
 }

@@ -613,6 +613,8 @@ void TJobProxy::DoRun()
         YT_LOG_INFO("CPU monitor stopped");
     }
 
+    FindJobProxyEnvironment()->KillSidecars();
+
     {
         auto error = WaitFor(RpcServer_->Stop()
             .WithTimeout(RpcServerShutdownTimeout));
@@ -822,6 +824,7 @@ TJobResult TJobProxy::RunJob()
     TTraceContextGuard guard(RootSpan_);
 
     IJobPtr job;
+    IJobProxyEnvironmentPtr environment;
 
     try {
         if (Config_->TvmBridge && Config_->TvmBridgeConnection) {
@@ -840,7 +843,7 @@ TJobResult TJobProxy::RunJob()
 
         SolomonExporter_ = New<TSolomonExporter>(Config_->SolomonExporter);
 
-        auto environment = CreateJobProxyEnvironment(Config_->JobEnvironment);
+        environment = CreateJobProxyEnvironment(Config_);
         SetJobProxyEnvironment(environment);
 
         LocalDescriptor_ = NNodeTrackerClient::TNodeDescriptor(Config_->Addresses, Config_->LocalHostName, Config_->Rack, Config_->DataCenter);
@@ -1036,6 +1039,10 @@ TJobResult TJobProxy::RunJob()
     MemoryWatchdogExecutor_->Start();
     HeartbeatExecutor_->Start();
     CpuMonitor_->Start();
+
+    environment->StartSidecars(this, GetJobSpecHelper()->GetJobSpecExt(), BIND([this](TError error) {
+        GetJobOrThrow()->Fail(std::move(error));
+    }));
 
     return job->Run();
 }

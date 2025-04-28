@@ -197,6 +197,11 @@ public:
         return 0;
     }
 
+    TContainerEnvironmentBasePtr GetContainerEnvironment(int /*slotIndex*/) const override
+    {
+        return {};
+    }
+
     TFuture<std::vector<TShellCommandOutput>> RunCommands(
         int /*slotIndex*/,
         ESlotType /*slotType*/,
@@ -970,6 +975,11 @@ private:
         return SelfInstance_->GetMajorPageFaultCount();
     }
 
+    TContainerEnvironmentBasePtr GetContainerEnvironment(int /*slotIndex*/) const override
+    {
+        return {};
+    }
+
     TJobWorkspaceBuilderPtr CreateJobWorkspaceBuilder(
         IInvokerPtr invoker,
         TJobWorkspaceBuildingContext context,
@@ -1000,6 +1010,11 @@ public:
         , Executor_(CreateCriExecutor(ConcreteConfig_->CriExecutor))
         , ImageCache_(CreateCriImageCache(ConcreteConfig_->CriImageCache, Executor_))
     { }
+
+    TContainerEnvironmentBasePtr GetContainerEnvironment(int slotIndex) const override
+    {
+        return New<TContainerEnvironmentCri>(PodDescriptors_[slotIndex], PodSpecs_[slotIndex]);
+    }
 
     void DoInit(int slotCount, double cpuLimit, double /*idleCpuFraction*/) override
     {
@@ -1039,13 +1054,13 @@ public:
 
         auto podSpec = New<NCri::TCriPodSpec>();
         podSpec->Name = Format("%v%v", SlotPodPrefix, slotIndex);
-        podSpec->Resources.CpuLimit = CpuLimit_;
+        podSpec->Resources->CpuLimit = CpuLimit_;
         PodSpecs_[slotIndex] = podSpec;
         SlotCpusetCpus_[slotIndex] = EmptyCpuSet;
 
         auto slotInitFuture = Executor_->RunPodSandbox(podSpec);
         slotInitFuture
-            .Subscribe(BIND([this, this_ = MakeStrong(this), slotIndex] (const TErrorOr<TCriPodDescriptor>& result){
+            .Subscribe(BIND([this, this_ = MakeStrong(this), slotIndex] (const TErrorOr<TCriPodDescriptorPtr>& result){
                 YT_ASSERT_THREAD_AFFINITY(JobThread);
 
                 if (result.IsOK()) {
@@ -1128,6 +1143,7 @@ public:
         YT_VERIFY(slotType == ESlotType::Common);
 
         auto spec = New<NCri::TCriContainerSpec>();
+        spec->Resources = New<NCri::TCriContainerResources>();
 
         // Run setup using default docker image for job workspace.
         spec->Image.Image = ConcreteConfig_->JobProxyImage;
@@ -1151,7 +1167,7 @@ public:
 
         const auto& cpusetCpu = SlotCpusetCpus_[slotIndex];
         if (cpusetCpu != EmptyCpuSet) {
-            spec->Resources.CpusetCpus = cpusetCpu;
+            spec->Resources->CpusetCpus = cpusetCpu;
         }
 
         std::vector<TFuture<void>> results;
@@ -1194,7 +1210,7 @@ private:
     const ICriExecutorPtr Executor_;
     const ICriImageCachePtr ImageCache_;
 
-    std::vector<TCriPodDescriptor> PodDescriptors_;
+    std::vector<TCriPodDescriptorPtr> PodDescriptors_;
     std::vector<TCriPodSpecPtr> PodSpecs_;
     std::vector<TString> SlotCpusetCpus_;
     double CpuLimit_ = 0;
@@ -1212,6 +1228,7 @@ private:
         YT_VERIFY(slotType == ESlotType::Common);
 
         auto spec = New<NCri::TCriContainerSpec>();
+        spec->Resources = New<NCri::TCriContainerResources>();
 
         spec->Name = "job-proxy";
 
@@ -1326,12 +1343,27 @@ private:
             });
         }
 
-        spec->Resources.CpuLimit = config->ContainerCpuLimit;
-        spec->Resources.MemoryLimit = config->SlotContainerMemoryLimit;
+        // Required for job_proxy to be able to work with the containerd socket.
+        spec->BindMounts.push_back(NCri::TCriBindMount{
+            .ContainerPath = "/run/containerd/",
+            .HostPath = "/run/containerd/",
+            .ReadOnly = false,
+        });
+
+        // We need to specify the group which owns (or has access to) the /run/containerd/containerd.socket,
+        // so that the job proxy can spawn sidecars. However, it's impossible to check the owner without sudo.
+        // I suggest that we add a configuration parameter for the server to specify the name of the containerd
+        // group, as it may be root, docker or anything else. By default it should be docker, and root should
+        // never be specified for security reasons.
+        // TODO: decide this; currently, it's hardcoded to ID of docker group on the dev machine.
+        spec->Credentials.Groups = {998};
+
+        spec->Resources->CpuLimit = config->ContainerCpuLimit;
+        spec->Resources->MemoryLimit = config->SlotContainerMemoryLimit;
 
         const auto& cpusetCpu = SlotCpusetCpus_[slotIndex];
         if (cpusetCpu != EmptyCpuSet) {
-            spec->Resources.CpusetCpus = cpusetCpu;
+            spec->Resources->CpusetCpus = cpusetCpu;
         }
 
         // Allow strace in job shell.

@@ -100,4 +100,49 @@ void TCriImageCacheConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TCriPodDescriptor::Register(TRegistrar registrar)
+{
+    registrar.Parameter("name", &TThis::Name)
+        .NonEmpty();
+
+    registrar.Parameter("id", &TThis::Id)
+        .NonEmpty();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TCriContainerResources::Register(TRegistrar registrar)
+{
+    registrar.Parameter("cpu_limit", &TThis::CpuLimit)
+        .Optional();
+
+    registrar.Parameter("cpu_request", &TThis::CpuRequest)
+        .Optional();
+
+    registrar.Parameter("memory_limit", &TThis::MemoryLimit)
+        .Optional();
+
+    registrar.Parameter("memory_request", &TThis::MemoryRequest)
+        .Optional();
+
+    registrar.Parameter("memory_oom_group", &TThis::MemoryOomGroup)
+        .Optional();
+
+    registrar.Parameter("cpuset_cpus", &TThis::CpusetCpus)
+        .Optional();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TCriPodSpec::Register(TRegistrar registrar)
+{
+    registrar.Parameter("name", &TThis::Name)
+        .NonEmpty();
+
+    registrar.Parameter("resources", &TThis::Resources)
+        .DefaultNew();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NContainers::NCri
