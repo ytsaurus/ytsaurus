@@ -1185,6 +1185,60 @@ class TestGpuCheck(YTEnvSetup, GpuCheckBase):
         assert "running_gpu_check_command" in phases
 
     @pytest.mark.timeout(180)
+    def test_gpu_check_setup_commands(self):
+        self.setup_gpu_layer_and_reset_nodes(prepare_gpu_base_layer=True)
+        self.setup_tables()
+        self.init_operations_archive()
+
+        update_nodes_dynamic_config({
+            "exec_node": {
+                "gpu_manager": {
+                    "job_setup_command": {
+                        "path": "/bin/bash",
+                        "args": [
+                            "-c",
+                            "echo SETUP-GPU-OUTPUT-DYNAMIC > /gpu_setup_output_file",
+                        ],
+                    },
+                },
+            },
+        })
+
+        update_controller_agent_config(
+            "map_operation_options/gpu_check",
+            {
+                "use_separate_root_volume": True,
+                "layer_paths": ["//tmp/gpu_check/0", "//tmp/gpu_base_layer"],
+                "binary_path": "/usr/bin/test",
+                "binary_args": ["-f", "/gpu_setup_output_file"],
+            }
+        )
+
+        write_table("//tmp/t_in", [{"k": 0}])
+        op = map(
+            in_="//tmp/t_in",
+            out="//tmp/t_out",
+            command="exit 0",
+            spec={
+                "max_failed_job_count": 1,
+                "mapper": {
+                    "job_count": 1,
+                    "layer_paths": ["//tmp/base_layer"],
+                    "enable_gpu_layers": True,
+                    "enable_gpu_check": True,
+                },
+            },
+        )
+
+        job_ids = op.list_jobs()
+        assert len(job_ids) == 1
+        job_id = job_ids[0]
+
+        events = get_job(op.id, job_id)["events"]
+        phases = [event["phase"] for event in events if "phase" in event]
+        assert "running_gpu_check_command" in phases
+
+    @pytest.mark.timeout(180)
     def test_gpu_check_success_with_failed_job_with_separate_volume(self):
         self.setup_gpu_layer_and_reset_nodes(prepare_gpu_base_layer=True)
         self.setup_tables()
