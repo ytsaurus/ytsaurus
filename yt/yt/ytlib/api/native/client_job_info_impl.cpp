@@ -2428,7 +2428,7 @@ TListJobsResult TClient::DoListJobs(
     // Get jobs from controller agent.
     auto controllerAgentAddress = FindControllerAgentAddressFromCypress(
         operationId,
-        MakeStrong(this));
+        GetOperationsArchiveClient());
     auto controllerAgentResultFuture = DoListJobsFromControllerAgentAsync(
         operationId,
         controllerAgentAddress,
@@ -2629,7 +2629,7 @@ std::optional<TJob> TClient::DoGetJobFromControllerAgent(
 {
     auto controllerAgentAddress = FindControllerAgentAddressFromCypress(
         operationId,
-        MakeStrong(this));
+        GetOperationsArchiveClient());
     if (!controllerAgentAddress) {
         return {};
     }
