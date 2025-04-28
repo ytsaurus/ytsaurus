@@ -18,6 +18,12 @@ void SetChaosCacheStickyGroupBalancingHint(
     const TReplicationCardId& replicationCardId,
     NRpc::NProto::TBalancingExt* balancingHeaderExt);
 
+void SetChaosCacheCachingHeader(
+    TDuration expireAfterSuccessfulUpdateTime,
+    TDuration expireAfterFailedUpdateTime,
+    TReplicationEra refreshEra,
+    NYTree::NProto::TCachingHeaderExt* cachingHeaderExt);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NChaosClient
