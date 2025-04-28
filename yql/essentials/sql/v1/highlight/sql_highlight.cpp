@@ -30,9 +30,9 @@ namespace NSQLHighlight {
         }
     };
 
-    TPattern CaseInsensitive(TStringBuf text) {
+    NSQLTranslationV1::TRegexPattern CaseInsensitive(TStringBuf text) {
         return {
-            .BodyRe = TString(text),
+            .Body = TString(text),
             .IsCaseInsensitive = true,
         };
     }
@@ -166,7 +166,7 @@ namespace NSQLHighlight {
             .Kind = EUnitKind::StringLiteral,
             .Patterns = {
                 {
-                    .BodyRe = s.Get("STRING_VALUE"),
+                    .Body = s.Get("STRING_VALUE"),
                     .IsLongestMatch = false,
                 },
             },
@@ -179,7 +179,7 @@ namespace NSQLHighlight {
             .Kind = EUnitKind::Comment,
             .Patterns = {
                 {
-                    .BodyRe = s.Get("COMMENT"),
+                    .Body = s.Get("COMMENT"),
                     .IsLongestMatch = false,
                 },
             },
@@ -221,8 +221,6 @@ namespace NSQLHighlight {
         h.Units.emplace_back(MakeUnit<EUnitKind::Comment>(s));
         h.Units.emplace_back(MakeUnit<EUnitKind::Whitespace>(s));
 
-        h.Whitespace = {s.Get("WS")};
-
         return h;
     }
 
@@ -263,6 +261,9 @@ void Out<NSQLHighlight::EUnitKind>(IOutputStream& out, NSQLHighlight::EUnitKind 
             break;
         case NSQLHighlight::EUnitKind::Whitespace:
             out << "Ws";
+            break;
+        case NSQLHighlight::EUnitKind::Error:
+            out << "Error";
             break;
     }
 }

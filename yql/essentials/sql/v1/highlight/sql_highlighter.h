@@ -10,8 +10,8 @@ namespace NSQLHighlight {
 
     struct TToken {
         EUnitKind Kind;
-        size_t Begin;
-        size_t Length;
+        size_t Begin;  // In bytes
+        size_t Length; // In bytes
     };
 
     class IHighlighter: public TThrRefBase {

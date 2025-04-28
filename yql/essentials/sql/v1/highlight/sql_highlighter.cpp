@@ -7,136 +7,74 @@
 
 namespace NSQLHighlight {
 
-    namespace {
+    using NSQLTranslationV1::Compile;
+    using NSQLTranslationV1::IGenericLexer;
+    using NSQLTranslationV1::TGenericToken;
 
-        struct TCompiledPattern {
-            THolder<RE2> Body;
-            THolder<RE2> After;
-        };
+    THashMap<EUnitKind, TString> NamesByUnitKind = [] {
+        THashMap<EUnitKind, TString> names;
+        names[EUnitKind::Keyword] = "K";
+        names[EUnitKind::Punctuation] = "P";
+        names[EUnitKind::QuotedIdentifier] = "Q";
+        names[EUnitKind::BindParamterIdentifier] = "B";
+        names[EUnitKind::TypeIdentifier] = "T";
+        names[EUnitKind::FunctionIdentifier] = "F";
+        names[EUnitKind::Identifier] = "I";
+        names[EUnitKind::Literal] = "L";
+        names[EUnitKind::StringLiteral] = "S";
+        names[EUnitKind::Comment] = "C";
+        names[EUnitKind::Whitespace] = "W";
+        names[EUnitKind::Error] = TGenericToken::Error;
+        return names;
+    }();
 
-        struct TCompiledUnit {
-            EUnitKind Kind;
-            TVector<TCompiledPattern> Patterns;
-        };
-
-        struct TCompiledHighlighting {
-            TVector<TCompiledUnit> Units;
-            TCompiledPattern Whitespace;
-        };
-
-        TCompiledPattern Compile(TPattern pattern) {
-            RE2::Options options;
-            options.set_case_sensitive(!pattern.IsCaseInsensitive);
-            options.set_longest_match(pattern.IsLongestMatch);
-
-            return {
-                .Body = MakeHolder<RE2>(pattern.BodyRe, options),
-                .After = MakeHolder<RE2>(pattern.AfterRe),
-            };
+    THashMap<TString, EUnitKind> UnitKindsByName = [] {
+        THashMap<TString, EUnitKind> kinds;
+        for (const auto& [kind, name] : NamesByUnitKind) {
+            Y_ENSURE(!kinds.contains(name));
+            kinds[name] = kind;
         }
+        return kinds;
+    }();
 
-        TCompiledUnit Compile(TUnit unit) {
-            TCompiledUnit compiled;
-            compiled.Kind = unit.Kind;
-            for (auto& pattern : unit.Patterns) {
-                compiled.Patterns.emplace_back(Compile(std::move(pattern)));
-            }
-            return compiled;
-        }
-
-        TVector<TCompiledUnit> Compile(TVector<TUnit> units) {
-            TVector<TCompiledUnit> compiled;
-            for (auto& unit : units) {
-                compiled.emplace_back(std::move(Compile(unit)));
-            }
-            return compiled;
-        }
-
-        TCompiledHighlighting Compile(THighlighting highlighting) {
-            return {
-                .Units = Compile(highlighting.Units),
-                .Whitespace = Compile(highlighting.Whitespace),
-            };
-        }
-
-        class THighlighter: public IHighlighter {
-        public:
-            explicit THighlighter(THighlighting highlighting)
-                : Highlighting_(Compile(std::move(highlighting)))
-            {
-            }
-
-            void Tokenize(TStringBuf text, const TTokenCallback& onNext) const override {
-                size_t pos = 0;
-                while (pos < text.size()) {
-                    auto matched = Match(TStringBuf(text, pos));
-                    matched.Begin = pos;
-                    pos += matched.Length;
-                    onNext(std::move(matched));
-                }
-            }
-
-        private:
-            TToken Match(const TStringBuf prefix) const {
-                static constexpr TToken Unknown = {
-                    .Kind = EUnitKind::Whitespace,
-                    .Begin = 0,
-                    .Length = 1,
-                };
-
-                TVector<TToken> matched;
-                Match(prefix, [&](TToken&& token) {
-                    matched.emplace_back(std::move(token));
+    IGenericLexer::TGrammar ToGenericLexerGrammar(THighlighting highlighting) {
+        IGenericLexer::TGrammar grammar;
+        for (const auto& unit : highlighting.Units) {
+            for (const auto& pattern : unit.Patterns) {
+                grammar.emplace_back(IGenericLexer::TTokenMatcher{
+                    .TokenName = NamesByUnitKind.at(unit.Kind),
+                    .Match = Compile(pattern),
                 });
-
-                auto max = MaxElementBy(
-                    matched, [](const TToken& m) { return m.Length; });
-
-                if (max != std::end(matched)) {
-                    return *max;
-                }
-                return Unknown;
             }
+        }
+        return grammar;
+    }
 
-            void Match(const TStringBuf prefix, auto onMatch) const {
-                for (const auto& unit : Highlighting_.Units) {
-                    Match(prefix, unit, onMatch);
+    class THighlighter: public IHighlighter {
+    public:
+        explicit THighlighter(THighlighting highlighting)
+            : Lexer_(NSQLTranslationV1::MakeGenericLexer(
+                  ToGenericLexerGrammar(std::move(highlighting))))
+        {
+        }
+
+        void Tokenize(TStringBuf text, const TTokenCallback& onNext) const override {
+            Lexer_->Tokenize(text, [&](NSQLTranslationV1::TGenericToken&& token) {
+                if (token.Name == "EOF") {
+                    return;
                 }
-            }
 
-            void Match(const TStringBuf prefix, const TCompiledUnit& unit, auto onMatch) const {
-                for (const auto& pattern : unit.Patterns) {
-                    if (auto content = Match(prefix, pattern)) {
-                        onMatch(TToken{
-                            .Kind = unit.Kind,
-                            .Begin = 0,
-                            .Length = content->size(),
-                        });
-                    }
-                }
-            }
+                onNext({
+                    .Kind = UnitKindsByName.at(token.Name),
+                    .Begin = token.Begin,
+                    .Length = token.Content.size(),
+                });
+            });
+        }
 
-            TMaybe<TStringBuf> Match(const TStringBuf prefix, const TCompiledPattern& pattern) const {
-                TMaybe<TStringBuf> body, after;
-                if ((body = Match(prefix, *pattern.Body)) &&
-                    (after = Match(prefix.Tail(body->size()), *pattern.After))) {
-                    return body;
-                }
-                return Nothing();
-            }
-
-            TMaybe<TStringBuf> Match(const TStringBuf prefix, const RE2& regex) const {
-                re2::StringPiece input(prefix.data(), prefix.size());
-                if (RE2::Consume(&input, regex)) {
-                    return TStringBuf(prefix.data(), input.data());
-                }
-                return Nothing();
-            }
-
-            TCompiledHighlighting Highlighting_;
-        };
-
-    } // namespace
+    private:
+        NSQLTranslationV1::IGenericLexer::TPtr Lexer_;
+    };
 
     TVector<TToken> Tokenize(IHighlighter& highlighter, TStringBuf text) {
         TVector<TToken> tokens;

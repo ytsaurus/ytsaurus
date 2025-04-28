@@ -14,9 +14,9 @@ Y_UNIT_TEST_SUITE(SqlHighlightTests) {
         for (const auto& unit : highlighting.Units) {
             Cout << "Unit " << unit.Kind << Endl;
             for (const auto& pattern : unit.Patterns) {
-                Cout << "- " << pattern.BodyRe;
-                if (!pattern.AfterRe.empty()) {
-                    Cout << "(?=" << pattern.AfterRe + ")";
+                Cout << "- " << pattern.Body;
+                if (!pattern.After.empty()) {
+                    Cout << "(?=" << pattern.After + ")";
                 }
                 Cout << Endl;
             }

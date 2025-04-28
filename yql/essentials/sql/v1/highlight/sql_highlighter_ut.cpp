@@ -31,6 +31,8 @@ char ToChar(EUnitKind kind) {
             return 'c';
         case EUnitKind::Whitespace:
             return ' ';
+        case EUnitKind::Error:
+            return 'e';
     }
 }
 
@@ -62,12 +64,12 @@ Y_UNIT_TEST_SUITE(SqlHighlighterTests) {
 
     Y_UNIT_TEST(Invalid) {
         auto h = MakeHighlighter(MakeHighlighting(NSQLReflect::LoadLexerGrammar()));
-        UNIT_ASSERT_HIGHLIGHTED("!", " ");
-        UNIT_ASSERT_HIGHLIGHTED("й", "  ");
-        UNIT_ASSERT_HIGHLIGHTED("编", "   ");
-        UNIT_ASSERT_HIGHLIGHTED("\xF0\x9F\x98\x8A", "    ");
-        UNIT_ASSERT_HIGHLIGHTED("!select", " kkkkkk");
-        UNIT_ASSERT_HIGHLIGHTED("!sselect", " iiiiiii");
+        UNIT_ASSERT_HIGHLIGHTED("!", "e");
+        UNIT_ASSERT_HIGHLIGHTED("й", "ee");
+        UNIT_ASSERT_HIGHLIGHTED("编", "eee");
+        UNIT_ASSERT_HIGHLIGHTED("\xF0\x9F\x98\x8A", "eeee");
+        UNIT_ASSERT_HIGHLIGHTED("!select", "ekkkkkk");
+        UNIT_ASSERT_HIGHLIGHTED("!sselect", "eiiiiiii");
     }
 
     Y_UNIT_TEST(Keyword) {
@@ -113,7 +115,7 @@ Y_UNIT_TEST_SUITE(SqlHighlighterTests) {
         auto h = MakeHighlighter(MakeHighlighting(NSQLReflect::LoadLexerGrammar()));
         UNIT_ASSERT_HIGHLIGHTED("`/cluster/database`", "qqqqqqqqqqqqqqqqqqq");
         UNIT_ASSERT_HIGHLIGHTED("`test`select", "qqqqqqkkkkkk");
-        UNIT_ASSERT_HIGHLIGHTED("`/cluster", " piiiiiii");
+        UNIT_ASSERT_HIGHLIGHTED("`/cluster", "epiiiiiii");
         UNIT_ASSERT_HIGHLIGHTED("`\xF0\x9F\x98\x8A`", "qqqqqq");
     }
 
@@ -121,14 +123,14 @@ Y_UNIT_TEST_SUITE(SqlHighlighterTests) {
         auto h = MakeHighlighter(MakeHighlighting(NSQLReflect::LoadLexerGrammar()));
         UNIT_ASSERT_HIGHLIGHTED("\"\"", "ss");
         UNIT_ASSERT_HIGHLIGHTED("\"test\"", "ssssss");
-        UNIT_ASSERT_HIGHLIGHTED("\"", " ");
-        UNIT_ASSERT_HIGHLIGHTED("\"\"\"", "ss ");
-        UNIT_ASSERT_HIGHLIGHTED("\"\\\"", "   ");
-        UNIT_ASSERT_HIGHLIGHTED("\"test select from", " iiii kkkkkk kkkk");
+        UNIT_ASSERT_HIGHLIGHTED("\"", "e");
+        UNIT_ASSERT_HIGHLIGHTED("\"\"\"", "sse");
+        UNIT_ASSERT_HIGHLIGHTED("\"\\\"", "eee");
+        UNIT_ASSERT_HIGHLIGHTED("\"test select from", "eiiii kkkkkk kkkk");
         UNIT_ASSERT_HIGHLIGHTED("\"\\\"\"", "ssss");
         UNIT_ASSERT_HIGHLIGHTED("\"select\"select", "sssssssssiiiii");
         UNIT_ASSERT_HIGHLIGHTED("\"select\"group", "sssssssskkkkk");
-        UNIT_ASSERT_HIGHLIGHTED("SELECT \\\"\xF0\x9F\x98\x8A\\\" FROM test", "kkkkkk          kkkk iiii");
+        UNIT_ASSERT_HIGHLIGHTED("SELECT \\\"\xF0\x9F\x98\x8A\\\" FROM test", "kkkkkk eeeeeeee kkkk iiii");
     }
 
     Y_UNIT_TEST(Number) {

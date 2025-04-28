@@ -1,5 +1,6 @@
 #pragma once
 
+#include <yql/essentials/sql/v1/lexer/regex/generic.h>
 #include <yql/essentials/sql/v1/reflect/sql_reflect.h>
 
 #include <util/generic/string.h>
@@ -20,36 +21,16 @@ namespace NSQLHighlight {
         StringLiteral,
         Comment,
         Whitespace,
-    };
-
-    // TODO: Introfuce the GenericLexer powered by TPattern.
-    //
-    //       Use it for both sql/v1/lexer/regex and sql/v1/highlight.
-    //       - /sql/v1/lexer/regex/generic.h
-    //       - /sql/v1/lexer/regex/lexer.h
-    //
-    //       Translatation. Grammar -> Highlighting -> GenericLexerGrammar.
-    //
-    //       GenericLexer:
-    //         Uses [{TokenKind: TString, Matcher}] for matching
-    //         Matcher = FunctionRef<TMaybe<TStringBuf>(TStringBuf prefix)>
-    //         RegexMatcher(TPattern) -> Matcher
-    //         TToken = { Kind: TStringBuf, Begin: size_t, size_t Length }
-    struct TPattern {
-        TString BodyRe;
-        TString AfterRe = "";
-        bool IsCaseInsensitive = false;
-        bool IsLongestMatch = true;
+        Error,
     };
 
     struct TUnit {
         EUnitKind Kind;
-        TVector<TPattern> Patterns;
+        TVector<NSQLTranslationV1::TRegexPattern> Patterns;
     };
 
     struct THighlighting {
         TVector<TUnit> Units;
-        TPattern Whitespace;
     };
 
     THighlighting MakeHighlighting(NSQLReflect::TLexerGrammar grammar);
