@@ -164,7 +164,7 @@ void TBootstrap::DoInitialize()
     connectionOptions.RetryRequestQueueSizeLimitExceeded = Config_->RetryRequestQueueSizeLimitExceeded;
 
     MemoryUsageTracker_ = CreateNodeMemoryTracker(
-        Config_->MemoryLimits->Total.value_or(std::numeric_limits<i64>::max()),
+        Config_->MemoryLimits->Total.value_or(std::numeric_limits<i32>::max()),
         /*limits*/ {},
         Logger(),
         HttpProxyProfiler().WithPrefix("/memory_usage"));
@@ -426,7 +426,7 @@ void TBootstrap::SetupClients()
     NLogging::GetDynamicTableLogWriterFactory()->SetClient(RootClient_);
 }
 
-void TBootstrap::ReconfigureMemoryLimits(const TProxyMemoryLimitsConfigPtr& memoryLimits)
+void TBootstrap::ReconfigureMemoryLimits(const TMemoryLimitsConfigPtr& memoryLimits)
 {
     if (memoryLimits->Total) {
         MemoryUsageTracker_->SetTotalLimit(*memoryLimits->Total);

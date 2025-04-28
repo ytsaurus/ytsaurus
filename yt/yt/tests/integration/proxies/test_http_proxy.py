@@ -424,24 +424,90 @@ class TestHttpProxyUserMemoryDrop(HttpProxyTestBase):
     @pytest.mark.timeout(120)
     def test_specific_user_drop(self):
         create_user("nadya")
+
+        def get_yson(url):
+            return yson.loads(requests.get(url).content)
+
+        if get_yson(self._get_proxy_address() + "/hosts?role=data") != []:
+            create_proxy_role("ml", "http")
         proxy_name = ls("//sys/http_proxies")[0]
 
         create("table", "//tmp/test")
 
+        proxy = ls("//sys/http_proxies")[0]
+
+        set("//sys/http_proxies/" + proxy + "/@role", "ml")
+
+        def get_yson(url):
+            return yson.loads(requests.get(url).content)
+
+        def check_role_updated():
+            return get_yson(self._get_proxy_address() + "/hosts") == [] and \
+                get_yson(self._get_proxy_address() + "/hosts?role=data") == []
+
+        wait(check_role_updated)
+
         set("//sys/http_proxies/@config", {
             "api": {
-                "user_to_memory_limit_ratio": {"nadya" : 0.0},
-            },
+                "role_to_memory_limit_ratios" : {
+                    "ml" : {
+                        "user_to_memory_limit_ratio": {"nadya" : 0.0}
+                    }
+                }
+            }
         })
 
         def config_updated():
             config = get("//sys/http_proxies/" + proxy_name + "/orchid/dynamic_config_manager/effective_config")
-            return config.get("api", {}).get("user_to_memory_limit_ratio", None) == {"nadya" : 0.0}
+            return config.get("api", {}).get("role_to_memory_limit_ratios") != {}
 
         wait(config_updated)
 
         with raises_yt_error("Request is dropped due to high memory pressure"):
             self._execute_command("GET", "read_table", {"path": "//tmp/test"}, user="nadya")
+
+    @authors("nadya02")
+    @pytest.mark.timeout(120)
+    def test_role_default_user_drop(self):
+
+        def get_yson(url):
+            return yson.loads(requests.get(url).content)
+
+        if get_yson(self._get_proxy_address() + "/hosts?role=data") != []:
+            create_proxy_role("ml", "http")
+
+        proxy_name = ls("//sys/http_proxies")[0]
+
+        create("table", "//tmp/test")
+
+        proxy = ls("//sys/http_proxies")[0]
+
+        set("//sys/http_proxies/" + proxy + "/@role", "ml")
+
+        def check_role_updated():
+            return get_yson(self._get_proxy_address() + "/hosts") == [] and \
+                get_yson(self._get_proxy_address() + "/hosts?role=data") == []
+
+        wait(check_role_updated)
+
+        set("//sys/http_proxies/@config", {
+            "api": {
+                "role_to_memory_limit_ratios" : {
+                    "ml" : {
+                        "default_user_memory_limit_ratio": 0.0
+                    }
+                }
+            }
+        })
+
+        def config_updated():
+            config = get("//sys/http_proxies/" + proxy_name + "/orchid/dynamic_config_manager/effective_config")
+            return config.get("api", {}).get("role_to_memory_limit_ratios", {}).get("ml", {}).get("default_user_memory_limit_ratio", {}) == 0.0
+
+        wait(config_updated)
+
+        with raises_yt_error("Request is dropped due to high memory pressure"):
+            self._execute_command("GET", "read_table", {"path": "//tmp/test"})
 
     @authors("nadya02")
     @pytest.mark.timeout(120)
