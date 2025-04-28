@@ -668,10 +668,9 @@ private:
 
         auto originalRequestId = FromProto<TRequestId>(request.original_request_id());
 
-        RpcContext_->SetRequestInfo("SubrequestCount: %v, SupportsPortals: %v, SuppressUpstreamSync: %v, "
+        RpcContext_->SetRequestInfo("SubrequestCount: %v, SuppressUpstreamSync: %v, "
             "SuppressTransactionCoordinatorSync: %v, OriginalRequestId: %v",
             TotalSubrequestCount_,
-            request.supports_portals(),
             GetSuppressUpstreamSync(RpcContext_),
             GetSuppressTransactionCoordinatorSync(RpcContext_),
             originalRequestId);
@@ -2177,7 +2176,6 @@ private:
             return;
         }
 
-        auto& request = RpcContext_->Request();
         auto& response = RpcContext_->Response();
         auto& attachments = response.Attachments();
 
@@ -2224,16 +2222,6 @@ private:
                 uncertainIndexes.push_back(index);
             } else {
                 completedIndexes.push_back(index);
-            }
-        }
-
-        // COMPAT(babenko)
-        if (!request.supports_portals()) {
-            for (int index = 0; index < std::ssize(completedIndexes); ++index) {
-                if (completedIndexes[index] != index) {
-                    completedIndexes.erase(completedIndexes.begin() + index, completedIndexes.end());
-                    break;
-                }
             }
         }
 
@@ -2566,11 +2554,6 @@ void TObjectService::SetStickyUserError(const std::string& userName, const TErro
 DEFINE_RPC_SERVICE_METHOD(TObjectService, Execute)
 {
     Y_UNUSED(response);
-
-    YT_LOG_ALERT_UNLESS(
-        request->supports_portals(),
-        "Received batch request without portals support (RequestId: %v)",
-        context->GetRequestId());
 
     const auto& userName = context->GetAuthenticationIdentity().User;
     auto error = StickyUserErrorCache_.Get(userName);

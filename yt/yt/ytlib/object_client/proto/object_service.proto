@@ -20,6 +20,7 @@ message TReqExecute
     optional bool allow_backoff = 3 [default = false];
 
     // If |true|, the client supports TRspExecute.subresponses and TRspExecute.uncertain_subrequest_indexes.
+    // COMPAT(babenko): drop this completely
     optional bool supports_portals = 5;
 
     // Current sticky group size for batch
