@@ -33,6 +33,6 @@ namespace NSQLHighlight {
         TVector<TUnit> Units;
     };
 
-    THighlighting MakeHighlighting(NSQLReflect::TLexerGrammar grammar);
+    THighlighting MakeHighlighting(const NSQLReflect::TLexerGrammar& grammar);
 
 } // namespace NSQLHighlight

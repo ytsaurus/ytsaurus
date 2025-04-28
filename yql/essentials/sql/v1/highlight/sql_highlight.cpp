@@ -11,7 +11,7 @@
 namespace NSQLHighlight {
 
     struct Syntax {
-        NSQLReflect::TLexerGrammar Grammar;
+        const NSQLReflect::TLexerGrammar* Grammar;
         THashMap<TString, TString> RegexByOtherName;
 
         TString Concat(const TVector<TStringBuf>& names) {
@@ -23,8 +23,8 @@ namespace NSQLHighlight {
         }
 
         TString Get(const TStringBuf name) const {
-            if (Grammar.PunctuationNames.contains(name)) {
-                return RE2::QuoteMeta(Grammar.BlockByName.at(name));
+            if (Grammar->PunctuationNames.contains(name)) {
+                return RE2::QuoteMeta(Grammar->BlockByName.at(name));
             }
             return RegexByOtherName.at(name);
         }
@@ -45,7 +45,7 @@ namespace NSQLHighlight {
         using NSQLReflect::TLexerGrammar;
 
         TUnit unit = {.Kind = EUnitKind::Keyword};
-        for (const auto& keyword : s.Grammar.KeywordNames) {
+        for (const auto& keyword : s.Grammar->KeywordNames) {
             const TStringBuf content = TLexerGrammar::KeywordBlock(keyword);
             unit.Patterns.push_back(CaseInsensitive(content));
         }
@@ -55,7 +55,7 @@ namespace NSQLHighlight {
     template <>
     TUnit MakeUnit<EUnitKind::Punctuation>(Syntax& s) {
         TUnit unit = {.Kind = EUnitKind::Punctuation};
-        for (const auto& name : s.Grammar.PunctuationNames) {
+        for (const auto& name : s.Grammar->PunctuationNames) {
             const TString content = s.Get(name);
             unit.Patterns.push_back({content});
         }
@@ -196,17 +196,17 @@ namespace NSQLHighlight {
         };
     }
 
-    Syntax MakeSyntax(NSQLReflect::TLexerGrammar grammar) {
+    Syntax MakeSyntax(const NSQLReflect::TLexerGrammar& grammar) {
         Syntax syntax;
-        syntax.Grammar = std::move(grammar);
-        for (auto& [k, v] : NSQLTranslationV1::MakeRegexByOtherName(syntax.Grammar, /* ansi = */ false)) {
+        syntax.Grammar = &grammar;
+        for (auto& [k, v] : NSQLTranslationV1::MakeRegexByOtherName(*syntax.Grammar, /* ansi = */ false)) {
             syntax.RegexByOtherName.emplace(std::move(k), std::move(v));
         }
         return syntax;
     }
 
-    THighlighting MakeHighlighting(NSQLReflect::TLexerGrammar grammar) {
-        Syntax s = MakeSyntax(std::move(grammar));
+    THighlighting MakeHighlighting(const NSQLReflect::TLexerGrammar& grammar) {
+        Syntax s = MakeSyntax(grammar);
 
         THighlighting h;
         h.Units.emplace_back(MakeUnit<EUnitKind::Keyword>(s));
