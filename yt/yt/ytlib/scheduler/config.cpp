@@ -1092,6 +1092,30 @@ void TTaskOutputStreamConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TSidecarJobSpec::Register(TRegistrar registrar)
+{
+    registrar.Parameter("command", &TThis::Command)
+        .Default();
+
+    registrar.Parameter("cpu_limit", &TThis::CpuLimit)
+        .Optional()
+        .GreaterThanOrEqual(0);
+    registrar.Parameter("memory_limit", &TThis::MemoryLimit)
+        .Optional()
+        .GreaterThan(0)
+        .LessThanOrEqual(16_TB);
+
+    registrar.Parameter("docker_image", &TThis::DockerImage)
+        .Default();
+
+    registrar.Parameter("restart_policy", &TThis::RestartPolicy)
+        .Default(ESidecarRestartPolicy::FailOnError);
+
+    // TODO: add a postprocessor to verify that either DockerImage or Command is specified?
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TJobExperimentConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("max_failed_treatment_jobs", &TThis::MaxFailedTreatmentJobs)
@@ -1295,6 +1319,9 @@ void TUserJobSpec::Register(TRegistrar registrar)
         .Default();
 
     registrar.Parameter("archive_ttl", &TThis::ArchiveTtl)
+        .Default();
+
+    registrar.Parameter("sidecars", &TThis::Sidecars)
         .Default();
 
     registrar.Postprocessor([] (TUserJobSpec* spec) {

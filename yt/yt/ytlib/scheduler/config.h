@@ -1304,6 +1304,40 @@ DEFINE_REFCOUNTED_TYPE(TTaskOutputStreamConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DEFINE_ENUM(ESidecarRestartPolicy,
+    (Always)
+    (OnFailure)
+    (FailOnError)
+);
+
+struct TSidecarJobSpec
+    : public NYTree::TYsonStruct
+{
+    TString Command;
+
+    std::optional<double> CpuLimit;
+    std::optional<i64> MemoryLimit;
+
+    std::optional<TString> DockerImage;
+
+    //! +-------------------+---------------------+---------------------+
+    //! | Value / Behaviour | Success             | Failure             |
+    //! +-------------------+---------------------+---------------------+
+    //! | Always            | Restart the sidecar | Restart the sidecar |
+    //! | OnFailure         | Do nothing          | Restart the sidecar |
+    //! | FailOnError       | Do nothing          | Fail the job        |
+    //! +-------------------+---------------------+---------------------+
+    std::optional<ESidecarRestartPolicy> RestartPolicy;
+
+    REGISTER_YSON_STRUCT(TSidecarJobSpec);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TSidecarJobSpec)
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct TUserJobSpec
     : public NYTree::TYsonStruct
     , public virtual NPhoenix::TPolymorphicBase
@@ -1456,6 +1490,9 @@ struct TUserJobSpec
     THashSet<EExtraEnvironment> ExtraEnvironment;
 
     std::optional<TDuration> ArchiveTtl;
+
+    //! Map consisting of pairs <sidecar_name, sidecar_spec>.
+    std::optional<THashMap<TString, TSidecarJobSpec>> Sidecars;
 
     void InitEnableInputTableIndex(int inputTableCount, TJobIOConfigPtr jobIOConfig);
 
