@@ -274,7 +274,6 @@ const TChunkList* TTabletBase::GetChunkList(EChunkListContentType type) const
     return const_cast<TTabletBase*>(this)->GetChunkList(type);
 }
 
-
 TTabletServant* TTabletBase::FindServant(TTabletCellId cellId)
 {
     if (GetObjectId(Servant_.GetCell()) == cellId) {

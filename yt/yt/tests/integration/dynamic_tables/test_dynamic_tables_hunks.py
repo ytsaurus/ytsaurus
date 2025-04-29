@@ -84,7 +84,8 @@ class TestSortedDynamicTablesHunks(TestSortedDynamicTablesBase):
                       max_inline_hunk_size=10,
                       hunk_erasure_codec="none",
                       schema=SCHEMA,
-                      dynamic=True):
+                      dynamic=True,
+                      enable_dynamic_store_read=False):
         create_table_function = self._create_simple_table if dynamic else self._create_simple_static_table
         schema = self._get_table_schema(schema, max_inline_hunk_size)
         if not dynamic:
@@ -93,23 +94,24 @@ class TestSortedDynamicTablesHunks(TestSortedDynamicTablesBase):
                 unique_keys=True,
             )
 
-        create_table_function("//tmp/t",
-                              schema=schema,
-                              enable_dynamic_store_read=False,
-                              hunk_chunk_reader={
-                                  "max_hunk_count_per_read": 2,
-                                  "max_total_hunk_length_per_read": 60,
-                                  "fragment_read_hedging_delay": 1,
-                                  "max_inflight_fragment_length": 60,
-                                  "max_inflight_fragment_count": 2,
-                              },
-                              hunk_chunk_writer={
-                                  "desired_block_size": 50,
-                              },
-                              max_hunk_compaction_garbage_ratio=0.5,
-                              enable_lsm_verbose_logging=True,
-                              chunk_format=chunk_format,
-                              hunk_erasure_codec=hunk_erasure_codec)
+        create_table_function(
+            "//tmp/t",
+            schema=schema,
+            enable_dynamic_store_read=enable_dynamic_store_read,
+            hunk_chunk_reader={
+                "max_hunk_count_per_read": 2,
+                "max_total_hunk_length_per_read": 60,
+                "fragment_read_hedging_delay": 1,
+                "max_inflight_fragment_length": 60,
+                "max_inflight_fragment_count": 2,
+            },
+            hunk_chunk_writer={
+                "desired_block_size": 50,
+            },
+            max_hunk_compaction_garbage_ratio=0.5,
+            enable_lsm_verbose_logging=True,
+            chunk_format=chunk_format,
+            hunk_erasure_codec=hunk_erasure_codec)
 
     @authors("babenko")
     @pytest.mark.parametrize("chunk_format", HUNK_COMPATIBLE_CHUNK_FORMATS)
@@ -1555,6 +1557,22 @@ class TestSortedDynamicTablesHunks(TestSortedDynamicTablesBase):
         time.sleep(3)
         assert lookup_data_weight_value == get(lookup_data_weight)
         assert select_data_weight_value == get(select_data_weight)
+
+    @authors("akozhikhov")
+    def test_read_from_sorted_dynamic_store_with_hunks(self):
+        sync_create_cells(1)
+        self._create_table(enable_dynamic_store_read=True)
+
+        hunk_storage_id = create("hunk_storage", "//tmp/h")
+        set("//tmp/t/@hunk_storage_id", hunk_storage_id)
+        sync_mount_table("//tmp/h")
+
+        sync_mount_table("//tmp/t")
+        rows = [{"key": i, "value": "value" + str(i) + "x" * 20} for i in range(10)]
+        insert_rows("//tmp/t", rows)
+
+        assert_items_equal(select_rows("* from [//tmp/t]"), rows)
+        assert read_table("//tmp/t") == rows
 
 
 ################################################################################
