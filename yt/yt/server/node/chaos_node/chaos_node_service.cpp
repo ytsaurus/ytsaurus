@@ -5,6 +5,7 @@
 #include "private.h"
 #include "replication_card.h"
 #include "replication_card_collocation.h"
+#include "replication_card_serialization.h"
 
 #include <yt/yt/server/lib/chaos_node/replication_card_watcher_service_callbacks.h>
 
@@ -138,43 +139,10 @@ private:
 
         const auto& chaosManager = Slot_->GetChaosManager();
         auto* replicationCard = chaosManager->GetReplicationCardOrThrow(replicationCardId);
+        ToProto(response->mutable_replication_card(), *replicationCard, fetchOptions);
 
-        auto* protoReplicationCard = response->mutable_replication_card();
-        protoReplicationCard->set_era(replicationCard->GetEra());
-        ToProto(protoReplicationCard->mutable_table_id(), replicationCard->GetTableId());
-        protoReplicationCard->set_table_path(replicationCard->GetTablePath());
-        protoReplicationCard->set_table_cluster_name(replicationCard->GetTableClusterName());
-        protoReplicationCard->set_current_timestamp(replicationCard->GetCurrentTimestamp());
-
-        if (auto* collocation = replicationCard->GetCollocation()) {
-            ToProto(protoReplicationCard->mutable_replication_card_collocation_id(), collocation->GetId());
-        } else if (replicationCard->GetAwaitingCollocationId()) {
-            ToProto(protoReplicationCard->mutable_replication_card_collocation_id(), replicationCard->GetAwaitingCollocationId());
-        }
-
-        std::vector<TCellId> coordinators;
-        if (fetchOptions.IncludeCoordinators) {
-            for (const auto& [cellId, info] : replicationCard->Coordinators()) {
-                if (info.State == EShortcutState::Granted) {
-                    coordinators.push_back(cellId);
-                }
-            }
-            ToProto(protoReplicationCard->mutable_coordinator_cell_ids(), coordinators);
-        }
-
-        for (const auto& [replicaId, replicaInfo] : replicationCard->Replicas()) {
-            auto* protoEntry = protoReplicationCard->add_replicas();
-            ToProto(protoEntry->mutable_id(), replicaId);
-            ToProto(protoEntry->mutable_info(), replicaInfo, fetchOptions);
-        }
-
-        if (fetchOptions.IncludeReplicatedTableOptions) {
-            protoReplicationCard->set_replicated_table_options(ConvertToYsonString(replicationCard->GetReplicatedTableOptions()).ToString());
-        }
-
-        context->SetResponseInfo("ReplicationCardId: %v, CoordinatorCellIds: %v",
-            replicationCardId,
-            coordinators);
+        context->SetResponseInfo("ReplicationCardId: %v",
+            replicationCardId);
 
         context->Reply();
     }
