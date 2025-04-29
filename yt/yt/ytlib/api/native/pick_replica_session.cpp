@@ -22,6 +22,10 @@ using TClusterScoreMap = THashMap<std::string, TTimestamp>;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+static constexpr auto& Logger = ApiLogger;
+
+////////////////////////////////////////////////////////////////////////////////
+
 const std::string UpstreamReplicaIdAttributeName = "upstream_replica_id";
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -177,13 +181,14 @@ public:
     TPickReplicaSession(
         std::vector<TReplicaSynchronicityList> replicas,
         NAst::TQuery* query,
-        const TSelectRowsOptionsBase& baseOptions,
         std::vector<TTableMountInfoPtr> tableInfos,
         std::vector<NAst::TTableHintPtr> tableHints,
         std::vector<IBannedReplicaTrackerPtr> bannedReplicaTrackers,
-        TTimestamp timestamp);
+        const IConnectionPtr& connection,
+        TTimestamp timestamp,
+        const TSelectRowsOptionsBase& baseOptions);
 
-    TResult Execute(const IConnectionPtr& connection, TExecuteCallback callback) override;
+    TResult Execute(TExecuteCallback callback) override;
 
     bool IsFallbackRequired() const override;
 
@@ -194,6 +199,7 @@ private:
     const std::vector<TTableMountInfoPtr> TableInfos_;
     const std::vector<NAst::TTableHintPtr> TableHints_;
     const std::vector<IBannedReplicaTrackerPtr> BannedReplicaTrackers_;
+    const IConnectionPtr Connection_;
     const TTimestamp Timestamp_ = NullTimestamp;
     TSelectRowsOptionsBase BaseOptions_;
 
@@ -205,30 +211,29 @@ private:
 TPickReplicaSession::TPickReplicaSession(
     std::vector<TReplicaSynchronicityList> replicas,
     NAst::TQuery* query,
-    const TSelectRowsOptionsBase& baseOptions,
     std::vector<TTableMountInfoPtr> tableInfos,
     std::vector<NAst::TTableHintPtr> tableHints,
     std::vector<IBannedReplicaTrackerPtr> bannedReplicaTrackers,
-    TTimestamp timestamp)
+    const IConnectionPtr& connection,
+    TTimestamp timestamp,
+    const TSelectRowsOptionsBase& baseOptions)
     : IsFallbackRequired_(true)
     , Replicas_(std::move(replicas))
     , AstQuery_(query)
     , TableInfos_(std::move(tableInfos))
     , TableHints_(std::move(tableHints))
     , BannedReplicaTrackers_(std::move(bannedReplicaTrackers))
+    , Connection_(std::move(connection))
     , Timestamp_(timestamp)
     , BaseOptions_(baseOptions)
 { }
 
 TPickReplicaSession::TResult TPickReplicaSession::Execute(
-    const IConnectionPtr& connection,
     TExecuteCallback callback)
 {
-    const auto& Logger = connection->GetLogger();
-
     BaseOptions_.ReplicaConsistency = EReplicaConsistency::None;
 
-    const auto config = connection->GetConfig();
+    const auto config = Connection_->GetConfig();
     auto replicaFallbackRetryCount = config->ReplicaFallbackRetryCount;
     THashMap<TTableReplicaId, TTableId> replicaIdToTableId;
     int retryCountLimit = 0;
@@ -265,7 +270,7 @@ TPickReplicaSession::TResult TPickReplicaSession::Execute(
             if (auto schemaError = error.FindMatching(NTabletClient::EErrorCode::TableSchemaIncompatible)) {
                 if (auto replicaId = schemaError->Attributes().Find<TTableReplicaId>(UpstreamReplicaIdAttributeName)) {
                     if (auto it = replicaIdToTableId.find(*replicaId)) {
-                        auto bannedReplicaTracker = connection
+                        auto bannedReplicaTracker = Connection_
                             ->GetBannedReplicaTrackerCache()
                             ->GetTracker(it->second);
                         bannedReplicaTracker->BanReplica(*replicaId, error.Truncate());
@@ -389,6 +394,8 @@ TClusterScoreMap TPickReplicaSession::PickViableClusters(
         THROW_ERROR error;
     }
 
+    YT_LOG_DEBUG("Picked viable clusters (Clusters: %v)", viableClusters);
+
     return viableClusters;
 }
 
@@ -481,8 +488,6 @@ IPickReplicaSessionPtr CreatePickReplicaSession(
     const TSelectRowsOptionsBase& options,
     TTimestamp timestamp)
 {
-    const auto& Logger = connection->GetLogger();
-
     auto tableInfos = WaitForFast(AllSucceeded(GetQueryTableInfos(query, mountCache)))
         .ValueOrThrow();
     auto tableHints = GetQueryTableHints(query);
@@ -522,11 +527,12 @@ IPickReplicaSessionPtr CreatePickReplicaSession(
     return New<TPickReplicaSession>(
         std::move(replicas),
         query,
-        options,
         std::move(tableInfos),
         std::move(tableHints),
         std::move(bannedReplicaTrackers),
-        timestamp);
+        connection,
+        timestamp,
+        options);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
