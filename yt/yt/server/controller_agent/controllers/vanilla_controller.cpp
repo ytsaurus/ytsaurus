@@ -44,7 +44,6 @@ DEFINE_ENUM(EOperationIncarnationSwitchReason,
     (JobAborted)
     (JobFailed)
     (JobInterrupted)
-    (JobIncarnationsDifferAfterRevival)
     (JobLackAfterRevival)
 );
 
@@ -284,7 +283,7 @@ private:
 
     void ValidateOperationLimits();
 
-    TError CheckJobsIncarnationsEqual() const;
+    void VerifyJobsIncarnationsEqual() const;
 
     std::optional<EOperationIncarnationSwitchReason> ShouldRestartJobsOnRevival() const;
 
@@ -1135,12 +1134,12 @@ void TVanillaController::ValidateOperationLimits()
     }
 }
 
-TError TVanillaController::CheckJobsIncarnationsEqual() const
+void TVanillaController::VerifyJobsIncarnationsEqual() const
 {
     YT_ASSERT_INVOKER_POOL_AFFINITY(InvokerPool);
 
     if (empty(AllocationMap_)) {
-        return TError();
+        return;
     }
 
     const TJoblet* joblet = nullptr;
@@ -1150,32 +1149,18 @@ TError TVanillaController::CheckJobsIncarnationsEqual() const
                 joblet = allocation.Joblet.Get();
                 continue;
             }
-
-            if (allocation.Joblet->OperationIncarnation != joblet->OperationIncarnation) {
-                return TError("Some jobs were settled in different operation incarnations")
-                    << TErrorAttribute("first_job_id", joblet->JobId)
-                    << TErrorAttribute("first_job_operation_incarnation", joblet->OperationIncarnation)
-                    << TErrorAttribute("second_job_id", allocation.Joblet->JobId)
-                    << TErrorAttribute("second_job_operation_incarnation", allocation.Joblet->OperationIncarnation);
-            }
+            // NB(pogorelov): The situation where incarnations differ after revival should be impossible.
+            YT_VERIFY(allocation.Joblet->OperationIncarnation == joblet->OperationIncarnation);
+            YT_VERIFY(allocation.Joblet->OperationIncarnation == GangManager_->Incarnation_);
         }
     }
-
-    return TError();
 }
 
 std::optional<EOperationIncarnationSwitchReason> TVanillaController::ShouldRestartJobsOnRevival() const
 {
     YT_ASSERT_INVOKER_POOL_AFFINITY(InvokerPool);
 
-    if (auto error = CheckJobsIncarnationsEqual(); !error.IsOK()) {
-        // NB(pogorelov): If some jobs are in different operation incarnations then switching to new incarnation was enabled before revival, so we do not check spec.
-        YT_LOG_DEBUG(
-            error,
-            "Some of revived jobs are in different operation incarnations, switching to new incarnation");
-
-        return EOperationIncarnationSwitchReason::JobIncarnationsDifferAfterRevival;
-    }
+    VerifyJobsIncarnationsEqual();
 
     THashMap<TTask*, int> jobCountByTasks;
     for (const auto& [id, allocation] : AllocationMap_) {
