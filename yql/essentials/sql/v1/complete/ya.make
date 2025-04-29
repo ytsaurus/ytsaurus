@@ -10,6 +10,9 @@ PEERDIR(
     yql/essentials/sql/v1/complete/name/service
     yql/essentials/sql/v1/complete/syntax
     yql/essentials/sql/v1/complete/text
+
+    # TODO(YQL-19747): add it to YDB CLI PEERDIR
+    yql/essentials/sql/v1/complete/name/service/static
 )
 
 END()
