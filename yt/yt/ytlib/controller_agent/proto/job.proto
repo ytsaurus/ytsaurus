@@ -334,7 +334,7 @@ message TUserJobSpec
 
     optional bool start_queue_consumer_registration_manager = 77 [default = true];
 
-    optional map<string, TSidecarJobSpec> sidecars = 80;
+    map<string, TSidecarJobSpec> sidecars = 80;
 
     reserved 38, 48, 61, 62;
 }
