@@ -979,10 +979,10 @@ public:
         table->SetLastCommitTimestamp(lastCommitTimestamp);
 
         const auto& chunkManager = Bootstrap_->GetChunkManager();
+
         auto* newChunkList = chunkManager->CreateChunkList(table->IsPhysicallySorted()
             ? EChunkListKind::SortedDynamicRoot
             : EChunkListKind::OrderedDynamicRoot);
-
         table->SetChunkList(newChunkList);
         newChunkList->AddOwningNode(table);
 

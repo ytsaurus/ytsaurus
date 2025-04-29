@@ -374,9 +374,9 @@ public:
 
 private:
     NCellMaster::TBootstrap* const Bootstrap_;
-    TChunkLists ChunkLists_;
+    const TChunkLists ChunkLists_;
     const TCtxFetchPtr RpcContext_;
-    TFetchContext FetchContext_;
+    const TFetchContext FetchContext_;
     const TComparator Comparator_;
     const EChunkListContentType ContentType_;
 
@@ -1201,7 +1201,8 @@ bool TChunkOwnerNodeProxy::SetBuiltinAttribute(
             securityTags.Validate();
 
             // TODO(babenko): audit
-            YT_LOG_DEBUG("Node security tags updated; node is switched to \"overwrite\" mode (NodeId: %v, OldSecurityTags: %v, NewSecurityTags: %v",
+            YT_LOG_DEBUG("Node security tags updated; node is switched to \"overwrite\" mode "
+                "(NodeId: %v, OldSecurityTags: %v, NewSecurityTags: %v)",
                 node->GetVersionedId(),
                 node->ComputeSecurityTags().Items,
                 securityTags.Items);
@@ -1812,7 +1813,8 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, BeginUpload)
         tableSchemaId);
 
     YT_LOG_ALERT_IF(!IsSchemafulType(node->GetType()) && (chunkSchema || chunkSchemaId),
-        "Received a chunk schema or chunk schema ID while beginning upload into a non-schemaful node (NodeId: %v, ChunkSchema: %v, ChunkSchemaId: %v)",
+        "Received a chunk schema or chunk schema ID while beginning upload into a non-schemaful node "
+        "(NodeId: %v, ChunkSchema: %v, ChunkSchemaId: %v)",
         node->GetId(),
         chunkSchema,
         chunkSchemaId);
@@ -1924,7 +1926,9 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, BeginUpload)
                         auto processChunkList = [&] (EChunkListContentType contentType, EChunkListKind appendChunkListKind) {
                             auto* oldChunkList = lockedNode->GetChunkList(contentType);
                             if (!oldChunkList) {
-                                YT_VERIFY(contentType == EChunkListContentType::Hunk && oldMainChunkList->GetKind() == EChunkListKind::Static);
+                                YT_VERIFY(
+                                    contentType == EChunkListContentType::Hunk &&
+                                    oldMainChunkList->GetKind() == EChunkListKind::Static);
                                 return;
                             }
 
@@ -2156,7 +2160,8 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, EndUpload)
         uploadContext.ErasureCodec = FromProto<NErasure::ECodec>(request->erasure_codec());
     }
 
-    context->SetRequestInfo("Statistics: %v, CompressionCodec: %v, ErasureCodec: %v, ChunkFormat: %v, MD5Hasher: %v, OptimizeFor: %v, IsTableSchemaPresent: %v",
+    context->SetRequestInfo("Statistics: %v, CompressionCodec: %v, ErasureCodec: %v, ChunkFormat: %v, "
+        "MD5Hasher: %v, OptimizeFor: %v, IsTableSchemaPresent: %v",
         uploadContext.Statistics,
         uploadContext.CompressionCodec,
         uploadContext.ErasureCodec,
