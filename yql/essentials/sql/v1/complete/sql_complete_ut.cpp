@@ -50,7 +50,11 @@ Y_UNIT_TEST_SUITE(SqlCompleteTests) {
     ISqlCompletionEngine::TPtr MakeSqlCompletionEngineUT() {
         TLexerSupplier lexer = MakePureLexerSupplier();
         TNameSet names = {
-            .Pragmas = {"yson.CastToString"},
+            .Pragmas = {
+                "yson.CastToString",
+                "yt.RuntimeCluster",
+                "yt.RuntimeClusterSelection",
+            },
             .Types = {"Uint64"},
             .Functions = {"StartsWith", "DateTime::Split"},
             .Hints = {
@@ -295,7 +299,9 @@ Y_UNIT_TEST_SUITE(SqlCompleteTests) {
         {
             TVector<TCandidate> expected = {
                 {Keyword, "ANSI"},
-                {PragmaName, "yson.CastToString"}};
+                {PragmaName, "yson.CastToString"},
+                {PragmaName, "yt.RuntimeCluster"},
+                {PragmaName, "yt.RuntimeClusterSelection"}};
             auto completion = engine->CompleteAsync({"PRAGMA "}).GetValueSync();
             UNIT_ASSERT_VALUES_EQUAL(completion.Candidates, expected);
             UNIT_ASSERT_VALUES_EQUAL(completion.CompletedToken.Content, "");
@@ -327,6 +333,15 @@ Y_UNIT_TEST_SUITE(SqlCompleteTests) {
             auto completion = engine->CompleteAsync({"PRAGMA yson.cast"}).GetValueSync();
             UNIT_ASSERT_VALUES_EQUAL(completion.Candidates, expected);
             UNIT_ASSERT_VALUES_EQUAL(completion.CompletedToken.Content, "cast");
+        }
+        {
+            TVector<TCandidate> expected = {
+                {PragmaName, "RuntimeCluster"},
+                {PragmaName, "RuntimeClusterSelection"}};
+            UNIT_ASSERT_VALUES_EQUAL(Complete(engine, "pragma yt."), expected);
+            UNIT_ASSERT_VALUES_EQUAL(
+                Complete(engine, "pragma yt.RuntimeClusterSelection='force';\npragma yt.Ru"),
+                expected);
         }
     }
 
