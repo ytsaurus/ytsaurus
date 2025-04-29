@@ -10,8 +10,9 @@ TEST_SRCS(
     test_features.py
     test_job_experiment.py
     test_job_query.py
-    test_job_tracker.py
+    test_job_slicing.py
     test_job_splitter.py
+    test_job_tracker.py
     test_join_reduce_operation.py
     test_map_operation.py
     test_map_reduce_operation.py
