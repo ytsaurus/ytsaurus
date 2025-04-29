@@ -317,7 +317,7 @@ std::vector<IReaderFactoryPtr> CreateReaderFactories(
                 auto createReader = BIND([=] {
                     auto chunkId = FromProto<TChunkId>(chunkSpec.chunk_id());
                     if (TypeFromId(chunkId) == EObjectType::OrderedDynamicTabletStore) {
-                        return MakeFuture<IReaderBasePtr>(CreateRetryingRemoteOrderedDynamicStoreReader(
+                        return MakeFuture<IReaderBasePtr>(wrapReader(CreateRetryingRemoteOrderedDynamicStoreReader(
                             chunkSpec,
                             dataSource.Schema(),
                             config->DynamicStoreReader,
@@ -328,7 +328,7 @@ std::vector<IReaderFactoryPtr> CreateReaderFactories(
                             columnsToRead,
                             multiReaderMemoryManager->CreateChunkReaderMemoryManager(
                                 DefaultRemoteDynamicStoreReaderMemoryEstimate),
-                            createChunkReaderFromSpecAsync));
+                            createChunkReaderFromSpecAsync)));
                     }
 
                     return createChunkReaderFromSpecAsync(chunkSpec, nullptr).Apply(
