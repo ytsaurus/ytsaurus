@@ -124,6 +124,8 @@ public:
 
     IJobDirectoryManagerPtr GetJobDirectoryManager();
 
+    void UpdateHealthCheckerConfig(const NServer::TDiskHealthCheckerDynamicConfigPtr& config);
+
 private:
     const TSlotLocationConfigPtr Config_;
     IBootstrap* const Bootstrap_;

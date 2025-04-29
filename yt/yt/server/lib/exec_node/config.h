@@ -42,6 +42,8 @@ struct TSlotLocationConfig
     //! Enforce disk space limits using disk quota.
     bool EnableDiskQuota;
 
+    NServer::TDiskHealthCheckerConfigPtr DiskHealthChecker;
+
     REGISTER_YSON_STRUCT(TSlotLocationConfig);
 
     static void Register(TRegistrar registrar);
@@ -168,6 +170,8 @@ struct TSlotManagerDynamicConfig
 
     bool RestartContainerAfterFailedDeviceCheck;
 
+    NServer::TDiskHealthCheckerDynamicConfigPtr DiskHealthChecker;
+
     //! Polymorphic job environment configuration.
     NJobProxy::TJobEnvironmentConfig JobEnvironment;
 
@@ -194,6 +198,8 @@ struct TVolumeManagerDynamicConfig
 
     //! For testing purpuses.
     bool ThrowOnPrepareVolume;
+
+    NServer::TDiskHealthCheckerDynamicConfigPtr DiskHealthChecker;
 
     REGISTER_YSON_STRUCT(TVolumeManagerDynamicConfig);
 
