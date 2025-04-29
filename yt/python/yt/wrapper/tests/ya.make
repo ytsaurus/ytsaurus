@@ -152,6 +152,7 @@ TEST_SRCS(
     helpers.py
     test_acl_commands.py
     test_admin.py
+    test_auth_commands.py
     test_authentication.py
     test_batch_execution.py
     test_chaos_commands.py
