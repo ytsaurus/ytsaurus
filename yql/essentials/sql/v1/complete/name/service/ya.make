@@ -9,4 +9,5 @@ END()
 RECURSE(
     ranking
     static
+    union
 )
