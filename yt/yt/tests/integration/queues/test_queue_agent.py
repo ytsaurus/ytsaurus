@@ -33,6 +33,17 @@ import yt_error_codes
 
 import yt.environment.init_queue_agent_state as init_queue_agent_state
 
+
+##################################################################
+
+
+def get_export_schedule(use_cron, export_period_seconds):
+    # Helper function to generate the correct export schedule entry.
+    if use_cron:
+        return {"export_cron_schedule": f"0/{export_period_seconds} * * * * *",}
+    return {"export_period": export_period_seconds * 1000,}
+
+
 ##################################################################
 
 
@@ -3247,8 +3258,7 @@ class TestQueueStaticExport(TestQueueStaticExportBase):
         set("//tmp/q/@static_export_config", {
             "default": {
                 "export_directory": export_dir,
-                "export_cron_schedule": "0/15 * * * * *" if use_cron else None,
-                "export_period": export_period_seconds * 1000 if not use_cron else None,
+                **get_export_schedule(use_cron, export_period_seconds),
             }
         })
 
@@ -3633,8 +3643,7 @@ class TestQueueStaticExport(TestQueueStaticExportBase):
                 "export_directory": export_dir,
                 "output_table_name_pattern": "%ISO-period-is-%PERIOD-fmt-%Y.%m.%d.%H.%M.%S",
                 "use_upper_bound_for_table_names": use_upper_bound_for_table_names,
-                "export_cron_schedule": "0/3 * * * * *" if use_cron else None,
-                "export_period": export_period_seconds * 1000 if not use_cron else None,
+                **get_export_schedule(use_cron, export_period_seconds),
             }
         })
 
@@ -3684,8 +3693,7 @@ class TestQueueStaticExport(TestQueueStaticExportBase):
             "default": {
                 "export_directory": export_dir,
                 "use_upper_bound_for_table_names": False,
-                "export_cron_schedule": "0/10 * * * * *" if use_cron else None,
-                "export_period": export_period_seconds * 1000 if not use_cron else None,
+                **get_export_schedule(use_cron, export_period_seconds),
             }
         })
 
@@ -4055,13 +4063,14 @@ class TestQueueStaticExport(TestQueueStaticExportBase):
         export_dir = "//tmp/export"
         self._create_export_destination(export_dir, queue_id)
 
-        export_seconds = [0, 17, 29, 45]
-        export_cron_expression = "0,17,29,45 * * * * *"  # Every ~15 seconds.
+        export_seconds = [0, 17, 29, 45]  # Every ~15 seconds.
+        export_cron_expression = f"{",".join(str(s) for s in export_seconds)} * * * * *"
 
         set("//tmp/q/@static_export_config", {
             "default": {
                 "export_directory": export_dir,
                 "export_cron_schedule": export_cron_expression,
+                "output_table_name_pattern": "%UNIX_TS",
             }
         })
 
@@ -4069,27 +4078,18 @@ class TestQueueStaticExport(TestQueueStaticExportBase):
 
         insert_rows("//tmp/q", [{"data": "vim"}])
         self._flush_table("//tmp/q")
-        wait(lambda: len(ls(export_dir)) == 1, timeout=20)
-        time1_second = datetime.datetime.now().second
+        wait(lambda: len(ls(export_dir)) == 1)
 
         insert_rows("//tmp/q", [{"data": "nano"}])
         self._flush_table("//tmp/q")
-        wait(lambda: len(ls(export_dir)) == 2, timeout=20)
-        time2_second = datetime.datetime.now().second
+        wait(lambda: len(ls(export_dir)) == 2)
 
-        # The seconds which we acquired must be (almost) equal to the ones
-        # specified in the CRON expression and they must be consecutive.
-        time1_second_found = None
-        time2_second_found = None
-        for second in export_seconds:
-            if time1_second >= second:
-                time1_second_found = second
-            if time2_second >= second:
-                time2_second_found = second
+        # Find out the seconds when the files were exported.
+        actual_export_seconds = [datetime.datetime.fromtimestamp(float(filename)).second for filename in ls(export_dir)]
 
-        assert (time1_second - time1_second_found) <= 5
-        assert (time2_second - time2_second_found) <= 5
-        assert abs(export_seconds.index(time1_second_found) - export_seconds.index(time2_second_found)) == 1
+        # They must be equal to the ones specified in the CRON expression and they must be consecutive.
+        assert all(second in export_seconds for second in actual_export_seconds)
+        assert abs(export_seconds.index(actual_export_seconds[0]) - export_seconds.index(actual_export_seconds[1])) == 1
 
         self.remove_export_destination(export_dir)
 
