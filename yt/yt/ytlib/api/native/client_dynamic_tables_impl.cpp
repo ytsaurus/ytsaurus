@@ -1639,7 +1639,6 @@ TSelectRowsResult TClient::DoSelectRowsOnce(
 
     if (pickReplicaSession->IsFallbackRequired()) {
         return std::get<TSelectRowsResult>(pickReplicaSession->Execute(
-            Connection_,
             [&] (
                 const std::string& clusterName,
                 const std::string& patchedQuery,
@@ -1789,7 +1788,6 @@ NYson::TYsonString TClient::DoExplainQuery(
 
     if (pickReplicaSession->IsFallbackRequired()) {
         return std::get<NYson::TYsonString>(pickReplicaSession->Execute(
-            Connection_,
             [this, options] (
                 const std::string& clusterName,
                 const std::string& patchedQuery,
