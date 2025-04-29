@@ -312,6 +312,10 @@ void TSlotManager::OnDynamicConfigChanged(
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
 
+    for (auto& location : Locations_) {
+        location->UpdateHealthCheckerConfig(newConfig->DiskHealthChecker);
+    }
+
     DynamicConfig_.Store(newConfig);
 
     if (auto portoConfig = newConfig->JobEnvironment.TryGetConcrete<NJobProxy::EJobEnvironmentType::Porto>()) {

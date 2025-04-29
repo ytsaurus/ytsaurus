@@ -485,9 +485,9 @@ public:
                 profiler);
 
             DynamicConfigManager_->SubscribeConfigChanged(BIND_NO_PROPAGATE([
-                healthChecker = HealthChecker_] (const NClusterNode::TClusterNodeDynamicConfigPtr& /*oldConfig*/,
+                healthChecker = HealthChecker_, healthCheckerConfig] (const NClusterNode::TClusterNodeDynamicConfigPtr& /*oldConfig*/,
                     const NClusterNode::TClusterNodeDynamicConfigPtr& newConfig) {
-                    healthChecker->OnDynamicConfigChanged(newConfig->DataNode->DiskHealthChecker);
+                    healthChecker->OnConfigChanged(healthCheckerConfig->ApplyDynamic(*newConfig->ExecNode->VolumeManager->DiskHealthChecker));
                 }));
         }
     }
@@ -2820,7 +2820,7 @@ public:
             auto location = New<TLayerLocation>(
                 locationConfig,
                 DynamicConfigManager_,
-                Config_->DiskHealthChecker,
+                locationConfig->DiskHealthChecker,
                 CreatePortoExecutor(
                     Config_->VolumeManager->PortoExecutor,
                     Format("volume%v", index),

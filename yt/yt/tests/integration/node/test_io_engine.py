@@ -701,6 +701,54 @@ class TestIoEngine(YTEnvSetup):
         # Shouldn't change.
         self._wait_for_io_engine_enabled("fair_share_thread_pool")
 
+    @classmethod
+    def get_io_weight(self, node, medium):
+        return get("//sys/cluster_nodes/{}/@statistics/media/{}/io_weight".format(node, medium))
+
+    @authors("vvshlyaga")
+    def test_custom_io_weight_formula(self):
+        nodes = ls("//sys/cluster_nodes")
+
+        update_nodes_dynamic_config({
+            "data_node": {
+                "store_location_config_per_medium": {
+                    "default": {
+                        "io_weight_formula": "0.5",
+                    }
+                }
+            }
+        })
+
+        REPLICATION_FACTOR = self.NUM_NODES
+
+        create(
+            "table",
+            "//tmp/test",
+            attributes={
+                "primary_medium": "default",
+                "replication_factor": REPLICATION_FACTOR,
+            })
+        write_table("//tmp/test", [{"a": i} for i in range(100)])
+
+        wait(lambda: all(self.get_io_weight(node, "default") == 0.5 for node in nodes))
+
+        update_nodes_dynamic_config({
+            "data_node": {
+                "store_location_config_per_medium": {
+                    "default": {
+                        "io_weight_formula": "double([/stat/available_space]) / (double([/stat/used_space]) + double([/stat/available_space]))",
+                    }
+                }
+            }
+        })
+
+        wait(lambda: all(self.get_io_weight(node, "default") != 0 for node in nodes))
+        io_weights = [self.get_io_weight(node, "default") for node in nodes]
+
+        write_table("//tmp/test", [{"a": i} for i in range(1000)])
+
+        wait(lambda: all(self.get_io_weight(node, "default") < io_weights[i] for i, node in enumerate(nodes)))
+
 
 @authors("capone212")
 @pytest.mark.skip("YT-15905 io_uring is broken in CI")
