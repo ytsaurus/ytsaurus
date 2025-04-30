@@ -590,6 +590,19 @@ void TJobProxy::RetrieveJobSpec()
     }
 }
 
+void TJobProxy::SpawnSidecars()
+{
+    const auto& jobSpecExt = GetJobSpecHelper()->GetJobSpecExt();
+    if (!jobSpecExt.has_user_job_spec()) {
+        return;
+    }
+
+    const auto& sidecars = jobSpecExt.user_job_spec().sidecars();
+    if (sidecars.empty()) {
+        return;
+    }
+}
+
 void TJobProxy::DoRun()
 {
     LastMemoryMeasureTime_ = Now();
