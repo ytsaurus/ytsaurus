@@ -201,13 +201,14 @@ namespace NSQLComplete {
     }
 
     INameService::TPtr MakeStaticNameService(TNameSet names, IRanking::TPtr ranking) {
-        return MakeUnionNameService({
-                                        new TKeywordNameService(ranking),
-                                        new TPragmaNameService(ranking, std::move(names.Pragmas)),
-                                        new TTypesNameService(ranking, std::move(names.Types)),
-                                        new TFunctionsNameService(ranking, std::move(names.Functions)),
-                                        new THintsNameService(ranking, std::move(names.Hints)),
-                                    }, ranking);
+        TVector<INameService::TPtr> children = {
+            new TKeywordNameService(ranking),
+            new TPragmaNameService(ranking, std::move(names.Pragmas)),
+            new TTypesNameService(ranking, std::move(names.Types)),
+            new TFunctionsNameService(ranking, std::move(names.Functions)),
+            new THintsNameService(ranking, std::move(names.Hints)),
+        };
+        return MakeUnionNameService(std::move(children), ranking);
     }
 
 } // namespace NSQLComplete
