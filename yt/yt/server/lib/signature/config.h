@@ -13,13 +13,10 @@ namespace NYT::NSignature {
 struct TSignatureGeneratorConfig
     : public NYTree::TYsonStruct
 {
-    //! Delta between key creation and expiration.
-    TDuration KeyExpirationDelta;
-
     //! Delta between signature creation and expiration.
     TDuration SignatureExpirationDelta;
 
-    //! Margin of time synchronization error. ValidAfter is set to creation time minus this margin.
+    //! Margin of time synchronization error. Signature's ValidAfter is set to creation time minus this margin.
     TDuration TimeSyncMargin;
 
     REGISTER_YSON_STRUCT(TSignatureGeneratorConfig);
@@ -47,6 +44,12 @@ struct TKeyRotatorConfig
     : public NYTree::TYsonStruct
 {
     TDuration KeyRotationInterval;
+
+    //! Delta between key creation and expiration.
+    TDuration KeyExpirationDelta;
+
+    //! Margin of time synchronization error. Key's ValidAfter is set to creation time minus this margin.
+    TDuration TimeSyncMargin;
 
     REGISTER_YSON_STRUCT(TKeyRotatorConfig);
 

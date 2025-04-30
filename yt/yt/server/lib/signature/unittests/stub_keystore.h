@@ -12,15 +12,19 @@ struct TStubKeyStore
     : public IKeyStoreReader
     , public IKeyStoreWriter
 {
-    TOwnerId OwnerId = TOwnerId("TStubKeyStore");
+    const TOwnerId OwnerId;
+
+    explicit TStubKeyStore(TOwnerId ownerId = TOwnerId("TStubKeyStore"))
+        : OwnerId(std::move(ownerId))
+    { }
 
     THashMap<TOwnerId, std::vector<TKeyInfoPtr>> Data;
 
-    const TOwnerId& GetOwner() override;
+    const TOwnerId& GetOwner() const final;
 
-    TFuture<TKeyInfoPtr> FindKey(const TOwnerId& ownerId, const TKeyId& keyId) override;
+    TFuture<TKeyInfoPtr> FindKey(const TOwnerId& ownerId, const TKeyId& keyId) const final;
 
-    TFuture<void> RegisterKey(const TKeyInfoPtr& keyInfo) override;
+    TFuture<void> RegisterKey(const TKeyInfoPtr& keyInfo) final;
 };
 
 DEFINE_REFCOUNTED_TYPE(TStubKeyStore)

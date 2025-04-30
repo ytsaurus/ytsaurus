@@ -23,13 +23,9 @@ struct TRandomByteGenerator
 
     TRandomByteGenerator() = default;
 
-    explicit TRandomByteGenerator(auto seedValue)
-        : Rnd(seedValue)
-    { }
-
-    std::byte operator()()
+    char operator()()
     {
-        return static_cast<std::byte>(Rnd());
+        return std::uniform_int_distribution<i8>()(Rnd);
     }
 };
 

@@ -36,7 +36,7 @@ public:
         , Client_(std::move(client))
     { }
 
-    TFuture<TKeyInfoPtr> FindKey(const TOwnerId& ownerId, const TKeyId& keyId) override
+    TFuture<TKeyInfoPtr> FindKey(const TOwnerId& ownerId, const TKeyId& keyId) const final
     {
         auto keyNodePath = MakeCypressKeyPath(Config_->Path, ownerId, keyId);
 
@@ -83,12 +83,12 @@ public:
             options).AsVoid();
     }
 
-    const TOwnerId& GetOwner() override
+    const TOwnerId& GetOwner() const final
     {
         return Config_->OwnerId;
     }
 
-    TFuture<void> RegisterKey(const TKeyInfoPtr& keyInfo) override
+    TFuture<void> RegisterKey(const TKeyInfoPtr& keyInfo) final
     {
         auto [ownerId, keyId] = std::visit([] (const auto& meta) {
             return std::pair(meta.OwnerId, meta.KeyId);
@@ -108,6 +108,7 @@ public:
         auto attributes = CreateEphemeralAttributes();
         attributes->Set("expiration_time", keyExpirationTime + Config_->KeyDeletionDelay);
 
+        // TODO(pavook) retrying channel.
         TCreateNodeOptions options;
         options.Attributes = attributes;
         auto node = Client_->CreateNode(
@@ -144,11 +145,13 @@ IKeyStoreReaderPtr CreateCypressKeyReader(TCypressKeyReaderConfigPtr config, ICl
     return New<TCypressKeyReader>(std::move(config), std::move(client));
 }
 
-TFuture<IKeyStoreWriterPtr> CreateCypressKeyWriter(TCypressKeyWriterConfigPtr config, IClientPtr client)
+TFuture<IKeyStoreWriterPtr> CreateCypressKeyWriter(
+    TCypressKeyWriterConfigPtr config,
+    IClientPtr client)
 {
     auto writer = New<TCypressKeyWriter>(std::move(config), std::move(client));
-    return writer->Initialize().Apply(BIND([writer = std::move(writer)] () -> IKeyStoreWriterPtr {
-        return writer;
+    return writer->Initialize().Apply(BIND([writer = std::move(writer)] () mutable -> IKeyStoreWriterPtr {
+        return std::move(writer);
     }));
 }
 

@@ -31,14 +31,13 @@ TEST(SignaturePreprocessTest, Basic)
             .ExpiresAt=Now(),
         }));
 
-    std::vector<std::byte> toSign = PreprocessSignature(
+    auto toSign = PreprocessSignature(
         headerString,
         std::string("payload\0payload"_sb));
 
-    TString expected = headerString.ToString() + "\0payload\0payload"_sb;
-    auto expectedBytes = std::as_bytes(std::span(TStringBuf(expected)));
+    std::string expected = headerString.ToString() + "\0payload\0payload"_sb;
 
-    EXPECT_EQ(toSign, std::vector<std::byte>(expectedBytes.begin(), expectedBytes.end()));
+    EXPECT_EQ(toSign, expected);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

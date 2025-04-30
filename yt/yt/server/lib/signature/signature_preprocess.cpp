@@ -22,16 +22,14 @@ struct TPreprocessVisitor
     TStringBuf Header;
     TStringBuf Payload;
 
-    std::vector<std::byte> operator()(
+    std::string operator()(
         const TSignatureHeaderImpl<TSignatureVersion{0, 1}>& /*header*/) const
     {
-        std::vector<std::byte> result;
-        auto headerBytes = std::as_bytes(std::span(Header));
-        auto payloadBytes = std::as_bytes(std::span(Payload));
-        result.reserve(headerBytes.size() + 1 + payloadBytes.size());
-        auto it = std::copy(headerBytes.begin(), headerBytes.end(), std::back_inserter(result));
-        *it = std::byte{'\0'};
-        std::copy(payloadBytes.begin(), payloadBytes.end(), ++it);
+        std::string result;
+        result.reserve(Header.size() + 1 + Payload.size());
+        result = Header;
+        result += '\0';
+        result += Payload;
         return result;
     }
 };
@@ -40,7 +38,7 @@ struct TPreprocessVisitor
 
 } // namespace
 
-std::vector<std::byte> PreprocessSignature(
+std::string PreprocessSignature(
     const TYsonString& header,
     const std::string& payload)
 {

@@ -440,6 +440,12 @@ TEST(TFederatedClientTest, AttachTransaction)
     auto mockClientSas = New<TStrictMockClient>();
     auto mockClientVla = New<TStrictMockClient>();
 
+    EXPECT_CALL(*mockClientSas, GetClusterName(_))
+        .Times(AnyNumber());
+
+    EXPECT_CALL(*mockClientVla, GetClusterName(_))
+        .Times(AnyNumber());
+
     // To identify best (closest) cluster.
     NYson::TYsonString listResult1(TStringBuf(R"(["a-rpc-proxy-a.sas.yp-c.yandex.net:9013"])"));
     EXPECT_CALL(*mockClientSas, ListNode("//sys/rpc_proxies", _))

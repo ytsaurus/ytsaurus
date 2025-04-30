@@ -6219,7 +6219,7 @@ private:
     template <std::constructible_from<TSignaturePtr> TFinal>
     TFinal GenerateSignature(TSignaturePtr&& emptySignature) const
     {
-        SignatureGenerator_->Sign(emptySignature);
+        SignatureGenerator_->Resign(emptySignature);
         return TFinal(std::move(emptySignature));
     }
 
