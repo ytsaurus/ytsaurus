@@ -9,34 +9,25 @@ LICENSE(
 VERSION(v1.18.0)
 
 SRCS(
-    xxhash.go
-    xxhash_safe.go
+    le.go
 )
-
-GO_TEST_SRCS(xxhash_test.go)
 
 IF (ARCH_X86_64)
     SRCS(
-        xxhash_amd64.s
-        xxhash_asm.go
+        unsafe_enabled.go
     )
 ENDIF()
 
 IF (ARCH_ARM64)
     SRCS(
-        xxhash_arm64.s
-        xxhash_asm.go
+        unsafe_enabled.go
     )
 ENDIF()
 
 IF (OS_LINUX AND ARCH_ARM7)
     SRCS(
-        xxhash_other.go
+        unsafe_disabled.go
     )
 ENDIF()
 
 END()
-
-RECURSE(
-    gotest
-)
