@@ -70,10 +70,6 @@ namespace NSQLComplete {
     }
 
     TString NormalizeName(TStringBuf name) {
-        if (name.Contains("::")) {
-            return LowerizeName(name);
-        }
-
         TString normalized(name);
         TMaybe<NYql::TIssue> error = NYql::NormalizeName(NYql::TPosition(), normalized);
         if (!error.Empty()) {
