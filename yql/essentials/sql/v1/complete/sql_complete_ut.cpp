@@ -576,6 +576,52 @@ Y_UNIT_TEST_SUITE(SqlCompleteTests) {
         UNIT_ASSERT_VALUES_EQUAL(Complete(engine, "INSERT INTO my_table WITH "), expected);
     }
 
+    Y_UNIT_TEST(Between) {
+        auto engine = MakeSqlCompletionEngineUT();
+        {
+            TVector<TCandidate> expected = {
+                {Keyword, "AND"}, 
+                {Keyword, "AS"}, 
+                {Keyword, "ASSUME"}, 
+                {Keyword, "BETWEEN"}, 
+                {Keyword, "COLLATE"}, 
+                {Keyword, "EXCEPT"}, 
+                {Keyword, "FROM"}, 
+                {Keyword, "GLOB"}, 
+                {Keyword, "GROUP"}, 
+                {Keyword, "HAVING"}, 
+                {Keyword, "ILIKE"}, 
+                {Keyword, "IN"}, 
+                {Keyword, "INTERSECT"}, 
+                {Keyword, "INTO RESULT"}, 
+                {Keyword, "IS"}, 
+                {Keyword, "ISNULL"}, 
+                {Keyword, "LIKE"}, 
+                {Keyword, "LIMIT"}, 
+                {Keyword, "MATCH"}, 
+                {Keyword, "NOT"}, 
+                {Keyword, "NOTNULL"}, 
+                {Keyword, "OR"}, 
+                {Keyword, "ORDER BY"}, 
+                {Keyword, "REGEXP"}, 
+                {Keyword, "RLIKE"}, 
+                {Keyword, "UNION"}, 
+                {Keyword, "WHERE"}, 
+                {Keyword, "WINDOW"}, 
+                {Keyword, "WITHOUT"}, 
+                {Keyword, "XOR"},
+            };
+            UNIT_ASSERT_VALUES_EQUAL(Complete(engine, "SELECT `a`"), expected);
+            UNIT_ASSERT_VALUES_EQUAL(Complete(engine, "SELECT `a`#FROM"), expected);
+        }
+        {
+            TVector<TCandidate> expected = {
+                {Keyword, "FROM"},
+            };
+            UNIT_ASSERT_VALUES_EQUAL(Complete(engine, "SELECT * FROM# "), expected);
+        }
+    }
+
     Y_UNIT_TEST(Enclosed) {
         TVector<TCandidate> empty = {};
 
