@@ -141,6 +141,8 @@ Y_UNIT_TEST_SUITE(SqlCompleteTests) {
         UNIT_ASSERT_VALUES_EQUAL(Complete(engine, ";"), expected);
         UNIT_ASSERT_VALUES_EQUAL(Complete(engine, "; "), expected);
         UNIT_ASSERT_VALUES_EQUAL(Complete(engine, " ; "), expected);
+        UNIT_ASSERT_VALUES_EQUAL(Complete(engine, "#SELECT"), expected);
+        UNIT_ASSERT_VALUES_EQUAL(Complete(engine, "#SELECT * FROM"), expected);
     }
 
     Y_UNIT_TEST(Alter) {
@@ -576,7 +578,7 @@ Y_UNIT_TEST_SUITE(SqlCompleteTests) {
         UNIT_ASSERT_VALUES_EQUAL(Complete(engine, "INSERT INTO my_table WITH "), expected);
     }
 
-    Y_UNIT_TEST(Between) {
+    Y_UNIT_TEST(CursorPosition) {
         auto engine = MakeSqlCompletionEngineUT();
         {
             TVector<TCandidate> expected = {
