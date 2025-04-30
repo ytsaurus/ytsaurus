@@ -1,102 +1,102 @@
 {
   "Blank": [
     ["", ""],
-    [" ", " "],
-    ["   ", "   "],
-    ["\n", " "],
-    ["\n\n", "  "],
-    ["\r\n", "  "],
-    ["\r", " "],
-    ["\r\n\n", "   "],
-    ["\r\n\r\n", "    "]
+    [" ", "_"],
+    ["   ", "___"],
+    ["\n", "_"],
+    ["\n\n", "__"],
+    ["\r\n", "__"],
+    ["\r", "_"],
+    ["\r\n\n", "___"],
+    ["\r\n\r\n", "____"]
   ],
   "Invalid": [
-    ["!", "e"],
-    ["й", "ee"],
-    ["编", "eee"],
-    ["\uD83D\uDE00", "eeee"],
-    ["!select", "ekkkkkk"],
-    ["!sselect", "eiiiiiii"]
+    ["!", "E"],
+    ["й", "EE"],
+    ["编", "EEE"],
+    ["\uD83D\uDE00", "EEEE"],
+    ["!select", "EKKKKKK"],
+    ["!SSelect", "EIIIIIII"]
   ],
   "Keyword": [
-    ["SELECT", "kkkkkk"],
-    ["select", "kkkkkk"],
-    ["ALTER", "kkkkk"],
-    ["GROUP BY", "kkkkk kk"],
-    ["INSERT", "kkkkkk"]
+    ["SELECT", "KKKKKK"],
+    ["select", "KKKKKK"],
+    ["ALTER", "KKKKK"],
+    ["GROUP BY", "KKKKK_KK"],
+    ["INSERT", "KKKKKK"]
   ],
   "Operation": [
-    ["(1 + 21 / 4)", "pl p ll p lp"],
-    ["(1+21/4)", "plpllplp"]
+    ["(1 + 21 / 4)", "PL_P_LL_P_LP"],
+    ["(1+21/4)", "PLPLLPLP"]
   ],
   "FunctionIdentifier": [
-    ["MIN", "iii"],
-    ["min", "iii"],
-    ["MIN(123, 65)", "fffplllp llp"],
-    ["minimum", "iiiiiii"],
-    ["MINimum", "iiiiiii"],
-    ["Math::Sin", "fffffffff"],
-    ["Math", "iiii"],
-    ["Math::", "iiiipp"],
-    ["::Sin", "ppiii"]
+    ["MIN", "III"],
+    ["min", "III"],
+    ["MIN(123, 65)", "FFFPLLLP_LLP"],
+    ["minimum", "IIIIIII"],
+    ["MINimum", "IIIIIII"],
+    ["Math::Sin", "FFFFFFFFF"],
+    ["Math", "IIII"],
+    ["Math::", "IIIIPP"],
+    ["::Sin", "PPIII"]
   ],
-  "TypeIdentifier": [
-    ["Bool", "tttt"],
-    ["Bool(value)", "ttttpiiiiip"]
+  "TypEIdentifier": [
+    ["Bool", "TTTT"],
+    ["Bool(value)", "TTTTPIIIIIP"]
   ],
-  "Identifier": [["test", "iiii"]],
+  "Identifier": [["test", "IIII"]],
   "QuotedIdentifier": [
-    ["`/cluster/database`", "qqqqqqqqqqqqqqqqqqq"],
-    ["`test`select", "qqqqqqkkkkkk"],
-    ["`/cluster", "epiiiiiii"],
-    ["`\uD83D\uDE00`", "qqqqqq"]
+    ["`/cluster/database`", "QQQQQQQQQQQQQQQQQQQ"],
+    ["`test`select", "QQQQQQKKKKKK"],
+    ["`/cluster", "EPIIIIIII"],
+    ["`\uD83D\uDE00`", "QQQQQQ"]
   ],
   "String": [
-    ["\"\"", "ss"],
-    ["\"test\"", "ssssss"],
-    ["\"", "e"],
-    ["\"\"\"", "sse"],
-    ["\"\\\"", "eee"],
-    ["\"test select from", "eiiii kkkkkk kkkk"],
-    ["\"\\\"\"", "ssss"],
-    ["\"select\"select", "sssssssssiiiii"],
-    ["\"select\"group", "sssssssskkkkk"],
-    ["SELECT \"\uD83D\uDE00\" FROM test", "kkkkkk ssssss kkkk iiii"]
+    ["\"\"", "SS"],
+    ["\"test\"", "SSSSSS"],
+    ["\"", "E"],
+    ["\"\"\"", "SSE"],
+    ["\"\\\"", "EEE"],
+    ["\"test select from", "EIIII_KKKKKK_KKKK"],
+    ["\"\\\"\"", "SSSS"],
+    ["\"select\"select", "SSSSSSSSSIIIII"],
+    ["\"select\"group", "SSSSSSSSKKKKK"],
+    ["SELECT \"\uD83D\uDE00\" FROM test", "KKKKKK_SSSSSS_KKKK_IIII"]
   ],
   "Number": [
-    ["1234", "llll"],
-    ["-123", "plll"],
+    ["1234", "LLLL"],
+    ["-123", "PLLL"],
     [
-      "SELECT 123l AS `Int64`, 0b01u AS `Uint32`, 0xfful AS `Uint64`, 0o7ut AS `Uint8`, 456s AS `Int16`, 1.2345f AS `Float`;",
-      "kkkkkk llll kk qqqqqqqp lllll kk qqqqqqqqp llllll kk qqqqqqqqp lllll kk qqqqqqqp llll kk qqqqqqqp lllllll kk qqqqqqqp"
+      "SELECT 123l AS `Int64`, 0b01u AS `Uint32`, 0xFFul AS `Uint64`, 0o7ut AS `Uint8`, 456s AS `Int16`, 1.2345f AS `Float`;",
+      "KKKKKK_LLLL_KK_QQQQQQQP_LLLLL_KK_QQQQQQQQP_LLLLLL_KK_QQQQQQQQP_LLLLL_KK_QQQQQQQP_LLLL_KK_QQQQQQQP_LLLLLLL_KK_QQQQQQQP"
     ]
   ],
   "Comment": [
-    ["- select", "p kkkkkk"],
-    ["select -- select", "kkkkkk ccccccccc"],
-    ["-- select\nselect", "cccccccccckkkkkk"],
-    ["/* select */", "cccccccccccc"],
-    ["select /* select */ select", "kkkkkk cccccccccccc kkkkkk"],
-    ["/**/ --", "cccc cc"],
-    ["/*/**/*/", "ccccccpp"]
+    ["- select", "P_KKKKKK"],
+    ["select -- select", "KKKKKK_CCCCCCCCC"],
+    ["-- select\nselect", "CCCCCCCCCCKKKKKK"],
+    ["/* select */", "CCCCCCCCCCCC"],
+    ["select /* select */ select", "KKKKKK_CCCCCCCCCCCC_KKKKKK"],
+    ["/**/ --", "CCCC_CC"],
+    ["/*/**/*/", "CCCCCCPP"]
   ],
   "SQL": [
-    ["SELECT id, alias from users", "kkkkkk iip iiiii kkkk iiiii"],
+    ["SELECT id, alias from users", "KKKKKK_IIP_IIIII_KKKK_IIIII"],
     [
       "INSERT INTO users (id, alias) VALUES (12, \"tester\")",
-      "kkkkkk kkkk iiiii piip iiiiip kkkkkk pllp ssssssssp"
+      "KKKKKK_KKKK_IIIII_PIIP_IIIIIP_KKKKKK_PLLP_SSSSSSSSP"
     ],
     [
-      "SELECT 123467, \"Hello, {name}!\", (1 + (5 * 1 / 0)), MIN(identifier) FROM `local/test/space/table` JOIN test;",
-      "kkkkkk llllllp ssssssssssssssssp pl p pl p l p lppp fffpiiiiiiiiiip kkkk qqqqqqqqqqqqqqqqqqqqqqqq kkkk iiiip"
+      "SELECT 123467, \"HeLLo, {name}!\", (1 + (5 * 1 / 0)), MIN(identifier) FROM `local/test/space/table` JOIN test;",
+      "KKKKKK_LLLLLLP_SSSSSSSSSSSSSSSSP_PL_P_PL_P_L_P_LPPP_FFFPIIIIIIIIIIP_KKKK_QQQQQQQQQQQQQQQQQQQQQQQQ_KKKK_IIIIP"
     ],
-    ["SELECT Bool(phone) FROM customer", "kkkkkk ttttpiiiiip kkkk iiiiiiii"]
+    ["SELECT Bool(phone) FROM customer", "KKKKKK_TTTTPIIIIIP_KKKK_IIIIIIII"]
   ],
   "ANSI": [
-    ["--_ansi_lexer\n\n/*/**/*/", "cccccccccccccc ccccccpp"],
-    ["--!ansi_lexer\n\n/*/**/*/", "cccccccccccccc cccccccc"],
-    ["--_ansi_lexer\n\n\"\\\"\"", "cccccccccccccc ssss"],
-    ["--!ansi_lexer\n\n\"\\\"\"", "cccccccccccccc ssse"],
-    ["\n --!ansi_lexer\n\n/*/**/*/", "  cccccccccccccc cccccccc"]
+    ["--_ansi_lexer\n\n/*/**/*/", "CCCCCCCCCCCCCC_CCCCCCPP"],
+    ["--!ansi_lexer\n\n/*/**/*/", "CCCCCCCCCCCCCC_CCCCCCCC"],
+    ["--_ansi_lexer\n\n\"\\\"\"", "CCCCCCCCCCCCCC_SSSS"],
+    ["--!ansi_lexer\n\n\"\\\"\"", "CCCCCCCCCCCCCC_SSSE"],
+    ["\n --!ansi_lexer\n\n/*/**/*/", "__CCCCCCCCCCCCCC_CCCCCCCC"]
   ]
 }

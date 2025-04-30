@@ -37,29 +37,29 @@ TVector<TTest> LoadTestSuite() {
 char ToChar(EUnitKind kind) {
     switch (kind) {
         case EUnitKind::Keyword:
-            return 'k';
+            return 'K';
         case EUnitKind::Punctuation:
-            return 'p';
+            return 'P';
         case EUnitKind::Identifier:
-            return 'i';
+            return 'I';
         case EUnitKind::QuotedIdentifier:
-            return 'q';
+            return 'Q';
         case EUnitKind::BindParamterIdentifier:
-            return 'b';
+            return 'B';
         case EUnitKind::TypeIdentifier:
-            return 't';
+            return 'T';
         case EUnitKind::FunctionIdentifier:
-            return 'f';
+            return 'F';
         case EUnitKind::Literal:
-            return 'l';
+            return 'L';
         case EUnitKind::StringLiteral:
-            return 's';
+            return 'S';
         case EUnitKind::Comment:
-            return 'c';
+            return 'C';
         case EUnitKind::Whitespace:
-            return ' ';
+            return '_';
         case EUnitKind::Error:
-            return 'e';
+            return 'E';
     }
 }
 
