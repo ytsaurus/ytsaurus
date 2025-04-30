@@ -61,23 +61,26 @@ namespace NSQLComplete {
                 return {};
             }
 
-            auto candidates = C3.Complete(statement);
-
-            TParsedTokenList tokens;
-            TCaretTokenPosition caret;
-            if (!TokenizePrefix(statement, tokens, caret)) {
+            TCursorTokenContext context;
+            if (!GetCursorTokenContext(Lexer_, statement, context)) {
                 return {};
             }
 
-            if (IsCaretEnslosed(tokens, caret)) {
-                return {};
+            TC3Candidates candidates = C3.Complete(statement);
+
+            if (auto enclosing = context.Enclosing()) {
+                if (enclosing->IsLiteral()) {
+                    return {};
+                } else if (enclosing->Base->Name == "ID_QUOTED") {
+                    return {}; // TODO(YQL-19747)
+                }
             }
 
             return {
                 .Keywords = SiftedKeywords(candidates),
-                .Pragma = PragmaMatch(tokens, candidates),
+                .Pragma = PragmaMatch(context, candidates),
                 .IsTypeName = IsTypeNameMatched(candidates),
-                .Function = FunctionMatch(tokens, candidates),
+                .Function = FunctionMatch(context, candidates),
                 .Hint = HintMatch(candidates),
             };
         }
@@ -122,16 +125,16 @@ namespace NSQLComplete {
         }
 
         TMaybe<TLocalSyntaxContext::TPragma> PragmaMatch(
-            const TParsedTokenList& tokens, const TC3Candidates& candidates) {
+            const TCursorTokenContext& context, const TC3Candidates& candidates) {
             if (!AnyOf(candidates.Rules, RuleAdapted(IsLikelyPragmaStack))) {
                 return Nothing();
             }
 
             TLocalSyntaxContext::TPragma pragma;
-            if (EndsWith(tokens, {"ID_PLAIN", "DOT"})) {
-                pragma.Namespace = tokens[tokens.size() - 2].Content;
-            } else if (EndsWith(tokens, {"ID_PLAIN", "DOT", ""})) {
-                pragma.Namespace = tokens[tokens.size() - 3].Content;
+            TMaybe<TRichParsedToken> begin;
+            if ((begin = context.MatchCursorPrefix({"ID_PLAIN", "DOT"})) ||
+                (begin = context.MatchCursorPrefix({"ID_PLAIN", "DOT", ""}))) {
+                pragma.Namespace = begin->Base->Content;
             }
             return pragma;
         }
@@ -141,16 +144,16 @@ namespace NSQLComplete {
         }
 
         TMaybe<TLocalSyntaxContext::TFunction> FunctionMatch(
-            const TParsedTokenList& tokens, const TC3Candidates& candidates) {
+            const TCursorTokenContext& context, const TC3Candidates& candidates) {
             if (!AnyOf(candidates.Rules, RuleAdapted(IsLikelyFunctionStack))) {
                 return Nothing();
             }
 
             TLocalSyntaxContext::TFunction function;
-            if (EndsWith(tokens, {"ID_PLAIN", "NAMESPACE"})) {
-                function.Namespace = tokens[tokens.size() - 2].Content;
-            } else if (EndsWith(tokens, {"ID_PLAIN", "NAMESPACE", ""})) {
-                function.Namespace = tokens[tokens.size() - 3].Content;
+            TMaybe<TRichParsedToken> begin;
+            if ((begin = context.MatchCursorPrefix({"ID_PLAIN", "NAMESPACE"})) ||
+                (begin = context.MatchCursorPrefix({"ID_PLAIN", "NAMESPACE", ""}))) {
+                function.Namespace = begin->Base->Content;
             }
             return function;
         }
@@ -170,35 +173,6 @@ namespace NSQLComplete {
             return TLocalSyntaxContext::THint{
                 .StatementKind = *stmt,
             };
-        }
-
-        bool TokenizePrefix(TCompletionInput input, TParsedTokenList& tokens, TCaretTokenPosition& caret) {
-            NYql::TIssues issues;
-            if (!NSQLTranslation::Tokenize(
-                    *Lexer_, TString(input.Text), /* queryName = */ "",
-                    tokens, issues, /* maxErrors = */ 1)) {
-                return false;
-            }
-
-            Y_ENSURE(!tokens.empty() && tokens.back().Name == "EOF");
-            tokens.pop_back();
-
-            caret = CaretTokenPosition(tokens, input.CursorPosition);
-            tokens.crop(caret.NextTokenIndex + 1);
-            return true;
-        }
-
-        bool IsCaretEnslosed(const TParsedTokenList& tokens, TCaretTokenPosition caret) {
-            if (tokens.empty() || caret.PrevTokenIndex != caret.NextTokenIndex) {
-                return false;
-            }
-
-            const auto& token = tokens.back();
-            return token.Name == "STRING_VALUE" ||
-                   token.Name == "ID_QUOTED" ||
-                   token.Name == "DIGIGTS" ||
-                   token.Name == "INTEGER_VALUE" ||
-                   token.Name == "REAL";
         }
 
         const ISqlGrammar* Grammar;

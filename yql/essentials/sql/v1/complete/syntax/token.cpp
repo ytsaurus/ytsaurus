@@ -5,7 +5,114 @@
 
 namespace NSQLComplete {
 
-    bool GetStatement(NSQLTranslation::ILexer::TPtr& lexer, TCompletionInput input, TCompletionInput& output) {
+    namespace {
+
+        bool Tokenize(ILexer::TPtr& lexer, TCompletionInput input, TParsedTokenList& tokens) {
+            NYql::TIssues issues;
+            if (!NSQLTranslation::Tokenize(
+                    *lexer, TString(input.Text), /* queryName = */ "",
+                    tokens, issues, /* maxErrors = */ 1)) {
+                return false;
+            }
+            return true;
+        }
+
+        TCursor GetCursor(const TParsedTokenList& tokens, size_t cursorPosition) {
+            size_t current = 0;
+            for (size_t i = 0; i < tokens.size(); ++i) {
+                const auto& content = tokens[i].Content;
+
+                current += content.size();
+                if (current < cursorPosition) {
+                    continue;
+                }
+
+                TCursor cursor = {
+                    .PrevTokenIndex = i,
+                    .NextTokenIndex = i,
+                    .Position = cursorPosition,
+                };
+
+                if (current == cursorPosition) {
+                    cursor.NextTokenIndex += 1;
+                }
+
+                return cursor;
+            }
+
+            TCursor cursor = {
+                .PrevTokenIndex = 0,
+                .NextTokenIndex = tokens.size(),
+                .Position = cursorPosition,
+            };
+
+            if (!tokens.empty()) {
+                cursor.PrevTokenIndex = tokens.size() - 1;
+            }
+
+            return cursor;
+        }
+
+        TVector<size_t> GetTokenPositions(const TParsedTokenList& tokens) {
+            TVector<size_t> positions;
+            positions.reserve(tokens.size());
+            size_t pos = 0;
+            for (const auto& token : tokens) {
+                positions.emplace_back(pos);
+                pos += token.Content.size();
+            }
+            return positions;
+        }
+
+    } // namespace
+
+    bool TCursor::IsEnclosed() const {
+        return PrevTokenIndex == NextTokenIndex;
+    }
+
+    bool TRichParsedToken::IsLiteral() const {
+        return Base->Name == "STRING_VALUE" ||
+               Base->Name == "DIGIGTS" ||
+               Base->Name == "INTEGER_VALUE" ||
+               Base->Name == "REAL";
+    }
+
+    TRichParsedToken TCursorTokenContext::TokenAt(size_t index) const {
+        return {
+            .Base = &Tokens.at(index),
+            .Index = index,
+            .Position = TokenPositions.at(index),
+        };
+    }
+
+    TMaybe<TRichParsedToken> TCursorTokenContext::Enclosing() const {
+        if (!Cursor.IsEnclosed()) {
+            return Nothing();
+        }
+        return TokenAt(Cursor.PrevTokenIndex);
+    }
+
+    size_t TCursorTokenContext::PositionWithinEnclosing() const {
+        return Cursor.Position - Enclosing()->Position;
+    }
+
+    TMaybe<TRichParsedToken> TCursorTokenContext::MatchCursorPrefix(const TVector<TStringBuf>& pattern) const {
+        const auto prefix = std::span{Tokens.begin(), Cursor.NextTokenIndex};
+        if (prefix.size() < pattern.size()) {
+            return Nothing();
+        }
+
+        ssize_t i = static_cast<ssize_t>(prefix.size()) - 1;
+        ssize_t j = static_cast<ssize_t>(pattern.size()) - 1;
+        for (; 0 <= j; --i, --j) {
+            if (!pattern[j].empty() && prefix[i].Name != pattern[j]) {
+                return Nothing();
+            }
+        }
+        return TokenAt(prefix.size() - pattern.size());
+    }
+
+    bool GetStatement(ILexer::TPtr& lexer, TCompletionInput input, TCompletionInput& output) {
         TVector<TString> statements;
         NYql::TIssues issues;
         if (!NSQLTranslationV1::SplitQueryToStatements(
@@ -31,29 +138,19 @@ namespace NSQLComplete {
         return true;
     }
 
-    TCaretTokenPosition CaretTokenPosition(const TParsedTokenList& tokens, size_t cursorPosition) {
-        size_t cursor = 0;
-        for (size_t i = 0; i < tokens.size(); ++i) {
-            const auto& content = tokens[i].Content;
-            cursor += content.size();
-            if (cursorPosition < cursor) {
-                return {i, i};
-            } else if (cursorPosition == cursor && IsWordBoundary(content.back())) {
-                return {i, i + 1};
-            }
-        }
-        return {std::max(tokens.size(), static_cast<size_t>(1)) - 1, tokens.size()};
-    }
-
-    bool EndsWith(const TParsedTokenList& tokens, const TVector<TStringBuf>& pattern) {
-        if (tokens.size() < pattern.size()) {
+    bool GetCursorTokenContext(ILexer::TPtr& lexer, TCompletionInput input, TCursorTokenContext& context) {
+        TParsedTokenList tokens;
+        if (!Tokenize(lexer, input, tokens)) {
             return false;
         }
-        for (yssize_t i = tokens.ysize() - 1, j = pattern.ysize() - 1; 0 <= j; --i, --j) {
-            if (!pattern[j].empty() && tokens[i].Name != pattern[j]) {
-                return false;
-            }
-        }
+
+        TVector<size_t> positions = GetTokenPositions(tokens);
+        TCursor cursor = GetCursor(tokens, input.CursorPosition);
+        context = {
+            .Tokens = std::move(tokens),
+            .TokenPositions = std::move(positions),
+            .Cursor = cursor,
+        };
         return true;
     }
 
