@@ -55,10 +55,6 @@ namespace NSQLComplete {
         TMaybe<TFunctionName::TConstraints> Function;
         TMaybe<THintName::TConstraints> Hint;
 
-        TPragmaName Qualified(TPragmaName unqualified) const;
-        TPragmaName Unqualified(TPragmaName qualified) const;
-        TFunctionName Qualified(TFunctionName unqualified) const;
-        TFunctionName Unqualified(TFunctionName qualified) const;
         TGenericName Qualified(TGenericName unqualified) const;
         TGenericName Unqualified(TGenericName qualified) const;
         TVector<TGenericName> Qualified(TVector<TGenericName> unqualified) const;
