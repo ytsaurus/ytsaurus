@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/klauspost/compress/zstd"
 	"github.com/stretchr/testify/require"
 
 	"go.ytsaurus.tech/yt/admin/timbertruck/pkg/pipelines"
@@ -20,6 +21,35 @@ func TestFollowingPipelines(t *testing.T) {
 
 	f, err := os.Create(filepath)
 	require.NoError(t, err)
+
+	testTextPipeline(t, filepath, f)
+}
+
+type writerFunc func(p []byte) (int, error)
+
+func (f writerFunc) Write(p []byte) (int, error) {
+	return f(p)
+}
+
+func TestFollowingPipelinesWithCompression(t *testing.T) {
+	tempDir := t.TempDir()
+	filepath := path.Join(tempDir, "logfile.zst")
+
+	f, err := os.Create(filepath)
+	require.NoError(t, err)
+
+	e, err := zstd.NewWriter(nil)
+	require.NoError(t, err)
+
+	fileWriter := writerFunc(func(p []byte) (int, error) {
+		return f.Write(e.EncodeAll(p, nil))
+	})
+
+	testTextPipeline(t, filepath, fileWriter)
+}
+
+func testTextPipeline(t *testing.T, filepath string, fileWriter io.Writer) {
+	t.Helper()
 
 	p, s, err := pipelines.NewTextPipeline(filepath, pipelines.FilePosition{}, pipelines.TextPipelineOptions{
 		LineLimit:   8,
@@ -65,21 +95,21 @@ func TestFollowingPipelines(t *testing.T) {
 	currentLine := StringLine{}
 	require.False(t, receive(&currentLine))
 
-	_, err = io.WriteString(f, "foo")
+	_, err = io.WriteString(fileWriter, "foo")
 	require.NoError(t, err)
 	require.False(t, receive(&currentLine))
 
-	_, err = io.WriteString(f, "bar\n")
+	_, err = io.WriteString(fileWriter, "bar\n")
 	require.NoError(t, err)
 	require.True(t, receive(&currentLine))
 	require.Equal(t, StringLine{"foobar\n", 0, 7, false}, currentLine)
 
-	_, err = io.WriteString(f, strings.Repeat("a", 100))
+	_, err = io.WriteString(fileWriter, strings.Repeat("a", 100))
 	require.NoError(t, err)
 	require.True(t, receive(&currentLine))
 	require.Equal(t, currentLine, StringLine{strings.Repeat("a", 8), 7, 15, true})
 
-	_, err = io.WriteString(f, "\nlastline")
+	_, err = io.WriteString(fileWriter, "\nlastline")
 	require.NoError(t, err)
 	require.False(t, receive(&currentLine))
 
