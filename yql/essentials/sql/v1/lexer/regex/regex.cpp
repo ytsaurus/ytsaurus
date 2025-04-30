@@ -45,6 +45,7 @@ namespace NSQLTranslationV1 {
 
         TString ToRegex(const TStringBuf name) {
             TString text = Grammar_->BlockByName.at(name);
+            Preprocess(text);
             Inline(text);
             Transform(text);
             Finalize(text);
@@ -52,6 +53,14 @@ namespace NSQLTranslationV1 {
         }
 
     private:
+        void Preprocess(TString& text) {
+            // Regex engine matches the first matched alternative,
+            // even if it is not the longest one, while ANTLR is more gready.
+            if (SubstGlobal(text, "DECDIGITS | ", "") != 0) {
+                SubstGlobal(text, "BINDIGITS", "BINDIGITS | DECDIGITS");
+            }
+        }
+
         void Inline(TString& text) {
             ApplyEachWhileChanging(text, Inliners_);
         }

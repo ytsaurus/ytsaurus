@@ -43,7 +43,6 @@ namespace NSQLTranslationV1 {
         TString Body;
         TString After = "";
         bool IsCaseInsensitive = false;
-        bool IsLongestMatch = true;
     };
 
     IGenericLexer::TMatcher Compile(const TRegexPattern& regex);

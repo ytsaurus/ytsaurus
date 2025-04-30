@@ -111,7 +111,6 @@ namespace NSQLTranslationV1 {
         for (const auto& [name, regex] : regexByOtherName) {
             auto matcher = Compile({
                 .Body = regex,
-                .IsLongestMatch = (name != "STRING_VALUE" && name != "COMMENT"),
             });
             generic.emplace_back(name, std::move(matcher));
         }

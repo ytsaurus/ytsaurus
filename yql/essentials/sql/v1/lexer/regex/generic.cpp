@@ -97,7 +97,6 @@ namespace NSQLTranslationV1 {
     IGenericLexer::TMatcher Compile(const TRegexPattern& regex) {
         RE2::Options options;
         options.set_case_sensitive(!regex.IsCaseInsensitive);
-        options.set_longest_match(regex.IsLongestMatch);
 
         return [bodyRe = MakeAtomicShared<RE2>(regex.Body, options),
                 afterRe = MakeAtomicShared<RE2>(regex.After, options)](TStringBuf prefix) -> TMaybe<TStringBuf> {
