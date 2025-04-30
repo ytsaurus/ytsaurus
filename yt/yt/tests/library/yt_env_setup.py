@@ -1108,15 +1108,15 @@ class YTEnvSetup(object):
             if "controller-agent" in components:
                 controller_agent_version = version
 
-        resend_full_job_info_not_supported = False
-        if (node_version or "25.2") <= "25.1":
-            resend_full_job_info_not_supported = True
+        resend_full_job_info = False
+        if (node_version or "25_2") <= "25_1":
+            resend_full_job_info = True
 
-        if (controller_agent_version or "25.2") <= "25.1":
-            resend_full_job_info_not_supported = True
+        if (controller_agent_version or "25_2") <= "25_1":
+            resend_full_job_info = True
 
-        if resend_full_job_info_not_supported:
-            config["%true"]["exec_node"]["job_controller"]["resend_full_job_info"] = False
+        if resend_full_job_info:
+            config["%true"]["exec_node"]["job_controller"]["resend_full_job_info"] = True
 
         delta_node_config = cls.get_param("DELTA_DYNAMIC_NODE_CONFIG", cluster_index)
 
