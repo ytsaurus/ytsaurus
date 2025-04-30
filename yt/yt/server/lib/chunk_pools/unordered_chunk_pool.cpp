@@ -950,24 +950,6 @@ PHOENIX_DEFINE_TYPE(TUnorderedChunkPool::TLocalityEntry);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TUnorderedChunkPoolOptions::RegisterMetadata(auto&& registrar)
-{
-    PHOENIX_REGISTER_FIELD(1, Mode);
-    PHOENIX_REGISTER_FIELD(2, JobSizeAdjusterConfig);
-    PHOENIX_REGISTER_FIELD(3, JobSizeConstraints);
-    PHOENIX_REGISTER_FIELD(4, MinTeleportChunkSize);
-    PHOENIX_REGISTER_FIELD(5, MinTeleportChunkDataWeight);
-    PHOENIX_REGISTER_FIELD(6, SliceErasureChunksByParts);
-    PHOENIX_REGISTER_FIELD(7, Logger);
-
-    PHOENIX_REGISTER_FIELD(8, SingleChunkTeleportStrategy,
-        .SinceVersion(ESnapshotVersion::SingleChunkTeleportStrategy));
-}
-
-PHOENIX_DEFINE_TYPE(TUnorderedChunkPoolOptions);
-
-////////////////////////////////////////////////////////////////////////////////
-
 IPersistentChunkPoolPtr CreateUnorderedChunkPool(
     const TUnorderedChunkPoolOptions& options,
     TInputStreamDirectory directory)
