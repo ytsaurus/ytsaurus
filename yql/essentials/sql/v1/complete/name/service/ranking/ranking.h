@@ -13,6 +13,7 @@ namespace NSQLComplete {
 
         virtual void CropToSortedPrefix(
             TVector<TGenericName>& names,
+            const TNameConstraints& constraints,
             size_t limit) const = 0;
         virtual ~IRanking() = default;
     };

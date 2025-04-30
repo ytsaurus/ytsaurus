@@ -46,12 +46,10 @@ namespace NSQLComplete {
         auto Ranking(TNameRequest request) const {
             return [request = std::move(request), this](auto f) {
                 TNameResponse response = f.ExtractValue();
-                auto& names = response.RankedNames;
-
-                names = request.Constraints.Qualified(std::move(names));
-                Ranking_->CropToSortedPrefix(names, request.Limit);
-                names = request.Constraints.Unqualified(std::move(names));
-
+                Ranking_->CropToSortedPrefix(
+                    response.RankedNames,
+                    request.Constraints,
+                    request.Limit);
                 return response;
             };
         }
