@@ -754,6 +754,10 @@ void TOperationSpecBase::Register(TRegistrar registrar)
         .Default(std::numeric_limits<i64>::max())
         .GreaterThan(0);
 
+    registrar.Parameter("max_compressed_data_size_per_job", &TThis::MaxCompressedDataSizePerJob)
+        .Default(200_GB)
+        .GreaterThan(0);
+
     registrar.Parameter("max_failed_job_count", &TThis::MaxFailedJobCount)
         .Default(10)
         .GreaterThanOrEqual(0)
@@ -1552,9 +1556,6 @@ void TSimpleOperationSpecBase::Register(TRegistrar registrar)
         .Default()
         .GreaterThan(0);
     registrar.Parameter("max_data_slices_per_job", &TThis::MaxDataSlicesPerJob)
-        .Default()
-        .GreaterThan(0);
-    registrar.Parameter("max_compressed_data_size_per_job", &TThis::MaxCompressedDataSizePerJob)
         .Default()
         .GreaterThan(0);
     registrar.Parameter("force_job_size_adjuster", &TThis::ForceJobSizeAdjuster)

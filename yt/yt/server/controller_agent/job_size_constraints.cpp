@@ -148,6 +148,11 @@ public:
         return Spec_->MaxPrimaryDataWeightPerJob;
     }
 
+    i64 GetMaxCompressedDataSizePerJob() const override
+    {
+        return Spec_->MaxCompressedDataSizePerJob;
+    }
+
     i64 GetInputSliceRowCount() const override
     {
         if (JobCount_ == 0) {
@@ -428,11 +433,6 @@ public:
         return TJobSizeConstraintsBase::GetSortedOperationInputSliceDataWeight();
     }
 
-    i64 GetMaxCompressedDataSizePerJob() const override
-    {
-        return Spec_->MaxCompressedDataSizePerJob.value_or(InfiniteSize);
-    }
-
 private:
     TSimpleOperationSpecBasePtr Spec_;
     TSimpleOperationOptionsPtr Options_;
@@ -591,11 +591,6 @@ public:
             : 1);
     }
 
-    i64 GetMaxCompressedDataSizePerJob() const override
-    {
-        return Spec_->MaxCompressedDataSizePerJob.value_or(InfiniteSize);
-    }
-
     i64 GetInputSliceRowCount() const override
     {
         return std::numeric_limits<i64>::max() / 4;
@@ -689,11 +684,6 @@ public:
     i64 GetInputSliceRowCount() const override
     {
         return std::numeric_limits<i64>::max() / 4;
-    }
-
-    i64 GetMaxCompressedDataSizePerJob() const override
-    {
-        return InfiniteSize;
     }
 
 private:
@@ -809,11 +799,6 @@ public:
     i64 GetMaxDataSlicesPerJob() const override
     {
         return Options_->MaxDataSlicesPerJob;
-    }
-
-    i64 GetMaxCompressedDataSizePerJob() const override
-    {
-        return InfiniteSize;
     }
 
 private:

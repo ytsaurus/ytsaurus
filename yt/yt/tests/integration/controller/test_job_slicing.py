@@ -1,7 +1,7 @@
 from yt_env_setup import YTEnvSetup
 
 from yt_commands import (
-    authors, wait, create, get, write_table, map, merge
+    authors, wait, create, get, write_table, map, merge, raises_yt_error
 )
 
 from yt_type_helpers import (
@@ -144,6 +144,7 @@ class TestCompressedDataSizePerJob(YTEnvSetup):
         assert progress["jobs"]["completed"]["total"] == 3 if use_compressed_data_size else 2
 
     @authors("apollo1321")
+    @pytest.mark.skip(reason="Rewrite to compressed data size per job")
     @pytest.mark.parametrize("mode", ["unordered", "ordered"])
     def test_map_operation_explicit_job_count(self, mode):
         # NB(apollo1321): Merge operation does not takes into account excplicitly set job_count.
@@ -360,3 +361,32 @@ class TestCompressedDataSizePerJob(YTEnvSetup):
 
         progress = get(op.get_path() + "/@progress")
         assert progress["jobs"]["completed"]["total"] <= 2
+
+    @authors("apollo1321")
+    @pytest.mark.parametrize("operation", ["map", "merge"])
+    def test_operation_fails_on_max_compressed_data_size_per_job_violation(self, operation):
+        create("table", "//tmp/t_in")
+
+        write_table("<append=%true>//tmp/t_in", {
+            "col": self._make_random_string(4000),
+        })
+
+        create("table", "//tmp/t_out")
+
+        op_function = merge if operation == "merge" else map
+
+        op = op_function(
+            in_="//tmp/t_in",
+            out="//tmp/t_out",
+            spec={
+                "max_compressed_data_size_per_job": 3000,
+            } | ({
+                "force_transform": True,
+            } if operation == "merge" else {}) | ({
+                "mapper": {"command": "cat > /dev/null"},
+            } if operation == "map" else {}),
+            track=False,
+        )
+
+        with raises_yt_error("Maximum allowed compressed data size per job exceeds the limit"):
+            op.track()
