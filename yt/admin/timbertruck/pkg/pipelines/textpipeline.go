@@ -3,6 +3,7 @@ package pipelines
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -154,6 +155,8 @@ func (t *textFollower) Process(ctx context.Context, _ RowMeta, in Impulse, emit 
 			}
 			t.emitLine(ctx, emit)
 		}
+	} else if err != nil && !errors.Is(err, context.Canceled) {
+		panic(fmt.Sprintf("unexpected error while reading file: %s", err.Error()))
 	}
 }
 
