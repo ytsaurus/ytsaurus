@@ -173,6 +173,7 @@ Y_TEST_HOOK_BEFORE_RUN(GTEST_YT_SETUP)
 
 Y_TEST_HOOK_AFTER_RUN(GTEST_YT_TEARDOWN)
 {
+    NYT::Shutdown();
 #ifdef _asan_enabled_
     // Wait for some time to ensure background cleanup is somewhat complete.
     Sleep(TDuration::Seconds(1));
