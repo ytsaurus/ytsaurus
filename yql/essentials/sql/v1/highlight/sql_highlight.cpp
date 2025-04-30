@@ -168,18 +168,8 @@ namespace NSQLHighlight {
     TUnit MakeUnit<EUnitKind::StringLiteral>(Syntax& s) {
         return {
             .Kind = EUnitKind::StringLiteral,
-            .Patterns = {
-                {
-                    .Body = s.Get("STRING_VALUE"),
-                    .IsLongestMatch = false,
-                },
-            },
-            .PatternsANSI = {
-                {
-                    .Body = s.Get("STRING_VALUE", /* ansi = */ true),
-                    .IsLongestMatch = false,
-                },
-            },
+            .Patterns = {{s.Get("STRING_VALUE")}},
+            .PatternsANSI = {{s.Get("STRING_VALUE", /* ansi = */ true)}},
         };
     }
 
@@ -187,12 +177,7 @@ namespace NSQLHighlight {
     TUnit MakeUnit<EUnitKind::Comment>(Syntax& s) {
         return {
             .Kind = EUnitKind::Comment,
-            .Patterns = {
-                {
-                    .Body = s.Get("COMMENT"),
-                    .IsLongestMatch = false,
-                },
-            },
+            .Patterns = {{s.Get("COMMENT")}},
             .PatternsANSI = {},
         };
     }
