@@ -7,6 +7,7 @@
 #include "replication_card_collocation.h"
 #include "replication_card_serialization.h"
 
+#include <yt/yt/server/lib/chaos_node/config.h>
 #include <yt/yt/server/lib/chaos_node/replication_card_watcher_service_callbacks.h>
 
 #include <yt/yt/server/lib/hydra/distributed_hydra_manager.h>
@@ -88,6 +89,13 @@ public:
 private:
     const IChaosSlotPtr Slot_;
 
+    struct TCachedCard
+    {
+        TCpuInstant Deadline;
+        NChaosClient::TReplicationCardPtr CachedCard;
+    };
+    THashMap<TReplicationCardId, TCachedCard> ReplicationCardCache_;
+
     DECLARE_RPC_SERVICE_METHOD(NChaosClient::NProto, GenerateReplicationCardId)
     {
         context->SetRequestInfo();
@@ -139,12 +147,102 @@ private:
 
         const auto& chaosManager = Slot_->GetChaosManager();
         auto* replicationCard = chaosManager->GetReplicationCardOrThrow(replicationCardId);
-        ToProto(response->mutable_replication_card(), *replicationCard, fetchOptions);
+        auto collocationId = replicationCard->GetCollocation()
+            ? replicationCard->GetCollocation()->GetId()
+            : TReplicationCardCollocationId();
+        auto awaitingCollocationId = replicationCard->GetAwaitingCollocationId();
 
-        context->SetResponseInfo("ReplicationCardId: %v",
-            replicationCardId);
+        auto isSame = [] (const auto& cachedCard, const auto& replicationCard) {
+            if (cachedCard->Era != replicationCard->GetEra()) {
+                return false;
+            }
 
-        context->Reply();
+            int grantedCoordinatorsCount = 0;
+            for (const auto& [_, info] : replicationCard->Coordinators()) {
+                if (info.State == EShortcutState::Granted) {
+                    ++grantedCoordinatorsCount;
+                }
+            }
+            if (std::ssize(cachedCard->CoordinatorCellIds) != grantedCoordinatorsCount) {
+                return false;
+            }
+
+            if (cachedCard->ReplicatedTableOptions != replicationCard->GetReplicatedTableOptions()) {
+                return false;
+            }
+
+            for (const auto& [replicaId, cachedInfo] : cachedCard->Replicas) {
+                auto it = replicationCard->Replicas().find(replicaId);
+                if (!it ||
+                    cachedInfo.State != it->second.State ||
+                    cachedInfo.Mode != it->second.Mode ||
+                    cachedInfo.EnableReplicatedTableTracker != it->second.EnableReplicatedTableTracker)
+                {
+                    return false;
+                }
+
+                // TODO(savrus): This is computationally-intensive, remove or cache.
+                if (GetReplicationProgressMinTimestamp(cachedInfo.ReplicationProgress) < GetReplicationProgressMinTimestamp(it->second.ReplicationProgress)) {
+                    return false;
+                }
+            }
+
+            return true;
+        };
+
+        NChaosClient::TReplicationCardPtr replicationCardCopy;
+        auto cached = ReplicationCardCache_.find(replicationCardId);
+        if (!cached || cached->second.Deadline < GetCpuInstant() || !isSame(cached->second.CachedCard, replicationCard))
+        {
+            auto options = TReplicationCardFetchOptions{
+                .IncludeCoordinators = true,
+                .IncludeProgress = true,
+                .IncludeHistory = true,
+                .IncludeReplicatedTableOptions = true
+            };
+
+            replicationCardCopy = replicationCard->ConvertToClientCard(options);
+            ReplicationCardCache_[replicationCardId] = TCachedCard{
+                .Deadline = GetCpuInstant() +
+                    DurationToCpuDuration(Slot_->GetDynamicConfig()->ReplicationCardAutomatonCacheExpirationTime),
+                .CachedCard = replicationCardCopy
+            };
+        } else {
+            replicationCardCopy = cached->second.CachedCard;
+        }
+
+        const auto& invoker = Slot_->GetSnapshotStoreReadPoolInvoker();
+        auto callback = BIND([context, response, replicationCard = std::move(replicationCardCopy), fetchOptions, collocationId, awaitingCollocationId] {
+            auto* protoReplicationCard = response->mutable_replication_card();
+            protoReplicationCard->set_era(replicationCard->Era);
+            ToProto(protoReplicationCard->mutable_table_id(), replicationCard->TableId);
+            protoReplicationCard->set_table_path(replicationCard->TablePath);
+            protoReplicationCard->set_table_cluster_name(replicationCard->TableClusterName);
+            protoReplicationCard->set_current_timestamp(replicationCard->CurrentTimestamp);
+
+            if (collocationId) {
+                ToProto(protoReplicationCard->mutable_replication_card_collocation_id(), collocationId);
+            } else if (awaitingCollocationId) {
+                ToProto(protoReplicationCard->mutable_replication_card_collocation_id(), awaitingCollocationId);
+            }
+
+            std::vector<TCellId> coordinators;
+            if (fetchOptions.IncludeCoordinators) {
+                ToProto(protoReplicationCard->mutable_coordinator_cell_ids(), replicationCard->CoordinatorCellIds);
+            }
+
+            for (const auto& [replicaId, replicaInfo] : replicationCard->Replicas) {
+                auto* protoEntry = protoReplicationCard->add_replicas();
+                ToProto(protoEntry->mutable_id(), replicaId);
+                ToProto(protoEntry->mutable_info(), replicaInfo, fetchOptions);
+            }
+
+            if (fetchOptions.IncludeReplicatedTableOptions) {
+                protoReplicationCard->set_replicated_table_options(ConvertToYsonString(replicationCard->ReplicatedTableOptions).ToString());
+            }
+        }).AsyncVia(invoker);
+
+        context->ReplyFrom(callback());
     }
 
     void DoFindChaosObject(TChaosObjectId chaosObjectId)

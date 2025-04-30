@@ -424,6 +424,11 @@ public:
         }
     }
 
+    TChaosNodeDynamicConfigPtr GetDynamicConfig() const override
+    {
+        return Bootstrap_->GetDynamicConfig();
+    }
+
 private:
     const TChaosNodeConfigPtr Config_;
     const IShortcutSnapshotStorePtr ShortcutSnapshotStore_;
