@@ -3,36 +3,29 @@
 #include "helpers.h"
 #include "job_size_adjuster.h"
 #include "new_job_manager.h"
-#include "config.h"
 
 #include <yt/yt/server/lib/controller_agent/job_size_constraints.h>
 
-#include <yt/yt/ytlib/chunk_client/helpers.h>
-#include <yt/yt/ytlib/chunk_client/legacy_data_slice.h>
-#include <yt/yt/ytlib/chunk_client/input_chunk.h>
+#include <yt/yt/server/lib/chunk_pools/config.h>
 
-#include <yt/yt/ytlib/node_tracker_client/public.h>
+#include <yt/yt/ytlib/chunk_client/helpers.h>
+#include <yt/yt/ytlib/chunk_client/input_chunk.h>
+#include <yt/yt/ytlib/chunk_client/legacy_data_slice.h>
 
 #include <yt/yt/library/random/bernoulli_sampler.h>
 
-#include <yt/yt/client/table_client/row_buffer.h>
-
 #include <yt/yt/core/logging/logger_owner.h>
 
-#include <library/cpp/yt/memory/ref_tracked.h>
-
 #include <library/cpp/yt/misc/numeric_helpers.h>
-
-#include <random>
 
 namespace NYT::NChunkPools {
 
 using namespace NChunkClient;
 using namespace NControllerAgent;
-using namespace NScheduler;
-using namespace NNodeTrackerClient;
-using namespace NTableClient;
 using namespace NLogging;
+using namespace NNodeTrackerClient;
+using namespace NScheduler;
+using namespace NTableClient;
 using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
