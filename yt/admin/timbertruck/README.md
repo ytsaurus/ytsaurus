@@ -81,6 +81,20 @@ json_logs:
   # If max_active_task_count is not specified, default value is 100.
   max_active_task_count: 50
 
+  # OPTIONAL
+  # Buffer size at which a flush to the output is triggered.
+  # It must be greater than or equal to text_file_line_limit.
+  # 
+  # Default value is 16777216 (16 MiB).
+  queue_batch_size: 1048576
+
+  # OPTIONAL
+  # Maximum allowed length of a line in the text file.
+  # Lines longer than this value will be truncated.
+  #
+  # Default value is 16777216 (16 MiB).
+  text_file_line_limit: 1048576
+
   # REQUIRED
   # Description of YTQueue to send logs to.
   yt_queue:
@@ -95,6 +109,10 @@ text_logs:
   # cluster and tskv_format are put to tskv value and used by Logfeller to parse records.
   cluster: hahn
   tskv_format: yt-raw-master-log
+
+  # Described above
+  queue_batch_size: 1048576
+  text_file_line_limit: 1048576
 
   # Described above
   log_file: /yt/disk2/freud-data/master-logs/master-sas5-9603.debug.log
