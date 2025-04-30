@@ -21,7 +21,9 @@ namespace NSQLComplete {
         {
         }
 
-        void CropToSortedPrefix(TVector<TGenericName>& names, size_t limit) const override {
+        void CropToSortedPrefix(
+            TVector<TGenericName>& names,
+            size_t limit) const override {
             limit = std::min(limit, names.size());
 
             TVector<TRow> rows;

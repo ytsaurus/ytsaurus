@@ -41,66 +41,17 @@ namespace NSQLComplete {
         }
     }
 
-    void SetPrefix(TString& name, const TStringBuf delimeter, const TNamespaced& namespaced) {
-        if (!namespaced.Namespace.empty()) {
-            name.prepend(delimeter);
-            name.prepend(namespaced.Namespace);
-        }
-    }
-
-    void SetPrefix(TGenericName& name, const TNameRequest& request) {
-        std::visit([&](auto& name) -> size_t {
-            using T = std::decay_t<decltype(name)>;
-            if constexpr (std::is_same_v<T, TPragmaName>) {
-                SetPrefix(name.Indentifier, ".", *request.Constraints.Pragma);
-            }
-            if constexpr (std::is_same_v<T, TFunctionName>) {
-                SetPrefix(name.Indentifier, "::", *request.Constraints.Function);
-            }
-            return 0;
-        }, name);
-    }
-
-    void SetPrefix(TVector<TGenericName>& names, const TNameRequest& request) {
-        for (auto& name : names) {
-            SetPrefix(name, request);
-        }
-    }
-
-    void FixPrefix(TString& name, const TStringBuf delimeter, const TNamespaced& namespaced) {
-        if (namespaced.Namespace.empty()) {
-            return;
-        }
-        name.remove(0, namespaced.Namespace.size() + delimeter.size());
-    }
-
-    void FixPrefix(TGenericName& name, const TNameRequest& request) {
-        std::visit([&](auto& name) -> size_t {
-            using T = std::decay_t<decltype(name)>;
-            if constexpr (std::is_same_v<T, TPragmaName>) {
-                FixPrefix(name.Indentifier, ".", *request.Constraints.Pragma);
-            }
-            if constexpr (std::is_same_v<T, TFunctionName>) {
-                FixPrefix(name.Indentifier, "::", *request.Constraints.Function);
-            }
-            return 0;
-        }, name);
-    }
-
-    void FixPrefix(TVector<TGenericName>& names, const TNameRequest& request) {
-        for (auto& name : names) {
-            FixPrefix(name, request);
-        }
-    }
-
     class TRankingNameService: public INameService {
     private:
         auto Ranking(TNameRequest request) const {
             return [request = std::move(request), this](auto f) {
                 TNameResponse response = f.ExtractValue();
-                SetPrefix(response.RankedNames, request);
-                Ranking_->CropToSortedPrefix(response.RankedNames, request.Limit);
-                FixPrefix(response.RankedNames, request);
+                auto& names = response.RankedNames;
+
+                names = request.Constraints.Qualified(std::move(names));
+                Ranking_->CropToSortedPrefix(names, request.Limit);
+                names = request.Constraints.Unqualified(std::move(names));
+
                 return response;
             };
         }
@@ -149,13 +100,14 @@ namespace NSQLComplete {
         NThreading::TFuture<TNameResponse> LookupUnranked(TNameRequest request) const override {
             TNameResponse response;
             if (request.Constraints.Pragma) {
-                SetPrefix(request.Prefix, ".", *request.Constraints.Pragma);
+                TPragmaName prefix;
+                prefix.Indentifier = request.Prefix;
+                prefix = request.Constraints.Qualified(std::move(prefix));
                 AppendAs<TPragmaName>(
                     response.RankedNames,
-                    FilteredByPrefix(request.Prefix, Pragmas_));
-                FixPrefix(request.Prefix, ".", *request.Constraints.Pragma);
+                    FilteredByPrefix(prefix.Indentifier, Pragmas_));
             }
-            FixPrefix(response.RankedNames, request);
+            response.RankedNames = request.Constraints.Unqualified(std::move(response.RankedNames));
             return NThreading::MakeFuture<TNameResponse>(std::move(response));
         }
 
@@ -196,13 +148,14 @@ namespace NSQLComplete {
         NThreading::TFuture<TNameResponse> LookupUnranked(TNameRequest request) const override {
             TNameResponse response;
             if (request.Constraints.Function) {
-                SetPrefix(request.Prefix, "::", *request.Constraints.Function);
+                TFunctionName prefix;
+                prefix.Indentifier = request.Prefix;
+                prefix = request.Constraints.Qualified(std::move(prefix));
                 AppendAs<TFunctionName>(
                     response.RankedNames,
-                    FilteredByPrefix(request.Prefix, Functions_));
-                FixPrefix(request.Prefix, "::", *request.Constraints.Function);
+                    FilteredByPrefix(prefix.Indentifier, Functions_));
             }
-            FixPrefix(response.RankedNames, request);
+            response.RankedNames = request.Constraints.Unqualified(std::move(response.RankedNames));
             return NThreading::MakeFuture<TNameResponse>(std::move(response));
         }
 
