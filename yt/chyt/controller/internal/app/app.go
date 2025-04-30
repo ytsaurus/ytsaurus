@@ -136,11 +136,12 @@ func New(config *Config, options *Options, cfs map[string]strawberry.ControllerF
 		l.Info("initializing HTTP API")
 		var apiConfig = api.HTTPAPIConfig{
 			BaseAPIConfig: api.APIConfig{
-				ControllerFactories:       cfs,
-				ControllerMappings:        config.HTTPControllerMappings,
-				BaseACL:                   config.BaseACL,
-				RobotUsername:             config.Strawberry.RobotUsername,
-				AssignAdministerToCreator: config.Strawberry.AssignAdministerToCreatorOrDefault(),
+				ControllerFactories:        cfs,
+				ControllerMappings:         config.HTTPControllerMappings,
+				BaseACL:                    config.BaseACL,
+				RobotUsername:              config.Strawberry.RobotUsername,
+				AssignAdministerToCreator:  config.Strawberry.AssignAdministerToCreatorOrDefault(),
+				ShowOnlyAccessibleSpeclets: config.ShowOnlyAccessibleSpeclets,
 			},
 			ClusterInfos:    agentInfos,
 			LocationAliases: config.HTTPLocationAliases,
