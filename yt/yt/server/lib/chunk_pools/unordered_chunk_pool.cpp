@@ -656,17 +656,12 @@ private:
         return internalCookie;
     }
 
-    i64 GetFreeJobCount() const
-    {
-        return FreeJobCounter_->GetPending() + FreeJobCounter_->GetSuspended();
-    }
-
     i64 GetIdealDataWeightPerJob() const
     {
         if (Mode_ == EUnorderedChunkPoolMode::AutoMerge) {
             return JobSizeConstraints_->GetDataWeightPerJob();
         }
-        i64 freePendingJobCount = GetFreeJobCount();
+        i64 freePendingJobCount = FreeJobCounter_->GetTotal();
         YT_VERIFY(freePendingJobCount > 0);
         return std::max(
             static_cast<i64>(1),
@@ -675,22 +670,13 @@ private:
 
     void UpdateFreeJobCounter()
     {
-        auto oldFreeJobCount =
-            FreeJobCounter_->GetPending() +
-            FreeJobCounter_->GetBlocked() +
-            FreeJobCounter_->GetSuspended();
-
-        FreeJobCounter_->SetPending(0);
-        FreeJobCounter_->SetBlocked(0);
-        FreeJobCounter_->SetSuspended(0);
-
         i64 pendingJobCount = 0;
-        i64 blockedJobCount = 0;
+        i64 blockedJobCount = !Finished && !JobSizeConstraints_->IsExplicitJobCount() ? 1 : 0;
 
         i64 dataWeightLeft = FreeDataWeightCounter_->GetTotal();
 
         if (JobSizeConstraints_->IsExplicitJobCount()) {
-            pendingJobCount = oldFreeJobCount;
+            pendingJobCount = FreeJobCounter_->GetTotal();
         } else {
             i64 dataWeightPerJob = JobSizeAdjuster_
                 ? JobSizeAdjuster_->GetDataWeightPerJob()
@@ -700,9 +686,6 @@ private:
                 pendingJobCount = DivCeil<i64>(dataWeightLeft, dataWeightPerJob);
             } else {
                 pendingJobCount = dataWeightLeft / dataWeightPerJob;
-                if (dataWeightLeft % dataWeightPerJob > 0) {
-                    blockedJobCount = 1;
-                }
             }
             pendingJobCount = std::max<i64>(
                 pendingJobCount,
@@ -734,9 +717,12 @@ private:
 
         if (canScheduleJobs) {
             FreeJobCounter_->SetPending(pendingJobCount);
+            FreeJobCounter_->SetSuspended(0);
             FreeJobCounter_->SetBlocked(blockedJobCount);
         } else {
+            FreeJobCounter_->SetPending(0);
             FreeJobCounter_->SetSuspended(pendingJobCount + blockedJobCount);
+            FreeJobCounter_->SetBlocked(0);
         }
     }
 
