@@ -347,6 +347,14 @@ Y_UNIT_TEST_SUITE(SqlCompleteTests) {
                 Complete(engine, "pragma yt.RuntimeClusterSelection='force';\npragma yt.Ru"),
                 expected);
         }
+        {
+            TVector<TCandidate> expected = {
+                {PragmaName, "RuntimeCluster"},
+                {PragmaName, "RuntimeClusterSelection"}};
+            UNIT_ASSERT_VALUES_EQUAL(
+                Complete(engine, "pragma yt.Ru#\n"),
+                expected);
+        }
     }
 
     Y_UNIT_TEST(Select) {

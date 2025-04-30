@@ -5,20 +5,43 @@
 
 #include <yql/essentials/parser/lexer_common/lexer.h>
 
+#include <span>
+
 namespace NSQLComplete {
 
+    using NSQLTranslation::ILexer;
+    using NSQLTranslation::TParsedToken;
     using NSQLTranslation::TParsedTokenList;
 
-    // `PrevTokenIndex` = `NextTokenIndex`, iff caret is enclosed
-    struct TCaretTokenPosition {
-        size_t PrevTokenIndex;
-        size_t NextTokenIndex;
+    struct TCursor {
+        size_t PrevTokenIndex = 0;
+        size_t NextTokenIndex = PrevTokenIndex;
+        size_t Position = 0;
+
+        bool IsEnclosed() const;
     };
 
-    bool GetStatement(NSQLTranslation::ILexer::TPtr& lexer, TCompletionInput input, TCompletionInput& output);
+    struct TRichParsedToken {
+        const TParsedToken* Base;
+        size_t Index;
+        size_t Position;
 
-    TCaretTokenPosition CaretTokenPosition(const TParsedTokenList& tokens, size_t cursorPosition);
+        bool IsLiteral() const;
+    };
 
-    bool EndsWith(const TParsedTokenList& tokens, const TVector<TStringBuf>& pattern);
+    struct TCursorTokenContext {
+        TParsedTokenList Tokens;
+        TVector<size_t> TokenPositions;
+        TCursor Cursor;
+
+        TRichParsedToken TokenAt(size_t index) const;
+        TMaybe<TRichParsedToken> Enclosing() const;
+        size_t PositionWithinEnclosing() const;
+        TMaybe<TRichParsedToken> MatchCursorPrefix(const TVector<TStringBuf>& pattern) const;
+    };
+
+    bool GetStatement(ILexer::TPtr& lexer, TCompletionInput input, TCompletionInput& output);
+
+    bool GetCursorTokenContext(ILexer::TPtr& lexer, TCompletionInput input, TCursorTokenContext& context);
 
 } // namespace NSQLComplete
