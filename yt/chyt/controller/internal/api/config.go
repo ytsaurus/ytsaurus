@@ -10,12 +10,14 @@ type APIConfig struct {
 	ControllerFactories map[string]strawberry.ControllerFactory
 	// ControllerMappings contains rules of mapping host to a particular controller.
 	// See https://github.com/go-chi/hostrouter/blob/master/README.md for key examples.
-	ControllerMappings        map[string]string
-	AgentInfo                 strawberry.AgentInfo
-	BaseACL                   []yt.ACE
-	RobotUsername             string
-	ValidatePoolAccess        *bool
-	AssignAdministerToCreator bool
+	ControllerMappings          map[string]string
+	AgentInfo                   strawberry.AgentInfo
+	BaseACL                     []yt.ACE
+	RobotUsername               string
+	ValidatePoolAccess          *bool
+	AssignAdministerToCreator   bool
+	ShowOnlyAccessibleSpeclets  bool
+	AccessibleSpecletPermission *string
 }
 
 const (
@@ -34,6 +36,13 @@ func (c *APIConfig) ControllerMappingsOrDefault() map[string]string {
 		return map[string]string{"*": "chyt"}
 	}
 	return c.ControllerMappings
+}
+
+func (c *APIConfig) AccessibleSpecletPermissionOrDefault() string {
+	if c.AccessibleSpecletPermission != nil {
+		return *c.AccessibleSpecletPermission
+	}
+	return yt.PermissionRead
 }
 
 type HTTPAPIConfig struct {

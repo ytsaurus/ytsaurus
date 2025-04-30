@@ -3,8 +3,10 @@ package api
 import (
 	"context"
 	"fmt"
+	"math"
 	"reflect"
 	"strconv"
+	"sync"
 	"time"
 
 	"go.ytsaurus.tech/library/go/core/log"
@@ -86,6 +88,41 @@ func (a *API) CheckPermissionToOp(ctx context.Context, alias string, permission 
 	}
 
 	return nil
+}
+
+func (a *API) getAccessibleOplets(ctx context.Context, ops map[string]yson.RawValue, permission yt.Permission) (map[string]yson.RawValue, error) {
+	aliasesToCheckCh := make(chan string, len(ops))
+	accessibleAliasesCh := make(chan string, len(ops))
+
+	for alias, _ := range ops {
+		aliasesToCheckCh <- alias
+	}
+
+	var wg sync.WaitGroup
+	const batchSize = 5
+	numWorkers := int(math.Ceil(float64(len(ops)) / float64(batchSize)))
+	wg.Add(numWorkers)
+
+	for range numWorkers {
+		go func() {
+			for alias := range aliasesToCheckCh {
+				if err := a.CheckPermissionToOp(ctx, alias, permission); err == nil {
+					accessibleAliasesCh <- alias
+				}
+			}
+			wg.Done()
+		}()
+	}
+	close(aliasesToCheckCh)
+	wg.Wait()
+	close(accessibleAliasesCh)
+
+	accessibleOps := make(map[string]yson.RawValue)
+	for alias := range accessibleAliasesCh {
+		accessibleOps[alias] = ops[alias]
+	}
+
+	return accessibleOps, nil
 }
 
 // TODO(dakovalkov): delete it when resolving pool -> path is available through scheduler on all clusters.
@@ -606,6 +643,13 @@ func (a *API) List(ctx context.Context, attributes []string, filters map[string]
 		&yt.GetNodeOptions{Attributes: attributesToList})
 	if err != nil {
 		return nil, err
+	}
+
+	if a.cfg.ShowOnlyAccessibleSpeclets {
+		ops, err = a.getAccessibleOplets(ctx, ops, a.cfg.AccessibleSpecletPermissionOrDefault())
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	var acls map[string]struct {
