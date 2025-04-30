@@ -6,6 +6,6 @@ LICENSE(
     MIT
 )
 
-VERSION(v1.17.11)
+VERSION(v1.18.0)
 
 END()
