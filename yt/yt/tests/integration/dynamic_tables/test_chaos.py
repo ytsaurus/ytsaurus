@@ -3899,6 +3899,11 @@ class TestChaos(ChaosTestBase):
         cell_id = self._sync_create_chaos_bundle_and_cell()
         set("//sys/chaos_cell_bundles/c/@metadata_cell_id", cell_id)
 
+        schema = yson.YsonList([
+            {"name": "key", "type": "int64", "sort_order": "ascending"},
+            {"name": "value", "type": "string"},
+        ])
+
         replicated_table_options = {
             "enable_replicated_table_tracker": False,
             "min_sync_queue_replica_count": 2,
@@ -3910,12 +3915,15 @@ class TestChaos(ChaosTestBase):
             {"cluster_name": "remote_1", "content_type": "queue", "mode": "sync", "enabled": True, "replica_path": "//tmp/qr1"},
             {"cluster_name": "primary", "content_type": "data", "mode": "sync", "enabled": True, "replica_path": "//tmp/dp"},
         ]
-        card_id, replica_ids = self._create_chaos_tables(cell_id, replicas)
+        card_id, replica_ids = self._create_chaos_tables(cell_id, replicas, schema=schema)
 
         create("chaos_replicated_table", "//tmp/crt", attributes={
             "chaos_cell_bundle": "c",
             "replication_card_id": card_id,
+            "schema": schema,
         })
+
+        assert get("//tmp/crt/@sorted")
 
         alter_replication_card(card_id, replicated_table_options=replicated_table_options)
 
@@ -4603,6 +4611,8 @@ class TestChaos(ChaosTestBase):
         _reshard_table("//tmp/q0", primary_driver)
         assert get("//tmp/crt/@tablet_count") == 5
         assert get_table_mount_info("//tmp/crt")["upper_cap_bound"][0] == 5
+
+        assert not get("//tmp/crt/@sorted")
 
     @authors("osidorkin")
     def test_crt_tablets_info(self):
