@@ -21,7 +21,6 @@ namespace NSQLComplete {
                 for (const auto& c : Children_) {
                     fs.emplace_back(c->Lookup(request));
                 }
-
                 return NThreading::WaitAll(fs)
                     .Apply([fs, this, limit = request.Limit](auto) { return Union(fs, limit); });
             }
@@ -29,14 +28,12 @@ namespace NSQLComplete {
         private:
             TNameResponse Union(TVector<NThreading::TFuture<TNameResponse>> fs, size_t limit) const {
                 TNameResponse united;
-
                 for (auto f : fs) {
                     TNameResponse response = f.ExtractValue();
                     std::ranges::move(
                         response.RankedNames,
                         std::back_inserter(united.RankedNames));
                 }
-
                 Ranking_->CropToSortedPrefix(united.RankedNames, limit);
                 return united;
             }
