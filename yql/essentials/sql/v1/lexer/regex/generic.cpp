@@ -21,7 +21,7 @@ namespace NSQLTranslationV1 {
         static constexpr TStringBuf Utf8BOM = "\xEF\xBB\xBF";
 
     public:
-        explicit TGenericLexer(TGrammar grammar)
+        explicit TGenericLexer(TGenericLexerGrammar grammar)
             : Grammar_(std::move(grammar))
         {
         }
@@ -91,10 +91,10 @@ namespace NSQLTranslationV1 {
             }
         }
 
-        TGrammar Grammar_;
+        TGenericLexerGrammar Grammar_;
     };
 
-    IGenericLexer::TMatcher Compile(const TRegexPattern& regex) {
+    TTokenMatcher Compile(const TRegexPattern& regex) {
         RE2::Options options;
         options.set_case_sensitive(!regex.IsCaseInsensitive);
 
@@ -109,7 +109,7 @@ namespace NSQLTranslationV1 {
         };
     }
 
-    IGenericLexer::TPtr MakeGenericLexer(IGenericLexer::TGrammar grammar) {
+    IGenericLexer::TPtr MakeGenericLexer(TGenericLexerGrammar grammar) {
         return IGenericLexer::TPtr(new TGenericLexer(std::move(grammar)));
     }
 

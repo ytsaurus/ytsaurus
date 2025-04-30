@@ -21,14 +21,6 @@ namespace NSQLTranslationV1 {
     public:
         using TPtr = TIntrusivePtr<IGenericLexer>;
         using TTokenCallback = std::function<void(TGenericToken&& token)>;
-        using TMatcher = std::function<TMaybe<TStringBuf>(TStringBuf prefix)>;
-
-        struct TTokenMatcher {
-            TString TokenName;
-            TMatcher Match;
-        };
-
-        using TGrammar = TVector<TTokenMatcher>;
 
         static constexpr size_t MaxErrorsLimit = std::numeric_limits<size_t>::max();
 
@@ -39,15 +31,24 @@ namespace NSQLTranslationV1 {
             size_t maxErrors = IGenericLexer::MaxErrorsLimit) const = 0;
     };
 
+    using TTokenMatcher = std::function<TMaybe<TStringBuf>(TStringBuf prefix)>;
+
+    struct TTokenRule {
+        TString TokenName;
+        TTokenMatcher Match;
+    };
+
+    using TGenericLexerGrammar = TVector<TTokenRule>;
+
     struct TRegexPattern {
         TString Body;
         TString After = "";
         bool IsCaseInsensitive = false;
     };
 
-    IGenericLexer::TMatcher Compile(const TRegexPattern& regex);
+    TTokenMatcher Compile(const TRegexPattern& regex);
 
-    IGenericLexer::TPtr MakeGenericLexer(IGenericLexer::TGrammar grammar);
+    IGenericLexer::TPtr MakeGenericLexer(TGenericLexerGrammar grammar);
 
     TVector<TGenericToken> Tokenize(IGenericLexer::TPtr& lexer, TStringBuf text);
 

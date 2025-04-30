@@ -22,7 +22,7 @@ namespace NSQLTranslationV1 {
 
     size_t MatchANSIMultilineComment(TStringBuf remaining);
 
-    IGenericLexer::TMatcher ANSICommentMatcher(IGenericLexer::TMatcher defaultComment) {
+    TTokenMatcher ANSICommentMatcher(TTokenMatcher defaultComment) {
         return [defaultComment](TStringBuf prefix) -> TMaybe<TStringBuf> {
             const auto basic = defaultComment(prefix);
             if (basic.Empty()) {
@@ -89,11 +89,11 @@ namespace NSQLTranslationV1 {
         }
     }
 
-    IGenericLexer::TGrammar MakeGenericLexerGrammar(
+    TGenericLexerGrammar MakeGenericLexerGrammar(
         bool ansi,
         const TLexerGrammar& grammar,
         const TVector<std::tuple<TString, TString>>& regexByOtherName) {
-        IGenericLexer::TGrammar generic;
+        TGenericLexerGrammar generic;
 
         for (const auto& name : grammar.KeywordNames) {
             auto matcher = Compile({

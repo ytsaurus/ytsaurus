@@ -11,7 +11,9 @@ namespace NSQLHighlight {
 
     using NSQLTranslationV1::Compile;
     using NSQLTranslationV1::IGenericLexer;
+    using NSQLTranslationV1::TGenericLexerGrammar;
     using NSQLTranslationV1::TGenericToken;
+    using NSQLTranslationV1::TTokenRule;
 
     THashMap<EUnitKind, TString> NamesByUnitKind = [] {
         THashMap<EUnitKind, TString> names;
@@ -39,10 +41,10 @@ namespace NSQLHighlight {
         return kinds;
     }();
 
-    IGenericLexer::TGrammar ToGenericLexerGrammar(const THighlighting& highlighting, bool ansi) {
+    TGenericLexerGrammar ToGenericLexerGrammar(const THighlighting& highlighting, bool ansi) {
         using NSQLTranslationV1::ANSICommentMatcher;
 
-        IGenericLexer::TGrammar grammar;
+        TGenericLexerGrammar grammar;
         for (const auto& unit : highlighting.Units) {
             const auto* patterns = &unit.Patterns;
             if (!unit.PatternsANSI.empty() && ansi) {
@@ -52,14 +54,14 @@ namespace NSQLHighlight {
             if (unit.Kind == EUnitKind::Comment && ansi) {
                 Y_ENSURE(unit.Patterns.size() == 1);
                 const auto& pattern = unit.Patterns[0];
-                grammar.emplace_back(IGenericLexer::TTokenMatcher{
+                grammar.emplace_back(TTokenRule{
                     .TokenName = NamesByUnitKind.at(unit.Kind),
                     .Match = ANSICommentMatcher(Compile(pattern)),
                 });
             }
 
             for (const auto& pattern : *patterns) {
-                grammar.emplace_back(IGenericLexer::TTokenMatcher{
+                grammar.emplace_back(TTokenRule{
                     .TokenName = NamesByUnitKind.at(unit.Kind),
                     .Match = Compile(pattern),
                 });

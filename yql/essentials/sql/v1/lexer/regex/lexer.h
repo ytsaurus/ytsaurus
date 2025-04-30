@@ -6,7 +6,7 @@
 
 namespace NSQLTranslationV1 {
 
-    IGenericLexer::TMatcher ANSICommentMatcher(IGenericLexer::TMatcher defaultComment);
+    TTokenMatcher ANSICommentMatcher(TTokenMatcher defaultComment);
 
     NSQLTranslation::TLexerFactoryPtr MakeRegexLexerFactory(bool ansi);
 
