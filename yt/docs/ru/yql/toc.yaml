@@ -64,23 +64,8 @@ items:
             href: udf/list/url.md
           - name: Yson
             href: udf/list/yson.md
- # - name: Пользовательские функции (UDF)
- #   items:
- #      - name: Разработка на Python
- #        href: udf/python.md
- #      - name: Разработка на JavaScript
- #        href: udf/javascript.md
-  #     - name: Разработка на C++
-  #       href: udf/cpp.md
-  #       items:
-  #         - name: Коротко о С++ UDF
-  #           href: udf/cpp_about_udf.md
-  #         - name: Обработка данных в C++ UDF
-  #           href: udf/cpp_data_processing.md
-  #         - name: Type-Aware UDF
-  #           href: udf/cpp_type_aware_udf.md
-  #         - name: YQL-Stream в C++ UDF
-  #           href: udf/cpp_stream.md
+  - name: Пользовательские функции (UDF)
+    include: { mode: link, path: udf/toc_i.yaml }
   - name: Отличия от других систем
     items:
       - name: SQL ANSI
