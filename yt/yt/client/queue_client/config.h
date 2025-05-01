@@ -65,17 +65,17 @@ struct TQueueStaticExportConfig
     : public NYTree::TYsonStruct
 {
     //! Export will be performed at times that are multiple of this period. Mutually exclusive
-    //! with ExportSchedule parameter.
+    //! with ExportCronSchedule parameter.
     std::optional<TDuration> ExportPeriod;
 
     //! Export will be performed at schedule that is defined by this CRON expression. Mutually exclusive
     //! with ExportPeriod parameter.
-    //! This CRON format is non-standard, allowing from 5 to 7 fields to be specified:
+    //! This CRON format supports features beyond the standard ones, allowing from 5 to 7 fields to be specified:
     //!  - with 5 fields, it's a standard CRON
     //!  - with 6 fields, the first field is interpreted as SECONDS
     //!  - with 7 fields, the last field is interpreted as YEARS
-    //! The format is pretty close to the one described on this website, however, the seconds are also optional:
-    //! https://www.quartz-scheduler.org/documentation/quartz-2.3.0/tutorials/crontrigger.html
+    //!
+    //! \note See library/cpp/cron_expression/readme.md.
     std::optional<TString> ExportCronSchedule;
 
     //! Path to directory that will contain resulting static tables with exported data.

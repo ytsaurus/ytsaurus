@@ -73,6 +73,10 @@ void TQueueStaticExportConfig::Register(TRegistrar registrar)
         .Default(false);
 
     registrar.Postprocessor([] (TThis* config) {
+        if (config->ExportPeriod && config->ExportCronSchedule) {
+            THROW_ERROR_EXCEPTION("Both \"export_period\" and \"export_cron_schedule\" cannot be set at the same time");
+        }
+
         if (config->ExportPeriod) {
             if (config->ExportPeriod->GetValue() % TDuration::Seconds(1).GetValue() != 0) {
                 THROW_ERROR_EXCEPTION("The value of \"export_period\" must be a multiple of 1000 (1 second)");
@@ -85,7 +89,7 @@ void TQueueStaticExportConfig::Register(TRegistrar registrar)
                     << ex;
             }
         } else {
-            THROW_ERROR_EXCEPTION("One of \"export_period\", \"export_cron\" must be specified");
+            THROW_ERROR_EXCEPTION("One of \"export_period\", \"export_cron_schedule\" must be specified");
         }
     });
 }

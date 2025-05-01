@@ -23,7 +23,6 @@ SRCS(
 
 PEERDIR(
     library/cpp/yt/phdr_cache
-    library/cpp/cron_expression
 
     library/cpp/getopt
 

@@ -426,6 +426,13 @@ class QueueStaticExportHelpers(ABC):
         wait(try_remove, ignore_exceptions=True)
         assert all(not exists(export_directory, driver=kwargs.pop("driver", None)) for export_directory in export_directories)
 
+    @staticmethod
+    def get_export_schedule(use_cron, export_period_seconds):
+        # Helper function to generate the correct export schedule entry.
+        if use_cron:
+            return {"export_cron_schedule": f"0/{export_period_seconds} * * * * *",}
+        return {"export_period": export_period_seconds * 1000,}
+
     @classmethod
     @abstractmethod
     def _get_default_last_export_unix_ts_field_name(cls) -> str:
