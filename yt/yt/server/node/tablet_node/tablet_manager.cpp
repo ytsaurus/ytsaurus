@@ -1419,6 +1419,12 @@ private:
                 StopTableReplicaEpoch(&replicaInfo);
                 StartTableReplicaEpoch(tablet, &replicaInfo);
             }
+
+            if (auto replicationCardId = tablet->GetReplicationCardId()) {
+                StopChaosReplicaEpoch(tablet);
+                RemoveChaosAgent(tablet);
+                StartChaosReplicaEpoch(tablet, replicationCardId);
+            }
         }
     }
 
@@ -4174,6 +4180,12 @@ private:
             Bootstrap_->GetNodeMemoryUsageTracker()->WithCategory(EMemoryCategory::ChaosReplicationIncoming)));
     }
 
+    void RemoveChaosAgent(TTablet* tablet)
+    {
+        tablet->SetChaosAgent(nullptr);
+        tablet->SetTablePuller(nullptr);
+    }
+
     void StartChaosReplicaEpoch(TTablet* tablet, TReplicationCardId replicationCardId)
     {
         if (!IsLeader()) {
@@ -5268,62 +5280,6 @@ private:
             << TErrorAttribute("tablet_id", tablet->GetId())
             << configErrors;
         tablet->RuntimeData()->Errors.ConfigError.Store(error);
-    }
-
-
-    void DoRestoreHunkLocks(
-        TTransaction* transaction,
-        TReqUpdateTabletStores* request)
-    {
-        auto tabletId = FromProto<TTabletId>(request->tablet_id());
-        auto* tablet = GetTabletOrThrow(tabletId);
-
-        YT_LOG_INFO("Restoring hunk locks (TabletId: %v)", tabletId);
-
-        for (const auto& descriptor : request->hunk_chunks_to_remove()) {
-            auto chunkId = FromProto<TStoreId>(descriptor.chunk_id());
-            auto hunkChunk = tablet->FindHunkChunk(chunkId);
-            if (!hunkChunk) {
-                YT_LOG_ALERT("Trying to remove non-existent hunk chunk (TabletId: %v, HunkChunkId: %v)",
-                    tabletId,
-                    chunkId);
-                continue;
-            }
-            hunkChunk->Lock(transaction->GetId(), EObjectLockMode::Exclusive);
-        }
-
-        THashSet<TChunkId> hunkChunkIdsToAdd;
-        for (const auto& descriptor : request->hunk_chunks_to_add()) {
-            auto chunkId = FromProto<TStoreId>(descriptor.chunk_id());
-            InsertOrCrash(hunkChunkIdsToAdd, chunkId);
-        }
-
-        if (request->create_hunk_chunks_during_prepare()) {
-            for (auto chunkId : hunkChunkIdsToAdd) {
-                auto hunkChunk = tablet->FindHunkChunk(chunkId);
-                if (!hunkChunk) {
-                    continue;
-                }
-
-                hunkChunk->Lock(transaction->GetId(), EObjectLockMode::Shared);
-            }
-        }
-
-        THashSet<TChunkId> existingReferencedHunks;
-        for (const auto& descriptor : request->stores_to_add()) {
-            if (auto optionalHunkChunkRefsExt = FindProtoExtension<NTableClient::NProto::THunkChunkRefsExt>(
-                descriptor.chunk_meta().extensions()))
-            {
-                for (const auto& ref : optionalHunkChunkRefsExt->refs()) {
-                    auto chunkId = FromProto<TChunkId>(ref.chunk_id());
-                    if (!hunkChunkIdsToAdd.contains(chunkId) && !existingReferencedHunks.contains(chunkId)) {
-                        auto hunkChunk = tablet->GetHunkChunk(chunkId);
-                        hunkChunk->Lock(transaction->GetId(), EObjectLockMode::Shared);
-                        existingReferencedHunks.insert(chunkId);
-                    }
-                }
-            }
-        }
     }
 
     void CountStoreMemoryStatistics(TMemoryStatistics* statistics, const IStorePtr& store) const

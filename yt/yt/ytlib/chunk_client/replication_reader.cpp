@@ -2147,7 +2147,10 @@ private:
                 for (size_t j = start; j < end; ++j) {
                     subrequest.push_back(std::move(blocks[j]));
                 }
-                subrequests.push_back(std::move(subrequest));
+
+                if (!subrequest.empty()) {
+                    subrequests.push_back(std::move(subrequest));
+                }
                 start = end;
             }
 
@@ -2291,10 +2294,6 @@ private:
                 continue;
             }
 
-            auto sourceDescriptor = ReaderOptions_->EnableP2P
-                ? std::optional<TNodeDescriptor>(GetPeerDescriptor(respondedPeer.Address))
-                : std::optional<TNodeDescriptor>(std::nullopt);
-
             if (auto& cookie = blocks[index].Cookie) {
                 cookie->SetBlock(block);
             } else if (reader->Config_->UseBlockCache) {
@@ -2330,6 +2329,9 @@ private:
         if (ShouldThrottle(respondedPeer.Address, TotalBytesReceived_ > BytesThrottled_)) {
             auto delta = TotalBytesReceived_ - BytesThrottled_;
             BytesThrottled_ = TotalBytesReceived_;
+
+            guard.Release();
+
             if (!SyncThrottle(CombinedDataByteThrottler_, delta)) {
                 CancelAllBlocks(
                     blocks,

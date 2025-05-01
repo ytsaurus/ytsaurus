@@ -33,6 +33,9 @@ void TSlotLocationConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("enable_disk_quota", &TThis::EnableDiskQuota)
         .Default(true);
+
+    registrar.Parameter("disk_health_checker", &TThis::DiskHealthChecker)
+        .DefaultNew();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -165,10 +168,14 @@ void TSlotManagerDynamicConfig::Register(TRegistrar registrar)
     registrar.Parameter("restart_container_after_failed_device_check", &TThis::RestartContainerAfterFailedDeviceCheck)
         .Default(true);
 
+    registrar.Parameter("disk_health_checker", &TThis::DiskHealthChecker)
+        .DefaultNew();
+
     registrar.Parameter("job_environment", &TThis::JobEnvironment)
         .DefaultCtor([] {
             return NJobProxy::TJobEnvironmentConfig(NJobProxy::EJobEnvironmentType::Simple);
-        });}
+        });
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -188,6 +195,9 @@ void TVolumeManagerDynamicConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("throw_on_prepare_volume", &TThis::ThrowOnPrepareVolume)
         .Default(false);
+
+    registrar.Parameter("disk_health_checker", &TThis::DiskHealthChecker)
+        .DefaultNew();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

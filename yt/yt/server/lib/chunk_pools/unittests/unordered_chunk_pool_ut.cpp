@@ -2,24 +2,22 @@
 
 #include <yt/yt/core/test_framework/framework.h>
 
-#include <yt/yt/server/controller_agent/helpers.h>
-#include <yt/yt/server/controller_agent/job_size_constraints.h>
-#include <yt/yt/server/controller_agent/operation_controller.h>
-
 #include <yt/yt/server/lib/chunk_pools/unittests/chunk_pools_helpers.h>
+
+#include <yt/yt/server/lib/chunk_pools/chunk_pool.h>
 #include <yt/yt/server/lib/chunk_pools/unordered_chunk_pool.h>
 
-#include <yt/yt/client/object_client/helpers.h>
-
-#include <yt/yt/client/table_client/row_buffer.h>
+#include <yt/yt/server/lib/controller_agent/job_size_constraints.h>
 
 #include <yt/yt/ytlib/chunk_client/input_chunk.h>
 #include <yt/yt/ytlib/chunk_client/input_chunk_slice.h>
 #include <yt/yt/ytlib/chunk_client/legacy_data_slice.h>
 
-#include <yt/yt/core/misc/blob_output.h>
+#include <yt/yt/client/object_client/helpers.h>
 
-#include <util/generic/cast.h>
+#include <yt/yt/client/table_client/row_buffer.h>
+
+#include <yt/yt/core/misc/blob_output.h>
 
 #include <util/stream/null.h>
 
@@ -28,9 +26,9 @@
 namespace NYT::NChunkPools {
 namespace {
 
-using namespace NControllerAgent;
 using namespace NChunkClient;
 using namespace NConcurrency;
+using namespace NControllerAgent;
 using namespace NNodeTrackerClient;
 using namespace NObjectClient;
 using namespace NTableClient;
@@ -123,7 +121,7 @@ protected:
             }));
     }
 
-    TLegacyDataSlicePtr BuildDataSliceByChunk(const TInputChunkPtr& chunk)
+    static TLegacyDataSlicePtr BuildDataSliceByChunk(const TInputChunkPtr& chunk)
     {
         auto dataSlice = CreateUnversionedInputDataSlice(CreateInputChunkSlice(chunk));
         dataSlice->SetInputStreamIndex(chunk->GetTableIndex());

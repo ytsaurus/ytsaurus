@@ -1146,9 +1146,11 @@ TLookupRowsResult<IRowset> TClient::DoLookupRowsOnce(
 
             if (inSyncReplicas.empty()) {
                 std::vector<TError> replicaErrors;
-                for (auto bannedReplicaId : bannedSyncReplicaIds) {
-                    if (auto error = bannedReplicaTracker->GetReplicaError(bannedReplicaId); !error.IsOK()) {
-                        replicaErrors.push_back(std::move(error));
+                if (bannedReplicaTracker) {
+                    for (auto bannedReplicaId : bannedSyncReplicaIds) {
+                        if (auto error = bannedReplicaTracker->GetReplicaError(bannedReplicaId); !error.IsOK()) {
+                            replicaErrors.push_back(std::move(error));
+                        }
                     }
                 }
 
@@ -1637,7 +1639,6 @@ TSelectRowsResult TClient::DoSelectRowsOnce(
 
     if (pickReplicaSession->IsFallbackRequired()) {
         return std::get<TSelectRowsResult>(pickReplicaSession->Execute(
-            Connection_,
             [&] (
                 const std::string& clusterName,
                 const std::string& patchedQuery,
@@ -1787,7 +1788,6 @@ NYson::TYsonString TClient::DoExplainQuery(
 
     if (pickReplicaSession->IsFallbackRequired()) {
         return std::get<NYson::TYsonString>(pickReplicaSession->Execute(
-            Connection_,
             [this, options] (
                 const std::string& clusterName,
                 const std::string& patchedQuery,
@@ -2549,9 +2549,11 @@ IQueueRowsetPtr TClient::DoPullQueueImpl(
 
             if (inSyncReplicas.empty()) {
                 std::vector<TError> replicaErrors;
-                for (auto bannedReplicaId : bannedSyncReplicaIds) {
-                    if (auto error = bannedReplicaTracker->GetReplicaError(bannedReplicaId); !error.IsOK()) {
-                        replicaErrors.push_back(std::move(error));
+                if (bannedReplicaTracker) {
+                    for (auto bannedReplicaId : bannedSyncReplicaIds) {
+                        if (auto error = bannedReplicaTracker->GetReplicaError(bannedReplicaId); !error.IsOK()) {
+                            replicaErrors.push_back(std::move(error));
+                        }
                     }
                 }
 

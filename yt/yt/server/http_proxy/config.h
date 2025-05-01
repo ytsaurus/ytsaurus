@@ -164,6 +164,36 @@ DEFINE_REFCOUNTED_TYPE(TFramingConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TMemoryLimitRatiosConfig
+    : public NYTree::TYsonStruct
+{
+    //! Represents the ratio of total available memory that can be utilized by each user (if user is not specified in "DefaultUserMemoryLimitRatio"),
+    //! expressed as a value between 0 and 1.
+    std::optional<double> DefaultUserMemoryLimitRatio;
+    THashMap<std::string, double> UserToMemoryLimitRatio;
+
+    REGISTER_YSON_STRUCT(TMemoryLimitRatiosConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TMemoryLimitRatiosConfig)
+
+struct TMemoryLimitsConfig
+    : public NYTree::TYsonStruct
+{
+    std::optional<i32> Total;
+    std::optional<i32> HeavyRequest;
+
+    REGISTER_YSON_STRUCT(TMemoryLimitsConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TMemoryLimitsConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct TApiConfig
     : public NYTree::TYsonStruct
 {
@@ -194,10 +224,8 @@ struct TApiDynamicConfig
 
     bool EnableAllocationTags;
 
-    //! Represents the ratio of total available memory that can be utilized by each user (if user is not specified in "UserMemoryRatio"),
-    //! expressed as a value between 0 and 1.
     std::optional<double> DefaultUserMemoryLimitRatio;
-    THashMap<std::string, double> UserToMemoryLimitRatio;
+    THashMap<std::string, TMemoryLimitRatiosConfigPtr> RoleToMemoryLimitRatios;
 
     // COMPAT(ignat): drop the option after 25.2.
     bool UseCompressionThreadPool;
@@ -249,21 +277,6 @@ DEFINE_REFCOUNTED_TYPE(TAccessCheckerDynamicConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TProxyMemoryLimitsConfig
-    : public NYTree::TYsonStruct
-{
-    std::optional<i64> Total;
-    std::optional<i64> HeavyRequest;
-
-    REGISTER_YSON_STRUCT(TProxyMemoryLimitsConfig);
-
-    static void Register(TRegistrar registrar);
-};
-
-DEFINE_REFCOUNTED_TYPE(TProxyMemoryLimitsConfig)
-
-////////////////////////////////////////////////////////////////////////////////
-
 struct TProxyBootstrapConfig
     : public NServer::TNativeServerBootstrapConfig
 {
@@ -294,7 +307,7 @@ struct TProxyBootstrapConfig
 
     TAccessCheckerConfigPtr AccessChecker;
 
-    TProxyMemoryLimitsConfigPtr MemoryLimits;
+    TMemoryLimitsConfigPtr MemoryLimits;
 
     NClickHouse::TStaticClickHouseConfigPtr ClickHouse;
 
@@ -368,7 +381,7 @@ struct TProxyDynamicConfig
 
     NBus::TBusServerDynamicConfigPtr BusServer;
 
-    TProxyMemoryLimitsConfigPtr MemoryLimits;
+    TMemoryLimitsConfigPtr MemoryLimits;
 
     REGISTER_YSON_STRUCT(TProxyDynamicConfig);
 

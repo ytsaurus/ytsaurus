@@ -958,11 +958,12 @@ private:
         const TJobShellDescriptor& jobShellDescriptor,
         const TYsonString& parameters) override
     {
-        ValidatePrepared();
+        ValidateStarted();
 
         if (!ShellManager_) {
-            THROW_ERROR_EXCEPTION("Job shell polling is not supported in non-Porto environment");
+            THROW_ERROR_EXCEPTION("Job shell polling is not supported");
         }
+
         auto response = ShellManager_->PollJobShell(jobShellDescriptor, parameters);
         if (response.LoggingContext) {
             response.LoggingContext = BuildYsonStringFluently<EYsonType::MapFragment>(EYsonFormat::Text)
@@ -1062,6 +1063,13 @@ private:
     {
         if (!Prepared_) {
             THROW_ERROR_EXCEPTION(NJobProxy::EErrorCode::JobNotPrepared, "Cannot operate on job: job has not been prepared yet");
+        }
+    }
+
+    void ValidateStarted()
+    {
+        if (!JobStarted_) {
+            THROW_ERROR_EXCEPTION(NJobProxy::EErrorCode::JobNotPrepared, "Cannot operate on job: job has not been started yet");
         }
     }
 

@@ -46,17 +46,34 @@ class TestChaos(ChaosTestBase):
     # TODO(nadya73): split this test suite.
     ENABLE_MULTIDAEMON = False  # There are component restarts.
     NUM_REMOTE_CLUSTERS = 2
-    NUM_TEST_PARTITIONS = 30
+    NUM_TEST_PARTITIONS = 40
     NUM_SCHEDULERS = 1
 
     DELTA_DRIVER_CONFIG = {
         "enable_read_from_async_replicas": True,
+        "chaos_residency_cache": {
+            "enable_client_mode" : True,
+        },
     }
 
     DELTA_RPC_PROXY_CONFIG = {
         "cluster_connection": {
             "enable_read_from_async_replicas": True,
-        }
+            "chaos_residency_cache": {
+                "enable_client_mode" : True,
+            },
+        },
+    }
+
+    DELTA_NODE_CONFIG = {
+        "cluster_connection": {
+            "chaos_residency_cache": {
+                "enable_client_mode": True,
+            },
+        },
+        "chaos_node": {
+            "replication_card_automaton_cache_expiration_time": 100
+        },
     }
 
     def setup_method(self, method):
@@ -3882,6 +3899,11 @@ class TestChaos(ChaosTestBase):
         cell_id = self._sync_create_chaos_bundle_and_cell()
         set("//sys/chaos_cell_bundles/c/@metadata_cell_id", cell_id)
 
+        schema = yson.YsonList([
+            {"name": "key", "type": "int64", "sort_order": "ascending"},
+            {"name": "value", "type": "string"},
+        ])
+
         replicated_table_options = {
             "enable_replicated_table_tracker": False,
             "min_sync_queue_replica_count": 2,
@@ -3893,12 +3915,15 @@ class TestChaos(ChaosTestBase):
             {"cluster_name": "remote_1", "content_type": "queue", "mode": "sync", "enabled": True, "replica_path": "//tmp/qr1"},
             {"cluster_name": "primary", "content_type": "data", "mode": "sync", "enabled": True, "replica_path": "//tmp/dp"},
         ]
-        card_id, replica_ids = self._create_chaos_tables(cell_id, replicas)
+        card_id, replica_ids = self._create_chaos_tables(cell_id, replicas, schema=schema)
 
         create("chaos_replicated_table", "//tmp/crt", attributes={
             "chaos_cell_bundle": "c",
             "replication_card_id": card_id,
+            "schema": schema,
         })
+
+        assert get("//tmp/crt/@sorted")
 
         alter_replication_card(card_id, replicated_table_options=replicated_table_options)
 
@@ -4417,7 +4442,9 @@ class TestChaos(ChaosTestBase):
                         return lookup_call()
                     except YtError as err:
                         print_debug("Lookup failed: ", err)
-                        if err.is_no_in_sync_replicas() or err.contains_text("No single cluster contains in-sync replicas for all involved tables"):
+                        if err.is_no_in_sync_replicas() or \
+                                err.contains_text("No single cluster contains in-sync replicas for all involved tables") or \
+                                err.contains_text("No working in-sync replicas found for table"):
                             return False
                         else:
                             raise err
@@ -4584,6 +4611,8 @@ class TestChaos(ChaosTestBase):
         _reshard_table("//tmp/q0", primary_driver)
         assert get("//tmp/crt/@tablet_count") == 5
         assert get_table_mount_info("//tmp/crt")["upper_cap_bound"][0] == 5
+
+        assert not get("//tmp/crt/@sorted")
 
     @authors("osidorkin")
     def test_crt_tablets_info(self):
@@ -4842,6 +4871,39 @@ class TestChaos(ChaosTestBase):
 
         assert select_rows("* from [//tmp/t]") == rows
 
+    @authors("savrus")
+    def test_remount_table(self):
+        cell_id = self._sync_create_chaos_bundle_and_cell()
+
+        replicas = [
+            {"cluster_name": "primary", "content_type": "data", "mode": "sync", "enabled": True, "replica_path": "//tmp/t"},
+            {"cluster_name": "remote_0", "content_type": "data", "mode": "async", "enabled": True, "replica_path": "//tmp/r"},
+            {"cluster_name": "remote_1", "content_type": "queue", "mode": "sync", "enabled": True, "replica_path": "//tmp/q"},
+        ]
+        card_id, replica_ids = self._create_chaos_tables(cell_id, replicas)
+        _, remote_driver0, remote_driver1 = self._get_drivers()
+
+        sync_unmount_table("//tmp/r", driver=remote_driver0)
+        set("//tmp/r/@mount_config/replication_tick_period", 3600000, driver=remote_driver0)
+        sync_mount_table("//tmp/r", driver=remote_driver0)
+
+        values = [{"key": 0, "value": "0"}]
+        insert_rows("//tmp/t", values)
+        assert lookup_rows("//tmp/t", [{"key": 0}]) == values
+        assert lookup_rows("//tmp/r", [{"key": 0}], driver=remote_driver0) == []
+
+        set("//tmp/r/@mount_config/replication_tick_period", 100, driver=remote_driver0)
+        remount_table("//tmp/r", driver=remote_driver0)
+        wait(lambda: lookup_rows("//tmp/r", [{"key": 0}], driver=remote_driver0) == values)
+
+        remount_table("//tmp/t")
+        remount_table("//tmp/q", driver=remote_driver1)
+
+        values = [{"key": 0, "value": "2"}]
+        insert_rows("//tmp/t", values)
+        assert lookup_rows("//tmp/t", [{"key": 0}]) == values
+        wait(lambda: lookup_rows("//tmp/r", [{"key": 0}], driver=remote_driver0) == values)
+
 
 ##################################################################
 
@@ -5071,6 +5133,9 @@ class TestChaosRpcProxyWithReplicationCardCache(ChaosTestBase):
                 "hard_backoff_time":  10000,
                 "enable_watching": True,
             },
+        },
+        "chaos_node": {
+            "replication_card_automaton_cache_expiration_time": 100
         },
     }
 
@@ -5847,7 +5912,10 @@ class ChaosClockBase(ChaosTestBase):
             "transaction_manager": {
                 "reject_incorrect_clock_cluster_tag": True
             }
-        }
+        },
+        "chaos_node": {
+            "replication_card_automaton_cache_expiration_time": 100
+        },
     }
 
     @classmethod

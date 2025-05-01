@@ -2827,11 +2827,11 @@ class TestHealExecNode(YTEnvSetup):
     USE_PORTO = True
 
     DELTA_NODE_CONFIG = {
-        "data_node": {
-            "disk_health_checker": {
-                "check_period": 1000,
+        "exec_node": {
+            "slot_manager": {
+                "locations": [{"disk_health_checker": {"check_period": 1000}}],
             },
-        },
+        }
     }
 
     DELTA_DYNAMIC_NODE_CONFIG = {

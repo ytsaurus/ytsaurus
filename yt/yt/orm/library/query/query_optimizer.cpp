@@ -278,6 +278,9 @@ public:
             },
             [&] (const TQueryAstHeadPtr& /*subquery*/) -> bool {
                 THROW_ERROR_EXCEPTION("Subqueries are not supported yet");
+            },
+            [&] (const TExpressionList& /*expression*/) -> bool {
+                THROW_ERROR_EXCEPTION("Unexpected expression");
             });
     }
 

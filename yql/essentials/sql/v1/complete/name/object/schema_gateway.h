@@ -10,6 +10,9 @@
 namespace NSQLComplete {
 
     struct TFolderEntry {
+        static constexpr const char* Folder = "Folder";
+        static constexpr const char* Table = "Table";
+
         TString Type;
         TString Name;
 
@@ -38,12 +41,12 @@ namespace NSQLComplete {
         TVector<TFolderEntry> Entries;
     };
 
-    class ISchemaGateway {
+    class ISchemaGateway: public TThrRefBase {
     public:
-        using TPtr = THolder<ISchemaGateway>;
+        using TPtr = TIntrusivePtr<ISchemaGateway>;
 
         virtual ~ISchemaGateway() = default;
-        virtual NThreading::TFuture<TListResponse> List(const TListRequest& request) = 0;
+        virtual NThreading::TFuture<TListResponse> List(const TListRequest& request) const = 0;
     };
 
 } // namespace NSQLComplete

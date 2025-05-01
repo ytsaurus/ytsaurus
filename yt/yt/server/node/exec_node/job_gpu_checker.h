@@ -27,6 +27,8 @@ struct TJobGpuCheckerContext
     NContainers::TRootFS RootFS;
     TString CommandUser;
 
+    std::vector<TShellCommandConfigPtr> SetupCommands;
+
     TString GpuCheckBinaryPath;
     std::vector<TString> GpuCheckBinaryArgs;
     THashMap<TString, TString> GpuCheckEnvironment;

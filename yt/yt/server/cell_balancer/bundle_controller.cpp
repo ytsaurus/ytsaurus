@@ -469,16 +469,16 @@ private:
         }
     }
 
-    inline static const std::string  AttributeBundleControllerAnnotations = "bundle_controller_annotations";
-    inline static const std::string  NodeAttributeUserTags = "user_tags";
-    inline static const std::string  NodeAttributeDecommissioned = "decommissioned";
-    inline static const std::string  NodeAttributeEnableBundleBalancer = "enable_bundle_balancer";
-    inline static const std::string  ProxyAttributeRole = "role";
-    inline static const std::string  AccountAttributeResourceLimits = "resource_limits";
-    inline static const std::string  BundleTabletStaticMemoryLimits = "resource_limits/tablet_static_memory";
-    inline static const std::string  BundleAttributeShortName = "short_name";
-    inline static const std::string  BundleAttributeNodeTagFilter = "node_tag_filter";
-    inline static const std::string  BundleAttributeTargetConfig = "bundle_controller_target_config";
+    inline static const std::string AttributeBundleControllerAnnotations = "bundle_controller_annotations";
+    inline static const std::string NodeAttributeUserTags = "user_tags";
+    inline static const std::string NodeAttributeDecommissioned = "decommissioned";
+    inline static const std::string NodeAttributeEnableBundleBalancer = "enable_bundle_balancer";
+    inline static const std::string ProxyAttributeRole = "role";
+    inline static const std::string AccountAttributeResourceLimits = "resource_limits";
+    inline static const std::string BundleTabletStaticMemoryLimits = "resource_limits/tablet_static_memory";
+    inline static const std::string BundleAttributeShortName = "short_name";
+    inline static const std::string BundleAttributeNodeTagFilter = "node_tag_filter";
+    inline static const std::string BundleAttributeTargetConfig = "bundle_controller_target_config";
 
     void MoveBundleToJailAndThrowOnError(const TError& result, const std::string& bundleName)
     {
@@ -1536,7 +1536,7 @@ private:
         const std::string& id)
     {
         for (const auto& basePath : basePaths) {
-            auto path = Format("%v/%v", basePath,  NYPath::ToYPathLiteral(id));
+            auto path = Format("%v/%v", basePath, NYPath::ToYPathLiteral(id));
 
             if (!WaitFor(transaction->NodeExists(path)).ValueOrThrow()) {
                 continue;

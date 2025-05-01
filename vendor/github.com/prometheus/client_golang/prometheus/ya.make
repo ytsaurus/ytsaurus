@@ -73,13 +73,17 @@ ENDIF()
 IF (OS_DARWIN)
     SRCS(
         process_collector_darwin.go
-        CGO_EXPORT
-        process_collector_mem_cgo_darwin.c
     )
-ENDIF()
 
-IF (OS_DARWIN AND CGO_ENABLED)
-    CGO_SRCS(process_collector_mem_cgo_darwin.go)
+    IF(CGO_ENABLED)
+        SRCS(
+            CGO_EXPORT
+            process_collector_mem_cgo_darwin.c
+        )
+        CGO_SRCS(process_collector_mem_cgo_darwin.go)
+    ELSE()
+        SRCS(process_collector_mem_nocgo_darwin.go)
+    ENDIF()
 ENDIF()
 
 IF (OS_WINDOWS)

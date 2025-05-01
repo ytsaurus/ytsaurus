@@ -6,8 +6,6 @@
 
 #include <yt/yt/ytlib/scheduler/config.h>
 
-#include <yt/yt/ytlib/table_client/config.h>
-
 #include <yt/yt/core/logging/serializable_logger.h>
 
 #include <library/cpp/yt/misc/numeric_helpers.h>
@@ -16,9 +14,9 @@
 
 namespace NYT::NControllerAgent {
 
+using namespace NLogging;
 using namespace NScheduler;
 using namespace NTableClient;
-using namespace NLogging;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -148,6 +146,11 @@ public:
     i64 GetMaxPrimaryDataWeightPerJob() const override
     {
         return Spec_->MaxPrimaryDataWeightPerJob;
+    }
+
+    i64 GetMaxCompressedDataSizePerJob() const override
+    {
+        return Spec_->MaxCompressedDataSizePerJob;
     }
 
     i64 GetInputSliceRowCount() const override
@@ -430,11 +433,6 @@ public:
         return TJobSizeConstraintsBase::GetSortedOperationInputSliceDataWeight();
     }
 
-    i64 GetMaxCompressedDataSizePerJob() const override
-    {
-        return Spec_->MaxCompressedDataSizePerJob.value_or(InfiniteSize);
-    }
-
 private:
     TSimpleOperationSpecBasePtr Spec_;
     TSimpleOperationOptionsPtr Options_;
@@ -593,11 +591,6 @@ public:
             : 1);
     }
 
-    i64 GetMaxCompressedDataSizePerJob() const override
-    {
-        return Spec_->MaxCompressedDataSizePerJob.value_or(InfiniteSize);
-    }
-
     i64 GetInputSliceRowCount() const override
     {
         return std::numeric_limits<i64>::max() / 4;
@@ -691,11 +684,6 @@ public:
     i64 GetInputSliceRowCount() const override
     {
         return std::numeric_limits<i64>::max() / 4;
-    }
-
-    i64 GetMaxCompressedDataSizePerJob() const override
-    {
-        return InfiniteSize;
     }
 
 private:
@@ -813,11 +801,6 @@ public:
         return Options_->MaxDataSlicesPerJob;
     }
 
-    i64 GetMaxCompressedDataSizePerJob() const override
-    {
-        return InfiniteSize;
-    }
-
 private:
     TSortOperationSpecBasePtr Spec_;
     TSortOperationOptionsBasePtr Options_;
@@ -846,13 +829,13 @@ IJobSizeConstraintsPtr CreateUserJobSizeConstraints(
     int outputTableCount,
     double dataWeightRatio,
     i64 inputChunkCount,
-    i64 primaryInputDataSize,
+    i64 primaryInputDataWeight,
     i64 primaryInputCompressedDataSize,
     i64 inputRowCount,
-    i64 foreignInputDataSize,
+    i64 foreignInputDataWeight,
     i64 foreignInputCompressedDataSize,
-    int mergeInputTableCount,
-    int mergePrimaryInputTableCount,
+    int inputTableCount,
+    int primaryInputTableCount,
     bool sortedOperation)
 {
     return New<TUserJobSizeConstraints>(
@@ -862,18 +845,18 @@ IJobSizeConstraintsPtr CreateUserJobSizeConstraints(
         outputTableCount,
         dataWeightRatio,
         inputChunkCount,
-        primaryInputDataSize,
+        primaryInputDataWeight,
         primaryInputCompressedDataSize,
         inputRowCount,
-        foreignInputDataSize,
+        foreignInputDataWeight,
         foreignInputCompressedDataSize,
-        mergeInputTableCount,
-        mergePrimaryInputTableCount,
+        inputTableCount,
+        primaryInputTableCount,
         sortedOperation);
 }
 
 IJobSizeConstraintsPtr CreateMergeJobSizeConstraints(
-    const NScheduler::TSimpleOperationSpecBasePtr& spec,
+    const TSimpleOperationSpecBasePtr& spec,
     const TSimpleOperationOptionsPtr& options,
     TLogger logger,
     i64 inputChunkCount,
@@ -900,7 +883,7 @@ IJobSizeConstraintsPtr CreateMergeJobSizeConstraints(
 }
 
 IJobSizeConstraintsPtr CreateRemoteCopyJobSizeConstraints(
-    const NScheduler::TSimpleOperationSpecBasePtr& spec,
+    const TSimpleOperationSpecBasePtr& spec,
     const TSimpleOperationOptionsPtr& options,
     TLogger logger,
     i64 inputChunkCount,

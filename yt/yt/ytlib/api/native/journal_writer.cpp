@@ -1455,7 +1455,6 @@ private:
             }
         }
 
-
         void MaybeFlushBlocks(const TChunkSessionPtr& session, const TNodePtr& node)
         {
             if (!node->Started) {
@@ -1533,6 +1532,44 @@ private:
                 if (Config_->EnableChecksums) {
                     for (const auto& row : rows) {
                         ToProto(req->mutable_block_checksums()->Add(), GetChecksum(row));
+                    }
+                }
+
+                // TODO(tea-mur): move validation to HandleBatch after YT-24315
+                if (Config_->ValidateErasureCoding && ErasureCodec_ != NErasure::ECodec::None) {
+                    auto* codec = NErasure::GetCodec(ErasureCodec_);
+
+                    auto& originalRows = batch->ErasureRows;
+                    auto erasedPartCount = codec->GetGuaranteedRepairablePartCount();
+
+                    std::vector<int> erasedParts(erasedPartCount);
+                    std::iota(erasedParts.begin(), erasedParts.end(), 0);
+
+                    std::vector<std::vector<TSharedRef>> preservedParts(
+                        originalRows.begin() + erasedPartCount,
+                        originalRows.end()
+                    );
+                    auto repairedParts = RepairErasureJournalRows(codec, erasedParts, preservedParts);
+
+                    auto check = [] (const TSharedRef& lhs, const TSharedRef& rhs) {
+                        if (lhs.size() != rhs.size()) {
+                            return false;
+                        }
+
+                        for (int index = 0; index < std::ssize(lhs); ++index) {
+                            if (lhs[index] != rhs[index]) {
+                                return false;
+                            }
+                        }
+                        return true;
+                    };
+
+                    for (int index = 0; index < erasedPartCount; ++index) {
+                        YT_VERIFY(repairedParts[index].size() == originalRows[index].size());
+
+                        for (int jindex = 0; jindex < std::ssize(originalRows[index]); ++jindex) {
+                            YT_VERIFY(check(repairedParts[index][jindex], originalRows[index][jindex]));
+                        }
                     }
                 }
 

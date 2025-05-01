@@ -1,8 +1,9 @@
 #pragma once
 
-#include "private.h"
-#include "chunk_pool.h"
 #include "input_stream.h"
+#include "private.h"
+
+#include <yt/yt/server/lib/controller_agent/public.h>
 
 #include <yt/yt/ytlib/scheduler/config.h>
 
@@ -31,8 +32,6 @@ struct TUnorderedChunkPoolOptions
     NTableClient::TRowBufferPtr RowBuffer;
     NLogging::TSerializableLogger Logger;
     NScheduler::ESingleChunkTeleportStrategy SingleChunkTeleportStrategy = NScheduler::ESingleChunkTeleportStrategy::Disabled;
-
-    PHOENIX_DECLARE_TYPE(TUnorderedChunkPoolOptions, 0x6c20b2f2);
 };
 
 IPersistentChunkPoolPtr CreateUnorderedChunkPool(

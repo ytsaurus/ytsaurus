@@ -6,6 +6,9 @@ from yt.yson import YsonMap
 
 from yt.sequoia_tools import DESCRIPTORS, TableDescriptor
 
+import decorator
+import pytest
+
 
 ################################################################################
 
@@ -178,3 +181,27 @@ def select_cypress_transaction_prerequisites(transaction_id):
             f"transaction_id from [{DESCRIPTORS.dependent_transactions.get_default_path()}] "
             f"where dependent_transaction_id = \"{transaction_id}\"")
     ])
+
+
+################################################################################
+
+
+def not_implemented_in_sequoia(func):
+    def wrapper(func, self, *args, **kwargs):
+        if self.ENABLE_TMP_ROOTSTOCK:
+            pytest.skip("Not implemented in Sequoia")
+        return func(self, *args, **kwargs)
+
+    return decorator.decorate(func, wrapper)
+
+
+def cannot_be_implemented_in_sequoia(reason):
+    def wrapper_factory(func):
+        def wrapper(func, self, *args, **kwargs):
+            if self.ENABLE_TMP_ROOTSTOCK:
+                pytest.skip(f"Cannot be implemented in Sequoia: {reason}")
+            return func(self, *args, **kwargs)
+
+        return decorator.decorate(func, wrapper)
+
+    return wrapper_factory

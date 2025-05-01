@@ -1,5 +1,8 @@
 from yt_env_setup import YTEnvSetup
 
+from yt_sequoia_helpers import (
+    not_implemented_in_sequoia, cannot_be_implemented_in_sequoia)
+
 from yt_commands import (
     authors, create, get, set, remove, exists, start_transaction, abort_transaction,
     commit_transaction, lock, raises_yt_error,
@@ -12,31 +15,6 @@ from yt.common import YtError
 import pytest
 
 import builtins
-import decorator
-
-##################################################################
-
-
-def not_implemented_in_sequoia(func):
-    def wrapper(func, self, *args, **kwargs):
-        if isinstance(self, TestCypressLocksInSequoia):
-            pytest.skip("Not implemented in Sequoia")
-        return func(self, *args, **kwargs)
-
-    return decorator.decorate(func, wrapper)
-
-
-def cannot_be_implemented_in_sequoia(reason):
-    def wrapper_factory(func):
-        def wrapper(func, self, *args, **kwargs):
-            if isinstance(self, TestCypressLocksInSequoia):
-                pytest.skip(f"Cannot be imlpemented in Sequoia: {reason}")
-            return func(self, *args, **kwargs)
-
-        return decorator.decorate(func, wrapper)
-
-    return wrapper_factory
-
 
 ##################################################################
 
@@ -49,7 +27,7 @@ class TestCypressLocks(YTEnvSetup):
     NUM_TEST_PARTITIONS = 4
 
     def _in_sequoia(self):
-        return isinstance(self, TestCypressLocksInSequoia)
+        return isinstance(self, TestCypressLocksSequoia)
 
     @authors("panin", "ignat")
     def test_invalid_cases(self):
@@ -1772,7 +1750,7 @@ class TestCypressLocksMirroredTx(TestCypressLocksShardedTxCTxS):
 
 
 @pytest.mark.enabled_multidaemon
-class TestCypressLocksInSequoia(TestCypressLocksMirroredTx):
+class TestCypressLocksSequoia(TestCypressLocksMirroredTx):
     ENABLE_MULTIDAEMON = True
     ENABLE_TMP_ROOTSTOCK = True
     NUM_CYPRESS_PROXIES = 1

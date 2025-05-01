@@ -199,12 +199,12 @@ void TCompactTableSchema::InitializeFromProto(const NTableClient::NProto::TTable
         protoSchema.columns().empty(),
         protoSchema.strict(),
         protoSchema.unique_keys(),
-        CheckedEnumCast<ETableSchemaModification>(protoSchema.schema_modification()));
+        FromProto<ETableSchemaModification>(protoSchema.schema_modification()));
 
     for (const auto& column : protoSchema.columns()) {
         if (column.has_sort_order()) {
             KeyColumns_.push_back(column.name());
-            SortOrders_.push_back(CheckedEnumCast<ESortOrder>(column.sort_order()));
+            SortOrders_.push_back(FromProto<ESortOrder>(column.sort_order()));
         }
         if (column.has_max_inline_hunk_size()) {
             HasHunkColumns_ = true;

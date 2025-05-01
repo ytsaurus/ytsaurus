@@ -35,8 +35,12 @@
 #include <yt/yt/ytlib/sequoia_client/helpers.h>
 #include <yt/yt/ytlib/sequoia_client/transaction.h>
 
+#include <yt/yt/ytlib/table_client/table_ypath_proxy.h>
+
 #include <yt/yt/ytlib/transaction_client/action.h>
 #include <yt/yt/ytlib/transaction_client/helpers.h>
+
+#include <yt/yt/client/chaos_client/replication_card_serialization.h>
 
 #include <yt/yt/client/object_client/helpers.h>
 
@@ -179,14 +183,17 @@ protected:
     const TNodeId ParentId_;
     const TSequoiaResolveResult ResolveResult_;
 
-    TSuppressableAccessTrackingOptions AccessTrackingOptions_ = {};
+    TSuppressableAccessTrackingOptions AccessTrackingOptions_;
 
     DECLARE_YPATH_SERVICE_METHOD(NYTree::NProto, MultisetAttributes);
     DECLARE_YPATH_SERVICE_METHOD(NObjectClient::NProto, GetBasicAttributes);
+    DECLARE_YPATH_SERVICE_METHOD(NObjectClient::NProto, CheckPermission);
+    DECLARE_YPATH_SERVICE_METHOD(NTableClient::NProto, Alter);
     DECLARE_YPATH_SERVICE_METHOD(NCypressClient::NProto, Create);
     DECLARE_YPATH_SERVICE_METHOD(NCypressClient::NProto, Copy);
     DECLARE_YPATH_SERVICE_METHOD(NCypressClient::NProto, Lock);
     DECLARE_YPATH_SERVICE_METHOD(NCypressClient::NProto, Unlock);
+    DECLARE_YPATH_SERVICE_METHOD(NChunkClient::NProto, Fetch);
 
     void BeforeInvoke(const ISequoiaServiceContextPtr& context) override
     {
@@ -211,11 +218,13 @@ protected:
         DISPATCH_YPATH_SERVICE_METHOD(List);
         DISPATCH_YPATH_SERVICE_METHOD(MultisetAttributes);
         DISPATCH_YPATH_SERVICE_METHOD(GetBasicAttributes);
+        DISPATCH_YPATH_SERVICE_METHOD(CheckPermission);
+        DISPATCH_YPATH_SERVICE_METHOD(Fetch);
         DISPATCH_YPATH_SERVICE_METHOD(Create);
         DISPATCH_YPATH_SERVICE_METHOD(Copy);
         DISPATCH_YPATH_SERVICE_METHOD(Lock);
         DISPATCH_YPATH_SERVICE_METHOD(Unlock);
-
+        DISPATCH_YPATH_SERVICE_METHOD(Alter);
         return false;
     }
 
@@ -586,8 +595,7 @@ DEFINE_YPATH_SERVICE_METHOD(TNodeProxy, MultisetAttributes)
         request->subrequests_size(),
         force);
 
-    std::vector<TMultisetAttributesSubrequest> subrequests;
-    FromProto(&subrequests, request->subrequests());
+    auto subrequests = FromProto<std::vector<TMultisetAttributesSubrequest>>(request->subrequests());
 
     auto targetPath = TYPath(GetRequestTargetYPath(context->GetRequestHeader()));
     SequoiaSession_->MultisetNodeAttributes(
@@ -602,6 +610,8 @@ DEFINE_YPATH_SERVICE_METHOD(TNodeProxy, MultisetAttributes)
 
 DEFINE_YPATH_SERVICE_METHOD(TNodeProxy, GetBasicAttributes)
 {
+    context->SetRequestInfo();
+
     auto unresolvedSuffix = TYPath(GetRequestTargetYPath(context->GetRequestHeader()));
     auto unresolvedSuffixTokens = TokenizeUnresolvedSuffix(unresolvedSuffix);
 
@@ -609,6 +619,34 @@ DEFINE_YPATH_SERVICE_METHOD(TNodeProxy, GetBasicAttributes)
         ThrowNoSuchChild(Path_, unresolvedSuffixTokens.front());
     }
 
+    AbortSequoiaSessionForLaterForwardingToMaster();
+}
+
+DEFINE_YPATH_SERVICE_METHOD(TNodeProxy, CheckPermission)
+{
+    const auto& userName = request->user();
+    auto permission = FromProto<EPermission>(request->permission());
+    auto columns = request->has_columns()
+        ? std::optional(FromProto<std::vector<std::string>>(request->columns().items()))
+        : std::nullopt;
+    auto vital = YT_OPTIONAL_FROM_PROTO(*request, vital, bool);
+    bool ignoreSafeMode = request->ignore_safe_mode();
+
+    context->SetRequestInfo("User: %v, Permission: %v, Columns: %v, Vital: %v, IgnoreSafeMode: %v",
+        userName,
+        permission,
+        columns,
+        vital,
+        ignoreSafeMode);
+
+    // TODO(babenko): implement
+
+    response->set_action(ToProto(NSecurityClient::ESecurityAction::Allow));
+    context->Reply();
+}
+
+DEFINE_YPATH_SERVICE_METHOD(TNodeProxy, Fetch)
+{
     context->SetRequestInfo();
     AbortSequoiaSessionForLaterForwardingToMaster();
 }
@@ -891,6 +929,8 @@ DEFINE_YPATH_SERVICE_METHOD(TNodeProxy, Copy)
 
 DEFINE_YPATH_SERVICE_METHOD(TNodeProxy, Unlock)
 {
+    context->SetRequestInfo();
+
     if (!SequoiaSession_->GetCurrentCypressTransactionId()) {
         THROW_ERROR_EXCEPTION("Operation cannot be performed outside of a transaction");
     }
@@ -906,8 +946,6 @@ DEFINE_YPATH_SERVICE_METHOD(TNodeProxy, Unlock)
             ThrowMethodNotSupported(context->GetMethod());
         }
     }
-
-    context->SetRequestInfo();
 
     SequoiaSession_->UnlockNode(Id_, IsSnapshot());
 
@@ -916,11 +954,46 @@ DEFINE_YPATH_SERVICE_METHOD(TNodeProxy, Unlock)
     FinishSequoiaSessionAndReply(context, CellIdFromObjectId(Id_), /*commitSession*/ true);
 }
 
+DEFINE_YPATH_SERVICE_METHOD(TNodeProxy, Alter)
+{
+    auto unresolvedSuffix = TYPath(GetRequestTargetYPath(context->GetRequestHeader()));
+    auto unresolvedSuffixTokens = TokenizeUnresolvedSuffix(unresolvedSuffix);
+    if (!unresolvedSuffixTokens.empty()) {
+        ThrowNoSuchChild(Path_, unresolvedSuffixTokens.front());
+    }
+
+    context->SetRequestInfo("Dynamic: %v, UpstreamReplicaId: %v, SchemaModification: %v, ReplicationProgress: %v, SchemaId: %v",
+        YT_OPTIONAL_FROM_PROTO(*request, dynamic),
+        YT_OPTIONAL_FROM_PROTO(*request, upstream_replica_id, NTabletClient::TTableReplicaId),
+        YT_OPTIONAL_FROM_PROTO(*request, schema_modification, NTableClient::ETableSchemaModification),
+        YT_OPTIONAL_FROM_PROTO(*request, replication_progress, NChaosClient::TReplicationProgress),
+        YT_OPTIONAL_FROM_PROTO(*request, schema_id, TObjectId));
+
+    AbortSequoiaSessionForLaterForwardingToMaster();
+}
+
 DEFINE_YPATH_SERVICE_METHOD(TNodeProxy, Lock)
 {
-    if (!SequoiaSession_->GetCurrentCypressTransactionId()) {
-        THROW_ERROR_EXCEPTION("Operation cannot be performed outside of a transaction");
-    }
+    auto mode = FromProto<ELockMode>(request->mode());
+    auto childKey = YT_OPTIONAL_FROM_PROTO(*request, child_key);
+    auto attributeKey = YT_OPTIONAL_FROM_PROTO(*request, attribute_key);
+    auto timestamp = request->timestamp();
+    auto waitable = request->waitable();
+
+    // TODO(kvk1920): move TLockKey to /yt/yt/server/lib/sequoia to avoid code
+    // duplication.
+    context->SetRequestInfo("Mode: %v, Key: %v, Waitable: %v",
+        mode,
+        MakeFormatterWrapper([&] (TStringBuilderBase* builder) {
+            if (childKey) {
+                builder->AppendFormat("Child[%v]", *childKey);
+            } else if (attributeKey) {
+                builder->AppendFormat("Attribute[%v]", *attributeKey);
+            } else {
+                builder->AppendString("None");
+            }
+        }),
+        waitable);
 
     if (auto unresolvedSuffix = GetRequestTargetYPath(context->RequestHeader()); !unresolvedSuffix.empty()) {
         NYPath::TTokenizer tokenizer(unresolvedSuffix);
@@ -934,32 +1007,12 @@ DEFINE_YPATH_SERVICE_METHOD(TNodeProxy, Lock)
         }
     }
 
-    auto mode = FromProto<ELockMode>(request->mode());
-    auto childKey = YT_OPTIONAL_FROM_PROTO(*request, child_key);
-    auto attributeKey = YT_OPTIONAL_FROM_PROTO(*request, attribute_key);
-    auto timestamp = request->timestamp();
-    auto waitable = request->waitable();
+    if (!SequoiaSession_->GetCurrentCypressTransactionId()) {
+        THROW_ERROR_EXCEPTION("Operation cannot be performed outside of a transaction");
+    }
 
     CheckLockRequest(mode, childKey, attributeKey)
         .ThrowOnError();
-
-    {
-        // TODO(kvk1920): move TLockKey to /yt/yt/server/lib/sequoia to avoid code
-        // duplication.
-
-        context->SetRequestInfo("Mode: %v, Key: %v, Waitable: %v",
-            mode,
-            MakeFormatterWrapper([&] (TStringBuilderBase* builder) {
-                if (childKey) {
-                    builder->AppendFormat("Child[%v]", *childKey);
-                } else if (attributeKey) {
-                    builder->AppendFormat("Attribute[%v]", *attributeKey);
-                } else {
-                    builder->AppendString("None");
-                }
-            }),
-            waitable);
-    }
 
     auto lockId = SequoiaSession_->LockNode(Id_, mode, childKey, attributeKey, timestamp, waitable);
 
@@ -1276,18 +1329,18 @@ private:
 
         auto limit = YT_OPTIONAL_FROM_PROTO(*request, limit);
 
-        if (limit && limit < 0) {
-            THROW_ERROR_EXCEPTION("Limit is negative")
-                << TErrorAttribute("limit", limit);
-        }
-
         // NB: This is an arbitrary value, it can be freely changed.
         // TODO(h0pless): Think about moving global limit to dynamic config.
-        i64 responseSizeLimit = limit ? *limit : 100'000;
+        i64 responseSizeLimit = limit.value_or(100'000);
 
         context->SetRequestInfo("Limit: %v, AttributeFilter: %v",
             limit,
             attributeFilter);
+
+        if (limit && limit < 0) {
+            THROW_ERROR_EXCEPTION("Limit is negative")
+                << TErrorAttribute("limit", limit);
+        }
 
         // Fetch nodes from child nodes table.
         std::queue<TNodeId> childrenLookupQueue;
@@ -1601,7 +1654,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TNodeProxyBasePtr CreateNodeProxy(
+INodeProxyPtr CreateNodeProxy(
     IBootstrap* bootstrap,
     TSequoiaSessionPtr session,
     TSequoiaResolveResult resolveResult)

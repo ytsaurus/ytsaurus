@@ -321,6 +321,21 @@ TTypingCtx::TFunctionSignature TAggregateFunctionTypeInferrer::GetSignature(TTyp
     return signature;
 }
 
+std::vector<TTypeId> TArrayAggTypeInferrer::InferTypes(TTypingCtx* typingCtx, TRange<TLogicalTypePtr> argumentTypes, TStringBuf /*name*/) const
+{
+    std::vector<TTypeId> argumentTypeIds;
+    for (auto type : argumentTypes) {
+        argumentTypeIds.push_back(typingCtx->GetTypeId(type));
+    }
+
+    YT_VERIFY(argumentTypes.size() > 0);
+    auto argumentType = argumentTypes[0];
+
+    auto resultType = ListLogicalType(argumentType);
+
+    return {typingCtx->GetTypeId(resultType), typingCtx->GetTypeId(EValueType::String), argumentTypeIds[0], argumentTypeIds[1]};
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 const ITypeInferrerPtr& TTypeInferrerMap::GetFunction(const std::string& functionName) const

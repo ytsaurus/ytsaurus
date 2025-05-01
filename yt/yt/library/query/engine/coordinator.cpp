@@ -21,6 +21,10 @@ using namespace NObjectClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+YT_DEFINE_GLOBAL(const NLogging::TLogger, Logger, "Coordinator");
+
+////////////////////////////////////////////////////////////////////////////////
+
 std::pair<TConstFrontQueryPtr, TConstQueryPtr> GetDistributedQueryPattern(const TConstQueryPtr& query)
 {
     auto bottomQuery = New<TQuery>();
@@ -168,12 +172,16 @@ public:
 
     ISchemafulUnversionedReaderPtr Next()
     {
-        if (EstimateProcessedRowCount() < (Limit_ + Offset_) * FullPrefetchThreshold) {
+        if (EstimateProcessedRowCount() <= (Limit_ + Offset_) * FullPrefetchThreshold) {
             return GetNextReader_();
         }
 
-        while (auto nextReader = GetNextReader_()) {
-            FullPrefetch_.push_back(nextReader);
+        if (FullPrefetch_.empty()) {
+            YT_LOG_DEBUG("Switching adaptive reader to full prefetch");
+
+            while (auto nextReader = GetNextReader_()) {
+                FullPrefetch_.push_back(nextReader);
+            }
         }
 
         if (FullPrefetchIndex_ == std::ssize(FullPrefetch_)) {
@@ -275,6 +283,14 @@ TQueryStatistics CoordinateAndExecute(
         }
         return evaluateResult.Reader;
     };
+
+    YT_LOG_DEBUG("Creating reader (Ordered: %v, Prefetch: %v, SplitCount %v, Offset %v, Limit %v, UseAdaptiveOrderedSchemafulReader %v)",
+        ordered,
+        prefetch,
+        splitCount,
+        offset,
+        limit,
+        useAdaptiveOrderedSchemafulReader);
 
     // TODO: Use separate condition for prefetch after protocol update
     auto topReader = ordered

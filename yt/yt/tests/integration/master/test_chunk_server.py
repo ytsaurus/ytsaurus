@@ -35,9 +35,7 @@ class TestChunkServer(YTEnvSetup):
 
     DELTA_NODE_CONFIG = {
         "data_node": {
-            "disk_health_checker": {
-                "check_period": 1000,
-            },
+            "store_locations": [{"disk_health_checker": {"check_period": 1000}}],
         },
     }
 
@@ -1078,9 +1076,7 @@ class TestChunkServerReplicaRemoval(YTEnvSetup):
 
     DELTA_NODE_CONFIG = {
         "data_node": {
-            "disk_health_checker": {
-                "check_period": 1000,
-            },
+            "store_locations": [{"disk_health_checker": {"check_period": 1000}}],
         },
     }
 

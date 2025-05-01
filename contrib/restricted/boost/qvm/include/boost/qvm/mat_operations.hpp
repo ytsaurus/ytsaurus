@@ -1109,9 +1109,9 @@ mat_traits< qvm_detail::zero_mat_<T,Rows,Cols> >
     scalar_type
     read_element_idx( [[maybe_unused]] int row, [[maybe_unused]] int col, this_matrix const & )
         {
-        BOOST_QVM_ASSERT(row>=0);
+        BOOST_QVM_ASSERT(row>=0); (void)row;
         BOOST_QVM_ASSERT(row<rows);
-        BOOST_QVM_ASSERT(col>=0);
+        BOOST_QVM_ASSERT(col>=0); (void)col;
         BOOST_QVM_ASSERT(col<cols);
         return scalar_traits<scalar_type>::value(0);
         }

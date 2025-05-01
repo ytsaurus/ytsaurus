@@ -394,7 +394,7 @@ void TBundleState::DoFetchStatistics(
                 auto cellIt = Bundle_->TabletCells.find(tabletResponse.CellId);
                 if (cellIt == Bundle_->TabletCells.end()) {
                     tablesFromAnotherBundle.insert(table->Id);
-                    continue;
+                    break;
                 }
 
                 EmplaceOrCrash(cellIt->second->Tablets, tablet->Id, tablet);

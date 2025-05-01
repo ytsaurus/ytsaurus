@@ -49,6 +49,19 @@ void SetChaosCacheStickyGroupBalancingHint(
     balancingHeaderExt->set_balancing_hint(THash<TReplicationCardId>()(replicationCardId));
 }
 
+void SetChaosCacheCachingHeader(
+    TDuration expireAfterSuccessfulUpdateTime,
+    TDuration expireAfterFailedUpdateTime,
+    TReplicationEra refreshEra,
+    NYTree::NProto::TCachingHeaderExt* cachingHeaderExt)
+{
+    cachingHeaderExt->set_expire_after_successful_update_time(ToProto(expireAfterSuccessfulUpdateTime));
+    cachingHeaderExt->set_expire_after_failed_update_time(ToProto(expireAfterFailedUpdateTime));
+    if (refreshEra != InvalidReplicationEra) {
+        cachingHeaderExt->set_refresh_revision(ToProto(refreshEra));
+    }
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NChaosClient

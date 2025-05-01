@@ -980,6 +980,7 @@ struct TFastIntermediateMediumTableWriterConfig
     : public NYTree::TYsonStruct
 {
     int MinUploadReplicationFactor;
+    std::optional<int> DirectUploadNodeCount;
     int UploadReplicationFactor;
     NErasure::ECodec ErasureCodec;
     bool EnableStripedErasure;
@@ -1004,6 +1005,9 @@ struct TOperationSpecBase
 
     //! Replication factor for intermediate data.
     int IntermediateDataReplicationFactor;
+
+    //! Direct upload replication factor for intermediate data.
+    std::optional<int> IntermediateDirectUploadNodeCount;
 
     //! Minimum replication factor for intermediate data.
     int MinIntermediateDataReplicationFactor;
@@ -1030,6 +1034,10 @@ struct TOperationSpecBase
 
     i64 MaxDataWeightPerJob;
     i64 MaxPrimaryDataWeightPerJob;
+
+    //! Strict limit for job input compressed data size. May not affect input
+    //! slicing.
+    i64 MaxCompressedDataSizePerJob;
 
     //! Once this limit is reached the operation fails.
     int MaxFailedJobCount;
@@ -1622,11 +1630,6 @@ struct TSimpleOperationSpecBase
     std::optional<int> MaxJobCount;
 
     std::optional<int> MaxDataSlicesPerJob;
-
-    //! Limit for job input compressed data size.
-    //! This limit is not strict and may be violated in some cases,
-    //! for example, if chunk slice is too big.
-    std::optional<i64> MaxCompressedDataSizePerJob;
 
     bool ForceJobSizeAdjuster;
     bool ForceAllowJobInterruption;

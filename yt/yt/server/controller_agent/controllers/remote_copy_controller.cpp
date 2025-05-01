@@ -25,20 +25,22 @@
 
 #include <library/cpp/iterator/concatenate.h>
 
+#include <library/cpp/yt/memory/non_null_ptr.h>
+
 namespace NYT::NControllerAgent::NControllers {
 
 using namespace NApi;
-using namespace NYTree;
-using namespace NYPath;
-using namespace NYson;
 using namespace NChunkClient;
 using namespace NChunkPools;
-using namespace NObjectClient;
-using namespace NCypressClient;
-using namespace NControllerAgent::NProto;
 using namespace NConcurrency;
-using namespace NTableClient;
+using namespace NControllerAgent::NProto;
+using namespace NCypressClient;
+using namespace NObjectClient;
 using namespace NScheduler;
+using namespace NTableClient;
+using namespace NYPath;
+using namespace NYTree;
+using namespace NYson;
 
 using NYT::FromProto;
 using NYT::ToProto;

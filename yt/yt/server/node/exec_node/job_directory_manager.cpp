@@ -195,7 +195,7 @@ public:
             if (!error.IsOK()) {
                 THROW_ERROR_EXCEPTION("Failed to initialize simple job directory manager")
                     << TErrorAttribute("path", Path_)
-                    << error;
+                    << std::move(error);
             }
         }
     }

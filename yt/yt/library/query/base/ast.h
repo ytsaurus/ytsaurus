@@ -27,6 +27,7 @@ XX(TBetweenExpression)
 XX(TTransformExpression)
 XX(TCaseExpression)
 XX(TLikeExpression)
+XX(TQueryExpression)
 
 #undef XX
 
@@ -518,7 +519,10 @@ struct TArrayJoin
 
 struct TQuery
 {
-    std::variant<TTableDescriptor, TQueryAstHeadPtr> FromClause;
+    std::variant<
+        TTableDescriptor,
+        TQueryAstHeadPtr,
+        TExpressionList> FromClause;
     std::optional<TTableDescriptor> WithIndex;
     std::vector<std::variant<TJoin, TArrayJoin>> Joins;
 
@@ -558,6 +562,24 @@ struct TQueryAstHead
 };
 
 DEFINE_REFCOUNTED_TYPE(TQueryAstHead);
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TQueryExpression
+    : public TExpression
+{
+    TQuery Query;
+    TAliasMap AliasMap;
+
+    TQueryExpression(
+        const TSourceLocation& sourceLocation,
+        TQuery query,
+        TAliasMap aliasMap)
+        : TExpression(sourceLocation)
+        , Query(std::move(query))
+        , AliasMap(std::move(aliasMap))
+    { }
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 

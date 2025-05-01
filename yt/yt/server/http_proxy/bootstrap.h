@@ -165,7 +165,7 @@ private:
         const TProxyDynamicConfigPtr& /*oldConfig*/,
         const TProxyDynamicConfigPtr& newConfig);
 
-    void ReconfigureMemoryLimits(const TProxyMemoryLimitsConfigPtr& memoryLimits);
+    void ReconfigureMemoryLimits(const TMemoryLimitsConfigPtr& memoryLimits);
 };
 
 DEFINE_REFCOUNTED_TYPE(TBootstrap)

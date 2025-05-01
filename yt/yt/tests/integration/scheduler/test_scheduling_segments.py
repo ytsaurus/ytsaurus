@@ -53,10 +53,10 @@ def get_first_job_node(op):
 
 ##################################################################
 
-# @pytest.mark.skipif(
-#     is_asan_build() or is_debug_build(),
-#     reason="This test suite requires a genuine release build to fit into timeout"
-# )
+@pytest.mark.skipif(
+    is_asan_build() or is_debug_build(),
+    reason="This test suite requires a genuine release build to fit into timeout"
+)
 class TestSchedulingSegments(YTEnvSetup):
     ENABLE_MULTIDAEMON = False  # There are component restarts.
     NUM_TEST_PARTITIONS = 8
