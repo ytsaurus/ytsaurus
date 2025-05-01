@@ -49,12 +49,13 @@ class RpcBase(Sensor):
 
 
 # Schedulers.
-Scheduler =         ProjectSensor("scheduler",          "yt-scheduler")  # noqa: E222
-SchedulerMemory =   ProjectSensor("scheduler_memory",   "yt-scheduler")  # noqa: E222
-SchedulerCpu =      ProjectSensor("scheduler_cpu",      "yt-scheduler")  # noqa: E222
-SchedulerPools =    ProjectSensor("scheduler_pools",    "yt-scheduler")  # noqa: E222
-SchedulerInternal = ProjectSensor("scheduler_internal", "yt-scheduler")  # noqa: E222
-SchedulerRpc =      ProjectSensor("scheduler_rpc",      "yt-scheduler", base=RpcBase)  # noqa: E222
+Scheduler =           ProjectSensor("scheduler",            "yt-scheduler")  # noqa: E222
+SchedulerMemory =     ProjectSensor("scheduler_memory",     "yt-scheduler")  # noqa: E222
+SchedulerCpu =        ProjectSensor("scheduler_cpu",        "yt-scheduler")  # noqa: E222
+SchedulerPools =      ProjectSensor("scheduler_pools",      "yt-scheduler")  # noqa: E222
+SchedulerOperations = ProjectSensor("scheduler_operations", "yt-scheduler")  # noqa: E222
+SchedulerInternal =   ProjectSensor("scheduler_internal",   "yt-scheduler")  # noqa: E222
+SchedulerRpc =        ProjectSensor("scheduler_rpc",        "yt-scheduler", base=RpcBase)  # noqa: E222
 
 # Controller agents.
 CA =         ProjectSensor("controller_agent",          "yt-controller-agent")  # noqa: E222
