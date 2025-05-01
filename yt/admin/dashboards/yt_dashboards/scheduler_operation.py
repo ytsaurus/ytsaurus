@@ -20,8 +20,9 @@ def _build_resource_usage(d):
                 .legend_format("usage"),
             SchedulerOperations(f"yt.scheduler.operations_by_slot.resource_demand.{resource}")
                 .legend_format("demand"),
-            SchedulerOperations(f"yt.scheduler.operations_by_slot.accumulated_resource_usage.{resource}.rate")
-                .legend_format("cumulative_usage"),
+            # Disabled because of trembling, see details in YT-19499.
+            # SchedulerOperations(f"yt.scheduler.operations_by_slot.accumulated_resource_usage.{resource}.rate")
+            #     .legend_format("cumulative_usage"),
         )
 
     d.add(Rowset().row(height=2).cell("", Title("Usage and demand", size="TITLE_SIZE_L")))
