@@ -30,6 +30,14 @@ using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// COMPAT(apollo1321): Remove in 25.2.
+DEFINE_ENUM(EUnorderedChunkPoolMode,
+    (Normal)
+    (AutoMerge)
+);
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TUnorderedChunkPool
     : public TChunkPoolInputBase
     , public TChunkPoolOutputWithCountersBase
@@ -53,7 +61,6 @@ public:
         TInputStreamDirectory directory)
         : JobSizeConstraints_(options.JobSizeConstraints)
         , Sampler_(JobSizeConstraints_->GetSamplingRate())
-        , Mode_(options.Mode)
         , MinTeleportChunkSize_(options.MinTeleportChunkSize)
         , MinTeleportChunkDataWeight_(options.MinTeleportChunkDataWeight)
         , SliceErasureChunksByParts_(options.SliceErasureChunksByParts)
@@ -64,6 +71,7 @@ public:
         , FreeDataWeightCounter_(New<TProgressCounter>())
         , FreeRowCounter_(New<TProgressCounter>())
         , SingleChunkTeleportStrategy_(options.SingleChunkTeleportStrategy)
+        , UseNewSlicingImplementation_(options.UseNewSlicingImplementation)
     {
         Logger = options.Logger;
         ValidateLogger(Logger);
@@ -244,7 +252,7 @@ public:
             if (jobManagerJobCounter->GetPending() == 0) {
                 YT_VERIFY(!FreeStripes_.empty());
 
-                auto idealDataWeightPerJob = GetIdealDataWeightPerJob();
+                auto idealDataWeightPerJob = UseNewSlicingImplementation_ ? GetAdjustedDataWeightPerJob() : GetDataWeightPerJobFromJobCounter();
 
                 auto jobStub = std::make_unique<TNewJobStub>();
 
@@ -470,7 +478,6 @@ private:
 
     TIdGenerator OutputCookieGenerator_;
 
-    EUnorderedChunkPoolMode Mode_;
     i64 MinTeleportChunkSize_ = std::numeric_limits<i64>::max() / 4;
     i64 MinTeleportChunkDataWeight_ = std::numeric_limits<i64>::max() / 4;
     bool SliceErasureChunksByParts_ = false;
@@ -488,6 +495,8 @@ private:
     bool IsCompleted_ = false;
 
     ESingleChunkTeleportStrategy SingleChunkTeleportStrategy_ = ESingleChunkTeleportStrategy::Disabled;
+
+    bool UseNewSlicingImplementation_ = false;
 
     //! Teleport (move to destination pool) trivial (complete), unversioned, teleportable chunk.
     bool TryTeleportChunk(const TLegacyDataSlicePtr& dataSlice)
@@ -515,7 +524,7 @@ private:
         return false;
     }
 
-    bool IsTrivialLimit(const TInputSliceLimit& limit, i64 defaultRowIndex)
+    static bool IsTrivialLimit(const TInputSliceLimit& limit, i64 defaultRowIndex)
     {
         return limit.RowIndex.value_or(defaultRowIndex) == defaultRowIndex && (!limit.KeyBound || limit.KeyBound.IsUniversal());
     };
@@ -656,11 +665,16 @@ private:
         return internalCookie;
     }
 
-    i64 GetIdealDataWeightPerJob() const
+    i64 GetAdjustedDataWeightPerJob() const
     {
-        if (Mode_ == EUnorderedChunkPoolMode::AutoMerge) {
-            return JobSizeConstraints_->GetDataWeightPerJob();
-        }
+        return std::clamp<i64>(
+            JobSizeAdjuster_ ? JobSizeAdjuster_->GetDataWeightPerJob() : JobSizeConstraints_->GetDataWeightPerJob(),
+            1,
+            JobSizeConstraints_->GetMaxDataWeightPerJob());
+    }
+
+    i64 GetDataWeightPerJobFromJobCounter() const
+    {
         i64 freePendingJobCount = FreeJobCounter_->GetTotal();
         YT_VERIFY(freePendingJobCount > 0);
         return std::max(
@@ -678,10 +692,7 @@ private:
         if (JobSizeConstraints_->IsExplicitJobCount()) {
             pendingJobCount = FreeJobCounter_->GetTotal();
         } else {
-            i64 dataWeightPerJob = JobSizeAdjuster_
-                ? JobSizeAdjuster_->GetDataWeightPerJob()
-                : JobSizeConstraints_->GetDataWeightPerJob();
-            dataWeightPerJob = std::clamp<i64>(dataWeightPerJob, 1, JobSizeConstraints_->GetMaxDataWeightPerJob());
+            i64 dataWeightPerJob = GetAdjustedDataWeightPerJob();
             if (Finished) {
                 pendingJobCount = DivCeil<i64>(dataWeightLeft, dataWeightPerJob);
             } else {
@@ -896,7 +907,12 @@ void TUnorderedChunkPool::RegisterMetadata(auto&& registrar)
     PHOENIX_REGISTER_FIELD(9, MaxBlockSize_);
     PHOENIX_REGISTER_FIELD(10, NodeIdToEntry_);
     PHOENIX_REGISTER_FIELD(11, OutputCookieGenerator_);
-    PHOENIX_REGISTER_FIELD(12, Mode_);
+    // COMPAT(apollo1321): Remove in 25.2.
+    registrar
+        .template VirtualField<12>("Mode_", [] (TThis* /*this_*/, auto& context) {
+            Load<EUnorderedChunkPoolMode>(context);
+        })
+        .BeforeVersion(ESnapshotVersion::NewUnorderedChunkPoolSlicing)();
     PHOENIX_REGISTER_FIELD(13, MinTeleportChunkSize_);
     PHOENIX_REGISTER_FIELD(14, MinTeleportChunkDataWeight_);
     PHOENIX_REGISTER_FIELD(15, SliceErasureChunksByParts_);
@@ -909,6 +925,9 @@ void TUnorderedChunkPool::RegisterMetadata(auto&& registrar)
 
     PHOENIX_REGISTER_FIELD(22, SingleChunkTeleportStrategy_,
         .SinceVersion(ESnapshotVersion::SingleChunkTeleportStrategy));
+
+    PHOENIX_REGISTER_FIELD(23, UseNewSlicingImplementation_,
+        .SinceVersion(ESnapshotVersion::NewUnorderedChunkPoolSlicing));
 
     registrar.AfterLoad([] (TThis* this_, auto& /*context*/) {
         ValidateLogger(this_->Logger);
