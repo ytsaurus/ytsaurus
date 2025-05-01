@@ -41,6 +41,7 @@ prometheus_container_name=yt.prometheus
 ui_proxy_internal=${yt_container_name}:80
 
 port_range_start=24400
+node_port_set_size=100
 publish_ports=false
 prometheus_image="prom/prometheus"
 prometheus_port=9090
@@ -88,6 +89,7 @@ Usage: $script_name [-h|--help]
   --rpc-proxy-count: Sets the number of rpc proxies to start in yt local cluster (default: $rpc_proxy_count)
   --rpc-proxy-port: Sets ports for rpc proxies; number of values should be equal to rpc-proxy-count
   --port-range-start: Assign ports from continuous range starting from this port number (default: $port_range_start)
+  --node-port-set-size: Assign node port set size (default: $node_port_set_size)
   --node-count: Sets the number of cluster nodes to start in yt local cluster (default: $node_count)
   --queue-agent-count: Sets the number of queue agents to start in yt local cluster (default: $queue_agent_count)
   --disable-query-tracker: Turns off QueryTracker related services (default: $disable_query_tracker)
@@ -164,6 +166,10 @@ while [[ $# -gt 0 ]]; do
         ;;
     --port-range-start)
         port_range_start="$2"
+        shift 2
+        ;;
+    --node-port-set-size)
+        node_port_set_size="$2"
         shift 2
         ;;
     --publish-ports)
@@ -290,7 +296,7 @@ fi
 
 if [ "${publish_ports}" == true ]; then
     ports=""
-    max_port=$(($port_range_start + 100))
+    max_port=$(($port_range_start + $node_port_set_size * $node_count))
     for port in $(seq $port_range_start $max_port); do
         ports+="-p $port:$port "
     done
@@ -315,7 +321,7 @@ cluster_container=$(
         $yt_run_params \
         $yt_image \
         --fqdn "${yt_fqdn:-${docker_hostname}}" \
-        --port-range-start ${port_range_start} \
+        --port-range-start ${port_range_start} --node-port-set-size ${node_port_set_size} \
         --proxy-config "{coordinator={public_fqdn=\"${docker_hostname}:${proxy_port}\"}}" \
         --rpc-proxy-count ${rpc_proxy_count} \
         --rpc-proxy-port ${rpc_proxy_port} \
