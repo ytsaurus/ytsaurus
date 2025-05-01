@@ -54,7 +54,7 @@ class TestSchedulerMapCommands(YTEnvSetup):
             "map_operation_options": {
                 "job_splitter": {
                     "min_job_time": 5000,
-                    "min_total_data_size": 1024,
+                    "min_total_data_weight": 1024,
                     "update_period": 100,
                     "candidate_percentile": 0.8,
                     "max_jobs_per_split": 3,
@@ -2648,7 +2648,7 @@ class TestInputOutputFormats(YTEnvSetup):
             "map_operation_options": {
                 "job_splitter": {
                     "min_job_time": 5000,
-                    "min_total_data_size": 1024,
+                    "min_total_data_weight": 1024,
                     "update_period": 100,
                     "candidate_percentile": 0.8,
                     "max_jobs_per_split": 3,

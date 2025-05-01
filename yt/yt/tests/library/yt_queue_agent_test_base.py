@@ -11,6 +11,7 @@ from yt_helpers import parse_yt_time
 
 from yt.common import YtError, update_inplace, update
 
+import copy
 import builtins
 import time
 from abc import ABC, abstractmethod
@@ -639,7 +640,7 @@ class TestQueueAgentBase(YTEnvSetup):
     @classmethod
     def _apply_dynamic_config_patch(cls, patch):
         config = get(cls.config_path)
-        update_inplace(config, patch)
+        update_inplace(config, copy.deepcopy(patch))
         set(cls.config_path, config, force=True)
 
         instances = ls(cls.root_path + "/instances")
