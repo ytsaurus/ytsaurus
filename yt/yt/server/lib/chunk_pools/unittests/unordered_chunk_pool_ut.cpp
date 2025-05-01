@@ -19,6 +19,8 @@
 
 #include <yt/yt/core/misc/blob_output.h>
 
+#include <util/generic/xrange.h>
+
 #include <util/stream/null.h>
 
 #include <random>
@@ -521,8 +523,8 @@ TEST_F(TUnorderedChunkPoolTest, InputChunksAreSliced)
     InputSliceDataWeight_ = DataWeightPerJob_ / 10;
     InitJobConstraints();
 
-    auto chunkA = CreateChunk(0); // 2Kb.
-    auto chunkB = CreateChunk(0); // 2Kb.
+    auto chunkA = CreateChunk(0); // 1Kb.
+    auto chunkB = CreateChunk(0); // 1Kb.
 
     CreateChunkPool();
 
@@ -539,10 +541,11 @@ TEST_F(TUnorderedChunkPoolTest, InputChunksAreSliced)
 
     CheckEverything(stripeLists);
 
-    for (const auto& stripeList : stripeLists) {
-        EXPECT_GE(stripeList->TotalDataWeight, DataWeightPerJob_ * 0.8);
-        EXPECT_LE(stripeList->TotalDataWeight, DataWeightPerJob_ * 1.2);
+    for (int index : xrange(std::ssize(stripeLists) - 1)) {
+        EXPECT_GE(stripeLists[index]->TotalDataWeight, DataWeightPerJob_);
+        EXPECT_LE(stripeLists[index]->TotalDataWeight, DataWeightPerJob_ + InputSliceDataWeight_);
     }
+    EXPECT_LE(stripeLists.back()->TotalDataWeight, DataWeightPerJob_);
 }
 
 TEST_F(TUnorderedChunkPoolTest, InterruptionWithSuspendedChunks1)

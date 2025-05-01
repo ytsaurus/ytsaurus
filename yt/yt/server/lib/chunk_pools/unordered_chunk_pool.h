@@ -13,14 +13,8 @@ namespace NYT::NChunkPools {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DEFINE_ENUM(EUnorderedChunkPoolMode,
-    (Normal)
-    (AutoMerge)
-);
-
 struct TUnorderedChunkPoolOptions
 {
-    EUnorderedChunkPoolMode Mode = EUnorderedChunkPoolMode::Normal;
     TJobSizeAdjusterConfigPtr JobSizeAdjusterConfig = nullptr;
     NControllerAgent::IJobSizeConstraintsPtr JobSizeConstraints = nullptr;
     //! Minimum uncompressed size to be teleported.
@@ -32,6 +26,8 @@ struct TUnorderedChunkPoolOptions
     NTableClient::TRowBufferPtr RowBuffer;
     NLogging::TSerializableLogger Logger;
     NScheduler::ESingleChunkTeleportStrategy SingleChunkTeleportStrategy = NScheduler::ESingleChunkTeleportStrategy::Disabled;
+    // COMPAT(apollo1321): Remove in 25.2.
+    bool UseNewSlicingImplementation = true;
 };
 
 IPersistentChunkPoolPtr CreateUnorderedChunkPool(

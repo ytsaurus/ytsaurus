@@ -6110,6 +6110,7 @@ private:
         options.EnableKeyGuarantee = request->enable_key_guarantee();
         options.EnableCookies = request->enable_cookies();
         options.UseNewSlicingImplementationInOrderedPool = request->use_new_slicing_implementation_in_ordered_pool();
+        options.UseNewSlicingImplementationInUnorderedPool = request->use_new_slicing_implementation_in_unordered_pool();
 
         if (request->has_transactional_options()) {
             FromProto(&options, request->transactional_options());
