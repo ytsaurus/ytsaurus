@@ -37,7 +37,7 @@ from yt.sequoia_tools import DESCRIPTORS
 from yt.test_helpers import wait, WaitFailed, get_work_path, get_build_root, get_tests_sandbox
 import yt.test_helpers.cleanup as test_cleanup
 
-from yt.common import YtResponseError, format_error, update_inplace
+from yt.common import YtResponseError, format_error, update_inplace as _update_inplace
 import yt.logger
 
 from yt_driver_bindings import reopen_logs
@@ -48,6 +48,7 @@ import yt.yson as yson
 import pytest
 
 import inspect
+import copy
 import gc
 import os
 import sys
@@ -62,6 +63,14 @@ from threading import Thread
 
 OUTPUT_PATH = None
 SANDBOX_ROOTDIR = None
+
+##################################################################
+
+
+# TODO(ignat): make original `update_inplace` safe (YT-24956).
+def update_inplace(object, patch):
+    return _update_inplace(object, copy.deepcopy(patch))
+
 
 ##################################################################
 
@@ -334,12 +343,8 @@ class YTEnvSetup(object):
     DELTA_CHAOS_NODE_CONFIG = {}
     DELTA_SCHEDULER_CONFIG = {}
     DELTA_CONTROLLER_AGENT_CONFIG = {}
+    # TODO(ignat): refactor it.
     _DEFAULT_DELTA_CONTROLLER_AGENT_CONFIG = {
-        "operation_options": {
-            "spec_template": {
-                "max_failed_job_count": 1,
-            }
-        },
         "controller_agent": {
             "enable_table_column_renaming": True,
             "map_operation_options": {
