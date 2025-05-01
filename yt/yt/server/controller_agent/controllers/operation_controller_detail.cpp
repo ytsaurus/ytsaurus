@@ -4865,18 +4865,27 @@ void TOperationControllerBase::DoScheduleAllocation(
     if (!IsRunning()) {
         YT_LOG_TRACE("Operation is not running, scheduling request ignored");
         scheduleAllocationResult->RecordFail(EScheduleFailReason::OperationNotRunning);
+        GetScheduleJobProfiler()->ProfileScheduleJobFailure(
+            allocation.TreeId,
+            EScheduleFailReason::OperationNotRunning);
         return;
     }
 
     if (GetPendingJobCount().GetJobCountFor(treeId) == 0) {
         YT_LOG_TRACE("No pending jobs left, scheduling request ignored");
         scheduleAllocationResult->RecordFail(EScheduleFailReason::NoPendingJobs);
+        GetScheduleJobProfiler()->ProfileScheduleJobFailure(
+            allocation.TreeId,
+            EScheduleFailReason::NoPendingJobs);
         return;
     }
 
     if (BannedNodeIds_.find(context.GetNodeDescriptor().Id) != BannedNodeIds_.end()) {
         YT_LOG_TRACE("Node is banned, scheduling request ignored");
         scheduleAllocationResult->RecordFail(EScheduleFailReason::NodeBanned);
+        GetScheduleJobProfiler()->ProfileScheduleJobFailure(
+            allocation.TreeId,
+            EScheduleFailReason::NodeBanned);
         return;
     }
 
@@ -4895,6 +4904,9 @@ void TOperationControllerBase::TryScheduleFirstJob(
     bool scheduleLocalJob)
 {
     if (!IsRunning()) {
+        GetScheduleJobProfiler()->ProfileScheduleJobFailure(
+            allocation.TreeId,
+            EScheduleFailReason::OperationNotRunning);
         scheduleAllocationResult->RecordFail(EScheduleFailReason::OperationNotRunning);
         return;
     }
@@ -4910,7 +4922,18 @@ void TOperationControllerBase::TryScheduleFirstJob(
             }
 
             scheduleAllocationResult->RecordFail(*failReason);
+
+            GetScheduleJobProfiler()->ProfileScheduleJobFailure(
+                allocation.TreeId,
+                task->GetJobType(),
+                *failReason,
+                /*isJobFirst*/ true);
         } else {
+            GetScheduleJobProfiler()->ProfileScheduleJobSuccess(
+                allocation.TreeId,
+                task->GetJobType(),
+                /*isJobFirst*/ true);
+
             auto startDescriptor = task->CreateAllocationStartDescriptor(
                 allocation,
                 /*allowIdleCpuPolicy*/ IsIdleCpuPolicyAllowedInTree(allocation.TreeId),
@@ -4925,6 +4948,9 @@ void TOperationControllerBase::TryScheduleFirstJob(
     }
 
     scheduleAllocationResult->RecordFail(EScheduleFailReason::NoCandidateTasks);
+    GetScheduleJobProfiler()->ProfileScheduleJobFailure(
+        allocation.TreeId,
+        EScheduleFailReason::NoCandidateTasks);
 }
 
 // NB(pogorelov): This method is mvp now, it will be improved.
@@ -4941,6 +4967,12 @@ std::optional<EScheduleFailReason> TOperationControllerBase::TryScheduleNextJob(
     YT_VERIFY(allocation.Task);
 
     if (auto failReason = TryScheduleJob(allocation, *allocation.Task, context, /*scheduleLocalJob*/ true, lastJobId)) {
+        GetScheduleJobProfiler()->ProfileScheduleJobFailure(
+            allocation.TreeId,
+            allocation.Task->GetJobType(),
+            *failReason,
+            /*isJobFirst*/ false);
+
         auto logSettlementFailed = [&] (EScheduleFailReason reason) {
             YT_LOG_INFO(
                 "Failed to settle new job in allocation (AllocationId: %v, FailReason: %v)",
@@ -4953,6 +4985,11 @@ std::optional<EScheduleFailReason> TOperationControllerBase::TryScheduleNextJob(
             return failReason;
         }
         if (auto failReason = TryScheduleJob(allocation, *allocation.Task, context, /*scheduleLocalJob*/ false, lastJobId)) {
+            GetScheduleJobProfiler()->ProfileScheduleJobFailure(
+                allocation.TreeId,
+                allocation.Task->GetJobType(),
+                *failReason,
+                /*isJobFirst*/ false);
             logSettlementFailed(*failReason);
             return failReason;
         }
@@ -4962,6 +4999,11 @@ std::optional<EScheduleFailReason> TOperationControllerBase::TryScheduleNextJob(
 
     RegisterTestingSpeculativeJobIfNeeded(*allocation.Task, allocation.Id);
     UpdateTask(allocation.Task);
+
+    GetScheduleJobProfiler()->ProfileScheduleJobSuccess(
+        allocation.TreeId,
+        allocation.Task->GetJobType(),
+        /*isJobFirst*/ false);
 
     return std::nullopt;
 }
