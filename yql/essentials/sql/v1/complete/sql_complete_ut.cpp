@@ -303,6 +303,21 @@ Y_UNIT_TEST_SUITE(SqlCompleteTests) {
         UNIT_ASSERT_VALUES_EQUAL(Complete(engine, "DROP "), expected);
     }
 
+    Y_UNIT_TEST(DropObject) {
+        TVector<TCandidate> expected = {
+            {FolderName, "`.sys/`"},
+            {FolderName, "`local/`"},
+            {FolderName, "`prod/`"},
+            {FolderName, "`test/`"},
+            {ClusterName, "example"},
+            {ClusterName, "ytsaurus"},
+            {Keyword, "IF EXISTS"},
+        };
+        auto engine = MakeSqlCompletionEngineUT();
+        UNIT_ASSERT_VALUES_EQUAL(Complete(engine, "DROP TABLE "), expected);
+        UNIT_ASSERT_VALUES_EQUAL(Complete(engine, "DROP VIEW "), expected);
+    }
+
     Y_UNIT_TEST(Explain) {
         TVector<TCandidate> expected = {
             {Keyword, "ALTER"},
