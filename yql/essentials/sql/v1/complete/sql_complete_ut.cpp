@@ -113,7 +113,6 @@ Y_UNIT_TEST_SUITE(SqlCompleteTests) {
         TVector<INameService::TPtr> children = {
             MakeStaticNameService(std::move(names), frequency),
             MakeSchemaNameService(MakeDispatchSchemaGateway(std::move(schemasByCluster))),
-
             MakeClusterNameService(MakeStaticClusterDiscovery(std::move(clusters))),
         };
 
