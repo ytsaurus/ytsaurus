@@ -290,7 +290,7 @@ struct TControllerAgentConnectorDynamicConfig
     NConcurrency::TThroughputThrottlerConfigPtr StatisticsThrottler;
     TDuration RunningJobStatisticsSendingBackoff;
 
-    bool ResendFullJobInfo = true;
+    bool ResendFullJobInfo;
 
     REGISTER_YSON_STRUCT(TControllerAgentConnectorDynamicConfig);
 
