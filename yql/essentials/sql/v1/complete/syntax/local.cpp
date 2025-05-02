@@ -1,6 +1,7 @@
 #include "local.h"
 
 #include "ansi.h"
+#include "format.h"
 #include "grammar.h"
 #include "parser_call_stack.h"
 #include "token.h"
@@ -213,8 +214,7 @@ namespace NSQLComplete {
             if (auto enclosing = context.Enclosing()) {
                 TString path = enclosing->Base->Content;
                 if (enclosing->Base->Name == "ID_QUOTED") {
-                    path.erase(0, 1);
-                    path.pop_back();
+                    path = Unquoted(std::move(path));
                 }
                 return path;
             }
