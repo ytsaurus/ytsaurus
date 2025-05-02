@@ -206,13 +206,13 @@ namespace NSQLComplete {
 
         TMaybe<TString> ObjectPath(const TCursorTokenContext& context) const {
             if (auto enclosing = context.Enclosing();
-                enclosing.Defined() && enclosing->Base->Name == "ID_QUOTED") {
+                enclosing && enclosing->Base->Name == "ID_QUOTED") {
                 TString path = enclosing->Base->Content;
                 path.erase(0, 1);
                 path.pop_back();
                 return path;
             }
-            return "";
+            return Nothing();
         }
 
         TEditRange EditRange(const TCursorTokenContext& context) const {

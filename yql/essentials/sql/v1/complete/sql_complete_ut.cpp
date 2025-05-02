@@ -432,27 +432,75 @@ Y_UNIT_TEST_SUITE(SqlCompleteTests) {
     }
 
     Y_UNIT_TEST(SelectFrom) {
-        TVector<TCandidate> expected = {
-            {FolderName, "`.sys/`"},
-            {FolderName, "`local/`"},
-            {FolderName, "`prod/`"},
-            {FolderName, "`test/`"},
-            {Keyword, "ANY"},
-            {Keyword, "CALLABLE"},
-            {Keyword, "DICT"},
-            {Keyword, "ENUM"},
-            {Keyword, "FLOW"},
-            {Keyword, "LIST"},
-            {Keyword, "OPTIONAL"},
-            {Keyword, "RESOURCE"},
-            {Keyword, "SET"},
-            {Keyword, "STRUCT"},
-            {Keyword, "TAGGED"},
-            {Keyword, "TUPLE"},
-            {Keyword, "VARIANT"},
-        };
         auto engine = MakeSqlCompletionEngineUT();
-        UNIT_ASSERT_VALUES_EQUAL(Complete(engine, "SELECT * FROM "), expected);
+        {
+            TVector<TCandidate> expected = {
+                {FolderName, "`.sys/`"},
+                {FolderName, "`local/`"},
+                {FolderName, "`prod/`"},
+                {FolderName, "`test/`"},
+                {Keyword, "ANY"},
+                {Keyword, "CALLABLE"},
+                {Keyword, "DICT"},
+                {Keyword, "ENUM"},
+                {Keyword, "FLOW"},
+                {Keyword, "LIST"},
+                {Keyword, "OPTIONAL"},
+                {Keyword, "RESOURCE"},
+                {Keyword, "SET"},
+                {Keyword, "STRUCT"},
+                {Keyword, "TAGGED"},
+                {Keyword, "TUPLE"},
+                {Keyword, "VARIANT"},
+            };
+            UNIT_ASSERT_VALUES_EQUAL(Complete(engine, "SELECT * FROM "), expected);
+        }
+        {
+            TVector<TCandidate> expected = {};
+            UNIT_ASSERT_VALUES_EQUAL(Complete(engine, "SELECT * FROM `#"), expected);
+        }
+        {
+            TString input = "SELECT * FROM `#`";
+            TVector<TCandidate> expected = {
+                {FolderName, ".sys/"},
+                {FolderName, "local/"},
+                {FolderName, "prod/"},
+                {FolderName, "test/"},
+            };
+            TCompletion actual = engine->Complete(SharpedInput(input));
+            UNIT_ASSERT_VALUES_EQUAL(actual.Candidates, expected);
+            UNIT_ASSERT_VALUES_EQUAL(actual.CompletedToken.Content, "");
+        }
+        {
+            TString input = "SELECT * FROM `local/#`";
+            TVector<TCandidate> expected = {
+                {TableName, "abacaba"},
+                {TableName, "account"},
+                {TableName, "example"},
+            };
+            TCompletion actual = engine->Complete(SharpedInput(input));
+            UNIT_ASSERT_VALUES_EQUAL(actual.Candidates, expected);
+            UNIT_ASSERT_VALUES_EQUAL(actual.CompletedToken.Content, "");
+        }
+        {
+            TString input = "SELECT * FROM `local/a#`";
+            TVector<TCandidate> expected = {
+                {TableName, "abacaba"},
+                {TableName, "account"},
+            };
+            TCompletion actual = engine->Complete(SharpedInput(input));
+            UNIT_ASSERT_VALUES_EQUAL(actual.Candidates, expected);
+            UNIT_ASSERT_VALUES_EQUAL(actual.CompletedToken.Content, "a");
+        }
+        {
+            TString input = "SELECT * FROM `.sy#`";
+            TVector<TCandidate> expected = {
+                {FolderName, ".sys/"},
+            };
+            TCompletion actual = engine->Complete(SharpedInput(input));
+            UNIT_ASSERT_VALUES_EQUAL(actual.Candidates, expected);
+            UNIT_ASSERT_VALUES_EQUAL(actual.CompletedToken.Content, ".sy");
+        }
     }
 
     Y_UNIT_TEST(SelectWhere) {
