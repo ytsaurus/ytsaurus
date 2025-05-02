@@ -74,6 +74,13 @@ static TError DecodeExitCode(int exitCode, const TString& reason)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TCriPodSpec::TCriPodSpec(TString name, TCriContainerResources resources)
+    : Name{std::move(name)}
+    , Resources{std::move(resources)}
+{ }
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TCriProcess
     : public TProcessBase
 {

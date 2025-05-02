@@ -1083,7 +1083,7 @@ public:
         , Executor_(CreateCriExecutor(Config_->CriExecutor))
         , ImageCache_(NContainers::NCri::CreateCriImageCache(Config_->CriImageCache, Executor_))
         , CriDescriptor_{Config_->PodDescriptorName, Config_->PodDescriptorId}
-        , CriPodSpec_{
+        , CriPodSpec_{New<NContainers::NCri::TCriPodSpec>(
             Config_->PodSpecName,
             NContainers::NCri::TCriContainerResources{
                 Config_->PodSpecCpuLimit,
@@ -1092,7 +1092,7 @@ public:
                 Config_->PodSpecCpuRequest,
                 Config_->PodSpecMemoryOomGroup,
                 Config_->PodSpecCpusetCpus
-            }
+            })
         }
     { }
 
@@ -1193,7 +1193,7 @@ private:
     const NContainers::NCri::ICriImageCachePtr ImageCache_;
 
     const NContainers::NCri::TCriDescriptor CriDescriptor_;
-    const NContainers::NCri::TCriPodSpec CriPodSpec_;
+    const NContainers::NCri::TCriPodSpecPtr CriPodSpec_;
 
     NCGroups::TSelfCGroupsStatisticsFetcher StatisticsFetcher_;
 };

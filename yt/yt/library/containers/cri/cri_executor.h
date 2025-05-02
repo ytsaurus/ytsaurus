@@ -49,10 +49,16 @@ struct TCriContainerResources
 };
 
 struct TCriPodSpec
+    : public TRefCounted
 {
+    TCriPodSpec() = default;
+    TCriPodSpec(TString name, TCriContainerResources resources);
+
     TString Name;
     TCriContainerResources Resources;
 };
+
+DEFINE_REFCOUNTED_TYPE(TCriPodSpec)
 
 struct TCriBindMount
 {

@@ -14,6 +14,8 @@ PEERDIR(
     yt/yt/library/auth
     yt/yt/library/query/engine
     yt/yt/library/query/row_comparer
+    yt/yt/library/containers/cri
+    yt/yt/contrib/gogoproto
     yt/yt/core/rpc/grpc
     yt/yt/ytlib
     yt/yt/library/auth_server

@@ -30,6 +30,8 @@ PEERDIR(
     yt/yt/library/tcmalloc
     yt/yt/library/ytprof
     yt/yt/library/ytprof/allocation_tag_profiler
+    yt/yt/library/containers/cri
+    yt/yt/contrib/gogoproto
 )
 
 IF(OS_LINUX)

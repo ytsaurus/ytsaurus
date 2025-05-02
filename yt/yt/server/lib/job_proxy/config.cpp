@@ -405,9 +405,6 @@ void TJobProxyInternalConfig::Register(TRegistrar registrar)
     registrar.Parameter("start_queue_consumer_registration_manager", &TThis::StartQueueConsumerRegistrationManager)
         .Default(true);
 
-    registrar.Parameter("container_environment", &TThis::ContainerEnvironment)
-        .Optional();
-
     registrar.Preprocessor([] (TThis* config) {
         config->SolomonExporter->EnableSelfProfiling = false;
         config->SolomonExporter->WindowSize = 1;
