@@ -870,22 +870,18 @@ func (oplet *Oplet) getOpACL() (acl []yt.ACE) {
 }
 
 func (oplet *Oplet) getUserClient() (yt.Client, error) {
-	if oplet.c.RunAsUser() {
-		client, err := ythttp.NewClient(
-			&yt.Config{
-				Proxy:             oplet.agentInfo.Proxy,
-				Token:             oplet.agentInfo.ServiceToken,
-				ImpersonationUser: oplet.persistentState.Creator,
-			},
-		)
-		if err != nil {
-			oplet.setError(err)
-			return nil, err
-		}
-		return client, nil
-	} else {
-		return oplet.systemClient, nil
+	client, err := ythttp.NewClient(
+		&yt.Config{
+			Proxy:             oplet.agentInfo.Proxy,
+			Token:             oplet.agentInfo.ServiceToken,
+			ImpersonationUser: oplet.persistentState.Creator,
+		},
+	)
+	if err != nil {
+		oplet.setError(err)
+		return nil, err
 	}
+	return client, nil
 }
 
 func (oplet *Oplet) restartOp(ctx context.Context, reason string) error {
@@ -994,7 +990,11 @@ func (oplet *Oplet) restartOp(ctx context.Context, reason string) error {
 
 	var ytClientForOpStart yt.Client
 	if oplet.c.RunAsUser() {
-		ytClientForOpStart = oplet.userClient
+		ytClientForOpStart, err = oplet.getUserClient()
+		if err != nil {
+			oplet.setError(err)
+			return err
+		}
 	} else {
 		ytClientForOpStart = oplet.systemClient
 	}
@@ -1177,14 +1177,6 @@ func (oplet *Oplet) Pass(ctx context.Context, checkOpLiveness bool) error {
 	// so reset backoff and try to process op again.
 	if oplet.needFlushPersistentState() {
 		oplet.resetBackoff()
-	}
-
-	// userClient has to be created only after persistent state is read.
-	if oplet.userClient == nil {
-		oplet.userClient, err = oplet.getUserClient()
-		if err != nil {
-			return err
-		}
 	}
 
 	// Skip further processing if the oplet does not belong to the controller or is broken.
