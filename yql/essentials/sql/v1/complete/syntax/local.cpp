@@ -57,7 +57,8 @@ namespace NSQLComplete {
 
         TLocalSyntaxContext Analyze(TCompletionInput input) override {
             TCompletionInput statement;
-            if (!GetStatement(Lexer_, input, statement)) {
+            size_t statement_position;
+            if (!GetStatement(Lexer_, input, statement, statement_position)) {
                 return {};
             }
 
@@ -68,32 +69,39 @@ namespace NSQLComplete {
 
             TC3Candidates candidates = C3.Complete(statement);
 
+            TLocalSyntaxContext result;
+
+            result.EditRange = EditRange(context);
+            result.EditRange.Begin += statement_position;
+
             if (auto enclosing = context.Enclosing()) {
                 if (enclosing->IsLiteral()) {
-                    return {};
+                    return result;
                 } else if (enclosing->Base->Name == "ID_QUOTED") {
-                    return {}; // TODO(YQL-19747)
+                    result.Object = ObjectMatch(context, candidates);
+                    return result;
                 }
             }
 
-            return {
-                .Keywords = SiftedKeywords(candidates),
-                .Pragma = PragmaMatch(context, candidates),
-                .IsTypeName = IsTypeNameMatched(candidates),
-                .Function = FunctionMatch(context, candidates),
-                .Hint = HintMatch(candidates),
-            };
+            result.Keywords = SiftedKeywords(candidates);
+            result.Pragma = PragmaMatch(context, candidates);
+            result.IsTypeName = IsTypeNameMatched(candidates);
+            result.Function = FunctionMatch(context, candidates);
+            result.Hint = HintMatch(candidates);
+            result.Object = ObjectMatch(context, candidates);
+
+            return result;
         }
 
     private:
-        IC3Engine::TConfig ComputeC3Config() {
+        IC3Engine::TConfig ComputeC3Config() const {
             return {
                 .IgnoredTokens = ComputeIgnoredTokens(),
                 .PreferredRules = ComputePreferredRules(),
             };
         }
 
-        std::unordered_set<TTokenId> ComputeIgnoredTokens() {
+        std::unordered_set<TTokenId> ComputeIgnoredTokens() const {
             auto ignoredTokens = Grammar->GetAllTokens();
             for (auto keywordToken : Grammar->GetKeywordTokens()) {
                 ignoredTokens.erase(keywordToken);
@@ -104,11 +112,11 @@ namespace NSQLComplete {
             return ignoredTokens;
         }
 
-        std::unordered_set<TRuleId> ComputePreferredRules() {
+        std::unordered_set<TRuleId> ComputePreferredRules() const {
             return GetC3PreferredRules();
         }
 
-        TLocalSyntaxContext::TKeywords SiftedKeywords(const TC3Candidates& candidates) {
+        TLocalSyntaxContext::TKeywords SiftedKeywords(const TC3Candidates& candidates) const {
             const auto& vocabulary = Grammar->GetVocabulary();
             const auto& keywordTokens = Grammar->GetKeywordTokens();
 
@@ -125,7 +133,7 @@ namespace NSQLComplete {
         }
 
         TMaybe<TLocalSyntaxContext::TPragma> PragmaMatch(
-            const TCursorTokenContext& context, const TC3Candidates& candidates) {
+            const TCursorTokenContext& context, const TC3Candidates& candidates) const {
             if (!AnyOf(candidates.Rules, RuleAdapted(IsLikelyPragmaStack))) {
                 return Nothing();
             }
@@ -139,12 +147,12 @@ namespace NSQLComplete {
             return pragma;
         }
 
-        bool IsTypeNameMatched(const TC3Candidates& candidates) {
+        bool IsTypeNameMatched(const TC3Candidates& candidates) const {
             return AnyOf(candidates.Rules, RuleAdapted(IsLikelyTypeStack));
         }
 
         TMaybe<TLocalSyntaxContext::TFunction> FunctionMatch(
-            const TCursorTokenContext& context, const TC3Candidates& candidates) {
+            const TCursorTokenContext& context, const TC3Candidates& candidates) const {
             if (!AnyOf(candidates.Rules, RuleAdapted(IsLikelyFunctionStack))) {
                 return Nothing();
             }
@@ -158,7 +166,7 @@ namespace NSQLComplete {
             return function;
         }
 
-        TMaybe<TLocalSyntaxContext::THint> HintMatch(const TC3Candidates& candidates) {
+        TMaybe<TLocalSyntaxContext::THint> HintMatch(const TC3Candidates& candidates) const {
             // TODO(YQL-19747): detect local contexts with a single iteration through the candidates.Rules
             auto rule = FindIf(candidates.Rules, RuleAdapted(IsLikelyHintStack));
             if (rule == std::end(candidates.Rules)) {
@@ -172,6 +180,64 @@ namespace NSQLComplete {
 
             return TLocalSyntaxContext::THint{
                 .StatementKind = *stmt,
+            };
+        }
+
+        TMaybe<TLocalSyntaxContext::TObject> ObjectMatch(
+            const TCursorTokenContext& context, const TC3Candidates& candidates) const {
+            TLocalSyntaxContext::TObject object;
+
+            if (AnyOf(candidates.Rules, RuleAdapted(IsLikelyExistingTableStack))) {
+                object.Kinds.emplace(TLocalSyntaxContext::TObject::EKind::Folder);
+                object.Kinds.emplace(TLocalSyntaxContext::TObject::EKind::Table);
+            }
+
+            if (object.Kinds.empty()) {
+                return Nothing();
+            }
+
+            if (auto path = ObjectPath(context)) {
+                object.Path = *path;
+                object.IsEnclosed = true;
+            }
+
+            return object;
+        }
+
+        TMaybe<TString> ObjectPath(const TCursorTokenContext& context) const {
+            if (auto enclosing = context.Enclosing();
+                enclosing.Defined() && enclosing->Base->Name == "ID_QUOTED") {
+                TString path = enclosing->Base->Content;
+                path.erase(0, 1);
+                path.pop_back();
+                return path;
+            }
+            return "";
+        }
+
+        TEditRange EditRange(const TCursorTokenContext& context) const {
+            if (auto enclosing = context.Enclosing()) {
+                return EditRange(*enclosing, context.Cursor);
+            }
+
+            const TRichParsedToken prev = context.TokenAt(context.Cursor.PrevTokenIndex);
+            if (IsWordBoundary(prev.Base->Content.back())) {
+                return {
+                    .Begin = context.Cursor.Position,
+                };
+            }
+
+            return EditRange(prev, context.Cursor);
+        }
+
+        TEditRange EditRange(const TRichParsedToken& token, const TCursor& cursor) const {
+            size_t begin = token.Position;
+            if (token.Base->Name == "NOT_EQUALS2") {
+                begin += 1;
+            }
+            return {
+                .Begin = begin,
+                .Length = cursor.Position - begin,
             };
         }
 

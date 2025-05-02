@@ -37,30 +37,33 @@ namespace NSQLComplete {
             }
 
             TLocalSyntaxContext context = SyntaxAnalysis->Analyze(input);
+            auto keywords = context.Keywords;
 
-            TStringBuf prefix = input.Text.Head(input.CursorPosition);
-            TCompletedToken completedToken = GetCompletedToken(prefix);
+            TNameRequest request = NameRequestFrom(input, context);
+            if (request.IsEmpty()) {
+                return NThreading::MakeFuture<TCompletion>({
+                    .CompletedToken = GetCompletedToken(input, context.EditRange),
+                    .Candidates = {},
+                });
+            }
 
-            return GetCandidates(std::move(context), completedToken)
-                .Apply([completedToken](NThreading::TFuture<TVector<TCandidate>> f) {
-                    return TCompletion{
-                        .CompletedToken = std::move(completedToken),
-                        .Candidates = f.ExtractValue(),
-                    };
+            return Names->Lookup(std::move(request))
+                .Apply([this, input, context = std::move(context)](auto f) {
+                    return ToCompletion(input, context, f.ExtractValue());
                 });
         }
 
     private:
-        TCompletedToken GetCompletedToken(TStringBuf prefix) const {
+        TCompletedToken GetCompletedToken(TCompletionInput input, TEditRange editRange) const {
             return {
-                .Content = LastWord(prefix),
-                .SourcePosition = LastWordIndex(prefix),
+                .Content = input.Text.SubStr(editRange.Begin, editRange.Length),
+                .SourcePosition = editRange.Begin,
             };
         }
 
-        NThreading::TFuture<TVector<TCandidate>> GetCandidates(TLocalSyntaxContext context, const TCompletedToken& prefix) const {
+        TNameRequest NameRequestFrom(TCompletionInput input, const TLocalSyntaxContext& context) const {
             TNameRequest request = {
-                .Prefix = TString(prefix.Content),
+                .Prefix = TString(GetCompletedToken(input, context.EditRange).Content),
                 .Limit = Configuration.Limit,
             };
 
@@ -90,24 +93,47 @@ namespace NSQLComplete {
                 request.Constraints.Hint = std::move(constraints);
             }
 
-            if (request.IsEmpty()) {
-                return NThreading::MakeFuture<TVector<TCandidate>>({});
+            if (context.Object) {
+                using EObjectKind = TLocalSyntaxContext::TObject::EKind;
+
+                const auto& kinds = context.Object->Kinds;
+                if (kinds.contains(EObjectKind::Folder)) {
+                    request.Constraints.Folder = {};
+                }
+                if (kinds.contains(EObjectKind::Table)) {
+                    request.Constraints.Table = {};
+                }
+
+                request.Prefix = context.Object->Path;
             }
 
-            return Names->Lookup(std::move(request))
-                .Apply([keywords = std::move(context.Keywords)](NThreading::TFuture<TNameResponse> f) {
-                    TNameResponse response = f.ExtractValue();
-                    return Convert(std::move(response.RankedNames), std::move(keywords));
-                });
+            return request;
         }
 
-        static TVector<TCandidate> Convert(TVector<TGenericName> names, TLocalSyntaxContext::TKeywords keywords) {
+        TCompletion ToCompletion(
+            TCompletionInput input,
+            TLocalSyntaxContext context,
+            TNameResponse response) const {
+            TCompletion completion = {
+                .CompletedToken = GetCompletedToken(input, context.EditRange),
+                .Candidates = Convert(std::move(response.RankedNames), std::move(context)),
+            };
+
+            if (response.NameHintLength) {
+                completion.CompletedToken = GetCompletedToken(
+                    input, {.Length = *response.NameHintLength});
+            }
+
+            return completion;
+        }
+
+        static TVector<TCandidate> Convert(TVector<TGenericName> names, TLocalSyntaxContext context) {
             TVector<TCandidate> candidates;
             for (auto& name : names) {
                 candidates.emplace_back(std::visit([&](auto&& name) -> TCandidate {
                     using T = std::decay_t<decltype(name)>;
                     if constexpr (std::is_base_of_v<TKeyword, T>) {
-                        TVector<TString>& seq = keywords[name.Content];
+                        TVector<TString>& seq = context.Keywords[name.Content];
                         seq.insert(std::begin(seq), name.Content);
                         return {ECandidateKind::Keyword, FormatKeywords(seq)};
                     }
@@ -123,6 +149,23 @@ namespace NSQLComplete {
                     }
                     if constexpr (std::is_base_of_v<THintName, T>) {
                         return {ECandidateKind::HintName, std::move(name.Indentifier)};
+                    }
+                    if constexpr (std::is_base_of_v<TFolderName, T>) {
+                        if (context.Object->IsEnclosed) {
+                            name.Indentifier.prepend('`');
+                            name.Indentifier.append('`');
+                        }
+                        return {ECandidateKind::FolderName, std::move(name.Indentifier)};
+                    }
+                    if constexpr (std::is_base_of_v<TTableName, T>) {
+                        if (context.Object->IsEnclosed) {
+                            name.Indentifier.prepend('`');
+                            name.Indentifier.append('`');
+                        }
+                        return {ECandidateKind::TableName, std::move(name.Indentifier)};
+                    }
+                    if constexpr (std::is_base_of_v<TUnkownName, T>) {
+                        return {ECandidateKind::UnknownName, std::move(name.Content)};
                     }
                 }, std::move(name)));
             }
@@ -161,6 +204,15 @@ void Out<NSQLComplete::ECandidateKind>(IOutputStream& out, NSQLComplete::ECandid
             break;
         case NSQLComplete::ECandidateKind::HintName:
             out << "HintName";
+            break;
+        case NSQLComplete::ECandidateKind::FolderName:
+            out << "FolderName";
+            break;
+        case NSQLComplete::ECandidateKind::TableName:
+            out << "TableName";
+            break;
+        case NSQLComplete::ECandidateKind::UnknownName:
+            out << "UnknownName";
             break;
     }
 }

@@ -6,9 +6,15 @@
 
 #include <util/generic/string.h>
 #include <util/generic/hash.h>
+#include <util/generic/hash_set.h>
 #include <util/generic/maybe.h>
 
 namespace NSQLComplete {
+
+    struct TEditRange {
+        size_t Begin = 0;
+        size_t Length = 0;
+    };
 
     struct TLocalSyntaxContext {
         using TKeywords = THashMap<TString, TVector<TString>>;
@@ -25,11 +31,24 @@ namespace NSQLComplete {
             EStatementKind StatementKind;
         };
 
+        struct TObject {
+            enum class EKind {
+                Folder,
+                Table,
+            };
+
+            TString Path;
+            THashSet<EKind> Kinds;
+            bool IsEnclosed = false;
+        };
+
         TKeywords Keywords;
         TMaybe<TPragma> Pragma;
         bool IsTypeName = false;
         TMaybe<TFunction> Function;
         TMaybe<THint> Hint;
+        TMaybe<TObject> Object;
+        TEditRange EditRange;
     };
 
     class ILocalSyntaxAnalysis {

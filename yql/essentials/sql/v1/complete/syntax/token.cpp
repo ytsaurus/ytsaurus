@@ -112,7 +112,11 @@ namespace NSQLComplete {
         return TokenAt(prefix.size() - pattern.size());
     }
 
-    bool GetStatement(ILexer::TPtr& lexer, TCompletionInput input, TCompletionInput& output) {
+    bool GetStatement(
+        ILexer::TPtr& lexer,
+        TCompletionInput input,
+        TCompletionInput& output,
+        size_t& output_position) {
         TVector<TString> statements;
         NYql::TIssues issues;
         if (!NSQLTranslationV1::SplitQueryToStatements(
@@ -122,7 +126,8 @@ namespace NSQLComplete {
             return false;
         }
 
-        size_t cursor = 0;
+        size_t& cursor = output_position;
+        cursor = 0;
         for (const auto& statement : statements) {
             if (input.CursorPosition < cursor + statement.size()) {
                 output = {

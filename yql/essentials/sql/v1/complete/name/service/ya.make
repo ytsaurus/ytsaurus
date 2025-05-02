@@ -13,6 +13,7 @@ END()
 
 RECURSE(
     ranking
+    schema
     static
     union
 )

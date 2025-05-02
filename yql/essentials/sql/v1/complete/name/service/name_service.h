@@ -42,18 +42,36 @@ namespace NSQLComplete {
         };
     };
 
+    struct TFolderName: TIndentifier {
+        struct TConstraints {};
+    };
+
+    struct TTableName: TIndentifier {
+        struct TConstraints {};
+    };
+
+    struct TUnkownName {
+        TString Content;
+        TString Type;
+    };
+
     using TGenericName = std::variant<
         TKeyword,
         TPragmaName,
         TTypeName,
         TFunctionName,
-        THintName>;
+        THintName,
+        TFolderName,
+        TTableName,
+        TUnkownName>;
 
     struct TNameConstraints {
         TMaybe<TPragmaName::TConstraints> Pragma;
         TMaybe<TTypeName::TConstraints> Type;
         TMaybe<TFunctionName::TConstraints> Function;
         TMaybe<THintName::TConstraints> Hint;
+        TMaybe<TFolderName::TConstraints> Folder;
+        TMaybe<TTableName::TConstraints> Table;
 
         TGenericName Qualified(TGenericName unqualified) const;
         TGenericName Unqualified(TGenericName qualified) const;
@@ -72,12 +90,15 @@ namespace NSQLComplete {
                    !Constraints.Pragma &&
                    !Constraints.Type &&
                    !Constraints.Function &&
-                   !Constraints.Hint;
+                   !Constraints.Hint &&
+                   !Constraints.Folder &&
+                   !Constraints.Table;
         }
     };
 
     struct TNameResponse {
         TVector<TGenericName> RankedNames;
+        TMaybe<size_t> NameHintLength;
     };
 
     class INameService: public TThrRefBase {

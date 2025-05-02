@@ -40,7 +40,11 @@ namespace NSQLComplete {
         TMaybe<TRichParsedToken> MatchCursorPrefix(const TVector<TStringBuf>& pattern) const;
     };
 
-    bool GetStatement(ILexer::TPtr& lexer, TCompletionInput input, TCompletionInput& output);
+    bool GetStatement(
+        ILexer::TPtr& lexer,
+        TCompletionInput input,
+        TCompletionInput& output,
+        size_t& output_position);
 
     bool GetCursorTokenContext(ILexer::TPtr& lexer, TCompletionInput input, TCursorTokenContext& context);
 

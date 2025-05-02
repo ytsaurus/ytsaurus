@@ -15,6 +15,8 @@ namespace NSQLComplete {
 
     bool IsLikelyHintStack(const TParserCallStack& stack);
 
+    bool IsLikelyExistingTableStack(const TParserCallStack& stack);
+
     TMaybe<EStatementKind> StatementKindOf(const TParserCallStack& stack);
 
     std::unordered_set<TRuleId> GetC3PreferredRules();
