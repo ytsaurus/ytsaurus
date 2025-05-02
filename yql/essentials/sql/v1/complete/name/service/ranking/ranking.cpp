@@ -91,6 +91,11 @@ namespace NSQLComplete {
                     }
                 }
 
+                if constexpr (std::is_same_v<T, TFolderName> ||
+                              std::is_same_v<T, TTableName>) {
+                    return std::numeric_limits<size_t>::max();
+                }
+
                 return 0;
             }, name);
         }

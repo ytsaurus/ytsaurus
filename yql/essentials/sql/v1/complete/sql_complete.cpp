@@ -98,10 +98,10 @@ namespace NSQLComplete {
 
                 const auto& kinds = context.Object->Kinds;
                 if (kinds.contains(EObjectKind::Folder)) {
-                    request.Constraints.Folder = {};
+                    request.Constraints.Folder = TFolderName::TConstraints();
                 }
                 if (kinds.contains(EObjectKind::Table)) {
-                    request.Constraints.Table = {};
+                    request.Constraints.Table = TTableName::TConstraints();
                 }
 
                 request.Prefix = context.Object->Path;
@@ -121,10 +121,11 @@ namespace NSQLComplete {
 
             if (response.NameHintLength) {
                 const auto length = *response.NameHintLength;
-                completion.CompletedToken = GetCompletedToken(input, {
-                                                                         .Begin = input.CursorPosition - length,
-                                                                         .Length = length,
-                                                                     });
+                TEditRange editRange = {
+                    .Begin = input.CursorPosition - length,
+                    .Length = length,
+                };
+                completion.CompletedToken = GetCompletedToken(input, editRange);
             }
 
             return completion;
@@ -154,6 +155,7 @@ namespace NSQLComplete {
                         return {ECandidateKind::HintName, std::move(name.Indentifier)};
                     }
                     if constexpr (std::is_base_of_v<TFolderName, T>) {
+                        name.Indentifier.append('/');
                         if (context.Object->IsEnclosed) {
                             name.Indentifier.prepend('`');
                             name.Indentifier.append('`');

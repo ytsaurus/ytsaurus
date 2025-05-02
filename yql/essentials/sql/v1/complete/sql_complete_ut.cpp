@@ -33,10 +33,12 @@ public:
 };
 
 Y_UNIT_TEST_SUITE(SqlCompleteTests) {
+    using ECandidateKind::FolderName;
     using ECandidateKind::FunctionName;
     using ECandidateKind::HintName;
     using ECandidateKind::Keyword;
     using ECandidateKind::PragmaName;
+    using ECandidateKind::TableName;
     using ECandidateKind::TypeName;
 
     TLexerSupplier MakePureLexerSupplier() {
@@ -431,6 +433,10 @@ Y_UNIT_TEST_SUITE(SqlCompleteTests) {
 
     Y_UNIT_TEST(SelectFrom) {
         TVector<TCandidate> expected = {
+            {FolderName, "`.sys/`"},
+            {FolderName, "`local/`"},
+            {FolderName, "`prod/`"},
+            {FolderName, "`test/`"},
             {Keyword, "ANY"},
             {Keyword, "CALLABLE"},
             {Keyword, "DICT"},
