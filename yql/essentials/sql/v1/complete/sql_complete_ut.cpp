@@ -1,8 +1,10 @@
 #include "sql_complete.h"
 
+#include <yql/essentials/sql/v1/complete/name/cluster/static/discovery.h>
 #include <yql/essentials/sql/v1/complete/name/object/static/schema_gateway.h>
 #include <yql/essentials/sql/v1/complete/name/service/ranking/frequency.h>
 #include <yql/essentials/sql/v1/complete/name/service/ranking/ranking.h>
+#include <yql/essentials/sql/v1/complete/name/service/cluster/name_service.h>
 #include <yql/essentials/sql/v1/complete/name/service/schema/name_service.h>
 #include <yql/essentials/sql/v1/complete/name/service/static/name_service.h>
 #include <yql/essentials/sql/v1/complete/name/service/union/name_service.h>
@@ -33,6 +35,7 @@ public:
 };
 
 Y_UNIT_TEST_SUITE(SqlCompleteTests) {
+    using ECandidateKind::ClusterName;
     using ECandidateKind::FolderName;
     using ECandidateKind::FunctionName;
     using ECandidateKind::HintName;
@@ -87,6 +90,11 @@ Y_UNIT_TEST_SUITE(SqlCompleteTests) {
             {"/.sys/", {{"Table", "status"}}},
         };
 
+        TVector<TString> clusters = {
+            "example",
+            "ytsaurus",
+        };
+
         TFrequencyData frequency;
 
         IRanking::TPtr ranking = MakeDefaultRanking(frequency);
@@ -94,6 +102,7 @@ Y_UNIT_TEST_SUITE(SqlCompleteTests) {
         TVector<INameService::TPtr> children = {
             MakeStaticNameService(std::move(names), frequency),
             MakeSchemaNameService(MakeStaticSchemaGateway(std::move(fs))),
+            MakeClusterNameService(MakeStaticClusterDiscovery(std::move(clusters))),
         };
 
         INameService::TPtr service = MakeUnionNameService(std::move(children), ranking);
@@ -179,6 +188,15 @@ Y_UNIT_TEST_SUITE(SqlCompleteTests) {
         UNIT_ASSERT_VALUES_EQUAL(Complete(engine, "#SELECT * FROM"), expected);
     }
 
+    Y_UNIT_TEST(Use) {
+        TVector<TCandidate> expected = {
+            {ClusterName, "example"},
+            {ClusterName, "ytsaurus"},
+        };
+        auto engine = MakeSqlCompletionEngineUT();
+        UNIT_ASSERT_VALUES_EQUAL(Complete(engine, "USE "), expected);
+    }
+
     Y_UNIT_TEST(Alter) {
         TVector<TCandidate> expected = {
             {Keyword, "ASYNC REPLICATION"},
@@ -231,6 +249,8 @@ Y_UNIT_TEST_SUITE(SqlCompleteTests) {
                 {FolderName, "`local/`"},
                 {FolderName, "`prod/`"},
                 {FolderName, "`test/`"},
+                {ClusterName, "example"},
+                {ClusterName, "ytsaurus"},
                 {Keyword, "IF NOT EXISTS"},
             };
             UNIT_ASSERT_VALUES_EQUAL(Complete(engine, "CREATE TABLE #"), expected);
@@ -459,6 +479,8 @@ Y_UNIT_TEST_SUITE(SqlCompleteTests) {
                 {FolderName, "`local/`"},
                 {FolderName, "`prod/`"},
                 {FolderName, "`test/`"},
+                {ClusterName, "example"},
+                {ClusterName, "ytsaurus"},
                 {Keyword, "ANY"},
                 {Keyword, "CALLABLE"},
                 {Keyword, "DICT"},

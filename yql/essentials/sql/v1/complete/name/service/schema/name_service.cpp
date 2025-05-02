@@ -11,7 +11,12 @@ namespace NSQLComplete {
             {
             }
 
-            TFuture<TNameResponse> Lookup(TNameRequest request) const override {
+            NThreading::TFuture<TNameResponse> Lookup(TNameRequest request) const override {
+                if (!request.Constraints.Folder &&
+                    !request.Constraints.Table) {
+                    return NThreading::MakeFuture<TNameResponse>({});
+                }
+
                 return Schema_
                     ->List(ToListRequest(std::move(request)))
                     .Apply(ToNameResponse);

@@ -96,6 +96,10 @@ namespace NSQLComplete {
                     return std::numeric_limits<size_t>::max();
                 }
 
+                if constexpr (std::is_same_v<T, TClusterName>) {
+                    return std::numeric_limits<size_t>::max() - 8;
+                }
+
                 return 0;
             }, name);
         }

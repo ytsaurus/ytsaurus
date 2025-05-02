@@ -12,6 +12,7 @@ PEERDIR(
 END()
 
 RECURSE(
+    cluster
     ranking
     schema
     static

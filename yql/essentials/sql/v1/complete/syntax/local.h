@@ -48,6 +48,7 @@ namespace NSQLComplete {
         TMaybe<TFunction> Function;
         TMaybe<THint> Hint;
         TMaybe<TObject> Object;
+        bool Cluster = false;
         TEditRange EditRange;
     };
 

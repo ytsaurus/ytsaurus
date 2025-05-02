@@ -29,7 +29,7 @@ namespace NSQLComplete {
     };
 
     struct TTypeName: TIndentifier {
-        using TConstraints = std::monostate;
+        struct TConstraints {};
     };
 
     struct TFunctionName: TIndentifier {
@@ -50,6 +50,10 @@ namespace NSQLComplete {
         struct TConstraints {};
     };
 
+    struct TClusterName: TIndentifier {
+        struct TConstraints {};
+    };
+
     struct TUnkownName {
         TString Content;
         TString Type;
@@ -63,6 +67,7 @@ namespace NSQLComplete {
         THintName,
         TFolderName,
         TTableName,
+        TClusterName,
         TUnkownName>;
 
     struct TNameConstraints {
@@ -72,6 +77,7 @@ namespace NSQLComplete {
         TMaybe<THintName::TConstraints> Hint;
         TMaybe<TFolderName::TConstraints> Folder;
         TMaybe<TTableName::TConstraints> Table;
+        TMaybe<TClusterName::TConstraints> Cluster;
 
         TGenericName Qualified(TGenericName unqualified) const;
         TGenericName Unqualified(TGenericName qualified) const;
@@ -92,7 +98,8 @@ namespace NSQLComplete {
                    !Constraints.Function &&
                    !Constraints.Hint &&
                    !Constraints.Folder &&
-                   !Constraints.Table;
+                   !Constraints.Table &&
+                   !Constraints.Cluster;
         }
     };
 

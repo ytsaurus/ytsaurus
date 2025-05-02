@@ -119,6 +119,11 @@ namespace NSQLComplete {
                           RULE(Id_table_or_type)}, stack));
     }
 
+    bool IsLikelyClusterStack(const TParserCallStack& stack) {
+        DEBUG_SYMBOLIZE_STACK(stack);
+        return Contains({RULE(Cluster_expr)}, stack);
+    }
+
     TMaybe<EStatementKind> StatementKindOf(const TParserCallStack& stack) {
         for (TRuleId rule : std::ranges::views::reverse(stack)) {
             if (rule == RULE(Process_core) || rule == RULE(Reduce_core) || rule == RULE(Select_core)) {

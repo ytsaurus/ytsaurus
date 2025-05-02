@@ -85,10 +85,11 @@ namespace NSQLComplete {
 
             result.Keywords = SiftedKeywords(candidates);
             result.Pragma = PragmaMatch(context, candidates);
-            result.IsTypeName = IsTypeNameMatched(candidates);
+            result.IsTypeName = TypeMatch(candidates);
             result.Function = FunctionMatch(context, candidates);
             result.Hint = HintMatch(candidates);
             result.Object = ObjectMatch(context, candidates);
+            result.Cluster = ClusterMatch(candidates);
 
             return result;
         }
@@ -147,7 +148,7 @@ namespace NSQLComplete {
             return pragma;
         }
 
-        bool IsTypeNameMatched(const TC3Candidates& candidates) const {
+        bool TypeMatch(const TC3Candidates& candidates) const {
             return AnyOf(candidates.Rules, RuleAdapted(IsLikelyTypeStack));
         }
 
@@ -217,6 +218,10 @@ namespace NSQLComplete {
                 return path;
             }
             return Nothing();
+        }
+
+        bool ClusterMatch(const TC3Candidates& candidates) const {
+            return AnyOf(candidates.Rules, RuleAdapted(IsLikelyClusterStack));
         }
 
         TEditRange EditRange(const TCursorTokenContext& context) const {

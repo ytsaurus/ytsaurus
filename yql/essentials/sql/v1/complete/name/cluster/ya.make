@@ -1,9 +1,5 @@
 LIBRARY()
 
-SRCS(
-    schema_gateway.cpp
-)
-
 PEERDIR(
     library/cpp/threading/future
 )
@@ -11,7 +7,5 @@ PEERDIR(
 END()
 
 RECURSE(
-    dispatch
-    simple
     static
 )

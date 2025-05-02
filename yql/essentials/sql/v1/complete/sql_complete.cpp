@@ -107,6 +107,10 @@ namespace NSQLComplete {
                 request.Prefix = context.Object->Path;
             }
 
+            if (context.Cluster) {
+                request.Constraints.Cluster = TClusterName::TConstraints();
+            }
+
             return request;
         }
 
@@ -169,6 +173,9 @@ namespace NSQLComplete {
                         }
                         return {ECandidateKind::TableName, std::move(name.Indentifier)};
                     }
+                    if constexpr (std::is_base_of_v<TClusterName, T>) {
+                        return {ECandidateKind::ClusterName, std::move(name.Indentifier)};
+                    }
                     if constexpr (std::is_base_of_v<TUnkownName, T>) {
                         return {ECandidateKind::UnknownName, std::move(name.Content)};
                     }
@@ -215,6 +222,9 @@ void Out<NSQLComplete::ECandidateKind>(IOutputStream& out, NSQLComplete::ECandid
             break;
         case NSQLComplete::ECandidateKind::TableName:
             out << "TableName";
+            break;
+        case NSQLComplete::ECandidateKind::ClusterName:
+            out << "ClusterName";
             break;
         case NSQLComplete::ECandidateKind::UnknownName:
             out << "UnknownName";
