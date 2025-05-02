@@ -630,6 +630,28 @@ Y_UNIT_TEST_SUITE(SqlCompleteTests) {
         UNIT_ASSERT_VALUES_EQUAL(Complete(engine, "UPSERT "), expected);
     }
 
+    Y_UNIT_TEST(UpsertInto) {
+        auto engine = MakeSqlCompletionEngineUT();
+        {
+            TVector<TCandidate> expected = {
+                {FolderName, "`.sys/`"},
+                {FolderName, "`local/`"},
+                {FolderName, "`prod/`"},
+                {FolderName, "`test/`"},
+                {ClusterName, "example"},
+                {ClusterName, "ytsaurus"},
+            };
+            UNIT_ASSERT_VALUES_EQUAL(Complete(engine, "UPSERT INTO "), expected);
+        }
+        {
+            TVector<TCandidate> expected = {
+                {TableName, "meta"},
+                {FolderName, "service/"},
+            };
+            UNIT_ASSERT_VALUES_EQUAL(Complete(engine, "UPSERT INTO `test/#`"), expected);
+        }
+    }
+
     Y_UNIT_TEST(TypeName) {
         TVector<TCandidate> expected = {
             {Keyword, "CALLABLE<("},
