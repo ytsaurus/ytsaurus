@@ -21,6 +21,7 @@
 #endif
 
 #include <yt/yt/library/containers/cri/config.h>
+#include <yt/yt/library/containers/cri/image_cache.h>
 
 #include <yt/yt/library/process/process.h>
 
@@ -1079,6 +1080,20 @@ class TCriJobProxyEnvironment
 public:
     explicit TCriJobProxyEnvironment(TCriJobEnvironmentConfigPtr config)
         : Config_(std::move(config))
+        , Executor_(CreateCriExecutor(Config_->CriExecutor))
+        , ImageCache_(NContainers::NCri::CreateCriImageCache(Config_->CriImageCache, Executor_))
+        , CriDescriptor_{Config_->PodDescriptorName, Config_->PodDescriptorId}
+        , CriPodSpec_{
+            Config_->PodSpecName,
+            NContainers::NCri::TCriContainerResources{
+                Config_->PodSpecCpuLimit,
+                Config_->PodSpecCpuRequest,
+                Config_->PodSpecMemoryLimit,
+                Config_->PodSpecCpuRequest,
+                Config_->PodSpecMemoryOomGroup,
+                Config_->PodSpecCpusetCpus
+            }
+        }
     { }
 
     void SetCpuGuarantee(double /*value*/) override
@@ -1174,6 +1189,11 @@ public:
 
 private:
     const TCriJobEnvironmentConfigPtr Config_;
+    const NContainers::NCri::ICriExecutorPtr Executor_;
+    const NContainers::NCri::ICriImageCachePtr ImageCache_;
+
+    const NContainers::NCri::TCriDescriptor CriDescriptor_;
+    const NContainers::NCri::TCriPodSpec CriPodSpec_;
 
     NCGroups::TSelfCGroupsStatisticsFetcher StatisticsFetcher_;
 };

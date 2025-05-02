@@ -161,6 +161,27 @@ public:
                     TDelayedExecutor::WaitForDuration(*delay);
                 }
 
+                // TODO: probably, not the best place to add those into config, but at least slot *can* change and save the config.
+                auto containerEnv = JobEnvironment_->GetContainerEnvironment(SlotIndex_);
+                if (auto criContainerEnv = DynamicPointerCast<TContainerEnvironmentCri>(containerEnv); containerEnv)
+                {
+                    auto criJobEnv = config->JobEnvironment.TryGetConcrete<NJobProxy::TCriJobEnvironmentConfig>();
+                    if (!criJobEnv) {
+                        THROW_ERROR_EXCEPTION("CRI container environment is set but not the CI job environment");
+                    }
+
+                    criJobEnv->PodDescriptorName = criContainerEnv->PodDescriptor.Name;
+                    criJobEnv->PodDescriptorId = criContainerEnv->PodDescriptor.Id;
+
+                    criJobEnv->PodSpecName = criContainerEnv->PodSpec->Name;
+                    criJobEnv->PodSpecCpuLimit = criContainerEnv->PodSpec->Resources.CpuLimit;
+                    criJobEnv->PodSpecCpuRequest = criContainerEnv->PodSpec->Resources.CpuRequest;
+                    criJobEnv->PodSpecMemoryLimit = criContainerEnv->PodSpec->Resources.MemoryLimit;
+                    criJobEnv->PodSpecMemoryRequest = criContainerEnv->PodSpec->Resources.MemoryRequest;
+                    criJobEnv->PodSpecMemoryOomGroup = criContainerEnv->PodSpec->Resources.MemoryOomGroup;
+                    criJobEnv->PodSpecCpusetCpus = criContainerEnv->PodSpec->Resources.CpusetCpus;
+                }
+
                 YT_LOG_DEBUG("Start making job proxy config (JobId: %v)", jobId);
 
                 {

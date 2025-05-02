@@ -206,6 +206,17 @@ void TCriJobEnvironmentConfig::Register(TRegistrar registrar)
         .Default();
 
     registrar.Parameter("use_job_proxy_from_image", &TThis::UseJobProxyFromImage);
+
+    registrar.Parameter("pod_descriptor_name", &TThis::PodDescriptorName);
+    registrar.Parameter("pod_descriptor_id", &TThis::PodDescriptorId);
+
+    registrar.Parameter("pod_spec_name", &TThis::PodSpecName);
+    registrar.Parameter("pod_spec_cpu_limit", &TThis::PodSpecCpuLimit);
+    registrar.Parameter("pod_spec_cpu_request", &TThis::PodSpecCpuRequest);
+    registrar.Parameter("pod_spec_memory_limit", &TThis::PodSpecMemoryLimit);
+    registrar.Parameter("pod_spec_memory_request", &TThis::PodSpecMemoryRequest);
+    registrar.Parameter("pod_spec_memory_oom_group", &TThis::PodSpecMemoryOomGroup);
+    registrar.Parameter("pod_spec_cpuset_cpus", &TThis::PodSpecCpusetCpus);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -393,6 +404,9 @@ void TJobProxyInternalConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("start_queue_consumer_registration_manager", &TThis::StartQueueConsumerRegistrationManager)
         .Default(true);
+
+    registrar.Parameter("container_environment", &TThis::ContainerEnvironment)
+        .Optional();
 
     registrar.Preprocessor([] (TThis* config) {
         config->SolomonExporter->EnableSelfProfiling = false;

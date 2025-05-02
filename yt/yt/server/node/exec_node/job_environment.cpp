@@ -195,6 +195,11 @@ public:
         return 0;
     }
 
+    TContainerEnvironmentBasePtr GetContainerEnvironment(int /*slotIndex*/) const override
+    {
+        return {};
+    }
+
     TFuture<std::vector<TShellCommandOutput>> RunCommands(
         int /*slotIndex*/,
         ESlotType /*slotType*/,
@@ -959,6 +964,11 @@ private:
         return SelfInstance_->GetMajorPageFaultCount();
     }
 
+    TContainerEnvironmentBasePtr GetContainerEnvironment(int /*slotIndex*/) const override
+    {
+        return {};
+    }
+
     TJobWorkspaceBuilderPtr CreateJobWorkspaceBuilder(
         IInvokerPtr invoker,
         TJobWorkspaceBuildingContext context,
@@ -989,6 +999,11 @@ public:
         , Executor_(CreateCriExecutor(ConcreteConfig_->CriExecutor))
         , ImageCache_(CreateCriImageCache(ConcreteConfig_->CriImageCache, Executor_))
     { }
+
+    TContainerEnvironmentBasePtr GetContainerEnvironment(int slotIndex) const override
+    {
+        return New<TContainerEnvironmentCri>(PodDescriptors_[slotIndex], PodSpecs_[slotIndex]);
+    }
 
     void DoInit(int slotCount, double cpuLimit, double /*idleCpuFraction*/) override
     {
