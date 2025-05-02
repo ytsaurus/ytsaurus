@@ -41,7 +41,7 @@ namespace NSQLComplete {
                         response.RankedNames,
                         std::back_inserter(united.RankedNames));
 
-                    if (response.NameHintLength) {
+                    if (!response.IsEmpty() && response.NameHintLength) {
                         Y_ENSURE(
                             united.NameHintLength.Empty() ||
                             united.NameHintLength == response.NameHintLength);

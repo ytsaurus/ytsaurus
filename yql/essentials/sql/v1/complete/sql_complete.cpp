@@ -120,8 +120,11 @@ namespace NSQLComplete {
             };
 
             if (response.NameHintLength) {
-                completion.CompletedToken = GetCompletedToken(
-                    input, {.Length = *response.NameHintLength});
+                const auto length = *response.NameHintLength;
+                completion.CompletedToken = GetCompletedToken(input, {
+                                                                         .Begin = input.CursorPosition - length,
+                                                                         .Length = length,
+                                                                     });
             }
 
             return completion;

@@ -99,6 +99,10 @@ namespace NSQLComplete {
     struct TNameResponse {
         TVector<TGenericName> RankedNames;
         TMaybe<size_t> NameHintLength;
+
+        bool IsEmpty() const {
+            return RankedNames.empty();
+        }
     };
 
     class INameService: public TThrRefBase {

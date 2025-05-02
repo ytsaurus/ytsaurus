@@ -1,8 +1,11 @@
 #include "sql_complete.h"
 
+#include <yql/essentials/sql/v1/complete/name/object/static/schema_gateway.h>
 #include <yql/essentials/sql/v1/complete/name/service/ranking/frequency.h>
 #include <yql/essentials/sql/v1/complete/name/service/ranking/ranking.h>
+#include <yql/essentials/sql/v1/complete/name/service/schema/name_service.h>
 #include <yql/essentials/sql/v1/complete/name/service/static/name_service.h>
+#include <yql/essentials/sql/v1/complete/name/service/union/name_service.h>
 
 #include <yql/essentials/sql/v1/lexer/lexer.h>
 #include <yql/essentials/sql/v1/lexer/antlr4_pure/lexer.h>
@@ -49,6 +52,7 @@ Y_UNIT_TEST_SUITE(SqlCompleteTests) {
 
     ISqlCompletionEngine::TPtr MakeSqlCompletionEngineUT() {
         TLexerSupplier lexer = MakePureLexerSupplier();
+
         TNameSet names = {
             .Pragmas = {
                 "yson.CastToString",
@@ -66,8 +70,32 @@ Y_UNIT_TEST_SUITE(SqlCompleteTests) {
                 {EStatementKind::Insert, {"EXPIRATION"}},
             },
         };
-        TFrequencyData frequency = {};
-        INameService::TPtr service = MakeStaticNameService(std::move(names), std::move(frequency));
+
+        THashMap<TString, TVector<TFolderEntry>> fs = {
+            {"/", {{"Folder", "local"},
+                   {"Folder", "test"},
+                   {"Folder", "prod"},
+                   {"Folder", ".sys"}}},
+            {"/local/", {{"Table", "example"},
+                         {"Table", "account"},
+                         {"Table", "abacaba"}}},
+            {"/test/", {{"Folder", "service"},
+                        {"Table", "meta"}}},
+            {"/test/service/", {{"Table", "example"}}},
+            {"/.sys/", {{"Table", "status"}}},
+        };
+
+        TFrequencyData frequency;
+
+        IRanking::TPtr ranking = MakeDefaultRanking(frequency);
+
+        TVector<INameService::TPtr> children = {
+            MakeStaticNameService(std::move(names), frequency),
+            MakeSchemaNameService(MakeStaticSchemaGateway(std::move(fs))),
+        };
+
+        INameService::TPtr service = MakeUnionNameService(std::move(children), ranking);
+
         return MakeSqlCompletionEngine(std::move(lexer), std::move(service));
     }
 
