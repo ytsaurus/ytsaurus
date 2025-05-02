@@ -103,6 +103,10 @@ namespace NSQLComplete {
                Contains({RULE(External_call_param), RULE(An_id)}, stack);
     }
 
+    bool IsLikelyObjectRefStack(const TParserCallStack& stack) {
+        return Contains({RULE(Object_ref)}, stack);
+    }
+
     bool IsLikelyExistingTableStack(const TParserCallStack& stack) {
         return !Contains({RULE(Create_table_stmt),
                           RULE(Simple_table_ref)}, stack) &&

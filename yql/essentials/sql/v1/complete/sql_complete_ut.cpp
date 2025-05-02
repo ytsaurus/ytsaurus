@@ -223,6 +223,26 @@ Y_UNIT_TEST_SUITE(SqlCompleteTests) {
         UNIT_ASSERT_VALUES_EQUAL(Complete(engine, "CREATE "), expected);
     }
 
+    Y_UNIT_TEST(CreateTable) {
+        auto engine = MakeSqlCompletionEngineUT();
+        {
+            TVector<TCandidate> expected = {
+                {FolderName, "`.sys/`"},
+                {FolderName, "`local/`"},
+                {FolderName, "`prod/`"},
+                {FolderName, "`test/`"},
+                {Keyword, "IF NOT EXISTS"},
+            };
+            UNIT_ASSERT_VALUES_EQUAL(Complete(engine, "CREATE TABLE #"), expected);
+        }
+        {
+            TVector<TCandidate> expected = {
+                {FolderName, "service/"},
+            };
+            UNIT_ASSERT_VALUES_EQUAL(Complete(engine, "CREATE TABLE `test/#`"), expected);
+        }
+    }
+
     Y_UNIT_TEST(Delete) {
         TVector<TCandidate> expected = {
             {Keyword, "FROM"},

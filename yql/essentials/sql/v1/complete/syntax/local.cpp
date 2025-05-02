@@ -187,6 +187,10 @@ namespace NSQLComplete {
             const TCursorTokenContext& context, const TC3Candidates& candidates) const {
             TLocalSyntaxContext::TObject object;
 
+            if (AnyOf(candidates.Rules, RuleAdapted(IsLikelyObjectRefStack))) {
+                object.Kinds.emplace(TLocalSyntaxContext::TObject::EKind::Folder);
+            }
+
             if (AnyOf(candidates.Rules, RuleAdapted(IsLikelyExistingTableStack))) {
                 object.Kinds.emplace(TLocalSyntaxContext::TObject::EKind::Folder);
                 object.Kinds.emplace(TLocalSyntaxContext::TObject::EKind::Table);
