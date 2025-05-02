@@ -1121,7 +1121,8 @@ class YTEnvSetup(object):
             resend_full_job_info = True
 
         if resend_full_job_info:
-            config["%true"]["exec_node"]["job_controller"]["resend_full_job_info"] = True
+            yt_commands.print_debug("Resend full job info is enabled")
+            config["%true"]["exec_node"]["controller_agent_connector"]["resend_full_job_info"] = True
 
         delta_node_config = cls.get_param("DELTA_DYNAMIC_NODE_CONFIG", cluster_index)
 
