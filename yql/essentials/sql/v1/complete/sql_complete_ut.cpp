@@ -787,11 +787,11 @@ Y_UNIT_TEST_SUITE(SqlCompleteTests) {
         wchar32 rune;
         while (ptr < end) {
             Y_ENSURE(ReadUTF8CharAndAdvance(rune, ptr, end) == RECODE_OK);
-            TCompletion completion = engine->CompleteAsync({
-                                                               .Text = query,
-                                                               .CursorPosition = static_cast<size_t>(std::distance(begin, ptr)),
-                                                           })
-                                         .GetValueSync();
+            TCompletionInput input = {
+                .Text = query,
+                .CursorPosition = static_cast<size_t>(std::distance(begin, ptr)),
+            };
+            TCompletion completion = engine->CompleteAsync(input).GetValueSync();
             Y_DO_NOT_OPTIMIZE_AWAY(completion);
         }
     }
