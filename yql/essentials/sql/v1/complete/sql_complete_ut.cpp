@@ -1,6 +1,7 @@
 #include "sql_complete.h"
 
 #include <yql/essentials/sql/v1/complete/name/cluster/static/discovery.h>
+#include <yql/essentials/sql/v1/complete/name/object/dispatch/schema_gateway.h>
 #include <yql/essentials/sql/v1/complete/name/object/static/schema_gateway.h>
 #include <yql/essentials/sql/v1/complete/name/service/ranking/frequency.h>
 #include <yql/essentials/sql/v1/complete/name/service/ranking/ranking.h>
@@ -76,32 +77,43 @@ Y_UNIT_TEST_SUITE(SqlCompleteTests) {
             },
         };
 
-        THashMap<TString, TVector<TFolderEntry>> fs = {
-            {"/", {{"Folder", "local"},
-                   {"Folder", "test"},
-                   {"Folder", "prod"},
-                   {"Folder", ".sys"}}},
-            {"/local/", {{"Table", "example"},
-                         {"Table", "account"},
-                         {"Table", "abacaba"}}},
-            {"/test/", {{"Folder", "service"},
-                        {"Table", "meta"}}},
-            {"/test/service/", {{"Table", "example"}}},
-            {"/.sys/", {{"Table", "status"}}},
+        THashMap<TString, THashMap<TString, TVector<TFolderEntry>>> fss = {
+            {"", {{"/", {{"Folder", "local"},
+                         {"Folder", "test"},
+                         {"Folder", "prod"},
+                         {"Folder", ".sys"}}},
+                  {"/local/", {{"Table", "example"},
+                               {"Table", "account"},
+                               {"Table", "abacaba"}}},
+                  {"/test/", {{"Folder", "service"},
+                              {"Table", "meta"}}},
+                  {"/test/service/", {{"Table", "example"}}},
+                  {"/.sys/", {{"Table", "status"}}}}},
+            {"example",
+             {{"/", {{"Table", "people"}}}}},
+            {"ytsaurus",
+             {{"/", {{"Table", "maxim"}}}}},
         };
 
-        TVector<TString> clusters = {
-            "example",
-            "ytsaurus",
-        };
+        TVector<TString> clusters;
+        for (const auto& [cluster, _] : fss) {
+            clusters.emplace_back(cluster);
+        }
+        EraseIf(clusters, [](const auto& s) { return s.empty(); });
 
         TFrequencyData frequency;
 
         IRanking::TPtr ranking = MakeDefaultRanking(frequency);
 
+        THashMap<TString, ISchemaGateway::TPtr> schemasByCluster;
+        for (auto& [cluster, fs] : fss) {
+            schemasByCluster[std::move(cluster)] = MakeStaticSchemaGateway(std::move(fs));
+        }
+
         TVector<INameService::TPtr> children = {
             MakeStaticNameService(std::move(names), frequency),
-            MakeSchemaNameService(MakeStaticSchemaGateway(std::move(fs))),
+            MakeSchemaNameService(MakeDispatchSchemaGateway(std::move(schemasByCluster))),
+
             MakeClusterNameService(MakeStaticClusterDiscovery(std::move(clusters))),
         };
 
@@ -542,6 +554,16 @@ Y_UNIT_TEST_SUITE(SqlCompleteTests) {
             TCompletion actual = engine->Complete(SharpedInput(input));
             UNIT_ASSERT_VALUES_EQUAL(actual.Candidates, expected);
             UNIT_ASSERT_VALUES_EQUAL(actual.CompletedToken.Content, ".sy");
+        }
+    }
+
+    Y_UNIT_TEST(SelectFromCluster) {
+        auto engine = MakeSqlCompletionEngineUT();
+        {
+            TVector<TCandidate> expected = {
+                {ClusterName, "ytsaurus"},
+            };
+            UNIT_ASSERT_VALUES_EQUAL(Complete(engine, "SELECT * FROM ytsaurus#"), expected);
         }
     }
 

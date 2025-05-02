@@ -86,10 +86,11 @@ namespace NSQLComplete {
     }
 
     TMaybe<TRichParsedToken> TCursorTokenContext::Enclosing() const {
-        if (!Cursor.IsEnclosed()) {
-            return Nothing();
+        auto token = TokenAt(Cursor.PrevTokenIndex);
+        if (Cursor.IsEnclosed() || !IsWordBoundary(token.Base->Content.back())) {
+            return token;
         }
-        return TokenAt(Cursor.PrevTokenIndex);
+        return Nothing();
     }
 
     size_t TCursorTokenContext::PositionWithinEnclosing() const {

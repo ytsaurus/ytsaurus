@@ -210,11 +210,12 @@ namespace NSQLComplete {
         }
 
         TMaybe<TString> ObjectPath(const TCursorTokenContext& context) const {
-            if (auto enclosing = context.Enclosing();
-                enclosing && enclosing->Base->Name == "ID_QUOTED") {
+            if (auto enclosing = context.Enclosing()) {
                 TString path = enclosing->Base->Content;
-                path.erase(0, 1);
-                path.pop_back();
+                if (enclosing->Base->Name == "ID_QUOTED") {
+                    path.erase(0, 1);
+                    path.pop_back();
+                }
                 return path;
             }
             return Nothing();

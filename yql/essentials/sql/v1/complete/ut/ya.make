@@ -8,6 +8,7 @@ PEERDIR(
     yql/essentials/sql/v1/lexer/antlr4_pure
     yql/essentials/sql/v1/lexer/antlr4_pure_ansi
     yql/essentials/sql/v1/complete/name/cluster/static
+    yql/essentials/sql/v1/complete/name/object/dispatch
     yql/essentials/sql/v1/complete/name/object/static
     yql/essentials/sql/v1/complete/name/service/cluster
     yql/essentials/sql/v1/complete/name/service/schema
