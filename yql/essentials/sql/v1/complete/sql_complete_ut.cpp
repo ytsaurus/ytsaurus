@@ -29,7 +29,7 @@ public:
 
 class TFailingNameService: public INameService {
 public:
-    TFuture<TNameResponse> Lookup(TNameRequest) const override {
+    NThreading::TFuture<TNameResponse> Lookup(TNameRequest) const override {
         auto e = std::make_exception_ptr(TDummyException());
         return NThreading::MakeErrorFuture<TNameResponse>(e);
     }

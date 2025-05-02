@@ -13,9 +13,7 @@
 
 namespace NSQLComplete {
 
-    // TODO(YQL-19747): Merge all rules to a single list because thet are
-    //                  anyway intersected.
-    const TVector<TRuleId> KeywordRules = {
+    const TVector<TRuleId> PreferredRules = {
         RULE(Keyword),
         RULE(Keyword_expr_uncompat),
         RULE(Keyword_table_uncompat),
@@ -26,27 +24,13 @@ namespace NSQLComplete {
         RULE(Keyword_hint_uncompat),
         RULE(Keyword_as_compat),
         RULE(Keyword_compat),
-    };
-
-    const TVector<TRuleId> PragmaNameRules = {
-        RULE(Opt_id_prefix_or_type),
-        RULE(An_id),
-    };
-
-    const TVector<TRuleId> TypeNameRules = {
-        RULE(Type_name_simple),
         RULE(An_id_or_type),
-    };
-
-    const TVector<TRuleId> FunctionNameRules = {
+        RULE(An_id),
         RULE(Id_expr),
-        RULE(An_id_or_type),
         RULE(Id_or_type),
-    };
-
-    const TVector<TRuleId> HintNameRules = {
         RULE(Id_hint),
-        RULE(An_id),
+        RULE(Opt_id_prefix_or_type),
+        RULE(Type_name_simple),
     };
 
     TVector<std::string> Symbolized(const TParserCallStack& stack) {
@@ -120,7 +104,6 @@ namespace NSQLComplete {
     }
 
     bool IsLikelyClusterStack(const TParserCallStack& stack) {
-        DEBUG_SYMBOLIZE_STACK(stack);
         return Contains({RULE(Cluster_expr)}, stack);
     }
 
@@ -138,10 +121,7 @@ namespace NSQLComplete {
 
     std::unordered_set<TRuleId> GetC3PreferredRules() {
         std::unordered_set<TRuleId> preferredRules;
-        preferredRules.insert(std::begin(KeywordRules), std::end(KeywordRules));
-        preferredRules.insert(std::begin(PragmaNameRules), std::end(PragmaNameRules));
-        preferredRules.insert(std::begin(TypeNameRules), std::end(TypeNameRules));
-        preferredRules.insert(std::begin(FunctionNameRules), std::end(FunctionNameRules));
+        preferredRules.insert(std::begin(PreferredRules), std::end(PreferredRules));
         return preferredRules;
     }
 

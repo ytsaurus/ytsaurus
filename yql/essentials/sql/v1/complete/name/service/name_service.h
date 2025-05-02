@@ -10,8 +10,6 @@
 
 namespace NSQLComplete {
 
-    using NThreading::TFuture; // TODO(YQL-19747): remove
-
     struct TIndentifier {
         TString Indentifier;
     };
@@ -116,7 +114,7 @@ namespace NSQLComplete {
     public:
         using TPtr = TIntrusivePtr<INameService>;
 
-        virtual TFuture<TNameResponse> Lookup(TNameRequest request) const = 0;
+        virtual NThreading::TFuture<TNameResponse> Lookup(TNameRequest request) const = 0;
         virtual ~INameService() = default;
     };
 

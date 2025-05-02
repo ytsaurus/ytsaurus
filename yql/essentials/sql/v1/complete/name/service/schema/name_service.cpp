@@ -44,7 +44,7 @@ namespace NSQLComplete {
                 return filter;
             }
 
-            static TNameResponse ToNameResponse(TFuture<TListResponse> f) {
+            static TNameResponse ToNameResponse(NThreading::TFuture<TListResponse> f) {
                 TListResponse list = f.ExtractValue();
 
                 TNameResponse response;
