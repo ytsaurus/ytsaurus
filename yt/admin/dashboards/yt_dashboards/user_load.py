@@ -22,29 +22,45 @@ from yt_dashboard_generator.taggable import SystemFields, NotEquals
 
 def _build_master_metrics(d):
     def master_rps_sensor(type):
-        return Master(f"yt.security.user_{type}_request_count.rate")
+        return MultiSensor(
+            Master(f"yt.security.user_{type}_request_count.rate")
+                .legend_format("RPS (cell_tag={{cell_tag}})")
+                .aggr("container")
+                .all("cell_tag"),
+            Master(f"yt.security.user_{type}_request_rate_limit")
+                .legend_format("RPS limit (cell_tag={{cell_tag}})")
+                .all("cell_tag"),
+        )
 
     def master_time_sensor(type):
-        return Master(f"yt.security.user_{type}_time.rate")
+        return Master(f"yt.security.user_{type}_time.rate")\
+            .legend_format("Time rate (cell_tag={{cell_tag}})")\
+            .aggr("container")\
+            .all("cell_tag")
 
     d.add(Rowset()
         .row(height=2).cell("", Title("Master metrics", size="TITLE_SIZE_L"))
     )
     d.add(Rowset()
-        .all("host")
         .value("user", TemplateTag("user"))
         .row()
-            .stack(True)
+            .stack(False)
+            .min(0)
             .cell("Read RPS", master_rps_sensor("read"))
             .cell("Write RPS", master_rps_sensor("write"))
         .row()
-            .stack(True)
+            .stack(False)
+            .min(0)
             .cell("Read time", master_time_sensor("read"))
             .cell("Write time", master_time_sensor("write"))
         .row()
+            .stack(True)
             .cell(
                 "Request queue size",
-                Master(f"yt.security.user_request_queue_size.max")
+                MonitoringExpr(Master(f"yt.security.user_request_queue_size.max"))
+                    .all("cell_tag")
+                    .series_max("cell_tag")
+                    .legend_format("Request queue size (cell_tag={{cell_tag}})")
             )
     )
 
