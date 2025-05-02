@@ -38,6 +38,7 @@ target_link_options(yt-cpp-mapreduce-interface-logging-ut PRIVATE
   -fPIC
   -lrt
   -ldl
+  -lutil
 )
 
 target_sources(yt-cpp-mapreduce-interface-logging-ut PRIVATE
