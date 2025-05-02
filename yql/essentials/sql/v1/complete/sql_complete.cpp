@@ -137,49 +137,63 @@ namespace NSQLComplete {
 
         static TVector<TCandidate> Convert(TVector<TGenericName> names, TLocalSyntaxContext context) {
             TVector<TCandidate> candidates;
+            candidates.reserve(names.size());
             for (auto& name : names) {
-                candidates.emplace_back(std::visit([&](auto&& name) -> TCandidate {
-                    using T = std::decay_t<decltype(name)>;
-                    if constexpr (std::is_base_of_v<TKeyword, T>) {
-                        TVector<TString>& seq = context.Keywords[name.Content];
-                        seq.insert(std::begin(seq), name.Content);
-                        return {ECandidateKind::Keyword, FormatKeywords(seq)};
-                    }
-                    if constexpr (std::is_base_of_v<TPragmaName, T>) {
-                        return {ECandidateKind::PragmaName, std::move(name.Indentifier)};
-                    }
-                    if constexpr (std::is_base_of_v<TTypeName, T>) {
-                        return {ECandidateKind::TypeName, std::move(name.Indentifier)};
-                    }
-                    if constexpr (std::is_base_of_v<TFunctionName, T>) {
-                        name.Indentifier += "(";
-                        return {ECandidateKind::FunctionName, std::move(name.Indentifier)};
-                    }
-                    if constexpr (std::is_base_of_v<THintName, T>) {
-                        return {ECandidateKind::HintName, std::move(name.Indentifier)};
-                    }
-                    if constexpr (std::is_base_of_v<TFolderName, T>) {
-                        name.Indentifier.append('/');
-                        if (!context.Object->IsEnclosed) {
-                            name.Indentifier = Quoted(std::move(name.Indentifier));
-                        }
-                        return {ECandidateKind::FolderName, std::move(name.Indentifier)};
-                    }
-                    if constexpr (std::is_base_of_v<TTableName, T>) {
-                        if (!context.Object->IsEnclosed) {
-                            name.Indentifier = Quoted(std::move(name.Indentifier));
-                        }
-                        return {ECandidateKind::TableName, std::move(name.Indentifier)};
-                    }
-                    if constexpr (std::is_base_of_v<TClusterName, T>) {
-                        return {ECandidateKind::ClusterName, std::move(name.Indentifier)};
-                    }
-                    if constexpr (std::is_base_of_v<TUnkownName, T>) {
-                        return {ECandidateKind::UnknownName, std::move(name.Content)};
-                    }
-                }, std::move(name)));
+                candidates.emplace_back(Convert(std::move(name), context));
             }
             return candidates;
+        }
+
+        static TCandidate Convert(TGenericName name, TLocalSyntaxContext& context) {
+            return std::visit([&](auto&& name) -> TCandidate {
+                using T = std::decay_t<decltype(name)>;
+
+                if constexpr (std::is_base_of_v<TKeyword, T>) {
+                    TVector<TString>& seq = context.Keywords[name.Content];
+                    seq.insert(std::begin(seq), name.Content);
+                    return {ECandidateKind::Keyword, FormatKeywords(seq)};
+                }
+
+                if constexpr (std::is_base_of_v<TPragmaName, T>) {
+                    return {ECandidateKind::PragmaName, std::move(name.Indentifier)};
+                }
+
+                if constexpr (std::is_base_of_v<TTypeName, T>) {
+                    return {ECandidateKind::TypeName, std::move(name.Indentifier)};
+                }
+
+                if constexpr (std::is_base_of_v<TFunctionName, T>) {
+                    name.Indentifier += "(";
+                    return {ECandidateKind::FunctionName, std::move(name.Indentifier)};
+                }
+
+                if constexpr (std::is_base_of_v<THintName, T>) {
+                    return {ECandidateKind::HintName, std::move(name.Indentifier)};
+                }
+
+                if constexpr (std::is_base_of_v<TFolderName, T>) {
+                    name.Indentifier.append('/');
+                    if (!context.Object->IsEnclosed) {
+                        name.Indentifier = Quoted(std::move(name.Indentifier));
+                    }
+                    return {ECandidateKind::FolderName, std::move(name.Indentifier)};
+                }
+
+                if constexpr (std::is_base_of_v<TTableName, T>) {
+                    if (!context.Object->IsEnclosed) {
+                        name.Indentifier = Quoted(std::move(name.Indentifier));
+                    }
+                    return {ECandidateKind::TableName, std::move(name.Indentifier)};
+                }
+
+                if constexpr (std::is_base_of_v<TClusterName, T>) {
+                    return {ECandidateKind::ClusterName, std::move(name.Indentifier)};
+                }
+
+                if constexpr (std::is_base_of_v<TUnkownName, T>) {
+                    return {ECandidateKind::UnknownName, std::move(name.Content)};
+                }
+            }, std::move(name));
         }
 
         TConfiguration Configuration;
