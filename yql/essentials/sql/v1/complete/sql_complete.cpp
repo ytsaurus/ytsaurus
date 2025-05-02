@@ -16,9 +16,9 @@ namespace NSQLComplete {
             TLexerSupplier lexer,
             INameService::TPtr names,
             ISqlCompletionEngine::TConfiguration configuration)
-            : Configuration(std::move(configuration))
-            , SyntaxAnalysis(MakeLocalSyntaxAnalysis(lexer))
-            , Names(std::move(names))
+            : Configuration_(std::move(configuration))
+            , SyntaxAnalysis_(MakeLocalSyntaxAnalysis(lexer))
+            , Names_(std::move(names))
         {
         }
 
@@ -36,7 +36,7 @@ namespace NSQLComplete {
                     << " for input size " << input.Text.size();
             }
 
-            TLocalSyntaxContext context = SyntaxAnalysis->Analyze(input);
+            TLocalSyntaxContext context = SyntaxAnalysis_->Analyze(input);
             auto keywords = context.Keywords;
 
             TNameRequest request = NameRequestFrom(input, context);
@@ -47,7 +47,7 @@ namespace NSQLComplete {
                 });
             }
 
-            return Names->Lookup(std::move(request))
+            return Names_->Lookup(std::move(request))
                 .Apply([this, input, context = std::move(context)](auto f) {
                     return ToCompletion(input, context, f.ExtractValue());
                 });
@@ -64,7 +64,7 @@ namespace NSQLComplete {
         TNameRequest NameRequestFrom(TCompletionInput input, const TLocalSyntaxContext& context) const {
             TNameRequest request = {
                 .Prefix = TString(GetCompletedToken(input, context.EditRange).Content),
-                .Limit = Configuration.Limit,
+                .Limit = Configuration_.Limit,
             };
 
             for (const auto& [first, _] : context.Keywords) {
@@ -196,9 +196,9 @@ namespace NSQLComplete {
             }, std::move(name));
         }
 
-        TConfiguration Configuration;
-        ILocalSyntaxAnalysis::TPtr SyntaxAnalysis;
-        INameService::TPtr Names;
+        TConfiguration Configuration_;
+        ILocalSyntaxAnalysis::TPtr SyntaxAnalysis_;
+        INameService::TPtr Names_;
     };
 
     ISqlCompletionEngine::TPtr MakeSqlCompletionEngine(

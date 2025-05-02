@@ -5,8 +5,6 @@
 
 #include <yql/essentials/parser/lexer_common/lexer.h>
 
-#include <span>
-
 namespace NSQLComplete {
 
     using NSQLTranslation::ILexer;
