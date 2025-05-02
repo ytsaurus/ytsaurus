@@ -7,6 +7,9 @@
 #include <yt/yt/server/tools/tools.h>
 
 #include <yt/yt/ytlib/job_proxy/private.h>
+#include <yt/yt/ytlib/job_proxy/job_spec_helper.h>
+
+#include <yt/yt/ytlib/scheduler/config.h>
 
 #include <yt/yt/library/containers/public.h>
 
@@ -31,6 +34,8 @@
 #include <yt/yt/core/misc/proc.h>
 
 #include <yt/yt/core/ytree/convert.h>
+
+#include <yt/yt/core/concurrency/action_queue.h>
 
 #include <library/cpp/yt/memory/atomic_intrusive_ptr.h>
 
@@ -643,6 +648,12 @@ public:
             PortoExecutor_);
     }
 
+    void StartSidecars() override
+    { }
+
+    void KillSidecars() override
+    { }
+
 private:
     const TPortoJobEnvironmentConfigPtr Config_;
     const IPortoExecutorPtr PortoExecutor_;
@@ -867,6 +878,12 @@ public:
 
         return New<TSimpleUserJobEnvironment>();
     }
+
+    void StartSidecars() override
+    { }
+
+    void KillSidecars() override
+    { }
 };
 
 DECLARE_REFCOUNTED_CLASS(TSimpleJobProxyEnvironment)
@@ -1078,11 +1095,13 @@ class TCriJobProxyEnvironment
     : public IJobProxyEnvironment
 {
 public:
-    explicit TCriJobProxyEnvironment(TCriJobEnvironmentConfigPtr config)
+    explicit TCriJobProxyEnvironment(
+        TCriJobEnvironmentConfigPtr config,
+        const NControllerAgent::NProto::TJobSpecExt& jobSpecExt)
         : Config_(std::move(config))
         , Executor_(CreateCriExecutor(Config_->CriExecutor))
         , ImageCache_(NContainers::NCri::CreateCriImageCache(Config_->CriImageCache, Executor_))
-        , CriDescriptor_{Config_->PodDescriptorName, Config_->PodDescriptorId}
+        , CriPodDescriptor_{Config_->PodDescriptorName, Config_->PodDescriptorId}
         , CriPodSpec_{New<NContainers::NCri::TCriPodSpec>(
             Config_->PodSpecName,
             NContainers::NCri::TCriContainerResources{
@@ -1094,7 +1113,25 @@ public:
                 Config_->PodSpecCpusetCpus
             })
         }
-    { }
+    {
+        if (jobSpecExt.has_user_job_spec()) {
+            for (const auto& [name, sidecar]: jobSpecExt.user_job_spec().sidecars()) {
+                auto sidecarPtr = New<NScheduler::TSidecarJobSpec>();
+                sidecarPtr->Command = sidecar.command();
+                if (sidecar.has_cpu_limit()) {
+                    sidecarPtr->CpuLimit = sidecar.cpu_limit();
+                }
+                if (sidecar.has_memory_limit()) {
+                    sidecarPtr->MemoryLimit = sidecar.memory_limit();
+                }
+                if (sidecar.has_docker_image()) {
+                    sidecarPtr->DockerImage = sidecar.docker_image();
+                }
+                sidecarPtr->RestartPolicy = ConvertTo<NScheduler::ESidecarRestartPolicy>(sidecar.restart_policy());
+                Sidecars_[name] = std::move(sidecarPtr);
+            }
+        }
+    }
 
     void SetCpuGuarantee(double /*value*/) override
     {
@@ -1187,13 +1224,60 @@ public:
         return New<TCriUserJobEnvironment>(this);
     }
 
+    void StartSidecars() override
+    {
+        for (const auto& [name, sidecar]: Sidecars_) {
+            auto spec = New<NCri::TCriContainerSpec>();
+
+            spec->Name = Format("sidecar-%v-%v-%v", Config_->PodDescriptorName, Config_->PodSpecName, name);
+
+            // If no Docker image is provided, use the one from the main job.
+            spec->Image.Image = sidecar->DockerImage.value_or(Config_->JobProxyImage);
+
+            spec->Resources.CpuLimit = sidecar->CpuLimit;
+            spec->Resources.MemoryLimit = sidecar->MemoryLimit;
+
+            const auto& cpusetCpu = CriPodSpec_->Resources.CpusetCpus;
+            if (cpusetCpu != EmptyCpuSet) {
+                spec->Resources.CpusetCpus = cpusetCpu;
+            }
+
+            spec->CapabilitiesToAdd.push_back("SYS_PTRACE");
+
+            // TODO: bind mounts
+
+            auto process = Executor_->CreateProcess(
+                sidecar->Command,
+                spec,
+                CriPodDescriptor_,
+                CriPodSpec_
+            );
+            // process->AddArguments(command->Args);
+            // process->SetWorkingDirectory("/slot/home");
+
+            SidecarsRunning_[name] = BIND([=] {
+                    return process->Spawn();
+                })
+                .AsyncVia(ActionQueue_->GetInvoker())
+                .Run();
+        }
+    }
+
+    void KillSidecars() override
+    { }
+
 private:
     const TCriJobEnvironmentConfigPtr Config_;
     const NContainers::NCri::ICriExecutorPtr Executor_;
     const NContainers::NCri::ICriImageCachePtr ImageCache_;
 
-    const NContainers::NCri::TCriDescriptor CriDescriptor_;
+    const NContainers::NCri::TCriPodDescriptor CriPodDescriptor_;
     const NContainers::NCri::TCriPodSpecPtr CriPodSpec_;
+
+    THashMap<TString, NScheduler::TSidecarJobSpecPtr> Sidecars_;
+    THashMap<TString, TFuture<void>> SidecarsRunning_;
+
+    const TActionQueuePtr ActionQueue_ = New<TActionQueue>("JobProxyEnvironment");
 
     NCGroups::TSelfCGroupsStatisticsFetcher StatisticsFetcher_;
 };
@@ -1203,7 +1287,9 @@ DEFINE_REFCOUNTED_TYPE(TCriJobProxyEnvironment)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IJobProxyEnvironmentPtr CreateJobProxyEnvironment(TJobEnvironmentConfig config)
+IJobProxyEnvironmentPtr CreateJobProxyEnvironment(
+    TJobEnvironmentConfig config,
+    const NControllerAgent::NProto::TJobSpecExt& jobSpecExt)
 {
     switch (config.GetCurrentType()) {
 #ifdef _linux_
@@ -1218,7 +1304,9 @@ IJobProxyEnvironmentPtr CreateJobProxyEnvironment(TJobEnvironmentConfig config)
             return New<TTestingJobProxyEnvironment>(config.TryGetConcrete<TTestingJobEnvironmentConfig>());
 
         case EJobEnvironmentType::Cri:
-            return New<TCriJobProxyEnvironment>(config.TryGetConcrete<TCriJobEnvironmentConfig>());
+            return New<TCriJobProxyEnvironment>(
+                config.TryGetConcrete<TCriJobEnvironmentConfig>(),
+                jobSpecExt);
 
         default:
             THROW_ERROR_EXCEPTION("Unable to create resource controller for %Qlv environment",
