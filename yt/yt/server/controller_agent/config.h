@@ -586,8 +586,6 @@ DEFINE_REFCOUNTED_TYPE(TRemoteCopyOperationOptions)
 struct TGangManagerConfig
     : public NYTree::TYsonStruct
 {
-    bool Enabled;
-
     REGISTER_YSON_STRUCT(TGangManagerConfig);
 
     static void Register(TRegistrar registrar);

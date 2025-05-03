@@ -576,11 +576,8 @@ void TRemoteCopyOperationOptions::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TGangManagerConfig::Register(TRegistrar registrar)
-{
-    registrar.Parameter("enabled", &TThis::Enabled)
-        .Default(true);
-}
+void TGangManagerConfig::Register(TRegistrar /*registrar*/)
+{ }
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -69,8 +69,6 @@ public:
 
     const TOperationIncarnation& GetCurrentIncarnation() const noexcept;
 
-    bool IsEnabled() const noexcept;
-
     void TrySwitchToNewIncarnation(bool operationIsReviving, EOperationIncarnationSwitchReason reason);
 
     void TrySwitchToNewIncarnation(
@@ -84,9 +82,7 @@ public:
     void SetVanillaController(TVanillaController* controller) noexcept;
 
 private:
-    bool Enabled_ = false;
     TOperationIncarnation Incarnation_;
-
     TVanillaController* VanillaOperationController_ = nullptr;
 
     TOperationIncarnation GenerateNewIncarnation();
@@ -303,22 +299,18 @@ PHOENIX_DEFINE_TYPE(TVanillaController);
 
 TGangManager::TGangManager(
     TVanillaController* controller,
-    const TVanillaOperationOptionsPtr& options)
-    : Enabled_(options->GangManager->Enabled)
-    , Incarnation_(GenerateNewIncarnation())
+    const TVanillaOperationOptionsPtr& /*options*/)
+    : Incarnation_(GenerateNewIncarnation())
     , VanillaOperationController_(controller)
 {
     const auto& Logger = VanillaOperationController_->GetLogger();
     YT_LOG_INFO(
-        "Gang manager created (OperationIncarnation: %v, Enabled: %v)",
-        Incarnation_,
-        Enabled_);
+        "Gang manager created (OperationIncarnation: %v)",
+        Incarnation_);
 }
 
 void TGangManager::RegisterMetadata(auto&& registrar)
 {
-    PHOENIX_REGISTER_FIELD(1, Enabled_);
-
     // COMPAT(pogorelov): Remove after all CAs are 25.1.
     PHOENIX_REGISTER_FIELD(2, Incarnation_,
         .SinceVersion(ESnapshotVersion::OperationIncarnationIsStrongTypedef)
@@ -339,14 +331,6 @@ const TOperationIncarnation& TGangManager::GetCurrentIncarnation() const noexcep
 void TGangManager::TrySwitchToNewIncarnation(bool operationIsReviving, EOperationIncarnationSwitchReason reason)
 {
     const auto& Logger = VanillaOperationController_->GetLogger();
-
-    if (!IsEnabled()) {
-        YT_LOG_INFO("Switching operation to new incarnation is disabled by config; fail operation");
-        VanillaOperationController_->OnOperationFailed(
-            TError("Switching gang operation to new incarnation is disabled by config")
-            << TErrorAttribute("incarnation_switch_reason", reason));
-        return;
-    }
 
     auto oldIncarnation = std::exchange(Incarnation_, GenerateNewIncarnation());
 
@@ -369,28 +353,12 @@ void TGangManager::TrySwitchToNewIncarnation(
     }
 }
 
-void TGangManager::UpdateConfig(const TVanillaOperationOptionsPtr& config) noexcept
-{
-    if (config->GangManager->Enabled != Enabled_) {
-        const auto& Logger = VanillaOperationController_->GetLogger();
-
-        YT_LOG_DEBUG(
-            "Reconfiguring gang manager (OldEnabled: %v, NewEnabled: %v)",
-            Enabled_,
-            config->GangManager->Enabled);
-
-        Enabled_ = config->GangManager->Enabled;
-    }
-}
+void TGangManager::UpdateConfig(const TVanillaOperationOptionsPtr& /*config*/) noexcept
+{ }
 
 void TGangManager::SetVanillaController(TVanillaController* controller) noexcept
 {
     VanillaOperationController_ = controller;
-}
-
-bool TGangManager::IsEnabled() const noexcept
-{
-    return Enabled_;
 }
 
 TOperationIncarnation TGangManager::GenerateNewIncarnation()
@@ -718,9 +686,8 @@ void TVanillaController::RegisterMetadata(auto&& registrar)
             const auto& Logger = this_->GetLogger();
 
             YT_LOG_INFO(
-                "Gang manager loaded (Incarnation: %v, Enabled: %v)",
-                this_->GangManager_->GetCurrentIncarnation(),
-                this_->GangManager_->IsEnabled());
+                "Gang manager loaded (Incarnation: %v)",
+                this_->GangManager_->GetCurrentIncarnation());
         }
     });
 }
