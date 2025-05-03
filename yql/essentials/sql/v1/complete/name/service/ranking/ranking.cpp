@@ -23,7 +23,7 @@ namespace NSQLComplete {
             TVector<TGenericName>& names,
             const TNameConstraints& constraints,
             size_t limit) const override {
-            limit = std::min(limit, names.size());
+            limit = Min(limit, names.size());
 
             TVector<TRow> rows;
             rows.reserve(names.size());

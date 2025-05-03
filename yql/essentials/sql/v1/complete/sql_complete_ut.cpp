@@ -20,10 +20,10 @@
 
 using namespace NSQLComplete;
 
-class TDummyException: public std::runtime_error {
+class TDummyException: public yexception {
 public:
-    TDummyException()
-        : std::runtime_error("T_T") {
+    TDummyException() {
+        Append("T_T");
     }
 };
 
