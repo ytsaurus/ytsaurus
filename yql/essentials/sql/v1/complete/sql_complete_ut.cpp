@@ -121,24 +121,6 @@ Y_UNIT_TEST_SUITE(SqlCompleteTests) {
         return MakeSqlCompletionEngine(std::move(lexer), std::move(service));
     }
 
-    TCompletionInput SharpedInput(TString& text) {
-        constexpr char delim = '#';
-
-        size_t pos = text.find_first_of(delim);
-        if (pos == TString::npos) {
-            return {
-                .Text = text,
-            };
-        }
-
-        Y_ENSURE(!TStringBuf(text).Tail(pos + 1).Contains(delim));
-        text.erase(std::begin(text) + pos);
-        return {
-            .Text = text,
-            .CursorPosition = pos,
-        };
-    }
-
     TVector<TCandidate> Complete(ISqlCompletionEngine::TPtr& engine, TString sharped) {
         return engine->CompleteAsync(SharpedInput(sharped)).GetValueSync().Candidates;
     }

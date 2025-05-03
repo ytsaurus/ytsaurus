@@ -82,6 +82,11 @@ namespace NSQLComplete {
     }
 
     TMaybe<TRichParsedToken> TCursorTokenContext::Enclosing() const {
+        if (Tokens.size() == 1) {
+            Y_ENSURE(Tokens[0].Name == "EOF");
+            return Nothing();
+        }
+
         auto token = TokenAt(Cursor.PrevTokenIndex);
         if (Cursor.PrevTokenIndex == Cursor.NextTokenIndex ||
             !IsWordBoundary(token.Base->Content.back())) {
