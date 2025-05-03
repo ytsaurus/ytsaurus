@@ -21,6 +21,7 @@ struct TSchedulerHeartbeatContext
     : public TRefCounted
 {
     THashSet<TAllocationPtr> FinishedAllocations;
+    TDuration RequestNewAgentDelay;
 };
 
 DEFINE_REFCOUNTED_TYPE(TSchedulerHeartbeatContext)
