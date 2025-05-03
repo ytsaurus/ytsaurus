@@ -312,19 +312,18 @@ TJob::TJob(
     const TJobCommonConfigPtr& commonConfig)
     : Id_(jobId)
     , OperationId_(operationId)
+    , Type_(EJobType(jobSpec.type()))
     , Bootstrap_(bootstrap)
-    , JobType_(FromProto<EJobType>(jobSpec.type()))
     , Logger(ExecNodeLogger().WithTag(
         "JobId: %v, OperationId: %v, JobType: %v",
         jobId,
         operationId,
-        JobType_))
+        Type_))
     , Allocation_(std::move(allocation))
     , ResourceHolder_(Allocation_->GetResourceHolder())
     , InitialResourceDemand_(ResourceHolder_->GetInitialResourceDemand())
-    , ControllerAgentDescriptor_(std::move(agentDescriptor))
-    , ControllerAgentConnector_(
-        Bootstrap_->GetControllerAgentConnectorPool()->GetControllerAgentConnector(ControllerAgentDescriptor_))
+    , ControllerAgentInfo_(std::move(agentDescriptor))
+    , ControllerAgentConnector_(Bootstrap_->GetControllerAgentConnectorPool()->GetControllerAgentConnector(ControllerAgentInfo_.GetDescriptor()))
     , CommonConfig_(commonConfig)
     , Invoker_(Bootstrap_->GetJobInvoker())
     , CreationTime_(TInstant::Now())
@@ -354,7 +353,7 @@ TJob::TJob(
 
     YT_LOG_DEBUG("Creating job");
 
-    PackBaggageFromJobSpec(TraceContext_, JobSpec_, OperationId_, Id_, JobType_);
+    PackBaggageFromJobSpec(TraceContext_, JobSpec_, OperationId_, Id_, Type_);
 
     TrafficMeter_->Start();
 
@@ -1031,28 +1030,28 @@ const TControllerAgentDescriptor& TJob::GetControllerAgentDescriptor() const
 {
     YT_ASSERT_THREAD_AFFINITY(JobThread);
 
-    return ControllerAgentDescriptor_;
+    return ControllerAgentInfo_.GetDescriptor();
 }
 
 void TJob::UpdateControllerAgentDescriptor(TControllerAgentDescriptor descriptor)
 {
     YT_ASSERT_THREAD_AFFINITY(JobThread);
 
-    if (ControllerAgentDescriptor_ == descriptor) {
+    if (ControllerAgentInfo_.GetDescriptor() == descriptor) {
         return;
     }
 
     YT_LOG_DEBUG(
         "Update controller agent (ControllerAgentAddress: %v -> %v, ControllerAgentIncarnationId: %v)",
-        ControllerAgentDescriptor_.Address,
+        ControllerAgentInfo_.GetDescriptor().Address,
         descriptor.Address,
         descriptor.IncarnationId);
 
-    ControllerAgentDescriptor_ = std::move(descriptor);
+    ControllerAgentInfo_.SetDescriptor(descriptor);
 
     ControllerAgentConnector_ = Bootstrap_
-            ->GetControllerAgentConnectorPool()
-            ->GetControllerAgentConnector(ControllerAgentDescriptor_);
+        ->GetControllerAgentConnectorPool()
+        ->GetControllerAgentConnector(ControllerAgentInfo_.GetDescriptor());
 
     if (Stored_) {
         JobResendBackoffStartTime_ = TInstant::Now();
@@ -1061,11 +1060,18 @@ void TJob::UpdateControllerAgentDescriptor(TControllerAgentDescriptor descriptor
     }
 }
 
+TInstant TJob::GetControllerAgentResetTime() const
+{
+    YT_ASSERT_THREAD_AFFINITY_ANY();
+
+    return ControllerAgentInfo_.GetDescriptorResetTime();
+}
+
 EJobType TJob::GetType() const
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
 
-    return JobType_;
+    return Type_;
 }
 
 std::string TJob::GetAuthenticatedUser() const
@@ -1953,6 +1959,7 @@ TControllerAgentConnectorPool::TControllerAgentConnectorPtr TJob::GetControllerA
 
     return ControllerAgentConnector_.Lock();
 }
+
 void TJob::Interrupt(
     TDuration timeout,
     EInterruptionReason interruptionReason,

@@ -47,6 +47,27 @@ struct TControllerAgentDescriptor
     explicit operator bool() const noexcept;
 };
 
+class TControllerAgentAffiliationInfo
+{
+public:
+    TControllerAgentAffiliationInfo();
+    explicit TControllerAgentAffiliationInfo(TControllerAgentDescriptor descriptor);
+
+    const TControllerAgentDescriptor& GetDescriptor() const noexcept;
+
+    TInstant GetDescriptorResetTime() const noexcept;
+
+    void SetDescriptor(TControllerAgentDescriptor descriptor);
+
+    void ResetControllerAgent();
+
+private:
+    TControllerAgentDescriptor Descriptor_;
+    TInstant DescriptorResetTime_;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 void FormatValue(
     TStringBuilderBase* builder,
     const TControllerAgentDescriptor& controllerAgentDescriptor,

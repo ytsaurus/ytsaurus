@@ -403,7 +403,7 @@ void TSchedulerConnector::DoPrepareHeartbeatRequest(
     YT_ASSERT_INVOKER_AFFINITY(Bootstrap_->GetJobInvoker());
 
     context->FinishedAllocations = FinishedAllocations_;
-
+    context->RequestNewAgentDelay = DynamicConfig_.Acquire()->RequestNewAgentDelay;
     const auto& jobResourceManager = Bootstrap_->GetJobResourceManager();
 
     {

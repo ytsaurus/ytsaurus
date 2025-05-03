@@ -338,6 +338,8 @@ struct TSchedulerConnectorDynamicConfig
 
     bool UseProfilingTagsFromScheduler;
 
+    TDuration RequestNewAgentDelay;
+
     REGISTER_YSON_STRUCT(TSchedulerConnectorDynamicConfig);
 
     static void Register(TRegistrar registrar);
@@ -558,8 +560,6 @@ DEFINE_REFCOUNTED_TYPE(TAllocationConfig)
 struct TJobControllerDynamicConfig
     : public NYTree::TYsonStruct
 {
-    TConstantBackoffOptions OperationInfoRequestBackoffStrategy;
-
     TDuration WaitingForResourcesTimeout;
     // COMPAT(arkady-e1ppa): Remove when CA&Sched are update to
     // a proper version of 24.1/24.2
