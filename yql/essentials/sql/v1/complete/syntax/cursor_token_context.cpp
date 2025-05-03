@@ -1,4 +1,4 @@
-#include "token.h"
+#include "cursor_token_context.h"
 
 #include <yql/essentials/core/issue/yql_issue.h>
 #include <yql/essentials/sql/v1/lexer/lexer.h>
