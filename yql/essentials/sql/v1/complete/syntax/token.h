@@ -15,8 +15,6 @@ namespace NSQLComplete {
         size_t PrevTokenIndex = 0;
         size_t NextTokenIndex = PrevTokenIndex;
         size_t Position = 0;
-
-        bool IsEnclosed() const;
     };
 
     struct TRichParsedToken {
@@ -34,7 +32,6 @@ namespace NSQLComplete {
 
         TRichParsedToken TokenAt(size_t index) const;
         TMaybe<TRichParsedToken> Enclosing() const;
-        size_t PositionWithinEnclosing() const;
         TMaybe<TRichParsedToken> MatchCursorPrefix(const TVector<TStringBuf>& pattern) const;
     };
 
@@ -44,6 +41,9 @@ namespace NSQLComplete {
         TCompletionInput& output,
         size_t& output_position);
 
-    bool GetCursorTokenContext(ILexer::TPtr& lexer, TCompletionInput input, TCursorTokenContext& context);
+    bool GetCursorTokenContext(
+        ILexer::TPtr& lexer,
+        TCompletionInput input,
+        TCursorTokenContext& context);
 
 } // namespace NSQLComplete

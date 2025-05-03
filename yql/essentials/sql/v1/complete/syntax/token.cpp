@@ -66,10 +66,6 @@ namespace NSQLComplete {
 
     } // namespace
 
-    bool TCursor::IsEnclosed() const {
-        return PrevTokenIndex == NextTokenIndex;
-    }
-
     bool TRichParsedToken::IsLiteral() const {
         return Base->Name == "STRING_VALUE" ||
                Base->Name == "DIGIGTS" ||
@@ -87,14 +83,11 @@ namespace NSQLComplete {
 
     TMaybe<TRichParsedToken> TCursorTokenContext::Enclosing() const {
         auto token = TokenAt(Cursor.PrevTokenIndex);
-        if (Cursor.IsEnclosed() || !IsWordBoundary(token.Base->Content.back())) {
+        if (Cursor.PrevTokenIndex == Cursor.NextTokenIndex ||
+            !IsWordBoundary(token.Base->Content.back())) {
             return token;
         }
         return Nothing();
-    }
-
-    size_t TCursorTokenContext::PositionWithinEnclosing() const {
-        return Cursor.Position - Enclosing()->Position;
     }
 
     TMaybe<TRichParsedToken> TCursorTokenContext::MatchCursorPrefix(const TVector<TStringBuf>& pattern) const {
