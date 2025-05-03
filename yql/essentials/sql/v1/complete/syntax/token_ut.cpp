@@ -26,11 +26,25 @@ Y_UNIT_TEST_SUITE(CursorTokenContextTests) {
 
     Y_UNIT_TEST(Empty) {
         auto context = Context("");
-        auto enclosing = context.Enclosing();
-        UNIT_ASSERT_VALUES_EQUAL(context.Cursor.PrevTokenIndex, 0);
+        UNIT_ASSERT(context.Cursor.PrevTokenIndex.Empty());
         UNIT_ASSERT_VALUES_EQUAL(context.Cursor.NextTokenIndex, 0);
         UNIT_ASSERT_VALUES_EQUAL(context.Cursor.Position, 0);
-        UNIT_ASSERT(enclosing.Empty());
+        UNIT_ASSERT(context.Enclosing().Empty());
+    }
+
+    Y_UNIT_TEST(Blank) {
+        UNIT_ASSERT(Context("# ").Enclosing().Empty());
+        UNIT_ASSERT(Context(" #").Enclosing().Empty());
+        UNIT_ASSERT(Context(" # ").Enclosing().Empty());
+    }
+
+    Y_UNIT_TEST(Enclosing) {
+        UNIT_ASSERT(Context("se#").Enclosing().Defined());
+        UNIT_ASSERT(Context("#se").Enclosing().Empty());
+        UNIT_ASSERT(Context("`se`#").Enclosing().Empty());
+        UNIT_ASSERT(Context("#`se`").Enclosing().Empty());
+        UNIT_ASSERT(Context("`se`#`se`").Enclosing().Defined());
+        UNIT_ASSERT(Context("\"se\"#\"se\"").Enclosing().Empty());
     }
 
 } // Y_UNIT_TEST_SUITE(CursorTokenContextTests)

@@ -230,14 +230,10 @@ namespace NSQLComplete {
                 return EditRange(*enclosing, context.Cursor);
             }
 
-            const TRichParsedToken prev = context.TokenAt(context.Cursor.PrevTokenIndex);
-            if (IsWordBoundary(prev.Base->Content.back())) {
-                return {
-                    .Begin = context.Cursor.Position,
-                };
-            }
-
-            return EditRange(prev, context.Cursor);
+            return {
+                .Begin = context.Cursor.Position,
+                .Length = 0,
+            };
         }
 
         TEditRange EditRange(const TRichParsedToken& token, const TCursor& cursor) const {
@@ -245,6 +241,7 @@ namespace NSQLComplete {
             if (token.Base->Name == "NOT_EQUALS2") {
                 begin += 1;
             }
+
             return {
                 .Begin = begin,
                 .Length = cursor.Position - begin,

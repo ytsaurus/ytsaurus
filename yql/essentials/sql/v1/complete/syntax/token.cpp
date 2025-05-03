@@ -19,7 +19,7 @@ namespace NSQLComplete {
 
         TCursor GetCursor(const TParsedTokenList& tokens, size_t cursorPosition) {
             size_t current = 0;
-            for (size_t i = 0; i < tokens.size(); ++i) {
+            for (size_t i = 0; i < tokens.size() && current < cursorPosition; ++i) {
                 const auto& content = tokens[i].Content;
 
                 current += content.size();
@@ -40,17 +40,11 @@ namespace NSQLComplete {
                 return cursor;
             }
 
-            TCursor cursor = {
-                .PrevTokenIndex = 0,
-                .NextTokenIndex = tokens.size(),
+            return {
+                .PrevTokenIndex = Nothing(),
+                .NextTokenIndex = 0,
                 .Position = cursorPosition,
             };
-
-            if (!tokens.empty()) {
-                cursor.PrevTokenIndex = tokens.size() - 1;
-            }
-
-            return cursor;
         }
 
         TVector<size_t> GetTokenPositions(const TParsedTokenList& tokens) {
@@ -73,11 +67,11 @@ namespace NSQLComplete {
                Base->Name == "REAL";
     }
 
-    TRichParsedToken TCursorTokenContext::TokenAt(size_t index) const {
+    TRichParsedToken TokenAt(const TCursorTokenContext& context, size_t index) {
         return {
-            .Base = &Tokens.at(index),
+            .Base = &context.Tokens.at(index),
             .Index = index,
-            .Position = TokenPositions.at(index),
+            .Position = context.TokenPositions.at(index),
         };
     }
 
@@ -87,11 +81,16 @@ namespace NSQLComplete {
             return Nothing();
         }
 
-        auto token = TokenAt(Cursor.PrevTokenIndex);
+        if (Cursor.PrevTokenIndex.Empty()) {
+            return Nothing();
+        }
+
+        auto token = TokenAt(*this, *Cursor.PrevTokenIndex);
         if (Cursor.PrevTokenIndex == Cursor.NextTokenIndex ||
             !IsWordBoundary(token.Base->Content.back())) {
             return token;
         }
+
         return Nothing();
     }
 
@@ -108,7 +107,7 @@ namespace NSQLComplete {
                 return Nothing();
             }
         }
-        return TokenAt(prefix.size() - pattern.size());
+        return TokenAt(*this, prefix.size() - pattern.size());
     }
 
     bool GetStatement(

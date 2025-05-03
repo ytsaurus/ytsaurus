@@ -5,6 +5,8 @@
 
 #include <yql/essentials/parser/lexer_common/lexer.h>
 
+#include <util/generic/maybe.h>
+
 namespace NSQLComplete {
 
     using NSQLTranslation::ILexer;
@@ -12,15 +14,15 @@ namespace NSQLComplete {
     using NSQLTranslation::TParsedTokenList;
 
     struct TCursor {
-        size_t PrevTokenIndex = 0;
-        size_t NextTokenIndex = PrevTokenIndex;
+        TMaybe<size_t> PrevTokenIndex = Nothing();
+        size_t NextTokenIndex = PrevTokenIndex ? *PrevTokenIndex : 0;
         size_t Position = 0;
     };
 
     struct TRichParsedToken {
-        const TParsedToken* Base;
-        size_t Index;
-        size_t Position;
+        const TParsedToken* Base = nullptr;
+        size_t Index = 0;
+        size_t Position = 0;
 
         bool IsLiteral() const;
     };
@@ -30,7 +32,6 @@ namespace NSQLComplete {
         TVector<size_t> TokenPositions;
         TCursor Cursor;
 
-        TRichParsedToken TokenAt(size_t index) const;
         TMaybe<TRichParsedToken> Enclosing() const;
         TMaybe<TRichParsedToken> MatchCursorPrefix(const TVector<TStringBuf>& pattern) const;
     };
