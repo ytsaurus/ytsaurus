@@ -1023,8 +1023,6 @@ class TestListJobs(TestListJobsCommon):
 
     @authors("eshcherbin", "pogorelov")
     def test_operation_incarnation(self):
-        update_controller_agent_config("vanilla_operation_options/gang_manager/enabled", True)
-
         def get_operation_incarnation(op):
             wait(lambda: exists(op.get_orchid_path() + "/controller/operation_incarnation"))
             incarnation_id = get(op.get_orchid_path() + "/controller/operation_incarnation")

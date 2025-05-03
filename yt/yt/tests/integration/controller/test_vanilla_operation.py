@@ -684,10 +684,6 @@ class TestVanillaOperationRevival(YTEnvSetup):
 
     DELTA_CONTROLLER_AGENT_CONFIG = {
         "controller_agent": {
-            "gang_manager": {
-                "enabled": True,
-            },
-
             "snapshot_period": 200,
         },
     }
@@ -943,10 +939,6 @@ class TestGangManager(YTEnvSetup):
 
     DELTA_CONTROLLER_AGENT_CONFIG = {
         "controller_agent": {
-            "gang_manager": {
-                "enabled": True,
-            },
-
             "snapshot_period": 1000,
 
             "user_job_monitoring": {
@@ -1051,47 +1043,6 @@ class TestGangManager(YTEnvSetup):
         release_breakpoint()
 
         op.track()
-
-    @authors("pogorelov")
-    def test_restart_disabled_in_config(self):
-        update_controller_agent_config("vanilla_operation_options/gang_manager/enabled", False)
-
-        incarnation_switch_counter = _get_controller_profiler().counter("controller_agent/gang_operations/incarnation_switch_count")
-
-        aborted_job_profiler = JobCountProfiler(
-            "aborted",
-            tags={"tree": "default", "job_type": "vanilla"},
-        )
-        aborted_by_request_job_profiler = JobCountProfiler(
-            "aborted",
-            tags={"tree": "default", "job_type": "vanilla", "abort_reason": "user_request"},
-        )
-
-        op = run_test_vanilla(
-            with_breakpoint("BREAKPOINT"),
-            job_count=3,
-            task_patch={"gang_manager": {}},
-        )
-
-        job_ids = wait_breakpoint(job_count=3)
-
-        assert len(job_ids) == 3
-
-        first_job_id = job_ids[0]
-
-        print_debug("aborting job ", first_job_id)
-
-        abort_job(first_job_id)
-
-        wait(lambda: aborted_by_request_job_profiler.get_job_count_delta() == 1)
-
-        release_breakpoint()
-
-        op.wait_for_state("failed")
-
-        assert aborted_job_profiler.get_job_count_delta() == 3
-
-        assert incarnation_switch_counter.get_delta() == 0
 
     @authors("pogorelov")
     def test_restart_on_job_failure(self):
@@ -1952,10 +1903,6 @@ class TestPatchVanillaSpecBase(YTEnvSetup):
 
     DELTA_CONTROLLER_AGENT_CONFIG = {
         "controller_agent": {
-            "gang_manager": {
-                "enabled": True,
-            },
-
             "snapshot_period": 1000,
         },
     }
