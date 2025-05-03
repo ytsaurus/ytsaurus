@@ -3090,21 +3090,21 @@ public:
         i64 maxDataWeight,
         IMemoryUsageTrackerPtr memoryTracker,
         NLogging::TLogger logger)
-    : Client_(std::move(client))
-    , Schema_(std::move(schema))
-    , TimestampColumnIndex_(timestampColumnIndex)
-    , TabletInfo_(std::move(tabletInfo))
-    , Versioned_(versioned)
-    , Options_(options)
-    , MaxDataWeight_(maxDataWeight)
-    , Request_(std::move(request))
-    , Invoker_(std::move(invoker))
-    , MemoryTracker_(std::move(memoryTracker))
-    , Logger(logger
-        .WithTag("TabletId: %v", TabletInfo_->TabletId))
-    , IsTrivial_(IsUpperTimestampReached(Options_, Request_.Progress, Logger))
-    , ReplicationProgress_(std::move(Request_.Progress))
-    , ReplicationRowIndex_(Request_.StartReplicationRowIndex)
+        : Client_(std::move(client))
+        , Schema_(std::move(schema))
+        , TimestampColumnIndex_(timestampColumnIndex)
+        , TabletInfo_(std::move(tabletInfo))
+        , Versioned_(versioned)
+        , Options_(options)
+        , MaxDataWeight_(maxDataWeight)
+        , Request_(std::move(request))
+        , Invoker_(std::move(invoker))
+        , MemoryTracker_(std::move(memoryTracker))
+        , Logger(logger
+            .WithTag("TabletId: %v", TabletInfo_->TabletId))
+        , IsTrivial_(IsUpperTimestampReached(Options_, Request_.Progress, Logger))
+        , ReplicationProgress_(std::move(Request_.Progress))
+        , ReplicationRowIndex_(Request_.StartReplicationRowIndex)
     { }
 
     ~TTabletPullRowsSession()
