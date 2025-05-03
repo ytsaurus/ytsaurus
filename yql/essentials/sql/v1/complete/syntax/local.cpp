@@ -50,9 +50,9 @@ namespace NSQLComplete {
 
     public:
         explicit TSpecializedLocalSyntaxAnalysis(TLexerSupplier lexer)
-            : Grammar(&GetSqlGrammar())
+            : Grammar_(&GetSqlGrammar())
             , Lexer_(lexer(/* ansi = */ IsAnsiLexer))
-            , C3(ComputeC3Config())
+            , C3_(ComputeC3Config())
         {
         }
 
@@ -68,7 +68,7 @@ namespace NSQLComplete {
                 return {};
             }
 
-            TC3Candidates candidates = C3.Complete(statement);
+            TC3Candidates candidates = C3_.Complete(statement);
 
             TLocalSyntaxContext result;
 
@@ -104,11 +104,11 @@ namespace NSQLComplete {
         }
 
         std::unordered_set<TTokenId> ComputeIgnoredTokens() const {
-            auto ignoredTokens = Grammar->GetAllTokens();
-            for (auto keywordToken : Grammar->GetKeywordTokens()) {
+            auto ignoredTokens = Grammar_->GetAllTokens();
+            for (auto keywordToken : Grammar_->GetKeywordTokens()) {
                 ignoredTokens.erase(keywordToken);
             }
-            for (auto punctuationToken : Grammar->GetPunctuationTokens()) {
+            for (auto punctuationToken : Grammar_->GetPunctuationTokens()) {
                 ignoredTokens.erase(punctuationToken);
             }
             return ignoredTokens;
@@ -119,8 +119,8 @@ namespace NSQLComplete {
         }
 
         TLocalSyntaxContext::TKeywords SiftedKeywords(const TC3Candidates& candidates) const {
-            const auto& vocabulary = Grammar->GetVocabulary();
-            const auto& keywordTokens = Grammar->GetKeywordTokens();
+            const auto& vocabulary = Grammar_->GetVocabulary();
+            const auto& keywordTokens = Grammar_->GetKeywordTokens();
 
             TLocalSyntaxContext::TKeywords keywords;
             for (const auto& token : candidates.Tokens) {
@@ -251,16 +251,16 @@ namespace NSQLComplete {
             };
         }
 
-        const ISqlGrammar* Grammar;
+        const ISqlGrammar* Grammar_;
         NSQLTranslation::ILexer::TPtr Lexer_;
-        TC3Engine<G> C3;
+        TC3Engine<G> C3_;
     };
 
     class TLocalSyntaxAnalysis: public ILocalSyntaxAnalysis {
     public:
         explicit TLocalSyntaxAnalysis(TLexerSupplier lexer)
-            : DefaultEngine(lexer)
-            , AnsiEngine(lexer)
+            : DefaultEngine_(lexer)
+            , AnsiEngine_(lexer)
         {
         }
 
@@ -273,13 +273,13 @@ namespace NSQLComplete {
     private:
         ILocalSyntaxAnalysis& GetSpecializedEngine(bool isAnsiLexer) {
             if (isAnsiLexer) {
-                return AnsiEngine;
+                return AnsiEngine_;
             }
-            return DefaultEngine;
+            return DefaultEngine_;
         }
 
-        TSpecializedLocalSyntaxAnalysis</* IsAnsiLexer = */ false> DefaultEngine;
-        TSpecializedLocalSyntaxAnalysis</* IsAnsiLexer = */ true> AnsiEngine;
+        TSpecializedLocalSyntaxAnalysis</* IsAnsiLexer = */ false> DefaultEngine_;
+        TSpecializedLocalSyntaxAnalysis</* IsAnsiLexer = */ true> AnsiEngine_;
     };
 
     ILocalSyntaxAnalysis::TPtr MakeLocalSyntaxAnalysis(TLexerSupplier lexer) {
