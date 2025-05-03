@@ -44,7 +44,7 @@ namespace NSQLComplete {
 
         TKeywords Keywords;
         TMaybe<TPragma> Pragma;
-        bool IsTypeName = false;
+        bool Type = false;
         TMaybe<TFunction> Function;
         TMaybe<THint> Hint;
         TMaybe<TObject> Object;

@@ -77,7 +77,7 @@ namespace NSQLComplete {
                 request.Constraints.Pragma = std::move(constraints);
             }
 
-            if (context.IsTypeName) {
+            if (context.Type) {
                 request.Constraints.Type = TTypeName::TConstraints();
             }
 

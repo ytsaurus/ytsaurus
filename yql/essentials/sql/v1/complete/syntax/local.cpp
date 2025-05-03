@@ -86,7 +86,7 @@ namespace NSQLComplete {
 
             result.Keywords = SiftedKeywords(candidates);
             result.Pragma = PragmaMatch(context, candidates);
-            result.IsTypeName = TypeMatch(candidates);
+            result.Type = TypeMatch(candidates);
             result.Function = FunctionMatch(context, candidates);
             result.Hint = HintMatch(candidates);
             result.Object = ObjectMatch(context, candidates);
