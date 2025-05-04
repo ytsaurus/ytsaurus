@@ -41,8 +41,12 @@ namespace NSQLHighlight {
     NJson::TJsonValue ToJson(const TUnit& unit) {
         NJson::TJsonMap map;
         map[JsonKey.Unit.Kind] = ToString(unit.Kind);
-        map[JsonKey.Unit.Patterns] = ToJson(unit.Patterns);
-        map[JsonKey.Unit.PatternsANSIOverride] = ToJson(unit.PatternsANSIOverride);
+        if (!unit.Patterns.empty()) {
+            map[JsonKey.Unit.Patterns] = ToJson(unit.Patterns);
+        }
+        if (!unit.PatternsANSIOverride.empty()) {
+            map[JsonKey.Unit.PatternsANSIOverride] = ToJson(unit.PatternsANSIOverride);
+        }
         return map;
     }
 
