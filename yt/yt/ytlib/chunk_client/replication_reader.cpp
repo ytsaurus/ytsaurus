@@ -2280,7 +2280,7 @@ private:
 
             block.Data = TrackMemory(SessionOptions_.MemoryUsageTracker, std::move(block.Data));
 
-            if (auto error = block.ValidateChecksum(); !error.IsOK()) {
+            if (auto error = block.CheckChecksum(); !error.IsOK()) {
                 RegisterError(
                     TError(
                         NChunkClient::EErrorCode::BlockChecksumMismatch,
@@ -2734,7 +2734,7 @@ private:
                 break;
             }
 
-            if (auto error = block.ValidateChecksum(); !error.IsOK()) {
+            if (auto error = block.CheckChecksum(); !error.IsOK()) {
                 RegisterError(
                     TError(
                         NChunkClient::EErrorCode::BlockChecksumMismatch,
