@@ -159,8 +159,6 @@ struct IConnection
 
     virtual NYTree::IYPathServicePtr GetOrchidService() = 0;
 
-    void Terminate() override = 0;
-
     virtual void InitializeDiscoveryServerAddressPool() = 0;
 
     virtual TFuture<void> SyncHiveCellWithOthers(
