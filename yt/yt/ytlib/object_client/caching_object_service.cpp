@@ -242,9 +242,7 @@ DEFINE_RPC_SERVICE_METHOD(TCachingObjectService, Execute)
                     }
 
                     const auto& rsp = rspOrError.Value();
-                    YT_VERIFY(
-                        rsp->part_counts_size() == 1 ||
-                        (rsp->subresponses_size() == 1 && rsp->subresponses(0).part_count() == 1));
+                    YT_VERIFY(rsp->part_counts_size() == 1 || rsp->subresponses_size() == 1);
                     auto responseMessage = TSharedRefArray(rsp->Attachments(), TSharedRefArray::TCopyParts{});
 
                     TResponseHeader responseHeader;
