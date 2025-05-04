@@ -7,8 +7,45 @@
 #include <util/generic/algorithm.h>
 #include <util/generic/hash.h>
 #include <util/generic/hash_set.h>
+#include <util/string/builder.h>
+#include <util/string/join.h>
 
 namespace NSQLHighlight {
+
+    using NSQLTranslationV1::TRegexPattern;
+
+    TMaybe<TRegexPattern> Merged(TVector<TRegexPattern> patterns) {
+        if (patterns.empty()) {
+            return Nothing();
+        }
+
+        const TRegexPattern& sample = patterns.back();
+        const auto isLikeSample = [&](const TRegexPattern& pattern) {
+            return std::tie(pattern.After, pattern.IsCaseInsensitive) ==
+                   std::tie(sample.After, sample.IsCaseInsensitive);
+        };
+
+        if (!AllOf(patterns, isLikeSample)) {
+            return Nothing();
+        }
+
+        Sort(patterns, [](const TRegexPattern& lhs, const TRegexPattern& rhs) {
+            return lhs.Body.length() > rhs.Body.length();
+        });
+
+        TStringBuilder body;
+        for (const auto& pattern : patterns) {
+            body << "(" << pattern.Body << ")|";
+        }
+        Y_ENSURE(body.back() == '|');
+        body.pop_back();
+
+        return TRegexPattern{
+            .Body = std::move(body),
+            .After = sample.After,
+            .IsCaseInsensitive = sample.IsCaseInsensitive,
+        };
+    }
 
     struct Syntax {
         const NSQLReflect::TLexerGrammar* Grammar;
@@ -53,6 +90,11 @@ namespace NSQLHighlight {
             const TStringBuf content = TLexerGrammar::KeywordBlock(keyword);
             unit.Patterns.push_back(CaseInsensitive(content));
         }
+
+        auto merged = Merged(std::move(unit.Patterns));
+        Y_ENSURE(merged);
+        unit.Patterns = {*merged};
+
         return unit;
     }
 
