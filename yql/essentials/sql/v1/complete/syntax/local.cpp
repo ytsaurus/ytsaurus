@@ -227,6 +227,7 @@ namespace NSQLComplete {
                 if (enclosing->Base->Name == "ID_QUOTED") {
                     path = Unquoted(std::move(path));
                 }
+                path.resize(context.Cursor.Position - enclosing->Position - 1);
                 return path;
             }
             return Nothing();

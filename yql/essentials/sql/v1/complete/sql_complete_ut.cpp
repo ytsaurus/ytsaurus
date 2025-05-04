@@ -551,6 +551,15 @@ Y_UNIT_TEST_SUITE(SqlCompleteTests) {
             UNIT_ASSERT_VALUES_EQUAL(actual.Candidates, expected);
             UNIT_ASSERT_VALUES_EQUAL(actual.CompletedToken.Content, ".sy");
         }
+        {
+            TString input = "SELECT * FROM `/test/ser#vice/`";
+            TVector<TCandidate> expected = {
+                {FolderName, "service/"},
+            };
+            TCompletion actual = engine->Complete(SharpedInput(input));
+            UNIT_ASSERT_VALUES_EQUAL(actual.Candidates, expected);
+            UNIT_ASSERT_VALUES_EQUAL(actual.CompletedToken.Content, "ser");
+        }
     }
 
     Y_UNIT_TEST(SelectFromCluster) {
