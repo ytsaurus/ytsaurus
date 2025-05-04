@@ -1,6 +1,7 @@
 LIBRARY()
 
 SRCS(
+    sql_highlight_json.cpp
     sql_highlight.cpp
     sql_highlighter.cpp
 )

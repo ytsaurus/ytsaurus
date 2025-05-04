@@ -169,7 +169,7 @@ namespace NSQLHighlight {
         return {
             .Kind = EUnitKind::StringLiteral,
             .Patterns = {{s.Get("STRING_VALUE")}},
-            .PatternsANSI = {{s.Get("STRING_VALUE", /* ansi = */ true)}},
+            .PatternsANSIOverride = {{s.Get("STRING_VALUE", /* ansi = */ true)}},
         };
     }
 
@@ -178,7 +178,7 @@ namespace NSQLHighlight {
         return {
             .Kind = EUnitKind::Comment,
             .Patterns = {{s.Get("COMMENT")}},
-            .PatternsANSI = {},
+            .PatternsANSIOverride = {},
         };
     }
 

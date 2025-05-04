@@ -27,9 +27,7 @@ namespace NSQLHighlight {
     struct TUnit {
         EUnitKind Kind;
         TVector<NSQLTranslationV1::TRegexPattern> Patterns;
-
-        // Overrides some Patterns if not empty
-        TVector<NSQLTranslationV1::TRegexPattern> PatternsANSI;
+        TVector<NSQLTranslationV1::TRegexPattern> PatternsANSIOverride;
     };
 
     struct THighlighting {
