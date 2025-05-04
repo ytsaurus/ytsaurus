@@ -52,7 +52,7 @@ int Run(int argc, char* argv[]) {
 
     NLastGetopt::TOpts opts = NLastGetopt::TOpts::Default();
     opts.AddLongOption('g', "generate", "generate a highlighting configuration")
-        .RequiredArgument("generate")
+        .RequiredArgument("target")
         .Choices({"json"})
         .StoreResult(&target);
     opts.SetFreeArgsNum(0);
