@@ -206,6 +206,10 @@ namespace NSQLHighlight {
         return syntax;
     }
 
+    THighlighting MakeHighlighting() {
+        return MakeHighlighting(NSQLReflect::LoadLexerGrammar());
+    }
+
     THighlighting MakeHighlighting(const NSQLReflect::TLexerGrammar& grammar) {
         Syntax s = MakeSyntax(grammar);
 

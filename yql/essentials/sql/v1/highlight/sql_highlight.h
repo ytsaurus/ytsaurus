@@ -28,13 +28,15 @@ namespace NSQLHighlight {
         EUnitKind Kind;
         TVector<NSQLTranslationV1::TRegexPattern> Patterns;
 
-        // Overrides Patterns if not empty
+        // Overrides some Patterns if not empty
         TVector<NSQLTranslationV1::TRegexPattern> PatternsANSI;
     };
 
     struct THighlighting {
         TVector<TUnit> Units;
     };
+
+    THighlighting MakeHighlighting();
 
     THighlighting MakeHighlighting(const NSQLReflect::TLexerGrammar& grammar);
 

@@ -82,7 +82,7 @@ TString Mask(IHighlighter::TPtr& h, TStringBuf text) {
 Y_UNIT_TEST_SUITE(SqlHighlighterTests) {
 
     Y_UNIT_TEST(Suite) {
-        auto h = MakeHighlighter(MakeHighlighting(NSQLReflect::LoadLexerGrammar()));
+        auto h = MakeHighlighter(MakeHighlighting());
         size_t count = 0;
         Cerr << "{" << Endl;
         for (const auto& test : LoadTestSuite()) {
@@ -91,11 +91,10 @@ Y_UNIT_TEST_SUITE(SqlHighlighterTests) {
                 const auto& check = test.Cases[i];
                 const auto actual = Mask(h, check.Input);
                 Cerr << "    [\"" << EscapeC(check.Input) << "\", \"" << actual << "\"]," << Endl;
-                // UNIT_ASSERT_VALUES_EQUAL_C(
-                //         actual,
-                //         check.Expected,
-                //         test.Name << " #" << i
-                //                   << ": Input = '" << check.Input << "'");
+                UNIT_ASSERT_VALUES_EQUAL_C(
+                    actual,
+                    check.Expected,
+                    test.Name << " #" << i << ": Input = '" << check.Input << "'");
                 count += 1;
             }
             Cerr << "  ]," << Endl;
