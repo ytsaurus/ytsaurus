@@ -850,6 +850,10 @@ private:
             subresponse->set_disk_throttling(diskThrottling.Enabled);
             subresponse->set_disk_queue_size(diskThrottling.QueueSize);
 
+            if (chunk) {
+                subresponse->set_medium_index(chunk->GetLocation()->GetMediumDescriptor().Index);
+            }
+
             YT_LOG_DEBUG_UNLESS(diskThrottling.Error.IsOK(), diskThrottling.Error);
 
             const auto& allyReplicaManager = Bootstrap_->GetAllyReplicaManager();
@@ -915,6 +919,10 @@ private:
             : TChunkLocation::TDiskThrottlingResult{.Enabled = false, .QueueSize = 0};
         response->set_disk_throttling(diskThrottling.Enabled);
         response->set_disk_queue_size(diskThrottling.QueueSize);
+
+        if (chunk) {
+            response->set_medium_index(chunk->GetLocation()->GetMediumDescriptor().Index);
+        }
 
         YT_LOG_DEBUG_UNLESS(diskThrottling.Error.IsOK(), diskThrottling.Error);
 
