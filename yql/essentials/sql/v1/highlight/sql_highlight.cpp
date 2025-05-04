@@ -14,20 +14,14 @@ namespace NSQLHighlight {
 
     using NSQLTranslationV1::TRegexPattern;
 
-    TMaybe<TRegexPattern> Merged(TVector<TRegexPattern> patterns) {
-        if (patterns.empty()) {
-            return Nothing();
-        }
+    TRegexPattern Merged(TVector<TRegexPattern> patterns) {
+        Y_ENSURE(!patterns.empty());
 
         const TRegexPattern& sample = patterns.back();
-        const auto isLikeSample = [&](const TRegexPattern& pattern) {
+        Y_ENSURE(AllOf(patterns, [&](const TRegexPattern& pattern) {
             return std::tie(pattern.After, pattern.IsCaseInsensitive) ==
                    std::tie(sample.After, sample.IsCaseInsensitive);
-        };
-
-        if (!AllOf(patterns, isLikeSample)) {
-            return Nothing();
-        }
+        }));
 
         Sort(patterns, [](const TRegexPattern& lhs, const TRegexPattern& rhs) {
             return lhs.Body.length() > rhs.Body.length();
@@ -91,10 +85,7 @@ namespace NSQLHighlight {
             unit.Patterns.push_back(CaseInsensitive(content));
         }
 
-        auto merged = Merged(std::move(unit.Patterns));
-        Y_ENSURE(merged);
-        unit.Patterns = {*merged};
-
+        unit.Patterns = {Merged(std::move(unit.Patterns))};
         return unit;
     }
 
