@@ -3766,14 +3766,14 @@ void TChunkReplicator::OnDynamicConfigChanged(const TDynamicClusterConfigPtr& ol
         InconsistentlyPlacedChunks_.clear();
     }
 
-    auto updateToggle = [&] (bool* currentValue, bool newValue, void(TChunkReplicator::*scheduleGlobalRefresh)(), TString what) {
+    auto updateToggle = [&] (bool* currentValue, bool newValue, void (TChunkReplicator::*scheduleGlobal)(), std::string what) {
         if (newValue != *currentValue) {
             *currentValue = newValue;
             YT_LOG_INFO("%v %v",
                 what,
                 newValue ? "enabled" : "disabled");
             if (newValue) {
-                (this->*scheduleGlobalRefresh)();
+                (this->*scheduleGlobal)();
             }
         }
     };
