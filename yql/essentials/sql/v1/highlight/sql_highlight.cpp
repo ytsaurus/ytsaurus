@@ -272,40 +272,40 @@ template <>
 void Out<NSQLHighlight::EUnitKind>(IOutputStream& out, NSQLHighlight::EUnitKind kind) {
     switch (kind) {
         case NSQLHighlight::EUnitKind::Keyword:
-            out << "Keyword";
+            out << "keyword";
             break;
         case NSQLHighlight::EUnitKind::Punctuation:
-            out << "Punctuation";
+            out << "punctuation";
             break;
         case NSQLHighlight::EUnitKind::QuotedIdentifier:
-            out << "QuotedIdentifier";
+            out << "quoted-identifier";
             break;
         case NSQLHighlight::EUnitKind::BindParamterIdentifier:
-            out << "BindParamterIdentifier";
+            out << "bind-paramter-identifier";
             break;
         case NSQLHighlight::EUnitKind::TypeIdentifier:
-            out << "TypeIdentifier";
+            out << "type-identifier";
             break;
         case NSQLHighlight::EUnitKind::FunctionIdentifier:
-            out << "FunctionIdentifier";
+            out << "function-identifier";
             break;
         case NSQLHighlight::EUnitKind::Identifier:
-            out << "Identifier";
+            out << "identifier";
             break;
         case NSQLHighlight::EUnitKind::Literal:
-            out << "Literal";
+            out << "literal";
             break;
         case NSQLHighlight::EUnitKind::StringLiteral:
-            out << "StringLiteral";
+            out << "string-literal";
             break;
         case NSQLHighlight::EUnitKind::Comment:
-            out << "Comment";
+            out << "comment";
             break;
         case NSQLHighlight::EUnitKind::Whitespace:
-            out << "Ws";
+            out << "ws";
             break;
         case NSQLHighlight::EUnitKind::Error:
-            out << "Error";
+            out << "error";
             break;
     }
 }
