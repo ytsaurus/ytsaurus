@@ -96,6 +96,8 @@ namespace NSQLHighlight {
             const TString content = s.Get(name);
             unit.Patterns.push_back({content});
         }
+
+        unit.Patterns = {Merged(std::move(unit.Patterns))};
         return unit;
     }
 
