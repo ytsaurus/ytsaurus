@@ -94,16 +94,10 @@ namespace NSQLComplete {
             }
 
             if (context.Object) {
-                using EObjectKind = TLocalSyntaxContext::TObject::EKind;
-
-                const auto& kinds = context.Object->Kinds;
-                if (kinds.contains(EObjectKind::Folder)) {
-                    request.Constraints.Folder = TFolderName::TConstraints();
-                }
-                if (kinds.contains(EObjectKind::Table)) {
-                    request.Constraints.Table = TTableName::TConstraints();
-                }
-
+                request.Constraints.Object = TObjectNameConstraints{
+                    .Cluster = context.Object->Cluster,
+                    .Kinds = context.Object->Kinds,
+                };
                 request.Prefix = context.Object->Path;
             }
 

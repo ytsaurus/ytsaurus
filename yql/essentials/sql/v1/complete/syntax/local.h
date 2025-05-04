@@ -1,5 +1,6 @@
 #pragma once
 
+#include <yql/essentials/sql/v1/complete/core/name.h>
 #include <yql/essentials/sql/v1/complete/sql_complete.h>
 
 #include <yql/essentials/sql/v1/lexer/lexer.h>
@@ -32,13 +33,9 @@ namespace NSQLComplete {
         };
 
         struct TObject {
-            enum class EKind {
-                Folder,
-                Table,
-            };
-
+            TString Cluster;
             TString Path;
-            THashSet<EKind> Kinds;
+            THashSet<EObjectKind> Kinds;
             bool IsEnclosed = false;
         };
 

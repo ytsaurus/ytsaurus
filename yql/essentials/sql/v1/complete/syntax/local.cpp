@@ -141,8 +141,9 @@ namespace NSQLComplete {
             }
 
             TLocalSyntaxContext::TPragma pragma;
-            TMaybe<TRichParsedToken> begin;
-            if ((begin = context.MatchCursorPrefix({"ID_PLAIN", "DOT"})) ||
+
+            if (TMaybe<TRichParsedToken> begin;
+                (begin = context.MatchCursorPrefix({"ID_PLAIN", "DOT"})) ||
                 (begin = context.MatchCursorPrefix({"ID_PLAIN", "DOT", ""}))) {
                 pragma.Namespace = begin->Base->Content;
             }
@@ -160,8 +161,9 @@ namespace NSQLComplete {
             }
 
             TLocalSyntaxContext::TFunction function;
-            TMaybe<TRichParsedToken> begin;
-            if ((begin = context.MatchCursorPrefix({"ID_PLAIN", "NAMESPACE"})) ||
+
+            if (TMaybe<TRichParsedToken> begin;
+                (begin = context.MatchCursorPrefix({"ID_PLAIN", "NAMESPACE"})) ||
                 (begin = context.MatchCursorPrefix({"ID_PLAIN", "NAMESPACE", ""}))) {
                 function.Namespace = begin->Base->Content;
             }
@@ -190,16 +192,25 @@ namespace NSQLComplete {
             TLocalSyntaxContext::TObject object;
 
             if (AnyOf(candidates.Rules, RuleAdapted(IsLikelyObjectRefStack))) {
-                object.Kinds.emplace(TLocalSyntaxContext::TObject::EKind::Folder);
+                object.Kinds.emplace(EObjectKind::Folder);
             }
 
             if (AnyOf(candidates.Rules, RuleAdapted(IsLikelyExistingTableStack))) {
-                object.Kinds.emplace(TLocalSyntaxContext::TObject::EKind::Folder);
-                object.Kinds.emplace(TLocalSyntaxContext::TObject::EKind::Table);
+                object.Kinds.emplace(EObjectKind::Folder);
+                object.Kinds.emplace(EObjectKind::Table);
             }
 
             if (object.Kinds.empty()) {
                 return Nothing();
+            }
+
+            // TODO(YQL-19747): Currently cluster support is limited, because
+            //                  it is better to implement it on a parse tree,
+            //                  rather than token list.
+            if (TMaybe<TRichParsedToken> begin;
+                (begin = context.MatchCursorPrefix({"ID_PLAIN", "DOT"})) ||
+                (begin = context.MatchCursorPrefix({"ID_PLAIN", "DOT", ""}))) {
+                object.Cluster = begin->Base->Content;
             }
 
             if (auto path = ObjectPath(context)) {

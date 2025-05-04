@@ -1,5 +1,6 @@
 #pragma once
 
+#include <yql/essentials/sql/v1/complete/core/name.h>
 #include <yql/essentials/sql/v1/complete/core/statement.h>
 
 #include <library/cpp/threading/future/core/future.h>
@@ -7,6 +8,7 @@
 #include <util/generic/vector.h>
 #include <util/generic/string.h>
 #include <util/generic/maybe.h>
+#include <util/generic/hash_set.h>
 
 namespace NSQLComplete {
 
@@ -40,12 +42,15 @@ namespace NSQLComplete {
         };
     };
 
+    struct TObjectNameConstraints {
+        TString Cluster;
+        THashSet<EObjectKind> Kinds;
+    };
+
     struct TFolderName: TIndentifier {
-        struct TConstraints {};
     };
 
     struct TTableName: TIndentifier {
-        struct TConstraints {};
     };
 
     struct TClusterName: TIndentifier {
@@ -73,8 +78,7 @@ namespace NSQLComplete {
         TMaybe<TTypeName::TConstraints> Type;
         TMaybe<TFunctionName::TConstraints> Function;
         TMaybe<THintName::TConstraints> Hint;
-        TMaybe<TFolderName::TConstraints> Folder;
-        TMaybe<TTableName::TConstraints> Table;
+        TMaybe<TObjectNameConstraints> Object;
         TMaybe<TClusterName::TConstraints> Cluster;
 
         TGenericName Qualified(TGenericName unqualified) const;
@@ -95,8 +99,7 @@ namespace NSQLComplete {
                    !Constraints.Type &&
                    !Constraints.Function &&
                    !Constraints.Hint &&
-                   !Constraints.Folder &&
-                   !Constraints.Table &&
+                   !Constraints.Object &&
                    !Constraints.Cluster;
         }
     };

@@ -561,6 +561,24 @@ Y_UNIT_TEST_SUITE(SqlCompleteTests) {
             };
             UNIT_ASSERT_VALUES_EQUAL(Complete(engine, "SELECT * FROM ytsaurus#"), expected);
         }
+        {
+            TVector<TCandidate> expected = {
+                {TableName, "`maxim`"},
+                {Keyword, "CALLABLE"},
+                {Keyword, "DICT"},
+                {Keyword, "ENUM"},
+                {Keyword, "FLOW"},
+                {Keyword, "LIST"},
+                {Keyword, "OPTIONAL"},
+                {Keyword, "RESOURCE"},
+                {Keyword, "SET"},
+                {Keyword, "STRUCT"},
+                {Keyword, "TAGGED"},
+                {Keyword, "TUPLE"},
+                {Keyword, "VARIANT"},
+            };
+            UNIT_ASSERT_VALUES_EQUAL(Complete(engine, "SELECT * FROM ytsaurus."), expected);
+        }
     }
 
     Y_UNIT_TEST(SelectWhere) {

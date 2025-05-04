@@ -12,8 +12,7 @@ namespace NSQLComplete {
             }
 
             NThreading::TFuture<TNameResponse> Lookup(TNameRequest request) const override {
-                if (!request.Constraints.Folder &&
-                    !request.Constraints.Table) {
+                if (!request.Constraints.Object) {
                     return NThreading::MakeFuture<TNameResponse>({});
                 }
 
@@ -25,7 +24,7 @@ namespace NSQLComplete {
         private:
             static TListRequest ToListRequest(TNameRequest request) {
                 return {
-                    .Cluster = "", // TODO(YQL-19747)
+                    .Cluster = request.Constraints.Object->Cluster,
                     .Path = request.Prefix,
                     .Filter = ToListFilter(request.Constraints),
                     .Limit = request.Limit,
@@ -35,13 +34,19 @@ namespace NSQLComplete {
             static TListFilter ToListFilter(const TNameConstraints& constraints) {
                 TListFilter filter;
                 filter.Types = THashSet<TString>();
-                if (constraints.Folder) {
-                    filter.Types->emplace(TFolderEntry::Folder);
-                }
-                if (constraints.Table) {
-                    filter.Types->emplace(TFolderEntry::Table);
+                for (auto kind : constraints.Object->Kinds) {
+                    filter.Types->emplace(ToFolderEntry(kind));
                 }
                 return filter;
+            }
+
+            static TString ToFolderEntry(EObjectKind kind) {
+                switch (kind) {
+                    case EObjectKind::Folder:
+                        return TFolderEntry::Folder;
+                    case EObjectKind::Table:
+                        return TFolderEntry::Table;
+                }
             }
 
             static TNameResponse ToNameResponse(NThreading::TFuture<TListResponse> f) {
