@@ -182,8 +182,8 @@ DEFINE_REFCOUNTED_TYPE(TMemoryLimitRatiosConfig)
 struct TMemoryLimitsConfig
     : public NYTree::TYsonStruct
 {
-    std::optional<i32> Total;
-    std::optional<i32> HeavyRequest;
+    std::optional<i64> Total;
+    std::optional<i64> HeavyRequest;
 
     REGISTER_YSON_STRUCT(TMemoryLimitsConfig);
 
