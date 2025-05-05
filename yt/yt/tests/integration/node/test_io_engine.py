@@ -728,7 +728,6 @@ class TestIoEngine(YTEnvSetup):
                 "primary_medium": "default",
                 "replication_factor": REPLICATION_FACTOR,
             })
-        write_table("//tmp/test", [{"a": i} for i in range(100)])
 
         wait(lambda: all(self.get_io_weight(node, "default") == 0.5 for node in nodes))
 
@@ -742,10 +741,10 @@ class TestIoEngine(YTEnvSetup):
             }
         })
 
-        wait(lambda: all(self.get_io_weight(node, "default") != 0 for node in nodes))
+        wait(lambda: all(self.get_io_weight(node, "default") == 1. for node in nodes))
         io_weights = [self.get_io_weight(node, "default") for node in nodes]
 
-        write_table("//tmp/test", [{"a": i} for i in range(1000)])
+        write_table("//tmp/test", [{"a" * 10: i} for i in range(10000)])
 
         wait(lambda: all(self.get_io_weight(node, "default") < io_weights[i] for i, node in enumerate(nodes)))
 
