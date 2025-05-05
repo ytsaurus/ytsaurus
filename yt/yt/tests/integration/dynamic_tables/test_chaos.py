@@ -5091,6 +5091,40 @@ class TestChaosNativeProxy(ChaosTestBase):
         assert response_parameters["replication_progress"]["segments"][0]["timestamp"] == 0
         assert response_parameters["replication_progress"]["segments"][1]["timestamp"] > 0
 
+    @authors("osidorkin")
+    def test_chaos_replica_reconfigure_on_remount(self):
+        cell_id = self._sync_create_chaos_bundle_and_cell()
+
+        replicas = [
+            {"cluster_name": "primary", "content_type": "data", "mode": "async", "enabled": True, "replica_path": "//tmp/t"},
+            {"cluster_name": "primary", "content_type": "queue", "mode": "sync", "enabled": True, "replica_path": "//tmp/q"},
+        ]
+
+        self._create_chaos_tables(cell_id, replicas)
+
+        def _set_and_check(path, limit, period):
+            set(f"{path}/@mount_config", {
+                "replication_throttler": {
+                    "limit": limit,
+                    "period": period,
+                },
+            })
+            remount_table(path)
+
+            tablet_id = get(f"{path}/@tablets/0/tablet_id")
+            orchid_path = f"#{tablet_id}/orchid/table_puller/replication_throttler"
+            wait(lambda: not isinstance(get(f"{orchid_path}/limit"), yson.YsonEntity))
+
+            orchid = get(orchid_path)
+            assert abs(orchid["limit"] - limit) < 0.001
+            assert orchid["period"] == period
+
+        _set_and_check("//tmp/t", 1000., 2000)
+        _set_and_check("//tmp/t", 2000., 1000)
+
+        _set_and_check("//tmp/q", 1000., 2000)
+        _set_and_check("//tmp/q", 2000., 1000)
+
 
 ##################################################################
 
