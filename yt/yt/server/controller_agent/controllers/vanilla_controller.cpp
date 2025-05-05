@@ -125,6 +125,8 @@ public:
 
     void BuildJobSpec(TJobletPtr joblet, TJobSpec* jobSpec) override;
 
+    THashMap<TString, TString> BuildJobEnvironment() const override;
+
     EJobType GetJobType() const override;
 
     void FinishInput() override;
@@ -217,6 +219,8 @@ public:
 
     bool IsCompleted() const override;
 
+    int GetTotalTargetJobCount() const;
+
     std::vector<TUserJobSpecPtr> GetUserJobSpecs() const override;
 
     void ValidateRevivalAllowed() const override;
@@ -276,6 +280,8 @@ private:
     std::vector<std::vector<TOutputTablePtr>> TaskOutputTables_;
 
     std::optional<TGangManager> GangManager_;
+
+    int TotalTargetJobCount_ = 0;
 
     void ValidateOperationLimits();
 
@@ -459,6 +465,22 @@ void TVanillaTask::BuildJobSpec(TJobletPtr joblet, TJobSpec* jobSpec)
 
     jobSpec->CopyFrom(JobSpecTemplate_);
     AddOutputTableSpecs(jobSpec, joblet);
+}
+
+THashMap<TString, TString> TVanillaTask::BuildJobEnvironment() const
+{
+    YT_ASSERT_THREAD_AFFINITY_ANY();
+
+    auto jobEnvironment = THashMap<TString, TString>{
+        {"YT_TASK_NAME", GetName()},
+    };
+
+    if (VanillaController_->IsOperationGang()) {
+        jobEnvironment.emplace("YT_TASK_JOB_COUNT", ToString(GetTargetJobCount()));
+        jobEnvironment.emplace("YT_JOB_COUNT", ToString(VanillaController_->GetTotalTargetJobCount()));
+    };
+
+    return jobEnvironment;
 }
 
 EJobType TVanillaTask::GetJobType() const
@@ -699,6 +721,7 @@ void TVanillaController::CustomMaterialize()
     for (const auto& [taskName, taskSpec] : Spec_->Tasks) {
         std::vector<TOutputStreamDescriptorPtr> streamDescriptors;
         int taskIndex = Tasks.size();
+        TotalTargetJobCount_ += taskSpec->JobCount;
         for (int index = 0; index < std::ssize(TaskOutputTables_[taskIndex]); ++index) {
             auto streamDescriptor = TaskOutputTables_[taskIndex][index]->GetStreamDescriptorTemplate(index)->Clone();
             streamDescriptor->DestinationPool = GetSink();
@@ -814,6 +837,13 @@ bool TVanillaController::IsCompleted() const
     }
 
     return true;
+}
+
+int TVanillaController::GetTotalTargetJobCount() const
+{
+    YT_ASSERT_THREAD_AFFINITY_ANY();
+
+    return TotalTargetJobCount_;
 }
 
 std::vector<TUserJobSpecPtr> TVanillaController::GetUserJobSpecs() const
