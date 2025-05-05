@@ -20,6 +20,7 @@ TAG(
     ya:noretries
     ya:yt
     ya:force_sandbox
+    ya:large_tests_on_single_slots
 )
 
 IF (SANITIZER_TYPE)
@@ -189,8 +190,6 @@ TEST_SRCS(
     test_yamr_mode.py
     test_yt_cli.py
 )
-
-INCLUDE(${ARCADIA_ROOT}/devtools/large_on_single_slots.inc)
 
 END()
 
