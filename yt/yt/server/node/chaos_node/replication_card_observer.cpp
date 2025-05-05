@@ -162,9 +162,7 @@ private:
             }
         }
 
-        if (!replicationCard->IsMigrated()) {
-            chaosManager->UpdateReplicationCardLagTimes(*replicationCard);
-        }
+        chaosManager->UpdateReplicationCardLagTimes(*replicationCard);
     }
 };
 
