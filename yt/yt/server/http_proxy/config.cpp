@@ -128,10 +128,10 @@ void TFramingConfig::Register(TRegistrar registrar)
 void TMemoryLimitsConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("total", &TThis::Total)
-        .Optional()
+        .Default(120_GB)
         .GreaterThanOrEqual(0);
     registrar.Parameter("heavy_request", &TThis::HeavyRequest)
-        .Optional()
+        .Default(120_GB)
         .GreaterThanOrEqual(0);
 }
 
