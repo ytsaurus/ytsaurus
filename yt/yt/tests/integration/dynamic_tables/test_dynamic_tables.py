@@ -384,11 +384,8 @@ class DynamicTablesSingleCellBase(DynamicTablesBase):
     @authors("gritukan")
     def test_follower_decommissioned_during_decommission(self):
         set("//sys/@config/tablet_manager/decommission_through_extra_peers", True)
-        set(
-            "//sys/@config/tablet_manager/decommissioned_leader_reassignment_timeout",
-            7000,
-        )
-        set("//sys/@config/tablet_manager/extra_peer_drop_delay", 2000)
+        set("//sys/@config/tablet_manager/decommissioned_leader_reassignment_timeout", 5000)
+        set("//sys/@config/tablet_manager/extra_peer_drop_delay", 5000)
 
         create_tablet_cell_bundle("b", attributes={"options": {"peer_count": 1}})
         sync_create_cells(1, tablet_cell_bundle="b")
