@@ -4330,6 +4330,11 @@ private:
                                     .Do(BIND(&TTabletManager::BuildReplicaOrchidYson, Unretained(this), replica));
                             });
                 })
+                .Do([tablet] (auto fluent) {
+                    if (auto tablePuller = tablet->GetTablePuller()) {
+                        tablePuller->BuildOrchidYson(fluent);
+                    }
+                })
                 .DoIf(tablet->IsPhysicallySorted(), [&] (auto fluent) {
                     fluent
                         .Item("dynamic_table_locks").DoMap(

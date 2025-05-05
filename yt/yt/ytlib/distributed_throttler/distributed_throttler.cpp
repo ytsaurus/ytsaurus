@@ -224,6 +224,11 @@ public:
         return Underlying_->GetLimit();
     }
 
+    TDuration GetPeriod() const override
+    {
+        return Underlying_->GetPeriod();
+    }
+
     TDuration GetEstimatedOverdraftDuration() const override
     {
         auto duration = Underlying_->GetEstimatedOverdraftDuration();
