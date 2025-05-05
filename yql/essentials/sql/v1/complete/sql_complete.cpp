@@ -95,6 +95,7 @@ namespace NSQLComplete {
 
             if (context.Object) {
                 request.Constraints.Object = TObjectNameConstraints{
+                    .Provider = context.Object->Provider,
                     .Cluster = context.Object->Cluster,
                     .Kinds = context.Object->Kinds,
                 };

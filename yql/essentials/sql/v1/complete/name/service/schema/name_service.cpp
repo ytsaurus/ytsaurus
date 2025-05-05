@@ -24,11 +24,20 @@ namespace NSQLComplete {
         private:
             static TListRequest ToListRequest(TNameRequest request) {
                 return {
-                    .Cluster = request.Constraints.Object->Cluster,
+                    .Cluster = ClusterName(*request.Constraints.Object),
                     .Path = request.Prefix,
                     .Filter = ToListFilter(request.Constraints),
                     .Limit = request.Limit,
                 };
+            }
+
+            static TString ClusterName(const TObjectNameConstraints& constraints) {
+                TString name = constraints.Cluster;
+                if (!constraints.Provider.empty()) {
+                    name.prepend(":");
+                    name.prepend(constraints.Provider);
+                }
+                return name;
             }
 
             static TListFilter ToListFilter(const TNameConstraints& constraints) {

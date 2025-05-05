@@ -204,13 +204,16 @@ namespace NSQLComplete {
                 return Nothing();
             }
 
-            // TODO(YQL-19747): Currently cluster support is limited, because
-            //                  it is better to implement it on a parse tree,
-            //                  rather than token list.
             if (TMaybe<TRichParsedToken> begin;
                 (begin = context.MatchCursorPrefix({"ID_PLAIN", "DOT"})) ||
                 (begin = context.MatchCursorPrefix({"ID_PLAIN", "DOT", ""}))) {
                 object.Cluster = begin->Base->Content;
+            }
+
+            if (TMaybe<TRichParsedToken> begin;
+                (begin = context.MatchCursorPrefix({"ID_PLAIN", "COLON", "ID_PLAIN", "DOT"})) ||
+                (begin = context.MatchCursorPrefix({"ID_PLAIN", "COLON", "ID_PLAIN", "DOT", ""}))) {
+                object.Provider = begin->Base->Content;
             }
 
             if (auto path = ObjectPath(context)) {

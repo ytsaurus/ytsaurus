@@ -43,6 +43,7 @@ namespace NSQLComplete {
     };
 
     struct TObjectNameConstraints {
+        TString Provider;
         TString Cluster;
         THashSet<EObjectKind> Kinds;
     };

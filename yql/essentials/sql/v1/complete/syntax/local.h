@@ -33,6 +33,7 @@ namespace NSQLComplete {
         };
 
         struct TObject {
+            TString Provider;
             TString Cluster;
             TString Path;
             THashSet<EObjectKind> Kinds;
