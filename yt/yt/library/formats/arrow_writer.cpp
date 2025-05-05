@@ -170,6 +170,10 @@ int ExtractTableIndexFromColumn(const TBatchColumn* column)
 
     const auto* valueColumn = column->Rle->ValueColumn;
     auto values = valueColumn->GetTypedValues<ui64>();
+    TRef nullBitmap;
+    if (valueColumn->NullBitmap) {
+        nullBitmap = valueColumn->NullBitmap->Data;
+    }
 
     // Expecting only one element.
     YT_VERIFY(values.size() == 1);
@@ -186,12 +190,14 @@ int ExtractTableIndexFromColumn(const TBatchColumn* column)
         valueColumn->Values->ZigZagEncoded,
         TRange<ui32>(),
         rleIndexes,
+        nullBitmap,
         [&] (auto index) {
             return values[index];
         },
         [&] (auto value) {
             tableIndex = value;
         });
+
     return tableIndex;
 }
 
@@ -496,6 +502,11 @@ void SerializeIntegerColumn(
 
             auto startIndex = column->StartIndex;
 
+            TRef nullBitmap;
+            if (valueColumn->NullBitmap) {
+                nullBitmap = valueColumn->NullBitmap->Data;
+            }
+
             switch (simpleType) {
 #define XX(cppType, ytType)                                 \
     case ESimpleLogicalValueType::ytType: {                 \
@@ -508,6 +519,7 @@ void SerializeIntegerColumn(
             valueColumn->Values->ZigZagEncoded,             \
             TRange<ui32>(),                                 \
             rleIndexes,                                     \
+            nullBitmap,                                     \
             [&] (auto index) {                              \
                 return values[index];                       \
             },                                              \
@@ -564,6 +576,11 @@ void SerializeDateColumn(
                 ? column->GetTypedValues<ui64>()
                 : TRange<ui64>();
 
+            TRef nullBitmap;
+            if (valueColumn->NullBitmap) {
+                nullBitmap = valueColumn->NullBitmap->Data;
+            }
+
             auto startIndex = column->StartIndex;
 
             auto dstValues = GetTypedValues<i32>(dstRef);
@@ -575,6 +592,7 @@ void SerializeDateColumn(
                 valueColumn->Values->ZigZagEncoded,
                 TRange<ui32>(),
                 rleIndexes,
+                nullBitmap,
                 [&] (auto index) {
                     return values[index];
                 },
@@ -615,6 +633,11 @@ void SerializeDatetimeColumn(
                 ? column->GetTypedValues<ui64>()
                 : TRange<ui64>();
 
+            TRef nullBitmap;
+            if (valueColumn->NullBitmap) {
+                nullBitmap = valueColumn->NullBitmap->Data;
+            }
+
             auto startIndex = column->StartIndex;
 
             auto dstValues = GetTypedValues<i64>(dstRef);
@@ -626,6 +649,7 @@ void SerializeDatetimeColumn(
                 valueColumn->Values->ZigZagEncoded,
                 TRange<ui32>(),
                 rleIndexes,
+                nullBitmap,
                 [&] (auto index) {
                     return values[index];
                 },
@@ -665,6 +689,11 @@ void SerializeTimestampColumn(
                 ? column->GetTypedValues<ui64>()
                 : TRange<ui64>();
 
+            TRef nullBitmap;
+            if (valueColumn->NullBitmap) {
+                nullBitmap = valueColumn->NullBitmap->Data;
+            }
+
             auto startIndex = column->StartIndex;
 
             auto dstValues = GetTypedValues<i64>(dstRef);
@@ -676,6 +705,7 @@ void SerializeTimestampColumn(
                 valueColumn->Values->ZigZagEncoded,
                 TRange<ui32>(),
                 rleIndexes,
+                nullBitmap,
                 [&] (auto index) {
                     return values[index];
                 },
