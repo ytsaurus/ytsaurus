@@ -17,6 +17,7 @@ import yt_error_codes
 import yt.environment.init_operations_archive as init_operations_archive
 
 from yt.yson import get_bytes
+from yt.common import update
 
 import pytest
 
@@ -1183,6 +1184,58 @@ class TestGpuCheck(YTEnvSetup, GpuCheckBase):
         events = get_job(op.id, job_id)["events"]
         phases = [event["phase"] for event in events if "phase" in event]
         assert "running_gpu_check_command" in phases
+
+    @pytest.mark.timeout(180)
+    def test_gpu_check_vanilla_with_separate_volume(self):
+        self.setup_gpu_layer_and_reset_nodes(prepare_gpu_base_layer=True)
+        self.init_operations_archive()
+
+        update_controller_agent_config(
+            "vanilla_operation_options/gpu_check",
+            {
+                "use_separate_root_volume": True,
+                "layer_paths": ["//tmp/gpu_check/0", "//tmp/gpu_base_layer"],
+                "binary_path": "/gpu_check/gpu_check_success",
+                "binary_args": [],
+            }
+        )
+
+        task_spec = {
+            "command": 'echo "$YT_OPERATION_ID $YT_JOB_ID $YT_TASK_NAME $YT_JOB_COUNT $YT_TASK_JOB_COUNT" >&2',
+            "layer_paths": ["//tmp/base_layer"],
+            "enable_gpu_layers": True,
+            "enable_gpu_check": True,
+            "gang_manager": {},
+        }
+
+        op = vanilla(
+            track=True,
+            spec={
+                "tasks": {
+                    "master": update(task_spec, {"job_count": 1}),
+                    "slave": update(task_spec, {"job_count": 2}),
+                },
+            },
+        )
+
+        job_ids = op.list_jobs()
+        assert len(job_ids) == 3
+
+        for job_id in job_ids:
+            events = get_job(op.id, job_id)["events"]
+            phases = [event["phase"] for event in events if "phase" in event]
+            assert "running_gpu_check_command" in phases
+
+            stderr = op.read_stderr(job_id).decode("ascii")
+            parsed_operation_id, parsed_job_id, parsed_task_name, parsed_job_count, parsed_task_job_count = stderr.split()
+            assert parsed_operation_id == op.id
+            assert parsed_job_id == job_id
+            assert int(parsed_job_count) == 3
+            assert parsed_task_name in ("master", "slave")
+            if parsed_task_name == "master":
+                assert int(parsed_task_job_count) == 1
+            if parsed_task_name == "slave":
+                assert int(parsed_task_job_count) == 2
 
     @pytest.mark.timeout(180)
     def test_gpu_check_setup_commands(self):
