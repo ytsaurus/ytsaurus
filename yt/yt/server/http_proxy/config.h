@@ -190,8 +190,8 @@ class TMemoryLimitsConfig
     : public NYTree::TYsonStruct
 {
 public:
-    std::optional<i32> Total;
-    std::optional<i32> HeavyRequest;
+    std::optional<i64> Total;
+    std::optional<i64> HeavyRequest;
 
     REGISTER_YSON_STRUCT(TMemoryLimitsConfig);
 
