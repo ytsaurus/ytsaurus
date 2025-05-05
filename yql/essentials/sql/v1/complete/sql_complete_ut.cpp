@@ -600,6 +600,12 @@ Y_UNIT_TEST_SUITE(SqlCompleteTests) {
             };
             UNIT_ASSERT_VALUES_EQUAL(Complete(engine, "SELECT * FROM yt:saurus."), expected);
         }
+        {
+            TVector<TCandidate> expected = {
+                {TableName, "`people`"},
+            };
+            UNIT_ASSERT_VALUES_EQUAL(CompleteTop(1, engine, "SELECT * FROM example."), expected);
+        }
     }
 
     Y_UNIT_TEST(SelectWhere) {
