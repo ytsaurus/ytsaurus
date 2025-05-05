@@ -103,7 +103,9 @@ namespace NSQLComplete {
             }
 
             if (context.Cluster) {
-                request.Constraints.Cluster = TClusterName::TConstraints();
+                TClusterName::TConstraints constraints;
+                constraints.Namespace = context.Cluster->Provider;
+                request.Constraints.Cluster = std::move(constraints);
             }
 
             return request;

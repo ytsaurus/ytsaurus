@@ -91,7 +91,7 @@ Y_UNIT_TEST_SUITE(SqlCompleteTests) {
                   {"/.sys/", {{"Table", "status"}}}}},
             {"example",
              {{"/", {{"Table", "people"}}}}},
-            {"ytsaurus",
+            {"yt:saurus",
              {{"/", {{"Table", "maxim"}}}}},
         };
 
@@ -184,7 +184,7 @@ Y_UNIT_TEST_SUITE(SqlCompleteTests) {
     Y_UNIT_TEST(Use) {
         TVector<TCandidate> expected = {
             {ClusterName, "example"},
-            {ClusterName, "ytsaurus"},
+            {ClusterName, "yt:saurus"},
         };
         auto engine = MakeSqlCompletionEngineUT();
         UNIT_ASSERT_VALUES_EQUAL(Complete(engine, "USE "), expected);
@@ -243,7 +243,7 @@ Y_UNIT_TEST_SUITE(SqlCompleteTests) {
                 {FolderName, "`prod/`"},
                 {FolderName, "`test/`"},
                 {ClusterName, "example"},
-                {ClusterName, "ytsaurus"},
+                {ClusterName, "yt:saurus"},
                 {Keyword, "IF NOT EXISTS"},
             };
             UNIT_ASSERT_VALUES_EQUAL(Complete(engine, "CREATE TABLE #"), expected);
@@ -292,7 +292,7 @@ Y_UNIT_TEST_SUITE(SqlCompleteTests) {
             {FolderName, "`prod/`"},
             {FolderName, "`test/`"},
             {ClusterName, "example"},
-            {ClusterName, "ytsaurus"},
+            {ClusterName, "yt:saurus"},
             {Keyword, "IF EXISTS"},
         };
         auto engine = MakeSqlCompletionEngineUT();
@@ -488,7 +488,7 @@ Y_UNIT_TEST_SUITE(SqlCompleteTests) {
                 {FolderName, "`prod/`"},
                 {FolderName, "`test/`"},
                 {ClusterName, "example"},
-                {ClusterName, "ytsaurus"},
+                {ClusterName, "yt:saurus"},
                 {Keyword, "ANY"},
                 {Keyword, "CALLABLE"},
                 {Keyword, "DICT"},
@@ -566,9 +566,21 @@ Y_UNIT_TEST_SUITE(SqlCompleteTests) {
         auto engine = MakeSqlCompletionEngineUT();
         {
             TVector<TCandidate> expected = {
-                {ClusterName, "ytsaurus"},
+                {ClusterName, "yt:saurus"},
             };
-            UNIT_ASSERT_VALUES_EQUAL(Complete(engine, "SELECT * FROM ytsaurus#"), expected);
+            UNIT_ASSERT_VALUES_EQUAL(Complete(engine, "SELECT * FROM yt#"), expected);
+        }
+        {
+            TVector<TCandidate> expected = {
+                {ClusterName, "saurus"},
+            };
+            UNIT_ASSERT_VALUES_EQUAL(Complete(engine, "SELECT * FROM yt:"), expected);
+        }
+        {
+            TVector<TCandidate> expected = {
+                {ClusterName, "saurus"},
+            };
+            UNIT_ASSERT_VALUES_EQUAL(Complete(engine, "SELECT * FROM yt:saurus#"), expected);
         }
         {
             TVector<TCandidate> expected = {
@@ -586,7 +598,7 @@ Y_UNIT_TEST_SUITE(SqlCompleteTests) {
                 {Keyword, "TUPLE"},
                 {Keyword, "VARIANT"},
             };
-            UNIT_ASSERT_VALUES_EQUAL(Complete(engine, "SELECT * FROM ytsaurus."), expected);
+            UNIT_ASSERT_VALUES_EQUAL(Complete(engine, "SELECT * FROM yt:saurus."), expected);
         }
     }
 
@@ -648,7 +660,7 @@ Y_UNIT_TEST_SUITE(SqlCompleteTests) {
                 {FolderName, "`prod/`"},
                 {FolderName, "`test/`"},
                 {ClusterName, "example"},
-                {ClusterName, "ytsaurus"},
+                {ClusterName, "yt:saurus"},
             };
             UNIT_ASSERT_VALUES_EQUAL(Complete(engine, "UPSERT INTO "), expected);
         }

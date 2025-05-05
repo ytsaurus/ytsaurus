@@ -55,7 +55,7 @@ namespace NSQLComplete {
     };
 
     struct TClusterName: TIndentifier {
-        struct TConstraints {};
+        struct TConstraints: TNamespaced {};
     };
 
     struct TUnkownName {

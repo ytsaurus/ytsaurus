@@ -26,8 +26,8 @@ namespace NSQLComplete {
                 };
             }
 
-            static auto ToResponse() {
-                return [](auto f) {
+            static auto ToResponse(TNameConstraints constraints) {
+                return [constraints = std::move(constraints)](auto f) {
                     TClusterCatalog catalog = f.ExtractValue();
 
                     TNameResponse response;
@@ -39,6 +39,7 @@ namespace NSQLComplete {
                         response.RankedNames.emplace_back(std::move(name));
                     }
 
+                    response.RankedNames = constraints.Unqualified(std::move(response.RankedNames));
                     return response;
                 };
             }
@@ -55,12 +56,20 @@ namespace NSQLComplete {
                 }
 
                 return Discovery_->Query()
-                    .Apply(FilterByName(request.Prefix))
+                    .Apply(FilterByName(QualifiedClusterName(request)))
                     .Apply(Crop(request.Limit))
-                    .Apply(ToResponse());
+                    .Apply(ToResponse(request.Constraints));
             }
 
         private:
+            static TString QualifiedClusterName(const TNameRequest& request) {
+                TClusterName cluster;
+                cluster.Indentifier = request.Prefix;
+
+                TGenericName generic = request.Constraints.Qualified(cluster);
+                return std::get<TClusterName>(std::move(generic)).Indentifier;
+            }
+
             IClusterDiscovery::TPtr Discovery_;
         };
 

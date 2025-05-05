@@ -32,6 +32,10 @@ namespace NSQLComplete {
             EStatementKind StatementKind;
         };
 
+        struct TCluster {
+            TString Provider;
+        };
+
         struct TObject {
             TString Provider;
             TString Cluster;
@@ -46,7 +50,7 @@ namespace NSQLComplete {
         TMaybe<TFunction> Function;
         TMaybe<THint> Hint;
         TMaybe<TObject> Object;
-        bool Cluster = false;
+        TMaybe<TCluster> Cluster;
         TEditRange EditRange;
     };
 

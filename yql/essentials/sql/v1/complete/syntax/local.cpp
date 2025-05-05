@@ -90,7 +90,7 @@ namespace NSQLComplete {
             result.Function = FunctionMatch(context, candidates);
             result.Hint = HintMatch(candidates);
             result.Object = ObjectMatch(context, candidates);
-            result.Cluster = ClusterMatch(candidates);
+            result.Cluster = ClusterMatch(context, candidates);
 
             return result;
         }
@@ -161,7 +161,6 @@ namespace NSQLComplete {
             }
 
             TLocalSyntaxContext::TFunction function;
-
             if (TMaybe<TRichParsedToken> begin;
                 (begin = context.MatchCursorPrefix({"ID_PLAIN", "NAMESPACE"})) ||
                 (begin = context.MatchCursorPrefix({"ID_PLAIN", "NAMESPACE", ""}))) {
@@ -236,8 +235,19 @@ namespace NSQLComplete {
             return Nothing();
         }
 
-        bool ClusterMatch(const TC3Candidates& candidates) const {
-            return AnyOf(candidates.Rules, RuleAdapted(IsLikelyClusterStack));
+        TMaybe<TLocalSyntaxContext::TCluster> ClusterMatch(
+            const TCursorTokenContext& context, const TC3Candidates& candidates) const {
+            if (!AnyOf(candidates.Rules, RuleAdapted(IsLikelyClusterStack))) {
+                return Nothing();
+            }
+
+            TLocalSyntaxContext::TCluster cluster;
+            if (TMaybe<TRichParsedToken> begin;
+                (begin = context.MatchCursorPrefix({"ID_PLAIN", "COLON"})) ||
+                (begin = context.MatchCursorPrefix({"ID_PLAIN", "COLON", ""}))) {
+                cluster.Provider = begin->Base->Content;
+            }
+            return cluster;
         }
 
         TEditRange EditRange(const TCursorTokenContext& context) const {
