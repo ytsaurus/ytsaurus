@@ -4,11 +4,11 @@
 
 - `Highlighting` is a _list_ of `Highlighting Unit`s.
 
-- `Highlighting Unit` is a language construction in a text to be highlighted.
+- `Highlighting Unit` is a language construction to be highlighted.
 
 - `Highlighting Token` is a text fragment matched with a `Highlighting Unit`.
 
-- `Highlighter` is an function parametrized by `Highlighting` transforming a text into a stream of `Highlighting Token`.
+- `Highlighter` is an function parametrized by `Highlighting` transforming a text into a stream of `Highlighting Token`s.
 
 - `Theme` is a mapping from `Highlighting Unit` to a `Color`.
 
@@ -42,19 +42,45 @@ Here are listed all highlighting units.
 
 - Examples of a `error` includes `!`.
 
-`Highlighting Unit` has list of `Pattern`s. Each `Pattern` has a `body` and `after` (lookahead) properties that define an equivalent to regexp `body(?=after)`. Also it has the property `is-case-insensitive`.
+`Highlighting Unit` has a list of `Pattern`s. `Pattern` defines a matching behaviour. Each `Pattern` has a `body` and `after` (lookahead) properties defining a matching behaviour equivalent to regexp `body(?=after)`. Also it has the property `is-case-insensitive`.
+
+## Highlighting JSON
+
+```json
+{
+    "units": [
+        ...
+        {
+            "kind":"type-identifier",
+            "patterns": [
+                {
+                    "body":"([a-z]|[A-Z]|_)([a-z]|[A-Z]|_|[0-9])*",
+                    "after":"\\<"
+                },
+                {
+                    "body":"Int32|Int16|Utf8|...",
+                    "is-case-insensitive":true
+                }
+            ]
+        },
+        ...
+    ]
+}
+```
 
 ## Highlighter Algorithm
 
-The string `S` is matched by a `Highlighting Unit` `U` iff any of `U`s patterns matched the `S`.
+The string `S` is matched by the `Highlighting Unit` `U` iff any of `U`s patterns matched the `S`.
 
 To highlight a query prefix `P` the `Highlighter` iterates over `Highlighting Unit`s patterns in the specified order and collect matched. Then it choices the max by length matched pattern `P` corresponding to the `Highlighting Unit` `U`. If there are multiple patterns matched, leftmost in the `Highlighting Unit`s list is chosen.
 
 The `Highlighter` produces the `Highlighting Token` with the kind of `U` and advances the text cursor by the length of the content matched by `P`.
 
+If no patterns matched, `error` `Highlighting Token` is emitted.
+
 ## Matching ANSI Comments
 
-Matching ANSI comments using regex is impossible as they are recursive. Therefore client should implement an algorithm to match an ANSI comment by hand. The algorithm `MatchANSI` takes a string as an input and produces an prefix of a matched comment.
+Matching ANSI comments using regexp is impossible as they are recursive. Therefore a client should implement an algorithm to match an ANSI comment by hand. The algorithm `MatchANSI` takes a string as an input and produces an prefix of a matched comment.
 
 1. Consume the begining of multiline comment `/*`.
 
