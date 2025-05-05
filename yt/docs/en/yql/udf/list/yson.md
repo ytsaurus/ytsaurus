@@ -1,7 +1,7 @@
 # Yson
 
 
-[YSON](https://yt.yandex-team.ru/docs/description/common/yson.html) is a data format similar to JSON developed by Yandex.
+[YSON](../../../user-guide/storage/yson.md) is a data format similar to JSON developed by Yandex.
 
 * Similarities with JSON:
    * Does not have a strict scheme.
@@ -225,7 +225,7 @@ Yson::YPathList(Resource<'Yson2.Node'>{Flags:AutoMap}, String) -> List<Resource<
 Lets you get a part of the resource based on the source resource and the part's path in YPath format.
 
 
-[YPath-related information](https://yt.yandex-team.ru/docs/description/common/ypath.html) at documentation page {{product-name}}.
+[YPath-related information](../../../user-guide/storage/ypath.md) at documentation page {{product-name}}.
 
 ## Yson::Attributes {#ysonattributes}
 ```yql
