@@ -2318,6 +2318,32 @@ print(json.dumps(input))
 
         assert first_read <= first_written <= chunk_reader_spent_time
 
+    @authors("apollo1321")
+    def test_job_count_with_skewed_row_sizes(self):
+        skip_if_component_old(self.Env, (25, 1), "controller-agent")
+        create("table", "//tmp/t_in")
+        rows_batches = [
+            [{"k": "v"}, {"k": "v"}],
+            [{"k": "v"}, {"k": "v"}],
+            [{"k": "v" * 5000}],
+            [{"k": "v"}],
+        ]
+
+        for rows in rows_batches:
+            write_table("<append=true>//tmp/t_in", rows)
+
+        for job_count in [1, 2, 5, 6]:
+            op = map(
+                in_="//tmp/t_in",
+                out="<create=true>//tmp/t_out",
+                command="cat > /dev/null",
+                spec={
+                    "job_count": job_count,
+                },
+            )
+
+            assert op.get_job_count("completed") == job_count
+
 
 ##################################################################
 

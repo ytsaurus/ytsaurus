@@ -158,7 +158,7 @@ public:
         if (JobCount_ == 0) {
             return 1;
         }
-        return std::max<i64>(DivCeil(InputRowCount_, JobCount_), 1);
+        return std::max<i64>(InputRowCount_ / JobCount_, 1);
     }
 
     std::optional<i64> GetBatchRowCount() const override
