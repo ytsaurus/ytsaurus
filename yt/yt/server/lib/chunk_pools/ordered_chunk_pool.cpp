@@ -207,7 +207,7 @@ private:
     // If the value is not set, it indicates that the row count until job split
     // cannot be currently estimated. In this scenario, a new slice may be
     // added without requiring a split.
-    std::optional<i64> RowCountUntilJobSplitNew_ = std::nullopt;
+    std::optional<i64> RowCountUntilJobSplitNew_;
     std::unique_ptr<TNewJobStub> CurrentJob_;
 
     int JobIndex_ = 0;
