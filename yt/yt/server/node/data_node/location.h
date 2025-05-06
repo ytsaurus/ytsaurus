@@ -503,7 +503,7 @@ public:
     double GetFairShareWorkloadCategoryWeight(EWorkloadCategory category) const;
 
     //! Push supplier to the queue.
-    void PushProbePutBlocksRequestSupplier(TProbePutBlocksRequestSupplierPtr supplier);
+    void PushProbePutBlocksRequestSupplier(const TProbePutBlocksRequestSupplierPtr& supplier);
 
     //! Try to acquire memory for top requests.
     void CheckProbePutBlocksRequests();
@@ -569,7 +569,7 @@ private:
     // TODO(vvshlyaga): Change to fair share queue.
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, ProbePutBlocksRequestsLock_);
     std::deque<TProbePutBlocksRequestSupplierPtr> ProbePutBlocksRequests_;
-    THashSet<TSessionId> ProbePutBlocksSuppliers_;
+    THashSet<TSessionId> ProbePutBlocksSessionIds_;
 
     const IMemoryUsageTrackerPtr ReadMemoryTracker_;
     const IMemoryUsageTrackerPtr WriteMemoryTracker_;
@@ -606,7 +606,7 @@ private:
     THazardPtr<TChunkLocationConfig> GetRuntimeConfig() const;
 
     void DoCheckProbePutBlocksRequests();
-    bool ContainsProbePutBlocksRequestSupplier(TProbePutBlocksRequestSupplierPtr supplier) const;
+    bool ContainsProbePutBlocksRequestSupplier(const TProbePutBlocksRequestSupplierPtr& supplier) const;
 
     // TODO(vvshlyaga): Remove flag useLegacyUsedMemory after rolling writer with probing on all nodes.
     void IncreaseUsedMemory(bool useLegacyUsedMemory, EIODirection direction, EIOCategory category, i64 delta);
