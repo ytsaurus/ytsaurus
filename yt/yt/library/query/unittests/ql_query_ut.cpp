@@ -1139,8 +1139,7 @@ TEST_F(TQueryPrepareTest, PushDownGroupBy)
             {"value_1", EValueType::Int64},
         }))));
 
-    auto fmt = [] (const TNamedItemList& items)
-    {
+    auto fmt = [] (const TNamedItemList& items) {
         auto namedItemFormatter = [&] (TStringBuilderBase* builder, const TNamedItem& item) {
             builder->AppendString(InferName(item.Expression, /*omitValues*/ false));
         };
