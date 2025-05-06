@@ -20,7 +20,7 @@ int RunGenerateJSON() {
 int RunHighlighter() {
     THashMap<EUnitKind, NColorizer::EAnsiCode> ColorByKind = {
         {EUnitKind::Keyword, NColorizer::BLUE},
-        {EUnitKind::Punctuation, NColorizer::LIGHT_BLACK},
+        {EUnitKind::Punctuation, NColorizer::DARK_WHITE},
         {EUnitKind::QuotedIdentifier, NColorizer::DARK_CYAN},
         {EUnitKind::BindParamterIdentifier, NColorizer::YELLOW},
         {EUnitKind::TypeIdentifier, NColorizer::GREEN},
