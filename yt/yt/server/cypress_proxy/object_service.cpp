@@ -478,7 +478,9 @@ private:
         }
 
         auto responses = WaitFor(AllSet(std::move(responseFutures)))
-            .ValueOrThrow(); // Unexpected error, just reply to the client.
+            // On unexpected error, just reply to the client.
+            .ValueOrThrow();
+
         for (const auto& [response, requestInfo] : Zip(responses, requestInfos)) {
             if (!response.IsOK()) {
                 if (requestInfo.SubrequestIndices.size() == Subrequests_.size()) {
@@ -640,7 +642,11 @@ private:
             }
 
             Subrequests_[index].Target = ERequestTarget::None;
-            ReplyOnSubrequest(index, std::move(subresponseMessage));
+
+            // TODO(banbenko, kvk1920): Currently this is only filled for requests forwarded to masters.
+            // Handle Sequoia requests as well!
+            auto revision = FromProto<NHydra::TRevision>(subresponse.revision());
+            ReplyOnSubrequest(index, std::move(subresponseMessage), revision);
         }
 
         for (int index : subrequestsWithoutResponse) {
@@ -910,16 +916,24 @@ private:
         RpcContext_->Reply(error);
     }
 
-    void ReplyOnSubrequest(int subrequestIndex, TSharedRefArray subresponseMessage)
+    void ReplyOnSubrequest(
+        int subrequestIndex,
+        TSharedRefArray subresponseMessage,
+        NHydra::TRevision revision = NHydra::NullRevision)
     {
         // Caller is responsible for marking subrequest as executed.
         YT_VERIFY(Subrequests_[subrequestIndex].Target == ERequestTarget::None);
 
         auto& response = RpcContext_->Response();
 
-        auto* subresponseInfo = response.add_subresponses();
-        subresponseInfo->set_index(subrequestIndex);
-        subresponseInfo->set_part_count(subresponseMessage.Size());
+        auto* subresponse = response.add_subresponses();
+        subresponse->set_index(subrequestIndex);
+        subresponse->set_part_count(subresponseMessage.Size());
+        if (revision != NHydra::NullRevision) {
+            subresponse->set_revision(ToProto(revision));
+        }
+        response.add_revisions(ToProto(revision));
+
         response.Attachments().insert(
             response.Attachments().end(),
             subresponseMessage.Begin(),
