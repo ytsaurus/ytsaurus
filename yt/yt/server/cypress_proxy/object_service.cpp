@@ -966,7 +966,7 @@ DEFINE_RPC_SERVICE_METHOD(TObjectService, Execute)
     if (masterChannelKind != EMasterChannelKind::Leader &&
         masterChannelKind != EMasterChannelKind::Follower)
     {
-        THROW_ERROR_EXCEPTION("Expected %Qv or %Qv master channel kind, got %Qv",
+        THROW_ERROR_EXCEPTION("Expected %Qlv or %Qlv master channel kind, got %Qlv",
             EMasterChannelKind::Leader,
             EMasterChannelKind::Follower,
             masterChannelKind);
