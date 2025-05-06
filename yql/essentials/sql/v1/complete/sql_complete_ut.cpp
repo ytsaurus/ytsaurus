@@ -2,7 +2,8 @@
 
 #include <yql/essentials/sql/v1/complete/name/cluster/static/discovery.h>
 #include <yql/essentials/sql/v1/complete/name/object/dispatch/schema_gateway.h>
-#include <yql/essentials/sql/v1/complete/name/object/static/schema_gateway.h>
+#include <yql/essentials/sql/v1/complete/name/object/simple/schema_gateway.h>
+#include <yql/essentials/sql/v1/complete/name/object/simple/static/schema_gateway.h>
 #include <yql/essentials/sql/v1/complete/name/service/ranking/frequency.h>
 #include <yql/essentials/sql/v1/complete/name/service/ranking/ranking.h>
 #include <yql/essentials/sql/v1/complete/name/service/cluster/name_service.h>
@@ -107,7 +108,9 @@ Y_UNIT_TEST_SUITE(SqlCompleteTests) {
 
         THashMap<TString, ISchemaGateway::TPtr> schemasByCluster;
         for (auto& [cluster, fs] : fss) {
-            schemasByCluster[std::move(cluster)] = MakeStaticSchemaGateway(std::move(fs));
+            schemasByCluster[std::move(cluster)] =
+                MakeSimpleSchemaGateway(
+                    MakeStaticSimpleSchemaGateway(std::move(fs)));
         }
 
         TVector<INameService::TPtr> children = {

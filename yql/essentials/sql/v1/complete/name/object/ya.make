@@ -13,5 +13,4 @@ END()
 RECURSE(
     dispatch
     simple
-    static
 )

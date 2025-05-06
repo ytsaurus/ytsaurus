@@ -1,5 +1,7 @@
 #include "schema_gateway.h"
 
+#include <yql/essentials/sql/v1/complete/name/object/simple/static/schema_gateway.h>
+
 #include <library/cpp/testing/unittest/registar.h>
 
 using namespace NSQLComplete;
@@ -18,7 +20,8 @@ Y_UNIT_TEST_SUITE(StaticSchemaGatewayTests) {
                         {"Table", "meta"}}},
             {"/test/service/", {{"Table", "example"}}},
         };
-        return MakeStaticSchemaGateway(std::move(fs));
+        return MakeSimpleSchemaGateway(
+            MakeStaticSimpleSchemaGateway(std::move(fs)));
     }
 
     Y_UNIT_TEST(ListFolderBasic) {

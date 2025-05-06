@@ -9,3 +9,11 @@ PEERDIR(
 )
 
 END()
+
+RECURSE(
+    static
+)
+
+RECURSE_FOR_TESTS(
+    ut
+)
