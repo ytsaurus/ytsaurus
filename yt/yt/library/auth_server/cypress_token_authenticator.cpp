@@ -50,8 +50,8 @@ public:
             ToYPathLiteral(tokenHash));
         auto options = TGetNodeOptions{
             .Attributes = TAttributeFilter({"user", "user_id"}),
-            .ReadFrom = EMasterChannelKind::Cache,
         };
+        options.ReadFrom = EMasterChannelKind::Cache;
         return Client_->GetNode(path, options)
             .Apply(BIND(
                 &TCypressTokenAuthenticator::OnCallTokenResult,
@@ -90,7 +90,9 @@ private:
         if (userIdAttribute) {
             // New authentication schema: now we need to get the username given the user ID which we received.
             auto path = Format("#%v/@name", ToYPathLiteral(*userIdAttribute));
-            return Client_->GetNode(path, /*options*/ {})
+            TGetNodeOptions options{};
+            options.ReadFrom = EMasterChannelKind::Cache;
+            return Client_->GetNode(path, options)
                 .Apply(BIND(
                     &TCypressTokenAuthenticator::OnCallUsernameResult,
                     MakeStrong(this),
@@ -112,8 +114,7 @@ private:
         YT_LOG_DEBUG(rspOrError, "Cypress authentication failed (TokenHash: %v)",
             tokenHash);
         THROW_ERROR_EXCEPTION("Cypress authentication failed")
-            << TErrorAttribute("token_hash", tokenHash)
-            << rspOrError;
+            << TErrorAttribute("token_hash", tokenHash);
     }
 
     TAuthenticationResult OnCallUsernameResult(
@@ -122,15 +123,13 @@ private:
         const TErrorOr<TYsonString>& rspOrError)
     {
         if (!rspOrError.IsOK()) {
-            if (rspOrError.FindMatching(NYTree::EErrorCode::ResolveError)) {
-                YT_LOG_DEBUG(rspOrError, "Could not get username by user ID (User ID: %v)",
+            YT_LOG_DEBUG(rspOrError, "Cypress authentication failed (User ID: %v)",
                     userId);
+            if (rspOrError.FindMatching(NYTree::EErrorCode::ResolveError)) {
                 THROW_ERROR_EXCEPTION("Could not get username by user ID")
                     << TErrorAttribute("token_hash", userId)
                     << rspOrError;
             } else {
-                YT_LOG_DEBUG(rspOrError, "Cypress authentication failed (User ID: %v)",
-                    userId);
                 THROW_ERROR_EXCEPTION("Cypress authentication failed")
                     << TErrorAttribute("user_id", userId)
                     << rspOrError;

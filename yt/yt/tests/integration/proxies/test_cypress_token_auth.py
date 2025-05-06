@@ -3,7 +3,6 @@ from yt_commands import (
     authors, create_user, issue_token, revoke_token, list_user_tokens,
     wait, get, set, set_user_password, create, raises_yt_error
 )
-from yt.common import YtResponseError
 from yt.environment.helpers import assert_items_equal
 
 import pytest

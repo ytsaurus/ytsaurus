@@ -157,7 +157,7 @@ TIssueTokenResult TClient::DoIssueTokenImpl(
         THROW_ERROR error;
     }
 
-    attributes->Set("user_id", ConvertTo<TString>(userIdRspOrError.Value()));
+    attributes->Set("user_id", ConvertTo<std::string>(userIdRspOrError.Value()));
     attributes->Set("token_prefix", tokenPrefix);
 
     createOptions.Attributes = attributes;
