@@ -1234,7 +1234,7 @@ class TestDataApiMultiCluster(TestDataApiBase):
         insert_rows(queue_replicated_table, [{"data": "bar"}])
 
         register_queue_consumer(queue_replicated_table, consumer_replicated_table, vital=False)
-        # Wait for registration table mapping to be filled.
+        # Wait for replicated table mapping to be filled.
         CypressSynchronizerOrchid().wait_fresh_pass()
 
         # This works, since we perform fallback requests to replicas under root.
@@ -1264,7 +1264,7 @@ class TestDataApiMultiCluster(TestDataApiBase):
 
         set(f"{consumer_replicated_table}/@abc", True)
         set(f"{queue_replicated_table}/@abc", True)
-        # Wait for registration table mapping to be filled.
+        # Wait for replicated table mapping to be filled.
         CypressSynchronizerOrchid().wait_fresh_pass()
 
         self._wait_assert_rows_contain(
