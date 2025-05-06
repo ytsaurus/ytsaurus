@@ -9,7 +9,7 @@ namespace NSQLHighlight {
         struct {
             const char* Kind = "kind";
             const char* Patterns = "patterns";
-            const char* PatternsANSIOverride = "patterns-ansi-override";
+            const char* PatternsANSI = "patterns-ansi";
         } Unit;
         struct {
             const char* Body = "body";
@@ -44,8 +44,8 @@ namespace NSQLHighlight {
         if (!unit.Patterns.empty()) {
             map[JsonKey.Unit.Patterns] = ToJson(unit.Patterns);
         }
-        if (!unit.PatternsANSIOverride.empty()) {
-            map[JsonKey.Unit.PatternsANSIOverride] = ToJson(unit.PatternsANSIOverride);
+        if (!unit.PatternsANSI.Empty()) {
+            map[JsonKey.Unit.PatternsANSI] = ToJson(*unit.PatternsANSI);
         }
         return map;
     }

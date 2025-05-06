@@ -47,8 +47,8 @@ namespace NSQLHighlight {
         TGenericLexerGrammar grammar;
         for (const auto& unit : highlighting.Units) {
             const auto* patterns = &unit.Patterns;
-            if (!unit.PatternsANSIOverride.empty() && ansi) {
-                patterns = &unit.PatternsANSIOverride;
+            if (!unit.PatternsANSI.Empty() && ansi) {
+                patterns = unit.PatternsANSI.Get();
             }
 
             if (unit.Kind == EUnitKind::Comment && ansi) {

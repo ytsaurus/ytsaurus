@@ -17,10 +17,10 @@ namespace NSQLHighlight {
     class IHighlighter: public TThrRefBase {
     public:
         using TPtr = TIntrusivePtr<IHighlighter>;
-        using TTokenCallback = std::function<void(TToken&& token)>;
+        using TTokenCallback = std::function<void(TToken&& token)>; // TODO: return bool to intr
 
         virtual ~IHighlighter() = default;
-        virtual void Tokenize(TStringBuf text, const TTokenCallback& onNext) const = 0;
+        virtual void Tokenize(TStringBuf text, const TTokenCallback& onNext) const = 0; // TODO: return false if failed
     };
 
     TVector<TToken> Tokenize(IHighlighter& highlighter, TStringBuf text);

@@ -206,7 +206,9 @@ namespace NSQLHighlight {
         return {
             .Kind = EUnitKind::StringLiteral,
             .Patterns = {{s.Get("STRING_VALUE")}},
-            .PatternsANSIOverride = {{s.Get("STRING_VALUE", /* ansi = */ true)}},
+            .PatternsANSI = TVector<TRegexPattern>{
+                TRegexPattern{s.Get("STRING_VALUE", /* ansi = */ true)},
+            },
         };
     }
 
@@ -215,7 +217,7 @@ namespace NSQLHighlight {
         return {
             .Kind = EUnitKind::Comment,
             .Patterns = {{s.Get("COMMENT")}},
-            .PatternsANSIOverride = {},
+            .PatternsANSI = Nothing(),
         };
     }
 
