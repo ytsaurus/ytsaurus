@@ -5,9 +5,15 @@ pragma TablePathPrefix = "home/tpcds/3Tb";
 pragma EmitUnionMerge;
 pragma yt.UseIntermediateStreams;
 pragma yt.EnableFuseMapToMapReduce = 'true';
-pragma config.flags("OptimizerFlags", "FilterPushdownEnableMultiusage",
-                    "EarlyExpandSkipNull", "PushdownComplexFiltersOverAggregate", "ExtractCommonPredicatesFromLogicalOps", "PullUpExtendOverEquiJoin",
-                    "DisableEmitSkipNullOnPushDown");
+pragma config.flags(
+    "OptimizerFlags",
+    "EmitPruneKeys",
+    "FilterPushdownEnableMultiusage",
+    "EarlyExpandSkipNull",
+    "PushdownComplexFiltersOverAggregate",
+    "ExtractCommonPredicatesFromLogicalOps",
+    "PullUpExtendOverEquiJoin",
+    "DisableEmitSkipNullOnPushDown");
 pragma yt.AutoMerge = "disabled";
 pragma yt.DataSizePerPartition = "64M";
 pragma yt.HybridDqExecution = "false";
@@ -26,5 +32,7 @@ pragma yt.MaxExtraJobMemoryToFuseOperations="3G";
 pragma yt.ExtendedStatsMaxChunkCount="100000";
 pragma yt.JobBlockInput;
 pragma yt.JobBlockTableContent;
-pragma yt.DefaultMemoryLimit = "5G";
+pragma BlockEngine='auto';
+pragma yt.BlockMapJoin;
 pragma CostBasedOptimizer="native";
+pragma FilterPushdownOverJoinOptionalSide;

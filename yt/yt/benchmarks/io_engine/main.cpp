@@ -231,7 +231,7 @@ public:
         TMpscStack<TShot>& queue,
         ui64 printInterval,
         const IGaugePrinter* gaugePrinter,
-        TFairShareHierarchicalSlotQueuePtr<TString> fairShareQueue)
+        TFairShareHierarchicalSlotQueuePtr<std::string> fairShareQueue)
         : TSchedulerThread(
             callbackEventCount,
             "ResultProcessing",
@@ -246,7 +246,7 @@ private:
     TMpscStack<TShot>& Queue_;
     ui64 PrintInterval_;
     const IGaugePrinter* GaugePrinter_;
-    const TFairShareHierarchicalSlotQueuePtr<TString> FairShareQueue_;
+    const TFairShareHierarchicalSlotQueuePtr<std::string> FairShareQueue_;
 
     std::vector<ui64> BucketsBounds_ = {
         1000,
@@ -330,8 +330,8 @@ class TTask
 public:
     TTask(const TTestConfig& config)
         : Config_(config)
-        , FairShareQueue_(CreateFairShareHierarchicalSlotQueue<TString>(
-            CreateFairShareHierarchicalScheduler<TString>(New<TFairShareHierarchicalSchedulerDynamicConfig>())))
+        , FairShareQueue_(CreateFairShareHierarchicalSlotQueue<std::string>(
+            CreateFairShareHierarchicalScheduler<std::string>(New<TFairShareHierarchicalSchedulerDynamicConfig>())))
         , IOEngine_(CreateIOEngine(
             Config_.IOEngine,
             Config_.IOConfig,
@@ -386,7 +386,7 @@ public:
 
 private:
     const TTestConfig& Config_;
-    const TFairShareHierarchicalSlotQueuePtr<TString> FairShareQueue_;
+    const TFairShareHierarchicalSlotQueuePtr<std::string> FairShareQueue_;
     const IIOEnginePtr IOEngine_;
     TFastRng64 RNG_;
 

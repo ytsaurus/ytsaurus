@@ -2,7 +2,7 @@
 
 #include <contrib/ydb/core/formats/arrow/size_calcer.h>
 #include <contrib/ydb/core/tx/columnshard/columnshard.h>
-#include <contrib/ydb/core/tx/columnshard/counters/common/object_counter.h>
+#include <contrib/ydb/library/signals/object_counter.h>
 #include <contrib/ydb/core/tx/data_events/shard_writer.h>
 #include <contrib/ydb/core/tx/long_tx_service/public/events.h>
 #include <contrib/ydb/core/tx/schemeshard/schemeshard.h>

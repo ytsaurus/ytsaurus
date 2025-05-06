@@ -354,7 +354,7 @@ THashSet<std::string> ListNodeAttributes(
 }
 
 void AttachChildToNode(
-    TCypressNode* trunkParent,
+    TCompositeCypressNode* trunkParent,
     TCypressNode* child)
 {
     YT_VERIFY(trunkParent->IsTrunk());
@@ -375,7 +375,7 @@ void AttachChildToNode(
 }
 
 void DetachChildFromNode(
-    TCypressNode* /*trunkParent*/,
+    TCompositeCypressNode* /*trunkParent*/,
     TCypressNode* child)
 {
     child->SetParent(nullptr);

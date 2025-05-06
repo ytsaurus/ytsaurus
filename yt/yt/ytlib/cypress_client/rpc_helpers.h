@@ -67,6 +67,10 @@ void SetResolveDepth(const NRpc::IClientRequestPtr& request, int value);
 //! Gets resolve depth value.
 int GetResolveDepth(const NRpc::NProto::TRequestHeader& header);
 
+void SetCausedByNodeExpiration(NRpc::NProto::TRequestHeader* header);
+
+bool GetCausedByNodeExpiration(const NRpc::NProto::TRequestHeader& header);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NCypressClient

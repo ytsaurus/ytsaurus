@@ -39,6 +39,11 @@ class TestNodeTracker(YTEnvSetup):
         }
     }
 
+    # NB: allows to test Cypress proxy liveness while master is in read-only mode.
+    DELTA_CYPRESS_PROXY_CONFIG = {
+        "heartbeat_period": 1000,
+    }
+
     @authors("babenko")
     def test_ban(self):
         nodes = ls("//sys/cluster_nodes")

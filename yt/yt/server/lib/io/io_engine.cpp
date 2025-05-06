@@ -904,7 +904,7 @@ public:
         TString locationId,
         TProfiler profiler,
         NLogging::TLogger logger,
-        TFairShareHierarchicalSlotQueuePtr<TString> fairShareQueue)
+        TFairShareHierarchicalSlotQueuePtr<std::string> fairShareQueue)
         : TIOEngineBase(
             config,
             std::move(locationId),
@@ -1264,7 +1264,7 @@ private:
     IThreadPoolPtr ThreadPool_;
     TIORequestSlicer RequestSlicer_;
 
-    TFairShareHierarchicalSlotQueuePtr<TString> FairShareQueue_;
+    TFairShareHierarchicalSlotQueuePtr<std::string> FairShareQueue_;
 
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, Lock_);
     THashMap<TFairShareSlotId, std::deque<std::pair<TGuid, EFairShareIOEngineRequestType>>> SlotIdToRequestIds_;
@@ -1325,7 +1325,7 @@ private:
 
     template <class TResponse>
     void HandleNextRequest(
-        const TFairShareHierarchicalSlotQueueSlotPtr<TString>& slot,
+        const TFairShareHierarchicalSlotQueueSlotPtr<std::string>& slot,
         TGuard<NThreading::TSpinLock> guard,
         TGuid requestId,
         THashMap<TGuid, TRequestHandler<TResponse>>& requestStorage)
@@ -1385,7 +1385,7 @@ IIOEnginePtr CreateIOEngine(
     TString locationId,
     TProfiler profiler,
     NLogging::TLogger logger,
-    TFairShareHierarchicalSlotQueuePtr<TString> fairShareQueue)
+    TFairShareHierarchicalSlotQueuePtr<std::string> fairShareQueue)
 {
     using TClassicThreadPoolIOEngine = TThreadPoolIOEngine<TFixedPriorityExecutor, TDummyRequestSlicer>;
     using TFairShareThreadPoolIOEngine = TThreadPoolIOEngine<TFairShareThreadPool, TIORequestSlicer>;

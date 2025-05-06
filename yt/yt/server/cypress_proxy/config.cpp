@@ -47,6 +47,9 @@ void TObjectServiceDynamicConfig::Register(TRegistrar registrar)
     registrar.Parameter("default_per_user_write_request_weight_throttler", &TThis::DefaultPerUserWriteRequestWeightThrottler)
         .DefaultNew();
 
+    registrar.Parameter("forwarded_request_timeout_reserve", &TThis::ForwardedRequestTimeoutReserve)
+        .Default(TDuration::Seconds(3));
+
     registrar.Parameter("enable_fast_path_prerequisite_transaction_check", &TThis::EnableFastPathPrerequisiteTransactionCheck)
         .Default(true);
 

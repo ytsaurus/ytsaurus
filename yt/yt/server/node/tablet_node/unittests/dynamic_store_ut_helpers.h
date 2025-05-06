@@ -203,7 +203,8 @@ public:
             TTableReplicaId(),
             /*retainedTimestamp*/ NullTimestamp,
             /*cumulativeDataWeight*/ 0,
-            /*serializationType*/ ETabletTransactionSerializationType::Coarse);
+            /*serializationType*/ ETabletTransactionSerializationType::Coarse,
+            TInstant::Now());
         Tablet_->SetStructuredLogger(CreateMockPerTabletStructuredLogger(Tablet_.get()));
 
         auto storeManager = CreateStoreManager(Tablet_.get());

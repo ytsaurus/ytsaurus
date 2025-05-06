@@ -18,6 +18,9 @@ add_library(cpp-yt-threading)
 target_compile_options(cpp-yt-threading PRIVATE
   -Wdeprecated-this-capture
   -Wimplicit-fallthrough
+  -Wparentheses
+  -Wno-logical-op-parentheses
+  -Wno-bitwise-op-parentheses
 )
 
 target_link_libraries(cpp-yt-threading PUBLIC
@@ -46,5 +49,6 @@ target_sources(cpp-yt-threading PRIVATE
   ${PROJECT_SOURCE_DIR}/library/cpp/yt/threading/spin_lock.cpp
   ${PROJECT_SOURCE_DIR}/library/cpp/yt/threading/spin_wait.cpp
   ${PROJECT_SOURCE_DIR}/library/cpp/yt/threading/spin_wait_hook.cpp
+  ${PROJECT_SOURCE_DIR}/library/cpp/yt/threading/writer_starving_rw_spin_lock.cpp
 )
 

@@ -22,10 +22,9 @@ namespace NYT::NQueryTracker {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TEngineConfigBase
+struct TEngineConfigBase
     : public NYTree::TYsonStruct
 {
-public:
     TDuration QueryStateWriteBackoff;
     TDuration QueryProgressWritePeriod;
     i64 RowCountLimit;

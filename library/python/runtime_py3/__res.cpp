@@ -1,5 +1,6 @@
 #include <library/cpp/resource/resource.h>
 
+#include <util/generic/scope.h>
 #include <util/generic/strbuf.h>
 
 #include <Python.h>
@@ -141,13 +142,42 @@ int mod__res_exec(PyObject *mod) noexcept {
         reinterpret_cast<const char*>(res_importer_pyc),
         std::size(res_importer_pyc)
     );
-    if (!bytecode) {
+    if (bytecode == NULL) {
         return -1;
     }
+
+    // The code below which sets "__builtins__" is a workarownd for issue
+    // reported here https://github.com/python/cpython/issues/130272 .
+    // The problem can be seen for Y_PYTHON_SOURCE_ROOT mode when trying
+    // compiling the code wich contains non-ascii identifiers. In this case
+    // call to `compile` in get_code function raises the exception
+    // KeyError: '__builtins__' inside `PyImport_Import` function.
+    PyObject* builtinsKey = NULL;
+    Y_DEFER {
+        Py_DECREF(bytecode);
+        Py_DECREF(builtinsKey);
+    };
     PyObject* modns = PyModule_GetDict(mod);
     if (!modns) {
         return -1;
     }
+    builtinsKey = PyUnicode_FromString("__builtins__");
+    if (builtinsKey == NULL) {
+        return -1;
+    }
+    int r = PyDict_Contains(modns, builtinsKey);
+    if (r < 0) {
+        return -1;
+    } if (r == 0) {
+        PyObject* builtins = PyEval_GetBuiltins();
+        if (builtins == NULL) {
+            return -1;
+        }
+        if (PyDict_SetItem(modns, builtinsKey, builtins) < 0) {
+            return -1;
+        }
+    }
+
     if (PyObject* evalRes = PyEval_EvalCode(bytecode, modns, modns)) {
         Py_DECREF(evalRes);
     }

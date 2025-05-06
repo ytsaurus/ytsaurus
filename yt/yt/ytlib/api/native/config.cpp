@@ -316,6 +316,9 @@ void TConnectionDynamicConfig::Register(TRegistrar registrar)
     registrar.Parameter("default_chaos_replicated_table_get_tablet_count_timeout",
         &TThis::DefaultChaosReplicatedTableGetTabletCountTimeout)
         .Default(TDuration::Seconds(15));
+    registrar.Parameter("default_shuffle_service_timeout",
+        &TThis::DefaultShuffleServiceTimeout)
+        .Default(TDuration::Seconds(60));
 
     registrar.Parameter("default_fetch_table_rows_timeout", &TThis::DefaultFetchTableRowsTimeout)
         .Default(TDuration::Seconds(15));
@@ -412,8 +415,7 @@ void TConnectionDynamicConfig::Register(TRegistrar registrar)
         .Default(TDuration::Seconds(60));
 
     registrar.Parameter("read_operations_archive_state_from", &TThis::ReadOperationsArchiveStateFrom)
-        .Alias("read_archive_state_from")
-        .Default(EMasterChannelKind::Follower);
+        .Default(EMasterChannelKind::LocalCache);
 
     registrar.Preprocessor([] (TThis* config) {
         config->FunctionImplCache->Capacity = 100;
@@ -439,7 +441,13 @@ void TConnectionDynamicConfig::Register(TRegistrar registrar)
     registrar.Parameter("disable_new_range_inference", &TThis::DisableNewRangeInference)
         .Default(false);
 
+    registrar.Parameter("disable_adaptive_ordered_schemaful_reader", &TThis::DisableAdaptiveOrderedSchemafulReader)
+        .Default(true);
+
     registrar.Parameter("use_web_assembly", &TThis::UseWebAssembly)
+        .Default(false);
+
+    registrar.Parameter("use_find_chaos_object", &TThis::UseFindChaosObject)
         .Default(false);
 
     registrar.Parameter("group_by_with_limit_is_unordered", &TThis::GroupByWithLimitIsUnordered)
@@ -450,6 +458,12 @@ void TConnectionDynamicConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("enable_distributed_replication_collocation_attachment", &TThis::EnableDistributedReplicationCollocationAttachment)
         .Default(true);
+
+    registrar.Parameter("enable_read_from_async_replicas", &TThis::EnableReadFromInSyncAsyncReplicas)
+        .Default(false);
+
+    registrar.Parameter("banned_in_sync_replica_clusters", &TThis::BannedInSyncReplicaClusters)
+        .Default();
 
     registrar.Postprocessor([] (TConnectionDynamicConfig* config) {
         if (!config->UploadTransactionPingPeriod.has_value()) {

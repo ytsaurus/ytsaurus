@@ -35,6 +35,10 @@ class MasterCellAdditionBase(YTEnvSetup):
     DEFER_CONTROLLER_AGENT_START = True
     DEFER_CHAOS_NODE_START = True
 
+    # TODO(kvk1920): there is alert in cluster directory change for most of
+    # components. Fix it and enable Cypress proxies.
+    NUM_CYPRESS_PROXIES = 0
+
     PRIMARY_CLUSTER_INDEX = 0
 
     REMOVE_LAST_MASTER_BEFORE_START = True

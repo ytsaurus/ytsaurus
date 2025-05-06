@@ -93,6 +93,8 @@ void TChaosNodeConfig::Register(TRegistrar registrar)
         .DefaultNew();
     registrar.Parameter("replication_cards_watcher", &TThis::ReplicationCardsWatcher)
         .DefaultNew();
+    registrar.Parameter("replication_card_automaton_cache_expiration_time", &TThis::ReplicationCardAutomatonCacheExpirationTime)
+        .Default(TDuration::Seconds(10));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -109,6 +111,8 @@ void TChaosNodeDynamicConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("per_bundle_configs", &TThis::PerBundleConfigs)
         .Default();
+    registrar.Parameter("replication_card_automaton_cache_expiration_time", &TThis::ReplicationCardAutomatonCacheExpirationTime)
+        .Default(TDuration::Seconds(10));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

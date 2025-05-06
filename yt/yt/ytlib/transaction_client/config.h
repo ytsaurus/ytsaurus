@@ -45,6 +45,8 @@ struct TTransactionManagerConfig
 
     TPingBatcherConfigPtr PingBatcher;
 
+    TExponentialBackoffOptions BulkInsertLockChecker;
+
     REGISTER_YSON_STRUCT(TTransactionManagerConfig);
 
     static void Register(TRegistrar registrar);

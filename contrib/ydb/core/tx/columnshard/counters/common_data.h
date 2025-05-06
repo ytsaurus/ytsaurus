@@ -1,5 +1,5 @@
 #pragma once
-#include "common/owner.h"
+#include <contrib/ydb/library/signals/owner.h>
 
 #include <contrib/ydb/library/actors/core/log.h>
 

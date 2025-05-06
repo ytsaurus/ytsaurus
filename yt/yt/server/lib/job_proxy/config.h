@@ -101,10 +101,9 @@ DEFINE_REFCOUNTED_TYPE(TCoreWatcherConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TUserJobNetworkAddress
+struct TUserJobNetworkAddress
     : public NYTree::TYsonStruct
 {
-public:
     NNet::TIP6Address Address;
 
     TString Name;
@@ -202,10 +201,9 @@ struct TJobThrashingDetectorConfig
 DEFINE_REFCOUNTED_TYPE(TJobThrashingDetectorConfig)
 
 //! Describes configuration of a single environment.
-class TJobEnvironmentConfigBase
+struct TJobEnvironmentConfigBase
     : public NYTree::TYsonStruct
 {
-public:
     //! When job control is enabled, system runs user jobs under fake
     //! uids in range [StartUid, StartUid + SlotCount - 1].
     int StartUid;

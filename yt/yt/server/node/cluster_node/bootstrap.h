@@ -86,7 +86,7 @@ struct IBootstrapBase
 
     virtual const NProfiling::TBufferedProducerPtr& GetBufferedProducer() const = 0;
 
-    virtual const TFairShareHierarchicalSchedulerPtr<TString>& GetFairShareHierarchicalScheduler() const = 0;
+    virtual const TFairShareHierarchicalSchedulerPtr<std::string>& GetFairShareHierarchicalScheduler() const = 0;
 
     // Config stuff.
     virtual const TClusterNodeBootstrapConfigPtr& GetConfig() const = 0;
@@ -230,6 +230,12 @@ IBootstrapPtr CreateNodeBootstrap(
     NYTree::INodePtr configNode,
     NFusion::IServiceLocatorPtr serviceLocator);
 
+IBootstrapPtr CreateNodeBootstrap(
+    TClusterNodeBootstrapConfigPtr config,
+    NYTree::INodePtr configNode,
+    NFusion::IServiceLocatorPtr serviceLocator,
+    NApi::NNative::IConnectionPtr connection);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TBootstrapBase
@@ -258,7 +264,7 @@ public:
 
     const NProfiling::TBufferedProducerPtr& GetBufferedProducer() const override;
 
-    const TFairShareHierarchicalSchedulerPtr<TString>& GetFairShareHierarchicalScheduler() const override;
+    const TFairShareHierarchicalSchedulerPtr<std::string>& GetFairShareHierarchicalScheduler() const override;
 
     const TClusterNodeBootstrapConfigPtr& GetConfig() const override;
     const NClusterNode::TClusterNodeDynamicConfigManagerPtr& GetDynamicConfigManager() const override;

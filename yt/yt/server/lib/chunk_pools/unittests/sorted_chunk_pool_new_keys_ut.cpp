@@ -74,6 +74,7 @@ protected:
         MockBuilder_.reset();
         Fetchers_.clear();
 
+        // TODO(apollo1321): Support MinTeleportChunkSize for new sorted pool.
         Options_.MinTeleportChunkSize = Inf64;
         Options_.SliceForeignChunks = true;
         Options_.SortedJobOptions.MaxTotalSliceCount = Inf64;
@@ -406,7 +407,10 @@ protected:
     TChunkStripePtr CreateStripe(const std::vector<TLegacyDataSlicePtr>& dataSlices)
     {
         auto stripe = New<TChunkStripe>();
-        for (const auto& dataSlice : dataSlices) {
+        for (auto [index, dataSlice] : Enumerate(dataSlices)) {
+            if (dataSlice->Type == EDataSourceType::UnversionedTable) {
+                dataSlice->GetSingleUnversionedChunkSlice()->SetSliceIndex(index);
+            }
             stripe->DataSlices.emplace_back(dataSlice);
             for (const auto& chunkSlice : dataSlice->ChunkSlices) {
                 ActiveChunks_.insert(chunkSlice->GetInputChunk()->GetChunkId());
@@ -561,7 +565,9 @@ protected:
         std::sort(sortedExtractedCookies.begin(), sortedExtractedCookies.end());
         for (auto cookie : sortedExtractedCookies) {
             if (cookie != IChunkPoolOutput::NullCookie) {
-                stripeLists.emplace_back(ChunkPool_->GetStripeList(cookie));
+                if (auto stripeList = ChunkPool_->GetStripeList(cookie); stripeList) {
+                    stripeLists.emplace_back(stripeList);
+                }
             }
         }
         return stripeLists;
@@ -840,10 +846,11 @@ protected:
     void CheckForeignStripesAreMarkedAsForeign()
     {
         for (auto cookie : OutputCookies_) {
-            auto stripeList = ChunkPool_->GetStripeList(cookie);
-            for (const auto& stripe : stripeList->Stripes) {
-                int tableIndex = stripe->GetTableIndex();
-                EXPECT_EQ(InputTables_[tableIndex].IsForeign(), stripe->Foreign);
+            if (auto stripeList = ChunkPool_->GetStripeList(cookie); stripeList) {
+                for (const auto& stripe : stripeList->Stripes) {
+                    int tableIndex = stripe->GetTableIndex();
+                    EXPECT_EQ(InputTables_[tableIndex].IsForeign(), stripe->Foreign);
+                }
             }
         }
     }
@@ -851,14 +858,15 @@ protected:
     void CheckStripeListsContainOnlyActiveChunks()
     {
         for (auto cookie : OutputCookies_) {
-            auto stripeList = ChunkPool_->GetStripeList(cookie);
-            for (const auto& stripe : stripeList->Stripes) {
-                if (stripe) {
-                    for (const auto& dataSlice : stripe->DataSlices) {
-                        for (const auto& chunkSlice : dataSlice->ChunkSlices) {
-                            auto chunk = chunkSlice->GetInputChunk();
-                            EXPECT_TRUE(chunk);
-                            EXPECT_TRUE(ActiveChunks_.contains(chunk->GetChunkId()));
+            if (auto stripeList = ChunkPool_->GetStripeList(cookie); stripeList) {
+                for (const auto& stripe : stripeList->Stripes) {
+                    if (stripe) {
+                        for (const auto& dataSlice : stripe->DataSlices) {
+                            for (const auto& chunkSlice : dataSlice->ChunkSlices) {
+                                auto chunk = chunkSlice->GetInputChunk();
+                                EXPECT_TRUE(chunk);
+                                EXPECT_TRUE(ActiveChunks_.contains(chunk->GetChunkId()));
+                            }
                         }
                     }
                 }
@@ -3207,6 +3215,65 @@ TEST_F(TSortedChunkPoolNewKeysTest, ResetBeforeFinish)
 
     EXPECT_EQ(TeleportChunks_, std::vector<TInputChunkPtr>{chunkC1Replayed});
     EXPECT_EQ(1u, stripeLists.size());
+}
+
+TEST_F(TSortedChunkPoolNewKeysTest, DoNotReuseChunkSlicesAfterReset)
+{
+    Options_.SortedJobOptions.EnableKeyGuarantee = false;
+    InitTables(
+        {false, false} /*isForeign*/,
+        {false, false} /*isTeleportable*/,
+        {false, false} /*isVersioned*/);
+    InitPrimaryComparator(1);
+    DataWeightPerJob_ = 10_KB;
+    InitJobConstraints();
+
+    auto chunkA1 = CreateChunk(BuildRow({1}), BuildRow({3}), 0, /*size*/ 9_KB);
+    auto chunkA2 = CreateChunk(BuildRow({4}), BuildRow({7}), 0, /*size*/ 2_KB);
+    auto chunkB1 = CreateChunk(BuildRow({0}), BuildRow({2}), 1, /*size*/ 11_KB);
+    auto chunkB2 = CreateChunk(BuildRow({3}), BuildRow({5}), 1, /*size*/ 2_KB);
+
+    auto sliceA1 = CreateUnversionedInputDataSlice(chunkA1);
+    auto sliceA2 = CreateUnversionedInputDataSlice(chunkA2);
+    auto stripeA = CreateStripe({sliceA1, sliceA2});
+
+    auto sliceB1 = CreateUnversionedInputDataSlice(chunkB1);
+    auto sliceB2 = CreateUnversionedInputDataSlice(chunkB2);
+    auto stripeB = CreateStripe({sliceB1, sliceB2});
+
+    CreateChunkPool();
+
+    ChunkPool_->Add(stripeA);
+    auto cookieB = ChunkPool_->Add(stripeB);
+
+    ChunkPool_->Finish();
+
+    {
+        ExtractOutputCookiesWhilePossible();
+        auto stripeLists = GetAllStripeLists();
+
+        for (const auto& stripeList : stripeLists) {
+            for (const auto& stripe : stripeList->Stripes) {
+                for (const auto& dataSlice : stripe->DataSlices) {
+                    for (const auto& chunkSlice : dataSlice->ChunkSlices) {
+                        // TTask::AddChunksToInputSpec() modifies chunk slices this way:
+                        // https://a.yandex-team.ru/arcadia/yt/yt/server/controller_agent/controllers/task.cpp?rev=r16390430#L1771-1772
+                        chunkSlice->LowerLimit().MergeLower(dataSlice->LowerLimit(), PrimaryComparator_);
+                        chunkSlice->UpperLimit().MergeUpper(dataSlice->UpperLimit(), PrimaryComparator_);
+                    }
+                }
+            }
+        }
+
+        CheckEverything(stripeLists);
+    }
+
+    ChunkPool_->Reset(cookieB, stripeB, IdentityChunkMapping);
+
+    ExtractOutputCookiesWhilePossible();
+    auto stripeLists = GetAllStripeLists();
+
+    CheckEverything(stripeLists);
 }
 
 TEST_F(TSortedChunkPoolNewKeysTest, TeleportChunkAndShortReadLimits)

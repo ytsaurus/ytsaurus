@@ -1,4 +1,5 @@
 #include "client_impl.h"
+#include "config.h"
 
 #include <yt/yt/ytlib/table_client/config.h>
 #include <yt/yt/ytlib/table_client/partitioner.h>
@@ -111,7 +112,7 @@ TShuffleHandlePtr TClient::DoStartShuffle(
     TShuffleServiceProxy shuffleProxy(std::move(channel));
 
     auto req = shuffleProxy.StartShuffle();
-    req->SetTimeout(options.Timeout);
+    req->SetTimeout(options.Timeout.value_or(GetNativeConnection()->GetConfig()->DefaultShuffleServiceTimeout));
 
     req->set_account(account);
     req->set_partition_count(partitionCount);
@@ -139,7 +140,7 @@ void TClient::DoRegisterShuffleChunks(
     TShuffleServiceProxy shuffleProxy(shuffleConnection);
 
     auto req = shuffleProxy.RegisterChunks();
-    req->SetTimeout(options.Timeout);
+    req->SetTimeout(options.Timeout.value_or(GetNativeConnection()->GetConfig()->DefaultShuffleServiceTimeout));
 
     req->set_shuffle_handle(ConvertToYsonString(shuffleHandle).ToString());
     ToProto(req->mutable_chunk_specs(), chunkSpecs);
@@ -158,7 +159,7 @@ std::vector<TChunkSpec> TClient::DoFetchShuffleChunks(
     TShuffleServiceProxy shuffleProxy(shuffleConnection);
 
     auto req = shuffleProxy.FetchChunks();
-    req->SetTimeout(options.Timeout);
+    req->SetTimeout(options.Timeout.value_or(GetNativeConnection()->GetConfig()->DefaultShuffleServiceTimeout));
 
     req->set_shuffle_handle(ConvertToYsonString(shuffleHandle).ToString());
     req->set_partition_index(partitionIndex);

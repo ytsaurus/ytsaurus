@@ -18,6 +18,9 @@ add_executable(unittester-containers)
 target_compile_options(unittester-containers PRIVATE
   -Wdeprecated-this-capture
   -Wimplicit-fallthrough
+  -Wparentheses
+  -Wno-logical-op-parentheses
+  -Wno-bitwise-op-parentheses
 )
 
 target_link_libraries(unittester-containers PUBLIC

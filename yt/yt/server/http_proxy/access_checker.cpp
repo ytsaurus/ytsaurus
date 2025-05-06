@@ -28,10 +28,6 @@ public:
     explicit TAccessChecker(TBootstrap* bootstrap)
         : Bootstrap_(bootstrap)
         , Config_(Bootstrap_->GetConfig()->AccessChecker)
-        , Cache_(New<TPermissionCache>(
-            Config_->Cache,
-            Bootstrap_->GetNativeConnection(),
-            HttpProxyProfiler().WithPrefix("/access_checker_cache")))
         , ProxyRole_(Bootstrap_->GetCoordinator()->GetSelf()->Role)
         , Enabled_(Config_->Enabled)
     {
@@ -54,10 +50,11 @@ public:
         auto path = Config_->UseAccessControlObjects
             ? Format("%v/%v/principal", Config_->PathPrefix, proxyRole)
             : Format("%v/%v", Config_->PathPrefix, proxyRole);
-        auto error = WaitFor(Cache_->Get(TPermissionKey{
+        const auto& cache = Bootstrap_->GetNativeConnection()->GetPermissionCache();
+        auto error = WaitFor(cache->Get(TPermissionKey{
             .Object = path,
             .User = user,
-            .Permission = EPermission::Use
+            .Permission = EPermission::Use,
         }));
 
         if (error.IsOK()) {
@@ -79,8 +76,6 @@ public:
 private:
     TBootstrap const* Bootstrap_;
     const TAccessCheckerConfigPtr Config_;
-
-    const TPermissionCachePtr Cache_;
 
     NThreading::TAtomicObject<std::string> ProxyRole_;
 

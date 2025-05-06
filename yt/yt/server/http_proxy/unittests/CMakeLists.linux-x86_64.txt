@@ -20,6 +20,9 @@ add_executable(unittester-http-proxy)
 target_compile_options(unittester-http-proxy PRIVATE
   -Wdeprecated-this-capture
   -Wimplicit-fallthrough
+  -Wparentheses
+  -Wno-logical-op-parentheses
+  -Wno-bitwise-op-parentheses
 )
 
 target_include_directories(unittester-http-proxy PRIVATE

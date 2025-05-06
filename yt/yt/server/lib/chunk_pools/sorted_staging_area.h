@@ -31,7 +31,7 @@ struct ISortedStagingArea
     //!   getting into the job.
     //! - Solid: primary data slice which was already row sliced before putting into staging area;
     //!   in this case data slice will not be sliced by upper bound and will be taken as a whole
-    //!   into ne next job.
+    //!   into the next job.
     //! - Foreign: foreign data slice. Despite to previous two kinds, its lower bound may not be
     //!   equal to current upper bound inverse.
     virtual void Put(NChunkClient::TLegacyDataSlicePtr dataSlice, ESliceType sliceType) = 0;
@@ -69,10 +69,9 @@ ISortedStagingAreaPtr CreateSortedStagingArea(
     bool enableKeyGuarantee,
     NTableClient::TComparator primaryComparator,
     NTableClient::TComparator foreignComparator,
-    const NTableClient::TRowBufferPtr& rowBuffer,
+    NTableClient::TRowBufferPtr rowBuffer,
     i64 initialTotalDataSliceCount,
     i64 maxTotalDataSliceCount,
-    const TInputStreamDirectory& inputStreamDirectory,
     const NLogging::TLogger& logger);
 
 ////////////////////////////////////////////////////////////////////////////////

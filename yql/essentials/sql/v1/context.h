@@ -373,7 +373,10 @@ namespace NSQLTranslationV1 {
         bool DistinctOverWindow = false;
         bool SeqMode = false;
         bool DistinctOverKeys = false;
+        bool GroupByExprAfterWhere = false;
+        bool FailOnGroupByExprOverride = false;
         bool EmitUnionMerge = false;
+        bool OptimizeSimpleIlike = false;
         TVector<size_t> ForAllStatementsParts;
 
         TMaybe<TString> Engine;

@@ -6,7 +6,6 @@
 #include "../type_tag.h"
 
 #include <util/generic/hash_set.h>
-#include <util/generic/ptr.h>
 
 
 namespace NRoren::NPrivate {
@@ -48,7 +47,7 @@ const TRawPipelinePtr& GetRawPipeline(const TPState<K, S>& pState);
 ////////////////////////////////////////////////////////////////////////////////
 
 class TPCollectionNode
-    : public virtual TThrRefBase
+    : public virtual NYT::TRefCounted
     , public IWithAttributes
 {
 public:
@@ -109,17 +108,21 @@ private:
     friend class TTransformNode;
 };
 
+DEFINE_REFCOUNTED_TYPE(TPCollectionNode);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TRawPStateNode
-    : public TThrRefBase
+    : public NYT::TRefCounted
     , public TAttributes
 { };
+
+DEFINE_REFCOUNTED_TYPE(TRawPStateNode);
 
 ////////////////////////////////////////////////////////////////////////////////
 
 class TTransformNode
-    : public TThrRefBase
+    : public NYT::TRefCounted
     , public TAttributes
 {
 public:
@@ -174,6 +177,7 @@ public:
     void SlowlyPrintDebugDescription(IOutputStream* out) const;
 
 private:
+    DECLARE_NEW_FRIEND();
     TTransformNode(TString name, IRawTransformPtr transform);
 
     static TTransformNodePtr Allocate(
@@ -197,10 +201,12 @@ private:
     friend class TRawPipeline;
 };
 
+DEFINE_REFCOUNTED_TYPE(TTransformNode);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TRawPipeline
-    : public TThrRefBase
+    : public NYT::TRefCounted
 {
 public:
     class TStartTransformGuard;
@@ -227,7 +233,7 @@ public:
 private:
     TPCollectionNodePtr AllocatePCollectionNode(TRowVtable rowVtable, TTransformNode* outputOf, size_t index)
     {
-        return MakeIntrusive<TPCollectionNode>(std::move(rowVtable), GenerateId(), index, outputOf);
+        return NYT::New<TPCollectionNode>(std::move(rowVtable), GenerateId(), index, outputOf);
     }
 
     int GenerateId()
@@ -246,6 +252,8 @@ private:
 
     friend class TTransformNode;
 };
+
+DEFINE_REFCOUNTED_TYPE(TRawPipeline);
 
 ////////////////////////////////////////////////////////////////////////////////
 

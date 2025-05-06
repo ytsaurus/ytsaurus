@@ -63,12 +63,12 @@ IInvokerPtr TMasterHydraServiceBase::SelectDefaultInvoker(
 auto TMasterHydraServiceBase::SelectClusterInitializationValidator(
     TDefaultInvokerKind invokerKind) -> TValidateClusterInititalizedFunction*
 {
-    static const auto& validateViaWorldInitializer = [] (TBootstrap* bootstrap) {
+    static const auto validateViaWorldInitializer = [] (TBootstrap* bootstrap) {
         const auto& worldInitializer = bootstrap->GetWorldInitializer();
         worldInitializer->ValidateInitialized();
     };
 
-    static const auto& validateViaWorldInitializerCache = [] (TBootstrap* bootstrap) {
+    static const auto validateViaWorldInitializerCache = [] (TBootstrap* bootstrap) {
         const auto& worldInitializerCache = bootstrap->GetWorldInitializerCache();
         WaitForFast(worldInitializerCache->ValidateWorldInitialized())
             .ThrowOnError();

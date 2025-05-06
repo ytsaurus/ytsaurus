@@ -150,7 +150,10 @@ private:
                 const auto& nodeIdsSet = node->AssociatedNodeIds();
                 std::vector nodeIds(nodeIdsSet.begin(), nodeIdsSet.end());
                 return objectManager->ResolveObjectIdsToPaths(nodeIds)
-                    .Apply(BIND([nodeIds = std::move(nodeIds)] (const std::vector<TErrorOr<IObjectManager::TVersionedObjectPath>>& pathOrErrors) {
+                    .Apply(BIND([
+                        nodeIds = std::move(nodeIds)
+                    ] (const std::vector<TErrorOr<IObjectManager::TVersionedObjectPath>>& pathOrErrors)
+                    {
                         YT_VERIFY(nodeIds.size() == pathOrErrors.size());
                         return BuildYsonStringFluently()
                             .DoListFor(xrange(std::ssize(nodeIds)), [&] (TFluentList fluent, int index) {
@@ -158,15 +161,24 @@ private:
                                 const auto& pathOrError = pathOrErrors[index];
                                 auto path = [&] {
                                     auto code = pathOrError.GetCode();
-                                    if (code == NYTree::EErrorCode::ResolveError || code == NTransactionClient::EErrorCode::NoSuchTransaction) {
-                                        return IObjectManager::TVersionedObjectPath{.Path = FromObjectId(nodeId.ObjectId), .TransactionId = nodeId.TransactionId};
+                                    if (code == NYTree::EErrorCode::ResolveError ||
+                                        code == NTransactionClient::EErrorCode::NoSuchTransaction)
+                                    {
+                                        return IObjectManager::TVersionedObjectPath{
+                                            .Path = FromObjectId(nodeId.ObjectId),
+                                            .TransactionId = nodeId.TransactionId
+                                        };
                                     }
                                     return pathOrError.ValueOrThrow();
-                                }();
+                                } ();
+
                                 fluent
                                     .Item()
                                     .Do([&] (auto fluent) {
-                                        NChunkServer::SerializeNodePath(fluent.GetConsumer(), path.Path, path.TransactionId);
+                                        NChunkServer::SerializeNodePath(
+                                            fluent.GetConsumer(),
+                                            path.Path,
+                                            path.TransactionId);
                                     });
                             });
                     }).AsyncVia(GetCurrentInvoker()));

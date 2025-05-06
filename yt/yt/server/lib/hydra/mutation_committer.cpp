@@ -532,6 +532,7 @@ void TLeaderCommitter::FlushMutations()
                 THydraServiceProxy proxy(channel);
                 auto req = proxy.ForceRestart();
                 ToProto(req->mutable_reason(), error);
+                req->SetTimeout(Config_->Get()->ControlRpcTimeout);
 
                 YT_UNUSED_FUTURE(req->Invoke());
 

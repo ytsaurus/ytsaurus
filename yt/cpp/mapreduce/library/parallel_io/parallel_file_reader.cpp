@@ -233,7 +233,11 @@ size_t TParallelFileReader::DoReadWithCallback(void* ptr, size_t size, DoReadCal
     size_t curIdx = 0;
     std::optional<TBlob> curBlob;
 
-    while (curBlob = ReadNextBatch()) {
+    for (;;) {
+        curBlob = ReadNextBatch();
+        if (!curBlob) {
+            break;
+        }
         if (curIdx + curBlob->Size() <= size) {
             callback(reinterpret_cast<uint8_t*>(ptr) + curIdx, curBlob->Data(), curBlob->Size());
             curIdx += curBlob->Size();

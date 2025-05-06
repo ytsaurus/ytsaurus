@@ -47,6 +47,13 @@ public:
             .RequiredArgument("MODE");
         Opts_
             .AddLongOption(
+                "snapshot-dump-scope-filter",
+                "Expects space-separated list of scopes to dump")
+            .Handler0([&] { SnapshotDumpScopeFilterFlag_ = true; })
+            .SplitHandler(&SnapshotDumpScopeFilter_, ' ')
+            .RequiredArgument("SCOPE");
+        Opts_
+            .AddLongOption(
                 "export-snapshot",
                 "Exports master snapshot\n"
                 "Expects path to snapshot")
@@ -104,6 +111,8 @@ public:
 private:
     bool DumpSnapshotFlag_ = false;
     ESerializationDumpMode SnapshotDumpMode_ = ESerializationDumpMode::Content;
+    bool SnapshotDumpScopeFilterFlag_ = false;
+    std::vector<std::string> SnapshotDumpScopeFilter_;
     bool ValidateSnapshotFlag_ = false;
     bool ExportSnapshotFlag_ = false;
     TString LoadSnapshotPath_;
@@ -246,7 +255,10 @@ private:
             if (IsLoadSnapshotMode()) {
                 bootstrap->LoadSnapshot(
                     LoadSnapshotPath_,
-                    IsDumpSnapshotMode() ? SnapshotDumpMode_ : ESerializationDumpMode::None);
+                    IsDumpSnapshotMode() ? SnapshotDumpMode_ : ESerializationDumpMode::None,
+                    IsDumpSnapshotMode() && SnapshotDumpScopeFilterFlag_
+                        ? std::make_optional(THashSet<std::string>(SnapshotDumpScopeFilter_.begin(), SnapshotDumpScopeFilter_.end()))
+                        : std::nullopt);
             }
 
             if (IsExportSnapshotMode()) {

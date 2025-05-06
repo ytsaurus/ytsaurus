@@ -21,11 +21,6 @@ IOperationControllerPtr CreateEraseController(
     IOperationControllerHostPtr host,
     TOperation* operation);
 
-IOperationControllerPtr CreateRemoteCopyController(
-    TControllerAgentConfigPtr config,
-    IOperationControllerHostPtr host,
-    TOperation* operation);
-
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NControllerAgent::NControllers

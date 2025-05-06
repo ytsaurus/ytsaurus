@@ -19,10 +19,14 @@ void PopulateFile(void* ptr, size_t size)
     }
 }
 
-bool MlockFileMappings(bool populate)
+bool MlockFileMappings(bool populate, TMlockStatistics* statistics)
 {
     auto* file = ::fopen("/proc/self/maps", "r");
     if (!file) {
+        if (statistics) {
+            statistics->ErrorCodes.insert(errno);
+        }
+
         return false;
     }
 
@@ -70,9 +74,19 @@ bool MlockFileMappings(bool populate)
             continue;
         }
 
-        if (::mlock(reinterpret_cast<const void*>(startAddress), endAddress - startAddress) != 0) {
+        if (auto errnum = ::mlock(reinterpret_cast<const void*>(startAddress), endAddress - startAddress); errnum != 0) {
             failed = true;
+
+            if (statistics) {
+                statistics->ErrorCodes.insert(errno);
+                statistics->BytesLockedUnsuccessfully += (endAddress - startAddress);
+                statistics->UnsuccessfullCallCount++;
+            }
+
             continue;
+        } else if (statistics) {
+            statistics->BytesLockedSucessfully += (endAddress - startAddress);
+            statistics->SuccessfullCallCount++;
         }
 
         if (populate) {

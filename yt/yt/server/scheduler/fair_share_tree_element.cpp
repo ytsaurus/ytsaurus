@@ -1573,7 +1573,8 @@ const TSchedulerCompositeElement* TSchedulerPoolElement::GetNearestAncestorWithR
         if (element->PersistentAttributes().AppliedSpecifiedResourceLimits) {
             return element;
         }
-    } while (element = element->GetParent());
+        element = element->GetParent();
+    } while (element);
 
     return nullptr;
 }

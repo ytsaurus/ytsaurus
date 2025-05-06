@@ -100,6 +100,7 @@ void TMultiTablePartitioner::InitializeChunkPool()
         Options_.DataWeightPerPartition,
         Options_.AdjustDataWeightPerPartition ? Options_.MaxPartitionCount : std::nullopt,
         Options_.UseNewSlicingImplementationInOrderedPool,
+        Options_.UseNewSlicingImplementationInUnorderedPool,
         Logger);
 }
 

@@ -26,6 +26,7 @@ namespace NYT::NCypressServer {
 
 using namespace NCellMaster;
 using namespace NConcurrency;
+using namespace NCypressClient;
 using namespace NHydra;
 using namespace NObjectClient;
 using namespace NObjectServer;
@@ -451,12 +452,10 @@ void TExpirationTracker::RemoveExpiredNodesViaClient(const std::vector<TEphemera
     auto proxy = CreateObjectServiceWriteProxy(Bootstrap_->GetRootClient());
     auto batchReq = proxy.ExecuteBatch();
 
-    using TTag = std::pair<TNodeId, TYPath>;
-
-    const auto& cypressManager = Bootstrap_->GetCypressManager();
     for (const auto& trunkNode : trunkNodes) {
         auto targetPath = FromObjectId(trunkNode->GetId()) + "&";
         auto req = TYPathProxy::Remove(targetPath);
+        req->set_recursive(true);
 
         auto* prerequisitesExt = req->Header().MutableExtension(
             NObjectClient::NProto::TPrerequisitesExt::prerequisites_ext);
@@ -464,10 +463,8 @@ void TExpirationTracker::RemoveExpiredNodesViaClient(const std::vector<TEphemera
         prerequisiteRevision->set_path(targetPath);
         prerequisiteRevision->set_revision(trunkNode->GetRevision().Underlying());
 
-        // For access logging.
-        req->Tag() = TTag(
-            trunkNode->GetId(),
-            cypressManager->GetNodePath(trunkNode.Get(), nullptr));
+        // TODO(danilalexeev): YT-24752. Support TExpirationExt in Sequoia.
+        SetCausedByNodeExpiration(&req->Header());
 
         batchReq->AddRequest(req);
     }
@@ -485,19 +482,13 @@ void TExpirationTracker::RemoveExpiredNodesViaClient(const std::vector<TEphemera
     auto rsps = batchRspOrError.Value()->GetResponses<TYPathProxy::TRspRemove>();
     YT_VERIFY(std::ssize(rsps) == std::ssize(trunkNodes));
     for (const auto& [rspOrError, trunkNode] : Zip(rsps, trunkNodes)) {
-        if (!rspOrError.IsOK()) {
-            if (IsObjectAlive(trunkNode)) {
-                OnNodeRemovalFailed(trunkNode.Get());
-            }
+        if (rspOrError.IsOK()) {
             continue;
         }
 
-        auto [nodeId, path] = std::any_cast<TTag>(rspOrError.Value()->Tag());
-        YT_LOG_ACCESS(
-            nodeId,
-            path,
-            nullptr,
-            "TtlRemove");
+        if (IsObjectAlive(trunkNode)) {
+            OnNodeRemovalFailed(trunkNode.Get());
+        }
     }
 }
 

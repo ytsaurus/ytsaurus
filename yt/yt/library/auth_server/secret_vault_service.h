@@ -15,10 +15,10 @@ struct ISecretVaultService
 {
     struct TSecretSubrequest
     {
-        TString SecretId;
-        TString SecretVersion;
-        TString DelegationToken;
-        TString Signature;
+        std::string SecretId;
+        std::string SecretVersion;
+        std::string DelegationToken;
+        std::string Signature;
         std::optional<TTvmId> TvmId;
 
         auto operator <=> (const TSecretSubrequest& other) const = default;
@@ -37,9 +37,9 @@ struct ISecretVaultService
 
     struct TSecretValue
     {
-        TString Key;
-        TString Value;
-        TString Encoding;
+        std::string Key;
+        std::string Value;
+        std::string Encoding;
     };
 
     struct TSecretSubresponse
@@ -54,16 +54,16 @@ struct ISecretVaultService
 
     struct TDelegationTokenRequest
     {
-        TString UserTicket;
-        TString SecretId;
-        TString Signature;
-        TString Comment;
+        std::string UserTicket;
+        std::string SecretId;
+        std::string Signature;
+        std::string Comment;
         std::optional<TTvmId> TvmId;
     };
 
     struct TDelegationTokenResponse
     {
-        TString Token;
+        std::string Token;
         TTvmId TvmId;
     };
 
@@ -72,9 +72,9 @@ struct ISecretVaultService
 
     struct TRevokeDelegationTokenRequest
     {
-        TString DelegationToken;
-        TString SecretId;
-        TString Signature;
+        std::string DelegationToken;
+        std::string SecretId;
+        std::string Signature;
         std::optional<TTvmId> TvmId;
     };
 

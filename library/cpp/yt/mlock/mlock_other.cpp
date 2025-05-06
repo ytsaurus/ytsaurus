@@ -4,7 +4,7 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-bool MlockFileMappings(bool /* populate */)
+bool MlockFileMappings(bool /* populate */, TMlockStatistics* /* statistics */)
 {
     return false;
 }

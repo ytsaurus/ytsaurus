@@ -153,7 +153,8 @@ def parse_bool(word):
     if word is False or word is True or isinstance(word, yson.YsonBoolean):
         return word
 
-    word = word.lower()
+    if hasattr(word, "lower"):
+        word = word.lower()
     if word == "true":
         return True
     elif word == "false":

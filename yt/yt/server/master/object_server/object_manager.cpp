@@ -49,6 +49,8 @@
 
 #include <yt/yt/server/lib/misc/interned_attributes.h>
 
+#include <yt/yt/server/lib/object_server/helpers.h>
+
 #include <yt/yt/server/lib/transaction_server/helpers.h>
 
 #include <yt/yt/ytlib/cypress_client/cypress_ypath_proxy.h>
@@ -154,33 +156,16 @@ TPathResolver::TResolveResult ResolvePath(
 ////////////////////////////////////////////////////////////////////////////////
 
 static TError ValidatePrerequisiteRevisionPaths(
-    NCellMaster::TBootstrap* bootstrap,
-    const std::string& method,
-    TYPathMaybeRef originalTargetPath,
-    const google::protobuf::RepeatedPtrField<TProtobufString>& originalAdditionalPaths,
+    const NRpc::NProto::TRequestHeader& requestHeader,
+    TObjectId targetObjectId,
+    std::vector<TObjectId> additionalObjectIds,
     TObjectId prerequisiteObjectId)
 {
-    std::vector<TObjectId> resolvedObjectIds;
-    const auto& objectManager = bootstrap->GetObjectManager();
-    try {
-        // Object at originalTargetPath could be not created yet, so it is possible to get an error here.
-        auto originalObjectId = objectManager->ResolvePathToObjectId(originalTargetPath, method, /*transaction*/ nullptr, /*options*/ {});
-        resolvedObjectIds.push_back(originalObjectId);
-        if (originalObjectId == prerequisiteObjectId) {
-            return TError();
-        }
-    } catch (const TErrorException& ex) {
-        if (!ex.Error().FindMatching(NYTree::EErrorCode::ResolveError)) {
-            return ex.Error();
-        }
-        YT_LOG_WARNING("Failed to resolve target path, error occured (Path: %v, Methd: %v, Error: %v)",
-            originalTargetPath,
-            method,
-            ex.Error());
+    // Object at targetObjectId could be not created yet.
+    if (targetObjectId && targetObjectId == prerequisiteObjectId) {
+        return TError();
     }
-    for (const auto& additionalPath : originalAdditionalPaths) {
-        auto additionalObjectId = objectManager->ResolvePathToObjectId(additionalPath, method, /*transaction*/ nullptr, /*options*/ {});
-        resolvedObjectIds.push_back(additionalObjectId);
+    for (const auto& additionalObjectId : additionalObjectIds) {
         if (additionalObjectId == prerequisiteObjectId) {
             return TError();
         }
@@ -188,12 +173,10 @@ static TError ValidatePrerequisiteRevisionPaths(
     return TError(
         NObjectClient::EErrorCode::PrerequisitePathDifferFromExecutionPaths,
         "Requests with prerequisite paths different from target paths are prohibited in Cypress "
-        "(Method: %v, PrerequisiteObjectId: %v, ResolvedVerbObjectIds: %v, TargetPath: %v, AdditionalPaths: %v)",
-        method,
+        "(PrerequisiteObjectId: %v, TargetPath: %v, AdditionalPaths: %v)",
         prerequisiteObjectId,
-        resolvedObjectIds,
-        originalTargetPath,
-        originalAdditionalPaths);
+        GetOriginalRequestTargetYPath(requestHeader),
+        GetOriginalRequestAdditionalPaths(requestHeader));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -298,9 +281,9 @@ public:
         const std::vector<TVersionedObjectId>& objectIds) override;
 
     void ValidatePrerequisites(
+        const NRpc::NProto::TRequestHeader& requestHeader,
         const std::string& method,
-        NYTree::TYPathMaybeRef originalTargetPath,
-        const google::protobuf::RepeatedPtrField<TProtobufString>& originalAdditionalPaths,
+        TObjectId targetObjectId,
         const NObjectClient::NProto::TPrerequisitesExt& prerequisites) override;
 
     TFuture<TSharedRefArray> ForwardObjectRequest(
@@ -495,6 +478,7 @@ public:
             : MakeYPathRewrite(requestPath, requestPath);
         forwardedYPathExt->set_target_path(targetPathRewrite.Rewritten);
 
+        std::vector<TObjectId> additionalObjectIds;
         TCompactVector<TYPathRewrite, TypicalAdditionalPathCount> additionalPathRewrites;
         for (int index = 0; index < forwardedYPathExt->additional_paths_size(); ++index) {
             const auto& additionalPath = forwardedYPathExt->additional_paths(index);
@@ -526,9 +510,11 @@ public:
                 additionalResolveResult.UnresolvedPathSuffix);
             forwardedYPathExt->set_additional_paths(index, additionalPathRewrite.Rewritten);
             additionalPathRewrites.push_back(std::move(additionalPathRewrite));
+
+            if (Bootstrap_->GetDynamicConfig()->ObjectManager->ProhibitPrerequisiteRevisionsDifferFromExecutionPaths) {
+                additionalObjectIds.push_back(additionalPayload->ObjectId);
+            }
         }
-        auto originalTargetPath = GetOriginalRequestTargetYPath(context->GetRequestHeader());
-        auto originalAdditionalPaths = GetOriginalRequestAdditionalPaths(context->GetRequestHeader());
 
         TCompactVector<TYPathRewrite, 4> prerequisiteRevisionPathRewrites;
         if (forwardedRequestHeader.HasExtension(NObjectClient::NProto::TPrerequisitesExt::prerequisites_ext)) {
@@ -553,7 +539,7 @@ public:
                         });
 
                     if (optionalPrerequisiteObjectId) {
-                        THROW_ERROR_EXCEPTION_IF_FAILED(ValidatePrerequisiteRevisionPaths(Bootstrap_, context->GetMethod(), originalTargetPath, originalAdditionalPaths, *optionalPrerequisiteObjectId));
+                        THROW_ERROR_EXCEPTION_IF_FAILED(ValidatePrerequisiteRevisionPaths(forwardedRequestHeader, ObjectId_, additionalObjectIds, *optionalPrerequisiteObjectId));
                     }
                 }
                 if (!prerequisitePayload || CellTagFromId(prerequisitePayload->ObjectId) != ForwardedCellTag_) {
@@ -603,12 +589,18 @@ public:
 
         auto batchReq = proxy.ExecuteBatchNoBackoffRetries();
         batchReq->SetOriginalRequestId(context->GetRequestId());
+        const auto& config = Bootstrap_->GetConfig()->ObjectService;
         // Normally, forwarded request timeout is shortened so that backoff alarm on the remote side would trigger
         // earlier than locally. If the timeout is already too small, however, than, ideally, we should cancel
         // (local) backoff alarm. However, since such short timeouts are rare, and getting here requires non-warmed-up
         // resolve cache, and retrying a timed out request should help, and it's not trivial to cancel backoff alarm
         // from here, it's simpler to ignore this.
-        batchReq->SetTimeout(ComputeForwardingTimeout(context, Bootstrap_->GetConfig()->ObjectService, /*reserved*/ nullptr));
+        batchReq->SetTimeout(
+            ComputeForwardingTimeout(
+                context->GetTimeout().value_or(config->DefaultExecuteTimeout),
+                context->GetStartTime(),
+                config->ForwardedRequestTimeoutReserve,
+                /*reserved*/ nullptr));
         SetAuthenticationIdentity(batchReq, context->GetAuthenticationIdentity());
         batchReq->AddRequestMessage(std::move(forwardedMessage));
 
@@ -1862,9 +1854,9 @@ auto TObjectManager::ResolveObjectIdsToPaths(const std::vector<TVersionedObjectI
 }
 
 void TObjectManager::ValidatePrerequisites(
+    const NRpc::NProto::TRequestHeader& requestHeader,
     const std::string& method,
-    NYTree::TYPathMaybeRef originalTargetPath,
-    const google::protobuf::RepeatedPtrField<TProtobufString>& originalAdditionalPaths,
+    TObjectId targetObjectId,
     const NObjectClient::NProto::TPrerequisitesExt& prerequisites)
 {
     const auto& transactionManager = Bootstrap_->GetTransactionManager();
@@ -1903,7 +1895,12 @@ void TObjectManager::ValidatePrerequisites(
                 << ex;
         }
         if (GetDynamicConfig()->ProhibitPrerequisiteRevisionsDifferFromExecutionPaths) {
-            THROW_ERROR_EXCEPTION_IF_FAILED(ValidatePrerequisiteRevisionPaths(Bootstrap_, method, originalTargetPath, originalAdditionalPaths, trunkNode->GetId()));
+            std::vector<TObjectId> additionalObjectIds;
+            for (const auto& additionalPath : GetRequestAdditionalPaths(requestHeader)) {
+                auto additionalObjectId = ResolvePathToObjectId(additionalPath, method, /*transaction*/ nullptr, /*options*/ {});
+                additionalObjectIds.push_back(additionalObjectId);
+            }
+            THROW_ERROR_EXCEPTION_IF_FAILED(ValidatePrerequisiteRevisionPaths(requestHeader, targetObjectId, additionalObjectIds, trunkNode->GetId()));
         }
 
         if (trunkNode->GetRevision() != revision) {
@@ -1937,7 +1934,8 @@ TFuture<TSharedRefArray> TObjectManager::ForwardObjectRequest(
 
     auto timeout = ComputeForwardingTimeout(
         FromProto<TDuration>(header.timeout()),
-        Bootstrap_->GetConfig()->ObjectService,
+        YT_OPTIONAL_FROM_PROTO(header, start_time, TInstant),
+        Bootstrap_->GetConfig()->ObjectService->ForwardedRequestTimeoutReserve,
         timeoutReserved);
 
     auto identity = ParseAuthenticationIdentityFromProto(header);

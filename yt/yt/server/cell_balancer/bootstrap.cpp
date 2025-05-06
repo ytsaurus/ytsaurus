@@ -1,16 +1,16 @@
 #include "bootstrap.h"
 
-#include "cell_tracker.h"
-#include "config.h"
-#include "master_connector.h"
 #include "bundle_controller.h"
 #include "bundle_controller_service.h"
+#include "cell_tracker.h"
+#include "config.h"
 
 #include <yt/yt/server/lib/admin/admin_service.h>
 
-#include <yt/yt/library/coredumper/public.h>
-
 #include <yt/yt/server/lib/cypress_election/election_manager.h>
+
+#include <yt/yt/server/lib/cypress_registrar/cypress_registrar.h>
+#include <yt/yt/server/lib/cypress_registrar/config.h>
 
 #include <yt/yt/server/lib/misc/address_helpers.h>
 
@@ -18,20 +18,22 @@
 #include <yt/yt/ytlib/api/native/connection.h>
 #include <yt/yt/ytlib/api/native/helpers.h>
 
-#include <yt/yt/library/monitoring/http_integration.h>
-
-#include <yt/yt/library/coredumper/public.h>
-
 #include <yt/yt/ytlib/orchid/orchid_service.h>
 
 #include <yt/yt/ytlib/hive/cluster_directory_synchronizer.h>
 
 #include <yt/yt/client/logging/dynamic_table_log_writer.h>
 
+#include <yt/yt/client/node_tracker_client/public.h>
+
 #include <yt/yt/library/program/build_attributes.h>
 #include <yt/yt/library/program/config.h>
 
+#include <yt/yt/library/coredumper/public.h>
+
 #include <yt/yt/library/fusion/service_locator.h>
+
+#include <yt/yt/library/monitoring/http_integration.h>
 
 #include <yt/yt/core/bus/tcp/server.h>
 
@@ -56,12 +58,13 @@ using namespace NApi;
 using namespace NConcurrency;
 using namespace NCoreDump;
 using namespace NCypressElection;
-using namespace NNodeTrackerClient;
+using namespace NFusion;
 using namespace NMonitoring;
+using namespace NNodeTrackerClient;
 using namespace NOrchid;
 using namespace NTransactionClient;
+using namespace NYPath;
 using namespace NYTree;
-using namespace NFusion;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -166,7 +169,6 @@ private:
     NRpc::IAuthenticatorPtr NativeAuthenticator_;
 
     ICypressElectionManagerPtr ElectionManager_;
-    IMasterConnectorPtr MasterConnector_;
     ICellTrackerPtr CellTracker_;
     IBundleControllerPtr BundleController_;
 
@@ -203,7 +205,6 @@ private:
             Config_->ElectionManager,
             options);
 
-        MasterConnector_ = CreateMasterConnector(this, Config_->MasterConnector);
         CellTracker_ = CreateCellTracker(this, Config_->CellBalancer);
         BundleController_ = CreateBundleController(this, Config_->BundleController);
 
@@ -250,7 +251,7 @@ private:
         YT_LOG_INFO("Listening for RPC requests (Port: %v)", Config_->RpcPort);
         RpcServer_->Start();
 
-        MasterConnector_->Start();
+        RegisterInstance();
 
         ElectionManager_->Start();
 
@@ -263,6 +264,32 @@ private:
         }
 
         NativeAuthenticator_ = NApi::NNative::CreateNativeAuthenticator(Connection_);
+    }
+
+    void RegisterInstance()
+    {
+        TCypressRegistrarOptions options{
+            .RootPath = Format(
+                "//sys/cell_balancers/instances/%v",
+                ToYPathLiteral(GetDefaultAddress(GetLocalAddresses()))),
+            .OrchidRemoteAddresses = GetLocalAddresses(),
+        };
+
+        auto registrar = CreateCypressRegistrar(
+            std::move(options),
+            New<TCypressRegistrarConfig>(),
+            Client_,
+            GetCurrentInvoker());
+
+        while (true) {
+            auto error = WaitFor(registrar->CreateNodes());
+
+            if (error.IsOK()) {
+                break;
+            } else {
+                YT_LOG_DEBUG(error, "Error updating Cypress node");
+            }
+        }
     }
 };
 

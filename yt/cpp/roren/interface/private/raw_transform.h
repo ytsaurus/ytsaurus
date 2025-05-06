@@ -6,8 +6,6 @@
 #include "raw_data_flow.h"
 #include <yt/cpp/roren/interface/timers.h>
 
-#include <util/generic/ptr.h>
-
 #include <any>
 #include <optional>
 
@@ -36,7 +34,7 @@ enum class ERawTransformType
 ////////////////////////////////////////////////////////////////////////////////
 
 class IRawTransform
-    : public virtual TThrRefBase
+    : public virtual NYT::TRefCounted
     , public TAttributes
 {
 public:
@@ -66,6 +64,8 @@ public:
     [[nodiscard]] const IRawFlatten& AsRawFlattenRef() const;
 };
 
+DEFINE_REFCOUNTED_TYPE(IRawTransform);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 struct IRawRead
@@ -78,6 +78,8 @@ struct IRawRead
         return ERawTransformType::Read;
     }
 };
+
+DEFINE_REFCOUNTED_TYPE(IRawRead);
 
 class TRawDummyRead
     : public NPrivate::IRawRead
@@ -110,6 +112,8 @@ struct IRawWrite
         return ERawTransformType::Write;
     }
 };
+
+DEFINE_REFCOUNTED_TYPE(IRawWrite);
 
 class TRawDummyWriter
     : public IRawWrite
@@ -156,6 +160,8 @@ public:
     virtual const TFnAttributes& GetFnAttributes() const = 0;
 };
 
+DEFINE_REFCOUNTED_TYPE(IRawParDo);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class IRawStatefulParDo
@@ -180,6 +186,8 @@ public:
     }
     virtual void Finish() = 0;
 };
+
+DEFINE_REFCOUNTED_TYPE(IRawStatefulParDo);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -209,6 +217,8 @@ public:
     virtual const TString& GetFnId() const = 0;
 };
 
+DEFINE_REFCOUNTED_TYPE(IRawStatefulTimerParDo);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class IRawGroupByKey
@@ -224,6 +234,8 @@ public:
     // Input iterates over values with same key.
     virtual void ProcessOneGroup(const IRawInputPtr& input, const IRawOutputPtr& output) = 0;
 };
+
+DEFINE_REFCOUNTED_TYPE(IRawGroupByKey);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -259,6 +271,8 @@ private:
     const ERawTransformType Type_;
 };
 
+DEFINE_REFCOUNTED_TYPE(IRawCombine);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class IRawCoGroupByKey
@@ -272,6 +286,8 @@ public:
     }
 };
 
+DEFINE_REFCOUNTED_TYPE(IRawCoGroupByKey);
+
 class IRawFlatten
     : public IRawTransform
     , public ISerializable<IRawFlatten>
@@ -281,6 +297,8 @@ class IRawFlatten
         return ERawTransformType::Flatten;
     }
 };
+
+DEFINE_REFCOUNTED_TYPE(IRawFlatten);
 
 ////////////////////////////////////////////////////////////////////////////////
 

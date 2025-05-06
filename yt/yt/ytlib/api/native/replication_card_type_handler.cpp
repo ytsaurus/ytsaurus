@@ -2,6 +2,7 @@
 
 #include "type_handler_detail.h"
 #include "client_impl.h"
+#include "config.h"
 
 #include <yt/yt/ytlib/chaos_client/chaos_node_service_proxy.h>
 
@@ -72,6 +73,7 @@ private:
         ToProto(req->mutable_table_id(), attributes->Get<TTableId>("table_id", {}));
         req->set_table_path(attributes->Get<TYPath>("table_path", {}));
         req->set_table_cluster_name(attributes->Get<std::string>("table_cluster_name", {}));
+        req->SetTimeout(options.Timeout.value_or(Client_->GetNativeConnection()->GetConfig()->DefaultChaosNodeServiceTimeout));
 
         // NB(ponasenko-rs): For testing purposes only.
         req->set_bypass_suspended(attributes->Get<bool>("bypass_suspended", false));
@@ -92,6 +94,7 @@ private:
         auto req = proxy.RemoveReplicationCard();
         Client_->SetMutationId(req, options);
         ToProto(req->mutable_replication_card_id(), replicationCardId);
+        req->SetTimeout(options.Timeout.value_or(Client_->GetNativeConnection()->GetConfig()->DefaultChaosNodeServiceTimeout));
 
         WaitFor(req->Invoke())
             .ThrowOnError();

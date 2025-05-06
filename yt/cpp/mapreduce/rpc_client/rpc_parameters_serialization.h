@@ -21,6 +21,8 @@ NCypressClient::ELockMode ToApiLockMode(ELockMode mode);
 
 NYTree::EPermission ToApiPermission(EPermission permission);
 
+NTransactionClient::EAtomicity ToApiAtomicity(EAtomicity atomicity);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 NApi::TGetNodeOptions SerializeOptionsForGet(
@@ -85,6 +87,20 @@ NApi::TConcatenateNodesOptions SerializeOptionsForConcatenate(
     const TTransactionId& transactionId,
     const TConcatenateOptions& options);
 
+template <typename TDerived>
+NApi::TTransactionStartOptions SerializeOptionsForStartTransaction(
+    const TTabletTransactionOptions<TDerived>& options)
+{
+    NApi::TTransactionStartOptions result;
+    if (options.Atomicity_) {
+        result.Atomicity = ToApiAtomicity(*options.Atomicity_);
+    }
+    if (options.Durability_) {
+        result.Durability = NTransactionClient::EDurability(*options.Durability_);
+    }
+    return result;
+}
+
 NApi::TTransactionStartOptions SerializeOptionsForStartTransaction(
     TMutationId& mutationId,
     const TTransactionId& parentId,
@@ -143,6 +159,12 @@ NApi::TReshardTableOptions SerializeOptionsForReshardTable(
     TMutationId& mutationId,
     const TReshardTableOptions& options);
 
+NApi::TModifyRowsOptions SerializeOptionsForInsertRows(const TInsertRowsOptions& options);
+
+NApi::TLookupRowsOptions SerializeOptionsForLookupRows(
+    const NTableClient::TNameTablePtr& nameTable,
+    const TLookupRowsOptions& options);
+
 NApi::TSelectRowsOptions SerializeOptionsForSelectRows(const TSelectRowsOptions& options);
 
 NApi::TTableReaderOptions SerializeOptionsForReadTable(
@@ -160,6 +182,8 @@ NApi::TAlterTableOptions SerializeOptionsForAlterTable(
 NApi::TAlterTableReplicaOptions SerializeOptionsForAlterTableReplica(
     TMutationId& mutationId,
     const TAlterTableReplicaOptions& options);
+
+NApi::TModifyRowsOptions SerializeOptionsForDeleteRows(const TDeleteRowsOptions& options);
 
 NApi::TFreezeTableOptions SerializeOptionsForFreezeTable(const TFreezeTableOptions& options);
 

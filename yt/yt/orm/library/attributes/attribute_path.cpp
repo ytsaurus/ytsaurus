@@ -2,6 +2,8 @@
 
 #include <yt/yt/core/ypath/tokenizer.h>
 
+#include <yt/yt/core/yson/tokenizer.h>
+
 #include <library/cpp/yt/error/error.h>
 
 namespace NYT::NOrm::NAttributes {
@@ -69,7 +71,36 @@ void SkipCommonTokensWithPattern(TTokenizer& patternTokenizer, TTokenizer& pathT
 
 bool IsAttributePath(const NYPath::TYPath& path)
 {
-    NYPath::TTokenizer tokenizer(path);
+    NYson::TTokenizer ysonTokenizer(path);
+    ysonTokenizer.ParseNext();
+    int maxAttributeDepth = 0;
+    int attributeDepth = 0;
+    while (true) {
+        switch (ysonTokenizer.CurrentToken().GetType()) {
+            case NYson::ETokenType::LeftAngle:
+                ++attributeDepth;
+                maxAttributeDepth = std::max(maxAttributeDepth, attributeDepth);
+                break;
+            case NYson::ETokenType::RightAngle:
+                --attributeDepth;
+                break;
+            default:
+                break;
+        }
+
+        if (attributeDepth == 0) {
+            break;
+        }
+
+        if (!ysonTokenizer.ParseNext()) {
+            return false;
+        }
+    }
+
+    NYPath::TTokenizer tokenizer(
+        maxAttributeDepth == 0
+        ? path
+        : ysonTokenizer.GetCurrentSuffix());
     tokenizer.Advance();
     while (tokenizer.GetType() != NYPath::ETokenType::EndOfStream) {
         if (tokenizer.GetType() != NYPath::ETokenType::Slash) {

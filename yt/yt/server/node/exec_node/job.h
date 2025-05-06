@@ -3,6 +3,7 @@
 #include "chunk_cache.h"
 #include "controller_agent_connector.h"
 #include "gpu_manager.h"
+#include "helpers.h"
 #include "job_info.h"
 #include "public.h"
 
@@ -121,7 +122,9 @@ public:
 
     const TControllerAgentDescriptor& GetControllerAgentDescriptor() const;
 
-    void UpdateControllerAgentDescriptor(TControllerAgentDescriptor agentInfo);
+    void UpdateControllerAgentDescriptor(TControllerAgentDescriptor agentDescriptor);
+
+    TInstant GetControllerAgentResetTime() const;
 
     EJobType GetType() const;
 
@@ -227,7 +230,7 @@ public:
 
     bool GetStored() const;
     void SetStored();
-    bool IsGrowingStale(TDuration maxDelay) const;
+    bool ShouldResend(TDuration maxDelay) const;
     TFuture<void> GetStoredEvent() const;
 
     void OnEvictedFromAllocation() noexcept;
@@ -271,9 +274,9 @@ private:
 
     const TJobId Id_;
     const TOperationId OperationId_;
-    IBootstrap* const Bootstrap_;
+    const EJobType Type_;
 
-    const EJobType JobType_;
+    IBootstrap* const Bootstrap_;
 
     const NLogging::TLogger Logger;
 
@@ -282,7 +285,7 @@ private:
 
     const NClusterNode::TJobResources InitialResourceDemand_;
 
-    TControllerAgentDescriptor ControllerAgentDescriptor_;
+    TControllerAgentAffiliationInfo ControllerAgentInfo_;
     TWeakPtr<TControllerAgentConnectorPool::TControllerAgentConnector> ControllerAgentConnector_;
 
     const TJobCommonConfigPtr CommonConfig_;
@@ -408,8 +411,8 @@ private:
 
     //! True if agent asked to store this job.
     bool Stored_ = false;
-    TInstant LastStoredTime_;
-    TPromise<void> StoredEvent_ = NewPromise<void>();
+    TInstant JobResendBackoffStartTime_;
+    TPromise<void> StoredEventPromise_ = NewPromise<void>();
 
     TPromise<void> CleanupFinished_ = NewPromise<void>();
 

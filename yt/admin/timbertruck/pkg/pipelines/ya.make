@@ -1,6 +1,7 @@
 GO_LIBRARY()
 
 SRCS(
+    file.go
     followingfile.go
     pipelines.go
     textpipeline.go

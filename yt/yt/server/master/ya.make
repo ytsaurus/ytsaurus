@@ -156,6 +156,7 @@ SRCS(
     cypress_server/access_control_object_type_handler.cpp
     cypress_server/access_control_object.cpp
     cypress_server/access_tracker.cpp
+    cypress_server/composite_node.cpp
     cypress_server/config.cpp
     cypress_server/cypress_integration.cpp
     cypress_server/cypress_manager.cpp
@@ -454,6 +455,7 @@ PEERDIR(
     yt/yt/server/lib/hydra
     yt/yt/server/lib/incumbent_client
     yt/yt/server/lib/node_tracker_server
+    yt/yt/server/lib/object_server
     yt/yt/server/lib/security_server
     yt/yt/server/lib/table_server
     yt/yt/server/lib/tablet_balancer

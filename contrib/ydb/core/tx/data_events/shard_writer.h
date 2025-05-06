@@ -6,7 +6,7 @@
 #include "common/modification_type.h"
 
 #include <contrib/ydb/core/base/tablet_pipecache.h>
-#include <contrib/ydb/core/tx/columnshard/counters/common/owner.h>
+#include <contrib/ydb/library/signals/owner.h>
 #include <contrib/ydb/core/tx/long_tx_service/public/events.h>
 
 #include <contrib/ydb/library/accessor/accessor.h>

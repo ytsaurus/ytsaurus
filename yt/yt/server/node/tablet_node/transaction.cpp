@@ -94,22 +94,12 @@ void TTransaction::Load(TLoadContext& context)
     Load(context, CommitTimestampClusterTag_);
     Load(context, TabletsToUpdateReplicationProgress_);
 
-    // COMPAT(gritukan)
-    if (context.GetVersion() >= ETabletReign::TabletPrerequisites) {
-        Load(context, PersistentLeaseIds_);
-    }
-
-    // COMPAT(kvk1920)
-    if (context.GetVersion() >= ETabletReign::SaneTxActionAbort &&
-        context.GetVersion() < ETabletReign::SaneTxActionAbortFix)
-    {
-        Load(context, PreparedActionCount_);
-    }
+    Load(context, PersistentLeaseIds_);
 
     // COMPAT(ifsmirnov)
     if (context.GetVersion() >= ETabletReign::SmoothMovementForwardWrites) {
         Load(context, ExternalizerTablets_);
-    } else if (context.GetVersion() >= ETabletReign::SmoothTabletMovement) {
+    } else {
         if (auto tabletId = Load<TTabletId>(context)) {
             ExternalizerTablets_ = {{tabletId, tabletId}};
         }

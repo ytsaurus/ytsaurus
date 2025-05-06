@@ -110,9 +110,9 @@ TAllocation::TAllocation(
     , RequestedMemory_(resourceDemand.UserMemory)
     , InitialResourceDemand_(resourceDemand)
     , Attributes_(std::move(attributes))
-    , ControllerAgentDescriptor_(std::move(agentDescriptor))
+    , ControllerAgentInfo_(std::move(agentDescriptor))
     , ControllerAgentConnector_(
-        Bootstrap_->GetControllerAgentConnectorPool()->GetControllerAgentConnector(ControllerAgentDescriptor_))
+        Bootstrap_->GetControllerAgentConnectorPool()->GetControllerAgentConnector(ControllerAgentInfo_.GetDescriptor()))
 {
     YT_VERIFY(bootstrap);
 
@@ -222,24 +222,24 @@ void TAllocation::UpdateControllerAgentDescriptor(TControllerAgentDescriptor des
 
     TForbidContextSwitchGuard guard;
 
-    if (ControllerAgentDescriptor_ == descriptor) {
+    if (ControllerAgentInfo_.GetDescriptor() == descriptor) {
         return;
     }
 
     YT_LOG_DEBUG(
         "Update controller agent for allocation (ControllerAgentAddress: %v -> %v, ControllerAgentIncarnationId: %v)",
-        ControllerAgentDescriptor_.Address,
+        ControllerAgentInfo_.GetDescriptor().Address,
         descriptor.Address,
         descriptor.IncarnationId);
 
-    ControllerAgentDescriptor_ = std::move(descriptor);
+    ControllerAgentInfo_.SetDescriptor(std::move(descriptor));
 
     ControllerAgentConnector_ = Bootstrap_
         ->GetControllerAgentConnectorPool()
-        ->GetControllerAgentConnector(ControllerAgentDescriptor_);
+        ->GetControllerAgentConnector(ControllerAgentInfo_.GetDescriptor());
 
     if (Job_) {
-        Job_->UpdateControllerAgentDescriptor(ControllerAgentDescriptor_);
+        Job_->UpdateControllerAgentDescriptor(ControllerAgentInfo_.GetDescriptor());
     }
 }
 
@@ -247,7 +247,7 @@ const TControllerAgentDescriptor& TAllocation::GetControllerAgentDescriptor() co
 {
     YT_ASSERT_THREAD_AFFINITY(JobThread);
 
-    return ControllerAgentDescriptor_;
+    return ControllerAgentInfo_.GetDescriptor();
 }
 
 NClusterNode::TJobResources TAllocation::GetResourceUsage(bool excludeReleasing) const noexcept
@@ -378,7 +378,7 @@ void TAllocation::SettleJob()
 
     YT_LOG_INFO(
         "Requesting controller agent to settle new job (ControllerAgentDescriptor: %v)",
-        ControllerAgentDescriptor_);
+        ControllerAgentInfo_.GetDescriptor());
 
     controllerAgentConnector->SettleJob(OperationId_, Id_, LastJobId_)
         .SubscribeUnique(BIND(&TAllocation::OnSettledJobReceived, MakeStrong(this))
@@ -473,7 +473,7 @@ void TAllocation::CreateAndSettleJob(
         OperationId_,
         MakeStrong(this),
         std::move(jobSpec),
-        ControllerAgentDescriptor_,
+        ControllerAgentInfo_.GetDescriptor(),
         Bootstrap_,
         Bootstrap_->GetJobController()->GetDynamicConfig()->JobCommon);
 
@@ -543,12 +543,11 @@ IYPathServicePtr TAllocation::GetOrchidService()
 
     auto staticAllocationService = GetStaticOrchidService();
 
-    auto service = New<TServiceCombiner>(
+    return New<TServiceCombiner>(
         std::vector<IYPathServicePtr>{
             std::move(jobService),
-            std::move(staticAllocationService)});
-
-    return service;
+            std::move(staticAllocationService),
+        });
 }
 
 NYTree::IYPathServicePtr TAllocation::GetStaticOrchidService()
@@ -698,7 +697,7 @@ void TAllocation::OnJobFinished(TJobPtr job)
                     return;
                 }
 
-                if (!ControllerAgentDescriptor_) {
+                if (!ControllerAgentInfo_.GetDescriptor()) {
                     YT_LOG_INFO(
                         "Allocation is not assigned to controller agent, skip new job settlement (JobId: %v)",
                         jobId);

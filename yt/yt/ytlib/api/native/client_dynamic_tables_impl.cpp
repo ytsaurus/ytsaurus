@@ -974,7 +974,7 @@ TLookupRowsResult<IRowset> TClient::DoLookupRowsOnce(
             << TErrorAttribute("timestamp", options.Timestamp);
     }
 
-    const auto& connectionConfig = Connection_->GetConfig();
+    const auto connectionConfig = Connection_->GetConfig();
 
     const auto& tableMountCache = Connection_->GetTableMountCache();
     NProfiling::TWallTimer timer;
@@ -1092,7 +1092,9 @@ TLookupRowsResult<IRowset> TClient::DoLookupRowsOnce(
                     evaluator,
                     MakeSharedRange(keys),
                     /*allKeys*/ false,
-                    options.Timestamp);
+                    connectionConfig->EnableReadFromInSyncAsyncReplicas
+                        ? options.Timestamp
+                        : SyncLastCommittedTimestamp);
 
                 YT_LOG_DEBUG("Picked in-sync replicas for lookup (ReplicaIds: %v, Timestamp: %v, ReplicationCard: %v)",
                     replicaIds,
@@ -1135,6 +1137,8 @@ TLookupRowsResult<IRowset> TClient::DoLookupRowsOnce(
             for (const auto& replicaInfo : pickedSyncReplicas) {
                 if (bannedReplicaTracker && bannedReplicaTracker->IsReplicaBanned(replicaInfo->ReplicaId)) {
                     bannedSyncReplicaIds.push_back(replicaInfo->ReplicaId);
+                } else if (connectionConfig->BannedInSyncReplicaClusters.contains(replicaInfo->ClusterName)) {
+                    bannedSyncReplicaIds.push_back(replicaInfo->ReplicaId);
                 } else {
                     inSyncReplicas.push_back(replicaInfo);
                 }
@@ -1142,9 +1146,11 @@ TLookupRowsResult<IRowset> TClient::DoLookupRowsOnce(
 
             if (inSyncReplicas.empty()) {
                 std::vector<TError> replicaErrors;
-                for (auto bannedReplicaId : bannedSyncReplicaIds) {
-                    if (auto error = bannedReplicaTracker->GetReplicaError(bannedReplicaId); !error.IsOK()) {
-                        replicaErrors.push_back(std::move(error));
+                if (bannedReplicaTracker) {
+                    for (auto bannedReplicaId : bannedSyncReplicaIds) {
+                        if (auto error = bannedReplicaTracker->GetReplicaError(bannedReplicaId); !error.IsOK()) {
+                            replicaErrors.push_back(std::move(error));
+                        }
                     }
                 }
 
@@ -1563,6 +1569,7 @@ TQueryOptions GetQueryOptions(const TSelectRowsOptions& options, const TConnecti
     queryOptions.NewRangeInference = config->DisableNewRangeInference
         ? false
         : options.NewRangeInference;
+    queryOptions.AdaptiveOrderedSchemafulReader = !config->DisableAdaptiveOrderedSchemafulReader;
     queryOptions.ExecutionBackend = config->UseWebAssembly
         ? options.ExecutionBackend.value_or(EExecutionBackend::Native)
         : EExecutionBackend::Native;
@@ -1618,17 +1625,20 @@ TSelectRowsResult TClient::DoSelectRowsOnce(
 
     TransformWithIndexStatement(astQuery, mountCache, &parsedQuery->AstHead);
 
-    auto replicaStatusCache = Connection_->GetTableReplicaSynchronicityCache();
+    auto dynamicConfig = GetNativeConnection()->GetConfig();
+    auto replicaStatusCache = GetNativeConnection()->GetTableReplicaSynchronicityCache();
     auto pickReplicaSession = CreatePickReplicaSession(
         astQuery,
         GetNativeConnection(),
         mountCache,
         replicaStatusCache,
-        options);
+        options,
+        dynamicConfig->EnableReadFromInSyncAsyncReplicas
+            ? options.Timestamp
+            : SyncLastCommittedTimestamp);
 
     if (pickReplicaSession->IsFallbackRequired()) {
         return std::get<TSelectRowsResult>(pickReplicaSession->Execute(
-            Connection_,
             [&] (
                 const std::string& clusterName,
                 const std::string& patchedQuery,
@@ -1641,8 +1651,6 @@ TSelectRowsResult TClient::DoSelectRowsOnce(
                     .ValueOrThrow();
             }));
     }
-
-    auto dynamicConfig = GetNativeConnection()->GetConfig();
 
     auto queryOptions = GetQueryOptions(options, dynamicConfig);
     queryOptions.ReadSessionId = TReadSessionId::Create();
@@ -1666,6 +1674,7 @@ TSelectRowsResult TClient::DoSelectRowsOnce(
         parsedQuery->Source,
         *astQuery,
         parsedQuery->AstHead.AliasMap,
+        options.ExpressionBuilderVersion,
         HeavyRequestMemoryUsageTracker_);
     const auto& query = fragment->Query;
 
@@ -1765,17 +1774,20 @@ NYson::TYsonString TClient::DoExplainQuery(
 
     TransformWithIndexStatement(astQuery, cache, &parsedQuery->AstHead);
 
+    auto dynamicConfig = GetNativeConnection()->GetConfig();
     auto replicaStatusCache = Connection_->GetTableReplicaSynchronicityCache();
     auto pickReplicaSession = CreatePickReplicaSession(
         astQuery,
         GetNativeConnection(),
         mountCache,
         replicaStatusCache,
-        options);
+        options,
+        dynamicConfig->EnableReadFromInSyncAsyncReplicas
+            ? options.Timestamp
+            : SyncLastCommittedTimestamp);
 
     if (pickReplicaSession->IsFallbackRequired()) {
         return std::get<NYson::TYsonString>(pickReplicaSession->Execute(
-            Connection_,
             [this, options] (
                 const std::string& clusterName,
                 const std::string& patchedQuery,
@@ -1791,7 +1803,7 @@ NYson::TYsonString TClient::DoExplainQuery(
 
     auto udfRegistryPath = options.UdfRegistryPath
         ? *options.UdfRegistryPath
-        : GetNativeConnection()->GetConfig()->UdfRegistryPath;
+        : dynamicConfig->UdfRegistryPath;
 
     auto queryPreparer = New<TQueryPreparer>(
         cache,
@@ -1811,6 +1823,7 @@ NYson::TYsonString TClient::DoExplainQuery(
         parsedQuery->Source,
         *astQuery,
         parsedQuery->AstHead.AliasMap,
+        options.ExpressionBuilderVersion,
         HeavyRequestMemoryUsageTracker_);
 
     auto memoryChunkProvider = MemoryProvider_->GetProvider(
@@ -2514,8 +2527,9 @@ IQueueRowsetPtr TClient::DoPullQueueImpl(
             : WaitFor(PickInSyncReplicas(Connection_, tableInfo, options))
                 .ValueOrThrow();
 
+        auto connectionConfig = Connection_->GetConfig();
         auto retryCountLimit = isChaos
-            ? Connection_->GetConfig()->ReplicaFallbackRetryCount
+            ? connectionConfig->ReplicaFallbackRetryCount
             : 0;
 
         TErrorOr<IQueueRowsetPtr> resultOrError;
@@ -2526,6 +2540,8 @@ IQueueRowsetPtr TClient::DoPullQueueImpl(
             for (const auto& replicaInfo : pickedSyncReplicas) {
                 if (bannedReplicaTracker && bannedReplicaTracker->IsReplicaBanned(replicaInfo->ReplicaId)) {
                     bannedSyncReplicaIds.push_back(replicaInfo->ReplicaId);
+                } else if (connectionConfig->BannedInSyncReplicaClusters.contains(replicaInfo->ClusterName)) {
+                    bannedSyncReplicaIds.push_back(replicaInfo->ReplicaId);
                 } else {
                     inSyncReplicas.push_back(replicaInfo);
                 }
@@ -2533,9 +2549,11 @@ IQueueRowsetPtr TClient::DoPullQueueImpl(
 
             if (inSyncReplicas.empty()) {
                 std::vector<TError> replicaErrors;
-                for (auto bannedReplicaId : bannedSyncReplicaIds) {
-                    if (auto error = bannedReplicaTracker->GetReplicaError(bannedReplicaId); !error.IsOK()) {
-                        replicaErrors.push_back(std::move(error));
+                if (bannedReplicaTracker) {
+                    for (auto bannedReplicaId : bannedSyncReplicaIds) {
+                        if (auto error = bannedReplicaTracker->GetReplicaError(bannedReplicaId); !error.IsOK()) {
+                            replicaErrors.push_back(std::move(error));
+                        }
                     }
                 }
 
@@ -3072,21 +3090,21 @@ public:
         i64 maxDataWeight,
         IMemoryUsageTrackerPtr memoryTracker,
         NLogging::TLogger logger)
-    : Client_(std::move(client))
-    , Schema_(std::move(schema))
-    , TimestampColumnIndex_(timestampColumnIndex)
-    , TabletInfo_(std::move(tabletInfo))
-    , Versioned_(versioned)
-    , Options_(options)
-    , MaxDataWeight_(maxDataWeight)
-    , Request_(std::move(request))
-    , Invoker_(std::move(invoker))
-    , MemoryTracker_(std::move(memoryTracker))
-    , Logger(logger
-        .WithTag("TabletId: %v", TabletInfo_->TabletId))
-    , IsTrivial_(IsUpperTimestampReached(Options_, Request_.Progress, Logger))
-    , ReplicationProgress_(std::move(Request_.Progress))
-    , ReplicationRowIndex_(Request_.StartReplicationRowIndex)
+        : Client_(std::move(client))
+        , Schema_(std::move(schema))
+        , TimestampColumnIndex_(timestampColumnIndex)
+        , TabletInfo_(std::move(tabletInfo))
+        , Versioned_(versioned)
+        , Options_(options)
+        , MaxDataWeight_(maxDataWeight)
+        , Request_(std::move(request))
+        , Invoker_(std::move(invoker))
+        , MemoryTracker_(std::move(memoryTracker))
+        , Logger(logger
+            .WithTag("TabletId: %v", TabletInfo_->TabletId))
+        , IsTrivial_(IsUpperTimestampReached(Options_, Request_.Progress, Logger))
+        , ReplicationProgress_(std::move(Request_.Progress))
+        , ReplicationRowIndex_(Request_.StartReplicationRowIndex)
     { }
 
     ~TTabletPullRowsSession()

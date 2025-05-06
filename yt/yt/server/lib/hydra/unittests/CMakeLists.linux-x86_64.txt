@@ -20,6 +20,9 @@ add_executable(unittester-hydra)
 target_compile_options(unittester-hydra PRIVATE
   -Wdeprecated-this-capture
   -Wimplicit-fallthrough
+  -Wparentheses
+  -Wno-logical-op-parentheses
+  -Wno-bitwise-op-parentheses
 )
 
 target_link_libraries(unittester-hydra PUBLIC

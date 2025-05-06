@@ -20,6 +20,9 @@ add_executable(unittester-clickhouse-server)
 target_compile_options(unittester-clickhouse-server PRIVATE
   -Wdeprecated-this-capture
   -Wimplicit-fallthrough
+  -Wparentheses
+  -Wno-logical-op-parentheses
+  -Wno-bitwise-op-parentheses
 )
 
 target_link_libraries(unittester-clickhouse-server PUBLIC

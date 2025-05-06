@@ -241,7 +241,7 @@ protected:
     // Partition task of i-th level is a task which takes all the i-th level partitions as a input
     // and splits them into (i+1)-th level partitions.
     // Partition task is called final if its outputs are final partitions. Other partition tasks are called intermediate.
-    // Partitions task of level 0 is called root partition task.
+    // Partition task of level 0 is called root partition task.
     // For MapReduce operations root partition task is a partition map task, and all other tasks are partition tasks.
     // For Sort operations all the tasks are partition tasks.
     //
@@ -1664,11 +1664,16 @@ protected:
 
         void RegisterAllOutputs()
         {
-            for (auto& jobOutputs : JobOutputs_) {
+            for (const auto& [partitionIndex, jobOutputs] : Enumerate(JobOutputs_)) {
+                i64 outputRowCount = 0;
                 for (auto& jobOutput : jobOutputs) {
-                    Controller_->AccountRows(jobOutput.JobSummary);
+                    outputRowCount += Controller_->AccountRows(jobOutput.JobSummary);
                     RegisterOutput(jobOutput.JobSummary, jobOutput.Joblet->ChunkListIds, jobOutput.Joblet);
                 }
+                YT_LOG_DEBUG(
+                    "Register outputs (PartitionIndex: %v, OutputRowCount: %v)",
+                    partitionIndex,
+                    outputRowCount);
             }
         }
 
@@ -2168,6 +2173,7 @@ protected:
             options.JobSizeConstraints = std::move(jobSizeConstraints);
             options.JobSizeAdjusterConfig = std::move(jobSizeAdjusterConfig);
             options.Logger = Logger().WithTag("Name: RootPartition");
+            options.UseNewSlicingImplementation = GetSpec()->UseNewSlicingImplementationInUnorderedPool;
 
             RootPartitionPool = CreateUnorderedChunkPool(
                 std::move(options),
@@ -2220,6 +2226,7 @@ protected:
         options.RowBuffer = RowBuffer;
         options.JobSizeConstraints = std::move(jobSizeConstraints);
         options.Logger = Logger().WithTag("Name: SimpleSort");
+        options.UseNewSlicingImplementation = GetSpec()->UseNewSlicingImplementationInUnorderedPool;
 
         SimpleSortPool = CreateUnorderedChunkPool(
             std::move(options),
@@ -2742,13 +2749,15 @@ protected:
         }
     }
 
-    void AccountRows(const TCompletedJobSummary& jobSummary)
+    i64 AccountRows(const TCompletedJobSummary& jobSummary)
     {
         if (jobSummary.Abandoned) {
-            return;
+            return 0;
         }
         YT_VERIFY(jobSummary.TotalOutputDataStatistics);
-        TotalOutputRowCount += jobSummary.TotalOutputDataStatistics->row_count();
+        auto outputRowCount = jobSummary.TotalOutputDataStatistics->row_count();
+        TotalOutputRowCount += outputRowCount;
+        return outputRowCount;
     }
 
     void ValidateMergeDataSliceLimit()

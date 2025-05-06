@@ -19,8 +19,10 @@ DEFINE_ENUM(EChaosReign,
     ((CollocationOptions)                       (300016)) // akozhikhov
     ((AttachDistributedCollocation)             (300017)) // savrus
     ((NoDetachOnDistributedCollocationAttach)   (300018)) // osidorkin
+    ((ForbidSyncQueuesCountBelowLimit)          (300019)) // osidorkin
     // 25.2 starts here
     ((PersistMigrationToken)                    (300101)) // gryzlov-ad
+    ((IntroduceChaosObjectAndLease)             (300102)) // gryzlov-ad
 );
 
 static_assert(TEnumTraits<EChaosReign>::IsMonotonic, "Chaos reign enum is not monotonic");

@@ -7,8 +7,9 @@
 #include <contrib/ydb/core/kqp/counters/kqp_counters.h>
 #include <contrib/ydb/core/kqp/gateway/behaviour/resource_pool_classifier/fetcher.h>
 #include <contrib/ydb/core/kqp/rm_service/kqp_rm_service.h>
-#include <contrib/ydb/core/protos/kqp.pb.h>
 #include <contrib/ydb/core/protos/feature_flags.pb.h>
+#include <contrib/ydb/core/protos/kqp.pb.h>
+#include <contrib/ydb/core/protos/workload_manager_config.pb.h>
 
 #include <contrib/ydb/library/actors/core/actorid.h>
 
@@ -491,9 +492,9 @@ public:
         return it->second;
     }
 
-    void UpdateFeatureFlags(const NKikimrConfig::TFeatureFlags& featureFlags, TActorContext actorContext) {
-        EnableResourcePools = featureFlags.GetEnableResourcePools();
-        EnableResourcePoolsOnServerless = featureFlags.GetEnableResourcePoolsOnServerless();
+    void UpdateConfig(const NKikimrConfig::TFeatureFlags& featureFlags, const NKikimrConfig::TWorkloadManagerConfig& workloadManagerConfig, TActorContext actorContext) {
+        EnableResourcePools = featureFlags.GetEnableResourcePools() || workloadManagerConfig.GetEnabled();
+        EnableResourcePoolsOnServerless = featureFlags.GetEnableResourcePoolsOnServerless() || workloadManagerConfig.GetEnabled();
         UpdateResourcePoolClassifiersSubscription(actorContext);
     }
 

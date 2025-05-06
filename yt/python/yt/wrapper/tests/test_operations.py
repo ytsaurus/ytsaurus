@@ -1520,10 +1520,11 @@ class TestPythonOperations(object):
         output_table = TEST_DIR + "/my_table"
         yt.write_table(table, [{"x": 1}, {"x": 2}])
 
-        for protection_type in ("none", "close"):
-            with set_config_option("pickling/stdout_fd_protection", protection_type):
-                with pytest.raises(yt.YtOperationFailedError):
-                    yt.run_map(mapper, table, output_table)
+        with set_config_option("pickling/redirect_stdout_to_stderr", False):
+            for protection_type in ("none", "close"):
+                with set_config_option("pickling/stdout_fd_protection", protection_type):
+                    with pytest.raises(yt.YtOperationFailedError):
+                        yt.run_map(mapper, table, output_table)
 
         for protection_type in ("redirect_to_stderr", "drop"):
             yt.write_table(output_table, [])
@@ -2367,18 +2368,31 @@ print(op.id)
             yield row
 
         with set_config_option("clear_local_temp_files", False):
-            with set_config_option("pickling/encrypt_pickle_files", False):
+            with set_config_option("pickling/encrypt_pickle_files", None):
                 op = yt.run_map(simple_mapper, table, other_table)
             op_attributes = yt.get_operation(operation_id=op.id)
             config_file = list(filter(lambda f: f.endswith("config_dump"), op_attributes["spec"]["mapper"]["command"].split(" ")))[0]
             with open(config_file, "rb") as fh:
                 config_file = fh.read()
             assert config_file[:3] != b'ENC'
+            assert yt.get(other_table + "/@row_count") == 10
 
-            with set_config_option("pickling/encrypt_pickle_files", True):
+            with set_config_option("pickling/encrypt_pickle_files", 1):
                 op = yt.run_map(simple_mapper, table, other_table)
             op_attributes = yt.get_operation(operation_id=op.id)
             config_file = list(filter(lambda f: f.endswith("config_dump"), op_attributes["spec"]["mapper"]["command"].split(" ")))[0]
             with open(config_file, "rb") as fh:
                 config_file = fh.read()
             assert config_file[:3] == b'ENC'
+            assert yt.get(other_table + "/@row_count") == 10
+            assert "_PICKLING_KEY" in op_attributes["spec"]["mapper"]["environment"].keys()
+
+            with set_config_option("pickling/encrypt_pickle_files", 2):
+                op = yt.run_map(simple_mapper, table, other_table)
+            op_attributes = yt.get_operation(operation_id=op.id)
+            config_file = list(filter(lambda f: f.endswith("config_dump"), op_attributes["spec"]["mapper"]["command"].split(" ")))[0]
+            with open(config_file, "rb") as fh:
+                config_file = fh.read()
+            assert config_file[:3] == b'ENC'
+            assert yt.get(other_table + "/@row_count") == 10
+            assert "_PICKLING_KEY" not in op_attributes["spec"]["mapper"]["environment"].keys()

@@ -23,7 +23,7 @@ struct IPickReplicaSession
         const std::string& queryString,
         const TSelectRowsOptionsBase& baseOptions)>;
 
-    virtual TResult Execute(const IConnectionPtr& connection, TExecuteCallback callback) = 0;
+    virtual TResult Execute(TExecuteCallback callback) = 0;
 
     virtual bool IsFallbackRequired() const = 0;
 };
@@ -37,7 +37,8 @@ IPickReplicaSessionPtr CreatePickReplicaSession(
     const IConnectionPtr& connection,
     const NTabletClient::ITableMountCachePtr& mountCache,
     const ITableReplicaSynchronicityCachePtr& cache,
-    const TSelectRowsOptionsBase& options);
+    const TSelectRowsOptionsBase& options,
+    NTransactionClient::TTimestamp timestamp);
 
 ////////////////////////////////////////////////////////////////////////////////
 

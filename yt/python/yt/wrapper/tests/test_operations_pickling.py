@@ -37,7 +37,7 @@ class TestOperationsPickling(object):
     def setup(self):
         yt.config["tabular_data_format"] = yt.format.JsonFormat()
         yt.config["is_local_mode"] = False
-        yt.config["pickling"]["encrypt_pickle_files"] = False
+        yt.config["pickling"]["encrypt_pickle_files"] = None
         self.env = {
             "YT_CONFIG_PATCHES": dumps_yt_config(),
             "PYTHONPATH": os.environ.get("PYTHONPATH", ""),
@@ -166,7 +166,7 @@ def mapper(rec):
 
 if __name__ == "__main__":
     yt.config["pickling"]["enable_tmpfs_archive"] = False
-    yt.config["pickling"]["encrypt_pickle_files"] = False
+    yt.config["pickling"]["encrypt_pickle_files"] = None
     print(yt.run_map(mapper, "{1}", "{2}", sync=False).id)
 """
         yt.write_table(TEST_DIR + "/table", [{"x": 1, "y": 1}])
@@ -237,7 +237,7 @@ def mapper(rec):
 
 yt.config["proxy"]["url"] = "{0}"
 yt.config["pickling"]["enable_tmpfs_archive"] = False
-yt.config["pickling"]["encrypt_pickle_files"] = False
+yt.config["pickling"]["encrypt_pickle_files"] = None
 yt.config["pickling"]["python_binary"] = sys.executable
 print(yt.run_map(mapper, "{1}", "{2}", sync=False).id)
 """
@@ -256,7 +256,7 @@ def mapper(rec):
 if __name__ == "__main__":
     yt.config["proxy"]["url"] = "{0}"
     yt.config["pickling"]["enable_tmpfs_archive"] = False
-    yt.config["pickling"]["encrypt_pickle_files"] = False
+    yt.config["pickling"]["encrypt_pickle_files"] = None
     yt.config["pickling"]["python_binary"] = sys.executable
     print(yt.run_map(mapper, "{1}", "{2}", sync=False).id)
 """
@@ -302,7 +302,7 @@ if __name__ == "__main__":
 
     yt.update_config(yson.load(stdin, always_create_attributes=False))
     yt.config["pickling"]["enable_tmpfs_archive"] = False
-    yt.config["pickling"]["encrypt_pickle_files"] = False
+    yt.config["pickling"]["encrypt_pickle_files"] = None
     print(yt.run_map({mapper}, "{source_table}", "{destination_table}", format="json").id)
 """
 

@@ -15,11 +15,6 @@ DEFINE_ENUM(EDataSource,
     (ChunkStore)
 );
 
-DEFINE_ENUM(ERequestType,
-    (Lookup)
-    (Read)
-);
-
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TPerformanceCountersEma
@@ -47,7 +42,7 @@ struct TChunkReaderPerformanceCounters
     TPerformanceCountersEma StaticChunkRowLookupDataWeight;
     TPerformanceCountersEma StaticHunkChunkRowLookupDataWeight;
 
-    void IncrementHunkDataWeight(ERequestType requestType, i64 value, EWorkloadCategory workloadCategory);
+    void IncrementHunkDataWeight(EPerformanceCountedRequestType requestType, i64 value, EWorkloadCategory workloadCategory);
 };
 
 DEFINE_REFCOUNTED_TYPE(TChunkReaderPerformanceCounters)
@@ -79,13 +74,13 @@ IVersionedReaderPtr CreateVersionedPerformanceCountingReader(
     IVersionedReaderPtr reader,
     TTabletPerformanceCountersPtr performanceCounters,
     EDataSource source,
-    ERequestType type);
+    EPerformanceCountedRequestType type);
 
 ISchemafulUnversionedReaderPtr CreateSchemafulPerformanceCountingReader(
     ISchemafulUnversionedReaderPtr reader,
     TTabletPerformanceCountersPtr performanceCounters,
     EDataSource source,
-    ERequestType type);
+    EPerformanceCountedRequestType type);
 
 ////////////////////////////////////////////////////////////////////////////////
 

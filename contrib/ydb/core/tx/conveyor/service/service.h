@@ -2,7 +2,7 @@
 #include "worker.h"
 #include <contrib/ydb/core/tx/conveyor/usage/config.h>
 #include <contrib/ydb/core/tx/conveyor/usage/events.h>
-#include <contrib/ydb/core/tx/columnshard/counters/common/owner.h>
+#include <contrib/ydb/library/signals/owner.h>
 #include <contrib/ydb/library/accessor/positive_integer.h>
 #include <contrib/ydb/library/actors/core/actor_bootstrapped.h>
 #include <contrib/ydb/library/actors/core/log.h>

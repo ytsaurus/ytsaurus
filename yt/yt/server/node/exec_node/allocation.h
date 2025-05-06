@@ -1,6 +1,7 @@
 #pragma once
 
 #include "job.h"
+#include "helpers.h"
 
 #include <yt/yt/server/node/job_agent/job_resource_manager.h>
 
@@ -105,7 +106,7 @@ private:
     // Remove when scheduler and nodes both are 24.2.
     std::optional<NScheduler::TAllocationAttributes> Attributes_;
 
-    TControllerAgentDescriptor ControllerAgentDescriptor_;
+    TControllerAgentAffiliationInfo ControllerAgentInfo_;
     // TODO(pogorelov): Maybe strong ref?
     TWeakPtr<TControllerAgentConnectorPool::TControllerAgentConnector> ControllerAgentConnector_;
 

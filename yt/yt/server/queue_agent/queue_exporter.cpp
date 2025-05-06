@@ -8,9 +8,9 @@
 #include <yt/yt/ytlib/chunk_client/chunk_meta_extensions.h>
 #include <yt/yt/ytlib/chunk_client/input_chunk.h>
 
-#include <yt/yt/ytlib/hive/cluster_directory.h>
-
 #include <yt/yt/ytlib/cypress_client/rpc_helpers.h>
+
+#include <yt/yt/ytlib/hive/cluster_directory.h>
 
 #include <yt/yt/ytlib/table_client/table_ypath_proxy.h>
 
@@ -1059,6 +1059,7 @@ public:
     void Stop() override
     {
         AlertCollector_->Stop();
+        YT_UNUSED_FUTURE(Executor_->Stop());
     }
 
     void BuildOrchidYson(NYTree::TFluentAny fluent) const override

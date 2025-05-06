@@ -1802,6 +1802,11 @@ TCodegenExpression MakeCodegenRelationalBinaryOpExpr(
                                 });
                             break;
                         }
+                        case EValueType::Null: {
+                            cmpResult = builder->getFalse();
+                            break;
+                        }
+
                         default:
                             YT_ABORT();
                     }
@@ -2632,6 +2637,133 @@ TLlvmClosure MakeConsumerWithPIConversion(
             innerBuilder->CreateRet(casted);
         });
 }
+
+////////////////////////////////////////////////////////////////////////////////
+
+void MakeCodegenSubqueryWriteOp(
+    TCodegenSource* codegenSource,
+    size_t producerSlot,
+    size_t rowSize,
+    Value* result)
+{
+    *codegenSource = [
+        =,
+        codegenSource = std::move(*codegenSource)
+    ] (TCGOperatorContext& builder) {
+        auto collect = MakeClosure<void(TWriteOpClosure*)>(builder, "SubqueryWriteOpInner", [&] (
+            TCGOperatorContext& builder,
+            Value* writeRowClosure) {
+            builder[producerSlot] = [&] (TCGContext& builder, Value* values) {
+                Value* writeRowClosureRef = builder->ViaClosure(writeRowClosure);
+
+                Value* finished = builder->CreateCall(
+                    builder.Module->GetRoutine("SubqueryWriteRow"),
+                    {builder.GetExecutionContext(), writeRowClosureRef, values});
+
+                return builder->CreateIsNotNull(finished);
+            };
+
+            codegenSource(builder);
+
+            builder->CreateRetVoid();
+        });
+
+        builder->CreateCall(
+            builder.Module->GetRoutine("SubqueryWriteHelper"),
+            {
+                builder.GetExecutionContext(),
+                builder->getInt32(rowSize),
+                builder->ViaClosure(result),
+                collect.ClosurePtr,
+                collect.Function
+            });
+    };
+}
+
+TCodegenExpression MakeCodegenSubqueryExpr(
+    std::vector<size_t> fromExprIds,
+    std::vector<size_t> bindedExprIds,
+    std::optional<size_t> predicateId,
+    std::vector<size_t> projectExprIds,
+    TCodegenFragmentInfosPtr nestedFragmentsInfos,
+    int subqueryParametersIndex)
+{
+    return [=] (TCGExprContext& builder) -> TCGValue {
+        Value* fromValues = CodegenAllocateValues(builder, std::ssize(fromExprIds));
+        for (int index = 0; index < std::ssize(fromExprIds); ++index) {
+            CodegenFragment(builder, fromExprIds[index])
+                .StoreToValues(builder, fromValues, index);
+        }
+
+        Value* bindedValues = CodegenAllocateValues(builder, std::ssize(bindedExprIds));
+        for (int index = 0; index < std::ssize(bindedExprIds); ++index) {
+            CodegenFragment(builder, bindedExprIds[index])
+                .StoreToValues(builder, bindedValues, index);
+        }
+
+        Value* result = CodegenAllocateValues(builder, 1);
+
+        size_t slotCount = 0;
+        size_t currentSlot = slotCount++;
+
+        // ScanOpHelper
+        TCodegenSource codegenSource = [
+            currentSlot,
+            fromValues,
+            bindedValues,
+            subqueryParametersIndex
+        ] (TCGOperatorContext& builder) {
+            auto consume = MakeConsumer(
+                builder,
+                "SubqueryOpInner",
+                currentSlot);
+
+            builder->CreateCall(
+                builder.Module->GetRoutine("SubqueryExprHelper"),
+                {
+                    builder.GetExecutionContext(), // Buffer
+                    builder.GetOpaqueValue(subqueryParametersIndex),
+                    builder->ViaClosure(fromValues),
+                    builder->ViaClosure(bindedValues),
+                    consume.ClosurePtr,
+                    consume.Function,
+                });
+        };
+
+        if (predicateId) {
+            currentSlot = MakeCodegenFilterOp(
+                &codegenSource,
+                &slotCount,
+                currentSlot,
+                nestedFragmentsInfos,
+                *predicateId);
+        }
+
+        currentSlot = MakeCodegenProjectOp(
+            &codegenSource,
+            &slotCount,
+            currentSlot,
+            nestedFragmentsInfos,
+            projectExprIds);
+
+        MakeCodegenSubqueryWriteOp(
+            &codegenSource,
+            currentSlot,
+            std::ssize(projectExprIds),
+            result);
+
+        Value* executionContextPtr = builder.Buffer;
+        std::vector<std::shared_ptr<TCodegenConsumer>> consumers(slotCount);
+
+        TCGOperatorContext operatorBuilder(builder, executionContextPtr, &consumers);
+
+        codegenSource(operatorBuilder);
+
+        return TCGValue::LoadFromRowValue(builder, result, EValueType::Any);
+    };
+}
+
+////////////////////////////////////////////////////////////////////////////////
 
 size_t MakeCodegenScanOp(
     TCodegenSource* codegenSource,

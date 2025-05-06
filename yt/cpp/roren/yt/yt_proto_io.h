@@ -25,7 +25,7 @@ public:
     }
 };
 
-using IProtoIOParDoPtr = ::TIntrusivePtr<IProtoIOParDo>;
+using IProtoIOParDoPtr = NYT::TIntrusivePtr<IProtoIOParDo>;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -93,7 +93,7 @@ public:
     TDefaultFactoryFunc GetDefaultFactory() const override
     {
         return [] () -> IRawReadPtr {
-            return ::MakeIntrusive<TRawYtProtoRead<TMessage>>(NYT::TRichYPath{});
+            return NYT::New<TRawYtProtoRead<TMessage>>(NYT::TRichYPath{});
         };
     }
 
@@ -167,7 +167,7 @@ public:
     TDefaultFactoryFunc GetDefaultFactory() const override
     {
         return [] () -> IRawParDoPtr {
-            return ::MakeIntrusive<TWriteProtoParDo>();
+            return NYT::New<TWriteProtoParDo>();
         };
     }
 
@@ -183,7 +183,7 @@ private:
 template <class TMessage>
 IProtoIOParDoPtr CreateWriteProtoParDo(ssize_t tableIndex = -1)
 {
-    return ::MakeIntrusive<TWriteProtoParDo<TMessage>>(tableIndex);
+    return NYT::New<TWriteProtoParDo<TMessage>>(tableIndex);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -238,7 +238,7 @@ public:
     TDefaultFactoryFunc GetDefaultFactory() const override
     {
         return [] () -> IRawWritePtr {
-            return ::MakeIntrusive<TRawYtProtoWrite<TMessage>>(NYT::TRichYPath{}, NYT::TTableSchema{});
+            return NYT::New<TRawYtProtoWrite<TMessage>>(NYT::TRichYPath{}, NYT::TTableSchema{});
         };
     }
 
@@ -316,7 +316,7 @@ public:
     TDefaultFactoryFunc GetDefaultFactory() const override
     {
         return [] () -> IRawWritePtr {
-            return ::MakeIntrusive<TRawYtProtoSortedWrite<TMessage>>(
+            return NYT::New<TRawYtProtoSortedWrite<TMessage>>(
                 NYT::TRichYPath{},
                 NYT::TTableSchema{}
             );
@@ -398,19 +398,19 @@ IRawParDoPtr CreateCombineReducerImpulseReadProtoParDo(IRawCombinePtr rawCombine
 template <class TMessage>
 IRawYtReadPtr MakeYtProtoRead(NYT::TRichYPath path)
 {
-    return ::MakeIntrusive<TRawYtProtoRead<TMessage>>(std::move(path));
+    return NYT::New<TRawYtProtoRead<TMessage>>(std::move(path));
 }
 
 template <class TMessage>
 IRawYtWritePtr MakeYtProtoWrite(NYT::TRichYPath path, NYT::TTableSchema tableSchema)
 {
-    return ::MakeIntrusive<TRawYtProtoWrite<TMessage>>(std::move(path), std::move(tableSchema));
+    return NYT::New<TRawYtProtoWrite<TMessage>>(std::move(path), std::move(tableSchema));
 }
 
 template <class TMessage>
 IRawYtWritePtr MakeYtProtoSortedWrite(NYT::TRichYPath path, NYT::TTableSchema tableSchema)
 {
-    return ::MakeIntrusive<TRawYtProtoSortedWrite<TMessage>>(std::move(path), std::move(tableSchema));
+    return NYT::New<TRawYtProtoSortedWrite<TMessage>>(std::move(path), std::move(tableSchema));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

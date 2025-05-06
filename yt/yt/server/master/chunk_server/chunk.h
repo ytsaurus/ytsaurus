@@ -405,8 +405,7 @@ private:
         //! Number of approved replicas among stored.
         int ApprovedReplicaCount = 0;
 
-        //! Indicates the position in LastSeenReplicas to be written next.
-        int CurrentLastSeenReplicaIndex = 0;
+        int LastSeenReplicaCount = 0;
 
         virtual ~TReplicasDataBase() = default;
 
@@ -423,7 +422,7 @@ private:
         virtual void Save(NCellMaster::TSaveContext& context) const = 0;
     };
 
-    template <size_t TypicalStoredReplicaCount, size_t LastSeenReplicaCount>
+    template <size_t TypicalStoredReplicaCount, size_t MaxLastSeenReplicaCount>
     struct TReplicasData
         : public TReplicasDataBase
     {
@@ -431,9 +430,14 @@ private:
 
         TStoredReplicas StoredReplicas;
 
-        std::array<TNodeId, LastSeenReplicaCount> LastSeenReplicas;
+        std::array<TNodeId, MaxLastSeenReplicaCount> LastSeenReplicas;
 
         TReplicasData();
+
+        // COMPAT(kvk1920): it's used in Load() and AddReplica(). After compats
+        // for reign FixLastSeenReplicas are removed this function will become
+        // redundant.
+        void AddLastSeenReplica(TNodeId nodeId);
 
         TRange<TNodeId> GetLastSeenReplicas() const override;
         TMutableRange<TNodeId> MutableLastSeenReplicas() override;

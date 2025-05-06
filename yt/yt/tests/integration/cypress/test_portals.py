@@ -1118,7 +1118,7 @@ class TestPortals(YTEnvSetup):
 
         copier = move if remove_source else copy
 
-        with pytest.raises(YtError):
+        with raises_yt_error("//tmp/l1 is not a local object"):
             copier("//tmp/l1", "//tmp/l1_copy")
 
         copier("//tmp/p/l2", "//tmp/l2_copy")
@@ -1146,7 +1146,7 @@ class TestPortals(YTEnvSetup):
         assert get("//tmp/l1&/@target_path") == "//tmp/t"
         assert get("//tmp/l1&/@broken") == remove_source
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Cross-cell links are not supported"):
             copier("//tmp/p/l2", "//tmp/p/l2_copy")
 
     @authors("shakurov")
@@ -1251,7 +1251,7 @@ class TestPortals(YTEnvSetup):
         create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 11})
         create("map_node", "//tmp/p", ignore_existing=True)
         create("table", "//tmp/t")
-        with pytest.raises(YtError):
+        with raises_yt_error("//tmp/t already exists and has type \"table\" while node of \"map_node\" type is about to be created"):
             create("map_node", "//tmp/t", ignore_existing=True)
 
     @authors("kvk1920")
@@ -1390,7 +1390,7 @@ class TestPortals(YTEnvSetup):
     @authors("cherepashka")
     def test_revoke_cypress_node_host_role_validation(self):
         create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 11})
-        with raises_yt_error("it still hosts cypress nodes"):
+        with raises_yt_error("it still hosts Cypress nodes"):
             set("//sys/@config/multicell_manager/cell_descriptors", {"11": {"roles": ["chunk_host"]}})
 
 
@@ -1851,6 +1851,10 @@ class TestCrossCellCopy(YTEnvSetup):
             # Some other nodes don't support "ls" command.
             try:
                 for child_node in ls(next_path, tx=tx):
+                    # Done to ensure that test with special YPath symbols works.
+                    if child_node.startswith("["):
+                        child_node = f"\\{child_node}"
+
                     paths_to_check.append(f"{next_path}/{child_node}")
             except YtError as err:
                 if err.contains_code(yt_error_codes.NoSuchMethod):
@@ -2446,6 +2450,17 @@ class TestCrossCellCopy(YTEnvSetup):
         else:
             self.execute_command(src_path, dst_path, lock_existing=True)
 
+    @authors("h0pless")
+    def test_ypath_special_symbols(self):
+        src_path = "//tmp/map_node"
+        self.create_map_node(src_path)
+
+        bad_path = src_path + r"/\[b16:0:b00b:5:0:15:0:c001]:1337"
+        self.create_map_node(bad_path)
+
+        dst_path = "//tmp/portal/map_node"
+
+        self.execute_command(src_path, dst_path)
 
 ################################################################################
 

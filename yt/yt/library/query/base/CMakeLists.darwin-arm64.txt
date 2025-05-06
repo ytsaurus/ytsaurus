@@ -18,6 +18,9 @@ add_library(library-query-base)
 target_compile_options(library-query-base PRIVATE
   -Wdeprecated-this-capture
   -Wimplicit-fallthrough
+  -Wparentheses
+  -Wno-logical-op-parentheses
+  -Wno-bitwise-op-parentheses
 )
 
 target_include_directories(library-query-base PUBLIC
@@ -42,6 +45,7 @@ target_sources(library-query-base PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/library/query/base/coordination_helpers.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/library/query/base/expr_builder_base.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/library/query/base/expr_builder_v1.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/library/query/base/expr_builder_v2.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/library/query/base/functions.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/library/query/base/helpers.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/library/query/base/builtin_function_registry.cpp
@@ -55,6 +59,7 @@ target_sources(library-query-base PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/library/query/base/query_helpers.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/library/query/base/query_preparer.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/library/query/base/query_visitors.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/library/query/base/typing.cpp
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/base/parser.h
 )
 

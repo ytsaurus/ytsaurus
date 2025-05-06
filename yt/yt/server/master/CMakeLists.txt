@@ -36,6 +36,9 @@ add_library(yt-server-master)
 target_compile_options(yt-server-master PRIVATE
   -Wdeprecated-this-capture
   -Wimplicit-fallthrough
+  -Wparentheses
+  -Wno-logical-op-parentheses
+  -Wno-bitwise-op-parentheses
 )
 
 target_include_directories(yt-server-master PUBLIC
@@ -62,6 +65,7 @@ target_link_libraries(yt-server-master PUBLIC
   server-lib-hydra
   server-lib-incumbent_client
   server-lib-node_tracker_server
+  server-lib-object_server
   server-lib-security_server
   server-lib-table_server
   server-lib-tablet_balancer
@@ -207,6 +211,7 @@ target_sources(yt-server-master PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/cypress_server/access_control_object_type_handler.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/cypress_server/access_control_object.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/cypress_server/access_tracker.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/master/cypress_server/composite_node.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/cypress_server/config.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/cypress_server/cypress_integration.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/cypress_server/cypress_manager.cpp

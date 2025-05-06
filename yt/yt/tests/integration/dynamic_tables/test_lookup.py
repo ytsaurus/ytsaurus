@@ -619,8 +619,9 @@ class TestLookup(TestSortedDynamicTablesBase):
         })
         sync_mount_table("//tmp/t")
 
-        request_counter = profiler_factory().at_tablet_node("//tmp/t").counter(
-            name="hedging_manager/primary_request_count")
+        request_counter = self._init_tablet_sensor(
+            "//tmp/t",
+            "hedging_manager/primary_request_count")
 
         keys = [{"key": i} for i in range(10)]
         rows = [{"key": i, "value": str(i)} for i in range(10)]
@@ -642,26 +643,22 @@ class TestLookup(TestSortedDynamicTablesBase):
         self._create_simple_table(table_path)
         sync_mount_table(table_path)
 
-        sensors = [None] * 4
-
-        def _init_sensors():
-            sensors[0] = profiler_factory().at_tablet_node(
-                table_path,
-                fixed_tags={"table_path": table_path}).counter(name="lookup/row_count")
-            sensors[1] = profiler_factory().at_tablet_node(
-                table_path,
-                fixed_tags={"table_path": table_path}).counter(name="lookup/missing_row_count")
-            sensors[2] = profiler_factory().at_tablet_node(
-                table_path,
-                fixed_tags={"table_path": table_path}).counter(name="lookup/unmerged_row_count")
-            sensors[3] = profiler_factory().at_tablet_node(
-                table_path,
-                fixed_tags={"table_path": table_path}).counter(name="lookup/unmerged_missing_row_count")
-            for sensor in sensors:
-                if sensor.start_value != 0:
-                    return False
-            return True
-        wait(lambda: _init_sensors())
+        row_count_sensor = self._init_tablet_sensor(
+            table_path,
+            "lookup/row_count",
+            fixed_tags={"table_path": table_path})
+        missing_row_count_sensor = self._init_tablet_sensor(
+            table_path,
+            "lookup/missing_row_count",
+            fixed_tags={"table_path": table_path})
+        unmerged_row_count_sensor = self._init_tablet_sensor(
+            table_path,
+            "lookup/unmerged_row_count",
+            fixed_tags={"table_path": table_path})
+        unmerged_missing_row_count_sensor = self._init_tablet_sensor(
+            table_path,
+            "lookup/unmerged_missing_row_count",
+            fixed_tags={"table_path": table_path})
 
         insert_rows(table_path, [{"key": 0, "value": "0"}, {"key": 2, "value": "2"}])
         sync_flush_table(table_path)
@@ -671,10 +668,10 @@ class TestLookup(TestSortedDynamicTablesBase):
         assert lookup_rows(table_path, [{"key": 0}, {"key": 1}, {"key": 2}, {"key": 3}]) == \
             [{"key": 0, "value": "0"}, {"key": 1, "value": "1"}, {"key": 2, "value": "22"}]
 
-        wait(lambda: sensors[0].get_delta() == 3)
-        wait(lambda: sensors[1].get_delta() == 1)
-        wait(lambda: sensors[2].get_delta() == 4)
-        wait(lambda: sensors[3].get_delta() == 4)
+        wait(lambda: row_count_sensor.get_delta() == 3)
+        wait(lambda: missing_row_count_sensor.get_delta() == 1)
+        wait(lambda: unmerged_row_count_sensor.get_delta() == 4)
+        wait(lambda: unmerged_missing_row_count_sensor.get_delta() == 4)
 
     @authors("akozhikhov")
     def test_lookup_overflow(self):
@@ -1059,12 +1056,22 @@ class TestLookup(TestSortedDynamicTablesBase):
     @authors("sabdenovch")
     @pytest.mark.parametrize("in_memory", [False, True])
     def test_migrate_to_query_pool(self, in_memory):
+        flag_name = f"use_query_pool_for{'_in_memory' if in_memory else ''}_lookups"
+
         set("//sys/cluster_nodes/@config", {"%true": {
             "query_agent": {
-                f"use_query_pool_for{'_in_memory' if in_memory else ''}_lookups": True
+                flag_name: True
             }
         }})
+
+        def _wait_func():
+            return all([
+                get(f"//sys/cluster_nodes/{node}/orchid/dynamic_config_manager/applied_config")
+                .get("query_agent", {})
+                .get(flag_name, None) for node in ls("//sys/cluster_nodes")])
+
         sync_create_cells(1)
+        wait(_wait_func)
 
         table_path = "//tmp/t"
 
@@ -1556,6 +1563,9 @@ class TestLookupCache(TestSortedDynamicTablesBase):
 
     COUNTER_NAME = "lookup"
 
+    def _performance_counter_type(self):
+        return self.COUNTER_NAME if self.COUNTER_NAME == "lookup" else "read"
+
     def _read(self, table, keys, column_names=None, **kwargs):
         return lookup_rows(table, [{"key": key} for key in keys], column_names=column_names, **kwargs)
 
@@ -1594,10 +1604,10 @@ class TestLookupCache(TestSortedDynamicTablesBase):
             actual = self._read("//tmp/t", range(100, 200, 2 * step), use_lookup_cache=True)
             assert_items_equal(actual, expected)
 
-        # Lookup key without polluting cache to increment static_chunk_row_lookup_count.
+        # Lookup key without polluting cache to increment static_chunk_row_{lookup/read}_count.
         self._read("//tmp/t", [2])
 
-        path = "//tmp/t/@tablets/0/performance_counters/static_chunk_row_lookup_count"
+        path = f"//tmp/t/@tablets/0/performance_counters/static_chunk_row_{self._performance_counter_type()}_count"
         wait(lambda: get(path) > 50)
         assert get(path) == 51
 
@@ -1648,10 +1658,10 @@ class TestLookupCache(TestSortedDynamicTablesBase):
         expected = [{"key": i, "value": _make_value(i)} for i in range(100, 200, 2)]
         assert_items_equal(actual, expected)
 
-        # Lookup key without polluting cache to increment static_chunk_row_lookup_count.
+        # Lookup key without polluting cache to increment static_chunk_row_{lookup/read}_count.
         self._read("//tmp/t", [2])
 
-        path = "//tmp/t/@tablets/0/performance_counters/static_chunk_row_lookup_count"
+        path = f"//tmp/t/@tablets/0/performance_counters/static_chunk_row_{self._performance_counter_type()}_count"
         wait(lambda: get(path) > 50)
         assert get(path) == 51
 
@@ -1677,7 +1687,7 @@ class TestLookupCache(TestSortedDynamicTablesBase):
         # Lookup key without cache.
         self._read("//tmp/t", [2], use_lookup_cache=False)
 
-        path = "//tmp/t/@tablets/0/performance_counters/static_chunk_row_lookup_count"
+        path = f"//tmp/t/@tablets/0/performance_counters/static_chunk_row_{self._performance_counter_type()}_count"
         wait(lambda: get(path) > 101)
         assert get(path) == 102
 
@@ -1714,7 +1724,7 @@ class TestLookupCache(TestSortedDynamicTablesBase):
         # Lookup key without cache.
         self._read("//tmp/t", [2])
 
-        path = "//tmp/t/@tablets/0/performance_counters/static_chunk_row_lookup_count"
+        path = f"//tmp/t/@tablets/0/performance_counters/static_chunk_row_{self._performance_counter_type()}_count"
         wait(lambda: get(path) > 0)
         assert get(path) == 1
 

@@ -1777,14 +1777,12 @@ protected:
     {
         YT_ASSERT_INVOKER_AFFINITY(Invoker_);
 
-        NTransactionServer::NProto::TReqAbortCypressTransaction req;
-        ToProto(req.mutable_transaction_id(), TransactionId_);
-        req.set_replicate_via_hive(false);
-        req.set_force(Force_);
-        NRpc::WriteAuthenticationIdentityToProto(&req, AuthenticationIdentity_);
         SequoiaTransaction_->AddTransactionAction(
             CellTagFromId(CoordinatorCellId_),
-            MakeTransactionActionData(req));
+            MakeTransactionActionData(BuildAbortCypressTransactionRequest(
+                TransactionId_,
+                Force_,
+                AuthenticationIdentity_)));
 
         AbortTransactionOnParticipants(replicas);
     }

@@ -13,7 +13,6 @@ SRCS(
     intermediate_chunk_scraper.cpp
     job_monitoring_index_manager.cpp
     job_prober_service.cpp
-    job_profiler.cpp
     job_size_constraints.cpp
     job_tracker.cpp
     job_tracker_service.cpp

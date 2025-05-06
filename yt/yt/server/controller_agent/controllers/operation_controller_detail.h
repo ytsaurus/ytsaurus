@@ -10,9 +10,9 @@
 #include "input_manager.h"
 #include "job_info.h"
 #include "job_memory.h"
+#include "spec_manager.h"
 #include "task.h"
 #include "task_host.h"
-#include "spec_manager.h"
 
 #include <yt/yt/server/controller_agent/helpers.h>
 #include <yt/yt/server/controller_agent/operation_controller.h>
@@ -28,12 +28,12 @@
 
 #include <yt/yt/server/lib/misc/release_queue.h>
 
+#include <yt/yt/ytlib/api/native/public.h>
+
 #include <yt/yt/ytlib/chunk_client/helpers.h>
 #include <yt/yt/ytlib/chunk_client/public.h>
 
 #include <yt/yt/ytlib/chunk_pools/chunk_stripe_key.h>
-
-#include <yt/yt/ytlib/api/native/public.h>
 
 #include <yt/yt/ytlib/scheduler/job_resources_with_quota.h>
 
@@ -45,11 +45,8 @@
 
 #include <yt/yt/core/misc/histogram.h>
 #include <yt/yt/core/misc/id_generator.h>
-#include <yt/yt/core/ytree/yson_struct_update.h>
 
 #include <library/cpp/yt/memory/atomic_intrusive_ptr.h>
-
-#include <library/cpp/yt/memory/non_null_ptr.h>
 
 #include <optional>
 
@@ -296,10 +293,6 @@ public:
     // BuildProgress can set alerts, so it can't be const.
     virtual void BuildProgress(NYTree::TFluentMap fluent);
 
-    virtual void BuildBriefProgress(NYTree::TFluentMap fluent) const;
-    virtual void BuildJobsYson(NYTree::TFluentMap fluent) const;
-    virtual void BuildRetainedFinishedJobsYson(NYTree::TFluentMap fluent) const;
-
     // NB(max42, babenko): this method should not be safe. Writing a core dump or trying to fail
     // operation from a forked process is a bad idea.
     void SaveSnapshot(IZeroCopyOutput* output) override;
@@ -497,15 +490,15 @@ public:
         std::optional<TString> poolPath,
         bool treeIsTentative) override;
 
-    virtual std::shared_ptr<const THashMap<NScheduler::TClusterName, bool>> GetClusterToNetworkBandwidthAvailability() const override;
+    std::shared_ptr<const THashMap<NScheduler::TClusterName, bool>> GetClusterToNetworkBandwidthAvailability() const override;
 
-    virtual bool IsNetworkBandwidthAvailable(const NScheduler::TClusterName& clusterName) const override;
+    bool IsNetworkBandwidthAvailable(const NScheduler::TClusterName& clusterName) const override;
 
-    virtual void SubscribeToClusterNetworkBandwidthAvailabilityUpdated(
+    void SubscribeToClusterNetworkBandwidthAvailabilityUpdated(
         const NScheduler::TClusterName& clusterName,
         const TCallback<void()>& callback) const override;
 
-    virtual void UnsubscribeFromClusterNetworkBandwidthAvailabilityUpdated(
+    void UnsubscribeFromClusterNetworkBandwidthAvailabilityUpdated(
         const NScheduler::TClusterName& clusterName,
         const TCallback<void()>& callback) const override;
 
@@ -675,8 +668,6 @@ protected:
     // Current row count in table with attribute row_count_limit.
     i64 CompletedRowCount_ = 0;
 
-    virtual bool IsTransactionNeeded(ETransactionType type) const;
-
     TFuture<NApi::NNative::ITransactionPtr> StartTransaction(
         ETransactionType type,
         const NApi::NNative::IClientPtr& client,
@@ -711,7 +702,7 @@ protected:
     void TryScheduleFirstJob(
         TAllocation& allocation,
         const TAllocationSchedulingContext& context,
-        NScheduler::TControllerScheduleAllocationResult* scheduleJobResult,
+        NScheduler::TControllerScheduleAllocationResult* scheduleAllocationResult,
         bool scheduleLocalJob);
 
     std::optional<EScheduleFailReason> TryScheduleNextJob(TAllocation& allocation, TJobId lastJobId);
@@ -741,14 +732,14 @@ protected:
     NYTree::IAttributeDictionaryPtr CreateTransactionAttributes(ETransactionType transactionType) const;
     void StartTransactions();
     virtual NTransactionClient::TTransactionId GetInputTransactionParentId();
-    virtual NTransactionClient::TTransactionId GetOutputTransactionParentId();
-    virtual void InitializeStructures();
-    virtual void LockInputs();
+    NTransactionClient::TTransactionId GetOutputTransactionParentId();
+    void InitializeStructures();
+    void LockInputs();
     void InitUnrecognizedSpec();
     void FillInitializeResult(TOperationControllerInitializeResult* result);
     void ValidateIntermediateDataAccess(const std::string& user, NYTree::EPermission permission) const;
     void InitUpdatingTables();
-    virtual void PrepareInputTables();
+    void PrepareInputTables();
     bool HasDiskRequestsWithSpecifiedAccount() const;
     void InitAccountResourceUsageLeases();
     void ValidateSecureVault();
@@ -811,7 +802,8 @@ protected:
     void BeginUploadOutputTables(const std::vector<TOutputTablePtr>& tables);
     void AttachOutputChunks(const std::vector<TOutputTablePtr>& tableList);
     void EndUploadOutputTables(const std::vector<TOutputTablePtr>& tables);
-    void LockOutputDynamicTables();
+    void RegisterLockableDynamicTables(
+        const THashMap<NObjectClient::TCellTag, std::vector<NTableClient::TTableId>>& lockableOutputDynamicTables);
     void CommitTransactions();
     virtual void CustomCommit();
     void VerifySortedOutput(TOutputTablePtr table);
@@ -849,6 +841,7 @@ protected:
 
     //! Called to extract output table paths from the spec.
     virtual std::vector<NYPath::TRichYPath> GetOutputTablePaths() const = 0;
+    void ForEachLockableDynamicTable(std::function<void(const TOutputTablePtr&)> handler);
 
     const TProgressCounterPtr& GetTotalJobCounter() const override;
 
@@ -923,11 +916,11 @@ protected:
      */
     void OnOperationCompleted(bool interrupted) override;
 
-    virtual void OnOperationTimeLimitExceeded();
+    void OnOperationTimeLimitExceeded();
 
     bool HasJobUniquenessRequirements() const;
     bool IsJobUniquenessRequired(const TJobletPtr& joblet) const;
-    virtual void OnJobUniquenessViolated(TError error);
+    void OnJobUniquenessViolated(TError error);
 
     void GracefullyFailOperation(TError error);
 
@@ -1057,7 +1050,7 @@ protected:
     void ValidateSchemaInferenceMode(NScheduler::ESchemaInferenceMode schemaInferenceMode) const;
     void ValidateOutputSchemaComputedColumnsCompatibility() const;
 
-    virtual void BuildPrepareAttributes(NYTree::TFluentMap fluent) const;
+    void BuildPrepareAttributes(NYTree::TFluentMap fluent) const;
     virtual void BuildBriefSpec(NYTree::TFluentMap fluent) const;
 
     // |true| iff operation was failed.
@@ -1099,7 +1092,7 @@ protected:
 
     i64 GetFastIntermediateMediumLimit() const;
 
-    virtual void DoFailOperation(const TError& error, bool flush = true, bool abortAllJoblets = true);
+    void DoFailOperation(const TError& error, bool flush = true, bool abortAllJoblets = true);
 
     virtual bool OnJobCompleted(TJobletPtr joblet, std::unique_ptr<TCompletedJobSummary> jobSummary);
     virtual bool OnJobFailed(TJobletPtr joblet, std::unique_ptr<TFailedJobSummary> jobSummary);
@@ -1521,6 +1514,8 @@ private:
     void ReportJobCookieToArchive(const TJobletPtr& joblet) const;
     void ReportControllerStateToArchive(const TJobletPtr& joblet, EJobState state) const;
     void ReportOperationIncarnationToArchive(const TJobletPtr& joblet) const;
+    void ReportStartTimeToArchive(const TJobletPtr& joblet) const;
+    void ReportFinishTimeToArchive(const TJobletPtr& joblet) const;
 
     std::unique_ptr<TAbortedJobSummary> RegisterOutputChunkReplicas(
         const TJobSummary& jobSummary,
@@ -1556,6 +1551,12 @@ private:
     int GetMaxJobFailCountForExitCode(std::optional<int> maybeExitCode);
     bool IsJobsFailToleranceExceeded(std::optional<int> maybeExitCode);
     void UpdateFailedJobsExitCodeCounters(std::optional<int> maybeExitCode);
+
+    bool IsTransactionNeeded(ETransactionType type) const;
+
+    void BuildBriefProgress(NYTree::TFluentMap fluent) const;
+    void BuildJobsYson(NYTree::TFluentMap fluent) const;
+    void BuildRetainedFinishedJobsYson(NYTree::TFluentMap fluent) const;
 
     PHOENIX_DECLARE_FRIEND();
     PHOENIX_DECLARE_POLYMORPHIC_TYPE(TOperationControllerBase, 0x6715254c);

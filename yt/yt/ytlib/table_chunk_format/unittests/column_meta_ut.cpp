@@ -25,7 +25,7 @@ TEST(TColumnMetaTest, SegmentMetaExtensionsCount)
 {
     NProto::TSegmentMeta segmentMeta;
     auto* descriptor = segmentMeta.GetDescriptor();
-    const google::protobuf::DescriptorPool* descriptorPool = descriptor->file()->pool();;
+    const google::protobuf::DescriptorPool* descriptorPool = descriptor->file()->pool();
     std::vector<const google::protobuf::FieldDescriptor*> allExtensions;
     descriptorPool->FindAllExtensions(descriptor, &allExtensions);
 

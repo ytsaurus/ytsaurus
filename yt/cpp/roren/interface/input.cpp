@@ -8,7 +8,7 @@ namespace NPrivate {
 
 TMultiInputPtr CreateMultiInput(const std::vector<std::pair<TDynamicTypeTag, NPrivate::IRawInputPtr>>& taggedInputs)
 {
-    auto result = ::MakeIntrusive<TMultiInput>();
+    auto result = NYT::New<TMultiInput>();
 
     for (const auto& [tag, input] : taggedInputs) {
         auto key = tag.GetKey();

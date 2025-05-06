@@ -260,7 +260,7 @@ public:
 
         // Initialize new tablet chunk lists.
         if (table->IsPhysicallySorted()) {
-            auto comparator = table->GetSchema()->AsTableSchema().ToComparator();
+            auto comparator = table->GetSchema()->AsCompactTableSchema()->ToComparator();
 
             // This excludes hunk chunks.
             std::vector<TChunkTree*> chunksOrViews;
@@ -979,10 +979,10 @@ public:
         table->SetLastCommitTimestamp(lastCommitTimestamp);
 
         const auto& chunkManager = Bootstrap_->GetChunkManager();
+
         auto* newChunkList = chunkManager->CreateChunkList(table->IsPhysicallySorted()
             ? EChunkListKind::SortedDynamicRoot
             : EChunkListKind::OrderedDynamicRoot);
-
         table->SetChunkList(newChunkList);
         newChunkList->AddOwningNode(table);
 

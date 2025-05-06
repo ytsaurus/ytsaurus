@@ -74,10 +74,11 @@ class DynamicTablesSingleCellBase(DynamicTablesBase):
         "resource_limits": {
             "cpu_per_tablet_slot": 1.0,
         },
-        "tablet_node" : {
-            "changelogs" : {
+        "tablet_node": {
+            "changelogs": {
                 "writer": {
-                    "enable_checksums" : True
+                    "enable_checksums": True,
+                    "validate_erasure_coding": True
                 }
             }
         }
@@ -383,11 +384,8 @@ class DynamicTablesSingleCellBase(DynamicTablesBase):
     @authors("gritukan")
     def test_follower_decommissioned_during_decommission(self):
         set("//sys/@config/tablet_manager/decommission_through_extra_peers", True)
-        set(
-            "//sys/@config/tablet_manager/decommissioned_leader_reassignment_timeout",
-            7000,
-        )
-        set("//sys/@config/tablet_manager/extra_peer_drop_delay", 2000)
+        set("//sys/@config/tablet_manager/decommissioned_leader_reassignment_timeout", 5000)
+        set("//sys/@config/tablet_manager/extra_peer_drop_delay", 5000)
 
         create_tablet_cell_bundle("b", attributes={"options": {"peer_count": 1}})
         sync_create_cells(1, tablet_cell_bundle="b")
@@ -2638,8 +2636,9 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
         insert_rows("//tmp/t", [{"key": i, "value": str(i)} for i in range(5)])
         sync_flush_table("//tmp/t")
 
-        throttled_lookup_count = profiler_factory().at_tablet_node("//tmp/t").counter(
-            name="tablet/throttled_lookup_count")
+        throttled_lookup_count = self._init_tablet_sensor(
+            "//tmp/t",
+            "tablet/throttled_lookup_count")
 
         start_time = time.time()
         for i in range(5):
@@ -2662,8 +2661,9 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
         insert_rows("//tmp/t", [{"key": i, "value": str(i)} for i in range(5)])
         sync_flush_table("//tmp/t")
 
-        throttled_select_count = profiler_factory().at_tablet_node("//tmp/t").counter(
-            name="tablet/throttled_select_count")
+        throttled_select_count = self._init_tablet_sensor(
+            "//tmp/t",
+            "tablet/throttled_select_count")
 
         start_time = time.time()
         for i in range(5):
@@ -2684,8 +2684,9 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
         set("//tmp/t/@throttlers", {"write": {"limit": 10}})
         sync_mount_table("//tmp/t")
 
-        throttled_write_count = profiler_factory().at_tablet_node("//tmp/t").counter(
-            name="tablet/throttled_write_count")
+        throttled_write_count = self._init_tablet_sensor(
+            "//tmp/t",
+            "tablet/throttled_write_count")
 
         def _insert(overdraft_expected, max_attempts=10):
             overdrafted = False
@@ -3422,6 +3423,35 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
 
         create("table", "//tmp/t_static")
         set_custom_runtime_data("//tmp/t_static", {"salut": "le monde"})
+
+    @authors("alexelexa")
+    @pytest.mark.parametrize("is_sorted", [True, False])
+    def test_tablet_orchid(self, is_sorted):
+        sync_create_cells(1)
+        if is_sorted:
+            self._create_sorted_table("//tmp/t")
+        else:
+            self._create_ordered_table("//tmp/t")
+        sync_mount_table("//tmp/t")
+
+        tablet_id = get("//tmp/t/@tablets/0/tablet_id")
+
+        mount_revision = get(f"//sys/tablets/{tablet_id}/orchid/mount_revision")
+        mount_time = get(f"//sys/tablets/{tablet_id}/orchid/mount_time")
+
+        assert mount_revision == get("//tmp/t/@tablets/0/mount_revision")
+        assert mount_time >= get("//tmp/t/@tablets/0/mount_time")
+
+        sync_unmount_table("//tmp/t")
+        sync_mount_table("//tmp/t")
+
+        new_mount_revision = get(f"//sys/tablets/{tablet_id}/orchid/mount_revision")
+        new_mount_time = get(f"//sys/tablets/{tablet_id}/orchid/mount_time")
+
+        assert mount_revision < new_mount_revision
+        assert mount_time < new_mount_time
+        assert new_mount_revision == get("//tmp/t/@tablets/0/mount_revision")
+        assert new_mount_time >= get("//tmp/t/@tablets/0/mount_time")
 
 
 ##################################################################

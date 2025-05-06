@@ -63,6 +63,9 @@ using TConstProjectClausePtr = TIntrusivePtr<const TProjectClause>;
 DECLARE_REFCOUNTED_STRUCT(TWhenThenExpression)
 using TConstWhenThenExpressionPtr = TIntrusivePtr<const TWhenThenExpression>;
 
+DECLARE_REFCOUNTED_STRUCT(TSubqueryExpression)
+using TConstSubqueryExpressionPtr = TIntrusivePtr<const TSubqueryExpression>;
+
 DECLARE_REFCOUNTED_STRUCT(TBaseQuery)
 using TConstBaseQueryPtr = TIntrusivePtr<const TBaseQuery>;
 
@@ -151,8 +154,9 @@ using TMutableRowRanges = std::vector<TMutableRowRange>;
 
 using TColumnSet = THashSet<std::string>;
 
-using TLogicalTypePtr = NTableClient::TLogicalTypePtr;
-using ELogicalMetatype = NTableClient::ELogicalMetatype;
+using NTableClient::TLogicalTypePtr;
+using NTableClient::ELogicalMetatype;
+using NTableClient::ESimpleLogicalValueType;
 
 ////////////////////////////////////////////////////////////////////////////////
 

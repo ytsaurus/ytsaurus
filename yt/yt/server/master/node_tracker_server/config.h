@@ -43,10 +43,9 @@ DEFINE_REFCOUNTED_TYPE(TNodeTrackerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TNodeGroupConfigBase
+struct TNodeGroupConfigBase
     : public NYTree::TYsonStruct
 {
-public:
     int MaxConcurrentNodeRegistrations;
 
     REGISTER_YSON_STRUCT(TNodeGroupConfigBase);

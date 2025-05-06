@@ -127,6 +127,7 @@ def get_dynamic_master_config():
             "statistics_flush_period": 200,
             "expiration_check_period": 200,
             "expiration_backoff_time": 200,
+            "remove_expired_master_nodes_using_client": True,
             "scion_removal_period": 1000,
             "virtual_map_read_offload_batch_size": 2,
             "enable_preserve_acl_during_move": False,
@@ -718,14 +719,10 @@ def get_dynamic_node_config():
             },
             "exec_node": {
                 "job_controller": {
-                    "operation_info_request_backoff_strategy": {
-                        "backoff": 1000,
-                    },
                     "job_common": {
                         "node_directory_prepare_backoff_time": 100,
                         "job_prepare_time_limit": 60000,
                     },
-                    "operation_infos_request_period": 1000,
                     "unknown_operation_jobs_removal_delay": 5000,
                     "disable_legacy_allocation_preparation": True,
                 },
@@ -743,6 +740,7 @@ def get_dynamic_node_config():
                         "splay": 100,
                     },
                     "enable_tracing": True,
+                    "resend_full_job_info": False,
                 },
                 "scheduler_connector": {
                     "failed_heartbeat_backoff_start_time": 50,
@@ -756,6 +754,7 @@ def get_dynamic_node_config():
                         "backoff_multiplier": 1.0,
                     },
                     "enable_tracing": True,
+                    "request_new_agent_delay": 1000,
                 },
                 "master_connector": {
                     "heartbeat_executor": {

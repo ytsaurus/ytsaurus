@@ -15,9 +15,15 @@
 #include "user_directory.h"
 #include "user_directory_synchronizer.h"
 
-#include <yt/yt/ytlib/distributed_throttler/distributed_throttler.h>
+#include <yt/yt/server/lib/object_server/helpers.h>
+
+#include <yt/yt/ytlib/cell_master_client/cell_directory.h>
 
 #include <yt/yt/ytlib/cypress_client/rpc_helpers.h>
+
+#include <yt/yt/ytlib/cypress_client/proto/rpc.pb.h>
+
+#include <yt/yt/ytlib/distributed_throttler/distributed_throttler.h>
 
 #include <yt/yt/ytlib/object_client/object_service_proxy.h>
 
@@ -471,21 +477,28 @@ private:
             responseFutures.push_back(InvokeMasterRequestsToCell(subrequestIndices, cellTag));
         }
 
-        auto responsesOrError = WaitFor(AllSet(std::move(responseFutures)));
-        if (!responsesOrError.IsOK()) {
-            auto errorResponse = CreateErrorResponseMessage(
-                TError("Error communicating with master") << std::move(responsesOrError));
-            for (const auto& requestInfo : requestInfos) {
-                ReplyOnSubrequests(requestInfo.SubrequestIndices, errorResponse);
-            }
-            return;
-        }
-
-        const auto& responses = responsesOrError.Value();
+        auto responses = WaitFor(AllSet(std::move(responseFutures)))
+            .ValueOrThrow(); // Unexpected error, just reply to the client.
         for (const auto& [response, requestInfo] : Zip(responses, requestInfos)) {
             if (!response.IsOK()) {
+                if (requestInfo.SubrequestIndices.size() == Subrequests_.size()) {
+                    // In case of batch-level error it should be propagated to
+                    // the client iff batch wasn't split into smaller batches
+                    // during execution. Rationale: if Sequoia wasn't affected
+                    // by this request it should be processed as if there is no
+                    // Sequoia nor Cypress proxies.
+                    THROW_ERROR response;
+                }
+
+                if (!IsRetriableBatchLevelError(response)) {
+                    THROW_ERROR response;
+                }
+
                 auto responseMessage = CreateErrorResponseMessage(
-                    TError("Error communicating with master cell %v", requestInfo.CellTag)
+                    TError(
+                        NSequoiaClient::EErrorCode::SequoiaRetriableError,
+                        "Error communicating with master cell %v",
+                        requestInfo.CellTag)
                         << std::move(response));
                 ReplyOnSubrequests(requestInfo.SubrequestIndices, responseMessage);
             } else {
@@ -499,8 +512,9 @@ private:
         TCellTag cellTag)
     {
         const auto& connection = Owner_->Bootstrap_->GetNativeConnection();
-        auto proxy = TObjectServiceProxy::FromDirectMasterChannel(
-            connection->GetMasterChannelOrThrow(MasterChannelKind_, cellTag));
+        const auto& masterCellDirectory = connection->GetMasterCellDirectory();
+        const auto& nakedMasterChannel = masterCellDirectory->GetNakedMasterChannelOrThrow(MasterChannelKind_, cellTag);
+        auto proxy = TObjectServiceProxy::FromDirectMasterChannel(nakedMasterChannel);
 
         auto masterRequest = proxy.Execute();
 
@@ -510,6 +524,25 @@ private:
         // Copy authentication identity.
         SetAuthenticationIdentity(masterRequest, RpcContext_->GetAuthenticationIdentity());
 
+        // Copy some header fields.
+        masterRequest->SetRetry(RpcContext_->RequestHeader().retry());
+
+        if (auto mutationId = RpcContext_->GetMutationId()) {
+            masterRequest->SetMutationId(mutationId);
+        }
+
+        if (auto startTime = RpcContext_->GetStartTime()) {
+            masterRequest->Header().set_start_time(ToProto(*startTime));
+        }
+
+        if (RpcContext_->GetTimeout().has_value()) {
+            masterRequest->SetTimeout(
+                NObjectServer::ComputeForwardingTimeout(
+                    *RpcContext_->GetTimeout(),
+                    RpcContext_->GetStartTime(),
+                    Owner_->GetDynamicConfig()->ForwardedRequestTimeoutReserve));
+        }
+
         // Copy some header extensions.
         auto copyHeaderExtension = [&] (auto tag) {
             if (RpcContext_->RequestHeader().HasExtension(tag)) {
@@ -518,6 +551,11 @@ private:
             }
         };
         copyHeaderExtension(NObjectClient::NProto::TMulticellSyncExt::multicell_sync_ext);
+        copyHeaderExtension(NRpc::NProto::TCustomMetadataExt::custom_metadata_ext);
+        copyHeaderExtension(NRpc::NProto::TBalancingExt::balancing_ext);
+        copyHeaderExtension(NRpc::NProto::TCredentialsExt::credentials_ext);
+        copyHeaderExtension(NObjectClient::NProto::TPrerequisitesExt::prerequisites_ext);
+        copyHeaderExtension(NRpc::NProto::TRequestHeader::tracing_ext);
 
         // Fill request with non-Sequoia requests.
         masterRequest->clear_part_counts();
@@ -535,11 +573,33 @@ private:
         return masterRequest->Invoke();
     }
 
+    bool IsRetriableBatchLevelError(const TError& error)
+    {
+        const TError* effectiveError = &error;
+        if (error.GetCode() == NObjectClient::EErrorCode::ForwardedRequestFailed &&
+            !error.InnerErrors().empty())
+        {
+            effectiveError = &error.InnerErrors().front();
+        }
+
+        // On the client's side every batch request should retry
+        // SequoiaRetriableError and RequestQueueSizeLimitExceeded for
+        // individual subrequests similar to backoff alarms.
+        // TODO(kvk1920): don't wrap RequestQueueSizeLimitExceeded since its
+        // retriability may be different from SequoiaRetriableError.
+        return
+            IsRetriableError(*effectiveError) ||
+            IsRetriableObjectServiceError(/*attempt*/ 0, *effectiveError) ||
+            effectiveError->GetCode() == NSecurityClient::EErrorCode::RequestQueueSizeLimitExceeded;
+    }
+
     void HandleMasterResponse(
         bool beforeSequoiaResolve,
         TRange<int> subrequestIndices,
         const TObjectServiceProxy::TRspExecutePtr& masterResponse)
     {
+        THashSet<int> subrequestsWithoutResponse(subrequestIndices.begin(), subrequestIndices.end());
+
         int currentPartIndex = 0;
         for (const auto& subresponse : masterResponse->subresponses()) {
             auto partCount = subresponse.part_count();
@@ -549,6 +609,7 @@ private:
             currentPartIndex += partCount;
 
             auto index = subrequestIndices[subresponse.index()];
+            subrequestsWithoutResponse.erase(index);
 
             TSharedRefArray subresponseMessage(partsRange, TSharedRefArray::TMoveParts{});
 
@@ -580,6 +641,12 @@ private:
 
             Subrequests_[index].Target = ERequestTarget::None;
             ReplyOnSubrequest(index, std::move(subresponseMessage));
+        }
+
+        for (int index : subrequestsWithoutResponse) {
+            // In case of backoff alarm master can omit response for some
+            // subrequests. Such subrequests shouldn't be invoked in Sequoia.
+            Subrequests_[index].Target = ERequestTarget::None;
         }
     }
 
@@ -886,6 +953,9 @@ DEFINE_RPC_SERVICE_METHOD(TObjectService, Execute)
     }
 
     auto cellTag = FromProto<TCellTag>(request->cell_tag());
+    if (cellTag == PrimaryMasterCellTagSentinel) {
+        cellTag = Bootstrap_->GetNativeConnection()->GetPrimaryMasterCellTag();
+    }
     auto masterChannelKind = FromProto<EMasterChannelKind>(request->master_channel_kind());
 
     context->SetRequestInfo("CellTag: %v, MasterChannelKind: %v, RequestCount: %v",

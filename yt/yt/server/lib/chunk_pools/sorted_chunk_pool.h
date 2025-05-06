@@ -20,6 +20,7 @@ struct TSortedChunkPoolOptions
     // Used only in legacy pool. Refer to a commentary in legacy pool's StripeList implementation.
     bool ReturnNewDataSlices = true;
 
+    // Used only in legacy pool.
     i64 MinTeleportChunkSize = 0;
     bool SliceForeignChunks = false;
     NControllerAgent::IJobSizeConstraintsPtr JobSizeConstraints;

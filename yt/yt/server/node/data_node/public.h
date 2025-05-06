@@ -84,7 +84,7 @@ DECLARE_REFCOUNTED_STRUCT(TSealReaderConfig)
 DECLARE_REFCOUNTED_STRUCT(TMasterConnectorConfig)
 DECLARE_REFCOUNTED_STRUCT(TMasterConnectorDynamicConfig)
 DECLARE_REFCOUNTED_STRUCT(TAllyReplicaManagerDynamicConfig)
-DECLARE_REFCOUNTED_CLASS(TDataNodeTestingOptions)
+DECLARE_REFCOUNTED_STRUCT(TDataNodeTestingOptions)
 DECLARE_REFCOUNTED_STRUCT(TJournalManagerConfig)
 DECLARE_REFCOUNTED_STRUCT(TJobControllerDynamicConfig)
 DECLARE_REFCOUNTED_STRUCT(TDataNodeConfig)
@@ -131,6 +131,7 @@ DECLARE_REFCOUNTED_STRUCT(ILocalChunkFragmentReader)
 DECLARE_REFCOUNTED_STRUCT(INbdChunkHandler)
 
 DECLARE_REFCOUNTED_CLASS(TProbePutBlocksRequestSupplier)
+DECLARE_REFCOUNTED_CLASS(TLocationFairShareSlot)
 
 ////////////////////////////////////////////////////////////////////////////////
 

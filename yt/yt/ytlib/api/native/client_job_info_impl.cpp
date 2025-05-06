@@ -102,6 +102,8 @@ static const THashSet<TString> SupportedJobsAttributes = {
     "job_id",
     "type",
     "state",
+    // COMPAT(bystrovserg)
+    "controller_state",
     "start_time",
     "finish_time",
     "address",
@@ -125,7 +127,6 @@ static const THashSet<TString> SupportedJobsAttributes = {
     "statistics",
     "allocation_id",
     "pool",
-    "controller_state",
     "progress",
     "exec_attributes",
     "events",
@@ -180,7 +181,6 @@ static const THashSet<TString> DefaultListJobsAttributes = {
     "brief_statistics",
     "allocation_id",
     "pool",
-    "controller_state",
     "progress",
     "is_stale",
 };
@@ -198,6 +198,7 @@ static const THashMap<std::string, std::optional<int>> JobAttributeToMinArchiveV
     {"job_id", {}},
     {"type", {}},
     {"state", {}},
+    // Start and finish time according to node.
     {"start_time", {}},
     {"finish_time", {}},
     {"address", {}},
@@ -224,6 +225,8 @@ static const THashMap<std::string, std::optional<int>> JobAttributeToMinArchiveV
     {"operation_incarnation", 55},
     {"allocation_id", 56},
     {"addresses", 57},
+    {"controller_start_time", 58},
+    {"controller_finish_time", 58},
 };
 
 static bool DoesArchiveContainAttribute(const TString& attribute, int archiveVersion) {
@@ -484,7 +487,7 @@ TJobSpec TClient::FetchJobSpecFromArchive(TJobId jobId)
     };
     auto keys = FromRecordKeys(TRange(std::array{recordKey}));
 
-    auto resultOrError = WaitFor(LookupRows(
+    auto resultOrError = WaitFor(GetOperationsArchiveClient()->LookupRows(
         GetOperationsArchiveJobSpecsPath(),
         NRecords::TJobSpecDescriptor::Get()->GetNameTable(),
         keys,
@@ -534,7 +537,7 @@ TOperationId TClient::TryGetOperationId(
     };
     auto keys = FromRecordKeys(TRange(std::array{recordKey}));
 
-    auto rowsetOrError = WaitFor(LookupRows(
+    auto rowsetOrError = WaitFor(GetOperationsArchiveClient()->LookupRows(
         GetOperationsArchiveOperationIdsPath(),
         NRecords::TOperationIdDescriptor::Get()->GetNameTable(),
         keys,
@@ -1146,7 +1149,7 @@ TSharedRef TClient::DoGetJobStderrFromArchive(
         };
         auto keys = FromRecordKeys(TRange(std::array{recordKey}));
 
-        auto rowset = WaitFor(LookupRows(
+        auto rowset = WaitFor(GetOperationsArchiveClient()->LookupRows(
             GetOperationsArchiveJobStderrsPath(),
             NRecords::TJobStderrDescriptor::Get()->GetNameTable(),
             keys,
@@ -1260,7 +1263,7 @@ std::vector<TJobTraceEvent> TClient::DoGetJobTraceFromTraceEventsTable(
         builder.AddWhereConjunct(Format("event_time <= %v", *options.ToTime));
     }
 
-    auto rowset = WaitFor(SelectRows(builder.Build(), GetDefaultSelectRowsOptions(deadline)))
+    auto rowset = WaitFor(GetOperationsArchiveClient()->SelectRows(builder.Build(), GetDefaultSelectRowsOptions(deadline)))
         .ValueOrThrow()
         .Rowset;
 
@@ -1368,7 +1371,7 @@ TSharedRef TClient::DoGetJobFailContextFromArchive(
         lookupOptions.ColumnFilter = NTableClient::TColumnFilter({*idMapping.FailContext});
         lookupOptions.KeepMissingRows = true;
 
-        auto rowset = WaitFor(LookupRows(
+        auto rowset = WaitFor(GetOperationsArchiveClient()->LookupRows(
             GetOperationsArchiveJobFailContextsPath(),
             NRecords::TJobFailContextDescriptor::Get()->GetNameTable(),
             std::move(keys),
@@ -1496,7 +1499,7 @@ TFuture<TListJobsStatistics> TClient::ListJobsStatisticsFromArchiveAsync(
     builder.AddGroupByExpression("job_type");
     builder.AddGroupByExpression("node_state");
 
-    return SelectRows(builder.Build(), GetDefaultSelectRowsOptions(deadline)).Apply(BIND([=] (const TSelectRowsResult& result) {
+    return GetOperationsArchiveClient()->SelectRows(builder.Build(), GetDefaultSelectRowsOptions(deadline)).Apply(BIND([=] (const TSelectRowsResult& result) {
         TListJobsStatistics statistics;
         for (auto row : result.Rowset->GetRows()) {
             // Skip jobs that was not fully written (usually it is written only by controller).
@@ -1593,7 +1596,10 @@ static std::vector<TJob> ParseJobsFromArchiveResponse(
             job.Addresses = ConvertTo<TAddressMap>(*record.Addresses);
         }
 
-        if (record.StartTime) {
+        if (record.ControllerStartTime) {
+            // COMPAT(bystrovserg): Remove this after switching get_job to select_rows.
+            job.StartTime = TInstant::MicroSeconds(*record.ControllerStartTime);
+        } else if (record.StartTime) {
             job.StartTime = TInstant::MicroSeconds(*record.StartTime);
         } else if (responseIdMapping.StartTime) {
             // TODO(bystrovserg): For this and other attributes remove "non-optional" compat.
@@ -1601,7 +1607,10 @@ static std::vector<TJob> ParseJobsFromArchiveResponse(
             job.StartTime.emplace();
         }
 
-        if (record.FinishTime) {
+        if (record.ControllerFinishTime) {
+            // COMPAT(bystrovserg): Remove this after switching get_job to select_rows.
+            job.FinishTime = TInstant::MicroSeconds(*record.ControllerFinishTime);
+        } else if (record.FinishTime) {
             job.FinishTime = TInstant::MicroSeconds(*record.FinishTime);
         }
 
@@ -1670,35 +1679,61 @@ static std::vector<TJob> ParseJobsFromArchiveResponse(
     return jobs;
 }
 
-static void AddSelectExpressionForAttribute(TQueryBuilder* builder, const TString& attribute, int archiveVersion) {
-    if (!DoesArchiveContainAttribute(attribute, archiveVersion)) {
-        return;
-    }
-
-    if (attribute == "job_id" || attribute == "allocation_id" || attribute == "operation_id") {
-        builder->AddSelectExpression(attribute + "_hi");
-        builder->AddSelectExpression(attribute + "_lo");
-    } else if (attribute == "type") {
-        builder->AddSelectExpression("type", "job_type");
-    } else if (attribute == "brief_statistics" || attribute == "statistics") {
-        // TODO(bystrovserg): Switch to brief_statistics when request "brief_statistics".
-        builder->AddSelectExpression("statistics");
-        builder->AddSelectExpression("statistics_lz4");
-    } else if (attribute == "state") {
-        builder->AddSelectExpression("if(is_null(state), transient_state, state)", "node_state");
-        if (DoesArchiveContainAttribute("controller_state", archiveVersion)) {
-            builder->AddSelectExpression(
-                Format(
-                    "if(NOT is_null(node_state) AND NOT is_null(controller_state), "
-                    "   if(node_state IN (%v), node_state, controller_state), "
-                    "if(is_null(node_state), controller_state, node_state))",
-                    FinishedJobStatesString),
-                "job_state");
-        } else {
-            builder->AddSelectExpression("state", "job_state");
+static void AddSelectExpressions(
+    TQueryBuilder* builder,
+    const THashSet<TString>& attributes,
+    int archiveVersion)
+{
+    for (const auto& attribute : attributes) {
+        if (!DoesArchiveContainAttribute(attribute, archiveVersion)) {
+            continue;
         }
-    } else {
-        builder->AddSelectExpression(attribute);
+
+        if (attribute == "job_id" || attribute == "allocation_id" || attribute == "operation_id") {
+            builder->AddSelectExpression(attribute + "_hi");
+            builder->AddSelectExpression(attribute + "_lo");
+        } else if (attribute == "start_time" || attribute == "finish_time") {
+            auto controllerAttribute = "controller_" + attribute;
+            if (DoesArchiveContainAttribute(controllerAttribute, archiveVersion)) {
+                builder->AddSelectExpression(
+                    Format(
+                        "if(is_null(%v), %v, %v)",
+                        controllerAttribute,
+                        attribute,
+                        controllerAttribute),
+                    attribute);
+            } else {
+                builder->AddSelectExpression(attribute);
+            }
+        } else if (attribute == "type") {
+            builder->AddSelectExpression("type", "job_type");
+        } else if (attribute == "statistics") {
+            builder->AddSelectExpression("statistics");
+            builder->AddSelectExpression("statistics_lz4");
+        } else if (attribute == "brief_statistics" && !attributes.contains("statistics")) {
+            // TODO(bystrovserg): Switch to brief_statistics when request "brief_statistics".
+            builder->AddSelectExpression("statistics");
+            builder->AddSelectExpression("statistics_lz4");
+        } else if (attribute == "state") {
+            builder->AddSelectExpression("if(is_null(state), transient_state, state)", "node_state");
+            if (DoesArchiveContainAttribute("controller_state", archiveVersion)) {
+                builder->AddSelectExpression("controller_state");
+                builder->AddSelectExpression(
+                    Format(
+                        "if(NOT is_null(node_state) AND NOT is_null(controller_state), "
+                        "   if(node_state IN (%v), node_state, controller_state), "
+                        "if(is_null(node_state), controller_state, node_state))",
+                        FinishedJobStatesString),
+                    "job_state");
+            } else {
+                builder->AddSelectExpression("state", "job_state");
+            }
+        } else if (attribute == "controller_state" && attributes.contains("state")) {
+            // COMPAT(bystrovserg): Remove after dropping "controller_state" from supported attributes.
+            continue;
+        } else {
+            builder->AddSelectExpression(attribute);
+        }
     }
 }
 
@@ -1831,9 +1866,7 @@ TFuture<std::vector<TJob>> TClient::DoListJobsFromArchiveAsync(
 
     builder.SetLimit(options.Limit + options.Offset);
 
-    for (const auto& attribute : attributes) {
-        AddSelectExpressionForAttribute(&builder, attribute, archiveVersion);
-    }
+    AddSelectExpressions(&builder, attributes, archiveVersion);
 
     AddWhereExpressions(&builder, options, archiveVersion);
 
@@ -1841,7 +1874,7 @@ TFuture<std::vector<TJob>> TClient::DoListJobsFromArchiveAsync(
         AddOrderByExpression(&builder, options);
     }
 
-    return SelectRows(builder.Build(), GetDefaultSelectRowsOptions(deadline)).Apply(BIND(
+    return GetOperationsArchiveClient()->SelectRows(builder.Build(), GetDefaultSelectRowsOptions(deadline)).Apply(BIND(
         [operationId, attributes = std::move(attributes), this_ = MakeStrong(this)] (const TSelectRowsResult& result) {
         auto idMapping = NRecords::TJobPartial::TRecordDescriptor::TIdMapping(result.Rowset->GetNameTable());
         auto records = ToRecords<NRecords::TJobPartial>(result.Rowset->GetRows(), idMapping);
@@ -2395,7 +2428,7 @@ TListJobsResult TClient::DoListJobs(
     // Get jobs from controller agent.
     auto controllerAgentAddress = FindControllerAgentAddressFromCypress(
         operationId,
-        MakeStrong(this));
+        GetOperationsArchiveClient());
     auto controllerAgentResultFuture = DoListJobsFromControllerAgentAsync(
         operationId,
         controllerAgentAddress,
@@ -2500,8 +2533,6 @@ TListJobsResult TClient::DoListJobs(
 static std::vector<TString> MakeJobArchiveAttributes(const THashSet<TString>& attributes, int archiveVersion)
 {
     std::vector<TString> result;
-    // Plus 3 as operation_id, job_id and allocation_id are split into hi and lo.
-    result.reserve(attributes.size() + 3);
     for (const auto& attribute : attributes) {
         if (!DoesArchiveContainAttribute(attribute, archiveVersion)) {
             continue;
@@ -2512,9 +2543,21 @@ static std::vector<TString> MakeJobArchiveAttributes(const THashSet<TString>& at
         } else if (attribute == "state") {
             result.emplace_back("state");
             result.emplace_back("transient_state");
+            if (DoesArchiveContainAttribute("controller_state", archiveVersion)) {
+                result.emplace_back("controller_state");
+            }
         } else if (attribute == "statistics") {
             result.emplace_back("statistics");
             result.emplace_back("statistics_lz4");
+        } else if (attribute == "contoller_state" && !attributes.contains("state")){
+            // COMPAT(bystrovserg): Remove after dropping "controller_state" from supported attributes.
+            result.emplace_back("controller_state");
+        } else if (attribute == "start_time" || attribute == "finish_time") {
+            auto controllerAttribute = "controller_" + attribute;
+            if (DoesArchiveContainAttribute(controllerAttribute, archiveVersion)) {
+                result.emplace_back(controllerAttribute);
+            }
+            result.emplace_back(attribute);
         } else if (attribute == "progress" || attribute == "pool") {
             // Progress and pool are missing from job archive.
         } else {
@@ -2555,7 +2598,7 @@ std::optional<TJob> TClient::DoGetJobFromArchive(
     lookupOptions.KeepMissingRows = true;
     lookupOptions.Timeout = deadline - Now();
 
-    auto rowset = WaitFor(LookupRows(
+    auto rowset = WaitFor(GetOperationsArchiveClient()->LookupRows(
         GetOperationsArchiveJobsPath(),
         jobsTable,
         keys,
@@ -2591,7 +2634,7 @@ std::optional<TJob> TClient::DoGetJobFromControllerAgent(
 {
     auto controllerAgentAddress = FindControllerAgentAddressFromCypress(
         operationId,
-        MakeStrong(this));
+        GetOperationsArchiveClient());
     if (!controllerAgentAddress) {
         return {};
     }

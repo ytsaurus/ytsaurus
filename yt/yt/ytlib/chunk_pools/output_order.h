@@ -28,11 +28,11 @@ public:
         //! Used only for persistence.
         TEntry();
 
-        bool operator ==(const TEntry& other) const;
+        bool operator == (const TEntry& other) const;
 
     private:
-        using TContentType = std::variant<NChunkClient::TInputChunkPtr, int>;
-        TContentType Content_;
+        using TContent = std::variant<NChunkClient::TInputChunkPtr, int>;
+        TContent Content_;
 
         PHOENIX_DECLARE_TYPE(TEntry, 0xf504d386);
     };
@@ -45,9 +45,9 @@ public:
     int GetSize() const;
 
     std::vector<NChunkClient::TChunkTreeId> ArrangeOutputChunkTrees(
-        std::vector<std::pair<TOutputOrder::TEntry, NChunkClient::TChunkTreeId>> chunkTrees);
+        std::vector<std::pair<TEntry, NChunkClient::TChunkTreeId>> chunkTrees);
 
-    std::vector<TOutputOrder::TEntry> ToEntryVector() const;
+    std::vector<TEntry> ToEntryVector() const;
 
 private:
     std::vector<int> CookieToPosition_;

@@ -175,13 +175,13 @@ DEFINE_ENUM(EChunkListContentType,
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DECLARE_REFCOUNTED_CLASS(TRemoteReaderOptions)
+DECLARE_REFCOUNTED_STRUCT(TRemoteReaderOptions)
 DECLARE_REFCOUNTED_STRUCT(TDispatcherConfig)
 DECLARE_REFCOUNTED_STRUCT(TDispatcherDynamicConfig)
-DECLARE_REFCOUNTED_CLASS(TMultiChunkWriterOptions)
-DECLARE_REFCOUNTED_CLASS(TMultiChunkReaderOptions)
-DECLARE_REFCOUNTED_CLASS(TRemoteWriterOptions)
-DECLARE_REFCOUNTED_CLASS(TMetaAggregatingWriterOptions)
+DECLARE_REFCOUNTED_STRUCT(TMultiChunkWriterOptions)
+DECLARE_REFCOUNTED_STRUCT(TMultiChunkReaderOptions)
+DECLARE_REFCOUNTED_STRUCT(TRemoteWriterOptions)
+DECLARE_REFCOUNTED_STRUCT(TMetaAggregatingWriterOptions)
 DECLARE_REFCOUNTED_STRUCT(TBlockCacheConfig)
 DECLARE_REFCOUNTED_STRUCT(TBlockCacheDynamicConfig)
 DECLARE_REFCOUNTED_STRUCT(TClientChunkMetaCacheConfig)

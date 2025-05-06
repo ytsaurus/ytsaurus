@@ -885,7 +885,7 @@ public:
                     auto outputNodes = AddTemporaryTableNodes(transform->GetSinkList());
                     Graph_.AddMapOperationNode(inputNode, outputNodes, transform->GetRawTransform());
                 } else {
-                    THROW_NOT_IMPLEMENTED_YET();
+                    YT_UNIMPLEMENTED();
                 }
                 break;
             case ERawTransformType::Write:
@@ -897,7 +897,7 @@ public:
                         TRowVtable{});
                     Graph_.AddMapOperationNode(inputNode, {outputNode}, transform->GetRawTransform());
                 } else {
-                    THROW_NOT_IMPLEMENTED_YET();
+                    YT_UNIMPLEMENTED();
                 }
                 break;
             case ERawTransformType::GroupByKey:

@@ -281,6 +281,7 @@ struct TConnectionDynamicConfig
     TDuration DefaultRegisterTransactionActionsTimeout;
     TDuration DefaultGetOrderedTabletSafeTrimRowCountTimeout;
     TDuration DefaultChaosReplicatedTableGetTabletCountTimeout;
+    TDuration DefaultShuffleServiceTimeout;
 
     int CypressWriteYsonNestingLevelLimit;
 
@@ -339,16 +340,25 @@ struct TConnectionDynamicConfig
 
     bool DisableNewRangeInference;
 
+    bool DisableAdaptiveOrderedSchemafulReader;
+
     bool UseWebAssembly;
 
     // COMPAT(sabdenovch)
     bool GroupByWithLimitIsUnordered;
+
+    // COMPAT(gryzlov-ad)
+    bool UseFindChaosObject;
 
     TDuration FlowPipelineControllerRpcTimeout;
 
     EMasterChannelKind ReadOperationsArchiveStateFrom;
 
     bool EnableDistributedReplicationCollocationAttachment;
+
+    bool EnableReadFromInSyncAsyncReplicas;
+
+    THashSet<std::string> BannedInSyncReplicaClusters;
 
     REGISTER_YSON_STRUCT(TConnectionDynamicConfig);
 

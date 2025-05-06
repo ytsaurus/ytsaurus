@@ -13,12 +13,14 @@ TEST(TAttributePathTest, IsAttributePath)
     EXPECT_TRUE(IsAttributePath(""));
     EXPECT_TRUE(IsAttributePath("/test/a/b"));
     EXPECT_TRUE(IsAttributePath("/test/a/b/c/d"));
+    EXPECT_TRUE(IsAttributePath("<a=b>/test/c/d"));
 
     EXPECT_FALSE(IsAttributePath("/test/"));
     EXPECT_FALSE(IsAttributePath("/test/aa////"));
     EXPECT_FALSE(IsAttributePath("test/aa////"));
     EXPECT_FALSE(IsAttributePath("token"));
     EXPECT_FALSE(IsAttributePath("[/meta/id] == \"foo\""));
+    EXPECT_FALSE(IsAttributePath("<a=b/test/e/f/g"));
 }
 
 TEST(TAttributePathTest, AreAttributesRelated)

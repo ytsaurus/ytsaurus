@@ -13,7 +13,7 @@ auto Sum()
         [] (T* accum, const T& current) {
             *accum += current;
         });
-    return MakeIntrusive<TFunctorCombineFn<std::decay_t<decltype(f)>, T>>(f);
+    return NYT::New<TFunctorCombineFn<std::decay_t<decltype(f)>, T>>(f);
 }
 
 class TSumPerKeyTransform

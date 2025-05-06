@@ -226,9 +226,9 @@ struct IObjectManager
 
     //! Validates prerequisites, throws on failure.
     virtual void ValidatePrerequisites(
+        const NRpc::NProto::TRequestHeader& requestHeader,
         const std::string& method,
-        NYTree::TYPathMaybeRef originalTargetPath,
-        const google::protobuf::RepeatedPtrField<TProtobufString>& originalAdditionalPaths,
+        TObjectId targetObjectId,
         const NObjectClient::NProto::TPrerequisitesExt& prerequisites) = 0;
 
     //! Forwards an object request to a given cell.

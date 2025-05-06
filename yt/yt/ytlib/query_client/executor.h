@@ -16,15 +16,6 @@ namespace NYT::NQueryClient {
 struct TQueryExecutorRowBufferTag
 { };
 
-struct TInferRangesResult
-{
-    std::vector<std::pair<TDataSource, TString>> DataSources;
-    TConstQueryPtr ResultQuery;
-
-    // COMPAT(lukyan)
-    bool SortedDataSource;
-};
-
 std::pair<TDataSource, TConstQueryPtr> InferRanges(
     const IColumnEvaluatorCachePtr& columnEvaluatorCache,
     TConstQueryPtr query,

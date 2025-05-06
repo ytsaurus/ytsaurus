@@ -107,7 +107,7 @@ public:
     TDefaultFactoryFunc GetDefaultFactory() const override
     {
         return [] () -> IYtJobInputPtr {
-            return ::MakeIntrusive<TYtJobNodeInput>();
+            return NYT::New<TYtJobNodeInput>();
         };
     }
 
@@ -160,7 +160,7 @@ public:
     [[nodiscard]] TDefaultFactoryFunc GetDefaultFactory() const override
     {
         return [] () -> IYtJobOutputPtr {
-            return ::MakeIntrusive<TYtJobNodeOutput>();
+            return NYT::New<TYtJobNodeOutput>();
         };
     }
 
@@ -188,7 +188,7 @@ public:
 
     IYtJobInputPtr CreateJobInput() const override
     {
-        return ::MakeIntrusive<TYtJobNodeInput>();
+        return NYT::New<TYtJobNodeInput>();
     }
 
     std::vector<TDynamicTypeTag> GetInputTags() const override
@@ -204,7 +204,7 @@ public:
     TDefaultFactoryFunc GetDefaultFactory() const override
     {
         return [] () -> IRawReadPtr {
-            return ::MakeIntrusive<TRawYtNodeInput>(NYT::TRichYPath{});
+            return NYT::New<TRawYtNodeInput>(NYT::TRichYPath{});
         };
     }
 };
@@ -213,7 +213,7 @@ public:
 
 IRawYtReadPtr MakeYtNodeInput(NYT::TRichYPath path)
 {
-    return ::MakeIntrusive<TRawYtNodeInput>(std::move(path));
+    return NYT::New<TRawYtNodeInput>(std::move(path));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -228,7 +228,7 @@ public:
 
     IYtJobOutputPtr CreateJobOutput(int sinkIndex) const override
     {
-        return ::MakeIntrusive<TYtJobNodeOutput>(sinkIndex);
+        return NYT::New<TYtJobNodeOutput>(sinkIndex);
     }
 
     std::vector<TDynamicTypeTag> GetInputTags() const override
@@ -244,14 +244,14 @@ public:
     TDefaultFactoryFunc GetDefaultFactory() const override
     {
         return [] () -> IRawWritePtr {
-            return ::MakeIntrusive<TRawYtNodeWrite>(NYT::TRichYPath{}, NYT::TTableSchema{});
+            return NYT::New<TRawYtNodeWrite>(NYT::TRichYPath{}, NYT::TTableSchema{});
         };
     }
 };
 
 IRawYtWritePtr MakeYtNodeWrite(NYT::TRichYPath path, NYT::TTableSchema tableSchema)
 {
-    return ::MakeIntrusive<TRawYtNodeWrite>(std::move(path), std::move(tableSchema));
+    return NYT::New<TRawYtNodeWrite>(std::move(path), std::move(tableSchema));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -291,7 +291,7 @@ public:
 
     IYtJobOutputPtr CreateJobOutput(int sinkIndex) const override
     {
-        return ::MakeIntrusive<TYtJobNodeOutput>(sinkIndex);
+        return NYT::New<TYtJobNodeOutput>(sinkIndex);
     }
 
     std::vector<TDynamicTypeTag> GetInputTags() const override
@@ -307,7 +307,7 @@ public:
     TDefaultFactoryFunc GetDefaultFactory() const override
     {
         return [] () -> IRawWritePtr {
-            return ::MakeIntrusive<TRawYtNodeSortedWrite>(
+            return NYT::New<TRawYtNodeSortedWrite>(
                 NYT::TRichYPath{},
                 NYT::TTableSchema{}
             );
@@ -330,7 +330,7 @@ private:
 
 IRawYtSortedWritePtr MakeYtNodeSortedWrite(NYT::TRichYPath path, NYT::TTableSchema tableSchema)
 {
-    return ::MakeIntrusive<TRawYtNodeSortedWrite>(std::move(path), std::move(tableSchema));
+    return NYT::New<TRawYtNodeSortedWrite>(std::move(path), std::move(tableSchema));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -377,7 +377,7 @@ public:
     TDefaultFactoryFunc GetDefaultFactory() const override
     {
         return [] () -> IYtJobInputPtr {
-            return ::MakeIntrusive<TDecodingJobInput>(std::vector{TRowVtable()});
+            return NYT::New<TDecodingJobInput>(std::vector{TRowVtable()});
         };
     }
 
@@ -454,7 +454,7 @@ public:
     TDefaultFactoryFunc GetDefaultFactory() const override
     {
         return [] () -> IYtJobOutputPtr {
-            return ::MakeIntrusive<TEncodingJobOutput>();
+            return NYT::New<TEncodingJobOutput>();
         };
     }
 
@@ -574,7 +574,7 @@ public:
     TDefaultFactoryFunc GetDefaultFactory() const override
     {
         return [] () -> IYtJobOutputPtr {
-            return ::MakeIntrusive<TKvNodeOutput>();
+            return NYT::New<TKvNodeOutput>();
         };
     }
 
@@ -717,7 +717,7 @@ public:
     TDefaultFactoryFunc GetDefaultFactory() const override
     {
         return [] () -> IYtJobOutputPtr {
-            return ::MakeIntrusive<TTeeJobOutput>();
+            return NYT::New<TTeeJobOutput>();
         };
     }
 
@@ -808,7 +808,7 @@ public:
     TDefaultFactoryFunc GetDefaultFactory() const override
     {
         return [] () -> IYtJobOutputPtr {
-            return ::MakeIntrusive<TParDoJobOutput>();
+            return NYT::New<TParDoJobOutput>();
         };
     }
 
@@ -838,37 +838,37 @@ IYtJobInputPtr CreateDecodingJobInput(TRowVtable rowVtable)
 
 IYtJobInputPtr CreateDecodingJobInput(const std::vector<TRowVtable>& rowVtables)
 {
-    return ::MakeIntrusive<TDecodingJobInput>(rowVtables);
+    return NYT::New<TDecodingJobInput>(rowVtables);
 }
 
 IYtNotSerializableJobInputPtr CreateSplitKvJobNodeInput(const std::vector<TRowVtable>& rowVtables, NYT::TTableReaderPtr<NYT::TNode> tableReader)
 {
-    return ::MakeIntrusive<TSplitKvJobNodeInput>(rowVtables, std::move(tableReader));
+    return NYT::New<TSplitKvJobNodeInput>(rowVtables, std::move(tableReader));
 }
 
 IYtJobOutputPtr CreateEncodingJobOutput(const TRowVtable& rowVtable, int sinkIndex)
 {
-    return ::MakeIntrusive<TEncodingJobOutput>(rowVtable, sinkIndex);
+    return NYT::New<TEncodingJobOutput>(rowVtable, sinkIndex);
 }
 
 IKvJobOutputPtr CreateKvJobNodeOutput(int sinkIndex, const std::vector<TRowVtable>& rowVtables)
 {
-    return ::MakeIntrusive<TKvNodeOutput>(sinkIndex, rowVtables);
+    return NYT::New<TKvNodeOutput>(sinkIndex, rowVtables);
 }
 
 IKvJobOutputPtr CreateKvJobNodeOutput(int sinkIndex, IRawCoderPtr keyCoder, IRawCoderPtr valueCoder)
 {
-    return ::MakeIntrusive<TKvNodeOutput>(sinkIndex, std::move(keyCoder), std::move(valueCoder));
+    return NYT::New<TKvNodeOutput>(sinkIndex, std::move(keyCoder), std::move(valueCoder));
 }
 
 IYtJobOutputPtr CreateTeeJobOutput(std::vector<IYtJobOutputPtr> outputs)
 {
-    return ::MakeIntrusive<TTeeJobOutput>(std::move(outputs));
+    return NYT::New<TTeeJobOutput>(std::move(outputs));
 }
 
 IYtJobOutputPtr CreateParDoJobOutput(IRawParDoPtr rawParDo, std::vector<IYtJobOutputPtr> outputs)
 {
-    return ::MakeIntrusive<TParDoJobOutput>(std::move(rawParDo), std::move(outputs));
+    return NYT::New<TParDoJobOutput>(std::move(rawParDo), std::move(outputs));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -919,7 +919,7 @@ public:
     TDefaultFactoryFunc GetDefaultFactory() const override
     {
         return [] () -> IRawParDoPtr {
-            return ::MakeIntrusive<TYtJobOutputParDo>();
+            return NYT::New<TYtJobOutputParDo>();
         };
     }
 
@@ -932,7 +932,7 @@ private:
 
 IRawParDoPtr CreateOutputParDo(IYtJobOutputPtr output, TRowVtable rowVtable)
 {
-    return ::MakeIntrusive<TYtJobOutputParDo>(std::move(output), std::move(rowVtable));
+    return NYT::New<TYtJobOutputParDo>(std::move(output), std::move(rowVtable));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -989,7 +989,7 @@ public:
     TDefaultFactoryFunc GetDefaultFactory() const override
     {
         return [] () -> IRawParDoPtr {
-            return ::MakeIntrusive<TDecodingValueNodeParDo>();
+            return NYT::New<TDecodingValueNodeParDo>();
         };
     }
 
@@ -1006,7 +1006,7 @@ private:
 
 IRawParDoPtr CreateDecodingValueNodeParDo(TRowVtable rowVtable)
 {
-    return ::MakeIntrusive<TDecodingValueNodeParDo>(rowVtable);
+    return NYT::New<TDecodingValueNodeParDo>(rowVtable);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1065,7 +1065,7 @@ public:
     TDefaultFactoryFunc GetDefaultFactory() const override
     {
         return [] () -> IRawParDoPtr {
-            return ::MakeIntrusive<TEncodingValueNodeParDo>();
+            return NYT::New<TEncodingValueNodeParDo>();
         };
     }
 
@@ -1082,7 +1082,7 @@ private:
 
 IRawParDoPtr CreateEncodingValueNodeParDo(TRowVtable rowVtable)
 {
-    return ::MakeIntrusive<TEncodingValueNodeParDo>(rowVtable);
+    return NYT::New<TEncodingValueNodeParDo>(rowVtable);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1141,7 +1141,7 @@ public:
     TDefaultFactoryFunc GetDefaultFactory() const override
     {
         return [] () -> IRawParDoPtr {
-            return ::MakeIntrusive<TDecodingKeyValueNodeParDo>();
+            return NYT::New<TDecodingKeyValueNodeParDo>();
         };
     }
 
@@ -1158,7 +1158,7 @@ private:
 
 IRawParDoPtr CreateDecodingKeyValueNodeParDo(TRowVtable rowVtable)
 {
-    return ::MakeIntrusive<TDecodingKeyValueNodeParDo>(rowVtable);
+    return NYT::New<TDecodingKeyValueNodeParDo>(rowVtable);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1224,7 +1224,7 @@ public:
     TDefaultFactoryFunc GetDefaultFactory() const override
     {
         return [] () -> IRawParDoPtr {
-            return ::MakeIntrusive<TEncodingKeyValueNodeParDo>();
+            return NYT::New<TEncodingKeyValueNodeParDo>();
         };
     }
 
@@ -1243,7 +1243,7 @@ private:
 
 IRawParDoPtr CreateEncodingKeyValueNodeParDo(TRowVtable rowVtable)
 {
-    return ::MakeIntrusive<TEncodingKeyValueNodeParDo>(rowVtable);
+    return NYT::New<TEncodingKeyValueNodeParDo>(rowVtable);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1308,7 +1308,7 @@ public:
     TDefaultFactoryFunc GetDefaultFactory() const override
     {
         return [] () -> IRawParDoPtr {
-            return ::MakeIntrusive<TReadNodeImpulseParDo>();
+            return NYT::New<TReadNodeImpulseParDo>();
         };
     }
 
@@ -1323,7 +1323,7 @@ private:
 
 IRawParDoPtr CreateReadNodeImpulseParDo(ssize_t tableCount)
 {
-    return ::MakeIntrusive<TReadNodeImpulseParDo>(tableCount);
+    return NYT::New<TReadNodeImpulseParDo>(tableCount);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1385,7 +1385,7 @@ public:
     TDefaultFactoryFunc GetDefaultFactory() const override
     {
         return [] () -> IRawParDoPtr {
-            return ::MakeIntrusive<TWriteNodeParDo>();
+            return NYT::New<TWriteNodeParDo>();
         };
     }
 
@@ -1400,7 +1400,7 @@ private:
 
 IRawParDoPtr CreateWriteNodeParDo(ssize_t tableIndex)
 {
-    return ::MakeIntrusive<TWriteNodeParDo>(tableIndex);
+    return NYT::New<TWriteNodeParDo>(tableIndex);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

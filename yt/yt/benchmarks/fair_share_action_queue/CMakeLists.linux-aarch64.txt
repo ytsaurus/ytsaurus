@@ -20,6 +20,9 @@ add_executable(fair_share_action_queue)
 target_compile_options(fair_share_action_queue PRIVATE
   -Wdeprecated-this-capture
   -Wimplicit-fallthrough
+  -Wparentheses
+  -Wno-logical-op-parentheses
+  -Wno-bitwise-op-parentheses
 )
 
 target_link_libraries(fair_share_action_queue PUBLIC

@@ -61,6 +61,7 @@ target_link_libraries(yql-essentials-core PUBLIC
   yql-essentials-protos
   essentials-public-udf
   public-udf-tz
+  essentials-public-langver
   essentials-sql-settings
   yql-essentials-sql
   yql-essentials-utils

@@ -34,10 +34,7 @@ public:
         NApi::NNative::IConnectionPtr connection,
         IDynamicConfigManagerPtr dynamicConfigManager)
         : Config_(std::move(config))
-        , Cache_(New<TPermissionCache>(
-            Config_->Cache,
-            connection,
-            RpcProxyProfiler().WithPrefix("/access_checker_cache")))
+        , Connection_(std::move(connection))
         , Enabled_(Config_->Enabled)
     {
         dynamicConfigManager->SubscribeConfigChanged(BIND_NO_PROPAGATE(&TAccessChecker::OnDynamicConfigChanged, MakeWeak(this)));
@@ -60,7 +57,8 @@ public:
         auto path = Config_->UseAccessControlObjects
             ? Format("%v/%v/principal", Config_->PathPrefix, *proxyRole)
             : Format("%v/%v", Config_->PathPrefix, *proxyRole);
-        auto error = WaitForFast(Cache_->Get(TPermissionKey{
+        const auto& cache = Connection_->GetPermissionCache();
+        auto error = WaitForFast(cache->Get(TPermissionKey{
             .Object = path,
             .User = user,
             .Permission = EPermission::Use,
@@ -84,8 +82,7 @@ public:
 
 private:
     const TAccessCheckerConfigPtr Config_;
-
-    const TPermissionCachePtr Cache_;
+    const NApi::NNative::IConnectionPtr Connection_;
 
     std::atomic<bool> Enabled_;
 

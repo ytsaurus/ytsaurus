@@ -284,6 +284,7 @@ message TUserJobSpec
     optional int64 thread_limit = 60 [default = 1000000];
 
     repeated string gpu_check_binary_args = 63;
+    map<string, string> gpu_check_environment = 79;
 
     // The following options must be used only with network projects.
     // Enables NAT64 - YT-15665.
@@ -749,6 +750,7 @@ message TRemoteCopyJobSpecExt
     optional bool repair_erasure_chunks = 6;
 
     repeated THunkChunkIdMapping hunk_chunk_id_mapping = 7;
+    repeated THunkChunkIdMapping compression_dictionary_id_mapping = 9;
 
     optional string remote_cluster_name = 8;
 }

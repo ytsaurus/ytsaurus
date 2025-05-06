@@ -22,7 +22,7 @@ DECLARE_REFCOUNTED_STRUCT(ISchedulerPoolManager)
 
 DECLARE_REFCOUNTED_STRUCT(TDynamicSchedulerPoolManagerConfig)
 
-DECLARE_REFCOUNTED_CLASS(TPoolResources)
+DECLARE_REFCOUNTED_STRUCT(TPoolResources)
 
 ////////////////////////////////////////////////////////////////////////////////
 

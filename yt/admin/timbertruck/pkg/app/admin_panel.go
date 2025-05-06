@@ -47,6 +47,7 @@ func newAdminPanel(logger *slog.Logger, metrics *solomon.Registry, config AdminP
 	mux := http.NewServeMux()
 
 	mux.HandleFunc("/metrics", panel.handleMetrics)
+	mux.HandleFunc("/ping", panel.handlePing)
 	// "For testing purposes"
 	mux.HandleFunc("/log-error", panel.handleLogError)
 
@@ -86,6 +87,12 @@ func (p *adminPanel) handleMetrics(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set(headers.ContentTypeKey, contentType)
 	_, _ = w.Write(buffer.Bytes())
+}
+
+func (p *adminPanel) handlePing(w http.ResponseWriter, r *http.Request) {
+	logger := p.requestLogger(r)
+	logger.Debug("Ping")
+	_, _ = io.WriteString(w, "OK")
 }
 
 func (p *adminPanel) handleLogError(w http.ResponseWriter, r *http.Request) {

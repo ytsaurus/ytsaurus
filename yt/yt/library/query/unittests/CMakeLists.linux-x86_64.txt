@@ -16,26 +16,28 @@ find_package(linux-headers-generic REQUIRED)
 
 add_subdirectory(helpers)
 add_subdirectory(udf)
+add_subdirectory(v1)
+add_subdirectory(v2)
 
-add_executable(unittester-query)
+add_library(library-query-unittests)
 
 
-target_compile_options(unittester-query PRIVATE
+target_compile_options(library-query-unittests PRIVATE
   -Wdeprecated-this-capture
   -Wimplicit-fallthrough
+  -Wparentheses
+  -Wno-logical-op-parentheses
+  -Wno-bitwise-op-parentheses
 )
 
-target_include_directories(unittester-query PRIVATE
+target_include_directories(library-query-unittests PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/sparsehash/src
 )
 
-target_link_libraries(unittester-query PUBLIC
+target_link_libraries(library-query-unittests PUBLIC
   linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   yutil
-  library-cpp-cpuid_check
-  cpp-testing-gtest
-  cpp-testing-gtest_main
   yt-yt-build
   yt-core-test_framework
   library-query-distributed
@@ -46,24 +48,46 @@ target_link_libraries(unittester-query PUBLIC
   contrib-libs-sparsehash
 )
 
-target_allocator(unittester-query
-  cpp-malloc-tcmalloc
-  libs-tcmalloc-default
-)
-
-target_link_options(unittester-query PRIVATE
+target_link_options(library-query-unittests INTERFACE
   -rdynamic
-  -ldl
-  -lrt
-  -Wl,--no-as-needed
-  -fPIC
-  -fPIC
-  -lrt
-  -ldl
-  -lutil
 )
 
-target_sources(unittester-query PRIVATE
+target_sources(library-query-unittests PRIVATE
+  ${PROJECT_SOURCE_DIR}/yt/yt/library/query/unittests/disable_web_assembly.cpp
+)
+
+
+add_global_library_for(library-query-unittests.global
+  library-query-unittests)
+
+
+target_compile_options(library-query-unittests.global PRIVATE
+  -Wdeprecated-this-capture
+  -Wimplicit-fallthrough
+  -Wparentheses
+  -Wno-logical-op-parentheses
+  -Wno-bitwise-op-parentheses
+)
+
+target_include_directories(library-query-unittests.global PRIVATE
+  ${PROJECT_SOURCE_DIR}/contrib/libs/sparsehash/src
+)
+
+target_link_libraries(library-query-unittests.global PUBLIC
+  linux-headers-generic::linux-headers-generic
+  contrib-libs-cxxsupp
+  yutil
+  yt-yt-build
+  yt-core-test_framework
+  library-query-distributed
+  library-query-engine
+  library-query-engine_api
+  query-unittests-helpers
+  query-unittests-udf
+  contrib-libs-sparsehash
+)
+
+target_sources(library-query-unittests.global PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/library/query/unittests/ast_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/library/query/unittests/ql_computed_columns_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/library/query/unittests/ql_distributed_ut.cpp
@@ -73,38 +97,5 @@ target_sources(unittester-query PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/library/query/unittests/ql_query_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/library/query/unittests/ql_range_inference_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/library/query/unittests/ql_range_coordination_ut.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/library/query/unittests/disable_web_assembly.cpp
 )
 
-
-add_test(
-  NAME
-  unittester-query
-  COMMAND
-  unittester-query
-)
-
-set_property(
-  TEST
-  unittester-query
-  PROPERTY
-  LABELS
-  MEDIUM
-)
-
-set_property(
-  TEST
-  unittester-query
-  PROPERTY
-  ENVIRONMENT
-)
-
-vcs_info(unittester-query)
-
-set_property(
-  TEST
-  unittester-query
-  PROPERTY
-  PROCESSORS
-  1
-)

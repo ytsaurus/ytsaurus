@@ -188,6 +188,15 @@ struct IJob
         };
 
         std::optional<TMultiPipeStatistics> PipeStatistics;
+
+        struct TLatencyStatistics
+        {
+            std::optional<TDuration> InputTimeToFirstReadBatch;
+            std::optional<TDuration> InputTimeToFirstWrittenBatch;
+            std::vector<std::optional<TDuration>> OutputTimeToFirstReadBatch;
+        };
+
+        TLatencyStatistics LatencyStatistics = {};
     };
 
     virtual TStatistics GetStatistics() const = 0;

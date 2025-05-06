@@ -458,7 +458,7 @@ IVersionedReaderPtr TSortedChunkStore::CreateReader(
             underlyingReader,
             PerformanceCounters_,
             NTableClient::EDataSource::ChunkStore,
-            ERequestType::Read);
+            EPerformanceCountedRequestType::Read);
     };
 
     // Fast lane: check for in-memory reads.
@@ -1017,7 +1017,7 @@ private:
             std::move(underlyingReader),
             chunk->PerformanceCounters_,
             NTableClient::EDataSource::ChunkStore,
-            ERequestType::Lookup);
+            chunkReaderOptions.RequestType);
         UnderlyingReaderInitialized_.store(true);
     }
 };
@@ -1070,7 +1070,7 @@ IVersionedReaderPtr TSortedChunkStore::CreateReader(
                     chunkReadOptions),
                 PerformanceCounters_,
                 NTableClient::EDataSource::ChunkStore,
-                ERequestType::Lookup);
+                chunkReadOptions.RequestType);
         }
 
         // Check for backing store.

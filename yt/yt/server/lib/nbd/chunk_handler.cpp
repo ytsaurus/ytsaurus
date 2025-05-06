@@ -41,16 +41,22 @@ public:
 
     ~TChunkHandler()
     {
-        YT_LOG_DEBUG("Destructing chunk handler (Size: %v, FsType: %v)",
+        YT_LOG_DEBUG("Destroying chunk handler (Size: %v, FsType: %v)",
             Config_->Size,
             Config_->FsType);
     }
 
     TFuture<void> Initialize() override
     {
-        if (Initialized_) {
-            YT_LOG_WARNING("Can not initialize already initialized chunk handler");
-            return VoidFuture;
+        auto expected = EState::Empty;
+        if (!State_.compare_exchange_strong(expected, EState::Initializing)) {
+            auto error = TError("Can not initialize already initialized chunk handler")
+                << TErrorAttribute("chunk_id", SessionId_.ChunkId)
+                << TErrorAttribute("medium_index", SessionId_.MediumIndex)
+                << TErrorAttribute("size", Config_->Size)
+                << TErrorAttribute("fs_type", Config_->FsType);
+            YT_LOG_WARNING(error);
+            return MakeFuture(error);
         }
 
         auto req = Proxy_.OpenSession();
@@ -69,16 +75,22 @@ public:
 
             KeepSessionAliveExecutor_->Start();
 
-            Initialized_ = true;
+            State_ = EState::Initialized;
         })
         .AsyncVia(Invoker_));
     }
 
     TFuture<void> Finalize() override
     {
-        if (!Initialized_) {
-            YT_LOG_WARNING("Can not finalize uninitialized chunk handler");
-            return VoidFuture;
+        auto expected = EState::Initialized;
+        if (!State_.compare_exchange_strong(expected, EState::Finalizing)) {
+            auto error = TError("Can not initialize already initialized chunk handler")
+                << TErrorAttribute("chunk_id", SessionId_.ChunkId)
+                << TErrorAttribute("medium_index", SessionId_.MediumIndex)
+                << TErrorAttribute("size", Config_->Size)
+                << TErrorAttribute("fs_type", Config_->FsType);
+            YT_LOG_WARNING(error);
+            return MakeFuture(error);
         }
 
         auto future = KeepSessionAliveExecutor_->Stop();
@@ -87,17 +99,16 @@ public:
             req->SetTimeout(Config_->DataNodeNbdServiceRpcTimeout);
             ToProto(req->mutable_session_id(), SessionId_);
             return req->Invoke().AsVoid();
-        })
-        .AsyncVia(Invoker_))
+        }))
         .Apply(BIND([this, this_ = MakeStrong(this)] () {
-            Initialized_ = false;
+            State_ = EState::Empty;
         })
         .AsyncVia(Invoker_));
     }
 
     TFuture<TSharedRef> Read(i64 offset, i64 length, const TReadOptions& options) override
     {
-        if (!Initialized_) {
+        if (State_ != EState::Initialized) {
             YT_LOG_ERROR("Can not read from uninitialized chunk handler (Offset: %v, Length: %v, Cookie: %x)",
                 offset,
                 length,
@@ -137,7 +148,7 @@ public:
 
     TFuture<void> Write(i64 offset, const TSharedRef& data, const TWriteOptions& options) override
     {
-        if (!Initialized_) {
+        if (State_ != EState::Initialized) {
             YT_LOG_ERROR("Can not write to uninitialized chunk handler (Offset: %v, Length: %v, Cookie: %x)",
                 offset,
                 data.size(),
@@ -195,8 +206,7 @@ private:
                 std::ignore = WaitFor(Finalize());
             }
         } else {
-            YT_LOG_ERROR("Failed to send keep alive request (Error: %v)",
-                rspOrError);
+            YT_LOG_ERROR(rspOrError, "Failed to send keep alive request");
         }
     }
 
@@ -207,7 +217,16 @@ private:
     const TDataNodeNbdServiceProxy Proxy_;
     const TLogger Logger;
     TPeriodicExecutorPtr KeepSessionAliveExecutor_;
-    bool Initialized_ = false;
+
+    enum EState
+    {
+        Empty,
+        Initialized,
+        Initializing,
+        Finalizing
+    };
+
+    std::atomic<EState> State_ = EState::Empty;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

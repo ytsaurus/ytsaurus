@@ -354,7 +354,7 @@ TFuture<TSharedRange<TMutableUnversionedRow>> DecodeHunksInSchemafulUnversionedR
     IDictionaryCompressionFactoryPtr dictionaryCompressionFactory,
     NChunkClient::TClientChunkReadOptions options,
     TTabletPerformanceCountersPtr performanceCounters,
-    NTableClient::ERequestType requestType,
+    NTableClient::EPerformanceCountedRequestType requestType,
     TSharedRange<TMutableUnversionedRow> rows);
 
 //! A versioned counterpart of #ReadAndDecodeHunksInSchemafulRows.
@@ -363,7 +363,7 @@ TFuture<TSharedRange<TMutableVersionedRow>> DecodeHunksInVersionedRows(
     IDictionaryCompressionFactoryPtr dictionaryCompressionFactory,
     NChunkClient::TClientChunkReadOptions options,
     TTabletPerformanceCountersPtr performanceCounters,
-    NTableClient::ERequestType requestType,
+    NTableClient::EPerformanceCountedRequestType requestType,
     TSharedRange<TMutableVersionedRow> rows);
 
 //! Constructs a writer performing hunk encoding.

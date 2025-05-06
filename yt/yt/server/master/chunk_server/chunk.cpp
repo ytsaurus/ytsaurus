@@ -302,8 +302,14 @@ void TChunk::AddReplica(
         if (IsErasure()) {
             lastSeenReplicas[replica.GetReplicaIndex()] = nodeId;
         } else {
-            lastSeenReplicas[data->CurrentLastSeenReplicaIndex] = nodeId;
-            data->CurrentLastSeenReplicaIndex = (data->CurrentLastSeenReplicaIndex + 1) % lastSeenReplicas.size();
+            // NB: there are only 3 classes derived from TChunkReplicasDataBase:
+            //   - empty: not the case because all instances of this class are
+            //     always const;
+            //   - erasure: not the case;
+            //   - regular.
+            // So this static cast seems to be correct.
+            // COMPAT(kvk1920): FixLastSeenReplicas.
+            static_cast<TRegularChunkReplicasData*>(data)->AddLastSeenReplica(nodeId);
         }
     }
 }
@@ -776,58 +782,88 @@ void TChunk::OnMiscExtUpdated(const TMiscExt& miscExt)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <size_t TypicalStoredReplicaCount, size_t LastSeenReplicaCount>
-TChunk::TReplicasData<TypicalStoredReplicaCount, LastSeenReplicaCount>::TReplicasData()
+template <size_t TypicalStoredReplicaCount, size_t MaxLastSeenReplicaCount>
+TChunk::TReplicasData<TypicalStoredReplicaCount, MaxLastSeenReplicaCount>::TReplicasData()
 {
     std::fill(LastSeenReplicas.begin(), LastSeenReplicas.end(), InvalidNodeId);
 }
 
-template <size_t TypicalStoredReplicaCount, size_t LastSeenReplicaCount>
-TRange<TChunkLocationPtrWithReplicaInfo> TChunk::TReplicasData<TypicalStoredReplicaCount, LastSeenReplicaCount>::GetStoredReplicas() const
+template <size_t TypicalStoredReplicaCount, size_t MaxLastSeenReplicaCount>
+TRange<TChunkLocationPtrWithReplicaInfo> TChunk::TReplicasData<TypicalStoredReplicaCount, MaxLastSeenReplicaCount>::GetStoredReplicas() const
 {
     return TRange(StoredReplicas);
 }
 
-template <size_t TypicalStoredReplicaCount, size_t LastSeenReplicaCount>
-TMutableRange<TChunkLocationPtrWithReplicaInfo> TChunk::TReplicasData<TypicalStoredReplicaCount, LastSeenReplicaCount>::MutableStoredReplicas()
+template <size_t TypicalStoredReplicaCount, size_t MaxLastSeenReplicaCount>
+TMutableRange<TChunkLocationPtrWithReplicaInfo> TChunk::TReplicasData<TypicalStoredReplicaCount, MaxLastSeenReplicaCount>::MutableStoredReplicas()
 {
     return TMutableRange(StoredReplicas);
 }
 
-template <size_t TypicalStoredReplicaCount, size_t LastSeenReplicaCount>
-void TChunk::TReplicasData<TypicalStoredReplicaCount, LastSeenReplicaCount>::AddStoredReplica(TChunkLocationPtrWithReplicaInfo replica)
+template <size_t TypicalStoredReplicaCount, size_t MaxLastSeenReplicaCount>
+void TChunk::TReplicasData<TypicalStoredReplicaCount, MaxLastSeenReplicaCount>::AddStoredReplica(TChunkLocationPtrWithReplicaInfo replica)
 {
     StoredReplicas.push_back(replica);
 }
 
-template <size_t TypicalStoredReplicaCount, size_t LastSeenReplicaCount>
-void TChunk::TReplicasData<TypicalStoredReplicaCount, LastSeenReplicaCount>::RemoveStoredReplica(int replicaIndex)
+template <size_t TypicalStoredReplicaCount, size_t MaxLastSeenReplicaCount>
+void TChunk::TReplicasData<TypicalStoredReplicaCount, MaxLastSeenReplicaCount>::RemoveStoredReplica(int replicaIndex)
 {
     std::swap(StoredReplicas[replicaIndex], StoredReplicas.back());
     StoredReplicas.pop_back();
     StoredReplicas.shrink_to_small();
 }
 
-template <size_t TypicalStoredReplicaCount, size_t LastSeenReplicaCount>
-TRange<TNodeId> TChunk::TReplicasData<TypicalStoredReplicaCount, LastSeenReplicaCount>::GetLastSeenReplicas() const
+template <size_t TypicalStoredReplicaCount, size_t MaxLastSeenReplicaCount>
+void TChunk::TReplicasData<TypicalStoredReplicaCount, MaxLastSeenReplicaCount>::AddLastSeenReplica(TNodeId nodeId)
+{
+    if constexpr (MaxLastSeenReplicaCount > 0) {
+        LastSeenReplicaCount =
+            std::remove(LastSeenReplicas.begin(), LastSeenReplicas.begin() + LastSeenReplicaCount, nodeId) -
+            LastSeenReplicas.begin();
+        if (LastSeenReplicaCount == MaxLastSeenReplicaCount) {
+            std::move(LastSeenReplicas.begin() + 1, LastSeenReplicas.end(), LastSeenReplicas.begin());
+            --LastSeenReplicaCount;
+        }
+        LastSeenReplicas[LastSeenReplicaCount++] = nodeId;
+    }
+}
+
+template <size_t TypicalStoredReplicaCount, size_t MaxLastSeenReplicaCount>
+TRange<TNodeId> TChunk::TReplicasData<TypicalStoredReplicaCount, MaxLastSeenReplicaCount>::GetLastSeenReplicas() const
 {
     return TRange(LastSeenReplicas);
 }
 
-template <size_t TypicalStoredReplicaCount, size_t LastSeenReplicaCount>
-TMutableRange<TNodeId> TChunk::TReplicasData<TypicalStoredReplicaCount, LastSeenReplicaCount>::MutableLastSeenReplicas()
+template <size_t TypicalStoredReplicaCount, size_t MaxLastSeenReplicaCount>
+TMutableRange<TNodeId> TChunk::TReplicasData<TypicalStoredReplicaCount, MaxLastSeenReplicaCount>::MutableLastSeenReplicas()
 {
     return TMutableRange(LastSeenReplicas);
 }
 
-template <size_t TypicalStoredReplicaCount, size_t LastSeenReplicaCount>
-void TChunk::TReplicasData<TypicalStoredReplicaCount, LastSeenReplicaCount>::Load(NCellMaster::TLoadContext& context)
+template <size_t TypicalStoredReplicaCount, size_t MaxLastSeenReplicaCount>
+void TChunk::TReplicasData<TypicalStoredReplicaCount, MaxLastSeenReplicaCount>::Load(NCellMaster::TLoadContext& context)
 {
     using NYT::Load;
 
     Load(context, StoredReplicas);
     Load(context, LastSeenReplicas);
-    Load(context, CurrentLastSeenReplicaIndex);
+    // COMPAT(kvk1920)
+    if (context.GetVersion() < EMasterReign::FixLastSeenReplicas) {
+        auto index = Load<int>(context);
+        if constexpr (MaxLastSeenReplicaCount > 0) {
+            auto legacyLastSeenReplicas = LastSeenReplicas;
+            // Position of queue's tail.
+            LastSeenReplicaCount = 0;
+            for (int offset : std::views::iota(0u, MaxLastSeenReplicaCount)) {
+                AddLastSeenReplica(legacyLastSeenReplicas[(index + offset) % MaxLastSeenReplicaCount]);
+            }
+        } else {
+            LastSeenReplicaCount = 0;
+        }
+    } else {
+        Load(context, LastSeenReplicaCount);
+    }
     Load(context, ApprovedReplicaCount);
 }
 
@@ -840,7 +876,7 @@ void TChunk::TReplicasData<TypicalStoredReplicaCount, LastSeenReplicaCount>::Sav
     // deterministic (i.e. when unregistering a node we traverse certain hashtables).
     TVectorSerializer<TDefaultSerializer, TSortedTag>::Save(context, StoredReplicas);
     Save(context, LastSeenReplicas);
-    Save(context, CurrentLastSeenReplicaIndex);
+    Save(context, LastSeenReplicaCount);
     Save(context, ApprovedReplicaCount);
 }
 

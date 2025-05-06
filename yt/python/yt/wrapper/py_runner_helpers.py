@@ -285,8 +285,11 @@ def process_rows(operation_dump_filename, config_dump_filename, start_time):
             else:
                 yield row
 
-    # TODO: move key to config (with env var)
-    pickling_encryption_key = os.environ.get("YT_PICKLING_KEY", None)
+    # TODO: move key to protected section YT-24616
+    pickling_encryption_key = os.environ.get(
+        "YT_SECURE_VAULT__PICKLING_KEY",
+        os.environ.get("_PICKLING_KEY", None)
+    )
 
     with open(config_dump_filename, "rb") as f_config_dump:
         config_unpickler = Unpickler(yt.wrapper.config.DEFAULT_PICKLING_FRAMEWORK)

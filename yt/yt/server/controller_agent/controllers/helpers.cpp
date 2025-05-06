@@ -550,6 +550,7 @@ bool IsBulkInsertAllowedForUser(
 bool HasCompressionDictionaries(
     const IAttributeDictionaryPtr& tableAttributes)
 {
+    // TODO(alexelexa, YT-20044): Support compression dicrionaries remote copy.
     auto dictionaryCompressionNode =
         tableAttributes->Get<IMapNodePtr>("mount_config")->FindChild("value_dictionary_compression");
     if (dictionaryCompressionNode) {
@@ -586,11 +587,13 @@ TYsonString MakeIntermediateTableWriterConfig(
 {
     auto uploadReplicationFactor = spec->IntermediateDataReplicationFactor;
     auto minUploadReplicationFactor = spec->MinIntermediateDataReplicationFactor;
+    auto directUploadNodeCount = spec->IntermediateDirectUploadNodeCount;
 
     auto tableWriterConfig = spec->FastIntermediateMediumTableWriterConfig;
     if (tableWriterConfig && fastIntermediateMediumEnabled) {
         uploadReplicationFactor = tableWriterConfig->UploadReplicationFactor;
         minUploadReplicationFactor = tableWriterConfig->MinUploadReplicationFactor;
+        directUploadNodeCount = tableWriterConfig->DirectUploadNodeCount;
     }
 
     return BuildYsonStringFluently()
@@ -603,6 +606,7 @@ TYsonString MakeIntermediateTableWriterConfig(
                 // Set reduced rpc_timeout if replication_factor is greater than one.
                 fluent.Item("node_rpc_timeout").Value(TDuration::Seconds(120));
             })
+            .OptionalItem("direct_upload_node_count", directUploadNodeCount)
         .EndMap();
 }
 

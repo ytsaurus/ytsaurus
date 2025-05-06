@@ -52,7 +52,9 @@ int main(int argc, const char *argv[]) {
 
         options.InitLogger();
 
-        TFmrCoordinatorSettings coordinatorSettings{.WorkersNum = options.WorkersNum, .RandomProvider = CreateDefaultRandomProvider()};
+        TFmrCoordinatorSettings coordinatorSettings{};
+        coordinatorSettings.WorkersNum = options.WorkersNum;
+
         if (options.FmrOperationSpecFilePath) {
             TFileInput input(options.FmrOperationSpecFilePath);
             auto fmrOperationSpec = NYT::NodeFromYsonStream(&input);

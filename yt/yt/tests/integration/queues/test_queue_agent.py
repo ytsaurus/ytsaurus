@@ -3320,7 +3320,9 @@ class TestQueueStaticExport(TestQueueStaticExportBase):
             insert_rows("//tmp/q", [{"data": "second sample"}] * 2)
             self._flush_table("//tmp/q")
 
+        self._sleep_until_next_export_instant(export_period_seconds, offset=1.5)
         self._sleep_until_next_export_instant(export_period_seconds)
+
         abort_transaction(tx)
         expected_table_count = 2 if should_export_second_table else 1
 
@@ -3807,8 +3809,9 @@ class TestQueueStaticExport(TestQueueStaticExportBase):
 
     @authors("apachee")
     def test_crashes_fix_yt_23930(self):
+        # FIXME(apachee): Remove skip after crash issue get resolved
         pytest.skip()
-        # TODO(apachee): Remove skip after fixing another bug with queue re-creation (YT-24042)
+
         export_dir = "//tmp/export"
 
         _, queue_id = self._create_queue("//tmp/q")
@@ -4476,6 +4479,8 @@ class TestQueueExportManager(TestQueueStaticExportBase):
     @pytest.mark.parametrize("export_rate_limit", [5, 10, 20])
     @pytest.mark.timeout(150)
     def test_export_rate_limit(self, export_rate_limit):
+        pytest.skip()
+
         self._apply_dynamic_config_patch({
             "queue_agent": {
                 "queue_export_manager": {

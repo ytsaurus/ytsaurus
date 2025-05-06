@@ -312,19 +312,18 @@ TJob::TJob(
     const TJobCommonConfigPtr& commonConfig)
     : Id_(jobId)
     , OperationId_(operationId)
+    , Type_(EJobType(jobSpec.type()))
     , Bootstrap_(bootstrap)
-    , JobType_(FromProto<EJobType>(jobSpec.type()))
     , Logger(ExecNodeLogger().WithTag(
         "JobId: %v, OperationId: %v, JobType: %v",
         jobId,
         operationId,
-        JobType_))
+        Type_))
     , Allocation_(std::move(allocation))
     , ResourceHolder_(Allocation_->GetResourceHolder())
     , InitialResourceDemand_(ResourceHolder_->GetInitialResourceDemand())
-    , ControllerAgentDescriptor_(std::move(agentDescriptor))
-    , ControllerAgentConnector_(
-        Bootstrap_->GetControllerAgentConnectorPool()->GetControllerAgentConnector(ControllerAgentDescriptor_))
+    , ControllerAgentInfo_(std::move(agentDescriptor))
+    , ControllerAgentConnector_(Bootstrap_->GetControllerAgentConnectorPool()->GetControllerAgentConnector(ControllerAgentInfo_.GetDescriptor()))
     , CommonConfig_(commonConfig)
     , Invoker_(Bootstrap_->GetJobInvoker())
     , CreationTime_(TInstant::Now())
@@ -354,7 +353,7 @@ TJob::TJob(
 
     YT_LOG_DEBUG("Creating job");
 
-    PackBaggageFromJobSpec(TraceContext_, JobSpec_, OperationId_, Id_, JobType_);
+    PackBaggageFromJobSpec(TraceContext_, JobSpec_, OperationId_, Id_, Type_);
 
     TrafficMeter_->Start();
 
@@ -779,13 +778,19 @@ void TJob::Terminate(EJobState finalState, TError error)
                 Error_);
             break;
 
-        default:
+        case EJobPhase::WaitingForCleanup:
+        case EJobPhase::Cleanup:
+        case EJobPhase::Finished:
             YT_LOG_INFO(
                 "Cannot terminate job (JobState: %v, JobPhase: %v)",
                 JobState_,
                 JobPhase_);
 
             YT_VERIFY(IsFinished());
+            break;
+
+        case EJobPhase::Missing:
+            YT_LOG_FATAL("Missing job phase is unexpected");
             break;
     }
 }
@@ -807,7 +812,7 @@ void TJob::Finalize(TError error)
 
     // NB: We should disable slot here to give scheduler information about job failure.
     if (currentError.FindMatching(NExecNode::EErrorCode::GpuCheckCommandFailed) &&
-        !currentError.FindMatching(NExecNode::EErrorCode::GpuCheckCommandIncorrect))
+        !currentError.FindMatching(NExecNode::EErrorCode::GpuCheckCommandPreparationFailed))
     {
         Bootstrap_->GetSlotManager()->OnGpuCheckCommandFailed(currentError);
     }
@@ -958,7 +963,7 @@ void TJob::OnResultReceived(TJobResult jobResult)
 
                             // Save the first found NBD error.
                             if (nbdError.IsOK()) {
-                                nbdError = error;
+                                nbdError = std::move(error);
                                 nbdError <<= TErrorAttribute("abort_reason", EAbortReason::NbdErrors);
                                 // Save job error as well.
                                 if (auto jobError = FromProto<TError>(jobResult.error()); !jobError.IsOK()) {
@@ -1025,35 +1030,48 @@ const TControllerAgentDescriptor& TJob::GetControllerAgentDescriptor() const
 {
     YT_ASSERT_THREAD_AFFINITY(JobThread);
 
-    return ControllerAgentDescriptor_;
+    return ControllerAgentInfo_.GetDescriptor();
 }
 
 void TJob::UpdateControllerAgentDescriptor(TControllerAgentDescriptor descriptor)
 {
     YT_ASSERT_THREAD_AFFINITY(JobThread);
 
-    if (ControllerAgentDescriptor_ == descriptor) {
+    if (ControllerAgentInfo_.GetDescriptor() == descriptor) {
         return;
     }
 
     YT_LOG_DEBUG(
         "Update controller agent (ControllerAgentAddress: %v -> %v, ControllerAgentIncarnationId: %v)",
-        ControllerAgentDescriptor_.Address,
+        ControllerAgentInfo_.GetDescriptor().Address,
         descriptor.Address,
         descriptor.IncarnationId);
 
-    ControllerAgentDescriptor_ = std::move(descriptor);
+    ControllerAgentInfo_.SetDescriptor(descriptor);
 
     ControllerAgentConnector_ = Bootstrap_
-            ->GetControllerAgentConnectorPool()
-            ->GetControllerAgentConnector(ControllerAgentDescriptor_);
+        ->GetControllerAgentConnectorPool()
+        ->GetControllerAgentConnector(ControllerAgentInfo_.GetDescriptor());
+
+    if (Stored_) {
+        JobResendBackoffStartTime_ = TInstant::Now();
+        YT_LOG_DEBUG(
+            "Job reset backoff start time reset");
+    }
+}
+
+TInstant TJob::GetControllerAgentResetTime() const
+{
+    YT_ASSERT_THREAD_AFFINITY_ANY();
+
+    return ControllerAgentInfo_.GetDescriptorResetTime();
 }
 
 EJobType TJob::GetType() const
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
 
-    return JobType_;
+    return Type_;
 }
 
 std::string TJob::GetAuthenticatedUser() const
@@ -1407,6 +1425,10 @@ TBriefJobInfo TJob::GetBriefInfo() const
     }
 
     auto tryGetMonitoringDescriptor = [&] () -> std::optional<std::string> {
+        if (!UserJobSpec_) {
+            return std::nullopt;
+        }
+
         const auto& monitoringConfig = UserJobSpec_->monitoring_config();
         if (!monitoringConfig.enable()) {
             return std::nullopt;
@@ -1435,7 +1457,8 @@ TBriefJobInfo TJob::GetBriefInfo() const
         JobEvents_,
         CoreInfos_,
         ExecAttributes_,
-        tryGetMonitoringDescriptor());
+        tryGetMonitoringDescriptor(),
+        JobResendBackoffStartTime_);
 }
 
 NYTree::IYPathServicePtr TJob::CreateStaticOrchidService()
@@ -1854,24 +1877,24 @@ void TJob::SetStored()
     YT_LOG_DEBUG("Requested to store job");
 
     Stored_ = true;
-    LastStoredTime_ = TInstant::Now();
-    StoredEvent_.TrySet();
+    JobResendBackoffStartTime_ = TInstant::Now();
+    StoredEventPromise_.TrySet();
 }
 
-bool TJob::IsGrowingStale(TDuration maxDelay) const
+bool TJob::ShouldResend(TDuration maxDelay) const
 {
     YT_ASSERT_THREAD_AFFINITY(JobThread);
 
     YT_VERIFY(Stored_);
 
-    return LastStoredTime_ + maxDelay <= TInstant::Now();
+    return JobResendBackoffStartTime_ + maxDelay <= TInstant::Now();
 }
 
 TFuture<void> TJob::GetStoredEvent() const
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
 
-    return StoredEvent_;
+    return StoredEventPromise_.ToFuture();
 }
 
 void TJob::OnEvictedFromAllocation() noexcept
@@ -2307,12 +2330,18 @@ void TJob::RunWithWorkspaceBuilder()
         .DockerAuth = BuildDockerAuthConfig(),
 
         .NeedGpuCheck = NeedsGpuCheck(),
+        .GpuCheckSetupCommands = UserJobSpec_ && !GpuCheckVolumeLayerArtifactKeys_.empty()
+            ? Bootstrap_->GetGpuManager()->GetSetupCommands()
+            : std::vector<TShellCommandConfigPtr>(),
         .GpuCheckBinaryPath = UserJobSpec_
             ? std::make_optional(UserJobSpec_->gpu_check_binary_path())
             : std::nullopt,
         .GpuCheckBinaryArgs = UserJobSpec_
             ? std::make_optional(FromProto<std::vector<TString>>(UserJobSpec_->gpu_check_binary_args()))
             : std::optional<std::vector<TString>>(),
+        .GpuCheckEnvironment = UserJobSpec_
+            ? std::make_optional(FromProto<THashMap<TString, TString>>(UserJobSpec_->gpu_check_environment()))
+            : std::nullopt,
         .GpuCheckType = EGpuCheckType::Preliminary,
         .GpuDevices = devices
     };
@@ -2581,8 +2610,13 @@ void TJob::OnJobProxyFinished(const TError& error)
                 : MakeWritableRootFS(),
             .CommandUser = CommonConfig_->SetupCommandUser,
 
+            .SetupCommands = GpuCheckVolume_
+                ? Bootstrap_->GetGpuManager()->GetSetupCommands()
+                : std::vector<TShellCommandConfigPtr>(),
+
             .GpuCheckBinaryPath = UserJobSpec_->gpu_check_binary_path(),
             .GpuCheckBinaryArgs = FromProto<std::vector<TString>>(UserJobSpec_->gpu_check_binary_args()),
+            .GpuCheckEnvironment = FromProto<THashMap<TString, TString>>(UserJobSpec_->gpu_check_environment()),
             .GpuCheckType = EGpuCheckType::Extra,
             .CurrentStartIndex = SetupCommandCount_,
             .TestExtraGpuCheckCommandFailure = Bootstrap_->GetGpuManager()->ShouldTestExtraGpuCheckCommandFailure(),
@@ -3315,10 +3349,11 @@ bool TJob::CanBeAccessedViaVirtualSandbox(const TArtifact& artifact) const
 
 void TJob::InitializeSandboxNbdRootVolumeData()
 {
-    if (!UserJobSpec_
-        || !UserJobSpec_->has_disk_request()
-        || !UserJobSpec_->disk_request().has_nbd_disk()
-        || !Bootstrap_->GetNbdServer()) {
+    if (!UserJobSpec_ ||
+        !UserJobSpec_->has_disk_request() ||
+        !UserJobSpec_->disk_request().has_nbd_disk() ||
+        !Bootstrap_->GetNbdServer())
+    {
         return;
     }
 
@@ -3757,7 +3792,7 @@ bool TJob::IsFatalError(const TError& error)
         error.FindMatching(NTableClient::EErrorCode::FormatCannotRepresentRow) ||
         error.FindMatching(NExecNode::EErrorCode::SetupCommandFailed) ||
         error.FindMatching(NExecNode::EErrorCode::GpuJobWithoutLayers) ||
-        error.FindMatching(NExecNode::EErrorCode::GpuCheckCommandIncorrect) ||
+        error.FindMatching(NExecNode::EErrorCode::GpuCheckCommandPreparationFailed) ||
         error.FindMatching(NExecNode::EErrorCode::TmpfsOverflow) ||
         error.FindMatching(NExecNode::EErrorCode::FatalJobPreparationTimeout) ||
         error.FindMatching(NFormats::EErrorCode::InvalidFormat);
@@ -3831,7 +3866,7 @@ void TJob::EnrichStatisticsWithGpuInfo(TStatistics* statistics, const std::vecto
             *slotStatisticsLastUpdateTime,
             period);
 
-        slotStatisticsLastUpdateTime = gpuInfo.UpdateTime;
+        slotStatisticsLastUpdateTime = std::max(gpuInfo.UpdateTime, *slotStatisticsLastUpdateTime);
 
         aggregatedGpuStatistics.CumulativeUtilizationGpu += slotStatistics.CumulativeUtilizationGpu;
         aggregatedGpuStatistics.CumulativeUtilizationMemory += slotStatistics.CumulativeUtilizationMemory;

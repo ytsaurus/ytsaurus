@@ -20,6 +20,9 @@ add_library(lib-hydra-mock)
 target_compile_options(lib-hydra-mock PRIVATE
   -Wdeprecated-this-capture
   -Wimplicit-fallthrough
+  -Wparentheses
+  -Wno-logical-op-parentheses
+  -Wno-bitwise-op-parentheses
 )
 
 target_link_libraries(lib-hydra-mock PUBLIC

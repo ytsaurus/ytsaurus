@@ -32,6 +32,9 @@ add_library(core-rpc-grpc)
 target_compile_options(core-rpc-grpc PRIVATE
   -Wdeprecated-this-capture
   -Wimplicit-fallthrough
+  -Wparentheses
+  -Wno-logical-op-parentheses
+  -Wno-bitwise-op-parentheses
 )
 
 target_include_directories(core-rpc-grpc PUBLIC
@@ -90,6 +93,9 @@ add_global_library_for(core-rpc-grpc.global
 target_compile_options(core-rpc-grpc.global PRIVATE
   -Wdeprecated-this-capture
   -Wimplicit-fallthrough
+  -Wparentheses
+  -Wno-logical-op-parentheses
+  -Wno-bitwise-op-parentheses
 )
 
 target_include_directories(core-rpc-grpc.global PUBLIC

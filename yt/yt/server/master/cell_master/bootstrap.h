@@ -176,7 +176,8 @@ public:
 
     void LoadSnapshot(
         const TString& fileName,
-        ESerializationDumpMode dumpMode);
+        ESerializationDumpMode dumpMode,
+        TSerializationDumpScopeFilter dumpScopeFilter);
     void ReplayChangelogs(std::vector<TString> changelogFileNames);
     void BuildSnapshot();
     void FinishDryRun();
@@ -282,7 +283,8 @@ protected:
     void InitializeTimestampProvider();
     void DoLoadSnapshot(
         const TString& fileName,
-        ESerializationDumpMode dumpMode);
+        ESerializationDumpMode dumpMode,
+        TSerializationDumpScopeFilter dumpScopeFilter);
 
     void DoReplayChangelogs(const std::vector<TString>& changelogFileNames);
 

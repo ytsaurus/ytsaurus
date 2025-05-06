@@ -1,8 +1,9 @@
-from yt_env_setup import YTEnvSetup, with_additional_threads
+from yt_env_setup import (
+    YTEnvSetup, with_additional_threads)
 
-from yt_type_helpers import (
-    make_schema
-)
+from yt_sequoia_helpers import not_implemented_in_sequoia
+
+from yt_type_helpers import make_schema
 
 from yt_commands import (
     authors, wait, create, ls, get, set, copy, move, remove, link, exists,
@@ -29,7 +30,6 @@ import pytest
 import requests
 
 from copy import deepcopy
-import decorator
 from io import BytesIO
 import json
 from datetime import timedelta
@@ -54,15 +54,6 @@ class TestCypressRootCreationTime(YTEnvSetup):
         create("map_node", "//a", tx=tx)
         commit_transaction(tx)
         assert creation_time == get("//@creation_time")
-
-
-def not_implemented_in_sequoia(func):
-    def wrapper(func, self, *args, **kwargs):
-        if isinstance(self, TestSequoia):
-            pytest.skip("Not implemented in Sequoia")
-        return func(self, *args, **kwargs)
-
-    return decorator.decorate(func, wrapper)
 
 
 @pytest.mark.enabled_multidaemon
@@ -2715,28 +2706,28 @@ class TestCypress(YTEnvSetup):
     @authors("ignat")
     @not_implemented_in_sequoia
     def test_prerequisite_revisions(self):
-        create("map_node", "//tmp/test_node")
-        revision = get("//tmp/test_node/@revision")
+        set("//tmp/test_node/inner_node", "value", recursive=True)
+        revision = get("//tmp/test_node/inner_node/@revision")
 
         with raises_yt_error("Prerequisite check failed"):
-            create(
-                "map_node",
+            set(
                 "//tmp/test_node/inner_node",
+                "another value",
                 prerequisite_revisions=[
                     {
-                        "path": "//tmp/test_node",
+                        "path": "//tmp/test_node/inner_node",
                         "transaction_id": "0-0-0-0",
                         "revision": revision + 1,
                     }
                 ],
             )
 
-        create(
-            "map_node",
+        set(
             "//tmp/test_node/inner_node",
+            "another value",
             prerequisite_revisions=[
                 {
-                    "path": "//tmp/test_node",
+                    "path": "//tmp/test_node/inner_node",
                     "transaction_id": "0-0-0-0",
                     "revision": revision,
                 }
@@ -2766,9 +2757,9 @@ class TestCypress(YTEnvSetup):
 
         for prerequitise_path in forbidden_paths:
             with raises_yt_error("Requests with prerequisite paths different from target paths are prohibited in Cypress"):
-                create(
-                    "map_node",
+                set(
                     "//tmp/test_node",
+                    "test",
                     prerequisite_revisions=[
                         {
                             "path": prerequitise_path,
@@ -5101,7 +5092,7 @@ class TestAccessControlObjects(YTEnvSetup):
 
 
 @pytest.mark.enabled_multidaemon
-class TestSequoia(TestCypressMulticell):
+class TestCypressSequoia(TestCypressMulticell):
     ENABLE_MULTIDAEMON = True
     NUM_NODES = 5
     USE_SEQUOIA = True

@@ -22,10 +22,10 @@ namespace NRoren::NPrivate {
 ////////////////////////////////////////////////////////////////////////////////
 
 template <typename T>
-concept CDoFn = std::default_initializable<T> && std::derived_from<T, IDoFn<typename T::TInputRow, typename T::TOutputRow>>;
+concept CDoFn = std::derived_from<T, IDoFn<typename T::TInputRow, typename T::TOutputRow>>;
 
 template <typename TFunc, typename TInputRow, typename TOutputRow>
-class TFunctorDoFn final
+class TFunctorDoFn
     : public IDoFn<TInputRow, TOutputRow>
 {
 public:
@@ -72,7 +72,7 @@ public:
 public:
     TRawParDo() = default;
 
-    TRawParDo(TIntrusivePtr<TFunction> func)
+    TRawParDo(NYT::TIntrusivePtr<TFunction> func)
         : Func_(std::move(func))
         , InputTag_(TTypeTag<TInputRow>("par-do-input"))
         , OutputTags_(Func_->GetOutputTags())
@@ -169,7 +169,7 @@ public:
     [[nodiscard]] TDefaultFactoryFunc GetDefaultFactory() const override
     {
         return [] () -> IRawParDoPtr {
-            return MakeIntrusive<TRawParDo>();
+            return NYT::New<TRawParDo>();
         };
     }
 
@@ -186,7 +186,7 @@ private:
     }
 
 private:
-    TIntrusivePtr<TFunction> Func_ = MakeIntrusive<TFunction>();
+    NYT::TIntrusivePtr<TFunction> Func_ = NYT::New<TFunction>();
     std::optional<TMultiOutput> MultiOutput_;
     IRawOutputPtr SingleOutput_;
     TDynamicTypeTag InputTag_;
@@ -197,9 +197,9 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 template <CDoFn TDoFn>
-IRawParDoPtr MakeRawParDo(TIntrusivePtr<TDoFn> doFn)
+IRawParDoPtr MakeRawParDo(NYT::TIntrusivePtr<TDoFn> doFn)
 {
-    return MakeIntrusive<TRawParDo<TDoFn>>(doFn);
+    return NYT::New<TRawParDo<TDoFn>>(doFn);
 }
 
 // For test purposes only.
@@ -208,7 +208,7 @@ IRawParDoPtr MakeRawParDo(void(*doFn)(TInputRow, NRoren::TOutput<TOutputRow>&))
 {
     auto serializableFunctor = WrapToSerializableFunctor(doFn);
     using TDoFn = TFunctorDoFn<std::decay_t<decltype(serializableFunctor)>, TDoFnTemplateArgument<TInputRow>, TOutputRow>;
-    return MakeRawParDo(::MakeIntrusive<TDoFn>(std::move(serializableFunctor)));
+    return MakeRawParDo(NYT::New<TDoFn>(std::move(serializableFunctor)));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

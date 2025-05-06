@@ -16,8 +16,7 @@ class TExplicitJobSizeConstraints
 {
 public:
     //! Used only for persistence.
-    TExplicitJobSizeConstraints()
-    { }
+    TExplicitJobSizeConstraints() = default;
 
     TExplicitJobSizeConstraints(
         bool canAdjustDataWeightPerJob,
@@ -227,7 +226,6 @@ void TExplicitJobSizeConstraints::RegisterMetadata(auto&& registrar)
             this_->ForceAllowJobInterruption_ = false;
         }));
 
-    // COMPAT(apollo1321)
     PHOENIX_REGISTER_FIELD(19, MaxCompressedDataSizePerJob_,
         .SinceVersion(ESnapshotVersion::MaxCompressedDataSizePerJob)
         .WhenMissing([] (TThis* this_, auto& /*context*/) {

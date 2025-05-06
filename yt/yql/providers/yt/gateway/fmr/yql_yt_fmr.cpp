@@ -31,7 +31,14 @@ enum class ETablePresenceStatus {
 
 namespace {
 
-struct TFmrOperationResult: public NCommon::TOperationResult {};
+TIssue ToIssue(const TFmrError& error, const TPosition& pos){
+    return TIssue(pos, error.ErrorMessage);
+};
+
+struct TFmrOperationResult: public NCommon::TOperationResult {
+    std::vector<TFmrError> Errors = {};
+    std::vector<TTableStats> TablesStats = {};
+};
 
 class TFmrYtGateway final: public TYtForwardingGatewayBase {
 public:
@@ -45,29 +52,30 @@ public:
         auto getOperationStatusesFunc = [&] {
             while (!StopFmrGateway_) {
                 with_lock(SessionStates_->Mutex) {
-                    auto checkOperationStatuses = [&] (std::unordered_map<TString, TPromise<TFmrOperationResult>>& operationStatuses, const TString& sessionId) {
+                    auto checkOperationStatuses = [&] (std::unordered_map<TFmrTableId, TPromise<TFmrOperationResult>>& operationStatuses, const TString& sessionId) {
                         for (auto& [operationId, promise]: operationStatuses) {
                             YQL_CLOG(TRACE, FastMapReduce) << "Sending get operation request to coordinator with operationId: " << operationId;
 
-                            auto getOperationFuture = Coordinator_->GetOperation({operationId});
+                            auto getOperationFuture = Coordinator_->GetOperation({operationId.Id});
                             getOperationFuture.Subscribe([&, operationId, sessionId] (const auto& getFuture) {
                                 auto getOperationResult = getFuture.GetValueSync();
                                 auto getOperationStatus = getOperationResult.Status;
                                 auto operationErrorMessages = getOperationResult.ErrorMessages;
+                                auto operationOutputTablesStats = getOperationResult.OutputTablesStats;
                                 with_lock(SessionStates_->Mutex) {
                                     bool operationCompleted = getOperationStatus != EOperationStatus::Accepted && getOperationStatus != EOperationStatus::InProgress;
                                     if (operationCompleted) {
                                         // operation finished, set value in future returned in DoMerge / DoUpload
                                         bool hasCompletedSuccessfully = getOperationStatus == EOperationStatus::Completed;
+                                        TFmrOperationResult fmrOperationResult{};
+                                        fmrOperationResult.Errors = operationErrorMessages;
                                         if (hasCompletedSuccessfully) {
-                                            TFmrOperationResult fmrOperationResult{};
+                                            fmrOperationResult.TablesStats = operationOutputTablesStats;
                                             fmrOperationResult.SetSuccess();
-                                            promise.SetValue(fmrOperationResult);
-                                        } else {
-                                            promise.SetException(JoinRange(' ', operationErrorMessages.begin(), operationErrorMessages.end()));
                                         }
-                                        YQL_CLOG(DEBUG, FastMapReduce) << "Sending delete operation request to coordinator with operationId: " << operationId;
-                                        auto deleteOperationFuture = Coordinator_->DeleteOperation({operationId});
+                                        promise.SetValue(fmrOperationResult);
+                                        YQL_CLOG(INFO, FastMapReduce) << "Sending delete operation request to coordinator with operationId: " << operationId;
+                                        auto deleteOperationFuture = Coordinator_->DeleteOperation({operationId.Id});
                                         deleteOperationFuture.Subscribe([&, sessionId, operationId] (const auto& deleteFuture) {
                                             auto deleteOperationResult = deleteFuture.GetValueSync();
                                             auto deleteOperationStatus = deleteOperationResult.Status;
@@ -107,30 +115,51 @@ public:
         TYtOpBase opBase(node);
         TString sessionId = options.SessionId();
 
+        TFuture<TFmrOperationResult> future;
+        std::vector<std::pair<TYtTableRef, bool>> inputTables = GetInputTables(opBase);
+        std::vector<TYtTableRef> outputTables = GetOutputTables(opBase);
+
         if (auto op = opBase.Maybe<TYtMerge>()) {
-            auto ytMerge = op.Cast();
-            auto inputTables = GetMergeInputTables(ytMerge);
-            TYtTableRef outputTable = GetMergeOutputTable(ytMerge);
-            auto future = DoMerge(inputTables, outputTable, std::move(options));
-            return future.Apply([this, pos = nodePos, outputTable = std::move(outputTable), options = std::move(options)] (const TFuture<TFmrOperationResult>& f) {
-                try {
-                    f.GetValue(); // rethrow error if any
-                    TString sessionId = options.SessionId();
-                    auto config = options.Config();
-                    TString fmrOutputTableId = outputTable.Cluster + "." + outputTable.Path;
-                    SetTablePresenceStatus(fmrOutputTableId, sessionId, ETablePresenceStatus::OnlyInFmr);
-                    TRunResult result;
-                    result.OutTableStats.emplace_back(outputTable.Path, MakeIntrusive<TYtTableStatInfo>()); // TODO - add statistics?
-                    result.OutTableStats.back().second->Id = "fmr_" + fmrOutputTableId;
-                    result.SetSuccess();
-                    return MakeFuture<TRunResult>(std::move(result));
-                } catch (...) {
-                    return MakeFuture(ResultFromCurrentException<TRunResult>(pos));
-                }
-            });
+            future = DoMerge(inputTables, outputTables, std::move(options));
+        // Тут у нас пока падает один тест который вызывает фильтрацию, которая использует map,
+        // поэтому пока не сделаем функционал фильтрации через map не будем его вообще вызывать отсюда
+        /*} else if (auto op = opBase.Maybe<TYtMap>()) {
+            future = DoMap(inputTables, outputTables, std::move(options));*/
         } else {
             return Slave_->Run(node, ctx, std::move(options));
         }
+        return future.Apply([this, pos = nodePos, outputTables = std::move(outputTables), options = std::move(options)] (const TFuture<TFmrOperationResult>& f) {
+            try {
+                auto fmrOperationResult = f.GetValue(); // rethrow error if any
+                TString sessionId = options.SessionId();
+                auto config = options.Config();
+                TRunResult result;
+                for (size_t i = 0; i < outputTables.size(); ++i) {
+                    auto outputTable = outputTables[i];
+                    TFmrTableId fmrOutputTableId = {outputTable.Cluster, outputTable.Path};
+                    SetTablePresenceStatus(fmrOutputTableId, sessionId, ETablePresenceStatus::OnlyInFmr);
+                    auto tableStats = fmrOperationResult.TablesStats[i];
+                    result.OutTableStats.emplace_back(outputTable.Path, MakeIntrusive<TYtTableStatInfo>());
+                    result.OutTableStats.back().second->Id = "fmr_" + fmrOutputTableId.Id;
+                    result.OutTableStats.back().second->RecordsCount = tableStats.Rows;
+                    result.OutTableStats.back().second->DataSize = tableStats.DataWeight;
+                    result.OutTableStats.back().second->ChunkCount = tableStats.Chunks;
+                    YQL_CLOG(INFO, FastMapReduce) << "Fmr output table info: RecordsCount = " << result.OutTableStats.back().second->RecordsCount << " DataSize = " << result.OutTableStats.back().second->DataSize << " ChunkCount = " << result.OutTableStats.back().second->ChunkCount;
+                }
+                auto operationErrors = fmrOperationResult.Errors;
+                TVector<TIssue> issues;
+                for (const auto& error : operationErrors) {
+                    issues.emplace_back(ToIssue(error, pos));
+                }
+                result.AddIssues(issues);
+                if (fmrOperationResult.Success()) {
+                    result.SetSuccess();
+                }
+                return MakeFuture<TRunResult>(std::move(result));
+            } catch (...) {
+                return MakeFuture(ResultFromCurrentException<TRunResult>(pos));
+            }
+        });
     }
 
     TFuture<TPublishResult> Publish(const TExprNode::TPtr& node, TExprContext& ctx, TPublishOptions&& options) final {
@@ -147,14 +176,14 @@ public:
         auto outputPath = publish.Publish().Name().StringValue();
 
         bool isAnonymous = NYql::HasSetting(publish.Publish().Settings().Ref(), EYtSettingType::Anonymous);
-        std::vector<TString> currentAnonymousTableAliases;
+        std::vector<TFmrTableId> currentAnonymousTableAliases;
 
         for (auto out: publish.Input()) {
-            auto inputCluster = GetOutTableWithCluster(out).second;
+            TString inputCluster = GetOutTableWithCluster(out).second;
             auto outTable = GetOutTable(out).Cast<TYtOutTable>();
-            TStringBuf inputPath = outTable.Name().Value();
+            TString inputPath = ToString(outTable.Name().Value());
             if (isAnonymous) {
-                currentAnonymousTableAliases.emplace_back(inputCluster + "." + inputPath);
+                currentAnonymousTableAliases.emplace_back(TFmrTableId(inputCluster, inputPath));
             }
             auto outputBase = out.Operation().Cast<TYtOutputOpBase>().Ptr();
             uploadFmrTablesToYtFutures.emplace_back(DoUpload(inputCluster, TString(inputPath), sessionId, config, outputBase, ctx));
@@ -162,7 +191,7 @@ public:
 
         if (isAnonymous) {
             YQL_CLOG(DEBUG, FastMapReduce) << "Table " << outputPath << " is anonymous, not uploading from fmr to yt";
-            TString fmrOutputTableId = cluster + "." + outputPath;
+            TFmrTableId fmrOutputTableId = {cluster, outputPath};
             SetTablePresenceStatus(fmrOutputTableId, sessionId, ETablePresenceStatus::OnlyInFmr);
 
             // TODO - figure out what to do here in case of multiple inputs
@@ -218,11 +247,11 @@ public:
             YQL_ENSURE(sessions.contains(sessionId));
             auto& operationStates = sessions[sessionId].OperationStates;
 
-            auto cancelOperationsFunc = [&] (std::unordered_map<TString, TPromise<TFmrOperationResult>>& operationStatuses) {
+            auto cancelOperationsFunc = [&] (std::unordered_map<TFmrTableId, TPromise<TFmrOperationResult>>& operationStatuses) {
                 std::vector<TFuture<TDeleteOperationResponse>> cancelOperationsFutures;
 
                 for (auto& [operationId, promise]: operationStatuses) {
-                    cancelOperationsFutures.emplace_back(Coordinator_->DeleteOperation({operationId}));
+                    cancelOperationsFutures.emplace_back(Coordinator_->DeleteOperation({operationId.Id}));
                 }
                 NThreading::WaitAll(cancelOperationsFutures).GetValueSync();
             };
@@ -243,7 +272,7 @@ private:
         return richPath.Path_;
     }
 
-    void SetTablePresenceStatus(const TString& fmrTableId, const TString& sessionId, ETablePresenceStatus newStatus) {
+    void SetTablePresenceStatus(const TFmrTableId& fmrTableId, const TString& sessionId, ETablePresenceStatus newStatus) {
         with_lock(SessionStates_->Mutex) {
             YQL_CLOG(DEBUG, FastMapReduce) << "Setting table presence status " << newStatus << " for table with id " << fmrTableId;
             auto& tablePresenceStatuses = SessionStates_->Sessions[sessionId].TablePresenceStatuses;
@@ -251,7 +280,7 @@ private:
         }
     }
 
-    void SetFmrIdAlias(const TString& fmrTableId, const TString& alias, const TString& sessionId) {
+    void SetFmrIdAlias(const TFmrTableId& fmrTableId, const TFmrTableId& alias, const TString& sessionId) {
         with_lock(SessionStates_->Mutex) {
             YQL_CLOG(DEBUG, FastMapReduce) << "Setting table fmr id alias " << alias << " for table with id " << fmrTableId;
             auto& fmrIdAliases = SessionStates_->Sessions[sessionId].FmrIdAliases;
@@ -259,7 +288,7 @@ private:
         }
     }
 
-    TString GetFmrIdOrAlias(const TString& fmrTableId, const TString& sessionId) {
+    TFmrTableId GetFmrIdOrAlias(const TFmrTableId& fmrTableId, const TString& sessionId) {
         with_lock(SessionStates_->Mutex) {
             auto& fmrIdAliases = SessionStates_->Sessions[sessionId].FmrIdAliases;
             if (!fmrIdAliases.contains(fmrTableId)) {
@@ -269,7 +298,7 @@ private:
         }
     }
 
-    TMaybe<ETablePresenceStatus> GetTablePresenceStatus(const TString& fmrTableId, const TString& sessionId) {
+    TMaybe<ETablePresenceStatus> GetTablePresenceStatus(const TFmrTableId& fmrTableId, const TString& sessionId) {
         with_lock(SessionStates_->Mutex) {
             auto& tablePresenceStatuses = SessionStates_->Sessions[sessionId].TablePresenceStatuses;
             if (!tablePresenceStatuses.contains(fmrTableId)) {
@@ -279,8 +308,8 @@ private:
         }
     }
 
-    std::vector<std::pair<TYtTableRef, bool>> GetMergeInputTables(const TYtMerge& ytMerge) {
-        auto input = ytMerge.Maybe<TYtTransientOpBase>().Cast().Input();
+    std::vector<std::pair<TYtTableRef, bool>> GetInputTables(const TYtOpBase& op) {
+        auto input = op.Maybe<TYtTransientOpBase>().Cast().Input();
         std::vector<std::pair<TYtTableRef, bool>> inputTables;
         for (auto section: input.Cast<TYtSectionList>()) {
             for (auto path: section.Paths()) {
@@ -292,8 +321,8 @@ private:
         return inputTables;
     }
 
-    TYtTableRef GetMergeOutputTable(const TYtMerge& ytMerge) {
-        auto output = ytMerge.Maybe<TYtOutputOpBase>().Cast().Output();
+    std::vector<TYtTableRef> GetOutputTables(const TYtOpBase& op) {
+        auto output = op.Maybe<TYtOutputOpBase>().Cast().Output();
         std::vector<TYtTableRef> outputTables;
         for (auto table: output) {
             TYtOutTableInfo tableInfo(table);
@@ -303,8 +332,7 @@ private:
             }
             outputTables.emplace_back(outTableName, tableInfo.Cluster);
         }
-        YQL_ENSURE(outputTables.size() == 1);
-        return outputTables[0];
+        return outputTables;
     }
 
     TClusterConnection GetTableClusterConnection(const TString& cluster, const TString& sessionId, TYtSettings::TConstPtr& config) {
@@ -320,6 +348,7 @@ private:
     TFuture<TFmrOperationResult> GetRunningOperationFuture(const TStartOperationRequest& startOperationRequest, const TString& sessionId) {
         auto promise = NewPromise<TFmrOperationResult>();
         auto future = promise.GetFuture();
+        YQL_CLOG(INFO, FastMapReduce) << "Starting " << startOperationRequest.TaskType << " operation";
         auto startOperationResponseFuture = Coordinator_->StartOperation(startOperationRequest);
         startOperationResponseFuture.Subscribe([this, promise = std::move(promise), sessionId] (const auto& mergeFuture) {
             TStartOperationResponse mergeOperationResponse = mergeFuture.GetValueSync();
@@ -334,13 +363,37 @@ private:
         return future;
     }
 
+    std::pair<std::vector<TOperationTableRef>, std::unordered_map<TFmrTableId, TClusterConnection>> GetInputTablesAndConnections(const std::vector<std::pair<TYtTableRef, bool>>& inputTables, TRunOptions&& options) {
+        TString sessionId = options.SessionId();
+        std::vector<TOperationTableRef> operationInputTables;
+        std::unordered_map<TFmrTableId, TClusterConnection> clusterConnections;
+        for (auto [ytTable, isTemp]: inputTables) {
+            TString inputCluster = ytTable.Cluster, inputPath = ytTable.Path;
+            TFmrTableId fmrTableId = {inputCluster, inputPath};
+            auto tablePresenceStatus = GetTablePresenceStatus(fmrTableId, sessionId);
+            if (!tablePresenceStatus) {
+                SetTablePresenceStatus(fmrTableId, sessionId, ETablePresenceStatus::OnlyInYt);
+            }
+
+            if (tablePresenceStatus && *tablePresenceStatus != ETablePresenceStatus::OnlyInYt) {
+                // table is in fmr, do not download
+                operationInputTables.emplace_back(TFmrTableRef(GetFmrIdOrAlias(fmrTableId, sessionId)));
+            } else {
+                ytTable.FilePath = GetTableFilePath(TGetTableFilePathOptions(sessionId).Cluster(inputCluster).Path(inputPath).IsTemp(isTemp));
+                operationInputTables.emplace_back(ytTable);
+                clusterConnections.emplace(fmrTableId, GetTableClusterConnection(ytTable.Cluster, sessionId, options.Config()));
+            }
+        }
+        return {operationInputTables, clusterConnections};
+    }
+
     TFuture<TFmrOperationResult> DoUpload(const TString& outputCluster, const TString& outputPath, const TString& sessionId, TYtSettings::TConstPtr& config, TExprNode::TPtr outputOpBase, TExprContext& ctx) {
         YQL_LOG_CTX_ROOT_SESSION_SCOPE(sessionId);
-        TFmrTableRef fmrTableRef{outputCluster + "." + outputPath};
-        auto tablePresenceStatus = GetTablePresenceStatus(fmrTableRef.TableId, sessionId);
+        TFmrTableRef fmrTableRef{TFmrTableId(outputCluster, outputPath)};
+        auto tablePresenceStatus = GetTablePresenceStatus(fmrTableRef.FmrTableId, sessionId);
 
         if (!tablePresenceStatus || *tablePresenceStatus != ETablePresenceStatus::OnlyInFmr) {
-            YQL_CLOG(DEBUG, FastMapReduce) << " We assume table " << fmrTableRef.TableId << " should be present in yt, not uploading from fmr";
+            YQL_CLOG(INFO, FastMapReduce) << " We assume table " << fmrTableRef.FmrTableId << " should be present in yt, not uploading from fmr";
             return GetSuccessfulFmrOperationResult();
         }
 
@@ -357,7 +410,7 @@ private:
             .SessionId = sessionId,
             .IdempotencyKey = GenerateId(),
             .NumRetries=1,
-            .ClusterConnections = std::unordered_map<TString, TClusterConnection>{{fmrTableRef.TableId, clusterConnection}},
+            .ClusterConnections = std::unordered_map<TFmrTableId, TClusterConnection>{{fmrTableRef.FmrTableId, clusterConnection}},
             .FmrOperationSpec = config->FmrOperationSpec.Get(outputCluster)
         };
 
@@ -365,11 +418,11 @@ private:
                 .Config(config);
         auto prepareFuture = Slave_->Prepare(outputOpBase, ctx, std::move(prepareOptions));
 
-        return prepareFuture.Apply([this, uploadRequest = std::move(uploadRequest), sessionId = std::move(sessionId), fmrTableId = std::move(fmrTableRef.TableId)] (const TFuture<TRunResult>& f) mutable {
+        return prepareFuture.Apply([this, uploadRequest = std::move(uploadRequest), sessionId = std::move(sessionId), fmrTableId = std::move(fmrTableRef.FmrTableId)] (const TFuture<TRunResult>& f) mutable {
             try {
                 f.GetValue();
                 YQL_LOG_CTX_ROOT_SESSION_SCOPE(sessionId);
-                YQL_CLOG(DEBUG, FastMapReduce) << "Starting upload from fmr to yt for table: " << fmrTableId;
+                YQL_CLOG(INFO, FastMapReduce) << "Starting upload from fmr to yt for table: " << fmrTableId;
                 return GetRunningOperationFuture(uploadRequest, sessionId).Apply([this, sessionId = std::move(sessionId), fmrTableId = std::move(fmrTableId)] (const TFuture<TFmrOperationResult>& f) {
                     try {
                         YQL_LOG_CTX_ROOT_SESSION_SCOPE(sessionId);
@@ -388,7 +441,8 @@ private:
         });
     }
 
-    TFuture<TFmrOperationResult> DoMerge(const std::vector<std::pair<TYtTableRef, bool>>& inputTables, TYtTableRef& outputTable, TRunOptions&& options) {
+    TFuture<TFmrOperationResult> DoMerge(const std::vector<std::pair<TYtTableRef, bool>>& inputTables, std::vector<TYtTableRef>& outputTables, TRunOptions&& options) {
+        auto& outputTable = outputTables.back();
         TString sessionId = options.SessionId();
         YQL_LOG_CTX_ROOT_SESSION_SCOPE(sessionId);
         YQL_LOG_CTX_SCOPE(TStringBuf("Gateway"), __FUNCTION__);
@@ -397,27 +451,9 @@ private:
         }
 
         TString outputCluster = outputTable.Cluster, outputPath = outputTable.Path;
-        TFmrTableRef fmrOutputTable{.TableId = outputCluster + "." + outputPath};
+        TFmrTableRef fmrOutputTable{TFmrTableId(outputCluster, outputPath)};
 
-        std::vector<TOperationTableRef> mergeInputTables;
-        std::unordered_map<TString, TClusterConnection> clusterConnections;
-        for (auto [ytTable, isTemp]: inputTables) {
-            TString inputCluster = ytTable.Cluster, inputPath = ytTable.Path;
-            TString fmrTableId = inputCluster + "." + inputPath;
-            auto tablePresenceStatus = GetTablePresenceStatus(fmrTableId, sessionId);
-            if (!tablePresenceStatus) {
-                SetTablePresenceStatus(fmrTableId, sessionId, ETablePresenceStatus::OnlyInYt);
-            }
-
-            if (tablePresenceStatus && *tablePresenceStatus != ETablePresenceStatus::OnlyInYt) {
-                // table is in fmr, do not download
-                mergeInputTables.emplace_back(TFmrTableRef{.TableId = GetFmrIdOrAlias(fmrTableId, sessionId)});
-            } else {
-                ytTable.FilePath = GetTableFilePath(TGetTableFilePathOptions(sessionId).Cluster(inputCluster).Path(inputPath).IsTemp(isTemp));
-                mergeInputTables.emplace_back(ytTable);
-                clusterConnections.emplace(fmrTableId, GetTableClusterConnection(ytTable.Cluster, sessionId, options.Config()));
-            }
-        }
+        auto [mergeInputTables, clusterConnections] = GetInputTablesAndConnections(inputTables, std::move(options));
 
         TMergeOperationParams mergeOperationParams{.Input = mergeInputTables,.Output = fmrOutputTable};
         TStartOperationRequest mergeOperationRequest{
@@ -435,8 +471,55 @@ private:
             return table.first.Path;}
         );
 
-        YQL_CLOG(DEBUG, FastMapReduce) << "Starting merge from yt tables: " << JoinRange(' ', inputPaths.begin(), inputPaths.end());
+        YQL_CLOG(INFO, FastMapReduce) << "Starting merge from yt tables: " << JoinRange(' ', inputPaths.begin(), inputPaths.end());
         return GetRunningOperationFuture(mergeOperationRequest, sessionId);
+    }
+
+    TFuture<TFmrOperationResult> DoMap(const std::vector<std::pair<TYtTableRef, bool>>& inputTables, std::vector<TYtTableRef>& outputTables, TRunOptions&& options) {
+        TString sessionId = options.SessionId();
+        YQL_LOG_CTX_ROOT_SESSION_SCOPE(sessionId);
+        YQL_LOG_CTX_SCOPE(TStringBuf("Gateway"), __FUNCTION__);
+
+        std::vector<TFmrTableRef> fmrOutputTables;
+
+        for (auto& outputTable : outputTables) {
+            if (outputTable.Cluster.empty()) {
+                outputTable.Cluster = inputTables[0].first.Cluster;
+            }
+            TString outputCluster = outputTable.Cluster, outputPath = outputTable.Path;
+            TFmrTableRef fmrOutputTable{TFmrTableId(outputCluster, outputPath)};
+            fmrOutputTables.emplace_back(fmrOutputTable);
+        }
+        TString defaultOutputCluster =  outputTables[0].Cluster;
+        if (defaultOutputCluster.empty()) {
+            defaultOutputCluster = inputTables[0].first.Cluster;
+        }
+
+        auto [mapInputTables, clusterConnections] = GetInputTablesAndConnections(inputTables, std::move(options));
+
+        TString executable = ""; //??? TODO how to extract executable bytecode from options
+        TMapOperationParams mapOperationParams{.Input = mapInputTables,.Output = fmrOutputTables, .Executable = executable};
+        TStartOperationRequest mapOperationRequest{
+            .TaskType = ETaskType::Map,
+            .OperationParams = mapOperationParams,
+            .SessionId = sessionId,
+            .IdempotencyKey = GenerateId(),
+            .NumRetries = 1,
+            .ClusterConnections = clusterConnections,
+            .FmrOperationSpec = options.Config()->FmrOperationSpec.Get(defaultOutputCluster)
+        };
+
+        std::vector<TString> inputPaths;
+        std::transform(inputTables.begin(),inputTables.end(), std::back_inserter(inputPaths), [](const std::pair<TYtTableRef, bool>& table){
+            return table.first.Path;}
+        );
+        std::vector<TString> outputPaths;
+        std::transform(outputTables.begin(),outputTables.end(), std::back_inserter(outputPaths), [](const TYtTableRef& table){
+            return table.Path;}
+        );
+
+        YQL_CLOG(INFO, FastMapReduce) << "Starting map from yt tables: " << JoinRange(' ', inputPaths.begin(), inputPaths.end()) << " to yt tables: " << JoinRange(' ', outputPaths.begin(), outputPaths.end());
+        return GetRunningOperationFuture(mapOperationRequest, sessionId);
     }
 
     TFuture<TFmrOperationResult> GetSuccessfulFmrOperationResult() {
@@ -447,14 +530,14 @@ private:
 
 private:
     struct TFmrGatewayOperationsState {
-        std::unordered_map<TString, TPromise<TFmrOperationResult>> OperationStatuses = {}; // operationId -> promise which we set when operation completes
+        std::unordered_map<TFmrTableId, TPromise<TFmrOperationResult>> OperationStatuses = {}; // operationId -> promise which we set when operation completes
     };
 
     struct TSessionInfo {
         TFmrGatewayOperationsState OperationStates;
-        std::unordered_map<TString, ETablePresenceStatus> TablePresenceStatuses; // yt cluster and path -> is it In Yt, Fmr TableDataService
+        std::unordered_map<TFmrTableId, ETablePresenceStatus> TablePresenceStatuses; // yt cluster and path -> is it In Yt, Fmr TableDataService
         TString UserName;
-        std::unordered_map<TString, TString> FmrIdAliases;
+        std::unordered_map<TFmrTableId, TFmrTableId> FmrIdAliases;
     };
 
     struct TSession {

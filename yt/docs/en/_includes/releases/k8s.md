@@ -8,6 +8,47 @@ Is released as helm charts on [Github Packages](https://github.com/ytsaurus/ytsa
 
 **Releases:**
 
+{% cut "**0.23.1**" %}
+
+**Release date:** 2025-04-04
+
+
+## Minor
+* Revert "Disable stockpile by default" in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/477
+
+The change introduced in 0.23.0 was reverted due to the fact it ends up in updating all components of all existing clusters on the operator update, but change is not important. We'll consider making it opt-in in the next releases.
+
+
+{% endcut %}
+
+
+{% cut "**0.23.0**" %}
+
+**Release date:** 2025-04-02
+
+
+## Minor
+* Fix bug in blocked components column by @l0kix2 in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/464
+* Deleted the `stderr` logger for JobProxy. by @imakunin in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/465
+* Set init quota for user-defined mediums by @futujaos in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/466
+* Disable stockpile by default by @imakunin in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/467
+* tablet node tag filter for bundles in bootstrap by @futujaos in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/468
+* Create ROADMAP.md by @AMRivkin in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/473
+* Configure yqla mrjob syslibs V2 by @Krisha11 in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/475
+
+## Release notes
+* `configureMrJobSystemLibs` field was removed https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/475 and now system libs for YQL agent are being added unconditionally.
+* stockpile/thread_count is set to zero in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/467 to remove non-relevant warnings in logs, as a downside it will trigger all components update.
+
+## New Contributors
+* @futujaos made their first contribution in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/466
+* @AMRivkin made their first contribution in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/473
+
+**Full Changelog**: https://github.com/ytsaurus/ytsaurus-k8s-operator/compare/release/0.22.0...release/0.23.0
+
+{% endcut %}
+
+
 {% cut "**0.22.0**" %}
 
 **Release date:** 2025-03-07

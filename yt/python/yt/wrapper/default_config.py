@@ -346,8 +346,8 @@ default_config = {
         #  * close - stdout will be closed for user writes. Warning: may lead to errors that are hard to debug;
         #  * none - disable protection.
         "stdout_fd_protection": "redirect_to_stderr",
-        # Any stdout output will be redirected to stderr (by cluster, not client).
-        "redirect_stdout_to_stderr": False,
+        # Any stdout output will be redirected to stderr (by cluster, not client). "use_yamr_descriptors" has priority over "redirect_stdout_to_stderr"
+        "redirect_stdout_to_stderr": True,
         # Enables using tmpfs for modules archive.
         "enable_tmpfs_archive": True,
         # Add tmpfs archive size to memory limit.
@@ -381,8 +381,8 @@ default_config = {
             r"/lib/python[\d\.]+/(site|dist)-packages/",
             r"/lib/python[\d\.]+/.+\.(py|pyc|so)$",
         ],
-        # Encrypt files with pickle data
-        "encrypt_pickle_files": RemotePatchableBoolean(ENCRYPT_PICKLE_FILES, "python_encrypt_pickle_files"),
+        # Encrypt files with pickle data (None - disabled, 1 - enabled, 2 - enabled with key in "secure vault")
+        "encrypt_pickle_files": RemotePatchableInteger(ENCRYPT_PICKLE_FILES, "python_encrypt_pickle_files"),
     },
 
     # Enables special behavior if client works with local mode cluster.
@@ -744,6 +744,10 @@ default_config = {
         # When dumping a table, the size of the result row groups will exceed the set value.
         "min_batch_row_count": 0,
     },
+
+    # if enabled, the password strength will be verified by the client when performing
+    # a set_user_password request
+    "enable_password_strength_validation": RemotePatchableBoolean(False, "python_enable_password_strength_validation"),
 }
 
 # pydoc :: default_config :: end

@@ -1,10 +1,10 @@
 from yt_env_setup import YTEnvSetup
 import yt.yson as yson
 import yt.packages.requests as requests
-from yt_commands import authors, ls, exists, set, get, create, create_tablet_cell_bundle, create_area, execute_command
+from yt_commands import authors, ls, exists, set, get, create, create_tablet_cell_bundle, create_area, execute_command, remove
 
 import time
-from typing import Tuple
+from typing import Tuple, override
 
 ##################################################################
 
@@ -29,6 +29,16 @@ class TestBundleController(YTEnvSetup):
             "leader_cache_update_period": "100ms",
         },
     }
+
+    @override
+    def teardown_method(self, method, wait_for_nodes=True):
+        set("//sys/@disable_bundle_controller", True)
+        super().teardown_method(method, wait_for_nodes)
+
+    @override
+    def setup_method(self, method):
+        super().setup_method(method)
+        set("//sys/@disable_bundle_controller", False)
 
     def _get_proxy_address(self):
         return "http://" + self.Env.get_proxy_address()
@@ -348,6 +358,9 @@ class TestBundleController(YTEnvSetup):
         return successful, failed
 
     def _move_nodes_to_spare_bundle(self):
+        self._move_nodes_to_bundle("spare")
+
+    def _move_nodes_to_bundle(self, bundle):
         def get_node_config(bundle):
             return {
                 "allocated": True,
@@ -360,7 +373,16 @@ class TestBundleController(YTEnvSetup):
 
         nodes = ls("//sys/cluster_nodes")
         for node in nodes:
-            set(f"//sys/cluster_nodes/{node}/@bundle_controller_annotations", get_node_config("spare"))
+            set(f"//sys/cluster_nodes/{node}/@bundle_controller_annotations", get_node_config(bundle))
+
+    def _filter_spare_nodes(self, path):
+        result = []
+        cluster_nodes = ls(path)
+        for node in cluster_nodes:
+            allocated_for = get(f"//sys/cluster_nodes/{node}/@bundle_controller_annotations/allocated_for_bundle")
+            if allocated_for == "spare":
+                result.append(node)
+        return result
 
     @authors("grachevkirill")
     def test_bundle_controller_just_works(self):
@@ -705,3 +727,39 @@ class TestBundleController(YTEnvSetup):
         set(f"//sys/tablet_cell_bundles/{BUNDLE}/@options/snapshot_primary_medium", "invalid")
         set(f"//sys/tablet_cell_bundles/{BUNDLE}/@options/changelog_pirmary_medium", "invalid")
         self._wait_for_bundle_controller_iterations((3, 1))
+
+    @authors("grachevkirill")
+    def test_cms_requests_are_processed(self):
+        self._initialize_zone_default()
+        self._move_nodes_to_spare_bundle()
+        for bundle in ["chaplin", "pinoccio"]:
+            self._create_bundle(
+                bundle,
+                enable_instance_allocation=True,
+                bundle_controller_target_config={
+                    "tablet_node_count": 1,
+                    "cpu_limits": {
+                        "write_thread_pool_size": 3,
+                    },
+                },
+            )
+        self._wait_for_bundle_controller_iterations((10, 0), fail_on_error=True)
+
+        nodes = ls("//sys/tablet_nodes")
+        for index, node in enumerate(nodes):
+            set(f"//sys/cluster_nodes/{node}/@cms_maintenance_requests", {"req": {}}, recursive=True)
+        self._wait_for_bundle_controller_iterations((5, 0), fail_on_error=True)
+
+        for _ in range(self.NUM_NODES):
+            self._wait_for_bundle_controller_iterations(fail_on_error=True)
+            while True:
+                self._wait_for_bundle_controller_iterations(fail_on_error=True)
+                spare_nodes = self._filter_spare_nodes("//sys/tablet_nodes")
+                assert len(spare_nodes) <= 1
+                if len(spare_nodes) == 0:
+                    continue
+                node = spare_nodes[0]
+                if not exists(f"//sys/cluster_nodes/{node}/@cms_maintenance_requests/req"):
+                    continue
+                break
+            remove(f"//sys/cluster_nodes/{node}/@cms_maintenance_requests/req")

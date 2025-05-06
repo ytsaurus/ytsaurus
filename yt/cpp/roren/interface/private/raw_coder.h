@@ -6,12 +6,11 @@
 #include "../key_value.h"
 #include "../noncodable.h"
 
-#include <util/generic/ptr.h>
+#include <library/cpp/yt/memory/new.h>
+
 #include <util/stream/mem.h>
 #include <util/stream/zerocopy_output.h>
 #include <util/system/type_name.h>
-
-#include <library/cpp/yt/assert/assert.h>
 
 #include <utility>
 
@@ -39,6 +38,8 @@ public:
     virtual void DecodeRow(TStringBuf input, void* row) = 0;
     [[nodiscard]] virtual std::pair<IRawCoderPtr, IRawCoderPtr> UnpackKV() const = 0;
 };
+
+DEFINE_REFCOUNTED_TYPE(IRawCoder);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -74,7 +75,7 @@ private:
     [[nodiscard]] TDefaultFactoryFunc GetDefaultFactory() const override
     {
         return [] () -> IRawCoderPtr {
-            return ::MakeIntrusive<TDefaultRawCoder<T>>();
+            return NYT::New<TDefaultRawCoder<T>>();
         };
     }
 
@@ -92,7 +93,7 @@ template <typename T>
 IRawCoderPtr MakeDefaultRawCoder()
 {
     if constexpr (CImplicitlyCodable<T>) {
-        return ::MakeIntrusive<TDefaultRawCoder<T>>();
+        return NYT::New<TDefaultRawCoder<T>>();
     } else if constexpr (IsRowCoderRequired<T>) {
         static_assert(TDependentFalse<T>, "You must provide TCoder implementation (via saveload or Roren*code)");
     } else {

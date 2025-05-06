@@ -6,6 +6,7 @@
 #include <yt/yql/providers/yt/lib/yt_download/yt_download.h>
 #include <yt/yql/providers/yt/lib/yt_url_lister/yt_url_lister.h>
 #include <yt/yql/providers/yt/lib/log/yt_logger.h>
+#include <yt/yql/providers/yt/lib/secret_masker/dummy/dummy_secret_masker.h>
 #include <yt/yql/providers/yt/gateway/native/yql_yt_native.h>
 #include <yt/yql/providers/yt/gateway/fmr/yql_yt_fmr.h>
 #include <yt/yql/providers/yt/fmr/fmr_tool_lib/yql_yt_fmr_initializer.h>
@@ -119,6 +120,11 @@ TYtRunTool::TYtRunTool(TString name)
             .Optional()
             .NoArgument()
             .SetFlag(&DisableLocalFmrWorker_);
+
+        opts.AddLongOption( "fmr-operation-spec-path", "Path to file with fmr operation spec settings")
+            .Optional()
+            .StoreResult(&FmrOperationSpecFilePath_);
+
     });
 
     GetRunOptions().AddOptHandler([this](const NLastGetopt::TOptsParseResult& res) {
@@ -181,12 +187,13 @@ IYtGateway::TPtr TYtRunTool::CreateYtGateway() {
     services.FunctionRegistry = GetFuncRegistry().Get();
     services.FileStorage = GetFileStorage();
     services.Config = std::make_shared<TYtGatewayConfig>(GetRunOptions().GatewaysConfig->GetYt());
+    services.SecretMasker = CreateSecretMasker();
     auto ytGateway = CreateYtNativeGateway(services);
     if (!GetRunOptions().GatewayTypes.contains(NFmr::FastMapReduceGatewayName)) {
         return ytGateway;
     }
 
-    auto [fmrGateway, worker] = NFmr::InitializeFmrGateway(ytGateway, DisableLocalFmrWorker_, FmrCoordinatorServerUrl_);
+    auto [fmrGateway, worker] = NFmr::InitializeFmrGateway(ytGateway, DisableLocalFmrWorker_, FmrCoordinatorServerUrl_, false, FmrOperationSpecFilePath_);
     FmrWorker_ = std::move(worker);
     return fmrGateway;
 }
@@ -197,6 +204,10 @@ IOptimizerFactory::TPtr TYtRunTool::CreateCboFactory() {
 
 IDqHelper::TPtr TYtRunTool::CreateDqHelper() {
     return {};
+}
+
+ISecretMasker::TPtr TYtRunTool::CreateSecretMasker() {
+    return CreateDummySecretMasker();
 }
 
 int TYtRunTool::DoMain(int argc, const char *argv[]) {

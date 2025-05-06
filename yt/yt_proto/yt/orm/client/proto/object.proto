@@ -39,10 +39,25 @@ message THistoryAttribute
     optional bool forced = 3;
 }
 
+message THistoryTimeIndex
+{
+    enum EIndexMode
+    {
+        IM_DISABLED = 0;
+        IM_ENABLED = 1;
+    }
+    optional string snake_case_name = 1;
+    optional string camel_case_name = 2;
+    repeated string attributes = 3;
+    optional uint64 hash_modulo = 4;
+    optional EIndexMode mode = 6;
+}
+
 message THistoryOptions
 {
     repeated THistoryAttribute attributes = 1;
     optional string filter = 2;
+    repeated THistoryTimeIndex time_indexes = 3;
 }
 
 message TCustomOption
@@ -131,6 +146,26 @@ enum EObjectWithReferenceRemovalPolicy
     OWRRP_REMOVAL_FORBIDDEN = 3;
 }
 
+enum ECascadingRemovalPolicy
+{
+    // Remove object with all its descendants.
+    // If object has active finalizers, the descendants are removed, but the object itself becomes finalized.
+    CRP_REMOVE = 0;
+    // If object has no active finalizers, this policy acts like `CRP_REMOVE`.
+    // If object has active finalizers, adds `_orm_parent` finalizer to descendants without finalizers.
+    // The descendants will be removed once all parent finalizers become completed.
+    CRP_FINALIZE = 1;
+    // Forbid object removal with existing descendants.
+    CRP_FORBID = 2;
+    // If object has no descendants, it becomes removed.
+    // Otherwise add `_orm_descendants` finalizer to it and leave descendants untouched.
+    // When all descendants become removed, foreign object itself may be removed.
+    // The system may try to remove it with last removed descendant.
+    CRP_AWAIT_FOREIGN = 3;
+    // Clear links to descendants upon removal. Inapplicable to parent-child references.
+    CRP_CLEAR = 4;
+}
+
 message TAttributeSensor
 {
     optional string path = 1;
@@ -163,15 +198,32 @@ message TAttributeMigration
     optional bool custom_reverse_writer = 7;
 }
 
-// Next field number 50.
+// TODO(grigminakov): Support `MIGRATE_COLUMN_TO_ETC`, `MIGRATE_FROM_ETC_TO_ETC`.
+enum ELocalAttributeMigrationType
+{
+    MIGRATE_ETC_TO_COLUMN = 0;
+}
+
+message TLocalAttributeMigration
+{
+    optional ELocalAttributeMigrationType type = 1;
+    optional string path = 2;
+    optional string old_data_group = 3;
+    optional string old_lock_group = 4;
+}
+
+// Next field number 55.
 message TObjectTypeOption
 {
-    reserved 6, 7, 15, 17, 28, 29, 38;
+    reserved 6, 7, 15, 17, 20, 21, 28, 29, 38, 46;
     reserved "use_custom_default_permissions";
     reserved "history_indexed_attributes";
     reserved "history_attributes";
     reserved "default_permissions";
     reserved "default_permissions_attributes";
+    reserved "primary_key_data_group";
+    reserved "labels_data_group";
+    reserved "forbid_parent_removal";
 
     // Snake case names of fields in /meta comprising the primary key, in order.
     repeated string primary_key = 13;
@@ -179,8 +231,24 @@ message TObjectTypeOption
     required string snake_case_name = 2;
     required int32 type_value = 3;
     optional string human_readable_name = 4;
+
     optional string parent = 5;
+
+    // Allows to override global removal policy.
+    // Can be overridden in dynamic config via
+    // `parent_removal_policy_override` and `parent_removal_policy_per_{child/parent}_type`.
+    optional ECascadingRemovalPolicy parent_removal_policy = 50;
+    // Priority order is
+    // - objects' `parent_removal_policy` ->
+    // - parent's `children_removal_policy_default` ->
+    // - global `parent_removal_policy`.
+    optional ECascadingRemovalPolicy children_removal_policy_default = 54;
+
     optional EParentKeyStoragePolicy parent_key_storage_policy = 34;
+
+    // Overrides global option.
+    optional bool enable_finalizers = 51;
+
     optional EHashPolicy hash_policy = 24;
     optional THistoryOptions history = 43;
     repeated TWatchLogOption watch_logs = 8;
@@ -204,12 +272,6 @@ message TObjectTypeOption
     // See FileOptions.skip_store_without_changes.
     optional bool skip_store_without_changes = 18;
     optional bool enable_tags = 19;
-
-    reserved "primary_key_data_group";
-    reserved 20;
-
-    reserved "labels_data_group";
-    reserved 21;
 
     // To pass custom model options.
     repeated TCustomOption custom_options = 22;
@@ -252,14 +314,16 @@ message TObjectTypeOption
     // For internal use only. Marks objects directly handled by ORM core.
     optional bool builtin_object = 42;
 
+    // Migrations moving data from one attribute to another. E.g. moving "/spec/name" -> "/status/full_name".
     repeated TAttributeMigration attribute_migrations = 45;
 
-    // Forbids removal of parent object if child with enabled option exists.
-    // May be overriden by |enable_forbid_parent_removal|.
-    optional bool forbid_parent_removal = 46;
+    // Migrations changing underlying storage of attribute. E.g. moving "/spec/age" from [spec.etc] to [spec.age].
+    repeated TLocalAttributeMigration local_attribute_migrations = 53;
 
     // meta.account_id column was mistakenly added to some ORM's.
     optional bool remove_legacy_meta_account_id = 47;
+
+    optional bool keep_removal_time = 52;
 }
 
 message TIndexOption
@@ -371,7 +435,7 @@ message THistoryTableOptions
     optional bool use_deprecated_hashing = 10;
 }
 
-// Next field 30045.
+// Next field 30050.
 extend google.protobuf.FileOptions
 {
     repeated TObjectTypeOption object_type = 30000;
@@ -431,18 +495,26 @@ extend google.protobuf.FileOptions
     // Enable adding column '$cumulative_data_weight' for watch logs.
     optional bool enable_cumulative_data_weight_for_watch_log = 30026;
 
-    // Forbids removal of the foreign object when there are objects referencing it.
-    // By default, references get removed together with object removal.
-    optional EObjectWithReferenceRemovalPolicy object_with_reference_removal_policy = 30027;
-
-    // Correctness of new type is checked in codegen (must be one of "int64" or "string").
-    optional string default_enum_storage_type = 30028;
-
-    optional bool enable_finalizers = 30030;
+    // Sets policy for parent-child references.
+    // Default policy is CRP_REMOVE.
+    optional ECascadingRemovalPolicy parent_removal_policy = 30046;
+    // Sets policy for user defined references.
+    // Default policy is CRP_CLEAR.
+    optional ECascadingRemovalPolicy reference_removal_policy = 30047;
+    // Sets policy for generated back references.
+    // Default policy is CRP_CLEAR.
+    optional ECascadingRemovalPolicy generated_backref_removal_policy = 30048;
 
     // Whether to create and use by default pending_removals table for object deletion.
     // If true, mode can be overridden with remove_mode option in object manager.
     optional bool enable_asynchronous_removals = 30033 [default = true];
+    // Only actual with `enable_asynchronous_removals=false` option.
+    optional bool keep_removal_time = 30049;
+
+    optional bool enable_finalizers = 30030;
+
+    // Correctness of new type is checked in codegen (must be one of "int64" or "string").
+    optional string default_enum_storage_type = 30028;
 
     // Contains configuration of history. Multiple table are used in history migration.
     repeated THistoryTableOptions history_tables = 30034;
@@ -452,9 +524,6 @@ extend google.protobuf.FileOptions
 
     optional ESetUpdateObjectMode set_update_object_mode = 30037;
     optional bool enable_history_snapshot_column = 30038;
-
-    // Can be overridden per object.
-    optional bool forbid_parent_removal = 30039;
 
     // Can be overridden per object.
     optional bool remove_legacy_meta_account_id = 30040;
@@ -467,6 +536,9 @@ extend google.protobuf.FileOptions
     optional uint32 default_geohash_length = 30043;
 
     optional TCommonHistoryOptions history_options = 30044;
+
+    // Enables meta.type, meta.key, meta.parent_key, meta.fqid attributes.
+    optional bool enable_additional_meta_key_attributes = 30045 [default = true];
 }
 
 enum EGenerationPolicy
@@ -521,6 +593,10 @@ enum EUpdatePolicy
     // Explicit changes will result in an error.
     // For the superuser, it behaves as OPAQUE_UPDATABLE.
     UP_OPAQUE_READ_ONLY = 3;
+
+    // Ignores implicit changes.
+    // Can not be updated via API, only by server-side plugins.
+    UP_PLUGIN_ONLY_UPDATABLE = 5;
 }
 
 message TReferenceOption
@@ -650,7 +726,9 @@ message TReferenceOption
     optional TReferenceViewOption view = 7;
 
     optional bool store_foreign_parent_key = 11;
-    optional bool allow_non_empty_removal = 12;
+    reserved "allow_non_empty_removal";
+    reserved 12;
+    optional ECascadingRemovalPolicy cascading_removal_policy = 17;
     optional bool local_modification_only = 13;
     optional EPresencePolicy presence_policy = 14;
     optional EDuplicatePolicy duplicate_policy = 15;
@@ -700,9 +778,9 @@ enum EFilterPlace
 
 message TJoinedColumnOption
 {
-    optional bool select_allowed = 1;
+    optional bool select_allowed = 1 [default = true];
     optional EFilterPlace filter_place = 2;
-    // Field evaluation expression. Mutually exlusive with name and aggregation.
+    // Field evaluation expression. Mutually exclusive with name and aggregation.
     optional string expression = 3;
     // Column name.
     optional string name = 4;
@@ -844,7 +922,7 @@ extend google.protobuf.FieldOptions
 
     // Same as computed.
     // Does not cause parent message to become composite.
-    // Exists for compatibility with old behaviour of computed.
+    // Exists for compatibility with old behavior of computed.
     optional bool computed_compat = 31048;
 
     optional TJoinOption join = 31049;

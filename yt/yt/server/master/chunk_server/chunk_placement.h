@@ -128,11 +128,11 @@ private:
         [[nodiscard]] bool Empty() const;
         i64 Size() const;
 
-        //NB: Here we can rely on the fact that allocation sessions cannot overlap and not use any synchronization primitives.
+        // NB: Here we can rely on the fact that allocation sessions cannot overlap and not use any synchronization primitives.
         TAllocationSession StartAllocationSession(int nodesToCheckBeforeGivingUpOnWriteTargetAllocation);
 
     private:
-        //NB: This may change the order of the elements in Values_!
+        // NB: This may change the order of the elements in Values_!
         TNodeId PickRandomNode(int nodesChecked);
         void SwapNodes(int firstIndex, int secondIndex);
 

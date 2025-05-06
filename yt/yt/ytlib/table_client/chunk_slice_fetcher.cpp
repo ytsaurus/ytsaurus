@@ -91,7 +91,7 @@ public:
 
         // Note that we do not patch chunk slices limits anywhere in chunk pool as it is
         // a part of data slice physical representation. In future it is going to become
-        // hidden in physical data reigstry.
+        // hidden in physical data registry.
         //
         // As a consequence, by this moment limit in chunk slice may be longer than needed,
         // so we copy chunk slice for internal chunk slice fetcher needs and replace

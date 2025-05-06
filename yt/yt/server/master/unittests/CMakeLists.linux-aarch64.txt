@@ -20,6 +20,9 @@ add_executable(unittester-master)
 target_compile_options(unittester-master PRIVATE
   -Wdeprecated-this-capture
   -Wimplicit-fallthrough
+  -Wparentheses
+  -Wno-logical-op-parentheses
+  -Wno-bitwise-op-parentheses
 )
 
 target_link_libraries(unittester-master PUBLIC

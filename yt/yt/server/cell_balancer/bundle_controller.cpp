@@ -1,23 +1,23 @@
 #include "bundle_controller.h"
-#include "bundle_scheduler.h"
-#include "chaos_scheduler.h"
 
 #include "bootstrap.h"
+#include "bundle_scheduler.h"
+#include "bundle_sensors.h"
+#include "cell_downtime_tracker.h"
+#include "chaos_scheduler.h"
 #include "config.h"
 #include "cypress_bindings.h"
 #include "orchid_bindings.h"
-#include "bundle_sensors.h"
-#include "cell_downtime_tracker.h"
 
 #include <yt/yt/server/lib/cypress_election/election_manager.h>
-
-#include <yt/yt/client/cypress_client/public.h>
 
 #include <yt/yt/ytlib/api/native/client.h>
 #include <yt/yt/ytlib/api/native/transaction.h>
 #include <yt/yt/ytlib/api/native/connection.h>
 
 #include <yt/yt/ytlib/hive/cluster_directory.h>
+
+#include <yt/yt/client/cypress_client/public.h>
 
 #include <yt/yt/core/concurrency/periodic_executor.h>
 
@@ -75,8 +75,10 @@ struct TZoneSensors final
     TGauge OfflineProxyThreshold;
 
     TGauge FreeSpareNodeCount;
+    TGauge ScheduledForMaintenanceSpareNodeCount;
     TGauge ExternallyDecommissionedNodeCount;
     TGauge FreeSpareProxyCount;
+    TGauge ScheduledForMaintenanceSpareProxyCount;
     TGauge RequiredSpareNodeCount;
 };
 
@@ -467,16 +469,16 @@ private:
         }
     }
 
-    inline static const std::string  AttributeBundleControllerAnnotations = "bundle_controller_annotations";
-    inline static const std::string  NodeAttributeUserTags = "user_tags";
-    inline static const std::string  NodeAttributeDecommissioned = "decommissioned";
-    inline static const std::string  NodeAttributeEnableBundleBalancer = "enable_bundle_balancer";
-    inline static const std::string  ProxyAttributeRole = "role";
-    inline static const std::string  AccountAttributeResourceLimits = "resource_limits";
-    inline static const std::string  BundleTabletStaticMemoryLimits = "resource_limits/tablet_static_memory";
-    inline static const std::string  BundleAttributeShortName = "short_name";
-    inline static const std::string  BundleAttributeNodeTagFilter = "node_tag_filter";
-    inline static const std::string  BundleAttributeTargetConfig = "bundle_controller_target_config";
+    inline static const std::string AttributeBundleControllerAnnotations = "bundle_controller_annotations";
+    inline static const std::string NodeAttributeUserTags = "user_tags";
+    inline static const std::string NodeAttributeDecommissioned = "decommissioned";
+    inline static const std::string NodeAttributeEnableBundleBalancer = "enable_bundle_balancer";
+    inline static const std::string ProxyAttributeRole = "role";
+    inline static const std::string AccountAttributeResourceLimits = "resource_limits";
+    inline static const std::string BundleTabletStaticMemoryLimits = "resource_limits/tablet_static_memory";
+    inline static const std::string BundleAttributeShortName = "short_name";
+    inline static const std::string BundleAttributeNodeTagFilter = "node_tag_filter";
+    inline static const std::string BundleAttributeTargetConfig = "bundle_controller_target_config";
 
     void MoveBundleToJailAndThrowOnError(const TError& result, const std::string& bundleName)
     {
@@ -951,6 +953,7 @@ private:
             for (const auto& [dataCenter, spareInfo] : perDCSpareInfo) {
                 auto zoneSensor = GetZoneSensors(zoneName, dataCenter);
                 zoneSensor->FreeSpareNodeCount.Update(std::ssize(spareInfo.FreeNodes));
+                zoneSensor->ScheduledForMaintenanceSpareNodeCount.Update(std::ssize(spareInfo.ScheduledForMaintenance));
                 zoneSensor->ExternallyDecommissionedNodeCount.Update(std::ssize(spareInfo.ExternallyDecommissioned));
 
                 for (const auto& [bundleName, instances] : spareInfo.UsedByBundle) {
@@ -965,6 +968,7 @@ private:
             for (const auto& [dataCenter, spareInfo] : perDCSpareInfo) {
                 auto zoneSensor = GetZoneSensors(zoneName, dataCenter);
                 zoneSensor->FreeSpareProxyCount.Update(std::ssize(spareInfo.FreeProxies));
+                zoneSensor->ScheduledForMaintenanceSpareProxyCount.Update(std::ssize(spareInfo.ScheduledForMaintenance));
 
                 for (const auto& [bundleName, instances] : spareInfo.UsedByBundle) {
                     // TODO: make per dc bundle sensors here
@@ -997,6 +1001,7 @@ private:
             auto counter = Profiler
                 .WithTag("tablet_cell_bundle", bundleName)
                 .WithTag("alarm_id", alert.Id)
+                .WithSparse()
                 .Counter("/scan_bundles_alarms_count");
             it = bundle.IdToCounter.emplace(alert.Id, std::move(counter)).first;
         }
@@ -1083,8 +1088,10 @@ private:
         sensors->OfflineProxyThreshold = zoneProfiler.Gauge("/offline_proxy_threshold");
 
         sensors->FreeSpareNodeCount = zoneProfiler.Gauge("/free_spare_node_count");
+        sensors->ScheduledForMaintenanceSpareNodeCount = zoneProfiler.Gauge("/scheduled_for_maintenance_spare_node_count");
         sensors->ExternallyDecommissionedNodeCount = zoneProfiler.Gauge("/externally_decommissioned_node_count");
         sensors->FreeSpareProxyCount = zoneProfiler.Gauge("/free_spare_proxy_count");
+        sensors->ScheduledForMaintenanceSpareProxyCount = zoneProfiler.Gauge("/scheduled_for_maintenance_spare_proxy_count");
         sensors->RequiredSpareNodeCount = zoneProfiler.Gauge("/required_spare_nodes_count");
 
         ZoneSensors_[zoneName] = sensors;
@@ -1529,7 +1536,7 @@ private:
         const std::string& id)
     {
         for (const auto& basePath : basePaths) {
-            auto path = Format("%v/%v", basePath,  NYPath::ToYPathLiteral(id));
+            auto path = Format("%v/%v", basePath, NYPath::ToYPathLiteral(id));
 
             if (!WaitFor(transaction->NodeExists(path)).ValueOrThrow()) {
                 continue;

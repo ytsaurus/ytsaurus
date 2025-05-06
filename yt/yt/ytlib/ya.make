@@ -16,6 +16,7 @@ SRCS(
     api/native/bundle_controller_client_impl.cpp
     api/native/cell_commit_session.cpp
     api/native/chaos_helpers.cpp
+    api/native/chaos_lease_type_handler.cpp
     api/native/chaos_replicated_table_type_handler.cpp
     api/native/chaos_table_replica_type_handler.cpp
     api/native/client_admin_impl.cpp
@@ -298,6 +299,8 @@ SRCS(
     job_proxy/helpers.cpp
     job_proxy/job_spec_helper.cpp
     job_proxy/private.cpp
+    job_proxy/profiling_reader.cpp
+    job_proxy/profiling_writer.cpp
     job_proxy/user_job_io_factory.cpp
     job_proxy/user_job_read_controller.cpp
 
@@ -499,6 +502,7 @@ SRCS(
 
     tablet_client/backup.cpp
     tablet_client/config.cpp
+    tablet_client/bulk_insert_locking.cpp
     tablet_client/helpers.cpp
     tablet_client/native_table_mount_cache.cpp
     tablet_client/pivot_keys_builder.cpp
@@ -506,6 +510,7 @@ SRCS(
     tablet_client/public.cpp
 
     tablet_client/proto/backup.proto
+    tablet_client/proto/bulk_insert_locking.proto
     tablet_client/proto/heartbeat.proto
     tablet_client/proto/master_tablet_service.proto
     tablet_client/proto/table_replica_ypath.proto

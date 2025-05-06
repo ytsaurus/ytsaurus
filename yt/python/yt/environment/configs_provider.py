@@ -1720,6 +1720,7 @@ def _build_cluster_connection_config(yt_config,
             "is_client_mode_active" : True,
         },
         "upload_transaction_timeout": 5000,
+        "read_operations_archive_state_from": "follower",
     }
 
     if len(cypress_proxy_rpc_ports) > 0:
@@ -1792,12 +1793,6 @@ def _build_cluster_connection_config(yt_config,
                 "min_backoff": 50,
             },
             "rpc_acknowledge_timeout": 100,
-        }
-        cluster_connection["chaos_residency_cache"] = {
-            "expire_after_successful_update_time": 100,
-            "expire_after_failed_update_time": 100,
-            "expire_after_access_time": 100,
-            "refresh_time": 50,
         }
 
     if not yt_config.enable_permission_cache:

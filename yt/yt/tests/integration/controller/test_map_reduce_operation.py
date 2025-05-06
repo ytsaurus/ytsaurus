@@ -76,7 +76,7 @@ class TestSchedulerMapReduceBase(YTEnvSetup):
 
 class TestSchedulerMapReduceCommands(TestSchedulerMapReduceBase):
     ENABLE_MULTIDAEMON = False  # There are component restarts.
-    NUM_TEST_PARTITIONS = 8
+    NUM_TEST_PARTITIONS = 10
     NUM_MASTERS = 1
     NUM_NODES = 5
     NUM_SCHEDULERS = 1

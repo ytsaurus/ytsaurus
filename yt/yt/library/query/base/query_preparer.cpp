@@ -87,6 +87,9 @@ void ExtractFunctionNames(
     } else if (expr->As<NAst::TReferenceExpression>()) {
     } else if (auto aliasExpr = expr->As<NAst::TAliasExpression>()) {
         ExtractFunctionNames(aliasExpr->Expression, functions);
+    } else if (auto queryExpr = expr->As<NAst::TQueryExpression>()) {
+        ExtractFunctionNames(queryExpr->Query.WherePredicate, functions);
+        ExtractFunctionNames(queryExpr->Query.SelectExprs, functions);
     } else {
         YT_ABORT();
     }
@@ -164,6 +167,9 @@ std::vector<TString> ExtractFunctionNames(
                 functions.end(),
                 std::make_move_iterator(extracted.begin()),
                 std::make_move_iterator(extracted.end()));
+        },
+        [&] (const NAst::TExpressionList& expressions) {
+            ExtractFunctionNames(expressions, &functions);
         });
 
 
@@ -539,7 +545,9 @@ NAst::TAstHead ParseQueryString(
     }
 
     NAst::TLexer lexer(source, strayToken, std::move(queryLiterals), syntaxVersion);
-    NAst::TParser parser(lexer, &head, source, /*aliasMapStack*/ {});
+    std::stack<NAst::TAliasMap> aliasMapStack;
+    aliasMapStack.push({});
+    NAst::TParser parser(lexer, &head, source, std::move(aliasMapStack));
 
     int result = parser.parse();
 
@@ -672,6 +680,17 @@ std::vector<std::pair<TConstExpressionPtr, int>> MakeExpressionsFromComputedColu
     return expressionsAndColumnIndices;
 }
 
+std::unique_ptr<TExprBuilder> CreateExpressionBuilder(
+    TStringBuf source,
+    const TConstTypeInferrerMapPtr& functions,
+    const NAst::TAliasMap& aliasMap,
+    int expressionBuilderVersion)
+{
+    return (expressionBuilderVersion == 1
+        ? &CreateExpressionBuilderV1
+        : &CreateExpressionBuilderV2)(source, functions, aliasMap);
+}
+
 TJoinClausePtr BuildJoinClause(
     const TDataSplit& foreignDataSplit,
     const NAst::TJoin& tableJoin,
@@ -682,6 +701,7 @@ TJoinClausePtr BuildJoinClause(
     const TTableSchemaPtr& tableSchema,
     const std::optional<TString>& tableAlias,
     TExprBuilder* builder,
+    int builderVersion,
     const NLogging::TLogger& Logger)
 {
     auto foreignTableSchema = foreignDataSplit.TableSchema;
@@ -692,7 +712,7 @@ TJoinClausePtr BuildJoinClause(
     joinClause->IsLeft = tableJoin.IsLeft;
 
     // BuildPredicate and BuildTypedExpression are used with foreignBuilder.
-    auto foreignBuilder = CreateExpressionBuilder(source, functions, aliasMap);
+    auto foreignBuilder = CreateExpressionBuilder(source, functions, aliasMap, builderVersion);
 
     foreignBuilder->AddTable({
         *joinClause->Schema.Original,
@@ -707,7 +727,7 @@ TJoinClausePtr BuildJoinClause(
     THashSet<std::string> commonColumnNames;
     // Merge columns.
     for (const auto& referenceExpr : tableJoin.Fields) {
-        auto columnName = InferReferenceName(referenceExpr->Reference);
+        auto columnName = InferColumnName(referenceExpr->Reference);
         commonColumnNames.insert(columnName);
 
         auto selfColumnType = builder->ResolveColumn(referenceExpr->Reference);
@@ -899,7 +919,8 @@ TJoinClausePtr BuildArrayJoinClause(
     TStringBuf source,
     const NAst::TAliasMap& aliasMap,
     const TConstTypeInferrerMapPtr& functions,
-    TExprBuilder* builder)
+    TExprBuilder* builder,
+    int builderVersion)
 {
     auto arrayJoinClause = New<TJoinClause>();
     arrayJoinClause->IsLeft = arrayJoin.IsLeft;
@@ -939,7 +960,8 @@ TJoinClausePtr BuildArrayJoinClause(
     auto arrayBuilder = CreateExpressionBuilder(
         source,
         functions,
-        aliasMap);
+        aliasMap,
+        builderVersion);
 
     arrayBuilder->AddTable({
         *arrayJoinClause->Schema.Original,
@@ -983,6 +1005,7 @@ TPlanFragmentPtr PreparePlanFragment(
         parsedSource->Source,
         std::get<NAst::TQuery>(parsedSource->AstHead.Ast),
         parsedSource->AstHead.AliasMap,
+        1,
         std::move(memoryTracker));
 }
 
@@ -991,6 +1014,7 @@ TPlanFragmentPtr PreparePlanFragment(
     TStringBuf source,
     const NAst::TQuery& queryAst,
     const NAst::TAliasMap& aliasMap,
+    int builderVersion,
     IMemoryUsageTrackerPtr memoryTracker,
     int depth)
 {
@@ -1007,10 +1031,14 @@ TPlanFragmentPtr PreparePlanFragment(
                 source,
                 subquery->Ast,
                 subquery->AliasMap,
+                builderVersion,
                 memoryTracker,
                 depth + 1);
         },
-        [&] (const NAst::TTableDescriptor&) { });
+        [&] (const NAst::TTableDescriptor&) { },
+        [&] (const NAst::TExpressionList&) {
+            THROW_ERROR_EXCEPTION("Unexpected expression in from clause");
+        });
 
     auto functions = New<TTypeInferrerMap>();
     callbacks->FetchFunctions(ExtractFunctionNames(queryAst, aliasMap), functions);
@@ -1059,12 +1087,16 @@ TPlanFragmentPtr PreparePlanFragment(
         },
         [&] (const NAst::TQueryAstHeadPtr& subquery) {
             return subquery->Alias;
+        },
+        [&] (const NAst::TExpressionList&) -> std::optional<TString> {
+            return std::nullopt;
         });
 
     auto builder = CreateExpressionBuilder(
         source,
         functions,
-        aliasMap);
+        aliasMap,
+        builderVersion);
 
     builder->AddTable({
         *query->Schema.Original,
@@ -1087,6 +1119,7 @@ TPlanFragmentPtr PreparePlanFragment(
                     query->Schema.Original,
                     table->Alias,
                     builder.get(),
+                    builderVersion,
                     Logger));
             },
             [&] (const NAst::TArrayJoin& arrayJoin) {
@@ -1095,7 +1128,8 @@ TPlanFragmentPtr PreparePlanFragment(
                     source,
                     aliasMap,
                     functions,
-                    builder.get()));
+                    builder.get(),
+                    builderVersion));
             });
     }
 
@@ -1198,7 +1232,7 @@ TQueryPtr PrepareJobQuery(
     auto functions = New<TTypeInferrerMap>();
     functionsFetcher(functionNames, functions);
 
-    auto builder = CreateExpressionBuilder(source, functions, aliasMap);
+    auto builder = CreateExpressionBuilder(source, functions, aliasMap, 1);
 
     builder->AddTable({
         *tableSchema, std::nullopt, &query->Schema.Mapping});
@@ -1220,6 +1254,7 @@ TConstExpressionPtr PrepareExpression(
     return PrepareExpression(
         *ParseSource(source, EParseMode::Expression),
         tableSchema,
+        1,
         functions,
         references);
 }
@@ -1227,6 +1262,15 @@ TConstExpressionPtr PrepareExpression(
 TConstExpressionPtr PrepareExpression(
     const TParsedSource& parsedSource,
     const TTableSchema& tableSchema,
+    const TConstTypeInferrerMapPtr& functions)
+{
+    return PrepareExpression(parsedSource, tableSchema, 1, functions);
+}
+
+TConstExpressionPtr PrepareExpression(
+    const TParsedSource& parsedSource,
+    const TTableSchema& tableSchema,
+    int builderVersion,
     const TConstTypeInferrerMapPtr& functions,
     THashSet<std::string>* references)
 {
@@ -1235,7 +1279,7 @@ TConstExpressionPtr PrepareExpression(
 
     std::vector<TColumnDescriptor> mapping;
 
-    auto builder = CreateExpressionBuilder(parsedSource.Source, functions, aliasMap);
+    auto builder = CreateExpressionBuilder(parsedSource.Source, functions, aliasMap, builderVersion);
 
     builder->AddTable({
         tableSchema, std::nullopt, &mapping});

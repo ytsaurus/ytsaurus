@@ -51,8 +51,10 @@ struct TJobWorkspaceBuildingContext
     NContainers::NCri::TCriAuthConfigPtr DockerAuth;
 
     bool NeedGpuCheck;
+    std::vector<TShellCommandConfigPtr> GpuCheckSetupCommands;
     std::optional<TString> GpuCheckBinaryPath;
     std::optional<std::vector<TString>> GpuCheckBinaryArgs;
+    std::optional<THashMap<TString, TString>> GpuCheckEnvironment;
     EGpuCheckType GpuCheckType;
     std::vector<NContainers::TDevice> GpuDevices;
 };

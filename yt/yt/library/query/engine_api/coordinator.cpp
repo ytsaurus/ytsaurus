@@ -47,6 +47,9 @@ Y_WEAK TQueryStatistics CoordinateAndExecute(
     bool /*ordered*/,
     bool /*prefetch*/,
     int /*splitCount*/,
+    i64 /*offset*/,
+    i64 /*limit*/,
+    bool /*useAdaptiveOrderedSchemafulReader*/,
     TSubQueryEvaluator /*evaluateSubQuery*/,
     TTopQueryEvaluator /*evaluateTopQuery*/)
 {

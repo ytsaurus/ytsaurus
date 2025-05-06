@@ -43,9 +43,7 @@ type Config struct {
 	// If not set, default role is used.
 	ProxyRole string
 
-	// NetworkName configures network name used by RPC proxy.
-	//
-	// Only relevant for RPC client.
+	// NetworkName configures network name used by proxy.
 	NetworkName string
 
 	// HostsPath specifies the path used to discover HTTP proxies.
@@ -187,7 +185,7 @@ func (c *Config) GetProxy() (string, error) {
 	return "", xerrors.New("YT proxy is not set (either Config.Proxy or YT_PROXY must be set)")
 }
 
-func (c *Config) GetCusterURL() (ClusterURL, error) {
+func (c *Config) GetClusterURL() (ClusterURL, error) {
 	proxy, err := c.GetProxy()
 	if err != nil {
 		return ClusterURL{}, err

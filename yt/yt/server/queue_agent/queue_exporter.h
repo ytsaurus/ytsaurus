@@ -24,10 +24,9 @@ namespace NYT::NQueueAgent {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TQueueTabletExportProgress
+struct TQueueTabletExportProgress
     : public NYTree::TYsonStruct
 {
-public:
     NChunkClient::TChunkId LastChunk;
     NHiveClient::TTimestamp MaxTimestamp;
     i64 RowCount;
@@ -42,10 +41,9 @@ DEFINE_REFCOUNTED_TYPE(TQueueTabletExportProgress)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TQueueExportProgress
+struct TQueueExportProgress
     : public NYTree::TYsonStruct
 {
-public:
     //! Instant corresponding to the last export task, which had no errors, meaning
     //! that all exported tables supposed to be created were created without issues or
     //! at the point of the task execution there was nothing to export.

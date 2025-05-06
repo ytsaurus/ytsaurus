@@ -50,6 +50,7 @@ public:
             ToYPathLiteral(tokenHash));
         auto options = TGetNodeOptions{
             .Attributes = TAttributeFilter({"user", "user_id"}),
+            .ReadFrom = EMasterChannelKind::Cache,
         };
         return Client_->GetNode(path, options)
             .Apply(BIND(

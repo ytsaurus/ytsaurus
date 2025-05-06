@@ -69,6 +69,10 @@ func getTVMOnlyPort(config *yt.Config) int {
 	return yt.TVMOnlyHTTPProxyPort
 }
 
+type discoverProxiesResponse struct {
+	Proxies []string `json:"proxies"`
+}
+
 func (c *httpClient) listHeavyProxies() ([]string, error) {
 	if !c.stop.TryAdd() {
 		return nil, fmt.Errorf("client is stopped")
@@ -79,6 +83,22 @@ func (c *httpClient) listHeavyProxies() ([]string, error) {
 	if c.config.ProxyRole != "" {
 		v.Add("role", c.config.ProxyRole)
 	}
+	if c.config.NetworkName != "" {
+		v.Add("network_name", c.config.NetworkName)
+	}
+	v.Add("type", "http")
+
+	addressType := ""
+	if c.config.UseTVMOnlyEndpoint {
+		addressType += "tvm_only_"
+	}
+	if c.config.UseTLS {
+		addressType += "https"
+	} else {
+		addressType += "http"
+	}
+	// `/hosts` ignores it, `/api/v4/discover_proxies` uses it and returns addresses with appropriate ports.
+	v.Add("address_type", addressType)
 
 	var resolveURL url.URL
 	resolveURL.Scheme = c.clusterURL.Scheme
@@ -105,16 +125,29 @@ func (c *httpClient) listHeavyProxies() ([]string, error) {
 		return nil, unexpectedStatusCode(rsp)
 	}
 
+	body, err := io.ReadAll(rsp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read body: %w", err)
+	}
+
+	withPort := false
 	var proxies []string
-	if err = json.NewDecoder(rsp.Body).Decode(&proxies); err != nil {
-		return nil, err
+	if err = json.Unmarshal(body, &proxies); err != nil {
+		// Try to parse it as `/api/v4/discover_proxies` response.
+		var response discoverProxiesResponse
+		if err = json.Unmarshal(body, &response); err != nil {
+			return nil, err
+		}
+		proxies = response.Proxies
+		// All proxies should contain appropriate port.
+		withPort = true
 	}
 
 	if len(proxies) == 0 {
 		return nil, xerrors.New("proxy list is empty")
 	}
 
-	if c.config.UseTVMOnlyEndpoint {
+	if !withPort && c.config.UseTVMOnlyEndpoint {
 		port := getTVMOnlyPort(c.config)
 		for i, proxy := range proxies {
 			proxies[i] = net.JoinHostPort(proxy, fmt.Sprint(port))
@@ -674,7 +707,7 @@ func (c *httpClient) dialContext(ctx context.Context, network, addr string) (net
 func NewHTTPClient(c *yt.Config) (yt.Client, error) {
 	var client httpClient
 
-	clusterURL, err := c.GetCusterURL()
+	clusterURL, err := c.GetClusterURL()
 	if err != nil {
 		return nil, err
 	}

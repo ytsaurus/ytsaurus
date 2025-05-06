@@ -41,6 +41,22 @@ void TFluentLogEventConsumer::OnMyEndMap()
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TFluentLogEvent::TFluentLogEvent(std::unique_ptr<NYson::IYsonConsumer> consumer)
+    : TBase(consumer.get())
+    , Consumer_(std::move(consumer))
+{
+    Consumer_->OnBeginMap();
+}
+
+TFluentLogEvent::~TFluentLogEvent()
+{
+    if (Consumer_) {
+        Consumer_->OnEndMap();
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TEventLogValueConsumer
     : public IValueConsumer
 {
@@ -121,17 +137,17 @@ public:
         TEventLogManagerConfigPtr config,
         IInvokerPtr invoker,
         NTableClient::IUnversionedWriterPtr writer)
-        : Config_(std::move(config))
+        : Config_(config)
         , EventLogWriter_(std::move(writer))
     {
         YT_VERIFY(EventLogWriter_.Get());
 
-        Enabled_.store(Config_->Enable);
+        Enabled_.store(config->Enable);
 
         PendingRowsFlushExecutor_ = New<TPeriodicExecutor>(
             std::move(invoker),
             BIND(&TImpl::OnPendingEventLogRowsFlush, Unretained(this)),
-            Config_->PendingRowsFlushPeriod);
+            config->PendingRowsFlushPeriod);
         PendingRowsFlushExecutor_->Start();
     }
 
@@ -145,14 +161,14 @@ public:
 
     TEventLogManagerConfigPtr GetConfig() const
     {
-        return Config_;
+        return Config_.Acquire();
     }
 
     void UpdateConfig(const TEventLogManagerConfigPtr& config)
     {
         Config_ = config;
-        Enabled_.store(Config_->Enable);
-        PendingRowsFlushExecutor_->SetPeriod(Config_->PendingRowsFlushPeriod);
+        Enabled_.store(config->Enable);
+        PendingRowsFlushExecutor_->SetPeriod(config->PendingRowsFlushPeriod);
     }
 
     TFuture<void> Close()
@@ -165,7 +181,7 @@ public:
 private:
     const NLogging::TLogger& Logger = EventLogWriterLogger();
 
-    TEventLogManagerConfigPtr Config_;
+    TAtomicIntrusivePtr<TEventLogManagerConfig> Config_;
 
     NTableClient::IUnversionedWriterPtr EventLogWriter_;
     TFuture<void> EventLogWriterReadyEvent_;

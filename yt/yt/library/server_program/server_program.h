@@ -38,6 +38,8 @@ protected:
 
 private:
     const NFusion::IServiceDirectoryPtr ServiceDirectory_;
+    const NProfiling::TGauge MemoryLockedSuccessfully_;
+    const NProfiling::TGauge MemoryLockedUnsuccessfully_;
 
     std::string MainThreadName_ = DefaultMainThreadName;
 };

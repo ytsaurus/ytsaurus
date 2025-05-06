@@ -945,6 +945,15 @@ public:
             .Run(operation, poolName);
     }
 
+    TFuture<void> ValidateOperationPoolPermissions(TOperationId operationId, const std::string& user, NYTree::EPermissionSet permissions) const override
+    {
+        YT_ASSERT_INVOKERS_AFFINITY(FeasibleInvokers_);
+
+        return BIND(&TFairShareTree::DoValidateOperationPoolPermissions, MakeStrong(this))
+            .AsyncVia(GetCurrentInvoker())
+            .Run(operationId, user, permissions);
+    }
+
     void EnsureOperationPoolExistence(const TString& poolName) const override
     {
         YT_ASSERT_INVOKERS_AFFINITY(FeasibleInvokers_);
@@ -1032,12 +1041,12 @@ public:
         TreeScheduler_->InitPersistentState(persistentState->AllocationSchedulerState);
     }
 
-    void OnOperationMaterialized(TOperationId operationId) override
+    TError OnOperationMaterialized(TOperationId operationId) override
     {
         YT_ASSERT_INVOKERS_AFFINITY(FeasibleInvokers_);
 
         auto element = GetOperationElement(operationId);
-        TreeScheduler_->OnOperationMaterialized(element.Get());
+        return TreeScheduler_->OnOperationMaterialized(element.Get());
     }
 
     TError CheckOperationJobResourceLimitsRestrictions(TOperationId operationId, bool revivedFromSnapshot) override
@@ -2516,6 +2525,27 @@ private:
             pool->GetId(),
             operation->GetAuthenticatedUser(),
             EPermission::Use);
+    }
+
+    void DoValidateOperationPoolPermissions(TOperationId operationId, const std::string& user, NYTree::EPermissionSet permissions) const
+    {
+        YT_ASSERT_INVOKERS_AFFINITY(FeasibleInvokers_);
+
+        auto* pool = GetOperationElement(operationId)->GetParent();
+        while (pool->IsDefaultConfigured()) {
+            pool = pool->GetParent();
+        }
+
+        for (auto permission : TEnumTraits<EPermission>::GetDomainValues()) {
+            if (Any(permission & permissions)) {
+                StrategyHost_->ValidatePoolPermission(
+                    TreeId_,
+                    pool->GetObjectId(),
+                    pool->GetId(),
+                    user,
+                    permission);
+            }
+        }
     }
 
     int GetPoolCount() const

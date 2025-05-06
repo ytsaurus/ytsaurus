@@ -487,6 +487,10 @@ TFuture<void> TClient::AlterTableReplica(
     YT_OPTIONAL_SET_PROTO(req, enable_replicated_table_tracker, options.EnableReplicatedTableTracker);
     YT_OPTIONAL_TO_PROTO(req, replica_path, options.ReplicaPath);
 
+    if (options.Force) {
+        req->set_force(true);
+    }
+
     ToProto(req->mutable_mutating_options(), options);
 
     return req->Invoke().As<void>();
@@ -1756,6 +1760,7 @@ TFuture<NApi::TMultiTablePartitions> TClient::PartitionTables(
     req->set_enable_cookies(options.EnableCookies);
 
     req->set_use_new_slicing_implementation_in_ordered_pool(options.UseNewSlicingImplementationInOrderedPool);
+    req->set_use_new_slicing_implementation_in_unordered_pool(options.UseNewSlicingImplementationInUnorderedPool);
 
     ToProto(req->mutable_transactional_options(), options);
 

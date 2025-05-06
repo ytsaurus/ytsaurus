@@ -1,7 +1,5 @@
 from .test_sorted_dynamic_tables import TestSortedDynamicTablesBase
 
-from yt_helpers import profiler_factory
-
 from yt_commands import (
     authors, wait, create, exists, get, set, ls, insert_rows, remove, select_rows,
     lookup_rows, delete_rows, remount_table, build_master_snapshots,
@@ -84,7 +82,8 @@ class TestSortedDynamicTablesHunks(TestSortedDynamicTablesBase):
                       max_inline_hunk_size=10,
                       hunk_erasure_codec="none",
                       schema=SCHEMA,
-                      dynamic=True):
+                      dynamic=True,
+                      enable_dynamic_store_read=False):
         create_table_function = self._create_simple_table if dynamic else self._create_simple_static_table
         schema = self._get_table_schema(schema, max_inline_hunk_size)
         if not dynamic:
@@ -93,23 +92,24 @@ class TestSortedDynamicTablesHunks(TestSortedDynamicTablesBase):
                 unique_keys=True,
             )
 
-        create_table_function("//tmp/t",
-                              schema=schema,
-                              enable_dynamic_store_read=False,
-                              hunk_chunk_reader={
-                                  "max_hunk_count_per_read": 2,
-                                  "max_total_hunk_length_per_read": 60,
-                                  "fragment_read_hedging_delay": 1,
-                                  "max_inflight_fragment_length": 60,
-                                  "max_inflight_fragment_count": 2,
-                              },
-                              hunk_chunk_writer={
-                                  "desired_block_size": 50,
-                              },
-                              max_hunk_compaction_garbage_ratio=0.5,
-                              enable_lsm_verbose_logging=True,
-                              chunk_format=chunk_format,
-                              hunk_erasure_codec=hunk_erasure_codec)
+        create_table_function(
+            "//tmp/t",
+            schema=schema,
+            enable_dynamic_store_read=enable_dynamic_store_read,
+            hunk_chunk_reader={
+                "max_hunk_count_per_read": 2,
+                "max_total_hunk_length_per_read": 60,
+                "fragment_read_hedging_delay": 1,
+                "max_inflight_fragment_length": 60,
+                "max_inflight_fragment_count": 2,
+            },
+            hunk_chunk_writer={
+                "desired_block_size": 50,
+            },
+            max_hunk_compaction_garbage_ratio=0.5,
+            enable_lsm_verbose_logging=True,
+            chunk_format=chunk_format,
+            hunk_erasure_codec=hunk_erasure_codec)
 
     @authors("babenko")
     @pytest.mark.parametrize("chunk_format", HUNK_COMPATIBLE_CHUNK_FORMATS)
@@ -960,23 +960,27 @@ class TestSortedDynamicTablesHunks(TestSortedDynamicTablesBase):
         set("//tmp/t/@enable_hunk_columnar_profiling", True)
         sync_mount_table("//tmp/t")
 
+        chunk_data_weight = self._init_tablet_sensor(
+            "//tmp/t",
+            "chunk_writer/data_weight",
+            tags={"method": "store_flush"})
+        hunk_chunk_data_weight = self._init_tablet_sensor(
+            "//tmp/t",
+            "chunk_writer/hunks/data_weight",
+            tags={"method": "store_flush"})
+
+        inline_hunk_value_count = self._init_tablet_sensor(
+            "//tmp/t",
+            "chunk_writer/hunks/inline_value_count",
+            tags={"column": "value", "method": "store_flush"})
+        ref_hunk_value_count = self._init_tablet_sensor(
+            "//tmp/t",
+            "chunk_writer/hunks/ref_value_count",
+            tags={"column": "value", "method": "store_flush"})
+
         rows1 = [{"key": i, "value": "value" + str(i) + "x" * 20} for i in range(5)]
         rows2 = [{"key": i, "value": "value" + str(i)} for i in range(5, 15)]
         insert_rows("//tmp/t", rows1 + rows2)
-
-        chunk_data_weight = profiler_factory().at_tablet_node("//tmp/t").counter(
-            name="chunk_writer/data_weight",
-            tags={"method": "store_flush"})
-        hunk_chunk_data_weight = profiler_factory().at_tablet_node("//tmp/t").counter(
-            name="chunk_writer/hunks/data_weight",
-            tags={"method": "store_flush"})
-
-        inline_hunk_value_count = profiler_factory().at_tablet_node("//tmp/t").counter(
-            name="chunk_writer/hunks/inline_value_count",
-            tags={"column": "value", "method": "store_flush"})
-        ref_hunk_value_count = profiler_factory().at_tablet_node("//tmp/t").counter(
-            name="chunk_writer/hunks/ref_value_count",
-            tags={"column": "value", "method": "store_flush"})
 
         sync_flush_table("//tmp/t")
 
@@ -993,37 +997,45 @@ class TestSortedDynamicTablesHunks(TestSortedDynamicTablesBase):
         set("//tmp/t/@enable_hunk_columnar_profiling", True)
         sync_mount_table("//tmp/t")
 
+        reader_hunk_chunk_transmitted = self._init_tablet_sensor(
+            "//tmp/t",
+            "chunk_reader/hunks/chunk_reader_statistics/data_bytes_transmitted",
+            tags={"method": "compaction"})
+        reader_hunk_chunk_data_weight = self._init_tablet_sensor(
+            "//tmp/t",
+            "chunk_reader/hunks/data_weight",
+            tags={"method": "compaction"})
+
+        reader_inline_hunk_value_count = self._init_tablet_sensor(
+            "//tmp/t",
+            "chunk_reader/hunks/inline_value_count",
+            tags={"column": "value"})
+        reader_ref_hunk_value_count = self._init_tablet_sensor(
+            "//tmp/t",
+            "chunk_reader/hunks/ref_value_count",
+            tags={"column": "value"})
+
+        writer_chunk_data_weight = self._init_tablet_sensor(
+            "//tmp/t",
+            "chunk_writer/data_weight",
+            tags={"method": "compaction"})
+        writer_hunk_chunk_data_weight = self._init_tablet_sensor(
+            "//tmp/t",
+            "chunk_writer/hunks/data_weight",
+            tags={"method": "compaction"})
+
+        writer_inline_hunk_value_count = self._init_tablet_sensor(
+            "//tmp/t",
+            "chunk_writer/hunks/inline_value_count",
+            tags={"column": "value", "method": "compaction"})
+        writer_ref_hunk_value_count = self._init_tablet_sensor(
+            "//tmp/t",
+            "chunk_writer/hunks/ref_value_count",
+            tags={"column": "value", "method": "compaction"})
+
         rows1 = [{"key": i, "value": "value" + str(i) + "x" * 20} for i in range(5)]
         rows2 = [{"key": i, "value": "value" + str(i)} for i in range(5, 15)]
         insert_rows("//tmp/t", rows1 + rows2)
-
-        reader_hunk_chunk_transmitted = profiler_factory().at_tablet_node("//tmp/t").counter(
-            name="chunk_reader/hunks/chunk_reader_statistics/data_bytes_transmitted",
-            tags={"method": "compaction"})
-        reader_hunk_chunk_data_weight = profiler_factory().at_tablet_node("//tmp/t").counter(
-            name="chunk_reader/hunks/data_weight",
-            tags={"method": "compaction"})
-
-        reader_inline_hunk_value_count = profiler_factory().at_tablet_node("//tmp/t").counter(
-            name="chunk_reader/hunks/inline_value_count",
-            tags={"column": "value"})
-        reader_ref_hunk_value_count = profiler_factory().at_tablet_node("//tmp/t").counter(
-            name="chunk_reader/hunks/ref_value_count",
-            tags={"column": "value"})
-
-        writer_chunk_data_weight = profiler_factory().at_tablet_node("//tmp/t").counter(
-            name="chunk_writer/data_weight",
-            tags={"method": "compaction"})
-        writer_hunk_chunk_data_weight = profiler_factory().at_tablet_node("//tmp/t").counter(
-            name="chunk_writer/hunks/data_weight",
-            tags={"method": "compaction"})
-
-        writer_inline_hunk_value_count = profiler_factory().at_tablet_node("//tmp/t").counter(
-            name="chunk_writer/hunks/inline_value_count",
-            tags={"column": "value", "method": "compaction"})
-        writer_ref_hunk_value_count = profiler_factory().at_tablet_node("//tmp/t").counter(
-            name="chunk_writer/hunks/ref_value_count",
-            tags={"column": "value", "method": "compaction"})
 
         sync_unmount_table("//tmp/t")
         alter_table("//tmp/t", schema=self._get_table_schema(schema=self.SCHEMA, max_inline_hunk_size=30))
@@ -1050,32 +1062,39 @@ class TestSortedDynamicTablesHunks(TestSortedDynamicTablesBase):
         set("//tmp/t/@enable_hunk_columnar_profiling", True)
         sync_mount_table("//tmp/t")
 
+        hunk_chunk_transmitted = self._init_tablet_sensor(
+            "//tmp/t",
+            "lookup/hunks/chunk_reader_statistics/data_bytes_transmitted")
+        hunk_chunk_data_weight = self._init_tablet_sensor(
+            "//tmp/t",
+            "lookup/hunks/data_weight")
+
+        inline_hunk_value_count = self._init_tablet_sensor(
+            "//tmp/t",
+            "lookup/hunks/inline_value_count")
+        ref_hunk_value_count = self._init_tablet_sensor(
+            "//tmp/t",
+            "lookup/hunks/ref_value_count")
+
+        columnar_inline_hunk_value_count = self._init_tablet_sensor(
+            "//tmp/t",
+            "lookup/hunks/inline_value_count",
+            tags={"column": "value"})
+        columnar_ref_hunk_value_count = self._init_tablet_sensor(
+            "//tmp/t",
+            "lookup/hunks/ref_value_count",
+            tags={"column": "value"})
+
+        backend_read_request_count = self._init_tablet_sensor(
+            "//tmp/t",
+            "lookup/hunks/backend_read_request_count")
+
         keys1 = [{"key": i} for i in range(10)]
         rows1 = [{"key": i, "value": "value" + str(i) + "x" * 20} for i in range(5)]
         keys2 = [{"key": i} for i in range(10, 20)]
         rows2 = [{"key": i, "value": "value" + str(i)} for i in range(5, 15)]
         insert_rows("//tmp/t", rows1 + rows2)
         sync_flush_table("//tmp/t")
-
-        hunk_chunk_transmitted = profiler_factory().at_tablet_node("//tmp/t").counter(
-            name="lookup/hunks/chunk_reader_statistics/data_bytes_transmitted")
-        hunk_chunk_data_weight = profiler_factory().at_tablet_node("//tmp/t").counter(
-            name="lookup/hunks/data_weight")
-
-        inline_hunk_value_count = profiler_factory().at_tablet_node("//tmp/t").counter(
-            name="lookup/hunks/inline_value_count")
-        ref_hunk_value_count = profiler_factory().at_tablet_node("//tmp/t").counter(
-            name="lookup/hunks/ref_value_count")
-
-        columnar_inline_hunk_value_count = profiler_factory().at_tablet_node("//tmp/t").counter(
-            name="lookup/hunks/inline_value_count",
-            tags={"column": "value"})
-        columnar_ref_hunk_value_count = profiler_factory().at_tablet_node("//tmp/t").counter(
-            name="lookup/hunks/ref_value_count",
-            tags={"column": "value"})
-
-        backend_read_request_count = profiler_factory().at_tablet_node("//tmp/t").counter(
-            name="lookup/hunks/backend_read_request_count")
 
         assert_items_equal(lookup_rows("//tmp/t", keys1 + keys2), rows1 + rows2)
 
@@ -1103,16 +1122,20 @@ class TestSortedDynamicTablesHunks(TestSortedDynamicTablesBase):
         insert_rows("//tmp/t", rows1 + rows2)
         sync_flush_table("//tmp/t")
 
-        hunk_chunk_transmitted = profiler_factory().at_tablet_node("//tmp/t").counter(
-            name="select/hunks/chunk_reader_statistics/data_bytes_transmitted")
-        hunk_chunk_data_weight = profiler_factory().at_tablet_node("//tmp/t").counter(
-            name="select/hunks/data_weight")
+        hunk_chunk_transmitted = self._init_tablet_sensor(
+            "//tmp/t",
+            "select/hunks/chunk_reader_statistics/data_bytes_transmitted")
+        hunk_chunk_data_weight = self._init_tablet_sensor(
+            "//tmp/t",
+            "select/hunks/data_weight")
 
-        inline_hunk_value_count = profiler_factory().at_tablet_node("//tmp/t").counter(
-            name="select/hunks/inline_value_count",
+        inline_hunk_value_count = self._init_tablet_sensor(
+            "//tmp/t",
+            "select/hunks/inline_value_count",
             tags={"column": "value"})
-        ref_hunk_value_count = profiler_factory().at_tablet_node("//tmp/t").counter(
-            name="select/hunks/ref_value_count",
+        ref_hunk_value_count = self._init_tablet_sensor(
+            "//tmp/t",
+            "select/hunks/ref_value_count",
             tags={"column": "value"})
 
         assert_items_equal(select_rows("* from [//tmp/t]"), rows1 + rows2)
@@ -1251,8 +1274,9 @@ class TestSortedDynamicTablesHunks(TestSortedDynamicTablesBase):
         insert_rows("//tmp/t", rows)
         sync_flush_table("//tmp/t")
 
-        request_counter = profiler_factory().at_tablet_node("//tmp/t").counter(
-            name="hunks/hedging_manager/primary_request_count")
+        request_counter = self._init_tablet_sensor(
+            "//tmp/t",
+            "hunks/hedging_manager/primary_request_count")
 
         assert_items_equal(lookup_rows("//tmp/t", keys), rows)
 
@@ -1556,6 +1580,22 @@ class TestSortedDynamicTablesHunks(TestSortedDynamicTablesBase):
         assert lookup_data_weight_value == get(lookup_data_weight)
         assert select_data_weight_value == get(select_data_weight)
 
+    @authors("akozhikhov")
+    def test_read_from_sorted_dynamic_store_with_hunks(self):
+        sync_create_cells(1)
+        self._create_table(enable_dynamic_store_read=True)
+
+        hunk_storage_id = create("hunk_storage", "//tmp/h")
+        set("//tmp/t/@hunk_storage_id", hunk_storage_id)
+        sync_mount_table("//tmp/h")
+
+        sync_mount_table("//tmp/t")
+        rows = [{"key": i, "value": "value" + str(i) + "x" * 20} for i in range(10)]
+        insert_rows("//tmp/t", rows)
+
+        assert_items_equal(select_rows("* from [//tmp/t]"), rows)
+        assert read_table("//tmp/t") == rows
+
 
 ################################################################################
 
@@ -1592,22 +1632,28 @@ class TestOrderedDynamicTablesHunks(TestSortedDynamicTablesBase):
             schema[1]["max_inline_hunk_size"] = max_inline_hunk_size
         return schema
 
-    def _create_table(self, optimize_for="lookup", max_inline_hunk_size=10, hunk_erasure_codec="none", schema=SCHEMA):
-        self._create_simple_table("//tmp/t",
-                                  schema=self._get_table_schema(schema, max_inline_hunk_size),
-                                  enable_dynamic_store_read=False,
-                                  hunk_chunk_reader={
-                                      "max_hunk_count_per_read": 2,
-                                      "max_total_hunk_length_per_read": 60,
-                                      "fragment_read_hedging_delay": 1
-                                  },
-                                  hunk_chunk_writer={
-                                      "desired_block_size": 50,
-                                  },
-                                  max_hunk_compaction_garbage_ratio=0.5,
-                                  enable_lsm_verbose_logging=True,
-                                  optimize_for=optimize_for,
-                                  hunk_erasure_codec=hunk_erasure_codec)
+    def _create_table(self,
+                      optimize_for="lookup",
+                      max_inline_hunk_size=10,
+                      hunk_erasure_codec="none",
+                      schema=SCHEMA,
+                      enable_dynamic_store_read=False):
+        self._create_simple_table(
+            "//tmp/t",
+            schema=self._get_table_schema(schema, max_inline_hunk_size),
+            enable_dynamic_store_read=enable_dynamic_store_read,
+            hunk_chunk_reader={
+                "max_hunk_count_per_read": 2,
+                "max_total_hunk_length_per_read": 60,
+                "fragment_read_hedging_delay": 1
+            },
+            hunk_chunk_writer={
+                "desired_block_size": 50,
+            },
+            max_hunk_compaction_garbage_ratio=0.5,
+            enable_lsm_verbose_logging=True,
+            optimize_for=optimize_for,
+            hunk_erasure_codec=hunk_erasure_codec)
 
     def _get_active_store_id(self, hunk_storage, tablet_index=0):
         tablets = get("{}/@tablets".format(hunk_storage))
@@ -2059,6 +2105,31 @@ class TestOrderedDynamicTablesHunks(TestSortedDynamicTablesBase):
         sync_mount_table("//tmp/h")
         sync_mount_table("//tmp/t")
 
+    @authors("akozhikhov")
+    @pytest.mark.parametrize("hunk_erasure_codec", ["none", "isa_reed_solomon_6_3"])
+    @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
+    def test_read_from_ordered_dynamic_store_with_hunks(self, optimize_for, hunk_erasure_codec):
+        sync_create_cells(1)
+        self._create_table(enable_dynamic_store_read=True, optimize_for=optimize_for, hunk_erasure_codec=hunk_erasure_codec)
+
+        hunk_storage_id = create("hunk_storage", "//tmp/h")
+        set("//tmp/t/@hunk_storage_id", hunk_storage_id)
+        sync_mount_table("//tmp/h")
+
+        sync_mount_table("//tmp/t")
+        rows = [{"key": i, "value": "value" + str(i) + "x" * 20} for i in range(10)]
+        insert_rows("//tmp/t", rows)
+
+        assert_items_equal(select_rows("key, value from [//tmp/t]"), rows)
+        assert read_table("//tmp/t") == rows
+
+        create("table", "//tmp/t_out")
+        map(
+            in_="//tmp/t",
+            out="//tmp/t_out",
+            command="cat",
+        )
+        assert read_table("//tmp/t_out") == rows
 
 ################################################################################
 

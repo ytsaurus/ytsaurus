@@ -750,15 +750,24 @@ void TContext::SetupTracing()
 
 void TContext::SetupUserMemoryLimits()
 {
-    auto config = Api_->GetDynamicConfig();
+    const auto& config = Api_->GetDynamicConfig();
     auto userMemoryRatio = config->DefaultUserMemoryLimitRatio;
-    auto userRatioIt = config->UserToMemoryLimitRatio.find(DriverRequest_.AuthenticatedUser);
-    if (userRatioIt != config->UserToMemoryLimitRatio.end()) {
-        userMemoryRatio = userRatioIt->second;
+    const auto& proxyRole = Api_->GetCoordinator()->GetSelf()->Role;
+    const auto& memoryLimitRatiosIt = config->RoleToMemoryLimitRatios.find(proxyRole);
+
+    if (memoryLimitRatiosIt != config->RoleToMemoryLimitRatios.end()) {
+        const auto& memoryLimitRatios = memoryLimitRatiosIt->second;
+        if (memoryLimitRatios->DefaultUserMemoryLimitRatio) {
+            userMemoryRatio = memoryLimitRatios->DefaultUserMemoryLimitRatio;
+        }
+        const auto& userToMemoryLimitRatio = memoryLimitRatios->UserToMemoryLimitRatio;
+        const auto& userRatioIt = userToMemoryLimitRatio.find(DriverRequest_.AuthenticatedUser);
+        if (userRatioIt != userToMemoryLimitRatio.end()) {
+            userMemoryRatio = userRatioIt->second;
+        }
     }
-    if (userMemoryRatio) {
-        Api_->GetMemoryUsageTracker()->SetPoolRatio(TString(DriverRequest_.AuthenticatedUser), *userMemoryRatio);
-    }
+
+    Api_->GetMemoryUsageTracker()->SetPoolRatio(TString(DriverRequest_.AuthenticatedUser), userMemoryRatio);
 }
 
 void TContext::SetupMemoryUsageTracker()

@@ -818,10 +818,9 @@ DEFINE_REFCOUNTED_TYPE(TBackupManagerDynamicConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TServiceMethod
+struct TServiceMethod
     : public NYTree::TYsonStruct
 {
-public:
     TString Service;
     TString Method;
 
@@ -1199,10 +1198,9 @@ DEFINE_REFCOUNTED_TYPE(THunkStoreWriterConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class THunkStoreWriterOptions
+struct THunkStoreWriterOptions
     : public NJournalClient::TJournalHunkChunkWriterOptions
 {
-public:
     TString MediumName;
     TString Account;
 

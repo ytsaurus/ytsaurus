@@ -50,6 +50,9 @@ add_library(ytserver INTERFACE)
 target_compile_options(ytserver INTERFACE
   -Wdeprecated-this-capture
   -Wimplicit-fallthrough
+  -Wparentheses
+  -Wno-logical-op-parentheses
+  -Wno-bitwise-op-parentheses
 )
 
 target_link_libraries(ytserver INTERFACE

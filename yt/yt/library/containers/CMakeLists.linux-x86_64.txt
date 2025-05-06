@@ -23,6 +23,9 @@ add_library(yt-library-containers)
 target_compile_options(yt-library-containers PRIVATE
   -Wdeprecated-this-capture
   -Wimplicit-fallthrough
+  -Wparentheses
+  -Wno-logical-op-parentheses
+  -Wno-bitwise-op-parentheses
 )
 
 target_link_libraries(yt-library-containers PUBLIC

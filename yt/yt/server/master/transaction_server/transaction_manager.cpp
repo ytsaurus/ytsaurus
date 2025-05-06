@@ -68,6 +68,8 @@
 #include <yt/yt/ytlib/sequoia_client/helpers.h>
 #include <yt/yt/ytlib/sequoia_client/transaction.h>
 
+#include <yt/yt/ytlib/tablet_client/bulk_insert_locking.h>
+
 #include <yt/yt/client/hive/timestamp_map.h>
 
 #include <yt/yt/client/object_client/helpers.h>
@@ -117,6 +119,7 @@ using namespace NYson;
 using namespace NConcurrency;
 using namespace NCypressServer;
 using namespace NTableClient;
+using namespace NTabletClient;
 using namespace NTransactionClient;
 using namespace NTransactionClient::NProto;
 using namespace NSecurityServer;
@@ -180,6 +183,7 @@ public:
         TCompositeAutomatonPart::RegisterMethod(BIND_NO_PROPAGATE(&TTransactionManager::HydraRemoveStuckBoomerangWaves, Unretained(this)));
         TCompositeAutomatonPart::RegisterMethod(BIND_NO_PROPAGATE(&TTransactionManager::HydraIssueLeases, Unretained(this)));
         TCompositeAutomatonPart::RegisterMethod(BIND_NO_PROPAGATE(&TTransactionManager::HydraRevokeLeases, Unretained(this)));
+        TCompositeAutomatonPart::RegisterMethod(BIND_NO_PROPAGATE(&TTransactionManager::HydraRegisterLockableDynamicTables, Unretained(this)));
 
         RegisterLoader(
             "TransactionManager.Keys",
@@ -651,10 +655,39 @@ public:
         CommitTransaction(transaction, options);
     }
 
+    bool ProcessBulkInsertStateOnTransactionCommit(
+        TTransaction* transaction,
+        TTimestamp commitTimestamp)
+    {
+        auto& bulkInsertState = transaction->BulkInsertState();
+        bulkInsertState.OnTransactionCommitted(TimestampHolderMap_.contains(transaction->GetId()));
+
+        // The timestamp from the holder is used by two parties:
+        //  - chunk view sets override timestamp when fetched;
+        //  - tablet manager sends this timestamp to the node when the tablet is unlocked.
+        // If all outputs are empty, there are no chunk views so we have to ref the
+        // holder so tablet manager has access to the timestamp.
+        // There is a corner case when all outputs are empty and no table is locked
+        // (the user may ignore atomicity and explicitly ask not to lock his tables,
+        // mostly non-atomic ones). However, in this case the tablet may be safely
+        // unlocked with null timestamp.
+        bool temporarilyRefTimestampHolder = false;
+        if (!bulkInsertState.LockedDynamicTables().empty()) {
+            temporarilyRefTimestampHolder = true;
+            CreateOrRefTimestampHolder(transaction->GetId());
+        }
+
+        SetTimestampHolderTimestamp(transaction->GetId(), commitTimestamp);
+        for (auto transactionId : bulkInsertState.DescendantTransactionsPresentedInTimestampHolder()) {
+            SetTimestampHolderTimestamp(transactionId, commitTimestamp);
+        }
+
+        return temporarilyRefTimestampHolder;
+    }
+
     void CommitTransaction(
         TTransaction* transaction,
-        const TTransactionCommitOptions& options,
-        bool replicateViaHive = true)
+        const TTransactionCommitOptions& options)
     {
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(HasHydraContext());
@@ -681,49 +714,46 @@ public:
         // This is ensured by PrepareTransactionCommit in the same mutation.
         YT_VERIFY(transaction->GetSuccessorTransactionLeaseCount() == 0);
 
-        // The timestamp from the holder is used by two parties:
-        //  - chunk view sets override timestamp when fetched;
-        //  - tablet manager sends this timestamp to the node when the tablet is unlocked.
-        // If all outputs are empty, there are no chunk views so we have to ref the
-        // holder so tablet manager has access to the timestamp.
-        // There is a corner case when all outputs are empty and no table is locked
-        // (the user may ignore atomicity and explicitly ask not to lock his tables,
-        // mostly non-atomic ones). However, in this case the tablet may be safely
-        // unlocked with null timestamp.
-        bool temporaryRefTimestampHolder = false;
-        if (!transaction->LockedDynamicTables().empty()) {
-            temporaryRefTimestampHolder = true;
-            CreateOrRefTimestampHolder(transactionId);
-        }
+        bool temporarilyRefTimestampHolder = ProcessBulkInsertStateOnTransactionCommit(transaction, options.CommitTimestamp);
 
-        SetTimestampHolderTimestamp(transactionId, options.CommitTimestamp);
-
-        const auto& multicellManager = Bootstrap_->GetMulticellManager();
-
-        if (replicateViaHive && !transaction->ReplicatedToCellTags().empty()) {
-            NProto::TReqCommitTransaction request;
-            ToProto(request.mutable_transaction_id(), transactionId);
-            request.set_commit_timestamp(options.CommitTimestamp);
-            const auto* mutationContext = GetCurrentMutationContext();
-            request.set_native_commit_mutation_revision(ToProto(mutationContext->GetVersion().ToRevision()));
-            multicellManager->PostToMasters(request, transaction->ReplicatedToCellTags());
-        }
-
-        if (!transaction->ExternalizedToCellTags().empty()) {
-            NProto::TReqCommitTransaction request;
-            ToProto(request.mutable_transaction_id(), MakeExternalizedTransactionId(transactionId, multicellManager->GetCellTag()));
-            request.set_commit_timestamp(options.CommitTimestamp);
-            const auto* mutationContext = GetCurrentMutationContext();
-            request.set_native_commit_mutation_revision(ToProto(mutationContext->GetVersion().ToRevision()));
-            multicellManager->PostToMasters(request, transaction->ExternalizedToCellTags());
-        }
-
-        // Abort of nested transactions has to be done after replicating commit
-        // to participants and that's why:
-        // abort of nested transactions cause posting "remove object"
-        // mutations via Hive. It must be done only after tx abort on foreign
-        // cells since txs hold refs to objects and "remove object" checks if
-        // object's refcount is zero.
+        // On every transaction finish:
+        //   1. nested transactions are aborted (and their aborts are
+        //      replicated);
+        //   2. current transaction finish is replicated to participant (and
+        //      external) cells via Hive;
+        //   3. Cypress changes caused by transaction finish are handled.
+        // At first glance, it's enough to replicate the finish of a topmost
+        // transaction in a given subtree since every participant master cell
+        // knows transaction hierarchy. But Cypress changes can be replicated to
+        // external cells too (e.g. object destruction, waitable lock
+        // acquisition). These actions together with transaction finish have to
+        // be ordered in the same manner on every cell, so replication of finish
+        // for every transaction is unavoidable.
+        //
+        // Tricky corner case to highlight the problem:
+        // Consider the following client code:
+        //   topmost_tx = start_tx()
+        //   parent_tx = start_tx(tx=topmost_tx)
+        //   nested_tx = start_tx(tx=parent_tx)
+        //   nested_lock = lock(node, tx=nested_tx)
+        //   parent_lock = lock(node, tx=parent_tx, waitable=True)
+        //   commit(parent_tx)
+        // Expected semantic:
+        //   1. nested_tx is aborted;
+        //   2. nested_lock is released;
+        //   3. parent_lock is acquired since it's pending and there is no other
+        //      locks for node;
+        //   4. parent_tx is committed;
+        //   5. parent_lock is promoted to topmost_tx.
+        // Waitable lock acquisition occurs on node's native cell and is
+        // replicated to external cell. On the one hand, waitable lock
+        // acquisition must happen after nested_tx commit on external cell since
+        // lock under parent_tx cannot be acquired while node is still locked
+        // under nested_tx. On the other hand, waitable lock acquisition must
+        // happen before parent_tx is committed because lock cannot be acquired
+        // if transaction is not alive. Therefore, lock acquisition should be
+        // replicated exactly between replication of parent_tx commit and
+        // nested_tx abort.
         TCompactVector<TTransaction*, 16> nestedTransactions(
             transaction->NestedTransactions().begin(),
             transaction->NestedTransactions().end());
@@ -735,15 +765,34 @@ public:
             TTransactionAbortOptions options{
                 .Force = true,
             };
-            // NB: Disable replication via Hive as the commit sent above will
-            // abort them implicitly.
             AbortTransaction(
                 nestedTransaction,
                 options,
-                /*validatePermissions*/ false,
-                /*replicateViaHive*/ false);
+                /*validatePermissions*/ false);
         }
         YT_VERIFY(transaction->NestedTransactions().empty());
+
+        const auto& multicellManager = Bootstrap_->GetMulticellManager();
+        // NB: mirrored Cypress transactions are committed with Sequoia
+        // transaction actions instead of Hive.
+        auto replicateCommitViaHive = !IsCypressTransactionMirroredToSequoia(transactionId) || !GetSequoiaContext();
+        if (replicateCommitViaHive && !transaction->ReplicatedToCellTags().empty()) {
+            NProto::TReqCommitTransaction request;
+            ToProto(request.mutable_transaction_id(), transactionId);
+            request.set_commit_timestamp(options.CommitTimestamp);
+            const auto* mutationContext = GetCurrentMutationContext();
+            request.set_native_commit_mutation_revision(ToProto(mutationContext->GetVersion().ToRevision()));
+            multicellManager->PostToMasters(request, transaction->ReplicatedToCellTags());
+        }
+        // Externalized transactions are always finished via Hive.
+        if (!transaction->ExternalizedToCellTags().empty()) {
+            NProto::TReqCommitTransaction request;
+            ToProto(request.mutable_transaction_id(), MakeExternalizedTransactionId(transactionId, multicellManager->GetCellTag()));
+            request.set_commit_timestamp(options.CommitTimestamp);
+            const auto* mutationContext = GetCurrentMutationContext();
+            request.set_native_commit_mutation_revision(ToProto(mutationContext->GetVersion().ToRevision()));
+            multicellManager->PostToMasters(request, transaction->ExternalizedToCellTags());
+        }
 
         if (IsLeader()) {
             CloseLease(transaction);
@@ -753,7 +802,7 @@ public:
 
         TransactionCommitted_.Fire(transaction);
 
-        if (temporaryRefTimestampHolder) {
+        if (temporarilyRefTimestampHolder) {
             UnrefTimestampHolder(transactionId);
         }
 
@@ -818,15 +867,13 @@ public:
         AbortTransaction(
             transaction,
             options,
-            /*validatePermissions*/ false,
-            /*replicateViaHive*/ true);
+            /*validatePermissions*/ false);
     }
 
     void AbortTransaction(
         TTransaction* transaction,
         const TTransactionAbortOptions& options,
-        bool validatePermissions,
-        bool replicateViaHive)
+        bool validatePermissions)
     {
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
@@ -861,22 +908,7 @@ public:
             securityManager->ValidatePermission(transaction, EPermission::Write);
         }
 
-        const auto& multicellManager = Bootstrap_->GetMulticellManager();
-
-        if (replicateViaHive && !transaction->ReplicatedToCellTags().empty()) {
-            NProto::TReqAbortTransaction request;
-            ToProto(request.mutable_transaction_id(), transactionId);
-            request.set_force(true);
-            multicellManager->PostToMasters(request, transaction->ReplicatedToCellTags());
-        }
-
-        if (!transaction->ExternalizedToCellTags().empty()) {
-            NProto::TReqAbortTransaction request;
-            ToProto(request.mutable_transaction_id(), MakeExternalizedTransactionId(transactionId, multicellManager->GetCellTag()));
-            request.set_force(true);
-            multicellManager->PostToMasters(request, transaction->ExternalizedToCellTags());
-        }
-
+        // See the same place in CommitTransaction().
         TCompactVector<TTransaction*, 16> nestedTransactions(
             transaction->NestedTransactions().begin(),
             transaction->NestedTransactions().end());
@@ -891,19 +923,37 @@ public:
             AbortTransaction(
                 nestedTransaction,
                 options,
-                /*validatePermissions*/ false,
-                /*replicateViaHive*/ false);
+                /*validatePermissions*/ false);
         }
         YT_VERIFY(transaction->NestedTransactions().empty());
+
+        // NB: see similar place CommitTransaction().
+        const auto& multicellManager = Bootstrap_->GetMulticellManager();
+        auto replicateAbortViaHive = !IsCypressTransactionMirroredToSequoia(transactionId) || !GetSequoiaContext();
+        if (replicateAbortViaHive && !transaction->ReplicatedToCellTags().empty()) {
+            NProto::TReqAbortTransaction request;
+            ToProto(request.mutable_transaction_id(), transactionId);
+            request.set_force(true);
+            multicellManager->PostToMasters(request, transaction->ReplicatedToCellTags());
+        }
+        if (!transaction->ExternalizedToCellTags().empty()) {
+            NProto::TReqAbortTransaction request;
+            ToProto(request.mutable_transaction_id(), MakeExternalizedTransactionId(transactionId, multicellManager->GetCellTag()));
+            request.set_force(true);
+            multicellManager->PostToMasters(request, transaction->ExternalizedToCellTags());
+        }
 
         if (IsLeader()) {
             CloseLease(transaction);
         }
 
+        transaction->BulkInsertState().OnTransactionAborted();
+
         transaction->SetPersistentState(ETransactionState::Aborted);
 
         TransactionAborted_.Fire(transaction);
 
+        auto sequoiaContext = MaybeCreateSequoiaContextGuard(transaction);
         RunAbortTransactionActions(transaction, options);
 
         const auto& objectManager = Bootstrap_->GetObjectManager();
@@ -1322,6 +1372,16 @@ public:
             this);
     }
 
+    std::unique_ptr<NHydra::TMutation> CreateRegisterLockableDynamicTablesMutation(
+        TCtxRegisterLockableDynamicTablesPtr context) override
+    {
+        return CreateMutation(
+            Bootstrap_->GetHydraFacade()->GetHydraManager(),
+            std::move(context),
+            &TTransactionManager::HydraRegisterLockableDynamicTables,
+            this);
+    }
+
     // ITransactionManager implementation.
     TFuture<void> GetReadyToPrepareTransactionCommit(
         const std::vector<TTransactionId>& prerequisiteTransactionIds,
@@ -1360,8 +1420,8 @@ public:
             leaseAgnosticPrerequisiteTransactionIds.reserve(prerequisiteTransactionIds.size());
             leaseAwarePrerequisiteTransactionIds.reserve(prerequisiteTransactionIds.size());
             for (auto transactionId : prerequisiteTransactionIds) {
-                if (IsMirroringToSequoiaEnabled() && IsCypressTransactionMirroredToSequoia(transactionId)
-                    && GetDynamicConfig()->EnableCypressMirroredToSequoiaPrerequisiteTransactionValidationViaLeases)
+                if (IsMirroringToSequoiaEnabled() && IsCypressTransactionMirroredToSequoia(transactionId) &&
+                    GetDynamicConfig()->EnableCypressMirroredToSequoiaPrerequisiteTransactionValidationViaLeases)
                 {
                     leaseAwarePrerequisiteTransactionIds.push_back(transactionId);
                 } else {
@@ -1446,7 +1506,13 @@ public:
             return;
         }
 
+        const auto& leaseManager = Bootstrap_->GetLeaseManager();
         for (auto prerequisiteTransactionId : options.PrerequisiteTransactionIds) {
+            if (IsCypressTransactionMirroredToSequoia(prerequisiteTransactionId) &&
+                leaseManager->FindLease(prerequisiteTransactionId))
+            {
+                continue;
+            }
             GetAndValidatePrerequisiteTransaction(prerequisiteTransactionId);
         }
 
@@ -1530,8 +1596,7 @@ public:
         AbortTransaction(
             transaction,
             options,
-            /*validatePermissions*/ true,
-            /*replicateViaHive*/ true);
+            /*validatePermissions*/ true);
     }
 
     TFuture<void> PingTransaction(
@@ -1627,6 +1692,21 @@ public:
         YT_UNUSED_FUTURE(mutation->CommitAndReply(context));
     }
 
+    void ThrowIfDynamicTablesNotLocked(TTransaction* transaction, bool dynamicTablesLocked)
+    {
+        const auto& bulkInsertState = transaction->BulkInsertState();
+
+        if (!transaction->GetParent() &&
+            !bulkInsertState.LockableDynamicTables().empty() &&
+            !dynamicTablesLocked)
+        {
+            THROW_ERROR_EXCEPTION(NTransactionClient::EErrorCode::NeedLockDynamicTablesBeforeCommit,
+                "Lock dynamic tables before commit and pass \"dynamic_tables_locked\" flag")
+                << TErrorAttribute("transaction_id", transaction->GetId())
+                << TErrorAttribute("lockable_dynamic_tables", ConvertToYsonString(bulkInsertState.LockableDynamicTables(), EYsonFormat::Text));
+        }
+    }
+
     void CommitCypressTransaction(const TCtxCommitCypressTransactionPtr& context) override
     {
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
@@ -1638,6 +1718,8 @@ public:
         auto* transaction = GetTransactionOrThrow(transactionId);
 
         YT_VERIFY(transaction->GetIsCypressTransaction());
+
+        ThrowIfDynamicTablesNotLocked(transaction, request.dynamic_tables_locked());
 
         // TODO(kvk1920): optimize.
         // For mirrored transactions it's enough to lock some rows in
@@ -1652,9 +1734,9 @@ public:
             }
         }
 
-        auto revokeLeases = transaction->GetSuccessorTransactionLeaseCount() > 0
-            || (GetDynamicConfig()->EnableCypressMirroredToSequoiaPrerequisiteTransactionValidationViaLeases
-            && IsMirroringToSequoiaEnabled() && IsCypressTransactionMirroredToSequoia(transactionId));
+        auto revokeLeases = transaction->GetSuccessorTransactionLeaseCount() > 0 ||
+            (GetDynamicConfig()->EnableCypressMirroredToSequoiaPrerequisiteTransactionValidationViaLeases &&
+            IsMirroringToSequoiaEnabled() && IsCypressTransactionMirroredToSequoia(transactionId));
 
         auto readyEvent = GetReadyToPrepareTransactionCommit(
             prerequisiteTransactionIds,
@@ -1709,13 +1791,15 @@ public:
         }
 
         auto participantCellIds = FromProto<std::vector<TCellId>>(request.participant_cell_ids());
-        auto force2PC = request.force_2pc();
-        if (request.force_2pc() || !participantCellIds.empty()) {
+        bool force2PC = request.force_2pc();
+        if (force2PC || !participantCellIds.empty()) {
             THROW_ERROR_EXCEPTION("Cypress transactions cannot be committed via 2PC")
                 << TErrorAttribute("transaction_id", transactionId)
                 << TErrorAttribute("force_2pc", force2PC)
                 << TErrorAttribute("participant_cell_ids", participantCellIds);
         }
+
+        ThrowIfDynamicTablesNotLocked(transaction, request.dynamic_tables_locked());
 
         std::vector<TTransactionId> prerequisiteTransactionIds;
         if (context->GetRequestHeader().HasExtension(NObjectClient::NProto::TPrerequisitesExt::prerequisites_ext)) {
@@ -1727,9 +1811,9 @@ public:
             }
         }
 
-        auto revokeLeases = transaction->GetSuccessorTransactionLeaseCount() > 0
-            || (GetDynamicConfig()->EnableCypressMirroredToSequoiaPrerequisiteTransactionValidationViaLeases
-            && IsMirroringToSequoiaEnabled() && IsCypressTransactionMirroredToSequoia(transactionId));
+        auto revokeLeases = transaction->GetSuccessorTransactionLeaseCount() > 0 ||
+            (GetDynamicConfig()->EnableCypressMirroredToSequoiaPrerequisiteTransactionValidationViaLeases &&
+            IsMirroringToSequoiaEnabled() && IsCypressTransactionMirroredToSequoia(transactionId));
 
         auto readyEvent = GetReadyToPrepareTransactionCommit(
             prerequisiteTransactionIds,
@@ -1856,7 +1940,6 @@ public:
         auto request = BuildAbortCypressTransactionRequest(
             transactionId,
             force,
-            /*replicateViaHive*/ true,
             NRpc::GetCurrentAuthenticationIdentity());
 
         auto mutation = CreateMutation(HydraManager_, request);
@@ -2390,8 +2473,7 @@ private:
             PrepareAndCommitCypressTransaction(
                 transaction,
                 prerequisiteTransactionIds,
-                request->commit_timestamp(),
-                /*replicateViaHive*/ false);
+                request->commit_timestamp());
         } catch (const std::exception& ex) {
             // Abort it reliably.
             // TODO(kvk1920): proper way to abort mirrored tx from master.
@@ -2405,8 +2487,7 @@ private:
     void PrepareAndCommitCypressTransaction(
         TTransaction* transaction,
         const std::vector<TTransactionId>& prerequisiteTransactionIds,
-        TTimestamp commitTimestamp,
-        bool replicateViaHive)
+        TTimestamp commitTimestamp)
     {
         YT_VERIFY(HasHydraContext());
 
@@ -2423,7 +2504,7 @@ private:
             .CommitTimestamp = commitTimestamp,
             .CommitTimestampClusterTag = Bootstrap_->GetPrimaryCellTag(),
         };
-        CommitTransaction(transaction, commitOptions, replicateViaHive);
+        CommitTransaction(transaction, commitOptions);
     }
 
     void HydraCommitCypressTransaction(
@@ -2445,8 +2526,7 @@ private:
             PrepareAndCommitCypressTransaction(
                 transaction,
                 prerequisiteTransactionIds,
-                request->commit_timestamp(),
-                /*replicateViaHive*/ true);
+                request->commit_timestamp());
         } catch (const std::exception& ex) {
             YT_LOG_DEBUG(ex, "Failed to commit transaction, aborting (TransactionId: %v)",
                 transactionId);
@@ -2457,8 +2537,7 @@ private:
             AbortTransaction(
                 transaction,
                 abortOptions,
-                /*validatePermissions*/ true,
-                /*replicateViaHive*/ true);
+                /*validatePermissions*/ true);
 
             throw;
         }
@@ -2473,7 +2552,6 @@ private:
 
         auto transactionId = FromProto<TTransactionId>(request->transaction_id());
         YT_VERIFY(IsCypressTransactionMirroredToSequoia(transactionId));
-        YT_VERIFY(!request->replicate_via_hive());
 
         HydraAbortCypressTransaction(/*context*/ nullptr, request, /*response*/ nullptr);
     }
@@ -2512,8 +2590,7 @@ private:
         AbortTransaction(
             transaction,
             abortOptions,
-            /*validatePermissions*/ true,
-            request->replicate_via_hive());
+            /*validatePermissions*/ true);
     }
 
     void HydraCommitMarkCypressTransactionsReplicatedToCell(
@@ -2673,32 +2750,19 @@ private:
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(HasHydraContext());
 
-        const auto& cellManager = Bootstrap_->GetTamedCellManager();
         const auto& hiveManager = Bootstrap_->GetHiveManager();
-        const auto& multicellManager = Bootstrap_->GetMulticellManager();
 
         auto transactionIds = FromProto<std::vector<TTransactionId>>(request->transaction_ids());
         auto cellId = FromProto<TCellId>(request->cell_id());
         auto cellType = TypeFromId(cellId);
 
-        THashSet<TTransactionId>* cellLeaseTransactionIds;
-        switch (cellType) {
-            case EObjectType::TabletCell: {
-                auto* cell = cellManager->GetCellOrThrow(cellId);
-                cellLeaseTransactionIds = &cell->LeaseTransactionIds();
-                break;
-            }
-            case EObjectType::MasterCell: {
-                cellLeaseTransactionIds = multicellManager->GetLocalMasterIssuedLeaseIds(CellTagFromId(cellId));
-                break;
-            }
-            default: {
-                YT_LOG_ALERT(
-                    "Requested to issue leases for unknown cell type, ignored (TransactionIds: %v, CellType: %v)",
-                    transactionIds,
-                    cellType);
-                return;
-            }
+        auto* cellLeaseTransactionIds = GetCellLeaseTransactionIds(cellId);
+        if (!cellId){
+            YT_LOG_ALERT(
+                "Requested to issue leases for unknown cell type, ignored (TransactionIds: %v, CellType: %v)",
+                transactionIds,
+                cellType);
+            return;
         }
 
         for (auto transactionId : transactionIds) {
@@ -2726,6 +2790,33 @@ private:
         }
     }
 
+    void HydraRegisterLockableDynamicTables(
+        const TCtxRegisterLockableDynamicTablesPtr& /*context*/,
+        NProto::TReqRegisterLockableDynamicTables* request,
+        NProto::TRspRegisterLockableDynamicTables* /*response*/)
+    {
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
+
+        auto transactionId = FromProto<TTransactionId>(request->transaction_id());
+        auto lockableDynamicTablesToAdd = FromProto<std::vector<std::pair<TCellTag, std::vector<TTableId>>>>(request->lockable_dynamic_tables());
+
+        auto* transaction = GetTransactionOrThrow(transactionId);
+        auto& bulkInsertState = transaction->BulkInsertState();
+
+        for (const auto& [externalCellTag, tableIds]: lockableDynamicTablesToAdd) {
+            for (auto tableId : tableIds) {
+                if (bulkInsertState.HasConflict(tableId)) {
+                    THROW_ERROR_EXCEPTION("Duplicate lockable dynamic table")
+                        << TErrorAttribute("transaction_id", transactionId)
+                        << TErrorAttribute("topmost_transaction_id", transaction->GetTopmostTransaction()->GetId())
+                        << TErrorAttribute("table_id", tableId);
+                }
+            }
+        }
+
+        bulkInsertState.AddLockableDynamicTables(std::move(lockableDynamicTablesToAdd));
+    }
+
     void HydraRevokeLeases(NProto::TReqRevokeLeases* request)
     {
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
@@ -2749,8 +2840,6 @@ private:
         YT_VERIFY(HasHydraContext());
 
         const auto& hiveManager = Bootstrap_->GetHiveManager();
-        const auto& cellManager = Bootstrap_->GetTamedCellManager();
-        const auto& multicellManager = Bootstrap_->GetMulticellManager();
 
         auto revokeTransaction = [&] (TTransaction* transaction) {
             YT_LOG_DEBUG(
@@ -2777,30 +2866,39 @@ private:
                 hiveManager->PostMessage(mailbox, message);
 
                 if (force) {
-                    THashSet<TTransactionId>* cellLeaseTransactionIds;
-                    switch (cellType) {
-                        case EObjectType::TabletCell: {
-                            auto* cell = cellManager->GetCell(cellId);
-                            cellLeaseTransactionIds = &cell->LeaseTransactionIds();
-                            break;
-                        }
-                        case EObjectType::MasterCell: {
-                            cellLeaseTransactionIds = multicellManager->GetLocalMasterIssuedLeaseIds(CellTagFromId(cellId));
-                            break;
-                        }
-                        default: {
-                            YT_LOG_ALERT(
-                                "Requested to revoke leases for unknown cell type, ignored (TransactionId: %v, CellType: %v)",
-                                transaction->GetId(),
-                                cellType);
-                            return;
-                        }
+                    auto* cellLeaseTransactionIds = GetCellLeaseTransactionIds(cellId);
+                    if (!cellLeaseTransactionIds) {
+                        YT_LOG_ALERT(
+                            "Requested to revoke leases for unknown cell type, ignored (TransactionId: %v, CellType: %v)",
+                            transaction->GetId(),
+                            cellType);
+                        return;
                     }
                     UnregisterTransactionLease(transaction, cellId, cellLeaseTransactionIds);
                 }
             }
         };
         IterateSuccessorTransactions(transaction, BIND(revokeTransaction));
+    }
+
+    THashSet<TTransactionId>* GetCellLeaseTransactionIds(TCellId cellId)
+    {
+        const auto& cellManager = Bootstrap_->GetTamedCellManager();
+        const auto& multicellManager = Bootstrap_->GetMulticellManager();
+
+        auto cellType = TypeFromId(cellId);
+        switch (cellType) {
+            case EObjectType::TabletCell: {
+                auto* cell = cellManager->GetCellOrThrow(cellId);
+                return &cell->LeaseTransactionIds();
+            }
+            case EObjectType::MasterCell: {
+                return multicellManager->GetLocalMasterIssuedLeaseIds(CellTagFromId(cellId));
+            }
+            default: {
+                return nullptr;
+            }
+        }
     }
 
 public:
@@ -2863,16 +2961,10 @@ public:
             TTransactionAbortOptions options{
                 .Force = true,
             };
-            // Some dependent transactions may be not mirrored to Sequoia
-            // Ground so their abort have to be replicated via Hive.
-            bool suppressReplicationViaHive =
-                IsMirroringToSequoiaEnabled() &&
-                IsCypressTransactionMirroredToSequoia(dependentTransaction->GetId());
             AbortTransaction(
                 dependentTransaction,
                 options,
-                /*validatePermissions*/ false,
-                /*replicateViaHive*/ !suppressReplicationViaHive);
+                /*validatePermissions*/ false);
         }
         transaction->DependentTransactions().clear();
 
@@ -3449,15 +3541,19 @@ private:
     {
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
+        TSensorBuffer buffer;
         if (TransactionPresenceCache_) {
-            TSensorBuffer buffer;
-
             buffer.AddGauge("/cached_replicated_transaction_count", TransactionPresenceCache_->GetReplicatedTransactionCount());
             buffer.AddGauge("/cached_recently_finished_transaction_count", TransactionPresenceCache_->GetRecentlyFinishedTransactionCount());
             buffer.AddGauge("/subscribed_remote_transaction_replication_count", TransactionPresenceCache_->GetSubscribedRemoteTransactionReplicationCount());
-
-            BufferedProducer_->Update(std::move(buffer));
         }
+
+        const auto& transactionSupervisor = Bootstrap_->GetTransactionSupervisor();
+        if (transactionSupervisor) {
+            transactionSupervisor->OnProfiling(&buffer);
+        }
+
+        BufferedProducer_->Update(std::move(buffer));
     }
 
     const TDynamicTransactionManagerConfigPtr& GetDynamicConfig()
@@ -3465,9 +3561,17 @@ private:
         return Bootstrap_->GetConfigManager()->GetConfig()->TransactionManager;
     }
 
-    void OnDynamicConfigChanged(TDynamicClusterConfigPtr /*oldConfig*/)
+    void OnDynamicConfigChanged(TDynamicClusterConfigPtr oldConfig)
     {
-        ProfilingExecutor_->SetPeriod(GetDynamicConfig()->ProfilingPeriod);
+        const auto& newConfig = GetDynamicConfig();
+        ProfilingExecutor_->SetPeriod(newConfig->ProfilingPeriod);
+
+        if (HasMutationContext()) {
+            if (oldConfig->TransactionManager->RecomputeStronglyOrderedTransactionRefs != newConfig->RecomputeStronglyOrderedTransactionRefs) {
+                const auto& transactionSupervisor = Bootstrap_->GetTransactionSupervisor();
+                transactionSupervisor->RecomputeStronglyOrderedTransactionRefsOnCoordinator();
+            }
+        }
     }
 
     void ThrowTransactionSuccessorHasLeases(TTransaction* transaction)

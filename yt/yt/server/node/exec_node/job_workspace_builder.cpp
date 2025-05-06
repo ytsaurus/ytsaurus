@@ -42,6 +42,7 @@ TJobWorkspaceBuilder::TJobWorkspaceBuilder(
     if (Context_.NeedGpuCheck) {
         YT_VERIFY(Context_.GpuCheckBinaryPath);
         YT_VERIFY(Context_.GpuCheckBinaryArgs);
+        YT_VERIFY(Context_.GpuCheckEnvironment);
     }
 }
 
@@ -617,8 +618,10 @@ private:
                     : MakeWritableRootFS(),
                 .CommandUser = Context_.CommandUser,
 
+                .SetupCommands = Context_.GpuCheckSetupCommands,
                 .GpuCheckBinaryPath = *Context_.GpuCheckBinaryPath,
                 .GpuCheckBinaryArgs = *Context_.GpuCheckBinaryArgs,
+                .GpuCheckEnvironment = *Context_.GpuCheckEnvironment,
                 .GpuCheckType = Context_.GpuCheckType,
                 .CurrentStartIndex = ResultHolder_.SetupCommandCount,
                 // It is preliminary (not extra) GPU check.

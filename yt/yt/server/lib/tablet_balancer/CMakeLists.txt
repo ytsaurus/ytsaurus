@@ -23,6 +23,9 @@ add_library(server-lib-tablet_balancer)
 target_compile_options(server-lib-tablet_balancer PRIVATE
   -Wdeprecated-this-capture
   -Wimplicit-fallthrough
+  -Wparentheses
+  -Wno-logical-op-parentheses
+  -Wno-bitwise-op-parentheses
 )
 
 target_link_libraries(server-lib-tablet_balancer PUBLIC

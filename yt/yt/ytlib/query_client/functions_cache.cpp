@@ -71,10 +71,9 @@ struct TQueryUdfTag
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TCypressFunctionDescriptor
+struct TCypressFunctionDescriptor
     : public NYTree::TYsonStruct
 {
-public:
     TString Name;
     std::vector<TDescriptorType> ArgumentTypes;
     std::optional<TDescriptorType> RepeatedArgumentType;
@@ -107,13 +106,12 @@ public:
     }
 };
 
-DECLARE_REFCOUNTED_CLASS(TCypressFunctionDescriptor)
+DECLARE_REFCOUNTED_STRUCT(TCypressFunctionDescriptor)
 DEFINE_REFCOUNTED_TYPE(TCypressFunctionDescriptor)
 
-class TCypressAggregateDescriptor
+struct TCypressAggregateDescriptor
     : public NYTree::TYsonStruct
 {
-public:
     TString Name;
     TDescriptorType ArgumentType;
     TDescriptorType StateType;
@@ -133,7 +131,7 @@ public:
     }
 };
 
-DECLARE_REFCOUNTED_CLASS(TCypressAggregateDescriptor)
+DECLARE_REFCOUNTED_STRUCT(TCypressAggregateDescriptor)
 DEFINE_REFCOUNTED_TYPE(TCypressAggregateDescriptor)
 
 DEFINE_REFCOUNTED_TYPE(TExternalCGInfo)

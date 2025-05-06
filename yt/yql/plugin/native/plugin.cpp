@@ -3,6 +3,7 @@
 
 #include "error_helpers.h"
 #include "progress_merger.h"
+#include "secret_masker.h"
 
 #include <yt/yql/providers/yt/common/yql_names.h>
 #include <yt/yql/providers/yt/comp_nodes/dq/dq_yt_factory.h>
@@ -572,8 +573,6 @@ public:
             }
         });
 
-        program->SetResultType(NYql::IDataProvider::EResultFormat::Skiff);
-
         NSQLTranslation::TTranslationSettings sqlSettings;
         sqlSettings.ClusterMapping = dynamicConfig->Clusters;
         sqlSettings.ModuleMapping = Modules_;
@@ -911,6 +910,7 @@ private:
         ytServices.FunctionRegistry = FuncRegistry_.Get();
         ytServices.FileStorage = FileStorage_;
         ytServices.Config = std::make_shared<NYql::TYtGatewayConfig>(*dynamicConfig.GatewaysConfig.MutableYt());
+        ytServices.SecretMasker = CreateSecretMasker();
 
         TVector<NYql::TDataProviderInitializer> dataProvidersInit;
         if (DqManagerConfig_) {

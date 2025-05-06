@@ -369,10 +369,7 @@ TOrderedDynamicRow TOrderedDynamicStore::WriteRow(
     // NB: Be sure to place writes of all additional columns before this line.
     auto dataWeight = static_cast<i64>(NTableClient::GetDataWeight(dynamicRow));
     if (CumulativeDataWeightColumnId_) {
-        // COMPAT(akozhikhov).
-        if (static_cast<ETabletReign>(GetCurrentMutationContext()->Request().Reign) <
-                ETabletReign::FixCDWComputationForChaosReplicas ||
-            dynamicRow[*CumulativeDataWeightColumnId_].Type == EValueType::Null) {
+        if (dynamicRow[*CumulativeDataWeightColumnId_].Type == EValueType::Null) {
             // Account for the $cumulative_data_weight column we are adding.
             dataWeight +=
                 static_cast<i64>(NTableClient::GetDataWeight(EValueType::Uint64)) -
@@ -648,7 +645,7 @@ ISchemafulUnversionedReaderPtr TOrderedDynamicStore::CreateReader(
             columnFilter),
         PerformanceCounters_,
         NTableClient::EDataSource::DynamicStore,
-        ERequestType::Read);
+        EPerformanceCountedRequestType::Read);
 }
 
 void TOrderedDynamicStore::OnSetPassive()

@@ -198,9 +198,9 @@ std::optional<TFairShareFunctionsStatistics> TElement::GetFairShareFunctionsStat
     }
 
     return TFairShareFunctionsStatistics{
-        .FairShareBySuggestionSize = static_cast<int>(FairShareBySuggestion_->Segments().size()),
-        .FairShareByFitFactorSize = static_cast<int>(FairShareByFitFactor_->Segments().size()),
-        .MaxFitFactorBySuggestionSize = static_cast<int>(MaxFitFactorBySuggestion_->Segments().size()),
+        .FairShareBySuggestionSize = static_cast<int>(std::ssize(FairShareBySuggestion_->Segments())),
+        .FairShareByFitFactorSize = static_cast<int>(std::ssize(FairShareByFitFactor_->Segments())),
+        .MaxFitFactorBySuggestionSize = static_cast<int>(std::ssize(MaxFitFactorBySuggestion_->Segments())),
     };
 }
 

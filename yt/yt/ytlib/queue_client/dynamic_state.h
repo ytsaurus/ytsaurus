@@ -190,10 +190,9 @@ DEFINE_REFCOUNTED_TYPE(TConsumerRegistrationTable)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TReplicaInfo
+struct TReplicaInfo
     : public NYTree::TYsonStruct
 {
-public:
     std::string ClusterName;
     NYPath::TYPath ReplicaPath;
     NTabletClient::ETableReplicaState State;
@@ -206,10 +205,9 @@ public:
 
 DEFINE_REFCOUNTED_TYPE(TReplicaInfo)
 
-class TChaosReplicaInfo
+struct TChaosReplicaInfo
     : public TReplicaInfo
 {
-public:
     NTabletClient::ETableReplicaContentType ContentType;
 
     REGISTER_YSON_STRUCT(TChaosReplicaInfo);
@@ -219,10 +217,9 @@ public:
 
 DEFINE_REFCOUNTED_TYPE(TChaosReplicaInfo)
 
-class TReplicatedTableMeta
+struct TReplicatedTableMeta
     : public NYTree::TYsonStruct
 {
-public:
     THashMap<NTabletClient::TTableReplicaId, TReplicaInfoPtr> Replicas;
 
     REGISTER_YSON_STRUCT(TReplicatedTableMeta);
@@ -232,10 +229,9 @@ public:
 
 DEFINE_REFCOUNTED_TYPE(TReplicatedTableMeta)
 
-class TChaosReplicatedTableMeta
+struct TChaosReplicatedTableMeta
     : public NYTree::TYsonStruct
 {
-public:
     NChaosClient::TReplicationCardId ReplicationCardId;
     THashMap<NChaosClient::TReplicaId, TChaosReplicaInfoPtr> Replicas;
 
@@ -246,10 +242,9 @@ public:
 
 DEFINE_REFCOUNTED_TYPE(TChaosReplicatedTableMeta)
 
-class TGenericReplicatedTableMeta
+struct TGenericReplicatedTableMeta
     : public NYTree::TYsonStruct
 {
-public:
     TReplicatedTableMetaPtr ReplicatedTableMeta;
     TChaosReplicatedTableMetaPtr ChaosReplicatedTableMeta;
 

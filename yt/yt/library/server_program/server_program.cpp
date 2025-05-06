@@ -1,4 +1,5 @@
 #include "server_program.h"
+#include "private.h"
 
 #include <yt/yt/library/fusion/service_directory.h>
 
@@ -36,6 +37,10 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+static constexpr auto& Logger = ServerProgramLogger;
+
+////////////////////////////////////////////////////////////////////////////////
+
 namespace {
 
 void ConfigureCoverageOutput()
@@ -56,6 +61,8 @@ void ConfigureCoverageOutput()
 
 TServerProgramBase::TServerProgramBase()
     : ServiceDirectory_(NFusion::CreateServiceDirectory())
+    , MemoryLockedSuccessfully_(NProfiling::TProfiler("/memory").Gauge("/mlock_bytes"))
+    , MemoryLockedUnsuccessfully_(NProfiling::TProfiler("/memory").Gauge("/mlock_failed_bytes"))
 {
     ConfigureCoverageOutput();
 }
@@ -106,7 +113,21 @@ void TServerProgramBase::Configure(const TServerProgramConfigPtr& config)
 
     ConfigureAllocator();
 
-    MlockFileMappings();
+    TMlockStatistics statistics;
+    auto success = MlockFileMappings(/*populate*/ true, &statistics);
+    MemoryLockedSuccessfully_.Update(statistics.BytesLockedSucessfully);
+    MemoryLockedUnsuccessfully_.Update(statistics.BytesLockedUnsuccessfully);
+
+    YT_LOG_DEBUG_UNLESS(success,
+        "Mlock failed (Errors: %v, SuccessfullCalls: %v, UnsuccessfullCalls: %v, "
+        "BytesLocked: %v, BytesNotLocked: %v)",
+        MakeFormattableView(statistics.ErrorCodes, [] (TStringBuilderBase* builder, int errnum) {
+            builder->AppendString(strerror(errnum));
+        }),
+        statistics.SuccessfullCallCount,
+        statistics.UnsuccessfullCallCount,
+        statistics.BytesLockedSucessfully,
+        statistics.BytesLockedUnsuccessfully);
 
     ConfigureSingletons(config);
 

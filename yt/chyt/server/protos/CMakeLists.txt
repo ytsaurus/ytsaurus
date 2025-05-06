@@ -34,6 +34,9 @@ add_library(chyt-server-protos)
 target_compile_options(chyt-server-protos PRIVATE
   -Wdeprecated-this-capture
   -Wimplicit-fallthrough
+  -Wparentheses
+  -Wno-logical-op-parentheses
+  -Wno-bitwise-op-parentheses
 )
 
 target_include_directories(chyt-server-protos PUBLIC

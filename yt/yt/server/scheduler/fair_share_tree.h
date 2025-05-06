@@ -173,6 +173,7 @@ struct IFairShareTree
     virtual void ValidatePoolLimits(const IOperationStrategyHost* operation, const TPoolName& poolName) const = 0;
     virtual void ValidatePoolLimitsOnPoolChange(const IOperationStrategyHost* operation, const TPoolName& newPoolName) const = 0;
     virtual TFuture<void> ValidateOperationPoolsCanBeUsed(const IOperationStrategyHost* operation, const TPoolName& poolName) const = 0;
+    virtual TFuture<void> ValidateOperationPoolPermissions(TOperationId operationId, const std::string& user, NYTree::EPermissionSet permissions) const = 0;
     virtual void EnsureOperationPoolExistence(const TString& poolName) const = 0;
 
     virtual void ActualizeEphemeralPoolParents(const THashMap<TString, TString>& userToDefaultPoolMap) = 0;
@@ -180,7 +181,7 @@ struct IFairShareTree
     virtual TPersistentTreeStatePtr BuildPersistentState() const = 0;
     virtual void InitPersistentState(const TPersistentTreeStatePtr& persistentState) = 0;
 
-    virtual void OnOperationMaterialized(TOperationId operationId) = 0;
+    virtual TError OnOperationMaterialized(TOperationId operationId) = 0;
     virtual TError CheckOperationJobResourceLimitsRestrictions(TOperationId operationId, bool revivedFromSnapshot) = 0;
     virtual TError CheckOperationSchedulingInSeveralTreesAllowed(TOperationId operationId) const = 0;
 

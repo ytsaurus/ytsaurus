@@ -28,6 +28,8 @@
 
 #include <yt/yt/server/lib/hive/hive_manager.h>
 
+#include <yt/yt/server/lib/object_server/helpers.h>
+
 #include <yt/yt/server/lib/transaction_server/helpers.h>
 
 #include <yt/yt/server/lib/transaction_supervisor/transaction_supervisor.h>
@@ -666,10 +668,9 @@ private:
 
         auto originalRequestId = FromProto<TRequestId>(request.original_request_id());
 
-        RpcContext_->SetRequestInfo("SubrequestCount: %v, SupportsPortals: %v, SuppressUpstreamSync: %v, "
+        RpcContext_->SetRequestInfo("SubrequestCount: %v, SuppressUpstreamSync: %v, "
             "SuppressTransactionCoordinatorSync: %v, OriginalRequestId: %v",
             TotalSubrequestCount_,
-            request.supports_portals(),
             GetSuppressUpstreamSync(RpcContext_),
             GetSuppressTransactionCoordinatorSync(RpcContext_),
             originalRequestId);
@@ -1449,30 +1450,39 @@ private:
             TObjectServiceProxy::TReqExecuteBatchBasePtr BatchReq;
             TCompactVector<int, 16> Indexes;
         };
-        THashMap<TBatchKey, TBatchValue> batchMap;
+        THashMap<TBatchKey, TErrorOr<TBatchValue>> batchMap;
         auto getOrCreateBatch = [&] (TCellTag cellTag, NHydra::EPeerKind peerKind) {
             auto key = std::tuple(cellTag, peerKind);
             auto it = batchMap.find(key);
             if (it == batchMap.end()) {
-                auto proxy = TObjectServiceProxy::FromDirectMasterChannel(
-                    multicellManager->GetMasterChannelOrThrow(cellTag, peerKind));
-                auto batchReq = proxy.ExecuteBatchNoBackoffRetries();
-                batchReq->SetOriginalRequestId(RequestId_);
-                auto reserved = false;
-                batchReq->SetTimeout(ComputeForwardingTimeout(RpcContext_, Owner_->Config_, &reserved));
-                if (!reserved) {
-                    // If the timeout for forwarded request has been shortened, backoff alarm on the
-                    // remote side will trigger sooner that locally, and we should deal with the local
-                    // alarm as normal.
-                    // Otherwise both alarms will trigger more or less simultaneously, which makes the
-                    // local alarm useless at best and harmful at worst.
-                    TDelayedExecutor::CancelAndClear(BackoffAlarmCookie_);
+                try {
+                    auto proxy = TObjectServiceProxy::FromDirectMasterChannel(
+                        multicellManager->GetMasterChannelOrThrow(cellTag, peerKind));
+                    auto batchReq = proxy.ExecuteBatchNoBackoffRetries();
+                    batchReq->SetOriginalRequestId(RequestId_);
+                    auto reserved = false;
+                    const auto& config = Owner_->Config_;
+                    batchReq->SetTimeout(
+                        ComputeForwardingTimeout(
+                            RpcContext_->GetTimeout().value_or(config->DefaultExecuteTimeout),
+                            RpcContext_->GetStartTime(),
+                            config->ForwardedRequestTimeoutReserve,
+                            &reserved));
+                    if (!reserved) {
+                        // If the timeout for forwarded request has been shortened, backoff alarm on the
+                        // remote side will trigger sooner that locally, and we should deal with the local
+                        // alarm as normal.
+                        // Otherwise both alarms will trigger more or less simultaneously, which makes the
+                        // local alarm useless at best and harmful at worst.
+                        TDelayedExecutor::CancelAndClear(BackoffAlarmCookie_);
+                    }
+                    NRpc::SetAuthenticationIdentity(batchReq, RpcContext_->GetAuthenticationIdentity());
+                    it = batchMap.emplace(key, TBatchValue{
+                        .BatchReq = std::move(batchReq)
+                    }).first;
+                } catch (const std::exception& ex) {
+                    it = batchMap.emplace(key, TError(ex)).first;
                 }
-                NRpc::SetAuthenticationIdentity(batchReq, RpcContext_->GetAuthenticationIdentity());
-
-                it = batchMap.emplace(key, TBatchValue{
-                    .BatchReq = std::move(batchReq)
-                }).first;
             }
             return &it->second;
         };
@@ -1491,13 +1501,28 @@ private:
                 ? NHydra::EPeerKind::Leader
                 : NHydra::EPeerKind::Follower;
 
-            auto* batch = getOrCreateBatch(subrequest.ForwardedCellTag, peerKind);
-            batch->BatchReq->AddRequestMessage(subrequest.RemoteRequestMessage);
-            batch->Indexes.push_back(subrequestIndex);
+            auto* batchOrError = getOrCreateBatch(subrequest.ForwardedCellTag, peerKind);
+
+            if (!batchOrError->IsOK()) {
+                YT_LOG_DEBUG(
+                    *batchOrError,
+                    "Error forwarding subrequest (SubrequestIndex: %v, CellTag: %v, PeerKind: %v, Mutating: %v, Method: %v)",
+                    subrequestIndex,
+                    subrequest.ForwardedCellTag,
+                    peerKind,
+                    subrequest.YPathExt->mutating(),
+                    requestHeader.method());
+                OnCompletedSubresponse(&subrequest, CreateErrorResponseMessage(*batchOrError));
+                continue;
+            }
+
+            auto& batch = batchOrError->Value();
+            batch.BatchReq->AddRequestMessage(subrequest.RemoteRequestMessage);
+            batch.Indexes.push_back(subrequestIndex);
 
             YT_LOG_DEBUG("Forwarding object request (ForwardedRequestId: %v, Method: %v.%v, "
                 "%v%v%v%v, Mutating: %v, CellTag: %v, PeerKind: %v)",
-                batch->BatchReq->GetRequestId(),
+                batch.BatchReq->GetRequestId(),
                 requestHeader.service(),
                 requestHeader.method(),
                 MakeFormatterWrapper([&] (auto* builder) {
@@ -1521,7 +1546,12 @@ private:
                 peerKind);
         }
 
-        for (auto& [cellTag, batch] : batchMap) {
+        for (auto& [cellTag, batchReqOrError] : batchMap) {
+            if (!batchReqOrError.IsOK()) {
+                continue;
+            }
+
+            auto& batch = batchReqOrError.Value();
             batch.BatchReq->Invoke().Subscribe(
                 // MakeWeak is sufficient - see SelfReference_.
                 BIND([=, weakThis = MakeWeak(this), batch = std::move(batch)] (const TObjectServiceProxy::TErrorOrRspExecuteBatchPtr& batchRspOrError) {
@@ -2146,7 +2176,6 @@ private:
             return;
         }
 
-        auto& request = RpcContext_->Request();
         auto& response = RpcContext_->Response();
         auto& attachments = response.Attachments();
 
@@ -2193,16 +2222,6 @@ private:
                 uncertainIndexes.push_back(index);
             } else {
                 completedIndexes.push_back(index);
-            }
-        }
-
-        // COMPAT(babenko)
-        if (!request.supports_portals()) {
-            for (int index = 0; index < std::ssize(completedIndexes); ++index) {
-                if (completedIndexes[index] != index) {
-                    completedIndexes.erase(completedIndexes.begin() + index, completedIndexes.end());
-                    break;
-                }
             }
         }
 
@@ -2535,11 +2554,6 @@ void TObjectService::SetStickyUserError(const std::string& userName, const TErro
 DEFINE_RPC_SERVICE_METHOD(TObjectService, Execute)
 {
     Y_UNUSED(response);
-
-    YT_LOG_ALERT_UNLESS(
-        request->supports_portals(),
-        "Received batch request without portals support (RequestId: %v)",
-        context->GetRequestId());
 
     const auto& userName = context->GetAuthenticationIdentity().User;
     auto error = StickyUserErrorCache_.Get(userName);

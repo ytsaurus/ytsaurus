@@ -789,7 +789,7 @@ TFuture<NIO::TIOCounters> TBlobSession::DoPerformPutBlocks(
 
         slot.LocationMemoryGuard = std::move(locationMemoryGuards[WindowIndex_ - startBlockIndex]);
 
-        if (auto error = slot.Block.ValidateChecksum(); !error.IsOK()) {
+        if (auto error = slot.Block.CheckChecksum(); !error.IsOK()) {
             auto blockId = TBlockId(GetChunkId(), WindowIndex_);
             SetFailed(error << TErrorAttribute("block_id", ToString(blockId)), /*fatal*/ false);
             return MakeFuture<NIO::TIOCounters>(Error_);

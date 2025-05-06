@@ -20,6 +20,9 @@ add_library(server-lib-distributed_chunk_session_server)
 target_compile_options(server-lib-distributed_chunk_session_server PRIVATE
   -Wdeprecated-this-capture
   -Wimplicit-fallthrough
+  -Wparentheses
+  -Wno-logical-op-parentheses
+  -Wno-bitwise-op-parentheses
 )
 
 target_link_libraries(server-lib-distributed_chunk_session_server PUBLIC

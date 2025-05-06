@@ -7,6 +7,7 @@ PEERDIR(
     contrib/ydb/core/formats/arrow/accessor/composite_serial
     contrib/ydb/core/formats/arrow/save_load
     contrib/ydb/core/formats/arrow/common
+    contrib/ydb/library/signals
     contrib/ydb/library/formats/arrow
     contrib/ydb/library/formats/arrow/protos
     yql/essentials/types/binary_json
@@ -26,6 +27,7 @@ SRCS(
     others_storage.cpp
     columns_storage.cpp
     iterators.cpp
+    signals.cpp
 )
 
 YQL_LAST_ABI_VERSION()

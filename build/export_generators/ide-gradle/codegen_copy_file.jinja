@@ -9,14 +9,14 @@
 {%-         set dst_path = dst_split[0] -%}
 {%-         set dst_name = dst_split[1] %}
 
-val codegen{{ copy['_object_index'] }} = tasks.register<Copy>("codegen{{ copy['_object_index'] }}") {
+val {{ varprefix }}{{ copy['_object_index'] }} = tasks.register<Copy>("{{ varprefix }}{{ copy['_object_index'] }}") {
     from({{ PatchRoots(src_path, copy['flags']|select("eq", "src_is_depend")|length) }}) {
         include("{{ src_name }}")
     }
     into({{ PatchRoots(dst_path, false, true) }})
 {%-         if src_name != dst_name %}
     rename("{{ src_name }}", "{{ dst_name }}")
+{%-         endif %}
 }
-{%          endif -%}
-{%-     endfor -%}
+{%      endfor -%}
 {%- endif -%}

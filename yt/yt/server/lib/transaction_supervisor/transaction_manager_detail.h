@@ -35,8 +35,7 @@ protected:
     void DoRegisterTransactionActionHandlers(TTransactionActionDescriptor<TTransaction> descriptor);
     void RunPrepareTransactionActions(
         TTransaction* transaction,
-        const TTransactionPrepareOptions& options,
-        bool requireLegacyBehavior = false);
+        const TTransactionPrepareOptions& options);
     void RunCommitTransactionActions(TTransaction* transaction, const TTransactionCommitOptions& options);
     void RunAbortTransactionActions(TTransaction* transaction, const TTransactionAbortOptions& options);
     void RunSerializeTransactionActions(TTransaction* transaction);

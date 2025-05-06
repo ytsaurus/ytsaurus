@@ -72,6 +72,46 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TBulkInsertState
+{
+    using TCellTagToLockableTables = THashMap<NObjectClient::TCellTag, std::vector<NTableClient::TTableId>>;
+
+public:
+    explicit TBulkInsertState(TTransaction* transaction);
+
+    // LockableDynamicTables used only on coordinator to ensure, that dynamic tables were locked before commit
+    // and throw NeedLockDynamicTablesBeforeCommit if not.
+    DEFINE_BYREF_RW_PROPERTY(TCellTagToLockableTables, LockableDynamicTables);
+    // LockedDynamicTables used only on external cell to lock/unlock dynamic tables.
+    DEFINE_BYREF_RW_PROPERTY(THashSet<NTableServer::TTableNodeRawPtr>, LockedDynamicTables);
+
+    DEFINE_BYREF_RO_PROPERTY(std::vector<TTransactionId>, DescendantTransactionsPresentedInTimestampHolder);
+
+    void OnTransactionCommitted(bool isTimestampPresentInHolder);
+    void OnTransactionAborted();
+
+    bool HasConflict(NTableServer::TTableId tableId);
+    void AddLockableDynamicTables(
+        std::vector<std::pair<NObjectClient::TCellTag, std::vector<NTableClient::TTableId>>>&& lockableDynamicTables);
+
+    void Persist(const NCellMaster::TPersistenceContext& context);
+
+private:
+    // Used for conflict resolving when transaction want to take lock on dynamic table.
+    // Non-empty only for topmost transactions.
+    THashSet<NTableServer::TTableId> AllTablesLockedByDescendantTransactions_;
+
+    TTransaction* Transaction_ = nullptr;
+    TTransaction* TopmostTransaction_ = nullptr;
+
+    void FindTopmostTransaction();
+
+    template <class TLockableDynamicTables>
+    void AddToLockableDynamicTables(TLockableDynamicTables&& lockableDynamicTables);
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TTransaction
     : public NTransactionSupervisor::TTransactionBase<NObjectServer::TObject>
     , public TRefTracked<TTransaction>
@@ -123,7 +163,7 @@ public:
     DEFINE_BYREF_RW_PROPERTY(TBranchedNodeSet, BranchedNodes);
     using TStagedNodeList = std::vector<NCypressServer::TCypressNodeRawPtr>;
     DEFINE_BYREF_RW_PROPERTY(TStagedNodeList, StagedNodes);
-    DEFINE_BYREF_RW_PROPERTY(THashSet<NTableServer::TTableNodeRawPtr>, LockedDynamicTables);
+    DEFINE_BYREF_RW_PROPERTY(TBulkInsertState, BulkInsertState, this);
     DEFINE_BYREF_RW_PROPERTY(THashSet<NTableServer::TTableNodeRawPtr>, TablesWithBackupCheckpoints);
 
     // Security Manager stuff.

@@ -78,7 +78,7 @@ public:
     TDefaultFactoryFunc GetDefaultFactory() const override
     {
         return [] () -> IRawParDoPtr {
-            return ::MakeIntrusive<TReadProtoImpulseParDo>();
+            return NYT::New<TReadProtoImpulseParDo>();
         };
     }
 
@@ -96,7 +96,7 @@ private:
 
 IRawParDoPtr CreateReadProtoImpulseParDo(std::vector<TRowVtable>&& vtables)
 {
-    return ::MakeIntrusive<TReadProtoImpulseParDo>(std::move(vtables));
+    return NYT::New<TReadProtoImpulseParDo>(std::move(vtables));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -153,7 +153,7 @@ public:
     TDefaultFactoryFunc GetDefaultFactory() const override
     {
         return [] () -> IRawParDoPtr {
-            return ::MakeIntrusive<TDecodingValueProtoParDo>();
+            return NYT::New<TDecodingValueProtoParDo>();
         };
     }
 
@@ -171,7 +171,7 @@ private:
 
 IRawParDoPtr CreateDecodingValueProtoParDo(TRowVtable rowVtable)
 {
-    return ::MakeIntrusive<TDecodingValueProtoParDo>(rowVtable);
+    return NYT::New<TDecodingValueProtoParDo>(rowVtable);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -230,7 +230,7 @@ public:
     TDefaultFactoryFunc GetDefaultFactory() const override
     {
         return [] () -> IRawParDoPtr {
-            return ::MakeIntrusive<TEncodingValueProtoParDo>();
+            return NYT::New<TEncodingValueProtoParDo>();
         };
     }
 
@@ -249,7 +249,7 @@ private:
 
 IRawParDoPtr CreateEncodingValueProtoParDo(TRowVtable rowVtable)
 {
-    return ::MakeIntrusive<TEncodingValueProtoParDo>(rowVtable);
+    return NYT::New<TEncodingValueProtoParDo>(rowVtable);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -308,7 +308,7 @@ public:
     TDefaultFactoryFunc GetDefaultFactory() const override
     {
         return [] () -> IRawParDoPtr {
-            return ::MakeIntrusive<TDecodingKeyValueProtoParDo>();
+            return NYT::New<TDecodingKeyValueProtoParDo>();
         };
     }
 
@@ -327,7 +327,7 @@ private:
 
 IRawParDoPtr CreateDecodingKeyValueProtoParDo(TRowVtable rowVtable)
 {
-    return ::MakeIntrusive<TDecodingKeyValueProtoParDo>(rowVtable);
+    return NYT::New<TDecodingKeyValueProtoParDo>(rowVtable);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -393,7 +393,7 @@ public:
     TDefaultFactoryFunc GetDefaultFactory() const override
     {
         return [] () -> IRawParDoPtr {
-            return ::MakeIntrusive<TEncodingKeyValueProtoParDo>();
+            return NYT::New<TEncodingKeyValueProtoParDo>();
         };
     }
 
@@ -414,7 +414,7 @@ private:
 
 IRawParDoPtr CreateEncodingKeyValueProtoParDo(TRowVtable rowVtable)
 {
-    return ::MakeIntrusive<TEncodingKeyValueProtoParDo>(rowVtable);
+    return NYT::New<TEncodingKeyValueProtoParDo>(rowVtable);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -481,7 +481,7 @@ private:
 
 IYtNotSerializableJobInputPtr CreateSplitKvJobProtoInput(const std::vector<TRowVtable>& rowVtables, NYT::TTableReaderPtr<TKVProto> tableReader)
 {
-    return ::MakeIntrusive<TSplitKvJobProtoInput>(rowVtables, std::move(tableReader));
+    return NYT::New<TSplitKvJobProtoInput>(rowVtables, std::move(tableReader));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -571,7 +571,7 @@ public:
     TDefaultFactoryFunc GetDefaultFactory() const override
     {
         return [] () -> IYtJobOutputPtr {
-            return ::MakeIntrusive<TKvProtoOutput>();
+            return NYT::New<TKvProtoOutput>();
         };
     }
 
@@ -627,7 +627,7 @@ private:
 
 IKvJobOutputPtr CreateKvJobProtoOutput(int sinkIndex, IRawCoderPtr keyCoder, IRawCoderPtr valueCoder)
 {
-    return ::MakeIntrusive<TKvProtoOutput>(sinkIndex, std::move(keyCoder), std::move(valueCoder));
+    return NYT::New<TKvProtoOutput>(sinkIndex, std::move(keyCoder), std::move(valueCoder));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -695,7 +695,7 @@ public:
     TDefaultFactoryFunc GetDefaultFactory() const override
     {
         return [] () -> IRawParDoPtr {
-            return ::MakeIntrusive<TGbkImpulseReadProtoParDo>(nullptr);
+            return NYT::New<TGbkImpulseReadProtoParDo>(nullptr);
         };
     }
 
@@ -724,7 +724,7 @@ private:
 
 IRawParDoPtr CreateGbkImpulseReadProtoParDo(IRawGroupByKeyPtr rawComputation)
 {
-    return ::MakeIntrusive<TGbkImpulseReadProtoParDo>(std::move(rawComputation));
+    return NYT::New<TGbkImpulseReadProtoParDo>(std::move(rawComputation));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -778,7 +778,7 @@ public:
     TDefaultFactoryFunc GetDefaultFactory() const override
     {
         return [] () -> IRawParDoPtr {
-            return ::MakeIntrusive<TCoGbkImpulseReadProtoParDo>();
+            return NYT::New<TCoGbkImpulseReadProtoParDo>();
         };
     }
 
@@ -810,7 +810,7 @@ IRawParDoPtr CreateCoGbkImpulseReadProtoParDo(
     IRawCoGroupByKeyPtr rawCoGbk,
     std::vector<TRowVtable> rowVtable)
 {
-    return ::MakeIntrusive<TCoGbkImpulseReadProtoParDo>(std::move(rawCoGbk), std::move(rowVtable));
+    return NYT::New<TCoGbkImpulseReadProtoParDo>(std::move(rawCoGbk), std::move(rowVtable));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -887,7 +887,7 @@ public:
     TDefaultFactoryFunc GetDefaultFactory() const override
     {
         return [] () -> IRawParDoPtr {
-            return ::MakeIntrusive<TCombineCombinerImpulseReadProtoParDo>();
+            return NYT::New<TCombineCombinerImpulseReadProtoParDo>();
         };
     }
 
@@ -915,7 +915,7 @@ private:
 
 IRawParDoPtr CreateCombineCombinerImpulseReadProtoParDo(IRawCombinePtr rawCombine)
 {
-    return ::MakeIntrusive<TCombineCombinerImpulseReadProtoParDo>(std::move(rawCombine));
+    return NYT::New<TCombineCombinerImpulseReadProtoParDo>(std::move(rawCombine));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -960,7 +960,7 @@ public:
         for (; rangesReader->IsValid(); rangesReader->Next()) {
             auto range = &rangesReader->GetRange();
             auto keySavingInput =
-                ::MakeIntrusive<TKeySavingInput>(keyVtable, accumVtable, range);
+                NYT::New<TKeySavingInput>(keyVtable, accumVtable, range);
             keySavingInput->SaveNextKeyTo(out.GetKeyOfKV());
             RawCombine_->MergeAccumulators(accum.GetData(), keySavingInput);
             RawCombine_->ExtractOutput(out.GetValueOfKV(), accum.GetData());
@@ -981,7 +981,7 @@ public:
     TDefaultFactoryFunc GetDefaultFactory() const override
     {
         return [] () -> IRawParDoPtr {
-            return ::MakeIntrusive<TCombineReducerImpulseReadProtoParDo>();
+            return NYT::New<TCombineReducerImpulseReadProtoParDo>();
         };
     }
 
@@ -1058,7 +1058,7 @@ private:
 
 IRawParDoPtr CreateCombineReducerImpulseReadProtoParDo(IRawCombinePtr rawCombine)
 {
-    return ::MakeIntrusive<TCombineReducerImpulseReadProtoParDo>(std::move(rawCombine));
+    return NYT::New<TCombineReducerImpulseReadProtoParDo>(std::move(rawCombine));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

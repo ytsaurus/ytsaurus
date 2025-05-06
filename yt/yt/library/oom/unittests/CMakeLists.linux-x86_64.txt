@@ -20,6 +20,9 @@ add_executable(yt-yt-library-oom-unittests)
 target_compile_options(yt-yt-library-oom-unittests PRIVATE
   -Wdeprecated-this-capture
   -Wimplicit-fallthrough
+  -Wparentheses
+  -Wno-logical-op-parentheses
+  -Wno-bitwise-op-parentheses
 )
 
 target_link_libraries(yt-yt-library-oom-unittests PUBLIC

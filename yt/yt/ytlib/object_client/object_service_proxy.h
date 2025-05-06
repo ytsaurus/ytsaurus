@@ -512,6 +512,12 @@ TObjectServiceProxy CreateObjectServiceReadProxy(
     TCellTag cellTag = PrimaryMasterCellTagSentinel,
     NApi::NNative::TStickyGroupSizeCachePtr stickyGroupSizeCache = nullptr);
 
+TObjectServiceProxy CreateObjectServiceReadProxy(
+    NApi::NNative::IConnectionPtr connection,
+    NApi::EMasterChannelKind readFrom,
+    TCellTag cellTag = PrimaryMasterCellTagSentinel,
+    NApi::NNative::TStickyGroupSizeCachePtr stickyGroupSizeCache = nullptr);
+
 TObjectServiceProxy CreateObjectServiceWriteProxy(
     NApi::NNative::IClientPtr client,
     TCellTag cellTag = PrimaryMasterCellTagSentinel);

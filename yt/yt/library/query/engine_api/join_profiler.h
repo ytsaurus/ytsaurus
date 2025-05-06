@@ -14,9 +14,9 @@ namespace NYT::NQueryClient {
 
 using TConsumeSubqueryStatistics = std::function<void(TQueryStatistics statistics)>;
 
-using TGetMergeJoinDataSource = std::function<TDataSource(size_t keyPrefix)>;
+using TGetPrefetchJoinDataSource = std::function<std::optional<TDataSource>()>;
 
-using TExecuteForeign = std::function<TFuture<TQueryStatistics>(
+using TExecutePlan = std::function<TFuture<TQueryStatistics>(
     TPlanFragment fragment,
     IUnversionedRowsetWriterPtr writer)>;
 
@@ -25,7 +25,7 @@ using TExecuteForeign = std::function<TFuture<TQueryStatistics>(
 DECLARE_REFCOUNTED_STRUCT(IJoinRowsProducer)
 
 struct IJoinRowsProducer
-    : public TRefCounted
+    : public virtual TRefCounted
 {
     virtual ISchemafulUnversionedReaderPtr FetchJoinedRows(
         std::vector<TRow> joinKeys,
@@ -36,27 +36,24 @@ DEFINE_REFCOUNTED_TYPE(IJoinRowsProducer)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DECLARE_REFCOUNTED_STRUCT(IJoinSubqueryProfiler)
+DECLARE_REFCOUNTED_STRUCT(IJoinProfiler)
 
-struct IJoinSubqueryProfiler
-    : public TRefCounted
+struct IJoinProfiler
+    : public virtual TRefCounted
 {
-    virtual IJoinRowsProducerPtr Profile(int joinIndex) = 0;
+    virtual IJoinRowsProducerPtr Profile() = 0;
 };
 
-DEFINE_REFCOUNTED_TYPE(IJoinSubqueryProfiler)
+DEFINE_REFCOUNTED_TYPE(IJoinProfiler)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IJoinSubqueryProfilerPtr CreateJoinProfiler(
-    TConstQueryPtr query,
-    const TQueryOptions& queryOptions,
-    size_t minKeyWidth,
-    bool orderedExecution,
-    IMemoryChunkProviderPtr memoryChunkProvider,
+IJoinProfilerPtr CreateJoinSubqueryProfiler(
+    TConstJoinClausePtr joinClause,
+    TExecutePlan executePlan,
     TConsumeSubqueryStatistics consumeSubqueryStatistics,
-    TGetMergeJoinDataSource getMergeJoinDataSource,
-    TExecuteForeign executeForeign,
+    TGetPrefetchJoinDataSource getPrefetchJoinDataSource,
+    IMemoryChunkProviderPtr memoryChunkProvider,
     NLogging::TLogger logger);
 
 ////////////////////////////////////////////////////////////////////////////////

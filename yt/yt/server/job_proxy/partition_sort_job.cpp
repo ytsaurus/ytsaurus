@@ -7,6 +7,8 @@
 #include <yt/yt/ytlib/chunk_client/parallel_reader_memory_manager.h>
 
 #include <yt/yt/ytlib/job_proxy/helpers.h>
+#include <yt/yt/ytlib/job_proxy/profiling_reader.h>
+#include <yt/yt/ytlib/job_proxy/profiling_writer.h>
 
 #include <yt/yt/ytlib/table_client/config.h>
 #include <yt/yt/ytlib/table_client/partition_sort_reader.h>

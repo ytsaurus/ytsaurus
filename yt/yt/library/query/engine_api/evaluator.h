@@ -19,7 +19,7 @@ struct IEvaluator
         const TConstBaseQueryPtr& query,
         const ISchemafulUnversionedReaderPtr& reader,
         const IUnversionedRowsetWriterPtr& writer,
-        const IJoinSubqueryProfilerPtr& joinProfiler,
+        const std::vector<IJoinProfilerPtr>& joinProfilers,
         const TConstFunctionProfilerMapPtr& functionProfilers,
         const TConstAggregateProfilerMapPtr& aggregateProfilers,
         const IMemoryChunkProviderPtr& memoryChunkProvider,

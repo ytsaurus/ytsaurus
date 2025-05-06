@@ -6,6 +6,8 @@ message TReqHeartbeat
 {
     required string address = 1;
     required uint64 sequoia_reign = 2;
+    // COMPAT(kvk1920): make it required after 25.2.
+    optional string version = 3;
 }
 
 message TRspHeartbeat

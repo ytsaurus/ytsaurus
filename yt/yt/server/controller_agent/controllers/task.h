@@ -249,6 +249,8 @@ public:
     //! Modifies the job spec so the job will use the experimental setup if required.
     void PatchUserJobSpec(NControllerAgent::NProto::TUserJobSpec* jobSpec, TJobletPtr joblet) const;
 
+    virtual THashMap<TString, TString> BuildJobEnvironment() const;
+
     NScheduler::TAllocationStartDescriptor CreateAllocationStartDescriptor(
         const TAllocation& allocation,
         bool allowIdleCpuPolicy,

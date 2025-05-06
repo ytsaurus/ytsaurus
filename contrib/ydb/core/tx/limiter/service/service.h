@@ -1,5 +1,5 @@
 #pragma once
-#include <contrib/ydb/core/tx/columnshard/counters/common/owner.h>
+#include <contrib/ydb/library/signals/owner.h>
 #include <contrib/ydb/core/tx/limiter/usage/abstract.h>
 #include <contrib/ydb/core/tx/limiter/usage/config.h>
 #include <contrib/ydb/core/tx/limiter/usage/events.h>

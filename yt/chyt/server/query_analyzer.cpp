@@ -412,14 +412,16 @@ TQueryAnalyzer::TQueryAnalyzer(
     , QueryInfo_(queryInfo)
     , Logger(logger)
 {
-    // When allow_experimental_analyzer = 0, SelectQueryInfo does not contain a query_tree.
-    // Therefore, we initialize it ourselves.
+    // When the query is not processed by InterpreterSelectQueryAnalyzer,
+    // SelectQueryInfo does not contain query_tree and planner_context.
+    // So we initialize them ourselves.
     if (!QueryInfo_.query_tree) {
-        auto selectQueryOptions = DB::SelectQueryOptions().analyze();
-        QueryInfo_.query_tree = DB::InterpreterSelectQueryAnalyzer(
+        auto analyzedQueryInfo = DB::InterpreterSelectQueryAnalyzer(
             QueryInfo_.query,
             getContext(),
-            selectQueryOptions).getPlanner().buildSelectQueryInfo().query_tree;
+            DB::SelectQueryOptions().analyze()).getPlanner().buildSelectQueryInfo();
+        QueryInfo_.query_tree = analyzedQueryInfo.query_tree;
+        QueryInfo_.planner_context  = analyzedQueryInfo.planner_context;
     }
     ParseQuery();
 }
@@ -639,7 +641,17 @@ public:
         if (!DB::functionIsInOrGlobalInOperator(functionNode->getFunctionName())) {
             return;
         }
-        HasInOperator_ = true;
+        if (functionNode->getArguments().getNodes().size() != 2) {
+            THROW_ERROR_EXCEPTION("Wrong number of arguments passed to function (FunctionName: %v, NumberOfArguments: %v)",
+                functionNode->getFunctionName(),
+                functionNode->getArguments().getNodes().size());
+        }
+
+        auto rhs = functionNode->getArguments().getNodes()[1];
+        if (rhs->getNodeType() == DB::QueryTreeNodeType::QUERY || rhs->getNodeType() == DB::QueryTreeNodeType::TABLE) {
+            HasInOperator_ = true;
+            return;
+        }
 
         // CH deduplicates QueryTree nodes, making pointers to a single QueryTreeNode.
         // In case of IN function for secondary queries to work correctly, we must duplicate them back.
@@ -1228,7 +1240,10 @@ TSecondaryQuery TQueryAnalyzer::CreateSecondaryQuery(
 
     YT_LOG_DEBUG("Query rewritten (NewQuery: %v)", *secondaryQueryAst);
 
-    return {std::move(secondaryQueryAst), std::move(scalars)};
+    return {std::move(secondaryQueryAst),
+        std::move(scalars),
+        static_cast<ui64>(totalRowCount),
+        static_cast<ui64>(totalDataWeight)};
 }
 
 IStorageDistributorPtr TQueryAnalyzer::GetStorage(const DB::QueryTreeNodePtr& tableExpression) const

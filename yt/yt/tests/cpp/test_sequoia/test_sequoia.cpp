@@ -6,6 +6,8 @@
 
 #include <yt/yt/client/object_client/helpers.h>
 
+#include <yt/yt/client/sequoia_client/public.h>
+
 #include <yt/yt/core/concurrency/thread_pool.h>
 
 #include <yt/yt/core/ytree/ypath_client.h>
@@ -192,7 +194,10 @@ TEST_F(TSequoiaTest, TestRowLockConflict)
     for (const auto& error : results) {
         if (error.IsOK()) {
             ++createdNodeCount;
-        } else if (error.FindMatching(NTabletClient::EErrorCode::TransactionLockConflict)) {
+        } else if (error.GetCode() == NSequoiaClient::EErrorCode::SequoiaRetriableError &&
+            !error.InnerErrors().empty() &&
+            error.InnerErrors().front().GetCode() == NTabletClient::EErrorCode::TransactionLockConflict)
+        {
             ++lockConflictCount;
         } else if (error.FindMatching([] (const TError& error) {
             return error.GetMessage().contains("already exists");

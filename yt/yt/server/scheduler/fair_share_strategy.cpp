@@ -752,6 +752,28 @@ public:
         }
     }
 
+    TFuture<void> ValidateOperationPoolPermissions(
+        const IOperationStrategyHost* operation,
+        const std::string& user,
+        EPermissionSet permissions) override
+    {
+        auto operationId = operation->GetId();
+
+        std::vector<TFuture<void>> futures;
+        const auto& state = GetOperationState(operationId);
+        for (const auto& [treeId, poolName] : state->TreeIdToPoolNameMap()) {
+            if (auto tree = GetTree(treeId);
+                tree->HasOperation(operationId))
+            {
+                futures.push_back(tree->ValidateOperationPoolPermissions(
+                    operationId,
+                    user,
+                    permissions));
+            }
+        }
+        return AllSucceeded(futures);
+    }
+
     void ValidatePoolLimitsOnPoolChange(
         IOperationStrategyHost* operation,
         const TOperationRuntimeParametersPtr& runtimeParameters) override
@@ -1337,7 +1359,10 @@ public:
 
         for (const auto& [treeId, _] : GetOperationState(operationId)->TreeIdToPoolNameMap()) {
             auto tree = GetTree(treeId);
-            tree->OnOperationMaterialized(operationId);
+            auto error = tree->OnOperationMaterialized(operationId);
+            if (!error.IsOK()) {
+                return error;
+            }
         }
 
         // TODO(eshcherbin): Move to std::string.

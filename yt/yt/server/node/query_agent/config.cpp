@@ -57,7 +57,7 @@ void TQueryAgentConfig::Register(TRegistrar registrar)
         .GreaterThan(0)
         .Default(8_GB);
 
-        registrar.Parameter("pull_rows_timeout_slack", &TThis::PullRowsTimeoutSlack)
+    registrar.Parameter("pull_rows_timeout_slack", &TThis::PullRowsTimeoutSlack)
         .Default(TDuration::Seconds(6));
 
     registrar.Preprocessor([] (TThis* config) {
@@ -91,6 +91,8 @@ void TQueryAgentDynamicConfig::Register(TRegistrar registrar)
     registrar.Parameter("account_user_backend_out_traffic", &TThis::AccountUserBackendOutTraffic)
         .Optional();
     registrar.Parameter("use_query_pool_for_lookups", &TThis::UseQueryPoolForLookups)
+        .Optional();
+    registrar.Parameter("use_query_pool_for_in_memory_lookups", &TThis::UseQueryPoolForInMemoryLookups)
         .Optional();
 }
 

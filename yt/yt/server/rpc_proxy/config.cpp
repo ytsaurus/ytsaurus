@@ -55,9 +55,6 @@ void TAccessCheckerConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("use_access_control_objects", &TThis::UseAccessControlObjects)
         .Default(false);
-
-    registrar.Parameter("cache", &TThis::Cache)
-        .DefaultNew();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

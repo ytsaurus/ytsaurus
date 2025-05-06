@@ -34,6 +34,18 @@ def build_rpc_proxy_cpu():
                                     MonitoringExpr(RpcProxyPorto("yt.porto.memory.anon_usage").value("container_category", "pod"))
                                         .alias("Container Memory Usage {{container}}")))
             .row()
+                .cell(
+                    "Memory usage per method",
+                    MonitoringExpr(RpcProxyMemory("yt.memory.heap_usage.rpc")
+                                   .all("rpc")
+                                   .top(False)),
+                )
+                .cell(
+                    "Memory usage per user",
+                    MonitoringExpr(RpcProxyMemory("yt.memory.heap_usage.user")
+                                   .all("user")),
+                )
+            .row()
                 .cell("Worker thread pool CPU usage", cpu_usage("Worker"))
                 .cell("BusXfer thread pool CPU usage", cpu_usage("BusXferFS"))
             .row()

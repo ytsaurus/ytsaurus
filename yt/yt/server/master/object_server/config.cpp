@@ -20,8 +20,6 @@ void TMutationIdempotizerConfig::Register(TRegistrar registrar)
         .Default(50000);
 }
 
-DEFINE_REFCOUNTED_TYPE(TMutationIdempotizerConfig)
-
 ////////////////////////////////////////////////////////////////////////////////
 
 void TDynamicObjectManagerConfig::Register(TRegistrar registrar)
@@ -31,8 +29,7 @@ void TDynamicObjectManagerConfig::Register(TRegistrar registrar)
     registrar.Parameter("gc_sweep_period", &TThis::GCSweepPeriod)
         .Default(TDuration::MilliSeconds(1000));
     registrar.Parameter("enable_gc", &TThis::EnableGC)
-        .Default(true)
-        .DontSerializeDefault();
+        .Default(true);
     registrar.Parameter("object_removal_cells_sync_period", &TThis::ObjectRemovalCellsSyncPeriod)
         .Default(TDuration::MilliSeconds(100));
     registrar.Parameter("mutation_idempotizer", &TThis::MutationIdempotizer)
@@ -45,14 +42,10 @@ void TDynamicObjectManagerConfig::Register(TRegistrar registrar)
     registrar.Parameter("profiling_period", &TThis::ProfilingPeriod)
         .Default(DefaultProfilingPeriod);
     registrar.Parameter("reset_hunk_storage_in_table_destroy", &TThis::ResetHunkStorageInTableDestroy)
-        .Default(true)
-        .DontSerializeDefault();
+        .Default(true);
     registrar.Parameter("prohibit_prerequisite_revisions_differ_from_execution_paths", &TThis::ProhibitPrerequisiteRevisionsDifferFromExecutionPaths)
-        .Default(false)
-        .DontSerializeDefault();
+        .Default(false);
 }
-
-DEFINE_REFCOUNTED_TYPE(TDynamicObjectManagerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -89,8 +82,6 @@ void TObjectServiceConfig::Register(TRegistrar registrar)
     });
 }
 
-DEFINE_REFCOUNTED_TYPE(TObjectServiceConfig)
-
 ////////////////////////////////////////////////////////////////////////////////
 
 TReadRequestComplexity
@@ -123,14 +114,10 @@ void TDefaultReadRequestComplexityLimitsConfig::Register(TRegistrar registrar)
     DoRegister(registrar, /*nodeCount*/ 1'000'000, /*resultSize*/ 100_MB);
 }
 
-DEFINE_REFCOUNTED_TYPE(TDefaultReadRequestComplexityLimitsConfig)
-
 void TMaxReadRequestComplexityLimitsConfig::Register(TRegistrar registrar)
 {
     DoRegister(registrar, /*nodeCount*/ 100'000'000, /*resultSize*/ 2_GB);
 }
-
-DEFINE_REFCOUNTED_TYPE(TMaxReadRequestComplexityLimitsConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -144,8 +131,7 @@ void TDynamicObjectServiceConfig::Register(TRegistrar registrar)
         .Default(4);
     registrar.Parameter("local_read_offload_thread_count", &TThis::LocalReadOffloadThreadCount)
         .GreaterThan(0)
-        .Default(8)
-        .DontSerializeDefault();
+        .Default(8);
     registrar.Parameter("schedule_reply_retry_backoff", &TThis::ScheduleReplyRetryBackoff)
         .Default(TDuration::MilliSeconds(100));
 
@@ -174,8 +160,6 @@ void TDynamicObjectServiceConfig::Register(TRegistrar registrar)
         .DefaultNew();
 }
 
-DEFINE_REFCOUNTED_TYPE(TDynamicObjectServiceConfig)
-
 ////////////////////////////////////////////////////////////////////////////////
 
 void TDynamicObjectServiceTestingConfig::Register(TRegistrar registrar)
@@ -183,8 +167,6 @@ void TDynamicObjectServiceTestingConfig::Register(TRegistrar registrar)
     registrar.Parameter("premature_backoff_alarm_probability", &TThis::PrematureBackoffAlarmProbability)
         .Default();
 }
-
-DEFINE_REFCOUNTED_TYPE(TDynamicObjectServiceTestingConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 

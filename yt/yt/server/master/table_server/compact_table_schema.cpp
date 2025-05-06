@@ -62,24 +62,25 @@ TCompactTableSchema::TCompactTableSchema(const TTableSchema& schema)
     }
 }
 
-const TTableSchema& TCompactTableSchema::AsHeavyTableSchema() const
+TTableSchemaPtr TCompactTableSchema::AsHeavyTableSchema() const
 {
     {
         auto readerGuard = ReaderGuard(Cache_.TableSchemaLock);
         if (Cache_.TableSchema) {
-            return *Cache_.TableSchema;
+            return Cache_.TableSchema;
         }
     }
 
     NTableClient::NProto::TTableSchemaExt protoSchema;
     YT_VERIFY(protoSchema.ParseFromString(TableSchema_));
+    auto tableSchema = FromProto<TTableSchemaPtr>(protoSchema);
 
     auto writerGuard = WriterGuard(Cache_.TableSchemaLock);
     if (Cache_.TableSchema) {
-        return *Cache_.TableSchema;
+        return Cache_.TableSchema;
     }
 
-    Cache_.TableSchema = FromProto<TTableSchemaPtr>(protoSchema);
+    Cache_.TableSchema = std::move(tableSchema);
     // Offload cache expiration into heavy invoker.
     TDelayedExecutor::Submit(
         BIND([this, weakThis = MakeWeak(this)] () {
@@ -91,7 +92,7 @@ const TTableSchema& TCompactTableSchema::AsHeavyTableSchema() const
         TCompactTableSchema::CacheExpirationTimeout.Load(),
         NRpc::TDispatcher::Get()->GetHeavyInvoker());
     // TODO(cherepashka): Prolong schema lifetime when it is accessed.
-    return *Cache_.TableSchema;
+    return Cache_.TableSchema;
 }
 
 const std::string& TCompactTableSchema::AsWireProto() const
@@ -150,12 +151,12 @@ TComparator TCompactTableSchema::ToComparator(TCallback<TUUComparerSignature> cg
 
 TCompactTableSchemaPtr TCompactTableSchema::ToModifiedSchema(ETableSchemaModification modification) const
 {
-    return New<TCompactTableSchema>(*AsHeavyTableSchema().ToModifiedSchema(modification));
+    return New<TCompactTableSchema>(*AsHeavyTableSchema()->ToModifiedSchema(modification));
 }
 
 TCompactTableSchemaPtr TCompactTableSchema::ToUniqueKeys() const
 {
-    return New<TCompactTableSchema>(*AsHeavyTableSchema().ToUniqueKeys());
+    return New<TCompactTableSchema>(*AsHeavyTableSchema()->ToUniqueKeys());
 }
 
 void TCompactTableSchema::Save(NCellMaster::TSaveContext& context) const
@@ -196,13 +197,14 @@ void TCompactTableSchema::InitializeFromProto(const NTableClient::NProto::TTable
 {
     InitializePartial(
         protoSchema.columns().empty(),
-        protoSchema.strict(), protoSchema.unique_keys(),
-        CheckedEnumCast<ETableSchemaModification>(protoSchema.schema_modification()));
+        protoSchema.strict(),
+        protoSchema.unique_keys(),
+        FromProto<ETableSchemaModification>(protoSchema.schema_modification()));
 
     for (const auto& column : protoSchema.columns()) {
         if (column.has_sort_order()) {
             KeyColumns_.push_back(column.name());
-            SortOrders_.push_back(CheckedEnumCast<ESortOrder>(column.sort_order()));
+            SortOrders_.push_back(FromProto<ESortOrder>(column.sort_order()));
         }
         if (column.has_max_inline_hunk_size()) {
             HasHunkColumns_ = true;

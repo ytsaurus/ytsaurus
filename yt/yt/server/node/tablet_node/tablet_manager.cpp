@@ -962,11 +962,6 @@ private:
                 avenueDirectory->UpdateEndpoint(siblingEndpointId, movementData.GetSiblingCellId());
             }
         }
-
-        // COMPAT(gritukan): Remove it after ETabletReign::TabletPrerequisites.
-        if (CellLifeStage_ == ETabletCellLifeStage::DecommissioningOnNode || Suspending_) {
-            Slot_->GetLeaseManager()->SetDecommission(/*decommission*/ true);
-        }
     }
 
     void Clear() override
@@ -1056,17 +1051,6 @@ private:
         }
     }
 
-    // COMPAT(ifsmirnov)
-    // Replace all callers with |request.set_mount_revision(...)| when removing the compat.
-    template <class TResponse>
-    void SetMountRevisionCompat(TResponse* response, TTablet* tablet)
-    {
-        const auto* context = GetCurrentMutationContext();
-        if (context->Request().Reign >= static_cast<int>(ETabletReign::SmoothTabletMovement)) {
-            response->set_mount_revision(ToProto(tablet->GetMountRevision()));
-        }
-    }
-
     void HydraMountTablet(TReqMountTablet* request)
     {
         // COMPAT(ifsmirnov)
@@ -1080,6 +1064,7 @@ private:
                 ? request->replicatable_content().field_name() \
                 : request->field_name ## _deprecated())
 
+        auto* mutationContext = GetCurrentMutationContext();
         auto tabletId = FromProto<TTabletId>(request->tablet_id());
         auto mountRevision = FromProto<NHydra::TRevision>(request->mount_revision());
         auto tableId = FromProto<TObjectId>(request->table_id());
@@ -1107,6 +1092,7 @@ private:
             ? TYsonString(request->replicatable_content().custom_runtime_data())
             : TYsonString();
         auto serializationType = FromProto<ETabletTransactionSerializationType>(request->serialization_type());
+        auto mountTime = mutationContext->GetTimestamp();
 
         rawSettings.DropIrrelevantExperiments(
             {
@@ -1129,7 +1115,7 @@ private:
             CellTagFromId(tabletId),
             // Make first ids look like 1-1-... rather than 0-1-...
             /*counter*/ 1ull << 32,
-            /*seed*/ GetCurrentMutationContext()->RandomGenerator()->Generate<ui64>());
+            /*seed*/ mutationContext->RandomGenerator()->Generate<ui64>());
 
         auto tabletHolder = std::make_unique<TTablet>(
             tabletId,
@@ -1148,7 +1134,8 @@ private:
             upstreamReplicaId,
             retainedTimestamp,
             cumulativeDataWeight,
-            serializationType);
+            serializationType,
+            mountTime);
         tabletHolder->RawSettings() = rawSettings;
 
         tabletHolder->CustomRuntimeData() = std::move(customRuntimeData);
@@ -1263,7 +1250,7 @@ private:
             TRspMountTablet response;
             ToProto(response.mutable_tablet_id(), tabletId);
             response.set_frozen(freeze);
-            SetMountRevisionCompat(&response, tablet);
+            response.set_mount_revision(ToProto(tablet->GetMountRevision()));
             PostMasterMessage(tablet, response, /*forceCellMailbox*/ true);
         }
 
@@ -1432,6 +1419,12 @@ private:
                 StopTableReplicaEpoch(&replicaInfo);
                 StartTableReplicaEpoch(tablet, &replicaInfo);
             }
+
+            if (auto replicationCardId = tablet->GetReplicationCardId()) {
+                StopChaosReplicaEpoch(tablet);
+                RemoveChaosAgent(tablet);
+                StartChaosReplicaEpoch(tablet, replicationCardId);
+            }
         }
     }
 
@@ -1570,7 +1563,7 @@ private:
 
         TRspUnfreezeTablet response;
         ToProto(response.mutable_tablet_id(), tabletId);
-        SetMountRevisionCompat(&response, tablet);
+        response.set_mount_revision(ToProto(tablet->GetMountRevision()));
         PostMasterMessage(tablet, response);
     }
 
@@ -1656,15 +1649,6 @@ private:
         auto* tablet = FindTablet(tabletId);
         if (!tablet) {
             return;
-        }
-        const auto* context = GetCurrentMutationContext();
-        if (static_cast<ETabletReign>(context->Request().Reign) < ETabletReign::NoMountRevisionCheckInBulkInsert) {
-            if (request->has_mount_revision() && request->mount_revision() != 0) {
-                auto mountRevision = FromProto<NHydra::TRevision>(request->mount_revision());
-                if (mountRevision != tablet->GetMountRevision()) {
-                    return;
-                }
-            }
         }
 
         auto transactionId = FromProto<TTabletId>(request->transaction_id());
@@ -1825,7 +1809,7 @@ private:
                 if (auto replicationProgress = tablet->RuntimeData()->ReplicationProgress.Acquire()) {
                     ToProto(response.mutable_replication_progress(), *replicationProgress);
                 }
-                SetMountRevisionCompat(&response, tablet);
+                response.set_mount_revision(ToProto(tablet->GetMountRevision()));
 
                 // NB: Do not unregister master avenue since it still has pending messages.
                 // It will be unregistered later by TReqUnregisterMasterAvenueEndpoint message.
@@ -1872,7 +1856,7 @@ private:
                     TRspFreezeTablet response;
                     ToProto(response.mutable_tablet_id(), tablet->GetId());
                     *response.mutable_mount_hint() = tablet->GetMountHint();
-                    SetMountRevisionCompat(&response, tablet);
+                    response.set_mount_revision(ToProto(tablet->GetMountRevision()));
                     PostMasterMessage(tablet, response);
                 }
 
@@ -1918,6 +1902,10 @@ private:
         if (mountRevision != tablet->GetActiveServantMountRevision()) {
             return;
         }
+
+        auto finallyGuard = Finally([tablet] {
+            tablet->ChaosData()->IsTrimInProgress.store(false);
+        });
 
         auto trimmedRowCount = request->trimmed_row_count();
 
@@ -2138,12 +2126,9 @@ private:
             }
         }
 
-        // COMPAT(ifsmirnov)
-        if (GetCurrentMutationContext()->Request().Reign >= static_cast<int>(ETabletReign::SmoothTabletMovement)) {
-            if (tablet->GetStoresUpdatePreparedTransactionId()) {
-                THROW_ERROR_EXCEPTION("Cannot prepare stores update since it is already prepared by transaction %v",
-                    tablet->GetStoresUpdatePreparedTransactionId());
-            }
+        if (tablet->GetStoresUpdatePreparedTransactionId()) {
+            THROW_ERROR_EXCEPTION("Cannot prepare stores update since it is already prepared by transaction %v",
+                tablet->GetStoresUpdatePreparedTransactionId());
         }
 
         // Prepare.
@@ -2209,10 +2194,7 @@ private:
             }
         }
 
-        // COMPAT(ifsmirnov)
-        if (GetCurrentMutationContext()->Request().Reign >= static_cast<int>(ETabletReign::SmoothTabletMovement)) {
-            tablet->SetStoresUpdatePreparedTransactionId(transaction->GetId());
-        }
+        tablet->SetStoresUpdatePreparedTransactionId(transaction->GetId());
 
         // TODO(ifsmirnov): log preparation errors as well.
         structuredLogger->OnTabletStoresUpdatePrepared(
@@ -2372,23 +2354,20 @@ private:
             return;
         }
 
-        // COMPAT(ifsmirnov)
-        if (GetCurrentMutationContext()->Request().Reign >= static_cast<int>(ETabletReign::SmoothTabletMovement)) {
-            auto expectedTransactionId = tablet->GetStoresUpdatePreparedTransactionId();
+        auto expectedTransactionId = tablet->GetStoresUpdatePreparedTransactionId();
 
-            if (expectedTransactionId == transaction->GetId()) {
-                tablet->SetStoresUpdatePreparedTransactionId({});
-            } else {
-                // This is fine because out-of-order aborts may come for transactions
-                // that were not even prepared.
-                YT_LOG_DEBUG("Unexpected stores update transaction aborted, ignored "
-                    "(%v, TransactionId: %v, PreparedTransactionId: %v)",
-                    tablet->GetLoggingTag(),
-                    transaction->GetId(),
-                    expectedTransactionId);
+        if (expectedTransactionId == transaction->GetId()) {
+            tablet->SetStoresUpdatePreparedTransactionId({});
+        } else {
+            // This is fine because out-of-order aborts may come for transactions
+            // that were not even prepared.
+            YT_LOG_DEBUG("Unexpected stores update transaction aborted, ignored "
+                "(%v, TransactionId: %v, PreparedTransactionId: %v)",
+                tablet->GetLoggingTag(),
+                transaction->GetId(),
+                expectedTransactionId);
 
-                // Continue nevertheless to mimic old behaviour.
-            }
+            // Continue nevertheless to mimic old behaviour.
         }
 
         THashSet<TChunkId> hunkChunkIdsToAdd;
@@ -2502,18 +2481,15 @@ private:
             return;
         }
 
-        // COMPAT(ifsmirnov)
-        if (GetCurrentMutationContext()->Request().Reign >= static_cast<int>(ETabletReign::SmoothTabletMovement)) {
-            auto expectedTransactionId = tablet->GetStoresUpdatePreparedTransactionId();
-            if (expectedTransactionId != transaction->GetId()) {
-                YT_LOG_ALERT("Unexpected stores update transaction committed "
-                    "(%v, TransactionId: %v, PreparedTransactionId: %v)",
-                    tablet->GetLoggingTag(),
-                    transaction->GetId(),
-                    expectedTransactionId);
+        auto expectedTransactionId = tablet->GetStoresUpdatePreparedTransactionId();
+        if (expectedTransactionId != transaction->GetId()) {
+            YT_LOG_ALERT("Unexpected stores update transaction committed "
+                "(%v, TransactionId: %v, PreparedTransactionId: %v)",
+                tablet->GetLoggingTag(),
+                transaction->GetId(),
+                expectedTransactionId);
 
-                // Continue nevertheless to mimic old behaviour.
-            }
+            // Continue nevertheless to mimic old behaviour.
         }
 
         tablet->SetStoresUpdatePreparedTransactionId({});
@@ -4204,12 +4180,19 @@ private:
             Bootstrap_->GetNodeMemoryUsageTracker()->WithCategory(EMemoryCategory::ChaosReplicationIncoming)));
     }
 
+    void RemoveChaosAgent(TTablet* tablet)
+    {
+        tablet->SetChaosAgent(nullptr);
+        tablet->SetTablePuller(nullptr);
+    }
+
     void StartChaosReplicaEpoch(TTablet* tablet, TReplicationCardId replicationCardId)
     {
         if (!IsLeader()) {
             return;
         }
 
+        tablet->ChaosData()->IsTrimInProgress.store(false);
         AddChaosAgent(tablet, replicationCardId);
         tablet->GetChaosAgent()->Enable();
         tablet->GetTablePuller()->Enable();
@@ -4347,6 +4330,11 @@ private:
                                     .Do(BIND(&TTabletManager::BuildReplicaOrchidYson, Unretained(this), replica));
                             });
                 })
+                .Do([tablet] (auto fluent) {
+                    if (auto tablePuller = tablet->GetTablePuller()) {
+                        tablePuller->BuildOrchidYson(fluent);
+                    }
+                })
                 .DoIf(tablet->IsPhysicallySorted(), [&] (auto fluent) {
                     fluent
                         .Item("dynamic_table_locks").DoMap(
@@ -4389,6 +4377,8 @@ private:
                         .Item("smooth_movement").DoMap(
                             BIND(&TSmoothMovementData::BuildOrchidYson, &tablet->SmoothMovementData()));
                 })
+                .Item("mount_revision").Value(tablet->GetMountRevision())
+                .Item("mount_time").Value(tablet->GetMountTime())
             .EndMap();
     }
 
@@ -4508,28 +4498,13 @@ private:
             ? ConvertTo<IMapNodePtr>(TYsonString(tableSettings.extra_mount_config_attributes()))
             : nullptr;
 
-        // COMPAT(ifsmirnov)
-        if (auto* context = TryGetCurrentMutationContext()) {
-            auto reign = static_cast<ETabletReign>(context->Request().Reign);
-            if (reign >= ETabletReign::DropBuiltinAttrsFromMountConfig) {
-                if (extraMountConfigAttributes) {
-                    for (auto key : TBuiltinTableMountConfig::NonDynamicallyModifiableFields) {
-                        if (extraMountConfigAttributes->RemoveChild(key)) {
-                            YT_LOG_DEBUG("Removed invalid builtin key from extra mount config "
-                                "(TabletId: %v, Key: %v)",
-                                tabletId,
-                                key);
-                        }
-                    }
-                }
-            } else {
-                // Drop enable_dynamic_store_read even in replay mode
-                // because it would've crashed the node anyway.
-                if (extraMountConfigAttributes && extraMountConfigAttributes->FindChild("enable_dynamic_store_read")) {
-                    YT_LOG_ALERT("Found enable_dynamic_store_read in extra mount config attributes, will drop "
-                        "(TabletId: %v)",
-                        tabletId);
-                    extraMountConfigAttributes->RemoveChild("enable_dynamic_store_read");
+        if (HasMutationContext() && extraMountConfigAttributes) {
+            for (auto key : TBuiltinTableMountConfig::NonDynamicallyModifiableFields) {
+                if (extraMountConfigAttributes->RemoveChild(key)) {
+                    YT_LOG_DEBUG("Removed invalid builtin key from extra mount config "
+                        "(TabletId: %v, Key: %v)",
+                        tabletId,
+                        key);
                 }
             }
         }
@@ -5310,62 +5285,6 @@ private:
             << TErrorAttribute("tablet_id", tablet->GetId())
             << configErrors;
         tablet->RuntimeData()->Errors.ConfigError.Store(error);
-    }
-
-
-    void DoRestoreHunkLocks(
-        TTransaction* transaction,
-        TReqUpdateTabletStores* request)
-    {
-        auto tabletId = FromProto<TTabletId>(request->tablet_id());
-        auto* tablet = GetTabletOrThrow(tabletId);
-
-        YT_LOG_INFO("Restoring hunk locks (TabletId: %v)", tabletId);
-
-        for (const auto& descriptor : request->hunk_chunks_to_remove()) {
-            auto chunkId = FromProto<TStoreId>(descriptor.chunk_id());
-            auto hunkChunk = tablet->FindHunkChunk(chunkId);
-            if (!hunkChunk) {
-                YT_LOG_ALERT("Trying to remove non-existent hunk chunk (TabletId: %v, HunkChunkId: %v)",
-                    tabletId,
-                    chunkId);
-                continue;
-            }
-            hunkChunk->Lock(transaction->GetId(), EObjectLockMode::Exclusive);
-        }
-
-        THashSet<TChunkId> hunkChunkIdsToAdd;
-        for (const auto& descriptor : request->hunk_chunks_to_add()) {
-            auto chunkId = FromProto<TStoreId>(descriptor.chunk_id());
-            InsertOrCrash(hunkChunkIdsToAdd, chunkId);
-        }
-
-        if (request->create_hunk_chunks_during_prepare()) {
-            for (auto chunkId : hunkChunkIdsToAdd) {
-                auto hunkChunk = tablet->FindHunkChunk(chunkId);
-                if (!hunkChunk) {
-                    continue;
-                }
-
-                hunkChunk->Lock(transaction->GetId(), EObjectLockMode::Shared);
-            }
-        }
-
-        THashSet<TChunkId> existingReferencedHunks;
-        for (const auto& descriptor : request->stores_to_add()) {
-            if (auto optionalHunkChunkRefsExt = FindProtoExtension<NTableClient::NProto::THunkChunkRefsExt>(
-                descriptor.chunk_meta().extensions()))
-            {
-                for (const auto& ref : optionalHunkChunkRefsExt->refs()) {
-                    auto chunkId = FromProto<TChunkId>(ref.chunk_id());
-                    if (!hunkChunkIdsToAdd.contains(chunkId) && !existingReferencedHunks.contains(chunkId)) {
-                        auto hunkChunk = tablet->GetHunkChunk(chunkId);
-                        hunkChunk->Lock(transaction->GetId(), EObjectLockMode::Shared);
-                        existingReferencedHunks.insert(chunkId);
-                    }
-                }
-            }
-        }
     }
 
     void CountStoreMemoryStatistics(TMemoryStatistics* statistics, const IStorePtr& store) const

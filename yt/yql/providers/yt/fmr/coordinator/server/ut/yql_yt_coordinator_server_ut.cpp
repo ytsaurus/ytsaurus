@@ -10,7 +10,7 @@ namespace NYql::NFmr {
 
 TDownloadOperationParams downloadOperationParams{
     .Input = TYtTableRef{"Path","Cluster"},
-    .Output = TFmrTableRef{"TableId"}
+    .Output = TFmrTableRef{{"Cluster", "Path"}}
 };
 
 TStartOperationRequest CreateOperationRequest(ETaskType taskType = ETaskType::Download, TOperationParams operationParams = downloadOperationParams) {
@@ -18,7 +18,7 @@ TStartOperationRequest CreateOperationRequest(ETaskType taskType = ETaskType::Do
         .TaskType = taskType,
         .OperationParams = operationParams,
         .IdempotencyKey = "IdempotencyKey",
-        .ClusterConnections = {{"Cluster.Path", TClusterConnection{.TransactionId = "transaction_id", .YtServerName = "hahn.yt.yandex.net", .Token = "token"}}}
+        .ClusterConnections = {{TFmrTableId("Cluster", "Path"), TClusterConnection{.TransactionId = "transaction_id", .YtServerName = "hahn.yt.yandex.net", .Token = "token"}}}
     };
 }
 

@@ -19,6 +19,7 @@ TAG(
     ya:yt
     ya:ytexec
     ya:force_sandbox
+    ya:large_tests_on_single_slots
 )
 
 REQUIREMENTS(
@@ -59,7 +60,5 @@ TEST_SRCS(
     test_parquet.py
     test_orc.py
 )
-
-INCLUDE(${ARCADIA_ROOT}/devtools/large_on_single_slots.inc)
 
 END()

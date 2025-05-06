@@ -6,13 +6,14 @@
         "version": "local-{revision}",
     },
     "include": [
-      "yt/docker/ya-build/base/package.json",
+        "yt/docker/ya-build/base/package.json",
     ],
     "params": {
         "format": "docker",
         "docker_target": "ytsaurus",
         "docker_build_arg": {
-            "PYTHON_BUILD_BASE": "build-ytsaurus-python-binaries"
+            "PYTHON_BUILD_BASE": "build-ytsaurus-python-binaries",
+            "SERVER_IMAGE_BASE": "base-server-crio",
         },
     },
     "data": [

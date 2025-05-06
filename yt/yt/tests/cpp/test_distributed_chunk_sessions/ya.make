@@ -20,7 +20,12 @@ PEERDIR(
 
 INCLUDE(${ARCADIA_ROOT}/yt/yt/tests/recipe/recipe.inc)
 
-TAG(ya:yt ya:fat ya:huge_logs)
+TAG(
+    ya:yt
+    ya:fat
+    ya:huge_logs
+    ya:large_tests_on_single_slots
+)
 
 SIZE(LARGE)
 

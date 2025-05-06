@@ -1439,6 +1439,7 @@ class TestBulkInsert(DynamicTablesBase):
             sync_reshard_table("//tmp/t_output", [[]] + [[x] for x in pivot_keys])
             _check_reads()
 
+
 ##################################################################
 
 
@@ -2277,3 +2278,29 @@ class TestUnversionedUpdateFormatMirroredTx(TestUnversionedUpdateFormatShardedTx
             "forbid_transaction_actions_for_cypress_transactions": True,
         }
     }
+
+##################################################################
+
+
+class TestDynamicTablesLockingProtocol(DynamicTablesBase):
+    DELTA_CONTROLLER_AGENT_CONFIG = {
+        "controller_agent": {
+            "register_lockable_dynamic_tables": True,
+        }
+    }
+
+
+class TestBulkInsertDynamicTablesLockingProtocol(TestDynamicTablesLockingProtocol, TestBulkInsert):
+    pass
+
+
+class TestBulkInsertMulticellDynamicTablesLockingProtocol(TestDynamicTablesLockingProtocol, TestBulkInsertMulticell):
+    pass
+
+
+class TestUnversionedUpdateFormatRpcProxyDynamicTablesLockingProtocol(TestDynamicTablesLockingProtocol, TestUnversionedUpdateFormatRpcProxy):
+    pass
+
+
+class TestUnversionedUpdateFormatMirroredTxDynamicTablesLockingProtocol(TestDynamicTablesLockingProtocol, TestUnversionedUpdateFormatMirroredTx):
+    pass

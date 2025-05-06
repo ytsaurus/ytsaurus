@@ -7,7 +7,6 @@
 #include <library/cpp/yson/node/serialize.h>
 #include <library/cpp/yson/writer.h>
 
-#include <util/generic/ptr.h>
 #include <util/ysaveload.h>
 
 #include <type_traits>
@@ -18,10 +17,10 @@ namespace NRoren::NPrivate {
 
 template <typename TDerived>
 class IClonable
-    : public virtual TThrRefBase
+    : public virtual NYT::TRefCounted
 {
 public:
-    virtual ::TIntrusivePtr<TDerived> Clone() const = 0;
+    virtual NYT::TIntrusivePtr<TDerived> Clone() const = 0;
 };
 
 template <typename TDerived>
@@ -29,9 +28,9 @@ class ISerializable
     : public IClonable<TDerived>
 {
 public:
-    using TDefaultFactoryFunc = ::TIntrusivePtr<TDerived> (*)();
+    using TDefaultFactoryFunc = NYT::TIntrusivePtr<TDerived> (*)();
 
-    ::TIntrusivePtr<TDerived> Clone() const override;
+    NYT::TIntrusivePtr<TDerived> Clone() const override;
 
 private:
     virtual TDefaultFactoryFunc GetDefaultFactory() const = 0;
@@ -43,12 +42,12 @@ private:
     friend NYT::TNode SerializableToNode(const ISerializable<T>&);
 
     template <typename T>
-    friend ::TIntrusivePtr<T> SerializableFromNode(const NYT::TNode& description);
+    friend NYT::TIntrusivePtr<T> SerializableFromNode(const NYT::TNode& description);
 };
 
 
 template <typename TDerived>
-::TIntrusivePtr<TDerived> ISerializable<TDerived>::Clone() const
+NYT::TIntrusivePtr<TDerived> ISerializable<TDerived>::Clone() const
 {
     TString state;
 
@@ -85,7 +84,7 @@ NYT::TNode SerializableToNode(const ISerializable<T>& serializable)
 }
 
 template <typename T>
-::TIntrusivePtr<T> SerializableFromNode(const NYT::TNode& description)
+NYT::TIntrusivePtr<T> SerializableFromNode(const NYT::TNode& description)
 {
     static_assert(std::is_base_of_v<ISerializable<T>, T>);
 
@@ -100,7 +99,7 @@ template <typename T>
 }
 
 template <class T>
-static inline void SaveSerializable(IOutputStream* out, const ::TIntrusivePtr<T>& t) {
+static inline void SaveSerializable(IOutputStream* out, const NYT::TIntrusivePtr<T>& t) {
     static_assert(std::is_base_of_v<ISerializable<T>, T>);
     auto node = t ? SerializableToNode(*t) : NYT::TNode::CreateEntity();
     auto s = NodeToYsonString(node, NYson::EYsonFormat::Binary);
@@ -108,7 +107,7 @@ static inline void SaveSerializable(IOutputStream* out, const ::TIntrusivePtr<T>
 }
 
 template <class T>
-static inline void LoadSerializable(IInputStream* in, ::TIntrusivePtr<T>& t) {
+static inline void LoadSerializable(IInputStream* in, NYT::TIntrusivePtr<T>& t) {
     static_assert(std::is_base_of_v<ISerializable<T>, T>);
     TString s;
     ::Load(in, s);
@@ -147,15 +146,15 @@ void LoadThroughYson(IInputStream* input, T& value)
 
 template <typename T>
     requires std::is_base_of_v<NRoren::NPrivate::ISerializable<T>, T>
-class TSerializer<TIntrusivePtr<T>>
+class TSerializer<NYT::TIntrusivePtr<T>>
 {
 public:
-    static void Save(IOutputStream* out, const TIntrusivePtr<T>& ptr)
+    static void Save(IOutputStream* out, const NYT::TIntrusivePtr<T>& ptr)
     {
         NRoren::NPrivate::SaveSerializable(out, ptr);
     }
 
-    static void Load(IInputStream* out, TIntrusivePtr<T>& ptr)
+    static void Load(IInputStream* out, NYT::TIntrusivePtr<T>& ptr)
     {
         NRoren::NPrivate::LoadSerializable(out, ptr);
     }

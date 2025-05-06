@@ -513,7 +513,7 @@ public:
                 << TErrorAttribute("transaction_id", transactionId));
         }
 
-        auto proxy = CreateObjectServiceReadProxy(Bootstrap_->GetClient(), EMasterChannelKind::Follower);
+        auto proxy = CreateObjectServiceReadProxy(connection, EMasterChannelKind::Follower, cellTag);
         auto batchReq = proxy.ExecuteBatch();
         auto req = TObjectYPathProxy::GetBasicAttributes(FromObjectId(transactionId));
         batchReq->AddRequest(req);
@@ -864,7 +864,7 @@ private:
     bool DoesOperationsArchiveExist()
     {
         if (!ArchiveExists_) {
-            ArchiveExists_ = Bootstrap_->GetClient()->DoesOperationsArchiveExist(/*useOperationsArchiveClient*/ false);
+            ArchiveExists_ = Bootstrap_->GetClient()->DoesOperationsArchiveExist();
         }
         return *ArchiveExists_;
     }

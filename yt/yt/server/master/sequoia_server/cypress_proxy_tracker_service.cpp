@@ -39,25 +39,25 @@ private:
     DECLARE_RPC_SERVICE_METHOD(NProto, Heartbeat)
     {
         ValidateClusterInitialized();
-        ValidatePeer(EPeerKind::Leader);
 
-        auto sequoiaReign = FromProto<ESequoiaReign>(request->sequoia_reign());
+        // NB: leader is not required here since in most cases Cypress proxy is
+        // already registered and mutation is not needed.
 
         const auto& cypressProxyTracker = Bootstrap_->GetCypressProxyTracker();
 
         context->SetRequestInfo("Address: %v, SequoiaReign: %v",
             request->address(),
-            sequoiaReign);
+            static_cast<ESequoiaReign>(request->sequoia_reign()));
 
-        // We could avoid reign validation in automaton thread in most cases. If
-        // reign in heartbeat is already persisted in corresponding Cypress
-        // proxy object we don't actually need mutation to update its reign: it
-        // is enough to check reign here. But to achieve this some way to read
-        // persisted Cypress proxy reign from non-automaton thread is needed.
-        // Somewhat similar is done in exec node tracker service.
-        // TODO(kvk1920): do it.
-
-        cypressProxyTracker->ProcessCypressProxyHeartbeat(context);
+        // NB: currently, heartbeat is not used to deliver dynamic config to
+        // Cypress proxy to allow adding new Cypress proxies during master's
+        // read-only. It can be done via heartbeats instead, but with special
+        // handling in read-only mode.
+        // TODO(kvk1920): think about it again and probably do it.
+        if (!cypressProxyTracker->TryProcessCypressProxyHeartbeatWithoutMutation(context)) {
+            ValidatePeer(EPeerKind::Leader);
+            cypressProxyTracker->ProcessCypressProxyHeartbeat(context);
+        }
     }
 };
 

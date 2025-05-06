@@ -52,7 +52,7 @@ inline void TReaderWriterSpinLock::ReleaseWriter() noexcept
 
 inline bool TReaderWriterSpinLock::IsLocked() const noexcept
 {
-    return Value_.load() != UnlockedValue;
+    return (Value_.load() & ~WriterReadyMask) != 0;
 }
 
 inline bool TReaderWriterSpinLock::IsLockedByReader() const noexcept

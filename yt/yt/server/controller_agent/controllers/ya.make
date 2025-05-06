@@ -8,6 +8,7 @@ SRCS(
     auto_merge_director.cpp
     auto_merge_task.cpp
     chunk_pool_adapters.cpp
+    common_profilers.cpp
     common_state.cpp
     competitive_job_manager.cpp
     data_balancer.cpp
@@ -25,6 +26,7 @@ SRCS(
     operation_controller_detail.cpp
     ordered_controller.cpp
     probing_job_manager.cpp
+    remote_copy_controller.cpp
     sink.cpp
     sort_controller.cpp
     sorted_controller.cpp

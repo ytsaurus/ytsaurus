@@ -85,7 +85,7 @@ TCellId TDownedCellTracker::ChooseOne(const std::vector<TCellId>& candidates, TI
         return firstToExpireCandidate;
     }
 
-    return notBannedCandidates[RandomNumber(notBannedCandidates.size())];;
+    return notBannedCandidates[RandomNumber(notBannedCandidates.size())];
 }
 
 void TDownedCellTracker::Update(

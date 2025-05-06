@@ -284,6 +284,42 @@ TErrorOr<TControllerAgentDescriptor> TryParseControllerAgentDescriptor(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TControllerAgentAffiliationInfo::TControllerAgentAffiliationInfo()
+    : DescriptorResetTime_(TInstant::Now())
+{ }
+
+TControllerAgentAffiliationInfo::TControllerAgentAffiliationInfo(TControllerAgentDescriptor descriptor)
+    : Descriptor_(std::move(descriptor))
+{ }
+
+const TControllerAgentDescriptor& TControllerAgentAffiliationInfo::GetDescriptor() const noexcept
+{
+    return Descriptor_;
+}
+
+TInstant TControllerAgentAffiliationInfo::GetDescriptorResetTime() const noexcept
+{
+    return DescriptorResetTime_;
+}
+
+void TControllerAgentAffiliationInfo::SetDescriptor(TControllerAgentDescriptor descriptor)
+{
+    if (!descriptor) {
+        ResetControllerAgent();
+        return;
+    }
+    Descriptor_ = std::move(descriptor);
+    DescriptorResetTime_ = {};
+}
+
+void TControllerAgentAffiliationInfo::ResetControllerAgent()
+{
+    Descriptor_ = {};
+    DescriptorResetTime_ = TInstant::Now();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NExecNode
 
 size_t THash<NYT::NExecNode::TControllerAgentDescriptor>::operator () (

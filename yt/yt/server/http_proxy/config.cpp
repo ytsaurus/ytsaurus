@@ -125,6 +125,37 @@ void TFramingConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TMemoryLimitsConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("total", &TThis::Total)
+        .Default(120_GB)
+        .GreaterThanOrEqual(0);
+    registrar.Parameter("heavy_request", &TThis::HeavyRequest)
+        .Default(120_GB)
+        .GreaterThanOrEqual(0);
+}
+
+void TMemoryLimitRatiosConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("default_user_memory_limit_ratio", &TThis::DefaultUserMemoryLimitRatio)
+        .Optional()
+        .InRange(0.0, 1.0);
+    registrar.Parameter("user_to_memory_limit_ratio", &TThis::UserToMemoryLimitRatio)
+        .Default();
+
+    registrar.Postprocessor([&] (TMemoryLimitRatiosConfig* config) {
+        for (const auto& [name, value] : config->UserToMemoryLimitRatio) {
+            if (value > 1 || value < 0) {
+                THROW_ERROR_EXCEPTION("User ratio must be less than 1 and greater than 0")
+                    << TErrorAttribute("user_name", name)
+                    << TErrorAttribute("user_ratio", value);
+            }
+        }
+    });
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TApiConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("ban_cache_expiration_time", &TThis::BanCacheExpirationTime)
@@ -156,13 +187,15 @@ void TApiDynamicConfig::Register(TRegistrar registrar)
     registrar.Parameter("enable_allocation_tags", &TThis::EnableAllocationTags)
         .Default(false);
 
-    registrar.Parameter("default_user_memory_limit_ratio", &TThis::DefaultUserMemoryLimitRatio)
-        .Optional();
-    registrar.Parameter("user_to_memory_limit_ratio", &TThis::UserToMemoryLimitRatio)
-        .Default();
-
     registrar.Parameter("use_compression_thread_pool", &TThis::UseCompressionThreadPool)
         .Default(true);
+
+    registrar.Parameter("default_user_memory_limit_ratio", &TThis::DefaultUserMemoryLimitRatio)
+        .Optional()
+        .InRange(0.0, 1.0);
+
+    registrar.Parameter("role_to_memory_limit_ratios", &TThis::RoleToMemoryLimitRatios)
+        .Default();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -177,9 +210,6 @@ void TAccessCheckerConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("use_access_control_objects", &TThis::UseAccessControlObjects)
         .Default(false);
-
-    registrar.Parameter("cache", &TThis::Cache)
-        .DefaultNew();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -188,16 +218,6 @@ void TAccessCheckerDynamicConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("enabled", &TThis::Enabled)
         .Default();
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-void TProxyMemoryLimitsConfig::Register(TRegistrar registrar)
-{
-    registrar.Parameter("total", &TThis::Total)
-        .Optional();
-    registrar.Parameter("heavy_request", &TThis::HeavyRequest)
-        .Optional();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -224,6 +244,9 @@ void TProxyBootstrapConfig::Register(TRegistrar registrar)
     registrar.Postprocessor([] (TThis* config) {
         config->HttpServer->Port = config->Port;
     });
+
+    registrar.Parameter("addresses", &TThis::Addresses)
+        .Default();
 
     registrar.Parameter("driver", &TThis::Driver)
         .Default();

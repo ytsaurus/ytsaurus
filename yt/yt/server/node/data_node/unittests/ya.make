@@ -30,6 +30,7 @@ ENDIF()
 TAG(
     ya:yt
     ya:fat
+    ya:large_tests_on_single_slots
 )
 
 ENV(ASAN_OPTIONS="detect_leaks=0")
@@ -39,7 +40,5 @@ YT_SPEC(yt/yt/tests/integration/spec.yson)
 SIZE(LARGE)
 
 DATA(arcadia/yt/yt/server/node/data_node/unittests/testdata)
-
-INCLUDE(${ARCADIA_ROOT}/devtools/large_on_single_slots.inc)
 
 END()

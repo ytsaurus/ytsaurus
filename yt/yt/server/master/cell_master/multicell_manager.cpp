@@ -120,7 +120,7 @@ public:
         YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         const auto& configManager = Bootstrap_->GetConfigManager();
-        configManager->SubscribeBeforeConfigChanged(BIND_NO_PROPAGATE(&TMulticellManager::OnBeforeDynamicConfigChanged, MakeWeak(this)));
+        configManager->SubscribeValidateConfigChanged(BIND_NO_PROPAGATE(&TMulticellManager::OnValidateConfigChanged, MakeWeak(this)));
         configManager->SubscribeConfigChanged(BIND_NO_PROPAGATE(&TMulticellManager::OnDynamicConfigChanged, MakeWeak(this)));
 
         const auto& alertManager = Bootstrap_->GetAlertManager();
@@ -1299,7 +1299,7 @@ private:
         hiveManager->FreezeEdges(std::move(edgesToFreeze));
     }
 
-    void OnBeforeDynamicConfigChanged(TDynamicClusterConfigPtr newConfig)
+    void OnValidateConfigChanged(TDynamicClusterConfigPtr newConfig)
     {
         // All validations should happen before replicating dynamic config to secondary masters.
         if (IsSecondaryMaster()) {
@@ -1322,7 +1322,7 @@ private:
                     const auto& multicellNodeStatistics = Bootstrap_->GetMulticellStatisticsCollector()->GetMulticellNodeStatistics();
                     auto chunkCount = multicellNodeStatistics.GetChunkCount(cellTag);
                     auto error = TError(
-                        "Role %Qv cannot be removed from master cell %v, because it still hosts chunks",
+                        "Role %Qlv cannot be removed from master cell %v, because it still hosts chunks",
                         EMasterCellRoles::ChunkHost,
                         cellTag)
                         << TErrorAttribute("chunk_count", chunkCount)
@@ -1334,7 +1334,7 @@ private:
                 if (Any(oldRoles & EMasterCellRoles::CypressNodeHost) && !Any(newRoles & EMasterCellRoles::CypressNodeHost)) {
                     auto portalCount = portalManager->CountPortalsLeadingToCell(cellTag);
                     auto error = TError(
-                        "Role %Qv cannot be removed from master cell %v, because it still hosts cypress nodes",
+                        "Role %Qlv cannot be removed from master cell %v, because it still hosts Cypress nodes",
                         EMasterCellRoles::CypressNodeHost,
                         cellTag)
                         << TErrorAttribute("portal_count", portalCount)

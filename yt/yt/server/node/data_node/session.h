@@ -94,7 +94,7 @@ struct TSessionOptions
     std::optional<i64> MinLocationAvailableSpace;
     std::optional<i64> NbdChunkSize;
     std::optional<NNbd::EFilesystemType> NbdChunkFsType;
-    std::vector<std::pair<TString, double>> FairShareTags;
+    std::vector<std::pair<std::string, double>> FairShareTags;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

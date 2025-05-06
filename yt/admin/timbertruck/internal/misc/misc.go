@@ -10,6 +10,7 @@ import (
 	"os/signal"
 	"sync"
 	"syscall"
+	"time"
 
 	"go.ytsaurus.tech/library/go/core/buildinfo"
 )
@@ -48,7 +49,7 @@ func LogLoggingStarted(logger *slog.Logger) {
 
 // Open new file and register SIGHUP handler to reopen it.
 // Meant to be used as io.Writer for slog.Handler
-func NewLogrotatingFile(path string) (result io.WriteCloser, err error) {
+func NewLogrotatingFile(path string, reopenLogFileInterval time.Duration) (result io.WriteCloser, err error) {
 	logrotating := &LogrotatingFile{
 		path: path,
 	}
@@ -60,20 +61,33 @@ func NewLogrotatingFile(path string) (result io.WriteCloser, err error) {
 	ch := make(chan os.Signal, 16)
 	signal.Notify(ch, syscall.SIGHUP)
 	go func() {
-		for range ch {
-			err = logrotating.reopen()
-			if err != nil {
-				log.Default().Printf("Failed to reopen log file: %v", err)
-				continue
-			}
-			logger := getLogrotatingLogger()
-			if logger != nil {
-				LogLoggingStarted(logger)
-			}
+		for {
+			reopenLogFile(logrotating, ch, reopenLogFileInterval)
 		}
 	}()
 	result = logrotating
 	return
+}
+
+func reopenLogFile(logrotating *LogrotatingFile, ch <-chan os.Signal, reopenLogFileInterval time.Duration) {
+	ctx, cancel := context.WithTimeout(context.Background(), reopenLogFileInterval)
+	defer cancel()
+
+	select {
+	case <-ch:
+	case <-ctx.Done():
+		log.Default().Printf("Context expired after %v: %v. Reopening log file.", reopenLogFileInterval, ctx.Err().Error())
+	}
+
+	err := logrotating.reopen()
+	if err != nil {
+		log.Default().Printf("Failed to reopen log file: %v", err)
+		return
+	}
+	logger := getLogrotatingLogger()
+	if logger != nil {
+		LogLoggingStarted(logger)
+	}
 }
 
 func (r *LogrotatingFile) Write(p []byte) (n int, err error) {

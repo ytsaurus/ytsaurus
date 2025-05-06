@@ -42,6 +42,8 @@ public:
         TChunkBatchLocatedHandler onChunkBatchLocated,
         NLogging::TLogger logger);
 
+    ~TChunkScraper();
+
     //! Starts periodic polling.
     /*!
      *  Should be called when operation preparation is complete.

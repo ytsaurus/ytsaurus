@@ -38,7 +38,7 @@ DECLARE_REFCOUNTED_STRUCT(TConnectionCompoundConfig)
 
 using TConnectionDynamicConfigAtomicPtr = TAtomicIntrusivePtr<TConnectionDynamicConfig>;
 
-DECLARE_REFCOUNTED_CLASS(TJournalChunkWriterOptions)
+DECLARE_REFCOUNTED_STRUCT(TJournalChunkWriterOptions)
 
 struct TConnectionOptions;
 

@@ -102,7 +102,7 @@ public:
         }
     }
 
-    const TFairShareHierarchicalSchedulerPtr<TString> GetFairShareHierarchicalScheduler() override
+    const TFairShareHierarchicalSchedulerPtr<std::string> GetFairShareHierarchicalScheduler() override
     {
         return Bootstrap_->GetFairShareHierarchicalScheduler();
     }
@@ -189,7 +189,7 @@ void TChunkStore::ReconfigureLocation(const TChunkLocationPtr& location)
         return;
     }
 
-    const auto& staticLocationConfig = storeLocation->GetStaticConfig();;
+    const auto& staticLocationConfig = storeLocation->GetStaticConfig();
     auto it = DynamicConfig_->StoreLocationConfigPerMedium.find(storeLocation->GetMediumName());
     auto locationConfig = it == DynamicConfig_->StoreLocationConfigPerMedium.end()
         ? staticLocationConfig

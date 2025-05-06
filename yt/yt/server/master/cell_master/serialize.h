@@ -249,6 +249,13 @@ DEFINE_ENUM(EMasterReign,
     ((PerChunkReplicaDataNodeRegistrationTrottling)                 (2913))  // cherepashka
     ((MissingObjectErrorAttribute)                                  (2914))  // kvk1920
     ((FixAttributeInheritanceInCreateVerb)                          (2915))  // h0pless
+    ((FixLastSeenReplicas)                                          (2916))  // kvk1920
+    ((FixReplicatedTransactionFinish)                               (2917))  // kvk1920
+    ((FixSysOperationCommittedAttribute)                            (2918))  // kvk1920
+    ((AddLockableDynamicTables)                                     (2919))  // dave11ar
+    ((DeterministicStateHashComputationInResponseKeeper)            (2920))  // koloshmet
+    ((CypressProxyVersion)                                          (2921))  // kvk1920
+    ((AddEscapingInCrossCellCopy)                                   (2922))  // h0pless
 );
 
 static_assert(TEnumTraits<EMasterReign>::IsMonotonic, "Master reign enum is not monotonic");

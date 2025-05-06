@@ -40,6 +40,9 @@ target_compile_options(yt-yt-core PRIVATE
   -mpclmul
   -Wdeprecated-this-capture
   -Wimplicit-fallthrough
+  -Wparentheses
+  -Wno-logical-op-parentheses
+  -Wno-bitwise-op-parentheses
 )
 
 target_link_libraries(yt-yt-core PUBLIC
@@ -216,6 +219,7 @@ target_sources(yt-yt-core PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/ref_counted_tracker_statistics_producer.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/ref_counted_tracker_profiler.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/serialize.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/serialize_dump.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/shutdown.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/slab_allocator.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/statistic_path.cpp
@@ -366,6 +370,9 @@ target_compile_options(yt-yt-core.global PRIVATE
   -mpclmul
   -Wdeprecated-this-capture
   -Wimplicit-fallthrough
+  -Wparentheses
+  -Wno-logical-op-parentheses
+  -Wno-bitwise-op-parentheses
 )
 
 target_link_libraries(yt-yt-core.global PUBLIC

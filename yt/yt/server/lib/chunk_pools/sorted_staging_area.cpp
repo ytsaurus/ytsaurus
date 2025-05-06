@@ -133,17 +133,15 @@ public:
         bool enableKeyGuarantee,
         TComparator primaryComparator,
         TComparator foreignComparator,
-        const TRowBufferPtr& rowBuffer,
+        TRowBufferPtr rowBuffer,
         i64 initialTotalDataSliceCount,
         i64 maxTotalDataSliceCount,
-        const TInputStreamDirectory& inputStreamDirectory,
         const TLogger& logger)
         : EnableKeyGuarantee_(enableKeyGuarantee)
-        , PrimaryComparator_(primaryComparator)
-        , ForeignComparator_(foreignComparator)
+        , PrimaryComparator_(std::move(primaryComparator))
+        , ForeignComparator_(std::move(foreignComparator))
         , MaxTotalDataSliceCount_(maxTotalDataSliceCount)
-        , RowBuffer_(rowBuffer)
-        , InputStreamDirectory_(inputStreamDirectory)
+        , RowBuffer_(std::move(rowBuffer))
         , Logger(logger)
         , TotalDataSliceCount_(initialTotalDataSliceCount)
         , MainDomain_("Main", logger, PrimaryComparator_)
@@ -274,12 +272,11 @@ public:
     }
 
 private:
-    bool EnableKeyGuarantee_;
+    const bool EnableKeyGuarantee_;
     TComparator PrimaryComparator_;
     TComparator ForeignComparator_;
-    i64 MaxTotalDataSliceCount_;
-    TRowBufferPtr RowBuffer_;
-    TInputStreamDirectory InputStreamDirectory_;
+    const i64 MaxTotalDataSliceCount_;
+    const TRowBufferPtr RowBuffer_;
     TLogger Logger;
 
     //! Upper bound using which all data slices in Main domain are to be cut.
@@ -467,8 +464,12 @@ private:
         YT_LOG_TRACE("Cutting non-solid main domain by upper bound (UpperBound: %v)", UpperBound_);
 
         // We first collect data slice to push to buffer domain, and only then push them.
-        // Since we are pushing to domain front (see comments below), we must push all
-        // data slices we want in reverse order in order to keep relative order of slices.
+        // We have to preserve the order of the slices from `NonSolidMainDataSlices_` and
+        // push them into `SolidDomain_` or `BufferDomain_` before the slices that are already there.
+        // So we have to use `PushFront()` in line (1) below for the slices to be moved.
+        // Since this reverses the order of the moved slices, we also have to iterate over `toBuffer`
+        // in reverse order in line (2) while preserving their relative oder in line (3).
+        // Refer to explanation in YT-14566 for more details.
         std::vector<TLegacyDataSlicePtr> toBuffer;
 
         for (auto& dataSlice : NonSolidMainDataSlices_) {
@@ -485,9 +486,7 @@ private:
                 // check if rest data slice is non-empty.
                 if (!PrimaryComparator_.IsRangeEmpty(restDataSlice->LowerLimit().KeyBound, restDataSlice->UpperLimit().KeyBound)) {
                     restDataSlice->CopyPayloadFrom(*dataSlice);
-                    // Refer to explanation in YT-14566 for more details.
-                    // PushFront is crucial!
-                    toBuffer.emplace_back(std::move(restDataSlice));
+                    toBuffer.emplace_back(std::move(restDataSlice)); // line (3)
                 }
                 // Left part of the data slice resides in the Main domain.
                 dataSlice->UpperLimit().KeyBound = UpperBound_;
@@ -498,11 +497,11 @@ private:
 
         NonSolidMainDataSlices_.clear();
 
-        for (auto& dataSlice : Reversed(toBuffer)) {
+        for (auto& dataSlice : Reversed(toBuffer)) { // line (2)
             auto& destinationDomain = PrimaryComparator_.IsInteriorEmpty(dataSlice->LowerLimit().KeyBound, dataSlice->UpperLimit().KeyBound) && !EnableKeyGuarantee_
                 ? SolidDomain_
                 : BufferDomain_;
-            destinationDomain.PushFront(std::move(dataSlice));
+            destinationDomain.PushFront(std::move(dataSlice)); // line (1)
         }
     }
 
@@ -582,8 +581,6 @@ private:
         }
     }
 
-    //! If there is at least one data slice in the main domain, form a job and return true.
-    //! Otherwise, return false.
     void DoFlush()
     {
         YT_VERIFY(!IsExhausted());
@@ -681,20 +678,18 @@ ISortedStagingAreaPtr CreateSortedStagingArea(
     bool enableKeyGuarantee,
     TComparator primaryComparator,
     TComparator foreignComparator,
-    const TRowBufferPtr& rowBuffer,
+    TRowBufferPtr rowBuffer,
     i64 initialTotalDataSliceCount,
     i64 maxTotalDataSliceCount,
-    const TInputStreamDirectory& inputStreamDirectory,
     const TLogger& logger)
 {
     return New<TSortedStagingArea>(
         enableKeyGuarantee,
-        primaryComparator,
-        foreignComparator,
-        rowBuffer,
+        std::move(primaryComparator),
+        std::move(foreignComparator),
+        std::move(rowBuffer),
         initialTotalDataSliceCount,
         maxTotalDataSliceCount,
-        inputStreamDirectory,
         logger);
 }
 

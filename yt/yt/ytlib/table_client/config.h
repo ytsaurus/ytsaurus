@@ -15,11 +15,10 @@ namespace NYT::NTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TTableWriterOptions
+struct TTableWriterOptions
     : public TChunkWriterOptions
     , public NChunkClient::TMultiChunkWriterOptions
 {
-public:
     // Whether to compute output digest.
     // May be used to determine job determinism.
     bool ComputeDigest;
@@ -63,7 +62,7 @@ DEFINE_REFCOUNTED_TYPE(TBufferedTableWriterConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TTableReaderOptions
+struct TTableReaderOptions
     : public TChunkReaderOptions
     , public NChunkClient::TMultiChunkReaderOptions
 {

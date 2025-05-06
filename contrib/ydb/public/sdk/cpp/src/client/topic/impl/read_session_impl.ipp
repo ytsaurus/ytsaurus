@@ -971,6 +971,7 @@ inline void TSingleClusterReadSessionImpl<true>::OnReadDoneImpl(
     LOG_LAZY(Log, TLOG_INFO, GetLogPrefix() << "Server session id: " << msg.session_id());
 
     RetryState = nullptr;
+    ReadSessionId = msg.session_id();
 
     // Successful init. Do nothing.
     ContinueReadingDataImpl();
@@ -1222,6 +1223,7 @@ inline void TSingleClusterReadSessionImpl<false>::OnReadDoneImpl(
     Y_UNUSED(deferred);
 
     RetryState = nullptr;
+    ReadSessionId = msg.session_id();
 
     LOG_LAZY(Log, TLOG_INFO, GetLogPrefix() << "Server session id: " << msg.session_id());
 
@@ -1321,8 +1323,12 @@ inline void TSingleClusterReadSessionImpl<false>::OnReadDoneImpl(
     Y_ABORT_UNLESS(Lock.IsLocked());
 
     auto partitionStream = MakeIntrusive<TPartitionStreamImpl<false>>(
-        NextPartitionStreamId, msg.partition_session().path(), msg.partition_session().partition_id(),
-        msg.partition_session().partition_session_id(), msg.committed_offset(),
+        NextPartitionStreamId,
+        msg.partition_session().path(),
+        ReadSessionId,
+        msg.partition_session().partition_id(),
+        msg.partition_session().partition_session_id(),
+        msg.committed_offset(),
         SelfContext);
     NextPartitionStreamId += PartitionStreamIdStep;
 
@@ -1913,7 +1919,7 @@ void TSingleClusterReadSessionImpl<UseMigrationProtocol>::ConfirmPartitionStream
 }
 
 template <bool UseMigrationProtocol>
-void TSingleClusterReadSessionImpl<UseMigrationProtocol>::CollectOffsets(NTable::TTransaction& tx,
+void TSingleClusterReadSessionImpl<UseMigrationProtocol>::CollectOffsets(TTransactionBase& tx,
                                                                          const std::vector<TReadSessionEvent::TEvent>& events,
                                                                          std::shared_ptr<TTopicClient::TImpl> client)
 {
@@ -1925,7 +1931,7 @@ void TSingleClusterReadSessionImpl<UseMigrationProtocol>::CollectOffsets(NTable:
 }
 
 template <bool UseMigrationProtocol>
-void TSingleClusterReadSessionImpl<UseMigrationProtocol>::CollectOffsets(NTable::TTransaction& tx,
+void TSingleClusterReadSessionImpl<UseMigrationProtocol>::CollectOffsets(TTransactionBase& tx,
                                                                          const TReadSessionEvent::TEvent& event,
                                                                          std::shared_ptr<TTopicClient::TImpl> client)
 {
@@ -1937,7 +1943,7 @@ void TSingleClusterReadSessionImpl<UseMigrationProtocol>::CollectOffsets(NTable:
 }
 
 template <bool UseMigrationProtocol>
-void TSingleClusterReadSessionImpl<UseMigrationProtocol>::TrySubscribeOnTransactionCommit(NTable::TTransaction& tx,
+void TSingleClusterReadSessionImpl<UseMigrationProtocol>::TrySubscribeOnTransactionCommit(TTransactionBase& tx,
                                                                                           std::shared_ptr<TTopicClient::TImpl> client)
 {
     const TTransactionId txId = MakeTransactionId(tx);

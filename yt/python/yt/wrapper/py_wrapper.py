@@ -74,12 +74,12 @@ class WrapResult(object):
 class OperationParameters(object):
     __slots__ = ["input_format", "output_format", "operation_type", "job_type", "group_by", "should_process_key_switch",
                  "input_table_count", "output_table_count", "use_yamr_descriptors", "attributes", "python_version",
-                 "is_local_mode", "has_state", "redirect_stdout_to_stderr", "pickling_encryption_key"]
+                 "is_local_mode", "has_state", "pickling_encryption_key"]
 
     def __init__(self, input_format=None, output_format=None, operation_type=None, job_type=None, group_by=None,
                  should_process_key_switch=None, python_version=None, input_table_count=None, output_table_count=None,
                  use_yamr_descriptors=None, attributes=None, is_local_mode=None, has_state=False,
-                 redirect_stdout_to_stderr=None, pickling_encryption_key=None):
+                 pickling_encryption_key=None):
         self.input_format = input_format
         self.output_format = output_format
         self.operation_type = operation_type
@@ -93,7 +93,6 @@ class OperationParameters(object):
         self.python_version = python_version
         self.is_local_mode = is_local_mode
         self.has_state = has_state
-        self.redirect_stdout_to_stderr = redirect_stdout_to_stderr
         self.pickling_encryption_key = pickling_encryption_key
         # pickling_encryption_key: None - disabled, "" - autogenerate, "xxx" - use this key
 

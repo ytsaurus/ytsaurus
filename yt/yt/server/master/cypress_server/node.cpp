@@ -1,4 +1,6 @@
 #include "node.h"
+
+#include "node_detail.h"
 #include "shard.h"
 
 #include <yt/yt/server/master/cell_master/serialize.h>
@@ -49,8 +51,6 @@ TCypressNode::TCypressNode(TVersionedNodeId id)
     }
 }
 
-TCypressNode::~TCypressNode() = default;
-
 TInstant TCypressNode::GetTouchTime(bool branchIsOk) const
 {
     YT_VERIFY(branchIsOk || IsTrunk());
@@ -73,30 +73,31 @@ void TCypressNode::SetModified(EModificationType modificationType)
     SetModificationTime(hydraContext->GetTimestamp());
 }
 
-TCypressNode* TCypressNode::GetParent() const
+TCompositeCypressNode* TCypressNode::GetParent() const
 {
     return Parent_;
 }
 
-void TCypressNode::SetParent(TCypressNode* parent)
+void TCypressNode::SetParent(TCompositeCypressNode* parent)
 {
-    if (Parent_ == parent)
+    if (Parent_ == parent) {
         return;
+    }
 
     // Drop old parent.
     if (Parent_) {
-        YT_VERIFY(Parent_->ImmediateDescendants().erase(this) == 1);
+        EraseOrCrash(Parent_->ImmediateDescendants(), this);
     }
 
     // Set new parent.
     Parent_ = parent;
     if (Parent_) {
         YT_VERIFY(Parent_->IsTrunk());
-        YT_VERIFY(Parent_->ImmediateDescendants().insert(this).second);
+        InsertOrCrash(Parent_->ImmediateDescendants(), this);
     }
 }
 
-void TCypressNode::ResetParent()
+void TCypressNode::DropParent()
 {
     Parent_ = nullptr;
 }

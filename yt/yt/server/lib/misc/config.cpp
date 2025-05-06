@@ -124,9 +124,18 @@ void TDiskHealthCheckerConfig::Register(TRegistrar registrar)
         .InRange(0, 1_GB)
         .Default(1_MB);
     registrar.Parameter("exec_timeout", &TThis::ExecTimeout)
-        .Default(TDuration::Seconds(60));
+        .Default(TDuration::Minutes(15));
     registrar.Parameter("wait_timeout", &TThis::WaitTimeout)
-        .Default(TDuration::Minutes(10));
+        .Default(TDuration::Minutes(30));
+}
+
+TDiskHealthCheckerConfigPtr TDiskHealthCheckerConfig::ApplyDynamic(const TDiskHealthCheckerDynamicConfig& dynamicConfig)
+{
+    auto mergedConfig = CloneYsonStruct(MakeStrong(this));
+    UpdateYsonStructField(mergedConfig->TestSize, dynamicConfig.TestSize);
+    UpdateYsonStructField(mergedConfig->ExecTimeout, dynamicConfig.ExecTimeout);
+    UpdateYsonStructField(mergedConfig->WaitTimeout, dynamicConfig.WaitTimeout);
+    return mergedConfig;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

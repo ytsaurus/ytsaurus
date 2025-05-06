@@ -37,6 +37,8 @@ struct TSecondaryQuery
 {
     DB::ASTPtr Query;
     DB::Scalars Scalars;
+    DB::UInt64 TotalRowsToRead;
+    DB::UInt64 TotalBytesToRead;
 };
 
 class TQueryAnalyzer

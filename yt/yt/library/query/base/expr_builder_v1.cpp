@@ -67,15 +67,9 @@ bool Unify(TTypeSet* genericAssignments, const TTypeSet& types)
     }
 }
 
-EValueType GetFrontWithCheck(const TTypeSet& typeSet, TStringBuf source)
+EValueType GetFrontWithCheck(const TTypeSet& typeSet, TStringBuf /*source*/)
 {
-    auto result = typeSet.GetFront();
-    if (result == EValueType::Null) {
-        THROW_ERROR_EXCEPTION("Type inference failed")
-            << TErrorAttribute("actual_type", EValueType::Null)
-            << TErrorAttribute("source", source);
-    }
-    return result;
+    return typeSet.GetFront();
 }
 
 TTypeSet InferFunctionTypes(
@@ -104,12 +98,10 @@ TTypeSet InferFunctionTypes(
     {
         auto& constraints = (*genericAssignments)[*formalArg];
         if (!Unify(&constraints, *arg)) {
-            THROW_ERROR_EXCEPTION(
-                "Wrong type for argument %v to function %Qv: expected %Qv, got %Qv",
-                argIndex,
-                functionName,
-                constraints,
-                *arg)
+            THROW_ERROR_EXCEPTION("No matching function %Qv", functionName)
+                << TErrorAttribute("argument_index", argIndex)
+                << TErrorAttribute("expected_type", ToString(constraints))
+                << TErrorAttribute("actual_type", ToString(*arg))
                 << TErrorAttribute("expression", source);
         }
     }
@@ -119,11 +111,9 @@ TTypeSet InferFunctionTypes(
     if (formalArg != formalArguments.end() ||
         (arg != effectiveTypes.end() && hasNoRepeatedArgument))
     {
-        THROW_ERROR_EXCEPTION(
-            "Wrong number of arguments to function %Qv: expected %v, got %v",
-            functionName,
-            formalArguments.size(),
-            effectiveTypes.size())
+        THROW_ERROR_EXCEPTION("No matching function %Qv", functionName)
+            << TErrorAttribute("expected_arguments", formalArguments.size())
+            << TErrorAttribute("actual_arguments", effectiveTypes.size())
             << TErrorAttribute("expression", source);
     }
 
@@ -205,21 +195,19 @@ void IntersectGenericsWithArgumentTypes(
     TStringBuf source)
 {
     if (formalArguments.size() != effectiveTypes.size()) {
-        THROW_ERROR_EXCEPTION("Expected %v number of arguments to function %Qv, got %v",
-            formalArguments.size(),
-            functionName,
-            effectiveTypes.size());
+        THROW_ERROR_EXCEPTION("No matching function %Qv", functionName)
+            << TErrorAttribute("expected_arguments", formalArguments.size())
+            << TErrorAttribute("actual_arguments", effectiveTypes.size())
+            << TErrorAttribute("expression", source);
     }
 
-    for (int argIndex = 0; argIndex < std::ssize(formalArguments); ++argIndex)
-    {
+    for (int argIndex = 0; argIndex < std::ssize(formalArguments); ++argIndex) {
         auto& constraints = (*genericAssignments)[formalArguments[argIndex]];
         if (!Unify(&constraints, effectiveTypes[argIndex])) {
-            THROW_ERROR_EXCEPTION("Wrong type for argument %v to function %Qv: expected %Qv, got %Qv",
-                argIndex + 1,
-                functionName,
-                constraints,
-                effectiveTypes[argIndex])
+            THROW_ERROR_EXCEPTION("No matching function %Qv", functionName)
+                << TErrorAttribute("argument_index", argIndex + 1)
+                << TErrorAttribute("expected_type", ToString(constraints))
+                << TErrorAttribute("actual_type", ToString(effectiveTypes[argIndex]))
                 << TErrorAttribute("expression", source);
         }
     }
@@ -658,7 +646,7 @@ private:
         const NAst::TLikeExpression* likeExpr);
 };
 
-std::unique_ptr<TExprBuilder> CreateExpressionBuilder(
+std::unique_ptr<TExprBuilder> CreateExpressionBuilderV1(
     TStringBuf source,
     const TConstTypeInferrerMapPtr& functions,
     const NAst::TAliasMap& aliasMap)
@@ -711,6 +699,8 @@ TUntypedExpression TExprBuilderV1::OnExpression(
         return OnCaseOp(caseExpr);
     } else if (auto likeExpr = expr->As<NAst::TLikeExpression>()) {
         return OnLikeOp(likeExpr);
+    } else if (auto queryExpr = expr->As<NAst::TQueryExpression>()) {
+        THROW_ERROR_EXCEPTION("Subqueries in expressions are not supported in expression builder v1.");
     }
 
     YT_ABORT();
@@ -855,7 +845,7 @@ TUntypedExpression TExprBuilderV1::UnwrapCompositeMemberAccessor(
     const NAst::TReference& reference,
     const TLogicalTypePtr& type)
 {
-    auto columnReference = New<TReferenceExpression>(type, InferReferenceName(reference));
+    auto columnReference = New<TReferenceExpression>(type, InferColumnName(reference));
 
     if (reference.CompositeTypeAccessor.IsEmpty()) {
         auto generator = [columnReference] (EValueType /*type*/) {
@@ -911,7 +901,7 @@ TUntypedExpression TExprBuilderV1::OnReference(const NAst::TReference& reference
     }
 
     THROW_ERROR_EXCEPTION("Undefined reference %Qv",
-        InferReferenceName(reference));
+        InferColumnName(reference));
 }
 
 TUntypedExpression TExprBuilderV1::OnFunction(const NAst::TFunctionExpression* functionExpr)
@@ -1510,15 +1500,10 @@ TUntypedExpression TExprBuilderV1::OnCaseOp(const NAst::TCaseExpression* caseExp
 
             auto untypedExpression = OnExpression(condition.front());
             if (!Unify(&conditionTypes, untypedExpression.FeasibleTypes)) {
-                if (hasOptionalOperand) {
-                    THROW_ERROR_EXCEPTION("Types mismatch in CASE WHEN expression")
-                        << TErrorAttribute("source", source)
-                        << TErrorAttribute("actual_type", ToString(untypedExpression.FeasibleTypes))
-                        << TErrorAttribute("expected_type", ToString(conditionTypes));
-                } else {
-                    THROW_ERROR_EXCEPTION("Expression inside CASE WHEN should be boolean")
-                        << TErrorAttribute("source", source);
-                }
+                THROW_ERROR_EXCEPTION("Types mismatch in CASE WHEN expression")
+                    << TErrorAttribute("source", source)
+                    << TErrorAttribute("actual_type", ToString(untypedExpression.FeasibleTypes))
+                    << TErrorAttribute("expected_type", ToString(conditionTypes));
             }
 
             untypedConditions.push_back(std::move(untypedExpression));
@@ -1553,7 +1538,7 @@ TUntypedExpression TExprBuilderV1::OnCaseOp(const NAst::TCaseExpression* caseExp
 
             auto untypedExpression = OnExpression(result.front());
             if (!Unify(&resultTypes, untypedExpression.FeasibleTypes)) {
-                THROW_ERROR_EXCEPTION("Types mismatch in CASE THEN expression")
+                THROW_ERROR_EXCEPTION("Types mismatch in CASE THEN/ELSE expression")
                     << TErrorAttribute("source", source)
                     << TErrorAttribute("actual_type", ToString(untypedExpression.FeasibleTypes))
                     << TErrorAttribute("expected_type", ToString(resultTypes));
@@ -1570,7 +1555,7 @@ TUntypedExpression TExprBuilderV1::OnCaseOp(const NAst::TCaseExpression* caseExp
 
             untypedDefault = OnExpression(caseExpr->DefaultExpression->front());
             if (!Unify(&resultTypes, untypedDefault.FeasibleTypes)) {
-                THROW_ERROR_EXCEPTION("Types mismatch in CASE ELSE expression")
+                THROW_ERROR_EXCEPTION("Types mismatch in CASE THEN/ELSE expression")
                     << TErrorAttribute("source", source)
                     << TErrorAttribute("actual_type", ToString(untypedDefault.FeasibleTypes))
                     << TErrorAttribute("expected_type", ToString(resultTypes));

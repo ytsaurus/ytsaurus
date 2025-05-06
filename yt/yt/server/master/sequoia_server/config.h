@@ -45,8 +45,8 @@ DEFINE_REFCOUNTED_TYPE(TDynamicGroundUpdateQueueManagerConfig)
 struct TDynamicCypressProxyTrackerConfig
     : public NYTree::TYsonStruct
 {
-public:
     TDuration CypressProxyOrchidTimeout;
+    TDuration PersistentHeartbeatPeriod;
 
     REGISTER_YSON_STRUCT(TDynamicCypressProxyTrackerConfig);
 

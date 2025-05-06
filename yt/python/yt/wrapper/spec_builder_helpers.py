@@ -2,6 +2,7 @@ from .config import get_config
 from .schema.types import typing  # noqa
 
 import yt.logger as logger
+import yt.wrapper as yt
 
 try:
     import yt.packages.distro as distro
@@ -83,15 +84,15 @@ class BaseLayerDetector:
                 return None
 
         os, os_codename, python_version = cls._detect_os_env()
-        registry_path = client.config["base_layers_registry_path"]
+        registry_path = get_config(client)["base_layers_registry_path"]
         if os == "ubuntu":
 
             layer_path = []
 
             # get base layer from registry
-            if client.exists(registry_path):
+            if yt.exists(registry_path, client=client):
                 matched = None
-                registry = client.get(registry_path)
+                registry = yt.get(registry_path, client=client)
                 matched_by_os = _filter_registry(registry.get(layer_type, {}) if isinstance(registry, typing.Mapping) else {}, os=os, tags=["os_codename={}".format(os_codename)])
                 if python_version:
                     # try layer with specific python
@@ -114,7 +115,7 @@ class BaseLayerDetector:
                         layer_path = [matched[0]]
                     logger.debug("Guessed base layer \"%s\" from registry \"%s\"", layer_path, registry_path)
 
-                if layer_type == "porto" and not all(map(lambda p: client.exists(p), layer_path)):
+                if layer_type == "porto" and not all(map(lambda p: yt.exists(p, client=client), layer_path)):
                     logger.warning("Guessed base layer from registry is absent on the cluster \"%s\"", layer_path)
                     layer_path = None
 
@@ -126,7 +127,7 @@ class BaseLayerDetector:
                     layer_path = ["//porto_layers/base/{}/porto_layer_search_ubuntu_{}_app_lastest.tar.gz".format(os_codename, os_codename)]
                     logger.debug("Guessed porto base layer \"%s\" (without registry)", layer_path)
 
-                if not all(map(lambda p: client.exists(p), layer_path)):
+                if not all(map(lambda p: yt.exists(p, client=client), layer_path)):
                     logger.warning("Guessed base porto layer is absent on the cluster \"%s\"", layer_path)
                     layer_path = None
 

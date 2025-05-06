@@ -38,12 +38,18 @@ TPerDataCenterSpareProxiesInfo GetSpareProxiesInfo(
         for (const auto& spareProxy : aliveProxies) {
             auto proxyInfo = GetOrCrash(input.RpcProxies, spareProxy);
 
+            bool hasMaintenanceRequests = !proxyInfo->CmsMaintenanceRequests.empty();
+
             if (auto it = proxyRoleToBundle.find(proxyInfo->Role); it != proxyRoleToBundle.end()) {
                 const auto& bundleName = it->second;
                 YT_VERIFY(!bundleName.empty());
                 spareProxies.UsedByBundle[bundleName].push_back(spareProxy);
             } else {
-                spareProxies.FreeProxies.push_back(spareProxy);
+                if (hasMaintenanceRequests) {
+                    spareProxies.ScheduledForMaintenance.push_back(spareProxy);
+                } else {
+                    spareProxies.FreeProxies.push_back(spareProxy);
+                }
             }
         }
     }
@@ -452,8 +458,9 @@ void InitializeZoneToSpareProxies(TSchedulerInputState& input, TSchedulerMutatio
 
         for (const auto& [dataCenterName, spareInfo] : perDCSpareInfo) {
             if (std::ssize(spareInfo.FreeProxies) == 0 && std::ssize(spareInfo.UsedByBundle) > 0) {
-                YT_LOG_WARNING("No free spare proxies available (Zone: %v)",
-                    zoneName);
+                YT_LOG_WARNING("No free spare proxies available (Zone: %v, DataCenter: %v)",
+                    zoneName,
+                    dataCenterName);
 
                 mutations->AlertsToFire.push_back({
                     .Id = "no_free_spare_proxies",

@@ -170,6 +170,8 @@ TSequoiaContextGuard::TSequoiaContextGuard(
     TTraceContextPtr traceContext)
     : UserGuard_(std::move(securityManager), std::move(identity))
     , TraceContextGuard_(std::move(traceContext))
+    , NeedRestoreSequoiaContext_(true)
+    , PreviousSequoiaContext_(SequoiaContext())
 {
     SetSequoiaContext(std::move(context));
 }
@@ -181,7 +183,9 @@ TSequoiaContextGuard::~TSequoiaContextGuard()
         sequoiaContext->SubmitRows();
     }
 
-    SetSequoiaContext(/*context*/ nullptr);
+    if (NeedRestoreSequoiaContext_) {
+        SetSequoiaContext(PreviousSequoiaContext_);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

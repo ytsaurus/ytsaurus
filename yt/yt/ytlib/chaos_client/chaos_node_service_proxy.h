@@ -19,7 +19,6 @@ public:
     DEFINE_RPC_PROXY_METHOD(NProto, CreateReplicationCard);
     DEFINE_RPC_PROXY_METHOD(NProto, RemoveReplicationCard);
     DEFINE_RPC_PROXY_METHOD(NProto, GetReplicationCard);
-    DEFINE_RPC_PROXY_METHOD(NProto, FindReplicationCard);
     DEFINE_RPC_PROXY_METHOD(NProto, AlterReplicationCard);
     DEFINE_RPC_PROXY_METHOD(NProto, CreateTableReplica);
     DEFINE_RPC_PROXY_METHOD(NProto, RemoveTableReplica);
@@ -30,8 +29,14 @@ public:
     DEFINE_RPC_PROXY_METHOD(NProto, CreateReplicationCardCollocation);
     DEFINE_RPC_PROXY_METHOD(NProto, GetReplicationCardCollocation);
     DEFINE_RPC_PROXY_METHOD(NProto, WatchReplicationCard);
-    DEFINE_RPC_PROXY_METHOD(NProto, GetReplicationCardResidency);
+    DEFINE_RPC_PROXY_METHOD(NProto, GetChaosObjectResidency);
     DEFINE_RPC_PROXY_METHOD(NProto, ForsakeCoordinator);
+    DEFINE_RPC_PROXY_METHOD(NProto, CreateChaosLease);
+    DEFINE_RPC_PROXY_METHOD(NProto, RemoveChaosLease);
+    DEFINE_RPC_PROXY_METHOD(NProto, GetChaosLease);
+    DEFINE_RPC_PROXY_METHOD(NProto, PingChaosLease);
+    DEFINE_RPC_PROXY_METHOD(NProto, FindChaosObject);
+    DEFINE_RPC_PROXY_METHOD(NProto, FindReplicationCard);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

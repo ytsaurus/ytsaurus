@@ -25,6 +25,12 @@ message TClusterNetworkBandwidthAvailability
     repeated TAvailability availability = 1;
 }
 
+message TStoredJobInfo
+{
+    required NYT.NProto.TGuid job_id = 1;
+    required NYT.NProto.TGuid operation_id = 2;
+}
+
 // Sends job statistics to controller agent.
 message TReqHeartbeat
 {
@@ -41,6 +47,8 @@ message TReqHeartbeat
     optional uint64 sequence_number = 12;
 
     optional TClusterNetworkBandwidthAvailability cluster_network_bandwidth_availability = 13;
+
+    repeated TStoredJobInfo stored_jobs = 14;
 }
 
 message TJobToAbort

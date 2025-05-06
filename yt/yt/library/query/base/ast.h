@@ -27,6 +27,7 @@ XX(TBetweenExpression)
 XX(TTransformExpression)
 XX(TCaseExpression)
 XX(TLikeExpression)
+XX(TQueryExpression)
 
 #undef XX
 
@@ -518,7 +519,10 @@ struct TArrayJoin
 
 struct TQuery
 {
-    std::variant<TTableDescriptor, TQueryAstHeadPtr> FromClause;
+    std::variant<
+        TTableDescriptor,
+        TQueryAstHeadPtr,
+        TExpressionList> FromClause;
     std::optional<TTableDescriptor> WithIndex;
     std::vector<std::variant<TJoin, TArrayJoin>> Joins;
 
@@ -561,6 +565,24 @@ DEFINE_REFCOUNTED_TYPE(TQueryAstHead);
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TQueryExpression
+    : public TExpression
+{
+    TQuery Query;
+    TAliasMap AliasMap;
+
+    TQueryExpression(
+        const TSourceLocation& sourceLocation,
+        TQuery query,
+        TAliasMap aliasMap)
+        : TExpression(sourceLocation)
+        , Query(std::move(query))
+        , AliasMap(std::move(aliasMap))
+    { }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 TStringBuf GetSource(TSourceLocation sourceLocation, TStringBuf source);
 
 void FormatIdFinal(TStringBuilderBase* builder, TStringBuf id);
@@ -573,7 +595,7 @@ TString FormatJoin(const TJoin& join);
 TString FormatArrayJoin(const TArrayJoin& join);
 TString FormatQuery(const TQuery& query);
 TString InferColumnName(const TExpression& expr);
-TString InferColumnName(const TReference& ref);
+TString InferColumnName(const TColumnReference& ref);
 void FormatValue(TStringBuilderBase* builder, const TTableHint& hint, TStringBuf spec);
 
 ////////////////////////////////////////////////////////////////////////////////

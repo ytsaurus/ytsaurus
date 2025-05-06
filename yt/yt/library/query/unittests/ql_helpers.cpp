@@ -106,11 +106,11 @@ void ProfileForBothExecutionBackends(
     const TConstBaseQueryPtr& query,
     llvm::FoldingSetNodeID* id,
     TCGVariables* variables,
-    IJoinSubqueryProfilerPtr joinProfiler)
+    const std::vector<IJoinProfilerPtr>& joinProfilers)
 {
-    Profile(query, id, variables, joinProfiler, /*useCanonicalNullRelations*/ false, EExecutionBackend::Native)();
+    Profile(query, id, variables, joinProfilers, /*useCanonicalNullRelations*/ false, EExecutionBackend::Native)();
     if (EnableWebAssemblyInUnitTests()) {
-        Profile(query, id, variables, joinProfiler, /*useCanonicalNullRelations*/ false, EExecutionBackend::WebAssembly)();
+        Profile(query, id, variables, joinProfilers, /*useCanonicalNullRelations*/ false, EExecutionBackend::WebAssembly)();
     }
 }
 
@@ -128,21 +128,56 @@ void ProfileForBothExecutionBackends(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IJoinSubqueryProfilerPtr MakeNullJoinSubqueryProfiler()
+IJoinProfilerPtr MakeNullJoinSubqueryProfiler()
 {
     class TNullJoinSubqueryProfiler
-        : public IJoinSubqueryProfiler
+        : public IJoinProfiler
     {
     public:
         TNullJoinSubqueryProfiler() = default;
 
-        IJoinRowsProducerPtr Profile(int /*joinIndex*/) override
+        IJoinRowsProducerPtr Profile() override
         {
             return nullptr;
         }
     };
 
     return New<TNullJoinSubqueryProfiler>();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+int DefaultExpressionBuilderVersion = 1;
+
+TPlanFragmentPtr ParseAndPreparePlanFragment(
+    IPrepareCallbacks* callbacks,
+    TStringBuf source,
+    NYson::TYsonStringBuf placeholderValues,
+    int syntaxVersion,
+    IMemoryUsageTrackerPtr memoryTracker)
+{
+    auto parsedSource = ParseSource(source, EParseMode::Query, placeholderValues, syntaxVersion);
+    return PreparePlanFragment(
+        callbacks,
+        parsedSource->Source,
+        std::get<NAst::TQuery>(parsedSource->AstHead.Ast),
+        parsedSource->AstHead.AliasMap,
+        DefaultExpressionBuilderVersion,
+        std::move(memoryTracker));
+}
+
+TConstExpressionPtr ParseAndPrepareExpression(
+    TStringBuf source,
+    const TTableSchema& tableSchema,
+    const TConstTypeInferrerMapPtr& functions,
+    THashSet<std::string>* references)
+{
+    return PrepareExpression(
+        *ParseSource(source, EParseMode::Expression),
+        tableSchema,
+        DefaultExpressionBuilderVersion,
+        functions,
+        references);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

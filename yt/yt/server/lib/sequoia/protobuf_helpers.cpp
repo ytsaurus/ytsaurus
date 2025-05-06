@@ -65,13 +65,11 @@ NProto::TReqCommitCypressTransaction BuildCommitCypressTransactionRequest(
 NProto::TReqAbortCypressTransaction BuildAbortCypressTransactionRequest(
     TTransactionId transactionId,
     bool force,
-    bool replicateViaHive,
     const NRpc::TAuthenticationIdentity& authenticationIdentity)
 {
     NProto::TReqAbortCypressTransaction request;
     ToProto(request.mutable_transaction_id(), transactionId);
     request.set_force(force);
-    request.set_replicate_via_hive(replicateViaHive);
     WriteAuthenticationIdentityToProto(&request, authenticationIdentity);
     return request;
 }

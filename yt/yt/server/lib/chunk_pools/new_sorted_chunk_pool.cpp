@@ -1,19 +1,17 @@
 #include "new_sorted_chunk_pool.h"
 
-#include "new_job_manager.h"
 #include "helpers.h"
 #include "input_chunk_mapping.h"
+#include "new_job_manager.h"
 #include "new_sorted_job_builder.h"
 
 #include <yt/yt/server/lib/controller_agent/job_size_constraints.h>
 #include <yt/yt/server/lib/controller_agent/structs.h>
 
-#include <yt/yt/ytlib/node_tracker_client/public.h>
-
 #include <yt/yt/ytlib/table_client/chunk_slice_fetcher.h>
 
-#include <yt/yt/ytlib/chunk_client/legacy_data_slice.h>
 #include <yt/yt/ytlib/chunk_client/input_chunk.h>
+#include <yt/yt/ytlib/chunk_client/legacy_data_slice.h>
 
 #include <yt/yt/library/random/bernoulli_sampler.h>
 
@@ -27,8 +25,6 @@
 #include <yt/yt/core/phoenix/type_decl.h>
 #include <yt/yt/core/phoenix/type_def.h>
 
-#include <library/cpp/yt/memory/ref_tracked.h>
-
 #include <library/cpp/yt/misc/numeric_helpers.h>
 
 namespace NYT::NChunkPools {
@@ -36,10 +32,10 @@ namespace NYT::NChunkPools {
 using namespace NChunkClient;
 using namespace NConcurrency;
 using namespace NControllerAgent;
-using namespace NNodeTrackerClient;
-using namespace NTableClient;
 using namespace NLogging;
+using namespace NNodeTrackerClient;
 using namespace NScheduler;
+using namespace NTableClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -67,7 +63,6 @@ public:
         , InputStreamDirectory_(std::move(inputStreamDirectory))
         , PrimaryPrefixLength_(PrimaryComparator_.GetLength())
         , ForeignPrefixLength_(ForeignComparator_.GetLength())
-        , ShouldSlicePrimaryTableByKeys_(options.SortedJobOptions.ShouldSlicePrimaryTableByKeys)
         , SliceForeignChunks_(options.SliceForeignChunks)
         , MinTeleportChunkSize_(options.MinTeleportChunkSize)
         , MinManiacDataWeight_(options.MinManiacDataWeight)
@@ -248,17 +243,15 @@ private:
     //! to the job.
     int ForeignPrefixLength_;
 
-    //! Whether primary tables chunks should be sliced by keys.
-    bool ShouldSlicePrimaryTableByKeys_;
-
     //! Whether foreign chunks should be sliced.
     bool SliceForeignChunks_ = false;
 
+    //! TODO(apollo1321): Support MinTeleportChunkSize for new sorted pool. Currently it is not used.
     //! An option to control chunk teleportation logic. Only large complete
     //! chunks of at least that size will be teleported.
     i64 MinTeleportChunkSize_;
 
-    std::optional<i64> MinManiacDataWeight_ = {};
+    std::optional<i64> MinManiacDataWeight_;
 
     //! All stripes that were added to this pool.
     std::vector<TSuspendableStripe> Stripes_;
@@ -565,7 +558,7 @@ private:
         return Finished && GetJobCounter()->GetPending() != 0;
     }
 
-    TPeriodicYielder CreatePeriodicYielder()
+    TPeriodicYielder CreatePeriodicYielder() const
     {
         if (SortedJobOptions_.EnablePeriodicYielder) {
             return TPeriodicYielder(PrepareYieldPeriod);
@@ -798,15 +791,20 @@ void TNewSortedChunkPool::RegisterMetadata(auto&& registrar)
     PHOENIX_REGISTER_FIELD(6, InputStreamDirectory_);
     PHOENIX_REGISTER_FIELD(7, PrimaryPrefixLength_);
     PHOENIX_REGISTER_FIELD(8, ForeignPrefixLength_);
-    PHOENIX_REGISTER_FIELD(9, ShouldSlicePrimaryTableByKeys_);
+    registrar
+        .template VirtualField<9>("ShouldSlicePrimaryTableByKeys_", [] (TThis* /*this_*/, auto& context) {
+            Load<bool>(context);
+        })
+        .BeforeVersion(ESnapshotVersion::DropShouldSlicePrimaryTableByKeys)();
     PHOENIX_REGISTER_FIELD(10, SliceForeignChunks_);
     PHOENIX_REGISTER_FIELD(11, MinTeleportChunkSize_);
     PHOENIX_REGISTER_FIELD(12, Stripes_);
     PHOENIX_REGISTER_FIELD(13, JobSizeConstraints_);
     PHOENIX_REGISTER_FIELD(14, TeleportChunkSampler_);
-    registrar.template VirtualField<15>("SupportLocality_", [] (TThis* /*this_*/, auto& context) {
-        Load<bool>(context);
-    })
+    registrar
+        .template VirtualField<15>("SupportLocality_", [] (TThis* /*this_*/, auto& context) {
+            Load<bool>(context);
+        })
         .BeforeVersion(ESnapshotVersion::DropSupportLocality)();
     PHOENIX_REGISTER_FIELD(16, TeleportChunks_);
     PHOENIX_REGISTER_FIELD(17, IsCompleted_);

@@ -271,6 +271,19 @@ public:
             TDuration::MilliSeconds(500)))
     { }
 
+    TBootstrap(
+        TClusterNodeBootstrapConfigPtr config,
+        INodePtr configNode,
+        IServiceLocatorPtr serviceLocator,
+        NApi::NNative::IConnectionPtr connection)
+        : NYT::NClusterNode::TBootstrap(
+            std::move(config),
+            std::move(configNode),
+            std::move(serviceLocator))
+    {
+        Connection_ = std::move(connection);
+    }
+
     void Initialize() final
     {
         BIND(&TBootstrap::DoInitialize, MakeStrong(this))
@@ -370,7 +383,7 @@ public:
         return Config_;
     }
 
-    const TFairShareHierarchicalSchedulerPtr<TString>& GetFairShareHierarchicalScheduler() const override
+    const TFairShareHierarchicalSchedulerPtr<std::string>& GetFairShareHierarchicalScheduler() const override
     {
         return FairShareHierarchicalScheduler_;
     }
@@ -707,7 +720,7 @@ private:
     TNodeResourceManagerPtr NodeResourceManager_;
     TBufferedProducerPtr BufferedProducer_;
 
-    TFairShareHierarchicalSchedulerPtr<TString> FairShareHierarchicalScheduler_;
+    TFairShareHierarchicalSchedulerPtr<std::string> FairShareHierarchicalScheduler_;
 
     IReconfigurableThroughputThrottlerPtr LegacyRawTotalInThrottler_;
     IThroughputThrottlerPtr LegacyTotalInThrottler_;
@@ -840,9 +853,11 @@ private:
         connectionOptions.ConnectionInvoker = ConnectionThreadPool_->GetInvoker();
         connectionOptions.BlockCache = GetBlockCache();
 
-        Connection_ = NApi::NNative::CreateConnection(
-            Config_->ClusterConnection,
-            std::move(connectionOptions));
+        if (!Connection_) {
+            Connection_ = NApi::NNative::CreateConnection(
+                Config_->ClusterConnection,
+                std::move(connectionOptions));
+        }
 
         // Cycles are fine for bootstrap.
         Connection_->GetMasterCellDirectory()->SubscribeCellDirectoryChanged(
@@ -901,7 +916,7 @@ private:
             LegacyTotalOutThrottler_ = IThroughputThrottlerPtr(LegacyRawTotalOutThrottler_);
         }
 
-        FairShareHierarchicalScheduler_ = CreateFairShareHierarchicalScheduler<TString>(
+        FairShareHierarchicalScheduler_ = CreateFairShareHierarchicalScheduler<std::string>(
             New<TFairShareHierarchicalSchedulerDynamicConfig>(),
             ClusterNodeProfiler().WithPrefix("/fair_share_hierarchical_scheduler"));
 
@@ -1739,6 +1754,19 @@ IBootstrapPtr CreateNodeBootstrap(
         std::move(serviceLocator));
 }
 
+IBootstrapPtr CreateNodeBootstrap(
+    TClusterNodeBootstrapConfigPtr config,
+    INodePtr configNode,
+    IServiceLocatorPtr serviceLocator,
+    NApi::NNative::IConnectionPtr connection)
+{
+    return New<TBootstrap>(
+        std::move(config),
+        std::move(configNode),
+        std::move(serviceLocator),
+        std::move(connection));
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TBootstrapBase::TBootstrapBase(IBootstrapBase* bootstrap)
@@ -1802,7 +1830,7 @@ const TBufferedProducerPtr& TBootstrapBase::GetBufferedProducer() const
     return Bootstrap_->GetBufferedProducer();
 }
 
-const TFairShareHierarchicalSchedulerPtr<TString>& TBootstrapBase::GetFairShareHierarchicalScheduler() const
+const TFairShareHierarchicalSchedulerPtr<std::string>& TBootstrapBase::GetFairShareHierarchicalScheduler() const
 {
     return Bootstrap_->GetFairShareHierarchicalScheduler();
 }

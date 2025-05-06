@@ -2661,17 +2661,17 @@ class TestAccountTree(AccountsTestSuiteBase):
         create_account("42", "max", empty=True)
         create_account("69", "max")
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Name cannot be empty"):
             set("//sys/accounts/42/@name", "")
-        with pytest.raises(YtError):
+        with raises_yt_error("Account \"root\" already exists"):
             set("//sys/accounts/42/@name", self._root_account_name)
-        with pytest.raises(YtError):
+        with raises_yt_error("Name must match regular expression \"[A-Za-z0-9-_]+\""):
             set("//sys/accounts/42/@name", "max/420")
-        with pytest.raises(YtError):
+        with raises_yt_error("Account \"max\" already has a child \"69\""):
             set("//sys/accounts/42/@name", "69")
-        with pytest.raises(YtError):
+        with raises_yt_error("Name must match regular expression \"[A-Za-z0-9-_]+\""):
             set("//sys/accounts/42/@name", "slash/42")
-        with pytest.raises(YtError):
+        with raises_yt_error("Name is too long for an object of type \"Account\""):
             set("//sys/accounts/42/@name", "a" * 101)
         set("//sys/accounts/42/@name", "42")
         assert exists("//sys/account_tree/max/42")
@@ -2693,56 +2693,56 @@ class TestAccountTree(AccountsTestSuiteBase):
     def test_move1(self):
         create_account("metrika")
         create("map_node", "//tmp/metrika")
-        with pytest.raises(YtError):
+        with raises_yt_error("Nonversioned map objects do not support cloning"):
             copy("//sys/account_tree/metrika", "//sys/account_tree/market")
-        with pytest.raises(YtError):
+        with raises_yt_error("Cannot copy or move an object of type \"MapNode\", expected type \"Account\""):
             move("//tmp/metrika", "//sys/account_tree/metrika/node")
-        with pytest.raises(YtError):
+        with raises_yt_error("Cannot copy or move an object of type \"MapNode\", expected type \"Account\""):
             move("//tmp/metrika", "//sys/account_tree/node")
-        with pytest.raises(YtError):
+        with raises_yt_error("//sys/account_tree/metrika has unexpected suffix /metrika"):
             move("//sys/account_tree/metrika", "//tmp/metrika/account")
-        with pytest.raises(YtError):
+        with raises_yt_error("points to a nonversioned \"account\" object instead of a node"):
             move("//sys/account_tree", "//tmp/metrika/account")
-        with pytest.raises(YtError):
+        with raises_yt_error("Cannot copy or move an object to its descendant"):
             move("//sys/account_tree", "//sys/account_tree/tmp/tree")
 
     @authors("kiselyovp")
     def test_move2(self):
         create_account("metrika")
-        with pytest.raises(YtError):
+        with raises_yt_error("Node //sys/account_tree/metrika already exists"):
             move("//sys/account_tree/metrika", "//sys/account_tree/metrika")
         create_account("prod", "metrika")
-        with pytest.raises(YtError):
+        with raises_yt_error("\"force\" option is not supported for nonversioned map objects"):
             move(
                 "//sys/account_tree/metrika/prod",
                 "//sys/account_tree/metrika-prod",
                 force=True,
             )
-        with pytest.raises(YtError):
+        with raises_yt_error("\"force\" option is not supported for nonversioned map objects"):
             move("//sys/account_tree/metrika/prod", "//sys/account_tree/tmp", force=True)
-        with pytest.raises(YtError):
+        with raises_yt_error("\"recursive\" option is not supported for nonversioned map objects"):
             move(
                 "//sys/account_tree/metrika/prod",
                 "//sys/account_tree/metrika-prod",
                 recursive=True,
             )
-        with pytest.raises(YtError):
+        with raises_yt_error("\"recursive\" option is not supported for nonversioned map objects"):
             move(
                 "//sys/account_tree/metrika",
                 "//sys/account_tree/metrika/prod/surprise",
                 recursive=True,
             )
-        with pytest.raises(YtError):
+        with raises_yt_error("Cannot copy or move an object to its descendant"):
             move("//sys/account_tree/metrika", "//sys/account_tree/metrika/surprise")
-        with pytest.raises(YtError):
+        with raises_yt_error("Cannot copy or move an object to its descendant"):
             move("//sys/account_tree/metrika", "//sys/account_tree/metrika/prod/surprise")
-        with pytest.raises(YtError):
+        with raises_yt_error("Node //sys/account_tree/metrika has no child with key \"fake\""):
             move("//sys/account_tree/metrika/fake", "//sys/account_tree/fake")
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Node //sys/account_tree has no child with key \"market\""):
             move("//sys/account_tree/metrika/prod", "//sys/account_tree/market/prod")
         create_account("market")
-        with pytest.raises(YtError):
+        with raises_yt_error("Node //sys/account_tree/market already exists"):
             move("//sys/account_tree/metrika/prod", "//sys/account_tree/market")
         assert (
             copy(
@@ -2753,15 +2753,15 @@ class TestAccountTree(AccountsTestSuiteBase):
             == get("//sys/account_tree/market/@id")
         )
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Failed to attach child \"market\" to account \"market\""):
             move("//sys/account_tree/metrika/prod", "//sys/account_tree/market/market")
-        with pytest.raises(YtError):
+        with raises_yt_error("Failed to attach child \"tmp\" to account \"market\""):
             move("//sys/account_tree/metrika/prod", "//sys/account_tree/market/tmp")
-        with pytest.raises(YtError):
+        with raises_yt_error("Failed to attach child \"sys\" to account \"prod\""):
             move("//sys/account_tree/market", "//sys/account_tree/metrika/prod/sys")
-        with pytest.raises(YtError):
+        with raises_yt_error("Failed to attach child \"sys\" to account \"metrika\""):
             move("//sys/account_tree/market", "//sys/account_tree/metrika/sys")
-        with pytest.raises(YtError):
+        with raises_yt_error("Failed to attach child \"prod\" to account \"tmp\""):
             move("//sys/account_tree/market", "//sys/account_tree/tmp/prod")
 
     @authors("kiselyovp")
@@ -2773,7 +2773,7 @@ class TestAccountTree(AccountsTestSuiteBase):
         create_account("market-dev", "market")
         create_account("market-prod", "market", empty=True)
 
-        with pytest.raises(YtError):
+        with raises_yt_error("child resource limit cannot be above that of its parent"):
             move(
                 "//sys/account_tree/metrika/metrika-dev",
                 "//sys/account_tree/metrika/metrika-prod/0",
@@ -2821,7 +2821,7 @@ class TestAccountTree(AccountsTestSuiteBase):
         remove_account("tesuto", sync=False)
         assert exists("//sys/account_tree/tesuto")
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Account \"tesuto\" cannot be used since it is in \"removal_started\" life stage"):
             move("//sys/account_tree/max", "//sys/account_tree/tesuto/max")
         set("//sys/accounts/tesuto/@parent_name", "max")
         assert exists("//sys/account_tree/max/tesuto")
@@ -2841,7 +2841,7 @@ class TestAccountTree(AccountsTestSuiteBase):
         remove_account("yt", sync=False)
 
         create_account("YaMR", empty=True)
-        with pytest.raises(YtError):
+        with raises_yt_error("Name must match regular expression \"[A-Za-z0-9-_]+\""):
             move("//sys/account_tree/yt", "//sys/account_tree/YaMR/2.0")
 
         for cell_index in range(self.NUM_SECONDARY_MASTER_CELLS + 1):

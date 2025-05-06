@@ -20,6 +20,9 @@ add_executable(unittester-rpc-proxy)
 target_compile_options(unittester-rpc-proxy PRIVATE
   -Wdeprecated-this-capture
   -Wimplicit-fallthrough
+  -Wparentheses
+  -Wno-logical-op-parentheses
+  -Wno-bitwise-op-parentheses
 )
 
 target_link_libraries(unittester-rpc-proxy PUBLIC

@@ -17,6 +17,7 @@ from .table_commands import is_empty, is_sorted
 from .table_helpers import (FileManager, _prepare_operation_formats, _is_python_function,
                             _prepare_python_command, _prepare_source_tables, _prepare_destination_tables,
                             _prepare_table_writer, _prepare_stderr_table)
+from .transaction import Transaction
 from .prepare_operation import (TypedJob, run_operation_preparation,
                                 SimpleOperationPreparationContext, IntermediateOperationPreparationContext)
 from .local_mode import is_local_mode, enable_local_files_usage_in_job
@@ -103,7 +104,12 @@ def _is_tables_sorted(table, client):
         return True
 
     table = TablePath(table, client=client)
-    table_attributes = get(table + "/@", attributes=["type", "sorted", "sorted_by"], client=client)
+    if 'transaction_id' in table.attributes:
+        with Transaction(transaction_id=table.attributes["transaction_id"], ping=False, client=client):
+            table_attributes = get(table + "/@", attributes=["type", "sorted", "sorted_by"], client=client)
+    else:
+        table_attributes = get(table + "/@", attributes=["type", "sorted", "sorted_by"], client=client)
+
     return apply_function_to_result(_is_sorted, table_attributes)
 
 
@@ -576,7 +582,6 @@ class UserJobSpecBuilder(object):
             input_table_count=len(input_tables),
             output_table_count=len(output_tables),
             use_yamr_descriptors=spec.get("use_yamr_descriptors", False),
-            redirect_stdout_to_stderr=spec.get("redirect_stdout_to_stderr", False),
             pickling_encryption_key=operation_preparation_context._pickling_encryption_key,
         )
 
@@ -754,6 +759,13 @@ class UserJobSpecBuilder(object):
     def _supports_row_index(self, operation_type):
         return (self._job_type != "reducer" and self._job_type != "reduce_combiner") or operation_type != "map_reduce"
 
+    def _set_user_job_pickling_encryption_key(self, spec, key, client):
+        pickling_mode = get_config(client)["pickling"]["encrypt_pickle_files"]
+        if key and pickling_mode and pickling_mode != 2:
+            if "environment" not in spec:
+                spec["environment"] = {}
+            spec["environment"]["_PICKLING_KEY"] = key
+
     @staticmethod
     def _set_control_attribute(job_io_spec, key, value):
         assert job_io_spec is not None
@@ -851,23 +863,26 @@ class UserJobSpecBuilder(object):
         if output_format is not None:
             spec["output_format"] = output_format.to_yson_type()
 
-        spec = self._prepare_ld_library_path(spec, client)
-        spec.setdefault("redirect_stdout_to_stderr",
-                        get_config(client)["pickling"]["redirect_stdout_to_stderr"])
+        can_redirect_stdout = type(spec.get("command")) != str and not getattr(spec.get("command"), "attributes", {}).get("is_raw_io")
 
+        spec = self._prepare_ld_library_path(spec, client)
         spec, tmpfs_size, input_tables = self._prepare_job_files(
             spec, group_by, should_process_key_switch, operation_type, local_files_to_remove, uploaded_files,
             input_format, output_format, input_tables, output_tables, operation_preparation_context, client)
 
         if operation_preparation_context._pickling_encryption_key:
-            if "environment" not in spec:
-                spec["environment"] = {}
-            spec["environment"]["YT_PICKLING_KEY"] = operation_preparation_context._pickling_encryption_key
+            self._set_user_job_pickling_encryption_key(
+                spec,
+                operation_preparation_context._pickling_encryption_key,
+                client,
+            )
 
         spec.setdefault("use_yamr_descriptors",
                         get_config(client)["yamr_mode"]["use_yamr_style_destination_fds"])
-        spec.setdefault("check_input_fully_consumed",
-                        get_config(client)["yamr_mode"]["check_input_fully_consumed"])
+        if not spec.get("use_yamr_descriptors", False) and can_redirect_stdout:
+            # apply default for python code "mappers" and not for yamr mode
+            spec.setdefault("redirect_stdout_to_stderr", get_config(client)["pickling"]["redirect_stdout_to_stderr"])
+        spec.setdefault("check_input_fully_consumed", get_config(client)["yamr_mode"]["check_input_fully_consumed"])
         spec = self._prepare_tmpfs(spec, tmpfs_size, client)
         spec = self._prepare_memory_limit(spec, client)
         spec = BaseLayerDetector.guess_base_layers(spec, client)
@@ -1178,7 +1193,11 @@ class SpecBuilder(object):
                 del spec[job_type]
 
             if operation_preparation_context._pickling_encryption_key:
-                self._set_pickling_encryption_key(spec, operation_preparation_context._pickling_encryption_key)
+                self._set_pickling_encryption_key(
+                    spec,
+                    operation_preparation_context._pickling_encryption_key,
+                    client,
+                )
         else:
             input_tables = operation_preparation_context.get_input_paths()
             output_tables = operation_preparation_context.get_output_paths()
@@ -1283,10 +1302,14 @@ class SpecBuilder(object):
             return ""
         return None
 
-    def _set_pickling_encryption_key(self, spec, key):
+    def _set_pickling_encryption_key(self, spec, key, client):
         """Set global (spec scoup) pickling key"""
         self._pickling_encryption_key = key
-        # TODO: use vault here
+        # TODO: move key to protected section YT-24616
+        if get_config(client)["pickling"]["encrypt_pickle_files"] == 2:
+            if "secure_vault" not in spec:
+                spec["secure_vault"] = dict()
+            spec["secure_vault"]["_PICKLING_KEY"] = key
 
     def get_input_table_paths(self):
         """Returns list of input paths."""

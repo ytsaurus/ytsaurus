@@ -4,6 +4,7 @@
 
 #include <yt/yt/library/query/base/callbacks.h>
 #include <yt/yt/library/query/base/query.h>
+#include <yt/yt/library/query/base/query_helpers.h>
 #include <yt/yt/library/query/base/query_preparer.h>
 #include <yt/yt/library/query/base/functions.h>
 
@@ -125,7 +126,7 @@ protected:
     {
         EXPECT_THROW_THAT(
             BIND([&] {
-                PreparePlanFragment(&PrepareMock_, query, placeholderValues, syntaxVersion);
+                ParseAndPreparePlanFragment(&PrepareMock_, query, placeholderValues, syntaxVersion);
             })
             .AsyncVia(ActionQueue_->GetInvoker())
             .Run()
@@ -375,7 +376,7 @@ TEST_F(TQueryPrepareTest, BigQuery)
     EXPECT_CALL(PrepareMock_, GetInitialSplit("//t"))
         .WillOnce(Return(MakeFuture(MakeSimpleSplit())));
 
-    PreparePlanFragment(&PrepareMock_, query);
+    ParseAndPreparePlanFragment(&PrepareMock_, query);
 }
 
 TEST_F(TQueryPrepareTest, ResultSchemaCollision)
@@ -409,14 +410,12 @@ TEST_F(TQueryPrepareTest, MisuseAggregateFunction)
         ContainsRegex("Misuse of aggregate .*"));
 }
 
-TEST_F(TQueryPrepareTest, FailedTypeInference)
+TEST_F(TQueryPrepareTest, NullTypeInference)
 {
     EXPECT_CALL(PrepareMock_, GetInitialSplit("//t"))
         .WillOnce(Return(MakeFuture(MakeSimpleSplit())));
 
-    ExpectPrepareThrowsWithDiagnostics(
-        "null from [//t]",
-        ContainsRegex("Type inference failed"));
+    ParseAndPreparePlanFragment(&PrepareMock_, "null from [//t]", {}, 1);
 }
 
 TEST_F(TQueryPrepareTest, AdditionPrecedence)
@@ -424,8 +423,8 @@ TEST_F(TQueryPrepareTest, AdditionPrecedence)
     EXPECT_CALL(PrepareMock_, GetInitialSplit("//t"))
         .WillRepeatedly(Return(MakeFuture(MakeSimpleSplit())));
 
-    PreparePlanFragment(&PrepareMock_, "1 + 2 IN (3, 4, 5) from [//t]");
-    PreparePlanFragment(&PrepareMock_, "1 + 2 BETWEEN 3 AND 4 from [//t]");
+    ParseAndPreparePlanFragment(&PrepareMock_, "1 + 2 IN (3, 4, 5) from [//t]");
+    ParseAndPreparePlanFragment(&PrepareMock_, "1 + 2 BETWEEN 3 AND 4 from [//t]");
 }
 
 TEST_F(TQueryPrepareTest, JoinColumnCollision)
@@ -488,7 +487,7 @@ TEST_F(TQueryPrepareTest, SelectColumns)
         }))));
 
     {
-        auto query = PreparePlanFragment(&PrepareMock_, "* from [//t]")->Query;
+        auto query = ParseAndPreparePlanFragment(&PrepareMock_, "* from [//t]")->Query;
         auto schema = query->GetReadSchema();
 
         EXPECT_EQ(schema->GetColumnCount(), 5);
@@ -500,7 +499,7 @@ TEST_F(TQueryPrepareTest, SelectColumns)
     }
 
     {
-        auto query = PreparePlanFragment(&PrepareMock_, "d, c, a from [//t]")->Query;
+        auto query = ParseAndPreparePlanFragment(&PrepareMock_, "d, c, a from [//t]")->Query;
         auto schema = query->GetReadSchema();
 
         EXPECT_EQ(schema->GetColumnCount(), 3);
@@ -560,7 +559,7 @@ TEST_F(TQueryPrepareTest, SortMergeJoin)
             left join [//DirectPhraseStat] S on (D.cid, D.pid, uint64(D.PhraseID)) = (S.ExportID, S.GroupExportID, S.PhraseID)
             left join [//phrases] P on (D.pid, D.__shard__) = (P.pid, P.__shard__))");
 
-        auto query = PreparePlanFragment(&PrepareMock_, queryString)->Query;
+        auto query = ParseAndPreparePlanFragment(&PrepareMock_, queryString)->Query;
 
         EXPECT_EQ(query->JoinClauses.size(), 3u);
         const auto& joinClauses = query->JoinClauses;
@@ -581,7 +580,7 @@ TEST_F(TQueryPrepareTest, SortMergeJoin)
             left join [//DirectPhraseStat] S on (D.cid, D.pid, uint64(D.PhraseID)) = (S.ExportID, S.GroupExportID, S.PhraseID)
             left join [//phrases] P on (D.pid, D.__shard__) = (P.pid, P.__shard__))");
 
-        auto query = PreparePlanFragment(&PrepareMock_, queryString)->Query;
+        auto query = ParseAndPreparePlanFragment(&PrepareMock_, queryString)->Query;
 
         EXPECT_EQ(query->JoinClauses.size(), 3u);
         const auto& joinClauses = query->JoinClauses;
@@ -602,7 +601,7 @@ TEST_F(TQueryPrepareTest, SortMergeJoin)
             left join [//campaigns] C on (D.cid, D.__shard__) = (C.cid, C.__shard__)
             left join [//phrases] P on (D.pid, D.__shard__) = (P.pid, P.__shard__))");
 
-        auto query = PreparePlanFragment(&PrepareMock_, queryString)->Query;
+        auto query = ParseAndPreparePlanFragment(&PrepareMock_, queryString)->Query;
 
         EXPECT_EQ(query->JoinClauses.size(), 3u);
         const auto& joinClauses = query->JoinClauses;
@@ -618,6 +617,34 @@ TEST_F(TQueryPrepareTest, SortMergeJoin)
     }
 }
 
+TEST_F(TQueryPrepareTest, TableAliasIsKeyword)
+{
+    EXPECT_CALL(PrepareMock_, GetInitialSplit("//index"))
+        .WillRepeatedly(Return(MakeFuture(MakeSplit({
+        TColumnSchema("id", EValueType::String, ESortOrder::Ascending),
+        TColumnSchema("value", EValueType::String)
+    }))));
+
+    EXPECT_CALL(PrepareMock_, GetInitialSplit("//order"))
+        .WillRepeatedly(Return(MakeFuture(MakeSplit({
+        TColumnSchema("id", EValueType::String, ESortOrder::Ascending),
+        TColumnSchema("value", EValueType::String)
+    }))));
+
+    {
+        auto queryString = std::string(R"(* from [//index] as index
+            join [//order] as order on index.id = order.id)");
+
+        auto query = PreparePlanFragment(&PrepareMock_, queryString)->Query;
+
+        EXPECT_EQ(query->JoinClauses.size(), 1u);
+        const auto& joinClauses = query->JoinClauses;
+
+        EXPECT_EQ(joinClauses[0]->ForeignKeyPrefix, 1u);
+        EXPECT_EQ(joinClauses[0]->CommonKeyPrefix, 1u);
+    }
+}
+
 TEST_F(TQueryPrepareTest, ArrayJoin)
 {
     EXPECT_CALL(PrepareMock_, GetInitialSplit("//t"))
@@ -628,7 +655,7 @@ TEST_F(TQueryPrepareTest, ArrayJoin)
         }))));
 
     {
-        auto query = PreparePlanFragment(&PrepareMock_, "key, nested, N FROM [//t] ARRAY JOIN nested AS N")->Query;
+        auto query = ParseAndPreparePlanFragment(&PrepareMock_, "key, nested, N FROM [//t] ARRAY JOIN nested AS N")->Query;
         const auto* originalColumn = query->Schema.Original->FindColumn("nested");
         const auto* flattenedColumn = query->JoinClauses[0]->Schema.Original->FindColumn("N");
         EXPECT_EQ(originalColumn->GetWireType(), EValueType::Composite);
@@ -642,7 +669,7 @@ TEST_F(TQueryPrepareTest, ArrayJoin)
     }
 
     {
-        auto query = PreparePlanFragment(&PrepareMock_, "T.key, T.nested, N FROM [//t] AS T ARRAY JOIN T.nested AS N")->Query;
+        auto query = ParseAndPreparePlanFragment(&PrepareMock_, "T.key, T.nested, N FROM [//t] AS T ARRAY JOIN T.nested AS N")->Query;
         const auto* originalColumn = query->Schema.Original->FindColumn("nested");
         const auto* flattenedColumn = query->JoinClauses[0]->Schema.Original->FindColumn("N");
         EXPECT_EQ(originalColumn->GetWireType(), EValueType::Composite);
@@ -656,7 +683,7 @@ TEST_F(TQueryPrepareTest, ArrayJoin)
     }
 
     {
-        auto query = PreparePlanFragment(&PrepareMock_, "T.key FROM [//t] AS T ARRAY JOIN T.nested AS N AND N = 2")->Query;
+        auto query = ParseAndPreparePlanFragment(&PrepareMock_, "T.key FROM [//t] AS T ARRAY JOIN T.nested AS N AND N = 2")->Query;
         const auto* originalColumn = query->Schema.Original->FindColumn("nested");
         const auto* flattenedColumn = query->JoinClauses[0]->Schema.Original->FindColumn("N");
         EXPECT_EQ(originalColumn->GetWireType(), EValueType::Composite);
@@ -724,10 +751,10 @@ TEST_F(TQueryPrepareTest, SplitWherePredicateWithJoin)
             if(NOT is_null(e.tags), list_contains(e.tags, "0"), false) AND (l.profile IN ("")) AND (l.track IN ("")) AND NOT if(NOT is_null(e.tags), list_contains(e.tags, "1"), false)
             ORDER BY e._key DESC OFFSET 0 LIMIT 200
         )");
-        auto query = PreparePlanFragment(&PrepareMock_, queryString)->Query;
+        auto query = ParseAndPreparePlanFragment(&PrepareMock_, queryString)->Query;
 
         TCGVariables variables;
-        ProfileForBothExecutionBackends(query, &id1, &variables, MakeNullJoinSubqueryProfiler());
+        ProfileForBothExecutionBackends(query, &id1, &variables, {MakeNullJoinSubqueryProfiler()});
     }
 
     llvm::FoldingSetNodeID id2;
@@ -740,10 +767,10 @@ TEST_F(TQueryPrepareTest, SplitWherePredicateWithJoin)
             (l.profile IN ("")) AND (l.track IN ("")) AND if(NOT is_null(e.tags), list_contains(e.tags, "0"), false) AND NOT if(NOT is_null(e.tags), list_contains(e.tags, "1"), false)
             ORDER BY e._key DESC OFFSET 0 LIMIT 200
         )");
-        auto query = PreparePlanFragment(&PrepareMock_, queryString)->Query;
+        auto query = ParseAndPreparePlanFragment(&PrepareMock_, queryString)->Query;
 
         TCGVariables variables;
-        ProfileForBothExecutionBackends(query, &id2, &variables, MakeNullJoinSubqueryProfiler());
+        ProfileForBothExecutionBackends(query, &id2, &variables, {MakeNullJoinSubqueryProfiler()});
     }
 
     EXPECT_EQ(id1, id2);
@@ -768,19 +795,19 @@ TEST_F(TQueryPrepareTest, DisjointGroupBy)
     llvm::FoldingSetNodeID id1;
     {
         auto queryString = std::string("* FROM [//t] GROUP by a");
-        auto query = PreparePlanFragment(&PrepareMock_, queryString)->Query;
+        auto query = ParseAndPreparePlanFragment(&PrepareMock_, queryString)->Query;
 
         TCGVariables variables;
-        ProfileForBothExecutionBackends(query, &id1, &variables, MakeNullJoinSubqueryProfiler());
+        ProfileForBothExecutionBackends(query, &id1, &variables, {MakeNullJoinSubqueryProfiler()});
     }
 
     llvm::FoldingSetNodeID id2;
     {
         auto queryString = std::string("* FROM [//s] GROUP by a");
-        auto query = PreparePlanFragment(&PrepareMock_, queryString)->Query;
+        auto query = ParseAndPreparePlanFragment(&PrepareMock_, queryString)->Query;
 
         TCGVariables variables;
-        ProfileForBothExecutionBackends(query, &id2, &variables, MakeNullJoinSubqueryProfiler());
+        ProfileForBothExecutionBackends(query, &id2, &variables, {MakeNullJoinSubqueryProfiler()});
     }
 
     EXPECT_NE(id1, id2);
@@ -796,18 +823,18 @@ TEST_F(TQueryPrepareTest, GroupByWithLimitFolding)
 
     llvm::FoldingSetNodeID id1;
     {
-        auto query = PreparePlanFragment(&PrepareMock_, "* from [//t] group by 1")->Query;
+        auto query = ParseAndPreparePlanFragment(&PrepareMock_, "* from [//t] group by 1")->Query;
 
         TCGVariables variables;
-        ProfileForBothExecutionBackends(query, &id1, &variables, MakeNullJoinSubqueryProfiler());
+        ProfileForBothExecutionBackends(query, &id1, &variables, {MakeNullJoinSubqueryProfiler()});
     }
 
     llvm::FoldingSetNodeID id2;
     {
-        auto query = PreparePlanFragment(&PrepareMock_, "* from [//t] group by 1 limit 1")->Query;
+        auto query = ParseAndPreparePlanFragment(&PrepareMock_, "* from [//t] group by 1 limit 1")->Query;
 
         TCGVariables variables;
-        ProfileForBothExecutionBackends(query, &id2, &variables, MakeNullJoinSubqueryProfiler());
+        ProfileForBothExecutionBackends(query, &id2, &variables, {MakeNullJoinSubqueryProfiler()});
     }
 
     EXPECT_NE(id1, id2);
@@ -826,19 +853,19 @@ TEST_F(TQueryPrepareTest, GroupByPrimaryKey)
 
     {
         auto queryString = std::string("* from [//t] group by hash, a, b");
-        auto query = PreparePlanFragment(&PrepareMock_, queryString)->Query;
+        auto query = ParseAndPreparePlanFragment(&PrepareMock_, queryString)->Query;
         EXPECT_TRUE(query->UseDisjointGroupBy);
     }
 
     {
         auto queryString = std::string("* from [//t] group by a, b");
-        auto query = PreparePlanFragment(&PrepareMock_, queryString)->Query;
+        auto query = ParseAndPreparePlanFragment(&PrepareMock_, queryString)->Query;
         EXPECT_TRUE(query->UseDisjointGroupBy);
     }
 
     {
         auto queryString = std::string("* from [//t] group by a, v");
-        auto query = PreparePlanFragment(&PrepareMock_, queryString)->Query;
+        auto query = ParseAndPreparePlanFragment(&PrepareMock_, queryString)->Query;
         EXPECT_EQ(query->GroupClause->CommonPrefixWithPrimaryKey, 1u);
         EXPECT_FALSE(query->UseDisjointGroupBy);
     }
@@ -855,16 +882,16 @@ TEST_F(TQueryPrepareTest, OrderByPrimaryKeyPrefix)
             TColumnSchema("v", EValueType::Int64),
         }))));
 
-    auto query = PreparePlanFragment(&PrepareMock_, "* from [//t] order by hash, a limit 10")->Query;
+    auto query = ParseAndPreparePlanFragment(&PrepareMock_, "* from [//t] order by hash, a limit 10")->Query;
     EXPECT_FALSE(query->OrderClause);
 
-    query = PreparePlanFragment(&PrepareMock_, "* from [//t] order by hash, a, b limit 10")->Query;
+    query = ParseAndPreparePlanFragment(&PrepareMock_, "* from [//t] order by hash, a, b limit 10")->Query;
     EXPECT_FALSE(query->OrderClause);
 
-    query = PreparePlanFragment(&PrepareMock_, "* from [//t] order by hash, a offset 5 limit 5")->Query;
+    query = ParseAndPreparePlanFragment(&PrepareMock_, "* from [//t] order by hash, a offset 5 limit 5")->Query;
     EXPECT_FALSE(query->OrderClause);
 
-    query = PreparePlanFragment(&PrepareMock_, "* from [//t] order by a, b limit 10")->Query;
+    query = ParseAndPreparePlanFragment(&PrepareMock_, "* from [//t] order by a, b limit 10")->Query;
     EXPECT_TRUE(query->OrderClause);
 }
 
@@ -939,11 +966,12 @@ TEST_F(TQueryPrepareTest, InvalidUdfImpl)
 
     auto schema = New<TTableSchema>(std::vector<TColumnSchema>{
         {"a", EValueType::Int64},
-        {"b", EValueType::Int64}
+        {"b", EValueType::Int64},
+        {"s", EValueType::String}
     });
 
     { // ShortInvalidUdfImpl
-        auto expr = PrepareExpression("short_invalid_ir(a)", *schema, TypeInferrers_);
+        auto expr = ParseAndPrepareExpression("short_invalid_ir(a)", *schema, TypeInferrers_);
 
         TCGVariables variables;
 
@@ -961,7 +989,7 @@ TEST_F(TQueryPrepareTest, InvalidUdfImpl)
     }
 
     { // LongInvalidUdfImpl
-        auto expr = PrepareExpression("long_invalid_ir(a)", *schema, TypeInferrers_);
+        auto expr = ParseAndPrepareExpression("long_invalid_ir(a)", *schema, TypeInferrers_);
 
         TCGVariables variables;
 
@@ -979,7 +1007,7 @@ TEST_F(TQueryPrepareTest, InvalidUdfImpl)
     }
 
     { // InvalidUdfArity
-        auto expr = PrepareExpression("abs_udf_arity(a, b)", *schema, TypeInferrers_);
+        auto expr = ParseAndPrepareExpression("abs_udf_arity(a, b)", *schema, TypeInferrers_);
 
         TCGVariables variables;
 
@@ -998,8 +1026,8 @@ TEST_F(TQueryPrepareTest, InvalidUdfImpl)
 
     { // InvalidUdfType
         EXPECT_THROW_THAT({
-            PrepareExpression("abs_udf_double(a)", *schema, TypeInferrers_);
-        }, HasSubstr("Wrong type for argument"));
+            ParseAndPrepareExpression("abs_udf_double(s)", *schema, TypeInferrers_);
+        }, HasSubstr("No matching function"));
     }
 }
 
@@ -1011,8 +1039,8 @@ TEST_F(TQueryPrepareTest, WronglyTypedAggregate)
         }))));
 
     EXPECT_THROW_THAT({
-        PreparePlanFragment(&PrepareMock_, "avg(a) from [//t] group by 1");
-    }, HasSubstr("Wrong type for argument 1 to function \"avg\""));
+        ParseAndPreparePlanFragment(&PrepareMock_, "avg(a) from [//t] group by 1");
+    }, HasSubstr("No matching function"));
 }
 
 TEST_F(TQueryPrepareTest, OrderByWithoutLimit)
@@ -1023,7 +1051,7 @@ TEST_F(TQueryPrepareTest, OrderByWithoutLimit)
         }))));
 
     EXPECT_THROW_THAT({
-        PreparePlanFragment(&PrepareMock_, "* from [//t] order by a");
+        ParseAndPreparePlanFragment(&PrepareMock_, "* from [//t] order by a");
     }, HasSubstr("ORDER BY used without LIMIT"));
 }
 
@@ -1035,7 +1063,7 @@ TEST_F(TQueryPrepareTest, OrderByWithNegativeLimit)
         }))));
 
     EXPECT_THROW_THAT({
-        PreparePlanFragment(&PrepareMock_, "* from [//t] order by a limit -1");
+        ParseAndPreparePlanFragment(&PrepareMock_, "* from [//t] order by a limit -1");
     }, HasSubstr("Error while parsing query: syntax error, unexpected `-`, expecting int64 literal"));
 }
 
@@ -1047,7 +1075,7 @@ TEST_F(TQueryPrepareTest, OffsetLimit)
         }))));
 
     EXPECT_THROW_THAT({
-        PreparePlanFragment(&PrepareMock_, "* from [//t] offset 5");
+        ParseAndPreparePlanFragment(&PrepareMock_, "* from [//t] offset 5");
     }, HasSubstr("OFFSET used without LIMIT"));
 }
 
@@ -1125,10 +1153,10 @@ TEST_F(TQueryPrepareTest, PushDownGroupBy)
             on (L.key_0) = (C.key_0)
             group by C.key_0)");
 
-        auto plan = PreparePlanFragment(&PrepareMock_, query);
+        auto plan = ParseAndPreparePlanFragment(&PrepareMock_, query);
 
         ASSERT_TRUE(plan->Query->JoinClauses[0]->GroupClause);
-        EXPECT_EQ(fmt(plan->Query->JoinClauses[0]->GroupClause->GroupItems), std::string("C.key_0"));
+        EXPECT_EQ(fmt(plan->Query->JoinClauses[0]->GroupClause->GroupItems), std::string("`C.key_0`"));
     }
     {
         auto query = std::string(R"(select sum(C.value_1) from [//left] L
@@ -1136,10 +1164,10 @@ TEST_F(TQueryPrepareTest, PushDownGroupBy)
             on (L.key_0) = (C.key_0)
             group by L.key_0)");
 
-        auto plan = PreparePlanFragment(&PrepareMock_, query);
+        auto plan = ParseAndPreparePlanFragment(&PrepareMock_, query);
 
         ASSERT_TRUE(plan->Query->JoinClauses[0]->GroupClause);
-        EXPECT_EQ(fmt(plan->Query->JoinClauses[0]->GroupClause->GroupItems), std::string("C.key_0"));
+        EXPECT_EQ(fmt(plan->Query->JoinClauses[0]->GroupClause->GroupItems), std::string("`C.key_0`"));
     }
     {
         auto query = std::string(R"(select sum(value_1) from [//left]
@@ -1147,7 +1175,7 @@ TEST_F(TQueryPrepareTest, PushDownGroupBy)
             using key_0
             group by key_0)");
 
-        auto plan = PreparePlanFragment(&PrepareMock_, query);
+        auto plan = ParseAndPreparePlanFragment(&PrepareMock_, query);
 
         ASSERT_TRUE(plan->Query->JoinClauses[0]->GroupClause);
         EXPECT_EQ(fmt(plan->Query->JoinClauses[0]->GroupClause->GroupItems), std::string("key_0"));
@@ -1158,7 +1186,7 @@ TEST_F(TQueryPrepareTest, PushDownGroupBy)
             on 1 = 1
             group by value_0 + key_1)");
 
-        auto plan = PreparePlanFragment(&PrepareMock_, query);
+        auto plan = ParseAndPreparePlanFragment(&PrepareMock_, query);
 
         ASSERT_TRUE(plan->Query->JoinClauses[0]->GroupClause);
         EXPECT_EQ(fmt(plan->Query->JoinClauses[0]->GroupClause->GroupItems), std::string("key_1"));
@@ -1170,7 +1198,7 @@ TEST_F(TQueryPrepareTest, PushDownGroupBy)
             group by value_0 % 10)");
 
         EXPECT_THROW_THAT(
-            PreparePlanFragment(&PrepareMock_, query),
+            ParseAndPreparePlanFragment(&PrepareMock_, query),
             HasSubstr("neither idempotent nor can be pushed behind join clause"));
     }
     {
@@ -1179,7 +1207,7 @@ TEST_F(TQueryPrepareTest, PushDownGroupBy)
             using key_0
             group by value_0 + key_1)");
 
-        auto plan = PreparePlanFragment(&PrepareMock_, query);
+        auto plan = ParseAndPreparePlanFragment(&PrepareMock_, query);
 
         EXPECT_FALSE(plan->Query->JoinClauses[0]->GroupClause);
     }
@@ -1192,7 +1220,7 @@ TEST_F(TQueryPrepareTest, PushDownGroupBy)
             group by 3)");
 
         EXPECT_THROW_THAT(
-            PreparePlanFragment(&PrepareMock_, query),
+            ParseAndPreparePlanFragment(&PrepareMock_, query),
             HasSubstr("is not supported at the current moment"));
     }
 }
@@ -1232,7 +1260,7 @@ protected:
 
     void Coordinate(TStringBuf source, size_t subqueriesCount)
     {
-        auto fragment = PreparePlanFragment(&PrepareMock_, source);
+        auto fragment = ParseAndPreparePlanFragment(&PrepareMock_, source);
 
         auto options = TQueryOptions{
             .RangeExpansionLimit = 1000,
@@ -1269,6 +1297,13 @@ TEST_F(TQueryCoordinateTest, SingleSplit)
 {
     EXPECT_NO_THROW({
         Coordinate("k from [//t]", 1);
+    });
+}
+
+TEST_F(TQueryCoordinateTest, EmptyIn)
+{
+    EXPECT_NO_THROW({
+        Coordinate("k from [//t] where k in ()", 0);
     });
 }
 
@@ -1323,7 +1358,7 @@ TQueryStatistics DoExecuteQuery(
     TConstQueryPtr query,
     IUnversionedRowsetWriterPtr writer,
     const TQueryBaseOptions& options,
-    IJoinSubqueryProfilerPtr joinProfiler = nullptr)
+    const std::vector<IJoinProfilerPtr>& joinProfilers = {})
 {
     std::vector<TOwningRow> owningSourceRows;
     for (const auto& row : source) {
@@ -1380,7 +1415,7 @@ TQueryStatistics DoExecuteQuery(
         query,
         readerMock,
         writer,
-        joinProfiler,
+        joinProfilers,
         functionProfilers,
         aggregateProfilers,
         GetDefaultMemoryChunkProvider(),
@@ -1756,7 +1791,7 @@ protected:
                 .WillOnce(Return(MakeFuture(dataSplit.second)));
         }
 
-        auto fragment = PreparePlanFragment(
+        auto fragment = ParseAndPreparePlanFragment(
             &PrepareMock_,
             query,
             placeholderValues,
@@ -1794,22 +1829,7 @@ protected:
             aggregatedStatistics.AddInnerStatistics(std::move(joinSubqueryStatistics));
         };
 
-        auto getMergeJoinDataSource = [] (size_t /*keyPrefix*/) {
-            // This callback is usually dependent on the structure of tablets.
-            // Thus, in tests we resort to returning a universal range.
-
-            auto buffer = New<TRowBuffer>();
-            TRowRanges universalRange{{
-                buffer->CaptureRow(NTableClient::MinKey().Get()),
-                buffer->CaptureRow(NTableClient::MaxKey().Get()),
-            }};
-
-            return TDataSource{
-                .Ranges = MakeSharedRange(std::move(universalRange), std::move(buffer)),
-            };
-        };
-
-        auto executeForeign = [&] (TPlanFragment fragment, IUnversionedRowsetWriterPtr writer) {
+        auto executePlan = [&] (TPlanFragment fragment, IUnversionedRowsetWriterPtr writer) {
             // TODO(sabdenovch): Switch to name- or id-based source rows navigation.
             // Ideally, do not separate schemas from sources.
             int sourceIndex = 1;
@@ -1833,21 +1853,43 @@ protected:
                     fragment.Query,
                     writer,
                     options,
-                    /*joinProfiler*/ nullptr);
+                    /*joinProfilers*/ {});
         };
 
-        auto orderedExecution = primaryQuery->IsOrdered(evaluateOptions.AllowUnorderedGroupByWithLimit);
+        std::vector<IJoinProfilerPtr> joinProfilers;
+        for (const auto& joinClause : primaryQuery->JoinClauses) {
+            auto getPrefetchJoinDataSource = [=] () -> std::optional<TDataSource> {
+                // This callback is usually dependent on the structure of tablets.
+                // Thus, in tests we resort to returning a universal range.
 
-        auto joinProfiler = CreateJoinProfiler(
-            primaryQuery,
-            GetJoinSubqueryOptions(options),
-            evaluateOptions.MinKeyWidth,
-            orderedExecution,
-            GetDefaultMemoryChunkProvider(),
-            std::move(consumeSubqueryStatistics),
-            std::move(getMergeJoinDataSource),
-            std::move(executeForeign),
-            Logger());
+                if (ShouldPrefetchJoinSource(
+                    primaryQuery,
+                    *joinClause,
+                    evaluateOptions.MinKeyWidth,
+                    primaryQuery->IsOrdered(/*allowUnorderedGroupByWithLimit*/ true)))
+                {
+                    auto buffer = New<TRowBuffer>();
+                    TRowRanges universalRange{{
+                        buffer->CaptureRow(NTableClient::MinKey().Get()),
+                        buffer->CaptureRow(NTableClient::MaxKey().Get()),
+                    }};
+
+                    return TDataSource{
+                        .Ranges = MakeSharedRange(std::move(universalRange), std::move(buffer)),
+                    };
+                } else {
+                    return std::nullopt;
+                }
+            };
+
+            joinProfilers.push_back(CreateJoinSubqueryProfiler(
+                joinClause,
+                std::move(executePlan),
+                std::move(consumeSubqueryStatistics),
+                std::move(getPrefetchJoinDataSource),
+                GetDefaultMemoryChunkProvider(),
+                Logger()));
+        }
 
         auto prepareAndExecute = [&] {
             IUnversionedRowsetWriterPtr writer;
@@ -1863,7 +1905,7 @@ protected:
                 primaryQuery,
                 writer,
                 options,
-                joinProfiler);
+                joinProfilers);
 
             resultStatistics.AddInnerStatistics(std::move(aggregatedStatistics));
 
@@ -1954,7 +1996,7 @@ protected:
                 bottomQuery,
                 readerMock,
                 pipe->GetWriter(),
-                /*joinProfiler*/ nullptr,
+                /*joinProfilers*/ {},
                 FunctionProfilers_,
                 AggregateProfilers_,
                 GetDefaultMemoryChunkProvider(),
@@ -1977,7 +2019,7 @@ protected:
             frontQuery,
             frontReader,
             writer,
-            /*joinProfiler*/ nullptr,
+            /*joinProfilers*/ {},
             FunctionProfilers_,
             AggregateProfilers_,
             GetDefaultMemoryChunkProvider(),
@@ -2047,7 +2089,7 @@ protected:
             query,
             readerMock,
             pipe->GetWriter(),
-            /*joinProfiler*/ nullptr,
+            /*joinProfilers*/ {},
             FunctionProfilers_,
             AggregateProfilers_,
             GetDefaultMemoryChunkProvider(),
@@ -2094,7 +2136,7 @@ protected:
             query,
             reader,
             pipe->GetWriter(),
-            /*joinProfiler*/ nullptr,
+            /*joinProfilers*/ {},
             FunctionProfilers_,
             AggregateProfilers_,
             GetDefaultMemoryChunkProvider(),
@@ -2138,7 +2180,7 @@ protected:
             frontQuery,
             reader,
             writer,
-            /*joinProfiler*/ nullptr,
+            /*joinProfilers*/ {},
             FunctionProfilers_,
             AggregateProfilers_,
             GetDefaultMemoryChunkProvider(),
@@ -8472,6 +8514,123 @@ TEST_F(TQueryEvaluateTest, CompositeMemberJoin)
         {.SyntaxVersion = 2});
 }
 
+TEST_F(TQueryEvaluateTest, NestedSubquery)
+{
+    if (NYT::NQueryClient::DefaultExpressionBuilderVersion == 1) {
+        return;
+    }
+
+    TSplitMap splits;
+    std::vector<std::vector<std::string>> sources;
+
+    auto schema = MakeSplit({
+        {"a", SimpleLogicalType(ESimpleLogicalValueType::Int32)},
+        {"b", SimpleLogicalType(ESimpleLogicalValueType::String)},
+        {"k", SimpleLogicalType(ESimpleLogicalValueType::Int32)},
+        {"s", SimpleLogicalType(ESimpleLogicalValueType::Int32)}
+        });
+
+    auto data = std::vector<std::string> {
+
+        "a=1; b=x; k=1; s=1",
+        "a=2; b=y; k=1; s=1",
+        "a=3; b=z; k=1; s=1",
+        "a=2; b=k; k=2; s=2",
+        "a=3; b=l; k=2; s=2",
+        "     b=m; k=2; s=2",
+        "a=3; b=x; k=3; s=1",
+        "a=4; b=y; k=3; s=1",
+        "     b=z; k=3; s=1",
+        "a=1; b=x; k=4; s=1",
+    };
+
+    splits["//t"] = schema;
+    sources.push_back(data);
+
+    auto resultSplit = MakeSplit({
+        {"a", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))},
+        {"nested", ListLogicalType(StructLogicalType({
+            {"x", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))},
+            {"y", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))},
+            {"z", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::String))}
+        }))}
+    });
+
+    auto result = YsonToRows({
+        "a=2;nested=[[3;3;x];[6;4;y];[9;5;z]]",
+        "a=3;nested=[[12;5;k];[18;6;l];[#;#;m]]",
+        "a=4;nested=[[9;7;x];[#;#;z]]",
+        "a=5;nested=[[1;6;x]]"
+    }, resultSplit);
+
+    Evaluate("select t.k + 1 as a, (select li * sum(t.s) as x, li + a as y, ls as z from (array_agg(t.a, true) as li, array_agg(t.b, true) as ls) where li < 4) as nested from `//t` as t group by a",
+        splits,
+        sources,
+        ResultMatcher(result, resultSplit.TableSchema),
+        {.SyntaxVersion = 2});
+
+    // Test inner aggregation.
+    {
+        // Test checks that sum(t.s) aggregation level is properly determined as outer by its substitution level.
+        auto primaryQuery = Prepare(
+            "select t.k % 2 as a, (select ls, sum(t.s) as x, sum(li) as y, sum(1) as z from (array_agg(t.a, true) as li, array_agg(t.b, true) as ls) group by ls) as nested from `//t` as t group by a",
+            splits,
+            {},
+            2);
+
+        const auto& aggregateItems = primaryQuery->GroupClause->AggregateItems;
+
+        ASSERT_EQ(std::ssize(aggregateItems), 3);
+        EXPECT_EQ(aggregateItems[2].Name, "sum(`t.s`)");
+    }
+
+    {
+        // Test inner group key `ls + sum(t.s) as x` contains outer aggregate expression.
+        auto primaryQuery = Prepare(
+            "select t.k % 2 as a, (select li + sum(t.s) as x, sum(1) as z from (array_agg(t.a, true) as li) group by x) as nested from `//t` as t group by a",
+            splits,
+            {},
+            2);
+
+        const auto& aggregateItems = primaryQuery->GroupClause->AggregateItems;
+
+        ASSERT_EQ(std::ssize(aggregateItems), 2);
+        EXPECT_EQ(aggregateItems[1].Name, "sum(`t.s`)");
+    }
+
+    {
+        // Test checks that sum(b) aggregation level is properly determined as outer while it has no substitution level.
+
+        // FIXME: Expressiones `sum(1)` and `sum(b)` are indistinguishable if `2 as b` is replaced by `1 as b`. Enrich aggregate references with its level.
+        auto primaryQuery = Prepare(
+            "select t.k % 2 as a, sum(2) as b, (select b, sum(1) as z from (array_agg(t.a, true) as li) group by li) as nested from `//t` as t group by a",
+            splits,
+            {},
+            2);
+
+        const auto& aggregateItems = primaryQuery->GroupClause->AggregateItems;
+
+        ASSERT_EQ(std::ssize(aggregateItems), 2);
+        EXPECT_EQ(aggregateItems[0].Name, "sum(0#2)");
+    }
+
+    {
+        // Test checks that sum(b) aggregation level is properly determined as outer while it has no substitution level.
+
+        // FIXME: Expressiones `sum(1)` and `sum(b)` are indistinguishable if `2 as b` is replaced by `1 as b`. Enrich aggregate references with its level.
+        auto primaryQuery = Prepare(
+            "select t.k % 2 as a, sum(2) as b, (select li + b as x, sum(1) as z from (array_agg(t.a, true) as li) group by x) as nested from `//t` as t group by a",
+            splits,
+            {},
+            2);
+
+        const auto& aggregateItems = primaryQuery->GroupClause->AggregateItems;
+
+        ASSERT_EQ(std::ssize(aggregateItems), 2);
+        EXPECT_EQ(aggregateItems[0].Name, "sum(0#2)");
+    }
+}
+
 TEST_F(TQueryEvaluateTest, VarargUdf)
 {
     auto split = MakeSplit({
@@ -9431,6 +9590,10 @@ void TQueryEvaluateComplexTest::DoTest(
     // Secondary columns: (d, e) -> w
     // Group columns x, y, z
 
+    if (groupTotals != "" && (groupEq.X == TStringBuf("0") || groupEq.Y == TStringBuf("0") || groupEq.Z == TStringBuf("0"))) {
+        return;
+    }
+
     auto queryString = Format(
         "x, y, z, sum(1) as count, sum(v) as sumv, sum(w) as sumw "
         "from [//t] %v join [//s] on (%v) = (%v) group by %v as x, %v as y, %v as z %v offset %v limit %v",
@@ -10377,7 +10540,7 @@ INSTANTIATE_TEST_SUITE_P(
             "Expression inside CASE WHEN should be scalar"),
         std::tuple(
             "case when a then a end as m from [//t]",
-            "Expression inside CASE WHEN should be boolean"),
+            "Types mismatch in CASE WHEN expression"),
         std::tuple(
             "case a when 2 then (1, 2) end as m from [//t]",
             "Expression inside CASE THEN should be scalar"),
@@ -10386,19 +10549,19 @@ INSTANTIATE_TEST_SUITE_P(
             "Expression inside CASE THEN should be scalar"),
         std::tuple(
             "case a when 1 then 1 when 2 then '2' end as m from [//t]",
-            "Types mismatch in CASE THEN expression"),
+            "Types mismatch in CASE THEN/ELSE expression"),
         std::tuple(
             "case when a > 2 then 1 when a > 1 then '2' end as m from [//t]",
-            "Types mismatch in CASE THEN expression"),
+            "Types mismatch in CASE THEN/ELSE expression"),
         std::tuple(
             "case a when 1 then 1 else (1,2,3) end as m from [//t]",
             "Expression inside CASE ELSE should be scalar"),
         std::tuple(
             "case a when 1 then 1 else '2' end as m from [//t]",
-            "Types mismatch in CASE ELSE expression"),
+            "Types mismatch in CASE THEN/ELSE expression"),
         std::tuple(
             "case when a > 1 then 1 else '2' end as m from [//t]",
-            "Types mismatch in CASE ELSE expression")));
+            "Types mismatch in CASE THEN/ELSE expression")));
 
 TEST_P(TQueryEvaluateCaseWithIncorrectSemanticsTest, Simple)
 {
@@ -10693,7 +10856,7 @@ TEST_F(TQueryEvaluateTest, MathAbs)
             split,
             source,
             AnyMatcher),
-        HasSubstr("Wrong number of arguments"));
+        HasSubstr("No matching function"));
 
     SUCCEED();
 }

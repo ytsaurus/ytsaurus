@@ -113,7 +113,6 @@ public:
     TJobController(IBootstrapBase* bootstrap)
         : Bootstrap_(bootstrap)
         , DynamicConfig_(New<TJobControllerDynamicConfig>())
-        , OperationInfoRequestBackoffStrategy_(GetDynamicConfig()->OperationInfoRequestBackoffStrategy)
         , Profiler_("/job_controller")
         , JobProxyExitProfiler_(Profiler_, "/job_proxy_process_exit")
         , CacheHitArtifactsSizeCounter_(Profiler_.Counter("/chunk_cache/cache_hit_artifacts_size"))
@@ -460,7 +459,6 @@ public:
 
         DynamicConfig_.Store(newConfig);
 
-        OperationInfoRequestBackoffStrategy_.UpdateOptions(newConfig->OperationInfoRequestBackoffStrategy);
         ProfilingExecutor_->SetPeriod(
             newConfig->ProfilingPeriod);
         ResourceAdjustmentExecutor_->SetPeriod(
@@ -546,8 +544,6 @@ private:
     // For converting vcpu to cpu back after getting response from scheduler.
     // It is needed because cpu_to_vcpu_factor can change between preparing request and processing response.
     double LastHeartbeatCpuToVCpuFactor_ = 1.0;
-
-    TRelativeConstantBackoffStrategy OperationInfoRequestBackoffStrategy_;
 
     YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, JobsLock_);
 
@@ -895,7 +891,8 @@ private:
         TAllocationId currentAllocationId;
 
         if (auto resourceOwner = resourceHolder->GetOwner()) {
-            if (currentAllocation = DynamicPointerCast<TAllocation>(std::move(resourceOwner))) {
+            currentAllocation = DynamicPointerCast<TAllocation>(std::move(resourceOwner));
+            if (currentAllocation) {
                 currentAllocationId = currentAllocation->GetId();
 
                 YT_LOG_INFO(
@@ -1058,15 +1055,28 @@ private:
             }
 
             if (job->GetStored()) {
-                if (!jobConfirmationRequested && !job->IsGrowingStale(context->JobStalenessDelay)) {
+                YT_VERIFY(job->IsFinished());
+                bool shouldResend = job->ShouldResend(context->JobStalenessDelay);
+                if (!jobConfirmationRequested && !shouldResend) {
                     continue;
                 }
 
+                {
+                    auto* storedJob = request->add_stored_jobs();
+                    ToProto(storedJob->mutable_job_id(), job->GetId());
+                    ToProto(storedJob->mutable_operation_id(), job->GetOperationId());
+                }
+
                 YT_LOG_DEBUG(
-                    "Confirming job (JobId: %v, OperationId: %v, State: %v)",
+                    "Confirming job (JobId: %v, OperationId: %v, State: %v, Reason: %v)",
                     job->GetId(),
                     job->GetOperationId(),
-                    job->GetState());
+                    job->GetState(),
+                    shouldResend ? "resend" : "confirmation");
+
+                if (!context->ResendFullJobInfo && !jobConfirmationRequested) {
+                    continue;
+                }
             }
 
             switch (job->GetState()) {
@@ -1078,7 +1088,6 @@ private:
                 case EJobState::Failed:
                 case EJobState::Completed:
                     sendFinishedJob(job);
-
                     break;
                 default:
                     break;
@@ -1334,9 +1343,6 @@ private:
         auto* execNodeBootstrap = Bootstrap_->GetExecNodeBootstrap();
         auto slotManager = execNodeBootstrap->GetSlotManager();
 
-        const bool requestOperationInfo = OperationInfoRequestBackoffStrategy_
-            .RecordInvocationIfOverBackoff();
-
         THashSet<TOperationId> operationIdsToRequestInfo;
 
         for (const auto& [_, allocation] : IdToAllocations_) {
@@ -1356,16 +1362,29 @@ private:
             }
         }
 
-        if (requestOperationInfo) {
-            for (const auto& [_, job] : IdToJob_) {
-                if (!job->GetControllerAgentDescriptor() && job->IsFinished()) {
-                    operationIdsToRequestInfo.insert(job->GetOperationId());
-                }
-            }
+        for (const auto& [_, job] : IdToJob_) {
+            if (!job->GetControllerAgentDescriptor()) {
+                if (job->GetControllerAgentResetTime() + context->RequestNewAgentDelay < TInstant::Now()) {
+                    YT_LOG_DEBUG(
+                        "Requesting new agent for job and reset agent for it (JobId: %v, OperationId: %v, JobState: %v, ControllerAgentResetTime: %v, Delay: %v)",
+                        job->GetId(),
+                        job->GetOperationId(),
+                        job->GetState(),
+                        job->GetControllerAgentResetTime(),
+                        context->RequestNewAgentDelay);
 
-            for (const auto& [_, allocation] : IdToAllocations_) {
-                if (allocation->IsEmpty()) {
-                    operationIdsToRequestInfo.insert(allocation->GetOperationId());
+                    // NB(pogorelov): We need to reset agent for job here, to prevent backpressure when scheduler overloaded.
+                    job->UpdateControllerAgentDescriptor({});
+
+                    operationIdsToRequestInfo.insert(job->GetOperationId());
+                } else {
+                    YT_LOG_DEBUG(
+                        "Job is orphaned but request new agent delay is not expired; skip requesting new agent (JobId: %v, OperationId: %v, JobState: %v, ControllerAgentResetTime: %v, Delay: %v)",
+                        job->GetId(),
+                        job->GetOperationId(),
+                        job->GetState(),
+                        job->GetControllerAgentResetTime(),
+                        context->RequestNewAgentDelay);
                 }
             }
         }
@@ -1382,7 +1401,7 @@ private:
             FillStatus(allocationStatus, allocation);
         }
 
-        if (requestOperationInfo) {
+        if (!empty(operationIdsToRequestInfo)) {
             YT_LOG_DEBUG(
                 "Adding operation info requests for stored jobs (Count: %v)",
                 std::size(operationIdsToRequestInfo));

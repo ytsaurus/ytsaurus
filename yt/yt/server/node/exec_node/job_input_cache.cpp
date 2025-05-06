@@ -378,14 +378,9 @@ IChunkReaderPtr TJobInputCache::CreateReaderForChunk(TChunkId chunkId)
             << TErrorAttribute("chunk_id", chunkId);
     }
 
-    auto erasureReaderConfig = New<TErasureReaderConfig>();
-    erasureReaderConfig->EnableAutoRepair = true;
-    erasureReaderConfig->UseChunkProber = true;
-    erasureReaderConfig->UseReadBlocksBatcher = true;
-
     return CreateRemoteReader(
         *spec,
-        std::move(erasureReaderConfig),
+        Config_.Acquire()->Reader,
         New<TRemoteReaderOptions>(),
         ChunkReaderHost_);
 }

@@ -117,10 +117,9 @@ DEFINE_REFCOUNTED_TYPE(TCoordinatorConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TDelayBeforeCommand
+struct TDelayBeforeCommand
     : public NYTree::TYsonStruct
 {
-public:
     TDuration Delay;
     TString ParameterPath;
     TString Substring;
@@ -130,14 +129,13 @@ public:
     static void Register(TRegistrar registrar);
 };
 
-////////////////////////////////////////////////////////////////////////////////
-
 DEFINE_REFCOUNTED_TYPE(TDelayBeforeCommand)
 
-class TApiTestingOptions
+////////////////////////////////////////////////////////////////////////////////
+
+struct TApiTestingOptions
     : public NYTree::TYsonStruct
 {
-public:
     THashMap<TString, TIntrusivePtr<TDelayBeforeCommand>> DelayBeforeCommand;
 
     NServer::THeapProfilerTestingOptionsPtr HeapProfiler;
@@ -163,6 +161,36 @@ struct TFramingConfig
 };
 
 DEFINE_REFCOUNTED_TYPE(TFramingConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TMemoryLimitRatiosConfig
+    : public NYTree::TYsonStruct
+{
+    //! Represents the ratio of total available memory that can be utilized by each user (if user is not specified in "DefaultUserMemoryLimitRatio"),
+    //! expressed as a value between 0 and 1.
+    std::optional<double> DefaultUserMemoryLimitRatio;
+    THashMap<std::string, double> UserToMemoryLimitRatio;
+
+    REGISTER_YSON_STRUCT(TMemoryLimitRatiosConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TMemoryLimitRatiosConfig)
+
+struct TMemoryLimitsConfig
+    : public NYTree::TYsonStruct
+{
+    std::optional<i64> Total;
+    std::optional<i64> HeavyRequest;
+
+    REGISTER_YSON_STRUCT(TMemoryLimitsConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TMemoryLimitsConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -196,10 +224,8 @@ struct TApiDynamicConfig
 
     bool EnableAllocationTags;
 
-    //! Represents the ratio of total available memory that can be utilized by each user (if user is not specified in "UserMemoryRatio"),
-    //! expressed as a value between 0 and 1.
     std::optional<double> DefaultUserMemoryLimitRatio;
-    THashMap<std::string, double> UserToMemoryLimitRatio;
+    THashMap<std::string, TMemoryLimitRatiosConfigPtr> RoleToMemoryLimitRatios;
 
     // COMPAT(ignat): drop the option after 25.2.
     bool UseCompressionThreadPool;
@@ -227,9 +253,6 @@ struct TAccessCheckerConfig
     // COMPAT(verytable): Drop it after migration to aco roles everywhere.
     bool UseAccessControlObjects;
 
-    //! Parameters of the permission cache.
-    NSecurityClient::TPermissionCacheConfigPtr Cache;
-
     REGISTER_YSON_STRUCT(TAccessCheckerConfig);
 
     static void Register(TRegistrar registrar);
@@ -251,21 +274,6 @@ struct TAccessCheckerDynamicConfig
 };
 
 DEFINE_REFCOUNTED_TYPE(TAccessCheckerDynamicConfig)
-
-////////////////////////////////////////////////////////////////////////////////
-
-struct TProxyMemoryLimitsConfig
-    : public NYTree::TYsonStruct
-{
-    std::optional<i64> Total;
-    std::optional<i64> HeavyRequest;
-
-    REGISTER_YSON_STRUCT(TProxyMemoryLimitsConfig);
-
-    static void Register(TRegistrar registrar);
-};
-
-DEFINE_REFCOUNTED_TYPE(TProxyMemoryLimitsConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -299,7 +307,7 @@ struct TProxyBootstrapConfig
 
     TAccessCheckerConfigPtr AccessChecker;
 
-    TProxyMemoryLimitsConfigPtr MemoryLimits;
+    TMemoryLimitsConfigPtr MemoryLimits;
 
     NClickHouse::TStaticClickHouseConfigPtr ClickHouse;
 
@@ -373,7 +381,7 @@ struct TProxyDynamicConfig
 
     NBus::TBusServerDynamicConfigPtr BusServer;
 
-    TProxyMemoryLimitsConfigPtr MemoryLimits;
+    TMemoryLimitsConfigPtr MemoryLimits;
 
     REGISTER_YSON_STRUCT(TProxyDynamicConfig);
 

@@ -338,10 +338,7 @@ private:
             TRspMountHunkTablet response;
             ToProto(response.mutable_tablet_id(), tabletId);
 
-            // COMPAT(ifsmirnov)
-            if (GetCurrentMutationContext()->Request().Reign >= static_cast<int>(ETabletReign::SmoothTabletMovement)) {
-                response.set_mount_revision(ToProto(tablet->GetMountRevision()));
-            }
+            response.set_mount_revision(ToProto(tablet->GetMountRevision()));
 
             Slot_->PostMasterMessage(tabletId, response);
         }
@@ -765,9 +762,7 @@ private:
             TRspUnmountHunkTablet response;
             ToProto(response.mutable_tablet_id(), tabletId);
 
-            if (GetCurrentMutationContext()->Request().Reign >= static_cast<int>(ETabletReign::SmoothTabletMovement)) {
-                response.set_mount_revision(ToProto(mountRevision));
-            }
+            response.set_mount_revision(ToProto(mountRevision));
 
             Slot_->PostMasterMessage(tabletId, response);
         }

@@ -22,6 +22,9 @@ add_library(yt-server-log_tailer)
 target_compile_options(yt-server-log_tailer PRIVATE
   -Wdeprecated-this-capture
   -Wimplicit-fallthrough
+  -Wparentheses
+  -Wno-logical-op-parentheses
+  -Wno-bitwise-op-parentheses
 )
 
 target_link_libraries(yt-server-log_tailer PUBLIC

@@ -37,10 +37,9 @@ DEFINE_REFCOUNTED_TYPE(TPeerConnectionConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TRemoteSnapshotStoreOptions
+struct TRemoteSnapshotStoreOptions
     : public virtual NYTree::TYsonStruct
 {
-public:
     int SnapshotReplicationFactor;
     NCompression::ECodec SnapshotCompressionCodec;
     TString SnapshotAccount;
@@ -58,10 +57,9 @@ DEFINE_REFCOUNTED_TYPE(TRemoteSnapshotStoreOptions)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TRemoteChangelogStoreOptions
+struct TRemoteChangelogStoreOptions
     : public virtual NYTree::TYsonStruct
 {
-public:
     NErasure::ECodec ChangelogErasureCodec;
     int ChangelogReplicationFactor;
     int ChangelogReadQuorum;

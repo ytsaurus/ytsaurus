@@ -22,10 +22,17 @@ namespace NYT::NThreading {
  *  The lock is unfair, but writers are prioritized over readers, that is,
  *  if AcquireWriter() is called at some time, then some writer
  *  (not necessarily the same one that called AcquireWriter) will succeed
- *  in the next time.
+ *  in the next time. This is implemented by an additional flag "WriterReady",
+ *  that writers set on arrival. No readers can proceed until this flag is reset.
  *
- *  WARNING: You should not use this lock if forks are possible: see
- *  fork_aware_rw_spin_lock.h for a proper fork-safe lock.
+ *  WARNING: You probably should not use this lock if forks are possible: see
+ *  fork_aware_rw_spin_lock.h for a proper fork-safe lock which does the housekeeping for you.
+ *
+ *  WARNING: This lock is not recursive: you can't call AcquireReader() twice in the same
+ *  thread, as that may lead to a deadlock. For the same reason you shouldn't do WaitFor or any
+ *  other context switch under lock.
+ *
+ *  See tla+/spinlock.tla for the formally verified lock's properties.
  */
 class TReaderWriterSpinLock
     : public TSpinLockBase
@@ -38,9 +45,12 @@ public:
      *  Optimized for the case of read-intensive workloads.
      *  Cheap (just one atomic increment and no spinning if no writers are present).
      *
-     *  Don't use this call if forks are possible: forking at some
+     *  WARNING: Don't use this call if forks are possible: forking at some
      *  intermediate point inside #AcquireReader may corrupt the lock state and
      *  leave the lock stuck forever for the child process.
+     *
+     *  WARNING: The lock is not recursive/reentrant, i.e. it assumes that no thread calls
+     *  AcquireReader() if the reader is already acquired for it.
      */
     void AcquireReader() noexcept;
     //! Acquires the reader lock.

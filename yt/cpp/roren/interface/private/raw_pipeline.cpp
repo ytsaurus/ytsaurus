@@ -49,7 +49,7 @@ TTransformNodePtr TTransformNode::Allocate(
     const TRawPStateNodePtr& pState)
 {
     const auto& outputTags = transform->GetOutputTags();
-    TTransformNodePtr result = new TTransformNode(std::move(name), std::move(transform));
+    TTransformNodePtr result = NYT::New<TTransformNode>(std::move(name), std::move(transform));
 
     for (auto* input : inputs) {
         input->SourceFor_.push_back(result.Get());

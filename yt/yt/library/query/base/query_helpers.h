@@ -74,6 +74,12 @@ TIter MergeOverlappingRanges(TIter begin, TIter end)
     return dest;
 }
 
+bool ShouldPrefetchJoinSource(
+    const TConstQueryPtr& query,
+    const TJoinClause& joinClause,
+    size_t minKeyWidth,
+    bool ordered);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NQueryClient

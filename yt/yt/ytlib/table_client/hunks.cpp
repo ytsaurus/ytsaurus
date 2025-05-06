@@ -1514,7 +1514,7 @@ TFuture<TSharedRange<TUnversionedValue*>> DecodeHunks(
     IDictionaryCompressionFactoryPtr dictionaryCompressionFactory,
     TClientChunkReadOptions options,
     TTabletPerformanceCountersPtr performanceCounters,
-    NTableClient::ERequestType requestType,
+    NTableClient::EPerformanceCountedRequestType requestType,
     TSharedRange<TUnversionedValue*> values)
 {
     std::optional<TColumnarStatisticsThunk> columnarStatisticsThunk;
@@ -1713,7 +1713,7 @@ TFuture<TSharedRange<TRow>> DecodeHunksInRows(
     IDictionaryCompressionFactoryPtr dictionaryCompressionFactory,
     TClientChunkReadOptions options,
     TTabletPerformanceCountersPtr performanceCounters,
-    NTableClient::ERequestType requestType,
+    NTableClient::EPerformanceCountedRequestType requestType,
     TSharedRange<TRow> rows,
     const TRowVisitor& rowVisitor)
 {
@@ -1740,7 +1740,7 @@ TFuture<TSharedRange<TMutableUnversionedRow>> DecodeHunksInSchemafulUnversionedR
     IDictionaryCompressionFactoryPtr dictionaryCompressionFactory,
     TClientChunkReadOptions options,
     TTabletPerformanceCountersPtr performanceCounters,
-    NTableClient::ERequestType requestType,
+    NTableClient::EPerformanceCountedRequestType requestType,
     TSharedRange<TMutableUnversionedRow> rows)
 {
     return DecodeHunksInRows(
@@ -1758,7 +1758,7 @@ TFuture<TSharedRange<TMutableVersionedRow>> DecodeHunksInVersionedRows(
     IDictionaryCompressionFactoryPtr dictionaryCompressionFactory,
     TClientChunkReadOptions options,
     TTabletPerformanceCountersPtr performanceCounters,
-    NTableClient::ERequestType requestType,
+    NTableClient::EPerformanceCountedRequestType requestType,
     TSharedRange<TMutableVersionedRow> rows)
 {
     return DecodeHunksInRows(
@@ -1927,7 +1927,7 @@ protected:
                 DictionaryCompressionFactory_,
                 Options_,
                 PerformanceCounters_,
-                NTableClient::ERequestType::Read,
+                NTableClient::EPerformanceCountedRequestType::Read,
                 MakeSharedRange(std::move(values), DecodableRows_))
             .ApplyUnique(
                 BIND(&TBatchHunkReader::OnHunksRead, MakeStrong(this)));

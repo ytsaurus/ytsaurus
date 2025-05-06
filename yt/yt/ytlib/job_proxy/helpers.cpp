@@ -75,7 +75,7 @@ void RunQuery(
         query,
         reader,
         writer,
-        nullptr,
+        /*joinProfilers*/ {},
         functionGenerators,
         aggregateGenerators,
         GetDefaultMemoryChunkProvider(),
@@ -150,6 +150,17 @@ int GetJobFirstOutputTableFDFromSpec(const TUserJobSpec& spec)
     return spec.redirect_stdout_to_stderr()
         ? JobFirstOutputTableFDWithRedirectStdoutToStderr
         : JobFirstOutputTableFDDefault;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+std::optional<TDuration> OptionalCpuDurationToDuration(std::optional<TCpuDuration> cpuDuration)
+{
+    if (!cpuDuration) {
+        return std::nullopt;
+    }
+
+    return CpuDurationToDuration(*cpuDuration);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -22,6 +22,9 @@ add_library(yt-server-http_proxy)
 target_compile_options(yt-server-http_proxy PRIVATE
   -Wdeprecated-this-capture
   -Wimplicit-fallthrough
+  -Wparentheses
+  -Wno-logical-op-parentheses
+  -Wno-bitwise-op-parentheses
 )
 
 target_link_libraries(yt-server-http_proxy PUBLIC

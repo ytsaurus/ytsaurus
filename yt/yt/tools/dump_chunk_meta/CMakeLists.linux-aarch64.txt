@@ -20,6 +20,9 @@ add_executable(dump-chunk-meta)
 target_compile_options(dump-chunk-meta PRIVATE
   -Wdeprecated-this-capture
   -Wimplicit-fallthrough
+  -Wparentheses
+  -Wno-logical-op-parentheses
+  -Wno-bitwise-op-parentheses
 )
 
 target_link_libraries(dump-chunk-meta PUBLIC

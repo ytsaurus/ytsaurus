@@ -121,8 +121,8 @@ bool IsRelationalBinaryOp(EBinaryOp opcode);
 //! Classifies binary opcode according to classification above.
 bool IsStringBinaryOp(EBinaryOp opcode);
 
-//! Cast numeric values.
-TValue CastValueWithCheck(TValue value, EValueType targetType);
+//! Cast values.
+TOwningValue CastValueWithCheck(TValue value, EValueType targetType);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -150,9 +150,7 @@ void VerifyIdsInKeys(TRange<TRow> keys);
 void ToProto(
     NProto::TDataSource* serialized,
     const TDataSource& original,
-    TRange<TLogicalTypePtr> schema,
-    bool lookupSupported,
-    size_t keyWidth);
+    TRange<TLogicalTypePtr> schema);
 void FromProto(
     TDataSource* original,
     const NProto::TDataSource& serialized,
@@ -202,6 +200,8 @@ struct TQueryOptions
     bool SuppressAccessTracking = false;
     // COMPAT(lukyan)
     bool NewRangeInference = true;
+    // COMPAT(dtorilov)
+    bool AdaptiveOrderedSchemafulReader = false;
 };
 
 void ToProto(NProto::TQueryOptions* serialized, const TQueryOptions& original);

@@ -71,7 +71,7 @@ std::vector<TDynamicTypeTag> TRawMultiWrite::GetOutputTags() const
 ISerializable<IRawWrite>::TDefaultFactoryFunc TRawMultiWrite::GetDefaultFactory() const
 {
     return []() -> IRawWritePtr {
-        return ::MakeIntrusive<TRawMultiWrite>();
+        return NYT::New<TRawMultiWrite>();
     };
 }
 

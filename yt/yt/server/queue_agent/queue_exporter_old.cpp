@@ -894,6 +894,7 @@ void TQueueExporterOld::OnDynamicConfigChanged(const TQueueExporterDynamicConfig
 void TQueueExporterOld::Stop()
 {
     AlertCollector_->Stop();
+    YT_UNUSED_FUTURE(Executor_->Stop());
 }
 
 void TQueueExporterOld::BuildOrchidYson(NYTree::TFluentAny fluent) const

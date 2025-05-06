@@ -36,6 +36,7 @@
 #include <yt/yt/library/program/program.h>
 
 #include <yt/yt/client/object_client/helpers.h>
+#include <yt/yt/client/table_client/row_buffer.h>
 
 #include <yt/yt/core/misc/fs.h>
 #include <yt/yt/core/misc/proc.h>
@@ -171,8 +172,8 @@ void TLocationPerformanceCounters::ReportThrottledWrite()
 ////////////////////////////////////////////////////////////////////////////////
 
 TLocationFairShareSlot::TLocationFairShareSlot(
-    TFairShareHierarchicalSlotQueuePtr<TString> queue,
-    TFairShareHierarchicalSlotQueueSlotPtr<TString> slot)
+    TFairShareHierarchicalSlotQueuePtr<std::string> queue,
+    TFairShareHierarchicalSlotQueueSlotPtr<std::string> slot)
     : Queue_(std::move(queue))
     , Slot_(std::move(slot))
 {
@@ -180,7 +181,7 @@ TLocationFairShareSlot::TLocationFairShareSlot(
     YT_VERIFY(Slot_);
 }
 
-TFairShareHierarchicalSlotQueueSlotPtr<TString> TLocationFairShareSlot::GetSlot() const
+TFairShareHierarchicalSlotQueueSlotPtr<std::string> TLocationFairShareSlot::GetSlot() const
 {
     return Slot_;
 }
@@ -387,7 +388,7 @@ TChunkLocation::TChunkLocation(
 
     PerformanceCounters_ = New<TLocationPerformanceCounters>(Profiler_);
 
-    IOFairShareQueue_ = CreateFairShareHierarchicalSlotQueue<TString>(
+    IOFairShareQueue_ = CreateFairShareHierarchicalSlotQueue<std::string>(
         ChunkStoreHost_->GetFairShareHierarchicalScheduler(),
         Profiler_.WithPrefix("/fair_share_hierarchical_queue"));
 
@@ -440,17 +441,11 @@ TChunkLocation::TChunkLocation(
         diskThrottlerProfiler);
 
     HealthChecker_ = New<TDiskHealthChecker>(
-        ChunkContext_->DataNodeConfig->DiskHealthChecker,
+        StaticConfig_->DiskHealthChecker,
         GetPath(),
         GetAuxPoolInvoker(),
         DataNodeLogger(),
         Profiler_);
-
-    DynamicConfigManager_->SubscribeConfigChanged(BIND_NO_PROPAGATE([
-        healthChecker = HealthChecker_] (const NClusterNode::TClusterNodeDynamicConfigPtr& /*oldConfig*/,
-            const NClusterNode::TClusterNodeDynamicConfigPtr& newConfig) {
-            healthChecker->OnDynamicConfigChanged(newConfig->DataNode->DiskHealthChecker);
-        }));
 
     ChunkStoreHost_->SubscribePopulateAlerts(
         BIND_NO_PROPAGATE(&TChunkLocation::PopulateAlerts, MakeWeak(this)));
@@ -459,7 +454,7 @@ TChunkLocation::TChunkLocation(
 TErrorOr<TLocationFairShareSlotPtr> TChunkLocation::AddFairShareQueueSlot(
     i64 size,
     std::vector<IFairShareHierarchicalSlotQueueResourcePtr> resources,
-    std::vector<TFairShareHierarchyLevel<TString>> levels)
+    std::vector<TFairShareHierarchyLevel<std::string>> levels)
 {
     auto slotOrError = IOFairShareQueue_->EnqueueSlot(
         size,
@@ -553,6 +548,10 @@ void TChunkLocation::Reconfigure(TChunkLocationConfigPtr config)
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
 
+    UpdateIOWeightEvaluator(config->IOWeightFormula);
+
+    HealthChecker_->OnConfigChanged(config->DiskHealthChecker);
+
     TDiskLocation::Reconfigure(config);
 
     DynamicIOEngine_->SetType(config->IOEngineType, config->IOConfig);
@@ -635,7 +634,14 @@ double TChunkLocation::GetIOWeight() const
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
 
-    return StaticConfig_->IOWeight;
+    auto guard = Guard(IOWeightEvaluatorSpinLock_);
+
+    if (IOWeightEvaluator_) {
+        auto value = GetIOWeight(IOWeightEvaluator_);
+        return value.ValueOrThrow();
+    } else {
+        return StaticConfig_->IOWeight;
+    }
 }
 
 i64 TChunkLocation::GetCoalescedReadMaxGapSize() const
@@ -1131,6 +1137,41 @@ void TChunkLocation::UpdateUsedMemory(
         category,
         result,
         delta);
+}
+
+TErrorOr<double> TChunkLocation::GetIOWeight(const NOrm::NQuery::IExpressionEvaluatorPtr& evaluator) const
+{
+    auto rowBuffer = New<NTableClient::TRowBuffer>();
+    auto value = evaluator->Evaluate(
+        BuildYsonStringFluently().BeginMap()
+            .Item("available_space").Value(GetAvailableSpace())
+            .Item("used_space").Value(GetUsedSpace())
+        .EndMap(),
+        rowBuffer);
+
+    if (value.IsOK() && value.Value().Type == NTableClient::EValueType::Double) {
+        return value.Value().Data.Double;
+    } else {
+        return TError("Failed to evaluate IO weight evaluator");
+    }
+}
+
+void TChunkLocation::UpdateIOWeightEvaluator(const std::optional<std::string>& formula)
+{
+    YT_ASSERT_THREAD_AFFINITY_ANY();
+
+    if (formula.has_value()) {
+        auto evaluator = NOrm::NQuery::CreateOrmExpressionEvaluator(*formula, {"/stat"});
+        GetIOWeight(evaluator).ThrowOnError();
+
+        {
+            auto guard = Guard(IOWeightEvaluatorSpinLock_);
+            IOWeightEvaluator_ = std::move(evaluator);
+        }
+    } else {
+        auto guard = Guard(IOWeightEvaluatorSpinLock_);
+        IOWeightEvaluator_ = nullptr;
+    }
 }
 
 void TChunkLocation::IncreaseCompletedIOSize(

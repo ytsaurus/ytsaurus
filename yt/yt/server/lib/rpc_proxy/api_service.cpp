@@ -4,6 +4,7 @@
 #include "config.h"
 #include "format_row_stream.h"
 #include "helpers.h"
+#include "multiproxy_access_validator.h"
 #include "private.h"
 #include "proxy_coordinator.h"
 #include "query_corpus_reporter.h"
@@ -662,197 +663,212 @@ public:
         , SelectOutputDataWeight_(Profiler_.Counter("/select_output/data_weight"))
         , SelectOutputRowCount_(Profiler_.Counter("/select_output/row_count"))
     {
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(GenerateTimestamps));
+        TMultiproxyMethodList methodList;
 
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(StartTransaction));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(PingTransaction));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(AbortTransaction));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(CommitTransaction));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(FlushTransaction));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(AttachTransaction));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(DetachTransaction));
+        auto registerMethod = [&] (EMultiproxyMethodKind methodKind, TMethodDescriptor&& descriptor) {
+            const auto& methodName = descriptor.Method;
+            methodList.emplace_back(std::string(methodName), methodKind);
+            return RegisterMethod(descriptor);
+        };
 
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(ExistsNode));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(GetNode));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(ListNode));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(CreateNode));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(RemoveNode));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(SetNode));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(MultisetAttributesNode));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(LockNode));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(UnlockNode));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(CopyNode));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(MoveNode));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(LinkNode));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(ConcatenateNodes));
+        // Read / Write markup is for multiproxy mode.
+        // Rpc proxy can be configured to redirect requests for other clusters if request has corresponding header.
+        // Rpc proxy can allow redirect read requests or read and write requests (or disallow redirecting completely).
+        //
+        // YT-24245
+        registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(GenerateTimestamps));
 
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(MountTable));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(UnmountTable));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(RemountTable));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(FreezeTable));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(UnfreezeTable));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(ReshardTable));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(ReshardTableAutomatic));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(TrimTable));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(AlterTable));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(AlterTableReplica));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(AlterReplicationCard));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(BalanceTabletCells));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(CreateTableBackup));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(RestoreTableBackup));
+        registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(StartTransaction));
+        registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(PingTransaction));
+        registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(AbortTransaction));
+        registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(CommitTransaction));
+        registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(FlushTransaction));
+        registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(AttachTransaction));
+        registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(DetachTransaction));
 
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(StartOperation));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(AbortOperation));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(SuspendOperation));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(ResumeOperation));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(CompleteOperation));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(UpdateOperationParameters));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(PatchOperationSpec));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(GetOperation));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(ListOperations));
+        registerMethod(EMultiproxyMethodKind::Read, RPC_SERVICE_METHOD_DESC(ExistsNode));
+        registerMethod(EMultiproxyMethodKind::Read, RPC_SERVICE_METHOD_DESC(GetNode));
+        registerMethod(EMultiproxyMethodKind::Read, RPC_SERVICE_METHOD_DESC(ListNode));
+        registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(CreateNode));
+        registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(RemoveNode));
+        registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(SetNode));
+        registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(MultisetAttributesNode));
+        registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(LockNode));
+        registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(UnlockNode));
+        registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(CopyNode));
+        registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(MoveNode));
+        registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(LinkNode));
+        registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(ConcatenateNodes));
 
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(ListJobs));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(DumpJobContext));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(GetJobInput)
+        registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(MountTable));
+        registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(UnmountTable));
+        registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(RemountTable));
+        registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(FreezeTable));
+        registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(UnfreezeTable));
+        registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(ReshardTable));
+        registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(ReshardTableAutomatic));
+        registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(TrimTable));
+        registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(AlterTable));
+        registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(AlterTableReplica));
+        registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(AlterReplicationCard));
+        registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(BalanceTabletCells));
+        registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(CreateTableBackup));
+        registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(RestoreTableBackup));
+
+        registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(StartOperation));
+        registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(AbortOperation));
+        registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(SuspendOperation));
+        registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(ResumeOperation));
+        registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(CompleteOperation));
+        registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(UpdateOperationParameters));
+        registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(PatchOperationSpec));
+        registerMethod(EMultiproxyMethodKind::Read, RPC_SERVICE_METHOD_DESC(GetOperation));
+        registerMethod(EMultiproxyMethodKind::Read, RPC_SERVICE_METHOD_DESC(ListOperations));
+
+        registerMethod(EMultiproxyMethodKind::Read, RPC_SERVICE_METHOD_DESC(ListJobs));
+        registerMethod(EMultiproxyMethodKind::Read, RPC_SERVICE_METHOD_DESC(DumpJobContext));
+        registerMethod(EMultiproxyMethodKind::Read, RPC_SERVICE_METHOD_DESC(GetJobInput)
             .SetStreamingEnabled(true)
             .SetCancelable(true));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(GetJobInputPaths));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(GetJobSpec));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(GetJobStderr));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(GetJobTrace));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(GetJobFailContext));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(GetJob));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(AbandonJob));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(PollJobShell));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(AbortJob));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(DumpJobProxyLog));
+        registerMethod(EMultiproxyMethodKind::Read, RPC_SERVICE_METHOD_DESC(GetJobInputPaths));
+        registerMethod(EMultiproxyMethodKind::Read, RPC_SERVICE_METHOD_DESC(GetJobSpec));
+        registerMethod(EMultiproxyMethodKind::Read, RPC_SERVICE_METHOD_DESC(GetJobStderr));
+        registerMethod(EMultiproxyMethodKind::Read, RPC_SERVICE_METHOD_DESC(GetJobTrace));
+        registerMethod(EMultiproxyMethodKind::Read, RPC_SERVICE_METHOD_DESC(GetJobFailContext));
+        registerMethod(EMultiproxyMethodKind::Read, RPC_SERVICE_METHOD_DESC(GetJob));
+        registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(AbandonJob));
+        registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(PollJobShell));
+        registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(AbortJob));
+        registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(DumpJobProxyLog));
 
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(LookupRows));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(VersionedLookupRows));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(MultiLookup)
+        registerMethod(EMultiproxyMethodKind::Read, RPC_SERVICE_METHOD_DESC(LookupRows));
+        registerMethod(EMultiproxyMethodKind::Read, RPC_SERVICE_METHOD_DESC(VersionedLookupRows));
+        registerMethod(EMultiproxyMethodKind::Read, RPC_SERVICE_METHOD_DESC(MultiLookup)
             .SetConcurrencyLimit(1'000));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(SelectRows)
+        registerMethod(EMultiproxyMethodKind::Read, RPC_SERVICE_METHOD_DESC(SelectRows)
             .SetCancelable(true));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(ExplainQuery));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(PullRows)
+        registerMethod(EMultiproxyMethodKind::Read, RPC_SERVICE_METHOD_DESC(ExplainQuery));
+        registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(PullRows)
             .SetCancelable(true));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(GetInSyncReplicas));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(GetTabletInfos));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(GetTabletErrors));
+        registerMethod(EMultiproxyMethodKind::Read, RPC_SERVICE_METHOD_DESC(GetInSyncReplicas));
+        registerMethod(EMultiproxyMethodKind::Read, RPC_SERVICE_METHOD_DESC(GetTabletInfos));
+        registerMethod(EMultiproxyMethodKind::Read, RPC_SERVICE_METHOD_DESC(GetTabletErrors));
 
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(AdvanceConsumer));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(AdvanceQueueConsumer));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(PullQueue));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(PullConsumer));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(PullQueueConsumer));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(RegisterQueueConsumer));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(UnregisterQueueConsumer));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(ListQueueConsumerRegistrations));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(CreateQueueProducerSession));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(RemoveQueueProducerSession));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(PushQueueProducer));
+        registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(AdvanceConsumer));
+        registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(AdvanceQueueConsumer));
+        registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(PullQueue));
+        registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(PullConsumer));
+        registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(PullQueueConsumer));
+        registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(RegisterQueueConsumer));
+        registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(UnregisterQueueConsumer));
+        registerMethod(EMultiproxyMethodKind::Read, RPC_SERVICE_METHOD_DESC(ListQueueConsumerRegistrations));
+        registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(CreateQueueProducerSession));
+        registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(RemoveQueueProducerSession));
+        registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(PushQueueProducer));
 
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(ModifyRows));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(BatchModifyRows));
+        registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(ModifyRows));
+        registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(BatchModifyRows));
 
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(BuildSnapshot));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(ExitReadOnly));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(MasterExitReadOnly));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(DiscombobulateNonvotingPeers));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(GCCollect));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(SuspendCoordinator));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(ResumeCoordinator));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(MigrateReplicationCards));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(SuspendChaosCells));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(ResumeChaosCells));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(SuspendTabletCells));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(ResumeTabletCells));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(AddMaintenance));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(RemoveMaintenance));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(DisableChunkLocations));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(DestroyChunkLocations));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(ResurrectChunkLocations));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(RequestRestart));
+        registerMethod(EMultiproxyMethodKind::ExplicitlyDisabled, RPC_SERVICE_METHOD_DESC(BuildSnapshot));
+        registerMethod(EMultiproxyMethodKind::ExplicitlyDisabled, RPC_SERVICE_METHOD_DESC(ExitReadOnly));
+        registerMethod(EMultiproxyMethodKind::ExplicitlyDisabled, RPC_SERVICE_METHOD_DESC(MasterExitReadOnly));
+        registerMethod(EMultiproxyMethodKind::ExplicitlyDisabled, RPC_SERVICE_METHOD_DESC(DiscombobulateNonvotingPeers));
+        registerMethod(EMultiproxyMethodKind::ExplicitlyDisabled, RPC_SERVICE_METHOD_DESC(GCCollect));
+        registerMethod(EMultiproxyMethodKind::ExplicitlyDisabled, RPC_SERVICE_METHOD_DESC(SuspendCoordinator));
+        registerMethod(EMultiproxyMethodKind::ExplicitlyDisabled, RPC_SERVICE_METHOD_DESC(ResumeCoordinator));
+        registerMethod(EMultiproxyMethodKind::ExplicitlyDisabled, RPC_SERVICE_METHOD_DESC(MigrateReplicationCards));
+        registerMethod(EMultiproxyMethodKind::ExplicitlyDisabled, RPC_SERVICE_METHOD_DESC(SuspendChaosCells));
+        registerMethod(EMultiproxyMethodKind::ExplicitlyDisabled, RPC_SERVICE_METHOD_DESC(ResumeChaosCells));
+        registerMethod(EMultiproxyMethodKind::ExplicitlyDisabled, RPC_SERVICE_METHOD_DESC(SuspendTabletCells));
+        registerMethod(EMultiproxyMethodKind::ExplicitlyDisabled, RPC_SERVICE_METHOD_DESC(ResumeTabletCells));
+        registerMethod(EMultiproxyMethodKind::ExplicitlyDisabled, RPC_SERVICE_METHOD_DESC(AddMaintenance));
+        registerMethod(EMultiproxyMethodKind::ExplicitlyDisabled, RPC_SERVICE_METHOD_DESC(RemoveMaintenance));
+        registerMethod(EMultiproxyMethodKind::ExplicitlyDisabled, RPC_SERVICE_METHOD_DESC(DisableChunkLocations));
+        registerMethod(EMultiproxyMethodKind::ExplicitlyDisabled, RPC_SERVICE_METHOD_DESC(DestroyChunkLocations));
+        registerMethod(EMultiproxyMethodKind::ExplicitlyDisabled, RPC_SERVICE_METHOD_DESC(ResurrectChunkLocations));
+        registerMethod(EMultiproxyMethodKind::ExplicitlyDisabled, RPC_SERVICE_METHOD_DESC(RequestRestart));
 
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(CreateObject));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(GetTableMountInfo));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(GetTablePivotKeys));
+        registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(CreateObject));
+        registerMethod(EMultiproxyMethodKind::Read, RPC_SERVICE_METHOD_DESC(GetTableMountInfo));
+        registerMethod(EMultiproxyMethodKind::Read, RPC_SERVICE_METHOD_DESC(GetTablePivotKeys));
 
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(AddMember));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(RemoveMember));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(CheckPermission));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(CheckPermissionByAcl));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(TransferAccountResources));
+        registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(AddMember));
+        registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(RemoveMember));
+        registerMethod(EMultiproxyMethodKind::Read, RPC_SERVICE_METHOD_DESC(CheckPermission));
+        registerMethod(EMultiproxyMethodKind::Read, RPC_SERVICE_METHOD_DESC(CheckPermissionByAcl));
+        registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(TransferAccountResources));
 
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(ReadFile)
+        registerMethod(EMultiproxyMethodKind::Read, RPC_SERVICE_METHOD_DESC(ReadFile)
             .SetStreamingEnabled(true)
             .SetCancelable(true));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(WriteFile)
-            .SetStreamingEnabled(true)
-            .SetCancelable(true));
-
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(ReadJournal)
-            .SetStreamingEnabled(true)
-            .SetCancelable(true));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(WriteJournal)
-            .SetStreamingEnabled(true)
-            .SetCancelable(true));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(TruncateJournal));
-
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(ReadTable)
-            .SetStreamingEnabled(true)
-            .SetCancelable(true));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(WriteTable)
-            .SetStreamingEnabled(true)
-            .SetCancelable(true));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(GetColumnarStatistics));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(PartitionTables));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(ReadTablePartition)
+        registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(WriteFile)
             .SetStreamingEnabled(true)
             .SetCancelable(true));
 
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(GetFileFromCache));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(PutFileToCache));
-
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(GetPipelineSpec));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(SetPipelineSpec));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(GetPipelineDynamicSpec));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(SetPipelineDynamicSpec));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(StartPipeline));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(StopPipeline));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(PausePipeline));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(GetPipelineState));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(GetFlowView));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(FlowExecute));
-
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(StartQuery));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(AbortQuery));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(GetQueryResult));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(ReadQueryResult));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(GetQuery));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(ListQueries));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(AlterQuery));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(GetQueryTrackerInfo));
-
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(StartDistributedWriteSession)
+        registerMethod(EMultiproxyMethodKind::Read, RPC_SERVICE_METHOD_DESC(ReadJournal)
+            .SetStreamingEnabled(true)
             .SetCancelable(true));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(FinishDistributedWriteSession));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(WriteTableFragment)
+        registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(WriteJournal)
+            .SetStreamingEnabled(true)
+            .SetCancelable(true));
+        registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(TruncateJournal));
+
+        registerMethod(EMultiproxyMethodKind::Read, RPC_SERVICE_METHOD_DESC(ReadTable)
+            .SetStreamingEnabled(true)
+            .SetCancelable(true));
+        registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(WriteTable)
+            .SetStreamingEnabled(true)
+            .SetCancelable(true));
+        registerMethod(EMultiproxyMethodKind::Read, RPC_SERVICE_METHOD_DESC(GetColumnarStatistics));
+        registerMethod(EMultiproxyMethodKind::Read, RPC_SERVICE_METHOD_DESC(PartitionTables));
+        registerMethod(EMultiproxyMethodKind::Read, RPC_SERVICE_METHOD_DESC(ReadTablePartition)
             .SetStreamingEnabled(true)
             .SetCancelable(true));
 
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(StartShuffle));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(WriteShuffleData)
-            .SetStreamingEnabled(true)
+        registerMethod(EMultiproxyMethodKind::Read, RPC_SERVICE_METHOD_DESC(GetFileFromCache));
+        registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(PutFileToCache));
+
+        registerMethod(EMultiproxyMethodKind::Read, RPC_SERVICE_METHOD_DESC(GetPipelineSpec));
+        registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(SetPipelineSpec));
+        registerMethod(EMultiproxyMethodKind::Read, RPC_SERVICE_METHOD_DESC(GetPipelineDynamicSpec));
+        registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(SetPipelineDynamicSpec));
+        registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(StartPipeline));
+        registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(StopPipeline));
+        registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(PausePipeline));
+        registerMethod(EMultiproxyMethodKind::Read, RPC_SERVICE_METHOD_DESC(GetPipelineState));
+        registerMethod(EMultiproxyMethodKind::Read, RPC_SERVICE_METHOD_DESC(GetFlowView));
+        registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(FlowExecute));
+
+        registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(StartQuery));
+        registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(AbortQuery));
+        registerMethod(EMultiproxyMethodKind::Read, RPC_SERVICE_METHOD_DESC(GetQueryResult));
+        registerMethod(EMultiproxyMethodKind::Read, RPC_SERVICE_METHOD_DESC(ReadQueryResult));
+        registerMethod(EMultiproxyMethodKind::Read, RPC_SERVICE_METHOD_DESC(GetQuery));
+        registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(ListQueries));
+        registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(AlterQuery));
+        registerMethod(EMultiproxyMethodKind::Read, RPC_SERVICE_METHOD_DESC(GetQueryTrackerInfo));
+
+        registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(StartDistributedWriteSession)
             .SetCancelable(true));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(ReadShuffleData)
+        registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(FinishDistributedWriteSession));
+        registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(WriteTableFragment)
             .SetStreamingEnabled(true)
             .SetCancelable(true));
 
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(CheckClusterLiveness));
+        registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(StartShuffle));
+        registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(WriteShuffleData)
+            .SetStreamingEnabled(true)
+            .SetCancelable(true));
+        registerMethod(EMultiproxyMethodKind::Read, RPC_SERVICE_METHOD_DESC(ReadShuffleData)
+            .SetStreamingEnabled(true)
+            .SetCancelable(true));
+
+        registerMethod(EMultiproxyMethodKind::Read, RPC_SERVICE_METHOD_DESC(CheckClusterLiveness));
+
 
         DeclareServerFeature(ERpcProxyFeature::GetInSyncWithoutKeys);
         DeclareServerFeature(ERpcProxyFeature::WideLocks);
+        MultiproxyAccessValidator_ = CreateMultiproxyAccessValidator(std::move(methodList));
     }
 
     void OnDynamicConfigChanged(const TApiServiceDynamicConfigPtr& config) override
@@ -869,6 +885,7 @@ public:
         AuthenticatedClientCache_->Reconfigure(config->ClientCache);
 
         UserAccessValidator_->Reconfigure(config->UserAccessValidator);
+        MultiproxyAccessValidator_->Reconfigure(config->Multiproxy);
 
         Config_.Store(config);
     }
@@ -898,6 +915,8 @@ private:
     const IUserAccessValidatorPtr UserAccessValidator_;
 
     static const TStructuredLoggingMethodDynamicConfigPtr DefaultMethodConfig;
+
+    IMultiproxyAccessValidatorPtr MultiproxyAccessValidator_;
 
     TCounter SelectConsumeDataWeight_;
     TCounter SelectConsumeRowCount_;
@@ -2644,15 +2663,18 @@ private:
             options.ReplicaPath = request->replica_path();
         }
 
+        options.Force = request->force();
+
         context->SetRequestInfo("ReplicaId: %v, Enabled: %v, Mode: %v, Atomicity: %v, PreserveTimestamps: %v, "
-            "EnableReplicatedTableTracker: %v, ReplicaPath: %v",
+            "EnableReplicatedTableTracker: %v, ReplicaPath: %v, Force: %v",
             replicaId,
             options.Enabled,
             options.Mode,
             options.Atomicity,
             options.PreserveTimestamps,
             options.EnableReplicatedTableTracker,
-            options.ReplicaPath);
+            options.ReplicaPath,
+            options.Force);
 
         ExecuteCall(
             context,
@@ -4004,6 +4026,9 @@ private:
         }
         if (request->has_syntax_version()) {
             options.SyntaxVersion = request->syntax_version();
+        }
+        if (request->has_syntax_version()) {
+            options.ExpressionBuilderVersion = request->expression_builder_version();
         }
         if (request->has_execution_backend()) {
             options.ExecutionBackend = CheckedEnumCast<EExecutionBackend>(request->execution_backend());
@@ -6085,6 +6110,7 @@ private:
         options.EnableKeyGuarantee = request->enable_key_guarantee();
         options.EnableCookies = request->enable_cookies();
         options.UseNewSlicingImplementationInOrderedPool = request->use_new_slicing_implementation_in_ordered_pool();
+        options.UseNewSlicingImplementationInUnorderedPool = request->use_new_slicing_implementation_in_unordered_pool();
 
         if (request->has_transactional_options()) {
             FromProto(&options, request->transactional_options());

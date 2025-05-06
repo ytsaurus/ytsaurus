@@ -684,10 +684,6 @@ class TestVanillaOperationRevival(YTEnvSetup):
 
     DELTA_CONTROLLER_AGENT_CONFIG = {
         "controller_agent": {
-            "gang_manager": {
-                "enabled": True,
-            },
-
             "snapshot_period": 200,
         },
     }
@@ -943,14 +939,10 @@ class TestGangManager(YTEnvSetup):
 
     DELTA_CONTROLLER_AGENT_CONFIG = {
         "controller_agent": {
-            "gang_manager": {
-                "enabled": True,
-            },
-
             "snapshot_period": 1000,
 
             "user_job_monitoring": {
-                "max_monitored_user_jobs_per_operation": 5,
+                "extended_max_monitored_user_jobs_per_operation": 5,
                 "max_monitored_user_jobs_per_agent": 10,
             },
         },
@@ -1051,47 +1043,6 @@ class TestGangManager(YTEnvSetup):
         release_breakpoint()
 
         op.track()
-
-    @authors("pogorelov")
-    def test_restart_disabled_in_config(self):
-        update_controller_agent_config("vanilla_operation_options/gang_manager/enabled", False)
-
-        incarnation_switch_counter = _get_controller_profiler().counter("controller_agent/gang_operations/incarnation_switch_count")
-
-        aborted_job_profiler = JobCountProfiler(
-            "aborted",
-            tags={"tree": "default", "job_type": "vanilla"},
-        )
-        aborted_by_request_job_profiler = JobCountProfiler(
-            "aborted",
-            tags={"tree": "default", "job_type": "vanilla", "abort_reason": "user_request"},
-        )
-
-        op = run_test_vanilla(
-            with_breakpoint("BREAKPOINT"),
-            job_count=3,
-            task_patch={"gang_manager": {}},
-        )
-
-        job_ids = wait_breakpoint(job_count=3)
-
-        assert len(job_ids) == 3
-
-        first_job_id = job_ids[0]
-
-        print_debug("aborting job ", first_job_id)
-
-        abort_job(first_job_id)
-
-        wait(lambda: aborted_by_request_job_profiler.get_job_count_delta() == 1)
-
-        release_breakpoint()
-
-        op.wait_for_state("failed")
-
-        assert aborted_job_profiler.get_job_count_delta() == 3
-
-        assert incarnation_switch_counter.get_delta() == 0
 
     @authors("pogorelov")
     def test_restart_on_job_failure(self):
@@ -1896,6 +1847,52 @@ class TestGangManager(YTEnvSetup):
 
         op.track()
 
+    @authors("pogorelov")
+    def test_gang_operation_monitoring_descriptor_limit(self):
+        update_controller_agent_config(path="user_job_monitoring/extended_max_monitored_user_jobs_per_operation", value=1)
+
+        op = vanilla(
+            track=False,
+            spec={
+                "tasks": {
+                    "task": {
+                        "job_count": 3,  # More jobs than monitoring descriptors available
+                        "command": with_breakpoint("BREAKPOINT"),
+                        "gang_manager": {},
+                        "monitoring": {
+                            "enable": True
+                        }
+                    }
+                }
+            }
+        )
+
+        first_job_ids = wait_breakpoint(job_count=3)
+        assert len(first_job_ids) == 3
+
+        wait(lambda: "user_job_monitoring_limited" in op.get_alerts())
+
+        initial_incarnation = self._get_operation_incarnation(op)
+
+        abort_job(first_job_ids[1])
+
+        def check_incarnation_changed():
+            current_incarnation = self._get_operation_incarnation(op)
+            return current_incarnation != initial_incarnation
+
+        wait(check_incarnation_changed)
+
+        for job_id in first_job_ids:
+            release_breakpoint(job_id=job_id)
+
+        second_job_ids = wait_breakpoint(job_count=3)
+        assert len(set(first_job_ids) & set(second_job_ids)) == 0
+
+        release_breakpoint()
+
+        op.track()
+
+
 ##################################################################
 
 
@@ -1906,10 +1903,6 @@ class TestPatchVanillaSpecBase(YTEnvSetup):
 
     DELTA_CONTROLLER_AGENT_CONFIG = {
         "controller_agent": {
-            "gang_manager": {
-                "enabled": True,
-            },
-
             "snapshot_period": 1000,
         },
     }

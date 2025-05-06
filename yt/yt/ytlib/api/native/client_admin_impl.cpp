@@ -555,6 +555,7 @@ void TClient::DoSuspendCoordinator(
 
     auto req = proxy.SuspendCoordinator();
     SetMutationId(req, options);
+    req->SetTimeout(options.Timeout.value_or(Connection_->GetConfig()->DefaultChaosNodeServiceTimeout));
 
     WaitFor(req->Invoke())
         .ThrowOnError();
@@ -569,6 +570,7 @@ void TClient::DoResumeCoordinator(
 
     auto req = proxy.ResumeCoordinator();
     SetMutationId(req, options);
+    req->SetTimeout(options.Timeout.value_or(Connection_->GetConfig()->DefaultChaosNodeServiceTimeout));
 
     WaitFor(req->Invoke())
         .ThrowOnError();
@@ -599,6 +601,7 @@ void TClient::DoMigrateReplicationCards(
     SetMutationId(req, options);
     ToProto(req->mutable_migrate_to_cell_id(), destinationCellId);
     ToProto(req->mutable_replication_card_ids(), options.ReplicationCardIds);
+    req->SetTimeout(options.Timeout.value_or(Connection_->GetConfig()->DefaultChaosNodeServiceTimeout));
 
     WaitFor(req->Invoke())
         .ThrowOnError();
@@ -633,6 +636,7 @@ void TClient::DoSuspendChaosCells(
             ToProto(req->mutable_migrate_to_cell_id(), descriptor->CellId);
             req->set_migrate_all_replication_cards(true);
             req->set_suspend_chaos_cell(true);
+            req->SetTimeout(options.Timeout.value_or(Connection_->GetConfig()->DefaultChaosNodeServiceTimeout));
 
             futures.push_back(req->Invoke().AsVoid());
         }
@@ -644,6 +648,7 @@ void TClient::DoSuspendChaosCells(
 
             auto req = proxy.SuspendCoordinator();
             SetMutationId(req, options);
+            req->SetTimeout(options.Timeout.value_or(Connection_->GetConfig()->DefaultChaosNodeServiceTimeout));
 
             futures.push_back(req->Invoke().AsVoid());
         }
@@ -669,7 +674,7 @@ void TClient::DoResumeChaosCells(
             auto proxy = TChaosNodeServiceProxy(std::move(channel));
 
             auto req = proxy.ResumeChaosCell();
-            req->SetTimeout(options.Timeout);
+            req->SetTimeout(options.Timeout.value_or(Connection_->GetConfig()->DefaultChaosNodeServiceTimeout));
             futures.push_back(req->Invoke().AsVoid());
         }
 
@@ -680,6 +685,7 @@ void TClient::DoResumeChaosCells(
 
             auto req = proxy.ResumeCoordinator();
             SetMutationId(req, options);
+            req->SetTimeout(options.Timeout.value_or(Connection_->GetConfig()->DefaultChaosNodeServiceTimeout));
 
             futures.push_back(req->Invoke().AsVoid());
         }
@@ -703,7 +709,7 @@ void TClient::DoSuspendTabletCells(
         TTabletServiceProxy proxy(std::move(channel));
 
         auto req = proxy.SuspendTabletCell();
-        req->SetTimeout(options.Timeout);
+        req->SetTimeout(options.Timeout.value_or(Connection_->GetConfig()->DefaultChaosNodeServiceTimeout));
         futures.push_back(req->Invoke().AsVoid());
     }
 
@@ -725,7 +731,7 @@ void TClient::DoResumeTabletCells(
         TTabletServiceProxy proxy(std::move(channel));
 
         auto req = proxy.ResumeTabletCell();
-        req->SetTimeout(options.Timeout);
+        req->SetTimeout(options.Timeout.value_or(Connection_->GetConfig()->DefaultChaosNodeServiceTimeout));
         futures.push_back(req->Invoke().AsVoid());
     }
 

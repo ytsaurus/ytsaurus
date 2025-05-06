@@ -37,7 +37,7 @@ from yt.sequoia_tools import DESCRIPTORS
 from yt.test_helpers import wait, WaitFailed, get_work_path, get_build_root, get_tests_sandbox
 import yt.test_helpers.cleanup as test_cleanup
 
-from yt.common import YtResponseError, format_error, update_inplace
+from yt.common import YtResponseError, format_error, update_inplace as _update_inplace
 import yt.logger
 
 from yt_driver_bindings import reopen_logs
@@ -48,6 +48,7 @@ import yt.yson as yson
 import pytest
 
 import inspect
+import copy
 import gc
 import os
 import sys
@@ -62,6 +63,14 @@ from threading import Thread
 
 OUTPUT_PATH = None
 SANDBOX_ROOTDIR = None
+
+##################################################################
+
+
+# TODO(ignat): make original `update_inplace` safe (YT-24956).
+def update_inplace(object, patch):
+    return _update_inplace(object, copy.deepcopy(patch))
+
 
 ##################################################################
 
@@ -306,7 +315,7 @@ class YTEnvSetup(object):
     NUM_QUEUE_AGENTS = 0
     NUM_KAFKA_PROXIES = 0
     NUM_TABLET_BALANCERS = 0
-    NUM_CYPRESS_PROXIES = 0
+    NUM_CYPRESS_PROXIES = 1
     NUM_REPLICATED_TABLE_TRACKERS = 0
     ENABLE_RESOURCE_TRACKING = False
     ENABLE_TVM_ONLY_PROXIES = False
@@ -334,12 +343,8 @@ class YTEnvSetup(object):
     DELTA_CHAOS_NODE_CONFIG = {}
     DELTA_SCHEDULER_CONFIG = {}
     DELTA_CONTROLLER_AGENT_CONFIG = {}
+    # TODO(ignat): refactor it.
     _DEFAULT_DELTA_CONTROLLER_AGENT_CONFIG = {
-        "operation_options": {
-            "spec_template": {
-                "max_failed_job_count": 1,
-            }
-        },
         "controller_agent": {
             "enable_table_column_renaming": True,
             "map_operation_options": {
@@ -672,7 +677,10 @@ class YTEnvSetup(object):
             use_native_auth = has_tvm_service_support
 
         secondary_cell_count = 0 if cls._is_ground_cluster(index) else cls.get_param("NUM_SECONDARY_MASTER_CELLS", index)
-        cypress_proxy_count = 0 if cls._is_ground_cluster(index) or not cls.get_param("USE_SEQUOIA", index) else cls.get_param("NUM_CYPRESS_PROXIES", index)
+        cypress_proxy_count = 0 if cls._is_ground_cluster(index) else cls.get_param("NUM_CYPRESS_PROXIES", index)
+        if not cls.get_param("USE_SEQUOIA", index) and not cls._cypress_proxies_properly_supported():
+            cypress_proxy_count = 0
+
         clock_count = 0
         if cls.get_param("USE_SEQUOIA", index):
             if cls._is_ground_cluster(index):
@@ -893,6 +901,15 @@ class YTEnvSetup(object):
             raise
 
     @classmethod
+    def _cypress_proxies_properly_supported(cls):
+        # COMPAT(kvk1920)
+        for version, components in cls.ARTIFACT_COMPONENTS.items():
+            if ("master" in components or "cypress_proxy" in components) and version in ("23_2", "24_1", "24_2", "25_1"):
+                return False
+
+        return True
+
+    @classmethod
     def _setup_cluster_configuration(cls, index, clusters):
         cluster_name = cls.get_cluster_name(index)
 
@@ -973,9 +990,9 @@ class YTEnvSetup(object):
                 clusters[instance._cluster_name] = instance.get_cluster_configuration()["cluster_connection"]
 
             for cluster_index in range(cls.NUM_REMOTE_CLUSTERS + 1):
-                cls._setup_cluster_configuration(cluster_index, clusters)
                 if cls.USE_SEQUOIA:
                     cls._setup_cluster_configuration(cluster_index + cls.get_ground_index_offset(), clusters)
+                cls._setup_cluster_configuration(cluster_index, clusters)
 
         # TODO(babenko): wait for cluster sync
         if cls.remote_envs:
@@ -1068,7 +1085,7 @@ class YTEnvSetup(object):
         yt_commands.set(f"{unapproved_chunk_replicas_path}/@mount_config/min_data_ttl", 0, driver=ground_driver)
         yt_commands.set(f"{unapproved_chunk_replicas_path}/@mount_config/max_data_ttl", 5000, driver=ground_driver)
 
-        response_keeper_path = DESCRIPTORS.unapproved_chunk_replicas.get_default_path()
+        response_keeper_path = DESCRIPTORS.response_keeper.get_default_path()
         yt_commands.set(f"{response_keeper_path}/@mount_config/min_data_versions", 0, driver=ground_driver)
         yt_commands.set(f"{response_keeper_path}/@mount_config/max_data_versions", 1, driver=ground_driver)
         yt_commands.set(f"{response_keeper_path}/@mount_config/min_data_ttl", 0, driver=ground_driver)
@@ -1079,10 +1096,34 @@ class YTEnvSetup(object):
 
         for descriptor in DESCRIPTORS.as_dict().values():
             for table_path in get_table_paths(descriptor):
-                yt_commands.sync_mount_table(table_path, driver=ground_driver)
+                yt_commands.mount_table(table_path, driver=ground_driver)
+
+        for descriptor in DESCRIPTORS.as_dict().values():
+            for table_path in get_table_paths(descriptor):
+                yt_commands.wait_for_tablet_state(table_path, "mounted", driver=ground_driver)
 
     @classmethod
     def apply_node_dynamic_config_patches(cls, config, ytserver_version, cluster_index):
+        node_version = None
+        controller_agent_version = None
+
+        for version, components in cls.ARTIFACT_COMPONENTS.items():
+            if "node" in components:
+                node_version = version
+            if "controller-agent" in components:
+                controller_agent_version = version
+
+        resend_full_job_info = False
+        if (node_version or "25_2") <= "25_1":
+            resend_full_job_info = True
+
+        if (controller_agent_version or "25_2") <= "25_1":
+            resend_full_job_info = True
+
+        if resend_full_job_info:
+            yt_commands.print_debug("Resend full job info is enabled")
+            config["%true"]["exec_node"]["controller_agent_connector"]["resend_full_job_info"] = True
+
         delta_node_config = cls.get_param("DELTA_DYNAMIC_NODE_CONFIG", cluster_index)
 
         update_inplace(config, delta_node_config)
@@ -1223,7 +1264,6 @@ class YTEnvSetup(object):
             configs["cypress_proxy"][index] = cls.update_timestamp_provider_config(cluster_index, config)
             configs["cypress_proxy"][index] = cls.update_sequoia_connection_config(cluster_index, config)
             cls.modify_cypress_proxy_config(configs["cypress_proxy"][index])
-
             configs["multi"]["daemons"][f"cypress_proxy_{index}"]["config"] = configs["cypress_proxy"][index]
 
         for key, config in configs["driver"].items():
@@ -1398,6 +1438,7 @@ class YTEnvSetup(object):
                         attributes={
                             "value": {
                                 "enable_bulk_insert_for_everyone": self.ENABLE_BULK_INSERT,
+                                "enable_compression_dictionary_remote_copy": True,
                                 "testing_options": {
                                     "rootfs_test_layers": [
                                         "//layers/exec.tar.gz",
@@ -1452,7 +1493,6 @@ class YTEnvSetup(object):
         if not self.get_param("ENABLE_TMP_ROOTSTOCK", cluster_index) and \
                 self.get_param("USE_SEQUOIA", cluster_index) and \
                 not self._is_ground_cluster(cluster_index) and \
-                self.get_param("NUM_CYPRESS_PROXIES", cluster_index) > 0 and \
                 any("sequoia_node_host" in cell_descriptor["roles"]
                     for cell_descriptor in self.get_param(
                         "MASTER_CELL_DESCRIPTORS",
@@ -1960,18 +2000,10 @@ class YTEnvSetup(object):
             config, self.get_param("DELTA_DYNAMIC_MASTER_CONFIG", cluster_index)
         )
         config["multicell_manager"]["cell_descriptors"] = master_cell_descriptors
-        if self.Env.get_component_version("ytserver-master").abi >= (20, 4):
-            config["enable_descending_sort_order"] = True
-            config["enable_descending_sort_order_dynamic"] = True
-        if self.Env.get_component_version("ytserver-master").abi >= (22, 1):
-            config["enable_table_column_renaming"] = True
-        allow_dynamic_renames = \
-            self.Env.get_component_version("ytserver-master").abi >= (23, 1) and \
-            self.ENABLE_DYNAMIC_TABLE_COLUMN_RENAMES
-
-        if allow_dynamic_renames:
-            config["enable_dynamic_table_column_renaming"] = True
-
+        config["enable_descending_sort_order"] = True
+        config["enable_descending_sort_order_dynamic"] = True
+        config["enable_table_column_renaming"] = True
+        config["enable_dynamic_table_column_renaming"] = self.ENABLE_DYNAMIC_TABLE_COLUMN_RENAMES
         config["enable_static_table_drop_column"] = self.ENABLE_STATIC_DROP_COLUMN
         config["enable_dynamic_table_drop_column"] = self.ENABLE_DYNAMIC_DROP_COLUMN
         config["allow_everyone_create_secondary_indices"] = self.ENABLE_ALLOW_SECONDARY_INDICES

@@ -106,7 +106,9 @@ public:
             Report_.ArchiveFeatures(),
             Report_.Ttl(),
             Report_.OperationIncarnation(),
-            Report_.AllocationId().Underlying());
+            Report_.AllocationId().Underlying(),
+            Report_.ControllerStartTime(),
+            Report_.ControllerFinishTime());
     }
 
     TUnversionedOwningRow ToRow(int archiveVersion) const override
@@ -204,6 +206,12 @@ public:
         // COMPAT(aleksandr.gaev)
         if (archiveVersion >= 57 && Report_.Addresses()) {
             record.Addresses = ConvertToYsonString(*Report_.Addresses());
+        }
+
+        // COMPAT(bystrovserg)
+        if (archiveVersion >= 58) {
+            record.ControllerStartTime = Report_.ControllerStartTime();
+            record.ControllerFinishTime = Report_.ControllerFinishTime();
         }
 
         return FromRecord(record);

@@ -128,6 +128,8 @@ public:
     //! NB: This factor overrides the value of the column selectivity factor.
     DEFINE_BYVAL_RW_PROPERTY(std::optional<double>, BlockSelectivityFactor);
 
+    DEFINE_BYREF_RO_PROPERTY(std::optional<TChunkId>, CompressionDictionaryId);
+
 public:
     TInputChunk() = default;
     TInputChunk(TInputChunk&& other) = default;
@@ -162,10 +164,10 @@ public:
     //!      and use it alongisde `ColumnSelectivityFactor`.
     i64 GetDataWeight() const;
     //! Same as above, but for uncompressed data size.
-    //! Columnar factors are only considered for columnar formats, i.e. we approximate the uncompressed size of data that is needed to be read from disk.
+    //! Columnar factors are only considered for columnar formats, i.e. we approximate the uncompressed size of data that needs to be read from disk.
     i64 GetUncompressedDataSize() const;
-    //! Same as above, but for uncompressed data size.
-    //! Columnar factors are only considered for columnar formats, i.e. we approximate the compressed data size that is needed to be read from disk.
+    //! Same as above, but for compressed data size.
+    //! Columnar factors are only considered for columnar formats, i.e. we approximate the compressed size of data that needs to be read from disk.
     i64 GetCompressedDataSize() const;
 
     //! Returns the combined selectivity factor, which is used to propogate reductions based on external knowledge about the chunk slice referencing this input chunk.

@@ -20,6 +20,9 @@ add_library(tablet_balancer-dry_run-lib)
 target_compile_options(tablet_balancer-dry_run-lib PRIVATE
   -Wdeprecated-this-capture
   -Wimplicit-fallthrough
+  -Wparentheses
+  -Wno-logical-op-parentheses
+  -Wno-bitwise-op-parentheses
 )
 
 target_link_libraries(tablet_balancer-dry_run-lib PUBLIC
