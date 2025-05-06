@@ -899,7 +899,7 @@ i64 TChunkLocation::GetRequestedMemory() const
 
     i64 result = 0;
 
-    for (auto supplier : ProbePutBlocksRequests_) {
+    for (const auto& supplier : ProbePutBlocksRequests_) {
         if (!supplier->IsCanceled()) {
             result += supplier->GetMaxRequestedMemory();
         }
@@ -915,13 +915,13 @@ i64 TChunkLocation::GetRequestedQueueSize() const
     return ProbePutBlocksRequests_.size();
 }
 
-void TChunkLocation::PushProbePutBlocksRequestSupplier(TProbePutBlocksRequestSupplierPtr supplier)
+void TChunkLocation::PushProbePutBlocksRequestSupplier(const TProbePutBlocksRequestSupplierPtr& supplier)
 {
     auto guard = Guard(ProbePutBlocksRequestsLock_);
 
     if (!ContainsProbePutBlocksRequestSupplier(supplier)) {
         ProbePutBlocksRequests_.push_back(supplier);
-        EmplaceOrCrash(ProbePutBlocksSuppliers_, supplier->GetSessionId());
+        EmplaceOrCrash(ProbePutBlocksSessionIds_, supplier->GetSessionId());
     }
 
     DoCheckProbePutBlocksRequests();
@@ -932,11 +932,11 @@ void TChunkLocation::PushProbePutBlocksRequestSupplier(TProbePutBlocksRequestSup
     }
 }
 
-bool TChunkLocation::ContainsProbePutBlocksRequestSupplier(TProbePutBlocksRequestSupplierPtr supplier) const
+bool TChunkLocation::ContainsProbePutBlocksRequestSupplier(const TProbePutBlocksRequestSupplierPtr& supplier) const
 {
     YT_ASSERT_SPINLOCK_AFFINITY(ProbePutBlocksRequestsLock_);
 
-    return ProbePutBlocksSuppliers_.contains(supplier->GetSessionId());
+    return ProbePutBlocksSessionIds_.contains(supplier->GetSessionId());
 }
 
 void TChunkLocation::CheckProbePutBlocksRequests()
@@ -954,14 +954,14 @@ void TChunkLocation::DoCheckProbePutBlocksRequests()
         auto& supplier = *supplierIt;
         if (supplier->IsCanceled()) {
             ProbePutBlocksRequests_.erase(supplierIt);
-            EraseOrCrash(ProbePutBlocksSuppliers_, supplier->GetSessionId());
+            EraseOrCrash(ProbePutBlocksSessionIds_, supplier->GetSessionId());
             continue;
         }
 
-        auto request = supplier->GetMinRequest();
+        auto request = supplier->TryGetMinRequest();
         if (!request.has_value()) {
             ProbePutBlocksRequests_.erase(supplierIt);
-            EraseOrCrash(ProbePutBlocksSuppliers_, supplier->GetSessionId());
+            EraseOrCrash(ProbePutBlocksSessionIds_, supplier->GetSessionId());
             continue;
         }
 

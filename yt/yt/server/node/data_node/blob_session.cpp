@@ -561,7 +561,7 @@ TFuture<NIO::TIOCounters> TBlobSession::DoPutBlocks(
         }
     } else {
         THROW_ERROR_EXCEPTION_IF(ProbePutBlocksRequestSupplier_->GetCurrentApprovedMemory() < cumulativeBlockSize,
-            TError(NChunkClient::EErrorCode::WriteThrottlingActive, "Memory for PutBlocks have to be acquired in probe put blocks"));
+            TError(NChunkClient::EErrorCode::WriteThrottlingActive, "Memory for PutBlocks has to be acquired in probe put blocks"));
     }
 
     auto totalSize = GetByteSize(blocks);

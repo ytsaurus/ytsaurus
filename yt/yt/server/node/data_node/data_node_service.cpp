@@ -443,8 +443,8 @@ private:
             response->mutable_probe_put_blocks_state()->set_approved_cumulative_block_size(approvedCumulativeBlockSize);
 
             context->SetResponseInfo("SessionId: %v, CloseDemanded: %v, "
-                "Requested CumulativeBlockSize: %v, "
-                "Approved CumulativeBlockSize: %v",
+                "RequestedCumulativeBlockSize: %v, "
+                "ApprovedCumulativeBlockSize: %v",
                 sessionId,
                 closeDemanded,
                 maxRequestedCumulativeBlockSize,
