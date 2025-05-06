@@ -218,7 +218,6 @@ public:
         Resharder_ = CreateParameterizedResharder(
             bundleState->GetBundle(),
             bundleState->PerformanceCountersKeys(),
-            bundleState->GetPerformanceCountersTableSchema(),
             TParameterizedResharderConfig{
                 .EnableReshardByDefault = DynamicConfig_->EnableParameterizedReshardByDefault,
                 .Metric = DynamicConfig_->DefaultParameterizedMetric,

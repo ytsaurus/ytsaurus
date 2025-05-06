@@ -873,7 +873,6 @@ std::vector<TMoveDescriptor> ReassignOrdinaryTablets(
 std::vector<TMoveDescriptor> ReassignTabletsParameterized(
     const TTabletCellBundlePtr& bundle,
     const std::vector<TString>& performanceCountersKeys,
-    const TTableSchemaPtr& performanceCountersTableSchema,
     const TParameterizedReassignSolverConfig& config,
     const TGroupName& groupName,
     const TTableParameterizedMetricTrackerPtr& metricTracker,
@@ -882,7 +881,25 @@ std::vector<TMoveDescriptor> ReassignTabletsParameterized(
     auto solver = CreateParameterizedReassignSolver(
         bundle,
         performanceCountersKeys,
-        performanceCountersTableSchema,
+        config,
+        groupName,
+        metricTracker,
+        logger);
+
+    return solver->BuildActionDescriptors();
+}
+
+std::vector<TMoveDescriptor> ReassignTabletsReplica(
+    const TTabletCellBundlePtr& bundle,
+    const std::vector<TString>& performanceCountersKeys,
+    const TParameterizedReassignSolverConfig& config,
+    const TGroupName& groupName,
+    const TTableParameterizedMetricTrackerPtr& metricTracker,
+    const TLogger& logger)
+{
+    auto solver = CreateReplicaReassignSolver(
+        bundle,
+        performanceCountersKeys,
         config,
         groupName,
         metricTracker,

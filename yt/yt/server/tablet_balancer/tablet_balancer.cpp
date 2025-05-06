@@ -197,6 +197,10 @@ private:
         const TBundleStatePtr& bundleState,
         const TGroupName& groupName,
         const TTabletBalancingGroupConfigPtr& groupConfig);
+    void BalanceReplicasViaMoveParameterized(
+        const TBundleStatePtr& bundleState,
+        const TGroupName& groupName,
+        const TTabletBalancingGroupConfigPtr& groupConfig);
     void TryBalanceViaReshardParameterized(const TBundleStatePtr& bundleState, const TGroupName& groupName);
     void BalanceViaReshardParameterized(const TBundleStatePtr& bundleState, const TGroupName& groupName);
 
@@ -359,6 +363,7 @@ void TTabletBalancer::BalancerIteration()
     RemoveBundleErrorsByTtl(dynamicConfig->BundleErrorsTtl);
     ActionCountLimiter_ = TScheduledActionCountLimiter{
         .GroupLimit = dynamicConfig->MaxActionsPerGroup};
+    TableRegistry_->DropAllAlienTables();
 
     auto nodeList = FetchNodeStatistics();
     for (auto& [bundleName, bundle] : Bundles_) {
@@ -425,6 +430,25 @@ void TTabletBalancer::BalancerIteration()
         }
 
         RemoveRetryableErrorsOnSuccessfulIteration(bundleName);
+
+        bundle->SetLastReplicaMoveBalancingFetchFailed(false);
+        if (bundle->IsReplicaBalancingEnabled()) {
+            if (!dynamicConfig->UseStatisticsReporter) {
+                YT_LOG_ERROR("Cannot balance replicas when statistics reporter is not enabled");
+
+                SaveRetryableBundleError(bundleName, TError(
+                    NTabletBalancer::EErrorCode::StatisticsFetchFailed,
+                    "Replica statistics fetch failed. Please enable statistics reporter"));
+            } else if (auto result = WaitFor(bundle->FetchReplicaStatistics()); !result.IsOK()) {
+                bundle->SetLastReplicaMoveBalancingFetchFailed(true);
+                YT_LOG_ERROR(result, "Replica statistics fetch failed (BundleName: %v)", bundleName);
+
+                SaveRetryableBundleError(bundleName, TError(
+                    NTabletBalancer::EErrorCode::StatisticsFetchFailed,
+                    "Replica statistics fetch failed")
+                    << result);
+            }
+        }
 
         YT_LOG_INFO("Bundle balancing iteration started (BundleName: %v)", bundleName);
         BalanceBundle(bundle);
@@ -643,7 +667,9 @@ std::vector<TString> TTabletBalancer::UpdateBundleList()
                 name,
                 TableRegistry_,
                 Bootstrap_->GetClient(),
-                WorkerPool_->GetInvoker()));
+                Bootstrap_->GetClientDirectory(),
+                WorkerPool_->GetInvoker(),
+                Bootstrap_->GetClusterName()));
         it->second->UpdateBundleAttributes(&bundle->Attributes());
         it->second->SetHasUntrackedUnfinishedActions(
             HasUntrackedUnfinishedActions(it->second, &bundle->Attributes()));
@@ -804,6 +830,20 @@ void TTabletBalancer::BalanceViaMoveParameterized(
         DynamicConfig_.Acquire()));
 }
 
+void TTabletBalancer::BalanceReplicasViaMoveParameterized(
+    const TBundleStatePtr& bundleState,
+    const TGroupName& groupName,
+    const TTabletBalancingGroupConfigPtr& groupConfig)
+{
+    ExecuteMoveIteration(CreateReplicaMoveIteration(
+        groupName,
+        bundleState,
+        GetParameterizedMetricTracker({bundleState->GetBundle()->Name, groupName}),
+        groupConfig,
+        DynamicConfig_.Acquire(),
+        Bootstrap_->GetClusterName()));
+}
+
 void TTabletBalancer::BalanceViaReshardParameterized(const TBundleStatePtr& bundleState, const TGroupName& groupName)
 {
     ExecuteReshardIteration(CreateParameterizedReshardIteration(
@@ -818,7 +858,11 @@ void TTabletBalancer::TryBalanceViaMoveParameterized(const TBundleStatePtr& bund
     const auto& groupConfig = GetOrCrash(bundle->Config->Groups, groupName);
 
     try {
-        BalanceViaMoveParameterized(bundleState, groupName, groupConfig);
+        if (!groupConfig->Parameterized->ReplicaClusters.empty()) {
+            BalanceReplicasViaMoveParameterized(bundleState, groupName, groupConfig);
+        } else {
+            BalanceViaMoveParameterized(bundleState, groupName, groupConfig);
+        }
     } catch (const std::exception& ex) {
         YT_LOG_ERROR(ex,
             "Parameterized balancing via move failed with an exception "

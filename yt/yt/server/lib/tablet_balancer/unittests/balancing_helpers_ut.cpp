@@ -569,7 +569,6 @@ TEST_P(TTestReassignTabletsParameterized, ViaMemorySize)
     auto descriptors = ReassignTabletsParameterized(
         bundle,
         /*performanceCountersKeys*/ {},
-        /*performanceCountersTableSchema*/ nullptr,
         TParameterizedReassignSolverConfig{
             .MaxMoveActionCount = std::get<2>(params)
         }.MergeWith(GetOrCrash(bundle->Config->Groups, group)->Parameterized),
@@ -848,7 +847,6 @@ TEST_P(TTestReassignTabletsParameterizedErrors, BalancingError)
         ReassignTabletsParameterized(
             bundle,
             /*performanceCountersKeys*/ {},
-            /*performanceCountersTableSchema*/ nullptr,
             TParameterizedReassignSolverConfig{
                 .MaxMoveActionCount = 3
             }.MergeWith(GetOrCrash(bundle->Config->Groups, group)->Parameterized),
@@ -901,7 +899,6 @@ TEST_P(TTestReassignTabletsParameterizedByNodes, ManyNodesWithInMemoryTablets)
     auto descriptors = ReassignTabletsParameterized(
         bundle,
         /*performanceCountersKeys*/ {},
-        /*performanceCountersTableSchema*/ nullptr,
         TParameterizedReassignSolverConfig{
             .MaxMoveActionCount = std::get<2>(params)
         }.MergeWith(GetOrCrash(bundle->Config->Groups, group)->Parameterized),
@@ -1143,7 +1140,6 @@ TEST_P(TTestMergeSplitTabletsParameterized, ViaMemorySize)
     auto resharder = CreateParameterizedResharder(
         bundle,
         /*performanceCountersKeys*/ {},
-        /*performanceCountersTableSchema*/ nullptr,
         TParameterizedResharderConfig{}.MergeWith(GetOrCrash(bundle->Config->Groups, group)->Parameterized),
         group,
         Logger());
@@ -1344,7 +1340,6 @@ TEST_P(TTestMergeSplitTabletsParameterizedErrors, BalancingError)
     auto resharder = CreateParameterizedResharder(
         bundle,
         /*performanceCountersKeys*/ {},
-        /*performanceCountersTableSchema*/ nullptr,
         TParameterizedResharderConfig{}.MergeWith(GetOrCrash(bundle->Config->Groups, group)->Parameterized),
         group,
         Logger());

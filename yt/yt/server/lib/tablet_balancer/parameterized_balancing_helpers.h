@@ -89,16 +89,25 @@ void FormatValue(TStringBuilderBase* builder, const TParameterizedResharderConfi
 IParameterizedReassignSolverPtr CreateParameterizedReassignSolver(
     TTabletCellBundlePtr bundle,
     std::vector<TString> performanceCountersKeys,
-    NTableClient::TTableSchemaPtr performanceCountersTableSchema,
     TParameterizedReassignSolverConfig config,
     TString groupName,
+    TTableParameterizedMetricTrackerPtr metricTracker,
+    const NLogging::TLogger& logger);
+
+// Major tables are the tables on this cluster. Minor tables are their sibling replicas.
+// This algorithm balances major tables with parameterized moves based on the sum
+// of the loads of each major table and its associated minor tables.
+IParameterizedReassignSolverPtr CreateReplicaReassignSolver(
+    TTabletCellBundlePtr bundle,
+    std::vector<TString> performanceCountersKeys,
+    TParameterizedReassignSolverConfig config,
+    TGroupName groupName,
     TTableParameterizedMetricTrackerPtr metricTracker,
     const NLogging::TLogger& logger);
 
 IParameterizedResharderPtr CreateParameterizedResharder(
     TTabletCellBundlePtr bundle,
     std::vector<TString> performanceCountersKeys,
-    NTableClient::TTableSchemaPtr performanceCountersTableSchema,
     TParameterizedResharderConfig config,
     TString groupName,
     const NLogging::TLogger& logger);

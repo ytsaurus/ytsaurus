@@ -2130,7 +2130,7 @@ class YTEnvSetup(object):
                 config,
                 driver=driver)
 
-            instances = yt_commands.ls("//sys/tablet_balancer/instances")
+            instances = yt_commands.ls("//sys/tablet_balancer/instances", driver=driver)
 
             self._wait_for_dynamic_config("//sys/tablet_balancer/instances", config, instances, driver=driver)
 
