@@ -283,6 +283,11 @@ public:
         YT_UNIMPLEMENTED();
     }
 
+    NSequoiaClient::ISequoiaClientPtr CreateSequoiaClient() override
+    {
+        YT_UNIMPLEMENTED();
+    }
+
     std::vector<std::string> GetDiscoveryServerAddresses() const override
     {
         YT_UNIMPLEMENTED();

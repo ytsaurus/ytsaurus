@@ -78,6 +78,8 @@
 #include <yt/yt/ytlib/transaction_client/config.h>
 #include <yt/yt/ytlib/transaction_client/clock_manager.h>
 
+#include <yt/yt/ytlib/sequoia_client/client.h>
+
 #include <yt/yt/client/tablet_client/table_mount_cache.h>
 
 #include <yt/yt/client/api/sticky_transaction_pool.h>
@@ -761,6 +763,15 @@ public:
         return NNative::CreateClient(this, options, MemoryTracker_);
     }
 
+    NSequoiaClient::ISequoiaClientPtr CreateSequoiaClient() override
+    {
+        auto nativeClient = CreateNativeClient(
+            TClientOptions::FromUser(NSecurityClient::RootUserName));
+        return NSequoiaClient::CreateSequoiaClient(
+            Config_.Acquire()->SequoiaConnection,
+            nativeClient);
+    }
+
     NHiveClient::ITransactionParticipantPtr CreateTransactionParticipant(
         TCellId cellId,
         const TTransactionParticipantOptions& options) override
@@ -965,9 +976,9 @@ private:
     ICellDirectoryPtr CellDirectory_;
     ICellDirectorySynchronizerPtr CellDirectorySynchronizer_;
     IChaosCellDirectorySynchronizerPtr ChaosCellDirectorySynchronizer_;
-    TDownedCellTrackerPtr DownedCellTracker_;
+    const TDownedCellTrackerPtr DownedCellTracker_;
 
-    INodeMemoryTrackerPtr MemoryTracker_;
+    const INodeMemoryTrackerPtr MemoryTracker_;
 
     TClusterDirectoryPtr ClusterDirectory_;
     TWeakPtr<TClusterDirectory> ClusterDirectoryOverride_;
