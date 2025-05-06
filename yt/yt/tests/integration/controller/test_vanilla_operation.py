@@ -38,6 +38,82 @@ def _get_job_tracker_orchid_path(op):
     return f"//sys/controller_agents/instances/{controller_agent_address}/orchid/controller_agent/job_tracker"
 
 
+class TestSidecarVanilla(YTEnvSetup):
+    ENABLE_MULTIDAEMON = False  # There are component restarts.
+    NUM_TEST_PARTITIONS = 3
+
+    NUM_MASTERS = 1
+    NUM_NODES = 1
+    NUM_SCHEDULERS = 1
+
+    JOB_ENVIRONMENT_TYPE = "cri"
+
+    DELTA_CONTROLLER_AGENT_CONFIG = {
+        "controller_agent": {
+            "snapshot_period": 200,
+        }
+    }
+
+    @authors("pavel-bash")
+    def test_sidecars(self):
+        master_command = " ; ".join(
+            [
+                events_on_fs().notify_event_cmd("master_job_started_${YT_JOB_COOKIE}"),
+                events_on_fs().wait_event_cmd("finish"),
+            ]
+        )
+        sidecar_command = " ; ".join(
+            [
+                events_on_fs().notify_event_cmd("sidecar_job_started"),
+                events_on_fs().wait_event_cmd("finish"),
+            ]
+        )
+
+        op = vanilla(
+            track=False,
+            spec={
+                "tasks": {
+                    "master": {
+                        "job_count": 1,
+                        "command": master_command,
+                        "docker_image": "alpine:latest",
+                        "sidecars": {
+                            "sidecar1": {
+                                "job_count": 1,
+                                "command": sidecar_command,
+                                "docker_image": "alpine:latest",
+                            }
+                        }
+                    },
+                },
+            },
+        )
+
+        wait(lambda: len(get(op.get_path() + "/@progress/tasks")) == 1, ignore_exceptions=True)
+
+        # Ensure that all three jobs have started.
+        events_on_fs().wait_event("master_job_started_0", timeout=datetime.timedelta(1000))
+        events_on_fs().wait_event("sidecar_job_started", timeout=datetime.timedelta(1000))
+
+        events_on_fs().notify_event("finish")
+
+        op.track()
+
+        data_flow_graph_path = op.get_path() + "/@progress/data_flow_graph"
+        get(data_flow_graph_path)
+        assert get(data_flow_graph_path + "/vertices/master/job_type") == "vanilla"
+        assert get(data_flow_graph_path + "/vertices/master/job_counter/completed/total") == 1
+
+        tasks = {}
+        for task in get(op.get_path() + "/@progress/tasks"):
+            tasks[task["task_name"]] = task
+
+        assert tasks["master"]["job_type"] == "vanilla"
+        assert tasks["master"]["job_counter"]["completed"]["total"] == 1
+
+        assert get(op.get_path() + "/@progress/total_job_counter/completed/total") == 1
+
+
 class TestSchedulerVanillaCommands(YTEnvSetup):
     ENABLE_MULTIDAEMON = False  # There are component restarts.
     NUM_TEST_PARTITIONS = 3

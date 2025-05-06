@@ -987,7 +987,11 @@ TJobResult TJobProxy::RunJob()
             }
         }
 
+        YT_LOG_INFO("STARTING SIDECARS");
+
         environment->StartSidecars(jobSpecExt);
+
+        YT_LOG_INFO("STARTED SIDECARS");
 
         HeartbeatExecutor_ = New<TPeriodicExecutor>(
             JobThread_->GetInvoker(),
