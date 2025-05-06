@@ -7,18 +7,16 @@ namespace NSQLComplete {
         class TClusterDiscovery: public IClusterDiscovery {
         public:
             explicit TClusterDiscovery(TVector<TString> instances)
-                : Instances_(std::move(instances))
+                : ClusterList_(std::move(instances))
             {
             }
 
-            NThreading::TFuture<TClusterCatalog> Query() const override {
-                return NThreading::MakeFuture(TClusterCatalog{
-                    .Instances = Instances_,
-                });
+            NThreading::TFuture<TClusterList> Query() const override {
+                return NThreading::MakeFuture(ClusterList_);
             }
 
         private:
-            TVector<TString> Instances_;
+            TVector<TString> ClusterList_;
         };
 
     } // namespace

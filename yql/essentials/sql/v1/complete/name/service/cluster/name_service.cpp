@@ -10,32 +10,32 @@ namespace NSQLComplete {
         private:
             static auto FilterByName(TString name) {
                 return [name = std::move(name)](auto f) {
-                    TClusterCatalog catalog = f.ExtractValue();
-                    EraseIf(catalog.Instances, [prefix = ToLowerUTF8(name)](const TString& instance) {
+                    TClusterList clusters = f.ExtractValue();
+                    EraseIf(clusters, [prefix = ToLowerUTF8(name)](const TString& instance) {
                         return !instance.StartsWith(prefix);
                     });
-                    return catalog;
+                    return clusters;
                 };
             }
 
             static auto Crop(size_t limit) {
                 return [limit](auto f) {
-                    TClusterCatalog catalog = f.ExtractValue();
-                    catalog.Instances.crop(limit);
-                    return catalog;
+                    TClusterList clusters = f.ExtractValue();
+                    clusters.crop(limit);
+                    return clusters;
                 };
             }
 
             static auto ToResponse(TNameConstraints constraints) {
                 return [constraints = std::move(constraints)](auto f) {
-                    TClusterCatalog catalog = f.ExtractValue();
+                    TClusterList clusters = f.ExtractValue();
 
                     TNameResponse response;
-                    response.RankedNames.reserve(catalog.Instances.size());
+                    response.RankedNames.reserve(clusters.size());
 
-                    for (auto& instance : catalog.Instances) {
+                    for (auto& cluster : clusters) {
                         TClusterName name;
-                        name.Indentifier = std::move(instance);
+                        name.Indentifier = std::move(cluster);
                         response.RankedNames.emplace_back(std::move(name));
                     }
 
