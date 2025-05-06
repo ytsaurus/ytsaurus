@@ -75,8 +75,12 @@ public:
     }
 
     #define XX(name, args) \
-        if (auto groundClient = GetGroundClient()) { \
-            return Do ## name args; \
+        if (GroundClientReadyPromise_.IsSet()) { \
+            try { \
+                return Do ## name args; \
+            } catch (const std::exception& ex) { \
+                return MakeFuture<decltype(Do ## name args)::TValueType>(TError(ex)); \
+            } \
         } \
         return GroundClientReadyPromise_ \
             .ToFuture() \
@@ -151,6 +155,11 @@ private:
             groundClient->GetNativeConnection()->GetLoggingTag());
     }
 
+    NYPath::TYPath GetSequoiaTablePath(const TSequoiaTablePathDescriptor& tablePathDescriptor)
+    {
+        return NSequoiaClient::GetSequoiaTablePath(NativeClient_, tablePathDescriptor);
+    }
+
     TFuture<TUnversionedLookupRowsResult> DoLookupRows(
         ESequoiaTable table,
         TSharedRange<NTableClient::TLegacyKey> keys,
@@ -164,10 +173,10 @@ private:
 
         const auto* tableDescriptor = ITableDescriptor::Get(table);
         TSequoiaTablePathDescriptor tablePathDescriptor{
-            .Table = table
+            .Table = table,
         };
         return GetGroundClient()->LookupRows(
-            GetSequoiaTablePath(NativeClient_, tablePathDescriptor),
+            GetSequoiaTablePath(tablePathDescriptor),
             tableDescriptor->GetRecordDescriptor()->GetNameTable(),
             std::move(keys),
             options)
@@ -191,7 +200,7 @@ private:
         NTransactionClient::TTimestamp timestamp)
     {
         TQueryBuilder builder;
-        builder.SetSource(GetSequoiaTablePath(NativeClient_, descriptor));
+        builder.SetSource(GetSequoiaTablePath(descriptor));
         builder.AddSelectExpression("*");
         for (const auto& whereConjunct : query.WhereConjuncts) {
             builder.AddWhereConjunct(whereConjunct);
@@ -224,7 +233,7 @@ private:
         i64 trimmedRowCount)
     {
         return GetGroundClient()->TrimTable(
-            GetSequoiaTablePath(NativeClient_, descriptor),
+            GetSequoiaTablePath(descriptor),
             tabletIndex,
             trimmedRowCount);
     }
