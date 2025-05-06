@@ -688,7 +688,8 @@ protected:
     void HandleChunkReaderStatistics(const NProto::TChunkReaderStatistics& protoChunkReaderStatistics)
     {
         UpdateFromProto(&SessionOptions_.ChunkReaderStatistics, protoChunkReaderStatistics);
-        TotalBytesReadFromDisk_ += protoChunkReaderStatistics.data_bytes_read_from_disk();
+        TotalBytesReadFromDisk_ += protoChunkReaderStatistics.data_bytes_read_from_disk() +
+            protoChunkReaderStatistics.meta_bytes_read_from_disk();
     }
 
     void AccountExtraMediumBandwidth(i64 throttledBytes)

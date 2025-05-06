@@ -1472,7 +1472,8 @@ private:
     void HandleChunkReaderStatistics(const NProto::TChunkReaderStatistics& protoChunkReaderStatistics)
     {
         UpdateFromProto(&Options_.ChunkReaderStatistics, protoChunkReaderStatistics);
-        TotalBytesReadFromDisk_ += protoChunkReaderStatistics.data_bytes_read_from_disk();
+        TotalBytesReadFromDisk_ += protoChunkReaderStatistics.data_bytes_read_from_disk() +
+            protoChunkReaderStatistics.meta_bytes_read_from_disk();
     }
 
     i64 GetDataByteSize(const TReqGetChunkFragmentSetPtr& request) const
