@@ -48,7 +48,7 @@ class TestCypressCookieAuth(YTEnvSetup):
     def _get_proxy_address(self):
         return "http://" + self.Env.get_proxy_address()
 
-    def _check_login_page(self, rsp, check_generic_msg = False):
+    def _check_login_page(self, rsp, check_generic_msg=False):
         assert rsp.status_code == 401
         print_debug(rsp.content)
         assert rsp.headers["WWW-Authenticate"] == "Basic"
