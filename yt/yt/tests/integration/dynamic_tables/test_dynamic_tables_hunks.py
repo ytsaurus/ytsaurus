@@ -1,7 +1,5 @@
 from .test_sorted_dynamic_tables import TestSortedDynamicTablesBase
 
-from yt_helpers import profiler_factory
-
 from yt_commands import (
     authors, wait, create, exists, get, set, ls, insert_rows, remove, select_rows,
     lookup_rows, delete_rows, remount_table, build_master_snapshots,
@@ -962,23 +960,27 @@ class TestSortedDynamicTablesHunks(TestSortedDynamicTablesBase):
         set("//tmp/t/@enable_hunk_columnar_profiling", True)
         sync_mount_table("//tmp/t")
 
+        chunk_data_weight = self._init_tablet_sensor(
+            "//tmp/t",
+            "chunk_writer/data_weight",
+            tags={"method": "store_flush"})
+        hunk_chunk_data_weight = self._init_tablet_sensor(
+            "//tmp/t",
+            "chunk_writer/hunks/data_weight",
+            tags={"method": "store_flush"})
+
+        inline_hunk_value_count = self._init_tablet_sensor(
+            "//tmp/t",
+            "chunk_writer/hunks/inline_value_count",
+            tags={"column": "value", "method": "store_flush"})
+        ref_hunk_value_count = self._init_tablet_sensor(
+            "//tmp/t",
+            "chunk_writer/hunks/ref_value_count",
+            tags={"column": "value", "method": "store_flush"})
+
         rows1 = [{"key": i, "value": "value" + str(i) + "x" * 20} for i in range(5)]
         rows2 = [{"key": i, "value": "value" + str(i)} for i in range(5, 15)]
         insert_rows("//tmp/t", rows1 + rows2)
-
-        chunk_data_weight = profiler_factory().at_tablet_node("//tmp/t").counter(
-            name="chunk_writer/data_weight",
-            tags={"method": "store_flush"})
-        hunk_chunk_data_weight = profiler_factory().at_tablet_node("//tmp/t").counter(
-            name="chunk_writer/hunks/data_weight",
-            tags={"method": "store_flush"})
-
-        inline_hunk_value_count = profiler_factory().at_tablet_node("//tmp/t").counter(
-            name="chunk_writer/hunks/inline_value_count",
-            tags={"column": "value", "method": "store_flush"})
-        ref_hunk_value_count = profiler_factory().at_tablet_node("//tmp/t").counter(
-            name="chunk_writer/hunks/ref_value_count",
-            tags={"column": "value", "method": "store_flush"})
 
         sync_flush_table("//tmp/t")
 
@@ -995,37 +997,45 @@ class TestSortedDynamicTablesHunks(TestSortedDynamicTablesBase):
         set("//tmp/t/@enable_hunk_columnar_profiling", True)
         sync_mount_table("//tmp/t")
 
+        reader_hunk_chunk_transmitted = self._init_tablet_sensor(
+            "//tmp/t",
+            "chunk_reader/hunks/chunk_reader_statistics/data_bytes_transmitted",
+            tags={"method": "compaction"})
+        reader_hunk_chunk_data_weight = self._init_tablet_sensor(
+            "//tmp/t",
+            "chunk_reader/hunks/data_weight",
+            tags={"method": "compaction"})
+
+        reader_inline_hunk_value_count = self._init_tablet_sensor(
+            "//tmp/t",
+            "chunk_reader/hunks/inline_value_count",
+            tags={"column": "value"})
+        reader_ref_hunk_value_count = self._init_tablet_sensor(
+            "//tmp/t",
+            "chunk_reader/hunks/ref_value_count",
+            tags={"column": "value"})
+
+        writer_chunk_data_weight = self._init_tablet_sensor(
+            "//tmp/t",
+            "chunk_writer/data_weight",
+            tags={"method": "compaction"})
+        writer_hunk_chunk_data_weight = self._init_tablet_sensor(
+            "//tmp/t",
+            "chunk_writer/hunks/data_weight",
+            tags={"method": "compaction"})
+
+        writer_inline_hunk_value_count = self._init_tablet_sensor(
+            "//tmp/t",
+            "chunk_writer/hunks/inline_value_count",
+            tags={"column": "value", "method": "compaction"})
+        writer_ref_hunk_value_count = self._init_tablet_sensor(
+            "//tmp/t",
+            "chunk_writer/hunks/ref_value_count",
+            tags={"column": "value", "method": "compaction"})
+
         rows1 = [{"key": i, "value": "value" + str(i) + "x" * 20} for i in range(5)]
         rows2 = [{"key": i, "value": "value" + str(i)} for i in range(5, 15)]
         insert_rows("//tmp/t", rows1 + rows2)
-
-        reader_hunk_chunk_transmitted = profiler_factory().at_tablet_node("//tmp/t").counter(
-            name="chunk_reader/hunks/chunk_reader_statistics/data_bytes_transmitted",
-            tags={"method": "compaction"})
-        reader_hunk_chunk_data_weight = profiler_factory().at_tablet_node("//tmp/t").counter(
-            name="chunk_reader/hunks/data_weight",
-            tags={"method": "compaction"})
-
-        reader_inline_hunk_value_count = profiler_factory().at_tablet_node("//tmp/t").counter(
-            name="chunk_reader/hunks/inline_value_count",
-            tags={"column": "value"})
-        reader_ref_hunk_value_count = profiler_factory().at_tablet_node("//tmp/t").counter(
-            name="chunk_reader/hunks/ref_value_count",
-            tags={"column": "value"})
-
-        writer_chunk_data_weight = profiler_factory().at_tablet_node("//tmp/t").counter(
-            name="chunk_writer/data_weight",
-            tags={"method": "compaction"})
-        writer_hunk_chunk_data_weight = profiler_factory().at_tablet_node("//tmp/t").counter(
-            name="chunk_writer/hunks/data_weight",
-            tags={"method": "compaction"})
-
-        writer_inline_hunk_value_count = profiler_factory().at_tablet_node("//tmp/t").counter(
-            name="chunk_writer/hunks/inline_value_count",
-            tags={"column": "value", "method": "compaction"})
-        writer_ref_hunk_value_count = profiler_factory().at_tablet_node("//tmp/t").counter(
-            name="chunk_writer/hunks/ref_value_count",
-            tags={"column": "value", "method": "compaction"})
 
         sync_unmount_table("//tmp/t")
         alter_table("//tmp/t", schema=self._get_table_schema(schema=self.SCHEMA, max_inline_hunk_size=30))
@@ -1052,32 +1062,39 @@ class TestSortedDynamicTablesHunks(TestSortedDynamicTablesBase):
         set("//tmp/t/@enable_hunk_columnar_profiling", True)
         sync_mount_table("//tmp/t")
 
+        hunk_chunk_transmitted = self._init_tablet_sensor(
+            "//tmp/t",
+            "lookup/hunks/chunk_reader_statistics/data_bytes_transmitted")
+        hunk_chunk_data_weight = self._init_tablet_sensor(
+            "//tmp/t",
+            "lookup/hunks/data_weight")
+
+        inline_hunk_value_count = self._init_tablet_sensor(
+            "//tmp/t",
+            "lookup/hunks/inline_value_count")
+        ref_hunk_value_count = self._init_tablet_sensor(
+            "//tmp/t",
+            "lookup/hunks/ref_value_count")
+
+        columnar_inline_hunk_value_count = self._init_tablet_sensor(
+            "//tmp/t",
+            "lookup/hunks/inline_value_count",
+            tags={"column": "value"})
+        columnar_ref_hunk_value_count = self._init_tablet_sensor(
+            "//tmp/t",
+            "lookup/hunks/ref_value_count",
+            tags={"column": "value"})
+
+        backend_read_request_count = self._init_tablet_sensor(
+            "//tmp/t",
+            "lookup/hunks/backend_read_request_count")
+
         keys1 = [{"key": i} for i in range(10)]
         rows1 = [{"key": i, "value": "value" + str(i) + "x" * 20} for i in range(5)]
         keys2 = [{"key": i} for i in range(10, 20)]
         rows2 = [{"key": i, "value": "value" + str(i)} for i in range(5, 15)]
         insert_rows("//tmp/t", rows1 + rows2)
         sync_flush_table("//tmp/t")
-
-        hunk_chunk_transmitted = profiler_factory().at_tablet_node("//tmp/t").counter(
-            name="lookup/hunks/chunk_reader_statistics/data_bytes_transmitted")
-        hunk_chunk_data_weight = profiler_factory().at_tablet_node("//tmp/t").counter(
-            name="lookup/hunks/data_weight")
-
-        inline_hunk_value_count = profiler_factory().at_tablet_node("//tmp/t").counter(
-            name="lookup/hunks/inline_value_count")
-        ref_hunk_value_count = profiler_factory().at_tablet_node("//tmp/t").counter(
-            name="lookup/hunks/ref_value_count")
-
-        columnar_inline_hunk_value_count = profiler_factory().at_tablet_node("//tmp/t").counter(
-            name="lookup/hunks/inline_value_count",
-            tags={"column": "value"})
-        columnar_ref_hunk_value_count = profiler_factory().at_tablet_node("//tmp/t").counter(
-            name="lookup/hunks/ref_value_count",
-            tags={"column": "value"})
-
-        backend_read_request_count = profiler_factory().at_tablet_node("//tmp/t").counter(
-            name="lookup/hunks/backend_read_request_count")
 
         assert_items_equal(lookup_rows("//tmp/t", keys1 + keys2), rows1 + rows2)
 
@@ -1105,16 +1122,20 @@ class TestSortedDynamicTablesHunks(TestSortedDynamicTablesBase):
         insert_rows("//tmp/t", rows1 + rows2)
         sync_flush_table("//tmp/t")
 
-        hunk_chunk_transmitted = profiler_factory().at_tablet_node("//tmp/t").counter(
-            name="select/hunks/chunk_reader_statistics/data_bytes_transmitted")
-        hunk_chunk_data_weight = profiler_factory().at_tablet_node("//tmp/t").counter(
-            name="select/hunks/data_weight")
+        hunk_chunk_transmitted = self._init_tablet_sensor(
+            "//tmp/t",
+            "select/hunks/chunk_reader_statistics/data_bytes_transmitted")
+        hunk_chunk_data_weight = self._init_tablet_sensor(
+            "//tmp/t",
+            "select/hunks/data_weight")
 
-        inline_hunk_value_count = profiler_factory().at_tablet_node("//tmp/t").counter(
-            name="select/hunks/inline_value_count",
+        inline_hunk_value_count = self._init_tablet_sensor(
+            "//tmp/t",
+            "select/hunks/inline_value_count",
             tags={"column": "value"})
-        ref_hunk_value_count = profiler_factory().at_tablet_node("//tmp/t").counter(
-            name="select/hunks/ref_value_count",
+        ref_hunk_value_count = self._init_tablet_sensor(
+            "//tmp/t",
+            "select/hunks/ref_value_count",
             tags={"column": "value"})
 
         assert_items_equal(select_rows("* from [//tmp/t]"), rows1 + rows2)
@@ -1253,8 +1274,9 @@ class TestSortedDynamicTablesHunks(TestSortedDynamicTablesBase):
         insert_rows("//tmp/t", rows)
         sync_flush_table("//tmp/t")
 
-        request_counter = profiler_factory().at_tablet_node("//tmp/t").counter(
-            name="hunks/hedging_manager/primary_request_count")
+        request_counter = self._init_tablet_sensor(
+            "//tmp/t",
+            "hunks/hedging_manager/primary_request_count")
 
         assert_items_equal(lookup_rows("//tmp/t", keys), rows)
 
