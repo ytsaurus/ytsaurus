@@ -605,8 +605,6 @@ void TJobProxy::SpawnSidecars()
 
 void TJobProxy::DoRun()
 {
-    JobProxyEnvironment_.Acquire()->StartSidecars();
-
     LastMemoryMeasureTime_ = Now();
     auto startTime = Now();
     auto resultOrError = WaitFor(BIND(&TJobProxy::RunJob, MakeStrong(this))
@@ -849,7 +847,7 @@ TJobResult TJobProxy::RunJob()
 
         SolomonExporter_ = New<TSolomonExporter>(Config_->SolomonExporter);
 
-        auto environment = CreateJobProxyEnvironment(Config_->JobEnvironment, JobSpecHelper_->GetJobSpecExt());
+        auto environment = CreateJobProxyEnvironment(Config_->JobEnvironment);
         SetJobProxyEnvironment(environment);
 
         LocalDescriptor_ = NNodeTrackerClient::TNodeDescriptor(Config_->Addresses, Config_->LocalHostName, Config_->Rack, Config_->DataCenter);
@@ -988,6 +986,8 @@ TJobResult TJobProxy::RunJob()
                 environment->SetCpuPolicy("idle");
             }
         }
+
+        environment->StartSidecars(jobSpecExt);
 
         HeartbeatExecutor_ = New<TPeriodicExecutor>(
             JobThread_->GetInvoker(),

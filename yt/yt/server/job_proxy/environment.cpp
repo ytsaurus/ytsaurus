@@ -648,7 +648,7 @@ public:
             PortoExecutor_);
     }
 
-    void StartSidecars() override
+    void StartSidecars(const NControllerAgent::NProto::TJobSpecExt& /*jobSpecExt*/) override
     { }
 
     void KillSidecars() override
@@ -879,7 +879,7 @@ public:
         return New<TSimpleUserJobEnvironment>();
     }
 
-    void StartSidecars() override
+    void StartSidecars(const NControllerAgent::NProto::TJobSpecExt& /*jobSpecExt*/) override
     { }
 
     void KillSidecars() override
@@ -1096,8 +1096,7 @@ class TCriJobProxyEnvironment
 {
 public:
     explicit TCriJobProxyEnvironment(
-        TCriJobEnvironmentConfigPtr config,
-        const NControllerAgent::NProto::TJobSpecExt& jobSpecExt)
+        TCriJobEnvironmentConfigPtr config)
         : Config_(std::move(config))
         , Executor_(CreateCriExecutor(Config_->CriExecutor))
         , ImageCache_(NContainers::NCri::CreateCriImageCache(Config_->CriImageCache, Executor_))
@@ -1113,25 +1112,7 @@ public:
                 Config_->PodSpecCpusetCpus
             })
         }
-    {
-        if (jobSpecExt.has_user_job_spec()) {
-            for (const auto& [name, sidecar]: jobSpecExt.user_job_spec().sidecars()) {
-                auto sidecarPtr = New<NScheduler::TSidecarJobSpec>();
-                sidecarPtr->Command = sidecar.command();
-                if (sidecar.has_cpu_limit()) {
-                    sidecarPtr->CpuLimit = sidecar.cpu_limit();
-                }
-                if (sidecar.has_memory_limit()) {
-                    sidecarPtr->MemoryLimit = sidecar.memory_limit();
-                }
-                if (sidecar.has_docker_image()) {
-                    sidecarPtr->DockerImage = sidecar.docker_image();
-                }
-                sidecarPtr->RestartPolicy = ConvertTo<NScheduler::ESidecarRestartPolicy>(sidecar.restart_policy());
-                Sidecars_[name] = std::move(sidecarPtr);
-            }
-        }
-    }
+    { }
 
     void SetCpuGuarantee(double /*value*/) override
     {
@@ -1224,8 +1205,28 @@ public:
         return New<TCriUserJobEnvironment>(this);
     }
 
-    void StartSidecars() override
+    void StartSidecars(const NControllerAgent::NProto::TJobSpecExt& jobSpecExt) override
     {
+        if (!jobSpecExt.has_user_job_spec()) {
+            return;
+        }
+
+        for (const auto& [name, sidecar]: jobSpecExt.user_job_spec().sidecars()) {
+            auto sidecarPtr = New<NScheduler::TSidecarJobSpec>();
+            sidecarPtr->Command = sidecar.command();
+            if (sidecar.has_cpu_limit()) {
+                sidecarPtr->CpuLimit = sidecar.cpu_limit();
+            }
+            if (sidecar.has_memory_limit()) {
+                sidecarPtr->MemoryLimit = sidecar.memory_limit();
+            }
+            if (sidecar.has_docker_image()) {
+                sidecarPtr->DockerImage = sidecar.docker_image();
+            }
+            sidecarPtr->RestartPolicy = ConvertTo<NScheduler::ESidecarRestartPolicy>(sidecar.restart_policy());
+            Sidecars_[name] = std::move(sidecarPtr);
+        }
+
         for (const auto& [name, sidecar]: Sidecars_) {
             auto spec = New<NCri::TCriContainerSpec>();
 
@@ -1288,8 +1289,7 @@ DEFINE_REFCOUNTED_TYPE(TCriJobProxyEnvironment)
 ////////////////////////////////////////////////////////////////////////////////
 
 IJobProxyEnvironmentPtr CreateJobProxyEnvironment(
-    TJobEnvironmentConfig config,
-    const NControllerAgent::NProto::TJobSpecExt& jobSpecExt)
+    TJobEnvironmentConfig config)
 {
     switch (config.GetCurrentType()) {
 #ifdef _linux_
@@ -1305,8 +1305,7 @@ IJobProxyEnvironmentPtr CreateJobProxyEnvironment(
 
         case EJobEnvironmentType::Cri:
             return New<TCriJobProxyEnvironment>(
-                config.TryGetConcrete<TCriJobEnvironmentConfig>(),
-                jobSpecExt);
+                config.TryGetConcrete<TCriJobEnvironmentConfig>());
 
         default:
             THROW_ERROR_EXCEPTION("Unable to create resource controller for %Qlv environment",

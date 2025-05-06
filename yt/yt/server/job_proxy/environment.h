@@ -191,7 +191,7 @@ struct IJobProxyEnvironment
 
     virtual bool UseExecFromLayer() const = 0;
 
-    virtual void StartSidecars() = 0;
+    virtual void StartSidecars(const NControllerAgent::NProto::TJobSpecExt& jobSpecExt) = 0;
     virtual void KillSidecars() = 0;
 };
 
@@ -200,8 +200,7 @@ DEFINE_REFCOUNTED_TYPE(IJobProxyEnvironment)
 ////////////////////////////////////////////////////////////////////////////////
 
 IJobProxyEnvironmentPtr CreateJobProxyEnvironment(
-    TJobEnvironmentConfig config,
-    const NControllerAgent::NProto::TJobSpecExt& jobSpecExt);
+    TJobEnvironmentConfig config);
 
 ////////////////////////////////////////////////////////////////////////////////
 
