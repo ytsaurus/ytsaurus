@@ -2527,7 +2527,9 @@ static std::vector<TString> MakeJobArchiveAttributes(const THashSet<TString>& at
         } else if (attribute == "state") {
             result.emplace_back("state");
             result.emplace_back("transient_state");
-            result.emplace_back("controller_state");
+            if (DoesArchiveContainAttribute("controller_state", archiveVersion)) {
+                result.emplace_back("controller_state");
+            }
         } else if (attribute == "statistics") {
             result.emplace_back("statistics");
             result.emplace_back("statistics_lz4");
@@ -2535,7 +2537,10 @@ static std::vector<TString> MakeJobArchiveAttributes(const THashSet<TString>& at
             // COMPAT(bystrovserg): Remove after dropping "controller_state" from supported attributes.
             result.emplace_back("controller_state");
         } else if (attribute == "start_time" || attribute == "finish_time") {
-            result.emplace_back("controller_" + attribute);
+            auto controllerAttribute = "controller_" + attribute;
+            if (DoesArchiveContainAttribute(controllerAttribute, archiveVersion)) {
+                result.emplace_back(controllerAttribute);
+            }
             result.emplace_back(attribute);
         } else if (attribute == "progress" || attribute == "pool") {
             // Progress and pool are missing from job archive.
