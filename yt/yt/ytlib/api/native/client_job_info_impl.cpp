@@ -1726,7 +1726,7 @@ static void AddSelectExpressions(
                         FinishedJobStatesString),
                     "job_state");
             } else {
-                builder->AddSelectExpression("state", "job_state");
+                builder->AddSelectExpression("node_state", "job_state");
             }
         } else if (attribute == "controller_state" && attributes.contains("state")) {
             // COMPAT(bystrovserg): Remove after dropping "controller_state" from supported attributes.
