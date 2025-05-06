@@ -954,7 +954,6 @@ class TestDataApiSingleCluster(TestDataApiBase):
     DELTA_QUEUE_AGENT_DYNAMIC_CONFIG = {
         "cypress_synchronizer": {
             "policy": "watching",
-            "poll_replicated_objects": True,
             "write_replicated_table_mapping": True,
         },
         "queue_agent": {
@@ -1161,7 +1160,6 @@ class TestDataApiMultiCluster(TestDataApiBase):
             # List of clusters for the watching policy.
             "clusters": ["primary", "remote_0"],
             "pass_period": 100,
-            "poll_replicated_objects": True,
             "write_replicated_table_mapping": True,
         },
         "queue_agent": {

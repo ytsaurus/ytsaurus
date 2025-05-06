@@ -2403,7 +2403,6 @@ class TestMultiClusterReplicatedTableObjectsBase(TestQueueAgentBase, ReplicatedO
         "cypress_synchronizer": {
             "policy": "watching",
             "clusters": ["primary", "remote_0", "remote_1"],
-            "poll_replicated_objects": True,
             "write_replicated_table_mapping": True,
         },
         "queue_agent": {
@@ -2804,7 +2803,6 @@ class TestReplicatedTableObjects(TestQueueAgentBase, ReplicatedObjectBase):
     DELTA_QUEUE_AGENT_DYNAMIC_CONFIG = {
         "cypress_synchronizer": {
             "policy": "watching",
-            "poll_replicated_objects": True,
             "write_replicated_table_mapping": True,
         },
         "queue_agent": {
@@ -2886,11 +2884,10 @@ class TestReplicatedTableObjects(TestQueueAgentBase, ReplicatedObjectBase):
         chaos_replicated_consumer_replica_ids, consumer_replication_card_id = self._create_chaos_replicated_table_base(
             chaos_replicated_consumer,
             chaos_replicated_consumer_replicas,
-            init_queue_agent_state.CONSUMER_OBJECT_TABLE_SCHEMA)
-
-        # Register queues and consumers for cypress synchronizer to see them.
-        register_queue_consumer(replicated_queue, replicated_consumer, vital=False)
-        register_queue_consumer(chaos_replicated_queue, chaos_replicated_consumer, vital=False)
+            init_queue_agent_state.CONSUMER_OBJECT_TABLE_SCHEMA,
+            replicated_table_attributes={
+                "treat_as_queue_consumer": True,
+            })
 
         self._wait_for_component_passes()
 
@@ -2924,8 +2921,7 @@ class TestReplicatedTableObjects(TestQueueAgentBase, ReplicatedObjectBase):
                 "replicas": dict(zip(replica_ids, replicas))
             }}
 
-        replicated_table_mapping = list(select_rows("* from [//sys/queue_agents/replicated_table_mapping]"))
-        assert {r["path"]: r["meta"] for r in replicated_table_mapping} == {
+        expected_meta = {
             replicated_queue: build_rt_meta(replicated_queue_replica_ids, replicated_queue_replicas),
             replicated_consumer: build_rt_meta(replicated_consumer_replica_ids, replicated_consumer_replicas),
             chaos_replicated_queue: build_crt_meta(queue_replication_card_id, [], []),
@@ -2935,7 +2931,61 @@ class TestReplicatedTableObjects(TestQueueAgentBase, ReplicatedObjectBase):
                 chaos_replicated_consumer_replicas),
         }
 
-        unregister_queue_consumer(chaos_replicated_queue, chaos_replicated_consumer)
+        def get_replicated_table_mapping():
+            return list(select_rows("* from [//sys/queue_agents/replicated_table_mapping]"))
+
+        initial_replicated_table_mapping = get_replicated_table_mapping()
+        rebuilding_checked = False
+
+        for i in range(2):
+            if i == 1:
+                initial_row_keys = [
+                    {
+                        "cluster": r["cluster"],
+                        "path": r["path"],
+                    }
+                    for r in initial_replicated_table_mapping
+                ]
+
+                fake_row_key = {
+                    "cluster": "primary",  # Must be valid or row would be ignored
+                    "path": "//some/non-existent/path",
+                }
+                fake_row = initial_replicated_table_mapping[0]
+                fake_row.update(fake_row_key)
+
+                # Delete state to check replicated table mapping rebuilding
+
+                # NB(apachee): Deletion might fail due to concurrent writes
+                # NB(apachee): Verify deletion as predicate result to ensure test correctness
+                def try_delete_rows():
+                    delete_rows("//sys/queue_agents/replicated_table_mapping", initial_row_keys)
+                    replicated_table_mapping_row_count = len(get_replicated_table_mapping())
+
+                    print_debug(f"{replicated_table_mapping_row_count=}")
+                    return replicated_table_mapping_row_count == 0
+
+                wait(try_delete_rows, ignore_exceptions=True)
+
+                # Add fake row to check it is removed by cypress synchronizer
+
+                def try_insert_fake_row():
+                    insert_rows("//sys/queue_agents/replicated_table_mapping", [fake_row])
+
+                    return fake_row in get_replicated_table_mapping()
+
+                wait(try_insert_fake_row, ignore_exceptions=True)
+
+                cypress_synchronizer_orchid.wait_fresh_pass()
+
+                rebuilding_checked = True
+
+            actual_meta = {r["path"]: r["meta"] for r in get_replicated_table_mapping()}
+
+            assert actual_meta == expected_meta, f"diff is {self._calculate_diff(actual_meta, expected_meta)}"
+
+        assert rebuilding_checked
+
         remove(chaos_replicated_consumer)
         remove(chaos_replicated_queue)
 
@@ -4841,7 +4891,6 @@ class TestMultiClusterReplicatedTableObjectsTrimWithExports(TestMultiClusterRepl
         "cypress_synchronizer": {
             "policy": "watching",
             "clusters": ["primary", "remote_0", "remote_1"],
-            "poll_replicated_objects": True,
             "write_replicated_table_mapping": True,
         },
         "queue_agent": {
