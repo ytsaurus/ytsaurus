@@ -1028,6 +1028,17 @@ class GpuCheckBase(object):
             attributes={"replication_factor": 1},
         )
 
+    def setup_gpu_check_options_for_separate_volume(self):
+        update_controller_agent_config(
+            "operation_options/gpu_check",
+            {
+                "use_separate_root_volume": True,
+                "layer_paths": ["//tmp/gpu_check/0", "//tmp/gpu_base_layer"],
+                "binary_path": "/gpu_check/gpu_check_success",
+                "binary_args": [],
+            }
+        )
+
     def init_operations_archive(self):
         sync_create_cells(1)
         init_operations_archive.create_tables_latest_version(
@@ -1105,7 +1116,7 @@ class TestGpuCheck(YTEnvSetup, GpuCheckBase):
 
         self.setup_tables()
 
-        update_controller_agent_config("map_operation_options/gpu_check/use_separate_root_volume", False)
+        update_controller_agent_config("operation_options/gpu_check/use_separate_root_volume", False)
 
         write_table("//tmp/t_in", [{"k": 0}])
         op = map(
@@ -1134,27 +1145,9 @@ class TestGpuCheck(YTEnvSetup, GpuCheckBase):
     @pytest.mark.timeout(180)
     def test_gpu_check_with_separate_volume(self):
         self.setup_gpu_layer_and_reset_nodes(prepare_gpu_base_layer=True)
+        self.setup_gpu_check_options_for_separate_volume()
         self.setup_tables()
         self.init_operations_archive()
-
-        # TODO(ignat): it doesn't work since default values in subconfigs has higher priority than patch in operation_options.
-        # update_controller_agent_config(
-        #     "operation_options/gpu_check",
-        #     {
-        #         "use_separate_root_volume": True,
-        #         "layer_paths": ["//tmp/gpu_check/0", "//tmp/gpu_base_layer"],
-        #         "binary_path": "/gpu_check/gpu_check_success",
-        #     }
-        # )
-        update_controller_agent_config(
-            "map_operation_options/gpu_check",
-            {
-                "use_separate_root_volume": True,
-                "layer_paths": ["//tmp/gpu_check/0", "//tmp/gpu_base_layer"],
-                "binary_path": "/gpu_check/gpu_check_success",
-                "binary_args": [],
-            }
-        )
 
         write_table("//tmp/t_in", [{"k": 0}])
         op = map(
@@ -1188,17 +1181,8 @@ class TestGpuCheck(YTEnvSetup, GpuCheckBase):
     @pytest.mark.timeout(180)
     def test_gpu_check_vanilla_with_separate_volume(self):
         self.setup_gpu_layer_and_reset_nodes(prepare_gpu_base_layer=True)
+        self.setup_gpu_check_options_for_separate_volume()
         self.init_operations_archive()
-
-        update_controller_agent_config(
-            "vanilla_operation_options/gpu_check",
-            {
-                "use_separate_root_volume": True,
-                "layer_paths": ["//tmp/gpu_check/0", "//tmp/gpu_base_layer"],
-                "binary_path": "/gpu_check/gpu_check_success",
-                "binary_args": [],
-            }
-        )
 
         task_spec = {
             "command": 'echo "$YT_OPERATION_ID $YT_JOB_ID $YT_TASK_NAME $YT_JOB_COUNT $YT_TASK_JOB_COUNT" >&2',
@@ -1258,7 +1242,7 @@ class TestGpuCheck(YTEnvSetup, GpuCheckBase):
         })
 
         update_controller_agent_config(
-            "map_operation_options/gpu_check",
+            "operation_options/gpu_check",
             {
                 "use_separate_root_volume": True,
                 "layer_paths": ["//tmp/gpu_check/0", "//tmp/gpu_base_layer"],
@@ -1294,18 +1278,9 @@ class TestGpuCheck(YTEnvSetup, GpuCheckBase):
     @pytest.mark.timeout(180)
     def test_gpu_check_success_with_failed_job_with_separate_volume(self):
         self.setup_gpu_layer_and_reset_nodes(prepare_gpu_base_layer=True)
+        self.setup_gpu_check_options_for_separate_volume()
         self.setup_tables()
         self.init_operations_archive()
-
-        update_controller_agent_config(
-            "map_operation_options/gpu_check",
-            {
-                "use_separate_root_volume": True,
-                "layer_paths": ["//tmp/gpu_check/0", "//tmp/gpu_base_layer"],
-                "binary_path": "/gpu_check/gpu_check_success",
-                "binary_args": [],
-            }
-        )
 
         write_table("//tmp/t_in", [{"k": 0}])
         op = map(
