@@ -486,8 +486,8 @@ public:
 
             DynamicConfigManager_->SubscribeConfigChanged(BIND_NO_PROPAGATE([
                 healthChecker = HealthChecker_, healthCheckerConfig] (const NClusterNode::TClusterNodeDynamicConfigPtr& /*oldConfig*/,
-                    const NClusterNode::TClusterNodeDynamicConfigPtr& newConfig) {
-                    healthChecker->OnConfigChanged(healthCheckerConfig->ApplyDynamic(*newConfig->ExecNode->VolumeManager->DiskHealthChecker));
+                        const NClusterNode::TClusterNodeDynamicConfigPtr& newConfig) {
+                        healthChecker->Reconfigure(healthCheckerConfig->ApplyDynamic(*newConfig->ExecNode->VolumeManager->DiskHealthChecker));
                 }));
         }
     }

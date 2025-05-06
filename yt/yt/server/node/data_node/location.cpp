@@ -550,7 +550,7 @@ void TChunkLocation::Reconfigure(TChunkLocationConfigPtr config)
 
     UpdateIOWeightEvaluator(config->IOWeightFormula);
 
-    HealthChecker_->OnConfigChanged(config->DiskHealthChecker);
+    HealthChecker_->Reconfigure(config->DiskHealthChecker);
 
     TDiskLocation::Reconfigure(config);
 
