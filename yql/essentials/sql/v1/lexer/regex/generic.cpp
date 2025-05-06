@@ -26,7 +26,7 @@ namespace NSQLTranslationV1 {
         {
         }
 
-        virtual void Tokenize(
+        virtual bool Tokenize(
             TStringBuf text,
             const TTokenCallback& onNext,
             size_t maxErrors) const override {
@@ -38,7 +38,7 @@ namespace NSQLTranslationV1 {
                 pos += Utf8BOM.size();
             }
 
-            while (pos < text.size()) {
+            while (pos < text.size() && errors < maxErrors) {
                 TGenericToken matched = Match(TStringBuf(text, pos));
                 matched.Begin = pos;
 
@@ -46,12 +46,13 @@ namespace NSQLTranslationV1 {
 
                 if (matched.Name == TGenericToken::Error) {
                     errors += 1;
-                    if (errors == maxErrors) {
-                        break;
-                    }
                 }
 
                 onNext(std::move(matched));
+            }
+
+            if (errors == maxErrors) {
+                return false;
             }
 
             onNext(TGenericToken{
@@ -59,6 +60,8 @@ namespace NSQLTranslationV1 {
                 .Content = "<EOF>",
                 .Begin = pos,
             });
+
+            return errors == 0;
         }
 
     private:

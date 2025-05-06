@@ -77,8 +77,8 @@ namespace NSQLHighlight {
         {
         }
 
-        void Tokenize(TStringBuf text, const TTokenCallback& onNext) const override {
-            Lexer_->Tokenize(text, [&](NSQLTranslationV1::TGenericToken&& token) {
+        bool Tokenize(TStringBuf text, const TTokenCallback& onNext, size_t maxErrors) const override {
+            const auto onNextToken = [&](NSQLTranslationV1::TGenericToken&& token) {
                 if (token.Name == "EOF") {
                     return;
                 }
@@ -88,7 +88,9 @@ namespace NSQLHighlight {
                     .Begin = token.Begin,
                     .Length = token.Content.size(),
                 });
-            });
+            };
+
+            return Lexer_->Tokenize(text, onNextToken, maxErrors);
         }
 
     private:
@@ -105,8 +107,8 @@ namespace NSQLHighlight {
         {
         }
 
-        void Tokenize(TStringBuf text, const TTokenCallback& onNext) const override {
-            Alt(text).Tokenize(text, onNext);
+        bool Tokenize(TStringBuf text, const TTokenCallback& onNext, size_t maxErrors) const override {
+            return Alt(text).Tokenize(text, onNext, maxErrors);
         }
 
     private:

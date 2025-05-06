@@ -4,6 +4,7 @@
 #include <util/generic/string.h>
 #include <util/generic/vector.h>
 #include <util/generic/maybe.h>
+#include <util/generic/ylimits.h>
 
 #include <functional>
 
@@ -22,10 +23,10 @@ namespace NSQLTranslationV1 {
         using TPtr = TIntrusivePtr<IGenericLexer>;
         using TTokenCallback = std::function<void(TGenericToken&& token)>;
 
-        static constexpr size_t MaxErrorsLimit = std::numeric_limits<size_t>::max();
+        static constexpr size_t MaxErrorsLimit = Max<size_t>();
 
         virtual ~IGenericLexer() = default;
-        virtual void Tokenize(
+        virtual bool Tokenize(
             TStringBuf text,
             const TTokenCallback& onNext,
             size_t maxErrors = IGenericLexer::MaxErrorsLimit) const = 0;

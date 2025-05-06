@@ -3,6 +3,7 @@
 #include "sql_highlight.h"
 
 #include <util/generic/ptr.h>
+#include <util/generic/ylimits.h>
 
 #include <functional>
 
@@ -17,10 +18,13 @@ namespace NSQLHighlight {
     class IHighlighter: public TThrRefBase {
     public:
         using TPtr = TIntrusivePtr<IHighlighter>;
-        using TTokenCallback = std::function<void(TToken&& token)>; // TODO: return bool to intr
+        using TTokenCallback = std::function<void(TToken&& token)>;
 
         virtual ~IHighlighter() = default;
-        virtual void Tokenize(TStringBuf text, const TTokenCallback& onNext) const = 0; // TODO: return false if failed
+        virtual bool Tokenize(
+            TStringBuf text,
+            const TTokenCallback& onNext,
+            size_t maxErrors = Max<size_t>()) const = 0;
     };
 
     TVector<TToken> Tokenize(IHighlighter& highlighter, TStringBuf text);
