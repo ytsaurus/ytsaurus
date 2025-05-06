@@ -145,7 +145,8 @@ protected:
 
         auto dataSlice = BuildDataSliceByChunk(chunk);
         ActiveChunks_.insert(chunk->GetChunkId());
-        OriginalChunks_.at(chunk->GetTableIndex()).push_back(chunk->GetChunkId());
+        YT_VERIFY(chunk->GetTableIndex() < std::ssize(OriginalChunks_) );
+        OriginalChunks_[chunk->GetTableIndex()].push_back(chunk->GetChunkId());
         return ChunkPool_->Add(New<TChunkStripe>(dataSlice));
     }
 
@@ -214,7 +215,7 @@ protected:
             if (entry.IsTeleportChunk()) {
                 continue;
             }
-            stripeLists.emplace_back(ChunkPool_->GetStripeList(entry.GetCookie()));
+            stripeLists.push_back(ChunkPool_->GetStripeList(entry.GetCookie()));
         }
         return stripeLists;
     }
