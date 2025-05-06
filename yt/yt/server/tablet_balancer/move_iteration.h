@@ -53,6 +53,14 @@ IMoveIterationPtr CreateParameterizedMoveIteration(
     TTabletBalancingGroupConfigPtr groupConfig,
     TTabletBalancerDynamicConfigPtr dynamicConfig);
 
+IMoveIterationPtr CreateReplicaMoveIteration(
+    TString groupName,
+    TBundleStatePtr bundleState,
+    TTableParameterizedMetricTrackerPtr metricTracker,
+    TTabletBalancingGroupConfigPtr groupConfig,
+    TTabletBalancerDynamicConfigPtr dynamicConfig,
+    std::string selfClusterName);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NTabletBalancer
