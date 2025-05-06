@@ -25,7 +25,7 @@
 
 // vtbl?_u8 are marked unavailable for iOS arm64 with Xcode < 6.3, use
 // non-standard versions there.
-#if defined(__APPLE__) && defined(__aarch64__) && \
+#if defined(__APPLE__) && WEBP_AARCH64 && \
     defined(__apple_build_version__) && (__apple_build_version__< 6020037)
 #define USE_VTBLQ
 #endif
@@ -72,8 +72,9 @@ static void SubtractGreenFromBlueAndRed_NEON(uint32_t* argb_data,
 //------------------------------------------------------------------------------
 // Color Transform
 
-static void TransformColor_NEON(const VP8LMultipliers* const m,
-                                uint32_t* argb_data, int num_pixels) {
+static void TransformColor_NEON(const VP8LMultipliers* WEBP_RESTRICT const m,
+                                uint32_t* WEBP_RESTRICT argb_data,
+                                int num_pixels) {
   // sign-extended multiplying constants, pre-shifted by 6.
 #define CST(X)  (((int16_t)(m->X << 8)) >> 6)
   const int16_t rb[8] = {

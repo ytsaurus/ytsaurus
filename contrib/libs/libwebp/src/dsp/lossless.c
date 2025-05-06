@@ -49,7 +49,7 @@ static WEBP_INLINE uint32_t Clip255(uint32_t a) {
 }
 
 static WEBP_INLINE int AddSubtractComponentFull(int a, int b, int c) {
-  return Clip255(a + b - c);
+  return Clip255((uint32_t)(a + b - c));
 }
 
 static WEBP_INLINE uint32_t ClampedAddSubtractFull(uint32_t c0, uint32_t c1,
@@ -66,7 +66,7 @@ static WEBP_INLINE uint32_t ClampedAddSubtractFull(uint32_t c0, uint32_t c1,
 }
 
 static WEBP_INLINE int AddSubtractComponentHalf(int a, int b) {
-  return Clip255(a + (a - b) / 2);
+  return Clip255((uint32_t)(a + (a - b) / 2));
 }
 
 static WEBP_INLINE uint32_t ClampedAddSubtractHalf(uint32_t c0, uint32_t c1,
@@ -107,14 +107,14 @@ static WEBP_INLINE uint32_t Select(uint32_t a, uint32_t b, uint32_t c) {
 //------------------------------------------------------------------------------
 // Predictors
 
-uint32_t VP8LPredictor0_C(const uint32_t* const left,
-                          const uint32_t* const top) {
+static uint32_t VP8LPredictor0_C(const uint32_t* const left,
+                                 const uint32_t* const top) {
   (void)top;
   (void)left;
   return ARGB_BLACK;
 }
-uint32_t VP8LPredictor1_C(const uint32_t* const left,
-                          const uint32_t* const top) {
+static uint32_t VP8LPredictor1_C(const uint32_t* const left,
+                                 const uint32_t* const top) {
   (void)top;
   return *left;
 }
@@ -182,13 +182,13 @@ uint32_t VP8LPredictor13_C(const uint32_t* const left,
 }
 
 static void PredictorAdd0_C(const uint32_t* in, const uint32_t* upper,
-                            int num_pixels, uint32_t* out) {
+                            int num_pixels, uint32_t* WEBP_RESTRICT out) {
   int x;
   (void)upper;
   for (x = 0; x < num_pixels; ++x) out[x] = VP8LAddPixels(in[x], ARGB_BLACK);
 }
 static void PredictorAdd1_C(const uint32_t* in, const uint32_t* upper,
-                            int num_pixels, uint32_t* out) {
+                            int num_pixels, uint32_t* WEBP_RESTRICT out) {
   int i;
   uint32_t left = out[-1];
   (void)upper;
@@ -293,10 +293,10 @@ void VP8LTransformColorInverse_C(const VP8LMultipliers* const m,
     const uint32_t red = argb >> 16;
     int new_red = red & 0xff;
     int new_blue = argb & 0xff;
-    new_red += ColorTransformDelta(m->green_to_red_, green);
+    new_red += ColorTransformDelta((int8_t)m->green_to_red_, green);
     new_red &= 0xff;
-    new_blue += ColorTransformDelta(m->green_to_blue_, green);
-    new_blue += ColorTransformDelta(m->red_to_blue_, (int8_t)new_red);
+    new_blue += ColorTransformDelta((int8_t)m->green_to_blue_, green);
+    new_blue += ColorTransformDelta((int8_t)m->red_to_blue_, (int8_t)new_red);
     new_blue &= 0xff;
     dst[i] = (argb & 0xff00ff00u) | (new_red << 16) | (new_blue);
   }
@@ -395,7 +395,7 @@ void VP8LInverseTransform(const VP8LTransform* const transform,
   assert(row_start < row_end);
   assert(row_end <= transform->ysize_);
   switch (transform->type_) {
-    case SUBTRACT_GREEN:
+    case SUBTRACT_GREEN_TRANSFORM:
       VP8LAddGreenToBlueAndRed(in, (row_end - row_start) * width, out);
       break;
     case PREDICTOR_TRANSFORM:
@@ -441,8 +441,8 @@ static int is_big_endian(void) {
   return (tmp.b[0] != 1);
 }
 
-void VP8LConvertBGRAToRGB_C(const uint32_t* src,
-                            int num_pixels, uint8_t* dst) {
+void VP8LConvertBGRAToRGB_C(const uint32_t* WEBP_RESTRICT src,
+                            int num_pixels, uint8_t* WEBP_RESTRICT dst) {
   const uint32_t* const src_end = src + num_pixels;
   while (src < src_end) {
     const uint32_t argb = *src++;
@@ -452,8 +452,8 @@ void VP8LConvertBGRAToRGB_C(const uint32_t* src,
   }
 }
 
-void VP8LConvertBGRAToRGBA_C(const uint32_t* src,
-                             int num_pixels, uint8_t* dst) {
+void VP8LConvertBGRAToRGBA_C(const uint32_t* WEBP_RESTRICT src,
+                             int num_pixels, uint8_t* WEBP_RESTRICT dst) {
   const uint32_t* const src_end = src + num_pixels;
   while (src < src_end) {
     const uint32_t argb = *src++;
@@ -464,8 +464,8 @@ void VP8LConvertBGRAToRGBA_C(const uint32_t* src,
   }
 }
 
-void VP8LConvertBGRAToRGBA4444_C(const uint32_t* src,
-                                 int num_pixels, uint8_t* dst) {
+void VP8LConvertBGRAToRGBA4444_C(const uint32_t* WEBP_RESTRICT src,
+                                 int num_pixels, uint8_t* WEBP_RESTRICT dst) {
   const uint32_t* const src_end = src + num_pixels;
   while (src < src_end) {
     const uint32_t argb = *src++;
@@ -481,8 +481,8 @@ void VP8LConvertBGRAToRGBA4444_C(const uint32_t* src,
   }
 }
 
-void VP8LConvertBGRAToRGB565_C(const uint32_t* src,
-                               int num_pixels, uint8_t* dst) {
+void VP8LConvertBGRAToRGB565_C(const uint32_t* WEBP_RESTRICT src,
+                               int num_pixels, uint8_t* WEBP_RESTRICT dst) {
   const uint32_t* const src_end = src + num_pixels;
   while (src < src_end) {
     const uint32_t argb = *src++;
@@ -498,8 +498,8 @@ void VP8LConvertBGRAToRGB565_C(const uint32_t* src,
   }
 }
 
-void VP8LConvertBGRAToBGR_C(const uint32_t* src,
-                            int num_pixels, uint8_t* dst) {
+void VP8LConvertBGRAToBGR_C(const uint32_t* WEBP_RESTRICT src,
+                            int num_pixels, uint8_t* WEBP_RESTRICT dst) {
   const uint32_t* const src_end = src + num_pixels;
   while (src < src_end) {
     const uint32_t argb = *src++;
@@ -509,8 +509,8 @@ void VP8LConvertBGRAToBGR_C(const uint32_t* src,
   }
 }
 
-static void CopyOrSwap(const uint32_t* src, int num_pixels, uint8_t* dst,
-                       int swap_on_big_endian) {
+static void CopyOrSwap(const uint32_t* WEBP_RESTRICT src, int num_pixels,
+                       uint8_t* WEBP_RESTRICT dst, int swap_on_big_endian) {
   if (is_big_endian() == swap_on_big_endian) {
     const uint32_t* const src_end = src + num_pixels;
     while (src < src_end) {
@@ -588,6 +588,7 @@ VP8LConvertFunc VP8LConvertBGRAToBGR;
 VP8LMapARGBFunc VP8LMapColor32b;
 VP8LMapAlphaFunc VP8LMapColor8b;
 
+extern VP8CPUInfo VP8GetCPUInfo;
 extern void VP8LDspInitSSE2(void);
 extern void VP8LDspInitSSE41(void);
 extern void VP8LDspInitNEON(void);

@@ -21,20 +21,23 @@
 
 // Handy MACRO.
 #define SWITCH_ID_LIST(INDEX, LIST)                                           \
-  if (idx == (INDEX)) {                                                       \
-    const WebPChunk* const chunk = ChunkSearchList((LIST), nth,               \
-                                                   kChunks[(INDEX)].tag);     \
-    if (chunk) {                                                              \
-      *data = chunk->data_;                                                   \
-      return WEBP_MUX_OK;                                                     \
-    } else {                                                                  \
-      return WEBP_MUX_NOT_FOUND;                                              \
+  do {                                                                        \
+    if (idx == (INDEX)) {                                                     \
+      const WebPChunk* const chunk = ChunkSearchList((LIST), nth,             \
+                                                     kChunks[(INDEX)].tag);   \
+      if (chunk) {                                                            \
+        *data = chunk->data_;                                                 \
+        return WEBP_MUX_OK;                                                   \
+      } else {                                                                \
+        return WEBP_MUX_NOT_FOUND;                                            \
+      }                                                                       \
     }                                                                         \
-  }
+  } while (0)
 
 static WebPMuxError MuxGet(const WebPMux* const mux, CHUNK_INDEX idx,
                            uint32_t nth, WebPData* const data) {
   assert(mux != NULL);
+  assert(idx != IDX_LAST_CHUNK);
   assert(!IsWPI(kChunks[idx].id));
   WebPDataInit(data);
 
@@ -116,9 +119,12 @@ static int MuxImageParse(const WebPChunk* const chunk, int copy_data,
     // Each of ANMF chunk contain a header at the beginning. So, its size should
     // be at least 'hdr_size'.
     if (size < hdr_size) goto Fail;
-    ChunkAssignData(&subchunk, &temp, copy_data, chunk->tag_);
+    if (ChunkAssignData(&subchunk, &temp, copy_data,
+                        chunk->tag_) != WEBP_MUX_OK) {
+      goto Fail;
+    }
   }
-  ChunkSetHead(&subchunk, &wpi->header_);
+  if (ChunkSetHead(&subchunk, &wpi->header_) != WEBP_MUX_OK) goto Fail;
   wpi->is_partial_ = 1;  // Waiting for ALPH and/or VP8/VP8L chunks.
 
   // Rest of the chunks.
@@ -217,11 +223,13 @@ WebPMux* WebPMuxCreateInternal(const WebPData* bitstream, int copy_data,
   // Note this padding is historical and differs from demux.c which does not
   // pad the file size.
   riff_size = SizeWithPadding(riff_size);
-  if (riff_size < CHUNK_HEADER_SIZE) goto Err;
+  // Make sure the whole RIFF header is available.
+  if (riff_size < RIFF_HEADER_SIZE) goto Err;
   if (riff_size > size) goto Err;
-  // There's no point in reading past the end of the RIFF chunk.
-  if (size > riff_size + CHUNK_HEADER_SIZE) {
-    size = riff_size + CHUNK_HEADER_SIZE;
+  // There's no point in reading past the end of the RIFF chunk. Note riff_size
+  // includes CHUNK_HEADER_SIZE after SizeWithPadding().
+  if (size > riff_size) {
+    size = riff_size;
   }
 
   end = data + size;
@@ -426,6 +434,7 @@ WebPMuxError WebPMuxGetChunk(const WebPMux* mux, const char fourcc[4],
     return WEBP_MUX_INVALID_ARGUMENT;
   }
   idx = ChunkGetIndexFromFourCC(fourcc);
+  assert(idx != IDX_LAST_CHUNK);
   if (IsWPI(kChunks[idx].id)) {     // An image chunk.
     return WEBP_MUX_INVALID_ARGUMENT;
   } else if (idx != IDX_UNKNOWN) {  // A known chunk type.
