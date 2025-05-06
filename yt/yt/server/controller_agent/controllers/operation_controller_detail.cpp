@@ -10252,26 +10252,33 @@ void TOperationControllerBase::InitUserJobSpec(
             Options_->SlotContainerMemoryOverhead);
     }
 
-    jobSpec->add_environment(Format("YT_JOB_INDEX=%v", joblet->JobIndex));
-    jobSpec->add_environment(Format("YT_TASK_JOB_INDEX=%v", joblet->TaskJobIndex));
-    jobSpec->add_environment(Format("YT_JOB_ID=%v", joblet->JobId));
-    jobSpec->add_environment(Format("YT_JOB_COOKIE=%v", joblet->OutputCookie));
+    auto fillEnvironment = [&] (const auto& setEnvironmentVariable) {
+        setEnvironmentVariable("YT_JOB_INDEX", ToString(joblet->JobIndex));
+        setEnvironmentVariable("YT_TASK_JOB_INDEX", ToString(joblet->TaskJobIndex));
+        setEnvironmentVariable("YT_JOB_ID", ToString(joblet->JobId));
+        setEnvironmentVariable("YT_JOB_COOKIE", ToString(joblet->OutputCookie));
+        if (joblet->OperationIncarnation) {
+            setEnvironmentVariable("YT_OPERATION_INCARNATION", ToString(*joblet->OperationIncarnation));
+        }
+
+        for (const auto& [key, value] : joblet->Task->BuildJobEnvironment()) {
+            setEnvironmentVariable(key, value);
+        }
+    };
+
+    fillEnvironment([&jobSpec] (TStringBuf key, TStringBuf value) {
+        jobSpec->add_environment(Format("%v=%v", key, value));
+    });
+
     if (joblet->StartRowIndex >= 0) {
         jobSpec->add_environment(Format("YT_START_ROW_INDEX=%v", joblet->StartRowIndex));
-    }
-    if (joblet->OperationIncarnation) {
-        jobSpec->add_environment(Format("YT_OPERATION_INCARNATION=%v", *joblet->OperationIncarnation));
     }
 
     if (const auto& options = Options_->GpuCheck; options->UseSeparateRootVolume && jobSpec->has_gpu_check_binary_path()) {
         auto* protoEnvironment = jobSpec->mutable_gpu_check_environment();
-        (*protoEnvironment)["YT_JOB_INDEX"] = ToString(joblet->JobIndex);
-        (*protoEnvironment)["YT_TASK_JOB_INDEX"] = ToString(joblet->TaskJobIndex);
-        (*protoEnvironment)["YT_JOB_ID"] = ToString(joblet->JobId);
-        (*protoEnvironment)["YT_JOB_COOKIE"] = ToString(joblet->JobId);
-        if (joblet->OperationIncarnation) {
-            (*protoEnvironment)["YT_OPERATION_INCARNATION"] = ToString(*joblet->OperationIncarnation);
-        }
+        fillEnvironment([protoEnvironment] (TStringBuf key, TStringBuf value) {
+            (*protoEnvironment)[key] = value;
+        });
     }
 
     if (joblet->EnabledJobProfiler && joblet->EnabledJobProfiler->Type == EProfilerType::Cuda) {

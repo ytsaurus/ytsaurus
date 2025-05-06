@@ -552,6 +552,11 @@ void TTask::PatchUserJobSpec(NControllerAgent::NProto::TUserJobSpec* jobSpec, TJ
     ExperimentJobManager_.PatchUserJobSpec(jobSpec, joblet);
 }
 
+THashMap<TString, TString> TTask::BuildJobEnvironment() const
+{
+    return {};
+}
+
 void TTask::CheckCompleted()
 {
     if (!CompletedFired_ && IsCompleted()) {
