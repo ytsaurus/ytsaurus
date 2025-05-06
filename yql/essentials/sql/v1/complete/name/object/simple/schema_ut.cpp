@@ -25,14 +25,14 @@ Y_UNIT_TEST_SUITE(StaticSchemaTests) {
     }
 
     Y_UNIT_TEST(ListFolderBasic) {
-        auto gateway = MakeStaticSchemaUT();
+        auto schema = MakeStaticSchemaUT();
         {
             TVector<TFolderEntry> expected = {
                 {"Folder", "local"},
                 {"Folder", "test"},
                 {"Folder", "prod"},
             };
-            UNIT_ASSERT_VALUES_EQUAL(gateway->List({.Path = "/"}).GetValueSync().Entries, expected);
+            UNIT_ASSERT_VALUES_EQUAL(schema->List({.Path = "/"}).GetValueSync().Entries, expected);
         }
         {
             TVector<TFolderEntry> expected = {
@@ -40,29 +40,29 @@ Y_UNIT_TEST_SUITE(StaticSchemaTests) {
                 {"Table", "account"},
                 {"Table", "abacaba"},
             };
-            UNIT_ASSERT_VALUES_EQUAL(gateway->List({.Path = "/local/"}).GetValueSync().Entries, expected);
+            UNIT_ASSERT_VALUES_EQUAL(schema->List({.Path = "/local/"}).GetValueSync().Entries, expected);
         }
         {
             TVector<TFolderEntry> expected = {
                 {"Folder", "service"},
                 {"Table", "meta"},
             };
-            UNIT_ASSERT_VALUES_EQUAL(gateway->List({.Path = "/test/"}).GetValueSync().Entries, expected);
+            UNIT_ASSERT_VALUES_EQUAL(schema->List({.Path = "/test/"}).GetValueSync().Entries, expected);
         }
         {
             TVector<TFolderEntry> expected = {
                 {"Table", "example"}};
-            UNIT_ASSERT_VALUES_EQUAL(gateway->List({.Path = "/test/service/"}).GetValueSync().Entries, expected);
+            UNIT_ASSERT_VALUES_EQUAL(schema->List({.Path = "/test/service/"}).GetValueSync().Entries, expected);
         }
     }
 
     Y_UNIT_TEST(ListFolderHint) {
-        auto gateway = MakeStaticSchemaUT();
+        auto schema = MakeStaticSchemaUT();
         {
             TVector<TFolderEntry> expected = {
                 {"Folder", "local"},
             };
-            auto actual = gateway->List({.Path = "/l"}).GetValueSync();
+            auto actual = schema->List({.Path = "/l"}).GetValueSync();
             UNIT_ASSERT_VALUES_EQUAL(actual.Entries, expected);
             UNIT_ASSERT_VALUES_EQUAL(actual.NameHintLength, 1);
         }
@@ -71,7 +71,7 @@ Y_UNIT_TEST_SUITE(StaticSchemaTests) {
                 {"Table", "account"},
                 {"Table", "abacaba"},
             };
-            auto actual = gateway->List({.Path = "/local/a"}).GetValueSync();
+            auto actual = schema->List({.Path = "/local/a"}).GetValueSync();
             UNIT_ASSERT_VALUES_EQUAL(actual.Entries, expected);
             UNIT_ASSERT_VALUES_EQUAL(actual.NameHintLength, 1);
         }
@@ -79,14 +79,14 @@ Y_UNIT_TEST_SUITE(StaticSchemaTests) {
             TVector<TFolderEntry> expected = {
                 {"Folder", "service"},
             };
-            auto actual = gateway->List({.Path = "/test/service"}).GetValueSync();
+            auto actual = schema->List({.Path = "/test/service"}).GetValueSync();
             UNIT_ASSERT_VALUES_EQUAL(actual.Entries, expected);
             UNIT_ASSERT_VALUES_EQUAL(actual.NameHintLength, 7);
         }
     }
 
     Y_UNIT_TEST(ListFolderFilterByType) {
-        auto gateway = MakeStaticSchemaUT();
+        auto schema = MakeStaticSchemaUT();
         {
             TVector<TFolderEntry> expected = {
                 {"Folder", "service"},
@@ -97,7 +97,7 @@ Y_UNIT_TEST_SUITE(StaticSchemaTests) {
                     .Types = THashSet<TString>{"Folder"},
                 },
             };
-            UNIT_ASSERT_VALUES_EQUAL(gateway->List(request).GetValueSync().Entries, expected);
+            UNIT_ASSERT_VALUES_EQUAL(schema->List(request).GetValueSync().Entries, expected);
         }
         {
             TVector<TFolderEntry> expected = {
@@ -109,18 +109,18 @@ Y_UNIT_TEST_SUITE(StaticSchemaTests) {
                     .Types = THashSet<TString>{"Table"},
                 },
             };
-            UNIT_ASSERT_VALUES_EQUAL(gateway->List(request).GetValueSync().Entries, expected);
+            UNIT_ASSERT_VALUES_EQUAL(schema->List(request).GetValueSync().Entries, expected);
         }
     }
 
     Y_UNIT_TEST(ListFolderLimit) {
-        auto gateway = MakeStaticSchemaUT();
-        UNIT_ASSERT_VALUES_EQUAL(gateway->List({.Path = "/", .Limit = 0}).GetValueSync().Entries.size(), 0);
-        UNIT_ASSERT_VALUES_EQUAL(gateway->List({.Path = "/", .Limit = 1}).GetValueSync().Entries.size(), 1);
-        UNIT_ASSERT_VALUES_EQUAL(gateway->List({.Path = "/", .Limit = 2}).GetValueSync().Entries.size(), 2);
-        UNIT_ASSERT_VALUES_EQUAL(gateway->List({.Path = "/", .Limit = 3}).GetValueSync().Entries.size(), 3);
-        UNIT_ASSERT_VALUES_EQUAL(gateway->List({.Path = "/", .Limit = 4}).GetValueSync().Entries.size(), 3);
-        UNIT_ASSERT_VALUES_EQUAL(gateway->List({.Path = "/", .Limit = 5}).GetValueSync().Entries.size(), 3);
+        auto schema = MakeStaticSchemaUT();
+        UNIT_ASSERT_VALUES_EQUAL(schema->List({.Path = "/", .Limit = 0}).GetValueSync().Entries.size(), 0);
+        UNIT_ASSERT_VALUES_EQUAL(schema->List({.Path = "/", .Limit = 1}).GetValueSync().Entries.size(), 1);
+        UNIT_ASSERT_VALUES_EQUAL(schema->List({.Path = "/", .Limit = 2}).GetValueSync().Entries.size(), 2);
+        UNIT_ASSERT_VALUES_EQUAL(schema->List({.Path = "/", .Limit = 3}).GetValueSync().Entries.size(), 3);
+        UNIT_ASSERT_VALUES_EQUAL(schema->List({.Path = "/", .Limit = 4}).GetValueSync().Entries.size(), 3);
+        UNIT_ASSERT_VALUES_EQUAL(schema->List({.Path = "/", .Limit = 5}).GetValueSync().Entries.size(), 3);
     }
 
 } // Y_UNIT_TEST_SUITE(StaticSchemaTests)
