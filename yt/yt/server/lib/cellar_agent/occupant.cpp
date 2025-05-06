@@ -468,17 +468,15 @@ public:
 
         ConfigureSnapshotStore(connection);
 
-        auto addTags = [this] (auto profiler) {
-            return profiler
-                .WithRequiredTag("tablet_cell_bundle", CellBundleName_ ? CellBundleName_ : "<unknown-cell-bundle>")
-                .WithTag("cell_id", ToString(CellDescriptor_.CellId), -1);
-        };
-
         auto changelogClient = connection->CreateNativeClient(TClientOptions::FromUser(NSecurityClient::TabletCellChangeloggerUserName));
         auto primaryStoresPath = GetStoresPath(/*primary*/ true);
         auto secondaryStoresPath = GetStoresPath(/*primary*/ false);
 
-        auto changelogProfiler = addTags(occupier->GetProfiler().WithPrefix("/remote_changelog"));
+        auto changelogProfiler = occupier->GetProfiler()
+            .WithPrefix("/remote_changelog")
+            .WithRequiredTag("tablet_cell_bundle", CellBundleName_ ? CellBundleName_ : "<unknown-cell-bundle>")
+            .WithTag("medium", Options_->ChangelogPrimaryMedium)
+            .WithTag("cell_id", ToString(CellDescriptor_.CellId), -1);
         TJournalWriterPerformanceCounters performanceCounters{changelogProfiler};
         performanceCounters.JournalWritesObserver = JournalWritesObserver_;
 
