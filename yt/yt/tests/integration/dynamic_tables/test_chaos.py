@@ -4985,7 +4985,7 @@ class TestChaosRpcProxy(TestChaos):
 
         # TODO(savrus): Remove first wrapper after defaulting enable_read_from_async_replicas to False in tests.
         with self.RpcProxyDynamicConfig("/cluster_connection/enable_read_from_async_replicas", False):
-            with raises_yt_error("No single cluster contains in-sync replicas for table //tmp/crt"):
+            with raises_yt_error("No cluster contains in-sync replicas for table //tmp/crt"):
                 select_rows("* from [//tmp/crt]", timestamp=timestamp)
             with raises_yt_error("No working in-sync replicas found for table //tmp/crt"):
                 lookup_rows("//tmp/crt", keys, timestamp=timestamp)
@@ -4995,7 +4995,7 @@ class TestChaosRpcProxy(TestChaos):
                 assert lookup_rows("//tmp/crt", keys, timestamp=timestamp) == rows
 
                 with self.RpcProxyDynamicConfig("/cluster_connection/banned_in_sync_replica_clusters", ["remote_0"]):
-                    with raises_yt_error("No single cluster contains in-sync replicas for table //tmp/crt"):
+                    with raises_yt_error("No cluster contains in-sync replicas for table //tmp/crt"):
                         select_rows("* from [//tmp/crt]", timestamp=timestamp)
                     with raises_yt_error("No working in-sync replicas found for table //tmp/crt"):
                         lookup_rows("//tmp/crt", keys, timestamp=timestamp)

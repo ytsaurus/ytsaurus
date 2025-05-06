@@ -518,7 +518,7 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
         assert select_rows("* from [//tmp/r]", driver=self.replica_driver) == rows
         assert lookup_rows("//tmp/r", keys, driver=self.replica_driver) == rows
 
-        with raises_yt_error("No single cluster contains in-sync replicas for table //tmp/t"):
+        with raises_yt_error("No cluster contains in-sync replicas for table //tmp/t"):
             select_rows("* from [//tmp/t]", timestamp=timestamp)
         with raises_yt_error("No working in-sync replicas found for table //tmp/t"):
             lookup_rows("//tmp/t", keys, timestamp=timestamp)
@@ -529,7 +529,7 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
                 assert select_rows("* from [//tmp/t]", timestamp=timestamp) == rows
 
                 with self.RpcProxyDynamicConfig("/cluster_connection/banned_in_sync_replica_clusters", ["remote_0"]):
-                    with raises_yt_error("No single cluster contains in-sync replicas for table //tmp/t"):
+                    with raises_yt_error("No cluster contains in-sync replicas for table //tmp/t"):
                         select_rows("* from [//tmp/t]", timestamp=timestamp)
 
     @authors("ponasenko-rs")
