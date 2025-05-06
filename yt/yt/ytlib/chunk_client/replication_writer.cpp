@@ -1298,8 +1298,11 @@ void TGroup::ProbePutBlocks(const TReplicationWriterPtr& writer, const IChunkWri
             CumulativeBlockSize_);
 
         if (node->ShouldUseProbePutBlocks()) {
-            YT_LOG_DEBUG("Sending ProbePutBlocks to node %v"
-                "(RequestedCumulativeBlockSize: %v, SessionId: %v)", node->GetIndex(), CumulativeBlockSize_, writer->SessionId_);
+            YT_LOG_DEBUG("Sending ProbePutBlocks "
+                "(Node: %v, RequestedCumulativeBlockSize: %v, SessionId: %v)",
+                node->GetIndex(),
+                CumulativeBlockSize_,
+                writer->SessionId_);
 
             TDataNodeServiceProxy proxy(node->GetChannel());
             auto req = proxy.ProbePutBlocks();
@@ -1602,7 +1605,7 @@ void TGroup::Process(const IChunkWriter::TWriteBlocksOptions& options)
         writer->ShiftWindow(options);
     } else if (nodesWithPossibleToSendBlocks.empty() &&
         // Retry ProbePutBlocks requests only if they were preempted.
-        nodesWithRequestedResources.size() < static_cast<size_t>(writer->AliveNodeCount_))
+        std::ssize(nodesWithRequestedResources) < writer->AliveNodeCount_)
     {
         ProbePutBlocks(writer, options);
         // ProbePutBlocks request before retries.
@@ -1610,13 +1613,14 @@ void TGroup::Process(const IChunkWriter::TWriteBlocksOptions& options)
             ProbeStartTime_ = TInstant::Now();
         }
     } else if (nodesWithPossibleToSendBlocks.empty() &&
-        nodesWithAcquiredResources.size() < static_cast<size_t>(writer->AliveNodeCount_))
+        std::ssize(nodesWithAcquiredResources) < writer->AliveNodeCount_)
     {
         YT_VERIFY(ProbeStartTime_.has_value());
-        for (auto node : writer->Nodes_) {
+        for (const auto& node : writer->Nodes_) {
             if (node->IsAlive() &&
                 node->GetApprovedMemory() < CumulativeBlockSize_ &&
-                TInstant::Now() - *ProbeStartTime_ > writer->Config_->ProbePutBlocksTimeout) {
+                TInstant::Now() - *ProbeStartTime_ > writer->Config_->ProbePutBlocksTimeout)
+            {
                 // Node failed because of timeout for acquiring resources on node for Group.
                 writer->OnNodeFailed(node, TError(EErrorCode::NodeProbeFailed, "ProbePutBlocks failed"));
             }
