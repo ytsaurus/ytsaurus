@@ -6,9 +6,13 @@ LICENSE(BSD-3-Clause WITH Google-Patent-License-Webm)
 
 LICENSE_TEXTS(.yandex_meta/licenses.list.txt)
 
-VERSION(1.2.2)
+VERSION(1.5.0)
 
-ORIGINAL_SOURCE(https://github.com/webmproject/libwebp/archive/v1.2.2.tar.gz)
+ORIGINAL_SOURCE(https://github.com/webmproject/libwebp/archive/v1.5.0.tar.gz)
+
+PEERDIR(
+    contrib/libs/libwebp/sharpyuv
+)
 
 IF (OS_ANDROID)
     PEERDIR(
@@ -148,6 +152,7 @@ SRCS(
     src/utils/filters_utils.c
     src/utils/huffman_encode_utils.c
     src/utils/huffman_utils.c
+    src/utils/palette.c
     src/utils/quant_levels_dec_utils.c
     src/utils/quant_levels_utils.c
     src/utils/random_utils.c
@@ -157,3 +162,7 @@ SRCS(
 )
 
 END()
+
+RECURSE(
+    sharpyuv
+)
