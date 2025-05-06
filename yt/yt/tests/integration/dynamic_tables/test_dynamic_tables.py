@@ -2636,8 +2636,9 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
         insert_rows("//tmp/t", [{"key": i, "value": str(i)} for i in range(5)])
         sync_flush_table("//tmp/t")
 
-        throttled_lookup_count = profiler_factory().at_tablet_node("//tmp/t").counter(
-            name="tablet/throttled_lookup_count")
+        throttled_lookup_count = self._init_tablet_sensor(
+            "//tmp/t",
+            "tablet/throttled_lookup_count")
 
         start_time = time.time()
         for i in range(5):
@@ -2660,8 +2661,9 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
         insert_rows("//tmp/t", [{"key": i, "value": str(i)} for i in range(5)])
         sync_flush_table("//tmp/t")
 
-        throttled_select_count = profiler_factory().at_tablet_node("//tmp/t").counter(
-            name="tablet/throttled_select_count")
+        throttled_select_count = self._init_tablet_sensor(
+            "//tmp/t",
+            "tablet/throttled_select_count")
 
         start_time = time.time()
         for i in range(5):
@@ -2682,8 +2684,9 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
         set("//tmp/t/@throttlers", {"write": {"limit": 10}})
         sync_mount_table("//tmp/t")
 
-        throttled_write_count = profiler_factory().at_tablet_node("//tmp/t").counter(
-            name="tablet/throttled_write_count")
+        throttled_write_count = self._init_tablet_sensor(
+            "//tmp/t",
+            "tablet/throttled_write_count")
 
         def _insert(overdraft_expected, max_attempts=10):
             overdrafted = False

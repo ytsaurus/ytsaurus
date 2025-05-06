@@ -619,8 +619,9 @@ class TestLookup(TestSortedDynamicTablesBase):
         })
         sync_mount_table("//tmp/t")
 
-        request_counter = profiler_factory().at_tablet_node("//tmp/t").counter(
-            name="hedging_manager/primary_request_count")
+        request_counter = self._init_tablet_sensor(
+            "//tmp/t",
+            "hedging_manager/primary_request_count")
 
         keys = [{"key": i} for i in range(10)]
         rows = [{"key": i, "value": str(i)} for i in range(10)]
@@ -642,26 +643,22 @@ class TestLookup(TestSortedDynamicTablesBase):
         self._create_simple_table(table_path)
         sync_mount_table(table_path)
 
-        sensors = [None] * 4
-
-        def _init_sensors():
-            sensors[0] = profiler_factory().at_tablet_node(
-                table_path,
-                fixed_tags={"table_path": table_path}).counter(name="lookup/row_count")
-            sensors[1] = profiler_factory().at_tablet_node(
-                table_path,
-                fixed_tags={"table_path": table_path}).counter(name="lookup/missing_row_count")
-            sensors[2] = profiler_factory().at_tablet_node(
-                table_path,
-                fixed_tags={"table_path": table_path}).counter(name="lookup/unmerged_row_count")
-            sensors[3] = profiler_factory().at_tablet_node(
-                table_path,
-                fixed_tags={"table_path": table_path}).counter(name="lookup/unmerged_missing_row_count")
-            for sensor in sensors:
-                if sensor.start_value != 0:
-                    return False
-            return True
-        wait(lambda: _init_sensors())
+        row_count_sensor = self._init_tablet_sensor(
+            table_path,
+            "lookup/row_count",
+            fixed_tags={"table_path": table_path})
+        missing_row_count_sensor = self._init_tablet_sensor(
+            table_path,
+            "lookup/missing_row_count",
+            fixed_tags={"table_path": table_path})
+        unmerged_row_count_sensor = self._init_tablet_sensor(
+            table_path,
+            "lookup/unmerged_row_count",
+            fixed_tags={"table_path": table_path})
+        unmerged_missing_row_count_sensor = self._init_tablet_sensor(
+            table_path,
+            "lookup/unmerged_missing_row_count",
+            fixed_tags={"table_path": table_path})
 
         insert_rows(table_path, [{"key": 0, "value": "0"}, {"key": 2, "value": "2"}])
         sync_flush_table(table_path)
@@ -671,10 +668,10 @@ class TestLookup(TestSortedDynamicTablesBase):
         assert lookup_rows(table_path, [{"key": 0}, {"key": 1}, {"key": 2}, {"key": 3}]) == \
             [{"key": 0, "value": "0"}, {"key": 1, "value": "1"}, {"key": 2, "value": "22"}]
 
-        wait(lambda: sensors[0].get_delta() == 3)
-        wait(lambda: sensors[1].get_delta() == 1)
-        wait(lambda: sensors[2].get_delta() == 4)
-        wait(lambda: sensors[3].get_delta() == 4)
+        wait(lambda: row_count_sensor.get_delta() == 3)
+        wait(lambda: missing_row_count_sensor.get_delta() == 1)
+        wait(lambda: unmerged_row_count_sensor.get_delta() == 4)
+        wait(lambda: unmerged_missing_row_count_sensor.get_delta() == 4)
 
     @authors("akozhikhov")
     def test_lookup_overflow(self):

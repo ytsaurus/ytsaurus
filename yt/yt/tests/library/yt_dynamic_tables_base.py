@@ -369,3 +369,18 @@ class DynamicTablesBase(YTEnvSetup):
             table,
             user,
         )
+
+    def _init_tablet_sensor(self, path, name, tags=None, fixed_tags=None):
+        sensors = [None]
+
+        def _do_init():
+            sensors[0] = profiler_factory().at_tablet_node(
+                path,
+                fixed_tags=fixed_tags).counter(name=name, tags=tags)
+            if sensors[0].start_value != 0:
+                return False
+            return True
+
+        wait(lambda: _do_init())
+
+        return sensors[0]
