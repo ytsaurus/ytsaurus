@@ -1,12 +1,12 @@
-#include "schema_gateway.h"
+#include "schema.h"
 
 namespace NSQLComplete {
 
     namespace {
 
-        class TSimpleSchemaGateway: public ISimpleSchemaGateway {
+        class TSimpleSchema: public ISimpleSchema {
         public:
-            explicit TSimpleSchemaGateway(THashMap<TString, TVector<TFolderEntry>> data)
+            explicit TSimpleSchema(THashMap<TString, TVector<TFolderEntry>> data)
                 : Data_(std::move(data))
             {
                 for (const auto& [k, _] : Data_) {
@@ -40,8 +40,8 @@ namespace NSQLComplete {
 
     } // namespace
 
-    ISimpleSchemaGateway::TPtr MakeStaticSimpleSchemaGateway(THashMap<TString, TVector<TFolderEntry>> fs) {
-        return new TSimpleSchemaGateway(std::move(fs));
+    ISimpleSchema::TPtr MakeStaticSimpleSchema(THashMap<TString, TVector<TFolderEntry>> fs) {
+        return new TSimpleSchema(std::move(fs));
     }
 
 } // namespace NSQLComplete

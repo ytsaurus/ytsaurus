@@ -1,9 +1,9 @@
 #include "sql_complete.h"
 
 #include <yql/essentials/sql/v1/complete/name/cluster/static/discovery.h>
-#include <yql/essentials/sql/v1/complete/name/object/dispatch/schema_gateway.h>
-#include <yql/essentials/sql/v1/complete/name/object/simple/schema_gateway.h>
-#include <yql/essentials/sql/v1/complete/name/object/simple/static/schema_gateway.h>
+#include <yql/essentials/sql/v1/complete/name/object/dispatch/schema.h>
+#include <yql/essentials/sql/v1/complete/name/object/simple/schema.h>
+#include <yql/essentials/sql/v1/complete/name/object/simple/static/schema.h>
 #include <yql/essentials/sql/v1/complete/name/service/ranking/frequency.h>
 #include <yql/essentials/sql/v1/complete/name/service/ranking/ranking.h>
 #include <yql/essentials/sql/v1/complete/name/service/cluster/name_service.h>
@@ -106,16 +106,16 @@ Y_UNIT_TEST_SUITE(SqlCompleteTests) {
 
         IRanking::TPtr ranking = MakeDefaultRanking(frequency);
 
-        THashMap<TString, ISchemaGateway::TPtr> schemasByCluster;
+        THashMap<TString, ISchema::TPtr> schemasByCluster;
         for (auto& [cluster, fs] : fss) {
             schemasByCluster[std::move(cluster)] =
-                MakeSimpleSchemaGateway(
-                    MakeStaticSimpleSchemaGateway(std::move(fs)));
+                MakeSimpleSchema(
+                    MakeStaticSimpleSchema(std::move(fs)));
         }
 
         TVector<INameService::TPtr> children = {
             MakeStaticNameService(std::move(names), frequency),
-            MakeSchemaNameService(MakeDispatchSchemaGateway(std::move(schemasByCluster))),
+            MakeSchemaNameService(MakeDispatchSchema(std::move(schemasByCluster))),
             MakeClusterNameService(MakeStaticClusterDiscovery(std::move(clusters))),
         };
 

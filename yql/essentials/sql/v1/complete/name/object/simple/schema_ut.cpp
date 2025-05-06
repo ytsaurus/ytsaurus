@@ -1,14 +1,14 @@
-#include "schema_gateway.h"
+#include "schema.h"
 
-#include <yql/essentials/sql/v1/complete/name/object/simple/static/schema_gateway.h>
+#include <yql/essentials/sql/v1/complete/name/object/simple/static/schema.h>
 
 #include <library/cpp/testing/unittest/registar.h>
 
 using namespace NSQLComplete;
 
-Y_UNIT_TEST_SUITE(StaticSchemaGatewayTests) {
+Y_UNIT_TEST_SUITE(StaticSchemaTests) {
 
-    ISchemaGateway::TPtr MakeStaticSchemaGatewayUT() {
+    ISchema::TPtr MakeStaticSchemaUT() {
         THashMap<TString, TVector<TFolderEntry>> fs = {
             {"/", {{"Folder", "local"},
                    {"Folder", "test"},
@@ -20,12 +20,12 @@ Y_UNIT_TEST_SUITE(StaticSchemaGatewayTests) {
                         {"Table", "meta"}}},
             {"/test/service/", {{"Table", "example"}}},
         };
-        return MakeSimpleSchemaGateway(
-            MakeStaticSimpleSchemaGateway(std::move(fs)));
+        return MakeSimpleSchema(
+            MakeStaticSimpleSchema(std::move(fs)));
     }
 
     Y_UNIT_TEST(ListFolderBasic) {
-        auto gateway = MakeStaticSchemaGatewayUT();
+        auto gateway = MakeStaticSchemaUT();
         {
             TVector<TFolderEntry> expected = {
                 {"Folder", "local"},
@@ -57,7 +57,7 @@ Y_UNIT_TEST_SUITE(StaticSchemaGatewayTests) {
     }
 
     Y_UNIT_TEST(ListFolderHint) {
-        auto gateway = MakeStaticSchemaGatewayUT();
+        auto gateway = MakeStaticSchemaUT();
         {
             TVector<TFolderEntry> expected = {
                 {"Folder", "local"},
@@ -86,7 +86,7 @@ Y_UNIT_TEST_SUITE(StaticSchemaGatewayTests) {
     }
 
     Y_UNIT_TEST(ListFolderFilterByType) {
-        auto gateway = MakeStaticSchemaGatewayUT();
+        auto gateway = MakeStaticSchemaUT();
         {
             TVector<TFolderEntry> expected = {
                 {"Folder", "service"},
@@ -114,7 +114,7 @@ Y_UNIT_TEST_SUITE(StaticSchemaGatewayTests) {
     }
 
     Y_UNIT_TEST(ListFolderLimit) {
-        auto gateway = MakeStaticSchemaGatewayUT();
+        auto gateway = MakeStaticSchemaUT();
         UNIT_ASSERT_VALUES_EQUAL(gateway->List({.Path = "/", .Limit = 0}).GetValueSync().Entries.size(), 0);
         UNIT_ASSERT_VALUES_EQUAL(gateway->List({.Path = "/", .Limit = 1}).GetValueSync().Entries.size(), 1);
         UNIT_ASSERT_VALUES_EQUAL(gateway->List({.Path = "/", .Limit = 2}).GetValueSync().Entries.size(), 2);
@@ -123,4 +123,4 @@ Y_UNIT_TEST_SUITE(StaticSchemaGatewayTests) {
         UNIT_ASSERT_VALUES_EQUAL(gateway->List({.Path = "/", .Limit = 5}).GetValueSync().Entries.size(), 3);
     }
 
-} // Y_UNIT_TEST_SUITE(StaticSchemaGatewayTests)
+} // Y_UNIT_TEST_SUITE(StaticSchemaTests)

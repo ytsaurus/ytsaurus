@@ -1,12 +1,12 @@
-#include "schema_gateway.h"
+#include "schema.h"
 
 namespace NSQLComplete {
 
     namespace {
 
-        class TSchemaGateway: public ISchemaGateway {
+        class TSchema: public ISchema {
         public:
-            explicit TSchemaGateway(THashMap<TString, ISchemaGateway::TPtr> mapping)
+            explicit TSchema(THashMap<TString, ISchema::TPtr> mapping)
                 : Mapping_(std::move(mapping))
             {
             }
@@ -24,13 +24,13 @@ namespace NSQLComplete {
             }
 
         private:
-            THashMap<TString, ISchemaGateway::TPtr> Mapping_;
+            THashMap<TString, ISchema::TPtr> Mapping_;
         };
 
     } // namespace
 
-    ISchemaGateway::TPtr MakeDispatchSchemaGateway(THashMap<TString, ISchemaGateway::TPtr> mapping) {
-        return new TSchemaGateway(std::move(mapping));
+    ISchema::TPtr MakeDispatchSchema(THashMap<TString, ISchema::TPtr> mapping) {
+        return new TSchema(std::move(mapping));
     }
 
 } // namespace NSQLComplete

@@ -6,7 +6,7 @@ namespace NSQLComplete {
 
         class TNameService: public INameService {
         public:
-            explicit TNameService(ISchemaGateway::TPtr schema)
+            explicit TNameService(ISchema::TPtr schema)
                 : Schema_(std::move(schema))
             {
             }
@@ -88,12 +88,12 @@ namespace NSQLComplete {
                 return name;
             }
 
-            ISchemaGateway::TPtr Schema_;
+            ISchema::TPtr Schema_;
         };
 
     } // namespace
 
-    INameService::TPtr MakeSchemaNameService(ISchemaGateway::TPtr schema) {
+    INameService::TPtr MakeSchemaNameService(ISchema::TPtr schema) {
         return new TNameService(std::move(schema));
     }
 

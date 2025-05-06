@@ -1,7 +1,7 @@
 UNITTEST_FOR(yql/essentials/sql/v1/complete/name/object/simple)
 
 SRCS(
-    schema_gateway_ut.cpp
+    schema_ut.cpp
 )
 
 PEERDIR(

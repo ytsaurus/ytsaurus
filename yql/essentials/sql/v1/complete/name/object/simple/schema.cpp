@@ -1,4 +1,4 @@
-#include "schema_gateway.h"
+#include "schema.h"
 
 #include <util/charset/utf8.h>
 
@@ -6,7 +6,7 @@ namespace NSQLComplete {
 
     namespace {
 
-        class TSimpleSchemaGateway: public ISchemaGateway {
+        class TSimpleSchema: public ISchema {
         private:
             static auto FilterByName(TString name) {
                 return [name = std::move(name)](auto f) {
@@ -47,7 +47,7 @@ namespace NSQLComplete {
             }
 
         public:
-            explicit TSimpleSchemaGateway(ISimpleSchemaGateway::TPtr simple)
+            explicit TSimpleSchema(ISimpleSchema::TPtr simple)
                 : Simple_(std::move(simple))
             {
             }
@@ -68,13 +68,13 @@ namespace NSQLComplete {
             }
 
         private:
-            ISimpleSchemaGateway::TPtr Simple_;
+            ISimpleSchema::TPtr Simple_;
         };
 
     } // namespace
 
-    ISchemaGateway::TPtr MakeSimpleSchemaGateway(ISimpleSchemaGateway::TPtr simple) {
-        return ISchemaGateway::TPtr(new TSimpleSchemaGateway(std::move(simple)));
+    ISchema::TPtr MakeSimpleSchema(ISimpleSchema::TPtr simple) {
+        return ISchema::TPtr(new TSimpleSchema(std::move(simple)));
     }
 
 } // namespace NSQLComplete
