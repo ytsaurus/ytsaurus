@@ -103,7 +103,7 @@ void TSlotLocation::UpdateHealthCheckerConfig(const NServer::TDiskHealthCheckerD
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
 
-    HealthChecker_->OnConfigChanged(Config_->DiskHealthChecker->ApplyDynamic(*config));
+    HealthChecker_->Reconfigure(Config_->DiskHealthChecker->ApplyDynamic(*config));
 }
 
 TFuture<void> TSlotLocation::Initialize()
