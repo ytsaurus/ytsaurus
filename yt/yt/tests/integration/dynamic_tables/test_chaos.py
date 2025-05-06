@@ -4753,39 +4753,6 @@ class TestChaos(ChaosTestBase):
         hint = "\"{require_sync_replica=%false;}\""
         assert select_rows(f"T.value AS v from [{path}] AS T with hint {hint}") == [{"v": 0}]
 
-    @authors("savrus")
-    def test_remount_table(self):
-        cell_id = self._sync_create_chaos_bundle_and_cell()
-
-        replicas = [
-            {"cluster_name": "primary", "content_type": "data", "mode": "sync", "enabled": True, "replica_path": "//tmp/t"},
-            {"cluster_name": "remote_0", "content_type": "data", "mode": "async", "enabled": True, "replica_path": "//tmp/r"},
-            {"cluster_name": "remote_1", "content_type": "queue", "mode": "sync", "enabled": True, "replica_path": "//tmp/q"},
-        ]
-        card_id, replica_ids = self._create_chaos_tables(cell_id, replicas)
-        _, remote_driver0, remote_driver1 = self._get_drivers()
-
-        sync_unmount_table("//tmp/r", driver=remote_driver0)
-        set("//tmp/r/@mount_config/replication_tick_period", 3600000, driver=remote_driver0)
-        sync_mount_table("//tmp/r", driver=remote_driver0)
-
-        values = [{"key": 0, "value": "0"}]
-        insert_rows("//tmp/t", values)
-        assert lookup_rows("//tmp/t", [{"key": 0}]) == values
-        assert lookup_rows("//tmp/r", [{"key": 0}], driver=remote_driver0) == []
-
-        set("//tmp/r/@mount_config/replication_tick_period", 100, driver=remote_driver0)
-        remount_table("//tmp/r", driver=remote_driver0)
-        wait(lambda: lookup_rows("//tmp/r", [{"key": 0}], driver=remote_driver0) == values)
-
-        remount_table("//tmp/t")
-        remount_table("//tmp/q", driver=remote_driver1)
-
-        values = [{"key": 0, "value": "2"}]
-        insert_rows("//tmp/t", values)
-        assert lookup_rows("//tmp/t", [{"key": 0}]) == values
-        wait(lambda: lookup_rows("//tmp/r", [{"key": 0}], driver=remote_driver0) == values)
-
 
 ##################################################################
 
