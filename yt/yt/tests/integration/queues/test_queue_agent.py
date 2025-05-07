@@ -2938,9 +2938,26 @@ class TestQueueStaticExportBase(TestQueueAgentBase, QueueStaticExportHelpers):
         },
     }
 
+    QUEUE_AGENT_DO_WAIT_FOR_GLOBAL_SYNC_ON_SETUP = True
+
     # NB: We rely on manual flushing in almost all of the static export tests. Override if necessary.
-    def _create_queue(self, *args, **kwargs):
-        return super()._create_queue(*args, dynamic_store_auto_flush_period=kwargs.pop("dynamic_store_auto_flush_period", YsonEntity()), **kwargs)
+    @staticmethod
+    def _create_queue(*args, **kwargs):
+        return TestQueueAgentBase._create_queue(*args, dynamic_store_auto_flush_period=kwargs.pop("dynamic_store_auto_flush_period", YsonEntity()), **kwargs)
+
+    # NB: This method must be kept in sync with _create_queue.
+    @staticmethod
+    def _make_create_queue_batch_request(*args, **kwargs):
+        return TestQueueAgentBase._make_create_queue_batch_request(*args, dynamic_store_auto_flush_period=kwargs.pop("dynamic_store_auto_flush_period", YsonEntity()), **kwargs)
+
+    def setup_method(self, method):
+        super().setup_method(method)
+        self._initialize_active_export_destinations()
+        assert sum([len(i) for i in self.ACTIVE_EXPORT_DESTINATIONS.values()]) == 0
+
+    def teardown_method(self, method):
+        self.remove_all_active_export_destinations()
+        super().teardown_method(method)
 
 
 class TestQueueAgentBannedAttribute(TestQueueStaticExportBase):
@@ -3269,7 +3286,9 @@ class TestQueueStaticExport(TestQueueStaticExportBase):
             insert_rows("//tmp/q", [{"data": "second sample"}] * 2)
             self._flush_table("//tmp/q")
 
+        self._sleep_until_next_export_instant(export_period_seconds, offset=1.5)
         self._sleep_until_next_export_instant(export_period_seconds)
+
         abort_transaction(tx)
         expected_table_count = 2 if should_export_second_table else 1
 
@@ -3677,13 +3696,13 @@ class TestQueueStaticExport(TestQueueStaticExportBase):
         self._flush_table("//tmp/q")
 
         self._sleep_until_next_export_instant(period=3)
-        time.sleep(6)
+        time.sleep(12)
 
         set("//tmp/q/@static_export_config", {
             "default": {
                 "export_directory": export_dir,
-                "export_period": 3 * 1000,
-                "export_ttl":  6 * 1000,
+                "export_period": 1 * 1000,
+                "export_ttl":  12 * 1000,
             }
         })
 
@@ -3694,8 +3713,8 @@ class TestQueueStaticExport(TestQueueStaticExportBase):
         progress_path = f"{export_dir}/@queue_static_export_progress"
         wait(lambda: exists(progress_path) and get(progress_path).get("tablets", {}).get("0", {}).get("last_chunk", None) == chunk_id)
 
-        # Sleep for 1 second just in case (to make sure first exported table is deleted by ttl)
-        time.sleep(1)
+        # Removal by TTL is not instantaneous
+        wait(lambda: len(ls(export_dir)) == 1, timeout=8)
 
         self._check_export(export_dir, [["bar"] * 2], expected_removed_rows=3)
 
@@ -4410,10 +4429,32 @@ class TestQueueExportManager(TestQueueStaticExportBase):
         },
     })
 
+    NUM_EXPORTS = 4
+    NUM_QUEUES = 25
+    EXPORT_PERIOD_SECONDS = 1
+
+    @classmethod
+    def setup_class(cls):
+        super().setup_class()
+
+        cls.QUEUE_PATHS = [f"//tmp/q_{i}" for i in range(cls.NUM_QUEUES)]
+        cls.EXPORT_DIRS = [f"//tmp/export_{i}" for i in range(cls.NUM_QUEUES)]
+
+    def teardown_method(self, method):
+        if hasattr(self, "tx"):
+            try:
+                abort_transaction(self.tx)
+            except Exception as ex:
+                print_debug(f"aborting self.tx failed: {ex}")
+            del self.tx
+
+        super().teardown_method(method)
+
     @authors("apachee")
-    @pytest.mark.parametrize("export_rate_limit", [5, 10, 20])
-    @pytest.mark.timeout(150)
+    @pytest.mark.parametrize("export_rate_limit", [4, 8, 16])
+    @pytest.mark.timeout(300)
     def test_export_rate_limit(self, export_rate_limit):
+        setup_start = time.time()
         self._apply_dynamic_config_patch({
             "queue_agent": {
                 "queue_export_manager": {
@@ -4422,66 +4463,82 @@ class TestQueueExportManager(TestQueueStaticExportBase):
             },
         })
 
-        num_exports = 5
-        num_queues = 20
-        export_period_seconds = 1
+        create_queue_reqs = [self._make_create_queue_batch_request(path=queue_path, mount=False) for queue_path in self.QUEUE_PATHS]
 
-        queue_paths = [f"//tmp/q_{i}" for i in range(num_queues)]
-        export_dirs = [f"//tmp/export_{i}" for i in range(num_queues)]
+        create_queue_rsps = execute_batch(create_queue_reqs)
+        self.QUEUE_IDS = []
+        for rsp in create_queue_rsps:
+            queue_id = get_batch_output(rsp)["node_id"]
+            self.QUEUE_IDS.append(queue_id)
 
-        queue_ids = [self._create_queue(queue_path)[1] for queue_path in queue_paths]
-        for queue_id, export_dir in zip(queue_ids, export_dirs):
-            self._create_export_destination(export_dir, queue_id)
+        self._mount_tables(self.QUEUE_PATHS)
 
-        start_insertion = time.time()
+        self._create_export_destinations(self.EXPORT_DIRS, self.QUEUE_IDS)
 
-        for _ in range(num_exports):
-            for queue_path in queue_paths:
-                insert_rows(queue_path, [{"data": "test"}])
-            self._flush_tables(queue_paths)
-            time.sleep(export_period_seconds + 0.5)
+        tx = start_transaction(timeout=300000)
+        self.tx = tx
 
-        finish_insertion = time.time()
+        for export_dir in self.EXPORT_DIRS:
+            wait(lambda: lock(export_dir, mode="exclusive", tx=tx) is not None, ignore_exceptions=True)
 
-        print_debug(f"row insertion took {finish_insertion - start_insertion} seconds")
+        for export_index in range(self.NUM_EXPORTS):
+            for queue_path in self.QUEUE_PATHS:
+                insert_rows(queue_path, [{"data": f"{queue_path=} - {export_index=}"}])
+            self._flush_tables(self.QUEUE_PATHS)
+            time.sleep(self.EXPORT_PERIOD_SECONDS + 0.5)
 
-        tx = start_transaction()
-        for export_dir in export_dirs:
-            lock(export_dir, mode="shared", tx=tx, attribute_key="queue_static_exporter")
+        get_chunk_id_list_reqs = []
+        for queue_path, export_dir in zip(self.QUEUE_PATHS, self.EXPORT_DIRS):
+            get_chunk_id_list_reqs.append(make_batch_request("get", path=f"{queue_path}/@chunk_ids", return_only_value=True))
 
-        for queue_path, export_dir in zip(queue_paths, export_dirs):
-            assert len(get(f"{queue_path}/@chunk_ids")) == num_exports
-            set(f"{queue_path}/@static_export_config", {
+        get_chunk_id_list_rsps = execute_batch(get_chunk_id_list_reqs)
+        for rsp in get_chunk_id_list_rsps:
+            assert len(get_batch_output(rsp)) == self.NUM_EXPORTS
+
+        set_export_config_reqs = []
+        for queue_path, export_dir in zip(self.QUEUE_PATHS, self.EXPORT_DIRS):
+            set_export_config_reqs.append(make_batch_request("set", path=f"{queue_path}/@static_export_config", input={
                 "default": {
                     "export_directory": export_dir,
-                    "export_period": export_period_seconds * 1000,
+                    "export_period": self.EXPORT_PERIOD_SECONDS * 1000,
                 },
-            })
+            }))
+        set_export_config_rsps = execute_batch(set_export_config_reqs)
+        for rsp in set_export_config_rsps:
+            get_batch_output(rsp)
 
         self._wait_for_global_sync()
+
+        setup_finish = time.time()
+
+        print_debug(f"test_export_rate_limit setup took {setup_finish - setup_start} seconds")
+
+        assert sum([len(ls(export_dir)) for export_dir in self.EXPORT_DIRS]) == 0
+
+        # Start exporters by aborting this tx
         abort_transaction(tx)
 
         start = time.time()
 
-        def check_exported_table_count(expected):
-            result = sum(len(ls(export_dir)) for export_dir in export_dirs)
-            print_debug(f"exported table count {result}, expected = {expected}")
-            return result == expected
+        def check_exported_table_count():
+            export_table_count_by_dir = {export_dir: len(ls(export_dir)) for export_dir in self.EXPORT_DIRS}
+            print_debug(f"{export_table_count_by_dir=}")
+            return all(i == self.NUM_EXPORTS for i in export_table_count_by_dir.values())
 
-        wait(lambda: check_exported_table_count(num_queues * num_exports))
+        wait(lambda: check_exported_table_count())
 
         finish = time.time()
         elapsed = finish - start
 
         expected_time_per_task = (1 / export_rate_limit)
-        expected_time_elapsed = num_exports * num_queues * expected_time_per_task
+        expected_time_elapsed = self.NUM_EXPORTS * self.NUM_QUEUES * expected_time_per_task
         # TODO(apachee): Improve this test to reduce error margins
         expected_relative_error = 0.5
         print_debug(f"{elapsed=}, {expected_time_elapsed=}, {expected_relative_error=}")
 
         assert 1 - expected_relative_error <= elapsed / expected_time_elapsed <= 1 + expected_relative_error
 
-        self.remove_export_destinations(export_dirs)
+        self.remove_export_destinations(self.EXPORT_DIRS)
 
 
 class TestAutomaticTrimmingWithExports(TestQueueStaticExportBase):
@@ -4891,7 +4948,7 @@ class TestMultiClusterReplicatedTableObjectsTrimWithExports(TestMultiClusterRepl
             replica_driver = get_driver(cluster=replica["cluster_name"])
             replica_path = replica["replica_path"]
             replica_id = get(f"{replica_path}/@id", driver=replica_driver)
-            self._create_export_destination(export_dir, replica_id, driver=replica_driver)
+            self._create_export_destination(export_dir, replica_id, cluster_name=replica["cluster_name"])
             assert self._get_export_tables_count(replica) == 0
 
             export_config = {
@@ -4982,7 +5039,7 @@ class TestMultiClusterReplicatedTableObjectsTrimWithExports(TestMultiClusterRepl
         for replica in replicas[1:]:
             cluster_name = replica["cluster_name"]
             replica_driver = get_driver(cluster=cluster_name)
-            self.remove_export_destination(export_dir, driver=replica_driver)
+            self.remove_export_destination(export_dir, cluster_name=replica["cluster_name"])
 
     @authors("apachee")
     @pytest.mark.parametrize("create_queue_consumer_pair", [
@@ -5007,7 +5064,7 @@ class TestMultiClusterReplicatedTableObjectsTrimWithExports(TestMultiClusterRepl
             replica_driver = get_driver(cluster=replica["cluster_name"])
             replica_path = replica["replica_path"]
             replica_id = get(f"{replica_path}/@id", driver=replica_driver)
-            self._create_export_destination(export_dir, replica_id, driver=replica_driver)
+            self._create_export_destination(export_dir, replica_id, cluster_name=replica["cluster_name"])
             assert self._get_export_tables_count(replica) == 0
 
             # Register queues and consumers for cypress synchronizer to see them.
@@ -5103,7 +5160,7 @@ class TestMultiClusterReplicatedTableObjectsTrimWithExports(TestMultiClusterRepl
         for replica in replicas[1:]:
             cluster_name = replica["cluster_name"]
             replica_driver = get_driver(cluster=cluster_name)
-            self.remove_export_destination(export_dir, driver=replica_driver)
+            self.remove_export_destination(export_dir, cluster_name=replica["cluster_name"])
 
     @authors("apachee")
     @pytest.mark.timeout(150)
@@ -5132,7 +5189,7 @@ class TestMultiClusterReplicatedTableObjectsTrimWithExports(TestMultiClusterRepl
             replica_driver = get_driver(cluster=replica["cluster_name"])
             replica_path = replica["replica_path"]
             replica_id = get(f"{replica_path}/@id", driver=replica_driver)
-            self._create_export_destination(export_dir, replica_id, driver=replica_driver)
+            self._create_export_destination(export_dir, replica_id, cluster_name=replica["cluster_name"])
             assert self._get_export_tables_count(replica) == 0
 
             export_config = {
