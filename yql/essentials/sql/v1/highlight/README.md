@@ -1,10 +1,14 @@
 # YQL SQL Syntax Highlighting Specfication
 
+## Overview
+
+This document specifies the syntax highlighting system for the YQL. The system specifies how to identify and categorize different syntactic elements in queries for highlighting porposes.
+
 ## Terms
 
-- `Highlighting` is a _list_ of `Highlighting Unit`s.
+- `Highlighting` is a _list_ of `Highlighting Unit`s that define how to recognize different parts of SQL syntax.
 
-- `Highlighting Unit` is a language construction to be highlighted.
+- `Highlighting Unit` is a language construction to be highlighted (e.g., keywords, identifiers, literals).
 
 - `Highlighting Token` is a text fragment matched with a `Highlighting Unit`.
 
@@ -12,39 +16,121 @@
 
 - `Theme` is a mapping from `Highlighting Unit` to a `Color`.
 
-- `Color` is a `RGB`-equivalent `HEX`.
-
 ## Highlighting Unit
 
 Here are listed all highlighting units.
 
-- Examples of a `keyword` includes `SELECT`, `INSERT`.
+- `keyword`: SQL reserved words (e.g., `SELECT`, `INSERT`, `FROM`).
 
-- Examples of a `punctuation` includes `.`, `;`, `(`.
+- `punctuation`: Syntactic symbols (e.g., `.`, `;`, `(`, `)`).
 
-- Examples of a `identifier` includes `example`.
+- `identifier`: Unquoted names (e.g., table or column names).
 
-- Examples of a `quoted-identifier` includes ``` `/local/example` ```.
+- `quoted-identifier`: Backtick-quoted names (e.g., ``` `table` ```).
 
-- Examples of a `bind-parameter-identifier` includes `$subquery`.
+- `bind-parameter-identifier`: Parameter references (e.g., `$param`).
 
-- Examples of a `type-identifier` includes `UInt64`, `Optional<...>`.
+- `type-identifier`: Type names (e.g., `Int32`, `String`).
 
-- Examples of a `function-identifier` includes `StartsWith(...)`, `DateTime::Split`.
+- `function-identifier`: Function names (e.g., `MIN`, `Math::Sin`).
 
-- Examples of a `literal` includes `1231u`, `1E+20`.
+- `literal`: Numeric constants (e.g., `123`, `1.23`).
 
-- An example of a `string-literal` is `"relax"`.
+- `string-literal`: Quoted strings (e.g., `"example"`).
 
-- Examples of a `comment` includes `-- scale it easy`, `/* touch the grass */`.
+- `comment`: Single-line (`--`) or multi-line (`/* */`) comments.
 
-- Examples of a `ws` includes `' '`, `'\n'`.
+- `ws`: Spaces, tabs, newlines.
 
-- Examples of a `error` includes `!`.
+- `error`: Unrecognized syntax.
 
-`Highlighting Unit` has a list of `Pattern`s. `Pattern` defines a matching behaviour. Each `Pattern` has a `body` and `after` (lookahead) properties defining a matching behaviour equivalent to regexp `body(?=after)`. Also it has the property `is-case-insensitive`.
+Each `Highlighting Unit` contains one or more `Patterns` that define how to recognize the unit in text.
 
-## Highlighting JSON
+## Pattern Matching
+
+A `Pattern` consists of:
+
+- `body`: The main regex pattern to match.
+
+- `after`: A lookahead pattern.
+
+- `is-case-insensitive`: Whether matching should be case-insensitive.
+
+The matching behavior is equivalent to the regex: `body(?=after)`.
+
+## Highlighter Algorithm
+
+The highlighter algorithm can be described with the following pseudocode.
+
+```python
+# Consume matched tokens until empty.
+# For each iteration:
+# 1. Find the next token match (or error)
+# 2. Emit the token
+# 3. Continues with the remaining text
+highlight(text) = 
+  if text is not empty do 
+    token = match(text)
+    emit token
+    highlight(text[token.length:])
+
+# Select the longest match from all possible 
+# patterns. Leftmost is chosen. If no match, 
+# emits a 1-character error token for as a 
+# recovery. 
+match(text) =
+  max of matches(text) by length
+    or error token with length = 1
+
+# For each highlighting unit and its patterns,
+# attempt to match.
+matches(text) = do
+  unit <- highlighting.units
+  pattern <- unit.patterns
+  content <- match(text, pattern)
+  yield token with unit, content
+
+# Match both the pattern body and lookahead 
+# (after) portion with case sensitivity settings.
+match(text, pattern) = do
+  body <- (
+    regex pattern.body 
+    matches text prefix 
+    with pattern.case_sensivity)
+  after <- (
+    regex pattern.body
+    matches text[body.length:] prefix
+    with pattern.case_sensivity)
+  yield body + after
+
+# Special ANSI Comment handling.
+# Recursively process nested multiline comments.
+match(text, Comment if ANSI) =
+  if text not starts with "/*" do
+    return match(text, Comment if Default)
+
+  text = text after "/*"
+  loop do
+    if text starts with "*/" do
+      return text after "/*"
+
+    if text starts with "/*" do
+      budget = text before last "*/"
+      match = match(budget, Comment if ANSI)
+      text = text after match
+
+    if match:
+      continue
+
+    if text is empty:
+      return Nothing
+
+    text = text[1:]
+```
+
+## Highlighting JSON Example
+
+The highlighting can be generated using the `yql_highlight` tool in JSON format.
 
 ```json
 {
@@ -68,35 +154,59 @@ Here are listed all highlighting units.
 }
 ```
 
-## Highlighter Algorithm
+## Test Suite
 
-The string `S` is matched by the `Highlighting Unit` `U` iff any of `U`s patterns matched the `S`.
+The reference implementation includes a comprehensive test suite that verifies correct highlighting behavior. The test suite is defined in JSON format with the following structure:
 
-To highlight a query prefix `P` the `Highlighter` iterates over `Highlighting Unit`s patterns in the specified order and collect matched. Then it choices the max by length matched pattern `P` corresponding to the `Highlighting Unit` `U`. If there are multiple patterns matched, leftmost in the `Highlighting Unit`s list is chosen.
+```json
+{
+  "SQL": [
+    ["SELECT id, alias from users", "KKKKKK#_#II#P#_#IIIII#_#KKKK#_#IIIII"],
+  ],
+  "TypeIdentifier": [
+    ["Bool(value)", "TTTT#P#IIIII#P"]
+  ]
+}
+```
 
-The `Highlighter` produces the `Highlighting Token` with the kind of `U` and advances the text cursor by the length of the content matched by `P`.
+Where the first element is the SQL text to highlight and the second one is a string where each character represents the highlighting unit kind for each character in the input.
 
-If no patterns matched, `error` `Highlighting Token` is emitted.
+Here's the table representation of the unit kind to character mapping:
 
-## Matching ANSI Comments
+| Unit Kind                 | Character |
+| ------------------------- | --------- |
+| keyword                   | K         |
+| punctuation               | P         |
+| identifier                | I         |
+| quoted-identifier         | Q         |
+| bind-parameter-identifier | B         |
+| type-identifier           | T         |
+| function-identifier       | F         |
+| literal                   | L         |
+| string-literal            | S         |
+| comment                   | C         |
+| ws                        | _         |
+| error                     | E         |
 
-Matching ANSI comments using regexp is impossible as they are recursive. Therefore a client should implement an algorithm to match an ANSI comment by hand. The algorithm `MatchANSI` takes a string as an input and produces an prefix of a matched comment.
+Note: The `#` is used to make tokens visually distinct from other.
 
-1. Consume the begining of multiline comment `/*`.
+The test driver pseudocode:
 
-2. If the current input starts with the miltiline comment end, then consume it and return the whole consumed prefix.
+```cpp
+run_test_suite = 
+  let
+    highlighting = load_highlighting()
+    highlighter = make_highlighter(highlighting) 
+    suite = load_sest_suite()
+  in do
+    scenario <- suite
+    test <- scenario
+    (input, expected) = test
 
-3. If the current input starts with the begining of multiline comment `/*`, then find the first ending of multiline comment `*/` from the end of the current input. We need to "book" it because ANSI comment must be closed.
-
-    1. If it is not found, then `MatchANSI` failed.
-
-    2. Else `MatchANSI` on a current input prefix until the first ending of multiline comment `*/` from the end of the current input.
-
-4. If recursive `MatchANSI` succeded, then repeat from the step 2.
-
-5. Else if input is ended, then `MatchANSI` failed.
-
-6. Consume a one symbol and repeat from the step 2.
+    tokens = highlighter.highlight(input)
+    actual = to_pattern(tokens)
+    assert actual == expected
+```
 
 ## Implementation Guidelines
 
@@ -104,18 +214,4 @@ Matching ANSI comments using regexp is impossible as they are recursive. Therefo
 
 - The module `yql/essentials/tools/yql_highlight` contains a tool to play with the reference highlighting implementation and to generate various representation of highlighting (e.g. in JSON).
 
-## Reference
-
-- [Yandex Query UI URL][1]
-- [YDB Embedded UI, YqlHighlighter][2]
-- [YDB CLI, YQLHighlight][3]
-- [YQL Syntax Reference][4]
-- [VSCode Default Themes][5]
-- [YQL ANTLR4 Grammar][6]
-
-[1]: https://yq.yandex.cloud
-[2]: https://github.com/ydb-platform/ydb-embedded-ui/tree/v8.12.0/src/components/YqlHighlighter
-[3]: https://github.com/ydb-platform/ydb/blob/CLI_2.19.0/ydb/public/lib/ydb_cli/commands/interactive/yql_highlight.h
-[4]: https://ydb.tech/docs/en/yql/reference/syntax/
-[5]: https://github.com/microsoft/vscode/tree/fb28dca732cce37e797b83814e694bb14ba04b9a/extensions/theme-defaults/themes
-[6]: https://github.com/ydb-platform/ydb/blob/CLI_2.19.0/yql/essentials/sql/v1/SQLv1Antlr4.g.in
+- The test suite data can be found at `yql/essentials/sql/v1/highlight/ut/suite.json`.
