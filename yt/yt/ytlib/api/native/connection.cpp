@@ -590,7 +590,13 @@ public:
         EMasterChannelKind kind,
         TCellTag cellTag = PrimaryMasterCellTagSentinel) override
     {
-        auto canUseCypressProxy = kind == EMasterChannelKind::Follower || kind == EMasterChannelKind::Leader;
+        auto canUseCypressProxy =
+            kind == EMasterChannelKind::Leader ||
+            kind == EMasterChannelKind::Follower ||
+            // If master cache is not configured then all |EMasterChannelKind::Cache| requests
+            // will actually be routed to followers or Cypress Proxy (if present);
+            // cf. GetEffectiveMasterChannelKind.
+            kind == EMasterChannelKind::Cache && !MasterCellDirectory_->IsMasterCacheConfigured();
 
         return canUseCypressProxy && CypressProxyChannel_
             ? CypressProxyChannel_
