@@ -141,9 +141,6 @@ private:
 
         const auto& chaosManager = Slot_->GetChaosManager();
         auto* replicationCard = chaosManager->GetReplicationCardOrThrow(replicationCardId);
-        auto collocationId = replicationCard->GetCollocation()
-            ? replicationCard->GetCollocation()->GetId()
-            : TReplicationCardCollocationId();
         auto awaitingCollocationId = replicationCard->GetAwaitingCollocationId();
 
         // COMPAT(savrus)
@@ -159,12 +156,21 @@ private:
                 return false;
             }
 
+            auto collocationId = replicationCard->GetCollocation()
+                ? replicationCard->GetCollocation()->GetId()
+                : TReplicationCardCollocationId();
+
+            if (cachedCard->ReplicationCardCollocationId != collocationId) {
+                return false;
+            }
+
             int grantedCoordinatorsCount = 0;
             for (const auto& [_, info] : replicationCard->Coordinators()) {
                 if (info.State == EShortcutState::Granted) {
                     ++grantedCoordinatorsCount;
                 }
             }
+
             if (std::ssize(cachedCard->CoordinatorCellIds) != grantedCoordinatorsCount) {
                 return false;
             }
@@ -214,33 +220,11 @@ private:
         }
 
         const auto& invoker = Slot_->GetSnapshotStoreReadPoolInvoker();
-        auto callback = BIND([context, response, replicationCard = std::move(replicationCardCopy), fetchOptions, collocationId, awaitingCollocationId] {
+        auto callback = BIND([context, response, replicationCard = std::move(replicationCardCopy), fetchOptions, awaitingCollocationId] {
             auto* protoReplicationCard = response->mutable_replication_card();
-            protoReplicationCard->set_era(replicationCard->Era);
-            ToProto(protoReplicationCard->mutable_table_id(), replicationCard->TableId);
-            protoReplicationCard->set_table_path(replicationCard->TablePath);
-            protoReplicationCard->set_table_cluster_name(replicationCard->TableClusterName);
-            protoReplicationCard->set_current_timestamp(replicationCard->CurrentTimestamp);
-
-            if (collocationId) {
-                ToProto(protoReplicationCard->mutable_replication_card_collocation_id(), collocationId);
-            } else if (awaitingCollocationId) {
+            ToProto(protoReplicationCard, *replicationCard, fetchOptions);
+            if (!replicationCard->ReplicationCardCollocationId && awaitingCollocationId) {
                 ToProto(protoReplicationCard->mutable_replication_card_collocation_id(), awaitingCollocationId);
-            }
-
-            std::vector<TCellId> coordinators;
-            if (fetchOptions.IncludeCoordinators) {
-                ToProto(protoReplicationCard->mutable_coordinator_cell_ids(), replicationCard->CoordinatorCellIds);
-            }
-
-            for (const auto& [replicaId, replicaInfo] : replicationCard->Replicas) {
-                auto* protoEntry = protoReplicationCard->add_replicas();
-                ToProto(protoEntry->mutable_id(), replicaId);
-                ToProto(protoEntry->mutable_info(), replicaInfo, fetchOptions);
-            }
-
-            if (fetchOptions.IncludeReplicatedTableOptions) {
-                protoReplicationCard->set_replicated_table_options(ConvertToYsonString(replicationCard->ReplicatedTableOptions).ToString());
             }
         }).AsyncVia(invoker);
 
