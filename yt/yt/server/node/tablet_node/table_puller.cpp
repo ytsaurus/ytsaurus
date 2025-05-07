@@ -388,6 +388,18 @@ private:
             }
             ReplicationRound_ = replicationRound;
 
+            if (auto pullRowsTransactionId = tabletSnapshot->TabletChaosData->PreparedWritePulledRowsTransactionId.Load()) {
+                YT_LOG_DEBUG("Will not pull rows since previous pull rows transaction is not fully serialized yet (TransactionId: %v)",
+                    pullRowsTransactionId);
+                return;
+            }
+
+            if (auto advanceTransactionId = tabletSnapshot->TabletChaosData->PreparedAdvanceReplicationProgressTransactionId.Load()) {
+                YT_LOG_DEBUG("Will not pull rows since previous advance transaction is not fully serialized yet (TransactionId: %v)",
+                    advanceTransactionId);
+                return;
+            }
+
             TAsyncSemaphoreGuard configGuard;
             auto writeMode = tabletSnapshot->TabletRuntimeData->WriteMode.load();
             if (writeMode == ETabletWriteMode::Pull) {

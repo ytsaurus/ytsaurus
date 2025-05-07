@@ -3084,10 +3084,10 @@ private:
                 tablet->GetState());
         }
 
-        if (chaosData->PreparedWritePulledRowsTransactionId) {
+        if (chaosData->PreparedWritePulledRowsTransactionId.Load()) {
             THROW_ERROR_EXCEPTION("Another pulled rows write is in progress")
                 << TErrorAttribute("transaction_id", transaction->GetId())
-                << TErrorAttribute("write_pull_rows_transaction_id", chaosData->PreparedWritePulledRowsTransactionId);
+                << TErrorAttribute("write_pull_rows_transaction_id", chaosData->PreparedWritePulledRowsTransactionId.Load());
         }
 
         auto newProgress = FromProto<NChaosClient::TReplicationProgress>(request->new_replication_progress());
@@ -3105,7 +3105,7 @@ private:
                 << TErrorAttribute("progress_upper_key", newProgress.UpperKey.Get());
         }
 
-        chaosData->PreparedWritePulledRowsTransactionId = transaction->GetId();
+        chaosData->PreparedWritePulledRowsTransactionId.Store(transaction->GetId());
 
         const auto& tabletCellWriteManager = Slot_->GetTabletCellWriteManager();
         tabletCellWriteManager->AddPersistentAffectedTablet(transaction, tablet);
@@ -3154,17 +3154,17 @@ private:
         }
 
         const auto& chaosData = tablet->ChaosData();
-        if (chaosData->PreparedWritePulledRowsTransactionId != transaction->GetId()) {
+        if (chaosData->PreparedWritePulledRowsTransactionId.Load() != transaction->GetId()) {
             YT_LOG_ALERT(
                 "Unexpected write pull rows transaction finalized, ignored "
                 "(TransactionId: %v, ExpectedTransactionId: %v, TabletId: %v)",
                 transaction->GetId(),
-                chaosData->PreparedWritePulledRowsTransactionId,
+                chaosData->PreparedWritePulledRowsTransactionId.Load(),
                 tablet->GetId());
             return;
         }
 
-        chaosData->PreparedWritePulledRowsTransactionId = NullTransactionId;
+        chaosData->PreparedWritePulledRowsTransactionId.Store(NullTransactionId);
 
         auto replicationRound = chaosData->ReplicationRound.load();
         YT_VERIFY(replicationRound == round);
@@ -3222,12 +3222,11 @@ private:
         }
 
         const auto& chaosData = tablet->ChaosData();
-        auto& expectedTransactionId = chaosData->PreparedWritePulledRowsTransactionId;
-        if (expectedTransactionId != transaction->GetId()) {
+        if (chaosData->PreparedWritePulledRowsTransactionId.Load() != transaction->GetId()) {
             return;
         }
 
-        expectedTransactionId = NullTransactionId;
+        chaosData->PreparedWritePulledRowsTransactionId.Store(NullTransactionId);
 
         YT_LOG_DEBUG("Write pulled rows aborted (TabletId: %v, TransactionId: %v)",
             tabletId,
@@ -3269,12 +3268,12 @@ private:
                 tablet->GetState());
         }
 
-        if (chaosData->PreparedAdvanceReplicationProgressTransactionId) {
+        if (chaosData->PreparedAdvanceReplicationProgressTransactionId.Load()) {
             THROW_ERROR_EXCEPTION("Another replication progress advance is in progress")
                 << TErrorAttribute("transaction_id", transaction->GetId())
-                << TErrorAttribute("advance_replication_progress_transaction_id", chaosData->PreparedAdvanceReplicationProgressTransactionId);
+                << TErrorAttribute("advance_replication_progress_transaction_id", chaosData->PreparedAdvanceReplicationProgressTransactionId.Load());
         }
-        chaosData->PreparedAdvanceReplicationProgressTransactionId = transaction->GetId();
+        chaosData->PreparedAdvanceReplicationProgressTransactionId.Store(transaction->GetId());
 
         const auto& tabletCellWriteManager = Slot_->GetTabletCellWriteManager();
         tabletCellWriteManager->AddPersistentAffectedTablet(transaction, tablet);
@@ -3300,19 +3299,29 @@ private:
 
         const auto& chaosData = tablet->ChaosData();
         auto replicationRound = chaosData->ReplicationRound.load();
-        YT_VERIFY(!round || replicationRound == *round);
 
-        if (chaosData->PreparedAdvanceReplicationProgressTransactionId != transaction->GetId()) {
+        if (round && replicationRound != *round) {
             YT_LOG_ALERT(
                 "Unexpected replication progress advance transaction serialized, ignored "
-                "(TransactionId: %v, ExpectedTransactionId: %v, TabletId: %v)",
+                "(TransactionId: %v, ReplicationRound: %v, ExpectedReplicationRound: %v, TabletId: %v)",
                 transaction->GetId(),
-                chaosData->PreparedAdvanceReplicationProgressTransactionId,
+                *round,
+                replicationRound,
                 tablet->GetId());
             return;
         }
 
-        chaosData->PreparedAdvanceReplicationProgressTransactionId = NullTransactionId;
+        if (chaosData->PreparedAdvanceReplicationProgressTransactionId.Load() != transaction->GetId()) {
+            YT_LOG_ALERT(
+                "Unexpected replication progress advance transaction serialized, ignored "
+                "(TransactionId: %v, ExpectedTransactionId: %v, TabletId: %v)",
+                transaction->GetId(),
+                chaosData->PreparedAdvanceReplicationProgressTransactionId.Load(),
+                tablet->GetId());
+            return;
+        }
+
+        chaosData->PreparedAdvanceReplicationProgressTransactionId.Store(NullTransactionId);
 
         auto progress = New<TRefCountedReplicationProgress>(FromProto<NChaosClient::TReplicationProgress>(request->new_replication_progress()));
         bool validateStrictAdvance = request->validate_strict_advance();
@@ -3368,12 +3377,11 @@ private:
         }
 
         const auto& chaosData = tablet->ChaosData();
-        auto& expectedTransactionId = chaosData->PreparedAdvanceReplicationProgressTransactionId;
-        if (expectedTransactionId != transaction->GetId()) {
+        if (chaosData->PreparedAdvanceReplicationProgressTransactionId.Load() != transaction->GetId()) {
             return;
         }
 
-        expectedTransactionId = NullTransactionId;
+        chaosData->PreparedAdvanceReplicationProgressTransactionId.Store(NullTransactionId);
 
         YT_LOG_DEBUG(
             "Replication progress advance aborted (TabletId: %v, TransactionId: %v)",

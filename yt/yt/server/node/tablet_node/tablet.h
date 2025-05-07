@@ -98,8 +98,8 @@ struct TChaosTabletData
 {
     std::atomic<ui64> ReplicationRound = 0;
     NThreading::TAtomicObject<THashMap<TTabletId, i64>> CurrentReplicationRowIndexes;
-    TTransactionId PreparedWritePulledRowsTransactionId;
-    TTransactionId PreparedAdvanceReplicationProgressTransactionId;
+    NThreading::TAtomicObject<TTransactionId> PreparedWritePulledRowsTransactionId;
+    NThreading::TAtomicObject<TTransactionId> PreparedAdvanceReplicationProgressTransactionId;
     std::atomic<bool> IsTrimInProgress = false;
 };
 
