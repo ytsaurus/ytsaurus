@@ -529,7 +529,7 @@ public:
         auto req = proxy.GetChaosObjectResidency();
         ToProto(req->mutable_chaos_object_id(), ObjectId_);
         if (ForceRefresh_) {
-            req->set_force_refresh_chaos_object_cell_tag(ToProto<ui32>(CellTag_));
+            req->set_force_refresh_chaos_object_cell_tag(ToProto(CellTag_));
         }
 
         SetChaosCacheStickyGroupBalancingHint(
