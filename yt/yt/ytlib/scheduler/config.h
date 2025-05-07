@@ -912,7 +912,7 @@ struct TJobExperimentConfig
     std::optional<TString> BaseLayerPath;
 
     //! The network project used in the treatment jobs of the experiment.
-    std::optional<TString> NetworkProject;
+    std::optional<std::string> NetworkProject;
 
     //! Do not run any more treatment jobs if the `MaxFailedTreatmentJobs` of them failed.
     int MaxFailedTreatmentJobs;
@@ -1422,7 +1422,7 @@ struct TUserJobSpec
     std::optional<TDuration> JobSpeculationTimeout;
 
     //! Name of the network project to use in job.
-    std::optional<TString> NetworkProject;
+    std::optional<std::string> NetworkProject;
 
     //! Configures |enable_porto| setting for user job containers.
     //! If not given, then the global default from controller agent's config is used.

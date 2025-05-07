@@ -26,6 +26,7 @@
 #include <yt/yt/server/lib/chunk_pools/multi_chunk_pool.h>
 
 #include <yt/yt/server/lib/controller_agent/job_report.h>
+#include <yt/yt/server/lib/controller_agent/network_project.h>
 
 #include <yt/yt/server/lib/misc/job_reporter.h>
 #include <yt/yt/server/lib/misc/job_table_schema.h>
@@ -10134,12 +10135,13 @@ void TOperationControllerBase::InitUserJobSpecTemplate(
     }
 
     if (jobSpecConfig->NetworkProject) {
-        const auto& client = Host->GetClient();
-        auto networkProjectAttributes = GetNetworkProject(client, AuthenticatedUser, *jobSpecConfig->NetworkProject);
-        jobSpec->set_network_project_id(networkProjectAttributes->Get<ui32>("project_id"));
+        auto networkProject = GetNetworkProject(Host->GetClient(), AuthenticatedUser, *jobSpecConfig->NetworkProject);
+        ToProto(jobSpec->mutable_network_project(), networkProject);
 
-        jobSpec->set_enable_nat64(networkProjectAttributes->Get<bool>("enable_nat64", false));
-        jobSpec->set_disable_network(networkProjectAttributes->Get<bool>("disable_network", false));
+        // COMPAT(ignat)
+        jobSpec->set_network_project_id(networkProject.Id);
+        jobSpec->set_enable_nat64(networkProject.EnableNat64);
+        jobSpec->set_disable_network(networkProject.DisableNetwork);
     }
 
     jobSpec->set_enable_porto(ToProto(jobSpecConfig->EnablePorto.value_or(Config->DefaultEnablePorto)));
