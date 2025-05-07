@@ -2775,3 +2775,18 @@ class TestSelectWithRowCache(TestLookupCache):
         keys = str(list(keys))[1:-1]
         column_names = "*" if column_names is None else ", ".join(column_names)
         return select_rows(column_names + f" from [{table}] where key in ({keys})", **kwargs)
+
+
+@pytest.mark.enabled_multidaemon
+class TestQuerySequoia(TestQuery):
+    USE_SEQUOIA = True
+    ENABLE_CYPRESS_TRANSACTIONS_IN_SEQUOIA = True
+    ENABLE_TMP_ROOTSTOCK = True
+    NUM_CYPRESS_PROXIES = 1
+    NUM_SECONDARY_MASTER_CELLS = 2
+
+    MASTER_CELL_DESCRIPTORS = {
+        "10": {"roles": ["cypress_node_host"]},
+        "11": {"roles": ["cypress_node_host", "sequoia_node_host"]},
+        "12": {"roles": ["chunk_host"]},
+    }
