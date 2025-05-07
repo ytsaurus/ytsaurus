@@ -3005,6 +3005,19 @@ private:
                 << TErrorAttribute("write_pull_rows_transaction_id", chaosData->PreparedWritePulledRowsTransactionId.Load());
         }
 
+        // COMPAT(savrus)
+        int reign = GetCurrentMutationContext()->Request().Reign;
+        if (reign >= static_cast<int>(ETabletReign::CheckChaosTransactionsInPrepare) ||
+            (reign < static_cast<int>(ETabletReign::Start_25_2) &&
+            reign >= static_cast<int>(ETabletReign::CheckChaosTransactionsInPrepare_25_1)))
+        {
+            if (chaosData->PreparedAdvanceReplicationProgressTransactionId.Load()) {
+                THROW_ERROR_EXCEPTION("Another replication progress advance is in progress")
+                    << TErrorAttribute("transaction_id", transaction->GetId())
+                    << TErrorAttribute("advance_replication_progress_transaction_id", chaosData->PreparedAdvanceReplicationProgressTransactionId.Load());
+            }
+        }
+
         auto newProgress = FromProto<NChaosClient::TReplicationProgress>(request->new_replication_progress());
         if (newProgress.Segments.empty()) {
             THROW_ERROR_EXCEPTION("Empty progress");
@@ -3188,6 +3201,20 @@ private:
                 << TErrorAttribute("transaction_id", transaction->GetId())
                 << TErrorAttribute("advance_replication_progress_transaction_id", chaosData->PreparedAdvanceReplicationProgressTransactionId.Load());
         }
+
+        // COMPAT(savrus)
+        int reign = GetCurrentMutationContext()->Request().Reign;
+        if (reign >= static_cast<int>(ETabletReign::CheckChaosTransactionsInPrepare) ||
+            (reign < static_cast<int>(ETabletReign::Start_25_2) &&
+            reign >= static_cast<int>(ETabletReign::CheckChaosTransactionsInPrepare_25_1)))
+        {
+            if (chaosData->PreparedWritePulledRowsTransactionId.Load()) {
+                THROW_ERROR_EXCEPTION("Another pulled rows write is in progress")
+                    << TErrorAttribute("transaction_id", transaction->GetId())
+                    << TErrorAttribute("write_pull_rows_transaction_id", chaosData->PreparedWritePulledRowsTransactionId.Load());
+            }
+        }
+
         chaosData->PreparedAdvanceReplicationProgressTransactionId.Store(transaction->GetId());
 
         const auto& tabletCellWriteManager = Slot_->GetTabletCellWriteManager();
