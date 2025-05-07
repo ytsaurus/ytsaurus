@@ -84,11 +84,6 @@ private:
 
             auto unlockGuard = Finally([&] {
                 Tablet_->UnlockScan();
-
-                if (const auto& hunkTabletManager = TabletSlot_->GetHunkTabletManager()) {
-                    // NB: May destroy tablet.
-                    hunkTabletManager->CheckFullyUnlocked(Tablet_);
-                }
             });
 
             YT_LOG_DEBUG("Scanning hunk tablet");
