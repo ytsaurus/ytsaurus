@@ -1033,7 +1033,7 @@ class TestListJobs(TestListJobsCommon):
         op = run_test_vanilla(
             with_breakpoint("BREAKPOINT"),
             job_count=2,
-            task_patch={"gang_manager": {}},
+            task_patch={"gang_options": {}},
         )
 
         job_ids = wait_breakpoint(job_count=2)

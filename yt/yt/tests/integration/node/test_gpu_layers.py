@@ -1189,7 +1189,7 @@ class TestGpuCheck(YTEnvSetup, GpuCheckBase):
             "layer_paths": ["//tmp/base_layer"],
             "enable_gpu_layers": True,
             "enable_gpu_check": True,
-            "gang_manager": {},
+            "gang_options": {},
         }
 
         op = vanilla(
