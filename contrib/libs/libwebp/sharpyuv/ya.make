@@ -8,6 +8,15 @@ LICENSE_TEXTS(.yandex_meta/licenses.list.txt)
 
 VERSION(1.5.0)
 
+IF (OS_ANDROID)
+    PEERDIR(
+        contrib/libs/android_cpufeatures
+    )
+    ADDINCL(
+        contrib/libs/android_cpufeatures
+    )
+ENDIF()
+
 ADDINCL(
     contrib/libs/libwebp
     contrib/libs/libwebp/sharpyuv
