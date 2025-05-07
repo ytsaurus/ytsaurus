@@ -38,6 +38,7 @@ enum class EComponent {
     ProviderPure,
     FastMapReduce,
     ProviderYtflow,
+    SqlComplete,
     // <--- put other log components here
     MaxValue
 };
@@ -85,6 +86,7 @@ struct EComponentHelpers {
         case EComponent::ProviderPure: return TStringBuf("pure");
         case EComponent::FastMapReduce: return TStringBuf("FMR");
         case EComponent::ProviderYtflow: return TStringBuf("YTFLOW");
+        case EComponent::SqlComplete: return TStringBuf("sql complete");
         default:
             ythrow yexception() << "invalid log component value: "
                                 << ToInt(component);
