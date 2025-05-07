@@ -92,6 +92,8 @@ struct IChaosSlot
     virtual NTabletServer::TDynamicReplicatedTableTrackerConfigPtr GetReplicatedTableTrackerConfig() const = 0;
     virtual bool IsVerboseLoggingEnabled() const = 0;
     virtual void Reconfigure(const TChaosNodeDynamicConfigPtr& config) = 0;
+
+    virtual TChaosNodeDynamicConfigPtr GetDynamicConfig() const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IChaosSlot)

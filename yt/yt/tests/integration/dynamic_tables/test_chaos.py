@@ -63,6 +63,12 @@ class TestChaos(ChaosTestBase):
         }
     }
 
+    DELTA_NODE_CONFIG = {
+        "chaos_node": {
+            "replication_card_automaton_cache_expiration_time": 100
+        },
+    }
+
     def setup_method(self, method):
         super(TestChaos, self).setup_method(method)
 
@@ -4395,7 +4401,9 @@ class TestChaos(ChaosTestBase):
                         return lookup_call()
                     except YtError as err:
                         print_debug("Lookup failed: ", err)
-                        if err.is_no_in_sync_replicas() or err.contains_text("No single cluster contains in-sync replicas for all involved tables"):
+                        if err.is_no_in_sync_replicas() or \
+                                err.contains_text("No single cluster contains in-sync replicas for all involved tables") or \
+                                err.contains_text("No working in-sync replicas found for table"):
                             return False
                         else:
                             raise err
@@ -4979,6 +4987,9 @@ class TestChaosRpcProxyWithReplicationCardCache(ChaosTestBase):
                 "hard_backoff_time":  10000,
                 "enable_watching": True,
             },
+        },
+        "chaos_node": {
+            "replication_card_automaton_cache_expiration_time": 100
         },
     }
 
@@ -5760,7 +5771,10 @@ class ChaosClockBase(ChaosTestBase):
             "transaction_manager": {
                 "reject_incorrect_clock_cluster_tag": True
             }
-        }
+        },
+        "chaos_node": {
+            "replication_card_automaton_cache_expiration_time": 100
+        },
     }
 
     @classmethod
