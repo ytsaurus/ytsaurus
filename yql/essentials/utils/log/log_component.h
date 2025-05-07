@@ -123,6 +123,7 @@ struct EComponentHelpers {
         if (str == TStringBuf("pure")) return EComponent::ProviderPure;
         if (str == TStringBuf("FMR")) return EComponent::FastMapReduce;
         if (str == TStringBuf("YTFLOW")) return EComponent::ProviderYtflow;
+        if (str == TStringBuf("sql complete")) return EComponent::SqlComplete;
         ythrow yexception() << "unknown log component: '" << str << '\'';
     }
 
