@@ -240,7 +240,7 @@ void CreateNode(
             : std::nullopt);
 
     NCypressServer::NProto::TReqCreateNode createNodeRequest;
-    createNodeRequest.set_type(ToProto<int>(type));
+    createNodeRequest.set_type(ToProto(type));
     ToProto(createNodeRequest.mutable_node_id(), nodeId.ObjectId);
     createNodeRequest.set_path(path.ToRawYPath().Underlying());
     ToProto(createNodeRequest.mutable_node_attributes(), *explicitAttributes);

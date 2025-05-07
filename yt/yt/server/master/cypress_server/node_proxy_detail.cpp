@@ -2134,7 +2134,7 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, SerializeNode)
 
     if (node->IsExternal()) {
         auto cellTag = node->GetExternalCellTag();
-        resultingEntry->set_external_cell_tag(ToProto<int>(cellTag));
+        resultingEntry->set_external_cell_tag(ToProto(cellTag));
     }
 
     if (auto schemaId = nodeLocalContext.GetSchemaId()) {

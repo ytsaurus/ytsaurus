@@ -362,7 +362,7 @@ DEFINE_RPC_SERVICE_METHOD(TChaosCacheService, GetChaosObjectResidency)
         cellTagToForceRefresh);
 
     auto replier = BIND([context, response] (const TCellTag& cellTag) {
-        response->set_chaos_object_cell_tag(ToProto<ui32>(cellTag));
+        response->set_chaos_object_cell_tag(ToProto(cellTag));
     });
 
     auto residencyFuture = DoGetChaosObjectResidency(chaosObjectId, cellTagToForceRefresh);
@@ -386,7 +386,7 @@ DEFINE_RPC_SERVICE_METHOD(TChaosCacheService, GetReplicationCardResidency)
         cellTagToForceRefresh);
 
     auto replier = BIND([context, response] (const TCellTag& cellTag) {
-        response->set_replication_card_cell_tag(ToProto<ui32>(cellTag));
+        response->set_replication_card_cell_tag(ToProto(cellTag));
     });
 
     auto residencyFuture = DoGetChaosObjectResidency(replicationCardId, cellTagToForceRefresh);

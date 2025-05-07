@@ -188,7 +188,7 @@ TQuery TClient::DoGetQuery(TQueryId queryId, const TGetQueryOptions& options)
         ToProto(rpcRequest->mutable_attributes(), options.Attributes);
     }
     if (options.Timestamp) {
-        rpcRequest->set_timestamp(ToProto<ui64>(options.Timestamp));
+        rpcRequest->set_timestamp(ToProto(options.Timestamp));
     }
 
     auto rsp = WaitFor(req->Invoke()).ValueOrThrow();
