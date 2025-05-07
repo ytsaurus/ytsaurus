@@ -63,7 +63,7 @@ public:
             })
         , Config_(config)
         , Cache_(std::move(cache))
-        , CellId_(masterCellId)
+        , MasterCellId_(masterCellId)
         , ThrottlingUpstreamChannel_(CreateThrottlingChannel(
             config,
             std::move(upstreamChannel),
@@ -92,7 +92,7 @@ private:
 
     const TCachingObjectServiceConfigPtr Config_;
     const TObjectServiceCachePtr Cache_;
-    const TCellId CellId_;
+    const TCellId MasterCellId_;
     const IThrottlingChannelPtr ThrottlingUpstreamChannel_;
     const NLogging::TLogger Logger;
 
@@ -155,7 +155,7 @@ DEFINE_RPC_SERVICE_METHOD(TCachingObjectService, Execute)
             : std::nullopt;
 
         TObjectServiceCacheKey key(
-            CellTagFromId(CellId_),
+            CellTagFromId(MasterCellId_),
             cachingRequestHeaderExt->disable_per_user_cache() ? TString() : context->GetAuthenticationIdentity().User,
             ypathExt.target_path(),
             subrequestHeader.service(),
@@ -207,6 +207,8 @@ DEFINE_RPC_SERVICE_METHOD(TCachingObjectService, Execute)
         if (cookie.IsActive()) {
             auto proxy = TObjectServiceProxy::FromDirectMasterChannel(ThrottlingUpstreamChannel_);
             auto req = proxy.Execute();
+            req->set_cell_tag(ToProto(CellTagFromId(MasterCellId_)));
+            req->set_master_channel_kind(ToProto(NApi::EMasterChannelKind::Follower));
             SetCurrentAuthenticationIdentity(req);
 
             if (cachingEnabled) {
@@ -350,8 +352,7 @@ NRpc::IChannelPtr CreateMasterChannelForCache(
     NRpc::TRealmId masterCellId)
 {
     auto cellTag = CellTagFromId(masterCellId);
-    // TODO(gritukan): Support Cypress Proxies here.
-    return connection->GetMasterChannelOrThrow(
+    return connection->GetCypressChannelOrThrow(
         NApi::EMasterChannelKind::Follower,
         cellTag);
 }

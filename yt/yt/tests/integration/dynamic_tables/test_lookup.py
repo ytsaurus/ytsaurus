@@ -2,6 +2,8 @@ from .test_sorted_dynamic_tables import TestSortedDynamicTablesBase
 
 from yt_helpers import profiler_factory
 
+from yt_sequoia_helpers import not_implemented_in_sequoia
+
 from yt_commands import (
     authors, print_debug, wait, create, ls, get, set, remove, exists, copy, insert_rows,
     lookup_rows, delete_rows, create_dynamic_table, generate_uuid,
@@ -834,6 +836,7 @@ class TestLookup(TestSortedDynamicTablesBase):
             [{"key1": 0, "key2": yson.YsonEntity(), "value": "0"}],
         )
 
+    @not_implemented_in_sequoia
     @authors("akozhikhov")
     @pytest.mark.parametrize("optimize_for, chunk_format", [
         ("lookup", "table_versioned_slim"),
@@ -2119,6 +2122,28 @@ class TestLookupRpcProxy(TestLookup):
 
         _set_timeout_slack_options(1000)
         assert lookup_rows("//tmp/t", keys, timeout=1000, enable_partial_result=True,) == []
+
+
+@pytest.mark.enabled_multidaemon
+class TestLookupSequoiaWithoutMasterCache(TestLookup):
+    USE_SEQUOIA = True
+    ENABLE_CYPRESS_TRANSACTIONS_IN_SEQUOIA = True
+    ENABLE_TMP_ROOTSTOCK = True
+    NUM_CYPRESS_PROXIES = 1
+    NUM_SECONDARY_MASTER_CELLS = 2
+
+    MASTER_CELL_DESCRIPTORS = {
+        "10": {"roles": ["cypress_node_host"]},
+        "11": {"roles": ["cypress_node_host", "sequoia_node_host"]},
+        "12": {"roles": ["chunk_host"]},
+    }
+
+
+@pytest.mark.enabled_multidaemon
+class TestLookupSequoiaWithMasterCache(TestLookup):
+    NUM_MASTER_CACHES = 1
+    USE_MASTER_CACHE = True
+
 
 ################################################################################
 

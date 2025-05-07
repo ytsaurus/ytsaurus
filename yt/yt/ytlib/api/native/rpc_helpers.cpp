@@ -1,6 +1,8 @@
 #include "rpc_helpers.h"
 #include "config.h"
 
+#include <yt/yt/ytlib/cell_master_client/cell_directory.h>
+
 namespace NYT::NApi::NNative {
 
 using namespace NRpc;
@@ -14,26 +16,35 @@ bool IsCachingEnabled(
     const NApi::NNative::IConnectionPtr& connection,
     const TMasterReadOptions& options)
 {
-    if (options.ReadFrom == EMasterChannelKind::LocalCache) {
-        return true;
+    switch (options.ReadFrom) {
+        case EMasterChannelKind::Leader:
+        case EMasterChannelKind::Follower:
+            return false;
+        case EMasterChannelKind::LocalCache:
+        case EMasterChannelKind::MasterCache:
+            return true;
+        case EMasterChannelKind::Cache:
+            return connection->GetMasterCellDirectory()->IsMasterCacheConfigured();
     }
-
-    const auto& config = connection->GetStaticConfig()->MasterCache;
-
-    if (!config) {
-        return false;
-    }
-
-    if (!config->EnableMasterCacheDiscovery && !config->Endpoints && (!config->Addresses || config->Addresses->empty())) {
-        return false;
-    }
-
-    return
-        options.ReadFrom == EMasterChannelKind::Cache ||
-        options.ReadFrom == EMasterChannelKind::MasterCache;
+    YT_ABORT();
 }
 
 } // namespace
+
+NApi::EMasterChannelKind GetEffectiveMasterChannelKind(
+    const IConnectionPtr& connection,
+    NApi::EMasterChannelKind kind)
+{
+    if (kind == NApi::EMasterChannelKind::Cache &&
+        !connection->GetMasterCellDirectory()->IsMasterCacheConfigured())
+    {
+        // If master cache is not configured then all |EMasterChannelKind::Cache| requests
+        // will actually be routed to followers.
+        return NApi::EMasterChannelKind::Follower;
+    }
+
+    return kind;
+}
 
 void SetCachingHeader(
     const IClientRequestPtr& request,
