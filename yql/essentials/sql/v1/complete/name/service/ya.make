@@ -13,6 +13,7 @@ END()
 
 RECURSE(
     cluster
+    logging
     ranking
     schema
     static

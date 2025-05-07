@@ -7,6 +7,7 @@
 #include <yql/essentials/sql/v1/complete/name/service/ranking/frequency.h>
 #include <yql/essentials/sql/v1/complete/name/service/ranking/ranking.h>
 #include <yql/essentials/sql/v1/complete/name/service/cluster/name_service.h>
+#include <yql/essentials/sql/v1/complete/name/service/logging/name_service.h>
 #include <yql/essentials/sql/v1/complete/name/service/schema/name_service.h>
 #include <yql/essentials/sql/v1/complete/name/service/static/name_service.h>
 #include <yql/essentials/sql/v1/complete/name/service/union/name_service.h>
@@ -14,6 +15,8 @@
 #include <yql/essentials/sql/v1/lexer/lexer.h>
 #include <yql/essentials/sql/v1/lexer/antlr4_pure/lexer.h>
 #include <yql/essentials/sql/v1/lexer/antlr4_pure_ansi/lexer.h>
+
+#include <yql/essentials/utils/log/log.h>
 
 #include <library/cpp/testing/unittest/registar.h>
 
@@ -115,8 +118,12 @@ Y_UNIT_TEST_SUITE(SqlCompleteTests) {
 
         TVector<INameService::TPtr> children = {
             MakeStaticNameService(std::move(names), frequency),
-            MakeSchemaNameService(MakeDispatchSchema(std::move(schemasByCluster))),
-            MakeClusterNameService(MakeStaticClusterDiscovery(std::move(clusters))),
+            MakeLoggingNameService(
+                MakeSchemaNameService(
+                    MakeDispatchSchema(std::move(schemasByCluster)))),
+            MakeLoggingNameService(
+                MakeClusterNameService(
+                    MakeStaticClusterDiscovery(std::move(clusters)))),
         };
 
         INameService::TPtr service = MakeUnionNameService(std::move(children), ranking);
@@ -998,11 +1005,17 @@ Y_UNIT_TEST_SUITE(SqlCompleteTests) {
     }
 
     Y_UNIT_TEST(OnFailingNameService) {
-        auto service = MakeIntrusive<TFailingNameService>();
+        TStringStream out;
+        NYql::NLog::YqlLoggerScope logger(&out);
+
+        auto service = MakeLoggingNameService(MakeIntrusive<TFailingNameService>());
         auto engine = MakeSqlCompletionEngine(MakePureLexerSupplier(), std::move(service));
         UNIT_ASSERT_EXCEPTION(Complete(engine, ""), TDummyException);
         UNIT_ASSERT_EXCEPTION(Complete(engine, "SELECT OPTIONAL<U"), TDummyException);
         UNIT_ASSERT_EXCEPTION(Complete(engine, "SELECT CAST (1 AS ").size(), TDummyException);
+
+        TString content = std::move(out).Str();
+        UNIT_ASSERT_STRING_CONTAINS(content, "T_T");
     }
 
     Y_UNIT_TEST(NameNormalization) {

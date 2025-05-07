@@ -12,6 +12,7 @@ PEERDIR(
     yql/essentials/sql/v1/complete/name/object/simple
     yql/essentials/sql/v1/complete/name/object/simple/static
     yql/essentials/sql/v1/complete/name/service/cluster
+    yql/essentials/sql/v1/complete/name/service/logging
     yql/essentials/sql/v1/complete/name/service/schema
     yql/essentials/sql/v1/complete/name/service/static
     yql/essentials/sql/v1/complete/name/service/union
