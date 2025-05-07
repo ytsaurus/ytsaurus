@@ -1514,15 +1514,15 @@ DEFINE_REFCOUNTED_TYPE(TOptionalUserJobSpec)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TGangManagerConfig
+struct TGangOptions
     : public NYTree::TYsonStruct
 {
-    REGISTER_YSON_STRUCT(TGangManagerConfig);
+    REGISTER_YSON_STRUCT(TGangOptions);
 
     static void Register(TRegistrar registrar);
 };
 
-DEFINE_REFCOUNTED_TYPE(TGangManagerConfig)
+DEFINE_REFCOUNTED_TYPE(TGangOptions)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1538,7 +1538,7 @@ struct TVanillaTaskSpec
 
     bool RestartCompletedJobs;
 
-    TGangManagerConfigPtr GangManager;
+    TGangOptionsPtr GangOptions;
 
     REGISTER_YSON_STRUCT(TVanillaTaskSpec);
 

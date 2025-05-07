@@ -1445,7 +1445,7 @@ void TMandatoryUserJobSpec::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TGangManagerConfig::Register(TRegistrar /*registrar*/)
+void TGangOptions::Register(TRegistrar /*registrar*/)
 { }
 
 void TVanillaTaskSpec::Register(TRegistrar registrar)
@@ -1459,13 +1459,14 @@ void TVanillaTaskSpec::Register(TRegistrar registrar)
         .Default();
     registrar.Parameter("restart_completed_jobs", &TThis::RestartCompletedJobs)
         .Default(false);
-    registrar.Parameter("gang_manager", &TThis::GangManager)
+    registrar.Parameter("gang_options", &TThis::GangOptions)
+        .Alias("gang_manager")
         .Default();
 
     registrar.Postprocessor([] (TVanillaTaskSpec* spec) {
-        if (spec->GangManager && spec->RestartCompletedJobs) {
+        if (spec->GangOptions && spec->RestartCompletedJobs) {
             THROW_ERROR_EXCEPTION(
-                "\"gang_manager\" and \"restart_completed_jobs\" can not be turned on both");
+                "\"gang_options\" and \"restart_completed_jobs\" can not be turned on both");
         }
     });
 }
@@ -2253,7 +2254,7 @@ void TVanillaOperationSpec::Register(TRegistrar registrar)
         .NonEmpty();
 
     registrar.Postprocessor([] (TVanillaOperationSpec* spec) {
-        TStringBuf taskWithGangManagerName;
+        TStringBuf taskWithGangOptionsName;
         TStringBuf taskWithFailOnJobRestartName;
         TStringBuf taskWithOutputTableName;
         for (const auto& [taskName, taskSpec] : spec->Tasks) {
@@ -2267,8 +2268,8 @@ void TVanillaOperationSpec::Register(TRegistrar registrar)
 
             ValidateOutputTablePaths(taskSpec->OutputTablePaths);
 
-            if (taskSpec->GangManager) {
-                taskWithGangManagerName = taskName;
+            if (taskSpec->GangOptions) {
+                taskWithGangOptionsName = taskName;
             }
             if (taskSpec->FailOnJobRestart) {
                 taskWithFailOnJobRestartName = taskName;
@@ -2278,24 +2279,24 @@ void TVanillaOperationSpec::Register(TRegistrar registrar)
             }
         }
 
-        if (taskWithGangManagerName && spec->FailOnJobRestart) {
+        if (taskWithGangOptionsName && spec->FailOnJobRestart) {
             THROW_ERROR_EXCEPTION(
-                "Operation with \"fail_on_job_restart\" enabled can not have tasks with configured \"gang_manager\"")
-                << TErrorAttribute("task_with_gang_manager_name", taskWithGangManagerName);
+                "Operation with \"fail_on_job_restart\" enabled can not have tasks with configured \"gang_options\"")
+                << TErrorAttribute("task_with_gang_options_name", taskWithGangOptionsName);
         }
 
-        if (taskWithGangManagerName && taskWithFailOnJobRestartName) {
+        if (taskWithGangOptionsName && taskWithFailOnJobRestartName) {
             THROW_ERROR_EXCEPTION(
-                "Operation can not have both task with \"gang_manager\" and task with \"fail_on_job_restart\"")
-                << TErrorAttribute("task_with_gang_manager_name", taskWithGangManagerName)
+                "Operation can not have both task with \"gang_options\" and task with \"fail_on_job_restart\"")
+                << TErrorAttribute("task_with_gang_options_name", taskWithGangOptionsName)
                 << TErrorAttribute("task_with_fail_on_job_restart_name", taskWithFailOnJobRestartName);
         }
 
-        if (taskWithOutputTableName && taskWithGangManagerName) {
+        if (taskWithOutputTableName && taskWithGangOptionsName) {
             THROW_ERROR_EXCEPTION(
                 "Gang operations having output tables are not currently supported")
                 << TErrorAttribute("task_with_output_table_name", taskWithOutputTableName)
-                << TErrorAttribute("task_with_gang_manager_name", taskWithGangManagerName);
+                << TErrorAttribute("task_with_gang_options_name", taskWithGangOptionsName);
         }
 
         if (spec->Sampling && spec->Sampling->SamplingRate) {

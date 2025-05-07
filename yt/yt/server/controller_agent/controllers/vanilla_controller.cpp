@@ -536,7 +536,7 @@ void TVanillaTask::TrySwitchToNewOperationIncarnation(
 
 bool TVanillaTask::IsJobRestartingEnabled() const noexcept
 {
-    return static_cast<bool>(Spec_->GangManager);
+    return static_cast<bool>(Spec_->GangOptions);
 }
 
 int TVanillaTask::GetTargetJobCount() const noexcept
@@ -669,7 +669,7 @@ TVanillaController::TVanillaController(
     , Options_(options)
 {
     for (const auto& [taskName, taskSpec] : Spec_->Tasks) {
-        if (taskSpec->GangManager) {
+        if (taskSpec->GangOptions) {
             GangManager_.emplace(this, GetConfig()->VanillaOperationOptions);
             break;
         }
@@ -693,7 +693,7 @@ void TVanillaController::RegisterMetadata(auto&& registrar)
             auto gangManager = Load<TGangManager>(context);
 
             for (const auto& [taskName, taskSpec] : this_->Spec_->Tasks) {
-                if (taskSpec->GangManager) {
+                if (taskSpec->GangOptions) {
                     this_->GangManager_.emplace(std::move(gangManager));
                     break;
                 }
