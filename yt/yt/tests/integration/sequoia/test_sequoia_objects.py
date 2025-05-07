@@ -534,7 +534,6 @@ class TestSequoiaReplicasMulticell(TestSequoiaReplicas):
 class TestSequoiaQueues(YTEnvSetup):
     ENABLE_MULTIDAEMON = False  # There are component restarts.
     USE_SEQUOIA = True
-    NUM_CYPRESS_PROXIES = 1
 
     MASTER_CELL_DESCRIPTORS = {
         "10": {"roles": ["sequoia_node_host"]},
@@ -635,7 +634,6 @@ class TestSequoiaQueues(YTEnvSetup):
 class TestSequoiaPrerequisites(YTEnvSetup):
     USE_SEQUOIA = True
     ENABLE_TMP_ROOTSTOCK = True
-    NUM_CYPRESS_PROXIES = 1
     NUM_SECONDARY_MASTER_CELLS = 3
 
     ENABLE_CYPRESS_TRANSACTIONS_IN_SEQUOIA = True

@@ -1392,8 +1392,6 @@ class TestBackupsMirroredTx(TestBackupsShardedTx):
     ENABLE_RPC_PROXY = True
     USE_SEQUOIA = True
     ENABLE_CYPRESS_TRANSACTIONS_IN_SEQUOIA = True
-    ENABLE_TMP_ROOTSTOCK = False
-    NUM_CYPRESS_PROXIES = 1
     NUM_TEST_PARTITIONS = 6
 
     DELTA_RPC_PROXY_CONFIG = {
@@ -1441,8 +1439,6 @@ class TestReplicatedTableBackupsMirroredTx(TestReplicatedTableBackupsShardedTx):
     ENABLE_RPC_PROXY = True
     USE_SEQUOIA = True
     ENABLE_CYPRESS_TRANSACTIONS_IN_SEQUOIA = True
-    ENABLE_TMP_ROOTSTOCK = False
-    NUM_CYPRESS_PROXIES = 1
 
     DELTA_RPC_PROXY_CONFIG = {
         "cluster_connection": {

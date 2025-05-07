@@ -61,6 +61,8 @@ class TestCypress(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_TEST_PARTITIONS = 12
 
+    NUM_CYPRESS_PROXIES = 2
+
     NUM_MASTERS = 3
     NUM_NODES = 0
 
@@ -4467,8 +4469,6 @@ class TestCypressMirroredTx(TestCypressShardedTxCTxS):
     ENABLE_MULTIDAEMON = True
     USE_SEQUOIA = True
     ENABLE_CYPRESS_TRANSACTIONS_IN_SEQUOIA = True
-    ENABLE_TMP_ROOTSTOCK = False
-    NUM_CYPRESS_PROXIES = 1
     NUM_TEST_PARTITIONS = 9
 
     DELTA_CONTROLLER_AGENT_CONFIG = {
@@ -4480,12 +4480,6 @@ class TestCypressMirroredTx(TestCypressShardedTxCTxS):
             "forbid_transaction_actions_for_cypress_transactions": True,
         }
     }
-
-
-@pytest.mark.enabled_multidaemon
-class TestCypressCypressProxy(TestCypressShardedTx):
-    ENABLE_MULTIDAEMON = True
-    NUM_CYPRESS_PROXIES = 2
 
 
 ##################################################################
@@ -5098,7 +5092,6 @@ class TestCypressSequoia(TestCypressMulticell):
     USE_SEQUOIA = True
     ENABLE_CYPRESS_TRANSACTIONS_IN_SEQUOIA = True
     ENABLE_TMP_ROOTSTOCK = True
-    NUM_CYPRESS_PROXIES = 1
     NUM_SECONDARY_MASTER_CELLS = 3
     NUM_TEST_PARTITIONS = 12
 
