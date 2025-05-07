@@ -337,6 +337,8 @@ private:
                 if (partitionSnapshot->CumulativeDataWeight) {
                     partitionSnapshot->WriteRate.DataWeight.Update(*partitionSnapshot->CumulativeDataWeight);
                 }
+            } else if (partitionSnapshot->CumulativeDataWeight) {
+                partitionSnapshot->WriteRate.DataWeight.Update(partitionSnapshot->WriteRate.DataWeight.Count);
             }
 
             partitionSnapshot->AvailableDataWeight = OptionalSub(
