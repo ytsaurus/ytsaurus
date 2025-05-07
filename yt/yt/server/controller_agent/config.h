@@ -317,6 +317,9 @@ struct TGpuCheckOptions
     //! Command line arguments for the GPU check binary.
     std::vector<std::string> BinaryArgs;
 
+    //! Network project for GPU check container.
+    std::optional<TString> NetworkProject;
+
     REGISTER_YSON_STRUCT(TGpuCheckOptions);
 
     static void Register(TRegistrar registrar);

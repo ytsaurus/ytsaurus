@@ -340,6 +340,8 @@ void TGpuCheckOptions::Register(TRegistrar registrar)
         .Default();
     registrar.Parameter("binary_args", &TThis::BinaryArgs)
         .Default();
+    registrar.Parameter("network_project", &TThis::NetworkProject)
+        .Default();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

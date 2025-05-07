@@ -410,30 +410,6 @@ void GenerateDockerAuthFromToken(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IAttributeDictionaryPtr GetNetworkProject(
-    const NApi::NNative::IClientPtr& client,
-    const std::string& authenticatedUser,
-    TString networkProject)
-{
-    const auto networkProjectPath = "//sys/network_projects/" + ToYPathLiteral(networkProject);
-    auto checkPermissionRsp = WaitFor(client->CheckPermission(authenticatedUser, networkProjectPath, EPermission::Use))
-        .ValueOrThrow();
-    if (checkPermissionRsp.Action == NSecurityClient::ESecurityAction::Deny) {
-        THROW_ERROR_EXCEPTION("User %Qv is not allowed to use network project %Qv",
-            authenticatedUser,
-            networkProject);
-    }
-
-    TGetNodeOptions options{
-        .Attributes = TAttributeFilter({"project_id", "enable_nat64", "disable_network"})
-    };
-    auto networkProjectNode = ConvertToNode(WaitFor(client->GetNode(networkProjectPath, options))
-        .ValueOrThrow());
-    return networkProjectNode->Attributes().Clone();
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 bool IsStaticTableWithHunks(TInputTablePtr table)
 {
     if (!table->Dynamic) {

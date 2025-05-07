@@ -425,8 +425,15 @@ void TJob::DoStart(TErrorOr<std::vector<TNameWithAddress>>&& resolvedNodeAddress
                         *prepareTimeLimit);
                 }
 
-                if (UserJobSpec_->has_network_project_id()) {
-                    NetworkProjectId_ = UserJobSpec_->network_project_id();
+                if (UserJobSpec_->has_network_project()) {
+                    NetworkProject_ = FromProto<NControllerAgent::TNetworkProject>(UserJobSpec_->network_project());
+                // COMPAT(ignat)
+                } else if (UserJobSpec_->has_network_project_id()) {
+                    NetworkProject_ = NControllerAgent::TNetworkProject{
+                        .Id = UserJobSpec_->network_project_id(),
+                        .EnableNat64 = UserJobSpec_->enable_nat64(),
+                        .DisableNetwork = UserJobSpec_->disable_network(),
+                    };
                 }
             }
 
@@ -3089,11 +3096,11 @@ TJobProxyInternalConfigPtr TJob::CreateConfig()
     std::vector<TIP6Address> ipAddresses;
     ipAddresses.reserve(ResolvedNodeAddresses_.size());
 
-    if (NetworkProjectId_) {
+    if (NetworkProject_) {
         for (const auto& [addressName, address] : ResolvedNodeAddresses_) {
             auto networkAddress = New<TUserJobNetworkAddress>();
             networkAddress->Address = TMtnAddress{address}
-                .SetProjectId(*NetworkProjectId_)
+                .SetProjectId(NetworkProject_->Id)
                 .SetHost(GetUserSlot()->GetSlotIndex())
                 .ToIP6Address();
             networkAddress->Name = addressName;
@@ -3106,14 +3113,8 @@ TJobProxyInternalConfigPtr TJob::CreateConfig()
             THROW_ERROR_EXCEPTION("No IPv6 node addresses were resolved");
         }
 
-        if (UserJobSpec_ && UserJobSpec_->has_enable_nat64()) {
-            proxyInternalConfig->EnableNat64 = UserJobSpec_->enable_nat64();
-        }
-
-        if (UserJobSpec_ && UserJobSpec_->has_disable_network()) {
-            proxyInternalConfig->DisableNetwork = UserJobSpec_->disable_network();
-        }
-
+        proxyInternalConfig->EnableNat64 = NetworkProject_->EnableNat64;
+        proxyInternalConfig->DisableNetwork = NetworkProject_->DisableNetwork;
         proxyInternalConfig->HostName = Format("slot-%v.%v",
             GetUserSlot()->GetSlotIndex(),
             Bootstrap_->GetConfig()->Addresses[0].second);

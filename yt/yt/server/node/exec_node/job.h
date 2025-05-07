@@ -22,6 +22,8 @@
 
 #include <yt/yt/server/lib/scheduler/structs.h>
 
+#include <yt/yt/server/lib/controller_agent/network_project.h>
+
 #include <yt/yt/client/api/client.h>
 
 #include <yt/yt/ytlib/job_prober_client/public.h>
@@ -372,7 +374,7 @@ private:
 
     int SetupCommandCount_ = 0;
 
-    std::optional<ui32> NetworkProjectId_;
+    std::optional<NControllerAgent::TNetworkProject> NetworkProject_;
     std::vector<TString> TmpfsPaths_;
 
     std::atomic<bool> UseJobInputCache_ = false;
