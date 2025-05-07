@@ -13,6 +13,7 @@ END()
 
 RECURSE(
     cluster
+    fallback
     logging
     ranking
     schema
