@@ -4079,6 +4079,8 @@ class TestQueueStaticExport(TestQueueStaticExportBase):
 class TestQueueStaticExportOldImpl(TestQueueStaticExport):
     USE_OLD_QUEUE_EXPORTER_IMPL = True
 
+    ENABLE_MULTIDAEMON = True
+
     # COMPAT(apachee): Override for old queue export impl.
     @authors("apachee")
     def test_export_with_no_data(self):
@@ -4461,6 +4463,7 @@ class TestQueueExporterRetries(TestQueueStaticExportBase):
         assert abs(exporter_orchid_value["retry_index"] - exporter_orchid_value["export_task_invocation_index"]) <= 1
 
 
+@pytest.mark.enabled_multidaemon
 class TestQueueExportTaskConfig(TestQueueStaticExportBase):
     ENABLE_MULTIDAEMON = True
 
@@ -4529,6 +4532,7 @@ class TestQueueExportTaskConfig(TestQueueStaticExportBase):
         self.remove_export_destination(export_dir)
 
 
+@pytest.mark.enabled_multidaemon
 class TestQueueExportManager(TestQueueStaticExportBase):
     ENABLE_MULTIDAEMON = True
 
@@ -4811,6 +4815,8 @@ class TestAutomaticTrimmingWithExports(TestQueueStaticExportBase):
 class TestAutomaticTrimmingWithExportsOldImpl(TestAutomaticTrimmingWithExports):
     USE_OLD_QUEUE_EXPORTER_IMPL = True
 
+    ENABLE_MULTIDAEMON = True
+
 
 @pytest.mark.enabled_multidaemon
 class TestQueueStaticExportPortals(TestQueueStaticExport):
@@ -4847,6 +4853,8 @@ class TestQueueStaticExportPortals(TestQueueStaticExport):
 @pytest.mark.enabled_multidaemon
 class TestQueueStaticExportPortalsOldImpl(TestQueueStaticExportOldImpl, TestQueueStaticExportPortals):
     USE_OLD_QUEUE_EXPORTER_IMPL = True
+
+    ENABLE_MULTIDAEMON = True
 
 
 @pytest.mark.enabled_multidaemon
@@ -5383,9 +5391,13 @@ class TestMultiClusterReplicatedTableObjectsTrimWithExports(TestMultiClusterRepl
 class TestMultiClusterReplicatedTableObjectsTrimWithExportsOldImpl(TestMultiClusterReplicatedTableObjectsTrimWithExports):
     USE_OLD_QUEUE_EXPORTER_IMPL = True
 
+    ENABLE_MULTIDAEMON = True
+
 
 @pytest.mark.enabled_multidaemon
 class TestControllerInfo(TestQueueAgentBase):
+    ENABLE_MULTIDAEMON = True
+
     CONTROLLER_DELAY_DURATION_SECONDS = 10
     OLD_PASSES_DISPLAY_LIMIT = 4
 
