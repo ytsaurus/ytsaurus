@@ -215,6 +215,7 @@ message TRspProbeChunkSet
         required bool disk_throttling = 3;
         required int64 disk_queue_size = 4;
 
+        // COMPAT(babenko): make required after 25.2
         optional int32 medium_index = 6;
 
         reserved 2;

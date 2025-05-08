@@ -107,7 +107,6 @@ struct TPeer
     const TNodeDescriptor* NodeDescriptor;
     EPeerType Type;
     EAddressLocality Locality;
-    int MediumPriority = 0;
     std::optional<TInstant> NodeSuspicionMarkTime;
 };
 
@@ -462,6 +461,7 @@ protected:
         bool DiskThrottling = false;
         i64 NetQueueSize = 0;
         i64 DiskQueueSize = 0;
+        int MediumPriority = 0;
         ::google::protobuf::RepeatedPtrField<NChunkClient::NProto::TPeerDescriptor> PeerDescriptors;
         TAllyReplicasInfo AllyReplicas;
         bool HasCompleteChunk = false;
@@ -472,8 +472,7 @@ protected:
 
     using TErrorOrPeerProbeResult = TErrorOr<TPeerProbeResult>;
 
-    template <class TRspPtr>
-    static TPeerProbeResult ParseProbeResponse(const TRspPtr& rsp)
+    TPeerProbeResult ParseProbeResponse(const TDataNodeServiceProxy::TRspProbeBlockSetPtr& rsp)
     {
         std::vector<TBlockInfo> blockInfos;
         blockInfos.reserve(rsp->cached_blocks_size());
@@ -484,11 +483,14 @@ protected:
                 rsp->cached_blocks()[index].block_size());
         }
 
+        const auto* mediumDescriptor = MediumDirectory_->FindByIndex(rsp->medium_index());
+
         return {
             .NetThrottling = rsp->net_throttling(),
             .DiskThrottling = rsp->disk_throttling(),
             .NetQueueSize = rsp->net_queue_size(),
             .DiskQueueSize = rsp->disk_queue_size(),
+            .MediumPriority = mediumDescriptor ? mediumDescriptor->Priority : 0,
             .PeerDescriptors = rsp->peer_descriptors(),
             .AllyReplicas = FromProto<TAllyReplicasInfo>(rsp->ally_replicas()),
             .HasCompleteChunk = rsp->has_complete_chunk(),
@@ -623,12 +625,6 @@ protected:
         return reader ? ComputeAddressLocality(descriptor, reader->LocalDescriptor_) : EAddressLocality::None;
     }
 
-    int GetMediumPriority(TChunkReplicaWithMedium replica)
-    {
-        const auto* descriptor = MediumDirectory_->FindByIndex(replica.GetMediumIndex());
-        return descriptor ? descriptor->Priority : 0;
-    }
-
     IThroughputThrottlerPtr CreateCombinedDataByteThrottler() const
     {
         return CreateCombinedThrottler({
@@ -759,7 +755,6 @@ protected:
             .NodeDescriptor = &descriptor,
             .Type = type,
             .Locality = GetNodeLocality(descriptor),
-            .MediumPriority = GetMediumPriority(replica),
             .NodeSuspicionMarkTime = nodeSuspicionMarkTime
         };
         if (!Peers_.emplace(address, peer).second) {
@@ -1291,12 +1286,6 @@ private:
 
     int ComparePeerQueueEntries(const TPeerQueueEntry& lhs, const TPeerQueueEntry rhs) const
     {
-        if (lhs.Peer.MediumPriority < rhs.Peer.MediumPriority) {
-            return -1;
-        } else if (lhs.Peer.MediumPriority > rhs.Peer.MediumPriority) {
-            return +1;
-        }
-
         if (int result = ComparePeerLocality(lhs.Peer, rhs.Peer); result != 0) {
             return result;
         }
@@ -1431,10 +1420,9 @@ private:
         return false;
     }
 
-    template <class TRspPtr>
-    static std::pair<TPeer, TErrorOrPeerProbeResult> ParsePeerAndProbeResponse(
+    std::pair<TPeer, TErrorOrPeerProbeResult> ParsePeerAndProbeResponse(
         TPeer peer,
-        const TErrorOr<TRspPtr>& rspOrError)
+        const TDataNodeServiceProxy::TErrorOrRspProbeBlockSetPtr& rspOrError)
     {
         if (rspOrError.IsOK()) {
             return {
@@ -1449,15 +1437,13 @@ private:
         }
     }
 
-    template <class TRspPtr>
     std::pair<TPeer, TErrorOrPeerProbeResult> ParseSuspiciousPeerAndProbeResponse(
         TPeer peer,
-        const TErrorOr<TRspPtr>& rspOrError,
+        const TDataNodeServiceProxy::TErrorOrRspProbeBlockSetPtr& rspOrError,
         const TFuture<TAllyReplicasInfo>& allyReplicasFuture,
         int totalPeerCount)
     {
         YT_ASSERT_INVOKER_AFFINITY(SessionInvoker_);
-
         YT_VERIFY(peer.NodeSuspicionMarkTime && NodeStatusDirectory_);
 
         if (rspOrError.IsOK()) {
@@ -1520,7 +1506,7 @@ private:
                 })
                 .AsyncVia(SessionInvoker_));
         } else {
-            return probeBlockSetResponseFuture.Apply(BIND([=] (const TDataNodeServiceProxy::TErrorOrRspProbeBlockSetPtr& rspOrError) {
+            return probeBlockSetResponseFuture.Apply(BIND([peer, this, this_ = MakeStrong(this)] (const TDataNodeServiceProxy::TErrorOrRspProbeBlockSetPtr& rspOrError) {
                 return ParsePeerAndProbeResponse(std::move(peer), rspOrError);
             }));
         }
@@ -1699,6 +1685,11 @@ private:
             [&] (const auto& first, const auto& second) {
                 const auto& [firstPeer, firstProbeResult] = first;
                 const auto& [secondPeer, secondProbeResult] = second;
+
+                if (firstProbeResult.MediumPriority != secondProbeResult.MediumPriority) {
+                    // Higher priorities must come first.
+                    return firstProbeResult.MediumPriority > secondProbeResult.MediumPriority;
+                }
 
                 auto firstNetQueueSize = firstProbeResult.NetQueueSize;
                 auto secondNetQueueSize = secondProbeResult.NetQueueSize;
