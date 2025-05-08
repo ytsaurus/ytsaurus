@@ -64,12 +64,6 @@ class TestSidecarVanilla(YTEnvSetup):
                 events_on_fs().wait_event_cmd("finish"),
             ]
         )
-        sidecar_command = " ; ".join(
-            [
-                events_on_fs().notify_event_cmd("sidecar_job_started"),
-                events_on_fs().wait_event_cmd("finish"),
-            ]
-        )
 
         op = vanilla(
             track=False,
@@ -82,7 +76,7 @@ class TestSidecarVanilla(YTEnvSetup):
                         "sidecars": {
                             "sidecar1": {
                                 "job_count": 1,
-                                "command": sidecar_command,
+                                "command": f"touch {events_on_fs()._get_event_filename("sidecar_job_started")}",
                                 "docker_image": docker_image,
                             }
                         }
