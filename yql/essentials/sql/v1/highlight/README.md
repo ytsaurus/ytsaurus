@@ -18,7 +18,7 @@ This document specifies the syntax highlighting system for the YQL. The system s
 
 ## Highlighting Unit
 
-Here are listed all highlighting units.
+Here are examples of `Highlighting Unit`s. They will evolve and should be taken from the JSON `Highlighting` programmatically. Only comments are always present, as they may require special processing.
 
 - `keyword`: SQL reserved words (e.g., `SELECT`, `INSERT`, `FROM`).
 
