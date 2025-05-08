@@ -192,10 +192,15 @@ class DynamicTablesBase(YTEnvSetup):
                     proxies = ls("//sys/rpc_proxies", driver=driver)
                     orchid_path = f"orchid/dynamic_config_manager/effective_config{config_path}"
                     for proxy in proxies:
-                        assert get(f"//sys/rpc_proxies/{proxy}/{orchid_path}", driver=driver) == config_value
+                        wait(lambda: get(f"//sys/rpc_proxies/{proxy}/{orchid_path}", driver=driver) == config_value)
             else:
                 assert config_path == ""
                 self._update_and_wait(lambda: remove("//sys/rpc_proxies/@config", driver=driver), driver)
+
+                proxies = ls("//sys/rpc_proxies", driver=driver)
+                orchid_path = "orchid/dynamic_config_manager/raw_config_patch"
+                for proxy in proxies:
+                    wait(lambda: not exists(f"//sys/rpc_proxies/{proxy}/{orchid_path}", driver=driver))
 
     def _create_sorted_table(self, path, **attributes):
         if "schema" not in attributes:
