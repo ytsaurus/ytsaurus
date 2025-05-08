@@ -4,10 +4,19 @@
 
 namespace NSQLComplete {
 
-    INameService::TPtr MakeFallbackNameService(INameService::TPtr primary, INameService::TPtr standby);
+    using TFallbackPolicy = std::function<bool(const std::exception&)>;
+
+    inline TFallbackPolicy FallbackPolicyAlways = [](const std::exception&) { return true; };
+
+    INameService::TPtr MakeFallbackNameService(
+        INameService::TPtr primary,
+        INameService::TPtr standby,
+        TFallbackPolicy policy = FallbackPolicyAlways);
 
     INameService::TPtr MakeEmptyNameService();
 
-    INameService::TPtr MakeSwallowingNameService(INameService::TPtr origin);
+    INameService::TPtr MakeSwallowingNameService(
+        INameService::TPtr origin,
+        TFallbackPolicy policy = FallbackPolicyAlways);
 
 } // namespace NSQLComplete

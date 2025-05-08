@@ -8,18 +8,28 @@ namespace NSQLComplete {
 
         class TNameService: public INameService {
         public:
-            explicit TNameService(INameService::TPtr primary, INameService::TPtr standby)
+            explicit TNameService(
+                INameService::TPtr primary,
+                INameService::TPtr standby,
+                TFallbackPolicy policy)
                 : Primary_(std::move(primary))
                 , Standby_(std::move(standby))
+                , Policy_(std::move(policy))
             {
             }
 
             NThreading::TFuture<TNameResponse> Lookup(TNameRequest request) const override {
                 auto promise = NThreading::NewPromise<TNameResponse>();
-                Primary_->Lookup(request).Apply([promise, request, standby = Standby_](auto f) mutable {
+                Primary_->Lookup(request).Apply([promise, request,
+                                                 standby = Standby_,
+                                                 policy = Policy_](auto f) mutable {
                     try {
                         promise.SetValue(f.ExtractValue());
-                    } catch (const std::exception&) {
+                    } catch (const std::exception& e) {
+                        if (!policy(e)) {
+                            promise.SetException(std::current_exception());
+                        }
+
                         standby->Lookup(request).Apply([promise](auto f) mutable {
                             try {
                                 promise.SetValue(f.ExtractValue());
@@ -35,6 +45,7 @@ namespace NSQLComplete {
         private:
             INameService::TPtr Primary_;
             INameService::TPtr Standby_;
+            TFallbackPolicy Policy_;
         };
 
         class TEmptyNameService: public INameService {
@@ -46,16 +57,19 @@ namespace NSQLComplete {
 
     } // namespace
 
-    INameService::TPtr MakeFallbackNameService(INameService::TPtr primary, INameService::TPtr standby) {
-        return new TNameService(std::move(primary), std::move(standby));
+    INameService::TPtr MakeFallbackNameService(
+        INameService::TPtr primary,
+        INameService::TPtr standby,
+        TFallbackPolicy policy) {
+        return new TNameService(std::move(primary), std::move(standby), policy);
     }
 
     INameService::TPtr MakeEmptyNameService() {
         return new TEmptyNameService();
     }
 
-    INameService::TPtr MakeSwallowingNameService(INameService::TPtr origin) {
-        return MakeFallbackNameService(std::move(origin), MakeEmptyNameService());
+    INameService::TPtr MakeSwallowingNameService(INameService::TPtr origin, TFallbackPolicy policy) {
+        return MakeFallbackNameService(std::move(origin), MakeEmptyNameService(), policy);
     }
 
 } // namespace NSQLComplete

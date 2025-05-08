@@ -1,5 +1,6 @@
 #include "name_service.h"
 
+#include <yql/essentials/public/issue/yql_issue.h>
 #include <yql/essentials/utils/log/log.h>
 
 namespace NSQLComplete {
@@ -20,8 +21,8 @@ namespace NSQLComplete {
                 return Origin_->Lookup(request).Apply([](auto f) {
                     try {
                         return f.ExtractValue();
-                    } catch (const std::exception& e) {
-                        YQL_CVLOG(WARN, SqlCompletion) << "Lookup failed: " << e.what();
+                    } catch (...) {
+                        YQL_CVLOG(WARN, SqlCompletion) << "Lookup failed: " << CurrentExceptionMessage();
                         throw;
                     }
                 });
