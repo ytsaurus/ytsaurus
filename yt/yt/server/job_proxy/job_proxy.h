@@ -193,8 +193,6 @@ private:
 
     void EnableRpcProxyInJobProxy(int rpcProxyWorkerThreadPoolSize);
 
-    void SpawnSidecars();
-
     void DoRun();
     NControllerAgent::NProto::TJobResult RunJob();
 

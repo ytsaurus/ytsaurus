@@ -590,19 +590,6 @@ void TJobProxy::RetrieveJobSpec()
     }
 }
 
-void TJobProxy::SpawnSidecars()
-{
-    const auto& jobSpecExt = GetJobSpecHelper()->GetJobSpecExt();
-    if (!jobSpecExt.has_user_job_spec()) {
-        return;
-    }
-
-    const auto& sidecars = jobSpecExt.user_job_spec().sidecars();
-    if (sidecars.empty()) {
-        return;
-    }
-}
-
 void TJobProxy::DoRun()
 {
     LastMemoryMeasureTime_ = Now();
@@ -1040,11 +1027,7 @@ TJobResult TJobProxy::RunJob()
     HeartbeatExecutor_->Start();
     CpuMonitor_->Start();
 
-    YT_LOG_INFO("STARTING SIDECARS");
-
     environment->StartSidecars(this, GetJobSpecHelper()->GetJobSpecExt());
-
-    YT_LOG_INFO("STARTED SIDECARS");
 
     return job->Run();
 }

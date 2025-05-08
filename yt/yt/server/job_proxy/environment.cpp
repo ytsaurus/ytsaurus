@@ -1214,17 +1214,11 @@ public:
         IJobHostPtr host,
         const NControllerAgent::NProto::TJobSpecExt& jobSpecExt) override
     {
-        YT_LOG_INFO("FOO1");
-
         if (!jobSpecExt.has_user_job_spec()) {
-            YT_LOG_INFO("FOO1.5");
             return;
         }
 
-        YT_LOG_INFO("FOO2");
-
         for (const auto& [name, sidecar]: jobSpecExt.user_job_spec().sidecars()) {
-            YT_LOG_INFO("FOO2.5");
             auto sidecarPtr = New<NScheduler::TSidecarJobSpec>();
             sidecarPtr->Command = sidecar.command();
             if (sidecar.has_cpu_limit()) {
@@ -1240,10 +1234,7 @@ public:
             Sidecars_[name] = std::move(sidecarPtr);
         }
 
-        YT_LOG_INFO("FOO3");
-
         for (const auto& [name, sidecar]: Sidecars_) {
-            YT_LOG_INFO("FOO3.5");
             auto spec = New<NCri::TCriContainerSpec>();
 
             spec->Name = Format("sidecar-%v-%v-%v", Config_->PodDescriptorName, Config_->PodSpecName, name);
@@ -1312,8 +1303,6 @@ public:
                 .AsyncVia(ActionQueue_->GetInvoker())
                 .Run();
         }
-
-        YT_LOG_INFO("FOO4");
     }
 
     void KillSidecars() override

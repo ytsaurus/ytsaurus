@@ -9961,7 +9961,6 @@ i64 TOperationControllerBase::GetDataSliceCount() const
     return result;
 }
 
-// TODO: here foobar
 void TOperationControllerBase::InitUserJobSpecTemplate(
     NControllerAgent::NProto::TUserJobSpec* jobSpec,
     const TUserJobSpecPtr& jobSpecConfig,
@@ -10215,7 +10214,6 @@ const std::vector<TUserFile>& TOperationControllerBase::GetUserFiles(const TUser
     return GetOrCrash(UserJobFiles_, userJobSpec);
 }
 
-// TODO: here foobar
 void TOperationControllerBase::InitUserJobSpec(
     NControllerAgent::NProto::TUserJobSpec* jobSpec,
     const TJobletPtr& joblet) const
