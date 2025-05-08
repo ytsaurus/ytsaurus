@@ -310,6 +310,9 @@ struct TAllyReplicasInfo
     static TAllyReplicasInfo FromChunkReplicas(
         const TChunkReplicaWithMediumList& chunkReplicas,
         NHydra::TRevision revision = NHydra::NullRevision);
+    static TAllyReplicasInfo FromChunkReplicas(
+        const TChunkReplicaList& chunkReplicas,
+        NHydra::TRevision revision = NHydra::NullRevision);
 
     static TAllyReplicasInfo FromWrittenChunkReplicasInfo(TWrittenChunkReplicasInfo replicasInfo);
     //! Populates replicas from writer's written chunk replicas info.

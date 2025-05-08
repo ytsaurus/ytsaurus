@@ -726,28 +726,24 @@ public:
 private:
     const TRepairChunkJobSpecExt JobSpecExt_;
     const TChunkId ChunkId_;
-    const TChunkReplicaWithMediumList SourceReplicas_;
+    const TChunkReplicaList SourceReplicas_;
     const TChunkReplicaWithMediumList TargetReplicas_;
     const TMasterJobSensors Sensors_;
     const TRepairChunkJobDynamicConfigPtr DynamicConfig_;
 
     // COMPAT(babenko)
-    static TChunkReplicaWithMediumList ParseSourceReplicas(const TRepairChunkJobSpecExt& jobSpecExt)
+    static TChunkReplicaList ParseSourceReplicas(const TRepairChunkJobSpecExt& jobSpecExt)
     {
         if (jobSpecExt.source_replicas_size() == 0) {
-            TChunkReplicaWithMediumList result;
-            for (auto replica : FromProto<TChunkReplicaList>(jobSpecExt.legacy_source_replicas())) {
-                result.emplace_back(replica);
-            }
-            return result;
+            return FromProto<TChunkReplicaList>(jobSpecExt.legacy_source_replicas());
         } else {
-            return FromProto<TChunkReplicaWithMediumList>(jobSpecExt.source_replicas());
+            return FromProto<TChunkReplicaList>(jobSpecExt.source_replicas());
         }
     }
 
     IChunkReaderAllowingRepairPtr CreateReader(int partIndex)
     {
-        TChunkReplicaWithMediumList partReplicas;
+        TChunkReplicaList partReplicas;
         for (auto replica : SourceReplicas_) {
             if (replica.GetReplicaIndex() == partIndex) {
                 partReplicas.push_back(replica);
@@ -1039,16 +1035,12 @@ private:
     const TSealChunkJobDynamicConfigPtr DynamicConfig_;
 
     // COMPAT(babenko)
-    static TChunkReplicaWithMediumList ParseSourceReplicas(const TSealChunkJobSpecExt& jobSpecExt)
+    static TChunkReplicaList ParseSourceReplicas(const TSealChunkJobSpecExt& jobSpecExt)
     {
         if (jobSpecExt.source_replicas_size() == 0) {
-            TChunkReplicaWithMediumList result;
-            for (auto replica : FromProto<TChunkReplicaList>(jobSpecExt.legacy_source_replicas())) {
-                result.emplace_back(replica);
-            }
-            return result;
+            return FromProto<TChunkReplicaList>(jobSpecExt.legacy_source_replicas());
         } else {
-            return FromProto<TChunkReplicaWithMediumList>(jobSpecExt.source_replicas());
+            return FromProto<TChunkReplicaList>(jobSpecExt.source_replicas());
         }
     }
 
@@ -2637,7 +2629,7 @@ private:
             return {};
         }
 
-        auto bodyChunkReplicas = FromProto<TChunkReplicaWithMediumList>(JobSpecExt_.body_chunk_replicas());
+        auto bodyChunkReplicas = FromProto<TChunkReplicaList>(JobSpecExt_.body_chunk_replicas());
 
         auto chunkReaderHost = New<TChunkReaderHost>(
             Bootstrap_->GetClient(),

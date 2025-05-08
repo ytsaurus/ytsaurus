@@ -358,12 +358,12 @@ TEST_P(TReplicationReaderTest, ReadTest)
 
     THashMap<std::string, IServicePtr> addressToService;
 
-    auto chunkId = TGuid::Create();
+    auto chunkId = TChunkId::Create();
 
     TRandomGenerator generator(42);
     auto blocks = CreateBlocks(blockCount, &generator);
 
-    TChunkReplicaWithMediumList replicaList;
+    TChunkReplicaList replicas;
     int nodeToBans = testCase.PartiallyBanns ? nodeCount / 3 : 0;
 
     for (int index = 0; index < nodeCount; ++index) {
@@ -383,7 +383,7 @@ TEST_P(TReplicationReaderTest, ReadTest)
             service->SetFatalError();
         }
 
-        replicaList.push_back(TChunkReplicaWithMedium(NNodeTrackerClient::TNodeId(index), index, AllMediaIndex));
+        replicas.emplace_back(NNodeTrackerClient::TNodeId(index), index);
     }
 
     auto options = New<TRemoteReaderOptions>();
@@ -412,7 +412,7 @@ TEST_P(TReplicationReaderTest, ReadTest)
         std::move(options),
         std::move(readerHost),
         chunkId,
-        std::move(replicaList));
+        std::move(replicas));
 
     i64 minBytesToRead = 0;
     i64 maxBytesToRead = 0;

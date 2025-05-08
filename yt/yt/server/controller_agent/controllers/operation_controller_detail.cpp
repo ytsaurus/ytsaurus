@@ -4129,7 +4129,7 @@ bool TOperationControllerBase::OnIntermediateChunkUnavailable(TChunkId chunkId)
 
 void TOperationControllerBase::OnIntermediateChunkAvailable(
     TChunkId chunkId,
-    const TChunkReplicaWithMediumList& replicas)
+    const TChunkReplicaList& replicas)
 {
     auto& completedJob = GetOrCrash(ChunkOriginMap, chunkId);
 
@@ -4143,7 +4143,7 @@ void TOperationControllerBase::OnIntermediateChunkAvailable(
             // Intermediate chunks are always unversioned.
             auto inputChunk = dataSlice->GetSingleUnversionedChunk();
             if (inputChunk->GetChunkId() == chunkId) {
-                inputChunk->SetReplicaList(replicas);
+                inputChunk->SetReplicas(replicas);
             }
         }
         --UnavailableIntermediateChunkCount;
@@ -7758,7 +7758,7 @@ void TOperationControllerBase::CollectTotals()
     i64 totalInputDataWeight = 0;
     for (const auto& table : InputManager->GetInputTables()) {
         for (const auto& inputChunk : Concatenate(table->Chunks, table->HunkChunks)) {
-            if (IsUnavailable(inputChunk, GetChunkAvailabilityPolicy())) {
+            if (inputChunk->IsUnavailable(GetChunkAvailabilityPolicy())) {
                 auto chunkId = inputChunk->GetChunkId();
 
                 switch (Spec_->UnavailableChunkStrategy) {
@@ -8030,7 +8030,7 @@ std::vector<TLegacyDataSlicePtr> TOperationControllerBase::CollectPrimaryVersion
             YT_VERIFY(table->Comparator);
 
             for (const auto& chunk : table->Chunks) {
-                if (IsUnavailable(chunk, GetChunkAvailabilityPolicy()) &&
+                if (chunk->IsUnavailable(GetChunkAvailabilityPolicy()) &&
                     Spec_->UnavailableChunkStrategy == EUnavailableChunkAction::Skip)
                 {
                     continue;
@@ -8170,7 +8170,7 @@ std::vector<std::deque<TLegacyDataSlicePtr>> TOperationControllerBase::CollectFo
                 }
             } else {
                 for (const auto& inputChunk : table->Chunks) {
-                    if (IsUnavailable(inputChunk, GetChunkAvailabilityPolicy())) {
+                    if (inputChunk->IsUnavailable(GetChunkAvailabilityPolicy())) {
                         switch (Spec_->UnavailableChunkStrategy) {
                             case EUnavailableChunkAction::Skip:
                                 continue;

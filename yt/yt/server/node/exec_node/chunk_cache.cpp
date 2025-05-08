@@ -1011,7 +1011,7 @@ private:
                 remoteReaderOptions,
                 std::move(chunkReaderHost),
                 chunkId,
-                seedReplicas);
+                std::move(seedReplicas));
 
             auto fileName = location->GetChunkPath(chunkId);
             auto chunkWriter = New<TChunkFileWriter>(

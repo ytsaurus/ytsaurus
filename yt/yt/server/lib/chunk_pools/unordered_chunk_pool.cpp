@@ -744,7 +744,7 @@ private:
         const auto& stripe = suspendableStripe.GetStripe();
         for (const auto& dataSlice : stripe->DataSlices) {
             for (const auto& chunkSlice : dataSlice->ChunkSlices) {
-                for (auto replica : chunkSlice->GetInputChunk()->GetReplicaList()) {
+                for (auto replica : chunkSlice->GetInputChunk()->GetReplicas()) {
                     auto locality = chunkSlice->GetLocality(replica.GetReplicaIndex());
                     if (locality > 0) {
                         auto& entry = NodeIdToEntry_[replica.GetNodeId()];
@@ -787,7 +787,7 @@ private:
         const auto& stripe = suspendableStripe.GetStripe();
         for (const auto& dataSlice : stripe->DataSlices) {
             for (const auto& chunkSlice : dataSlice->ChunkSlices) {
-                for (auto replica : chunkSlice->GetInputChunk()->GetReplicaList()) {
+                for (auto replica : chunkSlice->GetInputChunk()->GetReplicas()) {
                     i64 locality = chunkSlice->GetLocality(replica.GetReplicaIndex());
                     if (locality > 0) {
                         auto& entry = NodeIdToEntry_[replica.GetNodeId()];
