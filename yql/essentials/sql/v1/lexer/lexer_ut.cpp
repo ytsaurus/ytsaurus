@@ -308,6 +308,7 @@ Y_UNIT_TEST_SUITE(SQLv1Lexer) {
         UNIT_ASSERT_TOKENIZED(lexer, "FROM", "FROM EOF");
         UNIT_ASSERT_TOKENIZED(lexer, "from", "FROM(from) EOF");
         UNIT_ASSERT_TOKENIZED(lexer, " UPSERT ", "WS( ) UPSERT WS( ) EOF");
+        UNIT_ASSERT_TOKENIZED(lexer, "ERROR", "ERROR EOF");
     }
 
     Y_UNIT_TEST_ON_EACH_LEXER(KeywordSkip) {

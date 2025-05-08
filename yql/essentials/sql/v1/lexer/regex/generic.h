@@ -11,7 +11,7 @@
 namespace NSQLTranslationV1 {
 
     struct TGenericToken {
-        static constexpr const char* Error = "ERROR";
+        static constexpr const char* Error = "<ERROR>";
 
         TStringBuf Name;
         TStringBuf Content;
