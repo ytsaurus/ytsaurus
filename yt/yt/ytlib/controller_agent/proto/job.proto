@@ -158,6 +158,13 @@ message TJobProfilerSpec
     required bool run_external_symbolizer = 5;
 }
 
+message TNetworkProject
+{
+    required int32 id = 1;
+    required bool enable_nat64 = 2;
+    required bool disable_network = 3;
+}
+
 // Specification of the job which will be running in a sidecar with the main job.
 message TSidecarJobSpec
 {
@@ -277,6 +284,7 @@ message TUserJobSpec
 
     optional string cuda_toolkit_version = 46;
 
+    // COMPAT(ignat)
     optional uint32 network_project_id = 47;
 
     optional int32 enable_porto = 49; // NScheduler::EEnablePorto
@@ -309,10 +317,12 @@ message TUserJobSpec
     repeated string gpu_check_binary_args = 63;
     map<string, string> gpu_check_environment = 79;
 
+    // COMPAT(ignat)
     // The following options must be used only with network projects.
     // Enables NAT64 - YT-15665.
     optional bool enable_nat64 = 64;
 
+    // COMPAT(ignat)
     // Disables networking inside the job.
     optional bool disable_network = 67;
 
@@ -337,6 +347,8 @@ message TUserJobSpec
     map<string, TSidecarJobSpec> sidecars = 80;
 
     reserved 38, 48, 61, 62;
+
+    optional TNetworkProject network_project = 80;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

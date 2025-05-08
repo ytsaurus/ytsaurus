@@ -37,7 +37,7 @@ from yt.sequoia_tools import DESCRIPTORS
 from yt.test_helpers import wait, WaitFailed, get_work_path, get_build_root, get_tests_sandbox
 import yt.test_helpers.cleanup as test_cleanup
 
-from yt.common import YtResponseError, format_error, update_inplace
+from yt.common import YtResponseError, format_error, update_inplace as _update_inplace
 import yt.logger
 
 from yt_driver_bindings import reopen_logs
@@ -48,6 +48,7 @@ import yt.yson as yson
 import pytest
 
 import inspect
+import copy
 import gc
 import os
 import sys
@@ -62,6 +63,14 @@ from threading import Thread
 
 OUTPUT_PATH = None
 SANDBOX_ROOTDIR = None
+
+##################################################################
+
+
+# TODO(ignat): make original `update_inplace` safe (YT-24956).
+def update_inplace(object, patch):
+    return _update_inplace(object, copy.deepcopy(patch))
+
 
 ##################################################################
 
@@ -334,12 +343,8 @@ class YTEnvSetup(object):
     DELTA_CHAOS_NODE_CONFIG = {}
     DELTA_SCHEDULER_CONFIG = {}
     DELTA_CONTROLLER_AGENT_CONFIG = {}
+    # TODO(ignat): refactor it.
     _DEFAULT_DELTA_CONTROLLER_AGENT_CONFIG = {
-        "operation_options": {
-            "spec_template": {
-                "max_failed_job_count": 1,
-            }
-        },
         "controller_agent": {
             "enable_table_column_renaming": True,
             "map_operation_options": {
@@ -1108,15 +1113,16 @@ class YTEnvSetup(object):
             if "controller-agent" in components:
                 controller_agent_version = version
 
-        resend_full_job_info_not_supported = False
-        if (node_version or "25.2") <= "25.1":
-            resend_full_job_info_not_supported = True
+        resend_full_job_info = False
+        if (node_version or "25_2") <= "25_1":
+            resend_full_job_info = True
 
-        if (controller_agent_version or "25.2") <= "25.1":
-            resend_full_job_info_not_supported = True
+        if (controller_agent_version or "25_2") <= "25_1":
+            resend_full_job_info = True
 
-        if resend_full_job_info_not_supported:
-            config["%true"]["exec_node"]["job_controller"]["resend_full_job_info"] = False
+        if resend_full_job_info:
+            yt_commands.print_debug("Resend full job info is enabled")
+            config["%true"]["exec_node"]["controller_agent_connector"]["resend_full_job_info"] = True
 
         delta_node_config = cls.get_param("DELTA_DYNAMIC_NODE_CONFIG", cluster_index)
 
@@ -2124,7 +2130,7 @@ class YTEnvSetup(object):
                 config,
                 driver=driver)
 
-            instances = yt_commands.ls("//sys/tablet_balancer/instances")
+            instances = yt_commands.ls("//sys/tablet_balancer/instances", driver=driver)
 
             self._wait_for_dynamic_config("//sys/tablet_balancer/instances", config, instances, driver=driver)
 

@@ -195,6 +195,8 @@ private:
         descriptors->push_back(EInternedAttributeKey::Replicas);
         descriptors->push_back(EInternedAttributeKey::ReplicationCollocationId);
         descriptors->push_back(EInternedAttributeKey::ReplicatedTableOptions);
+        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::Sorted)
+            .SetPresent(hasNonEmptySchema));
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::Schema)
             .SetWritable(true)
             .SetReplicated(true)
@@ -291,6 +293,15 @@ private:
 
                 BuildYsonFluently(consumer)
                     .Value(GetEffectiveQueueAgentStage(Bootstrap_, node->GetQueueAgentStage()));
+                return true;
+
+            case EInternedAttributeKey::Sorted:
+                if (!hasNonEmptySchema) {
+                    break;
+                }
+
+                BuildYsonFluently(consumer)
+                    .Value(node->IsSorted());
                 return true;
 
             default:

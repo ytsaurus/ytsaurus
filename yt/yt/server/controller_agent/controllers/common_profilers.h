@@ -2,9 +2,9 @@
 
 #include "private.h"
 
-#include <yt/yt/server/controller_agent/controllers/private.h>
+#include <yt/yt/server/lib/controller_agent/public.h>
 
-namespace NYT::NControllerAgent {
+namespace NYT::NControllerAgent::NControllers {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -12,7 +12,7 @@ class TJobProfiler
     : public TRefCounted
 {
 public:
-    TJobProfiler();
+    explicit TJobProfiler(IInvokerPtr profilerInvoker);
     void ProfileStartedJob(const NControllers::TJoblet& joblet);
     void ProfileRunningJob(const NControllers::TJoblet& joblet);
     void ProfileRevivedJob(const NControllers::TJoblet& joblet);
@@ -20,8 +20,7 @@ public:
     void ProfileFailedJob(const NControllers::TJoblet& joblet, const TFailedJobSummary& jobSummary);
     void ProfileAbortedJob(const NControllers::TJoblet& joblet, const TAbortedJobSummary& jobSummary);
 private:
-    NConcurrency::TActionQueuePtr ProfilerQueue_;
-
+    IInvokerPtr ProfilerInvoker_;
     NProfiling::TTimeCounter TotalCompletedJobTime_;
     NProfiling::TTimeCounter TotalFailedJobTime_;
     NProfiling::TTimeCounter TotalAbortedJobTime_;
@@ -54,7 +53,7 @@ private:
     template <class EErrorCodeType>
     void ProfileAbortedJobByError(const TString& treeId, EJobType jobType, const TError& error, EErrorCodeType errorCode);
 
-    IInvokerPtr GetProfilerInvoker() const;
+    const IInvokerPtr& GetProfilerInvoker() const;
 
     void DoProfileStartedJob(EJobType jobType, TString treeId);
     void DoProfileRunningJob(EJobType jobType, TString treeId);
@@ -90,6 +89,39 @@ private:
 };
 
 DEFINE_REFCOUNTED_TYPE(TJobProfiler)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TScheduleJobProfiler
+    : public TRefCounted
+{
+public:
+    explicit TScheduleJobProfiler(IInvokerPtr profilerInvoker);
+
+    void ProfileScheduleJobFailure(const std::string& treeId, EScheduleFailReason failReason);
+    void ProfileScheduleJobFailure(const std::string& treeId, EJobType jobType, EScheduleFailReason failReason, bool isJobFirst);
+    void ProfileScheduleJobSuccess(const std::string& treeId, EJobType jobType, bool isJobFirst);
+
+private:
+    using TTypedScheduleFailureKey = std::tuple<std::string, EJobType, EScheduleFailReason, bool>;
+    using TTypedScheduleFailureCounters = THashMap<TTypedScheduleFailureKey, NProfiling::TCounter>;
+    using TScheduleFailureKey = std::tuple<std::string, EScheduleFailReason>;
+    using TScheduleFailureCounters = THashMap<TScheduleFailureKey, NProfiling::TCounter>;
+
+    using TScheduleSuccessKey = std::tuple<std::string, EJobType, bool>;
+    using TScheduleSuccessCounters = THashMap<TScheduleSuccessKey, NProfiling::TCounter>;
+
+    IInvokerPtr ProfilerInvoker_;
+    TTypedScheduleFailureCounters TypedFailureCounters_;
+    TScheduleFailureCounters FailureCounters_;
+    TScheduleSuccessCounters SuccessCounters_;
+
+    void DoProfileTypedScheduleJobFailure(TTypedScheduleFailureKey key);
+    void DoProfileScheduleJobFailure(TScheduleFailureKey key);
+    void DoProfileScheduleJobSuccess(TScheduleSuccessKey key);
+};
+
+DEFINE_REFCOUNTED_TYPE(TScheduleJobProfiler)
 
 ////////////////////////////////////////////////////////////////////////////////
 

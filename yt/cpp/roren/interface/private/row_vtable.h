@@ -11,6 +11,7 @@
 #include "../noncodable.h"
 
 #include <yt/yt/client/table_client/logical_type.h>  // ::NYT::NTableClient::TLogicalTypePtr
+
 #include <yt/yt/flow/lib/serializer/serializer.h>  // ::NYT::NFlow::TSerializer::GetSchema()
 
 #include <util/generic/buffer.h>

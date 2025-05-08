@@ -912,8 +912,8 @@ void TTablet::Save(TSaveContext& context) const
     TNullableIntrusivePtrSerializer<>::Save(context, RuntimeData_->ReplicationProgress.Acquire());
     Save(context, ChaosData_->ReplicationRound);
     Save(context, ChaosData_->CurrentReplicationRowIndexes.Load());
-    Save(context, ChaosData_->PreparedWritePulledRowsTransactionId);
-    Save(context, ChaosData_->PreparedAdvanceReplicationProgressTransactionId);
+    Save(context, ChaosData_->PreparedWritePulledRowsTransactionId.Load());
+    Save(context, ChaosData_->PreparedAdvanceReplicationProgressTransactionId.Load());
     Save(context, BackupMetadata_);
     Save(context, *TabletWriteManager_);
     Save(context, LastDiscardStoresRevision_);
@@ -1082,8 +1082,8 @@ void TTablet::Load(TLoadContext& context)
     Load(context, ChaosData_->ReplicationRound);
     ChaosData_->CurrentReplicationRowIndexes.Store(Load<THashMap<TTabletId, i64>>(context));
 
-    Load(context, ChaosData_->PreparedWritePulledRowsTransactionId);
-    Load(context, ChaosData_->PreparedAdvanceReplicationProgressTransactionId);
+    ChaosData_->PreparedWritePulledRowsTransactionId.Store(Load<TTransactionId>(context));
+    ChaosData_->PreparedAdvanceReplicationProgressTransactionId.Store(Load<TTransactionId>(context));
 
     Load(context, BackupMetadata_);
 

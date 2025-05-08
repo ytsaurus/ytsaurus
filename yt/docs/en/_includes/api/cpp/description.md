@@ -605,6 +605,7 @@ Running an operation that contains a custom code requires:
 
 - Inheriting from one of the interfaces (`IMapper`, `IReducer`).
 - Defining the `Do()` function that should contain the record handler.
+- Existence of a default constructor in the operation class. See details in [Initializing and serializing](#init_jobs) section.
 - Using one of the `REGISTER_*` macros.
 - Calling the client/transaction method corresponding to the operation type in the client code.
 
@@ -760,7 +761,7 @@ You should not write `AddInput/AddOutput()` in the operation's specification. Yo
 
 In this case, the `GetRow()` and `AddRow()` methods become templates and must use specific user-defined types. For reading, you can select the function to call by using `GetTableIndex()` of the current entry before calling `GetRow()`. For writing, `AddRow(row, tableIndex)` is called. Types are controlled to be in accord with table indexes.
 
-### Initializing and serializing jobs
+### Initializing and serializing jobs { #init_jobs }
 
 The `Start()` and `Finish()` methods are similar to their general interface counterparts, taking as a parameter the pointer to the corresponding `TTableWriter`.
 

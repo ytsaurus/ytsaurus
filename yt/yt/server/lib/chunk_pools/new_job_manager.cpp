@@ -31,7 +31,7 @@ void TNewJobStub::AddDataSlice(const TLegacyDataSlicePtr& dataSlice, IChunkPoolI
     int streamIndex = dataSlice->GetInputStreamIndex();
     int rangeIndex = dataSlice->GetRangeIndex();
     auto& stripe = GetStripe(streamIndex, rangeIndex, isPrimary);
-    stripe->DataSlices.emplace_back(dataSlice);
+    stripe->DataSlices.push_back(dataSlice);
     if (cookie != IChunkPoolInput::NullCookie) {
         InputCookies_.emplace_back(cookie);
     }
@@ -304,9 +304,9 @@ void TNewJobManager::TJob::UpdateSelf()
     }
 
     bool inPoolDesired = (newProgressCategory == EProgressCategory::Pending);
-    if (InPool_ && !inPoolDesired) {
+    if (InPool() && !inPoolDesired) {
         RemoveSelf();
-    } else if (!InPool_ && inPoolDesired) {
+    } else if (!InPool() && inPoolDesired) {
         AddSelf();
     }
 
@@ -326,17 +326,20 @@ void TNewJobManager::TJob::UpdateSelf()
 
 void TNewJobManager::TJob::RemoveSelf()
 {
-    YT_VERIFY(CookiePoolIterator_ != Owner_->CookiePool_->end());
+    YT_VERIFY(InPool());
     Owner_->CookiePool_->erase(CookiePoolIterator_);
     CookiePoolIterator_ = Owner_->CookiePool_->end();
-    InPool_ = false;
 }
 
 void TNewJobManager::TJob::AddSelf()
 {
-    YT_VERIFY(CookiePoolIterator_ == Owner_->CookiePool_->end());
+    YT_VERIFY(!InPool());
     CookiePoolIterator_ = Owner_->CookiePool_->insert(Owner_->CookiePool_->end(), Cookie_);
-    InPool_ = true;
+}
+
+bool TNewJobManager::TJob::InPool() const
+{
+    return CookiePoolIterator_ != Owner_->CookiePool_->end();
 }
 
 void TNewJobManager::TJob::SuspendSelf()

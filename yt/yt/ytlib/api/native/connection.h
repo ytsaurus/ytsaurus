@@ -28,6 +28,8 @@
 
 #include <yt/yt/ytlib/yql_client/public.h>
 
+#include <yt/yt/ytlib/sequoia_client/public.h>
+
 #include <yt/yt/library/auth_server/public.h>
 
 #include <yt/yt/client/cell_master_client/public.h>
@@ -145,6 +147,7 @@ struct IConnection
     virtual const ITableReplicaSynchronicityCachePtr& GetTableReplicaSynchronicityCache() = 0;
 
     virtual IClientPtr CreateNativeClient(const TClientOptions& options) = 0;
+    virtual NSequoiaClient::ISequoiaClientPtr CreateSequoiaClient() = 0;
 
     virtual std::vector<std::string> GetDiscoveryServerAddresses() const = 0;
     virtual NDiscoveryClient::IDiscoveryClientPtr CreateDiscoveryClient(
@@ -158,8 +161,6 @@ struct IConnection
         NDiscoveryClient::TGroupId groupId) = 0;
 
     virtual NYTree::IYPathServicePtr GetOrchidService() = 0;
-
-    void Terminate() override = 0;
 
     virtual void InitializeDiscoveryServerAddressPool() = 0;
 

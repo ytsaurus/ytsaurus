@@ -1419,6 +1419,12 @@ private:
                 StopTableReplicaEpoch(&replicaInfo);
                 StartTableReplicaEpoch(tablet, &replicaInfo);
             }
+
+            if (auto replicationCardId = tablet->GetReplicationCardId()) {
+                StopChaosReplicaEpoch(tablet);
+                RemoveChaosAgent(tablet);
+                StartChaosReplicaEpoch(tablet, replicationCardId);
+            }
         }
     }
 
@@ -2993,10 +2999,23 @@ private:
                 tablet->GetState());
         }
 
-        if (chaosData->PreparedWritePulledRowsTransactionId) {
+        if (chaosData->PreparedWritePulledRowsTransactionId.Load()) {
             THROW_ERROR_EXCEPTION("Another pulled rows write is in progress")
                 << TErrorAttribute("transaction_id", transaction->GetId())
-                << TErrorAttribute("write_pull_rows_transaction_id", chaosData->PreparedWritePulledRowsTransactionId);
+                << TErrorAttribute("write_pull_rows_transaction_id", chaosData->PreparedWritePulledRowsTransactionId.Load());
+        }
+
+        // COMPAT(savrus)
+        int reign = GetCurrentMutationContext()->Request().Reign;
+        if (reign >= static_cast<int>(ETabletReign::CheckChaosTransactionsInPrepare) ||
+            (reign < static_cast<int>(ETabletReign::Start_25_2) &&
+            reign >= static_cast<int>(ETabletReign::CheckChaosTransactionsInPrepare_25_1)))
+        {
+            if (chaosData->PreparedAdvanceReplicationProgressTransactionId.Load()) {
+                THROW_ERROR_EXCEPTION("Another replication progress advance is in progress")
+                    << TErrorAttribute("transaction_id", transaction->GetId())
+                    << TErrorAttribute("advance_replication_progress_transaction_id", chaosData->PreparedAdvanceReplicationProgressTransactionId.Load());
+            }
         }
 
         auto newProgress = FromProto<NChaosClient::TReplicationProgress>(request->new_replication_progress());
@@ -3014,7 +3033,7 @@ private:
                 << TErrorAttribute("progress_upper_key", newProgress.UpperKey.Get());
         }
 
-        chaosData->PreparedWritePulledRowsTransactionId = transaction->GetId();
+        chaosData->PreparedWritePulledRowsTransactionId.Store(transaction->GetId());
 
         const auto& tabletCellWriteManager = Slot_->GetTabletCellWriteManager();
         tabletCellWriteManager->AddPersistentAffectedTablet(transaction, tablet);
@@ -3063,17 +3082,17 @@ private:
         }
 
         const auto& chaosData = tablet->ChaosData();
-        if (chaosData->PreparedWritePulledRowsTransactionId != transaction->GetId()) {
+        if (chaosData->PreparedWritePulledRowsTransactionId.Load() != transaction->GetId()) {
             YT_LOG_ALERT(
                 "Unexpected write pull rows transaction finalized, ignored "
                 "(TransactionId: %v, ExpectedTransactionId: %v, TabletId: %v)",
                 transaction->GetId(),
-                chaosData->PreparedWritePulledRowsTransactionId,
+                chaosData->PreparedWritePulledRowsTransactionId.Load(),
                 tablet->GetId());
             return;
         }
 
-        chaosData->PreparedWritePulledRowsTransactionId = NullTransactionId;
+        chaosData->PreparedWritePulledRowsTransactionId.Store(NullTransactionId);
 
         auto replicationRound = chaosData->ReplicationRound.load();
         YT_VERIFY(replicationRound == round);
@@ -3131,12 +3150,11 @@ private:
         }
 
         const auto& chaosData = tablet->ChaosData();
-        auto& expectedTransactionId = chaosData->PreparedWritePulledRowsTransactionId;
-        if (expectedTransactionId != transaction->GetId()) {
+        if (chaosData->PreparedWritePulledRowsTransactionId.Load() != transaction->GetId()) {
             return;
         }
 
-        expectedTransactionId = NullTransactionId;
+        chaosData->PreparedWritePulledRowsTransactionId.Store(NullTransactionId);
 
         YT_LOG_DEBUG("Write pulled rows aborted (TabletId: %v, TransactionId: %v)",
             tabletId,
@@ -3178,12 +3196,26 @@ private:
                 tablet->GetState());
         }
 
-        if (chaosData->PreparedAdvanceReplicationProgressTransactionId) {
+        if (chaosData->PreparedAdvanceReplicationProgressTransactionId.Load()) {
             THROW_ERROR_EXCEPTION("Another replication progress advance is in progress")
                 << TErrorAttribute("transaction_id", transaction->GetId())
-                << TErrorAttribute("advance_replication_progress_transaction_id", chaosData->PreparedAdvanceReplicationProgressTransactionId);
+                << TErrorAttribute("advance_replication_progress_transaction_id", chaosData->PreparedAdvanceReplicationProgressTransactionId.Load());
         }
-        chaosData->PreparedAdvanceReplicationProgressTransactionId = transaction->GetId();
+
+        // COMPAT(savrus)
+        int reign = GetCurrentMutationContext()->Request().Reign;
+        if (reign >= static_cast<int>(ETabletReign::CheckChaosTransactionsInPrepare) ||
+            (reign < static_cast<int>(ETabletReign::Start_25_2) &&
+            reign >= static_cast<int>(ETabletReign::CheckChaosTransactionsInPrepare_25_1)))
+        {
+            if (chaosData->PreparedWritePulledRowsTransactionId.Load()) {
+                THROW_ERROR_EXCEPTION("Another pulled rows write is in progress")
+                    << TErrorAttribute("transaction_id", transaction->GetId())
+                    << TErrorAttribute("write_pull_rows_transaction_id", chaosData->PreparedWritePulledRowsTransactionId.Load());
+            }
+        }
+
+        chaosData->PreparedAdvanceReplicationProgressTransactionId.Store(transaction->GetId());
 
         const auto& tabletCellWriteManager = Slot_->GetTabletCellWriteManager();
         tabletCellWriteManager->AddPersistentAffectedTablet(transaction, tablet);
@@ -3209,19 +3241,29 @@ private:
 
         const auto& chaosData = tablet->ChaosData();
         auto replicationRound = chaosData->ReplicationRound.load();
-        YT_VERIFY(!round || replicationRound == *round);
 
-        if (chaosData->PreparedAdvanceReplicationProgressTransactionId != transaction->GetId()) {
+        if (round && replicationRound != *round) {
             YT_LOG_ALERT(
                 "Unexpected replication progress advance transaction serialized, ignored "
-                "(TransactionId: %v, ExpectedTransactionId: %v, TabletId: %v)",
+                "(TransactionId: %v, ReplicationRound: %v, ExpectedReplicationRound: %v, TabletId: %v)",
                 transaction->GetId(),
-                chaosData->PreparedAdvanceReplicationProgressTransactionId,
+                *round,
+                replicationRound,
                 tablet->GetId());
             return;
         }
 
-        chaosData->PreparedAdvanceReplicationProgressTransactionId = NullTransactionId;
+        if (chaosData->PreparedAdvanceReplicationProgressTransactionId.Load() != transaction->GetId()) {
+            YT_LOG_ALERT(
+                "Unexpected replication progress advance transaction serialized, ignored "
+                "(TransactionId: %v, ExpectedTransactionId: %v, TabletId: %v)",
+                transaction->GetId(),
+                chaosData->PreparedAdvanceReplicationProgressTransactionId.Load(),
+                tablet->GetId());
+            return;
+        }
+
+        chaosData->PreparedAdvanceReplicationProgressTransactionId.Store(NullTransactionId);
 
         auto progress = New<TRefCountedReplicationProgress>(FromProto<NChaosClient::TReplicationProgress>(request->new_replication_progress()));
         bool validateStrictAdvance = request->validate_strict_advance();
@@ -3277,12 +3319,11 @@ private:
         }
 
         const auto& chaosData = tablet->ChaosData();
-        auto& expectedTransactionId = chaosData->PreparedAdvanceReplicationProgressTransactionId;
-        if (expectedTransactionId != transaction->GetId()) {
+        if (chaosData->PreparedAdvanceReplicationProgressTransactionId.Load() != transaction->GetId()) {
             return;
         }
 
-        expectedTransactionId = NullTransactionId;
+        chaosData->PreparedAdvanceReplicationProgressTransactionId.Store(NullTransactionId);
 
         YT_LOG_DEBUG(
             "Replication progress advance aborted (TabletId: %v, TransactionId: %v)",
@@ -4174,6 +4215,12 @@ private:
             Bootstrap_->GetNodeMemoryUsageTracker()->WithCategory(EMemoryCategory::ChaosReplicationIncoming)));
     }
 
+    void RemoveChaosAgent(TTablet* tablet)
+    {
+        tablet->SetChaosAgent(nullptr);
+        tablet->SetTablePuller(nullptr);
+    }
+
     void StartChaosReplicaEpoch(TTablet* tablet, TReplicationCardId replicationCardId)
     {
         if (!IsLeader()) {
@@ -4317,6 +4364,11 @@ private:
                                     .Item(ToString(replicaId))
                                     .Do(BIND(&TTabletManager::BuildReplicaOrchidYson, Unretained(this), replica));
                             });
+                })
+                .Do([tablet] (auto fluent) {
+                    if (auto tablePuller = tablet->GetTablePuller()) {
+                        tablePuller->BuildOrchidYson(fluent);
+                    }
                 })
                 .DoIf(tablet->IsPhysicallySorted(), [&] (auto fluent) {
                     fluent
@@ -5268,62 +5320,6 @@ private:
             << TErrorAttribute("tablet_id", tablet->GetId())
             << configErrors;
         tablet->RuntimeData()->Errors.ConfigError.Store(error);
-    }
-
-
-    void DoRestoreHunkLocks(
-        TTransaction* transaction,
-        TReqUpdateTabletStores* request)
-    {
-        auto tabletId = FromProto<TTabletId>(request->tablet_id());
-        auto* tablet = GetTabletOrThrow(tabletId);
-
-        YT_LOG_INFO("Restoring hunk locks (TabletId: %v)", tabletId);
-
-        for (const auto& descriptor : request->hunk_chunks_to_remove()) {
-            auto chunkId = FromProto<TStoreId>(descriptor.chunk_id());
-            auto hunkChunk = tablet->FindHunkChunk(chunkId);
-            if (!hunkChunk) {
-                YT_LOG_ALERT("Trying to remove non-existent hunk chunk (TabletId: %v, HunkChunkId: %v)",
-                    tabletId,
-                    chunkId);
-                continue;
-            }
-            hunkChunk->Lock(transaction->GetId(), EObjectLockMode::Exclusive);
-        }
-
-        THashSet<TChunkId> hunkChunkIdsToAdd;
-        for (const auto& descriptor : request->hunk_chunks_to_add()) {
-            auto chunkId = FromProto<TStoreId>(descriptor.chunk_id());
-            InsertOrCrash(hunkChunkIdsToAdd, chunkId);
-        }
-
-        if (request->create_hunk_chunks_during_prepare()) {
-            for (auto chunkId : hunkChunkIdsToAdd) {
-                auto hunkChunk = tablet->FindHunkChunk(chunkId);
-                if (!hunkChunk) {
-                    continue;
-                }
-
-                hunkChunk->Lock(transaction->GetId(), EObjectLockMode::Shared);
-            }
-        }
-
-        THashSet<TChunkId> existingReferencedHunks;
-        for (const auto& descriptor : request->stores_to_add()) {
-            if (auto optionalHunkChunkRefsExt = FindProtoExtension<NTableClient::NProto::THunkChunkRefsExt>(
-                descriptor.chunk_meta().extensions()))
-            {
-                for (const auto& ref : optionalHunkChunkRefsExt->refs()) {
-                    auto chunkId = FromProto<TChunkId>(ref.chunk_id());
-                    if (!hunkChunkIdsToAdd.contains(chunkId) && !existingReferencedHunks.contains(chunkId)) {
-                        auto hunkChunk = tablet->GetHunkChunk(chunkId);
-                        hunkChunk->Lock(transaction->GetId(), EObjectLockMode::Shared);
-                        existingReferencedHunks.insert(chunkId);
-                    }
-                }
-            }
-        }
     }
 
     void CountStoreMemoryStatistics(TMemoryStatistics* statistics, const IStorePtr& store) const

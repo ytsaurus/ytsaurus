@@ -17,6 +17,9 @@ DEFINE_ENUM(EPredecessorType,
     (ResourceOverdraft)
 );
 
+DECLARE_REFCOUNTED_CLASS(TJobProfiler)
+DECLARE_REFCOUNTED_CLASS(TScheduleJobProfiler)
+
 class TOperationControllerBase;
 
 DECLARE_REFCOUNTED_STRUCT(TJoblet)

@@ -157,7 +157,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TNodeProxyBasePtr CreateRootstockProxy(
+INodeProxyPtr CreateRootstockProxy(
     IBootstrap* bootstrap,
     TSequoiaSessionPtr sequoiaSession,
     NSequoiaClient::TAbsoluteYPath resolvedPath)

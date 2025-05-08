@@ -100,6 +100,8 @@ struct TChunkLocationConfig
     bool EnableUncategorizedThrottler;
     NConcurrency::TThroughputThrottlerConfigPtr UncategorizedThrottler;
 
+    NServer::TDiskHealthCheckerConfigPtr DiskHealthChecker;
+
     //! IO engine type.
     NIO::EIOEngineType IOEngineType;
 
@@ -121,7 +123,7 @@ struct TChunkLocationConfig
     TEnumIndexedArray<EWorkloadCategory, std::optional<double>> FairShareWorkloadCategoryWeights;
 
     //! Limit on the maximum memory used in location writes with legacy protocol without probing.
-    // TODO(vvshlyaga): Remove after rolling writer with probing on all nodes.
+    // COMPAT(vvshlyaga): Remove after rolling writer with probing on all nodes.
     i64 LegacyWriteMemoryLimit;
 
     //! Limit on the maximum memory used of location reads.
@@ -135,6 +137,10 @@ struct TChunkLocationConfig
 
     //! If the tracked memory is close to the limit, new sessions will not be started.
     double MemoryLimitFractionForStartingNewSessions;
+
+    //! Set way how io_weight is calculated for location.
+    //! double([/stat/available_space]), double([/stat/used_space]) - aliases for available_space and used_space disk statistics respectively.
+    std::optional<std::string> IOWeightFormula;
 
     void ApplyDynamicInplace(const TChunkLocationDynamicConfig& dynamicConfig);
 
@@ -159,12 +165,14 @@ struct TChunkLocationDynamicConfig
     std::optional<bool> EnableUncategorizedThrottler;
     NConcurrency::TThroughputThrottlerConfigPtr UncategorizedThrottler;
 
+    NServer::TDiskHealthCheckerDynamicConfigPtr DiskHealthChecker;
+
     std::optional<i64> CoalescedReadMaxGapSize;
 
     TEnumIndexedArray<EWorkloadCategory, std::optional<double>> FairShareWorkloadCategoryWeights;
 
     //! Limit on the maximum memory used in location writes with legacy protocol without probing.
-    // TODO(vvshlyaga): Remove after rolling writer with probing on all nodes.
+    // COMPAT(vvshlyaga): Remove after rolling writer with probing on all nodes.
     std::optional<i64> LegacyWriteMemoryLimit;
 
     //! Limit on the maximum memory used by location reads.
@@ -178,6 +186,10 @@ struct TChunkLocationDynamicConfig
 
     //! If the tracked memory is close to the limit, new sessions will not be started.
     std::optional<double> MemoryLimitFractionForStartingNewSessions;
+
+    //! Set way how io_weight is calculated for location.
+    //! double([/stat/available_space]), double([/stat/used_space]) - aliases for available_space and used_space disk statistics respectively.
+    std::optional<std::string> IOWeightFormula;
 
     REGISTER_YSON_STRUCT(TChunkLocationDynamicConfig);
 
@@ -339,6 +351,8 @@ struct TLayerLocationConfig
     bool LocationIsAbsolute;
 
     bool ResidesOnTmpfs;
+
+    NServer::TDiskHealthCheckerConfigPtr DiskHealthChecker;
 
     REGISTER_YSON_STRUCT(TLayerLocationConfig);
 
@@ -957,9 +971,6 @@ struct TDataNodeConfig
     //! Configuration for RPS throttler of ally replica manager.
     NConcurrency::TThroughputThrottlerConfigPtr AnnounceChunkReplicaRpsOutThrottler;
 
-    //! Runs periodic checks against disks.
-    NServer::TDiskHealthCheckerConfigPtr DiskHealthChecker;
-
     //! Publish disabled locations to master.
     bool PublishDisabledLocations;
 
@@ -1044,7 +1055,6 @@ struct TDataNodeDynamicConfig
     NConcurrency::TThroughputThrottlerConfigPtr ReadRpsOutThrottler;
     NConcurrency::TThroughputThrottlerConfigPtr AnnounceChunkReplicaRpsOutThrottler;
 
-    NServer::TDiskHealthCheckerDynamicConfigPtr DiskHealthChecker;
     TSlruCacheDynamicConfigPtr ChunkMetaCache;
     TSlruCacheDynamicConfigPtr BlocksExtCache;
     TSlruCacheDynamicConfigPtr BlockMetaCache;

@@ -13,6 +13,7 @@ SRCS(
     helpers.cpp
     public.cpp
     job_report.cpp
+    network_project.cpp
 
     proto/job_tracker_service.proto
 )

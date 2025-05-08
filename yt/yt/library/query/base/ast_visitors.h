@@ -18,9 +18,11 @@ struct TAbstractAstVisitor
 
 template <class TResult, class TDerived>
 struct TBaseAstVisitor
-    : TAbstractAstVisitor<TResult, TDerived, TExpressionPtr>
+    : public TAbstractAstVisitor<TResult, TDerived, TExpressionPtr>
 {
     TExpressionPtr GetExpression(TExpressionPtr expr);
+
+    TResult OnQuery(const TQueryExpressionPtr /*queryExpr*/);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -43,6 +45,7 @@ struct TAstVisitor
     void OnTransform(const TTransformExpressionPtr transformExpr);
     void OnCase(const TCaseExpressionPtr caseExpr);
     void OnLike(const TLikeExpressionPtr likeExpr);
+    void OnQuery(const TQueryExpressionPtr queryExpr);
     void Visit(const std::vector<TExpressionPtr>& tuple);
     void Visit(const std::optional<std::vector<TExpressionPtr>>& nullableTuple);
 };
@@ -89,6 +92,7 @@ struct TRewriter
     TExpressionPtr OnTransform(TTransformExpressionPtr transformExpr);
     TExpressionPtr OnCase(TCaseExpressionPtr caseExprExpr);
     TExpressionPtr OnLike(TLikeExpressionPtr likeExpr);
+    TExpressionPtr OnQuery(TQueryExpressionPtr queryExpr);
 
     std::vector<TExpressionPtr> Visit(const std::vector<TExpressionPtr>& tuple);
     std::optional<std::vector<TExpressionPtr>> Visit(const std::optional<std::vector<TExpressionPtr>>& nullableTuple);

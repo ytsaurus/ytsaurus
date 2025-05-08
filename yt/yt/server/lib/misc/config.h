@@ -119,6 +119,8 @@ struct TDiskHealthCheckerConfig
     //! Maximum time allowed for waiting for execution.
     TDuration WaitTimeout;
 
+    TDiskHealthCheckerConfigPtr ApplyDynamic(const TDiskHealthCheckerDynamicConfig& dynamicConfig);
+
     REGISTER_YSON_STRUCT(TDiskHealthCheckerConfig);
 
     static void Register(TRegistrar registrar);

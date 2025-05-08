@@ -163,7 +163,7 @@
 
 #include <yt/yt/ytlib/object_client/object_service_cache.h>
 
-#include <yt/yt/ytlib/sequoia_client/client.h>
+#include <yt/yt/ytlib/sequoia_client/public.h>
 
 #include <yt/yt/client/transaction_client/noop_timestamp_provider.h>
 #include <yt/yt/client/transaction_client/remote_timestamp_provider.h>
@@ -785,9 +785,7 @@ void TBootstrap::DoInitialize()
 
     NLogging::GetDynamicTableLogWriterFactory()->SetClient(RootClient_);
 
-    SequoiaClient_ = CreateSequoiaClient(
-        Config_->ClusterConnection->Dynamic->SequoiaConnection,
-        RootClient_);
+    SequoiaClient_ = ClusterConnection_->CreateSequoiaClient();
 
     NativeAuthenticator_ = NNative::CreateNativeAuthenticator(ClusterConnection_);
 

@@ -42,6 +42,8 @@ struct TSlotLocationConfig
     //! Enforce disk space limits using disk quota.
     bool EnableDiskQuota;
 
+    NServer::TDiskHealthCheckerConfigPtr DiskHealthChecker;
+
     REGISTER_YSON_STRUCT(TSlotLocationConfig);
 
     static void Register(TRegistrar registrar);
@@ -168,6 +170,8 @@ struct TSlotManagerDynamicConfig
 
     bool RestartContainerAfterFailedDeviceCheck;
 
+    NServer::TDiskHealthCheckerDynamicConfigPtr DiskHealthChecker;
+
     //! Polymorphic job environment configuration.
     NJobProxy::TJobEnvironmentConfig JobEnvironment;
 
@@ -194,6 +198,8 @@ struct TVolumeManagerDynamicConfig
 
     //! For testing purpuses.
     bool ThrowOnPrepareVolume;
+
+    NServer::TDiskHealthCheckerDynamicConfigPtr DiskHealthChecker;
 
     REGISTER_YSON_STRUCT(TVolumeManagerDynamicConfig);
 
@@ -284,7 +290,7 @@ struct TControllerAgentConnectorDynamicConfig
     NConcurrency::TThroughputThrottlerConfigPtr StatisticsThrottler;
     TDuration RunningJobStatisticsSendingBackoff;
 
-    bool ResendFullJobInfo = true;
+    bool ResendFullJobInfo;
 
     REGISTER_YSON_STRUCT(TControllerAgentConnectorDynamicConfig);
 
@@ -331,6 +337,8 @@ struct TSchedulerConnectorDynamicConfig
     bool IncludeReleasingResourcesInSchedulerHeartbeat;
 
     bool UseProfilingTagsFromScheduler;
+
+    TDuration RequestNewAgentDelay;
 
     REGISTER_YSON_STRUCT(TSchedulerConnectorDynamicConfig);
 
@@ -552,8 +560,6 @@ DEFINE_REFCOUNTED_TYPE(TAllocationConfig)
 struct TJobControllerDynamicConfig
     : public NYTree::TYsonStruct
 {
-    TConstantBackoffOptions OperationInfoRequestBackoffStrategy;
-
     TDuration WaitingForResourcesTimeout;
     // COMPAT(arkady-e1ppa): Remove when CA&Sched are update to
     // a proper version of 24.1/24.2

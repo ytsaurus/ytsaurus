@@ -186,6 +186,7 @@ DB::MutableColumnPtr ConvertIntegerYTColumnToCHColumnImpl(
     const IUnversionedColumnarRowBatch::TColumn& ytValueColumn,
     TRange<ui32> dictionaryIndexes,
     TRange<ui64> rleIndexes,
+    TRef nullBitmap,
     Args&&... args)
 {
     auto chColumn = TColumn::create(ytColumn.ValueCount, std::forward<Args>(args)...);
@@ -200,6 +201,7 @@ DB::MutableColumnPtr ConvertIntegerYTColumnToCHColumnImpl(
         ytValueColumn.Values->ZigZagEncoded,
         dictionaryIndexes,
         rleIndexes,
+        nullBitmap,
         [&] (auto index) {
             return values[index];
         },
@@ -238,6 +240,17 @@ auto AnalyzeColumnEncoding(const IUnversionedColumnarRowBatch::TColumn& ytColumn
         ytValueColumn,
         rleIndexes,
         dictionaryIndexes);
+}
+
+TRef GetNullBitmap(const IUnversionedColumnarRowBatch::TColumn& ytColumn)
+{
+    const auto* valueColumn = ytColumn.Rle
+        ? ytColumn.Rle->ValueColumn
+        : &ytColumn;
+    if (valueColumn->NullBitmap) {
+        return valueColumn->NullBitmap->Data;
+    }
+    return {};
 }
 
 template <class T>
@@ -657,6 +670,7 @@ DB::MutableColumnPtr ConvertIntegerYTColumnToCHColumn(
     ESimpleLogicalValueType type)
 {
     auto [ytValueColumn, rleIndexes, dictionaryIndexes] = AnalyzeColumnEncoding(ytColumn);
+    TRef nullBitmap = GetNullBitmap(ytColumn);
 
     YT_LOG_TRACE("Converting integer column (Count: %v, Rle: %v, Dictionary: %v)",
         ytColumn.ValueCount,
@@ -668,7 +682,7 @@ DB::MutableColumnPtr ConvertIntegerYTColumnToCHColumn(
             case ESimpleLogicalValueType::ytType: { \
                 return ConvertIntegerYTColumnToCHColumnImpl<columnType>(__VA_ARGS__); \
             }
-        #define XX_ARGS ytColumn, *ytValueColumn, dictionaryIndexes, rleIndexes
+        #define XX_ARGS ytColumn, *ytValueColumn, dictionaryIndexes, rleIndexes, nullBitmap
         #define XX_VECTOR_COLUMN(ytType, chType) XX(ytType, DB::ColumnVector<chType>, XX_ARGS)
         #define XX_DATETIME_COLUMN(ytType, decimalScale) XX(ytType, DB::ColumnDecimal<DB::DateTime64>, XX_ARGS, decimalScale)
 

@@ -1146,9 +1146,11 @@ TLookupRowsResult<IRowset> TClient::DoLookupRowsOnce(
 
             if (inSyncReplicas.empty()) {
                 std::vector<TError> replicaErrors;
-                for (auto bannedReplicaId : bannedSyncReplicaIds) {
-                    if (auto error = bannedReplicaTracker->GetReplicaError(bannedReplicaId); !error.IsOK()) {
-                        replicaErrors.push_back(std::move(error));
+                if (bannedReplicaTracker) {
+                    for (auto bannedReplicaId : bannedSyncReplicaIds) {
+                        if (auto error = bannedReplicaTracker->GetReplicaError(bannedReplicaId); !error.IsOK()) {
+                            replicaErrors.push_back(std::move(error));
+                        }
                     }
                 }
 
@@ -1637,7 +1639,6 @@ TSelectRowsResult TClient::DoSelectRowsOnce(
 
     if (pickReplicaSession->IsFallbackRequired()) {
         return std::get<TSelectRowsResult>(pickReplicaSession->Execute(
-            Connection_,
             [&] (
                 const std::string& clusterName,
                 const std::string& patchedQuery,
@@ -1787,7 +1788,6 @@ NYson::TYsonString TClient::DoExplainQuery(
 
     if (pickReplicaSession->IsFallbackRequired()) {
         return std::get<NYson::TYsonString>(pickReplicaSession->Execute(
-            Connection_,
             [this, options] (
                 const std::string& clusterName,
                 const std::string& patchedQuery,
@@ -2549,9 +2549,11 @@ IQueueRowsetPtr TClient::DoPullQueueImpl(
 
             if (inSyncReplicas.empty()) {
                 std::vector<TError> replicaErrors;
-                for (auto bannedReplicaId : bannedSyncReplicaIds) {
-                    if (auto error = bannedReplicaTracker->GetReplicaError(bannedReplicaId); !error.IsOK()) {
-                        replicaErrors.push_back(std::move(error));
+                if (bannedReplicaTracker) {
+                    for (auto bannedReplicaId : bannedSyncReplicaIds) {
+                        if (auto error = bannedReplicaTracker->GetReplicaError(bannedReplicaId); !error.IsOK()) {
+                            replicaErrors.push_back(std::move(error));
+                        }
                     }
                 }
 
@@ -3088,21 +3090,21 @@ public:
         i64 maxDataWeight,
         IMemoryUsageTrackerPtr memoryTracker,
         NLogging::TLogger logger)
-    : Client_(std::move(client))
-    , Schema_(std::move(schema))
-    , TimestampColumnIndex_(timestampColumnIndex)
-    , TabletInfo_(std::move(tabletInfo))
-    , Versioned_(versioned)
-    , Options_(options)
-    , MaxDataWeight_(maxDataWeight)
-    , Request_(std::move(request))
-    , Invoker_(std::move(invoker))
-    , MemoryTracker_(std::move(memoryTracker))
-    , Logger(logger
-        .WithTag("TabletId: %v", TabletInfo_->TabletId))
-    , IsTrivial_(IsUpperTimestampReached(Options_, Request_.Progress, Logger))
-    , ReplicationProgress_(std::move(Request_.Progress))
-    , ReplicationRowIndex_(Request_.StartReplicationRowIndex)
+        : Client_(std::move(client))
+        , Schema_(std::move(schema))
+        , TimestampColumnIndex_(timestampColumnIndex)
+        , TabletInfo_(std::move(tabletInfo))
+        , Versioned_(versioned)
+        , Options_(options)
+        , MaxDataWeight_(maxDataWeight)
+        , Request_(std::move(request))
+        , Invoker_(std::move(invoker))
+        , MemoryTracker_(std::move(memoryTracker))
+        , Logger(logger
+            .WithTag("TabletId: %v", TabletInfo_->TabletId))
+        , IsTrivial_(IsUpperTimestampReached(Options_, Request_.Progress, Logger))
+        , ReplicationProgress_(std::move(Request_.Progress))
+        , ReplicationRowIndex_(Request_.StartReplicationRowIndex)
     { }
 
     ~TTabletPullRowsSession()

@@ -219,7 +219,7 @@ private:
                     TChunkReaderHost::FromClient(Client_),
                     chunkId,
                     codecId,
-                    replicas);
+                    std::move(replicas));
 
                 // NB: Lower/upper limits are mandatory for journal chunks.
                 if (!chunkSpec.has_lower_limit()) {

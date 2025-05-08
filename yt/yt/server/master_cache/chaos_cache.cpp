@@ -142,7 +142,7 @@ void TChaosCache::EndLookup(
         TInstant::Now(),
         replicationCard);
 
-    cookie.EndInsert(entry);
+    cookie.EndInsert(std::move(entry));
 }
 
 TCacheProfilingCountersPtr TChaosCache::GetProfilingCounters(const std::string& user)

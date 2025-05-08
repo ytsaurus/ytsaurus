@@ -912,7 +912,7 @@ struct TJobExperimentConfig
     std::optional<TString> BaseLayerPath;
 
     //! The network project used in the treatment jobs of the experiment.
-    std::optional<TString> NetworkProject;
+    std::optional<std::string> NetworkProject;
 
     //! Do not run any more treatment jobs if the `MaxFailedTreatmentJobs` of them failed.
     int MaxFailedTreatmentJobs;
@@ -980,6 +980,7 @@ struct TFastIntermediateMediumTableWriterConfig
     : public NYTree::TYsonStruct
 {
     int MinUploadReplicationFactor;
+    std::optional<int> DirectUploadNodeCount;
     int UploadReplicationFactor;
     NErasure::ECodec ErasureCodec;
     bool EnableStripedErasure;
@@ -1004,6 +1005,9 @@ struct TOperationSpecBase
 
     //! Replication factor for intermediate data.
     int IntermediateDataReplicationFactor;
+
+    //! Direct upload replication factor for intermediate data.
+    std::optional<int> IntermediateDirectUploadNodeCount;
 
     //! Minimum replication factor for intermediate data.
     int MinIntermediateDataReplicationFactor;
@@ -1030,6 +1034,10 @@ struct TOperationSpecBase
 
     i64 MaxDataWeightPerJob;
     i64 MaxPrimaryDataWeightPerJob;
+
+    //! Strict limit for job input compressed data size. May not affect input
+    //! slicing.
+    i64 MaxCompressedDataSizePerJob;
 
     //! Once this limit is reached the operation fails.
     int MaxFailedJobCount;
@@ -1275,8 +1283,11 @@ struct TOperationSpecBase
     //! If |true|, exec node will reuse allocation for multiple jobs.
     std::optional<bool> EnableMultipleJobsInAllocation;
 
-    //! COMPAT(apollo1321): remove in 25.1 release.
+    //! COMPAT(apollo1321): remove in 25.2.
     bool UseNewSlicingImplementationInOrderedPool;
+
+    //! COMPAT(apollo1321): remove in 25.2.
+    bool UseNewSlicingImplementationInUnorderedPool;
 
     REGISTER_YSON_STRUCT(TOperationSpecBase);
 
@@ -1445,7 +1456,7 @@ struct TUserJobSpec
     std::optional<TDuration> JobSpeculationTimeout;
 
     //! Name of the network project to use in job.
-    std::optional<TString> NetworkProject;
+    std::optional<std::string> NetworkProject;
 
     //! Configures |enable_porto| setting for user job containers.
     //! If not given, then the global default from controller agent's config is used.
@@ -1540,15 +1551,15 @@ DEFINE_REFCOUNTED_TYPE(TOptionalUserJobSpec)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TGangManagerConfig
+struct TGangOptions
     : public NYTree::TYsonStruct
 {
-    REGISTER_YSON_STRUCT(TGangManagerConfig);
+    REGISTER_YSON_STRUCT(TGangOptions);
 
     static void Register(TRegistrar registrar);
 };
 
-DEFINE_REFCOUNTED_TYPE(TGangManagerConfig)
+DEFINE_REFCOUNTED_TYPE(TGangOptions)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1564,7 +1575,7 @@ struct TVanillaTaskSpec
 
     bool RestartCompletedJobs;
 
-    TGangManagerConfigPtr GangManager;
+    TGangOptionsPtr GangOptions;
 
     REGISTER_YSON_STRUCT(TVanillaTaskSpec);
 
@@ -1659,11 +1670,6 @@ struct TSimpleOperationSpecBase
     std::optional<int> MaxJobCount;
 
     std::optional<int> MaxDataSlicesPerJob;
-
-    //! Limit for job input compressed data size.
-    //! This limit is not strict and may be violated in some cases,
-    //! for example, if chunk slice is too big.
-    std::optional<i64> MaxCompressedDataSizePerJob;
 
     bool ForceJobSizeAdjuster;
     bool ForceAllowJobInterruption;

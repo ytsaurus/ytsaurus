@@ -1350,8 +1350,7 @@ class TestSchedulerMapReduceDynamic(MROverOrderedDynTablesHelper):
 
     DELTA_CONTROLLER_AGENT_CONFIG = {
         "controller_agent": {
-            "sort_operation_options": {"min_uncompressed_block_size": 1},
-            "map_reduce_operation_options": {
+            "operation_options": {
                 "min_uncompressed_block_size": 1,
             },
             "enable_partition_map_job_size_adjustment": True,

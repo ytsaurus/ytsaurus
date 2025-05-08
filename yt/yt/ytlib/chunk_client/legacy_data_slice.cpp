@@ -600,7 +600,7 @@ std::optional<TChunkId> IsUnavailable(
     EChunkAvailabilityPolicy policy)
 {
     for (const auto& chunkSlice : dataSlice->ChunkSlices) {
-        if (IsUnavailable(chunkSlice->GetInputChunk(), policy)) {
+        if (chunkSlice->GetInputChunk()->IsUnavailable(policy)) {
             return chunkSlice->GetInputChunk()->GetChunkId();
         }
     }

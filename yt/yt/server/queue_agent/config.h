@@ -61,9 +61,6 @@ struct TCypressSynchronizerDynamicConfig
     //! Clusters polled by the watching version of the synchronizer.
     std::vector<std::string> Clusters;
 
-    //! If true, the synchronizer will add objects from the registration table to the list of objects to watch.
-    //! NB: This flag is only supported with the `watching` policy.
-    bool PollReplicatedObjects;
     //! If true, the synchronizer will update the configured replicated table mapping table with the corresponding meta.
     //! NB: This flag is only supported with the `watching` policy, as well as enabled polling of replicated objects.
     bool WriteReplicatedTableMapping;

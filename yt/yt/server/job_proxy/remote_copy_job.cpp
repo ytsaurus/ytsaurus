@@ -781,13 +781,13 @@ private:
             erasedPartIndices,
             repairPartIndices);
 
-        TChunkReplicaWithMediumList repairSeedReplicas;
+        TChunkReplicaList repairSeedReplicas;
         repairSeedReplicas.reserve(repairPartIndices.size());
         for (auto repairPartIndex : repairPartIndices) {
             auto writtenReplicas = (*partWriters)[repairPartIndex]->GetWrittenChunkReplicasInfo().Replicas;
             YT_VERIFY(writtenReplicas.size() == 1);
             auto writtenReplica = writtenReplicas.front();
-            repairSeedReplicas.emplace_back(writtenReplica.GetNodeId(), repairPartIndex, writtenReplica.GetMediumIndex());
+            repairSeedReplicas.emplace_back(writtenReplica.GetNodeId(), repairPartIndex);
         }
 
         TChunkReplicaWithMediumList erasedTargetReplicas;
@@ -872,8 +872,6 @@ private:
         auto inputChunkId = FromProto<TChunkId>(inputChunkSpec.chunk_id());
         auto inputReplicas = GetReplicasFromChunkSpec(inputChunkSpec);
 
-        TDeferredChunkMetaPtr chunkMeta;
-
         YT_VERIFY(!inputChunkSpec.use_proxying_data_node_service());
 
         auto reader = CreateReplicationReader(
@@ -883,7 +881,7 @@ private:
             inputChunkId,
             std::move(inputReplicas));
 
-        chunkMeta = GetChunkMeta(inputChunkId, {reader});
+        auto chunkMeta = GetChunkMeta(inputChunkId, {reader});
         ReplaceHunkChunkIds(chunkMeta);
         ReplaceCompressionDictionaryIds(chunkMeta, inputChunkId);
 

@@ -226,7 +226,7 @@ private:
             auto& counters = replicaSnapshot->Counters;
 
             auto countError = Finally([&] {
-                if (std::uncaught_exceptions()) {
+                if (std::uncaught_exceptions() > 0) {
                     counters.ReplicationErrorCount.Increment();
                 }
             });
@@ -389,7 +389,7 @@ private:
             auto updateChunkReaderStatisticsGuard = Finally([&] {
                 counters.ChunkReaderStatisticsCounters.Increment(
                     chunkReadOptions.ChunkReaderStatistics,
-                    /*failed*/ std::uncaught_exceptions());
+                    /*failed*/ std::uncaught_exceptions() > 0);
             });
 
             EReaderTerminationReason readerResult = EReaderTerminationReason::None;

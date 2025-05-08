@@ -33,6 +33,9 @@ void TSlotLocationConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("enable_disk_quota", &TThis::EnableDiskQuota)
         .Default(true);
+
+    registrar.Parameter("disk_health_checker", &TThis::DiskHealthChecker)
+        .DefaultNew();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -165,10 +168,14 @@ void TSlotManagerDynamicConfig::Register(TRegistrar registrar)
     registrar.Parameter("restart_container_after_failed_device_check", &TThis::RestartContainerAfterFailedDeviceCheck)
         .Default(true);
 
+    registrar.Parameter("disk_health_checker", &TThis::DiskHealthChecker)
+        .DefaultNew();
+
     registrar.Parameter("job_environment", &TThis::JobEnvironment)
         .DefaultCtor([] {
             return NJobProxy::TJobEnvironmentConfig(NJobProxy::EJobEnvironmentType::Simple);
-        });}
+        });
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -188,6 +195,9 @@ void TVolumeManagerDynamicConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("throw_on_prepare_volume", &TThis::ThrowOnPrepareVolume)
         .Default(false);
+
+    registrar.Parameter("disk_health_checker", &TThis::DiskHealthChecker)
+        .DefaultNew();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -407,6 +417,11 @@ void TSchedulerConnectorDynamicConfig::Register(TRegistrar registrar)
         "use_profiling_tags_from_scheduler",
         &TThis::UseProfilingTagsFromScheduler)
         .Default(false);
+
+    registrar.Parameter(
+        "request_new_agent_delay",
+        &TThis::RequestNewAgentDelay)
+        .Default(TDuration::Minutes(10));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -618,12 +633,6 @@ void TAllocationConfig::Register(TRegistrar registrar)
 
 void TJobControllerDynamicConfig::Register(TRegistrar registrar)
 {
-    registrar.Parameter("operation_info_request_backoff_strategy", &TThis::OperationInfoRequestBackoffStrategy)
-        .Default({
-            .Backoff = TDuration::Seconds(5),
-            .BackoffJitter = 0.1,
-        });
-
     // Make it greater than interrupt preemption timeout.
     registrar.Parameter("waiting_for_resources_timeout", &TThis::WaitingForResourcesTimeout)
         .Alias("waiting_jobs_timeout")

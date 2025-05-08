@@ -994,7 +994,7 @@ protected:
             }
 
             YT_LOG_DEBUG("Dynamic store located: got new replicas");
-            ToProto(ChunkSpec_.mutable_replicas(), replicas);
+            ToProto(ChunkSpec_.mutable_replicas(), TChunkReplicaWithMediumList(replicas.begin(), replicas.end()));
 
             PatchChunkSpecWithContinuationToken();
 

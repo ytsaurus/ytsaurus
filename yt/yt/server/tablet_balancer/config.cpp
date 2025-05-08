@@ -1,4 +1,5 @@
 #include "config.h"
+#include "private.h"
 
 #include <yt/yt/server/lib/tablet_balancer/config.h>
 
@@ -137,7 +138,7 @@ void TTabletBalancerBootstrapConfig::Register(TRegistrar registrar)
     registrar.Parameter("cluster_user", &TThis::ClusterUser)
         .Default(NSecurityClient::TabletBalancerUserName);
     registrar.Parameter("root_path", &TThis::RootPath)
-        .Default("//sys/tablet_balancer");
+        .Default(DefaultTabletBalancerRootPath);
     registrar.Parameter("election_manager", &TThis::ElectionManager)
         .DefaultNew();
     registrar.Parameter("dynamic_config_manager", &TThis::DynamicConfigManager)

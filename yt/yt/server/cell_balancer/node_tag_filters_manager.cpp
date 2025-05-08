@@ -156,14 +156,9 @@ TPerDataCenterSpareNodesInfo GetSpareNodesInfo(
                 continue;
             }
 
-            TBundleControllerStatePtr bundleState;
-            if (const auto it = mutations->ChangedStates.find(bundleName); it != mutations->ChangedStates.end()) {
-                bundleState = it->second;
-            } else if (const auto it = input.BundleStates.find(bundleName); it != input.BundleStates.end()) {
-                bundleState = it->second;
-            }
+            auto bundleState = GetOrCrash(mutations->ChangedStates, bundleName);
 
-            if (bundleState && bundleState->SpareNodeReleasements.count(spareNodeName) != 0) {
+            if (bundleState->SpareNodeReleasements.contains(spareNodeName)) {
                 spareNodes.ReleasingByBundle[bundleName].push_back(spareNodeName);
             } else {
                 spareNodes.UsedByBundle[bundleName].push_back(spareNodeName);
@@ -436,7 +431,7 @@ void ProcessNodesAssignments(
     std::vector<std::string> finished;
     auto now = TInstant::Now();
 
-    for (const auto& [nodeName,  operation] : *nodeAssignments) {
+    for (const auto& [nodeName, operation] : *nodeAssignments) {
         if (now - operation->CreationTime > input.Config->NodeAssignmentTimeout) {
             YT_LOG_WARNING("Assigning node is stuck (Bundle: %v, TabletNode: %v)",
                 bundleName,
@@ -478,7 +473,7 @@ void ProcessNodesReleasements(
     std::vector<std::string> finished;
     auto now = TInstant::Now();
 
-    for (const auto& [nodeName,  operation] : *nodeAssignments) {
+    for (const auto& [nodeName, operation] : *nodeAssignments) {
         if (now - operation->CreationTime > input.Config->NodeAssignmentTimeout) {
             YT_LOG_WARNING("Releasing node is stuck (Bundle: %v, Node: %v)",
                 bundleName,
@@ -671,7 +666,7 @@ THashSet<std::string> GetDataCentersToPopulate(
     int activeDataCenterCount = std::ssize(zoneInfo->DataCenters) - zoneInfo->RedundantDataCenterCount;
     YT_VERIFY(activeDataCenterCount > 0);
 
-    int perDataCenterSlotCount = GetCeiledShare(std::ssize(bundleInfo->TabletCellIds) *  bundleInfo->Options->PeerCount, activeDataCenterCount);
+    int perDataCenterSlotCount = GetCeiledShare(std::ssize(bundleInfo->TabletCellIds) * bundleInfo->Options->PeerCount, activeDataCenterCount);
     int requiredPerDataCenterNodeCount = GetCeiledShare(perDataCenterSlotCount, perNodeSlotCount);
 
     std::vector<TDataCenterOrder> dataCentersOrder;

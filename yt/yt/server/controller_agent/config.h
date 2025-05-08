@@ -317,6 +317,9 @@ struct TGpuCheckOptions
     //! Command line arguments for the GPU check binary.
     std::vector<std::string> BinaryArgs;
 
+    //! Network project for GPU check container.
+    std::optional<TString> NetworkProject;
+
     REGISTER_YSON_STRUCT(TGpuCheckOptions);
 
     static void Register(TRegistrar registrar);
@@ -586,8 +589,6 @@ DEFINE_REFCOUNTED_TYPE(TRemoteCopyOperationOptions)
 struct TGangManagerConfig
     : public NYTree::TYsonStruct
 {
-    bool Enabled;
-
     REGISTER_YSON_STRUCT(TGangManagerConfig);
 
     static void Register(TRegistrar registrar);
@@ -1033,7 +1034,7 @@ struct TControllerAgentConfig
     std::optional<int> IopsThrottlerLimit;
 
     //! Patch for all operation options.
-    NYT::NYTree::INodePtr OperationOptions;
+    NYTree::INodePtr OperationOptions;
 
     //! Specific operation options.
     TMapOperationOptionsPtr MapOperationOptions;
@@ -1047,6 +1048,18 @@ struct TControllerAgentConfig
     TSortOperationOptionsPtr SortOperationOptions;
     TRemoteCopyOperationOptionsPtr RemoteCopyOperationOptions;
     TVanillaOperationOptionsPtr VanillaOperationOptions;
+
+    NYTree::INodePtr MapOperationOptionsNode;
+    NYTree::INodePtr ReduceOperationOptionsNode;
+    NYTree::INodePtr JoinReduceOperationOptionsNode;
+    NYTree::INodePtr EraseOperationOptionsNode;
+    NYTree::INodePtr OrderedMergeOperationOptionsNode;
+    NYTree::INodePtr UnorderedMergeOperationOptionsNode;
+    NYTree::INodePtr SortedMergeOperationOptionsNode;
+    NYTree::INodePtr MapReduceOperationOptionsNode;
+    NYTree::INodePtr SortOperationOptionsNode;
+    NYTree::INodePtr RemoteCopyOperationOptionsNode;
+    NYTree::INodePtr VanillaOperationOptionsNode;
 
     //! Default environment variables set for every job.
     THashMap<TString, TString> Environment;
@@ -1263,7 +1276,7 @@ struct TControllerAgentConfig
 
 private:
     template <class TOptions>
-    static void UpdateOptions(TOptions* options, NYT::NYTree::INodePtr patch);
+    static void BuildOptions(TOptions* options, NYTree::INodePtr optionsNode, NYTree::INodePtr patch);
 };
 
 DEFINE_REFCOUNTED_TYPE(TControllerAgentConfig)

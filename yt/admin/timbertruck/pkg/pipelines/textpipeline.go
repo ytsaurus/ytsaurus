@@ -3,6 +3,7 @@ package pipelines
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -28,7 +29,7 @@ type TextPipelineOptions struct {
 type textFollower struct {
 	lineLimit int
 
-	file *FollowingFile
+	file LogFile
 
 	buffer  []byte
 	begin   int
@@ -45,7 +46,7 @@ func NewTextPipeline(filepath string, position FilePosition, options TextPipelin
 		panic(fmt.Sprintf("bad options %v; options.LineLimit MUST BE > options.LineLimit", options))
 	}
 
-	file, err := OpenFollowingFile(filepath, position.LogicalOffset)
+	file, err := openLogFile(filepath, position.LogicalOffset)
 	if err != nil {
 		return
 	}
@@ -95,7 +96,7 @@ func (t *textFollower) searchLineEnd() (found bool) {
 
 func (t *textFollower) emitLine(ctx context.Context, emit EmitFunc[TextLine]) {
 	meta := RowMeta{}
-	meta.Begin.LogicalOffset = t.file.FilePosition() - int64(t.end-t.begin)
+	meta.Begin.LogicalOffset = t.file.FilePosition().LogicalOffset - int64(t.end-t.begin)
 
 	line := TextLine{}
 	line.Bytes = t.buffer[t.begin:t.scanEnd]
@@ -154,6 +155,8 @@ func (t *textFollower) Process(ctx context.Context, _ RowMeta, in Impulse, emit 
 			}
 			t.emitLine(ctx, emit)
 		}
+	} else if err != nil && !errors.Is(err, context.Canceled) {
+		panic(fmt.Sprintf("unexpected error while reading file: %s", err.Error()))
 	}
 }
 

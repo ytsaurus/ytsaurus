@@ -10,7 +10,7 @@
 
 #include <yt/yt/core/misc/error.h>
 
-namespace NYT::NControllerAgent {
+namespace NYT::NControllerAgent::NControllers {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -34,8 +34,8 @@ TDuration GetJobDuration(const TJoblet& joblet)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TJobProfiler::TJobProfiler()
-    : ProfilerQueue_(New<NConcurrency::TActionQueue>("JobProfiler"))
+TJobProfiler::TJobProfiler(IInvokerPtr profilerInvoker)
+    : ProfilerInvoker_(std::move(profilerInvoker))
     , TotalCompletedJobTime_(ControllerAgentProfiler().TimeCounter("/jobs/total_completed_wall_time"))
     , TotalFailedJobTime_(ControllerAgentProfiler().TimeCounter("/jobs/total_failed_wall_time"))
     , TotalAbortedJobTime_(ControllerAgentProfiler().TimeCounter("/jobs/total_aborted_wall_time"))
@@ -367,11 +367,116 @@ void TJobProfiler::DoProfileFinishedJob(
     DoUpdateInProgressJobCount(*previousJobState, jobType, treeId, /*increment*/ false);
 }
 
-IInvokerPtr TJobProfiler::GetProfilerInvoker() const
+const IInvokerPtr& TJobProfiler::GetProfilerInvoker() const
 {
-    return ProfilerQueue_->GetInvoker();
+    return ProfilerInvoker_;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NControllerAgent
+TScheduleJobProfiler::TScheduleJobProfiler(IInvokerPtr profilerInvoker)
+    : ProfilerInvoker_(std::move(profilerInvoker))
+{ }
+
+void TScheduleJobProfiler::ProfileScheduleJobFailure(
+    const std::string& treeId,
+    EJobType jobType,
+    EScheduleFailReason failReason,
+    bool isJobFirst)
+{
+    YT_ASSERT_THREAD_AFFINITY_ANY();
+
+    TTypedScheduleFailureKey key(treeId, jobType, failReason, isJobFirst);
+
+    ProfilerInvoker_->Invoke(BIND(
+        &TScheduleJobProfiler::DoProfileTypedScheduleJobFailure,
+        MakeStrong(this),
+        Passed(std::move(key))));
+}
+
+void TScheduleJobProfiler::ProfileScheduleJobFailure(const std::string& treeId, EScheduleFailReason failReason)
+{
+    TScheduleFailureKey key(treeId, failReason);
+
+    ProfilerInvoker_->Invoke(BIND(
+        &TScheduleJobProfiler::DoProfileScheduleJobFailure,
+        MakeStrong(this),
+        Passed(std::move(key))));
+}
+
+void TScheduleJobProfiler::ProfileScheduleJobSuccess(
+    const std::string& treeId,
+    EJobType jobType,
+    bool isJobFirst)
+{
+    TScheduleSuccessKey key(treeId, jobType, isJobFirst);
+
+    ProfilerInvoker_->Invoke(BIND(
+        &TScheduleJobProfiler::DoProfileScheduleJobSuccess,
+        MakeStrong(this),
+        Passed(std::move(key))));
+}
+
+void TScheduleJobProfiler::DoProfileTypedScheduleJobFailure(TTypedScheduleFailureKey key)
+{
+    auto it = TypedFailureCounters_.find(key);
+    if (it == end(TypedFailureCounters_)) {
+        const auto& [treeId, jobType, failReason, isJobFirst] = key;
+
+        auto counter = ControllerAgentProfiler()
+            .WithTag(NScheduler::ProfilingPoolTreeKey, treeId)
+            .WithTag("job_type", FormatEnum(jobType))
+            .WithTag("fail_reason", FormatEnum(failReason))
+            .WithTag("is_job_first", std::string(FormatBool(isJobFirst)))
+            .Counter("/jobs/schedule_job_failure_count");
+
+        it = TypedFailureCounters_.emplace(
+            std::move(key),
+            std::move(counter)).first;
+    }
+
+    it->second.Increment();
+}
+
+void TScheduleJobProfiler::DoProfileScheduleJobFailure(TScheduleFailureKey key)
+{
+    auto it = FailureCounters_.find(key);
+    if (it == end(FailureCounters_)) {
+        const auto& [treeId, failReason] = key;
+
+        auto counter = ControllerAgentProfiler()
+            .WithTag(NScheduler::ProfilingPoolTreeKey, treeId)
+            .WithTag("fail_reason", FormatEnum(failReason))
+            .Counter("/jobs/schedule_job_failure_count");
+
+        it = FailureCounters_.emplace(
+            std::move(key),
+            std::move(counter)).first;
+    }
+
+    it->second.Increment();
+}
+
+void TScheduleJobProfiler::DoProfileScheduleJobSuccess(TScheduleSuccessKey key)
+{
+    auto it = SuccessCounters_.find(key);
+    if (it == end(SuccessCounters_)) {
+        const auto& [treeId, jobType, isJobFirst] = key;
+
+        auto counter = ControllerAgentProfiler()
+            .WithTag(NScheduler::ProfilingPoolTreeKey, treeId)
+            .WithTag("job_type", FormatEnum(jobType))
+            .WithTag("is_job_first", std::string(FormatBool(isJobFirst)))
+            .Counter("/jobs/schedule_job_success_count");
+
+        it = SuccessCounters_.emplace(
+            std::move(key),
+            std::move(counter)).first;
+    }
+
+    it->second.Increment();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NYT::NControllerAgent::NControllers

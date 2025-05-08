@@ -1459,6 +1459,13 @@ TConstAggregateProfilerMapPtr CreateBuiltinAggregateProfilers()
         result->emplace(name, New<NBuiltins::TComplexAggregateCodegen>(name));
     }
 
+    result->emplace("array_agg", New<TExternalAggregateCodegen>(
+        "array_agg",
+        UDF_BC("array_agg"),
+        ECallingConvention::UnversionedValue,
+        false,
+        TSharedRef()));
+
     TProfilerFunctionRegistryBuilder builder{nullptr, result.Get()};
     RegisterBuiltinFunctions(&builder);
 

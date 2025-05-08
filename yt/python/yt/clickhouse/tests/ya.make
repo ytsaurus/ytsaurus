@@ -47,8 +47,7 @@ TAG(
     ya:huge_logs
     ya:full_logs
     ya:sys_info
+    ya:large_tests_on_single_slots
 )
-
-INCLUDE(${ARCADIA_ROOT}/devtools/large_on_single_slots.inc)
 
 END()

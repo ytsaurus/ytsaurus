@@ -309,7 +309,7 @@ private:
     {
         auto alert = Alert_.Load();
         if (!alert.IsOK()) {
-            alerts->push_back(alert);
+            alerts->push_back(std::move(alert));
         }
     }
 

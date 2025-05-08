@@ -22,6 +22,10 @@ using TClusterScoreMap = THashMap<std::string, TTimestamp>;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+static constexpr auto& Logger = ApiLogger;
+
+////////////////////////////////////////////////////////////////////////////////
+
 const std::string UpstreamReplicaIdAttributeName = "upstream_replica_id";
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -39,6 +43,9 @@ void TraverseQueryTables(NAst::TQuery* query, TCallback onTableDescriptor)
         },
         [&] (NAst::TQueryAstHeadPtr& subquery) {
             TraverseQueryTables(&subquery->Ast, onTableDescriptor);
+        },
+        [] (const NAst::TExpressionList& /*expression*/) {
+            THROW_ERROR_EXCEPTION("Unexpected expression in from clause");
         });
 
     for (auto& join : query->Joins) {
@@ -174,13 +181,14 @@ public:
     TPickReplicaSession(
         std::vector<TReplicaSynchronicityList> replicas,
         NAst::TQuery* query,
-        const TSelectRowsOptionsBase& baseOptions,
         std::vector<TTableMountInfoPtr> tableInfos,
         std::vector<NAst::TTableHintPtr> tableHints,
         std::vector<IBannedReplicaTrackerPtr> bannedReplicaTrackers,
-        TTimestamp timestamp);
+        const IConnectionPtr& connection,
+        TTimestamp timestamp,
+        const TSelectRowsOptionsBase& baseOptions);
 
-    TResult Execute(const IConnectionPtr& connection, TExecuteCallback callback) override;
+    TResult Execute(TExecuteCallback callback) override;
 
     bool IsFallbackRequired() const override;
 
@@ -191,6 +199,7 @@ private:
     const std::vector<TTableMountInfoPtr> TableInfos_;
     const std::vector<NAst::TTableHintPtr> TableHints_;
     const std::vector<IBannedReplicaTrackerPtr> BannedReplicaTrackers_;
+    const IConnectionPtr Connection_;
     const TTimestamp Timestamp_ = NullTimestamp;
     TSelectRowsOptionsBase BaseOptions_;
 
@@ -202,30 +211,29 @@ private:
 TPickReplicaSession::TPickReplicaSession(
     std::vector<TReplicaSynchronicityList> replicas,
     NAst::TQuery* query,
-    const TSelectRowsOptionsBase& baseOptions,
     std::vector<TTableMountInfoPtr> tableInfos,
     std::vector<NAst::TTableHintPtr> tableHints,
     std::vector<IBannedReplicaTrackerPtr> bannedReplicaTrackers,
-    TTimestamp timestamp)
+    const IConnectionPtr& connection,
+    TTimestamp timestamp,
+    const TSelectRowsOptionsBase& baseOptions)
     : IsFallbackRequired_(true)
     , Replicas_(std::move(replicas))
     , AstQuery_(query)
     , TableInfos_(std::move(tableInfos))
     , TableHints_(std::move(tableHints))
     , BannedReplicaTrackers_(std::move(bannedReplicaTrackers))
+    , Connection_(std::move(connection))
     , Timestamp_(timestamp)
     , BaseOptions_(baseOptions)
 { }
 
 TPickReplicaSession::TResult TPickReplicaSession::Execute(
-    const IConnectionPtr& connection,
     TExecuteCallback callback)
 {
-    const auto& Logger = connection->GetLogger();
-
     BaseOptions_.ReplicaConsistency = EReplicaConsistency::None;
 
-    const auto config = connection->GetConfig();
+    const auto config = Connection_->GetConfig();
     auto replicaFallbackRetryCount = config->ReplicaFallbackRetryCount;
     THashMap<TTableReplicaId, TTableId> replicaIdToTableId;
     int retryCountLimit = 0;
@@ -262,7 +270,7 @@ TPickReplicaSession::TResult TPickReplicaSession::Execute(
             if (auto schemaError = error.FindMatching(NTabletClient::EErrorCode::TableSchemaIncompatible)) {
                 if (auto replicaId = schemaError->Attributes().Find<TTableReplicaId>(UpstreamReplicaIdAttributeName)) {
                     if (auto it = replicaIdToTableId.find(*replicaId)) {
-                        auto bannedReplicaTracker = connection
+                        auto bannedReplicaTracker = Connection_
                             ->GetBannedReplicaTrackerCache()
                             ->GetTracker(it->second);
                         bannedReplicaTracker->BanReplica(*replicaId, error.Truncate());
@@ -346,16 +354,18 @@ TClusterScoreMap TPickReplicaSession::PickViableClusters(
 
         if (tableViableClusters.empty()) {
             for (auto id : bannedReplicaIds) {
-                if (const auto& error = BannedReplicaTrackers_[index]->GetReplicaError(id);
-                    !error.IsOK())
-                {
-                    replicaErrors.push_back(error);
+                if (BannedReplicaTrackers_[index]) {
+                    if (const auto& error = BannedReplicaTrackers_[index]->GetReplicaError(id);
+                        !error.IsOK())
+                    {
+                        replicaErrors.push_back(error);
+                    }
                 }
             }
 
             auto error = TError(
                 NTabletClient::EErrorCode::NoInSyncReplicas,
-                "No single cluster contains in-sync replicas for table %v",
+                "No cluster contains in-sync replicas for table %v",
                 TableInfos_[index]->Path)
                 << TErrorAttribute("banned_replicas", bannedReplicaIds);
 
@@ -383,6 +393,8 @@ TClusterScoreMap TPickReplicaSession::PickViableClusters(
 
         THROW_ERROR error;
     }
+
+    YT_LOG_DEBUG("Picked viable clusters (Clusters: %v)", viableClusters);
 
     return viableClusters;
 }
@@ -476,8 +488,6 @@ IPickReplicaSessionPtr CreatePickReplicaSession(
     const TSelectRowsOptionsBase& options,
     TTimestamp timestamp)
 {
-    const auto& Logger = connection->GetLogger();
-
     auto tableInfos = WaitForFast(AllSucceeded(GetQueryTableInfos(query, mountCache)))
         .ValueOrThrow();
     auto tableHints = GetQueryTableHints(query);
@@ -517,11 +527,12 @@ IPickReplicaSessionPtr CreatePickReplicaSession(
     return New<TPickReplicaSession>(
         std::move(replicas),
         query,
-        options,
         std::move(tableInfos),
         std::move(tableHints),
         std::move(bannedReplicaTrackers),
-        timestamp);
+        connection,
+        timestamp,
+        options);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

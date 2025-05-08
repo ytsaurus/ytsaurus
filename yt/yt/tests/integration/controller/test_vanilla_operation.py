@@ -759,10 +759,6 @@ class TestVanillaOperationRevival(YTEnvSetup):
 
     DELTA_CONTROLLER_AGENT_CONFIG = {
         "controller_agent": {
-            "gang_manager": {
-                "enabled": True,
-            },
-
             "snapshot_period": 200,
         },
     }
@@ -1010,7 +1006,7 @@ class TestSchedulerVanillaInterruptsPorto(TestSchedulerVanillaInterrupts):
 
 ##################################################################
 
-class TestGangManager(YTEnvSetup):
+class TestGangOperations(YTEnvSetup):
     ENABLE_MULTIDAEMON = False  # There are component restarts.
     NUM_MASTERS = 1
     NUM_NODES = 3
@@ -1018,10 +1014,6 @@ class TestGangManager(YTEnvSetup):
 
     DELTA_CONTROLLER_AGENT_CONFIG = {
         "controller_agent": {
-            "gang_manager": {
-                "enabled": True,
-            },
-
             "snapshot_period": 1000,
 
             "user_job_monitoring": {
@@ -1059,7 +1051,7 @@ class TestGangManager(YTEnvSetup):
                     "test": {
                         "job_count": 1,
                         "command": command,
-                        "gang_manager": {},
+                        "gang_options": {},
                     },
                 },
                 "max_failed_job_count": 1,
@@ -1086,7 +1078,7 @@ class TestGangManager(YTEnvSetup):
         op = run_test_vanilla(
             with_breakpoint("BREAKPOINT"),
             job_count=3,
-            task_patch={"gang_manager": {}},
+            task_patch={"gang_options": {}},
         )
 
         job_ids = wait_breakpoint(job_count=3)
@@ -1128,47 +1120,6 @@ class TestGangManager(YTEnvSetup):
         op.track()
 
     @authors("pogorelov")
-    def test_restart_disabled_in_config(self):
-        update_controller_agent_config("vanilla_operation_options/gang_manager/enabled", False)
-
-        incarnation_switch_counter = _get_controller_profiler().counter("controller_agent/gang_operations/incarnation_switch_count")
-
-        aborted_job_profiler = JobCountProfiler(
-            "aborted",
-            tags={"tree": "default", "job_type": "vanilla"},
-        )
-        aborted_by_request_job_profiler = JobCountProfiler(
-            "aborted",
-            tags={"tree": "default", "job_type": "vanilla", "abort_reason": "user_request"},
-        )
-
-        op = run_test_vanilla(
-            with_breakpoint("BREAKPOINT"),
-            job_count=3,
-            task_patch={"gang_manager": {}},
-        )
-
-        job_ids = wait_breakpoint(job_count=3)
-
-        assert len(job_ids) == 3
-
-        first_job_id = job_ids[0]
-
-        print_debug("aborting job ", first_job_id)
-
-        abort_job(first_job_id)
-
-        wait(lambda: aborted_by_request_job_profiler.get_job_count_delta() == 1)
-
-        release_breakpoint()
-
-        op.wait_for_state("failed")
-
-        assert aborted_job_profiler.get_job_count_delta() == 3
-
-        assert incarnation_switch_counter.get_delta() == 0
-
-    @authors("pogorelov")
     def test_restart_on_job_failure(self):
         incarnation_switch_counter = _get_controller_profiler().with_tags({"reason": "job_failed"}).counter("controller_agent/gang_operations/incarnation_switch_count")
 
@@ -1194,7 +1145,7 @@ class TestGangManager(YTEnvSetup):
             with_breakpoint(command),
             job_count=3,
             spec={"max_failed_job_count": 2},
-            task_patch={"gang_manager": {}},
+            task_patch={"gang_options": {}},
         )
 
         job_ids = wait_breakpoint(job_count=3)
@@ -1254,7 +1205,7 @@ class TestGangManager(YTEnvSetup):
                     "task_b": {
                         "job_count": 1,
                         "command": with_breakpoint("BREAKPOINT", breakpoint_name="task_b"),
-                        "gang_manager": {},
+                        "gang_options": {},
                     },
                 },
                 "fail_on_job_restart": False,
@@ -1317,7 +1268,7 @@ class TestGangManager(YTEnvSetup):
         op = run_test_vanilla(
             with_breakpoint("BREAKPOINT"),
             job_count=3,
-            task_patch={"gang_manager": {}},
+            task_patch={"gang_options": {}},
         )
 
         previous_job_ids = []
@@ -1391,7 +1342,7 @@ class TestGangManager(YTEnvSetup):
                     "task_b": {
                         "job_count": 1,
                         "command": with_breakpoint("BREAKPOINT", breakpoint_name="task_b"),
-                        "gang_manager": {},
+                        "gang_options": {},
                     },
                 },
                 "fail_on_job_restart": False,
@@ -1432,7 +1383,7 @@ class TestGangManager(YTEnvSetup):
         op = run_test_vanilla(
             with_breakpoint("BREAKPOINT"),
             job_count=3,
-            task_patch={"gang_manager": {}},
+            task_patch={"gang_options": {}},
             spec={"pool": "fake_pool"},
         )
 
@@ -1479,7 +1430,7 @@ class TestGangManager(YTEnvSetup):
         op = run_test_vanilla(
             with_breakpoint("BREAKPOINT"),
             job_count=3,
-            task_patch={"gang_manager": {}},
+            task_patch={"gang_options": {}},
         )
 
         job_ids = wait_breakpoint(job_count=3)
@@ -1508,7 +1459,7 @@ class TestGangManager(YTEnvSetup):
         op = run_test_vanilla(
             with_breakpoint("BREAKPOINT"),
             job_count=3,
-            task_patch={"gang_manager": {}},
+            task_patch={"gang_options": {}},
         )
 
         job_ids = wait_breakpoint(job_count=3)
@@ -1591,7 +1542,7 @@ class TestGangManager(YTEnvSetup):
             with_breakpoint("BREAKPOINT"),
             job_count=3,
             task_patch={
-                "gang_manager": {},
+                "gang_options": {},
                 "monitoring": {
                     "enable": True,
                 },
@@ -1665,7 +1616,7 @@ class TestGangManager(YTEnvSetup):
         op = run_test_vanilla(
             with_breakpoint("BREAKPOINT"),
             job_count=2,
-            task_patch={"gang_manager": {}},
+            task_patch={"gang_options": {}},
         )
 
         first_incarnation_job_ids = wait_breakpoint(job_count=2)
@@ -1732,7 +1683,7 @@ class TestGangManager(YTEnvSetup):
                         "command": with_breakpoint(command),
                         "interruption_signal": "SIGINT",
                         "restart_exit_code": exit_code,
-                        "gang_manager": {},
+                        "gang_options": {},
                     }
                 },
             },
@@ -1776,7 +1727,7 @@ class TestGangManager(YTEnvSetup):
         op.track()
 
     @authors("pogorelov")
-    def test_gang_manager_with_controller_in_failing_state(self):
+    def test_gang_operation_controller_in_failing_state(self):
         update_controller_agent_config("job_tracker/node_disconnection_timeout", 50000)
         update_nodes_dynamic_config(
             path="exec_node/controller_agent_connector/heartbeat_executor",
@@ -1800,7 +1751,7 @@ class TestGangManager(YTEnvSetup):
                     "task_a": {
                         "job_count": 2,
                         "command": with_breakpoint("BREAKPOINT"),
-                        "gang_manager": {},
+                        "gang_options": {},
                     },
                 },
             },
@@ -1824,7 +1775,7 @@ class TestGangManager(YTEnvSetup):
         assert restarted_job_profiler.get_job_count_delta() == 0
 
     @authors("pogorelov")
-    def test_gang_manager_with_fail_on_job_restart(self):
+    def test_gang_operation_with_fail_on_job_restart(self):
         with pytest.raises(YtError):
             vanilla(
                 track=False,
@@ -1834,7 +1785,7 @@ class TestGangManager(YTEnvSetup):
                         "task_a": {
                             "job_count": 1,
                             "command": ";",
-                            "gang_manager": {},
+                            "gang_options": {},
                         },
                     },
                 },
@@ -1848,7 +1799,7 @@ class TestGangManager(YTEnvSetup):
                         "task_a": {
                             "job_count": 1,
                             "command": ";",
-                            "gang_manager": {},
+                            "gang_options": {},
                             "fail_on_job_restart": True,
                         },
                     },
@@ -1863,7 +1814,7 @@ class TestGangManager(YTEnvSetup):
                         "task_a": {
                             "job_count": 1,
                             "command": ";",
-                            "gang_manager": {},
+                            "gang_options": {},
                         },
                         "task_b": {
                             "job_count": 1,
@@ -1875,7 +1826,7 @@ class TestGangManager(YTEnvSetup):
             )
 
     @authors("pogorelov")
-    def test_gang_manager_with_output_table(self):
+    def test_gang_operation_with_output_table(self):
         create("table", "//tmp/t")
         with pytest.raises(YtError):
             vanilla(
@@ -1889,7 +1840,7 @@ class TestGangManager(YTEnvSetup):
                         },
                         "task_b": {
                             "job_count": 1,
-                            "gang_manager": {},
+                            "gang_options": {},
                             "format": "json",
                             "command": ';',
                         },
@@ -1898,7 +1849,7 @@ class TestGangManager(YTEnvSetup):
             )
 
     @authors("pogorelov")
-    def test_gang_manager_job_hanging(self):
+    def test_gang_operation_job_hanging(self):
         # YT-24448
         # In this test we want to switch operation incarnation having postpone finshed allocation event.
         # So we kill one node and increase node_registration_timeout for CA.
@@ -1911,7 +1862,7 @@ class TestGangManager(YTEnvSetup):
             with_breakpoint("BREAKPOINT"),
             job_count=3,
             task_patch={
-                "gang_manager": {},
+                "gang_options": {},
             },
         )
 
@@ -1982,7 +1933,7 @@ class TestGangManager(YTEnvSetup):
                     "task": {
                         "job_count": 3,  # More jobs than monitoring descriptors available
                         "command": with_breakpoint("BREAKPOINT"),
-                        "gang_manager": {},
+                        "gang_options": {},
                         "monitoring": {
                             "enable": True
                         }
@@ -2027,10 +1978,6 @@ class TestPatchVanillaSpecBase(YTEnvSetup):
 
     DELTA_CONTROLLER_AGENT_CONFIG = {
         "controller_agent": {
-            "gang_manager": {
-                "enabled": True,
-            },
-
             "snapshot_period": 1000,
         },
     }
@@ -2282,7 +2229,7 @@ class TestPatchVanillaSpec(TestPatchVanillaSpecBase):
 
         check(spec_template={"fail_on_job_restart": True})
         check(task_spec_template={"fail_on_job_restart": True})
-        check(task_spec_template={"gang_manager": {}})
+        check(task_spec_template={"gang_options": {}})
 
         op = self._run_vanilla()
         op.wait_for_state("running")

@@ -340,6 +340,8 @@ void TGpuCheckOptions::Register(TRegistrar registrar)
         .Default();
     registrar.Parameter("binary_args", &TThis::BinaryArgs)
         .Default();
+    registrar.Parameter("network_project", &TThis::NetworkProject)
+        .Default();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -472,18 +474,36 @@ void TMapOperationOptions::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TUnorderedMergeOperationOptions::Register(TRegistrar /*registrar*/)
-{ }
+void TUnorderedMergeOperationOptions::Register(TRegistrar registrar)
+{
+    registrar.Preprocessor([&] (TUnorderedMergeOperationOptions* options) {
+        // Value in options is an upper bound hint on uncompressed data size for merge jobs.
+        options->DataWeightPerJob = 20_GB;
+        options->MaxDataSlicesPerJob = 10'000;
+    });
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TOrderedMergeOperationOptions::Register(TRegistrar /*registrar*/)
-{ }
+void TOrderedMergeOperationOptions::Register(TRegistrar registrar)
+{
+    registrar.Preprocessor([&] (TOrderedMergeOperationOptions* options) {
+        // Value in options is an upper bound hint on uncompressed data size for merge jobs.
+        options->DataWeightPerJob = 20_GB;
+        options->MaxDataSlicesPerJob = 10'000;
+    });
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TSortedMergeOperationOptions::Register(TRegistrar /*registrar*/)
-{ }
+void TSortedMergeOperationOptions::Register(TRegistrar registrar)
+{
+    registrar.Preprocessor([&] (TSortedMergeOperationOptions* options) {
+        // Value in options is an upper bound hint on uncompressed data size for merge jobs.
+        options->DataWeightPerJob = 20_GB;
+        options->MaxDataSlicesPerJob = 10'000;
+    });
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -576,11 +596,8 @@ void TRemoteCopyOperationOptions::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TGangManagerConfig::Register(TRegistrar registrar)
-{
-    registrar.Parameter("enabled", &TThis::Enabled)
-        .Default(true);
-}
+void TGangManagerConfig::Register(TRegistrar /*registrar*/)
+{ }
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -982,28 +999,28 @@ void TControllerAgentConfig::Register(TRegistrar registrar)
     registrar.Parameter("operation_options", &TThis::OperationOptions)
         .Default(NYTree::GetEphemeralNodeFactory()->CreateMap());
 
-    registrar.Parameter("map_operation_options", &TThis::MapOperationOptions)
-        .DefaultNew();
-    registrar.Parameter("reduce_operation_options", &TThis::ReduceOperationOptions)
-        .DefaultNew();
-    registrar.Parameter("join_reduce_operation_options", &TThis::JoinReduceOperationOptions)
-        .DefaultNew();
-    registrar.Parameter("erase_operation_options", &TThis::EraseOperationOptions)
-        .DefaultNew();
-    registrar.Parameter("ordered_merge_operation_options", &TThis::OrderedMergeOperationOptions)
-        .DefaultNew();
-    registrar.Parameter("unordered_merge_operation_options", &TThis::UnorderedMergeOperationOptions)
-        .DefaultNew();
-    registrar.Parameter("sorted_merge_operation_options", &TThis::SortedMergeOperationOptions)
-        .DefaultNew();
-    registrar.Parameter("map_reduce_operation_options", &TThis::MapReduceOperationOptions)
-        .DefaultNew();
-    registrar.Parameter("sort_operation_options", &TThis::SortOperationOptions)
-        .DefaultNew();
-    registrar.Parameter("remote_copy_operation_options", &TThis::RemoteCopyOperationOptions)
-        .DefaultNew();
-    registrar.Parameter("vanilla_operation_options", &TThis::VanillaOperationOptions)
-        .DefaultNew();
+    registrar.Parameter("map_operation_options", &TThis::MapOperationOptionsNode)
+        .Default();
+    registrar.Parameter("reduce_operation_options", &TThis::ReduceOperationOptionsNode)
+        .Default();
+    registrar.Parameter("join_reduce_operation_options", &TThis::JoinReduceOperationOptionsNode)
+        .Default();
+    registrar.Parameter("erase_operation_options", &TThis::EraseOperationOptionsNode)
+        .Default();
+    registrar.Parameter("ordered_merge_operation_options", &TThis::OrderedMergeOperationOptionsNode)
+        .Default();
+    registrar.Parameter("unordered_merge_operation_options", &TThis::UnorderedMergeOperationOptionsNode)
+        .Default();
+    registrar.Parameter("sorted_merge_operation_options", &TThis::SortedMergeOperationOptionsNode)
+        .Default();
+    registrar.Parameter("map_reduce_operation_options", &TThis::MapReduceOperationOptionsNode)
+        .Default();
+    registrar.Parameter("sort_operation_options", &TThis::SortOperationOptionsNode)
+        .Default();
+    registrar.Parameter("remote_copy_operation_options", &TThis::RemoteCopyOperationOptionsNode)
+        .Default();
+    registrar.Parameter("vanilla_operation_options", &TThis::VanillaOperationOptionsNode)
+        .Default();
 
     registrar.Parameter("environment", &TThis::Environment)
         .Default({
@@ -1350,16 +1367,6 @@ void TControllerAgentConfig::Register(TRegistrar registrar)
     registrar.Preprocessor([&] (TControllerAgentConfig* config) {
         config->ChunkLocationThrottler->Limit = 10'000;
 
-        // Value in options is an upper bound hint on uncompressed data size for merge jobs.
-        config->OrderedMergeOperationOptions->DataWeightPerJob = 20_GB;
-        config->OrderedMergeOperationOptions->MaxDataSlicesPerJob = 10'000;
-
-        config->SortedMergeOperationOptions->DataWeightPerJob = 20_GB;
-        config->SortedMergeOperationOptions->MaxDataSlicesPerJob = 10'000;
-
-        config->UnorderedMergeOperationOptions->DataWeightPerJob = 20_GB;
-        config->UnorderedMergeOperationOptions->MaxDataSlicesPerJob = 10'000;
-
         config->OperationOptions->AsMap()->AddChild("controller_building_job_spec_count_limit", NYTree::ConvertToNode(100));
         config->OperationOptions->AsMap()->AddChild("controller_total_building_job_spec_slice_count_limit", NYTree::ConvertToNode(200'000));
 
@@ -1372,17 +1379,17 @@ void TControllerAgentConfig::Register(TRegistrar registrar)
     });
 
     registrar.Postprocessor([&] (TControllerAgentConfig* config) {
-        UpdateOptions(&config->MapOperationOptions, config->OperationOptions);
-        UpdateOptions(&config->ReduceOperationOptions, config->OperationOptions);
-        UpdateOptions(&config->JoinReduceOperationOptions, config->OperationOptions);
-        UpdateOptions(&config->EraseOperationOptions, config->OperationOptions);
-        UpdateOptions(&config->OrderedMergeOperationOptions, config->OperationOptions);
-        UpdateOptions(&config->UnorderedMergeOperationOptions, config->OperationOptions);
-        UpdateOptions(&config->SortedMergeOperationOptions, config->OperationOptions);
-        UpdateOptions(&config->MapReduceOperationOptions, config->OperationOptions);
-        UpdateOptions(&config->SortOperationOptions, config->OperationOptions);
-        UpdateOptions(&config->RemoteCopyOperationOptions, config->OperationOptions);
-        UpdateOptions(&config->VanillaOperationOptions, config->OperationOptions);
+        BuildOptions(&config->MapOperationOptions, config->MapOperationOptionsNode, config->OperationOptions);
+        BuildOptions(&config->ReduceOperationOptions, config->ReduceOperationOptionsNode, config->OperationOptions);
+        BuildOptions(&config->JoinReduceOperationOptions, config->JoinReduceOperationOptionsNode, config->OperationOptions);
+        BuildOptions(&config->EraseOperationOptions, config->EraseOperationOptionsNode, config->OperationOptions);
+        BuildOptions(&config->OrderedMergeOperationOptions, config->OrderedMergeOperationOptionsNode, config->OperationOptions);
+        BuildOptions(&config->UnorderedMergeOperationOptions, config->UnorderedMergeOperationOptionsNode, config->OperationOptions);
+        BuildOptions(&config->SortedMergeOperationOptions, config->SortedMergeOperationOptionsNode, config->OperationOptions);
+        BuildOptions(&config->MapReduceOperationOptions, config->MapReduceOperationOptionsNode, config->OperationOptions);
+        BuildOptions(&config->SortOperationOptions, config->SortOperationOptionsNode, config->OperationOptions);
+        BuildOptions(&config->RemoteCopyOperationOptions, config->RemoteCopyOperationOptionsNode, config->OperationOptions);
+        BuildOptions(&config->VanillaOperationOptions, config->VanillaOperationOptionsNode, config->OperationOptions);
 
         THashSet<TString> customJobMetricsProfilingNames;
         for (const auto& customJobMetricDescription : config->CustomJobMetrics) {

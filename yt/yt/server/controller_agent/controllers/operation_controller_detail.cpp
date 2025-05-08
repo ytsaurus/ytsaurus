@@ -26,6 +26,7 @@
 #include <yt/yt/server/lib/chunk_pools/multi_chunk_pool.h>
 
 #include <yt/yt/server/lib/controller_agent/job_report.h>
+#include <yt/yt/server/lib/controller_agent/network_project.h>
 
 #include <yt/yt/server/lib/misc/job_reporter.h>
 #include <yt/yt/server/lib/misc/job_table_schema.h>
@@ -4128,7 +4129,7 @@ bool TOperationControllerBase::OnIntermediateChunkUnavailable(TChunkId chunkId)
 
 void TOperationControllerBase::OnIntermediateChunkAvailable(
     TChunkId chunkId,
-    const TChunkReplicaWithMediumList& replicas)
+    const TChunkReplicaList& replicas)
 {
     auto& completedJob = GetOrCrash(ChunkOriginMap, chunkId);
 
@@ -4142,7 +4143,7 @@ void TOperationControllerBase::OnIntermediateChunkAvailable(
             // Intermediate chunks are always unversioned.
             auto inputChunk = dataSlice->GetSingleUnversionedChunk();
             if (inputChunk->GetChunkId() == chunkId) {
-                inputChunk->SetReplicaList(replicas);
+                inputChunk->SetReplicas(replicas);
             }
         }
         --UnavailableIntermediateChunkCount;
@@ -4865,18 +4866,27 @@ void TOperationControllerBase::DoScheduleAllocation(
     if (!IsRunning()) {
         YT_LOG_TRACE("Operation is not running, scheduling request ignored");
         scheduleAllocationResult->RecordFail(EScheduleFailReason::OperationNotRunning);
+        GetScheduleJobProfiler()->ProfileScheduleJobFailure(
+            allocation.TreeId,
+            EScheduleFailReason::OperationNotRunning);
         return;
     }
 
     if (GetPendingJobCount().GetJobCountFor(treeId) == 0) {
         YT_LOG_TRACE("No pending jobs left, scheduling request ignored");
         scheduleAllocationResult->RecordFail(EScheduleFailReason::NoPendingJobs);
+        GetScheduleJobProfiler()->ProfileScheduleJobFailure(
+            allocation.TreeId,
+            EScheduleFailReason::NoPendingJobs);
         return;
     }
 
     if (BannedNodeIds_.find(context.GetNodeDescriptor().Id) != BannedNodeIds_.end()) {
         YT_LOG_TRACE("Node is banned, scheduling request ignored");
         scheduleAllocationResult->RecordFail(EScheduleFailReason::NodeBanned);
+        GetScheduleJobProfiler()->ProfileScheduleJobFailure(
+            allocation.TreeId,
+            EScheduleFailReason::NodeBanned);
         return;
     }
 
@@ -4895,6 +4905,9 @@ void TOperationControllerBase::TryScheduleFirstJob(
     bool scheduleLocalJob)
 {
     if (!IsRunning()) {
+        GetScheduleJobProfiler()->ProfileScheduleJobFailure(
+            allocation.TreeId,
+            EScheduleFailReason::OperationNotRunning);
         scheduleAllocationResult->RecordFail(EScheduleFailReason::OperationNotRunning);
         return;
     }
@@ -4910,7 +4923,18 @@ void TOperationControllerBase::TryScheduleFirstJob(
             }
 
             scheduleAllocationResult->RecordFail(*failReason);
+
+            GetScheduleJobProfiler()->ProfileScheduleJobFailure(
+                allocation.TreeId,
+                task->GetJobType(),
+                *failReason,
+                /*isJobFirst*/ true);
         } else {
+            GetScheduleJobProfiler()->ProfileScheduleJobSuccess(
+                allocation.TreeId,
+                task->GetJobType(),
+                /*isJobFirst*/ true);
+
             auto startDescriptor = task->CreateAllocationStartDescriptor(
                 allocation,
                 /*allowIdleCpuPolicy*/ IsIdleCpuPolicyAllowedInTree(allocation.TreeId),
@@ -4925,6 +4949,9 @@ void TOperationControllerBase::TryScheduleFirstJob(
     }
 
     scheduleAllocationResult->RecordFail(EScheduleFailReason::NoCandidateTasks);
+    GetScheduleJobProfiler()->ProfileScheduleJobFailure(
+        allocation.TreeId,
+        EScheduleFailReason::NoCandidateTasks);
 }
 
 // NB(pogorelov): This method is mvp now, it will be improved.
@@ -4941,6 +4968,12 @@ std::optional<EScheduleFailReason> TOperationControllerBase::TryScheduleNextJob(
     YT_VERIFY(allocation.Task);
 
     if (auto failReason = TryScheduleJob(allocation, *allocation.Task, context, /*scheduleLocalJob*/ true, lastJobId)) {
+        GetScheduleJobProfiler()->ProfileScheduleJobFailure(
+            allocation.TreeId,
+            allocation.Task->GetJobType(),
+            *failReason,
+            /*isJobFirst*/ false);
+
         auto logSettlementFailed = [&] (EScheduleFailReason reason) {
             YT_LOG_INFO(
                 "Failed to settle new job in allocation (AllocationId: %v, FailReason: %v)",
@@ -4953,6 +4986,11 @@ std::optional<EScheduleFailReason> TOperationControllerBase::TryScheduleNextJob(
             return failReason;
         }
         if (auto failReason = TryScheduleJob(allocation, *allocation.Task, context, /*scheduleLocalJob*/ false, lastJobId)) {
+            GetScheduleJobProfiler()->ProfileScheduleJobFailure(
+                allocation.TreeId,
+                allocation.Task->GetJobType(),
+                *failReason,
+                /*isJobFirst*/ false);
             logSettlementFailed(*failReason);
             return failReason;
         }
@@ -4962,6 +5000,11 @@ std::optional<EScheduleFailReason> TOperationControllerBase::TryScheduleNextJob(
 
     RegisterTestingSpeculativeJobIfNeeded(*allocation.Task, allocation.Id);
     UpdateTask(allocation.Task);
+
+    GetScheduleJobProfiler()->ProfileScheduleJobSuccess(
+        allocation.TreeId,
+        allocation.Task->GetJobType(),
+        /*isJobFirst*/ false);
 
     return std::nullopt;
 }
@@ -7715,7 +7758,7 @@ void TOperationControllerBase::CollectTotals()
     i64 totalInputDataWeight = 0;
     for (const auto& table : InputManager->GetInputTables()) {
         for (const auto& inputChunk : Concatenate(table->Chunks, table->HunkChunks)) {
-            if (IsUnavailable(inputChunk, GetChunkAvailabilityPolicy())) {
+            if (inputChunk->IsUnavailable(GetChunkAvailabilityPolicy())) {
                 auto chunkId = inputChunk->GetChunkId();
 
                 switch (Spec_->UnavailableChunkStrategy) {
@@ -7987,7 +8030,7 @@ std::vector<TLegacyDataSlicePtr> TOperationControllerBase::CollectPrimaryVersion
             YT_VERIFY(table->Comparator);
 
             for (const auto& chunk : table->Chunks) {
-                if (IsUnavailable(chunk, GetChunkAvailabilityPolicy()) &&
+                if (chunk->IsUnavailable(GetChunkAvailabilityPolicy()) &&
                     Spec_->UnavailableChunkStrategy == EUnavailableChunkAction::Skip)
                 {
                     continue;
@@ -8127,7 +8170,7 @@ std::vector<std::deque<TLegacyDataSlicePtr>> TOperationControllerBase::CollectFo
                 }
             } else {
                 for (const auto& inputChunk : table->Chunks) {
-                    if (IsUnavailable(inputChunk, GetChunkAvailabilityPolicy())) {
+                    if (inputChunk->IsUnavailable(GetChunkAvailabilityPolicy())) {
                         switch (Spec_->UnavailableChunkStrategy) {
                             case EUnavailableChunkAction::Skip:
                                 continue;
@@ -10092,12 +10135,13 @@ void TOperationControllerBase::InitUserJobSpecTemplate(
     }
 
     if (jobSpecConfig->NetworkProject) {
-        const auto& client = Host->GetClient();
-        auto networkProjectAttributes = GetNetworkProject(client, AuthenticatedUser, *jobSpecConfig->NetworkProject);
-        jobSpec->set_network_project_id(networkProjectAttributes->Get<ui32>("project_id"));
+        auto networkProject = GetNetworkProject(Host->GetClient(), AuthenticatedUser, *jobSpecConfig->NetworkProject);
+        ToProto(jobSpec->mutable_network_project(), networkProject);
 
-        jobSpec->set_enable_nat64(networkProjectAttributes->Get<bool>("enable_nat64", false));
-        jobSpec->set_disable_network(networkProjectAttributes->Get<bool>("disable_network", false));
+        // COMPAT(ignat)
+        jobSpec->set_network_project_id(networkProject.Id);
+        jobSpec->set_enable_nat64(networkProject.EnableNat64);
+        jobSpec->set_disable_network(networkProject.DisableNetwork);
     }
 
     jobSpec->set_enable_porto(ToProto(jobSpecConfig->EnablePorto.value_or(Config->DefaultEnablePorto)));
@@ -10241,26 +10285,33 @@ void TOperationControllerBase::InitUserJobSpec(
             Options_->SlotContainerMemoryOverhead);
     }
 
-    jobSpec->add_environment(Format("YT_JOB_INDEX=%v", joblet->JobIndex));
-    jobSpec->add_environment(Format("YT_TASK_JOB_INDEX=%v", joblet->TaskJobIndex));
-    jobSpec->add_environment(Format("YT_JOB_ID=%v", joblet->JobId));
-    jobSpec->add_environment(Format("YT_JOB_COOKIE=%v", joblet->OutputCookie));
+    auto fillEnvironment = [&] (const auto& setEnvironmentVariable) {
+        setEnvironmentVariable("YT_JOB_INDEX", ToString(joblet->JobIndex));
+        setEnvironmentVariable("YT_TASK_JOB_INDEX", ToString(joblet->TaskJobIndex));
+        setEnvironmentVariable("YT_JOB_ID", ToString(joblet->JobId));
+        setEnvironmentVariable("YT_JOB_COOKIE", ToString(joblet->OutputCookie));
+        if (joblet->OperationIncarnation) {
+            setEnvironmentVariable("YT_OPERATION_INCARNATION", ToString(*joblet->OperationIncarnation));
+        }
+
+        for (const auto& [key, value] : joblet->Task->BuildJobEnvironment()) {
+            setEnvironmentVariable(key, value);
+        }
+    };
+
+    fillEnvironment([&jobSpec] (TStringBuf key, TStringBuf value) {
+        jobSpec->add_environment(Format("%v=%v", key, value));
+    });
+
     if (joblet->StartRowIndex >= 0) {
         jobSpec->add_environment(Format("YT_START_ROW_INDEX=%v", joblet->StartRowIndex));
-    }
-    if (joblet->OperationIncarnation) {
-        jobSpec->add_environment(Format("YT_OPERATION_INCARNATION=%v", *joblet->OperationIncarnation));
     }
 
     if (const auto& options = Options_->GpuCheck; options->UseSeparateRootVolume && jobSpec->has_gpu_check_binary_path()) {
         auto* protoEnvironment = jobSpec->mutable_gpu_check_environment();
-        (*protoEnvironment)["YT_JOB_INDEX"] = ToString(joblet->JobIndex);
-        (*protoEnvironment)["YT_TASK_JOB_INDEX"] = ToString(joblet->TaskJobIndex);
-        (*protoEnvironment)["YT_JOB_ID"] = ToString(joblet->JobId);
-        (*protoEnvironment)["YT_JOB_COOKIE"] = ToString(joblet->JobId);
-        if (joblet->OperationIncarnation) {
-            (*protoEnvironment)["YT_OPERATION_INCARNATION"] = ToString(*joblet->OperationIncarnation);
-        }
+        fillEnvironment([protoEnvironment] (TStringBuf key, TStringBuf value) {
+            (*protoEnvironment)[key] = value;
+        });
     }
 
     if (joblet->EnabledJobProfiler && joblet->EnabledJobProfiler->Type == EProfilerType::Cuda) {

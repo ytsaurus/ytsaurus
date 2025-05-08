@@ -100,9 +100,7 @@ public:
 
     void OnExportConfigChanged(const NQueueClient::TQueueStaticExportConfigPtr& newExportConfig) override;
     void OnDynamicConfigChanged(const TQueueExporterDynamicConfig& newDynamicConfig) override;
-
     void Stop() override;
-
     void BuildOrchidYson(NYTree::TFluentAny fluent) const override;
 
     EQueueExporterImplementation GetImplementationType() const override;

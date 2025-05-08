@@ -44,7 +44,7 @@ std::vector<TSharedRef> TBlock::Unwrap(const std::vector<TBlock>& blocks)
     return raw;
 }
 
-TError TBlock::ValidateChecksum() const
+TError TBlock::CheckChecksum() const
 {
     if (!Data || Checksum == NullChecksum) {
         return TError();

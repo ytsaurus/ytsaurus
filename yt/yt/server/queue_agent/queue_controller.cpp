@@ -335,6 +335,8 @@ private:
                 if (partitionSnapshot->CumulativeDataWeight) {
                     partitionSnapshot->WriteRate.DataWeight.Update(*partitionSnapshot->CumulativeDataWeight);
                 }
+            } else if (partitionSnapshot->CumulativeDataWeight) {
+                partitionSnapshot->WriteRate.DataWeight.Update(partitionSnapshot->WriteRate.DataWeight.Count);
             }
 
             partitionSnapshot->AvailableDataWeight = OptionalSub(
@@ -479,13 +481,20 @@ public:
 
     void Stop() override
     {
-        auto guard = ReaderGuard(QueueExportsLock_);
+        TrimAlertCollector_->Stop();
+        QueueExportsAlertCollector_->Stop();
 
-        if (QueueExports_.IsOK()) {
-            for (const auto& [_, exporter] : QueueExports_.Value()) {
-                exporter->Stop();
+        {
+            auto guard = ReaderGuard(QueueExportsLock_);
+
+            if (QueueExports_.IsOK()) {
+                for (const auto& [_, exporter] : QueueExports_.Value()) {
+                    exporter->Stop();
+                }
             }
         }
+
+        YT_UNUSED_FUTURE(PassExecutor_->Stop());
     }
 
     TRefCountedPtr GetLatestSnapshot() const override

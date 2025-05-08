@@ -561,7 +561,7 @@ TFuture<NIO::TIOCounters> TBlobSession::DoPutBlocks(
         }
     } else {
         THROW_ERROR_EXCEPTION_IF(ProbePutBlocksRequestSupplier_->GetCurrentApprovedMemory() < cumulativeBlockSize,
-            TError(NChunkClient::EErrorCode::WriteThrottlingActive, "Memory for PutBlocks have to be acquired in probe put blocks"));
+            TError(NChunkClient::EErrorCode::WriteThrottlingActive, "Memory for PutBlocks has to be acquired in probe put blocks"));
     }
 
     auto totalSize = GetByteSize(blocks);
@@ -789,7 +789,7 @@ TFuture<NIO::TIOCounters> TBlobSession::DoPerformPutBlocks(
 
         slot.LocationMemoryGuard = std::move(locationMemoryGuards[WindowIndex_ - startBlockIndex]);
 
-        if (auto error = slot.Block.ValidateChecksum(); !error.IsOK()) {
+        if (auto error = slot.Block.CheckChecksum(); !error.IsOK()) {
             auto blockId = TBlockId(GetChunkId(), WindowIndex_);
             SetFailed(error << TErrorAttribute("block_id", ToString(blockId)), /*fatal*/ false);
             return MakeFuture<NIO::TIOCounters>(Error_);

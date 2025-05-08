@@ -49,8 +49,8 @@ func (f *FollowingFile) Read(buf []byte) (read int, err error) {
 	return f.ReadContext(context.Background(), buf)
 }
 
-func (f *FollowingFile) FilePosition() int64 {
-	return f.filePosition
+func (f *FollowingFile) FilePosition() FilePosition {
+	return FilePosition{LogicalOffset: f.filePosition}
 }
 
 func (f *FollowingFile) ReadContext(ctx context.Context, buf []byte) (read int, err error) {

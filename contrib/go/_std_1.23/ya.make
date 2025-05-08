@@ -1,4 +1,4 @@
-SUBSCRIBER(g:contrib hiddenpath)
+SUBSCRIBER(g:contrib)
 RECURSE(
     src
     src/archive
@@ -59,7 +59,6 @@ RECURSE(
     src/crypto/tls/fipsonly
     src/crypto/x509
     src/crypto/x509/internal
-    src/crypto/x509/internal/macos
     src/crypto/x509/pkix
     src/database
     src/database/sql
@@ -349,7 +348,6 @@ RECURSE(
     src/vendor/golang.org/x/net/idna
     src/vendor/golang.org/x/net/lif
     src/vendor/golang.org/x/net/nettest
-    src/vendor/golang.org/x/net/route
     src/vendor/golang.org/x/sys
     src/vendor/golang.org/x/sys/cpu
     src/vendor/golang.org/x/text

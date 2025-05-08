@@ -29,6 +29,7 @@ DEFINE_ENUM(EExpressionKind,
     ((Case)                    (9))
     ((Like)                    (10))
     ((CompositeMemberAccessor) (11))
+    ((Subquery)                (12))
 );
 
 struct TExpression
@@ -260,6 +261,24 @@ struct TNamedItem
 };
 
 using TNamedItemList = std::vector<TNamedItem>;
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TSubqueryExpression
+    : public TExpression
+{
+    TNamedItemList FromExpressions;
+
+    TConstExpressionPtr WhereClause;
+    TConstGroupClausePtr GroupClause;
+    TConstProjectClausePtr ProjectClause;
+
+    using TExpression::TExpression;
+};
+
+DEFINE_REFCOUNTED_TYPE(TSubqueryExpression)
+
+////////////////////////////////////////////////////////////////////////////////
 
 struct TAggregateItem
 {

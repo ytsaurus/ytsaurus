@@ -719,14 +719,10 @@ def get_dynamic_node_config():
             },
             "exec_node": {
                 "job_controller": {
-                    "operation_info_request_backoff_strategy": {
-                        "backoff": 1000,
-                    },
                     "job_common": {
                         "node_directory_prepare_backoff_time": 100,
                         "job_prepare_time_limit": 60000,
                     },
-                    "operation_infos_request_period": 1000,
                     "unknown_operation_jobs_removal_delay": 5000,
                     "disable_legacy_allocation_preparation": True,
                 },
@@ -758,6 +754,7 @@ def get_dynamic_node_config():
                         "backoff_multiplier": 1.0,
                     },
                     "enable_tracing": True,
+                    "request_new_agent_delay": 1000,
                 },
                 "master_connector": {
                     "heartbeat_executor": {

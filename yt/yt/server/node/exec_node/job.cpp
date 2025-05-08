@@ -312,19 +312,18 @@ TJob::TJob(
     const TJobCommonConfigPtr& commonConfig)
     : Id_(jobId)
     , OperationId_(operationId)
+    , Type_(EJobType(jobSpec.type()))
     , Bootstrap_(bootstrap)
-    , JobType_(FromProto<EJobType>(jobSpec.type()))
     , Logger(ExecNodeLogger().WithTag(
         "JobId: %v, OperationId: %v, JobType: %v",
         jobId,
         operationId,
-        JobType_))
+        Type_))
     , Allocation_(std::move(allocation))
     , ResourceHolder_(Allocation_->GetResourceHolder())
     , InitialResourceDemand_(ResourceHolder_->GetInitialResourceDemand())
-    , ControllerAgentDescriptor_(std::move(agentDescriptor))
-    , ControllerAgentConnector_(
-        Bootstrap_->GetControllerAgentConnectorPool()->GetControllerAgentConnector(ControllerAgentDescriptor_))
+    , ControllerAgentInfo_(std::move(agentDescriptor))
+    , ControllerAgentConnector_(Bootstrap_->GetControllerAgentConnectorPool()->GetControllerAgentConnector(ControllerAgentInfo_.GetDescriptor()))
     , CommonConfig_(commonConfig)
     , Invoker_(Bootstrap_->GetJobInvoker())
     , CreationTime_(TInstant::Now())
@@ -354,7 +353,7 @@ TJob::TJob(
 
     YT_LOG_DEBUG("Creating job");
 
-    PackBaggageFromJobSpec(TraceContext_, JobSpec_, OperationId_, Id_, JobType_);
+    PackBaggageFromJobSpec(TraceContext_, JobSpec_, OperationId_, Id_, Type_);
 
     TrafficMeter_->Start();
 
@@ -426,8 +425,15 @@ void TJob::DoStart(TErrorOr<std::vector<TNameWithAddress>>&& resolvedNodeAddress
                         *prepareTimeLimit);
                 }
 
-                if (UserJobSpec_->has_network_project_id()) {
-                    NetworkProjectId_ = UserJobSpec_->network_project_id();
+                if (UserJobSpec_->has_network_project()) {
+                    NetworkProject_ = FromProto<NControllerAgent::TNetworkProject>(UserJobSpec_->network_project());
+                // COMPAT(ignat)
+                } else if (UserJobSpec_->has_network_project_id()) {
+                    NetworkProject_ = NControllerAgent::TNetworkProject{
+                        .Id = UserJobSpec_->network_project_id(),
+                        .EnableNat64 = UserJobSpec_->enable_nat64(),
+                        .DisableNetwork = UserJobSpec_->disable_network(),
+                    };
                 }
             }
 
@@ -813,7 +819,7 @@ void TJob::Finalize(TError error)
 
     // NB: We should disable slot here to give scheduler information about job failure.
     if (currentError.FindMatching(NExecNode::EErrorCode::GpuCheckCommandFailed) &&
-        !currentError.FindMatching(NExecNode::EErrorCode::GpuCheckCommandIncorrect))
+        !currentError.FindMatching(NExecNode::EErrorCode::GpuCheckCommandPreparationFailed))
     {
         Bootstrap_->GetSlotManager()->OnGpuCheckCommandFailed(currentError);
     }
@@ -964,7 +970,7 @@ void TJob::OnResultReceived(TJobResult jobResult)
 
                             // Save the first found NBD error.
                             if (nbdError.IsOK()) {
-                                nbdError = error;
+                                nbdError = std::move(error);
                                 nbdError <<= TErrorAttribute("abort_reason", EAbortReason::NbdErrors);
                                 // Save job error as well.
                                 if (auto jobError = FromProto<TError>(jobResult.error()); !jobError.IsOK()) {
@@ -1031,28 +1037,28 @@ const TControllerAgentDescriptor& TJob::GetControllerAgentDescriptor() const
 {
     YT_ASSERT_THREAD_AFFINITY(JobThread);
 
-    return ControllerAgentDescriptor_;
+    return ControllerAgentInfo_.GetDescriptor();
 }
 
 void TJob::UpdateControllerAgentDescriptor(TControllerAgentDescriptor descriptor)
 {
     YT_ASSERT_THREAD_AFFINITY(JobThread);
 
-    if (ControllerAgentDescriptor_ == descriptor) {
+    if (ControllerAgentInfo_.GetDescriptor() == descriptor) {
         return;
     }
 
     YT_LOG_DEBUG(
         "Update controller agent (ControllerAgentAddress: %v -> %v, ControllerAgentIncarnationId: %v)",
-        ControllerAgentDescriptor_.Address,
+        ControllerAgentInfo_.GetDescriptor().Address,
         descriptor.Address,
         descriptor.IncarnationId);
 
-    ControllerAgentDescriptor_ = std::move(descriptor);
+    ControllerAgentInfo_.SetDescriptor(descriptor);
 
     ControllerAgentConnector_ = Bootstrap_
-            ->GetControllerAgentConnectorPool()
-            ->GetControllerAgentConnector(ControllerAgentDescriptor_);
+        ->GetControllerAgentConnectorPool()
+        ->GetControllerAgentConnector(ControllerAgentInfo_.GetDescriptor());
 
     if (Stored_) {
         JobResendBackoffStartTime_ = TInstant::Now();
@@ -1061,11 +1067,18 @@ void TJob::UpdateControllerAgentDescriptor(TControllerAgentDescriptor descriptor
     }
 }
 
+TInstant TJob::GetControllerAgentResetTime() const
+{
+    YT_ASSERT_THREAD_AFFINITY_ANY();
+
+    return ControllerAgentInfo_.GetDescriptorResetTime();
+}
+
 EJobType TJob::GetType() const
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
 
-    return JobType_;
+    return Type_;
 }
 
 std::string TJob::GetAuthenticatedUser() const
@@ -1953,6 +1966,7 @@ TControllerAgentConnectorPool::TControllerAgentConnectorPtr TJob::GetControllerA
 
     return ControllerAgentConnector_.Lock();
 }
+
 void TJob::Interrupt(
     TDuration timeout,
     EInterruptionReason interruptionReason,
@@ -2323,6 +2337,9 @@ void TJob::RunWithWorkspaceBuilder()
         .DockerAuth = BuildDockerAuthConfig(),
 
         .NeedGpuCheck = NeedsGpuCheck(),
+        .GpuCheckSetupCommands = UserJobSpec_ && !GpuCheckVolumeLayerArtifactKeys_.empty()
+            ? Bootstrap_->GetGpuManager()->GetSetupCommands()
+            : std::vector<TShellCommandConfigPtr>(),
         .GpuCheckBinaryPath = UserJobSpec_
             ? std::make_optional(UserJobSpec_->gpu_check_binary_path())
             : std::nullopt,
@@ -2599,6 +2616,10 @@ void TJob::OnJobProxyFinished(const TError& error)
                 // COMPAT(ignat)
                 : MakeWritableRootFS(),
             .CommandUser = CommonConfig_->SetupCommandUser,
+
+            .SetupCommands = GpuCheckVolume_
+                ? Bootstrap_->GetGpuManager()->GetSetupCommands()
+                : std::vector<TShellCommandConfigPtr>(),
 
             .GpuCheckBinaryPath = UserJobSpec_->gpu_check_binary_path(),
             .GpuCheckBinaryArgs = FromProto<std::vector<TString>>(UserJobSpec_->gpu_check_binary_args()),
@@ -3075,11 +3096,11 @@ TJobProxyInternalConfigPtr TJob::CreateConfig()
     std::vector<TIP6Address> ipAddresses;
     ipAddresses.reserve(ResolvedNodeAddresses_.size());
 
-    if (NetworkProjectId_) {
+    if (NetworkProject_) {
         for (const auto& [addressName, address] : ResolvedNodeAddresses_) {
             auto networkAddress = New<TUserJobNetworkAddress>();
             networkAddress->Address = TMtnAddress{address}
-                .SetProjectId(*NetworkProjectId_)
+                .SetProjectId(NetworkProject_->Id)
                 .SetHost(GetUserSlot()->GetSlotIndex())
                 .ToIP6Address();
             networkAddress->Name = addressName;
@@ -3092,14 +3113,8 @@ TJobProxyInternalConfigPtr TJob::CreateConfig()
             THROW_ERROR_EXCEPTION("No IPv6 node addresses were resolved");
         }
 
-        if (UserJobSpec_ && UserJobSpec_->has_enable_nat64()) {
-            proxyInternalConfig->EnableNat64 = UserJobSpec_->enable_nat64();
-        }
-
-        if (UserJobSpec_ && UserJobSpec_->has_disable_network()) {
-            proxyInternalConfig->DisableNetwork = UserJobSpec_->disable_network();
-        }
-
+        proxyInternalConfig->EnableNat64 = NetworkProject_->EnableNat64;
+        proxyInternalConfig->DisableNetwork = NetworkProject_->DisableNetwork;
         proxyInternalConfig->HostName = Format("slot-%v.%v",
             GetUserSlot()->GetSlotIndex(),
             Bootstrap_->GetConfig()->Addresses[0].second);
@@ -3778,7 +3793,7 @@ bool TJob::IsFatalError(const TError& error)
         error.FindMatching(NTableClient::EErrorCode::FormatCannotRepresentRow) ||
         error.FindMatching(NExecNode::EErrorCode::SetupCommandFailed) ||
         error.FindMatching(NExecNode::EErrorCode::GpuJobWithoutLayers) ||
-        error.FindMatching(NExecNode::EErrorCode::GpuCheckCommandIncorrect) ||
+        error.FindMatching(NExecNode::EErrorCode::GpuCheckCommandPreparationFailed) ||
         error.FindMatching(NExecNode::EErrorCode::TmpfsOverflow) ||
         error.FindMatching(NExecNode::EErrorCode::FatalJobPreparationTimeout) ||
         error.FindMatching(NFormats::EErrorCode::InvalidFormat);

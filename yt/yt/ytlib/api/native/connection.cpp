@@ -78,6 +78,8 @@
 #include <yt/yt/ytlib/transaction_client/config.h>
 #include <yt/yt/ytlib/transaction_client/clock_manager.h>
 
+#include <yt/yt/ytlib/sequoia_client/client.h>
+
 #include <yt/yt/client/tablet_client/table_mount_cache.h>
 
 #include <yt/yt/client/api/sticky_transaction_pool.h>
@@ -588,7 +590,13 @@ public:
         EMasterChannelKind kind,
         TCellTag cellTag = PrimaryMasterCellTagSentinel) override
     {
-        auto canUseCypressProxy = kind == EMasterChannelKind::Follower || kind == EMasterChannelKind::Leader;
+        auto canUseCypressProxy =
+            kind == EMasterChannelKind::Leader ||
+            kind == EMasterChannelKind::Follower ||
+            // If master cache is not configured then all |EMasterChannelKind::Cache| requests
+            // will actually be routed to followers or Cypress Proxy (if present);
+            // cf. GetEffectiveMasterChannelKind.
+            kind == EMasterChannelKind::Cache && !MasterCellDirectory_->IsMasterCacheConfigured();
 
         return canUseCypressProxy && CypressProxyChannel_
             ? CypressProxyChannel_
@@ -759,6 +767,15 @@ public:
     IClientPtr CreateNativeClient(const TClientOptions& options) override
     {
         return NNative::CreateClient(this, options, MemoryTracker_);
+    }
+
+    NSequoiaClient::ISequoiaClientPtr CreateSequoiaClient() override
+    {
+        auto nativeClient = CreateNativeClient(
+            TClientOptions::FromUser(NSecurityClient::RootUserName));
+        return NSequoiaClient::CreateSequoiaClient(
+            Config_.Acquire()->SequoiaConnection,
+            nativeClient);
     }
 
     NHiveClient::ITransactionParticipantPtr CreateTransactionParticipant(
@@ -965,9 +982,9 @@ private:
     ICellDirectoryPtr CellDirectory_;
     ICellDirectorySynchronizerPtr CellDirectorySynchronizer_;
     IChaosCellDirectorySynchronizerPtr ChaosCellDirectorySynchronizer_;
-    TDownedCellTrackerPtr DownedCellTracker_;
+    const TDownedCellTrackerPtr DownedCellTracker_;
 
-    INodeMemoryTrackerPtr MemoryTracker_;
+    const INodeMemoryTrackerPtr MemoryTracker_;
 
     TClusterDirectoryPtr ClusterDirectory_;
     TWeakPtr<TClusterDirectory> ClusterDirectoryOverride_;

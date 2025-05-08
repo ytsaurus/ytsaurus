@@ -552,6 +552,11 @@ void TTask::PatchUserJobSpec(NControllerAgent::NProto::TUserJobSpec* jobSpec, TJ
     ExperimentJobManager_.PatchUserJobSpec(jobSpec, joblet);
 }
 
+THashMap<TString, TString> TTask::BuildJobEnvironment() const
+{
+    return {};
+}
+
 void TTask::CheckCompleted()
 {
     if (!CompletedFired_ && IsCompleted()) {
@@ -1430,7 +1435,8 @@ TJobFinishedResult TTask::OnJobCompleted(TJobletPtr joblet, TCompletedJobSummary
 
         if (error.FindMatching(NChunkPools::EErrorCode::DataSliceLimitExceeded) ||
             error.FindMatching(NChunkPools::EErrorCode::MaxDataWeightPerJobExceeded) ||
-            error.FindMatching(NChunkPools::EErrorCode::MaxPrimaryDataWeightPerJobExceeded))
+            error.FindMatching(NChunkPools::EErrorCode::MaxPrimaryDataWeightPerJobExceeded) ||
+            error.FindMatching(NChunkPools::EErrorCode::MaxCompressedDataSizePerJobExceeded))
         {
             YT_LOG_ERROR(error);
 
@@ -1778,7 +1784,7 @@ void TTask::AddChunksToInputSpec(
             }
 
             if (directoryBuilder) {
-                auto replicas = chunkSlice->GetInputChunk()->GetReplicaList();
+                auto replicas = chunkSlice->GetInputChunk()->GetReplicas();
                 directoryBuilder->Add(replicas);
             }
         }
@@ -2105,12 +2111,7 @@ TSharedRef TTask::BuildJobSpecProto(TJobletPtr joblet, const std::optional<NSche
 
     jobSpecExt->set_job_cpu_monitor_config(ConvertToYsonString(TaskHost_->GetSpec()->JobCpuMonitor).ToString());
 
-    if (jobSpecExt->input_data_weight() > TaskHost_->GetSpec()->MaxDataWeightPerJob) {
-        auto error = TError(
-            NChunkPools::EErrorCode::MaxDataWeightPerJobExceeded,
-            "Maximum allowed data weight per job exceeds the limit: %v > %v",
-            jobSpecExt->input_data_weight(),
-            TaskHost_->GetSpec()->MaxDataWeightPerJob);
+    auto failOperation = [&] (TError error) {
         TaskHost_->GetCancelableInvoker()->Invoke(BIND(
             &ITaskHost::OnOperationFailed,
             MakeWeak(TaskHost_),
@@ -2118,6 +2119,22 @@ TSharedRef TTask::BuildJobSpecProto(TJobletPtr joblet, const std::optional<NSche
             /*flush*/ true,
             /*abortAllJoblets*/ true));
         THROW_ERROR(error);
+    };
+
+    if (jobSpecExt->input_data_weight() > TaskHost_->GetSpec()->MaxDataWeightPerJob) {
+        failOperation(TError(
+            NChunkPools::EErrorCode::MaxDataWeightPerJobExceeded,
+            "Maximum allowed data weight per job exceeds the limit: %v > %v",
+            jobSpecExt->input_data_weight(),
+            TaskHost_->GetSpec()->MaxDataWeightPerJob));
+    }
+
+    if (joblet->InputStripeList->TotalCompressedDataSize > TaskHost_->GetSpec()->MaxCompressedDataSizePerJob) {
+        failOperation(TError(
+            NChunkPools::EErrorCode::MaxCompressedDataSizePerJobExceeded,
+            "Maximum allowed compressed data size per job exceeds the limit: %v > %v",
+            joblet->InputStripeList->TotalCompressedDataSize,
+            TaskHost_->GetSpec()->MaxCompressedDataSizePerJob));
     }
 
     ToProto(jobSpecExt->mutable_job_competition_id(), joblet->CompetitionIds[EJobCompetitionType::Speculative]);

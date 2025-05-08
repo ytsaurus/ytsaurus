@@ -225,9 +225,10 @@ public:
             .WithTag("%v, UpstreamReplicaId: %v",
                 tablet->GetLoggingTag(),
                 ReplicaId_))
+        , ReplicationThrottler_(CreateReconfigurableThroughputThrottler(MountConfig_->ReplicationThrottler, Logger))
         , Throttler_(CreateCombinedThrottler(std::vector<IThroughputThrottlerPtr>{
             std::move(nodeInThrottler),
-            CreateReconfigurableThroughputThrottler(MountConfig_->ReplicationThrottler, Logger)
+            ReplicationThrottler_
         }))
         , MemoryTracker_(std::move(memoryTracker))
         , ChaosAgent_(tablet->GetChaosAgent())
@@ -256,6 +257,20 @@ public:
         FiberFuture_.Reset();
     }
 
+    void BuildOrchidYson(NYTree::TFluentMap fluent) override
+    {
+        fluent.Item("table_puller")
+            .BeginMap()
+                .Item("replication_throttler")
+                    .BeginMap()
+                        .Item("limit").Value(ReplicationThrottler_->GetLimit())
+                        .Item("period").Value(ReplicationThrottler_->GetPeriod())
+                        .Item("estimated_overdraft_duration")
+                            .Value(ReplicationThrottler_->GetEstimatedOverdraftDuration())
+                    .EndMap()
+            .EndMap();
+    }
+
 private:
     const TTabletManagerConfigPtr Config_;
     const ITabletSlotPtr Slot_;
@@ -272,6 +287,7 @@ private:
 
     const NLogging::TLogger Logger;
 
+    const IReconfigurableThroughputThrottlerPtr ReplicationThrottler_;
     const IThroughputThrottlerPtr Throttler_;
     const IMemoryUsageTrackerPtr MemoryTracker_;
 
@@ -389,6 +405,18 @@ private:
                 return;
             }
             ReplicationRound_ = replicationRound;
+
+            if (auto pullRowsTransactionId = tabletSnapshot->TabletChaosData->PreparedWritePulledRowsTransactionId.Load()) {
+                YT_LOG_DEBUG("Will not pull rows since previous pull rows transaction is not fully serialized yet (TransactionId: %v)",
+                    pullRowsTransactionId);
+                return;
+            }
+
+            if (auto advanceTransactionId = tabletSnapshot->TabletChaosData->PreparedAdvanceReplicationProgressTransactionId.Load()) {
+                YT_LOG_DEBUG("Will not pull rows since previous advance transaction is not fully serialized yet (TransactionId: %v)",
+                    advanceTransactionId);
+                return;
+            }
 
             TAsyncSemaphoreGuard configGuard;
             auto writeMode = tabletSnapshot->TabletRuntimeData->WriteMode.load();

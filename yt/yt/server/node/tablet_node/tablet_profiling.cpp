@@ -77,9 +77,9 @@ TLookupCounters::TLookupCounters(
         TDuration::Seconds(10)))
     , RetryCount(profiler.Counter("/lookup/retry_count"))
     , ChunkReaderStatisticsCounters(
-        profiler.WithPrefix("/lookup/chunk_reader_statistics"),
+        mediumProfiler.WithPrefix("/lookup/chunk_reader_statistics"),
         mediumProfiler.WithPrefix("/lookup/medium_statistics"))
-    , HunkChunkReaderCounters(profiler.WithPrefix("/lookup/hunks"), schema)
+    , HunkChunkReaderCounters(mediumProfiler.WithPrefix("/lookup/hunks"), schema)
     , KeyFilterCounters(profiler.WithPrefix("/lookup/key_filter"))
 { }
 
@@ -111,9 +111,9 @@ TSelectRowsCounters::TSelectRowsCounters(
     , RangeFilterCounters(profiler.WithPrefix("/select/range_filter"))
     , KeyFilterCounters(profiler.WithPrefix("/select/key_filter"))
     , ChunkReaderStatisticsCounters(
-        profiler.WithPrefix("/select/chunk_reader_statistics"),
+        mediumProfiler.WithPrefix("/select/chunk_reader_statistics"),
         mediumProfiler.WithPrefix("/select/medium_statistics"))
-    , HunkChunkReaderCounters(profiler.WithPrefix("/select/hunks"), schema)
+    , HunkChunkReaderCounters(mediumProfiler.WithPrefix("/select/hunks"), schema)
     , CacheHits(profiler.Counter("/select/cache_hits"))
     , CacheOutdated(profiler.Counter("/select/cache_outdated"))
     , CacheMisses(profiler.Counter("/select/cache_misses"))

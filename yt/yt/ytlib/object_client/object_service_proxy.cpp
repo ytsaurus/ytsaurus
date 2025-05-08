@@ -4,8 +4,11 @@
 #include "config.h"
 
 #include <yt/yt/ytlib/api/native/client.h>
+#include <yt/yt/ytlib/api/native/rpc_helpers.h>
 
 #include <yt/yt/ytlib/object_client/proto/object_ypath.pb.h>
+
+#include <yt/yt/ytlib/cell_master_client/cell_directory.h>
 
 #include <yt/yt/core/misc/checksum.h>
 
@@ -39,7 +42,7 @@ TObjectServiceProxy::TObjectServiceProxy(
         GetDescriptor())
     , StickyGroupSizeCache_(std::move(stickyGroupSizeCache))
     , CellTag_(cellTag)
-    , ChannelKind_(masterChannelKind)
+    , ChannelKind_(GetEffectiveMasterChannelKind(client->GetNativeConnection(), masterChannelKind))
 { }
 
 TObjectServiceProxy::TObjectServiceProxy(
@@ -52,7 +55,7 @@ TObjectServiceProxy::TObjectServiceProxy(
         GetDescriptor())
     , StickyGroupSizeCache_(std::move(stickyGroupSizeCache))
     , CellTag_(cellTag)
-    , ChannelKind_(masterChannelKind)
+    , ChannelKind_(GetEffectiveMasterChannelKind(connection, masterChannelKind))
 { }
 
 TObjectServiceProxy::TObjectServiceProxy(
@@ -68,7 +71,7 @@ TObjectServiceProxy::TObjectServiceProxy(
         GetDescriptor())
     , StickyGroupSizeCache_(std::move(stickyGroupSizeCache))
     , CellTag_(cellTag)
-    , ChannelKind_(masterChannelKind)
+    , ChannelKind_(GetEffectiveMasterChannelKind(connection, masterChannelKind))
 { }
 
 TObjectServiceProxy TObjectServiceProxy::FromDirectMasterChannel(IChannelPtr channel)
@@ -739,66 +742,38 @@ bool TObjectServiceProxy::TRspExecuteBatch::TryDeserializeBody(
         return false;
     }
 
-    if (body.subresponses_size() != 0) { // new format
-        YT_VERIFY(std::ssize(InnerResponseDescriptors_) >= body.subresponses_size());
+    if (std::ssize(InnerResponseDescriptors_) < body.subresponses_size()) {
+        YT_LOG_ALERT("Too many subresponses (RequestId: %v, ExpectedSubresponseCount: %v, ActualSubresponseCount: %v)",
+            GetRequestId(),
+            std::ssize(InnerResponseDescriptors_),
+            body.subresponses_size());
+        return false;
+    }
 
-        auto partIndex = 0;
-        for (const auto& subresponse : body.subresponses()) {
-            auto subrequestIndex = subresponse.index();
-            auto partCount = subresponse.part_count();
-            auto revision = FromProto<NHydra::TRevision>(subresponse.revision());
-            if (subresponse.has_advised_sticky_group_size() && StickyGroupSizeCache_) {
-                auto advisedStickyGroupSize = subresponse.advised_sticky_group_size();
-                auto key = InnerRequestDescriptors_[subrequestIndex].GetKey();
-                auto oldAdvisedStickyGroupSize = StickyGroupSizeCache_->UpdateAdvisedStickyGroupSize(key, advisedStickyGroupSize);
-                YT_LOG_DEBUG_IF(
-                    advisedStickyGroupSize != oldAdvisedStickyGroupSize,
-                    "Cached sticky group size updated (RequestId: %v, SubrequestIndex: %v, Size: %v -> %v)",
-                    GetRequestId(),
-                    subrequestIndex,
-                    oldAdvisedStickyGroupSize,
-                    advisedStickyGroupSize);
-            }
-            InnerResponseDescriptors_[subrequestIndex].Meta = {{partIndex, partIndex + partCount}, revision};
-            partIndex += partCount;
+    auto partIndex = 0;
+    for (const auto& subresponse : body.subresponses()) {
+        auto subrequestIndex = subresponse.index();
+        auto partCount = subresponse.part_count();
+        auto revision = FromProto<NHydra::TRevision>(subresponse.revision());
+        if (subresponse.has_advised_sticky_group_size() && StickyGroupSizeCache_) {
+            auto advisedStickyGroupSize = subresponse.advised_sticky_group_size();
+            auto key = InnerRequestDescriptors_[subrequestIndex].GetKey();
+            auto oldAdvisedStickyGroupSize = StickyGroupSizeCache_->UpdateAdvisedStickyGroupSize(key, advisedStickyGroupSize);
+            YT_LOG_DEBUG_IF(
+                advisedStickyGroupSize != oldAdvisedStickyGroupSize,
+                "Cached sticky group size updated (RequestId: %v, SubrequestIndex: %v, Size: %v -> %v)",
+                GetRequestId(),
+                subrequestIndex,
+                oldAdvisedStickyGroupSize,
+                advisedStickyGroupSize);
         }
-        ResponseCount_ = body.subresponses_size();
+        InnerResponseDescriptors_[subrequestIndex].Meta = {{partIndex, partIndex + partCount}, revision};
+        partIndex += partCount;
+    }
+    ResponseCount_ = body.subresponses_size();
 
-        for (const auto& uncertainSubrequestIndex : body.uncertain_subrequest_indexes()) {
-            InnerResponseDescriptors_[uncertainSubrequestIndex].Uncertain = true;
-        }
-    } else { // old format
-        // COMPAT(shakurov)
-
-        YT_VERIFY(std::ssize(InnerResponseDescriptors_) >= body.part_counts_size());
-        YT_VERIFY(body.revisions_size() == body.part_counts_size() || body.revisions_size() == 0);
-        YT_VERIFY(body.advised_sticky_group_size_size() == body.part_counts_size() || body.advised_sticky_group_size_size() == 0);
-
-        auto revisions = body.revisions_size() == 0
-            ? std::vector<NHydra::TRevision>(body.part_counts_size())
-            : FromProto<std::vector<NHydra::TRevision>>(body.revisions());
-
-        auto partIndex = 0;
-        for (auto subrequestIndex = 0; subrequestIndex < body.part_counts_size(); ++subrequestIndex) {
-            auto partCount = body.part_counts(subrequestIndex);
-            InnerResponseDescriptors_[subrequestIndex].Meta = {{partIndex, partIndex + partCount}, revisions[subrequestIndex]};
-            partIndex += partCount;
-
-            if (body.advised_sticky_group_size_size() > 0 && StickyGroupSizeCache_) {
-                auto advisedStickyGroupSize = body.advised_sticky_group_size(subrequestIndex);
-                auto key = InnerRequestDescriptors_[subrequestIndex].GetKey();
-                auto oldAdvisedStickyGroupSize = StickyGroupSizeCache_->UpdateAdvisedStickyGroupSize(key, advisedStickyGroupSize);
-                YT_LOG_DEBUG_IF(
-                    advisedStickyGroupSize != oldAdvisedStickyGroupSize,
-                    "Cached sticky group size updated (RequestId: %v, SubrequestIndex: %v, Size: %v -> %v)",
-                    GetRequestId(),
-                    subrequestIndex,
-                    oldAdvisedStickyGroupSize,
-                    advisedStickyGroupSize);
-            }
-        }
-
-        ResponseCount_ = body.part_counts_size();
+    for (const auto& uncertainSubrequestIndex : body.uncertain_subrequest_indexes()) {
+        InnerResponseDescriptors_[uncertainSubrequestIndex].Uncertain = true;
     }
 
     return true;

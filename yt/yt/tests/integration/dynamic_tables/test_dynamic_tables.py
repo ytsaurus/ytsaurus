@@ -74,10 +74,11 @@ class DynamicTablesSingleCellBase(DynamicTablesBase):
         "resource_limits": {
             "cpu_per_tablet_slot": 1.0,
         },
-        "tablet_node" : {
-            "changelogs" : {
+        "tablet_node": {
+            "changelogs": {
                 "writer": {
-                    "enable_checksums" : True
+                    "enable_checksums": True,
+                    "validate_erasure_coding": True
                 }
             }
         }
@@ -383,11 +384,8 @@ class DynamicTablesSingleCellBase(DynamicTablesBase):
     @authors("gritukan")
     def test_follower_decommissioned_during_decommission(self):
         set("//sys/@config/tablet_manager/decommission_through_extra_peers", True)
-        set(
-            "//sys/@config/tablet_manager/decommissioned_leader_reassignment_timeout",
-            7000,
-        )
-        set("//sys/@config/tablet_manager/extra_peer_drop_delay", 2000)
+        set("//sys/@config/tablet_manager/decommissioned_leader_reassignment_timeout", 5000)
+        set("//sys/@config/tablet_manager/extra_peer_drop_delay", 5000)
 
         create_tablet_cell_bundle("b", attributes={"options": {"peer_count": 1}})
         sync_create_cells(1, tablet_cell_bundle="b")
@@ -2638,8 +2636,9 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
         insert_rows("//tmp/t", [{"key": i, "value": str(i)} for i in range(5)])
         sync_flush_table("//tmp/t")
 
-        throttled_lookup_count = profiler_factory().at_tablet_node("//tmp/t").counter(
-            name="tablet/throttled_lookup_count")
+        throttled_lookup_count = self._init_tablet_sensor(
+            "//tmp/t",
+            "tablet/throttled_lookup_count")
 
         start_time = time.time()
         for i in range(5):
@@ -2662,8 +2661,9 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
         insert_rows("//tmp/t", [{"key": i, "value": str(i)} for i in range(5)])
         sync_flush_table("//tmp/t")
 
-        throttled_select_count = profiler_factory().at_tablet_node("//tmp/t").counter(
-            name="tablet/throttled_select_count")
+        throttled_select_count = self._init_tablet_sensor(
+            "//tmp/t",
+            "tablet/throttled_select_count")
 
         start_time = time.time()
         for i in range(5):
@@ -2684,8 +2684,9 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
         set("//tmp/t/@throttlers", {"write": {"limit": 10}})
         sync_mount_table("//tmp/t")
 
-        throttled_write_count = profiler_factory().at_tablet_node("//tmp/t").counter(
-            name="tablet/throttled_write_count")
+        throttled_write_count = self._init_tablet_sensor(
+            "//tmp/t",
+            "tablet/throttled_write_count")
 
         def _insert(overdraft_expected, max_attempts=10):
             overdrafted = False
@@ -3243,61 +3244,6 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
         for i in range(22):
             assert tablet_infos["tablets"][i]["total_row_count"] == tablet_indexes[i]
 
-    @staticmethod
-    def _create_table_for_statistics_reporter(table_path):
-        def get_struct(name):
-            return {
-                "name": name,
-                "type_v3": {
-                    "type_name": "struct",
-                    "members": [
-                        {"name": "count", "type": "int64"},
-                        {"name": "rate", "type": "double"},
-                        {"name": "rate_10m", "type": "double"},
-                        {"name": "rate_1h", "type": "double"},
-                    ],
-                }
-            }
-
-        create(
-            "table",
-            table_path,
-            attributes={
-                "dynamic": True,
-                "schema": [
-                    {"name": "table_id", "type_v3": "string", "sort_order": "ascending"},
-                    {"name": "tablet_id", "type_v3": "string", "sort_order": "ascending"},
-                    get_struct("dynamic_row_read"),
-                    get_struct("dynamic_row_read_data_weight"),
-                    get_struct("dynamic_row_lookup"),
-                    get_struct("dynamic_row_lookup_data_weight"),
-                    get_struct("dynamic_row_write"),
-                    get_struct("dynamic_row_write_data_weight"),
-                    get_struct("dynamic_row_delete"),
-                    get_struct("static_chunk_row_read"),
-                    get_struct("static_chunk_row_read_data_weight"),
-                    get_struct("static_hunk_chunk_row_read_data_weight"),
-                    get_struct("static_chunk_row_lookup"),
-                    get_struct("static_chunk_row_lookup_data_weight"),
-                    get_struct("static_hunk_chunk_row_lookup_data_weight"),
-                    get_struct("compaction_data_weight"),
-                    get_struct("partitioning_data_weight"),
-                    get_struct("lookup_error"),
-                    get_struct("write_error"),
-                    get_struct("lookup_cpu_time"),
-                    {"name": "uncompressed_data_size", "type_v3": "int64"},
-                    {"name": "compressed_data_size", "type_v3": "int64"},
-                ],
-                "mount_config": {
-                    "min_data_ttl": 0,
-                    "max_data_ttl": 86400000,
-                    "min_data_versions": 0,
-                    "max_data_versions": 1,
-                    "merge_rows_on_flush": True,
-                },
-            },
-        )
-
     @authors("dave11ar")
     def test_statistics_reporter(self):
         statistics_path = "//tmp/statistics_reporter_table"
@@ -3307,6 +3253,7 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
                 "statistics_reporter" : {
                     "enable" : True,
                     "table_path": statistics_path,
+                    "report_backoff_time": 1,
                     "periodic_options": {
                         "period": 1,
                         "splay": 0,

@@ -36,6 +36,7 @@
 #include <yt/yt/library/program/program.h>
 
 #include <yt/yt/client/object_client/helpers.h>
+#include <yt/yt/client/table_client/row_buffer.h>
 
 #include <yt/yt/core/misc/fs.h>
 #include <yt/yt/core/misc/proc.h>
@@ -440,17 +441,11 @@ TChunkLocation::TChunkLocation(
         diskThrottlerProfiler);
 
     HealthChecker_ = New<TDiskHealthChecker>(
-        ChunkContext_->DataNodeConfig->DiskHealthChecker,
+        StaticConfig_->DiskHealthChecker,
         GetPath(),
         GetAuxPoolInvoker(),
         DataNodeLogger(),
         Profiler_);
-
-    DynamicConfigManager_->SubscribeConfigChanged(BIND_NO_PROPAGATE([
-        healthChecker = HealthChecker_] (const NClusterNode::TClusterNodeDynamicConfigPtr& /*oldConfig*/,
-            const NClusterNode::TClusterNodeDynamicConfigPtr& newConfig) {
-            healthChecker->OnDynamicConfigChanged(newConfig->DataNode->DiskHealthChecker);
-        }));
 
     ChunkStoreHost_->SubscribePopulateAlerts(
         BIND_NO_PROPAGATE(&TChunkLocation::PopulateAlerts, MakeWeak(this)));
@@ -553,6 +548,10 @@ void TChunkLocation::Reconfigure(TChunkLocationConfigPtr config)
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
 
+    UpdateIOWeightEvaluator(config->IOWeightFormula);
+
+    HealthChecker_->Reconfigure(config->DiskHealthChecker);
+
     TDiskLocation::Reconfigure(config);
 
     DynamicIOEngine_->SetType(config->IOEngineType, config->IOConfig);
@@ -635,7 +634,14 @@ double TChunkLocation::GetIOWeight() const
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
 
-    return StaticConfig_->IOWeight;
+    auto guard = Guard(IOWeightEvaluatorSpinLock_);
+
+    if (IOWeightEvaluator_) {
+        auto value = GetIOWeight(IOWeightEvaluator_);
+        return value.ValueOrThrow();
+    } else {
+        return StaticConfig_->IOWeight;
+    }
 }
 
 i64 TChunkLocation::GetCoalescedReadMaxGapSize() const
@@ -893,7 +899,7 @@ i64 TChunkLocation::GetRequestedMemory() const
 
     i64 result = 0;
 
-    for (auto supplier : ProbePutBlocksRequests_) {
+    for (const auto& supplier : ProbePutBlocksRequests_) {
         if (!supplier->IsCanceled()) {
             result += supplier->GetMaxRequestedMemory();
         }
@@ -909,13 +915,13 @@ i64 TChunkLocation::GetRequestedQueueSize() const
     return ProbePutBlocksRequests_.size();
 }
 
-void TChunkLocation::PushProbePutBlocksRequestSupplier(TProbePutBlocksRequestSupplierPtr supplier)
+void TChunkLocation::PushProbePutBlocksRequestSupplier(const TProbePutBlocksRequestSupplierPtr& supplier)
 {
     auto guard = Guard(ProbePutBlocksRequestsLock_);
 
     if (!ContainsProbePutBlocksRequestSupplier(supplier)) {
         ProbePutBlocksRequests_.push_back(supplier);
-        EmplaceOrCrash(ProbePutBlocksSuppliers_, supplier->GetSessionId());
+        EmplaceOrCrash(ProbePutBlocksSessionIds_, supplier->GetSessionId());
     }
 
     DoCheckProbePutBlocksRequests();
@@ -926,11 +932,11 @@ void TChunkLocation::PushProbePutBlocksRequestSupplier(TProbePutBlocksRequestSup
     }
 }
 
-bool TChunkLocation::ContainsProbePutBlocksRequestSupplier(TProbePutBlocksRequestSupplierPtr supplier) const
+bool TChunkLocation::ContainsProbePutBlocksRequestSupplier(const TProbePutBlocksRequestSupplierPtr& supplier) const
 {
     YT_ASSERT_SPINLOCK_AFFINITY(ProbePutBlocksRequestsLock_);
 
-    return ProbePutBlocksSuppliers_.contains(supplier->GetSessionId());
+    return ProbePutBlocksSessionIds_.contains(supplier->GetSessionId());
 }
 
 void TChunkLocation::CheckProbePutBlocksRequests()
@@ -948,14 +954,14 @@ void TChunkLocation::DoCheckProbePutBlocksRequests()
         auto& supplier = *supplierIt;
         if (supplier->IsCanceled()) {
             ProbePutBlocksRequests_.erase(supplierIt);
-            EraseOrCrash(ProbePutBlocksSuppliers_, supplier->GetSessionId());
+            EraseOrCrash(ProbePutBlocksSessionIds_, supplier->GetSessionId());
             continue;
         }
 
-        auto request = supplier->GetMinRequest();
+        auto request = supplier->TryGetMinRequest();
         if (!request.has_value()) {
             ProbePutBlocksRequests_.erase(supplierIt);
-            EraseOrCrash(ProbePutBlocksSuppliers_, supplier->GetSessionId());
+            EraseOrCrash(ProbePutBlocksSessionIds_, supplier->GetSessionId());
             continue;
         }
 
@@ -1131,6 +1137,41 @@ void TChunkLocation::UpdateUsedMemory(
         category,
         result,
         delta);
+}
+
+TErrorOr<double> TChunkLocation::GetIOWeight(const NOrm::NQuery::IExpressionEvaluatorPtr& evaluator) const
+{
+    auto rowBuffer = New<NTableClient::TRowBuffer>();
+    auto value = evaluator->Evaluate(
+        BuildYsonStringFluently().BeginMap()
+            .Item("available_space").Value(GetAvailableSpace())
+            .Item("used_space").Value(GetUsedSpace())
+        .EndMap(),
+        rowBuffer);
+
+    if (value.IsOK() && value.Value().Type == NTableClient::EValueType::Double) {
+        return value.Value().Data.Double;
+    } else {
+        return TError("Failed to evaluate IO weight evaluator");
+    }
+}
+
+void TChunkLocation::UpdateIOWeightEvaluator(const std::optional<std::string>& formula)
+{
+    YT_ASSERT_THREAD_AFFINITY_ANY();
+
+    if (formula.has_value()) {
+        auto evaluator = NOrm::NQuery::CreateOrmExpressionEvaluator(*formula, {"/stat"});
+        GetIOWeight(evaluator).ThrowOnError();
+
+        {
+            auto guard = Guard(IOWeightEvaluatorSpinLock_);
+            IOWeightEvaluator_ = std::move(evaluator);
+        }
+    } else {
+        auto guard = Guard(IOWeightEvaluatorSpinLock_);
+        IOWeightEvaluator_ = nullptr;
+    }
 }
 
 void TChunkLocation::IncreaseCompletedIOSize(

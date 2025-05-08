@@ -1882,7 +1882,7 @@ TAllocationPtr TNodeShard::ProcessAllocationHeartbeat(
             if (auto error = FromProto<TError>(allocationStatus->result().error());
                 !error.IsOK())
             {
-                YT_LOG_DEBUG(error, "Allocation finished with error, storage scheduled");
+                YT_LOG_DEBUG(error, "Allocation finished with error");
 
                 if (ParseAbortReason(error, allocationId, Logger).value_or(EAbortReason::Scheduler) == EAbortReason::GetSpecFailed) {
                     OnAllocationAborted(allocation, error, EAbortReason::GetSpecFailed);
@@ -1890,7 +1890,7 @@ TAllocationPtr TNodeShard::ProcessAllocationHeartbeat(
                     OnAllocationFinished(allocation);
                 }
             } else {
-                YT_LOG_DEBUG("Allocation finished, storage scheduled");
+                YT_LOG_DEBUG("Allocation finished");
 
                 OnAllocationFinished(allocation);
             }

@@ -34,17 +34,19 @@ namespace NAlerts {
 ////////////////////////////////////////////////////////////////////////////////
 
 YT_DEFINE_ERROR_ENUM(
-    ((CypressSynchronizerUnableToFetchObjectRevisions)            (3000))
-    ((CypressSynchronizerUnableToFetchAttributes)                 (3001))
-    ((CypressSynchronizerPassFailed)                              (3002))
+    ((CypressSynchronizerUnableToFetchObjectRevisions)              (3000))
+    ((CypressSynchronizerUnableToFetchAttributes)                   (3001))
+    ((CypressSynchronizerPassFailed)                                (3002))
+    ((CypressSynchronizerConflictingDynamicStateObjects)            (3003))
+    ((CypressSynchronizerMissingReplicatedTableMappingObjects)      (3004))
 
-    ((QueueAgentPassFailed)                                       (3025))
+    ((QueueAgentPassFailed)                                         (3025))
 
-    ((QueueAgentQueueControllerStaticExportFailed)                (3035))
-    ((QueueAgentQueueControllerTrimFailed)                        (3036))
-    ((QueueAgentQueueControllerStaticExportMisconfiguration)      (3037))
+    ((QueueAgentQueueControllerStaticExportFailed)                  (3035))
+    ((QueueAgentQueueControllerTrimFailed)                          (3036))
+    ((QueueAgentQueueControllerStaticExportMisconfiguration)        (3037))
 
-    ((QueueAgentShardingManagerPassFailed)                        (3050))
+    ((QueueAgentShardingManagerPassFailed)                          (3050))
 );
 
 ////////////////////////////////////////////////////////////////////////////////

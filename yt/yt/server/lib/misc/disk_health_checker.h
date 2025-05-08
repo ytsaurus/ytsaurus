@@ -39,16 +39,14 @@ public:
 
     TFuture<void> Stop();
 
-    void OnDynamicConfigChanged(const TDiskHealthCheckerDynamicConfigPtr& newConfig);
+    void Reconfigure(const TDiskHealthCheckerConfigPtr& newConfig);
 
     DEFINE_SIGNAL(void(const TError&), Failed);
 
 private:
-    const TDiskHealthCheckerConfigPtr Config_;
+    TAtomicIntrusivePtr<TDiskHealthCheckerConfig> Config_;
     const TString Path_;
     const IInvokerPtr CheckInvoker_;
-
-    TAtomicIntrusivePtr<TDiskHealthCheckerDynamicConfig> DynamicConfig_;
 
     NLogging::TLogger Logger;
 

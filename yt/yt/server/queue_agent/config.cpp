@@ -37,8 +37,6 @@ void TCypressSynchronizerDynamicConfig::Register(TRegistrar registrar)
         .Default(ECypressSynchronizerPolicy::Polling);
     registrar.Parameter("clusters", &TThis::Clusters)
         .Default();
-    registrar.Parameter("poll_replicated_objects", &TThis::PollReplicatedObjects)
-        .Default(false);
     registrar.Parameter("write_replicated_table_mapping", &TThis::WriteReplicatedTableMapping)
         .Alias("write_registration_table_mapping")
         .Default(false);

@@ -2,6 +2,8 @@
 
 #include "disk_location.h"
 
+#include <yt/yt/orm/library/query/expression_evaluator.h>
+
 #include <yt/yt/server/node/data_node/public.h>
 
 #include <yt/yt/server/node/cluster_node/public.h>
@@ -501,7 +503,7 @@ public:
     double GetFairShareWorkloadCategoryWeight(EWorkloadCategory category) const;
 
     //! Push supplier to the queue.
-    void PushProbePutBlocksRequestSupplier(TProbePutBlocksRequestSupplierPtr supplier);
+    void PushProbePutBlocksRequestSupplier(const TProbePutBlocksRequestSupplierPtr& supplier);
 
     //! Try to acquire memory for top requests.
     void CheckProbePutBlocksRequests();
@@ -559,12 +561,15 @@ private:
     const ELocationType Type_;
     const TChunkLocationConfigPtr StaticConfig_;
 
+    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, IOWeightEvaluatorSpinLock_);
+    NOrm::NQuery::IExpressionEvaluatorPtr IOWeightEvaluator_;
+
     TLocationPerformanceCountersPtr PerformanceCounters_;
 
     // TODO(vvshlyaga): Change to fair share queue.
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, ProbePutBlocksRequestsLock_);
     std::deque<TProbePutBlocksRequestSupplierPtr> ProbePutBlocksRequests_;
-    THashSet<TSessionId> ProbePutBlocksSuppliers_;
+    THashSet<TSessionId> ProbePutBlocksSessionIds_;
 
     const IMemoryUsageTrackerPtr ReadMemoryTracker_;
     const IMemoryUsageTrackerPtr WriteMemoryTracker_;
@@ -595,12 +600,13 @@ private:
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, LockedChunksLock_);
     THashSet<TChunkId> LockedChunkIds_;
 
+    TErrorOr<double> GetIOWeight(const NOrm::NQuery::IExpressionEvaluatorPtr& evaluator) const;
     static EIOCategory ToIOCategory(const TWorkloadDescriptor& workloadDescriptor);
 
     THazardPtr<TChunkLocationConfig> GetRuntimeConfig() const;
 
     void DoCheckProbePutBlocksRequests();
-    bool ContainsProbePutBlocksRequestSupplier(TProbePutBlocksRequestSupplierPtr supplier) const;
+    bool ContainsProbePutBlocksRequestSupplier(const TProbePutBlocksRequestSupplierPtr& supplier) const;
 
     // TODO(vvshlyaga): Remove flag useLegacyUsedMemory after rolling writer with probing on all nodes.
     void IncreaseUsedMemory(bool useLegacyUsedMemory, EIODirection direction, EIOCategory category, i64 delta);
@@ -608,6 +614,8 @@ private:
     void DecreaseUsedMemory(bool useLegacyUsedMemory, EIODirection direction, EIOCategory category, i64 delta);
     // TODO(vvshlyaga): Remove flag useLegacyUsedMemory after rolling writer with probing on all nodes.
     void UpdateUsedMemory(bool useLegacyUsedMemory, EIODirection direction, EIOCategory category, i64 delta);
+
+    void UpdateIOWeightEvaluator(const std::optional<std::string>& formula);
 
     void ValidateWritable();
     void InitializeCellId();

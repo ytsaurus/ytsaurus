@@ -87,6 +87,9 @@ void ExtractFunctionNames(
     } else if (expr->As<NAst::TReferenceExpression>()) {
     } else if (auto aliasExpr = expr->As<NAst::TAliasExpression>()) {
         ExtractFunctionNames(aliasExpr->Expression, functions);
+    } else if (auto queryExpr = expr->As<NAst::TQueryExpression>()) {
+        ExtractFunctionNames(queryExpr->Query.WherePredicate, functions);
+        ExtractFunctionNames(queryExpr->Query.SelectExprs, functions);
     } else {
         YT_ABORT();
     }
@@ -164,6 +167,9 @@ std::vector<TString> ExtractFunctionNames(
                 functions.end(),
                 std::make_move_iterator(extracted.begin()),
                 std::make_move_iterator(extracted.end()));
+        },
+        [&] (const NAst::TExpressionList& expressions) {
+            ExtractFunctionNames(expressions, &functions);
         });
 
 
@@ -539,7 +545,9 @@ NAst::TAstHead ParseQueryString(
     }
 
     NAst::TLexer lexer(source, strayToken, std::move(queryLiterals), syntaxVersion);
-    NAst::TParser parser(lexer, &head, source, /*aliasMapStack*/ {});
+    std::stack<NAst::TAliasMap> aliasMapStack;
+    aliasMapStack.push({});
+    NAst::TParser parser(lexer, &head, source, std::move(aliasMapStack));
 
     int result = parser.parse();
 
@@ -1027,7 +1035,10 @@ TPlanFragmentPtr PreparePlanFragment(
                 memoryTracker,
                 depth + 1);
         },
-        [&] (const NAst::TTableDescriptor&) { });
+        [&] (const NAst::TTableDescriptor&) { },
+        [&] (const NAst::TExpressionList&) {
+            THROW_ERROR_EXCEPTION("Unexpected expression in from clause");
+        });
 
     auto functions = New<TTypeInferrerMap>();
     callbacks->FetchFunctions(ExtractFunctionNames(queryAst, aliasMap), functions);
@@ -1076,6 +1087,9 @@ TPlanFragmentPtr PreparePlanFragment(
         },
         [&] (const NAst::TQueryAstHeadPtr& subquery) {
             return subquery->Alias;
+        },
+        [&] (const NAst::TExpressionList&) -> std::optional<TString> {
+            return std::nullopt;
         });
 
     auto builder = CreateExpressionBuilder(

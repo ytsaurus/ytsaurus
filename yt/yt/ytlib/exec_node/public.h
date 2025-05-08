@@ -32,7 +32,7 @@ YT_DEFINE_ERROR_ENUM(
     ((GpuJobWithoutLayers)                   (1123))
     ((TmpfsOverflow)                         (1124))
     ((GpuCheckCommandFailed)                 (1125))
-    ((GpuCheckCommandIncorrect)              (1126))
+    ((GpuCheckCommandPreparationFailed)      (1126))
     ((JobProxyUnavailable)                   (1127))
     ((NodeResourceOvercommit)                (1128))
     ((LayerUnpackingFailed)                  (1129))
