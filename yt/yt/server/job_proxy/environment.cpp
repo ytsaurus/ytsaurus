@@ -1,7 +1,9 @@
 #include "environment.h"
+#include "job.h"
 
 #include <yt/yt/server/lib/exec_node/config.h>
 #include <yt/yt/server/lib/exec_node/gpu_helpers.h>
+#include <yt/yt/server/lib/exec_node/helpers.h>
 
 #include <yt/yt/server/tools/proc.h>
 #include <yt/yt/server/tools/tools.h>
@@ -15,6 +17,7 @@
 
 #include <util/system/fs.h>
 #include <util/system/user.h>
+#include <util/string/split.h>
 
 #ifdef _linux_
 #include <yt/yt/library/containers/cgroup.h>
@@ -648,7 +651,7 @@ public:
             PortoExecutor_);
     }
 
-    void StartSidecars(const NControllerAgent::NProto::TJobSpecExt& /*jobSpecExt*/) override
+    void StartSidecars(IJobHostPtr /*host*/, const NControllerAgent::NProto::TJobSpecExt& /*jobSpecExt*/) override
     { }
 
     void KillSidecars() override
@@ -879,7 +882,7 @@ public:
         return New<TSimpleUserJobEnvironment>();
     }
 
-    void StartSidecars(const NControllerAgent::NProto::TJobSpecExt& /*jobSpecExt*/) override
+    void StartSidecars(IJobHostPtr /*host*/, const NControllerAgent::NProto::TJobSpecExt& /*jobSpecExt*/) override
     { }
 
     void KillSidecars() override
@@ -1096,8 +1099,10 @@ class TCriJobProxyEnvironment
 {
 public:
     explicit TCriJobProxyEnvironment(
+        TJobProxyInternalConfigPtr jobProxyConfig,
         TCriJobEnvironmentConfigPtr config)
-        : Config_(std::move(config))
+        : JobProxyConfig_(std::move(jobProxyConfig))
+        , Config_(std::move(config))
         , Executor_(CreateCriExecutor(Config_->CriExecutor))
         , ImageCache_(NContainers::NCri::CreateCriImageCache(Config_->CriImageCache, Executor_))
         , CriPodDescriptor_{Config_->PodDescriptorName, Config_->PodDescriptorId}
@@ -1205,7 +1210,9 @@ public:
         return New<TCriUserJobEnvironment>(this);
     }
 
-    void StartSidecars(const NControllerAgent::NProto::TJobSpecExt& jobSpecExt) override
+    void StartSidecars(
+        IJobHostPtr host,
+        const NControllerAgent::NProto::TJobSpecExt& jobSpecExt) override
     {
         YT_LOG_INFO("FOO1");
 
@@ -1254,16 +1261,50 @@ public:
 
             spec->CapabilitiesToAdd.push_back("SYS_PTRACE");
 
-            // TODO: bind mounts
+            spec->BindMounts.push_back(NCri::TCriBindMount{
+                .ContainerPath = JobProxyConfig_->SlotPath,
+                .HostPath = JobProxyConfig_->SlotPath,
+                .ReadOnly = false,
+            });
+
+            spec->BindMounts.push_back(NCri::TCriBindMount{
+                .ContainerPath = "/slot",
+                .HostPath = JobProxyConfig_->SlotPath,
+                .ReadOnly = false,
+            });
+
+            for (const auto& bindMount: Config_->JobProxyBindMounts) {
+                spec->BindMounts.push_back(NCri::TCriBindMount{
+                    .ContainerPath = bindMount->InternalPath,
+                    .HostPath = bindMount->ExternalPath,
+                    .ReadOnly = bindMount->ReadOnly,
+                });
+            }
+
+            for (const auto& bind : JobProxyConfig_->Binds) {
+                spec->BindMounts.push_back(NCri::TCriBindMount{
+                    .ContainerPath = bind->InternalPath,
+                    .HostPath = bind->ExternalPath,
+                    .ReadOnly = bind->ReadOnly,
+                });
+            }
+
+            spec->Credentials.Uid = ::getuid();
+            spec->Credentials.Gid = ::getgid();
+
+            std::vector<TString> commandSplit;
+            StringSplitter(sidecar->Command).Split(' ').Collect(&commandSplit);
 
             auto process = Executor_->CreateProcess(
-                sidecar->Command,
+                commandSplit[0],
                 spec,
                 CriPodDescriptor_,
                 CriPodSpec_
             );
-            // process->AddArguments(command->Args);
-            // process->SetWorkingDirectory("/slot/home");
+            commandSplit.erase(commandSplit.begin());
+
+            process->AddArguments(commandSplit);
+            process->SetWorkingDirectory(NFS::CombinePaths(host->GetSlotPath(), GetSandboxRelPath(ESandboxKind::User)));
 
             SidecarsRunning_[name] = BIND([=] {
                     return process->Spawn();
@@ -1279,6 +1320,7 @@ public:
     { }
 
 private:
+    const TJobProxyInternalConfigPtr JobProxyConfig_;
     const TCriJobEnvironmentConfigPtr Config_;
     const NContainers::NCri::ICriExecutorPtr Executor_;
     const NContainers::NCri::ICriImageCachePtr ImageCache_;
@@ -1300,27 +1342,28 @@ DEFINE_REFCOUNTED_TYPE(TCriJobProxyEnvironment)
 ////////////////////////////////////////////////////////////////////////////////
 
 IJobProxyEnvironmentPtr CreateJobProxyEnvironment(
-    TJobEnvironmentConfig config)
+    TJobProxyInternalConfigPtr config)
 {
-    switch (config.GetCurrentType()) {
+    switch (config->JobEnvironment.GetCurrentType()) {
 #ifdef _linux_
         case EJobEnvironmentType::Porto:
-            return New<TPortoJobProxyEnvironment>(config.TryGetConcrete<TPortoJobEnvironmentConfig>());
+            return New<TPortoJobProxyEnvironment>(config->JobEnvironment.TryGetConcrete<TPortoJobEnvironmentConfig>());
 #endif
 
         case EJobEnvironmentType::Simple:
             return New<TSimpleJobProxyEnvironment>();
 
         case EJobEnvironmentType::Testing:
-            return New<TTestingJobProxyEnvironment>(config.TryGetConcrete<TTestingJobEnvironmentConfig>());
+            return New<TTestingJobProxyEnvironment>(config->JobEnvironment.TryGetConcrete<TTestingJobEnvironmentConfig>());
 
         case EJobEnvironmentType::Cri:
             return New<TCriJobProxyEnvironment>(
-                config.TryGetConcrete<TCriJobEnvironmentConfig>());
+                config,
+                config->JobEnvironment.TryGetConcrete<TCriJobEnvironmentConfig>());
 
         default:
             THROW_ERROR_EXCEPTION("Unable to create resource controller for %Qlv environment",
-                config.GetCurrentType());
+                config->JobEnvironment.GetCurrentType());
     }
 }
 

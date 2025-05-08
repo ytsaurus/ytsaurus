@@ -1327,6 +1327,16 @@ private:
             });
         }
 
+        // Required for job_proxy to be able to work with the containerd socket.
+        spec->BindMounts.push_back(NCri::TCriBindMount{
+            .ContainerPath = "/run/containerd/",
+            .HostPath = "/run/containerd/",
+            .ReadOnly = false,
+        });
+
+        // Docker group (probably, can be different on different machines).
+        spec->Credentials.Groups = {998};
+
         spec->Resources.CpuLimit = config->ContainerCpuLimit;
         spec->Resources.MemoryLimit = config->SlotContainerMemoryLimit;
 

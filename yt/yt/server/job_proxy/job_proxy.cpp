@@ -829,6 +829,7 @@ TJobResult TJobProxy::RunJob()
     TTraceContextGuard guard(RootSpan_);
 
     IJobPtr job;
+    IJobProxyEnvironmentPtr environment;
 
     try {
         if (Config_->TvmBridge && Config_->TvmBridgeConnection) {
@@ -847,7 +848,7 @@ TJobResult TJobProxy::RunJob()
 
         SolomonExporter_ = New<TSolomonExporter>(Config_->SolomonExporter);
 
-        auto environment = CreateJobProxyEnvironment(Config_->JobEnvironment);
+        environment = CreateJobProxyEnvironment(Config_);
         SetJobProxyEnvironment(environment);
 
         LocalDescriptor_ = NNodeTrackerClient::TNodeDescriptor(Config_->Addresses, Config_->LocalHostName, Config_->Rack, Config_->DataCenter);
@@ -987,12 +988,6 @@ TJobResult TJobProxy::RunJob()
             }
         }
 
-        YT_LOG_INFO("STARTING SIDECARS");
-
-        environment->StartSidecars(jobSpecExt);
-
-        YT_LOG_INFO("STARTED SIDECARS");
-
         HeartbeatExecutor_ = New<TPeriodicExecutor>(
             JobThread_->GetInvoker(),
             BIND(&TJobProxy::SendHeartbeat, MakeWeak(this)),
@@ -1044,6 +1039,12 @@ TJobResult TJobProxy::RunJob()
     MemoryWatchdogExecutor_->Start();
     HeartbeatExecutor_->Start();
     CpuMonitor_->Start();
+
+    YT_LOG_INFO("STARTING SIDECARS");
+
+    environment->StartSidecars(this, GetJobSpecHelper()->GetJobSpecExt());
+
+    YT_LOG_INFO("STARTED SIDECARS");
 
     return job->Run();
 }

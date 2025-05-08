@@ -223,7 +223,8 @@ private:
         }
         auto status = response->status();
         if (status.state() == NProto::CONTAINER_EXITED) {
-            auto error = DecodeExitCode(status.exit_code(), status.reason());
+            auto error = DecodeExitCode(status.exit_code(), status.reason())
+                << TErrorAttribute("message", status.message());
             YT_LOG_DEBUG(error, "Process finished");
             YT_UNUSED_FUTURE(AsyncWaitExecutor_->Stop());
             FinishedPromise_.TrySet(error);

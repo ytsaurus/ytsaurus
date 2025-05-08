@@ -43,7 +43,7 @@ class TestSidecarVanilla(YTEnvSetup):
     NUM_TEST_PARTITIONS = 3
 
     NUM_MASTERS = 1
-    NUM_NODES = 1
+    NUM_NODES = 5
     NUM_SCHEDULERS = 1
 
     JOB_ENVIRONMENT_TYPE = "cri"
@@ -56,6 +56,8 @@ class TestSidecarVanilla(YTEnvSetup):
 
     @authors("pavel-bash")
     def test_sidecars(self):
+        docker_image = self.Env.yt_config.default_docker_image
+
         master_command = " ; ".join(
             [
                 events_on_fs().notify_event_cmd("master_job_started_${YT_JOB_COOKIE}"),
@@ -76,12 +78,12 @@ class TestSidecarVanilla(YTEnvSetup):
                     "master": {
                         "job_count": 1,
                         "command": master_command,
-                        "docker_image": "alpine:latest",
+                        "docker_image": docker_image,
                         "sidecars": {
                             "sidecar1": {
                                 "job_count": 1,
                                 "command": sidecar_command,
-                                "docker_image": "alpine:latest",
+                                "docker_image": docker_image,
                             }
                         }
                     },
