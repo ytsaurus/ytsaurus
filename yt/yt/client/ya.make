@@ -226,6 +226,7 @@ PEERDIR(
     library/cpp/digest/crc32c
     library/cpp/json
     library/cpp/string_utils/base64
+    library/cpp/cron_expression
     contrib/libs/pfr
 )
 
