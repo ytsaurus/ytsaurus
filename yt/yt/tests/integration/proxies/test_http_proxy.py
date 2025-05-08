@@ -605,6 +605,7 @@ class TestCypressProxyDiscoverVersions(HttpProxyTestBase):
 
     USE_SEQUOIA = True
     NUM_CLOCKS = 1
+    NUM_CYPRESS_PROXIES = 1
     NUM_REMOTE_CLUSTERS = 1
     USE_SEQUOIA_REMOTE_0 = False
 
