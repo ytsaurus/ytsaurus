@@ -1784,7 +1784,7 @@ void TTask::AddChunksToInputSpec(
             }
 
             if (directoryBuilder) {
-                auto replicas = chunkSlice->GetInputChunk()->GetReplicaList();
+                auto replicas = chunkSlice->GetInputChunk()->GetReplicas();
                 directoryBuilder->Add(replicas);
             }
         }

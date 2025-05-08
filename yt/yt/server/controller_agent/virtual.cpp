@@ -114,7 +114,7 @@ DEFINE_YPATH_SERVICE_METHOD(TVirtualStaticTable, Fetch)
             ToProto(chunkSpec, chunk);
             // NB: Chunk we got may have non-zero table index, override it with zero.
             chunkSpec->set_table_index(0);
-            nodeDirectoryBuilder.Add(chunk->GetReplicaList());
+            nodeDirectoryBuilder.Add(chunk->GetReplicas());
             chunkSpec->set_row_count_override(chunkUpperLimit - chunkLowerLimit);
             if (chunkLowerLimit != 0) {
                 chunkSpec->mutable_lower_limit()->set_row_index(chunkLowerLimit);

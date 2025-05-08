@@ -21,8 +21,8 @@ namespace NYT::NChunkClient {
 struct TScrapedChunkInfo
 {
     TChunkId ChunkId;
-    TChunkReplicaWithMediumList Replicas;
-    bool Missing;
+    TChunkReplicaList Replicas;
+    bool Missing = false;
 };
 
 using TChunkBatchLocatedHandler = TCallback<void(const std::vector<TScrapedChunkInfo>&)>;

@@ -33,7 +33,7 @@ void AccountStripeInList(
     for (const auto& dataSlice : list->Stripes.back()->DataSlices) {
         for (const auto& chunkSlice : dataSlice->ChunkSlices) {
             bool isLocal = false;
-            for (auto replica : chunkSlice->GetInputChunk()->GetReplicaList()) {
+            for (auto replica : chunkSlice->GetInputChunk()->GetReplicas()) {
                 if (replica.GetNodeId() == nodeId) {
                     i64 locality = chunkSlice->GetLocality(replica.GetReplicaIndex());
                     if (locality > 0) {

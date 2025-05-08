@@ -887,7 +887,7 @@ protected:
 
     void OnIntermediateChunkAvailable(
         NChunkClient::TChunkId chunkId,
-        const NChunkClient::TChunkReplicaWithMediumList& replicas);
+        const NChunkClient::TChunkReplicaList& replicas);
 
     //! Return a pointer to `YsonSerializable` object that represents
     //! the fully typed operation spec which know more than a simple

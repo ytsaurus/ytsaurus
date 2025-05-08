@@ -76,7 +76,7 @@ TFuture<void> TChunkSliceSizeFetcher::DoFetchFromNode(
 
     for (int index : chunkIndexes) {
         const auto& chunk = Chunks_[index];
-        auto chunkId = EncodeChunkId(chunk, nodeId);
+        auto chunkId = chunk->EncodeReplica(nodeId);
 
         auto* weightedChunkRequest = req->add_chunk_requests();
         ToProto(weightedChunkRequest->mutable_chunk_id(), chunkId);

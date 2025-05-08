@@ -131,7 +131,7 @@ TFuture<void> TSamplesFetcher::DoFetchFromNode(TNodeId nodeId, const std::vector
 
         if (sampleCount > currentSampleCount) {
             requestedChunkIndexes.push_back(index);
-            auto chunkId = EncodeChunkId(chunk, nodeId);
+            auto chunkId = chunk->EncodeReplica(nodeId);
 
             auto* sampleRequest = req->add_sample_requests();
             ToProto(sampleRequest->mutable_chunk_id(), chunkId);

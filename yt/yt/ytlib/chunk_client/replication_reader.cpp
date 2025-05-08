@@ -102,7 +102,7 @@ DEFINE_ENUM(EPeerType,
 
 struct TPeer
 {
-    TChunkReplicaWithMedium Replica;
+    TChunkReplica Replica;
     std::string Address;
     const TNodeDescriptor* NodeDescriptor;
     EPeerType Type;
@@ -113,9 +113,6 @@ struct TPeer
 void FormatValue(TStringBuilderBase* builder, const TPeer& peer, TStringBuf format)
 {
     FormatValue(builder, peer.Address, format);
-    if (peer.Replica.GetMediumIndex() != GenericMediumIndex) {
-        builder->AppendFormat("@%v", peer.Replica.GetMediumIndex());
-    }
 }
 
 using TPeerList = TCompactVector<TPeer, 3>;
@@ -191,7 +188,7 @@ public:
         TRemoteReaderOptionsPtr options,
         TChunkReaderHostPtr chunkReaderHost,
         TChunkId chunkId,
-        TChunkReplicaWithMediumList seedReplicas)
+        TChunkReplicaList seedReplicas)
         : Config_(std::move(config))
         , Options_(std::move(options))
         , Client_(chunkReaderHost->Client)
@@ -325,7 +322,7 @@ private:
     //! If AllowFetchingSeedsFromMaster is |true| InitialSeeds_ (if present) are used
     //! until 'DiscardSeeds' is called for the first time.
     //! If AllowFetchingSeedsFromMaster is |false| InitialSeeds_ must be given and cannot be discarded.
-    TChunkReplicaWithMediumList InitialSeeds_;
+    TChunkReplicaList InitialSeeds_;
 
     std::atomic<TInstant> LastFailureTime_ = TInstant();
     TCallback<TError(i64, TDuration)> SlownessChecker_;
@@ -730,7 +727,7 @@ protected:
 
     //! Register peer and install it into the peer queue if necessary.
     bool AddPeer(
-        TChunkReplicaWithMedium replica,
+        TChunkReplica replica,
         const std::string& address,
         const TNodeDescriptor& descriptor,
         EPeerType type,
@@ -1033,7 +1030,7 @@ protected:
         const auto& seedReplicas = SeedReplicas_.Replicas;
 
         std::vector<const TNodeDescriptor*> peerDescriptors;
-        std::vector<TChunkReplicaWithMedium> replicas;
+        std::vector<TChunkReplica> replicas;
         std::vector<TNodeId> nodeIds;
         std::vector<std::string> peerAddresses;
         peerDescriptors.reserve(seedReplicas.size());
@@ -1911,7 +1908,7 @@ private:
 
                 if (auto suggestedAddress = maybeSuggestedDescriptor->FindAddress(Networks_)) {
                     if (AddPeer(
-                        TChunkReplicaWithMedium(peerNodeId, GenericChunkReplicaIndex, suggestorPeer.Replica.GetMediumIndex()),
+                        TChunkReplica(peerNodeId, GenericChunkReplicaIndex),
                         *suggestedAddress,
                         *maybeSuggestedDescriptor,
                         EPeerType::Peer,
@@ -4035,7 +4032,7 @@ IChunkReaderAllowingRepairPtr CreateReplicationReader(
     TRemoteReaderOptionsPtr options,
     TChunkReaderHostPtr chunkReaderHost,
     TChunkId chunkId,
-    TChunkReplicaWithMediumList seedReplicas)
+    TChunkReplicaList seedReplicas)
 {
     return New<TReplicationReader>(
         std::move(config),

@@ -65,7 +65,7 @@ TFuture<void> TChunkMetaFetcher::FetchFromNode(TNodeId nodeId, std::vector<int> 
     for (int index : chunkIndexes) {
         const auto& chunk = Chunks_[index];
 
-        auto chunkId = EncodeChunkId(chunk, nodeId);
+        auto chunkId = chunk->EncodeReplica(nodeId);
 
         auto req = proxy.GetChunkMeta();
         SetRequestWorkloadDescriptor(req, WorkloadDescriptor_);
