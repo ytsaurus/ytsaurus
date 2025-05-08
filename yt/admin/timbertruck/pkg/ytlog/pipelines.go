@@ -43,7 +43,7 @@ func NewTextLogPipeline(task timbertruck.TaskArgs, output pipelines.Output[pipel
 	if queueBatchSize < textFileLineLimit {
 		panic(fmt.Sprintf("bad options %v; queueBatchSize (%d) MUST BE >= textFileLineLimit (%d)", options, queueBatchSize, textFileLineLimit))
 	}
-	p, lineInfos, err := pipelines.NewTextPipeline(task.Path, task.Position, pipelines.TextPipelineOptions{
+	p, lineInfos, err := pipelines.NewTextPipeline(task.Controller.Logger(), task.Path, task.Position, pipelines.TextPipelineOptions{
 		LineLimit:   textFileLineLimit,
 		BufferLimit: TextFileBufferLimit,
 	})
@@ -87,7 +87,7 @@ func NewJSONLogPipeline(task timbertruck.TaskArgs, output pipelines.Output[pipel
 	if queueBatchSize < textFileLineLimit {
 		panic(fmt.Sprintf("bad options %v; queueBatchSize (%d) MUST BE >= textFileLineLimit (%d)", options, queueBatchSize, textFileLineLimit))
 	}
-	p, lineInfos, err := pipelines.NewTextPipeline(task.Path, task.Position, pipelines.TextPipelineOptions{
+	p, lineInfos, err := pipelines.NewTextPipeline(task.Controller.Logger(), task.Path, task.Position, pipelines.TextPipelineOptions{
 		LineLimit:   textFileLineLimit,
 		BufferLimit: TextFileBufferLimit,
 	})
@@ -130,7 +130,7 @@ func NewYSONLogPipeline(task timbertruck.TaskArgs, output pipelines.Output[pipel
 	if queueBatchSize < textFileLineLimit {
 		panic(fmt.Sprintf("bad options %v; queueBatchSize (%d) MUST BE >= textFileLineLimit (%d)", options, queueBatchSize, textFileLineLimit))
 	}
-	p, lineInfos, err := pipelines.NewTextPipeline(task.Path, task.Position, pipelines.TextPipelineOptions{
+	p, lineInfos, err := pipelines.NewTextPipeline(task.Controller.Logger(), task.Path, task.Position, pipelines.TextPipelineOptions{
 		LineLimit:   textFileLineLimit,
 		BufferLimit: TextFileBufferLimit,
 	})

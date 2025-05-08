@@ -27,6 +27,7 @@ type TextPipelineOptions struct {
 }
 
 type textFollower struct {
+	logger    *slog.Logger
 	lineLimit int
 
 	file LogFile
@@ -37,7 +38,9 @@ type textFollower struct {
 	scanEnd int
 }
 
-func NewTextPipeline(filepath string, position FilePosition, options TextPipelineOptions) (p *Pipeline, s Stream[TextLine], err error) {
+func NewTextPipeline(
+	logger *slog.Logger, filepath string, position FilePosition, options TextPipelineOptions,
+) (p *Pipeline, s Stream[TextLine], err error) {
 	if options.LineLimit <= 0 {
 		panic(fmt.Sprintf("bad options %v; options.LineLimit MUST BE > 0", options))
 	}
@@ -52,6 +55,7 @@ func NewTextPipeline(filepath string, position FilePosition, options TextPipelin
 	}
 
 	root := &textFollower{
+		logger:    logger,
 		lineLimit: options.LineLimit,
 		file:      file,
 		buffer:    make([]byte, options.BufferLimit),
@@ -110,6 +114,18 @@ func (t *textFollower) emitLine(ctx context.Context, emit EmitFunc[TextLine]) {
 	t.begin = t.scanEnd
 }
 
+func (t *textFollower) emitRemainingLines(ctx context.Context, emit EmitFunc[TextLine]) {
+	for t.searchLineEnd() {
+		t.emitLine(ctx, emit)
+	}
+	if t.begin < t.end {
+		if t.scanEnd != t.end {
+			panic(fmt.Sprintf("Internal error: %v != %v", t.scanEnd, t.end))
+		}
+		t.emitLine(ctx, emit)
+	}
+}
+
 func (t *textFollower) Process(ctx context.Context, _ RowMeta, in Impulse, emit EmitFunc[TextLine]) {
 	var err error
 	for {
@@ -144,17 +160,11 @@ func (t *textFollower) Process(ctx context.Context, _ RowMeta, in Impulse, emit 
 		}
 	}
 
-	if err == io.EOF {
-		err = nil
-		for t.searchLineEnd() {
-			t.emitLine(ctx, emit)
-		}
-		if t.begin < t.end {
-			if t.scanEnd != t.end {
-				panic(fmt.Sprintf("Internal error: %v != %v", t.scanEnd, t.end))
-			}
-			t.emitLine(ctx, emit)
-		}
+	if errors.Is(err, io.EOF) {
+		t.emitRemainingLines(ctx, emit)
+	} else if errors.Is(err, io.ErrUnexpectedEOF) {
+		t.logger.Warn("Unexpected EOF: file may be corrupted", "error", err)
+		t.emitRemainingLines(ctx, emit)
 	} else if err != nil && !errors.Is(err, context.Canceled) {
 		panic(fmt.Sprintf("unexpected error while reading file: %s", err.Error()))
 	}
