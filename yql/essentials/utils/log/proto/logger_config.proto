@@ -50,7 +50,7 @@ message TLoggingConfig {
         PROVIDER_PURE = 26;
         FAST_MAP_REDUCE = 27;
         PROVIDER_YTFLOW = 28;
-        SQL_COMPLETE = 29;
+        SQL_COMPLETION = 29;
     }
 
     message TComponentLevel {

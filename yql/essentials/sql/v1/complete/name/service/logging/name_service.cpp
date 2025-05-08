@@ -6,7 +6,7 @@ namespace NSQLComplete {
 
     namespace {
 
-        using NYql::NLog::EComponent::SqlComplete;
+        using NYql::NLog::EComponent::SqlCompletion;
         using NYql::NLog::ELevel::WARN;
 
         class TNameService: public INameService {
@@ -21,7 +21,7 @@ namespace NSQLComplete {
                     try {
                         return f.ExtractValue();
                     } catch (const std::exception& e) {
-                        YQL_CVLOG(WARN, SqlComplete) << "Lookup failed: " << e.what();
+                        YQL_CVLOG(WARN, SqlCompletion) << "Lookup failed: " << e.what();
                         throw;
                     }
                 });

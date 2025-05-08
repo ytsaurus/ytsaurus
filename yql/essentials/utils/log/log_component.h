@@ -38,7 +38,7 @@ enum class EComponent {
     ProviderPure,
     FastMapReduce,
     ProviderYtflow,
-    SqlComplete,
+    SqlCompletion,
     // <--- put other log components here
     MaxValue
 };
@@ -86,7 +86,7 @@ struct EComponentHelpers {
         case EComponent::ProviderPure: return TStringBuf("pure");
         case EComponent::FastMapReduce: return TStringBuf("FMR");
         case EComponent::ProviderYtflow: return TStringBuf("YTFLOW");
-        case EComponent::SqlComplete: return TStringBuf("sql complete");
+        case EComponent::SqlCompletion: return TStringBuf("sql completion");
         default:
             ythrow yexception() << "invalid log component value: "
                                 << ToInt(component);
@@ -123,7 +123,7 @@ struct EComponentHelpers {
         if (str == TStringBuf("pure")) return EComponent::ProviderPure;
         if (str == TStringBuf("FMR")) return EComponent::FastMapReduce;
         if (str == TStringBuf("YTFLOW")) return EComponent::ProviderYtflow;
-        if (str == TStringBuf("sql complete")) return EComponent::SqlComplete;
+        if (str == TStringBuf("sql completion")) return EComponent::SqlCompletion;
         ythrow yexception() << "unknown log component: '" << str << '\'';
     }
 
