@@ -385,6 +385,7 @@ private:
     std::vector<NDataNode::TArtifactKey> RootVolumeLayerArtifactKeys_;
     std::vector<NDataNode::TArtifactKey> GpuCheckVolumeLayerArtifactKeys_;
     std::optional<TString> DockerImage_;
+    std::optional<TString> DockerImageId_;
 
     std::optional<TVirtualSandboxData> VirtualSandboxData_;
 
