@@ -47,6 +47,7 @@ except ImportError:
 class TestSequoiaEnvSetup(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     USE_SEQUOIA = True
+    NUM_CYPRESS_PROXIES = 1
     NUM_MASTERS = 1
     NUM_CLOCKS = 1
     NUM_NODES = 3
@@ -603,6 +604,7 @@ class TestSequoiaCypressTransactions(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     USE_SEQUOIA = True
     ENABLE_CYPRESS_TRANSACTIONS_IN_SEQUOIA = True
+    ENABLE_TMP_ROOTSTOCK = False
     NUM_TEST_PARTITIONS = 6
 
     NUM_SECONDARY_MASTER_CELLS = 3
@@ -1113,6 +1115,7 @@ class SequoiaNodeVersioningBase(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     USE_SEQUOIA = True
     ENABLE_CYPRESS_TRANSACTIONS_IN_SEQUOIA = True
+    ENABLE_TMP_ROOTSTOCK = False
 
     # COMPAT(kvk1920): remove when `use_cypress_transaction_service` become
     # `true` by default.
@@ -2077,8 +2080,6 @@ class TestSequoiaNodeVersioningSimulation(SequoiaNodeVersioningBase):
     ENABLE_MULTIDAEMON = True
     # We need only the primary master with tx coordinator role.
     NUM_SECONDARY_MASTER_CELLS = 0
-    # Don't need them here.
-    NUM_CYPRESS_PROXIES = 0
 
     def teardown_method(self, method):
         clear_table_in_ground(DESCRIPTORS.node_id_to_path)
@@ -2126,6 +2127,7 @@ class TestSequoiaNodeVersioningSimulation(SequoiaNodeVersioningBase):
 class TestSequoiaNodeVersioningReal(SequoiaNodeVersioningBase):
     ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 3
+    NUM_CYPRESS_PROXIES = 1
     MASTER_CELL_DESCRIPTORS = {
         "10": {"roles": ["cypress_node_host"]},
         "11": {"roles": ["sequoia_node_host", "cypress_node_host", "chunk_host"]},
@@ -2752,6 +2754,7 @@ class TestSequoiaTmpCleanup(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     USE_SEQUOIA = True
     ENABLE_TMP_ROOTSTOCK = True
+    NUM_CYPRESS_PROXIES = 1
     NUM_SECONDARY_MASTER_CELLS = 0
     MASTER_CELL_DESCRIPTORS = {
         "10": {"roles": ["sequoia_node_host"]},

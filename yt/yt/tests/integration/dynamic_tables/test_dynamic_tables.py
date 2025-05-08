@@ -3655,6 +3655,7 @@ class TestDynamicTablesMirroredTx(TestDynamicTablesShardedTx):
     ENABLE_RPC_PROXY = True
     USE_SEQUOIA = True
     ENABLE_CYPRESS_TRANSACTIONS_IN_SEQUOIA = True
+    ENABLE_TMP_ROOTSTOCK = False
 
     DELTA_RPC_PROXY_CONFIG = {
         "cluster_connection": {
@@ -3671,6 +3672,11 @@ class TestDynamicTablesMirroredTx(TestDynamicTablesShardedTx):
     def setup_method(self, method):
         super(TestDynamicTablesShardedTx, self).setup_method(method)
         set("//sys/@config/transaction_manager/forbid_transaction_actions_for_cypress_transactions", True)
+
+
+class TestDynamicTablesCypressProxy(TestDynamicTablesShardedTx):
+    ENABLE_MULTIDAEMON = False  # There are component restarts.
+    NUM_CYPRESS_PROXIES = 1
 
 
 ##################################################################

@@ -25,6 +25,7 @@ import pytest
 class TestGrafting(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     USE_SEQUOIA = True
+    NUM_CYPRESS_PROXIES = 1
     NUM_CLOCKS = 3
 
     NUM_SECONDARY_MASTER_CELLS = 3
@@ -131,6 +132,7 @@ class TestGraftingTmpCleanup(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     USE_SEQUOIA = True
     ENABLE_TMP_ROOTSTOCK = True
+    NUM_CYPRESS_PROXIES = 1
     NUM_SECONDARY_MASTER_CELLS = 0
     MASTER_CELL_DESCRIPTORS = {
         "10": {"roles": ["sequoia_node_host"]},
@@ -178,6 +180,7 @@ class TestSequoiaSymlinks(YTEnvSetup):
     ENABLE_CYPRESS_TRANSACTIONS_IN_SEQUOIA = True
     ENABLE_TMP_ROOTSTOCK = True
     VALIDATE_SEQUOIA_TREE_CONSISTENCY = True
+    NUM_CYPRESS_PROXIES = 1
     USE_CYPRESS_DIR = True
 
     NUM_SECONDARY_MASTER_CELLS = 2

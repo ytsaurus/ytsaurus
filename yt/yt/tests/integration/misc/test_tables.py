@@ -3273,6 +3273,8 @@ class TestTablesMirroredTx(TestTablesShardedTxCTxS):
     ENABLE_MULTIDAEMON = True
     USE_SEQUOIA = True
     ENABLE_CYPRESS_TRANSACTIONS_IN_SEQUOIA = True
+    ENABLE_TMP_ROOTSTOCK = False
+    NUM_CYPRESS_PROXIES = 1
 
     DELTA_CONTROLLER_AGENT_CONFIG = {
         "commit_operation_cypress_node_changes_via_system_transaction": True,
