@@ -1925,6 +1925,9 @@ private:
             auto error = TError("Transaction %v was aborted", transactionId);
             SetCommitFailed(commit, error);
 
+            // Copy the flag as the commit may die below.
+            bool stronglyOrdered = commit->GetStronglyOrdered();
+
             if (commit->GetPersistent()) {
                 ChangeCommitTransientState(commit, ECommitState::Abort);
                 ChangeCommitPersistentState(commit, ECommitState::Abort);
@@ -1932,7 +1935,7 @@ private:
                 RemoveTransientCommit(commit);
             }
 
-            if (commit->GetStronglyOrdered()) {
+            if (stronglyOrdered) {
                 auto guard = Guard(SequencerLock_);
                 FlushStronglyOrderedCommits();
             }
