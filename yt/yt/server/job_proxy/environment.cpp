@@ -652,10 +652,14 @@ public:
     }
 
     void StartSidecars(IJobHostPtr /*host*/, const NControllerAgent::NProto::TJobSpecExt& /*jobSpecExt*/) override
-    { }
+    {
+        YT_LOG_INFO("Sidecars are not supported in Porto job proxy environment");
+    }
 
     void KillSidecars() override
-    { }
+    {
+        YT_LOG_INFO("Sidecars are not supported in Porto job proxy environment");
+    }
 
 private:
     const TPortoJobEnvironmentConfigPtr Config_;
@@ -883,10 +887,14 @@ public:
     }
 
     void StartSidecars(IJobHostPtr /*host*/, const NControllerAgent::NProto::TJobSpecExt& /*jobSpecExt*/) override
-    { }
+    {
+        YT_LOG_INFO("Sidecars are not supported in Simple job proxy environment");
+    }
 
     void KillSidecars() override
-    { }
+    {
+        YT_LOG_INFO("Sidecars are not supported in Simple job proxy environment");
+    }
 };
 
 DECLARE_REFCOUNTED_CLASS(TSimpleJobProxyEnvironment)
@@ -1306,7 +1314,9 @@ public:
     }
 
     void KillSidecars() override
-    { }
+    {
+        YT_LOG_INFO("Kill sidecars is not yet implemented for CRI environment");
+    }
 
 private:
     const TJobProxyInternalConfigPtr JobProxyConfig_;

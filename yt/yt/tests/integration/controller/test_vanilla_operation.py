@@ -76,6 +76,9 @@ class TestSidecarVanilla(YTEnvSetup):
                         "sidecars": {
                             "sidecar1": {
                                 "job_count": 1,
+                                # The sidecar's touch command worked only if specified exactly like this, without the ";".join
+                                # or escaping the path which the `notify_event_cmd` function does. Can be related to how the
+                                # CRI interprets or passes the command down to the container, not sure yet.
                                 "command": f"touch {events_on_fs()._get_event_filename("sidecar_job_started")}",
                                 "docker_image": docker_image,
                             }

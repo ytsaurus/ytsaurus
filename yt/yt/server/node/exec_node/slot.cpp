@@ -161,7 +161,8 @@ public:
                     TDelayedExecutor::WaitForDuration(*delay);
                 }
 
-                // TODO: probably, not the best place to add those into config, but at least slot *can* change and save the config.
+                // Enrich the job proxy configuration file with CRI environment pod configuration parameters.
+                // Probably, it's not the best place and way to do so, but it worked as a temporary solution.
                 auto containerEnv = JobEnvironment_->GetContainerEnvironment(SlotIndex_);
                 if (auto criContainerEnv = DynamicPointerCast<TContainerEnvironmentCri>(containerEnv); containerEnv)
                 {
