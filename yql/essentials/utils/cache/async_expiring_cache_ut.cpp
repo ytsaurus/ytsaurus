@@ -69,9 +69,9 @@ private:
     TMutex Mutex_;
     std::mt19937 Random_{231312};
     TMaybe<std::bernoulli_distribution> Failure_ = std::bernoulli_distribution{0.75};
-    std::uniform_int_distribution<int> LatencyMs_{0, 10};
+    std::uniform_int_distribution<int> LatencyMs_{0, 5};
 
-    THolder<IThreadPool> Pool_ = CreateThreadPool(/* threadCount = */ 4);
+    THolder<IThreadPool> Pool_ = CreateThreadPool(/* threadCount = */ 64);
 
 public:
     std::atomic<size_t> RequestsReceived = 0;
@@ -111,7 +111,7 @@ Y_UNIT_TEST_SUITE(TAsyncExpiringCacheTests) {
         TIdentityService service;
 
         TAsyncExpiringCacheConfig config = {
-            .TickPeriod = TDuration::MilliSeconds(500),
+            .TickPeriod = TDuration::MilliSeconds(100),
             .UpdateFrequency = 1,
             .EvictionFrequency = 3,
         };
@@ -148,6 +148,8 @@ Y_UNIT_TEST_SUITE(TAsyncExpiringCacheTests) {
                 UNIT_ASSERT_EXCEPTION_CONTAINS(f.TryRethrow(), yexception, "o_o");
             }
         }
+
+        UNIT_ASSERT_LE(service.RequestsReceived.load(), 1000);
 
         activity.Cancel();
         refresher.Wait(TDuration::Seconds(8));
