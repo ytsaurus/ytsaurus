@@ -43,11 +43,10 @@ func NewTextLogPipeline(task timbertruck.TaskArgs, output pipelines.Output[pipel
 	if queueBatchSize < textFileLineLimit {
 		panic(fmt.Sprintf("bad options %v; queueBatchSize (%d) MUST BE >= textFileLineLimit (%d)", options, queueBatchSize, textFileLineLimit))
 	}
-	p, lineInfos, err := pipelines.NewTextPipeline(
-		task.Controller.Logger().With("stagedpath", task.Path), task.Path, task.Position, pipelines.TextPipelineOptions{
-			LineLimit:   textFileLineLimit,
-			BufferLimit: TextFileBufferLimit,
-		})
+	p, lineInfos, err := pipelines.NewTextPipeline(task.Controller.Logger(), task.Path, task.Position, pipelines.TextPipelineOptions{
+		LineLimit:   textFileLineLimit,
+		BufferLimit: TextFileBufferLimit,
+	})
 	if err != nil {
 		return
 	}
@@ -88,11 +87,10 @@ func NewJSONLogPipeline(task timbertruck.TaskArgs, output pipelines.Output[pipel
 	if queueBatchSize < textFileLineLimit {
 		panic(fmt.Sprintf("bad options %v; queueBatchSize (%d) MUST BE >= textFileLineLimit (%d)", options, queueBatchSize, textFileLineLimit))
 	}
-	p, lineInfos, err := pipelines.NewTextPipeline(
-		task.Controller.Logger().With("stagedpath", task.Path), task.Path, task.Position, pipelines.TextPipelineOptions{
-			LineLimit:   textFileLineLimit,
-			BufferLimit: TextFileBufferLimit,
-		})
+	p, lineInfos, err := pipelines.NewTextPipeline(task.Controller.Logger(), task.Path, task.Position, pipelines.TextPipelineOptions{
+		LineLimit:   textFileLineLimit,
+		BufferLimit: TextFileBufferLimit,
+	})
 	if err != nil {
 		return
 	}
@@ -132,11 +130,10 @@ func NewYSONLogPipeline(task timbertruck.TaskArgs, output pipelines.Output[pipel
 	if queueBatchSize < textFileLineLimit {
 		panic(fmt.Sprintf("bad options %v; queueBatchSize (%d) MUST BE >= textFileLineLimit (%d)", options, queueBatchSize, textFileLineLimit))
 	}
-	p, lineInfos, err := pipelines.NewTextPipeline(
-		task.Controller.Logger().With("stagedpath", task.Path), task.Path, task.Position, pipelines.TextPipelineOptions{
-			LineLimit:   textFileLineLimit,
-			BufferLimit: TextFileBufferLimit,
-		})
+	p, lineInfos, err := pipelines.NewTextPipeline(task.Controller.Logger(), task.Path, task.Position, pipelines.TextPipelineOptions{
+		LineLimit:   textFileLineLimit,
+		BufferLimit: TextFileBufferLimit,
+	})
 	if err != nil {
 		return
 	}

@@ -527,7 +527,7 @@ func (h *streamHandler) ProcessTaskQueue(ctx context.Context) {
 		taskController := taskController{
 			path:      task.StagedPath,
 			datastore: h.timberTruck.datastore,
-			logger:    h.logger.With("component", "Pipeline"),
+			logger:    h.logger.With("component", "Pipeline", "stagedpath", task.StagedPath),
 		}
 
 		var p *pipelines.Pipeline
