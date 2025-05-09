@@ -25,6 +25,12 @@ namespace NYql {
 
     } // namespace NPrivate
 
+    struct TAsyncExpiringCacheConfig {
+        TDuration TickPeriod = TDuration::Seconds(5);
+        size_t UpdateFrequency = 1;
+        size_t EvictionFrequency = 3;
+    };
+
     template <NPrivate::CCacheKey TKey, NPrivate::CCacheValue TValue>
     class TAsyncExpiringCache: public TThrRefBase {
     private:
@@ -44,13 +50,15 @@ namespace NYql {
         using TQuery = std::function<NThreading::TFuture<TValue>(const TKey&)>;
 
         TAsyncExpiringCache(
-            size_t updateFrequency,
-            size_t evictionFrequency,
+            TAsyncExpiringCacheConfig config,
             TQuery query)
             : Query_(std::move(query))
-            , UpdateFrequency_(updateFrequency)
-            , EvictionFrequency_(evictionFrequency)
+            , UpdateFrequency_(config.UpdateFrequency)
+            , EvictionFrequency_(config.EvictionFrequency)
         {
+            Y_ENSURE(0 < UpdateFrequency_);
+            Y_ENSURE(UpdateFrequency_ <= EvictionFrequency_);
+            Y_ENSURE(EvictionFrequency_ <= 1'000, "Strange");
         }
 
         NThreading::TFuture<TValue> Get(const TKey& key) {
@@ -77,12 +85,12 @@ namespace NYql {
         void OnTick() {
             Tick_.fetch_add(1);
 
-            if (Tick_ % UpdateFrequency_ == 0) {
-                OnUpdate();
-            }
-
             if (Tick_ % EvictionFrequency_ == 0) {
                 OnEvict();
+            }
+
+            if (Tick_ % UpdateFrequency_ == 0) {
+                OnUpdate();
             }
         }
 
@@ -131,12 +139,6 @@ namespace NYql {
         std::atomic<size_t> Tick_ = 0;
         size_t UpdateFrequency_;
         size_t EvictionFrequency_;
-    };
-
-    struct TAsyncExpiringCacheConfig {
-        TDuration TickPeriod = TDuration::Seconds(5);
-        size_t UpdateFrequency = 1;
-        size_t EvictionFrequency = 3;
     };
 
 } // namespace NYql

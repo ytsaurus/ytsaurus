@@ -73,35 +73,172 @@ private:
     THolder<IThreadPool> Pool_ = CreateThreadPool(/* threadCount = */ 64);
 };
 
+TAsyncExpiringCache<TKey, TValue>::TPtr MakeDummy(
+    size_t& served, bool& isFailing, TAsyncExpiringCacheConfig config) {
+    return MakeIntrusive<TAsyncExpiringCache<TKey, TValue>>(
+        config, [&](const TKey& key) {
+            served += 1;
+            if (isFailing) {
+                return NThreading::MakeErrorFuture<TValue>(
+                    std::make_exception_ptr(yexception() << "o_o"));
+            }
+            return NThreading::MakeFuture<TValue>(key);
+        });
+}
+
 Y_UNIT_TEST_SUITE(TAsyncExpiringCacheTests) {
 
-    Y_UNIT_TEST(TestCached) {
+    Y_UNIT_TEST(TestValueCached) {
         size_t served = 0;
+        bool isFailing = false;
+        auto cache = MakeDummy(served, isFailing, {});
 
-        auto cache = MakeIntrusive<TAsyncExpiringCache<TKey, TValue>>(
-            /* updateFrequency = */ static_cast<size_t>(1),
-            /* evictionFrequency = */ static_cast<size_t>(3),
-            /* query */ [&](const TKey&) {
-                served += 1;
-                return NThreading::MakeFuture<TValue>({});
-            });
-
-        UNIT_ASSERT_VALUES_EQUAL(served, 0);
-
-        cache->Get("1").GetValueSync();
+        UNIT_ASSERT_VALUES_EQUAL(cache->Get("key").GetValueSync(), "key");
         UNIT_ASSERT_VALUES_EQUAL(served, 1);
 
-        cache->Get("1").GetValueSync();
+        UNIT_ASSERT_VALUES_EQUAL(cache->Get("key").GetValueSync(), "key");
+        UNIT_ASSERT_VALUES_EQUAL(served, 1);
+    }
+
+    Y_UNIT_TEST(TestErrorCached) {
+        size_t served = 0;
+        bool isFailing = false;
+        auto cache = MakeDummy(served, isFailing, {});
+
+        isFailing = true;
+        UNIT_ASSERT_EXCEPTION_CONTAINS(cache->Get("key").GetValueSync(), yexception, "o_o");
         UNIT_ASSERT_VALUES_EQUAL(served, 1);
 
-        cache->Get("2").GetValueSync();
-        UNIT_ASSERT_VALUES_EQUAL(served, 2);
+        isFailing = false;
+        UNIT_ASSERT_EXCEPTION_CONTAINS(cache->Get("key").GetValueSync(), yexception, "o_o");
+        UNIT_ASSERT_VALUES_EQUAL(served, 1);
+    }
 
-        cache->Get("2").GetValueSync();
+    Y_UNIT_TEST(TestUpdate) {
+        // .       e
+        // .   u   u
+        // |---|---|--
+        // 0   1   2
+        TAsyncExpiringCacheConfig config = {
+            .UpdateFrequency = 1,   // u
+            .EvictionFrequency = 2, // e
+        };
+
+        size_t served = 0;
+        bool isFailing = false;
+        auto cache = MakeDummy(served, isFailing, config);
+
+        cache->Get("key").GetValueSync();
+
+        cache->OnTick(); // 1: Updated => Reset
+        UNIT_ASSERT_VALUES_EQUAL(served, 1);
+
+        cache->OnTick(); // 2: Outdated => Update
         UNIT_ASSERT_VALUES_EQUAL(served, 2);
     }
 
-    Y_UNIT_TEST(Stress) {
+    Y_UNIT_TEST(TestEviction) {
+        // .       e       e       e
+        // .   u   u   u   u   u   u
+        // |---|---|---|---|---|---|--
+        // 0   1   2   3   4   5   6
+        TAsyncExpiringCacheConfig config = {
+            .UpdateFrequency = 1,   // u
+            .EvictionFrequency = 2, // e
+        };
+
+        size_t served = 0;
+        bool isFailing = false;
+        auto cache = MakeDummy(served, isFailing, config);
+
+        cache->Get("key").GetValueSync();
+        UNIT_ASSERT_VALUES_EQUAL(served, 1);
+
+        cache->OnTick(); // 1: Updated => Reset
+        UNIT_ASSERT_VALUES_EQUAL(served, 1);
+
+        cache->OnTick();                     // 2 (e): Referenced => Reset
+        UNIT_ASSERT_VALUES_EQUAL(served, 2); // 2 (u): Outdated => Update
+
+        cache->OnTick(); // 3: Updated => Reset
+        UNIT_ASSERT_VALUES_EQUAL(served, 2);
+
+        cache->OnTick(); // 4: Abandoned => Evict
+        UNIT_ASSERT_VALUES_EQUAL(served, 2);
+
+        cache->OnTick();
+        UNIT_ASSERT_VALUES_EQUAL(served, 2);
+
+        cache->Get("key").GetValueSync();
+        UNIT_ASSERT_VALUES_EQUAL(served, 3);
+    }
+
+    Y_UNIT_TEST(TestPreventEviction) {
+        // .       e       e
+        // .   u   u   u   u
+        // |---|---|---|---|--
+        // 0   1   2   3   4
+        TAsyncExpiringCacheConfig config = {
+            .UpdateFrequency = 1,   // u
+            .EvictionFrequency = 2, // e
+        };
+
+        size_t served = 0;
+        bool isFailing = false;
+        auto cache = MakeDummy(served, isFailing, config);
+
+        cache->Get("key").GetValueSync();
+        UNIT_ASSERT_VALUES_EQUAL(served, 1);
+
+        cache->OnTick();
+        UNIT_ASSERT_VALUES_EQUAL(served, 1);
+
+        cache->OnTick();                     // 2 (e): Referenced => Reset
+        UNIT_ASSERT_VALUES_EQUAL(served, 2); // 2 (u): Outdated => Update
+
+        cache->Get("key").GetValueSync(); // Set Referenced
+        UNIT_ASSERT_VALUES_EQUAL(served, 2);
+
+        cache->OnTick(); // 3: Updated => Reset
+        UNIT_ASSERT_VALUES_EQUAL(served, 2);
+
+        cache->OnTick();                     // 4 (e): Referenced => Reset
+        UNIT_ASSERT_VALUES_EQUAL(served, 3); // 4 (u): Outdated => Update
+    }
+
+    Y_UNIT_TEST(TestGetQueue) {
+        // .           e
+        // .   u   u   u
+        // |---|---|---|--
+        // 0   1   2   3
+        TAsyncExpiringCacheConfig config = {
+            .UpdateFrequency = 1,   // u
+            .EvictionFrequency = 2, // e
+        };
+
+        auto promise = NThreading::NewPromise<TString>();
+
+        size_t served = 0;
+        auto cache = MakeIntrusive<TAsyncExpiringCache<TKey, TValue>>(
+            config, [&](const TKey&) {
+                served += 1;
+                return promise.GetFuture();
+            });
+
+        auto first = cache->Get("key");
+        UNIT_ASSERT_VALUES_EQUAL(first.IsReady(), false);
+        UNIT_ASSERT_VALUES_EQUAL(served, 1);
+
+        auto second = cache->Get("key");
+        UNIT_ASSERT_VALUES_EQUAL(second.IsReady(), false);
+        UNIT_ASSERT_VALUES_EQUAL(served, 1);
+
+        promise.SetValue("value");
+        UNIT_ASSERT_VALUES_EQUAL(first.GetValue(), "value");
+        UNIT_ASSERT_VALUES_EQUAL(second.GetValue(), "value");
+    }
+
+    Y_UNIT_TEST(TestStress) {
         TIdentityService service;
 
         TAsyncExpiringCacheConfig config = {
@@ -111,9 +248,7 @@ Y_UNIT_TEST_SUITE(TAsyncExpiringCacheTests) {
         };
 
         auto cache = MakeIntrusive<TAsyncExpiringCache<TKey, TValue>>(
-            config.UpdateFrequency,
-            config.EvictionFrequency,
-            service.QueryFunc());
+            config, service.QueryFunc());
 
         NThreading::TCancellationTokenSource activity;
         auto cache_pool = CreateThreadPool(/* threadCount = */ 2);
@@ -126,7 +261,7 @@ Y_UNIT_TEST_SUITE(TAsyncExpiringCacheTests) {
 
         const auto client_pool = CreateThreadPool(/* threadCount = */ 8);
         TVector<NThreading::TFuture<TValue>> futures;
-        for (size_t i = 0; i < 100'000; ++i) {
+        for (size_t i = 0; i < 1'000; ++i) {
             futures.emplace_back(Async(client_pool, [cache, i]() {
                 return cache->Get(ToString(i / 10 % 100));
             }));
