@@ -7,6 +7,8 @@
 #include <yql/essentials/sql/v1/complete/name/service/ranking/frequency.h>
 #include <yql/essentials/sql/v1/complete/name/service/ranking/ranking.h>
 #include <yql/essentials/sql/v1/complete/name/service/cluster/name_service.h>
+#include <yql/essentials/sql/v1/complete/name/service/fallback/name_service.h>
+#include <yql/essentials/sql/v1/complete/name/service/logging/name_service.h>
 #include <yql/essentials/sql/v1/complete/name/service/schema/name_service.h>
 #include <yql/essentials/sql/v1/complete/name/service/static/name_service.h>
 #include <yql/essentials/sql/v1/complete/name/service/union/name_service.h>
@@ -14,6 +16,8 @@
 #include <yql/essentials/sql/v1/lexer/lexer.h>
 #include <yql/essentials/sql/v1/lexer/antlr4_pure/lexer.h>
 #include <yql/essentials/sql/v1/lexer/antlr4_pure_ansi/lexer.h>
+
+#include <yql/essentials/utils/log/log.h>
 
 #include <library/cpp/testing/unittest/registar.h>
 
@@ -115,8 +119,14 @@ Y_UNIT_TEST_SUITE(SqlCompleteTests) {
 
         TVector<INameService::TPtr> children = {
             MakeStaticNameService(std::move(names), frequency),
-            MakeSchemaNameService(MakeDispatchSchema(std::move(schemasByCluster))),
-            MakeClusterNameService(MakeStaticClusterDiscovery(std::move(clusters))),
+            MakeSwallowingNameService(
+                MakeLoggingNameService(
+                    MakeSchemaNameService(
+                        MakeDispatchSchema(std::move(schemasByCluster))))),
+            MakeSwallowingNameService(
+                MakeLoggingNameService(
+                    MakeClusterNameService(
+                        MakeStaticClusterDiscovery(std::move(clusters))))),
         };
 
         INameService::TPtr service = MakeUnionNameService(std::move(children), ranking);
@@ -998,11 +1008,36 @@ Y_UNIT_TEST_SUITE(SqlCompleteTests) {
     }
 
     Y_UNIT_TEST(OnFailingNameService) {
-        auto service = MakeIntrusive<TFailingNameService>();
-        auto engine = MakeSqlCompletionEngine(MakePureLexerSupplier(), std::move(service));
+        TStringStream out;
+        NYql::NLog::YqlLoggerScope logger(&out);
+
+        auto failing = MakeLoggingNameService(MakeIntrusive<TFailingNameService>());
+        auto engine = MakeSqlCompletionEngine(MakePureLexerSupplier(), std::move(failing));
         UNIT_ASSERT_EXCEPTION(Complete(engine, ""), TDummyException);
         UNIT_ASSERT_EXCEPTION(Complete(engine, "SELECT OPTIONAL<U"), TDummyException);
         UNIT_ASSERT_EXCEPTION(Complete(engine, "SELECT CAST (1 AS ").size(), TDummyException);
+
+        TString content = std::move(out).Str();
+        UNIT_ASSERT_STRING_CONTAINS(content, "T_T");
+    }
+
+    Y_UNIT_TEST(OnSwallowingNameService) {
+        TStringStream out;
+        NYql::NLog::YqlLoggerScope logger(&out);
+
+        auto failing = MakeSwallowingNameService(
+            MakeLoggingNameService(
+                MakeIntrusive<TFailingNameService>()));
+
+        TVector<TCandidate> empty;
+
+        auto engine = MakeSqlCompletionEngine(MakePureLexerSupplier(), std::move(failing));
+        UNIT_ASSERT_VALUES_EQUAL(Complete(engine, ""), empty);
+        UNIT_ASSERT_VALUES_EQUAL(Complete(engine, "SELECT OPTIONAL<U"), empty);
+        UNIT_ASSERT_VALUES_EQUAL(Complete(engine, "SELECT CAST (1 AS "), empty);
+
+        TString content = std::move(out).Str();
+        UNIT_ASSERT_STRING_CONTAINS(content, "T_T");
     }
 
     Y_UNIT_TEST(NameNormalization) {
