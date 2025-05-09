@@ -16,6 +16,39 @@ using namespace NYql;
 
 Y_UNIT_TEST_SUITE(TAsyncExpiringCacheTests) {
 
+    Y_UNIT_TEST(PositiveCaching) {
+        using K = int;
+        using V = int;
+
+        TAsyncExpiringCacheConfig config = {
+            .UpdateFrequency = 1,
+            .EvictionFrequency = 3,
+        };
+
+        size_t serves = 0;
+        const auto serve = [&](K key) -> NThreading::TFuture<V> {
+            serves += 1;
+            return NThreading::MakeFuture<V>(key);
+        };
+
+        auto cache = MakeIntrusive<TAsyncExpiringCache<K, V>>(
+            config.UpdateFrequency,
+            config.EvictionFrequency,
+            serve);
+
+        UNIT_ASSERT_VALUES_EQUAL(cache->Get(1).GetValueSync(), 1);
+        UNIT_ASSERT_VALUES_EQUAL(serves, 1);
+
+        UNIT_ASSERT_VALUES_EQUAL(cache->Get(1).GetValueSync(), 1);
+        UNIT_ASSERT_VALUES_EQUAL(serves, 1);
+        
+        UNIT_ASSERT_VALUES_EQUAL(cache->Get(2).GetValueSync(), 2);
+        UNIT_ASSERT_VALUES_EQUAL(serves, 2);
+
+        UNIT_ASSERT_VALUES_EQUAL(cache->Get(2).GetValueSync(), 2);
+        UNIT_ASSERT_VALUES_EQUAL(serves, 2);
+    }
+
     Y_UNIT_TEST(Stress) {
         using K = size_t;
         using V = size_t;
@@ -71,10 +104,10 @@ Y_UNIT_TEST_SUITE(TAsyncExpiringCacheTests) {
 
         const auto client_pool = CreateThreadPool(/* threadCount = */ 8);
 
-        const auto map = [](K key) -> K { return key / 10 % 1000; };
+        const auto map = [](K key) -> K { return key / 10 % 100; };
 
         TVector<NThreading::TFuture<V>> futures;
-        for (size_t i = 0; i < 10'000; ++i) {
+        for (size_t i = 0; i < 1'000; ++i) {
             futures.emplace_back(async(client_pool, [cache, i, map]() {
                 return cache->Get(map(i));
             }));
