@@ -957,6 +957,8 @@ TJoinClausePtr BuildArrayJoinClause(
 
     arrayJoinClause->Schema.Original = New<TTableSchema>(std::move(nestedColumns));
 
+    ValidateColumnUniqueness(*arrayJoinClause->Schema.Original);
+
     auto arrayBuilder = CreateExpressionBuilder(
         source,
         functions,

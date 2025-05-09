@@ -697,6 +697,9 @@ TEST_F(TQueryPrepareTest, ArrayJoin)
         const auto* aliased = schema->FindColumn("N");
         EXPECT_FALSE(aliased);
     }
+
+    EXPECT_ANY_THROW(ParseAndPreparePlanFragment(
+        &PrepareMock_, "key, nested, N FROM [//t] ARRAY JOIN nested AS N, nested AS N"));
 }
 
 TEST_F(TQueryPrepareTest, SplitWherePredicateWithJoin)
@@ -3513,14 +3516,15 @@ TEST_F(TQueryEvaluateTest, GroupByArrayAgg)
     EvaluateCoordinatedGroupByImpl(
         "any_to_yson_string(array_agg(v, ignore_null)) as av, "
         "any_to_yson_string(array_agg(k, true)) as ak ,"
-        "any_to_yson_string(array_agg(v_any, true)) as av_any "
+        "any_to_yson_string(array_agg(v_any, true)) as av_any, "
+        "any_to_yson_string(array_agg(#, true)) as av_empty "
         "FROM [//t] group by 0",
         split,
         sources,
         [] (TRange<TUnversionedRow> rows, const TTableSchema& /* schema */) {
             ASSERT_EQ(rows.size(), 1ull);
 
-            ASSERT_EQ(rows[0].GetCount(), 3u);
+            ASSERT_EQ(rows[0].GetCount(), 4u);
 
             ASSERT_EQ(rows[0][0].Type, EValueType::String);
             ASSERT_EQ(rows[0][1].Type, EValueType::String);

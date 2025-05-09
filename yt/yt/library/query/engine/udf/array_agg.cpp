@@ -1,31 +1,29 @@
 #include <yt/yt/library/query/misc/udf_cpp_abi.h>
 
+#include <util/system/types.h>
+
 #include <string.h>
 
 using namespace NYT::NQueryClient::NUdf;
 
 extern "C" void ArrayAggFinalize(TExpressionContext* context, TUnversionedValue* result, TUnversionedValue* state);
 
-int64_t& GetUsedSpace(TUnversionedValue state)
+i64& GetUsedSpace(TUnversionedValue state)
 {
-    return *reinterpret_cast<int64_t*>(state.Data.String);
+    return *reinterpret_cast<i64*>(state.Data.String);
 }
 
-int64_t RoundUpPowerOfTwo(int64_t value)
+ui64 RoundUpPowerOfTwo(ui64 value)
 {
-    int64_t power = 1;
-    while (power < value) {
-        power *= 2;
-    }
-    return power;
+    return value == 0 ? 0 : ui64(1) << (64 - __builtin_clzll(value - 1));
 }
 
-bool IsStringlike(EValueType type)
+bool IsStringLike(EValueType type)
 {
     return type == EValueType::String || type == EValueType::Any;
 }
 
-int64_t AppendValue(TUnversionedValue value, char* destination)
+i64 AppendValue(TUnversionedValue value, char* destination)
 {
     auto dryRun = destination == nullptr;
     auto* start = destination;
@@ -40,17 +38,17 @@ int64_t AppendValue(TUnversionedValue value, char* destination)
     }
 
     if (!dryRun) {
-        uint64_t dataOrLength;
-        if (IsStringlike(value.Type)) {
+        ui64 dataOrLength;
+        if (IsStringLike(value.Type)) {
             dataOrLength = value.Length;
         } else {
             dataOrLength = value.Data.Uint64;
         }
-        memcpy(destination, &dataOrLength, sizeof(uint64_t));
+        memcpy(destination, &dataOrLength, sizeof(ui64));
     }
-    destination += sizeof(uint64_t);
+    destination += sizeof(ui64);
 
-    if (!IsStringlike(value.Type)) {
+    if (!IsStringLike(value.Type)) {
         return destination - start;
     }
 
@@ -85,11 +83,11 @@ extern "C" void array_agg_update(
         return;
     }
 
-    int64_t neededSpace;
-    int64_t usedSpace;
+    i64 neededSpace;
+    i64 usedSpace;
     if (state->Length == 0) {
         usedSpace = 0;
-        neededSpace = sizeof(int64_t) + AppendValue(*newValue, nullptr);
+        neededSpace = sizeof(i64) + AppendValue(*newValue, nullptr);
     } else {
         usedSpace = GetUsedSpace(*state);
         neededSpace = usedSpace + AppendValue(*newValue, nullptr);
@@ -102,7 +100,7 @@ extern "C" void array_agg_update(
         if (usedSpace != 0) {
             memcpy(result->Data.String, state->Data.String, usedSpace);
         } else {
-            usedSpace = sizeof(int64_t);
+            usedSpace = sizeof(i64);
             GetUsedSpace(*result) = usedSpace;
         }
     }
@@ -134,7 +132,7 @@ extern "C" void array_agg_merge(
 
     *result = *leftState;
 
-    auto rightLengthNoHeader = GetUsedSpace(*rightState) - sizeof(int64_t);
+    auto rightLengthNoHeader = GetUsedSpace(*rightState) - sizeof(i64);
     auto newLength = RoundUpPowerOfTwo(GetUsedSpace(*leftState) + rightLengthNoHeader);
 
     if (newLength != leftState->Length) {
@@ -145,7 +143,7 @@ extern "C" void array_agg_merge(
 
     memcpy(
         result->Data.String + GetUsedSpace(*result),
-        rightState->Data.String + sizeof(int64_t),
+        rightState->Data.String + sizeof(i64),
         rightLengthNoHeader);
     GetUsedSpace(*result) += rightLengthNoHeader;
 }
