@@ -34,6 +34,18 @@ func (r *reader) readDouble() float64 {
 	return math.Float64frombits(r.readUint64())
 }
 
+func (r *reader) readInt8() int8 {
+	return int8(r.readUint8())
+}
+
+func (r *reader) readInt16() int16 {
+	return int16(r.readUint16())
+}
+
+func (r *reader) readInt32() int32 {
+	return int32(r.readUint32())
+}
+
 func (r *reader) readInt64() int64 {
 	return int64(r.readUint64())
 }

@@ -56,15 +56,15 @@ func checkTypes(typ reflect.Type, wt WireType) error {
 	case TypeYSON32:
 		return nil
 
-	case TypeInt64:
+	case TypeInt8, TypeInt16, TypeInt32, TypeInt64:
 		switch typ.Kind() {
-		case reflect.Int, reflect.Int16, reflect.Int32, reflect.Int64:
+		case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
 			return nil
 		}
 
-	case TypeUint64:
+	case TypeUint8, TypeUint16, TypeUint32, TypeUint64:
 		switch typ.Kind() {
-		case reflect.Uint, reflect.Uint16, reflect.Uint32, reflect.Uint64:
+		case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
 			return nil
 		}
 

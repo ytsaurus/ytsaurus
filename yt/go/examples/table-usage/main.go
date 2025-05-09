@@ -9,14 +9,16 @@ import (
 
 	"go.ytsaurus.tech/yt/go/guid"
 	"go.ytsaurus.tech/yt/go/schema"
+	"go.ytsaurus.tech/yt/go/skiff"
 	"go.ytsaurus.tech/yt/go/ypath"
 	"go.ytsaurus.tech/yt/go/yt"
 	"go.ytsaurus.tech/yt/go/yt/ythttp"
 )
 
 const (
-	numberOfRows int    = 100
-	cluster      string = "freud"
+	numberOfRows   int    = 100
+	cluster        string = "freud"
+	useSkiffFormat bool   = false
 )
 
 type Contact struct {
@@ -90,7 +92,15 @@ func Example() error {
 	}
 	fmt.Printf("YT table contains %v rows\n", attrs.Rows)
 
-	reader, err := yc.ReadTable(ctx, tablePath, nil)
+	readTableOptions := &yt.ReadTableOptions{}
+	if useSkiffFormat {
+		skiffFormat := skiff.MustInferFormat(Contact{})
+		fmt.Println("Inferred skiff format:")
+		spew.Fdump(os.Stdout, skiffFormat)
+		readTableOptions.Format = skiffFormat
+	}
+
+	reader, err := yc.ReadTable(ctx, tablePath, readTableOptions)
 	if err != nil {
 		return err
 	}
