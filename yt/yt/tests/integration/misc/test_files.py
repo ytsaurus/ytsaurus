@@ -7,6 +7,8 @@ from yt_commands import (
     read_file, write_file, get_singular_chunk_id, set_node_banned,
     raises_yt_error)
 
+from yt_sequoia_helpers import not_implemented_in_sequoia
+
 from yt.common import YtError
 
 import pytest
@@ -110,6 +112,7 @@ class TestFiles(YTEnvSetup):
         wait(lambda: not exists("#%s" % chunk_id))
 
     @authors("babenko", "ignat")
+    @not_implemented_in_sequoia
     def test_copy_tx(self):
         content = b"some_data"
         create("file", "//tmp/f")
@@ -174,6 +177,7 @@ class TestFiles(YTEnvSetup):
         assert read_file("//tmp/f") == content
 
     @authors("babenko", "ignat")
+    @not_implemented_in_sequoia
     def test_upload_inside_tx(self):
         create("file", "//tmp/f")
 
@@ -190,6 +194,7 @@ class TestFiles(YTEnvSetup):
         assert read_file("//tmp/f") == content
 
     @authors("ignat")
+    @not_implemented_in_sequoia
     def test_concatenate(self):
         create("file", "//tmp/fa")
         write_file("//tmp/fa", b"a")
@@ -236,6 +241,7 @@ class TestFiles(YTEnvSetup):
             write_file("<append=true;compression_codec=none>//tmp/f", b"a")
 
     @authors("ignat", "kiselyovp")
+    @not_implemented_in_sequoia
     def test_compute_hash(self):
         create("file", "//tmp/fcache")
         create("file", "//tmp/fcache2")
@@ -301,6 +307,22 @@ class TestFilesRpcProxy(TestFiles):
     DRIVER_BACKEND = "rpc"
     ENABLE_RPC_PROXY = True
     ENABLE_HTTP_PROXY = True
+
+
+@pytest.mark.enabled_multidaemon
+class TestFilesSequoia(TestFiles):
+    ENABLE_MULTIDAEMON = True
+    USE_SEQUOIA = True
+    ENABLE_CYPRESS_TRANSACTIONS_IN_SEQUOIA = True
+    ENABLE_TMP_ROOTSTOCK = True
+    NUM_CYPRESS_PROXIES = 1
+    NUM_SECONDARY_MASTER_CELLS = 2
+
+    MASTER_CELL_DESCRIPTORS = {
+        "10": {"roles": ["cypress_node_host"]},
+        "11": {"roles": ["cypress_node_host", "sequoia_node_host"]},
+        "12": {"roles": ["chunk_host"]},
+    }
 
 
 ##################################################################
