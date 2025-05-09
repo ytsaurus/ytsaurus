@@ -44,5 +44,31 @@ TString TPemBlobConfig::LoadBlob() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TSslContextCommand::Register(TRegistrar registrar)
+{
+    registrar.Parameter("name", &TThis::Name)
+        .NonEmpty();
+    registrar.Parameter("value", &TThis::Value);
+}
+
+
+TSslContextCommandPtr TSslContextCommand::Create(std::string name, std::string value)
+{
+    auto command = New<TSslContextCommand>();
+    command->Name = std::move(name);
+    command->Value = std::move(value);
+    return command;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TSslContextConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("ssl_configuration_commands", &TThis::SslConfigurationCommands)
+        .Optional();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NCrypto
 

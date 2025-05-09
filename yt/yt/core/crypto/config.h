@@ -29,4 +29,36 @@ DEFINE_REFCOUNTED_TYPE(TPemBlobConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TSslContextCommand
+    : public NYTree::TYsonStruct
+{
+    std::string Name;
+    std::string Value;
+
+    static TSslContextCommandPtr Create(std::string name, std::string value);
+
+    REGISTER_YSON_STRUCT(TSslContextCommand);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TSslContextCommand)
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TSslContextConfig
+    : public virtual NYTree::TYsonStruct
+{
+    //! Commands for SSL context configuration handled by SSL_CONF_cmd.
+    std::vector<TSslContextCommandPtr> SslConfigurationCommands;
+
+    REGISTER_YSON_STRUCT(TSslContextConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TSslContextConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NCrypto

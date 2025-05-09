@@ -92,6 +92,7 @@ private:
 
 static void ApplySslConfig(const TSslContextPtr&  sslContext, const TServerCredentialsConfigPtr& sslConfig)
 {
+    sslContext->ApplyConfig(sslConfig);
     sslContext->AddCertificateChain(sslConfig->CertChain);
     sslContext->AddPrivateKey(sslConfig->PrivateKey);
 }

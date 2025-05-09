@@ -49,6 +49,8 @@ public:
     void Commit(TInstant time = TInstant::Zero());
     TInstant GetCommitTime() const;
 
+    void ApplyConfig(const TSslContextConfigPtr& config);
+
     void UseBuiltinOpenSslX509Store();
 
     void SetCipherList(const TString& list);
