@@ -690,6 +690,41 @@ TInstant TSslContext::GetCommitTime() const
     return Impl_->GetCommitTime();
 }
 
+void TSslContext::ApplyConfig(const TSslContextConfigPtr& config)
+{
+    if (!config) {
+        return;
+    }
+
+    const auto& commands = config->SslConfigurationCommands;
+    if (!commands.empty()) {
+        std::unique_ptr<SSL_CONF_CTX, decltype(&SSL_CONF_CTX_free)> configContext(SSL_CONF_CTX_new(), SSL_CONF_CTX_free);
+        if (!configContext) {
+            THROW_ERROR GetLastSslError("SSL_CONF_CTX_new failed");
+        }
+
+        SSL_CONF_CTX_set_flags(configContext.get(),
+            SSL_CONF_FLAG_FILE |
+            SSL_CONF_FLAG_CLIENT |
+            SSL_CONF_FLAG_SERVER |
+            SSL_CONF_FLAG_CERTIFICATE |
+            SSL_CONF_FLAG_SHOW_ERRORS);
+
+        SSL_CONF_CTX_set_ssl_ctx(configContext.get(), Impl_->GetContext());
+
+        for (const auto& command: commands) {
+            if (SSL_CONF_cmd(configContext.get(), command->Name.c_str(), command->Value.c_str()) <= 0) {
+                THROW_ERROR GetLastSslError("SSL_CONF_cmd failed")
+                    << TErrorAttribute("ssl_config_command_name", command->Name);
+            }
+        }
+
+        if (SSL_CONF_CTX_finish(configContext.get()) != 1) {
+            THROW_ERROR GetLastSslError("SSL_CONF_CTX_finish failed");
+        }
+    }
+}
+
 void TSslContext::UseBuiltinOpenSslX509Store()
 {
     SSL_CTX_set_cert_store(Impl_->GetContext(), GetBuiltinOpenSslX509Store().Release());

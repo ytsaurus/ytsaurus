@@ -2099,6 +2099,8 @@ void TTcpConnection::TryEstablishSslSession()
     // FIXME(khlebnikov): Stop constructing SSL context from scratch for each connection.
     auto sslContext = New<TSslContext>();
 
+    sslContext->ApplyConfig(Config_);
+
     if (Config_->CipherList) {
         sslContext->SetCipherList(*Config_->CipherList);
     }

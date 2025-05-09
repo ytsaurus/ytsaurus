@@ -11,7 +11,7 @@ namespace NYT::NHttps {
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TServerCredentialsConfig
-    : public NYTree::TYsonStruct
+    : public NCrypto::TSslContextConfig
 {
     NCrypto::TPemBlobConfigPtr PrivateKey;
     NCrypto::TPemBlobConfigPtr CertChain;
@@ -41,7 +41,7 @@ DEFINE_REFCOUNTED_TYPE(TServerConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TClientCredentialsConfig
-    : public NYTree::TYsonStruct
+    : public NCrypto::TSslContextConfig
 {
     NCrypto::TPemBlobConfigPtr PrivateKey;
     NCrypto::TPemBlobConfigPtr CertChain;

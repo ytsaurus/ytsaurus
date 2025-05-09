@@ -90,6 +90,7 @@ DEFINE_REFCOUNTED_TYPE(TTcpDispatcherDynamicConfig)
 
 struct TBusConfig
     : public NNet::TDialerConfig
+    , public NCrypto::TSslContextConfig
 {
     bool EnableQuickAck;
 
