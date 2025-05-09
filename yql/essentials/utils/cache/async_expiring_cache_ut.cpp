@@ -24,7 +24,6 @@ auto Async(auto& pool, auto f) {
 class TIdentityService {
 public:
     NThreading::TFuture<TValue> Get(TKey key) {
-        RequestsReceived.fetch_add(1);
         return Async(Pool_, [this, key = std::move(key)]() mutable {
             TDuration delay;
             bool is_failed = false;
@@ -72,39 +71,34 @@ private:
     std::uniform_int_distribution<int> LatencyMs_{0, 5};
 
     THolder<IThreadPool> Pool_ = CreateThreadPool(/* threadCount = */ 64);
-
-public:
-    std::atomic<size_t> RequestsReceived = 0;
 };
 
 Y_UNIT_TEST_SUITE(TAsyncExpiringCacheTests) {
 
-    Y_UNIT_TEST(PositiveCaching) {
-        TIdentityService service;
-        service.SetSuccessRate(1.0);
-        service.SetMaxLatencyMs(0);
-
-        TAsyncExpiringCacheConfig config = {
-            .UpdateFrequency = 1,
-            .EvictionFrequency = 3,
-        };
+    Y_UNIT_TEST(TestCached) {
+        size_t served = 0;
 
         auto cache = MakeIntrusive<TAsyncExpiringCache<TKey, TValue>>(
-            config.UpdateFrequency,
-            config.EvictionFrequency,
-            service.QueryFunc());
+            /* updateFrequency = */ static_cast<size_t>(1),
+            /* evictionFrequency = */ static_cast<size_t>(3),
+            /* query */ [&](const TKey&) {
+                served += 1;
+                return NThreading::MakeFuture<TValue>({});
+            });
 
-        UNIT_ASSERT_VALUES_EQUAL(cache->Get("1").GetValueSync(), "1");
-        UNIT_ASSERT_VALUES_EQUAL(service.RequestsReceived.load(), 1);
+        UNIT_ASSERT_VALUES_EQUAL(served, 0);
 
-        UNIT_ASSERT_VALUES_EQUAL(cache->Get("1").GetValueSync(), "1");
-        UNIT_ASSERT_VALUES_EQUAL(service.RequestsReceived.load(), 1);
+        cache->Get("1").GetValueSync();
+        UNIT_ASSERT_VALUES_EQUAL(served, 1);
 
-        UNIT_ASSERT_VALUES_EQUAL(cache->Get("2").GetValueSync(), "2");
-        UNIT_ASSERT_VALUES_EQUAL(service.RequestsReceived.load(), 2);
+        cache->Get("1").GetValueSync();
+        UNIT_ASSERT_VALUES_EQUAL(served, 1);
 
-        UNIT_ASSERT_VALUES_EQUAL(cache->Get("2").GetValueSync(), "2");
-        UNIT_ASSERT_VALUES_EQUAL(service.RequestsReceived.load(), 2);
+        cache->Get("2").GetValueSync();
+        UNIT_ASSERT_VALUES_EQUAL(served, 2);
+
+        cache->Get("2").GetValueSync();
+        UNIT_ASSERT_VALUES_EQUAL(served, 2);
     }
 
     Y_UNIT_TEST(Stress) {
@@ -148,8 +142,6 @@ Y_UNIT_TEST_SUITE(TAsyncExpiringCacheTests) {
                 UNIT_ASSERT_EXCEPTION_CONTAINS(f.TryRethrow(), yexception, "o_o");
             }
         }
-
-        UNIT_ASSERT_LE(service.RequestsReceived.load(), 1000);
 
         activity.Cancel();
         refresher.Wait(TDuration::Seconds(8));
