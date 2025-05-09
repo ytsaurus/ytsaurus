@@ -2,6 +2,7 @@ package skiff
 
 import (
 	"bytes"
+	"fmt"
 	"io"
 	"reflect"
 
@@ -51,8 +52,20 @@ func emitZero(w *writer, op fieldOp) {
 		w.writeByte(0x0)
 	} else {
 		switch op.wt {
+		case TypeInt8:
+			w.writeInt8(0)
+		case TypeInt16:
+			w.writeInt16(0)
+		case TypeInt32:
+			w.writeInt32(0)
 		case TypeInt64:
 			w.writeInt64(0)
+		case TypeUint8:
+			w.writeUint8(0)
+		case TypeUint16:
+			w.writeUint16(0)
+		case TypeUint32:
+			w.writeUint32(0)
 		case TypeUint64:
 			w.writeUint64(0)
 		case TypeDouble:
@@ -80,8 +93,20 @@ func (e *Encoder) encodeStruct(ops []fieldOp, value reflect.Value) error {
 				}
 
 				switch op.wt {
+				case TypeInt8:
+					e.w.writeInt8(int8(f.Int()))
+				case TypeInt16:
+					e.w.writeInt16(int16(f.Int()))
+				case TypeInt32:
+					e.w.writeInt32(int32(f.Int()))
 				case TypeInt64:
 					e.w.writeInt64(f.Int())
+				case TypeUint8:
+					e.w.writeUint8(uint8(f.Uint()))
+				case TypeUint16:
+					e.w.writeUint16(uint16(f.Uint()))
+				case TypeUint32:
+					e.w.writeUint32(uint32(f.Uint()))
 				case TypeUint64:
 					e.w.writeUint64(f.Uint())
 				case TypeDouble:
@@ -125,11 +150,59 @@ func (e *Encoder) startRow() error {
 	return e.w.err
 }
 
+func (e *Encoder) writeInt8(v int8, opt bool) error {
+	if opt {
+		e.w.writeByte(1)
+	}
+	e.w.writeInt8(v)
+	return e.w.err
+}
+
+func (e *Encoder) writeInt16(v int16, opt bool) error {
+	if opt {
+		e.w.writeByte(1)
+	}
+	e.w.writeInt16(v)
+	return e.w.err
+}
+
+func (e *Encoder) writeInt32(v int32, opt bool) error {
+	if opt {
+		e.w.writeByte(1)
+	}
+	e.w.writeInt32(v)
+	return e.w.err
+}
+
 func (e *Encoder) writeInt64(v int64, opt bool) error {
 	if opt {
 		e.w.writeByte(1)
 	}
 	e.w.writeInt64(v)
+	return e.w.err
+}
+
+func (e *Encoder) writeUint8(v uint8, opt bool) error {
+	if opt {
+		e.w.writeByte(1)
+	}
+	e.w.writeUint8(v)
+	return e.w.err
+}
+
+func (e *Encoder) writeUint16(v uint16, opt bool) error {
+	if opt {
+		e.w.writeByte(1)
+	}
+	e.w.writeUint16(v)
+	return e.w.err
+}
+
+func (e *Encoder) writeUint32(v uint32, opt bool) error {
+	if opt {
+		e.w.writeByte(1)
+	}
+	e.w.writeUint32(v)
 	return e.w.err
 }
 
@@ -193,34 +266,55 @@ func (e *Encoder) WriteRow(cols []any) error {
 			return err
 		}
 		switch wt {
+		case TypeInt8:
+			switch vv := v.(type) {
+			case int8:
+				if err := e.writeInt8(int8(vv), isOpt); err != nil {
+					return err
+				}
+			case nil:
+				if isOpt {
+					e.w.writeByte(0x0)
+				} else {
+					e.w.writeInt8(0)
+				}
+			default:
+				return &encodeFieldError{fieldName: e.schema.Children[i].Name, fieldType: reflect.TypeOf(v), wireType: wt}
+			}
+		case TypeInt16:
+			switch vv := v.(type) {
+			case int8, int16:
+				if err := e.writeInt16(convertIntTo[int16](vv), isOpt); err != nil {
+					return err
+				}
+			case nil:
+				if isOpt {
+					e.w.writeByte(0x0)
+				} else {
+					e.w.writeInt16(0)
+				}
+			default:
+				return &encodeFieldError{fieldName: e.schema.Children[i].Name, fieldType: reflect.TypeOf(v), wireType: wt}
+			}
+		case TypeInt32:
+			switch vv := v.(type) {
+			case int8, int16, int32:
+				if err := e.writeInt32(convertIntTo[int32](vv), isOpt); err != nil {
+					return err
+				}
+			case nil:
+				if isOpt {
+					e.w.writeByte(0x0)
+				} else {
+					e.w.writeInt32(0)
+				}
+			default:
+				return &encodeFieldError{fieldName: e.schema.Children[i].Name, fieldType: reflect.TypeOf(v), wireType: wt}
+			}
 		case TypeInt64:
 			switch vv := v.(type) {
-			case int:
-				if err := e.writeInt64(int64(vv), isOpt); err != nil {
-					return err
-				}
-			case uint64:
-				if err := e.writeInt64(int64(vv), isOpt); err != nil {
-					return err
-				}
-			case uint32:
-				if err := e.writeInt64(int64(vv), isOpt); err != nil {
-					return err
-				}
-			case uint16:
-				if err := e.writeInt64(int64(vv), isOpt); err != nil {
-					return err
-				}
-			case int64:
-				if err := e.writeInt64(int64(vv), isOpt); err != nil {
-					return err
-				}
-			case int32:
-				if err := e.writeInt64(int64(vv), isOpt); err != nil {
-					return err
-				}
-			case int16:
-				if err := e.writeInt64(int64(vv), isOpt); err != nil {
+			case int, int8, int16, int32, int64:
+				if err := e.writeInt64(convertIntTo[int64](vv), isOpt); err != nil {
 					return err
 				}
 			case nil:
@@ -230,36 +324,57 @@ func (e *Encoder) WriteRow(cols []any) error {
 					e.w.writeInt64(0)
 				}
 			default:
-				return xerrors.Errorf("skiff: can't encode field %v: type mismatch %v", e.schema.Children[i].Name, wt)
+				return &encodeFieldError{fieldName: e.schema.Children[i].Name, fieldType: reflect.TypeOf(v), wireType: wt}
+			}
+		case TypeUint8:
+			switch vv := v.(type) {
+			case uint8:
+				if err := e.writeUint8(uint8(vv), isOpt); err != nil {
+					return err
+				}
+			case nil:
+				if isOpt {
+					e.w.writeByte(0x0)
+				} else {
+					e.w.writeUint8(0)
+				}
+			default:
+				return &encodeFieldError{fieldName: e.schema.Children[i].Name, fieldType: reflect.TypeOf(v), wireType: wt}
+			}
+		case TypeUint16:
+			switch vv := v.(type) {
+			case uint8, uint16:
+				if err := e.writeUint16(convertIntTo[uint16](vv), isOpt); err != nil {
+					return err
+				}
+			case nil:
+				if isOpt {
+					e.w.writeByte(0x0)
+				} else {
+					e.w.writeUint16(0)
+				}
+			default:
+				return &encodeFieldError{fieldName: e.schema.Children[i].Name, fieldType: reflect.TypeOf(v), wireType: wt}
+			}
+		case TypeUint32:
+			switch vv := v.(type) {
+			case uint8, uint16, uint32:
+				if err := e.writeUint32(convertIntTo[uint32](vv), isOpt); err != nil {
+					return err
+				}
+			case nil:
+				if isOpt {
+					e.w.writeByte(0x0)
+				} else {
+					e.w.writeUint32(0)
+				}
+			default:
+				return &encodeFieldError{fieldName: e.schema.Children[i].Name, fieldType: reflect.TypeOf(v), wireType: wt}
 			}
 		case TypeUint64:
 			switch vv := v.(type) {
-			case int:
-				if err := e.writeUint64(uint64(vv), isOpt); err != nil {
-					return err
-				}
-			case uint64:
-				if err := e.writeUint64(uint64(vv), isOpt); err != nil {
-					return err
-				}
-			case uint32:
-				if err := e.writeUint64(uint64(vv), isOpt); err != nil {
-					return err
-				}
-			case uint16:
-				if err := e.writeUint64(uint64(vv), isOpt); err != nil {
-					return err
-				}
-			case int64:
-				if err := e.writeUint64(uint64(vv), isOpt); err != nil {
-					return err
-				}
-			case int32:
-				if err := e.writeUint64(uint64(vv), isOpt); err != nil {
-					return err
-				}
-			case int16:
-				if err := e.writeUint64(uint64(vv), isOpt); err != nil {
+			case uint, uint8, uint16, uint32, uint64:
+				if err := e.writeUint64(convertIntTo[uint64](vv), isOpt); err != nil {
 					return err
 				}
 			case nil:
@@ -269,7 +384,7 @@ func (e *Encoder) WriteRow(cols []any) error {
 					e.w.writeUint64(0)
 				}
 			default:
-				return xerrors.Errorf("skiff: can't encode field %v: type mismatch %v", e.schema.Children[i].Name, wt)
+				return &encodeFieldError{fieldName: e.schema.Children[i].Name, fieldType: reflect.TypeOf(v), wireType: wt}
 			}
 		case TypeDouble:
 			switch vv := v.(type) {
@@ -288,7 +403,7 @@ func (e *Encoder) WriteRow(cols []any) error {
 					e.w.writeDouble(0)
 				}
 			default:
-				return xerrors.Errorf("skiff: can't encode field %v: type mismatch %v", e.schema.Children[i].Name, wt)
+				return &encodeFieldError{fieldName: e.schema.Children[i].Name, fieldType: reflect.TypeOf(v), wireType: wt}
 			}
 		case TypeBoolean:
 			switch vv := v.(type) {
@@ -303,7 +418,7 @@ func (e *Encoder) WriteRow(cols []any) error {
 					e.w.writeByte(0)
 				}
 			default:
-				return xerrors.Errorf("skiff: can't encode field %v: type mismatch %v", e.schema.Children[i].Name, wt)
+				return &encodeFieldError{fieldName: e.schema.Children[i].Name, fieldType: reflect.TypeOf(v), wireType: wt}
 			}
 		case TypeString32:
 			switch vv := v.(type) {
@@ -322,7 +437,7 @@ func (e *Encoder) WriteRow(cols []any) error {
 					e.w.writeUint32(0)
 				}
 			default:
-				return xerrors.Errorf("skiff: can't encode field %v: type mismatch %v", e.schema.Children[i].Name, wt)
+				return &encodeFieldError{fieldName: e.schema.Children[i].Name, fieldType: reflect.TypeOf(v), wireType: wt}
 			}
 		case TypeYSON32:
 			if err := e.writeAny(v, isOpt); err != nil {
@@ -352,8 +467,20 @@ func (e *Encoder) encodeMap(ops []fieldOp, value reflect.Value) error {
 			}
 
 			switch op.wt {
+			case TypeInt8:
+				e.w.writeInt8(int8(f.Int()))
+			case TypeInt16:
+				e.w.writeInt16(int16(f.Int()))
+			case TypeInt32:
+				e.w.writeInt32(int32(f.Int()))
 			case TypeInt64:
 				e.w.writeInt64(f.Int())
+			case TypeUint8:
+				e.w.writeUint8(uint8(f.Uint()))
+			case TypeUint16:
+				e.w.writeUint16(uint16(f.Uint()))
+			case TypeUint32:
+				e.w.writeUint32(uint32(f.Uint()))
 			case TypeUint64:
 				e.w.writeUint64(f.Uint())
 			case TypeDouble:
@@ -441,4 +568,49 @@ func (e *Encoder) Write(value any) error {
 
 func (e *Encoder) Flush() error {
 	return e.w.w.Flush()
+}
+
+type encodeFieldError struct {
+	fieldName string
+	fieldType reflect.Type
+	wireType  WireType
+}
+
+func (e *encodeFieldError) Error() string {
+	return fmt.Sprintf("skiff: field %s of type %q cannot be encoded as wireType %q", e.fieldName, e.fieldType, e.wireType)
+}
+
+type signed interface {
+	~int | ~int8 | ~int16 | ~int32 | ~int64
+}
+
+type unsigned interface {
+	~uint | ~uint8 | ~uint16 | ~uint32 | ~uint64
+}
+
+func convertIntTo[T signed | unsigned](v any) T {
+	switch vv := v.(type) {
+	case int:
+		return T(vv)
+	case int8:
+		return T(vv)
+	case int16:
+		return T(vv)
+	case int32:
+		return T(vv)
+	case int64:
+		return T(vv)
+	case uint:
+		return T(vv)
+	case uint8:
+		return T(vv)
+	case uint16:
+		return T(vv)
+	case uint32:
+		return T(vv)
+	case uint64:
+		return T(vv)
+	default:
+		panic(fmt.Sprintf("unsupported type: %T", v))
+	}
 }

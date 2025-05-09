@@ -14,11 +14,18 @@ type WireType int
 const (
 	TypeNothing WireType = iota
 	TypeBoolean
+	TypeInt8
+	TypeInt16
+	TypeInt32
 	TypeInt64
+	TypeUint8
+	TypeUint16
+	TypeUint32
 	TypeUint64
 	TypeDouble
 	TypeString32
 	TypeYSON32
+
 	TypeVariant8
 	TypeVariant16
 	TypeRepeatedVariant16
@@ -30,16 +37,36 @@ func FromYTType(typ schema.Type) WireType {
 	switch typ {
 	case schema.TypeBoolean:
 		return TypeBoolean
-	case schema.TypeInt8, schema.TypeInt16, schema.TypeInt32, schema.TypeInt64:
+	case schema.TypeInt8:
+		return TypeInt8
+	case schema.TypeInt16:
+		return TypeInt16
+	case schema.TypeInt32:
+		return TypeInt32
+	case schema.TypeInt64:
 		return TypeInt64
-	case schema.TypeUint8, schema.TypeUint16, schema.TypeUint32, schema.TypeUint64:
+	case schema.TypeUint8:
+		return TypeUint8
+	case schema.TypeUint16:
+		return TypeUint16
+	case schema.TypeUint32:
+		return TypeUint32
+	case schema.TypeUint64:
 		return TypeUint64
-	case schema.TypeFloat64:
+	case schema.TypeFloat32, schema.TypeFloat64:
 		return TypeDouble
 	case schema.TypeBytes, schema.TypeString:
 		return TypeString32
 	case schema.TypeAny:
 		return TypeYSON32
+	case schema.TypeDate:
+		return TypeUint64
+	case schema.TypeDatetime:
+		return TypeUint64
+	case schema.TypeTimestamp:
+		return TypeUint64
+	case schema.TypeInterval:
+		return TypeInt64
 	default:
 		panic(fmt.Sprintf("invalid YT type %s", typ))
 	}
@@ -47,7 +74,9 @@ func FromYTType(typ schema.Type) WireType {
 
 func (t WireType) IsSimple() bool {
 	switch t {
-	case TypeBoolean, TypeInt64, TypeUint64, TypeDouble, TypeString32, TypeYSON32:
+	case TypeBoolean, TypeInt8, TypeInt16, TypeInt32, TypeInt64,
+		TypeUint8, TypeUint16, TypeUint32, TypeUint64,
+		TypeDouble, TypeString32, TypeYSON32:
 		return true
 	default:
 		return false
@@ -65,8 +94,20 @@ func (t *WireType) UnmarshalYSON(data []byte) error {
 		*t = TypeNothing
 	case "boolean":
 		*t = TypeBoolean
+	case "int8":
+		*t = TypeInt8
+	case "int16":
+		*t = TypeInt16
+	case "int32":
+		*t = TypeInt32
 	case "int64":
 		*t = TypeInt64
+	case "uint8":
+		*t = TypeUint8
+	case "uint16":
+		*t = TypeUint16
+	case "uint32":
+		*t = TypeUint32
 	case "uint64":
 		*t = TypeUint64
 	case "double":
@@ -96,8 +137,20 @@ func (t WireType) String() string {
 		return "nothing"
 	case TypeBoolean:
 		return "boolean"
+	case TypeInt8:
+		return "int8"
+	case TypeInt16:
+		return "int16"
+	case TypeInt32:
+		return "int32"
 	case TypeInt64:
 		return "int64"
+	case TypeUint8:
+		return "uint8"
+	case TypeUint16:
+		return "uint16"
+	case TypeUint32:
+		return "uint32"
 	case TypeUint64:
 		return "uint64"
 	case TypeDouble:
@@ -132,7 +185,7 @@ type Schema struct {
 }
 
 func (c Schema) IsSystem() bool {
-	for _, col := range systemPrefix {
+	for _, col := range systemColumns {
 		if col.Name == c.Name && col.Type == c.Type {
 			return true
 		}
@@ -140,14 +193,57 @@ func (c Schema) IsSystem() bool {
 	return false
 }
 
+func OptionalColumn(name string, typ WireType) Schema {
+	return Schema{Type: TypeVariant8, Name: name, Children: []Schema{{Type: TypeNothing}, {Type: typ}}}
+}
+
 func init() {
 	gob.Register(&Schema{})
 }
 
+type schemaOptions struct {
+	enableKeySwitch  bool
+	enableRowIndex   bool
+	enableRangeIndex bool
+}
+
+type schemaOption func(s *schemaOptions)
+
+func withKeySwitch() schemaOption {
+	return func(s *schemaOptions) {
+		s.enableKeySwitch = true
+	}
+}
+
+func withRowIndex() schemaOption {
+	return func(s *schemaOptions) {
+		s.enableRowIndex = true
+	}
+}
+
+func withRangeIndex() schemaOption {
+	return func(s *schemaOptions) {
+		s.enableRangeIndex = true
+	}
+}
+
 // FromTableSchema creates skiff schema from table schema.
-func FromTableSchema(schema schema.Schema) Schema {
+func FromTableSchema(schema schema.Schema, opts ...schemaOption) Schema {
+	var schemaOptions schemaOptions
+	for _, opt := range opts {
+		opt(&schemaOptions)
+	}
+
 	var columns []Schema
-	columns = append(columns, systemPrefix...)
+	if schemaOptions.enableKeySwitch {
+		columns = append(columns, systemColumns["$key_switch"])
+	}
+	if schemaOptions.enableRowIndex {
+		columns = append(columns, systemColumns["$row_index"])
+	}
+	if schemaOptions.enableRangeIndex {
+		columns = append(columns, systemColumns["$range_index"])
+	}
 
 	for _, row := range schema.Columns {
 		if row.Required {
@@ -163,14 +259,10 @@ func FromTableSchema(schema schema.Schema) Schema {
 	}
 }
 
-func OptionalColumn(name string, typ WireType) Schema {
-	return Schema{Type: TypeVariant8, Name: name, Children: []Schema{{Type: TypeNothing}, {Type: typ}}}
-}
-
-var systemPrefix = []Schema{
-	{Type: TypeBoolean, Name: "$key_switch"},
-	OptionalColumn("$row_index", TypeInt64),
-	OptionalColumn("$range_index", TypeInt64),
+var systemColumns = map[string]Schema{
+	"$key_switch":  {Type: TypeBoolean, Name: "$key_switch"},
+	"$row_index":   OptionalColumn("$row_index", TypeInt64),
+	"$range_index": OptionalColumn("$range_index", TypeInt64),
 }
 
 // Format describes skiff schemas for the stream.
@@ -183,4 +275,31 @@ type Format struct {
 
 	// schemas shared between multiple tables
 	SchemaRegistry map[string]*Schema `yson:"skiff_schema_registry,attr"`
+}
+
+// InferFormat infers skiff.Format from go struct.
+//
+// This function is a combination of schema.Infer(value) and skiff.FromTableSchema(inferredSchema).
+func InferFormat(value any) (f Format, err error) {
+	tableSchema, err := schema.Infer(value)
+	if err != nil {
+		return
+	}
+	skiffSchema := FromTableSchema(tableSchema)
+	f = Format{
+		Name:         "skiff",
+		TableSchemas: []any{&skiffSchema},
+	}
+	return
+}
+
+// MustInferFormat infers skiff.Format from go struct.
+//
+// MustInferFormat panics on errors.
+func MustInferFormat(value any) Format {
+	s, err := InferFormat(value)
+	if err != nil {
+		panic(err)
+	}
+	return s
 }

@@ -517,6 +517,12 @@ type ReadTableOptions struct {
 	Unordered   bool `http:"unordered"`
 	TableReader any  `http:"table_reader"`
 
+	// Format is YSON-serializable output format. If not specified "yson" will be used.
+	//
+	// Possible values:
+	//   - ​​skiff.Format (see skiff.MustInferFormat).
+	Format any `http:"output_format,omitnil"`
+
 	ControlAttributes any   `http:"control_attributes,omitnil"`
 	StartRowIndexOnly *bool `http:"start_row_index_only,omitnil"`
 

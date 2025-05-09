@@ -31,6 +31,7 @@ type Call struct {
 	YSONValue    []byte
 	RowBatch     yt.RowBatch
 	WriteRspChan chan *CallResult
+	OutputFormat any
 
 	RequestedProxy string
 	SelectedProxy  string

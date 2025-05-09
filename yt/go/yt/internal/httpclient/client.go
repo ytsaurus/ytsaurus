@@ -574,7 +574,10 @@ func (c *httpClient) doReadRow(ctx context.Context, call *internal.Call) (r yt.T
 		return
 	}
 
-	tr := newTableReader(rr)
+	tr, err := newTableReader(rr, call.OutputFormat)
+	if err != nil {
+		return nil, xerrors.Errorf("failed to create table reader: %w", err)
+	}
 
 	if rspParams != nil {
 		if err := tr.setRspParams(rspParams); err != nil {
