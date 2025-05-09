@@ -25,7 +25,6 @@ using namespace NYTree;
 
 TJobNodeDescriptor::TJobNodeDescriptor(const TExecNodeDescriptorPtr& other)
     : Id(other->Id)
-    , Address(other->Address)
     , Addresses(other->Addresses)
     , IOWeight(other->IOWeight)
 { }
@@ -35,11 +34,17 @@ void TJobNodeDescriptor::Persist(const TPersistenceContext& context)
     using NYT::Persist;
 
     Persist(context, Id);
-    Persist(context, Address);
+    std::string oldAddress;
+    if (context.GetVersion() < ESnapshotVersion::RemoveAddressFromJob) {
+        Persist(context, oldAddress);
+    }
     Persist(context, IOWeight);
 
     if (context.GetVersion() >= ESnapshotVersion::AddAddressesToJob) {
         Persist(context, Addresses);
+    }
+    if (context.GetVersion() < ESnapshotVersion::RemoveAddressFromJob) {
+        Addresses.emplace(NNodeTrackerClient::DefaultNetworkName, std::move(oldAddress));
     }
 }
 

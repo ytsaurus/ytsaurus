@@ -1505,7 +1505,7 @@ TOperationControllerReviveResult TOperationControllerBase::Revive()
             .DiskQuota = joblet->DiskQuota,
             .TreeId = joblet->TreeId,
             .NodeId = joblet->NodeDescriptor.Id,
-            .NodeAddress = joblet->NodeDescriptor.Address,
+            .NodeAddress = NNodeTrackerClient::GetDefaultAddress(joblet->NodeDescriptor.Addresses),
         });
     }
 
@@ -3076,7 +3076,7 @@ void TOperationControllerBase::SafeOnJobStarted(const TJobletPtr& joblet)
         .Item("operation_id").Value(OperationId)
         .OptionalItem("operation_incarnation", joblet->OperationIncarnation)
         .Item("resource_limits").Value(joblet->ResourceLimits)
-        .Item("node_address").Value(joblet->NodeDescriptor.Address)
+        .Item("node_address").Value(NNodeTrackerClient::GetDefaultAddress(joblet->NodeDescriptor.Addresses))
         .Item("job_type").Value(joblet->JobType)
         .Item("task_name").Value(joblet->TaskName)
         .Item("tree_id").Value(joblet->TreeId);
@@ -3379,7 +3379,7 @@ bool TOperationControllerBase::OnJobFailed(
         YT_LOG_DEBUG("Job is considered aborted since it has failed at a banned node "
             "(JobId: %v, Address: %v)",
             jobId,
-            joblet->NodeDescriptor.Address);
+            NNodeTrackerClient::GetDefaultAddress(joblet->NodeDescriptor.Addresses));
         auto abortedJobSummary = std::make_unique<TAbortedJobSummary>(*jobSummary, EAbortReason::NodeBanned);
         return OnJobAborted(std::move(joblet), std::move(abortedJobSummary));
     }
@@ -3494,7 +3494,7 @@ bool TOperationControllerBase::OnJobFailed(
             YT_LOG_DEBUG("Node banned due to failed job (JobId: %v, NodeId: %v, Address: %v)",
                 jobId,
                 joblet->NodeDescriptor.Id,
-                joblet->NodeDescriptor.Address);
+                NNodeTrackerClient::GetDefaultAddress(joblet->NodeDescriptor.Addresses));
         }
     }
 
@@ -3914,7 +3914,7 @@ void TOperationControllerBase::BuildJobAttributes(
     fluent
         .Item("job_type").Value(joblet->JobType)
         .Item("state").Value(state)
-        .Item("address").Value(joblet->NodeDescriptor.Address)
+        .Item("address").Value(NNodeTrackerClient::GetDefaultAddress(joblet->NodeDescriptor.Addresses))
         .Item("addresses").Value(joblet->NodeDescriptor.Addresses)
         .Item("start_time").Value(joblet->StartTime)
         .Item("account").Value(joblet->DebugArtifactsAccount)
@@ -3996,7 +3996,7 @@ TFluentLogEvent TOperationControllerBase::LogFinishedJobFluently(
         .Item("waiting_for_resources_duration").Value(joblet->WaitingForResourcesDuration)
         .Item("resource_limits").Value(joblet->ResourceLimits)
         .Item("statistics").Value(statistics)
-        .Item("node_address").Value(joblet->NodeDescriptor.Address)
+        .Item("node_address").Value(NNodeTrackerClient::GetDefaultAddress(joblet->NodeDescriptor.Addresses))
         .Item("job_type").Value(joblet->JobType)
         .Item("task_name").Value(joblet->TaskName)
         .Item("interruption_reason").Value(joblet->InterruptionReason)
@@ -4104,7 +4104,7 @@ bool TOperationControllerBase::OnIntermediateChunkUnavailable(TChunkId chunkId)
     YT_LOG_DEBUG(
         "Job is lost (Address: %v, JobId: %v, SourceTask: %v, OutputCookie: %v, InputCookie: %v, "
         "Restartable: %v, ChunkId: %v, UnavailableIntermediateChunkCount: %v)",
-        completedJob->NodeDescriptor.Address,
+        NNodeTrackerClient::GetDefaultAddress(completedJob->NodeDescriptor.Addresses),
         completedJob->JobId,
         completedJob->SourceTask->GetTitle(),
         completedJob->OutputCookie,
@@ -4475,7 +4475,7 @@ void TOperationControllerBase::CheckAvailableExecNodes()
             continue;
         }
 
-        observedExecNodeAddress = descriptor->Address;
+        observedExecNodeAddress = NNodeTrackerClient::GetDefaultAddress(descriptor->Addresses);
         foundMatching = true;
 
         if (!BannedNodeIds_.contains(descriptor->Id)) {
@@ -4624,7 +4624,7 @@ TControllerScheduleAllocationResultPtr TOperationControllerBase::SafeScheduleAll
 
         Host->RegisterAllocation(TStartedAllocationInfo{
             .AllocationId = context.GetAllocationId(),
-            .NodeAddress = context.GetNodeDescriptor().Address,
+            .NodeAddress = NNodeTrackerClient::GetDefaultAddress(context.GetNodeDescriptor().Addresses),
         });
     }
 
@@ -8547,7 +8547,7 @@ void TOperationControllerBase::RegisterStderr(const TJobletPtr& joblet, const TJ
     if (!key.MinKey || key.MinKey.GetLength() == 0 || !key.MaxKey || key.MaxKey.GetLength() == 0) {
         YT_LOG_DEBUG("Dropping empty stderr chunk tree (JobId: %v, NodeAddress: %v, ChunkListId: %v)",
             joblet->JobId,
-            joblet->NodeDescriptor.Address,
+            NNodeTrackerClient::GetDefaultAddress(joblet->NodeDescriptor.Addresses),
             chunkListId);
         return;
     }
@@ -8568,7 +8568,7 @@ void TOperationControllerBase::RegisterStderr(const TJobletPtr& joblet, const TJ
 
     YT_LOG_DEBUG("Stderr chunk tree registered (JobId: %v, NodeAddress: %v, ChunkListId: %v, ChunkCount: %v)",
         joblet->JobId,
-        joblet->NodeDescriptor.Address,
+        NNodeTrackerClient::GetDefaultAddress(joblet->NodeDescriptor.Addresses),
         chunkListId,
         stderrResult.chunk_specs().size());
 }
@@ -8609,7 +8609,7 @@ void TOperationControllerBase::RegisterCores(const TJobletPtr& joblet, const TJo
     if (!key.MinKey || key.MinKey.GetLength() == 0 || !key.MaxKey || key.MaxKey.GetLength() == 0) {
         YT_LOG_DEBUG("Dropping empty core chunk tree (JobId: %v, NodeAddress: %v, ChunkListId: %v)",
             joblet->JobId,
-            joblet->NodeDescriptor.Address,
+            NNodeTrackerClient::GetDefaultAddress(joblet->NodeDescriptor.Addresses),
             chunkListId);
         return;
     }
@@ -8629,7 +8629,7 @@ void TOperationControllerBase::RegisterCores(const TJobletPtr& joblet, const TJo
 
     YT_LOG_DEBUG("Core chunk tree registered (JobId: %v, NodeAddress: %v, ChunkListId: %v, ChunkCount: %v)",
         joblet->JobId,
-        joblet->NodeDescriptor.Address,
+        NNodeTrackerClient::GetDefaultAddress(joblet->NodeDescriptor.Addresses),
         chunkListId,
         coreResult.chunk_specs().size());
 }
@@ -9674,7 +9674,7 @@ void TOperationControllerBase::UpdateSuspiciousJobsYson()
                             .Item("operation_id").Value(ToString(OperationId))
                             .Item("type").Value(joblet->JobType)
                             .Item("brief_statistics").Value(joblet->BriefStatistics)
-                            .Item("node").Value(joblet->NodeDescriptor.Address)
+                            .Item("node").Value(NNodeTrackerClient::GetDefaultAddress(joblet->NodeDescriptor.Addresses))
                             .Item("last_activity_time").Value(joblet->LastActivityTime)
                         .EndMap();
                 }
@@ -11277,7 +11277,7 @@ void TOperationControllerBase::HandleJobReport(const TJobletPtr& joblet, TContro
         jobReport
             .OperationId(OperationId)
             .JobId(joblet->JobId)
-            .Address(joblet->NodeDescriptor.Address)
+            .Address(NNodeTrackerClient::GetDefaultAddress(joblet->NodeDescriptor.Addresses))
             .Addresses(joblet->NodeDescriptor.Addresses)
             .Ttl(joblet->ArchiveTtl)
             .AllocationId(AllocationIdFromJobId(joblet->JobId)));
@@ -11661,7 +11661,7 @@ void TOperationControllerBase::OnOperationReady() const
     for (const auto& [allocationId, allocation] : AllocationMap_) {
         TStartedAllocationInfo revivedAllocationInfo{
             .AllocationId = allocationId,
-            .NodeAddress = allocation.Joblet->NodeDescriptor.Address,
+            .NodeAddress = NNodeTrackerClient::GetDefaultAddress(allocation.Joblet->NodeDescriptor.Addresses),
         };
 
         if (allocation.Joblet) {

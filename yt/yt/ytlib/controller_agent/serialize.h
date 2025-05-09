@@ -56,6 +56,7 @@ DEFINE_ENUM(ESnapshotVersion,
     ((PrepareGpuCheckFSDuration)             (301716))
     ((DropShouldSlicePrimaryTableByKeys)     (301717))
     ((NewUnorderedChunkPoolSlicing)          (301718))
+    ((RemoveAddressFromJob)                  (301719))
 );
 
 ////////////////////////////////////////////////////////////////////////////////
