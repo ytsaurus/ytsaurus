@@ -91,7 +91,7 @@ struct TSslContextImpl
             THROW_ERROR_EXCEPTION("SSL_CTX_set_min_proto_version failed")
                 << GetSslErrors();
         }
-        if (SSL_CTX_set_max_proto_version(Context, TLS1_2_VERSION) == 0) {
+        if (SSL_CTX_set_max_proto_version(Context, TLS1_3_VERSION) == 0) {
             THROW_ERROR_EXCEPTION("SSL_CTX_set_max_proto_version failed")
                 << GetSslErrors();
         }
