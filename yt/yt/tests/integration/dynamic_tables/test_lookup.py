@@ -2125,7 +2125,7 @@ class TestLookupRpcProxy(TestLookup):
 
 
 @pytest.mark.enabled_multidaemon
-class TestLookupSequoiaWithoutMasterCache(TestLookup):
+class TestLookupSequoia(TestLookup):
     USE_SEQUOIA = True
     ENABLE_CYPRESS_TRANSACTIONS_IN_SEQUOIA = True
     ENABLE_TMP_ROOTSTOCK = True
@@ -2137,12 +2137,6 @@ class TestLookupSequoiaWithoutMasterCache(TestLookup):
         "11": {"roles": ["cypress_node_host", "sequoia_node_host"]},
         "12": {"roles": ["chunk_host"]},
     }
-
-
-@pytest.mark.enabled_multidaemon
-class TestLookupSequoiaWithMasterCache(TestLookup):
-    NUM_MASTER_CACHES = 1
-    USE_MASTER_CACHE = True
 
 
 ################################################################################
