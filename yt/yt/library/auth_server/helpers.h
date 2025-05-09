@@ -72,7 +72,15 @@ TError CheckCsrfToken(
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Applies transformation described in the config to produce the output string.
-TString ApplyStringReplacement(const TString& input, const TStringReplacementConfigPtr& replacement, const NLogging::TLogger& logger = {});
+std::string ApplyStringReplacement(const std::string& input, const TStringReplacementConfigPtr& replacement, const NLogging::TLogger& logger = {});
+
+////////////////////////////////////////////////////////////////////////////////
+
+TError EnsureUserExists(
+    bool createIfNotExists,
+    const ICypressUserManagerPtr& userManager,
+    const std::string& name,
+    const std::vector<std::string>& tags);
 
 ////////////////////////////////////////////////////////////////////////////////
 
