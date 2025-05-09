@@ -1,4 +1,5 @@
 #include "tls.h"
+#include "config.h"
 
 #include <yt/yt/core/misc/error.h>
 #include <yt/yt/core/misc/finally.h>
@@ -821,6 +822,54 @@ void TSslContext::AddPrivateKey(const TString& privateKey)
 
     if (SSL_CTX_use_PrivateKey(Impl_->GetContext(), privateKeyObject.get()) != 1) {
         THROW_ERROR GetLastSslError("SSL_CTX_use_PrivateKey failed");
+    }
+}
+
+void TSslContext::AddCertificateAuthority(const TPemBlobConfigPtr& pem, TCertificatePathResolver resolver)
+{
+    if (pem) {
+        if (pem->FileName) {
+            auto filePath = resolver ? resolver(*pem->FileName) : *pem->FileName;
+            AddCertificateAuthorityFromFile(filePath);
+        } else {
+            AddCertificateAuthority(pem->LoadBlob());
+        }
+    }
+}
+
+void TSslContext::AddCertificate(const TPemBlobConfigPtr& pem, TCertificatePathResolver resolver)
+{
+    if (pem) {
+        if (pem->FileName) {
+            auto filePath = resolver ? resolver(*pem->FileName) : *pem->FileName;
+            AddCertificateFromFile(filePath);
+        } else {
+            AddCertificate(pem->LoadBlob());
+        }
+    }
+}
+
+void TSslContext::AddCertificateChain(const TPemBlobConfigPtr& pem, TCertificatePathResolver resolver)
+{
+    if (pem) {
+        if (pem->FileName) {
+            auto filePath = resolver ? resolver(*pem->FileName) : *pem->FileName;
+            AddCertificateChainFromFile(filePath);
+        } else {
+            AddCertificateChain(pem->LoadBlob());
+        }
+    }
+}
+
+void TSslContext::AddPrivateKey(const TPemBlobConfigPtr& pem, TCertificatePathResolver resolver)
+{
+    if (pem) {
+        if (pem->FileName) {
+            auto filePath = resolver ? resolver(*pem->FileName) : *pem->FileName;
+            AddPrivateKeyFromFile(filePath);
+        } else {
+            AddPrivateKey(pem->LoadBlob());
+        }
     }
 }
 

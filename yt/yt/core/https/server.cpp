@@ -92,20 +92,8 @@ private:
 
 static void ApplySslConfig(const TSslContextPtr&  sslContext, const TServerCredentialsConfigPtr& sslConfig)
 {
-    if (sslConfig->CertChain->FileName) {
-        sslContext->AddCertificateChainFromFile(*sslConfig->CertChain->FileName);
-    } else if (sslConfig->CertChain->Value) {
-        sslContext->AddCertificateChain(*sslConfig->CertChain->Value);
-    } else {
-        YT_ABORT();
-    }
-    if (sslConfig->PrivateKey->FileName) {
-        sslContext->AddPrivateKeyFromFile(*sslConfig->PrivateKey->FileName);
-    } else if (sslConfig->PrivateKey->Value) {
-        sslContext->AddPrivateKey(*sslConfig->PrivateKey->Value);
-    } else {
-        YT_ABORT();
-    }
+    sslContext->AddCertificateChain(sslConfig->CertChain);
+    sslContext->AddPrivateKey(sslConfig->PrivateKey);
 }
 
 IServerPtr CreateServer(

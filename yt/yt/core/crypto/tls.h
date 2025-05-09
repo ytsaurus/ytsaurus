@@ -37,6 +37,8 @@ using TSslPtr = std::unique_ptr<SSL, TSslDeleter>;
 
 DECLARE_REFCOUNTED_STRUCT(TSslContextImpl)
 
+using TCertificatePathResolver = std::function<TString(const TString&)>;
+
 class TSslContext
     : public TRefCounted
 {
@@ -60,6 +62,11 @@ public:
     void AddCertificate(const TString& certificate);
     void AddCertificateChain(const TString& certificateChain);
     void AddPrivateKey(const TString& privateKey);
+
+    void AddCertificateAuthority(const TPemBlobConfigPtr& pem, TCertificatePathResolver resolver = nullptr);
+    void AddCertificate(const TPemBlobConfigPtr& pem, TCertificatePathResolver resolver = nullptr);
+    void AddCertificateChain(const TPemBlobConfigPtr& pem, TCertificatePathResolver resolver = nullptr);
+    void AddPrivateKey(const TPemBlobConfigPtr& pem, TCertificatePathResolver resolver = nullptr);
 
     TSslPtr NewSsl();
 
