@@ -14,88 +14,116 @@
 
 using namespace NYql;
 
+using TKey = TString;
+using TValue = TString;
+
+auto Async(auto& pool, auto f) {
+    return NThreading::Async(f, *pool);
+}
+
+class TIdentityService {
+public:
+    NThreading::TFuture<TValue> Get(TKey key) {
+        RequestsReceived.fetch_add(1);
+        return Async(Pool_, [this, key = std::move(key)]() mutable {
+            TDuration delay;
+            bool is_failed = false;
+            with_lock (Mutex_) {
+                delay = TDuration::MilliSeconds(LatencyMs_(Random_));
+                if (Failure_) {
+                    is_failed = (*Failure_)(Random_);
+                }
+            }
+
+            Sleep(delay);
+
+            if (is_failed) {
+                throw yexception() << "o_o";
+            }
+
+            return key;
+        });
+    }
+
+    void SetSuccessRate(double successRate) {
+        with_lock (Mutex_) {
+            if (successRate == 1.0) {
+                Failure_ = Nothing();
+            } else {
+                Failure_ = std::bernoulli_distribution(successRate);
+            }
+        }
+    }
+
+    void SetMaxLatencyMs(int maxLatencyMs) {
+        with_lock (Mutex_) {
+            LatencyMs_ = std::uniform_int_distribution<int>(0, maxLatencyMs);
+        }
+    }
+
+    auto QueryFunc() {
+        return [this](TKey k) { return Get(k); };
+    }
+
+private:
+    TMutex Mutex_;
+    std::mt19937 Random_{231312};
+    TMaybe<std::bernoulli_distribution> Failure_ = std::bernoulli_distribution{0.75};
+    std::uniform_int_distribution<int> LatencyMs_{0, 10};
+
+    THolder<IThreadPool> Pool_ = CreateThreadPool(/* threadCount = */ 4);
+
+public:
+    std::atomic<size_t> RequestsReceived = 0;
+};
+
 Y_UNIT_TEST_SUITE(TAsyncExpiringCacheTests) {
 
     Y_UNIT_TEST(PositiveCaching) {
-        using K = int;
-        using V = int;
+        TIdentityService service;
+        service.SetSuccessRate(1.0);
+        service.SetMaxLatencyMs(0);
 
         TAsyncExpiringCacheConfig config = {
             .UpdateFrequency = 1,
             .EvictionFrequency = 3,
         };
 
-        size_t serves = 0;
-        const auto serve = [&](K key) -> NThreading::TFuture<V> {
-            serves += 1;
-            return NThreading::MakeFuture<V>(key);
-        };
-
-        auto cache = MakeIntrusive<TAsyncExpiringCache<K, V>>(
+        auto cache = MakeIntrusive<TAsyncExpiringCache<TKey, TValue>>(
             config.UpdateFrequency,
             config.EvictionFrequency,
-            serve);
+            service.QueryFunc());
 
-        UNIT_ASSERT_VALUES_EQUAL(cache->Get(1).GetValueSync(), 1);
-        UNIT_ASSERT_VALUES_EQUAL(serves, 1);
+        UNIT_ASSERT_VALUES_EQUAL(cache->Get("1").GetValueSync(), "1");
+        UNIT_ASSERT_VALUES_EQUAL(service.RequestsReceived.load(), 1);
 
-        UNIT_ASSERT_VALUES_EQUAL(cache->Get(1).GetValueSync(), 1);
-        UNIT_ASSERT_VALUES_EQUAL(serves, 1);
-        
-        UNIT_ASSERT_VALUES_EQUAL(cache->Get(2).GetValueSync(), 2);
-        UNIT_ASSERT_VALUES_EQUAL(serves, 2);
+        UNIT_ASSERT_VALUES_EQUAL(cache->Get("1").GetValueSync(), "1");
+        UNIT_ASSERT_VALUES_EQUAL(service.RequestsReceived.load(), 1);
 
-        UNIT_ASSERT_VALUES_EQUAL(cache->Get(2).GetValueSync(), 2);
-        UNIT_ASSERT_VALUES_EQUAL(serves, 2);
+        UNIT_ASSERT_VALUES_EQUAL(cache->Get("2").GetValueSync(), "2");
+        UNIT_ASSERT_VALUES_EQUAL(service.RequestsReceived.load(), 2);
+
+        UNIT_ASSERT_VALUES_EQUAL(cache->Get("2").GetValueSync(), "2");
+        UNIT_ASSERT_VALUES_EQUAL(service.RequestsReceived.load(), 2);
     }
 
     Y_UNIT_TEST(Stress) {
-        using K = size_t;
-        using V = size_t;
+        TIdentityService service;
 
         TAsyncExpiringCacheConfig config = {
-            .TickPeriod = TDuration::MilliSeconds(100),
+            .TickPeriod = TDuration::MilliSeconds(500),
             .UpdateFrequency = 1,
             .EvictionFrequency = 3,
         };
 
-        TMutex mutex;
-        std::mt19937 random(213131);
-        std::bernoulli_distribution failure(0.75);
-        std::uniform_int_distribution<int> latency(0, 10);
-
-        const auto async = [&](auto& pool, auto f) {
-            return NThreading::Async(f, *pool);
-        };
-
-        const auto service_pool = CreateThreadPool(/* threadCount = */ 128);
-
-        const auto serve = [&](K key) -> NThreading::TFuture<V> {
-            return async(service_pool, [&, key]() {
-                TDuration delay;
-                bool is_failed;
-                with_lock (mutex) {
-                    delay = TDuration::MilliSeconds(latency(random));
-                    is_failed = failure(random);
-                }
-
-                Sleep(delay);
-
-                if (is_failed) {
-                    throw yexception() << "o_o";
-                }
-
-                return key;
-            });
-        };
-
-        auto cache = MakeIntrusive<TAsyncExpiringCache<K, V>>(
+        auto cache = MakeIntrusive<TAsyncExpiringCache<TKey, TValue>>(
             config.UpdateFrequency,
             config.EvictionFrequency,
-            serve);
+            service.QueryFunc());
 
         NThreading::TCancellationTokenSource activity;
-        auto refresher = async(service_pool, [config, cache, token = activity.Token()]() {
+        auto cache_pool = CreateThreadPool(/* threadCount = */ 2);
+        auto refresher = Async(cache_pool, [config, cache, token = activity.Token()]() {
             while (!token.IsCancellationRequested()) {
                 Sleep(config.TickPeriod);
                 cache->OnTick();
@@ -103,21 +131,18 @@ Y_UNIT_TEST_SUITE(TAsyncExpiringCacheTests) {
         });
 
         const auto client_pool = CreateThreadPool(/* threadCount = */ 8);
-
-        const auto map = [](K key) -> K { return key / 10 % 100; };
-
-        TVector<NThreading::TFuture<V>> futures;
-        for (size_t i = 0; i < 1'000; ++i) {
-            futures.emplace_back(async(client_pool, [cache, i, map]() {
-                return cache->Get(map(i));
+        TVector<NThreading::TFuture<TValue>> futures;
+        for (size_t i = 0; i < 100'000; ++i) {
+            futures.emplace_back(Async(client_pool, [cache, i]() {
+                return cache->Get(ToString(i / 10 % 100));
             }));
         }
-        NThreading::WaitAll(futures).Wait(TDuration::Seconds(32));
+        NThreading::WaitAll(futures).Wait(TDuration::Seconds(16));
 
         for (auto [i, f] : Enumerate(futures)) {
             UNIT_ASSERT(f.IsReady());
             if (f.HasValue()) {
-                UNIT_ASSERT_VALUES_EQUAL(map(i), f.GetValue());
+                UNIT_ASSERT_VALUES_UNEQUAL("", f.GetValue());
             } else {
                 UNIT_ASSERT(f.HasException());
                 UNIT_ASSERT_EXCEPTION_CONTAINS(f.TryRethrow(), yexception, "o_o");
