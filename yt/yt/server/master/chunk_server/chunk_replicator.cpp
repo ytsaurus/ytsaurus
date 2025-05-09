@@ -279,7 +279,6 @@ public:
         const auto& sourceReplicas = replicasOrError.Value();
         builder.Add(sourceReplicas);
         ToProto(jobSpecExt->mutable_source_replicas(), sourceReplicas);
-        ToProto(jobSpecExt->mutable_legacy_source_replicas(), sourceReplicas);
 
         jobSpecExt->set_striped_erasure_chunk(Chunk_->GetStripedErasure());
 

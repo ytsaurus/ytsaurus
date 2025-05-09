@@ -157,7 +157,6 @@ bool TMergeJob::FillJobSpec(TBootstrap* bootstrap, TJobSpec* jobSpec) const
         }
 
         const auto& replicas = replicasOrError.Value();
-        ToProto(protoChunk->mutable_legacy_source_replicas(), replicas);
         ToProto(protoChunk->mutable_source_replicas(), replicas);
         builder.Add(replicas);
 

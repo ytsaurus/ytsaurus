@@ -583,7 +583,6 @@ bool TReincarnationJob::FillJobSpec(
     jobSpecExt->set_medium_index(MediumIndex_);
     jobSpecExt->set_enable_skynet_sharing(EnableSkynetSharing_);
     ToProto(jobSpecExt->mutable_source_replicas(), SourceReplicas_);
-    ToProto(jobSpecExt->mutable_legacy_source_replicas(), SourceReplicas_);
     ToProto(jobSpecExt->mutable_transaction_id(), TransactionId_);
 
     return true;
