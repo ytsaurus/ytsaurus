@@ -109,7 +109,7 @@ Y_UNIT_TEST_SUITE(TAsyncExpiringCacheTests) {
         UNIT_ASSERT_EXCEPTION_CONTAINS(cache->Get("key").GetValueSync(), yexception, "o_o");
         UNIT_ASSERT_VALUES_EQUAL(served, 1);
 
-        isFailing = false;
+        isFailing = false; // TODO(YQL-19747): add invalidation policy on error
         UNIT_ASSERT_EXCEPTION_CONTAINS(cache->Get("key").GetValueSync(), yexception, "o_o");
         UNIT_ASSERT_VALUES_EQUAL(served, 1);
     }
@@ -207,7 +207,7 @@ Y_UNIT_TEST_SUITE(TAsyncExpiringCacheTests) {
     }
 
     Y_UNIT_TEST(TestGetQueue) {
-        // .           e
+        // .       e
         // .   u   u   u
         // |---|---|---|--
         // 0   1   2   3
