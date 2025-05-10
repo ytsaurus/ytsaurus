@@ -69,7 +69,7 @@ private:
     TMaybe<std::bernoulli_distribution> Failure_ = std::bernoulli_distribution{0.85};
     std::uniform_int_distribution<int> LatencyMcs_{0, 32};
 
-    THolder<IThreadPool> Pool_ = CreateThreadPool(/* threadCount = */ 64);
+    THolder<IThreadPool> Pool_ = CreateThreadPool(/* threadCount = */ 16);
 };
 
 TManagedCacheStorage<TKey, TValue>::TQuery MakeDummyQuery(size_t& served, bool& isFailing) {
@@ -244,7 +244,7 @@ Y_UNIT_TEST_SUITE(TManagedCacheTests) {
 
         const auto client_pool = CreateThreadPool(/* threadCount = */ 8);
         TVector<NThreading::TFuture<TValue>> futures;
-        for (size_t i = 0; i < 200'000; ++i) {
+        for (size_t i = 0; i < 400'000; ++i) {
             futures.emplace_back(Async(client_pool, [cache, i]() {
                 return cache->Get(ToString(i / 100 % 1000));
             }));
