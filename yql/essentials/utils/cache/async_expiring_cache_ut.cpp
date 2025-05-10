@@ -30,7 +30,7 @@ public:
             with_lock (Mutex_) {
                 delay = TDuration::MicroSeconds(LatencyMcs_(Random_));
                 if (Failure_) {
-                    is_failed = (*Failure_)(Random_);
+                    is_failed = !(*Failure_)(Random_);
                 }
             }
 
@@ -46,11 +46,7 @@ public:
 
     void SetSuccessRate(double successRate) {
         with_lock (Mutex_) {
-            if (successRate == 1.0) {
-                Failure_ = Nothing();
-            } else {
-                Failure_ = std::bernoulli_distribution(successRate);
-            }
+            Failure_ = std::bernoulli_distribution(successRate);
         }
     }
 
@@ -67,7 +63,7 @@ public:
 private:
     TMutex Mutex_;
     std::mt19937 Random_{231312};
-    TMaybe<std::bernoulli_distribution> Failure_ = std::bernoulli_distribution{0.75};
+    TMaybe<std::bernoulli_distribution> Failure_ = std::bernoulli_distribution{0.85};
     std::uniform_int_distribution<int> LatencyMcs_{0, 32};
 
     THolder<IThreadPool> Pool_ = CreateThreadPool(/* threadCount = */ 64);
@@ -240,6 +236,7 @@ Y_UNIT_TEST_SUITE(TAsyncExpiringCacheTests) {
 
     Y_UNIT_TEST(TestStress) {
         TIdentityService service;
+        service.SetSuccessRate(0.95);
 
         TAsyncExpiringCacheConfig config = {
             .TickPeriod = TDuration::MilliSeconds(1),
