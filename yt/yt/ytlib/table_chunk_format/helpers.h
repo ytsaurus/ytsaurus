@@ -1,6 +1,7 @@
 #pragma once
 
 #include <yt/yt/client/table_client/comparator.h>
+#include <yt/yt/client/table_client/composite_compare.h>
 #include <yt/yt/client/table_client/unversioned_row.h>
 #include <yt/yt/client/table_client/versioned_row.h>
 
@@ -77,6 +78,24 @@ inline ui32 GetUnversionedValueCount(const NTableClient::TVersionedRow row)
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class TValue>
+Y_FORCE_INLINE int NaNSafeTernaryCompare(const TValue& lhs, const TValue& rhs)
+{
+    if (lhs < rhs) {
+        return -1;
+    } else if (lhs > rhs) {
+        return +1;
+    } else {
+        return 0;
+    }
+}
+
+template <std::floating_point TValue>
+Y_FORCE_INLINE int NaNSafeTernaryCompare(const TValue& lhs, const TValue& rhs)
+{
+    return NTableClient::CompareDoubleValues(lhs, rhs);
+}
+
+template <class TValue>
 int CompareTypedValues(
     const NTableClient::TUnversionedValue& lhs,
     const NTableClient::TUnversionedValue& rhs)
@@ -95,13 +114,7 @@ int CompareTypedValues(
     TValue rhsValue;
     GetValue(&rhsValue, rhs);
 
-    if (lhsValue < rhsValue) {
-        return -1;
-    } else if (lhsValue > rhsValue) {
-        return +1;
-    } else {
-        return 0;
-    }
+    return NaNSafeTernaryCompare(lhsValue, rhsValue);
 }
 
 template <NTableClient::EValueType valueType>
