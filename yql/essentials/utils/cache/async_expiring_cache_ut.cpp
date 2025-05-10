@@ -28,7 +28,7 @@ public:
             TDuration delay;
             bool is_failed = false;
             with_lock (Mutex_) {
-                delay = TDuration::MilliSeconds(LatencyMs_(Random_));
+                delay = TDuration::MicroSeconds(LatencyMcs_(Random_));
                 if (Failure_) {
                     is_failed = (*Failure_)(Random_);
                 }
@@ -56,7 +56,7 @@ public:
 
     void SetMaxLatencyMs(int maxLatencyMs) {
         with_lock (Mutex_) {
-            LatencyMs_ = std::uniform_int_distribution<int>(0, maxLatencyMs);
+            LatencyMcs_ = std::uniform_int_distribution<int>(0, maxLatencyMs);
         }
     }
 
@@ -68,7 +68,7 @@ private:
     TMutex Mutex_;
     std::mt19937 Random_{231312};
     TMaybe<std::bernoulli_distribution> Failure_ = std::bernoulli_distribution{0.75};
-    std::uniform_int_distribution<int> LatencyMs_{0, 5};
+    std::uniform_int_distribution<int> LatencyMcs_{0, 32};
 
     THolder<IThreadPool> Pool_ = CreateThreadPool(/* threadCount = */ 64);
 };
@@ -242,7 +242,7 @@ Y_UNIT_TEST_SUITE(TAsyncExpiringCacheTests) {
         TIdentityService service;
 
         TAsyncExpiringCacheConfig config = {
-            .TickPeriod = TDuration::MilliSeconds(100),
+            .TickPeriod = TDuration::MilliSeconds(1),
             .UpdateFrequency = 1,
             .EvictionFrequency = 3,
         };
@@ -261,12 +261,12 @@ Y_UNIT_TEST_SUITE(TAsyncExpiringCacheTests) {
 
         const auto client_pool = CreateThreadPool(/* threadCount = */ 8);
         TVector<NThreading::TFuture<TValue>> futures;
-        for (size_t i = 0; i < 1'000; ++i) {
+        for (size_t i = 0; i < 100'000; ++i) {
             futures.emplace_back(Async(client_pool, [cache, i]() {
-                return cache->Get(ToString(i / 10 % 100));
+                return cache->Get(ToString(i / 100 % 1000));
             }));
         }
-        NThreading::WaitAll(futures).Wait(TDuration::Seconds(16));
+        NThreading::WaitAll(futures).Wait(TDuration::Seconds(8));
 
         for (auto [i, f] : Enumerate(futures)) {
             UNIT_ASSERT(f.IsReady());
