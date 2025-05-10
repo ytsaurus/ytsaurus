@@ -6,6 +6,7 @@
 #include <library/cpp/containers/concurrent_hash/concurrent_hash.h>
 
 #include <util/datetime/base.h>
+#include <util/system/mutex.h>
 
 namespace NYql {
 
@@ -81,21 +82,20 @@ namespace NYql {
             return entry.Value;
         }
 
-        // WARN: Must not be called concurrently
-        NThreading::TFuture<void> OnTickUnsafe() {
+        void OnTick() {
+            TGuard guard(TickMutex_);
             Tick_ += 1;
             if (Tick_ % EvictionFrequency_ == 0) {
-                OnEvict();
+                OnEvict(guard);
             }
             if (Tick_ % UpdateFrequency_ == 0) {
-                return OnUpdate();
+                OnUpdate(guard);
             }
-            return NThreading::MakeFuture();
         }
 
     private:
-        void OnEvict() {
-            ForEachBucket([](TActualMap& bucket) {
+        void OnEvict(const TGuard<TMutex>& /* tickMutex */) {
+            ForEachBucketLocked([](TActualMap& bucket) {
                 TVector<TKey> abandoned;
                 for (auto& [key, entry] : bucket) {
                     if (entry.IsReferenced) {
@@ -110,54 +110,57 @@ namespace NYql {
             });
         }
 
-        auto OnQueryFinished(TVector<TKey> keys, THashMap<std::uintptr_t, TVector<size_t>> indeciesByBuckets) {
-            return [keys = std::move(keys), buckets = std::move(indeciesByBuckets)](auto f) {
-                TVector<TValue> values = f.ExtractValue();
-                Y_ENSURE(keys.size() == values.size());
-                Y_ENSURE(keys.size() == buckets.size());
-
-                for (auto& [bucketPtr, indecies] : buckets) {
-                    TBucket& bucket = *reinterpret_cast<TBucket*>(bucketPtr);
-                    TBucketGuard guard(bucket.GetMutex());
-
-                    TActualMap& map = bucket.GetMap();
-                    for (size_t i : indecies) {
-                        TEntry& entry = map[keys[i]];
-                        entry.Value = NThreading::MakeFuture(std::move(values[i]));
-                        entry.IsUpdated = true;
-                    }
-                }
-            };
-        }
-
-        NThreading::TFuture<void> OnUpdate() {
-            TVector<TKey> outdatedKeys;
+        void OnUpdate(const TGuard<TMutex>& tickMutex) {
+            TVector<TKey> outdated;
             THashMap<std::uintptr_t, TVector<size_t>> indeciesByBuckets;
 
-            ForEachBucket([&](TActualMap& bucket) {
+            ForEachBucketLocked([&](TActualMap& bucket) {
                 for (auto& [key, entry] : bucket) {
                     if (entry.IsUpdated) {
                         entry.IsUpdated = false;
                     } else {
                         indeciesByBuckets[reinterpret_cast<std::uintptr_t>(&bucket)]
-                            .emplace_back(outdatedKeys.size());
-                        outdatedKeys.emplace_back(key);
+                            .emplace_back(outdated.size());
+                        outdated.emplace_back(key);
                     }
                 }
             });
 
-            if (outdatedKeys.empty()) {
-                return NThreading::MakeFuture();
+            if (outdated.empty()) {
+                return;
             }
 
-            return Query_(outdatedKeys)
-                .Apply(OnQueryFinished(
-                    std::move(outdatedKeys),
-                    std::move(indeciesByBuckets)));
+            TVector<TValue> values = Query_(outdated).ExtractValueSync();
+            ApplyBatchUpdate(
+                std::move(outdated),
+                std::move(values),
+                std::move(indeciesByBuckets),
+                tickMutex);
+        }
+
+        void ApplyBatchUpdate(
+            TVector<TKey> keys,
+            TVector<TValue> values,
+            THashMap<std::uintptr_t, TVector<size_t>> buckets,
+            const TGuard<TMutex>& /* tickMutex */) {
+            Y_ENSURE(keys.size() == values.size());
+            Y_ENSURE(keys.size() == buckets.size());
+
+            for (auto& [bucketPtr, indecies] : buckets) {
+                TBucket& bucket = *reinterpret_cast<TBucket*>(bucketPtr);
+                TBucketGuard guard(bucket.GetMutex());
+
+                TActualMap& map = bucket.GetMap();
+                for (size_t i : indecies) {
+                    TEntry& entry = map[keys[i]];
+                    entry.Value = NThreading::MakeFuture(std::move(values[i]));
+                    entry.IsUpdated = true;
+                }
+            }
         }
 
         template <class Action>
-        void ForEachBucket(Action&& action) {
+        void ForEachBucketLocked(Action&& action) {
             for (TBucket& bucket : Storage_.Buckets) {
                 TBucketGuard guard(bucket.GetMutex());
                 action(bucket.GetMap());
@@ -167,6 +170,7 @@ namespace NYql {
         TQuery Query_;
         TStorage Storage_;
 
+        TMutex TickMutex_;
         size_t Tick_ = 0;
         size_t UpdateFrequency_;
         size_t EvictionFrequency_;
