@@ -81,14 +81,16 @@ namespace NYql {
             return entry.Value;
         }
 
-        void OnTick() {
-            Tick_.fetch_add(1);
+        // WARN: Must not be called concurrently
+        NThreading::TFuture<void> OnTickUnsafe() {
+            Tick_ += 1;
             if (Tick_ % EvictionFrequency_ == 0) {
                 OnEvict();
             }
             if (Tick_ % UpdateFrequency_ == 0) {
-                OnUpdate();
+                return OnUpdate();
             }
+            return NThreading::MakeFuture();
         }
 
     private:
@@ -128,7 +130,7 @@ namespace NYql {
             };
         }
 
-        void OnUpdate() {
+        NThreading::TFuture<void> OnUpdate() {
             TVector<TKey> outdatedKeys;
             THashMap<std::uintptr_t, TVector<size_t>> indeciesByBuckets;
 
@@ -145,14 +147,13 @@ namespace NYql {
             });
 
             if (outdatedKeys.empty()) {
-                return;
+                return NThreading::MakeFuture();
             }
 
-            Query_(outdatedKeys)
+            return Query_(outdatedKeys)
                 .Apply(OnQueryFinished(
                     std::move(outdatedKeys),
-                    std::move(indeciesByBuckets)))
-                .Wait();
+                    std::move(indeciesByBuckets)));
         }
 
         template <class Action>
@@ -166,7 +167,7 @@ namespace NYql {
         TQuery Query_;
         TStorage Storage_;
 
-        std::atomic<size_t> Tick_ = 0;
+        size_t Tick_ = 0;
         size_t UpdateFrequency_;
         size_t EvictionFrequency_;
     };

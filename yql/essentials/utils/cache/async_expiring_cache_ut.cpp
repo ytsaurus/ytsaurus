@@ -126,10 +126,10 @@ Y_UNIT_TEST_SUITE(TAsyncExpiringCacheTests) {
 
         cache->Get("key").GetValueSync();
 
-        cache->OnTick(); // 1: Updated => Reset
+        cache->OnTickUnsafe().GetValueSync(); // 1: Updated => Reset
         UNIT_ASSERT_VALUES_EQUAL(served, 1);
 
-        cache->OnTick(); // 2: Outdated => Update
+        cache->OnTickUnsafe().GetValueSync(); // 2: Outdated => Update
         UNIT_ASSERT_VALUES_EQUAL(served, 2);
     }
 
@@ -150,19 +150,19 @@ Y_UNIT_TEST_SUITE(TAsyncExpiringCacheTests) {
         cache->Get("key").GetValueSync();
         UNIT_ASSERT_VALUES_EQUAL(served, 1);
 
-        cache->OnTick(); // 1: Updated => Reset
+        cache->OnTickUnsafe().GetValueSync(); // 1: Updated => Reset
         UNIT_ASSERT_VALUES_EQUAL(served, 1);
 
-        cache->OnTick();                     // 2 (e): Referenced => Reset
-        UNIT_ASSERT_VALUES_EQUAL(served, 2); // 2 (u): Outdated => Update
+        cache->OnTickUnsafe().GetValueSync(); // 2 (e): Referenced => Reset
+        UNIT_ASSERT_VALUES_EQUAL(served, 2);  // 2 (u): Outdated => Update
 
-        cache->OnTick(); // 3: Updated => Reset
+        cache->OnTickUnsafe().GetValueSync(); // 3: Updated => Reset
         UNIT_ASSERT_VALUES_EQUAL(served, 2);
 
-        cache->OnTick(); // 4: Abandoned => Evict
+        cache->OnTickUnsafe().GetValueSync(); // 4: Abandoned => Evict
         UNIT_ASSERT_VALUES_EQUAL(served, 2);
 
-        cache->OnTick();
+        cache->OnTickUnsafe().GetValueSync();
         UNIT_ASSERT_VALUES_EQUAL(served, 2);
 
         cache->Get("key").GetValueSync();
@@ -186,20 +186,20 @@ Y_UNIT_TEST_SUITE(TAsyncExpiringCacheTests) {
         cache->Get("key").GetValueSync();
         UNIT_ASSERT_VALUES_EQUAL(served, 1);
 
-        cache->OnTick();
+        cache->OnTickUnsafe().GetValueSync();
         UNIT_ASSERT_VALUES_EQUAL(served, 1);
 
-        cache->OnTick();                     // 2 (e): Referenced => Reset
-        UNIT_ASSERT_VALUES_EQUAL(served, 2); // 2 (u): Outdated => Update
+        cache->OnTickUnsafe().GetValueSync(); // 2 (e): Referenced => Reset
+        UNIT_ASSERT_VALUES_EQUAL(served, 2);  // 2 (u): Outdated => Update
 
         cache->Get("key").GetValueSync(); // Set Referenced
         UNIT_ASSERT_VALUES_EQUAL(served, 2);
 
-        cache->OnTick(); // 3: Updated => Reset
+        cache->OnTickUnsafe().GetValueSync(); // 3: Updated => Reset
         UNIT_ASSERT_VALUES_EQUAL(served, 2);
 
-        cache->OnTick();                     // 4 (e): Referenced => Reset
-        UNIT_ASSERT_VALUES_EQUAL(served, 3); // 4 (u): Outdated => Update
+        cache->OnTickUnsafe().GetValueSync(); // 4 (e): Referenced => Reset
+        UNIT_ASSERT_VALUES_EQUAL(served, 3);  // 4 (u): Outdated => Update
     }
 
     Y_UNIT_TEST(TestGetQueue) {
@@ -255,7 +255,7 @@ Y_UNIT_TEST_SUITE(TAsyncExpiringCacheTests) {
         auto refresher = Async(cache_pool, [config, cache, token = activity.Token()]() {
             while (!token.IsCancellationRequested()) {
                 Sleep(config.TickPeriod);
-                cache->OnTick();
+                cache->OnTickUnsafe().GetValueSync();
             }
         });
 
