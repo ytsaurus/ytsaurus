@@ -35,7 +35,7 @@ struct TJobNodeDescriptor
     NNodeTrackerClient::TAddressMap Addresses;
     double IOWeight = 0.0;
 
-    void Persist(const TPersistenceContext& context);
+    PHOENIX_DECLARE_TYPE(TJobNodeDescriptor, 0xca71c8d6);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -60,22 +60,23 @@ struct TAllocation
         NChunkPools::IChunkPoolOutput::TCookie OutputCookie;
         std::optional<TJobMonitoringDescriptor> MonitoringDescriptor;
 
-        void Persist(const TPersistenceContext& context);
-
         operator bool () const noexcept;
+
+        PHOENIX_DECLARE_TYPE(TLastJobInfo, 0x2201c8d6);
     };
 
     TLastJobInfo LastJobInfo;
 
     std::optional<EScheduleFailReason> NewJobsForbiddenReason;
 
-    void Persist(const TPersistenceContext& context);
+    PHOENIX_DECLARE_TYPE(TAllocation, 0x2101c8d6);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TJoblet
     : public TRefCounted
+    , public IPersistent
 {
     NJobTrackerClient::TJobId JobId;
     NJobTrackerClient::EJobType JobType;
@@ -197,8 +198,6 @@ struct TJoblet
         const TString& treeId,
         bool treeIsTentative);
 
-    void Persist(const TPersistenceContext& context);
-
     NScheduler::TJobMetrics UpdateJobMetrics(
         const TJobSummary& jobSummary,
         bool isJobFinished);
@@ -213,6 +212,8 @@ struct TJoblet
     bool ShouldLogFinishedEvent() const;
     bool IsStarted() const noexcept;
     bool IsJobStartedOnNode() const noexcept;
+
+    PHOENIX_DECLARE_POLYMORPHIC_TYPE(TJoblet, 0x2301c8d6);
 };
 
 DEFINE_REFCOUNTED_TYPE(TJoblet)
