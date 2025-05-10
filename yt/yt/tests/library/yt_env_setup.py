@@ -1053,15 +1053,12 @@ class YTEnvSetup(object):
         yt_commands.set("//sys/accounts/sequoia/@resource_limits/tablet_count", 10000, driver=ground_driver)
         yt_commands.set("//sys/accounts/sequoia/@resource_limits/tablet_static_memory", 4 * (2**30), driver=ground_driver)
 
-        yt.logger.error(cluster_index)
         config = cls.combined_envs[cluster_index].get_cluster_configuration()["master"]
-        yt.logger.error(config)
 
         def get_table_paths(descriptor):
             table_path = descriptor.get_default_path()
             if "chunk_refresh_queue" in table_path:
                 cell_tags = [config["primary_cell_tag"]] + config["secondary_cell_tags"]
-                yt.logger.error(cell_tags)
                 return ["{}_{}".format(table_path, cell_tag) for cell_tag in cell_tags]
             return [table_path]
 
