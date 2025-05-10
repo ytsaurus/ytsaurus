@@ -207,7 +207,7 @@ func (d *Decoder) decodeInt(v reflect.Value, wt WireType) (int64, error) {
 
 	switch v.Kind() {
 	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
-		if v.Type().OverflowInt(i) {
+		if v.OverflowInt(i) {
 			return 0, xerrors.Errorf("value %d overflows type %s", i, v.Kind().String())
 		}
 	}
@@ -230,7 +230,7 @@ func (d *Decoder) decodeUint(v reflect.Value, wt WireType) (uint64, error) {
 
 	switch v.Kind() {
 	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
-		if v.Type().OverflowUint(i) {
+		if v.OverflowUint(i) {
 			return 0, xerrors.Errorf("value %d overflows type %s", i, v.Kind().String())
 		}
 	}
