@@ -219,8 +219,7 @@ struct TSequoiaChunkReplica
     NNodeTrackerClient::TNodeId NodeId;
     NChunkClient::TChunkLocationUuid LocationUuid;
 
-    bool operator==(const TSequoiaChunkReplica& other) const;
-    bool operator<(const TSequoiaChunkReplica& other) const;
+    std::strong_ordering operator<=>(const TSequoiaChunkReplica& other) const = default;
 
     void Persist(const NCellMaster::TPersistenceContext& context);
 };

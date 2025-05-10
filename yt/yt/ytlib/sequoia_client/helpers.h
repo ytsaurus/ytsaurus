@@ -53,6 +53,20 @@ TErrorOr<T> MaybeWrapSequoiaRetriableError(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TParsedChunkReplica
+{
+    NNodeTrackerClient::TNodeId NodeId = NNodeTrackerClient::InvalidNodeId;
+    int ReplicaIndex = NChunkClient::GenericChunkReplicaIndex;
+    NChunkClient::TChunkLocationUuid LocationUuid;
+};
+
+template <class TOnReplica>
+void ParseChunkReplicas(
+    NYson::TYsonStringBuf replicasYson,
+    const TOnReplica& onReplica);
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NSequoiaClient
 
 #define HELPERS_INL_H_
