@@ -271,7 +271,7 @@ public:
         , MasterChannelKind_(masterChannelKind)
         , ForceUseTargetCellTag_(
             targetCellTag != Owner_->Bootstrap_->GetNativeConnection()->GetPrimaryMasterCellTag())
-        , Logger(Owner_->Logger)
+        , Logger(Owner_->Logger.WithTag("RequestId: %v", RpcContext_->GetRequestId()))
     { }
 
     void Run()
@@ -301,6 +301,8 @@ private:
 
     struct TSubrequest
     {
+        int Index;
+
         TSharedRefArray RequestMessage;
         std::optional<NRpc::NProto::TRequestHeader> RequestHeader;
 
@@ -359,6 +361,7 @@ private:
         std::optional<bool> mutating;
         for (int index = 0; index < subrequestCount; ++index) {
             auto& subrequest = Subrequests_[index];
+            subrequest.Index = index;
 
             auto partCount = request.part_counts(index);
             TSharedRefArrayBuilder messageBuilder(partCount);
@@ -619,8 +622,7 @@ private:
                 if (IsSubrequestRejectedByMaster(index, subresponseMessage)) {
                     YT_LOG_DEBUG(
                         "Subrequest was rejected by master server in favor of Sequoia "
-                        "(RequestId: %v, SubrequestIndex: %v)",
-                        RpcContext_->GetRequestId(),
+                        "(SubrequestIndex: %v)",
                         index);
 
                     Subrequests_[index].Target = ERequestTarget::Sequoia;
@@ -632,8 +634,7 @@ private:
                     YT_LOG_DEBUG(
                         originError,
                         "Possible Sequoia resolve miss encountered; marking it as retriable "
-                        "(RequestId: %v, SubrequestIndex: %v, SequoiaObjectId: %v)",
-                        RpcContext_->GetRequestId(),
+                        "(SubrequestIndex: %v, SequoiaObjectId: %v)",
                         index,
                         Subrequests_[index].ResolvedNodeId);
                     // See comment next to |TSubrequest::TResolvedNodeId|.
@@ -850,7 +851,6 @@ private:
 
         TSequoiaSessionPtr session;
         TResolveResult resolveResult;
-
         try {
             session = TSequoiaSession::Start(Owner_->Bootstrap_, cypressTransactionId, prerequisiteTransactionIds);
             resolveResult = ResolvePath(
@@ -858,6 +858,8 @@ private:
                 originalTargetPath,
                 subrequest->RequestHeader->method());
         } catch (const std::exception& ex) {
+            YT_LOG_DEBUG(ex, "Subrequest resolve failed (SubrequestIndex: %v)",
+                subrequest->Index);
             return CreateErrorResponseMessage(ex);
         }
 
@@ -900,8 +902,7 @@ private:
                 continue;
             }
 
-            YT_LOG_DEBUG("Executing subrequest in Sequoia (RequestId: %v, SubrequestIndex: %v)",
-                RpcContext_->GetRequestId(),
+            YT_LOG_DEBUG("Executing subrequest in Sequoia (SubrequestIndex: %v)",
                 index);
 
             if (auto subresponse = ExecuteSequoiaSubrequest(&subrequest)) {
