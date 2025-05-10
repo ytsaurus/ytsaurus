@@ -23,8 +23,8 @@ auto Async(auto& pool, auto f) {
 
 class TIdentityService {
 public:
-    NThreading::TFuture<TValue> Get(TKey key) {
-        return Async(Pool_, [this, key = std::move(key)]() mutable {
+    NThreading::TFuture<TVector<TValue>> Get(const TVector<TKey>& keys) {
+        return Async(Pool_, [this, keys = std::move(keys)]() mutable {
             TDuration delay;
             bool is_failed = false;
             with_lock (Mutex_) {
@@ -40,7 +40,7 @@ public:
                 throw yexception() << "o_o";
             }
 
-            return key;
+            return keys;
         });
     }
 
@@ -57,7 +57,7 @@ public:
     }
 
     auto QueryFunc() {
-        return [this](TKey k) { return Get(k); };
+        return [this](const TVector<TKey>& keys) { return Get(keys); };
     }
 
 private:
@@ -72,13 +72,13 @@ private:
 TAsyncExpiringCache<TKey, TValue>::TPtr MakeDummy(
     size_t& served, bool& isFailing, TAsyncExpiringCacheConfig config) {
     return MakeIntrusive<TAsyncExpiringCache<TKey, TValue>>(
-        config, [&](const TKey& key) {
+        config, [&](const TVector<TKey>& key) {
             served += 1;
             if (isFailing) {
-                return NThreading::MakeErrorFuture<TValue>(
+                return NThreading::MakeErrorFuture<TVector<TValue>>(
                     std::make_exception_ptr(yexception() << "o_o"));
             }
-            return NThreading::MakeFuture<TValue>(key);
+            return NThreading::MakeFuture<TVector<TValue>>(key);
         });
 }
 
@@ -212,11 +212,11 @@ Y_UNIT_TEST_SUITE(TAsyncExpiringCacheTests) {
             .EvictionFrequency = 2, // e
         };
 
-        auto promise = NThreading::NewPromise<TString>();
+        auto promise = NThreading::NewPromise<TVector<TValue>>();
 
         size_t served = 0;
         auto cache = MakeIntrusive<TAsyncExpiringCache<TKey, TValue>>(
-            config, [&](const TKey&) {
+            config, [&](const TVector<TKey>&) {
                 served += 1;
                 return promise.GetFuture();
             });
@@ -229,13 +229,12 @@ Y_UNIT_TEST_SUITE(TAsyncExpiringCacheTests) {
         UNIT_ASSERT_VALUES_EQUAL(second.IsReady(), false);
         UNIT_ASSERT_VALUES_EQUAL(served, 1);
 
-        promise.SetValue("value");
+        promise.SetValue({"value"});
         UNIT_ASSERT_VALUES_EQUAL(first.GetValue(), "value");
         UNIT_ASSERT_VALUES_EQUAL(second.GetValue(), "value");
     }
 
     // TODO(YQL-19747): add invalidation policy on error
-    // TODO(YQL-19747): use batch update
     // TODO(YQL-19747): define behaviour on queue longer that quantum
 
     Y_UNIT_TEST(TestStress) {

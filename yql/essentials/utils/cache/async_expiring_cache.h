@@ -6,7 +6,6 @@
 #include <library/cpp/containers/concurrent_hash/concurrent_hash.h>
 
 #include <util/datetime/base.h>
-#include <util/system/rwlock.h>
 
 namespace NYql {
 
@@ -47,7 +46,7 @@ namespace NYql {
 
     public:
         using TPtr = TIntrusivePtr<TAsyncExpiringCache>;
-        using TQuery = std::function<NThreading::TFuture<TValue>(const TKey&)>;
+        using TQuery = std::function<NThreading::TFuture<TVector<TValue>>(const TVector<TKey>&)>;
 
         TAsyncExpiringCache(TAsyncExpiringCacheConfig config, TQuery query)
             : Query_(std::move(query))
@@ -56,7 +55,7 @@ namespace NYql {
         {
             Y_ENSURE(0 < UpdateFrequency_);
             Y_ENSURE(UpdateFrequency_ <= EvictionFrequency_);
-            Y_ENSURE(EvictionFrequency_ <= 1'000, "Strange");
+            Y_ENSURE(EvictionFrequency_ <= 1'000);
         }
 
         NThreading::TFuture<TValue> Get(const TKey& key) {
@@ -68,16 +67,18 @@ namespace NYql {
                 return entry->Value;
             }
 
-            NThreading::TFuture<TValue> value = Query_(key);
+            TEntry& entry = bucket.GetMap()[key];
 
-            TActualMap& map = bucket.GetMap();
-            map[key] = TEntry{
-                .Value = value,
-                .IsReferenced = true,
-                .IsUpdated = true,
-            };
+            entry.Value = Query_({key}).Apply([](auto f) {
+                TVector<TValue> values = f.ExtractValue();
+                Y_ENSURE(values.size() == 1);
+                return std::move(values[0]);
+            });
 
-            return value;
+            entry.IsReferenced = true;
+            entry.IsUpdated = true;
+
+            return entry.Value;
         }
 
         void OnTick() {
@@ -107,17 +108,51 @@ namespace NYql {
             });
         }
 
+        auto OnQueryFinished(TVector<TKey> keys, THashMap<std::uintptr_t, TVector<size_t>> indeciesByBuckets) {
+            return [keys = std::move(keys), buckets = std::move(indeciesByBuckets)](auto f) {
+                TVector<TValue> values = f.ExtractValue();
+                Y_ENSURE(keys.size() == values.size());
+                Y_ENSURE(keys.size() == buckets.size());
+
+                for (auto& [bucketPtr, indecies] : buckets) {
+                    TBucket& bucket = *reinterpret_cast<TBucket*>(bucketPtr);
+                    TBucketGuard guard(bucket.GetMutex());
+
+                    TActualMap& map = bucket.GetMap();
+                    for (size_t i : indecies) {
+                        TEntry& entry = map[keys[i]];
+                        entry.Value = NThreading::MakeFuture(std::move(values[i]));
+                        entry.IsUpdated = true;
+                    }
+                }
+            };
+        }
+
         void OnUpdate() {
-            ForEachBucket([query = Query_](TActualMap& bucket) {
+            TVector<TKey> outdatedKeys;
+            THashMap<std::uintptr_t, TVector<size_t>> indeciesByBuckets;
+
+            ForEachBucket([&](TActualMap& bucket) {
                 for (auto& [key, entry] : bucket) {
                     if (entry.IsUpdated) {
                         entry.IsUpdated = false;
                     } else {
-                        entry.IsUpdated = true;
-                        entry.Value = query(key);
+                        indeciesByBuckets[reinterpret_cast<std::uintptr_t>(&bucket)]
+                            .emplace_back(outdatedKeys.size());
+                        outdatedKeys.emplace_back(key);
                     }
                 }
             });
+
+            if (outdatedKeys.empty()) {
+                return;
+            }
+
+            Query_(outdatedKeys)
+                .Apply(OnQueryFinished(
+                    std::move(outdatedKeys),
+                    std::move(indeciesByBuckets)))
+                .Wait();
         }
 
         template <class Action>
