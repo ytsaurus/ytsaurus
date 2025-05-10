@@ -49,9 +49,7 @@ namespace NYql {
         using TPtr = TIntrusivePtr<TAsyncExpiringCache>;
         using TQuery = std::function<NThreading::TFuture<TValue>(const TKey&)>;
 
-        TAsyncExpiringCache(
-            TAsyncExpiringCacheConfig config,
-            TQuery query)
+        TAsyncExpiringCache(TAsyncExpiringCacheConfig config, TQuery query)
             : Query_(std::move(query))
             , UpdateFrequency_(config.UpdateFrequency)
             , EvictionFrequency_(config.EvictionFrequency)
@@ -84,31 +82,15 @@ namespace NYql {
 
         void OnTick() {
             Tick_.fetch_add(1);
-
             if (Tick_ % EvictionFrequency_ == 0) {
                 OnEvict();
             }
-
             if (Tick_ % UpdateFrequency_ == 0) {
                 OnUpdate();
             }
         }
 
     private:
-        void OnUpdate() {
-            ForEachBucket([query = Query_](TActualMap& bucket) {
-                for (auto& [key, entry] : bucket) {
-                    if (entry.IsUpdated) {
-                        entry.IsUpdated = false;
-                        continue;
-                    }
-
-                    entry.IsUpdated = true;
-                    entry.Value = query(key);
-                }
-            });
-        }
-
         void OnEvict() {
             ForEachBucket([](TActualMap& bucket) {
                 TVector<TKey> abandoned;
@@ -121,6 +103,19 @@ namespace NYql {
                 }
                 for (const TKey& key : abandoned) {
                     bucket.erase(key);
+                }
+            });
+        }
+
+        void OnUpdate() {
+            ForEachBucket([query = Query_](TActualMap& bucket) {
+                for (auto& [key, entry] : bucket) {
+                    if (entry.IsUpdated) {
+                        entry.IsUpdated = false;
+                    } else {
+                        entry.IsUpdated = true;
+                        entry.Value = query(key);
+                    }
                 }
             });
         }
