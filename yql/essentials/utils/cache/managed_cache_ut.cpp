@@ -17,6 +17,9 @@ using namespace NYql;
 using TKey = TString;
 using TValue = TString;
 
+using TCacheStorage = TManagedCacheStorage<TKey, TValue>;
+using TCacheMaintenance = TManagedCacheMaintenance<TKey, TValue>;
+
 auto Async(auto& pool, auto f) {
     return NThreading::Async(f, *pool);
 }
@@ -69,17 +72,15 @@ private:
     THolder<IThreadPool> Pool_ = CreateThreadPool(/* threadCount = */ 64);
 };
 
-TManagedCache<TKey, TValue>::TPtr MakeDummy(
-    size_t& served, bool& isFailing, TManagedCacheConfig config) {
-    return MakeIntrusive<TManagedCache<TKey, TValue>>(
-        config, [&](const TVector<TKey>& key) {
-            served += 1;
-            if (isFailing) {
-                return NThreading::MakeErrorFuture<TVector<TValue>>(
-                    std::make_exception_ptr(yexception() << "o_o"));
-            }
-            return NThreading::MakeFuture<TVector<TValue>>(key);
-        });
+TManagedCacheStorage<TKey, TValue>::TQuery MakeDummyQuery(size_t& served, bool& isFailing) {
+    return [&](const TVector<TKey>& key) {
+        served += 1;
+        if (isFailing) {
+            return NThreading::MakeErrorFuture<TVector<TValue>>(
+                std::make_exception_ptr(yexception() << "o_o"));
+        }
+        return NThreading::MakeFuture<TVector<TValue>>(key);
+    };
 }
 
 Y_UNIT_TEST_SUITE(TManagedCacheTests) {
@@ -87,27 +88,49 @@ Y_UNIT_TEST_SUITE(TManagedCacheTests) {
     Y_UNIT_TEST(TestValueCached) {
         size_t served = 0;
         bool isFailing = false;
-        auto cache = MakeDummy(served, isFailing, {});
+        TCacheStorage cache(MakeDummyQuery(served, isFailing));
 
-        UNIT_ASSERT_VALUES_EQUAL(cache->Get("key").GetValueSync(), "key");
+        UNIT_ASSERT_VALUES_EQUAL(cache.Get("key").GetValueSync(), "key");
         UNIT_ASSERT_VALUES_EQUAL(served, 1);
 
-        UNIT_ASSERT_VALUES_EQUAL(cache->Get("key").GetValueSync(), "key");
+        UNIT_ASSERT_VALUES_EQUAL(cache.Get("key").GetValueSync(), "key");
         UNIT_ASSERT_VALUES_EQUAL(served, 1);
     }
 
     Y_UNIT_TEST(TestErrorCached) {
         size_t served = 0;
         bool isFailing = false;
-        auto cache = MakeDummy(served, isFailing, {});
+        TCacheStorage cache(MakeDummyQuery(served, isFailing));
 
         isFailing = true;
-        UNIT_ASSERT_EXCEPTION_CONTAINS(cache->Get("key").GetValueSync(), yexception, "o_o");
+        UNIT_ASSERT_EXCEPTION_CONTAINS(cache.Get("key").GetValueSync(), yexception, "o_o");
         UNIT_ASSERT_VALUES_EQUAL(served, 1);
 
         isFailing = false;
-        UNIT_ASSERT_EXCEPTION_CONTAINS(cache->Get("key").GetValueSync(), yexception, "o_o");
+        UNIT_ASSERT_EXCEPTION_CONTAINS(cache.Get("key").GetValueSync(), yexception, "o_o");
         UNIT_ASSERT_VALUES_EQUAL(served, 1);
+    }
+
+    Y_UNIT_TEST(TestGetQueue) {
+        auto promise = NThreading::NewPromise<TVector<TValue>>();
+
+        size_t served = 0;
+        TCacheStorage cache([&](auto) {
+            served += 1;
+            return promise.GetFuture();
+        });
+
+        auto first = cache.Get("key");
+        UNIT_ASSERT_VALUES_EQUAL(first.IsReady(), false);
+        UNIT_ASSERT_VALUES_EQUAL(served, 1);
+
+        auto second = cache.Get("key");
+        UNIT_ASSERT_VALUES_EQUAL(second.IsReady(), false);
+        UNIT_ASSERT_VALUES_EQUAL(served, 1);
+
+        promise.SetValue({"value"});
+        UNIT_ASSERT_VALUES_EQUAL(first.GetValue(), "value");
+        UNIT_ASSERT_VALUES_EQUAL(second.GetValue(), "value");
     }
 
     Y_UNIT_TEST(TestUpdate) {
@@ -122,14 +145,15 @@ Y_UNIT_TEST_SUITE(TManagedCacheTests) {
 
         size_t served = 0;
         bool isFailing = false;
-        auto cache = MakeDummy(served, isFailing, config);
+        auto cache = MakeIntrusive<TCacheStorage>(MakeDummyQuery(served, isFailing));
+        TCacheMaintenance maintenance(cache, config);
 
         cache->Get("key").GetValueSync();
 
-        cache->Tick(); // 1: Updated => Reset
+        maintenance.Tick(); // 1: Updated => Reset
         UNIT_ASSERT_VALUES_EQUAL(served, 1);
 
-        cache->Tick(); // 2: Outdated => Update
+        maintenance.Tick(); // 2: Outdated => Update
         UNIT_ASSERT_VALUES_EQUAL(served, 2);
     }
 
@@ -145,24 +169,25 @@ Y_UNIT_TEST_SUITE(TManagedCacheTests) {
 
         size_t served = 0;
         bool isFailing = false;
-        auto cache = MakeDummy(served, isFailing, config);
+        auto cache = MakeIntrusive<TCacheStorage>(MakeDummyQuery(served, isFailing));
+        TCacheMaintenance maintenance(cache, config);
 
         cache->Get("key").GetValueSync();
         UNIT_ASSERT_VALUES_EQUAL(served, 1);
 
-        cache->Tick(); // 1: Updated => Reset
+        maintenance.Tick(); // 1: Updated => Reset
         UNIT_ASSERT_VALUES_EQUAL(served, 1);
 
-        cache->Tick();                       // 2 (e): Referenced => Reset
+        maintenance.Tick();                  // 2 (e): Referenced => Reset
         UNIT_ASSERT_VALUES_EQUAL(served, 2); // 2 (u): Outdated => Update
 
-        cache->Tick(); // 3: Updated => Reset
+        maintenance.Tick(); // 3: Updated => Reset
         UNIT_ASSERT_VALUES_EQUAL(served, 2);
 
-        cache->Tick(); // 4: Abandoned => Evict
+        maintenance.Tick(); // 4: Abandoned => Evict
         UNIT_ASSERT_VALUES_EQUAL(served, 2);
 
-        cache->Tick();
+        maintenance.Tick();
         UNIT_ASSERT_VALUES_EQUAL(served, 2);
 
         cache->Get("key").GetValueSync();
@@ -181,57 +206,26 @@ Y_UNIT_TEST_SUITE(TManagedCacheTests) {
 
         size_t served = 0;
         bool isFailing = false;
-        auto cache = MakeDummy(served, isFailing, config);
+        auto cache = MakeIntrusive<TCacheStorage>(MakeDummyQuery(served, isFailing));
+        TCacheMaintenance maintenance(cache, config);
 
         cache->Get("key").GetValueSync();
         UNIT_ASSERT_VALUES_EQUAL(served, 1);
 
-        cache->Tick();
+        maintenance.Tick();
         UNIT_ASSERT_VALUES_EQUAL(served, 1);
 
-        cache->Tick();                       // 2 (e): Referenced => Reset
+        maintenance.Tick();                  // 2 (e): Referenced => Reset
         UNIT_ASSERT_VALUES_EQUAL(served, 2); // 2 (u): Outdated => Update
 
         cache->Get("key").GetValueSync(); // Set Referenced
         UNIT_ASSERT_VALUES_EQUAL(served, 2);
 
-        cache->Tick(); // 3: Updated => Reset
+        maintenance.Tick(); // 3: Updated => Reset
         UNIT_ASSERT_VALUES_EQUAL(served, 2);
 
-        cache->Tick();                       // 4 (e): Referenced => Reset
+        maintenance.Tick();                  // 4 (e): Referenced => Reset
         UNIT_ASSERT_VALUES_EQUAL(served, 3); // 4 (u): Outdated => Update
-    }
-
-    Y_UNIT_TEST(TestGetQueue) {
-        // .       e
-        // .   u   u   u
-        // |---|---|---|--
-        // 0   1   2   3
-        TManagedCacheConfig config = {
-            .UpdateFrequency = 1,   // u
-            .EvictionFrequency = 2, // e
-        };
-
-        auto promise = NThreading::NewPromise<TVector<TValue>>();
-
-        size_t served = 0;
-        auto cache = MakeIntrusive<TManagedCache<TKey, TValue>>(
-            config, [&](const TVector<TKey>&) {
-                served += 1;
-                return promise.GetFuture();
-            });
-
-        auto first = cache->Get("key");
-        UNIT_ASSERT_VALUES_EQUAL(first.IsReady(), false);
-        UNIT_ASSERT_VALUES_EQUAL(served, 1);
-
-        auto second = cache->Get("key");
-        UNIT_ASSERT_VALUES_EQUAL(second.IsReady(), false);
-        UNIT_ASSERT_VALUES_EQUAL(served, 1);
-
-        promise.SetValue({"value"});
-        UNIT_ASSERT_VALUES_EQUAL(first.GetValue(), "value");
-        UNIT_ASSERT_VALUES_EQUAL(second.GetValue(), "value");
     }
 
     Y_UNIT_TEST(TestStress) {
@@ -239,25 +233,18 @@ Y_UNIT_TEST_SUITE(TManagedCacheTests) {
         service.SetSuccessRate(0.95);
 
         TManagedCacheConfig config = {
+            .TickPause = TDuration::MilliSeconds(10),
             .UpdateFrequency = 1,
             .EvictionFrequency = 3,
         };
 
-        auto cache = MakeIntrusive<TManagedCache<TKey, TValue>>(
-            config, service.QueryFunc());
-
-        NThreading::TCancellationTokenSource activity;
         auto cache_pool = CreateThreadPool(/* threadCount = */ 2);
-        auto refresher = Async(cache_pool, [cache, token = activity.Token()]() {
-            while (!token.IsCancellationRequested()) {
-                Sleep(TDuration::MilliSeconds(1));
-                cache->Tick();
-            }
-        });
+        auto cache = StartManagedCache<TKey, TValue>(
+            cache_pool.Get(), config, service.QueryFunc());
 
         const auto client_pool = CreateThreadPool(/* threadCount = */ 8);
         TVector<NThreading::TFuture<TValue>> futures;
-        for (size_t i = 0; i < 100'000; ++i) {
+        for (size_t i = 0; i < 200'000; ++i) {
             futures.emplace_back(Async(client_pool, [cache, i]() {
                 return cache->Get(ToString(i / 100 % 1000));
             }));
@@ -273,9 +260,6 @@ Y_UNIT_TEST_SUITE(TManagedCacheTests) {
                 UNIT_ASSERT_EXCEPTION_CONTAINS(f.TryRethrow(), yexception, "o_o");
             }
         }
-
-        activity.Cancel();
-        refresher.Wait(TDuration::Seconds(8));
     }
 
 } // Y_UNIT_TEST_SUITE(TManagedCacheTests)
