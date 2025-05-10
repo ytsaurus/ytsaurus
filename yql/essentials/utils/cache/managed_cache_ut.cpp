@@ -1,4 +1,4 @@
-#include "async_expiring_cache.h"
+#include "managed_cache.h"
 
 #include <library/cpp/testing/unittest/registar.h>
 
@@ -69,9 +69,9 @@ private:
     THolder<IThreadPool> Pool_ = CreateThreadPool(/* threadCount = */ 64);
 };
 
-TAsyncExpiringCache<TKey, TValue>::TPtr MakeDummy(
-    size_t& served, bool& isFailing, TAsyncExpiringCacheConfig config) {
-    return MakeIntrusive<TAsyncExpiringCache<TKey, TValue>>(
+TManagedCache<TKey, TValue>::TPtr MakeDummy(
+    size_t& served, bool& isFailing, TManagedCacheConfig config) {
+    return MakeIntrusive<TManagedCache<TKey, TValue>>(
         config, [&](const TVector<TKey>& key) {
             served += 1;
             if (isFailing) {
@@ -82,7 +82,7 @@ TAsyncExpiringCache<TKey, TValue>::TPtr MakeDummy(
         });
 }
 
-Y_UNIT_TEST_SUITE(TAsyncExpiringCacheTests) {
+Y_UNIT_TEST_SUITE(TManagedCacheTests) {
 
     Y_UNIT_TEST(TestValueCached) {
         size_t served = 0;
@@ -115,7 +115,7 @@ Y_UNIT_TEST_SUITE(TAsyncExpiringCacheTests) {
         // .   u   u
         // |---|---|--
         // 0   1   2
-        TAsyncExpiringCacheConfig config = {
+        TManagedCacheConfig config = {
             .UpdateFrequency = 1,   // u
             .EvictionFrequency = 2, // e
         };
@@ -138,7 +138,7 @@ Y_UNIT_TEST_SUITE(TAsyncExpiringCacheTests) {
         // .   u   u   u   u   u   u
         // |---|---|---|---|---|---|--
         // 0   1   2   3   4   5   6
-        TAsyncExpiringCacheConfig config = {
+        TManagedCacheConfig config = {
             .UpdateFrequency = 1,   // u
             .EvictionFrequency = 2, // e
         };
@@ -174,7 +174,7 @@ Y_UNIT_TEST_SUITE(TAsyncExpiringCacheTests) {
         // .   u   u   u   u
         // |---|---|---|---|--
         // 0   1   2   3   4
-        TAsyncExpiringCacheConfig config = {
+        TManagedCacheConfig config = {
             .UpdateFrequency = 1,   // u
             .EvictionFrequency = 2, // e
         };
@@ -207,7 +207,7 @@ Y_UNIT_TEST_SUITE(TAsyncExpiringCacheTests) {
         // .   u   u   u
         // |---|---|---|--
         // 0   1   2   3
-        TAsyncExpiringCacheConfig config = {
+        TManagedCacheConfig config = {
             .UpdateFrequency = 1,   // u
             .EvictionFrequency = 2, // e
         };
@@ -215,7 +215,7 @@ Y_UNIT_TEST_SUITE(TAsyncExpiringCacheTests) {
         auto promise = NThreading::NewPromise<TVector<TValue>>();
 
         size_t served = 0;
-        auto cache = MakeIntrusive<TAsyncExpiringCache<TKey, TValue>>(
+        auto cache = MakeIntrusive<TManagedCache<TKey, TValue>>(
             config, [&](const TVector<TKey>&) {
                 served += 1;
                 return promise.GetFuture();
@@ -238,12 +238,12 @@ Y_UNIT_TEST_SUITE(TAsyncExpiringCacheTests) {
         TIdentityService service;
         service.SetSuccessRate(0.95);
 
-        TAsyncExpiringCacheConfig config = {
+        TManagedCacheConfig config = {
             .UpdateFrequency = 1,
             .EvictionFrequency = 3,
         };
 
-        auto cache = MakeIntrusive<TAsyncExpiringCache<TKey, TValue>>(
+        auto cache = MakeIntrusive<TManagedCache<TKey, TValue>>(
             config, service.QueryFunc());
 
         NThreading::TCancellationTokenSource activity;
@@ -278,4 +278,4 @@ Y_UNIT_TEST_SUITE(TAsyncExpiringCacheTests) {
         refresher.Wait(TDuration::Seconds(8));
     }
 
-} // Y_UNIT_TEST_SUITE(TAsyncExpiringCacheTests)
+} // Y_UNIT_TEST_SUITE(TManagedCacheTests)

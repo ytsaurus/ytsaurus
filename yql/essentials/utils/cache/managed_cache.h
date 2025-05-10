@@ -25,13 +25,13 @@ namespace NYql {
 
     } // namespace NPrivate
 
-    struct TAsyncExpiringCacheConfig {
+    struct TManagedCacheConfig {
         size_t UpdateFrequency = 1;
         size_t EvictionFrequency = 3;
     };
 
     template <NPrivate::CCacheKey TKey, NPrivate::CCacheValue TValue>
-    class TAsyncExpiringCache: public TThrRefBase {
+    class TManagedCache: public TThrRefBase {
     private:
         struct TEntry {
             NThreading::TFuture<TValue> Value;
@@ -45,10 +45,10 @@ namespace NYql {
         using TActualMap = typename TStorage::TActualMap;
 
     public:
-        using TPtr = TIntrusivePtr<TAsyncExpiringCache>;
+        using TPtr = TIntrusivePtr<TManagedCache>;
         using TQuery = std::function<NThreading::TFuture<TVector<TValue>>(const TVector<TKey>&)>;
 
-        TAsyncExpiringCache(TAsyncExpiringCacheConfig config, TQuery query)
+        TManagedCache(TManagedCacheConfig config, TQuery query)
             : Query_(std::move(query))
             , UpdateFrequency_(config.UpdateFrequency)
             , EvictionFrequency_(config.EvictionFrequency)
