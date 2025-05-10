@@ -950,7 +950,7 @@ class TConcatenateTest
     : public TApiTestBase
 {
 protected:
-    void CreateTableWithData(const TString& path, TCreateNodeOptions options, int startRange, int endRange) const
+    void CreateTableWithData(const TString& path, TCreateNodeOptions options, int valueCount) const
     {
         WaitFor(Client_->CreateNode(path, EObjectType::Table, options))
             .ThrowOnError();
@@ -960,9 +960,10 @@ protected:
         auto columnId = writer->GetNameTable()->GetIdOrRegisterName("key");
         std::vector<TUnversionedRow> rows;
 
-        for (auto rowIdx = startRange; rowIdx < endRange; ++rowIdx) {
+        for (auto i = 0; i < valueCount; ++i) {
             TUnversionedRowBuilder rowBuilder;
-            rowBuilder.AddValue(MakeUnversionedInt64Value(rowIdx, columnId));
+            // Same value to allow sequential concatinations for sorted table.
+            rowBuilder.AddValue(MakeUnversionedInt64Value(10, columnId));
             rows.push_back(rowBuilder.GetRow());
         }
 
@@ -979,10 +980,10 @@ TEST_F(TConcatenateTest, TestParallelConcatenateToSortedWithAppend)
     options.Attributes = CreateEphemeralAttributes();
     options.Attributes->Set("schema", New<TTableSchema>(std::vector<TColumnSchema>{{"key", EValueType::Int64, ESortOrder::Ascending}}));
 
-    CreateTableWithData("//tmp/table1", options, 0, 5);
-    CreateTableWithData("//tmp/table2", options, 5, 10);
-    CreateTableWithData("//tmp/table3", options, 10, 15);
-    CreateTableWithData("//tmp/concat", options, 0, 0);
+    CreateTableWithData("//tmp/table1", options, 5);
+    CreateTableWithData("//tmp/table2", options, 5);
+    CreateTableWithData("//tmp/table3", options, 5);
+    CreateTableWithData("//tmp/concat", options, 0);
 
     auto barrierPromise = NewPromise<void>();
     std::vector<TFuture<void>> futures;
@@ -1029,10 +1030,10 @@ TEST_F(TConcatenateTest, TestParallelConcatenateWithAppend)
     options.Attributes = CreateEphemeralAttributes();
     options.Attributes->Set("schema", New<TTableSchema>(std::vector<TColumnSchema>{{"key", EValueType::Int64}}));
 
-    CreateTableWithData("//tmp/table1", options, 5, 10);
-    CreateTableWithData("//tmp/table2", options, 10, 15);
-    CreateTableWithData("//tmp/table3", options, 0, 5);
-    CreateTableWithData("//tmp/concat", options, 0, 0);
+    CreateTableWithData("//tmp/table1", options, 5);
+    CreateTableWithData("//tmp/table2", options, 5);
+    CreateTableWithData("//tmp/table3", options, 5);
+    CreateTableWithData("//tmp/concat", options, 0);
 
     std::vector<TFuture<void>> futures;
     futures.push_back(Client_->ConcatenateNodes({"//tmp/table1", "//tmp/table2", "//tmp/table3"}, "<append=true>//tmp/concat"));
