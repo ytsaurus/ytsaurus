@@ -72,16 +72,7 @@ namespace NYql {
 
         void Evict() {
             TGuard guard(TickMutex_);
-            OnEvict(guard);
-        }
 
-        void Update() {
-            TGuard guard(TickMutex_);
-            OnUpdate(guard);
-        }
-
-    private:
-        void OnEvict(const TGuard<TMutex>& /* tickMutex */) {
             ForEachBucketLocked([](TActualMap& bucket) {
                 TVector<TKey> abandoned;
                 for (auto& [key, entry] : bucket) {
@@ -97,7 +88,9 @@ namespace NYql {
             });
         }
 
-        void OnUpdate(const TGuard<TMutex>& tickMutex) {
+        void Update() {
+            TGuard guard(TickMutex_);
+
             TVector<TKey> outdated;
             THashMap<std::uintptr_t, TVector<size_t>> indeciesByBuckets;
 
@@ -122,9 +115,10 @@ namespace NYql {
                 std::move(outdated),
                 std::move(values),
                 std::move(indeciesByBuckets),
-                tickMutex);
+                guard);
         }
 
+    private:
         void ApplyBatchUpdate(
             TVector<TKey> keys,
             TVector<TValue> values,
