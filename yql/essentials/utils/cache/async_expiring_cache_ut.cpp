@@ -105,7 +105,7 @@ Y_UNIT_TEST_SUITE(TAsyncExpiringCacheTests) {
         UNIT_ASSERT_EXCEPTION_CONTAINS(cache->Get("key").GetValueSync(), yexception, "o_o");
         UNIT_ASSERT_VALUES_EQUAL(served, 1);
 
-        isFailing = false; // TODO(YQL-19747): add invalidation policy on error
+        isFailing = false;
         UNIT_ASSERT_EXCEPTION_CONTAINS(cache->Get("key").GetValueSync(), yexception, "o_o");
         UNIT_ASSERT_VALUES_EQUAL(served, 1);
     }
@@ -233,6 +233,10 @@ Y_UNIT_TEST_SUITE(TAsyncExpiringCacheTests) {
         UNIT_ASSERT_VALUES_EQUAL(first.GetValue(), "value");
         UNIT_ASSERT_VALUES_EQUAL(second.GetValue(), "value");
     }
+
+    // TODO(YQL-19747): add invalidation policy on error
+    // TODO(YQL-19747): use batch update
+    // TODO(YQL-19747): define behaviour on queue longer that quantum
 
     Y_UNIT_TEST(TestStress) {
         TIdentityService service;
