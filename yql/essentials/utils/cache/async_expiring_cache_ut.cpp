@@ -126,10 +126,10 @@ Y_UNIT_TEST_SUITE(TAsyncExpiringCacheTests) {
 
         cache->Get("key").GetValueSync();
 
-        cache->OnTick(); // 1: Updated => Reset
+        cache->Tick(); // 1: Updated => Reset
         UNIT_ASSERT_VALUES_EQUAL(served, 1);
 
-        cache->OnTick(); // 2: Outdated => Update
+        cache->Tick(); // 2: Outdated => Update
         UNIT_ASSERT_VALUES_EQUAL(served, 2);
     }
 
@@ -150,19 +150,19 @@ Y_UNIT_TEST_SUITE(TAsyncExpiringCacheTests) {
         cache->Get("key").GetValueSync();
         UNIT_ASSERT_VALUES_EQUAL(served, 1);
 
-        cache->OnTick(); // 1: Updated => Reset
+        cache->Tick(); // 1: Updated => Reset
         UNIT_ASSERT_VALUES_EQUAL(served, 1);
 
-        cache->OnTick();                     // 2 (e): Referenced => Reset
+        cache->Tick();                       // 2 (e): Referenced => Reset
         UNIT_ASSERT_VALUES_EQUAL(served, 2); // 2 (u): Outdated => Update
 
-        cache->OnTick(); // 3: Updated => Reset
+        cache->Tick(); // 3: Updated => Reset
         UNIT_ASSERT_VALUES_EQUAL(served, 2);
 
-        cache->OnTick(); // 4: Abandoned => Evict
+        cache->Tick(); // 4: Abandoned => Evict
         UNIT_ASSERT_VALUES_EQUAL(served, 2);
 
-        cache->OnTick();
+        cache->Tick();
         UNIT_ASSERT_VALUES_EQUAL(served, 2);
 
         cache->Get("key").GetValueSync();
@@ -186,19 +186,19 @@ Y_UNIT_TEST_SUITE(TAsyncExpiringCacheTests) {
         cache->Get("key").GetValueSync();
         UNIT_ASSERT_VALUES_EQUAL(served, 1);
 
-        cache->OnTick();
+        cache->Tick();
         UNIT_ASSERT_VALUES_EQUAL(served, 1);
 
-        cache->OnTick();                     // 2 (e): Referenced => Reset
+        cache->Tick();                       // 2 (e): Referenced => Reset
         UNIT_ASSERT_VALUES_EQUAL(served, 2); // 2 (u): Outdated => Update
 
         cache->Get("key").GetValueSync(); // Set Referenced
         UNIT_ASSERT_VALUES_EQUAL(served, 2);
 
-        cache->OnTick(); // 3: Updated => Reset
+        cache->Tick(); // 3: Updated => Reset
         UNIT_ASSERT_VALUES_EQUAL(served, 2);
 
-        cache->OnTick();                     // 4 (e): Referenced => Reset
+        cache->Tick();                       // 4 (e): Referenced => Reset
         UNIT_ASSERT_VALUES_EQUAL(served, 3); // 4 (u): Outdated => Update
     }
 
@@ -234,15 +234,11 @@ Y_UNIT_TEST_SUITE(TAsyncExpiringCacheTests) {
         UNIT_ASSERT_VALUES_EQUAL(second.GetValue(), "value");
     }
 
-    // TODO(YQL-19747): add invalidation policy on error
-    // TODO(YQL-19747): define behaviour on queue longer that quantum
-
     Y_UNIT_TEST(TestStress) {
         TIdentityService service;
         service.SetSuccessRate(0.95);
 
         TAsyncExpiringCacheConfig config = {
-            .TickPeriod = TDuration::MilliSeconds(1),
             .UpdateFrequency = 1,
             .EvictionFrequency = 3,
         };
@@ -252,10 +248,10 @@ Y_UNIT_TEST_SUITE(TAsyncExpiringCacheTests) {
 
         NThreading::TCancellationTokenSource activity;
         auto cache_pool = CreateThreadPool(/* threadCount = */ 2);
-        auto refresher = Async(cache_pool, [config, cache, token = activity.Token()]() {
+        auto refresher = Async(cache_pool, [cache, token = activity.Token()]() {
             while (!token.IsCancellationRequested()) {
-                Sleep(config.TickPeriod);
-                cache->OnTick();
+                Sleep(TDuration::MilliSeconds(1));
+                cache->Tick();
             }
         });
 

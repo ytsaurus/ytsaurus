@@ -26,7 +26,6 @@ namespace NYql {
     } // namespace NPrivate
 
     struct TAsyncExpiringCacheConfig {
-        TDuration TickPeriod = TDuration::Seconds(5);
         size_t UpdateFrequency = 1;
         size_t EvictionFrequency = 3;
     };
@@ -82,7 +81,7 @@ namespace NYql {
             return entry.Value;
         }
 
-        void OnTick() {
+        void Tick() {
             TGuard guard(TickMutex_);
             Tick_ += 1;
             if (Tick_ % EvictionFrequency_ == 0) {
@@ -159,7 +158,7 @@ namespace NYql {
             }
         }
 
-        template <class Action>
+        template <std::invocable<TActualMap&> Action>
         void ForEachBucketLocked(Action&& action) {
             for (TBucket& bucket : Storage_.Buckets) {
                 TBucketGuard guard(bucket.GetMutex());
