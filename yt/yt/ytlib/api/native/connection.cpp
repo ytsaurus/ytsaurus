@@ -1419,7 +1419,7 @@ IConnectionPtr GetRemoteConnectionOrThrow(
             THROW_ERROR_EXCEPTION("Cannot find cluster with name %Qv", clusterName);
         }
 
-        WaitFor(connection->GetClusterDirectorySynchronizer()->Sync(/*immediately*/ true))
+        WaitFor(connection->GetClusterDirectorySynchronizer()->Sync(/*force*/ true))
             .ThrowOnError();
     }
 

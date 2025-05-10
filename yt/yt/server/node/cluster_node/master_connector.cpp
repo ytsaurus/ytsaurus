@@ -671,7 +671,7 @@ private:
         YT_LOG_INFO("Cell directory synchronized");
 
         YT_LOG_INFO("Synchronizing cluster directory");
-        WaitFor(connection->GetClusterDirectorySynchronizer()->Sync())
+        WaitFor(connection->GetClusterDirectorySynchronizer()->Sync(/*force*/ true))
             .ThrowOnError();
         YT_LOG_INFO("Cluster directory synchronized");
 
