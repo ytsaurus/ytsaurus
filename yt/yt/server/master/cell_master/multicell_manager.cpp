@@ -3,7 +3,6 @@
 #include "alert_manager.h"
 #include "automaton.h"
 #include "bootstrap.h"
-#include "cell_statistics.h"
 #include "config.h"
 #include "config_manager.h"
 #include "hydra_facade.h"
@@ -747,13 +746,7 @@ private:
             Load(context, LocalCellStatistics_);
             Load(context, ClusterCellStatisics_);
         }
-        // COMPAT(cherepashka)
-        if (context.GetVersion() >= EMasterReign::DynamicMasterCellReconfigurationOnNodes) {
-            Load(context, EverRegistered_);
-        } else {
-            EverRegistered_ = IsSecondaryMaster();
-        }
-
+        Load(context, EverRegistered_);
         // COMPAT(cherepashka)
         if (context.GetVersion() >= EMasterReign::PrerequisiteTransactionsInSequoia) {
             Load(context, LocalMasterIssuedLeaseIds_);

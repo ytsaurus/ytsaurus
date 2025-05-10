@@ -325,49 +325,22 @@ void TCypressNode::Load(NCellMaster::TLoadContext& context)
     Load(context, Shard_);
     Load(context, Annotation_);
 
-    auto loadImmutableProperties = [&] {
-        if (Load<bool>(context)) {
+    if (Load<bool>(context)) {
+        auto key = Load<std::string>(context);
+        auto path = Load<TYPath>(context);
 
-            auto key = Load<std::string>(context);
-            auto path = Load<TYPath>(context);
-
-            TNodeId parentId = NullObjectId;
-            // COMPAT(kvk1920)
-            if (context.GetVersion() >= EMasterReign::ParentIdForSequoiaNodes) {
-                Load(context, parentId);
-            }
-
-            ImmutableSequoiaProperties_ = std::make_unique<TImmutableSequoiaProperties>(
-                std::move(key),
-                std::move(path),
-                parentId);
-        }
-    };
-
-    // NB: If object is older than SequoiaMapNode reign - it should only have SequoiaProperties if it's a scion.
-    // That case is handled in an appropriate class.
-    if (context.GetVersion() >= EMasterReign::TablesInSequoia) {
-        loadImmutableProperties();
-        TUniquePtrSerializer<>::Load(context, MutableSequoiaProperties_);
-    } else {
-        loadImmutableProperties();
-        if (ImmutableSequoiaProperties_ && context.GetVersion() >= EMasterReign::SequoiaPropertiesBeingCreated) {
-            auto beingCreated = Load<bool>(context);
-            MutableSequoiaProperties_ = std::make_unique<TMutableSequoiaProperties>();
-            MutableSequoiaProperties_->BeingCreated = beingCreated;
+        TNodeId parentId = NullObjectId;
+        // COMPAT(kvk1920)
+        if (context.GetVersion() >= EMasterReign::ParentIdForSequoiaNodes) {
+            Load(context, parentId);
         }
 
-        // Only Sequoia nodes should have sequoia properties, but before TablesInSequoia reign it was not the case.
-        // Let's remove them after load.
-        if (!IsSequoia()) {
-            YT_VERIFY(!ImmutableSequoiaProperties_ ||
-                ImmutableSequoiaProperties_->Key.empty() && ImmutableSequoiaProperties_->Path.empty());
-            YT_VERIFY(!MutableSequoiaProperties_ || !MutableSequoiaProperties_->BeingCreated);
-
-            ImmutableSequoiaProperties_.reset();
-            MutableSequoiaProperties_.reset();
-        }
+        ImmutableSequoiaProperties_ = std::make_unique<TImmutableSequoiaProperties>(
+            std::move(key),
+            std::move(path),
+            parentId);
     }
+    TUniquePtrSerializer<>::Load(context, MutableSequoiaProperties_);
 }
 
 void TCypressNode::SaveEctoplasm(TStreamSaveContext& context) const

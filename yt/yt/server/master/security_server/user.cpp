@@ -354,24 +354,11 @@ void TUser::Load(TLoadContext& context)
     Load(context, PasswordRevision_);
     Load(context, *ObjectServiceRequestLimits_);
     Load(context, Tags_);
-
-    // COMPAT(cherepashka)
-    if (context.GetVersion() < EMasterReign::SecondaryIndex ||
-        context.GetVersion() >= EMasterReign::FixLastSeenPersistance)
-    {
-        Load(context, LastSeenTime_);
-    }
-
-    // COMPAT(cherepashka)
-    if (context.GetVersion() >= EMasterReign::PendingRemovalUserAttribute) {
-        Load(context, PendingRemoval_);
-    }
+    Load(context, LastSeenTime_);
+    Load(context, PendingRemoval_);
 
     // COMPAT(sabdenovch)
-    if (context.GetVersion() >= EMasterReign::SecondaryIndexPerUserValidation ||
-        (context.GetVersion() >= EMasterReign::SecondaryIndexPerUserValidation_24_1 &&
-        context.GetVersion() < EMasterReign::DropLegacyClusterNodeMap))
-    {
+    if (context.GetVersion() >= EMasterReign::SecondaryIndexPerUserValidation) {
         Load(context, AllowCreateSecondaryIndices_);
     }
 

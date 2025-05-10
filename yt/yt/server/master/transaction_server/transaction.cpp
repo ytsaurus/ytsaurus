@@ -327,29 +327,16 @@ void TTransaction::Load(NCellMaster::TLoadContext& context)
     Load(context, NativeCommitMutationRevision_);
     Load(context, IsCypressTransaction_);
 
-    // COMPAT(gritukan)
-    if (context.GetVersion() >= EMasterReign::TabletPrerequisites) {
-        SetTransactionLeasesState(Load<ETransactionLeasesState>(context));
-        Load(context, LeaseCellIds_);
-        Load(context, SuccessorTransactionLeaseCount_);
-    }
+    SetTransactionLeasesState(Load<ETransactionLeasesState>(context));
+    Load(context, LeaseCellIds_);
+    Load(context, SuccessorTransactionLeaseCount_);
 
     Load(context, AccountResourceUsageLeases_);
     Load(context, SequoiaTransaction_);
     Load(context, SequoiaWriteSet_);
 
     // COMPAT(kvk1920)
-    if (context.GetVersion() >= EMasterReign::SaneTxActionAbort &&
-        context.GetVersion() < EMasterReign::SaneTxActionAbortFix)
-    {
-        Load(context, PreparedActionCount_);
-    }
-
-    // COMPAT(kvk1920)
-    if (context.GetVersion() >= EMasterReign::FixCypressTransactionMirroring ||
-        (context.GetVersion() >= EMasterReign::FixCypressTransactionMirroring_24_1 &&
-         context.GetVersion() < EMasterReign::DropLegacyClusterNodeMap))
-    {
+    if (context.GetVersion() >= EMasterReign::FixCypressTransactionMirroring) {
         Load(context, AuthenticationIdentity_.User);
         Load(context, AuthenticationIdentity_.UserTag);
     }
