@@ -171,26 +171,16 @@ void TTableNode::TDynamicTableAttributes::Load(NCellMaster::TLoadContext& contex
     Load(context, IsVitalConsumer);
     Load(context, *MountConfigStorage);
     Load(context, HunkStorage);
-
-    // COMPAT(sabdenovch)
-    if (context.GetVersion() >= EMasterReign::SecondaryIndex) {
-        Load(context, SecondaryIndices);
-        Load(context, IndexTo);
-    }
+    Load(context, SecondaryIndices);
+    Load(context, IndexTo);
 
     // COMPAT(ponasenko-rs)
-    // DropLegacyClusterNodeMap is the start of 24.2 reigns.
-    if (context.GetVersion() >= EMasterReign::TabletSharedWriteLocks &&
-        context.GetVersion() < EMasterReign::RemoveEnableSharedWriteLocksFlag &&
-        (context.GetVersion() >= EMasterReign::DropLegacyClusterNodeMap || context.GetVersion() < EMasterReign::RemoveEnableSharedWriteLocksFlag_24_1))
-    {
+    if (context.GetVersion() < EMasterReign::RemoveEnableSharedWriteLocksFlag) {
         Load<bool>(context);
     }
 
     // COMPAT(apachee)
-    if ((context.GetVersion() >= EMasterReign::QueueProducers_24_1 && context.GetVersion() < EMasterReign::DropLegacyClusterNodeMap) ||
-        context.GetVersion() >= EMasterReign::QueueProducers)
-    {
+    if (context.GetVersion() >= EMasterReign::QueueProducers) {
         Load(context, TreatAsQueueProducer);
     }
 
@@ -441,9 +431,7 @@ void TTableNode::Load(NCellMaster::TLoadContext& context)
     }
 
     // COMPAT(apachee): Remove user attributes conflicting with new producer attributes.
-    // DropLegacyClusterNodeMap is the start of 24.2 reigns.
-    if (context.GetVersion() < EMasterReign::QueueProducers_24_1
-        || (context.GetVersion() >= EMasterReign::DropLegacyClusterNodeMap && context.GetVersion() < EMasterReign::QueueProducers)) {
+    if (context.GetVersion() < EMasterReign::QueueProducers) {
         if (Attributes_) {
             static constexpr std::array producerRelatedAttributes = {
                 EInternedAttributeKey::TreatAsQueueProducer,

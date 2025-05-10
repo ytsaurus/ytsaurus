@@ -74,9 +74,7 @@ void TCellBundle::Load(NCellMaster::TLoadContext& context)
     Load(context, DynamicConfigVersion_);
     Load(context, *CellBalancerConfig_);
     Load(context, Health_);
-    if (context.GetVersion() >= EMasterReign::TabletCellsHydraPersistenceMigration) {
-        Load(context, ConfigVersion_);
-    }
+    Load(context, ConfigVersion_);
 
     InitializeProfilingCounters();
 }

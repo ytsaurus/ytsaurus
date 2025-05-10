@@ -1734,11 +1734,7 @@ private:
     {
         MasterTableSchemaMap_.LoadKeys(context);
         TableCollocationMap_.LoadKeys(context);
-
-        // COMPAT(sabdenovch)
-        if (context.GetVersion() >= EMasterReign::SecondaryIndex) {
-            SecondaryIndexMap_.LoadKeys(context);
-        }
+        SecondaryIndexMap_.LoadKeys(context);
 
         // COMPAT(sabdenovch)
         NeedToFillTableIdsForSecondaryIndices_ = context.GetVersion() < EMasterReign::SecondaryIndexExternalCellTag;
@@ -1752,25 +1748,17 @@ private:
         MasterTableSchemaMap_.LoadValues(context);
 
         Load(context, StatisticsUpdateRequests_);
-        // COMPAT(danilalexeev)
-        if (context.GetVersion() >= EMasterReign::FixAsyncTableStatisticsUpdate) {
-            Load(context, NodeIdToOngoingStatisticsUpdate_);
-        }
+        Load(context, NodeIdToOngoingStatisticsUpdate_);
+
         TableCollocationMap_.LoadValues(context);
 
-        // COMPAT(sabdenovch)
-        if (context.GetVersion() >= EMasterReign::SecondaryIndex) {
-            SecondaryIndexMap_.LoadValues(context);
-        }
+        SecondaryIndexMap_.LoadValues(context);
 
         Load(context, Queues_);
         Load(context, QueueConsumers_);
 
         // COMPAT(apachee)
-        // DropLegacyClusterNodeMap is the start of 24.2 reigns.
-        if ((context.GetVersion() >= EMasterReign::QueueProducers_24_1 && context.GetVersion() < EMasterReign::DropLegacyClusterNodeMap) ||
-            context.GetVersion() >= EMasterReign::QueueProducers)
-        {
+        if (context.GetVersion() >= EMasterReign::QueueProducers) {
             Load(context, QueueProducers_);
         }
     }

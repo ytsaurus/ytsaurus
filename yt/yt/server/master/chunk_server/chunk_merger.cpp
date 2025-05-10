@@ -1060,8 +1060,6 @@ void TChunkMerger::Clear()
     NodesBeingMergedPerAccount_.clear();
     AccountIdToNodeMergeDurations_.clear();
     ConfigVersion_ = 0;
-
-    NeedRestorePersistentStatistics_ = false;
 }
 
 void TChunkMerger::ResetTransientState()
@@ -2414,19 +2412,7 @@ void TChunkMerger::Load(NCellMaster::TLoadContext& context)
 
     Load(context, NodesBeingMerged_);
     Load(context, NodesBeingMergedPerAccount_);
-    NeedRestorePersistentStatistics_ = context.GetVersion() < EMasterReign::FixMergerStatisticsOnceAgain;
-
     Load(context, ConfigVersion_);
-}
-
-void TChunkMerger::OnAfterSnapshotLoaded()
-{
-    if (NeedRestorePersistentStatistics_) {
-        NodesBeingMergedPerAccount_.clear();
-        for (const auto& [nodeId, accountId] : NodesBeingMerged_) {
-            IncrementPersistentTracker(accountId);
-        }
-    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

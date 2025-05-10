@@ -102,11 +102,7 @@ void TNode::TCellNodeDescriptor::Persist(const NCellMaster::TPersistenceContext&
 
     Persist(context, State);
     Persist(context, RegistrationPending);
-
-    // COMPAT(cherepashka)
-    if (context.IsSave() || context.IsLoad() && context.GetVersion() >= EMasterReign::DynamicMasterCellReconfigurationOnNodes) {
-        Persist(context, CellReliability);
-    }
+    Persist(context, CellReliability);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -711,13 +707,7 @@ void TNode::Load(NCellMaster::TLoadContext& context)
     Load(context, ResourceLimitsOverrides_);
     Load(context, Host_);
     Load(context, LeaseTransaction_);
-
-    if (context.GetVersion() >= EMasterReign::PersistLastSeenLeaseTransactionTimeout ||
-        context.GetVersion() < EMasterReign::SecondaryIndex)
-    {
-        Load(context, LastSeenLeaseTransactionTimeout_);
-    }
-
+    Load(context, LastSeenLeaseTransactionTimeout_);
     Load(context, Cellars_);
     Load(context, Annotations_);
     Load(context, Version_);
