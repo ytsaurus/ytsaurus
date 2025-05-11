@@ -100,7 +100,7 @@ namespace NYql {
                 TVector<TKey> abandoned;
 
                 for (auto& [key, entry] : bucket) {
-                    if (entry.IsReferenced) {
+                    if (entry.IsReferenced && !entry.Value.HasException()) {
                         entry.IsReferenced = false;
                         continue;
                     }
@@ -121,6 +121,10 @@ namespace NYql {
                 for (auto& [key, entry] : bucket) {
                     if (entry.IsUpdated) {
                         entry.IsUpdated = false;
+                        continue;
+                    }
+
+                    if (entry.Value.HasException()) {
                         continue;
                     }
 

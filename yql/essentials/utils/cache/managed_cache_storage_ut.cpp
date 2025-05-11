@@ -17,19 +17,6 @@ Y_UNIT_TEST_SUITE(TManagedCacheStorageTests) {
         UNIT_ASSERT_VALUES_EQUAL(served, 1);
     }
 
-    Y_UNIT_TEST(TestErrorNotCached) {
-        size_t served;
-        bool isFailing;
-        TCacheStorage cache(MakeDummyQuery(&served, &isFailing));
-
-        isFailing = true;
-        UNIT_ASSERT_EXCEPTION_CONTAINS(cache.Get("key").GetValueSync(), yexception, "o_o");
-        UNIT_ASSERT_VALUES_EQUAL(served, 1);
-
-        UNIT_ASSERT_EXCEPTION_CONTAINS(cache.Get("key").GetValueSync(), yexception, "o_o");
-        UNIT_ASSERT_VALUES_EQUAL(served, 2);
-    }
-
     Y_UNIT_TEST(TestGetQueue) {
         auto promise = NThreading::NewPromise<TVector<TValue>>();
 
@@ -50,6 +37,35 @@ Y_UNIT_TEST_SUITE(TManagedCacheStorageTests) {
         promise.SetValue({"value"});
         UNIT_ASSERT_VALUES_EQUAL(first.GetValue(), "value");
         UNIT_ASSERT_VALUES_EQUAL(second.GetValue(), "value");
+    }
+
+    Y_UNIT_TEST(TestErrorNotCached) {
+        size_t served;
+        bool isFailing;
+        TCacheStorage cache(MakeDummyQuery(&served, &isFailing));
+
+        isFailing = true;
+        UNIT_ASSERT_EXCEPTION_CONTAINS(cache.Get("key").GetValueSync(), yexception, "o_o");
+        UNIT_ASSERT_VALUES_EQUAL(served, 1);
+
+        UNIT_ASSERT_EXCEPTION_CONTAINS(cache.Get("key").GetValueSync(), yexception, "o_o");
+        UNIT_ASSERT_VALUES_EQUAL(served, 2);
+    }
+
+    Y_UNIT_TEST(TestErrorsNotUpdated) {
+        size_t served;
+        bool isFailing;
+        TCacheStorage cache(MakeDummyQuery(&served, &isFailing));
+
+        isFailing = true;
+        UNIT_ASSERT_EXCEPTION_CONTAINS(cache.Get("key").GetValueSync(), yexception, "o_o");
+        UNIT_ASSERT_VALUES_EQUAL(served, 1);
+
+        UNIT_ASSERT_NO_EXCEPTION(cache.Update()); // Mark outdated
+        UNIT_ASSERT_VALUES_EQUAL(served, 1);
+
+        UNIT_ASSERT_NO_EXCEPTION(cache.Update()); // Update
+        UNIT_ASSERT_VALUES_EQUAL(served, 1);
     }
 
 } // Y_UNIT_TEST_SUITE(TManagedCacheStorageTests)
