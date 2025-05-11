@@ -51,7 +51,8 @@ namespace NYql {
             TBucket& bucket = Container_.GetBucketForKey(key);
             TBucketGuard guard(bucket.GetMutex());
 
-            if (TEntry* entry = bucket.TryGetUnsafe(key)) {
+            if (TEntry* entry = bucket.TryGetUnsafe(key);
+                entry != nullptr && !entry->Value.HasException()) {
                 entry->IsReferenced = true;
                 return entry->Value;
             }

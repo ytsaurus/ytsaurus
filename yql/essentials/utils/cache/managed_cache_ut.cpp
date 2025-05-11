@@ -13,7 +13,7 @@
 #include <random>
 
 // TODO:
-// - [ ] Do not cache exceptions
+// - [x] Do not cache exceptions
 // - [ ] Extract UpdateScan and EvictScan
 // - [ ] Think about capacity (LRU)
 // - [ ] What if query is longer than quantum
@@ -104,7 +104,7 @@ Y_UNIT_TEST_SUITE(TManagedCacheTests) {
         UNIT_ASSERT_VALUES_EQUAL(served, 1);
     }
 
-    Y_UNIT_TEST(TestErrorCached) {
+    Y_UNIT_TEST(TestErrorNotCached) {
         size_t served = 0;
         bool isFailing = false;
         TCacheStorage cache(MakeDummyQuery(served, isFailing));
@@ -113,9 +113,8 @@ Y_UNIT_TEST_SUITE(TManagedCacheTests) {
         UNIT_ASSERT_EXCEPTION_CONTAINS(cache.Get("key").GetValueSync(), yexception, "o_o");
         UNIT_ASSERT_VALUES_EQUAL(served, 1);
 
-        isFailing = false;
         UNIT_ASSERT_EXCEPTION_CONTAINS(cache.Get("key").GetValueSync(), yexception, "o_o");
-        UNIT_ASSERT_VALUES_EQUAL(served, 1);
+        UNIT_ASSERT_VALUES_EQUAL(served, 2);
     }
 
     Y_UNIT_TEST(TestGetQueue) {
