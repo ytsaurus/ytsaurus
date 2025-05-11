@@ -126,7 +126,7 @@ void TCellBundle::InitializeProfilingCounters()
     ProfilingCounters_.PeerAssignment = profiler.Counter("/tablet_tracker/peer_assignment");
 }
 
-TString TCellBundleProfilingCounters::FormatErrorCode(TErrorCode errorCode)
+std::string TCellBundleProfilingCounters::FormatErrorCode(TErrorCode errorCode)
 {
     auto enumValue = static_cast<EErrorCode>(static_cast<int>(errorCode));
     if (TEnumTraits<EErrorCode>::FindLiteralByValue(enumValue) != nullptr) {

@@ -717,7 +717,7 @@ bool TNontemplateCypressNodeProxyBase::GetBuiltinAttribute(
             return true;
 
         case EInternedAttributeKey::Key: {
-            static const TString NullKey("?");
+            static const std::string NullKey("?");
             auto optionalKey = FindNodeKey(
                 Bootstrap_->GetCypressManager(),
                 GetThisImpl()->GetTrunkNode(),
@@ -2180,7 +2180,7 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, CalculateInherited
 
     auto iterateOverAttributeDeltaDuringInheritance = [] (
         const TConstInheritedAttributeDictionaryPtr& inheritedAttributes,
-        const THashMap<TString, NYson::TYsonString>& nodeAttributes,
+        const THashMap<std::string, NYson::TYsonString>& nodeAttributes,
         auto onDifferentAttribute) {
         for (const auto& [key, value] : inheritedAttributes->ListPairs()) {
             auto nodeAttributeIt = nodeAttributes.find(key);

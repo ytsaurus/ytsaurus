@@ -963,7 +963,7 @@ private:
 
         auto isForeign = chunk->IsForeign();
 
-        auto requestAttributeFromAllPeers = [&] (const TString& attributeSuffix) {
+        auto requestAttributeFromAllPeers = [&] (const std::string& attributeSuffix) {
             std::vector<TFuture<TIntrusivePtr<TObjectYPathProxy::TRspGet>>> responseFutures;
             responseFutures.reserve(cellManager->GetTotalPeerCount());
 
@@ -977,7 +977,7 @@ private:
             return responseFutures;
         };
 
-        auto requestAttributeFromChunkReplicator = [&] (const TString& attributeSuffix) {
+        auto requestAttributeFromChunkReplicator = [&] (const std::string& attributeSuffix) {
             auto replicatorChannel = chunkManager->GetChunkReplicatorChannelOrThrow(chunk);
             auto proxy = TObjectServiceProxy::FromDirectMasterChannel(std::move(replicatorChannel));
             auto req = TYPathProxy::Get(FromObjectId(chunk->GetId()) + attributeSuffix);

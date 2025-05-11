@@ -33,7 +33,7 @@ private:
         i64 TabletMasterMemoryUsage = 0;
         int TabletErrorCount = 0;
 
-        TString MountPath;
+        NYPath::TYPath MountPath;
 
         TTabletResources ExternalTabletResourceUsage;
 

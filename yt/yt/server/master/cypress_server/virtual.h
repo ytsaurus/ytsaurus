@@ -63,7 +63,7 @@ protected:
 private:
     struct TFetchOpaqueItem
     {
-        TString Key;
+        std::string Key;
         NYson::TYsonString Attributes;
     };
 
@@ -138,7 +138,7 @@ private:
 
     struct TFetchItem
     {
-        TString Key;
+        std::string Key;
         NYson::TYsonString Attributes;
     };
 

@@ -38,7 +38,7 @@ struct TCellBundleProfilingCounters
 
     NProfiling::TProfiler Profiler;
 
-    static TString FormatErrorCode(TErrorCode errorCode);
+    static std::string FormatErrorCode(TErrorCode errorCode);
 
     THashMap<TErrorCode, NProfiling::TCounter> LeaderReassignment;
 

@@ -294,7 +294,7 @@ public:
      */
     TDataCenter* GetDataCenter() const;
 
-    bool HasTag(const std::optional<TString>& tag) const;
+    bool HasTag(const std::optional<std::string>& tag) const;
 
     //! Prepares per-cell state map.
     //! Inserts new entries into the map, fills missing ones with ENodeState::Offline value.

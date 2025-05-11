@@ -304,7 +304,7 @@ TFuture<void> TVirtualSinglecellWithRemoteItemsMapBase::FetchLocalItems(
         asyncAttributes.emplace_back(writer.Finish());
     }
 
-    std::vector<TString> keys(items.size());
+    std::vector<std::string> keys(items.size());
     std::ranges::transform(items, keys.begin(), [] (auto objectId) {
         return ToString(objectId);
     });
@@ -347,7 +347,7 @@ TFuture<void> TVirtualSinglecellWithRemoteItemsMapBase::FetchRemoteItems(
         batchReq->AddRequest(req);
     }
 
-    std::vector<TString> keys(items.size());
+    std::vector<std::string> keys(items.size());
     std::ranges::transform(items, keys.begin(), [] (auto objectId) {
         return ToString(objectId);
     });

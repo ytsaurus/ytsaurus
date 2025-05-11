@@ -155,8 +155,8 @@ public:
         ESecondaryIndexKind type,
         TTableId table,
         TTableId secondaryIndex,
-        std::optional<TString> predicate,
-        std::optional<TString> unfoldedColumnName,
+        std::optional<std::string> predicate,
+        std::optional<std::string> unfoldedColumnName,
         NTableClient::TTableSchemaPtr evaluatedColumns) = 0;
 
     // Table collocation management.

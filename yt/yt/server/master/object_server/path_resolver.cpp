@@ -105,7 +105,7 @@ TPathResolver::TResolveResult TPathResolver::Resolve(const TPathResolverOptions&
     TObject* currentObject = nullptr;
 
     TResolveCacheNodePtr parentCacheNode;
-    TString parentChildKey;
+    std::string parentChildKey;
 
     bool canCacheResolve = true;
     int symlinksPassed = 0;

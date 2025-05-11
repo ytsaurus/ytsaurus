@@ -1359,7 +1359,7 @@ private:
         }
 
         const auto& tabletManager = Bootstrap_->GetTabletManager();
-        auto tableMountConfigKeys = FromProto<std::vector<TString>>(request->table_mount_config_keys());
+        auto tableMountConfigKeys = FromProto<std::vector<std::string>>(request->table_mount_config_keys());
         tabletManager->UpdateExtraMountConfigKeys(std::move(tableMountConfigKeys));
 
         UpdateLastSeenTime(node);

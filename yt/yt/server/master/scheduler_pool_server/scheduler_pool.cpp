@@ -187,7 +187,7 @@ void TSchedulerPool::Load(NCellMaster::TLoadContext& context)
     if (ToUnderlying(context.GetVersion()) != NCellMaster::GetCurrentReign() && !IsRoot_) {
         // Some attributes could become unknown.
         // We will move them from known attributes map to unknown attributes map.
-        THashMap<TString, TYsonString> oldSpecifiedAttributes;
+        THashMap<std::string, TYsonString> oldSpecifiedAttributes;
         Load(context, oldSpecifiedAttributes);
 
         for (auto& [uninternedKey, value]: oldSpecifiedAttributes) {

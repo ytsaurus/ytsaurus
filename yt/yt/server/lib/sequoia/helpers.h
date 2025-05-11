@@ -8,8 +8,8 @@ namespace NYT::NSequoiaServer {
 
 TError CheckLockRequest(
     NCypressClient::ELockMode mode,
-    const std::optional<TString>& childKey,
-    const std::optional<TString>& attributeKey);
+    const std::optional<std::string>& childKey,
+    const std::optional<std::string>& attributeKey);
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -230,7 +230,7 @@ TTableNode* TMountConfigAttributeDictionary::LockMountConfigAttribute()
 
 void InternalizeMountConfigAttributes(IAttributeDictionary* attributes)
 {
-    std::vector<std::pair<TString, TYsonString>> oldStyleAttributes;
+    std::vector<std::pair<std::string, TYsonString>> oldStyleAttributes;
     for (const auto& key : attributes->ListKeys()) {
         if (NDetail::IsOldStyleMountConfigAttribute(key)) {
             oldStyleAttributes.emplace_back(key, attributes->GetYsonAndRemove(key));

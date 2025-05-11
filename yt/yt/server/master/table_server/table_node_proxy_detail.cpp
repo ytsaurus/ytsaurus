@@ -1618,7 +1618,7 @@ bool TTableNodeProxy::SetBuiltinAttribute(TInternedAttributeKey key, const TYson
         case EInternedAttributeKey::ProfilingTag: {
             auto lockRequest = TLockRequest::MakeSharedAttribute(key.Unintern());
             auto* lockedTable = LockThisImpl(lockRequest);
-            lockedTable->SetProfilingTag(ConvertTo<TString>(value));
+            lockedTable->SetProfilingTag(ConvertTo<std::string>(value));
             lockedTable->OnRemountNeeded();
             return true;
         }
@@ -1711,7 +1711,7 @@ bool TTableNodeProxy::SetBuiltinAttribute(TInternedAttributeKey key, const TYson
             }
 
             auto* lockedTable = LockThisImpl();
-            lockedTable->SetQueueAgentStage(ConvertTo<TString>(value));
+            lockedTable->SetQueueAgentStage(ConvertTo<std::string>(value));
 
             SetModified(EModificationType::Attributes);
 

@@ -508,7 +508,7 @@ template <class TFluent>
 void DumpTransaction(TFluent fluent, const TTransaction* transaction, bool dumpParents)
 {
     auto customAttributes = CreateEphemeralAttributes();
-    auto copyCustomAttribute = [&] (const TString& key) {
+    auto copyCustomAttribute = [&] (const std::string& key) {
         if (!transaction->GetAttributes()) {
             return;
         }

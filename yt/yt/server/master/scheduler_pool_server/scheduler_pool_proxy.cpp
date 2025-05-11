@@ -113,7 +113,7 @@ bool TSchedulerPoolProxy::SetBuiltinAttribute(NYTree::TInternedAttributeKey key,
         }
     } else if (IsKnownPoolAttribute(key)) {
         ValidateNoAliasClash(schedulerPool->FullConfig(), schedulerPool->SpecifiedAttributes(), key);
-        GuardedUpdateBuiltinPoolAttribute(key, [&value] (const TPoolConfigPtr& config, const TString& uninternedKey) {
+        GuardedUpdateBuiltinPoolAttribute(key, [&value] (const TPoolConfigPtr& config, const std::string& uninternedKey) {
             config->LoadParameter(uninternedKey, ConvertToNode(value));
         });
 
@@ -139,7 +139,7 @@ bool TSchedulerPoolProxy::RemoveBuiltinAttribute(NYTree::TInternedAttributeKey k
             return false;
         }
 
-        GuardedUpdateBuiltinPoolAttribute(key, [] (const TPoolConfigPtr& config, const TString& uninternedKey) {
+        GuardedUpdateBuiltinPoolAttribute(key, [] (const TPoolConfigPtr& config, const std::string& uninternedKey) {
             config->ResetParameter(uninternedKey);
         });
         schedulerPool->SpecifiedAttributes().erase(it);
