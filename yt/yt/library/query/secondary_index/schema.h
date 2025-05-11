@@ -12,14 +12,14 @@ void ValidateIndexSchema(
     NTabletClient::ESecondaryIndexKind kind,
     const TTableSchema& tableSchema,
     const TTableSchema& indexTableSchema,
-    const std::optional<TString>& predicate,
+    const std::optional<std::string>& predicate,
     const TTableSchemaPtr& evaluatedColumnsSchema,
-    const std::optional<TString> unfoldedColumnName = std::nullopt);
+    const std::optional<std::string> unfoldedColumnName = std::nullopt);
 
 const TColumnSchema& FindUnfoldingColumnAndValidate(
     const TTableSchema& tableSchema,
     const TTableSchema& indexTableSchema,
-    const std::optional<TString>& predicate,
+    const std::optional<std::string>& predicate,
     const TTableSchemaPtr& evaluatedColumnsSchema);
 
 ////////////////////////////////////////////////////////////////////////////////

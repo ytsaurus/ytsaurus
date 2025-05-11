@@ -472,7 +472,7 @@ private:
 
         std::atomic<i64> IterationsWithoutAcceptableBundleHealth_ = 0;
         std::atomic<TInstant> LastUpdateTime_ = {};
-        NThreading::TAtomicObject<TFuture<TString>> AsyncTabletCellBundleName_ = MakeFuture<TString>(TError("<unknown>"));
+        NThreading::TAtomicObject<TFuture<std::string>> AsyncTabletCellBundleName_ = MakeFuture<std::string>(TError("<unknown>"));
 
         TFuture<void> CheckClusterState()
         {
@@ -500,7 +500,7 @@ private:
         TFuture<void> CheckBundleHealth()
         {
             return GetAsyncTabletCellBundleName()
-                .Apply(BIND([client = Client_, clusterName = ClusterName_, bundleHealthCache = BundleHealthCache_] (const TErrorOr<TString>& bundleNameOrError) {
+                .Apply(BIND([client = Client_, clusterName = ClusterName_, bundleHealthCache = BundleHealthCache_] (const TErrorOr<std::string>& bundleNameOrError) {
                     THROW_ERROR_EXCEPTION_IF_FAILED(bundleNameOrError, "Error getting table bundle name");
 
                     const auto& bundleName = bundleNameOrError.Value();
@@ -562,7 +562,7 @@ private:
                     << TErrorAttribute("replica_lag_threshold", SyncReplicaLagThreshold_);
         }
 
-        TFuture<TString> GetAsyncTabletCellBundleName()
+        TFuture<std::string> GetAsyncTabletCellBundleName()
         {
             auto now = NProfiling::GetInstant();
             auto asyncTabletCellBundleName = AsyncTabletCellBundleName_.Load();
@@ -576,7 +576,7 @@ private:
                 asyncTabletCellBundleName = Client_->GetNode(Path_ + "/@tablet_cell_bundle")
                     .Apply(BIND([] (const TErrorOr<TYsonString>& bundleNameOrError) {
                         THROW_ERROR_EXCEPTION_IF_FAILED(bundleNameOrError, "Error getting table bundle name");
-                        return ConvertTo<TString>(bundleNameOrError.Value());
+                        return ConvertTo<std::string>(bundleNameOrError.Value());
                     }));
                 AsyncTabletCellBundleName_.Store(asyncTabletCellBundleName);
             }
@@ -1626,7 +1626,7 @@ private:
         EnqueueAction(std::move(action), "ReplicationCollocationDestroyed");
     }
 
-    void EnqueueAction(TUpdateAction action, const TString& actionString)
+    void EnqueueAction(TUpdateAction action, TStringBuf actionString)
     {
         auto revision = ++Revision_;
         action.set_revision(revision);

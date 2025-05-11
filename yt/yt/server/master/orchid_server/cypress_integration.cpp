@@ -30,7 +30,7 @@ struct TOrchidManifest
     : public TRetryingChannelConfig
 {
     NYTree::INodePtr RemoteAddresses;
-    TString RemoteRoot;
+    NYPath::TYPath RemoteRoot;
     TDuration Timeout;
 
     REGISTER_YSON_STRUCT(TOrchidManifest);
@@ -90,7 +90,7 @@ IYPathServicePtr CreateService(
             case ENodeType::List: {
                 auto channelConfig = New<TBalancingChannelConfig>();
                 channelConfig->Addresses = ConvertTo<std::vector<std::string>>(manifest->RemoteAddresses);
-                auto endpointDescription = TString("Orchid@");
+                auto endpointDescription = std::string("Orchid@");
                 auto endpointAttributes = ConvertToAttributes(BuildYsonStringFluently()
                     .BeginMap()
                         .Item("orchid").Value(true)

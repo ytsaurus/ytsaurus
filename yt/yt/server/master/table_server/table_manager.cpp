@@ -752,8 +752,8 @@ public:
         ESecondaryIndexKind kind,
         TTableId tableId,
         TTableId indexTableId,
-        std::optional<TString> predicate,
-        std::optional<TString> unfoldedColumnName,
+        std::optional<std::string> predicate,
+        std::optional<std::string> unfoldedColumnName,
         TTableSchemaPtr evaluatedColumnsSchema) override
     {
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
@@ -1250,10 +1250,10 @@ public:
         const auto& cypressManager = Bootstrap_->GetCypressManager();
         const auto& chaosManager = Bootstrap_->GetChaosManager();
 
-        using TObjectRevisionMap = THashMap<TString, THashMap<TString, TRevision>>;
+        using TObjectRevisionMap = THashMap<std::string, THashMap<std::string, TRevision>>;
 
         TObjectRevisionMap objectRevisions;
-        auto addToObjectRevisions = [&] <typename T>(const TString& key, const THashSet<T>& nodes) {
+        auto addToObjectRevisions = [&] <typename T>(const std::string& key, const THashSet<T>& nodes) {
             static_assert(
                 std::is_same_v<T, TTableNodeRawPtr> ||
                 std::is_same_v<T, NChaosServer::TChaosReplicatedTableNodeRawPtr>,

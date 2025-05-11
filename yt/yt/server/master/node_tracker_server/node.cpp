@@ -394,7 +394,7 @@ TDataCenter* TNode::GetDataCenter() const
     return rack ? rack->GetDataCenter() : nullptr;
 }
 
-bool TNode::HasTag(const std::optional<TString>& tag) const
+bool TNode::HasTag(const std::optional<std::string>& tag) const
 {
     return !tag || Tags_.find(*tag) != Tags_.end();
 }

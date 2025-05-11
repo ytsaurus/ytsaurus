@@ -151,7 +151,7 @@ private:
 
     YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, Lock_);
     //! Maps user name to (error, deadline) pairs.
-    THashMap<TString, std::pair<TError, TCpuInstant>> Map_;
+    THashMap<std::string, std::pair<TError, TCpuInstant>> Map_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

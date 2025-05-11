@@ -1753,8 +1753,8 @@ void TObjectManager::AdvanceObjectLifeStageAtForeignMasterCells(TObject* object)
 
 TObject* TObjectManager::ResolvePathToLocalObject(const TYPath& path, TTransaction* transaction, const TResolvePathOptions& options)
 {
-    static const TString NullService;
-    static const TString NullMethod;
+    static const std::string NullService;
+    static const std::string NullMethod;
     TPathResolver resolver(
         Bootstrap_,
         NullService,
@@ -2679,7 +2679,7 @@ IAttributeDictionaryPtr TObjectManager::GetReplicatedAttributes(
     // Check system attributes.
     std::vector<ISystemAttributeProvider::TAttributeDescriptor> descriptors;
     proxy->ListBuiltinAttributes(&descriptors);
-    THashSet<TString> systemAttributeKeys;
+    THashSet<std::string> systemAttributeKeys;
     for (const auto& descriptor : descriptors) {
         systemAttributeKeys.insert(descriptor.InternedKey.Unintern());
 

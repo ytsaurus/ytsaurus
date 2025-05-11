@@ -1323,7 +1323,7 @@ TJobPtr MummifyJob(const TJobPtr& job)
 
 TError SanitizeError(TError error)
 {
-    static const std::vector<TString> ForbiddenAttributes = {
+    static const std::vector<std::string> ForbiddenAttributes = {
         "lhs_value",
         "rhs_value",
     };

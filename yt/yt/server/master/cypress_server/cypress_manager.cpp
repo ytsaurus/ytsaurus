@@ -786,7 +786,7 @@ private:
             return;
         }
 
-        static const TString AllowExternalFalseKey("allow_external_false");
+        static const std::string AllowExternalFalseKey("allow_external_false");
         auto attribute  = user->FindAttribute(AllowExternalFalseKey);
         if (attribute && ConvertTo<bool>(*attribute)) {
             return;
@@ -2684,7 +2684,7 @@ private:
     NHydra::TEntityMap<TAccessControlObject> AccessControlObjectMap_;
     NHydra::TEntityMap<TAccessControlObjectNamespace> AccessControlObjectNamespaceMap_;
 
-    using TNameToAccessControlObjectNamespace = THashMap<TString, TAccessControlObjectNamespace*>;
+    using TNameToAccessControlObjectNamespace = THashMap<std::string, TAccessControlObjectNamespace*>;
     TNameToAccessControlObjectNamespace NameToAccessControlObjectNamespaceMap_;
 
     std::unique_ptr<TEnumIndexedArray<NObjectClient::EObjectType, INodeTypeHandlerPtr>> TypeToHandler_;
@@ -4595,7 +4595,7 @@ private:
     void SetAttributeOnTransactionCommit(
         TTransactionId transactionId,
         TNodeId nodeId,
-        const TString& attribute,
+        const std::string& attribute,
         const TYsonString& value)
     {
         YT_VERIFY(HasMutationContext());

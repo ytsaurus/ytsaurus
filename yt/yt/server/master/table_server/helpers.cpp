@@ -46,7 +46,7 @@ TFuture<TYsonString> GetQueueAgentAttributeAsync(
         THROW_ERROR_EXCEPTION("Cluster name is not set in cluster connection config");
     }
 
-    TString objectKind;
+    std::string objectKind;
     switch (key) {
         case EInternedAttributeKey::QueueStatus:
         case EInternedAttributeKey::QueuePartitions:

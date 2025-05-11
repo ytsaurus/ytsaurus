@@ -272,8 +272,6 @@ protected:
 
     NRpc::IAuthenticatorPtr NativeAuthenticator_;
 
-    TCallback<void(const TString &, NYTree::INodePtr)> GroundConnectionCallback_;
-
     NObjectClient::TCellTagList GetKnownParticipantCellTags() const;
 
     void DoRun();

@@ -1107,7 +1107,7 @@ public:
 
     void Mount(
         TTabletOwnerBase* table,
-        const TString& path,
+        const TYPath& path,
         int firstTabletIndex,
         int lastTabletIndex,
         TTabletCellId hintCellId,
@@ -2240,7 +2240,7 @@ public:
                     committedReplicationRowIndexes.push_back(replicationRowIndex);
                 }
 
-                TString newReplicaPath = isBackupAction
+                auto newReplicaPath = isBackupAction
                     ? replicaBackupDescriptor->ReplicaPath
                     : replica->GetReplicaPath();
 
@@ -2805,7 +2805,7 @@ public:
         });
     }
 
-    void UpdateExtraMountConfigKeys(std::vector<TString> keys)
+    void UpdateExtraMountConfigKeys(std::vector<std::string> keys)
     {
         for (auto&& key : keys) {
             auto [it, inserted] = MountConfigKeysFromNodes_.insert(std::move(key));
@@ -3272,7 +3272,7 @@ private:
         TTabletOwnerBase* table,
         int firstTabletIndex,
         int lastTabletIndex,
-        const TString& request)
+        TStringBuf request)
     {
         YT_VERIFY(firstTabletIndex >= 0 && firstTabletIndex <= lastTabletIndex && lastTabletIndex < std::ssize(table->Tablets()));
 
@@ -6041,7 +6041,7 @@ private:
     {
         YT_VERIFY(Bootstrap_->IsSecondaryMaster());
 
-        auto tableMountConfigKeys = FromProto<std::vector<TString>>(request->table_mount_config_keys());
+        auto tableMountConfigKeys = FromProto<std::vector<std::string>>(request->table_mount_config_keys());
         UpdateExtraMountConfigKeys(std::move(tableMountConfigKeys));
     }
 
@@ -7772,7 +7772,7 @@ void TTabletManager::ValidateMakeTableStatic(TTableNode* table)
 
 void TTabletManager::Mount(
     TTabletOwnerBase* table,
-    const TString& path,
+    const NYPath::TYPath& path,
     int firstTabletIndex,
     int lastTabletIndex,
     TTabletCellId hintCellId,
@@ -7971,7 +7971,7 @@ TNode* TTabletManager::FindTabletLeaderNode(const TTabletBase* tablet) const
     return Impl_->FindTabletLeaderNode(tablet);
 }
 
-void TTabletManager::UpdateExtraMountConfigKeys(std::vector<TString> keys)
+void TTabletManager::UpdateExtraMountConfigKeys(std::vector<std::string> keys)
 {
     Impl_->UpdateExtraMountConfigKeys(std::move(keys));
 }

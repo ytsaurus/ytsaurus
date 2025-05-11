@@ -713,7 +713,7 @@ private:
             }
 
             case EInternedAttributeKey::Host: {
-                auto hostName = ConvertTo<TString>(value);
+                auto hostName = ConvertTo<std::string>(value);
                 auto* host = nodeTracker->GetHostByNameOrThrow(hostName);
                 nodeTracker->SetNodeHost(node, host);
                 return true;

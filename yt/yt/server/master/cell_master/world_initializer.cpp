@@ -1031,7 +1031,7 @@ private:
             }
 
             if (auto listResult = TryListNode("//sys/secondary_masters"); listResult.IsOK()) {
-                auto secondaryMasterCellTagStrings = ConvertTo<std::vector<TString>>(listResult.Value());
+                auto secondaryMasterCellTagStrings = ConvertTo<std::vector<std::string>>(listResult.Value());
                 const auto& knownSecondaryMasterCellTags = Bootstrap_->GetSecondaryCellTags();
                 for (const auto& stringCellTag : secondaryMasterCellTagStrings) {
                     auto cellTag = TCellTag(FromString<TCellTag::TUnderlying>(stringCellTag));

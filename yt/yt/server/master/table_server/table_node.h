@@ -73,7 +73,7 @@ private:
         std::optional<bool> EnableDynamicStoreRead;
         bool MountedWithEnabledDynamicStoreRead = false;
         std::optional<NTabletNode::EDynamicTableProfilingMode> ProfilingMode;
-        std::optional<TString> ProfilingTag;
+        std::optional<std::string> ProfilingTag;
         bool EnableDetailedProfiling = false;
         NTableClient::ETabletTransactionSerializationType SerializationType = NTableClient::ETabletTransactionSerializationType::Coarse;
         bool EnableConsistentChunkReplicaPlacement = false;
