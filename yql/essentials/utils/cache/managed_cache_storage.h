@@ -149,26 +149,29 @@ namespace NYql {
             TVector<TValue> values,
             THashMap<std::uintptr_t, TVector<size_t>> buckets) {
             Y_ENSURE(keys.size() == values.size());
-            Y_ENSURE(keys.size() == buckets.size());
-
-            for (auto& [bucketPtr, indecies] : buckets) {
-                TBucket& bucket = *reinterpret_cast<TBucket*>(bucketPtr);
-                TBucketGuard guard(bucket.GetMutex());
-
-                TActualMap& map = bucket.GetMap();
-                for (size_t i : indecies) {
-                    TEntry& entry = map[keys[i]];
+            ForEachEntryLocked(
+                std::move(keys), std::move(buckets),
+                [&](size_t i, TEntry& entry) {
                     entry.Value = NThreading::MakeFuture(std::move(values[i]));
                     entry.IsUpdated = true;
-                }
-            }
+                });
         }
 
-        // TODO: extract backets traversal
         void InvalidateBatch(
             TVector<TKey> keys,
             std::exception_ptr exception,
             THashMap<std::uintptr_t, TVector<size_t>> buckets) {
+            ForEachEntryLocked(std::move(keys), std::move(buckets), [&](size_t, TEntry& entry) {
+                entry.Value = NThreading::MakeErrorFuture<TValue>(exception);
+            });
+        }
+
+        template <std::invocable<size_t, TEntry&> Action>
+        void ForEachEntryLocked(
+            TVector<TKey> keys,
+            THashMap<std::uintptr_t, TVector<size_t>> buckets,
+            Action&& action) {
+            Y_ENSURE(keys.size() == buckets.size());
             for (auto& [bucketPtr, indecies] : buckets) {
                 TBucket& bucket = *reinterpret_cast<TBucket*>(bucketPtr);
                 TBucketGuard guard(bucket.GetMutex());
@@ -176,7 +179,7 @@ namespace NYql {
                 TActualMap& map = bucket.GetMap();
                 for (size_t i : indecies) {
                     TEntry& entry = map[keys[i]];
-                    entry.Value = NThreading::MakeErrorFuture<TValue>(exception);
+                    action(i, entry);
                 }
             }
         }
