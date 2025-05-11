@@ -38,6 +38,11 @@ namespace NYql {
         using TBucketGuard = typename TContainer::TBucketGuard;
         using TActualMap = typename TContainer::TActualMap;
 
+        struct TOutdatedState {
+            TVector<TKey> Keys;
+            THashMap<std::uintptr_t, TVector<size_t>> IdxByBuckets;
+        };
+
     public:
         using TPtr = TIntrusivePtr<TManagedCacheStorage>;
         using TQuery = std::function<NThreading::TFuture<TVector<TValue>>(const TVector<TKey>&)>;
@@ -79,26 +84,19 @@ namespace NYql {
         void Update() {
             TGuard guard(TickMutex_);
 
-            TVector<TKey> outdated;
-            THashMap<std::uintptr_t, TVector<size_t>> indeciesByBuckets;
-            ResetUpdatedAndCollectOutdated(outdated, indeciesByBuckets);
+            TOutdatedState outdated;
+            ResetUpdatedAndCollectOutdated(outdated);
 
-            if (outdated.empty()) {
+            if (outdated.Keys.empty()) {
                 return;
             }
 
             try {
-                TVector<TValue> values = Query_(outdated).ExtractValueSync();
-                UpdateBatch(
-                    std::move(outdated),
-                    std::move(values),
-                    std::move(indeciesByBuckets));
+                TVector<TValue> values = Query_(outdated.Keys).ExtractValueSync();
+                UpdateBatch(std::move(outdated), std::move(values));
             } catch (...) {
                 std::exception_ptr exception = std::current_exception();
-                InvalidateBatch(
-                    std::move(outdated),
-                    exception,
-                    std::move(indeciesByBuckets));
+                InvalidateBatch(std::move(outdated), exception);
                 throw;
             }
         }
@@ -123,9 +121,7 @@ namespace NYql {
             });
         }
 
-        void ResetUpdatedAndCollectOutdated(
-            TVector<TKey>& outdated,
-            THashMap<std::uintptr_t, TVector<size_t>>& indeciesByBuckets) {
+        void ResetUpdatedAndCollectOutdated(TOutdatedState& outdated) {
             ForEachBucketLocked([&](TActualMap& bucket) {
                 for (auto& [key, entry] : bucket) {
                     if (entry.IsUpdated) {
@@ -138,47 +134,36 @@ namespace NYql {
                     }
 
                     auto ptr = reinterpret_cast<std::uintptr_t>(&bucket);
-                    indeciesByBuckets[ptr].emplace_back(outdated.size());
-                    outdated.emplace_back(key);
+                    outdated.IdxByBuckets[ptr].emplace_back(outdated.Keys.size());
+                    outdated.Keys.emplace_back(key);
                 }
             });
         }
 
-        void UpdateBatch(
-            TVector<TKey> keys,
-            TVector<TValue> values,
-            THashMap<std::uintptr_t, TVector<size_t>> buckets) {
-            Y_ENSURE(keys.size() == values.size());
-            ForEachEntryLocked(
-                std::move(keys), std::move(buckets),
-                [&](size_t i, TEntry& entry) {
-                    entry.Value = NThreading::MakeFuture(std::move(values[i]));
-                    entry.IsUpdated = true;
-                });
+        void UpdateBatch(TOutdatedState outdated, TVector<TValue> values) {
+            Y_ENSURE(outdated.Keys.size() == values.size());
+            ForEachEntryLocked(std::move(outdated), [&](size_t i, TEntry& entry) {
+                entry.Value = NThreading::MakeFuture(std::move(values[i]));
+                entry.IsUpdated = true;
+            });
         }
 
-        void InvalidateBatch(
-            TVector<TKey> keys,
-            std::exception_ptr exception,
-            THashMap<std::uintptr_t, TVector<size_t>> buckets) {
-            ForEachEntryLocked(std::move(keys), std::move(buckets), [&](size_t, TEntry& entry) {
+        void InvalidateBatch(TOutdatedState outdated, std::exception_ptr exception) {
+            ForEachEntryLocked(std::move(outdated), [&](size_t, TEntry& entry) {
                 entry.Value = NThreading::MakeErrorFuture<TValue>(exception);
             });
         }
 
         template <std::invocable<size_t, TEntry&> Action>
-        void ForEachEntryLocked(
-            TVector<TKey> keys,
-            THashMap<std::uintptr_t, TVector<size_t>> buckets,
-            Action&& action) {
-            Y_ENSURE(keys.size() == buckets.size());
-            for (auto& [bucketPtr, indecies] : buckets) {
+        void ForEachEntryLocked(TOutdatedState outdated, Action&& action) {
+            Y_ENSURE(outdated.Keys.size() == outdated.IdxByBuckets.size());
+            for (auto& [bucketPtr, indecies] : outdated.IdxByBuckets) {
                 TBucket& bucket = *reinterpret_cast<TBucket*>(bucketPtr);
                 TBucketGuard guard(bucket.GetMutex());
 
                 TActualMap& map = bucket.GetMap();
                 for (size_t i : indecies) {
-                    TEntry& entry = map[keys[i]];
+                    TEntry& entry = map[outdated.Keys[i]];
                     action(i, entry);
                 }
             }
