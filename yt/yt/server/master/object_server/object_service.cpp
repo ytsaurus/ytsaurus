@@ -338,7 +338,8 @@ private:
     const IQuantizedExecutorPtr LocalReadExecutor_;
     const IThreadPoolPtr LocalReadOffloadPool_;
 
-    TMpscStack<TExecuteSessionPtr> ReadySessions_;
+    TMpscStack<TExecuteSessionPtr> AutomatonReadySessions_;
+    TMpscStack<TExecuteSessionPtr> LocalReadReadySessions_;
     TMpscStack<TExecuteSessionInfo> FinishedSessionInfos_;
 
     TStickyUserErrorCache StickyUserErrorCache_;
@@ -358,6 +359,7 @@ private:
     const TDynamicObjectServiceConfigPtr& GetDynamicConfig();
     void OnDynamicConfigChanged(TDynamicClusterConfigPtr oldConfig);
 
+    template <EUserWorkloadType WorkloadType>
     void EnqueueReadySession(TExecuteSessionPtr session);
     void EnqueueFinishedSession(TExecuteSessionInfo sessionInfo);
 
@@ -441,6 +443,7 @@ public:
         , TentativePeerState_(Bootstrap_->GetHydraFacade()->GetHydraManager()->GetAutomatonState())
         , CellSyncSession_(New<TMultiPhaseCellSyncSession>(Bootstrap_, Logger))
         , PrematureBackoffAlarmProbability_(Owner_->GetPrematureBackoffAlarmProbability())
+        , LocalReadInvoker_(Owner_->CreateLocalReadInvoker(Identity_.User))
         , ReplyLockCount_(TotalSubrequestCount_)
     { }
 
@@ -475,17 +478,30 @@ public:
         }
     }
 
+    template <EUserWorkloadType WorkloadType>
     void OnDequeued()
     {
-        Enqueued_.store(false);
+        Enqueued<WorkloadType>().store(false);
     }
 
-    bool RunAutomatonFast()
+    template <EUserWorkloadType WorkloadType>
+    std::atomic<bool>& Enqueued()
+    {
+        if constexpr (WorkloadType == EUserWorkloadType::Write) {
+            return EnqueuedToAutomaton_;
+        } else if constexpr (WorkloadType == EUserWorkloadType::Read) {
+            return EnqueuedToLocalRead_;
+        } else {
+            static_assert("Unexpected workload type for enqueuing/dequeuing execute session");
+        }
+    }
+
+    bool RunAutomatonFast(EUserWorkloadType workloadType)
     {
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         try {
-            return GuardedRunAutomatonFast();
+            return GuardedRunAutomatonFast(workloadType);
         } catch (const std::exception& ex) {
             Reply(ex);
             return false;
@@ -608,7 +624,7 @@ private:
     // efficiently and race-free because, firstly, a vector of cancellation
     // cookies would require careful synchronization and, secondly, cancelling a
     // subscription is inherently racy and would require even more
-    // synchronization. Or, and don't forget exceptions that may occur while the
+    // synchronization. Oh, and don't forget exceptions that may occur while the
     // vector is half-filled.
     //
     // With the second way, a lot of (no-op) callbacks may outlive a session
@@ -630,6 +646,8 @@ private:
     TCancelableContextPtr EpochCancelableContext_;
 
     TEphemeralObjectPtr<TUser> User_;
+    // NB: LocalRead invoker is user-specific and, consequently, session-specific.
+    IInvokerPtr LocalReadInvoker_;
 
     struct TReadRequestComplexityLimits
     {
@@ -655,7 +673,8 @@ private:
     // Set to true if we're ready to reply with at least one subresponse.
     std::atomic<bool> SomeSubrequestCompleted_ = false;
 
-    std::atomic<bool> Enqueued_ = false;
+    std::atomic<bool> EnqueuedToAutomaton_ = false;
+    std::atomic<bool> EnqueuedToLocalRead_ = false;
 
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 
@@ -1418,23 +1437,39 @@ private:
             return;
         }
 
-        if (ContainsLocalSubrequests()) {
-            Owner_->EnqueueReadySession(this);
-        } // NB: Else the session is left awaiting being unreferenced and destroyed.
+        if (ContainsLocalSubrequests<EUserWorkloadType::Write>()) {
+            Owner_->EnqueueReadySession<EUserWorkloadType::Write>(this);
+        }
+
+        if (ContainsLocalSubrequests<EUserWorkloadType::Read>()) {
+            Owner_->EnqueueReadySession<EUserWorkloadType::Read>(this);
+        }
+
+        // NB: None of the above may be true, in which case the session is left
+        // awaiting being unreferenced and destroyed.
     }
 
+    template <EUserWorkloadType WorkloadType>
     bool ContainsLocalSubrequests()
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
 
+        EExecutionSessionSubrequestType subrequestType;
+        if constexpr (WorkloadType == EUserWorkloadType::Write) {
+            subrequestType = EExecutionSessionSubrequestType::LocalWrite;
+        } else if constexpr (WorkloadType == EUserWorkloadType::Read) {
+            subrequestType = EExecutionSessionSubrequestType::LocalRead;
+        } else {
+            static_assert("Unexpected workload type for detecting local subrequests");
+        }
+
         for (int index = 0; index < TotalSubrequestCount_; ++index) {
             auto& subrequest = Subrequests_[index];
-            if (subrequest.Type == EExecutionSessionSubrequestType::LocalRead ||
-                subrequest.Type == EExecutionSessionSubrequestType::LocalWrite)
-            {
+            if (subrequest.Type == subrequestType) {
                 return true;
             }
         }
+
         return false;
     }
 
@@ -1610,17 +1645,18 @@ private:
         }
     }
 
+    template <EUserWorkloadType WorkloadType>
     void Reschedule()
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
 
-        if (!Enqueued_.exchange(true)) {
-            Owner_->EnqueueReadySession(this);
+        if (!Enqueued<WorkloadType>().exchange(true)) {
+            Owner_->EnqueueReadySession<WorkloadType>(this);
         }
     }
 
-    template <class T>
-    void CheckAndReschedule(const TErrorOr<T>& result)
+    template <EUserWorkloadType WorkloadType>
+    void CheckAndReschedule(const TError& result)
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
 
@@ -1628,9 +1664,10 @@ private:
             Reply(result);
             return;
         }
-        Reschedule();
+        Reschedule<WorkloadType>();
     }
 
+    template <EUserWorkloadType WorkloadType>
     bool WaitForAndContinue(const TFuture<void>& result)
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
@@ -1640,12 +1677,12 @@ private:
             return true;
         } else {
             result.Subscribe(
-                BIND_NO_PROPAGATE(&TExecuteSession::CheckAndReschedule<void>, MakeStrong(this)));
+                BIND_NO_PROPAGATE(&TExecuteSession::CheckAndReschedule<WorkloadType>, MakeStrong(this)));
             return false;
         }
     }
 
-    bool GuardedRunAutomatonFast()
+    bool GuardedRunAutomatonFast(EUserWorkloadType workloadType)
     {
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
@@ -1725,7 +1762,7 @@ private:
             RequestQueueSizeIncremented_ = true;
         }
 
-        if (!ThrottleRequests()) {
+        if (!ThrottleRequests(workloadType)) {
             return false;
         }
 
@@ -1758,7 +1795,7 @@ private:
                 }
             }
 
-            if (!WaitForAndContinue(throttlerFuture)) {
+            if (!WaitForAndContinue<WorkloadType>(throttlerFuture)) {
                 YT_LOG_DEBUG("Throttling subrequest (User: %v, SubrequestIndex: %v, SubrequestType: %v, WorkloadType: %v)",
                     User_->GetName(),
                     subrequestIndex,
@@ -1771,55 +1808,62 @@ private:
         return true;
     }
 
-    bool ThrottleRequests()
+    bool ThrottleRequests(EUserWorkloadType workloadType)
     {
-        if (!DoThrottleRequest<EExecutionSessionSubrequestType::LocalWrite, EUserWorkloadType::Write>(
-            &CurrentAutomatonSubrequestIndex_,
-            &ThrottledAutomatonSubrequestIndex_))
-        {
-            return false;
+        switch (workloadType) {
+            case EUserWorkloadType::Write:
+                return DoThrottleRequest<EExecutionSessionSubrequestType::LocalWrite, EUserWorkloadType::Write>(
+                    &CurrentAutomatonSubrequestIndex_,
+                    &ThrottledAutomatonSubrequestIndex_);
+            case EUserWorkloadType::Read:
+                return DoThrottleRequest<EExecutionSessionSubrequestType::LocalRead, EUserWorkloadType::Read>(
+                    &CurrentLocalReadSubrequestIndex_,
+                    &ThrottledLocalReadSubrequestIndex_);
+            default:
+                static_assert("Unexpected workload type for throttling requests");
         }
-
-        if (!DoThrottleRequest<EExecutionSessionSubrequestType::LocalRead, EUserWorkloadType::Read>(
-            &CurrentLocalReadSubrequestIndex_,
-            &ThrottledLocalReadSubrequestIndex_))
-        {
-            return false;
-        }
-
-        return true;
     }
 
     void GuardedRunAutomatonSlow()
     {
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
-        auto subrequestFilter = [] (TSubrequest* subrequest) {
-            return subrequest->Type != EExecutionSessionSubrequestType::LocalRead;
-        };
-
-        GuardedProcessSubrequests(&CurrentAutomatonSubrequestIndex_, subrequestFilter);
+        GuardedProcessSubrequests(EUserWorkloadType::Write);
     }
 
     void GuardedRunRead()
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
 
-        auto subrequestFilter = [] (TSubrequest* subrequest) {
-            return subrequest->Type == EExecutionSessionSubrequestType::LocalRead;
-        };
-
-        GuardedProcessSubrequests(&CurrentLocalReadSubrequestIndex_, subrequestFilter);
+        GuardedProcessSubrequests(EUserWorkloadType::Read);
     }
 
-    void GuardedProcessSubrequests(
-        int* currentSubrequestIndex,
-        std::function<bool(TSubrequest*)> filter)
+    void GuardedProcessSubrequests(EUserWorkloadType workloadType)
     {
         auto batchStartTime = GetCpuInstant();
         auto batchDeadlineTime = batchStartTime + DurationToCpuDuration(Owner_->Config_->YieldTimeout);
 
         Owner_->ValidateClusterInitialized();
+
+        auto* currentSubrequestIndex = workloadType == EUserWorkloadType::Write
+            ? &CurrentAutomatonSubrequestIndex_
+            : &CurrentLocalReadSubrequestIndex_;
+
+        auto filter = workloadType == EUserWorkloadType::Write
+            ? [] (TSubrequest* subrequest) {
+                return subrequest->Type != EExecutionSessionSubrequestType::LocalRead;
+            }
+            : [] (TSubrequest* subrequest) {
+                return subrequest->Type == EExecutionSessionSubrequestType::LocalRead;
+            };
+
+        auto doReschedule = workloadType == EUserWorkloadType::Write
+            ? [] (TExecuteSession* session) {
+                session->Reschedule<EUserWorkloadType::Write>();
+            }
+            : [] (TExecuteSession* session) {
+                session->Reschedule<EUserWorkloadType::Read>();
+            };
 
         while (*currentSubrequestIndex < TotalSubrequestCount_) {
             // NB: PrematureBackoffAlarmProbability_ is usually std::nullopt.
@@ -1836,13 +1880,13 @@ private:
                 break;
             }
 
-            if (!ThrottleRequests()) {
+            if (!ThrottleRequests(workloadType)) {
                 break;
             }
 
             if (GetCpuInstant() > batchDeadlineTime) {
                 YT_LOG_DEBUG("Yielding thread");
-                Reschedule();
+                doReschedule(this);
                 break;
             }
 
@@ -1851,9 +1895,11 @@ private:
                     break;
                 }
 
-                auto* subrequest = &Subrequests_[*currentSubrequestIndex];
-                if (filter(subrequest) && !ExecuteSubrequest(subrequest)) {
-                    break;
+
+                if (auto* subrequest = &Subrequests_[*currentSubrequestIndex];
+                    filter(subrequest))
+                {
+                    ExecuteSubrequest(subrequest);
                 }
 
                 ++(*currentSubrequestIndex);
@@ -1861,7 +1907,7 @@ private:
         }
     }
 
-    bool ExecuteSubrequest(TSubrequest* subrequest)
+    void ExecuteSubrequest(TSubrequest* subrequest)
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
 
@@ -1871,11 +1917,12 @@ private:
         switch (subrequest->Type) {
             case EExecutionSessionSubrequestType::LocalRead:
             case EExecutionSessionSubrequestType::LocalWrite:
-                return ExecuteLocalSubrequest(subrequest);
+                ExecuteLocalSubrequest(subrequest);
+                break;
 
             case EExecutionSessionSubrequestType::Remote:
             case EExecutionSessionSubrequestType::Cache:
-                return true;
+                break;
 
             default:
                 YT_ABORT();
@@ -1927,7 +1974,7 @@ private:
         SubscribeToSubresponse(subrequest, std::move(asyncSubresponse));
     }
 
-    bool ExecuteLocalSubrequest(TSubrequest* subrequest)
+    void ExecuteLocalSubrequest(TSubrequest* subrequest)
     {
         switch (subrequest->Type) {
             case EExecutionSessionSubrequestType::LocalWrite:
@@ -1959,51 +2006,42 @@ private:
             YT_VERIFY(subrequest->Type == EExecutionSessionSubrequestType::LocalRead);
 
             ExecuteReadSubrequest(subrequest);
-            return true;
+            return;
         }
 
         if (subrequest->RemoteTransactionReplicationFuture) {
-            if (subrequest->RemoteTransactionReplicationFuture.IsSet()) {
-                const auto& error = subrequest->RemoteTransactionReplicationFuture.Get();
+            auto onRemoteTransactionReplicated = [weakThis = MakeWeak(this), subrequest] (const TError& error) {
+                auto this_ = weakThis.Lock();
+                if (!this_) {
+                    return;
+                }
+
                 if (!error.IsOK()) {
                     subrequest->RpcContext->Reply(error);
                 } else {
-                    ExecuteReadSubrequest(subrequest);
+                    this_->ExecuteReadSubrequest(subrequest);
                 }
-                return true;
+            };
+
+            if (subrequest->RemoteTransactionReplicationFuture.IsSet()) {
+                const auto& error = subrequest->RemoteTransactionReplicationFuture.Get();
+                onRemoteTransactionReplicated(error);
             } else {
-                auto doReschedule = [=, this, this_ = MakeStrong(this)] (const TError& error) {
-                    if (!error.IsOK()) {
-                        subrequest->RpcContext->Reply(error);
-                        return;
-                    }
-
-                    Reschedule();
-                };
-
-                // NB: Non-owning capture of this session object. Should be fine,
-                // since reply lock will prevent this session from being destroyed.
                 subrequest->RemoteTransactionReplicationFuture
                     .WithTimeout(timeLeft)
-                    .Subscribe(BIND(doReschedule));
-
-                return false;
+                    .Subscribe(
+                        BIND(onRemoteTransactionReplicated)
+                            .Via(LocalReadInvoker_));
             }
         } else {
             YT_VERIFY(subrequest->MutationResponseFuture);
             if (subrequest->MutationResponseFuture.IsSet()) {
                 OnMutationCommitted(subrequest, subrequest->MutationResponseFuture.Get());
             } else {
-                // NB: Non-owning capture of this session object. Should be fine,
-                // since reply lock will prevent this session from being destroyed.
                 subrequest->MutationResponseFuture
                     .Subscribe(BIND(&TExecuteSession::OnMutationCommitted, MakeStrong(this), subrequest));
             }
-
-            return true;
         }
-
-        YT_ABORT();
     }
 
     TDuration GetTimeLeft(TSubrequest* subrequest)
@@ -2391,8 +2429,8 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TObjectService::TLocalReadCallbackProvider::TLocalReadCallbackProvider(IFairSchedulerPtr<TClosure> cheduler)
-    : Scheduler_(std::move(cheduler))
+TObjectService::TLocalReadCallbackProvider::TLocalReadCallbackProvider(IFairSchedulerPtr<TClosure> scheduler)
+    : Scheduler_(std::move(scheduler))
 { }
 
 TCallback<void()> TObjectService::TLocalReadCallbackProvider::ExtractCallback()
@@ -2431,11 +2469,18 @@ void TObjectService::OnDynamicConfigChanged(TDynamicClusterConfigPtr /*oldConfig
     LocalWriteRequestThrottler_->Reconfigure(objectServiceConfig->LocalWriteRequestThrottler);
 }
 
+template <EUserWorkloadType WorkloadType>
 void TObjectService::EnqueueReadySession(TExecuteSessionPtr session)
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
 
-    ReadySessions_.Enqueue(std::move(session));
+    if constexpr (WorkloadType == EUserWorkloadType::Write) {
+        AutomatonReadySessions_.Enqueue(std::move(session));
+    } else if constexpr (WorkloadType == EUserWorkloadType::Read) {
+        LocalReadReadySessions_.Enqueue(std::move(session));
+    } else {
+        static_assert("Unexpected workload type for enqueuing execute session");
+    }
 
     if (MinimizeExecuteLatency_.load(std::memory_order::relaxed)) {
         ProcessSessionsExecutor_->ScheduleOutOfBand();
@@ -2462,17 +2507,29 @@ void TObjectService::ProcessSessions()
         FinishSession(sessionInfo);
     });
 
-    ReadySessions_.DequeueAll(false, [&] (TExecuteSessionPtr& session) {
+    AutomatonReadySessions_.DequeueAll(false, [&] (TExecuteSessionPtr& session) {
         TCurrentTraceContextGuard guard(session->GetTraceContext());
 
-        session->OnDequeued();
+        session->OnDequeued<EUserWorkloadType::Write>();
 
-        if (!session->RunAutomatonFast()) {
+        if (!session->RunAutomatonFast(EUserWorkloadType::Write)) {
             return;
         }
 
         const auto& userName = session->GetUserName();
         AutomatonScheduler_->Enqueue(session, userName);
+    });
+    LocalReadReadySessions_.DequeueAll(false, [&] (TExecuteSessionPtr& session) {
+        TCurrentTraceContextGuard guard(session->GetTraceContext());
+
+        session->OnDequeued<EUserWorkloadType::Read>();
+
+        // TODO(shakurov): consider introducing RunLocalReadFast.
+        if (!session->RunAutomatonFast(EUserWorkloadType::Read)) {
+            return;
+        }
+
+        const auto& userName = session->GetUserName();
         LocalReadScheduler_->Enqueue(BIND(&TObjectService::TExecuteSession::RunRead, session), userName);
     });
 
