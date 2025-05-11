@@ -186,10 +186,10 @@ public:
 
 protected:
     std::vector<TVanillaTaskPtr> Tasks_;
+    TVanillaOperationOptionsPtr Options_;
 
 private:
     TVanillaOperationSpecPtr Spec_;
-    TVanillaOperationOptionsPtr Options_;
 
     std::vector<std::vector<TOutputTablePtr>> TaskOutputTables_;
 
@@ -448,8 +448,8 @@ TVanillaController::TVanillaController(
         options,
         host,
         operation)
+    , Options_(std::move(options))
     , Spec_(std::move(spec))
-    , Options_(options)
 { }
 
 void TVanillaController::RegisterMetadata(auto&& registrar)
@@ -769,6 +769,33 @@ class TGangOperationController;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TLastGangJobInfo
+    : public TAllocation::TLastJobInfo
+{
+    NChunkPools::IChunkPoolOutput::TCookie OutputCookie;
+
+    std::optional<TJobMonitoringDescriptor> MonitoringDescriptor;
+
+    PHOENIX_DECLARE_POLYMORPHIC_TYPE(TLastGangJobInfo, 0x2201d8d6);
+};
+
+class TGangJoblet
+    : public TJoblet
+{
+public:
+    using TJoblet::TJoblet;
+
+    TOperationIncarnation OperationIncarnation;
+
+    PHOENIX_DECLARE_POLYMORPHIC_TYPE(TGangJoblet, 0x99fa99b3);
+};
+
+PHOENIX_DEFINE_TYPE(TGangJoblet);
+DEFINE_REFCOUNTED_TYPE(TGangJoblet)
+DECLARE_REFCOUNTED_CLASS(TGangJoblet)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TGangTask
     : public TVanillaTask
 {
@@ -776,7 +803,7 @@ public:
     using TVanillaTask::TVanillaTask;
 
     void TrySwitchToNewOperationIncarnation(
-        const TJobletPtr& joblet,
+        const TGangJobletPtr& joblet,
         bool operationIsReviving,
         EOperationIncarnationSwitchReason reason);
 
@@ -790,6 +817,8 @@ private:
     THashMap<TString, TString> BuildJobEnvironment() const final;
 
     TGangOperationController& GetOperationController() const;
+
+    void StoreLastJobInfo(TAllocation& allocation, const TJobletPtr& joblet) const final;
 
     PHOENIX_DECLARE_POLYMORPHIC_TYPE(TGangTask, 0x99fa90be);
 };
@@ -812,7 +841,7 @@ public:
         TOperation* operation);
 
     void TrySwitchToNewOperationIncarnation(
-        const TJobletPtr& joblet,
+        const TGangJobletPtr& joblet,
         bool operationIsReviving,
         EOperationIncarnationSwitchReason reason);
 
@@ -865,6 +894,16 @@ private:
         std::vector<TOutputStreamDescriptorPtr> outputStreamDescriptors,
         std::vector<TInputStreamDescriptorPtr> inputStreamDescriptors) final;
 
+    void ReportOperationIncarnationToArchive(const TGangJobletPtr& joblet) const;
+
+    void OnJobStarted(const TJobletPtr& joblet) final;
+
+    void InitUserJobSpec(
+        NControllerAgent::NProto::TUserJobSpec* jobSpec,
+        const TJobletPtr& joblet) const final;
+
+    void EnrichJobInfo(NYTree::TFluentMap fluent, const TJobletPtr& joblet) const final;
+
     PHOENIX_DECLARE_POLYMORPHIC_TYPE(TGangOperationController, 0x99fa99be);
 };
 
@@ -872,8 +911,27 @@ PHOENIX_DEFINE_TYPE(TGangOperationController);
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TLastGangJobInfo::RegisterMetadata(auto&& registrar)
+{
+    registrar.template BaseType<TAllocation::TLastJobInfo>();
+
+    PHOENIX_REGISTER_FIELD(1, OutputCookie);
+    PHOENIX_REGISTER_FIELD(2, MonitoringDescriptor);
+}
+
+PHOENIX_DEFINE_TYPE(TLastGangJobInfo);
+
+void TGangJoblet::RegisterMetadata(auto&& registrar)
+{
+    registrar.template BaseType<TJoblet>();
+
+    PHOENIX_REGISTER_FIELD(1, OperationIncarnation);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TGangTask::TrySwitchToNewOperationIncarnation(
-    const TJobletPtr& joblet,
+    const TGangJobletPtr& joblet,
     bool operationIsReviving,
     EOperationIncarnationSwitchReason reason)
 {
@@ -889,9 +947,9 @@ void TGangTask::TrySwitchToNewOperationIncarnation(
 TVanillaTask::TNewJobConstraints TGangTask::GetNewJobConstraints(const TAllocation& allocation) const
 {
     auto result = TTask::GetNewJobConstraints(allocation);
-    if (allocation.LastJobInfo) {
-        result.OutputCookie = allocation.LastJobInfo.OutputCookie;
-        result.MonitoringDescriptor = allocation.LastJobInfo.MonitoringDescriptor;
+    if (auto lastJobInfo = static_cast<const TLastGangJobInfo*>(allocation.LastJobInfo.get())) {
+        result.OutputCookie = lastJobInfo->OutputCookie;
+        result.MonitoringDescriptor = lastJobInfo->MonitoringDescriptor;
         if (!result.MonitoringDescriptor) {
             // NB(pogorelov): If it would be just unset optional,
             // we could get descriptor intended for another allocation.
@@ -930,6 +988,17 @@ THashMap<TString, TString> TGangTask::BuildJobEnvironment() const
 TGangOperationController& TGangTask::GetOperationController() const
 {
     return static_cast<TGangOperationController&>(*VanillaController_);
+}
+
+void TGangTask::StoreLastJobInfo(TAllocation& allocation, const TJobletPtr& joblet) const
+{
+    auto lastJobInfo = std::make_unique<TLastGangJobInfo>();
+    lastJobInfo->JobId = joblet->JobId;
+    lastJobInfo->CompetitionType = joblet->CompetitionType;
+    lastJobInfo->OutputCookie = joblet->OutputCookie;
+    lastJobInfo->MonitoringDescriptor = joblet->UserJobMonitoringDescriptor;
+
+    allocation.LastJobInfo = std::move(lastJobInfo);
 }
 
 void TGangTask::RegisterMetadata(auto&& registrar)
@@ -978,7 +1047,7 @@ bool TGangOperationController::OnJobCompleted(
 
     if (joblet->JobType == EJobType::Vanilla && interruptionReason != EInterruptionReason::None) {
         static_cast<TGangTask*>(joblet->Task)->TrySwitchToNewOperationIncarnation(
-            joblet,
+            StaticPointerCast<TGangJoblet>(std::move(joblet)),
             /*operationIsReviving*/ false,
             EOperationIncarnationSwitchReason::JobInterrupted);
     }
@@ -998,7 +1067,7 @@ bool TGangOperationController::OnJobFailed(
 
     if (joblet->JobType == EJobType::Vanilla) {
         static_cast<TGangTask*>(joblet->Task)->TrySwitchToNewOperationIncarnation(
-            joblet,
+            StaticPointerCast<TGangJoblet>(std::move(joblet)),
             /*operationIsReviving*/ false,
             EOperationIncarnationSwitchReason::JobFailed);
     }
@@ -1018,7 +1087,7 @@ bool TGangOperationController::OnJobAborted(
 
     if (joblet->JobType == EJobType::Vanilla) {
         static_cast<TGangTask*>(joblet->Task)->TrySwitchToNewOperationIncarnation(
-            joblet,
+            StaticPointerCast<TGangJoblet>(std::move(joblet)),
             /*operationIsReviving*/ false,
             EOperationIncarnationSwitchReason::JobAborted);
     }
@@ -1036,13 +1105,16 @@ TJobletPtr TGangOperationController::CreateJoblet(
 {
     YT_ASSERT_INVOKER_POOL_AFFINITY(CancelableInvokerPool);
 
-    auto joblet = TOperationControllerBase::CreateJoblet(
+    auto joblet = New<TGangJoblet>(
         task,
-        jobId,
-        std::move(treeId),
+        NextJobIndex(),
         taskJobIndex,
-        std::move(poolPath),
+        std::move(treeId),
         treeIsTentative);
+
+    joblet->StartTime = TInstant::Now();
+    joblet->JobId = jobId;
+    joblet->PoolPath = std::move(poolPath);
 
     joblet->OperationIncarnation = Incarnation_;
 
@@ -1050,7 +1122,7 @@ TJobletPtr TGangOperationController::CreateJoblet(
 }
 
 void TGangOperationController::TrySwitchToNewOperationIncarnation(
-    const TJobletPtr& joblet,
+    const TGangJobletPtr& joblet,
     bool operationIsReviving,
     EOperationIncarnationSwitchReason reason)
 {
@@ -1135,12 +1207,14 @@ void TGangOperationController::RestartAllRunningJobsPreservingAllocations(bool o
     }
 
     for (auto allocation : allocationsToRestartJobs) {
-        auto failReason = TryScheduleNextJob(*allocation, allocation->LastJobInfo.JobId);
+        auto failReason = TryScheduleNextJob(*allocation, allocation->LastJobInfo->JobId);
         if (failReason) {
+            YT_VERIFY(allocation->LastJobInfo);
+
             YT_LOG_DEBUG(
                 "Failed to restart job, just aborting it (AllocationId: %v, CurrentJobId: %v, ScheduleNewJobFailReason: %v)",
                 allocation->Id,
-                allocation->LastJobInfo.JobId,
+                allocation->LastJobInfo->JobId,
                 failReason);
 
             allocation->NewJobsForbiddenReason = failReason;
@@ -1168,6 +1242,56 @@ TVanillaTaskPtr TGangOperationController::CreateTask(
         std::move(name),
         std::move(outputStreamDescriptors),
         std::move(inputStreamDescriptors));
+}
+
+void TGangOperationController::ReportOperationIncarnationToArchive(const TGangJobletPtr& joblet) const
+{
+    HandleJobReport(joblet, TControllerJobReport()
+        .OperationIncarnation(static_cast<const std::string&>(joblet->OperationIncarnation)));
+}
+
+void TGangOperationController::OnJobStarted(const TJobletPtr& joblet)
+{
+    YT_ASSERT_INVOKER_POOL_AFFINITY(InvokerPool);
+
+    TOperationControllerBase::OnJobStarted(joblet);
+    ReportOperationIncarnationToArchive(StaticPointerCast<TGangJoblet>(joblet));
+}
+
+void TGangOperationController::InitUserJobSpec(
+    NControllerAgent::NProto::TUserJobSpec* jobSpec,
+    const TJobletPtr& joblet) const
+{
+    YT_ASSERT_INVOKER_AFFINITY(JobSpecBuildInvoker_);
+
+    TOperationControllerBase::InitUserJobSpec(jobSpec, joblet);
+
+    const auto& gangJoblet = static_cast<const TGangJoblet&>(*joblet);
+
+    auto fillEnvironment = [&] (const auto& setEnvironmentVariable) {
+        setEnvironmentVariable("YT_OPERATION_INCARNATION", ToString(gangJoblet.OperationIncarnation));
+    };
+
+    fillEnvironment([&jobSpec] (TStringBuf key, TStringBuf value) {
+        jobSpec->add_environment(Format("%v=%v", key, value));
+    });
+
+    if (const auto& options = Options_->GpuCheck;
+        options->UseSeparateRootVolume && jobSpec->has_gpu_check_binary_path())
+    {
+        auto* protoEnvironment = jobSpec->mutable_gpu_check_environment();
+        fillEnvironment([protoEnvironment] (TStringBuf key, TStringBuf value) {
+            (*protoEnvironment)[key] = value;
+        });
+    }
+}
+
+void TGangOperationController::EnrichJobInfo(NYTree::TFluentMap fluent, const TJobletPtr& joblet) const
+{
+    TOperationControllerBase::EnrichJobInfo(fluent, joblet);
+
+    fluent
+        .Item("operation_incarnation").Value(static_cast<const TGangJoblet&>(*joblet).OperationIncarnation);
 }
 
 void TGangOperationController::OnOperationIncarnationChanged(bool operationIsReviving, EOperationIncarnationSwitchReason reason)
@@ -1209,16 +1333,16 @@ void TGangOperationController::VerifyJobsIncarnationsEqual() const
         return;
     }
 
-    const TJoblet* joblet = nullptr;
+    const TGangJoblet* joblet = nullptr;
     for (const auto& [id, allocation] : AllocationMap_) {
         if (allocation.Joblet) {
             if (!joblet) {
-                joblet = allocation.Joblet.Get();
+                joblet = static_cast<const TGangJoblet*>(allocation.Joblet.Get());
                 continue;
             }
             // NB(pogorelov): The situation where incarnations differ after revival should be impossible.
-            YT_VERIFY(allocation.Joblet->OperationIncarnation == joblet->OperationIncarnation);
-            YT_VERIFY(allocation.Joblet->OperationIncarnation == Incarnation_);
+            YT_VERIFY(static_cast<const TGangJoblet*>(allocation.Joblet.Get())->OperationIncarnation == joblet->OperationIncarnation);
+            YT_VERIFY(static_cast<const TGangJoblet*>(allocation.Joblet.Get())->OperationIncarnation == Incarnation_);
         }
     }
 }

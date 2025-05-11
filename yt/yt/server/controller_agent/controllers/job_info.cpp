@@ -46,16 +46,9 @@ void TAllocation::TLastJobInfo::RegisterMetadata(auto&& registrar)
 {
     PHOENIX_REGISTER_FIELD(1, JobId);
     PHOENIX_REGISTER_FIELD(2, CompetitionType);
-    PHOENIX_REGISTER_FIELD(3, OutputCookie);
-    PHOENIX_REGISTER_FIELD(4, MonitoringDescriptor);
 }
 
 PHOENIX_DEFINE_TYPE(TAllocation::TLastJobInfo);
-
-TAllocation::TLastJobInfo::operator bool() const noexcept
-{
-    return JobId != TJobId();
-}
 
 void TAllocation::RegisterMetadata(auto&& registrar)
 {
@@ -218,8 +211,7 @@ void TJoblet::RegisterMetadata(auto&& registrar)
     PHOENIX_REGISTER_FIELD(44, EnabledJobProfiler);
     PHOENIX_REGISTER_FIELD(45, OutputStreamDescriptors);
     PHOENIX_REGISTER_FIELD(46, InputStreamDescriptors);
-    PHOENIX_REGISTER_FIELD(47, OperationIncarnation);
-    PHOENIX_REGISTER_FIELD(48, UserJobMonitoringDescriptor);
+    PHOENIX_REGISTER_FIELD(47, UserJobMonitoringDescriptor);
 
     registrar.AfterLoad([] (TThis* this_, auto& /*context*/) {
        this_->Revived = true;
