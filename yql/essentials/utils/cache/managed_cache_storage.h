@@ -1,9 +1,13 @@
 #pragma once
 
+#include "managed_cache_listener.h"
+
 #include <concepts>
+#include <functional>
 
 #include <library/cpp/threading/future/future.h>
 #include <library/cpp/containers/concurrent_hash/concurrent_hash.h>
+#include <library/cpp/monlib/metrics/metric_registry.h>
 
 #include <util/system/mutex.h>
 
@@ -50,8 +54,14 @@ namespace NYql {
         // keep the liveness property of the Update procedure.
         using TQuery = std::function<NThreading::TFuture<TVector<TValue>>(const TVector<TKey>&)>;
 
-        explicit TManagedCacheStorage(TQuery query)
+        TManagedCacheStorage(TQuery query)
+            : TManagedCacheStorage(std::move(query), MakeDummyManagedCacheListener())
+        {
+        }
+
+        TManagedCacheStorage(TQuery query, IManagedCacheListener::TPtr listener)
             : Query_(std::move(query))
+            , Listener_(std::move(listener))
         {
         }
 
@@ -62,6 +72,8 @@ namespace NYql {
             if (TEntry* entry = bucket.TryGetUnsafe(key);
                 entry != nullptr && !entry->Value.HasException()) {
                 entry->IsReferenced = true;
+
+                Listener_->OnHit();
                 return entry->Value;
             }
 
@@ -76,6 +88,7 @@ namespace NYql {
             entry.IsReferenced = true;
             entry.IsUpdated = true;
 
+            Listener_->OnMiss();
             return entry.Value;
         }
 
@@ -106,7 +119,9 @@ namespace NYql {
 
     private:
         void ResetReferencedAndEvictAbandoned() {
-            ForEachBucketLocked([](TActualMap& bucket) {
+            size_t evicted = 0;
+
+            ForEachBucketLocked([&](TActualMap& bucket) {
                 TVector<TKey> abandoned;
 
                 for (auto& [key, entry] : bucket) {
@@ -121,7 +136,11 @@ namespace NYql {
                 for (const TKey& key : abandoned) {
                     bucket.erase(key);
                 }
+
+                evicted += abandoned.size();
             });
+
+            Listener_->OnEvict(evicted);
         }
 
         void ResetUpdatedAndCollectOutdated(TOutdatedState& outdated) {
@@ -141,6 +160,8 @@ namespace NYql {
                     outdated.Keys.emplace_back(key);
                 }
             });
+
+            Listener_->OnUpdate(outdated.Keys.size());
         }
 
         void UpdateBatch(TOutdatedState outdated, TVector<TValue> values) {
@@ -183,6 +204,7 @@ namespace NYql {
         TQuery Query_;
         TContainer Container_;
         TMutex TickMutex_;
+        IManagedCacheListener::TPtr Listener_;
     };
 
 } // namespace NYql
