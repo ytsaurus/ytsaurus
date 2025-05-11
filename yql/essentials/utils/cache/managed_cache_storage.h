@@ -73,20 +73,7 @@ namespace NYql {
 
         void Evict() {
             TGuard guard(TickMutex_);
-
-            ForEachBucketLocked([](TActualMap& bucket) {
-                TVector<TKey> abandoned;
-                for (auto& [key, entry] : bucket) {
-                    if (entry.IsReferenced) {
-                        entry.IsReferenced = false;
-                    } else {
-                        abandoned.emplace_back(key);
-                    }
-                }
-                for (const TKey& key : abandoned) {
-                    bucket.erase(key);
-                }
-            });
+            ResetReferencedAndEvictAbandoned();
         }
 
         void Update() {
@@ -94,18 +81,7 @@ namespace NYql {
 
             TVector<TKey> outdated;
             THashMap<std::uintptr_t, TVector<size_t>> indeciesByBuckets;
-
-            ForEachBucketLocked([&](TActualMap& bucket) {
-                for (auto& [key, entry] : bucket) {
-                    if (entry.IsUpdated) {
-                        entry.IsUpdated = false;
-                    } else {
-                        indeciesByBuckets[reinterpret_cast<std::uintptr_t>(&bucket)]
-                            .emplace_back(outdated.size());
-                        outdated.emplace_back(key);
-                    }
-                }
-            });
+            ResetUpdatedAndCollectOutdated(outdated, indeciesByBuckets);
 
             if (outdated.empty()) {
                 return;
@@ -115,16 +91,50 @@ namespace NYql {
             ApplyBatchUpdate(
                 std::move(outdated),
                 std::move(values),
-                std::move(indeciesByBuckets),
-                guard);
+                std::move(indeciesByBuckets));
         }
 
     private:
+        void ResetReferencedAndEvictAbandoned() {
+            ForEachBucketLocked([](TActualMap& bucket) {
+                TVector<TKey> abandoned;
+
+                for (auto& [key, entry] : bucket) {
+                    if (entry.IsReferenced) {
+                        entry.IsReferenced = false;
+                        continue;
+                    }
+
+                    abandoned.emplace_back(key);
+                }
+
+                for (const TKey& key : abandoned) {
+                    bucket.erase(key);
+                }
+            });
+        }
+
+        void ResetUpdatedAndCollectOutdated(
+            TVector<TKey>& outdated,
+            THashMap<std::uintptr_t, TVector<size_t>>& indeciesByBuckets) {
+            ForEachBucketLocked([&](TActualMap& bucket) {
+                for (auto& [key, entry] : bucket) {
+                    if (entry.IsUpdated) {
+                        entry.IsUpdated = false;
+                        continue;
+                    }
+
+                    auto ptr = reinterpret_cast<std::uintptr_t>(&bucket);
+                    indeciesByBuckets[ptr].emplace_back(outdated.size());
+                    outdated.emplace_back(key);
+                }
+            });
+        }
+
         void ApplyBatchUpdate(
             TVector<TKey> keys,
             TVector<TValue> values,
-            THashMap<std::uintptr_t, TVector<size_t>> buckets,
-            const TGuard<TMutex>& /* tickMutex */) {
+            THashMap<std::uintptr_t, TVector<size_t>> buckets) {
             Y_ENSURE(keys.size() == values.size());
             Y_ENSURE(keys.size() == buckets.size());
 
