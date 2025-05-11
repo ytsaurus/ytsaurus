@@ -2126,11 +2126,13 @@ class TestLookupRpcProxy(TestLookup):
 
 @pytest.mark.enabled_multidaemon
 class TestLookupSequoia(TestLookup):
+    ENABLE_MULTIDAEMON = True
     USE_SEQUOIA = True
     ENABLE_CYPRESS_TRANSACTIONS_IN_SEQUOIA = True
     ENABLE_TMP_ROOTSTOCK = True
     NUM_CYPRESS_PROXIES = 1
     NUM_SECONDARY_MASTER_CELLS = 2
+    NUM_TEST_PARTITIONS = 3
 
     MASTER_CELL_DESCRIPTORS = {
         "10": {"roles": ["cypress_node_host"]},
