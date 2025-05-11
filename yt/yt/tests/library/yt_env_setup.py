@@ -1089,7 +1089,10 @@ class YTEnvSetup(object):
         yt_commands.set(f"{response_keeper_path}/@mount_config/max_data_ttl", 1000, driver=ground_driver)
 
         for table_path in get_table_paths(DESCRIPTORS.chunk_refresh_queue):
-            yt_commands.sync_reshard_table(table_path, 60, driver=ground_driver)
+            yt_commands.reshard_table(table_path, 60, driver=ground_driver)
+
+        for table_path in get_table_paths(DESCRIPTORS.chunk_refresh_queue):
+            wait(lambda: yt_commands.get(f"{table_path}/@tablet_state", driver=ground_driver) != "transient")
 
         for descriptor in DESCRIPTORS.as_dict().values():
             for table_path in get_table_paths(descriptor):
