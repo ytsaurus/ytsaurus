@@ -1,3 +1,4 @@
+#include "managed_cache_ut.h"
 #include "managed_cache.h"
 
 #include <library/cpp/testing/unittest/registar.h>
@@ -17,15 +18,9 @@
 // - [x] Extract UpdateScan and EvictScan
 // - [ ] Think about capacity (LRU)
 // - [ ] What if query is longer than quantum
-// - [ ] Quantum is a update frequency and eviction rate relative to update rate
+// - [x] Quantum is a update frequency and eviction rate relative to update rate
 
 using namespace NYql;
-
-using TKey = TString;
-using TValue = TString;
-
-using TCacheStorage = TManagedCacheStorage<TKey, TValue>;
-using TCacheMaintenance = TManagedCacheMaintenance<TKey, TValue>;
 
 auto Async(auto& pool, auto f) {
     return NThreading::Async(f, *pool);
@@ -79,165 +74,7 @@ private:
     THolder<IThreadPool> Pool_ = CreateThreadPool(/* threadCount = */ 16);
 };
 
-TCacheStorage::TQuery MakeDummyQuery(size_t* served = nullptr, bool* isFailing = nullptr) {
-    if (served != nullptr) {
-        *served = 0;
-    }
-
-    if (isFailing != nullptr) {
-        *isFailing = false;
-    }
-
-    return [served, isFailing](const TVector<TKey>& keys) {
-        if (served != nullptr) {
-            *served += 1;
-        }
-
-        if (isFailing != nullptr && *isFailing) {
-            return NThreading::MakeErrorFuture<TVector<TValue>>(
-                std::make_exception_ptr(yexception() << "o_o"));
-        }
-
-        return NThreading::MakeFuture<TVector<TValue>>(keys);
-    };
-}
-
 Y_UNIT_TEST_SUITE(TManagedCacheTests) {
-
-    Y_UNIT_TEST(TestValueCached) {
-        size_t served;
-        TCacheStorage cache(MakeDummyQuery(&served));
-
-        UNIT_ASSERT_VALUES_EQUAL(cache.Get("key").GetValueSync(), "key");
-        UNIT_ASSERT_VALUES_EQUAL(served, 1);
-
-        UNIT_ASSERT_VALUES_EQUAL(cache.Get("key").GetValueSync(), "key");
-        UNIT_ASSERT_VALUES_EQUAL(served, 1);
-    }
-
-    Y_UNIT_TEST(TestErrorNotCached) {
-        size_t served;
-        bool isFailing;
-        TCacheStorage cache(MakeDummyQuery(&served, &isFailing));
-
-        isFailing = true;
-        UNIT_ASSERT_EXCEPTION_CONTAINS(cache.Get("key").GetValueSync(), yexception, "o_o");
-        UNIT_ASSERT_VALUES_EQUAL(served, 1);
-
-        UNIT_ASSERT_EXCEPTION_CONTAINS(cache.Get("key").GetValueSync(), yexception, "o_o");
-        UNIT_ASSERT_VALUES_EQUAL(served, 2);
-    }
-
-    Y_UNIT_TEST(TestGetQueue) {
-        auto promise = NThreading::NewPromise<TVector<TValue>>();
-
-        size_t served = 0;
-        TCacheStorage cache([&](auto) {
-            served += 1;
-            return promise.GetFuture();
-        });
-
-        auto first = cache.Get("key");
-        UNIT_ASSERT_VALUES_EQUAL(first.IsReady(), false);
-        UNIT_ASSERT_VALUES_EQUAL(served, 1);
-
-        auto second = cache.Get("key");
-        UNIT_ASSERT_VALUES_EQUAL(second.IsReady(), false);
-        UNIT_ASSERT_VALUES_EQUAL(served, 1);
-
-        promise.SetValue({"value"});
-        UNIT_ASSERT_VALUES_EQUAL(first.GetValue(), "value");
-        UNIT_ASSERT_VALUES_EQUAL(second.GetValue(), "value");
-    }
-
-    Y_UNIT_TEST(TestUpdate) {
-        // .       e
-        // .   u   u
-        // |---|---|--
-        // 0   1   2
-        TManagedCacheConfig config = {
-            .EvictionFrequency = 2,
-        };
-
-        size_t served;
-        auto cache = MakeIntrusive<TCacheStorage>(MakeDummyQuery(&served));
-        TCacheMaintenance maintenance(cache, config);
-
-        cache->Get("key").GetValueSync();
-
-        maintenance.Tick(); // 1: Updated => Reset
-        UNIT_ASSERT_VALUES_EQUAL(served, 1);
-
-        maintenance.Tick(); // 2: Outdated => Update
-        UNIT_ASSERT_VALUES_EQUAL(served, 2);
-    }
-
-    Y_UNIT_TEST(TestEviction) {
-        // .       e       e       e
-        // .   u   u   u   u   u   u
-        // |---|---|---|---|---|---|--
-        // 0   1   2   3   4   5   6
-        TManagedCacheConfig config = {
-            .EvictionFrequency = 2,
-        };
-
-        size_t served;
-        auto cache = MakeIntrusive<TCacheStorage>(MakeDummyQuery(&served));
-        TCacheMaintenance maintenance(cache, config);
-
-        cache->Get("key").GetValueSync();
-        UNIT_ASSERT_VALUES_EQUAL(served, 1);
-
-        maintenance.Tick(); // 1: Updated => Reset
-        UNIT_ASSERT_VALUES_EQUAL(served, 1);
-
-        maintenance.Tick();                  // 2 (e): Referenced => Reset
-        UNIT_ASSERT_VALUES_EQUAL(served, 2); // 2 (u): Outdated => Update
-
-        maintenance.Tick(); // 3: Updated => Reset
-        UNIT_ASSERT_VALUES_EQUAL(served, 2);
-
-        maintenance.Tick(); // 4: Abandoned => Evict
-        UNIT_ASSERT_VALUES_EQUAL(served, 2);
-
-        maintenance.Tick();
-        UNIT_ASSERT_VALUES_EQUAL(served, 2);
-
-        cache->Get("key").GetValueSync();
-        UNIT_ASSERT_VALUES_EQUAL(served, 3);
-    }
-
-    Y_UNIT_TEST(TestPreventEviction) {
-        // .       e       e
-        // .   u   u   u   u
-        // |---|---|---|---|--
-        // 0   1   2   3   4
-        TManagedCacheConfig config = {
-            .EvictionFrequency = 2,
-        };
-
-        size_t served = 0;
-        auto cache = MakeIntrusive<TCacheStorage>(MakeDummyQuery(&served));
-        TCacheMaintenance maintenance(cache, config);
-
-        cache->Get("key").GetValueSync();
-        UNIT_ASSERT_VALUES_EQUAL(served, 1);
-
-        maintenance.Tick();
-        UNIT_ASSERT_VALUES_EQUAL(served, 1);
-
-        maintenance.Tick();                  // 2 (e): Referenced => Reset
-        UNIT_ASSERT_VALUES_EQUAL(served, 2); // 2 (u): Outdated => Update
-
-        cache->Get("key").GetValueSync(); // Set Referenced
-        UNIT_ASSERT_VALUES_EQUAL(served, 2);
-
-        maintenance.Tick(); // 3: Updated => Reset
-        UNIT_ASSERT_VALUES_EQUAL(served, 2);
-
-        maintenance.Tick();                  // 4 (e): Referenced => Reset
-        UNIT_ASSERT_VALUES_EQUAL(served, 3); // 4 (u): Outdated => Update
-    }
 
     Y_UNIT_TEST(TestStress) {
         TIdentityService service;
