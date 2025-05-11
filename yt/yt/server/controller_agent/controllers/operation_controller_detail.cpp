@@ -9067,7 +9067,7 @@ void TOperationControllerBase::RegisterJoblet(const TJobletPtr& joblet)
 
 void TOperationControllerBase::UnregisterJoblet(const TJobletPtr& joblet)
 {
-    UnregisterJobForMonitoring(joblet);
+    ReleaseMonitoringDescriptor(joblet);
 
     auto& allocation = GetOrCrash(AllocationMap_, AllocationIdFromJobId(joblet->JobId));
     YT_VERIFY(joblet == allocation.Joblet);
@@ -9127,35 +9127,23 @@ TJobletPtr TOperationControllerBase::GetJobletOrThrow(TJobId jobId) const
     return joblet;
 }
 
-std::optional<TJobMonitoringDescriptor> TOperationControllerBase::RegisterJobForMonitoring(
+std::optional<TJobMonitoringDescriptor> TOperationControllerBase::AcquireMonitoringDescriptorForJob(
     TJobId jobId,
-    const std::optional<TJobMonitoringDescriptor>& descriptorHint)
+    const TAllocation& /*allocation*/)
 {
     YT_LOG_DEBUG(
-        "Trying to assign monitoring descriptor to job (JobId: %v, DescriptorHint: %v)",
-        jobId,
-        descriptorHint);
-
-    if (descriptorHint == NullMonitoringDescriptor) {
-        return std::nullopt;
-    }
+        "Trying to assign monitoring descriptor to job (JobId: %v)",
+        jobId);
 
     std::optional<TJobMonitoringDescriptor> descriptor;
 
-    if (descriptorHint) {
-        EraseOrCrash(MonitoringDescriptorPool_, *descriptorHint);
-        descriptor = descriptorHint;
-    }
-
-    if (!descriptor) {
-        if (MonitoringDescriptorPool_.empty()) {
-            descriptor = RegisterNewMonitoringDescriptor();
-        } else {
-            auto it = MonitoringDescriptorPool_.begin();
-            auto foundDescriptor = *it;
-            MonitoringDescriptorPool_.erase(it);
-            descriptor = foundDescriptor;
-        }
+    if (MonitoringDescriptorPool_.empty()) {
+        descriptor = RegisterNewMonitoringDescriptor();
+    } else {
+        auto it = MonitoringDescriptorPool_.begin();
+        auto foundDescriptor = *it;
+        MonitoringDescriptorPool_.erase(it);
+        descriptor = foundDescriptor;
     }
 
     if (descriptor) {
@@ -9164,7 +9152,6 @@ std::optional<TJobMonitoringDescriptor> TOperationControllerBase::RegisterJobFor
             jobId,
             descriptor);
 
-        EmplaceOrCrash(JobIdToMonitoringDescriptor_, jobId, *descriptor);
         ++MonitoredUserJobCount_;
     } else {
         YT_LOG_DEBUG("Failed to assign monitoring descriptor to job (JobId: %v)", jobId);
@@ -9206,7 +9193,7 @@ std::optional<TJobMonitoringDescriptor> TOperationControllerBase::RegisterNewMon
     return descriptor;
 }
 
-void TOperationControllerBase::UnregisterJobForMonitoring(const TJobletPtr& joblet)
+void TOperationControllerBase::ReleaseMonitoringDescriptor(const TJobletPtr& joblet)
 {
     const auto& userJobSpec = joblet->Task->GetUserJobSpec();
     if (userJobSpec && userJobSpec->Monitoring->Enable) {
@@ -9214,7 +9201,6 @@ void TOperationControllerBase::UnregisterJobForMonitoring(const TJobletPtr& jobl
     }
     if (joblet->UserJobMonitoringDescriptor) {
         InsertOrCrash(MonitoringDescriptorPool_, *joblet->UserJobMonitoringDescriptor);
-        EraseOrCrash(JobIdToMonitoringDescriptor_, joblet->JobId);
         --MonitoredUserJobCount_;
         // NB: We do not want to remove index, but old version of logic can be done with the following call.
         // Host->ReleaseJobMonitoringDescriptor(OperationId, joblet->UserJobMonitoringDescriptor->Index);
@@ -10886,8 +10872,6 @@ void TOperationControllerBase::RegisterMetadata(auto&& registrar)
         .SinceVersion(ESnapshotVersion::PersistMonitoringCounts));
 
     PHOENIX_REGISTER_FIELD(78, MonitoringDescriptorPool_,
-        .SinceVersion(ESnapshotVersion::MonitoringDescriptorsPreserving));
-    PHOENIX_REGISTER_FIELD(79, JobIdToMonitoringDescriptor_,
         .SinceVersion(ESnapshotVersion::MonitoringDescriptorsPreserving));
 
     PHOENIX_REGISTER_FIELD(73, UnknownExitCodeFailCount_,

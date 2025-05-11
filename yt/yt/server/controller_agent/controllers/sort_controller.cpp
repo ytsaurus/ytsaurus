@@ -1225,8 +1225,7 @@ protected:
         }
 
         IChunkPoolOutput::TCookie ExtractCookieForAllocation(
-            const TAllocation& allocation,
-            const TNewJobConstraints& /*newJobConstraints*/) override
+            const TAllocation& allocation) override
         {
             auto nodeId = HasInputLocality() ? NodeIdFromAllocationId(allocation.Id) : InvalidNodeId;
             auto localityEntry = Controller_->GetLocalityEntry(nodeId);
@@ -1435,10 +1434,9 @@ protected:
         }
 
         IChunkPoolOutput::TCookie ExtractCookieForAllocation(
-            const TAllocation& allocation,
-            const TNewJobConstraints& newJobConstraints) override
+            const TAllocation& allocation) override
         {
-            auto cookie = TSortTaskBase::ExtractCookieForAllocation(allocation, newJobConstraints);
+            auto cookie = TSortTaskBase::ExtractCookieForAllocation(allocation);
 
             // NB(gritukan): In some weird cases unordered chunk pool can estimate total
             // number of jobs as 1 after pool creation and >1 after first cookie extraction.
@@ -1508,8 +1506,7 @@ protected:
         }
 
         IChunkPoolOutput::TCookie ExtractCookieForAllocation(
-            const TAllocation& allocation,
-            const TNewJobConstraints& /*newJobConstraints*/) override
+            const TAllocation& allocation) override
         {
             auto nodeId = HasInputLocality() ? NodeIdFromAllocationId(allocation.Id) : InvalidNodeId;
 

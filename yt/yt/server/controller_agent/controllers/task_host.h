@@ -107,9 +107,9 @@ struct ITaskHost
     virtual void RegisterJoblet(const TJobletPtr& joblet) = 0;
     virtual std::expected<TJobId, EScheduleFailReason> GenerateJobId(NScheduler::TAllocationId allocationId, TJobId previousJobId) = 0;
 
-    virtual std::optional<TJobMonitoringDescriptor> RegisterJobForMonitoring(
+    virtual std::optional<TJobMonitoringDescriptor> AcquireMonitoringDescriptorForJob(
         TJobId jobId,
-        const std::optional<TJobMonitoringDescriptor>& descriptorHint) = 0;
+        const TAllocation& allocation) = 0;
 
     virtual const std::optional<TJobResources>& CachedMaxAvailableExecNodeResources() const = 0;
 
