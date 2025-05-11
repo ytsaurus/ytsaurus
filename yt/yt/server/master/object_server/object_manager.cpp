@@ -331,7 +331,7 @@ private:
         NProfiling::TTimeCounter CumulativeExecuteTimeCounter;
     };
 
-    TSyncMap<std::pair<EObjectType, TString>, std::unique_ptr<TMethodEntry>> MethodToEntry_;
+    TSyncMap<std::pair<EObjectType, std::string>, std::unique_ptr<TMethodEntry>> MethodToEntry_;
 
     TRootServicePtr RootService_;
 

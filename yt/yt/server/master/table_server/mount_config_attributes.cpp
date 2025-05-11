@@ -255,10 +255,10 @@ void InternalizeMountConfigAttributes(IAttributeDictionary* attributes)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::vector<std::pair<TString, TYsonString>> ExtractOldStyleMountConfigAttributes(
+std::vector<std::pair<std::string, TYsonString>> ExtractOldStyleMountConfigAttributes(
     TAttributeSet* attributes)
 {
-    std::vector<std::pair<TString, TYsonString>> result;
+    std::vector<std::pair<std::string, TYsonString>> result;
 
     for (const auto& [key, value] : attributes->Attributes()) {
         if (NDetail::IsOldStyleMountConfigAttribute(key)) {

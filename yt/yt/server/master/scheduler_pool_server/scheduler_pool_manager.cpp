@@ -403,7 +403,7 @@ private:
 
         void ApplyConfigChanges(TSchedulerPool* pool, const TPoolResourcesPtr& oldResources)
         {
-            TCompactVector<TString, 3> logMessages;
+            TCompactVector<std::string, 3> logMessages;
             auto& attributes = pool->SpecifiedAttributes();
             const auto& poolConfig = pool->FullConfig();
             const auto& actualStrongGuaranteeResources = poolConfig->StrongGuaranteeResources;

@@ -906,7 +906,7 @@ std::unique_ptr<TObjectProxyBase::IPermissionValidator> TObjectProxyBase::Create
     return std::make_unique<TPermissionValidator>(this);
 }
 
-void TObjectProxyBase::ValidateAnnotation(const TString& annotation)
+void TObjectProxyBase::ValidateAnnotation(const std::string& annotation)
 {
     if (annotation.size() > MaxAnnotationLength) {
         THROW_ERROR_EXCEPTION("Annotation is too long")

@@ -434,9 +434,10 @@ private:
                     securityManager);
                 auto* owner = DeserializeOwner(portalExitInfo.owner());
 
-                struct TAnnotationInfo {
-                    TString Annotation;
-                    TString Path;
+                struct TAnnotationInfo
+                {
+                    std::string Annotation;
+                    TYPath Path;
                 };
                 std::optional<TAnnotationInfo> effectiveAnnotationInfo;
                 if (portalExitInfo.has_effective_annotation()) {

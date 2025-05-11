@@ -190,7 +190,7 @@ protected:
 
     std::unique_ptr<IPermissionValidator> CreatePermissionValidator();
 
-    void ValidateAnnotation(const TString& annotation);
+    void ValidateAnnotation(const std::string& annotation);
 
     bool IsRecovery() const;
     bool IsLeader() const;

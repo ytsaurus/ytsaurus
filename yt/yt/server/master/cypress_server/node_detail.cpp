@@ -232,9 +232,8 @@ TCypressNode* TNontemplateCypressNodeTypeHandlerBase::MaterializeNodeCore(
     trunkNode->SetOpaque(opaque);
 
     // Copy annotation.
-    auto optionalAnnotation = Load<std::optional<TString>>(*context);
-    if (optionalAnnotation) {
-        trunkNode->SetAnnotation(*optionalAnnotation);
+    if (auto optionalAnnotation = Load<std::optional<std::string>>(*context)) {
+        trunkNode->SetAnnotation(std::move(*optionalAnnotation));
     } else {
         trunkNode->RemoveAnnotation();
     }
@@ -266,7 +265,7 @@ TCypressNode* TNontemplateCypressNodeTypeHandlerBase::MaterializeNodeCore(
     }
 
     // Copy attributes directly to suppress validation.
-    auto keyToAttribute = Load<std::vector<std::pair<TString, TYsonString>>>(*context);
+    auto keyToAttribute = Load<std::vector<std::pair<std::string, TYsonString>>>(*context);
     if (!keyToAttribute.empty()) {
         auto* clonedAttributes = trunkNode->GetMutableAttributes();
         const auto& ysonInternRegistry = Bootstrap_->GetYsonInternRegistry();
