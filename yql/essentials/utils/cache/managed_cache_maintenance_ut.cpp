@@ -95,4 +95,73 @@ Y_UNIT_TEST_SUITE(TManagedCacheMaintenanceTests) {
         UNIT_ASSERT_VALUES_EQUAL(served, 3); // 4 (u): Outdated => Update
     }
 
+    Y_UNIT_TEST(TestActuality) {
+        TManagedCacheConfig config = {
+            .EvictionFrequency = 16, // Disable eviction
+        };
+
+        size_t time = 0;
+        size_t updatePeriod = 100;
+        size_t queryLatency = 10;
+
+        // . <------update period------><--query latency-->
+        // --|-------------------------||-----------------|<>-
+        // . <----------concurrent get requests----------->
+        // Where <> -- publication
+
+        auto cache = MakeIntrusive<TCacheStorage>([&](const TVector<TKey>& keys) {
+            time += queryLatency;
+            return NThreading::MakeFuture(TVector<TValue>(keys.size(), ToString(time)));
+        });
+        TCacheMaintenance maintenance(cache, config);
+
+        cache->Get({"exising"}).GetValueSync();
+        cache->Update(); // Mark outdated
+        size_t startTime = time;
+        // -eu----u-----u-----u-----u---
+        //    ^
+
+        UNIT_ASSERT_VALUES_EQUAL(
+            cache->Get({"key"}).GetValueSync(),
+            ToString(startTime + 1 * queryLatency));
+        // -euk---u-----u-----u-----u---
+        //     ^
+
+        time += updatePeriod;
+        cache->Update(); // Mark `key` outdated, update `existing`
+        // -euk---u-----u-----u-----u---
+        //         ^
+
+        UNIT_ASSERT_VALUES_EQUAL(
+            cache->Get({"key"}).GetValueSync(),
+            ToString(startTime + 1 * queryLatency));
+        // .  .----.
+        // -euk---uk----u-----u-----u---
+        //          ^
+
+        time += updatePeriod;
+        // .  .----.
+        // -euk---uk----u-----u-----u---
+        //             ^
+
+        UNIT_ASSERT_VALUES_EQUAL(
+            cache->Get({"key"}).GetValueSync(),
+            ToString(startTime + 1 * queryLatency));
+        // .  .--------.
+        // -euk---uk---ku-----u-----u---
+        //             ^
+
+        cache->Update(); // Update `key` and `existing`
+        // .  .--------.
+        // -euk---uk---ku-----u-----u---
+        //              ^
+
+        UNIT_ASSERT_VALUES_EQUAL(
+            cache->Get({"key"}).GetValueSync(),
+            ToString(startTime + 2 * updatePeriod + 3 * queryLatency));
+        // .            ..
+        // -euk---uk---kuk----u-----u---
+        //               ^
+    }
+
 } // Y_UNIT_TEST_SUITE(TManagedCacheMaintenanceTests)
