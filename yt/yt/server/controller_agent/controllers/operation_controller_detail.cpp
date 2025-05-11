@@ -3038,7 +3038,7 @@ void TOperationControllerBase::EndUploadOutputTables(const std::vector<TOutputTa
     YT_LOG_INFO("Upload to output tables finished");
 }
 
-void TOperationControllerBase::SafeOnJobStarted(const TJobletPtr& joblet)
+void TOperationControllerBase::OnJobStarted(const TJobletPtr& joblet)
 {
     YT_ASSERT_INVOKER_POOL_AFFINITY(CancelableInvokerPool);
 
@@ -3066,7 +3066,6 @@ void TOperationControllerBase::SafeOnJobStarted(const TJobletPtr& joblet)
     IncreaseAccountResourceUsageLease(joblet->DiskRequestAccount, joblet->DiskQuota);
 
     ReportJobCookieToArchive(joblet);
-    ReportOperationIncarnationToArchive(joblet);
     ReportControllerStateToArchive(joblet, EJobState::Running);
     ReportStartTimeToArchive(joblet);
 
@@ -3074,12 +3073,14 @@ void TOperationControllerBase::SafeOnJobStarted(const TJobletPtr& joblet)
         .Item("job_id").Value(joblet->JobId)
         .Item("allocation_id").Value(AllocationIdFromJobId(joblet->JobId))
         .Item("operation_id").Value(OperationId)
-        .OptionalItem("operation_incarnation", joblet->OperationIncarnation)
         .Item("resource_limits").Value(joblet->ResourceLimits)
         .Item("node_address").Value(joblet->NodeDescriptor.Address)
         .Item("job_type").Value(joblet->JobType)
         .Item("task_name").Value(joblet->TaskName)
-        .Item("tree_id").Value(joblet->TreeId);
+        .Item("tree_id").Value(joblet->TreeId)
+        .Do([&] (TFluentMap fluent) {
+            EnrichJobInfo(fluent, joblet);
+        });
 
     LogProgress();
 }
@@ -3942,8 +3943,10 @@ void TOperationControllerBase::BuildJobAttributes(
                 .Item("predecessor_type").Value(joblet->PredecessorType)
                 .Item("predecessor_job_id").Value(joblet->PredecessorJobId);
         })
-        .OptionalItem("operation_incarnation", joblet->OperationIncarnation)
-        .Item("allocation_id").Value(AllocationIdFromJobId(joblet->JobId));
+        .Item("allocation_id").Value(AllocationIdFromJobId(joblet->JobId))
+        .Do([&] (TFluentMap fluent) {
+            EnrichJobInfo(fluent, joblet);
+        });
 }
 
 void TOperationControllerBase::BuildFinishedJobAttributes(
@@ -3990,7 +3993,6 @@ TFluentLogEvent TOperationControllerBase::LogFinishedJobFluently(
         .Item("job_id").Value(joblet->JobId)
         .Item("allocation_id").Value(AllocationIdFromJobId(joblet->JobId))
         .Item("operation_id").Value(OperationId)
-        .OptionalItem("operation_incarnation", joblet->OperationIncarnation)
         .Item("start_time").Value(joblet->StartTime)
         .Item("finish_time").Value(joblet->FinishTime)
         .Item("waiting_for_resources_duration").Value(joblet->WaitingForResourcesDuration)
@@ -4009,6 +4011,9 @@ TFluentLogEvent TOperationControllerBase::LogFinishedJobFluently(
             fluent
                 .Item("predecessor_type").Value(joblet->PredecessorType)
                 .Item("predecessor_job_id").Value(joblet->PredecessorJobId);
+        })
+        .Do([&] (TFluentMap fluent) {
+            EnrichJobInfo(fluent, joblet);
         });
 }
 
@@ -5064,7 +5069,8 @@ std::optional<EScheduleFailReason> TOperationControllerBase::TryScheduleJob(
         task.GetPendingJobCount(),
         MakeFormatterWrapper([&] (TStringBuilderBase* builder) {
             if (previousJobId) {
-                builder->AppendFormat("CompetitionType: %v", allocation.LastJobInfo.CompetitionType);
+                YT_VERIFY(allocation.LastJobInfo);
+                builder->AppendFormat("CompetitionType: %v", allocation.LastJobInfo->CompetitionType);
             }
         }));
 
@@ -5539,16 +5545,24 @@ void TOperationControllerBase::GracefullyFailOperation(TError error)
     YT_LOG_INFO("Operation gracefully failing");
 
     bool hasJobsToFail = false;
-    // NB: job abort will remove allocation from map invalidating iterator.
-    auto allocationMapCopy = AllocationMap_;
 
-    for (const auto& [_, allocation] : allocationMapCopy) {
+    struct TJobsToAbort {
+        TJobId JobId;
+        EJobType JobType;
+    };
+
+    std::vector<TJobsToAbort> jobsToAbort;
+    jobsToAbort.reserve(size(AllocationMap_));
+    for (const auto& [_, allocation] : AllocationMap_) {
         if (!allocation.Joblet) {
             continue;
         }
         const auto& joblet = allocation.Joblet;
+        jobsToAbort.push_back({joblet->JobId, joblet->JobType});
+    }
 
-        switch (joblet->JobType) {
+    for (const auto& [jobId, jobType] : jobsToAbort) {
+        switch (jobType) {
             // TODO(ignat): YT-11247, add helper with list of job types with user code.
             case EJobType::Map:
             case EJobType::OrderedMap:
@@ -5559,10 +5573,10 @@ void TOperationControllerBase::GracefullyFailOperation(TError error)
             case EJobType::PartitionReduce:
             case EJobType::Vanilla:
                 hasJobsToFail = true;
-                Host->RequestJobGracefulAbort(joblet->JobId, EAbortReason::OperationFailed);
+                Host->RequestJobGracefulAbort(jobId, EAbortReason::OperationFailed);
                 break;
             default:
-                AbortJob(joblet->JobId, EAbortReason::OperationFailed);
+                AbortJob(jobId, EAbortReason::OperationFailed);
         }
     }
 
@@ -9047,7 +9061,6 @@ void TOperationControllerBase::RegisterJoblet(const TJobletPtr& joblet)
     YT_VERIFY(joblet);
 
     allocation.Joblet = joblet;
-    allocation.LastJobInfo.JobId = joblet->JobId;
 
     ++RunningJobCount_;
 }
@@ -9470,7 +9483,7 @@ const std::vector<NScheduler::TJobShellPtr>& TOperationControllerBase::GetJobShe
 NYson::TYsonString TOperationControllerBase::DoBuildJobsYson()
 {
     return BuildYsonStringFluently<EYsonType::MapFragment>()
-        .DoFor(AllocationMap_, [&] (TFluentMap fluent, const std::pair<TAllocationId, TAllocation>& pair) {
+        .DoFor(AllocationMap_, [&] (TFluentMap fluent, const std::pair<const TAllocationId, TAllocation>& pair) {
             const auto& joblet = pair.second.Joblet;
 
             if (joblet && joblet->IsStarted()) {
@@ -9501,6 +9514,9 @@ void TOperationControllerBase::BuildRetainedFinishedJobsYson(TFluentMap fluent) 
             .Item(ToString(jobId)).Value(attributes);
     }
 }
+
+void TOperationControllerBase::EnrichJobInfo(NYTree::TFluentMap /*fluent*/, const TJobletPtr& /*joblet*/) const
+{ }
 
 void TOperationControllerBase::CheckTentativeTreeEligibility()
 {
@@ -9581,7 +9597,8 @@ TJobStartInfo TOperationControllerBase::SafeSettleJob(TAllocationId allocationId
         }
 
         YT_VERIFY(lastJobId);
-        auto failReason = TryScheduleNextJob(allocation, GetLaterJobId(allocation.LastJobInfo.JobId, *lastJobId));
+        YT_VERIFY(allocation.LastJobInfo);
+        auto failReason = TryScheduleNextJob(allocation, GetLaterJobId(allocation.LastJobInfo->JobId, *lastJobId));
 
         YT_ASSERT(failReason || allocation.Joblet);
 
@@ -10247,9 +10264,6 @@ void TOperationControllerBase::InitUserJobSpec(
         setEnvironmentVariable("YT_TASK_JOB_INDEX", ToString(joblet->TaskJobIndex));
         setEnvironmentVariable("YT_JOB_ID", ToString(joblet->JobId));
         setEnvironmentVariable("YT_JOB_COOKIE", ToString(joblet->OutputCookie));
-        if (joblet->OperationIncarnation) {
-            setEnvironmentVariable("YT_OPERATION_INCARNATION", ToString(*joblet->OperationIncarnation));
-        }
 
         for (const auto& [key, value] : joblet->Task->BuildJobEnvironment()) {
             setEnvironmentVariable(key, value);
@@ -10798,38 +10812,7 @@ void TOperationControllerBase::RegisterMetadata(auto&& registrar)
     PHOENIX_REGISTER_FIELD(27, ChunkOriginMap);
 
     // COMPAT(pogorelov)
-    PHOENIX_REGISTER_FIELD(28, AllocationMap_,
-        .SinceVersion(ESnapshotVersion::AllocationMap)
-        .WhenMissing([] (TThis* this_, auto& /*context*/) {
-            THashMap<TAllocationId, TJobletPtr> jobletMap;
-
-            this_->AllocationMap_.reserve(size(jobletMap));
-
-            for (auto& [allocationId, joblet] : jobletMap) {
-                auto lastJobId = joblet->JobId;
-
-                TAllocation allocation{
-                    .Id = allocationId,
-                    // NB(pogorelov): New job settlement is such allocations will be disabled.
-                    .Resources = {},
-                    .TreeId = joblet->TreeId,
-                    .PoolPath = joblet->PoolPath,
-                    .NodeDescriptor = joblet->NodeDescriptor,
-                    .Task = joblet->Task,
-                    .LastJobInfo = TAllocation::TLastJobInfo{
-                        .JobId = lastJobId,
-                        .CompetitionType = joblet->CompetitionType,
-                    },
-                };
-
-                allocation.Joblet = std::move(joblet);
-
-                this_->AllocationMap_.emplace(
-                    allocationId,
-                    std::move(allocation));
-            }
-            this_->RunningJobCount_ = size(jobletMap);
-        }));
+    PHOENIX_REGISTER_FIELD(28, AllocationMap_);
     PHOENIX_REGISTER_FIELD(29, RunningJobCount_,
         .SinceVersion(ESnapshotVersion::AllocationMap));
 
@@ -11571,14 +11554,6 @@ void TOperationControllerBase::ReportControllerStateToArchive(const TJobletPtr& 
 {
     HandleJobReport(joblet, TControllerJobReport()
         .ControllerState(state));
-}
-
-void TOperationControllerBase::ReportOperationIncarnationToArchive(const TJobletPtr& joblet) const
-{
-    if (joblet->OperationIncarnation) {
-        HandleJobReport(joblet, TControllerJobReport()
-            .OperationIncarnation(static_cast<const std::string&>(*joblet->OperationIncarnation)));
-    }
 }
 
 void TOperationControllerBase::ReportStartTimeToArchive(const TJobletPtr& joblet) const

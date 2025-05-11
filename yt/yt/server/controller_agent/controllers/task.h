@@ -434,6 +434,8 @@ protected:
         const TAllocation& allocation,
         const TNewJobConstraints& newJobConstraints);
 
+    virtual void StoreLastJobInfo(TAllocation& allocation, const TJobletPtr& joblet) const;
+
 private:
     TCompositePendingJobCount CachedPendingJobCount_;
     int CachedTotalJobCount_;

@@ -54,18 +54,15 @@ struct TAllocation
     TTask* Task = nullptr;
 
     struct TLastJobInfo
+        : public IPersistent
     {
         TJobId JobId;
         std::optional<EJobCompetitionType> CompetitionType;
-        NChunkPools::IChunkPoolOutput::TCookie OutputCookie;
-        std::optional<TJobMonitoringDescriptor> MonitoringDescriptor;
 
-        operator bool () const noexcept;
-
-        PHOENIX_DECLARE_TYPE(TLastJobInfo, 0x2201c8d6);
+        PHOENIX_DECLARE_POLYMORPHIC_TYPE(TLastJobInfo, 0x2201c8d6);
     };
 
-    TLastJobInfo LastJobInfo;
+    std::unique_ptr<TLastJobInfo> LastJobInfo;
 
     std::optional<EScheduleFailReason> NewJobsForbiddenReason;
 
@@ -182,9 +179,6 @@ struct TJoblet
     std::optional<TString> PoolPath;
 
     NScheduler::TJobProfilerSpecPtr EnabledJobProfiler;
-
-    // Used for restarting jobs in gang vanilla operations.
-    std::optional<TOperationIncarnation> OperationIncarnation;
 
     std::optional<TDuration> ArchiveTtl;
 

@@ -123,13 +123,6 @@ private: \
     IMPLEMENT_SAFE_METHOD(
         public,
         void,
-        OnJobStarted,
-        (const TJobletPtr& joblet),
-        (joblet),
-        true)
-    IMPLEMENT_SAFE_METHOD(
-        public,
-        void,
         OnAllocationAborted,
         (TAbortedAllocationSummary&& abortedAllocationSummary),
         (std::move(abortedAllocationSummary)),
@@ -668,6 +661,8 @@ protected:
     // Current row count in table with attribute row_count_limit.
     i64 CompletedRowCount_ = 0;
 
+    virtual void OnJobStarted(const TJobletPtr& joblet);
+
     TFuture<NApi::NNative::ITransactionPtr> StartTransaction(
         ETransactionType type,
         const NApi::NNative::IClientPtr& client,
@@ -1112,6 +1107,10 @@ protected:
         bool requestJobTrackerJobAbortion,
         bool force);
 
+    void HandleJobReport(const TJobletPtr& joblet, TControllerJobReport&& jobReport) const;
+
+    virtual void EnrichJobInfo(NYTree::TFluentMap fluent, const TJobletPtr& joblet) const;
+
 private:
     NScheduler::TPoolTreeControllerSettingsMap PoolTreeControllerSettingsMap_;
     std::optional<std::vector<TString>> OffloadingPoolTrees_;
@@ -1491,8 +1490,6 @@ private:
     void MaybeCancel(NScheduler::ECancelationStage cancelationStage) override;
     const NChunkClient::TThrottlerManagerPtr& GetChunkLocationThrottlerManager() const override;
 
-    void HandleJobReport(const TJobletPtr& joblet, TControllerJobReport&& jobReport) const;
-
     void ReportJobHasCompetitors(const TJobletPtr& joblet, EJobCompetitionType competitionType);
 
     //! Returns list of operation tasks that have a vertex in data flow graph,
@@ -1513,7 +1510,6 @@ private:
 
     void ReportJobCookieToArchive(const TJobletPtr& joblet) const;
     void ReportControllerStateToArchive(const TJobletPtr& joblet, EJobState state) const;
-    void ReportOperationIncarnationToArchive(const TJobletPtr& joblet) const;
     void ReportStartTimeToArchive(const TJobletPtr& joblet) const;
     void ReportFinishTimeToArchive(const TJobletPtr& joblet) const;
 
