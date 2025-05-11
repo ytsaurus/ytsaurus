@@ -2,26 +2,25 @@
 
 namespace NYql {
 
-    void IManagedCacheListener::OnHit() {
+    void IManagedCacheStorageListener::OnHit() {
     }
 
-    void IManagedCacheListener::OnMiss() {
+    void IManagedCacheStorageListener::OnMiss() {
     }
 
-    void IManagedCacheListener::OnEvict(size_t /*count*/) {
+    void IManagedCacheStorageListener::OnEvict(size_t /*count*/) {
     }
 
-    void IManagedCacheListener::OnUpdate(size_t /*count*/) {
+    void IManagedCacheStorageListener::OnUpdate(size_t /*count*/) {
     }
 
-    void IManagedCacheListener::OnTickSucceded(TDuration /*duration*/) {
+    void IManagedCacheMaintainenceListener::OnTickBegin() {
     }
 
-    void IManagedCacheListener::OnTickFailed(TDuration /*duration*/) {
+    void IManagedCacheMaintainenceListener::OnTickSucceded() {
     }
 
-    IManagedCacheListener::TPtr MakeDummyManagedCacheListener() {
-        return new IManagedCacheListener();
+    void IManagedCacheMaintainenceListener::OnTickFailed(const std::exception& /*exception*/) {
     }
 
 } // namespace NYql

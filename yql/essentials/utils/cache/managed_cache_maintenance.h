@@ -18,11 +18,12 @@ namespace NYql {
     class TManagedCacheMaintenance {
     public:
         using TPtr = THolder<TManagedCacheMaintenance>;
+        using TListenerPtr = TIntrusivePtr<IManagedCacheMaintainenceListener>;
 
         TManagedCacheMaintenance(
             TManagedCacheStorage<TKey, TValue>::TPtr storage,
             TManagedCacheConfig config,
-            IManagedCacheListener::TPtr listener = MakeDummyManagedCacheListener())
+            TListenerPtr listener = new IManagedCacheMaintainenceListener())
             : Storage_(std::move(storage))
             , Config_(std::move(config))
             , Listener_(std::move(listener))
@@ -44,19 +45,23 @@ namespace NYql {
             }
         }
 
-        void Tick() {
+        void Tick() try {
+            Listener_->OnTickBegin();
             Tick_ += 1;
             if (Tick_ % Config_.EvictionFrequency == 0) {
                 Storage_->Evict();
             }
             Storage_->Update();
+            Listener_->OnTickSucceded();
+        } catch (const std::exception& e) {
+            Listener_->OnTickFailed(e);
         }
 
     private:
         TManagedCacheStorage<TKey, TValue>::TPtr Storage_;
         size_t Tick_ = 0;
         TManagedCacheConfig Config_;
-        IManagedCacheListener::TPtr Listener_;
+        TListenerPtr Listener_;
     };
 
 } // namespace NYql

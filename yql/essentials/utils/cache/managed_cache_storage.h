@@ -49,6 +49,7 @@ namespace NYql {
 
     public:
         using TPtr = TIntrusivePtr<TManagedCacheStorage>;
+        using TListenerPtr = TIntrusivePtr<IManagedCacheStorageListener>;
 
         // [WARN] The client is responsible to prepare a query with a timeout to
         // keep the liveness property of the Update procedure.
@@ -56,7 +57,7 @@ namespace NYql {
 
         TManagedCacheStorage(
             TQuery query,
-            IManagedCacheListener::TPtr listener = MakeDummyManagedCacheListener())
+            TListenerPtr listener = new IManagedCacheStorageListener())
             : Query_(std::move(query))
             , Listener_(std::move(listener))
         {
@@ -201,7 +202,7 @@ namespace NYql {
         TQuery Query_;
         TContainer Container_;
         TMutex TickMutex_;
-        IManagedCacheListener::TPtr Listener_;
+        TListenerPtr Listener_;
     };
 
 } // namespace NYql

@@ -1,5 +1,6 @@
 #pragma once
 
+#include "managed_cache_listener.h"
 #include "managed_cache_storage.h"
 #include "managed_cache_maintenance.h"
 
@@ -15,13 +16,16 @@ namespace NYql {
         TManagedCache(
             IThreadFactory* executor,
             TManagedCacheConfig config,
-            TManagedCacheStorage<TKey, TValue>::TQuery query)
-            : Storage_(new TManagedCacheStorage<TKey, TValue>(std::move(query)))
+            TManagedCacheStorage<TKey, TValue>::TQuery query,
+            TIntrusivePtr<IManagedCacheListener> listener)
+            : Storage_(new TManagedCacheStorage<TKey, TValue>(std::move(query), listener))
         {
             auto token = Cancellation_.Token();
-            MaintenanceThread_ = executor->Run([storage = Storage_, config, token]() {
-                TManagedCacheMaintenance<TKey, TValue>(storage, config).Run(token);
-            });
+            MaintenanceThread_ = executor->Run(
+                [storage = Storage_, config, listener, token]() {
+                    TManagedCacheMaintenance<TKey, TValue>(storage, config, listener)
+                        .Run(token);
+                });
         }
 
         NThreading::TFuture<TValue> Get(const TKey& key) const {
@@ -44,9 +48,15 @@ namespace NYql {
         NPrivate::CCacheValue TValue,
         class TQuery = TManagedCacheStorage<TKey, TValue>::TQuery>
     TManagedCache<TKey, TValue>::TPtr StartManagedCache(
-        IThreadFactory* executor, TManagedCacheConfig config, TQuery query) {
+        IThreadFactory* executor,
+        TManagedCacheConfig config,
+        TQuery query,
+        TIntrusivePtr<IManagedCacheListener> listener = new IManagedCacheListener()) {
         return new TManagedCache<TKey, TValue>(
-            executor, std::move(config), std::move(query));
+            executor,
+            std::move(config),
+            std::move(query),
+            std::move(listener));
     }
 
 } // namespace NYql
