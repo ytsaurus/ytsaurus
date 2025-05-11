@@ -68,6 +68,28 @@ Y_UNIT_TEST_SUITE(TManagedCacheStorageTests) {
         UNIT_ASSERT_VALUES_EQUAL(served, 1);
     }
 
+    Y_UNIT_TEST(TestUpdateErrorInvalidates) {
+        size_t served;
+        bool isFailing;
+        TCacheStorage cache(MakeDummyQuery(&served, &isFailing));
+
+        UNIT_ASSERT_NO_EXCEPTION(cache.Get("key").GetValueSync());
+        UNIT_ASSERT_VALUES_EQUAL(served, 1);
+
+        UNIT_ASSERT_NO_EXCEPTION(cache.Update()); // Mark outdated
+        UNIT_ASSERT_VALUES_EQUAL(served, 1);
+
+        isFailing = true;
+        UNIT_ASSERT_NO_EXCEPTION(cache.Get("key").GetValueSync());
+        UNIT_ASSERT_VALUES_EQUAL(served, 1);
+
+        UNIT_ASSERT_EXCEPTION_CONTAINS(cache.Update(), yexception, "o_o");
+        UNIT_ASSERT_VALUES_EQUAL(served, 2);
+
+        UNIT_ASSERT_EXCEPTION_CONTAINS(cache.Get("key").GetValueSync(), yexception, "o_o");
+        UNIT_ASSERT_VALUES_EQUAL(served, 3);
+    }
+
     Y_UNIT_TEST(TestErrorEvicted) {
         size_t served;
         bool isFailing;

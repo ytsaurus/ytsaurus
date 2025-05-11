@@ -87,11 +87,20 @@ namespace NYql {
                 return;
             }
 
-            TVector<TValue> values = Query_(outdated).ExtractValueSync();
-            ApplyBatchUpdate(
-                std::move(outdated),
-                std::move(values),
-                std::move(indeciesByBuckets));
+            try {
+                TVector<TValue> values = Query_(outdated).ExtractValueSync();
+                UpdateBatch(
+                    std::move(outdated),
+                    std::move(values),
+                    std::move(indeciesByBuckets));
+            } catch (...) {
+                std::exception_ptr exception = std::current_exception();
+                InvalidateBatch(
+                    std::move(outdated),
+                    exception,
+                    std::move(indeciesByBuckets));
+                throw;
+            }
         }
 
     private:
@@ -135,7 +144,7 @@ namespace NYql {
             });
         }
 
-        void ApplyBatchUpdate(
+        void UpdateBatch(
             TVector<TKey> keys,
             TVector<TValue> values,
             THashMap<std::uintptr_t, TVector<size_t>> buckets) {
@@ -151,6 +160,23 @@ namespace NYql {
                     TEntry& entry = map[keys[i]];
                     entry.Value = NThreading::MakeFuture(std::move(values[i]));
                     entry.IsUpdated = true;
+                }
+            }
+        }
+
+        // TODO: extract backets traversal
+        void InvalidateBatch(
+            TVector<TKey> keys,
+            std::exception_ptr exception,
+            THashMap<std::uintptr_t, TVector<size_t>> buckets) {
+            for (auto& [bucketPtr, indecies] : buckets) {
+                TBucket& bucket = *reinterpret_cast<TBucket*>(bucketPtr);
+                TBucketGuard guard(bucket.GetMutex());
+
+                TActualMap& map = bucket.GetMap();
+                for (size_t i : indecies) {
+                    TEntry& entry = map[keys[i]];
+                    entry.Value = NThreading::MakeErrorFuture<TValue>(exception);
                 }
             }
         }
