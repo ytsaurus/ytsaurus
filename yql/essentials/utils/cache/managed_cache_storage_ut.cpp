@@ -52,7 +52,7 @@ Y_UNIT_TEST_SUITE(TManagedCacheStorageTests) {
         UNIT_ASSERT_VALUES_EQUAL(served, 2);
     }
 
-    Y_UNIT_TEST(TestErrorsNotUpdated) {
+    Y_UNIT_TEST(TestErrorNotUpdated) {
         size_t served;
         bool isFailing;
         TCacheStorage cache(MakeDummyQuery(&served, &isFailing));
@@ -66,6 +66,19 @@ Y_UNIT_TEST_SUITE(TManagedCacheStorageTests) {
 
         UNIT_ASSERT_NO_EXCEPTION(cache.Update()); // Update
         UNIT_ASSERT_VALUES_EQUAL(served, 1);
+    }
+
+    Y_UNIT_TEST(TestErrorEvicted) {
+        size_t served;
+        bool isFailing;
+        TCacheStorage cache(MakeDummyQuery(&served, &isFailing));
+
+        isFailing = true;
+        UNIT_ASSERT_EXCEPTION_CONTAINS(cache.Get("key").GetValueSync(), yexception, "o_o");
+        UNIT_ASSERT_VALUES_EQUAL(served, 1);
+
+        UNIT_ASSERT_NO_EXCEPTION(cache.Evict());
+        // TODO(YQL-19747): Test really evicted
     }
 
 } // Y_UNIT_TEST_SUITE(TManagedCacheStorageTests)
