@@ -774,7 +774,7 @@ struct TLastGangJobInfo
 {
     NChunkPools::IChunkPoolOutput::TCookie OutputCookie;
 
-    std::optional<TJobMonitoringDescriptor> MonitoringDescriptor;
+    TJobMonitoringDescriptor MonitoringDescriptor;
 
     PHOENIX_DECLARE_POLYMORPHIC_TYPE(TLastGangJobInfo, 0x2201d8d6);
 };
@@ -808,11 +808,8 @@ public:
         EOperationIncarnationSwitchReason reason);
 
 private:
-    TNewJobConstraints GetNewJobConstraints(const TAllocation& allocation) const final;
-
     IChunkPoolOutput::TCookie ExtractCookieForAllocation(
-        const TAllocation& allocation,
-        const TNewJobConstraints& newJobConstraints) final;
+        const TAllocation& allocation) final;
 
     THashMap<TString, TString> BuildJobEnvironment() const final;
 
@@ -904,6 +901,10 @@ private:
 
     void EnrichJobInfo(NYTree::TFluentMap fluent, const TJobletPtr& joblet) const final;
 
+    std::optional<TJobMonitoringDescriptor> AcquireMonitoringDescriptorForJob(
+        TJobId jobId,
+        const TAllocation& allocation) final;
+
     PHOENIX_DECLARE_POLYMORPHIC_TYPE(TGangOperationController, 0x99fa99be);
 };
 
@@ -944,30 +945,12 @@ void TGangTask::TrySwitchToNewOperationIncarnation(
     }
 }
 
-TVanillaTask::TNewJobConstraints TGangTask::GetNewJobConstraints(const TAllocation& allocation) const
-{
-    auto result = TTask::GetNewJobConstraints(allocation);
-    if (auto lastJobInfo = static_cast<const TLastGangJobInfo*>(allocation.LastJobInfo.get())) {
-        result.OutputCookie = lastJobInfo->OutputCookie;
-        result.MonitoringDescriptor = lastJobInfo->MonitoringDescriptor;
-        if (!result.MonitoringDescriptor) {
-            // NB(pogorelov): If it would be just unset optional,
-            // we could get descriptor intended for another allocation.
-            result.MonitoringDescriptor = NullMonitoringDescriptor;
-        }
-    }
-
-    return result;
-}
-
 IChunkPoolOutput::TCookie TGangTask::ExtractCookieForAllocation(
-    const TAllocation& allocation,
-    const TNewJobConstraints& newJobConstraints)
+    const TAllocation& allocation)
 {
-    if (newJobConstraints.OutputCookie) {
-        VanillaChunkPool_->Extract(*newJobConstraints.OutputCookie);
-
-        return *newJobConstraints.OutputCookie;
+    if (auto lastJobInfo = static_cast<const TLastGangJobInfo*>(allocation.LastJobInfo.get())) {
+        VanillaChunkPool_->Extract(lastJobInfo->OutputCookie);
+        return lastJobInfo->OutputCookie;
     }
 
     return VanillaChunkPool_->Extract(NodeIdFromAllocationId(allocation.Id));
@@ -996,7 +979,13 @@ void TGangTask::StoreLastJobInfo(TAllocation& allocation, const TJobletPtr& jobl
     lastJobInfo->JobId = joblet->JobId;
     lastJobInfo->CompetitionType = joblet->CompetitionType;
     lastJobInfo->OutputCookie = joblet->OutputCookie;
-    lastJobInfo->MonitoringDescriptor = joblet->UserJobMonitoringDescriptor;
+    if (!joblet->UserJobMonitoringDescriptor) {
+        // NB(pogorelov): If it would be just unset optional,
+        // we could get descriptor intended for another allocation.
+        lastJobInfo->MonitoringDescriptor = NullMonitoringDescriptor;
+    } else {
+        lastJobInfo->MonitoringDescriptor = *joblet->UserJobMonitoringDescriptor;
+    }
 
     allocation.LastJobInfo = std::move(lastJobInfo);
 }
@@ -1292,6 +1281,35 @@ void TGangOperationController::EnrichJobInfo(NYTree::TFluentMap fluent, const TJ
 
     fluent
         .Item("operation_incarnation").Value(static_cast<const TGangJoblet&>(*joblet).OperationIncarnation);
+}
+
+std::optional<TJobMonitoringDescriptor> TGangOperationController::AcquireMonitoringDescriptorForJob(
+    TJobId jobId,
+    const TAllocation& allocation)
+{
+    TLastGangJobInfo* lastGangJobInfo = static_cast<TLastGangJobInfo*>(allocation.LastJobInfo.get());
+
+    if (!lastGangJobInfo) {
+        return TOperationControllerBase::AcquireMonitoringDescriptorForJob(jobId, allocation);
+    }
+
+    YT_LOG_DEBUG(
+        "Trying to acquire monitoring descriptor for gang job (JobId: %v, PreviousMonitoringDescriptor: %v)",
+        jobId,
+        lastGangJobInfo->MonitoringDescriptor);
+
+    if (lastGangJobInfo->MonitoringDescriptor == NullMonitoringDescriptor) {
+        return std::nullopt;
+    }
+
+    EraseOrCrash(MonitoringDescriptorPool_, lastGangJobInfo->MonitoringDescriptor);
+    ++MonitoredUserJobCount_;
+    YT_LOG_DEBUG(
+        "Monitoring descriptor reused for job (JobId: %v, MonitoringDescriptor: %v)",
+        jobId,
+        lastGangJobInfo->MonitoringDescriptor);
+
+    return lastGangJobInfo->MonitoringDescriptor;
 }
 
 void TGangOperationController::OnOperationIncarnationChanged(bool operationIsReviving, EOperationIncarnationSwitchReason reason)
