@@ -4692,6 +4692,7 @@ private:
         auto* transaction = currentNode->GetTransaction();
         if (!transaction) {
             YT_LOG_ALERT("Skipping manual node unbranching: node is already trunk (NodeId: %v)", versionedId);
+            return;
         }
 
         for (auto nestedTransaction : transaction->NestedTransactions()) {
