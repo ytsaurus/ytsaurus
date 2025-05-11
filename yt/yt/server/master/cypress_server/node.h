@@ -231,6 +231,7 @@ public:
     //! Always null for non-trunk nodes.
     DEFINE_BYVAL_RW_PROPERTY(TResolveCacheNodePtr, ResolveCacheNode);
 
+    // NB: Store as TString to reduce memory footprint.
     DEFINE_CYPRESS_BUILTIN_VERSIONED_ATTRIBUTE(TCypressNode, TDuration, ExpirationTimeout);
 
     //! Used for both Sequoia nodes and Cypress link nodes. Note that link nodes

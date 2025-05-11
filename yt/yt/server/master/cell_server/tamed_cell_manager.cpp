@@ -465,7 +465,7 @@ public:
 
     // COPMAT(danilalexeev)
     void CreateSnapshotAndChangelogNodes(
-        const TString& path,
+        const TYPath& path,
         const IMapNodePtr& cellMapNodeProxy,
         const IAttributeDictionaryPtr& snapshotAttributes,
         const IAttributeDictionaryPtr& changelogAttributes)

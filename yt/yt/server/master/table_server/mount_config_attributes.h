@@ -53,7 +53,7 @@ void InternalizeMountConfigAttributes(NYTree::IAttributeDictionary* attributes);
 ////////////////////////////////////////////////////////////////////////////////
 
 // COMPAT(ifsmirnov): EMasterReign::BuiltinMountConfig
-std::vector<std::pair<TString, NYson::TYsonString>> ExtractOldStyleMountConfigAttributes(
+std::vector<std::pair<std::string, NYson::TYsonString>> ExtractOldStyleMountConfigAttributes(
     NObjectServer::TAttributeSet* attributes);
 
 ////////////////////////////////////////////////////////////////////////////////

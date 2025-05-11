@@ -17,7 +17,7 @@ struct IMaintenanceTracker
         EMaintenanceComponent component,
         const std::string& address,
         EMaintenanceType type,
-        const TString& comment,
+        const std::string& comment,
         std::optional<NCypressServer::TNodeId> targetMapNodeId) = 0;
 
     virtual TMaintenanceCountsPerTarget RemoveMaintenance(

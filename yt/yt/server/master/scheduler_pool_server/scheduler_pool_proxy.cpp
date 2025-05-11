@@ -150,7 +150,7 @@ bool TSchedulerPoolProxy::RemoveBuiltinAttribute(NYTree::TInternedAttributeKey k
 
 void TSchedulerPoolProxy::GuardedUpdateBuiltinPoolAttribute(
     NYT::NYTree::TInternedAttributeKey key,
-    const std::function<void(const TPoolConfigPtr&, const TString&)>& update)
+    const std::function<void(const TPoolConfigPtr&, const std::string&)>& update)
 {
     if (!Bootstrap_->GetSchedulerPoolManager()->IsUserManagedAttribute(key)) {
         ValidatePermission(EPermissionCheckScope::This, EPermission::Administer);

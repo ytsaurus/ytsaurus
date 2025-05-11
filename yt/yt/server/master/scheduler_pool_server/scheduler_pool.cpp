@@ -256,7 +256,7 @@ void TSchedulerPool::Load(NCellMaster::TLoadContext& context)
 
 void TSchedulerPool::GuardedUpdatePoolAttribute(
     TInternedAttributeKey key,
-    const std::function<void(const TPoolConfigPtr&, const TString&)>& update)
+    const std::function<void(const TPoolConfigPtr&, const std::string&)>& update)
 {
     const auto& uninternedKey = key.Unintern();
     update(FullConfig_, uninternedKey);

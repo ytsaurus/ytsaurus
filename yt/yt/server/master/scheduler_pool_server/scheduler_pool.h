@@ -57,7 +57,7 @@ public:
 
     void GuardedUpdatePoolAttribute(
         NYTree::TInternedAttributeKey key,
-        const std::function<void(const NScheduler::TPoolConfigPtr&, const TString&)>& update);
+        const std::function<void(const NScheduler::TPoolConfigPtr&, const std::string&)>& update);
 
     TPoolResourcesPtr GetResources() const;
     void SetResourcesInConfig(TPoolResourcesPtr resources);

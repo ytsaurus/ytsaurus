@@ -160,7 +160,7 @@ private:
 
     // COMPAT(danilalexeev)
     // Returns primary and secondary persistence storage paths for a given peer.
-    std::pair<TString, TString> GetPeerPersistencePaths(TPeerInfo peer)
+    std::pair<TYPath, TYPath> GetPeerPersistencePaths(TPeerInfo peer)
     {
         if (peer.PeerId) {
             return std::pair(
@@ -389,7 +389,7 @@ private:
             .ValueOrThrow();
 
         for (const auto& [tag, rspOrError] : batchRsp->GetTaggedResponses<TYPathProxy::TRspRemove>()) {
-            auto filePath = std::any_cast<TString>(tag);
+            auto filePath = std::any_cast<TYPath>(tag);
             if (rspOrError.IsOK()) {
                 YT_LOG_DEBUG("Janitor has successfully removed Hydra file (Path: %v)", filePath);
             } else {

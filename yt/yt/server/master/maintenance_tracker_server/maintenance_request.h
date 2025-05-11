@@ -21,7 +21,7 @@ struct TMaintenanceRequest
 {
     std::string User;
     EMaintenanceType Type;
-    TString Comment;
+    std::string Comment;
     TInstant Timestamp;
 
     void Persist(const NCellMaster::TPersistenceContext& context);

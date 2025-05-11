@@ -1043,7 +1043,7 @@ private:
         bool ExecNodeIsNotDataNode;
         std::string HostName;
         std::optional<TYsonString> CypressAnnotations;
-        std::optional<TString> BuildVersion;
+        std::optional<std::string> BuildVersion;
         std::optional<std::string> Rack;
         std::optional<std::string> DataCenter;
     };

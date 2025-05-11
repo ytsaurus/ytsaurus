@@ -486,14 +486,14 @@ bool TNontemplateCypressNodeProxyBase::SetBuiltinAttribute(TInternedAttributeKey
         }
 
         case EInternedAttributeKey::Annotation: {
-            auto annotation = ConvertTo<std::optional<TString>>(value);
+            auto annotation = ConvertTo<std::optional<std::string>>(value);
             if (annotation) {
                 ValidateAnnotation(*annotation);
             }
             auto lockRequest = TLockRequest::MakeSharedAttribute(key.Unintern());
             auto* lockedNode = LockThisImpl(lockRequest);
             if (annotation) {
-                lockedNode->SetAnnotation(*annotation);
+                lockedNode->SetAnnotation(TString(std::move(*annotation)));
             } else {
                 lockedNode->RemoveAnnotation();
             }
@@ -3110,13 +3110,13 @@ void TCypressMapNodeProxy::Clear()
     auto keyToChildList = SortHashMapByKeys(keyToChildMap);
 
     // Take shared locks for children.
-    using TChild = std::pair<TString, TCypressNode*>;
+    using TChild = std::pair<std::string, TCypressNode*>;
     std::vector<TChild> children;
     children.reserve(keyToChildList.size());
     for (const auto& [key, child] : keyToChildList) {
         LockThisImpl(TLockRequest::MakeSharedChild(key));
         auto* childImpl = LockImpl(child);
-        children.push_back(std::pair(key, childImpl));
+        children.emplace_back(key, childImpl);
     }
 
     // Insert tombstones (if in transaction).
