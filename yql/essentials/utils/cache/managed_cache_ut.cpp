@@ -38,8 +38,8 @@ public:
             bool is_failed = false;
             with_lock (Mutex_) {
                 delay = TDuration::MicroSeconds(LatencyMcs_(Random_));
-                if (Failure_) {
-                    is_failed = !(*Failure_)(Random_);
+                if (Success_) {
+                    is_failed = !(*Success_)(Random_);
                 }
             }
 
@@ -55,7 +55,7 @@ public:
 
     void SetSuccessRate(double successRate) {
         with_lock (Mutex_) {
-            Failure_ = std::bernoulli_distribution(successRate);
+            Success_ = std::bernoulli_distribution(successRate);
         }
     }
 
@@ -72,8 +72,8 @@ public:
 private:
     TMutex Mutex_;
     std::mt19937 Random_{231312};
-    TMaybe<std::bernoulli_distribution> Failure_ = std::bernoulli_distribution{0.85};
-    std::uniform_int_distribution<int> LatencyMcs_{0, 32};
+    TMaybe<std::bernoulli_distribution> Success_ = std::bernoulli_distribution{0.85};
+    std::uniform_int_distribution<int> LatencyMcs_{0, 128};
 
     THolder<IThreadPool> Pool_ = CreateThreadPool(/* threadCount = */ 16);
 };
@@ -82,7 +82,6 @@ Y_UNIT_TEST_SUITE(TManagedCacheTests) {
 
     Y_UNIT_TEST(TestStress) {
         TIdentityService service;
-        service.SetSuccessRate(0.95);
 
         TManagedCacheConfig config = {
             .UpdatePeriod = TDuration::MilliSeconds(10),
