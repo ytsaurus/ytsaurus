@@ -43,14 +43,11 @@ namespace NYql {
         THolder<IThreadFactory::IThread> MaintenanceThread_;
     };
 
-    template <
-        NPrivate::CCacheKey TKey,
-        NPrivate::CCacheValue TValue,
-        class TQuery = TManagedCacheStorage<TKey, TValue>::TQuery>
+    template <NPrivate::CCacheKey TKey, NPrivate::CCacheValue TValue>
     TManagedCache<TKey, TValue>::TPtr StartManagedCache(
         IThreadFactory* executor,
         TManagedCacheConfig config,
-        TQuery query,
+        typename TManagedCacheStorage<TKey, TValue>::TQuery query,
         TIntrusivePtr<IManagedCacheListener> listener = new IManagedCacheListener()) {
         return new TManagedCache<TKey, TValue>(
             executor,
