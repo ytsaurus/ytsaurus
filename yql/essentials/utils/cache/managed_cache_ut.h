@@ -27,7 +27,7 @@ namespace NYql {
 
             if (isFailing != nullptr && *isFailing) {
                 return NThreading::MakeErrorFuture<TVector<TValue>>(
-                    std::make_exception_ptr(yexception() << "o_o"));
+                    std::make_exception_ptr(yexception() << "O_o"));
             }
 
             return NThreading::MakeFuture<TVector<TValue>>(keys);

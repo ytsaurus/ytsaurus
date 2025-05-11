@@ -35,7 +35,7 @@ public:
             Sleep(delay);
 
             if (is_failed) {
-                throw yexception() << "o_o";
+                throw yexception() << "O_o";
             }
 
             return keys;
@@ -96,7 +96,7 @@ Y_UNIT_TEST_SUITE(TManagedCacheTests) {
                 UNIT_ASSERT_VALUES_UNEQUAL("", f.GetValue());
             } else {
                 UNIT_ASSERT(f.HasException());
-                UNIT_ASSERT_EXCEPTION_CONTAINS(f.TryRethrow(), yexception, "o_o");
+                UNIT_ASSERT_EXCEPTION_CONTAINS(f.TryRethrow(), yexception, "O_o");
             }
         }
     }

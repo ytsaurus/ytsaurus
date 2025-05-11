@@ -45,10 +45,10 @@ Y_UNIT_TEST_SUITE(TManagedCacheStorageTests) {
         TCacheStorage cache(MakeDummyQuery(&served, &isFailing));
 
         isFailing = true;
-        UNIT_ASSERT_EXCEPTION_CONTAINS(cache.Get("key").GetValueSync(), yexception, "o_o");
+        UNIT_ASSERT_EXCEPTION_CONTAINS(cache.Get("key").GetValueSync(), yexception, "O_o");
         UNIT_ASSERT_VALUES_EQUAL(served, 1);
 
-        UNIT_ASSERT_EXCEPTION_CONTAINS(cache.Get("key").GetValueSync(), yexception, "o_o");
+        UNIT_ASSERT_EXCEPTION_CONTAINS(cache.Get("key").GetValueSync(), yexception, "O_o");
         UNIT_ASSERT_VALUES_EQUAL(served, 2);
     }
 
@@ -58,7 +58,7 @@ Y_UNIT_TEST_SUITE(TManagedCacheStorageTests) {
         TCacheStorage cache(MakeDummyQuery(&served, &isFailing));
 
         isFailing = true;
-        UNIT_ASSERT_EXCEPTION_CONTAINS(cache.Get("key").GetValueSync(), yexception, "o_o");
+        UNIT_ASSERT_EXCEPTION_CONTAINS(cache.Get("key").GetValueSync(), yexception, "O_o");
         UNIT_ASSERT_VALUES_EQUAL(served, 1);
 
         UNIT_ASSERT_NO_EXCEPTION(cache.Update()); // Mark outdated
@@ -83,10 +83,10 @@ Y_UNIT_TEST_SUITE(TManagedCacheStorageTests) {
         UNIT_ASSERT_NO_EXCEPTION(cache.Get("key").GetValueSync());
         UNIT_ASSERT_VALUES_EQUAL(served, 1);
 
-        UNIT_ASSERT_EXCEPTION_CONTAINS(cache.Update(), yexception, "o_o");
+        UNIT_ASSERT_EXCEPTION_CONTAINS(cache.Update(), yexception, "O_o");
         UNIT_ASSERT_VALUES_EQUAL(served, 2);
 
-        UNIT_ASSERT_EXCEPTION_CONTAINS(cache.Get("key").GetValueSync(), yexception, "o_o");
+        UNIT_ASSERT_EXCEPTION_CONTAINS(cache.Get("key").GetValueSync(), yexception, "O_o");
         UNIT_ASSERT_VALUES_EQUAL(served, 3);
     }
 
@@ -98,7 +98,7 @@ Y_UNIT_TEST_SUITE(TManagedCacheStorageTests) {
         TCacheStorage cache(MakeDummyQuery(&served, &isFailing), listener);
 
         isFailing = true;
-        UNIT_ASSERT_EXCEPTION_CONTAINS(cache.Get("key").GetValueSync(), yexception, "o_o");
+        UNIT_ASSERT_EXCEPTION_CONTAINS(cache.Get("key").GetValueSync(), yexception, "O_o");
         UNIT_ASSERT_VALUES_EQUAL(served, 1);
 
         UNIT_ASSERT_VALUES_EQUAL(listener->Evicted, 0);
