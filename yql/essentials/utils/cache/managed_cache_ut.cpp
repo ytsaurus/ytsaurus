@@ -12,6 +12,13 @@
 
 #include <random>
 
+// TODO:
+// - [ ] Do not cache exceptions
+// - [ ] Extract UpdateScan and EvictScan
+// - [ ] Think about capacity (LRU)
+// - [ ] What if query is longer than quantum
+// - [ ] Quantum is a update frequency and eviction rate relative to update rate
+
 using namespace NYql;
 
 using TKey = TString;
