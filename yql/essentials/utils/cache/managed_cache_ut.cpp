@@ -21,8 +21,8 @@
 // - [x] Quantum is a update frequency and eviction rate relative to update rate
 // - [ ] Callbacks for logging and metrics
 // - [ ] Note that Query should be robust (timeouted)
-// - [ ] Do not update errored values
-// - [ ] Specify that `Actuality = 2 * UpdatePeriod + 3 * QueryLatency`
+// - [x] Do not update errored values
+// - [x] Specify that `Actuality = 2 * UpdatePeriod + 3 * QueryLatency`
 
 using namespace NYql;
 

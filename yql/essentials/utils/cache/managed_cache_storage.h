@@ -45,6 +45,9 @@ namespace NYql {
 
     public:
         using TPtr = TIntrusivePtr<TManagedCacheStorage>;
+
+        // [WARN] The client is responsible to prepare a query with a timeout to
+        // keep the liveness property of the Update procedure.
         using TQuery = std::function<NThreading::TFuture<TVector<TValue>>(const TVector<TKey>&)>;
 
         explicit TManagedCacheStorage(TQuery query)
