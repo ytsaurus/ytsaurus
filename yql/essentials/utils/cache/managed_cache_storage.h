@@ -54,12 +54,9 @@ namespace NYql {
         // keep the liveness property of the Update procedure.
         using TQuery = std::function<NThreading::TFuture<TVector<TValue>>(const TVector<TKey>&)>;
 
-        TManagedCacheStorage(TQuery query)
-            : TManagedCacheStorage(std::move(query), MakeDummyManagedCacheListener())
-        {
-        }
-
-        TManagedCacheStorage(TQuery query, IManagedCacheListener::TPtr listener)
+        TManagedCacheStorage(
+            TQuery query,
+            IManagedCacheListener::TPtr listener = MakeDummyManagedCacheListener())
             : Query_(std::move(query))
             , Listener_(std::move(listener))
         {

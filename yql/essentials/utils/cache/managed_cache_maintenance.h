@@ -1,5 +1,6 @@
 #pragma once
 
+#include "managed_cache_listener.h"
 #include "managed_cache_storage.h"
 
 #include <library/cpp/threading/cancellation/cancellation_token.h>
@@ -20,9 +21,11 @@ namespace NYql {
 
         TManagedCacheMaintenance(
             TManagedCacheStorage<TKey, TValue>::TPtr storage,
-            TManagedCacheConfig config)
+            TManagedCacheConfig config,
+            IManagedCacheListener::TPtr listener = MakeDummyManagedCacheListener())
             : Storage_(std::move(storage))
             , Config_(std::move(config))
+            , Listener_(std::move(listener))
         {
             Y_ENSURE(
                 TDuration::MicroSeconds(100) <= Config_.UpdatePeriod &&
@@ -53,6 +56,7 @@ namespace NYql {
         TManagedCacheStorage<TKey, TValue>::TPtr Storage_;
         size_t Tick_ = 0;
         TManagedCacheConfig Config_;
+        IManagedCacheListener::TPtr Listener_;
     };
 
 } // namespace NYql
