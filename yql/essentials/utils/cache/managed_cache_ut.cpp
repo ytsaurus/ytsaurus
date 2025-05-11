@@ -13,17 +13,6 @@
 
 #include <random>
 
-// TODO:
-// - [x] Do not cache exceptions
-// - [x] Extract UpdateScan and EvictScan
-// - [ ] Think about capacity (LRU)
-// - [x] What if query is longer than quantum
-// - [x] Quantum is a update frequency and eviction rate relative to update rate
-// - [ ] Callbacks for logging and metrics
-// - [x] Note that Query should be robust (timeouted)
-// - [x] Do not update errored values
-// - [x] Specify that `Actuality = 2 * UpdatePeriod + 3 * QueryLatency`
-
 using namespace NYql;
 
 auto Async(auto& pool, auto f) {

@@ -34,4 +34,12 @@ namespace NYql {
         };
     }
 
+    struct TCountingCacheListener: IManagedCacheStorageListener {
+        void OnEvict(size_t count) override {
+            Evicted += count;
+        }
+
+        size_t Evicted = 0;
+    };
+
 } // namespace NYql

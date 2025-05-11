@@ -91,16 +91,19 @@ Y_UNIT_TEST_SUITE(TManagedCacheStorageTests) {
     }
 
     Y_UNIT_TEST(TestErrorEvicted) {
+        auto listener = MakeIntrusive<TCountingCacheListener>();
+
         size_t served;
         bool isFailing;
-        TCacheStorage cache(MakeDummyQuery(&served, &isFailing));
+        TCacheStorage cache(MakeDummyQuery(&served, &isFailing), listener);
 
         isFailing = true;
         UNIT_ASSERT_EXCEPTION_CONTAINS(cache.Get("key").GetValueSync(), yexception, "o_o");
         UNIT_ASSERT_VALUES_EQUAL(served, 1);
 
+        UNIT_ASSERT_VALUES_EQUAL(listener->Evicted, 0);
         UNIT_ASSERT_NO_EXCEPTION(cache.Evict());
-        // TODO(YQL-19747): Test really evicted
+        UNIT_ASSERT_VALUES_EQUAL(listener->Evicted, 1);
     }
 
 } // Y_UNIT_TEST_SUITE(TManagedCacheStorageTests)
