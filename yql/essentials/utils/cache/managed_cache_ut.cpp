@@ -79,23 +79,34 @@ private:
     THolder<IThreadPool> Pool_ = CreateThreadPool(/* threadCount = */ 16);
 };
 
-TManagedCacheStorage<TKey, TValue>::TQuery MakeDummyQuery(size_t& served, bool& isFailing) {
-    return [&](const TVector<TKey>& key) {
-        served += 1;
-        if (isFailing) {
+TCacheStorage::TQuery MakeDummyQuery(size_t* served = nullptr, bool* isFailing = nullptr) {
+    if (served != nullptr) {
+        *served = 0;
+    }
+
+    if (isFailing != nullptr) {
+        *isFailing = false;
+    }
+
+    return [served, isFailing](const TVector<TKey>& keys) {
+        if (served != nullptr) {
+            *served += 1;
+        }
+
+        if (isFailing != nullptr && *isFailing) {
             return NThreading::MakeErrorFuture<TVector<TValue>>(
                 std::make_exception_ptr(yexception() << "o_o"));
         }
-        return NThreading::MakeFuture<TVector<TValue>>(key);
+
+        return NThreading::MakeFuture<TVector<TValue>>(keys);
     };
 }
 
 Y_UNIT_TEST_SUITE(TManagedCacheTests) {
 
     Y_UNIT_TEST(TestValueCached) {
-        size_t served = 0;
-        bool isFailing = false;
-        TCacheStorage cache(MakeDummyQuery(served, isFailing));
+        size_t served;
+        TCacheStorage cache(MakeDummyQuery(&served));
 
         UNIT_ASSERT_VALUES_EQUAL(cache.Get("key").GetValueSync(), "key");
         UNIT_ASSERT_VALUES_EQUAL(served, 1);
@@ -105,9 +116,9 @@ Y_UNIT_TEST_SUITE(TManagedCacheTests) {
     }
 
     Y_UNIT_TEST(TestErrorNotCached) {
-        size_t served = 0;
-        bool isFailing = false;
-        TCacheStorage cache(MakeDummyQuery(served, isFailing));
+        size_t served;
+        bool isFailing;
+        TCacheStorage cache(MakeDummyQuery(&served, &isFailing));
 
         isFailing = true;
         UNIT_ASSERT_EXCEPTION_CONTAINS(cache.Get("key").GetValueSync(), yexception, "o_o");
@@ -149,9 +160,8 @@ Y_UNIT_TEST_SUITE(TManagedCacheTests) {
             .EvictionFrequency = 2, // e
         };
 
-        size_t served = 0;
-        bool isFailing = false;
-        auto cache = MakeIntrusive<TCacheStorage>(MakeDummyQuery(served, isFailing));
+        size_t served;
+        auto cache = MakeIntrusive<TCacheStorage>(MakeDummyQuery(&served));
         TCacheMaintenance maintenance(cache, config);
 
         cache->Get("key").GetValueSync();
@@ -173,9 +183,8 @@ Y_UNIT_TEST_SUITE(TManagedCacheTests) {
             .EvictionFrequency = 2, // e
         };
 
-        size_t served = 0;
-        bool isFailing = false;
-        auto cache = MakeIntrusive<TCacheStorage>(MakeDummyQuery(served, isFailing));
+        size_t served;
+        auto cache = MakeIntrusive<TCacheStorage>(MakeDummyQuery(&served));
         TCacheMaintenance maintenance(cache, config);
 
         cache->Get("key").GetValueSync();
@@ -211,8 +220,7 @@ Y_UNIT_TEST_SUITE(TManagedCacheTests) {
         };
 
         size_t served = 0;
-        bool isFailing = false;
-        auto cache = MakeIntrusive<TCacheStorage>(MakeDummyQuery(served, isFailing));
+        auto cache = MakeIntrusive<TCacheStorage>(MakeDummyQuery(&served));
         TCacheMaintenance maintenance(cache, config);
 
         cache->Get("key").GetValueSync();
