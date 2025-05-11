@@ -1185,13 +1185,13 @@ private:
         }
 
         bool shouldForbidReplicaSwitchToAsync = false;
-        int minSyncQueuesCount = 0;
-        int syncReplicasCount = MaxReplicasPerReplicationCard;
+        int minSyncQueueCount = 0;
+        int syncReplicaCount = MaxReplicasPerReplicationCard;
 
         if (IsSyncQueueReplica(*replicaInfo)) {
-            minSyncQueuesCount = GetMinRequiredSyncQueuesCount(*replicationCard);
-            syncReplicasCount = CountSyncQueueReplicas(*replicationCard);
-            shouldForbidReplicaSwitchToAsync = minSyncQueuesCount >= syncReplicasCount;
+            minSyncQueueCount = GetMinRequiredSyncQueueCount(*replicationCard);
+            syncReplicaCount = CountSyncQueueReplicas(*replicationCard);
+            shouldForbidReplicaSwitchToAsync = minSyncQueueCount >= syncReplicaCount;
         }
 
         // COMPAT(osidorkin)
@@ -1213,15 +1213,15 @@ private:
                                 "Queue replica cannot be switched to async mode because there will not be enough sync queues")
                                 << TErrorAttribute("replication_card_id", replicationCardId)
                                 << TErrorAttribute("replica_id", replicaId)
-                                << TErrorAttribute("min_sync_queues_count", minSyncQueuesCount);
+                                << TErrorAttribute("min_sync_queue_count", minSyncQueueCount);
                         } else {
                             YT_LOG_WARNING(
                                 "Forcing queue replica switch beyond the minimum sync queues count "
-                                "(ReplicationCardId: %v, ReplicaId: %v, MinSyncQueuesCount: %v, SyncQueuesCount: %v)",
+                                "(ReplicationCardId: %v, ReplicaId: %v, MinSyncQueueCount: %v, SyncQueueCount: %v)",
                                 replicationCardId,
                                 replicaId,
-                                minSyncQueuesCount,
-                                syncReplicasCount);
+                                minSyncQueueCount,
+                                syncReplicaCount);
                         }
                     }
 
@@ -1244,15 +1244,15 @@ private:
                         "Queue replica cannot be disabled because there will not be enough sync queues")
                             << TErrorAttribute("replication_card_id", replicationCardId)
                         << TErrorAttribute("replica_id", replicaId)
-                        << TErrorAttribute("min_sync_queues_count", minSyncQueuesCount);
+                        << TErrorAttribute("min_sync_queue_count", minSyncQueueCount);
                 } else {
                     YT_LOG_WARNING(
                         "Forcing queue replica disabling beyond the minimum sync queues count "
-                        "(ReplicationCardId: %v, ReplicaId: %v, MinSyncQueuesCount: %v, SyncQueuesCount: %v)",
+                        "(ReplicationCardId: %v, ReplicaId: %v, MinSyncQueueCount: %v, SyncQueueCount: %v)",
                         replicationCardId,
                         replicaId,
-                        minSyncQueuesCount,
-                        syncReplicasCount);
+                        minSyncQueueCount,
+                        syncReplicaCount);
                 }
             }
 
@@ -2104,14 +2104,14 @@ private:
             return;
         }
 
-        int minSyncQueuesCount = GetMinRequiredSyncQueuesCount(*replicationCard);
-        int syncQueuesCount = CountSyncQueueReplicas(*replicationCard);
-        if (syncQueuesCount < minSyncQueuesCount) {
+        int minSyncQueueCount = GetMinRequiredSyncQueueCount(*replicationCard);
+        int syncQueueCount = CountSyncQueueReplicas(*replicationCard);
+        if (syncQueueCount < minSyncQueueCount) {
             YT_LOG_DEBUG("Will not commence new replication era since there would be not enough sync queue replicas "
-                "(ReplicationCard: %v, MinSyncQueuesCount: %v, SyncQueuesCount: %v)",
+                "(ReplicationCard: %v, MinSyncQueueCount: %v, SyncQueueCount: %v)",
                 *replicationCard,
-                minSyncQueuesCount,
-                syncQueuesCount);
+                minSyncQueueCount,
+                syncQueueCount);
             return;
         }
 
@@ -2875,7 +2875,7 @@ private:
             .WithPrefix("/replication_card").WithTags(NProfiling::TTagSet(tagsList)));
     }
 
-    static int GetMinRequiredSyncQueuesCount(const TReplicationCard& replicationCard)
+    static int GetMinRequiredSyncQueueCount(const TReplicationCard& replicationCard)
     {
         const auto& replicatedTableOptions = replicationCard.GetReplicatedTableOptions();
         return replicatedTableOptions->MinSyncQueueReplicaCount.value_or(
