@@ -9,8 +9,7 @@
 namespace NYql {
 
     struct TManagedCacheConfig {
-        TDuration TickPause = TDuration::Seconds(5);
-        size_t UpdateFrequency = 1;
+        TDuration UpdatePeriod = TDuration::Seconds(5);
         size_t EvictionFrequency = 3;
     };
 
@@ -25,17 +24,20 @@ namespace NYql {
             : Storage_(std::move(storage))
             , Config_(std::move(config))
         {
-            Y_ENSURE(TDuration::MicroSeconds(100) < Config_.TickPause);
-            Y_ENSURE(Config_.TickPause < TDuration::Days(7));
-            Y_ENSURE(0 < Config_.UpdateFrequency);
-            Y_ENSURE(Config_.UpdateFrequency <= Config_.EvictionFrequency);
-            Y_ENSURE(Config_.EvictionFrequency <= 10'000);
+            Y_ENSURE(
+                TDuration::MicroSeconds(100) <= Config_.UpdatePeriod &&
+                    Config_.UpdatePeriod <= TDuration::Days(7),
+                "UpdatePeriod must be in [100ms, 7d], got " << Config_.UpdatePeriod);
+            Y_ENSURE(
+                1 <= Config_.EvictionFrequency &&
+                    Config_.EvictionFrequency <= 10'000,
+                "EvictionFrequency must be in [1, 10'000], got " << Config_.EvictionFrequency);
         }
 
         void Run(NThreading::TCancellationToken token) {
             while (!token.IsCancellationRequested()) {
                 Tick();
-                Sleep(Config_.TickPause);
+                Sleep(Config_.UpdatePeriod);
             }
         }
 
@@ -44,9 +46,7 @@ namespace NYql {
             if (Tick_ % Config_.EvictionFrequency == 0) {
                 Storage_->Evict();
             }
-            if (Tick_ % Config_.UpdateFrequency == 0) {
-                Storage_->Update();
-            }
+            Storage_->Update();
         }
 
     private:

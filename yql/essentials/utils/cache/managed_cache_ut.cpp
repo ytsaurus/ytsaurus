@@ -14,7 +14,7 @@
 
 // TODO:
 // - [x] Do not cache exceptions
-// - [ ] Extract UpdateScan and EvictScan
+// - [x] Extract UpdateScan and EvictScan
 // - [ ] Think about capacity (LRU)
 // - [ ] What if query is longer than quantum
 // - [ ] Quantum is a update frequency and eviction rate relative to update rate
@@ -156,8 +156,7 @@ Y_UNIT_TEST_SUITE(TManagedCacheTests) {
         // |---|---|--
         // 0   1   2
         TManagedCacheConfig config = {
-            .UpdateFrequency = 1,   // u
-            .EvictionFrequency = 2, // e
+            .EvictionFrequency = 2,
         };
 
         size_t served;
@@ -179,8 +178,7 @@ Y_UNIT_TEST_SUITE(TManagedCacheTests) {
         // |---|---|---|---|---|---|--
         // 0   1   2   3   4   5   6
         TManagedCacheConfig config = {
-            .UpdateFrequency = 1,   // u
-            .EvictionFrequency = 2, // e
+            .EvictionFrequency = 2,
         };
 
         size_t served;
@@ -215,8 +213,7 @@ Y_UNIT_TEST_SUITE(TManagedCacheTests) {
         // |---|---|---|---|--
         // 0   1   2   3   4
         TManagedCacheConfig config = {
-            .UpdateFrequency = 1,   // u
-            .EvictionFrequency = 2, // e
+            .EvictionFrequency = 2,
         };
 
         size_t served = 0;
@@ -247,8 +244,7 @@ Y_UNIT_TEST_SUITE(TManagedCacheTests) {
         service.SetSuccessRate(0.95);
 
         TManagedCacheConfig config = {
-            .TickPause = TDuration::MilliSeconds(10),
-            .UpdateFrequency = 1,
+            .UpdatePeriod = TDuration::MilliSeconds(10),
             .EvictionFrequency = 3,
         };
 
