@@ -1309,7 +1309,8 @@ class TestChaos(ChaosTestBase):
 
         replicas = [
             {"cluster_name": "primary", "content_type": "data", "mode": "async", "enabled": True, "replica_path": "//tmp/t"},
-            {"cluster_name": "remote_0", "content_type": "queue", "mode": "sync", "enabled": True, "replica_path": "//tmp/q"},
+            {"cluster_name": "remote_0", "content_type": "queue", "mode": "sync", "enabled": True, "replica_path": "//tmp/q0"},
+            {"cluster_name": "remote_1", "content_type": "queue", "mode": "async", "enabled": True, "replica_path": "//tmp/q1"},
         ]
         card_id, replica_ids = self._create_chaos_tables(cell_id, replicas)
         sync_unmount_table("//tmp/t")
@@ -1344,6 +1345,9 @@ class TestChaos(ChaosTestBase):
         wait(lambda: lookup_rows("//tmp/t", keys[:1]) == rows[:1])
         wait(lambda: _check_progress(0))
 
+        # Trigger era change to refresh rpc_proxy cache.
+        self._sync_alter_replica(card_id, replicas, replica_ids, 2, enabled=False)
+
         _check(keys[:1], 1)
         _check(keys[1:], 0)
         _check(keys, 0)
@@ -1351,6 +1355,9 @@ class TestChaos(ChaosTestBase):
         sync_mount_table("//tmp/t", first_tablet_index=1, last_tablet_index=1)
         wait(lambda: lookup_rows("//tmp/t", keys[1:]) == rows[1:])
         wait(lambda: _check_progress(1))
+
+        # Trigger era change to refresh rpc_proxy cache.
+        self._sync_alter_replica(card_id, replicas, replica_ids, 2, enabled=True)
 
         _check(keys[:1], 1)
         _check(keys[1:], 1)
