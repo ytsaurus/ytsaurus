@@ -33,7 +33,7 @@ from yt_type_helpers import make_schema, optional_type
 import yt_error_codes
 
 from yt.environment.helpers import assert_items_equal
-from yt.common import YtError
+from yt.common import YtError, update
 import yt.yson as yson
 
 import pytest
@@ -73,6 +73,12 @@ class DynamicTablesSingleCellBase(DynamicTablesBase):
     DELTA_NODE_CONFIG = {
         "resource_limits": {
             "cpu_per_tablet_slot": 1.0,
+            "memory_limits": {
+                "lookup_rows_cache": {
+                    "type": "static",
+                    "value": 1 * 1024 * 1024
+                }
+            },
         },
         "tablet_node": {
             "changelogs": {
@@ -3697,15 +3703,18 @@ class TestDynamicTablesRpcProxy(TestDynamicTablesSingleCell):
 @pytest.mark.enabled_multidaemon
 class TestDynamicTablesWithAbandoningLeaderLeaseDuringRecovery(DynamicTablesSingleCellBase):
     ENABLE_MULTIDAEMON = True
-    DELTA_NODE_CONFIG = {
-        "tablet_node": {
-            "hydra_manager": {
-                "leader_lease_grace_delay": 6000,
-                "leader_lease_timeout": 5000,
-                "disable_leader_lease_grace_delay": False,
+    DELTA_NODE_CONFIG = update(
+        DynamicTablesSingleCellBase.DELTA_NODE_CONFIG,
+        {
+            "tablet_node": {
+                "hydra_manager": {
+                    "leader_lease_grace_delay": 6000,
+                    "leader_lease_timeout": 5000,
+                    "disable_leader_lease_grace_delay": False,
+                }
             }
         }
-    }
+    )
 
     def setup_method(self, method):
         super(DynamicTablesSingleCellBase, self).setup_method(method)

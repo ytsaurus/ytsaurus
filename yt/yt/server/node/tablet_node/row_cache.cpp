@@ -107,7 +107,7 @@ TRowCache::TRowCache(
     IMemoryUsageTrackerPtr memoryTracker)
     : MemoryTracker_(New<TRowCacheMemoryTracker>(std::move(memoryTracker)))
     , Allocator_(profiler.WithPrefix("/slab_allocator"), MemoryTracker_)
-    , Cache_(elementCount)
+    , Cache_(elementCount, MemoryTracker_)
 { }
 
 TConcurrentCache<TCachedRow>* TRowCache::GetCache()
