@@ -32,11 +32,11 @@ TSignatureGenerator::TSignatureGenerator(TSignatureGeneratorConfigPtr config)
 
 void TSignatureGenerator::SetKeyPair(TKeyPairPtr keyPair)
 {
+    bool isSane = keyPair->CheckSanity();
     auto keyId = GetKeyId(keyPair->KeyInfo()->Meta());
+
     YT_LOG_DEBUG("Setting new key pair (KeyId: %v)", keyId);
-
-    YT_VERIFY(keyPair->CheckSanity());
-
+    YT_VERIFY(isSane);
     KeyPair_.Store(std::move(keyPair));
 }
 
