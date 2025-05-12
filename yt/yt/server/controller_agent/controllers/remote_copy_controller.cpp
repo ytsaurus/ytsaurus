@@ -849,6 +849,9 @@ private:
             if (HunkTask_) {
                 HunkTask_->SetIsInput(true);
             }
+            if (CompressionDictionaryTask_) {
+                CompressionDictionaryTask_->SetIsInput(true);
+            }
 
             auto sliceCount = AddInputSlices();
             YT_LOG_INFO("Processed inputs (Slices: %v)", sliceCount);
