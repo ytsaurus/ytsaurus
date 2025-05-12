@@ -3,8 +3,9 @@ items:
  #  href: preinstalled.md
   - name: Разработка на Python
     href: python.md
- # - name: Разработка на JavaScript
- #   href: javascript.md
+  - name: Разработка на JavaScript
+    href: ../../yandex-specific/yql/udf/javascript.md
+    when: audience == "internal"
  # - name: Разработка на C++
  #   href: cpp.md
  #   items:
