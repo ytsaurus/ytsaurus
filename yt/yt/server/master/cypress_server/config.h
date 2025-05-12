@@ -76,6 +76,8 @@ struct TDynamicCypressManagerConfig
     int MaxLocksPerTransactionSubtree;
 
     std::optional<i64> VirtualMapReadOffloadBatchSize;
+    // COMPAT(shakurov)
+    bool EnableVirtualMapReadOffloadAuthenticatedUserPropagation;
 
     int CrossCellCopyMaxSubtreeSize;
 
