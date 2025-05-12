@@ -177,9 +177,9 @@ private:
         TUserCounterMap* counterMap,
         const std::string& user,
         const std::string& networkName,
-        const TString& counterName,
-        const TString& tagName,
-        const TString& tagValue,
+        const std::string& counterName,
+        const std::string& tagName,
+        const std::string& tagValue,
         i64 value);
 };
 
