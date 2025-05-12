@@ -202,5 +202,91 @@ TEST(TQueryOptimizerTest, OptimizeGroupBy)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+bool RunPushDownGroupByOptimization(const TString& querySource)
+{
+    auto parsedQuery = ParseSource(querySource, NQueryClient::EParseMode::Query);
+    auto query = std::get<NQueryClient::NAst::TQuery>(parsedQuery->AstHead.Ast);
+
+    return TryHintPushDownGroupBy(&query);
+}
+
+TEST(TQueryOptimizerTest, PushDownGroupBy)
+{
+    EXPECT_TRUE(RunPushDownGroupByOptimization(
+        "first(t.v), first(r.w)"
+        " from [//home/table] as t"
+        " join [//home/table2] as r on t.x = r.x"
+        " group by t.x"));
+
+    EXPECT_TRUE(RunPushDownGroupByOptimization(
+        "first(t.v), min(t.p), max(t.q), first(r.w), sum(r.s), min(r.p), max(r.q)"
+        " from [//home/table] as t"
+        " join [//home/table2] as r on t.x = r.x"
+        " group by t.x"
+        " having first(t.v) > 0 and (min(t.p) + max(t.q)) < 0 and ((first(r.w) + sum(r.s) * min(r.q)) / max(r.q)) > 300"
+        " order by first(t.o1), min(t.o2), max(t.o3), first(r.o1), sum(r.o2), min(r.o3), max(r.o4)"));
+
+
+    // There is no join or group by to push down.
+    EXPECT_FALSE(RunPushDownGroupByOptimization(
+        "t.v from [//home/table] as t"));
+
+    // There is no group by to push down.
+    EXPECT_FALSE(RunPushDownGroupByOptimization(
+        "t.v, r.w from [//home/table] as t join [//home/table2] as r on t.x = r.x"));
+
+    // Push down is only supported for queries with a signle join.
+    EXPECT_FALSE(RunPushDownGroupByOptimization(
+        "first(t.v), first(r.w), first(r2.m)"
+        " from [//home/table] as t"
+        " join [//home/table2] as r on t.x = r.x"
+        " join [//home/table3] as r2 on t.x = r2.x"
+        " group by t.x"));
+
+    // All aggregations on left table must be idempotent.
+    EXPECT_FALSE(RunPushDownGroupByOptimization(
+        "sum(t.v), first(r.w)"
+        " from [//home/table] as t"
+        " join [//home/table2] as r on t.x = r.x"
+        " group by t.x"));
+
+    // Only supported aggregation functions are allowed in any part of the query.
+    EXPECT_FALSE(RunPushDownGroupByOptimization(
+        "cardinality(t.v), first(r.w)"
+        " from [//home/table] as t"
+        " join [//home/table2] as r on t.x = r.x"
+        " group by t.x"));
+    EXPECT_FALSE(RunPushDownGroupByOptimization(
+        "first(t.v), cardinality(r.w)"
+        " from [//home/table] as t"
+        " join [//home/table2] as r on t.x = r.x"
+        " group by t.x"));
+    EXPECT_FALSE(RunPushDownGroupByOptimization(
+        "first(t.v), first(r.w)"
+        " from [//home/table] as t"
+        " join [//home/table2] as r on t.x = r.x"
+        " group by t.x"
+        " order by cardinality(r.w)"));
+    EXPECT_FALSE(RunPushDownGroupByOptimization(
+        "first(t.v), first(r.w)"
+        " from [//home/table] as t"
+        " join [//home/table2] as r on t.x = r.x"
+        " group by t.x"
+        " order by cardinality(t.v)"));
+    EXPECT_FALSE(RunPushDownGroupByOptimization(
+        "first(t.v), first(r.w)"
+        " from [//home/table] as t"
+        " join [//home/table2] as r on t.x = r.x"
+        " group by t.x"
+        " having cardinality(r.w) > 3"));
+    EXPECT_FALSE(RunPushDownGroupByOptimization(
+        "first(t.v), first(r.w)"
+        " from [//home/table] as t"
+        " join [//home/table2] as r on t.x = r.x"
+        " group by t.x"
+        " having cardinality(t.v) > 3"));
+}
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace
 } // namespace NYT::NOrm::NQuery::NTests
