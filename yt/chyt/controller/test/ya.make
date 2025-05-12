@@ -1,5 +1,10 @@
+IF (NOT OPENSOURCE)
+    RECURSE(
+        chyt
+    )
+ENDIF()
+
 RECURSE(
-    chyt
     cli
     helpers
     integration
