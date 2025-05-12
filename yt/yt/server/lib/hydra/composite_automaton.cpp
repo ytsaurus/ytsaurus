@@ -83,6 +83,7 @@ void TCompositeAutomatonPart::RegisterSaver(
     descriptor.Name = name;
     descriptor.Callback = callback;
     descriptor.SnapshotVersion = GetCurrentSnapshotVersion();
+    descriptor.TractoSnapshotVersion = GetCurrentTractoSnapshotVersion();
     Automaton_->SyncSavers_.push_back(descriptor);
 }
 
@@ -99,6 +100,7 @@ void TCompositeAutomatonPart::RegisterSaver(
     descriptor.Name = name;
     descriptor.Callback = callback;
     descriptor.SnapshotVersion = GetCurrentSnapshotVersion();
+    descriptor.TractoSnapshotVersion = GetCurrentTractoSnapshotVersion();
     Automaton_->AsyncSavers_.push_back(descriptor);
 }
 
@@ -127,6 +129,16 @@ bool TCompositeAutomatonPart::ValidateSnapshotVersion(int /*version*/)
 }
 
 int TCompositeAutomatonPart::GetCurrentSnapshotVersion()
+{
+    return 0;
+}
+
+bool TCompositeAutomatonPart::ValidateTractoSnapshotVersion(int /*version*/)
+{
+    return true;
+}
+
+int TCompositeAutomatonPart::GetCurrentTractoSnapshotVersion()
 {
     return 0;
 }
@@ -308,16 +320,18 @@ TFuture<void> TCompositeAutomaton::SaveSnapshot(const TSnapshotSaveContext& cont
 
             const auto& Logger = context.GetLogger();
             for (const auto& descriptor : syncSavers) {
-                YT_LOG_INFO("Started saving sync automaton part (Name: %v, Version: %v)",
+                YT_LOG_INFO("Started saving sync automaton part (Name: %v, Version: %v, TractoVersion: %v)",
                     descriptor.Name,
-                    descriptor.SnapshotVersion);
+                    descriptor.SnapshotVersion,
+                    descriptor.TractoSnapshotVersion);
                 WritePartHeader(context, descriptor);
                 descriptor.Callback(context);
                 // Wait for async writes to finish.
                 context.Flush();
-                YT_LOG_INFO("Finished saving sync automaton part (Name: %v, Version: %v, Checksum: %x)",
+                YT_LOG_INFO("Finished saving sync automaton part (Name: %v, Version: %v, TractoVersion: %v, Checksum: %x)",
                     descriptor.Name,
                     descriptor.SnapshotVersion,
+                    descriptor.TractoSnapshotVersion,
                     writer->GetChecksum());
                 writer->SetChecksum(0);
             }
@@ -358,15 +372,17 @@ TFuture<void> TCompositeAutomaton::SaveSnapshot(const TSnapshotSaveContext& cont
                     const auto& Logger = context.GetLogger();
                     for (int index = 0; index < std::ssize(asyncSavers); ++index) {
                         const auto& descriptor = asyncSavers[index];
-                        YT_LOG_INFO("Started saving async automaton part (Name: %v, Version: %v)",
+                        YT_LOG_INFO("Started saving async automaton part (Name: %v, Version: %v, TractoVersion: %v)",
                             descriptor.Name,
-                            descriptor.SnapshotVersion);
+                            descriptor.SnapshotVersion,
+                            descriptor.TractoSnapshotVersion);
                         WritePartHeader(context, descriptor);
                         asyncCallbacks[index](context);
                         context.Flush();
-                        YT_LOG_INFO("Finished saving async automaton part (Name: %v, Version: %v)",
+                        YT_LOG_INFO("Finished saving async automaton part (Name: %v, Version: %v, TractoVersion: %v)",
                             descriptor.Name,
-                            descriptor.SnapshotVersion);
+                            descriptor.SnapshotVersion,
+                            descriptor.TractoSnapshotVersion);
                     }
                 });
         })
@@ -392,7 +408,13 @@ void TCompositeAutomaton::LoadSnapshot(const TSnapshotLoadContext& context)
                 for (int partIndex = 0; partIndex < partCount; ++partIndex) {
                     auto name = LoadSuspended<TString>(context);
                     int version = LoadSuspended<i32>(context);
-                    SERIALIZATION_DUMP_WRITE(context, "%v@%v =>", name, version);
+                    int tractoVersion = 0;
+                    if (version < 0) {
+                        tractoVersion = -version;
+                        // COMPAT(faucct): Remove after all components have Tracto reigns
+                        version = LoadSuspended<i32>(context);
+                    }
+                    SERIALIZATION_DUMP_WRITE(context, "Reigns %v: %v, %v =>", name, version, tractoVersion);
 
                     SERIALIZATION_DUMP_INDENT(context) {
                         auto readPart = [&] (auto func) {
@@ -406,18 +428,21 @@ void TCompositeAutomaton::LoadSnapshot(const TSnapshotLoadContext& context)
                         auto it = PartNameToLoaderDescriptor_.find(name);
                         if (it == PartNameToLoaderDescriptor_.end()) {
                             SERIALIZATION_DUMP_WRITE(context, "<skipped>");
-                            YT_LOG_INFO("Started skipping unknown automaton part (Name: %v, Version: %v)",
+                            YT_LOG_INFO("Started skipping unknown automaton part (Name: %v, Version: %v, TractoVersion: %v)",
                                 name,
-                                version);
+                                version,
+                                tractoVersion);
                             auto size = readPart([] { });
                             YT_LOG_INFO("Finished skipping unknown automaton part (Name: %v, Size: %v)",
                                 name,
                                 size);
                         } else {
-                            YT_LOG_INFO("Started loading automaton part (Name: %v, Version: %v)",
+                            YT_LOG_INFO("Started loading automaton part (Name: %v, Version: %v, TractoVersion: %v)",
                                 name,
-                                version);
+                                version,
+                                tractoVersion);
                             context.SetVersion(version);
+                            context.SetTractoVersion(tractoVersion);
                             const auto& descriptor = it->second;
                             auto size = readPart([&] { descriptor.Callback(context); });
                             YT_LOG_INFO("Finished loading automaton part (Name: %v, Size: %v)",
@@ -452,6 +477,21 @@ void TCompositeAutomaton::RememberReign(TReign reign)
     }
 }
 
+void TCompositeAutomaton::RememberTractoReign(TReign reign)
+{
+    auto recoveryAction = GetActionToRecoverFromTractoReign(reign);
+
+    YT_VERIFY(IsRecovery() || recoveryAction == EFinalRecoveryAction::None);
+
+    if (recoveryAction != FinalRecoveryAction_) {
+        YT_LOG_DEBUG("Updating final recovery action (MutationReign: %v, CurrentFinalRecoveryAction: %v, MutationFinalRecoveryAction: %v)",
+            reign,
+            FinalRecoveryAction_,
+            recoveryAction);
+        FinalRecoveryAction_ = std::max(FinalRecoveryAction_, recoveryAction);
+    }
+}
+
 void TCompositeAutomaton::ApplyMutation(TMutationContext* context)
 {
     const auto& request = context->Request();
@@ -464,6 +504,7 @@ void TCompositeAutomaton::ApplyMutation(TMutationContext* context)
     // COMPAT(savrus) Skip unreigned heartbeat mutations which are already in changelog.
     if (mutationType != HeartbeatMutationType) {
         RememberReign(request.Reign);
+        RememberTractoReign(request.TractoReign);
     }
 
     if (!isRecovery) {
@@ -559,9 +600,14 @@ void TCompositeAutomaton::DoLoadSnapshot(
 void TCompositeAutomaton::WritePartHeader(TSaveContext& context, const TSaverDescriptorBase& descriptor)
 {
     auto version = descriptor.SnapshotVersion;
+    auto tractoVersion = descriptor.TractoSnapshotVersion;
     context.MakeCheckpoint();
 
     Save(context, descriptor.Name);
+    if (tractoVersion != 0) {
+        YT_VERIFY(tractoVersion > 0);
+        Save<i32>(context, -tractoVersion);
+    }
     Save<i32>(context, version);
 }
 

@@ -27,6 +27,7 @@ public:
         ICheckpointableOutputStream* output,
         NLogging::TLogger logger = {},
         int version = 0,
+        int tractoVersion = 0,
         NConcurrency::IThreadPoolPtr backgroundThreadPool = nullptr);
 
     TSaveContext(

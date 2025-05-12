@@ -248,6 +248,7 @@ public:
     void ApplyMutations(const std::vector<TPendingMutationPtr>& mutations);
 
     TReign GetCurrentReign() const;
+    TReign GetCurrentTractoReign() const;
     EFinalRecoveryAction GetFinalRecoveryAction() const;
 
     bool IsBuildingSnapshotNow() const;

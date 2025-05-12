@@ -283,6 +283,11 @@ Y_FORCE_INLINE int TStreamSaveContext::GetVersion() const
     return Version_;
 }
 
+Y_FORCE_INLINE int TStreamSaveContext::GetTractoVersion() const
+{
+    return TractoVersion_;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 Y_FORCE_INLINE size_t TLoadContextStream::Load(void* buf, size_t len)

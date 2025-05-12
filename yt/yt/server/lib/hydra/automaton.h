@@ -57,8 +57,14 @@ struct IAutomaton
     //! Returns global context version, typically the snapshot version for the component.
     virtual TReign GetCurrentReign() = 0;
 
-    //! Returns action that needs to be done after replaying changelog from a specific reign.
+    //! Return the custom tracto dimension of the global context version, typically the snapshot version for the component.
+    virtual TReign GetCurrentTractoReign() = 0;
+
+    //! Returns action that needs to be done after replaying changelog from a scecific reign.
     virtual EFinalRecoveryAction GetActionToRecoverFromReign(TReign reign) = 0;
+
+    //! Returns action that needs to be done after replaying changelog from a scecific tracto reign.
+    virtual EFinalRecoveryAction GetActionToRecoverFromTractoReign(TReign reign) = 0;
 
     //! Returns the resulting action that needs to be done after replaying changelog.
     virtual EFinalRecoveryAction GetFinalRecoveryAction() = 0;

@@ -20,8 +20,9 @@ TSaveContext::TSaveContext(
     ICheckpointableOutputStream* output,
     NLogging::TLogger logger,
     int version,
+    int tractoVersion,
     IThreadPoolPtr backgroundThreadPool)
-    : TEntityStreamSaveContext(output, version)
+    : TEntityStreamSaveContext(output, version, tractoVersion)
     , Logger_(std::move(logger))
     , CheckpointableOutput_(output)
     , BackgroundThreadPool_(std::move(backgroundThreadPool))
@@ -77,6 +78,7 @@ TLoadContext::TLoadContext(
     : TEntityStreamLoadContext(input, parentContext)
 {
     SetVersion(parentContext->GetVersion());
+    SetTractoVersion(parentContext->GetTractoVersion());
 }
 
 void TLoadContext::SkipToCheckpoint()

@@ -89,6 +89,8 @@ protected:
 
     virtual bool ValidateSnapshotVersion(int version);
     virtual int GetCurrentSnapshotVersion();
+    virtual bool ValidateTractoSnapshotVersion(int version);
+    virtual int GetCurrentTractoSnapshotVersion();
 
     virtual void Clear();
     virtual void SetZeroState();
@@ -140,6 +142,7 @@ public:
     void SetZeroState() override;
 
     void RememberReign(TReign reign);
+    void RememberTractoReign(TReign reign);
     EFinalRecoveryAction GetFinalRecoveryAction() override;
 
     void CheckInvariants() override;
@@ -208,6 +211,7 @@ private:
     {
         TString Name;
         int SnapshotVersion;
+        int TractoSnapshotVersion;
     };
 
     struct TSyncSaverDescriptor

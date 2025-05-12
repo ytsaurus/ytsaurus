@@ -50,9 +50,19 @@ TReign TChaosAutomaton::GetCurrentReign()
     return NChaosNode::GetCurrentReign();
 }
 
+TReign TChaosAutomaton::GetCurrentTractoReign()
+{
+    return 0;
+}
+
 EFinalRecoveryAction TChaosAutomaton::GetActionToRecoverFromReign(TReign reign)
 {
     return NChaosNode::GetActionToRecoverFromReign(reign);
+}
+
+EFinalRecoveryAction TChaosAutomaton::GetActionToRecoverFromTractoReign(TReign /*reign*/)
+{
+    return EFinalRecoveryAction::None;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -243,6 +243,11 @@ public:
         YT_UNIMPLEMENTED();
     }
 
+    TReign GetCurrentTractoReign() override
+    {
+        YT_UNIMPLEMENTED();
+    }
+
     EPeerState GetAutomatonState() const override
     {
         VERIFY_THREAD_AFFINITY_ANY();

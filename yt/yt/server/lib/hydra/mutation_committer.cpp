@@ -1116,6 +1116,7 @@ void TLeaderCommitter::LogMutations(std::vector<TMutationDraft> mutationDrafts)
 
         MutationHeader_.Clear(); // don't forget to cleanup the pooled instance
         MutationHeader_.set_reign(mutationDraft.Request.Reign);
+        MutationHeader_.set_tracto_reign(mutationDraft.Request.TractoReign);
         MutationHeader_.set_mutation_type(mutationDraft.Request.Type);
         MutationHeader_.set_timestamp(timestamp.GetValue());
         MutationHeader_.set_random_seed(randomSeed);
@@ -1398,6 +1399,7 @@ void TFollowerCommitter::DoAcceptMutation(const TSharedRef& recordData)
 
     TMutationRequest request;
     request.Reign = MutationHeader_.reign();
+    request.TractoReign = MutationHeader_.tracto_reign();
     request.Type = std::move(*MutationHeader_.mutable_mutation_type());
     request.Data = std::move(mutationData);
     request.MutationId = FromProto<TMutationId>(MutationHeader_.mutation_id());

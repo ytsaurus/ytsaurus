@@ -41,7 +41,9 @@ private:
         NHydra::ICheckpointableInputStream* input) override;
 
     NHydra::TReign GetCurrentReign() override;
+    NHydra::TReign GetCurrentTractoReign() override;
     NHydra::EFinalRecoveryAction GetActionToRecoverFromReign(NHydra::TReign reign) override;
+    NHydra::EFinalRecoveryAction GetActionToRecoverFromTractoReign(NHydra::TReign reign) override;
 };
 
 DEFINE_REFCOUNTED_TYPE(TMasterAutomaton)
@@ -65,6 +67,9 @@ protected:
 
     bool ValidateSnapshotVersion(int version) override;
     int GetCurrentSnapshotVersion() override;
+
+    bool ValidateTractoSnapshotVersion(int version) override;
+    int GetCurrentTractoSnapshotVersion() override;
 };
 
 DEFINE_REFCOUNTED_TYPE(TMasterAutomatonPart)

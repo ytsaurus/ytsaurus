@@ -259,6 +259,20 @@ static_assert(TEnumTraits<EMasterReign>::IsMonotonic, "Master reign enum is not 
 
 ////////////////////////////////////////////////////////////////////////////////
 
+NHydra::TReign GetCurrentTractoReign();
+bool ValidateSnapshotTractoReign(NHydra::TReign reign);
+NHydra::EFinalRecoveryAction GetActionToRecoverFromTractoReign(NHydra::TReign reign);
+
+////////////////////////////////////////////////////////////////////////////////
+
+DEFINE_ENUM(ETractoMasterReign,
+    ((Start_24_2)                                                   (2700))  // faucct
+);
+
+static_assert(TEnumTraits<ETractoMasterReign>::IsMonotonic, "Tracto Master reign enum is not monotonic");
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TSaveContext
     : public NHydra::TSaveContext
 {
@@ -274,6 +288,8 @@ public:
     TEntitySerializationKey RegisterInternedYsonString(NYson::TYsonString str);
 
     EMasterReign GetVersion();
+
+    ETractoMasterReign GetTractoVersion();
 
 private:
     const TSaveContext* const ParentContext_ = nullptr;
@@ -308,6 +324,8 @@ public:
     TEntitySerializationKey RegisterInternedYsonString(NYson::TYsonString str);
 
     EMasterReign GetVersion();
+
+    ETractoMasterReign GetTractoVersion();
 
 private:
     std::vector<NYson::TYsonString> InternedYsonStrings_;

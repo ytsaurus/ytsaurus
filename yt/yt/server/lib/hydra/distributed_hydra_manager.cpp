@@ -495,6 +495,7 @@ public:
         auto req = proxy.CommitMutation();
         req->set_type(request.Type);
         req->set_reign(request.Reign);
+        req->set_tracto_reign(request.TractoReign);
         if (request.MutationId) {
             ToProto(req->mutable_mutation_id(), request.MutationId);
             req->set_retry(request.Retry);
@@ -515,6 +516,7 @@ public:
     {
         return {
             .Reign = GetCurrentReign(),
+            .TractoReign = GetCurrentTractoReign(),
             .Type = mutationType
         };
     }
@@ -557,6 +559,11 @@ public:
     TReign GetCurrentReign() override
     {
         return DecoratedAutomaton_->GetCurrentReign();
+    }
+
+    TReign GetCurrentTractoReign() override
+    {
+        return DecoratedAutomaton_->GetCurrentTractoReign();
     }
 
     bool GetReadOnly() const override
@@ -772,7 +779,10 @@ private:
             context->SetRequestInfo();
 
             auto owner = GetOwnerOrThrow();
-            owner->CommitMutation(TMutationRequest{.Reign = owner->GetCurrentReign()})
+            owner->CommitMutation(TMutationRequest{
+                .Reign = owner->GetCurrentReign(),
+                .TractoReign = owner->GetCurrentTractoReign(),
+            })
                 .Subscribe(BIND([=] (const TErrorOr<TMutationResponse>& result) {
                     context->Reply(result);
                 }));
@@ -1062,6 +1072,7 @@ private:
         {
             TMutationRequest mutationRequest;
             mutationRequest.Reign = request->reign();
+            mutationRequest.TractoReign = request->tracto_reign();
             mutationRequest.Type = request->type();
             if (request->has_mutation_id()) {
                 mutationRequest.MutationId = FromProto<TMutationId>(request->mutation_id());
@@ -1072,8 +1083,9 @@ private:
             auto owner = GetOwnerOrThrow();
 
             // COMPAT(savrus) Fix heartbeats from old participants.
-            if (mutationRequest.Type != HeartbeatMutationType && !mutationRequest.Reign) {
-                mutationRequest.Reign = owner->GetCurrentReign();
+            if (mutationRequest.Type != HeartbeatMutationType) {
+                mutationRequest.Reign |= owner->GetCurrentReign();
+                mutationRequest.TractoReign |= owner->GetCurrentTractoReign();
             }
 
             context->SetRequestInfo("MutationType: %v, MutationId: %v, Retry: %v",

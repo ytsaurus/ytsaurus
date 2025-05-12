@@ -36,9 +36,19 @@ NHydra::TReign TClockAutomaton::GetCurrentReign()
     return NClusterClock::GetCurrentReign();
 }
 
+NHydra::TReign TClockAutomaton::GetCurrentTractoReign()
+{
+    return 0;
+}
+
 NHydra::EFinalRecoveryAction TClockAutomaton::GetActionToRecoverFromReign(NHydra::TReign reign)
 {
     return NClusterClock::GetActionToRecoverFromReign(reign);
+}
+
+NHydra::EFinalRecoveryAction TClockAutomaton::GetActionToRecoverFromTractoReign(NHydra::TReign /*reign*/)
+{
+    return EFinalRecoveryAction::None;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

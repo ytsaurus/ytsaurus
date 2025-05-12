@@ -1064,6 +1064,7 @@ TDecoratedAutomaton::TMutationApplicationResult TDecoratedAutomaton::ApplyMutati
 
     TMutationRequest request;
     request.Reign = header.reign();
+    request.TractoReign = header.tracto_reign();
     request.Type = header.mutation_type();
     request.MutationId = FromProto<TMutationId>(header.mutation_id());
     request.Data = std::move(requestData);
@@ -1623,6 +1624,11 @@ bool TDecoratedAutomaton::GetReadOnly() const
 TReign TDecoratedAutomaton::GetCurrentReign() const
 {
     return Automaton_->GetCurrentReign();
+}
+
+TReign TDecoratedAutomaton::GetCurrentTractoReign() const
+{
+    return Automaton_->GetCurrentTractoReign();
 }
 
 EFinalRecoveryAction TDecoratedAutomaton::GetFinalRecoveryAction() const

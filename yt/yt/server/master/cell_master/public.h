@@ -48,9 +48,11 @@ DECLARE_REFCOUNTED_STRUCT(IWorldInitializer)
 class TBootstrap;
 
 enum class EMasterReign;
+enum class ETractoMasterReign;
 class TLoadContext;
 class TSaveContext;
 using TPersistenceContext = TCustomPersistenceContext<TSaveContext, TLoadContext, EMasterReign>;
+using TTractoPersistenceContext = TCustomPersistenceContext<TSaveContext, TLoadContext, ETractoMasterReign>;
 
 DEFINE_ENUM(EAutomatonThreadQueue,
     (Default)

@@ -47,9 +47,19 @@ TReign TTabletAutomaton::GetCurrentReign()
     return NTabletNode::GetCurrentReign();
 }
 
+TReign TTabletAutomaton::GetCurrentTractoReign()
+{
+    return 0;
+}
+
 EFinalRecoveryAction TTabletAutomaton::GetActionToRecoverFromReign(TReign reign)
 {
     return NTabletNode::GetActionToRecoverFromReign(reign);
+}
+
+EFinalRecoveryAction TTabletAutomaton::GetActionToRecoverFromTractoReign(TReign /*reign*/)
+{
+    return EFinalRecoveryAction::None;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
