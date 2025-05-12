@@ -119,11 +119,12 @@ public:
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, PingSession)
     {
         if (!SessionCanceled_) {
-            if (!SessionId_.has_value() || *SessionId_ != FromProto<TSessionId>(request->session_id())) {
+            auto sessionId = FromProto<TSessionId>(request->session_id());
+            if (!SessionId_.has_value() || *SessionId_ != sessionId) {
                 THROW_ERROR_EXCEPTION(
                     NChunkClient::EErrorCode::NoSuchSession,
                     "Session %v is invalid or expired",
-                    request->session_id());
+                    sessionId);
             }
         }
 
