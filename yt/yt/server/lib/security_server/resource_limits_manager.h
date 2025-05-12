@@ -15,7 +15,7 @@ struct IResourceLimitsManager
 {
     virtual void ValidateResourceLimits(
         const std::string& account,
-        const TString& mediumName,
+        const std::string& mediumName,
         const std::optional<TString>& tabletCellBundle = std::nullopt,
         NTabletClient::EInMemoryMode inMemoryMode = NTabletClient::EInMemoryMode::None) = 0;
 

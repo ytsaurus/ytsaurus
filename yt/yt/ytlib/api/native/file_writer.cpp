@@ -203,7 +203,7 @@ private:
             auto attributesErasureCodec = attributes->Get<NErasure::ECodec>("erasure_codec");
 
             writerOptions->ReplicationFactor = attributes->Get<int>("replication_factor");
-            writerOptions->MediumName = attributes->Get<TString>("primary_medium");
+            writerOptions->MediumName = attributes->Get<std::string>("primary_medium");
             writerOptions->Account = attributes->Get<std::string>("account");
             writerOptions->CompressionCodec = Path_.GetCompressionCodec().value_or(attributesCompressionCodec);
             writerOptions->ErasureCodec = Path_.GetErasureCodec().value_or(attributesErasureCodec);

@@ -209,7 +209,7 @@ public:
         return Underlying_->TestHeap();
     }
 
-    std::pair<NApi::ITransactionPtr, TString> GetIntermediateMediumTransaction() override
+    std::pair<NApi::ITransactionPtr, std::string> GetIntermediateMediumTransaction() override
     {
         return DoExecuteGuarded(&IOperationController::GetIntermediateMediumTransaction);
     }

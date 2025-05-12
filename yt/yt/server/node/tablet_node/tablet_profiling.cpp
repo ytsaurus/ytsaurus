@@ -531,7 +531,7 @@ public:
         const TString& tablePath,
         const TString& tableTag,
         const std::string& account,
-        const TString& medium,
+        const std::string& medium,
         TObjectId schemaId,
         const TTableSchemaPtr& schema)
     {
@@ -631,8 +631,7 @@ private:
     THashSet<TString> AllTables_;
     TGauge ConsumedTableTags_;
 
-    using TProfilerKey = std::tuple<EDynamicTableProfilingMode, TString, NYPath::TYPath, std::string, TString, TObjectId>;
-
+    using TProfilerKey = std::tuple<EDynamicTableProfilingMode, TString, NYPath::TYPath, std::string, std::string, TObjectId>;
     THashMap<TProfilerKey, TWeakPtr<TTableProfiler>> Tables_;
 };
 
@@ -644,7 +643,7 @@ TTableProfilerPtr CreateTableProfiler(
     const TString& tablePath,
     const TString& tableTag,
     const std::string& account,
-    const TString& medium,
+    const std::string& medium,
     TObjectId schemaId,
     const TTableSchemaPtr& schema)
 {

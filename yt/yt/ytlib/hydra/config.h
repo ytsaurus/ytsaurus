@@ -43,7 +43,7 @@ struct TRemoteSnapshotStoreOptions
     int SnapshotReplicationFactor;
     NCompression::ECodec SnapshotCompressionCodec;
     std::string SnapshotAccount;
-    TString SnapshotPrimaryMedium;
+    std::string SnapshotPrimaryMedium;
     NErasure::ECodec SnapshotErasureCodec;
     bool SnapshotEnableStripedErasure;
     NYTree::IListNodePtr SnapshotAcl;
@@ -69,7 +69,7 @@ struct TRemoteChangelogStoreOptions
     i64 ChangelogReplicaLagLimit;
     std::optional<NObjectClient::TCellTag> ChangelogExternalCellTag;
     std::string ChangelogAccount;
-    TString ChangelogPrimaryMedium;
+    std::string ChangelogPrimaryMedium;
     NYTree::IListNodePtr ChangelogAcl;
 
     REGISTER_YSON_STRUCT(TRemoteChangelogStoreOptions);

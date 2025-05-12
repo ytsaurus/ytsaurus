@@ -464,7 +464,7 @@ public:
     //! Returns |true| when operation completion event is scheduled to control invoker.
     bool IsFinished() const override;
 
-    std::pair<NApi::ITransactionPtr, TString> GetIntermediateMediumTransaction() override;
+    std::pair<NApi::ITransactionPtr, std::string> GetIntermediateMediumTransaction() override;
     void UpdateIntermediateMediumUsage(i64 usage) override;
 
     const std::vector<TString>& GetOffloadingPoolTrees() override;

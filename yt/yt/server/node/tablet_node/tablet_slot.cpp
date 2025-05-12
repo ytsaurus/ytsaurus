@@ -122,7 +122,7 @@ static const TString ReadDirectionName = "read";
 ////////////////////////////////////////////////////////////////////////////////
 
 static TThroughputThrottlerConfigPtr GetMediumThrottlerConfig(
-    const TString& mediumName,
+    const std::string& mediumName,
     const TBundleDynamicConfigPtr& bundleConfig,
     auto getThrottlerLimit)
 {
@@ -180,7 +180,7 @@ public:
         DynamicConfigManager_->UnsubscribeConfigChanged(DynamicConfigCallback_);
     }
 
-    IReconfigurableThroughputThrottlerPtr GetMediumWriteThrottler(const TString& mediumName)
+    IReconfigurableThroughputThrottlerPtr GetMediumWriteThrottler(const std::string& mediumName)
     {
         RegisteredWriteThrottlers_.insert(mediumName);
 
@@ -189,7 +189,7 @@ public:
             DynamicConfigManager_->GetConfig());
     }
 
-    IReconfigurableThroughputThrottlerPtr GetMediumReadThrottler(const TString& mediumName)
+    IReconfigurableThroughputThrottlerPtr GetMediumReadThrottler(const std::string& mediumName)
     {
         RegisteredReadThrottlers_.insert(mediumName);
 
@@ -210,12 +210,12 @@ private:
     const IDistributedThrottlerManagerPtr DistributedThrottlerManager_;
     const NProfiling::TProfiler Profiler_;
 
-    THashSet<TString> RegisteredWriteThrottlers_;
-    THashSet<TString> RegisteredReadThrottlers_;
+    THashSet<std::string> RegisteredWriteThrottlers_;
+    THashSet<std::string> RegisteredReadThrottlers_;
     TDynamicConfigCallback DynamicConfigCallback_;
 
     IReconfigurableThroughputThrottlerPtr GetOrCreateWriteThrottler(
-        const TString& mediumName,
+        const std::string& mediumName,
         const TBundleDynamicConfigPtr& bundleConfig)
     {
         return GetOrCreateThrottler(
@@ -228,7 +228,7 @@ private:
     }
 
     IReconfigurableThroughputThrottlerPtr GetOrCreateReadThrottler(
-        const TString& mediumName,
+        const std::string& mediumName,
         const TBundleDynamicConfigPtr& bundleConfig)
     {
         return GetOrCreateThrottler(
@@ -242,7 +242,7 @@ private:
 
     IReconfigurableThroughputThrottlerPtr GetOrCreateThrottler(
         const TString& direction,
-        const TString& mediumName,
+        const std::string& mediumName,
         const TBundleDynamicConfigPtr& bundleConfig,
         auto getThrottlerLimit)
     {
@@ -933,7 +933,7 @@ private:
         return MediumThrottlerManager_->GetMediumWriteThrottler(options->ChangelogPrimaryMedium);
     }
 
-    IReconfigurableThroughputThrottlerPtr GetMediumWriteThrottler(const TString& mediumName) const override
+    IReconfigurableThroughputThrottlerPtr GetMediumWriteThrottler(const std::string& mediumName) const override
     {
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(MediumThrottlerManager_);
@@ -941,7 +941,7 @@ private:
         return MediumThrottlerManager_->GetMediumWriteThrottler(mediumName);
     }
 
-    IReconfigurableThroughputThrottlerPtr GetMediumReadThrottler(const TString& mediumName) const override
+    IReconfigurableThroughputThrottlerPtr GetMediumReadThrottler(const std::string& mediumName) const override
     {
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(MediumThrottlerManager_);
