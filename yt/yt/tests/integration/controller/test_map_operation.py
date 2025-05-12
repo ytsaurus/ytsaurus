@@ -2341,7 +2341,7 @@ print(json.dumps(input))
 
     @authors("apollo1321")
     def test_job_count_with_skewed_row_sizes(self):
-        skip_if_component_old(self.Env, (25, 1), "controller-agent")
+        skip_if_component_old(self.Env, (25, 2), "controller-agent")
         create("table", "//tmp/t_in")
         rows_batches = [
             [{"k": "v"}, {"k": "v"}],
