@@ -10115,7 +10115,7 @@ void TOperationControllerBase::InitUserJobSpecTemplate(
     }
 
     if (const auto& options = Options_->GpuCheck; options->UseSeparateRootVolume) {
-        if (jobSpecConfig->EnableGpuCheck) {
+        if (jobSpecConfig->EnableGpuCheck && jobSpecConfig->GpuLimit > 0) {
             jobSpec->set_gpu_check_binary_path(options->BinaryPath);
             ToProto(jobSpec->mutable_gpu_check_binary_args(), options->BinaryArgs);
 
