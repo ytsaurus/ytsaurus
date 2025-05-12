@@ -112,10 +112,10 @@ def _do_get_yt_binary_versions(binary_infos):
         processes.append((binary_info.name, process))
 
     for name, process in processes:
-        stdout, _ = process.communicate()
+        stdout, stderr = process.communicate()
         assert name not in result
+        assert process.returncode == 0, f"Failed to get version of {name}, returncode={process.returncode}, stderr={stderr}"
         result[name] = _parse_version(to_native_str(stdout))
-        assert process.returncode == 0, f"Failed to get version of {name}, returncode={process.returncode}"
 
     return result
 
