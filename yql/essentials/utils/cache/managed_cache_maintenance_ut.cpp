@@ -95,6 +95,8 @@ Y_UNIT_TEST_SUITE(TManagedCacheMaintenanceTests) {
         UNIT_ASSERT_VALUES_EQUAL(served, 3); // 4 (u): Outdated => Update
     }
 
+    // Min(TTL) = 1 * (UpdatePeriod + QueryLatency), when added just before the update,
+    // Avg(TTL) = 2 * (UpdatePeriod + QueryLatency) = Max(TTL), after 1 update cycle.
     Y_UNIT_TEST(TestActuality) {
         TManagedCacheConfig config = {
             .EvictionFrequency = 16, // Disable eviction
