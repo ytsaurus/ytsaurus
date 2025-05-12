@@ -18,7 +18,7 @@ TErrorOr<T> MaybeWrapSequoiaRetriableError(
         !result.FindMatching(EErrorCode::SequoiaRetriableError) &&
         IsRetriableSequoiaError(result))
     {
-        return TError(EErrorCode::SequoiaRetriableError, "Retriable Sequoia error")
+        return TError(EErrorCode::SequoiaRetriableError, "Sequoia retriable error")
             << std::forward<decltype(result)>(result);
     }
 
