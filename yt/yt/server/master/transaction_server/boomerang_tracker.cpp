@@ -230,6 +230,7 @@ void TBoomerangTracker::ApplyBoomerangMutation(NProto::TReqReturnBoomerang* requ
     // TODO(shakurov): use mutation idempotizer.
     TMutationRequest mutationRequest{
         .Reign = GetCurrentMutationContext()->Request().Reign,
+        .TractoReign = GetCurrentMutationContext()->Request().TractoReign,
         .Type = request->boomerang_mutation_type(),
         .Data = TSharedRef::FromString(request->boomerang_mutation_data()),
         .MutationId = FromProto<TMutationId>(request->boomerang_mutation_id()),

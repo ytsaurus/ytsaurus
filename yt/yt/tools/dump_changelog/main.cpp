@@ -79,6 +79,7 @@ private:
                 Cout << Format("  RecordId:       %v", mutationHeader.record_id()) << Endl;
                 Cout << Format("  MutationId:     %v", FromProto<NRpc::TMutationId>(mutationHeader.mutation_id())) << Endl;
                 Cout << Format("  Reign:          %v", mutationHeader.reign()) << Endl;
+                Cout << Format("  Tracto Reign:   %v", mutationHeader.tracto_reign()) << Endl;
                 Cout << Format("  SequenceNumber: %v", mutationHeader.sequence_number()) << Endl;
                 Cout << Format("  Term:           %v", mutationHeader.term()) << Endl;
 

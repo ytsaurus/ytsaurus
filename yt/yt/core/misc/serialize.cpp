@@ -93,16 +93,20 @@ void TSaveContextStream::WriteSlow(const void* buf, size_t len)
 
 TStreamSaveContext::TStreamSaveContext(
     IOutputStream* output,
-    int version)
+    int version,
+    int tractoVersion)
     : Output_(output)
     , Version_(version)
+    , TractoVersion_(tractoVersion)
 { }
 
 TStreamSaveContext::TStreamSaveContext(
     IZeroCopyOutput* output,
-    int version)
+    int version,
+    int tractoVersion)
     : Output_(output)
     , Version_(version)
+    , TractoVersion_(tractoVersion)
 { }
 
 void TStreamSaveContext::Finish()
@@ -171,7 +175,8 @@ TEntityStreamSaveContext::TEntityStreamSaveContext(
     const TEntityStreamSaveContext* parentContext)
     : TStreamSaveContext(
         output,
-        parentContext->GetVersion())
+        parentContext->GetVersion(),
+        parentContext->GetTractoVersion())
     , ParentContext_(parentContext)
 { }
 
@@ -184,6 +189,7 @@ TEntityStreamLoadContext::TEntityStreamLoadContext(
     , ParentContext_(parentContext)
 {
     SetVersion(ParentContext_->GetVersion());
+    SetTractoVersion(ParentContext_->GetTractoVersion());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

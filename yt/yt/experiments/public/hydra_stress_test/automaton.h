@@ -96,7 +96,9 @@ public:
         NHydra::ICheckpointableInputStream* input) override;
 
     NHydra::TReign GetCurrentReign() override;
+    NHydra::TReign GetCurrentTractoReign() override;
     NHydra::EFinalRecoveryAction GetActionToRecoverFromReign(NHydra::TReign) override;
+    NHydra::EFinalRecoveryAction GetActionToRecoverFromTractoReign(NHydra::TReign) override;
     NHydra::EFinalRecoveryAction GetFinalRecoveryAction() override;
 };
 

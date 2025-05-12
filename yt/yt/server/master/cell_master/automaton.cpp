@@ -77,9 +77,19 @@ NHydra::TReign TMasterAutomaton::GetCurrentReign()
     return NCellMaster::GetCurrentReign();
 }
 
+NHydra::TReign TMasterAutomaton::GetCurrentTractoReign()
+{
+    return NCellMaster::GetCurrentTractoReign();
+}
+
 NHydra::EFinalRecoveryAction TMasterAutomaton::GetActionToRecoverFromReign(NHydra::TReign reign)
 {
     return NCellMaster::GetActionToRecoverFromReign(reign);
+}
+
+NHydra::EFinalRecoveryAction TMasterAutomaton::GetActionToRecoverFromTractoReign(NHydra::TReign reign)
+{
+    return NCellMaster::GetActionToRecoverFromTractoReign(reign);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -109,6 +119,16 @@ bool TMasterAutomatonPart::ValidateSnapshotVersion(int version)
 int TMasterAutomatonPart::GetCurrentSnapshotVersion()
 {
     return NCellMaster::GetCurrentReign();
+}
+
+bool TMasterAutomatonPart::ValidateTractoSnapshotVersion(int version)
+{
+    return NCellMaster::ValidateSnapshotTractoReign(version);
+}
+
+int TMasterAutomatonPart::GetCurrentTractoSnapshotVersion()
+{
+    return NCellMaster::GetCurrentTractoReign();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

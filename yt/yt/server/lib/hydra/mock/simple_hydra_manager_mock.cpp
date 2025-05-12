@@ -201,6 +201,11 @@ TReign TSimpleHydraManagerMock::GetCurrentReign()
     return Reign_;
 }
 
+TReign TSimpleHydraManagerMock::GetCurrentTractoReign()
+{
+    return 0;
+}
+
 EPeerState TSimpleHydraManagerMock::GetAutomatonState() const
 {
     return EPeerState::Leading;

@@ -49,6 +49,35 @@ EFinalRecoveryAction GetActionToRecoverFromReign(TReign reign)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TReign GetCurrentTractoReign()
+{
+    return ToUnderlying(TEnumTraits<ETractoMasterReign>::GetMaxValue());
+}
+
+bool ValidateSnapshotTractoReign(TReign reign)
+{
+    for (auto value : TEnumTraits<ETractoMasterReign>::GetDomainValues()) {
+        if (ToUnderlying(value) == reign) {
+            return true;
+        }
+    }
+    return false;
+}
+
+EFinalRecoveryAction GetActionToRecoverFromTractoReign(TReign reign)
+{
+    // In Master we do it the hard way.
+    YT_LOG_FATAL_UNLESS(reign == GetCurrentTractoReign(),
+        "Attempted to recover master from invalid tracto reign "
+        "(RecoverReign: %v, CurrentReign: %v)",
+        reign,
+        GetCurrentTractoReign());
+
+    return EFinalRecoveryAction::None;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TSaveContext::TSaveContext(
     ICheckpointableOutputStream* output,
     NLogging::TLogger logger,
@@ -57,6 +86,7 @@ TSaveContext::TSaveContext(
         output,
         std::move(logger),
         GetCurrentReign(),
+        GetCurrentTractoReign(),
         std::move(backgroundThreadPool))
 { }
 
@@ -86,6 +116,11 @@ TEntitySerializationKey TSaveContext::RegisterInternedYsonString(NYson::TYsonStr
 EMasterReign TSaveContext::GetVersion()
 {
     return static_cast<EMasterReign>(NHydra::TSaveContext::GetVersion());
+}
+
+ETractoMasterReign TSaveContext::GetTractoVersion()
+{
+    return static_cast<ETractoMasterReign>(NHydra::TSaveContext::GetTractoVersion());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -135,6 +170,11 @@ NYson::TYsonString TLoadContext::GetInternedYsonString(TEntitySerializationKey k
 EMasterReign TLoadContext::GetVersion()
 {
     return static_cast<EMasterReign>(NHydra::TLoadContext::GetVersion());
+}
+
+ETractoMasterReign TLoadContext::GetTractoVersion()
+{
+    return static_cast<ETractoMasterReign>(NHydra::TLoadContext::GetTractoVersion());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

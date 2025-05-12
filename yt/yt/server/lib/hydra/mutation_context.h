@@ -22,6 +22,7 @@ namespace NYT::NHydra {
 struct TMutationRequest
 {
     TReign Reign = 0;
+    TReign TractoReign = 0;
     TString Type;
     TSharedRef Data;
     TCallback<void(TMutationContext*)> Handler;

@@ -33,7 +33,9 @@ private:
         NHydra::ICheckpointableInputStream* input) override;
 
     NHydra::TReign GetCurrentReign() override;
+    NHydra::TReign GetCurrentTractoReign() override;
     NHydra::EFinalRecoveryAction GetActionToRecoverFromReign(NHydra::TReign reign) override;
+    NHydra::EFinalRecoveryAction GetActionToRecoverFromTractoReign(NHydra::TReign reign) override;
 };
 
 DEFINE_REFCOUNTED_TYPE(TTabletAutomaton)

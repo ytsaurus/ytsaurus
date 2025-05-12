@@ -1992,6 +1992,7 @@ private:
     {
         TMutationRequest request{
             .Reign = GetCurrentMutationContext()->Request().Reign,
+            .TractoReign = GetCurrentMutationContext()->Request().TractoReign,
             .Type = message.type(),
             .Data = TSharedRef::FromString(message.data())
         };

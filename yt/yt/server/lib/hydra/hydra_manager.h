@@ -37,6 +37,8 @@ struct ISimpleHydraManager
 
     virtual TReign GetCurrentReign() = 0;
 
+    virtual TReign GetCurrentTractoReign() = 0;
+
     //! Returns the state as seen in the automaton thread.
     /*!
      *  \note Thread affinity: any

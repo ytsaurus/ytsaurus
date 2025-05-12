@@ -126,21 +126,25 @@ class TStreamSaveContext
 public:
     explicit TStreamSaveContext(
         IOutputStream* output,
-        int version = 0);
+        int version = 0,
+        int tractoVersion = 0);
     explicit TStreamSaveContext(
         IZeroCopyOutput* output,
-        int version = 0);
+        int version = 0,
+        int tractoVersion = 0);
 
     virtual ~TStreamSaveContext() = default;
 
     TSaveContextStream* GetOutput();
     int GetVersion() const;
+    int GetTractoVersion() const;
 
     void Finish();
 
 protected:
     TSaveContextStream Output_;
     const int Version_;
+    const int TractoVersion_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -170,6 +174,7 @@ class TStreamLoadContext
 {
 public:
     DEFINE_BYVAL_RW_PROPERTY(int, Version);
+    DEFINE_BYVAL_RW_PROPERTY(int, TractoVersion);
     DEFINE_BYREF_RW_PROPERTY(TSerializationDumper, Dumper);
 
 public:

@@ -12,6 +12,7 @@ TMutation::TMutation(ISimpleHydraManagerPtr hydraManager)
     : HydraManager_(std::move(hydraManager))
 {
     Request_.Reign = HydraManager_->GetCurrentReign();
+    Request_.TractoReign = HydraManager_->GetCurrentTractoReign();
 }
 
 TFuture<TMutationResponse> TMutation::Commit()

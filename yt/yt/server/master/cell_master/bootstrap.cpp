@@ -1204,6 +1204,10 @@ void TBootstrap::DoRun()
         orchidRoot,
         "/reign",
         ConvertTo<INodePtr>(GetCurrentReign()));
+    SetNodeByYPath(
+        orchidRoot,
+        "/tracto_reign",
+        ConvertTo<INodePtr>(GetCurrentTractoReign()));
     SetBuildAttributes(
         orchidRoot,
         "master");
