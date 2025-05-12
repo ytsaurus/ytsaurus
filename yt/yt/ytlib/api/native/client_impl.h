@@ -550,8 +550,8 @@ public: \
         const TCheckPermissionByAclOptions& options),
         (user, permission, acl, options))
     IMPLEMENT_METHOD(void, TransferAccountResources, (
-        const TString& srcAccount,
-        const TString& dstAccount,
+        const std::string& srcAccount,
+        const std::string& dstAccount,
         NYTree::INodePtr resourceDelta,
         const TTransferAccountResourcesOptions& options),
         (srcAccount, dstAccount, resourceDelta, options))

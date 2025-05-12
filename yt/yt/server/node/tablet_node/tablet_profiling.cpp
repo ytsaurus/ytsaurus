@@ -530,7 +530,7 @@ public:
         const TString& bundle,
         const TString& tablePath,
         const TString& tableTag,
-        const TString& account,
+        const std::string& account,
         const TString& medium,
         TObjectId schemaId,
         const TTableSchemaPtr& schema)
@@ -631,7 +631,7 @@ private:
     THashSet<TString> AllTables_;
     TGauge ConsumedTableTags_;
 
-    using TProfilerKey = std::tuple<EDynamicTableProfilingMode, TString, TString, TString, TString, TObjectId>;
+    using TProfilerKey = std::tuple<EDynamicTableProfilingMode, TString, NYPath::TYPath, std::string, TString, TObjectId>;
 
     THashMap<TProfilerKey, TWeakPtr<TTableProfiler>> Tables_;
 };
@@ -643,7 +643,7 @@ TTableProfilerPtr CreateTableProfiler(
     const TString& tabletCellBundle,
     const TString& tablePath,
     const TString& tableTag,
-    const TString& account,
+    const std::string& account,
     const TString& medium,
     TObjectId schemaId,
     const TTableSchemaPtr& schema)

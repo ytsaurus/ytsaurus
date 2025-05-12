@@ -217,7 +217,7 @@ public:
     void RegisterName(const std::string& name, TAccount* account) noexcept override;
     void UnregisterName(const std::string& name, TAccount* account) noexcept override;
 
-    NYPath::TYPath GetRootPath(const TAccount* rootAccount) const override;
+    TYPath GetRootPath(const TAccount* rootAccount) const override;
 
 protected:
     TCellTagList DoGetReplicationCellTags(const TAccount* /*account*/) override

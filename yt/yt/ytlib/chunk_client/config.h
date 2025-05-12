@@ -107,7 +107,7 @@ struct TMultiChunkWriterOptions
     static constexpr int InvalidTableIndex = -1;
 
     int ReplicationFactor;
-    TString Account;
+    std::string Account;
     bool ChunksVital;
     bool ChunksMovable;
     bool ValidateResourceUsageIncrease;

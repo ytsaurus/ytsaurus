@@ -238,8 +238,8 @@ void TClient::ValidateTableReplicaPermission(
 }
 
 void TClient::DoTransferAccountResources(
-    const TString& srcAccount,
-    const TString& dstAccount,
+    const std::string& srcAccount,
+    const std::string& dstAccount,
     NYTree::INodePtr resourceDelta,
     const TTransferAccountResourcesOptions& options)
 {

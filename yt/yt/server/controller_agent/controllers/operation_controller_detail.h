@@ -321,7 +321,7 @@ public:
         NControllerAgent::NProto::TUserJobSpec* jobSpec,
         const NScheduler::TUserJobSpecPtr& jobSpecConfig,
         const std::vector<TUserFile>& files,
-        const TString& debugArtifactsAccount) override;
+        const std::string& debugArtifactsAccount) override;
     const std::vector<TUserFile>& GetUserFiles(const NScheduler::TUserJobSpecPtr& userJobSpec) const override;
 
     void CustomizeJobSpec(const TJobletPtr& joblet, NControllerAgent::NProto::TJobSpec* jobSpec) const override;
@@ -1076,7 +1076,7 @@ protected:
 
     const NChunkPools::IPersistentChunkPoolInputPtr& GetSink();
 
-    void ValidateAccountPermission(const TString& account, NYTree::EPermission permission) const;
+    void ValidateAccountPermission(const std::string& account, NYTree::EPermission permission) const;
 
     int GetYsonNestingLevelLimit() const;
 
@@ -1411,7 +1411,7 @@ private:
 
     void IncreaseNeededResources(const NScheduler::TCompositeNeededResources& resourcesDelta);
 
-    void IncreaseAccountResourceUsageLease(const std::optional<TString>& account, const NScheduler::TDiskQuota& quota);
+    void IncreaseAccountResourceUsageLease(const std::optional<std::string>& account, const NScheduler::TDiskQuota& quota);
 
     void UpdateAccountResourceUsageLeases();
 

@@ -56,7 +56,7 @@ struct ITaskHost
         NControllerAgent::NProto::TUserJobSpec* proto,
         const NScheduler::TUserJobSpecPtr& jobSpecConfig,
         const std::vector<TUserFile>& files,
-        const TString& debugArtifactsAccount) = 0;
+        const std::string& debugArtifactsAccount) = 0;
     // TODO(max42): get rid of this; serialize files either in tasks or in controller.
     virtual const std::vector<TUserFile>& GetUserFiles(const NScheduler::TUserJobSpecPtr& userJobSpec) const = 0;
 
