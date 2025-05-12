@@ -1158,6 +1158,7 @@ class TestGpuCheck(YTEnvSetup, GpuCheckBase):
                 "max_failed_job_count": 1,
                 "mapper": {
                     "job_count": 1,
+                    "gpu_limit": 1,
                     "layer_paths": ["//tmp/base_layer"],
                     "enable_gpu_layers": True,
                     "enable_gpu_check": True,
@@ -1190,6 +1191,7 @@ class TestGpuCheck(YTEnvSetup, GpuCheckBase):
             "enable_gpu_layers": True,
             "enable_gpu_check": True,
             "gang_options": {},
+            "gpu_limit": 1,
         }
 
         op = vanilla(
@@ -1294,6 +1296,7 @@ class TestGpuCheck(YTEnvSetup, GpuCheckBase):
                     "layer_paths": ["//tmp/base_layer"],
                     "enable_gpu_layers": True,
                     "enable_gpu_check": True,
+                    "gpu_limit": 1,
                 },
             },
             track=False,
