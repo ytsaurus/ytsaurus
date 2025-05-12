@@ -10118,6 +10118,10 @@ void TOperationControllerBase::InitUserJobSpecTemplate(
         if (jobSpecConfig->EnableGpuCheck && jobSpecConfig->GpuLimit > 0) {
             jobSpec->set_gpu_check_binary_path(options->BinaryPath);
             ToProto(jobSpec->mutable_gpu_check_binary_args(), options->BinaryArgs);
+            if (options->NetworkProject) {
+                auto networkProject = GetNetworkProject(Host->GetClient(), AuthenticatedUser, *(options->NetworkProject));
+                ToProto(jobSpec->mutable_gpu_check_network_project(), networkProject);
+            }
 
             auto* protoEnvironment = jobSpec->mutable_gpu_check_environment();
             (*protoEnvironment)["YT_OPERATION_ID"] = ToString(OperationId);

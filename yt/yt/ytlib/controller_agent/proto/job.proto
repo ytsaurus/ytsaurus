@@ -293,6 +293,7 @@ message TUserJobSpec
 
     repeated string gpu_check_binary_args = 63;
     map<string, string> gpu_check_environment = 79;
+    optional TNetworkProject gpu_check_network_project = 81;
 
     // COMPAT(ignat)
     // The following options must be used only with network projects.

@@ -1,12 +1,14 @@
 #include "job_gpu_checker.h"
 #include "slot.h"
 
+#include <yt/yt/server/lib/exec_node/config.h>
+
 #include <yt/yt/core/actions/cancelable_context.h>
 
 #include <yt/yt/core/concurrency/thread_affinity.h>
 #include <yt/yt/core/concurrency/delayed_executor.h>
 
-#include <yt/yt/server/lib/exec_node/config.h>
+#include <yt/yt/core/misc/range_helpers.h>
 
 namespace NYT::NExecNode {
 
@@ -56,6 +58,8 @@ TFuture<void> TJobGpuChecker::RunGpuCheck()
                 Context_.RootFS,
                 Context_.CommandUser,
                 /*devices*/ std::nullopt,
+                /*hostName*/ std::nullopt,
+                /*ipAddresses*/ {},
                 tag + "_test"));
 
         if (!testFileResultOrError.IsOK()) {
@@ -82,6 +86,8 @@ TFuture<void> TJobGpuChecker::RunGpuCheck()
                 Context_.RootFS,
                 Context_.CommandUser,
                 /*devices*/ std::nullopt,
+                /*hostName*/ std::nullopt,
+                /*ipAddresses*/ {},
                 tag + "_setup"));
 
         if (!resultOrError.IsOK()) {
@@ -102,6 +108,15 @@ TFuture<void> TJobGpuChecker::RunGpuCheck()
     checkCommand->Args = std::move(Context_.GpuCheckBinaryArgs);
     checkCommand->EnvironmentVariables = std::move(Context_.GpuCheckEnvironment);
 
+    if (Context_.GpuCheckNetworkAttributes) {
+        checkCommand->EnvironmentVariables.emplace("YT_NETWORK_PROJECT_ID", ToString(Context_.GpuCheckNetworkAttributes->ProjectId));
+        for (const auto& networkAddress : Context_.GpuCheckNetworkAttributes->Addresses) {
+            checkCommand->EnvironmentVariables.emplace(
+                Format("YT_IP_ADDRESS_%v", to_upper(networkAddress->Name)),
+                ToString(networkAddress->Address));
+        }
+    }
+
     YT_LOG_INFO("Running GPU check commands");
 
     if (Context_.TestExtraGpuCheckCommandFailure) {
@@ -118,6 +133,14 @@ TFuture<void> TJobGpuChecker::RunGpuCheck()
         Context_.RootFS,
         Context_.CommandUser,
         Context_.GpuDevices,
+        Context_.GpuCheckNetworkAttributes
+            ? std::make_optional(Context_.GpuCheckNetworkAttributes->HostName)
+            : std::nullopt,
+        Context_.GpuCheckNetworkAttributes
+            ? TransformRangeTo<std::vector<NNet::TIP6Address>>(
+                Context_.GpuCheckNetworkAttributes->Addresses,
+                [] (const auto& networkAddress) { return networkAddress->Address; })
+            : std::vector<NNet::TIP6Address>{},
         std::move(tag))
         // We want to destroy checker in job thread,
         // so we pass the only reference to it in callback calling in job thread.

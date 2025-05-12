@@ -35,6 +35,8 @@ using namespace NDataNode;
 using namespace NTools;
 using namespace NYTree;
 
+using NNet::TIP6Address;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 template<typename F>
@@ -417,6 +419,8 @@ public:
         const NContainers::TRootFS& rootFS,
         const std::string& user,
         const std::optional<std::vector<TDevice>>& devices,
+        const std::optional<TString>& hostName,
+        const std::vector<TIP6Address>& ipAddresses,
         std::string tag) override
     {
         YT_ASSERT_THREAD_AFFINITY(JobThread);
@@ -435,6 +439,8 @@ public:
                     rootFS,
                     user,
                     devices,
+                    hostName,
+                    ipAddresses,
                     std::move(tag));
             });
     }
