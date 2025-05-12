@@ -4,10 +4,8 @@ LIBRARY()
 
 LICENSE(
     BSD-3-Clause AND
-    Beerware AND
     IJG AND
     Libpbm AND
-    Public-Domain AND
     Zlib
 )
 
@@ -36,6 +34,8 @@ CFLAGS(
     -DBMP_SUPPORTED
     -DPPM_SUPPORTED
 )
+
+CHECK_CONFIG_H(jconfigint.h)
 
 IF (SANITIZER_TYPE)
     CFLAGS(
@@ -249,11 +249,4 @@ RECURSE(
     cjpeg
     djpeg
     jpegtran
-    tjunittest
 )
-
-IF (NOT OS_ANDROID AND NOT OS_IOS)
-    RECURSE_FOR_TESTS(
-        ut
-    )
-ENDIF()
