@@ -25,7 +25,6 @@ Is released as packages in [maven](https://central.sonatype.com/artifact/tech.yt
 
 {% endcut %}
 
-
 {% cut "**1.2.8**" %}
 
 **Release date:** 2025-01-23
@@ -99,7 +98,7 @@ Is released as packages in [maven](https://central.sonatype.com/artifact/tech.yt
 
 * Introduced `DiscoveryClient`.
 * The following types are supported in `@Entity` fields (use `@Column(columnDefinition=“...”)` to specify type):
-    * enum -> utf8/string; 
+    * enum -> utf8/string;
     * String -> string;
     * Instant -> int64;
     * YsonSerializable -> yson.
