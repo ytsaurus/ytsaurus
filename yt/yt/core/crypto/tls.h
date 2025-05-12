@@ -49,7 +49,7 @@ public:
     void Commit(TInstant time = TInstant::Zero());
     TInstant GetCommitTime() const;
 
-    void ApplyConfig(const TSslContextConfigPtr& config);
+    void ApplyConfig(const TSslContextConfigPtr& config, TCertificatePathResolver pathResolver = nullptr);
 
     void UseBuiltinOpenSslX509Store();
 

@@ -111,9 +111,6 @@ struct TBusConfig
     // Ssl options.
     EEncryptionMode EncryptionMode;
     EVerificationMode VerificationMode;
-    NCrypto::TPemBlobConfigPtr CA;
-    NCrypto::TPemBlobConfigPtr CertificateChain;
-    NCrypto::TPemBlobConfigPtr PrivateKey;
     std::optional<TString> CipherList;
     bool LoadCertsFromBusCertsDirectory;
     std::optional<TString> PeerAlternativeHostName;

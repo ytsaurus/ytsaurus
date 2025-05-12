@@ -690,7 +690,7 @@ TInstant TSslContext::GetCommitTime() const
     return Impl_->GetCommitTime();
 }
 
-void TSslContext::ApplyConfig(const TSslContextConfigPtr& config)
+void TSslContext::ApplyConfig(const TSslContextConfigPtr& config, TCertificatePathResolver pathResolver)
 {
     if (!config) {
         return;
@@ -723,6 +723,10 @@ void TSslContext::ApplyConfig(const TSslContextConfigPtr& config)
             THROW_ERROR GetLastSslError("SSL_CONF_CTX_finish failed");
         }
     }
+
+    AddCertificateAuthority(config->CertificateAuthority, pathResolver);
+    AddCertificateChain(config->CertificateChain, pathResolver);
+    AddPrivateKey(config->PrivateKey, pathResolver);
 }
 
 void TSslContext::UseBuiltinOpenSslX509Store()
