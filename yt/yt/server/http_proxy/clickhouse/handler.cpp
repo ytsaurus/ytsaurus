@@ -1372,7 +1372,7 @@ void TClickHouseHandler::UpdateOperationIds()
     THashMap<TString, TOperationId> aliasToOperationId;
     try {
         TListNodeOptions options;
-        options.ReadFrom = EMasterChannelKind::MasterCache;
+        options.ReadFrom = Bootstrap_->GetConfig()->ClickHouse->ReadOperationIdsFrom;
         options.Attributes = {"strawberry_persistent_state"};
         auto listResult = WaitFor(Client_->ListNode(Config_->ChytStrawberryPath, options))
             .ValueOrThrow();
