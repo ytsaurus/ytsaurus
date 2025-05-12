@@ -1420,7 +1420,8 @@ public:
             leaseAgnosticPrerequisiteTransactionIds.reserve(prerequisiteTransactionIds.size());
             leaseAwarePrerequisiteTransactionIds.reserve(prerequisiteTransactionIds.size());
             for (auto transactionId : prerequisiteTransactionIds) {
-                if (IsMirroringToSequoiaEnabled() && IsCypressTransactionMirroredToSequoia(transactionId) &&
+                if (IsMirroringToSequoiaEnabled() &&
+                    IsCypressTransactionMirroredToSequoia(transactionId) &&
                     GetDynamicConfig()->EnableCypressMirroredToSequoiaPrerequisiteTransactionValidationViaLeases)
                 {
                     leaseAwarePrerequisiteTransactionIds.push_back(transactionId);
