@@ -404,6 +404,7 @@
   "contrib/libs/libsodium/CMakeLists.linux-aarch64.txt":"",
   "contrib/libs/libsodium/CMakeLists.linux-x86_64.txt":"",
   "contrib/libs/libsodium/CMakeLists.txt":"",
+  "contrib/libs/libssh2/CMakeLists.txt":"",
   "contrib/libs/libunwind/CMakeLists.darwin-arm64.txt":"",
   "contrib/libs/libunwind/CMakeLists.darwin-x86_64.txt":"",
   "contrib/libs/libunwind/CMakeLists.linux-aarch64.txt":"",
