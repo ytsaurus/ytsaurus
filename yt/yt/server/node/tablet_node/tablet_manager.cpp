@@ -1092,7 +1092,12 @@ private:
             ? TYsonString(request->replicatable_content().custom_runtime_data())
             : TYsonString();
         auto serializationType = FromProto<ETabletTransactionSerializationType>(request->serialization_type());
-        auto mountTime = mutationContext->GetTimestamp();
+
+        // COMPAT(alexelexa)
+        TInstant mountTime;
+        if (mutationContext->Request().Reign >= static_cast<int>(ETabletReign::AddTabletMountTime)) {
+            mountTime = mutationContext->GetTimestamp();
+        }
 
         rawSettings.DropIrrelevantExperiments(
             {
