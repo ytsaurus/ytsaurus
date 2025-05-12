@@ -117,15 +117,14 @@ Y_UNIT_TEST_SUITE(TManagedCacheMaintenanceTests) {
 
         cache->Get({"exising"}).GetValueSync();
         cache->Update(); // Mark outdated
-        size_t startTime = time;
         // -eu----u-----u-----u-----u---
         //    ^
 
-        UNIT_ASSERT_VALUES_EQUAL(
-            cache->Get({"key"}).GetValueSync(),
-            ToString(startTime + 1 * queryLatency));
+        cache->Get({"key"}).GetValueSync();
         // -euk---u-----u-----u-----u---
         //     ^
+
+        size_t startTime = time;
 
         time += updatePeriod;
         cache->Update(); // Mark `key` outdated, update `existing`
@@ -134,7 +133,7 @@ Y_UNIT_TEST_SUITE(TManagedCacheMaintenanceTests) {
 
         UNIT_ASSERT_VALUES_EQUAL(
             cache->Get({"key"}).GetValueSync(),
-            ToString(startTime + 1 * queryLatency));
+            ToString(startTime));
         // .  .----.
         // -euk---uk----u-----u-----u---
         //          ^
@@ -146,7 +145,7 @@ Y_UNIT_TEST_SUITE(TManagedCacheMaintenanceTests) {
 
         UNIT_ASSERT_VALUES_EQUAL(
             cache->Get({"key"}).GetValueSync(),
-            ToString(startTime + 1 * queryLatency));
+            ToString(startTime));
         // .  .--------.
         // -euk---uk---ku-----u-----u---
         //             ^
@@ -158,7 +157,7 @@ Y_UNIT_TEST_SUITE(TManagedCacheMaintenanceTests) {
 
         UNIT_ASSERT_VALUES_EQUAL(
             cache->Get({"key"}).GetValueSync(),
-            ToString(startTime + 2 * updatePeriod + 3 * queryLatency));
+            ToString(startTime + 2 * updatePeriod + 2 * queryLatency));
         // .            ..
         // -euk---uk---kuk----u-----u---
         //               ^
