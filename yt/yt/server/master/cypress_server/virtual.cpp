@@ -82,11 +82,39 @@ std::optional<TVirtualCompositeNodeReadOffloadParams> TVirtualSinglecellMapBase:
         return std::nullopt;
     }
     const auto& objectService = Bootstrap_->GetObjectService();
+
+    class TVirtualSingleCellMapBaseReadOffloadGuard
+        : public TVirtualCompositeNodeReadOffloadGuard
+    {
+    public:
+        TVirtualSingleCellMapBaseReadOffloadGuard(
+            ISecurityManagerPtr securityManager,
+            const NRpc::TAuthenticationIdentity& identity)
+            : AuthenticatedUserGuard_(std::move(securityManager), identity)
+        { }
+
+    private:
+        TAuthenticatedUserGuard AuthenticatedUserGuard_;
+    };
+
+    TCallback<std::unique_ptr<TVirtualCompositeNodeReadOffloadGuard>()> createReadOffloadGuard;
+    if (config->CypressManager->EnableVirtualMapReadOffloadAuthenticatedUserPropagation) {
+        createReadOffloadGuard = BIND([
+            bootstrap = Bootstrap_,
+            identity = NRpc::GetCurrentAuthenticationIdentity()
+        ] () -> std::unique_ptr<TVirtualCompositeNodeReadOffloadGuard> {
+            return std::make_unique<TVirtualSingleCellMapBaseReadOffloadGuard>(
+                bootstrap->GetSecurityManager(),
+                identity);
+        });
+    }
+
     return TVirtualCompositeNodeReadOffloadParams{
         // NB: Must not release LocalRead thread.
         .OffloadInvoker = objectService->GetLocalReadOffloadInvoker(),
         .WaitForStrategy = EWaitForStrategy::Get,
         .BatchSize = *config->CypressManager->VirtualMapReadOffloadBatchSize,
+        .CreateReadOffloadGuard = std::move(createReadOffloadGuard),
     };
 }
 

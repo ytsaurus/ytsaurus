@@ -4277,6 +4277,26 @@ class TestCypressMulticell(TestCypress):
         create("table", "//tmp/t", attributes={"external_cell_bias": 3.0})
         assert not exists("//tmp/t/@external_cell_bias")
 
+    @authors("shakurov")
+    @pytest.mark.parametrize("use_offloading", [False, True])
+    def test_virtual_map_read_authenticated_user_propagation(self, use_offloading):
+        if use_offloading:
+            set("//sys/@config/cypress_manager/virtual_map_read_offload_batch_size", 2)
+        else:
+            remove("//sys/@config/cypress_manager/virtual_map_read_offload_batch_size", force=True)
+
+        create_user("u")
+        set("//sys/users/u/@banned", True, driver=get_driver(1))
+        set("//sys/users/u/@banned", True, driver=get_driver(2))
+
+        create_tablet_cell_bundle("tcb")
+
+        # Must not raise.
+        get("//sys/tablet_cell_bundles/@count") == 1
+
+        with raises_yt_error("is banned"):
+            ls("//sys/tablet_cell_bundles", attributes=["tablet_actions"], authenticated_user="u")
+
 
 ##################################################################
 
