@@ -5120,7 +5120,9 @@ class TestChaosNativeProxy(ChaosTestBase):
 
             tablet_id = get(f"{path}/@tablets/0/tablet_id")
             orchid_path = f"#{tablet_id}/orchid/table_puller/replication_throttler"
+            # Wait for hydra to actually commit remount.
             wait(lambda: not isinstance(get(f"{orchid_path}/limit"), yson.YsonEntity))
+            wait(lambda: abs(get(f"{orchid_path}/limit") - limit) < 0.001)
 
             orchid = get(orchid_path)
             assert abs(orchid["limit"] - limit) < 0.001
