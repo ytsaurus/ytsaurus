@@ -24,7 +24,7 @@ namespace NYql {
         concept CCacheKey = std::regular<T> && CHashable<T>;
 
         template <class T>
-        concept CCacheValue = std::regular<T>;
+        concept CCacheValue = std::semiregular<T>;
 
     } // namespace NPrivate
 
