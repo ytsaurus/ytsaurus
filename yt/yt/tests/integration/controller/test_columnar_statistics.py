@@ -59,9 +59,6 @@ class _TestColumnarStatisticsBase(YTEnvSetup):
         "fetcher": {
             "node_rpc_timeout": 10000
         },
-        "table_writer": {
-            "enable_large_columnar_statistics": True,
-        },
     }
 
     @staticmethod
@@ -907,7 +904,6 @@ class TestColumnarStatisticsOperationsEarlyFinish(TestColumnarStatisticsOperatio
         "fetcher": {
             "node_rpc_timeout": 3000
         },
-        "enable_large_columnar_statistics": True,
     }
 
     @classmethod
@@ -943,7 +939,6 @@ class TestColumnarStatisticsCommandEarlyFinish(_TestColumnarStatisticsBase):
         "fetcher": {
             "node_rpc_timeout": 3000
         },
-        "enable_large_columnar_statistics": True,
     }
 
     @authors("achulkov2")
