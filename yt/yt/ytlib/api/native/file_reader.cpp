@@ -180,7 +180,7 @@ private:
 
             auto attributes = ConvertToAttributes(NYson::TYsonString(rsp->value()));
             Revision_ = attributes->Get<NHydra::TRevision>("revision", NHydra::NullRevision);
-            userObject.Account = attributes->Get<TString>("account");
+            userObject.Account = attributes->Get<std::string>("account");
         }
 
         auto nodeDirectory = Client_->GetNativeConnection()->GetNodeDirectory();

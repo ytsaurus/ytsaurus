@@ -798,7 +798,7 @@ const IPersistentChunkPoolInputPtr& TOperationControllerBase::GetSink()
     return Sink_;
 }
 
-void TOperationControllerBase::ValidateAccountPermission(const TString& account, EPermission permission) const
+void TOperationControllerBase::ValidateAccountPermission(const std::string& account, EPermission permission) const
 {
     auto user = AuthenticatedUser;
 
@@ -2040,7 +2040,7 @@ std::vector<TOutputStreamDescriptorPtr> TOperationControllerBase::GetAutoMergeSt
     auto streamDescriptors = GetStandardStreamDescriptors();
     YT_VERIFY(GetAutoMergeDirector());
 
-    std::optional<TString> intermediateDataAccount;
+    std::optional<std::string> intermediateDataAccount;
     if (Spec_->AutoMerge->UseIntermediateDataAccount) {
         ValidateAccountPermission(Spec_->IntermediateDataAccount, EPermission::Use);
         intermediateDataAccount = Spec_->IntermediateDataAccount;
@@ -5242,7 +5242,7 @@ void TOperationControllerBase::IncreaseNeededResources(const TCompositeNeededRes
     }
 }
 
-void TOperationControllerBase::IncreaseAccountResourceUsageLease(const std::optional<TString>& account, const TDiskQuota& delta)
+void TOperationControllerBase::IncreaseAccountResourceUsageLease(const std::optional<std::string>& account, const TDiskQuota& delta)
 {
     YT_ASSERT_INVOKER_POOL_AFFINITY(CancelableInvokerPool);
 
@@ -6175,7 +6175,7 @@ void TOperationControllerBase::CreateLivePreviewTables()
         TCellTag cellTag,
         int replicationFactor,
         NCompression::ECodec compressionCodec,
-        const std::optional<TString>& account,
+        const std::optional<std::string>& account,
         const TString& key,
         const TYsonString& acl,
         const TTableSchemaPtr& schema)
@@ -6882,7 +6882,7 @@ void TOperationControllerBase::LockOutputTablesAndGetAttributes()
                 }
             }
 
-            table->Account = attributes->Get<TString>("account");
+            table->Account = attributes->Get<std::string>("account");
 
             if (table->TableUploadOptions.TableSchema->IsSorted()) {
                 table->TableWriterOptions->ValidateSorted = true;
@@ -6896,7 +6896,7 @@ void TOperationControllerBase::LockOutputTablesAndGetAttributes()
             table->TableWriterOptions->EnableStripedErasure = table->TableUploadOptions.EnableStripedErasure;
             table->TableWriterOptions->ReplicationFactor = attributes->Get<int>("replication_factor");
             table->TableWriterOptions->MediumName = attributes->Get<TString>("primary_medium");
-            table->TableWriterOptions->Account = attributes->Get<TString>("account");
+            table->TableWriterOptions->Account = attributes->Get<std::string>("account");
             table->TableWriterOptions->ChunksVital = attributes->Get<bool>("vital");
             table->TableWriterOptions->OptimizeFor = table->TableUploadOptions.OptimizeFor;
             table->TableWriterOptions->ChunkFormat = table->TableUploadOptions.ChunkFormat;
@@ -7609,8 +7609,7 @@ void TOperationControllerBase::GetUserFilesAttributes()
                             YT_ABORT();
                     }
 
-                    file.Account = attributes.Get<TString>("account");
-
+                    file.Account = attributes.Get<std::string>("account");
                     file.ChunkCount = attributes.Get<i64>("chunk_count");
                     file.ContentRevision = attributes.Get<NHydra::TRevision>("content_revision");
 
@@ -7837,7 +7836,7 @@ bool TOperationControllerBase::HasDiskRequestsWithSpecifiedAccount() const
 
 void TOperationControllerBase::InitAccountResourceUsageLeases()
 {
-    THashSet<TString> accounts;
+    THashSet<std::string> accounts;
 
     for (const auto& userJobSpec : GetUserJobSpecs()) {
         if (auto& diskRequest = userJobSpec->DiskRequest) {
@@ -10011,7 +10010,7 @@ void TOperationControllerBase::InitUserJobSpecTemplate(
     NControllerAgent::NProto::TUserJobSpec* jobSpec,
     const TUserJobSpecPtr& jobSpecConfig,
     const std::vector<TUserFile>& files,
-    const TString& debugArtifactsAccount)
+    const std::string& debugArtifactsAccount)
 {
     const auto& userJobOptions = Options_->UserJob;
 

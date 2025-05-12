@@ -788,7 +788,7 @@ struct TDiskRequestConfig
 
     std::optional<TString> MediumName;
     std::optional<int> MediumIndex;
-    std::optional<TString> Account;
+    std::optional<std::string> Account;
 
     //! Use Network Block Device (NBD) disk.
     TNbdDiskConfigPtr NbdDisk;
@@ -998,7 +998,7 @@ struct TOperationSpecBase
     : public TStrategyOperationSpec
 {
     //! Account holding intermediate data produces by the operation.
-    TString IntermediateDataAccount;
+    std::string IntermediateDataAccount;
 
     //! Codec used for compressing intermediate output during shuffle.
     NCompression::ECodec IntermediateCompressionCodec;
@@ -1024,7 +1024,7 @@ struct TOperationSpecBase
     i64 FastIntermediateMediumLimit;
 
     //! Account for job nodes and operation files (stderrs and input contexts of failed jobs).
-    TString DebugArtifactsAccount;
+    std::string DebugArtifactsAccount;
 
     //! What to do during initialization if some chunks are unavailable.
     EUnavailableChunkAction UnavailableChunkStrategy;

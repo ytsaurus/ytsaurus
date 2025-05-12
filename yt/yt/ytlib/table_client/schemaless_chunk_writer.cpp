@@ -2375,7 +2375,7 @@ void PatchWriterConfigs(
     options->CompressionCodec = tableUploadOptions.CompressionCodec;
     options->ErasureCodec = tableUploadOptions.ErasureCodec;
     options->EnableStripedErasure = tableUploadOptions.EnableStripedErasure;
-    options->Account = attributes.Get<TString>("account");
+    options->Account = attributes.Get<std::string>("account");
     options->ChunksVital = attributes.Get<bool>("vital");
     options->EnableSkynetSharing = attributes.Get<bool>("enable_skynet_sharing", false);
 

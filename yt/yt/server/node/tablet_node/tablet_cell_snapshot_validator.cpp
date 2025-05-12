@@ -33,7 +33,7 @@ using namespace NYson;
 ////////////////////////////////////////////////////////////////////////////////
 
 static const auto FakeTransactionId = MakeWellKnownId(EObjectType::Transaction, TCellTag(1));
-static const TString FakeAccount = "fake-account";
+static const std::string FakeAccount = "fake-account";
 
 ////////////////////////////////////////////////////////////////////////////////
 

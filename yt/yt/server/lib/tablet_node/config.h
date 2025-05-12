@@ -1202,7 +1202,7 @@ struct THunkStoreWriterOptions
     : public NJournalClient::TJournalHunkChunkWriterOptions
 {
     TString MediumName;
-    TString Account;
+    std::string Account;
 
     REGISTER_YSON_STRUCT(THunkStoreWriterOptions);
 

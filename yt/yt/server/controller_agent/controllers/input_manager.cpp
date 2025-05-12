@@ -892,7 +892,7 @@ void TInputManager::FetchInputTablesAttributes()
     for (const auto& [table, attributes] : tableAttributes) {
         table->ChunkCount = attributes->Get<int>("chunk_count");
         table->ContentRevision = attributes->Get<NHydra::TRevision>("content_revision");
-        table->Account = attributes->Get<TString>("account");
+        table->Account = attributes->Get<std::string>("account");
         if (table->Type == EObjectType::File) {
             // NB(coteeq): Files have none of the following attributes.
             continue;

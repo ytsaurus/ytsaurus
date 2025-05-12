@@ -426,7 +426,7 @@ TTableProfilerPtr CreateTableProfiler(
     const TString& tabletCellBundle,
     const TString& tablePath,
     const TString& tableTag,
-    const TString& account,
+    const std::string& account,
     const TString& medium,
     NObjectClient::TObjectId schemaId,
     const NTableClient::TTableSchemaPtr& schema);

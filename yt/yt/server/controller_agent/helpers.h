@@ -77,13 +77,13 @@ void BuildFileSpecs(
 TString GetIntermediatePath(int streamIndex);
 
 NChunkClient::TDataSourceDirectoryPtr BuildIntermediateDataSourceDirectory(
-    const TString& intermediateAccount,
+    const std::string& intermediateAccount,
     const std::vector<NTableClient::TTableSchemaPtr>& schemas = {});
 
-NChunkClient::TDataSink BuildIntermediateDataSink(const TString& intermediateAccount);
+NChunkClient::TDataSink BuildIntermediateDataSink(const std::string& intermediateAccount);
 
 NChunkClient::TDataSinkDirectoryPtr BuildIntermediateDataSinkDirectory(
-    const TString& intermediateAccount);
+    const std::string& intermediateAccount);
 
 ////////////////////////////////////////////////////////////////////////////////
 

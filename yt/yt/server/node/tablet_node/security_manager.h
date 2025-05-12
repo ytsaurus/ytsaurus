@@ -28,13 +28,13 @@ public:
     ~TSecurityManager();
 
     TFuture<void> CheckResourceLimits(
-        const TString& account,
+        const std::string& account,
         const TString& mediumName,
         const std::optional<TString>& tabletCellBundle = std::nullopt,
         NTabletClient::EInMemoryMode inMemoryMode = NTabletClient::EInMemoryMode::None);
 
     void ValidateResourceLimits(
-        const TString& account,
+        const std::string& account,
         const TString& mediumName,
         const std::optional<TString>& tabletCellBundle = std::nullopt,
         NTabletClient::EInMemoryMode inMemoryMode = NTabletClient::EInMemoryMode::None) override;

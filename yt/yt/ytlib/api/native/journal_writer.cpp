@@ -578,7 +578,7 @@ private:
                     : NErasure::GetCodec(ErasureCodec_)->GetTotalPartCount();
                 ReadQuorum_ = attributes->Get<int>("read_quorum");
                 WriteQuorum_ = attributes->Get<int>("write_quorum");
-                Account_ = attributes->Get<TString>("account");
+                Account_ = attributes->Get<std::string>("account");
                 PrimaryMedium_ = attributes->Get<TString>("primary_medium");
 
                 YT_LOG_DEBUG("Extended journal attributes received (ErasureCodec: %v, ReplicationFactor: %v, ReplicaCount: %v, "

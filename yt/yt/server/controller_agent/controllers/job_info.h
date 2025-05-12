@@ -95,7 +95,7 @@ struct TJoblet
 
     EInterruptionReason InterruptionReason = EInterruptionReason::None;
 
-    TString DebugArtifactsAccount;
+    std::string DebugArtifactsAccount;
     bool Suspicious = false;
     TInstant LastActivityTime;
     TBriefJobStatisticsPtr BriefStatistics;
@@ -150,7 +150,7 @@ struct TJoblet
     EPredecessorType PredecessorType = EPredecessorType::None;
     TJobId PredecessorJobId;
 
-    std::optional<TString> DiskRequestAccount;
+    std::optional<std::string> DiskRequestAccount;
 
     NChunkPools::TChunkStripeListPtr InputStripeList;
     NChunkPools::IChunkPoolOutput::TCookie OutputCookie = -1;
