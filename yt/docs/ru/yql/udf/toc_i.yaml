@@ -1,6 +1,6 @@
 items:
- # - name: Предустановленные
- #  href: preinstalled.md
+  - name: Предустановленные
+    href: preinstalled.md
   - name: Разработка на Python
     href: python.md
   - name: Разработка на JavaScript
