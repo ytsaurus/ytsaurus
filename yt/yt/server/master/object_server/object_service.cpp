@@ -2156,12 +2156,14 @@ private:
 
         // Swap out cookie before proceeding to avoid races with CancelPendingCachedSubrequests.
         if (subrequest->ActiveCacheCookieSet.exchange(false)) {
-            Owner_->Cache_->EndLookup(
+            GetRpcInvoker()->Invoke(BIND(
+                &TObjectServiceCache::EndLookup,
+                Owner_->Cache_,
                 RequestId_,
-                std::move(subrequest->ActiveCacheCookie),
+                Passed(std::move(subrequest->ActiveCacheCookie)),
                 subrequest->ResponseMessage,
                 subrequest->Revision,
-                true);
+                /*success*/ true));
         }
 
         ReleaseReplyLock();
