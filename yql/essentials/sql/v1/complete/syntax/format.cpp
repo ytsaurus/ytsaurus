@@ -39,11 +39,6 @@ namespace NSQLComplete {
             "CALLABLE",
         };
 
-        TString FormatTypeConstructor(TString type) {
-            type.to_lower(1);
-            return type;
-        }
-
     } // namespace
 
     TString FormatKeywords(const TVector<TString>& seq) {
@@ -57,7 +52,7 @@ namespace NSQLComplete {
         if (2 <= seq.size() &&
             TypeConstructors.contains(text) &&
             (seq[i] == "<" || seq[i] == "(")) {
-            text = FormatTypeConstructor(std::move(text));
+            text.to_title();
             text.append(seq[i]);
             i += 1;
         }
