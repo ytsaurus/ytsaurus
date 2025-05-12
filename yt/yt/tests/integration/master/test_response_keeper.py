@@ -69,7 +69,6 @@ class TestSequoiaResponseKeeper(YTEnvSetup):
     USE_SEQUOIA = True
     ENABLE_TMP_ROOTSTOCK = True
     VALIDATE_SEQUOIA_TREE_CONSISTENCY = True
-    NUM_CYPRESS_PROXIES = 1
     NUM_HTTP_PROXIES = 0
     NUM_RPC_PROXIES = 0
 

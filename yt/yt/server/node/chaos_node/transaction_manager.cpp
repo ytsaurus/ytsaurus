@@ -258,7 +258,12 @@ public:
 
         transaction->SetPersistentState(ETransactionState::Aborted);
 
-        RunAbortTransactionActions(transaction, options);
+        // COMPAT(kvk1920)
+        RunAbortTransactionActions(
+            transaction,
+            options,
+            /*requireLegacyBehavior*/ NHydra::HasMutationContext() &&
+                NHydra::GetCurrentMutationContext()->Request().Reign < static_cast<int>(EChaosReign::FixTransactionActionAbort));
 
         YT_LOG_DEBUG("Transaction aborted (TransactionId: %v, Force: %v)",
             transactionId,

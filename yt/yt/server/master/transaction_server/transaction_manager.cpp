@@ -954,7 +954,7 @@ public:
         TransactionAborted_.Fire(transaction);
 
         auto sequoiaContext = MaybeCreateSequoiaContextGuard(transaction);
-        RunAbortTransactionActions(transaction, options);
+        RunAbortTransactionActions(transaction, options, /*requireLegacyBehavior*/ false);
 
         const auto& objectManager = Bootstrap_->GetObjectManager();
         for (const auto& entry : transaction->ExportedObjects()) {
