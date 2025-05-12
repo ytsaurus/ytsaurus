@@ -157,6 +157,7 @@ DEFINE_ENUM(EMasterReign,
     ((CypressProxyVersion)                                          (2921))  // kvk1920
     ((AddEscapingInCrossCellCopy)                                   (2922))  // h0pless
     ((MinorRefactoringInExpirationTracker)                          (2923))  // h0pless
+    ((FixTransactionActionAbort)                                    (2924))  // kvk1920
 );
 
 static_assert(TEnumTraits<EMasterReign>::IsMonotonic, "Master reign enum is not monotonic");

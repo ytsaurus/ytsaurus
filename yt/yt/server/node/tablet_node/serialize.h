@@ -43,6 +43,7 @@ DEFINE_ENUM(ETabletReign,
     ((FixHunkStorageUnmountRoutine)                (101203)) // akozhikhov
     ((AddTabletMountTime)                          (101204)) // alexelexa
     ((CheckChaosTransactionsInPrepare)             (101205)) // savrus
+    ((FixTransactionActionAbort)                   (101206)) // kvk1920
 );
 
 static_assert(TEnumTraits<ETabletReign>::IsMonotonic, "Tablet reign enum is not monotonic");

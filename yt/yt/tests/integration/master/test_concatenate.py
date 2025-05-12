@@ -914,7 +914,6 @@ class TestConcatenateMirroredTx(TestConcatenateShardedTxCTxS):
     ENABLE_MULTIDAEMON = True
     USE_SEQUOIA = True
     ENABLE_CYPRESS_TRANSACTIONS_IN_SEQUOIA = True
-    ENABLE_TMP_ROOTSTOCK = False
 
     NUM_RPC_PROXIES = 1
 
@@ -935,9 +934,3 @@ class TestConcatenateRpcProxy(TestConcatenate):
     DRIVER_BACKEND = "rpc"
     ENABLE_HTTP_PROXY = True
     ENABLE_RPC_PROXY = True
-
-
-@pytest.mark.enabled_multidaemon
-class TestConcatenateCypressProxy(TestConcatenate):
-    ENABLE_MULTIDAEMON = True
-    NUM_CYPRESS_PROXIES = 1

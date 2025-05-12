@@ -682,7 +682,12 @@ public:
                 transaction->GetId(),
                 transaction->Actions().size());
         } else {
-            RunAbortTransactionActions(transaction, options);
+            // COMPAT(kvk1920)
+            RunAbortTransactionActions(
+                transaction,
+                options,
+                /*requireLegacyBehavior*/ NHydra::HasMutationContext() &&
+                    NHydra::GetCurrentMutationContext()->Request().Reign < static_cast<int>(ETabletReign::FixTransactionActionAbort));
         }
 
         YT_LOG_DEBUG(

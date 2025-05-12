@@ -25,6 +25,7 @@ class TestCypressLocks(YTEnvSetup):
     NUM_MASTERS = 3
     NUM_NODES = 3
     NUM_TEST_PARTITIONS = 4
+    NUM_CYPRESS_PROXIES = 2
 
     def _in_sequoia(self):
         return isinstance(self, TestCypressLocksSequoia)
@@ -1698,8 +1699,6 @@ class TestCypressLocksMirroredTx(TestCypressLocksShardedTxCTxS):
     ENABLE_MULTIDAEMON = True
     USE_SEQUOIA = True
     ENABLE_CYPRESS_TRANSACTIONS_IN_SEQUOIA = True
-    ENABLE_TMP_ROOTSTOCK = False
-    NUM_CYPRESS_PROXIES = 1
     NUM_TEST_PARTITIONS = 8
 
     _SUPRESSED_MESSAGES = [
@@ -1753,7 +1752,6 @@ class TestCypressLocksMirroredTx(TestCypressLocksShardedTxCTxS):
 class TestCypressLocksSequoia(TestCypressLocksMirroredTx):
     ENABLE_MULTIDAEMON = True
     ENABLE_TMP_ROOTSTOCK = True
-    NUM_CYPRESS_PROXIES = 1
     NUM_TEST_PARTITIONS = 12
     NUM_SECONDARY_MASTER_CELLS = 4
 
