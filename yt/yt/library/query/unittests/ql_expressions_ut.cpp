@@ -3152,18 +3152,15 @@ TEST_F(TExpressionStrConvTest, ErrorConvertStringToNumericTest) {
         HasSubstr("Cannot convert value"));
 }
 
-class TIllegalDoubleToIntCast
+class TIllegalDoubleToIntCastTest
     : public ::testing::Test
 {
 protected:
-    void SetUp() override
-    { }
-
     TTableSchemaPtr Schema_ = New<TTableSchema>();
     TRowBufferPtr RowBuffer_ = New<TRowBuffer>();
 };
 
-TEST_F(TIllegalDoubleToIntCast, NanToZero)
+TEST_F(TIllegalDoubleToIntCastTest, NanToZero)
 {
     TUnversionedValue result{};
 
@@ -3181,7 +3178,7 @@ TEST_F(TIllegalDoubleToIntCast, NanToZero)
     }
 }
 
-TEST_F(TIllegalDoubleToIntCast, UnsignedBoundaries)
+TEST_F(TIllegalDoubleToIntCastTest, UnsignedBoundaries)
 {
     TUnversionedValue result{};
 
@@ -3224,7 +3221,7 @@ TEST_F(TIllegalDoubleToIntCast, UnsignedBoundaries)
     }
 }
 
-TEST_F(TIllegalDoubleToIntCast, SignedBoundaries)
+TEST_F(TIllegalDoubleToIntCastTest, SignedBoundaries)
 {
     TUnversionedValue result{};
 
