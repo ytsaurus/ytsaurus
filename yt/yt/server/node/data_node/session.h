@@ -121,7 +121,7 @@ struct ISession
 
     struct TSendBlocksResult
     {
-        bool NetThrottling;
+        bool NetThrottling = false;
         NChunkClient::TDataNodeServiceProxy::TRspPutBlocksPtr TargetNodePutBlocksResult;
     };
 
