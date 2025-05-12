@@ -597,6 +597,8 @@ private:
             MakeWritableRootFS(),
             Context_.CommandUser,
             /*devices*/ std::nullopt,
+            /*hostName*/ std::nullopt,
+            /*ipAddresses*/ {},
             /*tag*/ SetupCommandsTag)
             .AsVoid();
     }
@@ -621,6 +623,7 @@ private:
                 .SetupCommands = Context_.GpuCheckSetupCommands,
                 .GpuCheckBinaryPath = *Context_.GpuCheckBinaryPath,
                 .GpuCheckBinaryArgs = *Context_.GpuCheckBinaryArgs,
+                .GpuCheckNetworkAttributes = Context_.GpuCheckNetworkAttributes,
                 .GpuCheckEnvironment = *Context_.GpuCheckEnvironment,
                 .GpuCheckType = Context_.GpuCheckType,
                 .CurrentStartIndex = ResultHolder_.SetupCommandCount,
@@ -811,6 +814,8 @@ private:
             rootFS,
             Context_.CommandUser,
             /*devices*/ std::nullopt,
+            /*hostName*/ std::nullopt,
+            /*ipAddresses*/ {},
             /*tag*/ SetupCommandsTag)
             .AsVoid();
     }

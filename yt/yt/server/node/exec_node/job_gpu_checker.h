@@ -31,6 +31,7 @@ struct TJobGpuCheckerContext
 
     TString GpuCheckBinaryPath;
     std::vector<TString> GpuCheckBinaryArgs;
+    std::optional<TNetworkAttributes> GpuCheckNetworkAttributes;
     THashMap<TString, TString> GpuCheckEnvironment;
     EGpuCheckType GpuCheckType;
     int CurrentStartIndex;

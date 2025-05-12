@@ -435,6 +435,10 @@ void TJob::DoStart(TErrorOr<std::vector<TNameWithAddress>>&& resolvedNodeAddress
                         .DisableNetwork = UserJobSpec_->disable_network(),
                     };
                 }
+
+                if (NetworkProject_) {
+                    NetworkAttributes_ = BuildNetworkAttributes(*NetworkProject_);
+                }
             }
 
             if (NeedGpu()) {
@@ -500,7 +504,11 @@ void TJob::Start() noexcept
 
     TFuture<std::vector<TNameWithAddress>> resolveFuture;
 
-    if (UserJobSpec_ && UserJobSpec_->has_network_project_id()) {
+    if (UserJobSpec_ && (
+            UserJobSpec_->has_network_project() ||
+            UserJobSpec_->has_network_project_id() ||
+            UserJobSpec_->has_gpu_check_network_project()))
+    {
         std::vector<TFuture<TNameWithAddress>> nodeAddressFutures;
 
         auto addresses = Bootstrap_->GetConfig()->Addresses;
@@ -2346,11 +2354,14 @@ void TJob::RunWithWorkspaceBuilder()
         .GpuCheckBinaryArgs = UserJobSpec_
             ? std::make_optional(FromProto<std::vector<TString>>(UserJobSpec_->gpu_check_binary_args()))
             : std::optional<std::vector<TString>>(),
+        .GpuCheckNetworkAttributes = UserJobSpec_ && UserJobSpec_->has_gpu_check_network_project()
+            ? std::make_optional(BuildNetworkAttributes(FromProto<NControllerAgent::TNetworkProject>(UserJobSpec_->gpu_check_network_project())))
+            : std::nullopt,
         .GpuCheckEnvironment = UserJobSpec_
             ? std::make_optional(FromProto<THashMap<TString, TString>>(UserJobSpec_->gpu_check_environment()))
             : std::nullopt,
         .GpuCheckType = EGpuCheckType::Preliminary,
-        .GpuDevices = devices
+        .GpuDevices = devices,
     };
 
     auto workspaceBuilder = GetUserSlot()->CreateJobWorkspaceBuilder(
@@ -2623,11 +2634,14 @@ void TJob::OnJobProxyFinished(const TError& error)
 
             .GpuCheckBinaryPath = UserJobSpec_->gpu_check_binary_path(),
             .GpuCheckBinaryArgs = FromProto<std::vector<TString>>(UserJobSpec_->gpu_check_binary_args()),
+            .GpuCheckNetworkAttributes = UserJobSpec_->has_gpu_check_network_project()
+                ? std::make_optional(BuildNetworkAttributes(FromProto<NControllerAgent::TNetworkProject>(UserJobSpec_->gpu_check_network_project())))
+                : std::nullopt,
             .GpuCheckEnvironment = FromProto<THashMap<TString, TString>>(UserJobSpec_->gpu_check_environment()),
             .GpuCheckType = EGpuCheckType::Extra,
             .CurrentStartIndex = SetupCommandCount_,
             .TestExtraGpuCheckCommandFailure = Bootstrap_->GetGpuManager()->ShouldTestExtraGpuCheckCommandFailure(),
-            .GpuDevices = GetGpuDevices()
+            .GpuDevices = GetGpuDevices(),
         };
 
         auto checker = New<TJobGpuChecker>(std::move(context), Logger);
@@ -2959,6 +2973,35 @@ std::vector<TBind> TJob::GetRootFSBinds()
     return binds;
 }
 
+TNetworkAttributes TJob::BuildNetworkAttributes(NControllerAgent::TNetworkProject networkProject)
+{
+    if (ResolvedNodeAddresses_.empty()) {
+        THROW_ERROR_EXCEPTION("No IPv6 node addresses were resolved");
+    }
+
+    TNetworkAttributes result;
+
+    result.ProjectId = networkProject.Id;
+    result.Addresses.reserve(ResolvedNodeAddresses_.size());
+
+    for (const auto& [addressName, address] : ResolvedNodeAddresses_) {
+        auto networkAddress = New<TUserJobNetworkAddress>();
+        networkAddress->Address = TMtnAddress{address}
+            .SetProjectId(networkProject.Id)
+            .SetHost(GetUserSlot()->GetSlotIndex())
+            .ToIP6Address();
+        networkAddress->Name = addressName;
+
+        result.Addresses.push_back(std::move(networkAddress));
+    }
+
+    result.HostName = Format("slot-%v.%v",
+        GetUserSlot()->GetSlotIndex(),
+        Bootstrap_->GetConfig()->Addresses[0].second);
+
+    return result;
+}
+
 TJobProxyInternalConfigPtr TJob::CreateConfig()
 {
     YT_ASSERT_THREAD_AFFINITY(JobThread);
@@ -3097,15 +3140,8 @@ TJobProxyInternalConfigPtr TJob::CreateConfig()
     ipAddresses.reserve(ResolvedNodeAddresses_.size());
 
     if (NetworkProject_) {
-        for (const auto& [addressName, address] : ResolvedNodeAddresses_) {
-            auto networkAddress = New<TUserJobNetworkAddress>();
-            networkAddress->Address = TMtnAddress{address}
-                .SetProjectId(NetworkProject_->Id)
-                .SetHost(GetUserSlot()->GetSlotIndex())
-                .ToIP6Address();
-            networkAddress->Name = addressName;
-
-            proxyInternalConfig->NetworkAddresses.push_back(networkAddress);
+        proxyInternalConfig->NetworkAddresses = NetworkAttributes_.Addresses;
+        for (const auto& networkAddress : NetworkAttributes_.Addresses) {
             ipAddresses.push_back(networkAddress->Address);
         }
 
@@ -3115,11 +3151,9 @@ TJobProxyInternalConfigPtr TJob::CreateConfig()
 
         proxyInternalConfig->EnableNat64 = NetworkProject_->EnableNat64;
         proxyInternalConfig->DisableNetwork = NetworkProject_->DisableNetwork;
-        proxyInternalConfig->HostName = Format("slot-%v.%v",
-            GetUserSlot()->GetSlotIndex(),
-            Bootstrap_->GetConfig()->Addresses[0].second);
+        proxyInternalConfig->HostName = NetworkAttributes_.HostName;
     } else {
-        for (const auto& [addressName, address] : ResolvedNodeAddresses_) {
+        for (const auto& [_, address] : ResolvedNodeAddresses_) {
             ipAddresses.push_back(address);
         }
     }

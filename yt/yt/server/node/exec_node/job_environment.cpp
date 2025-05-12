@@ -62,6 +62,8 @@ using namespace NYTree;
 using namespace NTools;
 using namespace NServer;
 
+using NNet::TIP6Address;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 static constexpr auto& Logger = ExecNodeLogger;
@@ -203,6 +205,8 @@ public:
         const TRootFS& /*rootFS*/,
         const std::string& /*user*/,
         const std::optional<std::vector<TDevice>>& /*devices*/,
+        const std::optional<TString>& /*hostName*/,
+        const std::vector<TIP6Address>& /*ipAddresses*/,
         std::string /*tag*/) override
     {
         THROW_ERROR_EXCEPTION("Running custom commands is not yet supported by %Qlv environment",
@@ -573,11 +577,13 @@ public:
         const TRootFS& rootFS,
         const std::string& user,
         const std::optional<std::vector<TDevice>>& devices,
+        const std::optional<TString>& hostName,
+        const std::vector<TIP6Address>& ipAddresses,
         std::string tag) override
     {
         YT_ASSERT_THREAD_AFFINITY(JobThread);
 
-        return BIND([this, this_ = MakeStrong(this), slotIndex, slotType, jobId, commands, rootFS, user, devices, tag] {
+        return BIND([this, this_ = MakeStrong(this), slotIndex, slotType, jobId, commands, rootFS, user, devices, hostName, ipAddresses, tag] {
             std::vector<TShellCommandOutput> outputs;
             outputs.reserve(commands.size());
 
@@ -601,6 +607,11 @@ public:
                 launcher->SetUser(user);
                 if (devices) {
                     launcher->SetDevices(*devices);
+                }
+
+                if (hostName) {
+                    launcher->SetHostName(*hostName);
+                    launcher->SetIPAddresses(ipAddresses, /*enableNat64*/ false);
                 }
 
                 auto instanceOrError = WaitFor(launcher->Launch(command->Path, command->Args, command->EnvironmentVariables));
@@ -1108,6 +1119,8 @@ public:
         const TRootFS& rootFS,
         const std::string& /*user*/,
         const std::optional<std::vector<TDevice>>& /*devices*/,
+        const std::optional<TString>& /*hostName*/,
+        const std::vector<TIP6Address>& /*ipAddresses*/,
         std::string tag) override
     {
         YT_ASSERT_THREAD_AFFINITY(JobThread);
