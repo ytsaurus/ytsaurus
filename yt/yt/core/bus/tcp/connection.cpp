@@ -2097,35 +2097,28 @@ void TTcpConnection::TryEstablishSslSession()
         };
     }
 
+    if (VerificationMode_ != EVerificationMode::None && !Config_->CertificateAuthority) {
+        Abort(TError(NBus::EErrorCode::SslError, "CA file is not set in bus config"));
+        return;
+    }
+
+    if (ConnectionType_ == EConnectionType::Server && !Config_->CertificateChain) {
+        Abort(TError(NBus::EErrorCode::SslError, "Certificate chain file is not set in bus config"));
+        return;
+    }
+
+    if (ConnectionType_ == EConnectionType::Server && !Config_->PrivateKey) {
+        Abort(TError(NBus::EErrorCode::SslError, "The private key file is not set in bus config"));
+        return;
+    }
+
     // FIXME(khlebnikov): Stop constructing SSL context from scratch for each connection.
     auto sslContext = New<TSslContext>();
 
-    sslContext->ApplyConfig(Config_);
+    sslContext->ApplyConfig(Config_, pathResolver);
 
     if (Config_->CipherList) {
         sslContext->SetCipherList(*Config_->CipherList);
-    }
-
-    if (VerificationMode_ != EVerificationMode::None) {
-        if (!Config_->CA) {
-            Abort(TError(NBus::EErrorCode::SslError, "CA file is not set in bus config"));
-            return;
-        }
-        sslContext->AddCertificateAuthority(Config_->CA, pathResolver);
-    }
-
-    if (ConnectionType_ == EConnectionType::Server) {
-        if (!Config_->CertificateChain) {
-            Abort(TError(NBus::EErrorCode::SslError, "Certificate chain file is not set in bus config"));
-            return;
-        }
-        sslContext->AddCertificateChain(Config_->CertificateChain, pathResolver);
-
-        if (!Config_->PrivateKey) {
-            Abort(TError(NBus::EErrorCode::SslError, "The private key file is not set in bus config"));
-            return;
-        }
-        sslContext->AddPrivateKey(Config_->PrivateKey, pathResolver);
     }
 
     sslContext->Commit();

@@ -561,8 +561,8 @@ TEST_F(TSslTest, CAVerificationModeSuccess)
     server->Start(New<TEmptyBusHandler>());
 
     auto clientConfig = TBusClientConfig::CreateTcp(AddressWithHostName);
-    clientConfig->CA = New<NCrypto::TPemBlobConfig>();
-    clientConfig->CA->Value = CA;
+    clientConfig->CertificateAuthority = New<NCrypto::TPemBlobConfig>();
+    clientConfig->CertificateAuthority->Value = CA;
     clientConfig->EncryptionMode = EEncryptionMode::Required;
     clientConfig->VerificationMode = EVerificationMode::Ca;
     auto client = CreateBusClient(clientConfig);
@@ -598,8 +598,8 @@ TEST_F(TSslTest, FullVerificationModeByHostName)
     auto clientConfig = TBusClientConfig::CreateTcp(AddressWithHostName);
     clientConfig->EncryptionMode = EEncryptionMode::Required;
     clientConfig->VerificationMode = EVerificationMode::Full;
-    clientConfig->CA = New<NCrypto::TPemBlobConfig>();
-    clientConfig->CA->Value = CA;
+    clientConfig->CertificateAuthority = New<NCrypto::TPemBlobConfig>();
+    clientConfig->CertificateAuthority->Value = CA;
     auto client = CreateBusClient(clientConfig);
 
     auto bus = client->CreateBus(New<TEmptyBusHandler>());
@@ -633,8 +633,8 @@ TEST_F(TSslTest, FullVerificationModeByIpAddress)
         auto clientConfig = TBusClientConfig::CreateTcp(address);
         clientConfig->EncryptionMode = EEncryptionMode::Required;
         clientConfig->VerificationMode = EVerificationMode::Full;
-        clientConfig->CA = New<NCrypto::TPemBlobConfig>();
-        clientConfig->CA->Value = CAWithIpInSAN;
+        clientConfig->CertificateAuthority = New<NCrypto::TPemBlobConfig>();
+        clientConfig->CertificateAuthority->Value = CAWithIpInSAN;
         auto client = CreateBusClient(clientConfig);
 
         auto bus = client->CreateBus(New<TEmptyBusHandler>());
@@ -669,8 +669,8 @@ TEST_F(TSslTest, FullVerificationByAlternativeHostName)
         auto clientConfig = TBusClientConfig::CreateTcp(address);
         clientConfig->EncryptionMode = EEncryptionMode::Required;
         clientConfig->VerificationMode = EVerificationMode::Full;
-        clientConfig->CA = New<NCrypto::TPemBlobConfig>();
-        clientConfig->CA->Value = CA;
+        clientConfig->CertificateAuthority = New<NCrypto::TPemBlobConfig>();
+        clientConfig->CertificateAuthority->Value = CA;
 
         {
             auto client = CreateBusClient(clientConfig);

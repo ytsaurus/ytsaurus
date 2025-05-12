@@ -93,8 +93,6 @@ private:
 static void ApplySslConfig(const TSslContextPtr&  sslContext, const TServerCredentialsConfigPtr& sslConfig)
 {
     sslContext->ApplyConfig(sslConfig);
-    sslContext->AddCertificateChain(sslConfig->CertChain);
-    sslContext->AddPrivateKey(sslConfig->PrivateKey);
 }
 
 IServerPtr CreateServer(
@@ -110,7 +108,7 @@ IServerPtr CreateServer(
     auto sslConfig = config->Credentials;
     TPeriodicExecutorPtr certificateUpdater;
     if (sslConfig->UpdatePeriod &&
-        sslConfig->CertChain->FileName &&
+        sslConfig->CertificateChain->FileName &&
         sslConfig->PrivateKey->FileName)
     {
         YT_VERIFY(controlInvoker);
@@ -119,7 +117,7 @@ IServerPtr CreateServer(
             BIND([=] {
                 try {
                     auto modificationTime = Max(
-                        NFS::GetPathStatistics(*sslConfig->CertChain->FileName).ModificationTime,
+                        NFS::GetPathStatistics(*sslConfig->CertificateChain->FileName).ModificationTime,
                         NFS::GetPathStatistics(*sslConfig->PrivateKey->FileName).ModificationTime);
 
                     // Detect fresh and stable updates.

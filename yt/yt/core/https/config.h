@@ -13,8 +13,6 @@ namespace NYT::NHttps {
 struct TServerCredentialsConfig
     : public NCrypto::TSslContextConfig
 {
-    NCrypto::TPemBlobConfigPtr PrivateKey;
-    NCrypto::TPemBlobConfigPtr CertChain;
     TDuration UpdatePeriod;
 
     REGISTER_YSON_STRUCT(TServerCredentialsConfig);
@@ -43,9 +41,6 @@ DEFINE_REFCOUNTED_TYPE(TServerConfig)
 struct TClientCredentialsConfig
     : public NCrypto::TSslContextConfig
 {
-    NCrypto::TPemBlobConfigPtr PrivateKey;
-    NCrypto::TPemBlobConfigPtr CertChain;
-
     REGISTER_YSON_STRUCT(TClientCredentialsConfig);
 
     static void Register(TRegistrar registrar);

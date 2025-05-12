@@ -109,8 +109,6 @@ IClientPtr CreateClient(
     auto sslContext =  New<TSslContext>();
     if (config->Credentials) {
         sslContext->ApplyConfig(config->Credentials);
-        sslContext->AddCertificateChain(config->Credentials->CertChain);
-        sslContext->AddPrivateKey(config->Credentials->PrivateKey);
     } else {
         sslContext->UseBuiltinOpenSslX509Store();
     }

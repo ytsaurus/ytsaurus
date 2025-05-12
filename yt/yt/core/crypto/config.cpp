@@ -64,6 +64,12 @@ TSslContextCommandPtr TSslContextCommand::Create(std::string name, std::string v
 
 void TSslContextConfig::Register(TRegistrar registrar)
 {
+    registrar.Parameter("ca", &TThis::CertificateAuthority)
+        .Default();
+    registrar.Parameter("cert_chain", &TThis::CertificateChain)
+        .Optional();
+    registrar.Parameter("private_key", &TThis::PrivateKey)
+        .Optional();
     registrar.Parameter("ssl_configuration_commands", &TThis::SslConfigurationCommands)
         .Optional();
 }

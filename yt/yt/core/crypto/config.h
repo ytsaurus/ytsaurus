@@ -49,6 +49,10 @@ DEFINE_REFCOUNTED_TYPE(TSslContextCommand)
 struct TSslContextConfig
     : public virtual NYTree::TYsonStruct
 {
+    NCrypto::TPemBlobConfigPtr CertificateAuthority;
+    NCrypto::TPemBlobConfigPtr CertificateChain;
+    NCrypto::TPemBlobConfigPtr PrivateKey;
+
     //! Commands for SSL context configuration handled by SSL_CONF_cmd.
     std::vector<TSslContextCommandPtr> SslConfigurationCommands;
 
