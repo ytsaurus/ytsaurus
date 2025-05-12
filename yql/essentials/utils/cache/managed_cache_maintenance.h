@@ -11,7 +11,7 @@ namespace NYql {
 
     struct TManagedCacheConfig {
         TDuration UpdatePeriod = TDuration::Seconds(5);
-        size_t EvictionFrequency = 3;
+        size_t UpdatesPerEviction = 3;
     };
 
     template <NPrivate::CCacheKey TKey, NPrivate::CCacheValue TValue>
@@ -33,9 +33,9 @@ namespace NYql {
                     Config_.UpdatePeriod <= TDuration::Days(7),
                 "UpdatePeriod must be in [100ms, 7d], got " << Config_.UpdatePeriod);
             Y_ENSURE(
-                1 <= Config_.EvictionFrequency &&
-                    Config_.EvictionFrequency <= 10'000,
-                "EvictionFrequency must be in [1, 10'000], got " << Config_.EvictionFrequency);
+                1 <= Config_.UpdatesPerEviction &&
+                    Config_.UpdatesPerEviction <= 10'000,
+                "EvictionFrequency must be in [1, 10'000], got " << Config_.UpdatesPerEviction);
         }
 
         void Run(NThreading::TCancellationToken token) {
@@ -48,7 +48,7 @@ namespace NYql {
         void Tick() try {
             Listener_->OnTickBegin();
             Tick_ += 1;
-            if (Tick_ % Config_.EvictionFrequency == 0) {
+            if (Tick_ % Config_.UpdatesPerEviction == 0) {
                 Storage_->Evict();
             }
             Storage_->Update();

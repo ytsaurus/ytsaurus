@@ -74,7 +74,7 @@ Y_UNIT_TEST_SUITE(TManagedCacheTests) {
 
         TManagedCacheConfig config = {
             .UpdatePeriod = TDuration::MilliSeconds(10),
-            .EvictionFrequency = 3,
+            .UpdatesPerEviction = 3,
         };
 
         auto cache_pool = CreateThreadPool(/* threadCount = */ 2);

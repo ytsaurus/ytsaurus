@@ -12,7 +12,7 @@ Y_UNIT_TEST_SUITE(TManagedCacheMaintenanceTests) {
         // |---|---|--
         // 0   1   2
         TManagedCacheConfig config = {
-            .EvictionFrequency = 2,
+            .UpdatesPerEviction = 2,
         };
 
         size_t served;
@@ -34,7 +34,7 @@ Y_UNIT_TEST_SUITE(TManagedCacheMaintenanceTests) {
         // |---|---|---|---|---|---|--
         // 0   1   2   3   4   5   6
         TManagedCacheConfig config = {
-            .EvictionFrequency = 2,
+            .UpdatesPerEviction = 2,
         };
 
         size_t served;
@@ -69,7 +69,7 @@ Y_UNIT_TEST_SUITE(TManagedCacheMaintenanceTests) {
         // |---|---|---|---|--
         // 0   1   2   3   4
         TManagedCacheConfig config = {
-            .EvictionFrequency = 2,
+            .UpdatesPerEviction = 2,
         };
 
         size_t served = 0;
@@ -99,7 +99,7 @@ Y_UNIT_TEST_SUITE(TManagedCacheMaintenanceTests) {
     // Avg(TTL) = 2 * (UpdatePeriod + QueryLatency) = Max(TTL), after 1 update cycle.
     Y_UNIT_TEST(TestActuality) {
         TManagedCacheConfig config = {
-            .EvictionFrequency = 16, // Disable eviction
+            .UpdatesPerEviction = 16, // Disable eviction
         };
 
         size_t time = 0;
