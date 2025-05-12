@@ -298,6 +298,17 @@ TEST(TMemoryUsageTrackerTest, Pool)
     tracker->ClearTrackers();
 }
 
+TEST(TMemoryUsageTrackerTest, Overflow)
+{
+    auto tracker = New<TTestNodeMemoryTracker>();
+
+    tracker->SetTotalLimit(std::numeric_limits<i64>::max());
+    tracker->SetPoolRatio("some_pool", 1);
+    auto limit = tracker->GetPoolLimit("some_pool");
+    EXPECT_EQ(limit, std::numeric_limits<i64>::max());
+    tracker->ClearTrackers();
+}
+
 TEST(TMemoryUsageTrackerTest, PoolRef)
 {
     auto memoryTracker = New<TTestNodeMemoryTracker>();
