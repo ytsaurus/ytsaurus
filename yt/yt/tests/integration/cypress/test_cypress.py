@@ -1081,10 +1081,13 @@ class TestCypress(YTEnvSetup):
         tx1 = start_transaction()
         move("//tmp/t1", "//tmp/t2", tx=tx1)
         tx2 = start_transaction()
-        with raises_yt_error("Cannot take \"exclusive\" lock for node //tmp/t1 "
-                             "since \"exclusive\" lock is taken by concurrent "
-                             f"transaction {tx1}"):
+        with raises_yt_error() as err:
             move("//tmp/t1", "//tmp/t3", tx=tx2)
+        assert \
+            f"Cannot take \"exclusive\" lock for node //tmp/t1 since \"exclusive\" lock is taken by concurrent transaction {tx1}" \
+            in str(err) or \
+            f"Cannot take lock for child \"t1\" of node //tmp since this child is locked by concurrent transaction {tx1}" \
+            in str(err)
 
     @authors("babenko")
     def test_move_tx_locking2(self):
@@ -1094,10 +1097,13 @@ class TestCypress(YTEnvSetup):
         tx3 = start_transaction(tx=tx1)
         move("//tmp/t1", "//tmp/t2", tx=tx1)
         move("//tmp/t2", "//tmp/t3", tx=tx2)
-        with raises_yt_error("Cannot take \"exclusive\" lock for node //tmp/t2 "
-                             "since \"exclusive\" lock is taken by concurrent "
-                             f"transaction {tx2}"):
+        with raises_yt_error() as err:
             move("//tmp/t2", "//tmp/t4", tx=tx3)
+        assert \
+            f"Cannot take \"exclusive\" lock for node //tmp/t2 since \"exclusive\" lock is taken by concurrent transaction {tx2}" \
+            in str(err) or \
+            f"Cannot take lock for child \"t2\" of node //tmp since this child is locked by concurrent transaction {tx2}" \
+            in str(err)
 
     @authors("ignat")
     def test_embedded_attributes(self):
