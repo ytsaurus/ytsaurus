@@ -1197,13 +1197,13 @@ struct TControllerAgentConfig
     TMemoryWatchdogConfigPtr MemoryWatchdog;
 
     //! List of media that require specifying account and disk space limit.
-    THashSet<TString> ObligatoryAccountMedia;
+    THashSet<std::string> ObligatoryAccountMedia;
 
     //! List of media that are deprecated to be used in disk requests.
-    THashSet<TString> DeprecatedMedia;
+    THashSet<std::string> DeprecatedMedia;
 
     //! The name of the fast medium (SSD) in the communal intermediate account.
-    TString FastIntermediateMedium;
+    std::string FastIntermediateMedium;
 
     //! Per transaction intermediate data weight limit for the fast medium (SSD) in the communal intermediate account.
     i64 FastIntermediateMediumLimit;

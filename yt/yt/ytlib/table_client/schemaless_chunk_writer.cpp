@@ -2371,7 +2371,7 @@ void PatchWriterConfigs(
     const NLogging::TLogger& Logger)
 {
     options->ReplicationFactor = attributes.Get<int>("replication_factor");
-    options->MediumName = attributes.Get<TString>("primary_medium");
+    options->MediumName = attributes.Get<std::string>("primary_medium");
     options->CompressionCodec = tableUploadOptions.CompressionCodec;
     options->ErasureCodec = tableUploadOptions.ErasureCodec;
     options->EnableStripedErasure = tableUploadOptions.EnableStripedErasure;

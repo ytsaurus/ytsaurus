@@ -134,8 +134,8 @@ struct ITabletSlot
 
     virtual i64 EstimateChangelogMediumBytes(i64 payloadBytes) const = 0;
     virtual NConcurrency::IReconfigurableThroughputThrottlerPtr GetChangelogMediumWriteThrottler() const = 0;
-    virtual NConcurrency::IReconfigurableThroughputThrottlerPtr GetMediumWriteThrottler(const TString& mediumName) const = 0;
-    virtual NConcurrency::IReconfigurableThroughputThrottlerPtr GetMediumReadThrottler(const TString& mediumName) const = 0;
+    virtual NConcurrency::IReconfigurableThroughputThrottlerPtr GetMediumWriteThrottler(const std::string& mediumName) const = 0;
+    virtual NConcurrency::IReconfigurableThroughputThrottlerPtr GetMediumReadThrottler(const std::string& mediumName) const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(ITabletSlot)

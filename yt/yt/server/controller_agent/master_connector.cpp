@@ -1439,7 +1439,7 @@ private:
 
         const auto& controllerAgent = Bootstrap_->GetControllerAgent();
 
-        THashMap<TOperationId, std::pair<TTransactionId, TString>> transactions;
+        THashMap<TOperationId, std::pair<TTransactionId, std::string>> transactions;
         for (const auto& [operationId, operation] : controllerAgent->GetOperations()) {
             auto [transaction, medium] = operation->GetController()->GetIntermediateMediumTransaction();
             if (transaction) {

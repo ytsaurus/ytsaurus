@@ -5815,7 +5815,7 @@ bool TOperationControllerBase::IsFinished() const
         State == EControllerState::Aborted;
 }
 
-std::pair<ITransactionPtr, TString> TOperationControllerBase::GetIntermediateMediumTransaction()
+std::pair<ITransactionPtr, std::string> TOperationControllerBase::GetIntermediateMediumTransaction()
 {
     return {nullptr, {}};
 }
@@ -6895,7 +6895,7 @@ void TOperationControllerBase::LockOutputTablesAndGetAttributes()
             table->TableWriterOptions->ErasureCodec = table->TableUploadOptions.ErasureCodec;
             table->TableWriterOptions->EnableStripedErasure = table->TableUploadOptions.EnableStripedErasure;
             table->TableWriterOptions->ReplicationFactor = attributes->Get<int>("replication_factor");
-            table->TableWriterOptions->MediumName = attributes->Get<TString>("primary_medium");
+            table->TableWriterOptions->MediumName = attributes->Get<std::string>("primary_medium");
             table->TableWriterOptions->Account = attributes->Get<std::string>("account");
             table->TableWriterOptions->ChunksVital = attributes->Get<bool>("vital");
             table->TableWriterOptions->OptimizeFor = table->TableUploadOptions.OptimizeFor;

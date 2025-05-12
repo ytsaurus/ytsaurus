@@ -131,7 +131,7 @@ public:
         , SimpleSort(false)
     { }
 
-    std::pair<NApi::ITransactionPtr, TString> GetIntermediateMediumTransaction() override
+    std::pair<NApi::ITransactionPtr, std::string> GetIntermediateMediumTransaction() override
     {
         if (GetFastIntermediateMediumLimit() > 0 && !SwitchedToSlowIntermediateMedium) {
             auto medium = GetIntermediateStreamDescriptorTemplate()->TableWriterOptions->MediumName;

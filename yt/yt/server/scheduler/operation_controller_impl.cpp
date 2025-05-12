@@ -889,7 +889,7 @@ TFuture<TIntrusivePtr<TResponse>> TOperationControllerImpl::InvokeAgent(
     }));
 }
 
-std::pair<NApi::ITransactionPtr, TString> TOperationControllerImpl::GetIntermediateMediumTransaction()
+std::pair<NApi::ITransactionPtr, std::string> TOperationControllerImpl::GetIntermediateMediumTransaction()
 {
     return {nullptr, {}};
 }
