@@ -5603,8 +5603,6 @@ class TestChaosMetaClusterNativeProxy(TestChaosMetaCluster):
         peer_cluster_names = [cluster_names[0]]
 
         cell_id = self._sync_create_chaos_bundle_and_cell(peer_cluster_names=peer_cluster_names)
-        cell_id1 = self._sync_create_chaos_cell(peer_cluster_names=peer_cluster_names)
-        cell_id2 = self._sync_create_chaos_cell(peer_cluster_names=peer_cluster_names)
         driver0 = self._get_drivers()[0]
 
         set("//sys/chaos_cell_bundles/c/@metadata_cell_id", cell_id)
@@ -5613,6 +5611,9 @@ class TestChaosMetaClusterNativeProxy(TestChaosMetaCluster):
         create("chaos_replicated_table", "//tmp/crt", attributes={"chaos_cell_bundle": "c", "schema": sorted_schema})
 
         card_id = get("//tmp/crt/@replication_card_id")
+
+        cell_id1 = self._sync_create_chaos_cell(peer_cluster_names=peer_cluster_names)
+        cell_id2 = self._sync_create_chaos_cell(peer_cluster_names=peer_cluster_names)
 
         replicas = [
             {"cluster_name": "primary", "content_type": "data", "mode": "async", "enabled": True, "replica_path": "//tmp/q0"},
@@ -5631,10 +5632,6 @@ class TestChaosMetaClusterNativeProxy(TestChaosMetaCluster):
                 f"//sys/cluster_nodes/{peer}/orchid/chaos_cells/{cell}/chaos_manager/replication_cards/{card_id}",
                 driver=driver
             )
-
-        replication_card = _get_replication_card(cell_id, card_id, driver0)
-        assert len(replication_card["coordinators"]) == 3
-        assert cell_id1 in replication_card["coordinators"]
 
         replication_card = _get_replication_card(cell_id, card_id, driver0)
         assert len(replication_card["coordinators"]) == 3
@@ -5667,6 +5664,12 @@ class TestChaosMetaClusterNativeProxy(TestChaosMetaCluster):
 
         migrate_replication_cards(cell_id, [card_id], destination_cell_id=cell_id2)
 
+        wait(lambda: len(_get_replication_card(cell_id, card_id, driver0)["coordinators"]) == 1)
+        replication_card = _get_replication_card(cell_id, card_id, driver0)
+        assert len(replication_card["coordinators"]) == 1
+        assert cell_id1 in replication_card["coordinators"]
+        assert replication_card["coordinators"][cell_id1] == "revoking"
+
         execute_command(
             "forsake_chaos_coordinator",
             parameters={
@@ -5690,8 +5693,6 @@ class TestChaosMetaClusterNativeProxy(TestChaosMetaCluster):
         peer_cluster_names = [cluster_names[0]]
 
         cell_id = self._sync_create_chaos_bundle_and_cell(peer_cluster_names=peer_cluster_names)
-        cell_id1 = self._sync_create_chaos_cell(peer_cluster_names=peer_cluster_names)
-        cell_id2 = self._sync_create_chaos_cell(peer_cluster_names=peer_cluster_names)
         driver0 = self._get_drivers()[0]
 
         set("//sys/chaos_cell_bundles/c/@metadata_cell_id", cell_id)
@@ -5700,6 +5701,9 @@ class TestChaosMetaClusterNativeProxy(TestChaosMetaCluster):
         create("chaos_replicated_table", "//tmp/crt", attributes={"chaos_cell_bundle": "c", "schema": sorted_schema})
 
         card_id = get("//tmp/crt/@replication_card_id")
+
+        cell_id1 = self._sync_create_chaos_cell(peer_cluster_names=peer_cluster_names)
+        cell_id2 = self._sync_create_chaos_cell(peer_cluster_names=peer_cluster_names)
 
         replicas = [
             {"cluster_name": "primary", "content_type": "data", "mode": "async", "enabled": True, "replica_path": "//tmp/q0"},
@@ -5718,10 +5722,6 @@ class TestChaosMetaClusterNativeProxy(TestChaosMetaCluster):
                 f"//sys/cluster_nodes/{peer}/orchid/chaos_cells/{cell}/chaos_manager/replication_cards/{card_id}",
                 driver=driver
             )
-
-        replication_card = _get_replication_card(cell_id, card_id, driver0)
-        assert len(replication_card["coordinators"]) == 3
-        assert cell_id1 in replication_card["coordinators"]
 
         replication_card = _get_replication_card(cell_id, card_id, driver0)
         assert len(replication_card["coordinators"]) == 3
