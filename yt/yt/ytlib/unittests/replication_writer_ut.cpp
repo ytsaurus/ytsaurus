@@ -139,7 +139,7 @@ public:
 
         if (NetThrottling_) {
             response->set_net_throttling(true);
-            response->set_net_queue_size(10000);
+            response->set_net_queue_size(10_KB);
         } else {
             response->set_net_throttling(false);
             response->set_net_queue_size(0);
@@ -270,7 +270,7 @@ public:
                 return;
             } else {
                 response->set_net_throttling(true);
-                response->set_net_queue_size(1000);
+                response->set_net_queue_size(10_KB);
                 context->Reply();
             }
             return;

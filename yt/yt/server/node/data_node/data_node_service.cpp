@@ -624,29 +624,31 @@ private:
 
         if (enableSendBlocksNetThrottling && netThrottling.Enabled) {
             context->Reply();
-        } else {
-            auto fraction = GetFallbackTimeoutFraction().value_or(1);
-            auto timeout = *context->GetTimeout() * fraction;
-            context->ReplyFrom(session->SendBlocks(firstBlockIndex, blockCount, cumulativeBlockSize, timeout, enableSendBlocksNetThrottling, targetDescriptor)
-                .Apply(BIND([=] (const TErrorOr<ISession::TSendBlocksResult>& errorOrRsp) {
-                    if (errorOrRsp.IsOK()) {
-                        if (errorOrRsp.Value().NetThrottling) {
-                            response->set_net_throttling(true);
-                            return TError();
-                        }
-
-                        YT_VERIFY(errorOrRsp.Value().TargetNodePutBlocksResult != nullptr);
-                        response->set_close_demanded(errorOrRsp.Value().TargetNodePutBlocksResult->close_demanded());
-                        return TError();
-                    } else {
-                        return TError(
-                            NChunkClient::EErrorCode::SendBlocksFailed,
-                            "Error putting blocks to %v",
-                            targetDescriptor.GetDefaultAddress())
-                            << errorOrRsp;
-                    }
-                })));
+            return;
         }
+
+        auto fraction = GetFallbackTimeoutFraction().value_or(1);
+        auto timeout = *context->GetTimeout() * fraction;
+        context->ReplyFrom(session->SendBlocks(firstBlockIndex, blockCount, cumulativeBlockSize, timeout, enableSendBlocksNetThrottling, targetDescriptor)
+            .Apply(BIND([=] (const TErrorOr<ISession::TSendBlocksResult>& rspOrError) {
+                if (rspOrError.IsOK()) {
+                    const auto& rsp = rspOrError.Value();
+                    if (rsp.NetThrottling) {
+                        response->set_net_throttling(true);
+                        return TError();
+                    }
+
+                    YT_VERIFY(rsp.TargetNodePutBlocksResult);
+                    response->set_close_demanded(rsp.TargetNodePutBlocksResult->close_demanded());
+                    return TError();
+                } else {
+                    return TError(
+                        NChunkClient::EErrorCode::SendBlocksFailed,
+                        "Error putting blocks to %v",
+                        targetDescriptor.GetDefaultAddress())
+                        << rspOrError;
+                }
+            })));
     }
 
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, FlushBlocks)

@@ -895,10 +895,10 @@ TFuture<TBlobSession::TSendBlocksResult> TBlobSession::DoSendBlocks(
 
     const auto& throttler = Bootstrap_->GetOutThrottler(Options_.WorkloadDescriptor);
     auto netIsThrottling = !throttler->TryAcquire(requestSize);
-    TFuture<void> throttleFuture = VoidFuture;
+    auto throttleFuture = VoidFuture;
     if (netIsThrottling) {
         if (instantReplyOnThrottling) {
-            return MakeFuture<TSendBlocksResult>(TSendBlocksResult{.NetThrottling = true, .TargetNodePutBlocksResult = nullptr});
+            return MakeFuture<TSendBlocksResult>(TSendBlocksResult{.NetThrottling = true});
         } else {
             throttleFuture = throttler->Throttle(requestSize);
         }
@@ -908,7 +908,7 @@ TFuture<TBlobSession::TSendBlocksResult> TBlobSession::DoSendBlocks(
         .Apply(BIND([=] {
             return req->Invoke();
         }))
-        .Apply(BIND([&] (const TDataNodeServiceProxy::TRspPutBlocksPtr& rsp) {
+        .ApplyUnique(BIND([] (TDataNodeServiceProxy::TRspPutBlocksPtr&& rsp) {
             return TSendBlocksResult{.NetThrottling = false, .TargetNodePutBlocksResult = std::move(rsp)};
         }));
 }
