@@ -5,8 +5,9 @@ SRCS(
 )
 
 PEERDIR(
-    library/cpp/threading/future
     library/cpp/threading/cancellation
+    library/cpp/threading/future
+    library/cpp/threading/task_scheduler
 )
 
 END()

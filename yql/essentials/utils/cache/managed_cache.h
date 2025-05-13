@@ -4,7 +4,7 @@
 #include "managed_cache_storage.h"
 #include "managed_cache_maintenance.h"
 
-#include <util/thread/factory.h>
+#include <library/cpp/threading/task_scheduler/task_scheduler.h>
 
 namespace NYql {
 
@@ -14,18 +14,22 @@ namespace NYql {
         using TPtr = TIntrusivePtr<TManagedCache>;
 
         TManagedCache(
-            IThreadFactory* executor,
+            TTaskScheduler& scheduler,
             TManagedCacheConfig config,
             TManagedCacheStorage<TKey, TValue>::TQuery query,
             TIntrusivePtr<IManagedCacheListener> listener)
             : Storage_(new TManagedCacheStorage<TKey, TValue>(std::move(query), listener))
         {
             auto token = Cancellation_.Token();
-            MaintenanceThread_ = executor->Run(
-                [storage = Storage_, config, listener, token]() {
-                    TManagedCacheMaintenance<TKey, TValue>(storage, config, listener)
-                        .Run(token);
-                });
+            TManagedCacheMaintenance<TKey, TValue> maintenance(Storage_, config, listener);
+            const auto tick = [token, maintenance]() mutable -> bool {
+                if (token.IsCancellationRequested()) {
+                    return false;
+                }
+                maintenance.Tick();
+                return true;
+            };
+            Y_ENSURE(scheduler.AddRepeatedFunc(tick, config.UpdatePeriod));
         }
 
         NThreading::TFuture<TValue> Get(const TKey& key) const {
@@ -34,23 +38,21 @@ namespace NYql {
 
         ~TManagedCache() {
             Cancellation_.Cancel();
-            MaintenanceThread_->Join();
         }
 
     private:
         TManagedCacheStorage<TKey, TValue>::TPtr Storage_;
         NThreading::TCancellationTokenSource Cancellation_;
-        THolder<IThreadFactory::IThread> MaintenanceThread_;
     };
 
     template <NPrivate::CCacheKey TKey, NPrivate::CCacheValue TValue>
     TManagedCache<TKey, TValue>::TPtr StartManagedCache(
-        IThreadFactory* executor,
+        TTaskScheduler& scheduler,
         TManagedCacheConfig config,
         typename TManagedCacheStorage<TKey, TValue>::TQuery query,
         TIntrusivePtr<IManagedCacheListener> listener = new IManagedCacheListener()) {
         return new TManagedCache<TKey, TValue>(
-            executor,
+            scheduler,
             std::move(config),
             std::move(query),
             std::move(listener));

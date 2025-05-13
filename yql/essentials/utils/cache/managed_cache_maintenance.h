@@ -38,13 +38,6 @@ namespace NYql {
                 "EvictionFrequency must be in [1, 10'000], got " << Config_.UpdatesPerEviction);
         }
 
-        void Run(NThreading::TCancellationToken token) {
-            while (!token.IsCancellationRequested()) {
-                Tick();
-                Sleep(Config_.UpdatePeriod);
-            }
-        }
-
         void Tick() try {
             Listener_->OnTickBegin();
             Tick_ += 1;

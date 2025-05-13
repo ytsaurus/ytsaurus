@@ -5,6 +5,7 @@
 
 #include <library/cpp/threading/future/async.h>
 #include <library/cpp/threading/cancellation/cancellation_token.h>
+#include <library/cpp/threading/task_scheduler/task_scheduler.h>
 #include <library/cpp/iterator/enumerate.h>
 
 #include <util/system/mutex.h>
@@ -77,9 +78,8 @@ Y_UNIT_TEST_SUITE(TManagedCacheTests) {
             .UpdatesPerEviction = 3,
         };
 
-        auto cache_pool = CreateThreadPool(/* threadCount = */ 2);
-        auto cache = StartManagedCache<TKey, TValue>(
-            cache_pool.Get(), config, service.QueryFunc());
+        TTaskScheduler scheduler(/* threadCount = */ 1);
+        auto cache = StartManagedCache<TKey, TValue>(scheduler, config, service.QueryFunc());
 
         const auto client_pool = CreateThreadPool(/* threadCount = */ 8);
         TVector<NThreading::TFuture<TValue>> futures;
