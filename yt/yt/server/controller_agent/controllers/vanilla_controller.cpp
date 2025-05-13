@@ -468,7 +468,7 @@ void TVanillaController::CustomMaterialize()
 
     for (const auto& [taskName, taskSpec] : Spec_->Tasks) {
         std::vector<TOutputStreamDescriptorPtr> streamDescriptors;
-        int taskIndex = Tasks.size();
+        int taskIndex = Tasks_.size();
         TotalTargetJobCount_ += taskSpec->JobCount;
         for (int index = 0; index < std::ssize(TaskOutputTables_[taskIndex]); ++index) {
             auto streamDescriptor = TaskOutputTables_[taskIndex][index]->GetStreamDescriptorTemplate(index)->Clone();
@@ -630,7 +630,7 @@ void TVanillaController::ValidateSnapshot() const
             "and not all jobs have already been started according to the operation snapshot "
             "(i.e. not all jobs are running or completed)")
             << TErrorAttribute("reason", EFailOnJobRestartReason::JobCountMismatchAfterRevival)
-            << TErrorAttribute("operation_type", OperationType)
+            << TErrorAttribute("operation_type", OperationType_)
             << TErrorAttribute("expected_job_count", expectedJobCount)
             << TErrorAttribute("started_job_count", startedJobCount);
     }
@@ -1026,7 +1026,7 @@ bool TGangOperationController::OnJobCompleted(
     TJobletPtr joblet,
     std::unique_ptr<TCompletedJobSummary> jobSummary)
 {
-    YT_ASSERT_INVOKER_AFFINITY(GetCancelableInvoker(Config->JobEventsControllerQueue));
+    YT_ASSERT_INVOKER_AFFINITY(GetCancelableInvoker(Config_->JobEventsControllerQueue));
 
     auto interruptionReason = jobSummary->InterruptionReason;
 
@@ -1048,7 +1048,7 @@ bool TGangOperationController::OnJobFailed(
     TJobletPtr joblet,
     std::unique_ptr<TFailedJobSummary> jobSummary)
 {
-    YT_ASSERT_INVOKER_AFFINITY(GetCancelableInvoker(Config->JobEventsControllerQueue));
+    YT_ASSERT_INVOKER_AFFINITY(GetCancelableInvoker(Config_->JobEventsControllerQueue));
 
     if (!TOperationControllerBase::OnJobFailed(joblet, std::move(jobSummary))) {
         return false;
@@ -1068,7 +1068,7 @@ bool TGangOperationController::OnJobAborted(
     TJobletPtr joblet,
     std::unique_ptr<TAbortedJobSummary> jobSummary)
 {
-    YT_ASSERT_INVOKER_AFFINITY(GetCancelableInvoker(Config->JobEventsControllerQueue));
+    YT_ASSERT_INVOKER_AFFINITY(GetCancelableInvoker(Config_->JobEventsControllerQueue));
 
     if (!TOperationControllerBase::OnJobAborted(joblet, std::move(jobSummary))) {
         return false;
@@ -1092,7 +1092,7 @@ TJobletPtr TGangOperationController::CreateJoblet(
     std::optional<TString> poolPath,
     bool treeIsTentative)
 {
-    YT_ASSERT_INVOKER_POOL_AFFINITY(CancelableInvokerPool);
+    YT_ASSERT_INVOKER_POOL_AFFINITY(CancelableInvokerPool_);
 
     auto joblet = New<TGangJoblet>(
         task,
@@ -1115,9 +1115,9 @@ void TGangOperationController::TrySwitchToNewOperationIncarnation(
     bool operationIsReviving,
     EOperationIncarnationSwitchReason reason)
 {
-    YT_ASSERT_INVOKER_AFFINITY(GetCancelableInvoker(Config->JobEventsControllerQueue));
+    YT_ASSERT_INVOKER_AFFINITY(GetCancelableInvoker(Config_->JobEventsControllerQueue));
 
-    if (auto state = State.load(); state != EControllerState::Running) {
+    if (auto state = State_.load(); state != EControllerState::Running) {
         YT_LOG_INFO("Operation is not running, skip switching to new incarnation (State: %v)", state);
         return;
     }
@@ -1132,7 +1132,7 @@ void TGangOperationController::TrySwitchToNewOperationIncarnation(
 // We could avoid this problem if node will know operation incarnation of jobs, but I'm not sure that this case is important.
 void TGangOperationController::RestartAllRunningJobsPreservingAllocations(bool operationIsReviving)
 {
-    YT_ASSERT_INVOKER_AFFINITY(GetCancelableInvoker(Config->JobEventsControllerQueue));
+    YT_ASSERT_INVOKER_AFFINITY(GetCancelableInvoker(Config_->JobEventsControllerQueue));
 
     auto abortReason = EAbortReason::OperationIncarnationChanged;
 
@@ -1155,7 +1155,7 @@ void TGangOperationController::RestartAllRunningJobsPreservingAllocations(bool o
             // 2) Job tracker doesn't expect running job releasing (intentionally).
             // 3) We can't schedule new job before aborting old one.
             // TODO(pogorelov): It could be fixed by defering job releasing untill the end of method, think about it.
-            Host->AbortJob(jobId, abortReason, /*requestNewJob*/ true);
+            Host_->AbortJob(jobId, abortReason, /*requestNewJob*/ true);
 
             if ([[maybe_unused]] auto operationFinished = !OnJobAborted(joblet, std::make_unique<TAbortedJobSummary>(jobId, abortReason))) {
                 YT_LOG_DEBUG("Operation finished during restarting jobs (JobId: %v)", jobId);
@@ -1241,7 +1241,7 @@ void TGangOperationController::ReportOperationIncarnationToArchive(const TGangJo
 
 void TGangOperationController::OnJobStarted(const TJobletPtr& joblet)
 {
-    YT_ASSERT_INVOKER_POOL_AFFINITY(InvokerPool);
+    YT_ASSERT_INVOKER_POOL_AFFINITY(InvokerPool_);
 
     TOperationControllerBase::OnJobStarted(joblet);
     ReportOperationIncarnationToArchive(StaticPointerCast<TGangJoblet>(joblet));
@@ -1314,7 +1314,7 @@ std::optional<TJobMonitoringDescriptor> TGangOperationController::AcquireMonitor
 
 void TGangOperationController::OnOperationIncarnationChanged(bool operationIsReviving, EOperationIncarnationSwitchReason reason)
 {
-    YT_ASSERT_INVOKER_POOL_AFFINITY(InvokerPool);
+    YT_ASSERT_INVOKER_POOL_AFFINITY(InvokerPool_);
 
     TForbidContextSwitchGuard guard;
 
@@ -1330,7 +1330,7 @@ bool TGangOperationController::IsOperationGang() const noexcept
 
 void TGangOperationController::SwitchToNewOperationIncarnation(bool operationIsReviving, EOperationIncarnationSwitchReason reason)
 {
-    YT_ASSERT_INVOKER_AFFINITY(GetCancelableInvoker(Config->JobEventsControllerQueue));
+    YT_ASSERT_INVOKER_AFFINITY(GetCancelableInvoker(Config_->JobEventsControllerQueue));
 
     auto oldIncarnation = std::exchange(Incarnation_, GenerateNewIncarnation());
 
@@ -1345,7 +1345,7 @@ void TGangOperationController::SwitchToNewOperationIncarnation(bool operationIsR
 
 void TGangOperationController::VerifyJobsIncarnationsEqual() const
 {
-    YT_ASSERT_INVOKER_POOL_AFFINITY(InvokerPool);
+    YT_ASSERT_INVOKER_POOL_AFFINITY(InvokerPool_);
 
     if (empty(AllocationMap_)) {
         return;
@@ -1367,7 +1367,7 @@ void TGangOperationController::VerifyJobsIncarnationsEqual() const
 
 std::optional<EOperationIncarnationSwitchReason> TGangOperationController::ShouldRestartJobsOnRevival() const
 {
-    YT_ASSERT_INVOKER_POOL_AFFINITY(InvokerPool);
+    YT_ASSERT_INVOKER_POOL_AFFINITY(InvokerPool_);
 
     VerifyJobsIncarnationsEqual();
 
@@ -1410,7 +1410,7 @@ std::optional<EOperationIncarnationSwitchReason> TGangOperationController::Shoul
 
 void TGangOperationController::OnOperationRevived()
 {
-    YT_ASSERT_INVOKER_POOL_AFFINITY(InvokerPool);
+    YT_ASSERT_INVOKER_POOL_AFFINITY(InvokerPool_);
 
     TOperationControllerBase::OnOperationRevived();
 
@@ -1425,7 +1425,7 @@ void TGangOperationController::OnOperationRevived()
 
 void TGangOperationController::BuildControllerInfoYson(TFluentMap fluent) const
 {
-    YT_ASSERT_INVOKER_POOL_AFFINITY(InvokerPool);
+    YT_ASSERT_INVOKER_POOL_AFFINITY(InvokerPool_);
 
     TOperationControllerBase::BuildControllerInfoYson(fluent);
 
