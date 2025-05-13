@@ -954,7 +954,7 @@ public:
         TransactionAborted_.Fire(transaction);
 
         auto sequoiaContext = MaybeCreateSequoiaContextGuard(transaction);
-        RunAbortTransactionActions(transaction, options);
+        RunAbortTransactionActions(transaction, options, /*requireLegacyBehavior*/ false);
 
         const auto& objectManager = Bootstrap_->GetObjectManager();
         for (const auto& entry : transaction->ExportedObjects()) {
@@ -1420,7 +1420,8 @@ public:
             leaseAgnosticPrerequisiteTransactionIds.reserve(prerequisiteTransactionIds.size());
             leaseAwarePrerequisiteTransactionIds.reserve(prerequisiteTransactionIds.size());
             for (auto transactionId : prerequisiteTransactionIds) {
-                if (IsMirroringToSequoiaEnabled() && IsCypressTransactionMirroredToSequoia(transactionId) &&
+                if (IsMirroringToSequoiaEnabled() &&
+                    IsCypressTransactionMirroredToSequoia(transactionId) &&
                     GetDynamicConfig()->EnableCypressMirroredToSequoiaPrerequisiteTransactionValidationViaLeases)
                 {
                     leaseAwarePrerequisiteTransactionIds.push_back(transactionId);

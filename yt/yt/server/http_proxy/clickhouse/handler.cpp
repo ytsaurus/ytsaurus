@@ -289,13 +289,13 @@ private:
         TString Token;
     };
 
-    TErrorOr<TUserAndToken> ParseUserAndTokenFromAuthorizationHeader(const TString& authorization) const
+    TErrorOr<TUserAndToken> ParseUserAndTokenFromAuthorizationHeader(TStringBuf authorization) const
     {
         TErrorOr<TUserAndToken> result;
 
         YT_LOG_DEBUG("Parsing token from Authorization header");
         // Two supported Authorization kinds are "Basic <base64(clique-id:oauth-token)>" and "OAuth <oauth-token>".
-        auto authorizationTypeAndCredentials = SplitString(authorization, " ", 2);
+        auto authorizationTypeAndCredentials = SplitString(TString(authorization), " ", 2);
         const auto& authorizationType = authorizationTypeAndCredentials[0];
         if (authorizationType == "OAuth" && authorizationTypeAndCredentials.size() == 2) {
             result = TUserAndToken{.Token=std::move(authorizationTypeAndCredentials[1])};
@@ -312,7 +312,8 @@ private:
 
         } else {
             return TError("Unsupported type of authorization header (AuthorizationType: %v, TokenCount: %v)",
-                            authorizationType, authorizationTypeAndCredentials.size());
+                authorizationType,
+                authorizationTypeAndCredentials.size());
         }
         YT_LOG_DEBUG("Token parsed (AuthorizationType: %v)", authorizationType);
 
@@ -528,7 +529,7 @@ private:
         const auto* xClickHouseKey = headers->Find("X-ClickHouse-Key");
         const auto* xClickHouseUser = headers->Find("X-ClickHouse-User");
 
-        auto hasHeader = [](const TString* headerValue) -> bool {
+        auto hasHeader = [](const std::string* headerValue) -> bool {
             return headerValue && !headerValue->empty();
         };
 
@@ -537,7 +538,8 @@ private:
         } else if (hasHeader(xClickHouseKey) || hasHeader(xClickHouseUser)) {
             result = TUserAndToken{
                 xClickHouseUser ? *xClickHouseUser : "",
-                xClickHouseKey ? *xClickHouseKey : ""
+                // TODO(babenko): switch to std::string
+                TString(xClickHouseKey ? *xClickHouseKey : ""),
             };
         } else if (CgiParameters_.Has("user") || CgiParameters_.Has("password")) {
             result = TUserAndToken{CgiParameters_.Get("user"), CgiParameters_.Get("password")};
@@ -1370,7 +1372,7 @@ void TClickHouseHandler::UpdateOperationIds()
     THashMap<TString, TOperationId> aliasToOperationId;
     try {
         TListNodeOptions options;
-        options.ReadFrom = EMasterChannelKind::MasterCache;
+        options.ReadFrom = Bootstrap_->GetConfig()->ClickHouse->ReadOperationIdsFrom;
         options.Attributes = {"strawberry_persistent_state"};
         auto listResult = WaitFor(Client_->ListNode(Config_->ChytStrawberryPath, options))
             .ValueOrThrow();

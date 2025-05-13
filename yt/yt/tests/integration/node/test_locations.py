@@ -185,10 +185,8 @@ class TestPerLocationFullHeartbeats(YTEnvSetup):
         with Restarter(self.Env, NODES_SERVICE, sync=False):
             pass
 
-        time.sleep(3)
-
         # Full heartbeat is in session.
-        assert get(f"//sys/cluster_nodes/{node}/@state") == "registered"
+        wait(lambda: get(f"//sys/cluster_nodes/{node}/@state") == "registered")
 
         set("//sys/@config/chunk_manager/data_node_tracker/enable_per_location_full_heartbeats", False)
 

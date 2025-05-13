@@ -1111,7 +1111,7 @@ struct TDataNodeDynamicConfig
 
     TLocationHealthCheckerDynamicConfigPtr LocationHealthChecker;
 
-    THashMap<TString, TStoreLocationDynamicConfigPtr> StoreLocationConfigPerMedium;
+    THashMap<std::string, TStoreLocationDynamicConfigPtr> StoreLocationConfigPerMedium;
 
     std::optional<i64> NetOutThrottlingLimit;
 

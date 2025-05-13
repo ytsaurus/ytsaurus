@@ -71,6 +71,7 @@ class TestClickHouseHttpProxy(ClickHouseTestBase):
             },
             "operation_id_update_period": 100,
             "populate_user_with_token": True,
+            "read_operation_ids_from": "follower",
         },
     }
 

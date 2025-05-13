@@ -30,7 +30,7 @@ static constexpr auto& Logger = TabletNodeLogger;
 struct TResourceLimitsKey
 {
     std::string Account;
-    TString MediumName;
+    std::string MediumName;
     std::optional<TString> TabletCellBundle;
     EInMemoryMode InMemoryMode;
 
@@ -234,7 +234,7 @@ public:
 
     TFuture<void> CheckResourceLimits(
         const std::string& account,
-        const TString& mediumName,
+        const std::string& mediumName,
         const std::optional<TString>& tabletCellBundle,
         EInMemoryMode inMemoryMode)
     {
@@ -248,7 +248,7 @@ public:
 
     void ValidateResourceLimits(
         const std::string& account,
-        const TString& mediumName,
+        const std::string& mediumName,
         const std::optional<TString>& tabletCellBundle,
         EInMemoryMode inMemoryMode)
     {
@@ -293,7 +293,7 @@ TFuture<void> TSecurityManager::CheckResourceLimits(
 
 void TSecurityManager::ValidateResourceLimits(
     const std::string& account,
-    const TString& mediumName,
+    const std::string& mediumName,
     const std::optional<TString>& tabletCellBundle,
     EInMemoryMode inMemoryMode)
 {

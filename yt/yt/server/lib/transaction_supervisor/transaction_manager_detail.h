@@ -37,7 +37,9 @@ protected:
         TTransaction* transaction,
         const TTransactionPrepareOptions& options);
     void RunCommitTransactionActions(TTransaction* transaction, const TTransactionCommitOptions& options);
-    void RunAbortTransactionActions(TTransaction* transaction, const TTransactionAbortOptions& options);
+    // COMPAT(kvk1920): drop #requireLegacyBehavior after both Chaos and tablet
+    // reigns |FixTransactionActionAbort| are removed.
+    void RunAbortTransactionActions(TTransaction* transaction, const TTransactionAbortOptions& options, bool requireLegacyBehavior);
     void RunSerializeTransactionActions(TTransaction* transaction);
 };
 

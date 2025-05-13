@@ -1099,6 +1099,17 @@ class TestAlternativeLookupMethods(TestSortedDynamicTablesBase):
     ENABLE_MULTIDAEMON = True
     NUM_TEST_PARTITIONS = 2
 
+    DELTA_NODE_CONFIG = {
+        "resource_limits": {
+            "memory_limits": {
+                "lookup_rows_cache": {
+                    "type": "static",
+                    "value": 100 * 1024,
+                },
+            },
+        },
+    }
+
     @authors("akozhikhov")
     @pytest.mark.parametrize("enable_data_node_lookup", [False, True])
     @pytest.mark.parametrize("enable_hash_chunk_index", [False, True])
@@ -2130,7 +2141,6 @@ class TestLookupSequoia(TestLookup):
     USE_SEQUOIA = True
     ENABLE_CYPRESS_TRANSACTIONS_IN_SEQUOIA = True
     ENABLE_TMP_ROOTSTOCK = True
-    NUM_CYPRESS_PROXIES = 1
     NUM_SECONDARY_MASTER_CELLS = 2
     NUM_TEST_PARTITIONS = 3
 

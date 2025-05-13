@@ -1015,7 +1015,7 @@ struct TOperationSpecBase
     //! SyncOnClose option for intermediate data.
     bool IntermediateDataSyncOnClose;
 
-    TString IntermediateDataMediumName;
+    std::string IntermediateDataMediumName;
 
     //! Table writer config for the data that will be written to the fast medium (SSD) in the default intermediate account.
     TFastIntermediateMediumTableWriterConfigPtr FastIntermediateMediumTableWriterConfig;

@@ -54,6 +54,7 @@ struct TJobWorkspaceBuildingContext
     std::vector<TShellCommandConfigPtr> GpuCheckSetupCommands;
     std::optional<TString> GpuCheckBinaryPath;
     std::optional<std::vector<TString>> GpuCheckBinaryArgs;
+    std::optional<TNetworkAttributes> GpuCheckNetworkAttributes;
     std::optional<THashMap<TString, TString>> GpuCheckEnvironment;
     EGpuCheckType GpuCheckType;
     std::vector<NContainers::TDevice> GpuDevices;
@@ -66,6 +67,7 @@ struct TJobWorkspaceBuildingResult
     IVolumePtr RootVolume;
     IVolumePtr GpuCheckVolume;
     std::optional<TString> DockerImage;
+    std::optional<TString> DockerImageId;
     std::vector<TString> TmpfsPaths;
     std::vector<NContainers::TBind> RootBinds;
     int SetupCommandCount = 0;

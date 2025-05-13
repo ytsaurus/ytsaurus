@@ -1175,7 +1175,7 @@ private:
                 &TImpl::OnAtomicTransactionCommitted<TCypressTransactionServiceProxy::TErrorOrRspCommitTransactionPtr>,
                 MakeStrong(this),
                 CoordinatorCellId_,
-                /*commitOptions*/ nullptr));
+                Passed(std::make_unique<TTransactionCommitOptions>(std::move(options)))));
     }
 
     TFuture<TTransactionCommitResult> DoCommitTransaction(const TTransactionCommitOptions& options, bool dynamicTablesLocked = false)

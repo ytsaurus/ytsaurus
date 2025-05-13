@@ -347,6 +347,9 @@ struct TJobProxyInternalConfig
     //! Docker image to build root volume as part of a container.
     std::optional<TString> DockerImage;
 
+    //! Docker image id in local cache.
+    std::optional<TString> DockerImageId;
+
     // COMPAT(artemagafonov): RootFS is always writable, so the flag should be removed after the update of all nodes.
     bool MakeRootFSWritable;
 
@@ -461,6 +464,8 @@ struct TJobProxyInternalConfig
 
     i64 AdaptiveRowCountUpperBound;
 
+    bool UseNewDeliveryFencedConnection;
+
     //! Enable root volume disk quota.
     //! Apply the quota to the entire root filesystem instead of the sandbox and tmp folders individually.
     bool EnableRootVolumeDiskQuota;
@@ -509,6 +514,7 @@ struct TJobProxyDynamicConfig
     NJobProxy::TJobTraceEventProcessorConfigPtr JobTraceEventProcessor;
 
     i64 AdaptiveRowCountUpperBound;
+    bool UseNewDeliveryFencedConnection;
 
     std::optional<TString> MemoryProfileDumpPath;
 

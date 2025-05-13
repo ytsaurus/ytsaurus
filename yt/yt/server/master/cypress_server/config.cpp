@@ -99,6 +99,9 @@ void TDynamicCypressManagerConfig::Register(TRegistrar registrar)
         .Default()
         .GreaterThanOrEqual(1);
 
+    registrar.Parameter("enable_virtual_map_read_offload_authenticated_user_propagation", &TThis::EnableVirtualMapReadOffloadAuthenticatedUserPropagation)
+        .Default(true);
+
     registrar.Parameter("cross_cell_copy_max_subtree_size", &TThis::CrossCellCopyMaxSubtreeSize)
         .Default(100'000)
         .GreaterThanOrEqual(0);

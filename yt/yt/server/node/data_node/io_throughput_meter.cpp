@@ -558,7 +558,7 @@ private:
 
     TMediumThroughputMeterConfigPtr GetMediumConfig(
         TIOThroughputMeterConfigPtr config,
-        const TString& medium)
+        const std::string& medium)
     {
         for (const auto& mediumConfig : config->Media) {
             if (mediumConfig->MediumName == medium) {

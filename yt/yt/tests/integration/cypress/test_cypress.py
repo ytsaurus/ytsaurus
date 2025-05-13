@@ -63,6 +63,7 @@ class TestCypress(YTEnvSetup):
 
     NUM_MASTERS = 3
     NUM_NODES = 0
+    NUM_CYPRESS_PROXIES = 2
 
     @authors("babenko")
     def test_root(self):
@@ -1080,10 +1081,13 @@ class TestCypress(YTEnvSetup):
         tx1 = start_transaction()
         move("//tmp/t1", "//tmp/t2", tx=tx1)
         tx2 = start_transaction()
-        with raises_yt_error("Cannot take \"exclusive\" lock for node //tmp/t1 "
-                             "since \"exclusive\" lock is taken by concurrent "
-                             f"transaction {tx1}"):
+        with raises_yt_error() as err:
             move("//tmp/t1", "//tmp/t3", tx=tx2)
+        assert \
+            f"Cannot take \"exclusive\" lock for node //tmp/t1 since \"exclusive\" lock is taken by concurrent transaction {tx1}" \
+            in str(err) or \
+            f"Cannot take lock for child \"t1\" of node //tmp since this child is locked by concurrent transaction {tx1}" \
+            in str(err)
 
     @authors("babenko")
     def test_move_tx_locking2(self):
@@ -1093,10 +1097,13 @@ class TestCypress(YTEnvSetup):
         tx3 = start_transaction(tx=tx1)
         move("//tmp/t1", "//tmp/t2", tx=tx1)
         move("//tmp/t2", "//tmp/t3", tx=tx2)
-        with raises_yt_error("Cannot take \"exclusive\" lock for node //tmp/t2 "
-                             "since \"exclusive\" lock is taken by concurrent "
-                             f"transaction {tx2}"):
+        with raises_yt_error() as err:
             move("//tmp/t2", "//tmp/t4", tx=tx3)
+        assert \
+            f"Cannot take \"exclusive\" lock for node //tmp/t2 since \"exclusive\" lock is taken by concurrent transaction {tx2}" \
+            in str(err) or \
+            f"Cannot take lock for child \"t2\" of node //tmp since this child is locked by concurrent transaction {tx2}" \
+            in str(err)
 
     @authors("ignat")
     def test_embedded_attributes(self):
@@ -4270,6 +4277,26 @@ class TestCypressMulticell(TestCypress):
         create("table", "//tmp/t", attributes={"external_cell_bias": 3.0})
         assert not exists("//tmp/t/@external_cell_bias")
 
+    @authors("shakurov")
+    @pytest.mark.parametrize("use_offloading", [False, True])
+    def test_virtual_map_read_authenticated_user_propagation(self, use_offloading):
+        if use_offloading:
+            set("//sys/@config/cypress_manager/virtual_map_read_offload_batch_size", 2)
+        else:
+            remove("//sys/@config/cypress_manager/virtual_map_read_offload_batch_size", force=True)
+
+        create_user("u")
+        set("//sys/users/u/@banned", True, driver=get_driver(1))
+        set("//sys/users/u/@banned", True, driver=get_driver(2))
+
+        create_tablet_cell_bundle("tcb")
+
+        # Must not raise.
+        get("//sys/tablet_cell_bundles/@count") == 1
+
+        with raises_yt_error("is banned"):
+            ls("//sys/tablet_cell_bundles", attributes=["tablet_actions"], authenticated_user="u")
+
 
 ##################################################################
 
@@ -4467,8 +4494,6 @@ class TestCypressMirroredTx(TestCypressShardedTxCTxS):
     ENABLE_MULTIDAEMON = True
     USE_SEQUOIA = True
     ENABLE_CYPRESS_TRANSACTIONS_IN_SEQUOIA = True
-    ENABLE_TMP_ROOTSTOCK = False
-    NUM_CYPRESS_PROXIES = 1
     NUM_TEST_PARTITIONS = 9
 
     DELTA_CONTROLLER_AGENT_CONFIG = {
@@ -4480,12 +4505,6 @@ class TestCypressMirroredTx(TestCypressShardedTxCTxS):
             "forbid_transaction_actions_for_cypress_transactions": True,
         }
     }
-
-
-@pytest.mark.enabled_multidaemon
-class TestCypressCypressProxy(TestCypressShardedTx):
-    ENABLE_MULTIDAEMON = True
-    NUM_CYPRESS_PROXIES = 2
 
 
 ##################################################################
@@ -5098,7 +5117,6 @@ class TestCypressSequoia(TestCypressMulticell):
     USE_SEQUOIA = True
     ENABLE_CYPRESS_TRANSACTIONS_IN_SEQUOIA = True
     ENABLE_TMP_ROOTSTOCK = True
-    NUM_CYPRESS_PROXIES = 1
     NUM_SECONDARY_MASTER_CELLS = 3
     NUM_TEST_PARTITIONS = 12
 

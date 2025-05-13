@@ -19,20 +19,20 @@ using namespace NServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static INodePtr MimeTypeToFormatNode(const TString& mimeType)
+static INodePtr MimeTypeToFormatNode(TStringBuf mimeType)
 {
-    static const THashMap<TString, TString> MimeTypeToFormatTable = {
-        {"application/json", "json"},
+    static const THashMap<TStringBuf, TStringBuf> MimeTypeToFormatTable = {
+        {"application/json",                    "json"},
         {"application/x-yamr-delimited",        "<lenval=%false; has_subkey=%false>yamr"},
         {"application/x-yamr-lenval",           "<lenval=%true; has_subkey=%false>yamr"},
         {"application/x-yamr-subkey-delimited", "<lenval=%false; has_subkey=%true>yamr"},
         {"application/x-yamr-subkey-lenval",    "<lenval=%true; has_subkey=%true>yamr"},
-        {"application/x-yt-yson-binary", "<format=binary>yson"},
-        {"application/x-yt-yson-pretty", "<format=pretty>yson"},
-        {"application/x-yt-yson-text",   "<format=text>yson"},
-        {"text/csv",                  "<record_separator=\",\"; key_value_separator=\":\">dsv"},
-        {"text/tab-separated-values", "dsv"},
-        {"text/x-tskv",               "<line_prefix=tskv>dsv"},
+        {"application/x-yt-yson-binary",        "<format=binary>yson"},
+        {"application/x-yt-yson-pretty",        "<format=pretty>yson"},
+        {"application/x-yt-yson-text",          "<format=text>yson"},
+        {"text/csv",                            "<record_separator=\",\"; key_value_separator=\":\">dsv"},
+        {"text/tab-separated-values",           "dsv"},
+        {"text/x-tskv",                         "<line_prefix=tskv>dsv"},
     };
 
     auto format = MimeTypeToFormatTable.find(mimeType);
@@ -81,11 +81,11 @@ static INodePtr GetDefaultFormatNodeForDataType(EDataType dataType)
 
 TFormat InferFormat(
     const TFormatManager& formatManager,
-    const TString& ytHeaderName,
+    const std::string& ytHeaderName,
     const TFormat& ytHeaderFormat,
-    const std::optional<TString>& ytHeader,
-    const TString& mimeHeaderName,
-    const TString* mimeHeader,
+    const std::optional<std::string>& ytHeader,
+    const std::string& mimeHeaderName,
+    const std::string* mimeHeader,
     bool isOutput,
     EDataType dataType)
 {
@@ -121,7 +121,7 @@ TFormat InferFormat(
     return formatManager.ConvertToFormat(formatNode, Format("%v format inferred from data type %Qlv", direction, dataType));
 }
 
-TFormat InferHeaderFormat(const TFormatManager& formatManager, const TString* ytHeader)
+TFormat InferHeaderFormat(const TFormatManager& formatManager, const std::string* ytHeader)
 {
     if (!ytHeader) {
         return formatManager.ConvertToFormat(ConvertToNode(EFormatType::Json), "default header format");
@@ -129,7 +129,7 @@ TFormat InferHeaderFormat(const TFormatManager& formatManager, const TString* yt
 
     INodePtr formatNode;
     try {
-        TYsonString header(StripString(*ytHeader));
+        TYsonString header(StripString(TString(*ytHeader)));
         formatNode = ConvertTo<INodePtr>(header);
     } catch (const std::exception& ex) {
         THROW_ERROR_EXCEPTION("Unable to parse X-YT-Header-Format header")
@@ -204,7 +204,7 @@ TString FormatToMime(const NFormats::TFormat& format)
 }
 
 NYTree::INodePtr ConvertBytesToNode(
-    const TString& bytes,
+    TStringBuf bytes,
     const NFormats::TFormat& format)
 {
     TMemoryInput stream{bytes.data(), bytes.size()};
