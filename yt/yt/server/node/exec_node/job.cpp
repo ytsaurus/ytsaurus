@@ -980,6 +980,7 @@ void TJob::OnResultReceived(TJobResult jobResult)
                             if (nbdError.IsOK()) {
                                 nbdError = std::move(error);
                                 nbdError <<= TErrorAttribute("abort_reason", EAbortReason::NbdErrors);
+                                nbdError <<= TErrorAttribute("debug_info", device->DebugString());
                                 // Save job error as well.
                                 if (auto jobError = FromProto<TError>(jobResult.error()); !jobError.IsOK()) {
                                     nbdError <<= jobError;
