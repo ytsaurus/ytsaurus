@@ -7687,6 +7687,22 @@ TEST_F(TQueryEvaluateTest, YPathGetStringFail)
     SUCCEED();
 }
 
+TEST_F(TQueryEvaluateTest, CardinalityMergeMisuse)
+{
+    auto split = MakeSplit({
+        {"string", EValueType::String},
+    });
+
+    auto source = TSource{
+        "string=\"abc\"",
+        "string=\"def\"",
+    };
+
+    EvaluateExpectingError("cardinality_merge(string) as result FROM [//t] group by 1", split, source);
+
+    SUCCEED();
+}
+
 TEST_F(TQueryEvaluateTest, YPathGetAny)
 {
     auto split = MakeSplit({

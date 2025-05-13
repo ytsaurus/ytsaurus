@@ -3007,6 +3007,16 @@ void HyperLogLogMerge(void* hll1, void* hll2)
     hll1AtHost->Merge(*hll2AtHost);
 }
 
+void HyperLogLogMergeWithValidation(void* hll1, void* hll2, uint64_t incomingStateLength)
+{
+    THROW_ERROR_EXCEPTION_IF(incomingStateLength != sizeof(THLL),
+        "State size mismatch in hyperloglog, expected: %v, got: %v."
+        "This error potentially signals a misuse of cardinality_merge function",
+        sizeof(THLL),
+        incomingStateLength);
+    HyperLogLogMerge(hll1, hll2);
+}
+
 ui64 HyperLogLogEstimateCardinality(void* hll)
 {
     auto* hllAtHost = ConvertPointerFromWasmToHost(static_cast<THLL*>(hll));
@@ -4140,6 +4150,7 @@ REGISTER_ROUTINE(StringToDouble);
 REGISTER_ROUTINE(HyperLogLogAllocate);
 REGISTER_ROUTINE(HyperLogLogAdd);
 REGISTER_ROUTINE(HyperLogLogMerge);
+REGISTER_ROUTINE(HyperLogLogMergeWithValidation);
 REGISTER_ROUTINE(HyperLogLogEstimateCardinality);
 REGISTER_ROUTINE(HyperLogLogGetFingerprint);
 REGISTER_ROUTINE(StoredReplicaSetMerge);

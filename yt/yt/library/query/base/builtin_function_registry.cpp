@@ -270,6 +270,50 @@ void RegisterBuiltinFunctions(IFunctionRegistryBuilder* builder)
         ECallingConvention::UnversionedValue);
 
     builder->RegisterAggregate(
+        "cardinality_state",
+        std::unordered_map<TTypeParameter, TUnionType>(),
+        {TUnionType{
+            EValueType::String,
+            EValueType::Uint64,
+            EValueType::Int64,
+            EValueType::Double,
+            EValueType::Boolean,
+        }},
+        EValueType::String,
+        EValueType::String,
+        "hyperloglog",
+        ECallingConvention::UnversionedValue);
+
+    builder->RegisterAggregate(
+        "cardinality_merge",
+        std::unordered_map<TTypeParameter, TUnionType>(),
+        {EValueType::String},
+        EValueType::Uint64,
+        EValueType::String,
+        "hyperloglog",
+        ECallingConvention::UnversionedValue);
+
+    builder->RegisterAggregate(
+        "array_agg",
+        {},
+        {
+            TUnionType{
+                EValueType::String,
+                EValueType::Uint64,
+                EValueType::Int64,
+                EValueType::Double,
+                EValueType::Boolean,
+                EValueType::Any,
+                EValueType::Composite,
+            },
+            EValueType::Boolean,
+        },
+        EValueType::Any,
+        EValueType::String,
+        "array_agg",
+        ECallingConvention::UnversionedValue);
+
+    builder->RegisterAggregate(
         "dict_sum",
         {},
         {TUnionType{EValueType::Any, EValueType::Composite}},
