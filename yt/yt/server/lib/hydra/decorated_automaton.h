@@ -98,6 +98,7 @@ struct TEpochContext
     bool LeaderSwitchStarted = false;
     bool LeaderLeaseExpired = false;
     bool AcquiringChangelog = false;
+    bool EnteringReadOnlyMode = false;
     bool CatchingUp = false;
 
     std::atomic<bool> ReadOnly = false;
