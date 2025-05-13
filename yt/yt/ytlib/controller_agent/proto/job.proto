@@ -274,8 +274,6 @@ message TUserJobSpec
 
     optional int64 slot_container_memory_limit = 73;
 
-    optional bool make_rootfs_writable = 54 [default = false];
-
     optional int32 restart_exit_code = 55;
 
     // Cast Any values from input row stream to Composite
@@ -322,7 +320,7 @@ message TUserJobSpec
 
     optional bool start_queue_consumer_registration_manager = 77 [default = true];
 
-    reserved 38, 48, 61, 62;
+    reserved 38, 48, 54, 61, 62;
 
     optional TNetworkProject network_project = 80;
 }
