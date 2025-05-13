@@ -2703,7 +2703,9 @@ private:
     bool RecomputeNodeReachability_ = false;
 
     // COMPAT(shakurov)
-    bool NeedResetHunkSpecificMediaAndRecomputeTabletStatistics_ = false;
+    bool NeedResetHunkSpecificMediaOnTrunkNodes_ = false;
+    // COMPAT(shakurov)
+    bool NeedResetHunkSpecificMediaOnBranchedNodes_ = false;
 
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 
@@ -2767,8 +2769,14 @@ private:
         }
 
         // COMPAT(shakurov)
-        NeedResetHunkSpecificMediaAndRecomputeTabletStatistics_ =
-            context.GetVersion() < EMasterReign::ResetHunkMediaOnBranchedNodes;
+        YT_VERIFY(EMasterReign::ResetHunkMediaOnBranchedNodes < EMasterReign::ResetHunkMediaOnBranchedNodesOnly);
+        if (context.GetVersion() < EMasterReign::ResetHunkMediaOnBranchedNodes) {
+            NeedResetHunkSpecificMediaOnTrunkNodes_ = true;
+            NeedResetHunkSpecificMediaOnBranchedNodes_ = true;
+        } else if (context.GetVersion() < EMasterReign::ResetHunkMediaOnBranchedNodesOnly) {
+            YT_VERIFY(!NeedResetHunkSpecificMediaOnTrunkNodes_); // Check and leave it false.
+            NeedResetHunkSpecificMediaOnBranchedNodes_ = true;
+        } // Else leave both of them false.
     }
 
     void Clear() override
@@ -2794,7 +2802,8 @@ private:
         RecursiveResourceUsageCache_->Clear();
 
         RecomputeNodeReachability_ = false;
-        NeedResetHunkSpecificMediaAndRecomputeTabletStatistics_ = false;
+        NeedResetHunkSpecificMediaOnTrunkNodes_ = false;
+        NeedResetHunkSpecificMediaOnBranchedNodes_ = false;
     }
 
     void SetZeroState() override
@@ -2903,7 +2912,10 @@ private:
         }
 
         // COMPAT(shakurov)
-        if (NeedResetHunkSpecificMediaAndRecomputeTabletStatistics_) {
+        YT_VERIFY(!NeedResetHunkSpecificMediaOnTrunkNodes_ || NeedResetHunkSpecificMediaOnBranchedNodes_);
+        if (NeedResetHunkSpecificMediaOnTrunkNodes_ ||
+            NeedResetHunkSpecificMediaOnBranchedNodes_)
+        {
             const auto& tabletManager = Bootstrap_->GetTabletManager();
             for (auto [nodeId, node] : NodeMap_) {
                 if (!IsObjectAlive(node) && node->IsTrunk()) {
@@ -2914,10 +2926,25 @@ private:
                     continue;
                 }
 
+                if (node->IsTrunk() && !NeedResetHunkSpecificMediaOnTrunkNodes_) {
+                    continue;
+                }
+
+                // Just a reminder - already checked above.
+                YT_VERIFY(NeedResetHunkSpecificMediaOnBranchedNodes_);
+
                 auto* chunkOwnerNode = node->As<TChunkOwnerBase>();
                 chunkOwnerNode->ResetHunkPrimaryMediumIndex();
                 chunkOwnerNode->HunkReplication().ClearEntries();
                 tabletManager->OnNodeStorageParametersUpdated(chunkOwnerNode);
+
+                // NB: resetting hunk media-related settings on branches won't
+                // reproduce invariants maintained by a running system. But since
+                // those settings cannot be modified under transaction, aren't
+                // merged back in and simply dropped at tx commit, the only
+                // thing affected by this is the decision, at commit time,
+                // to schedule (or not) a requisition update. This is hardly
+                // significant, seeing as the feature is still very fresh.
             }
         }
     }
