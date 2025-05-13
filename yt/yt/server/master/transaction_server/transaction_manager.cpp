@@ -1572,6 +1572,8 @@ public:
     {
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
+        ValidateMirroredTransactionFinish(transactionId, /*commit*/ true);
+
         auto* transaction = GetTransactionOrThrow(transactionId);
         transaction->SetNativeCommitMutationRevision(nativeCommitMutationRevision);
         CommitTransaction(transaction, options);
@@ -1592,6 +1594,8 @@ public:
         const TTransactionAbortOptions& options) override
     {
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
+
+        ValidateMirroredTransactionFinish(transactionId, /*commit*/ false);
 
         auto* transaction = GetTransactionOrThrow(transactionId);
         AbortTransaction(
@@ -3602,6 +3606,26 @@ private:
 
         const auto& config = Bootstrap_->GetConfigManager()->GetConfig()->SequoiaManager;
         return config->Enable && config->EnableCypressTransactionsInSequoia;
+    }
+
+    void ValidateMirroredTransactionFinish(TTransactionId transactionId, bool commit)
+    {
+        if (IsCypressTransactionMirroredToSequoia(transactionId) &&
+            IsMirroringToSequoiaEnabled() &&
+            !GetSequoiaContext())
+        {
+            YT_LOG_ALERT(
+                "Attempt to %v mirrored transaction via TransactionSupervisor.%vTransaction (TransactionId: %v)",
+                commit ? "commit" : "abort",
+                commit ? "Commit" : "Abort",
+                transactionId);
+
+            THROW_ERROR_EXCEPTION(
+                "Cannot %v mirrored transaction via TransactionSupervisor.%vTransaction",
+                commit ? "commit" : "abort",
+                commit ? "Commit" : "Abort")
+                << TErrorAttribute("transaction_id", transactionId);
+        }
     }
 };
 
