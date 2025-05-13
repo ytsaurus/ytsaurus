@@ -295,11 +295,13 @@ void RegisterBuiltinFunctions(IFunctionRegistryBuilder* builder)
         "timestamp_floor_day",
         "timestamp_floor_week",
         "timestamp_floor_month",
+        "timestamp_floor_quarter",
         "timestamp_floor_year",
         "timestamp_floor_hour_localtime",
         "timestamp_floor_day_localtime",
         "timestamp_floor_week_localtime",
         "timestamp_floor_month_localtime",
+        "timestamp_floor_quarter_localtime",
         "timestamp_floor_year_localtime",
     }) {
         builder->RegisterFunction(
@@ -309,6 +311,37 @@ void RegisterBuiltinFunctions(IFunctionRegistryBuilder* builder)
             "dates",
             ECallingConvention::Simple);
     }
+
+    for (const auto& name : std::vector<std::string>{
+        "timestamp_floor_hour_tz",
+        "timestamp_floor_day_tz",
+        "timestamp_floor_week_tz",
+        "timestamp_floor_month_tz",
+        "timestamp_floor_quarter_tz",
+        "timestamp_floor_year_tz",
+    }) {
+        builder->RegisterFunction(
+            name,
+            name,
+            {},
+            std::vector<TType>{EValueType::Int64, EValueType::String},
+            EValueType::Null,
+            EValueType::Int64,
+            "dates",
+            ECallingConvention::Simple,
+            /*useFunctionContext*/ true);
+    }
+
+    builder->RegisterFunction(
+        "format_timestamp_tz",
+        "format_timestamp_tz",
+        {},
+        std::vector<TType>{EValueType::Int64, EValueType::String, EValueType::String},
+        EValueType::Null,
+        EValueType::String,
+        "dates",
+        ECallingConvention::Simple,
+        /*useFunctionContext*/ true);
 
     builder->RegisterFunction(
         "format_guid",
