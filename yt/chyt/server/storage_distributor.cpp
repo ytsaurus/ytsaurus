@@ -797,6 +797,11 @@ public:
         return true;
     }
 
+    bool supportsParallelInsert() const override
+    {
+        return true;
+    }
+
     bool supportsTrivialCountOptimization(const DB::StorageSnapshotPtr& /*storage_snapshot*/, DB::ContextPtr /*query_context*/) const override
     {
         return true;
@@ -1010,9 +1015,24 @@ public:
                 << TErrorAttribute("paths", getStorageID().table_name);
         }
         const auto& table = Tables_.front();
-        auto path = table->Path;
+        auto& path = table->Path;
 
-        if (table->Dynamic && !table->Path.GetAppend(/*defaultValue*/ true)) {
+        bool overwrite = !path.GetAppend(/*defaultValue*/ true);
+
+        if (context->getSettingsRef().max_insert_threads > 1) {
+            if (table->Dynamic) {
+                THROW_ERROR_EXCEPTION("Parallel write is not supported for dynamic tables, set max_insert_threads = 1");
+            }
+            if (Schema_->IsSorted()) {
+                THROW_ERROR_EXCEPTION("Parallel write is not supported for sorted tables, set max_insert_threads = 1");
+            }
+            if (overwrite) {
+                // Can't erase table like in distributedWrite because of INSERT INTO t FROM (SELECT * FROM t) case.
+                THROW_ERROR_EXCEPTION("Parallel overwriting is not supported, set max_insert_threads = 1");
+            }
+        }
+
+        if (table->Dynamic && overwrite) {
             THROW_ERROR_EXCEPTION("Overriding dynamic tables is not supported");
         }
 
