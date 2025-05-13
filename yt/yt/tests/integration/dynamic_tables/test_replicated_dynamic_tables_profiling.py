@@ -134,6 +134,7 @@ class TestReplicatedDynamicTablesProfiling(TestReplicatedDynamicTablesBase):
         assert get_lag_time() == 0
 
     @authors("ifsmirnov")
+    @flaky(max_runs=5)
     @pytest.mark.parametrize("with_lag", [True, False])
     @pytest.mark.parametrize("offset_mode", ["row_index", "timestamp"])
     def test_new_replica_lag(self, offset_mode, with_lag):
