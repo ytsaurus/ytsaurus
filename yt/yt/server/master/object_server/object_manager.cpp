@@ -2239,7 +2239,7 @@ void TObjectManager::HydraPrepareDestroyObjects(
         const auto& handler = GetHandler(type);
         auto* object = handler->FindObject(id);
         if (!object || object->GetObjectRefCounter(/*flushUnrefs*/ true) > 0) {
-            THROW_ERROR_EXCEPTION("Object %v is no more a zombie", object->GetId());
+            THROW_ERROR_EXCEPTION("Object %v is no longer a zombie", id);
         }
     }
 
