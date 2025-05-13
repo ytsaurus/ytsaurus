@@ -3768,7 +3768,6 @@ class TestChaos(ChaosTestBase):
         alter_replication_card(card2, enable_replicated_table_tracker=True)
 
         if snapshotting == "snapshot":
-            _, remote_driver0, remote_driver1 = self._get_drivers()
             for cell in cells:
                 def _get_snapshots(cell):
                     return [
@@ -3781,43 +3780,43 @@ class TestChaos(ChaosTestBase):
             with self.CellsDisabled(clusters=self.get_cluster_names(), chaos_bundles=["c"]):
                 pass
 
-        def _get_sync_replica_clusters(crt, content_type):
+        def _get_sync_replica_clusters(crt):
+            sync_clusters = {"data": [], "queue": []}
             replicas = get("{0}/@replicas".format(crt))
+            for replica in replicas.values():
+                if replica["mode"] == "sync":
+                    sync_clusters[replica["content_type"]].append(replica["cluster_name"])
+            for content_type in sync_clusters.keys():
+                sync_clusters[content_type] = list(sorted(list(builtins.set(sync_clusters[content_type]))))
+            return sync_clusters
 
-            def valid(replica):
-                return replica["mode"] == "sync" and replica["content_type"] == content_type
-            return list(builtins.set(replica["cluster_name"] for replica in replicas.values() if valid(replica)))
-
-        def _check(content_type):
-            sync1 = _get_sync_replica_clusters(crt1, content_type)
-            sync2 = _get_sync_replica_clusters(crt2, content_type)
-            sync1.sort()
-            sync2.sort()
+        def _check():
+            sync1 = _get_sync_replica_clusters(crt1)
+            sync2 = _get_sync_replica_clusters(crt2)
             import logging
             logger = logging.getLogger()
-            logger.debug("Comparing sync {0} replicas: {1} vs {2}".format(content_type, sync1, sync2))
-            return sync1 == sync2 and len(sync1) == [2, max_sync][content_type == "data"]
-        wait(lambda: _check("data"))
-        wait(lambda: _check("queue"))
+            logger.debug("Comparing sync replicas: {0} vs {1}".format(sync1, sync2))
+            return sync1 == sync2 and len(sync1["data"]) == max_sync and len(sync1["queue"]) == 2
+        wait(_check)
 
-        sync_clusters = _get_sync_replica_clusters(crt1, "data")
+        sync_clusters = _get_sync_replica_clusters(crt1)["data"]
         async_cluster = [c for c in clusters if c not in sync_clusters][0]
         alter_replication_card(card1, collocation_options={"preferred_sync_replica_clusters": [async_cluster]})
 
-        def _check2(crt, content_type):
-            sync_clusters = _get_sync_replica_clusters(crt, content_type)
-            return async_cluster in sync_clusters
+        def _check2(crt):
+            sync_clusters = _get_sync_replica_clusters(crt)
+            return async_cluster in sync_clusters["data"] and async_cluster in sync_clusters["queue"]
 
-        wait(lambda: _check2(crt1, "data"))
-        wait(lambda: _check2(crt2, "data"))
-        wait(lambda: _check2(crt1, "queue"))
-        wait(lambda: _check2(crt2, "queue"))
+        wait(lambda: _check2(crt1))
+        wait(lambda: _check2(crt2))
 
-        for content_type in ["data", "queue"]:
-            sync_clusters = _get_sync_replica_clusters(crt1, content_type)
-            with self.CellsDisabled(clusters=[sync_clusters[0]], tablet_bundles=["default"]):
-                wait(lambda: _get_sync_replica_clusters(crt1, content_type) != sync_clusters)
-                wait(lambda: _check(content_type))
+        def _check3(crt):
+            sync_clusters = _get_sync_replica_clusters(crt)
+            return async_cluster not in sync_clusters["data"] and async_cluster not in sync_clusters["queue"]
+
+        with self.CellsDisabled(clusters=[async_cluster], tablet_bundles=["default"]):
+            wait(lambda: _check3(crt1))
+            wait(_check)
 
     @authors("savrus")
     def test_alter_replication_card_collocation(self):
