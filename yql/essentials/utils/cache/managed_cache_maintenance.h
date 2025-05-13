@@ -4,6 +4,7 @@
 #include "managed_cache_storage.h"
 
 #include <library/cpp/threading/cancellation/cancellation_token.h>
+#include <library/cpp/threading/task_scheduler/task_scheduler.h>
 
 #include <util/datetime/base.h>
 
@@ -15,7 +16,7 @@ namespace NYql {
     };
 
     template <NPrivate::CCacheKey TKey, NPrivate::CCacheValue TValue>
-    class TManagedCacheMaintenance {
+    class TManagedCacheMaintenance: public TTaskScheduler::IRepeatedTask {
     public:
         using TPtr = THolder<TManagedCacheMaintenance>;
         using TListenerPtr = TIntrusivePtr<IManagedCacheMaintainenceListener>;
@@ -23,10 +24,12 @@ namespace NYql {
         TManagedCacheMaintenance(
             TManagedCacheStorage<TKey, TValue>::TPtr storage,
             TManagedCacheConfig config,
-            TListenerPtr listener = new IManagedCacheMaintainenceListener())
+            TListenerPtr listener = new IManagedCacheMaintainenceListener(),
+            NThreading::TCancellationToken token = NThreading::TCancellationTokenSource().Token())
             : Storage_(std::move(storage))
             , Config_(std::move(config))
             , Listener_(std::move(listener))
+            , Token_(std::move(token))
         {
             Y_ENSURE(
                 TDuration::MicroSeconds(100) <= Config_.UpdatePeriod &&
@@ -36,6 +39,15 @@ namespace NYql {
                 1 <= Config_.UpdatesPerEviction &&
                     Config_.UpdatesPerEviction <= 10'000,
                 "EvictionFrequency must be in [1, 10'000], got " << Config_.UpdatesPerEviction);
+        }
+
+        bool Process() override {
+            if (Token_.IsCancellationRequested()) {
+                return false;
+            }
+            Tick();
+            Sleep(Config_.UpdatePeriod);
+            return true;
         }
 
         void Tick() try {
@@ -55,6 +67,7 @@ namespace NYql {
         size_t Tick_ = 0;
         TManagedCacheConfig Config_;
         TListenerPtr Listener_;
+        NThreading::TCancellationToken Token_;
     };
 
 } // namespace NYql

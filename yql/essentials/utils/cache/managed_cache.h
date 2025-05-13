@@ -20,16 +20,10 @@ namespace NYql {
             TIntrusivePtr<IManagedCacheListener> listener)
             : Storage_(new TManagedCacheStorage<TKey, TValue>(std::move(query), listener))
         {
-            auto token = Cancellation_.Token();
-            TManagedCacheMaintenance<TKey, TValue> maintenance(Storage_, config, listener);
-            const auto tick = [token, maintenance]() mutable -> bool {
-                if (token.IsCancellationRequested()) {
-                    return false;
-                }
-                maintenance.Tick();
-                return true;
-            };
-            Y_ENSURE(scheduler.AddRepeatedFunc(tick, config.UpdatePeriod));
+            scheduler.SafeAdd(
+                MakeIntrusive<TManagedCacheMaintenance<TKey, TValue>>(
+                    Storage_, config, listener, Cancellation_.Token()),
+                config.UpdatePeriod);
         }
 
         NThreading::TFuture<TValue> Get(const TKey& key) const {
