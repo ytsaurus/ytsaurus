@@ -153,8 +153,8 @@ TIssueTokenResult TClient::DoIssueTokenImpl(
             user,
             tokenPrefix,
             tokenHash);
-        auto error = TError("Failed to issue new token for user") << userIdRspOrError;
-        THROW_ERROR error;
+        THROW_ERROR_EXCEPTION("Failed to issue new token for user")
+            << userIdRspOrError;
     }
 
     attributes->Set("user_id", ConvertTo<std::string>(userIdRspOrError.Value()));
@@ -179,8 +179,8 @@ TIssueTokenResult TClient::DoIssueTokenImpl(
             user,
             tokenPrefix,
             tokenHash);
-        auto error = TError("Failed to issue new token for user") << rspOrError;
-        THROW_ERROR error;
+        THROW_ERROR_EXCEPTION("Failed to issue new token for user")
+            << rspOrError;
     }
 
     YT_LOG_DEBUG("Issued new token for user (User: %v, TokenPrefix: %v, TokenHash: %v)",
@@ -219,8 +219,8 @@ void TClient::DoRefreshTemporaryToken(
             "(User: %v, TokenHash: %v)",
             user,
             tokenHash);
-        auto error = TError("Failed to refresh token for user") << rspOrError;
-        THROW_ERROR error;
+        THROW_ERROR_EXCEPTION("Failed to refresh token for user")
+            << rspOrError;
     }
 
     YT_LOG_DEBUG("Successfully refreshed token for user (User: %v, TokenHash: %v)",
@@ -246,9 +246,8 @@ void TClient::DoRevokeToken(
     if (!tokenNodeOrError.IsOK()) {
         YT_LOG_DEBUG(tokenNodeOrError, "Failed to get token (TokenHash: %v)",
             tokenSha256);
-        auto error = TError("Failed to get token")
+        THROW_ERROR_EXCEPTION("Failed to get token")
             << tokenNodeOrError;
-        THROW_ERROR error;
     }
     auto tokenNode = ConvertTo<INodePtr>(tokenNodeOrError.Value());
     const auto& tokenAttributes = tokenNode->Attributes();
@@ -264,9 +263,8 @@ void TClient::DoRevokeToken(
         if (!tokenUsernameOrError.IsOK()) {
             YT_LOG_DEBUG(tokenUsernameOrError, "Failed to get user for token (TokenHash: %v)",
                 tokenSha256);
-            auto error = TError("Failed to get user for token")
+            THROW_ERROR_EXCEPTION("Failed to get user for token")
                 << tokenUsernameOrError;
-            THROW_ERROR error;
         }
         tokenUser = ConvertTo<TString>(tokenUsernameOrError.Value());
     } else {
@@ -277,8 +275,7 @@ void TClient::DoRevokeToken(
         } else {
             YT_LOG_DEBUG("Failed to get both attributes of the token (TokenHash: %v)",
                 tokenSha256);
-            auto error = TError("Failed to get both attributes of the token");
-            THROW_ERROR error;
+            THROW_ERROR_EXCEPTION("Failed to get both attributes of the token");
         }
     }
 
@@ -300,7 +297,8 @@ void TClient::DoRevokeToken(
         YT_LOG_DEBUG(error, "Failed to remove token (User: %v, TokenHash: %v)",
             tokenUser,
             tokenSha256);
-        THROW_ERROR TError("Failed to remove token") << error;
+        THROW_ERROR_EXCEPTION("Failed to remove token")
+            << error;
     }
 
     YT_LOG_DEBUG("Token removed successfully (User: %v, TokenHash: %v)",
@@ -338,8 +336,8 @@ TListUserTokensResult TClient::DoListUserTokens(
     auto rspOrError = WaitFor(rootClient->ListNode("//sys/cypress_tokens", listOptions));
     if (!rspOrError.IsOK()) {
         YT_LOG_DEBUG(rspOrError, "Failed to list tokens");
-        auto error = TError("Failed to list tokens") << rspOrError;
-        THROW_ERROR error;
+        THROW_ERROR_EXCEPTION("Failed to list tokens")
+            << rspOrError;
     }
 
     auto userIdRspOrError = WaitFor(rootClient->GetNode(
@@ -348,8 +346,8 @@ TListUserTokensResult TClient::DoListUserTokens(
     if (!userIdRspOrError.IsOK()) {
         YT_LOG_DEBUG(userIdRspOrError, "Failed to list tokens: could not get user ID by username (User: %v)",
             user);
-        auto error = TError("Failed to list tokens") << userIdRspOrError;
-        THROW_ERROR error;
+        THROW_ERROR_EXCEPTION("Failed to list tokens")
+            << userIdRspOrError;
     }
     auto userId = ConvertTo<TString>(userIdRspOrError.Value());
 
