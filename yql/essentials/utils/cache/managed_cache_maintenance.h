@@ -58,8 +58,8 @@ namespace NYql {
             }
             Storage_->Update();
             Listener_->OnTickSucceded();
-        } catch (const std::exception& e) {
-            Listener_->OnTickFailed(e);
+        } catch (...) {
+            Listener_->OnTickFailed(std::current_exception());
         }
 
     private:

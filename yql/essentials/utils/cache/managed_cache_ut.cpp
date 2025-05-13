@@ -62,7 +62,7 @@ public:
 private:
     TMutex Mutex_;
     std::mt19937 Random_{231312};
-    TMaybe<std::bernoulli_distribution> Success_ = std::bernoulli_distribution{0.85};
+    TMaybe<std::bernoulli_distribution> Success_ = std::bernoulli_distribution{0.75};
     std::uniform_int_distribution<int> LatencyMcs_{0, 128};
 
     THolder<IThreadPool> Pool_ = CreateThreadPool(/* threadCount = */ 16);
@@ -79,6 +79,8 @@ Y_UNIT_TEST_SUITE(TManagedCacheTests) {
         };
 
         TTaskScheduler scheduler(/* threadCount = */ 1);
+        scheduler.Start();
+
         auto cache = StartManagedCache<TKey, TValue>(scheduler, config, service.QueryFunc());
 
         const auto client_pool = CreateThreadPool(/* threadCount = */ 8);

@@ -20,7 +20,8 @@ namespace NYql {
     void IManagedCacheMaintainenceListener::OnTickSucceded() {
     }
 
-    void IManagedCacheMaintainenceListener::OnTickFailed(const std::exception& /*exception*/) {
+    void IManagedCacheMaintainenceListener::OnTickFailed(std::exception_ptr e) {
+        std::rethrow_exception(e);
     }
 
 } // namespace NYql

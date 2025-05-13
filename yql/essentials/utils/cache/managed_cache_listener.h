@@ -21,7 +21,7 @@ namespace NYql {
         ~IManagedCacheMaintainenceListener() = default;
         virtual void OnTickBegin();
         virtual void OnTickSucceded();
-        virtual void OnTickFailed(const std::exception& exception);
+        virtual void OnTickFailed(std::exception_ptr e);
     };
 
     class IManagedCacheListener
