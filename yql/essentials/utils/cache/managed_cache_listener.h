@@ -28,6 +28,8 @@ namespace NYql {
         : public IManagedCacheStorageListener,
           public IManagedCacheMaintainenceListener,
           public virtual TThrRefBase {
+    public:
+        using TPtr = TIntrusivePtr<IManagedCacheListener>;
     };
 
 } // namespace NYql

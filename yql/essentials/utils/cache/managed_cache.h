@@ -17,7 +17,7 @@ namespace NYql {
             TTaskScheduler& scheduler,
             TManagedCacheConfig config,
             TManagedCacheStorage<TKey, TValue>::TQuery query,
-            TIntrusivePtr<IManagedCacheListener> listener)
+            IManagedCacheListener::TPtr listener)
             : Storage_(new TManagedCacheStorage<TKey, TValue>(std::move(query), listener))
         {
             scheduler.SafeAdd(
@@ -44,7 +44,7 @@ namespace NYql {
         TTaskScheduler& scheduler,
         TManagedCacheConfig config,
         typename TManagedCacheStorage<TKey, TValue>::TQuery query,
-        TIntrusivePtr<IManagedCacheListener> listener = new IManagedCacheListener()) {
+        IManagedCacheListener::TPtr listener = new IManagedCacheListener()) {
         return new TManagedCache<TKey, TValue>(
             scheduler,
             std::move(config),
