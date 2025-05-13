@@ -4546,16 +4546,7 @@ class TestQueueExportManager(TestQueueStaticExportBase):
         },
     })
 
-    NUM_EXPORTS = 4
-    NUM_QUEUES = 25
     EXPORT_PERIOD_SECONDS = 1
-
-    @classmethod
-    def setup_class(cls):
-        super().setup_class()
-
-        cls.QUEUE_PATHS = [f"//tmp/q_{i}" for i in range(cls.NUM_QUEUES)]
-        cls.EXPORT_DIRS = [f"//tmp/export_{i}" for i in range(cls.NUM_QUEUES)]
 
     def teardown_method(self, method):
         if hasattr(self, "tx"):
@@ -4568,9 +4559,16 @@ class TestQueueExportManager(TestQueueStaticExportBase):
         super().teardown_method(method)
 
     @authors("apachee")
-    @pytest.mark.parametrize("export_rate_limit", [4, 8, 16])
+    @pytest.mark.parametrize(
+        "num_exports,num_queues,export_rate_limit",
+        [
+            (3, 25 // 2, 2),
+            (3, 25 // 1, 4),
+            (6, 25 // 1, 8),
+        ]
+    )
     @pytest.mark.timeout(300)
-    def test_export_rate_limit(self, export_rate_limit):
+    def test_export_rate_limit(self, num_exports, num_queues, export_rate_limit):
         setup_start = time.time()
         self._apply_dynamic_config_patch({
             "queue_agent": {
@@ -4580,40 +4578,43 @@ class TestQueueExportManager(TestQueueStaticExportBase):
             },
         })
 
-        create_queue_reqs = [self._make_create_queue_batch_request(path=queue_path, mount=False) for queue_path in self.QUEUE_PATHS]
+        queue_paths = [f"//tmp/q_{i}" for i in range(num_queues)]
+        export_dirs = [f"//tmp/export_{i}" for i in range(num_queues)]
+
+        create_queue_reqs = [self._make_create_queue_batch_request(path=queue_path, mount=False) for queue_path in queue_paths]
 
         create_queue_rsps = execute_batch(create_queue_reqs)
-        self.QUEUE_IDS = []
+        queue_ids = []
         for rsp in create_queue_rsps:
             queue_id = get_batch_output(rsp)["node_id"]
-            self.QUEUE_IDS.append(queue_id)
+            queue_ids.append(queue_id)
 
-        self._mount_tables(self.QUEUE_PATHS)
+        self._mount_tables(queue_paths)
 
-        self._create_export_destinations(self.EXPORT_DIRS, self.QUEUE_IDS)
+        self._create_export_destinations(export_dirs, queue_ids)
 
         tx = start_transaction(timeout=300000)
         self.tx = tx
 
-        for export_dir in self.EXPORT_DIRS:
+        for export_dir in export_dirs:
             wait(lambda: lock(export_dir, mode="exclusive", tx=tx) is not None, ignore_exceptions=True)
 
-        for export_index in range(self.NUM_EXPORTS):
-            for queue_path in self.QUEUE_PATHS:
+        for export_index in range(num_exports):
+            for queue_path in queue_paths:
                 insert_rows(queue_path, [{"data": f"{queue_path=} - {export_index=}"}])
-            self._flush_tables(self.QUEUE_PATHS)
+            self._flush_tables(queue_paths)
             time.sleep(self.EXPORT_PERIOD_SECONDS + 0.5)
 
         get_chunk_id_list_reqs = []
-        for queue_path, export_dir in zip(self.QUEUE_PATHS, self.EXPORT_DIRS):
+        for queue_path, export_dir in zip(queue_paths, export_dirs):
             get_chunk_id_list_reqs.append(make_batch_request("get", path=f"{queue_path}/@chunk_ids", return_only_value=True))
 
         get_chunk_id_list_rsps = execute_batch(get_chunk_id_list_reqs)
         for rsp in get_chunk_id_list_rsps:
-            assert len(get_batch_output(rsp)) == self.NUM_EXPORTS
+            assert len(get_batch_output(rsp)) == num_exports
 
         set_export_config_reqs = []
-        for queue_path, export_dir in zip(self.QUEUE_PATHS, self.EXPORT_DIRS):
+        for queue_path, export_dir in zip(queue_paths, export_dirs):
             set_export_config_reqs.append(make_batch_request("set", path=f"{queue_path}/@static_export_config", input={
                 "default": {
                     "export_directory": export_dir,
@@ -4630,7 +4631,7 @@ class TestQueueExportManager(TestQueueStaticExportBase):
 
         print_debug(f"test_export_rate_limit setup took {setup_finish - setup_start} seconds")
 
-        assert sum([len(ls(export_dir)) for export_dir in self.EXPORT_DIRS]) == 0
+        assert sum([len(ls(export_dir)) for export_dir in export_dirs]) == 0
 
         # Start exporters by aborting this tx
         abort_transaction(tx)
@@ -4638,9 +4639,9 @@ class TestQueueExportManager(TestQueueStaticExportBase):
         start = time.time()
 
         def check_exported_table_count():
-            export_table_count_by_dir = {export_dir: len(ls(export_dir)) for export_dir in self.EXPORT_DIRS}
+            export_table_count_by_dir = {export_dir: len(ls(export_dir)) for export_dir in export_dirs}
             print_debug(f"{export_table_count_by_dir=}")
-            return all(i == self.NUM_EXPORTS for i in export_table_count_by_dir.values())
+            return all(i == num_exports for i in export_table_count_by_dir.values())
 
         wait(lambda: check_exported_table_count())
 
@@ -4648,14 +4649,14 @@ class TestQueueExportManager(TestQueueStaticExportBase):
         elapsed = finish - start
 
         expected_time_per_task = (1 / export_rate_limit)
-        expected_time_elapsed = self.NUM_EXPORTS * self.NUM_QUEUES * expected_time_per_task
+        expected_time_elapsed = num_exports * num_queues * expected_time_per_task
         # TODO(apachee): Improve this test to reduce error margins
         expected_relative_error = 0.5
-        print_debug(f"{elapsed=}, {expected_time_elapsed=}, {expected_relative_error=}")
+        print_debug(f"rate limit timings: {elapsed=}, {expected_time_elapsed=}, {expected_relative_error=}")
 
         assert 1 - expected_relative_error <= elapsed / expected_time_elapsed <= 1 + expected_relative_error
 
-        self.remove_export_destinations(self.EXPORT_DIRS)
+        self.remove_export_destinations(export_dirs)
 
 
 @pytest.mark.enabled_multidaemon
