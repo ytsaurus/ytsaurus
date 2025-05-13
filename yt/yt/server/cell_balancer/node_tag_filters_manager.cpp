@@ -213,13 +213,14 @@ bool ProcessNodeAssignment(
     }
 
     const auto& targetConfig = bundleInfo->TargetConfig;
+    auto cpuLimits = GetBundleEffectiveCpuLimits(bundleName, bundleInfo, input);
 
-    if (isNodeOnline && targetConfig->CpuLimits->WriteThreadPoolSize != std::ssize(nodeInfo->TabletSlots)) {
+    if (isNodeOnline && cpuLimits->WriteThreadPoolSize != std::ssize(nodeInfo->TabletSlots)) {
         YT_LOG_DEBUG("Node has not applied dynamic bundle config yet "
             "(Bundle: %v, TabletNode: %v, ExpectedSlotCount: %v, ActualSlotCount: %v)",
             bundleName,
             nodeName,
-            targetConfig->CpuLimits->WriteThreadPoolSize,
+            cpuLimits->WriteThreadPoolSize,
             std::ssize(nodeInfo->TabletSlots));
 
         return false;
@@ -306,7 +307,8 @@ void TryCreateSpareNodesAssignment(
     const TBundleControllerStatePtr& bundleState)
 {
     const auto& bundleInfo = GetOrCrash(input.Bundles, bundleName);
-    int perNodeSlotCount = bundleInfo->TargetConfig->CpuLimits->WriteThreadPoolSize.value_or(DefaultWriteThreadPoolSize);
+    int perNodeSlotCount = GetBundleEffectiveCpuLimits(bundleName, bundleInfo, input)
+        ->WriteThreadPoolSize.value_or(DefaultWriteThreadPoolSize);
     auto now = TInstant::Now();
 
     while (slotsToAdd > 0 && spareNodesAllocator.HasInstances(zoneName, dataCenterName)) {
@@ -661,7 +663,8 @@ THashSet<std::string> GetDataCentersToPopulate(
     const auto& bundleInfo = GetOrCrash(input.Bundles, bundleName);
     const auto& targetConfig = bundleInfo->TargetConfig;
     const auto& zoneInfo = GetOrCrash(input.Zones, bundleInfo->Zone);
-    const auto perNodeSlotCount = targetConfig->CpuLimits->WriteThreadPoolSize.value_or(DefaultWriteThreadPoolSize);
+    const auto perNodeSlotCount = GetBundleEffectiveCpuLimits(bundleName, bundleInfo, input)
+        ->WriteThreadPoolSize.value_or(DefaultWriteThreadPoolSize);
 
     int activeDataCenterCount = std::ssize(zoneInfo->DataCenters) - zoneInfo->RedundantDataCenterCount;
     YT_VERIFY(activeDataCenterCount > 0);
@@ -840,7 +843,8 @@ void SetNodeTagFilter(
 
     for (const auto& [dataCenterName, _] : zoneInfo->DataCenters) {
         const auto& aliveNodes = perDataCenterAliveNodes[dataCenterName];
-        int perNodeSlotCount = targetConfig->CpuLimits->WriteThreadPoolSize.value_or(DefaultWriteThreadPoolSize);
+        int perNodeSlotCount = GetBundleEffectiveCpuLimits(bundleName, bundleInfo, input)
+            ->WriteThreadPoolSize.value_or(DefaultWriteThreadPoolSize);
         auto& spareNodes = perDataCenterSpareNodes[dataCenterName];
 
         auto getSpareSlotCount = [perNodeSlotCount, bundleName] (const auto& sparesByBundle) ->int {
