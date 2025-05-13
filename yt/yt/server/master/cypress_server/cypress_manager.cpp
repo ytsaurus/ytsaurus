@@ -2947,6 +2947,19 @@ private:
                 // significant, seeing as the feature is still very fresh.
             }
         }
+
+        const auto& config = GetDynamicConfig();
+        if (config->AlertOnListNodeLoad) {
+            for (auto [nodeId, node] : NodeMap_) {
+                YT_LOG_ALERT_IF(
+                    node->GetType() == EObjectType::ListNode,
+                    "A list node encountered during snapshot load; list nodes are deprecated "
+                    "and the ability to load them will be removed completely in the next major version. "
+                    "Please consider removing or replacing them with document nodes (NodeId: %v, Path: %v)",
+                    nodeId,
+                    GetNodePath(node->GetTrunkNode(), node->GetTransaction()));
+            }
+        }
     }
 
     void InitBuiltins()
