@@ -295,13 +295,22 @@ LLVM_BC(
         timestamp_floor_day
         timestamp_floor_week
         timestamp_floor_month
+        timestamp_floor_quarter
         timestamp_floor_year
         format_timestamp_localtime
         timestamp_floor_hour_localtime
         timestamp_floor_day_localtime
         timestamp_floor_week_localtime
         timestamp_floor_month_localtime
+        timestamp_floor_quarter_localtime
         timestamp_floor_year_localtime
+        format_timestamp_tz
+        timestamp_floor_hour_tz
+        timestamp_floor_day_tz
+        timestamp_floor_week_tz
+        timestamp_floor_month_tz
+        timestamp_floor_quarter_tz
+        timestamp_floor_year_tz
 )
 
 LLVM_BC(

@@ -3,6 +3,8 @@
 #include <yt/yt/library/query/engine_api/expression_context.h>
 #include <yt/yt/library/query/engine_api/position_independent_value.h>
 
+#include <yt/yt/library/query/misc/function_context.h>
+
 #include <util/system/types.h>
 
 namespace NYT::NQueryClient::NRoutines {
@@ -36,6 +38,17 @@ void FormatTimestamp(
     char* format,
     int formatLen);
 
+void FormatTimestampTZ(
+    TExpressionContext* context,
+    TFunctionContext* functionContext,
+    char** result,
+    int* resultLen,
+    i64 timestamp,
+    char* timezoneString,
+    int timezoneLength,
+    char* format,
+    int formatLen);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 i64 TimestampFloorHour(i64 timestamp);
@@ -53,6 +66,39 @@ i64 TimestampFloorWeekLocaltime(i64 timestamp);
 i64 TimestampFloorMonthLocaltime(i64 timestamp);
 i64 TimestampFloorQuarterLocaltime(i64 timestamp);
 i64 TimestampFloorYearLocaltime(i64 timestamp);
+
+////////////////////////////////////////////////////////////////////////////////
+
+i64 TimestampFloorHourTZ(
+    i64 timestamp,
+    char* timezoneString,
+    int timezoneLength,
+    TFunctionContext* functionContext);
+i64 TimestampFloorDayTZ(
+    i64 timestamp,
+    char* timezoneString,
+    int timezoneLength,
+    TFunctionContext* functionContext);
+i64 TimestampFloorWeekTZ(
+    i64 timestamp,
+    char* timezoneString,
+    int timezoneLength,
+    TFunctionContext* functionContext);
+i64 TimestampFloorMonthTZ(
+    i64 timestamp,
+    char* timezoneString,
+    int timezoneLength,
+    TFunctionContext* functionContext);
+i64 TimestampFloorQuarterTZ(
+    i64 timestamp,
+    char* timezoneString,
+    int timezoneLength,
+    TFunctionContext* functionContext);
+i64 TimestampFloorYearTZ(
+    i64 timestamp,
+    char* timezoneString,
+    int timezoneLength,
+    TFunctionContext* functionContext);
 
 ////////////////////////////////////////////////////////////////////////////////
 

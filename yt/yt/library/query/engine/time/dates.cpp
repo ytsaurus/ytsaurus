@@ -88,6 +88,25 @@ bool IsLutApplicable(i64 timestamp, bool localtime)
     }
 }
 
+TTimeZone GetTimeZoneFromPrivateData(
+    TFunctionContext* functionContext,
+    char* timezoneString,
+    int timezoneLength)
+{
+    if (functionContext->IsLiteralArg(1)) {
+        auto* privateData = functionContext->GetPrivateData();
+        if (!privateData) {
+            privateData = functionContext->CreateObject<TTimeZone>(
+                GetTimeZone(TStringBuf(timezoneString, timezoneLength)));
+            functionContext->SetPrivateData(privateData);
+        }
+
+        return *static_cast<TTimeZone*>(privateData);
+    } else {
+        return GetTimeZone(TStringBuf(timezoneString, timezoneLength));
+    }
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 void FormatTimestamp(
@@ -115,6 +134,34 @@ void FormatTimestamp(
 
     auto* resultPtr = context->AllocateUnaligned(BufferLength, NWebAssembly::EAddressSpace::WebAssembly);
     auto length = strftime(resultPtr, BufferLength, buffer, &timeinfo);
+
+    *result = resultPtr;
+    *resultLength = length;
+}
+
+void FormatTimestampTZ(
+    TExpressionContext* context,
+    TFunctionContext* functionContext,
+    char** result,
+    int* resultLength,
+    i64 timestamp,
+    char* timezoneString,
+    int timezoneLength,
+    char* format,
+    int formatLength)
+{
+    ValidateFormatStringLength(formatLength);
+
+    auto timezone = GetTimeZoneFromPrivateData(functionContext, timezoneString, timezoneLength);
+
+    struct tm tm = ToCivilTime(TInstant::Seconds(timestamp), timezone);
+
+    char buffer[MaxFormatLength + 1];
+    memcpy(buffer, format, formatLength);
+    buffer[formatLength] = '\0';
+
+    auto* resultPtr = context->AllocateUnaligned(BufferLength, NWebAssembly::EAddressSpace::WebAssembly);
+    auto length = strftime(resultPtr, BufferLength, buffer, &tm);
 
     *result = resultPtr;
     *resultLength = length;
@@ -447,6 +494,89 @@ i64 TimestampFloorYearLocaltime(i64 timestamp)
     } else {
         return TimestampFloorYearLocaltimeViaLib(timestamp);
     }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+i64 TimestampFloorHourTZ(i64 timestamp, char* timezoneString, int timezoneLength, TFunctionContext* functionContext)
+{
+    auto timezone = GetTimeZoneFromPrivateData(functionContext, timezoneString, timezoneLength);
+
+    auto tm = ToCivilTime(TInstant::Seconds(timestamp), timezone);
+
+    return timestamp - tm.Sec - tm.Min * 60;
+}
+
+i64 TimestampFloorDayTZInternal(i64 timestamp, TTimeZone timezone)
+{
+    auto tm = ToCivilTime(TInstant::Seconds(timestamp), timezone);
+
+    // Some days in some timezones do not start from midnight, unfortunately.
+
+    return NYT::BinarySearch(timestamp - 2 * SECONDS_IN_DAY, timestamp, [&] (i64 probe) {
+        auto probeTm = ToCivilTime(TInstant::Seconds(probe), timezone);
+        return probeTm.YDay != tm.YDay;
+    });
+}
+
+i64 TimestampFloorDayTZ(i64 timestamp, char* timezoneString, int timezoneLength, TFunctionContext* functionContext)
+{
+    auto timezone = GetTimeZoneFromPrivateData(functionContext, timezoneString, timezoneLength);
+
+    return TimestampFloorDayTZInternal(timestamp, timezone);
+}
+
+i64 TimestampFloorWeekTZ(i64 timestamp, char* timezoneString, int timezoneLength, TFunctionContext* functionContext)
+{
+    auto timezone = GetTimeZoneFromPrivateData(functionContext, timezoneString, timezoneLength);
+
+    timestamp = TimestampFloorDayTZInternal(timestamp, timezone);
+
+    auto tm = ToCivilTime(TInstant::Seconds(timestamp), timezone);
+
+    while (tm.WDay != 1) {
+        timestamp--;
+        timestamp = TimestampFloorDayTZInternal(timestamp, timezone);
+        tm = ToCivilTime(TInstant::Seconds(timestamp), timezone);
+    }
+
+    return timestamp;
+}
+
+i64 TimestampFloorMonthTZ(i64 timestamp, char* timezoneString, int timezoneLength, TFunctionContext* functionContext)
+{
+    auto timezone = GetTimeZoneFromPrivateData(functionContext, timezoneString, timezoneLength);
+
+    auto tm = ToCivilTime(TInstant::Seconds(timestamp), timezone);
+
+    return NYT::BinarySearch(timestamp - 40 * SECONDS_IN_DAY, timestamp, [&] (i64 probe) {
+        auto probeTm = ToCivilTime(TInstant::Seconds(probe), timezone);
+        return probeTm.Mon != tm.Mon;
+    });
+}
+
+i64 TimestampFloorQuarterTZ(i64 timestamp, char* timezoneString, int timezoneLength, TFunctionContext* functionContext)
+{
+    auto timezone = GetTimeZoneFromPrivateData(functionContext, timezoneString, timezoneLength);
+
+    auto tm = ToCivilTime(TInstant::Seconds(timestamp), timezone);
+
+    return NYT::BinarySearch(timestamp - 5 * 31 * SECONDS_IN_DAY, timestamp, [&] (i64 probe) {
+        auto probeTm = ToCivilTime(TInstant::Seconds(probe), timezone);
+        return probeTm.Mon - probeTm.Mon % 4 != tm.Mon - tm.Mon % 4;
+    });
+}
+
+i64 TimestampFloorYearTZ(i64 timestamp, char* timezoneString, int timezoneLength, TFunctionContext* functionContext)
+{
+    auto timezone = GetTimeZoneFromPrivateData(functionContext, timezoneString, timezoneLength);
+
+    auto tm = ToCivilTime(TInstant::Seconds(timestamp), timezone);
+
+    return NYT::BinarySearch(timestamp - 400 * SECONDS_IN_DAY, timestamp, [&] (i64 probe) {
+        auto probeTm = ToCivilTime(TInstant::Seconds(probe), timezone);
+        return probeTm.Year != tm.Year;
+    });
 }
 
 ////////////////////////////////////////////////////////////////////////////////

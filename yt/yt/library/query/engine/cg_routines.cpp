@@ -4071,7 +4071,8 @@ struct RegisterLLVMRoutine
 
 #define REGISTER_TIME_ROUTINE(routine) \
     REGISTER_ROUTINE(routine); \
-    REGISTER_ROUTINE(routine ## Localtime)
+    REGISTER_ROUTINE(routine ## Localtime); \
+    REGISTER_ROUTINE(routine ## TZ)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -4160,6 +4161,7 @@ REGISTER_TIME_ROUTINE(TimestampFloorMonth);
 REGISTER_TIME_ROUTINE(TimestampFloorQuarter);
 REGISTER_TIME_ROUTINE(TimestampFloorYear);
 REGISTER_ROUTINE(FormatTimestamp);
+REGISTER_ROUTINE(FormatTimestampTZ);
 REGISTER_ROUTINE(ArrayAggFinalize);
 
 REGISTER_ROUTINE(SubqueryExprHelper);
