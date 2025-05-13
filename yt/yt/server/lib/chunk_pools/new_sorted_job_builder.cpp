@@ -533,7 +533,7 @@ private:
                 index,
                 endpoint.KeyBound,
                 endpoint.Type,
-                GetDataSliceDebugString(endpoint.DataSlice));
+                endpoint.DataSlice ? GetDataSliceDebugString(endpoint.DataSlice) : "<null>");
         }
     }
 
