@@ -1589,13 +1589,15 @@ class TestNbdConnectionFailuresWithSquashFSLayers(YTEnvSetup):
     def test_read_timeout(self):
         self.setup_files()
 
+        # Set read I/O timeout to 1/2 second
+        io_timeout = 500
+
         update_nodes_dynamic_config({
             "exec_node": {
                 "nbd": {
                     "block_cache_compressed_data_capacity": 536870912,
                     "client": {
-                        # Set read I/O timeout to 1 second
-                        "io_timeout": 1000,
+                        "io_timeout": io_timeout,
                     },
                     "enabled": True,
                     "server": {
@@ -1606,8 +1608,8 @@ class TestNbdConnectionFailuresWithSquashFSLayers(YTEnvSetup):
                             "path": tempfile.mkstemp(dir="/root" if os.environ["USER"] == "root" else "/home/" + os.environ["USER"])[1]
                         },
                         "test_options": {
-                            # Sleep for 10 seconds prior to performing block device read
-                            "block_device_sleep_before_read": 10000,
+                            # Sleep for two timeouts prior to performing block device read
+                            "block_device_sleep_before_read": 3 * io_timeout,
                         },
                     },
                 },
