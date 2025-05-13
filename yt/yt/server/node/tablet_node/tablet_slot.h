@@ -62,7 +62,7 @@ struct ITabletSlot
     virtual NHydra::EPeerState GetAutomatonState() = 0;
     virtual int GetAutomatonTerm() = 0;
 
-    virtual const TString& GetTabletCellBundleName() = 0;
+    virtual const std::string& GetTabletCellBundleName() = 0;
 
     virtual NHydra::IDistributedHydraManagerPtr GetHydraManager() = 0;
     virtual NHydra::ISimpleHydraManagerPtr GetSimpleHydraManager() = 0;

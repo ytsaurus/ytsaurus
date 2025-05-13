@@ -264,7 +264,7 @@ public: \
         const TRestoreTableBackupOptions& options),
         (manifest, options))
     IMPLEMENT_METHOD(std::vector<NTabletClient::TTabletActionId>, BalanceTabletCells, (
-        const TString& tabletCellBundle,
+        const std::string& tabletCellBundle,
         const std::vector< NYPath::TYPath>& movableTables,
         const TBalanceTabletCellsOptions& options),
         (tabletCellBundle, movableTables, options))
@@ -872,11 +872,11 @@ public: \
         (user, passwordSha256, options))
 
     IMPLEMENT_METHOD(NBundleControllerClient::TBundleConfigDescriptorPtr, GetBundleConfig, (
-        const TString& bundleName,
+        const std::string& bundleName,
         const NBundleControllerClient::TGetBundleConfigOptions& options),
         (bundleName, options))
     IMPLEMENT_METHOD(void, SetBundleConfig, (
-        const TString& bundleName,
+        const std::string& bundleName,
         const NBundleControllerClient::TBundleTargetConfigPtr& bundleConfig,
         const NBundleControllerClient::TSetBundleConfigOptions& options),
         (bundleName, bundleConfig, options))

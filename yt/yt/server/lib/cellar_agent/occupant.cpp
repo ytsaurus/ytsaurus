@@ -474,7 +474,8 @@ public:
 
         auto changelogProfiler = occupier->GetProfiler()
             .WithPrefix("/remote_changelog")
-            .WithRequiredTag("tablet_cell_bundle", CellBundleName_ ? CellBundleName_ : "<unknown-cell-bundle>")
+            // TODO(babenko): replace with optional
+            .WithRequiredTag("tablet_cell_bundle", !CellBundleName_.empty() ? CellBundleName_ : "<unknown-cell-bundle>")
             .WithTag("medium", Options_->ChangelogPrimaryMedium)
             .WithTag("cell_id", ToString(CellDescriptor_.CellId), -1);
         TJournalWriterPerformanceCounters performanceCounters{changelogProfiler};
@@ -747,7 +748,7 @@ public:
         return OrchidService_;
     }
 
-    const TString& GetCellBundleName() const override
+    const std::string& GetCellBundleName() const override
     {
         return CellBundleName_;
     }
@@ -792,7 +793,7 @@ private:
     TCellDescriptor CellDescriptor_;
     int ConfigVersion_ = 0;
 
-    const TString CellBundleName_;
+    const std::string CellBundleName_;
 
     TAtomicIntrusivePtr<TDynamicTabletCellOptions> DynamicOptions_{New<TDynamicTabletCellOptions>()};
     int DynamicConfigVersion_ = -1;

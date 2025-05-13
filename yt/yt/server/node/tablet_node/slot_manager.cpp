@@ -159,11 +159,12 @@ private:
 
         const auto& memoryTracker = Bootstrap_->GetNodeMemoryUsageTracker();
 
-        auto update = [&] (const TString& bundleName, int weight) {
+        auto update = [&] (const std::string& bundleName, int weight) {
             YT_LOG_DEBUG("Tablet cell bundle memory pool weight updated (Bundle: %v, Weight: %v)",
                 bundleName,
                 weight);
-            memoryTracker->SetPoolWeight(bundleName, weight);
+            // TODO(babenko): migrate to std::string
+            memoryTracker->SetPoolWeight(TString(bundleName), weight);
         };
 
         TBundlesMemoryPoolWeights weights;
@@ -267,8 +268,10 @@ private:
         // Fill per bundle limits.
         for (auto& [bundleName, bundleStat] : summary.Bundles) {
             bundleStat.Total.Dynamic = {
-                .Usage = memoryTracker->GetUsed(EMemoryCategory::TabletDynamic, bundleName),
-                .Limit = memoryTracker->GetLimit(EMemoryCategory::TabletDynamic, bundleName),
+                // TODO(babenko): switch to std::string
+                .Usage = memoryTracker->GetUsed(EMemoryCategory::TabletDynamic, TString(bundleName)),
+                // TODO(babenko): switch to std::string
+                .Limit = memoryTracker->GetLimit(EMemoryCategory::TabletDynamic, TString(bundleName)),
             };
         }
 

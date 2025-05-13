@@ -31,7 +31,7 @@ struct TResourceLimitsKey
 {
     std::string Account;
     std::string MediumName;
-    std::optional<TString> TabletCellBundle;
+    std::optional<std::string> TabletCellBundle;
     EInMemoryMode InMemoryMode;
 
     // Hasher.
@@ -235,7 +235,7 @@ public:
     TFuture<void> CheckResourceLimits(
         const std::string& account,
         const std::string& mediumName,
-        const std::optional<TString>& tabletCellBundle,
+        const std::optional<std::string>& tabletCellBundle,
         EInMemoryMode inMemoryMode)
     {
         return ResourceLimitsCache_->Get(TResourceLimitsKey{
@@ -249,7 +249,7 @@ public:
     void ValidateResourceLimits(
         const std::string& account,
         const std::string& mediumName,
-        const std::optional<TString>& tabletCellBundle,
+        const std::optional<std::string>& tabletCellBundle,
         EInMemoryMode inMemoryMode)
     {
         auto asyncResult = CheckResourceLimits(account, mediumName, tabletCellBundle, inMemoryMode);
@@ -285,7 +285,7 @@ TSecurityManager::~TSecurityManager() = default;
 TFuture<void> TSecurityManager::CheckResourceLimits(
     const std::string& account,
     const TString& mediumName,
-    const std::optional<TString>& tabletCellBundle,
+    const std::optional<std::string>& tabletCellBundle,
     EInMemoryMode inMemoryMode)
 {
     return Impl_->CheckResourceLimits(account, mediumName, tabletCellBundle, inMemoryMode);
@@ -294,7 +294,7 @@ TFuture<void> TSecurityManager::CheckResourceLimits(
 void TSecurityManager::ValidateResourceLimits(
     const std::string& account,
     const std::string& mediumName,
-    const std::optional<TString>& tabletCellBundle,
+    const std::optional<std::string>& tabletCellBundle,
     EInMemoryMode inMemoryMode)
 {
     Impl_->ValidateResourceLimits(account, mediumName, tabletCellBundle, inMemoryMode);

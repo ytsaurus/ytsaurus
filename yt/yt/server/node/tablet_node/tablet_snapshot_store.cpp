@@ -143,7 +143,7 @@ public:
         const ITabletSlotPtr& slot) override
     {
         TDynamicTabletCellOptionsPtr dynamicOptions;
-        TString bundleName;
+        std::string bundleName;
         if (slot) {
             dynamicOptions = slot->GetDynamicOptions();
             bundleName = slot->GetTabletCellBundleName();

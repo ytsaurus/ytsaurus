@@ -118,11 +118,11 @@ private:
         return replicationCardIds;
     }
 
-    TString GetChaosCellBundle(TYPath path)
+    std::string GetChaosCellBundle(TYPath path)
     {
         auto yson = WaitFor(Client_->GetNode(Format("%v/@chaos_cell_bundle", path), TGetNodeOptions{}))
             .ValueOrThrow();
-        return ConvertTo<TString>(yson);
+        return ConvertTo<std::string>(yson);
     }
 
     TCellId GetChaosCellId(TGuid objectId)

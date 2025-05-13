@@ -46,9 +46,9 @@ TCellId TTabletContextMock::GetCellId() const
     return NullCellId;
 }
 
-const TString& TTabletContextMock::GetTabletCellBundleName() const
+const std::string& TTabletContextMock::GetTabletCellBundleName() const
 {
-    const static TString TabletCellBundleName;
+    const static std::string TabletCellBundleName;
     return TabletCellBundleName;
 }
 

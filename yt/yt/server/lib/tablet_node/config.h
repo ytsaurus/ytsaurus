@@ -130,7 +130,7 @@ struct TBuiltinTableMountConfig
         "Consider promoting master reign");
 
 public:
-    TString TabletCellBundle;
+std::string TabletCellBundle;
 
     NTabletClient::EInMemoryMode InMemoryMode;
 

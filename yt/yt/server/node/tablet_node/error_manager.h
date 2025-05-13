@@ -10,7 +10,7 @@ namespace NYT::NTabletNode {
 
 struct TErrorManagerContext
 {
-    std::optional<TString> TabletCellBundle;
+    std::optional<std::string> TabletCellBundle;
     std::optional<NYPath::TYPath> TablePath;
     NTableClient::TTableId TableId;
     NTabletClient::TTabletId TabletId;

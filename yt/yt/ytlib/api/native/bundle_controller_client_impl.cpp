@@ -16,7 +16,7 @@ using namespace NYTree;
 ////////////////////////////////////////////////////////////////////////////////
 
 NBundleControllerClient::TBundleConfigDescriptorPtr TClient::DoGetBundleConfig(
-    const TString& bundleName,
+    const std::string& bundleName,
     const NBundleControllerClient::TGetBundleConfigOptions& options)
 {
     auto req = BundleControllerProxy_->GetBundleConfig();
@@ -54,7 +54,7 @@ NBundleControllerClient::TBundleConfigDescriptorPtr TClient::DoGetBundleConfig(
 }
 
 void TClient::DoSetBundleConfig(
-    const TString& bundleName,
+    const std::string& bundleName,
     const NBundleControllerClient::TBundleTargetConfigPtr& bundleConfig,
     const NBundleControllerClient::TSetBundleConfigOptions& options)
 {

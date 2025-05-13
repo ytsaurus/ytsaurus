@@ -64,7 +64,7 @@ public:
 
     TLsmActionBatch BuildLsmActions(
         const std::vector<TTabletPtr>& tablets,
-        const TString& bundleName) override
+        const std::string& bundleName) override
     {
         YT_LOG_DEBUG("Started building LSM action batch");
 
