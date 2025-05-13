@@ -76,6 +76,14 @@ LLVM_BC(
         cardinality_update
         cardinality_merge
         cardinality_finalize
+        cardinality_state_init
+        cardinality_state_update
+        cardinality_state_merge
+        cardinality_state_finalize
+        cardinality_merge_init
+        cardinality_merge_update
+        cardinality_merge_merge
+        cardinality_merge_finalize
 )
 
 LLVM_BC(

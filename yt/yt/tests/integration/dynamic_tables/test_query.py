@@ -2517,6 +2517,10 @@ class TestQuery(DynamicTablesBase):
             query = "col_name from (select 1 as col_name from [//tmp/t] limit 1) join [//tmp/t] on 1 = 1 group by col_name"
             select_rows(query, allow_join_without_index=True)
 
+        assert select_rows("cardinality_merge(Subquery.x) AS c FROM "
+                           "(SELECT cardinality_state(k_2) AS x FROM `//tmp/t` GROUP BY k_1) AS Subquery "
+                           "GROUP BY 1")[0]["c"] == 4
+
     @authors("sabdenovch")
     def test_push_down_group_by_primary_key(self):
         sync_create_cells(1)
