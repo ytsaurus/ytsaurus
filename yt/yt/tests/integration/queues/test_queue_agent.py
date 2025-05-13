@@ -5399,7 +5399,7 @@ class TestMultiClusterReplicatedTableObjectsTrimWithExportsOldImpl(TestMultiClus
 class TestControllerInfo(TestQueueAgentBase):
     ENABLE_MULTIDAEMON = True
 
-    CONTROLLER_DELAY_DURATION_SECONDS = 10
+    CONTROLLER_DELAY_SECONDS = 15
     OLD_PASSES_DISPLAY_LIMIT = 4
 
     DELTA_QUEUE_AGENT_CONFIG = {
@@ -5413,11 +5413,22 @@ class TestControllerInfo(TestQueueAgentBase):
         },
         "queue_agent": {
             "controller": {
-                "controller_delay_duration": CONTROLLER_DELAY_DURATION_SECONDS * 1000,  # 10 seconds
+                "controller_delay": CONTROLLER_DELAY_SECONDS * 1000,
             },
             "inactive_object_display_limit": OLD_PASSES_DISPLAY_LIMIT,
         },
     }
+
+    def setup_method(self, method):
+        super().setup_method(method)
+
+        self._apply_dynamic_config_patch({
+            "queue_agent": {
+                "controller": {
+                    "delayed_objects": [],
+                },
+            },
+        })
 
     def _parse_inactive_objects(self, inactive_objects: dict[list]):
         result = {}
@@ -5540,6 +5551,7 @@ class TestControllerInfo(TestQueueAgentBase):
         ("queue", _create_queue_and_get_orchid),
         ("consumer", _create_consumer_and_get_orchid),
     ])
+    @pytest.mark.timeout(120)
     def test_bad_object(self, create_object_and_get_orchid, object_name):
         orchid = QueueAgentOrchid()
 
@@ -5547,7 +5559,7 @@ class TestControllerInfo(TestQueueAgentBase):
 
         key_field = f"leading_{object_name}s"
 
-        create_object_and_get_orchid(self, f"//tmp/{object_name}_good")
+        good_object_orchid = create_object_and_get_orchid(self, f"//tmp/{object_name}_good")
         bad_object_path = f"//tmp/{object_name}_bad"
         bad_object_orchid = create_object_and_get_orchid(self, bad_object_path)
 
@@ -5569,19 +5581,21 @@ class TestControllerInfo(TestQueueAgentBase):
                 },
             },
         })
-        # Sleep for next bad object pass to start
-        time.sleep(1)
+
+        pass_index = bad_object_orchid.get_pass_index()
+        wait(lambda: bad_object_orchid.get_pass_index() - pass_index >= 2)
+        good_object_orchid.wait_fresh_pass()
 
         min_ts = get_timestamps()[0]
 
-        time.sleep(self.CONTROLLER_DELAY_DURATION_SECONDS / 2 - 1)
+        time.sleep(self.CONTROLLER_DELAY_SECONDS / 2 - 1)
 
         timestamps = get_timestamps()
         assert min_ts == timestamps[0]
-        assert timestamps[1] - timestamps[0] >= datetime.timedelta(seconds=(self.CONTROLLER_DELAY_DURATION_SECONDS / 2 - time_tolerance_seconds))
+        assert timestamps[1] - timestamps[0] >= datetime.timedelta(seconds=(self.CONTROLLER_DELAY_SECONDS / 2 - time_tolerance_seconds))
 
         wait(lambda: get_timestamps()[0] > min_ts)
-        assert get_timestamps()[0] - min_ts >= datetime.timedelta(seconds=(self.CONTROLLER_DELAY_DURATION_SECONDS - time_tolerance_seconds))
+        assert get_timestamps()[0] - min_ts >= datetime.timedelta(seconds=(self.CONTROLLER_DELAY_SECONDS - time_tolerance_seconds))
 
         set("//sys/queue_agents/config/queue_agent/controller/delayed_objects", [])
         wait(lambda: get(f"{orchid.queue_agent_orchid_path()}/dynamic_config_manager/effective_config/queue_agent/controller/delayed_objects") == [])
@@ -5589,7 +5603,7 @@ class TestControllerInfo(TestQueueAgentBase):
 
         timestamps = get_timestamps()
         assert abs(timestamps[1] - timestamps[0]) <= datetime.timedelta(seconds=(time_tolerance_seconds))
-        time.sleep(self.CONTROLLER_DELAY_DURATION_SECONDS / 2)
+        time.sleep(self.CONTROLLER_DELAY_SECONDS / 2)
         timestamps = get_timestamps()
         assert abs(timestamps[1] - timestamps[0]) <= datetime.timedelta(seconds=(time_tolerance_seconds))
 

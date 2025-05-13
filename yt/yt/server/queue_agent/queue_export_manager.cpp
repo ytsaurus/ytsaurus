@@ -36,10 +36,11 @@ public:
         return Throttler_;
     }
 
-    void OnDynamicConfigChanged(
-        const TQueueExportManagerDynamicConfigPtr& oldConfig,
+    void Reconfigure(
         const TQueueExportManagerDynamicConfigPtr& newConfig) override
     {
+        auto oldConfig = DynamicConfig_;
+
         Throttler_->Reconfigure(TThroughputThrottlerConfig::Create(newConfig->ExportRateLimit));
         DynamicConfig_ = newConfig;
 
