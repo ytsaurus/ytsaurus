@@ -96,6 +96,11 @@ public:
         TDuration cpuTime,
         const NNet::TNetworkAddress& clientAddress);
 
+    void IncrementCpuProfilingCounter(
+        const std::string& user,
+        const TString& command,
+        TDuration cpuTime);
+
     void IncrementHttpCode(NHttp::EStatusCode httpStatusCode);
 
     int GetNumberOfConcurrentRequests();

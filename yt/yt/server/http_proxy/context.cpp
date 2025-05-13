@@ -77,9 +77,15 @@ TContext::TContext(
     : Api_(std::move(api))
     , Request_(std::move(request))
     , Response_(std::move(response))
+    , UpdateCpuExecutor_ (New<TPeriodicExecutor>(
+        GetCurrentInvoker(),
+        BIND(&TContext::UpdateCumulativeCpuAndProfile, MakeWeak(this), TTraceContextPtr(TryGetCurrentTraceContext())),
+        Api_->GetConfig()->CpuUpdatePeriod))
     , Logger(HttpProxyLogger().WithTag("RequestId: %v", Request_->GetRequestId()))
 {
     DriverRequest_.Id = RandomNumber<ui64>();
+
+    UpdateCpuExecutor_->Start();
 }
 
 bool TContext::TryPrepare()
@@ -589,7 +595,7 @@ void TContext::LogStructuredRequest()
         Descriptor_->CommandName,
         DriverRequest_.AuthenticatedUser,
         WallTime_,
-        CpuTime_,
+        ResultCpuTime_,
         Request_->GetReadByteCount(),
         Response_->GetWriteByteCount());
 
@@ -620,7 +626,7 @@ void TContext::LogStructuredRequest()
         .Item("l7_real_ip").Value(FindBalancerRealIP(Request_))
         // COMPAT(babenko): rename to wall_time
         .Item("duration").Value(WallTime_)
-        .Item("cpu_time").Value(CpuTime_)
+        .Item("cpu_time").Value(ResultCpuTime_)
         .Item("start_time").Value(Timer_.GetStartTime())
         .Item("in_bytes").Value(Request_->GetReadByteCount())
         .Item("out_bytes").Value(Response_->GetWriteByteCount());
@@ -974,9 +980,11 @@ TSharedRef DumpError(const TError& error)
 void TContext::LogAndProfile()
 {
     WallTime_ = Timer_.GetElapsedTime();
+    TDuration deltaCpuTime = TDuration::Zero();
     if (const auto* traceContext = TryGetCurrentTraceContext()) {
         FlushCurrentTraceContextElapsedTime();
-        CpuTime_ = traceContext->GetElapsedTime();
+        ResultCpuTime_ = traceContext->GetElapsedTime();
+        deltaCpuTime = ResultCpuTime_ - ProfiledCpuTime_;
     }
 
     LogStructuredRequest();
@@ -987,7 +995,7 @@ void TContext::LogAndProfile()
         Response_->GetStatus(),
         Error_.GetNonTrivialCode(),
         WallTime_,
-        CpuTime_,
+        deltaCpuTime,
         Request_->GetRemoteAddress());
 }
 
@@ -997,6 +1005,7 @@ void TContext::Finalize()
         YT_LOG_DEBUG("Stopping periodic executor that sends keep-alive frames");
         Y_UNUSED(WaitFor(SendKeepAliveExecutor_->Stop()));
     }
+    Y_UNUSED(WaitFor(UpdateCpuExecutor_->Stop()));
 
     if (EnableRequestBodyWorkaround(Request_)) {
         try {
@@ -1186,6 +1195,20 @@ IInvokerPtr TContext::GetCompressionInvoker() const
     return Api_->GetDynamicConfig()->UseCompressionThreadPool
         ? NYT::GetCompressionInvoker(workloadDescriptor)
         : Api_->GetPoller()->GetInvoker();
+}
+
+void TContext::UpdateCumulativeCpuAndProfile(const TTraceContextPtr& traceContext)
+{
+    if (traceContext) {
+        auto currentCpuTime = traceContext->GetElapsedTime();
+
+        Api_->IncrementCpuProfilingCounter(
+            DriverRequest_.AuthenticatedUser,
+            DriverRequest_.CommandName,
+            currentCpuTime - ProfiledCpuTime_);
+
+        ProfiledCpuTime_ = currentCpuTime;
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

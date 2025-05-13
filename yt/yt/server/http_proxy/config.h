@@ -204,6 +204,8 @@ struct TApiConfig
 
     bool ForceTracing;
 
+    TDuration CpuUpdatePeriod;
+
     TApiTestingOptionsPtr TestingOptions;
 
     REGISTER_YSON_STRUCT(TApiConfig);

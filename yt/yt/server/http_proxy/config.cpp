@@ -170,6 +170,9 @@ void TApiConfig::Register(TRegistrar registrar)
     registrar.Parameter("force_tracing", &TThis::ForceTracing)
         .Default(false);
 
+    registrar.Parameter("cpu_update_period", &TThis::CpuUpdatePeriod)
+        .Default(TDuration::Seconds(5));
+
     registrar.Parameter("testing", &TThis::TestingOptions)
         .Default();
 }

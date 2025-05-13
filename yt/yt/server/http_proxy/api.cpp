@@ -339,6 +339,15 @@ void TApi::IncrementProfilingCounters(
     }
 }
 
+void TApi::IncrementCpuProfilingCounter(
+    const std::string& user,
+    const TString& command,
+    TDuration cpuTime)
+{
+    auto* counters = GetProfilingCounters({user, command});
+    counters->CumulativeRequestCpuTime.Add(cpuTime);
+}
+
 void TApi::HandleRequest(
     const IRequestPtr& req,
     const IResponseWriterPtr& rsp)
