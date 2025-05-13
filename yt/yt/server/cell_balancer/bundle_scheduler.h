@@ -256,6 +256,11 @@ void ScheduleBundles(TSchedulerInputState& input, TSchedulerMutations* mutations
 
 ////////////////////////////////////////////////////////////////////////////////
 
+NBundleControllerClient::TCpuLimitsPtr GetBundleEffectiveCpuLimits(
+    const std::string& bundleName,
+    const TBundleInfoPtr& bundleInfo,
+    const TSchedulerInputState& input);
+
 std::string GetSpareBundleName(const TZoneInfoPtr& zoneInfo);
 
 void InitializeZoneToSpareNodes(TSchedulerInputState& input, TSchedulerMutations* mutations);
