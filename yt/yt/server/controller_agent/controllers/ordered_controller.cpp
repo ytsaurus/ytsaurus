@@ -303,7 +303,7 @@ protected:
 
     virtual bool IsTeleportationSupported() const = 0;
 
-    virtual i64 GetMinTeleportChunkSize() = 0;
+    virtual i64 GetMinTeleportChunkSize() const = 0;
 
     virtual void ValidateInputDataSlice(const TLegacyDataSlicePtr& /*dataSlice*/)
     { }
@@ -447,7 +447,7 @@ protected:
         FinishPreparation();
     }
 
-    TOrderedChunkPoolOptions GetOrderedChunkPoolOptions()
+    TOrderedChunkPoolOptions GetOrderedChunkPoolOptions() const
     {
         TOrderedChunkPoolOptions chunkPoolOptions;
         chunkPoolOptions.MaxTotalSliceCount = Config->MaxTotalSliceCount;
@@ -540,7 +540,7 @@ private:
             !Spec_->JobIO->TableReader->SamplingRate;
     }
 
-    i64 GetMinTeleportChunkSize() override
+    i64 GetMinTeleportChunkSize() const override
     {
         if (Spec_->ForceTransform || Spec_->InputQuery) {
             return std::numeric_limits<i64>::max() / 4;
@@ -756,7 +756,7 @@ private:
         return Spec_->Mapper;
     }
 
-    i64 GetMinTeleportChunkSize() override
+    i64 GetMinTeleportChunkSize() const override
     {
         return std::numeric_limits<i64>::max() / 4;
     }
@@ -985,7 +985,7 @@ private:
         return false;
     }
 
-    i64 GetMinTeleportChunkSize() override
+    i64 GetMinTeleportChunkSize() const override
     {
         if (!Spec_->CombineChunks) {
             return 0;
