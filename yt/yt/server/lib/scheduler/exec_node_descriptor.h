@@ -26,7 +26,6 @@ struct TExecNodeDescriptor
 
     TExecNodeDescriptor(
         NNodeTrackerClient::TNodeId id,
-        const std::string& address,
         const NNodeTrackerClient::TAddressMap& addresses,
         const std::optional<std::string>& dataCenter,
         double ioWeight,
@@ -40,8 +39,9 @@ struct TExecNodeDescriptor
 
     bool CanSchedule(const TSchedulingTagFilter& filter) const;
 
+    const std::string& GetDefaultAddress() const;
+
     NNodeTrackerClient::TNodeId Id = NNodeTrackerClient::InvalidNodeId;
-    std::string Address;
     NNodeTrackerClient::TAddressMap Addresses;
     std::optional<std::string> DataCenter;
     double IOWeight = 0.0;

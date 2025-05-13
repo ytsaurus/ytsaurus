@@ -940,7 +940,7 @@ std::expected<NScheduler::TJobResourcesWithQuota, EScheduleFailReason> TTask::Tr
         "Interruptible: %v)",
         joblet->JobId,
         joblet->JobType,
-        context.GetNodeDescriptor().Address,
+        NNodeTrackerClient::GetDefaultAddress(context.GetNodeDescriptor().Addresses),
         joblet->JobIndex,
         joblet->OutputCookie,
         joblet->InputStripeList->TotalChunkCount,
