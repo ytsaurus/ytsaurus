@@ -144,5 +144,18 @@ namespace boost { namespace multiprecision {
 #define BOOST_MP_NO_CONSTEXPR_DETECTION
 #endif
 
+#ifdef __has_attribute
+#  if __has_attribute(fallthrough)
+#    define BOOST_MP_FALLTHROUGH [[fallthrough]]
+#  endif
+#endif
+
+#ifndef BOOST_MP_FALLTHROUGH
+#  if __GNUC__ >= 7
+#    define BOOST_MP_FALLTHROUGH __attribute__((fallthrough))
+#  else
+#    define BOOST_MP_FALLTHROUGH ((void)0)
+#  endif
+#endif
 
 #endif // BOOST_MP_STANDALONE_CONFIG_HPP
