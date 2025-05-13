@@ -968,6 +968,7 @@ private:
             auto counter = Profiler
                 .WithTag("tablet_cell_bundle", bundleName)
                 .WithTag("alarm_id", alert.Id)
+                .WithSparse()
                 .Counter("/scan_bundles_alarms_count");
             it = bundle.IdToCounter.emplace(alert.Id, std::move(counter)).first;
         }
