@@ -1,5 +1,7 @@
 #include "managed_cache_listener.h"
 
+#include <yql/essentials/utils/log/log.h>
+
 namespace NYql {
 
     void IManagedCacheStorageListener::OnHit() {
@@ -20,8 +22,8 @@ namespace NYql {
     void IManagedCacheMaintainenceListener::OnTickSucceded() {
     }
 
-    void IManagedCacheMaintainenceListener::OnTickFailed(std::exception_ptr e) {
-        std::rethrow_exception(e);
+    void IManagedCacheMaintainenceListener::OnTickFailed(std::exception_ptr) {
+        YQL_LOG(ERROR) << "Cache Maintainence Tick failed: " << CurrentExceptionMessage();
     }
 
 } // namespace NYql

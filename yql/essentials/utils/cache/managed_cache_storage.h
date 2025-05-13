@@ -107,7 +107,7 @@ namespace NYql {
 
             try {
                 TVector<TValue> values = Query_(outdated.Keys).ExtractValueSync();
-                UpdateBatch(std::move(outdated), std::move(values));
+                UpdateBatch(outdated, std::move(values));
             } catch (...) {
                 std::exception_ptr exception = std::current_exception();
                 InvalidateBatch(std::move(outdated), exception);
@@ -178,7 +178,6 @@ namespace NYql {
 
         template <std::invocable<size_t, TEntry&> Action>
         void ForEachEntryLocked(TOutdatedState outdated, Action&& action) {
-            Y_ENSURE(outdated.Keys.size() == outdated.IdxByBuckets.size());
             for (auto& [bucketPtr, indecies] : outdated.IdxByBuckets) {
                 TBucket& bucket = *reinterpret_cast<TBucket*>(bucketPtr);
                 TBucketGuard guard(bucket.GetMutex());

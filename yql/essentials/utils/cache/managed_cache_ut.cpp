@@ -1,6 +1,8 @@
 #include "managed_cache_ut.h"
 #include "managed_cache.h"
 
+#include <yql/essentials/utils/log/log.h>
+
 #include <library/cpp/testing/unittest/registar.h>
 
 #include <library/cpp/threading/future/async.h>
@@ -71,6 +73,9 @@ private:
 Y_UNIT_TEST_SUITE(TManagedCacheTests) {
 
     Y_UNIT_TEST(TestStress) {
+        TStringStream log;
+        NLog::YqlLoggerScope _(&log);
+
         TIdentityService service;
 
         TManagedCacheConfig config = {
@@ -101,6 +106,9 @@ Y_UNIT_TEST_SUITE(TManagedCacheTests) {
                 UNIT_ASSERT_EXCEPTION_CONTAINS(f.TryRethrow(), yexception, "O_o");
             }
         }
+
+        { auto _ = std::move(cache); }
+        UNIT_ASSERT_STRING_CONTAINS(log.Str(), "O_o");
     }
 
 } // Y_UNIT_TEST_SUITE(TManagedCacheTests)
