@@ -116,14 +116,14 @@ struct TBackgroundActivityTaskInfoBase
     const TTabletId TabletId;
     const NHydra::TRevision MountRevision;
     const TString TablePath;
-    const TString TabletCellBundle;
+    const std::string TabletCellBundle;
 
     TBackgroundActivityTaskInfoBase(
         TGuid taskId,
         TTabletId tabletId,
         NHydra::TRevision mountRevision,
         TString tablePath,
-        TString tabletCellBundle);
+        std::string tabletCellBundle);
 };
 
 DEFINE_REFCOUNTED_TYPE(TBackgroundActivityTaskInfoBase);

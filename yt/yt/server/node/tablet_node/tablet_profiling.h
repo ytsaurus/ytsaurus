@@ -423,8 +423,8 @@ private:
 
 TTableProfilerPtr CreateTableProfiler(
     EDynamicTableProfilingMode profilingMode,
-    const TString& tabletCellBundle,
-    const TString& tablePath,
+    const std::string& tabletCellBundle,
+    const NYPath::TYPath& tablePath,
     const TString& tableTag,
     const std::string& account,
     const std::string& medium,

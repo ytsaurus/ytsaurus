@@ -18,8 +18,8 @@ struct TFlushTaskInfo
         TGuid taskId,
         TTabletId tabletId,
         NHydra::TRevision mountRevision,
-        TString tablePath,
-        TString tabletCellBundle,
+        NYPath::TYPath tablePath,
+        std::string tabletCellBundle,
         TStoreId storeId);
 
     bool ComparePendingTasks(const TFlushTaskInfo& other) const;

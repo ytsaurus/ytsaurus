@@ -279,7 +279,7 @@ private:
     std::vector<TString> ReplayChangelogsPaths_;
     bool CellIdFlag_ = false;
     TCellId CellId_ = MakeWellKnownId(EObjectType::TabletCell, TCellTag(1));
-    TString TabletCellBundle_ = "fake-bundle";
+    std::string TabletCellBundle_ = "fake-bundle";
     TCellTag::TUnderlying ClockClusterTag_ = InvalidCellTag.Underlying();
     bool BuildSnapshotFlag_ = false;
     TString BuildSnapshotPath_;

@@ -40,7 +40,7 @@ static const std::string FakeAccount = "fake-account";
 ICellarOccupantPtr CreateFakeOccupant(
     IBootstrapBase* bootstrap,
     TCellId cellId,
-    TString tabletCellBundle,
+    std::string tabletCellBundle,
     NApi::TClusterTag clockClusterTag)
 {
     const auto& cellarManager = bootstrap

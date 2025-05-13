@@ -64,7 +64,7 @@ public:
             actionCount);
     }
 
-    const TString& GetBundleName() const override
+    const std::string& GetBundleName() const override
     {
         return BundleName_;
     }
@@ -93,7 +93,7 @@ public:
     { }
 
 protected:
-    const TString BundleName_;
+    const std::string BundleName_;
     const TString GroupName_;
     const TBundleStatePtr Bundle_;
     const TTabletBalancingGroupConfigPtr GroupConfig_;

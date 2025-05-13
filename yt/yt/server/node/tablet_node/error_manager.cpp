@@ -38,7 +38,7 @@ NConcurrency::TFlsSlot<TErrorManagerContext> Context;
 
 struct TDeduplicationKey
 {
-    TString TabletCellBundle;
+    std::string TabletCellBundle;
     NTableClient::TTableId TableId;
     NTabletClient::TTabletId TabletId;
     std::string Method;
@@ -212,7 +212,7 @@ private:
         const auto& attributes = error.Attributes();
 
         if (!context->TabletCellBundle) {
-            context->TabletCellBundle = attributes.Find<TString>("tablet_cell_bundle");
+            context->TabletCellBundle = attributes.Find<std::string>("tablet_cell_bundle");
         }
         if (!context->TablePath) {
             context->TablePath = attributes.Find<TYPath>("table_path");

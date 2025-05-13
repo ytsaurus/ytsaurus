@@ -78,7 +78,7 @@ public:
 
     TLsmActionBatch BuildLsmActions(
         const std::vector<TTabletPtr>& tablets,
-        const TString& bundleName) override
+        const std::string& bundleName) override
     {
         if (!BackendState_.Bundles.contains(bundleName)) {
             YT_LOG_WARNING("Backend state does not contain bundle, will not "
@@ -135,7 +135,7 @@ public:
 private:
     TLsmBackendState BackendState_;
     TMemoryDigest MemoryDigest_;
-    THashMap<TString, TMemoryDigest> BundleMemoryDigests_;
+    THashMap<std::string, TMemoryDigest> BundleMemoryDigests_;
     std::vector<TStore*> ForcedRotationCandidates_;
     std::vector<TTabletPtr> SavedTablets_;
     double ForcedRotationMemoryRatio_;
