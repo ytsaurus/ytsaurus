@@ -23,8 +23,8 @@ Is released as a docker image.
 - Fix for date- and timestamp SQL-functions via Query Tracker
 - Many stability and other bug fixes
 
-
 {% endcut %}
+
 
 {% cut "**2.5.0**" %}
 

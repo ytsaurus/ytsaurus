@@ -25,6 +25,7 @@ Is released as a docker image.
 
 {% endcut %}
 
+
 {% cut "**2.5.0**" %}
 
 **Release date:** 2024-12-25
