@@ -1462,6 +1462,7 @@ static TQueryBuilder GetListJobsQueryBuilder(
         operationIdAsGuid.Parts64[0],
         operationIdAsGuid.Parts64[1]));
 
+    // TODO(bystrovserg): Switch node_state to transient_state.
     auto runningJobsLookbehindPeriodExpression = Format(
         "node_state IN (%v) "
         "OR ((NOT is_null(update_time)) AND update_time >= %v)",
@@ -1493,11 +1494,22 @@ TFuture<TListJobsStatistics> TClient::ListJobsStatisticsFromArchiveAsync(
     auto builder = GetListJobsQueryBuilder(archiveVersion, operationId, options);
 
     auto jobTypeIndex = builder.AddSelectExpression("type", "job_type");
-    auto jobStateIndex = builder.AddSelectExpression("if(is_null(state), transient_state, state)", "node_state");
+    int jobStateIndex = 0;
+    if (DoesArchiveContainAttribute("controller_state", archiveVersion)) {
+        jobStateIndex = builder.AddSelectExpression(
+            Format(
+                "if(NOT is_null(if(is_null(state), transient_state, state) AS node_state) AND NOT is_null(controller_state),"
+                "   if(node_state IN (%v), node_state, controller_state),"
+                "   if(is_null(node_state), controller_state, node_state))",
+                FinishedJobStatesString),
+            "job_state");
+    } else {
+        jobStateIndex = builder.AddSelectExpression("(if(is_null(state), transient_state, state) AS node_state)", "job_state");
+    }
     auto countIndex = builder.AddSelectExpression("sum(1)", "count");
 
     builder.AddGroupByExpression("job_type");
-    builder.AddGroupByExpression("node_state");
+    builder.AddGroupByExpression("job_state");
 
     return GetOperationsArchiveClient()->SelectRows(builder.Build(), GetDefaultSelectRowsOptions(deadline)).Apply(BIND([=] (const TSelectRowsResult& result) {
         TListJobsStatistics statistics;
@@ -1720,9 +1732,9 @@ static void AddSelectExpressions(
                 builder->AddSelectExpression("controller_state");
                 builder->AddSelectExpression(
                     Format(
-                        "if(NOT is_null(node_state) AND NOT is_null(controller_state), "
-                        "   if(node_state IN (%v), node_state, controller_state), "
-                        "if(is_null(node_state), controller_state, node_state))",
+                        "if(NOT is_null(node_state) AND NOT is_null(controller_state),"
+                        "   if(node_state IN (%v), node_state, controller_state),"
+                        "   if(is_null(node_state), controller_state, node_state))",
                         FinishedJobStatesString),
                     "job_state");
             } else {
