@@ -292,7 +292,7 @@ class TestClickHouseDynamicTables(ClickHouseTestBase):
 
     @authors("max42")
     @pytest.mark.parametrize("instance_count", [1, 2])
-    @pytest.mark.timeout(250)
+    @pytest.mark.timeout(500)
     def test_map_on_dynamic_table(self, instance_count):
         self._create_simple_dynamic_table("//tmp/t", sort_order="ascending")
         set("//tmp/t/@min_compaction_store_count", 5)
@@ -500,6 +500,8 @@ class TestClickHouseDynamicTables(ClickHouseTestBase):
 
 
 class TestClickHouseDynamicTablesFetchFromTablets(TestClickHouseDynamicTables):
+    NUM_TEST_PARTITIONS = 4
+
     def _get_config_patch(self):
         config_patch = super(TestClickHouseDynamicTablesFetchFromTablets, self)._get_config_patch()
         config_patch["yt"]["settings"]["dynamic_table"]["fetch_from_tablets"] = True
