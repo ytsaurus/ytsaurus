@@ -7,9 +7,14 @@ from yt_commands import (
     set_account_disk_space_limit, get_account_disk_space, get_chunks, get
 )
 
+from yt.test_helpers import assert_items_equal
 from yt_helpers import profiler_factory
 
+from random import shuffle, choice
+
 import pytest
+import string
+
 
 ##################################################################
 
@@ -31,6 +36,10 @@ class TestShuffleService(YTEnvSetup):
     STORE_LOCATION_COUNT = 2
 
     NON_DEFAULT_MEDIUM = "hdd1"
+
+    @staticmethod
+    def _make_random_string(size) -> str:
+        return ''.join(choice(string.ascii_letters) for _ in range(size))
 
     @classmethod
     def modify_node_config(cls, config, cluster_index):
@@ -163,3 +172,63 @@ class TestShuffleService(YTEnvSetup):
             assert media[self.NON_DEFAULT_MEDIUM]["replication_factor"] == 5
 
         commit_transaction(parent_transaction)
+
+    @authors("apollo1321")
+    def test_mappers_range(self):
+        parent_transaction = start_transaction(timeout=60000)
+
+        shuffle_handle = start_shuffle("intermediate", partition_count=4, parent_transaction_id=parent_transaction)
+
+        writer_indices = [0, 1, 5, 10, 11]
+        partitions = [0, 1, 3]
+
+        rows_data = {}
+
+        shuffle(writer_indices)
+        for writer_index in writer_indices:
+            shuffle(partitions)
+            for partition_id in partitions:
+                data = self._make_random_string(10)
+                rows_data[(writer_index, partition_id)] = data
+                write_shuffle_data(shuffle_handle, "partition_id", {"partition_id": partition_id, "data": data}, writer_index=writer_index)
+
+        shuffle(writer_indices)
+        for writer_index in writer_indices:
+            shuffle(partitions)
+            for partition_id in partitions:
+                expected = [{"partition_id": partition_id, "data": rows_data[(writer_index, partition_id)]}]
+                assert read_shuffle_data(shuffle_handle, partition_id, writer_index_begin=writer_index, writer_index_end=writer_index + 1) == expected
+
+        for partition_id in partitions:
+            expected = [{"partition_id": partition_id, "data": rows_data[(writer_index, partition_id)]} for writer_index in writer_indices]
+            # Check that chunk fetching is effective.
+            actual = read_shuffle_data(shuffle_handle, partition_id, writer_index_begin=0, writer_index_end=2**30)
+            assert_items_equal(actual, expected)
+
+        for partition_id in partitions:
+            for writer_from, writer_to in [(0, 0), (1, 4), (1, 5), (1, 10), (1, 11), (11, 11)]:
+                expected = [
+                    {"partition_id": partition_id, "data": rows_data[(writer_index, partition_id)]}
+                    for writer_index in range(writer_from, writer_to)
+                    if rows_data.get((writer_index, partition_id))
+                ]
+                actual = read_shuffle_data(shuffle_handle, partition_id, writer_index_begin=writer_from, writer_index_end=writer_to)
+                assert_items_equal(actual, expected)
+
+    @authors("apollo1321")
+    def test_mappers_range_invalid_arguments(self):
+        parent_transaction = start_transaction(timeout=60000)
+
+        shuffle_handle = start_shuffle("intermediate", partition_count=4, parent_transaction_id=parent_transaction)
+
+        with raises_yt_error("Lower limit of mappers range 10 cannot be greater than upper limit 5"):
+            read_shuffle_data(shuffle_handle, 0, writer_index_begin=10, writer_index_end=5)
+
+        with raises_yt_error("Expected >= 0, found -5"):
+            read_shuffle_data(shuffle_handle, 0, writer_index_begin=-5, writer_index_end=5)
+
+        with raises_yt_error("Request has only one writer range limit"):
+            read_shuffle_data(shuffle_handle, 0, writer_index_begin=0)
+
+        with raises_yt_error("Expected >= 0, found -42"):
+            write_shuffle_data(shuffle_handle, "id", {"id": 0}, writer_index=-42)
