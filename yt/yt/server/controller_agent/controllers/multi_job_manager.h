@@ -10,7 +10,7 @@ namespace NYT::NControllerAgent::NControllers {
 
 //! Multiple jobs are created when CookieGroupSize is >1.
 //! The cookie group counts as completed when all the jobs successfully complete.
-//! When some jobs fail, then it gets restarted.
+//! When some jobs fail or abort, then it gets restarted.
 
 class TMultiJobManager
     : public IExtraJobManager
@@ -46,7 +46,7 @@ public:
 
     int GetCookieGroupSize() const;
 
-protected:
+private:
     struct TSecondary
     {
         TJobId JobId;
@@ -58,17 +58,15 @@ protected:
     struct TReplicas
     {
         TJobId MainJobId;
-        std::vector<TSecondary> Secondaries;
+        TCompactVector<TSecondary, 3> Secondaries;
         int Pending = 0;
         int NotCompletedCount = 0;
 
         PHOENIX_DECLARE_TYPE(TReplicas, 0x9f237b97);
     };
 
-private:
     THashMap<NChunkPools::IChunkPoolOutput::TCookie, TReplicas> CookieToReplicas_;
     THashSet<NChunkPools::IChunkPoolOutput::TCookie> PendingCookies_;
-    THashSet<NChunkPools::IChunkPoolOutput::TCookie> BannedCookies_;
     TProgressCounterPtr JobCounter_;
 
     TTask* Task_;
