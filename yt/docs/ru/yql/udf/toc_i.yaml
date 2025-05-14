@@ -4,7 +4,7 @@ items:
   - name: Разработка на Python
     href: python.md
   - name: Разработка на JavaScript
-    href: ../../yandex-specific/yql/udf/javascript.md
+    href: javascript.md
     when: audience == "internal"
  # - name: Разработка на C++
  #   href: cpp.md
