@@ -92,16 +92,20 @@ public:
     {
         auto shuffleHandle = ConvertTo<TShuffleHandlePtr>(TYsonString(request->shuffle_handle()));
 
+        auto writerIndex = request->has_writer_index() ? std::optional<int>(request->writer_index()) : std::nullopt;
+
         context->SetRequestInfo(
-            "ShuffleHandle: %v, ChunkCount: %v",
+            "ShuffleHandle: %v, ChunkCount: %v, MapperId: %v",
             shuffleHandle,
-            request->chunk_specs_size());
+            request->chunk_specs_size(),
+            writerIndex);
 
         auto chunks = FromProto<std::vector<TInputChunkPtr>>(request->chunk_specs());
 
         WaitFor(ShuffleManager_->RegisterChunks(
             shuffleHandle->TransactionId,
-            chunks))
+            chunks,
+            writerIndex))
             .ThrowOnError();
 
         context->Reply();
@@ -111,14 +115,25 @@ public:
     {
         auto shuffleHandle = ConvertTo<TShuffleHandlePtr>(TYsonString(request->shuffle_handle()));
 
+        std::optional<std::pair<int, int>> writerIndexRange;
+        if (request->has_writer_index_range()) {
+            YT_VERIFY(request->writer_index_range().has_begin() && request->writer_index_range().has_end());
+
+            writerIndexRange = std::pair(request->writer_index_range().begin(), request->writer_index_range().end());
+            YT_VERIFY(writerIndexRange->first >= 0);
+            YT_VERIFY(writerIndexRange->first <= writerIndexRange->second);
+        }
+
         context->SetRequestInfo(
-            "ShuffleHandle: %v, PartitionIndex: %v",
+            "ShuffleHandle: %v, PartitionIndex: %v, WriterIndexRange: %v",
             shuffleHandle,
-            request->partition_index());
+            request->partition_index(),
+            writerIndexRange);
 
         auto chunks = WaitFor(ShuffleManager_->FetchChunks(
             shuffleHandle->TransactionId,
-            request->partition_index()))
+            request->partition_index(),
+            writerIndexRange))
             .ValueOrThrow();
 
         for (const auto& chunk : chunks) {

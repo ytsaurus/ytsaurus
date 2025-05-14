@@ -6990,19 +6990,51 @@ private:
 
         auto shuffleHandle = ConvertTo<TShuffleHandlePtr>(TYsonString(request->shuffle_handle()));
 
+        std::optional<std::pair<int, int>> writerIndexRange;
+        if (request->has_writer_index_range()) {
+            auto writerIndexBegin = request->writer_index_range().has_begin()
+                ? std::optional<int>(request->writer_index_range().begin())
+                : std::nullopt;
+
+            auto writerIndexEnd = request->writer_index_range().has_end()
+                ? std::optional<int>(request->writer_index_range().end())
+                : std::nullopt;
+
+            if (!writerIndexBegin.has_value() || !writerIndexEnd.has_value()) {
+                THROW_ERROR_EXCEPTION("One or both writer index range limits are empty")
+                    << TErrorAttribute("begin", writerIndexBegin)
+                    << TErrorAttribute("end", writerIndexEnd);
+            }
+
+            if (*writerIndexBegin > *writerIndexEnd) {
+                THROW_ERROR_EXCEPTION(
+                    "Lower limit of mappers range %v cannot be greater than upper limit %v",
+                    *writerIndexBegin,
+                    *writerIndexEnd);
+            }
+
+            if (*writerIndexBegin < 0) {
+                THROW_ERROR_EXCEPTION("Received negative lower limit of writer index range %v", *writerIndexBegin);
+            }
+
+            writerIndexRange = std::pair(*writerIndexBegin, *writerIndexEnd);
+        }
+
         context->SetRequestInfo(
-            "TransactionId: %v, CoordinatorAddress: %v, Account: %v, PartitionCount: %v, PartitionIndex: %v",
+            "TransactionId: %v, CoordinatorAddress: %v, Account: %v, PartitionCount: %v, PartitionIndex: %v, WriterIndexRange: %v",
             shuffleHandle->TransactionId,
             shuffleHandle->CoordinatorAddress,
             shuffleHandle->Account,
             shuffleHandle->PartitionCount,
-            request->partition_index());
+            request->partition_index(),
+            writerIndexRange);
 
         auto readerConfig = ConvertTo<NTableClient::TTableReaderConfigPtr>(TYsonString(request->reader_config()));
 
         auto reader = WaitFor(client->CreateShuffleReader(
             shuffleHandle,
             request->partition_index(),
+            writerIndexRange,
             readerConfig))
             .ValueOrThrow();
 
@@ -7052,8 +7084,13 @@ private:
             shuffleHandle->PartitionCount,
             partitionColumn);
 
+        auto writerIndex = request->has_writer_index() ? std::optional<int>(request->writer_index()) : std::nullopt;
+        if (writerIndex && *writerIndex < 0) {
+            THROW_ERROR_EXCEPTION("Received negative writer index %v", *writerIndex);
+        }
+
         auto writer = WaitFor(
-            client->CreateShuffleWriter(shuffleHandle, partitionColumn, writerConfig))
+            client->CreateShuffleWriter(shuffleHandle, partitionColumn, writerIndex, writerConfig))
             .ValueOrThrow();
 
         auto decoder = CreateWireRowStreamDecoder(writer->GetNameTable());

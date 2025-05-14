@@ -936,13 +936,15 @@ public: \
     IMPLEMENT_METHOD(void, RegisterShuffleChunks, (
         const TShuffleHandlePtr& shuffleHandle,
         const std::vector<NChunkClient::NProto::TChunkSpec>& chunkSpecs,
+        std::optional<int> writerIndex,
         const TRegisterShuffleChunksOptions& options),
-        (shuffleHandle, chunkSpecs, options))
+        (shuffleHandle, chunkSpecs, writerIndex, options))
     IMPLEMENT_METHOD(std::vector<NChunkClient::NProto::TChunkSpec>, FetchShuffleChunks, (
         const TShuffleHandlePtr& shuffleHandle,
         int partitionIndex,
+        std::optional<std::pair<int, int>> writerIndexRange,
         const TFetchShuffleChunksOptions& options),
-        (shuffleHandle, partitionIndex, options))
+        (shuffleHandle, partitionIndex, writerIndexRange, options))
     IMPLEMENT_METHOD(void, ForsakeChaosCoordinator, (
         NHydra::TCellId chaosCellId,
         NHydra::TCellId cordiantorCellId,
@@ -952,10 +954,12 @@ public: \
     TFuture<IRowBatchReaderPtr> CreateShuffleReader(
         const TShuffleHandlePtr& shuffleHandle,
         int partitionIndex,
+        std::optional<std::pair<int, int>> writerIndexRange,
         const NTableClient::TTableReaderConfigPtr& config) override;
     TFuture<IRowBatchWriterPtr> CreateShuffleWriter(
         const TShuffleHandlePtr& shuffleHandle,
         const std::string& partitionColumn,
+        std::optional<int> writerIndex,
         const NTableClient::TTableWriterConfigPtr& config) override;
 
 #undef DROP_BRACES

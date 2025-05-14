@@ -37,10 +37,15 @@ class TShuffleWriter
     : public IRowBatchWriter
 {
 public:
-    TShuffleWriter(ISchemalessMultiChunkWriterPtr writer, TClientPtr client, TShuffleHandlePtr shuffleHandle)
+    TShuffleWriter(
+        ISchemalessMultiChunkWriterPtr writer,
+        TClientPtr client,
+        TShuffleHandlePtr shuffleHandle,
+        std::optional<int> writerIndex)
         : Writer_(std::move(writer))
         , Client_(std::move(client))
         , ShuffleHandle_(std::move(shuffleHandle))
+        , WriterIndex_(writerIndex)
     { }
 
     bool Write(TRange<TUnversionedRow> rows) override
@@ -56,7 +61,7 @@ public:
     TFuture<void> Close() override
     {
         return Writer_->Close().Apply(BIND([this, this_ = MakeStrong(this)]() {
-            return Client_->RegisterShuffleChunks(ShuffleHandle_, Writer_->GetWrittenChunkSpecs(), /*options*/ {});
+            return Client_->RegisterShuffleChunks(ShuffleHandle_, Writer_->GetWrittenChunkSpecs(), WriterIndex_, /*options*/ {});
         }));
     }
 
@@ -69,6 +74,7 @@ private:
     const ISchemalessMultiChunkWriterPtr Writer_;
     const TClientPtr Client_;
     const TShuffleHandlePtr ShuffleHandle_;
+    const std::optional<int> WriterIndex_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -133,6 +139,7 @@ TShuffleHandlePtr TClient::DoStartShuffle(
 void TClient::DoRegisterShuffleChunks(
     const TShuffleHandlePtr& shuffleHandle,
     const std::vector<TChunkSpec>& chunkSpecs,
+    std::optional<int> writerIndex,
     const TRegisterShuffleChunksOptions& options)
 {
     auto shuffleConnection = GetNativeConnection()->CreateChannelByAddress(shuffleHandle->CoordinatorAddress);
@@ -144,6 +151,9 @@ void TClient::DoRegisterShuffleChunks(
 
     req->set_shuffle_handle(ConvertToYsonString(shuffleHandle).ToString());
     ToProto(req->mutable_chunk_specs(), chunkSpecs);
+    if (writerIndex) {
+        req->set_writer_index(*writerIndex);
+    }
 
     WaitFor(req->Invoke())
         .ThrowOnError();
@@ -152,6 +162,7 @@ void TClient::DoRegisterShuffleChunks(
 std::vector<TChunkSpec> TClient::DoFetchShuffleChunks(
     const TShuffleHandlePtr& shuffleHandle,
     int partitionIndex,
+    std::optional<std::pair<int, int>> writerIndexRange,
     const TFetchShuffleChunksOptions& options)
 {
     auto shuffleConnection = GetNativeConnection()->CreateChannelByAddress(shuffleHandle->CoordinatorAddress);
@@ -163,6 +174,11 @@ std::vector<TChunkSpec> TClient::DoFetchShuffleChunks(
 
     req->set_shuffle_handle(ConvertToYsonString(shuffleHandle).ToString());
     req->set_partition_index(partitionIndex);
+    if (writerIndexRange) {
+        auto* writerIndexRangeProto = req->mutable_writer_index_range();
+        writerIndexRangeProto->set_begin(writerIndexRange->first);
+        writerIndexRangeProto->set_end(writerIndexRange->second);
+    }
 
     auto rsp = WaitFor(req->Invoke())
         .ValueOrThrow();
@@ -175,11 +191,13 @@ std::vector<TChunkSpec> TClient::DoFetchShuffleChunks(
 TFuture<IRowBatchReaderPtr> TClient::CreateShuffleReader(
     const TShuffleHandlePtr& shuffleHandle,
     int partitionIndex,
+    std::optional<std::pair<int, int>> writerIndexRange,
     const TTableReaderConfigPtr& config)
 {
     return FetchShuffleChunks(
         shuffleHandle,
         partitionIndex,
+        writerIndexRange,
         TFetchShuffleChunksOptions{})
         .ApplyUnique(BIND([=, this, this_ = MakeStrong(this)] (std::vector<TChunkSpec>&& chunkSpecs) mutable {
             auto dataSourceDirectory = New<TDataSourceDirectory>();
@@ -221,6 +239,7 @@ TFuture<IRowBatchReaderPtr> TClient::CreateShuffleReader(
 TFuture<IRowBatchWriterPtr> TClient::CreateShuffleWriter(
     const TShuffleHandlePtr& shuffleHandle,
     const std::string& partitionColumn,
+    std::optional<int> writerIndex,
     const TTableWriterConfigPtr& config)
 {
     // The partition column index must be preserved for the partitioner.
@@ -261,7 +280,7 @@ TFuture<IRowBatchWriterPtr> TClient::CreateShuffleWriter(
         /*dataSink*/ {},
         /*writeBlocksOptions*/ {});
 
-    return MakeFuture(New<TShuffleWriter>(std::move(writer), this, std::move(shuffleHandle)))
+    return MakeFuture(New<TShuffleWriter>(std::move(writer), this, std::move(shuffleHandle), writerIndex))
         .As<IRowBatchWriterPtr>();
 }
 
