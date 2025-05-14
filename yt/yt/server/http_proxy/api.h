@@ -3,6 +3,10 @@
 #include "public.h"
 #include "private.h"
 
+#include <yt/yt/server/lib/security_server/user_access_validator.h>
+
+#include <yt/yt/ytlib/api/native/public.h>
+
 #include <yt/yt/ytlib/misc/public.h>
 
 #include <yt/yt/client/driver/driver.h>
@@ -65,9 +69,7 @@ public:
     const NConcurrency::IPollerPtr& GetPoller() const;
     const INodeMemoryTrackerPtr& GetMemoryUsageTracker() const;
 
-    bool IsUserBannedInCache(const std::string& user);
-    void PutUserIntoBanCache(const std::string& user);
-
+    void ValidateUser(const std::string& user);
     TError CheckAccess(const std::string& user);
 
     std::optional<TSemaphoreGuard> AcquireSemaphore(const std::string& user, const TString& command);
@@ -127,6 +129,8 @@ private:
     const INodeMemoryTrackerPtr MemoryUsageTracker_;
 
     const NProfiling::TProfiler SparseProfiler_ = HttpProxyProfiler().WithSparse();
+
+    const NSecurityServer::IUserAccessValidatorPtr UserAccessValidator_;
 
     std::vector<std::pair<NNet::TIP6Network, TString>> Networks_;
     TString DefaultNetworkName_;
