@@ -4,6 +4,7 @@
 #include "config.h"
 #include "format_row_stream.h"
 #include "helpers.h"
+#include "multiconnection_client_cache.h"
 #include "multiproxy_access_validator.h"
 #include "private.h"
 #include "proxy_coordinator.h"
@@ -20,7 +21,10 @@
 
 #include <yt/yt/ytlib/api/native/client.h>
 #include <yt/yt/ytlib/api/native/client_cache.h>
+#include <yt/yt/ytlib/api/native/config.h>
 #include <yt/yt/ytlib/api/native/connection.h>
+
+#include <yt/yt/ytlib/hive/cluster_directory.h>
 
 #include <yt/yt/ytlib/misc/memory_usage_tracker.h>
 
@@ -358,6 +362,8 @@ bool IsColumnarRowsetFormat(NApi::NRpcProxy::NProto::ERowsetFormat format)
     return format == NApi::NRpcProxy::NProto::RF_ARROW;
 }
 
+////////////////////////////////////////////////////////////////////////////////
+
 DECLARE_REFCOUNTED_CLASS(TDetailedProfilingCounters)
 
 class TDetailedProfilingCounters
@@ -448,6 +454,8 @@ private:
 };
 
 DEFINE_REFCOUNTED_TYPE(TDetailedProfilingCounters)
+
+////////////////////////////////////////////////////////////////////////////////
 
 //! This context extends standard typed service context. By this moment it is used for structured
 //! logging reasons.
@@ -636,16 +644,14 @@ public:
             })
         , ApiServiceConfig_(config)
         , Profiler_(std::move(profiler))
-        , Connection_(std::move(connection))
+        , LocalConnection_(std::move(connection))
         , ProxyCoordinator_(std::move(proxyCoordinator))
         , AccessChecker_(std::move(accessChecker))
         , TraceSampler_(std::move(traceSampler))
         , StickyTransactionPool_(stickyTransactionPool
             ? stickyTransactionPool
             : CreateStickyTransactionPool(Logger))
-        , AuthenticatedClientCache_(New<NApi::NNative::TClientCache>(
-            config->ClientCache,
-            Connection_))
+        , AuthenticatedClientCache_(New<TMulticonnectionClientCache>(config->ClientCache))
         , ControlInvoker_(std::move(controlInvoker))
         , HeapProfilerTestingOptions_(config->TestingOptions
             ? config->TestingOptions->HeapProfiler
@@ -656,7 +662,7 @@ public:
         , QueryCorpusReporter_(std::move(queryCorpusReporter))
         , UserAccessValidator_(CreateUserAccessValidator(
             ApiServiceConfig_->UserAccessValidator,
-            Connection_,
+            LocalConnection_,
             Logger))
         , SelectConsumeDataWeight_(Profiler_.Counter("/select_consume/data_weight"))
         , SelectConsumeRowCount_(Profiler_.Counter("/select_consume/row_count"))
@@ -900,12 +906,12 @@ private:
     TApiServiceConfigPtr ApiServiceConfig_;
     const TProfiler Profiler_;
     TAtomicIntrusivePtr<TApiServiceDynamicConfig> Config_{New<TApiServiceDynamicConfig>()};
-    const NApi::NNative::IConnectionPtr Connection_;
+    const NApi::NNative::IConnectionPtr LocalConnection_;
     const IProxyCoordinatorPtr ProxyCoordinator_;
     const IAccessCheckerPtr AccessChecker_;
     const NTracing::TSamplerPtr TraceSampler_;
     const IStickyTransactionPoolPtr StickyTransactionPool_;
-    const NNative::TClientCachePtr AuthenticatedClientCache_;
+    const TMulticonnectionClientCachePtr AuthenticatedClientCache_;
     const IInvokerPtr ControlInvoker_;
     const THeapProfilerTestingOptionsPtr HeapProfilerTestingOptions_;
     const IMemoryUsageTrackerPtr HeavyRequestMemoryUsageTracker_;
@@ -945,10 +951,19 @@ private:
 
     std::atomic<i64> NextSequenceNumberSourceId_ = 0;
 
-    NNative::IClientPtr GetOrCreateClient(const TAuthenticationIdentity& identity)
+    std::optional<std::string> GetMultiproxyTargetCluster(const IServiceContextPtr& context)
     {
-        auto options = TClientOptions::FromAuthenticationIdentity(identity);
-        return AuthenticatedClientCache_->Get(identity, options);
+        const auto& header = context->GetRequestHeader();
+        const auto& multiproxyTargetExt = header.GetExtension(NRpc::NProto::TMultiproxyTargetExt::multiproxy_target_ext);
+        if (!multiproxyTargetExt.has_cluster()) {
+            return {};
+        }
+        const auto& cluster = multiproxyTargetExt.cluster();
+        const auto& localClusterName = LocalConnection_->GetStaticConfig()->ClusterName;
+        if (cluster == localClusterName) {
+            return {};
+        }
+        return cluster;
     }
 
     void AllocateTestData(const TTraceContextPtr& traceContext)
@@ -1096,7 +1111,11 @@ private:
 
         THROW_ERROR_EXCEPTION_IF_FAILED(AccessChecker_->CheckAccess(identity.User));
 
-        UserAccessValidator_->ValidateUser(identity.User);
+        const auto& multiproxyTargetCluster = GetMultiproxyTargetCluster(context);
+        if (multiproxyTargetCluster) {
+            MultiproxyAccessValidator_->ValidateMultiproxyAccess(*multiproxyTargetCluster, context->GetMethod());
+        }
+        UserAccessValidator_->ValidateUser(identity.User, multiproxyTargetCluster);
 
         ProxyCoordinator_->ValidateOperable();
 
@@ -1109,7 +1128,16 @@ private:
                 request->ShortDebugString());
         }
 
-        auto client = GetOrCreateClient(identity);
+        const auto& connection = multiproxyTargetCluster
+            ? LocalConnection_->GetClusterDirectory()->GetConnectionOrThrow(*multiproxyTargetCluster)
+            : LocalConnection_;
+
+        auto client = AuthenticatedClientCache_->Get(
+            multiproxyTargetCluster,
+            identity,
+            connection,
+            TClientOptions::FromAuthenticationIdentity(identity));
+
         if (!client) {
             THROW_ERROR_EXCEPTION("No client found for identity %Qv", identity);
         }
@@ -1288,15 +1316,16 @@ private:
             count,
             clockClusterTag);
 
+        const auto& connection = client->GetNativeConnection();
         if (clockClusterTag == InvalidCellTag) {
-            Connection_->GetClockManager()->ValidateDefaultClock("Unable to generate timestamps");
+            connection->GetClockManager()->ValidateDefaultClock("Unable to generate timestamps");
         }
 
-        const auto& timestampProvider = Connection_->GetTimestampProvider();
+        const auto& timestampProvider = connection->GetTimestampProvider();
 
         ExecuteCall(
             context,
-            [=, Logger = Logger, connection = Connection_] {
+            [=, Logger = Logger] {
                 return timestampProvider->GenerateTimestamps(count, clockClusterTag).ApplyUnique(
                     BIND([connection, clockClusterTag, count, Logger] (TErrorOr<TTimestamp>&& providerResult) {
                         if (providerResult.IsOK() ||
