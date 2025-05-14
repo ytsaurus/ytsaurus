@@ -130,6 +130,9 @@ void TTestingTableMountConfig::Register(TRegistrar registrar)
     registrar.Parameter("table_puller_replica_ban_iterations_count", &TThis::TablePullerReplicaBanIterationsCount)
         .GreaterThan(0)
         .Optional();
+
+    registrar.Parameter("write_response_delay", &TThis::WriteResponseDelay)
+        .Default();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

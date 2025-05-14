@@ -7,7 +7,7 @@ from yt_commands import (
     sync_create_cells, sync_mount_table, raises_yt_error,
     sync_reshard_table, insert_rows, ls, abort_transaction,
     build_snapshot, select_rows, update_nodes_dynamic_config,
-    create_area, sync_flush_table, remount_table,
+    create_area, start_transaction, commit_transaction, sync_flush_table, remount_table,
 )
 
 from yt.common import YtError
@@ -273,6 +273,97 @@ class TestSmoothMovement(DynamicTablesBase):
             assert _get_hunk_ref_counts() == [0, 1]
 
         assert_items_equal(rows, select_rows("* from [//tmp/t]"))
+
+    @authors("ifsmirnov")
+    @pytest.mark.parametrize("two_phase", [True, False])
+    def test_abort_transactions_before_target_activation(self, two_phase):
+        sync_create_cells(2)
+        self._create_sorted_table(
+            "//tmp/t",
+            mount_config={
+                "testing": {
+                    "write_response_delay": 10000,
+                }
+            },
+            pivot_keys=[[], [10]] if two_phase else [[]],
+        )
+
+        self._update_testing_config({
+            "delay_after_stage_at_source": {
+                "waiting_for_locks_before_activation": 5000,
+            }
+        })
+
+        sync_mount_table("//tmp/t")
+        tablet_id = get("//tmp/t/@tablets/0/tablet_id")
+        cell_id = get("//tmp/t/@tablets/0/cell_id")
+
+        tx_id = start_transaction(type="tablet")
+        insert_rows("//tmp/t", [{"key": 1}, {"key": 10}], transaction_id=tx_id)
+        commit_rsp = commit_transaction(tx_id, return_response=True)
+
+        wait(lambda: tx_id in get(f"#{cell_id}/orchid/transactions"))
+
+        action_id = self._move_tablet(tablet_id)
+
+        # Wait until tx is aborted by smooth movement tracker.
+        wait(lambda: tx_id not in get(f"#{cell_id}/orchid/transactions"))
+        wait(lambda: self._get_movement_stage_from_node(tablet_id) == "waiting_for_locks_before_activation")
+
+        commit_rsp.wait()
+        assert not commit_rsp.is_ok()
+
+        wait(lambda: self._check_action(action_id))
+
+    @authors("ifsmirnov")
+    @pytest.mark.parametrize("two_phase", [True, False])
+    def test_abort_transactions_before_servant_switch(self, two_phase):
+        cell_ids = sync_create_cells(2)
+
+        self._create_sorted_table(
+            "//tmp/t",
+            mount_config={
+                "testing": {
+                    "write_response_delay": 10000,
+                }
+            },
+            pivot_keys=[[], [10]] if two_phase else [[]])
+
+        self._update_testing_config({
+            "delay_after_stage_at_source": {
+                "servant_switch_requested": 5000,
+                "waiting_for_locks_before_switch": 5000,
+            }
+        })
+
+        if two_phase:
+            sync_mount_table("//tmp/t", target_cell_ids=cell_ids)
+        else:
+            sync_mount_table("//tmp/t", cell_id=cell_ids[0])
+
+        tablet_id = get("//tmp/t/@tablets/0/tablet_id")
+
+        action_id = self._move_tablet(tablet_id)
+        wait(lambda: self._get_movement_stage_from_node(tablet_id) == "servant_switch_requested")
+
+        tx_id = start_transaction(type="tablet")
+        insert_rows("//tmp/t", [{"key": 1}, {"key": 10}], transaction_id=tx_id)
+        commit_rsp = commit_transaction(tx_id, return_response=True)
+
+        wait(lambda: tx_id in get(f"#{cell_ids[0]}/orchid/transactions"))
+        token = get(f"#{cell_ids[0]}/orchid/transactions/{tx_id}/externalizer_tablets/0/externalization_token")
+        externalized_tx_id = tx_id.replace("-a0002-", "-a000c-") + "@" + token
+        wait(lambda: externalized_tx_id in get(f"#{cell_ids[1]}/orchid/transactions"))
+        assert self._get_movement_stage_from_node(tablet_id) == "servant_switch_requested"
+
+        wait(lambda: tx_id not in get(f"#{cell_ids[0]}/orchid/transactions"))
+        wait(lambda: externalized_tx_id not in get(f"#{cell_ids[1]}/orchid/transactions"))
+        assert self._get_movement_stage_from_node(tablet_id) == "waiting_for_locks_before_switch"
+
+        commit_rsp.wait()
+        assert not commit_rsp.is_ok()
+
+        wait(lambda: self._check_action(action_id))
 
 ##################################################################
 
