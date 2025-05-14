@@ -360,13 +360,13 @@ void TDataBuilder::OnPg(TMaybe<TStringBuf> value, bool /*isUtf8*/)
 }
 
 void TDataBuilder::AddBeginOptional() {
-    for (auto i = OptionalLevels_.top(); i > 1; --i) {
+    if (OptionalLevels_.top() > 1) {
         BeginList();
     }
 }
 
 void TDataBuilder::AddEndOptional() {
-    for (auto i = OptionalLevels_.top(); i > 1; --i) {
+    if (OptionalLevels_.top() > 1) {
         EndList();
     }
 }
