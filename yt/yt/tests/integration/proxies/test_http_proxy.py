@@ -823,6 +823,31 @@ class HttpProxyAccessCheckerTestBase(HttpProxyTestBase):
     }
     ENABLE_MULTIDAEMON = True
 
+    @authors("nadya02")
+    def test_user_access_validator(self):
+        proxy_address = self._get_proxy_address()
+
+        def check_access(proxy_address, path="/", status_code=200, error_code=None, user=None):
+            url = "{}/api/v4/get?path={}".format(proxy_address, path)
+            headers = {}
+            if user:
+                headers["X-YT-User-Name"] = user
+
+            rsp = requests.get(url, headers=headers)
+
+            if error_code is not None :
+                assert json.loads(rsp.content)["code"] == error_code
+
+            return rsp.status_code == status_code
+
+        create_user("u")
+
+        set("//sys/users/u/@banned", True)
+        wait(lambda: check_access(proxy_address, status_code=403, user="u"))
+
+        set("//sys/users/u/@banned", False)
+        wait(lambda: check_access(proxy_address, status_code=200, user="u"))
+
     @authors("gritukan", "verytable")
     def test_access_checker(self):
         def check_access(proxy_address, user):

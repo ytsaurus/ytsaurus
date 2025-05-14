@@ -232,9 +232,11 @@ bool TContext::TryParseUser()
         return true;
     }
 
-    if (Api_->IsUserBannedInCache(authenticatedUser)) {
+    try {
+        Api_->ValidateUser(authenticatedUser);
+    } catch (const std::exception& ex) {
         Response_->SetStatus(EStatusCode::Forbidden);
-        ReplyError(TError("User %Qv is banned", authenticatedUser));
+        ReplyError(TError("User validation failed") << ex);
         return false;
     }
 
@@ -1035,10 +1037,7 @@ void TContext::Finalize()
     } else if (!Response_->AreHeadersFlushed()) {
         Response_->GetHeaders()->Remove("Trailer");
 
-        if (Error_.FindMatching(NSecurityClient::EErrorCode::UserBanned)) {
-            Response_->SetStatus(EStatusCode::Forbidden);
-            Api_->PutUserIntoBanCache(DriverRequest_.AuthenticatedUser);
-        } else if (!Error_.IsOK()) {
+        if (!Error_.IsOK()) {
             Response_->SetStatus(EStatusCode::BadRequest);
         }
         // TODO(prime@): More error codes.

@@ -9,6 +9,8 @@
 
 #include <yt/yt/server/lib/misc/profiling_helpers.h>
 
+#include <yt/yt/ytlib/api/native/connection.h>
+
 #include <yt/yt/core/http/helpers.h>
 
 #include <yt/yt/core/misc/finally.h>
@@ -21,6 +23,7 @@ using namespace NHttp;
 using namespace NNet;
 using namespace NProfiling;
 using namespace NSecurityClient;
+using namespace NSecurityServer;
 using namespace NYson;
 using namespace NYTree;
 using namespace NServer;
@@ -52,6 +55,10 @@ TApi::TApi(TBootstrap* bootstrap)
     , ControlInvoker_(bootstrap->GetControlInvoker())
     , Poller_(bootstrap->GetPoller())
     , MemoryUsageTracker_(bootstrap->GetMemoryUsageTracker())
+    , UserAccessValidator_(CreateUserAccessValidator(
+        Config_->UserAccessValidator,
+        bootstrap->GetNativeConnection(),
+        HttpProxyLogger()))
     , DefaultNetworkName_(bootstrap->GetConfig()->DefaultNetwork)
 {
     for (const auto& network : bootstrap->GetConfig()->Networks) {
@@ -124,22 +131,9 @@ const INodeMemoryTrackerPtr& TApi::GetMemoryUsageTracker() const
     return MemoryUsageTracker_;
 }
 
-bool TApi::IsUserBannedInCache(const std::string& user)
+void TApi::ValidateUser(const std::string& user)
 {
-    auto now = TInstant::Now();
-    auto guard = ReaderGuard(BanCacheLock_);
-    auto it = BanCache_.find(user);
-    if (it != BanCache_.end()) {
-        return now < it->second;
-    }
-
-    return false;
-}
-
-void TApi::PutUserIntoBanCache(const std::string& user)
-{
-    auto guard = WriterGuard(BanCacheLock_);
-    BanCache_[user] = TInstant::Now() + Config_->BanCacheExpirationTime;
+    UserAccessValidator_->ValidateUser(user);
 }
 
 TError TApi::CheckAccess(const std::string& user)
@@ -382,6 +376,7 @@ void TApi::OnDynamicConfigChanged(
     YT_ASSERT_THREAD_AFFINITY_ANY();
 
     DynamicConfig_.Store(newConfig->Api);
+    UserAccessValidator_->Reconfigure(newConfig->Api->UserAccessValidator);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
