@@ -15,6 +15,7 @@
 namespace NYT::NCellBalancer {
 
 using namespace NYson;
+using namespace NBundleControllerClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -218,7 +219,7 @@ public:
     }
 
 private:
-    static bool IsResourceUsageExceeded(const NBundleControllerClient::TInstanceResourcesPtr& usage, const TResourceQuotaPtr& quota)
+    static bool IsResourceUsageExceeded(const TInstanceResourcesPtr& usage, const TResourceQuotaPtr& quota)
     {
         if (!quota) {
             return false;
@@ -1189,7 +1190,7 @@ THashMap<std::string, std::string> MapBundlesToShortNames(const TSchedulerInputS
     return bundleToShortName;
 }
 
-std::string GetInstanceSize(const NBundleControllerClient::TInstanceResourcesPtr& resource)
+std::string GetInstanceSize(const TInstanceResourcesPtr& resource)
 {
     auto cpuCores = resource->Vcpu / 1000;
     auto memoryGB = resource->Memory / 1_GB;
@@ -1199,14 +1200,14 @@ std::string GetInstanceSize(const NBundleControllerClient::TInstanceResourcesPtr
 
 void CalculateResourceUsage(TSchedulerInputState& input)
 {
-    THashMap<std::string, NBundleControllerClient::TInstanceResourcesPtr> aliveResources;
-    THashMap<std::string, NBundleControllerClient::TInstanceResourcesPtr> allocatedResources;
-    THashMap<std::string, NBundleControllerClient::TInstanceResourcesPtr> targetResources;
+    THashMap<std::string, TInstanceResourcesPtr> aliveResources;
+    THashMap<std::string, TInstanceResourcesPtr> allocatedResources;
+    THashMap<std::string, TInstanceResourcesPtr> targetResources;
 
     auto calculateResources = [] (
         const auto& aliveNames,
         const auto& instancesInfo,
-        NBundleControllerClient::TInstanceResourcesPtr& target,
+        TInstanceResourcesPtr& target,
         auto& countBySize)
     {
         for (const auto& instanceName : aliveNames) {
@@ -1230,7 +1231,7 @@ void CalculateResourceUsage(TSchedulerInputState& input)
         }
 
         {
-            auto aliveResourceUsage = New<NBundleControllerClient::TInstanceResources>();
+            auto aliveResourceUsage = New<TInstanceResources>();
             // Default values are non-zero, so we need to clear them.
             aliveResourceUsage->Clear();
 
@@ -1256,7 +1257,7 @@ void CalculateResourceUsage(TSchedulerInputState& input)
         }
 
         {
-            auto allocated = New<NBundleControllerClient::TInstanceResources>();
+            auto allocated = New<TInstanceResources>();
             // Default values are non-zero, so we need to clear them.
             allocated->Clear();
 
@@ -1271,7 +1272,7 @@ void CalculateResourceUsage(TSchedulerInputState& input)
             const auto& nodeGuarantee = targetConfig->TabletNodeResourceGuarantee;
             const auto& proxyGuarantee = targetConfig->RpcProxyResourceGuarantee;
 
-            auto targetResource = New<NBundleControllerClient::TInstanceResources>();
+            auto targetResource = New<TInstanceResources>();
             targetResource->Vcpu = nodeGuarantee->Vcpu * targetConfig->TabletNodeCount + proxyGuarantee->Vcpu * targetConfig->RpcProxyCount;
             targetResource->Memory = nodeGuarantee->Memory * targetConfig->TabletNodeCount + proxyGuarantee->Memory * targetConfig->RpcProxyCount;
             targetResource->NetBytes = nodeGuarantee->NetBytes.value_or(0) * targetConfig->TabletNodeCount + proxyGuarantee->NetBytes.value_or(0) * targetConfig->RpcProxyCount;
@@ -1535,7 +1536,7 @@ void CreateRemoveTabletCells(
     TSchedulerMutations* mutations)
 {
     const auto& bundleInfo = GetOrCrash(input.Bundles, bundleName);
-    const auto& bundleState = mutations->ChangedStates[bundleName];
+    const auto& bundleState = GetOrCrash(mutations->ChangedStates, bundleName);
 
     if (!bundleInfo->EnableTabletCellManagement) {
         return;
@@ -2093,7 +2094,7 @@ public:
         return YTRoleTypeTabNode;
     }
 
-    const NBundleControllerClient::TInstanceResourcesPtr& GetResourceGuarantee(const TBundleInfoPtr& bundleInfo) const
+    const TInstanceResourcesPtr& GetResourceGuarantee(const TBundleInfoPtr& bundleInfo) const
     {
         return bundleInfo->TargetConfig->TabletNodeResourceGuarantee;
     }
@@ -2461,7 +2462,7 @@ public:
         return YTRoleTypeRpcProxy;
     }
 
-    const NBundleControllerClient::TInstanceResourcesPtr& GetResourceGuarantee(const TBundleInfoPtr& bundleInfo) const
+    const TInstanceResourcesPtr& GetResourceGuarantee(const TBundleInfoPtr& bundleInfo) const
     {
         return bundleInfo->TargetConfig->RpcProxyResourceGuarantee;
     }
@@ -2827,6 +2828,62 @@ void ManageCells(TSchedulerInputState& input, TSchedulerMutations* mutations)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TCpuLimitsPtr GetBundleEffectiveCpuLimits(
+    const std::string& bundleName,
+    const TBundleInfoPtr& bundleInfo,
+    const TSchedulerInputState& input)
+{
+    auto currentCpuLimits = NYTree::CloneYsonStruct(bundleInfo->TargetConfig->CpuLimits);
+
+    if (bundleInfo->NodeTagFilter.empty()) {
+        return currentCpuLimits;
+    }
+
+    auto previousConfigIt = input.DynamicConfig.find(bundleInfo->NodeTagFilter);
+    if (previousConfigIt == input.DynamicConfig.end()) {
+        return currentCpuLimits;
+    }
+
+    const auto& previousConfig = previousConfigIt->second;
+
+    auto previousCpuLimits = previousConfig->CpuLimits;
+
+    if (currentCpuLimits->WriteThreadPoolSize >= previousCpuLimits->WriteThreadPoolSize) {
+        return currentCpuLimits;
+    }
+
+    const auto& zoneName = bundleInfo->Zone;
+    const auto& zoneInfo = GetOrCrash(input.Zones, zoneName);
+
+    auto targetCellCount = GetTargetCellCount(bundleInfo, zoneInfo);
+    auto currentCellCount = std::ssize(bundleInfo->TabletCellIds);
+
+    int removingCellCount = 0;
+
+    auto bundleStateIt = input.BundleStates.find(bundleName);
+    if (bundleStateIt != input.BundleStates.end()) {
+        const auto& bundleState = bundleStateIt->second;
+        removingCellCount = std::ssize(bundleState->RemovingCells);
+    }
+
+    if (currentCellCount > targetCellCount || removingCellCount > 0) {
+        YT_LOG_DEBUG("Will not set new bundle dynamic config with reduced \"write_thread_pool_size\" since not all cells are removed "
+            "(BundleName: %v, CurrentCellCount: %v, TargetCellCount: %v, RemovingCellCount: %v, "
+            "OldCpuLimits: %v, NewCpuLimits: %v)",
+            bundleName,
+            currentCellCount,
+            targetCellCount,
+            removingCellCount,
+            ConvertToYsonString(previousCpuLimits, EYsonFormat::Text),
+            ConvertToYsonString(currentCpuLimits, EYsonFormat::Text));
+        return previousCpuLimits;
+    }
+
+    return currentCpuLimits;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void ManageBundlesDynamicConfig(TSchedulerInputState& input, TSchedulerMutations* mutations)
 {
     TBundlesDynamicConfig freshConfig;
@@ -2844,7 +2901,7 @@ void ManageBundlesDynamicConfig(TSchedulerInputState& input, TSchedulerMutations
         }
 
         auto bundleConfig = New<TBundleDynamicConfig>();
-        bundleConfig->CpuLimits = NYTree::CloneYsonStruct(bundleInfo->TargetConfig->CpuLimits);
+        bundleConfig->CpuLimits = GetBundleEffectiveCpuLimits(bundleName, bundleInfo, input);
         bundleConfig->MemoryLimits = NYTree::CloneYsonStruct(bundleInfo->TargetConfig->MemoryLimits);
         bundleConfig->MediumThroughputLimits = NYTree::CloneYsonStructs(bundleInfo->TargetConfig->MediumThroughputLimits);
         freshConfig[bundleInfo->NodeTagFilter] = bundleConfig;

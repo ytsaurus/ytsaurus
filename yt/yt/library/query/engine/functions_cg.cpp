@@ -250,12 +250,17 @@ llvm::FunctionType* TSimpleCallingConvention::GetCalleeType(
     TCGBaseContext& builder,
     std::vector<EValueType> argumentTypes,
     EValueType resultType,
-    bool /*useFunctionContext*/) const
+    bool useFunctionContext) const
 {
     llvm::Type* calleeResultType;
     auto calleeArgumentTypes = std::vector<llvm::Type*>();
     calleeArgumentTypes.push_back(PointerType::getUnqual(
         GetOpaqueType(builder, ExecutionContextStructName)));
+
+    if (useFunctionContext) {
+        calleeArgumentTypes.push_back(PointerType::getUnqual(
+            GetOpaqueType(builder, FunctionContextStructName)));
+    }
 
     if (IsStringLikeType(resultType)) {
         calleeResultType = builder->getVoidTy();

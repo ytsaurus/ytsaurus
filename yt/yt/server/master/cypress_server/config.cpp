@@ -130,6 +130,9 @@ void TDynamicCypressManagerConfig::Register(TRegistrar registrar)
     registrar.Parameter("use_proper_branched_parent_in_lock_copy_destination", &TThis::UseProperBranchedParentInLockCopyDestination)
         .Default(true);
 
+    registrar.Parameter("alert_on_list_node_load", &TThis::AlertOnListNodeLoad)
+        .Default(true);
+
     registrar.Parameter("default_optimize_for", &TThis::DefaultOptimizeFor)
         .Default(NTableClient::EOptimizeFor::Lookup);
 

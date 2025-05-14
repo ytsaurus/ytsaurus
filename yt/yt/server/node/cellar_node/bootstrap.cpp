@@ -309,7 +309,6 @@ private:
         auto tabletCellBundle = GetConfig()->DryRun->TabletCellBundle;
         auto clockClusterTag = GetConfig()->DryRun->ClockClusterTag;
         YT_VERIFY(cellId);
-        YT_VERIFY(tabletCellBundle);
 
         YT_LOG_EVENT(
             DryRunLogger,

@@ -716,7 +716,7 @@ private:
             return Owner_->Bootstrap_->GetDynamicConfigManager();
         }
 
-        const TString& GetTabletCellBundleName() const final
+        const std::string& GetTabletCellBundleName() const final
         {
             return Owner_->Slot_->GetTabletCellBundleName();
         }

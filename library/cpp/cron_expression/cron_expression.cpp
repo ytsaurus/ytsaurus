@@ -1079,7 +1079,7 @@ private:
             }
 
             if (value != updateValue) {
-                if (abs(calendar.year() - baseYear) > CRON_MAX_YEARS_DIFF) {
+                if (static_cast<uint32_t>(std::abs(calendar.year() - baseYear)) > CRON_MAX_YEARS_DIFF) {
                     break;
                 }
                 continue;

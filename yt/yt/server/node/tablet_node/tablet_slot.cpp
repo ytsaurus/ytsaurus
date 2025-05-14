@@ -155,7 +155,7 @@ class TMediumThrottlerManager
 {
 public:
     TMediumThrottlerManager(
-        TString bundleName,
+        std::string bundleName,
         TCellId cellId,
         IInvokerPtr automationInvoker,
         TBundleDynamicConfigManagerPtr dynamicConfigManager,
@@ -203,8 +203,8 @@ private:
         const TBundleDynamicConfigPtr& oldConfig,
         const TBundleDynamicConfigPtr& newConfig)>;
 
-    const TString BundleName_;
-    const TString BundlePath_;
+    const std::string BundleName_;
+    const NYPath::TYPath BundlePath_;
     const IInvokerPtr AutomationInvoker_;
     const TBundleDynamicConfigManagerPtr DynamicConfigManager_;
     const IDistributedThrottlerManagerPtr DistributedThrottlerManager_;
@@ -391,7 +391,7 @@ public:
         return hydraManager ? hydraManager->GetAutomatonTerm() : InvalidTerm;
     }
 
-    const TString& GetTabletCellBundleName() override
+    const std::string& GetTabletCellBundleName() override
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
 

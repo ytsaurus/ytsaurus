@@ -508,7 +508,7 @@ struct THydraDryRunConfig
 
     TCellId TabletCellId;
 
-    TString TabletCellBundle;
+    std::string TabletCellBundle;
 
     NApi::TClusterTag ClockClusterTag;
 

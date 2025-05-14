@@ -294,7 +294,7 @@ struct TTabletSnapshot
     TCompressionDictionaryInfos CompressionDictionaryInfos;
     NTableClient::IDictionaryCompressionFactoryPtr DictionaryCompressionFactory;
 
-    TString TabletCellBundle;
+    std::string TabletCellBundle;
 
     NYson::TYsonString CustomRuntimeData;
 
@@ -345,7 +345,7 @@ struct ITabletContext
     virtual ~ITabletContext() = default;
 
     virtual NObjectClient::TCellId GetCellId() const = 0;
-    virtual const TString& GetTabletCellBundleName() const = 0;
+    virtual const std::string& GetTabletCellBundleName() const = 0;
     virtual NHydra::EPeerState GetAutomatonState() const = 0;
     virtual int GetAutomatonTerm() const = 0;
     virtual IInvokerPtr GetControlInvoker() const = 0;

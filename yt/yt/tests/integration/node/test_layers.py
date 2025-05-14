@@ -2024,7 +2024,6 @@ class TestEnableRootVolumeDiskQuota(YTEnvSetup):
                 "mapper": {
                     "layer_paths": ["//tmp/exec.tar.gz", "//tmp/rootfs.tar.gz", "//tmp/sandbox.img"],
                     # "disk_space_limit": 1024 * 1024,
-                    "make_rootfs_writable": True,
                 },
                 "enable_root_volume_disk_quota": True,
             },
@@ -2048,7 +2047,6 @@ class TestEnableRootVolumeDiskQuota(YTEnvSetup):
                     "file_paths": ["//tmp/mapper.sh"],
                     "copy_files": True,
                     # "disk_space_limit": 1024 * 1024,
-                    "make_rootfs_writable": True,
                 },
                 "enable_root_volume_disk_quota": True,
             },
@@ -2069,7 +2067,6 @@ class TestEnableRootVolumeDiskQuota(YTEnvSetup):
                     "tmpfs_path": "tmpfs",
                     "tmpfs_size": 1024 * 1024,
                     # "disk_space_limit": 1024 * 1024,
-                    "make_rootfs_writable": True,
                 },
                 "enable_root_volume_disk_quota": True,
             },
@@ -2092,7 +2089,6 @@ class TestEnableRootVolumeDiskQuota(YTEnvSetup):
                 "mapper": {
                     "layer_paths": ["//tmp/exec.tar.gz", "//tmp/rootfs.tar.gz"],
                     # "disk_space_limit": 1024 * 1024,
-                    "make_rootfs_writable": True,
                 },
                 "enable_root_volume_disk_quota": True,
                 "input_query": "a where a > 0"

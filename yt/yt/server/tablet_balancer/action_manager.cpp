@@ -46,11 +46,11 @@ public:
         NApi::NNative::IClientPtr client,
         IBootstrap* bootstrap);
 
-    void ScheduleActionCreation(const TString& bundleName, const TActionDescriptor& descriptor) override;
-    void CreateActions(const TString& bundleName) override;
+    void ScheduleActionCreation(const std::string& bundleName, const TActionDescriptor& descriptor) override;
+    void CreateActions(const std::string& bundleName) override;
 
-    bool HasUnfinishedActions(const TString& bundleName) const override;
-    bool IsKnownAction(const TString& bundleName, TTabletActionId actionId) const override;
+    bool HasUnfinishedActions(const std::string& bundleName) const override;
+    bool IsKnownAction(const std::string& bundleName, TTabletActionId actionId) const override;
 
     void Start(TTransactionId prerequisiteTransactionId) override;
     void Stop() override;
@@ -71,12 +71,12 @@ private:
     NConcurrency::TPeriodicExecutorPtr PollExecutor_;
     NConcurrency::TPeriodicExecutorPtr CreateActionExecutor_;
 
-    THashMap<TString, std::deque<TActionDescriptor>> PendingActionDescriptors_;
-    THashMap<TString, THashSet<TTabletActionPtr>> RunningActions_;
-    THashMap<TString, std::deque<TTabletActionPtr>> FinishedActions_;
-    THashMap<TString, TBundleProfilingCounters> ProfilingCounters_;
+    THashMap<std::string, std::deque<TActionDescriptor>> PendingActionDescriptors_;
+    THashMap<std::string, THashSet<TTabletActionPtr>> RunningActions_;
+    THashMap<std::string, std::deque<TTabletActionPtr>> FinishedActions_;
+    THashMap<std::string, TBundleProfilingCounters> ProfilingCounters_;
 
-    std::queue<std::pair<TString, TInstant>> BundlesWithPendingActions_;
+    std::queue<std::pair<std::string, TInstant>> BundlesWithPendingActions_;
 
     bool Started_ = false;
     TTransactionId PrerequisiteTransactionId_ = NullTransactionId;
@@ -84,7 +84,7 @@ private:
     void Poll();
     void TryPoll();
 
-    int CreatePendingBundleActions(const TString& bundleName, int actionCountLimit);
+    int CreatePendingBundleActions(const std::string& bundleName, int actionCountLimit);
     void CreatePendingActions();
     void TryCreatePendingActions();
 
@@ -92,7 +92,7 @@ private:
 
     IAttributeDictionaryPtr MakeActionAttributes(const TActionDescriptor& descriptor);
     void MoveFinishedActionsFromRunningToFinished();
-    const TBundleProfilingCounters& GetOrCreateProfilingCounters(const TString& bundleName);
+    const TBundleProfilingCounters& GetOrCreateProfilingCounters(const std::string& bundleName);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -114,14 +114,14 @@ TActionManager::TActionManager(
         Config_->TabletActionPollingPeriod))
 { }
 
-void TActionManager::ScheduleActionCreation(const TString& bundleName, const TActionDescriptor& descriptor)
+void TActionManager::ScheduleActionCreation(const std::string& bundleName, const TActionDescriptor& descriptor)
 {
     YT_ASSERT_INVOKER_AFFINITY(Invoker_);
 
     PendingActionDescriptors_[bundleName].emplace_back(descriptor);
 }
 
-void TActionManager::CreateActions(const TString& bundleName)
+void TActionManager::CreateActions(const std::string& bundleName)
 {
     YT_ASSERT_INVOKER_AFFINITY(Invoker_);
 
@@ -215,7 +215,7 @@ int TActionManager::GetRunningActionCount() const
         });
 }
 
-int TActionManager::CreatePendingBundleActions(const TString& bundleName, int actionCountLimit)
+int TActionManager::CreatePendingBundleActions(const std::string& bundleName, int actionCountLimit)
 {
     YT_LOG_DEBUG("Creating pending actions (Bundle: %v, ActionCountLimit: %v)",
         bundleName,
@@ -281,14 +281,14 @@ int TActionManager::CreatePendingBundleActions(const TString& bundleName, int ac
     return createdActionCount;
 }
 
-bool TActionManager::HasUnfinishedActions(const TString& bundleName) const
+bool TActionManager::HasUnfinishedActions(const std::string& bundleName) const
 {
     YT_ASSERT_INVOKER_AFFINITY(Invoker_);
 
     return PendingActionDescriptors_.contains(bundleName) || RunningActions_.contains(bundleName);
 }
 
-bool TActionManager::IsKnownAction(const TString& bundleName, TTabletActionId actionId) const
+bool TActionManager::IsKnownAction(const std::string& bundleName, TTabletActionId actionId) const
 {
     YT_ASSERT_INVOKER_AFFINITY(Invoker_);
 
@@ -432,7 +432,7 @@ void TActionManager::Poll()
 
 void TActionManager::MoveFinishedActionsFromRunningToFinished()
 {
-    THashSet<TString> relevantBundles;
+    THashSet<std::string> relevantBundles;
 
     for (auto& [bundleName, runningActions] : RunningActions_) {
         auto& finishedActions = FinishedActions_[bundleName];
@@ -467,7 +467,7 @@ void TActionManager::MoveFinishedActionsFromRunningToFinished()
     DropMissingKeys(RunningActions_, relevantBundles);
 }
 
-const TActionManager::TBundleProfilingCounters& TActionManager::GetOrCreateProfilingCounters(const TString& bundleName)
+const TActionManager::TBundleProfilingCounters& TActionManager::GetOrCreateProfilingCounters(const std::string& bundleName)
 {
     if (auto it = ProfilingCounters_.find(bundleName); it != ProfilingCounters_.end()) {
         return it->second;

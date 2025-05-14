@@ -88,7 +88,7 @@ struct TLsmBackendState
     i64 DynamicMemoryLimit = 0;
     i64 DynamicMemoryUsage = 0;
 
-    THashMap<TString, TTabletCellBundleState> Bundles;
+    THashMap<std::string, TTabletCellBundleState> Bundles;
 
     TInstant CurrentTime;
 };
@@ -124,7 +124,7 @@ struct ILsmBackend
     //! NB: Context switches are possible.
     virtual TLsmActionBatch BuildLsmActions(
         const std::vector<TTabletPtr>& tablets,
-        const TString& tabletCellBundle) = 0;
+        const std::string& tabletCellBundle) = 0;
 
     //! Returns a set of actions built after all tablets were seen.
     //! Should be called once per round.

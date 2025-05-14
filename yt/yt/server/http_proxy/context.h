@@ -75,12 +75,14 @@ private:
     const TApiPtr Api_;
     const NHttp::IRequestPtr Request_;
     const NHttp::IResponseWriterPtr Response_;
+    NConcurrency::TPeriodicExecutorPtr UpdateCpuExecutor_;
 
     NLogging::TLogger Logger;
 
     NProfiling::TWallTimer Timer_;
     TDuration WallTime_;
-    TDuration CpuTime_;
+    TDuration ProfiledCpuTime_;
+    TDuration ResultCpuTime_;
 
     TString Parameters_;
 
@@ -136,6 +138,7 @@ private:
     void AllocateTestData(const NTracing::TTraceContextPtr& traceContext);
 
     IInvokerPtr GetCompressionInvoker() const;
+    void UpdateCumulativeCpuAndProfile(const NTracing::TTraceContextPtr& traceContext);
 };
 
 DEFINE_REFCOUNTED_TYPE(TContext)

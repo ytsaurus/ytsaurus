@@ -163,11 +163,11 @@ struct TQueueControllerDynamicConfig
 
     //! List of objects, for which controllers must be delayed every pass.
     //!
-    //! Passes of such controllers take additional #ControllerDelayDuration seconds
+    //! Passes of such controllers take additional #ControllerDelay seconds
     //! to complete. This should be used for debug only.
     std::vector<NYPath::TRichYPath> DelayedObjects;
     //! Delay duration for #DelayedObjects.
-    TDuration ControllerDelayDuration;
+    TDuration ControllerDelay;
 
     TQueueExporterDynamicConfig QueueExporter;
 

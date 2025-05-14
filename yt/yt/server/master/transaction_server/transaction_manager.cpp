@@ -133,6 +133,34 @@ using NTransactionSupervisor::NProto::NTransactionSupervisor::TRspAbortTransacti
 
 ////////////////////////////////////////////////////////////////////////////////
 
+namespace {
+
+class TTransactionContextGuard
+{
+public:
+    TTransactionContextGuard(TBootstrap* bootstrap, TTransaction* transaction)
+        : UserGuard_(
+            bootstrap->GetSecurityManager(),
+            transaction->IsSequoiaTransaction()
+                ? transaction->GetAuthenticationIdentity()
+                : NRpc::GetCurrentAuthenticationIdentity())
+    {
+        if (transaction->IsSequoiaTransaction()) {
+            TraceGuard_.emplace(transaction->GetTraceContext());
+            SequoiaGuard_.emplace(bootstrap, transaction->GetId(), transaction->SequoiaWriteSet());
+        }
+    }
+
+private:
+    TAuthenticatedUserGuard UserGuard_;
+    std::optional<NTracing::TTraceContextGuard> TraceGuard_;
+    std::optional<TSequoiaContextGuard> SequoiaGuard_;
+};
+
+} // namespace
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TTransactionManager
     : public TMasterAutomatonPart
     , public ITransactionManager
@@ -800,13 +828,12 @@ public:
 
         transaction->SetPersistentState(ETransactionState::Committed);
 
+        TTransactionContextGuard guard(Bootstrap_, transaction);
         TransactionCommitted_.Fire(transaction);
 
         if (temporarilyRefTimestampHolder) {
             UnrefTimestampHolder(transactionId);
         }
-
-        auto sequoiaContextGuard = MaybeCreateSequoiaContextGuard(transaction);
 
         RunCommitTransactionActions(transaction, options);
 
@@ -951,9 +978,8 @@ public:
 
         transaction->SetPersistentState(ETransactionState::Aborted);
 
+        TTransactionContextGuard guard(Bootstrap_, transaction);
         TransactionAborted_.Fire(transaction);
-
-        auto sequoiaContext = MaybeCreateSequoiaContextGuard(transaction);
         RunAbortTransactionActions(transaction, options, /*requireLegacyBehavior*/ false);
 
         const auto& objectManager = Bootstrap_->GetObjectManager();
@@ -1517,7 +1543,7 @@ public:
             GetAndValidatePrerequisiteTransaction(prerequisiteTransactionId);
         }
 
-        auto sequoiaContextGuard = MaybeCreateSequoiaContextGuard(transaction);
+        TTransactionContextGuard guard(Bootstrap_, transaction);
 
         RunPrepareTransactionActions(transaction, options);
 
@@ -1572,6 +1598,8 @@ public:
     {
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
+        ValidateMirroredTransactionFinish(transactionId, /*commit*/ true);
+
         auto* transaction = GetTransactionOrThrow(transactionId);
         transaction->SetNativeCommitMutationRevision(nativeCommitMutationRevision);
         CommitTransaction(transaction, options);
@@ -1592,6 +1620,8 @@ public:
         const TTransactionAbortOptions& options) override
     {
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
+
+        ValidateMirroredTransactionFinish(transactionId, /*commit*/ false);
 
         auto* transaction = GetTransactionOrThrow(transactionId);
         AbortTransaction(
@@ -3528,16 +3558,6 @@ private:
         }
     }
 
-    TSequoiaContextGuard MaybeCreateSequoiaContextGuard(TTransaction* transaction)
-    {
-        if (transaction->IsSequoiaTransaction()) {
-            auto sequoiaContext = CreateSequoiaContext(Bootstrap_, transaction->GetId(), transaction->SequoiaWriteSet());
-            return TSequoiaContextGuard(std::move(sequoiaContext), Bootstrap_->GetSecurityManager(), transaction->GetAuthenticationIdentity(), transaction->GetTraceContext());
-        } else {
-            return TSequoiaContextGuard(Bootstrap_->GetSecurityManager());
-        }
-    }
-
     void OnProfiling()
     {
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
@@ -3602,6 +3622,26 @@ private:
 
         const auto& config = Bootstrap_->GetConfigManager()->GetConfig()->SequoiaManager;
         return config->Enable && config->EnableCypressTransactionsInSequoia;
+    }
+
+    void ValidateMirroredTransactionFinish(TTransactionId transactionId, bool commit)
+    {
+        if (IsCypressTransactionMirroredToSequoia(transactionId) &&
+            IsMirroringToSequoiaEnabled() &&
+            !GetSequoiaContext())
+        {
+            YT_LOG_ALERT(
+                "Attempt to %v mirrored transaction via TransactionSupervisor.%vTransaction (TransactionId: %v)",
+                commit ? "commit" : "abort",
+                commit ? "Commit" : "Abort",
+                transactionId);
+
+            THROW_ERROR_EXCEPTION(
+                "Cannot %v mirrored transaction via TransactionSupervisor.%vTransaction",
+                commit ? "commit" : "abort",
+                commit ? "Commit" : "Abort")
+                << TErrorAttribute("transaction_id", transactionId);
+        }
     }
 };
 

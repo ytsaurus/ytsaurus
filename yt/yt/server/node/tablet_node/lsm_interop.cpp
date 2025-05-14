@@ -169,10 +169,10 @@ private:
             NLsm::TTabletCellBundleState bundleState{
                 .ForcedRotationMemoryRatio = options->ForcedRotationMemoryRatio,
                 .EnablePerBundleMemoryLimit = options->EnableTabletDynamicMemoryLimit,
-                .DynamicMemoryLimit =
-                    memoryTracker->GetLimit(EMemoryCategory::TabletDynamic, bundleName),
-                .DynamicMemoryUsage =
-                    memoryTracker->GetUsed(EMemoryCategory::TabletDynamic, bundleName),
+                // TODO(babenko): migrate to std::string
+                .DynamicMemoryLimit = memoryTracker->GetLimit(EMemoryCategory::TabletDynamic, TString(bundleName)),
+                // TODO(babenko): migrate to std::string
+                .DynamicMemoryUsage = memoryTracker->GetUsed(EMemoryCategory::TabletDynamic, TString(bundleName)),
             };
 
             backendState.Bundles[bundleName] = bundleState;

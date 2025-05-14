@@ -186,7 +186,7 @@ struct TCompactionTaskInfo
         TTabletId tabletId,
         NHydra::TRevision mountRevision,
         TString tablePath,
-        TString tabletCellBundle,
+        std::string tabletCellBundle,
         TPartitionId partitionId,
         EStoreCompactionReason reason,
         bool discardStores,

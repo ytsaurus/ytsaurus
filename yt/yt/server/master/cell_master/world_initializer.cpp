@@ -29,12 +29,12 @@
 #include <yt/yt/ytlib/cypress_client/cypress_ypath_proxy.h>
 #include <yt/yt/ytlib/cypress_client/rpc_helpers.h>
 
-#include <yt/yt/ytlib/object_client/master_ypath_proxy.h>
+#include <yt/yt/ytlib/cypress_transaction_client/cypress_transaction_service_proxy.h>
 
 #include <yt/yt/ytlib/election/cell_manager.h>
 #include <yt/yt/ytlib/election/config.h>
 
-#include <yt/yt/ytlib/transaction_client/transaction_service_proxy.h>
+#include <yt/yt/ytlib/object_client/master_ypath_proxy.h>
 
 #include <yt/yt/ytlib/tablet_client/helpers.h>
 
@@ -1151,7 +1151,7 @@ private:
 
     TTransactionId StartTransaction()
     {
-        TTransactionServiceProxy proxy(Bootstrap_->GetLocalRpcChannel());
+        NCypressTransactionClient::TCypressTransactionServiceProxy proxy(Bootstrap_->GetLocalRpcChannel());
         auto req = proxy.StartTransaction();
         req->set_timeout(ToProto(Config_->WorldInitializer->InitTransactionTimeout));
         req->set_title("World initialization");
@@ -1163,15 +1163,19 @@ private:
 
     void AbortTransaction(TTransactionId transactionId)
     {
-        const auto& transactionSupervisor = Bootstrap_->GetTransactionSupervisor();
-        WaitFor(transactionSupervisor->AbortTransaction(transactionId))
+        NCypressTransactionClient::TCypressTransactionServiceProxy proxy(Bootstrap_->GetLocalRpcChannel());
+        auto req = proxy.AbortTransaction();
+        ToProto(req->mutable_transaction_id(), transactionId);
+        WaitFor(req->Invoke())
             .ThrowOnError();
     }
 
     void CommitTransaction(TTransactionId transactionId)
     {
-        const auto& transactionSupervisor = Bootstrap_->GetTransactionSupervisor();
-        WaitFor(transactionSupervisor->CommitTransaction(transactionId))
+        NCypressTransactionClient::TCypressTransactionServiceProxy proxy(Bootstrap_->GetLocalRpcChannel());
+        auto req = proxy.CommitTransaction();
+        ToProto(req->mutable_transaction_id(), transactionId);
+        WaitFor(req->Invoke())
             .ThrowOnError();
     }
 

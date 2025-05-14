@@ -44,7 +44,7 @@ public:
     void ValidateResourceLimits(
         const std::string& /*account*/,
         const std::string& /*mediumName*/,
-        const std::optional<TString>& /*tabletCellBundle*/,
+        const std::optional<std::string>& /*tabletCellBundle*/,
         EInMemoryMode /*inMemoryMode*/) override
     { }
 

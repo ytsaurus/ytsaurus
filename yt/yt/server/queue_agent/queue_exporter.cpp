@@ -146,7 +146,7 @@ void TQueueExportProgress::Register(TRegistrar registrar)
     registrar.Parameter("tablets", &TThis::Tablets)
         .Default();
     registrar.Parameter("queue_object_id", &TThis::QueueObjectId)
-        .Default(NullObjectId);
+        .Default();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -591,7 +591,7 @@ private:
         }
 
         // COMPAT(apachee): There are exports without "queue_object_id" field set. We do not want to ignore export progress in this case.
-        if (currentExportProgress && currentExportProgress->QueueObjectId == NullObjectId) {
+        if (currentExportProgress && !currentExportProgress->QueueObjectId) {
             currentExportProgress->QueueObjectId = QueueObject_.ObjectId;
         }
 
