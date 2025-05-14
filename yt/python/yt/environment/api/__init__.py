@@ -44,6 +44,7 @@ class LocalYtConfig(object):
     allow_chunk_storage_in_tmpfs = attr.ib(False)
     node_io_engine_type = attr.ib(None)
     node_use_direct_io_for_reads = attr.ib("never")
+    node_network_names = attr.ib(factory=lambda: ["default"])
     store_location_count = attr.ib(1)
     use_slot_user_id = attr.ib(True)
     cri_endpoint = attr.ib(None)
