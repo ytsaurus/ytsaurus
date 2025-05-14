@@ -5,6 +5,7 @@ INCLUDE(${ARCADIA_ROOT}/yt/ya_cpp.make.inc)
 PEERDIR(
     yt/yt/core
     contrib/clickhouse/src
+    library/cpp/json/yson
 )
 
 ADDINCL(
@@ -20,6 +21,7 @@ ADDINCL(
 
 SRCS(
     GLOBAL convert_yson.cpp
+    GLOBAL yson_to_json.cpp
     unescaped_yson.cpp
     GLOBAL ypath.cpp
     GLOBAL yson_extract.cpp
