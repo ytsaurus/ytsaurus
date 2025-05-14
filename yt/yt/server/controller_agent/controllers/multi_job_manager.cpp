@@ -143,10 +143,9 @@ void TMultiJobManager::RegisterMetadata(auto&& registrar)
 {
     PHOENIX_REGISTER_FIELD(1, CookieToReplicas_);
     PHOENIX_REGISTER_FIELD(2, PendingCookies_);
-    PHOENIX_REGISTER_FIELD(3, BannedCookies_);
-    PHOENIX_REGISTER_FIELD(4, JobCounter_);
-    PHOENIX_REGISTER_FIELD(5, Task_);
-    PHOENIX_REGISTER_FIELD(6, Logger);
+    PHOENIX_REGISTER_FIELD(3, JobCounter_);
+    PHOENIX_REGISTER_FIELD(4, Task_);
+    PHOENIX_REGISTER_FIELD(5, Logger);
 }
 
 PHOENIX_DEFINE_TYPE(TMultiJobManager);
