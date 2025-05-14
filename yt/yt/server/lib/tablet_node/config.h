@@ -167,9 +167,11 @@ struct TTestingTableMountConfig
     TDuration SimulatedTabletSnapshotDelay;
     TDuration SimulatedStorePreloadDelay;
 
+    double SortedStoreManagerRowHashCheckProbability;
+
     std::optional<size_t> TablePullerReplicaBanIterationsCount;
 
-    double SortedStoreManagerRowHashCheckProbability;
+    TDuration WriteResponseDelay;
 
     REGISTER_YSON_STRUCT_LITE(TTestingTableMountConfig);
 
