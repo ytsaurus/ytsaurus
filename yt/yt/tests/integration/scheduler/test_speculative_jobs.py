@@ -85,12 +85,12 @@ class TestSpeculativeJobEngine(YTEnvSetup):
     def test_multi_jobs(self):
         op = run_test_vanilla(
             with_breakpoint("echo YT_JOB_COOKIE_GROUP_INDEX $YT_JOB_COOKIE_GROUP_INDEX 1>&2; env 1>&2; BREAKPOINT"),
-            spec={"cookie_group_size": 2}, task_patch={"cookie_group_size": 2}, job_count=1,
+            task_patch={"cookie_group_size": 2}, job_count=1,
         )
         wait_breakpoint(job_count=2)
         job_ids = op.list_jobs()
-        release_breakpoint(job_ids[0])
-        release_breakpoint(job_ids[1])
+        release_breakpoint(job_id=job_ids[0])
+        release_breakpoint(job_id=job_ids[1])
         op.track()
 
     @authors("gritukan")
