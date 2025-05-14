@@ -160,7 +160,10 @@ class TestPerLocationFullHeartbeats(YTEnvSetup):
         for i in range(self.STORE_LOCATION_COUNT):
             table_path = f"//tmp/t{i}"
             medium_name = f"hdd{i}"
-            create("table", table_path, attributes={"primary_medium": medium_name})
+            create("table", table_path, recursive=True, attributes={
+                "replication_factor": 1,
+                "primary_medium": medium_name,
+            })
             assert exists(f"{table_path}/@media/{medium_name}")
             write_table(table_path, [{"key": "value"}])
 
