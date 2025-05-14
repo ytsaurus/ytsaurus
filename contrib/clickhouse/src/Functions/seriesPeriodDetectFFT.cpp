@@ -6,7 +6,7 @@
 #    pragma clang diagnostic ignored "-Wextra-semi-stmt"
 #    pragma clang diagnostic ignored "-Wzero-as-null-pointer-constant"
 
-#    error #include <pocketfft_hdronly.h>
+#    include <pocketfft_hdronly.h>
 
 #    pragma clang diagnostic pop
 
