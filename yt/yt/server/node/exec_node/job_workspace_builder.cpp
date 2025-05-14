@@ -38,12 +38,6 @@ TJobWorkspaceBuilder::TJobWorkspaceBuilder(
     YT_VERIFY(Context_.Slot);
     YT_VERIFY(Context_.Job);
     YT_VERIFY(DirectoryManager_);
-
-    if (Context_.NeedGpuCheck) {
-        YT_VERIFY(Context_.GpuCheckBinaryPath);
-        YT_VERIFY(Context_.GpuCheckBinaryArgs);
-        YT_VERIFY(Context_.GpuCheckEnvironment);
-    }
 }
 
 template<TFuture<void>(TJobWorkspaceBuilder::*Step)()>
@@ -610,7 +604,7 @@ private:
         ValidateJobPhase(EJobPhase::RunningSetupCommands);
         SetJobPhase(EJobPhase::RunningGpuCheckCommand);
 
-        if (Context_.NeedGpuCheck) {
+        if (Context_.GpuCheckOptions) {
             auto context = TJobGpuCheckerContext{
                 .Slot = Context_.Slot,
                 .Job = Context_.Job,
@@ -620,16 +614,13 @@ private:
                     : MakeWritableRootFS(),
                 .CommandUser = Context_.CommandUser,
 
-                .SetupCommands = Context_.GpuCheckSetupCommands,
-                .GpuCheckBinaryPath = *Context_.GpuCheckBinaryPath,
-                .GpuCheckBinaryArgs = *Context_.GpuCheckBinaryArgs,
-                .GpuCheckNetworkAttributes = Context_.GpuCheckNetworkAttributes,
-                .GpuCheckEnvironment = *Context_.GpuCheckEnvironment,
-                .GpuCheckType = Context_.GpuCheckType,
+                .Type = EGpuCheckType::Preliminary,
+
+                .Options = *Context_.GpuCheckOptions,
+
                 .CurrentStartIndex = ResultHolder_.SetupCommandCount,
                 // It is preliminary (not extra) GPU check.
                 .TestExtraGpuCheckCommandFailure = false,
-                .GpuDevices = Context_.GpuDevices,
             };
 
             auto checker = New<TJobGpuChecker>(std::move(context), Logger);
@@ -757,7 +748,7 @@ private:
     {
         YT_ASSERT_THREAD_AFFINITY(JobThread);
 
-        YT_LOG_DEBUG_IF(Context_.NeedGpuCheck, "Skip preparing GPU check volume since GPU check is not support in CRI environment");
+        YT_LOG_DEBUG_IF(Context_.GpuCheckOptions, "Skip preparing GPU check volume since GPU check is not support in CRI environment");
 
         ValidateJobPhase(EJobPhase::PreparingRootVolume);
         SetJobPhase(EJobPhase::PreparingGpuCheckVolume);
@@ -825,7 +816,7 @@ private:
     {
         YT_ASSERT_THREAD_AFFINITY(JobThread);
 
-        YT_LOG_DEBUG_IF(Context_.NeedGpuCheck, "GPU check is not supported in CRI workspace");
+        YT_LOG_DEBUG_IF(Context_.GpuCheckOptions, "GPU check is not supported in CRI workspace");
 
         ValidateJobPhase(EJobPhase::RunningSetupCommands);
         SetJobPhase(EJobPhase::RunningGpuCheckCommand);
