@@ -504,7 +504,7 @@ private:
 
     void OnSetupCommandsFinished(const TError& error);
 
-    std::vector<NContainers::TDevice> GetGpuDevices();
+    std::vector<NContainers::TDevice> GetGpuDevices() const;
 
     bool IsFullHostGpuJob() const;
 
@@ -552,7 +552,7 @@ private:
 
     std::vector<NContainers::TBind> GetRootFSBinds();
 
-    TNetworkAttributes BuildNetworkAttributes(NControllerAgent::TNetworkProject networkProject);
+    TNetworkAttributes BuildNetworkAttributes(NControllerAgent::TNetworkProject networkProject) const;
 
     bool CanBeAccessedViaBind(const TArtifact& artifact) const;
     bool CanBeAccessedViaVirtualSandbox(const TArtifact& artifact) const;
@@ -613,6 +613,8 @@ private:
     bool NeedGpu();
 
     bool NeedsGpuCheck() const;
+
+    TGpuCheckOptions GetGpuCheckOptions() const;
 
     void CollectSensorsFromStatistics(NProfiling::ISensorWriter* writer);
     void CollectSensorsFromGpuAndRdmaDeviceInfo(NProfiling::ISensorWriter* writer);

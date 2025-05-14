@@ -23,7 +23,7 @@ TJobGpuChecker::TJobGpuChecker(
     NLogging::TLogger logger)
     : Context_(std::move(context))
     , Logger(std::move(logger)
-        .WithTag("Type: %v", Context_.GpuCheckType))
+        .WithTag("Type: %v", Context_.Type))
 {
     YT_LOG_DEBUG("Creating job GPU checker");
 }
@@ -33,7 +33,7 @@ TFuture<void> TJobGpuChecker::RunGpuCheck()
     YT_ASSERT_THREAD_AFFINITY(JobThread);
 
     std::string tag;
-    switch (Context_.GpuCheckType) {
+    switch (Context_.Type) {
         case EGpuCheckType::Preliminary:
             tag = "prelim";
             break;
@@ -49,7 +49,7 @@ TFuture<void> TJobGpuChecker::RunGpuCheck()
 
         auto testFileCommand = New<TShellCommandConfig>();
         testFileCommand->Path = "/usr/bin/test";
-        testFileCommand->Args = {"-f", Context_.GpuCheckBinaryPath};
+        testFileCommand->Args = {"-f", Context_.Options.BinaryPath};
 
         auto testFileResultOrError = WaitFor(
             Context_.Slot->RunPreparationCommands(
@@ -64,8 +64,8 @@ TFuture<void> TJobGpuChecker::RunGpuCheck()
 
         if (!testFileResultOrError.IsOK()) {
             auto error = TError(NExecNode::EErrorCode::GpuCheckCommandPreparationFailed, "Failed to verify GPU check binary")
-                << TErrorAttribute("check_type", Context_.GpuCheckType)
-                << TErrorAttribute("path", Context_.GpuCheckBinaryPath)
+                << TErrorAttribute("check_type", Context_.Type)
+                << TErrorAttribute("path", Context_.Options.BinaryPath)
                 << std::move(testFileResultOrError);
 
             YT_LOG_INFO(error);
@@ -82,7 +82,7 @@ TFuture<void> TJobGpuChecker::RunGpuCheck()
         auto resultOrError = WaitFor(
             Context_.Slot->RunPreparationCommands(
                 Context_.Job->GetId(),
-                Context_.SetupCommands,
+                Context_.Options.SetupCommands,
                 Context_.RootFS,
                 Context_.CommandUser,
                 /*devices*/ std::nullopt,
@@ -92,7 +92,7 @@ TFuture<void> TJobGpuChecker::RunGpuCheck()
 
         if (!resultOrError.IsOK()) {
             auto error = TError(NExecNode::EErrorCode::GpuCheckCommandPreparationFailed, "Failed to run setup commands for GPU check")
-                << TErrorAttribute("check_type", Context_.GpuCheckType)
+                << TErrorAttribute("check_type", Context_.Type)
                 << std::move(resultOrError);
 
             YT_LOG_INFO(error);
@@ -104,13 +104,13 @@ TFuture<void> TJobGpuChecker::RunGpuCheck()
     }
 
     auto checkCommand = New<TShellCommandConfig>();
-    checkCommand->Path = Context_.GpuCheckBinaryPath;
-    checkCommand->Args = std::move(Context_.GpuCheckBinaryArgs);
-    checkCommand->EnvironmentVariables = std::move(Context_.GpuCheckEnvironment);
+    checkCommand->Path = Context_.Options.BinaryPath;
+    checkCommand->Args = std::move(Context_.Options.BinaryArgs);
+    checkCommand->EnvironmentVariables = std::move(Context_.Options.Environment);
 
-    if (Context_.GpuCheckNetworkAttributes) {
-        checkCommand->EnvironmentVariables.emplace("YT_NETWORK_PROJECT_ID", ToString(Context_.GpuCheckNetworkAttributes->ProjectId));
-        for (const auto& networkAddress : Context_.GpuCheckNetworkAttributes->Addresses) {
+    if (Context_.Options.NetworkAttributes) {
+        checkCommand->EnvironmentVariables.emplace("YT_NETWORK_PROJECT_ID", ToString(Context_.Options.NetworkAttributes->ProjectId));
+        for (const auto& networkAddress : Context_.Options.NetworkAttributes->Addresses) {
             checkCommand->EnvironmentVariables.emplace(
                 Format("YT_IP_ADDRESS_%v", to_upper(networkAddress->Name)),
                 ToString(networkAddress->Address));
@@ -132,13 +132,13 @@ TFuture<void> TJobGpuChecker::RunGpuCheck()
         {checkCommand},
         Context_.RootFS,
         Context_.CommandUser,
-        Context_.GpuDevices,
-        Context_.GpuCheckNetworkAttributes
-            ? std::make_optional(Context_.GpuCheckNetworkAttributes->HostName)
+        Context_.Options.Devices,
+        Context_.Options.NetworkAttributes
+            ? std::make_optional(Context_.Options.NetworkAttributes->HostName)
             : std::nullopt,
-        Context_.GpuCheckNetworkAttributes
+        Context_.Options.NetworkAttributes
             ? TransformRangeTo<std::vector<NNet::TIP6Address>>(
-                Context_.GpuCheckNetworkAttributes->Addresses,
+                Context_.Options.NetworkAttributes->Addresses,
                 [] (const auto& networkAddress) { return networkAddress->Address; })
             : std::vector<NNet::TIP6Address>{},
         std::move(tag))
