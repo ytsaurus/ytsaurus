@@ -94,6 +94,8 @@ public:
 
     TTimestamp GetPersistentPrepareTimestamp() const;
 
+    bool WasDefinitelyPrepared() const;
+
     THashSet<TTabletId> GetAffectedTabletIds() const;
 
     void ForceSerialization(TTabletId tabletId);

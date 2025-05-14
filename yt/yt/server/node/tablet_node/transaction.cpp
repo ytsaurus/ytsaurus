@@ -137,6 +137,28 @@ TTimestamp TTransaction::GetPersistentPrepareTimestamp() const
     }
 }
 
+bool TTransaction::WasDefinitelyPrepared() const
+{
+    switch (GetPersistentState()) {
+        // Before prepare.
+        case ETransactionState::Active:
+            return false;
+        // After prepare.
+        case ETransactionState::PersistentCommitPrepared:
+        case ETransactionState::CommitPending:
+        case ETransactionState::Committed:
+        case ETransactionState::Serialized:
+            return true;
+        // Abort may happen with or without prepare.
+        case ETransactionState::Aborted:
+            return false;
+        // Transient state will never be returned by GetPersistentState.
+        case ETransactionState::TransientCommitPrepared:
+        case ETransactionState::TransientAbortPrepared:
+            YT_ABORT();
+    }
+}
+
 THashSet<TTabletId> TTransaction::GetAffectedTabletIds() const
 {
     THashSet<TTabletId> affectedTabletIds;
