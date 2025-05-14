@@ -995,6 +995,7 @@ private:
             CreateAlways | WrOnly | Seq | CloseOnExec);
         metaFile.Write(&header, sizeof(header));
         metaFile.Write(metaBlob.Begin(), metaBlob.Size());
+        metaFile.FlushData();
         metaFile.Close();
 
         NFS::Rename(temporaryLayerMetaFileName, layerMetaFileName);
