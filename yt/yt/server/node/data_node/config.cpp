@@ -502,6 +502,8 @@ void TMasterConnectorDynamicConfig::Register(TRegistrar registrar)
         .Default(false);
     registrar.Parameter("location_uuid_to_disable_during_full_heartbeat", &TThis::LocationUuidToDisableDuringFullHeartbeat)
         .Default();
+    registrar.Parameter("full_heartbeat_session_sleep_duration", &TThis::FullHeartbeatSessionSleepDuration)
+        .Default();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

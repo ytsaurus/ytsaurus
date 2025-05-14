@@ -491,6 +491,9 @@ public:
     //! Test location disable during full heartbeat, contains location uuid.
     std::optional<TChunkLocationUuid> LocationUuidToDisableDuringFullHeartbeat;
 
+    //! Test data node intermediate state at master during full hearbteat session.
+    std::optional<TDuration> FullHeartbeatSessionSleepDuration;
+
     REGISTER_YSON_STRUCT(TMasterConnectorDynamicConfig);
 
     static void Register(TRegistrar registrar);

@@ -1267,6 +1267,11 @@ private:
                 request->statistics());
 
             futures.push_back(request->Invoke());
+
+            // For testing purposes.
+            if (auto duration = GetDynamicConfig()->FullHeartbeatSessionSleepDuration) {
+                TDelayedExecutor::WaitForDuration(*duration);
+            }
         }
 
         return AllSet(std::move(futures))
