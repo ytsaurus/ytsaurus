@@ -1461,7 +1461,7 @@ struct TUserJobSpec
     //! This option applicable only in case of separate root volume.
     bool EnableGpuCheck;
 
-    int CookieGroupSize;
+    int CookieGroupSize; //! Job replicas processing the cookie.
 
     //! Force running speculative job after this timeout. Has higher priority than `JobSpeculationTimeout`
     //! from TOperationBaseSpec.
