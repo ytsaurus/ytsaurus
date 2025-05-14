@@ -12,16 +12,20 @@
 # Please refer to the build instructions in the repository for more information about manual
 # changes in this file.
 
-add_library(public-udf-tz)
+find_package(linux-headers-generic REQUIRED)
+
+add_subdirectory(ut)
+
+add_library(cpp-type_info-tz)
 
 
-target_link_libraries(public-udf-tz PUBLIC
+target_link_libraries(cpp-type_info-tz PUBLIC
+  linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   yutil
 )
 
-target_sources(public-udf-tz PRIVATE
-  ${PROJECT_SOURCE_DIR}/yql/essentials/public/udf/tz/udf_tz.cpp
-  ${PROJECT_SOURCE_DIR}/yql/essentials/public/udf/tz/udf_tz.h
+target_sources(cpp-type_info-tz PRIVATE
+  ${PROJECT_SOURCE_DIR}/library/cpp/type_info/tz/tz.cpp
 )
 

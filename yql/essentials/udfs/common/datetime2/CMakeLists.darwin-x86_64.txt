@@ -28,6 +28,7 @@ target_link_libraries(datetime2_udf PUBLIC
   essentials-public-udf
   public-udf-support
   util-draft
+  cpp-type_info-tz
   public-udf-arrow
   yql-essentials-minikql
   essentials-minikql-datetime
@@ -70,6 +71,7 @@ target_link_libraries(datetime2_udf.global PUBLIC
   essentials-public-udf
   public-udf-support
   util-draft
+  cpp-type_info-tz
   public-udf-arrow
   yql-essentials-minikql
   essentials-minikql-datetime
