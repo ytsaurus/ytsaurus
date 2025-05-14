@@ -1892,13 +1892,13 @@ print(json.dumps(input))
     @authors("faucct")
     @pytest.mark.parametrize("ordered", [False, True])
     def test_map_multi_job_splitter(self, ordered):
-        create("table", "//tmp/in_1")
+        input = "//tmp/in_1"
+        create("table", input)
         write_table(
-            "//tmp/in_1",
+            input,
             [{"key": "%08d" % i, "value": "(t_1)", "data": "a" * (1024 * 1024)} for i in range(20)],
         )
 
-        input_ = "//tmp/in_1"
         output = "//tmp/output"
         create("table", output)
 
@@ -1918,7 +1918,7 @@ fi
         op = map(
             ordered=ordered,
             track=False,
-            in_=input_,
+            in_=input,
             out=output,
             command=command,
             spec={
@@ -1951,13 +1951,12 @@ fi
     @authors("faucct")
     @pytest.mark.parametrize("ordered", [False, True])
     def test_failing_map_multi_job_splitter(self, ordered):
-        create("table", "//tmp/in_1")
+        input = "//tmp/in_1"
+        create("table", input)
         write_table(
-            "//tmp/in_1",
+            input,
             [{"key": "%08d" % i, "value": "(t_1)", "data": "a" * (1024 * 1024)} for i in range(20)],
         )
-
-        input_ = "//tmp/in_1"
 
         command = """
 if [ "$YT_JOB_COOKIE_GROUP_INDEX" == 0 ]; then
@@ -1969,15 +1968,15 @@ while read ROW; do
     fi
     echo "$ROW"
 done
-elif
+else
     exit 1
 fi
 """
 
-        with pytest.raises(YtError):
+        with pytest.raises(YtError, match="User job failed"):
             map(
                 ordered=ordered,
-                in_=input_,
+                in_=input,
                 out="<create=true>//tmp/t_output1",
                 command=command,
                 spec={
