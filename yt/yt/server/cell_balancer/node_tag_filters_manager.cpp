@@ -315,9 +315,11 @@ void TryCreateSpareNodesAssignment(
         auto nodeName = spareNodesAllocator.Allocate(zoneName, dataCenterName, bundleName);
         auto nodeInfo = GetOrCrash(input.TabletNodes, nodeName);
 
-        YT_LOG_INFO("Assigning spare node (Bundle: %v, NodeName: %v)",
+        YT_LOG_INFO("Assigning spare node (Bundle: %v, NodeName: %v, NodeSlotCount: %v, SlotsToAdd: %v)",
             bundleName,
-            nodeName);
+            nodeName,
+            perNodeSlotCount,
+            slotsToAdd);
 
         auto operation = New<TNodeTagFilterOperationState>();
         operation->CreationTime = now;
@@ -868,19 +870,32 @@ void SetNodeTagFilter(
         int assigningSlotCount = requiredDataCenterSlotCount - usedSpareSlotCount - std::ssize(aliveNodes) * perNodeSlotCount;
 
         YT_LOG_DEBUG("Checking tablet cell slots for bundle "
-            "(Bundle: %v, DataCenter: %v, ReleasingSlotCount: %v, AssigningSlotCount: %v, "
-            "SpareSlotCount: %v, BundleSlotCount: %v, RequiredDataCenterSlotCount: %v)",
+            "(Bundle: %v, "
+            "DataCenter: %v, "
+            "BundleSlotCount: %v, "
+            "UsedSpareSlotCount: %v, "
+            "ReleasingSlotCount: %v, "
+            "AssigningSlotCount: %v, "
+            "RequiredDataCenterSlotCount: %v)",
             bundleName,
             dataCenterName,
+            actualSlotCount,
+            usedSpareSlotCount,
             releasingSlotCount,
             assigningSlotCount,
-            usedSpareSlotCount,
-            actualSlotCount,
             requiredDataCenterSlotCount);
 
         if (releasingSlotCount > 0) {
+            YT_LOG_DEBUG("Creating spare nodes releasements (BundleName: %v, DataCenter: %v, ReleasingSlotCount: %v)",
+                bundleName,
+                dataCenterName,
+                releasingSlotCount);
             TryCreateSpareNodesReleasements(bundleName, input, releasingSlotCount, &spareNodes, bundleState);
         } else if (assigningSlotCount > 0) {
+            YT_LOG_DEBUG("Creating spare nodes assignment (BundleName: %v, DataCenter: %v, AssigningSlotCount: %v)",
+                bundleName,
+                dataCenterName,
+                assigningSlotCount);
             TryCreateSpareNodesAssignment(bundleName, zoneName, dataCenterName, input, assigningSlotCount, spareNodesAllocator, bundleState);
         }
     }
@@ -938,7 +953,9 @@ void ManageNodeTagFilters(
     for (const auto& [bundleName, bundleInfo] : input.Bundles) {
         auto guard = mutations->MakeBundleNameGuard(bundleName);
 
-        if (!bundleInfo->EnableBundleController || !bundleInfo->EnableNodeTagFilterManagement) {
+        if (!bundleInfo->EnableBundleController ||
+            !bundleInfo->EnableNodeTagFilterManagement)
+        {
             continue;
         }
 
