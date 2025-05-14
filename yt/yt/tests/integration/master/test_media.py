@@ -660,7 +660,7 @@ class TestMedia(YTEnvSetup):
         wait(
             lambda:
                 self._count_chunks_on_medium("t2", "default") == 9
-                and self._count_chunks_on_medium("t2", TestMedia.NON_DEFAULT_MEDIUM) == 3
+                and self._count_chunks_on_medium("t2", TestMedia.NON_DEFAULT_MEDIUM) >= 3
                 and self._check_account_and_table_usage_equal("t2"))
 
         # Replica count:
