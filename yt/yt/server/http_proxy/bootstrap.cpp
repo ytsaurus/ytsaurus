@@ -356,8 +356,7 @@ void TBootstrap::DoInitialize()
     ApiHttpServer_ = NHttp::CreateServer(
         Config_->HttpServer,
         Poller_,
-        Acceptor_,
-        WithCategory(MemoryUsageTracker_, EMemoryCategory::Http));
+        Acceptor_);
     RegisterRoutes(ApiHttpServer_);
 
     if (Config_->HttpsServer) {
@@ -366,8 +365,7 @@ void TBootstrap::DoInitialize()
             Config_->HttpsServer,
             Poller_,
             Acceptor_,
-            GetControlInvoker(),
-            WithCategory(MemoryUsageTracker_, EMemoryCategory::Http));
+            GetControlInvoker());
         RegisterRoutes(ApiHttpsServer_);
     }
 
@@ -376,8 +374,7 @@ void TBootstrap::DoInitialize()
         TvmOnlyApiHttpServer_ = NHttp::CreateServer(
             Config_->TvmOnlyHttpServer,
             Poller_,
-            Acceptor_,
-            WithCategory(MemoryUsageTracker_, EMemoryCategory::Http));
+            Acceptor_);
         RegisterRoutes(TvmOnlyApiHttpServer_);
     }
 
@@ -387,8 +384,7 @@ void TBootstrap::DoInitialize()
             Config_->TvmOnlyHttpsServer,
             Poller_,
             Acceptor_,
-            GetControlInvoker(),
-            WithCategory(MemoryUsageTracker_, EMemoryCategory::Http));
+            GetControlInvoker());
         RegisterRoutes(TvmOnlyApiHttpsServer_);
     }
 
