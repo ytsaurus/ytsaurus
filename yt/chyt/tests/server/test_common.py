@@ -16,6 +16,7 @@ import yt.packages.requests as requests
 import yt.yson as yson
 
 import pytest
+import itertools
 import time
 import threading
 import random
@@ -2007,40 +2008,36 @@ class TestClickHouseNoCache(ClickHouseTestBase):
 
 class TestCustomSettings(ClickHouseTestBase):
     @authors("max42")
-    def test_simple(self):
+    @pytest.mark.parametrize("throw_exception_in_distributor, throw_exception_in_subquery",
+                             itertools.product([None, False, True], [None, False, True]))
+    def test_simple(self, throw_exception_in_distributor, throw_exception_in_subquery):
         create("table", "//tmp/t", attributes={"schema": [{"name": "a", "type": "int64"}]})
         write_table("//tmp/t", [{"a": 1}])
         with Clique(1) as clique:
-            for throw_exception_in_distributor in (None, False, True):
-                for throw_exception_in_subquery in (None, False, True):
-                    settings = {}
-                    if throw_exception_in_distributor is not None:
-                        settings["chyt.testing.throw_exception_in_distributor"] = int(
-                            throw_exception_in_distributor
-                        )
-                    if throw_exception_in_subquery is not None:
-                        settings["chyt.testing.throw_exception_in_subquery"] = int(throw_exception_in_subquery)
-                    if throw_exception_in_subquery is not None:
-                        assert clique.make_query(
-                            "select CAST(getSetting('chyt.testing.throw_exception_in_subquery') as Int64) as v",
-                            settings=settings,
-                        ) == [{"v": int(throw_exception_in_subquery)}]
-                    if throw_exception_in_distributor is not None:
-                        assert clique.make_query(
-                            "select CAST(getSetting('chyt.testing.throw_exception_in_distributor') as Int64) as v",
-                            settings=settings,
-                        ) == [{"v": int(throw_exception_in_distributor)}]
-                    if not bool(throw_exception_in_distributor) and not bool(
-                            throw_exception_in_subquery
-                    ):
-                        assert clique.make_query("select * from `//tmp/t`", settings=settings) == [{"a": 1}]
-                    else:
-                        if bool(throw_exception_in_distributor):
-                            error_substr = "Testing exception in distributor"
-                        else:
-                            error_substr = "Testing exception in subquery"
-                        with raises_yt_error(error_substr):
-                            clique.make_query("select * from `//tmp/t`", settings=settings)
+            settings = {}
+            if throw_exception_in_distributor is not None:
+                settings["chyt.testing.throw_exception_in_distributor"] = int(throw_exception_in_distributor)
+            if throw_exception_in_subquery is not None:
+                settings["chyt.testing.throw_exception_in_subquery"] = int(throw_exception_in_subquery)
+            if throw_exception_in_subquery is not None:
+                assert clique.make_query(
+                    "select CAST(getSetting('chyt.testing.throw_exception_in_subquery') as Int64) as v",
+                    settings=settings,
+                ) == [{"v": int(throw_exception_in_subquery)}]
+            if throw_exception_in_distributor is not None:
+                assert clique.make_query(
+                    "select CAST(getSetting('chyt.testing.throw_exception_in_distributor') as Int64) as v",
+                    settings=settings,
+                ) == [{"v": int(throw_exception_in_distributor)}]
+            if not bool(throw_exception_in_distributor) and not bool(throw_exception_in_subquery):
+                assert clique.make_query("select * from `//tmp/t`", settings=settings) == [{"a": 1}]
+            else:
+                if bool(throw_exception_in_distributor):
+                    error_substr = "Testing exception in distributor"
+                else:
+                    error_substr = "Testing exception in subquery"
+                with raises_yt_error(error_substr):
+                    clique.make_query("select * from `//tmp/t`", settings=settings)
 
     @authors("max42")
     def test_defaults(self):
