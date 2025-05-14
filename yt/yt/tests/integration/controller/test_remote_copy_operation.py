@@ -81,6 +81,10 @@ class TestSchedulerRemoteCopyCommandsBase(YTEnvSetup):
 class TestSchedulerRemoteCopyCommands(TestSchedulerRemoteCopyCommandsBase):
     ENABLE_MULTIDAEMON = False  # There are component restarts.
 
+    DELTA_LOCAL_YT_CONFIG = {
+        "node_network_names": ["default", "interconnect"],
+    }
+
     @authors("ignat")
     def test_empty_table(self):
         create("table", "//tmp/t1", driver=self.remote_driver)

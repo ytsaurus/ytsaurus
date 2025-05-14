@@ -358,6 +358,8 @@ class YTEnvSetup(object):
     DELTA_CYPRESS_PROXY_CONFIG = {}
     DELTA_CYPRESS_PROXY_DYNAMIC_CONFIG = {}
 
+    DELTA_LOCAL_YT_CONFIG = {}
+
     USE_PORTO = False  # Enables use_slot_user_id, use_porto_for_servers, jobs_environment_type="porto"
     USE_SLOT_USER_ID = None  # If set explicitly, overrides USE_PORTO.
     JOB_ENVIRONMENT_TYPE = None  # "porto", "cri"
@@ -637,7 +639,6 @@ class YTEnvSetup(object):
                 cls.get_param("NUM_RPC_PROXIES", index) if cls.get_param("ENABLE_RPC_PROXY", index) else 0),
             cypress_proxy_count=cypress_proxy_count,
             replicated_table_tracker_count=cls.get_param("NUM_REPLICATED_TABLE_TRACKERS", index),
-            fqdn="localhost",
             enable_master_cache=cls.get_param("USE_MASTER_CACHE", index),
             enable_permission_cache=cls.get_param("USE_PERMISSION_CACHE", index),
             primary_cell_tag=primary_cell_tag,
@@ -668,6 +669,7 @@ class YTEnvSetup(object):
                 },
             } if cls._is_ground_cluster(index) else None,
             enable_multidaemon=enable_multidaemon,
+            **cls.get_param("DELTA_LOCAL_YT_CONFIG", index),
         )
 
         if yt_config.jobs_environment_type == "porto" and not porto_available():
