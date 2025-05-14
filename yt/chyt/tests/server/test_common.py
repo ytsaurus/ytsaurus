@@ -410,6 +410,28 @@ class TestClickHouseCommon(ClickHouseTestBase):
             result = clique.make_query('select key1, key2, sum(value) from "//tmp/t" group by key1, key2')
             assert result == [{"key1": "dream", "key2": "theater", "sum(value)": total}]
 
+    @authors("a-dyu")
+    def test_having_group_by_null(self):
+        with Clique(1) as clique:
+            create(
+                "table",
+                "//tmp/t",
+                attributes={
+                    "schema": [
+                        {"name": "key1", "type": "string"},
+                        {"name": "key2", "type": "string"},
+                    ]
+                },
+            )
+            for i in range(5):
+                write_table(
+                    "<append=%true>//tmp/t",
+                    [{"key1": str(i), "key2": str(i * i)} for i in range(5)],
+                )
+
+            result = clique.make_query("select k, count(*) from '//tmp/t' group by null as k having k is not null")
+            assert result == []
+
     @authors("max42")
     @pytest.mark.parametrize("instance_count", [1, 2])
     def test_cast(self, instance_count):
