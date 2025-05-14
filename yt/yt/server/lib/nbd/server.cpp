@@ -21,6 +21,7 @@
 #include <library/cpp/yt/threading/rw_spin_lock.h>
 
 #include <util/system/byteorder.h>
+#include <util/system/hp_timer.h>
 
 namespace NYT::NNbd {
 
@@ -559,19 +560,28 @@ private:
                 length,
                 flags);
 
+            NHPTimer::STime startTime;
+            NHPTimer::GetTime(&startTime);
+
             Device_->Read(offset, length)
                 .Subscribe(
                     BIND([=, this, this_ = MakeStrong(this)] (const TErrorOr<TSharedRef>& result) {
+                        NHPTimer::STime nowTime = startTime;
+                        double durationSeconds = NHPTimer::GetTimePassed(&nowTime);
+
                         if (!result.IsOK()) {
-                            YT_LOG_WARNING(result, "NBD_CMD_READ request failed (Cookie: %x)",
-                                cookie);
+                            YT_LOG_WARNING(result, "NBD_CMD_READ request failed (Cookie: %x, Duration: %v)",
+                                cookie,
+                                durationSeconds);
+
                             Device_->SetError(result);
                             WriteServerResponse(EServerError::NBD_EIO, cookie);
                             return;
                         }
 
-                        YT_LOG_DEBUG("Finished serving NBD_CMD_READ request (Cookie: %x)",
-                            cookie);
+                        YT_LOG_DEBUG("Finished serving NBD_CMD_READ request (Cookie: %x, Duration: %v)",
+                            cookie,
+                            durationSeconds);
 
                         const auto& payload = result.Value();
                         YT_VERIFY(payload.size() == length);
@@ -644,19 +654,28 @@ private:
                 options.Flush = true;
             }
 
+            NHPTimer::STime startTime;
+            NHPTimer::GetTime(&startTime);
+
             Device_->Write(offset, payload, options)
                 .Subscribe(
                     BIND([=, this, this_ = MakeStrong(this)] (const TError& error) {
+                        NHPTimer::STime nowTime = startTime;
+                        double durationSeconds = NHPTimer::GetTimePassed(&nowTime);
+
                         if (!error.IsOK()) {
-                            YT_LOG_WARNING(error, "NBD_CMD_WRITE request failed (Cookie: %x)",
-                                cookie);
+                            YT_LOG_WARNING(error, "NBD_CMD_WRITE request failed (Cookie: %x, Duration: %v)",
+                                cookie,
+                                durationSeconds);
+
                             Device_->SetError(error);
                             WriteServerResponse(EServerError::NBD_EIO, cookie);
                             return;
                         }
 
-                        YT_LOG_DEBUG("Finished serving NBD_CMD_WRITE request (Cookie: %x)",
-                            cookie);
+                        YT_LOG_DEBUG("Finished serving NBD_CMD_WRITE request (Cookie: %x, Duration: %v)",
+                            cookie,
+                            durationSeconds);
 
                         WriteServerResponse(EServerError::NBD_OK, cookie);
                     }));
