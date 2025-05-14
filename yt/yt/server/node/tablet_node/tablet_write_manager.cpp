@@ -424,6 +424,8 @@ public:
         PrepareLocklessRows(transaction, persistent);
 
         if (!persistent) {
+            auto transientWriteState = GetOrCreateTransactionTransientWriteState(transaction->GetId());
+            InsertPreparedTransactionToBarrier(transaction, transientWriteState.Get());
             return;
         }
 
@@ -434,9 +436,7 @@ public:
             persistentWriteState->LockedWriteLog.Freeze();
         }
 
-        // NB: This only makes sense for persistently prepared transactions since only these participate in 2PC
-        // and may cause issues with committed rows not being visible.
-        InsertPreparedTransactionToBarrier(transaction, persistentWriteState);
+        InsertPreparedTransactionToBarrier(transaction, persistentWriteState.Get());
 
         if (IsReplicatorWrite(transaction) &&
             Tablet_->GetBackupCheckpointTimestamp() &&
@@ -485,6 +485,16 @@ public:
         auto transientWriteState = GetOrCreateTransactionTransientWriteState(transaction->GetId());
 
         YT_VERIFY(transientWriteState->PrelockedRows.empty());
+
+        // Persist transient cookie.
+        // In 1PC prepare is transient and so is the cookie from the barrier insertion.
+        // Commit is the first persistent action after that prepare where we can persist this cookie.
+        //
+        // In replay persistent prepared barrier cookie will stay invalid.
+        // However in StartEpoch all relevant cookies will be recreated.
+        if (persistentWriteState->PreparedBarrierCookie == InvalidAsyncBarrierCookie) {
+            persistentWriteState->PreparedBarrierCookie = transientWriteState->PreparedBarrierCookie;
+        }
 
         auto updateProfileCounters = [&] (const TTransactionWriteLog& log) {
             for (const auto& record : log) {
@@ -776,9 +786,9 @@ public:
 
         const auto& transactionManager = Host_->GetTransactionManager();
         for (const auto& [transactionId, writeState] : TransactionIdToPersistentWriteState_) {
-            if (writeState->RowsPrepared) {
-                auto* transaction = transactionManager->GetPersistentTransaction(transactionId);
-                InsertPreparedTransactionToBarrier(transaction, writeState);
+            auto* transaction = transactionManager->GetPersistentTransaction(transactionId);
+            if (transaction->WasDefinitelyPrepared()) {
+                InsertPreparedTransactionToBarrier(transaction, writeState.Get());
             }
         }
     }
@@ -920,16 +930,20 @@ private:
 
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 
+    struct TTransactionWriteStateBase
+    {
+        // NB: Not persisted. Only valid during an epoch.
+        TAsyncBarrierCookie PreparedBarrierCookie = InvalidAsyncBarrierCookie;
+    };
+
     struct TTransactionPersistentWriteState final
+        : public TTransactionWriteStateBase
     {
         TTransactionWriteLog LocklessWriteLog;
         TTransactionIndexedWriteLog LockedWriteLog;
 
         bool RowsPrepared = false;
         bool SomeRowsCommitted = false;
-
-        // NB: Not persisted. Only valid during an epoch.
-        TAsyncBarrierCookie PreparedBarrierCookie = InvalidAsyncBarrierCookie;
 
         void Save(TSaveContext& context) const
         {
@@ -973,6 +987,7 @@ private:
     using TTransactionPersistentWriteStatePtr = TIntrusivePtr<TTransactionPersistentWriteState>;
 
     struct TTransactionTransientWriteState final
+        : public TTransactionWriteStateBase
     {
         TRingQueue<TSortedDynamicRowRef> PrelockedRows;
         std::vector<TSortedDynamicRowRef> LockedRows;
@@ -1038,7 +1053,7 @@ private:
             FindTransactionPersistentWriteState(transactionId);
     }
 
-    void InsertPreparedTransactionToBarrier(TTransaction* transaction, const TTransactionPersistentWriteStatePtr& writeState)
+    void InsertPreparedTransactionToBarrier(TTransaction* transaction, TTransactionWriteStateBase* writeState)
     {
         if (!Tablet_->IsPhysicallyOrdered()) {
             return;
