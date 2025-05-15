@@ -40,7 +40,7 @@ NApi::IClientPtr CreateRpcClient(const TNetworkConfig& config) {
         THROW_ERROR_EXCEPTION("YT_TOKEN environment variable must be set");
     }
 
-    NApi::TClientOptions clientOptions = NAuth::TAuthenticationOptions::FromToken(*token);
+    NApi::TClientOptions clientOptions = NApi::TClientOptions::FromToken(*token);
     return connection->CreateClient(clientOptions);
 }
 
