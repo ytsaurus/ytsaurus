@@ -164,7 +164,7 @@ TYPathBaseImpl<false, TUnderlying>::TYPathBaseImpl()
 { }
 
 template <class TUnderlying>
-bool TYPathBaseImpl<false, TUnderlying>::IsEmpty() const
+    bool TYPathBaseImpl<false, TUnderlying>::IsEmpty() const
 {
     return TBase::Path_.empty();
 }
