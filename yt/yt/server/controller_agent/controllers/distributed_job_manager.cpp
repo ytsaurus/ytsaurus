@@ -99,16 +99,18 @@ bool TDistributedJobManager::OnJobCompleted(const TJobletPtr& joblet)
         return true;
     }
 
-    auto replicasIt = GetIteratorOrCrash(CookieToReplicas_, joblet->OutputCookie);
-    auto& replicas = replicasIt->second;
-    if (joblet->CookieGroupInfo.OutputIndex != 0) {
-        replicas.Secondaries[joblet->CookieGroupInfo.OutputIndex - 1].ProgressCounterGuard.SetCategory(EProgressCategory::Completed);
-    }
-    --replicas.NotCompletedCount;
-    YT_VERIFY(replicas.NotCompletedCount >= 0);
-    if (!replicas.NotCompletedCount) {
-        CookieToReplicas_.erase(replicasIt);
-        return true;
+    auto replicasIt = CookieToReplicas_.find(joblet->OutputCookie);
+    if (replicasIt != CookieToReplicas_.end()) {
+        auto& replicas = replicasIt->second;
+        if (joblet->CookieGroupInfo.OutputIndex != 0) {
+            replicas.Secondaries[joblet->CookieGroupInfo.OutputIndex - 1].ProgressCounterGuard.SetCategory(EProgressCategory::Completed);
+        }
+        --replicas.NotCompletedCount;
+        YT_VERIFY(replicas.NotCompletedCount >= 0);
+        if (!replicas.NotCompletedCount) {
+            CookieToReplicas_.erase(replicasIt);
+            return true;
+        }
     }
     return false;
 }
