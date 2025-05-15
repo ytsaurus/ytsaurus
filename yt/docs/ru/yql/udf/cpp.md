@@ -244,7 +244,7 @@ try {
 
 В ya.make вместо `PROGRAM/LIBRARY` нужно использовать макрос `YQL_UDF`, который собирает директорию как динамически загружаемую библиотеку `.so`, автоматически приписывая нужный `PEERDIR` и другие настройки. Так как получающиеся после сборки `.so` часто затем попадают в плоскую директорию, во избежание потенциальных коллизий рекомендуется использовать префикс проекта в первом аргументе макроса `YQL_UDF`.
 
-Бинарный интерфейс (ABI) фреймворка UDF со временем эволюционирует и расширяется, что отражается в его версии. Используемая в UDF версия ABI указывается в её `ya.make` с помощью макроса `YQL_ABI_VERSION`, например `YQL_ABI_VERSION(2 0 0)`. В зависимости от указанной версии часть интерфейсов может быть доступна или нет, см. условия вида `#if UDF_ABI_COMPATIBILITY_VERSION_CURRENT >= UDF_ABI_COMPATIBILITY_VERSION(2, 0)` в [{{source-root}}/yql/essentials/public/udf/udf_value.h>]({{source-root}}/yql/essentials/public/udf/udf_value.h).
+Бинарный интерфейс (ABI) фреймворка UDF со временем эволюционирует и расширяется, что отражается в его версии. Используемая в UDF версия ABI указывается в её `ya.make` с помощью макроса `YQL_ABI_VERSION`, например `YQL_ABI_VERSION(2 0 0)`. В зависимости от указанной версии часть интерфейсов может быть доступна или нет, см. условия вида `#if UDF_ABI_COMPATIBILITY_VERSION_CURRENT >= UDF_ABI_COMPATIBILITY_VERSION(2, 0)` в [{{source-root}}/yql/essentials/public/udf/udf_value.h]({{source-root}}/yql/essentials/public/udf/udf_value.h).
 
 ## SecureParams
 
@@ -266,3 +266,4 @@ $oauth_token = AsTuple("token", SecureParam("token:database"));`
 `"api:cookie"` - сессионная кука текущего пользователя
 
 {% endif %}
+
