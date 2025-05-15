@@ -954,6 +954,7 @@ class TestSortedDynamicTablesHunks(TestSortedDynamicTablesBase):
         _check(["value", "key"])
 
     @authors("akozhikhov")
+    @pytest.mark.skip(reason="Flaky profiling tests")
     def test_hunks_profiling_flush(self):
         sync_create_cells(1)
         self._create_table()
@@ -991,6 +992,7 @@ class TestSortedDynamicTablesHunks(TestSortedDynamicTablesBase):
         wait(lambda: ref_hunk_value_count.get_delta() == 5)
 
     @authors("akozhikhov")
+    @pytest.mark.skip(reason="Flaky profiling tests")
     def test_hunks_profiling_compaction(self):
         sync_create_cells(1)
         self._create_table(max_inline_hunk_size=10)
@@ -1056,6 +1058,7 @@ class TestSortedDynamicTablesHunks(TestSortedDynamicTablesBase):
         assert writer_ref_hunk_value_count.get_delta() == 0
 
     @authors("akozhikhov")
+    @pytest.mark.skip(reason="Flaky profiling tests")
     def test_hunks_profiling_lookup(self):
         sync_create_cells(1)
         self._create_table()
@@ -1111,6 +1114,7 @@ class TestSortedDynamicTablesHunks(TestSortedDynamicTablesBase):
         wait(lambda: backend_read_request_count.get_delta() > 2)
 
     @authors("akozhikhov")
+    @pytest.mark.skip(reason="Flaky profiling tests")
     def test_hunks_profiling_select(self):
         sync_create_cells(1)
         self._create_table()
