@@ -9822,9 +9822,12 @@ void TOperationControllerBase::AnalyzeBriefStatistics(
             briefStatistics,
             options,
             joblet->JobType);
+    bool shouldIgnore = joblet->ResourceLimits.GetCpu() < options->MinRequiredCpuLimit;
 
     bool wasSuspicious = joblet->Suspicious;
-    joblet->Suspicious = (!wasActive && briefStatistics->Timestamp - joblet->LastActivityTime > options->InactivityTimeout);
+    joblet->Suspicious = !wasActive &&
+        (briefStatistics->Timestamp - joblet->LastActivityTime > options->InactivityTimeout) &&
+        !shouldIgnore;
     if (!wasSuspicious && joblet->Suspicious) {
         YT_LOG_DEBUG("Found a suspicious job (JobId: %v, JobType: %v, LastActivityTime: %v, SuspiciousInactivityTimeout: %v, "
             "OldBriefStatistics: %v, NewBriefStatistics: %v)",
