@@ -2106,7 +2106,7 @@ public:
         }
     }
 
-    TEntityMap<TTransaction>* MutableTransactionMap() override
+    TMutableEntityMap<TTransaction>* MutableTransactionMap() override
     {
         return &TransactionMap_;
     }
