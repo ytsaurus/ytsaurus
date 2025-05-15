@@ -67,7 +67,7 @@ DEFINE_ENUM(ESnapshotVersion,
     ((IntroduceInputStatistics)              (301807))
     ((DropUnusedFieldInJobSizeConstraints)   (301808))
     ((DropOutputOrder)                       (301809))
-    ((MultiJobManagers)                      (301810))
+    ((DistributedJobManagers)                (301810))
 );
 
 ////////////////////////////////////////////////////////////////////////////////
