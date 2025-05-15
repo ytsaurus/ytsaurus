@@ -18,5 +18,5 @@ items:
        href: cpp_data_processing.md
      - name: Type-Aware UDF
        href: cpp_type_aware_udf.md
- #   - name: YQL-Stream в C++ UDF
- #     href: cpp_stream.md
+     - name: YQL-Stream в C++ UDF
+       href: cpp_stream.md
