@@ -99,7 +99,7 @@ TTask::TTask(
         this,
         taskHost->GetSpec(),
         Logger)
-    , MultiJobManager_(this, Logger)
+    , DistributedJobManager_(this, Logger)
 {
     if (TaskHost_->GetSpec()->UseClusterThrottlers) {
         ClusterToNetworkBandwidthAvailabilityUpdatedCallback_ = BIND_NO_PROPAGATE(
@@ -202,10 +202,10 @@ TCompositePendingJobCount TTask::GetPendingJobCount() const
     }
 
     TCompositePendingJobCount result;
-    result.DefaultCount = MultiJobManager_.GetCookieGroupSize() * GetChunkPoolOutput()->GetJobCounter()->GetPending() +
+    result.DefaultCount = DistributedJobManager_.GetCookieGroupSize() * GetChunkPoolOutput()->GetJobCounter()->GetPending() +
         SpeculativeJobManager_.GetPendingJobCount() +
         ExperimentJobManager_.GetPendingJobCount() +
-        MultiJobManager_.GetPendingJobCount();
+        DistributedJobManager_.GetPendingJobCount();
 
     ProbingJobManager_.UpdatePendingJobCount(&result);
 
@@ -629,8 +629,8 @@ TTask::GetOutputCookieInfoForFirstJob(const TAllocation& allocation)
     TOutputCookieInfo result;
 
     // The order here is very important: we want to prioritize jobs on incomplete groups over new groups.
-    if (MultiJobManager_.GetPendingJobCount() != 0) {
-        auto [cookie, index] = MultiJobManager_.PeekJobCandidate();
+    if (DistributedJobManager_.GetPendingJobCount() != 0) {
+        auto [cookie, index] = DistributedJobManager_.PeekJobCandidate();
         result.CompetitionType = EJobCompetitionType::Multi;
         result.OutputCookie = cookie;
         result.OutputCookieGroupIndex = index;
@@ -668,8 +668,8 @@ TTask::GetOutputCookieInfoForNextJob(const TAllocation& allocation)
 
     YT_VERIFY(allocation.LastJobInfo);
     // The order here is very important: we want to prioritize jobs on incomplete groups over new groups.
-    if (MultiJobManager_.GetPendingJobCount() != 0) {
-        auto [cookie, index] = MultiJobManager_.PeekJobCandidate();
+    if (DistributedJobManager_.GetPendingJobCount() != 0) {
+        auto [cookie, index] = DistributedJobManager_.PeekJobCandidate();
         result.CompetitionType = EJobCompetitionType::Multi;
         result.OutputCookie = cookie;
         result.OutputCookieGroupIndex = index;
@@ -795,7 +795,7 @@ std::expected<NScheduler::TJobResourcesWithQuota, EScheduleFailReason> TTask::Tr
         treeIsTentative);
 
     joblet->OutputCookie = outputCookieInfo.OutputCookie;
-    joblet->MultiJob.OutputCookieGroupIndex = outputCookieInfo.OutputCookieGroupIndex;
+    joblet->CookieGroupInfo.OutputCookieGroupIndex = outputCookieInfo.OutputCookieGroupIndex;
     joblet->CompetitionType = outputCookieInfo.CompetitionType;
 
     auto chunkPoolOutput = GetChunkPoolOutput();
@@ -1250,7 +1250,8 @@ void TTask::RegisterMetadata(auto&& registrar)
     PHOENIX_REGISTER_FIELD(37, CurrentMaxRunnableJobCount_,
         .SinceVersion(ESnapshotVersion::ThrottlingOfRemoteReads));
 
-    PHOENIX_REGISTER_FIELD(38, MultiJobManager_, .SinceVersion(ESnapshotVersion::MultiJobManagers));
+    PHOENIX_REGISTER_FIELD(38, DistributedJobManager_,
+        .SinceVersion(ESnapshotVersion::MultiJobManagers));
 
     registrar.AfterLoad([] (TThis* this_, auto& /*context*/) {
         // COMPAT(galtsev)
@@ -1687,7 +1688,7 @@ void TTask::AddSequentialInputSpec(
 {
     YT_ASSERT_INVOKER_AFFINITY(TaskHost_->GetJobSpecBuildInvoker());
 
-    if (joblet->MultiJob.OutputCookieGroupIndex > 0) {
+    if (joblet->CookieGroupInfo.OutputCookieGroupIndex > 0) {
         return;
     }
     auto* jobSpecExt = jobSpec->MutableExtension(TJobSpecExt::job_spec_ext);
@@ -1715,7 +1716,7 @@ void TTask::AddParallelInputSpec(
     YT_ASSERT_INVOKER_AFFINITY(TaskHost_->GetJobSpecBuildInvoker());
 
     auto* jobSpecExt = jobSpec->MutableExtension(TJobSpecExt::job_spec_ext);
-    if (joblet->MultiJob.OutputCookieGroupIndex > 0) {
+    if (joblet->CookieGroupInfo.OutputCookieGroupIndex > 0) {
         return;
     }
     auto directoryBuilderFactory = TNodeDirectoryBuilderFactory(
@@ -1838,7 +1839,7 @@ void TTask::AddOutputTableSpecs(
     const auto& outputStreamDescriptors = joblet->OutputStreamDescriptors;
     YT_VERIFY(joblet->ChunkListIds.size() == outputStreamDescriptors.size());
     auto* jobSpecExt = jobSpec->MutableExtension(TJobSpecExt::job_spec_ext);
-    if (joblet->MultiJob.OutputCookieGroupIndex > 0) {
+    if (joblet->CookieGroupInfo.OutputCookieGroupIndex > 0) {
         SetProtoExtension<NChunkClient::NProto::TDataSourceDirectoryExt>(
             jobSpecExt->mutable_extensions(),
             New<TDataSourceDirectory>());
@@ -2072,7 +2073,7 @@ void TTask::FinishTaskInput(const TTaskPtr& task) const
 
 void TTask::SetStreamDescriptors(TJobletPtr joblet) const
 {
-    if (joblet->MultiJob.OutputCookieGroupIndex == 0) {
+    if (joblet->CookieGroupInfo.OutputCookieGroupIndex == 0) {
         joblet->OutputStreamDescriptors = OutputStreamDescriptors_;
         joblet->InputStreamDescriptors = InputStreamDescriptors_;
     }
