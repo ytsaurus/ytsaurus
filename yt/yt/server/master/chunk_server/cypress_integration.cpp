@@ -462,7 +462,9 @@ private:
     {
         if (Type_ == EObjectType::ChunkMap) {
             const auto& chunkManager = Bootstrap_->GetChunkManager();
-            return MakeFuture(ToObjectIds(GetValues(chunkManager->Chunks(), limit)));
+            const auto& config = Bootstrap_->GetConfigManager()->GetConfig()->ChunkManager;
+            auto limitOverride = std::min(limit, config->VirtualChunkMapReadResultLimit);
+            return MakeFuture(ToObjectIds(GetValues(chunkManager->Chunks(), limitOverride)));
         } else if (IsLocal()) {
             return MakeFuture(GetFilteredChunkIds(limit));
         } else {
