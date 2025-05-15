@@ -13,37 +13,25 @@ using namespace NSecurityServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TTabletResources&& TTabletResources::SetTabletCount(i64 tabletCount) &&
-{
-    TabletCount = tabletCount;
-    return std::move(*this);
-}
-
-TTabletResources&& TTabletResources::SetTabletStaticMemory(i64 tabletStaticMemory) &&
-{
-    TabletStaticMemory = tabletStaticMemory;
-    return std::move(*this);
-}
-
 void TTabletResources::Save(NCellMaster::TSaveContext& context) const
 {
     using NYT::Save;
-    Save(context, TabletCount);
-    Save(context, TabletStaticMemory);
+    Save(context, TabletCount_);
+    Save(context, TabletStaticMemory_);
 }
 
 void TTabletResources::Load(NCellMaster::TLoadContext& context)
 {
     using NYT::Load;
-    Load(context, TabletCount);
-    Load(context, TabletStaticMemory);
+    Load(context, TabletCount_);
+    Load(context, TabletStaticMemory_);
 }
 
 void Serialize(const TTabletResources& tabletResources, NYTree::TFluentMap& fluent)
 {
     fluent
-        .Item("tablet_count").Value(tabletResources.TabletCount)
-        .Item("tablet_static_memory").Value(tabletResources.TabletStaticMemory);
+        .Item("tablet_count").Value(tabletResources.GetTabletCount())
+        .Item("tablet_static_memory").Value(tabletResources.GetTabletStaticMemory());
 }
 
 void Serialize(const TTabletResources& tabletResources, NYson::IYsonConsumer* consumer)
@@ -70,14 +58,14 @@ void Deserialize(TTabletResources& tabletResources, const NYTree::INodePtr& node
 
 void ToProto(NProto::TTabletResources* protoResources, const TTabletResources& resources)
 {
-    protoResources->set_tablet_count(resources.TabletCount);
-    protoResources->set_tablet_static_memory(resources.TabletStaticMemory);
+    protoResources->set_tablet_count(resources.GetTabletCount());
+    protoResources->set_tablet_static_memory(resources.GetTabletStaticMemory());
 }
 
 void FromProto(TTabletResources* resources, const NProto::TTabletResources& protoResources)
 {
-    resources->TabletCount = protoResources.tablet_count();
-    resources->TabletStaticMemory = protoResources.tablet_static_memory();
+    resources->SetTabletCount(protoResources.tablet_count());
+    resources->SetTabletStaticMemory(protoResources.tablet_static_memory());
 }
 
 TTabletResources operator+(TTabletResources lhs, const TTabletResources& rhs)
@@ -87,8 +75,8 @@ TTabletResources operator+(TTabletResources lhs, const TTabletResources& rhs)
 
 TTabletResources& operator+=(TTabletResources& lhs, const TTabletResources& rhs)
 {
-    lhs.TabletCount += rhs.TabletCount;
-    lhs.TabletStaticMemory += rhs.TabletStaticMemory;
+    lhs.SetTabletCount(lhs.GetTabletCount() + rhs.GetTabletCount());
+    lhs.SetTabletStaticMemory(lhs.GetTabletStaticMemory() + rhs.GetTabletStaticMemory());
     return lhs;
 }
 
@@ -99,23 +87,23 @@ TTabletResources operator-(TTabletResources lhs, const TTabletResources& rhs)
 
 TTabletResources& operator-=(TTabletResources& lhs, const TTabletResources& rhs)
 {
-    lhs.TabletCount -= rhs.TabletCount;
-    lhs.TabletStaticMemory -= rhs.TabletStaticMemory;
+    lhs.SetTabletCount(lhs.GetTabletCount() - rhs.GetTabletCount());
+    lhs.SetTabletStaticMemory(lhs.GetTabletStaticMemory() - rhs.GetTabletStaticMemory());
     return lhs;
 }
 
 TTabletResources operator-(const TTabletResources& value)
 {
     return TTabletResources()
-        .SetTabletCount(-value.TabletCount)
-        .SetTabletStaticMemory(-value.TabletStaticMemory);
+        .SetTabletCount(-value.GetTabletCount())
+        .SetTabletStaticMemory(-value.GetTabletStaticMemory());
 }
 
 void FormatValue(TStringBuilderBase* builder, const TTabletResources& resources, TStringBuf /*spec*/)
 {
     builder->AppendFormat("{TabletCount: %v, TabletStaticMemory: %v}",
-        resources.TabletCount,
-        resources.TabletStaticMemory);
+        resources.GetTabletCount(),
+        resources.GetTabletStaticMemory());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
