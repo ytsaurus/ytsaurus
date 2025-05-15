@@ -738,6 +738,10 @@ void TDynamicChunkManagerConfig::Register(TRegistrar registrar)
     registrar.Parameter("disposed_pending_restart_node_chunk_refresh_delay", &TThis::DisposedPendingRestartNodeChunkRefreshDelay)
         .Default(TDuration::Minutes(1));
 
+    registrar.Parameter("virtual_chunk_map_read_result_limit", &TThis::VirtualChunkMapReadResultLimit)
+        .GreaterThanOrEqual(0)
+        .Default(100);
+
     registrar.Parameter("enable_fix_requisition_update_on_merge", &TThis::EnableFixRequisitionUpdateOnMerge)
         .Default(false);
 
