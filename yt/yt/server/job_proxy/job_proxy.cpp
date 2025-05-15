@@ -795,9 +795,8 @@ void TJobProxy::EnableRpcProxyInJobProxy(int rpcProxyWorkerThreadPoolSize)
         New<TSampler>(),
         RpcProxyLogger(),
         TProfiler(),
-        NSignature::CreateAlwaysThrowingSignatureValidator(),
-        NSignature::CreateAlwaysThrowingSignatureGenerator());
-    // TODO(pavook) do signature validation in job proxies.
+        NSignature::CreateAlwaysThrowingSignatureValidator());
+    // TODO(pavook) do signature generation and validation in job proxies.
 
     GetRpcServer()->RegisterService(std::move(apiService));
     YT_LOG_INFO("RPC proxy API service registered (ThreadCount: %v)", rpcProxyWorkerThreadPoolSize);

@@ -2948,7 +2948,6 @@ public:
         , Logger(TableClientLogger().WithTag("Path: %v, TransactionId: %v",
             cookie.PatchInfo.RichPath,
             TransactionId_))
-        , DummySignatureGenerator_(NSignature::CreateDummySignatureGenerator())
     { }
 
     TFuture<void> Open()
@@ -3017,8 +3016,6 @@ private:
     // convert WriteResult_ to the proper type possibly to be signed
     // by rpc proxy later.
     TSignedWriteFragmentResultPtr SignedResult_;
-
-    const NSignature::ISignatureGeneratorPtr DummySignatureGenerator_;
 
     bool FirstRow_ = true;
 
@@ -3146,7 +3143,8 @@ private:
                 << underlyingWriterCloseError;
         }
 
-        SignedResult_ = TSignedWriteFragmentResultPtr(DummySignatureGenerator_->Sign(ConvertToYsonString(WriteResult_).ToString()));
+        const auto& signatureGenerator = Client_->GetNativeConnection()->GetSignatureGenerator();
+        SignedResult_ = TSignedWriteFragmentResultPtr(signatureGenerator->Sign(ConvertToYsonString(WriteResult_).ToString()));
 
         // Log all statistics.
         YT_LOG_DEBUG("Writer data statistics (DataStatistics: %v)", UnderlyingWriter_->GetDataStatistics());

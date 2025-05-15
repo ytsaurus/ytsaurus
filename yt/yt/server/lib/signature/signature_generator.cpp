@@ -49,7 +49,7 @@ TKeyInfoPtr TSignatureGenerator::KeyInfo() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TSignatureGenerator::Resign(const TSignaturePtr& signature) const
+void TSignatureGenerator::DoSign(const TSignaturePtr& signature) const
 {
     auto signatureId = TGuid::Create();
     auto now = Now();

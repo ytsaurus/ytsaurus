@@ -412,6 +412,16 @@ public:
         YT_UNIMPLEMENTED();
     }
 
+    NSignature::ISignatureGeneratorPtr GetSignatureGenerator() const override
+    {
+        YT_UNIMPLEMENTED();
+    }
+
+    void SetSignatureGenerator(NSignature::ISignatureGeneratorPtr /*generator*/) override
+    {
+        YT_UNIMPLEMENTED();
+    }
+
 private:
     const NDiscoveryClient::TDiscoveryConnectionConfigPtr Config_;
 };

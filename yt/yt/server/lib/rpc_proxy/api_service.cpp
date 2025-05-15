@@ -632,7 +632,6 @@ public:
         INodeMemoryTrackerPtr memoryTracker,
         IStickyTransactionPoolPtr stickyTransactionPool,
         ISignatureValidatorPtr signatureValidator,
-        ISignatureGeneratorPtr signatureGenerator,
         IQueryCorpusReporterPtr queryCorpusReporter)
         : TServiceBase(
             std::move(workerInvoker),
@@ -658,7 +657,6 @@ public:
             : nullptr)
         , HeavyRequestMemoryUsageTracker_(WithCategory(memoryTracker, EMemoryCategory::HeavyRequest))
         , SignatureValidator_(std::move(signatureValidator))
-        , SignatureGenerator_(std::move(signatureGenerator))
         , QueryCorpusReporter_(std::move(queryCorpusReporter))
         , UserAccessValidator_(CreateUserAccessValidator(
             ApiServiceConfig_->UserAccessValidator,
@@ -917,7 +915,6 @@ private:
     const THeapProfilerTestingOptionsPtr HeapProfilerTestingOptions_;
     const IMemoryUsageTrackerPtr HeavyRequestMemoryUsageTracker_;
     const ISignatureValidatorPtr SignatureValidator_;
-    const ISignatureGeneratorPtr SignatureGenerator_;
     const IQueryCorpusReporterPtr QueryCorpusReporter_;
     const IUserAccessValidatorPtr UserAccessValidator_;
 
@@ -6171,20 +6168,10 @@ private:
             options.AdjustDataWeightPerPartition,
             options.EnableCookies);
 
-        auto sign = [this_ = MakeStrong(this)] (TMultiTablePartitions&& partitions) {
-            for (auto& partition : partitions.Partitions) {
-                if (partition.Cookie) {
-                    partition.Cookie = this_->GenerateSignature<TTablePartitionCookiePtr>(std::move(partition.Cookie.Underlying()));
-                }
-            }
-            return std::move(partitions);
-        };
-
         ExecuteCall(
             context,
             [=] {
-                return client->PartitionTables(paths, options)
-                    .ApplyUnique(BIND(std::move(sign)));
+                return client->PartitionTables(paths, options);
             },
             [] (const auto& context, const auto& result) {
                 auto* response = &context->Response();
@@ -6296,13 +6283,6 @@ private:
     ////////////////////////////////////////////////////////////////////////////////
 
     // Signature helpers.
-    template <std::constructible_from<TSignaturePtr> TFinal>
-    TFinal GenerateSignature(TSignaturePtr&& emptySignature) const
-    {
-        SignatureGenerator_->Resign(emptySignature);
-        return TFinal(std::move(emptySignature));
-    }
-
     TFuture<bool> ValidateSignature(const TSignaturePtr& signedValue) const
     {
         return SignatureValidator_->Validate(signedValue);
@@ -6320,21 +6300,10 @@ private:
             "Path: %v",
             path);
 
-        auto signSessionAndCookies = [&, this_ = MakeStrong(this)] (TDistributedWriteSessionWithCookies&& sessionAndCookies) {
-            sessionAndCookies.Session = GenerateSignature<TSignedDistributedWriteSessionPtr>(std::move(sessionAndCookies.Session.Underlying()));
-
-            for (auto& cookie : sessionAndCookies.Cookies) {
-                cookie = GenerateSignature<TSignedWriteFragmentCookiePtr>(std::move(cookie.Underlying()));
-            }
-
-            return std::move(sessionAndCookies);
-        };
-
         ExecuteCall(
             context,
             [=] {
-                return client->StartDistributedWriteSession(path, options)
-                    .ApplyUnique(BIND(std::move(signSessionAndCookies)));
+                return client->StartDistributedWriteSession(path, options);
             },
             [] (const auto& context, const auto& result) {
                 context->Response().set_signed_session(ConvertToYsonString(result.Session).ToString());
@@ -6428,8 +6397,8 @@ private:
             request,
             tableWriter,
             [&, tableWriter] {
-                auto signedWriteResult = GenerateSignature<TSignedWriteFragmentResultPtr>(tableWriter->GetWriteFragmentResult().Underlying());
-                response->set_signed_write_result(ConvertToYsonString(signedWriteResult).ToString());
+                auto writeResult = tableWriter->GetWriteFragmentResult();
+                response->set_signed_write_result(ConvertToYsonString(writeResult).ToString());
             });
     }
 
@@ -7237,12 +7206,11 @@ IApiServicePtr CreateApiService(
     NLogging::TLogger logger,
     TProfiler profiler,
     ISignatureValidatorPtr signatureValidator,
-    ISignatureGeneratorPtr signatureGenerator,
     INodeMemoryTrackerPtr memoryUsageTracker,
     IStickyTransactionPoolPtr stickyTransactionPool,
     IQueryCorpusReporterPtr queryCorpusReporter)
 {
-    YT_VERIFY(signatureValidator && signatureGenerator);
+    YT_VERIFY(signatureValidator);
     return New<TApiService>(
         std::move(config),
         std::move(controlInvoker),
@@ -7257,7 +7225,6 @@ IApiServicePtr CreateApiService(
         std::move(memoryUsageTracker),
         std::move(stickyTransactionPool),
         std::move(signatureValidator),
-        std::move(signatureGenerator),
         std::move(queryCorpusReporter));
 }
 
