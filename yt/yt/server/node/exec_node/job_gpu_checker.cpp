@@ -102,6 +102,10 @@ TFuture<void> TJobGpuChecker::RunGpuCheck()
     checkCommand->Args = std::move(Context_.GpuCheckBinaryArgs);
     checkCommand->EnvironmentVariables = std::move(Context_.GpuCheckEnvironment);
 
+    if (Context_.InfinibandCluster) {
+        checkCommand->EnvironmentVariables.emplace("YT_INFINIBAND_CLUSTER", *Context_.InfinibandCluster);
+    }
+
     YT_LOG_INFO("Running GPU check commands (Type: %v)", Context_.GpuCheckType);
 
     if (Context_.TestExtraGpuCheckCommandFailure) {

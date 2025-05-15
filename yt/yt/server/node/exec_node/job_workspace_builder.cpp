@@ -630,6 +630,7 @@ private:
                 // It is preliminary (not extra) GPU check.
                 .TestExtraGpuCheckCommandFailure = false,
                 .GpuDevices = Context_.GpuDevices,
+                .InfinibandCluster = Context_.InfinibandCluster,
             };
 
             auto checker = New<TJobGpuChecker>(std::move(context), Logger);

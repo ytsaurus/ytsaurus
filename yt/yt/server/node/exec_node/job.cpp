@@ -2416,7 +2416,8 @@ void TJob::RunWithWorkspaceBuilder()
             ? std::make_optional(gpuCheckEnvironment)
             : std::nullopt,
         .GpuCheckType = EGpuCheckType::Preliminary,
-        .GpuDevices = devices
+        .GpuDevices = devices,
+        .InfinibandCluster = Bootstrap_->GetConfig()->CypressAnnotations->FindChildValue<TString>(InfinibandClusterNameKey),
     };
 
     auto workspaceBuilder = GetUserSlot()->CreateJobWorkspaceBuilder(
@@ -2701,7 +2702,8 @@ void TJob::OnJobProxyFinished(const TError& error)
             .GpuCheckType = EGpuCheckType::Extra,
             .CurrentStartIndex = SetupCommandCount_,
             .TestExtraGpuCheckCommandFailure = Bootstrap_->GetGpuManager()->ShouldTestExtraGpuCheckCommandFailure(),
-            .GpuDevices = GetGpuDevices()
+            .GpuDevices = GetGpuDevices(),
+            .InfinibandCluster = Bootstrap_->GetConfig()->CypressAnnotations->FindChildValue<TString>(InfinibandClusterNameKey),
         };
 
         auto checker = New<TJobGpuChecker>(std::move(context), Logger);

@@ -58,6 +58,7 @@ struct TJobWorkspaceBuildingContext
     std::optional<THashMap<TString, TString>> GpuCheckEnvironment;
     EGpuCheckType GpuCheckType;
     std::vector<NContainers::TDevice> GpuDevices;
+    std::optional<TString> InfinibandCluster;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

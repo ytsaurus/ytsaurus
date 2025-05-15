@@ -37,6 +37,7 @@ struct TJobGpuCheckerContext
     int CurrentStartIndex;
     bool TestExtraGpuCheckCommandFailure;
     std::vector<NContainers::TDevice> GpuDevices;
+    std::optional<TString> InfinibandCluster;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
