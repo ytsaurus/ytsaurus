@@ -835,6 +835,19 @@ bool TSlotManager::Disable(TError error)
 
     const auto& jobController = Bootstrap_->GetJobController();
 
+    if (auto syncResult = WaitFor(jobController->AbortAllJobs(jobsAbortionError).WithTimeout(timeout));
+        !syncResult.IsOK())
+    {
+        YT_LOG_FATAL(
+            syncResult,
+            "Free slot synchronization failed (ActualSlotCount: %v, TotalSlots: %v, InitializedSlots: %v, InitializationEpoch: %v, ActualSlots: %v)",
+            size(FreeSlots_),
+            SlotCount_,
+            InitializedSlotCount_.load(),
+            InitializationEpoch_,
+            TRingQueueIterableWrapper(FreeSlots_));
+    }
+
     if (auto volumeManager = RootVolumeManager_.Acquire()) {
         auto result = WaitFor(volumeManager->GetVolumeReleaseEvent()
             .Apply(BIND(&IVolumeManager::DisableLayerCache, volumeManager, Passed(std::move(error)))
@@ -847,19 +860,6 @@ bool TSlotManager::Disable(TError error)
                 result,
                 "Free volume synchronization failed");
         }
-    }
-
-    if (auto syncResult = WaitFor(jobController->AbortAllJobs(jobsAbortionError).WithTimeout(timeout));
-        !syncResult.IsOK())
-    {
-        YT_LOG_FATAL(
-            syncResult,
-            "Free slot synchronization failed (ActualSlotCount: %v, TotalSlots: %v, InitializedSlots: %v, InitializationEpoch: %v, ActualSlots: %v)",
-            size(FreeSlots_),
-            SlotCount_,
-            InitializedSlotCount_.load(),
-            InitializationEpoch_,
-            TRingQueueIterableWrapper(FreeSlots_));
     }
 
     YT_LOG_WARNING("Disable slot manager finished");
