@@ -118,6 +118,10 @@ TFuture<void> TJobGpuChecker::RunGpuCheck()
         }
     }
 
+    if (Context_.Options.InfinibandCluster) {
+        checkCommand->EnvironmentVariables.emplace("YT_INFINIBAND_CLUSTER", *Context_.Options.InfinibandCluster);
+    }
+
     YT_LOG_INFO("Running GPU check commands");
 
     if (Context_.TestExtraGpuCheckCommandFailure) {

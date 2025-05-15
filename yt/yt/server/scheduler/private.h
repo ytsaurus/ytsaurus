@@ -177,8 +177,6 @@ inline const NLogging::TLogger NodeShardLogger{"NodeShard"};
 
 inline constexpr char DefaultOperationTag[] = "default";
 
-inline const TString InfinibandClusterNameKey{"infiniband_cluster_tag"};
-
 constexpr int UndefinedSchedulingIndex = -1;
 
 static constexpr int LargeGpuAllocationGpuDemand = 8;
