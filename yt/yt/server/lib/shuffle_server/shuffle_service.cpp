@@ -53,7 +53,7 @@ public:
     {
         auto parentTransactionId = FromProto<TTransactionId>(request->parent_transaction_id());
         int partitionCount = request->partition_count();
-        auto account = request->account();
+        const auto& account = request->account();
 
         context->SetRequestInfo(
             "ParentTransaction: %v, Account: %v, PartitionCount: %v",
@@ -93,19 +93,24 @@ public:
         auto shuffleHandle = ConvertTo<TShuffleHandlePtr>(TYsonString(request->shuffle_handle()));
 
         auto writerIndex = request->has_writer_index() ? std::optional<int>(request->writer_index()) : std::nullopt;
+        bool overwriteExistingWriterData = request->overwrite_existing_writer_data();
+
+        YT_VERIFY(!overwriteExistingWriterData || writerIndex.has_value());
 
         context->SetRequestInfo(
-            "ShuffleHandle: %v, ChunkCount: %v, MapperId: %v",
+            "ShuffleHandle: %v, ChunkCount: %v, MapperId: %v, OverwriteExistingWriterData: %v",
             shuffleHandle,
             request->chunk_specs_size(),
-            writerIndex);
+            writerIndex,
+            overwriteExistingWriterData);
 
         auto chunks = FromProto<std::vector<TInputChunkPtr>>(request->chunk_specs());
 
         WaitFor(ShuffleManager_->RegisterChunks(
             shuffleHandle->TransactionId,
             chunks,
-            writerIndex))
+            writerIndex,
+            overwriteExistingWriterData))
             .ThrowOnError();
 
         context->Reply();

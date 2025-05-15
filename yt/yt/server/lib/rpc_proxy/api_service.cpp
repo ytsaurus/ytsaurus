@@ -7076,13 +7076,16 @@ private:
             request->partition_index(),
             writerIndexRange);
 
-        auto readerConfig = ConvertTo<NTableClient::TTableReaderConfigPtr>(TYsonString(request->reader_config()));
+        TShuffleReaderOptions options;
+        options.Config = request->has_reader_config()
+            ? ConvertTo<TTableReaderConfigPtr>(TYsonString(request->reader_config()))
+            : New<TTableReaderConfig>();
 
         auto reader = WaitFor(client->CreateShuffleReader(
             shuffleHandle,
             request->partition_index(),
             writerIndexRange,
-            readerConfig))
+            options))
             .ValueOrThrow();
 
         auto encoder = CreateWireRowStreamEncoder(reader->GetNameTable());
@@ -7117,8 +7120,6 @@ private:
     {
         auto client = GetAuthenticatedClientOrThrow(context, request);
 
-        auto writerConfig = ConvertTo<NTableClient::TTableWriterConfigPtr>(TYsonString(request->writer_config()));
-
         auto shuffleHandle = ConvertTo<TShuffleHandlePtr>(TYsonString(request->shuffle_handle()));
 
         auto partitionColumn = request->partition_column();
@@ -7136,8 +7137,24 @@ private:
             THROW_ERROR_EXCEPTION("Received negative writer index %v", *writerIndex);
         }
 
+        TShuffleWriterOptions options;
+        options.Config = ConvertTo<TTableWriterConfigPtr>(TYsonString(
+            request->has_writer_config()
+            ? request->writer_config()
+            : "{}"));
+
+
+        options.Config = request->has_writer_config()
+            ? ConvertTo<TTableWriterConfigPtr>(TYsonString(request->writer_config()))
+            : New<TTableWriterConfig>();
+
+        options.OverwriteExistingWriterData = request->overwrite_existing_writer_data();
+        if (options.OverwriteExistingWriterData && !writerIndex.has_value()) {
+            THROW_ERROR_EXCEPTION("Writer index must be set when overwrite existing writer data option is enabled");
+        }
+
         auto writer = WaitFor(
-            client->CreateShuffleWriter(shuffleHandle, partitionColumn, writerIndex, writerConfig))
+            client->CreateShuffleWriter(shuffleHandle, partitionColumn, writerIndex, options))
             .ValueOrThrow();
 
         auto decoder = CreateWireRowStreamDecoder(writer->GetNameTable());

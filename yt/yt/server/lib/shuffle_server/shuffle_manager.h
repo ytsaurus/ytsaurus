@@ -24,7 +24,8 @@ struct IShuffleManager
     virtual TFuture<void> RegisterChunks(
         NObjectClient::TTransactionId transactionId,
         std::vector<NChunkClient::TInputChunkPtr> chunks,
-        std::optional<int> writerIndex) = 0;
+        std::optional<int> writerIndex,
+        bool overwriteExistingWriterData) = 0;
 
     virtual TFuture<std::vector<NChunkClient::TInputChunkSlicePtr>> FetchChunks(
         NObjectClient::TTransactionId transactionId,

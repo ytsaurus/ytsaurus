@@ -17,7 +17,8 @@ struct IShuffleController
 {
     virtual TFuture<void> RegisterChunks(
         std::vector<NChunkClient::TInputChunkPtr> chunks,
-        std::optional<int> writerIndex) = 0;
+        std::optional<int> writerIndex,
+        bool overwriteExistingWriterData) = 0;
 
     virtual TFuture<std::vector<NChunkClient::TInputChunkSlicePtr>> FetchChunks(
         int partitionIndex,
