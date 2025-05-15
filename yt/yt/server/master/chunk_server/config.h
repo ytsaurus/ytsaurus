@@ -735,6 +735,8 @@ struct TDynamicChunkManagerConfig
 
     TDuration DisposedPendingRestartNodeChunkRefreshDelay;
 
+    i64 VirtualChunkMapReadResultLimit;
+
     // COMPAT(kvk1920): YT-17756.
     bool EnableFixRequisitionUpdateOnMerge;
 

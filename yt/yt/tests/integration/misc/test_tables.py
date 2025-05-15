@@ -5,7 +5,7 @@ from yt_commands import (
     copy, remove,
     exists, concatenate, create_user, start_transaction, abort_transaction, commit_transaction, lock, alter_table, write_file, read_table,
     write_table, read_blob_table, map, map_reduce, merge,
-    sort, remote_copy, get_first_chunk_id,
+    sort, remote_copy, get_first_chunk_id, ls,
     get_singular_chunk_id, get_chunk_replication_factor, set_all_nodes_banned,
     get_recursive_disk_space, get_chunk_owner_disk_space, raises_yt_error, sorted_dicts,
 )
@@ -2852,6 +2852,22 @@ class TestTables(YTEnvSetup):
         set("//sys/@config/table_manager/non_opaque_schema_attribute_user_whitelist", ["u"])
         assert get("//tmp/t/@", authenticated_user="root")["schema"] == yson.YsonEntity()
         assert get("//tmp/t/@", authenticated_user="u")["schema"][0]["name"] == "x"
+
+    @authors("h0pless")
+    def test_virtual_map(self):
+        set("//sys/@config/chunk_manager/virtual_chunk_map_read_result_limit", 1)
+
+        create("table", "//tmp/table")
+        write_table("//tmp/table", {"1": "hello"})
+        write_table("<append=true>//tmp/table", {"2": "hi"})
+        write_table("<append=true>//tmp/table", {"3": "greetings"})
+
+        wait(lambda: get("//sys/chunks/@count") == 3)
+        assert len(ls("//sys/chunks")) == 1
+        assert len(get("//sys/chunks")) == 1
+
+        assert len(ls("//sys/chunks", max_size=100500)) == 1
+        assert len(get("//sys/chunks", max_size=100500)) == 1
 
 
 ##################################################################
